@@ -1,0 +1,20 @@
+{
+  "name": "올잇 - 에어컨 현장작업 플랫폼",
+  "short_name": "올잇",
+  "description": "에어컨 세척, 설치, 수리, 점검, 냉매충전 현장작업 운영관리",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1A1512",
+  "theme_color": "#FF1B8D",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/plug.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "ko"
+}
