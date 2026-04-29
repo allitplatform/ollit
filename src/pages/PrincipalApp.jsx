@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createTask } from "../api.js";
 import { 
   Sun, Moon, RotateCcw, ClipboardPaste, Plus, Send, ArrowLeft,
   ClipboardList, Wallet, Building2, ChevronRight, AlertCircle,
@@ -335,16 +336,49 @@ function NewTab({ t, onSubmit }) {
     setText(SAMPLE_KAKAO);
   };
   
-  const submit = () => {
-    const newTask = {
-      id: `${PRINCIPAL.prefix}260428-${String(Math.floor(Math.random() * 900) + 100)}`,
-      customer: name, phone, address, workType, quantity,
-      region: address.split(/[구동]/)[0]?.trim() || "기타",
-      status: "미배정", engineer: null,
-      scheduled: dateText && timeText ? `${dateText} ${timeText}` : null,
-      memo,
-    };
-    onSubmit(newTask);
+  const [submitting, setSubmitting] = useState(false);
+  
+  const submit = async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    
+    try {
+      // 백엔드 API 호출 - 진짜 시트에 저장!
+      const result = await createTask({
+        principal: '쿨가이',  // 김쿨가이 = K
+        channel: '카톡',
+        customer: name,
+        phone: phone,
+        address: address,
+        summary: `${workType} ${quantity}대`,
+        totalQty: quantity,
+        requestedDate: dateText,
+        requestedTime: timeText,
+        requestNote: memo,
+        items: [
+          { workType: '세척', appliance: workType, qty: quantity, price: 0 }
+        ]
+      });
+      
+      if (result.ok) {
+        // 성공! 작업번호 받음
+        const newTask = {
+          id: result.taskId,  // 백엔드에서 받은 진짜 작업번호!
+          customer: name, phone, address, workType, quantity,
+          region: address.split(/[구동]/)[0]?.trim() || "기타",
+          status: "미배정", engineer: null,
+          scheduled: dateText && timeText ? `${dateText} ${timeText}` : null,
+          memo,
+        };
+        onSubmit(newTask);
+      } else {
+        alert('등록 실패: ' + (result.error || '알 수 없는 오류'));
+      }
+    } catch (err) {
+      alert('네트워크 오류: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
   
   const canSubmit = name && phone && address && workType;
@@ -477,20 +511,20 @@ function NewTab({ t, onSubmit }) {
 
           <button
             onClick={submit}
-            disabled={!canSubmit}
+            disabled={!canSubmit || submitting}
             style={{
               width: "100%", padding: "16px", marginTop: 8,
-              background: canSubmit ? t.accent : t.bgInset,
-              color: canSubmit ? "white" : t.textMuted,
+              background: (canSubmit && !submitting) ? t.accent : t.bgInset,
+              color: (canSubmit && !submitting) ? "white" : t.textMuted,
               border: "none", borderRadius: 12,
               fontSize: 14, fontWeight: 700,
-              cursor: canSubmit ? "pointer" : "not-allowed",
+              cursor: (canSubmit && !submitting) ? "pointer" : "not-allowed",
               fontFamily: "inherit",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             }}
           >
             <Send size={16}/>
-            <span>접수 등록하기</span>
+            <span>{submitting ? '저장 중...' : '접수 등록하기'}</span>
           </button>
         </div>
       )}
