@@ -620,13 +620,17 @@ function MainScreen({
     .filter(x => x.status === "확정" && (x.time || x.scheduledTime))
     .sort((a, b) => (a.time || a.scheduledTime || "99:99").localeCompare(b.time || b.scheduledTime || "99:99"));
 
-  // 한 줄 요약
+  // 한 줄 요약 — V14: 작업 종류별 (도구 준비 가이드)
   const counts = {
     inProgress: tasks.filter(x => x.status === "진행중").length,
     confirmed:  tasks.filter(x => x.status === "확정").length,
     waiting:    newAssignments.length,
   };
   const total = counts.inProgress + counts.confirmed + counts.waiting;
+  const workTypeCounts = {
+    세척:     tasks.filter(x => x.workType === "세척"     && x.status !== "완료").length,
+    냉매충전: tasks.filter(x => x.workType === "냉매충전" && x.status !== "완료").length,
+  };
 
   return (
     <div style={{
@@ -655,12 +659,12 @@ function MainScreen({
           alignItems: "center", marginBottom: 6,
         }}>
           <span className="mono" style={{
-            fontSize: 9, color: "var(--text-secondary)",
-            letterSpacing: 2, fontWeight: 500,
+            fontSize: 11, color: "var(--text-secondary)",
+            letterSpacing: 1.5, fontWeight: 500,
           }}>
             MON · 27 APR · {NOW}
           </span>
-          <span style={{ fontSize: 9, color: "var(--text-primary)" }}>
+          <span style={{ fontSize: 11, color: "var(--text-primary)" }}>
             <span className="pulse-subtle" style={{
               display: "inline-block", width: 6, height: 6,
               borderRadius: "50%", background: "#FF1B8D",
@@ -670,7 +674,7 @@ function MainScreen({
           </span>
         </div>
         <div style={{
-          fontSize: 22, fontWeight: 700,
+          fontSize: 22, fontWeight: 800,
           color: "var(--text-primary)",
           letterSpacing: "-0.02em",
         }}>
@@ -679,26 +683,39 @@ function MainScreen({
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
           marginTop: 4,
+          display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6,
         }}>
-          오늘 {total}건
-          {counts.inProgress > 0 && (
-            <> · <span style={{ color: "#FF1B8D", fontWeight: 700 }}>진행중 {counts.inProgress}</span></>
+          <span>오늘 {total}건</span>
+          {workTypeCounts.세척 > 0 && (
+            <>
+              <span style={{ color: "var(--text-tertiary)" }}>·</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <ServiceTypeIcon workType="세척" size={12} showLabel={false}/>
+                <span style={{ color: "#0EA5E9", fontWeight: 700 }}>세척 {workTypeCounts.세척}</span>
+              </span>
+            </>
           )}
-          {counts.confirmed > 0 && <> · 다음 {counts.confirmed}</>}
-          {counts.waiting > 0 && (
-            <> · <span style={{ color: "#FFB300", fontWeight: 700 }}>약속미정 {counts.waiting}</span></>
+          {workTypeCounts.냉매충전 > 0 && (
+            <>
+              <span style={{ color: "var(--text-tertiary)" }}>·</span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+                <ServiceTypeIcon workType="냉매충전" size={12} showLabel={false}/>
+                <span style={{ color: "#FFB800", fontWeight: 700 }}>냉매충전 {workTypeCounts.냉매충전}</span>
+              </span>
+            </>
           )}
         </div>
       </div>
 
-      {/* 2. 진행중 박스 (catch #9 — 전체 주소 + 전화/길찾기) */}
+      {/* 2. 진행중 박스 (V14 — 보더 핫핑크 / 배경 X) */}
       {activeTask && (
         <div
           onClick={() => onTaskClick(activeTask.id)}
           className="clickable"
           style={{
             margin: "0 16px 14px",
-            background: "var(--bg-secondary)",
+            background: "transparent",
+            border: "2px solid #FF1B8D",
             borderRadius: 14,
             padding: 14,
             cursor: "pointer",
@@ -715,28 +732,28 @@ function MainScreen({
                 display: "inline-block",
               }}/>
               <span style={{
-                fontSize: 12, color: "#FF1B8D", fontWeight: 700,
+                fontSize: 13, color: "#FF1B8D", fontWeight: 800,
               }}>
                 진행중
               </span>
             </div>
-            <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+            <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
               {formatProgress(activeTask.startedAt)} 진행
             </span>
           </div>
 
           <div style={{
             display: "flex", alignItems: "center",
-            justifyContent: "space-between", marginBottom: 4,
+            justifyContent: "space-between", marginBottom: 6,
           }}>
             <div style={{
-              fontSize: 22, fontWeight: 700,
+              fontSize: 22, fontWeight: 800,
               color: "var(--text-primary)",
             }}>
               {activeTask.customer}
             </div>
             <span style={{
-              fontSize: 18, color: "var(--text-secondary)",
+              fontSize: 20, color: "var(--text-secondary)",
               marginLeft: 8,
             }}>
               ›
@@ -745,30 +762,30 @@ function MainScreen({
 
           {/* 작업 종류 + 기종 */}
           <div style={{
-            display: "flex", alignItems: "center", gap: 6, marginBottom: 6,
+            display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
           }}>
-            <ServiceTypeIcon workType={activeTask.workType} size={14} showLabel={true}/>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+            <ServiceTypeIcon workType={activeTask.workType} size={15} showLabel={true}/>
+            <span style={{ fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
               {activeTask.appliance}{activeTask.qty ? ` ×${activeTask.qty}` : ""}
             </span>
           </div>
 
-          {/* catch #9 — 전체 주소 */}
+          {/* 전체 주소 */}
           <div style={{
-            fontSize: 12, color: "var(--text-primary)",
-            marginBottom: 6, lineHeight: 1.4,
+            fontSize: 14, color: "var(--text-primary)",
+            marginBottom: 8, lineHeight: 1.5,
           }}>
             📍 {activeTask.fullAddress || activeTask.address || "—"}
           </div>
 
           <div style={{
-            fontSize: 11, color: "var(--text-secondary)", marginBottom: 12,
+            fontSize: 12, color: "var(--text-secondary)", marginBottom: 14, fontWeight: 500,
           }}>
             시작 {activeTask.startedAt || activeTask.scheduledTime || "—"}
             {activeTask.endTime ? ` · 예상 종료 ${activeTask.endTime}` : ""}
           </div>
 
-          {/* V13-FINAL2-fix4 — 진행중 카드 = 단색 핫핑크 (빠른 액션) */}
+          {/* V14 — 통화 = 초록 #34C759 / 길찾기 = 흰 배경 + 핑크 글자·아이콘 */}
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
           }}>
@@ -776,66 +793,70 @@ function MainScreen({
               onClick={(e) => { e.stopPropagation(); makeTel(activeTask.phone); }}
               style={{
                 padding: 12,
-                background: "#FF1B8D",
+                background: "#34C759",
                 border: "none",
                 borderRadius: 8,
                 color: "#fff",
-                fontSize: 12, fontWeight: 700,
+                fontSize: 13, fontWeight: 800,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center",
                 justifyContent: "center", gap: 6,
               }}
             >
-              <PhoneSvgColored color="#fff"/> 전화
+              <PhoneSvgColored color="#fff"/> 통화
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); openMapForTask(activeTask); }}
               style={{
                 padding: 12,
-                background: "#FF1B8D",
-                border: "none",
+                background: "#FFFFFF",
+                border: "2px solid #FF1B8D",
                 borderRadius: 8,
-                color: "#fff",
-                fontSize: 12, fontWeight: 700,
+                color: "#FF1B8D",
+                fontSize: 13, fontWeight: 800,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center",
                 justifyContent: "center", gap: 6,
               }}
             >
-              <NavSvgColored color="#fff"/> 길찾기
+              <NavSvgColored color="#FF1B8D"/> 길찾기
             </button>
           </div>
         </div>
       )}
 
-      {/* 3. 수락 대기 박스 (조건부 — 가스 자동 배정 콜) */}
-      {pendingAcceptances.length > 0 && (
-        <div
-          onClick={onClickAcceptanceList}
-          className="clickable"
-          style={{
-            margin: "0 16px 8px",
-            background: "var(--bg-secondary)",
-            borderRadius: 10,
-            padding: 12,
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 16 }}>🔔</span>
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: 13, color: "var(--text-primary)", fontWeight: 700,
-              }}>
-                <span style={{ color: "#FFB300" }}>수락 대기</span> · {pendingAcceptances.length}건
+      {/* 3. 수락 대기 박스 (V14 — 노란 채우기 + 작업명 명시) */}
+      {pendingAcceptances.length > 0 && (() => {
+        const workTypes = [...new Set(pendingAcceptances.map(p => p.workType).filter(Boolean))];
+        const workTypeLabel = workTypes.length === 1 ? workTypes[0] : "";
+        return (
+          <div
+            onClick={onClickAcceptanceList}
+            className="clickable"
+            style={{
+              margin: "0 16px 8px",
+              background: "#FFB800",
+              borderRadius: 10,
+              padding: 14,
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 18 }}>⚡</span>
+              <div style={{ flex: 1 }}>
+                <div style={{
+                  fontSize: 14, color: "#1A1512", fontWeight: 800,
+                }}>
+                  {workTypeLabel ? `${workTypeLabel} 수락 대기` : "수락 대기"} · {pendingAcceptances.length}건
+                </div>
               </div>
+              <span style={{ fontSize: 16, color: "#1A1512" }}>›</span>
             </div>
-            <span style={{ fontSize: 14, color: "#FFB300" }}>›</span>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* 4. 새 배정 박스 (조건부) — 단색 핫핑크 + 종 모양 */}
+      {/* 4. 새 배정 박스 (V14 — 핑크 채우기 그대로 / 50대 글자) */}
       {newAssignments.length > 0 && (
         <div
           onClick={onClickNewAssignmentList}
@@ -852,31 +873,31 @@ function MainScreen({
             <span style={{ fontSize: 18 }}>🔔</span>
             <div style={{ flex: 1 }}>
               <div style={{
-                fontSize: 13, color: "#fff", fontWeight: 700,
+                fontSize: 14, color: "#fff", fontWeight: 800,
               }}>
                 새 배정 · {newAssignments.length}건
               </div>
             </div>
-            <span style={{ fontSize: 14, color: "#fff", opacity: 0.85 }}>›</span>
+            <span style={{ fontSize: 16, color: "#fff" }}>›</span>
           </div>
         </div>
       )}
 
-      {/* 5. 다음 일정 (시간순) */}
+      {/* 5. 다음 일정 (시간순) — V14 50대 글자 크기 */}
       <div style={{ padding: "0 16px" }}>
         <div style={{
-          fontSize: 11, color: "var(--text-secondary)",
-          marginBottom: 8, paddingLeft: 4,
+          fontSize: 13, color: "var(--text-secondary)",
+          marginBottom: 10, paddingLeft: 4, fontWeight: 700,
         }}>
           📅 다음 일정
         </div>
 
         {upcomingTasks.length === 0 ? (
           <div style={{
-            padding: 18, textAlign: "center",
-            color: "var(--text-tertiary)", fontSize: 11,
+            padding: 22, textAlign: "center",
+            color: "var(--text-tertiary)", fontSize: 13,
             background: "var(--bg-secondary)",
-            borderRadius: 8,
+            borderRadius: 10,
           }}>
             예정된 일정 없음
           </div>
@@ -888,49 +909,52 @@ function MainScreen({
               className="clickable"
               style={{
                 display: "flex", alignItems: "center",
-                padding: 12,
+                padding: 14,
                 background: "var(--bg-secondary)",
-                borderRadius: 8,
-                marginBottom: 6,
+                borderRadius: 10,
+                marginBottom: 8,
                 cursor: "pointer",
               }}
             >
-              <div style={{ width: 60 }}>
+              <div style={{ width: 64 }}>
                 <div className="mono" style={{
-                  fontSize: 16, color: "var(--text-primary)",
-                  fontWeight: 700,
+                  fontSize: 17, color: "var(--text-primary)",
+                  fontWeight: 800,
                 }}>
                   {task.time || task.scheduledTime || "—"}
                 </div>
-                <div style={{ fontSize: 9, color: "var(--text-secondary)" }}>
-                  {task.duration || ""}
-                </div>
+                {task.duration && (
+                  <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                    {task.duration}
+                  </div>
+                )}
               </div>
-              <div style={{ flex: 1, padding: "0 8px", minWidth: 0 }}>
-                <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700 }}>
-                  {task.customer}
+              <div style={{ flex: 1, padding: "0 10px", minWidth: 0 }}>
+                <div style={{
+                  fontSize: 16, color: "var(--text-primary)", fontWeight: 700,
+                  display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
+                }}>
+                  <span>{task.customer}</span>
                   <span style={{
-                    fontSize: 9, color: "var(--text-secondary)",
-                    fontWeight: 400, marginLeft: 6,
+                    fontSize: 12, color: "var(--text-secondary)",
+                    fontWeight: 500,
                   }}>
                     {task.address}
                   </span>
                 </div>
                 <div style={{
-                  fontSize: 9, color: "var(--text-primary)",
-                  marginTop: 2,
+                  fontSize: 13,
+                  marginTop: 4,
                   display: "flex", alignItems: "center", gap: 4,
                 }}>
-                  <ServiceTypeIcon workType={task.workType} size={12} showLabel={false}/>
-                  <span style={{ color: "var(--text-secondary)" }}>
-                    {task.workType}{task.appliance ? ` · ${task.appliance}` : ""}
-                    {task.qty ? ` ×${task.qty}` : ""}
+                  <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
+                  <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>
+                    {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
                   </span>
                 </div>
               </div>
-              <StatusPill status={task.status}/>
               <span style={{
-                fontSize: 9, color: "var(--text-secondary)", marginLeft: 6,
+                fontSize: 18, color: "var(--text-secondary)",
               }}>›</span>
             </div>
           ))
