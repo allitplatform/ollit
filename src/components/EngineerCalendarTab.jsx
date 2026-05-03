@@ -1,5 +1,5 @@
-// V13-FINAL2 — 기사 PWA 캘린더 탭
-// 월 캘린더 (점/휴무/오늘 보더) + 일별 작업 리스트 + 휴무 추가
+// V14 — 기사 PWA 캘린더 탭 (토글 3개)
+// 오늘 = 시간순 타임라인 / 주간 = 7일 그룹 / 월간 = 큰 캘린더 + 휴무 추가
 
 import { useMemo, useState } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
@@ -7,20 +7,32 @@ import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import {
   CalendarGrid, Legend,
   formatYmd, formatMonthLabel, formatMonthShort, formatDateLong,
-  isToday, addMonths,
+  isToday, isSameDay, addMonths,
 } from "./CalendarGrid.jsx";
 
 const navBtnStyle = {
-  width: 32, height: 32,
+  width: 36, height: 36,
   background: "transparent",
   border: "none",
-  color: "#FF1B8D", fontSize: 22, fontWeight: 700,
+  color: "#FF1B8D", fontSize: 24, fontWeight: 700,
   lineHeight: 1, cursor: "pointer", fontFamily: "inherit",
   padding: "4px 8px",
 };
 
 function countByStatus(tasks, status) {
   return tasks.filter(t => t.status === status).length;
+}
+
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
+function compareTime(a, b) {
+  const ta = a.scheduledTime || a.time || "99:99";
+  const tb = b.scheduledTime || b.time || "99:99";
+  return ta.localeCompare(tb);
 }
 
 export function EngineerCalendarTab({
@@ -32,6 +44,7 @@ export function EngineerCalendarTab({
   onTabChange,
   unreadCount = 0,
 }) {
+  const [view, setView] = useState("month");           // today / week / month
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -65,8 +78,37 @@ export function EngineerCalendarTab({
 
   const dayTasks = useMemo(() => {
     const k = formatYmd(selectedDate);
-    return monthData.byDate[k]?.tasks || [];
+    return [...(monthData.byDate[k]?.tasks || [])].sort(compareTime);
   }, [monthData, selectedDate]);
+
+  // 오늘 타임라인용
+  const todayTasks = useMemo(() => {
+    const today = new Date();
+    return tasks
+      .filter(t => {
+        const day = t.scheduledDate || t.workDate;
+        return day && isSameDay(new Date(day), today);
+      })
+      .sort(compareTime);
+  }, [tasks]);
+
+  // 주간용 (오늘부터 7일)
+  const weekDays = useMemo(() => {
+    const today = new Date();
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const date = addDays(today, i);
+      const dayTasks = tasks
+        .filter(t => {
+          const day = t.scheduledDate || t.workDate;
+          return day && isSameDay(new Date(day), date);
+        })
+        .sort(compareTime);
+      const offDay = (offDays || []).some(o => o.date && isSameDay(new Date(o.date), date));
+      days.push({ date, tasks: dayTasks, offDay });
+    }
+    return days;
+  }, [tasks, offDays]);
 
   return (
     <div style={{
@@ -74,55 +116,121 @@ export function EngineerCalendarTab({
       background: "var(--bg-primary)",
       paddingBottom: 80,
       color: "var(--text-primary)",
+      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
     }}>
       {/* 헤더 */}
       <div style={{
-        padding: "14px 16px", borderBottom: "1px solid var(--border)",
+        padding: "16px 16px 14px", borderBottom: "1px solid var(--border)",
         position: "sticky", top: 0, zIndex: 10,
         background: "var(--bg-primary)",
       }}>
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 12,
         }}>
           <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>📅 캘린더</div>
+            <div style={{ fontSize: 22, fontWeight: 800 }}>📅 캘린더</div>
             <div style={{
-              fontSize: 12, color: "var(--text-secondary)", marginTop: 2,
+              fontSize: 13, color: "var(--text-secondary)", marginTop: 4, fontWeight: 500,
             }}>
-              {engineer?.name || "기사"}님 · {formatMonthShort(currentMonth)} {monthData.count}건 · 휴무 {monthData.offCount}일
+              {formatMonthShort(currentMonth)} {monthData.count}건 · 휴무 {monthData.offCount}일
             </div>
           </div>
           <button onClick={onAddOff} style={{
-            padding: "8px 14px",
+            padding: "10px 14px",
             background: "#FF1B8D",
             border: "none",
             borderRadius: 8,
             color: "#fff",
-            fontSize: 12, fontWeight: 700,
+            fontSize: 13, fontWeight: 800,
             cursor: "pointer", fontFamily: "inherit",
           }}>
             + 휴무 추가
           </button>
         </div>
+
+        {/* 토글 3개 */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6,
+        }}>
+          <ToggleBtn label="오늘"  active={view === "today"}  onClick={() => setView("today")}/>
+          <ToggleBtn label="주간"  active={view === "week"}   onClick={() => setView("week")}/>
+          <ToggleBtn label="월간"  active={view === "month"}  onClick={() => setView("month")}/>
+        </div>
       </div>
 
-      {/* 월 네비 + 캘린더 */}
+      {/* 본문 — 뷰별 분기 */}
+      {view === "month" && (
+        <MonthView
+          currentMonth={currentMonth}
+          setCurrentMonth={setCurrentMonth}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
+          monthData={monthData}
+          dayTasks={dayTasks}
+          onClickTask={onClickTask}
+        />
+      )}
+      {view === "week" && (
+        <WeekView weekDays={weekDays} onClickTask={onClickTask}/>
+      )}
+      {view === "today" && (
+        <TodayView todayTasks={todayTasks} onClickTask={onClickTask}/>
+      )}
+
+      <EngineerBottomNav active="cal" onChange={onTabChange} unreadCount={unreadCount}/>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────
+// 토글 버튼
+// ───────────────────────────────────────────────
+function ToggleBtn({ label, active, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "10px 12px",
+      background: active ? "#FF1B8D" : "transparent",
+      border: active ? "1px solid #FF1B8D" : "1px solid var(--border)",
+      borderRadius: 10,
+      color: active ? "#fff" : "var(--text-secondary)",
+      fontSize: 14, fontWeight: 800,
+      cursor: "pointer", fontFamily: "inherit",
+    }}>
+      {label}
+    </button>
+  );
+}
+
+// ───────────────────────────────────────────────
+// 월간 뷰
+// ───────────────────────────────────────────────
+function MonthView({
+  currentMonth, setCurrentMonth,
+  selectedDate, setSelectedDate,
+  monthData, dayTasks, onClickTask,
+}) {
+  return (
+    <>
       <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
           marginBottom: 12,
         }}>
           <button onClick={() => setCurrentMonth(addMonths(currentMonth, -1))} style={navBtnStyle}>‹</button>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 14, fontWeight: 700 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16, fontWeight: 800 }}>
               {formatMonthLabel(currentMonth)}
             </span>
             <button
               onClick={() => { setCurrentMonth(new Date()); setSelectedDate(new Date()); }}
               style={{
-                background: "transparent", border: "none",
-                color: "#FF1B8D", fontSize: 11, cursor: "pointer",
-                padding: "2px 6px", fontFamily: "inherit",
+                background: "transparent",
+                border: "1px solid var(--border)",
+                color: "#FF1B8D",
+                fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                padding: "4px 10px", borderRadius: 6,
               }}
             >
               오늘
@@ -142,103 +250,251 @@ export function EngineerCalendarTab({
         />
 
         <div style={{
-          display: "flex", gap: 10, padding: "10px 0 0",
-          marginTop: 6, fontSize: 11, color: "var(--text-secondary)",
+          display: "flex", gap: 12, padding: "12px 0 0",
+          marginTop: 8, fontSize: 12, color: "var(--text-secondary)",
           justifyContent: "center", flexWrap: "wrap",
           borderTop: "1px solid var(--border)",
         }}>
           <Legend color="#FF1B8D" label="진행중"/>
-          <Legend color="#888780" label="확정"/>
-          <Legend color="#FFB300" label="약속미정"/>
-          <Legend color="#00875A" label="완료"/>
+          <Legend color="#FFB800" label="확정"/>
+          <Legend color="#FF8A3D" label="약속미정"/>
+          <Legend color="#03C75A" label="완료"/>
         </div>
       </div>
 
       {/* 선택한 날 일정 */}
-      <div style={{ padding: "14px 16px" }}>
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          marginBottom: 10,
-        }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>
-              {formatDateLong(selectedDate)}
-              {isToday(selectedDate) && " · 오늘"}
-            </div>
-            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-              {dayTasks.length}건
-              {countByStatus(dayTasks, "진행중") > 0 && ` · 진행중 ${countByStatus(dayTasks, "진행중")}`}
-              {countByStatus(dayTasks, "확정") > 0 && ` · 확정 ${countByStatus(dayTasks, "확정")}`}
-              {countByStatus(dayTasks, "약속대기") > 0 && ` · 약속미정 ${countByStatus(dayTasks, "약속대기")}`}
-            </div>
+      <div style={{ padding: "16px" }}>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>
+            {formatDateLong(selectedDate)}
+            {isToday(selectedDate) && <span style={{ color: "#FF1B8D" }}> · 오늘</span>}
+          </div>
+          <div style={{
+            fontSize: 12, color: "var(--text-secondary)",
+            marginTop: 4, fontWeight: 500,
+          }}>
+            {dayTasks.length}건
+            {countByStatus(dayTasks, "진행중") > 0 && ` · 진행중 ${countByStatus(dayTasks, "진행중")}`}
+            {countByStatus(dayTasks, "확정")   > 0 && ` · 확정 ${countByStatus(dayTasks, "확정")}`}
+            {countByStatus(dayTasks, "약속대기") > 0 && ` · 약속미정 ${countByStatus(dayTasks, "약속대기")}`}
           </div>
         </div>
 
         {dayTasks.length === 0 ? (
-          <div style={{
-            padding: 24, textAlign: "center",
-            color: "var(--text-secondary)", fontSize: 13,
-          }}>
-            이 날은 일정이 없어요
-          </div>
+          <EmptyState text="이 날은 일정이 없어요"/>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {dayTasks.map(t => (
               <DayTaskCard key={t.id} task={t} onClick={() => onClickTask && onClickTask(t.id)}/>
             ))}
           </div>
         )}
       </div>
+    </>
+  );
+}
 
-      <EngineerBottomNav active="cal" onChange={onTabChange} unreadCount={unreadCount}/>
+// ───────────────────────────────────────────────
+// 주간 뷰 — 7일 그룹
+// ───────────────────────────────────────────────
+function WeekView({ weekDays, onClickTask }) {
+  return (
+    <div style={{ padding: "16px" }}>
+      {weekDays.map(({ date, tasks: dt, offDay }, idx) => (
+        <div key={idx} style={{ marginBottom: 18 }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            marginBottom: 8, paddingLeft: 4,
+          }}>
+            <span style={{
+              fontSize: 14, fontWeight: 800,
+              color: isToday(date) ? "#FF1B8D" : "var(--text-primary)",
+            }}>
+              {formatDateLong(date)}
+            </span>
+            {isToday(date) && (
+              <span style={{
+                fontSize: 11, fontWeight: 800, color: "#FF1B8D",
+                padding: "2px 6px",
+                background: "rgba(255,27,141,0.10)",
+                borderRadius: 4,
+              }}>
+                오늘
+              </span>
+            )}
+            {offDay && (
+              <span style={{
+                fontSize: 11, fontWeight: 700,
+                color: "var(--text-secondary)",
+                padding: "2px 6px",
+                background: "var(--bg-secondary)",
+                borderRadius: 4,
+              }}>
+                휴무
+              </span>
+            )}
+            <span style={{
+              fontSize: 12, color: "var(--text-secondary)",
+              marginLeft: "auto", fontWeight: 500,
+            }}>
+              {dt.length > 0 ? `${dt.length}건` : ""}
+            </span>
+          </div>
+
+          {dt.length === 0 ? (
+            <div style={{
+              padding: "10px 14px",
+              background: "var(--bg-secondary)",
+              borderRadius: 8,
+              fontSize: 12, color: "var(--text-tertiary)",
+              fontWeight: 500,
+            }}>
+              {offDay ? "휴무" : "일정 없음"}
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {dt.map(t => (
+                <DayTaskCard key={t.id} task={t} onClick={() => onClickTask && onClickTask(t.id)}/>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
 
-function DayTaskCard({ task, onClick }) {
-  const isActive = task.status === "진행중";
-  const isUntimed = task.status === "약속대기";
-
-  const cardStyle = isActive
-    ? { background: "rgba(255,27,141,0.08)", border: "1px solid rgba(255,27,141,0.3)" }
-    : isUntimed
-      ? { background: "rgba(255,179,0,0.08)", border: "1px solid rgba(255,179,0,0.3)" }
-      : { background: "var(--bg-secondary)", border: "none" };
+// ───────────────────────────────────────────────
+// 오늘 뷰 — 시간순 타임라인
+// ───────────────────────────────────────────────
+function TodayView({ todayTasks, onClickTask }) {
+  if (todayTasks.length === 0) {
+    return (
+      <div style={{ padding: "16px" }}>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>
+            {formatDateLong(new Date())} · <span style={{ color: "#FF1B8D" }}>오늘</span>
+          </div>
+        </div>
+        <EmptyState text="오늘 일정이 없어요"/>
+      </div>
+    );
+  }
 
   return (
-    <div onClick={onClick} style={{
-      display: "flex", alignItems: "center", padding: 10,
-      borderRadius: 8, cursor: "pointer",
-      ...cardStyle,
-    }}>
-      <div style={{ width: 50 }}>
-        {isUntimed ? (
-          <>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#FFB300" }}>미정</div>
-            <div style={{ fontSize: 8, color: "#FFB300", fontWeight: 700, marginTop: 2 }}>약속</div>
-          </>
-        ) : (
-          <>
-            <div style={{ fontSize: 14, fontWeight: 700, fontFamily: "monospace" }}>
-              {task.scheduledTime || task.time || "—"}
-            </div>
-            <div style={{
-              fontSize: 8,
-              color: isActive ? "#FF1B8D" : "var(--text-secondary)",
-              fontWeight: 700,
-            }}>
-              {task.status}
-            </div>
-          </>
-        )}
-      </div>
-      <div style={{ flex: 1, padding: "0 8px", minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</div>
+    <div style={{ padding: "16px" }}>
+      <div style={{ marginBottom: 18 }}>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>
+          {formatDateLong(new Date())} · <span style={{ color: "#FF1B8D" }}>오늘</span>
+        </div>
         <div style={{
-          fontSize: 11, color: "var(--text-secondary)", marginTop: 1,
-          display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
+          fontSize: 12, color: "var(--text-secondary)",
+          marginTop: 4, fontWeight: 500,
         }}>
-          <ServiceTypeIcon workType={task.workType} size={11} showLabel={true}/>
+          {todayTasks.length}건 · 시간순
+        </div>
+      </div>
+
+      <div style={{ position: "relative", paddingLeft: 28 }}>
+        {/* 세로 타임라인 라인 */}
+        <div style={{
+          position: "absolute",
+          left: 11, top: 8, bottom: 8,
+          width: 2,
+          background: "var(--border)",
+        }}/>
+
+        {todayTasks.map((task, i) => (
+          <TimelineRow
+            key={task.id}
+            task={task}
+            isLast={i === todayTasks.length - 1}
+            onClick={() => onClickTask && onClickTask(task.id)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TimelineRow({ task, onClick }) {
+  const status = task.status;
+  const isInProgress = status === "진행중";
+  const isDone = status === "완료";
+  const isUntimed = status === "약속대기";
+
+  // 점 색
+  const dotColor = isInProgress ? "#FF1B8D"
+                  : isDone        ? "#03C75A"
+                  : isUntimed     ? "#FF8A3D"
+                  :                 "#FFB800";
+
+  // 카드 스타일
+  const cardStyle = isInProgress
+    ? { background: "transparent", border: "2px solid #FF1B8D" }
+    : isDone
+      ? { background: "var(--bg-secondary)", border: "1px solid var(--border)", opacity: 0.6 }
+      : isUntimed
+        ? { background: "rgba(255,138,61,0.08)", border: "1px solid rgba(255,138,61,0.30)" }
+        : { background: "var(--bg-secondary)", border: "1px solid var(--border)" };
+
+  return (
+    <div style={{ position: "relative", marginBottom: 14 }}>
+      {/* 점 */}
+      <div style={{
+        position: "absolute",
+        left: -28, top: 14,
+        width: 16, height: 16,
+        borderRadius: "50%",
+        background: isInProgress ? dotColor : "var(--bg-primary)",
+        border: `3px solid ${dotColor}`,
+        boxSizing: "border-box",
+      }}/>
+
+      <div onClick={onClick} className="clickable" style={{
+        ...cardStyle,
+        borderRadius: 10,
+        padding: 14,
+        cursor: "pointer",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 6,
+        }}>
+          <div style={{
+            fontSize: 17, fontWeight: 800,
+            fontFamily: "'JetBrains Mono', monospace",
+            color: isInProgress ? "#FF1B8D" : "var(--text-primary)",
+          }}>
+            {task.scheduledTime || task.time || "미정"}
+          </div>
+          <span style={{
+            fontSize: 11, fontWeight: 800,
+            color: dotColor,
+            padding: "3px 8px",
+            background: isInProgress ? "rgba(255,27,141,0.10)"
+                      : isDone ? "rgba(3,199,90,0.10)"
+                      : isUntimed ? "rgba(255,138,61,0.10)"
+                      : "rgba(255,184,0,0.10)",
+            borderRadius: 6,
+          }}>
+            {isInProgress ? "진행중" : isDone ? "완료" : isUntimed ? "약속미정" : "확정"}
+          </span>
+        </div>
+
+        <div style={{
+          fontSize: 16, fontWeight: 700, marginBottom: 6,
+          color: isDone ? "var(--text-secondary)" : "var(--text-primary)",
+        }}>
+          {task.customer}
+        </div>
+
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          fontSize: 13, fontWeight: 600,
+          color: "var(--text-secondary)",
+        }}>
+          <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
           <span>
             {task.appliance ? `· ${task.appliance}` : ""}
             {task.qty ? ` ×${task.qty}` : ""}
@@ -246,7 +502,91 @@ function DayTaskCard({ task, onClick }) {
           </span>
         </div>
       </div>
-      <span style={{ fontSize: 14, color: "var(--text-secondary)" }}>›</span>
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────
+// 공통 요소
+// ───────────────────────────────────────────────
+function DayTaskCard({ task, onClick }) {
+  const isActive = task.status === "진행중";
+  const isUntimed = task.status === "약속대기";
+  const isDone = task.status === "완료";
+
+  const cardStyle = isActive
+    ? { background: "transparent", border: "2px solid #FF1B8D" }
+    : isUntimed
+      ? { background: "rgba(255,138,61,0.08)", border: "1px solid rgba(255,138,61,0.30)" }
+      : isDone
+        ? { background: "var(--bg-secondary)", border: "1px solid var(--border)", opacity: 0.7 }
+        : { background: "var(--bg-secondary)", border: "1px solid var(--border)" };
+
+  return (
+    <div onClick={onClick} className="clickable" style={{
+      display: "flex", alignItems: "center", padding: 12,
+      borderRadius: 10, cursor: "pointer",
+      ...cardStyle,
+    }}>
+      <div style={{ width: 60 }}>
+        {isUntimed ? (
+          <>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#FF8A3D" }}>미정</div>
+            <div style={{ fontSize: 11, color: "#FF8A3D", fontWeight: 700, marginTop: 2 }}>약속</div>
+          </>
+        ) : (
+          <>
+            <div style={{
+              fontSize: 16, fontWeight: 800,
+              fontFamily: "'JetBrains Mono', monospace",
+              color: isActive ? "#FF1B8D" : "var(--text-primary)",
+            }}>
+              {task.scheduledTime || task.time || "—"}
+            </div>
+            <div style={{
+              fontSize: 11,
+              color: isActive ? "#FF1B8D" : isDone ? "#03C75A" : "var(--text-secondary)",
+              fontWeight: 700, marginTop: 2,
+            }}>
+              {task.status}
+            </div>
+          </>
+        )}
+      </div>
+      <div style={{ flex: 1, padding: "0 10px", minWidth: 0 }}>
+        <div style={{
+          fontSize: 16, fontWeight: 700,
+          color: isDone ? "var(--text-secondary)" : "var(--text-primary)",
+        }}>
+          {task.customer}
+        </div>
+        <div style={{
+          fontSize: 13, color: "var(--text-secondary)",
+          marginTop: 4, fontWeight: 500,
+          display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
+        }}>
+          <ServiceTypeIcon workType={task.workType} size={12} showLabel={true}/>
+          <span>
+            {task.appliance ? `· ${task.appliance}` : ""}
+            {task.qty ? ` ×${task.qty}` : ""}
+            {task.region ? ` · ${task.region}` : ""}
+          </span>
+        </div>
+      </div>
+      <span style={{ fontSize: 18, color: "var(--text-secondary)" }}>›</span>
+    </div>
+  );
+}
+
+function EmptyState({ text }) {
+  return (
+    <div style={{
+      padding: 28, textAlign: "center",
+      color: "var(--text-secondary)", fontSize: 14,
+      background: "var(--bg-secondary)",
+      borderRadius: 10,
+    }}>
+      {text}
     </div>
   );
 }
