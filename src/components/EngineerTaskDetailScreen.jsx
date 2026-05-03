@@ -73,14 +73,22 @@ function getTaskItems(task) {
 
 // ──────────────── 메인 컴포넌트 ────────────────
 export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
-  const [photoBefore, setPhotoBefore] = useState(!!task.photoBefore || !!task.beforePhoto);
-  const [photoAfter, setPhotoAfter] = useState(!!task.photoAfter || !!task.afterPhoto);
+  // V14 — 사진 = 단일 array (분류 X / 최소 2장)
+  const initialPhotos = (() => {
+    if (Array.isArray(task.photos)) return task.photos.map(p => typeof p === "string" ? p : p?.url || "✓");
+    const old = [];
+    if (task.photoBefore || task.beforePhoto) old.push("✓");
+    if (task.photoAfter  || task.afterPhoto)  old.push("✓");
+    return old;
+  })();
+  const [photos, setPhotos] = useState(initialPhotos);
   const [extraFee, setExtraFee] = useState(task.extraFee ? String(task.extraFee) : "");
   const [workMemo, setWorkMemo] = useState(task.workMemo || "");
   const [menuOpen, setMenuOpen] = useState(false);
   const [visitOnlyOpen, setVisitOnlyOpen] = useState(false);
   const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule"
   const fileInputRef = useRef(null);
+  const PHOTO_MIN = 2;
 
   if (!task) {
     return (
@@ -131,28 +139,38 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
     });
   }
 
-  function handleTakePhoto(slot) {
-    fileInputRef.current?.setAttribute("data-slot", slot);
+  function handleTakePhoto() {
     fileInputRef.current?.click();
   }
 
   function handlePhotoChange(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const slot = fileInputRef.current?.getAttribute("data-slot") || "before";
-    if (slot === "before") setPhotoBefore(true);
-    else if (slot === "after") setPhotoAfter(true);
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const next = files.map(file => {
+      try { return URL.createObjectURL(file); } catch { return "✓"; }
+    });
+    setPhotos(prev => [...prev, ...next]);
     e.target.value = "";
   }
 
+  function handleRemovePhoto(idx) {
+    setPhotos(prev => {
+      const next = [...prev];
+      try { if (next[idx] && next[idx].startsWith("blob:")) URL.revokeObjectURL(next[idx]); } catch {}
+      next.splice(idx, 1);
+      return next;
+    });
+  }
+
   function handleCompleteReport() {
-    if (!photoBefore || !photoAfter) {
-      alert("사진 전/후 모두 필요");
+    if (photos.length < PHOTO_MIN) {
+      alert(`사진은 최소 ${PHOTO_MIN}장 필요합니다.`);
       return;
     }
     onUpdate && onUpdate(task.id, {
       status: "완료",
       completedAt: getCurrentTime(),
+      photos: photos.map(p => ({ url: p })),
       photoBefore: true,
       photoAfter: true,
       beforePhoto: true,
@@ -263,14 +281,15 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       {/* 진행중 — 사진 / 추가금 / 메모 */}
       {isInProgress && (
         <>
-          <PhotoBeforeAfter
-            photoBefore={photoBefore}
-            photoAfter={photoAfter}
-            onTakePhoto={handleTakePhoto}
+          <PhotoGrid
+            photos={photos}
+            minRequired={PHOTO_MIN}
+            onAdd={handleTakePhoto}
+            onRemove={handleRemovePhoto}
           />
           <input
             ref={fileInputRef}
-            type="file" accept="image/*" capture="environment"
+            type="file" accept="image/*" capture="environment" multiple
             onChange={handlePhotoChange}
             style={{ display: "none" }}
           />
@@ -329,40 +348,58 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       )}
 
       {isInProgress && (
-        <>
-          <div style={{ padding: "14px 16px" }}>
+        <div style={{ padding: "14px 16px 20px" }}>
+          {/* V14 — 메인 액션 (작업 완료 핑크) */}
+          <button
+            onClick={handleCompleteReport}
+            disabled={photos.length < PHOTO_MIN}
+            style={{
+              width: "100%", padding: 16,
+              background: photos.length >= PHOTO_MIN ? "#FF1B8D" : "var(--bg-secondary)",
+              border: "none", borderRadius: 12,
+              color: photos.length >= PHOTO_MIN ? "#fff" : "var(--text-tertiary)",
+              fontSize: 17, fontWeight: 800,
+              cursor: photos.length >= PHOTO_MIN ? "pointer" : "not-allowed",
+              fontFamily: "inherit",
+              opacity: photos.length >= PHOTO_MIN ? 1 : 0.5,
+              marginBottom: 8,
+            }}
+          >
+            ✓ 작업 완료
+          </button>
+
+          {/* V14 — 보조 액션 (부분 / 출장비만) */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <button
-              onClick={handleCompleteReport}
-              disabled={!photoBefore || !photoAfter}
+              onClick={() => alert("부분 완료 — 다음 단계에서 박을 차례 (V14 Step 6B)")}
               style={{
-                width: "100%", padding: 14,
-                background: (photoBefore && photoAfter) ? "#FF1B8D" : "var(--bg-secondary)",
-                border: "none", borderRadius: 12,
-                color: (photoBefore && photoAfter) ? "#fff" : "var(--text-tertiary)",
-                fontSize: 14, fontWeight: 700,
-                cursor: (photoBefore && photoAfter) ? "pointer" : "not-allowed",
-                fontFamily: "inherit",
-                opacity: (photoBefore && photoAfter) ? 1 : 0.5,
+                padding: 13,
+                background: "transparent",
+                border: "2px solid #FF8A3D",
+                borderRadius: 10,
+                color: "#FF8A3D",
+                fontSize: 13, fontWeight: 800,
+                cursor: "pointer", fontFamily: "inherit",
               }}
             >
-              ✓ 완료 보고
+              🟠 부분 완료
             </button>
-            <div style={{ marginTop: 10, textAlign: "center" }}>
-              <button
-                onClick={() => setVisitOnlyOpen(true)}
-                style={{
-                  fontSize: 9, color: "var(--text-secondary)",
-                  background: "transparent", border: "none",
-                  cursor: "pointer", textDecoration: "underline",
-                  fontFamily: "inherit",
-                }}
-              >
-                ⚠️ 작업이 어려운 상황인가요?{" "}
-                <span style={{ color: "#FF8F00", fontWeight: 700 }}>작업 불가 처리</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setVisitOnlyOpen(true)}
+              style={{
+                padding: 13,
+                background: "transparent",
+                border: "2px solid #FF3B5C",
+                borderRadius: 10,
+                color: "#FF3B5C",
+                fontSize: 13, fontWeight: 800,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              🔴 출장비만
+            </button>
           </div>
-        </>
+        </div>
       )}
 
       {/* ⋮ 메뉴 (BottomSheet) */}
@@ -727,90 +764,85 @@ function TravelMetric({ label, value, accent }) {
 }
 
 // ──────────────── 사진 전/후 (진행중) ────────────────
-function PhotoBeforeAfter({ photoBefore, photoAfter, onTakePhoto }) {
+// V14 — 사진 그리드 (분류 X / 최소 N장 / 그리드 + 추가)
+function PhotoGrid({ photos, minRequired = 2, onAdd, onRemove }) {
+  const isOK = photos.length >= minRequired;
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 8,
+        marginBottom: 10,
       }}>
-        <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700 }}>
-          📷 작업 사진
-        </span>
-        <span style={{ fontSize: 9, color: "#FFB300", fontWeight: 700 }}>
-          전/후 각 1장 필수
-        </span>
-      </div>
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr",
-        gap: 8, marginBottom: 8,
-      }}>
-        <PhotoSlot
-          label="작업 전"
-          photo={photoBefore}
-          onClick={() => onTakePhoto("before")}
-        />
-        <PhotoSlot
-          label="작업 후"
-          photo={photoAfter}
-          onClick={() => onTakePhoto("after")}
-        />
-      </div>
-      <button
-        onClick={() => onTakePhoto("extra")}
-        style={{
-          width: "100%", padding: 8,
-          background: "transparent",
-          border: "1px dashed var(--border)",
-          borderRadius: 6,
-          color: "var(--text-secondary)",
-          fontSize: 10, cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        ＋ 추가 사진
-      </button>
-    </div>
-  );
-}
-
-function PhotoSlot({ label, photo, onClick }) {
-  if (photo) {
-    return (
-      <div onClick={onClick} style={{
-        aspectRatio: "4/3",
-        background: "var(--bg-secondary)",
-        border: "2px solid #00875A",
-        borderRadius: 8,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        cursor: "pointer", position: "relative",
-      }}>
-        <div style={{ fontSize: 22, color: "#00875A" }}>✓</div>
-        <div style={{
-          position: "absolute", bottom: 6, left: 6,
-          fontSize: 9, color: "#fff",
-          background: "rgba(0,0,0,0.5)",
-          padding: "2px 6px", borderRadius: 10,
-        }}>
-          {label}
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
+            📷 사진
+          </div>
+          <div style={{
+            fontSize: 12, color: "var(--text-secondary)",
+            fontWeight: 500, marginTop: 2,
+          }}>
+            {minRequired}장 이상 필수
+          </div>
         </div>
+        <span style={{
+          fontSize: 13, fontWeight: 800,
+          color: isOK ? "#03C75A" : "var(--text-secondary)",
+          padding: "4px 10px",
+          background: isOK ? "rgba(3,199,90,0.10)" : "var(--bg-secondary)",
+          border: `1px solid ${isOK ? "rgba(3,199,90,0.30)" : "var(--border)"}`,
+          borderRadius: 6,
+        }}>
+          {photos.length} / {minRequired}{isOK ? " ✓" : ""}
+        </span>
       </div>
-    );
-  }
-  return (
-    <div onClick={onClick} style={{
-      aspectRatio: "4/3",
-      background: "var(--bg-secondary)",
-      border: "1px dashed var(--text-secondary)",
-      borderRadius: 8,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      flexDirection: "column", cursor: "pointer",
-    }}>
-      <div style={{ fontSize: 22, color: "var(--text-secondary)" }}>📷</div>
       <div style={{
-        fontSize: 10, color: "var(--text-secondary)",
-        marginTop: 4, fontWeight: 700,
+        display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6,
       }}>
-        {label}
+        {photos.map((url, idx) => (
+          <div key={idx} style={{
+            position: "relative",
+            aspectRatio: "1",
+            background: url && url.startsWith("blob:")
+              ? `url(${url}) center/cover`
+              : "rgba(3,199,90,0.10)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            {(!url || !url.startsWith("blob:")) && (
+              <div style={{ fontSize: 28, color: "#03C75A" }}>✓</div>
+            )}
+            <button
+              onClick={() => onRemove && onRemove(idx)}
+              style={{
+                position: "absolute", top: 4, right: 4,
+                width: 22, height: 22, borderRadius: "50%",
+                background: "rgba(0,0,0,0.6)", border: "none",
+                color: "#fff", fontSize: 12,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+              aria-label="사진 삭제"
+            >×</button>
+          </div>
+        ))}
+        <button
+          onClick={onAdd}
+          style={{
+            aspectRatio: "1",
+            background: "var(--bg-secondary)",
+            border: "2px dashed #FF1B8D",
+            borderRadius: 8,
+            color: "#FF1B8D",
+            fontSize: 22, fontWeight: 800,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center", gap: 2,
+          }}
+          aria-label="사진 추가"
+        >
+          <span style={{ fontSize: 24 }}>📷</span>
+          <span style={{ fontSize: 11, fontWeight: 700 }}>추가</span>
+        </button>
       </div>
     </div>
   );
