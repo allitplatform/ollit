@@ -18,22 +18,13 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
         textAlign: "center",
         overflowY: "auto",
       }}>
-        {/* ∞ 핫핑크 아이콘 */}
-        <div style={{
-          width: 96, height: 96,
-          borderRadius: 22,
-          background: "#FFFFFF",
-          border: "1px solid var(--border)",
-          display: "inline-flex",
-          alignItems: "center", justifyContent: "center",
-          marginBottom: 18,
-        }}>
-          <svg width="64" height="64" viewBox="0 0 100 100">
-            <circle cx="27" cy="50" r="23" fill="none" stroke="#FF1B8D" strokeWidth="6"/>
-            <circle cx="73" cy="50" r="23" fill="none" stroke="#FF1B8D" strokeWidth="6"/>
-            <circle cx="50" cy="50" r="10" fill="#FF1B8D"/>
-          </svg>
-        </div>
+        {/* ∞ 다크 박스 아이콘 */}
+        <svg width="120" height="120" viewBox="0 0 100 100" style={{ marginBottom: 18 }}>
+          <rect width="100" height="100" rx="20" fill="#1A1512"/>
+          <circle cx="27" cy="50" r="23" fill="none" stroke="#FF1B8D" strokeWidth="6"/>
+          <circle cx="73" cy="50" r="23" fill="none" stroke="#FF1B8D" strokeWidth="6"/>
+          <circle cx="50" cy="50" r="10" fill="#FF1B8D"/>
+        </svg>
 
         {/* 타이틀 */}
         <div style={{
