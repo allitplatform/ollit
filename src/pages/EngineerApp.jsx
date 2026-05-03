@@ -33,8 +33,6 @@ import { EngineerRegionsScreen } from "../components/EngineerRegionsScreen.jsx";
 import { EngineerRegionChangeRequestScreen } from "../components/EngineerRegionChangeRequestScreen.jsx";
 import { EngineerNewAssignCallScreen } from "../components/EngineerNewAssignCallScreen.jsx";
 import { EngineerNewAssignDetailScreen } from "../components/EngineerNewAssignDetailScreen.jsx";
-import { usePWAInstall } from "../hooks/usePWAInstall.js";
-import { PWAInstallModal } from "../components/PWAInstallModal.jsx";
 
 const NOW = "10:00";
 
@@ -3535,9 +3533,6 @@ export default function EngineerApp({ user, onLogout }) {
     applyThemeVars(mode);
   }, [mode]);
 
-  // PWA 홈 화면 추가 안내
-  const pwaInstall = usePWAInstall();
-
   // 공유 task state (shared/TasksContext.jsx)
   const { tasks: allTasks, updateTask, resetTasks } = useTasks();
 
@@ -3691,14 +3686,6 @@ export default function EngineerApp({ user, onLogout }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
-      {/* PWA 홈 화면 추가 안내 모달 (최상단 z-index) */}
-      <PWAInstallModal
-        open={pwaInstall.showModal}
-        platform={pwaInstall.platform}
-        onAdd={pwaInstall.handleAdd}
-        onLater={pwaInstall.handleLater}
-      />
-
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>
         <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>🔧 기사님 화면 ({user?.name || "—"})</div>
         <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>

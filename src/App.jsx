@@ -7,6 +7,8 @@ import PrincipalApp from "./pages/PrincipalApp.jsx";
 import { TasksProvider } from "./shared/TasksContext.jsx";
 import { SplashScreen } from "./components/SplashScreen.jsx";
 import { applyTheme, loadTheme } from "./styles/themes.js";
+import { usePWAInstall } from "./hooks/usePWAInstall.js";
+import { PWAInstallScreen } from "./components/PWAInstallScreen.jsx";
 
 // 메인 App: 로그인 상태에 따라 화면 분기
 // TasksProvider를 최상위로 두어 로그인/로그아웃 시에도 task state 유지
@@ -16,6 +18,9 @@ export default function App() {
   // 로그인 상태 (현재 로그인한 유저 정보)
   const [currentUser, setCurrentUser] = useState(null);
 
+  // PWA 홈 화면 추가 안내 (스플래시 끝난 뒤 가장 먼저 박힘)
+  const pwaInstall = usePWAInstall();
+
   // 앱 시작 시 저장된 테마 적용 (CSS 변수 세팅)
   useEffect(() => {
     applyTheme(loadTheme());
@@ -23,6 +28,17 @@ export default function App() {
 
   if (!splashDone) {
     return <SplashScreen onDone={() => setSplashDone(true)}/>;
+  }
+
+  // PWA 안내 화면 — splash 끝난 뒤 1.5초 박힘 (LoginScreen 박힘 전에 박힘)
+  if (pwaInstall.showModal) {
+    return (
+      <PWAInstallScreen
+        platform={pwaInstall.platform}
+        onAdd={pwaInstall.handleAdd}
+        onLater={pwaInstall.handleLater}
+      />
+    );
   }
 
   // 로그인 콜백
