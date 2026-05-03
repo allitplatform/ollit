@@ -37,9 +37,10 @@ input, textarea {
   --accent-bg-strong:    rgba(255,27,141,0.12);
   --accent-border:       rgba(255,27,141,0.30);
   --accent-border-strong:rgba(255,27,141,0.50);
-  --accent-gradient:     linear-gradient(135deg, #FF1B8D, #FF1B8D);
-  --accent-gradient-soft:linear-gradient(135deg, rgba(255,27,141,0.12), rgba(255,27,141,0.02));
-  --naver-gradient:      linear-gradient(135deg, #03C75A, #02A847);
+  /* V14 — 그라데이션 → 단색 */
+  --accent-gradient:     #FF1B8D;
+  --accent-gradient-soft:rgba(255,27,141,0.10);
+  --naver-gradient:      #03C75A;
 }
 [data-theme="dark"] {
   --accent-bg:           rgba(255,27,141,0.08);

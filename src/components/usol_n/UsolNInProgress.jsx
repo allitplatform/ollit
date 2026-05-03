@@ -79,10 +79,10 @@ function TaskCard({ task, engineers }) {
     <div style={{
       padding: 12,
       background: isCurrentlyWorking
-        ? "linear-gradient(135deg, rgba(168,85,247,0.15), rgba(255,27,141,0.04))"
+        ? "rgba(255,27,141,0.10)"
         : "var(--bg-secondary)",
       border: isCurrentlyWorking
-        ? "2px solid #A855F7"
+        ? "2px solid #FF1B8D"
         : "1px solid var(--border)",
       borderRadius: 10, marginBottom: 6,
     }}>

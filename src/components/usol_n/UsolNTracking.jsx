@@ -90,10 +90,9 @@ function ThisWeekCard({ week, onClick }) {
       onClick={onClick}
       style={{
         width: "100%", padding: 14,
-        background: "linear-gradient(135deg, rgba(3,199,90,0.18), rgba(3,199,90,0.04))",
+        background: "rgba(3,199,90,0.10)",
         border: "2px solid #03C75A",
         borderRadius: 12, marginBottom: 14,
-        boxShadow: "0 4px 12px rgba(3,199,90,0.15)",
         cursor: "pointer", textAlign: "left", fontFamily: "inherit",
       }}
     >

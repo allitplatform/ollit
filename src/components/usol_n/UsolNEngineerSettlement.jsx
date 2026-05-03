@@ -46,7 +46,7 @@ export function UsolNEngineerSettlement() {
 
       <div style={{
         padding: 16,
-        background: "linear-gradient(135deg, rgba(6,182,212,0.15), rgba(168,85,247,0.04))",
+        background: "rgba(14,165,233,0.10)",
         border: "2px solid #06B6D4",
         borderRadius: 14, marginBottom: 12,
       }}>

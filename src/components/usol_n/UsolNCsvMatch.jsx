@@ -145,7 +145,7 @@ function CsvInfoCard({ csvData, onReset }) {
   return (
     <div style={{
       padding: 14,
-      background: "linear-gradient(135deg, rgba(255,27,141,0.12), rgba(168,85,247,0.04))",
+      background: "rgba(255,27,141,0.10)",
       border: "1px solid #FF1B8D",
       borderRadius: 10, marginBottom: 14,
       display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -341,11 +341,10 @@ function Empty({ children }) {
 
 const confirmButtonStyle = {
   width: "100%", marginTop: 16, padding: 14,
-  background: "linear-gradient(135deg, #03C75A, #02A847)",
+  background: "#03C75A",
   border: "none", borderRadius: 10,
   color: "#fff", fontSize: 13, fontWeight: 700,
   fontFamily: "inherit",
-  boxShadow: "0 2px 6px rgba(3,199,90,0.3)",
   transition: "transform 0.1s, box-shadow 0.1s",
 };
 

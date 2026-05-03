@@ -86,7 +86,7 @@ function GradientHeader({ info, onBack }) {
   return (
     <div style={{
       padding: "14px 16px",
-      background: "linear-gradient(135deg, #03C75A, #02A847)",
+      background: "#03C75A",
       color: "#fff",
       flexShrink: 0,
       overflow: "hidden",

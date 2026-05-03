@@ -1,101 +1,119 @@
-// Step 8+9 V4 — 테마 CSS 변수
-// 다크/라이트 토글 시 document.documentElement에 CSS 변수 적용
-// 컴포넌트는 var(--name) 사용
+// V14 — 색 시스템 통합 (2026-05-04)
+// 메인 8색: 핫핑크 / 네이버그린 / 시안블루(세척) / 노랑(냉매) / 주황 / 빨강 / 통화초록 / 보라
+// 다크/라이트 토글 시 document.documentElement에 CSS 변수 적용. 컴포넌트는 var(--name) 사용.
 
 export const DARK_THEME = {
+  // ── 베이스 (V14)
   "--bg-primary":       "#1A1512",
   "--bg-secondary":     "#221C18",
   "--bg-tertiary":      "#2A2420",
   "--bg-quaternary":    "#322A24",
   "--bg-inset":         "#0F0B0A",
-  "--border-strong":    "#3A322C",
   "--text-primary":     "#FAF8F5",
-  "--text-secondary":   "#888780",
-  "--text-tertiary":    "#555",
-  "--accent":           "#FF1B8D",
-  "--accent-bg":        "rgba(255,27,141,0.10)",
-  "--border":           "#2A2420",
+  "--text-secondary":   "#999999",
+  "--text-tertiary":    "#666666",
+  "--border":           "rgba(255,255,255,0.10)",
+  "--border-strong":    "rgba(255,255,255,0.18)",
   "--input-bg":         "#221C18",
-  // V13-FINAL2-fix3 — 작업 종류 색
-  "--work-clean":       "#00BCD4",
-  "--work-refrig":      "#FFB300",
+
+  // ── 메인 8색 (V14 / 라이트·다크 동일)
+  "--accent":           "#FF1B8D",   // 핫핑크 — 메인/진행중/CTA
+  "--accent-bg":        "rgba(255,27,141,0.10)",
+  "--accent-soft":      "rgba(255,27,141,0.10)",
+  "--naver-green":      "#03C75A",   // 유솔N
+  "--service-cleaning": "#0EA5E9",   // ❄️ 세척 — 시원한 파랑
+  "--service-refrigerant": "#FFB800",// ⚡ 냉매충전 — 노랑
+  "--orange":           "#FF8A3D",   // 정산/회사송금/일정변경
+  "--danger":           "#FF3B5C",   // 비상/취소/미입금/수수료
+  "--call-green":       "#34C759",   // 통화 (아이폰 표준)
+  "--ops-purple":       "#7B61FF",   // 운영팀 메모
+
+  // ── 작업 종류 alias (legacy 호환)
+  "--work-clean":       "#0EA5E9",
+  "--work-refrig":      "#FFB800",
   "--work-install":     "#888888",
   "--work-disabled":    "#888888",
-  // V12-2 — 색 시스템 통일 (밝게)
-  "--success":          "#00875A",
-  "--success-bg":       "rgba(0,135,90,0.12)",
-  "--warning":          "#FF8F00",
-  "--danger":           "#FF3D5A",
-  // status alias
-  "--status-success":   "#00875A",
-  "--status-warning":   "#FF8F00",
-  "--status-info":      "#00BCD4",
-  "--status-danger":    "#FF3D5A",
-  "--accent-soft":      "rgba(255,27,141,0.10)",
-  // V12-2 — 작업 종류 색
-  "--service-cleaning":    "#00BCD4",
-  "--service-refrigerant": "#FFB300",
-  "--service-visit":       "#888888",
-  "--service-extra":       "#FF8F00",
-  // 기사 직급 색깔 (V11-11 — 핑크 단순화: 베테랑만 강조)
+  "--service-visit":    "#888888",
+  "--service-extra":    "#FF8A3D",
+
+  // ── 상태/유틸 alias
+  "--success":          "#03C75A",
+  "--success-bg":       "rgba(3,199,90,0.12)",
+  "--warning":          "#FFB800",
+  "--status-success":   "#03C75A",
+  "--status-warning":   "#FFB800",
+  "--status-info":      "#0EA5E9",
+  "--status-danger":    "#FF3B5C",
+
+  // ── 기사 직급 (legacy)
   "--engineer-rookie":  "#888780",
   "--engineer-career":  "#888780",
   "--engineer-expert":  "#FF1B8D",
-  // V11-8 — 유솔 N 전용 (다크)
+
+  // ── 유솔N 전용 (다크) — V14 단색
   "--usol-n-content-bg":      "#221C18",
   "--usol-n-card-bg":         "#2A2420",
   "--usol-n-border":          "#3A322C",
   "--usol-n-shadow":          "none",
-  "--usol-n-shadow-hover":    "0 4px 12px rgba(0,0,0,0.3)",
-  "--usol-n-highlight-shadow":"0 4px 12px rgba(3,199,90,0.20)",
+  "--usol-n-shadow-hover":    "none",
+  "--usol-n-highlight-shadow":"none",
 };
 
 export const LIGHT_THEME = {
-  // V13-FINAL2-fix5 — 거의 백색 페이지 + 흰 카드 + 진한 보더
+  // ── 베이스 (V14)
   "--bg-primary":       "#FAFAFA",
   "--bg-secondary":     "#FFFFFF",
   "--bg-tertiary":      "#FFFFFF",
   "--bg-quaternary":    "#F0F0F0",
-  "--bg-inset":         "#F0F0F0",
-  "--input-bg":         "#FFFFFF",
+  "--bg-inset":         "#F5F5F5",
   "--text-primary":     "#1A1512",
   "--text-secondary":   "#6E6E6E",
   "--text-tertiary":    "#9B9892",
-  "--accent":           "#FF1B8D",
-  "--accent-bg":        "rgba(255,27,141,0.06)",
   "--border":           "rgba(0,0,0,0.10)",
   "--border-strong":    "rgba(0,0,0,0.18)",
-  // V13-FINAL2-fix4 — 작업 종류 색 (라이트 — 진한 톤)
-  "--work-clean":       "#0097A7",
-  "--work-refrig":      "#F57C00",
+  "--input-bg":         "#FFFFFF",
+
+  // ── 메인 8색 (V14 / 라이트·다크 동일)
+  "--accent":           "#FF1B8D",
+  "--accent-bg":        "rgba(255,27,141,0.06)",
+  "--accent-soft":      "rgba(255,27,141,0.06)",
+  "--naver-green":      "#03C75A",
+  "--service-cleaning": "#0EA5E9",
+  "--service-refrigerant": "#FFB800",
+  "--orange":           "#FF8A3D",
+  "--danger":           "#FF3B5C",
+  "--call-green":       "#34C759",
+  "--ops-purple":       "#7B61FF",
+
+  // ── 작업 종류 alias (legacy 호환)
+  "--work-clean":       "#0EA5E9",
+  "--work-refrig":      "#FFB800",
   "--work-install":     "#888888",
   "--work-disabled":    "#888888",
-  // V12-2 — 색 시스템 통일 (라이트와 다크 동일 / 밝게)
-  "--success":          "#00875A",
-  "--success-bg":       "rgba(0,135,90,0.08)",
-  "--warning":          "#FF8F00",
-  "--danger":           "#FF3D5A",
-  "--status-success":   "#00875A",
-  "--status-warning":   "#FF8F00",
-  "--status-info":      "#00BCD4",
-  "--status-danger":    "#FF3D5A",
-  "--accent-soft":      "rgba(255,27,141,0.08)",
-  // V12-2 — 작업 종류 색
-  "--service-cleaning":    "#00BCD4",
-  "--service-refrigerant": "#FFB300",
-  "--service-visit":       "#555555",
-  "--service-extra":       "#FF8F00",
-  // 기사 직급 (V11-11 — 핑크 단순화)
+  "--service-visit":    "#555555",
+  "--service-extra":    "#FF8A3D",
+
+  // ── 상태/유틸 alias
+  "--success":          "#03C75A",
+  "--success-bg":       "rgba(3,199,90,0.08)",
+  "--warning":          "#FFB800",
+  "--status-success":   "#03C75A",
+  "--status-warning":   "#FFB800",
+  "--status-info":      "#0EA5E9",
+  "--status-danger":    "#FF3B5C",
+
+  // ── 기사 직급 (legacy)
   "--engineer-rookie":  "#999",
   "--engineer-career":  "#666",
   "--engineer-expert":  "#FF1B8D",
-  // V11-8 — 유솔 N 전용 (라이트)
-  "--usol-n-content-bg":      "#FAF8F5",
+
+  // ── 유솔N 전용 (라이트) — V14 단색
+  "--usol-n-content-bg":      "#FAFAFA",
   "--usol-n-card-bg":         "#FFFFFF",
-  "--usol-n-border":          "#EBE7DF",
-  "--usol-n-shadow":          "0 1px 3px rgba(0,0,0,0.04)",
-  "--usol-n-shadow-hover":    "0 4px 8px rgba(0,0,0,0.08)",
-  "--usol-n-highlight-shadow":"0 4px 12px rgba(3,199,90,0.12)",
+  "--usol-n-border":          "rgba(0,0,0,0.10)",
+  "--usol-n-shadow":          "none",
+  "--usol-n-shadow-hover":    "none",
+  "--usol-n-highlight-shadow":"none",
 };
 
 // 테마 적용 — CSS 변수 + body 배경 + colorScheme + storage
