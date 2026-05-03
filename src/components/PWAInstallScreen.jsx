@@ -1,5 +1,6 @@
 // 풀스크린 PWA 홈 추가 안내
 // 모달 X / 페이지 자체가 안내 ⭐
+// 50대 사용자 기준 글자 크기 박음 (모든 텍스트 ≥ 14px / 핵심 ≥ 16px / 버튼 ≥ 17px)
 
 export function PWAInstallScreen({ platform, onAdd, onLater }) {
   return (
@@ -28,18 +29,18 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
 
         {/* 타이틀 */}
         <div style={{
-          fontSize: 22, fontWeight: 800,
-          marginBottom: 6,
+          fontSize: 24, fontWeight: 800,
+          marginBottom: 8,
           letterSpacing: -0.5,
         }}>
           올잇 기사
         </div>
         <div style={{
-          fontSize: 13,
+          fontSize: 17,
           color: "var(--text-secondary)",
-          lineHeight: 1.55,
+          lineHeight: 1.6,
           marginBottom: 28,
-          maxWidth: 280,
+          maxWidth: 320,
           marginLeft: "auto",
           marginRight: "auto",
         }}>
@@ -65,7 +66,7 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
           background: "var(--bg-secondary)",
           border: "1px solid var(--border)",
           borderRadius: 12,
-          padding: 16,
+          padding: 18,
           textAlign: "left",
           maxWidth: 360,
           margin: "0 auto",
@@ -89,9 +90,9 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
             <>
               <PlatformLabel>데스크탑 / 기타</PlatformLabel>
               <div style={{
-                fontSize: 12,
+                fontSize: 14,
                 color: "var(--text-secondary)",
-                lineHeight: 1.55,
+                lineHeight: 1.6,
               }}>
                 브라우저 메뉴에서 "<Bold>앱 설치</Bold>" 또는<br/>
                 "<Bold>바탕화면에 바로가기 만들기</Bold>"를 선택하세요.
@@ -103,30 +104,30 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
 
       {/* 하단 고정 액션 */}
       <div style={{
-        padding: "12px 16px 20px",
+        padding: "14px 16px 22px",
         borderTop: "1px solid var(--border)",
         background: "var(--bg-primary)",
         display: "flex", gap: 8,
       }}>
         <button onClick={onLater} style={{
-          flex: 1, padding: 14,
+          flex: 1, padding: 18,
           background: "transparent",
           border: "1px solid var(--border)",
           borderRadius: 10,
           color: "var(--text-secondary)",
-          fontSize: 14, fontWeight: 700,
+          fontSize: 17, fontWeight: 700,
           cursor: "pointer",
           fontFamily: "inherit",
         }}>
           나중에
         </button>
         <button onClick={onAdd} style={{
-          flex: 2, padding: 14,
+          flex: 2, padding: 18,
           background: "#FF1B8D",
           border: "none",
           borderRadius: 10,
           color: "#fff",
-          fontSize: 14, fontWeight: 800,
+          fontSize: 17, fontWeight: 800,
           cursor: "pointer",
           fontFamily: "inherit",
         }}>
@@ -143,12 +144,12 @@ function Benefit({ icon, title, desc }) {
       background: "var(--bg-secondary)",
       border: "1px solid var(--border)",
       borderRadius: 10,
-      padding: "12px 10px",
+      padding: "14px 10px",
       textAlign: "center",
     }}>
-      <div style={{ fontSize: 22, marginBottom: 4 }}>{icon}</div>
-      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 2 }}>{title}</div>
-      <div style={{ fontSize: 10, color: "var(--text-secondary)" }}>{desc}</div>
+      <div style={{ fontSize: 24, marginBottom: 6 }}>{icon}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{title}</div>
+      <div style={{ fontSize: 14, color: "var(--text-secondary)", lineHeight: 1.4 }}>{desc}</div>
     </div>
   );
 }
@@ -156,11 +157,11 @@ function Benefit({ icon, title, desc }) {
 function PlatformLabel({ children }) {
   return (
     <div style={{
-      fontSize: 10, fontWeight: 800,
+      fontSize: 14, fontWeight: 800,
       color: "var(--text-secondary)",
-      letterSpacing: 0.5,
+      letterSpacing: 0.3,
       textTransform: "uppercase",
-      marginBottom: 10,
+      marginBottom: 12,
     }}>
       {children}
     </div>
@@ -172,22 +173,22 @@ function Step({ num, text }) {
     <div style={{
       display: "flex",
       alignItems: "center",
-      gap: 10,
-      marginBottom: 8,
+      gap: 12,
+      marginBottom: 10,
     }}>
       <span style={{
-        width: 22, height: 22,
+        width: 28, height: 28,
         borderRadius: "50%",
         background: "#FF1B8D",
         color: "#fff",
-        fontSize: 11, fontWeight: 800,
+        fontSize: 14, fontWeight: 800,
         display: "inline-flex",
         alignItems: "center", justifyContent: "center",
         flexShrink: 0,
       }}>
         {num}
       </span>
-      <span style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.5 }}>
+      <span style={{ fontSize: 16, color: "var(--text-primary)", lineHeight: 1.6 }}>
         {text}
       </span>
     </div>
@@ -202,11 +203,11 @@ function Glyph({ children }) {
   return (
     <span style={{
       display: "inline-block",
-      padding: "0 4px",
+      padding: "1px 6px",
       borderRadius: 4,
       background: "var(--bg-primary)",
       border: "1px solid var(--border)",
-      fontSize: 11,
+      fontSize: 14,
     }}>{children}</span>
   );
 }
