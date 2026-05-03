@@ -4,8 +4,10 @@ import {
   Sun, Moon, RotateCcw, ClipboardPaste, Plus, Send, ArrowLeft,
   ClipboardList, Wallet, Building2, ChevronRight, AlertCircle,
   CheckCircle2, Clock, User, Phone, MapPin, Calendar, Snowflake,
-  Hash, Edit3, Camera, FileText, Sparkles, Search, Filter
+  Hash, Edit3, Camera, FileText, Sparkles, Search, Filter, DollarSign
 } from "lucide-react";
+import { useTasks } from "../shared/TasksContext.jsx";
+import { filterTasksForPrincipal } from "../shared/tasks.js";
 
 const NOW = "10:00";
 const PRINCIPAL = { 
@@ -18,48 +20,25 @@ const PRINCIPAL = {
   bg: "rgba(255, 184, 0, 0.10)",
 };
 
-const SAMPLE_KAKAO = `성함: 조승빈
+const SAMPLES = [
+  {
+    label: "정형",
+    text: `성함: 조승빈
 주소: 신림동 629-6 / 202호
 연락처: 01094294445
 가전 종류 및 갯수: 벽걸이에어컨 냉매충전
 희망 날짜 및 시간대 (오전/오후):
-4/23 오후`;
-
-const MY_TASKS = [
-  { 
-    id: "A260427-001", customer: "박지영", region: "강남", phone: "010-1234-5678",
-    workType: "벽걸이 세척", quantity: 1, address: "강남구 역삼동 ABC아파트 101호",
-    status: "완료", engineer: "김동효", scheduled: "2026-04-27 09:00",
-    completed: "2026-04-27 10:30", amount: 80000, hasPhoto: true,
-    principalFee: 15000,
+4/23 오후`,
   },
-  { 
-    id: "A260427-002", customer: "이상훈", region: "서초", phone: "010-2345-6789",
-    workType: "스탠드 세척 + 점검", quantity: 1, address: "서초구 서초동 가나빌라 2층",
-    status: "확정", engineer: "김동효", scheduled: "2026-04-27 11:30",
-    completed: null, amount: 132000, hasPhoto: false,
-    principalFee: 31000,
-  },
-  { 
-    id: "A260427-003", customer: "김미경", region: "송파", phone: "010-3456-7890",
-    workType: "냉매충전", quantity: 1, address: "송파구 잠실동 다라타워 305호",
-    status: "확정", engineer: "이재현", scheduled: "2026-04-27 14:00",
-    completed: null, amount: 100000, hasPhoto: false,
-    principalFee: 35000,
-  },
-  { 
-    id: "A260428-001", customer: "조승빈", region: "관악", phone: "010-9429-4445",
-    workType: "벽걸이 냉매충전", quantity: 1, address: "신림동 629-6 / 202호",
-    status: "약속대기", engineer: "최민수", scheduled: null,
-    completed: null, amount: 80000, hasPhoto: false,
-    principalFee: 28000,
-  },
-  { 
-    id: "A260428-002", customer: "박은서", region: "강남", phone: "010-5678-9012",
-    workType: "벽걸이 + 1way 3대 세척", quantity: 4, address: "강남구 역삼동 마바아파트 1502호",
-    status: "미배정", engineer: null, scheduled: null,
-    completed: null, amount: 290000, hasPhoto: false,
-    principalFee: 60000,
+  {
+    label: "막무가내",
+    text: `외도민: 논현동 97-2 103호
+현관 비번 860903
+아니 스탠드1 벽걸이1
++82 10-9053-9590
+가격은 17
+현장결제
+비고: 다음주중 날잡아주세요!`,
   },
 ];
 
@@ -72,7 +51,7 @@ const THEMES = {
     accent: "#FF1B8D", accentBg: "rgba(255, 27, 141, 0.10)",
     success: "#10B981", successBg: "rgba(16, 185, 129, 0.10)",
     warning: "#FFB800", warningBg: "rgba(255, 184, 0, 0.10)",
-    danger: "#EF4444", dangerBg: "rgba(239, 68, 68, 0.10)",
+    danger: "#FF3D5A", dangerBg: "rgba(239, 68, 68, 0.10)",
     info: "#3B82F6", infoBg: "rgba(59, 130, 246, 0.10)",
     isLight: false,
   },
@@ -83,58 +62,263 @@ const THEMES = {
     text: "#0A0A0A", textSecondary: "#404040", textMuted: "#737373", textDim: "#A3A3A3",
     accent: "#E91860", accentBg: "rgba(233, 24, 96, 0.06)",
     success: "#16A34A", successBg: "rgba(22, 163, 74, 0.08)",
-    warning: "#D97706", warningBg: "rgba(217, 119, 6, 0.08)",
-    danger: "#DC2626", dangerBg: "rgba(220, 38, 38, 0.06)",
+    warning: "#FF1B8D", warningBg: "rgba(217, 119, 6, 0.08)",
+    danger: "#FF3D5A", dangerBg: "rgba(220, 38, 38, 0.06)",
     info: "#2563EB", infoBg: "rgba(37, 99, 235, 0.06)",
     isLight: true,
   },
 };
 
+// ──────────────────────────────────────────────────────────
+// 카톡 파서 (parseKakao) - v2: 막무가내 메시지 + 폴백 지원
+// ──────────────────────────────────────────────────────────
+
+const PHONE_PATTERNS = [
+  /\+?82[-\s]?(?:0)?(10)[-\s]?(\d{3,4})[-\s]?(\d{4})/,   // +82 10-...
+  /(01[016789])[-\s]?(\d{3,4})[-\s]?(\d{4})/,             // 010-... / 010 ...
+  /(01[016789])(\d{7,8})/,                                 // 01094294445
+];
+
+function isPhoneInLine(line) {
+  return PHONE_PATTERNS.some((re) => re.test(line));
+}
+
+function fmtPhone(nums) {
+  const digits = nums.replace(/\D/g, "");
+  if (digits.length === 11) return `${digits.slice(0,3)}-${digits.slice(3,7)}-${digits.slice(7)}`;
+  if (digits.length === 10) return `${digits.slice(0,3)}-${digits.slice(3,6)}-${digits.slice(6)}`;
+  return digits;
+}
+
+function extractPhone(text) {
+  let m = text.match(PHONE_PATTERNS[0]);
+  if (m) return fmtPhone("0" + m[1] + m[2] + m[3]);
+  m = text.match(PHONE_PATTERNS[1]);
+  if (m) return fmtPhone(m[1] + m[2] + m[3]);
+  m = text.match(PHONE_PATTERNS[2]);
+  if (m) return fmtPhone(m[1] + m[2]);
+  return "";
+}
+
+function looksLikeAddress(s) {
+  if (!s) return false;
+  return /[가-힣]+(시|구|동|로|길)(\s|$|[^가-힣])/.test(s)
+      || /\d+호/.test(s)
+      || /아파트|빌라|타워|단지|번지/.test(s);
+}
+
+// 가격 단위 정책:
+//   "17만"/"17만원" → 170,000   (만 명시)
+//   "170000원"/"170,000원" → 170,000   (원 명시, 그대로)
+//   단위 없음 + 숫자 < 1000 → 만원으로 해석 (17 → 170,000)
+//   단위 없음 + 숫자 ≥ 1000 → 원 그대로 (50000 → 50,000)
+function parsePrice(text) {
+  if (!text) return null;
+  const s = String(text).replace(/\s/g, "");
+  if (!/\d/.test(s)) return null;
+
+  const hasMan = /만/.test(s);
+  const hasWon = /원/.test(s);
+
+  const m = s.match(/[\d,]+/);
+  if (!m) return null;
+  const n = parseInt(m[0].replace(/,/g, ""), 10);
+  if (isNaN(n)) return null;
+
+  if (hasMan) return n * 10000;
+  if (hasWon) return n;
+  return n < 1000 ? n * 10000 : n;
+}
+
 function parseKakao(text) {
-  const result = { name: "", phone: "", address: "", workType: "", quantity: 1, dateText: "", timeText: "", raw: text };
+  const result = {
+    name: "", phone: "", address: "", workType: "", quantity: 1,
+    dateText: "", timeText: "", estimateTotal: null, memo: "", raw: text,
+  };
   if (!text || !text.trim()) return result;
-  
-  const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-  
+
+  const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+  const consumed = new Set();
+
+  // ── 1. Phone (전체 텍스트에서 검색) ──
+  result.phone = extractPhone(text);
+
+  // ── 2. 라벨 있는 줄 처리 ──
+  // 라벨 길이는 30자까지 허용 ("희망 날짜 및 시간대 (오전/오후):" 같은 긴 라벨 대응)
+  const labelRe = /^(.{1,30}?)\s*[:：]\s*(.*)$/;
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lower = line.toLowerCase();
-    
-    if (line.includes("성함") || line.includes("이름") || line.includes("고객명")) {
-      const m = line.split(/[:：]/);
-      if (m.length > 1) result.name = m.slice(1).join(":").trim();
+    if (consumed.has(i)) continue;
+    const m = lines[i].match(labelRe);
+    if (!m) continue;
+    const label = m[1].trim();
+    const value = m[2].trim();
+
+    // 희망/날짜/시간 - 빈 값이면 다음 줄 참조
+    if (/희망|날짜|시간/.test(label)) {
+      const target = value || lines[i + 1] || "";
+      const dm = target.match(/\d{1,2}[\/.\-]\d{1,2}|\d{4}-\d{1,2}-\d{1,2}/);
+      if (dm) result.dateText = dm[0];
+      const tm = target.match(/오전|오후|아침|점심|저녁|낮/);
+      if (tm) result.timeText = tm[0];
+      consumed.add(i);
+      if (!value && lines[i + 1]) consumed.add(i + 1);
+      continue;
     }
-    else if (line.includes("연락처") || line.includes("전화") || line.includes("번호")) {
-      const m = line.match(/01[016789][-\s]?\d{3,4}[-\s]?\d{4}/);
-      if (m) {
-        const nums = m[0].replace(/\D/g, "");
-        if (nums.length === 11) result.phone = `${nums.slice(0,3)}-${nums.slice(3,7)}-${nums.slice(7)}`;
-        else if (nums.length === 10) result.phone = `${nums.slice(0,3)}-${nums.slice(3,6)}-${nums.slice(6)}`;
+
+    if (!value) continue;
+
+    if (/성함|이름|고객명/.test(label) && !result.name) {
+      result.name = value;
+      consumed.add(i);
+    } else if (/연락처|전화|번호|핸드폰/.test(label)) {
+      consumed.add(i); // 폰은 step 1에서 추출됨
+    } else if (/주소|위치/.test(label) && !result.address) {
+      result.address = value;
+      consumed.add(i);
+    } else if (/가전|작업|종류|기종/.test(label) && !result.workType) {
+      result.workType = value;
+      const qm = value.match(/(\d+)\s*[대개]/);
+      if (qm) result.quantity = parseInt(qm[1], 10);
+      consumed.add(i);
+    } else if (/비고|메모|요청|특이/.test(label)) {
+      result.memo = result.memo ? result.memo + " / " + value : value;
+      consumed.add(i);
+    } else if (/가격|금액|견적|비용/.test(label)) {
+      const p = parsePrice(value);
+      if (p !== null) result.estimateTotal = p;
+      consumed.add(i);
+    } else if (label.length <= 6 && !result.name) {
+      // 짧은 라벨 + 주소/폰 = 닉네임 패턴 (예: "외도민: 논현동 97-2 103호")
+      if (isPhoneInLine(value)) {
+        result.name = label;
+        consumed.add(i);
+      } else if (looksLikeAddress(value)) {
+        result.name = label;
+        if (!result.address) result.address = value;
+        consumed.add(i);
       }
-    }
-    else if (line.includes("주소") || line.includes("주소지") || line.includes("위치")) {
-      const m = line.split(/[:：]/);
-      if (m.length > 1) result.address = m.slice(1).join(":").trim();
-    }
-    else if (line.includes("가전") || line.includes("작업") || line.includes("종류") || line.includes("기종")) {
-      const m = line.split(/[:：]/);
-      if (m.length > 1) {
-        const txt = m.slice(1).join(":").trim();
-        result.workType = txt;
-        const numMatch = txt.match(/(\d+)\s*[대개]/);
-        if (numMatch) result.quantity = parseInt(numMatch[1]);
-      }
-    }
-    else if (line.includes("희망") || line.includes("날짜") || line.includes("시간대")) {
-      const next = lines[i+1];
-      const target = next || "";
-      const dateMatch = target.match(/(\d{1,2})[\/.\-](\d{1,2})|(\d{4}\-\d{1,2}\-\d{1,2})/);
-      if (dateMatch) result.dateText = dateMatch[0];
-      const timeMatch = target.match(/오전|오후|오후 \d+|아침|점심|저녁/);
-      if (timeMatch) result.timeText = timeMatch[0];
     }
   }
-  
+
+  // ── 3. 폰만 있는 줄 정리 (메모로 새지 않게) ──
+  for (let i = 0; i < lines.length; i++) {
+    if (consumed.has(i)) continue;
+    const stripped = lines[i].replace(/[\s+\-()]/g, "");
+    if (/^\d{8,13}$/.test(stripped) && isPhoneInLine(lines[i])) {
+      consumed.add(i);
+    }
+  }
+
+  // ── 4. 작업종류 폴백 (라벨 없을 때 키워드 스캔) ──
+  if (!result.workType) {
+    const APPLIANCES = ["벽걸이", "스탠드", "시스템", "멀티", "천장", "캐리어", "창문형", "창문"];
+    const OPS = ["세척", "설치", "철거", "이전", "냉매충전", "냉매", "점검", "수리", "충전"];
+    const found = [];
+    const ops = new Set();
+    let totalQty = 0;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (consumed.has(i)) continue;
+      const line = lines[i];
+      let hit = false;
+
+      for (const k of APPLIANCES) {
+        const re = new RegExp(`${k}\\s*(\\d+)?\\s*[대개]?`, "g");
+        let m;
+        while ((m = re.exec(line)) !== null) {
+          const qty = parseInt(m[1] || "1", 10);
+          found.push({ pos: m.index, name: qty > 1 ? `${k} ${qty}대` : k });
+          totalQty += qty;
+          hit = true;
+        }
+      }
+      for (const k of OPS) {
+        if (line.includes(k)) { ops.add(k); hit = true; }
+      }
+      if (hit) consumed.add(i);
+    }
+
+    found.sort((a, b) => a.pos - b.pos);
+    const parts = [];
+    if (found.length) parts.push(found.map((a) => a.name).join("+"));
+    if (ops.size) parts.push([...ops].join("+"));
+    if (parts.length) {
+      result.workType = parts.join(" ");
+      if (totalQty > 0) result.quantity = totalQty;
+    }
+  }
+
+  // ── 5. 주소 폴백 ──
+  if (!result.address) {
+    for (let i = 0; i < lines.length; i++) {
+      if (consumed.has(i)) continue;
+      if (lines[i].length > 80) continue;
+      if (looksLikeAddress(lines[i])) {
+        result.address = lines[i];
+        consumed.add(i);
+        break;
+      }
+    }
+  }
+
+  // ── 6. 날짜/시간 폴백 (전체 스캔) ──
+  if (!result.dateText) {
+    for (let i = 0; i < lines.length; i++) {
+      if (consumed.has(i)) continue;
+      const dm = lines[i].match(/\d{1,2}[\/.\-]\d{1,2}/);
+      if (dm) { result.dateText = dm[0]; break; }
+    }
+  }
+  if (!result.timeText) {
+    for (let i = 0; i < lines.length; i++) {
+      if (consumed.has(i)) continue;
+      const tm = lines[i].match(/오전|오후|아침|점심|저녁|낮/);
+      if (tm) { result.timeText = tm[0]; break; }
+    }
+  }
+
+  // ── 7. 가격 폴백 (라벨 없는 "가격은 17", "17만원" 등) ──
+  if (result.estimateTotal === null) {
+    for (let i = 0; i < lines.length; i++) {
+      if (consumed.has(i)) continue;
+      const line = lines[i];
+      const looksLikePrice =
+        /가격|금액|견적|비용/.test(line) ||
+        /\d\s*만원?(\s|$)/.test(line) ||
+        /\d+\s*원(\s|$)/.test(line);
+      if (!looksLikePrice) continue;
+      const p = parsePrice(line);
+      if (p !== null) {
+        result.estimateTotal = p;
+        consumed.add(i);
+        break;
+      }
+    }
+  }
+
+  // ── 8. 메모 (남은 줄들 합침) ──
+  const remaining = [];
+  for (let i = 0; i < lines.length; i++) {
+    if (!consumed.has(i)) remaining.push(lines[i]);
+  }
+  if (remaining.length) {
+    const rest = remaining.join(" / ");
+    result.memo = result.memo ? result.memo + " / " + rest : rest;
+  }
+
+  // ── 9. 메모/원본에서 상대날짜 힌트 추출 ──
+  if (!result.dateText) {
+    const src = result.memo || text;
+    const rel = src.match(/오늘|내일|모레|이번주|다음주중?|이번달|주말|평일/);
+    if (rel) result.dateText = rel[0];
+  }
+
+  // ── 10. 이름 폴백: 폰 뒷4자리 ──
+  if (!result.name && result.phone) {
+    const last4 = result.phone.replace(/\D/g, "").slice(-4);
+    if (last4) result.name = `고객(${last4})`;
+  }
+
   return result;
 }
 
@@ -145,6 +329,10 @@ export default function PrincipalApp({ user, onLogout }) {
   const [submittedTask, setSubmittedTask] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const t = THEMES[mode];
+  
+  // 공유 task 데이터에서 본인 원청 작업만 필터링
+  const { tasks: allTasks, addTask } = useTasks();
+  const tasks = filterTasksForPrincipal(allTasks, user?.clientName);
 
   const reset = () => {
     setTab("list");
@@ -205,9 +393,9 @@ export default function PrincipalApp({ user, onLogout }) {
           <SubmittedScreen t={t} task={submittedTask} onContinue={() => { setSubmittedTask(null); setTab("list"); }}/>
         ) : (
           <>
-            {tab === "list" && <ListTab t={t} onSelect={setSelectedTask}/>}
-            {tab === "new" && <NewTab t={t} onSubmit={(task) => setSubmittedTask(task)}/>}
-            {tab === "settle" && <SettleTab t={t}/>}
+            {tab === "list" && <ListTab t={t} onSelect={setSelectedTask} tasks={tasks}/>}
+            {tab === "new" && <NewTab t={t} onSubmit={(task) => setSubmittedTask(task)} addTask={addTask}/>}
+            {tab === "settle" && <SettleTab t={t} tasks={tasks}/>}
             {tab === "info" && <InfoTab t={t}/>}
           </>
         )}
@@ -298,7 +486,7 @@ function BottomNav({ t, tab, onChange }) {
   );
 }
 
-function NewTab({ t, onSubmit }) {
+function NewTab({ t, onSubmit, addTask }) {
   const [text, setText] = useState("");
   const [parsed, setParsed] = useState(null);
   const [showFields, setShowFields] = useState(false);
@@ -311,6 +499,7 @@ function NewTab({ t, onSubmit }) {
   const [dateText, setDateText] = useState("");
   const [timeText, setTimeText] = useState("");
   const [memo, setMemo] = useState("");
+  const [estimateTotal, setEstimateTotal] = useState("");
   
   const formatPhone = (val) => {
     const nums = val.replace(/\D/g, "").slice(0, 11);
@@ -329,53 +518,56 @@ function NewTab({ t, onSubmit }) {
     setQuantity(result.quantity);
     setDateText(result.dateText);
     setTimeText(result.timeText);
+    setEstimateTotal(result.estimateTotal != null ? String(result.estimateTotal) : "");
+    setMemo(result.memo || "");
     setShowFields(true);
   };
   
-  const useSample = () => {
-    setText(SAMPLE_KAKAO);
+  const useSample = (idx) => {
+    setText(SAMPLES[idx].text);
   };
   
   const [submitting, setSubmitting] = useState(false);
   
-  const submit = async () => {
+  const submit = () => {
     if (submitting) return;
     setSubmitting(true);
     
     try {
-      // 백엔드 API 호출 - 진짜 시트에 저장!
-      const result = await createTask({
-        principal: '쿨가이',  // 김쿨가이 = K
-        channel: '카톡',
-        customer: name,
-        phone: phone,
-        address: address,
-        summary: `${workType} ${quantity}대`,
-        totalQty: quantity,
-        requestedDate: dateText,
-        requestedTime: timeText,
-        requestNote: memo,
-        items: [
-          { workType: '세척', appliance: workType, qty: quantity, price: 0 }
-        ]
-      });
+      // 시뮬: addTask로 직접 추가 (백엔드 연결 시 fetch로 교체)
+      const dateStr = new Date().toISOString().slice(2,10).replace(/-/g, "");
+      const taskId = `A${dateStr}-${String(Math.floor(Math.random() * 999) + 100)}`;
       
-      if (result.ok) {
-        // 성공! 작업번호 받음
-        const newTask = {
-          id: result.taskId,  // 백엔드에서 받은 진짜 작업번호!
-          customer: name, phone, address, workType, quantity,
-          region: address.split(/[구동]/)[0]?.trim() || "기타",
-          status: "미배정", engineer: null,
-          scheduled: dateText && timeText ? `${dateText} ${timeText}` : null,
-          memo,
-        };
-        onSubmit(newTask);
-      } else {
-        alert('등록 실패: ' + (result.error || '알 수 없는 오류'));
-      }
+      const newTask = {
+        id: taskId,
+        client: "쿨가이",
+        customer: name, phone, address, fullAddress: address,
+        workType, appliance: "", qty: quantity,
+        requestedDate: dateText || null,
+        requestedTime: timeText || null,
+        receivedAt: new Date().toLocaleString("ko-KR"),
+        receivedAgo: "방금",
+        channel: "카톡",
+        happycallStatus: "uncontacted",
+        happycallMemo: "",
+        requestNote: memo,
+        assignedEngineer: null, assignedEngineerId: null,
+        recommendedEngineer: null,
+        scheduledDate: null, scheduledTime: null,
+        status: "약속대기",
+        startedAt: null, completedAt: null,
+        estimateTotal: null,
+        productPrice: parseInt(estimateTotal) || 0, travelFee: 0, extraFee: 0, extraReason: "",
+        commissionRate: 50, commission: 0, engineerNet: 0,
+        workMemo: "", beforePhoto: false, afterPhoto: false,
+        scheduleHistory: [],
+        isUrgent: false,
+      };
+      
+      addTask(newTask);
+      onSubmit(newTask);
     } catch (err) {
-      alert('네트워크 오류: ' + err.message);
+      alert("등록 오류: " + err.message);
     } finally {
       setSubmitting(false);
     }
@@ -399,13 +591,17 @@ function NewTab({ t, onSubmit }) {
               <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, letterSpacing: 1, textTransform: "uppercase" }}>
                 💬 카톡 텍스트
               </div>
-              <button onClick={useSample} style={{
-                fontSize: 11, fontWeight: 600, color: t.accent,
-                background: "transparent", border: "none", cursor: "pointer",
-                fontFamily: "inherit",
-              }}>
-                예시 데이터 ↗
-              </button>
+              <div style={{ display: "flex", gap: 12 }}>
+                {SAMPLES.map((s, i) => (
+                  <button key={i} onClick={() => useSample(i)} style={{
+                    fontSize: 11, fontWeight: 600, color: t.accent,
+                    background: "transparent", border: "none", cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}>
+                    {s.label} ↗
+                  </button>
+                ))}
+              </div>
             </div>
             <textarea
               placeholder={`고객 카톡 메시지를 그대로 붙여넣으세요\n\n예: 성함: 홍길동\n주소: 강남구 역삼동\n연락처: 010-1234-5678\n작업: 벽걸이 세척\n희망: 4/30 오후`}
@@ -502,11 +698,12 @@ function NewTab({ t, onSubmit }) {
               <Field t={t} label="수량" icon={Hash} value={quantity} onChange={(v) => setQuantity(parseInt(v) || 1)} placeholder="1" mono/>
             </div>
             <div style={{ flex: 2 }}>
-              <Field t={t} label="희망 날짜" icon={Calendar} value={dateText} onChange={setDateText} placeholder="4/30"/>
+              <Field t={t} label="희망 날짜" icon={Calendar} value={dateText} onChange={setDateText} placeholder="(선택) 4/30"/>
             </div>
           </div>
 
-          <Field t={t} label="희망 시간대" icon={Clock} value={timeText} onChange={setTimeText} placeholder="오전 / 오후"/>
+          <Field t={t} label="희망 시간대" icon={Clock} value={timeText} onChange={setTimeText} placeholder="(선택) 오전 / 오후"/>
+          <Field t={t} label="예상 금액 (선택)" icon={DollarSign} value={estimateTotal} onChange={(v) => setEstimateTotal(v.replace(/[^0-9]/g, ""))} placeholder="200000" mono/>
           <Field t={t} label="메모 (선택)" icon={FileText} value={memo} onChange={setMemo} placeholder="추가 요청사항" multiline/>
 
           <button
@@ -653,11 +850,11 @@ function Row({ t, label, value, mono }) {
   );
 }
 
-function ListTab({ t, onSelect }) {
+function ListTab({ t, onSelect, tasks }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   
-  let filtered = filter === "all" ? MY_TASKS : MY_TASKS.filter(x => x.status === filter);
+  let filtered = filter === "all" ? tasks : tasks.filter(x => x.status === filter);
   if (search) {
     filtered = filtered.filter(x => 
       x.customer.includes(search) || x.address.includes(search) || x.id.includes(search)
@@ -665,9 +862,9 @@ function ListTab({ t, onSelect }) {
   }
   
   const stats = {
-    total: MY_TASKS.length,
-    inProgress: MY_TASKS.filter(x => ["미배정", "약속대기", "확정", "진행중"].includes(x.status)).length,
-    completed: MY_TASKS.filter(x => x.status === "완료").length,
+    total: tasks.length,
+    inProgress: tasks.filter(x => ["미배정", "약속대기", "확정", "진행중"].includes(x.status)).length,
+    completed: tasks.filter(x => x.status === "완료").length,
   };
 
   return (
@@ -804,9 +1001,20 @@ function TaskDetail({ t, task, onBack }) {
     "진행중": { color: t.warning, bg: t.warningBg },
     "확정": { color: t.text, bg: t.bgInset },
     "약속대기": { color: t.accent, bg: t.accentBg },
-    "미배정": { color: t.danger, bg: t.dangerBg },
+    "미접수": { color: t.danger, bg: t.dangerBg },
   };
-  const ss = statusStyle[task.status];
+  const ss = statusStyle[task.status] || { color: t.textMuted, bg: t.bgInset };
+  
+  // 금액 계산
+  const customerAmount = (task.productPrice || task.estimateTotal || 0) + (task.extraFee || 0);
+  const principalFee = Math.round((task.productPrice || task.estimateTotal || 0) * 0.5);
+  
+  // 일정 표시
+  const scheduledDisplay = task.scheduledDate && task.scheduledTime 
+    ? `${task.scheduledDate} ${task.scheduledTime}` 
+    : task.requestedDate 
+      ? `희망: ${task.requestedDate} ${task.requestedTime || ""}`
+      : null;
 
   return (
     <div className="fade-in" style={{ padding: "20px" }}>
@@ -836,7 +1044,7 @@ function TaskDetail({ t, task, onBack }) {
           {task.customer}
         </div>
         <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
-          {task.workType} ({task.quantity}대)
+          {task.workType}{task.appliance ? ` · ${task.appliance}` : ""} ({task.qty || 1}대)
         </div>
       </div>
 
@@ -847,10 +1055,11 @@ function TaskDetail({ t, task, onBack }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <DetailRow t={t} icon={Phone} label="연락처" value={task.phone} mono/>
           <DetailRow t={t} icon={MapPin} label="주소" value={task.address}/>
-          <DetailRow t={t} icon={Hash} label="수량" value={`${task.quantity}대`}/>
-          {task.scheduled && <DetailRow t={t} icon={Calendar} label="예정일시" value={task.scheduled}/>}
-          {task.engineer && <DetailRow t={t} icon={User} label="배정 기사" value={task.engineer}/>}
-          {task.completed && <DetailRow t={t} icon={CheckCircle2} label="완료일시" value={task.completed} color={t.success}/>}
+          <DetailRow t={t} icon={Hash} label="수량" value={`${task.qty || 1}대`}/>
+          {scheduledDisplay && <DetailRow t={t} icon={Calendar} label="일정" value={scheduledDisplay}/>}
+          {task.assignedEngineer && <DetailRow t={t} icon={User} label="배정 기사" value={`${task.assignedEngineer} 기사님`}/>}
+          {task.startedAt && <DetailRow t={t} icon={Clock} label="작업 시작" value={task.startedAt} color={t.warning}/>}
+          {task.completedAt && <DetailRow t={t} icon={CheckCircle2} label="완료 시각" value={task.completedAt} color={t.success}/>}
         </div>
       </div>
 
@@ -858,47 +1067,64 @@ function TaskDetail({ t, task, onBack }) {
         <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
           💰 금액 정보
         </div>
-        
-        <div style={{ marginBottom: 12, padding: "14px 16px", background: t.bgInset, borderRadius: 10 }}>
+
+        <div style={{ marginBottom: 8, padding: "14px 16px", background: t.bgInset, borderRadius: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>고객 결제 금액</span>
-            <span className="mono" style={{ fontSize: 18, fontWeight: 800 }}>
-              ₩{task.amount.toLocaleString()}
+            <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>상품 금액</span>
+            <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: t.text }}>
+              ₩{(task.productPrice || task.estimateTotal || 0).toLocaleString()}
+            </span>
+          </div>
+          {task.extraFee > 0 && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${t.border}` }}>
+              <div>
+                <div style={{ fontSize: 12, color: t.warning, fontWeight: 700 }}>+ 현장 추가금</div>
+                {task.extraReason && <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>{task.extraReason}</div>}
+              </div>
+              <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: t.warning }}>
+                +₩{task.extraFee.toLocaleString()}
+              </span>
+            </div>
+          )}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}` }}>
+            <span style={{ fontSize: 13, color: t.text, fontWeight: 700 }}>고객 결제 합계</span>
+            <span className="mono" style={{ fontSize: 18, fontWeight: 800, color: t.text }}>
+              ₩{customerAmount.toLocaleString()}
             </span>
           </div>
         </div>
 
-        <div style={{ 
-          padding: "14px 16px", 
+        <div style={{
+          padding: "14px 16px",
           background: PRINCIPAL.bg,
           border: `1.5px solid ${PRINCIPAL.color}40`,
           borderRadius: 10,
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: PRINCIPAL.color }}>
-              🏪 내({PRINCIPAL.name}) 수수료
+              🏪 원청 ({PRINCIPAL.name}) 수수료
             </span>
             <span className="mono" style={{ fontSize: 20, fontWeight: 800, color: PRINCIPAL.color }}>
-              ₩{(task.principalFee || 0).toLocaleString()}
+              ₩{principalFee.toLocaleString()}
             </span>
           </div>
           <div style={{ fontSize: 10, color: t.textMuted }}>
-            차감후 50% 수수료 정책
+            상품 금액의 50% 수수료 정책
           </div>
         </div>
 
         <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>
-            <span>🔐</span>
-            <span>{task.status === "완료" ? "정산 가능 (매일 정산)" : "작업 완료 시 정산 처리"}</span>
+            <span>📌</span>
+            <span>{task.status === "완료" ? "정산 가능 (매월 정산)" : "작업 완료 후 정산 처리"}</span>
           </div>
         </div>
       </div>
 
-      {task.hasPhoto && (
+      {task.afterPhoto && (
         <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
-            📸 완료 사진
+            📷 완료 사진
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             {[1, 2].map(i => (
@@ -913,6 +1139,17 @@ function TaskDetail({ t, task, onBack }) {
           </div>
           <div style={{ fontSize: 10, color: t.textMuted, marginTop: 8, textAlign: "center" }}>
             (실제 환경에서 사진 표시)
+          </div>
+        </div>
+      )}
+
+      {task.happycallMemo && (
+        <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>
+            📝 해피콜 메모
+          </div>
+          <div style={{ fontSize: 12, color: t.textSecondary, lineHeight: 1.6 }}>
+            {task.happycallMemo}
           </div>
         </div>
       )}
@@ -936,28 +1173,40 @@ function DetailRow({ t, icon: Icon, label, value, mono, color }) {
   );
 }
 
-function SettleTab({ t }) {
+function SettleTab({ t, tasks }) {
   const [period, setPeriod] = useState("today");
   const [view, setView] = useState("completed");
-  
+
   const today = "2026-04-27";
+  const safeTasks = tasks || [];
+
+  // 헬퍼 - 작업당 수수료/금액 계산
+  const getFee = (x) => Math.round((x.productPrice || x.estimateTotal || 0) * 0.5);
+  const getAmount = (x) => (x.productPrice || x.estimateTotal || 0) + (x.extraFee || 0);
   
-  const completed = MY_TASKS.filter(x => x.status === "완료");
-  const inProgress = MY_TASKS.filter(x => ["확정", "진행중", "약속대기"].includes(x.status));
-  
-  const todayCompleted = completed.filter(x => x.completed?.startsWith(today));
-  const todayInProgress = inProgress.filter(x => x.scheduled?.startsWith(today));
-  
+  // 헬퍼 - 날짜 매칭 (completedAt은 시간만 들어있을 수 있어서 scheduledDate로 보조 매칭)
+  const matchToday = (x) => {
+    if (x.scheduledDate === today) return true;
+    if (x.completedAt && x.completedAt.startsWith(today)) return true;
+    return false;
+  };
+
+  const completed = safeTasks.filter(x => x.status === "완료");
+  const inProgress = safeTasks.filter(x => ["확정", "진행중", "약속대기"].includes(x.status));
+
+  const todayCompleted = completed.filter(matchToday);
+  const todayInProgress = inProgress.filter(matchToday);
+
   const periodCompleted = period === "today" ? todayCompleted : completed;
   const periodInProgress = period === "today" ? todayInProgress : inProgress;
-  
-  const completedFee = periodCompleted.reduce((sum, x) => sum + (x.principalFee || 0), 0);
-  const expectedFee = periodInProgress.reduce((sum, x) => sum + (x.principalFee || 0), 0);
-  const completedTotal = periodCompleted.reduce((sum, x) => sum + x.amount, 0);
-  const expectedTotal = periodInProgress.reduce((sum, x) => sum + x.amount, 0);
-  
+
+  const completedFee = periodCompleted.reduce((sum, x) => sum + getFee(x), 0);
+  const expectedFee = periodInProgress.reduce((sum, x) => sum + getFee(x), 0);
+  const completedTotal = periodCompleted.reduce((sum, x) => sum + getAmount(x), 0);
+  const expectedTotal = periodInProgress.reduce((sum, x) => sum + getAmount(x), 0);
+
   const showTasks = view === "completed" ? periodCompleted : periodInProgress;
-  
+
   const periodLabel = period === "today" ? "오늘" : period === "week" ? "이번주" : "이번달";
 
   return (
@@ -965,7 +1214,7 @@ function SettleTab({ t }) {
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>💰 내 수수료</div>
         <div style={{ fontSize: 12, color: t.textMuted }}>
-          {PRINCIPAL.name}이(가) 받는 수수료 · 매일 정산
+          {PRINCIPAL.name}님이 받는 수수료 · 매일 정산
         </div>
       </div>
 
@@ -988,10 +1237,10 @@ function SettleTab({ t }) {
         ))}
       </div>
 
-      <div style={{ 
-        background: PRINCIPAL.bg, 
-        border: `1.5px solid ${PRINCIPAL.color}40`, 
-        borderRadius: 16, padding: "20px", marginBottom: 12 
+      <div style={{
+        background: PRINCIPAL.bg,
+        border: `1.5px solid ${PRINCIPAL.color}40`,
+        borderRadius: 16, padding: "20px", marginBottom: 12
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: PRINCIPAL.color, letterSpacing: 1, textTransform: "uppercase" }}>
@@ -1069,7 +1318,7 @@ function SettleTab({ t }) {
             {view === "completed" ? `${periodLabel} 완료 작업이 없어요` : `${periodLabel} 진행 중 작업이 없어요`}
           </div>
         ) : showTasks.map((task, idx) => (
-          <div key={task.id} style={{ 
+          <div key={task.id} style={{
             padding: "12px 0",
             borderBottom: idx < showTasks.length - 1 ? `1px solid ${t.border}` : "none",
           }}>
@@ -1077,15 +1326,15 @@ function SettleTab({ t }) {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</div>
                 <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>
-                  {task.workType} · {task.completed?.split(" ")[1]?.slice(0,5) || task.scheduled?.split(" ")[1]?.slice(0,5) || "예정 미정"}
+                  {task.workType} · {task.scheduledTime || task.requestedTime || "일정 미정"}
                 </div>
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
                 <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: PRINCIPAL.color }}>
-                  ₩{(task.principalFee || 0).toLocaleString()}
+                  ₩{getFee(task).toLocaleString()}
                 </div>
                 <div style={{ fontSize: 9, color: t.textMuted, marginTop: 2 }}>
-                  결제 ₩{task.amount.toLocaleString()}
+                  결제 ₩{getAmount(task).toLocaleString()}
                 </div>
               </div>
             </div>
@@ -1093,13 +1342,13 @@ function SettleTab({ t }) {
         ))}
       </div>
 
-      <div style={{ marginTop: 16, padding: "12px 14px", background: t.infoBg, border: `1px solid ${t.info}30`, borderRadius: 10 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: t.info, marginBottom: 6 }}>
+      <div style={{ marginTop: 16, padding: "12px 14px", background: t.infoBg || t.bgInset, border: `1px solid ${(t.info || t.textMuted)}30`, borderRadius: 10 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: t.info || t.textSecondary, marginBottom: 6 }}>
           💡 수수료 정책
         </div>
         <div style={{ fontSize: 10, color: t.textSecondary, lineHeight: 1.7 }}>
-          {PRINCIPAL.name}은(는) <strong style={{ color: t.text }}>차감후 50% 비율</strong>로 정산됩니다.<br/>
-          매일 영업일 다음날 입금 처리됩니다.
+          {PRINCIPAL.name}님은 <strong style={{ color: t.text }}>차감형 50% 비율</strong>로 정산됩니다.<br/>
+          매일 영업일 다음에 입금 처리됩니다.
         </div>
       </div>
     </div>

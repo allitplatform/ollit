@@ -4,6 +4,7 @@ import {
   Wrench, Headphones, BarChart3, Building2, CheckCircle2, AlertCircle, RotateCcw,
   Eye, EyeOff, KeyRound, ArrowLeft
 } from "lucide-react";
+import { REGISTERED_USERS } from "../shared/users.js";
 
 const THEMES = {
   dark: {
@@ -13,7 +14,7 @@ const THEMES = {
     text: "#FAF8F5", textSecondary: "#C4B5A6", textMuted: "#8A7B6F", textDim: "#5C5048",
     accent: "#FF1B8D", accentBg: "rgba(255, 27, 141, 0.10)",
     success: "#10B981", successBg: "rgba(16, 185, 129, 0.10)", successBorder: "rgba(16, 185, 129, 0.20)",
-    danger: "#EF4444", dangerBg: "rgba(239, 68, 68, 0.10)",
+    danger: "#FF3D5A", dangerBg: "rgba(239, 68, 68, 0.10)",
     warning: "#FFB800", warningBg: "rgba(255, 184, 0, 0.10)",
     isLight: false,
   },
@@ -24,34 +25,11 @@ const THEMES = {
     text: "#0A0A0A", textSecondary: "#404040", textMuted: "#737373", textDim: "#A3A3A3",
     accent: "#E91860", accentBg: "rgba(233, 24, 96, 0.06)",
     success: "#16A34A", successBg: "rgba(22, 163, 74, 0.08)", successBorder: "rgba(22, 163, 74, 0.20)",
-    danger: "#DC2626", dangerBg: "rgba(220, 38, 38, 0.06)",
-    warning: "#D97706", warningBg: "rgba(217, 119, 6, 0.08)",
+    danger: "#FF3D5A", dangerBg: "rgba(220, 38, 38, 0.06)",
+    warning: "#FF8F00", warningBg: "rgba(217, 119, 6, 0.08)",
     isLight: true,
   },
 };
-
-const REGISTERED_USERS = [
-  { 
-    userId: "kim.donghyo", name: "김동효", role: "engineer", roleLabel: "기사님", roleIcon: "🔧", roleColor: "#10B981",
-    phone: "010-1111-1111", password: "engineer1!", isFirstLogin: false,
-  },
-  { 
-    userId: "lee.jaehyun", name: "이재현", role: "engineer", roleLabel: "기사님", roleIcon: "🔧", roleColor: "#10B981",
-    phone: "010-2222-2222", password: "temp1234", isFirstLogin: true,
-  },
-  { 
-    userId: "kim.jihye", name: "김지혜", role: "happycall", roleLabel: "해피콜 담당자", roleIcon: "📞", roleColor: "#7F77DD",
-    phone: "010-3333-3333", password: "happycall1!", isFirstLogin: false,
-  },
-  { 
-    userId: "lee.ceo", name: "이대표", role: "admin", roleLabel: "대표님", roleIcon: "📊", roleColor: "#E91860",
-    phone: "010-4444-4444", password: "admin1234!", isFirstLogin: false,
-  },
-  { 
-    userId: "kim.coolguy", name: "김쿨가이", role: "principal", roleLabel: "원청 대표님 (쿨가이)", roleIcon: "🏪", roleColor: "#FFB800",
-    phone: "010-5555-5555", password: "cool1234!", isFirstLogin: false,
-  },
-];
 
 const ROLE_DESTINATIONS = {
   engineer: { title: "기사님 메인", icon: Wrench, screens: ["오늘 일정", "정산", "알림", "내 정보"] },

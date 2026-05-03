@@ -1,4 +1,5 @@
-import { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { getOffDays, addOffDay, deleteOffDay, getTasks } from "../api.js";
 import { 
   Phone, Navigation, CheckCircle2, MapPin, Wrench, Snowflake, Settings, Zap, 
   Sun, Moon, Bell, Camera, Wallet, ArrowRight, ArrowLeft, MessageCircle,
@@ -8,71 +9,149 @@ import {
   TrendingUp, TrendingDown, CreditCard, BellRing, Award, AlertCircle,
   Star, Briefcase, BarChart3, LogOut, ChevronUp, Check, Volume2, Trash2
 } from "lucide-react";
+import { useTasks } from "../shared/TasksContext.jsx";
+import { filterTasksForEngineer } from "../shared/tasks.js";
+import { OllitLoader } from "../components/OllitLoader.jsx";
+import { EngineerSettlementScreen as EngineerSettlementV11 } from "../components/EngineerSettlementScreen.jsx";
+import { EngineerNewAssignmentListScreen } from "../components/EngineerNewAssignmentListScreen.jsx";
+import { EngineerAcceptanceListScreen } from "../components/EngineerAcceptanceListScreen.jsx";
+import { EngineerTaskDetailScreen } from "../components/EngineerTaskDetailScreen.jsx";
+import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
+import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
+// V13-FINAL2 — 4탭 + 공유 컴포넌트
+import { EngineerBottomNav } from "../components/EngineerBottomNav.jsx";
+import { EngineerSettleTab } from "../components/EngineerSettleTab.jsx";
+import { EngineerCalendarTab } from "../components/EngineerCalendarTab.jsx";
+import { EngineerNotiTab } from "../components/EngineerNotiTab.jsx";
+import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
+import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
+// V13-FINAL2-fix1 신규 화면
+import { EngineerOffDayAddModal } from "../components/EngineerOffDayAddModal.jsx";
+import { EngineerAccountEditScreen } from "../components/EngineerAccountEditScreen.jsx";
+import { EngineerNotiSettingsScreen } from "../components/EngineerNotiSettingsScreen.jsx";
+import { EngineerRegionsScreen } from "../components/EngineerRegionsScreen.jsx";
+import { EngineerRegionChangeRequestScreen } from "../components/EngineerRegionChangeRequestScreen.jsx";
+import { EngineerNewAssignCallScreen } from "../components/EngineerNewAssignCallScreen.jsx";
+import { EngineerNewAssignDetailScreen } from "../components/EngineerNewAssignDetailScreen.jsx";
+import { usePWAInstall } from "../hooks/usePWAInstall.js";
+import { PWAInstallModal } from "../components/PWAInstallModal.jsx";
 
 const NOW = "10:00";
 
-const INITIAL_TASKS = [
-  { id: "A260427-001", time: "09:00", endTime: "10:30", duration: "1.5h",
-    address: "강남구 역삼동", fullAddress: "테헤란로 152, 강남파이낸스센터 25층",
-    customer: "박지영", phone: "010-2345-6789",
-    workType: "세척", appliance: "벽걸이", qty: 1, status: "진행중", icon: Snowflake,
-    distance: "12.4km", travelTime: "32분",
-    productPrice: 80000, travelFee: 0, extraFee: 0, extraReason: "",
-    commissionRate: 40, commission: 32000, engineerNet: 48000,
-    requestNote: "현관 비밀번호 1234, 강아지 있어요",
-    happycallMemo: "고객님 친절하셨음. 시간 약속 잘 지키세요.",
-    channel: "카카오톡", receivedAt: "2026.04.25",
-    requestedDate: "2026-04-27", requestedTime: "오전",
-    scheduledDate: "2026-04-27", scheduledTime: "09:00",
-    workMemo: "", beforePhoto: false, afterPhoto: false,
-    startedAt: "09:05", completedAt: null, scheduleHistory: [],
-  },
-  { id: "A260427-002", time: "11:30", endTime: "13:30", duration: "2h",
-    address: "서초구 반포동", fullAddress: "신반포로 270, 반포자이 103-1502",
-    customer: "이상훈", phone: "010-3456-7890",
-    workType: "세척+점검", appliance: "스탠드", qty: 2, status: "확정", icon: Wrench,
-    distance: "4.2km", travelTime: "15분",
-    productPrice: 200000, travelFee: 0, extraFee: 0, extraReason: "",
-    commissionRate: 40, commission: 80000, engineerNet: 120000,
-    requestNote: "퇴근 후 18시 이후 가능합니다. 주차는 지하 B2 손님용 자리 가능",
-    happycallMemo: "고객이 시간 변경 가능성 있다고 함. 미리 전화 권장.",
-    channel: "전화", receivedAt: "2026.04.24",
-    requestedDate: "2026-04-27", requestedTime: "낮 시간",
-    scheduledDate: "2026-04-27", scheduledTime: "11:30",
-    workMemo: "", beforePhoto: false, afterPhoto: false,
-    startedAt: null, completedAt: null, scheduleHistory: [],
-  },
-  { id: "A260427-003", time: "14:00", endTime: "16:30", duration: "2.5h",
-    address: "송파구 잠실동", fullAddress: "올림픽로 240, 트리지움 305-2201",
-    customer: "김미경", phone: "010-4567-8901",
-    workType: "냉매충전", appliance: "시스템 4WAY", qty: 1, status: "확정", icon: Zap,
-    distance: "8.7km", travelTime: "28분",
-    productPrice: 120000, travelFee: 0, extraFee: 0, extraReason: "",
-    commissionRate: 50, commission: 60000, engineerNet: 60000,
-    requestNote: "에어컨에서 차가운 바람이 잘 안 나옵니다.",
-    happycallMemo: "냉매 부족 가능성 높음. R32 가스 확인.",
-    channel: "직접", receivedAt: "2026.04.23",
-    requestedDate: "2026-04-27", requestedTime: "오후",
-    scheduledDate: "2026-04-27", scheduledTime: "14:00",
-    workMemo: "", beforePhoto: false, afterPhoto: false,
-    startedAt: null, completedAt: null, scheduleHistory: [],
-  },
-  { id: "A260427-004", time: null, endTime: null, duration: null,
-    address: "강남구 청담동", fullAddress: "도산대로 450, 청담힐스테이트 동405호",
-    customer: "정도현", phone: "010-5678-9012",
-    workType: "설치", appliance: "벽걸이", qty: 1, status: "약속대기", icon: Settings,
-    distance: "6.1km", travelTime: "22분",
-    productPrice: 80000, travelFee: 0, extraFee: 0, extraReason: "",
-    commissionRate: 40, commission: 32000, engineerNet: 48000,
-    requestNote: "기존 에어컨 떼고 새 벽걸이 설치 부탁드려요",
-    happycallMemo: "", channel: "지인소개", receivedAt: "2026.04.27",
-    requestedDate: "2026-04-28", requestedTime: "오후",
-    scheduledDate: null, scheduledTime: null,
-    workMemo: "", beforePhoto: false, afterPhoto: false,
-    startedAt: null, completedAt: null, scheduleHistory: [],
-  },
-];
+// V13-FINAL — 흰 SVG 아이콘 상수 (전역)
+export const ICON_PHONE_WHITE = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+       stroke="#fff" strokeWidth="2.2"
+       strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+  </svg>
+);
 
+export const ICON_BOLT_WHITE = (
+  <svg width="14" height="14" viewBox="0 0 24 24"
+       fill="#fff" stroke="#fff" strokeWidth="1" strokeLinejoin="round">
+    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+  </svg>
+);
+
+// V13-FINAL2-fix1 — catch #9 진행중 카드 강화 (전화/길찾기 SVG)
+const PhoneSvgColored = ({ color = "currentColor" }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+       stroke={color} strokeWidth="2"
+       strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+  </svg>
+);
+
+const NavSvgColored = ({ color = "currentColor" }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+       stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+  </svg>
+);
+
+// catch #9 — 길찾기 (카카오맵 우선 → 웹 fallback)
+function openMapForTask(task) {
+  const address = encodeURIComponent(task.fullAddress || task.address || "");
+  if (!address) return;
+  const webUrl = `https://map.kakao.com/?q=${address}`;
+  window.open(webUrl, "_blank");
+}
+
+function makeTel(phone) {
+  if (phone) window.location.href = `tel:${phone}`;
+}
+
+// 시트 데이터 → INITIAL_TASKS 형식 변환
+function convertSheetTask(s) {
+  // 시트 status → 화면 status 매핑
+  const statusMap = {
+    "미배정": "약속대기",
+    "배정완료": "확정",
+    "확정": "확정",
+    "진행중": "진행중",
+    "완료": "완료",
+  };
+  
+  // ISO datetime → "YYYY-MM-DD"
+  const toDate = v => {
+    if (!v) return null;
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return null;
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  };
+  
+  // ISO datetime → "HH:MM"
+  const toTime = v => {
+    if (!v) return null;
+    const d = new Date(v);
+    if (isNaN(d.getTime())) return null;
+    return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  };
+  
+  const scheduledDate = toDate(s.scheduledAt);
+  const scheduledTime = toTime(s.scheduledAt);
+  const requestedDate = toDate(s.requestedDate);
+  
+  return {
+    id: s.taskId,
+    time: scheduledTime,
+    endTime: scheduledTime ? `${String((parseInt(scheduledTime.split(':')[0])+1)%24).padStart(2,'0')}:${scheduledTime.split(':')[1]}` : null,
+    duration: scheduledTime ? "1h" : null,
+    address: s.address || "",
+    fullAddress: s.address || "",
+    customer: s.customer || "고객",
+    phone: s.phone || "",
+    workType: s.summary || "작업",
+    appliance: "기종",
+    qty: s.totalQty || 1,
+    status: statusMap[s.status] || "약속대기",
+    icon: Wrench,
+    distance: "—",
+    travelTime: "—",
+    productPrice: s.estimateTotal || 0,
+    travelFee: s.travelFee || 0,
+    extraFee: s.extraFee || 0,
+    extraReason: s.extraReason || "",
+    commissionRate: 40,
+    commission: Math.floor((s.estimateTotal || 0) * 0.4),
+    engineerNet: Math.floor((s.estimateTotal || 0) * 0.6),
+    requestNote: s.requestNote || "",
+    happycallMemo: "",
+    channel: s.channel || "—",
+    receivedAt: toDate(s.receivedAt) || "",
+    requestedDate: requestedDate || "",
+    requestedTime: s.requestedTime || "",
+    scheduledDate: scheduledDate,
+    scheduledTime: scheduledTime,
+    workMemo: s.workMemo || "",
+    beforePhoto: false,
+    afterPhoto: false,
+    startedAt: toTime(s.startedAt),
+    completedAt: toTime(s.completedAt),
+    scheduleHistory: [],
+  };
+}
 const ACTION_ALERTS = [
   { id: "new", type: "count", label: "새 배정", count: 1, sublabel: "신규 · 미수락", icon: Bell, urgent: true },
   { id: "report", type: "count", label: "미보고", count: 1, sublabel: "사진 미제출", icon: Camera, urgent: true },
@@ -163,7 +242,7 @@ const NOTIFICATIONS = [
 const ENGINEER_RANKS = [
   { id: "intern", name: "수습 기사", icon: "🌱", min: 0, max: 50, color: "#888780" },
   { id: "junior", name: "주임 기사", icon: "🔧", min: 51, max: 150, color: "#378ADD" },
-  { id: "senior", name: "대리 기사", icon: "💼", min: 151, max: 300, color: "#1D9E75" },
+  { id: "senior", name: "대리 기사", icon: "💼", min: 151, max: 300, color: "#00875A" },
   { id: "manager", name: "과장 기사", icon: "🎖️", min: 301, max: 600, color: "#E91860" },
   { id: "director", name: "부장 기사", icon: "👑", min: 601, max: 9999, color: "#BA7517" },
 ];
@@ -197,7 +276,7 @@ const THEMES = {
     border: "rgba(255, 220, 200, 0.06)", borderStrong: "rgba(255, 220, 200, 0.10)",
     text: "#FAF8F5", textSecondary: "#C4B5A6", textMuted: "#8A7B6F", textDim: "#5C5048",
     accent: "#FF1B8D", accentBg: "rgba(255, 27, 141, 0.10)",
-    warning: "#FBBF24", warningBg: "rgba(251, 191, 36, 0.08)", warningBorder: "rgba(251, 191, 36, 0.3)",
+    warning: "#FF1B8D", warningBg: "rgba(251, 191, 36, 0.08)", warningBorder: "rgba(251, 191, 36, 0.3)",
     success: "#34D399", successBg: "rgba(52, 211, 153, 0.10)", successBorder: "rgba(52, 211, 153, 0.3)",
     isLight: false,
   },
@@ -207,7 +286,7 @@ const THEMES = {
     border: "rgba(0, 0, 0, 0.05)", borderStrong: "rgba(0, 0, 0, 0.09)",
     text: "#0A0A0A", textSecondary: "#404040", textMuted: "#737373", textDim: "#A3A3A3",
     accent: "#E91860", accentBg: "rgba(233, 24, 96, 0.06)",
-    warning: "#D97706", warningBg: "rgba(217, 119, 6, 0.06)", warningBorder: "rgba(217, 119, 6, 0.22)",
+    warning: "#FF1B8D", warningBg: "rgba(217, 119, 6, 0.06)", warningBorder: "rgba(217, 119, 6, 0.22)",
     success: "#16A34A", successBg: "rgba(22, 163, 74, 0.08)", successBorder: "rgba(22, 163, 74, 0.25)",
     isLight: true,
   },
@@ -464,24 +543,106 @@ function CustomTimePicker({ t, value, onChange }) {
   );
 }
 
-function MainScreen({ t, tasks, onTaskClick }) {
-  const c = {
-    완료: tasks.filter(x => x.status === "완료").length,
-    진행중: tasks.filter(x => x.status === "진행중").length,
-    확정: tasks.filter(x => x.status === "확정").length,
-    약속대기: tasks.filter(x => x.status === "약속대기").length,
+function findNextTask(tasks) {
+  const inProgress = tasks.find(x => x.status === "진행중");
+  if (inProgress) return inProgress;
+  
+  const confirmed = tasks.filter(x => x.status === "확정");
+  if (confirmed.length > 0) {
+    const sorted = [...confirmed].sort((a, b) => {
+      const ta = (a.time || a.scheduledTime || "99:99");
+      const tb = (b.time || b.scheduledTime || "99:99");
+      return ta.localeCompare(tb);
+    });
+    return sorted[0];
+  }
+  
+  const waiting = tasks.find(x => x.status === "약속대기");
+  if (waiting) return waiting;
+  
+  return null;
+}
+
+// V13-1 — 진행 시간 포맷 (시작 시각 → "1시간 5분 진행")
+function formatProgress(startedAt) {
+  if (!startedAt) return "";
+  // startedAt 형식: "09:05" (시각 문자열)
+  const [hStr, mStr] = String(startedAt).split(":");
+  const startMin = (parseInt(hStr, 10) || 0) * 60 + (parseInt(mStr, 10) || 0);
+  const [hNow, mNow] = NOW.split(":");
+  const nowMin = (parseInt(hNow, 10) || 0) * 60 + (parseInt(mNow, 10) || 0);
+  const diff = Math.max(0, nowMin - startMin);
+  if (diff < 60) return `${diff}분`;
+  return `${Math.floor(diff / 60)}시간 ${diff % 60}분`;
+}
+
+// V13-1 — 일정 상태 알약 (다음 일정 카드용)
+function StatusPill({ status }) {
+  const map = {
+    "진행중":   { label: "진행중",  bg: "rgba(255,27,141,0.15)", color: "#FF1B8D" },
+    "확정":     { label: "다음",    bg: "rgba(255,255,255,0.10)", color: "var(--text-primary)" },
+    "약속대기": { label: "약속미정", bg: "rgba(255,179,0,0.20)",  color: "#FFB300" },
+    "완료":     { label: "완료",    bg: "rgba(0,135,90,0.20)",   color: "#00875A" },
   };
+  const cfg = map[status] || map["확정"];
+  return (
+    <div style={{
+      background: cfg.bg, color: cfg.color,
+      padding: "3px 8px", borderRadius: 12,
+      fontSize: 9, fontWeight: 700,
+      whiteSpace: "nowrap",
+    }}>
+      {cfg.label}
+    </div>
+  );
+}
+
+// V13-1 — 오늘 화면 재설계 (영역 5)
+// 1. 인사 + 한 줄 요약
+// 2. 진행중 박스 (조건부)
+// 3. 수락 대기 박스 (조건부)
+// 4. 새 배정 박스 (조건부)
+// 5. 다음 일정 (시간순)
+function MainScreen({
+  t, tasks, user,
+  onTaskClick,
+  onClickAcceptanceList,
+  onClickNewAssignmentList,
+  pendingAcceptances = [],
+}) {
+  const activeTask = tasks.find(x => x.status === "진행중") || null;
+
+  // 새 배정 = 약속대기 + 일정 미정 (해피콜 배정 완료 / 기사 약속 잡을 차례)
+  const newAssignments = tasks.filter(x =>
+    x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
+  );
+
+  // 다음 일정 = 시간 있는 확정 작업만 (진행중은 위 별도 박스)
+  const upcomingTasks = tasks
+    .filter(x => x.status === "확정" && (x.time || x.scheduledTime))
+    .sort((a, b) => (a.time || a.scheduledTime || "99:99").localeCompare(b.time || b.scheduledTime || "99:99"));
+
+  // 한 줄 요약
+  const counts = {
+    inProgress: tasks.filter(x => x.status === "진행중").length,
+    confirmed:  tasks.filter(x => x.status === "확정").length,
+    waiting:    newAssignments.length,
+  };
+  const total = counts.inProgress + counts.confirmed + counts.waiting;
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{
+      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      background: "var(--bg-primary)",
+      minHeight: "100vh", paddingBottom: 100,
+      color: "var(--text-primary)",
+    }}>
       <style>{`
         @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.6); } }
         @keyframes pulseSubtle { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
-        .pulse-dot { animation: pulse 1.8s ease-in-out infinite; }
         .pulse-subtle { animation: pulseSubtle 2s ease-in-out infinite; }
         .mono { font-family: 'JetBrains Mono', monospace; }
         .clickable { cursor: pointer; transition: transform 0.15s, opacity 0.15s; }
@@ -489,71 +650,310 @@ function MainScreen({ t, tasks, onTaskClick }) {
         input, textarea { font-family: inherit; }
       `}</style>
 
-      <div style={{ padding: "28px 20px 0" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>MON · 27 APR · {NOW}</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span className="pulse-subtle" style={{ width: 6, height: 6, background: t.accent, borderRadius: "50%" }}/>
-            <span style={{ fontSize: 11, color: t.textSecondary, fontWeight: 500 }}>실시간</span>
-          </div>
+      {/* 1. 인사 + 한 줄 요약 */}
+      <div style={{ padding: "16px" }}>
+        <div style={{
+          display: "flex", justifyContent: "space-between",
+          alignItems: "center", marginBottom: 6,
+        }}>
+          <span className="mono" style={{
+            fontSize: 9, color: "var(--text-secondary)",
+            letterSpacing: 2, fontWeight: 500,
+          }}>
+            MON · 27 APR · {NOW}
+          </span>
+          <span style={{ fontSize: 9, color: "var(--text-primary)" }}>
+            <span className="pulse-subtle" style={{
+              display: "inline-block", width: 6, height: 6,
+              borderRadius: "50%", background: "#FF1B8D",
+              marginRight: 4, verticalAlign: "middle",
+            }}/>
+            실시간
+          </span>
         </div>
-
-        <div style={{ marginBottom: 22, fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2 }}>안녕하세요, 김동효님</div>
-
-        <div style={{ background: t.bgElevated, borderRadius: 18, padding: "22px 24px", marginBottom: 12, position: "relative" }}>
-          <div style={{ position: "absolute", top: 22, bottom: 22, left: 0, width: 2, background: t.accent }}/>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, letterSpacing: 1, textTransform: "uppercase" }}>다음 출발</span>
-            <span style={{ fontSize: 11, color: t.textSecondary, fontWeight: 600 }}>여유 충분</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 14, marginBottom: 16 }}>
-            <span className="mono" style={{ fontSize: 54, fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1 }}>10:58</span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-              <span style={{ fontSize: 14, fontWeight: 700, color: t.accent }}>58분 여유</span>
-              <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 500 }}>현재 {NOW}</span>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, paddingTop: 14, borderTop: `1px solid ${t.border}` }}>
-            <ArrowRight size={13} style={{ color: t.textDim }}/>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-                <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: t.textSecondary }}>11:30</span>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>이상훈님</span>
-              </div>
-              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>서초구 반포동</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div className="mono" style={{ fontSize: 13, fontWeight: 600, color: t.textSecondary }}>12.4km</div>
-              <div style={{ fontSize: 10, color: t.textMuted }}>~32분</div>
-            </div>
-          </div>
+        <div style={{
+          fontSize: 22, fontWeight: 700,
+          color: "var(--text-primary)",
+          letterSpacing: "-0.02em",
+        }}>
+          안녕하세요, {user?.name || "기사"}님
         </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 28 }}>
-          {ACTION_ALERTS.map((alert, idx) => <ActionAlert key={alert.id} t={t} alert={alert} delay={(idx + 1) * 70} />)}
+        <div style={{
+          fontSize: 13, color: "var(--text-secondary)",
+          marginTop: 4,
+        }}>
+          오늘 {total}건
+          {counts.inProgress > 0 && (
+            <> · <span style={{ color: "#FF1B8D", fontWeight: 700 }}>진행중 {counts.inProgress}</span></>
+          )}
+          {counts.confirmed > 0 && <> · 다음 {counts.confirmed}</>}
+          {counts.waiting > 0 && (
+            <> · <span style={{ color: "#FFB300", fontWeight: 700 }}>약속미정 {counts.waiting}</span></>
+          )}
         </div>
       </div>
 
-      <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 22 }}>
-        <div style={{ padding: "0 20px 14px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span className="mono" style={{ fontSize: 10, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>/ 오늘의 일정</span>
-          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 500 }}>
-            완료 <span style={{ color: t.success, fontWeight: 700 }}>{c.완료}</span> · 진행 <span style={{ color: t.warning, fontWeight: 700 }}>{c.진행중}</span> · 확정 <span style={{ color: t.text, fontWeight: 700 }}>{c.확정}</span> · 미정 <span style={{ color: t.accent, fontWeight: 700 }}>{c.약속대기}</span>
-          </span>
+      {/* 2. 진행중 박스 (catch #9 — 전체 주소 + 전화/길찾기) */}
+      {activeTask && (
+        <div
+          onClick={() => onTaskClick(activeTask.id)}
+          className="clickable"
+          style={{
+            margin: "0 16px 14px",
+            background: "var(--bg-secondary)",
+            borderRadius: 14,
+            padding: 14,
+            cursor: "pointer",
+          }}
+        >
+          <div style={{
+            display: "flex", justifyContent: "space-between",
+            alignItems: "center", marginBottom: 10,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{
+                width: 8, height: 8, borderRadius: "50%",
+                background: "#FF1B8D",
+                display: "inline-block",
+              }}/>
+              <span style={{
+                fontSize: 12, color: "#FF1B8D", fontWeight: 700,
+              }}>
+                진행중
+              </span>
+            </div>
+            <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+              {formatProgress(activeTask.startedAt)} 진행
+            </span>
+          </div>
+
+          <div style={{
+            display: "flex", alignItems: "center",
+            justifyContent: "space-between", marginBottom: 4,
+          }}>
+            <div style={{
+              fontSize: 22, fontWeight: 700,
+              color: "var(--text-primary)",
+            }}>
+              {activeTask.customer}
+            </div>
+            <span style={{
+              fontSize: 18, color: "var(--text-secondary)",
+              marginLeft: 8,
+            }}>
+              ›
+            </span>
+          </div>
+
+          {/* 작업 종류 + 기종 */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 6, marginBottom: 6,
+          }}>
+            <ServiceTypeIcon workType={activeTask.workType} size={14} showLabel={true}/>
+            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+              {activeTask.appliance}{activeTask.qty ? ` ×${activeTask.qty}` : ""}
+            </span>
+          </div>
+
+          {/* catch #9 — 전체 주소 */}
+          <div style={{
+            fontSize: 12, color: "var(--text-primary)",
+            marginBottom: 6, lineHeight: 1.4,
+          }}>
+            📍 {activeTask.fullAddress || activeTask.address || "—"}
+          </div>
+
+          <div style={{
+            fontSize: 11, color: "var(--text-secondary)", marginBottom: 12,
+          }}>
+            시작 {activeTask.startedAt || activeTask.scheduledTime || "—"}
+            {activeTask.endTime ? ` · 예상 종료 ${activeTask.endTime}` : ""}
+          </div>
+
+          {/* V13-FINAL2-fix4 — 진행중 카드 = 단색 핫핑크 (빠른 액션) */}
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
+          }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); makeTel(activeTask.phone); }}
+              style={{
+                padding: 12,
+                background: "#FF1B8D",
+                border: "none",
+                borderRadius: 8,
+                color: "#fff",
+                fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center",
+                justifyContent: "center", gap: 6,
+              }}
+            >
+              <PhoneSvgColored color="#fff"/> 전화
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); openMapForTask(activeTask); }}
+              style={{
+                padding: 12,
+                background: "#FF1B8D",
+                border: "none",
+                borderRadius: 8,
+                color: "#fff",
+                fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center",
+                justifyContent: "center", gap: 6,
+              }}
+            >
+              <NavSvgColored color="#fff"/> 길찾기
+            </button>
+          </div>
         </div>
-        {tasks.map((task, idx) => <CompactTaskCard key={task.id} task={task} t={t} index={idx} onClick={() => onTaskClick(task.id)} />)}
+      )}
+
+      {/* 3. 수락 대기 박스 (조건부 — 가스 자동 배정 콜) */}
+      {pendingAcceptances.length > 0 && (
+        <div
+          onClick={onClickAcceptanceList}
+          className="clickable"
+          style={{
+            margin: "0 16px 8px",
+            background: "var(--bg-secondary)",
+            borderRadius: 10,
+            padding: 12,
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>🔔</span>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: 13, color: "var(--text-primary)", fontWeight: 700,
+              }}>
+                <span style={{ color: "#FFB300" }}>수락 대기</span> · {pendingAcceptances.length}건
+              </div>
+            </div>
+            <span style={{ fontSize: 14, color: "#FFB300" }}>›</span>
+          </div>
+        </div>
+      )}
+
+      {/* 4. 새 배정 박스 (조건부) — 단색 핫핑크 + 종 모양 */}
+      {newAssignments.length > 0 && (
+        <div
+          onClick={onClickNewAssignmentList}
+          className="clickable"
+          style={{
+            margin: "0 16px 14px",
+            background: "#FF1B8D",
+            borderRadius: 10,
+            padding: 14,
+            cursor: "pointer",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 18 }}>🔔</span>
+            <div style={{ flex: 1 }}>
+              <div style={{
+                fontSize: 13, color: "#fff", fontWeight: 700,
+              }}>
+                새 배정 · {newAssignments.length}건
+              </div>
+            </div>
+            <span style={{ fontSize: 14, color: "#fff", opacity: 0.85 }}>›</span>
+          </div>
+        </div>
+      )}
+
+      {/* 5. 다음 일정 (시간순) */}
+      <div style={{ padding: "0 16px" }}>
+        <div style={{
+          fontSize: 11, color: "var(--text-secondary)",
+          marginBottom: 8, paddingLeft: 4,
+        }}>
+          📅 다음 일정
+        </div>
+
+        {upcomingTasks.length === 0 ? (
+          <div style={{
+            padding: 18, textAlign: "center",
+            color: "var(--text-tertiary)", fontSize: 11,
+            background: "var(--bg-secondary)",
+            borderRadius: 8,
+          }}>
+            예정된 일정 없음
+          </div>
+        ) : (
+          upcomingTasks.map(task => (
+            <div
+              key={task.id}
+              onClick={() => onTaskClick(task.id)}
+              className="clickable"
+              style={{
+                display: "flex", alignItems: "center",
+                padding: 12,
+                background: "var(--bg-secondary)",
+                borderRadius: 8,
+                marginBottom: 6,
+                cursor: "pointer",
+              }}
+            >
+              <div style={{ width: 60 }}>
+                <div className="mono" style={{
+                  fontSize: 16, color: "var(--text-primary)",
+                  fontWeight: 700,
+                }}>
+                  {task.time || task.scheduledTime || "—"}
+                </div>
+                <div style={{ fontSize: 9, color: "var(--text-secondary)" }}>
+                  {task.duration || ""}
+                </div>
+              </div>
+              <div style={{ flex: 1, padding: "0 8px", minWidth: 0 }}>
+                <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700 }}>
+                  {task.customer}
+                  <span style={{
+                    fontSize: 9, color: "var(--text-secondary)",
+                    fontWeight: 400, marginLeft: 6,
+                  }}>
+                    {task.address}
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: 9, color: "var(--text-primary)",
+                  marginTop: 2,
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  <ServiceTypeIcon workType={task.workType} size={12} showLabel={false}/>
+                  <span style={{ color: "var(--text-secondary)" }}>
+                    {task.workType}{task.appliance ? ` · ${task.appliance}` : ""}
+                    {task.qty ? ` ×${task.qty}` : ""}
+                  </span>
+                </div>
+              </div>
+              <StatusPill status={task.status}/>
+              <span style={{
+                fontSize: 9, color: "var(--text-secondary)", marginLeft: 6,
+              }}>›</span>
+            </div>
+          ))
+        )}
       </div>
     </div>
   );
 }
 
-function ActionAlert({ t, alert, delay }) {
+function ActionAlert({ t, alert, delay, onClick }) {
   const Icon = alert.icon;
   const isMoney = alert.type === "money";
   const hasItems = isMoney ? alert.amount > 0 : alert.count > 0;
   const isUrgent = alert.urgent && hasItems;
+  const isClickable = !!onClick;
   return (
-    <div className="card-fade clickable" style={{ background: t.bgElevated, borderRadius: 12, padding: "14px", position: "relative", animationDelay: `${delay}ms` }}>
+    <div 
+      className={isClickable ? "card-fade clickable" : "card-fade"}
+      onClick={onClick || undefined}
+      style={{ background: t.bgElevated, borderRadius: 12, padding: "14px", position: "relative", animationDelay: `${delay}ms`, cursor: isClickable ? "pointer" : "default" }}
+    >
       {isUrgent && <span className="pulse-dot" style={{ position: "absolute", top: 10, right: 10, width: 6, height: 6, background: t.accent, borderRadius: "50%" }}/>}
       <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 12 }}>
         <Icon size={11} style={{ color: t.textMuted }}/>
@@ -575,8 +975,17 @@ function ActionAlert({ t, alert, delay }) {
   );
 }
 
+function getIconForTask(workType) {
+  if (!workType) return Wrench;
+  if (workType.includes("세척") || workType.includes("분해세척")) return Snowflake;
+  if (workType.includes("냉매") || workType.includes("가스")) return Zap;
+  if (workType.includes("설치") || workType.includes("이전설치")) return Settings;
+  if (workType.includes("점검") || workType.includes("수리")) return Wrench;
+  return Wrench;
+}
+
 function CompactTaskCard({ task, t, index, onClick }) {
-  const Icon = task.icon;
+  const Icon = getIconForTask(task.workType);
   const isInProgress = task.status === "진행중";
   const isConfirmed = task.status === "확정";
   const isWaiting = task.status === "약속대기";
@@ -598,12 +1007,12 @@ function CompactTaskCard({ task, t, index, onClick }) {
           {isWaiting ? (
             <>
               <div style={{ fontSize: 12, fontWeight: 700, color: t.accent }}>{formatRequestedDate(task.requestedDate)}</div>
-              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 600 }}>{task.requestedTime} 희망</div>
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 600 }}>{task.requestedTime || "—"} 희망</div>
             </>
           ) : (
             <>
-              <div className="mono" style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>{task.time}</div>
-              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 600 }}>{task.duration}</div>
+              <div className="mono" style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>{task.time || "—"}</div>
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 600 }}>{task.duration || ""}</div>
             </>
           )}
         </div>
@@ -632,12 +1041,12 @@ function CompactTaskCard({ task, t, index, onClick }) {
 // 작업 상세 화면 (일정 변경 추가)
 // ============================================
 function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
-  const Icon = task.icon;
+  const Icon = getIconForTask(task.workType);
   const isInProgress = task.status === "진행중";
   const isConfirmed = task.status === "확정";
   const isWaiting = task.status === "약속대기";
   const isCompleted = task.status === "완료";
-  const showPhotoSection = isInProgress || isCompleted;
+  const showPhotoSection = isCompleted;
   const isLocked = isCompleted;
   const canChangeSchedule = isConfirmed; // 확정 상태만 변경 가능
 
@@ -789,7 +1198,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
 
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle(t)}>⏰ 새 시간</label>
-            <CustomTimePicker t={t} value={newTime} onChange={setNewTime}/>
+            <DragTimePicker t={t} value={newTime} onChange={setNewTime} label="새 시간 선택"/>
           </div>
 
           <div style={{ marginBottom: 14 }}>
@@ -896,7 +1305,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
 
           <div style={{ marginBottom: 14 }}>
             <label style={labelStyle(t)}>⏰ 약속 시간</label>
-            <CustomTimePicker t={t} value={scheduleTime} onChange={setScheduleTime}/>
+            <DragTimePicker t={t} value={scheduleTime} onChange={setScheduleTime} label="약속 시간 선택"/>
           </div>
 
           {canConfirmSchedule && (
@@ -1870,7 +2279,7 @@ function ProfileScreen({ t, mode, setMode }) {
       </div>
 
       <div style={{ borderTop: `1px solid ${t.border}`, marginTop: 8 }}>
-        <ProfileMenuItem t={t} icon={<Bell size={16}/>} label="알림 설정" sublabel="텔레그램 알림"/>
+        <ProfileMenuItem t={t} icon={<Bell size={16}/>} label="알림 설정" sublabel="시스템 / 푸시 알림"/>
         <ProfileMenuItem t={t} icon={<Volume2 size={16}/>} label="소리 / 진동"/>
         {/* 다크/라이트 토글 */}
         <div style={{ padding: "16px 20px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 14 }}>
@@ -1979,6 +2388,7 @@ function ProfileMenuItem({ t, icon, label, sublabel, danger }) {
 function BottomTabBar({ t, activeTab, onTabChange, unreadCount }) {
   const tabs = [
     { id: "main", label: "일정", icon: Calendar },
+    { id: "calendar", label: "캘린더", icon: Calendar },
     { id: "settlement", label: "정산", icon: Wallet },
     { id: "notifications", label: "알림", icon: Bell, badge: unreadCount },
     { id: "profile", label: "내 정보", icon: User },
@@ -1992,7 +2402,7 @@ function BottomTabBar({ t, activeTab, onTabChange, unreadCount }) {
       paddingBottom: "env(safe-area-inset-bottom, 0px)",
       zIndex: 100,
     }}>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)" }}>
         {tabs.map(tab => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -2042,21 +2452,1255 @@ function BottomTabBar({ t, activeTab, onTabChange, unreadCount }) {
 }
 
 
+// =====================================
+// 캘린더 화면 (월별 뷰)
+// =====================================
+
+// 시간 포맷 헬퍼 (1899-12-30 같은 이상한 값 처리)
+function formatTimeOnly(timeStr) {
+  if (!timeStr) return '';
+  const str = String(timeStr);
+  
+  // ISO 날짜 문자열 (1899-12-30T...) → 시간만 추출
+  if (str.includes('T')) {
+    const timePart = str.split('T')[1];
+    if (timePart) {
+      return timePart.slice(0, 5); // HH:MM
+    }
+  }
+  
+  // 1899로 시작 (엑셀 기본 날짜) → 시간만 추출
+  if (str.startsWith('1899')) {
+    return str.slice(11, 16) || '';
+  }
+  
+  // "종일" 같은 텍스트
+  if (str === '종일') return '';
+  
+  // HH:MM 형식
+  if (str.match(/^\d{2}:\d{2}/)) {
+    return str.slice(0, 5);
+  }
+  
+  return str;
+}
+
+function CalendarScreen({ t, engineerName, tasks }) {
+  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(new Date().getMonth());
+  const [offDays, setOffDays] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // 휴무 데이터 로드
+  const loadOffDays = async () => {
+    if (!engineerName) return;
+    setLoading(true);
+    try {
+      const result = await getOffDays(engineerName);
+      if (result.ok) {
+        setOffDays(result.offDays || []);
+      }
+    } catch (err) {
+      console.error('휴무 로드 실패:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    loadOffDays();
+  }, [engineerName]);
+  
+  // 달력 데이터 생성
+  const firstDay = new Date(year, month, 1);
+  const lastDay = new Date(year, month + 1, 0);
+  const startWeekday = firstDay.getDay();
+  const daysInMonth = lastDay.getDate();
+  
+  // 각 날짜의 데이터 (작업 + 휴무)
+  const dateMap = {};
+  for (let i = 1; i <= daysInMonth; i++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+    dateMap[dateStr] = { tasks: [], offDays: [] };
+  }
+  
+  // 작업 매핑
+  (tasks || []).forEach(task => {
+    let dateStr = task.requestedDate || task.scheduledAt || '';
+    if (dateStr instanceof Date) {
+      dateStr = `${dateStr.getFullYear()}-${String(dateStr.getMonth() + 1).padStart(2, '0')}-${String(dateStr.getDate()).padStart(2, '0')}`;
+    }
+    if (dateStr && dateMap[dateStr]) {
+      dateMap[dateStr].tasks.push(task);
+    }
+  });
+  
+  // 다음날 계산 헬퍼
+  const nextDateStr = (dateStr) => {
+    const dt = new Date(dateStr);
+    dt.setDate(dt.getDate() + 1);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  };
+  
+  // 날짜 정규화 (timezone-safe)
+  const normalizeDate = (dateInput) => {
+    if (!dateInput) return '';
+    const str = String(dateInput);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str.slice(0, 10);
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+  
+  // 시간 → 숫자 (parseHour과 동일)
+  const _parseH = (timeStr) => {
+    const tm = formatTimeOnly(timeStr);
+    if (!tm) return null;
+    const [h, m] = tm.split(":").map(Number);
+    if (isNaN(h)) return null;
+    return h + (m || 0) / 60;
+  };
+  
+  // 휴무 매핑 (다음날로 넘어가는 휴무 자동 분할)
+  offDays.forEach(off => {
+    if (dateMap[normalizeDate(off.date)]) {
+      dateMap[normalizeDate(off.date)].offDays.push(off);
+    }
+    
+    // 다음 날로 넘어가는 시간 휴무/개인일정은 다음 날에도 마커 추가
+    if (off.type !== '휴무종일' && off.startTime !== '종일' && off.endTime !== '종일') {
+      const sH = _parseH(off.startTime);
+      const eH = _parseH(off.endTime);
+      if (sH !== null && eH !== null && eH < sH) {
+        const nd = nextDateStr(normalizeDate(off.date));
+        if (dateMap[nd]) {
+          dateMap[nd].offDays.push({ ...off, _continuedFromYesterday: true });
+        }
+      }
+    }
+  });
+  
+  // 달력 그리드 생성
+  const cells = [];
+  for (let i = 0; i < startWeekday; i++) cells.push(null);
+  for (let i = 1; i <= daysInMonth; i++) cells.push(i);
+  
+  const prevMonth = () => {
+    if (month === 0) { setYear(year - 1); setMonth(11); }
+    else setMonth(month - 1);
+  };
+  const nextMonth = () => {
+    if (month === 11) { setYear(year + 1); setMonth(0); }
+    else setMonth(month + 1);
+  };
+  
+  const onDateClick = (day) => {
+    if (!day) return;
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    setSelectedDate(dateStr);
+  };
+  
+  const today = new Date();
+  const isToday = (day) => {
+    return year === today.getFullYear() && month === today.getMonth() && day === today.getDate();
+  };
+  
+  if (selectedDate) {
+    const data = dateMap[selectedDate] || { tasks: [], offDays: [] };
+    return (
+      <DayDetailScreen 
+        t={t}
+        date={selectedDate}
+        tasks={data.tasks}
+        offDays={data.offDays}
+        engineerName={engineerName}
+        onBack={() => setSelectedDate(null)}
+        onDataChange={loadOffDays}
+      />
+    );
+  }
+  
+  return (
+    <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+      <div style={{ padding: "20px 16px 16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>CALENDAR</span>
+          <button onClick={() => setShowModal(true)} style={{
+            background: t.accent, color: "white", border: "none", borderRadius: 8,
+            padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit",
+          }}>
+            <Plus size={12}/> 휴무 추가
+          </button>
+        </div>
+        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 16 }}>나의 캘린더</div>
+        
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderTop: `1px solid ${t.border}`, borderBottom: `1px solid ${t.border}` }}>
+          <button onClick={prevMonth} style={{ background: "transparent", border: "none", padding: 8, cursor: "pointer", color: t.text }}>
+            <ChevronLeft size={18}/>
+          </button>
+          <div style={{ fontSize: 16, fontWeight: 700 }}>
+            {year}년 {month + 1}월
+          </div>
+          <button onClick={nextMonth} style={{ background: "transparent", border: "none", padding: 8, cursor: "pointer", color: t.text }}>
+            <ChevronRight size={18}/>
+          </button>
+        </div>
+      </div>
+      
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "0 16px", marginBottom: 4 }}>
+        {["日", "月", "火", "水", "木", "金", "土"].map((d, i) => (
+          <div key={i} style={{ 
+            textAlign: "center", padding: "8px 0", fontSize: 11, fontWeight: 600,
+            color: i === 0 ? "#FF6B6B" : i === 6 ? "#5DA1F5" : t.textMuted 
+          }}>{d}</div>
+        ))}
+      </div>
+      
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "0 16px", gap: 2 }}>
+        {cells.map((day, idx) => {
+          if (!day) return <div key={idx} style={{ aspectRatio: "1/1.1" }}/>;
+          
+          const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          const data = dateMap[dateStr] || { tasks: [], offDays: [] };
+          const hasTasks = data.tasks.length > 0;
+          const hasOffDay = data.offDays.length > 0;
+          const offType = hasOffDay ? data.offDays[0].type : null;
+          const dow = (startWeekday + day - 1) % 7;
+          
+          return (
+            <button
+              key={idx}
+              onClick={() => onDateClick(day)}
+              style={{
+                aspectRatio: "1/1.1",
+                background: isToday(day) ? t.accent : t.bgElevated,
+                border: "none",
+                borderRadius: 8,
+                cursor: "pointer",
+                padding: "6px 4px 4px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "flex-start",
+                fontFamily: "inherit",
+                color: isToday(day) ? "white" : (dow === 0 ? "#FF6B6B" : dow === 6 ? "#5DA1F5" : t.text),
+              }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{day}</div>
+              <div style={{ display: "flex", gap: 2, flexWrap: "wrap", justifyContent: "center" }}>
+                {hasTasks && data.tasks.slice(0, 3).map((_, i) => (
+                  <span key={`t${i}`} style={{ 
+                    width: 5, height: 5, borderRadius: "50%", 
+                    background: isToday(day) ? "white" : t.accent 
+                  }}/>
+                ))}
+                {hasOffDay && (
+                  <span style={{ 
+                    fontSize: 9, 
+                    color: isToday(day) ? "white" : (offType === "개인일정" ? "#5DA1F5" : "#FF6B6B"),
+                    fontWeight: 700,
+                  }}>
+                    {offType === "개인일정" ? "📅" : "✕"}
+                  </span>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      
+      <div style={{ padding: "16px", marginTop: 8, fontSize: 11, color: t.textMuted, lineHeight: 1.8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: t.accent }}/>
+          <span>회사 작업</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+          <span style={{ color: "#FF6B6B", fontWeight: 700 }}>✕</span>
+          <span>휴무</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ color: "#5DA1F5" }}>📅</span>
+          <span>개인 일정</span>
+        </div>
+      </div>
+      
+      {loading && (
+        <OllitLoader size={28} label="데이터 로딩 중..."/>
+      )}
+      
+      {showModal && (
+        <AddOffDayModal
+          t={t}
+          engineerName={engineerName}
+          onClose={() => setShowModal(false)}
+          onSaved={() => {
+            setShowModal(false);
+            loadOffDays();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// =====================================
+// 일별 상세 화면 (타임라인 v2 - 다음날 분할 처리)
+// =====================================
+function DayDetailScreen({ t, date, tasks, offDays: initialOffDays, engineerName, onBack, onDataChange }) {
+  const [showModal, setShowModal] = useState(false);
+  const [deleting, setDeleting] = useState(null);
+  const [offDays, setOffDays] = useState(initialOffDays || []);
+  
+  const reloadOffDays = async () => {
+    if (!engineerName) return;
+    try {
+      const result = await getOffDays(engineerName);
+      if (result.ok) {
+        // 이 날짜의 휴무 + 어제 시작해서 이 날로 넘어온 휴무
+        const all = result.offDays || [];
+        const todayList = all.filter(off => normalizeDate(off.date) === date);
+        
+        // 어제 휴무 중 다음날로 넘어가는 것
+        const yesterday = new Date(date);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+        
+        const _parseH = (s) => {
+          const tm = formatTimeOnly(s);
+          if (!tm) return null;
+          const [h, m] = tm.split(":").map(Number);
+          return isNaN(h) ? null : h + (m || 0) / 60;
+        };
+        
+        const carryOver = all
+          .filter(off => normalizeDate(off.date) === yStr && off.type !== '휴무종일' && off.startTime !== '종일')
+          .filter(off => {
+            const s = _parseH(off.startTime);
+            const e = _parseH(off.endTime);
+            return s !== null && e !== null && e < s;
+          })
+          .map(off => ({ ...off, _continuedFromYesterday: true }));
+        
+        setOffDays([...todayList, ...carryOver]);
+      }
+    } catch (err) {
+      console.error('휴무 로드 실패:', err);
+    }
+  };
+  
+  useEffect(() => {
+    setOffDays(initialOffDays || []);
+  }, [initialOffDays]);
+  
+  const dateObj = new Date(date);
+  const dow = ["일", "월", "화", "수", "목", "금", "토"][dateObj.getDay()];
+  
+  const handleDelete = async (offId) => {
+    if (!confirm("정말 삭제할까요?")) return;
+    setDeleting(offId);
+    try {
+      const result = await deleteOffDay(offId);
+      if (result.ok) {
+        await reloadOffDays();
+        if (onDataChange) onDataChange();
+      } else {
+        alert("삭제 실패: " + (result.error || ""));
+      }
+    } catch (err) {
+      alert("오류: " + err.message);
+    } finally {
+      setDeleting(null);
+    }
+  };
+  
+  // 날짜 정규화 (timezone-safe)
+  const normalizeDate = (dateInput) => {
+    if (!dateInput) return '';
+    const str = String(dateInput);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str.slice(0, 10);
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  };
+  
+  const parseHour = (timeStr) => {
+    const tm = formatTimeOnly(timeStr);
+    if (!tm) return null;
+    const [h, m] = tm.split(":").map(Number);
+    if (isNaN(h)) return null;
+    return h + (m || 0) / 60;
+  };
+  
+  const blocks = [];
+  
+  // 작업 블록
+  tasks.forEach(task => {
+    const startStr = task.startTime || task.scheduledAt || '';
+    let start = parseHour(startStr);
+    if (start === null && task.requestedTime) {
+      const rt = String(task.requestedTime);
+      if (rt.includes('오전')) start = 10;
+      else if (rt.includes('오후')) start = 14;
+      else if (rt.includes('저녁')) start = 18;
+      else start = 10;
+    }
+    if (start === null) start = 10;
+    
+    const duration = 1.5;
+    const end = Math.min(start + duration, 24);
+    
+    blocks.push({
+      type: 'task',
+      start, end,
+      title: task.customer || '고객',
+      subtitle: task.summary || task.workType || '',
+      detail: task.address || '',
+      taskId: task.taskId,
+    });
+  });
+  
+  // 휴무 블록 (다음날 분할 처리)
+  offDays.forEach(off => {
+    if (off.type === '휴무종일') {
+      blocks.push({
+        type: 'offFull',
+        start: 0, end: 24,
+        title: '종일 휴무',
+        subtitle: off.memo || '',
+        offId: off.offId,
+      });
+      return;
+    }
+    
+    const start = parseHour(off.startTime);
+    const end = parseHour(off.endTime);
+    if (start === null || end === null) return;
+    
+    const isPersonal = off.type === '개인일정';
+    const blockType = isPersonal ? 'personal' : 'offTime';
+    const baseTitle = isPersonal ? '📅 개인 일정' : '🛌 휴무';
+    
+    if (off._continuedFromYesterday) {
+      // 어제부터 이어진 새벽 부분
+      blocks.push({
+        type: blockType,
+        start: 0, end: end,
+        title: '🌙 ' + (isPersonal ? '개인 일정 (어제부터)' : '휴무 (어제부터)'),
+        subtitle: off.memo || `~${off.endTime}`,
+        offId: off.offId,
+      });
+    } else if (end < start) {
+      // 다음날로 넘어가는 휴무 - 오늘 부분만 (start ~ 24:00)
+      blocks.push({
+        type: blockType,
+        start: start, end: 24,
+        title: baseTitle + ' (다음날까지)',
+        subtitle: off.memo ? `${off.memo} · ~다음날 ${off.endTime}` : `~다음날 ${off.endTime}`,
+        offId: off.offId,
+      });
+    } else if (end > start) {
+      // 같은 날 안에서 끝남 (일반)
+      blocks.push({
+        type: blockType,
+        start: start, end: end,
+        title: baseTitle,
+        subtitle: off.memo || '',
+        offId: off.offId,
+      });
+    }
+  });
+  
+  blocks.sort((a, b) => a.start - b.start);
+  
+  const fullOff = blocks.find(b => b.type === 'offFull');
+  
+  // 빈 시간 계산
+  const emptySlots = [];
+  if (!fullOff) {
+    let cursor = 0;
+    blocks.forEach(b => {
+      if (b.start > cursor) {
+        emptySlots.push({ start: cursor, end: b.start });
+      }
+      cursor = Math.max(cursor, b.end);
+    });
+    if (cursor < 24) {
+      emptySlots.push({ start: cursor, end: 24 });
+    }
+  }
+  
+  const HOUR_HEIGHT = 36;
+  const totalHours = 24;
+  const totalHeight = totalHours * HOUR_HEIGHT;
+  
+  const COLORS = {
+    task:     { bg: t.accent, fg: '#FFFFFF', border: t.accent },
+    offFull:  { bg: 'rgba(255,107,107,0.85)', fg: '#FFFFFF', border: '#FF6B6B' },
+    offTime:  { bg: 'rgba(255,107,107,0.85)', fg: '#FFFFFF', border: '#FF6B6B' },
+    personal: { bg: 'rgba(93,161,245,0.85)', fg: '#FFFFFF', border: '#5DA1F5' },
+  };
+  
+  const hourLabels = [];
+  for (let h = 0; h <= 24; h++) {
+    hourLabels.push(h);
+  }
+  
+  return (
+    <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+      <div style={{ padding: "20px 16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
+          <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text }}>
+            <ChevronLeft size={22}/>
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 18, fontWeight: 700 }}>{date}</div>
+            <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+              {dateObj.getMonth() + 1}월 {dateObj.getDate()}일 ({dow})
+            </div>
+          </div>
+          <button onClick={() => setShowModal(true)} style={{
+            background: t.accent, color: "white", border: "none", borderRadius: 8,
+            padding: "8px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 4, fontFamily: "inherit",
+          }}>
+            <Plus size={12}/> 추가
+          </button>
+        </div>
+        
+        {tasks.length === 0 && offDays.length === 0 && (
+          <div style={{ 
+            padding: "40px 20px", textAlign: "center", fontSize: 12, 
+            color: t.textMuted, background: t.bgElevated, borderRadius: 12,
+            marginBottom: 16,
+          }}>
+            이 날에 일정이 없어요.<br/>
+            [+ 추가] 버튼으로 휴무나 개인일정을 등록하세요.
+          </div>
+        )}
+        
+        <div style={{ 
+          display: 'flex', position: 'relative',
+          background: t.bgElevated, borderRadius: 12, padding: '12px 8px',
+        }}>
+          <div style={{ 
+            width: 36, position: 'relative', 
+            height: totalHeight, flexShrink: 0,
+          }}>
+            {hourLabels.map(h => (
+              <div key={h} style={{
+                position: 'absolute',
+                top: h * HOUR_HEIGHT - 6,
+                right: 4,
+                fontSize: 9, color: t.textMuted,
+                fontFamily: 'monospace', fontWeight: 600,
+              }}>
+                {String(h).padStart(2, '0')}
+              </div>
+            ))}
+          </div>
+          
+          <div style={{ 
+            flex: 1, position: 'relative', 
+            height: totalHeight,
+            borderLeft: `1px solid ${t.border}`,
+            paddingLeft: 6,
+          }}>
+            {hourLabels.map(h => (
+              <div key={h} style={{
+                position: 'absolute',
+                top: h * HOUR_HEIGHT,
+                left: 0, right: 0,
+                borderTop: `1px solid ${t.border}`,
+                opacity: h % 6 === 0 ? 0.6 : 0.2,
+              }}/>
+            ))}
+            
+            {emptySlots.map((slot, idx) => {
+              const top = slot.start * HOUR_HEIGHT;
+              const height = (slot.end - slot.start) * HOUR_HEIGHT;
+              if (height < 18) return null;
+              const hours = Math.round((slot.end - slot.start) * 10) / 10;
+              return (
+                <div key={`empty-${idx}`} style={{
+                  position: 'absolute',
+                  top, left: 4, right: 4,
+                  height,
+                  border: `1px dashed ${t.border}`,
+                  borderRadius: 4,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, color: t.textMuted,
+                  background: 'transparent',
+                }}>
+                  ⏸ {hours}h
+                </div>
+              );
+            })}
+            
+            {blocks.map((b, idx) => {
+              const top = b.start * HOUR_HEIGHT;
+              const height = (b.end - b.start) * HOUR_HEIGHT;
+              const colors = COLORS[b.type];
+              const isClickable = b.offId;
+              
+              return (
+                <div key={idx} 
+                  onClick={isClickable ? () => handleDelete(b.offId) : undefined}
+                  style={{
+                    position: 'absolute',
+                    top: top + 1, left: 4, right: 4,
+                    height: height - 2,
+                    background: colors.bg,
+                    color: colors.fg,
+                    borderRadius: 6,
+                    padding: '6px 10px',
+                    overflow: 'hidden',
+                    cursor: isClickable ? 'pointer' : 'default',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  <div style={{ 
+                    fontSize: 11, fontWeight: 700, 
+                    marginBottom: 2,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {b.title}
+                  </div>
+                  {height > 28 && b.subtitle && (
+                    <div style={{ 
+                      fontSize: 9, opacity: 0.9,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {b.subtitle}
+                    </div>
+                  )}
+                  {height > 50 && b.detail && (
+                    <div style={{ 
+                      fontSize: 9, opacity: 0.8,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {b.detail}
+                    </div>
+                  )}
+                  {height > 22 && (
+                    <div style={{
+                      position: 'absolute', bottom: 4, right: 8,
+                      fontSize: 9, opacity: 0.7,
+                      fontFamily: 'monospace',
+                    }}>
+                      {String(Math.floor(b.start)).padStart(2,'0')}:{String(Math.round((b.start % 1) * 60)).padStart(2,'0')}
+                      {' ~ '}
+                      {String(Math.floor(b.end)).padStart(2,'0')}:{String(Math.round((b.end % 1) * 60)).padStart(2,'0')}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        
+        <div style={{ 
+          marginTop: 12, padding: '8px 12px',
+          fontSize: 10, color: t.textMuted, lineHeight: 1.6,
+        }}>
+          💡 휴무/개인일정 막대 탭하면 삭제할 수 있어요
+        </div>
+      </div>
+      
+      {showModal && (
+        <AddOffDayModal
+          t={t}
+          engineerName={engineerName}
+          defaultDate={date}
+          onClose={() => setShowModal(false)}
+          onSaved={async () => {
+            setShowModal(false);
+            await reloadOffDays();
+            if (onDataChange) onDataChange();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function TimeWheelSheet({ t, isOpen, initialValue, label, onClose, onSelect }) {
+  const initial = initialValue ? initialValue.split(':') : ['09', '00'];
+  const initH = parseInt(initial[0]) || 9;
+  const initM = (parseInt(initial[1]) || 0) >= 30 ? 30 : 0;
+  
+  const [selectedHour, setSelectedHour] = React.useState(initH);
+  const [selectedMin, setSelectedMin] = React.useState(initM);
+  const hourRef = React.useRef(null);
+  const minRef = React.useRef(null);
+  
+  const ITEM_HEIGHT = 40;
+  const VISIBLE = 5;
+  const PADDING = ITEM_HEIGHT * 2;
+  const SHEET_HEIGHT = ITEM_HEIGHT * VISIBLE;
+  
+  // 초기 스크롤 위치 설정
+  React.useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        if (hourRef.current) hourRef.current.scrollTop = initH * ITEM_HEIGHT;
+        if (minRef.current) minRef.current.scrollTop = (initM === 30 ? 1 : 0) * ITEM_HEIGHT;
+      }, 50);
+    }
+  }, [isOpen, initH, initM]);
+  
+  // 스크롤 → 가운데 항목 추적
+  const handleHourScroll = e => {
+    const idx = Math.round(e.target.scrollTop / ITEM_HEIGHT);
+    const clamped = Math.max(0, Math.min(23, idx));
+    if (clamped !== selectedHour) setSelectedHour(clamped);
+  };
+  
+  const handleMinScroll = e => {
+    const idx = Math.round(e.target.scrollTop / ITEM_HEIGHT);
+    const m = idx === 0 ? 0 : 30;
+    if (m !== selectedMin) setSelectedMin(m);
+  };
+  
+  // 항목 탭 → 그 위치로 스크롤
+  const goToHour = h => {
+    if (hourRef.current) hourRef.current.scrollTo({ top: h * ITEM_HEIGHT, behavior: 'smooth' });
+  };
+  const goToMin = m => {
+    if (minRef.current) minRef.current.scrollTo({ top: (m === 30 ? 1 : 0) * ITEM_HEIGHT, behavior: 'smooth' });
+  };
+  
+  if (!isOpen) return null;
+  
+  const wheelStyle = {
+    height: SHEET_HEIGHT,
+    overflowY: 'scroll',
+    scrollSnapType: 'y mandatory',
+    scrollbarWidth: 'none',
+    msOverflowStyle: 'none',
+    WebkitOverflowScrolling: 'touch',
+    background: t.bgInset,
+    borderRadius: 10,
+    position: 'relative',
+  };
+  
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.7)', zIndex: 1100,
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <style>{`.ollit-wheel::-webkit-scrollbar{display:none}`}</style>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: t.bgElevated, width: '100%', maxWidth: 420,
+        borderRadius: '20px 20px 0 0', padding: '14px 20px 24px',
+        boxShadow: '0 -4px 24px rgba(0,0,0,0.4)',
+      }}>
+        {/* 핸들 */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+          <div style={{ width: 36, height: 4, background: t.borderStrong, borderRadius: 2 }}/>
+        </div>
+        
+        {/* 헤더 */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{label || '시간 선택'}</span>
+          <button onClick={onClose} style={{
+            background: 'transparent', border: 'none', color: t.textMuted,
+            fontSize: 18, cursor: 'pointer', padding: 4, fontFamily: 'inherit',
+          }}>✕</button>
+        </div>
+        
+        {/* 휠 영역 */}
+        <div style={{ position: 'relative', marginBottom: 16 }}>
+          {/* 가운데 highlight (포인터 이벤트 없음) */}
+          <div style={{
+            position: 'absolute',
+            top: PADDING, left: 0, right: 0,
+            height: ITEM_HEIGHT,
+            background: 'rgba(255, 27, 141, 0.12)',
+            border: `1px solid ${t.accent}`,
+            borderRadius: 8,
+            pointerEvents: 'none',
+            zIndex: 2,
+          }}/>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {/* 시 휠 */}
+            <div ref={hourRef} className="ollit-wheel" onScroll={handleHourScroll} style={wheelStyle}>
+              <div style={{ height: PADDING }}/>
+              {Array.from({ length: 24 }, (_, h) => (
+                <div 
+                  key={h}
+                  onClick={() => goToHour(h)}
+                  style={{
+                    height: ITEM_HEIGHT,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: h === selectedHour ? 22 : 16,
+                    fontWeight: h === selectedHour ? 700 : 400,
+                    color: h === selectedHour ? t.accent : t.textMuted,
+                    fontFamily: 'monospace',
+                    scrollSnapAlign: 'center',
+                    transition: 'all 0.15s',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                  }}
+                >
+                  {String(h).padStart(2, '0')}
+                </div>
+              ))}
+              <div style={{ height: PADDING }}/>
+            </div>
+            
+            {/* 분 휠 */}
+            <div ref={minRef} className="ollit-wheel" onScroll={handleMinScroll} style={wheelStyle}>
+              <div style={{ height: PADDING }}/>
+              {[0, 30].map(m => (
+                <div 
+                  key={m}
+                  onClick={() => goToMin(m)}
+                  style={{
+                    height: ITEM_HEIGHT,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: m === selectedMin ? 22 : 16,
+                    fontWeight: m === selectedMin ? 700 : 400,
+                    color: m === selectedMin ? t.accent : t.textMuted,
+                    fontFamily: 'monospace',
+                    scrollSnapAlign: 'center',
+                    transition: 'all 0.15s',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    WebkitUserSelect: 'none',
+                  }}
+                >
+                  {String(m).padStart(2, '0')}
+                </div>
+              ))}
+              <div style={{ height: PADDING }}/>
+            </div>
+          </div>
+        </div>
+        
+        {/* 확인 버튼 */}
+        <button 
+          onClick={() => onSelect(`${String(selectedHour).padStart(2,'0')}:${String(selectedMin).padStart(2,'0')}`)}
+          style={{
+            width: '100%', padding: '14px',
+            background: t.accent, color: 'white',
+            border: 'none', borderRadius: 10,
+            fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          확인 · {String(selectedHour).padStart(2,'0')}:{String(selectedMin).padStart(2,'0')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// =====================================
+// 시간 표시 버튼 v7 (탭하면 휠 시트 열림)
+// =====================================
+function DragTimePicker({ value, onChange, t, label }) {
+  const [showSheet, setShowSheet] = React.useState(false);
+  
+  return (
+    <>
+      <button 
+        onClick={() => setShowSheet(true)}
+        style={{
+          background: 'transparent',
+          color: value ? t.accent : t.textDim,
+          border: 'none',
+          fontSize: 22,
+          fontWeight: 700,
+          fontFamily: 'monospace',
+          letterSpacing: 1,
+          cursor: 'pointer',
+          padding: '4px 8px',
+          outline: 'none',
+        }}
+      >
+        {value || '--:--'}
+      </button>
+      <TimeWheelSheet
+        t={t}
+        isOpen={showSheet}
+        initialValue={value}
+        label={label || '시간 선택'}
+        onClose={() => setShowSheet(false)}
+        onSelect={(v) => {
+          onChange(v);
+          setShowSheet(false);
+        }}
+      />
+    </>
+  );
+}
+
+// =====================================
+// 휴무 추가 모달 v4 (커스텀 휠 picker)
+// =====================================
+function AddOffDayModal({ t, engineerName, defaultDate, onClose, onSaved }) {
+  const [type, setType] = useState("휴무종일");
+  const [date, setDate] = useState(defaultDate || new Date().toISOString().slice(0, 10));
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [memo, setMemo] = useState("");
+  const [saving, setSaving] = useState(false);
+  
+  const handleSave = async () => {
+    if (saving) return;
+    
+    if (type !== "휴무종일" && (!startTime || !endTime)) {
+      alert("시간을 입력하세요.");
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const result = await addOffDay({
+        engineer: engineerName,
+        type,
+        date,
+        startTime: type === "휴무종일" ? "종일" : startTime,
+        endTime: type === "휴무종일" ? "종일" : endTime,
+        memo,
+      });
+      
+      if (result.ok) {
+        onSaved();
+      } else {
+        alert("등록 실패: " + (result.error || ""));
+      }
+    } catch (err) {
+      alert("오류: " + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+      background: "rgba(0,0,0,0.6)", zIndex: 1000,
+      display: "flex", alignItems: "flex-end", justifyContent: "center",
+    }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: t.bg, width: "100%", maxWidth: 420,
+        borderRadius: "20px 20px 0 0", padding: "24px 20px 32px",
+        maxHeight: "90vh", overflowY: "auto",
+      }}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 20 }}>
+          휴무 / 개인일정 추가
+        </div>
+        
+        {/* 1. 종류 */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, marginBottom: 8 }}>
+            종류
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 6 }}>
+            {[
+              { id: "휴무종일", label: "종일 휴무", emoji: "🛌" },
+              { id: "휴무시간", label: "시간 휴무", emoji: "⏸" },
+              { id: "개인일정", label: "개인 일정", emoji: "📅" },
+            ].map(opt => (
+              <button
+                key={opt.id}
+                onClick={() => setType(opt.id)}
+                style={{
+                  padding: "10px 4px",
+                  background: type === opt.id ? t.accent : t.bgElevated,
+                  color: type === opt.id ? "white" : t.text,
+                  border: "none", borderRadius: 8,
+                  fontSize: 11, fontWeight: 700, cursor: "pointer",
+                  fontFamily: "inherit",
+                  display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                }}
+              >
+                <span style={{ fontSize: 16 }}>{opt.emoji}</span>
+                <span>{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+        
+        {/* 2. 날짜 */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, marginBottom: 8 }}>
+            날짜
+          </div>
+          <CustomDatePicker t={t} value={date} onChange={setDate} />
+        </div>
+        
+        {/* 3. 시간 (종일 아닐 때) */}
+        {type !== "휴무종일" && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, marginBottom: 8 }}>
+              시간
+            </div>
+            
+            {/* 시작 카드 */}
+            <div style={{ 
+              background: t.bgElevated, borderRadius: 10, 
+              padding: '14px 16px', marginBottom: 8,
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>시작</span>
+              <DragTimePicker t={t} value={startTime} onChange={setStartTime} label="시작 시간 선택" />
+            </div>
+            
+            {/* 종료 카드 */}
+            <div style={{ 
+              background: t.bgElevated, borderRadius: 10, 
+              padding: '14px 16px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
+            }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>종료</span>
+              <DragTimePicker t={t} value={endTime} onChange={setEndTime} label="종료 시간 선택" />
+            </div>
+          </div>
+        )}
+        
+        {/* 4. 메모 */}
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, marginBottom: 8 }}>
+            메모 (선택)
+          </div>
+          <textarea
+            value={memo}
+            onChange={e => setMemo(e.target.value)}
+            placeholder="치과 예약, 가족 행사 등"
+            rows={2}
+            style={{
+              width: "100%", padding: "12px 14px",
+              background: t.bgElevated, color: t.text,
+              border: `1px solid ${t.border}`, borderRadius: 10,
+              fontSize: 13, fontFamily: "inherit", resize: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+        
+        {/* 5. 버튼 */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8 }}>
+          <button onClick={onClose} style={{
+            padding: "14px", background: t.bgElevated, color: t.text,
+            border: "none", borderRadius: 10, fontSize: 14, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
+            취소
+          </button>
+          <button onClick={handleSave} disabled={saving} style={{
+            padding: "14px", background: saving ? t.bgInset : t.accent,
+            color: "white", border: "none", borderRadius: 10,
+            fontSize: 14, fontWeight: 700, cursor: saving ? "not-allowed" : "pointer",
+            fontFamily: "inherit",
+          }}>
+            {saving ? "저장 중..." : "저장"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EngineerApp({ user, onLogout }) {
-  const [mode, setMode] = useState("dark");
+  // V13-1-fix — localStorage 모드 로드 + CSS 변수 적용
+  const [mode, setMode] = useState(() => loadThemeSaved());
   const [screen, setScreen] = useState("main");
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-  const [tasks, setTasks] = useState(INITIAL_TASKS);
+  // V13-1 — 가스 자동 배정 콜 (catch #10 — mock 1건 추가)
+  const [pendingAcceptances, setPendingAcceptances] = useState([
+    {
+      id: "ACCEPT-001",
+      type: "acceptance",
+      workType: "냉매충전",
+      region: "강남구",
+      fullAddress: "강남구 삼성동",
+      appliance: "시스템 멀티",
+      qty: 1,
+      workSchedule: "당일 (오후)",
+      engineerRate: 80000,
+      requestedAgo: "5분 전",
+    },
+  ]);
+
+  // V13-1-fix — mode 변경 시 CSS 변수 적용 (라이트/다크 토글 작동)
+  useEffect(() => {
+    applyThemeVars(mode);
+  }, [mode]);
+
+  // PWA 홈 화면 추가 안내
+  const pwaInstall = usePWAInstall();
+
+  // 공유 task state (shared/TasksContext.jsx)
+  const { tasks: allTasks, updateTask, resetTasks } = useTasks();
+
+  // 본인 작업만 필터링 (engineerId 매칭)
+  const tasks = filterTasksForEngineer(allTasks, user?.engineerId);
+
   const t = THEMES[mode];
   const selectedTask = tasks.find(x => x.id === selectedTaskId);
-  
-  const updateTask = (id, updates) => setTasks(prev => prev.map(x => x.id === id ? { ...x, ...updates } : x));
-  const reset = () => { setTasks(INITIAL_TASKS); setScreen("main"); setSelectedTaskId(null); };
+
+  const reset = () => { resetTasks(); setScreen("main"); setSelectedTaskId(null); };
+
+  // V13-1 — 새 배정 리스트 (오늘 화면 새 배정 박스 클릭)
+  const newAssignments = tasks.filter(x =>
+    x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
+  );
+
+  // V13-1 — 수락 / 거절 핸들러 (Phase 1B 백엔드 연결 전 낙관적 업데이트)
+  function handleAcceptCall(callId) {
+    setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
+    setScreen("newAssignmentList");
+  }
+  function handleRejectCall(callId) {
+    setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
+  }
+
+  // V13-FINAL2 — 4탭 mock 데이터
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayTasks = tasks.filter(x =>
+    (x.scheduledDate === todayStr || x.scheduledDate === "2026-04-27")
+    && (x.status === "완료" || x.status === "진행중")
+  );
+
+  const monthStats = {
+    month: new Date().getMonth() + 1,
+    weekEarning: 580000, weekCount: 7,
+    monthEarning: 2910000, monthCount: 36,
+    earning: 2910000, count: 36,
+    avgPerDay: 1.5, totalHours: 72,
+  };
+
+  const usolN = {
+    month: new Date().getMonth() + 1,
+    payDate: `${new Date().getMonth() + 2}/15`,
+    amount: 280000,
+  };
+
+  const engineerProfile = {
+    name: user?.name || "기사",
+    phone: user?.phone || "",
+    companyName: "올데이케어",
+    bankName: "카카오뱅크",
+    accountNumber: "3333-12-3456789",
+    accountHolder: user?.name || "기사",
+    regions: ["강남구", "서초구", "송파구"],
+  };
+
+  // 알림 mock (통합 7카테고리 — 기사용 라벨)
+  const [notifications, setNotifications] = useState([
+    { id: "n1", type: "new_assign",      category: "new_assign",      categoryLabel: "새 배정",     title: "정도현님 (세척 ×1)",       subtitle: "강남구 청담동 · 벽걸이 1대",      timeAgo: "30분 전",  createdAt: new Date(Date.now() - 30 * 60 * 1000),       read: false, important: true,  taskId: "A260427-004" },
+    { id: "n2", type: "new_assign",      category: "new_assign",      categoryLabel: "새 배정",     title: "냉매충전 콜 (강남구)",      subtitle: "시스템 멀티 1대 · 단가 ₩80,000",  timeAgo: "2시간 전", createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   read: false, important: true },
+    { id: "n3", type: "schedule_change", category: "schedule_change", categoryLabel: "일정 변경",   title: "이상훈님 일정 변경",        subtitle: "11:30 → 13:00",                    timeAgo: "4시간 전", createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),   read: false, important: false, taskId: "A260427-002" },
+    { id: "n4", type: "settlement",      category: "settlement",      categoryLabel: "입금 확인",   title: "어제 입금 확인 완료",       subtitle: "₩168,000 회사 송금 처리됨",        timeAgo: "18시간 전",createdAt: new Date(Date.now() - 18 * 60 * 60 * 1000),  read: true,  important: false },
+    { id: "n5", type: "ops_memo",        category: "ops_memo",        categoryLabel: "운영팀 메모", title: "박지영님 운영팀 메모",      subtitle: "현관 비밀번호 1234, 강아지 있어요", timeAgo: "1일 전",   createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000),  read: true,  important: false, taskId: "A260427-001" },
+    { id: "n6", type: "urgent",          category: "urgent",          categoryLabel: "긴급",        title: "오늘 22시 정산 마감",       subtitle: "회사 송금 마감",                    timeAgo: "3일 전",   createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), read: true, important: false },
+  ]);
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  function markAllRead() {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }
+  function markAsRead(id) {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  }
+
+  function handleNotiClick(noti) {
+    markAsRead(noti.id);
+    const cat = noti.category || noti.type;
+    if (cat === "new_assign") return setScreen("newAssignmentList");
+    if (noti.taskId) {
+      const t = tasks.find(x => x.id === noti.taskId);
+      if (t) { setSelectedTaskId(t.id); setScreen("detail"); return; }
+    }
+    if (cat === "settlement" || cat === "urgent") return setScreen("settlement");
+  }
+
+  // 유솔N 달력 mock
+  const usolNMonthData = { totalAmount: 280000, count: 4, byDate: {} };
+  const loadUsolNDayTasks = () => [];
+
+  // 휴무 mock
+  const offDays = [];
+
+  // V13-FINAL2-fix1 — 휴무 / 계좌 / 활동 지역 / 통화 화면 상태
+  const [offDayModalOpen, setOffDayModalOpen] = useState(false);
+  const [savedOffDays, setSavedOffDays] = useState([]);
+  const [savedAccount, setSavedAccount] = useState(null);
+  const [savedRegions, setSavedRegions] = useState(null);
+  const [callTaskId, setCallTaskId] = useState(null);
+
+  function handleAddOff() { setOffDayModalOpen(true); }
+  function handleSaveOffDay(payload) {
+    setSavedOffDays(prev => [...prev, payload]);
+    setOffDayModalOpen(false);
+  }
+  function handleCallOps() { window.location.href = "tel:01012345678"; }
+  function handleChatOps() { alert("운영팀 채팅"); }
+  function handleSaveAccount(payload) {
+    setSavedAccount(payload);
+    setScreen("profile");
+  }
+  function handleSaveRegions(regions) {
+    setSavedRegions(regions);
+    setScreen("profile");
+  }
+  function handleSaveCall(payload) {
+    if (callTaskId) {
+      updateTask(callTaskId, {
+        scheduledDate: payload.scheduledDate,
+        scheduledTime: payload.scheduledTime,
+        endTime: payload.endTime,
+        callMemo: payload.memo,
+        happycallMemo: payload.memo,
+        status: payload.scheduledDate && payload.scheduledTime ? "확정" : "약속대기",
+      });
+    }
+    setCallTaskId(null);
+    setScreen("newAssignmentList");
+  }
+  function handleLocationSettings() {
+    if (typeof navigator !== "undefined" && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        () => alert("위치 권한 허용됨"),
+        () => alert("위치 권한 거부됨 — 시스템 설정에서 허용해주세요"),
+      );
+    } else {
+      alert("위치 권한 사용 불가");
+    }
+  }
+
+  // engineerProfile에 저장된 값 반영
+  const engineerProfileMerged = {
+    ...engineerProfile,
+    ...(savedAccount ? {
+      bankName: savedAccount.bankName,
+      bankCode: savedAccount.bankCode,
+      accountNumber: savedAccount.accountNumber,
+      accountHolder: savedAccount.accountHolder,
+    } : {}),
+    ...(savedRegions ? { regions: savedRegions } : {}),
+  };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0A0A0A" }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 200, background: "rgba(10,10,10,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>🔧 기사님 화면</div>
+    <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
+      {/* PWA 홈 화면 추가 안내 모달 (최상단 z-index) */}
+      <PWAInstallModal
+        open={pwaInstall.showModal}
+        platform={pwaInstall.platform}
+        onAdd={pwaInstall.handleAdd}
+        onLater={pwaInstall.handleLater}
+      />
+
+      <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>
+        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>🔧 기사님 화면 ({user?.name || "—"})</div>
         <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
           에어컨 현장작업 운영관리 플랫폼
         </div>
@@ -2076,20 +3720,202 @@ export default function EngineerApp({ user, onLogout }) {
       </div>
       
       <div style={{ maxWidth: 420, margin: "0 auto", position: "relative" }}>
-        {screen === "main" && <MainScreen t={t} tasks={tasks} onTaskClick={(id) => { setSelectedTaskId(id); setScreen("detail"); }} />}
-        {screen === "settlement" && <SettlementScreen t={t} />}
-        {screen === "notifications" && <NotificationsScreen t={t} />}
-        {screen === "profile" && <ProfileScreen t={t} mode={mode} setMode={setMode} />}
-        {screen === "detail" && selectedTask && <TaskDetailScreen t={t} task={selectedTask} onBack={() => setScreen("main")} onUpdate={updateTask} onCompleteReport={() => setScreen("completionReport")} />}
-        {screen === "completionReport" && selectedTask && <CompletionReportScreen t={t} task={selectedTask} onCancel={() => setScreen("detail")} onComplete={(data) => { updateTask(selectedTaskId, data); setScreen("detail"); }} />}
-        
-        {/* 하단 탭바 (메인 탭 화면에서만 표시) */}
-        {["main", "settlement", "notifications", "profile"].includes(screen) && (
-          <BottomTabBar 
-            t={t} 
-            activeTab={screen} 
-            onTabChange={setScreen}
-            unreadCount={NOTIFICATIONS.filter(n => n.unread).length}
+        {/* 메인 탭 (today) */}
+        {screen === "main" && (
+          <>
+            <MainScreen
+              t={t}
+              tasks={tasks}
+              user={user}
+              onTaskClick={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
+              onClickAcceptanceList={() => setScreen("acceptanceList")}
+              onClickNewAssignmentList={() => setScreen("newAssignmentList")}
+              pendingAcceptances={pendingAcceptances}
+            />
+            <EngineerBottomNav
+              active="today"
+              onChange={(tabId) => {
+                if (tabId === "today") return;
+                if (tabId === "settle") setScreen("settlement");
+                else if (tabId === "cal") setScreen("calendar");
+                else if (tabId === "noti") setScreen("notifications");
+                else if (tabId === "me") setScreen("profile");
+              }}
+              unreadCount={unreadCount}
+            />
+          </>
+        )}
+
+        {/* 정산 탭 */}
+        {screen === "settlement" && (
+          <EngineerSettleTab
+            engineer={engineerProfile}
+            todayTasks={todayTasks}
+            monthStats={monthStats}
+            usolN={usolN}
+            onClickUsolN={() => setScreen("usolN")}
+            onConfirmPaymentSent={() => alert("입금 완료 보고")}
+            onTabChange={(tabId) => {
+              if (tabId === "today") setScreen("main");
+              else if (tabId === "settle") return;
+              else if (tabId === "cal") setScreen("calendar");
+              else if (tabId === "noti") setScreen("notifications");
+              else if (tabId === "me") setScreen("profile");
+            }}
+            unreadCount={unreadCount}
+          />
+        )}
+
+        {/* 캘린더 탭 */}
+        {screen === "calendar" && (
+          <EngineerCalendarTab
+            engineer={engineerProfileMerged}
+            tasks={tasks}
+            offDays={savedOffDays}
+            onAddOff={handleAddOff}
+            onClickTask={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
+            onTabChange={(tabId) => {
+              if (tabId === "today") setScreen("main");
+              else if (tabId === "settle") setScreen("settlement");
+              else if (tabId === "cal") return;
+              else if (tabId === "noti") setScreen("notifications");
+              else if (tabId === "me") setScreen("profile");
+            }}
+            unreadCount={unreadCount}
+          />
+        )}
+
+        {/* 알림 탭 */}
+        {screen === "notifications" && (
+          <EngineerNotiTab
+            notifications={notifications}
+            onClickNoti={handleNotiClick}
+            onMarkAllRead={markAllRead}
+            onTabChange={(tabId) => {
+              if (tabId === "today") setScreen("main");
+              else if (tabId === "settle") setScreen("settlement");
+              else if (tabId === "cal") setScreen("calendar");
+              else if (tabId === "noti") return;
+              else if (tabId === "me") setScreen("profile");
+            }}
+          />
+        )}
+
+        {/* 내 정보 탭 */}
+        {screen === "profile" && (
+          <EngineerMeTab
+            engineer={engineerProfileMerged}
+            monthStats={monthStats}
+            isDark={mode === "dark"}
+            locationGranted={true}
+            onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
+            onCallOps={handleCallOps}
+            onChatOps={handleChatOps}
+            onEdit={() => alert("프로필 편집")}
+            onChangeAccount={() => setScreen("accountEdit")}
+            onNotiSettings={() => setScreen("notiSettings")}
+            onLocationSettings={handleLocationSettings}
+            onRegions={() => setScreen("regionChange")}
+            onAi={() => alert("AI 도우미 (NEW)")}
+            onHelp={() => alert("도움말")}
+            onAppInfo={() => alert("앱 정보 v1.0.0")}
+            onLogout={onLogout}
+            onTabChange={(tabId) => {
+              if (tabId === "today") setScreen("main");
+              else if (tabId === "settle") setScreen("settlement");
+              else if (tabId === "cal") setScreen("calendar");
+              else if (tabId === "noti") setScreen("notifications");
+              else if (tabId === "me") return;
+            }}
+            unreadCount={unreadCount}
+          />
+        )}
+
+        {/* V13-FINAL2-fix1 — 신규 sub-screens */}
+        {screen === "accountEdit" && (
+          <EngineerAccountEditScreen
+            engineer={engineerProfileMerged}
+            onBack={() => setScreen("profile")}
+            onSave={handleSaveAccount}
+          />
+        )}
+        {screen === "notiSettings" && (
+          <EngineerNotiSettingsScreen
+            onBack={() => setScreen("profile")}
+          />
+        )}
+        {screen === "regionChange" && (
+          <EngineerRegionChangeRequestScreen
+            engineer={engineerProfileMerged}
+            onBack={() => setScreen("profile")}
+            onSave={({ memo }) => {
+              alert(`운영팀에 변경 요청 전송\n사유: ${memo}`);
+              setScreen("profile");
+            }}
+          />
+        )}
+        {screen === "newAssignCall" && (
+          <EngineerNewAssignDetailScreen
+            task={tasks.find(x => x.id === callTaskId)}
+            onBack={() => { setCallTaskId(null); setScreen("newAssignmentList"); }}
+            onSave={handleSaveCall}
+            onUnableSchedule={() => {
+              if (callTaskId) {
+                updateTask(callTaskId, { status: "약속대기", unableSchedule: true });
+              }
+              alert("일정 불가 — 운영팀에 알림");
+              setCallTaskId(null);
+              setScreen("newAssignmentList");
+            }}
+            onCustomerCancel={() => {
+              if (callTaskId) {
+                updateTask(callTaskId, { status: "취소", cancelReason: "고객 취소" });
+              }
+              alert("고객 취소 처리");
+              setCallTaskId(null);
+              setScreen("newAssignmentList");
+            }}
+            onAskOps={() => alert("운영팀에 문의")}
+          />
+        )}
+
+        {/* 휴무 등록 모달 (캘린더 탭 위에 띄움) */}
+        {offDayModalOpen && (
+          <EngineerOffDayAddModal
+            onClose={() => setOffDayModalOpen(false)}
+            onSave={handleSaveOffDay}
+          />
+        )}
+
+        {/* sub-screens (탭 위) */}
+        {screen === "newAssignmentList" && (
+          <EngineerNewAssignmentListScreen
+            tasks={newAssignments}
+            onBack={() => setScreen("main")}
+            onTaskClick={(id) => { setCallTaskId(id); setScreen("newAssignCall"); }}
+          />
+        )}
+        {screen === "acceptanceList" && (
+          <EngineerAcceptanceListScreen
+            pendingAcceptances={pendingAcceptances}
+            onBack={() => setScreen("main")}
+            onAccept={handleAcceptCall}
+            onReject={handleRejectCall}
+          />
+        )}
+        {screen === "detail" && selectedTask && (
+          <EngineerTaskDetailScreen
+            task={selectedTask}
+            onBack={() => { setScreen("main"); setSelectedTaskId(null); }}
+            onUpdate={updateTask}
+          />
+        )}
+        {screen === "usolN" && (
+          <UsolNCalendarScreen
+            engineer={engineerProfile}
+            monthData={usolNMonthData}
+            loadDayTasks={loadUsolNDayTasks}
+            onBack={() => setScreen("settlement")}
           />
         )}
       </div>

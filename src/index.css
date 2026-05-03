@@ -24,3 +24,26 @@ button {
 input, textarea {
   font-family: inherit;
 }
+
+/* V11-3 — 미입금 비상 박스 강조 */
+@keyframes ollit-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.7; }
+}
+
+/* V11-11 — 색깔 시스템 (핫핑크 + 그레이 4색) */
+:root {
+  --accent-bg:           rgba(255,27,141,0.06);
+  --accent-bg-strong:    rgba(255,27,141,0.12);
+  --accent-border:       rgba(255,27,141,0.30);
+  --accent-border-strong:rgba(255,27,141,0.50);
+  --accent-gradient:     linear-gradient(135deg, #FF1B8D, #FF1B8D);
+  --accent-gradient-soft:linear-gradient(135deg, rgba(255,27,141,0.12), rgba(255,27,141,0.02));
+  --naver-gradient:      linear-gradient(135deg, #03C75A, #02A847);
+}
+[data-theme="dark"] {
+  --accent-bg:           rgba(255,27,141,0.08);
+  --accent-bg-strong:    rgba(255,27,141,0.16);
+  --accent-border:       rgba(255,27,141,0.40);
+  --accent-border-strong:rgba(255,27,141,0.60);
+}

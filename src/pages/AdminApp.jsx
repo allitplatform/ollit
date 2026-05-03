@@ -1,82 +1,1125 @@
-import { useState } from "react";
-import { 
-  Phone, MessageCircle, Snowflake, Wrench, Settings, Zap, ChevronRight,
+// ============================================
+// AdminApp — 시안 4-V4 (메인 대시보드) + 4 시안 흐름
+// 작성: 2026-05-01 EOD (Step 1: 메인 + placeholder)
+// 다음 단계: 4 placeholder 화면 → 실제 시안 1 / C / 5-V3 / 3-V5 코드
+// ============================================
+
+import { useState, useEffect, useMemo } from "react";
+import {
+  Phone, MessageCircle, Snowflake, Wrench, Settings, Zap, ChevronRight, ChevronDown, ChevronUp,
   Sun, Moon, Plus, ArrowLeft, ArrowRight, User, MapPin, Calendar,
-  Clock, FileText, RotateCcw, CheckCircle2, AlertCircle, Star,
+  Clock, FileText, RotateCcw, CheckCircle2, AlertCircle, Star, Search,
   Users, BarChart3, TrendingUp, Activity, Wallet, Bell, Camera,
-  Briefcase, Hash, AlertTriangle, MoreVertical, Award, XCircle
+  Briefcase, Hash, AlertTriangle, MoreVertical, Award, XCircle, Edit3,
 } from "lucide-react";
+import { OllitMark } from "../components/OllitMark.jsx";
+import { EngineerBadge } from "../components/EngineerBadge.jsx";
+import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
+import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
+import { NotiScreen } from "../components/notifications/NotiScreen.jsx";
+import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
+import { VisitOnlyDialog } from "../components/VisitOnlyDialog.jsx";
+import { VISIT_FEE, getVisitReasonLabel } from "../data/visitFee.js";
+import { TaskCardMenu } from "../components/TaskCardMenu.jsx";
+import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
+import { loadMemos, getMemoTypeLabel } from "../data/memos.js";
+import { TaskEditScreen as TaskFullEditScreen } from "../components/TaskEditScreen.jsx";
+import { TaskHistoryScreen } from "../components/TaskHistoryScreen.jsx";
+import { getHistoryCount } from "../data/taskHistory.js";
+import { UsolNScreen } from "../components/UsolNScreen.jsx";
+import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
+import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
+import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
+import { startDailyAlertScheduler, stopDailyAlertScheduler } from "../utils/dailyAlertScheduler.js";
+import { computeDashboardStats } from "../utils/dashboardStats.js";
+import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
+import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
+import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
+import { createEmptyEngineer } from "../data/engineers.js";
+import { RegionListScreen } from "../components/RegionListScreen.jsx";
+import { RegionEditScreen } from "../components/RegionEditScreen.jsx";
+import { createEmptyRegion } from "../data/regions.js";
+import { SettingsScreen } from "../components/SettingsScreen.jsx";
+import { UserListScreen } from "../components/UserListScreen.jsx";
+import { UserEditScreen } from "../components/UserEditScreen.jsx";
+import { NotificationsScreen as NotiSettingsScreen } from "../components/NotificationsScreen.jsx";
+import { createEmptyUser } from "../data/users.js";
+import { PrincipalListScreen } from "../components/PrincipalListScreen.jsx";
+import { PrincipalEditScreen } from "../components/PrincipalEditScreen.jsx";
+import { NaverUploadScreen } from "../components/NaverUploadScreen.jsx";
+import { RatesManagementScreen } from "../components/RatesManagementScreen.jsx";
+import { createEmptyPrincipal } from "../data/principals.js";
 
 const NOW = "10:00";
-
-// ============================================
-// 데이터
-// ============================================
+const TODAY = "MON · 27 APR";
+const TODAY_DATE = "2026-04-27";  // 비교용 (assignedDate / completedDate / workDate)
 const ADMIN_USER = "이대표";
 
+// ============================================
+// Mock 데이터 (시안 4-V4 / 1 / 5-V3 / 3-V5 검증용)
+// ============================================
+
 const TODAY_STATS = {
-  total: 24,
-  completed: 8,
-  inProgress: 3,
-  scheduled: 9,
-  pending: 4,
-  newReceived: 5,
-  urgent: 2, // 긴급 작업
-  revenue: 2850000,
-  myMargin: 1140000,
-  engineerNet: 1710000,
-  unpaid: 450000,
-  fieldCollection: 1850000,    // 현장수금 합계
-  companySettlement: 1000000,  // 회사정산 합계
-  cancelRate: 2.1,
+  newReceived: 5,        // 새 접수 — 핑크
+  assigned:    2,        // 배정됨 (일정 미확정) — 노랑
+  confirmed:   4,        // 확정됨 (일정 정해짐) — 보라
+  inProgress:  3,        // 진행중 — 흰색
+  completed:   8,        // 완료 — 초록
+  // 돈 흐름 4구역
+  revenue:      2850000, // 오늘 매출 — 흰색
+  myMargin:     1140000, // 회사 마진 — 핑크
+  engineerNet:  1710000, // 기사 정산 — 초록
+  principalFee: 480000,  // 원청 수수료 — 보라
 };
 
-// 직급 시스템 (기사용과 동일)
-const ENGINEER_RANKS = [
-  { id: "intern", name: "수습", icon: "🌱", min: 0, max: 50, color: "#888780" },
-  { id: "junior", name: "주임", icon: "🔧", min: 51, max: 150, color: "#378ADD" },
-  { id: "senior", name: "대리", icon: "💼", min: 151, max: 300, color: "#1D9E75" },
-  { id: "manager", name: "과장", icon: "🎖️", min: 301, max: 600, color: "#E91860" },
-  { id: "director", name: "부장", icon: "👑", min: 601, max: 9999, color: "#BA7517" },
+// Step 5-1a — 원청 5곳 (쿨가이 KB 잠시 빼기, 에어컨프로 / 유솔홈케어 H/N 분리)
+const PRINCIPALS = [
+  { id: "올데이케어",     label: "올데이케어",          color: "#FF1B8D" },
+  { id: "에어컨프로",     label: "에어컨프로 (쿨가이)", color: "#FF1B8D" },
+  { id: "용인",           label: "용인",                color: "#FF1B8D" },
+  { id: "유솔홈케어 H",   label: "유솔홈케어 H",        color: "#10B981" },
+  { id: "유솔홈케어 N",   label: "유솔홈케어 N",        color: "#FF1B8D" },
 ];
 
-const ENGINEER_STATS = [
-  { id: "E001", name: "김동효", region: "강남 전담", today: 4, week: 18, month: 36, totalJobs: 487, rank: "manager", revenue: 480000, status: "active", utilization: 85, attendance: 22 },
-  { id: "E002", name: "이재현", region: "강남/서초", today: 3, week: 15, month: 32, totalJobs: 312, rank: "manager", revenue: 360000, status: "active", utilization: 78, attendance: 21 },
-  { id: "E003", name: "박상민", region: "송파/잠실", today: 2, week: 12, month: 28, totalJobs: 245, rank: "senior", revenue: 240000, status: "active", utilization: 65, attendance: 19 },
-  { id: "E004", name: "최민수", region: "종로/중구", today: 5, week: 20, month: 40, totalJobs: 156, rank: "junior", revenue: 600000, status: "active", utilization: 92, attendance: 24 },
-  { id: "E005", name: "김도현", region: "강남/송파", today: 1, week: 10, month: 22, totalJobs: 89, rank: "junior", revenue: 120000, status: "active", utilization: 45, attendance: 15 },
+// 원청 라벨 색 (id → color lookup) — 기존 코드 호환
+const PRINCIPAL_COLORS = Object.fromEntries(PRINCIPALS.map(p => [p.id, p.color]));
+
+// 회사 수익 계산 — 원청별 정산 방식 (Step 4-1 / Step 5-1a 정정)
+// rate=null = 정액 / state==="done" = 확정 / 그 외 = 예상
+function calculateCommission(task) {
+  const total = (task.estimateTotal || 0) + (task.addonFee || 0);
+  const isConfirmed = task.state === "done";
+  let rate = 0;
+  let amount = 0;
+  switch (task.principal) {
+    case "올데이케어":
+      rate = 30; amount = Math.round(total * 0.30); break;
+    case "에어컨프로":
+      rate = 10; amount = Math.round(total * 0.10); break;
+    case "용인":
+    case "용인컴퍼니":
+      rate = null; amount = 10000; break;
+    case "유솔홈케어 H":
+      rate = 15; amount = Math.round(total * 0.15); break;
+    case "유솔홈케어 N":
+      // 수량비율 (mock — 일단 H와 동일 15%, 실제 정책 입력 시 수량 기반 변환)
+      rate = 15; amount = Math.round(total * 0.15); break;
+    default:
+      rate = 0; amount = 0;
+  }
+  return { total, rate, amount, isConfirmed };
+}
+
+// Step 5-3 — 작업 종류 단일 진실 소스 (편집 친화)
+// enabled: Phase 1 박힌 작업 (세척/냉매충전) / 나머지는 disabled (Phase 2 시안 미정)
+// workflow: manual_with_recommendation = 수동 추천 / auto_first_accept = 자동 첫 응답
+// priority: 메인 = 가장 복잡한 작업 (1=세척 ... 99=냉매충전)
+const WORK_TYPES_CONFIG = {
+  "세척":     { enabled: true,  workflow: "manual_with_recommendation", needsAppliance: true,  priority: 1  },
+  "냉매충전": { enabled: true,  workflow: "auto_first_accept",          needsAppliance: false, priority: 99 },
+  "설치":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 2  },
+  "누설":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 3  },
+  "수리":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 4  },
+  "점검":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
+};
+
+function sortWorkItemsByPriority(workItems) {
+  if (!Array.isArray(workItems)) return [];
+  return [...workItems].sort((a, b) =>
+    (WORK_TYPES_CONFIG[a.workType]?.priority || 100) - (WORK_TYPES_CONFIG[b.workType]?.priority || 100)
+  );
+}
+
+function determineMainWorkType(workItems) {
+  const sorted = sortWorkItemsByPriority(workItems);
+  return sorted[0]?.workType || null;
+}
+
+function determineWorkflow(workItems) {
+  const main = determineMainWorkType(workItems);
+  return WORK_TYPES_CONFIG[main]?.workflow || "manual_with_recommendation";
+}
+
+function hasRefrigerantItem(workItems) {
+  return Array.isArray(workItems) && workItems.some(it => it.workType === "냉매충전");
+}
+
+// Step 5-1e — 단일 작업 항목 포맷 (냉매충전은 기종 X / 가격 동일)
+function formatWorkItem(item) {
+  if (!item) return "";
+  if (item.workType === "냉매충전") {
+    return `냉매충전 ×${item.qty || 1}`;
+  }
+  return `${item.workType} · ${item.appliance || "기종 미정"} ×${item.qty || 1}`;
+}
+
+// Step 5-1d — workItems 카드/알림 표시 (작업 종류별 그룹화)
+// 규칙:
+// - 1건            → "세척 · 벽걸이 ×2" / "냉매충전 ×1"
+// - 같은 종류 복수 → "세척 · 벽걸이 ×2 외 1건"
+// - 다른 종류 추가 → "세척 · 벽걸이 ×2 (+ 냉매충전 ×1)"
+// - 혼합           → "세척 · 벽걸이 ×2 (+ 냉매충전 ×1, 점검 ×1)"
+function formatWorkItems(workItems) {
+  if (!workItems || workItems.length === 0) return "";
+  if (workItems.length === 1) return formatWorkItem(workItems[0]);
+  // Step 5-1e (통합) — 우선순위 정렬 후 메인 선택
+  const sorted = sortWorkItemsByPriority(workItems);
+  const main = sorted[0];
+  const mainText = formatWorkItem(main);
+
+  const others = sorted.slice(1);
+  const grouped = {};
+  let sameTypeCount = 0;
+  for (const item of others) {
+    if (item.workType === main.workType) {
+      sameTypeCount += 1;
+    } else {
+      grouped[item.workType] = (grouped[item.workType] || 0) + (item.qty || 1);
+    }
+  }
+  const extraTypes = Object.entries(grouped).map(([wt, qty]) => `${wt} ×${qty}`).join(", ");
+  if (extraTypes && sameTypeCount > 0) return `${mainText} 외 ${sameTypeCount}건 (+ ${extraTypes})`;
+  if (extraTypes)                     return `${mainText} (+ ${extraTypes})`;
+  return `${mainText} 외 ${sameTypeCount}건`;
+}
+
+// ============================================
+// Step 5-1a — 카톡 텍스트 자동 파싱
+// ============================================
+// 운영 원칙: "두 번 일 안 하기" — 고객 카톡 텍스트 그대로 붙여넣기 → 폼 자동 채움
+//
+// 자동 하이픈 (공용)
+function formatPhone(raw) {
+  const digits = (raw || "").replace(/\D/g, "").slice(0, 11);
+  if (digits.length < 4) return digits;
+  if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+//
+// 테스트 케이스:
+// 케이스 1:
+//   "서울 중구 마장로18길 16, 306호
+//    5월 2일 13:30 입니다!
+//    16만원
+//    토요일 3-4
+//    010-9289-2116"
+//   기대:
+//     phone: "010-9289-2116"
+//     address: "서울 중구 마장로18길 16, 306호"
+//     requestDate: "2026-05-02"
+//     requestTime: "13:30"
+//     estimatedPrice: 160000
+//
+// 케이스 2:
+//   "외도민: 논현동 97-2 103호
+//    현관 비번 860903
+//    아니 스탠드1 벽걸이1
+//    +82 10-9053-9590
+//    가격은 17"
+//   기대:
+//     customer: "외도민"
+//     phone: "010-9053-9590"
+//     address: "논현동 97-2 103호"
+//     applianceItems: [{스탠드 1}, {벽걸이 1}]
+//     workItems: [] (작업 종류 미인식 → 사장님 직접 선택)
+//     estimatedPrice: 170000 (확인 필요)
+//
+// 케이스 3 (Step 5-1e — 세척+가스, 냉매충전은 기종 X):
+//   "세척이랑 가스충전 같이 부탁드려요
+//    벽걸이 2대
+//    010-1234-5678"
+//   기대:
+//     workItems: [
+//       { workType: "냉매충전", appliance: "", qty: 1 },   ← 기종 X
+//       { workType: "세척", appliance: "벽걸이", qty: 2 },
+//     ]
+//     phone: "010-1234-5678"
+function parseKakaoText(text) {
+  const result = { matched: [], unmatched: [] };
+  if (!text || !text.trim()) return result;
+
+  // 1. 연락처 (다양한 형식: +82 / 국가코드 / 공백 / 점 / 하이픈)
+  const phoneRegex = /(?:\+?82[\s-]?)?0?1[0-9][\s.-]?\d{3,4}[\s.-]?\d{4}/;
+  const phoneMatch = text.match(phoneRegex);
+  if (phoneMatch) {
+    let p = phoneMatch[0].replace(/^\+?82\s?-?\s?/, "").replace(/\D/g, "");
+    if (p.startsWith("10") || p.startsWith("11") || p.startsWith("16") || p.startsWith("17") || p.startsWith("18") || p.startsWith("19")) {
+      p = "0" + p;
+    }
+    result.phone = formatPhone(p);
+    result.matched.push("연락처");
+  }
+
+  // 2. 금액 (만원 단위 추정)
+  const priceRegex1 = /(\d+)\s*만\s*원?/;          // "16만원" / "17만"
+  const priceRegex2 = /가격은?\s*(\d{1,3})\b/;     // "가격은 17"
+  let priceMatch = text.match(priceRegex1);
+  if (priceMatch) {
+    result.estimatedPrice = parseInt(priceMatch[1]) * 10000;
+    result.matched.push("금액");
+  } else {
+    priceMatch = text.match(priceRegex2);
+    if (priceMatch) {
+      const n = parseInt(priceMatch[1]);
+      result.estimatedPrice = n * 10000;
+      result.priceNeedsConfirm = true;
+      result.priceRawValue = n;
+      result.matched.push("금액 (확인 필요)");
+    }
+  }
+
+  // 3. 주소
+  // 1순위: 시 키워드 + 그 줄 끝까지 (greedy, 줄바꿈 전까지)
+  const cityRegex = /(서울|경기|인천|부산|대구|광주|대전|울산|세종|제주)[^\n]+/;
+  const cityMatch = text.match(cityRegex);
+  if (cityMatch) {
+    result.address = cityMatch[0].replace(/[\s,!.?]+$/, "").trim();
+    result.matched.push("주소");
+  } else {
+    // 2순위: 동/구/로/길 키워드 (이름 콜론 이후 / 공백 뒤 / 줄 시작)
+    const kwRegex = /(?:^|[\s:：])([가-힣]{2,}(?:동|구|로|길)[\s\d\-,]*\d+(?:\s*[가-힣]+\d*호?)?)/m;
+    const kwMatch = text.match(kwRegex);
+    if (kwMatch) {
+      result.address = kwMatch[1].replace(/[\s,!.?]+$/, "").trim();
+      result.matched.push("주소");
+    }
+  }
+
+  // 4. 이름 (콜론 패턴)
+  const nameRegex1 = /(?:이름|고객|성함|성명)\s*[:：]\s*([가-힣]{2,5})/;
+  const nameRegex2 = /^([가-힣]{2,5})\s*[:：]/m;
+  let nameMatch = text.match(nameRegex1);
+  if (!nameMatch) nameMatch = text.match(nameRegex2);
+  if (nameMatch) {
+    result.customer = nameMatch[1];
+    result.matched.push("이름");
+  }
+
+  // 5. 기종 + 수량 (벽걸이 / 스탠드 / 시스템 / 천장형 / 이동식)
+  const applianceItems = [];
+  const itemRegex = /(벽걸이|스탠드|시스템|천장형|이동식)\s*(\d+)?/g;
+  let itemMatch;
+  while ((itemMatch = itemRegex.exec(text)) !== null) {
+    applianceItems.push({
+      appliance: itemMatch[1],
+      qty: parseInt(itemMatch[2]) || 1,
+    });
+  }
+  if (applianceItems.length > 0) {
+    result.applianceItems = applianceItems;
+    result.matched.push(`기종 ${applianceItems.length}건`);
+  }
+
+  // 작업 종류 (키워드 매핑 — 복수 인식, 자동 추정 X)
+  // Step 5-1c: 사장님 catch — 세척+가스 같이 있으면 둘 다 표시
+  const workTypeMap = {
+    "세척": "세척",
+    "청소": "세척",
+    "냉매": "냉매충전",
+    "가스": "냉매충전",
+    "충전": "냉매충전",
+    "설치": "설치",
+    "누설": "누설",
+    "점검": "점검",
+    "수리": "수리",
+  };
+  const detectedWorkTypes = [];
+  const seenWT = new Set();
+  for (const [keyword, workType] of Object.entries(workTypeMap)) {
+    if (text.includes(keyword) && !seenWT.has(workType)) {
+      detectedWorkTypes.push(workType);
+      seenWT.add(workType);
+    }
+  }
+  if (detectedWorkTypes.length > 0) {
+    result.detectedWorkTypes = detectedWorkTypes;
+    result.matched.push(`작업 종류 ${detectedWorkTypes.length}건`);
+  }
+
+  // Step 5-1e — workItems 매트릭스 (냉매충전은 기종 X로 별도 분기)
+  result.workItems = [];
+  const aps = applianceItems;
+  // 냉매충전 / 나머지 작업 분리
+  const hasRefrigerant = detectedWorkTypes.includes("냉매충전");
+  const otherWTs = detectedWorkTypes.filter(w => w !== "냉매충전");
+
+  // 1) 냉매충전 단독 항목 (기종 X) — 텍스트에서 수량 추출 시도
+  if (hasRefrigerant) {
+    const refrigerantQtyRegex = /(?:냉매(?:충전|가스)?|가스(?:충전)?|충전)\s*(\d+)\s*대?/;
+    const qtyMatch = text.match(refrigerantQtyRegex);
+    const refrigerantQty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+    result.workItems.push({ workType: "냉매충전", appliance: "", qty: refrigerantQty });
+  }
+
+  // 2) 나머지 작업 종류 (세척 등) — 기종과 매칭
+  if (otherWTs.length === 1 && aps.length > 0) {
+    for (const a of aps) result.workItems.push({ workType: otherWTs[0], appliance: a.appliance, qty: a.qty });
+  } else if (otherWTs.length > 1 && aps.length === 1) {
+    for (const wt of otherWTs) result.workItems.push({ workType: wt, appliance: aps[0].appliance, qty: aps[0].qty });
+  } else if (otherWTs.length > 1 && aps.length > 1) {
+    for (const a of aps) result.workItems.push({ workType: otherWTs[0], appliance: a.appliance, qty: a.qty });
+    result.workItemsNeedReview = true;
+  } else if (otherWTs.length > 0 && aps.length === 0) {
+    result.matched.push(`${otherWTs.join(", ")} 인식 (기종 직접 선택)`);
+  } else if (otherWTs.length === 0 && aps.length > 0 && !hasRefrigerant) {
+    result.matched.push("기종 인식 (작업 직접 선택)");
+  }
+
+  // 6. 일정 (M월 D일 + H:MM / H시 MM분)
+  const dateTimeRegex = /(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*(?:[^\d]{0,8})?(\d{1,2})\s*[:시]\s*(\d{0,2})/;
+  const dateRegex2 = /(\d{1,2})\s*월\s*(\d{1,2})\s*일/;
+  const timeRegex = /(\d{1,2})\s*시\s*(\d{0,2})\s*분?/;
+
+  const dateTimeMatch = text.match(dateTimeRegex);
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  if (dateTimeMatch) {
+    const mm = String(dateTimeMatch[1]).padStart(2, "0");
+    const dd = String(dateTimeMatch[2]).padStart(2, "0");
+    const h  = String(dateTimeMatch[3]).padStart(2, "0");
+    const min = (dateTimeMatch[4] || "00").padStart(2, "0");
+    result.requestDate = `${yyyy}-${mm}-${dd}`;
+    result.requestTime = `${h}:${min}`;
+    result.matched.push("일정");
+  } else {
+    const altDate = text.match(dateRegex2);
+    if (altDate) {
+      const mm = String(altDate[1]).padStart(2, "0");
+      const dd = String(altDate[2]).padStart(2, "0");
+      result.requestDate = `${yyyy}-${mm}-${dd}`;
+      result.matched.push("일정 (날짜만)");
+    }
+    const timeMatch = text.match(timeRegex);
+    if (timeMatch) {
+      const h = String(timeMatch[1]).padStart(2, "0");
+      const min = (timeMatch[2] || "00").padStart(2, "0");
+      result.requestTime = `${h}:${min}`;
+      if (!result.matched.includes("일정 (날짜만)")) result.matched.push("시간");
+    }
+  }
+
+  return result;
+}
+
+// Step 5-3 fix — 직급 단순화: 신입 / 경력 / 전문가 (3단계)
+// Step 5-3-4 — expert 핑크 톤다운 (#FF1B8D → #FF1B8D)
+// 핑크 #FF1B8D는 진짜 액션 (저장/배정/카운트)에만 박기
+const CAREER_LEVELS = {
+  rookie: { id: "rookie", name: "신입",   color: "#888780" },  // 회색
+  career: { id: "career", name: "경력",   color: "#00875A" },  // 청록
+  expert: { id: "expert", name: "전문가", color: "#FF1B8D" },  // 옅은 핑크
+};
+
+// 메인 / 백업 (서브 → 백업 정정)
+const LEVEL_LABELS = {
+  main:   { name: "메인", isMain: true  },
+  backup: { name: "백업", isMain: false },
+  sub:    { name: "백업", isMain: false },  // legacy alias
+};
+
+// 기존 rank → careerLevel 자동 매핑 (legacy 데이터 호환)
+function rankToLevel(rank) {
+  switch (rank) {
+    case "intern":   return "rookie";
+    case "junior":   return "career";
+    case "senior":   return "career";
+    case "manager":  return "expert";
+    case "director": return "expert";
+    default:         return "career";
+  }
+}
+
+// 기사 객체 → careerLevel 추출 (명시 careerLevel > level 기반 > rank fallback)
+// 사장님 권장 단순화: 메인 = 전문가 / 백업 = 경력 / 신규/미정 = 신입
+function getCareerLevel(eng) {
+  if (!eng) return "career";
+  if (eng.careerLevel) return eng.careerLevel;
+  if (eng.level === "main")   return "expert";
+  if (eng.level === "backup" || eng.level === "sub") return "career";
+  return rankToLevel(eng.rank);
+}
+
+// 직급 색 (legacy — 호환용으로만 유지, 새 코드는 CareerLabel 사용)
+const RANK_COLORS = {
+  intern:   { id: "intern",   name: "수습", color: "#888780" },
+  junior:   { id: "junior",   name: "주임", color: "#378ADD" },
+  senior:   { id: "senior",   name: "대리", color: "#00875A" },
+  manager:  { id: "manager",  name: "과장", color: "#E91860" },
+  director: { id: "director", name: "부장", color: "#BA7517" },
+};
+
+// 긴급 알림 mock
+const URGENT_TASK = {
+  id: "A260427-007",
+  customer: "이지은",
+  workType: "설치",
+  appliance: "벽걸이",
+  qty: 2,
+  region: "서초 반포",
+  schedule: "오늘 18:00 이후",
+  principal: "에어컨프로",
+  reason: "당일 작업 요청",
+};
+
+// 새 접수 종류별 mock
+// 작업 종류 → 아이콘 컴포넌트 매핑 (확장: 새 작업 추가 시 행 1줄)
+const WORK_TYPE_ICONS = {
+  세척:     Snowflake,     // ❄️ 차가움/에어컨
+  냉매충전: Zap,            // ⚡ 가스/에너지
+  설치:     Wrench,         // 🔧 공구
+  누설:     AlertTriangle,  // ⚠️ 경고
+  점검:     Search,          // 🔍 확인
+  수리:     Settings,        // ⚙️ 손보기
+};
+
+// ─────────────────────────────────────────────
+// Phase 2 — 실제 알림 시스템 (구현 예정)
+// ─────────────────────────────────────────────
+// 1. Web Push Notification (PWA 표준)
+//    - Service Worker 등록 (sw.js)
+//    - Push Subscription (사용자 권한)
+//    - 앱 닫혀 있어도 OS 레벨 푸시
+// 2. Supabase Realtime
+//    - notifications 테이블 subscribe
+//    - 새 row INSERT 시 자동 푸시 트리거
+//    - 사용자별 권한 (운영자/기사/해피콜)
+// 3. 외부 의존 0 (텔레그램 X — 사장님 운영 원칙)
+// ─────────────────────────────────────────────
+const NOTIFICATIONS_MOCK = [
+  { id: "n1", category: "new_assign",      categoryLabel: "새 접수",     title: "박은서 (세척 ×1)",   subtitle: "강남 도곡",                timeAgo: "5분 전",   createdAt: new Date(Date.now() - 5 * 60 * 1000),       read: false, taskId: "A260427-005" },
+  { id: "n2", category: "schedule_confirm", categoryLabel: "일정 확정",   title: "이상훈 (세척 ×2)",   subtitle: "김동효 · 14:00",          timeAgo: "30분 전",  createdAt: new Date(Date.now() - 30 * 60 * 1000),      read: false, taskId: "A260427-002" },
+  { id: "n3", category: "complete",        categoryLabel: "작업 완료",   title: "정수아 (세척 ×1)",   subtitle: "김동효 · 1시간 전",        timeAgo: "1시간 전", createdAt: new Date(Date.now() - 60 * 60 * 1000),      read: true,  taskId: "A260427-001" },
+  { id: "n4", category: "new_assign",      categoryLabel: "기사 배정",   title: "박은서 (세척)",      subtitle: "김동효 [과장] 배정 완료",   timeAgo: "2시간 전", createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),  read: true,  taskId: "A260427-005" },
 ];
 
-const RECENT_ACTIVITIES = [
-  { time: "10:00", type: "complete", text: "박지영님 (세척) 작업 완료", engineer: "김동효", color: "success" },
-  { time: "09:45", type: "assign", text: "정도현님 (설치) 김동효 기사 배정", engineer: "김지혜", color: "accent" },
-  { time: "09:30", type: "urgent", text: "🚨 긴급: 이지은님 (당일 작업) 접수", engineer: "쿨가이", color: "danger" },
-  { time: "09:30", type: "new", text: "새 접수: 박은서 (세척, 강남구)", engineer: "쿨가이", color: "warning" },
-  { time: "09:15", type: "schedule", text: "이상훈님 일정 14:00 → 11:30 변경", engineer: "이재현", color: "warning" },
-  { time: "09:00", type: "start", text: "박지영님 작업 시작 (강남구 역삼동)", engineer: "김동효", color: "warning" },
-  { time: "08:30", type: "complete", text: "최영주님 (점검) 작업 완료", engineer: "최민수", color: "success" },
+// 알림 타입 → 아이콘/색깔 매핑
+const NOTI_TYPE_META = {
+  new_reception:      { icon: "🆕", colorKey: "accent"  },
+  assignment:         { icon: "👷", colorKey: "purple"  },
+  schedule_confirmed: { icon: "📅", colorKey: "warning" },
+  completed:          { icon: "✓",  colorKey: "success" },
+  urgent:             { icon: "⚠️", colorKey: "danger"  },
+};
+
+const NEW_RECEPTIONS = {
+  세척: [
+    { id: "A260427-005", customer: "박은서", phone: "010-1234-5678", appliance: "벽걸이", qty: 1, region: "강남 도곡", time: "10분 전", principal: "올데이케어",  schedule: "오늘 14:00", estimateTotal: 170000, memo: "" },
+    { id: "YS-260427-021", customer: "박서연", phone: "010-7891-2345", appliance: "스탠드", qty: 1, region: "강남 청담", time: "18분 전", principal: "유솔홈케어 H", schedule: "내일 오후", estimateTotal: 200000, memo: "네이버 결제 완료" },
+    { id: "CC-260427-014", customer: "정수아", phone: "010-4567-1234", appliance: "벽걸이", qty: 2, region: "송파 잠실", time: "1시간 전", principal: "올데이케어", schedule: "내일 오전", estimateTotal: 320000, memo: "" },
+  ],
+  냉매충전: [
+    // Step 5-3 v3 — autoAssignStatus 적용 / 카드 클릭 분기 (pushing → AutoAssignScreen / accepted → 작업 상세)
+    { id: "MG-260427-008", customer: "김지수", phone: "010-9012-3456", appliance: "벽걸이", qty: 2, region: "서초 잠원", time: "43분 전", principal: "에어컨프로", schedule: "내일 낮", workflow: "auto_first_accept", autoAssignStatus: "pushing",  acceptedEngineer: null,    pushCount: 4, estimateTotal: 240000, memo: "" },
+    { id: "A260427-006",  customer: "김민호", phone: "010-2345-6789", appliance: "스탠드", qty: 1, region: "송파 잠실", time: "30분 전", principal: "에어컨프로", schedule: "모레 오전", workflow: "auto_first_accept", autoAssignStatus: "accepted", acceptedEngineer: "김태승", estimateTotal: 130000, memo: "" },
+  ],
+};
+
+// LIVE_TASKS 는 Step 3-4 에서 제거됨 — TASKS_TODAY (ENGINEERS_DATA 평탄화) 가 단일 진실 소스
+// (정의는 ENGINEERS_DATA 아래)
+
+// 추천 기사 mock (시안 5-V3) — Step 5-3 정정: ENGINEERS_MASTER + ZONE_MAPPINGS 사용 (RECOMMENDED_ENGINEERS 더 이상 사용 X)
+const RECOMMENDED_ENGINEERS = [
+  { id: "E001", name: "김동효", level: "main", nightOk: true,  region: "강남, 서초", todayCount: 3, newCount: 1, rank: "manager" },
+  { id: "E005", name: "정훈",   level: "main", nightOk: false, region: "서초, 강남", todayCount: 2, newCount: 0, rank: "senior" },
+  { id: "E008", name: "김윤섭", level: "sub",  nightOk: true,  region: "용산, 중구", todayCount: 1, newCount: 1, rank: "junior" },
 ];
 
-const ALL_TASKS = [
-  { id: "A260427-001", customer: "박지영", workType: "세척", status: "완료", engineer: "김동효", time: "09:00", region: "강남", paymentType: "field", urgent: false },
-  { id: "A260427-002", customer: "이상훈", workType: "세척+점검", status: "확정", engineer: "김동효", time: "11:30", region: "서초", paymentType: "field", urgent: false },
-  { id: "A260427-003", customer: "김미경", workType: "냉매충전", status: "확정", engineer: "김동효", time: "14:00", region: "송파", paymentType: "company", urgent: false },
-  { id: "A260427-004", customer: "정도현", workType: "설치", status: "약속대기", engineer: "김동효", time: null, region: "강남", paymentType: "company", urgent: false },
-  { id: "A260427-005", customer: "박은서", workType: "세척", status: "미배정", engineer: null, time: null, region: "강남", paymentType: "field", urgent: false },
-  { id: "A260427-006", customer: "김민호", workType: "점검", status: "미배정", engineer: null, time: null, region: "송파", paymentType: "field", urgent: false },
-  { id: "A260427-007", customer: "이지은", workType: "설치", status: "미배정", engineer: null, time: null, region: "서초", paymentType: "company", urgent: true },
-  { id: "A260427-008", customer: "정민수", workType: "세척", status: "진행중", engineer: "최민수", time: "10:00", region: "종로", paymentType: "field", urgent: false },
+// ============================================
+// Step 5-3 — 기사 마스터 데이터 (사장님 박힌 진짜 운영 데이터)
+// 사장님이 한 곳에서 직접 수정/추가 가능 (편집 친화 구조)
+// ============================================
+const ENGINEERS_MASTER = [
+  { id: "M01", name: "김태승", careerLevel: "expert", level: "main",   phone: "010-8185-9700", regionLabel: "서대문" },
+  { id: "M02", name: "양승문", careerLevel: "expert", level: "main",   phone: "010-3749-0294", regionLabel: "은평" },
+  { id: "M03", name: "김윤섭", careerLevel: "expert", level: "main",   phone: "010-2063-4980", regionLabel: "용산" },
+  { id: "M04", name: "이상준", careerLevel: "expert", level: "main",   phone: "010-4729-8079", regionLabel: "전문 기사" },
+  { id: "M05", name: "정상현", careerLevel: "expert", level: "main",   phone: "010-2273-0976", regionLabel: "강북" },
+  { id: "M06", name: "김영수", careerLevel: "expert", level: "main",   phone: "010-2635-5772", regionLabel: "동대문" },
+  { id: "M07", name: "안승웅", careerLevel: "expert", level: "main",   phone: "010-5399-3651", regionLabel: "성동" },
+  { id: "M08", name: "변기현", careerLevel: "expert", level: "main",   phone: "010-6351-8818", regionLabel: "금천" },
+  { id: "M09", name: "정훈",   careerLevel: "expert", level: "main",   phone: "010-2143-9620", regionLabel: "서초" },
+  { id: "M10", name: "강병익", careerLevel: "expert", level: "main",   phone: "010-9089-1726", regionLabel: "동작" },
+  { id: "M11", name: "김동효", careerLevel: "expert", level: "main",   phone: "010-9238-0412", regionLabel: "송파" },
+  { id: "M12", name: "전현진", careerLevel: "expert", level: "main",   phone: "010-7764-4402", regionLabel: "강서" },
+  { id: "M13", name: "김현동", careerLevel: "expert", level: "main",   phone: "010-9999-0001", regionLabel: "강북" },
+  { id: "M14", name: "임종일", careerLevel: "expert", level: "main",   phone: "010-9999-0002", regionLabel: "관악" },
+  { id: "M15", name: "류근학", careerLevel: "expert", level: "main",   phone: "010-9999-0003", regionLabel: "강남" },
+  { id: "M16", name: "권창용", careerLevel: "expert", level: "main",   phone: "010-9999-0004", regionLabel: "전문 기사" },
+  { id: "M17", name: "김재현", careerLevel: "career", level: "backup", phone: "010-9999-0005", regionLabel: "전문 기사" },
+  { id: "M18", name: "문성목", careerLevel: "career", level: "backup", phone: "010-9999-0006", regionLabel: "성동" },
+  { id: "M19", name: "손동식", careerLevel: "career", level: "backup", phone: "010-9999-0007", regionLabel: "은평" },
+  { id: "M20", name: "김병철", careerLevel: "career", level: "backup", phone: "010-9999-0008", regionLabel: "남양주" },
 ];
 
-// 지역별 작업량
-const REGION_STATS = [
-  { region: "강남", count: 8, color: "#E91860" },
-  { region: "서초", count: 5, color: "#7F77DD" },
-  { region: "송파", count: 6, color: "#1D9E75" },
-  { region: "종로", count: 3, color: "#BA7517" },
-  { region: "기타", count: 2, color: "#888780" },
+// ============================================
+// Step 5-3 — 지역 매핑 (사장님이 한 곳에서 관리)
+// 작업 종류별 zones / applianceCapable / sub
+// Phase 2: 설정 화면에서 직접 편집 가능
+// Step 5-3-3 — applianceSpecialist → applianceCapable (전문 X / 가능 O — 신입도 포함)
+// ============================================
+const ZONE_MAPPINGS = {
+  "세척": {
+    main: [
+      { engineer: "양승문", zones: ["고양시", "은평구", "서대문구"] },
+      { engineer: "김윤섭", zones: ["마포구", "용산구", "중구"] },
+      { engineer: "정상현", zones: ["종로구", "성북구", "동대문구"] },
+      { engineer: "안승웅", zones: ["성동구", "광진구", "중랑구"] },
+      { engineer: "김영수", zones: ["의정부", "구리", "남양주", "양주"] },
+      { engineer: "김현동", zones: ["강북구", "도봉구", "노원구"] },
+      { engineer: "임종일", zones: ["동작구", "관악구", "시흥시"] },
+      { engineer: "류근학", zones: ["서초구", "강남구", "용인", "하남"] },
+      { engineer: "정훈",   zones: ["송파구", "강동구", "용인", "하남"] },
+      { engineer: "전현진", zones: ["양천구", "구로구", "금천구", "강서구"] },
+    ],
+    applianceCapable: [
+      { engineer: "권창용", appliances: ["벽걸이"] },
+      { engineer: "이상준", appliances: ["벽걸이"] },
+      { engineer: "김재현", appliances: ["벽걸이"] },  // sub에서 이동 / 원웨이 제거
+    ],
+    sub: [
+      // 김재현 제거 → applianceCapable로 이동
+      { engineer: "김태승", zones: ["서대문구", "중구"] },
+      { engineer: "문성목", zones: ["성동구", "광진구", "중랑구"] },
+      { engineer: "손동식", zones: ["고양시", "은평구"] },
+      { engineer: "김병철", zones: ["남양주", "구리", "의정부"] },
+      { engineer: "김동효", zones: ["관악구", "동작구", "시흥시", "금천구", "강서구"] },
+    ],
+  },
+  "냉매충전": {
+    main: [
+      { engineer: "김태승", zones: ["마포구", "서대문구"] },
+      { engineer: "양승문", zones: ["은평구"] },
+      { engineer: "김윤섭", zones: ["용산구", "중구"] },
+      { engineer: "이상준", zones: ["종로구", "성북구"] },
+      { engineer: "정상현", zones: ["강북구", "도봉구", "노원구"] },
+      { engineer: "김영수", zones: ["동대문구", "중랑구"] },
+      { engineer: "안승웅", zones: ["성동구", "광진구"] },
+      { engineer: "변기현", zones: ["금천구", "관악구"] },
+      { engineer: "정훈",   zones: ["서초구", "강남구"] },
+      { engineer: "강병익", zones: ["동작구", "영등포구"] },
+      { engineer: "김동효", zones: ["송파구", "강동구"] },
+      { engineer: "전현진", zones: ["강서구", "양천구", "구로구"] },
+    ],
+    applianceCapable: [],
+    sub: [],
+  },
+};
+
+// 주소/지역 텍스트에서 행정구역 키워드 추출
+// "강남 도곡" → "강남구" / "서초 잠원" → "서초구" / "송파 잠실" → "송파구" 자동 매핑
+const SEOUL_GU_NAMES = [
+  "강남", "강동", "강북", "강서", "관악", "광진", "구로", "금천", "노원",
+  "도봉", "동대문", "동작", "마포", "서대문", "서초", "성동", "성북",
+  "송파", "양천", "영등포", "용산", "은평", "종로", "중랑",
 ];
+function extractZone(address) {
+  if (!address) return null;
+  const text = String(address).trim();
+  // 1. "OO구" 명시
+  const guMatch = text.match(/([가-힣]+구)/);
+  if (guMatch) return guMatch[1];
+  // 2. "OO시" 명시
+  const siMatch = text.match(/([가-힣]+시)/);
+  if (siMatch) return siMatch[1];
+  // 3. 서울 외 시/지역 키워드
+  const keywords = ["의정부", "구리", "남양주", "양주", "용인", "하남", "성남", "수원", "광명", "안양", "시흥"];
+  for (const kw of keywords) {
+    if (text.includes(kw)) return kw;
+  }
+  // 4. 서울 25개 구 이름 (bare → 구 suffix 자동 추가)
+  for (const gu of SEOUL_GU_NAMES) {
+    if (text.includes(gu)) return gu + "구";
+  }
+  // 5. 중구 (특수 — 단어 길이 1자라 마지막에)
+  if (text.includes("중구") || /\s중\s/.test(" " + text + " ")) return "중구";
+  // 6. fallback
+  return text.split(/\s+/)[0] || null;
+}
+
+// 기사 이름 → ZONE_MAPPINGS에서 해당 작업 타입의 zones 추출 (UI 표시용)
+function getEngineerZoneList(name, workType) {
+  const config = ZONE_MAPPINGS[workType];
+  if (!config) return [];
+  const inMain = config.main?.find(m => m.engineer === name);
+  if (inMain && inMain.zones?.length > 0) return inMain.zones;
+  const inSub = config.sub?.find(s => s.engineer === name);
+  if (inSub && inSub.zones?.length > 0) return inSub.zones;
+  // applianceCapable 기사는 지역 무관
+  return [];
+}
+
+// Step 5-3-4 — 작업 지역 매칭 1개만 추출 (추천기사 카드용)
+// 매칭 없으면 zones[0] fallback
+function getMatchedZone(name, workType, taskZone) {
+  const zones = getEngineerZoneList(name, workType);
+  if (zones.length === 0) return null;
+  if (!taskZone) return zones[0];
+  const matched = zones.find(z => z === taskZone || z.includes(taskZone) || taskZone.includes(z));
+  return matched || zones[0];
+}
+
+// Step 5-3-3 — 기사 이름 → 가능 기종 리스트 (capable 그룹 카드 표시용)
+function getEngineerApplianceList(name, workType) {
+  const config = ZONE_MAPPINGS[workType];
+  if (!config) return [];
+  const inCap = config.applianceCapable?.find(s => s.engineer === name);
+  if (inCap && inCap.appliances?.length > 0) return inCap.appliances;
+  // 만약 sub에 appliances가 있으면 그것도 fallback
+  const inSub = config.sub?.find(s => s.engineer === name);
+  if (inSub && inSub.appliances?.length > 0) return inSub.appliances;
+  return [];
+}
+
+// 추천 후보 기사 추출 — main / sub / capable 그룹화
+function getCandidateEngineers(workType, region, appliance) {
+  const config = ZONE_MAPPINGS[workType];
+  if (!config) return { main: [], sub: [], capable: [] };
+
+  const targetZone = extractZone(region);
+  const findEng = (name) => ENGINEERS_MASTER.find((e) => e.name === name);
+
+  const main = (config.main || [])
+    .filter((m) => targetZone && m.zones.includes(targetZone))
+    .map((m) => findEng(m.engineer))
+    .filter(Boolean);
+
+  const sub = (config.sub || [])
+    .filter((s) => Array.isArray(s.zones) && s.zones.length > 0 && targetZone && s.zones.includes(targetZone))
+    .map((s) => findEng(s.engineer))
+    .filter(Boolean);
+
+  // 기종 가능 기사 (지역 무관 / appliance 매칭 시)
+  const capable = (config.applianceCapable || [])
+    .filter((s) => !appliance || (s.appliances && s.appliances.includes(appliance)))
+    .map((s) => findEng(s.engineer))
+    .filter(Boolean);
+
+  return {
+    main,
+    sub,
+    capable,
+  };
+}
+
+// Step 5-3 v3 — 자동 배정 broadcast 후보 (zone 매칭 우선 + 모자라면 다른 main으로 확장)
+// Phase 1 mock: 첫 응답자 = candidates[0] (zone 매칭 기사가 우선 선택됨)
+function getAutoBroadcastCandidates(workType, region, appliance, maxCount = 4) {
+  const config = ZONE_MAPPINGS[workType];
+  if (!config) return [];
+  const findEng = (name) => ENGINEERS_MASTER.find((e) => e.name === name);
+  const matched = new Set();
+  const result = [];
+
+  // 1. Zone 매칭 (메인 + 서브 + 가능)
+  const zoneMatched = getCandidateEngineers(workType, region, appliance);
+  for (const eng of zoneMatched.main) {
+    if (!matched.has(eng.name)) { matched.add(eng.name); result.push(eng); }
+    if (result.length >= maxCount) return result;
+  }
+  for (const eng of zoneMatched.sub) {
+    if (!matched.has(eng.name)) { matched.add(eng.name); result.push(eng); }
+    if (result.length >= maxCount) return result;
+  }
+  for (const eng of zoneMatched.capable) {
+    if (!matched.has(eng.name)) { matched.add(eng.name); result.push(eng); }
+    if (result.length >= maxCount) return result;
+  }
+  // 2. 추가 broadcast — 같은 workType 다른 메인 기사
+  for (const m of config.main || []) {
+    if (matched.has(m.engineer)) continue;
+    const eng = findEng(m.engineer);
+    if (eng) {
+      matched.add(eng.name);
+      result.push(eng);
+      if (result.length >= maxCount) return result;
+    }
+  }
+  return result;
+}
+
+// 기사 탭 — Step 3-2: 시스템 디자이너 시각, 스케쥴이 답
+// type:  "work" | "off_full" | "off_partial" | "external"
+// state (work/external만): "done" | "active" | "moving" | "waiting" | "scheduled"
+// Step 4: work 항목에 상세 필드 추가 (taskCode/phone/address/qty/estimateTotal/addonFee/principal/memo/startedAt/completedAt)
+const ENGINEERS_DATA = [
+  // 활동중 (5명)
+  { id: "E001", name: "김동효", rank: "manager", level: "main", region: "강남", phone: "010-9999-0001",
+    todaySchedule: [
+      { type: "work", time: "09:00", taskCode: "A260427-001",
+        customer: "정수아", phone: "010-2345-6789",
+        address: "송파 잠실 한솔아파트 501동 802호",
+        workType: "세척", appliance: "벽걸이", qty: 2,
+        region: "송파 잠실",
+        estimateTotal: 320000, addonFee: 0, principal: "올데이케어",
+        memo: "벽걸이 2대 청소 요청",
+        startedAt: "09:05", completedAt: "10:45",
+        photos: { before: 3, after: 4, driveUrl: "https://drive.google.com/drive/folders/abc123" },
+        state: "done" },
+      { type: "work", time: "11:30", taskCode: "A260427-002",
+        customer: "이상훈", phone: "010-3456-7890",
+        address: "서초 반포 래미안퍼스티지 102동 1203호",
+        workType: "세척", appliance: "스탠드", qty: 2,
+        region: "서초 반포",
+        estimateTotal: 280000, addonFee: 50000, principal: "에어컨프로",
+        memo: "스탠드 2대, 곰팡이 심함",
+        startedAt: "11:35", completedAt: null,
+        state: "active" },
+      { type: "work", time: "14:00", taskCode: "A260427-005",
+        customer: "박은서", phone: "010-1234-5678",
+        address: "강남 도곡 도곡렉슬 101동 1505호",
+        workType: "세척", appliance: "벽걸이", qty: 1,
+        region: "강남 도곡",
+        estimateTotal: 170000, addonFee: 0, principal: "올데이케어",
+        memo: "에어컨 뒤편 청소 부탁드려요",
+        startedAt: null, completedAt: null,
+        state: "waiting" },
+    ] },
+  { id: "E021", name: "정훈", rank: "senior", level: "main", region: "서초", phone: "010-9999-0002",
+    todaySchedule: [
+      { type: "work", time: "10:00", taskCode: "YS-260427-021",
+        customer: "박서연", phone: "010-7891-2345",
+        address: "강남 청담 청담아이파크 103동 805호",
+        workType: "세척", appliance: "스탠드", qty: 1,
+        region: "강남 청담",
+        estimateTotal: 200000, addonFee: 0, principal: "유솔홈케어 H",
+        memo: "네이버 결제 완료",
+        startedAt: "10:10", completedAt: "11:50",
+        photos: { before: 0, after: 0, driveUrl: "" },
+        state: "done" },
+      { type: "work", time: "13:00", taskCode: "MG-260427-008",
+        customer: "이재훈", phone: "010-4567-8901",
+        address: "서초 반포 반포자이 305동 1404호",
+        workType: "냉매충전", appliance: "벽걸이", qty: 2,
+        region: "서초 반포",
+        estimateTotal: 240000, addonFee: 0, principal: "에어컨프로",
+        memo: "가스 부족 — 누설 점검 같이 요청",
+        startedAt: null, completedAt: null,
+        state: "moving" },
+    ] },
+  { id: "E007", name: "김도현", rank: "junior", level: "main", region: "송파", phone: "010-9999-0003",
+    todaySchedule: [
+      { type: "work", time: "10:00", taskCode: "A260427-011",
+        customer: "최서연", phone: "010-5678-9012",
+        address: "송파 가락 헬리오시티 405동 1502호",
+        workType: "세척", appliance: "스탠드", qty: 1,
+        region: "송파 가락",
+        estimateTotal: 180000, addonFee: 0, principal: "올데이케어",
+        memo: "거실 스탠드 1대",
+        startedAt: "10:08", completedAt: null,
+        state: "active" },
+      { type: "work", time: "14:30", taskCode: "A260427-012",
+        customer: "한지수", phone: "010-6789-0123",
+        address: "송파 잠실 잠실엘스 207동 803호",
+        workType: "점검", appliance: "벽걸이", qty: 2,
+        region: "송파 잠실",
+        estimateTotal: 80000, addonFee: 0, principal: "올데이케어",
+        memo: "냉방 약함 호소 — 진단 우선",
+        startedAt: null, completedAt: null,
+        state: "waiting" },
+    ] },
+  { id: "E004", name: "최민수", rank: "junior", level: "main", region: "강남", phone: "010-9999-0004",
+    todaySchedule: [
+      { type: "work", time: "09:30", taskCode: "MG-260427-014",
+        customer: "이지수", phone: "010-7890-1234",
+        address: "강남 청담 청담린든그로브 102동 901호",
+        workType: "냉매충전", appliance: "벽걸이", qty: 1,
+        region: "강남 청담",
+        estimateTotal: 130000, addonFee: 30000, principal: "에어컨프로",
+        memo: "현장 추가 — 누설 부위 보수",
+        startedAt: "09:35", completedAt: null,
+        state: "active" },
+      { type: "work", time: "13:00", taskCode: "A260427-015",
+        customer: "박민호", phone: "010-8901-2345",
+        address: "강남 역삼 강남파이낸스센터 오피스 28층",
+        workType: "수리", appliance: "벽걸이", qty: 1,
+        region: "강남 역삼",
+        estimateTotal: 110000, addonFee: 0, principal: "에어컨프로",
+        memo: "리모컨 인식 안됨",
+        startedAt: null, completedAt: null,
+        state: "waiting" },
+    ] },
+  { id: "E010G", name: "김태승", rank: "senior", level: "main", region: "마포", phone: "010-9999-0005",
+    todaySchedule: [
+      { type: "work", time: "11:15", taskCode: "MG-260427-018",
+        customer: "정수민", phone: "010-9012-3456",
+        address: "마포 공덕 공덕래미안5차 502동 1105호",
+        workType: "냉매충전", appliance: "벽걸이", qty: 2,
+        region: "마포 → 서대문",
+        estimateTotal: 240000, addonFee: 0, principal: "에어컨프로",
+        memo: "이동 (마포 → 서대문)",
+        startedAt: null, completedAt: null,
+        state: "moving" },
+      { type: "work", time: "15:00", taskCode: "A260427-019",
+        customer: "김민호", phone: "010-2345-6789",
+        address: "송파 잠실 잠실리센츠 206동 1804호",
+        workType: "스탠드 세척", appliance: "스탠드", qty: 1,
+        region: "송파 잠실",
+        estimateTotal: 130000, addonFee: 0, principal: "에어컨프로",
+        memo: "",
+        startedAt: null, completedAt: null,
+        state: "waiting" },
+    ] },
+  // 시간 휴무 — 1명
+  { id: "E024", name: "박재현", rank: "junior", level: "backup", region: "강북", phone: "010-9999-0006",
+    todaySchedule: [
+      { type: "off_partial", time: "~14:00", note: "오전 휴무" },
+      { type: "work", time: "14:30", taskCode: "MG-260427-024",
+        customer: "김지혜", phone: "010-3456-7890",
+        address: "마포 합정 합정메세나폴리스 1905호",
+        workType: "냉매충전", appliance: "벽걸이", qty: 1,
+        region: "마포",
+        estimateTotal: 130000, addonFee: 0, principal: "에어컨프로",
+        memo: "오후 일정 — 14:30 도착 예정",
+        startedAt: null, completedAt: null,
+        state: "scheduled" },
+      { type: "work", time: "16:00", taskCode: "A260427-025",
+        customer: "이서연", phone: "010-4567-8901",
+        address: "마포 망원 망원한강해모로 802호",
+        workType: "점검", appliance: "벽걸이", qty: 1,
+        region: "마포",
+        estimateTotal: 60000, addonFee: 0, principal: "올데이케어",
+        memo: "에어컨 소음 점검",
+        startedAt: null, completedAt: null,
+        state: "scheduled" },
+    ] },
+  // 외근 — 1명
+  { id: "E002", name: "이재현", rank: "manager", level: "main", region: "관악", phone: "010-9999-0007",
+    todaySchedule: [
+      { type: "external", time: "09:00~16:00", note: "서울대병원 정기 점검 (외근)", state: "active" },
+      { type: "work", time: "17:00", taskCode: "A260427-027",
+        customer: "최영수", phone: "010-5678-9012",
+        address: "동작 사당 사당롯데캐슬 105동 503호",
+        workType: "수리", appliance: "스탠드", qty: 1,
+        region: "동작",
+        estimateTotal: 150000, addonFee: 0, principal: "에어컨프로",
+        memo: "외근 후 마지막 일정",
+        startedAt: null, completedAt: null,
+        state: "waiting" },
+    ] },
+  // 종일 휴무 — 1명
+  { id: "E003", name: "박상민", rank: "senior", level: "main", region: "강서", phone: "010-9999-0008",
+    todaySchedule: [
+      { type: "off_full", note: "종일 휴무" },
+    ] },
+  // ─────────────────────────────────────────────
+  // Step 5-3 — ENGINEERS_MASTER 신규 17명 (overlap 3명 제외)
+  // ─────────────────────────────────────────────
+  // 활동 추가 — 진행중 1명 (M15 류근학 / M03 김윤섭)
+  { id: "M15", name: "류근학", rank: "manager", level: "main", region: "강남", phone: "010-9999-0003",
+    todaySchedule: [
+      { type: "work", time: "10:00", taskCode: "A260427-031",
+        customer: "이혜진", phone: "010-1212-3434",
+        address: "강남 역삼 강남센트럴아이파크 102동 1801호",
+        workType: "세척", appliance: "벽걸이", qty: 2,
+        region: "강남구",
+        estimateTotal: 320000, addonFee: 0, principal: "올데이케어",
+        memo: "벽걸이 2대 청소",
+        startedAt: "10:05", completedAt: null,
+        state: "active" },
+    ] },
+  { id: "M03", name: "김윤섭", rank: "manager", level: "main", region: "용산", phone: "010-2063-4980",
+    todaySchedule: [
+      { type: "work", time: "11:00", taskCode: "A260427-032",
+        customer: "박지은", phone: "010-2323-4545",
+        address: "용산구 한강로 래미안용산 305동 1502호",
+        workType: "세척", appliance: "벽걸이", qty: 1,
+        region: "용산구",
+        estimateTotal: 170000, addonFee: 0, principal: "올데이케어",
+        memo: "",
+        startedAt: "11:08", completedAt: null,
+        state: "active" },
+    ] },
+  // 대기 — 2명 (M16 권창용 / M06 김영수)
+  { id: "M16", name: "권창용", rank: "senior", level: "main", careerLevel: "expert", region: "전문 기사", phone: "010-9999-0004",
+    todaySchedule: [
+      { type: "work", time: "13:00", taskCode: "A260427-033",
+        customer: "최세영", phone: "010-3434-5656",
+        address: "강남 도곡 도곡렉슬 105동 802호",
+        workType: "세척", appliance: "벽걸이", qty: 3,
+        region: "강남구",
+        estimateTotal: 480000, addonFee: 0, principal: "올데이케어",
+        memo: "벽걸이 3대",
+        startedAt: null, completedAt: null,
+        state: "waiting" },
+    ] },
+  { id: "M06", name: "김영수", rank: "manager", level: "main", region: "동대문", phone: "010-2635-5772",
+    todaySchedule: [
+      { type: "work", time: "14:00", taskCode: "A260427-034",
+        customer: "송민지", phone: "010-4545-6767",
+        address: "의정부 신곡동 의정부롯데캐슬 902동 1503호",
+        workType: "세척", appliance: "스탠드", qty: 1,
+        region: "의정부",
+        estimateTotal: 200000, addonFee: 0, principal: "유솔홈케어 H",
+        memo: "",
+        startedAt: null, completedAt: null,
+        state: "waiting" },
+    ] },
+  // 종일 휴무 추가 — 1명 (M20 김병철)
+  { id: "M20", name: "김병철", rank: "junior", level: "backup", careerLevel: "career", region: "남양주", phone: "010-9999-0008",
+    todaySchedule: [
+      { type: "off_full", note: "종일 휴무" },
+    ] },
+  // 0건 / 미정 — 12명
+  { id: "M02", name: "양승문", rank: "junior",  level: "main",   careerLevel: "expert", region: "은평",       phone: "010-3749-0294", todaySchedule: [] },
+  { id: "M04", name: "이상준", rank: "senior",  level: "main",   careerLevel: "expert", region: "전문 기사",  phone: "010-4729-8079", todaySchedule: [] },
+  { id: "M05", name: "정상현", rank: "junior",  level: "main",   careerLevel: "expert", region: "강북",       phone: "010-2273-0976", todaySchedule: [] },
+  { id: "M07", name: "안승웅", rank: "senior",  level: "main",   careerLevel: "expert", region: "성동",       phone: "010-5399-3651", todaySchedule: [] },
+  { id: "M08", name: "변기현", rank: "junior",  level: "main",   careerLevel: "expert", region: "금천",       phone: "010-6351-8818", todaySchedule: [] },
+  { id: "M10", name: "강병익", rank: "junior",  level: "main",   careerLevel: "expert", region: "동작",       phone: "010-9089-1726", todaySchedule: [] },
+  { id: "M12", name: "전현진", rank: "junior",  level: "main",   careerLevel: "expert", region: "강서",       phone: "010-7764-4402", todaySchedule: [] },
+  { id: "M13", name: "김현동", rank: "junior",  level: "main",   careerLevel: "expert", region: "강북",       phone: "010-9999-0001", todaySchedule: [] },
+  { id: "M14", name: "임종일", rank: "junior",  level: "main",   careerLevel: "expert", region: "관악",       phone: "010-9999-0002", todaySchedule: [] },
+  { id: "M17", name: "김재현", rank: "junior",  level: "backup", careerLevel: "career", region: "전문 기사",  phone: "010-9999-0005", todaySchedule: [] },
+  { id: "M18", name: "문성목", rank: "junior",  level: "backup", careerLevel: "career", region: "성동",       phone: "010-9999-0006", todaySchedule: [] },
+  { id: "M19", name: "손동식", rank: "junior",  level: "backup", careerLevel: "career", region: "은평",       phone: "010-9999-0007", todaySchedule: [] },
+];
+
+// 작업 탭 — 단일 진실 소스 평탄화 ("두 번 일 안 하기")
+// 사장님 시각: 기사 탭 = Who / 작업 탭 = What
+// state: "active"(진행중) | "moving"(이동중) | "waiting"(대기) | "scheduled"(예정) | "done"(완료)
+// type === "external" 은 외근중 그룹으로 분리
+const TASKS_TODAY = ENGINEERS_DATA.flatMap((eng) =>
+  eng.todaySchedule
+    .filter((s) => s.type === "work" || s.type === "external")
+    .map((s, idx) => ({
+      ...s,
+      taskId: `${eng.id}-${idx}`,
+      engineerId: eng.id,
+      engineer: eng.name,
+      engineerRank: eng.rank,
+      engineerLevel: eng.level,
+      engineerRegion: eng.region,
+    }))
+);
+
+// 기사별 배정 전체 (오늘/내일/다음주 다 — 사장님 시각: 활동 시각 / 공평성 지표용)
+// state: waiting(신규배정) | scheduled/moving/active(일정확정) | done(완료)
+// 날짜 필드: workDate / assignedDate / completedDate (TODAY_DATE = "2026-04-27")
+const ENGINEER_ASSIGNMENTS = {
+  // 김동효 — newAssigned 2 / confirmed 5 / todayDone 1 / todayAssigned 3
+  "E001": [
+    { taskCode: "A260427-001", customer: "정수아", phone: "010-2345-6789", address: "송파 잠실 한솔아파트 501동 802호", workType: "세척", appliance: "벽걸이", qty: 2, region: "송파 잠실", time: "09:00", estimateTotal: 320000, addonFee: 0, principal: "올데이케어", memo: "벽걸이 2대", workDate: "2026-04-27", assignedDate: "2026-04-26", state: "done", startedAt: "09:05", completedAt: "10:45", completedDate: "2026-04-27", photos: { before: 3, after: 4, driveUrl: "https://drive.google.com/drive/folders/abc123" } },
+    { taskCode: "A260427-002", customer: "이상훈", phone: "010-3456-7890", address: "서초 반포 래미안퍼스티지 102동 1203호", workType: "세척", appliance: "스탠드", qty: 2, region: "서초 반포", time: "11:30", estimateTotal: 280000, addonFee: 50000, principal: "에어컨프로", memo: "스탠드 2대, 곰팡이 심함", workDate: "2026-04-27", assignedDate: "2026-04-27", state: "active", startedAt: "11:35" },
+    { taskCode: "A260427-005", customer: "박은서", phone: "010-1234-5678", address: "강남 도곡 도곡렉슬 101동 1505호", workType: "세척", appliance: "벽걸이", qty: 1, region: "강남 도곡", time: "14:00", estimateTotal: 170000, addonFee: 0, principal: "올데이케어", memo: "에어컨 뒤편 청소 부탁드려요", workDate: "2026-04-27", assignedDate: "2026-04-27", state: "waiting" },
+    { taskCode: "A260428-001", customer: "김민수", phone: "010-3322-1100", address: "강남 청담 청담아이파크 501동 902호", workType: "세척", appliance: "벽걸이", qty: 1, region: "강남 청담", time: "10:00", estimateTotal: 160000, addonFee: 0, principal: "올데이케어", memo: "오늘 들어온 — 일정 미정", workDate: "2026-04-28", assignedDate: "2026-04-27", state: "waiting" },
+    { taskCode: "A260428-002", customer: "정수환", phone: "010-1111-2222", address: "강남 역삼 강남파이낸스센터 503동", workType: "세척", appliance: "스탠드", qty: 1, region: "강남 역삼", time: "13:00", estimateTotal: 200000, addonFee: 0, principal: "에어컨프로", workDate: "2026-04-28", assignedDate: "2026-04-26", state: "scheduled" },
+    { taskCode: "A260429-001", customer: "박지영", phone: "010-5555-1212", address: "송파 잠실 잠실엘스 207동 1503호", workType: "세척", appliance: "벽걸이", qty: 2, region: "송파 잠실", time: "11:00", estimateTotal: 320000, addonFee: 0, principal: "올데이케어", workDate: "2026-04-29", assignedDate: "2026-04-26", state: "scheduled" },
+    { taskCode: "A260503-001", customer: "김상훈", phone: "010-7777-8888", address: "강남 압구정 현대아파트 702동", workType: "냉매충전", appliance: "벽걸이", qty: 1, region: "강남 압구정", time: "10:00", estimateTotal: 130000, addonFee: 0, principal: "유솔홈케어 N", workDate: "2026-05-03", assignedDate: "2026-04-25", state: "scheduled" },
+    { taskCode: "A260504-001", customer: "이수영", phone: "010-9090-1234", address: "서초 반포 반포자이 305동 904호", workType: "세척", appliance: "벽걸이", qty: 2, region: "서초 반포", time: "14:00", estimateTotal: 320000, addonFee: 0, principal: "올데이케어", workDate: "2026-05-04", assignedDate: "2026-04-25", state: "scheduled" },
+  ],
+  // 정훈 — newAssigned 1 / confirmed 3 / todayDone 1 / todayAssigned 2
+  "E021": [
+    { taskCode: "YS-260427-021", customer: "박서연", phone: "010-7891-2345", address: "강남 청담 청담아이파크 103동 805호", workType: "세척", appliance: "스탠드", qty: 1, region: "강남 청담", time: "10:00", estimateTotal: 200000, addonFee: 0, principal: "유솔홈케어 H", memo: "네이버 결제 완료", workDate: "2026-04-27", assignedDate: "2026-04-26", state: "done", startedAt: "10:10", completedAt: "11:50", completedDate: "2026-04-27", photos: { before: 0, after: 0, driveUrl: "" } },
+    { taskCode: "MG-260427-008", customer: "이재훈", phone: "010-4567-8901", address: "서초 반포 반포자이 305동 1404호", workType: "냉매충전", appliance: "벽걸이", qty: 2, region: "서초 반포", time: "13:00", estimateTotal: 240000, addonFee: 0, principal: "에어컨프로", memo: "가스 부족", workDate: "2026-04-27", assignedDate: "2026-04-27", state: "moving" },
+    { taskCode: "A260428-021", customer: "김도훈", phone: "010-3344-5566", address: "서초 양재 양재대우디오빌 705호", workType: "점검", appliance: "벽걸이", qty: 1, region: "서초 양재", time: "10:00", estimateTotal: 60000, addonFee: 0, principal: "올데이케어", workDate: "2026-04-28", assignedDate: "2026-04-27", state: "scheduled" },
+    { taskCode: "A260429-021", customer: "송민지", phone: "010-2233-4455", address: "강남 청담 청담린든그로브 503호", workType: "세척", appliance: "벽걸이", qty: 1, region: "강남 청담", time: "11:00", estimateTotal: 170000, addonFee: 0, principal: "올데이케어", workDate: "2026-04-29", assignedDate: "2026-04-25", state: "scheduled" },
+    { taskCode: "A260430-021", customer: "장혜진", phone: "010-9988-7766", address: "서초 반포 반포센트레빌 901호", workType: "수리", appliance: "스탠드", qty: 1, region: "서초 반포", time: "14:00", estimateTotal: 150000, addonFee: 0, principal: "에어컨프로", workDate: "2026-04-30", assignedDate: "2026-04-26", state: "waiting" },
+  ],
+  // 김도현 — newAssigned 0 / confirmed 4 / todayDone 0 / todayAssigned 1
+  "E007": [
+    { taskCode: "A260427-011", customer: "최서연", phone: "010-5678-9012", address: "송파 가락 헬리오시티 405동 1502호", workType: "세척", appliance: "스탠드", qty: 1, region: "송파 가락", time: "10:00", estimateTotal: 180000, addonFee: 0, principal: "올데이케어", memo: "거실 스탠드 1대", workDate: "2026-04-27", assignedDate: "2026-04-26", state: "active", startedAt: "10:08" },
+    { taskCode: "A260427-012", customer: "한지수", phone: "010-6789-0123", address: "송파 잠실 잠실엘스 207동 803호", workType: "점검", appliance: "벽걸이", qty: 2, region: "송파 잠실", time: "14:30", estimateTotal: 80000, addonFee: 0, principal: "올데이케어", memo: "냉방 약함", workDate: "2026-04-27", assignedDate: "2026-04-25", state: "scheduled" },
+    { taskCode: "A260428-007", customer: "박지훈", phone: "010-1212-3434", address: "송파 가락 헬리오시티 502동 1801호", workType: "세척", appliance: "스탠드", qty: 1, region: "송파 가락", time: "11:00", estimateTotal: 180000, addonFee: 0, principal: "올데이케어", workDate: "2026-04-28", assignedDate: "2026-04-27", state: "scheduled" },
+    { taskCode: "A260429-007", customer: "이은혜", phone: "010-5656-7878", address: "송파 신천 잠실파크리오 1102동", workType: "세척", appliance: "벽걸이", qty: 2, region: "송파 신천", time: "13:00", estimateTotal: 320000, addonFee: 0, principal: "에어컨프로", workDate: "2026-04-29", assignedDate: "2026-04-26", state: "scheduled" },
+  ],
+  // 최민수 — newAssigned 1 / confirmed 2 / todayDone 0 / todayAssigned 1
+  "E004": [
+    { taskCode: "MG-260427-014", customer: "이지수", phone: "010-7890-1234", address: "강남 청담 청담린든그로브 102동 901호", workType: "냉매충전", appliance: "벽걸이", qty: 1, region: "강남 청담", time: "09:30", estimateTotal: 130000, addonFee: 30000, principal: "에어컨프로", memo: "현장 추가 — 누설 보수", workDate: "2026-04-27", assignedDate: "2026-04-26", state: "active", startedAt: "09:35" },
+    { taskCode: "A260427-015", customer: "박민호", phone: "010-8901-2345", address: "강남 역삼 강남파이낸스센터 28층", workType: "수리", appliance: "벽걸이", qty: 1, region: "강남 역삼", time: "13:00", estimateTotal: 110000, addonFee: 0, principal: "에어컨프로", memo: "리모컨 인식 안됨", workDate: "2026-04-27", assignedDate: "2026-04-27", state: "scheduled" },
+    { taskCode: "A260428-004", customer: "김유나", phone: "010-3232-4545", address: "강남 도곡 타워팰리스 G동 1503호", workType: "냉매충전", appliance: "벽걸이", qty: 1, region: "강남 도곡", time: "11:00", estimateTotal: 130000, addonFee: 0, principal: "에어컨프로", workDate: "2026-04-28", assignedDate: "2026-04-25", state: "waiting" },
+  ],
+  // 김태승 — newAssigned 0 / confirmed 3 / todayDone 0 / todayAssigned 0
+  "E010G": [
+    { taskCode: "MG-260427-018", customer: "정수민", phone: "010-9012-3456", address: "마포 공덕 공덕래미안5차 502동 1105호", workType: "냉매충전", appliance: "벽걸이", qty: 2, region: "마포 → 서대문", time: "11:15", estimateTotal: 240000, addonFee: 0, principal: "에어컨프로", workDate: "2026-04-27", assignedDate: "2026-04-25", state: "moving" },
+    { taskCode: "A260427-019", customer: "김민호", phone: "010-2345-6789", address: "송파 잠실 잠실리센츠 206동 1804호", workType: "스탠드 세척", appliance: "스탠드", qty: 1, region: "송파 잠실", time: "15:00", estimateTotal: 130000, addonFee: 0, principal: "에어컨프로", workDate: "2026-04-27", assignedDate: "2026-04-25", state: "scheduled" },
+    { taskCode: "A260428-010", customer: "박세훈", phone: "010-3434-5656", address: "마포 합정 메세나폴리스 901호", workType: "냉매충전", appliance: "벽걸이", qty: 1, region: "마포 합정", time: "13:00", estimateTotal: 130000, addonFee: 0, principal: "에어컨프로", workDate: "2026-04-28", assignedDate: "2026-04-25", state: "scheduled" },
+  ],
+  // 박재현 — newAssigned 1 / confirmed 1 / todayDone 0 / todayAssigned 1
+  "E024": [
+    { taskCode: "MG-260427-024", customer: "김지혜", phone: "010-3456-7890", address: "마포 합정 합정메세나폴리스 1905호", workType: "냉매충전", appliance: "벽걸이", qty: 1, region: "마포", time: "14:30", estimateTotal: 130000, addonFee: 0, principal: "에어컨프로", workDate: "2026-04-27", assignedDate: "2026-04-26", state: "scheduled" },
+    { taskCode: "A260427-025", customer: "이서연", phone: "010-4567-8901", address: "마포 망원 망원한강해모로 802호", workType: "점검", appliance: "벽걸이", qty: 1, region: "마포", time: "16:00", estimateTotal: 60000, addonFee: 0, principal: "올데이케어", workDate: "2026-04-27", assignedDate: "2026-04-27", state: "waiting" },
+  ],
+  // 이재현 — newAssigned 1 / confirmed 2 / todayDone 0 / todayAssigned 5 (배정 많이 받은 케이스)
+  "E002": [
+    { taskCode: "A260427-027", customer: "최영수", phone: "010-5678-9012", address: "동작 사당 사당롯데캐슬 105동 503호", workType: "수리", appliance: "스탠드", qty: 1, region: "동작", time: "17:00", estimateTotal: 150000, addonFee: 0, principal: "에어컨프로", memo: "외근 후 마지막 일정", workDate: "2026-04-27", assignedDate: "2026-04-27", state: "waiting" },
+    { taskCode: "A260428-027", customer: "이정훈", phone: "010-7373-8484", address: "관악 봉천 관악푸르지오 502동", workType: "세척", appliance: "벽걸이", qty: 2, region: "관악 봉천", time: "11:00", estimateTotal: 320000, addonFee: 0, principal: "올데이케어", workDate: "2026-04-28", assignedDate: "2026-04-27", state: "scheduled" },
+    { taskCode: "A260429-027", customer: "정혜원", phone: "010-9292-1818", address: "관악 신림 신림푸른마을 1004호", workType: "냉매충전", appliance: "벽걸이", qty: 1, region: "관악 신림", time: "10:00", estimateTotal: 130000, addonFee: 0, principal: "에어컨프로", workDate: "2026-04-29", assignedDate: "2026-04-27", state: "scheduled" },
+    { taskCode: "A260430-027", customer: "박철수", phone: "010-2929-3838", address: "동작 상도 상도더샵 305동", workType: "세척", appliance: "스탠드", qty: 1, region: "동작 상도", time: "14:00", estimateTotal: 200000, addonFee: 0, principal: "유솔홈케어 H", workDate: "2026-04-30", assignedDate: "2026-04-27", state: "scheduled" },
+    { taskCode: "A260501-027", customer: "최진영", phone: "010-1717-2828", address: "관악 서원 우림아파트 502동", workType: "점검", appliance: "벽걸이", qty: 1, region: "관악 서원", time: "13:00", estimateTotal: 60000, addonFee: 0, principal: "올데이케어", workDate: "2026-05-01", assignedDate: "2026-04-27", state: "scheduled" },
+  ],
+  // 박상민 — 종일 휴무 (배정 0)
+  "E003": [],
+};
+
+// 기사 활동 통계 — 사장님 catch (Step 4-2)
+// newAssigned = waiting / confirmed = scheduled+moving+active / todayDone = done&오늘 / todayAssigned = 오늘 배정
+function getEngineerStats(engId, today) {
+  const all = ENGINEER_ASSIGNMENTS[engId] || [];
+  return {
+    newAssigned:   all.filter(a => a.state === "waiting").length,
+    confirmed:     all.filter(a => a.state === "scheduled" || a.state === "moving" || a.state === "active").length,
+    todayDone:     all.filter(a => a.state === "done" && a.completedDate === today).length,
+    todayAssigned: all.filter(a => a.assignedDate === today).length,
+    items: all,
+  };
+}
+
+// 배정 완료 / 일정 확정 화면용 — assigned 2 / confirmed 4 (TODAY_STATS와 일치)
+const ASSIGNED_TASKS = [
+  // assigned (일정 확정 대기) — 2건
+  { id: "A260427-005", customer: "박은서", phone: "010-1234-5678",
+    appliance: "벽걸이", qty: 1, region: "강남 도곡", schedule: "오늘 14:00", estimateTotal: 170000,
+    principal: "올데이케어", memo: "",
+    assignedEngineer: "김동효", engineerPhone: "010-9999-0001",
+    assignmentStatus: "assigned" },
+  { id: "MG-260427-008", customer: "김지수", phone: "010-9012-3456",
+    appliance: "벽걸이", qty: 2, region: "서초 잠원", schedule: "내일 낮", estimateTotal: 240000,
+    principal: "에어컨프로", memo: "",
+    assignedEngineer: "김민준", engineerPhone: "010-9999-0002",
+    assignmentStatus: "assigned" },
+  // confirmed (일정 확정) — 4건
+  { id: "YS-260427-021", customer: "박서연", phone: "010-7891-2345",
+    appliance: "스탠드", qty: 1, region: "강남 청담", schedule: "오늘 13:00", estimateTotal: 200000,
+    principal: "유솔홈케어 H", memo: "네이버 결제 완료",
+    assignedEngineer: "정훈", engineerPhone: "010-9999-0003",
+    assignmentStatus: "confirmed" },
+  { id: "CC-260427-014", customer: "정수아", phone: "010-4567-1234",
+    appliance: "벽걸이", qty: 2, region: "송파 잠실", schedule: "오늘 09:00", estimateTotal: 320000,
+    principal: "올데이케어", memo: "",
+    assignedEngineer: "김동효", engineerPhone: "010-9999-0001",
+    assignmentStatus: "confirmed" },
+  { id: "A260427-006", customer: "김민호", phone: "010-2345-6789",
+    appliance: "스탠드", qty: 1, region: "송파 잠실", schedule: "오늘 15:00", estimateTotal: 130000,
+    principal: "에어컨프로", memo: "",
+    assignedEngineer: "김태승", engineerPhone: "010-9999-0004",
+    assignmentStatus: "confirmed" },
+  { id: "A260427-002", customer: "이상훈", phone: "010-3456-7890",
+    appliance: "스탠드", qty: 2, region: "서초 반포", schedule: "오늘 11:30", estimateTotal: 280000,
+    principal: "에어컨프로", memo: "",
+    assignedEngineer: "김동효", engineerPhone: "010-9999-0001",
+    assignmentStatus: "confirmed" },
+];
+
+// 기사 오늘 일정 mock (C 화면)
+const ENGINEER_DAY = {
+  engineer: "김동효",
+  rank: "manager",
+  status: "진행중",
+  region: "강남 전담",
+  date: "2026-05-01 (목)",
+  total: 3,
+  done: 1,
+  remain: 2,
+  slots: [
+    { time: "09:00~10:30", customer: "정수민", workType: "점검",      region: "강남 역삼", appliance: "벽걸이",       state: "done" },
+    { time: "11:30~13:30", customer: "이상훈", workType: "세척+점검", region: "서초 반포", appliance: "스탠드 ×2",   state: "active" },
+    { time: "14:00~16:30", customer: "김미경", workType: "냉매충전",  region: "송파 잠실", appliance: "시스템 멀티",  state: "scheduled" },
+  ],
+};
+
+// ============================================
+// THEMES
+// ============================================
 
 const THEMES = {
   dark: {
@@ -84,119 +1127,1543 @@ const THEMES = {
     bg: "#1A1512", bgElevated: "#221C18", bgInset: "#13100E",
     border: "rgba(255, 220, 200, 0.06)", borderStrong: "rgba(255, 220, 200, 0.10)",
     text: "#FAF8F5", textSecondary: "#C4B5A6", textMuted: "#8A7B6F", textDim: "#5C5048",
-    accent: "#FF1B8D", accentBg: "rgba(255, 27, 141, 0.10)",
-    warning: "#FBBF24", warningBg: "rgba(251, 191, 36, 0.10)", warningBorder: "rgba(251, 191, 36, 0.3)",
+    accent: "#FF1B8D", accentBg: "rgba(255, 27, 141, 0.10)", accentBorder: "rgba(255, 27, 141, 0.3)",
+    warning: "#FF1B8D", warningBg: "rgba(251, 191, 36, 0.10)", warningBorder: "rgba(251, 191, 36, 0.3)",
     success: "#34D399", successBg: "rgba(52, 211, 153, 0.10)", successBorder: "rgba(52, 211, 153, 0.3)",
-    danger: "#F87171", dangerBg: "rgba(248, 113, 113, 0.10)", dangerBorder: "rgba(248, 113, 113, 0.3)",
-    info: "#60A5FA", infoBg: "rgba(96, 165, 250, 0.10)",
+    danger:  "#F87171", dangerBg:  "rgba(248, 113, 113, 0.10)", dangerBorder: "rgba(248, 113, 113, 0.3)",
+    info:    "#60A5FA", infoBg:    "rgba(96, 165, 250, 0.10)",
+    purple:  "#A78BFA", purpleBg:  "rgba(167, 139, 250, 0.10)",
     isLight: false,
   },
   light: {
     name: "☀️ 라이트", icon: Sun,
     bg: "#FAFAFA", bgElevated: "#FFFFFF", bgInset: "#F4F4F5",
-    border: "rgba(0, 0, 0, 0.05)", borderStrong: "rgba(0, 0, 0, 0.09)",
+    border: "rgba(0,0,0,0.05)", borderStrong: "rgba(0,0,0,0.09)",
     text: "#0A0A0A", textSecondary: "#404040", textMuted: "#737373", textDim: "#A3A3A3",
-    accent: "#E91860", accentBg: "rgba(233, 24, 96, 0.06)",
-    warning: "#D97706", warningBg: "rgba(217, 119, 6, 0.08)", warningBorder: "rgba(217, 119, 6, 0.22)",
-    success: "#16A34A", successBg: "rgba(22, 163, 74, 0.08)", successBorder: "rgba(22, 163, 74, 0.25)",
-    danger: "#DC2626", dangerBg: "rgba(220, 38, 38, 0.08)", dangerBorder: "rgba(220, 38, 38, 0.25)",
-    info: "#2563EB", infoBg: "rgba(37, 99, 235, 0.08)",
+    accent: "#E91860", accentBg: "rgba(233, 24, 96, 0.06)", accentBorder: "rgba(233, 24, 96, 0.25)",
+    warning: "#FF1B8D", warningBg: "rgba(217, 119, 6, 0.06)", warningBorder: "rgba(217, 119, 6, 0.22)",
+    success: "#16A34A", successBg: "rgba(22, 163, 74, 0.06)", successBorder: "rgba(22, 163, 74, 0.22)",
+    danger:  "#FF3D5A", dangerBg:  "rgba(220, 38, 38, 0.06)", dangerBorder: "rgba(220, 38, 38, 0.22)",
+    info:    "#2563EB", infoBg:    "rgba(37, 99, 235, 0.06)",
+    purple:  "#7C3AED", purpleBg:  "rgba(124, 58, 237, 0.08)",
     isLight: true,
   },
 };
 
 // ============================================
-// 메인 대시보드
+// 메인 export — 화면 분기 (모달 state)
 // ============================================
-function AdminDashboard({ t }) {
-  const [activeTab, setActiveTab] = useState("overview");
+
+export default function AdminApp({ user, onLogout }) {
+  const [mode, setMode] = useState(() => loadThemeSaved());
+  // 테마 변경 시 CSS 변수 + body 배경 + localStorage 저장
+  useEffect(() => {
+    applyThemeVars(mode);
+  }, [mode]);
+  const t = THEMES[mode];
+
+  // V11-4 — 운영자/관리자 로그인 시 22시 자동 알림 스케줄러 시작
+  useEffect(() => {
+    const role = user?.role === "admin" && user?.userId === "lee.ceo" ? "owner" : user?.role;
+    if (role !== "owner" && role !== "admin") return;
+
+    startDailyAlertScheduler();
+
+    // 알림 권한 요청 (한 번만)
+    if (typeof window !== "undefined" && window.Notification && window.Notification.permission === "default") {
+      try { window.Notification.requestPermission(); } catch (e) { /* 무시 */ }
+    }
+
+    return () => stopDailyAlertScheduler();
+  }, [user?.role, user?.userId]);
+
+  // Step 8+9 V2 — Navigation Stack (history-aware goBack)
+  const [screenStack, setScreenStack] = useState([]);
+  const screen = screenStack.length > 0 ? screenStack[screenStack.length - 1] : null;
+  // 호환용 setScreen — push (중복 방지) / null = stack 클리어 (메인)
+  const setScreen = (name) => {
+    if (name === null) {
+      setScreenStack([]);
+    } else {
+      setScreenStack(prev => {
+        if (prev[prev.length - 1] === name) return prev;
+        return [...prev, name];
+      });
+    }
+  };
+  // 명시적 뒤로가기 — stack에서 pop
+  const goBack = () => {
+    setScreenStack(prev => prev.length > 0 ? prev.slice(0, -1) : prev);
+  };
+  const [editingEngineer, setEditingEngineer] = useState(null);  // 편집/추가 대상 (Step 6)
+  const [editingIsNew, setEditingIsNew] = useState(false);
+  // Step 7 — 원청 편집/추가 대상
+  const [editingPrincipal, setEditingPrincipal] = useState(null);
+  const [editingPrincipalIsNew, setEditingPrincipalIsNew] = useState(false);
+  // Step 8 — 지역 편집/추가 대상
+  const [editingRegion, setEditingRegion] = useState(null);
+  const [editingRegionIsNew, setEditingRegionIsNew] = useState(false);
+  // Step 9 — 사용자 편집/추가 대상
+  const [editingUser, setEditingUser] = useState(null);
+  const [editingUserIsNew, setEditingUserIsNew] = useState(false);
+  const [prevScreen, setPrevScreen] = useState(null);  // taskDetail / engineerDay back 추적
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [selectedEngineer, setSelectedEngineer] = useState(null);
+  const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
+  const [newReceptionFilter, setNewReceptionFilter] = useState(null);  // null | '세척' | '냉매충전'
+  const [assignedFilter, setAssignedFilter] = useState(null);  // 'assigned' | 'confirmed'
+  const [dashboardActiveTab, setDashboardActiveTab] = useState("overview");  // 외부에서 탭 변경 가능
+
+  // Step 5 — 새 접수 등록 + 알림 (Phase 1 mock)
+  // 새 접수 추가분 (NEW_RECEPTIONS const + 폼에서 등록한 항목)
+  const [extraReceptions, setExtraReceptions] = useState([]);
+  // Step 5-3 v3 — 새 접수 카드 상태 변경 (자동 배정 완료 등) AdminApp 레벨 overlay
+  const [receptionUpdates, setReceptionUpdates] = useState({});  // { [id]: { autoAssignStatus, acceptedEngineer } }
+  function updateReception(id, partial) {
+    if (!id) return;
+    setReceptionUpdates(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...partial } }));
+  }
+  // In-App 알림 (Phase 2: Web Push + Supabase Realtime)
+  const [notifications, setNotifications] = useState(NOTIFICATIONS_MOCK);
+  // 화면 상단 toast (3초 자동 사라짐)
+  const [toasts, setToasts] = useState([]);
+
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  // Step 10 — 진짜 카운팅 (기존 mock TODAY_STATS 대체)
+  // extraReceptions / receptionUpdates 변경 시 재계산
+  const dynamicStats = useMemo(() => computeDashboardStats({
+    tasksToday: TASKS_TODAY,
+    newReceptions: NEW_RECEPTIONS,
+    extraReceptions,
+    assignedTasks: ASSIGNED_TASKS,
+    user: getCurrentUserPerm(user),
+  }), [extraReceptions, receptionUpdates, user]);
+
+  function addToast(toast) {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { ...toast, id }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(x => x.id !== id));
+    }, toast.duration || 3000);
+  }
+
+  function addNotification(noti) {
+    const id = "n" + Date.now();
+    // 옛 필드 (type/message/subInfo) → 새 필드 (category/title/subtitle) 자동 변환
+    const ADMIN_TYPE_TO_CATEGORY = {
+      new_reception:      { category: "new_assign",       label: "새 접수"   },
+      assignment:         { category: "new_assign",       label: "기사 배정" },
+      schedule_confirmed: { category: "schedule_confirm", label: "일정 확정" },
+      schedule_changed:   { category: "schedule_change",  label: "일정 변경" },
+      completed:          { category: "complete",         label: "작업 완료" },
+      urgent:             { category: "urgent",           label: "긴급"     },
+    };
+    const isOldStyle = noti.message !== undefined;
+    const map = ADMIN_TYPE_TO_CATEGORY[noti.type];
+    const normalized = {
+      ...noti,
+      id, read: false,
+      category:      noti.category      ?? (map ? map.category : "ops_memo"),
+      categoryLabel: noti.categoryLabel ?? (isOldStyle ? noti.title : (map ? map.label : "알림")),
+      title:         isOldStyle ? noti.message : (noti.title ?? ""),
+      subtitle:      noti.subtitle      ?? noti.subInfo ?? "",
+      timeAgo:       noti.timeAgo       ?? "방금",
+      createdAt:     noti.createdAt     ?? new Date(),
+    };
+    setNotifications(prev => [normalized, ...prev]);
+  }
+
+  function markNotiRead(id) {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  }
+
+  function markAllRead() {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }
+
+  // 새 접수 등록 — workItems[0] 우선, mock id 생성
+  function addReception(form) {
+    const today = new Date();
+    const yy = String(today.getFullYear()).slice(2);
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    const seq = String(extraReceptions.length + 9).padStart(3, "0");
+    // Step 5-1e (통합) — 우선순위 정렬 (메인 = 가장 복잡한 작업)
+    const rawItems = Array.isArray(form.workItems) ? form.workItems : [];
+    const items = sortWorkItemsByPriority(rawItems);
+    const head = items[0] || { workType: "세척", appliance: "벽걸이", qty: 1 };
+    const extraCount = items.length > 1 ? items.length - 1 : 0;
+    const scheduleText = form.scheduleType === "tbd"
+      ? "기사님 컨택"
+      : ([form.requestDate, form.requestTime].filter(Boolean).join(" ") || "협의");
+    const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow || "manual_with_recommendation";
+    // Step 5-3 v3 — 자동 배정 작업이면 등록 시점에 push 시작 (carded 상태 표시용)
+    const isAuto = workflow === "auto_first_accept";
+    let pushCount = 0;
+    if (isAuto) {
+      const broadcast = getAutoBroadcastCandidates(head.workType, form.region, head.appliance, 4);
+      pushCount = broadcast.length;
+    }
+    const newTask = {
+      id: `A${yy}${mm}${dd}-${seq}`,
+      customer: form.customer,
+      phone: form.phone,
+      appliance: head.appliance,
+      qty: head.qty || 1,
+      region: form.region || "—",
+      time: "방금",
+      principal: form.principal,
+      schedule: scheduleText,
+      estimateTotal: form.estimateTotal || 0,
+      memo: form.memo || "",
+      workType: head.workType,
+      workItems: items,                                 // 정렬 후 저장
+      extraCount,
+      scheduleType: form.scheduleType || "tbd",
+      workflow,
+      hasRefrigerant: hasRefrigerantItem(items),        // ⚡ 표시용
+      // Step 5-3 v3 — 자동 배정 초기 상태
+      autoAssignStatus: isAuto ? "pushing" : null,
+      acceptedEngineer: null,
+      pushCount: isAuto ? pushCount : 0,
+    };
+    setExtraReceptions(prev => [newTask, ...prev]);
+    // Step 5-1d — 작업 종류별 그룹화 표시
+    const itemSummary = formatWorkItems(items) || `${head.workType} ×${head.qty || 1}`;
+    addNotification({
+      type: "new_reception",
+      title: isAuto ? "신규 접수 (자동 배정 시작)" : "신규 접수",
+      message: `${form.customer} (${itemSummary})`,
+      subInfo: form.region || form.address,
+      taskId: newTask.id,
+    });
+    addToast({
+      type: "new_reception",
+      title: isAuto ? "신규 접수 — 자동 배정 시작" : "신규 접수 등록",
+      message: `${form.customer} (${itemSummary})`,
+    });
+    return newTask;
+  }
+
+  // 화면 진입 헬퍼 — 두 시각 분리 (작업 상세 / 기사 오늘)
+  const goTaskDetail   = (task, from) => { setSelectedTaskDetail(task); setPrevScreen(from); setScreen("taskDetail"); };
+  const goEngineerDay  = (eng,  from) => { setSelectedEngineer(eng);    setPrevScreen(from); setScreen("engineerDay"); };
+  const goBackFromStack = () => { setPrevScreen(null); goBack(); };
+
+  const FontStyle = (
+    <style>{`
+      @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+      @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes flash { 0%, 100% { background-color: transparent; } 30% { background-color: rgba(251, 191, 36, 0.25); } }
+      .fade-in { animation: slideUp 0.4s ease-out; }
+      .flash-highlight { animation: flash 1.5s ease-out; }
+      .mono { font-family: 'JetBrains Mono', monospace; }
+      .clickable { cursor: pointer; transition: all 0.15s; }
+      .clickable:active { opacity: 0.7; transform: scale(0.98); }
+    `}</style>
+  );
+
+  const Shell = ({ children }) => (
+    <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
+      {FontStyle}
+      <div style={{ maxWidth: 380, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80, position: "relative" }}>
+        {children}
+        <ToastContainer t={t} toasts={toasts}/>
+      </div>
+    </div>
+  );
+
+  // 화면 분기
+  if (screen === "newReception") {
+    return <Shell>
+      <NewReceptionScreen
+        t={t}
+        filter={newReceptionFilter}
+        extraReceptions={extraReceptions}
+        receptionUpdates={receptionUpdates}
+        onBack={() => { goBack(); setNewReceptionFilter(null); }}
+        onAssign={(task) => {
+          // Step 5-3 — 세척 카드 [기사 배정 →] → 추천 화면 (manual_with_recommendation)
+          // 냉매 카드는 onAssign 호출 X (RefrigerantCard에 button 없음)
+          const flow = determineWorkflow(task.workItems) || WORK_TYPES_CONFIG[task.workType]?.workflow || "manual_with_recommendation";
+          setSelectedTask(task);
+          setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
+        }}
+        onClickAdd={() => setScreen("newReceptionForm")}
+        onClickPushing={(task) => { setSelectedTask(task); setScreen("autoAssign"); }}
+        onClickAccepted={(task) => goTaskDetail(task, "newReception")}
+        onCardMenuAction={(action, task) => {
+          // Step 8+9 V8 — 카드 [⋯] 메뉴 액션 분기
+          // call → tel: 링크 / memo → MemoAddScreen
+          // detail/cancel/visit_only/partial → 작업 상세 화면 (거기서 다이얼로그)
+          // edit → 수정 화면
+          if (action === "call") {
+            const phone = task.phone || task.engineerPhone;
+            if (phone) {
+              window.location.href = `tel:${phone}`;
+            } else {
+              addToast({ type: "assignment", title: "통화", message: "전화번호가 등록되지 않았습니다" });
+            }
+          } else if (action === "memo") {
+            setSelectedTask(task);
+            setScreen("memoAdd");
+          } else if (action === "edit") {
+            setSelectedTask(task);
+            setScreen("taskEdit");
+          } else if (action === "change_engineer") {
+            // 작업 상세 → [수정]에서 담당 기사 필드를 변경
+            setSelectedTask(task);
+            setScreen("taskEdit");
+          } else if (action === "change_schedule") {
+            // 작업 상세 → [수정]에서 일정 필드를 변경
+            setSelectedTask(task);
+            setScreen("taskEdit");
+          } else {
+            // detail / cancel / visit_only / partial / complete → 작업 상세 화면
+            goTaskDetail(task, "newReception");
+          }
+        }}
+      />
+    </Shell>;
+  }
+  if (screen === "newReceptionForm") {
+    return <Shell>
+      <NewReceptionFormScreen
+        t={t}
+        onBack={goBack}
+        onSubmit={(form) => {
+          addReception(form);
+          setScreen("newReception");
+        }}
+      />
+    </Shell>;
+  }
+  if (screen === "memoAdd" && selectedTask) {
+    return <Shell>
+      <MemoAddScreen
+        task={selectedTask}
+        user={user}
+        onBack={goBack}
+        onSaved={(memo) => {
+          addToast({ type: "assignment", title: "메모 저장", message: memo?.content?.slice(0, 24) || "—" });
+        }}
+      />
+    </Shell>;
+  }
+  if (screen === "taskEdit" && selectedTask) {
+    return <Shell>
+      <TaskFullEditScreen
+        task={selectedTask}
+        user={user}
+        onBack={goBack}
+        onSave={(updated, changes) => {
+          addToast({
+            type: "assignment",
+            title: "수정 완료",
+            message: `${updated.customer || "—"} · ${changes.length}건 변경`,
+          });
+        }}
+      />
+    </Shell>;
+  }
+  if (screen === "taskHistory" && selectedTask) {
+    return <Shell>
+      <TaskHistoryScreen
+        task={selectedTask}
+        onBack={goBack}
+      />
+    </Shell>;
+  }
+  if (screen === "notifications") {
+    return <Shell>
+      <NotificationScreen
+        t={t}
+        notifications={notifications}
+        onBack={goBack}
+        onMarkRead={markNotiRead}
+        onMarkAllRead={markAllRead}
+        onClickItem={(noti) => {
+          markNotiRead(noti.id);
+          // 알림에 박힌 taskId로 시드 검색 후 작업 상세 진입
+          const findTask = (id) => {
+            if (!id) return null;
+            return TASKS_TODAY.find(t => t.id === id || t.taskCode === id)
+              || ASSIGNED_TASKS.find(t => t.id === id || t.taskCode === id)
+              || null;
+          };
+          const task = findTask(noti.taskId);
+          if (task) {
+            goTaskDetail(task, "notifications");
+          } else {
+            addToast({ type: "assignment", title: "작업 정보 없음", message: "원본 작업을 찾을 수 없습니다" });
+          }
+        }}
+      />
+    </Shell>;
+  }
+  if (screen === "liveWork") {
+    return <Shell>
+      <LiveWorkScreen
+        t={t}
+        onBack={goBack}
+        onTaskClick={(task) => goTaskDetail(task, "liveWork")}
+      />
+    </Shell>;
+  }
+  if (screen === "engineerDay" && selectedEngineer) {
+    return <Shell>
+      <EngineerDayScreen
+        t={t}
+        engineer={selectedEngineer}
+        onBack={goBackFromStack}
+        onTaskClick={(task) => goTaskDetail(task, "engineerDay")}
+      />
+    </Shell>;
+  }
+  if (screen === "taskDetail" && selectedTaskDetail) {
+    return <Shell>
+      <AdminTaskDetailScreen
+        t={t}
+        task={selectedTaskDetail}
+        onBack={goBackFromStack}
+        onCancelTask={(reasonId, memo) => {
+          addNotification({
+            type: "completed",
+            title: "작업 취소",
+            message: `${selectedTaskDetail.customer || "—"}`,
+            subInfo: `사유: ${reasonId} ${memo ? "· " + memo.slice(0, 20) : ""}`,
+            taskId: selectedTaskDetail.id || selectedTaskDetail.taskCode,
+          });
+          addToast({ type: "completed", title: "작업 취소", message: selectedTaskDetail.customer || "—" });
+          goBackFromStack();
+        }}
+        onVisitOnly={(payload) => {
+          addNotification({
+            type: "completed",
+            title: "🚗 출장비만 정산",
+            message: `${selectedTaskDetail.customer || "—"} · 출장비 ${VISIT_FEE.amount.toLocaleString()}원`,
+            subInfo: `사유: ${payload.reasonLabel || "—"} · 기사 100%`,
+            taskId: selectedTaskDetail.id || selectedTaskDetail.taskCode,
+          });
+          addToast({
+            type: "completed",
+            title: "출장비만 확정",
+            message: `${selectedTaskDetail.customer || "—"} · ₩${VISIT_FEE.amount.toLocaleString()}`,
+          });
+          goBackFromStack();
+        }}
+        onMemoAdd={() => {
+          setSelectedTask(selectedTaskDetail);
+          setScreen("memoAdd");
+        }}
+        onEdit={() => {
+          setSelectedTask(selectedTaskDetail);
+          setScreen("taskEdit");
+        }}
+        onHistory={() => {
+          setSelectedTask(selectedTaskDetail);
+          setScreen("taskHistory");
+        }}
+        user={user}
+      />
+    </Shell>;
+  }
+  if (screen === "recommend") {
+    return <Shell>
+      <RecommendScreen
+        t={t}
+        task={selectedTask}
+        onBack={goBack}
+        onAssign={(eng) => {
+          // V11-9 — 배정 후 작업 상태 업데이트 (기존: setScreen(null)만 호출되어 진행 X 처럼 느껴짐)
+          if (selectedTask?.id) {
+            // 새접수 시드 (extraReceptions / NEW_RECEPTIONS) 업데이트
+            updateReception(selectedTask.id, {
+              autoAssignStatus: "accepted",
+              acceptedEngineer: eng.name,
+              engineerId: eng.id,
+              engineer: eng.name,
+              status: "assigned",
+              assignedAt: new Date().toISOString(),
+            });
+          }
+          addNotification({
+            type: "assignment",
+            title: "기사 배정",
+            message: `${selectedTask?.customer || ""} (${selectedTask?.workType || ""})`,
+            subInfo: `${eng.name} 배정 완료`,
+            taskId: selectedTask?.id,
+          });
+          addToast({ type: "assignment", title: "배정 완료", message: `${eng.name} 기사` });
+          // 새 접수 화면으로 복귀 (메인 X) — 다음 작업 처리 자연스럽게
+          setSelectedTask(null);
+          setScreen("newReception");
+        }}
+        onEngineerCardClick={(eng) => goEngineerDay(eng, "recommend")}
+      />
+    </Shell>;
+  }
+  if (screen === "autoAssign") {
+    return <Shell>
+      <AutoAssignScreen
+        t={t}
+        task={selectedTask}
+        onBack={goBack}
+        onComplete={(eng) => {
+          // Step 5-3 v3 — task 카드 상태 업데이트 (pushing → accepted) + 새 접수 리스트로 복귀
+          updateReception(selectedTask?.id, {
+            autoAssignStatus: "accepted",
+            acceptedEngineer: eng.name,
+          });
+          addNotification({
+            type: "assignment",
+            title: "자동 배정 완료",
+            message: `${selectedTask?.customer || ""} (${selectedTask?.workType || ""})`,
+            subInfo: `${eng.name} 자동 수락`,
+            taskId: selectedTask?.id,
+          });
+          addToast({ type: "assignment", title: "자동 배정", message: `${eng.name} 기사 수락` });
+          setScreen("newReception");
+          setSelectedTask(null);
+        }}
+        onFallbackManual={() => setScreen("recommend")}
+      />
+    </Shell>;
+  }
+  if (screen === "assignedList") {
+    return <Shell>
+      <AssignedTasksScreen
+        t={t}
+        filter={assignedFilter}
+        onBack={() => { goBack(); setAssignedFilter(null); }}
+        onMemo={(task) => { setSelectedTask(task); setScreen("memoAdd"); }}
+        onEdit={(task) => { setSelectedTask(task); setScreen("taskEdit"); }}
+      />
+    </Shell>;
+  }
+  if (screen === "inProgressList") {
+    return <Shell>
+      <InProgressListScreen
+        t={t}
+        onBack={goBack}
+        onTaskClick={(task) => goTaskDetail(task, "inProgressList")}
+      />
+    </Shell>;
+  }
+  if (screen === "settlement") {
+    return <Shell>
+      <SettlementDailyClose
+        onBack={goBack}
+        onClickPrincipalSettlement={() => setScreen("principal_settlement")}
+      />
+    </Shell>;
+  }
+  if (screen === "principal_settlement") {
+    return <Shell>
+      <PrincipalSettlementScreen onBack={goBack}/>
+    </Shell>;
+  }
+  // Step 6 — 기사 관리 (리스트 + 편집/추가)
+  if (screen === "engineerList") {
+    return <Shell>
+      <EngineerListScreen
+        onBack={goBack}
+        onAdd={() => {
+          setEditingEngineer(createEmptyEngineer());
+          setEditingIsNew(true);
+          setScreen("engineerEdit");
+        }}
+        onEdit={(eng) => {
+          setEditingEngineer(eng);
+          setEditingIsNew(false);
+          setScreen("engineerEdit");
+        }}
+        onClickRegions={() => setScreen("regionList")}
+      />
+    </Shell>;
+  }
+  if (screen === "engineerEdit" && editingEngineer) {
+    return <Shell>
+      <EngineerEditScreen
+        engineer={editingEngineer}
+        isNew={editingIsNew}
+        onBack={() => {
+          setEditingEngineer(null);
+          setEditingIsNew(false);
+          goBack();
+        }}
+        onSaved={(saved) => {
+          // saved === null → 삭제
+          addToast({
+            type: "assignment",
+            title: saved === null ? "기사 삭제" : (editingIsNew ? "기사 추가" : "기사 저장"),
+            message: editingEngineer.name || "—",
+          });
+          setEditingEngineer(null);
+          setEditingIsNew(false);
+          goBack();
+        }}
+      />
+    </Shell>;
+  }
+  // Step 8 — 지역 관리 (리스트 + 편집/추가)
+  if (screen === "regionList") {
+    return <Shell>
+      <RegionListScreen
+        onBack={goBack}
+        onAdd={() => {
+          setEditingRegion(createEmptyRegion());
+          setEditingRegionIsNew(true);
+          setScreen("regionEdit");
+        }}
+        onEdit={(r) => {
+          setEditingRegion(r);
+          setEditingRegionIsNew(false);
+          setScreen("regionEdit");
+        }}
+      />
+    </Shell>;
+  }
+  if (screen === "regionEdit" && editingRegion) {
+    return <Shell>
+      <RegionEditScreen
+        region={editingRegion}
+        isNew={editingRegionIsNew}
+        onBack={() => {
+          setEditingRegion(null);
+          setEditingRegionIsNew(false);
+          goBack();
+        }}
+        onSaved={(saved) => {
+          addToast({
+            type: "assignment",
+            title: saved === null ? "지역 삭제" : (editingRegionIsNew ? "지역 추가" : "지역 저장"),
+            message: editingRegion.name || "—",
+          });
+          setEditingRegion(null);
+          setEditingRegionIsNew(false);
+          goBack();
+        }}
+      />
+    </Shell>;
+  }
+  // Step 9 — 통합 설정
+  if (screen === "settings") {
+    return <Shell>
+      <SettingsScreen
+        user={user}
+        themeMode={mode}
+        onBack={goBack}
+        onLogout={onLogout}
+        onPrincipals={() => setScreen("principalList")}
+        onEngineers={() => setScreen("engineerList")}
+        onRates={() => setScreen("ratesManagement")}
+        onRegions={() => setScreen("regionList")}
+        onUsers={() => setScreen("userList")}
+        onNotifications={() => setScreen("notificationSettings")}
+        onBackup={() => addToast({ type: "assignment", title: "백업 / 복원", message: "준비 중인 기능입니다" })}
+        onUsolN={(menuId) => setScreen(menuId)}
+        onSettlement={() => setScreen("settlement")}
+        onPrincipalSettlement={() => setScreen("principal_settlement")}
+        onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
+      />
+    </Shell>;
+  }
+  // V11-2-fix — 유솔 N 워크스페이스 (단일 라우트, 5탭 컨테이너 내부)
+  if (screen === "usol_n") {
+    return <Shell>
+      <UsolNScreen user={user} onBack={goBack}/>
+    </Shell>;
+  }
+  if (screen === "userList") {
+    return <Shell>
+      <UserListScreen
+        onBack={goBack}
+        onAdd={() => {
+          setEditingUser(createEmptyUser());
+          setEditingUserIsNew(true);
+          setScreen("userEdit");
+        }}
+        onEdit={(u) => {
+          setEditingUser(u);
+          setEditingUserIsNew(false);
+          setScreen("userEdit");
+        }}
+      />
+    </Shell>;
+  }
+  if (screen === "userEdit" && editingUser) {
+    return <Shell>
+      <UserEditScreen
+        user={editingUser}
+        isNew={editingUserIsNew}
+        onBack={() => {
+          setEditingUser(null);
+          setEditingUserIsNew(false);
+          goBack();
+        }}
+        onSaved={(saved) => {
+          addToast({
+            type: "assignment",
+            title: saved === null ? "사용자 삭제" : (editingUserIsNew ? "사용자 추가" : "사용자 저장"),
+            message: editingUser.name || "—",
+          });
+          setEditingUser(null);
+          setEditingUserIsNew(false);
+          goBack();
+        }}
+      />
+    </Shell>;
+  }
+  if (screen === "notificationSettings") {
+    return <Shell>
+      <NotiSettingsScreen onBack={goBack}/>
+    </Shell>;
+  }
+  // Step 7 — 원청 관리 (리스트 + 편집/추가 + 유솔 N CSV 업로드)
+  if (screen === "principalList") {
+    return <Shell>
+      <PrincipalListScreen
+        onBack={goBack}
+        onAdd={() => {
+          setEditingPrincipal(createEmptyPrincipal());
+          setEditingPrincipalIsNew(true);
+          setScreen("principalEdit");
+        }}
+        onEdit={(p) => {
+          setEditingPrincipal(p);
+          setEditingPrincipalIsNew(false);
+          setScreen("principalEdit");
+        }}
+        onClickRates={() => setScreen("ratesManagement")}
+      />
+    </Shell>;
+  }
+  if (screen === "ratesManagement") {
+    return <Shell>
+      <RatesManagementScreen
+        onBack={goBack}
+      />
+    </Shell>;
+  }
+  if (screen === "naverUpload") {
+    return <Shell>
+      <NaverUploadScreen
+        onBack={goBack}
+        onComplete={(orders) => {
+          // 각 주문을 extraReceptions에 추가
+          const newTasks = orders.map((o, i) => {
+            const ts = Date.now().toString(36).slice(-4);
+            const seq = String(i + 1).padStart(2, "0");
+            const items = (o.appliances || []).map(a => ({
+              workType: "세척",
+              appliance: a.type || "벽걸이",
+              qty: a.count || 1,
+            }));
+            return {
+              id: `YS-N-${ts}${seq}`,
+              customer: o.customerName || "—",
+              phone: o.phone || "",
+              appliance: items[0]?.appliance || "벽걸이",
+              qty: items[0]?.qty || 1,
+              region: o.region || (o.address ? o.address.split(/\s+/).slice(0, 2).join(" ") : "—"),
+              time: "방금",
+              principal: "유솔홈케어 N",
+              schedule: "협의",
+              estimateTotal: o.settlementAmount || o.totalAmount || 0,
+              memo: `네이버 주문 ${o.orderId}`,
+              workType: "세척",
+              workItems: items,
+              extraCount: items.length > 1 ? items.length - 1 : 0,
+              scheduleType: "tbd",
+              workflow: "manual_with_recommendation",
+              hasRefrigerant: false,
+              autoAssignStatus: null,
+              acceptedEngineer: null,
+              pushCount: 0,
+              naverOrderId: o.orderId,
+              address: o.address,
+            };
+          });
+          setExtraReceptions(prev => [...newTasks, ...prev]);
+          addNotification({
+            type: "new_reception",
+            title: "유솔 N 업로드",
+            message: `${newTasks.length}건 신규접수 등록`,
+            subInfo: "CSV 업로드",
+          });
+          addToast({
+            type: "new_reception",
+            title: "유솔 N 업로드 완료",
+            message: `${newTasks.length}건 등록 완료`,
+          });
+          setScreen("newReception");
+          setNewReceptionFilter(null);
+        }}
+      />
+    </Shell>;
+  }
+  if (screen === "principalEdit" && editingPrincipal) {
+    return <Shell>
+      <PrincipalEditScreen
+        principal={editingPrincipal}
+        isNew={editingPrincipalIsNew}
+        onBack={() => {
+          setEditingPrincipal(null);
+          setEditingPrincipalIsNew(false);
+          goBack();
+        }}
+        onSaved={(saved) => {
+          addToast({
+            type: "assignment",
+            title: saved === null ? "원청 삭제" : (editingPrincipalIsNew ? "원청 추가" : "원청 저장"),
+            message: editingPrincipal.name || "—",
+          });
+          setEditingPrincipal(null);
+          setEditingPrincipalIsNew(false);
+          goBack();
+        }}
+      />
+    </Shell>;
+  }
+
+  // 메인 대시보드
+  return <Shell>
+    <DashboardScreen
+      t={t} mode={mode} setMode={setMode}
+      onLogout={onLogout}
+      user={user}
+      dynamicStats={dynamicStats}
+      activeTab={dashboardActiveTab}
+      setActiveTab={setDashboardActiveTab}
+      unreadCount={unreadCount}
+      onClickBell={() => setScreen("notifications")}
+      onClickAddReception={() => setScreen("newReceptionForm")}
+      onClickNewReception={(filter) => { setNewReceptionFilter(filter || null); setScreen("newReception"); }}
+      onClickAssignedList={(filter) => { setAssignedFilter(filter); setScreen("assignedList"); }}
+      onClickLiveWork={() => setScreen("liveWork")}
+      onClickInProgress={() => setScreen("inProgressList")}
+      onClickSettlement={() => setScreen("settlement")}
+      onClickManage={() => setScreen("engineerList")}
+      onClickManagePrincipals={() => setScreen("principalList")}
+      onClickSettings={() => setScreen("settings")}
+      onClickUrgentAssign={() => { setSelectedTask(URGENT_TASK); setScreen("recommend"); }}
+      onEngineerClick={(eng) => goEngineerDay(eng, null)}
+      onTaskClick={(task) => goTaskDetail(task, null)}
+    />
+  </Shell>;
+}
+
+// ============================================
+// 시안 4-V4 — 메인 대시보드
+// ============================================
+
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick }) {
+  const totalNew = NEW_RECEPTIONS.세척.length + NEW_RECEPTIONS.냉매충전.length;
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 80, color: t.text }}>
-      <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-        @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .card-fade { animation: slideUp 0.4s ease-out backwards; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
-        .clickable { cursor: pointer; transition: transform 0.15s, opacity 0.15s; }
-        .clickable:active { transform: scale(0.98); opacity: 0.8; }
-      `}</style>
-
-      {/* 헤더 */}
-      <div style={{ padding: "28px 20px 0" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>
-            MON · 27 APR · {NOW}
-          </span>
-          <span style={{ fontSize: 10, fontWeight: 700, color: t.accent, padding: "3px 8px", background: t.accentBg, borderRadius: 5 }}>
-            대표
-          </span>
+    <div className="fade-in">
+      {/* 상단 헤더 — 올잇 마크 + 메타 + 테마 토글 + 로그아웃 */}
+      <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${t.border}`, padding: "10px 12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <OllitMark size={20} color={t.accent}/>
+          <span style={{ fontSize: 14, fontWeight: 700, color: t.text, letterSpacing: -0.2 }}>올잇</span>
+          <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>· 현장과 사람을 잇는</span>
+          <div style={{ flex: 1 }}/>
+          {Object.entries(THEMES).map(([key, theme]) => {
+            const Icon = theme.icon;
+            return (
+              <button key={key} onClick={() => setMode(key)} style={{
+                padding: "5px 8px",
+                background: mode === key ? t.bgElevated : "transparent",
+                border: mode === key ? `1px solid ${t.accent}` : `1px solid ${t.border}`,
+                borderRadius: 7, fontSize: 10, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui",
+                color: mode === key ? t.text : t.textMuted,
+                display: "flex", alignItems: "center", gap: 3,
+              }}><Icon size={11}/></button>
+            );
+          })}
+          <button onClick={onClickBell} style={{
+            position: "relative",
+            padding: "5px 8px", background: "transparent",
+            border: `1px solid ${t.border}`, borderRadius: 7,
+            color: unreadCount > 0 ? t.accent : t.textMuted,
+            cursor: "pointer", fontFamily: "system-ui",
+            display: "flex", alignItems: "center",
+          }}>
+            <Bell size={11}/>
+            {unreadCount > 0 && (
+              <span style={{
+                position: "absolute", top: -4, right: -4,
+                minWidth: 14, height: 14, padding: "0 3px",
+                background: t.accent, color: "white",
+                fontSize: 9, fontWeight: 800, lineHeight: "14px",
+                borderRadius: 7, textAlign: "center",
+                fontFamily: "system-ui",
+              }}>{unreadCount}</span>
+            )}
+          </button>
+          <button onClick={onClickSettings} title="설정" style={{ padding: "5px 8px", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7, color: t.textMuted, fontSize: 10, cursor: "pointer", fontFamily: "system-ui" }}>
+            <Settings size={11}/>
+          </button>
         </div>
+      </div>
 
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-            {ADMIN_USER}님의 대시보드
+      <div style={{ padding: "20px 16px 0" }}>
+        {/* 1. 인사말 */}
+        <div style={{ marginBottom: 20 }}>
+          <div className="mono" style={{ fontSize: 10, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>
+            {TODAY} · {NOW}
           </div>
-          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>
-            오늘 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{TODAY_STATS.total}</span>건 · 
-            완료 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{TODAY_STATS.completed}</span> · 
-            진행 <span className="mono" style={{ color: t.warning, fontWeight: 700 }}>{TODAY_STATS.inProgress}</span> · 
-            미배정 <span className="mono" style={{ color: t.accent, fontWeight: 700 }}>{TODAY_STATS.pending}</span>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+            안녕하세요 <span style={{ color: t.accent }}>{ADMIN_USER}</span>님
           </div>
         </div>
 
-        {/* 핵심 메트릭 4개 */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 16 }}>
-          <BigMetric t={t} icon={<Wallet size={14}/>} label="오늘 매출" value={TODAY_STATS.revenue} unit="₩" color={t.text} delay={0}/>
-          <BigMetric t={t} icon={<TrendingUp size={14}/>} label="회사 마진" value={TODAY_STATS.myMargin} unit="₩" color={t.accent} delay={70}/>
-          <BigMetric t={t} icon={<Users size={14}/>} label="기사 정산" value={TODAY_STATS.engineerNet} unit="₩" color={t.success} delay={140}/>
-          <BigMetric t={t} icon={<AlertCircle size={14}/>} label="미수금" value={TODAY_STATS.unpaid} unit="₩" color={t.danger} delay={210}/>
+        {/* 2. 작업 통계 — 핫핑크 = 새 접수 + 진행중 (사장님 KPI) */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5, marginBottom: 14 }}>
+          <StatBox t={t} label="새 접수" value={dynamicStats?.new        ?? TODAY_STATS.newReceived} color={t.accent}  onClick={() => onClickNewReception(null)}/>
+          <StatBox t={t} label="배정 완료" value={dynamicStats?.assigned  ?? TODAY_STATS.assigned}    color={t.text}    onClick={() => onClickAssignedList("assigned")}/>
+          <StatBox t={t} label="일정 확정" value={dynamicStats?.confirmed ?? TODAY_STATS.confirmed}   color={t.text}    onClick={() => onClickAssignedList("confirmed")}/>
+          <StatBox t={t} label="진행중"   value={dynamicStats?.inProgress ?? TODAY_STATS.inProgress}  color={t.accent}  onClick={onClickInProgress}/>
+          <StatBox t={t} label="완료"     value={dynamicStats?.completed  ?? TODAY_STATS.completed}   color={t.success} onClick={onClickSettlement}/>
         </div>
 
-        {/* 알림 박스 */}
-        <div style={{ marginBottom: 24, background: t.warningBg, border: `1px solid ${t.warningBorder}`, borderRadius: 12, padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-          <AlertCircle size={16} style={{ color: t.warning, flexShrink: 0 }}/>
-          <div style={{ flex: 1, fontSize: 12, color: t.text, lineHeight: 1.5 }}>
-            <span style={{ fontWeight: 700 }}>{TODAY_STATS.pending}건 미배정</span> · 
-            새 접수 <span style={{ fontWeight: 700, color: t.accent }}>{TODAY_STATS.newReceived}건</span> 처리 필요
+        {/* 3. 돈 흐름 — 회사 마진만 핫핑크 (사장님 KPI) / 나머지 무채색 */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
+          <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>💰</span>} label="오늘 매출"     value={dynamicStats?.revenue?.total    ?? TODAY_STATS.revenue}      color={t.text}/>
+          {dynamicStats?.revenue?.margin !== undefined && (
+            <MoneyBox t={t} icon={<TrendingUp size={12}/>} label="회사 마진"     value={dynamicStats.revenue.margin}                                color={t.accent}/>
+          )}
+          {dynamicStats?.revenue?.margin === undefined && (
+            <MoneyBox t={t} icon={<TrendingUp size={12}/>} label="회사 마진"     value={TODAY_STATS.myMargin}                                       color={t.accent}/>
+          )}
+          <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>👷</span>} label="기사 정산"          value={dynamicStats?.revenue?.engineer  ?? TODAY_STATS.engineerNet}  color={t.text}/>
+          <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>🤝</span>} label="원청 수수료"        value={dynamicStats?.revenue?.principal ?? TODAY_STATS.principalFee} color={t.text}/>
+        </div>
+
+        {/* 4. 긴급 알림 */}
+        <div onClick={onClickUrgentAssign} className="clickable" style={{
+          marginBottom: 16,
+          background: t.warningBg,
+          border: `1.5px solid ${t.warningBorder}`,
+          borderRadius: 12,
+          padding: "12px 14px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+            <AlertTriangle size={13} style={{ color: t.warning }}/>
+            <span style={{ fontSize: 10, fontWeight: 800, color: t.warning, letterSpacing: 0.5 }}>긴급 · 당일 작업</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 2 }}>
+                {URGENT_TASK.customer} <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>· {URGENT_TASK.principal}</span>
+              </div>
+              <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.5 }}>
+                {URGENT_TASK.region} · {URGENT_TASK.appliance} ×{URGENT_TASK.qty} · {URGENT_TASK.schedule}
+              </div>
+            </div>
+            <button style={{
+              padding: "8px 14px", background: t.accent, color: "white", border: "none", borderRadius: 8,
+              fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+            }}>배정</button>
           </div>
         </div>
       </div>
 
       {/* 탭 */}
-      <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 20 }}>
-        <div style={{ padding: "0 20px 14px", display: "flex", gap: 6, overflowX: "auto" }}>
-          <TabButton t={t} label="개요" active={activeTab === "overview"} onClick={() => setActiveTab("overview")}/>
-          <TabButton t={t} label="작업" active={activeTab === "tasks"} onClick={() => setActiveTab("tasks")}/>
-          <TabButton t={t} label="기사" active={activeTab === "engineers"} onClick={() => setActiveTab("engineers")}/>
-          <TabButton t={t} label="활동" active={activeTab === "activity"} onClick={() => setActiveTab("activity")}/>
+      <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16, paddingBottom: 4 }}>
+        <div style={{ padding: "0 16px 12px", display: "flex", gap: 6 }}>
+          {["overview", "live", "engineers", "settlement"].map((tab) => {
+            const labels = { overview: "개요", live: "작업", engineers: "기사", settlement: "정산" };
+            const active = activeTab === tab;
+            return (
+              <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                flex: 1, padding: "9px 8px",
+                background: active ? t.bgElevated : "transparent",
+                border: active ? `1.5px solid ${t.accent}` : `1px solid ${t.border}`,
+                borderRadius: 9, fontSize: 11, fontWeight: 700,
+                color: active ? t.text : t.textMuted,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>{labels[tab]}</button>
+            );
+          })}
         </div>
 
-        {activeTab === "overview" && <OverviewTab t={t}/>}
-        {activeTab === "tasks" && <TasksTab t={t}/>}
-        {activeTab === "engineers" && <EngineersTab t={t}/>}
-        {activeTab === "activity" && <ActivityTab t={t}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception}/>}
+        {activeTab === "live"       && <LiveWorkContent t={t} onTaskClick={onTaskClick}/>}
+        {activeTab === "engineers"  && <EngineersTab t={t} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
+        {activeTab === "settlement" && (
+          <div style={{ padding: "0 16px 16px" }}>
+            <SettlementContent t={t} onTaskClick={onTaskClick} onClickManagePrincipals={onClickManagePrincipals}/>
+          </div>
+        )}
+      </div>
+
+    </div>
+  );
+}
+
+// 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
+function OverviewTab({ t, totalNew, onClickNewReception, onClickLiveWork, onClickAddReception }) {
+  // 6종 작업 박스 (Step 3-1: ⚡ 박스 제거 + 종류별 6박스 확장)
+  const workTypeOrder = [
+    { key: "세척",     label: "세척" },
+    { key: "냉매충전", label: "냉매" },
+    { key: "설치",     label: "설치" },
+    { key: "누설",     label: "누설" },
+    { key: "점검",     label: "점검" },
+    { key: "수리",     label: "수리" },
+  ];
+  const workTypeCounts = {
+    세척:     NEW_RECEPTIONS.세척.length,
+    냉매충전: NEW_RECEPTIONS.냉매충전.length,
+    설치: 0, 누설: 0, 점검: 0, 수리: 0,  // Phase 2 데이터 추가 시 자동
+  };
+
+  return (
+    <div style={{ padding: "0 16px 16px" }}>
+      {/* 새 접수 종류 — 6박스 (2 × 3 grid) */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
+            새 접수 종류
+          </span>
+          <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>{totalNew}건</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
+          {workTypeOrder.map(({ key, label }) => {
+            const count = workTypeCounts[key];
+            const hasItems = count > 0;
+            return (
+              <div
+                key={key}
+                onClick={() => hasItems && onClickNewReception(key)}
+                className={hasItems ? "clickable" : ""}
+                style={{
+                  background: t.bgElevated,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 10, padding: "10px",
+                  opacity: hasItems ? 1 : 0.4,
+                  cursor: hasItems ? "pointer" : "not-allowed",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
+                  <ServiceTypeIcon workType={key} size={14} showLabel={false}/>
+                  <span style={{ fontSize: 11, fontWeight: 700 }}>{label}</span>
+                </div>
+                <div className="mono" style={{ fontSize: 16, fontWeight: 800, color: hasItems ? t.accent : t.textMuted }}>
+                  {count}건
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* + 새 접수 등록 (Step 5-1d: placeholder → 실제 폼 연결, FAB 제거) */}
+      <button onClick={onClickAddReception} style={{
+        width: "100%",
+        padding: "14px",
+        background: t.accent, color: "white", border: "none", borderRadius: 12,
+        fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+      }}>
+        <Plus size={16}/>
+        <span>새 접수 등록</span>
+      </button>
+    </div>
+  );
+}
+
+// 다른 탭 stub
+function StubTab({ t, label }) {
+  return (
+    <div style={{ padding: "40px 20px", textAlign: "center" }}>
+      <div style={{ fontSize: 32, marginBottom: 12, opacity: 0.3 }}>📋</div>
+      <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 4 }}>{label} 탭</div>
+      <div style={{ fontSize: 10, color: t.textDim }}>개요 탭에서 핵심 정보를 확인하세요</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 기사 탭 — Step 3-2 정정: 검색 + 자동 그룹 (필터 칩 제거 / 외근→활동중)
+// ─────────────────────────────────────────────
+function EngineersTab({ t, onEngineerClick, onClickManage }) {
+  const [search, setSearch] = useState("");
+
+  // 자동 상태 계산 — Step 3-3: 활동중 그룹 분리 (진행중/이동중/외근중 → 별도 그룹)
+  const computeStatus = (schedule) => {
+    if (!schedule || schedule.length === 0) return { label: "미정", icon: "❓", color: t.textMuted, group: "waiting" };
+    if (schedule.length === 1 && schedule[0].type === "off_full") return { label: "종일 휴무", icon: "🏖️", color: t.textMuted, group: "off" };
+    const activeExt = schedule.find(s => s.type === "external" && s.state === "active");
+    if (activeExt) return { label: "외근중", icon: "🌐", color: t.purple, group: "external" };
+    const activeWork = schedule.find(s => s.type === "work" && s.state === "active");
+    if (activeWork) return { label: "진행중", icon: "🟢", color: t.success, group: "active" };
+    const movingWork = schedule.find(s => s.type === "work" && s.state === "moving");
+    if (movingWork) return { label: "이동중", icon: "🟡", color: t.warning, group: "moving" };
+    const partialOff = schedule.find(s => s.type === "off_partial");
+    if (partialOff) return { label: partialOff.note, icon: "⏰", color: t.warning, group: "waiting" };
+    const works = schedule.filter(s => s.type === "work");
+    const allDone = works.length > 0 && works.every(s => s.state === "done");
+    if (allDone) return { label: "오늘 종료", icon: "✓", color: t.textSecondary, group: "done" };
+    return { label: "대기", icon: "⏳", color: t.textSecondary, group: "waiting" };
+  };
+
+  const engineersWithStatus = ENGINEERS_DATA.map(eng => ({
+    ...eng,
+    status: computeStatus(eng.todaySchedule),
+  }));
+
+  // 검색 (필터 칩 제거)
+  const sLower = search.trim().toLowerCase();
+  const searched = !sLower ? engineersWithStatus : engineersWithStatus.filter(eng => {
+    if (eng.name.toLowerCase().includes(sLower)) return true;
+    if (eng.region && eng.region.toLowerCase().includes(sLower)) return true;
+    return eng.todaySchedule.some(s =>
+      (s.customer && s.customer.toLowerCase().includes(sLower)) ||
+      (s.workType && s.workType.toLowerCase().includes(sLower)) ||
+      (s.region && s.region.toLowerCase().includes(sLower)) ||
+      (s.note && s.note.toLowerCase().includes(sLower))
+    );
+  });
+
+  // 그룹 자동 묶기 (6 그룹: active / moving / external / waiting / done / off)
+  const grouped = {
+    active:   searched.filter(e => e.status.group === "active"),
+    moving:   searched.filter(e => e.status.group === "moving"),
+    external: searched.filter(e => e.status.group === "external"),
+    waiting:  searched.filter(e => e.status.group === "waiting"),
+    done:     searched.filter(e => e.status.group === "done"),
+    off:      searched.filter(e => e.status.group === "off"),
+  };
+
+  // 그룹 헤더 — 운영자 시각 (활동 우선) + 색깔 매칭
+  // Step 5-3 fix — 활동중만 펼침 / 비활동(대기/오늘 종료/휴무) 모두 접힘
+  const groupHeaders = [
+    { id: "active",   label: "진행중",   icon: "🟢", color: t.success },
+    { id: "moving",   label: "이동중",   icon: "🟡", color: t.warning },
+    { id: "external", label: "외근중",   icon: "🌐", color: t.purple },
+    { id: "waiting",  label: "대기",     icon: "⏳", color: t.textSecondary, defaultCollapsed: true },
+    { id: "done",     label: "오늘 종료", icon: "✓",  color: t.textMuted,      defaultCollapsed: true },
+    { id: "off",      label: "휴무",     icon: "🏖️", color: t.textMuted,      defaultCollapsed: true },
+  ];
+
+  return (
+    <div style={{ padding: "0 16px 16px" }}>
+      {/* 검색 + Step 6 [관리] 버튼 */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <div style={{ position: "relative", flex: 1 }}>
+          <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: t.textMuted }}/>
+          <input
+            type="text"
+            placeholder="기사 / 지역 / 작업 검색..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "8px 12px 8px 34px",
+              background: t.bgInset, color: t.text,
+              border: `1px solid ${t.border}`, borderRadius: 10,
+              fontSize: 12, fontFamily: "inherit", outline: "none",
+              boxSizing: "border-box",
+            }}
+          />
+        </div>
+        {onClickManage && (
+          <button
+            onClick={onClickManage}
+            style={{
+              padding: "0 14px",
+              background: t.accentBg, border: `1px solid ${t.accent}`,
+              borderRadius: 10, color: t.accent,
+              fontSize: 12, fontWeight: 600, cursor: "pointer",
+              fontFamily: "inherit", whiteSpace: "nowrap", flexShrink: 0,
+            }}
+          >관리</button>
+        )}
+      </div>
+
+      {/* 그룹별 카드 */}
+      {searched.length === 0 ? (
+        <div style={{ padding: "30px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+          검색 결과 없음
+        </div>
+      ) : (
+        groupHeaders.map(g => {
+          const list = grouped[g.id];
+          if (!list || list.length === 0) return null;
+          return (
+            <EngineerGroup key={g.id} t={t}
+              icon={g.icon} label={g.label} count={list.length}
+              color={g.color}
+              defaultCollapsed={g.defaultCollapsed}
+              engineers={list}
+              onEngineerClick={onEngineerClick}
+              onTaskClick={(task, eng) => onEngineerClick && onEngineerClick(eng)}
+            />
+          );
+        })
+      )}
+    </div>
+  );
+}
+
+function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, engineers, onEngineerClick, onTaskClick }) {
+  const [collapsed, setCollapsed] = useState(!!defaultCollapsed);
+  const [expandedIds, setExpandedIds] = useState(() => new Set());
+  const headerColor = color || t.textSecondary;
+
+  function toggleExpand(engineerId) {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(engineerId)) next.delete(engineerId);
+      else next.add(engineerId);
+      return next;
+    });
+  }
+
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div onClick={() => setCollapsed(v => !v)} className="clickable" style={{
+        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "6px 4px", marginBottom: 6,
+      }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: headerColor }}>
+          <span style={{ marginRight: 5 }}>{icon}</span>
+          {label} <span className="mono" style={{ color: t.accent, marginLeft: 4 }}>{count}명</span>
+        </div>
+        {collapsed ? <ChevronDown size={14} style={{ color: t.textMuted }}/> : <ChevronUp size={14} style={{ color: t.textMuted }}/>}
+      </div>
+      {!collapsed && engineers.map(eng => (
+        <EngineerCard
+          key={eng.id} t={t} eng={eng}
+          expanded={expandedIds.has(eng.id)}
+          onToggle={() => toggleExpand(eng.id)}
+          onTaskClick={(task) => onTaskClick && onTaskClick(task, eng)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// V13-FINAL2-fix3 — 카드 클릭 = 그 기사 작업 인라인 펼침 (EngineerDay 진입 X)
+// +N 위치 = 진행중 배지 앞
+function EngineerCard({ t, eng, expanded, onToggle, onTaskClick }) {
+  const stats = getEngineerStats(eng.id, TODAY_DATE);
+  const items = stats.items || [];
+  const additionalCount = stats.todayAssigned || 0;
+
+  return (
+    <>
+      <div onClick={onToggle} className="clickable" style={{
+        background: t.bgElevated, border: `1px solid ${t.border}`,
+        borderRadius: 12, padding: "10px 12px", marginBottom: expanded ? 4 : 6,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <EngineerBadge engineer={eng} role={eng.level === "main" ? "main" : (eng.level === "backup" || eng.level === "sub") ? "backup" : null} size="sm"/>
+          <div style={{
+            marginLeft: "auto", display: "flex", alignItems: "center", gap: 6,
+            minWidth: 110, justifyContent: "flex-end",
+          }}>
+            {/* +N 자리 — 진행중 앞 (catch fix3) */}
+            <div style={{ width: 28, textAlign: "center" }}>
+              {additionalCount > 0 && (
+                <span className="mono" style={{
+                  fontSize: 9, fontWeight: 700,
+                  padding: "2px 6px",
+                  background: "rgba(255,27,141,0.15)",
+                  color: "#FF1B8D", borderRadius: 8,
+                  whiteSpace: "nowrap",
+                }}>+{additionalCount}</span>
+              )}
+            </div>
+            <span style={{ fontSize: 10 }}>{eng.status.icon}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: eng.status.color, whiteSpace: "nowrap" }}>
+              {eng.status.label}
+            </span>
+            {/* 화살표 — 펼침 / 접힘 */}
+            {expanded
+              ? <ChevronDown size={13} style={{ color: t.textMuted, flexShrink: 0 }}/>
+              : <ChevronRight size={13} style={{ color: t.textMuted, flexShrink: 0 }}/>}
+          </div>
+        </div>
+      </div>
+
+      {/* 펼침 영역 — 그 기사 작업 인라인 */}
+      {expanded && items.length > 0 && (
+        <div style={{ padding: "0 0 6px 12px", marginBottom: 8 }}>
+          {items.map(task => (
+            <EngineerTaskMiniCard
+              key={task.taskId || task.id || `${eng.id}-${task.time}`}
+              t={t} task={task}
+              onClick={() => onTaskClick && onTaskClick(task)}
+            />
+          ))}
+        </div>
+      )}
+      {expanded && items.length === 0 && (
+        <div style={{
+          padding: "8px 12px", marginLeft: 12, marginBottom: 8,
+          fontSize: 10, color: t.textMuted,
+          background: t.bgInset, borderRadius: 6,
+        }}>
+          오늘 일정 없음
+        </div>
+      )}
+    </>
+  );
+}
+
+function EngineerTaskMiniCard({ t, task, onClick }) {
+  const statusBorder = (() => {
+    if (task.state === "active")    return "rgba(255,27,141,0.4)";
+    if (task.state === "moving")    return "rgba(255,179,0,0.4)";
+    if (task.state === "scheduled") return t.border;
+    if (task.state === "waiting")   return "rgba(255,179,0,0.4)";
+    if (task.state === "done")      return "rgba(0,135,90,0.4)";
+    if (task.type === "external")   return "rgba(127,119,221,0.4)";
+    return t.border;
+  })();
+  const statusLabel = (() => {
+    if (task.type === "external")   return "외근";
+    if (task.state === "active")    return "진행중";
+    if (task.state === "moving")    return "이동중";
+    if (task.state === "scheduled") return "예정";
+    if (task.state === "waiting")   return "대기";
+    if (task.state === "done")      return "완료";
+    return "";
+  })();
+
+  return (
+    <div
+      onClick={onClick}
+      className="clickable"
+      style={{
+        padding: 10,
+        background: t.bg,
+        borderLeft: `2px solid ${statusBorder}`,
+        borderRadius: "0 6px 6px 0",
+        marginBottom: 4,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, marginBottom: 2 }}>
+        <span>{task.customer || task.note || "—"}</span>
+        {statusLabel && (
+          <span style={{ fontSize: 9, color: t.textSecondary, fontWeight: 500 }}>
+            · {statusLabel}
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: 10, color: t.textMuted }}>
+        {task.workType ? `${task.workType}` : ""}
+        {task.qty ? ` ×${task.qty}` : ""}
+        {task.region ? ` · ${task.region}` : ""}
+        {task.time ? ` · ${task.time}` : ""}
       </div>
     </div>
   );
 }
 
-// ============================================
-// 큰 메트릭 카드
-// ============================================
-function BigMetric({ t, icon, label, value, unit, color, delay }) {
-  return (
-    <div className="card-fade" style={{ background: t.bgElevated, borderRadius: 12, padding: "14px 16px", animationDelay: `${delay}ms` }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-        <span style={{ color: t.textMuted, display: "flex" }}>{icon}</span>
-        <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
-          {label}
-        </span>
+function TimelineItem({ t, slot, onClick }) {
+  // type 분기
+  if (slot.type === "off_full") {
+    return (
+      <div style={{
+        background: t.bgInset, borderRadius: 6, padding: "8px 10px",
+        display: "flex", alignItems: "center", gap: 6,
+      }}>
+        <span style={{ fontSize: 12 }}>🏖️</span>
+        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>{slot.note}</span>
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-        {unit === "₩" && <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>₩</span>}
-        <span className="mono" style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.02em", color }}>
+    );
+  }
+  if (slot.type === "off_partial") {
+    return (
+      <div style={{
+        background: t.warningBg, borderRadius: 6, padding: "6px 10px",
+        display: "flex", alignItems: "center", gap: 6,
+      }}>
+        <span className="mono" style={{ fontSize: 11, color: t.warning, fontWeight: 700, width: 56, flexShrink: 0 }}>{slot.time}</span>
+        <span style={{ fontSize: 11 }}>⏰</span>
+        <span style={{ fontSize: 11, color: t.warning, fontWeight: 700 }}>{slot.note}</span>
+      </div>
+    );
+  }
+  if (slot.type === "external") {
+    const isActive = slot.state === "active";
+    return (
+      <div style={{
+        background: t.purpleBg,
+        border: isActive ? `1px solid ${t.purple}40` : "none",
+        borderRadius: 6, padding: "6px 10px",
+        display: "flex", alignItems: "center", gap: 6,
+      }}>
+        <span className="mono" style={{ fontSize: 11, color: t.purple, fontWeight: 700, width: 96, flexShrink: 0 }}>{slot.time}</span>
+        <span style={{ fontSize: 11 }}>🌐</span>
+        <span style={{ fontSize: 11, color: t.purple, fontWeight: 700, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{slot.note}</span>
+      </div>
+    );
+  }
+  // type === "work"
+  const stateConfig = {
+    done:      { Icon: CheckCircle2, color: t.textMuted, opacity: 0.5, strong: false },
+    active:    { Icon: Zap,          color: t.success,   opacity: 1,   strong: true },
+    moving:    { Icon: Zap,          color: t.warning,   opacity: 1,   strong: true },
+    waiting:   { Icon: Clock,        color: t.textMuted, opacity: 0.7, strong: false },
+    scheduled: { Icon: Calendar,     color: t.text,      opacity: 1,   strong: false },
+  }[slot.state] || { Icon: Calendar, color: t.textMuted, opacity: 1, strong: false };
+  const { Icon, color, opacity, strong } = stateConfig;
+
+  return (
+    <div onClick={onClick} className={onClick ? "clickable" : undefined} style={{
+      display: "flex", alignItems: "center", gap: 8,
+      padding: strong ? "6px 8px" : "5px 4px",
+      background: strong ? color + "1A" : "transparent",
+      borderLeft: strong ? `2px solid ${color}` : "none",
+      borderRadius: strong ? 2 : 0,
+      paddingLeft: strong ? 8 : 4,
+      opacity,
+    }}>
+      <span className="mono" style={{
+        fontSize: 11, fontWeight: 700, color,
+        width: 44, flexShrink: 0,
+        textDecoration: slot.state === "done" ? "line-through" : "none",
+      }}>{slot.time}</span>
+      <Icon size={12} style={{ color, flexShrink: 0 }}/>
+      <span style={{ fontSize: 11, color: t.text, fontWeight: 600, minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {slot.customer} <span style={{ color: t.textMuted, fontWeight: 500 }}>({slot.workType})</span>
+      </span>
+      <span style={{ fontSize: 10, color: t.textMuted, flexShrink: 0 }}>· {slot.region}</span>
+      {onClick && <ChevronRight size={12} style={{ color: t.textMuted, flexShrink: 0 }}/>}
+    </div>
+  );
+}
+
+function EngineerActivityCard({ t, eng }) {
+  const [expanded, setExpanded] = useState(false);
+  const schedule = eng.todaySchedule || [];
+
+  return (
+    <div onClick={() => setExpanded(v => !v)} className="clickable" style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`,
+      borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+    }}>
+      {/* 1행: EngineerBadge + ▼ */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <EngineerBadge engineer={eng} role={eng.level === "main" ? "main" : (eng.level === "backup" || eng.level === "sub") ? "backup" : null}/>
+        <div style={{ marginLeft: "auto", display: "flex", color: t.textMuted }}>
+          {expanded ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+        </div>
+      </div>
+
+      {/* 2행: 3박스 (배정 완료 / 일정 확정 / 완료) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 }}>
+        <ActivityBox t={t} label="신규 배정" value={eng.assigned}  bg={t.warningBg} color={t.warning}/>
+        <ActivityBox t={t} label="일정 확정" value={eng.confirmed} bg={t.bgInset}   color={t.text}/>
+        <ActivityBox t={t} label="완료"      value={eng.completed} bg={t.successBg} color={t.success}/>
+      </div>
+
+      {/* 펼침: 오늘 스케쥴 */}
+      {expanded && schedule.length > 0 && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}` }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>
+            오늘 스케쥴 · <span className="mono">{schedule.length}</span>건
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+            {schedule.map((slot, idx) => (
+              <ScheduleRow key={idx} t={t} slot={slot}/>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActivityBox({ t, label, value, bg, color }) {
+  return (
+    <div style={{
+      background: bg,
+      borderRadius: 6, padding: "4px 6px", textAlign: "center",
+    }}>
+      <div style={{ fontSize: 8, color: t.textMuted, fontWeight: 700, letterSpacing: 0.2, marginBottom: 1, whiteSpace: "nowrap" }}>
+        {label}
+      </div>
+      <div className="mono" style={{ fontSize: 13, fontWeight: 800, color, lineHeight: 1.2 }}>{value}</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 오늘 스케쥴 row (펼침 영역)
+// ─────────────────────────────────────────────
+function ScheduleRow({ t, slot }) {
+  const config = {
+    done:      { Icon: CheckCircle2, color: t.textMuted,    bg: null,           strong: false },
+    active:    { Icon: Zap,          color: t.accent,       bg: t.accentBg,     strong: true },
+    next:      { Icon: Zap,          color: t.warning,      bg: t.warningBg,    strong: true },
+    scheduled: { Icon: Calendar,     color: t.text,         bg: null,           strong: false },
+    waiting:   { Icon: Clock,        color: t.warning,      bg: null,           strong: false },
+  }[slot.state] || { Icon: Calendar, color: t.textMuted, bg: null, strong: false };
+  const { Icon, color, bg, strong } = config;
+  const isDone = slot.state === "done";
+
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 8,
+      padding: strong ? "6px 8px" : "5px 0",
+      background: bg || "transparent",
+      borderLeft: strong ? `2px solid ${color}` : "none",
+      borderRadius: strong ? 2 : 0,
+      paddingLeft: strong ? 8 : 0,
+      opacity: isDone ? 0.5 : 1,
+    }}>
+      <span className="mono" style={{
+        fontSize: 11, fontWeight: 700, color,
+        width: 44, flexShrink: 0,
+        textDecoration: isDone ? "line-through" : "none",
+      }}>{slot.time}</span>
+      <Icon size={12} style={{ color, flexShrink: 0 }}/>
+      <span style={{ fontSize: 11, color: t.text, fontWeight: 600 }}>
+        {slot.customer} <span style={{ color: t.textMuted, fontWeight: 500 }}>({slot.workType})</span>
+      </span>
+      <span style={{ fontSize: 10, color: t.textMuted, marginLeft: "auto" }}>· {slot.region}</span>
+    </div>
+  );
+}
+
+// ============================================
+// 보조 컴포넌트
+// ============================================
+
+function StatBox({ t, label, value, color, onClick }) {
+  return (
+    <div onClick={onClick} className={onClick ? "clickable" : ""} style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`,
+      borderRadius: 10, padding: "10px 8px", textAlign: "center",
+    }}>
+      <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>
+        {label}
+      </div>
+      <div className="mono" style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: "-0.02em" }}>{value}</div>
+    </div>
+  );
+}
+
+function MoneyBox({ t, icon, label, value, color }) {
+  return (
+    <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, padding: "10px 12px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 6 }}>
+        <span style={{ color: t.textMuted, display: "flex" }}>{icon}</span>
+        <span style={{ fontSize: 9, fontWeight: 700, color: t.textMuted, letterSpacing: 0.3, textTransform: "uppercase" }}>{label}</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>₩</span>
+        <span className="mono" style={{ fontSize: 16, fontWeight: 800, color, letterSpacing: "-0.02em" }}>
           {value.toLocaleString()}
         </span>
       </div>
@@ -205,527 +2672,3316 @@ function BigMetric({ t, icon, label, value, unit, color, delay }) {
 }
 
 // ============================================
-// 탭 버튼
+// Placeholder 화면 4개 — Step 2~5에서 시안 채우기
 // ============================================
-function TabButton({ t, label, active, onClick }) {
+
+function PlaceholderScreen({ t, title, label, onBack }) {
   return (
-    <button onClick={onClick} style={{
-      flex: 1, padding: "10px 12px",
-      background: active ? t.bgElevated : "transparent",
-      border: active ? `1.5px solid ${t.accent}` : `1px solid ${t.border}`,
-      borderRadius: 10, fontSize: 12, fontWeight: 700,
-      color: active ? t.text : t.textMuted,
-      cursor: "pointer", fontFamily: "inherit",
-      whiteSpace: "nowrap",
-    }}>
-      {label}
-    </button>
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>{title}</div>
+      </div>
+      <div style={{ padding: 40, textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 16, opacity: 0.4 }}>🚧</div>
+        <div style={{ fontSize: 13, color: t.textMuted, marginBottom: 4, fontWeight: 700 }}>{label}</div>
+        <div style={{ fontSize: 10, color: t.textDim, lineHeight: 1.6 }}>
+          다음 단계에 시안 적용 예정<br/>
+          ← 뒤로 눌러서 흐름 확인
+        </div>
+      </div>
+    </div>
   );
 }
 
-// ============================================
-// 개요 탭
-// ============================================
-function OverviewTab({ t }) {
+// ─────────────────────────────────────────────
+// 시안 3-V5 — 새 접수 리스트 (Step 2 ✓)
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// 배정 완료 / 일정 확정 화면 (Step 2-5b)
+// ─────────────────────────────────────────────
+function AssignedTasksScreen({ t, filter, onBack, onMemo, onEdit }) {
+  const all = ASSIGNED_TASKS.filter(x => x.assignmentStatus === filter);
+  const isAssigned = filter === "assigned";
+  const titleText = isAssigned
+    ? `배정 완료 ${all.length}건`
+    : `일정 확정 ${all.length}건`;
+
   return (
-    <div style={{ padding: "0 20px" }}>
-      {/* 긴급 작업 알림 (있을 때만) */}
-      {TODAY_STATS.urgent > 0 && (
-        <div style={{ 
-          background: t.dangerBg, 
-          border: `1px solid ${t.danger}40`,
-          borderRadius: 12, padding: "14px 16px", marginBottom: 16,
-          display: "flex", alignItems: "center", gap: 10,
-        }}>
-          <div style={{ 
-            width: 36, height: 36, borderRadius: 10,
-            background: t.danger, color: "white",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            flexShrink: 0,
-          }}>
-            <AlertTriangle size={16}/>
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>{titleText}</div>
+      </div>
+
+      <div style={{ padding: "14px 16px 20px" }}>
+        {all.length === 0 ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+            해당 상태의 작업이 없어요
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 800, color: t.danger, marginBottom: 2 }}>
-              긴급 작업 {TODAY_STATS.urgent}건 처리 필요
-            </div>
-            <div style={{ fontSize: 11, color: t.textMuted }}>
-              당일 작업 등 우선 배정이 필요해요
-            </div>
-          </div>
-          <ChevronRight size={16} style={{ color: t.danger }}/>
+        ) : all.map((task) => (
+          <AssignedCard key={task.id} t={t} task={task} onMemo={onMemo} onEdit={onEdit}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AssignedCard({ t, task, onMemo, onEdit }) {
+  const isAssigned = task.assignmentStatus === "assigned";
+
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`,
+      borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+    }}>
+      {/* 헤더: 원청 라벨 + 고객명 */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+          <PrincipalLabel name={task.principal}/>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
+          {task.hasRefrigerant && task.workType !== "냉매충전" && (
+            <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
+          )}
+        </div>
+      </div>
+
+      {/* 본문 */}
+      <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
+        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItems(task.workItems) : `${task.appliance} ×${task.qty}`} · {task.schedule}
+      </div>
+      {task.estimateTotal > 0 && (
+        <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginBottom: 6 }}>
+          견적 ₩{task.estimateTotal.toLocaleString()}
+        </div>
+      )}
+      {task.memo && (
+        <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 8, display: "flex", alignItems: "center", gap: 4, fontStyle: "italic" }}>
+          <FileText size={10}/><span>{task.memo}</span>
         </div>
       )}
 
-      {/* 오늘 작업 현황 */}
-      <Section t={t} title="오늘 작업 현황" icon={<Briefcase size={13}/>}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8 }}>
-          <StatusBox t={t} label="완료" count={TODAY_STATS.completed} color={t.success}/>
-          <StatusBox t={t} label="진행중" count={TODAY_STATS.inProgress} color={t.warning}/>
-          <StatusBox t={t} label="확정" count={TODAY_STATS.scheduled} color={t.text}/>
-          <StatusBox t={t} label="대기" count={TODAY_STATS.pending} color={t.accent}/>
-        </div>
-      </Section>
+      {/* AdminApp-fix1 — 배정 정보 (무채색 / 정보) */}
+      <div style={{
+        background: t.bgInset || t.bgElevated,
+        border: `1px solid ${t.border}`,
+        borderRadius: 8, padding: "8px 10px", marginBottom: 6,
+        display: "flex", alignItems: "center", gap: 6,
+      }}>
+        <User size={12} style={{ color: t.textSecondary }}/>
+        <span style={{ fontSize: 11, color: t.text, fontWeight: 600 }}>
+          {task.assignedEngineer} 기사 배정
+        </span>
+      </div>
 
-      {/* 진행률 */}
-      <Section t={t} title="오늘 진행률" icon={<Activity size={13}/>}>
-        <div style={{ marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 12, color: t.textMuted }}>{TODAY_STATS.completed}/{TODAY_STATS.total}건 완료</span>
-          <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: t.success }}>
-            {Math.round(TODAY_STATS.completed / TODAY_STATS.total * 100)}%
+      {/* 상태 박스 */}
+      {isAssigned ? (
+        <div style={{
+          background: t.warningBg, border: `1px solid ${t.warningBorder}`,
+          borderRadius: 8, padding: "8px 10px", marginBottom: 8,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span style={{ fontSize: 11 }}>⏳</span>
+          <span style={{ fontSize: 11, color: t.warning, fontWeight: 700 }}>일정 확정 대기</span>
+        </div>
+      ) : (
+        <div style={{
+          background: t.successBg, border: `1px solid ${t.successBorder}`,
+          borderRadius: 8, padding: "8px 10px", marginBottom: 8,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <CheckCircle2 size={12} style={{ color: t.success }}/>
+          <span style={{ fontSize: 11, color: t.success, fontWeight: 700 }}>
+            일정 확정 · {task.schedule}
           </span>
         </div>
-        <div style={{ height: 8, background: t.bgInset, borderRadius: 4, overflow: "hidden" }}>
-          <div style={{ width: `${TODAY_STATS.completed / TODAY_STATS.total * 100}%`, height: "100%", background: t.success }}/>
-        </div>
-      </Section>
+      )}
 
-      {/* 정산 타입 분포 (현장수금 vs 회사정산) */}
-      <Section t={t} title="정산 흐름" icon={<Wallet size={13}/>}>
-        <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-          <div style={{ flex: 1, padding: "12px 14px", background: t.successBg, border: `1px solid ${t.successBorder}`, borderRadius: 10 }}>
-            <div style={{ fontSize: 9, color: t.success, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
-              현장 수금
-            </div>
-            <div className="mono" style={{ fontSize: 16, fontWeight: 800, color: t.success }}>
-              ₩{(TODAY_STATS.fieldCollection / 10000).toFixed(0)}만
-            </div>
-            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 4 }}>
-              기사 → 회사 송금
-            </div>
-          </div>
-          <div style={{ flex: 1, padding: "12px 14px", background: t.accentBg, border: `1px solid ${t.accent}30`, borderRadius: 10 }}>
-            <div style={{ fontSize: 9, color: t.accent, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>
-              회사 정산
-            </div>
-            <div className="mono" style={{ fontSize: 16, fontWeight: 800, color: t.accent }}>
-              ₩{(TODAY_STATS.companySettlement / 10000).toFixed(0)}만
-            </div>
-            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 4 }}>
-              회사 → 기사 정산
-            </div>
-          </div>
-        </div>
-        {/* 막대 비교 */}
-        <div style={{ height: 6, background: t.bgInset, borderRadius: 3, overflow: "hidden", display: "flex" }}>
-          <div style={{ 
-            width: `${TODAY_STATS.fieldCollection / (TODAY_STATS.fieldCollection + TODAY_STATS.companySettlement) * 100}%`, 
-            height: "100%", background: t.success 
-          }}/>
-          <div style={{ 
-            width: `${TODAY_STATS.companySettlement / (TODAY_STATS.fieldCollection + TODAY_STATS.companySettlement) * 100}%`, 
-            height: "100%", background: t.accent 
-          }}/>
-        </div>
-      </Section>
-
-      {/* 지역별 작업 분포 */}
-      <Section t={t} title="지역별 작업 분포" icon={<MapPin size={13}/>}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {REGION_STATS.map(r => (
-            <div key={r.region} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ minWidth: 50, fontSize: 12, fontWeight: 700 }}>{r.region}</div>
-              <div style={{ flex: 1, height: 18, background: t.bgInset, borderRadius: 4, overflow: "hidden", position: "relative" }}>
-                <div style={{ 
-                  width: `${r.count / Math.max(...REGION_STATS.map(x => x.count)) * 100}%`,
-                  height: "100%", background: r.color, 
-                  display: "flex", alignItems: "center", justifyContent: "flex-end",
-                  paddingRight: 8, transition: "width 0.5s",
-                }}>
-                  <span className="mono" style={{ fontSize: 10, color: "white", fontWeight: 700 }}>{r.count}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      {/* 취소율 */}
-      <Section t={t} title="취소율" icon={<XCircle size={13}/>}>
-        <div style={{ padding: "12px 14px", background: t.bgInset, borderRadius: 10 }}>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-            <span className="mono" style={{ fontSize: 24, fontWeight: 800, color: t.success }}>{TODAY_STATS.cancelRate}</span>
-            <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>%</span>
-            <span style={{ fontSize: 10, color: t.success, fontWeight: 600, marginLeft: 6 }}>
-              ↓ 지난주보다 0.4%p 개선
-            </span>
-          </div>
-        </div>
-      </Section>
+      {/* 액션 4개 (균등) */}
+      <div style={{ display: "flex", gap: 6 }}>
+        <ActionIconBtn t={t} icon={<Phone size={13}/>}    href={`tel:${task.phone}`}         flex={1}/>
+        <ActionIconBtn t={t} icon={<User size={13}/>}     href={`tel:${task.engineerPhone}`} flex={1}/>
+        <ActionIconBtn t={t} icon={<FileText size={13}/>} onClick={() => onMemo && onMemo(task)} flex={1}/>
+        <ActionIconBtn t={t} icon={<Edit3 size={13}/>}    onClick={() => onEdit && onEdit(task)} flex={1}/>
+      </div>
     </div>
   );
 }
 
-// ============================================
-// 작업 탭
-// ============================================
-function TasksTab({ t }) {
-  const [filter, setFilter] = useState("all");
-  
-  let filtered = filter === "all" ? ALL_TASKS : 
-                 filter === "urgent" ? ALL_TASKS.filter(x => x.urgent) :
-                 ALL_TASKS.filter(x => x.status === filter);
-  
-  // 긴급 작업 먼저
-  filtered = [...filtered].sort((a, b) => (b.urgent ? 1 : 0) - (a.urgent ? 1 : 0));
-  
-  const getStatusStyle = (status) => {
-    switch(status) {
-      case "완료": return { color: t.success, bg: t.successBg };
-      case "진행중": return { color: t.warning, bg: t.warningBg };
-      case "확정": return { color: t.text, bg: t.bgInset };
-      case "약속대기": return { color: t.accent, bg: t.accentBg };
-      case "미배정": return { color: t.danger, bg: t.dangerBg };
-      default: return { color: t.textMuted, bg: t.bgInset };
+function NewReceptionScreen({ t, filter, extraReceptions = [], receptionUpdates = {}, onBack, onAssign, onClickAdd, onClickPushing, onClickAccepted, onCardMenuAction }) {
+  // Step 5-1c — workItems 기반 분류 (세척+가스 같이 들어온 작업 → 양쪽 카테고리 표시)
+  // Step 5-3 v3 — receptionUpdates overlay (자동 배정 완료 등 카드 상태 변화 적용)
+  const [tasks, setTasks] = useState(() => {
+    // 구 데이터 (workItems 없음) → 단일 항목으로 wrap
+    const wrap = (x) => ({
+      ...x,
+      workItems: x.workItems && x.workItems.length > 0
+        ? x.workItems
+        : [{ workType: x.workType, appliance: x.appliance, qty: x.qty }],
+    });
+    const allReceptions = [
+      ...extraReceptions,
+      ...NEW_RECEPTIONS.세척.map(x => wrap({ ...x, workType: "세척" })),
+      ...NEW_RECEPTIONS.냉매충전.map(x => wrap({ ...x, workType: "냉매충전" })),
+    ];
+    // 중복 제거 (id 기준) + receptionUpdates overlay
+    const seen = new Set();
+    const unique = allReceptions.filter(r => {
+      if (seen.has(r.id)) return false;
+      seen.add(r.id);
+      return true;
+    }).map(r => receptionUpdates[r.id] ? { ...r, ...receptionUpdates[r.id] } : r);
+    // Step 5-1e (통합) — 우선순위 정렬 후 메인 = sorted[0] 기준
+    // (사장님이 냉매→세척 순서로 추가했어도 메인은 세척)
+    function getByType(type) {
+      return unique.filter(r => {
+        if (r.workItems && r.workItems.length > 0) {
+          const main = determineMainWorkType(r.workItems);
+          return main === type;
+        }
+        return r.workType === type;  // 호환성 (구 데이터)
+      });
     }
+    return {
+      세척:    getByType("세척"),
+      냉매충전: getByType("냉매충전"),
+    };
+  });
+  const [memoTask, setMemoTask] = useState(null);
+  const [editingTask, setEditingTask] = useState(null);
+
+  const cleanings    = tasks.세척;
+  const refrigerants = tasks.냉매충전;
+  const total = cleanings.length + refrigerants.length;
+
+  // 헤더 텍스트 + 그룹 표시 분기 (filter prop)
+  const showCleanings    = !filter || filter === "세척";
+  const showRefrigerants = !filter || filter === "냉매충전";
+  const headerText =
+    filter === "세척"     ? `에어컨 세척 ${cleanings.length}건` :
+    filter === "냉매충전" ? `냉매 충전 ${refrigerants.length}건` :
+                             `새 접수 ${total}건`;
+
+  const saveTask = (updated) => {
+    setTasks(prev => ({
+      세척:    prev.세척.map(t => t.id === updated.id ? updated : t),
+      냉매충전: prev.냉매충전.map(t => t.id === updated.id ? updated : t),
+    }));
   };
 
-  const urgentCount = ALL_TASKS.filter(x => x.urgent).length;
+  // 수정 화면 분기
+  if (editingTask) {
+    return <TaskEditScreen
+      t={t}
+      task={editingTask}
+      onBack={() => setEditingTask(null)}
+      onSave={(updated) => { saveTask(updated); setEditingTask(null); }}
+    />;
+  }
 
   return (
-    <div style={{ padding: "0 20px" }}>
-      {/* 필터 */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-        {[
-          { id: "all", label: "전체" },
-          { id: "urgent", label: `🚨 긴급 ${urgentCount}`, danger: true },
-          { id: "미배정", label: "미배정" },
-          { id: "약속대기", label: "약속대기" },
-          { id: "확정", label: "확정" },
-          { id: "진행중", label: "진행중" },
-          { id: "완료", label: "완료" },
-        ].map(f => (
-          <button key={f.id} onClick={() => setFilter(f.id)} style={{
-            padding: "6px 12px",
-            background: filter === f.id ? (f.danger ? t.danger : t.accent) : t.bgInset,
-            color: filter === f.id ? "white" : (f.danger ? t.danger : t.text),
-            border: `1px solid ${filter === f.id ? (f.danger ? t.danger : t.accent) : t.border}`,
-            borderRadius: 8, fontSize: 11, fontWeight: 700,
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ fontSize: 16, fontWeight: 800, flex: 1 }}>
+          {headerText}
+        </div>
+        {onClickAdd && (
+          <button onClick={onClickAdd} style={{
+            display: "flex", alignItems: "center", gap: 4,
+            padding: "6px 10px",
+            background: t.accent, color: "white",
+            border: "none", borderRadius: 8,
+            fontSize: 11, fontWeight: 800,
             cursor: "pointer", fontFamily: "inherit",
           }}>
-            {f.label}
+            <Plus size={12}/> 추가
           </button>
-        ))}
+        )}
       </div>
 
-      {/* 작업 리스트 */}
-      <div style={{ background: t.bgElevated, borderRadius: 12, overflow: "hidden" }}>
-        {filtered.map((task, idx) => {
-          const ss = getStatusStyle(task.status);
-          return (
-            <div key={task.id} className="clickable" style={{
-              padding: "12px 14px",
-              borderBottom: idx < filtered.length - 1 ? `1px solid ${t.border}` : "none",
-              display: "flex", alignItems: "center", gap: 10,
-              background: task.urgent ? t.dangerBg + "30" : "transparent",
-              borderLeft: task.urgent ? `3px solid ${t.danger}` : "none",
-            }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
-                  {task.urgent && (
-                    <span style={{ 
-                      fontSize: 9, fontWeight: 800, padding: "2px 5px",
-                      background: t.danger, color: "white",
-                      borderRadius: 4, letterSpacing: 0.3,
-                    }}>
-                      🚨 긴급
-                    </span>
-                  )}
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
-                  <span style={{ fontSize: 11, color: t.textMuted }}>· {task.region}</span>
-                  <span style={{
-                    fontSize: 9, padding: "1px 5px",
-                    background: task.paymentType === "field" ? t.successBg : t.accentBg,
-                    color: task.paymentType === "field" ? t.success : t.accent,
-                    borderRadius: 3, fontWeight: 700,
-                  }}>
-                    {task.paymentType === "field" ? "현장" : "회사"}
-                  </span>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: t.textMuted }}>
-                  <span>{task.workType}</span>
-                  {task.time && <><span>·</span><span className="mono">{task.time}</span></>}
-                  {task.engineer && <><span>·</span><span style={{ color: t.text }}>{task.engineer}</span></>}
-                </div>
-              </div>
-              <div style={{
-                fontSize: 10, fontWeight: 700,
-                padding: "4px 9px", borderRadius: 5,
-                background: ss.bg, color: ss.color, flexShrink: 0,
-              }}>
-                {task.status}
-              </div>
-            </div>
-          );
-        })}
+      <div style={{ padding: "14px 16px 20px" }}>
+        {showCleanings && (
+          <ReceptionGroup t={t} workType="세척" title="에어컨 세척" subtitle="배정 필요" subtitleColor={t.textMuted} count={cleanings.length}>
+            {cleanings.map((task) => (
+              <CleaningCard key={task.id} t={t} task={task}
+                onAssign={() => onAssign(task)}
+                onMemo={() => setMemoTask(task)}
+                onEdit={() => setEditingTask(task)}
+                onCardMenuAction={onCardMenuAction}
+              />
+            ))}
+          </ReceptionGroup>
+        )}
+
+        {showRefrigerants && (
+          <ReceptionGroup t={t} workType="냉매충전" title="가스 충전" subtitle="자동 진행" subtitleColor={t.success} count={refrigerants.length}>
+            {refrigerants.map((task) => (
+              <RefrigerantCard key={task.id} t={t} task={task}
+                onMemo={() => setMemoTask(task)}
+                onEdit={() => setEditingTask(task)}
+                onClickPushing={onClickPushing}
+                onClickAccepted={onClickAccepted}
+                onCardMenuAction={onCardMenuAction}
+              />
+            ))}
+          </ReceptionGroup>
+        )}
       </div>
+
+      {memoTask && (
+        <MemoBottomSheet t={t} task={memoTask}
+          onClose={() => setMemoTask(null)}
+          onSave={(updated) => { saveTask(updated); setMemoTask(null); }}
+        />
+      )}
     </div>
   );
 }
 
-// ============================================
-// 기사 탭
-// ============================================
-function EngineersTab({ t }) {
-  // 직급별 카운트
-  const rankCounts = ENGINEER_RANKS.map(r => ({
-    ...r,
-    count: ENGINEER_STATS.filter(e => e.rank === r.id).length,
-  }));
-  
+function ReceptionGroup({ t, workType, title, subtitle, subtitleColor, count, children }) {
+  const IconComp = WORK_TYPE_ICONS[workType] || Hash;
   return (
-    <div style={{ padding: "0 20px" }}>
-      {/* 직급별 분포 */}
-      <Section t={t} title="직급별 분포" icon={<Award size={13}/>}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
-          {rankCounts.map(r => (
-            <div key={r.id} style={{ 
-              padding: "12px 6px", textAlign: "center",
-              background: r.count > 0 ? t.bgInset : "transparent",
-              border: r.count > 0 ? "none" : `1px dashed ${t.border}`,
-              borderRadius: 10,
-              opacity: r.count === 0 ? 0.4 : 1,
-            }}>
-              <div style={{ fontSize: 18, marginBottom: 4 }}>{r.icon}</div>
-              <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 4 }}>{r.name}</div>
-              <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: r.count > 0 ? r.color : t.textDim }}>
-                {r.count}
-              </div>
-            </div>
-          ))}
+    <div style={{ marginBottom: 18 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <IconComp size={14} style={{ color: t.textSecondary }}/>
+          <span style={{ fontSize: 12, fontWeight: 800 }}>{title}</span>
+          <span style={{ fontSize: 10, color: subtitleColor, fontWeight: 600 }}>· {subtitle}</span>
         </div>
-      </Section>
-
-      {/* 기사 목록 */}
-      <Section t={t} title={`기사 ${ENGINEER_STATS.length}명`} icon={<Users size={13}/>}>
-        {ENGINEER_STATS.map((eng, idx) => {
-          const rank = ENGINEER_RANKS.find(r => r.id === eng.rank);
-          const attendanceRate = Math.round(eng.attendance / 26 * 100);
-          
-          return (
-            <div key={eng.id} className="clickable" style={{
-              padding: "14px 16px",
-              background: t.bgElevated,
-              borderRadius: 12, marginBottom: 6,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-                <div style={{ position: "relative", flexShrink: 0 }}>
-                  <div style={{
-                    width: 38, height: 38, borderRadius: 10,
-                    background: t.accentBg, color: t.accent,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 14, fontWeight: 800,
-                  }}>
-                    {eng.name.slice(0, 1)}
-                  </div>
-                  {/* 직급 아이콘 */}
-                  <div style={{
-                    position: "absolute", bottom: -4, right: -4,
-                    width: 18, height: 18, borderRadius: 5,
-                    background: t.bgElevated,
-                    border: `1.5px solid ${rank.color}`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 9,
-                  }}>
-                    {rank.icon}
-                  </div>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2, flexWrap: "wrap" }}>
-                    <span style={{ fontSize: 14, fontWeight: 700 }}>{eng.name}</span>
-                    <span style={{ 
-                      fontSize: 9, fontWeight: 800, padding: "2px 6px",
-                      background: rank.color + "20", color: rank.color,
-                      borderRadius: 4,
-                    }}>
-                      {rank.name}
-                    </span>
-                    <span style={{ fontSize: 11, color: t.textMuted }}>· {eng.region}</span>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 11, color: t.textMuted }}>
-                    <span>오늘 <span className="mono" style={{ color: t.text, fontWeight: 600 }}>{eng.today}</span>건</span>
-                    <span>·</span>
-                    <span>월 <span className="mono" style={{ color: t.text, fontWeight: 600 }}>{eng.month}</span>건</span>
-                    <span>·</span>
-                    <span>누적 <span className="mono" style={{ color: t.text, fontWeight: 600 }}>{eng.totalJobs}</span></span>
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="mono" style={{ fontSize: 13, fontWeight: 700, color: t.success }}>
-                    ₩{(eng.revenue / 1000).toFixed(0)}K
-                  </div>
-                  <div style={{ fontSize: 9, color: t.textMuted }}>오늘 매출</div>
-                </div>
-              </div>
-              
-              {/* 가동률 + 출석률 (한 줄에 둘 다) */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                    <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>가동률</span>
-                    <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: eng.utilization > 80 ? t.warning : eng.utilization > 60 ? t.success : t.textMuted }}>
-                      {eng.utilization}%
-                    </span>
-                  </div>
-                  <div style={{ height: 4, background: t.bgInset, borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{
-                      width: `${eng.utilization}%`, height: "100%",
-                      background: eng.utilization > 80 ? t.warning : eng.utilization > 60 ? t.success : t.textMuted,
-                    }}/>
-                  </div>
-                </div>
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}>
-                    <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 600, letterSpacing: 0.5, textTransform: "uppercase" }}>출석</span>
-                    <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: attendanceRate > 80 ? t.success : attendanceRate > 60 ? t.warning : t.danger }}>
-                      {eng.attendance}/26일
-                    </span>
-                  </div>
-                  <div style={{ height: 4, background: t.bgInset, borderRadius: 2, overflow: "hidden" }}>
-                    <div style={{
-                      width: `${attendanceRate}%`, height: "100%",
-                      background: attendanceRate > 80 ? t.success : attendanceRate > 60 ? t.warning : t.danger,
-                    }}/>
-                  </div>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </Section>
-    </div>
-  );
-}
-
-// ============================================
-// 활동 탭
-// ============================================
-function ActivityTab({ t }) {
-  const getColor = (c) => {
-    if (c === "success") return t.success;
-    if (c === "warning") return t.warning;
-    if (c === "accent") return t.accent;
-    if (c === "danger") return t.danger;
-    return t.textMuted;
-  };
-
-  return (
-    <div style={{ padding: "0 20px" }}>
-      <Section t={t} title="실시간 활동 로그" icon={<Activity size={13}/>}>
-        <div style={{ position: "relative" }}>
-          <div style={{ position: "absolute", left: 18, top: 8, bottom: 8, width: 1, background: t.border }}/>
-          {RECENT_ACTIVITIES.map((act, idx) => {
-            const c = getColor(act.color);
-            const isUrgent = act.type === "urgent";
-            return (
-              <div key={idx} style={{ display: "flex", gap: 14, marginBottom: 14, position: "relative" }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: "50%",
-                  background: isUrgent ? c : t.bg, 
-                  border: `2px solid ${c}`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  flexShrink: 0, zIndex: 1,
-                }}>
-                  {isUrgent ? (
-                    <AlertTriangle size={14} style={{ color: "white" }}/>
-                  ) : (
-                    <div style={{ width: 8, height: 8, borderRadius: "50%", background: c }}/>
-                  )}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-                    <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>{act.time}</span>
-                    <span style={{ fontSize: 10, color: c, fontWeight: 700, padding: "1px 6px", background: t.bgInset, borderRadius: 4 }}>
-                      {act.engineer}
-                    </span>
-                  </div>
-                  <div style={{ 
-                    fontSize: 13, color: isUrgent ? c : t.text, 
-                    lineHeight: 1.5, fontWeight: isUrgent ? 700 : 400,
-                  }}>
-                    {act.text}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Section>
-    </div>
-  );
-}
-
-// ============================================
-// 헬퍼
-// ============================================
-function Section({ t, title, icon, children }) {
-  return (
-    <div className="card-fade" style={{ marginBottom: 20 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 12 }}>
-        <span style={{ color: t.textMuted, display: "flex" }}>{icon}</span>
-        <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 1.5, textTransform: "uppercase" }}>
-          {title}
-        </span>
+        <span className="mono" style={{ fontSize: 12, fontWeight: 800, color: t.accent }}>{count}건</span>
       </div>
       {children}
     </div>
   );
 }
 
-function StatusBox({ t, label, count, color }) {
+function PrincipalLabel({ name }) {
+  const color = PRINCIPAL_COLORS[name] || "#888780";
   return (
-    <div style={{ background: t.bgInset, borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
-      <div className="mono" style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: "-0.02em" }}>
-        {count}
+    <span style={{
+      fontSize: 9, fontWeight: 800, padding: "2px 6px",
+      background: color + "26",       // hex + alpha 0.15
+      color: color,
+      borderRadius: 4,
+      letterSpacing: 0.3,
+      whiteSpace: "nowrap",
+    }}>{name}</span>
+  );
+}
+
+// Step 5-3 fix — 직급 라벨 (신입/경력/전문가)
+// Step 5-3-4 — 모든 화면 통일 톤다운: 회색 배경 + 등급별 글자색 (핑크 강조 X)
+// 사용: <CareerLabel eng={engObj}/> 또는 <CareerLabel level="expert"/>
+function CareerLabel({ eng, level }) {
+  const key = level || getCareerLevel(eng);
+  const info = CAREER_LEVELS[key] || CAREER_LEVELS.career;
+  return (
+    <span style={{
+      display: "inline-block",
+      fontSize: 11,
+      fontWeight: 500,
+      padding: "2px 8px",
+      background: "#2A2420",
+      color: info.color,
+      borderRadius: 4, letterSpacing: 0.3,
+      whiteSpace: "nowrap",
+    }}>{info.name}</span>
+  );
+}
+
+// Step 5-3 fix — 메인/백업 라벨 (서브 alias 호환)
+// Step 5-3-4 — 회색 배경 + 회색 글자 (메인/백업 둘 다 톤다운)
+function LevelLabel({ t, level }) {
+  const info = LEVEL_LABELS[level] || LEVEL_LABELS.backup;
+  return (
+    <span style={{
+      display: "inline-block",
+      fontSize: 11,
+      fontWeight: 500,
+      padding: "2px 8px",
+      background: "#2A2420",
+      color: "#888780",
+      borderRadius: 4, letterSpacing: 0.3,
+      whiteSpace: "nowrap",
+    }}>{info.name}</span>
+  );
+}
+
+function ActionIconBtn({ t, icon, onClick, href, flex }) {
+  const baseStyle = {
+    flex: flex ?? "0 0 auto",
+    background: "rgba(255,255,255,0.04)",
+    border: `1px solid ${t.border}`,
+    color: t.textSecondary,
+    padding: "8px 12px",
+    borderRadius: 8,
+    cursor: "pointer",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontFamily: "inherit",
+    textDecoration: "none",
+  };
+  if (href) return <a href={href} style={baseStyle}>{icon}</a>;
+  return <button onClick={onClick} style={baseStyle}>{icon}</button>;
+}
+
+function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`,
+      borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+      overflow: "visible",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+          <PrincipalLabel name={task.principal}/>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
+          {task.hasRefrigerant && task.workType !== "냉매충전" && (
+            <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
+          )}
+        </div>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, flexShrink: 0 }}>{task.time}</span>
+        {onCardMenuAction && <TaskCardMenu task={task} onAction={onCardMenuAction}/>}
       </div>
-      <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginTop: 2 }}>
-        {label}
+      <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
+        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItems(task.workItems) : `${task.appliance} ×${task.qty}`} · {task.schedule}
+      </div>
+      {task.estimateTotal > 0 && (
+        <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>
+          견적 ₩{task.estimateTotal.toLocaleString()}
+        </div>
+      )}
+      {task.memo && (
+        <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 4, fontStyle: "italic" }}>
+          <FileText size={10}/><span>{task.memo}</span>
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 6 }}>
+        <button onClick={onAssign} style={{
+          flex: 1,
+          background: t.accent, color: "white", border: "none",
+          padding: "10px",
+          borderRadius: 8,
+          fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+        }}>
+          기사 배정 <ArrowRight size={14}/>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Step 5-3 v3 — RefrigerantCard 정정
+// autoAssignStatus 기반 상태 박스 + 카드 자체 클릭 분기 (pushing → 자동 배정 화면 / accepted → 작업 상세)
+// legacy autoStatus / assignedEngineer 호환
+function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccepted, onCardMenuAction }) {
+  // 새 필드 우선 / 구 필드 fallback
+  const status = task.autoAssignStatus
+    || (task.autoStatus === "push" ? "pushing" : null)
+    || (task.autoStatus === "assigned" ? "accepted" : null);
+  const acceptedName = task.acceptedEngineer || task.assignedEngineer;
+  const isPushing  = status === "pushing";
+  const isAccepted = status === "accepted";
+  const pushCount  = task.pushCount || (task.candidates?.length) || 4;
+
+  const handleCardClick = () => {
+    if (isPushing  && onClickPushing)  onClickPushing(task);
+    else if (isAccepted && onClickAccepted) onClickAccepted(task);
+  };
+  const isClickable = (isPushing && onClickPushing) || (isAccepted && onClickAccepted);
+
+  return (
+    <div
+      onClick={isClickable ? handleCardClick : undefined}
+      className={isClickable ? "clickable" : undefined}
+      style={{
+        background: t.bgElevated, border: `1px solid ${t.border}`,
+        borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+        cursor: isClickable ? "pointer" : "default",
+        overflow: "visible",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+          <PrincipalLabel name={task.principal}/>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
+          {task.hasRefrigerant && task.workType !== "냉매충전" && (
+            <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
+          )}
+        </div>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, flexShrink: 0 }}>{task.time}</span>
+        {onCardMenuAction && <TaskCardMenu task={task} onAction={onCardMenuAction}/>}
+      </div>
+      <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
+        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItems(task.workItems) : `${task.appliance} ×${task.qty}`} · {task.schedule}
+      </div>
+      {task.estimateTotal > 0 && (
+        <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>
+          견적 ₩{task.estimateTotal.toLocaleString()}
+        </div>
+      )}
+      {task.memo && (
+        <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 4, fontStyle: "italic" }}>
+          <FileText size={10}/><span>{task.memo}</span>
+        </div>
+      )}
+      {isPushing && (
+        <div style={{
+          background: t.warningBg, border: `1px solid ${t.warningBorder}`,
+          borderRadius: 8, padding: "8px 10px", marginBottom: 8,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span style={{ fontSize: 11 }}>🟡</span>
+          <span style={{ fontSize: 11, color: t.warning, fontWeight: 700, flex: 1 }}>
+            기사 <span className="mono">{pushCount}</span>명 푸시 중
+          </span>
+          <span style={{ fontSize: 10, color: t.textMuted }}>수락 대기</span>
+        </div>
+      )}
+      {isAccepted && (
+        <div style={{
+          background: t.successBg, border: `1px solid ${t.successBorder}`,
+          borderRadius: 8, padding: "8px 10px", marginBottom: 8,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span style={{ fontSize: 11 }}>🟢</span>
+          <span style={{ fontSize: 11, color: t.success, fontWeight: 700, flex: 1 }}>
+            <strong>{acceptedName || "—"}</strong> 기사 수락
+          </span>
+          <span style={{ fontSize: 10, color: t.textMuted }}>자동 배정 완료</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 메모 BottomSheet (Step 2-1)
+// ─────────────────────────────────────────────
+function MemoBottomSheet({ t, task, onClose, onSave }) {
+  const [memo, setMemo] = useState(task.memo || "");
+  return (
+    <>
+      <div onClick={onClose} style={{
+        position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(0,0,0,0.5)", zIndex: 300,
+      }}/>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        position: "fixed", left: "50%", bottom: 0, transform: "translateX(-50%)",
+        width: "100%", maxWidth: 380,
+        background: t.bgElevated,
+        borderTopLeftRadius: 16, borderTopRightRadius: 16,
+        padding: "12px 16px 20px",
+        zIndex: 301,
+        animation: "slideUp 0.25s ease-out",
+        boxShadow: "0 -8px 24px rgba(0,0,0,0.4)",
+      }}>
+        <div style={{ width: 36, height: 4, background: t.border, borderRadius: 2, margin: "0 auto 12px" }}/>
+        <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>
+          {task.customer} <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>· 메모</span>
+        </div>
+        <textarea
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          placeholder="메모를 입력하세요"
+          style={{
+            width: "100%", minHeight: 100,
+            padding: "10px 12px",
+            background: t.bgInset, color: t.text,
+            border: `1px solid ${t.border}`, borderRadius: 10,
+            fontSize: 12, fontFamily: "inherit", outline: "none",
+            boxSizing: "border-box", resize: "vertical",
+            marginBottom: 12,
+          }}
+        />
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} style={{
+            flex: 1, padding: 12, background: "transparent", border: `1px solid ${t.border}`,
+            color: t.textMuted, borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+          }}>취소</button>
+          <button onClick={() => onSave({ ...task, memo })} style={{
+            flex: 1, padding: 12, background: t.accent, color: "white", border: "none",
+            borderRadius: 10, fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+          }}>저장</button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 작업 수정 화면 (Step 2-1)
+// ─────────────────────────────────────────────
+function TaskEditScreen({ t, task, onBack, onSave }) {
+  const [form, setForm] = useState({
+    customer:      task.customer || "",
+    phone:         task.phone || "",
+    region:        task.region || "",
+    appliance:     task.appliance || "벽걸이",
+    qty:           task.qty || 1,
+    schedule:      task.schedule || "",
+    estimateTotal: task.estimateTotal || 0,
+    memo:          task.memo || "",
+  });
+  const update = (field, value) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const inputStyle = {
+    width: "100%",
+    padding: "10px 12px",
+    background: t.bgInset, color: t.text,
+    border: `1px solid ${t.border}`, borderRadius: 10,
+    fontSize: 12, fontFamily: "inherit", outline: "none",
+    boxSizing: "border-box",
+  };
+  const labelStyle = {
+    fontSize: 10, fontWeight: 700, color: t.textMuted,
+    textTransform: "uppercase", letterSpacing: 0.5,
+    marginBottom: 5, display: "block",
+  };
+
+  return (
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ fontSize: 15, fontWeight: 800 }}>
+          {task.customer} <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>· 작업 수정</span>
+        </div>
+      </div>
+
+      <div style={{ padding: "16px 16px 24px" }}>
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>고객명</label>
+          <input type="text" value={form.customer} onChange={(e) => update("customer", e.target.value)} style={inputStyle}/>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>연락처</label>
+          <input type="text" value={form.phone} onChange={(e) => update("phone", e.target.value)} className="mono" style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }}/>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>주소 / 지역</label>
+          <input type="text" value={form.region} onChange={(e) => update("region", e.target.value)} style={inputStyle}/>
+        </div>
+        <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
+          <div style={{ flex: 2 }}>
+            <label style={labelStyle}>기종</label>
+            <select value={form.appliance} onChange={(e) => update("appliance", e.target.value)} style={inputStyle}>
+              <option value="벽걸이">벽걸이</option>
+              <option value="스탠드">스탠드</option>
+              <option value="천장형">천장형</option>
+              <option value="시스템 멀티">시스템 멀티</option>
+              <option value="1way">1way</option>
+              <option value="4way">4way</option>
+              <option value="이동식">이동식</option>
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={labelStyle}>수량</label>
+            <input type="number" min="1" value={form.qty} onChange={(e) => update("qty", parseInt(e.target.value) || 1)} className="mono" style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }}/>
+          </div>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>일정</label>
+          <input type="text" value={form.schedule} onChange={(e) => update("schedule", e.target.value)} style={inputStyle} placeholder="예: 오늘 14:00, 내일 오전"/>
+        </div>
+        <div style={{ marginBottom: 12 }}>
+          <label style={labelStyle}>견적 금액</label>
+          <div style={{ position: "relative" }}>
+            <input type="number" min="0" step="1000"
+              value={form.estimateTotal}
+              onChange={(e) => update("estimateTotal", parseInt(e.target.value) || 0)}
+              className="mono"
+              style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace", paddingRight: 36 }}
+              placeholder="0"/>
+            <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: t.textMuted, fontWeight: 600, pointerEvents: "none" }}>원</span>
+          </div>
+          {form.estimateTotal > 0 && (
+            <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginTop: 4, textAlign: "right" }}>
+              ₩{form.estimateTotal.toLocaleString()}
+            </div>
+          )}
+        </div>
+        <div style={{ marginBottom: 18 }}>
+          <label style={labelStyle}>메모</label>
+          <textarea value={form.memo} onChange={(e) => update("memo", e.target.value)} placeholder="작업 메모"
+            style={{ ...inputStyle, minHeight: 80, resize: "vertical" }}/>
+        </div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onBack} style={{
+            flex: 1, padding: 12, background: "transparent", border: `1px solid ${t.border}`,
+            color: t.textMuted, borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+          }}>취소</button>
+          <button onClick={() => onSave({ ...task, ...form })} style={{
+            flex: 2, padding: 12, background: t.accent, color: "white", border: "none",
+            borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+          }}>저장</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 시안 1 — 실시간 작업 현황 (Step 3 ✓)
+// ─────────────────────────────────────────────
+
+// 작업 탭 — 6 그룹 (사장님 시각: 작업 기준 — Step 3-4)
+// 운영자 우선순위 순서: 진행중 / 이동중 / 외근중 / 대기 / 예정 / 완료
+const TASK_GROUPS = [
+  { id: "active",    label: "진행중",  colorKey: "success",         predicate: (s) => s.type === "work"     && s.state === "active"  },
+  { id: "moving",    label: "이동중",  colorKey: "warning",         predicate: (s) => s.type === "work"     && s.state === "moving"  },
+  { id: "external",  label: "외근중",  colorKey: "purple",          predicate: (s) => s.type === "external"                          },
+  { id: "waiting",   label: "대기",    colorKey: "textSecondary",   predicate: (s) => s.type === "work"     && s.state === "waiting" },
+  { id: "scheduled", label: "예정",    colorKey: "textMuted",       predicate: (s) => s.type === "work"     && s.state === "scheduled" },
+  { id: "done",      label: "완료",    colorKey: "textMuted",       predicate: (s) => s.type === "work"     && s.state === "done"    },
+];
+
+function LiveWorkScreen({ t, onBack, onTaskClick }) {
+  const activeCount = TASKS_TODAY.filter(
+    (s) => (s.type === "work" && (s.state === "active" || s.state === "moving")) || s.type === "external"
+  ).length;
+  return (
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>실시간 작업 현황</div>
+          <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+            활성 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{activeCount}</span>건 · 전체 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{TASKS_TODAY.length}</span>건
+          </div>
+        </div>
+      </div>
+      <div style={{ paddingTop: 14 }}>
+        <LiveWorkContent t={t} onTaskClick={onTaskClick}/>
       </div>
     </div>
   );
 }
 
 // ============================================
-// 메인 앱
+// Step 5-2 — 진행중 작업 화면 (메인 통계 "진행중" 클릭 진입)
+// TASK_GROUPS 중 active / moving / external 3그룹만 표시
 // ============================================
-export default function AdminApp({ user, onLogout }) {
-  const [mode, setMode] = useState("dark");
-  const t = THEMES[mode];
+const IN_PROGRESS_GROUP_IDS = new Set(["active", "moving", "external"]);
+
+function InProgressListScreen({ t, onBack, onTaskClick }) {
+  const [query, setQuery] = useState("");
+  const groups = TASK_GROUPS.filter(g => IN_PROGRESS_GROUP_IDS.has(g.id));
+
+  const q = query.trim().toLowerCase();
+  const filtered = !q ? TASKS_TODAY : TASKS_TODAY.filter((s) => {
+    const fields = [s.customer, s.region, s.workType, s.engineer, s.note].filter(Boolean).join(" ").toLowerCase();
+    return fields.includes(q);
+  });
+  const activeCount = filtered.filter((s) => groups.some(g => g.predicate(s))).length;
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0A0A0A" }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 200, background: "rgba(10,10,10,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>
-          📊 대표님 대시보드
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>진행중 작업</div>
+          <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+            활성 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{activeCount}</span>건
+          </div>
         </div>
-        <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
-          운영 총괄 (모든 권한)
+      </div>
+
+      <div style={{ padding: "14px 16px 16px" }}>
+        <div style={{ position: "relative", marginBottom: 10 }}>
+          <Search size={13} style={{
+            position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+            color: t.textMuted, pointerEvents: "none",
+          }}/>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="고객 · 지역 · 작업 · 기사"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              padding: "8px 10px 8px 30px",
+              background: t.bgInset, border: `1px solid ${t.border}`,
+              borderRadius: 8, color: t.text,
+              fontSize: 12, fontFamily: "inherit", outline: "none",
+            }}
+          />
         </div>
-        <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-          {Object.entries(THEMES).map(([key, theme]) => {
-            const Icon = theme.icon;
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {groups.map((g) => {
+            const items = filtered.filter(g.predicate);
+            if (items.length === 0) return null;
             return (
-              <button key={key} onClick={() => setMode(key)} style={{
-                flex: 1, padding: "10px 8px",
-                background: mode === key ? (key === "dark" ? "#221C18" : "#FFFFFF") : "rgba(255,255,255,0.05)",
-                color: mode === key ? (key === "dark" ? "#FAF8F5" : "#0A0A0A") : "#888",
-                border: mode === key ? `1.5px solid ${theme.accent}` : "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              }}>
-                <Icon size={14}/><span>{theme.name}</span>
-              </button>
+              <TaskGroupSection
+                key={g.id}
+                t={t}
+                group={g}
+                items={items}
+                defaultOpen={true}
+                onTaskClick={onTaskClick}
+              />
+            );
+          })}
+          {activeCount === 0 && (
+            <div style={{ padding: "30px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+              {q ? "검색 결과가 없어요" : "현재 진행중 작업이 없어요"}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// Step 5-2 — 정산 화면 (메인 통계 "완료" 클릭 진입)
+// 탭 [기사 그룹][원청 그룹] · 그룹 카드 펼침/접힘
+// ============================================
+function getTodayDoneTasks() {
+  return TASKS_TODAY.filter((s) => s.type === "work" && s.state === "done");
+}
+
+function groupDoneByEngineer(tasks) {
+  const map = {};
+  for (const task of tasks) {
+    const key = task.engineer;
+    if (!map[key]) {
+      map[key] = {
+        engineer: key,
+        engineerId: task.engineerId,
+        rank: task.engineerRank,
+        level: task.engineerLevel,
+        tasks: [],
+        total: 0,
+      };
+    }
+    map[key].tasks.push(task);
+    map[key].total += calculateCommission(task).amount || 0;
+  }
+  return Object.values(map);
+}
+
+function groupDoneByPrincipal(tasks) {
+  const map = {};
+  for (const task of tasks) {
+    const key = task.principal;
+    if (!map[key]) {
+      map[key] = {
+        principal: key,
+        color: PRINCIPAL_COLORS[key] || "#888780",
+        tasks: [],
+        total: 0,
+      };
+    }
+    map[key].tasks.push(task);
+    map[key].total += calculateCommission(task).amount || 0;
+  }
+  return Object.values(map);
+}
+
+function SettlementScreen({ t, onBack, onTaskClick, onClickManagePrincipals }) {
+  const doneTasks = getTodayDoneTasks();
+  const totalToday = doneTasks.reduce((sum, task) => sum + (calculateCommission(task).amount || 0), 0);
+  const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
+
+  return (
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>정산 (오늘)</div>
+          <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+            완료 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{doneTasks.length}</span>건
+          </div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, letterSpacing: 0.5 }}>총</div>
+          <div className="mono" style={{ fontSize: 13, fontWeight: 800, color: t.accent }}>{fmtKRW(totalToday)}</div>
+        </div>
+      </div>
+      <SettlementContent t={t} onTaskClick={onTaskClick} onClickManagePrincipals={onClickManagePrincipals} containerPadding="14px 16px 16px" tabPadding="0 0 12px"/>
+    </div>
+  );
+}
+
+// Step 5-3 — 정산 콘텐츠 분리: SettlementScreen (헤더+합계) + 대시보드 정산 탭에서 공유
+function SettlementContent({ t, onTaskClick, onClickManagePrincipals, containerPadding, tabPadding }) {
+  const [activeTab, setActiveTab] = useState("engineers");  // "engineers" | "principals"
+  const [expanded, setExpanded] = useState(() => new Set());
+
+  const doneTasks = getTodayDoneTasks();
+  const engineerGroups = groupDoneByEngineer(doneTasks);
+  const principalGroups = groupDoneByPrincipal(doneTasks);
+
+  function toggle(key) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
+
+  return (
+    <div style={{ padding: containerPadding || "0" }}>
+      {/* Step 7 — 원청 관리 진입점 */}
+      {onClickManagePrincipals && (
+        <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 0 8px" }}>
+          <button
+            onClick={onClickManagePrincipals}
+            style={{
+              padding: "6px 12px", background: t.accentBg,
+              border: `1px solid ${t.accent}`, borderRadius: 7,
+              color: t.accent, fontSize: 11, fontWeight: 600,
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >🏢 원청 관리</button>
+        </div>
+      )}
+      <div style={{ padding: tabPadding || "0 0 12px", display: "flex", gap: 6 }}>
+        {[
+          { k: "engineers",  lbl: "👷 기사 그룹" },
+          { k: "principals", lbl: "🏢 원청 그룹" },
+        ].map((tab) => {
+          const active = activeTab === tab.k;
+          return (
+            <button key={tab.k} onClick={() => setActiveTab(tab.k)} style={{
+              flex: 1, padding: "9px 8px",
+              background: active ? t.bgElevated : "transparent",
+              border: active ? `1.5px solid ${t.accent}` : `1px solid ${t.border}`,
+              borderRadius: 9, fontSize: 11, fontWeight: 700,
+              color: active ? t.text : t.textMuted,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>{tab.lbl}</button>
+          );
+        })}
+      </div>
+
+      {doneTasks.length === 0 ? (
+        <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+          오늘 완료된 작업이 없어요
+        </div>
+      ) : activeTab === "engineers" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {engineerGroups.map((g) => {
+            const key = `E-${g.engineerId || g.engineer}`;
+            return (
+              <SettlementEngineerCard
+                key={key}
+                t={t}
+                group={g}
+                open={expanded.has(key)}
+                onToggle={() => toggle(key)}
+                onTaskClick={onTaskClick}
+              />
             );
           })}
         </div>
-        <button onClick={onLogout} style={{ width: "100%", padding: "8px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          <RotateCcw size={11}/><span>로그아웃 (다른 계정으로 로그인)</span>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {principalGroups.map((g) => {
+            const key = `P-${g.principal}`;
+            return (
+              <SettlementPrincipalCard
+                key={key}
+                t={t}
+                group={g}
+                open={expanded.has(key)}
+                onToggle={() => toggle(key)}
+                onTaskClick={onTaskClick}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
+  const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
+
+  return (
+    <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%", padding: "10px 12px",
+          background: "transparent", border: "none", cursor: "pointer",
+          color: t.text, fontFamily: "inherit", textAlign: "left",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+          <EngineerBadge
+            engineer={{ name: group.engineer, careerLevel: getCareerLevel({ rank: group.rank, level: group.level }) }}
+            role={group.level === "main" ? "main" : group.level === "backup" || group.level === "sub" ? "backup" : null}
+            size="sm"
+          />
+          <div style={{ flex: 1 }}/>
+          {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
+        </div>
+        <div style={{ fontSize: 11, color: t.textSecondary }}>
+          완료 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{group.tasks.length}</span>건
+          <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
+          정산금 <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(group.total)}</span>
+        </div>
+      </button>
+      {open && (
+        <div style={{ borderTop: `1px solid ${t.border}`, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+          {group.tasks.map((task) => {
+            const c = calculateCommission(task);
+            const itemSummary = `${task.workType} ×${task.qty || 1}`;
+            return (
+              <div
+                key={task.taskId}
+                onClick={() => onTaskClick && onTaskClick(task)}
+                className="clickable"
+                style={{
+                  padding: "8px 10px", background: t.bgInset, borderRadius: 8,
+                  display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                <CheckCircle2 size={12} style={{ color: t.success, flexShrink: 0 }}/>
+                <span className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{task.time}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{task.customer}</span>
+                <span style={{ fontSize: 11, color: t.textSecondary }}>({itemSummary})</span>
+                <div style={{ flex: 1 }}/>
+                <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>{fmtKRW(c.amount)}</span>
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 10, color: t.textMuted, paddingLeft: 4, paddingTop: 2 }}>
+            원청: {[...new Set(group.tasks.map(x => x.principal).filter(Boolean))].join(", ") || "—"}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick }) {
+  const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
+
+  return (
+    <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%", padding: "10px 12px",
+          background: "transparent", border: "none", cursor: "pointer",
+          color: t.text, fontFamily: "inherit", textAlign: "left",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13 }}>🏢</span>
+          <PrincipalLabel name={group.principal}/>
+          <div style={{ flex: 1 }}/>
+          {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
+        </div>
+        <div style={{ fontSize: 11, color: t.textSecondary }}>
+          완료 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{group.tasks.length}</span>건
+          <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
+          정산금 <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(group.total)}</span>
+        </div>
+      </button>
+      {open && (
+        <div style={{ borderTop: `1px solid ${t.border}`, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
+          {group.tasks.map((task) => {
+            const c = calculateCommission(task);
+            const itemSummary = `${task.workType} ×${task.qty || 1}`;
+            return (
+              <div
+                key={task.taskId}
+                onClick={() => onTaskClick && onTaskClick(task)}
+                className="clickable"
+                style={{
+                  padding: "8px 10px", background: t.bgInset, borderRadius: 8,
+                  display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                <CheckCircle2 size={12} style={{ color: t.success, flexShrink: 0 }}/>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{task.customer}</span>
+                <span style={{ fontSize: 11, color: t.textSecondary }}>({itemSummary})</span>
+                <span style={{ fontSize: 10, color: t.textMuted, whiteSpace: "nowrap" }}>· {task.engineer}</span>
+                <div style={{ flex: 1 }}/>
+                <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>{fmtKRW(c.amount)}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LiveWorkContent({ t, onTaskClick }) {
+  const [query, setQuery] = useState("");
+
+  // 검색: 고객명 / 지역 / 작업종류 / 기사명 / 외근 note
+  const q = query.trim().toLowerCase();
+  const filtered = !q ? TASKS_TODAY : TASKS_TODAY.filter((s) => {
+    const fields = [
+      s.customer, s.region, s.workType, s.engineer, s.note,
+    ].filter(Boolean).join(" ").toLowerCase();
+    return fields.includes(q);
+  });
+
+  return (
+    <div style={{ padding: "0 16px 16px" }}>
+      {/* 검색 */}
+      <div style={{ position: "relative", marginBottom: 10 }}>
+        <Search size={13} style={{
+          position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+          color: t.textMuted, pointerEvents: "none",
+        }}/>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="고객 · 지역 · 작업 · 기사"
+          style={{
+            width: "100%", boxSizing: "border-box",
+            padding: "8px 10px 8px 30px",
+            background: t.bgInset, border: `1px solid ${t.border}`,
+            borderRadius: 8, color: t.text,
+            fontSize: 12, fontFamily: "inherit", outline: "none",
+          }}
+        />
+      </div>
+
+      {/* 6 그룹 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {TASK_GROUPS.map((g) => {
+          const items = filtered.filter(g.predicate);
+          if (items.length === 0) return null;
+          return (
+            <TaskGroupSection
+              key={g.id}
+              t={t}
+              group={g}
+              items={items}
+              defaultOpen={g.id === "active"}
+              onTaskClick={onTaskClick}
+            />
+          );
+        })}
+        {filtered.length === 0 && (
+          <div style={{ padding: "30px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+            검색 결과가 없어요
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TaskGroupSection({ t, group, items, defaultOpen, onTaskClick }) {
+  const [open, setOpen] = useState(defaultOpen);
+  const color = t[group.colorKey] || t.textMuted;
+  return (
+    <div>
+      {/* 그룹 헤더 */}
+      <button
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 8,
+          padding: "6px 4px", marginBottom: 6,
+          background: "transparent", border: "none", cursor: "pointer",
+          color: t.text, fontFamily: "inherit", textAlign: "left",
+        }}
+      >
+        <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }}/>
+        <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{group.label}</span>
+        <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: color }}>{items.length}</span>
+        <div style={{ flex: 1 }}/>
+        {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
+      </button>
+      {/* 카드 리스트 */}
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {items.map((task) => (
+            <TaskCard key={task.taskId} t={t} task={task} groupColor={color} onClick={() => onTaskClick(task)}/>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 기사 상세 활동 정보 — 신규 배정만 펼침 (Step 4-3)
+function ActivityGroupSection({ t, group, defaultOpen, onTaskClick }) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 6,
+          padding: "6px 4px", marginBottom: 8,
+          background: "transparent", border: "none", cursor: "pointer",
+          color: t.text, fontFamily: "inherit", textAlign: "left",
+        }}
+      >
+        <span style={{ fontSize: 12 }}>{group.icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 800, color: group.color }}>{group.label}</span>
+        <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: group.color }}>{group.items.length}건</span>
+        <div style={{ flex: 1 }}/>
+        {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
+      </button>
+      {open && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {group.items.map(task => (
+            <TaskCard
+              key={task.taskId} t={t} task={task}
+              groupColor={group.color}
+              showCompanyProfit={group.showProfit}
+              onClick={() => onTaskClick && onTaskClick(task)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
+  const isExternal = task.type === "external";
+  // 외근: customer 슬롯 = note (앞부분), workType = "외근"
+  const titleText = isExternal ? (task.note || "외근") : task.customer;
+  const workTypeText = isExternal ? "외근" : task.workType;
+  const qtyText = !isExternal && task.qty ? ` ×${task.qty}` : "";
+  const commission = (showCompanyProfit && !isExternal && task.principal && task.state === "done") ? calculateCommission(task) : null;
+  const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
+
+  // AdminApp-fix1 — 좌측 보더 무채색 / 우측 상단 작은 배지만 색
+  const isActive = task.state === "active";
+  const pillLabel = (() => {
+    if (isExternal) return "외근";
+    if (task.state === "active")    return "진행중";
+    if (task.state === "moving")    return "이동중";
+    if (task.state === "waiting")   return "대기";
+    if (task.state === "scheduled") return "예정";
+    if (task.state === "done")      return "완료";
+    return null;
+  })();
+  const pillCfg = (() => {
+    if (isExternal)                 return { bg: "rgba(127,119,221,0.15)",  color: "#7F77DD" }; // 외근 = 보라
+    if (task.state === "active")    return { bg: "rgba(255,27,141,0.15)",   color: "#FF1B8D" }; // 진행중 = 핫핑크
+    if (task.state === "moving")    return { bg: "rgba(255,179,0,0.15)",    color: "#FFB300" }; // 이동중 = 노랑
+    if (task.state === "done")      return { bg: "rgba(0,135,90,0.15)",     color: "#00875A" }; // 완료 = 그린
+    return { bg: t.bgInset || t.bgElevated, color: t.textSecondary };                            // 대기/예정 = 무채색
+  })();
+
+  return (
+    <div onClick={onClick} className="clickable" style={{
+      background: t.bgElevated,
+      border: `1px solid ${t.border}`,
+      borderLeft: `3px solid ${t.border}`,  // 무채색 통일
+      borderRadius: 10, padding: "10px 12px",
+      position: "relative",
+    }}>
+      {/* 우측 상단 상태 배지 — 작게 + 종류색 */}
+      {pillLabel && (
+        <div style={{
+          position: "absolute", top: 8, right: 8,
+          background: pillCfg.bg,
+          color: pillCfg.color,
+          padding: "2px 8px", borderRadius: 10,
+          fontSize: 9, fontWeight: 700,
+        }}>
+          {pillLabel}
+        </div>
+      )}
+
+      {/* 1행: 고객(또는 외근 note) — dot 제거 (알약으로 대체) */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 6, paddingRight: 56 }}>
+        <span style={{
+          fontSize: 13, fontWeight: 800, color: t.text,
+          flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{titleText}</span>
+      </div>
+
+      {/* 2행: workType · region */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: t.textSecondary, marginBottom: 4 }}>
+        {!isExternal && <ServiceTypeIcon workType={task.workType} size={12} showLabel={false}/>}
+        <span style={{ fontWeight: 600, color: t.text }}>{workTypeText}{qtyText}</span>
+        {task.region && (
+          <>
+            <span style={{ color: t.textDim }}>·</span>
+            <span style={{
+              flex: 1, minWidth: 0, color: t.textMuted,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>{task.region}</span>
+          </>
+        )}
+      </div>
+
+      {/* 3행: 시간 · EngineerBadge › */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
+        <Clock size={11} style={{ color: t.textMuted, flexShrink: 0 }}/>
+        <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{task.time}</span>
+        <span style={{ color: t.textDim }}>·</span>
+        {task.engineer && (
+          <EngineerBadge
+            engineer={{ name: task.engineer, careerLevel: getCareerLevel({ rank: task.engineerRank, level: task.engineerLevel }) }}
+            role={task.engineerLevel === "main" ? "main" : (task.engineerLevel === "backup" || task.engineerLevel === "sub") ? "backup" : null}
+            size="sm"
+          />
+        )}
+        <div style={{ flex: 1 }}/>
+        <ChevronRight size={13} style={{ color: t.textMuted, flexShrink: 0 }}/>
+      </div>
+
+      {/* 회사 수익 (기사 상세 완료 그룹에서만 노출 — 사장님 catch: 색깔 X / 임시 라벨) */}
+      {commission && (
+        <div style={{
+          marginTop: 6, paddingTop: 6,
+          borderTop: `1px dashed ${t.border}`,
+          display: "flex", alignItems: "center", gap: 6, fontSize: 11,
+        }}>
+          <span style={{ fontSize: 11 }}>🏢</span>
+          <span style={{ color: t.textMuted, fontWeight: 600 }}>회사 수익</span>
+          <span className="mono" style={{ color: t.textSecondary, fontWeight: 700 }}>{fmtKRW(commission.amount)}</span>
+          <div style={{ flex: 1 }}/>
+          <span style={{ fontSize: 9, color: t.textMuted, fontStyle: "italic" }}>임시</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 시안 C — 기사 오늘 (Step 4)
+// ─────────────────────────────────────────────
+
+function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
+  if (!engineer) return <PlaceholderScreen t={t} title="기사 오늘" label="기사 정보 없음" onBack={onBack}/>;
+
+  const schedule = engineer.todaySchedule || [];
+  const stats = getEngineerStats(engineer.id, TODAY_DATE);
+
+  // 활동 카드 렌더링용 — 기사 정보 주입 (TaskCard 재사용)
+  const enrichedItems = stats.items.map((a, idx) => ({
+    ...a,
+    taskId:        `${engineer.id}-A-${idx}`,
+    engineerId:    engineer.id,
+    engineer:      engineer.name,
+    engineerRank:  engineer.rank,
+    engineerLevel: engineer.level,
+  }));
+
+  const groups = [
+    { id: "assigned",  label: "신규 배정", icon: "📋", color: t.success,
+      items: enrichedItems.filter(a => a.state === "waiting"),
+      showProfit: false },
+    { id: "confirmed", label: "일정 확정", icon: "📅", color: t.text,
+      items: enrichedItems.filter(a => a.state === "scheduled" || a.state === "moving" || a.state === "active"),
+      showProfit: false },
+    { id: "completed", label: "완료",     icon: "✓",  color: t.textSecondary,
+      items: enrichedItems.filter(a => a.state === "done" && a.completedDate === TODAY_DATE),
+      showProfit: true },
+  ];
+
+  return (
+    <div className="fade-in">
+      {/* 헤더 */}
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
         </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <EngineerBadge engineer={engineer} role={engineer.level === "main" ? "main" : (engineer.level === "backup" || engineer.level === "sub") ? "backup" : null} size="lg"/>
+          </div>
+          <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+            {engineer.region} · 오늘 일정 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{schedule.length}</span>건
+          </div>
+        </div>
+        {stats.todayAssigned > 0 && (
+          <span style={{
+            fontSize: 11, fontWeight: 700,
+            padding: "4px 10px",
+            background: t.bgInset, border: `1px solid ${t.border}`,
+            color: t.textSecondary, borderRadius: 6,
+            whiteSpace: "nowrap", flexShrink: 0,
+            display: "inline-flex", alignItems: "baseline", gap: 3,
+          }}>
+            오늘 <span className="mono" style={{ fontWeight: 800 }}>+{stats.todayAssigned}</span>
+          </span>
+        )}
       </div>
-      
-      <div style={{ maxWidth: 420, margin: "0 auto", position: "relative" }}>
-        <AdminDashboard t={t}/>
+
+      <div style={{ padding: "14px 16px 16px" }}>
+        {/* 활동 요약 — 3박스 grid (사장님 catch: newAssigned / confirmed / todayDone) */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 14 }}>
+          <ActivityBox t={t} label="신규 배정" value={stats.newAssigned} bg={t.successBg} color={t.success}/>
+          <ActivityBox t={t} label="일정 확정" value={stats.confirmed}   bg={t.bgInset}   color={t.text}/>
+          <ActivityBox t={t} label="완료"     value={stats.todayDone}   bg={t.bgInset}   color={t.textSecondary}/>
+        </div>
+
+        {/* 타임라인 헤더 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+          <Calendar size={12} style={{ color: t.textMuted }}/>
+          <div style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
+            오늘 타임라인
+          </div>
+        </div>
+
+        {/* 타임라인 카드 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+          {schedule.length === 0 ? (
+            <div style={{ padding: "20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>일정 없음</div>
+          ) : schedule.map((slot, idx) => {
+            const isWork = slot.type === "work";
+            const handleClick = isWork && onTaskClick ? () => {
+              // 단일 진실 소스: TASKS_TODAY 에서 매칭 항목 찾아 전달
+              const match = TASKS_TODAY.find(x => x.engineerId === engineer.id && x.taskCode === slot.taskCode);
+              onTaskClick(match || { ...slot, engineer: engineer.name, engineerRank: engineer.rank, engineerLevel: engineer.level, engineerId: engineer.id });
+            } : undefined;
+            return <TimelineItem key={idx} t={t} slot={slot} onClick={handleClick}/>;
+          })}
+        </div>
+
+        {/* ───── 활동 정보 (Step 4-3: 신규 배정만 펼침 — 작업 탭과 일관) ───── */}
+        {(groups[0].items.length + groups[1].items.length + groups[2].items.length) > 0 && (
+          <>
+            <div style={{ height: 1, background: t.border, margin: "0 0 14px" }}/>
+            {groups.map(g => g.items.length === 0 ? null : (
+              <ActivityGroupSection
+                key={g.id} t={t} group={g}
+                defaultOpen={g.id === "assigned"}
+                onTaskClick={onTaskClick}
+              />
+            ))}
+          </>
+        )}
+
+        {/* 기사 통화 */}
+        {engineer.phone && (
+          <a href={`tel:${engineer.phone}`} style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            padding: "11px 14px",
+            background: t.accentBg, border: `1px solid ${t.accentBorder}`, borderRadius: 10,
+            color: t.accent, fontSize: 12, fontWeight: 800, textDecoration: "none",
+          }}>
+            <Phone size={14}/>
+            <span>기사 통화</span>
+            <span className="mono" style={{ fontSize: 11, fontWeight: 700, opacity: 0.7 }}>{engineer.phone}</span>
+          </a>
+        )}
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 작업 상세 — Step 4
+// ─────────────────────────────────────────────
+
+// 사진 박스 — 기본 접힘 (Step 4-4 정정 / 사장님 catch: 작업 상세 너무 길어짐 방지)
+function PhotoBox({ t, photos }) {
+  const [open, setOpen] = useState(false);
+  const total = (photos.before || 0) + (photos.after || 0);
+  const empty = total === 0;
+  const handlePhotoClick = (label) => {
+    // Drive 폴더의 사진 큰 보기 모달 — 준비 중인 기능
+    console.log("[photo]", label);
+  };
+  const handleFolderClick = () => {
+    // 외부 Drive 폴더 새 탭으로 열기 (URL이 있을 때)
+    if (photos.driveUrl) {
+      window.open(photos.driveUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`,
+      borderRadius: 10, padding: "12px 14px", marginBottom: 8,
+    }}>
+      {/* 헤더 (클릭 토글) */}
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: "100%", display: "flex", alignItems: "center", gap: 6,
+          background: "transparent", border: "none", cursor: "pointer",
+          color: t.text, fontFamily: "inherit", textAlign: "left", padding: 0,
+        }}
+      >
+        <span style={{ fontSize: 13 }}>📷</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>작업 사진</span>
+        <span style={{ color: t.textDim }}>·</span>
+        {empty ? (
+          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>사진 없음</span>
+        ) : (
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>총 {total}장</span>
+        )}
+        <div style={{ flex: 1 }}/>
+        {open
+          ? <ChevronDown size={14} style={{ color: t.textMuted }}/>
+          : <ChevronRight size={14} style={{ color: t.textMuted }}/>}
+      </button>
+
+      {/* 본문 (펼침 시) */}
+      {open && (
+        <div style={{ marginTop: 10 }}>
+          {empty ? (
+            <div style={{ padding: "10px 0", color: t.textMuted, fontSize: 11, textAlign: "center" }}>
+              아직 사진이 등록되지 않았어요
+            </div>
+          ) : (
+            <>
+              {photos.before > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: t.textSecondary, marginBottom: 6 }}>
+                    🔍 작업 전 ({photos.before}장)
+                  </div>
+                  <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+                    {Array.from({ length: photos.before }).map((_, i) => (
+                      <PhotoThumbnail key={`b-${i}`} t={t} type="before" label={`Before ${i + 1}`}
+                        onClick={() => handlePhotoClick(`Before ${i + 1}`)}/>
+                    ))}
+                  </div>
+                </>
+              )}
+              {photos.after > 0 && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: t.textSecondary, marginTop: 8, marginBottom: 6 }}>
+                    ✨ 작업 후 ({photos.after}장)
+                  </div>
+                  <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 4 }}>
+                    {Array.from({ length: photos.after }).map((_, i) => (
+                      <PhotoThumbnail key={`a-${i}`} t={t} type="after" label={`After ${i + 1}`}
+                        onClick={() => handlePhotoClick(`After ${i + 1}`)}/>
+                    ))}
+                  </div>
+                </>
+              )}
+              <button onClick={handleFolderClick} style={{
+                marginTop: 10, width: "100%",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                padding: "9px 12px",
+                background: t.bgInset, color: t.textSecondary,
+                border: `1px solid ${t.border}`, borderRadius: 8,
+                fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              }}>
+                📂 사진 폴더 보기 →
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 사진 썸네일 — CSS 단색 박스 (Step 4-4 / 외부 의존 X)
+function PhotoThumbnail({ t, label, type, onClick }) {
+  const isBefore = type === "before";
+  return (
+    <button onClick={onClick} className="clickable" style={{
+      width: 60, height: 60,
+      background: t.bgInset,
+      border: `1px solid ${t.border}`,
+      borderRadius: 6, cursor: "pointer",
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      gap: 2, flexShrink: 0,
+      fontFamily: "inherit", padding: 0,
+    }}>
+      <div style={{ fontSize: 16, lineHeight: 1 }}>{isBefore ? "🔍" : "✨"}</div>
+      <div className="mono" style={{
+        fontSize: 9, fontWeight: 700,
+        color: t.textSecondary,
+        lineHeight: 1.2,
+      }}>{label}</div>
+    </button>
+  );
+}
+
+function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, user }) {
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
+  const memos = task ? loadMemos(task.id) : [];
+  const historyCount = task ? getHistoryCount(task.id) : 0;
+  const canSeeHistory = user && ["owner", "admin"].includes(user.role);
+  if (!task) return <PlaceholderScreen t={t} title="작업 상세" label="작업 정보 없음" onBack={onBack}/>;
+
+  const isExternal = task.type === "external";
+  const total      = (task.estimateTotal || 0) + (task.addonFee || 0);
+  const principalColor = PRINCIPAL_COLORS[task.principal] || t.textSecondary;
+  const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
+
+  // 진행 상태 표기
+  const stateLabel = (() => {
+    if (isExternal) return { icon: "🌐", label: "외근", color: t.purple, sub: task.note };
+    if (task.state === "done")      return { icon: "✓",  label: "완료",   color: t.textSecondary, sub: task.completedAt ? `완료 ${task.completedAt}` : null };
+    if (task.state === "active")    return { icon: "🟢", label: "진행중", color: t.success,        sub: task.startedAt  ? `시작 ${task.startedAt}` : null };
+    if (task.state === "moving")    return { icon: "🟡", label: "이동중", color: t.warning,        sub: null };
+    if (task.state === "waiting")   return { icon: "⏳", label: "대기 중", color: t.textMuted,      sub: null };
+    if (task.state === "scheduled") return { icon: "📅", label: "예정",   color: t.text,           sub: task.time ? `예정 ${task.time}` : null };
+    return { icon: "—", label: "미정", color: t.textMuted, sub: null };
+  })();
+
+  const Box = ({ children, style }) => (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`,
+      borderRadius: 10, padding: "12px 14px", marginBottom: 8,
+      ...style,
+    }}>{children}</div>
+  );
+
+  const Row = ({ icon, label, value, valueStyle }) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, lineHeight: 1.6, fontSize: 12 }}>
+      {icon && <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0 }}>{icon}</span>}
+      {label && <span style={{ color: t.textMuted, fontWeight: 600, minWidth: 64, flexShrink: 0 }}>{label}</span>}
+      <span style={{ color: t.text, flex: 1, minWidth: 0, ...(valueStyle || {}) }}>{value}</span>
+    </div>
+  );
+
+  // V10 — 헤더 [⋯] 메뉴 액션 통합
+  function handleMenuAction(action, taskArg) {
+    if (action === "call") {
+      const phone = taskArg.phone;
+      if (phone) window.location.href = `tel:${phone}`;
+      return;
+    }
+    if (action === "memo")        return onMemoAdd && onMemoAdd();
+    if (action === "edit")        return onEdit && onEdit();
+    if (action === "visit_only")  return setShowVisitOnlyDialog(true);
+    if (action === "cancel")      return setShowCancelDialog(true);
+    // 그 외 (detail/change_engineer/change_schedule/complete/partial)는 무시
+    // (이 화면에서는 자체 액션 또는 단계별 큰 버튼이 처리)
+  }
+
+  return (
+    <div className="fade-in">
+      {/* 헤더 */}
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>작업 상세</div>
+          {task.taskCode && (
+            <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 600 }}>
+              {task.taskCode}
+            </div>
+          )}
+        </div>
+        <TaskCardMenu task={task} onAction={handleMenuAction}/>
+      </div>
+
+      <div style={{ padding: "14px 16px 20px" }}>
+        {/* 원청 + 작업번호 */}
+        {(task.principal || task.taskCode) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+            {task.principal && (
+              <span style={{
+                fontSize: 10, fontWeight: 800, padding: "3px 8px",
+                background: principalColor + "1F", color: principalColor,
+                borderRadius: 4,
+              }}>{task.principal}</span>
+            )}
+            {task.taskCode && (
+              <span className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>
+                {task.taskCode}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* 고객 정보 */}
+        <Box>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <Row icon="👤" value={
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <span style={{ fontSize: 14, fontWeight: 800 }}>{isExternal ? (task.note || "외근") : (task.customer || "—")}</span>
+                {task.hasRefrigerant && task.workType !== "냉매충전" && (
+                  <Zap size={13} style={{ color: t.warning }} aria-label="냉매 포함"/>
+                )}
+              </span>
+            }/>
+            {task.phone && (
+              <Row icon="📞"
+                value={
+                  <a href={`tel:${task.phone}`} className="mono" style={{ color: t.accent, fontWeight: 700, textDecoration: "none" }}>
+                    {task.phone}
+                  </a>
+                }/>
+            )}
+            {task.address && <Row icon="📍" value={<span style={{ color: t.textSecondary }}>{task.address}</span>}/>}
+          </div>
+        </Box>
+
+        {/* 작업 정보 */}
+        <Box>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {/* Step 5-1c — workItems 복수면 항목별 리스트 */}
+            {Array.isArray(task.workItems) && task.workItems.length > 1 ? (
+              <>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+                  <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0 }}>🔧</span>
+                  <span style={{ color: t.textMuted, fontWeight: 600 }}>작업 항목</span>
+                  <span className="mono" style={{ color: t.accent, fontWeight: 800 }}>{task.workItems.length}건</span>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 24, marginTop: 2 }}>
+                  {task.workItems.map((item, idx) => (
+                    <div key={idx} style={{ fontSize: 12, color: t.text, display: "flex", alignItems: "center", gap: 6 }}>
+                      <span className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, minWidth: 18 }}>#{idx + 1}</span>
+                      <span style={{ fontWeight: 700 }}>{item.workType}</span>
+                      {item.workType !== "냉매충전" && item.appliance && (
+                        <span style={{ color: t.textMuted }}>· {item.appliance}</span>
+                      )}
+                      <span className="mono" style={{ color: t.accent, fontWeight: 700 }}>×{item.qty || 1}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ paddingLeft: 24, fontSize: 10, color: t.textMuted, fontWeight: 600 }}>
+                  · 총 작업 <span className="mono" style={{ color: t.textSecondary, fontWeight: 700 }}>{task.workItems.reduce((s, x) => s + (x.qty || 0), 0)}</span>대
+                </div>
+              </>
+            ) : (
+              <Row icon="🔧" value={
+                <span>
+                  <span style={{ fontWeight: 700 }}>{isExternal ? "외근" : task.workType}</span>
+                  {task.qty ? <span style={{ color: t.textMuted }}> ×{task.qty}</span> : null}
+                  {task.appliance ? <span style={{ color: t.textMuted }}> · {task.appliance}</span> : null}
+                </span>
+              }/>
+            )}
+            <Row icon="📅" value={
+              <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{task.time}</span>
+            }/>
+            {task.region && (
+              <Row icon="📍" label="지역" value={<span style={{ color: t.textSecondary }}>{task.region}</span>}/>
+            )}
+          </div>
+        </Box>
+
+        {/* 금액 — state별 분기 (사장님 catch: 현장추가는 완료 후만 표시) */}
+        {!isExternal && (task.estimateTotal != null) && (() => {
+          const isDone = task.state === "done";
+          const sumEstimate = task.estimateTotal || 0;
+          const sumTotal    = isDone ? sumEstimate + (task.addonFee || 0) : sumEstimate;
+          return (
+            <Box>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: t.textMuted, fontWeight: 600 }}>💰 견적금액</span>
+                  <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{fmtKRW(sumEstimate)}</span>
+                </div>
+                {isDone && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ color: t.textMuted, fontWeight: 600 }}>현장 추가</span>
+                    <span className="mono" style={{ color: task.addonFee ? t.warning : t.textMuted, fontWeight: 700 }}>
+                      {fmtKRW(task.addonFee || 0)}
+                    </span>
+                  </div>
+                )}
+                <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: t.text, fontWeight: 800 }}>{isDone ? "합계" : "예상 합계"}</span>
+                  <span className="mono" style={{ color: t.text, fontWeight: 800, fontSize: 13 }}>{fmtKRW(sumTotal)}</span>
+                </div>
+                {!isDone && (
+                  <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontStyle: "italic" }}>
+                    ※ 현장추가는 작업 완료 후 입력
+                  </div>
+                )}
+              </div>
+            </Box>
+          );
+        })()}
+
+        {/* 회사 수익 — 사장님 catch (Step 4-2): 완료(done)에서만 표시 / "임시" 라벨 */}
+        {!isExternal && task.principal && task.state === "done" && (() => {
+          const c = calculateCommission(task);
+          const rateText = c.rate == null ? `정액 ${fmtKRW(c.amount)}` : `${c.rate}% 비율`;
+          return (
+            <Box>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0 }}>🏢</span>
+                  <span style={{ color: t.text, fontWeight: 800 }}>회사 수익</span>
+                  <div style={{ flex: 1 }}/>
+                  <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 600, fontStyle: "italic" }}>
+                    임시 — 정책 v5 적용 예정
+                  </span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: t.textMuted, fontWeight: 600 }}>원청</span>
+                  <span style={{ color: principalColor, fontWeight: 800 }}>{task.principal}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: t.textMuted, fontWeight: 600 }}>정산 방식</span>
+                  <span className="mono" style={{ color: t.textSecondary, fontWeight: 700 }}>{rateText}</span>
+                </div>
+                <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ color: t.success, fontWeight: 800 }}>✓ 확정 수익</span>
+                  <span className="mono" style={{
+                    color: t.success, fontWeight: 800, fontSize: 13,
+                  }}>{fmtKRW(c.amount)}</span>
+                </div>
+              </div>
+            </Box>
+          );
+        })()}
+
+        {/* 요청사항 */}
+        {task.memo && (
+          <Box>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 8, lineHeight: 1.6, fontSize: 12 }}>
+              <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0, marginTop: 1 }}>📝</span>
+              <span style={{ color: t.textSecondary, fontStyle: "italic" }}>"{task.memo}"</span>
+            </div>
+          </Box>
+        )}
+
+        {/* 담당 기사 */}
+        {task.engineer && (
+          <Box>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+              <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0 }}>👷</span>
+              <EngineerBadge
+                engineer={{ name: task.engineer, careerLevel: getCareerLevel({ rank: task.engineerRank, level: task.engineerLevel }) }}
+                role={task.engineerLevel === "main" ? "main" : (task.engineerLevel === "backup" || task.engineerLevel === "sub") ? "backup" : null}
+                size="lg"
+              />
+            </div>
+          </Box>
+        )}
+
+        {/* 진행 상태 */}
+        <Box>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
+            <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0 }}>📋</span>
+            <span style={{ color: t.textMuted, fontWeight: 600, minWidth: 64 }}>진행 상태</span>
+            <span style={{ fontSize: 12 }}>{stateLabel.icon}</span>
+            <span style={{ color: stateLabel.color, fontWeight: 800 }}>{stateLabel.label}</span>
+            {stateLabel.sub && (
+              <span className="mono" style={{ color: t.textMuted, fontSize: 11, fontWeight: 600 }}>· {stateLabel.sub}</span>
+            )}
+          </div>
+        </Box>
+
+        {/* 작업 사진 — 완료(done)만 / Step 4-4 정정: 기본 접힘 */}
+        {task.state === "done" && task.photos && (
+          <PhotoBox t={t} photos={task.photos}/>
+        )}
+
+        {/* V10 — 통화/메모/수정은 헤더 [⋯] 메뉴로 통합 (큰 버튼 3개 제거) */}
+
+        {/* Step 11 — 수정 이력 (운영자/관리자 + 1건 이상) */}
+        {canSeeHistory && historyCount > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <button
+              onClick={() => onHistory && onHistory()}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                background: "transparent",
+                border: `1px solid ${t.border}`,
+                color: t.textSecondary,
+                fontSize: 12, fontWeight: 600,
+                borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              📜 수정 이력 보기 <span className="mono" style={{ color: t.accent, fontWeight: 700 }}>({historyCount}건)</span>
+            </button>
+          </div>
+        )}
+
+        {/* Step 8+9 V8 — 메모 섹션 */}
+        <div style={{
+          marginTop: 14, paddingTop: 12,
+          borderTop: `1px solid ${t.border}`,
+        }}>
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            marginBottom: 8,
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
+              📝 메모 <span className="mono" style={{ color: t.textMuted, fontWeight: 600 }}>{memos.length}</span>
+            </span>
+            <button
+              onClick={() => onMemoAdd && onMemoAdd()}
+              style={{
+                background: "transparent", border: `1px solid ${t.border}`,
+                color: t.accent, fontSize: 11, fontWeight: 600,
+                padding: "4px 10px", borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >＋ 메모 추가</button>
+          </div>
+          {memos.length === 0 ? (
+            <div style={{
+              fontSize: 11, color: t.textMuted,
+              padding: "10px 12px",
+              background: t.bgInset, borderRadius: 8,
+              textAlign: "center",
+            }}>아직 메모가 없습니다</div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {memos.map(m => (
+                <div key={m.id} style={{
+                  background: t.bgElevated, border: `1px solid ${t.border}`,
+                  borderRadius: 8, padding: "8px 10px",
+                }}>
+                  <div style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                    marginBottom: 4, fontSize: 10, color: t.textMuted, fontWeight: 600,
+                  }}>
+                    <span>{getMemoTypeLabel(m.type)}</span>
+                    <span className="mono">
+                      {new Date(m.createdAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: t.text, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                    {m.content}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Step 8+9 V7 — 활성 단계 액션 (출장비만 / 작업 취소) */}
+        {!isExternal && task.state !== "done" && (
+          <div style={{
+            marginTop: 18, paddingTop: 14,
+            borderTop: `1px solid ${t.border}`,
+            display: "flex", flexDirection: "column", gap: 8,
+          }}>
+            {/* 진행중 (active/moving)일 때 [🚗 출장비만] 노출 */}
+            {(task.state === "active" || task.state === "moving") && (
+              <button
+                onClick={() => setShowVisitOnlyDialog(true)}
+                style={{
+                  width: "100%", padding: "12px",
+                  background: "rgba(245, 158, 11, 0.10)",
+                  border: "1px solid rgba(245, 158, 11, 0.30)",
+                  color: "#FF1B8D", fontSize: 13, fontWeight: 600,
+                  borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >🚗 출장비만 정산 (작업 못함)</button>
+            )}
+            <button
+              onClick={() => setShowCancelDialog(true)}
+              style={{
+                width: "100%", padding: "12px",
+                background: "rgba(239, 68, 68, 0.10)",
+                border: "1px solid rgba(239, 68, 68, 0.30)",
+                color: "#FF3D5A", fontSize: 13, fontWeight: 600,
+                borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >⚫ 작업 취소</button>
+          </div>
+        )}
+      </div>
+
+      {/* 취소 다이얼로그 */}
+      {showCancelDialog && (
+        <TaskCancelDialog
+          task={task}
+          onClose={() => setShowCancelDialog(false)}
+          onConfirm={(reasonId, memo) => {
+            setShowCancelDialog(false);
+            onCancelTask && onCancelTask(reasonId, memo);
+          }}
+        />
+      )}
+
+      {/* 출장비만 다이얼로그 */}
+      {showVisitOnlyDialog && (
+        <VisitOnlyDialog
+          task={task}
+          onClose={() => setShowVisitOnlyDialog(false)}
+          onConfirm={(payload) => {
+            setShowVisitOnlyDialog(false);
+            onVisitOnly && onVisitOnly(payload);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Step 8+9 V2 — 작업 취소 다이얼로그 (사유 4개 + 메모)
+function TaskCancelDialog({ task, onClose, onConfirm }) {
+  const reasons = [
+    { id: "customer", emoji: "🙅", label: "고객 사정으로 취소", desc: "일정 변경 / 단순 변심 등" },
+    { id: "schedule", emoji: "📅", label: "일정 조율 실패",     desc: "기사·고객 시간이 안 맞음" },
+    { id: "onsite",   emoji: "⚠️", label: "현장 작업 불가",     desc: "기종 다름 / 접근 불가 등" },
+    { id: "other",    emoji: "📝", label: "기타",              desc: "메모에 상세 입력" },
+  ];
+  const [selectedId, setSelectedId] = useState("customer");
+  const [memo, setMemo] = useState("");
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0,
+        background: "rgba(0,0,0,0.7)", zIndex: 100,
+        display: "flex", alignItems: "flex-end", justifyContent: "center",
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "100%", maxWidth: 480, maxHeight: "85vh",
+          background: "#1A1512", borderRadius: "16px 16px 0 0",
+          padding: "20px 16px", overflow: "auto",
+          fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+          color: "#fff",
+        }}
+      >
+        <div style={{ fontSize: 16, fontWeight: 700, color: "#FAF8F5", marginBottom: 4 }}>
+          작업 취소
+        </div>
+        <div style={{ fontSize: 11, color: "#888780", marginBottom: 16 }}>
+          {task?.customer ? `${task.customer} · ` : ""}취소 사유를 선택해주세요
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {reasons.map(r => {
+            const active = selectedId === r.id;
+            return (
+              <div
+                key={r.id}
+                onClick={() => setSelectedId(r.id)}
+                style={{
+                  padding: "12px 14px",
+                  background: active ? "rgba(239,68,68,0.10)" : "#221C18",
+                  border: `1px solid ${active ? "#FF3D5A" : "#2A2420"}`,
+                  borderRadius: 8, cursor: "pointer",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 2 }}>
+                  <span style={{ fontSize: 14 }}>{r.emoji}</span>
+                  <span style={{
+                    fontSize: 13, color: active ? "#FF3D5A" : "#FAF8F5",
+                    fontWeight: active ? 600 : 500,
+                  }}>{r.label}</span>
+                </div>
+                <div style={{ fontSize: 10, color: "#888780", paddingLeft: 22 }}>
+                  {r.desc}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: "#888780", marginBottom: 6, fontWeight: 500 }}>
+            메모 (선택)
+          </div>
+          <textarea
+            value={memo}
+            onChange={(e) => setMemo(e.target.value)}
+            placeholder="예: 고객 일정이 갑자기 변경됨"
+            rows={2}
+            style={{
+              width: "100%", background: "#221C18",
+              border: "1px solid #2A2420", borderRadius: 8,
+              padding: "10px 12px", color: "#fff",
+              fontSize: 12, fontFamily: "inherit",
+              outline: "none", boxSizing: "border-box", resize: "vertical",
+            }}
+          />
+        </div>
+
+        <div style={{ display: "flex", gap: 10 }}>
+          <button onClick={onClose} style={{
+            flex: 1, background: "#221C18", border: "1px solid #2A2420",
+            color: "#888780", fontSize: 14, fontWeight: 500,
+            padding: 12, borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+          }}>닫기</button>
+          <button onClick={() => onConfirm(selectedId, memo)} style={{
+            flex: 2, background: "#FF3D5A", border: "none",
+            color: "#fff", fontSize: 14, fontWeight: 600,
+            padding: 12, borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+          }}>취소 확정</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────
+// 시안 5-V3 — 추천 기사 (Step 2-3 ✓)
+// ─────────────────────────────────────────────
+
+// ============================================
+// Step 5-3 — 자동 배정 화면 (auto_first_accept workflow)
+// 후보 기사 알림 전송 → 3초 카운트다운 → 첫 후보 자동 수락 (Phase 1 mock)
+// Phase 2 — Web Push + Supabase Realtime 실시간 처리
+// ============================================
+function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
+  const [candidates, setCandidates] = useState([]);
+  const [countdown, setCountdown] = useState(3);
+  const [acceptedEngineer, setAcceptedEngineer] = useState(null);
+
+  // 후보 추출 (initial) — Step 5-3 v3: broadcast (zone 매칭 우선 + 추가 메인 기사)
+  useEffect(() => {
+    if (!task) return;
+    const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
+    const headItem = (task.workItems && task.workItems[0]) || { appliance: task.appliance };
+    const broadcast = getAutoBroadcastCandidates(mainWorkType, task.region, headItem.appliance, task.pushCount || 4);
+    setCandidates(broadcast);
+  }, [task]);
+
+  // 카운트다운
+  useEffect(() => {
+    if (acceptedEngineer || countdown <= 0) return;
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown, acceptedEngineer]);
+
+  // 0초 도달 + 후보 있음 → 첫 후보 자동 수락 (mock)
+  useEffect(() => {
+    if (countdown === 0 && !acceptedEngineer && candidates.length > 0) {
+      setAcceptedEngineer(candidates[0]);
+    }
+  }, [countdown, acceptedEngineer, candidates]);
+
+  if (!task) {
+    return <PlaceholderScreen t={t} title="자동 배정" label="작업 정보 없음" onBack={onBack}/>;
+  }
+
+  const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
+  const headItem = (task.workItems && task.workItems[0]) || { appliance: task.appliance, qty: task.qty };
+  const principalColor = PRINCIPAL_COLORS[task.principal] || t.textSecondary;
+  const itemSummary = (task.workItems && task.workItems.length > 0)
+    ? formatWorkItems(task.workItems)
+    : `${mainWorkType}${headItem.qty ? ` ×${headItem.qty}` : ""}`;
+
+  // ===== 결과 화면 (early-return 분리 — 사장님 catch 정정) =====
+  if (acceptedEngineer) {
+    return (
+      <div className="fade-in">
+        <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+          <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+            <ArrowLeft size={18}/>
+          </button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>자동 배정 완료</div>
+            <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+              {mainWorkType} · {extractZone(task.region) || task.region || "—"}
+            </div>
+          </div>
+        </div>
+
+        <div style={{ padding: "24px 16px 20px" }}>
+          {/* 큰 성공 박스 — 가운데 강조 */}
+          <div style={{
+            background: t.successBg || "rgba(34,197,94,0.10)",
+            border: `2px solid ${t.success}`,
+            borderRadius: 16,
+            padding: "32px 20px",
+            textAlign: "center",
+            marginBottom: 16,
+          }}>
+            <div style={{ fontSize: 48, color: t.success, marginBottom: 12, fontWeight: 800, lineHeight: 1 }}>✓</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: t.success, marginBottom: 6 }}>
+              {acceptedEngineer.name} 기사 수락!
+            </div>
+            <div style={{ fontSize: 11, color: t.textSecondary }}>자동 배정 완료</div>
+          </div>
+
+          {/* 작업 정보 박스 */}
+          <div style={{
+            background: t.bgElevated, border: `1px solid ${t.border}`,
+            borderRadius: 12, padding: "12px 14px", marginBottom: 12,
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+              {task.principal && <PrincipalLabel name={task.principal}/>}
+              <span style={{ fontSize: 13, fontWeight: 800 }}>{task.customer || "—"}</span>
+            </div>
+            <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4 }}>
+              {itemSummary} · {task.region || "—"}
+            </div>
+            <div style={{ fontSize: 11, color: t.textMuted, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+              <span>담당:</span>
+              <EngineerBadge engineer={acceptedEngineer} role={acceptedEngineer.level === "main" ? "main" : (acceptedEngineer.level === "backup" || acceptedEngineer.level === "sub") ? "backup" : null} size="sm"/>
+              {acceptedEngineer.phone && (
+                <a href={`tel:${acceptedEngineer.phone}`} className="mono" style={{ color: t.accent, fontWeight: 700, textDecoration: "none" }}>
+                  {acceptedEngineer.phone}
+                </a>
+              )}
+            </div>
+          </div>
+
+          {/* 후보 결과 박스 — 첫 후보 ✓ 강조 / 나머지 ⊘ 취소 */}
+          {candidates.length > 0 && (
+            <div style={{
+              background: t.bgElevated, border: `1px solid ${t.border}`,
+              borderRadius: 12, padding: "12px 14px", marginBottom: 12,
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>
+                후보 결과 ({candidates.length}명)
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {candidates.map((eng) => {
+                  const isAccepted = eng.id === acceptedEngineer.id;
+                  const zones = getEngineerZoneList(eng.name, mainWorkType);
+                  const zoneText = zones.length > 0 ? zones.slice(0, 3).join("·") : (eng.regionLabel || "—");
+                  return (
+                    <div key={eng.id} style={{
+                      padding: "8px 10px",
+                      background: isAccepted ? (t.accentBg || "rgba(255,27,141,0.08)") : t.bgInset,
+                      border: isAccepted ? `1px solid ${t.accent}` : `1px solid transparent`,
+                      borderRadius: 8,
+                      display: "flex", alignItems: "center", gap: 6,
+                      opacity: isAccepted ? 1 : 0.4,
+                    }}>
+                      <span style={{ fontSize: 12, color: isAccepted ? t.accent : t.textMuted, fontWeight: 800 }}>
+                        {isAccepted ? "✓" : "⊘"}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: isAccepted ? t.accent : t.textSecondary }}>{eng.name}</span>
+                      <span style={{ fontSize: 10, color: t.textMuted, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>— {zoneText}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: isAccepted ? t.accent : t.textMuted, whiteSpace: "nowrap" }}>
+                        {isAccepted ? "수락!" : "취소"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 확인 버튼 */}
+          <button
+            onClick={() => onComplete(acceptedEngineer)}
+            style={{
+              width: "100%",
+              padding: "14px",
+              background: t.accent, color: "white", border: "none", borderRadius: 10,
+              fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >확인</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ===== 카운트다운 / 후보 없음 화면 =====
+  const progress = Math.max(0, Math.min(100, ((3 - countdown) / 3) * 100));
+
+  return (
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>자동 배정 진행중</div>
+          <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+            {mainWorkType} · {extractZone(task.region) || task.region || "—"}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: "14px 16px 20px" }}>
+        {/* 작업 정보 박스 */}
+        <div style={{
+          background: t.bgElevated, border: `1px solid ${t.border}`,
+          borderRadius: 12, padding: "12px 14px", marginBottom: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap" }}>
+            {task.principal && (
+              <span style={{
+                fontSize: 9, fontWeight: 800, padding: "2px 6px",
+                background: principalColor + "26", color: principalColor,
+                borderRadius: 4,
+              }}>{task.principal}</span>
+            )}
+            <span style={{ fontSize: 13, fontWeight: 800 }}>{task.customer || "—"}</span>
+            <span style={{ fontSize: 11, color: t.textSecondary }}>({itemSummary})</span>
+          </div>
+          <div style={{ fontSize: 11, color: t.textSecondary }}>
+            {task.region || "—"}{task.schedule ? ` · ${task.schedule}` : ""}
+          </div>
+        </div>
+
+        {candidates.length === 0 ? (
+          /* 후보 없음 */
+          <div style={{
+            background: t.bgElevated, border: `1px solid ${t.border}`,
+            borderRadius: 12, padding: "20px 14px", textAlign: "center",
+          }}>
+            <div style={{ fontSize: 22, marginBottom: 10, opacity: 0.4 }}>📡</div>
+            <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 6 }}>후보 기사 없음</div>
+            <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 14 }}>
+              이 지역 ({extractZone(task.region) || "—"})에 배정 가능한 냉매 기사가 없습니다.
+            </div>
+            <button
+              onClick={onFallbackManual}
+              style={{
+                padding: "8px 14px",
+                background: t.bgInset, color: t.text,
+                border: `1px solid ${t.border}`, borderRadius: 8,
+                fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >수동 배정으로</button>
+          </div>
+        ) : (
+          /* 후보 알림 + 카운트다운 */
+          <>
+            <div style={{
+              background: t.bgElevated, border: `1px solid ${t.border}`,
+              borderRadius: 12, padding: "12px 14px", marginBottom: 10,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+                <span style={{ fontSize: 14 }}>📡</span>
+                <span style={{ fontSize: 11, fontWeight: 800, color: t.text }}>
+                  후보 기사 <span className="mono" style={{ color: t.accent }}>{candidates.length}</span>명에게 알림 전송 중...
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {candidates.map((eng) => {
+                  const zones = getEngineerZoneList(eng.name, mainWorkType);
+                  const zoneText = zones.length > 0 ? zones.slice(0, 3).join("·") : (eng.regionLabel || "—");
+                  return (
+                    <div key={eng.id} style={{
+                      padding: "8px 10px", background: t.bgInset, borderRadius: 8,
+                      display: "flex", alignItems: "center", gap: 8,
+                    }}>
+                      <span style={{ fontSize: 12 }}>⚪</span>
+                      <EngineerBadge engineer={eng} size="sm"/>
+                      <span style={{ fontSize: 10, color: t.textMuted, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>— {zoneText}</span>
+                      <span style={{ fontSize: 10, color: t.success, fontWeight: 700, whiteSpace: "nowrap" }}>전송 ✓</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div style={{
+              background: t.bgElevated, border: `1px solid ${t.border}`,
+              borderRadius: 12, padding: "12px 14px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                <Clock size={13} style={{ color: t.warning }}/>
+                <span style={{ fontSize: 11, fontWeight: 800, color: t.text }}>첫 응답자 대기 중...</span>
+                <div style={{ flex: 1 }}/>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: t.accent }}>{countdown}s</span>
+              </div>
+              <div style={{
+                width: "100%", height: 6, background: t.bgInset,
+                borderRadius: 3, overflow: "hidden",
+              }}>
+                <div style={{
+                  width: `${progress}%`, height: "100%",
+                  background: t.accent, borderRadius: 3,
+                  transition: "width 1s linear",
+                }}/>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* 안내 — 시연 모드 */}
+        <div style={{ marginTop: 14, padding: "10px 12px", background: t.bgInset, borderRadius: 8, border: `1px dashed ${t.border}` }}>
+          <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>
+            <span style={{ fontWeight: 800, color: t.textSecondary }}>시연 모드</span> · 실제 환경에서는 실시간 알림이 기사에게 푸시되고 첫 수락이 자동으로 반영됩니다 (현재는 3초 후 첫 후보 자동 수락).
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick }) {
+  // V11-10 — 모든 기사에서 선택 모달 (지역 매칭 X일 때 활성화)
+  const [showAllEngineers, setShowAllEngineers] = useState(false);
+
+  if (!task) {
+    return <PlaceholderScreen t={t} title="추천 기사" label="작업 정보 없음" onBack={onBack}/>;
+  }
+
+  // Step 5-3 — ZONE_MAPPINGS + ENGINEERS_MASTER 기반 후보 추출
+  const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
+  const headItem = (task.workItems && task.workItems[0]) || { appliance: task.appliance, qty: task.qty };
+  const candidates = getCandidateEngineers(mainWorkType, task.region, headItem.appliance);
+  const totalCandidates = candidates.main.length + candidates.sub.length + candidates.capable.length;
+
+  // Step 5-3-3 — 그룹명 정정 ("벽걸이 전문" → "벽걸이 가능" / 신입도 포함)
+  const capableLabel = headItem.appliance ? `${headItem.appliance} 가능` : "기종 가능";
+  const groups = [
+    { id: "main",    color: "#FF1B8D", label: "지역 메인", list: candidates.main },
+    { id: "sub",     color: "#888780", label: "지역 백업", list: candidates.sub },
+    { id: "capable", color: "#FF1B8D", label: capableLabel, list: candidates.capable },
+  ];
+
+  return (
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 800 }}>{task.customer || "—"}</div>
+          <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
+            {task.region || "—"} · {mainWorkType}{headItem.appliance ? ` · ${headItem.appliance}` : ""}{headItem.qty ? ` ×${headItem.qty}` : ""}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: "14px 16px 20px" }}>
+        <div style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
+          추천 기사 <span className="mono" style={{ color: t.accent }}>{totalCandidates}</span>명
+          <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
+          {extractZone(task.region) || "지역 추출 X"}
+        </div>
+
+        {totalCandidates === 0 ? (
+          <div style={{ padding: "32px 20px", textAlign: "center", background: t.bgElevated, borderRadius: 12, border: `1px solid ${t.border}` }}>
+            <div style={{ fontSize: 24, marginBottom: 10, opacity: 0.4 }}>🔍</div>
+            <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 6 }}>이 지역에 등록된 기사가 없습니다</div>
+            <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 14 }}>전체 기사 중 점수가 높은 순으로 직접 선택할 수 있습니다.</div>
+            <button
+              type="button"
+              onClick={() => setShowAllEngineers(true)}
+              style={{
+                padding: "9px 16px",
+                background: t.accent, color: "#fff",
+                border: "none", borderRadius: 8,
+                fontSize: 11, fontWeight: 700, cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >👥 전체 기사에서 선택</button>
+          </div>
+        ) : (
+          groups.map((g, idx) => {
+            if (g.list.length === 0) return null;
+            return (
+              <div key={g.id} style={{ marginBottom: 14 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: idx === 0 ? 0 : 24, marginBottom: 12, padding: "0 4px" }}>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: "50%",
+                    backgroundColor: g.color,
+                    flexShrink: 0,
+                  }}/>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{g.label}</span>
+                  <span style={{ fontSize: 13, color: g.color }}>{g.list.length}명</span>
+                </div>
+                {g.list.map((eng) => {
+                  // Step 5-3-4 — capable 그룹: appliances 표시
+                  // main/sub 그룹: 작업 지역 매칭 1개만 (모든 zones 나열 X)
+                  const taskZone = extractZone(task.region);
+                  const infoText = g.id === "capable"
+                    ? getEngineerApplianceList(eng.name, mainWorkType).join("·")
+                    : (getMatchedZone(eng.name, mainWorkType, taskZone) || "");
+                  return (
+                    <RecommendCard
+                      key={`${g.id}-${eng.id}`}
+                      t={t} eng={eng}
+                      groupId={g.id}
+                      infoText={infoText}
+                      onAssign={() => onAssign(eng)}
+                      onCardClick={() => onEngineerCardClick && onEngineerCardClick(eng)}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })
+        )}
+
+        {/* V11-10 — 추천 결과가 있을 때도 전체 기사 버튼 노출 */}
+        {totalCandidates > 0 && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${t.border}` }}>
+            <button
+              type="button"
+              onClick={() => setShowAllEngineers(true)}
+              style={{
+                width: "100%", padding: "10px 14px",
+                background: "transparent",
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                color: t.textSecondary,
+                fontSize: 11, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >👥 전체 기사에서 직접 선택</button>
+          </div>
+        )}
+      </div>
+
+      {showAllEngineers && (
+        <AllEngineersModal
+          task={task}
+          onSelect={(engineerId, engineer) => {
+            setShowAllEngineers(false);
+            onAssign(engineer);
+          }}
+          onClose={() => setShowAllEngineers(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+function RecommendCard({ t, eng, groupId, infoText, onAssign, onCardClick }) {
+  // Step 5-3-3 — infoText 우선 (그룹 컨텍스트로 박힌 zones / appliances)
+  const lineText = (infoText && infoText.trim()) || eng.region || eng.regionLabel || "";
+  const showInfoLine = !!lineText || (typeof eng.todayCount === "number") || (eng.newCount > 0);
+  // Step 8+9 V2 — 그룹별 role 매핑 (main 그룹 = 메인 / sub = 서브 / capable = role 없음)
+  const role = groupId === "main" ? "main" : groupId === "sub" ? "backup" : null;
+
+  return (
+    <div onClick={onCardClick} className="clickable" style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`,
+      borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+    }}>
+      {/* 1행: EngineerBadge + [배정] */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showInfoLine ? 8 : 0, gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
+          <EngineerBadge engineer={eng} role={role}/>
+          {eng.nightOk && (
+            <span style={{
+              fontSize: 11, fontWeight: 500, padding: "2px 8px",
+              background: t.bgInset, color: t.text,
+              borderRadius: 4,
+            }}>야간 OK</span>
+          )}
+        </div>
+        <button onClick={(e) => { e.stopPropagation(); onAssign(); }} style={{
+          padding: "7px 14px",
+          background: t.accent, color: "white", border: "none", borderRadius: 8,
+          fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+          flexShrink: 0,
+        }}>배정</button>
+      </div>
+
+      {/* 2행: 작은 점 + 참고사항 (zones / appliances). 정보 없으면 라인 자체 숨김 */}
+      {showInfoLine && (
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#888780" }}>
+          <span style={{
+            width: 3, height: 3, borderRadius: "50%",
+            backgroundColor: "#888780", flexShrink: 0,
+          }}/>
+          {lineText && <span>{lineText}</span>}
+          {typeof eng.todayCount === "number" && (
+            <>
+              {lineText && <span style={{ color: t.textDim }}>·</span>}
+              <span>오늘 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{eng.todayCount}</span>건</span>
+            </>
+          )}
+          {eng.newCount > 0 && (
+            <span style={{ color: t.accent, fontWeight: 700 }}>(신규 +{eng.newCount})</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================
+// Step 5 — Toast 컨테이너 (3초 자동 사라짐, 상단 슬라이드)
+// ============================================
+function ToastContainer({ t, toasts }) {
+  if (!toasts || toasts.length === 0) return null;
+  return (
+    <div style={{
+      position: "fixed", top: 16, left: "50%",
+      transform: "translateX(-50%)",
+      zIndex: 9999, display: "flex", flexDirection: "column", gap: 8,
+      pointerEvents: "none", width: "calc(100% - 32px)", maxWidth: 360,
+    }}>
+      {toasts.map(toast => {
+        const meta = NOTI_TYPE_META[toast.type] || NOTI_TYPE_META.new_reception;
+        const colorKey = meta.colorKey;
+        const bg = t[colorKey + "Bg"] || t.bgElevated;
+        const borderColor = t[colorKey + "Border"] || t.border;
+        const accentColor = t[colorKey] || t.text;
+        return (
+          <div key={toast.id} className="fade-in" style={{
+            background: t.bgElevated,
+            border: `1.5px solid ${borderColor}`,
+            borderLeft: `4px solid ${accentColor}`,
+            borderRadius: 10, padding: "10px 12px",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.3)",
+            display: "flex", alignItems: "center", gap: 10,
+            pointerEvents: "auto",
+          }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 6,
+              background: bg, display: "flex",
+              alignItems: "center", justifyContent: "center",
+              fontSize: 14, flexShrink: 0,
+            }}>{meta.icon}</div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 800, color: accentColor, marginBottom: 2 }}>{toast.title}</div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{toast.message}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ============================================
+// Step 5 — 알림 패널 화면
+// ============================================
+function NotificationScreen({ t, notifications, onBack, onMarkRead, onMarkAllRead, onClickItem }) {
+  return (
+    <div className="fade-in">
+      {/* 운영자 PWA 전용 뒤로가기 헤더 */}
+      <div style={{ padding: "12px 16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ fontSize: 13, fontWeight: 600, color: t.textSecondary }}>뒤로</div>
+      </div>
+      <NotiScreen
+        title="🔔 알림"
+        notifications={notifications}
+        onMarkAllRead={onMarkAllRead}
+        onCardClick={onClickItem}
+      />
+    </div>
+  );
+}
+
+// ============================================
+// Step 5 — 새 접수 등록 폼 (해피콜 담당자 시각)
+// ============================================
+// 외부 정의 (내부 정의 시 매 렌더 새 컴포넌트 → input 포커스 손실)
+function FormSection({ t, icon, label, required, error, children }) {
+  return (
+    <div style={{
+      marginBottom: 12,
+      background: t.bgElevated,
+      border: `1px solid ${error ? t.danger : t.border}`,
+      borderRadius: 10, padding: "12px 14px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+        <span style={{ fontSize: 13 }}>{icon}</span>
+        <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{label}</span>
+        {required && <span style={{ fontSize: 11, color: t.accent, fontWeight: 800 }}>*</span>}
+        {error && <span style={{ marginLeft: "auto", fontSize: 10, color: t.danger, fontWeight: 700 }}>{error}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function FormChip({ t, active, color, onClick, children }) {
+  return (
+    <button onClick={onClick} type="button" style={{
+      padding: "6px 12px",
+      background: active ? (color || t.accent) : t.bgInset,
+      border: active ? `1px solid ${color || t.accent}` : `1px solid ${t.border}`,
+      borderRadius: 999, fontSize: 11, fontWeight: 700,
+      color: active ? "white" : t.textSecondary,
+      cursor: "pointer", fontFamily: "inherit",
+      whiteSpace: "nowrap", flexShrink: 0,
+    }}>{children}</button>
+  );
+}
+
+function NewReceptionFormScreen({ t, onBack, onSubmit }) {
+  const [form, setForm] = useState({
+    principal: "",
+    customer: "",
+    phone: "",
+    address: "",
+    requestDate: "",
+    requestTime: "",
+    memo: "",
+    estimateTotal: 0,
+  });
+  const [errors, setErrors] = useState({});
+
+  // Step 5-1a — 카톡 자동 파싱 state
+  const [kakaoText, setKakaoText] = useState("");
+  const [parseResult, setParseResult] = useState(null);
+  const [justFilled, setJustFilled] = useState(new Set());
+  const [priceConfirm, setPriceConfirm] = useState(null);
+
+  // Step 5-1b — 복수 작업 항목 + 일정 모드
+  const [workItems, setWorkItems] = useState([]);          // [{ workType, appliance, qty }]
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
+  const [scheduleMode, setScheduleMode] = useState(null);  // null | "tbd" | "input"
+
+  const workTypes = ["세척", "냉매충전", "설치", "누설", "점검", "수리"];
+  const appliances = ["벽걸이", "스탠드", "시스템", "기타"];
+
+  // 주소 → 첫 두 단어 지역 추출
+  const region = (() => {
+    const parts = (form.address || "").trim().split(/\s+/);
+    if (parts.length >= 2) return `${parts[0]} ${parts[1]}`;
+    return parts[0] || "";
+  })();
+
+  // Step 5-1c — 고객 자동 생성 (지역구 + 폰 4자리)
+  // 예: 강남구 도곡동 + 010-1234-5678 → "강남5678"
+  function autoGenerateCustomer(form, region) {
+    if (form.customer && form.customer.trim()) return form.customer.trim();
+    const digits = (form.phone || "").replace(/\D/g, "");
+    const last4  = digits.length >= 4 ? digits.slice(-4) : "";
+    let regionShort = "";
+    const src = region || form.address || "";
+    if (src) {
+      // 지역구/시/동/군 추출 — 강남구 → 강남
+      const m = src.match(/([가-힣]+?)(?:구|시|동|군)/);
+      if (m) regionShort = m[1];
+      else regionShort = src.split(/\s+/)[0];
+    }
+    if (regionShort && last4) return `${regionShort}${last4}`;
+    if (regionShort)          return `${regionShort}고객`;
+    if (last4)                return `고객${last4}`;
+    return "고객 미정";
+  }
+
+  function update(key, value) {
+    setForm(prev => ({ ...prev, [key]: value }));
+    if (errors[key]) setErrors(prev => ({ ...prev, [key]: null }));
+  }
+
+  function flashFields(keys) {
+    const nextSet = new Set(keys);
+    setJustFilled(nextSet);
+    setTimeout(() => setJustFilled(new Set()), 1600);
+  }
+
+  function handleAutoFill() {
+    const r = parseKakaoText(kakaoText);
+    const filledKeys = [];
+    setForm(prev => {
+      const next = { ...prev };
+      if (r.phone)        { next.phone = r.phone; filledKeys.push("phone"); }
+      if (r.customer)     { next.customer = r.customer; filledKeys.push("customer"); }
+      if (r.address)      { next.address = r.address; filledKeys.push("address"); }
+      if (r.requestDate)  { next.requestDate = r.requestDate; filledKeys.push("requestDate"); }
+      if (r.requestTime)  { next.requestTime = r.requestTime; filledKeys.push("requestTime"); }
+      if (r.estimatedPrice && !r.priceNeedsConfirm) {
+        next.estimateTotal = r.estimatedPrice;
+        filledKeys.push("estimateTotal");
+      }
+      return next;
+    });
+
+    // Step 5-1c — parseKakaoText의 workItems 직접 사용 (자동 추정 X)
+    if (r.workItems && r.workItems.length > 0) {
+      setWorkItems(r.workItems);
+      filledKeys.push("workItems");
+    }
+
+    // 일정 자동 — 날짜/시간 둘 중 하나라도 있으면 input 모드
+    if (r.requestDate || r.requestTime) {
+      setScheduleMode("input");
+    }
+
+    flashFields(filledKeys);
+
+    // 미인식 항목 계산
+    const allKnown = ["원청", "이름", "연락처", "주소", "작업 종류", "기종", "일정", "금액"];
+    const matchedSet = new Set(r.matched.map(m => m.split(" ")[0]));
+    const unmatched = allKnown.filter(k => !matchedSet.has(k));
+    setParseResult({ matched: r.matched, unmatched });
+
+    if (r.priceNeedsConfirm) {
+      setPriceConfirm({ rawValue: r.priceRawValue, estimated: r.estimatedPrice });
+    }
+  }
+
+  function handleClear() {
+    setKakaoText("");
+    setForm({
+      principal: "", customer: "", phone: "", address: "",
+      requestDate: "", requestTime: "", memo: "", estimateTotal: 0,
+    });
+    setParseResult(null);
+    setWorkItems([]);
+    setShowAddItem(false);
+    setEditItem({ workType: "", appliance: "", qty: 1 });
+    setScheduleMode(null);
+    setErrors({});
+  }
+
+  function confirmPrice(yes) {
+    if (yes && priceConfirm) {
+      setForm(prev => ({ ...prev, estimateTotal: priceConfirm.estimated }));
+      flashFields(["estimateTotal"]);
+    }
+    setPriceConfirm(null);
+  }
+
+  // workItems 조작
+  function addWorkItem() {
+    // Step 5-1e — 냉매충전은 기종 검증 X (기종 무관 / 가격 동일)
+    if (!editItem.workType) {
+      setErrors(prev => ({ ...prev, addItem: "종류 선택" }));
+      return;
+    }
+    if (editItem.workType !== "냉매충전" && !editItem.appliance) {
+      setErrors(prev => ({ ...prev, addItem: "기종 선택" }));
+      return;
+    }
+    const item = editItem.workType === "냉매충전"
+      ? { workType: "냉매충전", appliance: "", qty: editItem.qty || 1 }
+      : { ...editItem, qty: editItem.qty || 1 };
+    setWorkItems(prev => [...prev, item]);
+    setEditItem({ workType: "", appliance: "", qty: 1 });
+    setShowAddItem(false);
+    if (errors.workItems) setErrors(prev => ({ ...prev, workItems: null }));
+    if (errors.addItem)   setErrors(prev => ({ ...prev, addItem: null }));
+  }
+  function removeWorkItem(idx) {
+    setWorkItems(prev => prev.filter((_, i) => i !== idx));
+  }
+  function cancelAddItem() {
+    setEditItem({ workType: "", appliance: "", qty: 1 });
+    setShowAddItem(false);
+    if (errors.addItem) setErrors(prev => ({ ...prev, addItem: null }));
+  }
+
+  function handleSubmit() {
+    const errs = {};
+    if (!form.principal)            errs.principal = "원청 선택";
+    if (!form.phone.trim())         errs.phone = "연락처 입력";
+    if (!form.address.trim())       errs.address = "주소 입력";
+    if (workItems.length === 0)     errs.workItems = "작업 항목 1개 이상";
+    if (!form.estimateTotal || form.estimateTotal <= 0) errs.estimateTotal = "견적 금액 입력";
+    if (Object.keys(errs).length > 0) {
+      setErrors(errs);
+      return;
+    }
+    const finalCustomer = autoGenerateCustomer(form, region);
+    const scheduleType = scheduleMode === "input" ? "specific" : "tbd";
+    onSubmit({
+      ...form,
+      customer: finalCustomer,
+      region,
+      workItems,
+      scheduleType,
+    });
+  }
+
+  // 입력 박스 공용 스타일
+  const inputStyle = (hasError, fieldKey) => ({
+    width: "100%", padding: "10px 12px",
+    background: t.bgInset,
+    border: `1px solid ${hasError ? t.danger : t.border}`,
+    borderRadius: 8, fontSize: 13, color: t.text,
+    fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+  });
+
+  const principalColor = PRINCIPAL_COLORS[form.principal] || t.border;
+
+  return (
+    <div className="fade-in">
+      {/* 헤더 */}
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, background: t.bg, zIndex: 100 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>새 접수 등록</div>
+      </div>
+
+      <div style={{ padding: "16px" }}>
+        {/* 0. 빠른 입력 (카톡 자동 파싱) */}
+        <div style={{
+          marginBottom: 16,
+          background: t.bgElevated,
+          border: `1.5px solid ${t.accentBorder || t.accent}`,
+          borderRadius: 10, padding: "12px 14px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+            <span style={{ fontSize: 13 }}>📋</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>빠른 입력 (텍스트 자동 인식)</span>
+          </div>
+          <textarea
+            value={kakaoText}
+            onChange={(e) => setKakaoText(e.target.value)}
+            placeholder={"고객 카톡 텍스트를 그대로 붙여넣으세요.\n예: '서울 중구 마장로18길 16\n5월 2일 13:30\n16만원\n010-9289-2116'"}
+            style={{
+              width: "100%", padding: "10px 12px",
+              background: t.bgInset,
+              border: `1px solid ${t.border}`,
+              borderRadius: 8, fontSize: 12, color: t.text,
+              fontFamily: "monospace", outline: "none",
+              boxSizing: "border-box", minHeight: 100, resize: "vertical",
+              lineHeight: 1.5,
+            }}
+          />
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <button onClick={handleAutoFill} disabled={!kakaoText.trim()} style={{
+              flex: 1, padding: "8px 16px",
+              background: kakaoText.trim() ? t.accent : t.bgInset,
+              color: kakaoText.trim() ? "white" : t.textMuted,
+              border: "none", borderRadius: 8,
+              fontSize: 12, fontWeight: 800,
+              cursor: kakaoText.trim() ? "pointer" : "not-allowed",
+              fontFamily: "inherit",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            }}>자동 채우기 <ArrowRight size={12}/></button>
+            <button onClick={handleClear} style={{
+              padding: "8px 14px",
+              background: "transparent",
+              border: `1px solid ${t.border}`, borderRadius: 8,
+              fontSize: 11, fontWeight: 700, color: t.textSecondary,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>지우기</button>
+          </div>
+
+          {/* 결과 안내 */}
+          {parseResult && (
+            <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}` }}>
+              {parseResult.matched.length > 0 && (
+                <div style={{ fontSize: 11, color: t.success, fontWeight: 600, lineHeight: 1.6 }}>
+                  ✓ 인식: <span style={{ color: t.textSecondary, fontWeight: 700 }}>{parseResult.matched.join(", ")}</span>
+                </div>
+              )}
+              {parseResult.unmatched.length > 0 && (
+                <div style={{ fontSize: 11, color: t.warning, fontWeight: 600, lineHeight: 1.6 }}>
+                  ⚠ 미인식: <span style={{ color: t.textSecondary, fontWeight: 700 }}>{parseResult.unmatched.join(", ")}</span> <span style={{ color: t.textMuted, fontWeight: 500 }}>(직접 선택)</span>
+                </div>
+              )}
+              {form.estimateTotal > 0 && (
+                <div style={{ marginTop: 4, fontSize: 11, color: t.textSecondary, fontWeight: 600 }}>
+                  💰 추정 금액: <span className="mono" style={{ color: t.accent, fontWeight: 800 }}>₩{form.estimateTotal.toLocaleString()}</span>
+                </div>
+              )}
+              {workItems.length > 1 && (
+                <div style={{ marginTop: 4, fontSize: 10, color: t.textMuted, fontWeight: 500 }}>
+                  · 작업 항목 {workItems.length}건 자동 추가 — 아래에서 확인/수정
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* 1. 원청 — 드롭다운 */}
+        <FormSection t={t} icon="🏢" label="원청" required error={errors.principal}>
+          <div style={{ position: "relative" }}>
+            <select
+              value={form.principal}
+              onChange={(e) => update("principal", e.target.value)}
+              style={{
+                ...inputStyle(!!errors.principal),
+                appearance: "none",
+                WebkitAppearance: "none",
+                MozAppearance: "none",
+                paddingRight: 36,
+                borderLeft: form.principal ? `4px solid ${principalColor}` : `1px solid ${errors.principal ? t.danger : t.border}`,
+                cursor: "pointer",
+              }}
+            >
+              <option value="">선택...</option>
+              {PRINCIPALS.map(p => (
+                <option key={p.id} value={p.id}>{p.label}</option>
+              ))}
+            </select>
+            <ChevronDown size={16} style={{
+              position: "absolute", right: 12, top: "50%",
+              transform: "translateY(-50%)", color: t.textMuted, pointerEvents: "none",
+            }}/>
+          </div>
+        </FormSection>
+
+        {/* 2. 고객 정보 — 이름 선택 (자동 생성) */}
+        <FormSection t={t} icon="👤" label="고객 정보" required error={errors.phone}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <input
+              type="text"
+              placeholder="이름 (없으면 자동 생성)"
+              value={form.customer}
+              onChange={(e) => update("customer", e.target.value)}
+              className={justFilled.has("customer") ? "flash-highlight" : undefined}
+              style={inputStyle(false)}
+            />
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, lineHeight: 1.5 }}>
+              · 비우면 자동 생성 (예: 강남1234 / 서초0001)
+            </div>
+            <input
+              type="tel"
+              placeholder="010-0000-0000"
+              value={form.phone}
+              onChange={(e) => update("phone", formatPhone(e.target.value))}
+              className={justFilled.has("phone") ? "flash-highlight" : undefined}
+              style={inputStyle(!!errors.phone)}
+            />
+          </div>
+        </FormSection>
+
+        {/* 3. 주소 */}
+        <FormSection t={t} icon="📍" label="주소" required error={errors.address}>
+          <input
+            type="text"
+            placeholder="강남구 도곡동 123-4"
+            value={form.address}
+            onChange={(e) => update("address", e.target.value)}
+            className={justFilled.has("address") ? "flash-highlight" : undefined}
+            style={inputStyle(!!errors.address)}
+          />
+          {region && (
+            <div style={{ marginTop: 6, fontSize: 10, color: t.textMuted, fontWeight: 600 }}>
+              <MapPin size={10} style={{ display: "inline", verticalAlign: "middle", marginRight: 3 }}/>
+              지역 자동: <span style={{ color: t.textSecondary, fontWeight: 700 }}>{region}</span>
+            </div>
+          )}
+        </FormSection>
+
+        {/* 4. 작업 항목 — 복수 (Step 5-1b) */}
+        <FormSection
+          t={t}
+          icon="🔧"
+          label={`작업 항목${workItems.length > 0 ? ` (${workItems.length}건)` : ""}`}
+          required
+          error={errors.workItems}
+        >
+          {/* 항목 리스트 */}
+          {workItems.length === 0 && !showAddItem && (
+            <div style={{ padding: "16px 0", textAlign: "center", color: t.textMuted, fontSize: 12, fontWeight: 500 }}>
+              아직 작업 항목이 없어요.
+            </div>
+          )}
+          {workItems.length > 0 && (
+            <div className={justFilled.has("workItems") ? "flash-highlight" : undefined}
+              style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8, borderRadius: 8 }}>
+              {workItems.map((item, idx) => (
+                <div key={idx} style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  background: t.bgInset,
+                  border: `1px solid ${t.border}`,
+                  borderRadius: 8, padding: "10px 12px",
+                }}>
+                  <span className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, minWidth: 20 }}>#{idx + 1}</span>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: t.text, flex: 1 }}>
+                    {item.workType === "냉매충전" ? (
+                      <>냉매충전 <span className="mono" style={{ color: t.accent }}>×{item.qty || 1}</span></>
+                    ) : (
+                      <>{item.workType} · {item.appliance || "기종 미정"} <span className="mono" style={{ color: t.accent }}>×{item.qty || 1}</span></>
+                    )}
+                  </span>
+                  <button onClick={() => removeWorkItem(idx)} style={{
+                    width: 26, height: 26,
+                    background: "transparent",
+                    border: `1px solid ${t.border}`, borderRadius: 6,
+                    color: t.textMuted, cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontFamily: "inherit",
+                  }}>
+                    <XCircle size={14}/>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 인라인 추가 폼 */}
+          {showAddItem ? (
+            <div style={{
+              background: t.bgInset,
+              border: `1.5px solid ${errors.addItem ? t.danger : t.accent}`,
+              borderRadius: 8, padding: "12px",
+              display: "flex", flexDirection: "column", gap: 10,
+            }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>종류</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {workTypes.map(w => (
+                    <FormChip t={t} key={w} active={editItem.workType === w}
+                      onClick={() => setEditItem(prev => ({ ...prev, workType: w }))}>{w}</FormChip>
+                  ))}
+                </div>
+              </div>
+              {editItem.workType !== "냉매충전" && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>기종</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {appliances.map(a => (
+                      <FormChip t={t} key={a} active={editItem.appliance === a}
+                        onClick={() => setEditItem(prev => ({ ...prev, appliance: a }))}>{a}</FormChip>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {editItem.workType === "냉매충전" && (
+                <div style={{
+                  fontSize: 10, color: t.textMuted, fontWeight: 600,
+                  padding: "6px 10px",
+                  background: t.successBg || t.bgInset,
+                  border: `1px dashed ${t.successBorder || t.border}`,
+                  borderRadius: 6,
+                }}>
+                  · 냉매충전 = 기종 무관 (가격 동일)
+                </div>
+              )}
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>수량</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <button onClick={() => setEditItem(prev => ({ ...prev, qty: Math.max(1, (prev.qty || 1) - 1) }))} style={{
+                    width: 32, height: 32, background: t.bg,
+                    border: `1px solid ${t.border}`, borderRadius: 8,
+                    fontSize: 16, fontWeight: 800, color: t.text,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}>−</button>
+                  <span className="mono" style={{ fontSize: 16, fontWeight: 800, minWidth: 30, textAlign: "center" }}>{editItem.qty || 1}</span>
+                  <button onClick={() => setEditItem(prev => ({ ...prev, qty: Math.min(99, (prev.qty || 1) + 1) }))} style={{
+                    width: 32, height: 32, background: t.bg,
+                    border: `1px solid ${t.border}`, borderRadius: 8,
+                    fontSize: 16, fontWeight: 800, color: t.text,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}>+</button>
+                </div>
+              </div>
+              {errors.addItem && (
+                <div style={{ fontSize: 10, color: t.danger, fontWeight: 700 }}>{errors.addItem}</div>
+              )}
+              <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+                <button onClick={cancelAddItem} style={{
+                  flex: 1, padding: "8px",
+                  background: "transparent",
+                  border: `1px solid ${t.border}`, borderRadius: 8,
+                  fontSize: 11, fontWeight: 700, color: t.textSecondary,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>취소</button>
+                <button onClick={addWorkItem} style={{
+                  flex: 1, padding: "8px",
+                  background: t.accent, color: "white",
+                  border: "none", borderRadius: 8,
+                  fontSize: 11, fontWeight: 800,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>추가</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowAddItem(true)} style={{
+              width: "100%", padding: "10px",
+              background: "transparent",
+              border: `1px dashed ${t.border}`, borderRadius: 8,
+              fontSize: 12, fontWeight: 700, color: t.textSecondary,
+              cursor: "pointer", fontFamily: "inherit",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+            }}>
+              <Plus size={13}/> 작업 추가
+            </button>
+          )}
+        </FormSection>
+
+        {/* 4-1. 견적 금액 (Step 5-1c) — 단축 칩 + 직접 입력 */}
+        <FormSection t={t} icon="💰" label="견적 금액" required error={errors.estimateTotal}>
+          {/* 단축 칩 */}
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, marginBottom: 8 }}>
+            {[10, 15, 20, 25, 30].map(n => {
+              const value = n * 10000;
+              const active = form.estimateTotal === value;
+              return (
+                <FormChip t={t} key={n} active={active} onClick={() => update("estimateTotal", value)}>{n}만</FormChip>
+              );
+            })}
+          </div>
+          {/* 직접 입력 + 원 라벨 */}
+          <div style={{ position: "relative" }}>
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="직접 입력 (숫자만)"
+              value={form.estimateTotal ? String(form.estimateTotal) : ""}
+              onChange={(e) => {
+                const onlyDigits = e.target.value.replace(/\D/g, "");
+                update("estimateTotal", onlyDigits ? parseInt(onlyDigits) : 0);
+              }}
+              className={justFilled.has("estimateTotal") ? "flash-highlight" : undefined}
+              style={{ ...inputStyle(!!errors.estimateTotal), paddingRight: 40 }}
+            />
+            <span style={{
+              position: "absolute", right: 12, top: "50%",
+              transform: "translateY(-50%)", color: t.textMuted,
+              fontSize: 12, fontWeight: 700, pointerEvents: "none",
+            }}>원</span>
+          </div>
+          {/* 현재 값 강조 표시 */}
+          {form.estimateTotal > 0 && (
+            <div style={{ marginTop: 8, fontSize: 11, color: t.textMuted, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
+              <span>현재:</span>
+              <span className="mono" style={{ color: t.accent, fontSize: 14, fontWeight: 800 }}>
+                ₩{form.estimateTotal.toLocaleString()}
+              </span>
+            </div>
+          )}
+        </FormSection>
+
+        {/* 5. 일정 — 미정 / 입력 토글 (Step 5-1b) */}
+        <FormSection t={t} icon="📅" label="고객 희망 일정">
+          {scheduleMode === null && (
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => setScheduleMode("tbd")} style={{
+                flex: 1, padding: "12px 10px",
+                background: t.bgInset,
+                border: `1px solid ${t.border}`, borderRadius: 8,
+                fontSize: 12, fontWeight: 700, color: t.textSecondary,
+                cursor: "pointer", fontFamily: "inherit",
+                lineHeight: 1.4,
+              }}>
+                미정<br/>
+                <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>(기사님 컨택)</span>
+              </button>
+              <button onClick={() => setScheduleMode("input")} style={{
+                flex: 1, padding: "12px 10px",
+                background: t.bgInset,
+                border: `1px solid ${t.border}`, borderRadius: 8,
+                fontSize: 12, fontWeight: 700, color: t.textSecondary,
+                cursor: "pointer", fontFamily: "inherit",
+                lineHeight: 1.4,
+              }}>
+                일정 입력<br/>
+                <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>(날짜 + 시간)</span>
+              </button>
+            </div>
+          )}
+          {scheduleMode === "tbd" && (
+            <div>
+              <div style={{
+                padding: "10px 12px",
+                background: t.successBg || t.bgInset,
+                border: `1px solid ${t.successBorder || t.border}`,
+                borderRadius: 8, marginBottom: 8,
+                display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <CheckCircle2 size={14} style={{ color: t.success }}/>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>미정 — 기사님이 고객 컨택 예정</span>
+              </div>
+              <button onClick={() => setScheduleMode("input")} style={{
+                width: "100%", padding: "8px",
+                background: "transparent",
+                border: `1px solid ${t.border}`, borderRadius: 8,
+                fontSize: 11, fontWeight: 700, color: t.textMuted,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>← 일정 입력으로</button>
+            </div>
+          )}
+          {scheduleMode === "input" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <input
+                type="date"
+                value={form.requestDate}
+                onChange={(e) => update("requestDate", e.target.value)}
+                className={justFilled.has("requestDate") ? "flash-highlight" : undefined}
+                style={inputStyle(false)}
+              />
+              <div style={{ display: "flex", gap: 6 }}>
+                <FormChip t={t} active={form.requestTime === "오전"} onClick={() => update("requestTime", form.requestTime === "오전" ? "" : "오전")}>오전</FormChip>
+                <FormChip t={t} active={form.requestTime === "오후"} onClick={() => update("requestTime", form.requestTime === "오후" ? "" : "오후")}>오후</FormChip>
+                <input
+                  type="text"
+                  placeholder="시간 (예: 14:00)"
+                  value={(form.requestTime !== "오전" && form.requestTime !== "오후") ? form.requestTime : ""}
+                  onChange={(e) => update("requestTime", e.target.value)}
+                  className={justFilled.has("requestTime") ? "flash-highlight" : undefined}
+                  style={{ ...inputStyle(false), flex: 1 }}
+                />
+              </div>
+              <button onClick={() => { setScheduleMode("tbd"); update("requestDate", ""); update("requestTime", ""); }} style={{
+                padding: "8px",
+                background: "transparent",
+                border: `1px solid ${t.border}`, borderRadius: 8,
+                fontSize: 11, fontWeight: 700, color: t.textMuted,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>← 미정으로</button>
+            </div>
+          )}
+        </FormSection>
+
+        {/* 6. 요청사항 */}
+        <FormSection t={t} icon="📝" label="요청사항 (선택)">
+          <textarea
+            placeholder="100자 이내"
+            maxLength={100}
+            value={form.memo}
+            onChange={(e) => update("memo", e.target.value)}
+            style={{ ...inputStyle(false), minHeight: 60, resize: "vertical", fontFamily: "inherit" }}
+          />
+        </FormSection>
+
+        {/* 하단 액션 */}
+        <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+          <button onClick={onBack} style={{
+            flex: 1, padding: "12px",
+            background: "transparent",
+            border: `1px solid ${t.border}`, borderRadius: 10,
+            fontSize: 13, fontWeight: 700, color: t.textSecondary,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>취소</button>
+          <button onClick={handleSubmit} style={{
+            flex: 2, padding: "12px",
+            background: t.accent, color: "white",
+            border: "none", borderRadius: 10,
+            fontSize: 13, fontWeight: 800,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}>등록하기 <ArrowRight size={14}/></button>
+        </div>
+      </div>
+
+      {/* 금액 확인 모달 */}
+      {priceConfirm && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)",
+          zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 16,
+        }} onClick={() => confirmPrice(false)}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            background: t.bgElevated,
+            border: `1.5px solid ${t.warningBorder || t.border}`,
+            borderRadius: 12, padding: "20px",
+            width: "100%", maxWidth: 320,
+            boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+              <span style={{ fontSize: 20 }}>💰</span>
+              <div style={{ fontSize: 14, fontWeight: 800, color: t.warning }}>금액 확인</div>
+            </div>
+            <div style={{ fontSize: 13, color: t.text, lineHeight: 1.6, marginBottom: 4 }}>
+              추정 금액: <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: t.accent }}>₩{priceConfirm.estimated.toLocaleString()}</span>
+            </div>
+            <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 500, marginBottom: 16 }}>
+              ('{priceConfirm.rawValue}' → {priceConfirm.rawValue}만원으로 인식)
+            </div>
+            <div style={{ fontSize: 12, color: t.textSecondary, fontWeight: 600, marginBottom: 16 }}>
+              맞으세요?
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => confirmPrice(false)} style={{
+                flex: 1, padding: "10px",
+                background: "transparent",
+                border: `1px solid ${t.border}`, borderRadius: 8,
+                fontSize: 12, fontWeight: 700, color: t.textSecondary,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>아니오 — 직접 입력</button>
+              <button onClick={() => confirmPrice(true)} style={{
+                flex: 1, padding: "10px",
+                background: t.accent, color: "white",
+                border: "none", borderRadius: 8,
+                fontSize: 12, fontWeight: 800,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>예</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

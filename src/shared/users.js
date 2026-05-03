@@ -1,11 +1,14 @@
-// 시뮬 계정 (5개)
+// 사용자 계정 (5개)
 // 4개 역할 + 1개 첫 로그인 (비밀번호 변경 시뮬)
+// + engineerId 필드 (engineer 역할만, EngineerApp.jsx의 ENGINEERS 배열과 매핑)
+// + clientName 필드 (principal 역할만, shared/tasks.js의 task.client와 매핑)
 
 export const REGISTERED_USERS = [
   {
     userId: "kim.donghyo",
     name: "김동효",
     role: "engineer",
+    engineerId: "E001",
     roleLabel: "기사님",
     roleIcon: "🔧",
     roleColor: "#10B981",
@@ -17,6 +20,7 @@ export const REGISTERED_USERS = [
     userId: "lee.jaehyun",
     name: "이재현",
     role: "engineer",
+    engineerId: "E002",
     roleLabel: "기사님",
     roleIcon: "🔧",
     roleColor: "#10B981",
@@ -39,8 +43,8 @@ export const REGISTERED_USERS = [
     userId: "lee.ceo",
     name: "이대표",
     role: "admin",
-    roleLabel: "대표님",
-    roleIcon: "📊",
+    roleLabel: "사장님",
+    roleIcon: "👔",
     roleColor: "#E91860",
     phone: "010-4444-4444",
     password: "admin1234!",
@@ -50,7 +54,8 @@ export const REGISTERED_USERS = [
     userId: "kim.coolguy",
     name: "김쿨가이",
     role: "principal",
-    roleLabel: "원청 대표님 (쿨가이)",
+    clientName: "쿨가이",
+    roleLabel: "원청 사장님 (쿨가이)",
     roleIcon: "🏪",
     roleColor: "#FFB800",
     phone: "010-5555-5555",
@@ -74,13 +79,13 @@ export const ROLE_INFO = {
     description: "고객 응대 + 배정",
   },
   admin: {
-    label: "대표님",
-    icon: "📊",
+    label: "사장님",
+    icon: "👔",
     color: "#E91860",
     description: "운영 총괄",
   },
   principal: {
-    label: "원청 대표님",
+    label: "원청 사장님",
     icon: "🏪",
     color: "#FFB800",
     description: "원청 회사 대표",

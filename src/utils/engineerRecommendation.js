@@ -1,0 +1,190 @@
+// V11-10 — 추천 기사 (모든 활성 기사 점수 매김 + 지역 매칭 우선)
+// V11-5 시드 구조 유지: engineer.workTypes.cleaning.zones[지역명] / role "main"|"sub"
+// 정렬: 지역 매칭 등급(main > sub > possible > none) → 같은 등급 내 점수순
+// tier: best (메인+70+) / good (메인 또는 60+) / possible (40+) / fallback (그 외)
+import { loadEngineers } from "../data/engineers.js";
+import { loadTasks } from "../data/tasks.js";
+import { loadRegions } from "../data/regions.js";
+
+const RECOMMEND_THRESHOLD = 50; // isRecommended 기준
+
+function getWorkTypeKey(task) {
+  if (task?.workType === "냉매충전") return "refrigerant";
+  return "cleaning";
+}
+
+// 지역명 → 서브그룹 (서울/경기/인천)
+function getRegionSubgroup(regionName, regionsAll) {
+  const r = (regionsAll || []).find(x => x.name === regionName);
+  return r?.subgroupId || null;
+}
+
+// 지역 점수 (0~40)
+// 메인 = 40 / 서브 = 25 / 인접(같은 서브그룹) = 10 / 그 외 = 0
+function calcRegionScore(engineer, task, regionsAll) {
+  const wtKey = getWorkTypeKey(task);
+  const wt    = engineer.workTypes?.[wtKey];
+  if (!wt) return 0;
+
+  const taskRegion = task.region;
+  if (!taskRegion) return 0;
+
+  const zones = wt.zones || [];
+  const role  = wt.role  || null;
+
+  if (zones.includes(taskRegion) && role === "main") return 40;
+  if (zones.includes(taskRegion) && role === "sub")  return 25;
+
+  // 인접 (같은 서브그룹)
+  if (zones.length > 0) {
+    const taskSub = getRegionSubgroup(taskRegion, regionsAll);
+    if (taskSub && zones.some(z => getRegionSubgroup(z, regionsAll) === taskSub)) {
+      return 10;
+    }
+  }
+  return 0;
+}
+
+// 기종 점수 (0~20). 시드 appliances는 빈 배열 → 모두 가능 가정 (18점)
+function calcApplianceScore(engineer, task) {
+  const wtKey = getWorkTypeKey(task);
+  const wt    = engineer.workTypes?.[wtKey];
+  if (!wt) return 0;
+
+  const eApp = wt.appliances || [];
+  const tItems = Array.isArray(task.workItems) && task.workItems.length > 0
+    ? task.workItems.map(it => it.type || it.appliance).filter(Boolean)
+    : (task.appliance ? [task.appliance] : []);
+
+  if (eApp.length === 0) return 18;
+  if (tItems.length === 0) return 15;
+
+  const allMatched = tItems.every(t => eApp.includes(t));
+  if (allMatched) return 20;
+  const someMatched = tItems.some(t => eApp.includes(t));
+  return someMatched ? 12 : 5;
+}
+
+// 일정 점수 (0~20)
+function calcScheduleScore(engineer, task, allTasks) {
+  const day = (task.scheduledAt || task.workDate || "").slice(0, 10);
+  if (!day) return 15;
+
+  const sameDay = (allTasks || []).filter(t =>
+    (t.engineerId === engineer.id || t.engineer === engineer.name) &&
+    (t.scheduledAt || t.workDate || "").startsWith(day) &&
+    !["canceled"].includes(t.status)
+  );
+  if (sameDay.length === 0) return 20;
+  if (sameDay.length === 1) return 15;
+  if (sameDay.length === 2) return 10;
+  if (sameDay.length === 3) return 5;
+  return 0;
+}
+
+// 최근 활동 (0~10)
+function calcRecentActivity(engineer, allTasks) {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const count = (allTasks || []).filter(t =>
+    (t.engineerId === engineer.id || t.engineer === engineer.name) &&
+    t.completedAt &&
+    new Date(t.completedAt).getTime() > cutoff
+  ).length;
+  if (count >= 5) return 10;
+  if (count >= 3) return 7;
+  if (count >= 1) return 5;
+  return 3;
+}
+
+// 등급 점수 (0~10)
+function calcRatingScore(engineer) {
+  const map = { expert: 10, career: 7, rookie: 4 };
+  return map[engineer.careerLevel] || 5;
+}
+
+// regionMatch 결정
+function getRegionMatch(regionScore) {
+  if (regionScore >= 40) return "main";
+  if (regionScore >= 25) return "sub";
+  if (regionScore >= 10) return "possible";
+  return "none";
+}
+
+// tier 분류
+function getTier(score, regionMatch) {
+  if (regionMatch === "main" && score >= 70) return "best";
+  if (regionMatch === "main" || score >= 60)  return "good";
+  if (score >= 40)                            return "possible";
+  return "fallback";
+}
+
+// V11-10 — 모든 활성 기사 점수 매김 (지역 매칭 0이어도 추천)
+export function recommendEngineers(task, options = {}) {
+  if (!task) return [];
+
+  const engineers = options.engineers
+    || (() => { try { return loadEngineers(); } catch { return []; } })();
+  const tasksAll  = (() => { try { return loadTasks(); } catch { return []; } })();
+  const regionsAll = (() => { try { return loadRegions(); } catch { return []; } })();
+  const wtKey     = getWorkTypeKey(task);
+
+  // 활성 기사만 (status: "off" 제외)
+  // 단, 해당 작업 종류를 하는 기사 우선 — 그러나 V11-10 catch는 "모든 기사"라
+  // 작업 종류가 등록되지 않은 기사도 후보로 포함 (점수만 낮음).
+  const activeEngineers = engineers.filter(e => e.status !== "off");
+
+  if (activeEngineers.length === 0) return [];
+
+  const scored = activeEngineers.map(engineer => {
+    const reasons = [];
+
+    const regionScore    = calcRegionScore(engineer, task, regionsAll);
+    const applianceScore = calcApplianceScore(engineer, task);
+    const scheduleScore  = calcScheduleScore(engineer, task, tasksAll);
+    const activityScore  = calcRecentActivity(engineer, tasksAll);
+    const ratingScore    = calcRatingScore(engineer);
+
+    const score        = regionScore + applianceScore + scheduleScore + activityScore + ratingScore;
+    const regionMatch  = getRegionMatch(regionScore);
+    const tier         = getTier(score, regionMatch);
+
+    // 추천 이유 칩
+    if (regionMatch === "main")      reasons.push({ icon: "📍", text: "메인 지역",  weight: "high" });
+    else if (regionMatch === "sub")  reasons.push({ icon: "📍", text: "서브 지역",  weight: "medium" });
+    else if (regionMatch === "possible") reasons.push({ icon: "📍", text: "인근 지역", weight: "medium" });
+    else                              reasons.push({ icon: "📍", text: "지역 외",   weight: "low" });
+
+    if (applianceScore >= 18) reasons.push({ icon: "🔧", text: "기종 OK", weight: "medium" });
+    if (scheduleScore  >= 18) reasons.push({ icon: "📅", text: "일정 여유", weight: "high" });
+    else if (scheduleScore <= 5) reasons.push({ icon: "⚠️", text: "일정 빡빡", weight: "low" });
+    if (activityScore  >= 7)  reasons.push({ icon: "🔥", text: "최근 활발", weight: "medium" });
+    if (engineer.careerLevel === "expert") reasons.push({ icon: "⭐", text: "베테랑", weight: "medium" });
+
+    return {
+      engineer,
+      score,
+      breakdown: { regionScore, applianceScore, scheduleScore, activityScore, ratingScore },
+      reasons,
+      regionMatch,
+      isRecommended: score >= RECOMMEND_THRESHOLD,
+      tier,
+    };
+  });
+
+  // 정렬: 지역 매칭 등급 우선 → 같은 등급 내 점수순
+  const regionPriority = { main: 4, sub: 3, possible: 2, none: 1 };
+  scored.sort((a, b) => {
+    const ap = regionPriority[a.regionMatch] || 0;
+    const bp = regionPriority[b.regionMatch] || 0;
+    if (ap !== bp) return bp - ap;
+    return b.score - a.score;
+  });
+
+  return scored.slice(0, options.limit || 5);
+}
+
+export const RECOMMEND_INFO = {
+  threshold: RECOMMEND_THRESHOLD,
+  weights:   { region: 40, appliance: 20, schedule: 20, activity: 10, rating: 10 },
+  tiers:     ["best", "good", "possible", "fallback"],
+};

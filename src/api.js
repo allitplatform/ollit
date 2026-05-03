@@ -1,9 +1,6 @@
-// 올잇 API 헬퍼 v3 - URL 직접 박음 (.env 안 씀)
-// 작동 우선!
-
+// 올잇 API 헬퍼 v4 - 휴무 API 추가
 const API_URL = 'https://script.google.com/macros/s/AKfycbxow-YEIiKCIf5nuEG1s0qb2N3JgXrpzDZnV03Dt57yIvXtC05jpq3XF2HVBjemI1Gl/exec';
 
-// 공통 호출 함수 (모든 API GET)
 async function apiCall(action, params = {}) {
   if (!API_URL) {
     return { ok: false, error: 'API URL이 설정되지 않았어요.' };
@@ -20,17 +17,9 @@ async function apiCall(action, params = {}) {
   });
   
   try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      redirect: 'follow',
-    });
-    
+    const response = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
     const text = await response.text();
-    
-    if (!text || text.length === 0) {
-      return { ok: false, error: '서버 응답이 비어있습니다.' };
-    }
-    
+    if (!text || text.length === 0) return { ok: false, error: '서버 응답이 비어있습니다.' };
     try {
       return JSON.parse(text);
     } catch (parseErr) {
@@ -43,42 +32,62 @@ async function apiCall(action, params = {}) {
   }
 }
 
-// 1. 핑
+// =====================================
+// 기존 API
+// =====================================
+
 export async function ping() {
   return apiCall('ping');
 }
 
-// 2. 시스템 정보
 export async function getSystemInfo() {
   return apiCall('systemInfo');
 }
 
-// 3. 로그인
 export async function login(userId, password) {
   return apiCall('login', { userId, password });
 }
 
-// 4. 작업 목록
 export async function getTasks(role, userId, principalCode) {
   return apiCall('getTasks', { role, userId, principalCode });
 }
 
-// 5. 작업 상세
 export async function getTaskDetail(taskId) {
   return apiCall('getTaskDetail', { taskId });
 }
 
-// 6. 새 작업 등록
 export async function createTask(taskData) {
   return apiCall('createTask', { task: taskData });
 }
 
-// 7. 작업 상태 업데이트
 export async function updateTaskStatus(taskId, status, updates = {}) {
   return apiCall('updateTaskStatus', { taskId, status, updates });
 }
 
-// 8. 카톡 파싱
 export async function parseKakao(text) {
   return apiCall('parseKakao', { text });
+}
+
+// =====================================
+// 휴무 API ⭐ NEW
+// =====================================
+
+// 한 기사의 모든 휴무 조회
+export async function getOffDays(engineer) {
+  return apiCall('getOffDays', { engineer });
+}
+
+// 특정 날짜의 모든 기사 휴무 (해피콜 추천 시)
+export async function getOffDaysByDate(date) {
+  return apiCall('getOffDaysByDate', { date });
+}
+
+// 휴무 추가
+export async function addOffDay({ engineer, type, date, startTime, endTime, memo }) {
+  return apiCall('addOffDay', { engineer, type, date, startTime, endTime, memo });
+}
+
+// 휴무 삭제
+export async function deleteOffDay(offId) {
+  return apiCall('deleteOffDay', { offId });
 }
