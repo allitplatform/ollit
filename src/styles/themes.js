@@ -116,19 +116,51 @@ export const LIGHT_THEME = {
   "--usol-n-highlight-shadow":"none",
 };
 
-// 테마 적용 — CSS 변수 + body 배경 + colorScheme + storage
-export function applyTheme(theme) {
-  const colors = theme === "light" ? LIGHT_THEME : DARK_THEME;
+// V14 — 화면 모드 (light / dark / auto)
+// auto = 시스템 prefers-color-scheme 따라감, matchMedia로 변경 자동 감지
+
+let autoListener = null;
+
+function getSystemPref() {
+  if (typeof window === "undefined" || !window.matchMedia) return "dark";
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+}
+
+function applyResolved(resolvedTheme) {
+  const colors = resolvedTheme === "light" ? LIGHT_THEME : DARK_THEME;
   Object.entries(colors).forEach(([key, value]) => {
     document.documentElement.style.setProperty(key, value);
   });
   document.body.style.background = colors["--bg-primary"];
-  document.documentElement.style.colorScheme = theme === "light" ? "light" : "dark";
-  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = resolvedTheme === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = resolvedTheme;
+}
+
+// 테마 적용 — CSS 변수 + body 배경 + colorScheme + storage + 시스템 변경 감지
+export function applyTheme(theme) {
+  // 옛 listener 해제
+  if (autoListener && typeof window !== "undefined" && window.matchMedia) {
+    window.matchMedia("(prefers-color-scheme: light)").removeEventListener("change", autoListener);
+    autoListener = null;
+  }
+
+  if (theme === "auto") {
+    applyResolved(getSystemPref());
+    if (typeof window !== "undefined" && window.matchMedia) {
+      autoListener = (e) => applyResolved(e.matches ? "light" : "dark");
+      window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", autoListener);
+    }
+  } else {
+    applyResolved(theme === "light" ? "light" : "dark");
+  }
+
   try { localStorage.setItem("ollit_theme", theme); } catch (e) {}
 }
 
 export function loadTheme() {
-  try { return localStorage.getItem("ollit_theme") || "dark"; }
-  catch (e) { return "dark"; }
+  try {
+    const v = localStorage.getItem("ollit_theme");
+    if (v === "light" || v === "dark" || v === "auto") return v;
+    return "dark";
+  } catch (e) { return "dark"; }
 }

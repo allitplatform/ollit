@@ -3826,20 +3826,11 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "profile" && (
           <EngineerMeTab
             engineer={engineerProfileMerged}
-            monthStats={monthStats}
-            isDark={mode === "dark"}
-            locationGranted={true}
-            onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
-            onCallOps={handleCallOps}
-            onChatOps={handleChatOps}
-            onEdit={() => alert("프로필 편집")}
+            theme={mode}
+            onChangeTheme={(value) => setMode(value)}
+            onContactOps={handleCallOps}
             onChangeAccount={() => setScreen("accountEdit")}
-            onNotiSettings={() => setScreen("notiSettings")}
-            onLocationSettings={handleLocationSettings}
             onRegions={() => setScreen("regionChange")}
-            onAi={() => alert("AI 도우미 (NEW)")}
-            onHelp={() => alert("도움말")}
-            onAppInfo={() => alert("앱 정보 v1.0.0")}
             onLogout={onLogout}
             onTabChange={(tabId) => {
               if (tabId === "today") setScreen("main");
