@@ -1,5 +1,7 @@
-// V13-FINAL2-fix1 — 정산 탭 (catch #1 핫핑크 포인트 + #2 폰트 키우기)
-// 회사 정산 영역 = 좌측 핫핑크 보더 / 송금 금액 핫핑크 / 입금 완료 보고 단색 핫핑크
+// V14 — 정산 메인 (깔끔 버전)
+// 오늘 번 돈 / 이번 주 / 이번 달 = 한 카드 통합
+// 회사 송금 = 간단 박스 / 유솔N 그린 / 안내 문구
+// 작업별 상세는 오늘 번 돈 카드 클릭 → 정산 상세 페이지
 
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 
@@ -22,14 +24,25 @@ export function EngineerSettleTab({
   todayTasks = [],
   monthStats,
   usolN,
+  companyAccount,
+  toCompany,
+  isPaymentSent = false,
+  onClickToday,
   onClickUsolN,
   onConfirmPaymentSent,
   onTabChange,
   unreadCount = 0,
 }) {
-  const todayEarning = todayTasks.reduce((s, t) => s + getEarning(t), 0);
-  const totalRevenue = todayTasks.reduce((s, t) => s + getRevenue(t), 0);
-  const toCompany = Math.max(0, totalRevenue - todayEarning);
+  const completedToday = todayTasks.filter(t => t.status === "완료");
+  const todayEarning  = completedToday.reduce((s, t) => s + getEarning(t), 0);
+  const todayRevenue  = completedToday.reduce((s, t) => s + getRevenue(t), 0);
+  const toCompanyFinal = toCompany != null ? toCompany : Math.max(0, todayRevenue - todayEarning);
+
+  const account = companyAccount || {
+    company: "올데이케어",
+    bank: "우리은행",
+    number: "1002-XXX-XXXXXX",
+  };
 
   return (
     <div style={{
@@ -37,218 +50,245 @@ export function EngineerSettleTab({
       background: "var(--bg-primary)",
       paddingBottom: 80,
       color: "var(--text-primary)",
+      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
     }}>
-      <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 17, fontWeight: 700 }}>💰 정산</div>
-        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+      {/* 헤더 */}
+      <div style={{ padding: "16px 16px 14px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>💰 정산</div>
+        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4, fontWeight: 500 }}>
           {engineer?.name || "기사"}님
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
-        {/* V13-FINAL2-fix2 — 패딩 18 / 금액 38px */}
-        <div style={{
-          background: "#FF1B8D",
-          borderRadius: 12,
-          padding: 18,
-          marginBottom: 12,
-          textAlign: "center",
-        }}>
-          <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", marginBottom: 6 }}>
-            오늘 번 돈
+        {/* 1. 오늘 번 돈 통합 카드 (핑크 단색 / 클릭 가능) */}
+        <div
+          onClick={onClickToday}
+          className="clickable"
+          style={{
+            background: "#FF1B8D",
+            borderRadius: 14,
+            padding: 22,
+            marginBottom: 14,
+            cursor: "pointer",
+            color: "#fff",
+          }}
+        >
+          <div style={{
+            fontSize: 14, color: "rgba(255,255,255,0.9)", fontWeight: 600,
+            marginBottom: 8,
+          }}>
+            💰 오늘 번 돈
           </div>
           <div style={{
-            fontSize: 38, fontWeight: 700, color: "#fff",
-            fontFamily: "monospace", letterSpacing: "-1px", lineHeight: 1,
+            fontSize: 42, fontWeight: 900, color: "#fff",
+            fontFamily: "'JetBrains Mono', monospace",
+            letterSpacing: "-1.5px", lineHeight: 1,
           }}>
             ₩{todayEarning.toLocaleString("ko-KR")}
           </div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.85)", marginTop: 8 }}>
-            {todayTasks.length}건 작업 완료
-          </div>
-        </div>
-
-        {/* 2. 이번 주 / 이번 달 */}
-        <div style={{
-          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
-          marginBottom: 14,
-        }}>
-          <StatBox
-            label="이번 주"
-            amount={monthStats?.weekEarning || 0}
-            count={monthStats?.weekCount || 0}
-            period="이번 주"
-          />
-          <StatBox
-            label="이번 달"
-            amount={monthStats?.monthEarning || 0}
-            count={monthStats?.monthCount || 0}
-            period={`${monthStats?.month || new Date().getMonth() + 1}월`}
-          />
-        </div>
-
-        {/* 3. 오늘 작업 리스트 */}
-        {todayTasks.length > 0 && (
           <div style={{
-            background: "var(--bg-secondary)",
-            borderRadius: 10, padding: 12, marginBottom: 14,
+            fontSize: 13, color: "rgba(255,255,255,0.9)",
+            marginTop: 10, fontWeight: 500,
+            display: "flex", alignItems: "center", gap: 4,
           }}>
-            <div style={{
-              fontSize: 12, color: "var(--text-secondary)",
-              fontWeight: 700, marginBottom: 8,
-            }}>
-              📋 오늘 작업
-            </div>
-            <div style={{ display: "flex", flexDirection: "column" }}>
-              {todayTasks.map((t, i) => (
-                <div key={t.id} style={{
-                  display: "flex", justifyContent: "space-between",
-                  padding: "6px 0",
-                  borderBottom: i < todayTasks.length - 1 ? "1px solid var(--border)" : "none",
-                }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>
-                      {t.customer} · {t.appliance}{t.qty ? ` ×${t.qty}` : ""}
-                    </div>
-                    <div style={{
-                      fontSize: 11, color: "var(--text-secondary)", marginTop: 1,
-                    }}>
-                      {t.scheduledTime || t.time || "—"}{t.region ? ` · ${t.region}` : ""}
-                    </div>
-                  </div>
-                  <div style={{
-                    fontSize: 13, fontWeight: 700, fontFamily: "monospace",
-                  }}>
-                    ₩{getEarning(t).toLocaleString("ko-KR")}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <span>{completedToday.length}건 작업 완료</span>
+            <span>·</span>
+            <span style={{ fontWeight: 700 }}>자세히 보기 ›</span>
           </div>
-        )}
 
-        {/* 4. 회사 정산 (catch #1 핫핑크 포인트) */}
+          {/* 구분선 */}
+          <div style={{
+            height: 1,
+            background: "rgba(255,255,255,0.20)",
+            margin: "16px 0 14px",
+          }}/>
+
+          {/* 이번 주 / 이번 달 */}
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
+          }}>
+            <PeriodStat
+              label="이번 주"
+              amount={monthStats?.weekEarning || 0}
+              count={monthStats?.weekCount || 0}
+            />
+            <PeriodStat
+              label="이번 달"
+              amount={monthStats?.monthEarning || 0}
+              count={monthStats?.monthCount || 0}
+            />
+          </div>
+        </div>
+
+        {/* 2. 회사 송금 박스 (간단) */}
         <div style={{
           background: "var(--bg-secondary)",
-          borderRadius: 10, padding: 12,
-          borderLeft: "3px solid #FF1B8D",
+          border: "1px solid var(--border)",
+          borderRadius: 12,
+          padding: 16,
           marginBottom: 14,
         }}>
           <div style={{
             display: "flex", justifyContent: "space-between",
-            alignItems: "center", marginBottom: 8,
+            alignItems: "flex-start", marginBottom: 10,
           }}>
-            <div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 700 }}>
-                회사 정산 (오늘 22시까지)
-              </div>
-              <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                총 매출에서 내 수익 제외
-              </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ fontSize: 16 }}>📤</span>
+              <span style={{ fontSize: 14, fontWeight: 700 }}>회사 송금</span>
             </div>
-            <div style={{
-              fontSize: 15, fontWeight: 700, fontFamily: "monospace",
-              color: "#FF1B8D",
+            <span style={{
+              fontSize: 11, fontWeight: 800,
+              color: isPaymentSent ? "#03C75A" : "#FF3B5C",
+              padding: "3px 8px",
+              background: isPaymentSent ? "rgba(3,199,90,0.10)" : "rgba(255,59,92,0.10)",
+              borderRadius: 6,
             }}>
-              ₩{toCompany.toLocaleString("ko-KR")}
-            </div>
+              {isPaymentSent ? "입금 완료" : "미입금"}
+            </span>
           </div>
 
           <div style={{
-            background: "var(--bg-primary)",
-            borderRadius: 6, padding: 8, marginBottom: 8,
+            display: "flex", justifyContent: "space-between",
+            alignItems: "baseline", marginBottom: 14,
           }}>
-            <Row label="총 매출" value={`₩${totalRevenue.toLocaleString("ko-KR")}`}/>
-            <Row label="내 수익" value={`- ₩${todayEarning.toLocaleString("ko-KR")}`}/>
             <div style={{
-              borderTop: "1px solid var(--border)",
-              marginTop: 4, paddingTop: 4,
-              display: "flex", justifyContent: "space-between",
-              fontWeight: 700,
+              fontSize: 24, fontWeight: 900,
+              fontFamily: "'JetBrains Mono', monospace",
+              color: "var(--text-primary)",
+              letterSpacing: "-0.5px",
             }}>
-              <span style={{ fontSize: 12 }}>회사 송금</span>
-              <span style={{
-                fontSize: 13, fontFamily: "monospace",
-                color: "#FF1B8D", fontWeight: 700,
-              }}>
-                ₩{toCompany.toLocaleString("ko-KR")}
-              </span>
+              ₩{toCompanyFinal.toLocaleString("ko-KR")}
+            </div>
+            <div style={{
+              fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
+            }}>
+              22:00 마감
             </div>
           </div>
 
+          {/* 구분선 */}
           <div style={{
-            background: "var(--bg-primary)",
-            borderRadius: 6, padding: 8, marginBottom: 8,
+            height: 1, background: "var(--border)", marginBottom: 12,
+          }}/>
+
+          {/* 계좌 */}
+          <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
+            marginBottom: 12, gap: 8,
           }}>
-            <div>
-              <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>🏦 회사 계좌</div>
-              <div style={{ fontSize: 12, fontWeight: 700, marginTop: 2 }}>
-                국민 123-456-789012
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                fontSize: 13, color: "var(--text-secondary)", fontWeight: 600,
+                marginBottom: 2,
+              }}>
+                {account.company} · {account.bank}
+              </div>
+              <div style={{
+                fontSize: 14, fontWeight: 700,
+                fontFamily: "'JetBrains Mono', monospace",
+                color: "var(--text-primary)",
+              }}>
+                {account.number}
               </div>
             </div>
             <button
-              onClick={() => copyToClipboard("123456789012")}
+              onClick={() => copyToClipboard((account.number || "").replace(/-/g, ""))}
               style={{
-                padding: "4px 10px",
-                background: "var(--bg-secondary)",
+                padding: "8px 12px",
+                background: "transparent",
                 border: "1px solid var(--border)",
-                borderRadius: 4,
+                borderRadius: 8,
                 color: "var(--text-primary)",
-                fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+                fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                flexShrink: 0,
               }}
             >
-              복사
+              📋 복사
             </button>
           </div>
 
-          {/* catch #1 — 입금 완료 보고 = 단색 핫핑크 */}
+          {/* 입금 완료 보고 (주황 풀폭) */}
           <button
             onClick={onConfirmPaymentSent}
+            disabled={isPaymentSent}
             style={{
-              width: "100%", padding: 12,
-              background: "#FF1B8D",
+              width: "100%", padding: 14,
+              background: isPaymentSent ? "var(--bg-tertiary)" : "#FF8A3D",
               border: "none",
-              borderRadius: 8,
-              color: "#fff",
-              fontSize: 13, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
+              borderRadius: 10,
+              color: isPaymentSent ? "var(--text-secondary)" : "#fff",
+              fontSize: 15, fontWeight: 800,
+              cursor: isPaymentSent ? "default" : "pointer",
+              fontFamily: "inherit",
             }}
           >
-            ✓ 입금 완료 보고
+            {isPaymentSent ? "✓ 입금 완료" : "입금 완료 보고"}
           </button>
         </div>
 
-        {/* 5. 유솔N 누계 */}
+        {/* 3. 유솔N 박스 (그린) */}
         {usolN && (
           <div
             onClick={onClickUsolN}
+            className="clickable"
             style={{
-              background: "rgba(0,135,90,0.06)",
-              border: "1px solid rgba(0,135,90,0.25)",
-              borderRadius: 10, padding: 12, cursor: "pointer",
+              background: "rgba(3,199,90,0.08)",
+              border: "1px solid rgba(3,199,90,0.30)",
+              borderRadius: 12, padding: 16,
+              marginBottom: 14,
+              cursor: "pointer",
             }}
           >
             <div style={{
-              display: "flex", justifyContent: "space-between", alignItems: "center",
+              display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 6,
             }}>
-              <div>
-                <div style={{ fontSize: 11, color: "#00875A", fontWeight: 700 }}>
-                  🟢 유솔N · {usolN.month}월 누계
-                </div>
-                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-                  {usolN.payDate} 입금 예정
-                </div>
-              </div>
-              <span style={{
-                fontSize: 17, fontWeight: 700,
-                color: "#00875A", fontFamily: "monospace",
+              <div style={{
+                display: "flex", alignItems: "center", gap: 6,
+                fontSize: 13, color: "#03C75A", fontWeight: 800,
               }}>
-                ₩{(usolN.amount || 0).toLocaleString("ko-KR")}
-              </span>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 18, height: 18, borderRadius: 4,
+                  background: "#03C75A", color: "#fff",
+                  fontSize: 11, fontWeight: 900,
+                }}>N</span>
+                <span>유솔N — 받을 돈</span>
+              </div>
+              <span style={{ fontSize: 16, color: "#03C75A" }}>›</span>
+            </div>
+            <div style={{
+              fontSize: 22, fontWeight: 900,
+              fontFamily: "'JetBrains Mono', monospace",
+              color: "var(--text-primary)",
+              letterSpacing: "-0.5px",
+              marginBottom: 6,
+            }}>
+              {(usolN.amount || 0).toLocaleString("ko-KR")}원
+            </div>
+            <div style={{
+              fontSize: 12, color: "var(--text-secondary)", fontWeight: 500,
+            }}>
+              {usolN.payDate || "—"} 입금 예정
+              {usolN.count != null ? ` · ${usolN.month || new Date().getMonth() + 1}월 작업 ${usolN.count}건` : ""}
             </div>
           </div>
         )}
+
+        {/* 4. 안내 문구 */}
+        <div style={{
+          padding: "12px 14px",
+          background: "var(--accent-bg)",
+          borderRadius: 10,
+          fontSize: 12, color: "var(--text-secondary)",
+          fontWeight: 500, lineHeight: 1.5,
+          textAlign: "center",
+        }}>
+          💡 작업별 상세 정산 내역은<br/>
+          <span style={{ color: "#FF1B8D", fontWeight: 700 }}>오늘 번 돈</span>을 눌러보세요
+        </div>
       </div>
 
       <EngineerBottomNav active="settle" onChange={onTabChange} unreadCount={unreadCount}/>
@@ -256,30 +296,28 @@ export function EngineerSettleTab({
   );
 }
 
-function StatBox({ label, amount, count, period }) {
+function PeriodStat({ label, amount, count }) {
   return (
-    <div style={{
-      background: "var(--bg-secondary)",
-      borderRadius: 8, padding: 10,
-    }}>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
+    <div>
+      <div style={{
+        fontSize: 12, color: "rgba(255,255,255,0.85)",
+        fontWeight: 600, marginBottom: 4,
+      }}>
         {label}
       </div>
-      <div style={{ fontSize: 15, fontWeight: 700, fontFamily: "monospace" }}>
+      <div style={{
+        fontSize: 18, fontWeight: 800,
+        fontFamily: "'JetBrains Mono', monospace",
+        color: "#fff", letterSpacing: "-0.3px",
+      }}>
         ₩{amount.toLocaleString("ko-KR")}
       </div>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
-        {count}건 · {period}
+      <div style={{
+        fontSize: 11, color: "rgba(255,255,255,0.85)",
+        fontWeight: 500, marginTop: 2,
+      }}>
+        {count}건
       </div>
-    </div>
-  );
-}
-
-function Row({ label, value }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "2px 0" }}>
-      <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{label}</span>
-      <span style={{ fontSize: 11, fontFamily: "monospace" }}>{value}</span>
     </div>
   );
 }

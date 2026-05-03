@@ -21,6 +21,7 @@ import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../st
 // V13-FINAL2 — 4탭 + 공유 컴포넌트
 import { EngineerBottomNav } from "../components/EngineerBottomNav.jsx";
 import { EngineerSettleTab } from "../components/EngineerSettleTab.jsx";
+import { EngineerSettlementDetailScreen } from "../components/EngineerSettlementDetailScreen.jsx";
 import { EngineerCalendarTab } from "../components/EngineerCalendarTab.jsx";
 import { EngineerNotiTab } from "../components/EngineerNotiTab.jsx";
 import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
@@ -3586,7 +3587,6 @@ export default function EngineerApp({ user, onLogout }) {
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayTasks = tasks.filter(x =>
     (x.scheduledDate === todayStr || x.scheduledDate === "2026-04-27")
-    && (x.status === "완료" || x.status === "진행중")
   );
 
   const monthStats = {
@@ -3764,6 +3764,7 @@ export default function EngineerApp({ user, onLogout }) {
             todayTasks={todayTasks}
             monthStats={monthStats}
             usolN={usolN}
+            onClickToday={() => setScreen("settlementDetail")}
             onClickUsolN={() => setScreen("usolN")}
             onConfirmPaymentSent={() => alert("입금 완료 보고")}
             onTabChange={(tabId) => {
@@ -3774,6 +3775,15 @@ export default function EngineerApp({ user, onLogout }) {
               else if (tabId === "me") setScreen("profile");
             }}
             unreadCount={unreadCount}
+          />
+        )}
+
+        {/* 정산 상세 (V14 NEW) */}
+        {screen === "settlementDetail" && (
+          <EngineerSettlementDetailScreen
+            todayTasks={todayTasks}
+            onBack={() => setScreen("settlement")}
+            onTaskClick={(task) => { setSelectedTaskId(task.id); setScreen("detail"); }}
           />
         )}
 
