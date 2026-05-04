@@ -29,15 +29,11 @@ const DARK = {
 };
 
 export function LoginScreen({ onLogin }) {
-  const isDev = (typeof import.meta !== "undefined" && import.meta.env)
-    ? (import.meta.env.DEV || import.meta.env.MODE === "development")
-    : false;
-
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
-  // V14 — 개발 중 기본 펼침, 운영 빌드는 접힘 (또는 영역 자체 안 보임)
-  const [showQuickLogin, setShowQuickLogin] = useState(isDev);
+  // V14 — 개발 + 베타 단계: production에서도 빠른 로그인 항상 표시 + 기본 펼침
+  const [showQuickLogin, setShowQuickLogin] = useState(true);
 
   const handleLogin = () => {
     setError("");
@@ -148,8 +144,8 @@ export function LoginScreen({ onLogin }) {
           </div>
         </div>
 
-        {/* 빠른 로그인 (개발 빌드만 / 접힘 토글) */}
-        {isDev && (
+        {/* V14 — 빠른 로그인 (베타 단계 항상 표시 / 접힘 토글) */}
+        {true && (
           <div style={{ marginTop: 32 }}>
             <div style={{
               height: 0.5, background: DARK.divider,
