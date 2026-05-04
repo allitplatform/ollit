@@ -109,7 +109,7 @@ function UserRow({ user: u, onClick }) {
           color: u.active ? "#00875A" : "var(--text-secondary)", fontWeight: 500,
         }}>{u.active ? "활성" : "비활성"}</span>
       </div>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "monospace" }}>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "inherit" }}>
         @{u.loginId}
       </div>
     </div>

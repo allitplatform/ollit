@@ -272,7 +272,7 @@ function StatBox({ icon, label, value, color, urgent }) {
         <span style={{ fontSize: 14 }}>{icon}</span>
         <span style={{ fontSize: 11, color: "#fff", fontWeight: 700, opacity: 0.95 }}>{label}</span>
       </div>
-      <div style={{ fontSize: 22, color: "#fff", fontWeight: 700, fontFamily: "monospace" }}>
+      <div style={{ fontSize: 22, color: "#fff", fontWeight: 700, fontFamily: "inherit" }}>
         ₩{(value || 0).toLocaleString()}
       </div>
     </div>
@@ -302,7 +302,7 @@ function TodayMarginSection({ analysis }) {
           </div>
         </div>
         <div style={{ textAlign: "right" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#FF1B8D", fontFamily: "monospace" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#FF1B8D", fontFamily: "inherit" }}>
             ₩{analysis.totalMargin.toLocaleString()}
           </div>
         </div>
@@ -359,7 +359,7 @@ function SummaryBox({ label, value, color, highlight }) {
       <div style={{
         fontSize: 12, fontWeight: highlight ? 700 : 600,
         color: highlight ? "#fff" : color,
-        fontFamily: "monospace",
+        fontFamily: "inherit",
       }}>
         ₩{(value || 0).toLocaleString()}
       </div>
@@ -393,7 +393,7 @@ function TaskMarginRow({ item }) {
             {task.customer || "—"}
           </span>
         </div>
-        <span style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700, fontFamily: "monospace" }}>
+        <span style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
           +₩{margin.toLocaleString()}
         </span>
       </div>
@@ -404,18 +404,18 @@ function TaskMarginRow({ item }) {
         color: "var(--text-tertiary, var(--text-secondary))",
       }}>
         <span>매출</span>
-        <span style={{ fontFamily: "monospace", textAlign: "right" }}>
+        <span style={{ fontFamily: "inherit", textAlign: "right" }}>
           ₩{revenue.toLocaleString()}
         </span>
 
         <span>− 기사</span>
-        <span style={{ fontFamily: "monospace", textAlign: "right", color: "#FF1B8D" }}>
+        <span style={{ fontFamily: "inherit", textAlign: "right", color: "#FF1B8D" }}>
           ₩{engineerEarning.toLocaleString()}
         </span>
 
         <span style={{ color: "#FF1B8D", fontWeight: 700 }}>= 마진</span>
         <span style={{
-          fontFamily: "monospace", textAlign: "right",
+          fontFamily: "inherit", textAlign: "right",
           color: "#FF1B8D", fontWeight: 700,
         }}>
           ₩{margin.toLocaleString()}
@@ -530,7 +530,7 @@ function EngineerSettlementCard({ item, isUnpaidView, onMarkPaid, onCall, onNoti
           )}
         </div>
         <span style={{
-          fontSize: 13, fontWeight: 700, fontFamily: "monospace",
+          fontSize: 13, fontWeight: 700, fontFamily: "inherit",
           color: isUnpaidView ? "#FF3D5A" : (isPaid ? "#00875A" : "var(--text-primary)"),
         }}>
           ₩{(isUnpaidView ? remaining : totalAmount).toLocaleString()}

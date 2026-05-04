@@ -1359,7 +1359,7 @@ export default function AdminApp({ user, onLogout }) {
       @keyframes flash { 0%, 100% { background-color: transparent; } 30% { background-color: rgba(251, 191, 36, 0.25); } }
       .fade-in { animation: slideUp 0.4s ease-out; }
       .flash-highlight { animation: flash 1.5s ease-out; }
-      .mono { font-family: 'JetBrains Mono', monospace; }
+      .mono { font-family: inherit; }
       .clickable { cursor: pointer; transition: all 0.15s; }
       .clickable:active { opacity: 0.7; transform: scale(0.98); }
     `}</style>
@@ -3265,7 +3265,7 @@ function TaskEditScreen({ t, task, onBack, onSave }) {
         </div>
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>연락처</label>
-          <input type="text" value={form.phone} onChange={(e) => update("phone", e.target.value)} className="mono" style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }}/>
+          <input type="text" value={form.phone} onChange={(e) => update("phone", e.target.value)} className="mono" style={{ ...inputStyle, fontFamily: "inherit" }}/>
         </div>
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>주소 / 지역</label>
@@ -3286,7 +3286,7 @@ function TaskEditScreen({ t, task, onBack, onSave }) {
           </div>
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>수량</label>
-            <input type="number" min="1" value={form.qty} onChange={(e) => update("qty", parseInt(e.target.value) || 1)} className="mono" style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }}/>
+            <input type="number" min="1" value={form.qty} onChange={(e) => update("qty", parseInt(e.target.value) || 1)} className="mono" style={{ ...inputStyle, fontFamily: "inherit" }}/>
           </div>
         </div>
         <div style={{ marginBottom: 12 }}>
@@ -3300,7 +3300,7 @@ function TaskEditScreen({ t, task, onBack, onSave }) {
               value={form.estimateTotal}
               onChange={(e) => update("estimateTotal", parseInt(e.target.value) || 0)}
               className="mono"
-              style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace", paddingRight: 36 }}
+              style={{ ...inputStyle, fontFamily: "inherit", paddingRight: 36 }}
               placeholder="0"/>
             <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: t.textMuted, fontWeight: 600, pointerEvents: "none" }}>원</span>
           </div>
@@ -5520,7 +5520,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
               background: t.bgInset,
               border: `1px solid ${t.border}`,
               borderRadius: 8, fontSize: 12, color: t.text,
-              fontFamily: "monospace", outline: "none",
+              fontFamily: "inherit", outline: "none",
               boxSizing: "border-box", minHeight: 100, resize: "vertical",
               lineHeight: 1.5,
             }}

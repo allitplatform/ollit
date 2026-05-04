@@ -54,7 +54,7 @@ export function EngineerMeTab({
         </div>
         <div style={{
           fontSize: 14,
-          fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
+          fontFamily: "inherit", fontWeight: 700,
           color: "var(--text-secondary)",
           marginTop: 6,
         }}>

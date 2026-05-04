@@ -145,7 +145,7 @@ function SummaryItem({ label, value, highlight }) {
       <div style={{
         fontSize: 11, fontWeight: highlight ? 700 : 500,
         color: highlight ? "#FF1B8D" : "var(--text-primary)",
-        fontFamily: "monospace",
+        fontFamily: "inherit",
       }}>{value}</div>
     </div>
   );
@@ -179,7 +179,7 @@ function EngineerTaskGroup({ group, principalId }) {
         )}
         <span style={{
           marginLeft: "auto", fontSize: 11,
-          color: "#FF1B8D", fontWeight: 700, fontFamily: "monospace",
+          color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit",
         }}>
           ₩{group.totalEarning.toLocaleString()}
         </span>
@@ -213,7 +213,7 @@ function TaskRow({ task, principalId }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
         <span style={{ fontSize: 11, fontWeight: 600 }}>{task.customer || "—"}</span>
-        <span style={{ fontSize: 10, color: "#FF1B8D", fontFamily: "monospace" }}>
+        <span style={{ fontSize: 10, color: "#FF1B8D", fontFamily: "inherit" }}>
           +₩{earning.toLocaleString()}
         </span>
       </div>

@@ -348,7 +348,7 @@ export function EngineerNewAssignDetailScreen({
             marginBottom: 16,
           }}>
             <span style={{
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "inherit",
             }}>
               {startStr} ~ {endStr}
             </span>
@@ -438,7 +438,7 @@ function DatePill({ active, label, sub, onClick }) {
         fontSize: 11,
         fontWeight: 600,
         color: active ? "rgba(255,255,255,0.85)" : "var(--text-tertiary)",
-        fontFamily: sub && /[0-9]/.test(sub) ? "'JetBrains Mono', monospace" : "inherit",
+        fontFamily: sub && /[0-9]/.test(sub) ? "inherit" : "inherit",
       }}>
         {sub}
       </span>

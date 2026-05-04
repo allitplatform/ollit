@@ -462,7 +462,7 @@ function TimelineRow({ task, onClick }) {
         }}>
           <div style={{
             fontSize: 17, fontWeight: 800,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "inherit",
             color: isInProgress ? "#FF1B8D" : "var(--text-primary)",
           }}>
             {task.scheduledTime || task.time || "미정"}
@@ -548,7 +548,7 @@ function DayTaskCard({ task, onClick }) {
           <>
             <div style={{
               fontSize: 16, fontWeight: 800,
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "inherit",
               color: isActive ? "#FF1B8D" : "var(--text-primary)",
             }}>
               {task.scheduledTime || task.time || "—"}

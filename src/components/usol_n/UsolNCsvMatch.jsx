@@ -242,7 +242,7 @@ function ResultBox({ icon, label, count, rightExtra, color, accent, muted }) {
         <span style={{
           fontSize: 10,
           color: muted ? "var(--text-tertiary, var(--text-secondary))" : color,
-          fontFamily: "monospace",
+          fontFamily: "inherit",
           fontWeight: muted ? 500 : 700,
         }}>
           {rightExtra}
@@ -288,7 +288,7 @@ function MatchedItemsPreview({ items }) {
               <span style={{
                 fontSize: 10,
                 color: isExtra ? "#F59E0B" : "#1D9E75",
-                fontFamily: "monospace",
+                fontFamily: "inherit",
               }}>
                 ₩{netAmount.toLocaleString()}
               </span>

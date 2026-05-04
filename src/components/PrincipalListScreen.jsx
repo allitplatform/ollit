@@ -113,7 +113,7 @@ function PrincipalRow({ principal: p, onClick }) {
         · {set.length ? set.join(" / ") : "정책 미설정"}
         {refDesc && ` · ${refDesc}`}
       </div>
-      <div style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "monospace" }}>
+      <div style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "inherit" }}>
         prefix {p.prefix || "—"}
       </div>
       {p.note && (

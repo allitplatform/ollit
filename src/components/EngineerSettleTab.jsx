@@ -94,7 +94,7 @@ export function EngineerSettleTab({
           {/* Hero ₩ 64px / 700 */}
           <div style={{
             fontSize: 64, fontWeight: 700, color: "#fff",
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "inherit",
             letterSpacing: "-2.5px", lineHeight: 1,
             marginBottom: 10,
           }}>
@@ -164,7 +164,7 @@ export function EngineerSettleTab({
           }}>
             <div style={{
               fontSize: 36, fontWeight: 700,
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "inherit",
               color: "var(--text-primary)",
               letterSpacing: "-1px", lineHeight: 1,
             }}>
@@ -195,7 +195,7 @@ export function EngineerSettleTab({
               <div style={{
                 fontSize: 12, fontWeight: 700,
                 color: "var(--account-num)",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 marginTop: 2,
               }}>
                 {account.number}
@@ -268,7 +268,7 @@ export function EngineerSettleTab({
               </div>
               <div style={{
                 fontSize: 26, fontWeight: 700,
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 color: "var(--text-primary)",
                 letterSpacing: "-0.6px", lineHeight: 1,
               }}>
@@ -321,7 +321,7 @@ function PeriodStat({ label, amount, count }) {
       </div>
       <div style={{
         fontSize: 19, fontWeight: 700,
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: "inherit",
         color: "#fff", letterSpacing: "-0.4px", lineHeight: 1.1,
       }}>
         ₩{amount.toLocaleString("ko-KR")}

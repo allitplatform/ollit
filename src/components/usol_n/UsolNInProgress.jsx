@@ -92,7 +92,7 @@ function TaskCard({ task, engineers }) {
           <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer || "—"}</span>
           <StatusBadge status={task.status}/>
         </div>
-        <span style={{ fontSize: 11, fontFamily: "monospace", color: isCurrentlyWorking ? "#A855F7" : "var(--text-primary)" }}>
+        <span style={{ fontSize: 11, fontFamily: "inherit", color: isCurrentlyWorking ? "#A855F7" : "var(--text-primary)" }}>
           ₩{(task.netAmount || 0).toLocaleString()}
         </span>
       </div>

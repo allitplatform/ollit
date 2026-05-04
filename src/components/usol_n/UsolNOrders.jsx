@@ -158,7 +158,7 @@ function OrderGroupCard({ items }) {
           <span style={statusBadgeStyle}>접수</span>
           {isGroup && <span style={groupBadgeStyle}>묶음 {items.length}</span>}
         </div>
-        <span style={{ fontSize: 13, color: "#03C75A", fontWeight: 700, fontFamily: "monospace" }}>
+        <span style={{ fontSize: 13, color: "#03C75A", fontWeight: 700, fontFamily: "inherit" }}>
           ₩{totalNet.toLocaleString()}
         </span>
       </div>

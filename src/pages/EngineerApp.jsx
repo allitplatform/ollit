@@ -417,7 +417,7 @@ function CustomDatePicker({ t, value, onChange }) {
                 border: "none",
                 borderRadius: 8,
                 fontSize: 13,
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 fontWeight: selected ? 800 : today_ ? 700 : 500,
                 cursor: !day || past ? "default" : "pointer",
                 background: selected ? t.accent : today_ ? t.accentBg : "transparent",
@@ -428,7 +428,7 @@ function CustomDatePicker({ t, value, onChange }) {
                        : dayOfWeek === 0 ? t.danger
                        : t.text,
                 position: "relative",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 opacity: past ? 0.4 : 1,
                 transition: "all 0.15s",
               }}
@@ -500,7 +500,7 @@ function CustomTimePicker({ t, value, onChange }) {
                 color: active ? "white" : t.text,
                 border: `1px solid ${active ? t.accent : t.border}`,
                 borderRadius: 8, fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "'JetBrains Mono', monospace",
+                cursor: "pointer", fontFamily: "inherit",
               }}>
                 {formatHour(h)}
               </button>
@@ -523,7 +523,7 @@ function CustomTimePicker({ t, value, onChange }) {
                 border: `1px solid ${active ? t.accent : t.border}`,
                 borderRadius: 8, fontSize: 13, fontWeight: 700,
                 cursor: selectedHour ? "pointer" : "not-allowed",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 opacity: selectedHour ? 1 : 0.5,
               }}>
                 {String(m).padStart(2, '0')}분
@@ -667,7 +667,7 @@ function MainScreen({
         @keyframes pulseSubtle { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
         .pulse-subtle { animation: pulseSubtle 2s ease-in-out infinite; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: transform 0.15s, opacity 0.15s; }
         .clickable:active { transform: scale(0.98); opacity: 0.8; }
         input, textarea { font-family: inherit; }
@@ -780,7 +780,7 @@ function MainScreen({
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
               <span style={{
                 fontSize: 36, fontWeight: 600,
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 color: "var(--text-primary)", letterSpacing: "-1px",
               }}>
                 {activeTask.startedAt}
@@ -1232,7 +1232,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
       <style>{`
         
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .section { animation: slideIn 0.3s ease-out backwards; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -1603,7 +1603,7 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
   return (
     <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .section { animation: slideIn 0.3s ease-out backwards; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -1640,7 +1640,7 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle(t)}>💰 추가 금액 (선택)</label>
           <div style={{ position: "relative" }}>
-            <input type="text" inputMode="numeric" placeholder="0" value={extraFee ? formatCurrency(extraFee) : ""} onChange={(e) => setExtraFee(e.target.value)} style={{ ...inputStyle(t), paddingLeft: 32, fontFamily: "'JetBrains Mono', monospace" }}/>
+            <input type="text" inputMode="numeric" placeholder="0" value={extraFee ? formatCurrency(extraFee) : ""} onChange={(e) => setExtraFee(e.target.value)} style={{ ...inputStyle(t), paddingLeft: 32, fontFamily: "inherit" }}/>
             <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textMuted, fontWeight: 700 }}>₩</span>
             {extraFee && <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: t.textMuted, fontWeight: 700 }}>원</span>}
           </div>
@@ -1761,7 +1761,7 @@ function SettlementScreen({ t }) {
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
         .clickable:active { opacity: 0.7; }
       `}</style>
@@ -2057,7 +2057,7 @@ function NotificationsScreen({ t }) {
   return (
     <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <style>{`
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -2226,7 +2226,7 @@ function ProfileScreen({ t, mode, setMode }) {
   return (
     <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <style>{`
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -2307,7 +2307,7 @@ function ProfileScreen({ t, mode, setMode }) {
                   background: t.accent, transition: "width 0.5s",
                 }}/>
               </div>
-              <div style={{ fontSize: 9, color: t.textDim, marginTop: 4, textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>
+              <div style={{ fontSize: 9, color: t.textDim, marginTop: 4, textAlign: "right", fontFamily: "inherit" }}>
                 {PROFILE_DATA.rankProgress}%
               </div>
             </div>
@@ -3122,7 +3122,7 @@ function DayDetailScreen({ t, date, tasks, offDays: initialOffDays, engineerName
                 top: h * HOUR_HEIGHT - 6,
                 right: 4,
                 fontSize: 9, color: t.textMuted,
-                fontFamily: 'monospace', fontWeight: 700,
+                fontFamily: 'inherit', fontWeight: 700,
               }}>
                 {String(h).padStart(2, '0')}
               </div>
@@ -3215,7 +3215,7 @@ function DayDetailScreen({ t, date, tasks, offDays: initialOffDays, engineerName
                     <div style={{
                       position: 'absolute', bottom: 4, right: 8,
                       fontSize: 9, opacity: 0.7,
-                      fontFamily: 'monospace',
+                      fontFamily: 'inherit',
                     }}>
                       {String(Math.floor(b.start)).padStart(2,'0')}:{String(Math.round((b.start % 1) * 60)).padStart(2,'0')}
                       {' ~ '}
@@ -3367,7 +3367,7 @@ function TimeWheelSheet({ t, isOpen, initialValue, label, onClose, onSelect }) {
                     fontSize: h === selectedHour ? 22 : 16,
                     fontWeight: h === selectedHour ? 700 : 400,
                     color: h === selectedHour ? t.accent : t.textMuted,
-                    fontFamily: 'monospace',
+                    fontFamily: 'inherit',
                     scrollSnapAlign: 'center',
                     transition: 'all 0.15s',
                     cursor: 'pointer',
@@ -3394,7 +3394,7 @@ function TimeWheelSheet({ t, isOpen, initialValue, label, onClose, onSelect }) {
                     fontSize: m === selectedMin ? 22 : 16,
                     fontWeight: m === selectedMin ? 700 : 400,
                     color: m === selectedMin ? t.accent : t.textMuted,
-                    fontFamily: 'monospace',
+                    fontFamily: 'inherit',
                     scrollSnapAlign: 'center',
                     transition: 'all 0.15s',
                     cursor: 'pointer',
@@ -3444,7 +3444,7 @@ function DragTimePicker({ value, onChange, t, label }) {
           border: 'none',
           fontSize: 22,
           fontWeight: 700,
-          fontFamily: 'monospace',
+          fontFamily: 'inherit',
           letterSpacing: 1,
           cursor: 'pointer',
           padding: '4px 8px',

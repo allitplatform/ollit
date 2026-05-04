@@ -45,7 +45,7 @@ export function WorkItemRow({ workType, appliance, qty, price, dividerTop = true
       {price != null && price > 0 && (
         <span style={{
           fontSize: 19, color: colors.main, fontWeight: 600,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: "inherit",
           letterSpacing: "-0.3px",
           flexShrink: 0,
         }}>

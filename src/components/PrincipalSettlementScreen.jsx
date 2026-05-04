@@ -161,7 +161,7 @@ function SummaryItem({ label, value, highlight }) {
         fontSize: 11, fontWeight: highlight ? 700 : 500,
         color: "#fff",
         opacity: highlight ? 1 : 0.95,
-        fontFamily: "monospace",
+        fontFamily: "inherit",
       }}>{value}</div>
     </div>
   );
@@ -251,12 +251,12 @@ function PrincipalCard({ principal, data, policy, onClick }) {
         gap: 4, fontSize: 10,
       }}>
         <span style={{ color: "var(--text-secondary)" }}>회사 매출</span>
-        <span style={{ fontFamily: "monospace", color: "var(--text-primary)" }}>
+        <span style={{ fontFamily: "inherit", color: "var(--text-primary)" }}>
           ₩{data.companyRevenue.toLocaleString()}
         </span>
 
         <span style={{ color: "var(--text-secondary)" }}>원청 정산</span>
-        <span style={{ fontFamily: "monospace", color, fontWeight: 700 }}>
+        <span style={{ fontFamily: "inherit", color, fontWeight: 700 }}>
           ₩{data.principalFee.toLocaleString()}
         </span>
       </div>

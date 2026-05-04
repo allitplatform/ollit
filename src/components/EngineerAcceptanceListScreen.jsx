@@ -180,7 +180,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
           <div style={{
             fontSize: 22, fontWeight: 600,
             color: "#FFB800",
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "inherit",
             letterSpacing: "-0.3px",
           }}>
             ₩{fee.toLocaleString("ko-KR")}

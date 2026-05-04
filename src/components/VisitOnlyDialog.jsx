@@ -67,7 +67,7 @@ export function VisitOnlyDialog({ task, onConfirm, onClose }) {
           <div style={{ fontSize: 11, color: "#fff", opacity: 0.95, marginBottom: 4 }}>
             출장비 (고정)
           </div>
-          <div style={{ fontSize: 26, fontWeight: 700, color: "#fff", fontFamily: "monospace" }}>
+          <div style={{ fontSize: 26, fontWeight: 700, color: "#fff", fontFamily: "inherit" }}>
             ₩{VISIT_FEE.amount.toLocaleString()}
           </div>
           <div style={{ fontSize: 9, color: "#fff", opacity: 0.85, marginTop: 4 }}>

@@ -325,7 +325,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         <div style={{
           flex: 1, textAlign: "center",
           fontSize: 11, color: "var(--text-secondary)",
-          fontFamily: "monospace",
+          fontFamily: "inherit",
         }}>
           {task.id || "—"}
         </div>
@@ -577,7 +577,7 @@ function WorkMainCard({ task }) {
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
         <span style={{
           fontSize: 36, fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: "inherit",
           color: "var(--text-primary)",
           letterSpacing: "-1px", lineHeight: 1,
         }}>
@@ -692,7 +692,7 @@ function StatusBlockConfirmed({ task }) {
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
         <div style={{
-          fontSize: 36, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 36, fontWeight: 600, fontFamily: "inherit",
           color: "var(--text-primary)", letterSpacing: "-1px",
         }}>
           {task.scheduledTime || task.time || "—"}
@@ -755,7 +755,7 @@ function StatusBlockInProgress({ task }) {
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 14 }}>
         <div style={{
-          fontSize: 36, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 36, fontWeight: 600, fontFamily: "inherit",
           color: "var(--text-primary)", letterSpacing: "-1px",
         }}>
           {task.startedAt || task.scheduledTime || "—"}
@@ -804,7 +804,7 @@ function StatusBlockCompleted({ task }) {
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
         <div style={{
-          fontSize: 28, fontWeight: 700, fontFamily: "monospace",
+          fontSize: 28, fontWeight: 700, fontFamily: "inherit",
           color: "var(--text-primary)",
         }}>
           {task.startedAt || "—"}
@@ -1163,7 +1163,7 @@ function ExtraFeeInput({ value, onChange, onAdd }) {
             color: "var(--text-primary)",
             fontSize: 16, boxSizing: "border-box",
             outline: "none", marginBottom: 10,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "inherit",
             fontWeight: 600,
           }}
         />
@@ -1189,7 +1189,7 @@ function ExtraFeeInput({ value, onChange, onAdd }) {
                 color: "var(--extra-fee-text)",
                 fontSize: 12, fontWeight: 600,
                 cursor: "pointer",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
               }}
           >
             {b.label}
@@ -1327,7 +1327,7 @@ function SettlementInfo({ task }) {
           display: "flex", justifyContent: "space-between",
         }}>
           <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 700 }}>합계</span>
-          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "monospace", color: "var(--text-primary)" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "inherit", color: "var(--text-primary)" }}>
             ₩{total.toLocaleString("ko-KR")}
           </span>
         </div>
@@ -1344,7 +1344,7 @@ function SettlementInfo({ task }) {
           alignItems: "center",
         }}>
           <span style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700 }}>기사 수익</span>
-          <span style={{ fontSize: 16, color: "#FF1B8D", fontWeight: 700, fontFamily: "monospace" }}>
+          <span style={{ fontSize: 16, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
             ₩{engineerNet.toLocaleString("ko-KR")}
           </span>
         </div>
@@ -1363,7 +1363,7 @@ function SettlementRow({ label, value, valueColor }) {
       <span style={{
         fontSize: 11,
         color: valueColor || "var(--text-primary)",
-        fontFamily: "monospace",
+        fontFamily: "inherit",
       }}>
         {value}
       </span>
@@ -1506,13 +1506,13 @@ function VisitOnlyDialog({ task, onClose, onConfirm }) {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
               <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>출장비</span>
-              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "monospace" }}>
+              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
                 ₩30,000
               </span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
               <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>기사 수익</span>
-              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "monospace" }}>
+              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
                 ₩30,000 (100%)
               </span>
             </div>
@@ -1649,7 +1649,7 @@ function CancelScreen({ task, onBack, onConfirm }) {
               </div>
               <div style={{
                 fontSize: 12,
-                fontFamily: "monospace",
+                fontFamily: "inherit",
                 color: item.checked ? "#FF3D5A" : "var(--text-secondary)",
                 fontWeight: item.checked ? 700 : 400,
               }}>
@@ -1667,13 +1667,13 @@ function CancelScreen({ task, onBack, onConfirm }) {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
           <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>취소될 금액</span>
-          <span style={{ fontSize: 12, color: "#FF3D5A", fontWeight: 700, fontFamily: "monospace" }}>
+          <span style={{ fontSize: 12, color: "#FF3D5A", fontWeight: 700, fontFamily: "inherit" }}>
             - ₩{cancelAmount.toLocaleString("ko-KR")}
           </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
           <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>남는 작업 금액</span>
-          <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", color: "var(--text-primary)" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "inherit", color: "var(--text-primary)" }}>
             ₩{remainAmount.toLocaleString("ko-KR")}
           </span>
         </div>
@@ -1789,7 +1789,7 @@ function RescheduleScreen({ task, onBack, onConfirm }) {
         </div>
         <div style={{
           fontSize: 18, fontWeight: 700,
-          fontFamily: "monospace", color: "var(--text-primary)",
+          fontFamily: "inherit", color: "var(--text-primary)",
         }}>
           {task.scheduledDate || "—"} {task.scheduledTime || ""}
           {task.endTime ? ` ~ ${task.endTime}` : ""}

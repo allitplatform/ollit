@@ -96,7 +96,7 @@ export function UsolNCalendarScreen({
           </div>
           <div style={{
             fontSize: 26, fontWeight: 700, color: "#00875A",
-            fontFamily: "monospace", letterSpacing: "-1px",
+            fontFamily: "inherit", letterSpacing: "-1px",
           }}>
             ₩{(monthData.totalAmount || 0).toLocaleString("ko-KR")}
           </div>
@@ -150,7 +150,7 @@ export function UsolNCalendarScreen({
           {dayEarning > 0 && (
             <span style={{
               fontSize: 11, color: "#00875A", fontWeight: 700,
-              fontFamily: "monospace",
+              fontFamily: "inherit",
             }}>
               ₩{dayEarning.toLocaleString("ko-KR")}
             </span>
@@ -186,7 +186,7 @@ export function UsolNCalendarScreen({
                   </div>
                 </div>
                 <div style={{
-                  fontSize: 12, fontWeight: 700, fontFamily: "monospace",
+                  fontSize: 12, fontWeight: 700, fontFamily: "inherit",
                 }}>
                   ₩{getEarning(t).toLocaleString("ko-KR")}
                 </div>

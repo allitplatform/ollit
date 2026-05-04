@@ -393,7 +393,7 @@ function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction }) {
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.6); } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
         .pulse-dot { animation: pulse 1.8s ease-in-out infinite; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: transform 0.15s, opacity 0.15s; }
         .clickable:active { transform: scale(0.98); opacity: 0.8; }
         input, textarea, select { font-family: inherit; }
@@ -764,7 +764,7 @@ function CustomDatePicker({ t, value, onChange }) {
           return (
             <button key={idx} onClick={() => !past && handleDayClick(day)} disabled={!day || past} style={{
               aspectRatio: "1", border: "none", borderRadius: 8,
-              fontSize: 13, fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 13, fontFamily: "inherit",
               fontWeight: selected ? 800 : today_ ? 700 : 500,
               cursor: !day || past ? "default" : "pointer",
               background: selected ? t.accent : today_ ? t.accentBg : "transparent",
@@ -869,7 +869,7 @@ function NewReceptionScreen({ t, onCancel, onSubmit }) {
   return (
     <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
         .clickable:active { opacity: 0.7; }
       `}</style>
@@ -923,7 +923,7 @@ function NewReceptionScreen({ t, onCancel, onSubmit }) {
         <div style={{ marginBottom: 20 }}>
           <label style={labelStyle(t)}>👤 고객 정보</label>
           <input type="text" placeholder="이름" value={customer} onChange={(e) => setCustomer(e.target.value)} style={{ ...inputStyle(t), marginBottom: 8 }}/>
-          <input type="tel" placeholder="010-0000-0000" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ ...inputStyle(t), fontFamily: "'JetBrains Mono', monospace" }}/>
+          <input type="tel" placeholder="010-0000-0000" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ ...inputStyle(t), fontFamily: "inherit" }}/>
         </div>
 
         {/* 주소 */}
@@ -1128,7 +1128,7 @@ function NewReceptionScreen({ t, onCancel, onSubmit }) {
               onChange={handleEstimateChange}
               style={{ 
                 ...inputStyle(t), 
-                fontFamily: "'JetBrains Mono', monospace", 
+                fontFamily: "inherit", 
                 fontSize: 16, fontWeight: 700,
                 textAlign: "right", paddingRight: 36,
               }}
@@ -1308,7 +1308,7 @@ function HappycallEditScreen({ t, task, onCancel, onSave }) {
   return (
     <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
         .clickable:active { opacity: 0.7; }
         @keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 500px; } }
@@ -1594,7 +1594,7 @@ function AssignEngineerScreen({ t, task, onCancel, onAssign }) {
   return (
     <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
         .clickable:active { opacity: 0.7; }
         @keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 500px; } }
@@ -1753,7 +1753,7 @@ function TimelineHeader({ t }) {
     <div style={{ marginBottom: 6, padding: "0 4px" }}>
       <div style={{ display: "grid", gridTemplateColumns: "60px 1fr", gap: 8 }}>
         <div></div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: t.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: t.textMuted, fontFamily: "inherit" }}>
           <span>00</span>
           <span>06</span>
           <span>12</span>

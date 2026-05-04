@@ -352,7 +352,7 @@ function InfoCard({ task, memos, onMemoAdd }) {
               <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
                 💰 {isDone ? "최종 금액" : "견적 금액"}
               </div>
-              <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "monospace", color: "var(--text-primary)" }}>
+              <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "inherit", color: "var(--text-primary)" }}>
                 {sumTotal.toLocaleString()}
                 <span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500 }}>원</span>
               </div>

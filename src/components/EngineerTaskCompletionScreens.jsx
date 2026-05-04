@@ -137,7 +137,7 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
           <span style={{
             color: r.color || "var(--text-primary)",
             fontWeight: 700,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "inherit",
           }}>
             {r.value}
           </span>
@@ -166,7 +166,7 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
               </span>
               <span style={{
                 color: r.color || "var(--sub-box-amount)",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 fontWeight: 700,
               }}>
                 {r.value}
@@ -195,7 +195,7 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
         <span style={{
           fontSize: 30, color: finalColor,
           fontWeight: 700,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: "inherit",
           letterSpacing: "-0.7px", lineHeight: 1,
         }}>
           +{finalAmount.toLocaleString("ko-KR")}원
@@ -224,7 +224,7 @@ function SettlementRow({ label, value, color, strike, divider, bold }) {
       </span>
       <span style={{
         fontSize: 14,
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: "inherit",
         color: strike ? "var(--text-tertiary)" : (color || "var(--text-primary)"),
         fontWeight: bold ? 800 : 600,
         textDecoration: strike ? "line-through" : "none",
@@ -464,7 +464,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
           <div style={{ textAlign: "center", minWidth: 80 }}>
             <div style={{
               fontSize: 32, fontWeight: 700,
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "inherit",
               color: "var(--text-primary)",
               lineHeight: 1,
             }}>

@@ -154,7 +154,7 @@ function AssignmentCard({ task, onClick }) {
         <div style={{
           fontSize: 14, color: "var(--text-secondary)",
           fontWeight: 600, marginBottom: 16,
-          fontFamily: "'JetBrains Mono', monospace",
+          fontFamily: "inherit",
         }}>
           📞 {task.phone}
         </div>

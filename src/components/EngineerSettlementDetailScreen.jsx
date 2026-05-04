@@ -79,7 +79,7 @@ export function EngineerSettlementDetailScreen({
           {/* Hero ₩ 56px 핑크 (검정 위에서 도드라짐) */}
           <div style={{
             fontSize: 56, fontWeight: 700, color: "#FF4DA6",
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "inherit",
             letterSpacing: "-2px", lineHeight: 1,
             marginBottom: 6,
           }}>
@@ -150,7 +150,7 @@ function SubStat({ label, amount }) {
       </div>
       <div style={{
         fontSize: 18, fontWeight: 700,
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: "inherit",
         color: "#FAF8F5", letterSpacing: "-0.3px", lineHeight: 1.1,
       }}>
         ₩{amount.toLocaleString("ko-KR")}
@@ -237,7 +237,7 @@ function WorkSettlementCard({ work, onClick }) {
         {time && (
           <span style={{
             fontSize: 11, color: "#888", fontWeight: 600,
-            fontFamily: "'JetBrains Mono', monospace",
+            fontFamily: "inherit",
             flexShrink: 0,
           }}>
             {time}{endTime ? ` ~ ${endTime}` : ""}
@@ -299,7 +299,7 @@ function FlowItem({ label, value, grey, highlight }) {
         fontSize: highlight ? 15 : 13,
         fontWeight: highlight ? 700 : 600,
         color: grey ? "#888" : (highlight ? "#FF1B8D" : "var(--text-primary)"),
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: "inherit",
         letterSpacing: "-0.3px",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>

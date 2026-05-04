@@ -132,7 +132,7 @@ function GradientHeader({ info, onBack }) {
             {info.rightLabel}
           </div>
           <div style={{
-            fontSize: 14, fontWeight: 700, fontFamily: "monospace",
+            fontSize: 14, fontWeight: 700, fontFamily: "inherit",
           }}>
             {info.rightValue}
           </div>

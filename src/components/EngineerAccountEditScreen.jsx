@@ -94,7 +94,7 @@ export function EngineerAccountEditScreen({ engineer, onBack, onSave }) {
             value={accountNumber}
             onChange={(e) => setAccountNumber(e.target.value.replace(/[^0-9-]/g, ""))}
             placeholder="123-456-789012"
-            style={{ ...inputStyle, fontFamily: "monospace" }}
+            style={{ ...inputStyle, fontFamily: "inherit" }}
           />
         </div>
 

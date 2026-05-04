@@ -710,7 +710,7 @@ function Stat({ label, value, suffix, color }) {
       background: "var(--bg-secondary)", border: "1px solid var(--border)",
       borderRadius: 8, textAlign: "center",
     }}>
-      <div style={{ fontSize: 18, fontWeight: 700, color, fontFamily: "monospace" }}>
+      <div style={{ fontSize: 18, fontWeight: 700, color, fontFamily: "inherit" }}>
         {value}<span style={{ fontSize: 10, color: "var(--text-secondary)", marginLeft: 2 }}>{suffix}</span>
       </div>
       <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>{label}</div>

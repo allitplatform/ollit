@@ -90,7 +90,7 @@ export default function LoginScreen({ onLogin }) {
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
         .fade-in { animation: slideUp 0.5s ease-out; }
         .pulse { animation: pulse 1.5s ease-in-out infinite; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: all 0.2s; }
         .clickable:active { opacity: 0.7; transform: scale(0.98); }
       `}</style>
@@ -206,7 +206,7 @@ function LoginForm({ t, userId, setUserId, password, setPassword, showPassword, 
               fontSize: 14, fontWeight: 600,
               boxSizing: "border-box",
               outline: "none",
-              fontFamily: "'JetBrains Mono', monospace",
+              fontFamily: "inherit",
             }}
           />
         </div>
@@ -235,7 +235,7 @@ function LoginForm({ t, userId, setUserId, password, setPassword, showPassword, 
               fontSize: 14, fontWeight: 600,
               boxSizing: "border-box",
               outline: "none",
-              fontFamily: showPassword ? "'JetBrains Mono', monospace" : "inherit",
+              fontFamily: showPassword ? "inherit" : "inherit",
             }}
           />
           <button
@@ -413,7 +413,7 @@ function ForgotPasswordScreen({ t, onBack }) {
                   borderRadius: 12,
                   fontSize: 14, fontWeight: 600,
                   boxSizing: "border-box", outline: "none",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "inherit",
                 }}
               />
             </div>
@@ -441,7 +441,7 @@ function ForgotPasswordScreen({ t, onBack }) {
                   borderRadius: 12,
                   fontSize: 14, fontWeight: 600,
                   boxSizing: "border-box", outline: "none",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "inherit",
                 }}
               />
             </div>
@@ -507,7 +507,7 @@ function ForgotPasswordScreen({ t, onBack }) {
                   fontSize: 24, fontWeight: 800,
                   letterSpacing: 8, textAlign: "center",
                   boxSizing: "border-box", outline: "none",
-                  fontFamily: "'JetBrains Mono', monospace",
+                  fontFamily: "inherit",
                 }}
               />
             </div>
@@ -670,7 +670,7 @@ function ChangePasswordScreen({ t, user, onComplete }) {
               borderRadius: 12,
               fontSize: 14, fontWeight: 600,
               boxSizing: "border-box", outline: "none",
-              fontFamily: showPw ? "'JetBrains Mono', monospace" : "inherit",
+              fontFamily: showPw ? "inherit" : "inherit",
             }}
           />
           <button
@@ -725,7 +725,7 @@ function ChangePasswordScreen({ t, user, onComplete }) {
               borderRadius: 12,
               fontSize: 14, fontWeight: 600,
               boxSizing: "border-box", outline: "none",
-              fontFamily: showPw ? "'JetBrains Mono', monospace" : "inherit",
+              fontFamily: showPw ? "inherit" : "inherit",
             }}
           />
         </div>

@@ -117,7 +117,7 @@ export function KakaoBypassScreen() {
         border: "1px solid var(--border)",
         borderRadius: 8,
         fontSize: 12, color: "var(--text-secondary)",
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: "inherit",
         fontWeight: 600,
         maxWidth: 360, width: "100%",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",

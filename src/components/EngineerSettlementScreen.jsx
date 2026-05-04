@@ -101,7 +101,7 @@ function TodayView({ tasks }) {
         <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.95, marginBottom: 4, color: "#fff" }}>
           {unpaidAmount > 0 ? "📤 오늘 회사에 입금할 돈" : "✓ 오늘 마감 완료"}
         </div>
-        <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "monospace", color: "#fff" }}>
+        <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "inherit", color: "#fff" }}>
           ₩{unpaidAmount.toLocaleString()}
         </div>
         <div style={{ fontSize: 10, color: "#fff", opacity: 0.85, marginTop: 4 }}>
@@ -164,7 +164,7 @@ function MonthlyView({ tasks }) {
         <div style={{ fontSize: 11, color: "#fff", fontWeight: 700, opacity: 0.95, marginBottom: 4 }}>
           {selectedMonth} 총 수익
         </div>
-        <div style={{ fontSize: 26, fontWeight: 700, fontFamily: "monospace", color: "#fff" }}>
+        <div style={{ fontSize: 26, fontWeight: 700, fontFamily: "inherit", color: "#fff" }}>
           ₩{totalEarning.toLocaleString()}
         </div>
         <div style={{ fontSize: 9, color: "#fff", opacity: 0.85, marginTop: 4 }}>
@@ -213,7 +213,7 @@ function UsolNView({ tasks }) {
         <div style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700, marginBottom: 4 }}>
           📥 {nextSettlement} 입금 예정
         </div>
-        <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "monospace", color: "#FF1B8D" }}>
+        <div style={{ fontSize: 24, fontWeight: 700, fontFamily: "inherit", color: "#FF1B8D" }}>
           ₩{totalPending.toLocaleString()}
         </div>
         <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 4 }}>
@@ -253,7 +253,7 @@ function StatusGroup({ title, subtitle, tasks, color }) {
             </div>
           )}
         </div>
-        <span style={{ fontSize: 11, color, fontWeight: 700, fontFamily: "monospace" }}>
+        <span style={{ fontSize: 11, color, fontWeight: 700, fontFamily: "inherit" }}>
           ₩{total.toLocaleString()}
         </span>
       </div>
@@ -287,7 +287,7 @@ function TaskRow({ task, showDate }) {
           <span style={{ fontSize: 10 }}>{isPaid ? "✓" : "·"}</span>
           <span style={{ fontSize: 12, fontWeight: 600 }}>{task.customer || "—"}</span>
         </div>
-        <span style={{ fontSize: 11, fontFamily: "monospace", color: isPaid ? "#00875A" : "var(--text-primary)" }}>
+        <span style={{ fontSize: 11, fontFamily: "inherit", color: isPaid ? "#00875A" : "var(--text-primary)" }}>
           ₩{(task.engineerEarning || 0).toLocaleString()}
         </span>
       </div>
@@ -310,7 +310,7 @@ function UsolNTaskRow({ task }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ fontSize: 12, fontWeight: 600 }}>{task.customer || "—"}</span>
-        <span style={{ fontSize: 11, fontFamily: "monospace" }}>
+        <span style={{ fontSize: 11, fontFamily: "inherit" }}>
           ₩{(calcEngineerEarning(task) || 0).toLocaleString()}
         </span>
       </div>

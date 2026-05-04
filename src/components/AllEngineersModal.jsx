@@ -146,7 +146,7 @@ function AllEngineerRow({ recommendation, onSelect }) {
         </div>
         <span style={{
           fontSize: 13, color: tierColor,
-          fontWeight: 700, fontFamily: "monospace",
+          fontWeight: 700, fontFamily: "inherit",
         }}>
           {score}
         </span>
