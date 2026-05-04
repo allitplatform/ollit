@@ -98,23 +98,30 @@ function AssignmentCard({ task, onClick }) {
         </span>
       </div>
 
-      {/* 고객 희망 시간 */}
-      {task.requestedDate && (
+      {/* 고객 희망 시간 (방어 코드 — 없으면 시간 미정) */}
+      {task.requestedDate ? (
         <div style={{
           fontSize: 13, color: colors.main, fontWeight: 500,
           marginBottom: 6,
         }}>
           🕐 {task.requestedDate}{task.requestedTime ? ` ${task.requestedTime}` : ""} 희망
         </div>
+      ) : (
+        <div style={{
+          fontSize: 13, color: "#888", fontWeight: 500,
+          marginBottom: 6,
+        }}>
+          🕐 시간 미정
+        </div>
       )}
 
-      {/* 고객명 */}
+      {/* 고객명 (방어 코드) */}
       <div style={{
         fontSize: 22, fontWeight: 500,
         color: "var(--text-primary)",
         marginBottom: 8,
       }}>
-        {task.customer || "—"}
+        {task.customer || "신규 고객"}
       </div>
 
       {/* 작업 종류 + 기종 */}
@@ -135,17 +142,24 @@ function AssignmentCard({ task, onClick }) {
         fontSize: 13, color: "var(--text-secondary)",
         fontWeight: 500, marginBottom: 4,
       }}>
-        📍 {task.fullAddress || task.address || "—"}
+        📍 {task.fullAddress || task.address || task.region || "주소 미정"}
       </div>
 
-      {/* 전화 */}
-      {task.phone && (
+      {/* 전화 (방어 코드 — 없으면 안내 메시지) */}
+      {task.phone ? (
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
           fontWeight: 500, marginBottom: 14,
           fontFamily: "'JetBrains Mono', monospace",
         }}>
           📞 {task.phone}
+        </div>
+      ) : (
+        <div style={{
+          fontSize: 13, color: "#888",
+          fontWeight: 500, marginBottom: 14,
+        }}>
+          📞 통화 후 정보 확인
         </div>
       )}
 

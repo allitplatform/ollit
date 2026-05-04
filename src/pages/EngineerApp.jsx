@@ -3616,6 +3616,51 @@ function AddOffDayModal({ t, engineerName, defaultDate, onClose, onSaved }) {
   );
 }
 
+// V14 — 시뮬 가짜 데이터 helpers (백엔드 연동 시 제거)
+function generateFakeKoreanName() {
+  const lastNames  = ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임"];
+  const firstNames = ["민준", "서연", "하준", "지우", "도윤", "서아", "시우", "하은", "예준", "수아"];
+  const ln = lastNames[Math.floor(Math.random() * lastNames.length)];
+  const fn = firstNames[Math.floor(Math.random() * firstNames.length)];
+  return ln + fn;
+}
+
+function generateFakePhone() {
+  const mid  = String(1000 + Math.floor(Math.random() * 9000));
+  const last = String(1000 + Math.floor(Math.random() * 9000));
+  return `010-${mid}-${last}`;
+}
+
+function generateFakeAddress(region) {
+  const streets   = ["테헤란로", "삼성로", "도산대로", "강남대로", "봉은사로"];
+  const buildings = ["래미안 아파트", "트라움하우스", "푸르지오", "자이", "롯데캐슬"];
+  const street    = streets[Math.floor(Math.random() * streets.length)];
+  const building  = buildings[Math.floor(Math.random() * buildings.length)];
+  const num       = Math.floor(100 + Math.random() * 900);
+  const dong      = Math.floor(100 + Math.random() * 900);
+  const ho        = Math.floor(100 + Math.random() * 900);
+  const base      = region || "강남구";
+  return `${base} ${street} ${num}, ${building} ${dong}동 ${ho}호`;
+}
+
+function convertTimeHintToDate(hint) {
+  // workSchedule "당일 (오후)" / "내일 오전" 등 → "YYYY-MM-DD"
+  if (!hint) return null;
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  if (/내일/.test(hint)) return fmt(tomorrow);
+  return fmt(today);
+}
+
+function extractTimeHint(hint) {
+  if (!hint) return "";
+  if (/오전/.test(hint)) return "오전";
+  if (/오후/.test(hint)) return "오후";
+  return "";
+}
+
 export default function EngineerApp({ user, onLogout }) {
   // V13-1-fix — localStorage 모드 로드 + CSS 변수 적용
   const [mode, setMode] = useState(() => loadThemeSaved());
@@ -3672,18 +3717,29 @@ export default function EngineerApp({ user, onLogout }) {
     const accepted = pendingAcceptances.find(c => c.id === callId);
     if (!accepted) return;
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
+
+    // V14 — 시뮬 데이터: 수락 시 가짜 풀 고객 정보 자동 생성 (백엔드 연동 시 제거)
+    const fakeName     = generateFakeKoreanName();
+    const fakePhone    = generateFakePhone();
+    const fakeAddress  = generateFakeAddress(accepted.region);
+    const desiredDate  = convertTimeHintToDate(accepted.workSchedule);
+    const desiredTime  = extractTimeHint(accepted.workSchedule);
+
     setExtraAssignments(prev => [...prev, {
-      id:           accepted.id,
-      customer:     accepted.customer || "고객",
-      phone:        accepted.phone,
-      workType:     accepted.workType,
-      appliance:    accepted.appliance,
-      qty:          accepted.qty,
-      fullAddress:  accepted.fullAddress || accepted.region,
-      region:       accepted.region,
-      estimateTotal:accepted.engineerRate,
-      requestedAgo: accepted.requestedAgo,
-      status:       "약속대기",
+      id:            accepted.id,
+      customer:      accepted.customer || fakeName,
+      phone:         accepted.phone || fakePhone,
+      workType:      accepted.workType,
+      appliance:     accepted.appliance,
+      qty:           accepted.qty,
+      fullAddress:   accepted.fullAddress || fakeAddress,
+      region:        accepted.region,
+      estimateTotal: accepted.engineerRate,
+      requestedAgo:  accepted.requestedAgo,
+      requestedDate: desiredDate,
+      requestedTime: desiredTime,
+      assignedAt:    new Date().toISOString(),
+      status:        "약속대기",
     }]);
     showToast("수락 완료. 새 배정에 추가됐습니다.");
     setScreen("main");
