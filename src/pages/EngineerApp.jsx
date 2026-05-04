@@ -625,12 +625,13 @@ function MainScreen({
   onClickAcceptanceList,
   onClickNewAssignmentList,
   pendingAcceptances = [],
+  newAssignmentsOverride,
 }) {
   const isDark = useIsDark();
   const activeTask = tasks.find(x => x.status === "진행중") || null;
 
-  // 새 배정 = 약속대기 + 일정 미정 (해피콜 배정 완료 / 기사 약속 잡을 차례)
-  const newAssignments = tasks.filter(x =>
+  // V14 — 새 배정 = 약속대기 + 일정 미정 (extraAssignments 합산은 EngineerApp에서 처리)
+  const newAssignments = newAssignmentsOverride || tasks.filter(x =>
     x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
   );
 
@@ -3862,19 +3863,40 @@ export default function EngineerApp({ user, onLogout }) {
     setSavedRegions(regions);
     setScreen("profile");
   }
+  // V14 — datePreset → ISO 날짜 변환
+  function presetToISO(preset, customDate) {
+    const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (preset === "today")    return fmt(new Date());
+    if (preset === "tomorrow") { const d = new Date(); d.setDate(d.getDate()+1); return fmt(d); }
+    return customDate || null;
+  }
+
   function handleSaveCall(payload) {
-    if (callTaskId) {
-      updateTask(callTaskId, {
-        scheduledDate: payload.scheduledDate,
-        scheduledTime: payload.scheduledTime,
-        endTime: payload.endTime,
-        callMemo: payload.memo,
-        happycallMemo: payload.memo,
-        status: payload.scheduledDate && payload.scheduledTime ? "확정" : "약속대기",
+    const id = callTaskId || (acceptedCall && acceptedCall.id);
+    if (!id) {
+      setScreen("main");
+      return;
+    }
+    const scheduledDate = payload?.scheduledDate || presetToISO(payload?.datePreset, payload?.customDate);
+    const scheduledTime = payload?.scheduledTime || payload?.startTime;
+
+    // 진짜 task면 updateTask로 확정 처리
+    if (tasks.find(x => x.id === id)) {
+      updateTask(id, {
+        scheduledDate,
+        scheduledTime,
+        endTime: payload?.endTime,
+        callMemo: payload?.memo,
+        happycallMemo: payload?.memo,
+        status: scheduledDate && scheduledTime ? "확정" : "약속대기",
       });
     }
+    // extraAssignments에 있으면 제거 (mock에서 확정 작업 별도 추가는 다음 catch)
+    setExtraAssignments(prev => prev.filter(a => a.id !== id));
     setCallTaskId(null);
-    setScreen("newAssignmentList");
+    setAcceptedCall(null);
+    showToast("일정이 확정됐습니다.");
+    setScreen("main");
   }
   function handleLocationSettings() {
     if (typeof navigator !== "undefined" && navigator.geolocation) {
@@ -3949,6 +3971,7 @@ export default function EngineerApp({ user, onLogout }) {
               onClickAcceptanceList={() => setScreen("acceptanceList")}
               onClickNewAssignmentList={() => setScreen("newAssignmentList")}
               pendingAcceptances={pendingAcceptances}
+              newAssignmentsOverride={newAssignments}
             />
             <EngineerBottomNav
               active="today"
@@ -4075,27 +4098,36 @@ export default function EngineerApp({ user, onLogout }) {
         )}
         {screen === "newAssignCall" && (
           <EngineerNewAssignDetailScreen
-            task={acceptedCall || tasks.find(x => x.id === callTaskId)}
+            task={acceptedCall || tasks.find(x => x.id === callTaskId) || extraAssignments.find(x => x.id === callTaskId)}
             onBack={() => {
-              if (acceptedCall) { setAcceptedCall(null); setScreen("main"); }
-              else              { setCallTaskId(null);   setScreen("newAssignmentList"); }
+              setAcceptedCall(null);
+              setCallTaskId(null);
+              setScreen("newAssignmentList");
             }}
             onSave={handleSaveCall}
             onUnableSchedule={() => {
-              if (callTaskId) {
-                updateTask(callTaskId, { status: "약속대기", unableSchedule: true });
+              const id = callTaskId || (acceptedCall && acceptedCall.id);
+              if (id && tasks.find(x => x.id === id)) {
+                updateTask(id, { status: "약속대기", unableSchedule: true });
               }
-              alert("일정 불가 — 운영팀에 알림");
-              if (acceptedCall) { setAcceptedCall(null); setScreen("main"); }
-              else              { setCallTaskId(null);   setScreen("newAssignmentList"); }
+              if (id) setExtraAssignments(prev => prev.filter(a => a.id !== id));
+              setCallTaskId(null);
+              setAcceptedCall(null);
+              showToast("일정 불가 — 운영팀에 알림 보냈습니다.");
+              setScreen("main");
             }}
             onCustomerCancel={() => {
-              if (callTaskId) {
-                updateTask(callTaskId, { status: "취소", cancelReason: "고객 취소" });
+              const ok = window.confirm("정말 취소하시겠습니까?");
+              if (!ok) return;
+              const id = callTaskId || (acceptedCall && acceptedCall.id);
+              if (id && tasks.find(x => x.id === id)) {
+                updateTask(id, { status: "취소", cancelReason: "고객 취소" });
               }
-              alert("고객 취소 처리");
-              if (acceptedCall) { setAcceptedCall(null); setScreen("main"); }
-              else              { setCallTaskId(null);   setScreen("newAssignmentList"); }
+              if (id) setExtraAssignments(prev => prev.filter(a => a.id !== id));
+              setCallTaskId(null);
+              setAcceptedCall(null);
+              showToast("고객 취소 처리됐습니다.");
+              setScreen("main");
             }}
             onAskOps={() => alert("운영팀에 문의")}
           />

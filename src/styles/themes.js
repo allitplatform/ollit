@@ -88,8 +88,8 @@ export const DARK_THEME = {
 };
 
 export const LIGHT_THEME = {
-  // ── 베이스 (V14 정제 매핑표)
-  "--bg-primary":       "#F5F2ED",
+  // ── 베이스 (V14 정제 매핑표 / iOS 톤)
+  "--bg-primary":       "#FAFAFA",
   "--bg-secondary":     "#FFFFFF",
   "--bg-tertiary":      "#FFFFFF",
   "--bg-quaternary":    "#F0F0F0",
