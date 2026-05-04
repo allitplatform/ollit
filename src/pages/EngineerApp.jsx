@@ -18,6 +18,7 @@ import { EngineerAcceptanceListScreen } from "../components/EngineerAcceptanceLi
 import { EngineerTaskDetailScreen } from "../components/EngineerTaskDetailScreen.jsx";
 import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { useIsDark } from "../hooks/useIsDark.js";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
 // V13-FINAL2 — 4탭 + 공유 컴포넌트
 import { EngineerBottomNav } from "../components/EngineerBottomNav.jsx";
@@ -625,6 +626,7 @@ function MainScreen({
   onClickNewAssignmentList,
   pendingAcceptances = [],
 }) {
+  const isDark = useIsDark();
   const activeTask = tasks.find(x => x.status === "진행중") || null;
 
   // 새 배정 = 약속대기 + 일정 미정 (해피콜 배정 완료 / 기사 약속 잡을 차례)
@@ -724,9 +726,10 @@ function MainScreen({
         </div>
       </div>
 
-      {/* 2. 진행중 박스 (V14 정제 — 좌측 4px 바 + progress bar / 작업 종류별 색) */}
+      {/* 2. 진행중 박스 (V14 통합 — 작업 종류 색 + 사이즈 키움) */}
       {activeTask && (() => {
         const colors = getWorkTypeColors(activeTask.workType);
+        const labelColor = isDark ? colors.label.dark : colors.label.light;
         return (
         <div
           onClick={() => onTaskClick(activeTask.id)}
@@ -736,8 +739,8 @@ function MainScreen({
             margin: "0 16px 14px",
             background: "var(--card-bg)",
             border: "1px solid var(--border)",
-            borderRadius: 14,
-            padding: "16px 16px 16px 20px",
+            borderRadius: 18,
+            padding: "18px 18px 18px 22px",
             cursor: "pointer",
             overflow: "hidden",
           }}
@@ -760,28 +763,47 @@ function MainScreen({
                 display: "inline-block",
               }}/>
               <span style={{
-                fontSize: 13, color: colors.main, fontWeight: 800,
+                fontSize: 14, color: labelColor, fontWeight: 700,
               }}>
                 진행중
               </span>
             </div>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
+            <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>
               {formatProgress(activeTask.startedAt)} 진행
             </span>
           </div>
 
+          {/* V14 — 큰 시간 표시 36px */}
+          {activeTask.startedAt && (
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
+              <span style={{
+                fontSize: 36, fontWeight: 500,
+                fontFamily: "'JetBrains Mono', monospace",
+                color: "var(--text-primary)", letterSpacing: "-1px",
+              }}>
+                {activeTask.startedAt}
+              </span>
+              {activeTask.endTime && (
+                <span style={{ fontSize: 16, color: "#888", fontWeight: 500 }}>
+                  ~ {activeTask.endTime}
+                </span>
+              )}
+            </div>
+          )}
+
           <div style={{
             display: "flex", alignItems: "center",
-            justifyContent: "space-between", marginBottom: 6,
+            justifyContent: "space-between", marginBottom: 8,
           }}>
             <div style={{
-              fontSize: 22, fontWeight: 800,
+              fontSize: 26, fontWeight: 700,
               color: "var(--text-primary)",
+              letterSpacing: "-0.3px",
             }}>
               {activeTask.customer}
             </div>
             <span style={{
-              fontSize: 20, color: "var(--card-arrow)",
+              fontSize: 22, color: "var(--card-arrow)",
               marginLeft: 8,
             }}>
               ›
@@ -790,10 +812,10 @@ function MainScreen({
 
           {/* 작업 종류 + 기종 */}
           <div style={{
-            display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
+            display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
           }}>
-            <ServiceTypeIcon workType={activeTask.workType} size={15} showLabel={true}/>
-            <span style={{ fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
+            <ServiceTypeIcon workType={activeTask.workType} size={16} showLabel={true}/>
+            <span style={{ fontSize: 14, color: "var(--text-secondary)", fontWeight: 500 }}>
               {activeTask.appliance}{activeTask.qty ? ` ×${activeTask.qty}` : ""}
             </span>
           </div>
@@ -801,17 +823,12 @@ function MainScreen({
           {/* 전체 주소 */}
           <div style={{
             fontSize: 14, color: "var(--text-primary)",
-            marginBottom: 8, lineHeight: 1.5,
+            marginBottom: 12, lineHeight: 1.5, fontWeight: 500,
           }}>
             📍 {activeTask.fullAddress || activeTask.address || "—"}
           </div>
 
-          <div style={{
-            fontSize: 12, color: "var(--text-secondary)", marginBottom: 10, fontWeight: 500,
-          }}>
-            시작 {activeTask.startedAt || activeTask.scheduledTime || "—"}
-            {activeTask.endTime ? ` · 예상 종료 ${activeTask.endTime}` : ""}
-          </div>
+          {/* 시작/종료는 위 큰 시간 표시로 통합 */}
 
           {/* V14 — progress bar (시작/종료 둘 다 있을 때만) */}
           {activeTask.startedAt && activeTask.endTime && (
@@ -831,22 +848,22 @@ function MainScreen({
             </div>
           )}
 
-          {/* V14 — 통화 = 초록 / 길찾기 = 작업 종류 색 */}
+          {/* V14 — 통화 = 초록 / 길찾기 = 작업 종류 색 (사이즈 키움) */}
           <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
+            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
           }}>
             <button
               onClick={(e) => { e.stopPropagation(); makeTel(activeTask.phone); }}
               style={{
-                padding: 12,
+                padding: 14,
                 background: "#34C759",
                 border: "none",
-                borderRadius: 8,
+                borderRadius: 10,
                 color: "#fff",
-                fontSize: 13, fontWeight: 800,
+                fontSize: 15, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 6,
+                justifyContent: "center", gap: 8,
               }}
             >
               <PhoneSvgColored color="#fff"/> 통화
@@ -854,18 +871,18 @@ function MainScreen({
             <button
               onClick={(e) => { e.stopPropagation(); openMapForTask(activeTask); }}
               style={{
-                padding: 12,
+                padding: 14,
                 background: colors.main,
                 border: "none",
-                borderRadius: 8,
-                color: "#fff",
-                fontSize: 13, fontWeight: 800,
+                borderRadius: 10,
+                color: colors.buttonText || "#fff",
+                fontSize: 15, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 6,
+                justifyContent: "center", gap: 8,
               }}
             >
-              <NavSvgColored color="#fff"/> 길찾기
+              <NavSvgColored color={colors.buttonText || "#fff"}/> 길찾기
             </button>
           </div>
         </div>

@@ -4,6 +4,7 @@
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { useIsDark } from "../hooks/useIsDark.js";
 
 export function EngineerNewAssignmentListScreen({ tasks = [], onBack, onTaskClick }) {
   return (
@@ -63,6 +64,8 @@ export function EngineerNewAssignmentListScreen({ tasks = [], onBack, onTaskClic
 
 function AssignmentCard({ task, onClick }) {
   const colors = getWorkTypeColors(task.workType);
+  const isDark = useIsDark();
+  const labelColor = isDark ? colors.label.dark : colors.label.light;
   return (
     <div
       onClick={onClick}
@@ -71,8 +74,8 @@ function AssignmentCard({ task, onClick }) {
         position: "relative",
         background: "var(--card-bg)",
         border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: "16px 16px 16px 20px",
+        borderRadius: 18,
+        padding: "16px 16px 16px 22px",
         marginBottom: 10,
         cursor: "pointer",
         overflow: "hidden",
@@ -101,15 +104,15 @@ function AssignmentCard({ task, onClick }) {
       {/* 고객 희망 시간 (방어 코드 — 없으면 시간 미정) */}
       {task.requestedDate ? (
         <div style={{
-          fontSize: 13, color: colors.main, fontWeight: 500,
-          marginBottom: 6,
+          fontSize: 14, color: labelColor, fontWeight: 500,
+          marginBottom: 8,
         }}>
           🕐 {task.requestedDate}{task.requestedTime ? ` ${task.requestedTime}` : ""} 희망
         </div>
       ) : (
         <div style={{
-          fontSize: 13, color: "#888", fontWeight: 500,
-          marginBottom: 6,
+          fontSize: 14, color: "#888", fontWeight: 500,
+          marginBottom: 8,
         }}>
           🕐 시간 미정
         </div>
@@ -117,8 +120,9 @@ function AssignmentCard({ task, onClick }) {
 
       {/* 고객명 (방어 코드) */}
       <div style={{
-        fontSize: 22, fontWeight: 500,
+        fontSize: 26, fontWeight: 700,
         color: "var(--text-primary)",
+        letterSpacing: "-0.3px",
         marginBottom: 8,
       }}>
         {task.customer || "신규 고객"}
@@ -127,10 +131,10 @@ function AssignmentCard({ task, onClick }) {
       {/* 작업 종류 + 기종 */}
       <div style={{
         display: "flex", alignItems: "center", gap: 6,
-        fontSize: 13, color: "var(--text-secondary)", fontWeight: 500,
-        marginBottom: 4,
+        fontSize: 14, color: "var(--text-secondary)", fontWeight: 500,
+        marginBottom: 6,
       }}>
-        <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
+        <ServiceTypeIcon workType={task.workType} size={14} showLabel={true}/>
         <span>
           {task.appliance ? `· ${task.appliance}` : ""}
           {task.qty ? ` ×${task.qty}` : ""}
@@ -139,8 +143,8 @@ function AssignmentCard({ task, onClick }) {
 
       {/* 주소 */}
       <div style={{
-        fontSize: 13, color: "var(--text-secondary)",
-        fontWeight: 500, marginBottom: 4,
+        fontSize: 14, color: "var(--text-secondary)",
+        fontWeight: 500, marginBottom: 6,
       }}>
         📍 {task.fullAddress || task.address || task.region || "주소 미정"}
       </div>
@@ -148,16 +152,16 @@ function AssignmentCard({ task, onClick }) {
       {/* 전화 (방어 코드 — 없으면 안내 메시지) */}
       {task.phone ? (
         <div style={{
-          fontSize: 13, color: "var(--text-secondary)",
-          fontWeight: 500, marginBottom: 14,
+          fontSize: 14, color: "var(--text-secondary)",
+          fontWeight: 500, marginBottom: 16,
           fontFamily: "'JetBrains Mono', monospace",
         }}>
           📞 {task.phone}
         </div>
       ) : (
         <div style={{
-          fontSize: 13, color: "#888",
-          fontWeight: 500, marginBottom: 14,
+          fontSize: 14, color: "#888",
+          fontWeight: 500, marginBottom: 16,
         }}>
           📞 통화 후 정보 확인
         </div>
@@ -167,10 +171,10 @@ function AssignmentCard({ task, onClick }) {
       <button
         onClick={onClick}
         style={{
-          width: "100%", padding: 13,
+          width: "100%", padding: 15,
           background: colors.main, border: "none",
-          borderRadius: 10, color: "#fff",
-          fontSize: 15, fontWeight: 500,
+          borderRadius: 12, color: colors.buttonText || "#fff",
+          fontSize: 16, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
         }}
       >

@@ -13,6 +13,7 @@ import {
   TaskVisitOnlyScreen,
 } from "./EngineerTaskCompletionScreens.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { useIsDark } from "../hooks/useIsDark.js";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -396,90 +397,96 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         </div>
       )}
 
-      {/* 메인 액션 */}
-      {isConfirmed && (
-        <div style={{ padding: "14px 16px" }}>
+      {/* V14 — 메인 액션 (작업 시작 / 작업 종류 색) */}
+      {isConfirmed && (() => {
+        const colors = getWorkTypeColors(task.workType);
+        return (
+        <div style={{ padding: "16px" }}>
           <button
             onClick={handleStartTask}
             style={{
-              width: "100%", padding: 14,
-              background: "#FF1B8D", border: "none",
-              borderRadius: 12, color: "#fff",
-              fontSize: 14, fontWeight: 700,
+              width: "100%", padding: 19,
+              background: colors.main, border: "none",
+              borderRadius: 16, color: colors.buttonText || "#fff",
+              fontSize: 18, fontWeight: 700,
               cursor: "pointer", fontFamily: "inherit",
             }}
           >
             ▶ 작업 시작
           </button>
           <div style={{
-            marginTop: 8, textAlign: "center",
-            fontSize: 9, color: "var(--text-secondary)",
+            marginTop: 10, textAlign: "center",
+            fontSize: 12, color: "#888", fontWeight: 500,
           }}>
             현장 도착 후 시작
           </div>
         </div>
-      )}
+        );
+      })()}
 
-      {isInProgress && (
-        <div style={{ padding: "14px 16px 20px" }}>
-          {/* V14 — 메인 액션 (작업 완료 핑크) */}
+      {isInProgress && (() => {
+        const colors = getWorkTypeColors(task.workType);
+        const enough = photos.length >= PHOTO_MIN;
+        return (
+        <div style={{ padding: "14px 16px 22px" }}>
+          {/* V14 — 메인 액션 (작업 완료 / 작업 종류 색 / 사진 부족 시 비활성) */}
           <button
             onClick={() => {
-              if (photos.length < PHOTO_MIN) {
+              if (!enough) {
                 alert(`사진은 최소 ${PHOTO_MIN}장 필요합니다.`);
                 return;
               }
               setSubScreen("complete");
             }}
-            disabled={photos.length < PHOTO_MIN}
+            disabled={!enough}
             style={{
-              width: "100%", padding: 16,
-              background: photos.length >= PHOTO_MIN ? "#FF1B8D" : "var(--bg-secondary)",
-              border: "none", borderRadius: 12,
-              color: photos.length >= PHOTO_MIN ? "#fff" : "var(--text-tertiary)",
-              fontSize: 17, fontWeight: 800,
-              cursor: photos.length >= PHOTO_MIN ? "pointer" : "not-allowed",
+              width: "100%", padding: 18,
+              background: enough ? colors.main : "#F0EBE3",
+              border: "none", borderRadius: 16,
+              color: enough ? (colors.buttonText || "#fff") : "#B0B0B0",
+              fontSize: 17, fontWeight: 700,
+              cursor: enough ? "pointer" : "not-allowed",
               fontFamily: "inherit",
-              opacity: photos.length >= PHOTO_MIN ? 1 : 0.5,
-              marginBottom: 8,
+              marginBottom: 10,
             }}
           >
-            ✓ 작업 완료
+            {enough ? "✓ 작업 완료" : `✓ 작업 완료 (사진 ${PHOTO_MIN}장 필요)`}
           </button>
 
           {/* V14 — 보조 액션 (부분 / 출장비만) */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <button
               onClick={() => setSubScreen("partial")}
               style={{
                 padding: 13,
                 background: "transparent",
-                border: "2px solid #FF8A3D",
-                borderRadius: 10,
-                color: "#FF8A3D",
-                fontSize: 13, fontWeight: 800,
+                border: "1.5px solid #FFB800",
+                borderRadius: 12,
+                color: "var(--refrig-text)",
+                fontSize: 14, fontWeight: 500,
                 cursor: "pointer", fontFamily: "inherit",
               }}
             >
-              🟠 부분 완료
+              ● 부분 완료
             </button>
             <button
               onClick={() => setSubScreen("visitOnly")}
               style={{
                 padding: 13,
                 background: "transparent",
-                border: "2px solid #FF3B5C",
-                borderRadius: 10,
-                color: "#FF3B5C",
-                fontSize: 13, fontWeight: 800,
+                border: "1.5px solid #FF3B5C",
+                borderRadius: 12,
+                color: "var(--cancel-text)",
+                fontSize: 14, fontWeight: 500,
                 cursor: "pointer", fontFamily: "inherit",
               }}
             >
-              🔴 출장비만
+              ● 출장비만
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ⋮ 메뉴 (BottomSheet) */}
       {menuOpen && (
@@ -507,23 +514,30 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
 // ──────────────── 상태 블록 ────────────────
 function StatusBlockConfirmed({ task }) {
   const colors = getWorkTypeColors(task.workType);
+  const isDark = useIsDark();
+  const labelColor = isDark ? colors.label.dark : colors.label.light;
   return (
-    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+    <div style={{ padding: "18px 18px 14px 22px", borderBottom: "1px solid var(--border)", position: "relative" }}>
+      {/* 좌측 4px 작업 종류 색 바 */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: colors.main,
+      }}/>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         marginBottom: 8,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: colors.main }}/>
-          <span style={{ fontSize: 13, color: colors.main, fontWeight: 500 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: labelColor }}/>
+          <span style={{ fontSize: 14, color: labelColor, fontWeight: 700 }}>
             확정
           </span>
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
         <div style={{
-          fontSize: 32, fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
-          color: "var(--text-primary)", letterSpacing: "-0.5px",
+          fontSize: 36, fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-primary)", letterSpacing: "-1px",
         }}>
           {task.scheduledTime || task.time || "—"}
         </div>
@@ -533,7 +547,7 @@ function StatusBlockConfirmed({ task }) {
           </div>
         )}
       </div>
-      <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
+      <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>
         📅 {formatTimeUntilStart(task)}
       </div>
     </div>
@@ -542,6 +556,8 @@ function StatusBlockConfirmed({ task }) {
 
 function StatusBlockInProgress({ task }) {
   const colors = getWorkTypeColors(task.workType);
+  const isDark = useIsDark();
+  const labelColor = isDark ? colors.label.dark : colors.label.light;
   // V14 — 진행률 계산
   const pct = (() => {
     if (!task.startedAt || !task.endTime) return 0;
@@ -558,28 +574,33 @@ function StatusBlockInProgress({ task }) {
   })();
 
   return (
-    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+    <div style={{ padding: "18px 18px 14px 22px", borderBottom: "1px solid var(--border)", position: "relative" }}>
+      {/* 좌측 4px 작업 종류 색 바 */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: colors.main,
+      }}/>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         marginBottom: 8,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: colors.main }}/>
-          <span style={{ fontSize: 13, color: colors.main, fontWeight: 500 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: labelColor }}/>
+          <span style={{ fontSize: 14, color: labelColor, fontWeight: 700 }}>
             진행중
           </span>
         </div>
         {task.startedAt && (
-          <span style={{ fontSize: 12, color: "#888", fontWeight: 500 }}>
+          <span style={{ fontSize: 13, color: "#888", fontWeight: 500 }}>
             {task.startedAt} 시작
           </span>
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 14 }}>
         <div style={{
-          fontSize: 32, fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
-          color: "var(--text-primary)", letterSpacing: "-0.5px",
+          fontSize: 36, fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-primary)", letterSpacing: "-1px",
         }}>
           {task.startedAt || task.scheduledTime || "—"}
         </div>
@@ -593,7 +614,7 @@ function StatusBlockInProgress({ task }) {
       {/* V14 — progress bar (작업 종류 색) */}
       {task.startedAt && task.endTime && (
         <div style={{
-          height: 3, borderRadius: 2,
+          height: 4, borderRadius: 2,
           background: "var(--progress-bg)",
           overflow: "hidden",
         }}>
