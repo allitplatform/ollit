@@ -37,7 +37,7 @@ export function EngineerSettlementDetailScreen({
       background: "var(--bg-primary)",
       color: "var(--text-primary)",
       paddingBottom: 24,
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 헤더 */}
       <div style={{

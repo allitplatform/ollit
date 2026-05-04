@@ -308,7 +308,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       background: "var(--bg-primary)",
       paddingBottom: 100,
       color: "var(--text-primary)",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 헤더 */}
       <div style={{

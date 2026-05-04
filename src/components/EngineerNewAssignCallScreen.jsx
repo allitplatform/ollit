@@ -113,7 +113,7 @@ export function EngineerNewAssignCallScreen({
       minHeight: "100vh",
       background: "var(--bg-primary)",
       color: "var(--text-primary)",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 헤더 */}
       <div style={{

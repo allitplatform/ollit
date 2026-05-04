@@ -57,7 +57,7 @@ export function LoginScreen({ onLogin }) {
         display: "flex", flexDirection: "column",
         alignItems: "center", justifyContent: "flex-start",
         padding: "56px 0 30px", color: DARK.titleColor,
-        fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+        fontFamily: "-apple-system, 'Pretendard', sans-serif",
       }}
     >
       <div style={{ width: "100%", maxWidth: 380, padding: "0 32px" }}>

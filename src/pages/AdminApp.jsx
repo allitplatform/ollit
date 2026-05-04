@@ -1353,7 +1353,7 @@ export default function AdminApp({ user, onLogout }) {
 
   const FontStyle = (
     <style>{`
-      @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+      
       @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
       @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes flash { 0%, 100% { background-color: transparent; } 30% { background-color: rgba(251, 191, 36, 0.25); } }
@@ -1368,7 +1368,7 @@ export default function AdminApp({ user, onLogout }) {
   const Shell = ({ children }) => (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
       {FontStyle}
-      <div style={{ maxWidth: 380, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80, position: "relative" }}>
+      <div style={{ maxWidth: 380, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Pretendard', sans-serif", paddingBottom: 80, position: "relative" }}>
         {children}
         <ToastContainer t={t} toasts={toasts}/>
       </div>
@@ -4647,7 +4647,7 @@ function TaskCancelDialog({ task, onClose, onConfirm }) {
           width: "100%", maxWidth: 480, maxHeight: "85vh",
           background: "#1A1512", borderRadius: "16px 16px 0 0",
           padding: "20px 16px", overflow: "auto",
-          fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+          fontFamily: "-apple-system, 'Pretendard', sans-serif",
           color: "#fff",
         }}
       >

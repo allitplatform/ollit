@@ -10,6 +10,10 @@ html, body {
   background: #0A0A0A;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* V14 — Pretendard 우선 (한국어 최적 / weight 100-900) + 시스템 폴백 */
+  font-family: "Pretendard Variable", "Pretendard",
+               -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+               "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
 }
 
 #root {
@@ -17,11 +21,8 @@ html, body {
   min-height: 100vh;
 }
 
-button {
-  font-family: inherit;
-}
-
-input, textarea {
+/* V14 — 모든 요소 Pretendard 강제 (인라인 'Spoqa Han Sans Neo' 무력화) */
+button, input, textarea, select {
   font-family: inherit;
 }
 

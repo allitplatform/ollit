@@ -49,7 +49,7 @@ export function EngineerSettleTab({
       background: "var(--bg-primary)",
       paddingBottom: 80,
       color: "var(--text-primary)",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 헤더 — V14 v3: 24/700 */}
       <div style={{ padding: "18px 20px 14px", borderBottom: "0.5px solid var(--border)" }}>

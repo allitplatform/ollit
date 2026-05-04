@@ -84,7 +84,7 @@ export default function LoginScreen({ onLogin }) {
   return (
     <div style={{ minHeight: "100vh", background: "#0A0A0A" }}>
       <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+        
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
@@ -128,7 +128,7 @@ export default function LoginScreen({ onLogin }) {
         </button>
       </div>
 
-      <div style={{ maxWidth: 420, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Spoqa Han Sans Neo', sans-serif", padding: "60px 24px" }}>
+      <div style={{ maxWidth: 420, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Pretendard', sans-serif", padding: "60px 24px" }}>
         
         {step === "login" && (
           <LoginForm 

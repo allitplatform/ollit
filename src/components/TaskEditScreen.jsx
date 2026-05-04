@@ -57,7 +57,7 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
       minHeight: "100vh",
       background: "var(--bg-primary)",
       color: "var(--text-primary)",
-      fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+      fontFamily: "-apple-system, 'Pretendard', sans-serif",
     }}>
       <Header title="작업 수정" subtitle={task.taskCode || task.id} onBack={onBack} onAction={handleSave}/>
 

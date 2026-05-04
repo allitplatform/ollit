@@ -240,7 +240,7 @@ const containerStyle = {
   minHeight: "100vh",
   background: "var(--bg-primary)",
   color: "var(--text-primary)",
-  fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+  fontFamily: "-apple-system, 'Pretendard', sans-serif",
   display: "flex", flexDirection: "column",
   overflowX: "hidden",
 };
@@ -293,7 +293,7 @@ const tabContentStyle = {
 const emptyStyle = {
   padding: 60, textAlign: "center",
   color: "var(--text-secondary)",
-  fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+  fontFamily: "-apple-system, 'Pretendard', sans-serif",
   fontSize: 13,
 };
 

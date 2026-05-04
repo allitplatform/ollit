@@ -26,7 +26,7 @@ export function MemoAddScreen({ task, user, onBack, onSaved }) {
       minHeight: "100vh",
       background: "var(--bg-primary)",
       color: "var(--text-primary)",
-      fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+      fontFamily: "-apple-system, 'Pretendard', sans-serif",
     }}>
       {/* 헤더 */}
       <div style={{

@@ -38,7 +38,7 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
   }), [engineers]);
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif" }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif" }}>
 
       {/* 헤더 */}
       <div style={headerStyle}>

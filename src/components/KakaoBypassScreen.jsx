@@ -34,7 +34,7 @@ export function KakaoBypassScreen() {
       justifyContent: "center",
       padding: "24px 24px 40px",
       textAlign: "center",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* ∞ 다크 박스 아이콘 */}
       <svg width="120" height="120" viewBox="0 0 100 100" style={{ marginBottom: 22 }}>

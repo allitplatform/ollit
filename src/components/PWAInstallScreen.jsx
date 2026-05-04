@@ -10,7 +10,7 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
       color: "var(--text-primary)",
       display: "flex",
       flexDirection: "column",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 본문 (스크롤 가능) */}
       <div style={{

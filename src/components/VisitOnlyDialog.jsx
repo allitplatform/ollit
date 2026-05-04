@@ -38,7 +38,7 @@ export function VisitOnlyDialog({ task, onConfirm, onClose }) {
           width: "100%", maxWidth: 480, maxHeight: "85vh",
           background: "var(--bg-primary)", borderRadius: "16px 16px 0 0",
           padding: "20px 16px", overflow: "auto",
-          fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+          fontFamily: "-apple-system, 'Pretendard', sans-serif",
           color: "var(--text-primary)",
         }}
       >

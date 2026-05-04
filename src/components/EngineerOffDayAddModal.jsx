@@ -107,7 +107,7 @@ export function EngineerOffDayAddModal({ defaultDate, onClose, onSave }) {
         borderTopLeftRadius: 18, borderTopRightRadius: 18,
         padding: 18, maxHeight: "90vh", overflowY: "auto",
         color: "var(--text-primary)",
-        fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+        fontFamily: "'Pretendard', -apple-system, sans-serif",
       }}>
         <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.4px" }}>
           📅 휴무 추가

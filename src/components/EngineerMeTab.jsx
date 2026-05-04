@@ -24,7 +24,7 @@ export function EngineerMeTab({
       background: "var(--bg-primary)",
       paddingBottom: 80,
       color: "var(--text-primary)",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 헤더 */}
       <div style={{ padding: "16px 16px 14px", borderBottom: "1px solid var(--border)" }}>

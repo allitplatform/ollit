@@ -385,9 +385,9 @@ function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 80, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 80, color: t.text }}>
       <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+        
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.4; transform: scale(1.6); } }
@@ -867,7 +867,7 @@ function NewReceptionScreen({ t, onCancel, onSubmit }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`
         .mono { font-family: 'JetBrains Mono', monospace; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -1306,7 +1306,7 @@ function HappycallEditScreen({ t, task, onCancel, onSave }) {
   const Icon = task.icon;
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`
         .mono { font-family: 'JetBrains Mono', monospace; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -1592,7 +1592,7 @@ function AssignEngineerScreen({ t, task, onCancel, onAssign }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`
         .mono { font-family: 'JetBrains Mono', monospace; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -2056,7 +2056,7 @@ function MemoEditScreen({ t, task, onCancel, onSave }) {
   const [statusToSet, setStatusToSet] = useState("contacted");
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`.clickable { cursor: pointer; transition: opacity 0.15s; } .clickable:active { opacity: 0.7; }`}</style>
       
       <div style={{ position: "sticky", top: 0, zIndex: 50, background: t.bg, borderBottom: `1px solid ${t.border}`, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>

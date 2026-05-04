@@ -423,7 +423,7 @@ const containerStyle = {
   minHeight: "100vh",
   background: "var(--bg-primary)",
   color: "var(--text-primary)",
-  fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+  fontFamily: "-apple-system, 'Pretendard', sans-serif",
 };
 
 const headerStyle = {

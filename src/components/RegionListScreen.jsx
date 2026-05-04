@@ -151,7 +151,7 @@ export function RegionListScreen({ onBack, onAdd, onEdit }) {
   const inactiveGroups = groups.filter(g => !g.active);
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80 }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
         <div style={titleStyle}>지역 관리</div>
@@ -534,7 +534,7 @@ function AddEngineerModal({ region, allEngineers, onClose, onComplete }) {
           width: "100%", maxWidth: 480, maxHeight: "85vh",
           background: "var(--bg-primary)", borderRadius: "16px 16px 0 0",
           padding: "20px 16px", overflow: "auto",
-          fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+          fontFamily: "-apple-system, 'Pretendard', sans-serif",
           color: "var(--text-primary)",
         }}
       >

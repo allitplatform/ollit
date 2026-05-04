@@ -122,7 +122,7 @@ export function SettlementScreen({ onBack, onClickPrincipalSettlement }) {
       minHeight: "100vh",
       background: "var(--bg-primary)",
       color: "var(--text-primary)",
-      fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+      fontFamily: "-apple-system, 'Pretendard', sans-serif",
     }}>
       {/* 헤더 — 줄바꿈 X / 한 줄 자르기 */}
       <div style={{

@@ -116,7 +116,7 @@ export function EngineerCalendarTab({
       background: "var(--bg-primary)",
       paddingBottom: 80,
       color: "var(--text-primary)",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 헤더 */}
       <div style={{

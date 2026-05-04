@@ -655,13 +655,13 @@ function MainScreen({
 
   return (
     <div style={{
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
       background: "var(--bg-primary)",
       minHeight: "100vh", paddingBottom: 100,
       color: "var(--text-primary)",
     }}>
       <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+        
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulseSubtle { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
@@ -1228,9 +1228,9 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: editingSchedule ? 30 : 130, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: editingSchedule ? 30 : 130, color: t.text }}>
       <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+        
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         .mono { font-family: 'JetBrains Mono', monospace; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -1601,7 +1601,7 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`
         .mono { font-family: 'JetBrains Mono', monospace; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -1755,9 +1755,9 @@ function SettlementScreen({ t }) {
     : SETTLEMENT_DATA.recentJobs;
   
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+        
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
@@ -2055,7 +2055,7 @@ function NotificationsScreen({ t }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <style>{`
         .mono { font-family: 'JetBrains Mono', monospace; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -2224,7 +2224,7 @@ function ProfileScreen({ t, mode, setMode }) {
   const nextRank = ENGINEER_RANKS[ENGINEER_RANKS.findIndex(r => r.id === PROFILE_DATA.currentRank) + 1];
   
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <style>{`
         .mono { font-family: 'JetBrains Mono', monospace; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
@@ -2750,7 +2750,7 @@ function CalendarScreen({ t, engineerName, tasks }) {
   }
   
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <div style={{ padding: "20px 16px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
           <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>CALENDAR</span>
@@ -3076,7 +3076,7 @@ function DayDetailScreen({ t, date, tasks, offDays: initialOffDays, engineerName
   }
   
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <div style={{ padding: "20px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text }}>

@@ -290,7 +290,7 @@ const modalContentStyle = {
   borderRadius: 14, padding: 16,
   overflow: "auto",
   boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-  fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+  fontFamily: "-apple-system, 'Pretendard', sans-serif",
   color: "var(--text-primary)",
 };
 

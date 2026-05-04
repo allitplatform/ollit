@@ -84,7 +84,7 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack }) {
   const currentPolicy = data.commissionPolicy[activeTab];
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80 }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
 
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
