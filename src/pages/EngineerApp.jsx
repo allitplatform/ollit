@@ -3649,6 +3649,9 @@ export default function EngineerApp({ user, onLogout }) {
 
   const reset = () => { resetTasks(); setScreen("main"); setSelectedTaskId(null); };
 
+  // V14 — 수락한 acceptance를 새 배정 리스트에 추가 (newAssignments 계산 전에 선언)
+  const [extraAssignments, setExtraAssignments] = useState([]);
+
   // V13-1 — 새 배정 리스트 (오늘 화면 새 배정 박스 클릭)
   // V14 — 수락한 acceptance(extraAssignments)도 합산
   const newAssignments = [
@@ -3760,8 +3763,6 @@ export default function EngineerApp({ user, onLogout }) {
   const [callTaskId, setCallTaskId] = useState(null);
   // V14 — 수락 대기 → 새 배정 상세 라우팅용 임시 task
   const [acceptedCall, setAcceptedCall] = useState(null);
-  // V14 — 수락한 acceptance를 새 배정 리스트에 추가
-  const [extraAssignments, setExtraAssignments] = useState([]);
   // V14 — 토스트 메시지
   const [toast, setToast] = useState(null);
   function showToast(msg) {
