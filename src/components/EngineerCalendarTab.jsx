@@ -66,6 +66,7 @@ export function EngineerCalendarTab({
   tasks = [],
   offDays = [],
   onAddOff,
+  onRemoveOff,
   onClickTask,
   onTabChange,
   unreadCount = 0,
@@ -126,6 +127,19 @@ export function EngineerCalendarTab({
     const k = formatYmd(selectedDate);
     return monthData.byDate[k]?.hourlyOffs || [];
   }, [monthData, selectedDate]);
+
+  // V14 — selectedDate에 매칭되는 전체 휴무 객체들 (single/range/repeat)
+  const dayFullOffs = useMemo(() => {
+    const ymd = formatYmd(selectedDate);
+    const dow = new Date(selectedDate).getDay();
+    return (offDays || []).filter(o => {
+      const type = o.type;
+      if (type === "hourly") return false;
+      if (type === "range")  return o.startDate && o.endDate && ymd >= o.startDate && ymd <= o.endDate;
+      if (type === "repeat") return Array.isArray(o.weekdays) && o.weekdays.includes(dow);
+      return o.date === ymd;
+    });
+  }, [offDays, selectedDate]);
 
   // 오늘 타임라인용 (작업 + 시간 휴무 + 전체 휴무 여부)
   const todayInfo = useMemo(() => {
@@ -226,14 +240,16 @@ export function EngineerCalendarTab({
           monthData={monthData}
           dayTasks={dayTasks}
           dayHourlyOffs={dayHourlyOffs}
+          dayFullOffs={dayFullOffs}
           onClickTask={onClickTask}
+          onRemoveOff={onRemoveOff}
         />
       )}
       {view === "week" && (
-        <WeekView weekDays={weekDays} onClickTask={onClickTask}/>
+        <WeekView weekDays={weekDays} onClickTask={onClickTask} onRemoveOff={onRemoveOff}/>
       )}
       {view === "today" && (
-        <TodayView todayInfo={todayInfo} onClickTask={onClickTask}/>
+        <TodayView todayInfo={todayInfo} onClickTask={onClickTask} onRemoveOff={onRemoveOff}/>
       )}
 
       <EngineerBottomNav active="cal" onChange={onTabChange} unreadCount={unreadCount}/>
@@ -266,7 +282,8 @@ function ToggleBtn({ label, active, onClick }) {
 function MonthView({
   currentMonth, setCurrentMonth,
   selectedDate, setSelectedDate,
-  monthData, dayTasks, dayHourlyOffs = [], onClickTask,
+  monthData, dayTasks, dayHourlyOffs = [], dayFullOffs = [],
+  onClickTask, onRemoveOff,
 }) {
   return (
     <>
@@ -319,49 +336,64 @@ function MonthView({
         </div>
       </div>
 
-      {/* 선택한 날 일정 — 작업 + 시간 휴무 시간순 정렬 */}
+      {/* 선택한 날 일정 — 작업 + 시간 휴무 시간순 정렬 + 전체 휴무 카드 */}
       {(() => {
-        // 시간 비교용 키
-        const itemTime = (it) => it.__off
-          ? (it.startTime || "99:99")
-          : (it.scheduledTime || it.time || "99:99");
-        const merged = [
-          ...dayTasks.map(t => ({ ...t, __off: false })),
-          ...dayHourlyOffs.map((o, i) => ({ ...o, __off: true, __key: `hoff-${i}` })),
-        ].sort((a, b) => itemTime(a).localeCompare(itemTime(b)));
-
-        const totalCount = dayTasks.length + dayHourlyOffs.length;
-        const offCount   = dayHourlyOffs.length;
+        const merged = mergeDayItems(dayTasks, dayHourlyOffs);
+        const isFullOff   = dayFullOffs.length > 0;
+        const totalCount  = dayTasks.length + dayHourlyOffs.length;
+        const offCount    = dayHourlyOffs.length;
 
         return (
           <div style={{ padding: "16px" }}>
             <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 16, fontWeight: 800 }}>
-                {formatDateLong(selectedDate)}
-                {isToday(selectedDate) && <span style={{ color: "#FF1B8D" }}> · 오늘</span>}
+              <div style={{ fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <span>{formatDateLong(selectedDate)}</span>
+                {isToday(selectedDate) && <span style={{ color: "#FF1B8D" }}>· 오늘</span>}
+                {isFullOff && (
+                  <span style={{
+                    background: "var(--pending-pill-bg, var(--border))",
+                    color: "var(--text-secondary)",
+                    fontSize: 11, padding: "2px 8px",
+                    borderRadius: 999, fontWeight: 700,
+                  }}>
+                    휴무
+                  </span>
+                )}
               </div>
-              <div style={{
-                fontSize: 12, color: "var(--text-secondary)",
-                marginTop: 4, fontWeight: 600,
-              }}>
-                {totalCount}건
-                {offCount > 0 && ` (휴무 ${offCount}건 포함)`}
-                {countByStatus(dayTasks, "진행중") > 0 && ` · 진행중 ${countByStatus(dayTasks, "진행중")}`}
-                {countByStatus(dayTasks, "확정")   > 0 && ` · 확정 ${countByStatus(dayTasks, "확정")}`}
-                {countByStatus(dayTasks, "약속대기") > 0 && ` · 약속미정 ${countByStatus(dayTasks, "약속대기")}`}
-              </div>
+              {!isFullOff && (
+                <div style={{
+                  fontSize: 12, color: "var(--text-secondary)",
+                  marginTop: 4, fontWeight: 600,
+                }}>
+                  {totalCount}건
+                  {offCount > 0 && ` (휴무 ${offCount}건 포함)`}
+                  {countByStatus(dayTasks, "진행중") > 0 && ` · 진행중 ${countByStatus(dayTasks, "진행중")}`}
+                  {countByStatus(dayTasks, "확정")   > 0 && ` · 확정 ${countByStatus(dayTasks, "확정")}`}
+                  {countByStatus(dayTasks, "약속대기") > 0 && ` · 약속미정 ${countByStatus(dayTasks, "약속대기")}`}
+                </div>
+              )}
             </div>
 
-            {totalCount === 0 ? (
+            {/* 전체 휴무 카드 (single/range/repeat) */}
+            {isFullOff && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 8 }}>
+                {dayFullOffs.map((off) => (
+                  <FullDayOffCard key={off.id || `${off.type}-${off.date || off.startDate || off.weekdays}`} off={off} onRemove={onRemoveOff}/>
+                ))}
+              </div>
+            )}
+
+            {/* 시간 휴무 + 작업 (전체 휴무여도 시간 휴무가 박혀있으면 표시) */}
+            {totalCount === 0 && !isFullOff ? (
               <EmptyState text="이 날은 일정이 없어요"/>
-            ) : (
+            ) : merged.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {merged.map((item) => item.__off
-                  ? <HourlyOffCard key={item.__key} off={item}/>
+                  ? <HourlyOffCard key={item.__key} off={item} onRemove={onRemoveOff}/>
                   : <DayTaskCard key={item.id} task={item} onClick={() => onClickTask && onClickTask(item.id)}/>
                 )}
               </div>
-            )}
+            ) : null}
           </div>
         );
       })()}
@@ -369,7 +401,7 @@ function MonthView({
   );
 }
 
-function HourlyOffCard({ off, compact = false }) {
+function HourlyOffCard({ off, compact = false, onRemove }) {
   return (
     <div style={{
       background: "var(--bg-secondary)",
@@ -386,9 +418,13 @@ function HourlyOffCard({ off, compact = false }) {
         width: 4, background: "#999",
       }}/>
 
+      {/* 우측 상단 ✕ (회색 원형) */}
+      {onRemove ? <RemoveBtn onClick={(e) => { e.stopPropagation(); onRemove(off); }}/> : null}
+
       {/* 헤더: ⏰ + 시간 + 휴무 알약 */}
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
+        paddingRight: onRemove ? 36 : 0,
         marginBottom: compact ? 0 : (off.reason ? 6 : 8),
         flexWrap: "wrap",
       }}>
@@ -444,10 +480,123 @@ function HourlyOffCard({ off, compact = false }) {
   );
 }
 
+// V14 — 전체 휴무 카드 (single/range/repeat) — selectedDate 클릭 하단 표시
+function FullDayOffCard({ off, onRemove }) {
+  const typeMap = {
+    single: { icon: "📌", label: "하루 휴무" },
+    range:  { icon: "📆", label: "기간 휴무" },
+    repeat: { icon: "🔁", label: "반복 휴무" },
+  };
+  const info = typeMap[off.type] || { icon: "📅", label: "휴무" };
+
+  // 반복 휴무는 어떤 요일인지 표시
+  let subtitle = null;
+  if (off.type === "repeat" && Array.isArray(off.weekdays)) {
+    const days = off.weekdays
+      .slice()
+      .sort((a, b) => a - b)
+      .map(d => ["일","월","화","수","목","금","토"][d])
+      .join(", ");
+    subtitle = `매주 ${days}요일`;
+  } else if (off.type === "range") {
+    subtitle = `${off.startDate || "—"} ~ ${off.endDate || "—"}`;
+  }
+
+  return (
+    <div style={{
+      background: "var(--bg-secondary)",
+      border: "1px dashed var(--border)",
+      borderRadius: 14,
+      padding: "14px 14px 14px 18px",
+      position: "relative",
+      overflow: "hidden",
+      opacity: 0.85,
+    }}>
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: "#999",
+      }}/>
+      {onRemove ? <RemoveBtn onClick={(e) => { e.stopPropagation(); onRemove(off); }}/> : null}
+
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        paddingRight: onRemove ? 36 : 0,
+        marginBottom: 4, flexWrap: "wrap",
+      }}>
+        <span style={{ fontSize: 16 }}>{info.icon}</span>
+        <span style={{
+          fontSize: 16, fontWeight: 700,
+          color: "var(--text-secondary)",
+        }}>
+          {info.label}
+        </span>
+        {subtitle ? (
+          <span style={{
+            fontSize: 12, fontWeight: 600,
+            color: "var(--text-tertiary)",
+          }}>
+            · {subtitle}
+          </span>
+        ) : null}
+      </div>
+
+      {off.reason ? (
+        <div style={{
+          fontSize: 13, fontWeight: 600,
+          color: "var(--text-tertiary)",
+          marginTop: 6, marginBottom: 8,
+          paddingLeft: 22,
+        }}>
+          📝 {off.reason}
+        </div>
+      ) : null}
+
+      <div style={{
+        fontSize: 12, fontWeight: 600,
+        color: "var(--text-tertiary)",
+        fontStyle: "italic",
+        paddingLeft: 22,
+      }}>
+        ✓ 운영팀이 배정하지 않습니다
+      </div>
+    </div>
+  );
+}
+
+function RemoveBtn({ onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label="휴무 해제"
+      style={{
+        position: "absolute",
+        right: 10, top: 10,
+        background: "var(--remove-btn-bg, rgba(0,0,0,0.06))",
+        border: "none",
+        color: "var(--text-secondary)",
+        fontSize: 13,
+        padding: 0,
+        cursor: "pointer",
+        lineHeight: 1,
+        width: 26, height: 26,
+        borderRadius: "50%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontWeight: 700,
+        zIndex: 2,
+        fontFamily: "inherit",
+      }}
+    >
+      ✕
+    </button>
+  );
+}
+
 // ───────────────────────────────────────────────
 // 주간 뷰 — 7일 그룹 (작업 + 시간 휴무 + 전체 휴무)
 // ───────────────────────────────────────────────
-function WeekView({ weekDays, onClickTask }) {
+function WeekView({ weekDays, onClickTask, onRemoveOff }) {
   return (
     <div style={{ padding: "16px" }}>
       {weekDays.map(({ date, tasks: dt, hourlyOffs = [], offDay: isFullOff }, idx) => {
@@ -519,7 +668,7 @@ function WeekView({ weekDays, onClickTask }) {
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {items.map(item => item.__off
-                  ? <HourlyOffCard key={item.__key} off={item} compact/>
+                  ? <HourlyOffCard key={item.__key} off={item} compact onRemove={onRemoveOff}/>
                   : <DayTaskCard key={item.id} task={item} onClick={() => onClickTask && onClickTask(item.id)}/>
                 )}
               </div>
@@ -534,7 +683,7 @@ function WeekView({ weekDays, onClickTask }) {
 // ───────────────────────────────────────────────
 // 오늘 뷰 — 시간순 타임라인 (작업 + 시간 휴무 + 전체 휴무)
 // ───────────────────────────────────────────────
-function TodayView({ todayInfo, onClickTask }) {
+function TodayView({ todayInfo, onClickTask, onRemoveOff }) {
   const { tasks: todayTasks = [], hourlyOffs = [], isFullOff = false, date = new Date() } = todayInfo || {};
   const items = mergeDayItems(todayTasks, hourlyOffs);
   const offCount        = hourlyOffs.length;
@@ -604,7 +753,7 @@ function TodayView({ todayInfo, onClickTask }) {
         }}/>
 
         {items.map((item) => item.__off
-          ? <TimelineHourlyOffRow key={item.__key} off={item}/>
+          ? <TimelineHourlyOffRow key={item.__key} off={item} onRemove={onRemoveOff}/>
           : <TimelineRow key={item.id} task={item} onClick={() => onClickTask && onClickTask(item.id)}/>
         )}
       </div>
@@ -612,7 +761,7 @@ function TodayView({ todayInfo, onClickTask }) {
   );
 }
 
-function TimelineHourlyOffRow({ off }) {
+function TimelineHourlyOffRow({ off, onRemove }) {
   return (
     <div style={{ position: "relative", marginBottom: 14 }}>
       <div style={{
@@ -624,7 +773,7 @@ function TimelineHourlyOffRow({ off }) {
         border: "3px solid #999",
         boxSizing: "border-box",
       }}/>
-      <HourlyOffCard off={off} compact/>
+      <HourlyOffCard off={off} compact onRemove={onRemove}/>
     </div>
   );
 }

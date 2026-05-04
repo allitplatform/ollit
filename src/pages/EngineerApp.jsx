@@ -31,6 +31,7 @@ import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
 import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
 import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
 import { UsolNSettlementScreen } from "../components/UsolNSettlementScreen.jsx";
+import { ConfirmModal } from "../components/ConfirmModal.jsx";
 // V13-FINAL2-fix1 신규 화면
 import { EngineerOffDayAddModal } from "../components/EngineerOffDayAddModal.jsx";
 import { EngineerAccountEditScreen } from "../components/EngineerAccountEditScreen.jsx";
@@ -3980,6 +3981,43 @@ export default function EngineerApp({ user, onLogout }) {
     setPendingOffDate(date || null);
     setOffDayModalOpen(true);
   }
+
+  // V14 — 휴무 해제 (✕ → ConfirmModal → filter)
+  const [removeOffConfirm, setRemoveOffConfirm] = useState(null);
+  function getOffLabel(off) {
+    function fmt(ymd) {
+      if (!ymd) return "—";
+      const parts = ymd.split("-");
+      if (parts.length !== 3) return ymd;
+      return `${Number(parts[1])}월 ${Number(parts[2])}일`;
+    }
+    if (off.type === "hourly") return `${fmt(off.date)} ${off.startTime || "—"}~${off.endTime || "—"} 시간 휴무`;
+    if (off.type === "single") return `${fmt(off.date)} 하루 휴무`;
+    if (off.type === "range")  return `${fmt(off.startDate)} ~ ${fmt(off.endDate)} 기간 휴무`;
+    if (off.type === "repeat") {
+      const days = (off.weekdays || []).slice().sort((a, b) => a - b)
+        .map(d => ["일","월","화","수","목","금","토"][d]).join(", ");
+      return `매주 ${days}요일 반복 휴무\n(앞으로 모든 ${days}요일이 해제됩니다)`;
+    }
+    return "휴무";
+  }
+  function handleRemoveOffClick(off) {
+    if (!off) return;
+    // id가 없는 옛 데이터를 위한 임시 키
+    const key = off.id || `${off.type}|${off.date || off.startDate || ""}|${off.startTime || ""}|${(off.weekdays || []).join(",")}`;
+    setRemoveOffConfirm({ key, off, label: getOffLabel(off) });
+  }
+  function handleConfirmRemoveOff() {
+    if (!removeOffConfirm) return;
+    const { off, key } = removeOffConfirm;
+    setSavedOffDays(prev => prev.filter(o => {
+      const oKey = o.id || `${o.type}|${o.date || o.startDate || ""}|${o.startTime || ""}|${(o.weekdays || []).join(",")}`;
+      return oKey !== key;
+    }));
+    setRemoveOffConfirm(null);
+    showToast("휴무가 해제되었습니다.");
+  }
+
   function handleSaveOffDay(payload) {
     if (typeof console !== "undefined") console.log("🟢 휴무 추가 시도:", payload);
     setSavedOffDays(prev => {
@@ -4150,6 +4188,7 @@ export default function EngineerApp({ user, onLogout }) {
             tasks={tasks}
             offDays={savedOffDays}
             onAddOff={handleAddOff}
+            onRemoveOff={handleRemoveOffClick}
             onClickTask={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
             onTabChange={handleTabChange}
             unreadCount={unreadCount}
@@ -4247,6 +4286,19 @@ export default function EngineerApp({ user, onLogout }) {
             defaultDate={pendingOffDate}
             onClose={() => { setOffDayModalOpen(false); setPendingOffDate(null); }}
             onSave={handleSaveOffDay}
+          />
+        )}
+
+        {/* 휴무 해제 확인 모달 */}
+        {removeOffConfirm && (
+          <ConfirmModal
+            title="휴무 해제"
+            message={`${removeOffConfirm.label}\n해제하시겠어요?`}
+            confirmLabel="해제"
+            cancelLabel="취소"
+            confirmColor="#FF3B5C"
+            onConfirm={handleConfirmRemoveOff}
+            onCancel={() => setRemoveOffConfirm(null)}
           />
         )}
 
