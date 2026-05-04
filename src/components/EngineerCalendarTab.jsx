@@ -287,37 +287,52 @@ function MonthView({
         </div>
       </div>
 
-      {/* 선택한 날 일정 */}
-      <div style={{ padding: "16px" }}>
-        <div style={{ marginBottom: 12 }}>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>
-            {formatDateLong(selectedDate)}
-            {isToday(selectedDate) && <span style={{ color: "#FF1B8D" }}> · 오늘</span>}
-          </div>
-          <div style={{
-            fontSize: 12, color: "var(--text-secondary)",
-            marginTop: 4, fontWeight: 600,
-          }}>
-            {dayTasks.length}건
-            {countByStatus(dayTasks, "진행중") > 0 && ` · 진행중 ${countByStatus(dayTasks, "진행중")}`}
-            {countByStatus(dayTasks, "확정")   > 0 && ` · 확정 ${countByStatus(dayTasks, "확정")}`}
-            {countByStatus(dayTasks, "약속대기") > 0 && ` · 약속미정 ${countByStatus(dayTasks, "약속대기")}`}
-          </div>
-        </div>
+      {/* 선택한 날 일정 — 작업 + 시간 휴무 시간순 정렬 */}
+      {(() => {
+        // 시간 비교용 키
+        const itemTime = (it) => it.__off
+          ? (it.startTime || "99:99")
+          : (it.scheduledTime || it.time || "99:99");
+        const merged = [
+          ...dayTasks.map(t => ({ ...t, __off: false })),
+          ...dayHourlyOffs.map((o, i) => ({ ...o, __off: true, __key: `hoff-${i}` })),
+        ].sort((a, b) => itemTime(a).localeCompare(itemTime(b)));
 
-        {dayTasks.length === 0 && dayHourlyOffs.length === 0 ? (
-          <EmptyState text="이 날은 일정이 없어요"/>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {dayTasks.map(t => (
-              <DayTaskCard key={t.id} task={t} onClick={() => onClickTask && onClickTask(t.id)}/>
-            ))}
-            {dayHourlyOffs.map((off, i) => (
-              <HourlyOffCard key={`hoff-${i}`} off={off}/>
-            ))}
+        const totalCount = dayTasks.length + dayHourlyOffs.length;
+        const offCount   = dayHourlyOffs.length;
+
+        return (
+          <div style={{ padding: "16px" }}>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 16, fontWeight: 800 }}>
+                {formatDateLong(selectedDate)}
+                {isToday(selectedDate) && <span style={{ color: "#FF1B8D" }}> · 오늘</span>}
+              </div>
+              <div style={{
+                fontSize: 12, color: "var(--text-secondary)",
+                marginTop: 4, fontWeight: 600,
+              }}>
+                {totalCount}건
+                {offCount > 0 && ` (휴무 ${offCount}건 포함)`}
+                {countByStatus(dayTasks, "진행중") > 0 && ` · 진행중 ${countByStatus(dayTasks, "진행중")}`}
+                {countByStatus(dayTasks, "확정")   > 0 && ` · 확정 ${countByStatus(dayTasks, "확정")}`}
+                {countByStatus(dayTasks, "약속대기") > 0 && ` · 약속미정 ${countByStatus(dayTasks, "약속대기")}`}
+              </div>
+            </div>
+
+            {totalCount === 0 ? (
+              <EmptyState text="이 날은 일정이 없어요"/>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {merged.map((item) => item.__off
+                  ? <HourlyOffCard key={item.__key} off={item}/>
+                  : <DayTaskCard key={item.id} task={item} onClick={() => onClickTask && onClickTask(item.id)}/>
+                )}
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        );
+      })()}
     </>
   );
 }
@@ -328,23 +343,60 @@ function HourlyOffCard({ off }) {
       background: "var(--bg-secondary)",
       border: "1px dashed var(--border)",
       borderRadius: 14,
-      padding: "12px 14px 12px 18px",
+      padding: "14px 14px 14px 18px",
       position: "relative",
       overflow: "hidden",
       opacity: 0.85,
     }}>
+      {/* 좌측 4px 회색 바 */}
       <div style={{
         position: "absolute", left: 0, top: 0, bottom: 0,
         width: 4, background: "#999",
       }}/>
+
+      {/* 헤더: ⏰ + 시간 + 휴무 알약 */}
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
-        fontSize: 13, color: "var(--text-secondary)", fontWeight: 600,
+        marginBottom: off.reason ? 6 : 8,
         flexWrap: "wrap",
       }}>
-        <span>⏰</span>
-        <span>{off.startTime || "—"} ~ {off.endTime || "—"} 휴무</span>
-        {off.reason ? <span style={{ color: "var(--text-tertiary)" }}>· {off.reason}</span> : null}
+        <span style={{ fontSize: 16 }}>⏰</span>
+        <span style={{
+          fontSize: 16, fontWeight: 700,
+          color: "var(--text-secondary)",
+        }}>
+          {off.startTime || "—"} ~ {off.endTime || "—"}
+        </span>
+        <span style={{
+          background: "var(--pending-pill-bg, var(--border))",
+          color: "var(--text-secondary)",
+          fontSize: 11,
+          padding: "3px 9px",
+          borderRadius: 999,
+          fontWeight: 700,
+        }}>
+          휴무
+        </span>
+      </div>
+
+      {/* 사유 */}
+      {off.reason ? (
+        <div style={{
+          fontSize: 13, fontWeight: 600,
+          color: "var(--text-tertiary)",
+          marginBottom: 8,
+        }}>
+          📝 {off.reason}
+        </div>
+      ) : null}
+
+      {/* 운영팀 헬퍼 */}
+      <div style={{
+        fontSize: 12, fontWeight: 600,
+        color: "var(--text-tertiary)",
+        fontStyle: "italic",
+      }}>
+        ✓ 운영팀이 이 시간엔 배정하지 않습니다
       </div>
     </div>
   );
