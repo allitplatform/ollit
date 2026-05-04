@@ -406,7 +406,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
               width: "100%", padding: 19,
               background: "#FF1B8D", border: "none",
               borderRadius: 16, color: "#fff",
-              fontSize: 18, fontWeight: 600,
+              fontSize: 18, fontWeight: 700,
               cursor: "pointer", fontFamily: "inherit",
             }}
           >
@@ -414,7 +414,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
           </button>
           <div style={{
             marginTop: 10, textAlign: "center",
-            fontSize: 12, color: "#888", fontWeight: 500,
+            fontSize: 12, color: "#888", fontWeight: 600,
           }}>
             현장 도착 후 시작
           </div>
@@ -440,7 +440,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
               background: enough ? "#FF1B8D" : "var(--bg-tertiary)",
               border: "none", borderRadius: 16,
               color: enough ? "#fff" : "var(--text-tertiary)",
-              fontSize: 17, fontWeight: 500,
+              fontSize: 17, fontWeight: 600,
               cursor: enough ? "pointer" : "not-allowed",
               fontFamily: "inherit",
               marginBottom: 10,
@@ -459,7 +459,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
                 border: "1.5px solid #C8C8C8",
                 borderRadius: 12,
                 color: "#555",
-                fontSize: 14, fontWeight: 500,
+                fontSize: 14, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
@@ -475,7 +475,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
                 border: "1.5px solid #FF3B5C",
                 borderRadius: 12,
                 color: "var(--cancel-text)",
-                fontSize: 14, fontWeight: 500,
+                fontSize: 14, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
@@ -566,7 +566,7 @@ function WorkMainCard({ task }) {
         {isInProgress && task.startedAt && (
           <span style={{
             marginLeft: "auto",
-            fontSize: 13, color: "var(--label-main)", fontWeight: 600,
+            fontSize: 13, color: "var(--label-main)", fontWeight: 700,
           }}>
             {task.startedAt} 시작
           </span>
@@ -584,7 +584,7 @@ function WorkMainCard({ task }) {
           {(isInProgress ? task.startedAt : task.scheduledTime) || task.time || "—"}
         </span>
         {task.endTime && (
-          <span style={{ fontSize: 18, color: "#888", fontWeight: 600 }}>
+          <span style={{ fontSize: 18, color: "#888", fontWeight: 700 }}>
             ~ {task.endTime}
           </span>
         )}
@@ -608,7 +608,7 @@ function WorkMainCard({ task }) {
       ) : (
         <div style={{
           fontSize: 13, color: "var(--label-main)",
-          marginTop: 8, marginBottom: 16, fontWeight: 600,
+          marginTop: 8, marginBottom: 16, fontWeight: 700,
           display: "flex", alignItems: "center", gap: 4,
         }}>
           <span style={{ fontSize: 14 }}>📅</span> 예정 시각 {task.scheduledTime || task.time || "—"}
@@ -652,14 +652,14 @@ function WorkMainCard({ task }) {
         {task.phone && (
           <div style={{
             fontSize: 14, color: "var(--label-main)",
-            fontWeight: 600, marginBottom: 4,
+            fontWeight: 700, marginBottom: 4,
           }}>
             📞 {task.phone}
           </div>
         )}
         <div style={{
           fontSize: 14, color: "var(--label-main)",
-          fontWeight: 600,
+          fontWeight: 700,
         }}>
           📍 {task.fullAddress || task.address || "—"}
         </div>
@@ -692,18 +692,18 @@ function StatusBlockConfirmed({ task }) {
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
         <div style={{
-          fontSize: 36, fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 36, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace",
           color: "var(--text-primary)", letterSpacing: "-1px",
         }}>
           {task.scheduledTime || task.time || "—"}
         </div>
         {task.endTime && (
-          <div style={{ fontSize: 16, color: "#888", fontWeight: 500 }}>
+          <div style={{ fontSize: 16, color: "#888", fontWeight: 600 }}>
             ~ {task.endTime}
           </div>
         )}
       </div>
-      <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>
+      <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
         📅 {formatTimeUntilStart(task)}
       </div>
     </div>
@@ -747,7 +747,7 @@ function StatusBlockInProgress({ task }) {
           </span>
         </div>
         {task.startedAt && (
-          <span style={{ fontSize: 13, color: "#888", fontWeight: 500 }}>
+          <span style={{ fontSize: 13, color: "#888", fontWeight: 600 }}>
             {task.startedAt} 시작
           </span>
         )}
@@ -755,13 +755,13 @@ function StatusBlockInProgress({ task }) {
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 14 }}>
         <div style={{
-          fontSize: 36, fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 36, fontWeight: 600, fontFamily: "'JetBrains Mono', monospace",
           color: "var(--text-primary)", letterSpacing: "-1px",
         }}>
           {task.startedAt || task.scheduledTime || "—"}
         </div>
         {task.endTime && (
-          <div style={{ fontSize: 16, color: "#888", fontWeight: 500 }}>
+          <div style={{ fontSize: 16, color: "#888", fontWeight: 600 }}>
             ~ {task.endTime}
           </div>
         )}
@@ -878,7 +878,7 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
       {!hideCustomerHeader && (
         <>
           <div style={{
-            fontSize: 26, fontWeight: 500,
+            fontSize: 26, fontWeight: 600,
             color: "var(--text-primary)",
             letterSpacing: "-0.3px",
             marginBottom: 6,
@@ -888,14 +888,14 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
           {task.phone && (
             <div style={{
               fontSize: 14, color: "var(--text-secondary)",
-              fontWeight: 500, marginBottom: 4,
+              fontWeight: 600, marginBottom: 4,
             }}>
               📞 {task.phone}
             </div>
           )}
           <div style={{
             fontSize: 14, color: "var(--text-secondary)",
-            fontWeight: 500, marginBottom: 12,
+            fontWeight: 600, marginBottom: 12,
           }}>
             📍 {task.fullAddress || task.address || "—"}
           </div>
@@ -918,13 +918,13 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
           }}/>
           <div style={{
             fontSize: 12, color: "var(--request-text)",
-            fontWeight: 500, marginBottom: 4,
+            fontWeight: 600, marginBottom: 4,
           }}>
             📝 요청사항 (고객)
           </div>
           <div style={{
             fontSize: 13, color: "var(--request-sub)",
-            fontWeight: 500, lineHeight: 1.5,
+            fontWeight: 600, lineHeight: 1.5,
           }}>
             {task.requestNote}
           </div>
@@ -947,13 +947,13 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
           }}/>
           <div style={{
             fontSize: 12, color: "var(--ops-memo-header)",
-            fontWeight: 500, marginBottom: 4,
+            fontWeight: 600, marginBottom: 4,
           }}>
             📌 운영팀 메모
           </div>
           <div style={{
             fontSize: 13, color: "var(--ops-memo-body)",
-            fontWeight: 500, lineHeight: 1.5,
+            fontWeight: 600, lineHeight: 1.5,
           }}>
             {operatorNote}
           </div>
@@ -969,7 +969,7 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
             border: "none",
             borderRadius: 10,
             color: "#fff",
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
           }}>
             📞 전화
@@ -980,7 +980,7 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
             border: "1.5px solid var(--input-border)",
             borderRadius: 10,
             color: "var(--text-secondary)",
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
           }}>
             💬 문자
@@ -1014,7 +1014,7 @@ function MapButtons({ task }) {
           border: "1.5px solid #03C75A",
           borderRadius: 10,
           color: "#03C75A",
-          fontSize: 14, fontWeight: 500,
+          fontSize: 14, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}>
@@ -1022,7 +1022,7 @@ function MapButtons({ task }) {
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             width: 18, height: 18, borderRadius: 4,
             background: "#03C75A", color: "#fff",
-            fontSize: 11, fontWeight: 500,
+            fontSize: 11, fontWeight: 600,
           }}>N</span>
           네이버 지도
         </button>
@@ -1032,7 +1032,7 @@ function MapButtons({ task }) {
           border: "1.5px solid #1F8AFF",
           borderRadius: 10,
           color: "#1F8AFF",
-          fontSize: 14, fontWeight: 500,
+          fontSize: 14, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}>
@@ -1040,7 +1040,7 @@ function MapButtons({ task }) {
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             width: 18, height: 18, borderRadius: 4,
             background: "#1F8AFF", color: "#fff",
-            fontSize: 11, fontWeight: 500,
+            fontSize: 11, fontWeight: 600,
           }}>T</span>
           T맵
         </button>
@@ -1065,7 +1065,7 @@ function PhotoGrid({ photos, minRequired = 2, onAdd, onRemove }) {
           </div>
           <div style={{
             fontSize: 12, color: "var(--text-secondary)",
-            fontWeight: 500, marginTop: 2,
+            fontWeight: 600, marginTop: 2,
           }}>
             {minRequired}장 이상 필수
           </div>
@@ -1145,7 +1145,7 @@ function ExtraFeeInput({ value, onChange, onAdd }) {
       }}>
         <div style={{
           fontSize: 13, color: "var(--extra-fee-header)",
-          fontWeight: 500, marginBottom: 10,
+          fontWeight: 600, marginBottom: 10,
         }}>
           💰 현장 추가금 (있으면)
         </div>
@@ -1164,7 +1164,7 @@ function ExtraFeeInput({ value, onChange, onAdd }) {
             fontSize: 16, boxSizing: "border-box",
             outline: "none", marginBottom: 10,
             fontFamily: "'JetBrains Mono', monospace",
-            fontWeight: 500,
+            fontWeight: 600,
           }}
         />
         <div style={{
@@ -1187,7 +1187,7 @@ function ExtraFeeInput({ value, onChange, onAdd }) {
                 border: "1px solid var(--extra-fee-border)",
                 borderRadius: 8,
                 color: "var(--extra-fee-text)",
-                fontSize: 12, fontWeight: 500,
+                fontSize: 12, fontWeight: 600,
                 cursor: "pointer",
                 fontFamily: "'JetBrains Mono', monospace",
               }}
@@ -1418,7 +1418,7 @@ function MenuItem({ icon, label, danger, onClick }) {
       width: "100%", padding: 12,
       background: "transparent", border: "none",
       color: danger ? "#FF3D5A" : "var(--text-primary)",
-      fontSize: 12, fontWeight: 600,
+      fontSize: 12, fontWeight: 700,
       textAlign: "left", cursor: "pointer",
       display: "flex", alignItems: "center", gap: 10,
       fontFamily: "inherit",

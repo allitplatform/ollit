@@ -77,7 +77,7 @@ export function NotiCard({ noti, onClick }) {
           <span style={{
             fontSize: 12,
             color: isDark ? "#999" : "#6E6E6E",
-            fontWeight: 500,
+            fontWeight: 600,
             flexShrink: 0,
             marginLeft: "auto",
           }}>
@@ -96,7 +96,7 @@ export function NotiCard({ noti, onClick }) {
 
         {noti.subtitle && (
           <div style={{
-            fontSize: 13, fontWeight: 500,
+            fontSize: 13, fontWeight: 600,
             marginTop: 4,
             color: isDark ? "#999" : "#6E6E6E",
             lineHeight: 1.5,

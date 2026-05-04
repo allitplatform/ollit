@@ -39,7 +39,7 @@ const NavSvgWhite = () => (
 function SectionLabel({ children }) {
   return (
     <div style={{
-      fontSize: 15, fontWeight: 500,
+      fontSize: 15, fontWeight: 600,
       color: "var(--text-primary)",
       marginBottom: 10,
     }}>
@@ -54,7 +54,7 @@ const inputStyle = {
   border: "1px solid var(--input-border)",
   borderRadius: 10,
   color: "var(--text-primary)",
-  fontSize: 15, fontWeight: 500,
+  fontSize: 15, fontWeight: 600,
   boxSizing: "border-box",
   outline: "none", fontFamily: "inherit",
 };
@@ -140,7 +140,7 @@ export function EngineerNewAssignDetailScreen({
         }}>
           <ArrowLeft size={20}/>
         </button>
-        <div style={{ flex: 1, textAlign: "center", fontSize: 18, fontWeight: 500 }}>
+        <div style={{ flex: 1, textAlign: "center", fontSize: 18, fontWeight: 600 }}>
           새 배정
         </div>
         <div style={{ width: 28 }}/>
@@ -167,7 +167,7 @@ export function EngineerNewAssignDetailScreen({
 
           <div style={{
             display: "flex", alignItems: "center", gap: 6,
-            fontSize: 13, fontWeight: 500,
+            fontSize: 13, fontWeight: 600,
             color: colors.main,
             marginBottom: 6,
           }}>
@@ -178,7 +178,7 @@ export function EngineerNewAssignDetailScreen({
             }}/>
             새 배정
             {task.requestedAgo && (
-              <span style={{ color: "var(--text-tertiary)", fontWeight: 500 }}>
+              <span style={{ color: "var(--text-tertiary)", fontWeight: 600 }}>
                 · {task.requestedAgo}
               </span>
             )}
@@ -196,7 +196,7 @@ export function EngineerNewAssignDetailScreen({
           </div>
 
           <div style={{
-            fontSize: 26, fontWeight: 500,
+            fontSize: 26, fontWeight: 600,
             color: "var(--text-primary)",
             letterSpacing: "-0.3px",
             marginBottom: 6,
@@ -205,7 +205,7 @@ export function EngineerNewAssignDetailScreen({
           </div>
 
           <div style={{
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 600,
             color: "var(--text-secondary)",
             marginBottom: 4,
           }}>
@@ -213,7 +213,7 @@ export function EngineerNewAssignDetailScreen({
           </div>
 
           <div style={{
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 600,
             color: "var(--text-secondary)",
           }}>
             📍 {task.fullAddress || task.address || "—"}
@@ -229,7 +229,7 @@ export function EngineerNewAssignDetailScreen({
             background: "#34C759",
             border: "none", borderRadius: 10,
             color: "#fff",
-            fontSize: 15, fontWeight: 500,
+            fontSize: 15, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
             display: "flex", alignItems: "center",
             justifyContent: "center", gap: 8,
@@ -241,7 +241,7 @@ export function EngineerNewAssignDetailScreen({
             background: colors.main,
             border: "none", borderRadius: 10,
             color: "#fff",
-            fontSize: 15, fontWeight: 500,
+            fontSize: 15, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
             display: "flex", alignItems: "center",
             justifyContent: "center", gap: 8,
@@ -269,7 +269,7 @@ export function EngineerNewAssignDetailScreen({
               background: "#FFB800",
             }}/>
             <div style={{
-              fontSize: 14, fontWeight: 500,
+              fontSize: 14, fontWeight: 600,
               color: "var(--request-text)",
               marginBottom: 6,
             }}>
@@ -277,7 +277,7 @@ export function EngineerNewAssignDetailScreen({
             </div>
             {task.customerRequest && (
               <div style={{
-                fontSize: 14, fontWeight: 500,
+                fontSize: 14, fontWeight: 600,
                 color: "var(--text-primary)",
                 lineHeight: 1.5,
                 marginBottom: task.requestedDate ? 6 : 0,
@@ -287,7 +287,7 @@ export function EngineerNewAssignDetailScreen({
             )}
             {task.requestedDate && (
               <div style={{
-                fontSize: 13, fontWeight: 500,
+                fontSize: 13, fontWeight: 600,
                 color: "var(--request-sub)",
               }}>
                 🕐 고객 희망: {task.requestedDate} {task.requestedTime || ""}
@@ -325,14 +325,14 @@ export function EngineerNewAssignDetailScreen({
           {/* 시간 선택 */}
           <SectionLabel>⏰ 시간 선택</SectionLabel>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 13, color: "var(--text-secondary)", width: 36, fontWeight: 500 }}>시작</span>
+            <span style={{ fontSize: 13, color: "var(--text-secondary)", width: 36, fontWeight: 600 }}>시작</span>
             <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
               <DropdownPicker value={startHour} options={HOURS_24}    onChange={setStartHour}/>
               <DropdownPicker value={startMin}  options={MINUTES_30}  onChange={setStartMin}/>
             </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <span style={{ fontSize: 13, color: "var(--text-secondary)", width: 36, fontWeight: 500 }}>종료</span>
+            <span style={{ fontSize: 13, color: "var(--text-secondary)", width: 36, fontWeight: 600 }}>종료</span>
             <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
               <DropdownPicker value={endHour} options={HOURS_24}   onChange={setEndHour}/>
               <DropdownPicker value={endMin}  options={MINUTES_30} onChange={setEndMin}/>
@@ -342,7 +342,7 @@ export function EngineerNewAssignDetailScreen({
             padding: 11,
             background: "var(--time-summary-bg)",
             borderRadius: 10,
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 600,
             color: "var(--text-primary)",
             textAlign: "center",
             marginBottom: 16,
@@ -353,7 +353,7 @@ export function EngineerNewAssignDetailScreen({
               {startStr} ~ {endStr}
             </span>
             <span style={{ color: "var(--text-secondary)", margin: "0 6px" }}>·</span>
-            <span style={{ color: "var(--time-summary-accent)", fontWeight: 500 }}>
+            <span style={{ color: "var(--time-summary-accent)", fontWeight: 600 }}>
               {durationStr}
             </span>
           </div>
@@ -372,7 +372,7 @@ export function EngineerNewAssignDetailScreen({
           width: "100%", padding: 16,
           background: "#FF1B8D", border: "none",
           borderRadius: 12, color: "#fff",
-          fontSize: 16, fontWeight: 500,
+          fontSize: 16, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit",
           marginBottom: 8,
         }}>
@@ -386,7 +386,7 @@ export function EngineerNewAssignDetailScreen({
             border: "1.5px solid #FFB800",
             borderRadius: 12,
             color: "var(--refrig-text)",
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
           }}>
             ⚠️ 일정 불가
@@ -397,7 +397,7 @@ export function EngineerNewAssignDetailScreen({
             border: "1.5px solid #FF3B5C",
             borderRadius: 12,
             color: "var(--cancel-text)",
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
           }}>
             ✕ 고객 취소
@@ -409,7 +409,7 @@ export function EngineerNewAssignDetailScreen({
       <div style={{ padding: "20px 16px 8px", textAlign: "center" }}>
         <button onClick={onAskOps} style={{
           background: "transparent", border: "none",
-          color: "var(--ops-text)", fontSize: 14, fontWeight: 500,
+          color: "var(--ops-text)", fontSize: 14, fontWeight: 600,
           cursor: "pointer", textDecoration: "underline",
           fontFamily: "inherit",
         }}>
@@ -428,7 +428,7 @@ function DatePill({ active, label, sub, onClick }) {
       border: active ? "1px solid #FF1B8D" : "1px solid var(--input-border)",
       borderRadius: 12,
       color: active ? "#fff" : "var(--text-primary)",
-      fontSize: 14, fontWeight: 500,
+      fontSize: 14, fontWeight: 600,
       cursor: "pointer", fontFamily: "inherit",
       display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center", gap: 2,
@@ -436,7 +436,7 @@ function DatePill({ active, label, sub, onClick }) {
       <span>{label}</span>
       <span style={{
         fontSize: 11,
-        fontWeight: 500,
+        fontWeight: 600,
         color: active ? "rgba(255,255,255,0.85)" : "var(--text-tertiary)",
         fontFamily: sub && /[0-9]/.test(sub) ? "'JetBrains Mono', monospace" : "inherit",
       }}>

@@ -31,7 +31,7 @@ export function EngineerNewAssignmentListScreen({ tasks = [], onBack, onTaskClic
           <ArrowLeft size={20}/>
         </button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 500, color: "var(--text-primary)" }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>
             🔔 새 배정
           </div>
           <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>
@@ -95,7 +95,7 @@ function AssignmentCard({ task, onClick }) {
         marginBottom: 4,
       }}>
         <span style={{
-          fontSize: 11, color: "var(--text-tertiary)", fontWeight: 500,
+          fontSize: 11, color: "var(--text-tertiary)", fontWeight: 600,
         }}>
           예정
         </span>
@@ -104,14 +104,14 @@ function AssignmentCard({ task, onClick }) {
       {/* 고객 희망 시간 (방어 코드 — 없으면 시간 미정) */}
       {task.requestedDate ? (
         <div style={{
-          fontSize: 14, color: labelColor, fontWeight: 500,
+          fontSize: 14, color: labelColor, fontWeight: 600,
           marginBottom: 8,
         }}>
           🕐 {task.requestedDate}{task.requestedTime ? ` ${task.requestedTime}` : ""} 희망
         </div>
       ) : (
         <div style={{
-          fontSize: 14, color: "#888", fontWeight: 500,
+          fontSize: 14, color: "#888", fontWeight: 600,
           marginBottom: 8,
         }}>
           🕐 시간 미정
@@ -131,7 +131,7 @@ function AssignmentCard({ task, onClick }) {
       {/* 작업 종류 + 기종 */}
       <div style={{
         display: "flex", alignItems: "center", gap: 6,
-        fontSize: 14, color: "var(--text-secondary)", fontWeight: 500,
+        fontSize: 14, color: "var(--text-secondary)", fontWeight: 600,
         marginBottom: 6,
       }}>
         <ServiceTypeIcon workType={task.workType} size={14} showLabel={true}/>
@@ -144,7 +144,7 @@ function AssignmentCard({ task, onClick }) {
       {/* 주소 */}
       <div style={{
         fontSize: 14, color: "var(--text-secondary)",
-        fontWeight: 500, marginBottom: 6,
+        fontWeight: 600, marginBottom: 6,
       }}>
         📍 {task.fullAddress || task.address || task.region || "주소 미정"}
       </div>
@@ -153,7 +153,7 @@ function AssignmentCard({ task, onClick }) {
       {task.phone ? (
         <div style={{
           fontSize: 14, color: "var(--text-secondary)",
-          fontWeight: 500, marginBottom: 16,
+          fontWeight: 600, marginBottom: 16,
           fontFamily: "'JetBrains Mono', monospace",
         }}>
           📞 {task.phone}
@@ -161,7 +161,7 @@ function AssignmentCard({ task, onClick }) {
       ) : (
         <div style={{
           fontSize: 14, color: "#888",
-          fontWeight: 500, marginBottom: 16,
+          fontWeight: 600, marginBottom: 16,
         }}>
           📞 통화 후 정보 확인
         </div>

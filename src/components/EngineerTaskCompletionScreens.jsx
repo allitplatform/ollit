@@ -65,7 +65,7 @@ function CustomerCard({ task, accentColor, subText }) {
         width: 4, background: colors.main,
       }}/>
       <div style={{
-        fontSize: 22, fontWeight: 500,
+        fontSize: 22, fontWeight: 600,
         color: "var(--text-primary)",
         letterSpacing: "-0.3px",
         marginBottom: 6,
@@ -74,9 +74,9 @@ function CustomerCard({ task, accentColor, subText }) {
       </div>
       <div style={{
         display: "flex", alignItems: "center", gap: 6,
-        fontSize: 14, fontWeight: 500,
+        fontSize: 14, fontWeight: 600,
       }}>
-        <span style={{ color: colors.main, fontWeight: 500 }}>
+        <span style={{ color: colors.main, fontWeight: 600 }}>
           {colors.icon} {colors.name}
         </span>
         <span style={{ color: "var(--text-secondary)" }}>
@@ -86,7 +86,7 @@ function CustomerCard({ task, accentColor, subText }) {
       {subText && (
         <div style={{
           marginTop: 8,
-          fontSize: 13, fontWeight: 500,
+          fontSize: 13, fontWeight: 600,
           color: accentColor,
         }}>
           {subText}
@@ -113,7 +113,7 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
       padding: 18,
     }}>
       <div style={{
-        fontSize: 14, fontWeight: 600,
+        fontSize: 14, fontWeight: 700,
         color: "var(--text-primary)",
         marginBottom: 16,
         display: "flex", alignItems: "center", gap: 6,
@@ -130,13 +130,13 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
         }}>
           <span style={{
             color: "var(--label-main)",
-            fontWeight: 500,
+            fontWeight: 600,
           }}>
             {r.label}
           </span>
           <span style={{
             color: r.color || "var(--text-primary)",
-            fontWeight: 600,
+            fontWeight: 700,
             fontFamily: "'JetBrains Mono', monospace",
           }}>
             {r.value}
@@ -160,14 +160,14 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
             }}>
               <span style={{
                 color: "var(--label-sub)",
-                fontWeight: 500,
+                fontWeight: 600,
               }}>
                 {r.label}
               </span>
               <span style={{
                 color: r.color || "var(--sub-box-amount)",
                 fontFamily: "'JetBrains Mono', monospace",
-                fontWeight: 600,
+                fontWeight: 700,
               }}>
                 {r.value}
               </span>
@@ -187,14 +187,14 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
       }}>
         <div style={{
           fontSize: 14, color: finalColor,
-          fontWeight: 600,
+          fontWeight: 700,
           display: "flex", alignItems: "center", gap: 6,
         }}>
           <span style={{ fontSize: 15 }}>💰</span> {finalLabel.replace(/^💰\s*/, "")}
         </div>
         <span style={{
           fontSize: 30, color: finalColor,
-          fontWeight: 600,
+          fontWeight: 700,
           fontFamily: "'JetBrains Mono', monospace",
           letterSpacing: "-0.7px", lineHeight: 1,
         }}>
@@ -324,7 +324,7 @@ function MemoBox({ value, onChange, label }) {
           border: "1px solid var(--border)",
           borderRadius: 10,
           color: "var(--text-primary)",
-          fontSize: 14, fontWeight: 600,
+          fontSize: 14, fontWeight: 700,
           fontFamily: "inherit",
           resize: "vertical", outline: "none", boxSizing: "border-box",
         }}
@@ -463,7 +463,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
           />
           <div style={{ textAlign: "center", minWidth: 80 }}>
             <div style={{
-              fontSize: 32, fontWeight: 600,
+              fontSize: 32, fontWeight: 700,
               fontFamily: "'JetBrains Mono', monospace",
               color: "var(--text-primary)",
               lineHeight: 1,
@@ -472,7 +472,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
             </div>
             <div style={{
               fontSize: 13, color: "var(--text-secondary)",
-              fontWeight: 600, marginTop: 4,
+              fontWeight: 700, marginTop: 4,
             }}>
               {actualQty}대 / {totalQty}대
             </div>
@@ -528,7 +528,7 @@ function CounterBtn({ label, onClick, disabled }) {
       background: disabled ? "var(--bg-tertiary)" : "#C8C8C8",
       border: "none",
       color: disabled ? "var(--text-tertiary)" : "#1A1A1A",
-      fontSize: 28, fontWeight: 600,
+      fontSize: 28, fontWeight: 700,
       cursor: disabled ? "not-allowed" : "pointer",
       fontFamily: "inherit",
       opacity: disabled ? 0.5 : 1,
@@ -595,7 +595,7 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
         background: "rgba(255,184,0,0.10)",
         border: "1px solid rgba(255,184,0,0.30)",
         borderRadius: 10,
-        fontSize: 13, fontWeight: 500, lineHeight: 1.5,
+        fontSize: 13, fontWeight: 600, lineHeight: 1.5,
         color: "var(--text-primary)",
       }}>
         💡 <strong>사진 권장</strong> (CS 대비). 사진 없이도 처리 가능.

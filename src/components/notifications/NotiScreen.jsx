@@ -40,7 +40,7 @@ export function NotiScreen({ notifications, onMarkAllRead, onCardClick, title = 
           <div style={{
             fontSize: 13,
             color: "var(--text-secondary)",
-            fontWeight: 500,
+            fontWeight: 600,
             marginTop: 4,
           }}>
             안 읽음 {unreadCount}건

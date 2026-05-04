@@ -54,7 +54,7 @@ export function EngineerMeTab({
         </div>
         <div style={{
           fontSize: 14,
-          fontFamily: "'JetBrains Mono', monospace", fontWeight: 600,
+          fontFamily: "'JetBrains Mono', monospace", fontWeight: 700,
           color: "var(--text-secondary)",
           marginTop: 6,
         }}>
@@ -112,7 +112,7 @@ export function EngineerMeTab({
                 <div style={{ fontSize: 16, fontWeight: 700 }}>화면 모드</div>
                 <div style={{
                   fontSize: 12, color: "var(--text-secondary)",
-                  fontWeight: 500, marginTop: 2,
+                  fontWeight: 600, marginTop: 2,
                 }}>
                   현재 {themeLabel} 모드
                 </div>
@@ -181,7 +181,7 @@ function MenuRow({ icon, label, desc, onClick }) {
         {desc && (
           <div style={{
             fontSize: 13, color: "var(--text-secondary)",
-            fontWeight: 500, marginTop: 3,
+            fontWeight: 600, marginTop: 3,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             {desc}

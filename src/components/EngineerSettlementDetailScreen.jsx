@@ -70,7 +70,7 @@ export function EngineerSettlementDetailScreen({
         }}>
           {/* 라벨 — 옅은 핑크 (메인과 통일) */}
           <div style={{
-            fontSize: 13, color: "#FFD9E8", fontWeight: 500,
+            fontSize: 13, color: "#FFD9E8", fontWeight: 600,
             marginBottom: 8,
             display: "flex", alignItems: "center", gap: 6,
           }}>
@@ -78,7 +78,7 @@ export function EngineerSettlementDetailScreen({
           </div>
           {/* Hero ₩ 56px 핑크 (검정 위에서 도드라짐) */}
           <div style={{
-            fontSize: 56, fontWeight: 500, color: "#FF4DA6",
+            fontSize: 56, fontWeight: 600, color: "#FF4DA6",
             fontFamily: "'JetBrains Mono', monospace",
             letterSpacing: "-2px", lineHeight: 1,
             marginBottom: 6,
@@ -87,7 +87,7 @@ export function EngineerSettlementDetailScreen({
           </div>
           {/* 부속 설명 — 회색 (블랙 톤) */}
           <div style={{
-            fontSize: 13, color: "#888", marginBottom: 16, fontWeight: 500,
+            fontSize: 13, color: "#888", marginBottom: 16, fontWeight: 600,
           }}>
             {completedCount} / {totalCount}건 완료 · 작업 끝나면 자동 갱신
           </div>
@@ -144,12 +144,12 @@ function SubStat({ label, amount }) {
     }}>
       <div style={{
         fontSize: 11, color: "#888",
-        fontWeight: 500, marginBottom: 4,
+        fontWeight: 600, marginBottom: 4,
       }}>
         {label}
       </div>
       <div style={{
-        fontSize: 18, fontWeight: 500,
+        fontSize: 18, fontWeight: 600,
         fontFamily: "'JetBrains Mono', monospace",
         color: "#FAF8F5", letterSpacing: "-0.3px", lineHeight: 1.1,
       }}>
@@ -206,7 +206,7 @@ function WorkSettlementCard({ work, onClick }) {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           <span style={{
-            fontSize: 13, fontWeight: 500,
+            fontSize: 13, fontWeight: 600,
             color: colors.main,
             whiteSpace: "nowrap",
           }}>
@@ -217,7 +217,7 @@ function WorkSettlementCard({ work, onClick }) {
               background: "var(--completed-pill-bg)",
               color: "var(--completed-pill-text)",
               fontSize: 11, padding: "2px 8px",
-              borderRadius: 999, fontWeight: 600,
+              borderRadius: 999, fontWeight: 700,
               flexShrink: 0,
             }}>
               ✓ 완료
@@ -227,7 +227,7 @@ function WorkSettlementCard({ work, onClick }) {
               background: "var(--pending-pill-bg)",
               color: "var(--pending-pill-text)",
               fontSize: 11, padding: "2px 8px",
-              borderRadius: 999, fontWeight: 600,
+              borderRadius: 999, fontWeight: 700,
               flexShrink: 0,
             }}>
               예정
@@ -236,7 +236,7 @@ function WorkSettlementCard({ work, onClick }) {
         </div>
         {time && (
           <span style={{
-            fontSize: 11, color: "#888", fontWeight: 500,
+            fontSize: 11, color: "#888", fontWeight: 600,
             fontFamily: "'JetBrains Mono', monospace",
             flexShrink: 0,
           }}>
@@ -247,7 +247,7 @@ function WorkSettlementCard({ work, onClick }) {
 
       {/* 고객명 · 작업 항목 */}
       <div style={{
-        fontSize: 16, fontWeight: 500,
+        fontSize: 16, fontWeight: 600,
         color: "var(--text-primary)",
         marginBottom: 12,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -291,7 +291,7 @@ function FlowItem({ label, value, grey, highlight }) {
         fontSize: 10,
         color: highlight ? "#FF1B8D" : "#888",
         marginBottom: 3,
-        fontWeight: 500,
+        fontWeight: 600,
       }}>
         {label}
       </div>

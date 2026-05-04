@@ -32,7 +32,7 @@ export function EngineerAcceptanceListScreen({
           <ArrowLeft size={20}/>
         </button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 18, fontWeight: 500, color: "var(--text-primary)" }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text-primary)" }}>
             🔔 수락 대기
           </div>
           <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 2 }}>
@@ -113,7 +113,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
             gap: 4, marginBottom: 4,
           }}>
             <span style={{
-              fontSize: 13, fontWeight: 500,
+              fontSize: 13, fontWeight: 600,
               color: "var(--text-primary)",
             }}>
               {workTypeShort}
@@ -122,7 +122,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
               <>
                 <span style={{ fontSize: 13, color: "#888" }}>·</span>
                 <span style={{
-                  fontSize: 13, fontWeight: 500,
+                  fontSize: 13, fontWeight: 600,
                   color: "var(--refrig-text)",
                 }}>
                   {scheduleStr}
@@ -131,7 +131,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
             )}
             <span style={{
               marginLeft: "auto",
-              fontSize: 11, color: "#888", fontWeight: 500,
+              fontSize: 11, color: "#888", fontWeight: 600,
               flexShrink: 0,
             }}>
               {call.requestedAgo || "방금"}
@@ -140,7 +140,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
 
           {/* 2행: 강남구 · 시스템 멀티 */}
           <div style={{
-            fontSize: 16, fontWeight: 500,
+            fontSize: 16, fontWeight: 600,
             color: "var(--text-primary)",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
@@ -157,14 +157,14 @@ function AcceptanceCard({ call, onAccept, onReject }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontSize: 12, color: "var(--text-secondary)",
-            fontWeight: 500, marginBottom: 4,
+            fontWeight: 600, marginBottom: 4,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             📍 {call.fullAddress || call.region || "—"}
           </div>
           <div style={{
             fontSize: 12, color: "var(--text-secondary)",
-            fontWeight: 500,
+            fontWeight: 600,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
             💼 {call.appliance || "—"}{call.qty ? ` ×${call.qty}` : ""}
@@ -172,13 +172,13 @@ function AcceptanceCard({ call, onAccept, onReject }) {
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
           <div style={{
-            fontSize: 10, color: "#888", fontWeight: 500,
+            fontSize: 10, color: "#888", fontWeight: 600,
             marginBottom: 2,
           }}>
             단가
           </div>
           <div style={{
-            fontSize: 22, fontWeight: 500,
+            fontSize: 22, fontWeight: 600,
             color: "#FFB800",
             fontFamily: "'JetBrains Mono', monospace",
             letterSpacing: "-0.3px",
@@ -200,7 +200,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
             border: "none",
             borderRadius: 9,
             color: "#1A1A1A",
-            fontSize: 13, fontWeight: 500,
+            fontSize: 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
           }}
         >
@@ -214,7 +214,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
             border: "1.5px solid var(--input-border)",
             borderRadius: 9,
             color: "#888",
-            fontSize: 13, fontWeight: 500,
+            fontSize: 13, fontWeight: 600,
             cursor: "pointer", fontFamily: "inherit",
           }}
         >

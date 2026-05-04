@@ -35,7 +35,7 @@ export function WorkItemRow({ workType, appliance, qty, price, dividerTop = true
       {/* 작업명 (가운데, 14px) */}
       <span style={{
         fontSize: 14, color: "var(--text-primary)",
-        flex: 1, fontWeight: 500,
+        flex: 1, fontWeight: 600,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
         {itemName}
@@ -44,7 +44,7 @@ export function WorkItemRow({ workType, appliance, qty, price, dividerTop = true
       {/* 단가 (우측, 작업 종류 색 19px) */}
       {price != null && price > 0 && (
         <span style={{
-          fontSize: 19, color: colors.main, fontWeight: 500,
+          fontSize: 19, color: colors.main, fontWeight: 600,
           fontFamily: "'JetBrains Mono', monospace",
           letterSpacing: "-0.3px",
           flexShrink: 0,

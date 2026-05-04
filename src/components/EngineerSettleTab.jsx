@@ -62,7 +62,7 @@ export function EngineerSettleTab({
         </div>
         <div style={{
           fontSize: 13, color: "var(--label-main)",
-          marginTop: 4, fontWeight: 600,
+          marginTop: 4, fontWeight: 700,
         }}>
           {engineer?.name || "기사"}님
         </div>
@@ -84,7 +84,7 @@ export function EngineerSettleTab({
         >
           {/* 라벨 — 옅은 핑크 #FFE0EC */}
           <div style={{
-            fontSize: 14, color: "#FFE0EC", fontWeight: 600,
+            fontSize: 14, color: "#FFE0EC", fontWeight: 700,
             marginBottom: 12,
             display: "flex", alignItems: "center", gap: 6,
           }}>
@@ -102,10 +102,10 @@ export function EngineerSettleTab({
           {/* 헬퍼 */}
           <div style={{
             fontSize: 13, color: "#FFE0EC",
-            fontWeight: 500, marginBottom: 18,
+            fontWeight: 600, marginBottom: 18,
           }}>
             {completedToday.length}건 작업 완료 ·{" "}
-            <span style={{ color: "#fff", fontWeight: 600 }}>자세히 보기 ›</span>
+            <span style={{ color: "#fff", fontWeight: 700 }}>자세히 보기 ›</span>
           </div>
 
           {/* 두 칸 박스 (반투명 0.16) */}
@@ -170,7 +170,7 @@ export function EngineerSettleTab({
               ₩{toCompanyFinal.toLocaleString("ko-KR")}
             </div>
             <div style={{
-              fontSize: 13, color: "var(--label-main)", fontWeight: 600,
+              fontSize: 13, color: "var(--label-main)", fontWeight: 700,
             }}>
               22:00 마감
             </div>
@@ -192,7 +192,7 @@ export function EngineerSettleTab({
                 {account.company} · {account.bank}
               </div>
               <div style={{
-                fontSize: 12, fontWeight: 600,
+                fontSize: 12, fontWeight: 700,
                 color: "var(--account-num)",
                 fontFamily: "'JetBrains Mono', monospace",
                 marginTop: 2,
@@ -208,7 +208,7 @@ export function EngineerSettleTab({
                 border: "1px solid var(--copy-btn-bd)",
                 borderRadius: 9,
                 color: "var(--copy-btn-text)",
-                fontSize: 13, fontWeight: 600,
+                fontSize: 13, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center", gap: 4,
                 flexShrink: 0,
@@ -275,7 +275,7 @@ export function EngineerSettleTab({
               </div>
               <div style={{
                 fontSize: 12, color: "var(--label-main)",
-                marginTop: 5, fontWeight: 600,
+                marginTop: 5, fontWeight: 700,
               }}>
                 {usolN.payDate || "—"} 입금 예정
                 {usolN.count != null ? ` · ${usolN.month || new Date().getMonth() + 1}월 작업 ${usolN.count}건` : ""}
@@ -291,7 +291,7 @@ export function EngineerSettleTab({
           background: "var(--helper-box-bg)",
           borderRadius: 12,
           fontSize: 13, color: "var(--label-main)",
-          fontWeight: 500, lineHeight: 1.6,
+          fontWeight: 600, lineHeight: 1.6,
           textAlign: "center",
         }}>
           💡 작업별 상세 정산은{" "}
@@ -313,7 +313,7 @@ function PeriodStat({ label, amount, count }) {
     }}>
       <div style={{
         fontSize: 11, color: "#FFE0EC",
-        fontWeight: 600, marginBottom: 5,
+        fontWeight: 700, marginBottom: 5,
         letterSpacing: 0.3,
       }}>
         {label}
@@ -327,7 +327,7 @@ function PeriodStat({ label, amount, count }) {
       </div>
       <div style={{
         fontSize: 11, color: "#FFC8DD",
-        fontWeight: 600, marginTop: 4,
+        fontWeight: 700, marginTop: 4,
       }}>
         {count}건
       </div>

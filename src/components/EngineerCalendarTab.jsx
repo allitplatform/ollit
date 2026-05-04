@@ -131,7 +131,7 @@ export function EngineerCalendarTab({
           <div>
             <div style={{ fontSize: 22, fontWeight: 800 }}>📅 캘린더</div>
             <div style={{
-              fontSize: 13, color: "var(--text-secondary)", marginTop: 4, fontWeight: 500,
+              fontSize: 13, color: "var(--text-secondary)", marginTop: 4, fontWeight: 600,
             }}>
               {formatMonthShort(currentMonth)} {monthData.count}건 · 휴무 {monthData.offCount}일
             </div>
@@ -271,7 +271,7 @@ function MonthView({
           </div>
           <div style={{
             fontSize: 12, color: "var(--text-secondary)",
-            marginTop: 4, fontWeight: 500,
+            marginTop: 4, fontWeight: 600,
           }}>
             {dayTasks.length}건
             {countByStatus(dayTasks, "진행중") > 0 && ` · 진행중 ${countByStatus(dayTasks, "진행중")}`}
@@ -335,7 +335,7 @@ function WeekView({ weekDays, onClickTask }) {
             )}
             <span style={{
               fontSize: 12, color: "var(--text-secondary)",
-              marginLeft: "auto", fontWeight: 500,
+              marginLeft: "auto", fontWeight: 600,
             }}>
               {dt.length > 0 ? `${dt.length}건` : ""}
             </span>
@@ -347,7 +347,7 @@ function WeekView({ weekDays, onClickTask }) {
               background: "var(--bg-secondary)",
               borderRadius: 8,
               fontSize: 12, color: "var(--text-tertiary)",
-              fontWeight: 500,
+              fontWeight: 600,
             }}>
               {offDay ? "휴무" : "일정 없음"}
             </div>
@@ -389,7 +389,7 @@ function TodayView({ todayTasks, onClickTask }) {
         </div>
         <div style={{
           fontSize: 12, color: "var(--text-secondary)",
-          marginTop: 4, fontWeight: 500,
+          marginTop: 4, fontWeight: 600,
         }}>
           {todayTasks.length}건 · 시간순
         </div>
@@ -491,7 +491,7 @@ function TimelineRow({ task, onClick }) {
 
         <div style={{
           display: "flex", alignItems: "center", gap: 6,
-          fontSize: 13, fontWeight: 600,
+          fontSize: 13, fontWeight: 700,
           color: "var(--text-secondary)",
         }}>
           <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
@@ -562,7 +562,7 @@ function DayTaskCard({ task, onClick }) {
         </div>
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
-          marginTop: 4, fontWeight: 500,
+          marginTop: 4, fontWeight: 600,
           display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
         }}>
           <ServiceTypeIcon workType={task.workType} size={12} showLabel={true}/>

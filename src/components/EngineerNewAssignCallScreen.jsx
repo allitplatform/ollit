@@ -35,7 +35,7 @@ const inputStyle = {
   border: "1px solid var(--border)",
   borderRadius: 8,
   color: "var(--text-primary)",
-  fontSize: 14, fontWeight: 500,
+  fontSize: 14, fontWeight: 600,
   boxSizing: "border-box",
   outline: "none", fontFamily: "inherit",
 };

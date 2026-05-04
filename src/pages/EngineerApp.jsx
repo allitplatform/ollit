@@ -681,7 +681,7 @@ function MainScreen({
         }}>
           <span className="mono" style={{
             fontSize: 11, color: "var(--text-secondary)",
-            letterSpacing: 1.5, fontWeight: 500,
+            letterSpacing: 1.5, fontWeight: 600,
           }}>
             MON · 27 APR · {NOW}
           </span>
@@ -712,7 +712,7 @@ function MainScreen({
               <span style={{ color: "var(--text-tertiary)" }}>·</span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                 <ServiceTypeIcon workType="세척" size={12} showLabel={false}/>
-                <span style={{ color: "var(--cleaning-text)", fontWeight: 500 }}>세척 {workTypeCounts.세척}</span>
+                <span style={{ color: "var(--cleaning-text)", fontWeight: 600 }}>세척 {workTypeCounts.세척}</span>
               </span>
             </>
           )}
@@ -721,7 +721,7 @@ function MainScreen({
               <span style={{ color: "var(--text-tertiary)" }}>·</span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                 <ServiceTypeIcon workType="냉매충전" size={12} showLabel={false}/>
-                <span style={{ color: "var(--refrig-text)", fontWeight: 500 }}>냉매충전 {workTypeCounts.냉매충전}</span>
+                <span style={{ color: "var(--refrig-text)", fontWeight: 600 }}>냉매충전 {workTypeCounts.냉매충전}</span>
               </span>
             </>
           )}
@@ -770,7 +770,7 @@ function MainScreen({
                 진행중
               </span>
             </div>
-            <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 500 }}>
+            <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
               {formatProgress(activeTask.startedAt)} 진행
             </span>
           </div>
@@ -779,14 +779,14 @@ function MainScreen({
           {activeTask.startedAt && (
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
               <span style={{
-                fontSize: 36, fontWeight: 500,
+                fontSize: 36, fontWeight: 600,
                 fontFamily: "'JetBrains Mono', monospace",
                 color: "var(--text-primary)", letterSpacing: "-1px",
               }}>
                 {activeTask.startedAt}
               </span>
               {activeTask.endTime && (
-                <span style={{ fontSize: 16, color: "#888", fontWeight: 500 }}>
+                <span style={{ fontSize: 16, color: "#888", fontWeight: 600 }}>
                   ~ {activeTask.endTime}
                 </span>
               )}
@@ -826,7 +826,7 @@ function MainScreen({
           {/* 전체 주소 */}
           <div style={{
             fontSize: 14, color: "var(--text-primary)",
-            marginBottom: 12, lineHeight: 1.5, fontWeight: 500,
+            marginBottom: 12, lineHeight: 1.5, fontWeight: 600,
           }}>
             📍 {activeTask.fullAddress || activeTask.address || "—"}
           </div>
@@ -975,7 +975,7 @@ function MainScreen({
                   <span>{task.customer}</span>
                   <span style={{
                     fontSize: 12, color: "var(--text-secondary)",
-                    fontWeight: 500,
+                    fontWeight: 600,
                   }}>
                     {task.address}
                   </span>
@@ -986,7 +986,7 @@ function MainScreen({
                   display: "flex", alignItems: "center", gap: 4,
                 }}>
                   <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
-                  <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>
+                  <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
                     {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
                   </span>
                 </div>
@@ -1044,13 +1044,13 @@ function AlertBanner({ onClick, iconBg, icon, title, subText, subColor }) {
       {/* 텍스트 */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          fontSize: 17, fontWeight: 500,
+          fontSize: 17, fontWeight: 600,
           color: "var(--text-primary)",
         }}>
           {title}
         </div>
         <div style={{
-          fontSize: 13, fontWeight: 500,
+          fontSize: 13, fontWeight: 600,
           color: subColor || "var(--text-secondary)",
           marginTop: 2,
         }}>
@@ -1088,16 +1088,16 @@ function ActionAlert({ t, alert, delay, onClick }) {
       </div>
       {isMoney ? (
         <div style={{ display: "flex", alignItems: "baseline", gap: 1 }}>
-          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>₩</span>
+          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>₩</span>
           <span className="mono" style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", color: t.text }}>{alert.amount.toLocaleString()}</span>
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
           <span className="mono" style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.03em", color: hasItems ? t.text : t.textDim }}>{alert.count}</span>
-          <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>건</span>
+          <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>건</span>
         </div>
       )}
-      <div style={{ fontSize: 9, color: t.textDim, fontWeight: 500, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{alert.sublabel}</div>
+      <div style={{ fontSize: 9, color: t.textDim, fontWeight: 600, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{alert.sublabel}</div>
     </div>
   );
 }
@@ -1134,12 +1134,12 @@ function CompactTaskCard({ task, t, index, onClick }) {
           {isWaiting ? (
             <>
               <div style={{ fontSize: 12, fontWeight: 700, color: t.accent }}>{formatRequestedDate(task.requestedDate)}</div>
-              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 600 }}>{task.requestedTime || "—"} 희망</div>
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 700 }}>{task.requestedTime || "—"} 희망</div>
             </>
           ) : (
             <>
               <div className="mono" style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>{task.time || "—"}</div>
-              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 600 }}>{task.duration || ""}</div>
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 700 }}>{task.duration || ""}</div>
             </>
           )}
         </div>
@@ -1151,7 +1151,7 @@ function CompactTaskCard({ task, t, index, onClick }) {
           </div>
           <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
             <Icon size={11} style={{ color: t.textMuted }}/>
-            <span style={{ fontSize: 11, color: t.textSecondary, fontWeight: 600 }}>{task.workType} · {task.appliance} ×{task.qty}</span>
+            <span style={{ fontSize: 11, color: t.textSecondary, fontWeight: 700 }}>{task.workType} · {task.appliance} ×{task.qty}</span>
             {task.extraFee > 0 && <span style={{ fontSize: 10, color: t.success, fontWeight: 700, marginLeft: 4 }}>+₩{task.extraFee.toLocaleString()}</span>}
           </div>
         </div>
@@ -1242,9 +1242,9 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
       <div style={{ position: "sticky", top: 0, zIndex: 50, background: t.bg, borderBottom: `1px solid ${t.border}`, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="clickable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 8 }}>
           <ArrowLeft size={18}/>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>뒤로</span>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>뒤로</span>
         </div>
-        <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>{task.id}</span>
+        <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>{task.id}</span>
         <div style={{ padding: 8 }}><MoreVertical size={18} style={{ color: t.textMuted }}/></div>
       </div>
 
@@ -1269,19 +1269,19 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
             <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>고객 희망 시간</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 }}>
               <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" }}>{formatRequestedDate(task.requestedDate)}</span>
-              <span style={{ fontSize: 18, color: t.textSecondary, fontWeight: 600 }}>{task.requestedTime}</span>
+              <span style={{ fontSize: 18, color: t.textSecondary, fontWeight: 700 }}>{task.requestedTime}</span>
             </div>
-            <div style={{ fontSize: 12, color: t.accent, fontWeight: 600 }}>⚠️ 고객님과 통화 후 정확한 시간을 협의해주세요</div>
+            <div style={{ fontSize: 12, color: t.accent, fontWeight: 700 }}>⚠️ 고객님과 통화 후 정확한 시간을 협의해주세요</div>
           </>
         ) : (
           <>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 }}>
               <span className="mono" style={{ fontSize: 48, fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1 }}>{task.time}</span>
-              <span style={{ fontSize: 16, color: t.textMuted, fontWeight: 600 }}>~ {task.endTime}</span>
+              <span style={{ fontSize: 16, color: t.textMuted, fontWeight: 700 }}>~ {task.endTime}</span>
             </div>
             {isInProgress && task.startedAt && <div style={{ fontSize: 12, color: t.warning, fontWeight: 700, marginTop: 4 }}>🟡 {task.startedAt} 시작 · 작업 중</div>}
             {isCompleted && <div style={{ fontSize: 12, color: t.success, fontWeight: 700, marginTop: 4 }}>✅ {task.completedAt} 완료</div>}
-            {!isInProgress && !isCompleted && <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 500 }}>소요 시간 약 {task.duration}</div>}
+            {!isInProgress && !isCompleted && <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 600 }}>소요 시간 약 {task.duration}</div>}
             
             {hasScheduleChange && (
               <div style={{ marginTop: 10, padding: "8px 12px", background: t.warningBg, border: `1px solid ${t.warningBorder}`, borderRadius: 8, display: "flex", alignItems: "center", gap: 6 }}>
@@ -1292,7 +1292,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
 
             {/* 진행중/완료에 일정 변경 안내 */}
             {(isInProgress || isCompleted) && (
-              <div style={{ marginTop: 10, fontSize: 11, color: t.textMuted, fontWeight: 500 }}>
+              <div style={{ marginTop: 10, fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
                 {isInProgress ? "ℹ️ 작업 중에는 일정 변경 불가 (운영팀 연락)" : "🔒 완료된 작업은 변경 불가"}
               </div>
             )}
@@ -1337,7 +1337,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
             <div style={{ background: t.bgElevated, border: `1px solid ${t.accent}`, borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: t.accent, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>✓ 변경 미리보기</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: t.textMuted, textDecoration: "line-through" }}>{formatHistoryTime(task.scheduledDate, task.scheduledTime)}</span>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: t.textMuted, textDecoration: "line-through" }}>{formatHistoryTime(task.scheduledDate, task.scheduledTime)}</span>
                 <ArrowRight size={12} style={{ color: t.accent }}/>
                 <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: t.accent }}>{formatHistoryTime(newDate, newTime)}</span>
               </div>
@@ -1358,7 +1358,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
       <Section t={t} title="위치" icon={<MapPin size={13}/>} delay={50}>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{task.address}</div>
-          <div style={{ fontSize: 13, color: t.textSecondary, fontWeight: 500, lineHeight: 1.5 }}>{task.fullAddress}</div>
+          <div style={{ fontSize: 13, color: t.textSecondary, fontWeight: 600, lineHeight: 1.5 }}>{task.fullAddress}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 14px", background: t.bgInset, borderRadius: 10, marginBottom: 12 }}>
           <div>
@@ -1380,7 +1380,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
           <div style={{ width: 44, height: 44, borderRadius: 14, background: t.accentBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: t.accent }}>{task.customer.slice(0, 1)}</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{task.customer}님</div>
-            <div className="mono" style={{ fontSize: 13, color: t.textSecondary, fontWeight: 500, marginTop: 2 }}>{task.phone}</div>
+            <div className="mono" style={{ fontSize: 13, color: t.textSecondary, fontWeight: 600, marginTop: 2 }}>{task.phone}</div>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -1493,7 +1493,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
           {task.scheduleHistory.map((entry, idx) => (
             <div key={idx} style={{ padding: "10px 12px", background: t.bgInset, borderRadius: 10, marginBottom: 6, borderLeft: `2px solid ${t.warning}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: entry.reason ? 6 : 0, flexWrap: "wrap" }}>
-                <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, textDecoration: "line-through" }}>{formatHistoryTime(entry.from.date, entry.from.time)}</span>
+                <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 700, textDecoration: "line-through" }}>{formatHistoryTime(entry.from.date, entry.from.time)}</span>
                 <ArrowRight size={11} style={{ color: t.warning }}/>
                 <span className="mono" style={{ fontSize: 12, color: t.warning, fontWeight: 700 }}>{formatHistoryTime(entry.to.date, entry.to.time)}</span>
               </div>
@@ -1512,7 +1512,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>문제가 있나요?</div>
-              <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 500 }}>운영팀에 바로 연락 가능</div>
+              <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>운영팀에 바로 연락 가능</div>
             </div>
             <button className="clickable" style={{ padding: "10px 14px", background: t.warning, color: "#1A1512", border: "none", borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
               <Phone size={13}/><span>연락</span>
@@ -1562,7 +1562,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
           {!isCompleted && (
             <div className="clickable" style={{ textAlign: "center", padding: "6px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
               <AlertTriangle size={11} style={{ color: t.textMuted }}/>
-              <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>작업이 어려운 상황인가요?</span>
+              <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>작업이 어려운 상황인가요?</span>
               <span style={{ fontSize: 11, color: t.accent, fontWeight: 700, textDecoration: "underline" }}>작업 불가 처리</span>
             </div>
           )}
@@ -1612,7 +1612,7 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
 
       <div style={{ position: "sticky", top: 0, zIndex: 50, background: t.bg, borderBottom: `1px solid ${t.border}`, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="clickable" onClick={onCancel} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px" }}>
-          <ArrowLeft size={18}/><span style={{ fontSize: 14, fontWeight: 600 }}>취소</span>
+          <ArrowLeft size={18}/><span style={{ fontSize: 14, fontWeight: 700 }}>취소</span>
         </div>
         <span style={{ fontSize: 14, fontWeight: 800 }}>완료 보고</span>
         <div style={{ width: 60 }}/>
@@ -1633,7 +1633,7 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
           <PhotoUploadBox t={t} label="작업 전" uploaded={beforePhoto} onClick={() => setBeforePhoto(!beforePhoto)}/>
           <PhotoUploadBox t={t} label="작업 후" uploaded={afterPhoto} onClick={() => setAfterPhoto(!afterPhoto)}/>
         </div>
-        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>※ 두 사진 모두 업로드 (위 박스 탭하면 시뮬됨)</div>
+        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>※ 두 사진 모두 업로드 (위 박스 탭하면 시뮬됨)</div>
       </Section>
 
       <Section t={t} title="현장 추가금" icon={<Plus size={13}/>} delay={100}>
@@ -1641,8 +1641,8 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
           <label style={labelStyle(t)}>💰 추가 금액 (선택)</label>
           <div style={{ position: "relative" }}>
             <input type="text" inputMode="numeric" placeholder="0" value={extraFee ? formatCurrency(extraFee) : ""} onChange={(e) => setExtraFee(e.target.value)} style={{ ...inputStyle(t), paddingLeft: 32, fontFamily: "'JetBrains Mono', monospace" }}/>
-            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textMuted, fontWeight: 600 }}>₩</span>
-            {extraFee && <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: t.textMuted, fontWeight: 600 }}>원</span>}
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textMuted, fontWeight: 700 }}>₩</span>
+            {extraFee && <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: t.textMuted, fontWeight: 700 }}>원</span>}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
             {[10000, 20000, 30000, 50000].map(amount => (
@@ -1721,7 +1721,7 @@ function InfoBox({ t, label, value, icon }) {
 function Row({ t, label, value, mono, bold, dim, small, success }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: small ? "5px 0" : "7px 0", fontSize: small ? 12 : 13 }}>
-      <span style={{ color: t.textMuted, fontWeight: 500 }}>{label}</span>
+      <span style={{ color: t.textMuted, fontWeight: 600 }}>{label}</span>
       <span className={mono ? "mono" : ""} style={{ color: dim ? t.textMuted : success ? t.success : t.text, fontWeight: bold ? 700 : 600, fontSize: bold ? 15 : (small ? 12 : 13) }}>{value}</span>
     </div>
   );
@@ -1734,7 +1734,7 @@ function PhotoUploadBox({ t, label, uploaded, onClick, locked }) {
       {locked && <Lock size={12} style={{ position: "absolute", top: 8, right: 8, color: t.textMuted }}/>}
       <ImageIcon size={20}/>
       <span style={{ fontSize: 11, fontWeight: 700 }}>{label}</span>
-      {uploaded && <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.7 }}>업로드됨</span>}
+      {uploaded && <span style={{ fontSize: 9, fontWeight: 700, opacity: 0.7 }}>업로드됨</span>}
     </div>
   );
 }
@@ -1769,7 +1769,7 @@ function SettlementScreen({ t }) {
       {/* 헤더 */}
       <div style={{ padding: "28px 20px 0" }}>
         <div style={{ marginBottom: 20 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>
             정산 · MON 27 APR
           </span>
         </div>
@@ -1805,12 +1805,12 @@ function SettlementScreen({ t }) {
             {period === "today" ? "오늘" : "이번 달"} 내 수익 (수수료 제외)
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
-            <span style={{ fontSize: 14, color: t.textMuted, fontWeight: 600 }}>₩</span>
+            <span style={{ fontSize: 14, color: t.textMuted, fontWeight: 700 }}>₩</span>
             <span className="mono" style={{ fontSize: 42, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1, color: t.accent }}>
               {data.netIncome.toLocaleString()}
             </span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: t.textMuted, fontWeight: 500 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
             <span>완료 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{data.completedCount}</span>건</span>
             <span>·</span>
             <span>작업당 평균 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>₩{data.avgPerJob.toLocaleString()}</span></span>
@@ -1831,12 +1831,12 @@ function SettlementScreen({ t }) {
               <span style={{ fontSize: 10, fontWeight: 700, color: t.success, letterSpacing: 0.5, textTransform: "uppercase" }}>현장 수금</span>
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: t.success, fontWeight: 600 }}>₩</span>
+              <span style={{ fontSize: 11, color: t.success, fontWeight: 700 }}>₩</span>
               <span className="mono" style={{ fontSize: 18, fontWeight: 800, color: t.success }}>
                 {data.fieldCollection.received.toLocaleString()}
               </span>
             </div>
-            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 6 }}>
               {data.fieldCollection.count}건 받음
             </div>
             <div style={{ paddingTop: 6, borderTop: `1px solid ${t.border}` }}>
@@ -1863,12 +1863,12 @@ function SettlementScreen({ t }) {
               <span style={{ fontSize: 10, fontWeight: 700, color: t.accent, letterSpacing: 0.5, textTransform: "uppercase" }}>회사 정산</span>
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: t.accent, fontWeight: 600 }}>₩</span>
+              <span style={{ fontSize: 11, color: t.accent, fontWeight: 700 }}>₩</span>
               <span className="mono" style={{ fontSize: 18, fontWeight: 800, color: t.accent }}>
                 {data.companySettlement.gross.toLocaleString()}
               </span>
             </div>
-            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 6 }}>
               {data.companySettlement.count}건 발생
             </div>
             <div style={{ paddingTop: 6, borderTop: `1px solid ${t.border}` }}>
@@ -1969,7 +1969,7 @@ function JobSettlementCard({ job, t, index }) {
       {/* 상단: 시간 + 고객 + 라벨 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
             {job.date} {job.time}
           </span>
           <span style={{ fontSize: 13, fontWeight: 700 }}>{job.customer}</span>
@@ -1987,7 +1987,7 @@ function JobSettlementCard({ job, t, index }) {
       {/* 하단: 3단 정산 표시 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, paddingTop: 8, borderTop: `1px solid ${t.border}` }}>
         <div>
-          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 600, marginBottom: 3 }}>
+          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 3 }}>
             {isField ? "고객 수금" : "상품 금액"}
           </div>
           <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
@@ -1995,7 +1995,7 @@ function JobSettlementCard({ job, t, index }) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 600, marginBottom: 3 }}>
+          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 3 }}>
             {isField ? "회사 송금" : "수수료"}
           </div>
           <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.danger }}>
@@ -2003,7 +2003,7 @@ function JobSettlementCard({ job, t, index }) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 600, marginBottom: 3 }}>
+          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 3 }}>
             {isField ? "내 수익" : "받을 금액"}
           </div>
           <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: labelColor }}>
@@ -2022,11 +2022,11 @@ function SmallMetric({ t, label, value, unit, dim, delay }) {
         {label}
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-        {unit === "₩" && <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>₩</span>}
+        {unit === "₩" && <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>₩</span>}
         <span className="mono" style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: dim ? t.textMuted : t.text }}>
           {value.toLocaleString()}
         </span>
-        {unit === "건" && <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>건</span>}
+        {unit === "건" && <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>건</span>}
       </div>
     </div>
   );
@@ -2066,7 +2066,7 @@ function NotificationsScreen({ t }) {
 
       <div style={{ padding: "28px 20px 0" }}>
         <div style={{ marginBottom: 20 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>
             알림 · MON 27 APR
           </span>
         </div>
@@ -2112,7 +2112,7 @@ function NotificationsScreen({ t }) {
       {filtered.length === 0 ? (
         <div style={{ padding: "60px 20px", textAlign: "center", color: t.textMuted }}>
           <Bell size={32} style={{ color: t.textDim, margin: "0 auto 12px" }}/>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
             {filter === "unread" ? "안 읽은 알림이 없어요" : "알림이 없어요"}
           </div>
           <div style={{ fontSize: 11, color: t.textDim }}>새 알림이 오면 여기에 표시됩니다</div>
@@ -2200,7 +2200,7 @@ function NotificationItem({ notif, t, index, onMarkRead, onRemove }) {
               </button>
             )}
             <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="clickable" style={{
-              fontSize: 10, fontWeight: 600, padding: "5px 8px",
+              fontSize: 10, fontWeight: 700, padding: "5px 8px",
               background: "transparent", color: t.textMuted,
               border: `1px solid ${t.border}`, borderRadius: 6,
               cursor: "pointer", fontFamily: "inherit",
@@ -2236,7 +2236,7 @@ function ProfileScreen({ t, mode, setMode }) {
       {/* 헤더 + 프로필 카드 */}
       <div style={{ padding: "28px 20px 0" }}>
         <div style={{ marginBottom: 20 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>
             내 정보
           </span>
         </div>
@@ -2286,7 +2286,7 @@ function ProfileScreen({ t, mode, setMode }) {
             </span>
           </div>
           
-          <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 600, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 700, marginBottom: 16 }}>
             {PROFILE_DATA.region} · 가입 {PROFILE_DATA.joinDate} ({PROFILE_DATA.yearsAtCompany}년차)
           </div>
           
@@ -2294,7 +2294,7 @@ function ProfileScreen({ t, mode, setMode }) {
           {nextRank && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 6 }}>
-                <span style={{ color: t.textMuted, fontWeight: 600 }}>
+                <span style={{ color: t.textMuted, fontWeight: 700 }}>
                   {nextRank.icon} {nextRank.name}까지
                 </span>
                 <span className="mono" style={{ color: t.accent, fontWeight: 700 }}>
@@ -2366,7 +2366,7 @@ function ProfileScreen({ t, mode, setMode }) {
                     )}
                   </div>
                 </div>
-                <div className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>
+                <div className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>
                   {rank.max === 9999 ? `${rank.min}+` : `${rank.min}~${rank.max}`}건
                 </div>
               </div>
@@ -2456,7 +2456,7 @@ function ProfileScreen({ t, mode, setMode }) {
 
       {/* 버전 */}
       <div style={{ padding: "30px 20px", textAlign: "center" }}>
-        <div className="mono" style={{ fontSize: 10, color: t.textDim, fontWeight: 500 }}>
+        <div className="mono" style={{ fontSize: 10, color: t.textDim, fontWeight: 600 }}>
           올잇(Ollit) v0.20 · 호칭: 기사님
         </div>
       </div>
@@ -2479,7 +2479,7 @@ function ProfileStat({ t, label, value, unit, highlight, delay }) {
         <span className="mono" style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: highlight ? t.accent : t.text }}>
           {value}
         </span>
-        {unit && <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{unit}</span>}
+        {unit && <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>{unit}</span>}
       </div>
     </div>
   );
@@ -2753,7 +2753,7 @@ function CalendarScreen({ t, engineerName, tasks }) {
     <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <div style={{ padding: "20px 16px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>CALENDAR</span>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>CALENDAR</span>
           <button onClick={() => setShowModal(true)} style={{
             background: t.accent, color: "white", border: "none", borderRadius: 8,
             padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
@@ -2780,7 +2780,7 @@ function CalendarScreen({ t, engineerName, tasks }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "0 16px", marginBottom: 4 }}>
         {["日", "月", "火", "水", "木", "金", "土"].map((d, i) => (
           <div key={i} style={{ 
-            textAlign: "center", padding: "8px 0", fontSize: 11, fontWeight: 600,
+            textAlign: "center", padding: "8px 0", fontSize: 11, fontWeight: 700,
             color: i === 0 ? "#FF6B6B" : i === 6 ? "#5DA1F5" : t.textMuted 
           }}>{d}</div>
         ))}
@@ -3122,7 +3122,7 @@ function DayDetailScreen({ t, date, tasks, offDays: initialOffDays, engineerName
                 top: h * HOUR_HEIGHT - 6,
                 right: 4,
                 fontSize: 9, color: t.textMuted,
-                fontFamily: 'monospace', fontWeight: 600,
+                fontFamily: 'monospace', fontWeight: 700,
               }}>
                 {String(h).padStart(2, '0')}
               </div>
@@ -3577,7 +3577,7 @@ function AddOffDayModal({ t, engineerName, defaultDate, onClose, onSaved }) {
               padding: '14px 16px', marginBottom: 8,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
             }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>시작</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>시작</span>
               <DragTimePicker t={t} value={startTime} onChange={setStartTime} label="시작 시간 선택" />
             </div>
             
@@ -3587,7 +3587,7 @@ function AddOffDayModal({ t, engineerName, defaultDate, onClose, onSaved }) {
               padding: '14px 16px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
             }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>종료</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>종료</span>
               <DragTimePicker t={t} value={endTime} onChange={setEndTime} label="종료 시간 선택" />
             </div>
           </div>
@@ -3926,7 +3926,7 @@ export default function EngineerApp({ user, onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>🔧 기사님 화면 ({user?.name || "—"})</div>
+        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 700 }}>🔧 기사님 화면 ({user?.name || "—"})</div>
         <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
           에어컨 현장작업 운영관리 플랫폼
         </div>
@@ -3940,7 +3940,7 @@ export default function EngineerApp({ user, onLogout }) {
             );
           })}
         </div>
-        <button onClick={onLogout} style={{ width: "100%", padding: "8px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+        <button onClick={onLogout} style={{ width: "100%", padding: "8px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
           <RotateCcw size={11}/><span>로그아웃 (다른 계정으로 로그인)</span>
         </button>
       </div>
@@ -3953,7 +3953,7 @@ export default function EngineerApp({ user, onLogout }) {
             transform: "translateX(-50%)",
             background: "rgba(0,0,0,0.85)", color: "#fff",
             padding: "12px 18px", borderRadius: 999,
-            fontSize: 14, fontWeight: 500,
+            fontSize: 14, fontWeight: 600,
             zIndex: 9999, fontFamily: "inherit",
             maxWidth: "90%", textAlign: "center",
             pointerEvents: "none",
