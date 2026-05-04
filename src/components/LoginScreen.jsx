@@ -29,14 +29,15 @@ const DARK = {
 };
 
 export function LoginScreen({ onLogin }) {
-  const [id, setId] = useState("");
-  const [pw, setPw] = useState("");
-  const [error, setError] = useState("");
-  const [showQuickLogin, setShowQuickLogin] = useState(false);
-
   const isDev = (typeof import.meta !== "undefined" && import.meta.env)
     ? (import.meta.env.DEV || import.meta.env.MODE === "development")
     : false;
+
+  const [id, setId] = useState("");
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState("");
+  // V14 — 개발 중 기본 펼침, 운영 빌드는 접힘 (또는 영역 자체 안 보임)
+  const [showQuickLogin, setShowQuickLogin] = useState(isDev);
 
   const handleLogin = () => {
     setError("");
