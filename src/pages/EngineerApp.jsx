@@ -3837,7 +3837,11 @@ export default function EngineerApp({ user, onLogout }) {
 
   // V13-FINAL2-fix1 — 휴무 / 계좌 / 활동 지역 / 통화 화면 상태
   const [offDayModalOpen, setOffDayModalOpen] = useState(false);
-  const [savedOffDays, setSavedOffDays] = useState([]);
+  // V14 — 5월 시뮬 휴무 (5/3 일요일, 5/5 어린이날)
+  const [savedOffDays, setSavedOffDays] = useState([
+    { date: "2026-05-03", label: "휴무" },
+    { date: "2026-05-05", label: "휴무 (어린이날)" },
+  ]);
   const [savedAccount, setSavedAccount] = useState(null);
   const [savedRegions, setSavedRegions] = useState(null);
   const [callTaskId, setCallTaskId] = useState(null);

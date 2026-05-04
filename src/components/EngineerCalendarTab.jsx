@@ -255,10 +255,9 @@ function MonthView({
           justifyContent: "center", flexWrap: "wrap",
           borderTop: "1px solid var(--border)",
         }}>
-          <Legend color="#FF1B8D" label="진행중"/>
-          <Legend color="#FFB800" label="확정"/>
-          <Legend color="#FF8A3D" label="약속미정"/>
-          <Legend color="#03C75A" label="완료"/>
+          <Legend color="#0EA5E9" label="❄ 세척"/>
+          <Legend color="#FFB800" label="⚡ 냉매"/>
+          <Legend color="#FF1B8D" label="🔧 기타"/>
         </div>
       </div>
 

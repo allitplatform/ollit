@@ -89,14 +89,13 @@ export function generateMonthDays(month) {
   return days;
 }
 
-function getStatusColor(status) {
-  switch (status) {
-    case "진행중":   return "#FF1B8D";
-    case "확정":     return "#888780";
-    case "약속대기": return "#FFB300";
-    case "완료":     return "#00875A";
-    default:         return "#888780";
-  }
+// V14 — 점 색 = 작업 종류 (헌법: 정보/분류)
+function getWorkTypeDotColor(workType) {
+  if (!workType) return "#FF1B8D";
+  const t = String(workType).toLowerCase();
+  if (t.includes("세척"))                          return "#0EA5E9";
+  if (t.includes("냉매") || t.includes("충전"))    return "#FFB800";
+  return "#FF1B8D"; // 기타 (설치/점검/수리)
 }
 
 // ──────────────── CalendarGrid ────────────────
@@ -234,7 +233,7 @@ function DayCell({
           {tasks.slice(0, 6).map((t, i) => (
             <span key={i} style={{
               width: 4, height: 4, borderRadius: "50%",
-              background: getStatusColor(t.status),
+              background: getWorkTypeDotColor(t.workType),
             }}/>
           ))}
         </div>
