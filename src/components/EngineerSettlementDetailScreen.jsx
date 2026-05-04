@@ -60,15 +60,15 @@ export function EngineerSettlementDetailScreen({
         <div style={{ width: 28 }}/>
       </div>
 
-      {/* V14 정제 — 합계 Hero 카드 (색 위계 + 반투명 박스) */}
+      {/* V14 — 합계 Hero 카드 (검정 / 메인 핑크와 차별화) */}
       <div style={{ padding: 16 }}>
         <div style={{
-          background: "#FF1B8D",
+          background: "#1A1A1A",
           borderRadius: 20,
           padding: "22px 22px 18px",
           color: "#fff",
         }}>
-          {/* 라벨 — 옅은 핑크 */}
+          {/* 라벨 — 옅은 핑크 (메인과 통일) */}
           <div style={{
             fontSize: 13, color: "#FFD9E8", fontWeight: 500,
             marginBottom: 8,
@@ -76,21 +76,20 @@ export function EngineerSettlementDetailScreen({
           }}>
             <span style={{ fontSize: 14 }}>💰</span> 오늘 번 돈
           </div>
-          {/* Hero ₩ 56px 흰 */}
+          {/* Hero ₩ 56px 핑크 (검정 위에서 도드라짐) */}
           <div style={{
-            fontSize: 56, fontWeight: 500, color: "#fff",
+            fontSize: 56, fontWeight: 500, color: "#FF4DA6",
             fontFamily: "'JetBrains Mono', monospace",
             letterSpacing: "-2px", lineHeight: 1,
             marginBottom: 6,
           }}>
             ₩{todayEarning.toLocaleString("ko-KR")}
           </div>
-          {/* 헬퍼 — 옅은 핑크 + 흰 강조 */}
+          {/* 부속 설명 — 회색 (블랙 톤) */}
           <div style={{
-            fontSize: 13, color: "#FFD9E8", marginBottom: 16,
+            fontSize: 13, color: "#888", marginBottom: 16, fontWeight: 500,
           }}>
-            {completedCount} / {totalCount}건 완료 ·{" "}
-            <span style={{ color: "#fff", fontWeight: 500 }}>작업 끝나면 자동 갱신</span>
+            {completedCount} / {totalCount}건 완료 · 작업 끝나면 자동 갱신
           </div>
 
           {/* 반투명 박스 두 칸 (총 작업비 / 총 수수료) */}
@@ -139,12 +138,12 @@ export function EngineerSettlementDetailScreen({
 function SubStat({ label, amount }) {
   return (
     <div style={{
-      background: "rgba(255,255,255,0.13)",
+      background: "rgba(255,255,255,0.06)",
       borderRadius: 12,
       padding: "11px 13px",
     }}>
       <div style={{
-        fontSize: 11, color: "#FFD9E8",
+        fontSize: 11, color: "#888",
         fontWeight: 500, marginBottom: 4,
       }}>
         {label}
@@ -152,7 +151,7 @@ function SubStat({ label, amount }) {
       <div style={{
         fontSize: 18, fontWeight: 500,
         fontFamily: "'JetBrains Mono', monospace",
-        color: "#fff", letterSpacing: "-0.3px", lineHeight: 1.1,
+        color: "#FAF8F5", letterSpacing: "-0.3px", lineHeight: 1.1,
       }}>
         ₩{amount.toLocaleString("ko-KR")}
       </div>
