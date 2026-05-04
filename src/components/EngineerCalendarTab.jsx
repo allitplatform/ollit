@@ -63,7 +63,7 @@ export function EngineerCalendarTab({
       count += 1;
     });
 
-    // V14 — 휴무 시각 표시 (single / range / repeat / hourly + 옛 데이터 호환)
+    // V14 — 휴무 시각 표시 (single / range / repeat = full / hourly = 부분)
     const monthYear = currentMonth.getFullYear();
     const monthIdx  = currentMonth.getMonth();
     const lastDay   = new Date(monthYear, monthIdx + 1, 0).getDate();
@@ -72,21 +72,24 @@ export function EngineerCalendarTab({
       const date = new Date(monthYear, monthIdx, d);
       const ymd  = formatYmd(date);
       const dow  = date.getDay();
-      const isOff = (offDays || []).some(o => {
+      // 완전 휴무 — single/range/repeat/타입 미지정 (옛 데이터)
+      const isFullOff = (offDays || []).some(o => {
         const type = o.type;
-        if (type === "range") {
-          return o.startDate && o.endDate && ymd >= o.startDate && ymd <= o.endDate;
-        }
-        if (type === "repeat") {
-          return Array.isArray(o.weekdays) && o.weekdays.includes(dow);
-        }
-        // single / hourly / type 미지정 (옛 데이터) — date 직접 비교
+        if (type === "hourly") return false;
+        if (type === "range")  return o.startDate && o.endDate && ymd >= o.startDate && ymd <= o.endDate;
+        if (type === "repeat") return Array.isArray(o.weekdays) && o.weekdays.includes(dow);
         return o.date === ymd;
       });
-      if (isOff) {
+      // 시간 단위 휴무 (hourly)
+      const hourlyList = (offDays || []).filter(o => o.type === "hourly" && o.date === ymd);
+      if (isFullOff) {
         if (!byDate[ymd]) byDate[ymd] = { tasks: [] };
         byDate[ymd].offDay = true;
         offCount += 1;
+      }
+      if (hourlyList.length > 0) {
+        if (!byDate[ymd]) byDate[ymd] = { tasks: [] };
+        byDate[ymd].hourlyOffs = hourlyList;
       }
     }
 
@@ -96,6 +99,11 @@ export function EngineerCalendarTab({
   const dayTasks = useMemo(() => {
     const k = formatYmd(selectedDate);
     return [...(monthData.byDate[k]?.tasks || [])].sort(compareTime);
+  }, [monthData, selectedDate]);
+
+  const dayHourlyOffs = useMemo(() => {
+    const k = formatYmd(selectedDate);
+    return monthData.byDate[k]?.hourlyOffs || [];
   }, [monthData, selectedDate]);
 
   // 오늘 타임라인용
@@ -185,6 +193,7 @@ export function EngineerCalendarTab({
           setSelectedDate={setSelectedDate}
           monthData={monthData}
           dayTasks={dayTasks}
+          dayHourlyOffs={dayHourlyOffs}
           onClickTask={onClickTask}
         />
       )}
@@ -225,7 +234,7 @@ function ToggleBtn({ label, active, onClick }) {
 function MonthView({
   currentMonth, setCurrentMonth,
   selectedDate, setSelectedDate,
-  monthData, dayTasks, onClickTask,
+  monthData, dayTasks, dayHourlyOffs = [], onClickTask,
 }) {
   return (
     <>
@@ -296,17 +305,48 @@ function MonthView({
           </div>
         </div>
 
-        {dayTasks.length === 0 ? (
+        {dayTasks.length === 0 && dayHourlyOffs.length === 0 ? (
           <EmptyState text="이 날은 일정이 없어요"/>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {dayTasks.map(t => (
               <DayTaskCard key={t.id} task={t} onClick={() => onClickTask && onClickTask(t.id)}/>
             ))}
+            {dayHourlyOffs.map((off, i) => (
+              <HourlyOffCard key={`hoff-${i}`} off={off}/>
+            ))}
           </div>
         )}
       </div>
     </>
+  );
+}
+
+function HourlyOffCard({ off }) {
+  return (
+    <div style={{
+      background: "var(--bg-secondary)",
+      border: "1px dashed var(--border)",
+      borderRadius: 14,
+      padding: "12px 14px 12px 18px",
+      position: "relative",
+      overflow: "hidden",
+      opacity: 0.85,
+    }}>
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: "#999",
+      }}/>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        fontSize: 13, color: "var(--text-secondary)", fontWeight: 600,
+        flexWrap: "wrap",
+      }}>
+        <span>⏰</span>
+        <span>{off.startTime || "—"} ~ {off.endTime || "—"} 휴무</span>
+        {off.reason ? <span style={{ color: "var(--text-tertiary)" }}>· {off.reason}</span> : null}
+      </div>
+    </div>
   );
 }
 

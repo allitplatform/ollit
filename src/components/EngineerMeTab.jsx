@@ -7,7 +7,6 @@ import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { useIsDark } from "../hooks/useIsDark.js";
 
 const APP_VERSION = "v1.0 · Phase 1A";
-const FONT_SCALE = { small: 0.9, medium: 1.0, large: 1.1 };
 
 // V14 — 카카오 채널 URL (사장님 채널 받으면 박는다)
 const KAKAO_CHANNEL_URL = ""; // ⚠️ 사장님 카톡 채널/오픈채팅 URL
@@ -20,10 +19,11 @@ function loadFontSize() {
   return "medium";
 }
 
+// V14 — body에 zoom CSS 변수가 적용되도록 data-font-size 속성만 박는다
+// (인라인 px가 많은 코드에서도 즉시 비례 변경. CSS는 src/index.css 참고)
 function applyFontSize(size) {
-  const scale = FONT_SCALE[size] || 1.0;
   if (typeof document !== "undefined") {
-    document.documentElement.style.fontSize = `${16 * scale}px`;
+    document.documentElement.setAttribute("data-font-size", size);
   }
   try { localStorage.setItem("ollit_font_size", size); } catch (e) {}
 }
@@ -72,9 +72,9 @@ export function EngineerMeTab({
     }
   }
 
-  function handleHelp()    { alert("도움말은 다음 단계에서 추가됩니다."); }
-  function handleTerms()   { alert("이용약관은 다음 단계에서 추가됩니다."); }
-  function handlePassword(){ if (onChangePassword) onChangePassword(); else alert("비밀번호 변경은 다음 단계에서 추가됩니다."); }
+  function handleHelp()    { alert("준비 중입니다."); }
+  function handleTerms()   { alert("준비 중입니다."); }
+  function handlePassword(){ if (onChangePassword) onChangePassword(); else alert("준비 중입니다. 운영팀에 문의해주세요."); }
   function handleKakao()   {
     if (KAKAO_CHANNEL_URL) {
       window.open(KAKAO_CHANNEL_URL, "_blank");

@@ -16,6 +16,17 @@ html, body {
                "Noto Sans KR", "Malgun Gothic", system-ui, sans-serif;
 }
 
+/* V14 — 글자 크기 토글 (data-font-size 속성 + body zoom) */
+:root {
+  --font-scale: 1.0;
+}
+[data-font-size="small"]  { --font-scale: 0.9; }
+[data-font-size="medium"] { --font-scale: 1.0; }
+[data-font-size="large"]  { --font-scale: 1.15; }
+body {
+  zoom: var(--font-scale);
+}
+
 #root {
   width: 100%;
   min-height: 100vh;

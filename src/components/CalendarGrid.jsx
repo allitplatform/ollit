@@ -141,6 +141,7 @@ export function CalendarGrid({
           const data = dayData[formatYmd(date)] || {};
           const tasks = data.tasks || [];
           const isOff = !!data.offDay;
+          const hourlyOffs = data.hourlyOffs || [];
           const isSel = isSameDay(date, selectedDate);
           const isTodayDate = isToday(date) && highlightToday;
 
@@ -151,6 +152,7 @@ export function CalendarGrid({
               dayOfWeek={dayOfWeek}
               tasks={tasks}
               isOffDay={isOff && showOffDay}
+              hasHourlyOff={hourlyOffs.length > 0}
               isSelected={isSel}
               isToday={isTodayDate}
               showDots={showStatusDots}
@@ -166,7 +168,7 @@ export function CalendarGrid({
 }
 
 function DayCell({
-  date, dayOfWeek, tasks, isOffDay,
+  date, dayOfWeek, tasks, isOffDay, hasHourlyOff,
   isSelected, isToday, showDots, showHeatmap, colorScheme, onClick,
 }) {
   // V14 — 휴무 셀: 진한 회색 배경 + line-through + "휴무" 라벨 (사장님 spec)
@@ -249,19 +251,22 @@ function DayCell({
         {date.getDate()}
       </div>
 
-      {showDots && tasks.length > 0 && (
+      {(showDots && tasks.length > 0) || hasHourlyOff ? (
         <div style={{
-          display: "flex", gap: 1.5, flexWrap: "wrap",
-          justifyContent: "center", maxWidth: 28,
+          display: "flex", gap: 1.5, alignItems: "center",
+          justifyContent: "center", maxWidth: 30, flexWrap: "wrap",
         }}>
-          {tasks.slice(0, 6).map((t, i) => (
+          {showDots && tasks.slice(0, 5).map((t, i) => (
             <span key={i} style={{
               width: 4, height: 4, borderRadius: "50%",
               background: getWorkTypeDotColor(t.workType),
             }}/>
           ))}
+          {hasHourlyOff && (
+            <span style={{ fontSize: 8, color: "#999", lineHeight: 1, marginLeft: 1 }}>⏰</span>
+          )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

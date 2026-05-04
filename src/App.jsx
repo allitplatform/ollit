@@ -47,6 +47,16 @@ export default function App() {
     applyTheme(loadTheme());
   }, []);
 
+  // V14 — 앱 시작 시 저장된 글자 크기 적용 (data-font-size → CSS zoom)
+  useEffect(() => {
+    let saved = "medium";
+    try {
+      const v = localStorage.getItem("ollit_font_size");
+      if (v === "small" || v === "medium" || v === "large") saved = v;
+    } catch (e) {}
+    document.documentElement.setAttribute("data-font-size", saved);
+  }, []);
+
   // 카톡 인앱 — 안내 화면 표시 (다른 화면 진입 차단)
   if (showKakaoScreen) {
     return <KakaoBypassScreen/>;
