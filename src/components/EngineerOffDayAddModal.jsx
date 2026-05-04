@@ -1,8 +1,8 @@
-// V13-FINAL2-fix2 — 휴무 / 일정 등록 V2
-// 토글: 하루 휴무 / 시간 일정 + 시간 드롭다운 3개 (오전·오후 / 시 / 분)
+// V14 — 휴무 등록 모달 (4가지 옵션)
+// 하루 / 기간 / 반복 / 시간 단위
 
 import { useState } from "react";
-import { DropdownPicker, HOURS, MINUTES, AMPM } from "./DropdownPicker.jsx";
+import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
 
 function todayYmd() {
   const d = new Date();
@@ -10,36 +10,20 @@ function todayYmd() {
 }
 
 const inputStyle = {
-  width: "100%", padding: 12,
+  width: "100%", padding: 14,
   background: "var(--input-bg)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
+  border: "1px solid var(--input-border)",
+  borderRadius: 10,
   color: "var(--text-primary)",
-  fontSize: 14, fontWeight: 500,
+  fontSize: 15, fontWeight: 600,
   boxSizing: "border-box",
   outline: "none", fontFamily: "inherit",
-};
-
-const cancelBtnStyle = {
-  flex: 1, padding: 12,
-  background: "transparent",
-  border: "1px solid var(--text-secondary)",
-  borderRadius: 8, color: "var(--text-secondary)",
-  fontSize: 13, cursor: "pointer", fontFamily: "inherit",
-};
-
-const primaryBtnStyle = {
-  flex: 2, padding: 12,
-  background: "#FF1B8D", border: "none",
-  borderRadius: 8, color: "#fff",
-  fontSize: 13, fontWeight: 700,
-  cursor: "pointer", fontFamily: "inherit",
 };
 
 function Label({ children }) {
   return (
     <div style={{
-      fontSize: 13, color: "var(--text-secondary)",
+      fontSize: 14, color: "var(--text-primary)",
       fontWeight: 700, marginBottom: 8,
     }}>
       {children}
@@ -47,48 +31,68 @@ function Label({ children }) {
   );
 }
 
-function Hint({ children }) {
+function TypeButton({ value, current, onClick, icon, label, sub }) {
+  const active = current === value;
   return (
-    <div style={{
-      fontSize: 11, color: "var(--text-secondary)", marginTop: 4,
+    <button onClick={() => onClick(value)} style={{
+      padding: "14px 8px",
+      background: active ? "#FF1B8D" : "var(--card-bg)",
+      border: active ? "1px solid #FF1B8D" : "1px solid var(--input-border)",
+      borderRadius: 12,
+      color: active ? "#fff" : "var(--text-primary)",
+      fontSize: 14, fontWeight: 700,
+      cursor: "pointer", fontFamily: "inherit",
+      display: "flex", flexDirection: "column",
+      alignItems: "center", gap: 4,
     }}>
-      {children}
-    </div>
+      <span style={{ fontSize: 22 }}>{icon}</span>
+      <span>{label}</span>
+      {sub && (
+        <span style={{
+          fontSize: 11, fontWeight: 600,
+          color: active ? "rgba(255,255,255,0.85)" : "var(--text-tertiary)",
+        }}>
+          {sub}
+        </span>
+      )}
+    </button>
   );
 }
 
-function typeBtnStyle(active) {
-  return {
-    padding: 10,
-    background: active ? "#FF1B8D" : "var(--bg-secondary)",
-    border: active ? "none" : "1px solid var(--border)",
-    borderRadius: 6,
-    color: active ? "#fff" : "var(--text-primary)",
-    fontSize: 13, fontWeight: 700,
-    cursor: "pointer", fontFamily: "inherit",
-  };
-}
+const WEEKDAY_LIST = [
+  { id: 0, label: "일" },
+  { id: 1, label: "월" },
+  { id: 2, label: "화" },
+  { id: 3, label: "수" },
+  { id: 4, label: "목" },
+  { id: 5, label: "금" },
+  { id: 6, label: "토" },
+];
 
 export function EngineerOffDayAddModal({ defaultDate, onClose, onSave }) {
-  const [type, setType] = useState("hourly");
+  const [type, setType] = useState("single");           // single / range / repeat / hourly
   const [date, setDate] = useState(defaultDate || todayYmd());
   const [endDate, setEndDate] = useState("");
-  const [startAmPm, setStartAmPm] = useState("오후");
-  const [startHour, setStartHour] = useState("02");
+  const [weekdays, setWeekdays] = useState([0]);        // 매주 (요일 인덱스 배열)
+  const [startHour, setStartHour] = useState("09");
   const [startMin, setStartMin] = useState("00");
-  const [endAmPm, setEndAmPm] = useState("오후");
-  const [endHour, setEndHour] = useState("05");
-  const [endMin, setEndMin] = useState("00");
-  const [reason, setReason] = useState("");
+  const [endHour, setEndHour]   = useState("12");
+  const [endMin, setEndMin]     = useState("00");
+  const [reason, setReason]     = useState("");
+
+  function toggleWeekday(id) {
+    setWeekdays(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
 
   function handleSave() {
-    if (!date) return;
-    onSave && onSave({
-      type, date, endDate,
-      startTime: type === "hourly" ? `${startAmPm} ${startHour}:${startMin}` : null,
-      endTime:   type === "hourly" ? `${endAmPm} ${endHour}:${endMin}` : null,
-      reason,
+    const payload = { type, reason };
+    if (type === "single")      Object.assign(payload, { date });
+    else if (type === "range")  Object.assign(payload, { startDate: date, endDate });
+    else if (type === "repeat") Object.assign(payload, { weekdays });
+    else if (type === "hourly") Object.assign(payload, {
+      date, startTime: `${startHour}:${startMin}`, endTime: `${endHour}:${endMin}`,
     });
+    onSave && onSave(payload);
   }
 
   return (
@@ -100,94 +104,166 @@ export function EngineerOffDayAddModal({ defaultDate, onClose, onSave }) {
       <div onClick={(e) => e.stopPropagation()} style={{
         width: "100%", maxWidth: 420, margin: "0 auto",
         background: "var(--bg-primary)",
-        borderTopLeftRadius: 16, borderTopRightRadius: 16,
-        padding: 16, maxHeight: "85vh", overflowY: "auto",
+        borderTopLeftRadius: 18, borderTopRightRadius: 18,
+        padding: 18, maxHeight: "90vh", overflowY: "auto",
         color: "var(--text-primary)",
         fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
       }}>
-        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 14 }}>
-          🛌 휴무 / 일정 등록
+        <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 4, letterSpacing: "-0.4px" }}>
+          📅 휴무 추가
+        </div>
+        <div style={{
+          fontSize: 13, color: "var(--label-main)",
+          fontWeight: 600, marginBottom: 16,
+        }}>
+          휴무 종류를 선택해주세요
         </div>
 
-        {/* 종류 토글 */}
-        <div style={{ marginBottom: 14 }}>
-          <Label>종류</Label>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-            <button onClick={() => setType("fullday")} style={typeBtnStyle(type === "fullday")}>
-              하루 휴무
-            </button>
-            <button onClick={() => setType("hourly")} style={typeBtnStyle(type === "hourly")}>
-              시간 일정
-            </button>
-          </div>
+        {/* 4가지 옵션 그리드 */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
+          marginBottom: 16,
+        }}>
+          <TypeButton value="single" current={type} onClick={setType} icon="📌" label="하루"/>
+          <TypeButton value="range"  current={type} onClick={setType} icon="📆" label="기간"/>
+          <TypeButton value="repeat" current={type} onClick={setType} icon="🔁" label="반복"/>
+          <TypeButton value="hourly" current={type} onClick={setType} icon="⏰" label="시간 단위"/>
         </div>
 
-        {/* 날짜 */}
-        <div style={{ marginBottom: 14 }}>
-          <Label>{type === "fullday" ? "시작 날짜" : "날짜"}</Label>
-          <input
-            type="date" value={date}
-            onChange={(e) => setDate(e.target.value)}
-            style={inputStyle}
-          />
-        </div>
-
-        {type === "fullday" ? (
+        {/* 옵션별 입력 */}
+        {type === "single" && (
           <div style={{ marginBottom: 14 }}>
-            <Label>종료 날짜 (선택)</Label>
-            <input
-              type="date" value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              style={inputStyle}
-            />
-            <Hint>비워두면 하루 휴무</Hint>
+            <Label>날짜</Label>
+            <input type="date" value={date}
+              onChange={(e) => setDate(e.target.value)}
+              style={inputStyle}/>
           </div>
-        ) : (
+        )}
+
+        {type === "range" && (
           <>
-            <div style={{ marginBottom: 12 }}>
-              <Label>시작 시간</Label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
-                <DropdownPicker value={startAmPm} options={AMPM} onChange={setStartAmPm}/>
-                <DropdownPicker value={startHour} options={HOURS} onChange={setStartHour}/>
-                <DropdownPicker value={startMin} options={MINUTES} onChange={setStartMin}/>
-              </div>
+            <div style={{ marginBottom: 14 }}>
+              <Label>시작일</Label>
+              <input type="date" value={date}
+                onChange={(e) => setDate(e.target.value)}
+                style={inputStyle}/>
             </div>
             <div style={{ marginBottom: 14 }}>
-              <Label>종료 시간</Label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4 }}>
-                <DropdownPicker value={endAmPm} options={AMPM} onChange={setEndAmPm}/>
-                <DropdownPicker value={endHour} options={HOURS} onChange={setEndHour}/>
-                <DropdownPicker value={endMin} options={MINUTES} onChange={setEndMin}/>
+              <Label>종료일</Label>
+              <input type="date" value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                style={inputStyle}/>
+            </div>
+          </>
+        )}
+
+        {type === "repeat" && (
+          <div style={{ marginBottom: 14 }}>
+            <Label>요일 (복수 선택)</Label>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6 }}>
+              {WEEKDAY_LIST.map(w => {
+                const active = weekdays.includes(w.id);
+                return (
+                  <button key={w.id} onClick={() => toggleWeekday(w.id)} style={{
+                    padding: "12px 0",
+                    background: active ? "#FF1B8D" : "var(--card-bg)",
+                    border: active ? "1px solid #FF1B8D" : "1px solid var(--input-border)",
+                    borderRadius: 10,
+                    color: active ? "#fff" : "var(--text-primary)",
+                    fontSize: 14, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}>
+                    {w.label}
+                  </button>
+                );
+              })}
+            </div>
+            <div style={{
+              fontSize: 12, color: "var(--text-tertiary)",
+              marginTop: 8, fontWeight: 600,
+            }}>
+              매주 {weekdays.map(id => WEEKDAY_LIST.find(w => w.id === id)?.label).join(", ") || "—"}요일
+            </div>
+          </div>
+        )}
+
+        {type === "hourly" && (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <Label>날짜</Label>
+              <input type="date" value={date}
+                onChange={(e) => setDate(e.target.value)}
+                style={inputStyle}/>
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <Label>시간 범위 (24시간)</Label>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span style={{ fontSize: 13, color: "var(--label-main)", width: 36, fontWeight: 600 }}>시작</span>
+                <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                  <DropdownPicker value={startHour} options={HOURS_24}    onChange={setStartHour}/>
+                  <DropdownPicker value={startMin}  options={MINUTES_30}  onChange={setStartMin}/>
+                </div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, color: "var(--label-main)", width: 36, fontWeight: 600 }}>종료</span>
+                <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                  <DropdownPicker value={endHour} options={HOURS_24}   onChange={setEndHour}/>
+                  <DropdownPicker value={endMin}  options={MINUTES_30} onChange={setEndMin}/>
+                </div>
               </div>
             </div>
           </>
         )}
 
-        {/* 사유 */}
+        {/* 사유 (공통) */}
         <div style={{ marginBottom: 14 }}>
           <Label>사유 (선택)</Label>
           <textarea
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder={type === "hourly" ? "병원 / 가족 행사 등" : "휴가 / 병가 등"}
-            style={{ ...inputStyle, minHeight: 50, resize: "vertical" }}
+            placeholder={
+              type === "single" ? "예: 가족 행사" :
+              type === "range"  ? "예: 여행" :
+              type === "repeat" ? "예: 주일" :
+                                  "예: 병원"
+            }
+            style={{ ...inputStyle, minHeight: 56, resize: "vertical" }}
           />
         </div>
 
         {/* 안내 */}
         <div style={{
-          background: "rgba(0,135,90,0.06)",
-          border: "1px solid rgba(0,135,90,0.25)",
-          borderRadius: 8, padding: 10,
-          fontSize: 11, color: "#00875A",
-          marginBottom: 14,
+          background: "rgba(3,199,90,0.08)",
+          border: "1px solid rgba(3,199,90,0.25)",
+          borderRadius: 10, padding: "10px 12px",
+          fontSize: 12, color: "#03C75A",
+          fontWeight: 600, marginBottom: 16,
         }}>
-          ✅ 운영자가 이 시간엔 배정 안 함
+          ✅ 운영자가 이 시간엔 배정하지 않습니다
         </div>
 
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={onClose} style={cancelBtnStyle}>취소</button>
-          <button onClick={handleSave} style={primaryBtnStyle}>✓ 등록</button>
+        {/* 액션 */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 8 }}>
+          <button onClick={onClose} style={{
+            padding: 14,
+            background: "transparent",
+            border: "1px solid var(--input-border)",
+            borderRadius: 12,
+            color: "var(--label-main)",
+            fontSize: 14, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
+            취소
+          </button>
+          <button onClick={handleSave} style={{
+            padding: 14,
+            background: "#FF1B8D", border: "none",
+            borderRadius: 12, color: "#fff",
+            fontSize: 15, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
+            ✓ 휴무 추가
+          </button>
         </div>
       </div>
     </div>

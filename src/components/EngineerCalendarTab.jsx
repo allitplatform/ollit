@@ -467,18 +467,7 @@ function TimelineRow({ task, onClick }) {
           }}>
             {task.scheduledTime || task.time || "미정"}
           </div>
-          <span style={{
-            fontSize: 11, fontWeight: 800,
-            color: dotColor,
-            padding: "3px 8px",
-            background: isInProgress ? "rgba(255,27,141,0.10)"
-                      : isDone ? "rgba(3,199,90,0.10)"
-                      : isUntimed ? "rgba(255,138,61,0.10)"
-                      : "rgba(255,184,0,0.10)",
-            borderRadius: 6,
-          }}>
-            {isInProgress ? "진행중" : isDone ? "완료" : isUntimed ? "약속미정" : "확정"}
-          </span>
+          <StatusBadge status={isInProgress ? "in_progress" : isDone ? "completed" : isUntimed ? "pending" : "confirmed"}/>
         </div>
 
         <div style={{
@@ -508,6 +497,28 @@ function TimelineRow({ task, onClick }) {
 // ───────────────────────────────────────────────
 // 공통 요소
 // ───────────────────────────────────────────────
+// V14 — 상태 알약 (헌법: 진행중 핑크 / 확정 회색 / 약속미정 회색 / 완료 그린 / 취소 빨강)
+function StatusBadge({ status }) {
+  const styles = {
+    in_progress: { bg: "rgba(255,27,141,0.10)",  text: "#FF1B8D", icon: "●", label: "진행중" },
+    confirmed:   { bg: "var(--pending-pill-bg)", text: "var(--label-main)", icon: "●", label: "확정" },
+    pending:     { bg: "var(--pending-pill-bg)", text: "var(--label-sub)",  icon: "●", label: "약속미정" },
+    completed:   { bg: "var(--completed-pill-bg)", text: "var(--completed-pill-text)", icon: "✓", label: "완료" },
+    canceled:    { bg: "rgba(255,59,92,0.10)",  text: "#FF3B5C", icon: "✕", label: "취소" },
+  };
+  const s = styles[status] || styles.confirmed;
+  return (
+    <span style={{
+      background: s.bg, color: s.text,
+      fontSize: 11, padding: "3px 9px",
+      borderRadius: 999, fontWeight: 700,
+      whiteSpace: "nowrap",
+    }}>
+      {s.icon} {s.label}
+    </span>
+  );
+}
+
 function DayTaskCard({ task, onClick }) {
   const isActive = task.status === "진행중";
   const isUntimed = task.status === "약속대기";
