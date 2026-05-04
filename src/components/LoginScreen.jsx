@@ -1,9 +1,9 @@
-// V14 — 로그인 화면 (Hero 키움 + 빠른 로그인 접힘 토글)
-// 50대 친화 입력 필드 / 운영 빌드에서 빠른 로그인 자체 숨김
+// V14 — 로그인 화면 (항상 다크 고정 / 시스템 설정 무관)
+// 첫 인상 / 브랜드 일관성: 다크 배경 + 핑크 로고 + 흰 타이틀
+// 인증 후 메인 앱부터는 시스템 테마 정상 적용
 import { useState } from "react";
 import { OllitMark } from "./OllitMark.jsx";
 import { REGISTERED_USERS } from "../shared/users.js";
-import { useIsDark } from "../hooks/useIsDark.js";
 
 const SHORT_ROLE = {
   engineer:  "기사",
@@ -12,8 +12,23 @@ const SHORT_ROLE = {
   principal: "원청",
 };
 
+// V14 다크 고정 색 토큰 (시스템 무관)
+const DARK = {
+  pageBg:     "#0A0A0A",
+  titleColor: "#FFFFFF",
+  subColor:   "#888",
+  inputBg:    "#1C1C1E",
+  inputBd:    "#2A2A2A",
+  inputColor: "#FFFFFF",
+  divider:    "#2A2A2A",
+  toggleBd:   "#2A2A2A",
+  toggleText: "#888",
+  cardBg:     "#1C1C1E",
+  cardBd:     "#2A2A2A",
+  footer:     "#555",
+};
+
 export function LoginScreen({ onLogin }) {
-  const isDark = useIsDark();
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
@@ -37,26 +52,17 @@ export function LoginScreen({ onLogin }) {
     if (e.key === "Enter") handleLogin();
   };
 
-  // V14 토큰 (라이트/다크 분기)
-  const pageBg     = isDark ? "#0A0A0A" : "#FAFAFA";
-  const titleColor = isDark ? "#FFFFFF" : "#1A1A1A";
-  const subColor   = isDark ? "#888"    : "#666";
-  const inputBg    = isDark ? "#1C1C1E" : "#FFFFFF";
-  const inputBd    = isDark ? "#2A2A2A" : "#E5E0D6";
-  const inputColor = isDark ? "#FFFFFF" : "#1A1A1A";
-  const dividerBg  = isDark ? "#2A2A2A" : "#EFE9E0";
-  const toggleBd   = isDark ? "#2A2A2A" : "#E5E0D6";
-  const toggleText = isDark ? "#888"    : "#666";
-  const footerColor= isDark ? "#555"    : "#B0B0B0";
-
   return (
-    <div style={{
-      minHeight: "100vh", background: pageBg,
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "flex-start",
-      padding: "56px 0 30px", color: titleColor,
-      fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
-    }}>
+    <div
+      data-theme-locked="dark"
+      style={{
+        minHeight: "100vh", background: DARK.pageBg,
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "flex-start",
+        padding: "56px 0 30px", color: DARK.titleColor,
+        fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+      }}
+    >
       <div style={{ width: "100%", maxWidth: 380, padding: "0 32px" }}>
 
         {/* Hero — 로고 + 타이틀 + 부제 */}
@@ -66,14 +72,14 @@ export function LoginScreen({ onLogin }) {
         }}>
           <OllitMark size={140}/>
           <div style={{
-            color: titleColor, fontSize: 44,
+            color: DARK.titleColor, fontSize: 44,
             fontWeight: 800, letterSpacing: 2,
             marginTop: 36, lineHeight: 1,
           }}>
             올잇
           </div>
           <div style={{
-            color: subColor, fontSize: 14,
+            color: DARK.subColor, fontSize: 14,
             letterSpacing: 0.3, marginTop: 10,
           }}>
             현장과 사람을 잇는 운영 플랫폼
@@ -88,9 +94,9 @@ export function LoginScreen({ onLogin }) {
             onChange={(e) => setId(e.target.value)}
             onKeyDown={handleKeyDown}
             style={{
-              width: "100%", background: inputBg,
-              border: `1px solid ${inputBd}`, borderRadius: 12,
-              padding: "17px 18px", color: inputColor,
+              width: "100%", background: DARK.inputBg,
+              border: `1px solid ${DARK.inputBd}`, borderRadius: 12,
+              padding: "17px 18px", color: DARK.inputColor,
               fontSize: 16, fontFamily: "inherit",
               outline: "none", boxSizing: "border-box",
               fontWeight: 500,
@@ -103,9 +109,9 @@ export function LoginScreen({ onLogin }) {
             onChange={(e) => setPw(e.target.value)}
             onKeyDown={handleKeyDown}
             style={{
-              width: "100%", background: inputBg,
-              border: `1px solid ${inputBd}`, borderRadius: 12,
-              padding: "17px 18px", color: inputColor,
+              width: "100%", background: DARK.inputBg,
+              border: `1px solid ${DARK.inputBd}`, borderRadius: 12,
+              padding: "17px 18px", color: DARK.inputColor,
               fontSize: 16, fontFamily: "inherit",
               outline: "none", boxSizing: "border-box",
               fontWeight: 500,
@@ -133,7 +139,7 @@ export function LoginScreen({ onLogin }) {
 
           <div style={{ textAlign: "center", marginTop: 16 }}>
             <span style={{
-              fontSize: 13, color: subColor,
+              fontSize: 13, color: DARK.subColor,
               cursor: "pointer", fontWeight: 500,
             }}>
               비밀번호 찾기
@@ -145,7 +151,7 @@ export function LoginScreen({ onLogin }) {
         {isDev && (
           <div style={{ marginTop: 32 }}>
             <div style={{
-              height: 0.5, background: dividerBg,
+              height: 0.5, background: DARK.divider,
               marginBottom: 16,
             }}/>
 
@@ -153,8 +159,8 @@ export function LoginScreen({ onLogin }) {
               onClick={() => setShowQuickLogin(v => !v)}
               style={{
                 width: "100%", background: "transparent",
-                border: `1px solid ${toggleBd}`,
-                color: toggleText, padding: 13,
+                border: `1px solid ${DARK.toggleBd}`,
+                color: DARK.toggleText, padding: 13,
                 borderRadius: 12, fontSize: 13, fontWeight: 500,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center",
@@ -178,10 +184,10 @@ export function LoginScreen({ onLogin }) {
                     key={a.userId}
                     onClick={() => onLogin(a)}
                     style={{
-                      padding: "11px 10px", background: inputBg,
-                      border: `1px solid ${inputBd}`, borderRadius: 10,
+                      padding: "11px 10px", background: DARK.cardBg,
+                      border: `1px solid ${DARK.cardBd}`, borderRadius: 10,
                       textAlign: "center", fontSize: 12,
-                      color: subColor, cursor: "pointer",
+                      color: DARK.subColor, cursor: "pointer",
                       fontWeight: 500,
                       gridColumn: i === REGISTERED_USERS.length - 1 && REGISTERED_USERS.length % 2 === 1 ? "span 2" : "span 1",
                     }}
@@ -196,7 +202,7 @@ export function LoginScreen({ onLogin }) {
 
         <div style={{
           textAlign: "center", padding: "30px 16px 0",
-          fontSize: 11, color: footerColor, letterSpacing: 0.5,
+          fontSize: 11, color: DARK.footer, letterSpacing: 0.5,
         }}>
           v1.0 · Phase 1A
         </div>
