@@ -6,6 +6,13 @@ export function isKakaoInApp() {
   return /KAKAOTALK/i.test(navigator.userAgent);
 }
 
+// V14 — 일반 인앱 브라우저 감지 (카톡/네이버/FB/Instagram/Line/Daum 등)
+export function isInAppBrowser() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  return /KAKAOTALK|NAVER|FB_IAB|FBAN|FBAV|Instagram|Line|Daum/i.test(ua);
+}
+
 export function isIOS() {
   if (typeof navigator === "undefined") return false;
   return /iPhone|iPad|iPod/i.test(navigator.userAgent);
