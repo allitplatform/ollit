@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { WorkItemRow } from "./WorkItemRow.jsx";
 
 function addDays(date, n) {
   const d = new Date(date);
@@ -183,38 +184,39 @@ export function EngineerNewAssignDetailScreen({
             )}
           </div>
 
-          <div style={{
-            fontSize: 24, fontWeight: 500,
-            color: "var(--text-primary)",
-            marginBottom: 10,
-          }}>
-            {task.customer || "—"} 고객님
+          {/* V14 — 작업 항목 한 줄 박스 */}
+          <div style={{ marginBottom: 14 }}>
+            <WorkItemRow
+              workType={task.workType}
+              appliance={task.appliance}
+              qty={task.qty}
+              price={task.estimateTotal}
+              dividerTop={false}
+            />
           </div>
 
           <div style={{
-            display: "flex", alignItems: "center", gap: 6,
+            fontSize: 26, fontWeight: 500,
+            color: "var(--text-primary)",
+            letterSpacing: "-0.3px",
+            marginBottom: 6,
+          }}>
+            {task.customer || "—"}님
+          </div>
+
+          <div style={{
             fontSize: 14, fontWeight: 500,
             color: "var(--text-secondary)",
-            marginBottom: 6,
-          }}>
-            <ServiceTypeIcon workType={task.workType} size={14} showLabel={true}/>
-            <span>{task.appliance ? `· ${task.appliance}` : ""}{task.qty ? ` ×${task.qty}` : ""}</span>
-          </div>
-
-          <div style={{
-            fontSize: 13, fontWeight: 500,
-            color: "var(--text-secondary)",
-            marginBottom: 6,
-          }}>
-            📍 {task.fullAddress || task.address || "—"}
-          </div>
-
-          <div style={{
-            fontSize: 13, fontWeight: 500,
-            color: "var(--text-secondary)",
-            fontFamily: "'JetBrains Mono', monospace",
+            marginBottom: 4,
           }}>
             📞 {task.phone || "—"}
+          </div>
+
+          <div style={{
+            fontSize: 14, fontWeight: 500,
+            color: "var(--text-secondary)",
+          }}>
+            📍 {task.fullAddress || task.address || "—"}
           </div>
         </div>
 

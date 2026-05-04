@@ -14,6 +14,7 @@ import {
 } from "./EngineerTaskCompletionScreens.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
+import { WorkItemRow } from "./WorkItemRow.jsx";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -687,33 +688,22 @@ function StatusBlockWaiting({ task }) {
 }
 
 // ──────────────── 작업 항목 (진행중) ────────────────
+// V14 — 작업 항목 한 줄 박스 (단일 항목 / 컬러 박스 + 작업명 + 단가)
 function TaskItemsList({ task }) {
   const items = getTaskItems(task);
   if (items.length === 0) return null;
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-      <div style={{
-        fontSize: 11, color: "var(--text-secondary)",
-        fontWeight: 700, marginBottom: 8,
-      }}>
-        📋 작업 항목
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {items.map(item => (
-          <div key={item.id} style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: 10,
-            background: "var(--bg-secondary)",
-            borderRadius: 8,
-          }}>
-            <ServiceTypeIcon workType={(item.serviceType || task).workType} size={12} showLabel={true}/>
-            <div style={{ flex: 1, fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-              {item.name} ×{item.qty}
-            </div>
-            <div style={{ fontSize: 11, fontFamily: "monospace", color: "var(--text-primary)" }}>
-              ₩{(item.price || 0).toLocaleString("ko-KR")}
-            </div>
-          </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((item, idx) => (
+          <WorkItemRow
+            key={item.id}
+            workType={(item.serviceType || task).workType}
+            appliance={item.name}
+            qty={item.qty}
+            price={item.price}
+            dividerTop={idx > 0}
+          />
         ))}
       </div>
     </div>

@@ -19,6 +19,7 @@ import { EngineerTaskDetailScreen } from "../components/EngineerTaskDetailScreen
 import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
+import { WorkItemRow } from "../components/WorkItemRow.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
 // V13-FINAL2 — 4탭 + 공유 컴포넌트
 import { EngineerBottomNav } from "../components/EngineerBottomNav.jsx";
@@ -811,14 +812,15 @@ function MainScreen({
             </span>
           </div>
 
-          {/* 작업 종류 + 기종 */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 6, marginBottom: 10,
-          }}>
-            <ServiceTypeIcon workType={activeTask.workType} size={16} showLabel={true}/>
-            <span style={{ fontSize: 14, color: "var(--text-secondary)", fontWeight: 500 }}>
-              {activeTask.appliance}{activeTask.qty ? ` ×${activeTask.qty}` : ""}
-            </span>
+          {/* V14 — 작업 항목 한 줄 박스 (구분선 + 컬러박스 + 작업명 + 단가) */}
+          <div style={{ marginBottom: 14 }}>
+            <WorkItemRow
+              workType={activeTask.workType}
+              appliance={activeTask.appliance}
+              qty={activeTask.qty}
+              price={activeTask.estimateTotal}
+              dividerTop={true}
+            />
           </div>
 
           {/* 전체 주소 */}
