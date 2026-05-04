@@ -9,10 +9,16 @@ import { SplashScreen } from "./components/SplashScreen.jsx";
 import { applyTheme, loadTheme } from "./styles/themes.js";
 import { usePWAInstall } from "./hooks/usePWAInstall.js";
 import { PWAInstallScreen } from "./components/PWAInstallScreen.jsx";
+import { KakaoBypassScreen } from "./components/KakaoBypassScreen.jsx";
+import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
 
 // 메인 App: 로그인 상태에 따라 화면 분기
 // TasksProvider를 최상위로 두어 로그인/로그아웃 시에도 task state 유지
 export default function App() {
+  // V14 — 카톡 인앱 브라우저 감지 (최우선)
+  const [kakaoChecked, setKakaoChecked] = useState(false);
+  const [showKakaoScreen, setShowKakaoScreen] = useState(false);
+
   // 첫 렌더 1.5초 스플래시 (올잇 마크 + 펄스)
   const [splashDone, setSplashDone] = useState(false);
   // 로그인 상태 (현재 로그인한 유저 정보)
@@ -21,12 +27,33 @@ export default function App() {
   // PWA 홈 화면 추가 안내 (스플래시 끝난 뒤 가장 먼저 박힘)
   const pwaInstall = usePWAInstall();
 
+  // 카톡 인앱 감지 + 우회 시도 (마운트 직후 1회)
+  useEffect(() => {
+    if (isKakaoInApp()) {
+      tryBypassKakao();
+      // 우회 성공 시 페이지가 외부 브라우저로 이동 → 이 컴포넌트 unmount
+      // 1.5초 후에도 같은 페이지면 우회 실패 → 안내 화면 표시
+      const timer = setTimeout(() => {
+        setShowKakaoScreen(true);
+        setKakaoChecked(true);
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+    setKakaoChecked(true);
+  }, []);
+
   // 앱 시작 시 저장된 테마 적용 (CSS 변수 세팅)
   useEffect(() => {
     applyTheme(loadTheme());
   }, []);
 
-  if (!splashDone) {
+  // 카톡 인앱 — 안내 화면 표시 (다른 화면 진입 차단)
+  if (showKakaoScreen) {
+    return <KakaoBypassScreen/>;
+  }
+
+  // 카톡 검증 끝나기 전엔 splash 유지
+  if (!kakaoChecked || !splashDone) {
     return <SplashScreen onDone={() => setSplashDone(true)}/>;
   }
 
