@@ -338,17 +338,16 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         </button>
       </div>
 
-      {/* 영역 1 — 상태 + 시간 */}
-      {isConfirmed && <StatusBlockConfirmed task={task}/>}
-      {isInProgress && <StatusBlockInProgress task={task}/>}
+      {/* V14 — 확정/진행중 = 통합 메인 카드 (시간 + 작업 항목 + 고객) */}
+      {(isConfirmed || isInProgress) && <WorkMainCard task={task}/>}
       {isCompleted && <StatusBlockCompleted task={task}/>}
       {isWaiting && <StatusBlockWaiting task={task}/>}
 
-      {/* 영역 2 — 작업 항목 (진행중에만) */}
-      {isInProgress && <TaskItemsList task={task}/>}
+      {/* 완료/대기 — 작업 항목 별도 (확정/진행중은 WorkMainCard 안에 통합됨) */}
+      {(isCompleted || isWaiting) && <TaskItemsList task={task}/>}
 
-      {/* 영역 3 — 고객 + 요청사항 + 운영 메모 (공통) */}
-      <CustomerInfo task={task}/>
+      {/* 영역 3 — 요청사항 + 운영 메모 + 전화/문자 (확정/진행중은 고객 헤더 숨김) */}
+      <CustomerInfo task={task} hideCustomerHeader={isConfirmed || isInProgress}/>
 
       {/* V14 — 길찾기 (확정만 / 네이버 + T맵) */}
       {isConfirmed && <MapButtons task={task}/>}
@@ -513,6 +512,162 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
 }
 
 // ──────────────── 상태 블록 ────────────────
+// V14 — 통합 메인 카드 (시간 + 작업 항목 + 고객 / 좌측 4px 바 카드 전체 연속)
+function WorkMainCard({ task }) {
+  const colors = getWorkTypeColors(task.workType);
+  const isDark = useIsDark();
+  const labelColor = isDark ? colors.label.dark : colors.label.light;
+  const isInProgress = task.status === "진행중";
+
+  // 진행률 계산
+  const pct = (() => {
+    if (!task.startedAt || !task.endTime) return 0;
+    const toMin = (s) => {
+      const [h, m] = String(s).split(":");
+      return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
+    };
+    const startMin = toMin(task.startedAt);
+    const endMin   = toMin(task.endTime);
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    if (endMin <= startMin) return 0;
+    return Math.max(0, Math.min(100, ((nowMin - startMin) / (endMin - startMin)) * 100));
+  })();
+
+  const items = getTaskItems(task);
+  const dividerColor = "var(--border)";
+
+  return (
+    <div style={{
+      margin: "14px 16px",
+      background: "var(--card-bg)",
+      border: "1px solid var(--border)",
+      borderRadius: 18,
+      padding: "18px 18px 18px 22px",
+      position: "relative",
+      overflow: "hidden",
+    }}>
+      {/* 좌측 4px 작업 종류 색 바 (카드 전체 연속) */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: colors.main,
+      }}/>
+
+      {/* 영역 1 — 상태 + 시간 + (진행중인 경우 시작 시각 우측) */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6, marginBottom: 12,
+      }}>
+        <span style={{
+          width: 8, height: 8, borderRadius: "50%", background: labelColor,
+        }}/>
+        <span style={{ fontSize: 14, color: labelColor, fontWeight: 700 }}>
+          {isInProgress ? "진행중" : "확정"}
+        </span>
+        {isInProgress && task.startedAt && (
+          <span style={{
+            marginLeft: "auto",
+            fontSize: 13, color: "var(--label-main)", fontWeight: 600,
+          }}>
+            {task.startedAt} 시작
+          </span>
+        )}
+      </div>
+
+      {/* 시간 (Hero 36px) */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+        <span style={{
+          fontSize: 36, fontWeight: 700,
+          fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-primary)",
+          letterSpacing: "-1px", lineHeight: 1,
+        }}>
+          {(isInProgress ? task.startedAt : task.scheduledTime) || task.time || "—"}
+        </span>
+        {task.endTime && (
+          <span style={{ fontSize: 18, color: "#888", fontWeight: 600 }}>
+            ~ {task.endTime}
+          </span>
+        )}
+      </div>
+
+      {/* 진행중 = progress bar / 확정 = 📅 예정 시각 */}
+      {isInProgress && task.startedAt && task.endTime ? (
+        <div style={{
+          height: 4, borderRadius: 2,
+          background: "var(--progress-bg)",
+          overflow: "hidden",
+          marginTop: 12, marginBottom: 16,
+        }}>
+          <div style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: colors.main,
+            borderRadius: 2,
+          }}/>
+        </div>
+      ) : (
+        <div style={{
+          fontSize: 13, color: "var(--label-main)",
+          marginTop: 8, marginBottom: 16, fontWeight: 600,
+          display: "flex", alignItems: "center", gap: 4,
+        }}>
+          <span style={{ fontSize: 14 }}>📅</span> 예정 시각 {task.scheduledTime || task.time || "—"}
+        </div>
+      )}
+
+      {/* 영역 2 — 작업 항목 (구분선) */}
+      {items.length > 0 && (
+        <div style={{
+          borderTop: `0.5px solid ${dividerColor}`,
+          paddingTop: 14, marginBottom: 14,
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {items.map((item, idx) => (
+              <WorkItemRow
+                key={item.id}
+                workType={(item.serviceType || task).workType}
+                appliance={item.name}
+                qty={item.qty}
+                price={item.price}
+                dividerTop={idx > 0}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 영역 3 — 고객 정보 (구분선) */}
+      <div style={{
+        borderTop: `0.5px solid ${dividerColor}`,
+        paddingTop: 14,
+      }}>
+        <div style={{
+          fontSize: 26, fontWeight: 700,
+          color: "var(--text-primary)",
+          letterSpacing: "-0.4px",
+          marginBottom: 6,
+        }}>
+          {task.customer || "—"}님
+        </div>
+        {task.phone && (
+          <div style={{
+            fontSize: 14, color: "var(--label-main)",
+            fontWeight: 600, marginBottom: 4,
+          }}>
+            📞 {task.phone}
+          </div>
+        )}
+        <div style={{
+          fontSize: 14, color: "var(--label-main)",
+          fontWeight: 600,
+        }}>
+          📍 {task.fullAddress || task.address || "—"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatusBlockConfirmed({ task }) {
   const colors = getWorkTypeColors(task.workType);
   const isDark = useIsDark();
@@ -711,7 +866,7 @@ function TaskItemsList({ task }) {
 }
 
 // ──────────────── 고객 + 요청사항 + 운영팀 메모 ────────────────
-function CustomerInfo({ task }) {
+function CustomerInfo({ task, hideCustomerHeader = false }) {
   const isInProgress = task.status === "진행중";
   const isCompleted = task.status === "완료" || task.status === "visit_only";
   const isConfirmed = task.status === "확정";
@@ -719,29 +874,33 @@ function CustomerInfo({ task }) {
 
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-      {/* V14 — 고객 26px */}
-      <div style={{
-        fontSize: 26, fontWeight: 500,
-        color: "var(--text-primary)",
-        letterSpacing: "-0.3px",
-        marginBottom: 6,
-      }}>
-        {task.customer || "—"}님
-      </div>
-      {task.phone && (
-        <div style={{
-          fontSize: 14, color: "var(--text-secondary)",
-          fontWeight: 500, marginBottom: 4,
-        }}>
-          📞 {task.phone}
-        </div>
+      {/* V14 — 고객명/전화/주소: WorkMainCard에서 표시 시 숨김 */}
+      {!hideCustomerHeader && (
+        <>
+          <div style={{
+            fontSize: 26, fontWeight: 500,
+            color: "var(--text-primary)",
+            letterSpacing: "-0.3px",
+            marginBottom: 6,
+          }}>
+            {task.customer || "—"}님
+          </div>
+          {task.phone && (
+            <div style={{
+              fontSize: 14, color: "var(--text-secondary)",
+              fontWeight: 500, marginBottom: 4,
+            }}>
+              📞 {task.phone}
+            </div>
+          )}
+          <div style={{
+            fontSize: 14, color: "var(--text-secondary)",
+            fontWeight: 500, marginBottom: 12,
+          }}>
+            📍 {task.fullAddress || task.address || "—"}
+          </div>
+        </>
       )}
-      <div style={{
-        fontSize: 14, color: "var(--text-secondary)",
-        fontWeight: 500, marginBottom: 12,
-      }}>
-        📍 {task.fullAddress || task.address || "—"}
-      </div>
 
       {/* V14 — 요청사항 (노랑 박스 + 좌측 3px 노란 바) */}
       {task.requestNote && (
