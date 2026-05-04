@@ -7,8 +7,7 @@ import PrincipalApp from "./pages/PrincipalApp.jsx";
 import { TasksProvider } from "./shared/TasksContext.jsx";
 import { SplashScreen } from "./components/SplashScreen.jsx";
 import { applyTheme, loadTheme } from "./styles/themes.js";
-import { usePWAInstall } from "./hooks/usePWAInstall.js";
-import { PWAInstallScreen } from "./components/PWAInstallScreen.jsx";
+import { PWAInstallPrompt } from "./components/PWAInstallPrompt.jsx";
 import { KakaoBypassScreen } from "./components/KakaoBypassScreen.jsx";
 import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
 
@@ -23,9 +22,6 @@ export default function App() {
   const [splashDone, setSplashDone] = useState(false);
   // 로그인 상태 (현재 로그인한 유저 정보)
   const [currentUser, setCurrentUser] = useState(null);
-
-  // PWA 홈 화면 추가 안내 (스플래시 끝난 뒤 가장 먼저 박힘)
-  const pwaInstall = usePWAInstall();
 
   // 카톡 인앱 감지 + 우회 시도 (마운트 직후 1회)
   useEffect(() => {
@@ -67,17 +63,6 @@ export default function App() {
     return <SplashScreen onDone={() => setSplashDone(true)}/>;
   }
 
-  // PWA 안내 화면 — splash 끝난 뒤 1.5초 박힘 (LoginScreen 박힘 전에 박힘)
-  if (pwaInstall.showModal) {
-    return (
-      <PWAInstallScreen
-        platform={pwaInstall.platform}
-        onAdd={pwaInstall.handleAdd}
-        onLater={pwaInstall.handleLater}
-      />
-    );
-  }
-
   // 로그인 콜백
   const handleLogin = (user) => {
     setCurrentUser(user);
@@ -110,6 +95,8 @@ export default function App() {
   return (
     <TasksProvider>
       {renderScreen()}
+      {/* PWA 자동 안내 모달 — 1.5초 후 / standalone X / 24시간 dismiss / 카톡 외 인앱 catch */}
+      <PWAInstallPrompt/>
     </TasksProvider>
   );
 }
