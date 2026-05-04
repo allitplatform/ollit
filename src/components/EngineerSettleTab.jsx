@@ -81,9 +81,9 @@ export function EngineerSettleTab({
             💰 오늘 번 돈
           </div>
           <div style={{
-            fontSize: 42, fontWeight: 900, color: "#fff",
+            fontSize: 56, fontWeight: 900, color: "#fff",
             fontFamily: "'JetBrains Mono', monospace",
-            letterSpacing: "-1.5px", lineHeight: 1,
+            letterSpacing: "-2px", lineHeight: 1,
           }}>
             ₩{todayEarning.toLocaleString("ko-KR")}
           </div>

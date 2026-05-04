@@ -85,6 +85,13 @@ export const DARK_THEME = {
   "--extra-fee-border":     "#5C3D00",
   "--extra-fee-header":     "#FFB07A",
   "--extra-fee-text":       "#FFB07A",
+  // V14 정산 상세
+  "--completed-pill-bg":    "#052E16",
+  "--completed-pill-text":  "#4ADE80",
+  "--pending-pill-bg":      "#2A2A2A",
+  "--pending-pill-text":    "#888",
+  "--flow-bg":              "#16161A",
+  "--flow-arrow":           "#555",
 };
 
 export const LIGHT_THEME = {
@@ -170,6 +177,13 @@ export const LIGHT_THEME = {
   "--extra-fee-border":     "#FFCC99",
   "--extra-fee-header":     "#7A3D00",
   "--extra-fee-text":       "#C25E00",
+  // V14 정산 상세
+  "--completed-pill-bg":    "#DCFCE7",
+  "--completed-pill-text":  "#166534",
+  "--pending-pill-bg":      "#F5F5F5",
+  "--pending-pill-text":    "#888",
+  "--flow-bg":              "#FAFAFA",
+  "--flow-arrow":           "#C8C8C8",
 };
 
 // V14 — 화면 모드 (light / dark / auto)
