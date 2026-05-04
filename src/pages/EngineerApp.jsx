@@ -3818,11 +3818,11 @@ export default function EngineerApp({ user, onLogout }) {
   const [notifications, setNotifications] = useState([
     { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",   title: "새 배정 도착",        subtitle: "정도현 고객님 · 세척 · 청담동",                  relatedId: "A260427-004", targetScreen: "newAssignmentList" },
     { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   timeAgo: "2시간 전",  title: "냉매충전 콜 · 선착순",  subtitle: "강남구 · 시스템 멀티 · 80,000원",                relatedId: "CALL001",     targetScreen: "acceptanceList" },
-    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),   timeAgo: "4시간 전",  title: "운영팀 메시지",        subtitle: "5/4 김미경 고객님 시간 변경 요청 받았어요. 확인 부탁드립니다.", relatedId: "A260504-003", targetScreen: "detail" },
-    { id: "N004", type: "schedule_changed",   read: true,  urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "일정 변경됨",          subtitle: "박지영 고객님 작업 시간이 09:30 → 09:05로 변경됐어요", relatedId: "A260504-001", targetScreen: "detail" },
+    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),   timeAgo: "4시간 전",  title: "운영팀 메시지",        subtitle: "5/4 김미경 고객님 시간 변경 요청 받았어요. 확인 부탁드립니다.", relatedId: "O260504-003", targetScreen: "detail" },
+    { id: "N004", type: "schedule_changed",   read: true,  urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "일정 변경됨",          subtitle: "박지영 고객님 작업 시간이 09:30 → 09:05로 변경됐어요", relatedId: "O260504-001", targetScreen: "detail" },
     { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 28 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "작업 취소",            subtitle: "최영환 고객님이 5/3 작업을 취소했어요",            relatedId: null,          targetScreen: null },
     { id: "N006", type: "payment_received",   read: true,  urgent: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), timeAgo: "2일 전", title: "입금 처리 완료",        subtitle: "5/3 정산 24,000원 회사 송금 확인됐어요",            targetScreen: "paymentHistory" },
-    { id: "N007", type: "photo_missing",      read: true,  urgent: false, createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), timeAgo: "3일 전", title: "사진 누락",            subtitle: "5/1 박은서 작업의 After 사진을 추가해주세요",       relatedId: "A260501-001", targetScreen: "detail" },
+    { id: "N007", type: "photo_missing",      read: true,  urgent: false, createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), timeAgo: "3일 전", title: "사진 누락",            subtitle: "5/1 박은서 작업의 After 사진을 추가해주세요",       relatedId: "O260501-001", targetScreen: "detail" },
   ]);
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -3863,11 +3863,11 @@ export default function EngineerApp({ user, onLogout }) {
       date: "2026-05-04", status: "pending", deadline: "22:00",
       works: [
         // 박지영: 올데이 세척 벽걸이 60k → eng 40k → company 20k
-        { id: "A260504-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
+        { id: "O260504-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
         // 이상훈: KA 세척+점검 스탠드 2, 220k → eng 130k → company 90k
         { id: "A260504-002", customerName: "이상훈", workType: "세척+점검", workItem: "스탠드", quantity: 2, feeAmount: 90000 },
         // 김미경: 올데이 냉매 시스템 멀티 100k → eng 50k → company 50k
-        { id: "A260504-003", customerName: "김미경", workType: "냉매충전", workItem: "시스템 멀티", quantity: 1, feeAmount: 50000 },
+        { id: "O260504-003", customerName: "김미경", workType: "냉매충전", workItem: "시스템 멀티", quantity: 1, feeAmount: 50000 },
       ],
       totalAmount: 160000,
     },
@@ -3875,7 +3875,7 @@ export default function EngineerApp({ user, onLogout }) {
       date: "2026-05-02", status: "completed", depositTime: "22:08",
       works: [
         // 정민호: 올데이 세척 스탠드 2, 220k → eng 120k → company 100k
-        { id: "A260502-001", customerName: "정민호", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 100000 },
+        { id: "O260502-001", customerName: "정민호", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 100000 },
       ],
       totalAmount: 100000,
     },
@@ -3883,7 +3883,7 @@ export default function EngineerApp({ user, onLogout }) {
       date: "2026-05-01", status: "completed", depositTime: "22:30",
       works: [
         // 박은서: 올데이 세척 벽걸이 60k → eng 40k → company 20k
-        { id: "A260501-001", customerName: "박은서", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
+        { id: "O260501-001", customerName: "박은서", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
       ],
       totalAmount: 20000,
     },
