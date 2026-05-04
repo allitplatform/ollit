@@ -79,7 +79,7 @@ export function NaverUploadScreen({ onComplete, onBack }) {
   }
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80 }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
         <div style={titleStyle}>유솔 N · 주문 업로드</div>
@@ -281,7 +281,7 @@ function DebugBox({ info, colMap, error }) {
       <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6 }}>· 감지된 헤더:</div>
       <div style={{
         background: "var(--bg-inset)", padding: 8, borderRadius: 6,
-        fontSize: 9, color: "#FF1B8D", fontFamily: "monospace",
+        fontSize: 9, color: "#FF1B8D", fontFamily: "inherit",
         maxHeight: 80, overflow: "auto", lineHeight: 1.6,
       }}>
         {info.headers.join(", ")}
@@ -289,7 +289,7 @@ function DebugBox({ info, colMap, error }) {
       {colMap && (
         <>
           <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 10, marginBottom: 6 }}>· 컬럼 매핑 (핵심):</div>
-          <div style={{ fontSize: 10, fontFamily: "monospace", lineHeight: 1.6 }}>
+          <div style={{ fontSize: 10, fontFamily: "inherit", lineHeight: 1.6 }}>
             {importantCols.map(k => (
               <div key={k} style={{ color: colMap[k] ? "#00875A" : "#FF3D5A" }}>
                 {colMap[k] ? "✓" : "✗"} {k} → {colMap[k] || "찾지 못함"}
@@ -331,7 +331,7 @@ function CountSummary({ parsed }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 11, color: "var(--text-secondary)" }}>
         <div>주문 <strong style={{ color: "var(--text-primary)" }}>{parsed.length}</strong>건</div>
         <div>기종 <strong style={{ color: "var(--text-primary)" }}>{totalAppliances}</strong>대</div>
-        <div>정산예정 <strong style={{ color: "var(--text-primary)", fontFamily: "monospace" }}>{totalSettlement.toLocaleString()}원</strong></div>
+        <div>정산예정 <strong style={{ color: "var(--text-primary)", fontFamily: "inherit" }}>{totalSettlement.toLocaleString()}원</strong></div>
         <div>
           미매핑
           {unmappedAppliances > 0 && <span style={{ color: "#FF3D5A", marginLeft: 4 }}>기종 {unmappedAppliances}</span>}
@@ -351,7 +351,7 @@ function OrderPreview({ order }) {
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>{order.customerName || "—"}</span>
-        <span className="mono" style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "monospace" }}>{order.orderId}</span>
+        <span className="mono" style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "inherit" }}>{order.orderId}</span>
       </div>
       <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
         · {order.region || <span style={{ color: "#FF3D5A" }}>지역 X</span>} · {order.address || "—"}
@@ -369,7 +369,7 @@ function OrderPreview({ order }) {
       </div>
       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--text-secondary)" }}>
         <span>{order.phone || "—"}</span>
-        <span style={{ color: "var(--text-primary)", fontFamily: "monospace", fontWeight: 600 }}>
+        <span style={{ color: "var(--text-primary)", fontFamily: "inherit", fontWeight: 600 }}>
           {(order.settlementAmount || 0).toLocaleString()}원
         </span>
       </div>

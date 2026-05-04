@@ -1,13 +1,20 @@
-// V14 — 알림 카드 (기사 + 운영자 공통)
-// 카드 배경 = 카테고리 색 12% / 좌측 핑크 점 = 안 읽음 / 50대 글자 크기
+// V14 알림 카드 (사장님 spec)
+// 안 읽음 = 컬러 박스 + 좌측 4px 바 + 우측 상단 점
+// 읽음    = 흰 카드 + 회색 좌측 바 + opacity 0.75
+// 본문은 아이콘 박스 자리만큼 들여쓰기 (paddingLeft 46)
 
 import { useEffect, useState } from "react";
-import { NotiIcon } from "./NotiIcon.jsx";
 import { NOTI_CATEGORIES } from "./notiCategories.js";
 
 function detectDark() {
   if (typeof document === "undefined") return false;
   return document.documentElement.dataset.theme === "dark";
+}
+
+function pickThemed(value, isDark) {
+  if (value == null) return "transparent";
+  if (typeof value === "string") return value;
+  return isDark ? value.dark : value.light;
 }
 
 export function NotiCard({ noti, onClick }) {
@@ -19,92 +26,121 @@ export function NotiCard({ noti, onClick }) {
     return () => observer.disconnect();
   }, []);
 
-  const cat = NOTI_CATEGORIES[noti.category.toUpperCase()] ||
-              Object.values(NOTI_CATEGORIES).find(c => c.key === noti.category);
-
+  const lookupKey = noti.type || noti.category;
+  const cat = NOTI_CATEGORIES[lookupKey] || NOTI_CATEGORIES[(lookupKey || "").toUpperCase()];
   if (!cat) return null;
 
   const isUnread = !noti.read;
 
-  // 카테고리 색 (라이트/다크)
-  const color  = isDark ? cat.color : (cat.colorLight || cat.color);
-  const cardBg = isDark ? cat.bgDark : cat.bgLight;
-  const iconBg = isDark ? cat.iconBgDark : cat.iconBgLight;
+  // 안 읽음 = 컬러 박스 / 읽음 = 흰 카드 (라이트) 또는 #1C1C1E (다크)
+  const cardBg = isUnread
+    ? pickThemed(cat.cardBg, isDark)
+    : (isDark ? "#1C1C1E" : "#FFFFFF");
+
+  const barColor = isUnread
+    ? cat.barColor
+    : (isDark ? "#555" : "#B0A99E");
+
+  const cardBorder = isUnread
+    ? pickThemed(cat.cardBorder, isDark)
+    : (isDark ? "#2A2A2A" : "#EFE9E0");
+
+  const iconBoxBg = pickThemed(cat.iconBoxBg, isDark);
+
+  const titleColor = isUnread
+    ? (isDark ? "#FAF8F5" : "#1A1A1A")
+    : (isDark ? "#C8C8C8" : "#555");
+
+  const bodyColor = isUnread
+    ? (isDark ? "#FAF8F5" : "#1A1A1A")
+    : (isDark ? "#C8C8C8" : "#555");
+
+  const timeColor = noti.urgent
+    ? (isDark ? "#FFD66B" : "#B07E00")
+    : (isDark ? "#999" : "#6E6E6E");
 
   return (
     <div onClick={onClick} style={{
-      padding: "16px 16px 16px 22px",
-      display: "flex", gap: 12,
-      position: "relative",
-      alignItems: "flex-start",
       background: cardBg,
-      borderBottom: `0.5px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+      border: `1px solid ${cardBorder}`,
+      borderRadius: 14,
+      padding: "14px 14px 14px 18px",
+      position: "relative",
+      overflow: "hidden",
+      margin: "0 16px 8px",
       cursor: "pointer",
-      opacity: noti.read ? 0.7 : 1,
+      opacity: isUnread ? 1 : 0.75,
+      fontFamily: "inherit",
     }}>
-      {/* 좌측 핑크 점 (안 읽음) */}
+      {/* 좌측 4px 바 */}
+      <div style={{
+        position: "absolute",
+        left: 0, top: 0, bottom: 0,
+        width: 4,
+        background: barColor,
+      }}/>
+
+      {/* 안 읽음 점 (우측 상단) */}
       {isUnread && (
         <div style={{
           position: "absolute",
-          left: 8, top: 22,
-          width: 6, height: 6,
+          right: 14, top: 16,
+          width: 8, height: 8,
           borderRadius: "50%",
-          background: "#FF1B8D",
+          background: cat.barColor,
         }}/>
       )}
 
-      {/* 아이콘 박스 */}
-      <div style={{
-        width: 40, height: 40,
-        borderRadius: 10,
-        background: iconBg,
-        display: "flex",
-        alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-      }}>
-        <NotiIcon category={cat.key} color={color}/>
-      </div>
-
-      {/* 본문 */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "flex-start" }}>
-          <span style={{
-            fontSize: 13, fontWeight: 800,
-            color: color,
-          }}>
-            {noti.categoryLabel || cat.label}
-          </span>
-          <span style={{
-            fontSize: 12,
-            color: isDark ? "#999" : "#6E6E6E",
-            fontWeight: 500,
-            flexShrink: 0,
-            marginLeft: "auto",
-          }}>
-            {noti.timeAgo}
-          </span>
-        </div>
-
+      {/* 헤더: 아이콘 박스 + 제목 + 시간 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, paddingRight: isUnread ? 22 : 0 }}>
         <div style={{
-          fontSize: 16, fontWeight: 700,
-          marginTop: 4,
-          color: isDark ? "#FAF8F5" : "#1A1512",
-          lineHeight: 1.4,
+          width: 36, height: 36,
+          borderRadius: 10,
+          background: iconBoxBg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
         }}>
-          {noti.title}
+          <span style={{ fontSize: 16 }}>{cat.icon}</span>
         </div>
-
-        {noti.subtitle && (
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontSize: 13, fontWeight: 500,
-            marginTop: 4,
-            color: isDark ? "#999" : "#6E6E6E",
-            lineHeight: 1.5,
+            fontSize: 14,
+            color: titleColor,
+            fontWeight: 700,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}>
-            {noti.subtitle}
+            {noti.title}
           </div>
-        )}
+          <div style={{
+            fontSize: 12,
+            color: timeColor,
+            fontWeight: noti.urgent ? 700 : 600,
+            marginTop: 1,
+          }}>
+            {noti.timeAgo || ""}
+            {noti.urgent ? " · 응답 필요" : ""}
+          </div>
+        </div>
       </div>
+
+      {/* 본문 (왼쪽 들여쓰기 = 아이콘 박스 자리만큼) */}
+      {(noti.subtitle || noti.body) && (
+        <div style={{
+          fontSize: 13,
+          color: bodyColor,
+          paddingLeft: 46,
+          fontWeight: 600,
+          lineHeight: 1.5,
+        }}>
+          {noti.subtitle || noti.body}
+        </div>
+      )}
     </div>
   );
 }
+
+export default NotiCard;

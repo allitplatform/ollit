@@ -36,7 +36,7 @@ export function UserListScreen({ onBack, onAdd, onEdit }) {
   }, [users]);
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif" }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif" }}>
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
         <div style={titleStyle}>사용자 / 권한</div>
@@ -109,7 +109,7 @@ function UserRow({ user: u, onClick }) {
           color: u.active ? "#00875A" : "var(--text-secondary)", fontWeight: 500,
         }}>{u.active ? "활성" : "비활성"}</span>
       </div>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "monospace" }}>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "inherit" }}>
         @{u.loginId}
       </div>
     </div>

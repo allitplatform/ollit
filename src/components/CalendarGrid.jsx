@@ -89,14 +89,13 @@ export function generateMonthDays(month) {
   return days;
 }
 
-function getStatusColor(status) {
-  switch (status) {
-    case "진행중":   return "#FF1B8D";
-    case "확정":     return "#888780";
-    case "약속대기": return "#FFB300";
-    case "완료":     return "#00875A";
-    default:         return "#888780";
-  }
+// V14 — 점 색 = 작업 종류 (헌법: 정보/분류)
+function getWorkTypeDotColor(workType) {
+  if (!workType) return "#FF1B8D";
+  const t = String(workType).toLowerCase();
+  if (t.includes("세척"))                          return "#0EA5E9";
+  if (t.includes("냉매") || t.includes("충전"))    return "#FFB800";
+  return "#FF1B8D"; // 기타 (설치/점검/수리)
 }
 
 // ──────────────── CalendarGrid ────────────────
@@ -142,6 +141,7 @@ export function CalendarGrid({
           const data = dayData[formatYmd(date)] || {};
           const tasks = data.tasks || [];
           const isOff = !!data.offDay;
+          const hourlyOffs = data.hourlyOffs || [];
           const isSel = isSameDay(date, selectedDate);
           const isTodayDate = isToday(date) && highlightToday;
 
@@ -152,6 +152,7 @@ export function CalendarGrid({
               dayOfWeek={dayOfWeek}
               tasks={tasks}
               isOffDay={isOff && showOffDay}
+              hasHourlyOff={hourlyOffs.length > 0}
               isSelected={isSel}
               isToday={isTodayDate}
               showDots={showStatusDots}
@@ -167,15 +168,43 @@ export function CalendarGrid({
 }
 
 function DayCell({
-  date, dayOfWeek, tasks, isOffDay,
+  date, dayOfWeek, tasks, isOffDay, hasHourlyOff,
   isSelected, isToday, showDots, showHeatmap, colorScheme, onClick,
 }) {
+  // V14 — 휴무 셀: 진한 회색 배경 + line-through + "휴무" 라벨 (사장님 spec)
+  if (isOffDay) {
+    return (
+      <div onClick={onClick} style={{
+        aspectRatio: "1",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        paddingTop: 2,
+        borderRadius: 6,
+        cursor: "pointer",
+        background: "var(--off-day-bg, rgba(136,135,128,0.18))",
+        border: `1px solid ${isSelected ? "#FF1B8D" : "transparent"}`,
+        position: "relative",
+      }}>
+        <div style={{
+          fontSize: 11, fontWeight: 700,
+          color: "#999",
+          textDecoration: "line-through",
+          marginBottom: 2,
+        }}>
+          {date.getDate()}
+        </div>
+        <div style={{
+          fontSize: 8, color: "#999",
+          fontWeight: 700, letterSpacing: 0.3,
+        }}>
+          휴무
+        </div>
+      </div>
+    );
+  }
+
   let bg = "transparent";
   let borderColor = "transparent";
-
-  if (isOffDay) {
-    bg = "rgba(136,135,128,0.15)";
-  }
 
   if (showHeatmap && tasks.length > 0) {
     const isGreen = colorScheme === "green";
@@ -222,23 +251,22 @@ function DayCell({
         {date.getDate()}
       </div>
 
-      {isOffDay && (
-        <div style={{ fontSize: 7, color: "#888780", fontWeight: 700 }}>휴무</div>
-      )}
-
-      {showDots && tasks.length > 0 && !isOffDay && (
+      {(showDots && tasks.length > 0) || hasHourlyOff ? (
         <div style={{
-          display: "flex", gap: 1.5, flexWrap: "wrap",
-          justifyContent: "center", maxWidth: 28,
+          display: "flex", gap: 1.5, alignItems: "center",
+          justifyContent: "center", maxWidth: 30, flexWrap: "wrap",
         }}>
-          {tasks.slice(0, 6).map((t, i) => (
+          {showDots && tasks.slice(0, 5).map((t, i) => (
             <span key={i} style={{
               width: 4, height: 4, borderRadius: "50%",
-              background: getStatusColor(t.status),
+              background: getWorkTypeDotColor(t.workType),
             }}/>
           ))}
+          {hasHourlyOff && (
+            <span style={{ fontSize: 8, color: "#999", lineHeight: 1, marginLeft: 1 }}>⏰</span>
+          )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

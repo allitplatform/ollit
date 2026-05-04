@@ -1,17 +1,21 @@
 // src/hooks/usePWAInstall.js
-// PWA 홈 화면 추가 안내 - iOS / Android 분기 + 디스미스 로직
+// PWA 홈 화면 추가 안내 - iOS / Android / 인앱 분기 + 디스미스 로직 (24시간)
 
 import { useEffect, useState } from "react";
+import { isInAppBrowser, isKakaoInApp } from "../lib/kakaoBypass.js";
 
 const STORAGE_KEY_DISMISSED_AT = "ollit_pwa_dismissed_at";
 const STORAGE_KEY_DISMISSED_FOREVER = "ollit_pwa_dismissed_forever";
-const REMIND_AFTER_DAYS = 7;
+const REMIND_AFTER_HOURS = 24; // 사장님 spec: 24시간
 
-// 플랫폼 감지
+// 플랫폼 감지 (인앱 우선)
 function detectPlatform() {
   if (typeof navigator === "undefined") return "unknown";
   const ua = navigator.userAgent.toLowerCase();
 
+  // 카톡은 KakaoBypassScreen이 별도 처리 → 여기선 'inApp' 반환 X
+  // 카톡 외 인앱(NAVER/FB/Instagram/Line/Daum)만 'inApp' 모드
+  if (isInAppBrowser() && !isKakaoInApp()) return "inApp";
   if (/iphone|ipad|ipod/.test(ua)) return "ios";
   if (/android/.test(ua)) return "android";
   return "other";
@@ -38,8 +42,8 @@ function shouldShowBanner() {
   try {
     const lastDismissed = localStorage.getItem(STORAGE_KEY_DISMISSED_AT);
     if (lastDismissed) {
-      const daysAgo = (Date.now() - Number(lastDismissed)) / (1000 * 60 * 60 * 24);
-      if (daysAgo < REMIND_AFTER_DAYS) return false;
+      const hoursAgo = (Date.now() - Number(lastDismissed)) / (1000 * 60 * 60);
+      if (hoursAgo < REMIND_AFTER_HOURS) return false;
     }
   } catch (e) {}
 
@@ -62,7 +66,8 @@ export function usePWAInstall() {
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
 
-    if (platform === "ios") {
+    // iOS / 인앱 브라우저는 beforeinstallprompt 이벤트 X → 1.5초 후 자동 표시
+    if (platform === "ios" || platform === "inApp") {
       const timer = setTimeout(() => {
         if (shouldShowBanner()) setShowModal(true);
       }, 1500);

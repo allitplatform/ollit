@@ -12,6 +12,9 @@ import {
   TaskPartialScreen,
   TaskVisitOnlyScreen,
 } from "./EngineerTaskCompletionScreens.jsx";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { useIsDark } from "../hooks/useIsDark.js";
+import { WorkItemRow } from "./WorkItemRow.jsx";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -305,7 +308,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       background: "var(--bg-primary)",
       paddingBottom: 100,
       color: "var(--text-primary)",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 헤더 */}
       <div style={{
@@ -322,7 +325,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         <div style={{
           flex: 1, textAlign: "center",
           fontSize: 11, color: "var(--text-secondary)",
-          fontFamily: "monospace",
+          fontFamily: "inherit",
         }}>
           {task.id || "—"}
         </div>
@@ -335,20 +338,19 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         </button>
       </div>
 
-      {/* 영역 1 — 상태 + 시간 */}
-      {isConfirmed && <StatusBlockConfirmed task={task}/>}
-      {isInProgress && <StatusBlockInProgress task={task}/>}
+      {/* V14 — 확정/진행중 = 통합 메인 카드 (시간 + 작업 항목 + 고객) */}
+      {(isConfirmed || isInProgress) && <WorkMainCard task={task}/>}
       {isCompleted && <StatusBlockCompleted task={task}/>}
       {isWaiting && <StatusBlockWaiting task={task}/>}
 
-      {/* 영역 2 — 작업 항목 (진행중에만) */}
-      {isInProgress && <TaskItemsList task={task}/>}
+      {/* 완료/대기 — 작업 항목 별도 (확정/진행중은 WorkMainCard 안에 통합됨) */}
+      {(isCompleted || isWaiting) && <TaskItemsList task={task}/>}
 
-      {/* 영역 3 — 고객 + 요청사항 + 운영 메모 (공통) */}
-      <CustomerInfo task={task}/>
+      {/* 영역 3 — 요청사항 + 운영 메모 + 전화/문자 (확정/진행중은 고객 헤더 숨김) */}
+      <CustomerInfo task={task} hideCustomerHeader={isConfirmed || isInProgress}/>
 
-      {/* 확정 — 이동 정보 */}
-      {isConfirmed && <TravelBox task={task}/>}
+      {/* V14 — 길찾기 (확정만 / 네이버 + T맵) */}
+      {isConfirmed && <MapButtons task={task}/>}
 
       {/* 진행중 — 사진 / 추가금 / 메모 */}
       {isInProgress && (
@@ -395,90 +397,96 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         </div>
       )}
 
-      {/* 메인 액션 */}
+      {/* V14 헌법 — 메인 CTA = 핑크 풀 (작업 종류 색 X) */}
       {isConfirmed && (
-        <div style={{ padding: "14px 16px" }}>
+        <div style={{ padding: "16px" }}>
           <button
             onClick={handleStartTask}
             style={{
-              width: "100%", padding: 14,
+              width: "100%", padding: 19,
               background: "#FF1B8D", border: "none",
-              borderRadius: 12, color: "#fff",
-              fontSize: 14, fontWeight: 700,
+              borderRadius: 16, color: "#fff",
+              fontSize: 18, fontWeight: 700,
               cursor: "pointer", fontFamily: "inherit",
             }}
           >
             ▶ 작업 시작
           </button>
           <div style={{
-            marginTop: 8, textAlign: "center",
-            fontSize: 9, color: "var(--text-secondary)",
+            marginTop: 10, textAlign: "center",
+            fontSize: 12, color: "#888", fontWeight: 600,
           }}>
             현장 도착 후 시작
           </div>
         </div>
       )}
 
-      {isInProgress && (
-        <div style={{ padding: "14px 16px 20px" }}>
-          {/* V14 — 메인 액션 (작업 완료 핑크) */}
+      {isInProgress && (() => {
+        const enough = photos.length >= PHOTO_MIN;
+        return (
+        <div style={{ padding: "14px 16px 22px" }}>
+          {/* V14 — 메인 액션 (작업 완료 / 핑크 풀 V14 메인 액션) */}
           <button
             onClick={() => {
-              if (photos.length < PHOTO_MIN) {
+              if (!enough) {
                 alert(`사진은 최소 ${PHOTO_MIN}장 필요합니다.`);
                 return;
               }
               setSubScreen("complete");
             }}
-            disabled={photos.length < PHOTO_MIN}
+            disabled={!enough}
             style={{
-              width: "100%", padding: 16,
-              background: photos.length >= PHOTO_MIN ? "#FF1B8D" : "var(--bg-secondary)",
-              border: "none", borderRadius: 12,
-              color: photos.length >= PHOTO_MIN ? "#fff" : "var(--text-tertiary)",
-              fontSize: 17, fontWeight: 800,
-              cursor: photos.length >= PHOTO_MIN ? "pointer" : "not-allowed",
+              width: "100%", padding: 18,
+              background: enough ? "#FF1B8D" : "var(--bg-tertiary)",
+              border: "none", borderRadius: 16,
+              color: enough ? "#fff" : "var(--text-tertiary)",
+              fontSize: 17, fontWeight: 600,
+              cursor: enough ? "pointer" : "not-allowed",
               fontFamily: "inherit",
-              opacity: photos.length >= PHOTO_MIN ? 1 : 0.5,
-              marginBottom: 8,
+              marginBottom: 10,
             }}
           >
-            ✓ 작업 완료
+            {enough ? "✓ 작업 완료" : `✓ 작업 완료 (사진 ${PHOTO_MIN}장 필요)`}
           </button>
 
-          {/* V14 — 보조 액션 (부분 / 출장비만) */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+          {/* V14 헌법 — 부분 완료 = 회색 (중립) / 출장비만 = 빨강 (취소) */}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <button
               onClick={() => setSubScreen("partial")}
               style={{
                 padding: 13,
                 background: "transparent",
-                border: "2px solid #FF8A3D",
-                borderRadius: 10,
-                color: "#FF8A3D",
-                fontSize: 13, fontWeight: 800,
+                border: "1.5px solid #C8C8C8",
+                borderRadius: 12,
+                color: "#555",
+                fontSize: 14, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
-              🟠 부분 완료
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#888" }}/>
+              부분 완료
             </button>
             <button
               onClick={() => setSubScreen("visitOnly")}
               style={{
                 padding: 13,
                 background: "transparent",
-                border: "2px solid #FF3B5C",
-                borderRadius: 10,
-                color: "#FF3B5C",
-                fontSize: 13, fontWeight: 800,
+                border: "1.5px solid #FF3B5C",
+                borderRadius: 12,
+                color: "var(--cancel-text)",
+                fontSize: 14, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
-              🔴 출장비만
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FF3B5C" }}/>
+              출장비만
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* ⋮ 메뉴 (BottomSheet) */}
       {menuOpen && (
@@ -504,35 +512,198 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
 }
 
 // ──────────────── 상태 블록 ────────────────
-function StatusBlockConfirmed({ task }) {
+// V14 — 통합 메인 카드 (시간 + 작업 항목 + 고객 / 좌측 4px 바 카드 전체 연속)
+function WorkMainCard({ task }) {
+  const colors = getWorkTypeColors(task.workType);
+  const isDark = useIsDark();
+  const labelColor = isDark ? colors.label.dark : colors.label.light;
+  const isInProgress = task.status === "진행중";
+
+  // 진행률 계산
+  const pct = (() => {
+    if (!task.startedAt || !task.endTime) return 0;
+    const toMin = (s) => {
+      const [h, m] = String(s).split(":");
+      return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
+    };
+    const startMin = toMin(task.startedAt);
+    const endMin   = toMin(task.endTime);
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    if (endMin <= startMin) return 0;
+    return Math.max(0, Math.min(100, ((nowMin - startMin) / (endMin - startMin)) * 100));
+  })();
+
+  const items = getTaskItems(task);
+  const dividerColor = "var(--border)";
+
   return (
-    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+    <div style={{
+      margin: "14px 16px",
+      background: "var(--card-bg)",
+      border: "1px solid var(--border)",
+      borderRadius: 18,
+      padding: "18px 18px 18px 22px",
+      position: "relative",
+      overflow: "hidden",
+    }}>
+      {/* 좌측 4px 작업 종류 색 바 (카드 전체 연속) */}
       <div style={{
-        display: "inline-flex", alignItems: "center", gap: 4,
-        padding: "3px 10px",
-        background: "rgba(255,255,255,0.08)",
-        border: "1px solid #555",
-        borderRadius: 14, marginBottom: 12,
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: colors.main,
+      }}/>
+
+      {/* 영역 1 — 상태 + 시간 + (진행중인 경우 시작 시각 우측) */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6, marginBottom: 12,
       }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#888780" }}/>
-        <span style={{ fontSize: 10, color: "var(--text-primary)", fontWeight: 700 }}>
-          확정
+        <span style={{
+          width: 8, height: 8, borderRadius: "50%", background: labelColor,
+        }}/>
+        <span style={{ fontSize: 14, color: labelColor, fontWeight: 700 }}>
+          {isInProgress ? "진행중" : "확정"}
         </span>
+        {isInProgress && task.startedAt && (
+          <span style={{
+            marginLeft: "auto",
+            fontSize: 13, color: "var(--label-main)", fontWeight: 700,
+          }}>
+            {task.startedAt} 시작
+          </span>
+        )}
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
-        <div style={{
-          fontSize: 28, fontWeight: 700, fontFamily: "monospace",
+
+      {/* 시간 (Hero 36px) */}
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
+        <span style={{
+          fontSize: 36, fontWeight: 700,
+          fontFamily: "inherit",
           color: "var(--text-primary)",
+          letterSpacing: "-1px", lineHeight: 1,
+        }}>
+          {(isInProgress ? task.startedAt : task.scheduledTime) || task.time || "—"}
+        </span>
+        {task.endTime && (
+          <span style={{ fontSize: 18, color: "#888", fontWeight: 700 }}>
+            ~ {task.endTime}
+          </span>
+        )}
+      </div>
+
+      {/* 진행중 = progress bar / 확정 = 📅 예정 시각 */}
+      {isInProgress && task.startedAt && task.endTime ? (
+        <div style={{
+          height: 4, borderRadius: 2,
+          background: "var(--progress-bg)",
+          overflow: "hidden",
+          marginTop: 12, marginBottom: 16,
+        }}>
+          <div style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: colors.main,
+            borderRadius: 2,
+          }}/>
+        </div>
+      ) : (
+        <div style={{
+          fontSize: 13, color: "var(--label-main)",
+          marginTop: 8, marginBottom: 16, fontWeight: 700,
+          display: "flex", alignItems: "center", gap: 4,
+        }}>
+          <span style={{ fontSize: 14 }}>📅</span> 예정 시각 {task.scheduledTime || task.time || "—"}
+        </div>
+      )}
+
+      {/* 영역 2 — 작업 항목 (구분선) */}
+      {items.length > 0 && (
+        <div style={{
+          borderTop: `0.5px solid ${dividerColor}`,
+          paddingTop: 14, marginBottom: 14,
+        }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {items.map((item, idx) => (
+              <WorkItemRow
+                key={item.id}
+                workType={(item.serviceType || task).workType}
+                appliance={item.name}
+                qty={item.qty}
+                price={item.price}
+                dividerTop={idx > 0}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 영역 3 — 고객 정보 (구분선) */}
+      <div style={{
+        borderTop: `0.5px solid ${dividerColor}`,
+        paddingTop: 14,
+      }}>
+        <div style={{
+          fontSize: 26, fontWeight: 700,
+          color: "var(--text-primary)",
+          letterSpacing: "-0.4px",
+          marginBottom: 6,
+        }}>
+          {task.customer || "—"}님
+        </div>
+        {task.phone && (
+          <div style={{
+            fontSize: 14, color: "var(--label-main)",
+            fontWeight: 700, marginBottom: 4,
+          }}>
+            📞 {task.phone}
+          </div>
+        )}
+        <div style={{
+          fontSize: 14, color: "var(--label-main)",
+          fontWeight: 700,
+        }}>
+          📍 {task.fullAddress || task.address || "—"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBlockConfirmed({ task }) {
+  const colors = getWorkTypeColors(task.workType);
+  const isDark = useIsDark();
+  const labelColor = isDark ? colors.label.dark : colors.label.light;
+  return (
+    <div style={{ padding: "18px 18px 14px 22px", borderBottom: "1px solid var(--border)", position: "relative" }}>
+      {/* 좌측 4px 작업 종류 색 바 */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: colors.main,
+      }}/>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 8,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: labelColor }}/>
+          <span style={{ fontSize: 14, color: labelColor, fontWeight: 700 }}>
+            확정
+          </span>
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
+        <div style={{
+          fontSize: 36, fontWeight: 600, fontFamily: "inherit",
+          color: "var(--text-primary)", letterSpacing: "-1px",
         }}>
           {task.scheduledTime || task.time || "—"}
         </div>
         {task.endTime && (
-          <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+          <div style={{ fontSize: 16, color: "#888", fontWeight: 600 }}>
             ~ {task.endTime}
           </div>
         )}
       </div>
-      <div style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 600 }}>
+      <div style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
         📅 {formatTimeUntilStart(task)}
       </div>
     </div>
@@ -540,40 +711,77 @@ function StatusBlockConfirmed({ task }) {
 }
 
 function StatusBlockInProgress({ task }) {
+  const colors = getWorkTypeColors(task.workType);
+  const isDark = useIsDark();
+  const labelColor = isDark ? colors.label.dark : colors.label.light;
+  // V14 — 진행률 계산
+  const pct = (() => {
+    if (!task.startedAt || !task.endTime) return 0;
+    const toMin = (s) => {
+      const [h, m] = String(s).split(":");
+      return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
+    };
+    const startMin = toMin(task.startedAt);
+    const endMin   = toMin(task.endTime);
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    if (endMin <= startMin) return 0;
+    return Math.max(0, Math.min(100, ((nowMin - startMin) / (endMin - startMin)) * 100));
+  })();
+
   return (
-    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+    <div style={{ padding: "18px 18px 14px 22px", borderBottom: "1px solid var(--border)", position: "relative" }}>
+      {/* 좌측 4px 작업 종류 색 바 */}
       <div style={{
-        display: "inline-flex", alignItems: "center", gap: 4,
-        padding: "3px 10px",
-        background: "rgba(255,27,141,0.15)",
-        border: "1px solid #FF1B8D",
-        borderRadius: 14, marginBottom: 12,
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: colors.main,
+      }}/>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 8,
       }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF1B8D" }}/>
-        <span style={{ fontSize: 10, color: "#FF1B8D", fontWeight: 700 }}>
-          진행중
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: labelColor }}/>
+          <span style={{ fontSize: 14, color: labelColor, fontWeight: 700 }}>
+            진행중
+          </span>
+        </div>
+        {task.startedAt && (
+          <span style={{ fontSize: 13, color: "#888", fontWeight: 600 }}>
+            {task.startedAt} 시작
+          </span>
+        )}
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 14 }}>
         <div style={{
-          fontSize: 28, fontWeight: 700, fontFamily: "monospace",
-          color: "var(--text-primary)",
+          fontSize: 36, fontWeight: 600, fontFamily: "inherit",
+          color: "var(--text-primary)", letterSpacing: "-1px",
         }}>
           {task.startedAt || task.scheduledTime || "—"}
         </div>
         {task.endTime && (
-          <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+          <div style={{ fontSize: 16, color: "#888", fontWeight: 600 }}>
             ~ {task.endTime}
           </div>
         )}
       </div>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 6,
-        fontSize: 11, color: "var(--text-primary)", fontWeight: 600,
-      }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF1B8D" }}/>
-        <span>{task.startedAt || "—"} 시작 · 작업 중</span>
-      </div>
+
+      {/* V14 — progress bar (작업 종류 색) */}
+      {task.startedAt && task.endTime && (
+        <div style={{
+          height: 4, borderRadius: 2,
+          background: "var(--progress-bg)",
+          overflow: "hidden",
+        }}>
+          <div style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: colors.main,
+            transition: "width 0.3s",
+          }}/>
+        </div>
+      )}
     </div>
   );
 }
@@ -596,7 +804,7 @@ function StatusBlockCompleted({ task }) {
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
         <div style={{
-          fontSize: 28, fontWeight: 700, fontFamily: "monospace",
+          fontSize: 28, fontWeight: 700, fontFamily: "inherit",
           color: "var(--text-primary)",
         }}>
           {task.startedAt || "—"}
@@ -635,33 +843,22 @@ function StatusBlockWaiting({ task }) {
 }
 
 // ──────────────── 작업 항목 (진행중) ────────────────
+// V14 — 작업 항목 한 줄 박스 (단일 항목 / 컬러 박스 + 작업명 + 단가)
 function TaskItemsList({ task }) {
   const items = getTaskItems(task);
   if (items.length === 0) return null;
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-      <div style={{
-        fontSize: 11, color: "var(--text-secondary)",
-        fontWeight: 700, marginBottom: 8,
-      }}>
-        📋 작업 항목
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {items.map(item => (
-          <div key={item.id} style={{
-            display: "flex", alignItems: "center", gap: 8,
-            padding: 10,
-            background: "var(--bg-secondary)",
-            borderRadius: 8,
-          }}>
-            <ServiceTypeIcon workType={(item.serviceType || task).workType} size={12} showLabel={true}/>
-            <div style={{ flex: 1, fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-              {item.name} ×{item.qty}
-            </div>
-            <div style={{ fontSize: 11, fontFamily: "monospace", color: "var(--text-primary)" }}>
-              ₩{(item.price || 0).toLocaleString("ko-KR")}
-            </div>
-          </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {items.map((item, idx) => (
+          <WorkItemRow
+            key={item.id}
+            workType={(item.serviceType || task).workType}
+            appliance={item.name}
+            qty={item.qty}
+            price={item.price}
+            dividerTop={idx > 0}
+          />
         ))}
       </div>
     </div>
@@ -669,7 +866,7 @@ function TaskItemsList({ task }) {
 }
 
 // ──────────────── 고객 + 요청사항 + 운영팀 메모 ────────────────
-function CustomerInfo({ task }) {
+function CustomerInfo({ task, hideCustomerHeader = false }) {
   const isInProgress = task.status === "진행중";
   const isCompleted = task.status === "완료" || task.status === "visit_only";
   const isConfirmed = task.status === "확정";
@@ -677,99 +874,115 @@ function CustomerInfo({ task }) {
 
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-      {/* 작업 칩 (확정/완료에만) */}
-      {!isInProgress && (
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          padding: "2px 6px",
-          background: "transparent",
-          border: "1px solid var(--border)",
-          borderRadius: 4,
-          color: "var(--text-secondary)",
-          fontSize: 9, fontWeight: 700, marginBottom: 8,
-        }}>
-          <ServiceTypeIcon workType={task.workType} size={12} showLabel={true}/>
-          <span style={{ marginLeft: 4 }}>
-            {task.workType || ""}
-            {task.appliance ? ` · ${task.appliance}` : ""}
-            {task.qty ? ` ×${task.qty}` : ""}
-          </span>
-        </div>
+      {/* V14 — 고객명/전화/주소: WorkMainCard에서 표시 시 숨김 */}
+      {!hideCustomerHeader && (
+        <>
+          <div style={{
+            fontSize: 26, fontWeight: 600,
+            color: "var(--text-primary)",
+            letterSpacing: "-0.3px",
+            marginBottom: 6,
+          }}>
+            {task.customer || "—"}님
+          </div>
+          {task.phone && (
+            <div style={{
+              fontSize: 14, color: "var(--text-secondary)",
+              fontWeight: 600, marginBottom: 4,
+            }}>
+              📞 {task.phone}
+            </div>
+          )}
+          <div style={{
+            fontSize: 14, color: "var(--text-secondary)",
+            fontWeight: 600, marginBottom: 12,
+          }}>
+            📍 {task.fullAddress || task.address || "—"}
+          </div>
+        </>
       )}
 
-      {/* 고객 */}
-      <div style={{
-        fontSize: 16, fontWeight: 700,
-        color: "var(--text-primary)", marginBottom: 2,
-      }}>
-        {task.customer || "—"}님
-      </div>
-      {task.phone && (
-        <div style={{
-          fontSize: 11, color: "var(--text-secondary)",
-          fontFamily: "monospace", marginBottom: 8,
-        }}>
-          {task.phone}
-        </div>
-      )}
-
-      <div style={{ fontSize: 11, color: "var(--text-primary)", marginBottom: 4 }}>
-        📍 {task.fullAddress || task.address || "—"}
-      </div>
-
-      {/* 견적 (확정에만) */}
-      {isConfirmed && task.estimateTotal > 0 && (
-        <div style={{
-          fontSize: 11, color: "var(--text-primary)",
-          fontWeight: 700, fontFamily: "monospace",
-          marginBottom: 10,
-        }}>
-          💰 ₩{task.estimateTotal.toLocaleString("ko-KR")}
-        </div>
-      )}
-
-      {/* 요청사항 (고객) — 핫핑크 좌측 보더 */}
+      {/* V14 — 요청사항 (노랑 박스 + 좌측 3px 노란 바) */}
       {task.requestNote && (
         <div style={{
-          background: "var(--bg-secondary)",
-          borderLeft: "3px solid #FF1B8D",
-          borderRadius: "0 6px 6px 0",
-          padding: "8px 10px",
-          marginTop: 10, marginBottom: 8,
+          position: "relative",
+          background: "var(--request-bg)",
+          borderRadius: 8,
+          padding: "10px 12px 10px 14px",
+          marginTop: 12, marginBottom: 10,
+          overflow: "hidden",
         }}>
-          <div style={{ fontSize: 9, color: "var(--text-secondary)", marginBottom: 2 }}>
+          <div style={{
+            position: "absolute", left: 0, top: 0, bottom: 0,
+            width: 3, background: "#FFB800",
+          }}/>
+          <div style={{
+            fontSize: 12, color: "var(--request-text)",
+            fontWeight: 600, marginBottom: 4,
+          }}>
             📝 요청사항 (고객)
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-primary)" }}>
+          <div style={{
+            fontSize: 13, color: "var(--request-sub)",
+            fontWeight: 600, lineHeight: 1.5,
+          }}>
             {task.requestNote}
           </div>
         </div>
       )}
 
-      {/* 운영팀 메모 — 무채색 */}
+      {/* V14 — 운영팀 메모 (보라 박스 + 좌측 3px 보라 바) */}
       {operatorNote && (
         <div style={{
-          background: "var(--bg-secondary)",
-          borderRadius: 6,
-          padding: "8px 10px",
-          marginBottom: 10,
+          position: "relative",
+          background: "var(--ops-memo-bg)",
+          borderRadius: 8,
+          padding: "10px 12px 10px 14px",
+          marginBottom: 12,
+          overflow: "hidden",
         }}>
-          <div style={{ fontSize: 9, color: "var(--text-secondary)", marginBottom: 2 }}>
+          <div style={{
+            position: "absolute", left: 0, top: 0, bottom: 0,
+            width: 3, background: "#7B61FF",
+          }}/>
+          <div style={{
+            fontSize: 12, color: "var(--ops-memo-header)",
+            fontWeight: 600, marginBottom: 4,
+          }}>
             📌 운영팀 메모
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-primary)" }}>
+          <div style={{
+            fontSize: 13, color: "var(--ops-memo-body)",
+            fontWeight: 600, lineHeight: 1.5,
+          }}>
             {operatorNote}
           </div>
         </div>
       )}
 
-      {/* 통화 / 문자 (완료 X) */}
+      {/* V14 — 전화 (초록) / 문자 (보더) */}
       {!isCompleted && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          <button onClick={() => makeCall(task.phone)} style={infoBtnStyle}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button onClick={() => makeCall(task.phone)} style={{
+            padding: 13,
+            background: "#34C759",
+            border: "none",
+            borderRadius: 10,
+            color: "#fff",
+            fontSize: 14, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
             📞 전화
           </button>
-          <button onClick={() => sendSms(task.phone)} style={infoBtnStyle}>
+          <button onClick={() => sendSms(task.phone)} style={{
+            padding: 13,
+            background: "var(--card-bg)",
+            border: "1.5px solid var(--input-border)",
+            borderRadius: 10,
+            color: "var(--text-secondary)",
+            fontSize: 14, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
             💬 문자
           </button>
         </div>
@@ -778,64 +991,59 @@ function CustomerInfo({ task }) {
   );
 }
 
-const infoBtnStyle = {
-  padding: 10,
-  background: "var(--bg-secondary)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  color: "var(--text-primary)",
-  fontSize: 11, cursor: "pointer",
-  fontFamily: "inherit",
-};
-
 // ──────────────── 이동 정보 (확정만) ────────────────
-function TravelBox({ task }) {
+// V14 — 길찾기 두 버튼 (네이버 그린 / T맵 파랑)
+function MapButtons({ task }) {
+  const addr = encodeURIComponent(task.fullAddress || task.address || "");
+  function openNaver() {
+    if (!addr) return;
+    window.open(`https://map.naver.com/v5/search/${addr}`, "_blank");
+  }
+  function openTmap() {
+    if (!addr) return;
+    window.open(`https://apis.openapi.sk.com/tmap/app/routes?appKey=guest&name=${addr}`, "_blank");
+  }
   return (
-    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 8 }}>
-        🚗 이동 정보 <span style={{ fontWeight: 400 }}>(현재 위치 기준)</span>
-      </div>
+    <div style={{ padding: "0 16px 14px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
-        background: "var(--bg-secondary)",
-        borderRadius: 8, padding: 12,
-        display: "flex", gap: 14,
-        justifyContent: "space-around",
-        marginBottom: 8,
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
       }}>
-        <TravelMetric label="거리" value={task.distance || "—"}/>
-        <div style={{ width: 1, background: "var(--border)" }}/>
-        <TravelMetric label="이동" value={task.travelTime ? `~${task.travelTime}` : "—"}/>
-        <div style={{ width: 1, background: "var(--border)" }}/>
-        <TravelMetric label="출발" value={calcDepartureTime(task)} accent/>
-      </div>
-      <button
-        onClick={() => openMap(task)}
-        style={{
-          width: "100%", padding: 10,
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          color: "var(--text-primary)",
-          fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        ⊿ 길찾기 (네이버 / 카카오 맵)
-      </button>
-    </div>
-  );
-}
-
-function TravelMetric({ label, value, accent }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: 9, color: "var(--text-secondary)" }}>{label}</div>
-      <div style={{
-        fontSize: accent ? 13 : 14,
-        color: accent ? "#FF1B8D" : "var(--text-primary)",
-        fontWeight: 700, fontFamily: "monospace",
-        marginTop: 2,
-      }}>
-        {value}
+        <button onClick={openNaver} style={{
+          padding: 13,
+          background: "var(--card-bg)",
+          border: "1.5px solid #03C75A",
+          borderRadius: 10,
+          color: "#03C75A",
+          fontSize: 14, fontWeight: 600,
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 18, height: 18, borderRadius: 4,
+            background: "#03C75A", color: "#fff",
+            fontSize: 11, fontWeight: 600,
+          }}>N</span>
+          네이버 지도
+        </button>
+        <button onClick={openTmap} style={{
+          padding: 13,
+          background: "var(--card-bg)",
+          border: "1.5px solid #1F8AFF",
+          borderRadius: 10,
+          color: "#1F8AFF",
+          fontSize: 14, fontWeight: 600,
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 18, height: 18, borderRadius: 4,
+            background: "#1F8AFF", color: "#fff",
+            fontSize: 11, fontWeight: 600,
+          }}>T</span>
+          T맵
+        </button>
       </div>
     </div>
   );
@@ -857,7 +1065,7 @@ function PhotoGrid({ photos, minRequired = 2, onAdd, onRemove }) {
           </div>
           <div style={{
             fontSize: 12, color: "var(--text-secondary)",
-            fontWeight: 500, marginTop: 2,
+            fontWeight: 600, marginTop: 2,
           }}>
             {minRequired}장 이상 필수
           </div>
@@ -926,60 +1134,68 @@ function PhotoGrid({ photos, minRequired = 2, onAdd, onRemove }) {
   );
 }
 
-// ──────────────── 추가금 (진행중 / 숫자 버튼 포함) ────────────────
+// V14 — 추가금 (옅은 주황 톤)
 function ExtraFeeInput({ value, onChange, onAdd }) {
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
-        fontSize: 11, color: "var(--text-secondary)",
-        fontWeight: 700, marginBottom: 8,
+        background: "var(--extra-fee-bg)",
+        borderRadius: 12,
+        padding: 14,
       }}>
-        💰 현장 추가금 (있으면)
-      </div>
-      <input
-        type="number"
-        inputMode="numeric"
-        placeholder="0"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: "100%", padding: 10,
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          color: "var(--text-primary)",
-          fontSize: 13, boxSizing: "border-box",
-          outline: "none", marginBottom: 8,
-          fontFamily: "monospace",
-        }}
-      />
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: 4,
-      }}>
-        {[
-          { amount: 5000, label: "+5천" },
-          { amount: 10000, label: "+1만" },
-          { amount: 50000, label: "+5만" },
-          { amount: 100000, label: "+10만" },
-        ].map(b => (
-          <button
-            key={b.amount}
-            onClick={() => onAdd(b.amount)}
-            style={{
-              padding: "8px 4px",
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              color: "var(--text-primary)",
-              fontSize: 10, cursor: "pointer",
-              fontFamily: "monospace",
-            }}
+        <div style={{
+          fontSize: 13, color: "var(--extra-fee-header)",
+          fontWeight: 600, marginBottom: 10,
+        }}>
+          💰 현장 추가금 (있으면)
+        </div>
+        <input
+          type="number"
+          inputMode="numeric"
+          placeholder="0"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            width: "100%", padding: 12,
+            background: "var(--card-bg)",
+            border: "1px solid var(--extra-fee-border)",
+            borderRadius: 10,
+            color: "var(--text-primary)",
+            fontSize: 16, boxSizing: "border-box",
+            outline: "none", marginBottom: 10,
+            fontFamily: "inherit",
+            fontWeight: 600,
+          }}
+        />
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 6,
+        }}>
+          {[
+            { amount: 5000,   label: "+5천"  },
+            { amount: 10000,  label: "+1만"  },
+            { amount: 50000,  label: "+5만"  },
+            { amount: 100000, label: "+10만" },
+          ].map(b => (
+            <button
+              key={b.amount}
+              onClick={() => onAdd(b.amount)}
+              style={{
+                padding: 8,
+                background: "var(--card-bg)",
+                border: "1px solid var(--extra-fee-border)",
+                borderRadius: 8,
+                color: "var(--extra-fee-text)",
+                fontSize: 12, fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
           >
             {b.label}
           </button>
         ))}
+        </div>
       </div>
     </div>
   );
@@ -1111,7 +1327,7 @@ function SettlementInfo({ task }) {
           display: "flex", justifyContent: "space-between",
         }}>
           <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 700 }}>합계</span>
-          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "monospace", color: "var(--text-primary)" }}>
+          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "inherit", color: "var(--text-primary)" }}>
             ₩{total.toLocaleString("ko-KR")}
           </span>
         </div>
@@ -1128,7 +1344,7 @@ function SettlementInfo({ task }) {
           alignItems: "center",
         }}>
           <span style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700 }}>기사 수익</span>
-          <span style={{ fontSize: 16, color: "#FF1B8D", fontWeight: 700, fontFamily: "monospace" }}>
+          <span style={{ fontSize: 16, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
             ₩{engineerNet.toLocaleString("ko-KR")}
           </span>
         </div>
@@ -1147,7 +1363,7 @@ function SettlementRow({ label, value, valueColor }) {
       <span style={{
         fontSize: 11,
         color: valueColor || "var(--text-primary)",
-        fontFamily: "monospace",
+        fontFamily: "inherit",
       }}>
         {value}
       </span>
@@ -1202,7 +1418,7 @@ function MenuItem({ icon, label, danger, onClick }) {
       width: "100%", padding: 12,
       background: "transparent", border: "none",
       color: danger ? "#FF3D5A" : "var(--text-primary)",
-      fontSize: 12, fontWeight: 600,
+      fontSize: 12, fontWeight: 700,
       textAlign: "left", cursor: "pointer",
       display: "flex", alignItems: "center", gap: 10,
       fontFamily: "inherit",
@@ -1290,13 +1506,13 @@ function VisitOnlyDialog({ task, onClose, onConfirm }) {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
               <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>출장비</span>
-              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "monospace" }}>
+              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
                 ₩30,000
               </span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
               <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>기사 수익</span>
-              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "monospace" }}>
+              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
                 ₩30,000 (100%)
               </span>
             </div>
@@ -1433,7 +1649,7 @@ function CancelScreen({ task, onBack, onConfirm }) {
               </div>
               <div style={{
                 fontSize: 12,
-                fontFamily: "monospace",
+                fontFamily: "inherit",
                 color: item.checked ? "#FF3D5A" : "var(--text-secondary)",
                 fontWeight: item.checked ? 700 : 400,
               }}>
@@ -1451,13 +1667,13 @@ function CancelScreen({ task, onBack, onConfirm }) {
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
           <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>취소될 금액</span>
-          <span style={{ fontSize: 12, color: "#FF3D5A", fontWeight: 700, fontFamily: "monospace" }}>
+          <span style={{ fontSize: 12, color: "#FF3D5A", fontWeight: 700, fontFamily: "inherit" }}>
             - ₩{cancelAmount.toLocaleString("ko-KR")}
           </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
           <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>남는 작업 금액</span>
-          <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "monospace", color: "var(--text-primary)" }}>
+          <span style={{ fontSize: 12, fontWeight: 700, fontFamily: "inherit", color: "var(--text-primary)" }}>
             ₩{remainAmount.toLocaleString("ko-KR")}
           </span>
         </div>
@@ -1573,7 +1789,7 @@ function RescheduleScreen({ task, onBack, onConfirm }) {
         </div>
         <div style={{
           fontSize: 18, fontWeight: 700,
-          fontFamily: "monospace", color: "var(--text-primary)",
+          fontFamily: "inherit", color: "var(--text-primary)",
         }}>
           {task.scheduledDate || "—"} {task.scheduledTime || ""}
           {task.endTime ? ` ~ ${task.endTime}` : ""}

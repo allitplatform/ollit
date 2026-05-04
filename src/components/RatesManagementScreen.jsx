@@ -52,7 +52,7 @@ export function RatesManagementScreen({ onBack }) {
   }
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80 }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
         <div style={titleStyle}>기사 단가표</div>
@@ -173,7 +173,7 @@ function RateRow({ label, value, hint, onChange }) {
           width: 110, background: "var(--bg-inset)",
           border: "1px solid var(--border)", borderRadius: 6,
           padding: "8px 10px", color: "var(--text-primary)",
-          fontSize: 13, fontFamily: "monospace",
+          fontSize: 13, fontFamily: "inherit",
           outline: "none", textAlign: "right",
         }}
       />
@@ -181,7 +181,7 @@ function RateRow({ label, value, hint, onChange }) {
       {hint && (
         <span style={{
           fontSize: 10, color: "var(--text-secondary)",
-          minWidth: 50, textAlign: "right", fontFamily: "monospace",
+          minWidth: 50, textAlign: "right", fontFamily: "inherit",
         }}>{hint}</span>
       )}
     </div>

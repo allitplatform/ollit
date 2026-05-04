@@ -20,7 +20,7 @@ export function PrincipalListScreen({ onEdit, onAdd, onBack, onClickRates }) {
   }), [list]);
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif" }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif" }}>
 
       {/* 헤더 */}
       <div style={headerStyle}>
@@ -113,7 +113,7 @@ function PrincipalRow({ principal: p, onClick }) {
         · {set.length ? set.join(" / ") : "정책 미설정"}
         {refDesc && ` · ${refDesc}`}
       </div>
-      <div style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "monospace" }}>
+      <div style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "inherit" }}>
         prefix {p.prefix || "—"}
       </div>
       {p.note && (

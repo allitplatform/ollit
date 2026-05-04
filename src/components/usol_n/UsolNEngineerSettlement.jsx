@@ -53,7 +53,7 @@ export function UsolNEngineerSettlement() {
         <div style={{ fontSize: 10, color: "#06B6D4", fontWeight: 700, marginBottom: 6 }}>
           📤 {nextSettlementDate} 기사 입금 예정
         </div>
-        <div style={{ fontSize: 22, color: "#06B6D4", fontWeight: 700, fontFamily: "monospace" }}>
+        <div style={{ fontSize: 22, color: "#06B6D4", fontWeight: 700, fontFamily: "inherit" }}>
           ₩{monthData.totalToEngineers.toLocaleString()}
         </div>
         <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 4 }}>
@@ -110,7 +110,7 @@ function SettlementRow({ label, value, color }) {
       <span style={{ color: "var(--text-secondary)" }}>{label}</span>
       <span style={{
         color: color || "var(--text-primary)",
-        fontFamily: "monospace",
+        fontFamily: "inherit",
         fontWeight: color ? 600 : 400,
       }}>
         ₩{value.toLocaleString()}
@@ -133,7 +133,7 @@ function EngineerSettlementRow({ item }) {
         ) : (
           <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{item.engineerName || "미배정"}</span>
         )}
-        <span style={{ fontSize: 12, color: "#06B6D4", fontWeight: 700, fontFamily: "monospace" }}>
+        <span style={{ fontSize: 12, color: "#06B6D4", fontWeight: 700, fontFamily: "inherit" }}>
           ₩{item.totalEarning.toLocaleString()}
         </span>
       </div>

@@ -344,11 +344,11 @@ export default function PrincipalApp({ user, onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: "#0A0A0A" }}>
       <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+        
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .fade-in { animation: slideUp 0.4s ease-out; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: all 0.15s; }
         .clickable:active { opacity: 0.7; transform: scale(0.98); }
         .tab-btn:hover { opacity: 0.8; }
@@ -383,7 +383,7 @@ export default function PrincipalApp({ user, onLogout }) {
         </button>
       </div>
 
-      <div style={{ maxWidth: 420, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80 }}>
+      <div style={{ maxWidth: 420, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Pretendard', sans-serif", paddingBottom: 80 }}>
         
         <Header t={t}/>
 
@@ -750,7 +750,7 @@ function Field({ t, label, icon: Icon, value, onChange, placeholder, mono, multi
               borderRadius: 10, fontSize: 13, fontWeight: 600,
               boxSizing: "border-box", outline: "none",
               resize: "vertical",
-              fontFamily: mono ? "'JetBrains Mono', monospace" : "inherit",
+              fontFamily: mono ? "inherit" : "inherit",
             }}
           />
         ) : (
@@ -766,7 +766,7 @@ function Field({ t, label, icon: Icon, value, onChange, placeholder, mono, multi
               border: `1.5px solid ${value ? t.accent : t.border}`,
               borderRadius: 10, fontSize: 13, fontWeight: 600,
               boxSizing: "border-box", outline: "none",
-              fontFamily: mono ? "'JetBrains Mono', monospace" : "inherit",
+              fontFamily: mono ? "inherit" : "inherit",
             }}
           />
         )}

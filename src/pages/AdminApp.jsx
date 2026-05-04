@@ -1353,13 +1353,13 @@ export default function AdminApp({ user, onLogout }) {
 
   const FontStyle = (
     <style>{`
-      @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+      
       @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
       @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
       @keyframes flash { 0%, 100% { background-color: transparent; } 30% { background-color: rgba(251, 191, 36, 0.25); } }
       .fade-in { animation: slideUp 0.4s ease-out; }
       .flash-highlight { animation: flash 1.5s ease-out; }
-      .mono { font-family: 'JetBrains Mono', monospace; }
+      .mono { font-family: inherit; }
       .clickable { cursor: pointer; transition: all 0.15s; }
       .clickable:active { opacity: 0.7; transform: scale(0.98); }
     `}</style>
@@ -1368,7 +1368,7 @@ export default function AdminApp({ user, onLogout }) {
   const Shell = ({ children }) => (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
       {FontStyle}
-      <div style={{ maxWidth: 380, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80, position: "relative" }}>
+      <div style={{ maxWidth: 380, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Pretendard', sans-serif", paddingBottom: 80, position: "relative" }}>
         {children}
         <ToastContainer t={t} toasts={toasts}/>
       </div>
@@ -3265,7 +3265,7 @@ function TaskEditScreen({ t, task, onBack, onSave }) {
         </div>
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>연락처</label>
-          <input type="text" value={form.phone} onChange={(e) => update("phone", e.target.value)} className="mono" style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }}/>
+          <input type="text" value={form.phone} onChange={(e) => update("phone", e.target.value)} className="mono" style={{ ...inputStyle, fontFamily: "inherit" }}/>
         </div>
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>주소 / 지역</label>
@@ -3286,7 +3286,7 @@ function TaskEditScreen({ t, task, onBack, onSave }) {
           </div>
           <div style={{ flex: 1 }}>
             <label style={labelStyle}>수량</label>
-            <input type="number" min="1" value={form.qty} onChange={(e) => update("qty", parseInt(e.target.value) || 1)} className="mono" style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }}/>
+            <input type="number" min="1" value={form.qty} onChange={(e) => update("qty", parseInt(e.target.value) || 1)} className="mono" style={{ ...inputStyle, fontFamily: "inherit" }}/>
           </div>
         </div>
         <div style={{ marginBottom: 12 }}>
@@ -3300,7 +3300,7 @@ function TaskEditScreen({ t, task, onBack, onSave }) {
               value={form.estimateTotal}
               onChange={(e) => update("estimateTotal", parseInt(e.target.value) || 0)}
               className="mono"
-              style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace", paddingRight: 36 }}
+              style={{ ...inputStyle, fontFamily: "inherit", paddingRight: 36 }}
               placeholder="0"/>
             <span style={{ position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: t.textMuted, fontWeight: 600, pointerEvents: "none" }}>원</span>
           </div>
@@ -4647,7 +4647,7 @@ function TaskCancelDialog({ task, onClose, onConfirm }) {
           width: "100%", maxWidth: 480, maxHeight: "85vh",
           background: "#1A1512", borderRadius: "16px 16px 0 0",
           padding: "20px 16px", overflow: "auto",
-          fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+          fontFamily: "-apple-system, 'Pretendard', sans-serif",
           color: "#fff",
         }}
       >
@@ -5520,7 +5520,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
               background: t.bgInset,
               border: `1px solid ${t.border}`,
               borderRadius: 8, fontSize: 12, color: t.text,
-              fontFamily: "monospace", outline: "none",
+              fontFamily: "inherit", outline: "none",
               boxSizing: "border-box", minHeight: 100, resize: "vertical",
               lineHeight: 1.5,
             }}

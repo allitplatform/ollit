@@ -17,6 +17,9 @@ import { EngineerNewAssignmentListScreen } from "../components/EngineerNewAssign
 import { EngineerAcceptanceListScreen } from "../components/EngineerAcceptanceListScreen.jsx";
 import { EngineerTaskDetailScreen } from "../components/EngineerTaskDetailScreen.jsx";
 import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { useIsDark } from "../hooks/useIsDark.js";
+import { WorkItemRow } from "../components/WorkItemRow.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
 // V13-FINAL2 — 4탭 + 공유 컴포넌트
 import { EngineerBottomNav } from "../components/EngineerBottomNav.jsx";
@@ -26,6 +29,9 @@ import { EngineerCalendarTab } from "../components/EngineerCalendarTab.jsx";
 import { EngineerNotiTab } from "../components/EngineerNotiTab.jsx";
 import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
 import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
+import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
+import { UsolNSettlementScreen } from "../components/UsolNSettlementScreen.jsx";
+import { ConfirmModal } from "../components/ConfirmModal.jsx";
 // V13-FINAL2-fix1 신규 화면
 import { EngineerOffDayAddModal } from "../components/EngineerOffDayAddModal.jsx";
 import { EngineerAccountEditScreen } from "../components/EngineerAccountEditScreen.jsx";
@@ -414,7 +420,7 @@ function CustomDatePicker({ t, value, onChange }) {
                 border: "none",
                 borderRadius: 8,
                 fontSize: 13,
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 fontWeight: selected ? 800 : today_ ? 700 : 500,
                 cursor: !day || past ? "default" : "pointer",
                 background: selected ? t.accent : today_ ? t.accentBg : "transparent",
@@ -425,7 +431,7 @@ function CustomDatePicker({ t, value, onChange }) {
                        : dayOfWeek === 0 ? t.danger
                        : t.text,
                 position: "relative",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 opacity: past ? 0.4 : 1,
                 transition: "all 0.15s",
               }}
@@ -497,7 +503,7 @@ function CustomTimePicker({ t, value, onChange }) {
                 color: active ? "white" : t.text,
                 border: `1px solid ${active ? t.accent : t.border}`,
                 borderRadius: 8, fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "'JetBrains Mono', monospace",
+                cursor: "pointer", fontFamily: "inherit",
               }}>
                 {formatHour(h)}
               </button>
@@ -520,7 +526,7 @@ function CustomTimePicker({ t, value, onChange }) {
                 border: `1px solid ${active ? t.accent : t.border}`,
                 borderRadius: 8, fontSize: 13, fontWeight: 700,
                 cursor: selectedHour ? "pointer" : "not-allowed",
-                fontFamily: "'JetBrains Mono', monospace",
+                fontFamily: "inherit",
                 opacity: selectedHour ? 1 : 0.5,
               }}>
                 {String(m).padStart(2, '0')}분
@@ -575,6 +581,21 @@ function formatProgress(startedAt) {
   return `${Math.floor(diff / 60)}시간 ${diff % 60}분`;
 }
 
+// V14 — 진행률 (시작/종료 → 0~100%)
+function calcProgressPct(startedAt, endTime) {
+  if (!startedAt || !endTime) return 0;
+  const toMin = (s) => {
+    const [h, m] = String(s).split(":");
+    return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
+  };
+  const startMin = toMin(startedAt);
+  const endMin   = toMin(endTime);
+  const nowMin   = toMin(NOW);
+  if (endMin <= startMin) return 0;
+  const pct = ((nowMin - startMin) / (endMin - startMin)) * 100;
+  return Math.max(0, Math.min(100, pct));
+}
+
 // V13-1 — 일정 상태 알약 (다음 일정 카드용)
 function StatusPill({ status }) {
   const map = {
@@ -608,11 +629,13 @@ function MainScreen({
   onClickAcceptanceList,
   onClickNewAssignmentList,
   pendingAcceptances = [],
+  newAssignmentsOverride,
 }) {
+  const isDark = useIsDark();
   const activeTask = tasks.find(x => x.status === "진행중") || null;
 
-  // 새 배정 = 약속대기 + 일정 미정 (해피콜 배정 완료 / 기사 약속 잡을 차례)
-  const newAssignments = tasks.filter(x =>
+  // V14 — 새 배정 = 약속대기 + 일정 미정 (extraAssignments 합산은 EngineerApp에서 처리)
+  const newAssignments = newAssignmentsOverride || tasks.filter(x =>
     x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
   );
 
@@ -635,19 +658,19 @@ function MainScreen({
 
   return (
     <div style={{
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
       background: "var(--bg-primary)",
       minHeight: "100vh", paddingBottom: 100,
       color: "var(--text-primary)",
     }}>
       <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+        
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes pulseSubtle { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
         .pulse-subtle { animation: pulseSubtle 2s ease-in-out infinite; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: transform 0.15s, opacity 0.15s; }
         .clickable:active { transform: scale(0.98); opacity: 0.8; }
         input, textarea { font-family: inherit; }
@@ -661,7 +684,7 @@ function MainScreen({
         }}>
           <span className="mono" style={{
             fontSize: 11, color: "var(--text-secondary)",
-            letterSpacing: 1.5, fontWeight: 500,
+            letterSpacing: 1.5, fontWeight: 600,
           }}>
             MON · 27 APR · {NOW}
           </span>
@@ -692,7 +715,7 @@ function MainScreen({
               <span style={{ color: "var(--text-tertiary)" }}>·</span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                 <ServiceTypeIcon workType="세척" size={12} showLabel={false}/>
-                <span style={{ color: "#0EA5E9", fontWeight: 700 }}>세척 {workTypeCounts.세척}</span>
+                <span style={{ color: "var(--cleaning-text)", fontWeight: 600 }}>세척 {workTypeCounts.세척}</span>
               </span>
             </>
           )}
@@ -701,27 +724,39 @@ function MainScreen({
               <span style={{ color: "var(--text-tertiary)" }}>·</span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                 <ServiceTypeIcon workType="냉매충전" size={12} showLabel={false}/>
-                <span style={{ color: "#FFB800", fontWeight: 700 }}>냉매충전 {workTypeCounts.냉매충전}</span>
+                <span style={{ color: "var(--refrig-text)", fontWeight: 600 }}>냉매충전 {workTypeCounts.냉매충전}</span>
               </span>
             </>
           )}
         </div>
       </div>
 
-      {/* 2. 진행중 박스 (V14 — 보더 핫핑크 / 배경 X) */}
-      {activeTask && (
+      {/* 2. 진행중 박스 (V14 통합 — 작업 종류 색 + 사이즈 키움) */}
+      {activeTask && (() => {
+        const colors = getWorkTypeColors(activeTask.workType);
+        const labelColor = isDark ? colors.label.dark : colors.label.light;
+        return (
         <div
           onClick={() => onTaskClick(activeTask.id)}
           className="clickable"
           style={{
+            position: "relative",
             margin: "0 16px 14px",
-            background: "transparent",
-            border: "2px solid #FF1B8D",
-            borderRadius: 14,
-            padding: 14,
+            background: "var(--card-bg)",
+            border: "1px solid var(--border)",
+            borderRadius: 18,
+            padding: "18px 18px 18px 22px",
             cursor: "pointer",
+            overflow: "hidden",
           }}
         >
+          {/* 좌측 4px 작업 종류 색 바 */}
+          <div style={{
+            position: "absolute",
+            left: 0, top: 0, bottom: 0,
+            width: 4,
+            background: colors.main,
+          }}/>
           <div style={{
             display: "flex", justifyContent: "space-between",
             alignItems: "center", marginBottom: 10,
@@ -729,79 +764,112 @@ function MainScreen({
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{
                 width: 8, height: 8, borderRadius: "50%",
-                background: "#FF1B8D",
+                background: colors.main,
                 display: "inline-block",
               }}/>
               <span style={{
-                fontSize: 13, color: "#FF1B8D", fontWeight: 800,
+                fontSize: 14, color: labelColor, fontWeight: 700,
               }}>
                 진행중
               </span>
             </div>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
+            <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
               {formatProgress(activeTask.startedAt)} 진행
             </span>
           </div>
 
+          {/* V14 — 큰 시간 표시 36px */}
+          {activeTask.startedAt && (
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
+              <span style={{
+                fontSize: 36, fontWeight: 600,
+                fontFamily: "inherit",
+                color: "var(--text-primary)", letterSpacing: "-1px",
+              }}>
+                {activeTask.startedAt}
+              </span>
+              {activeTask.endTime && (
+                <span style={{ fontSize: 16, color: "#888", fontWeight: 600 }}>
+                  ~ {activeTask.endTime}
+                </span>
+              )}
+            </div>
+          )}
+
           <div style={{
             display: "flex", alignItems: "center",
-            justifyContent: "space-between", marginBottom: 6,
+            justifyContent: "space-between", marginBottom: 8,
           }}>
             <div style={{
-              fontSize: 22, fontWeight: 800,
+              fontSize: 26, fontWeight: 700,
               color: "var(--text-primary)",
+              letterSpacing: "-0.3px",
             }}>
               {activeTask.customer}
             </div>
             <span style={{
-              fontSize: 20, color: "var(--text-secondary)",
+              fontSize: 22, color: "var(--card-arrow)",
               marginLeft: 8,
             }}>
               ›
             </span>
           </div>
 
-          {/* 작업 종류 + 기종 */}
-          <div style={{
-            display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
-          }}>
-            <ServiceTypeIcon workType={activeTask.workType} size={15} showLabel={true}/>
-            <span style={{ fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
-              {activeTask.appliance}{activeTask.qty ? ` ×${activeTask.qty}` : ""}
-            </span>
+          {/* V14 — 작업 항목 한 줄 박스 (구분선 + 컬러박스 + 작업명 + 단가) */}
+          <div style={{ marginBottom: 14 }}>
+            <WorkItemRow
+              workType={activeTask.workType}
+              appliance={activeTask.appliance}
+              qty={activeTask.qty}
+              price={activeTask.estimateTotal}
+              dividerTop={true}
+            />
           </div>
 
           {/* 전체 주소 */}
           <div style={{
             fontSize: 14, color: "var(--text-primary)",
-            marginBottom: 8, lineHeight: 1.5,
+            marginBottom: 12, lineHeight: 1.5, fontWeight: 600,
           }}>
             📍 {activeTask.fullAddress || activeTask.address || "—"}
           </div>
 
-          <div style={{
-            fontSize: 12, color: "var(--text-secondary)", marginBottom: 14, fontWeight: 500,
-          }}>
-            시작 {activeTask.startedAt || activeTask.scheduledTime || "—"}
-            {activeTask.endTime ? ` · 예상 종료 ${activeTask.endTime}` : ""}
-          </div>
+          {/* 시작/종료는 위 큰 시간 표시로 통합 */}
 
-          {/* V14 — 통화 = 초록 #34C759 / 길찾기 = 흰 배경 + 핑크 글자·아이콘 */}
+          {/* V14 — progress bar (시작/종료 둘 다 있을 때만) */}
+          {activeTask.startedAt && activeTask.endTime && (
+            <div style={{
+              height: 3,
+              borderRadius: 2,
+              background: "var(--progress-bg)",
+              overflow: "hidden",
+              marginBottom: 14,
+            }}>
+              <div style={{
+                width: `${calcProgressPct(activeTask.startedAt, activeTask.endTime)}%`,
+                height: "100%",
+                background: colors.main,
+                transition: "width 0.3s",
+              }}/>
+            </div>
+          )}
+
+          {/* V14 — 통화 = 초록 / 길찾기 = 작업 종류 색 (사이즈 키움) */}
           <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
+            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
           }}>
             <button
               onClick={(e) => { e.stopPropagation(); makeTel(activeTask.phone); }}
               style={{
-                padding: 12,
+                padding: 14,
                 background: "#34C759",
                 border: "none",
-                borderRadius: 8,
+                borderRadius: 10,
                 color: "#fff",
-                fontSize: 13, fontWeight: 800,
+                fontSize: 15, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 6,
+                justifyContent: "center", gap: 8,
               }}
             >
               <PhoneSvgColored color="#fff"/> 통화
@@ -809,79 +877,51 @@ function MainScreen({
             <button
               onClick={(e) => { e.stopPropagation(); openMapForTask(activeTask); }}
               style={{
-                padding: 12,
-                background: "#FFFFFF",
-                border: "2px solid #FF1B8D",
-                borderRadius: 8,
-                color: "#FF1B8D",
-                fontSize: 13, fontWeight: 800,
+                padding: 14,
+                background: colors.main,
+                border: "none",
+                borderRadius: 10,
+                color: colors.buttonText || "#fff",
+                fontSize: 15, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 6,
+                justifyContent: "center", gap: 8,
               }}
             >
-              <NavSvgColored color="#FF1B8D"/> 길찾기
+              <NavSvgColored color={colors.buttonText || "#fff"}/> 길찾기
             </button>
           </div>
         </div>
-      )}
-
-      {/* 3. 수락 대기 박스 (V14 — 노란 채우기 + 작업명 명시) */}
-      {pendingAcceptances.length > 0 && (() => {
-        const workTypes = [...new Set(pendingAcceptances.map(p => p.workType).filter(Boolean))];
-        const workTypeLabel = workTypes.length === 1 ? workTypes[0] : "";
-        return (
-          <div
-            onClick={onClickAcceptanceList}
-            className="clickable"
-            style={{
-              margin: "0 16px 8px",
-              background: "#FFB800",
-              borderRadius: 10,
-              padding: 14,
-              cursor: "pointer",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 18 }}>⚡</span>
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  fontSize: 14, color: "#1A1512", fontWeight: 800,
-                }}>
-                  {workTypeLabel ? `${workTypeLabel} 수락 대기` : "수락 대기"} · {pendingAcceptances.length}건
-                </div>
-              </div>
-              <span style={{ fontSize: 16, color: "#1A1512" }}>›</span>
-            </div>
-          </div>
         );
       })()}
 
-      {/* 4. 새 배정 박스 (V14 — 핑크 채우기 그대로 / 50대 글자) */}
+      {/* 3. 수락 대기 배너 (V14 정제 — 흰 카드 + 좌측 4px 핑크 바 + 노랑 박스) */}
+      {pendingAcceptances.length > 0 && (() => {
+        const workTypes = [...new Set(pendingAcceptances.map(p => p.workType).filter(Boolean))];
+        const workTypeLabel = workTypes.length === 1 ? workTypes[0] : "";
+        const title = workTypeLabel ? `${workTypeLabel} 수락 대기` : "수락 대기";
+        return (
+          <AlertBanner
+            onClick={onClickAcceptanceList}
+            iconBg="var(--banner-yellow-bg)"
+            icon="⚡"
+            title={title}
+            subText={`${pendingAcceptances.length}건 · 응답 필요`}
+            subColor="var(--banner-yellow-text)"
+          />
+        );
+      })()}
+
+      {/* 4. 새 배정 배너 (V14 정제 — 흰 카드 + 좌측 4px 핑크 바 + 핑크 박스) */}
       {newAssignments.length > 0 && (
-        <div
+        <AlertBanner
           onClick={onClickNewAssignmentList}
-          className="clickable"
-          style={{
-            margin: "0 16px 14px",
-            background: "#FF1B8D",
-            borderRadius: 10,
-            padding: 14,
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 18 }}>🔔</span>
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: 14, color: "#fff", fontWeight: 800,
-              }}>
-                새 배정 · {newAssignments.length}건
-              </div>
-            </div>
-            <span style={{ fontSize: 16, color: "#fff" }}>›</span>
-          </div>
-        </div>
+          iconBg="var(--banner-pink-bg)"
+          icon="🔔"
+          title="새 배정"
+          subText={`${newAssignments.length}건 · 확인 필요`}
+          subColor="var(--banner-pink-text)"
+        />
       )}
 
       {/* 5. 다음 일정 (시간순) — V14 50대 글자 크기 */}
@@ -938,7 +978,7 @@ function MainScreen({
                   <span>{task.customer}</span>
                   <span style={{
                     fontSize: 12, color: "var(--text-secondary)",
-                    fontWeight: 500,
+                    fontWeight: 600,
                   }}>
                     {task.address}
                   </span>
@@ -949,7 +989,7 @@ function MainScreen({
                   display: "flex", alignItems: "center", gap: 4,
                 }}>
                   <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
-                  <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>
+                  <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
                     {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
                   </span>
                 </div>
@@ -961,6 +1001,73 @@ function MainScreen({
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+// V14 — 알림 배너 (수락 대기 / 새 배정)
+// 흰 카드 + 좌측 4px 핫핑크 바 + 컬러 박스 + 텍스트 + 화살표
+function AlertBanner({ onClick, iconBg, icon, title, subText, subColor }) {
+  return (
+    <div
+      onClick={onClick}
+      className="clickable"
+      style={{
+        position: "relative",
+        margin: "0 16px 8px",
+        background: "var(--card-bg)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: "16px 16px 16px 20px",
+        cursor: "pointer",
+        overflow: "hidden",
+        display: "flex", alignItems: "center", gap: 14,
+      }}
+    >
+      {/* 좌측 4px 핫핑크 바 */}
+      <div style={{
+        position: "absolute",
+        left: 0, top: 0, bottom: 0,
+        width: 4,
+        background: "#FF1B8D",
+      }}/>
+
+      {/* 컬러 박스 */}
+      <div style={{
+        width: 40, height: 40,
+        borderRadius: 11,
+        background: iconBg,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+        fontSize: 20,
+      }}>
+        {icon}
+      </div>
+
+      {/* 텍스트 */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 17, fontWeight: 600,
+          color: "var(--text-primary)",
+        }}>
+          {title}
+        </div>
+        <div style={{
+          fontSize: 13, fontWeight: 600,
+          color: subColor || "var(--text-secondary)",
+          marginTop: 2,
+        }}>
+          {subText}
+        </div>
+      </div>
+
+      {/* 화살표 */}
+      <span style={{
+        fontSize: 18, color: "var(--text-secondary)",
+        flexShrink: 0,
+      }}>
+        ›
+      </span>
     </div>
   );
 }
@@ -984,16 +1091,16 @@ function ActionAlert({ t, alert, delay, onClick }) {
       </div>
       {isMoney ? (
         <div style={{ display: "flex", alignItems: "baseline", gap: 1 }}>
-          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>₩</span>
+          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>₩</span>
           <span className="mono" style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em", color: t.text }}>{alert.amount.toLocaleString()}</span>
         </div>
       ) : (
         <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
           <span className="mono" style={{ fontSize: 26, fontWeight: 700, letterSpacing: "-0.03em", color: hasItems ? t.text : t.textDim }}>{alert.count}</span>
-          <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>건</span>
+          <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>건</span>
         </div>
       )}
-      <div style={{ fontSize: 9, color: t.textDim, fontWeight: 500, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{alert.sublabel}</div>
+      <div style={{ fontSize: 9, color: t.textDim, fontWeight: 600, marginTop: 5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{alert.sublabel}</div>
     </div>
   );
 }
@@ -1030,12 +1137,12 @@ function CompactTaskCard({ task, t, index, onClick }) {
           {isWaiting ? (
             <>
               <div style={{ fontSize: 12, fontWeight: 700, color: t.accent }}>{formatRequestedDate(task.requestedDate)}</div>
-              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 600 }}>{task.requestedTime || "—"} 희망</div>
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 700 }}>{task.requestedTime || "—"} 희망</div>
             </>
           ) : (
             <>
               <div className="mono" style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-0.02em" }}>{task.time || "—"}</div>
-              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 600 }}>{task.duration || ""}</div>
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2, fontWeight: 700 }}>{task.duration || ""}</div>
             </>
           )}
         </div>
@@ -1047,7 +1154,7 @@ function CompactTaskCard({ task, t, index, onClick }) {
           </div>
           <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
             <Icon size={11} style={{ color: t.textMuted }}/>
-            <span style={{ fontSize: 11, color: t.textSecondary, fontWeight: 600 }}>{task.workType} · {task.appliance} ×{task.qty}</span>
+            <span style={{ fontSize: 11, color: t.textSecondary, fontWeight: 700 }}>{task.workType} · {task.appliance} ×{task.qty}</span>
             {task.extraFee > 0 && <span style={{ fontSize: 10, color: t.success, fontWeight: 700, marginLeft: 4 }}>+₩{task.extraFee.toLocaleString()}</span>}
           </div>
         </div>
@@ -1124,11 +1231,11 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: editingSchedule ? 30 : 130, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: editingSchedule ? 30 : 130, color: t.text }}>
       <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+        
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .section { animation: slideIn 0.3s ease-out backwards; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -1138,9 +1245,9 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
       <div style={{ position: "sticky", top: 0, zIndex: 50, background: t.bg, borderBottom: `1px solid ${t.border}`, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="clickable" onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px", borderRadius: 8 }}>
           <ArrowLeft size={18}/>
-          <span style={{ fontSize: 14, fontWeight: 600 }}>뒤로</span>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>뒤로</span>
         </div>
-        <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>{task.id}</span>
+        <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>{task.id}</span>
         <div style={{ padding: 8 }}><MoreVertical size={18} style={{ color: t.textMuted }}/></div>
       </div>
 
@@ -1165,19 +1272,19 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
             <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", marginBottom: 6 }}>고객 희망 시간</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 }}>
               <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: "-0.02em" }}>{formatRequestedDate(task.requestedDate)}</span>
-              <span style={{ fontSize: 18, color: t.textSecondary, fontWeight: 600 }}>{task.requestedTime}</span>
+              <span style={{ fontSize: 18, color: t.textSecondary, fontWeight: 700 }}>{task.requestedTime}</span>
             </div>
-            <div style={{ fontSize: 12, color: t.accent, fontWeight: 600 }}>⚠️ 고객님과 통화 후 정확한 시간을 협의해주세요</div>
+            <div style={{ fontSize: 12, color: t.accent, fontWeight: 700 }}>⚠️ 고객님과 통화 후 정확한 시간을 협의해주세요</div>
           </>
         ) : (
           <>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 8 }}>
               <span className="mono" style={{ fontSize: 48, fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1 }}>{task.time}</span>
-              <span style={{ fontSize: 16, color: t.textMuted, fontWeight: 600 }}>~ {task.endTime}</span>
+              <span style={{ fontSize: 16, color: t.textMuted, fontWeight: 700 }}>~ {task.endTime}</span>
             </div>
             {isInProgress && task.startedAt && <div style={{ fontSize: 12, color: t.warning, fontWeight: 700, marginTop: 4 }}>🟡 {task.startedAt} 시작 · 작업 중</div>}
             {isCompleted && <div style={{ fontSize: 12, color: t.success, fontWeight: 700, marginTop: 4 }}>✅ {task.completedAt} 완료</div>}
-            {!isInProgress && !isCompleted && <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 500 }}>소요 시간 약 {task.duration}</div>}
+            {!isInProgress && !isCompleted && <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 600 }}>소요 시간 약 {task.duration}</div>}
             
             {hasScheduleChange && (
               <div style={{ marginTop: 10, padding: "8px 12px", background: t.warningBg, border: `1px solid ${t.warningBorder}`, borderRadius: 8, display: "flex", alignItems: "center", gap: 6 }}>
@@ -1188,7 +1295,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
 
             {/* 진행중/완료에 일정 변경 안내 */}
             {(isInProgress || isCompleted) && (
-              <div style={{ marginTop: 10, fontSize: 11, color: t.textMuted, fontWeight: 500 }}>
+              <div style={{ marginTop: 10, fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
                 {isInProgress ? "ℹ️ 작업 중에는 일정 변경 불가 (운영팀 연락)" : "🔒 완료된 작업은 변경 불가"}
               </div>
             )}
@@ -1233,7 +1340,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
             <div style={{ background: t.bgElevated, border: `1px solid ${t.accent}`, borderRadius: 10, padding: "12px 14px", marginBottom: 14 }}>
               <div style={{ fontSize: 9, fontWeight: 700, color: t.accent, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>✓ 변경 미리보기</div>
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                <span className="mono" style={{ fontSize: 13, fontWeight: 600, color: t.textMuted, textDecoration: "line-through" }}>{formatHistoryTime(task.scheduledDate, task.scheduledTime)}</span>
+                <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: t.textMuted, textDecoration: "line-through" }}>{formatHistoryTime(task.scheduledDate, task.scheduledTime)}</span>
                 <ArrowRight size={12} style={{ color: t.accent }}/>
                 <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: t.accent }}>{formatHistoryTime(newDate, newTime)}</span>
               </div>
@@ -1254,7 +1361,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
       <Section t={t} title="위치" icon={<MapPin size={13}/>} delay={50}>
         <div style={{ marginBottom: 12 }}>
           <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{task.address}</div>
-          <div style={{ fontSize: 13, color: t.textSecondary, fontWeight: 500, lineHeight: 1.5 }}>{task.fullAddress}</div>
+          <div style={{ fontSize: 13, color: t.textSecondary, fontWeight: 600, lineHeight: 1.5 }}>{task.fullAddress}</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 14px", background: t.bgInset, borderRadius: 10, marginBottom: 12 }}>
           <div>
@@ -1276,7 +1383,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
           <div style={{ width: 44, height: 44, borderRadius: 14, background: t.accentBg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, color: t.accent }}>{task.customer.slice(0, 1)}</div>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 700 }}>{task.customer}님</div>
-            <div className="mono" style={{ fontSize: 13, color: t.textSecondary, fontWeight: 500, marginTop: 2 }}>{task.phone}</div>
+            <div className="mono" style={{ fontSize: 13, color: t.textSecondary, fontWeight: 600, marginTop: 2 }}>{task.phone}</div>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -1389,7 +1496,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
           {task.scheduleHistory.map((entry, idx) => (
             <div key={idx} style={{ padding: "10px 12px", background: t.bgInset, borderRadius: 10, marginBottom: 6, borderLeft: `2px solid ${t.warning}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: entry.reason ? 6 : 0, flexWrap: "wrap" }}>
-                <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, textDecoration: "line-through" }}>{formatHistoryTime(entry.from.date, entry.from.time)}</span>
+                <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 700, textDecoration: "line-through" }}>{formatHistoryTime(entry.from.date, entry.from.time)}</span>
                 <ArrowRight size={11} style={{ color: t.warning }}/>
                 <span className="mono" style={{ fontSize: 12, color: t.warning, fontWeight: 700 }}>{formatHistoryTime(entry.to.date, entry.to.time)}</span>
               </div>
@@ -1408,7 +1515,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>문제가 있나요?</div>
-              <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 500 }}>운영팀에 바로 연락 가능</div>
+              <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>운영팀에 바로 연락 가능</div>
             </div>
             <button className="clickable" style={{ padding: "10px 14px", background: t.warning, color: "#1A1512", border: "none", borderRadius: 9, fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
               <Phone size={13}/><span>연락</span>
@@ -1458,7 +1565,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
           {!isCompleted && (
             <div className="clickable" style={{ textAlign: "center", padding: "6px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
               <AlertTriangle size={11} style={{ color: t.textMuted }}/>
-              <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>작업이 어려운 상황인가요?</span>
+              <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>작업이 어려운 상황인가요?</span>
               <span style={{ fontSize: 11, color: t.accent, fontWeight: 700, textDecoration: "underline" }}>작업 불가 처리</span>
             </div>
           )}
@@ -1497,9 +1604,9 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 130, color: t.text }}>
       <style>{`
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .section { animation: slideIn 0.3s ease-out backwards; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -1508,7 +1615,7 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
 
       <div style={{ position: "sticky", top: 0, zIndex: 50, background: t.bg, borderBottom: `1px solid ${t.border}`, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div className="clickable" onClick={onCancel} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px" }}>
-          <ArrowLeft size={18}/><span style={{ fontSize: 14, fontWeight: 600 }}>취소</span>
+          <ArrowLeft size={18}/><span style={{ fontSize: 14, fontWeight: 700 }}>취소</span>
         </div>
         <span style={{ fontSize: 14, fontWeight: 800 }}>완료 보고</span>
         <div style={{ width: 60 }}/>
@@ -1529,16 +1636,16 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
           <PhotoUploadBox t={t} label="작업 전" uploaded={beforePhoto} onClick={() => setBeforePhoto(!beforePhoto)}/>
           <PhotoUploadBox t={t} label="작업 후" uploaded={afterPhoto} onClick={() => setAfterPhoto(!afterPhoto)}/>
         </div>
-        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>※ 두 사진 모두 업로드 (위 박스 탭하면 시뮬됨)</div>
+        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>※ 두 사진 모두 업로드 (위 박스 탭하면 시뮬됨)</div>
       </Section>
 
       <Section t={t} title="현장 추가금" icon={<Plus size={13}/>} delay={100}>
         <div style={{ marginBottom: 12 }}>
           <label style={labelStyle(t)}>💰 추가 금액 (선택)</label>
           <div style={{ position: "relative" }}>
-            <input type="text" inputMode="numeric" placeholder="0" value={extraFee ? formatCurrency(extraFee) : ""} onChange={(e) => setExtraFee(e.target.value)} style={{ ...inputStyle(t), paddingLeft: 32, fontFamily: "'JetBrains Mono', monospace" }}/>
-            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textMuted, fontWeight: 600 }}>₩</span>
-            {extraFee && <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: t.textMuted, fontWeight: 600 }}>원</span>}
+            <input type="text" inputMode="numeric" placeholder="0" value={extraFee ? formatCurrency(extraFee) : ""} onChange={(e) => setExtraFee(e.target.value)} style={{ ...inputStyle(t), paddingLeft: 32, fontFamily: "inherit" }}/>
+            <span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textMuted, fontWeight: 700 }}>₩</span>
+            {extraFee && <span style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 11, color: t.textMuted, fontWeight: 700 }}>원</span>}
           </div>
           <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
             {[10000, 20000, 30000, 50000].map(amount => (
@@ -1617,7 +1724,7 @@ function InfoBox({ t, label, value, icon }) {
 function Row({ t, label, value, mono, bold, dim, small, success }) {
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: small ? "5px 0" : "7px 0", fontSize: small ? 12 : 13 }}>
-      <span style={{ color: t.textMuted, fontWeight: 500 }}>{label}</span>
+      <span style={{ color: t.textMuted, fontWeight: 600 }}>{label}</span>
       <span className={mono ? "mono" : ""} style={{ color: dim ? t.textMuted : success ? t.success : t.text, fontWeight: bold ? 700 : 600, fontSize: bold ? 15 : (small ? 12 : 13) }}>{value}</span>
     </div>
   );
@@ -1630,7 +1737,7 @@ function PhotoUploadBox({ t, label, uploaded, onClick, locked }) {
       {locked && <Lock size={12} style={{ position: "absolute", top: 8, right: 8, color: t.textMuted }}/>}
       <ImageIcon size={20}/>
       <span style={{ fontSize: 11, fontWeight: 700 }}>{label}</span>
-      {uploaded && <span style={{ fontSize: 9, fontWeight: 600, opacity: 0.7 }}>업로드됨</span>}
+      {uploaded && <span style={{ fontSize: 9, fontWeight: 700, opacity: 0.7 }}>업로드됨</span>}
     </div>
   );
 }
@@ -1651,13 +1758,13 @@ function SettlementScreen({ t }) {
     : SETTLEMENT_DATA.recentJobs;
   
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <style>{`
-        @import url('https://cdn.jsdelivr.net/gh/spoqa/spoqa-han-sans@01ff0283e4f6c01667e0c819cfe9d2e933020d3a/css/SpoqaHanSansNeo.css');
+        
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
         .clickable:active { opacity: 0.7; }
       `}</style>
@@ -1665,7 +1772,7 @@ function SettlementScreen({ t }) {
       {/* 헤더 */}
       <div style={{ padding: "28px 20px 0" }}>
         <div style={{ marginBottom: 20 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>
             정산 · MON 27 APR
           </span>
         </div>
@@ -1701,12 +1808,12 @@ function SettlementScreen({ t }) {
             {period === "today" ? "오늘" : "이번 달"} 내 수익 (수수료 제외)
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
-            <span style={{ fontSize: 14, color: t.textMuted, fontWeight: 600 }}>₩</span>
+            <span style={{ fontSize: 14, color: t.textMuted, fontWeight: 700 }}>₩</span>
             <span className="mono" style={{ fontSize: 42, fontWeight: 800, letterSpacing: "-0.03em", lineHeight: 1, color: t.accent }}>
               {data.netIncome.toLocaleString()}
             </span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: t.textMuted, fontWeight: 500 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
             <span>완료 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{data.completedCount}</span>건</span>
             <span>·</span>
             <span>작업당 평균 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>₩{data.avgPerJob.toLocaleString()}</span></span>
@@ -1727,12 +1834,12 @@ function SettlementScreen({ t }) {
               <span style={{ fontSize: 10, fontWeight: 700, color: t.success, letterSpacing: 0.5, textTransform: "uppercase" }}>현장 수금</span>
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: t.success, fontWeight: 600 }}>₩</span>
+              <span style={{ fontSize: 11, color: t.success, fontWeight: 700 }}>₩</span>
               <span className="mono" style={{ fontSize: 18, fontWeight: 800, color: t.success }}>
                 {data.fieldCollection.received.toLocaleString()}
               </span>
             </div>
-            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 6 }}>
               {data.fieldCollection.count}건 받음
             </div>
             <div style={{ paddingTop: 6, borderTop: `1px solid ${t.border}` }}>
@@ -1759,12 +1866,12 @@ function SettlementScreen({ t }) {
               <span style={{ fontSize: 10, fontWeight: 700, color: t.accent, letterSpacing: 0.5, textTransform: "uppercase" }}>회사 정산</span>
             </div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 2, marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: t.accent, fontWeight: 600 }}>₩</span>
+              <span style={{ fontSize: 11, color: t.accent, fontWeight: 700 }}>₩</span>
               <span className="mono" style={{ fontSize: 18, fontWeight: 800, color: t.accent }}>
                 {data.companySettlement.gross.toLocaleString()}
               </span>
             </div>
-            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 6 }}>
               {data.companySettlement.count}건 발생
             </div>
             <div style={{ paddingTop: 6, borderTop: `1px solid ${t.border}` }}>
@@ -1865,7 +1972,7 @@ function JobSettlementCard({ job, t, index }) {
       {/* 상단: 시간 + 고객 + 라벨 */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
             {job.date} {job.time}
           </span>
           <span style={{ fontSize: 13, fontWeight: 700 }}>{job.customer}</span>
@@ -1883,7 +1990,7 @@ function JobSettlementCard({ job, t, index }) {
       {/* 하단: 3단 정산 표시 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, paddingTop: 8, borderTop: `1px solid ${t.border}` }}>
         <div>
-          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 600, marginBottom: 3 }}>
+          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 3 }}>
             {isField ? "고객 수금" : "상품 금액"}
           </div>
           <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
@@ -1891,7 +1998,7 @@ function JobSettlementCard({ job, t, index }) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 600, marginBottom: 3 }}>
+          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 3 }}>
             {isField ? "회사 송금" : "수수료"}
           </div>
           <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.danger }}>
@@ -1899,7 +2006,7 @@ function JobSettlementCard({ job, t, index }) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 600, marginBottom: 3 }}>
+          <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 3 }}>
             {isField ? "내 수익" : "받을 금액"}
           </div>
           <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: labelColor }}>
@@ -1918,11 +2025,11 @@ function SmallMetric({ t, label, value, unit, dim, delay }) {
         {label}
       </div>
       <div style={{ display: "flex", alignItems: "baseline", gap: 2 }}>
-        {unit === "₩" && <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>₩</span>}
+        {unit === "₩" && <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>₩</span>}
         <span className="mono" style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: dim ? t.textMuted : t.text }}>
           {value.toLocaleString()}
         </span>
-        {unit === "건" && <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>건</span>}
+        {unit === "건" && <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>건</span>}
       </div>
     </div>
   );
@@ -1951,9 +2058,9 @@ function NotificationsScreen({ t }) {
   };
 
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <style>{`
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -1962,7 +2069,7 @@ function NotificationsScreen({ t }) {
 
       <div style={{ padding: "28px 20px 0" }}>
         <div style={{ marginBottom: 20 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>
             알림 · MON 27 APR
           </span>
         </div>
@@ -2008,7 +2115,7 @@ function NotificationsScreen({ t }) {
       {filtered.length === 0 ? (
         <div style={{ padding: "60px 20px", textAlign: "center", color: t.textMuted }}>
           <Bell size={32} style={{ color: t.textDim, margin: "0 auto 12px" }}/>
-          <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4 }}>
             {filter === "unread" ? "안 읽은 알림이 없어요" : "알림이 없어요"}
           </div>
           <div style={{ fontSize: 11, color: t.textDim }}>새 알림이 오면 여기에 표시됩니다</div>
@@ -2096,7 +2203,7 @@ function NotificationItem({ notif, t, index, onMarkRead, onRemove }) {
               </button>
             )}
             <button onClick={(e) => { e.stopPropagation(); onRemove(); }} className="clickable" style={{
-              fontSize: 10, fontWeight: 600, padding: "5px 8px",
+              fontSize: 10, fontWeight: 700, padding: "5px 8px",
               background: "transparent", color: t.textMuted,
               border: `1px solid ${t.border}`, borderRadius: 6,
               cursor: "pointer", fontFamily: "inherit",
@@ -2120,9 +2227,9 @@ function ProfileScreen({ t, mode, setMode }) {
   const nextRank = ENGINEER_RANKS[ENGINEER_RANKS.findIndex(r => r.id === PROFILE_DATA.currentRank) + 1];
   
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <style>{`
-        .mono { font-family: 'JetBrains Mono', monospace; }
+        .mono { font-family: inherit; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         .card-fade { animation: slideUp 0.4s ease-out backwards; }
         .clickable { cursor: pointer; transition: opacity 0.15s; }
@@ -2132,7 +2239,7 @@ function ProfileScreen({ t, mode, setMode }) {
       {/* 헤더 + 프로필 카드 */}
       <div style={{ padding: "28px 20px 0" }}>
         <div style={{ marginBottom: 20 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>
             내 정보
           </span>
         </div>
@@ -2182,7 +2289,7 @@ function ProfileScreen({ t, mode, setMode }) {
             </span>
           </div>
           
-          <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 600, marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 700, marginBottom: 16 }}>
             {PROFILE_DATA.region} · 가입 {PROFILE_DATA.joinDate} ({PROFILE_DATA.yearsAtCompany}년차)
           </div>
           
@@ -2190,7 +2297,7 @@ function ProfileScreen({ t, mode, setMode }) {
           {nextRank && (
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 6 }}>
-                <span style={{ color: t.textMuted, fontWeight: 600 }}>
+                <span style={{ color: t.textMuted, fontWeight: 700 }}>
                   {nextRank.icon} {nextRank.name}까지
                 </span>
                 <span className="mono" style={{ color: t.accent, fontWeight: 700 }}>
@@ -2203,7 +2310,7 @@ function ProfileScreen({ t, mode, setMode }) {
                   background: t.accent, transition: "width 0.5s",
                 }}/>
               </div>
-              <div style={{ fontSize: 9, color: t.textDim, marginTop: 4, textAlign: "right", fontFamily: "'JetBrains Mono', monospace" }}>
+              <div style={{ fontSize: 9, color: t.textDim, marginTop: 4, textAlign: "right", fontFamily: "inherit" }}>
                 {PROFILE_DATA.rankProgress}%
               </div>
             </div>
@@ -2262,7 +2369,7 @@ function ProfileScreen({ t, mode, setMode }) {
                     )}
                   </div>
                 </div>
-                <div className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>
+                <div className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>
                   {rank.max === 9999 ? `${rank.min}+` : `${rank.min}~${rank.max}`}건
                 </div>
               </div>
@@ -2352,7 +2459,7 @@ function ProfileScreen({ t, mode, setMode }) {
 
       {/* 버전 */}
       <div style={{ padding: "30px 20px", textAlign: "center" }}>
-        <div className="mono" style={{ fontSize: 10, color: t.textDim, fontWeight: 500 }}>
+        <div className="mono" style={{ fontSize: 10, color: t.textDim, fontWeight: 600 }}>
           올잇(Ollit) v0.20 · 호칭: 기사님
         </div>
       </div>
@@ -2375,7 +2482,7 @@ function ProfileStat({ t, label, value, unit, highlight, delay }) {
         <span className="mono" style={{ fontSize: 18, fontWeight: 800, letterSpacing: "-0.02em", color: highlight ? t.accent : t.text }}>
           {value}
         </span>
-        {unit && <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{unit}</span>}
+        {unit && <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>{unit}</span>}
       </div>
     </div>
   );
@@ -2646,10 +2753,10 @@ function CalendarScreen({ t, engineerName, tasks }) {
   }
   
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <div style={{ padding: "20px 16px 16px" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 500, textTransform: "uppercase" }}>CALENDAR</span>
+          <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>CALENDAR</span>
           <button onClick={() => setShowModal(true)} style={{
             background: t.accent, color: "white", border: "none", borderRadius: 8,
             padding: "6px 12px", fontSize: 11, fontWeight: 700, cursor: "pointer",
@@ -2676,7 +2783,7 @@ function CalendarScreen({ t, engineerName, tasks }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", padding: "0 16px", marginBottom: 4 }}>
         {["日", "月", "火", "水", "木", "金", "土"].map((d, i) => (
           <div key={i} style={{ 
-            textAlign: "center", padding: "8px 0", fontSize: 11, fontWeight: 600,
+            textAlign: "center", padding: "8px 0", fontSize: 11, fontWeight: 700,
             color: i === 0 ? "#FF6B6B" : i === 6 ? "#5DA1F5" : t.textMuted 
           }}>{d}</div>
         ))}
@@ -2972,7 +3079,7 @@ function DayDetailScreen({ t, date, tasks, offDays: initialOffDays, engineerName
   }
   
   return (
-    <div style={{ fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+    <div style={{ fontFamily: "'Pretendard', -apple-system, sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <div style={{ padding: "20px 16px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
           <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text }}>
@@ -3018,7 +3125,7 @@ function DayDetailScreen({ t, date, tasks, offDays: initialOffDays, engineerName
                 top: h * HOUR_HEIGHT - 6,
                 right: 4,
                 fontSize: 9, color: t.textMuted,
-                fontFamily: 'monospace', fontWeight: 600,
+                fontFamily: 'inherit', fontWeight: 700,
               }}>
                 {String(h).padStart(2, '0')}
               </div>
@@ -3111,7 +3218,7 @@ function DayDetailScreen({ t, date, tasks, offDays: initialOffDays, engineerName
                     <div style={{
                       position: 'absolute', bottom: 4, right: 8,
                       fontSize: 9, opacity: 0.7,
-                      fontFamily: 'monospace',
+                      fontFamily: 'inherit',
                     }}>
                       {String(Math.floor(b.start)).padStart(2,'0')}:{String(Math.round((b.start % 1) * 60)).padStart(2,'0')}
                       {' ~ '}
@@ -3263,7 +3370,7 @@ function TimeWheelSheet({ t, isOpen, initialValue, label, onClose, onSelect }) {
                     fontSize: h === selectedHour ? 22 : 16,
                     fontWeight: h === selectedHour ? 700 : 400,
                     color: h === selectedHour ? t.accent : t.textMuted,
-                    fontFamily: 'monospace',
+                    fontFamily: 'inherit',
                     scrollSnapAlign: 'center',
                     transition: 'all 0.15s',
                     cursor: 'pointer',
@@ -3290,7 +3397,7 @@ function TimeWheelSheet({ t, isOpen, initialValue, label, onClose, onSelect }) {
                     fontSize: m === selectedMin ? 22 : 16,
                     fontWeight: m === selectedMin ? 700 : 400,
                     color: m === selectedMin ? t.accent : t.textMuted,
-                    fontFamily: 'monospace',
+                    fontFamily: 'inherit',
                     scrollSnapAlign: 'center',
                     transition: 'all 0.15s',
                     cursor: 'pointer',
@@ -3340,7 +3447,7 @@ function DragTimePicker({ value, onChange, t, label }) {
           border: 'none',
           fontSize: 22,
           fontWeight: 700,
-          fontFamily: 'monospace',
+          fontFamily: 'inherit',
           letterSpacing: 1,
           cursor: 'pointer',
           padding: '4px 8px',
@@ -3473,7 +3580,7 @@ function AddOffDayModal({ t, engineerName, defaultDate, onClose, onSaved }) {
               padding: '14px 16px', marginBottom: 8,
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
             }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>시작</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>시작</span>
               <DragTimePicker t={t} value={startTime} onChange={setStartTime} label="시작 시간 선택" />
             </div>
             
@@ -3483,7 +3590,7 @@ function AddOffDayModal({ t, engineerName, defaultDate, onClose, onSaved }) {
               padding: '14px 16px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12,
             }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>종료</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>종료</span>
               <DragTimePicker t={t} value={endTime} onChange={setEndTime} label="종료 시간 선택" />
             </div>
           </div>
@@ -3532,10 +3639,67 @@ function AddOffDayModal({ t, engineerName, defaultDate, onClose, onSaved }) {
   );
 }
 
+// V14 — 시뮬 가짜 데이터 helpers (백엔드 연동 시 제거)
+function generateFakeKoreanName() {
+  const lastNames  = ["김", "이", "박", "최", "정", "강", "조", "윤", "장", "임"];
+  const firstNames = ["민준", "서연", "하준", "지우", "도윤", "서아", "시우", "하은", "예준", "수아"];
+  const ln = lastNames[Math.floor(Math.random() * lastNames.length)];
+  const fn = firstNames[Math.floor(Math.random() * firstNames.length)];
+  return ln + fn;
+}
+
+function generateFakePhone() {
+  const mid  = String(1000 + Math.floor(Math.random() * 9000));
+  const last = String(1000 + Math.floor(Math.random() * 9000));
+  return `010-${mid}-${last}`;
+}
+
+function generateFakeAddress(region) {
+  const streets   = ["테헤란로", "삼성로", "도산대로", "강남대로", "봉은사로"];
+  const buildings = ["래미안 아파트", "트라움하우스", "푸르지오", "자이", "롯데캐슬"];
+  const street    = streets[Math.floor(Math.random() * streets.length)];
+  const building  = buildings[Math.floor(Math.random() * buildings.length)];
+  const num       = Math.floor(100 + Math.random() * 900);
+  const dong      = Math.floor(100 + Math.random() * 900);
+  const ho        = Math.floor(100 + Math.random() * 900);
+  const base      = region || "강남구";
+  return `${base} ${street} ${num}, ${building} ${dong}동 ${ho}호`;
+}
+
+function convertTimeHintToDate(hint) {
+  // workSchedule "당일 (오후)" / "내일 오전" 등 → "YYYY-MM-DD"
+  if (!hint) return null;
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  if (/내일/.test(hint)) return fmt(tomorrow);
+  return fmt(today);
+}
+
+function extractTimeHint(hint) {
+  if (!hint) return "";
+  if (/오전/.test(hint)) return "오전";
+  if (/오후/.test(hint)) return "오후";
+  return "";
+}
+
 export default function EngineerApp({ user, onLogout }) {
   // V13-1-fix — localStorage 모드 로드 + CSS 변수 적용
   const [mode, setMode] = useState(() => loadThemeSaved());
-  const [screen, setScreen] = useState("main");
+  // V14 — navigation stack: 알림 → 작업 → 뒤로 = 알림 복귀
+  const [screenStack, setScreenStack] = useState(["main"]);
+  const screen = screenStack[screenStack.length - 1];
+  const setScreen = (s) => setScreenStack(prev => (prev[prev.length - 1] === s ? prev : [...prev, s]));
+  const goBack    = () => setScreenStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
+  const resetTo   = (s) => setScreenStack([s]);
+  const handleTabChange = (tabId) => {
+    if (tabId === "today")        resetTo("main");
+    else if (tabId === "settle")  resetTo("settlement");
+    else if (tabId === "cal")     resetTo("calendar");
+    else if (tabId === "noti")    resetTo("notifications");
+    else if (tabId === "me")      resetTo("profile");
+  };
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   // V13-1 — 가스 자동 배정 콜 (catch #10 — mock 1건 추가)
   const [pendingAcceptances, setPendingAcceptances] = useState([
@@ -3567,20 +3731,57 @@ export default function EngineerApp({ user, onLogout }) {
   const t = THEMES[mode];
   const selectedTask = tasks.find(x => x.id === selectedTaskId);
 
-  const reset = () => { resetTasks(); setScreen("main"); setSelectedTaskId(null); };
+  const reset = () => { resetTasks(); resetTo("main"); setSelectedTaskId(null); };
+
+  // V14 — 수락한 acceptance를 새 배정 리스트에 추가 (newAssignments 계산 전에 선언)
+  const [extraAssignments, setExtraAssignments] = useState([]);
 
   // V13-1 — 새 배정 리스트 (오늘 화면 새 배정 박스 클릭)
-  const newAssignments = tasks.filter(x =>
-    x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
-  );
+  // V14 — 수락한 acceptance(extraAssignments)도 합산
+  const newAssignments = [
+    ...tasks.filter(x =>
+      x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
+    ),
+    ...extraAssignments,
+  ];
 
-  // V13-1 — 수락 / 거절 핸들러 (Phase 1B 백엔드 연결 전 낙관적 업데이트)
+  // V14 (정정) — 수락 / 거절 핸들러
+  // 수락 = acceptance를 새 배정 리스트에 추가 → 토스트 + 메인 홈 (즉시 일정 협의 X)
+  // 거절 = 메인 홈으로 (다음 기사에게 이관)
   function handleAcceptCall(callId) {
+    const accepted = pendingAcceptances.find(c => c.id === callId);
+    if (!accepted) return;
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
-    setScreen("newAssignmentList");
+
+    // V14 — 시뮬 데이터: 수락 시 가짜 풀 고객 정보 자동 생성 (백엔드 연동 시 제거)
+    const fakeName     = generateFakeKoreanName();
+    const fakePhone    = generateFakePhone();
+    const fakeAddress  = generateFakeAddress(accepted.region);
+    const desiredDate  = convertTimeHintToDate(accepted.workSchedule);
+    const desiredTime  = extractTimeHint(accepted.workSchedule);
+
+    setExtraAssignments(prev => [...prev, {
+      id:            accepted.id,
+      customer:      accepted.customer || fakeName,
+      phone:         accepted.phone || fakePhone,
+      workType:      accepted.workType,
+      appliance:     accepted.appliance,
+      qty:           accepted.qty,
+      fullAddress:   accepted.fullAddress || fakeAddress,
+      region:        accepted.region,
+      estimateTotal: accepted.engineerRate,
+      requestedAgo:  accepted.requestedAgo,
+      requestedDate: desiredDate,
+      requestedTime: desiredTime,
+      assignedAt:    new Date().toISOString(),
+      status:        "약속대기",
+    }]);
+    showToast("수락 완료. 새 배정에 추가됐습니다.");
+    resetTo("main");
   }
   function handleRejectCall(callId) {
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
+    resetTo("main");
   }
 
   // V13-FINAL2 — 4탭 mock 데이터
@@ -3613,14 +3814,15 @@ export default function EngineerApp({ user, onLogout }) {
     regions: ["강남구", "서초구", "송파구"],
   };
 
-  // 알림 mock (통합 7카테고리 — 기사용 라벨)
+  // V14 — 알림 mock (사장님 spec 7가지 type, relatedId는 실제 5월 task ID와 매칭)
   const [notifications, setNotifications] = useState([
-    { id: "n1", type: "new_assign",      category: "new_assign",      categoryLabel: "새 배정",     title: "정도현님 (세척 ×1)",       subtitle: "강남구 청담동 · 벽걸이 1대",      timeAgo: "30분 전",  createdAt: new Date(Date.now() - 30 * 60 * 1000),       read: false, important: true,  taskId: "A260427-004" },
-    { id: "n2", type: "new_assign",      category: "new_assign",      categoryLabel: "새 배정",     title: "냉매충전 콜 (강남구)",      subtitle: "시스템 멀티 1대 · 단가 ₩80,000",  timeAgo: "2시간 전", createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   read: false, important: true },
-    { id: "n3", type: "schedule_change", category: "schedule_change", categoryLabel: "일정 변경",   title: "이상훈님 일정 변경",        subtitle: "11:30 → 13:00",                    timeAgo: "4시간 전", createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),   read: false, important: false, taskId: "A260427-002" },
-    { id: "n4", type: "settlement",      category: "settlement",      categoryLabel: "입금 확인",   title: "어제 입금 확인 완료",       subtitle: "₩168,000 회사 송금 처리됨",        timeAgo: "18시간 전",createdAt: new Date(Date.now() - 18 * 60 * 60 * 1000),  read: true,  important: false },
-    { id: "n5", type: "ops_memo",        category: "ops_memo",        categoryLabel: "운영팀 메모", title: "박지영님 운영팀 메모",      subtitle: "현관 비밀번호 1234, 강아지 있어요", timeAgo: "1일 전",   createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000),  read: true,  important: false, taskId: "A260427-001" },
-    { id: "n6", type: "urgent",          category: "urgent",          categoryLabel: "긴급",        title: "오늘 22시 정산 마감",       subtitle: "회사 송금 마감",                    timeAgo: "3일 전",   createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), read: true, important: false },
+    { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",   title: "새 배정 도착",        subtitle: "정도현 고객님 · 세척 · 청담동",                  relatedId: "A260427-004", targetScreen: "newAssignmentList" },
+    { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   timeAgo: "2시간 전",  title: "냉매충전 콜 · 선착순",  subtitle: "강남구 · 시스템 멀티 · 80,000원",                relatedId: "CALL001",     targetScreen: "acceptanceList" },
+    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),   timeAgo: "4시간 전",  title: "운영팀 메시지",        subtitle: "5/4 김미경 고객님 시간 변경 요청 받았어요. 확인 부탁드립니다.", relatedId: "A260504-003", targetScreen: "detail" },
+    { id: "N004", type: "schedule_changed",   read: true,  urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "일정 변경됨",          subtitle: "박지영 고객님 작업 시간이 09:30 → 09:05로 변경됐어요", relatedId: "A260504-001", targetScreen: "detail" },
+    { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 28 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "작업 취소",            subtitle: "최영환 고객님이 5/3 작업을 취소했어요",            relatedId: null,          targetScreen: null },
+    { id: "N006", type: "payment_received",   read: true,  urgent: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), timeAgo: "2일 전", title: "입금 처리 완료",        subtitle: "5/3 정산 24,000원 회사 송금 확인됐어요",            targetScreen: "paymentHistory" },
+    { id: "N007", type: "photo_missing",      read: true,  urgent: false, createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), timeAgo: "3일 전", title: "사진 누락",            subtitle: "5/1 박은서 작업의 After 사진을 추가해주세요",       relatedId: "A260501-001", targetScreen: "detail" },
   ]);
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -3633,57 +3835,243 @@ export default function EngineerApp({ user, onLogout }) {
 
   function handleNotiClick(noti) {
     markAsRead(noti.id);
-    const cat = noti.category || noti.type;
-    if (cat === "new_assign") return setScreen("newAssignmentList");
-    if (noti.taskId) {
-      const t = tasks.find(x => x.id === noti.taskId);
-      if (t) { setSelectedTaskId(t.id); setScreen("detail"); return; }
+    // 작업 취소 등 — 이동 X (인지만)
+    if (!noti.targetScreen && !noti.relatedId) return;
+
+    // relatedId 우선 — task 찾으면 status에 따라 detail 화면 진입
+    if (noti.relatedId) {
+      const t = tasks.find(x => x.id === noti.relatedId);
+      if (t) {
+        setSelectedTaskId(t.id);
+        setScreen("detail");
+        return;
+      }
     }
-    if (cat === "settlement" || cat === "urgent") return setScreen("settlement");
+
+    if (noti.targetScreen) setScreen(noti.targetScreen);
   }
 
   // 유솔N 달력 mock
   const usolNMonthData = { totalAmount: 280000, count: 4, byDate: {} };
   const loadUsolNDayTasks = () => [];
 
+  // V14 — 회사 송금 내역 시뮬 데이터 (사장님 spec 일별 그룹)
+  const paymentsMock = [
+    {
+      date: "2026-05-04", status: "pending", totalAmount: 28500, deadline: "22:00",
+      works: [
+        { id: "A260504-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 28500 },
+      ],
+    },
+    {
+      date: "2026-05-03", status: "completed", totalAmount: 140000, depositTime: "22:15",
+      works: [
+        { id: null, customerName: "정민호", workType: "냉매", workItem: "스탠드", quantity: 1, feeAmount: 60000 },
+        { id: null, customerName: "권태수", workType: "냉매", workItem: "벽걸이", quantity: 2, feeAmount: 80000 },
+      ],
+    },
+    {
+      date: "2026-05-02", status: "completed", totalAmount: 24000, depositTime: "22:08",
+      works: [
+        { id: "A260502-001", customerName: "정민호", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 24000 },
+      ],
+    },
+    {
+      date: "2026-05-01", status: "completed", totalAmount: 60000, depositTime: "22:30",
+      works: [
+        { id: "A260501-001", customerName: "박은서", workType: "세척", workItem: "스탠드", quantity: 1, feeAmount: 36000 },
+        { id: "A260501-002", customerName: "이수진", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 24000 },
+      ],
+    },
+    {
+      date: "2026-04-28", status: "completed", totalAmount: 112000, depositTime: "22:00",
+      works: [
+        { id: null, customerName: "최민호", workType: "세척", workItem: "벽걸이", quantity: 2, feeAmount: 60000 },
+        { id: null, customerName: "박은비", workType: "냉매", workItem: "스탠드", quantity: 1, feeAmount: 52000 },
+      ],
+    },
+  ];
+
+  // V14 — 유솔N 정산 시뮬 (5월=누적 / 4월=받을 돈 / 3월=입금 완료)
+  const usolNGroupsMock = [
+    // 5월 (누적, 일하는 만큼 쌓임)
+    {
+      date: "2026-05-04", status: "pending", totalAmount: 80000, payDate: "2026-06-15",
+      works: [
+        { id: null, customerName: "김재훈", workType: "냉매", workItem: "시스템 멀티", quantity: 1, feeAmount: 80000 },
+      ],
+    },
+    {
+      date: "2026-05-02", status: "pending", totalAmount: 120000, payDate: "2026-06-15",
+      works: [
+        { id: null, customerName: "윤지원", workType: "냉매", workItem: "스탠드", quantity: 2, feeAmount: 120000 },
+      ],
+    },
+    {
+      date: "2026-05-01", status: "pending", totalAmount: 80000, payDate: "2026-06-15",
+      works: [
+        { id: null, customerName: "한승호", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 80000 },
+      ],
+    },
+    // 4월 (받을 돈, 5월 15일 입금 예정)
+    {
+      date: "2026-04-28", status: "pending", totalAmount: 60000, payDate: "2026-05-15",
+      works: [
+        { id: null, customerName: "최민호", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 60000 },
+      ],
+    },
+    {
+      date: "2026-04-25", status: "pending", totalAmount: 80000, payDate: "2026-05-15",
+      works: [
+        { id: null, customerName: "김민재", workType: "냉매", workItem: "시스템 멀티", quantity: 1, feeAmount: 80000 },
+      ],
+    },
+    // 3월 (입금 완료, 4월 15일 입금됨)
+    {
+      date: "2026-03-22", status: "completed", totalAmount: 90000, payDate: "2026-04-15",
+      works: [
+        { id: null, customerName: "이태원", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 90000 },
+      ],
+    },
+    {
+      date: "2026-03-10", status: "completed", totalAmount: 160000, payDate: "2026-04-15",
+      works: [
+        { id: null, customerName: "박은비", workType: "냉매", workItem: "스탠드", quantity: 2, feeAmount: 160000 },
+      ],
+    },
+  ];
+
   // 휴무 mock
   const offDays = [];
 
   // V13-FINAL2-fix1 — 휴무 / 계좌 / 활동 지역 / 통화 화면 상태
   const [offDayModalOpen, setOffDayModalOpen] = useState(false);
-  const [savedOffDays, setSavedOffDays] = useState([]);
+  // V14 — 5월 시뮬 휴무 (5/3 일요일, 5/5 어린이날)
+  // V14 — 휴무 (localStorage 저장, 재방문 후에도 유지)
+  const [savedOffDays, setSavedOffDays] = useState(() => {
+    try {
+      const v = localStorage.getItem("ollit_off_days");
+      if (v) {
+        const parsed = JSON.parse(v);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [
+      { type: "single", date: "2026-05-03", reason: "휴무" },
+      { type: "single", date: "2026-05-05", reason: "휴무 (어린이날)" },
+    ];
+  });
+  useEffect(() => {
+    try { localStorage.setItem("ollit_off_days", JSON.stringify(savedOffDays)); } catch (e) {}
+  }, [savedOffDays]);
   const [savedAccount, setSavedAccount] = useState(null);
   const [savedRegions, setSavedRegions] = useState(null);
   const [callTaskId, setCallTaskId] = useState(null);
+  // V14 — 수락 대기 → 새 배정 상세 라우팅용 임시 task
+  const [acceptedCall, setAcceptedCall] = useState(null);
+  // V14 — 토스트 메시지
+  const [toast, setToast] = useState(null);
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  }
 
-  function handleAddOff() { setOffDayModalOpen(true); }
+  const [pendingOffDate, setPendingOffDate] = useState(null);
+  function handleAddOff(date) {
+    setPendingOffDate(date || null);
+    setOffDayModalOpen(true);
+  }
+
+  // V14 — 휴무 해제 (✕ → ConfirmModal → filter)
+  const [removeOffConfirm, setRemoveOffConfirm] = useState(null);
+  function getOffLabel(off) {
+    function fmt(ymd) {
+      if (!ymd) return "—";
+      const parts = ymd.split("-");
+      if (parts.length !== 3) return ymd;
+      return `${Number(parts[1])}월 ${Number(parts[2])}일`;
+    }
+    if (off.type === "hourly") return `${fmt(off.date)} ${off.startTime || "—"}~${off.endTime || "—"} 시간 휴무`;
+    if (off.type === "single") return `${fmt(off.date)} 하루 휴무`;
+    if (off.type === "range")  return `${fmt(off.startDate)} ~ ${fmt(off.endDate)} 기간 휴무`;
+    if (off.type === "repeat") {
+      const days = (off.weekdays || []).slice().sort((a, b) => a - b)
+        .map(d => ["일","월","화","수","목","금","토"][d]).join(", ");
+      return `매주 ${days}요일 반복 휴무\n(앞으로 모든 ${days}요일이 해제됩니다)`;
+    }
+    return "휴무";
+  }
+  function handleRemoveOffClick(off) {
+    if (!off) return;
+    // id가 없는 옛 데이터를 위한 임시 키
+    const key = off.id || `${off.type}|${off.date || off.startDate || ""}|${off.startTime || ""}|${(off.weekdays || []).join(",")}`;
+    setRemoveOffConfirm({ key, off, label: getOffLabel(off) });
+  }
+  function handleConfirmRemoveOff() {
+    if (!removeOffConfirm) return;
+    const { off, key } = removeOffConfirm;
+    setSavedOffDays(prev => prev.filter(o => {
+      const oKey = o.id || `${o.type}|${o.date || o.startDate || ""}|${o.startTime || ""}|${(o.weekdays || []).join(",")}`;
+      return oKey !== key;
+    }));
+    setRemoveOffConfirm(null);
+    showToast("휴무가 해제되었습니다.");
+  }
+
   function handleSaveOffDay(payload) {
-    setSavedOffDays(prev => [...prev, payload]);
+    if (typeof console !== "undefined") console.log("🟢 휴무 추가 시도:", payload);
+    setSavedOffDays(prev => {
+      const next = [...prev, { ...payload, id: payload?.id || `off_${Date.now()}` }];
+      if (typeof console !== "undefined") console.log("🟢 offDays 업데이트:", next);
+      return next;
+    });
     setOffDayModalOpen(false);
+    showToast(payload?.type === "hourly" ? "시간 휴무가 추가됐습니다." : "휴무가 추가됐습니다.");
   }
   function handleCallOps() { window.location.href = "tel:01012345678"; }
   function handleChatOps() { alert("운영팀 채팅"); }
   function handleSaveAccount(payload) {
     setSavedAccount(payload);
-    setScreen("profile");
+    resetTo("profile");
   }
   function handleSaveRegions(regions) {
     setSavedRegions(regions);
-    setScreen("profile");
+    resetTo("profile");
   }
+  // V14 — datePreset → ISO 날짜 변환
+  function presetToISO(preset, customDate) {
+    const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (preset === "today")    return fmt(new Date());
+    if (preset === "tomorrow") { const d = new Date(); d.setDate(d.getDate()+1); return fmt(d); }
+    return customDate || null;
+  }
+
   function handleSaveCall(payload) {
-    if (callTaskId) {
-      updateTask(callTaskId, {
-        scheduledDate: payload.scheduledDate,
-        scheduledTime: payload.scheduledTime,
-        endTime: payload.endTime,
-        callMemo: payload.memo,
-        happycallMemo: payload.memo,
-        status: payload.scheduledDate && payload.scheduledTime ? "확정" : "약속대기",
+    const id = callTaskId || (acceptedCall && acceptedCall.id);
+    if (!id) {
+      resetTo("main");
+      return;
+    }
+    const scheduledDate = payload?.scheduledDate || presetToISO(payload?.datePreset, payload?.customDate);
+    const scheduledTime = payload?.scheduledTime || payload?.startTime;
+
+    // 진짜 task면 updateTask로 확정 처리
+    if (tasks.find(x => x.id === id)) {
+      updateTask(id, {
+        scheduledDate,
+        scheduledTime,
+        endTime: payload?.endTime,
+        callMemo: payload?.memo,
+        happycallMemo: payload?.memo,
+        status: scheduledDate && scheduledTime ? "확정" : "약속대기",
       });
     }
+    // extraAssignments에 있으면 제거 (mock에서 확정 작업 별도 추가는 다음 catch)
+    setExtraAssignments(prev => prev.filter(a => a.id !== id));
     setCallTaskId(null);
-    setScreen("newAssignmentList");
+    setAcceptedCall(null);
+    showToast("일정이 확정됐습니다.");
+    resetTo("main");
   }
   function handleLocationSettings() {
     if (typeof navigator !== "undefined" && navigator.geolocation) {
@@ -3711,7 +4099,7 @@ export default function EngineerApp({ user, onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>🔧 기사님 화면 ({user?.name || "—"})</div>
+        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 700 }}>🔧 기사님 화면 ({user?.name || "—"})</div>
         <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
           에어컨 현장작업 운영관리 플랫폼
         </div>
@@ -3725,12 +4113,28 @@ export default function EngineerApp({ user, onLogout }) {
             );
           })}
         </div>
-        <button onClick={onLogout} style={{ width: "100%", padding: "8px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
+        <button onClick={onLogout} style={{ width: "100%", padding: "8px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
           <RotateCcw size={11}/><span>로그아웃 (다른 계정으로 로그인)</span>
         </button>
       </div>
       
       <div style={{ maxWidth: 420, margin: "0 auto", position: "relative" }}>
+        {/* V14 토스트 */}
+        {toast && (
+          <div style={{
+            position: "fixed", bottom: 96, left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(0,0,0,0.85)", color: "#fff",
+            padding: "12px 18px", borderRadius: 999,
+            fontSize: 14, fontWeight: 600,
+            zIndex: 9999, fontFamily: "inherit",
+            maxWidth: "90%", textAlign: "center",
+            pointerEvents: "none",
+          }}>
+            {toast}
+          </div>
+        )}
+
         {/* 메인 탭 (today) */}
         {screen === "main" && (
           <>
@@ -3742,16 +4146,11 @@ export default function EngineerApp({ user, onLogout }) {
               onClickAcceptanceList={() => setScreen("acceptanceList")}
               onClickNewAssignmentList={() => setScreen("newAssignmentList")}
               pendingAcceptances={pendingAcceptances}
+              newAssignmentsOverride={newAssignments}
             />
             <EngineerBottomNav
               active="today"
-              onChange={(tabId) => {
-                if (tabId === "today") return;
-                if (tabId === "settle") setScreen("settlement");
-                else if (tabId === "cal") setScreen("calendar");
-                else if (tabId === "noti") setScreen("notifications");
-                else if (tabId === "me") setScreen("profile");
-              }}
+              onChange={handleTabChange}
               unreadCount={unreadCount}
             />
           </>
@@ -3765,15 +4164,10 @@ export default function EngineerApp({ user, onLogout }) {
             monthStats={monthStats}
             usolN={usolN}
             onClickToday={() => setScreen("settlementDetail")}
-            onClickUsolN={() => setScreen("usolN")}
+            onClickUsolN={() => setScreen("usolNSettlement")}
+            onClickPaymentHistory={() => setScreen("paymentHistory")}
             onConfirmPaymentSent={() => alert("입금 완료 보고")}
-            onTabChange={(tabId) => {
-              if (tabId === "today") setScreen("main");
-              else if (tabId === "settle") return;
-              else if (tabId === "cal") setScreen("calendar");
-              else if (tabId === "noti") setScreen("notifications");
-              else if (tabId === "me") setScreen("profile");
-            }}
+            onTabChange={handleTabChange}
             unreadCount={unreadCount}
           />
         )}
@@ -3782,7 +4176,7 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "settlementDetail" && (
           <EngineerSettlementDetailScreen
             todayTasks={todayTasks}
-            onBack={() => setScreen("settlement")}
+            onBack={goBack}
             onTaskClick={(task) => { setSelectedTaskId(task.id); setScreen("detail"); }}
           />
         )}
@@ -3794,14 +4188,9 @@ export default function EngineerApp({ user, onLogout }) {
             tasks={tasks}
             offDays={savedOffDays}
             onAddOff={handleAddOff}
+            onRemoveOff={handleRemoveOffClick}
             onClickTask={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
-            onTabChange={(tabId) => {
-              if (tabId === "today") setScreen("main");
-              else if (tabId === "settle") setScreen("settlement");
-              else if (tabId === "cal") return;
-              else if (tabId === "noti") setScreen("notifications");
-              else if (tabId === "me") setScreen("profile");
-            }}
+            onTabChange={handleTabChange}
             unreadCount={unreadCount}
           />
         )}
@@ -3812,13 +4201,7 @@ export default function EngineerApp({ user, onLogout }) {
             notifications={notifications}
             onClickNoti={handleNotiClick}
             onMarkAllRead={markAllRead}
-            onTabChange={(tabId) => {
-              if (tabId === "today") setScreen("main");
-              else if (tabId === "settle") setScreen("settlement");
-              else if (tabId === "cal") setScreen("calendar");
-              else if (tabId === "noti") return;
-              else if (tabId === "me") setScreen("profile");
-            }}
+            onTabChange={handleTabChange}
           />
         )}
 
@@ -3832,13 +4215,7 @@ export default function EngineerApp({ user, onLogout }) {
             onChangeAccount={() => setScreen("accountEdit")}
             onRegions={() => setScreen("regionChange")}
             onLogout={onLogout}
-            onTabChange={(tabId) => {
-              if (tabId === "today") setScreen("main");
-              else if (tabId === "settle") setScreen("settlement");
-              else if (tabId === "cal") setScreen("calendar");
-              else if (tabId === "noti") setScreen("notifications");
-              else if (tabId === "me") return;
-            }}
+            onTabChange={handleTabChange}
             unreadCount={unreadCount}
           />
         )}
@@ -3847,45 +4224,57 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "accountEdit" && (
           <EngineerAccountEditScreen
             engineer={engineerProfileMerged}
-            onBack={() => setScreen("profile")}
+            onBack={goBack}
             onSave={handleSaveAccount}
           />
         )}
         {screen === "notiSettings" && (
           <EngineerNotiSettingsScreen
-            onBack={() => setScreen("profile")}
+            onBack={goBack}
           />
         )}
         {screen === "regionChange" && (
           <EngineerRegionChangeRequestScreen
             engineer={engineerProfileMerged}
-            onBack={() => setScreen("profile")}
+            onBack={goBack}
             onSave={({ memo }) => {
               alert(`운영팀에 변경 요청 전송\n사유: ${memo}`);
-              setScreen("profile");
+              resetTo("profile");
             }}
           />
         )}
         {screen === "newAssignCall" && (
           <EngineerNewAssignDetailScreen
-            task={tasks.find(x => x.id === callTaskId)}
-            onBack={() => { setCallTaskId(null); setScreen("newAssignmentList"); }}
+            task={acceptedCall || tasks.find(x => x.id === callTaskId) || extraAssignments.find(x => x.id === callTaskId)}
+            onBack={() => {
+              setAcceptedCall(null);
+              setCallTaskId(null);
+              goBack();
+            }}
             onSave={handleSaveCall}
             onUnableSchedule={() => {
-              if (callTaskId) {
-                updateTask(callTaskId, { status: "약속대기", unableSchedule: true });
+              const id = callTaskId || (acceptedCall && acceptedCall.id);
+              if (id && tasks.find(x => x.id === id)) {
+                updateTask(id, { status: "약속대기", unableSchedule: true });
               }
-              alert("일정 불가 — 운영팀에 알림");
+              if (id) setExtraAssignments(prev => prev.filter(a => a.id !== id));
               setCallTaskId(null);
-              setScreen("newAssignmentList");
+              setAcceptedCall(null);
+              showToast("일정 불가 — 운영팀에 알림 보냈습니다.");
+              resetTo("main");
             }}
             onCustomerCancel={() => {
-              if (callTaskId) {
-                updateTask(callTaskId, { status: "취소", cancelReason: "고객 취소" });
+              const ok = window.confirm("정말 취소하시겠습니까?");
+              if (!ok) return;
+              const id = callTaskId || (acceptedCall && acceptedCall.id);
+              if (id && tasks.find(x => x.id === id)) {
+                updateTask(id, { status: "취소", cancelReason: "고객 취소" });
               }
-              alert("고객 취소 처리");
+              if (id) setExtraAssignments(prev => prev.filter(a => a.id !== id));
               setCallTaskId(null);
-              setScreen("newAssignmentList");
+              setAcceptedCall(null);
+              showToast("고객 취소 처리됐습니다.");
+              resetTo("main");
             }}
             onAskOps={() => alert("운영팀에 문의")}
           />
@@ -3894,8 +4283,22 @@ export default function EngineerApp({ user, onLogout }) {
         {/* 휴무 등록 모달 (캘린더 탭 위에 띄움) */}
         {offDayModalOpen && (
           <EngineerOffDayAddModal
-            onClose={() => setOffDayModalOpen(false)}
+            defaultDate={pendingOffDate}
+            onClose={() => { setOffDayModalOpen(false); setPendingOffDate(null); }}
             onSave={handleSaveOffDay}
+          />
+        )}
+
+        {/* 휴무 해제 확인 모달 */}
+        {removeOffConfirm && (
+          <ConfirmModal
+            title="휴무 해제"
+            message={`${removeOffConfirm.label}\n해제하시겠어요?`}
+            confirmLabel="해제"
+            cancelLabel="취소"
+            confirmColor="#FF3B5C"
+            onConfirm={handleConfirmRemoveOff}
+            onCancel={() => setRemoveOffConfirm(null)}
           />
         )}
 
@@ -3903,14 +4306,14 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "newAssignmentList" && (
           <EngineerNewAssignmentListScreen
             tasks={newAssignments}
-            onBack={() => setScreen("main")}
+            onBack={goBack}
             onTaskClick={(id) => { setCallTaskId(id); setScreen("newAssignCall"); }}
           />
         )}
         {screen === "acceptanceList" && (
           <EngineerAcceptanceListScreen
             pendingAcceptances={pendingAcceptances}
-            onBack={() => setScreen("main")}
+            onBack={goBack}
             onAccept={handleAcceptCall}
             onReject={handleRejectCall}
           />
@@ -3918,7 +4321,7 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "detail" && selectedTask && (
           <EngineerTaskDetailScreen
             task={selectedTask}
-            onBack={() => { setScreen("main"); setSelectedTaskId(null); }}
+            onBack={() => { goBack(); setSelectedTaskId(null); }}
             onUpdate={updateTask}
           />
         )}
@@ -3927,7 +4330,31 @@ export default function EngineerApp({ user, onLogout }) {
             engineer={engineerProfile}
             monthData={usolNMonthData}
             loadDayTasks={loadUsolNDayTasks}
-            onBack={() => setScreen("settlement")}
+            onBack={goBack}
+          />
+        )}
+        {screen === "paymentHistory" && (
+          <PaymentHistoryScreen
+            payments={paymentsMock}
+            onBack={goBack}
+            onTaskClick={(taskId) => {
+              const t = tasks.find(x => x.id === taskId);
+              if (t) { setSelectedTaskId(t.id); setScreen("detail"); }
+            }}
+          />
+        )}
+        {screen === "usolNSettlement" && (
+          <UsolNSettlementScreen
+            groups={usolNGroupsMock}
+            currentYm="2026-05"
+            prevYm="2026-04"
+            thisMonthDepositDate="6월 15일"
+            prevMonthDepositDate="5월 15일"
+            onBack={goBack}
+            onTaskClick={(taskId) => {
+              const t = tasks.find(x => x.id === taskId);
+              if (t) { setSelectedTaskId(t.id); setScreen("detail"); }
+            }}
           />
         )}
       </div>

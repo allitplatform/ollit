@@ -2,7 +2,10 @@
 // 모달 X / 페이지 자체가 안내 ⭐
 // 50대 사용자 기준 글자 크기 박음 (모든 텍스트 ≥ 14px / 핵심 ≥ 16px / 버튼 ≥ 17px)
 
+import { OllitMark } from "./OllitMark.jsx";
+
 export function PWAInstallScreen({ platform, onAdd, onLater }) {
+  const isInApp = platform === "inApp";
   return (
     <div style={{
       minHeight: "100vh",
@@ -10,7 +13,7 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
       color: "var(--text-primary)",
       display: "flex",
       flexDirection: "column",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 본문 (스크롤 가능) */}
       <div style={{
@@ -19,13 +22,19 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
         textAlign: "center",
         overflowY: "auto",
       }}>
-        {/* ∞ 다크 박스 아이콘 */}
-        <svg width="120" height="120" viewBox="0 0 100 100" style={{ marginBottom: 18 }}>
-          <rect width="100" height="100" rx="20" fill="#1A1512"/>
-          <circle cx="27" cy="50" r="23" fill="none" stroke="#FF1B8D" strokeWidth="6"/>
-          <circle cx="73" cy="50" r="23" fill="none" stroke="#FF1B8D" strokeWidth="6"/>
-          <circle cx="50" cy="50" r="10" fill="#FF1B8D"/>
-        </svg>
+        {/* 로고 — 검정 라운드 박스 + OllitMark (로그인 화면과 동일) */}
+        <div style={{
+          width: 120, height: 120,
+          background: "#1A1A1A",
+          borderRadius: 24,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          marginBottom: 18,
+          boxShadow: "0 8px 24px rgba(255,27,141,0.15)",
+        }}>
+          <OllitMark size={84}/>
+        </div>
 
         {/* 타이틀 */}
         <div style={{
@@ -33,7 +42,7 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
           marginBottom: 8,
           letterSpacing: -0.5,
         }}>
-          올잇 기사
+          올잇
         </div>
         <div style={{
           fontSize: 17,
@@ -44,22 +53,26 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
           marginLeft: "auto",
           marginRight: "auto",
         }}>
-          홈 화면에 추가하면<br/>앱처럼 빠르게 사용할 수 있어요
+          {isInApp
+            ? <>외부 브라우저로 열어주세요<br/>홈 화면에 추가하려면 Safari/Chrome이 필요해요</>
+            : <>홈 화면에 추가하면<br/>앱처럼 빠르게 사용할 수 있어요</>}
         </div>
 
-        {/* 4가지 혜택 */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 8,
-          maxWidth: 360,
-          margin: "0 auto 24px",
-        }}>
-          <Benefit icon="⚡" title="앱처럼 빠르게" desc="브라우저 탭 X"/>
-          <Benefit icon="🔔" title="푸시 알림" desc="새 배정 즉시"/>
-          <Benefit icon="📡" title="오프라인" desc="신호 없어도"/>
-          <Benefit icon="📷" title="카메라 GPS" desc="현장 사진 즉시"/>
-        </div>
+        {/* 인앱 브라우저는 혜택 그리드 X — 외부 브라우저로 열기 안내만 */}
+        {!isInApp && (
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 8,
+            maxWidth: 360,
+            margin: "0 auto 24px",
+          }}>
+            <Benefit icon="⚡" title="앱처럼 빠르게" desc="브라우저 탭 X"/>
+            <Benefit icon="🔔" title="푸시 알림" desc="새 배정 즉시"/>
+            <Benefit icon="📡" title="오프라인" desc="신호 없어도"/>
+            <Benefit icon="📷" title="카메라 GPS" desc="현장 사진 즉시"/>
+          </div>
+        )}
 
         {/* 추가 방법 */}
         <div style={{
@@ -71,6 +84,14 @@ export function PWAInstallScreen({ platform, onAdd, onLater }) {
           maxWidth: 360,
           margin: "0 auto",
         }}>
+          {isInApp && (
+            <>
+              <PlatformLabel>📲 인앱 브라우저 안내</PlatformLabel>
+              <Step num="1" text={<>화면 <Bold>우측 상단 ⋮</Bold>(또는 ···) 누르기</>}/>
+              <Step num="2" text={<>"<Bold style={{ color: "#FF1B8D" }}>외부 브라우저로 열기</Bold>" 또는<br/>"<Bold style={{ color: "#FF1B8D" }}>Safari로 열기</Bold>" 누르기</>}/>
+              <Step num="3" text={<>외부 브라우저에서 홈 화면 추가</>}/>
+            </>
+          )}
           {platform === "ios" && (
             <>
               <PlatformLabel>아이폰 (Safari)</PlatformLabel>

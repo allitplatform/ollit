@@ -36,7 +36,7 @@ export function EngineerAccountEditScreen({ engineer, onBack, onSave }) {
       minHeight: "100vh",
       background: "var(--bg-primary)",
       color: "var(--text-primary)",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
@@ -94,7 +94,7 @@ export function EngineerAccountEditScreen({ engineer, onBack, onSave }) {
             value={accountNumber}
             onChange={(e) => setAccountNumber(e.target.value.replace(/[^0-9-]/g, ""))}
             placeholder="123-456-789012"
-            style={{ ...inputStyle, fontFamily: "monospace" }}
+            style={{ ...inputStyle, fontFamily: "inherit" }}
           />
         </div>
 

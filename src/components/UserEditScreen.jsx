@@ -55,7 +55,7 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
     .map(([perm]) => perm);
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80 }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
         <div style={titleStyle}>{isNew ? "사용자 추가" : "사용자 편집"}</div>
@@ -79,7 +79,7 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
             type="text" placeholder="예: kim.jihye"
             value={data.loginId || ""}
             onChange={(e) => updateField("loginId", e.target.value)}
-            style={{ ...inputStyle, fontFamily: "monospace" }}
+            style={{ ...inputStyle, fontFamily: "inherit" }}
           />
         </Field>
 
@@ -165,7 +165,7 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
           <div style={{
             background: "var(--bg-inset)", border: "1px solid var(--border)",
             borderRadius: 8, padding: "10px 12px",
-            fontSize: 10, color: "var(--text-secondary)", fontFamily: "monospace",
+            fontSize: 10, color: "var(--text-secondary)", fontFamily: "inherit",
             maxHeight: 140, overflow: "auto",
           }}>
             {rolePermissions.map(p => (

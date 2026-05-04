@@ -84,7 +84,7 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack }) {
   const currentPolicy = data.commissionPolicy[activeTab];
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif", paddingBottom: 80 }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
 
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
@@ -479,7 +479,7 @@ function ResultBox({ calc }) {
         display: "flex", justifyContent: "space-between",
       }}>
         <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>총금액</span>
-        <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700, fontFamily: "monospace" }}>
+        <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700, fontFamily: "inherit" }}>
           {(calc.total || 0).toLocaleString()}원
         </span>
       </div>
@@ -499,7 +499,7 @@ function ResultRow({ color, label, value, total, isNegative }) {
         <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>{pct}%</span>
       </div>
       <span style={{
-        fontSize: 12, fontWeight: 700, fontFamily: "monospace",
+        fontSize: 12, fontWeight: 700, fontFamily: "inherit",
         color: isNegative ? "#FF3D5A" : "var(--text-primary)",
       }}>
         {(value || 0).toLocaleString()}원
@@ -540,7 +540,7 @@ function Input({ value, onChange, placeholder, mono }) {
   return (
     <input type="text" value={value || ""} onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={{ ...inputStyle, fontFamily: mono ? "monospace" : "inherit" }}/>
+      style={{ ...inputStyle, fontFamily: mono ? "inherit" : "inherit" }}/>
   );
 }
 function NumberInput({ value, onChange, suffix, label }) {
@@ -550,7 +550,7 @@ function NumberInput({ value, onChange, suffix, label }) {
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
         <input type="number" value={value === 0 ? 0 : (value || "")}
           onChange={(e) => onChange(Number(e.target.value) || 0)}
-          style={{ ...inputStyle, fontFamily: "monospace", flex: 1 }}/>
+          style={{ ...inputStyle, fontFamily: "inherit", flex: 1 }}/>
         {suffix && <span style={{ fontSize: 12, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>{suffix}</span>}
       </div>
     </div>

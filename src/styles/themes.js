@@ -3,18 +3,19 @@
 // 다크/라이트 토글 시 document.documentElement에 CSS 변수 적용. 컴포넌트는 var(--name) 사용.
 
 export const DARK_THEME = {
-  // ── 베이스 (V14)
-  "--bg-primary":       "#1A1512",
-  "--bg-secondary":     "#221C18",
+  // ── 베이스 (V14 정제 매핑표)
+  "--bg-primary":       "#0A0A0A",
+  "--bg-secondary":     "#1C1C1E",
   "--bg-tertiary":      "#2A2420",
   "--bg-quaternary":    "#322A24",
   "--bg-inset":         "#0F0B0A",
   "--text-primary":     "#FAF8F5",
-  "--text-secondary":   "#999999",
-  "--text-tertiary":    "#666666",
+  "--text-secondary":   "#B0B0B0",
+  "--text-tertiary":    "#888",
   "--border":           "rgba(255,255,255,0.10)",
   "--border-strong":    "rgba(255,255,255,0.18)",
-  "--input-bg":         "#221C18",
+  "--input-bg":         "#1C1C1E",
+  "--input-border":     "#3A3A3A",
 
   // ── 메인 8색 (V14 / 라이트·다크 동일)
   "--accent":           "#FF1B8D",   // 핫핑크 — 메인/진행중/CTA
@@ -57,21 +58,74 @@ export const DARK_THEME = {
   "--usol-n-shadow":          "none",
   "--usol-n-shadow-hover":    "none",
   "--usol-n-highlight-shadow":"none",
+
+  // ── V14 정제 (배너 / progress / 카드 / 텍스트 톤)
+  "--card-bg":              "#1C1C1E",
+  "--card-arrow":           "#555555",
+  "--banner-yellow-bg":     "#FFE699",
+  "--banner-yellow-text":   "#FFD66B",
+  "--banner-pink-bg":       "#FFB8D6",
+  "--banner-pink-text":     "#FF8FBE",
+  "--refrig-text":          "#FFD66B",
+  "--cleaning-text":        "#38BDF8",
+  "--progress-bg":          "rgba(255,255,255,0.08)",
+  // ── V14 새 배정 화면
+  "--request-bg":           "#2A2010",   // 노랑 요청사항 박스
+  "--request-text":         "#FFD66B",
+  "--request-sub":          "#FFC04D",
+  "--time-summary-bg":      "#2D0F1E",
+  "--time-summary-accent":  "#FF4DA6",
+  "--accent-strong":        "#FF4DA6",   // 다크 핫핑크 강조
+  "--cancel-text":          "#FF6B85",
+  "--ops-text":             "#9B85FF",
+  "--ops-memo-bg":          "#1F1B33",
+  "--ops-memo-header":      "#B8A6FF",
+  "--ops-memo-body":        "#9B85FF",
+  "--extra-fee-bg":         "rgba(255,27,141,0.08)",
+  "--extra-fee-border":     "rgba(255,27,141,0.25)",
+  "--extra-fee-header":     "#FF4DA6",
+  "--extra-fee-text":       "#FF4DA6",
+  // V14 정산 상세
+  "--completed-pill-bg":    "#052E16",
+  "--completed-pill-text":  "#4ADE80",
+  "--pending-pill-bg":      "#2A2A2A",
+  "--pending-pill-text":    "#888",
+  "--flow-bg":              "#16161A",
+  "--flow-arrow":           "#555",
+  // V14 회색 톤 + Hero 박스 (다크)
+  "--label-main":           "#C8C8C8",
+  "--label-sub":            "#999",
+  "--sub-box-bg":           "#16161A",
+  "--sub-box-amount":       "#C8C8C8",
+  "--hero-pink-bg":         "rgba(255,77,166,0.10)",
+  "--hero-pink-border":     "rgba(255,77,166,0.30)",
+  // V14 v3 정산 메인
+  "--transfer-pill-bg":     "#4A1525",
+  "--transfer-pill-text":   "#FF6B85",
+  "--account-box-bg":       "#16161A",
+  "--account-name":         "#FAF8F5",
+  "--account-num":          "#999",
+  "--copy-btn-bg":          "#1C1C1E",
+  "--copy-btn-bd":          "#3A3A3A",
+  "--copy-btn-text":        "#C8C8C8",
+  "--usol-card-bg":         "#0F2419",
+  "--helper-box-bg":        "#2D0F1E",
 };
 
 export const LIGHT_THEME = {
-  // ── 베이스 (V14)
+  // ── 베이스 (V14 정제 매핑표 / iOS 톤)
   "--bg-primary":       "#FAFAFA",
   "--bg-secondary":     "#FFFFFF",
   "--bg-tertiary":      "#FFFFFF",
   "--bg-quaternary":    "#F0F0F0",
   "--bg-inset":         "#F5F5F5",
-  "--text-primary":     "#1A1512",
-  "--text-secondary":   "#6E6E6E",
-  "--text-tertiary":    "#9B9892",
+  "--text-primary":     "#1A1A1A",
+  "--text-secondary":   "#666666",
+  "--text-tertiary":    "#888",
   "--border":           "rgba(0,0,0,0.10)",
   "--border-strong":    "rgba(0,0,0,0.18)",
   "--input-bg":         "#FFFFFF",
+  "--input-border":     "#E5E0D6",
 
   // ── 메인 8색 (V14 / 라이트·다크 동일)
   "--accent":           "#FF1B8D",
@@ -114,6 +168,58 @@ export const LIGHT_THEME = {
   "--usol-n-shadow":          "none",
   "--usol-n-shadow-hover":    "none",
   "--usol-n-highlight-shadow":"none",
+
+  // ── V14 정제 (배너 / progress / 카드 / 텍스트 톤)
+  "--card-bg":              "#FFFFFF",
+  "--card-arrow":           "#C8C8C8",
+  "--banner-yellow-bg":     "#FFE699",
+  "--banner-yellow-text":   "#997000",
+  "--banner-pink-bg":       "#FFB8D6",
+  "--banner-pink-text":     "#C13A78",
+  "--refrig-text":          "#B07E00",
+  "--cleaning-text":        "#0EA5E9",
+  "--progress-bg":          "#F2F2F2",
+  // ── V14 새 배정 화면
+  "--request-bg":           "#FFF7E0",   // 노랑 요청사항 박스
+  "--request-text":         "#7A4F00",
+  "--request-sub":          "#997000",
+  "--time-summary-bg":      "#FFF5FA",
+  "--time-summary-accent":  "#FF1B8D",
+  "--accent-strong":        "#FF1B8D",
+  "--cancel-text":          "#FF3B5C",
+  "--ops-text":             "#7B61FF",
+  "--ops-memo-bg":          "#F0EDFF",
+  "--ops-memo-header":      "#4A3AAB",
+  "--ops-memo-body":        "#5E4DCB",
+  "--extra-fee-bg":         "rgba(255,27,141,0.05)",
+  "--extra-fee-border":     "rgba(255,27,141,0.25)",
+  "--extra-fee-header":     "#FF1B8D",
+  "--extra-fee-text":       "#FF1B8D",
+  // V14 정산 상세
+  "--completed-pill-bg":    "#DCFCE7",
+  "--completed-pill-text":  "#166534",
+  "--pending-pill-bg":      "#F5F5F5",
+  "--pending-pill-text":    "#888",
+  "--flow-bg":              "#FAFAFA",
+  "--flow-arrow":           "#C8C8C8",
+  // V14 회색 톤 + Hero 박스 (라이트)
+  "--label-main":           "#555",
+  "--label-sub":            "#6B6359",
+  "--sub-box-bg":           "#F5F2ED",
+  "--sub-box-amount":       "#3F3A33",
+  "--hero-pink-bg":         "rgba(255,27,141,0.06)",
+  "--hero-pink-border":     "rgba(255,27,141,0.22)",
+  // V14 v3 정산 메인
+  "--transfer-pill-bg":     "#FFE5E8",
+  "--transfer-pill-text":   "#FF3B5C",
+  "--account-box-bg":       "#F5F2ED",
+  "--account-name":         "#1A1A1A",
+  "--account-num":          "#6B6359",
+  "--copy-btn-bg":          "#FFFFFF",
+  "--copy-btn-bd":          "#D5CDC0",
+  "--copy-btn-text":        "#555",
+  "--usol-card-bg":         "#F0FDF4",
+  "--helper-box-bg":        "#FFF5FA",
 };
 
 // V14 — 화면 모드 (light / dark / auto)

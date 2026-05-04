@@ -22,7 +22,7 @@ export function TaskHistoryScreen({ task, onBack }) {
       minHeight: "100vh",
       background: "var(--bg-primary)",
       color: "var(--text-primary)",
-      fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+      fontFamily: "-apple-system, 'Pretendard', sans-serif",
     }}>
       <div style={{
         position: "sticky", top: 0, zIndex: 10,

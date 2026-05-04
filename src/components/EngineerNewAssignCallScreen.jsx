@@ -35,7 +35,7 @@ const inputStyle = {
   border: "1px solid var(--border)",
   borderRadius: 8,
   color: "var(--text-primary)",
-  fontSize: 14, fontWeight: 500,
+  fontSize: 14, fontWeight: 600,
   boxSizing: "border-box",
   outline: "none", fontFamily: "inherit",
 };
@@ -113,7 +113,7 @@ export function EngineerNewAssignCallScreen({
       minHeight: "100vh",
       background: "var(--bg-primary)",
       color: "var(--text-primary)",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
       {/* 헤더 */}
       <div style={{
@@ -137,7 +137,7 @@ export function EngineerNewAssignCallScreen({
         </div>
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
-          fontFamily: "monospace", marginBottom: 8,
+          fontFamily: "inherit", marginBottom: 8,
         }}>
           {task.phone || "—"}
         </div>
@@ -319,7 +319,7 @@ function DateRowOption({ active, label, date, icon, onClick }) {
         <span style={{
           fontSize: 12,
           color: active ? "#FF1B8D" : "var(--text-secondary)",
-          fontFamily: "monospace",
+          fontFamily: "inherit",
         }}>
           {date}
         </span>

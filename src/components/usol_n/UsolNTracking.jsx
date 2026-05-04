@@ -108,7 +108,7 @@ function ThisWeekCard({ week, onClick }) {
           {week.mondayLabel} (월)
         </span>
       </div>
-      <div style={{ fontSize: 22, color: "#03C75A", fontWeight: 700, fontFamily: "monospace" }}>
+      <div style={{ fontSize: 22, color: "#03C75A", fontWeight: 700, fontFamily: "inherit" }}>
         ₩{companyReceive.toLocaleString()}
       </div>
       <div style={{
@@ -156,7 +156,7 @@ function WeekHistoryCard({ week, latest, onClick }) {
             : <span style={{ fontSize: 9, color: "#F59E0B" }}>⏳ 입금 대기</span>}
         </div>
         <span style={{
-          fontSize: 12, fontFamily: "monospace",
+          fontSize: 12, fontFamily: "inherit",
           color: latest ? "#03C75A" : "var(--text-primary)",
           fontWeight: latest ? 700 : 600,
         }}>
@@ -200,18 +200,18 @@ function WeekDetailModal({ week, onClose }) {
             gap: 4, fontSize: 11,
           }}>
             <span style={{ color: "var(--text-secondary)" }}>총 정산 금액</span>
-            <span style={{ fontFamily: "monospace", fontWeight: 600 }}>
+            <span style={{ fontFamily: "inherit", fontWeight: 600 }}>
               ₩{totalNetAmount.toLocaleString()}
             </span>
 
             <span style={{ color: "var(--text-secondary)" }}>유솔 수수료 (15%)</span>
-            <span style={{ fontFamily: "monospace", color: "var(--text-tertiary, var(--text-secondary))" }}>
+            <span style={{ fontFamily: "inherit", color: "var(--text-tertiary, var(--text-secondary))" }}>
               −₩{usolFee.toLocaleString()}
             </span>
 
             <span style={{ color: "#03C75A", fontWeight: 700 }}>회사 받을 돈</span>
             <span style={{
-              fontFamily: "monospace", color: "#03C75A",
+              fontFamily: "inherit", color: "#03C75A",
               fontWeight: 700, fontSize: 13,
             }}>
               ₩{companyReceive.toLocaleString()}
@@ -262,7 +262,7 @@ function WeekDetailTaskRow({ task }) {
           )}
         </div>
         <span style={{
-          fontSize: 11, fontFamily: "monospace",
+          fontSize: 11, fontFamily: "inherit",
           color: "#03C75A", fontWeight: 600,
         }}>
           ₩{companyReceive.toLocaleString()}
@@ -290,7 +290,7 @@ const modalContentStyle = {
   borderRadius: 14, padding: 16,
   overflow: "auto",
   boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-  fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+  fontFamily: "-apple-system, 'Pretendard', sans-serif",
   color: "var(--text-primary)",
 };
 
@@ -322,12 +322,12 @@ function MonthSummaryCard({ summary }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 4, fontSize: 10 }}>
         <span style={{ color: "var(--text-secondary)" }}>받은 돈 ({summary.completedWeeks}주)</span>
-        <span style={{ color: "var(--text-primary)", fontFamily: "monospace" }}>
+        <span style={{ color: "var(--text-primary)", fontFamily: "inherit" }}>
           ₩{summary.received.toLocaleString()}
         </span>
 
         <span style={{ color: "var(--text-secondary)" }}>받을 예정</span>
-        <span style={{ color: "#03C75A", fontFamily: "monospace" }}>
+        <span style={{ color: "#03C75A", fontFamily: "inherit" }}>
           ₩{summary.pending.toLocaleString()}
         </span>
       </div>
@@ -336,7 +336,7 @@ function MonthSummaryCard({ summary }) {
         <span style={{ fontSize: 10, color: "var(--text-primary)", fontWeight: 700 }}>
           {summary.monthLabel} 총
         </span>
-        <span style={{ fontSize: 13, color: "#A855F7", fontWeight: 700, fontFamily: "monospace" }}>
+        <span style={{ fontSize: 13, color: "#A855F7", fontWeight: 700, fontFamily: "inherit" }}>
           ₩{summary.total.toLocaleString()}
         </span>
       </div>

@@ -41,7 +41,7 @@ export function EngineerRecommendCard({ recommendation, onAssign, isTop, disable
         <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
           <span style={{
             fontSize: 16, color: ts.color,
-            fontWeight: 700, fontFamily: "monospace",
+            fontWeight: 700, fontFamily: "inherit",
           }}>
             {score}
           </span>

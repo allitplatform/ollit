@@ -146,7 +146,7 @@ function AllEngineerRow({ recommendation, onSelect }) {
         </div>
         <span style={{
           fontSize: 13, color: tierColor,
-          fontWeight: 700, fontFamily: "monospace",
+          fontWeight: 700, fontFamily: "inherit",
         }}>
           {score}
         </span>
@@ -180,7 +180,7 @@ const contentStyle = {
   display: "flex", flexDirection: "column",
   overflow: "hidden",
   boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-  fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+  fontFamily: "-apple-system, 'Pretendard', sans-serif",
   color: "var(--text-primary)",
 };
 

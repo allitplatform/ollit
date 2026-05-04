@@ -5,6 +5,10 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
+
+// V14 — 수수료율 30% 고정 (시뮬 / 시트 연동 시 동적으로)
+const FEE_RATE = 0.30;
 
 const PARTIAL_REASONS = [
   { id: "customer_change", label: "고객 요청 변경" },
@@ -41,27 +45,43 @@ function ScreenHeader({ title, onBack }) {
 }
 
 // ───────────────────────────────────────────────
-// 고객 카드 (보더 컬러 가변)
+// V14 — 고객 카드 (좌측 4px 작업 종류 색 바)
 // ───────────────────────────────────────────────
 function CustomerCard({ task, accentColor, subText }) {
+  const colors = getWorkTypeColors(task.workType);
   return (
     <div style={{
       margin: "16px",
-      background: "var(--bg-secondary)",
-      border: `2px solid ${accentColor}`,
-      borderRadius: 14,
-      padding: 16,
+      background: "var(--card-bg)",
+      border: "1px solid var(--border)",
+      borderRadius: 18,
+      padding: "18px 18px 16px 22px",
+      position: "relative",
+      overflow: "hidden",
     }}>
-      <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 6 }}>
+      {/* 좌측 4px 작업 종류 색 바 */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: colors.main,
+      }}/>
+      <div style={{
+        fontSize: 22, fontWeight: 600,
+        color: "var(--text-primary)",
+        letterSpacing: "-0.3px",
+        marginBottom: 6,
+      }}>
         {task.customer || "—"} 고객님
       </div>
       <div style={{
         display: "flex", alignItems: "center", gap: 6,
         fontSize: 14, fontWeight: 600,
-        color: "var(--text-secondary)",
       }}>
-        <ServiceTypeIcon workType={task.workType} size={14} showLabel={true}/>
-        <span>{task.appliance ? `· ${task.appliance}` : ""}{task.qty ? ` ×${task.qty}대` : ""}</span>
+        <span style={{ color: colors.main, fontWeight: 600 }}>
+          {colors.icon} {colors.name}
+        </span>
+        <span style={{ color: "var(--text-secondary)" }}>
+          {task.appliance ? `· ${task.appliance}` : ""}{task.qty ? ` ×${task.qty}대` : ""}
+        </span>
       </div>
       {subText && (
         <div style={{
@@ -77,36 +97,106 @@ function CustomerCard({ task, accentColor, subText }) {
 }
 
 // ───────────────────────────────────────────────
-// 정산 요약 카드 (수수료 흐름)
+// V14 — 정산 요약 카드 (위계 정리 + weight 500/600 + 진한 회색 톤)
 // ───────────────────────────────────────────────
 function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
+  const dividerIdx = rows.findIndex(r => r.divider);
+  const mainRows = dividerIdx >= 0 ? rows.slice(0, dividerIdx) : rows;
+  const subRows  = dividerIdx >= 0 ? rows.slice(dividerIdx + 1) : [];
+
   return (
     <div style={{
       margin: "0 16px 14px",
-      background: "var(--bg-secondary)",
+      background: "var(--card-bg)",
       border: "1px solid var(--border)",
-      borderRadius: 12,
-      padding: 16,
+      borderRadius: 16,
+      padding: 18,
     }}>
       <div style={{
-        fontSize: 14, fontWeight: 800, marginBottom: 12,
+        fontSize: 14, fontWeight: 700,
+        color: "var(--text-primary)",
+        marginBottom: 16,
+        display: "flex", alignItems: "center", gap: 6,
       }}>
-        💰 정산 요약
+        <span style={{ fontSize: 15 }}>💰</span> 정산 요약
       </div>
-      {rows.map((r, i) => (
-        <SettlementRow key={i} {...r}/>
+
+      {/* 메인 정보 (큰 글자 / 라벨 500 / 금액 600) */}
+      {mainRows.map((r, i) => (
+        <div key={i} style={{
+          display: "flex", justifyContent: "space-between",
+          alignItems: "center", padding: "5px 0",
+          fontSize: 14,
+        }}>
+          <span style={{
+            color: "var(--label-main)",
+            fontWeight: 600,
+          }}>
+            {r.label}
+          </span>
+          <span style={{
+            color: r.color || "var(--text-primary)",
+            fontWeight: 700,
+            fontFamily: "inherit",
+          }}>
+            {r.value}
+          </span>
+        </div>
       ))}
-      <div style={{ height: 1, background: "var(--border)", margin: "10px 0" }}/>
+
+      {/* 보조 정보 (회색 박스) */}
+      {subRows.length > 0 && (
+        <div style={{
+          background: "var(--sub-box-bg)",
+          borderRadius: 11,
+          padding: "12px 14px",
+          margin: "14px 0",
+        }}>
+          {subRows.map((r, i) => (
+            <div key={i} style={{
+              display: "flex", justifyContent: "space-between",
+              alignItems: "center", padding: "3px 0",
+              fontSize: 13,
+            }}>
+              <span style={{
+                color: "var(--label-sub)",
+                fontWeight: 600,
+              }}>
+                {r.label}
+              </span>
+              <span style={{
+                color: r.color || "var(--sub-box-amount)",
+                fontFamily: "inherit",
+                fontWeight: 700,
+              }}>
+                {r.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Hero — 내 수익 (핑크 박스) */}
       <div style={{
+        background: "var(--hero-pink-bg)",
+        border: "1px solid var(--hero-pink-border)",
+        borderRadius: 12,
+        padding: "14px 16px",
         display: "flex", justifyContent: "space-between",
-        alignItems: "baseline",
+        alignItems: "center",
       }}>
-        <span style={{ fontSize: 15, fontWeight: 800 }}>{finalLabel}</span>
+        <div style={{
+          fontSize: 14, color: finalColor,
+          fontWeight: 700,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span style={{ fontSize: 15 }}>💰</span> {finalLabel.replace(/^💰\s*/, "")}
+        </div>
         <span style={{
-          fontSize: 22, fontWeight: 900,
-          fontFamily: "'JetBrains Mono', monospace",
-          color: finalColor,
-          letterSpacing: "-0.5px",
+          fontSize: 30, color: finalColor,
+          fontWeight: 700,
+          fontFamily: "inherit",
+          letterSpacing: "-0.7px", lineHeight: 1,
         }}>
           +{finalAmount.toLocaleString("ko-KR")}원
         </span>
@@ -134,7 +224,7 @@ function SettlementRow({ label, value, color, strike, divider, bold }) {
       </span>
       <span style={{
         fontSize: 14,
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: "inherit",
         color: strike ? "var(--text-tertiary)" : (color || "var(--text-primary)"),
         fontWeight: bold ? 800 : 600,
         textDecoration: strike ? "line-through" : "none",
@@ -234,7 +324,7 @@ function MemoBox({ value, onChange, label }) {
           border: "1px solid var(--border)",
           borderRadius: 10,
           color: "var(--text-primary)",
-          fontSize: 14, fontWeight: 600,
+          fontSize: 14, fontWeight: 700,
           fontFamily: "inherit",
           resize: "vertical", outline: "none", boxSizing: "border-box",
         }}
@@ -277,9 +367,10 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   const baseAmount = task.estimateTotal || 0;
   const extraFee   = task.extraFee || 0;
   const total      = baseAmount + extraFee;
-  const rate       = task.commissionRate != null ? task.commissionRate : 0.30;
-  const commission = Math.round(total * rate);
-  const earning    = total - commission;
+  // V14 — 수수료 30% 고정 (task.commissionRate 무시)
+  const rate       = FEE_RATE;
+  const commission = Math.floor(total * rate);
+  const earning    = Math.max(0, total - commission);
 
   function handleConfirm() {
     onConfirm && onConfirm({
@@ -313,7 +404,7 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
 }
 
 // ═══════════════════════════════════════════════════════
-// 2. 부분 완료 (주황) — 수량 +/- 카운터
+// 2. V14 헌법 — 부분 완료 (회색 / 중립) — 수량 +/- 카운터
 // ═══════════════════════════════════════════════════════
 export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const totalQty = task.qty || 1;
@@ -326,9 +417,10 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const baseAmount     = totalQty > 0 ? Math.round(baseAmountFull * (actualQty / totalQty)) : 0;
   const extraFee       = task.extraFee || 0;
   const total          = baseAmount + extraFee;
-  const rate           = task.commissionRate != null ? task.commissionRate : 0.30;
-  const commission     = Math.round(total * rate);
-  const earning        = total - commission;
+  // V14 — 수수료 30% 고정
+  const rate           = FEE_RATE;
+  const commission     = Math.floor(total * rate);
+  const earning        = Math.max(0, total - commission);
 
   const canSubmit = !!reasonId && actualQty > 0 && actualQty <= totalQty;
 
@@ -345,10 +437,10 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
 
   return (
     <Container>
-      <ScreenHeader title="🟠 부분 완료" onBack={onBack}/>
+      <ScreenHeader title="● 부분 완료" onBack={onBack}/>
       <CustomerCard
         task={task}
-        accentColor="#FF8A3D"
+        accentColor="#888"
         subText={`의뢰: ${task.workType || ""} ×${totalQty}대`}
       />
 
@@ -371,16 +463,16 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
           />
           <div style={{ textAlign: "center", minWidth: 80 }}>
             <div style={{
-              fontSize: 32, fontWeight: 900,
-              fontFamily: "'JetBrains Mono', monospace",
-              color: "#FF8A3D",
+              fontSize: 32, fontWeight: 700,
+              fontFamily: "inherit",
+              color: "var(--text-primary)",
               lineHeight: 1,
             }}>
               {actualQty}
             </div>
             <div style={{
               fontSize: 13, color: "var(--text-secondary)",
-              fontWeight: 600, marginTop: 4,
+              fontWeight: 700, marginTop: 4,
             }}>
               {actualQty}대 / {totalQty}대
             </div>
@@ -397,7 +489,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
         reasons={PARTIAL_REASONS}
         selectedId={reasonId}
         onChange={setReasonId}
-        accentColor="#FF8A3D"
+        accentColor="#888"
         label="⚠️ 부분 완료 사유 (필수)"
       />
 
@@ -412,7 +504,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
         ]}
         finalLabel="💰 내 수익"
         finalAmount={earning}
-        finalColor="#FF8A3D"
+        finalColor="#FF1B8D"
       />
 
       {reasonId === "other" && (
@@ -420,8 +512,8 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
       )}
 
       <MainAction
-        label="🟠 부분 완료 처리"
-        color="#FF8A3D"
+        label="● 부분 완료 처리"
+        color="#888"
         onClick={handleConfirm}
         disabled={!canSubmit}
       />
@@ -433,10 +525,10 @@ function CounterBtn({ label, onClick, disabled }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
       width: 56, height: 56, borderRadius: 12,
-      background: disabled ? "var(--bg-tertiary)" : "#FF8A3D",
+      background: disabled ? "var(--bg-tertiary)" : "#C8C8C8",
       border: "none",
-      color: disabled ? "var(--text-tertiary)" : "#fff",
-      fontSize: 28, fontWeight: 800,
+      color: disabled ? "var(--text-tertiary)" : "#1A1A1A",
+      fontSize: 28, fontWeight: 700,
       cursor: disabled ? "not-allowed" : "pointer",
       fontFamily: "inherit",
       opacity: disabled ? 0.5 : 1,
@@ -469,7 +561,7 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
 
   return (
     <Container>
-      <ScreenHeader title="🔴 출장비만" onBack={onBack}/>
+      <ScreenHeader title="● 출장비만" onBack={onBack}/>
       <CustomerCard
         task={task}
         accentColor="#FF3B5C"
@@ -485,7 +577,7 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
         ]}
         finalLabel="💰 내 수익"
         finalAmount={earning}
-        finalColor="#FF3B5C"
+        finalColor="#FF1B8D"
       />
 
       <ReasonRadioList
@@ -503,7 +595,7 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
         background: "rgba(255,184,0,0.10)",
         border: "1px solid rgba(255,184,0,0.30)",
         borderRadius: 10,
-        fontSize: 13, fontWeight: 500, lineHeight: 1.5,
+        fontSize: 13, fontWeight: 600, lineHeight: 1.5,
         color: "var(--text-primary)",
       }}>
         💡 <strong>사진 권장</strong> (CS 대비). 사진 없이도 처리 가능.
@@ -519,7 +611,7 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
       )}
 
       <MainAction
-        label="🔴 출장비만 처리"
+        label="● 출장비만 처리"
         color="#FF3B5C"
         onClick={handleConfirm}
         disabled={!canSubmit}
@@ -537,7 +629,7 @@ function Container({ children }) {
       minHeight: "100vh",
       background: "var(--bg-primary)",
       color: "var(--text-primary)",
-      fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
+      fontFamily: "'Pretendard', -apple-system, sans-serif",
       paddingBottom: 8,
     }}>
       {children}

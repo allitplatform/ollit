@@ -265,7 +265,7 @@ const modalStyle = {
   borderRadius: 14,
   display: "flex", flexDirection: "column",
   boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-  fontFamily: "-apple-system, 'Spoqa Han Sans Neo', sans-serif",
+  fontFamily: "-apple-system, 'Pretendard', sans-serif",
   color: "var(--text-primary)",
   overflow: "hidden",
 };
