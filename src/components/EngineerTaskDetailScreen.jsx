@@ -1,4 +1,5 @@
 // V13-FINAL — 기사 PWA 작업 상세 (3 상태 + 부분 취소 + 일정 변경 + 출장비만)
+// V14 — 사진 분류 X / 완료 분기 3가지 (완료 / 부분 / 출장비만)
 // 진입: 오늘 화면 / 새 배정 리스트 / 다음 일정
 // 상태: "약속대기" / "확정" / "진행중" / "완료" / "visit_only" / "취소"
 // 한 화면 흐름 (별도 완료보고 화면 X)
@@ -6,6 +7,11 @@
 import { useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
+import {
+  TaskCompleteScreen as CompletionCompleteScreen,
+  TaskPartialScreen,
+  TaskVisitOnlyScreen,
+} from "./EngineerTaskCompletionScreens.jsx";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -119,6 +125,72 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         onBack={() => setSubScreen(null)}
         onConfirm={(payload) => {
           handleReschedule(payload);
+          setSubScreen(null);
+          onBack && onBack();
+        }}
+      />
+    );
+  }
+
+  // V14 — 완료 분기 3가지
+  if (subScreen === "complete") {
+    return (
+      <CompletionCompleteScreen
+        task={{ ...task, extraFee: parseInt(extraFee || "0", 10) }}
+        photos={photos}
+        onBack={() => setSubScreen(null)}
+        onConfirm={(payload) => {
+          onUpdate && onUpdate(task.id, {
+            status: "완료",
+            completedAt: getCurrentTime(),
+            photos: photos.map(p => ({ url: p })),
+            extraFee: parseInt(extraFee || "0", 10),
+            workMemo: workMemo + (payload.memo ? "\n[마무리] " + payload.memo : ""),
+          });
+          setSubScreen(null);
+          onBack && onBack();
+        }}
+      />
+    );
+  }
+  if (subScreen === "partial") {
+    return (
+      <TaskPartialScreen
+        task={{ ...task, extraFee: parseInt(extraFee || "0", 10) }}
+        photos={photos}
+        onBack={() => setSubScreen(null)}
+        onConfirm={(payload) => {
+          onUpdate && onUpdate(task.id, {
+            status: "완료",
+            completedAt: getCurrentTime(),
+            partialReason: payload.reasonId,
+            partialMemo: payload.memo,
+            actualQty: payload.actualQty,
+            photos: photos.map(p => ({ url: p })),
+            extraFee: parseInt(extraFee || "0", 10),
+            workMemo: workMemo,
+          });
+          setSubScreen(null);
+          onBack && onBack();
+        }}
+      />
+    );
+  }
+  if (subScreen === "visitOnly") {
+    return (
+      <TaskVisitOnlyScreen
+        task={task}
+        photos={photos}
+        onBack={() => setSubScreen(null)}
+        onConfirm={(payload) => {
+          onUpdate && onUpdate(task.id, {
+            status: "visit_only",
+            visitOnlyReason: payload.reasonId,
+            visitOnlyMemo: payload.memo,
+            completedAt: getCurrentTime(),
+            extraFee: payload.fee,
+            photos: photos.map(p => ({ url: p })),
+          });
           setSubScreen(null);
           onBack && onBack();
         }}
@@ -351,7 +423,13 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         <div style={{ padding: "14px 16px 20px" }}>
           {/* V14 — 메인 액션 (작업 완료 핑크) */}
           <button
-            onClick={handleCompleteReport}
+            onClick={() => {
+              if (photos.length < PHOTO_MIN) {
+                alert(`사진은 최소 ${PHOTO_MIN}장 필요합니다.`);
+                return;
+              }
+              setSubScreen("complete");
+            }}
             disabled={photos.length < PHOTO_MIN}
             style={{
               width: "100%", padding: 16,
@@ -371,7 +449,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
           {/* V14 — 보조 액션 (부분 / 출장비만) */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             <button
-              onClick={() => alert("부분 완료 — 다음 단계에서 박을 차례 (V14 Step 6B)")}
+              onClick={() => setSubScreen("partial")}
               style={{
                 padding: 13,
                 background: "transparent",
@@ -385,7 +463,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
               🟠 부분 완료
             </button>
             <button
-              onClick={() => setVisitOnlyOpen(true)}
+              onClick={() => setSubScreen("visitOnly")}
               style={{
                 padding: 13,
                 background: "transparent",
