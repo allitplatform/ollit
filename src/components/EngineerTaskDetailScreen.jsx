@@ -719,56 +719,29 @@ function CustomerInfo({ task }) {
 
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-      {/* 작업 칩 (확정/완료에만) */}
-      {!isInProgress && (
-        <div style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          padding: "2px 6px",
-          background: "transparent",
-          border: "1px solid var(--border)",
-          borderRadius: 4,
-          color: "var(--text-secondary)",
-          fontSize: 9, fontWeight: 700, marginBottom: 8,
-        }}>
-          <ServiceTypeIcon workType={task.workType} size={12} showLabel={true}/>
-          <span style={{ marginLeft: 4 }}>
-            {task.workType || ""}
-            {task.appliance ? ` · ${task.appliance}` : ""}
-            {task.qty ? ` ×${task.qty}` : ""}
-          </span>
-        </div>
-      )}
-
-      {/* 고객 */}
+      {/* V14 — 고객 26px */}
       <div style={{
-        fontSize: 16, fontWeight: 700,
-        color: "var(--text-primary)", marginBottom: 2,
+        fontSize: 26, fontWeight: 500,
+        color: "var(--text-primary)",
+        letterSpacing: "-0.3px",
+        marginBottom: 6,
       }}>
         {task.customer || "—"}님
       </div>
       {task.phone && (
         <div style={{
-          fontSize: 11, color: "var(--text-secondary)",
-          fontFamily: "monospace", marginBottom: 8,
+          fontSize: 14, color: "var(--text-secondary)",
+          fontWeight: 500, marginBottom: 4,
         }}>
-          {task.phone}
+          📞 {task.phone}
         </div>
       )}
-
-      <div style={{ fontSize: 11, color: "var(--text-primary)", marginBottom: 4 }}>
+      <div style={{
+        fontSize: 14, color: "var(--text-secondary)",
+        fontWeight: 500, marginBottom: 12,
+      }}>
         📍 {task.fullAddress || task.address || "—"}
       </div>
-
-      {/* 견적 (확정에만) */}
-      {isConfirmed && task.estimateTotal > 0 && (
-        <div style={{
-          fontSize: 11, color: "var(--text-primary)",
-          fontWeight: 700, fontFamily: "monospace",
-          marginBottom: 10,
-        }}>
-          💰 ₩{task.estimateTotal.toLocaleString("ko-KR")}
-        </div>
-      )}
 
       {/* V14 — 요청사항 (노랑 박스 + 좌측 3px 노란 바) */}
       {task.requestNote && (

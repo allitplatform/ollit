@@ -60,44 +60,42 @@ export function EngineerSettlementDetailScreen({
         <div style={{ width: 28 }}/>
       </div>
 
-      {/* 합계 카드 (Hero 핑크) */}
+      {/* V14 정제 — 합계 Hero 카드 (색 위계 + 반투명 박스) */}
       <div style={{ padding: 16 }}>
         <div style={{
           background: "#FF1B8D",
-          borderRadius: 18,
-          padding: "22px 20px",
+          borderRadius: 20,
+          padding: "22px 22px 18px",
           color: "#fff",
         }}>
+          {/* 라벨 — 옅은 핑크 */}
           <div style={{
-            fontSize: 13, color: "rgba(255,255,255,0.9)",
-            fontWeight: 600, marginBottom: 8,
+            fontSize: 13, color: "#FFD9E8", fontWeight: 500,
+            marginBottom: 8,
+            display: "flex", alignItems: "center", gap: 6,
           }}>
-            💰 오늘 번 돈
+            <span style={{ fontSize: 14 }}>💰</span> 오늘 번 돈
           </div>
+          {/* Hero ₩ 56px 흰 */}
           <div style={{
-            fontSize: 56, fontWeight: 900,
+            fontSize: 56, fontWeight: 500, color: "#fff",
             fontFamily: "'JetBrains Mono', monospace",
             letterSpacing: "-2px", lineHeight: 1,
+            marginBottom: 6,
           }}>
             ₩{todayEarning.toLocaleString("ko-KR")}
           </div>
+          {/* 헬퍼 — 옅은 핑크 + 흰 강조 */}
           <div style={{
-            fontSize: 13, color: "rgba(255,255,255,0.9)",
-            fontWeight: 500, marginTop: 12,
+            fontSize: 13, color: "#FFD9E8", marginBottom: 16,
           }}>
-            {completedCount} / {totalCount}건 완료 · 작업 끝나면 자동 갱신
+            {completedCount} / {totalCount}건 완료 ·{" "}
+            <span style={{ color: "#fff", fontWeight: 500 }}>작업 끝나면 자동 갱신</span>
           </div>
 
-          {/* 구분선 */}
+          {/* 반투명 박스 두 칸 (총 작업비 / 총 수수료) */}
           <div style={{
-            height: 1,
-            background: "rgba(255,255,255,0.20)",
-            margin: "18px 0 14px",
-          }}/>
-
-          {/* 총 작업비 / 총 수수료 */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
+            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
           }}>
             <SubStat label="총 작업비" amount={todayRevenue}/>
             <SubStat label="총 수수료" amount={todayFee}/>
@@ -140,17 +138,21 @@ export function EngineerSettlementDetailScreen({
 
 function SubStat({ label, amount }) {
   return (
-    <div>
+    <div style={{
+      background: "rgba(255,255,255,0.13)",
+      borderRadius: 12,
+      padding: "11px 13px",
+    }}>
       <div style={{
-        fontSize: 12, color: "rgba(255,255,255,0.85)",
+        fontSize: 11, color: "#FFD9E8",
         fontWeight: 500, marginBottom: 4,
       }}>
         {label}
       </div>
       <div style={{
-        fontSize: 18, fontWeight: 700,
+        fontSize: 18, fontWeight: 500,
         fontFamily: "'JetBrains Mono', monospace",
-        color: "#fff", letterSpacing: "-0.3px",
+        color: "#fff", letterSpacing: "-0.3px", lineHeight: 1.1,
       }}>
         ₩{amount.toLocaleString("ko-KR")}
       </div>

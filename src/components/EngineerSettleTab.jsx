@@ -61,52 +61,47 @@ export function EngineerSettleTab({
       </div>
 
       <div style={{ padding: 16 }}>
-        {/* 1. 오늘 번 돈 통합 카드 (핑크 단색 / 클릭 가능) */}
+        {/* V14 정제 — 오늘 번 돈 Hero 카드 (색 위계 + 반투명 박스) */}
         <div
           onClick={onClickToday}
           className="clickable"
           style={{
             background: "#FF1B8D",
-            borderRadius: 14,
-            padding: 22,
+            borderRadius: 20,
+            padding: "22px 22px 18px",
             marginBottom: 14,
             cursor: "pointer",
             color: "#fff",
           }}
         >
+          {/* 라벨 — 옅은 핑크 */}
           <div style={{
-            fontSize: 14, color: "rgba(255,255,255,0.9)", fontWeight: 600,
+            fontSize: 13, color: "#FFD9E8", fontWeight: 500,
             marginBottom: 8,
+            display: "flex", alignItems: "center", gap: 6,
           }}>
-            💰 오늘 번 돈
+            <span style={{ fontSize: 14 }}>💰</span> 오늘 번 돈
           </div>
+          {/* Hero ₩ 56px 흰 */}
           <div style={{
-            fontSize: 56, fontWeight: 900, color: "#fff",
+            fontSize: 56, fontWeight: 500, color: "#fff",
             fontFamily: "'JetBrains Mono', monospace",
             letterSpacing: "-2px", lineHeight: 1,
+            marginBottom: 6,
           }}>
             ₩{todayEarning.toLocaleString("ko-KR")}
           </div>
+          {/* 헬퍼 — 옅은 핑크 + 흰 강조 */}
           <div style={{
-            fontSize: 13, color: "rgba(255,255,255,0.9)",
-            marginTop: 10, fontWeight: 500,
-            display: "flex", alignItems: "center", gap: 4,
+            fontSize: 13, color: "#FFD9E8", marginBottom: 16,
           }}>
-            <span>{completedToday.length}건 작업 완료</span>
-            <span>·</span>
-            <span style={{ fontWeight: 700 }}>자세히 보기 ›</span>
+            {completedToday.length}건 작업 완료 ·{" "}
+            <span style={{ color: "#fff", fontWeight: 500 }}>자세히 보기 ›</span>
           </div>
 
-          {/* 구분선 */}
+          {/* 반투명 박스 두 칸 (이번 주 / 이번 달) */}
           <div style={{
-            height: 1,
-            background: "rgba(255,255,255,0.20)",
-            margin: "16px 0 14px",
-          }}/>
-
-          {/* 이번 주 / 이번 달 */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
+            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
           }}>
             <PeriodStat
               label="이번 주"
@@ -298,23 +293,27 @@ export function EngineerSettleTab({
 
 function PeriodStat({ label, amount, count }) {
   return (
-    <div>
+    <div style={{
+      background: "rgba(255,255,255,0.13)",
+      borderRadius: 12,
+      padding: "11px 13px",
+    }}>
       <div style={{
-        fontSize: 12, color: "rgba(255,255,255,0.85)",
-        fontWeight: 600, marginBottom: 4,
+        fontSize: 11, color: "#FFD9E8",
+        fontWeight: 500, marginBottom: 4,
       }}>
         {label}
       </div>
       <div style={{
-        fontSize: 18, fontWeight: 800,
+        fontSize: 18, fontWeight: 500,
         fontFamily: "'JetBrains Mono', monospace",
-        color: "#fff", letterSpacing: "-0.3px",
+        color: "#fff", letterSpacing: "-0.3px", lineHeight: 1.1,
       }}>
         ₩{amount.toLocaleString("ko-KR")}
       </div>
       <div style={{
-        fontSize: 11, color: "rgba(255,255,255,0.85)",
-        fontWeight: 500, marginTop: 2,
+        fontSize: 10, color: "#FFB8D6",
+        fontWeight: 500, marginTop: 3,
       }}>
         {count}건
       </div>
