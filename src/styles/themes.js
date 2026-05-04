@@ -3,18 +3,19 @@
 // 다크/라이트 토글 시 document.documentElement에 CSS 변수 적용. 컴포넌트는 var(--name) 사용.
 
 export const DARK_THEME = {
-  // ── 베이스 (V14)
-  "--bg-primary":       "#1A1512",
-  "--bg-secondary":     "#221C18",
+  // ── 베이스 (V14 정제 매핑표)
+  "--bg-primary":       "#0A0A0A",
+  "--bg-secondary":     "#1C1C1E",
   "--bg-tertiary":      "#2A2420",
   "--bg-quaternary":    "#322A24",
   "--bg-inset":         "#0F0B0A",
   "--text-primary":     "#FAF8F5",
-  "--text-secondary":   "#999999",
-  "--text-tertiary":    "#666666",
+  "--text-secondary":   "#B0B0B0",
+  "--text-tertiary":    "#888",
   "--border":           "rgba(255,255,255,0.10)",
   "--border-strong":    "rgba(255,255,255,0.18)",
-  "--input-bg":         "#221C18",
+  "--input-bg":         "#1C1C1E",
+  "--input-border":     "#3A3A3A",
 
   // ── 메인 8색 (V14 / 라이트·다크 동일)
   "--accent":           "#FF1B8D",   // 핫핑크 — 메인/진행중/CTA
@@ -68,21 +69,31 @@ export const DARK_THEME = {
   "--refrig-text":          "#FFD66B",
   "--cleaning-text":        "#38BDF8",
   "--progress-bg":          "rgba(255,255,255,0.08)",
+  // ── V14 새 배정 화면
+  "--request-bg":           "#2A2010",   // 노랑 요청사항 박스
+  "--request-text":         "#FFD66B",
+  "--request-sub":          "#FFC04D",
+  "--time-summary-bg":      "#2D0F1E",
+  "--time-summary-accent":  "#FF4DA6",
+  "--accent-strong":        "#FF4DA6",   // 다크 핫핑크 강조
+  "--cancel-text":          "#FF6B85",
+  "--ops-text":             "#9B85FF",
 };
 
 export const LIGHT_THEME = {
-  // ── 베이스 (V14)
-  "--bg-primary":       "#FAFAFA",
+  // ── 베이스 (V14 정제 매핑표)
+  "--bg-primary":       "#F5F2ED",
   "--bg-secondary":     "#FFFFFF",
   "--bg-tertiary":      "#FFFFFF",
   "--bg-quaternary":    "#F0F0F0",
   "--bg-inset":         "#F5F5F5",
-  "--text-primary":     "#1A1512",
-  "--text-secondary":   "#6E6E6E",
-  "--text-tertiary":    "#9B9892",
+  "--text-primary":     "#1A1A1A",
+  "--text-secondary":   "#666666",
+  "--text-tertiary":    "#888",
   "--border":           "rgba(0,0,0,0.10)",
   "--border-strong":    "rgba(0,0,0,0.18)",
   "--input-bg":         "#FFFFFF",
+  "--input-border":     "#E5E0D6",
 
   // ── 메인 8색 (V14 / 라이트·다크 동일)
   "--accent":           "#FF1B8D",
@@ -136,6 +147,15 @@ export const LIGHT_THEME = {
   "--refrig-text":          "#B07E00",
   "--cleaning-text":        "#0EA5E9",
   "--progress-bg":          "#F2F2F2",
+  // ── V14 새 배정 화면
+  "--request-bg":           "#FFF7E0",   // 노랑 요청사항 박스
+  "--request-text":         "#7A4F00",
+  "--request-sub":          "#997000",
+  "--time-summary-bg":      "#FFF5FA",
+  "--time-summary-accent":  "#FF1B8D",
+  "--accent-strong":        "#FF1B8D",
+  "--cancel-text":          "#FF3B5C",
+  "--ops-text":             "#7B61FF",
 };
 
 // V14 — 화면 모드 (light / dark / auto)
