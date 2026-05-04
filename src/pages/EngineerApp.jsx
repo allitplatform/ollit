@@ -3654,13 +3654,31 @@ export default function EngineerApp({ user, onLogout }) {
     x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
   );
 
-  // V13-1 — 수락 / 거절 핸들러 (Phase 1B 백엔드 연결 전 낙관적 업데이트)
+  // V14 — 수락 / 거절 핸들러
+  // 수락 = acceptance를 task처럼 변환해서 새 배정 상세 화면으로 직접 라우팅
+  // 거절 = 메인 홈으로 (다음 기사에게 이관)
   function handleAcceptCall(callId) {
+    const accepted = pendingAcceptances.find(c => c.id === callId);
+    if (!accepted) return;
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
-    setScreen("newAssignmentList");
+    setAcceptedCall({
+      id:           accepted.id,
+      customer:     accepted.customer || "고객",
+      phone:        accepted.phone,
+      workType:     accepted.workType,
+      appliance:    accepted.appliance,
+      qty:          accepted.qty,
+      fullAddress:  accepted.fullAddress || accepted.region,
+      region:       accepted.region,
+      estimateTotal:accepted.engineerRate,
+      requestedAgo: accepted.requestedAgo,
+      status:       "약속대기",
+    });
+    setScreen("newAssignCall");
   }
   function handleRejectCall(callId) {
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
+    setScreen("main");
   }
 
   // V13-FINAL2 — 4탭 mock 데이터
@@ -3735,6 +3753,8 @@ export default function EngineerApp({ user, onLogout }) {
   const [savedAccount, setSavedAccount] = useState(null);
   const [savedRegions, setSavedRegions] = useState(null);
   const [callTaskId, setCallTaskId] = useState(null);
+  // V14 — 수락 대기 → 새 배정 상세 라우팅용 임시 task
+  const [acceptedCall, setAcceptedCall] = useState(null);
 
   function handleAddOff() { setOffDayModalOpen(true); }
   function handleSaveOffDay(payload) {
@@ -3948,24 +3968,27 @@ export default function EngineerApp({ user, onLogout }) {
         )}
         {screen === "newAssignCall" && (
           <EngineerNewAssignDetailScreen
-            task={tasks.find(x => x.id === callTaskId)}
-            onBack={() => { setCallTaskId(null); setScreen("newAssignmentList"); }}
+            task={acceptedCall || tasks.find(x => x.id === callTaskId)}
+            onBack={() => {
+              if (acceptedCall) { setAcceptedCall(null); setScreen("main"); }
+              else              { setCallTaskId(null);   setScreen("newAssignmentList"); }
+            }}
             onSave={handleSaveCall}
             onUnableSchedule={() => {
               if (callTaskId) {
                 updateTask(callTaskId, { status: "약속대기", unableSchedule: true });
               }
               alert("일정 불가 — 운영팀에 알림");
-              setCallTaskId(null);
-              setScreen("newAssignmentList");
+              if (acceptedCall) { setAcceptedCall(null); setScreen("main"); }
+              else              { setCallTaskId(null);   setScreen("newAssignmentList"); }
             }}
             onCustomerCancel={() => {
               if (callTaskId) {
                 updateTask(callTaskId, { status: "취소", cancelReason: "고객 취소" });
               }
               alert("고객 취소 처리");
-              setCallTaskId(null);
-              setScreen("newAssignmentList");
+              if (acceptedCall) { setAcceptedCall(null); setScreen("main"); }
+              else              { setCallTaskId(null);   setScreen("newAssignmentList"); }
             }}
             onAskOps={() => alert("운영팀에 문의")}
           />
