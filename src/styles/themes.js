@@ -57,6 +57,17 @@ export const DARK_THEME = {
   "--usol-n-shadow":          "none",
   "--usol-n-shadow-hover":    "none",
   "--usol-n-highlight-shadow":"none",
+
+  // ── V14 정제 (배너 / progress / 카드 / 텍스트 톤)
+  "--card-bg":              "#1C1C1E",
+  "--card-arrow":           "#555555",
+  "--banner-yellow-bg":     "#FFE699",
+  "--banner-yellow-text":   "#FFD66B",
+  "--banner-pink-bg":       "#FFB8D6",
+  "--banner-pink-text":     "#FF8FBE",
+  "--refrig-text":          "#FFD66B",
+  "--cleaning-text":        "#38BDF8",
+  "--progress-bg":          "rgba(255,255,255,0.08)",
 };
 
 export const LIGHT_THEME = {
@@ -114,6 +125,17 @@ export const LIGHT_THEME = {
   "--usol-n-shadow":          "none",
   "--usol-n-shadow-hover":    "none",
   "--usol-n-highlight-shadow":"none",
+
+  // ── V14 정제 (배너 / progress / 카드 / 텍스트 톤)
+  "--card-bg":              "#FFFFFF",
+  "--card-arrow":           "#C8C8C8",
+  "--banner-yellow-bg":     "#FFE699",
+  "--banner-yellow-text":   "#997000",
+  "--banner-pink-bg":       "#FFB8D6",
+  "--banner-pink-text":     "#C13A78",
+  "--refrig-text":          "#B07E00",
+  "--cleaning-text":        "#0EA5E9",
+  "--progress-bg":          "#F2F2F2",
 };
 
 // V14 — 화면 모드 (light / dark / auto)

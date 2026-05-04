@@ -575,6 +575,21 @@ function formatProgress(startedAt) {
   return `${Math.floor(diff / 60)}시간 ${diff % 60}분`;
 }
 
+// V14 — 진행률 (시작/종료 → 0~100%)
+function calcProgressPct(startedAt, endTime) {
+  if (!startedAt || !endTime) return 0;
+  const toMin = (s) => {
+    const [h, m] = String(s).split(":");
+    return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
+  };
+  const startMin = toMin(startedAt);
+  const endMin   = toMin(endTime);
+  const nowMin   = toMin(NOW);
+  if (endMin <= startMin) return 0;
+  const pct = ((nowMin - startMin) / (endMin - startMin)) * 100;
+  return Math.max(0, Math.min(100, pct));
+}
+
 // V13-1 — 일정 상태 알약 (다음 일정 카드용)
 function StatusPill({ status }) {
   const map = {
@@ -692,7 +707,7 @@ function MainScreen({
               <span style={{ color: "var(--text-tertiary)" }}>·</span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                 <ServiceTypeIcon workType="세척" size={12} showLabel={false}/>
-                <span style={{ color: "#0EA5E9", fontWeight: 700 }}>세척 {workTypeCounts.세척}</span>
+                <span style={{ color: "var(--cleaning-text)", fontWeight: 500 }}>세척 {workTypeCounts.세척}</span>
               </span>
             </>
           )}
@@ -701,27 +716,36 @@ function MainScreen({
               <span style={{ color: "var(--text-tertiary)" }}>·</span>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
                 <ServiceTypeIcon workType="냉매충전" size={12} showLabel={false}/>
-                <span style={{ color: "#FFB800", fontWeight: 700 }}>냉매충전 {workTypeCounts.냉매충전}</span>
+                <span style={{ color: "var(--refrig-text)", fontWeight: 500 }}>냉매충전 {workTypeCounts.냉매충전}</span>
               </span>
             </>
           )}
         </div>
       </div>
 
-      {/* 2. 진행중 박스 (V14 — 보더 핫핑크 / 배경 X) */}
+      {/* 2. 진행중 박스 (V14 정제 — 좌측 4px 바 + progress bar) */}
       {activeTask && (
         <div
           onClick={() => onTaskClick(activeTask.id)}
           className="clickable"
           style={{
+            position: "relative",
             margin: "0 16px 14px",
-            background: "transparent",
-            border: "2px solid #FF1B8D",
+            background: "var(--card-bg)",
+            border: "1px solid var(--border)",
             borderRadius: 14,
-            padding: 14,
+            padding: "16px 16px 16px 20px",
             cursor: "pointer",
+            overflow: "hidden",
           }}
         >
+          {/* 좌측 4px 핫핑크 바 */}
+          <div style={{
+            position: "absolute",
+            left: 0, top: 0, bottom: 0,
+            width: 4,
+            background: "#FF1B8D",
+          }}/>
           <div style={{
             display: "flex", justifyContent: "space-between",
             alignItems: "center", marginBottom: 10,
@@ -754,7 +778,7 @@ function MainScreen({
               {activeTask.customer}
             </div>
             <span style={{
-              fontSize: 20, color: "var(--text-secondary)",
+              fontSize: 20, color: "var(--card-arrow)",
               marginLeft: 8,
             }}>
               ›
@@ -780,13 +804,31 @@ function MainScreen({
           </div>
 
           <div style={{
-            fontSize: 12, color: "var(--text-secondary)", marginBottom: 14, fontWeight: 500,
+            fontSize: 12, color: "var(--text-secondary)", marginBottom: 10, fontWeight: 500,
           }}>
             시작 {activeTask.startedAt || activeTask.scheduledTime || "—"}
             {activeTask.endTime ? ` · 예상 종료 ${activeTask.endTime}` : ""}
           </div>
 
-          {/* V14 — 통화 = 초록 #34C759 / 길찾기 = 흰 배경 + 핑크 글자·아이콘 */}
+          {/* V14 — progress bar (시작/종료 둘 다 있을 때만) */}
+          {activeTask.startedAt && activeTask.endTime && (
+            <div style={{
+              height: 3,
+              borderRadius: 2,
+              background: "var(--progress-bg)",
+              overflow: "hidden",
+              marginBottom: 14,
+            }}>
+              <div style={{
+                width: `${calcProgressPct(activeTask.startedAt, activeTask.endTime)}%`,
+                height: "100%",
+                background: "#FF1B8D",
+                transition: "width 0.3s",
+              }}/>
+            </div>
+          )}
+
+          {/* V14 — 통화 = 초록 / 길찾기 = 핑크 채우기 (통화와 무게감 통일) */}
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
           }}>
@@ -810,78 +852,49 @@ function MainScreen({
               onClick={(e) => { e.stopPropagation(); openMapForTask(activeTask); }}
               style={{
                 padding: 12,
-                background: "#FFFFFF",
-                border: "2px solid #FF1B8D",
+                background: "#FF1B8D",
+                border: "none",
                 borderRadius: 8,
-                color: "#FF1B8D",
+                color: "#fff",
                 fontSize: 13, fontWeight: 800,
                 cursor: "pointer", fontFamily: "inherit",
                 display: "flex", alignItems: "center",
                 justifyContent: "center", gap: 6,
               }}
             >
-              <NavSvgColored color="#FF1B8D"/> 길찾기
+              <NavSvgColored color="#fff"/> 길찾기
             </button>
           </div>
         </div>
       )}
 
-      {/* 3. 수락 대기 박스 (V14 — 노란 채우기 + 작업명 명시) */}
+      {/* 3. 수락 대기 배너 (V14 정제 — 흰 카드 + 좌측 4px 핑크 바 + 노랑 박스) */}
       {pendingAcceptances.length > 0 && (() => {
         const workTypes = [...new Set(pendingAcceptances.map(p => p.workType).filter(Boolean))];
         const workTypeLabel = workTypes.length === 1 ? workTypes[0] : "";
+        const title = workTypeLabel ? `${workTypeLabel} 수락 대기` : "수락 대기";
         return (
-          <div
+          <AlertBanner
             onClick={onClickAcceptanceList}
-            className="clickable"
-            style={{
-              margin: "0 16px 8px",
-              background: "#FFB800",
-              borderRadius: 10,
-              padding: 14,
-              cursor: "pointer",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 18 }}>⚡</span>
-              <div style={{ flex: 1 }}>
-                <div style={{
-                  fontSize: 14, color: "#1A1512", fontWeight: 800,
-                }}>
-                  {workTypeLabel ? `${workTypeLabel} 수락 대기` : "수락 대기"} · {pendingAcceptances.length}건
-                </div>
-              </div>
-              <span style={{ fontSize: 16, color: "#1A1512" }}>›</span>
-            </div>
-          </div>
+            iconBg="var(--banner-yellow-bg)"
+            icon="⚡"
+            title={title}
+            subText={`${pendingAcceptances.length}건 · 응답 필요`}
+            subColor="var(--banner-yellow-text)"
+          />
         );
       })()}
 
-      {/* 4. 새 배정 박스 (V14 — 핑크 채우기 그대로 / 50대 글자) */}
+      {/* 4. 새 배정 배너 (V14 정제 — 흰 카드 + 좌측 4px 핑크 바 + 핑크 박스) */}
       {newAssignments.length > 0 && (
-        <div
+        <AlertBanner
           onClick={onClickNewAssignmentList}
-          className="clickable"
-          style={{
-            margin: "0 16px 14px",
-            background: "#FF1B8D",
-            borderRadius: 10,
-            padding: 14,
-            cursor: "pointer",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <span style={{ fontSize: 18 }}>🔔</span>
-            <div style={{ flex: 1 }}>
-              <div style={{
-                fontSize: 14, color: "#fff", fontWeight: 800,
-              }}>
-                새 배정 · {newAssignments.length}건
-              </div>
-            </div>
-            <span style={{ fontSize: 16, color: "#fff" }}>›</span>
-          </div>
-        </div>
+          iconBg="var(--banner-pink-bg)"
+          icon="🔔"
+          title="새 배정"
+          subText={`${newAssignments.length}건 · 확인 필요`}
+          subColor="var(--banner-pink-text)"
+        />
       )}
 
       {/* 5. 다음 일정 (시간순) — V14 50대 글자 크기 */}
@@ -961,6 +974,73 @@ function MainScreen({
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+// V14 — 알림 배너 (수락 대기 / 새 배정)
+// 흰 카드 + 좌측 4px 핫핑크 바 + 컬러 박스 + 텍스트 + 화살표
+function AlertBanner({ onClick, iconBg, icon, title, subText, subColor }) {
+  return (
+    <div
+      onClick={onClick}
+      className="clickable"
+      style={{
+        position: "relative",
+        margin: "0 16px 8px",
+        background: "var(--card-bg)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        padding: "16px 16px 16px 20px",
+        cursor: "pointer",
+        overflow: "hidden",
+        display: "flex", alignItems: "center", gap: 14,
+      }}
+    >
+      {/* 좌측 4px 핫핑크 바 */}
+      <div style={{
+        position: "absolute",
+        left: 0, top: 0, bottom: 0,
+        width: 4,
+        background: "#FF1B8D",
+      }}/>
+
+      {/* 컬러 박스 */}
+      <div style={{
+        width: 40, height: 40,
+        borderRadius: 11,
+        background: iconBg,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+        fontSize: 20,
+      }}>
+        {icon}
+      </div>
+
+      {/* 텍스트 */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 17, fontWeight: 500,
+          color: "var(--text-primary)",
+        }}>
+          {title}
+        </div>
+        <div style={{
+          fontSize: 13, fontWeight: 500,
+          color: subColor || "var(--text-secondary)",
+          marginTop: 2,
+        }}>
+          {subText}
+        </div>
+      </div>
+
+      {/* 화살표 */}
+      <span style={{
+        fontSize: 18, color: "var(--text-secondary)",
+        flexShrink: 0,
+      }}>
+        ›
+      </span>
     </div>
   );
 }
