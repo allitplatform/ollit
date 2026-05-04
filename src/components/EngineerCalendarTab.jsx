@@ -35,6 +35,32 @@ function compareTime(a, b) {
   return ta.localeCompare(tb);
 }
 
+// V14 — 휴무 헬퍼 (single/range/repeat = full / hourly = 부분)
+function isFullDayOffYmd(ymd, dow, offDays) {
+  return (offDays || []).some(o => {
+    const type = o.type;
+    if (type === "hourly") return false;
+    if (type === "range")  return o.startDate && o.endDate && ymd >= o.startDate && ymd <= o.endDate;
+    if (type === "repeat") return Array.isArray(o.weekdays) && o.weekdays.includes(dow);
+    return o.date === ymd;
+  });
+}
+function getHourlyOffsForYmd(ymd, offDays) {
+  return (offDays || []).filter(o => o.type === "hourly" && o.date === ymd);
+}
+// 작업 + 시간 휴무 시간순 병합
+function mergeDayItems(tasks, hourlyOffs) {
+  const merged = [
+    ...tasks.map(t => ({ ...t, __off: false })),
+    ...hourlyOffs.map((o, i) => ({ ...o, __off: true, __key: `hoff-${i}` })),
+  ];
+  return merged.sort((a, b) => {
+    const ka = a.__off ? (a.startTime || "99:99") : (a.scheduledTime || a.time || "99:99");
+    const kb = b.__off ? (b.startTime || "99:99") : (b.scheduledTime || b.time || "99:99");
+    return ka.localeCompare(kb);
+  });
+}
+
 export function EngineerCalendarTab({
   engineer,
   tasks = [],
@@ -69,20 +95,13 @@ export function EngineerCalendarTab({
     const monthIdx  = currentMonth.getMonth();
     const lastDay   = new Date(monthYear, monthIdx + 1, 0).getDate();
     let offCount = 0;
+    let hourlyCount = 0;
     for (let d = 1; d <= lastDay; d++) {
       const date = new Date(monthYear, monthIdx, d);
       const ymd  = formatYmd(date);
       const dow  = date.getDay();
-      // 완전 휴무 — single/range/repeat/타입 미지정 (옛 데이터)
-      const isFullOff = (offDays || []).some(o => {
-        const type = o.type;
-        if (type === "hourly") return false;
-        if (type === "range")  return o.startDate && o.endDate && ymd >= o.startDate && ymd <= o.endDate;
-        if (type === "repeat") return Array.isArray(o.weekdays) && o.weekdays.includes(dow);
-        return o.date === ymd;
-      });
-      // 시간 단위 휴무 (hourly)
-      const hourlyList = (offDays || []).filter(o => o.type === "hourly" && o.date === ymd);
+      const isFullOff = isFullDayOffYmd(ymd, dow, offDays);
+      const hourlyList = getHourlyOffsForYmd(ymd, offDays);
       if (isFullOff) {
         if (!byDate[ymd]) byDate[ymd] = { tasks: [] };
         byDate[ymd].offDay = true;
@@ -91,10 +110,11 @@ export function EngineerCalendarTab({
       if (hourlyList.length > 0) {
         if (!byDate[ymd]) byDate[ymd] = { tasks: [] };
         byDate[ymd].hourlyOffs = hourlyList;
+        hourlyCount += hourlyList.length;
       }
     }
 
-    return { byDate, count, offCount };
+    return { byDate, count, offCount, hourlyCount };
   }, [tasks, offDays, currentMonth]);
 
   const dayTasks = useMemo(() => {
@@ -107,31 +127,39 @@ export function EngineerCalendarTab({
     return monthData.byDate[k]?.hourlyOffs || [];
   }, [monthData, selectedDate]);
 
-  // 오늘 타임라인용
-  const todayTasks = useMemo(() => {
+  // 오늘 타임라인용 (작업 + 시간 휴무 + 전체 휴무 여부)
+  const todayInfo = useMemo(() => {
     const today = new Date();
-    return tasks
+    const ymd   = formatYmd(today);
+    const dow   = today.getDay();
+    const items = tasks
       .filter(t => {
         const day = t.scheduledDate || t.workDate;
         return day && isSameDay(new Date(day), today);
       })
       .sort(compareTime);
-  }, [tasks]);
+    const hourlyOffs = getHourlyOffsForYmd(ymd, offDays);
+    const isFullOff  = isFullDayOffYmd(ymd, dow, offDays);
+    return { date: today, tasks: items, hourlyOffs, isFullOff };
+  }, [tasks, offDays]);
 
-  // 주간용 (오늘부터 7일)
+  // 주간용 (오늘부터 7일) — 작업 + 시간 휴무 + 전체 휴무
   const weekDays = useMemo(() => {
     const today = new Date();
     const days = [];
     for (let i = 0; i < 7; i++) {
       const date = addDays(today, i);
+      const ymd  = formatYmd(date);
+      const dow  = date.getDay();
       const dayTasks = tasks
         .filter(t => {
           const day = t.scheduledDate || t.workDate;
           return day && isSameDay(new Date(day), date);
         })
         .sort(compareTime);
-      const offDay = (offDays || []).some(o => o.date && isSameDay(new Date(o.date), date));
-      days.push({ date, tasks: dayTasks, offDay });
+      const hourlyOffs = getHourlyOffsForYmd(ymd, offDays);
+      const isFullOff  = isFullDayOffYmd(ymd, dow, offDays);
+      days.push({ date, tasks: dayTasks, hourlyOffs, offDay: isFullOff });
     }
     return days;
   }, [tasks, offDays]);
@@ -162,15 +190,18 @@ export function EngineerCalendarTab({
               {formatMonthShort(currentMonth)} {monthData.count}건 · 휴무 {monthData.offCount}일
             </div>
           </div>
-          <button onClick={onAddOff} style={{
-            padding: "10px 14px",
-            background: "#FF1B8D",
-            border: "none",
-            borderRadius: 8,
-            color: "#fff",
-            fontSize: 13, fontWeight: 800,
-            cursor: "pointer", fontFamily: "inherit",
-          }}>
+          <button
+            onClick={() => onAddOff && onAddOff(formatYmd(selectedDate))}
+            style={{
+              padding: "10px 14px",
+              background: "#FF1B8D",
+              border: "none",
+              borderRadius: 8,
+              color: "#fff",
+              fontSize: 13, fontWeight: 800,
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
             + 휴무 추가
           </button>
         </div>
@@ -202,7 +233,7 @@ export function EngineerCalendarTab({
         <WeekView weekDays={weekDays} onClickTask={onClickTask}/>
       )}
       {view === "today" && (
-        <TodayView todayTasks={todayTasks} onClickTask={onClickTask}/>
+        <TodayView todayInfo={todayInfo} onClickTask={onClickTask}/>
       )}
 
       <EngineerBottomNav active="cal" onChange={onTabChange} unreadCount={unreadCount}/>
@@ -338,13 +369,13 @@ function MonthView({
   );
 }
 
-function HourlyOffCard({ off }) {
+function HourlyOffCard({ off, compact = false }) {
   return (
     <div style={{
       background: "var(--bg-secondary)",
       border: "1px dashed var(--border)",
       borderRadius: 14,
-      padding: "14px 14px 14px 18px",
+      padding: compact ? "12px 14px 12px 18px" : "14px 14px 14px 18px",
       position: "relative",
       overflow: "hidden",
       opacity: 0.85,
@@ -358,12 +389,12 @@ function HourlyOffCard({ off }) {
       {/* 헤더: ⏰ + 시간 + 휴무 알약 */}
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
-        marginBottom: off.reason ? 6 : 8,
+        marginBottom: compact ? 0 : (off.reason ? 6 : 8),
         flexWrap: "wrap",
       }}>
-        <span style={{ fontSize: 16 }}>⏰</span>
+        <span style={{ fontSize: compact ? 14 : 16 }}>⏰</span>
         <span style={{
-          fontSize: 16, fontWeight: 700,
+          fontSize: compact ? 14 : 16, fontWeight: 700,
           color: "var(--text-secondary)",
         }}>
           {off.startTime || "—"} ~ {off.endTime || "—"}
@@ -378,111 +409,167 @@ function HourlyOffCard({ off }) {
         }}>
           휴무
         </span>
+        {compact && off.reason ? (
+          <span style={{
+            fontSize: 12, fontWeight: 600,
+            color: "var(--text-tertiary)",
+          }}>
+            · {off.reason}
+          </span>
+        ) : null}
       </div>
 
-      {/* 사유 */}
-      {off.reason ? (
+      {/* 풀 모드: 사유 + 헬퍼 */}
+      {!compact && off.reason ? (
         <div style={{
           fontSize: 13, fontWeight: 600,
           color: "var(--text-tertiary)",
           marginBottom: 8,
+          paddingLeft: 22,
         }}>
           📝 {off.reason}
         </div>
       ) : null}
-
-      {/* 운영팀 헬퍼 */}
-      <div style={{
-        fontSize: 12, fontWeight: 600,
-        color: "var(--text-tertiary)",
-        fontStyle: "italic",
-      }}>
-        ✓ 운영팀이 이 시간엔 배정하지 않습니다
-      </div>
+      {!compact ? (
+        <div style={{
+          fontSize: 12, fontWeight: 600,
+          color: "var(--text-tertiary)",
+          fontStyle: "italic",
+          paddingLeft: 22,
+        }}>
+          ✓ 운영팀이 이 시간엔 배정하지 않습니다
+        </div>
+      ) : null}
     </div>
   );
 }
 
 // ───────────────────────────────────────────────
-// 주간 뷰 — 7일 그룹
+// 주간 뷰 — 7일 그룹 (작업 + 시간 휴무 + 전체 휴무)
 // ───────────────────────────────────────────────
 function WeekView({ weekDays, onClickTask }) {
   return (
     <div style={{ padding: "16px" }}>
-      {weekDays.map(({ date, tasks: dt, offDay }, idx) => (
-        <div key={idx} style={{ marginBottom: 18 }}>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8,
-            marginBottom: 8, paddingLeft: 4,
-          }}>
-            <span style={{
-              fontSize: 14, fontWeight: 800,
-              color: isToday(date) ? "#FF1B8D" : "var(--text-primary)",
-            }}>
-              {formatDateLong(date)}
-            </span>
-            {isToday(date) && (
-              <span style={{
-                fontSize: 11, fontWeight: 800, color: "#FF1B8D",
-                padding: "2px 6px",
-                background: "rgba(255,27,141,0.10)",
-                borderRadius: 4,
-              }}>
-                오늘
-              </span>
-            )}
-            {offDay && (
-              <span style={{
-                fontSize: 11, fontWeight: 700,
-                color: "var(--text-secondary)",
-                padding: "2px 6px",
-                background: "var(--bg-secondary)",
-                borderRadius: 4,
-              }}>
-                휴무
-              </span>
-            )}
-            <span style={{
-              fontSize: 12, color: "var(--text-secondary)",
-              marginLeft: "auto", fontWeight: 600,
-            }}>
-              {dt.length > 0 ? `${dt.length}건` : ""}
-            </span>
-          </div>
-
-          {dt.length === 0 ? (
+      {weekDays.map(({ date, tasks: dt, hourlyOffs = [], offDay: isFullOff }, idx) => {
+        const items = mergeDayItems(dt, hourlyOffs);
+        const offCount = hourlyOffs.length;
+        return (
+          <div key={idx} style={{ marginBottom: 18 }}>
             <div style={{
-              padding: "10px 14px",
-              background: "var(--bg-secondary)",
-              borderRadius: 8,
-              fontSize: 12, color: "var(--text-tertiary)",
-              fontWeight: 600,
+              display: "flex", alignItems: "center", gap: 8,
+              marginBottom: 8, paddingLeft: 4, flexWrap: "wrap",
             }}>
-              {offDay ? "휴무" : "일정 없음"}
+              <span style={{
+                fontSize: 14, fontWeight: 800,
+                color: isToday(date) ? "#FF1B8D" : "var(--text-primary)",
+              }}>
+                {formatDateLong(date)}
+              </span>
+              {isToday(date) && (
+                <span style={{
+                  fontSize: 11, fontWeight: 800, color: "#FF1B8D",
+                  padding: "2px 6px",
+                  background: "rgba(255,27,141,0.10)",
+                  borderRadius: 4,
+                }}>
+                  오늘
+                </span>
+              )}
+              {isFullOff && (
+                <span style={{
+                  fontSize: 11, fontWeight: 700,
+                  color: "var(--text-secondary)",
+                  padding: "2px 6px",
+                  background: "var(--bg-secondary)",
+                  borderRadius: 4,
+                }}>
+                  휴무
+                </span>
+              )}
+              <span style={{
+                fontSize: 12, color: "var(--text-secondary)",
+                marginLeft: "auto", fontWeight: 600,
+              }}>
+                {!isFullOff && items.length > 0 ? `${items.length}건${offCount > 0 ? ` (휴무 ${offCount})` : ""}` : ""}
+              </span>
             </div>
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {dt.map(t => (
-                <DayTaskCard key={t.id} task={t} onClick={() => onClickTask && onClickTask(t.id)}/>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+
+            {isFullOff ? (
+              <div style={{
+                padding: "16px",
+                background: "var(--bg-secondary)",
+                border: "1px dashed var(--border)",
+                borderRadius: 14,
+                fontSize: 13, color: "var(--text-secondary)",
+                fontWeight: 700,
+                textAlign: "center",
+              }}>
+                ⏰ 휴무
+              </div>
+            ) : items.length === 0 ? (
+              <div style={{
+                padding: "10px 14px",
+                background: "var(--bg-secondary)",
+                borderRadius: 8,
+                fontSize: 12, color: "var(--text-tertiary)",
+                fontWeight: 600,
+              }}>
+                일정 없음
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {items.map(item => item.__off
+                  ? <HourlyOffCard key={item.__key} off={item} compact/>
+                  : <DayTaskCard key={item.id} task={item} onClick={() => onClickTask && onClickTask(item.id)}/>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 // ───────────────────────────────────────────────
-// 오늘 뷰 — 시간순 타임라인
+// 오늘 뷰 — 시간순 타임라인 (작업 + 시간 휴무 + 전체 휴무)
 // ───────────────────────────────────────────────
-function TodayView({ todayTasks, onClickTask }) {
-  if (todayTasks.length === 0) {
+function TodayView({ todayInfo, onClickTask }) {
+  const { tasks: todayTasks = [], hourlyOffs = [], isFullOff = false, date = new Date() } = todayInfo || {};
+  const items = mergeDayItems(todayTasks, hourlyOffs);
+  const offCount        = hourlyOffs.length;
+  const inProgressCount = todayTasks.filter(t => t.status === "진행중").length;
+  const confirmedCount  = todayTasks.filter(t => t.status === "확정").length;
+
+  // 전체 휴무 — 별도 화면
+  if (isFullOff) {
     return (
       <div style={{ padding: "16px" }}>
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 16, fontWeight: 800 }}>
-            {formatDateLong(new Date())} · <span style={{ color: "#FF1B8D" }}>오늘</span>
+            {formatDateLong(date)} · <span style={{ color: "#FF1B8D" }}>오늘</span>
+            <span style={{
+              marginLeft: 8,
+              background: "var(--pending-pill-bg, var(--border))",
+              color: "var(--text-secondary)",
+              fontSize: 11, padding: "2px 8px",
+              borderRadius: 999, fontWeight: 700,
+            }}>
+              휴무
+            </span>
+          </div>
+        </div>
+        <FullDayOffBox/>
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div style={{ padding: "16px" }}>
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>
+            {formatDateLong(date)} · <span style={{ color: "#FF1B8D" }}>오늘</span>
           </div>
         </div>
         <EmptyState text="오늘 일정이 없어요"/>
@@ -494,13 +581,16 @@ function TodayView({ todayTasks, onClickTask }) {
     <div style={{ padding: "16px" }}>
       <div style={{ marginBottom: 18 }}>
         <div style={{ fontSize: 16, fontWeight: 800 }}>
-          {formatDateLong(new Date())} · <span style={{ color: "#FF1B8D" }}>오늘</span>
+          {formatDateLong(date)} · <span style={{ color: "#FF1B8D" }}>오늘</span>
         </div>
         <div style={{
           fontSize: 12, color: "var(--text-secondary)",
           marginTop: 4, fontWeight: 600,
         }}>
-          {todayTasks.length}건 · 시간순
+          {items.length}건
+          {offCount > 0 && ` (휴무 ${offCount}건 포함)`}
+          {inProgressCount > 0 && ` · 진행중 ${inProgressCount}`}
+          {confirmedCount > 0 && ` · 확정 ${confirmedCount}`}
         </div>
       </div>
 
@@ -513,14 +603,50 @@ function TodayView({ todayTasks, onClickTask }) {
           background: "var(--border)",
         }}/>
 
-        {todayTasks.map((task, i) => (
-          <TimelineRow
-            key={task.id}
-            task={task}
-            isLast={i === todayTasks.length - 1}
-            onClick={() => onClickTask && onClickTask(task.id)}
-          />
-        ))}
+        {items.map((item) => item.__off
+          ? <TimelineHourlyOffRow key={item.__key} off={item}/>
+          : <TimelineRow key={item.id} task={item} onClick={() => onClickTask && onClickTask(item.id)}/>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function TimelineHourlyOffRow({ off }) {
+  return (
+    <div style={{ position: "relative", marginBottom: 14 }}>
+      <div style={{
+        position: "absolute",
+        left: -28, top: 14,
+        width: 16, height: 16,
+        borderRadius: "50%",
+        background: "var(--bg-primary)",
+        border: "3px solid #999",
+        boxSizing: "border-box",
+      }}/>
+      <HourlyOffCard off={off} compact/>
+    </div>
+  );
+}
+
+function FullDayOffBox() {
+  return (
+    <div style={{
+      background: "var(--bg-secondary)",
+      border: "1px dashed var(--border)",
+      borderRadius: 14,
+      padding: 24,
+      textAlign: "center",
+      color: "var(--text-secondary)",
+      fontSize: 14, fontWeight: 700,
+    }}>
+      <div style={{ fontSize: 32, marginBottom: 8 }}>🏖️</div>
+      <div>오늘은 휴무입니다</div>
+      <div style={{
+        fontSize: 12, color: "var(--text-tertiary)",
+        marginTop: 8, fontWeight: 600, fontStyle: "italic",
+      }}>
+        ✓ 운영팀이 오늘은 배정하지 않습니다
       </div>
     </div>
   );

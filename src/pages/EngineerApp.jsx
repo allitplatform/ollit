@@ -3975,7 +3975,11 @@ export default function EngineerApp({ user, onLogout }) {
     setTimeout(() => setToast(null), 2200);
   }
 
-  function handleAddOff() { setOffDayModalOpen(true); }
+  const [pendingOffDate, setPendingOffDate] = useState(null);
+  function handleAddOff(date) {
+    setPendingOffDate(date || null);
+    setOffDayModalOpen(true);
+  }
   function handleSaveOffDay(payload) {
     if (typeof console !== "undefined") console.log("🟢 휴무 추가 시도:", payload);
     setSavedOffDays(prev => {
@@ -4240,7 +4244,8 @@ export default function EngineerApp({ user, onLogout }) {
         {/* 휴무 등록 모달 (캘린더 탭 위에 띄움) */}
         {offDayModalOpen && (
           <EngineerOffDayAddModal
-            onClose={() => setOffDayModalOpen(false)}
+            defaultDate={pendingOffDate}
+            onClose={() => { setOffDayModalOpen(false); setPendingOffDate(null); }}
             onSave={handleSaveOffDay}
           />
         )}
