@@ -7,6 +7,9 @@ import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 
+// V14 — 수수료율 30% 고정 (시뮬 / 시트 연동 시 동적으로)
+const FEE_RATE = 0.30;
+
 const PARTIAL_REASONS = [
   { id: "customer_change", label: "고객 요청 변경" },
   { id: "device_bad",      label: "기기 상태 불량 (작업 불가)" },
@@ -94,11 +97,9 @@ function CustomerCard({ task, accentColor, subText }) {
 }
 
 // ───────────────────────────────────────────────
-// V14 — 정산 요약 카드 (위계 정리 / 메인 + 보조 회색 박스 + Hero)
-// rows: 메인은 그대로 / divider 만나면 회색 박스로 묶음 / 마지막은 Hero
+// V14 — 정산 요약 카드 (위계 정리 + weight 500/600 + 진한 회색 톤)
 // ───────────────────────────────────────────────
 function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
-  // rows를 분리 — divider 이전 = 메인 / 이후 = 보조
   const dividerIdx = rows.findIndex(r => r.divider);
   const mainRows = dividerIdx >= 0 ? rows.slice(0, dividerIdx) : rows;
   const subRows  = dividerIdx >= 0 ? rows.slice(dividerIdx + 1) : [];
@@ -112,26 +113,30 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
       padding: 18,
     }}>
       <div style={{
-        fontSize: 14, fontWeight: 500,
+        fontSize: 14, fontWeight: 600,
         color: "var(--text-primary)",
-        marginBottom: 14,
+        marginBottom: 16,
+        display: "flex", alignItems: "center", gap: 6,
       }}>
-        💰 정산 요약
+        <span style={{ fontSize: 15 }}>💰</span> 정산 요약
       </div>
 
-      {/* 메인 정보 (큰 글자) */}
+      {/* 메인 정보 (큰 글자 / 라벨 500 / 금액 600) */}
       {mainRows.map((r, i) => (
         <div key={i} style={{
           display: "flex", justifyContent: "space-between",
-          alignItems: "baseline", padding: "4px 0",
+          alignItems: "center", padding: "5px 0",
           fontSize: 14,
         }}>
-          <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>
+          <span style={{
+            color: "var(--label-main)",
+            fontWeight: 500,
+          }}>
             {r.label}
           </span>
           <span style={{
             color: r.color || "var(--text-primary)",
-            fontWeight: 500,
+            fontWeight: 600,
             fontFamily: "'JetBrains Mono', monospace",
           }}>
             {r.value}
@@ -139,27 +144,30 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
         </div>
       ))}
 
-      {/* 보조 정보 (작은 회색 박스) */}
+      {/* 보조 정보 (회색 박스) */}
       {subRows.length > 0 && (
         <div style={{
-          background: "var(--flow-bg)",
-          borderRadius: 10,
-          padding: "10px 12px",
-          margin: "12px 0",
+          background: "var(--sub-box-bg)",
+          borderRadius: 11,
+          padding: "12px 14px",
+          margin: "14px 0",
         }}>
           {subRows.map((r, i) => (
             <div key={i} style={{
               display: "flex", justifyContent: "space-between",
-              alignItems: "baseline", padding: "3px 0",
-              fontSize: 12,
+              alignItems: "center", padding: "3px 0",
+              fontSize: 13,
             }}>
-              <span style={{ color: "#888", fontWeight: 500 }}>
+              <span style={{
+                color: "var(--label-sub)",
+                fontWeight: 500,
+              }}>
                 {r.label}
               </span>
               <span style={{
-                color: r.color || "#888",
+                color: r.color || "var(--sub-box-amount)",
                 fontFamily: "'JetBrains Mono', monospace",
-                fontWeight: 500,
+                fontWeight: 600,
               }}>
                 {r.value}
               </span>
@@ -170,8 +178,8 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
 
       {/* Hero — 내 수익 (핑크 박스) */}
       <div style={{
-        background: "rgba(255,27,141,0.08)",
-        border: "1px solid rgba(255,27,141,0.25)",
+        background: "var(--hero-pink-bg)",
+        border: "1px solid var(--hero-pink-border)",
         borderRadius: 12,
         padding: "14px 16px",
         display: "flex", justifyContent: "space-between",
@@ -179,16 +187,16 @@ function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
       }}>
         <div style={{
           fontSize: 14, color: finalColor,
-          fontWeight: 500,
+          fontWeight: 600,
           display: "flex", alignItems: "center", gap: 6,
         }}>
           <span style={{ fontSize: 15 }}>💰</span> {finalLabel.replace(/^💰\s*/, "")}
         </div>
         <span style={{
           fontSize: 30, color: finalColor,
-          fontWeight: 500,
+          fontWeight: 600,
           fontFamily: "'JetBrains Mono', monospace",
-          letterSpacing: "-0.6px", lineHeight: 1,
+          letterSpacing: "-0.7px", lineHeight: 1,
         }}>
           +{finalAmount.toLocaleString("ko-KR")}원
         </span>
@@ -359,9 +367,8 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   const baseAmount = task.estimateTotal || 0;
   const extraFee   = task.extraFee || 0;
   const total      = baseAmount + extraFee;
-  // V14 — 수수료율 정규화 (mock에서 정수 30 들어와도 0.30로 처리)
-  const rawRate    = task.commissionRate != null ? task.commissionRate : 0.30;
-  const rate       = rawRate > 1 ? rawRate / 100 : rawRate;
+  // V14 — 수수료 30% 고정 (task.commissionRate 무시)
+  const rate       = FEE_RATE;
   const commission = Math.floor(total * rate);
   const earning    = Math.max(0, total - commission);
 
@@ -410,9 +417,8 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const baseAmount     = totalQty > 0 ? Math.round(baseAmountFull * (actualQty / totalQty)) : 0;
   const extraFee       = task.extraFee || 0;
   const total          = baseAmount + extraFee;
-  // V14 — 수수료율 정규화
-  const rawRatePartial = task.commissionRate != null ? task.commissionRate : 0.30;
-  const rate           = rawRatePartial > 1 ? rawRatePartial / 100 : rawRatePartial;
+  // V14 — 수수료 30% 고정
+  const rate           = FEE_RATE;
   const commission     = Math.floor(total * rate);
   const earning        = Math.max(0, total - commission);
 
