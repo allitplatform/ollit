@@ -48,3 +48,24 @@ input, textarea {
   --accent-border:       rgba(255,27,141,0.40);
   --accent-border-strong:rgba(255,27,141,0.60);
 }
+
+/* V14 — 다크 모드 input/select/textarea 글자 흰색 + 700 (50대 친화) */
+[data-theme="dark"] input,
+[data-theme="dark"] textarea,
+[data-theme="dark"] select {
+  color: #FAF8F5;
+  font-weight: 700;
+}
+
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #888;
+  font-weight: 500;
+}
+
+/* 라이트 모드 placeholder 통일 */
+[data-theme="light"] input::placeholder,
+[data-theme="light"] textarea::placeholder {
+  color: #999;
+  font-weight: 500;
+}
