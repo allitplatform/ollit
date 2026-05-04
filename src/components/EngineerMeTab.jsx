@@ -9,6 +9,9 @@ import { useIsDark } from "../hooks/useIsDark.js";
 const APP_VERSION = "v1.0 · Phase 1A";
 const FONT_SCALE = { small: 0.9, medium: 1.0, large: 1.1 };
 
+// V14 — 카카오 채널 URL (사장님 채널 받으면 박는다)
+const KAKAO_CHANNEL_URL = ""; // ⚠️ 사장님 카톡 채널/오픈채팅 URL
+
 function loadFontSize() {
   try {
     const v = localStorage.getItem("ollit_font_size");
@@ -72,7 +75,13 @@ export function EngineerMeTab({
   function handleHelp()    { alert("도움말은 다음 단계에서 추가됩니다."); }
   function handleTerms()   { alert("이용약관은 다음 단계에서 추가됩니다."); }
   function handlePassword(){ if (onChangePassword) onChangePassword(); else alert("비밀번호 변경은 다음 단계에서 추가됩니다."); }
-  function handleMessage() { if (onMessageOps) onMessageOps(); else alert("운영팀 메시지는 다음 단계에서 추가됩니다."); }
+  function handleKakao()   {
+    if (KAKAO_CHANNEL_URL) {
+      window.open(KAKAO_CHANNEL_URL, "_blank");
+    } else {
+      alert("카톡 채널 준비 중입니다. 운영팀에 전화 부탁드립니다.");
+    }
+  }
 
   // 카드 공통 스타일
   const cardStyle = {
@@ -180,10 +189,10 @@ export function EngineerMeTab({
             }}>
               📞 전화
             </button>
-            <button onClick={handleMessage} style={{
-              background: "transparent",
-              border: `1.5px solid ${isDark ? "#9B85FF" : "#7B61FF"}`,
-              color: isDark ? "#9B85FF" : "#7B61FF",
+            <button onClick={handleKakao} style={{
+              background: "#FEE500",
+              border: "none",
+              color: "#191919",
               padding: 14,
               borderRadius: 12,
               fontSize: 14, fontWeight: 700,
@@ -191,7 +200,7 @@ export function EngineerMeTab({
               fontFamily: "inherit",
               display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
             }}>
-              💬 메시지
+              <span style={{ fontSize: 16 }}>💛</span> 카톡 문의
             </button>
           </div>
         </div>

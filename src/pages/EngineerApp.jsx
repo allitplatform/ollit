@@ -3686,7 +3686,19 @@ function extractTimeHint(hint) {
 export default function EngineerApp({ user, onLogout }) {
   // V13-1-fix — localStorage 모드 로드 + CSS 변수 적용
   const [mode, setMode] = useState(() => loadThemeSaved());
-  const [screen, setScreen] = useState("main");
+  // V14 — navigation stack: 알림 → 작업 → 뒤로 = 알림 복귀
+  const [screenStack, setScreenStack] = useState(["main"]);
+  const screen = screenStack[screenStack.length - 1];
+  const setScreen = (s) => setScreenStack(prev => (prev[prev.length - 1] === s ? prev : [...prev, s]));
+  const goBack    = () => setScreenStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
+  const resetTo   = (s) => setScreenStack([s]);
+  const handleTabChange = (tabId) => {
+    if (tabId === "today")        resetTo("main");
+    else if (tabId === "settle")  resetTo("settlement");
+    else if (tabId === "cal")     resetTo("calendar");
+    else if (tabId === "noti")    resetTo("notifications");
+    else if (tabId === "me")      resetTo("profile");
+  };
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   // V13-1 — 가스 자동 배정 콜 (catch #10 — mock 1건 추가)
   const [pendingAcceptances, setPendingAcceptances] = useState([
@@ -3718,7 +3730,7 @@ export default function EngineerApp({ user, onLogout }) {
   const t = THEMES[mode];
   const selectedTask = tasks.find(x => x.id === selectedTaskId);
 
-  const reset = () => { resetTasks(); setScreen("main"); setSelectedTaskId(null); };
+  const reset = () => { resetTasks(); resetTo("main"); setSelectedTaskId(null); };
 
   // V14 — 수락한 acceptance를 새 배정 리스트에 추가 (newAssignments 계산 전에 선언)
   const [extraAssignments, setExtraAssignments] = useState([]);
@@ -3764,11 +3776,11 @@ export default function EngineerApp({ user, onLogout }) {
       status:        "약속대기",
     }]);
     showToast("수락 완료. 새 배정에 추가됐습니다.");
-    setScreen("main");
+    resetTo("main");
   }
   function handleRejectCall(callId) {
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
-    setScreen("main");
+    resetTo("main");
   }
 
   // V13-FINAL2 — 4탭 mock 데이터
@@ -3879,8 +3891,9 @@ export default function EngineerApp({ user, onLogout }) {
     },
   ];
 
-  // V14 — 유솔N 정산 시뮬 데이터
+  // V14 — 유솔N 정산 시뮬 (5월=누적 / 4월=받을 돈 / 3월=입금 완료)
   const usolNGroupsMock = [
+    // 5월 (누적, 일하는 만큼 쌓임)
     {
       date: "2026-05-04", status: "pending", totalAmount: 80000, payDate: "2026-06-15",
       works: [
@@ -3899,22 +3912,33 @@ export default function EngineerApp({ user, onLogout }) {
         { id: null, customerName: "한승호", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 80000 },
       ],
     },
+    // 4월 (받을 돈, 5월 15일 입금 예정)
     {
-      date: "2026-04-25", status: "completed", totalAmount: 160000, payDate: "2026-05-15",
+      date: "2026-04-28", status: "pending", totalAmount: 60000, payDate: "2026-05-15",
       works: [
-        { id: null, customerName: "김민재", workType: "냉매", workItem: "시스템 멀티", quantity: 2, feeAmount: 160000 },
+        { id: null, customerName: "최민호", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 60000 },
       ],
     },
+    {
+      date: "2026-04-25", status: "pending", totalAmount: 80000, payDate: "2026-05-15",
+      works: [
+        { id: null, customerName: "김민재", workType: "냉매", workItem: "시스템 멀티", quantity: 1, feeAmount: 80000 },
+      ],
+    },
+    // 3월 (입금 완료, 4월 15일 입금됨)
     {
       date: "2026-03-22", status: "completed", totalAmount: 90000, payDate: "2026-04-15",
       works: [
         { id: null, customerName: "이태원", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 90000 },
       ],
     },
+    {
+      date: "2026-03-10", status: "completed", totalAmount: 160000, payDate: "2026-04-15",
+      works: [
+        { id: null, customerName: "박은비", workType: "냉매", workItem: "스탠드", quantity: 2, feeAmount: 160000 },
+      ],
+    },
   ];
-  const usolNPendingAmount = usolNGroupsMock.filter(g => g.status === "pending").reduce((s, g) => s + g.totalAmount, 0);
-  const usolNPendingCount  = usolNGroupsMock.filter(g => g.status === "pending").reduce((s, g) => s + g.works.length, 0);
-  const usolNYearTotal     = usolNGroupsMock.reduce((s, g) => s + g.totalAmount, 0);
 
   // 휴무 mock
   const offDays = [];
@@ -3947,11 +3971,11 @@ export default function EngineerApp({ user, onLogout }) {
   function handleChatOps() { alert("운영팀 채팅"); }
   function handleSaveAccount(payload) {
     setSavedAccount(payload);
-    setScreen("profile");
+    resetTo("profile");
   }
   function handleSaveRegions(regions) {
     setSavedRegions(regions);
-    setScreen("profile");
+    resetTo("profile");
   }
   // V14 — datePreset → ISO 날짜 변환
   function presetToISO(preset, customDate) {
@@ -3964,7 +3988,7 @@ export default function EngineerApp({ user, onLogout }) {
   function handleSaveCall(payload) {
     const id = callTaskId || (acceptedCall && acceptedCall.id);
     if (!id) {
-      setScreen("main");
+      resetTo("main");
       return;
     }
     const scheduledDate = payload?.scheduledDate || presetToISO(payload?.datePreset, payload?.customDate);
@@ -3986,7 +4010,7 @@ export default function EngineerApp({ user, onLogout }) {
     setCallTaskId(null);
     setAcceptedCall(null);
     showToast("일정이 확정됐습니다.");
-    setScreen("main");
+    resetTo("main");
   }
   function handleLocationSettings() {
     if (typeof navigator !== "undefined" && navigator.geolocation) {
@@ -4065,13 +4089,7 @@ export default function EngineerApp({ user, onLogout }) {
             />
             <EngineerBottomNav
               active="today"
-              onChange={(tabId) => {
-                if (tabId === "today") return;
-                if (tabId === "settle") setScreen("settlement");
-                else if (tabId === "cal") setScreen("calendar");
-                else if (tabId === "noti") setScreen("notifications");
-                else if (tabId === "me") setScreen("profile");
-              }}
+              onChange={handleTabChange}
               unreadCount={unreadCount}
             />
           </>
@@ -4088,13 +4106,7 @@ export default function EngineerApp({ user, onLogout }) {
             onClickUsolN={() => setScreen("usolNSettlement")}
             onClickPaymentHistory={() => setScreen("paymentHistory")}
             onConfirmPaymentSent={() => alert("입금 완료 보고")}
-            onTabChange={(tabId) => {
-              if (tabId === "today") setScreen("main");
-              else if (tabId === "settle") return;
-              else if (tabId === "cal") setScreen("calendar");
-              else if (tabId === "noti") setScreen("notifications");
-              else if (tabId === "me") setScreen("profile");
-            }}
+            onTabChange={handleTabChange}
             unreadCount={unreadCount}
           />
         )}
@@ -4103,7 +4115,7 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "settlementDetail" && (
           <EngineerSettlementDetailScreen
             todayTasks={todayTasks}
-            onBack={() => setScreen("settlement")}
+            onBack={goBack}
             onTaskClick={(task) => { setSelectedTaskId(task.id); setScreen("detail"); }}
           />
         )}
@@ -4116,13 +4128,7 @@ export default function EngineerApp({ user, onLogout }) {
             offDays={savedOffDays}
             onAddOff={handleAddOff}
             onClickTask={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
-            onTabChange={(tabId) => {
-              if (tabId === "today") setScreen("main");
-              else if (tabId === "settle") setScreen("settlement");
-              else if (tabId === "cal") return;
-              else if (tabId === "noti") setScreen("notifications");
-              else if (tabId === "me") setScreen("profile");
-            }}
+            onTabChange={handleTabChange}
             unreadCount={unreadCount}
           />
         )}
@@ -4133,13 +4139,7 @@ export default function EngineerApp({ user, onLogout }) {
             notifications={notifications}
             onClickNoti={handleNotiClick}
             onMarkAllRead={markAllRead}
-            onTabChange={(tabId) => {
-              if (tabId === "today") setScreen("main");
-              else if (tabId === "settle") setScreen("settlement");
-              else if (tabId === "cal") setScreen("calendar");
-              else if (tabId === "noti") return;
-              else if (tabId === "me") setScreen("profile");
-            }}
+            onTabChange={handleTabChange}
           />
         )}
 
@@ -4153,13 +4153,7 @@ export default function EngineerApp({ user, onLogout }) {
             onChangeAccount={() => setScreen("accountEdit")}
             onRegions={() => setScreen("regionChange")}
             onLogout={onLogout}
-            onTabChange={(tabId) => {
-              if (tabId === "today") setScreen("main");
-              else if (tabId === "settle") setScreen("settlement");
-              else if (tabId === "cal") setScreen("calendar");
-              else if (tabId === "noti") setScreen("notifications");
-              else if (tabId === "me") return;
-            }}
+            onTabChange={handleTabChange}
             unreadCount={unreadCount}
           />
         )}
@@ -4168,22 +4162,22 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "accountEdit" && (
           <EngineerAccountEditScreen
             engineer={engineerProfileMerged}
-            onBack={() => setScreen("profile")}
+            onBack={goBack}
             onSave={handleSaveAccount}
           />
         )}
         {screen === "notiSettings" && (
           <EngineerNotiSettingsScreen
-            onBack={() => setScreen("profile")}
+            onBack={goBack}
           />
         )}
         {screen === "regionChange" && (
           <EngineerRegionChangeRequestScreen
             engineer={engineerProfileMerged}
-            onBack={() => setScreen("profile")}
+            onBack={goBack}
             onSave={({ memo }) => {
               alert(`운영팀에 변경 요청 전송\n사유: ${memo}`);
-              setScreen("profile");
+              resetTo("profile");
             }}
           />
         )}
@@ -4193,7 +4187,7 @@ export default function EngineerApp({ user, onLogout }) {
             onBack={() => {
               setAcceptedCall(null);
               setCallTaskId(null);
-              setScreen("newAssignmentList");
+              goBack();
             }}
             onSave={handleSaveCall}
             onUnableSchedule={() => {
@@ -4205,7 +4199,7 @@ export default function EngineerApp({ user, onLogout }) {
               setCallTaskId(null);
               setAcceptedCall(null);
               showToast("일정 불가 — 운영팀에 알림 보냈습니다.");
-              setScreen("main");
+              resetTo("main");
             }}
             onCustomerCancel={() => {
               const ok = window.confirm("정말 취소하시겠습니까?");
@@ -4218,7 +4212,7 @@ export default function EngineerApp({ user, onLogout }) {
               setCallTaskId(null);
               setAcceptedCall(null);
               showToast("고객 취소 처리됐습니다.");
-              setScreen("main");
+              resetTo("main");
             }}
             onAskOps={() => alert("운영팀에 문의")}
           />
@@ -4236,14 +4230,14 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "newAssignmentList" && (
           <EngineerNewAssignmentListScreen
             tasks={newAssignments}
-            onBack={() => setScreen("main")}
+            onBack={goBack}
             onTaskClick={(id) => { setCallTaskId(id); setScreen("newAssignCall"); }}
           />
         )}
         {screen === "acceptanceList" && (
           <EngineerAcceptanceListScreen
             pendingAcceptances={pendingAcceptances}
-            onBack={() => setScreen("main")}
+            onBack={goBack}
             onAccept={handleAcceptCall}
             onReject={handleRejectCall}
           />
@@ -4251,7 +4245,7 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "detail" && selectedTask && (
           <EngineerTaskDetailScreen
             task={selectedTask}
-            onBack={() => { setScreen("main"); setSelectedTaskId(null); }}
+            onBack={() => { goBack(); setSelectedTaskId(null); }}
             onUpdate={updateTask}
           />
         )}
@@ -4260,13 +4254,13 @@ export default function EngineerApp({ user, onLogout }) {
             engineer={engineerProfile}
             monthData={usolNMonthData}
             loadDayTasks={loadUsolNDayTasks}
-            onBack={() => setScreen("settlement")}
+            onBack={goBack}
           />
         )}
         {screen === "paymentHistory" && (
           <PaymentHistoryScreen
             payments={paymentsMock}
-            onBack={() => setScreen("settlement")}
+            onBack={goBack}
             onTaskClick={(taskId) => {
               const t = tasks.find(x => x.id === taskId);
               if (t) { setSelectedTaskId(t.id); setScreen("detail"); }
@@ -4275,12 +4269,12 @@ export default function EngineerApp({ user, onLogout }) {
         )}
         {screen === "usolNSettlement" && (
           <UsolNSettlementScreen
-            pendingAmount={usolNPendingAmount}
-            pendingCount={usolNPendingCount}
-            payDate="2026-06-15"
-            thisYearTotal={usolNYearTotal}
             groups={usolNGroupsMock}
-            onBack={() => setScreen("settlement")}
+            currentYm="2026-05"
+            prevYm="2026-04"
+            thisMonthDepositDate="6월 15일"
+            prevMonthDepositDate="5월 15일"
+            onBack={goBack}
             onTaskClick={(taskId) => {
               const t = tasks.find(x => x.id === taskId);
               if (t) { setSelectedTaskId(t.id); setScreen("detail"); }
