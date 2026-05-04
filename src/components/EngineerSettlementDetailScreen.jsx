@@ -78,7 +78,7 @@ export function EngineerSettlementDetailScreen({
           </div>
           {/* Hero ₩ 56px 핑크 (검정 위에서 도드라짐) */}
           <div style={{
-            fontSize: 56, fontWeight: 600, color: "#FF4DA6",
+            fontSize: 56, fontWeight: 700, color: "#FF4DA6",
             fontFamily: "'JetBrains Mono', monospace",
             letterSpacing: "-2px", lineHeight: 1,
             marginBottom: 6,
@@ -149,7 +149,7 @@ function SubStat({ label, amount }) {
         {label}
       </div>
       <div style={{
-        fontSize: 18, fontWeight: 600,
+        fontSize: 18, fontWeight: 700,
         fontFamily: "'JetBrains Mono', monospace",
         color: "#FAF8F5", letterSpacing: "-0.3px", lineHeight: 1.1,
       }}>
@@ -247,7 +247,7 @@ function WorkSettlementCard({ work, onClick }) {
 
       {/* 고객명 · 작업 항목 */}
       <div style={{
-        fontSize: 16, fontWeight: 600,
+        fontSize: 16, fontWeight: 700,
         color: "var(--text-primary)",
         marginBottom: 12,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
