@@ -426,11 +426,10 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       })()}
 
       {isInProgress && (() => {
-        const colors = getWorkTypeColors(task.workType);
         const enough = photos.length >= PHOTO_MIN;
         return (
         <div style={{ padding: "14px 16px 22px" }}>
-          {/* V14 — 메인 액션 (작업 완료 / 작업 종류 색 / 사진 부족 시 비활성) */}
+          {/* V14 — 메인 액션 (작업 완료 / 핑크 풀 V14 메인 액션) */}
           <button
             onClick={() => {
               if (!enough) {
@@ -442,10 +441,10 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
             disabled={!enough}
             style={{
               width: "100%", padding: 18,
-              background: enough ? colors.main : "#F0EBE3",
+              background: enough ? "#FF1B8D" : "var(--bg-tertiary)",
               border: "none", borderRadius: 16,
-              color: enough ? (colors.buttonText || "#fff") : "#B0B0B0",
-              fontSize: 17, fontWeight: 700,
+              color: enough ? "#fff" : "var(--text-tertiary)",
+              fontSize: 17, fontWeight: 500,
               cursor: enough ? "pointer" : "not-allowed",
               fontFamily: "inherit",
               marginBottom: 10,

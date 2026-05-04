@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
 
 const PARTIAL_REASONS = [
   { id: "customer_change", label: "고객 요청 변경" },
@@ -41,32 +42,48 @@ function ScreenHeader({ title, onBack }) {
 }
 
 // ───────────────────────────────────────────────
-// 고객 카드 (보더 컬러 가변)
+// V14 — 고객 카드 (좌측 4px 작업 종류 색 바)
 // ───────────────────────────────────────────────
 function CustomerCard({ task, accentColor, subText }) {
+  const colors = getWorkTypeColors(task.workType);
   return (
     <div style={{
       margin: "16px",
-      background: "var(--bg-secondary)",
-      border: `2px solid ${accentColor}`,
-      borderRadius: 14,
-      padding: 16,
+      background: "var(--card-bg)",
+      border: "1px solid var(--border)",
+      borderRadius: 18,
+      padding: "18px 18px 16px 22px",
+      position: "relative",
+      overflow: "hidden",
     }}>
-      <div style={{ fontSize: 19, fontWeight: 800, marginBottom: 6 }}>
+      {/* 좌측 4px 작업 종류 색 바 */}
+      <div style={{
+        position: "absolute", left: 0, top: 0, bottom: 0,
+        width: 4, background: colors.main,
+      }}/>
+      <div style={{
+        fontSize: 22, fontWeight: 500,
+        color: "var(--text-primary)",
+        letterSpacing: "-0.3px",
+        marginBottom: 6,
+      }}>
         {task.customer || "—"} 고객님
       </div>
       <div style={{
         display: "flex", alignItems: "center", gap: 6,
-        fontSize: 14, fontWeight: 600,
-        color: "var(--text-secondary)",
+        fontSize: 14, fontWeight: 500,
       }}>
-        <ServiceTypeIcon workType={task.workType} size={14} showLabel={true}/>
-        <span>{task.appliance ? `· ${task.appliance}` : ""}{task.qty ? ` ×${task.qty}대` : ""}</span>
+        <span style={{ color: colors.main, fontWeight: 500 }}>
+          {colors.icon} {colors.name}
+        </span>
+        <span style={{ color: "var(--text-secondary)" }}>
+          {task.appliance ? `· ${task.appliance}` : ""}{task.qty ? ` ×${task.qty}대` : ""}
+        </span>
       </div>
       {subText && (
         <div style={{
           marginTop: 8,
-          fontSize: 13, fontWeight: 600,
+          fontSize: 13, fontWeight: 500,
           color: accentColor,
         }}>
           {subText}
@@ -77,36 +94,101 @@ function CustomerCard({ task, accentColor, subText }) {
 }
 
 // ───────────────────────────────────────────────
-// 정산 요약 카드 (수수료 흐름)
+// V14 — 정산 요약 카드 (위계 정리 / 메인 + 보조 회색 박스 + Hero)
+// rows: 메인은 그대로 / divider 만나면 회색 박스로 묶음 / 마지막은 Hero
 // ───────────────────────────────────────────────
 function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
+  // rows를 분리 — divider 이전 = 메인 / 이후 = 보조
+  const dividerIdx = rows.findIndex(r => r.divider);
+  const mainRows = dividerIdx >= 0 ? rows.slice(0, dividerIdx) : rows;
+  const subRows  = dividerIdx >= 0 ? rows.slice(dividerIdx + 1) : [];
+
   return (
     <div style={{
       margin: "0 16px 14px",
-      background: "var(--bg-secondary)",
+      background: "var(--card-bg)",
       border: "1px solid var(--border)",
-      borderRadius: 12,
-      padding: 16,
+      borderRadius: 16,
+      padding: 18,
     }}>
       <div style={{
-        fontSize: 14, fontWeight: 800, marginBottom: 12,
+        fontSize: 14, fontWeight: 500,
+        color: "var(--text-primary)",
+        marginBottom: 14,
       }}>
         💰 정산 요약
       </div>
-      {rows.map((r, i) => (
-        <SettlementRow key={i} {...r}/>
+
+      {/* 메인 정보 (큰 글자) */}
+      {mainRows.map((r, i) => (
+        <div key={i} style={{
+          display: "flex", justifyContent: "space-between",
+          alignItems: "baseline", padding: "4px 0",
+          fontSize: 14,
+        }}>
+          <span style={{ color: "var(--text-secondary)", fontWeight: 500 }}>
+            {r.label}
+          </span>
+          <span style={{
+            color: r.color || "var(--text-primary)",
+            fontWeight: 500,
+            fontFamily: "'JetBrains Mono', monospace",
+          }}>
+            {r.value}
+          </span>
+        </div>
       ))}
-      <div style={{ height: 1, background: "var(--border)", margin: "10px 0" }}/>
+
+      {/* 보조 정보 (작은 회색 박스) */}
+      {subRows.length > 0 && (
+        <div style={{
+          background: "var(--flow-bg)",
+          borderRadius: 10,
+          padding: "10px 12px",
+          margin: "12px 0",
+        }}>
+          {subRows.map((r, i) => (
+            <div key={i} style={{
+              display: "flex", justifyContent: "space-between",
+              alignItems: "baseline", padding: "3px 0",
+              fontSize: 12,
+            }}>
+              <span style={{ color: "#888", fontWeight: 500 }}>
+                {r.label}
+              </span>
+              <span style={{
+                color: r.color || "#888",
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 500,
+              }}>
+                {r.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Hero — 내 수익 (핑크 박스) */}
       <div style={{
+        background: "rgba(255,27,141,0.08)",
+        border: "1px solid rgba(255,27,141,0.25)",
+        borderRadius: 12,
+        padding: "14px 16px",
         display: "flex", justifyContent: "space-between",
-        alignItems: "baseline",
+        alignItems: "center",
       }}>
-        <span style={{ fontSize: 15, fontWeight: 800 }}>{finalLabel}</span>
+        <div style={{
+          fontSize: 14, color: finalColor,
+          fontWeight: 500,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span style={{ fontSize: 15 }}>💰</span> {finalLabel.replace(/^💰\s*/, "")}
+        </div>
         <span style={{
-          fontSize: 22, fontWeight: 900,
+          fontSize: 30, color: finalColor,
+          fontWeight: 500,
           fontFamily: "'JetBrains Mono', monospace",
-          color: finalColor,
-          letterSpacing: "-0.5px",
+          letterSpacing: "-0.6px", lineHeight: 1,
         }}>
           +{finalAmount.toLocaleString("ko-KR")}원
         </span>
@@ -277,9 +359,11 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   const baseAmount = task.estimateTotal || 0;
   const extraFee   = task.extraFee || 0;
   const total      = baseAmount + extraFee;
-  const rate       = task.commissionRate != null ? task.commissionRate : 0.30;
-  const commission = Math.round(total * rate);
-  const earning    = total - commission;
+  // V14 — 수수료율 정규화 (mock에서 정수 30 들어와도 0.30로 처리)
+  const rawRate    = task.commissionRate != null ? task.commissionRate : 0.30;
+  const rate       = rawRate > 1 ? rawRate / 100 : rawRate;
+  const commission = Math.floor(total * rate);
+  const earning    = Math.max(0, total - commission);
 
   function handleConfirm() {
     onConfirm && onConfirm({
@@ -326,9 +410,11 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const baseAmount     = totalQty > 0 ? Math.round(baseAmountFull * (actualQty / totalQty)) : 0;
   const extraFee       = task.extraFee || 0;
   const total          = baseAmount + extraFee;
-  const rate           = task.commissionRate != null ? task.commissionRate : 0.30;
-  const commission     = Math.round(total * rate);
-  const earning        = total - commission;
+  // V14 — 수수료율 정규화
+  const rawRatePartial = task.commissionRate != null ? task.commissionRate : 0.30;
+  const rate           = rawRatePartial > 1 ? rawRatePartial / 100 : rawRatePartial;
+  const commission     = Math.floor(total * rate);
+  const earning        = Math.max(0, total - commission);
 
   const canSubmit = !!reasonId && actualQty > 0 && actualQty <= totalQty;
 
