@@ -347,8 +347,8 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       {/* 영역 3 — 고객 + 요청사항 + 운영 메모 (공통) */}
       <CustomerInfo task={task}/>
 
-      {/* 확정 — 이동 정보 */}
-      {isConfirmed && <TravelBox task={task}/>}
+      {/* V14 — 길찾기 (확정만 / 네이버 + T맵) */}
+      {isConfirmed && <MapButtons task={task}/>}
 
       {/* 진행중 — 사진 / 추가금 / 메모 */}
       {isInProgress && (
@@ -540,40 +540,69 @@ function StatusBlockConfirmed({ task }) {
 }
 
 function StatusBlockInProgress({ task }) {
+  // V14 — 진행률 계산
+  const pct = (() => {
+    if (!task.startedAt || !task.endTime) return 0;
+    const toMin = (s) => {
+      const [h, m] = String(s).split(":");
+      return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
+    };
+    const startMin = toMin(task.startedAt);
+    const endMin   = toMin(task.endTime);
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    if (endMin <= startMin) return 0;
+    return Math.max(0, Math.min(100, ((nowMin - startMin) / (endMin - startMin)) * 100));
+  })();
+
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
-        display: "inline-flex", alignItems: "center", gap: 4,
-        padding: "3px 10px",
-        background: "rgba(255,27,141,0.15)",
-        border: "1px solid #FF1B8D",
-        borderRadius: 14, marginBottom: 12,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 8,
       }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#FF1B8D" }}/>
-        <span style={{ fontSize: 10, color: "#FF1B8D", fontWeight: 700 }}>
-          진행중
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FF1B8D" }}/>
+          <span style={{ fontSize: 13, color: "var(--accent-strong)", fontWeight: 500 }}>
+            진행중
+          </span>
+        </div>
+        {task.startedAt && (
+          <span style={{ fontSize: 12, color: "#888", fontWeight: 500 }}>
+            {task.startedAt} 시작
+          </span>
+        )}
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 12 }}>
         <div style={{
-          fontSize: 28, fontWeight: 700, fontFamily: "monospace",
-          color: "var(--text-primary)",
+          fontSize: 32, fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-primary)", letterSpacing: "-0.5px",
         }}>
           {task.startedAt || task.scheduledTime || "—"}
         </div>
         {task.endTime && (
-          <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+          <div style={{ fontSize: 16, color: "#888", fontWeight: 500 }}>
             ~ {task.endTime}
           </div>
         )}
       </div>
-      <div style={{
-        display: "flex", alignItems: "center", gap: 6,
-        fontSize: 11, color: "var(--text-primary)", fontWeight: 600,
-      }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#FF1B8D" }}/>
-        <span>{task.startedAt || "—"} 시작 · 작업 중</span>
-      </div>
+
+      {/* V14 — progress bar */}
+      {task.startedAt && task.endTime && (
+        <div style={{
+          height: 3, borderRadius: 2,
+          background: "var(--progress-bg)",
+          overflow: "hidden",
+        }}>
+          <div style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: "#FF1B8D",
+            transition: "width 0.3s",
+          }}/>
+        </div>
+      )}
     </div>
   );
 }
@@ -728,48 +757,87 @@ function CustomerInfo({ task }) {
         </div>
       )}
 
-      {/* 요청사항 (고객) — 핫핑크 좌측 보더 */}
+      {/* V14 — 요청사항 (노랑 박스 + 좌측 3px 노란 바) */}
       {task.requestNote && (
         <div style={{
-          background: "var(--bg-secondary)",
-          borderLeft: "3px solid #FF1B8D",
-          borderRadius: "0 6px 6px 0",
-          padding: "8px 10px",
-          marginTop: 10, marginBottom: 8,
+          position: "relative",
+          background: "var(--request-bg)",
+          borderRadius: 8,
+          padding: "10px 12px 10px 14px",
+          marginTop: 12, marginBottom: 10,
+          overflow: "hidden",
         }}>
-          <div style={{ fontSize: 9, color: "var(--text-secondary)", marginBottom: 2 }}>
+          <div style={{
+            position: "absolute", left: 0, top: 0, bottom: 0,
+            width: 3, background: "#FFB800",
+          }}/>
+          <div style={{
+            fontSize: 12, color: "var(--request-text)",
+            fontWeight: 500, marginBottom: 4,
+          }}>
             📝 요청사항 (고객)
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-primary)" }}>
+          <div style={{
+            fontSize: 13, color: "var(--request-sub)",
+            fontWeight: 500, lineHeight: 1.5,
+          }}>
             {task.requestNote}
           </div>
         </div>
       )}
 
-      {/* 운영팀 메모 — 무채색 */}
+      {/* V14 — 운영팀 메모 (보라 박스 + 좌측 3px 보라 바) */}
       {operatorNote && (
         <div style={{
-          background: "var(--bg-secondary)",
-          borderRadius: 6,
-          padding: "8px 10px",
-          marginBottom: 10,
+          position: "relative",
+          background: "var(--ops-memo-bg)",
+          borderRadius: 8,
+          padding: "10px 12px 10px 14px",
+          marginBottom: 12,
+          overflow: "hidden",
         }}>
-          <div style={{ fontSize: 9, color: "var(--text-secondary)", marginBottom: 2 }}>
+          <div style={{
+            position: "absolute", left: 0, top: 0, bottom: 0,
+            width: 3, background: "#7B61FF",
+          }}/>
+          <div style={{
+            fontSize: 12, color: "var(--ops-memo-header)",
+            fontWeight: 500, marginBottom: 4,
+          }}>
             📌 운영팀 메모
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-primary)" }}>
+          <div style={{
+            fontSize: 13, color: "var(--ops-memo-body)",
+            fontWeight: 500, lineHeight: 1.5,
+          }}>
             {operatorNote}
           </div>
         </div>
       )}
 
-      {/* 통화 / 문자 (완료 X) */}
+      {/* V14 — 전화 (초록) / 문자 (보더) */}
       {!isCompleted && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
-          <button onClick={() => makeCall(task.phone)} style={infoBtnStyle}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button onClick={() => makeCall(task.phone)} style={{
+            padding: 13,
+            background: "#34C759",
+            border: "none",
+            borderRadius: 10,
+            color: "#fff",
+            fontSize: 14, fontWeight: 500,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
             📞 전화
           </button>
-          <button onClick={() => sendSms(task.phone)} style={infoBtnStyle}>
+          <button onClick={() => sendSms(task.phone)} style={{
+            padding: 13,
+            background: "var(--card-bg)",
+            border: "1.5px solid var(--input-border)",
+            borderRadius: 10,
+            color: "var(--text-secondary)",
+            fontSize: 14, fontWeight: 500,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
             💬 문자
           </button>
         </div>
@@ -778,64 +846,59 @@ function CustomerInfo({ task }) {
   );
 }
 
-const infoBtnStyle = {
-  padding: 10,
-  background: "var(--bg-secondary)",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  color: "var(--text-primary)",
-  fontSize: 11, cursor: "pointer",
-  fontFamily: "inherit",
-};
-
 // ──────────────── 이동 정보 (확정만) ────────────────
-function TravelBox({ task }) {
+// V14 — 길찾기 두 버튼 (네이버 그린 / T맵 파랑)
+function MapButtons({ task }) {
+  const addr = encodeURIComponent(task.fullAddress || task.address || "");
+  function openNaver() {
+    if (!addr) return;
+    window.open(`https://map.naver.com/v5/search/${addr}`, "_blank");
+  }
+  function openTmap() {
+    if (!addr) return;
+    window.open(`https://apis.openapi.sk.com/tmap/app/routes?appKey=guest&name=${addr}`, "_blank");
+  }
   return (
-    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 8 }}>
-        🚗 이동 정보 <span style={{ fontWeight: 400 }}>(현재 위치 기준)</span>
-      </div>
+    <div style={{ padding: "0 16px 14px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
-        background: "var(--bg-secondary)",
-        borderRadius: 8, padding: 12,
-        display: "flex", gap: 14,
-        justifyContent: "space-around",
-        marginBottom: 8,
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
       }}>
-        <TravelMetric label="거리" value={task.distance || "—"}/>
-        <div style={{ width: 1, background: "var(--border)" }}/>
-        <TravelMetric label="이동" value={task.travelTime ? `~${task.travelTime}` : "—"}/>
-        <div style={{ width: 1, background: "var(--border)" }}/>
-        <TravelMetric label="출발" value={calcDepartureTime(task)} accent/>
-      </div>
-      <button
-        onClick={() => openMap(task)}
-        style={{
-          width: "100%", padding: 10,
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          color: "var(--text-primary)",
-          fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-        }}
-      >
-        ⊿ 길찾기 (네이버 / 카카오 맵)
-      </button>
-    </div>
-  );
-}
-
-function TravelMetric({ label, value, accent }) {
-  return (
-    <div style={{ textAlign: "center" }}>
-      <div style={{ fontSize: 9, color: "var(--text-secondary)" }}>{label}</div>
-      <div style={{
-        fontSize: accent ? 13 : 14,
-        color: accent ? "#FF1B8D" : "var(--text-primary)",
-        fontWeight: 700, fontFamily: "monospace",
-        marginTop: 2,
-      }}>
-        {value}
+        <button onClick={openNaver} style={{
+          padding: 13,
+          background: "var(--card-bg)",
+          border: "1.5px solid #03C75A",
+          borderRadius: 10,
+          color: "#03C75A",
+          fontSize: 14, fontWeight: 500,
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 18, height: 18, borderRadius: 4,
+            background: "#03C75A", color: "#fff",
+            fontSize: 11, fontWeight: 500,
+          }}>N</span>
+          네이버 지도
+        </button>
+        <button onClick={openTmap} style={{
+          padding: 13,
+          background: "var(--card-bg)",
+          border: "1.5px solid #1F8AFF",
+          borderRadius: 10,
+          color: "#1F8AFF",
+          fontSize: 14, fontWeight: 500,
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 18, height: 18, borderRadius: 4,
+            background: "#1F8AFF", color: "#fff",
+            fontSize: 11, fontWeight: 500,
+          }}>T</span>
+          T맵
+        </button>
       </div>
     </div>
   );
@@ -926,60 +989,68 @@ function PhotoGrid({ photos, minRequired = 2, onAdd, onRemove }) {
   );
 }
 
-// ──────────────── 추가금 (진행중 / 숫자 버튼 포함) ────────────────
+// V14 — 추가금 (옅은 주황 톤)
 function ExtraFeeInput({ value, onChange, onAdd }) {
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
-        fontSize: 11, color: "var(--text-secondary)",
-        fontWeight: 700, marginBottom: 8,
+        background: "var(--extra-fee-bg)",
+        borderRadius: 12,
+        padding: 14,
       }}>
-        💰 현장 추가금 (있으면)
-      </div>
-      <input
-        type="number"
-        inputMode="numeric"
-        placeholder="0"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          width: "100%", padding: 10,
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          color: "var(--text-primary)",
-          fontSize: 13, boxSizing: "border-box",
-          outline: "none", marginBottom: 8,
-          fontFamily: "monospace",
-        }}
-      />
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(4, 1fr)",
-        gap: 4,
-      }}>
-        {[
-          { amount: 5000, label: "+5천" },
-          { amount: 10000, label: "+1만" },
-          { amount: 50000, label: "+5만" },
-          { amount: 100000, label: "+10만" },
-        ].map(b => (
-          <button
-            key={b.amount}
-            onClick={() => onAdd(b.amount)}
-            style={{
-              padding: "8px 4px",
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              color: "var(--text-primary)",
-              fontSize: 10, cursor: "pointer",
-              fontFamily: "monospace",
-            }}
+        <div style={{
+          fontSize: 13, color: "var(--extra-fee-header)",
+          fontWeight: 500, marginBottom: 10,
+        }}>
+          💰 현장 추가금 (있으면)
+        </div>
+        <input
+          type="number"
+          inputMode="numeric"
+          placeholder="0"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            width: "100%", padding: 12,
+            background: "var(--card-bg)",
+            border: "1px solid var(--extra-fee-border)",
+            borderRadius: 10,
+            color: "var(--text-primary)",
+            fontSize: 16, boxSizing: "border-box",
+            outline: "none", marginBottom: 10,
+            fontFamily: "'JetBrains Mono', monospace",
+            fontWeight: 500,
+          }}
+        />
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 6,
+        }}>
+          {[
+            { amount: 5000,   label: "+5천"  },
+            { amount: 10000,  label: "+1만"  },
+            { amount: 50000,  label: "+5만"  },
+            { amount: 100000, label: "+10만" },
+          ].map(b => (
+            <button
+              key={b.amount}
+              onClick={() => onAdd(b.amount)}
+              style={{
+                padding: 8,
+                background: "var(--card-bg)",
+                border: "1px solid var(--extra-fee-border)",
+                borderRadius: 8,
+                color: "var(--extra-fee-text)",
+                fontSize: 12, fontWeight: 500,
+                cursor: "pointer",
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
           >
             {b.label}
           </button>
         ))}
+        </div>
       </div>
     </div>
   );

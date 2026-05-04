@@ -78,6 +78,13 @@ export const DARK_THEME = {
   "--accent-strong":        "#FF4DA6",   // 다크 핫핑크 강조
   "--cancel-text":          "#FF6B85",
   "--ops-text":             "#9B85FF",
+  "--ops-memo-bg":          "#1F1B33",
+  "--ops-memo-header":      "#B8A6FF",
+  "--ops-memo-body":        "#9B85FF",
+  "--extra-fee-bg":         "#2D1F0F",
+  "--extra-fee-border":     "#5C3D00",
+  "--extra-fee-header":     "#FFB07A",
+  "--extra-fee-text":       "#FFB07A",
 };
 
 export const LIGHT_THEME = {
@@ -156,6 +163,13 @@ export const LIGHT_THEME = {
   "--accent-strong":        "#FF1B8D",
   "--cancel-text":          "#FF3B5C",
   "--ops-text":             "#7B61FF",
+  "--ops-memo-bg":          "#F0EDFF",
+  "--ops-memo-header":      "#4A3AAB",
+  "--ops-memo-body":        "#5E4DCB",
+  "--extra-fee-bg":         "#FFF3E5",
+  "--extra-fee-border":     "#FFCC99",
+  "--extra-fee-header":     "#7A3D00",
+  "--extra-fee-text":       "#C25E00",
 };
 
 // V14 — 화면 모드 (light / dark / auto)

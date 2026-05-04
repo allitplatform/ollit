@@ -3650,18 +3650,22 @@ export default function EngineerApp({ user, onLogout }) {
   const reset = () => { resetTasks(); setScreen("main"); setSelectedTaskId(null); };
 
   // V13-1 — 새 배정 리스트 (오늘 화면 새 배정 박스 클릭)
-  const newAssignments = tasks.filter(x =>
-    x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
-  );
+  // V14 — 수락한 acceptance(extraAssignments)도 합산
+  const newAssignments = [
+    ...tasks.filter(x =>
+      x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
+    ),
+    ...extraAssignments,
+  ];
 
-  // V14 — 수락 / 거절 핸들러
-  // 수락 = acceptance를 task처럼 변환해서 새 배정 상세 화면으로 직접 라우팅
+  // V14 (정정) — 수락 / 거절 핸들러
+  // 수락 = acceptance를 새 배정 리스트에 추가 → 토스트 + 메인 홈 (즉시 일정 협의 X)
   // 거절 = 메인 홈으로 (다음 기사에게 이관)
   function handleAcceptCall(callId) {
     const accepted = pendingAcceptances.find(c => c.id === callId);
     if (!accepted) return;
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
-    setAcceptedCall({
+    setExtraAssignments(prev => [...prev, {
       id:           accepted.id,
       customer:     accepted.customer || "고객",
       phone:        accepted.phone,
@@ -3673,8 +3677,9 @@ export default function EngineerApp({ user, onLogout }) {
       estimateTotal:accepted.engineerRate,
       requestedAgo: accepted.requestedAgo,
       status:       "약속대기",
-    });
-    setScreen("newAssignCall");
+    }]);
+    showToast("수락 완료. 새 배정에 추가됐습니다.");
+    setScreen("main");
   }
   function handleRejectCall(callId) {
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
@@ -3755,6 +3760,14 @@ export default function EngineerApp({ user, onLogout }) {
   const [callTaskId, setCallTaskId] = useState(null);
   // V14 — 수락 대기 → 새 배정 상세 라우팅용 임시 task
   const [acceptedCall, setAcceptedCall] = useState(null);
+  // V14 — 수락한 acceptance를 새 배정 리스트에 추가
+  const [extraAssignments, setExtraAssignments] = useState([]);
+  // V14 — 토스트 메시지
+  const [toast, setToast] = useState(null);
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 2200);
+  }
 
   function handleAddOff() { setOffDayModalOpen(true); }
   function handleSaveOffDay(payload) {
@@ -3831,6 +3844,22 @@ export default function EngineerApp({ user, onLogout }) {
       </div>
       
       <div style={{ maxWidth: 420, margin: "0 auto", position: "relative" }}>
+        {/* V14 토스트 */}
+        {toast && (
+          <div style={{
+            position: "fixed", bottom: 96, left: "50%",
+            transform: "translateX(-50%)",
+            background: "rgba(0,0,0,0.85)", color: "#fff",
+            padding: "12px 18px", borderRadius: 999,
+            fontSize: 14, fontWeight: 500,
+            zIndex: 9999, fontFamily: "inherit",
+            maxWidth: "90%", textAlign: "center",
+            pointerEvents: "none",
+          }}>
+            {toast}
+          </div>
+        )}
+
         {/* 메인 탭 (today) */}
         {screen === "main" && (
           <>
