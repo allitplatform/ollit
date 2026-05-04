@@ -3946,10 +3946,23 @@ export default function EngineerApp({ user, onLogout }) {
   // V13-FINAL2-fix1 — 휴무 / 계좌 / 활동 지역 / 통화 화면 상태
   const [offDayModalOpen, setOffDayModalOpen] = useState(false);
   // V14 — 5월 시뮬 휴무 (5/3 일요일, 5/5 어린이날)
-  const [savedOffDays, setSavedOffDays] = useState([
-    { type: "single", date: "2026-05-03", reason: "휴무" },
-    { type: "single", date: "2026-05-05", reason: "휴무 (어린이날)" },
-  ]);
+  // V14 — 휴무 (localStorage 저장, 재방문 후에도 유지)
+  const [savedOffDays, setSavedOffDays] = useState(() => {
+    try {
+      const v = localStorage.getItem("ollit_off_days");
+      if (v) {
+        const parsed = JSON.parse(v);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {}
+    return [
+      { type: "single", date: "2026-05-03", reason: "휴무" },
+      { type: "single", date: "2026-05-05", reason: "휴무 (어린이날)" },
+    ];
+  });
+  useEffect(() => {
+    try { localStorage.setItem("ollit_off_days", JSON.stringify(savedOffDays)); } catch (e) {}
+  }, [savedOffDays]);
   const [savedAccount, setSavedAccount] = useState(null);
   const [savedRegions, setSavedRegions] = useState(null);
   const [callTaskId, setCallTaskId] = useState(null);
@@ -3964,8 +3977,14 @@ export default function EngineerApp({ user, onLogout }) {
 
   function handleAddOff() { setOffDayModalOpen(true); }
   function handleSaveOffDay(payload) {
-    setSavedOffDays(prev => [...prev, payload]);
+    if (typeof console !== "undefined") console.log("🟢 휴무 추가 시도:", payload);
+    setSavedOffDays(prev => {
+      const next = [...prev, { ...payload, id: payload?.id || `off_${Date.now()}` }];
+      if (typeof console !== "undefined") console.log("🟢 offDays 업데이트:", next);
+      return next;
+    });
     setOffDayModalOpen(false);
+    showToast(payload?.type === "hourly" ? "시간 휴무가 추가됐습니다." : "휴무가 추가됐습니다.");
   }
   function handleCallOps() { window.location.href = "tel:01012345678"; }
   function handleChatOps() { alert("운영팀 채팅"); }

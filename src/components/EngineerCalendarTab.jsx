@@ -49,6 +49,7 @@ export function EngineerCalendarTab({
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   const monthData = useMemo(() => {
+    if (typeof console !== "undefined") console.log("🔵 Calendar 렌더링 - offDays:", offDays);
     const byDate = {};
     let count = 0;
     tasks.forEach(t => {

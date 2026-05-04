@@ -85,6 +85,26 @@ export function EngineerOffDayAddModal({ defaultDate, onClose, onSave }) {
   }
 
   function handleSave() {
+    // V14 — 입력 검증 (date / endDate / weekdays / 시간 범위)
+    if ((type === "single" || type === "hourly") && !date) {
+      alert("날짜를 선택해주세요.");
+      return;
+    }
+    if (type === "range") {
+      if (!date)    { alert("시작일을 선택해주세요."); return; }
+      if (!endDate) { alert("종료일을 선택해주세요."); return; }
+      if (endDate < date) { alert("종료일이 시작일보다 빠를 수 없습니다."); return; }
+    }
+    if (type === "repeat" && weekdays.length === 0) {
+      alert("반복할 요일을 하나 이상 선택해주세요.");
+      return;
+    }
+    if (type === "hourly") {
+      const startStr = `${startHour}:${startMin}`;
+      const endStr   = `${endHour}:${endMin}`;
+      if (endStr <= startStr) { alert("종료 시간은 시작 시간보다 늦어야 합니다."); return; }
+    }
+
     const payload = { type, reason };
     if (type === "single")      Object.assign(payload, { date });
     else if (type === "range")  Object.assign(payload, { startDate: date, endDate });
@@ -93,6 +113,7 @@ export function EngineerOffDayAddModal({ defaultDate, onClose, onSave }) {
       date, startTime: `${startHour}:${startMin}`, endTime: `${endHour}:${endMin}`,
     });
     onSave && onSave(payload);
+    onClose && onClose();
   }
 
   return (
