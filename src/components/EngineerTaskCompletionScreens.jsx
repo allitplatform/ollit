@@ -95,7 +95,47 @@ function CustomerCard({ task, accentColor, subText }) {
 }
 
 // ───────────────────────────────────────────────
+// V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X)
+// ───────────────────────────────────────────────
+function EarningOnlyCard({ amount, color = "#FF1B8D", subText }) {
+  return (
+    <div style={{
+      margin: "0 16px 14px",
+      background: "var(--card-bg)",
+      border: `1.5px solid ${color}`,
+      borderRadius: 18,
+      padding: "22px 22px 20px",
+      textAlign: "center",
+    }}>
+      <div style={{
+        fontSize: 13, color: "var(--label-main)",
+        fontWeight: 700, marginBottom: 10,
+        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+      }}>
+        <span style={{ fontSize: 15 }}>💰</span> 내 수익
+      </div>
+      <div style={{
+        fontSize: 44, fontWeight: 700,
+        color, letterSpacing: "-1.5px",
+        lineHeight: 1, marginBottom: subText ? 10 : 0,
+      }}>
+        ₩{(amount || 0).toLocaleString("ko-KR")}
+      </div>
+      {subText && (
+        <div style={{
+          fontSize: 12, color: "var(--text-secondary)",
+          fontWeight: 600,
+        }}>
+          {subText}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ───────────────────────────────────────────────
 // V14 — 정산 요약 카드 (위계 정리 + weight 500/600 + 진한 회색 톤)
+// 옛 — 운영자 PWA 호환 유지 (기사 PWA는 EarningOnlyCard 사용)
 // ───────────────────────────────────────────────
 function SettlementCard({ rows, finalLabel, finalAmount, finalColor }) {
   const dividerIdx = rows.findIndex(r => r.divider);
@@ -383,18 +423,8 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
     <Container>
       <ScreenHeader title="✓ 작업 완료" onBack={onBack}/>
       <CustomerCard task={task} accentColor="#FF1B8D"/>
-      <SettlementCard
-        rows={[
-          { label: "금액",       value: `${baseAmount.toLocaleString("ko-KR")}원` },
-          { label: "현장추가금", value: `${extraFee.toLocaleString("ko-KR")}원` },
-          { divider: true },
-          { label: "총 작업비", value: `${total.toLocaleString("ko-KR")}원`, bold: true },
-          { label: "회사 송금", value: `-${commission.toLocaleString("ko-KR")}원`, color: "#FF3B5C" },
-        ]}
-        finalLabel="💰 내 수익"
-        finalAmount={earning}
-        finalColor="#FF1B8D"
-      />
+      {/* V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X) */}
+      <EarningOnlyCard amount={earning} color="#FF1B8D"/>
       <MemoBox label="📝 마무리 메모 (선택)" value={memo} onChange={setMemo}/>
       <MainAction label="✓ 완료 처리" color="#FF1B8D" onClick={handleConfirm}/>
     </Container>
@@ -491,19 +521,8 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
         label="⚠️ 부분 완료 사유 (필수)"
       />
 
-      <SettlementCard
-        rows={[
-          { label: `의뢰 ${totalQty}대 (${baseAmountFull.toLocaleString("ko-KR")}원)`, value: `${baseAmountFull.toLocaleString("ko-KR")}원`, strike: true },
-          { label: `금액 (${actualQty}대)`, value: `${baseAmount.toLocaleString("ko-KR")}원` },
-          { label: "현장추가금",          value: `${extraFee.toLocaleString("ko-KR")}원` },
-          { divider: true },
-          { label: "총 작업비",            value: `${total.toLocaleString("ko-KR")}원`, bold: true },
-          { label: "회사 송금", value: `-${commission.toLocaleString("ko-KR")}원`, color: "#FF3B5C" },
-        ]}
-        finalLabel="💰 내 수익"
-        finalAmount={earning}
-        finalColor="#FF1B8D"
-      />
+      {/* V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X) */}
+      <EarningOnlyCard amount={earning} color="#888" subText={`${actualQty}대 / ${totalQty}대 처리`}/>
 
       {reasonId === "other" && (
         <MemoBox label="📝 사유 메모" value={memo} onChange={setMemo}/>
@@ -566,17 +585,8 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
         subText="작업 불가 (출장비만 청구)"
       />
 
-      <SettlementCard
-        rows={[
-          { label: "출장비",   value: `${fee.toLocaleString("ko-KR")}원` },
-          { divider: true },
-          { label: "총 작업비", value: `${fee.toLocaleString("ko-KR")}원`, bold: true },
-          { label: "수수료",   value: "0원 (X)", color: "#03C75A" },
-        ]}
-        finalLabel="💰 내 수익"
-        finalAmount={earning}
-        finalColor="#FF1B8D"
-      />
+      {/* V14 v6 — 사장님 Q6: 본인 수익만 */}
+      <EarningOnlyCard amount={earning} color="#FF1B8D" subText="출장비 (작업 불가)"/>
 
       <ReasonRadioList
         reasons={VISIT_REASONS}

@@ -28,17 +28,17 @@ const SEED_PRINCIPALS = [
     },
   },
 
-  // 2. 에어컨프로 (쿨가이) — fake_split
+  // 2. 에어컨프로 (KA, 쿨가이 아버지) — fake_split + 냉매 10%
   {
     id: "aircon_pro",
     name: "에어컨프로",
-    nickname: "쿨가이",
+    nickname: "쿨가이(KA)",
     color: "#06B6D4",
     prefix: "A-",
     status: "active",
     vatPolicy: "included",
     contact: { manager: "", phone: "", email: "" },
-    note: "세척 = 가짜 단가표 적용 (쿨가이형) · 냉매 = 표준 10%",
+    note: "KA(아버지) · 세척 = 차감후비율 50% · 냉매 = 예상금액비율 10%",
     commissionPolicy: {
       cleaning: {
         type: "fake_split",
@@ -49,9 +49,37 @@ const SEED_PRINCIPALS = [
         splitRate: 50,  // (총 - 가짜) × 50% = 원청
       },
       refrigerant: {
-        type: "standard",
-        principal: { type: "rate", base: "total", value: 10 },
-        engineer:  { type: "rate", base: "total", value: 50, overrides: [] },
+        type: "estimate_split",  // 예상금액비율 (KA 10%)
+        principal: { type: "rate", base: "estimate", value: 10 },
+        engineer:  { type: "rate", base: "estimate", value: 50, overrides: [] },
+      },
+    },
+  },
+
+  // 2b. 쿨가이 (KB, 쿨가이 아들) — fake_split + 냉매 35%
+  {
+    id: "cool_son",
+    name: "쿨가이",
+    nickname: "쿨가이(KB)",
+    color: "#0891B2",
+    prefix: "K-",
+    status: "active",
+    vatPolicy: "included",
+    contact: { manager: "", phone: "", email: "" },
+    note: "KB(아들) · 세척 = 차감후비율 50% · 냉매 = 예상금액비율 35%",
+    commissionPolicy: {
+      cleaning: {
+        type: "fake_split",
+        fakeRates: {
+          "벽걸이": 50000, "스탠드": 70000, "투인원": 110000,
+          "1way": 60000, "4way": 80000, "원형": 90000,
+        },
+        splitRate: 50,
+      },
+      refrigerant: {
+        type: "estimate_split",  // 예상금액비율 (KB 35%)
+        principal: { type: "rate", base: "estimate", value: 35 },
+        engineer:  { type: "rate", base: "estimate", value: 50, overrides: [] },
       },
     },
   },
@@ -90,7 +118,7 @@ const SEED_PRINCIPALS = [
     status: "active",
     vatPolicy: "included",
     contact: { manager: "", phone: "", email: "" },
-    note: "현금 결제 / 세척 총금액 × 15%",
+    note: "현금 결제 / 세척 총금액 × 15% / 냉매 정액 10K + 기사 50%",
     commissionPolicy: {
       cleaning: {
         type: "standard",
@@ -98,7 +126,7 @@ const SEED_PRINCIPALS = [
       },
       refrigerant: {
         type: "standard",
-        principal: { type: "none", base: "total", value: 0 },
+        principal: { type: "fixed", base: "total", value: 10000 },
         engineer:  { type: "rate", base: "total", value: 50, overrides: [] },
       },
     },
@@ -114,14 +142,17 @@ const SEED_PRINCIPALS = [
     status: "active",
     vatPolicy: "excluded",
     contact: { manager: "", phone: "", email: "" },
-    note: "네이버 결제 / CSV 업로드 / 정산예정금액 × 15% / 부가세 별도 (기사 단가 ×1.10)",
+    note: "네이버 결제 / 본작업 15% / 추가선택 85/15 / 냉매점검 100원청+추가50:50",
     commissionPolicy: {
       cleaning: {
         type: "naver_settlement",
         principal: { type: "rate", base: "settlement", value: 15 },
         additionalsPolicy: {
-          principalRate: 15,   // 유솔 15%
-          engineerRate:  85,   // 기사 85%
+          principalRate: 15,
+          engineerRate:  85,
+        },
+        inspectPolicy: {
+          type: "ag_full_ad_half",  // 냉매점검: 기본 100% 원청 / 추가 50:50 / 출장 100% 기사
         },
       },
       refrigerant: null,

@@ -119,3 +119,97 @@ export function calcRefrigerant(opts) {
 export function calculateCommission(opts) {
   return calcRefrigerant(opts);
 }
+
+// ===== V14 v6 — 새 calc_method =====
+
+// 예상금액비율 (쿨가이 KA 10/50/40 / KB 35/50/15)
+// 견적 × principal_fee% = 원청 / 견적 × 50% = 기사 / 나머지 = 회사
+// 추가금: 사장님 50% + 기사 50% (원청 0%)
+export function calcEstimateSplit(opts) {
+  const { policy, estimate = 0, extra = 0 } = opts || {};
+  if (!policy) return { error: "정책 없음", total: estimate + extra, principal: 0, engineer: 0, company: 0, isNegative: false };
+
+  const principalRate = (policy.principal?.value || 0) / 100;
+  const engineerRate  = (policy.engineer?.value  || 50) / 100;
+
+  const principalBase = Math.round(estimate * principalRate);
+  const engineerBase  = Math.round(estimate * engineerRate);
+  const companyBase   = estimate - principalBase - engineerBase;
+
+  // 추가금: 사장님 50% + 기사 50% (원청 0%)
+  const extraEng = Math.round(extra * 0.5);
+  const extraOwn = extra - extraEng;
+
+  const total     = estimate + extra;
+  const engineer  = engineerBase + extraEng;
+  const principal = principalBase;
+  const company   = companyBase + extraOwn;
+
+  return {
+    total: Math.round(total),
+    principal: Math.round(principal),
+    engineer: Math.round(engineer),
+    company: Math.round(company),
+    isNegative: company < 0,
+  };
+}
+
+// 비율_총액기준 (쿨가이 가스 1way/4way/원형 2+: 25/50/25)
+export function calcRatioTotalBase(opts) {
+  const { estimate = 0, qty = 1, extra = 0,
+          principalPct = 25, engineerPct = 50 } = opts || {};
+  const totalBase = estimate * qty + extra;
+  const principal = Math.round(totalBase * (principalPct / 100));
+  const engineer  = Math.round(totalBase * (engineerPct  / 100));
+  const company   = totalBase - principal - engineer;
+  return {
+    total: totalBase,
+    principal: Math.round(principal),
+    engineer: Math.round(engineer),
+    company: Math.round(company),
+    isNegative: company < 0,
+  };
+}
+
+// AG전체_AD반반 (유솔N 냉매점검)
+// 기본: 원청 100% / 추가: 기사 50% + 회사 50% / 출장: 기사 100%
+export function calcAgFullAdHalf(opts) {
+  const { unitPrice = 10000, qty = 1, extra = 0, travel = 0 } = opts || {};
+  const baseTotal = unitPrice * qty;
+  let engineer  = 0;
+  let principal = baseTotal;  // 기본 100% 원청
+  let company   = 0;
+
+  // 추가: 기사 50% + 회사 50%
+  const extraEng = Math.round(extra * 0.5);
+  engineer += extraEng;
+  company  += extra - extraEng;
+
+  // 출장: 기사 100%
+  engineer += travel;
+
+  const total = baseTotal + extra + travel;
+  return {
+    total: Math.round(total),
+    principal: Math.round(principal),
+    engineer: Math.round(engineer),
+    company: Math.round(company),
+    isNegative: company < 0,
+  };
+}
+
+// 추가선택 (유솔N 송풍팬/실외기/피톤치드)
+// 기사 85% / 원청 15% / 회사 0%
+export function calcAdditional(opts) {
+  const { unitPrice = 0, qty = 1 } = opts || {};
+  const total     = unitPrice * qty;
+  const engineer  = Math.round(total * 0.85);
+  const principal = total - engineer;
+  return {
+    total: Math.round(total),
+    principal: Math.round(principal),
+    engineer: Math.round(engineer),
+    company: 0,
+    isNegative: false,
+  };
+}

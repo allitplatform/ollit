@@ -1,25 +1,38 @@
-// V14 — 단가/수수료 wrapper (task 객체 → 정확한 수수료)
-// commissionCalc.js 기반 + 한글↔영문 매핑 + 점검 추가 (+10,000) + 출장비 처리
+// V14 v6 — 단가/수수료 wrapper (7개 원청 + KA/KB + 유솔N 3분리)
+// task 객체 → calcCleaning / calcRefrigerant / calcEstimateSplit / calcAgFullAdHalf / calcAdditional
 
-import { calcCleaning, calcRefrigerant } from "./commissionCalc.js";
+import {
+  calcCleaning,
+  calcRefrigerant,
+  calcEstimateSplit,
+  calcAgFullAdHalf,
+  calcAdditional,
+} from "./commissionCalc.js";
 import { loadPrincipals } from "../data/principals.js";
 import { VISIT_FEE } from "../data/visitFee.js";
 
-// 작업 종류 ID 통일 — 한글/영문 → 'cleaning' | 'refrigerant' | 'visit' | 'extra' | 'cleaning_inspect'
+// 작업 종류 ID 통일
+// 'cleaning' | 'cleaning_inspect' (세척+점검) | 'refrigerant' | 'visit'
+// 'usolN_extra' (유솔N 추가선택 송풍팬/실외기/피톤치드) | 'usolN_inspect' (유솔N 냉매점검)
 export function getServiceCode(task) {
   if (!task) return "cleaning";
   if (task.status === "visit_only" || task.orderType === "visit") return "visit";
-  if (task.orderType === "extra") return "extra";
 
   const text = `${task.workType || ""} ${task.appliance || ""}`.toLowerCase();
+
+  // 유솔N 분기 (orderType 우선)
+  if (task.orderType === "extra_select") return "usolN_extra";
+  if (task.orderType === "inspect")      return "usolN_inspect";
+
+  if (text.includes("냉매점검") || text.includes("점검냉매")) return "usolN_inspect";
+  if (text.includes("송풍팬") || text.includes("실외기") || text.includes("피톤")) return "usolN_extra";
+
   if (text.includes("냉매") || text.includes("충전") || text.includes("가스")) return "refrigerant";
-  // 세척+점검 복합 (사장님 spec: 세척 단가 + 점검 +10,000)
   if (text.includes("세척") && text.includes("점검")) return "cleaning_inspect";
-  if (text.includes("세척") || text.includes("청소"))                          return "cleaning";
-  return "cleaning"; // fallback
+  if (text.includes("세척") || text.includes("청소")) return "cleaning";
+  return "cleaning";
 }
 
-// task의 client(=원청 이름)로 principals 객체 찾기
 function findPrincipalByClient(client, principalsList) {
   if (!client) return null;
   const list = principalsList || loadPrincipals();
@@ -28,30 +41,25 @@ function findPrincipalByClient(client, principalsList) {
   ) || null;
 }
 
-// 점검 추가비 (사장님 spec: 작업당 +10,000 / 1회)
-const INSPECT_BONUS = 10000;
+const INSPECT_BONUS = 10000; // 세척+점검 = 점검 +10,000
 
 /**
- * task 객체 → { total, engineer, principal, company, vatPolicy, isNegative }
- * - 세척: calcCleaning
- * - 냉매: calcRefrigerant
- * - 세척+점검: calcCleaning + 점검 +10,000 (engineer)
- * - 출장만: VISIT_FEE (기사 100%)
- * - 점검/설치 단독 (Phase 1 disabled): 옛 70% 유지 (fallback)
+ * task 객체 → { total, engineer, principal, company, isNegative }
+ * 사장님 정책 v6:
+ * - 올데이 직영 / 에어컨프로 KA / 쿨가이 KB / 용인 정액 / 유솔H 15% / 유솔N (3분리) / 크리크린 20%
  */
 export function calcTaskEarning(task, principalsList) {
   if (!task) return { total: 0, engineer: 0, principal: 0, company: 0, isNegative: false };
 
   const code = getServiceCode(task);
 
-  // 출장만
+  // 출장만 (기사 100%)
   if (code === "visit") {
     return {
       total: VISIT_FEE.amount,
       engineer: VISIT_FEE.amount,
       principal: 0,
       company: 0,
-      vatPolicy: "included",
       isNegative: false,
     };
   }
@@ -59,7 +67,6 @@ export function calcTaskEarning(task, principalsList) {
   const principal = findPrincipalByClient(task.client, principalsList);
   const total = (task.estimateTotal || 0) + (task.addonFee || 0) + (task.extraFee || 0);
 
-  // 원청 매칭 X — fallback (옛 70%)
   if (!principal) {
     const fallbackEngineer = Math.round((task.engineerNet ?? task.engineerEarning ?? total * 0.7) || 0);
     return {
@@ -67,18 +74,54 @@ export function calcTaskEarning(task, principalsList) {
       engineer: fallbackEngineer,
       principal: 0,
       company: total - fallbackEngineer,
-      vatPolicy: "included",
       isNegative: false,
     };
   }
 
-  // 냉매충전
+  // ── 유솔N 3분리 ──
+  if (principal.id === "usol_n") {
+    if (code === "usolN_extra") {
+      // 추가선택 (송풍팬/실외기/피톤치드): 기사 85% / 원청 15% / 회사 0%
+      return calcAdditional({ unitPrice: task.estimateTotal || 0, qty: task.qty || 1 });
+    }
+    if (code === "usolN_inspect") {
+      // 냉매점검: 기본 100% 원청 / 추가 50:50 / 출장 100% 기사
+      return calcAgFullAdHalf({
+        unitPrice: task.estimateTotal || 10000,
+        qty: task.qty || 1,
+        extra: task.addonFee || 0,
+        travel: task.travelFee || 0,
+      });
+    }
+    // 본작업 (세척): naver_settlement 정책
+    const policy = principal.commissionPolicy?.cleaning;
+    if (!policy) {
+      const eng = Math.round(total * 0.85);
+      return { total, engineer: eng, principal: total - eng, company: 0, isNegative: false };
+    }
+    return calcCleaning({
+      policy, principal,
+      appliances: [{ type: task.appliance || "벽걸이", count: task.qty || 1 }],
+      total,
+      additionals: task.additionals || [],
+    });
+  }
+
+  // ── 냉매충전 ──
   if (code === "refrigerant") {
+    // 에어컨프로(KA) / 쿨가이(KB): 예상금액비율 (estimate_split)
+    if (principal.commissionPolicy?.refrigerant?.type === "estimate_split") {
+      return calcEstimateSplit({
+        policy: principal.commissionPolicy.refrigerant,
+        estimate: task.estimateTotal || 0,
+        extra: (task.addonFee || 0) + (task.extraFee || 0),
+      });
+    }
+    // 일반 standard (올데이/용인/유솔H/크리크린)
     const policy = principal.commissionPolicy?.refrigerant;
     if (!policy) {
-      // 정책 X — fallback
       const eng = Math.round(total * 0.5);
-      return { total, engineer: eng, principal: 0, company: total - eng, vatPolicy: principal.vatPolicy || "included", isNegative: false };
+      return { total, engineer: eng, principal: 0, company: total - eng, isNegative: false };
     }
     return calcRefrigerant({
       policy,
@@ -88,22 +131,18 @@ export function calcTaskEarning(task, principalsList) {
     });
   }
 
-  // 세척 / 세척+점검
+  // ── 세척 / 세척+점검 ──
   if (code === "cleaning" || code === "cleaning_inspect") {
     const policy = principal.commissionPolicy?.cleaning;
     if (!policy) {
       const eng = Math.round(total * 0.7);
-      return { total, engineer: eng, principal: 0, company: total - eng, vatPolicy: principal.vatPolicy || "included", isNegative: false };
+      return { total, engineer: eng, principal: 0, company: total - eng, isNegative: false };
     }
     const appliances = [{ type: task.appliance || "벽걸이", count: task.qty || 1 }];
     const result = calcCleaning({
-      policy,
-      principal,
-      appliances,
-      total,
+      policy, principal, appliances, total,
       additionals: task.additionals || [],
     });
-    // 세척+점검 = engineer에 +10,000 (작업당 1회)
     if (code === "cleaning_inspect") {
       const bonus = INSPECT_BONUS;
       return {
@@ -116,27 +155,32 @@ export function calcTaskEarning(task, principalsList) {
     return result;
   }
 
-  // 점검 / 설치 단독 (Phase 1 disabled — fallback)
+  // ── 점검/설치 단독 (Phase 1 disabled) — fallback 70% ──
   const eng = Math.round(total * 0.7);
   return {
     total,
     engineer: eng,
     principal: 0,
     company: total - eng,
-    vatPolicy: principal.vatPolicy || "included",
     isNegative: false,
   };
 }
 
-// 표시용 — 회사 송금액 (= total - engineer)
+// 표시용 — 회사 송금액 (= total - engineer). 유솔N은 "받을 돈"이라 별도.
 export function calcCompanyTransfer(task, principalsList) {
   const r = calcTaskEarning(task, principalsList);
   return Math.max(0, r.total - r.engineer);
 }
 
-// 표시용 — 수수료 비율 % (참고용. 기사 화면에서는 노출 X 권장)
+// 사장님 Q6: 기사 PWA에서는 사용 X (운영자 PWA 전용)
 export function calcCommissionRate(task, principalsList) {
   const r = calcTaskEarning(task, principalsList);
   if (!r.total) return 0;
   return Math.round(((r.total - r.engineer) / r.total) * 100);
+}
+
+// 유솔N 작업 여부 (회사 송금 vs 받을 돈 분리용)
+export function isUsolN(task, principalsList) {
+  const principal = findPrincipalByClient(task?.client, principalsList);
+  return principal?.id === "usol_n";
 }

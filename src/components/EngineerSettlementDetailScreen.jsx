@@ -93,12 +93,12 @@ export function EngineerSettlementDetailScreen({
             {completedCount} / {totalCount}건 완료 · 작업 끝나면 자동 갱신
           </div>
 
-          {/* 반투명 박스 두 칸 (총 작업비 / 총 수수료) */}
+          {/* V14 v6 — 사장님 Q6: 총 작업비/수수료 X (본인 수익만 catch) */}
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
           }}>
-            <SubStat label="총 작업비" amount={todayRevenue}/>
-            <SubStat label="총 수수료" amount={todayFee}/>
+            <SubStat label="완료" amount={`${completed.length}건`}/>
+            <SubStat label="예정" amount={`${upcoming.length}건`}/>
           </div>
         </div>
       </div>
@@ -137,6 +137,7 @@ export function EngineerSettlementDetailScreen({
 }
 
 function SubStat({ label, amount }) {
+  const display = typeof amount === "number" ? `₩${amount.toLocaleString("ko-KR")}` : amount;
   return (
     <div style={{
       background: "rgba(255,255,255,0.06)",
@@ -154,7 +155,7 @@ function SubStat({ label, amount }) {
         fontFamily: "inherit",
         color: "#FAF8F5", letterSpacing: "-0.3px", lineHeight: 1.1,
       }}>
-        ₩{amount.toLocaleString("ko-KR")}
+        {display}
       </div>
     </div>
   );
@@ -259,28 +260,29 @@ function WorkSettlementCard({ work, onClick }) {
         {work.qty ? ` ×${work.qty}` : ""}
       </div>
 
-      {/* 수수료 흐름 박스: 작업비 → 수수료 → 내 수익 */}
+      {/* V14 v6 — 사장님 Q6: 수수료 흐름 X / 본인 수익만 */}
       <div style={{
         background: "var(--flow-bg)",
         borderRadius: 10,
-        padding: "10px 8px",
+        padding: "12px 14px",
         display: "flex",
         alignItems: "center",
-        gap: 4,
+        justifyContent: "space-between",
       }}>
-        <FlowItem label="작업비" value={showRevenue}/>
-        <FlowArrow>→</FlowArrow>
-        <FlowItem
-          label={`수수료 ${ratePct}%`}
-          value={`-${estFee.toLocaleString("ko-KR")}`}
-          grey
-        />
-        <FlowArrow>=</FlowArrow>
-        <FlowItem
-          label={isCompleted ? "내 수익" : "예상 수익"}
-          value={estEarning}
-          highlight
-        />
+        <span style={{
+          fontSize: 12, fontWeight: 700,
+          color: "#FF1B8D",
+        }}>
+          {isCompleted ? "💰 내 수익" : "💰 예상 수익"}
+        </span>
+        <span style={{
+          fontSize: 18, fontWeight: 700,
+          color: "#FF1B8D",
+          letterSpacing: "-0.3px",
+          fontFamily: "inherit",
+        }}>
+          ₩{(estEarning || 0).toLocaleString("ko-KR")}
+        </span>
       </div>
     </div>
   );
