@@ -404,7 +404,7 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
 }
 
 // ═══════════════════════════════════════════════════════
-// 2. 부분 완료 (주황) — 수량 +/- 카운터
+// 2. V14 헌법 — 부분 완료 (회색 / 중립) — 수량 +/- 카운터
 // ═══════════════════════════════════════════════════════
 export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const totalQty = task.qty || 1;
@@ -437,10 +437,10 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
 
   return (
     <Container>
-      <ScreenHeader title="🟠 부분 완료" onBack={onBack}/>
+      <ScreenHeader title="● 부분 완료" onBack={onBack}/>
       <CustomerCard
         task={task}
-        accentColor="#FF8A3D"
+        accentColor="#888"
         subText={`의뢰: ${task.workType || ""} ×${totalQty}대`}
       />
 
@@ -463,9 +463,9 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
           />
           <div style={{ textAlign: "center", minWidth: 80 }}>
             <div style={{
-              fontSize: 32, fontWeight: 900,
+              fontSize: 32, fontWeight: 600,
               fontFamily: "'JetBrains Mono', monospace",
-              color: "#FF8A3D",
+              color: "var(--text-primary)",
               lineHeight: 1,
             }}>
               {actualQty}
@@ -489,7 +489,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
         reasons={PARTIAL_REASONS}
         selectedId={reasonId}
         onChange={setReasonId}
-        accentColor="#FF8A3D"
+        accentColor="#888"
         label="⚠️ 부분 완료 사유 (필수)"
       />
 
@@ -504,7 +504,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
         ]}
         finalLabel="💰 내 수익"
         finalAmount={earning}
-        finalColor="#FF8A3D"
+        finalColor="#FF1B8D"
       />
 
       {reasonId === "other" && (
@@ -512,8 +512,8 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
       )}
 
       <MainAction
-        label="🟠 부분 완료 처리"
-        color="#FF8A3D"
+        label="● 부분 완료 처리"
+        color="#888"
         onClick={handleConfirm}
         disabled={!canSubmit}
       />
@@ -525,10 +525,10 @@ function CounterBtn({ label, onClick, disabled }) {
   return (
     <button onClick={onClick} disabled={disabled} style={{
       width: 56, height: 56, borderRadius: 12,
-      background: disabled ? "var(--bg-tertiary)" : "#FF8A3D",
+      background: disabled ? "var(--bg-tertiary)" : "#C8C8C8",
       border: "none",
-      color: disabled ? "var(--text-tertiary)" : "#fff",
-      fontSize: 28, fontWeight: 800,
+      color: disabled ? "var(--text-tertiary)" : "#1A1A1A",
+      fontSize: 28, fontWeight: 600,
       cursor: disabled ? "not-allowed" : "pointer",
       fontFamily: "inherit",
       opacity: disabled ? 0.5 : 1,
@@ -561,7 +561,7 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
 
   return (
     <Container>
-      <ScreenHeader title="🔴 출장비만" onBack={onBack}/>
+      <ScreenHeader title="● 출장비만" onBack={onBack}/>
       <CustomerCard
         task={task}
         accentColor="#FF3B5C"
@@ -577,7 +577,7 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
         ]}
         finalLabel="💰 내 수익"
         finalAmount={earning}
-        finalColor="#FF3B5C"
+        finalColor="#FF1B8D"
       />
 
       <ReasonRadioList
@@ -611,7 +611,7 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
       )}
 
       <MainAction
-        label="🔴 출장비만 처리"
+        label="● 출장비만 처리"
         color="#FF3B5C"
         onClick={handleConfirm}
         disabled={!canSubmit}

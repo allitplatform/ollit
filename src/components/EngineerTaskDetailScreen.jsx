@@ -398,18 +398,16 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         </div>
       )}
 
-      {/* V14 — 메인 액션 (작업 시작 / 작업 종류 색) */}
-      {isConfirmed && (() => {
-        const colors = getWorkTypeColors(task.workType);
-        return (
+      {/* V14 헌법 — 메인 CTA = 핑크 풀 (작업 종류 색 X) */}
+      {isConfirmed && (
         <div style={{ padding: "16px" }}>
           <button
             onClick={handleStartTask}
             style={{
               width: "100%", padding: 19,
-              background: colors.main, border: "none",
-              borderRadius: 16, color: colors.buttonText || "#fff",
-              fontSize: 18, fontWeight: 700,
+              background: "#FF1B8D", border: "none",
+              borderRadius: 16, color: "#fff",
+              fontSize: 18, fontWeight: 600,
               cursor: "pointer", fontFamily: "inherit",
             }}
           >
@@ -422,8 +420,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
             현장 도착 후 시작
           </div>
         </div>
-        );
-      })()}
+      )}
 
       {isInProgress && (() => {
         const enough = photos.length >= PHOTO_MIN;
@@ -453,21 +450,23 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
             {enough ? "✓ 작업 완료" : `✓ 작업 완료 (사진 ${PHOTO_MIN}장 필요)`}
           </button>
 
-          {/* V14 — 보조 액션 (부분 / 출장비만) */}
+          {/* V14 헌법 — 부분 완료 = 회색 (중립) / 출장비만 = 빨강 (취소) */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <button
               onClick={() => setSubScreen("partial")}
               style={{
                 padding: 13,
                 background: "transparent",
-                border: "1.5px solid #FFB800",
+                border: "1.5px solid #C8C8C8",
                 borderRadius: 12,
-                color: "var(--refrig-text)",
+                color: "#555",
                 fontSize: 14, fontWeight: 500,
                 cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
-              ● 부분 완료
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#888" }}/>
+              부분 완료
             </button>
             <button
               onClick={() => setSubScreen("visitOnly")}
@@ -479,9 +478,11 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
                 color: "var(--cancel-text)",
                 fontSize: 14, fontWeight: 500,
                 cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
-              ● 출장비만
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FF3B5C" }}/>
+              출장비만
             </button>
           </div>
         </div>
