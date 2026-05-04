@@ -20,6 +20,7 @@ import { NotiScreen } from "../components/notifications/NotiScreen.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
 import { VisitOnlyDialog } from "../components/VisitOnlyDialog.jsx";
 import { VISIT_FEE, getVisitReasonLabel } from "../data/visitFee.js";
+import { calcTaskEarning } from "../utils/feePolicy.js";
 import { TaskCardMenu } from "../components/TaskCardMenu.jsx";
 import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
 import { loadMemos, getMemoTypeLabel } from "../data/memos.js";
@@ -72,42 +73,39 @@ const TODAY_STATS = {
   principalFee: 480000,  // 원청 수수료 — 보라
 };
 
-// Step 5-1a — 원청 5곳 (쿨가이 KB 잠시 빼기, 에어컨프로 / 유솔홈케어 H/N 분리)
+// V14 — 운영 6개 원청 (principals.js와 동기화 / 크리크린 추가)
 const PRINCIPALS = [
   { id: "올데이케어",     label: "올데이케어",          color: "#FF1B8D" },
-  { id: "에어컨프로",     label: "에어컨프로 (쿨가이)", color: "#FF1B8D" },
-  { id: "용인",           label: "용인",                color: "#FF1B8D" },
+  { id: "에어컨프로",     label: "에어컨프로 (쿨가이)", color: "#06B6D4" },
+  { id: "용인컴퍼니",     label: "용인",                color: "#888780" },
   { id: "유솔홈케어 H",   label: "유솔홈케어 H",        color: "#10B981" },
-  { id: "유솔홈케어 N",   label: "유솔홈케어 N",        color: "#FF1B8D" },
+  { id: "유솔홈케어 N",   label: "유솔홈케어 N",        color: "#03C75A" },
+  { id: "크리크린",       label: "크리크린",            color: "#7F77DD" },
 ];
 
 // 원청 라벨 색 (id → color lookup) — 기존 코드 호환
 const PRINCIPAL_COLORS = Object.fromEntries(PRINCIPALS.map(p => [p.id, p.color]));
 
-// 회사 수익 계산 — 원청별 정산 방식 (Step 4-1 / Step 5-1a 정정)
-// rate=null = 정액 / state==="done" = 확정 / 그 외 = 예상
+// V14 — 회사 수익 계산 (commissionCalc.js로 폐기 통합 / principals.js 정책 그대로)
+// task.principal(원청 이름) → calcTaskEarning → { total, engineer, principal, company }
+// 기존 호출자 호환: { total, rate, amount, isConfirmed } 모양 유지
+// amount = 회사가 가져가는 돈 (= principal + company = total - engineer)
 function calculateCommission(task) {
-  const total = (task.estimateTotal || 0) + (task.addonFee || 0);
+  const t = {
+    ...task,
+    client: task.principal || task.client,
+    estimateTotal: task.estimateTotal || 0,
+    addonFee: task.addonFee || 0,
+    extraFee: task.extraFee || 0,
+    workType: task.workType || (task.workItems?.[0]?.workType ?? ""),
+    appliance: task.appliance || (task.workItems?.[0]?.appliance ?? ""),
+    qty: task.qty || (task.workItems?.[0]?.qty ?? 1),
+  };
+  const r = calcTaskEarning(t);
   const isConfirmed = task.state === "done";
-  let rate = 0;
-  let amount = 0;
-  switch (task.principal) {
-    case "올데이케어":
-      rate = 30; amount = Math.round(total * 0.30); break;
-    case "에어컨프로":
-      rate = 10; amount = Math.round(total * 0.10); break;
-    case "용인":
-    case "용인컴퍼니":
-      rate = null; amount = 10000; break;
-    case "유솔홈케어 H":
-      rate = 15; amount = Math.round(total * 0.15); break;
-    case "유솔홈케어 N":
-      // 수량비율 (mock — 일단 H와 동일 15%, 실제 정책 입력 시 수량 기반 변환)
-      rate = 15; amount = Math.round(total * 0.15); break;
-    default:
-      rate = 0; amount = 0;
-  }
-  return { total, rate, amount, isConfirmed };
+  const amount = Math.max(0, r.total - r.engineer);
+  const rate = r.total > 0 ? Math.round((amount / r.total) * 100) : 0;
+  return { total: r.total, rate, amount, isConfirmed };
 }
 
 // Step 5-3 — 작업 종류 단일 진실 소스 (편집 친화)

@@ -4,6 +4,7 @@
 
 import { ArrowLeft } from "lucide-react";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { calcTaskEarning } from "../utils/feePolicy.js";
 
 function getEarning(t) {
   return t.engineerEarning || t.engineerNet || 0;
@@ -162,15 +163,16 @@ function SubStat({ label, amount }) {
 function WorkSettlementCard({ work, onClick }) {
   const colors      = getWorkTypeColors(work.workType);
   const isCompleted = work.status === "완료";
-  const revenue     = getRevenue(work);
-  const fee         = getCommission(work);
-  const earning     = getEarning(work);
-  // 예정 작업 — engineerEarning 없으면 estimate 기반 30% 수수료로 가추산
-  const estRevenue  = work.estimateTotal || revenue;
-  const estFee      = isCompleted ? fee     : Math.floor(estRevenue * 0.30);
-  const estEarning  = isCompleted ? earning : (estRevenue - estFee);
-  const showRevenue = isCompleted ? revenue : estRevenue;
-  const ratePct     = estRevenue > 0 ? Math.round((estFee / estRevenue) * 100) : 30;
+  // V14 — 완료/예정 모두 정확한 정책으로 계산 (calcTaskEarning)
+  const calc        = calcTaskEarning(work);
+  const revenue     = isCompleted ? getRevenue(work) : (calc.total || work.estimateTotal || 0);
+  const earning     = isCompleted ? getEarning(work) : calc.engineer;
+  const fee         = Math.max(0, revenue - earning);
+  const estRevenue  = revenue;
+  const estFee      = fee;
+  const estEarning  = earning;
+  const showRevenue = revenue;
+  const ratePct     = estRevenue > 0 ? Math.round((estFee / estRevenue) * 100) : 0;
 
   const time    = work.completedAt || work.scheduledTime || work.time || "";
   const endTime = work.endTime || "";

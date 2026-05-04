@@ -6,9 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
-
-// V14 — 수수료율 30% 고정 (시뮬 / 시트 연동 시 동적으로)
-const FEE_RATE = 0.30;
+import { calcTaskEarning } from "../utils/feePolicy.js";
 
 const PARTIAL_REASONS = [
   { id: "customer_change", label: "고객 요청 변경" },
@@ -366,11 +364,11 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   const [memo, setMemo] = useState("");
   const baseAmount = task.estimateTotal || 0;
   const extraFee   = task.extraFee || 0;
-  const total      = baseAmount + extraFee;
-  // V14 — 수수료 30% 고정 (task.commissionRate 무시)
-  const rate       = FEE_RATE;
-  const commission = Math.floor(total * rate);
-  const earning    = Math.max(0, total - commission);
+  // V14 — 정확한 정책 적용 (commissionCalc / 원청별 분기)
+  const calc       = calcTaskEarning(task);
+  const total      = calc.total || (baseAmount + extraFee);
+  const earning    = calc.engineer;
+  const commission = Math.max(0, total - earning); // 회사+원청 송금액 (= 수수료 합)
 
   function handleConfirm() {
     onConfirm && onConfirm({
@@ -391,7 +389,7 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
           { label: "현장추가금", value: `${extraFee.toLocaleString("ko-KR")}원` },
           { divider: true },
           { label: "총 작업비", value: `${total.toLocaleString("ko-KR")}원`, bold: true },
-          { label: `수수료 (${Math.round(rate * 100)}%)`, value: `-${commission.toLocaleString("ko-KR")}원`, color: "#FF3B5C" },
+          { label: "회사 송금", value: `-${commission.toLocaleString("ko-KR")}원`, color: "#FF3B5C" },
         ]}
         finalLabel="💰 내 수익"
         finalAmount={earning}
@@ -412,15 +410,15 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const [reasonId, setReasonId]   = useState("customer_change");
   const [memo, setMemo]           = useState("");
 
-  // 수량 비례 계산
+  // 수량 비례 계산 — 부분 완료 시 task의 qty를 actualQty로 교체해서 정확한 정책 호출
   const baseAmountFull = task.estimateTotal || 0;
   const baseAmount     = totalQty > 0 ? Math.round(baseAmountFull * (actualQty / totalQty)) : 0;
   const extraFee       = task.extraFee || 0;
-  const total          = baseAmount + extraFee;
-  // V14 — 수수료 30% 고정
-  const rate           = FEE_RATE;
-  const commission     = Math.floor(total * rate);
-  const earning        = Math.max(0, total - commission);
+  const partialTask    = { ...task, qty: actualQty, estimateTotal: baseAmount };
+  const calc           = calcTaskEarning(partialTask);
+  const total          = calc.total || (baseAmount + extraFee);
+  const earning        = calc.engineer;
+  const commission     = Math.max(0, total - earning);
 
   const canSubmit = !!reasonId && actualQty > 0 && actualQty <= totalQty;
 
@@ -500,7 +498,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
           { label: "현장추가금",          value: `${extraFee.toLocaleString("ko-KR")}원` },
           { divider: true },
           { label: "총 작업비",            value: `${total.toLocaleString("ko-KR")}원`, bold: true },
-          { label: `수수료 (${Math.round(rate * 100)}%)`, value: `-${commission.toLocaleString("ko-KR")}원`, color: "#FF3B5C" },
+          { label: "회사 송금", value: `-${commission.toLocaleString("ko-KR")}원`, color: "#FF3B5C" },
         ]}
         finalLabel="💰 내 수익"
         finalAmount={earning}

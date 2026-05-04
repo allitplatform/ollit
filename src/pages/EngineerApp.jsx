@@ -3855,40 +3855,47 @@ export default function EngineerApp({ user, onLogout }) {
   const usolNMonthData = { totalAmount: 280000, count: 4, byDate: {} };
   const loadUsolNDayTasks = () => [];
 
-  // V14 — 회사 송금 내역 시뮬 데이터 (사장님 spec 일별 그룹)
+  // V14 — 회사 송금 내역 시뮬 데이터 (시뮬 14건의 정확한 engineerNet 기준)
+  // feeAmount = total - engineerNet (= 회사로 보낼 돈)
   const paymentsMock = [
     {
-      date: "2026-05-04", status: "pending", totalAmount: 28500, deadline: "22:00",
+      date: "2026-05-04", status: "pending", deadline: "22:00",
       works: [
-        { id: "A260504-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 28500 },
+        // 박지영: 세척 벽걸이 1, 직영 80k → eng 40k → company 40k
+        { id: "A260504-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 40000 },
+        // 이상훈: 세척+점검 스탠드 2, 쿨가이 200k → eng 130k → company 70k
+        { id: "A260504-002", customerName: "이상훈", workType: "세척+점검", workItem: "스탠드", quantity: 2, feeAmount: 70000 },
+        // 김미경: 냉매 시스템 멀티 1, 직영 120k → eng 60k → company 60k
+        { id: "A260504-003", customerName: "김미경", workType: "냉매충전", workItem: "시스템 멀티", quantity: 1, feeAmount: 60000 },
       ],
+      totalAmount: 170000,
     },
     {
-      date: "2026-05-03", status: "completed", totalAmount: 140000, depositTime: "22:15",
+      date: "2026-05-02", status: "completed", depositTime: "22:08",
       works: [
-        { id: null, customerName: "정민호", workType: "냉매", workItem: "스탠드", quantity: 1, feeAmount: 60000 },
-        { id: null, customerName: "권태수", workType: "냉매", workItem: "벽걸이", quantity: 2, feeAmount: 80000 },
+        // 정민호: 세척 스탠드 2, 직영 200k → eng 120k → company 80k
+        { id: "A260502-001", customerName: "정민호", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 80000 },
       ],
+      totalAmount: 80000,
     },
     {
-      date: "2026-05-02", status: "completed", totalAmount: 24000, depositTime: "22:08",
+      date: "2026-05-01", status: "completed", depositTime: "22:30",
       works: [
-        { id: "A260502-001", customerName: "정민호", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 24000 },
+        // 박은서: 세척 벽걸이 1, 직영 80k → eng 40k → company 40k
+        { id: "A260501-001", customerName: "박은서", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 40000 },
+        // 이수진: 냉매 시스템 멀티 1, 쿨가이 120k → eng 60k → company 60k
+        { id: "A260501-002", customerName: "이수진", workType: "냉매충전", workItem: "시스템 멀티", quantity: 1, feeAmount: 60000 },
       ],
+      totalAmount: 100000,
     },
+    // 4월 옛 입금 완료 (가짜 — 4월은 시뮬 데이터 X)
     {
-      date: "2026-05-01", status: "completed", totalAmount: 60000, depositTime: "22:30",
+      date: "2026-04-28", status: "completed", depositTime: "22:00",
       works: [
-        { id: "A260501-001", customerName: "박은서", workType: "세척", workItem: "스탠드", quantity: 1, feeAmount: 36000 },
-        { id: "A260501-002", customerName: "이수진", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 24000 },
+        { id: null, customerName: "최민호", workType: "세척", workItem: "벽걸이", quantity: 2, feeAmount: 80000 },
+        { id: null, customerName: "박은비", workType: "냉매충전", workItem: "스탠드", quantity: 1, feeAmount: 50000 },
       ],
-    },
-    {
-      date: "2026-04-28", status: "completed", totalAmount: 112000, depositTime: "22:00",
-      works: [
-        { id: null, customerName: "최민호", workType: "세척", workItem: "벽걸이", quantity: 2, feeAmount: 60000 },
-        { id: null, customerName: "박은비", workType: "냉매", workItem: "스탠드", quantity: 1, feeAmount: 52000 },
-      ],
+      totalAmount: 130000,
     },
   ];
 
