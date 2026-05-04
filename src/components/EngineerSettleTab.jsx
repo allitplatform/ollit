@@ -1,7 +1,5 @@
-// V14 — 정산 메인 (깔끔 버전)
-// 오늘 번 돈 / 이번 주 / 이번 달 = 한 카드 통합
-// 회사 송금 = 간단 박스 / 유솔N 그린 / 안내 문구
-// 작업별 상세는 오늘 번 돈 카드 클릭 → 정산 상세 페이지
+// V14 v3 — 정산 메인 (Hero 64px + weight 600/700)
+// 헌법 v3: weight 500 → 600 / 600 → 700 / Hero 사이즈 키움
 
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 
@@ -34,14 +32,14 @@ export function EngineerSettleTab({
   unreadCount = 0,
 }) {
   const completedToday = todayTasks.filter(t => t.status === "완료");
-  const todayEarning  = completedToday.reduce((s, t) => s + getEarning(t), 0);
-  const todayRevenue  = completedToday.reduce((s, t) => s + getRevenue(t), 0);
+  const todayEarning   = completedToday.reduce((s, t) => s + getEarning(t), 0);
+  const todayRevenue   = completedToday.reduce((s, t) => s + getRevenue(t), 0);
   const toCompanyFinal = toCompany != null ? toCompany : Math.max(0, todayRevenue - todayEarning);
 
   const account = companyAccount || {
     company: "올데이케어",
-    bank: "우리은행",
-    number: "1002-XXX-XXXXXX",
+    bank:    "우리은행",
+    number:  "1002-XXX-XXXXXX",
   };
 
   return (
@@ -52,54 +50,65 @@ export function EngineerSettleTab({
       color: "var(--text-primary)",
       fontFamily: "'Spoqa Han Sans Neo', -apple-system, sans-serif",
     }}>
-      {/* 헤더 */}
-      <div style={{ padding: "16px 16px 14px", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>💰 정산</div>
-        <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4, fontWeight: 500 }}>
+      {/* 헤더 — V14 v3: 24/700 */}
+      <div style={{ padding: "18px 20px 14px", borderBottom: "0.5px solid var(--border)" }}>
+        <div style={{
+          fontSize: 24, fontWeight: 700,
+          color: "var(--text-primary)",
+          letterSpacing: "-0.4px",
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span>💰</span> 정산
+        </div>
+        <div style={{
+          fontSize: 13, color: "var(--label-main)",
+          marginTop: 4, fontWeight: 600,
+        }}>
           {engineer?.name || "기사"}님
         </div>
       </div>
 
       <div style={{ padding: 16 }}>
-        {/* V14 정제 — 오늘 번 돈 Hero 카드 (색 위계 + 반투명 박스) */}
+        {/* 오늘 번 돈 Hero 카드 — 64px / weight 700 / 반투명 0.16 박스 */}
         <div
           onClick={onClickToday}
           className="clickable"
           style={{
             background: "#FF1B8D",
-            borderRadius: 20,
-            padding: "22px 22px 18px",
+            borderRadius: 22,
+            padding: "24px 22px 20px",
             marginBottom: 14,
             cursor: "pointer",
             color: "#fff",
           }}
         >
-          {/* 라벨 — 옅은 핑크 */}
+          {/* 라벨 — 옅은 핑크 #FFE0EC */}
           <div style={{
-            fontSize: 13, color: "#FFD9E8", fontWeight: 500,
-            marginBottom: 8,
+            fontSize: 14, color: "#FFE0EC", fontWeight: 600,
+            marginBottom: 12,
             display: "flex", alignItems: "center", gap: 6,
           }}>
-            <span style={{ fontSize: 14 }}>💰</span> 오늘 번 돈
+            <span style={{ fontSize: 15 }}>💰</span> 오늘 번 돈
           </div>
-          {/* Hero ₩ 56px 흰 */}
+          {/* Hero ₩ 64px / 700 */}
           <div style={{
-            fontSize: 56, fontWeight: 500, color: "#fff",
+            fontSize: 64, fontWeight: 700, color: "#fff",
             fontFamily: "'JetBrains Mono', monospace",
-            letterSpacing: "-2px", lineHeight: 1,
-            marginBottom: 6,
+            letterSpacing: "-2.5px", lineHeight: 1,
+            marginBottom: 10,
           }}>
             ₩{todayEarning.toLocaleString("ko-KR")}
           </div>
-          {/* 헬퍼 — 옅은 핑크 + 흰 강조 */}
+          {/* 헬퍼 */}
           <div style={{
-            fontSize: 13, color: "#FFD9E8", marginBottom: 16,
+            fontSize: 13, color: "#FFE0EC",
+            fontWeight: 500, marginBottom: 18,
           }}>
             {completedToday.length}건 작업 완료 ·{" "}
-            <span style={{ color: "#fff", fontWeight: 500 }}>자세히 보기 ›</span>
+            <span style={{ color: "#fff", fontWeight: 600 }}>자세히 보기 ›</span>
           </div>
 
-          {/* 반투명 박스 두 칸 (이번 주 / 이번 달) */}
+          {/* 두 칸 박스 (반투명 0.16) */}
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
           }}>
@@ -116,73 +125,77 @@ export function EngineerSettleTab({
           </div>
         </div>
 
-        {/* 2. 회사 송금 박스 (간단) */}
+        {/* 회사 송금 카드 — 36px / 700 */}
         <div style={{
-          background: "var(--bg-secondary)",
+          background: "var(--card-bg)",
           border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: 16,
+          borderRadius: 18,
+          padding: 18,
           marginBottom: 14,
         }}>
           <div style={{
             display: "flex", justifyContent: "space-between",
-            alignItems: "flex-start", marginBottom: 10,
+            alignItems: "center", marginBottom: 14,
           }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 16 }}>📤</span>
-              <span style={{ fontSize: 14, fontWeight: 700 }}>회사 송금</span>
+            <div style={{
+              fontSize: 15, fontWeight: 700,
+              color: "var(--text-primary)",
+              letterSpacing: "-0.2px",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <span style={{ fontSize: 16 }}>📥</span> 회사 송금
             </div>
             <span style={{
-              fontSize: 11, fontWeight: 800,
-              color: isPaymentSent ? "#03C75A" : "#FF3B5C",
-              padding: "3px 8px",
-              background: isPaymentSent ? "rgba(3,199,90,0.10)" : "rgba(255,59,92,0.10)",
-              borderRadius: 6,
+              fontSize: 12, fontWeight: 700,
+              color: isPaymentSent ? "#03C75A" : "var(--transfer-pill-text)",
+              padding: "4px 11px",
+              background: isPaymentSent ? "rgba(3,199,90,0.10)" : "var(--transfer-pill-bg)",
+              borderRadius: 999,
             }}>
               {isPaymentSent ? "입금 완료" : "미입금"}
             </span>
           </div>
 
+          {/* ₩ Hero 36px / 700 */}
           <div style={{
             display: "flex", justifyContent: "space-between",
-            alignItems: "baseline", marginBottom: 14,
+            alignItems: "baseline", marginBottom: 16,
           }}>
             <div style={{
-              fontSize: 24, fontWeight: 900,
+              fontSize: 36, fontWeight: 700,
               fontFamily: "'JetBrains Mono', monospace",
               color: "var(--text-primary)",
-              letterSpacing: "-0.5px",
+              letterSpacing: "-1px", lineHeight: 1,
             }}>
               ₩{toCompanyFinal.toLocaleString("ko-KR")}
             </div>
             <div style={{
-              fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
+              fontSize: 13, color: "var(--label-main)", fontWeight: 600,
             }}>
               22:00 마감
             </div>
           </div>
 
-          {/* 구분선 */}
+          {/* 계좌 박스 (베이지) */}
           <div style={{
-            height: 1, background: "var(--border)", marginBottom: 12,
-          }}/>
-
-          {/* 계좌 */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            marginBottom: 12, gap: 8,
+            background: "var(--account-box-bg)",
+            borderRadius: 12,
+            padding: "13px 15px",
+            display: "flex", justifyContent: "space-between",
+            alignItems: "center", marginBottom: 14, gap: 8,
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
-                fontSize: 13, color: "var(--text-secondary)", fontWeight: 600,
-                marginBottom: 2,
+                fontSize: 14, fontWeight: 700,
+                color: "var(--account-name)",
               }}>
                 {account.company} · {account.bank}
               </div>
               <div style={{
-                fontSize: 14, fontWeight: 700,
+                fontSize: 12, fontWeight: 600,
+                color: "var(--account-num)",
                 fontFamily: "'JetBrains Mono', monospace",
-                color: "var(--text-primary)",
+                marginTop: 2,
               }}>
                 {account.number}
               </div>
@@ -190,31 +203,31 @@ export function EngineerSettleTab({
             <button
               onClick={() => copyToClipboard((account.number || "").replace(/-/g, ""))}
               style={{
-                padding: "8px 12px",
-                background: "transparent",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                color: "var(--text-primary)",
-                fontSize: 12, fontWeight: 700,
+                padding: "8px 13px",
+                background: "var(--copy-btn-bg)",
+                border: "1px solid var(--copy-btn-bd)",
+                borderRadius: 9,
+                color: "var(--copy-btn-text)",
+                fontSize: 13, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", gap: 4,
                 flexShrink: 0,
               }}
             >
-              📋 복사
+              <span style={{ fontSize: 13 }}>📋</span> 복사
             </button>
           </div>
 
-          {/* 입금 완료 보고 (주황 풀폭) */}
+          {/* 입금 완료 보고 — 주황 풀 16/700 */}
           <button
             onClick={onConfirmPaymentSent}
             disabled={isPaymentSent}
             style={{
-              width: "100%", padding: 14,
+              width: "100%", padding: 16,
               background: isPaymentSent ? "var(--bg-tertiary)" : "#FF8A3D",
-              border: "none",
-              borderRadius: 10,
+              border: "none", borderRadius: 13,
               color: isPaymentSent ? "var(--text-secondary)" : "#fff",
-              fontSize: 15, fontWeight: 800,
+              fontSize: 16, fontWeight: 700,
               cursor: isPaymentSent ? "default" : "pointer",
               fontFamily: "inherit",
             }}
@@ -223,65 +236,65 @@ export function EngineerSettleTab({
           </button>
         </div>
 
-        {/* 3. 유솔N 박스 (그린) */}
+        {/* 유솔N 받을 돈 카드 — 26px / 700 */}
         {usolN && (
           <div
             onClick={onClickUsolN}
             className="clickable"
             style={{
-              background: "rgba(3,199,90,0.08)",
-              border: "1px solid rgba(3,199,90,0.30)",
-              borderRadius: 12, padding: 16,
-              marginBottom: 14,
+              background: "var(--usol-card-bg)",
+              border: "1.5px solid #03C75A",
+              borderRadius: 16,
+              padding: "16px 18px",
+              display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 14,
               cursor: "pointer",
             }}
           >
-            <div style={{
-              display: "flex", justifyContent: "space-between",
-              alignItems: "center", marginBottom: 6,
-            }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 display: "flex", alignItems: "center", gap: 6,
-                fontSize: 13, color: "#03C75A", fontWeight: 800,
+                fontSize: 13, color: "#03C75A", fontWeight: 700,
+                marginBottom: 7,
               }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  width: 18, height: 18, borderRadius: 4,
+                  width: 19, height: 19, borderRadius: 5,
                   background: "#03C75A", color: "#fff",
-                  fontSize: 11, fontWeight: 900,
+                  fontSize: 11, fontWeight: 700,
                 }}>N</span>
-                <span>유솔N — 받을 돈</span>
+                <span>유솔N 받을 돈</span>
               </div>
-              <span style={{ fontSize: 16, color: "#03C75A" }}>›</span>
+              <div style={{
+                fontSize: 26, fontWeight: 700,
+                fontFamily: "'JetBrains Mono', monospace",
+                color: "var(--text-primary)",
+                letterSpacing: "-0.6px", lineHeight: 1,
+              }}>
+                {(usolN.amount || 0).toLocaleString("ko-KR")}원
+              </div>
+              <div style={{
+                fontSize: 12, color: "var(--label-main)",
+                marginTop: 5, fontWeight: 600,
+              }}>
+                {usolN.payDate || "—"} 입금 예정
+                {usolN.count != null ? ` · ${usolN.month || new Date().getMonth() + 1}월 작업 ${usolN.count}건` : ""}
+              </div>
             </div>
-            <div style={{
-              fontSize: 22, fontWeight: 900,
-              fontFamily: "'JetBrains Mono', monospace",
-              color: "var(--text-primary)",
-              letterSpacing: "-0.5px",
-              marginBottom: 6,
-            }}>
-              {(usolN.amount || 0).toLocaleString("ko-KR")}원
-            </div>
-            <div style={{
-              fontSize: 12, color: "var(--text-secondary)", fontWeight: 500,
-            }}>
-              {usolN.payDate || "—"} 입금 예정
-              {usolN.count != null ? ` · ${usolN.month || new Date().getMonth() + 1}월 작업 ${usolN.count}건` : ""}
-            </div>
+            <span style={{ color: "#03C75A", fontSize: 20, fontWeight: 700 }}>›</span>
           </div>
         )}
 
-        {/* 4. 안내 문구 */}
+        {/* 헬퍼 박스 — 옅은 핑크 */}
         <div style={{
-          padding: "12px 14px",
-          background: "var(--accent-bg)",
-          borderRadius: 10,
-          fontSize: 12, color: "var(--text-secondary)",
-          fontWeight: 500, lineHeight: 1.5,
+          padding: "13px 16px",
+          background: "var(--helper-box-bg)",
+          borderRadius: 12,
+          fontSize: 13, color: "var(--label-main)",
+          fontWeight: 500, lineHeight: 1.6,
           textAlign: "center",
         }}>
-          💡 작업별 상세 정산 내역은<br/>
+          💡 작업별 상세 정산은{" "}
           <span style={{ color: "#FF1B8D", fontWeight: 700 }}>오늘 번 돈</span>을 눌러보세요
         </div>
       </div>
@@ -294,26 +307,27 @@ export function EngineerSettleTab({
 function PeriodStat({ label, amount, count }) {
   return (
     <div style={{
-      background: "rgba(255,255,255,0.13)",
+      background: "rgba(255,255,255,0.16)",
       borderRadius: 12,
-      padding: "11px 13px",
+      padding: "12px 14px",
     }}>
       <div style={{
-        fontSize: 11, color: "#FFD9E8",
-        fontWeight: 500, marginBottom: 4,
+        fontSize: 11, color: "#FFE0EC",
+        fontWeight: 600, marginBottom: 5,
+        letterSpacing: 0.3,
       }}>
         {label}
       </div>
       <div style={{
-        fontSize: 18, fontWeight: 500,
+        fontSize: 19, fontWeight: 700,
         fontFamily: "'JetBrains Mono', monospace",
-        color: "#fff", letterSpacing: "-0.3px", lineHeight: 1.1,
+        color: "#fff", letterSpacing: "-0.4px", lineHeight: 1.1,
       }}>
         ₩{amount.toLocaleString("ko-KR")}
       </div>
       <div style={{
-        fontSize: 10, color: "#FFB8D6",
-        fontWeight: 500, marginTop: 3,
+        fontSize: 11, color: "#FFC8DD",
+        fontWeight: 600, marginTop: 4,
       }}>
         {count}건
       </div>

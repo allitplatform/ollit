@@ -99,6 +99,17 @@ export const DARK_THEME = {
   "--sub-box-amount":       "#C8C8C8",
   "--hero-pink-bg":         "rgba(255,77,166,0.10)",
   "--hero-pink-border":     "rgba(255,77,166,0.30)",
+  // V14 v3 정산 메인
+  "--transfer-pill-bg":     "#4A1525",
+  "--transfer-pill-text":   "#FF6B85",
+  "--account-box-bg":       "#16161A",
+  "--account-name":         "#FAF8F5",
+  "--account-num":          "#999",
+  "--copy-btn-bg":          "#1C1C1E",
+  "--copy-btn-bd":          "#3A3A3A",
+  "--copy-btn-text":        "#C8C8C8",
+  "--usol-card-bg":         "#0F2419",
+  "--helper-box-bg":        "#2D0F1E",
 };
 
 export const LIGHT_THEME = {
@@ -198,6 +209,17 @@ export const LIGHT_THEME = {
   "--sub-box-amount":       "#3F3A33",
   "--hero-pink-bg":         "rgba(255,27,141,0.06)",
   "--hero-pink-border":     "rgba(255,27,141,0.22)",
+  // V14 v3 정산 메인
+  "--transfer-pill-bg":     "#FFE5E8",
+  "--transfer-pill-text":   "#FF3B5C",
+  "--account-box-bg":       "#F5F2ED",
+  "--account-name":         "#1A1A1A",
+  "--account-num":          "#6B6359",
+  "--copy-btn-bg":          "#FFFFFF",
+  "--copy-btn-bd":          "#D5CDC0",
+  "--copy-btn-text":        "#555",
+  "--usol-card-bg":         "#F0FDF4",
+  "--helper-box-bg":        "#FFF5FA",
 };
 
 // V14 — 화면 모드 (light / dark / auto)
