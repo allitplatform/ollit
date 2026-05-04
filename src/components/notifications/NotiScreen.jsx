@@ -1,22 +1,40 @@
-// V14 — 알림 화면 (기사 + 운영자 공통)
-// 헤더 22/800 / 필터 알약 14/800 / 시간 그룹 13/800 / 50대 친화
+// V14 — 알림 화면 (사장님 spec)
+// 헤더 24/700 / 카테고리 탭 (전체/배정/일정/메시지/정산) / 날짜 그룹 (오늘/어제/이전)
 
 import { useState, useMemo } from "react";
 import { NotiCard } from "./NotiCard.jsx";
+import { getNotiGroup } from "./notiCategories.js";
+
+const TAB_DEFS = [
+  { id: "all",        label: "전체"   },
+  { id: "assignment", label: "배정"   },
+  { id: "schedule",   label: "일정"   },
+  { id: "message",    label: "메시지" },
+  { id: "payment",    label: "정산"   },
+];
 
 export function NotiScreen({ notifications, onMarkAllRead, onCardClick, title = "🔔 알림" }) {
-  const [filter, setFilter] = useState("all"); // all / unread / urgent
+  const [tab, setTab] = useState("all");
 
   const unreadCount = useMemo(
     () => notifications.filter(n => !n.read).length,
     [notifications]
   );
 
+  // 카테고리별 카운트
+  const counts = useMemo(() => {
+    const c = { all: notifications.length, assignment: 0, schedule: 0, message: 0, payment: 0 };
+    for (const n of notifications) {
+      const g = getNotiGroup(n.type || n.category);
+      if (c[g] != null) c[g]++;
+    }
+    return c;
+  }, [notifications]);
+
   const filtered = useMemo(() => {
-    if (filter === "unread") return notifications.filter(n => !n.read);
-    if (filter === "urgent") return notifications.filter(n => n.category === "urgent");
-    return notifications;
-  }, [notifications, filter]);
+    if (tab === "all") return notifications;
+    return notifications.filter(n => getNotiGroup(n.type || n.category) === tab);
+  }, [notifications, tab]);
 
   const grouped = useMemo(() => groupByDay(filtered), [filtered]);
 
@@ -29,30 +47,30 @@ export function NotiScreen({ notifications, onMarkAllRead, onCardClick, title = 
     }}>
       {/* 헤더 */}
       <div style={{
-        padding: "16px 16px 14px",
+        padding: "18px 20px 14px",
         borderBottom: "1px solid var(--border)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "space-between",
       }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>{title}</div>
+          <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.4px" }}>{title}</div>
           <div style={{
             fontSize: 13,
             color: "var(--text-secondary)",
             fontWeight: 600,
             marginTop: 4,
           }}>
-            안 읽음 {unreadCount}건
+            안 읽음 {unreadCount}건 · 7일 보관
           </div>
         </div>
         <button onClick={onMarkAllRead} style={{
-          padding: "8px 12px",
-          background: "transparent",
+          padding: "9px 13px",
+          background: "var(--card-bg)",
           border: "1px solid var(--border)",
-          borderRadius: 8,
-          fontSize: 13, fontWeight: 700,
-          color: "var(--text-primary)",
+          borderRadius: 11,
+          fontSize: 12, fontWeight: 700,
+          color: "var(--text-secondary)",
           cursor: "pointer",
           fontFamily: "inherit",
         }}>
@@ -60,32 +78,42 @@ export function NotiScreen({ notifications, onMarkAllRead, onCardClick, title = 
         </button>
       </div>
 
-      {/* 필터 알약 */}
+      {/* 카테고리 탭 (수평 스크롤 알약) */}
       <div style={{
         padding: "12px 16px",
         display: "flex", gap: 6,
+        overflowX: "auto",
         borderBottom: "1px solid var(--border)",
       }}>
-        <FilterPill label="전체"     active={filter === "all"}    onClick={() => setFilter("all")}/>
-        <FilterPill label="안 읽음"  active={filter === "unread"} onClick={() => setFilter("unread")}/>
-        <FilterPill label="긴급"     active={filter === "urgent"} onClick={() => setFilter("urgent")}/>
+        {TAB_DEFS.map(t => (
+          <CategoryTab
+            key={t.id}
+            label={t.label}
+            count={counts[t.id]}
+            active={tab === t.id}
+            onClick={() => setTab(t.id)}
+          />
+        ))}
       </div>
 
       {/* 알림 리스트 */}
-      {grouped.map(group => (
-        <div key={group.label}>
-          <div style={{
-            padding: "16px 16px 8px",
-            fontSize: 13, fontWeight: 800,
-            color: "var(--text-secondary)",
-          }}>
-            {group.label}
+      <div style={{ paddingTop: 12 }}>
+        {grouped.map(group => (
+          <div key={group.label}>
+            <div style={{
+              padding: "8px 20px 6px",
+              fontSize: 12, fontWeight: 700,
+              color: "var(--text-secondary)",
+              letterSpacing: 0.3,
+            }}>
+              {group.label}
+            </div>
+            {group.items.map(noti => (
+              <NotiCard key={noti.id} noti={noti} onClick={() => onCardClick && onCardClick(noti)}/>
+            ))}
           </div>
-          {group.items.map(noti => (
-            <NotiCard key={noti.id} noti={noti} onClick={() => onCardClick && onCardClick(noti)}/>
-          ))}
-        </div>
-      ))}
+        ))}
+      </div>
 
       {filtered.length === 0 && (
         <div style={{
@@ -99,19 +127,33 @@ export function NotiScreen({ notifications, onMarkAllRead, onCardClick, title = 
   );
 }
 
-function FilterPill({ label, active, onClick }) {
+function CategoryTab({ label, count, active, onClick }) {
   return (
     <button onClick={onClick} style={{
-      padding: "8px 16px",
+      padding: "8px 14px",
       background: active ? "#FF1B8D" : "transparent",
       border: active ? "1px solid #FF1B8D" : "1px solid var(--border)",
       borderRadius: 18,
       color: active ? "#fff" : "var(--text-secondary)",
-      fontSize: 14, fontWeight: 700,
+      fontSize: 13, fontWeight: 700,
       cursor: "pointer",
       fontFamily: "inherit",
+      whiteSpace: "nowrap",
+      flexShrink: 0,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 5,
     }}>
-      {label}
+      <span>{label}</span>
+      {count > 0 && (
+        <span style={{
+          fontSize: 11,
+          fontWeight: 700,
+          opacity: active ? 0.85 : 0.7,
+        }}>
+          {count}
+        </span>
+      )}
     </button>
   );
 }

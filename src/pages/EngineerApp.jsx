@@ -3799,14 +3799,15 @@ export default function EngineerApp({ user, onLogout }) {
     regions: ["강남구", "서초구", "송파구"],
   };
 
-  // 알림 mock (통합 7카테고리 — 기사용 라벨)
+  // V14 — 알림 mock (사장님 spec 7가지 type)
   const [notifications, setNotifications] = useState([
-    { id: "n1", type: "new_assign",      category: "new_assign",      categoryLabel: "새 배정",     title: "정도현님 (세척 ×1)",       subtitle: "강남구 청담동 · 벽걸이 1대",      timeAgo: "30분 전",  createdAt: new Date(Date.now() - 30 * 60 * 1000),       read: false, important: true,  taskId: "A260427-004" },
-    { id: "n2", type: "new_assign",      category: "new_assign",      categoryLabel: "새 배정",     title: "냉매충전 콜 (강남구)",      subtitle: "시스템 멀티 1대 · 단가 ₩80,000",  timeAgo: "2시간 전", createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   read: false, important: true },
-    { id: "n3", type: "schedule_change", category: "schedule_change", categoryLabel: "일정 변경",   title: "이상훈님 일정 변경",        subtitle: "11:30 → 13:00",                    timeAgo: "4시간 전", createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),   read: false, important: false, taskId: "A260427-002" },
-    { id: "n4", type: "settlement",      category: "settlement",      categoryLabel: "입금 확인",   title: "어제 입금 확인 완료",       subtitle: "₩168,000 회사 송금 처리됨",        timeAgo: "18시간 전",createdAt: new Date(Date.now() - 18 * 60 * 60 * 1000),  read: true,  important: false },
-    { id: "n5", type: "ops_memo",        category: "ops_memo",        categoryLabel: "운영팀 메모", title: "박지영님 운영팀 메모",      subtitle: "현관 비밀번호 1234, 강아지 있어요", timeAgo: "1일 전",   createdAt: new Date(Date.now() - 26 * 60 * 60 * 1000),  read: true,  important: false, taskId: "A260427-001" },
-    { id: "n6", type: "urgent",          category: "urgent",          categoryLabel: "긴급",        title: "오늘 22시 정산 마감",       subtitle: "회사 송금 마감",                    timeAgo: "3일 전",   createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), read: true, important: false },
+    { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",   title: "새 배정 도착",        subtitle: "정도현 고객님 · 세척 · 청담동",                  relatedId: "A260427-004", targetScreen: "newAssignmentList" },
+    { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   timeAgo: "2시간 전",  title: "냉매충전 콜 · 선착순",  subtitle: "강남구 · 시스템 멀티 · 80,000원",                relatedId: "CALL001",     targetScreen: "acceptanceList" },
+    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),   timeAgo: "4시간 전",  title: "운영팀 메시지",        subtitle: "5/4 김미경 고객님 시간 변경 요청 받았어요. 확인 부탁드립니다.", targetScreen: "main" },
+    { id: "N004", type: "schedule_changed",   read: true,  urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "일정 변경됨",          subtitle: "박지영 고객님 작업 시간이 09:30 → 09:05로 변경됐어요", relatedId: "A260504-001", targetScreen: "detail" },
+    { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 28 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "작업 취소",            subtitle: "최영환 고객님이 5/3 작업을 취소했어요",            relatedId: "A260503-002", targetScreen: null },
+    { id: "N006", type: "payment_received",   read: true,  urgent: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), timeAgo: "2일 전", title: "입금 처리 완료",        subtitle: "5/3 정산 24,000원 회사 송금 확인됐어요",            targetScreen: "settlement" },
+    { id: "N007", type: "photo_missing",      read: true,  urgent: false, createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), timeAgo: "3일 전", title: "사진 누락",            subtitle: "5/1 박은서 작업의 After 사진을 추가해주세요",       relatedId: "A260501-001", targetScreen: "detail" },
   ]);
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -3819,13 +3820,16 @@ export default function EngineerApp({ user, onLogout }) {
 
   function handleNotiClick(noti) {
     markAsRead(noti.id);
-    const cat = noti.category || noti.type;
-    if (cat === "new_assign") return setScreen("newAssignmentList");
-    if (noti.taskId) {
-      const t = tasks.find(x => x.id === noti.taskId);
+    // 작업 취소 등 — 이동 X (인지만)
+    if (!noti.targetScreen) return;
+    // detail screen은 relatedId(작업 ID)로 task 찾아서 진입
+    if (noti.targetScreen === "detail" && noti.relatedId) {
+      const t = tasks.find(x => x.id === noti.relatedId);
       if (t) { setSelectedTaskId(t.id); setScreen("detail"); return; }
+      // 작업 못 찾으면 메인으로
+      return setScreen("main");
     }
-    if (cat === "settlement" || cat === "urgent") return setScreen("settlement");
+    setScreen(noti.targetScreen);
   }
 
   // 유솔N 달력 mock
