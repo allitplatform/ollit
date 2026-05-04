@@ -29,6 +29,8 @@ import { EngineerCalendarTab } from "../components/EngineerCalendarTab.jsx";
 import { EngineerNotiTab } from "../components/EngineerNotiTab.jsx";
 import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
 import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
+import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
+import { UsolNSettlementScreen } from "../components/UsolNSettlementScreen.jsx";
 // V13-FINAL2-fix1 신규 화면
 import { EngineerOffDayAddModal } from "../components/EngineerOffDayAddModal.jsx";
 import { EngineerAccountEditScreen } from "../components/EngineerAccountEditScreen.jsx";
@@ -3799,14 +3801,14 @@ export default function EngineerApp({ user, onLogout }) {
     regions: ["강남구", "서초구", "송파구"],
   };
 
-  // V14 — 알림 mock (사장님 spec 7가지 type)
+  // V14 — 알림 mock (사장님 spec 7가지 type, relatedId는 실제 5월 task ID와 매칭)
   const [notifications, setNotifications] = useState([
     { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",   title: "새 배정 도착",        subtitle: "정도현 고객님 · 세척 · 청담동",                  relatedId: "A260427-004", targetScreen: "newAssignmentList" },
     { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   timeAgo: "2시간 전",  title: "냉매충전 콜 · 선착순",  subtitle: "강남구 · 시스템 멀티 · 80,000원",                relatedId: "CALL001",     targetScreen: "acceptanceList" },
-    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),   timeAgo: "4시간 전",  title: "운영팀 메시지",        subtitle: "5/4 김미경 고객님 시간 변경 요청 받았어요. 확인 부탁드립니다.", targetScreen: "main" },
+    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 4 * 60 * 60 * 1000),   timeAgo: "4시간 전",  title: "운영팀 메시지",        subtitle: "5/4 김미경 고객님 시간 변경 요청 받았어요. 확인 부탁드립니다.", relatedId: "A260504-003", targetScreen: "detail" },
     { id: "N004", type: "schedule_changed",   read: true,  urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "일정 변경됨",          subtitle: "박지영 고객님 작업 시간이 09:30 → 09:05로 변경됐어요", relatedId: "A260504-001", targetScreen: "detail" },
-    { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 28 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "작업 취소",            subtitle: "최영환 고객님이 5/3 작업을 취소했어요",            relatedId: "A260503-002", targetScreen: null },
-    { id: "N006", type: "payment_received",   read: true,  urgent: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), timeAgo: "2일 전", title: "입금 처리 완료",        subtitle: "5/3 정산 24,000원 회사 송금 확인됐어요",            targetScreen: "settlement" },
+    { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 28 * 60 * 60 * 1000),  timeAgo: "1일 전",    title: "작업 취소",            subtitle: "최영환 고객님이 5/3 작업을 취소했어요",            relatedId: null,          targetScreen: null },
+    { id: "N006", type: "payment_received",   read: true,  urgent: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), timeAgo: "2일 전", title: "입금 처리 완료",        subtitle: "5/3 정산 24,000원 회사 송금 확인됐어요",            targetScreen: "paymentHistory" },
     { id: "N007", type: "photo_missing",      read: true,  urgent: false, createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000), timeAgo: "3일 전", title: "사진 누락",            subtitle: "5/1 박은서 작업의 After 사진을 추가해주세요",       relatedId: "A260501-001", targetScreen: "detail" },
   ]);
   const unreadCount = notifications.filter(n => !n.read).length;
@@ -3821,20 +3823,98 @@ export default function EngineerApp({ user, onLogout }) {
   function handleNotiClick(noti) {
     markAsRead(noti.id);
     // 작업 취소 등 — 이동 X (인지만)
-    if (!noti.targetScreen) return;
-    // detail screen은 relatedId(작업 ID)로 task 찾아서 진입
-    if (noti.targetScreen === "detail" && noti.relatedId) {
+    if (!noti.targetScreen && !noti.relatedId) return;
+
+    // relatedId 우선 — task 찾으면 status에 따라 detail 화면 진입
+    if (noti.relatedId) {
       const t = tasks.find(x => x.id === noti.relatedId);
-      if (t) { setSelectedTaskId(t.id); setScreen("detail"); return; }
-      // 작업 못 찾으면 메인으로
-      return setScreen("main");
+      if (t) {
+        setSelectedTaskId(t.id);
+        setScreen("detail");
+        return;
+      }
     }
-    setScreen(noti.targetScreen);
+
+    if (noti.targetScreen) setScreen(noti.targetScreen);
   }
 
   // 유솔N 달력 mock
   const usolNMonthData = { totalAmount: 280000, count: 4, byDate: {} };
   const loadUsolNDayTasks = () => [];
+
+  // V14 — 회사 송금 내역 시뮬 데이터 (사장님 spec 일별 그룹)
+  const paymentsMock = [
+    {
+      date: "2026-05-04", status: "pending", totalAmount: 28500, deadline: "22:00",
+      works: [
+        { id: "A260504-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 28500 },
+      ],
+    },
+    {
+      date: "2026-05-03", status: "completed", totalAmount: 140000, depositTime: "22:15",
+      works: [
+        { id: null, customerName: "정민호", workType: "냉매", workItem: "스탠드", quantity: 1, feeAmount: 60000 },
+        { id: null, customerName: "권태수", workType: "냉매", workItem: "벽걸이", quantity: 2, feeAmount: 80000 },
+      ],
+    },
+    {
+      date: "2026-05-02", status: "completed", totalAmount: 24000, depositTime: "22:08",
+      works: [
+        { id: "A260502-001", customerName: "정민호", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 24000 },
+      ],
+    },
+    {
+      date: "2026-05-01", status: "completed", totalAmount: 60000, depositTime: "22:30",
+      works: [
+        { id: "A260501-001", customerName: "박은서", workType: "세척", workItem: "스탠드", quantity: 1, feeAmount: 36000 },
+        { id: "A260501-002", customerName: "이수진", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 24000 },
+      ],
+    },
+    {
+      date: "2026-04-28", status: "completed", totalAmount: 112000, depositTime: "22:00",
+      works: [
+        { id: null, customerName: "최민호", workType: "세척", workItem: "벽걸이", quantity: 2, feeAmount: 60000 },
+        { id: null, customerName: "박은비", workType: "냉매", workItem: "스탠드", quantity: 1, feeAmount: 52000 },
+      ],
+    },
+  ];
+
+  // V14 — 유솔N 정산 시뮬 데이터
+  const usolNGroupsMock = [
+    {
+      date: "2026-05-04", status: "pending", totalAmount: 80000, payDate: "2026-06-15",
+      works: [
+        { id: null, customerName: "김재훈", workType: "냉매", workItem: "시스템 멀티", quantity: 1, feeAmount: 80000 },
+      ],
+    },
+    {
+      date: "2026-05-02", status: "pending", totalAmount: 120000, payDate: "2026-06-15",
+      works: [
+        { id: null, customerName: "윤지원", workType: "냉매", workItem: "스탠드", quantity: 2, feeAmount: 120000 },
+      ],
+    },
+    {
+      date: "2026-05-01", status: "pending", totalAmount: 80000, payDate: "2026-06-15",
+      works: [
+        { id: null, customerName: "한승호", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 80000 },
+      ],
+    },
+    {
+      date: "2026-04-25", status: "completed", totalAmount: 160000, payDate: "2026-05-15",
+      works: [
+        { id: null, customerName: "김민재", workType: "냉매", workItem: "시스템 멀티", quantity: 2, feeAmount: 160000 },
+      ],
+    },
+    {
+      date: "2026-03-22", status: "completed", totalAmount: 90000, payDate: "2026-04-15",
+      works: [
+        { id: null, customerName: "이태원", workType: "냉매", workItem: "벽걸이", quantity: 1, feeAmount: 90000 },
+      ],
+    },
+  ];
+  const usolNPendingAmount = usolNGroupsMock.filter(g => g.status === "pending").reduce((s, g) => s + g.totalAmount, 0);
+  const usolNPendingCount  = usolNGroupsMock.filter(g => g.status === "pending").reduce((s, g) => s + g.works.length, 0);
+  const usolNYearTotal     = usolNGroupsMock.reduce((s, g) => s + g.totalAmount, 0);
 
   // 휴무 mock
   const offDays = [];
@@ -3843,8 +3923,8 @@ export default function EngineerApp({ user, onLogout }) {
   const [offDayModalOpen, setOffDayModalOpen] = useState(false);
   // V14 — 5월 시뮬 휴무 (5/3 일요일, 5/5 어린이날)
   const [savedOffDays, setSavedOffDays] = useState([
-    { date: "2026-05-03", label: "휴무" },
-    { date: "2026-05-05", label: "휴무 (어린이날)" },
+    { type: "single", date: "2026-05-03", reason: "휴무" },
+    { type: "single", date: "2026-05-05", reason: "휴무 (어린이날)" },
   ]);
   const [savedAccount, setSavedAccount] = useState(null);
   const [savedRegions, setSavedRegions] = useState(null);
@@ -4005,7 +4085,8 @@ export default function EngineerApp({ user, onLogout }) {
             monthStats={monthStats}
             usolN={usolN}
             onClickToday={() => setScreen("settlementDetail")}
-            onClickUsolN={() => setScreen("usolN")}
+            onClickUsolN={() => setScreen("usolNSettlement")}
+            onClickPaymentHistory={() => setScreen("paymentHistory")}
             onConfirmPaymentSent={() => alert("입금 완료 보고")}
             onTabChange={(tabId) => {
               if (tabId === "today") setScreen("main");
@@ -4180,6 +4261,30 @@ export default function EngineerApp({ user, onLogout }) {
             monthData={usolNMonthData}
             loadDayTasks={loadUsolNDayTasks}
             onBack={() => setScreen("settlement")}
+          />
+        )}
+        {screen === "paymentHistory" && (
+          <PaymentHistoryScreen
+            payments={paymentsMock}
+            onBack={() => setScreen("settlement")}
+            onTaskClick={(taskId) => {
+              const t = tasks.find(x => x.id === taskId);
+              if (t) { setSelectedTaskId(t.id); setScreen("detail"); }
+            }}
+          />
+        )}
+        {screen === "usolNSettlement" && (
+          <UsolNSettlementScreen
+            pendingAmount={usolNPendingAmount}
+            pendingCount={usolNPendingCount}
+            payDate="2026-06-15"
+            thisYearTotal={usolNYearTotal}
+            groups={usolNGroupsMock}
+            onBack={() => setScreen("settlement")}
+            onTaskClick={(taskId) => {
+              const t = tasks.find(x => x.id === taskId);
+              if (t) { setSelectedTaskId(t.id); setScreen("detail"); }
+            }}
           />
         )}
       </div>

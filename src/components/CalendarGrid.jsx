@@ -169,12 +169,40 @@ function DayCell({
   date, dayOfWeek, tasks, isOffDay,
   isSelected, isToday, showDots, showHeatmap, colorScheme, onClick,
 }) {
+  // V14 — 휴무 셀: 진한 회색 배경 + line-through + "휴무" 라벨 (사장님 spec)
+  if (isOffDay) {
+    return (
+      <div onClick={onClick} style={{
+        aspectRatio: "1",
+        display: "flex", flexDirection: "column",
+        alignItems: "center", justifyContent: "center",
+        paddingTop: 2,
+        borderRadius: 6,
+        cursor: "pointer",
+        background: "var(--off-day-bg, rgba(136,135,128,0.18))",
+        border: `1px solid ${isSelected ? "#FF1B8D" : "transparent"}`,
+        position: "relative",
+      }}>
+        <div style={{
+          fontSize: 11, fontWeight: 700,
+          color: "#999",
+          textDecoration: "line-through",
+          marginBottom: 2,
+        }}>
+          {date.getDate()}
+        </div>
+        <div style={{
+          fontSize: 8, color: "#999",
+          fontWeight: 700, letterSpacing: 0.3,
+        }}>
+          휴무
+        </div>
+      </div>
+    );
+  }
+
   let bg = "transparent";
   let borderColor = "transparent";
-
-  if (isOffDay) {
-    bg = "rgba(136,135,128,0.15)";
-  }
 
   if (showHeatmap && tasks.length > 0) {
     const isGreen = colorScheme === "green";
@@ -221,11 +249,7 @@ function DayCell({
         {date.getDate()}
       </div>
 
-      {isOffDay && (
-        <div style={{ fontSize: 7, color: "#888780", fontWeight: 700 }}>휴무</div>
-      )}
-
-      {showDots && tasks.length > 0 && !isOffDay && (
+      {showDots && tasks.length > 0 && (
         <div style={{
           display: "flex", gap: 1.5, flexWrap: "wrap",
           justifyContent: "center", maxWidth: 28,

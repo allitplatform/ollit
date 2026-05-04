@@ -28,6 +28,7 @@ export function EngineerSettleTab({
   isPaymentSent = false,
   onClickToday,
   onClickUsolN,
+  onClickPaymentHistory,
   onConfirmPaymentSent,
   onTabChange,
   unreadCount = 0,
@@ -126,14 +127,18 @@ export function EngineerSettleTab({
           </div>
         </div>
 
-        {/* 회사 송금 카드 — 36px / 700 */}
-        <div style={{
-          background: "var(--card-bg)",
-          border: "1px solid var(--border)",
-          borderRadius: 18,
-          padding: 18,
-          marginBottom: 14,
-        }}>
+        {/* 회사 송금 카드 — 36px / 700 (카드 클릭 → 송금 내역) */}
+        <div
+          onClick={onClickPaymentHistory}
+          className={onClickPaymentHistory ? "clickable" : undefined}
+          style={{
+            background: "var(--card-bg)",
+            border: "1px solid var(--border)",
+            borderRadius: 18,
+            padding: 18,
+            marginBottom: 14,
+            cursor: onClickPaymentHistory ? "pointer" : "default",
+          }}>
           <div style={{
             display: "flex", justifyContent: "space-between",
             alignItems: "center", marginBottom: 14,
@@ -202,7 +207,7 @@ export function EngineerSettleTab({
               </div>
             </div>
             <button
-              onClick={() => copyToClipboard((account.number || "").replace(/-/g, ""))}
+              onClick={(e) => { e.stopPropagation(); copyToClipboard((account.number || "").replace(/-/g, "")); }}
               style={{
                 padding: "8px 13px",
                 background: "var(--copy-btn-bg)",
@@ -221,7 +226,7 @@ export function EngineerSettleTab({
 
           {/* 입금 완료 보고 — 주황 풀 16/700 */}
           <button
-            onClick={onConfirmPaymentSent}
+            onClick={(e) => { e.stopPropagation(); onConfirmPaymentSent && onConfirmPaymentSent(); }}
             disabled={isPaymentSent}
             style={{
               width: "100%", padding: 16,

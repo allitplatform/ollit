@@ -62,17 +62,34 @@ export function EngineerCalendarTab({
       byDate[k].tasks.push(t);
       count += 1;
     });
+
+    // V14 — 휴무 시각 표시 (single / range / repeat / hourly + 옛 데이터 호환)
+    const monthYear = currentMonth.getFullYear();
+    const monthIdx  = currentMonth.getMonth();
+    const lastDay   = new Date(monthYear, monthIdx + 1, 0).getDate();
     let offCount = 0;
-    (offDays || []).forEach(o => {
-      if (!o.date) return;
-      const date = new Date(o.date);
-      if (date.getFullYear() !== currentMonth.getFullYear()
-        || date.getMonth() !== currentMonth.getMonth()) return;
-      const k = formatYmd(date);
-      if (!byDate[k]) byDate[k] = { tasks: [] };
-      byDate[k].offDay = true;
-      offCount += 1;
-    });
+    for (let d = 1; d <= lastDay; d++) {
+      const date = new Date(monthYear, monthIdx, d);
+      const ymd  = formatYmd(date);
+      const dow  = date.getDay();
+      const isOff = (offDays || []).some(o => {
+        const type = o.type;
+        if (type === "range") {
+          return o.startDate && o.endDate && ymd >= o.startDate && ymd <= o.endDate;
+        }
+        if (type === "repeat") {
+          return Array.isArray(o.weekdays) && o.weekdays.includes(dow);
+        }
+        // single / hourly / type 미지정 (옛 데이터) — date 직접 비교
+        return o.date === ymd;
+      });
+      if (isOff) {
+        if (!byDate[ymd]) byDate[ymd] = { tasks: [] };
+        byDate[ymd].offDay = true;
+        offCount += 1;
+      }
+    }
+
     return { byDate, count, offCount };
   }, [tasks, offDays, currentMonth]);
 
