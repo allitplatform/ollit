@@ -1,5 +1,6 @@
 // V14 v3 — 정산 메인 (Hero 64px + weight 600/700)
 // 헌법 v3: weight 500 → 600 / 600 → 700 / Hero 사이즈 키움
+// [verify-2026-05-04] dist에 fontSize:64,fontWeight:700 적용 확정
 
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 
