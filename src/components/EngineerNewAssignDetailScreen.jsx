@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
 
 function addDays(date, n) {
   const d = new Date(date);
@@ -81,6 +82,7 @@ export function EngineerNewAssignDetailScreen({
     );
   }
 
+  const colors = getWorkTypeColors(task.workType);
   const today    = new Date();
   const tomorrow = addDays(today, 1);
 
@@ -154,23 +156,23 @@ export function EngineerNewAssignDetailScreen({
           overflow: "hidden",
           marginBottom: 12,
         }}>
-          {/* 좌측 4px 바 */}
+          {/* 좌측 4px 바 — 작업 종류 색 */}
           <div style={{
             position: "absolute",
             left: 0, top: 0, bottom: 0,
             width: 4,
-            background: "#FF1B8D",
+            background: colors.main,
           }}/>
 
           <div style={{
             display: "flex", alignItems: "center", gap: 6,
             fontSize: 13, fontWeight: 500,
-            color: "var(--accent-strong)",
+            color: colors.main,
             marginBottom: 6,
           }}>
             <span style={{
               width: 6, height: 6, borderRadius: "50%",
-              background: "var(--accent-strong)",
+              background: colors.main,
               display: "inline-block",
             }}/>
             새 배정
@@ -234,7 +236,7 @@ export function EngineerNewAssignDetailScreen({
           </button>
           <button onClick={openMap} style={{
             padding: 13,
-            background: "#FF1B8D",
+            background: colors.main,
             border: "none", borderRadius: 10,
             color: "#fff",
             fontSize: 15, fontWeight: 500,

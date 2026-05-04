@@ -12,6 +12,7 @@ import {
   TaskPartialScreen,
   TaskVisitOnlyScreen,
 } from "./EngineerTaskCompletionScreens.jsx";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -505,34 +506,34 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
 
 // ──────────────── 상태 블록 ────────────────
 function StatusBlockConfirmed({ task }) {
+  const colors = getWorkTypeColors(task.workType);
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
-        display: "inline-flex", alignItems: "center", gap: 4,
-        padding: "3px 10px",
-        background: "rgba(255,255,255,0.08)",
-        border: "1px solid #555",
-        borderRadius: 14, marginBottom: 12,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 8,
       }}>
-        <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#888780" }}/>
-        <span style={{ fontSize: 10, color: "var(--text-primary)", fontWeight: 700 }}>
-          확정
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: colors.main }}/>
+          <span style={{ fontSize: 13, color: colors.main, fontWeight: 500 }}>
+            확정
+          </span>
+        </div>
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
         <div style={{
-          fontSize: 28, fontWeight: 700, fontFamily: "monospace",
-          color: "var(--text-primary)",
+          fontSize: 32, fontWeight: 500, fontFamily: "'JetBrains Mono', monospace",
+          color: "var(--text-primary)", letterSpacing: "-0.5px",
         }}>
           {task.scheduledTime || task.time || "—"}
         </div>
         {task.endTime && (
-          <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+          <div style={{ fontSize: 16, color: "#888", fontWeight: 500 }}>
             ~ {task.endTime}
           </div>
         )}
       </div>
-      <div style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 600 }}>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 500 }}>
         📅 {formatTimeUntilStart(task)}
       </div>
     </div>
@@ -540,6 +541,7 @@ function StatusBlockConfirmed({ task }) {
 }
 
 function StatusBlockInProgress({ task }) {
+  const colors = getWorkTypeColors(task.workType);
   // V14 — 진행률 계산
   const pct = (() => {
     if (!task.startedAt || !task.endTime) return 0;
@@ -562,8 +564,8 @@ function StatusBlockInProgress({ task }) {
         marginBottom: 8,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "#FF1B8D" }}/>
-          <span style={{ fontSize: 13, color: "var(--accent-strong)", fontWeight: 500 }}>
+          <span style={{ width: 7, height: 7, borderRadius: "50%", background: colors.main }}/>
+          <span style={{ fontSize: 13, color: colors.main, fontWeight: 500 }}>
             진행중
           </span>
         </div>
@@ -588,7 +590,7 @@ function StatusBlockInProgress({ task }) {
         )}
       </div>
 
-      {/* V14 — progress bar */}
+      {/* V14 — progress bar (작업 종류 색) */}
       {task.startedAt && task.endTime && (
         <div style={{
           height: 3, borderRadius: 2,
@@ -598,7 +600,7 @@ function StatusBlockInProgress({ task }) {
           <div style={{
             width: `${pct}%`,
             height: "100%",
-            background: "#FF1B8D",
+            background: colors.main,
             transition: "width 0.3s",
           }}/>
         </div>

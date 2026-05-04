@@ -17,6 +17,7 @@ import { EngineerNewAssignmentListScreen } from "../components/EngineerNewAssign
 import { EngineerAcceptanceListScreen } from "../components/EngineerAcceptanceListScreen.jsx";
 import { EngineerTaskDetailScreen } from "../components/EngineerTaskDetailScreen.jsx";
 import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
 // V13-FINAL2 — 4탭 + 공유 컴포넌트
 import { EngineerBottomNav } from "../components/EngineerBottomNav.jsx";
@@ -723,8 +724,10 @@ function MainScreen({
         </div>
       </div>
 
-      {/* 2. 진행중 박스 (V14 정제 — 좌측 4px 바 + progress bar) */}
-      {activeTask && (
+      {/* 2. 진행중 박스 (V14 정제 — 좌측 4px 바 + progress bar / 작업 종류별 색) */}
+      {activeTask && (() => {
+        const colors = getWorkTypeColors(activeTask.workType);
+        return (
         <div
           onClick={() => onTaskClick(activeTask.id)}
           className="clickable"
@@ -739,12 +742,12 @@ function MainScreen({
             overflow: "hidden",
           }}
         >
-          {/* 좌측 4px 핫핑크 바 */}
+          {/* 좌측 4px 작업 종류 색 바 */}
           <div style={{
             position: "absolute",
             left: 0, top: 0, bottom: 0,
             width: 4,
-            background: "#FF1B8D",
+            background: colors.main,
           }}/>
           <div style={{
             display: "flex", justifyContent: "space-between",
@@ -753,11 +756,11 @@ function MainScreen({
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={{
                 width: 8, height: 8, borderRadius: "50%",
-                background: "#FF1B8D",
+                background: colors.main,
                 display: "inline-block",
               }}/>
               <span style={{
-                fontSize: 13, color: "#FF1B8D", fontWeight: 800,
+                fontSize: 13, color: colors.main, fontWeight: 800,
               }}>
                 진행중
               </span>
@@ -822,13 +825,13 @@ function MainScreen({
               <div style={{
                 width: `${calcProgressPct(activeTask.startedAt, activeTask.endTime)}%`,
                 height: "100%",
-                background: "#FF1B8D",
+                background: colors.main,
                 transition: "width 0.3s",
               }}/>
             </div>
           )}
 
-          {/* V14 — 통화 = 초록 / 길찾기 = 핑크 채우기 (통화와 무게감 통일) */}
+          {/* V14 — 통화 = 초록 / 길찾기 = 작업 종류 색 */}
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
           }}>
@@ -852,7 +855,7 @@ function MainScreen({
               onClick={(e) => { e.stopPropagation(); openMapForTask(activeTask); }}
               style={{
                 padding: 12,
-                background: "#FF1B8D",
+                background: colors.main,
                 border: "none",
                 borderRadius: 8,
                 color: "#fff",
@@ -866,7 +869,8 @@ function MainScreen({
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* 3. 수락 대기 배너 (V14 정제 — 흰 카드 + 좌측 4px 핑크 바 + 노랑 박스) */}
       {pendingAcceptances.length > 0 && (() => {

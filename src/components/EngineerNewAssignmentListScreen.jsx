@@ -3,6 +3,7 @@
 
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
 
 export function EngineerNewAssignmentListScreen({ tasks = [], onBack, onTaskClick }) {
   return (
@@ -61,6 +62,7 @@ export function EngineerNewAssignmentListScreen({ tasks = [], onBack, onTaskClic
 }
 
 function AssignmentCard({ task, onClick }) {
+  const colors = getWorkTypeColors(task.workType);
   return (
     <div
       onClick={onClick}
@@ -76,12 +78,12 @@ function AssignmentCard({ task, onClick }) {
         overflow: "hidden",
       }}
     >
-      {/* 좌측 4px 핫핑크 바 */}
+      {/* 좌측 4px 작업 종류 색 바 */}
       <div style={{
         position: "absolute",
         left: 0, top: 0, bottom: 0,
         width: 4,
-        background: "#FF1B8D",
+        background: colors.main,
       }}/>
 
       {/* 1행 — 우측 "예정" 라벨 */}
@@ -99,7 +101,7 @@ function AssignmentCard({ task, onClick }) {
       {/* 고객 희망 시간 */}
       {task.requestedDate && (
         <div style={{
-          fontSize: 13, color: "#FF1B8D", fontWeight: 500,
+          fontSize: 13, color: colors.main, fontWeight: 500,
           marginBottom: 6,
         }}>
           🕐 {task.requestedDate}{task.requestedTime ? ` ${task.requestedTime}` : ""} 희망
@@ -147,12 +149,12 @@ function AssignmentCard({ task, onClick }) {
         </div>
       )}
 
-      {/* 상세 보기 버튼 (전체 폭) */}
+      {/* 상세 보기 버튼 (전체 폭) — 작업 종류 색 */}
       <button
         onClick={onClick}
         style={{
           width: "100%", padding: 13,
-          background: "#FF1B8D", border: "none",
+          background: colors.main, border: "none",
           borderRadius: 10, color: "#fff",
           fontSize: 15, fontWeight: 500,
           cursor: "pointer", fontFamily: "inherit",
