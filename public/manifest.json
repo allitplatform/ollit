@@ -1,14 +1,15 @@
 {
-  "name": "올잇",
+  "name": "올잇 - Ollit",
   "short_name": "올잇",
-  "description": "현장과 사람을 잇는 운영 플랫폼",
+  "description": "에어컨 현장작업 매칭 플랫폼",
   "id": "/",
   "scope": "/",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#FAFAFA",
+  "background_color": "#0A0A0A",
   "theme_color": "#FF1B8D",
   "orientation": "portrait",
+  "lang": "ko",
   "icons": [
     {
       "src": "/icon-192.png",
@@ -35,6 +36,5 @@
       "purpose": "maskable"
     }
   ],
-  "categories": ["business", "productivity"],
-  "lang": "ko"
+  "categories": ["business", "productivity"]
 }
