@@ -3787,8 +3787,7 @@ export default function EngineerApp({ user, onLogout }) {
   // V13-FINAL2 — 4탭 mock 데이터
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayTasks = tasks.filter(x =>
-    // V14 v6 — 사장님 spec '5/5 = 오늘' (화요일)
-    (x.scheduledDate === todayStr || x.scheduledDate === "2026-05-05")
+    x.scheduledDate === todayStr
   );
 
   // V14 v6 — 사장님 시뮬 5/1~5/5 완료 13건 합계
@@ -3820,15 +3819,15 @@ export default function EngineerApp({ user, onLogout }) {
     regions: ["강남구", "서초구", "송파구"],
   };
 
-  // V14 v6 — 알림 7가지 (오늘 = 5/5 화요일 기준)
+  // V14 v6 — 알림 7가지 (동적 / 오늘 기준 시간)
   const [notifications, setNotifications] = useState([
-    { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "새 배정 도착",         subtitle: "강지훈 고객님 · 5/7 세척 4way 2대 · 강남구 청담동",         relatedId: "A260507-001", targetScreen: "detail" },
-    { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "수락 대기 · 선착순",     subtitle: "한미선 고객님 · 5/7 세척 4way 3대 · 용산구 이태원동",       relatedId: "K-260507-002", targetScreen: "acceptanceList" },
+    { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "새 배정 도착",         subtitle: "강지훈 고객님 · 모레 세척 4way 2대 · 강남구 청담동",         relatedId: "A260507-001", targetScreen: "detail" },
+    { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "수락 대기 · 선착순",     subtitle: "한미선 고객님 · 모레 세척 4way 3대 · 용산구 이태원동",       relatedId: "K-260507-002", targetScreen: "acceptanceList" },
     { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 60 * 60 * 1000),       timeAgo: "1시간 전",   title: "운영팀 메시지",         subtitle: "오늘 박지영 작업 사진 더 부탁드려요. 시작·중간·완료 3장 이상.", relatedId: "O260505-001", targetScreen: "detail" },
-    { id: "N004", type: "schedule_changed",   read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",    title: "일정 변경됨",           subtitle: "한미선 고객님 5/7 16:00 → 14:00로 변경됐어요",              relatedId: "K-260507-002", targetScreen: "detail" },
-    { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),   timeAgo: "오늘 오전",  title: "작업 취소",            subtitle: "5/8 예정 작업이 고객 사정으로 취소됐어요",                  relatedId: null,           targetScreen: null },
-    { id: "N006", type: "payment_received",   read: true,  urgent: false, createdAt: new Date(Date.now() - 22 * 60 * 60 * 1000),  timeAgo: "어제 22:15", title: "입금 처리 완료",        subtitle: "5/2일자 회사 송금 60,000원 입금 확인됐어요",                relatedId: null,           targetScreen: "paymentHistory" },
-    { id: "N007", type: "photo_missing",      read: false, urgent: false, createdAt: new Date(Date.now() - 5 * 60 * 1000),        timeAgo: "5분 전",     title: "사진 누락",            subtitle: "박지영 5/5 작업의 After 사진을 추가해주세요",               relatedId: "O260505-001", targetScreen: "detail" },
+    { id: "N004", type: "schedule_changed",   read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",    title: "일정 변경됨",           subtitle: "한미선 고객님 모레 16:00 → 14:00로 변경됐어요",              relatedId: "K-260507-002", targetScreen: "detail" },
+    { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),   timeAgo: "오늘 오전",  title: "작업 취소",            subtitle: "다음 주 예정 작업이 고객 사정으로 취소됐어요",              relatedId: null,           targetScreen: null },
+    { id: "N006", type: "payment_received",   read: true,  urgent: false, createdAt: new Date(Date.now() - 22 * 60 * 60 * 1000),  timeAgo: "어제 22:15", title: "입금 처리 완료",        subtitle: "그저께 회사 송금 50,000원 입금 확인됐어요",                relatedId: null,           targetScreen: "paymentHistory" },
+    { id: "N007", type: "photo_missing",      read: false, urgent: false, createdAt: new Date(Date.now() - 5 * 60 * 1000),        timeAgo: "5분 전",     title: "사진 누락",            subtitle: "박지영 오늘 작업의 After 사진을 추가해주세요",              relatedId: "O260505-001", targetScreen: "detail" },
   ]);
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -3861,13 +3860,17 @@ export default function EngineerApp({ user, onLogout }) {
   const usolNMonthData = { totalAmount: 280000, count: 4, byDate: {} };
   const loadUsolNDayTasks = () => [];
 
-  // V14 v6 — 회사 송금 (완료 작업만 / 6원청 / 유솔N 제외)
-  // 오늘 = 5/5 (화) / 일별 정산 5/5 ~ 5/1 (5일 catch)
-  // feeAmount = total - engineerNet (= 회사로 보낼 돈)
+  // V14 v6 — 회사 송금 (동적 dateOffset / 시간 따라 자동)
+  // 오늘 = today / 일별 5일 catch (today ~ today-4)
+  function dateOffsetIso(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  }
   const paymentsMock = [
-    // 5/5 (오늘) — 미입금 (22:00 마감 전) — 박지영 + 이상훈 + 정수진 (김미경 유솔N 제외)
+    // 오늘 — 미입금 (22:00 마감 전)
     {
-      date: "2026-05-05", status: "pending", deadline: "22:00",
+      date: dateOffsetIso(0), status: "pending", deadline: "22:00",
       works: [
         { id: "O260505-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
         { id: "YS260505-002", customerName: "이상훈", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 100000 },
@@ -3875,35 +3878,35 @@ export default function EngineerApp({ user, onLogout }) {
       ],
       totalAmount: 170000,
     },
-    // 5/4 (어제) — 미입금 (마감 지남) — 임수아 + 장수빈
+    // 어제 — 미입금 (마감 지남)
     {
-      date: "2026-05-04", status: "pending", deadline: "22:00",
+      date: dateOffsetIso(-1), status: "pending", deadline: "22:00",
       works: [
         { id: "Y260504-001", customerName: "임수아", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
         { id: "CK260504-002", customerName: "장수빈", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
       ],
       totalAmount: 80000,
     },
-    // 5/3 (그제) — 미입금 (마감 지남) — 윤서연 + 최동석
+    // 그제 — 미입금
     {
-      date: "2026-05-03", status: "pending", deadline: "22:00",
+      date: dateOffsetIso(-2), status: "pending", deadline: "22:00",
       works: [
         { id: "O260503-001", customerName: "윤서연", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
         { id: "CK260503-002", customerName: "최동석", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
       ],
       totalAmount: 80000,
     },
-    // 5/2 (입금 완료) — 정민호 (박은서 유솔N 제외)
+    // -3일 — 입금 완료
     {
-      date: "2026-05-02", status: "completed", depositTime: "22:08",
+      date: dateOffsetIso(-3), status: "completed", depositTime: "22:08",
       works: [
         { id: "K-260502-001", customerName: "정민호", workType: "세척", workItem: "스탠드", quantity: 1, feeAmount: 50000 },
       ],
       totalAmount: 50000,
     },
-    // 5/1 (입금 완료) — 박지영 + 이상훈 + 김재현
+    // -4일 — 입금 완료
     {
-      date: "2026-05-01", status: "completed", depositTime: "22:30",
+      date: dateOffsetIso(-4), status: "completed", depositTime: "22:30",
       works: [
         { id: "O260501-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
         { id: "YS260501-002", customerName: "이상훈", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 100000 },
@@ -3913,21 +3916,19 @@ export default function EngineerApp({ user, onLogout }) {
     },
   ];
 
-  // V14 v6 — 유솔N 정산 (세척/냉매충전만)
-  // feeAmount = 기사 받을 돈 (본인 수익)
+  // V14 v6 — 유솔N 정산 (동적 dateOffset)
   const usolNGroupsMock = [
-    // ── 5월 (받을 돈 — 6/15 입금 예정 / 누적 60K) ──
-    // 5/5 (오늘) — 김미경 본작업
+    // 오늘 — 김미경 본작업
     {
-      date: "2026-05-05", status: "pending", payDate: "2026-06-15",
+      date: dateOffsetIso(0), status: "pending", payDate: "2026-06-15",
       works: [
-        { id: "YS-N260505-003", customerName: "김미경", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 16000 },
+        { id: "YS-N260505-003", customerName: "김미경", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 44000 },
       ],
-      totalAmount: 16000,
+      totalAmount: 44000,
     },
-    // 5/2 — 박은서 본작업
+    // -3일 — 박은서 본작업
     {
-      date: "2026-05-02", status: "pending", payDate: "2026-06-15",
+      date: dateOffsetIso(-3), status: "pending", payDate: "2026-06-15",
       works: [
         { id: "YS-N260502-002", customerName: "박은서", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 44000 },
       ],
@@ -3981,8 +3982,8 @@ export default function EngineerApp({ user, onLogout }) {
       }
     } catch (e) {}
     return [
-      // V14 v6 — 5/5 시간 휴무 (저녁 가족 모임)
-      { type: "hourly", date: "2026-05-05", startTime: "19:00", endTime: "21:00", reason: "가족 모임" },
+      // V14 v6 — 오늘 19~21시 시간 휴무 (가족 모임)
+      { type: "hourly", date: new Date().toISOString().slice(0, 10), startTime: "19:00", endTime: "21:00", reason: "가족 모임" },
     ];
   });
   useEffect(() => {
