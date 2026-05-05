@@ -628,10 +628,27 @@ function MainScreen({
   onTaskClick,
   onClickAcceptanceList,
   onClickNewAssignmentList,
+  onClickUsolN,
   pendingAcceptances = [],
   newAssignmentsOverride,
+  usolNTotal = 0,
+  usolNPayDate = "",
 }) {
   const isDark = useIsDark();
+  // V14 v6 — 실시간 (Asia/Seoul) 1분마다 자동 업데이트
+  function buildNowLabel() {
+    const d = new Date();
+    const dayShort = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", weekday: "short" });
+    const month    = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric" });
+    const day      = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", day:   "numeric" });
+    const time     = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false });
+    return `${dayShort} · ${month} ${day} · ${time}`;
+  }
+  const [nowLabel, setNowLabel] = useState(() => buildNowLabel());
+  useEffect(() => {
+    const timer = setInterval(() => setNowLabel(buildNowLabel()), 60000);
+    return () => clearInterval(timer);
+  }, []);
   const activeTask = tasks.find(x => x.status === "진행중") || null;
 
   // V14 — 새 배정 = 약속대기 + 일정 미정 (extraAssignments 합산은 EngineerApp에서 처리)
@@ -686,7 +703,8 @@ function MainScreen({
             fontSize: 11, color: "var(--text-secondary)",
             letterSpacing: 1.5, fontWeight: 600,
           }}>
-            MON · 27 APR · {NOW}
+            {/* V14 v6 — 실시간 (Asia/Seoul, 1분마다 자동 업데이트) */}
+            {nowLabel}
           </span>
           <span style={{ fontSize: 11, color: "var(--text-primary)" }}>
             <span className="pulse-subtle" style={{
@@ -922,6 +940,58 @@ function MainScreen({
           subText={`${newAssignments.length}건 · 확인 필요`}
           subColor="var(--banner-pink-text)"
         />
+      )}
+
+      {/* V14 v6 — 유솔N 누적 카드 (사장님 spec) */}
+      {usolNTotal > 0 && (
+        <div onClick={onClickUsolN} className="clickable" style={{
+          margin: "0 16px 12px",
+          background: "var(--card-bg)",
+          border: "1px solid var(--border)",
+          borderRadius: 18,
+          padding: "14px 14px 14px 18px",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          cursor: "pointer",
+          position: "relative",
+          overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", left: 0, top: 0, bottom: 0,
+            width: 4, background: "#03C75A",
+          }}/>
+          <div style={{
+            width: 40, height: 40,
+            background: "#03C75A", color: "#fff",
+            borderRadius: 12,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 17, fontWeight: 800, flexShrink: 0,
+          }}>
+            N
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 13, color: "var(--text-secondary)",
+              fontWeight: 700, marginBottom: 2,
+            }}>
+              유솔N 받을 돈
+            </div>
+            <div style={{
+              fontSize: 17, color: "var(--text-primary)",
+              fontWeight: 700,
+            }}>
+              ₩{usolNTotal.toLocaleString("ko-KR")} 누적
+            </div>
+            <div style={{
+              fontSize: 11, color: "var(--text-tertiary)",
+              marginTop: 2, fontWeight: 600,
+            }}>
+              {usolNPayDate || "다음 달 15일"} 입금 예정
+            </div>
+          </div>
+          <span style={{ color: "var(--text-tertiary)", fontSize: 18 }}>›</span>
+        </div>
       )}
 
       {/* 5. 다음 일정 (시간순) — V14 50대 글자 크기 */}
@@ -4170,8 +4240,13 @@ export default function EngineerApp({ user, onLogout }) {
               onTaskClick={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
               onClickAcceptanceList={() => setScreen("acceptanceList")}
               onClickNewAssignmentList={() => setScreen("newAssignmentList")}
+              onClickUsolN={() => setScreen("usolNSettlement")}
               pendingAcceptances={pendingAcceptances}
               newAssignmentsOverride={newAssignments}
+              usolNTotal={usolNGroupsMock
+                .filter(g => g.date && g.date.slice(0, 7) === new Date().toISOString().slice(0, 7))
+                .reduce((s, g) => s + (g.totalAmount || 0), 0)}
+              usolNPayDate="6월 15일"
             />
             <EngineerBottomNav
               active="today"
