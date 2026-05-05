@@ -1301,9 +1301,9 @@ function CompletedMemo({ memo }) {
 function SettlementInfo({ task }) {
   const workAmount = task.workAmount || task.estimateTotal || 0;
   const total = workAmount + (task.extraFee || 0);
-  const commission = task.commission || 0;
   const engineerNet = task.engineerNet || 0;
-  const commissionRate = task.commissionRate || 40;
+  // V14 v6 — 사장님 spec: 수수료 = 판매가 - 기사 수익 (실제 회사 송금 금액 / % 표시 X)
+  const commission = Math.max(0, total - engineerNet);
 
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
@@ -1332,7 +1332,7 @@ function SettlementInfo({ task }) {
           </span>
         </div>
         <SettlementRow
-          label={`수수료 (${commissionRate}%)`}
+          label="수수료"
           value={`- ₩${commission.toLocaleString("ko-KR")}`}
           valueColor="var(--text-secondary)"
         />

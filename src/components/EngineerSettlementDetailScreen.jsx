@@ -93,12 +93,12 @@ export function EngineerSettlementDetailScreen({
             {completedCount}건 완료 · 본인 수익 합계
           </div>
 
-          {/* V14 v6 — 사장님 spec: 완료 작업만 표시 (예정 X) */}
+          {/* V14 v6 — 사장님 spec: 완료 N건 + 오늘 수수료 (= 회사 송금 합) */}
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
           }}>
             <SubStat label="완료" amount={`${completed.length}건`}/>
-            <SubStat label="평균" amount={completed.length > 0 ? `₩${Math.round(todayEarning / completed.length).toLocaleString("ko-KR")}` : "—"}/>
+            <SubStat label="오늘 수수료" amount={todayFee}/>
           </div>
         </div>
       </div>
