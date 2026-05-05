@@ -3855,37 +3855,32 @@ export default function EngineerApp({ user, onLogout }) {
   const usolNMonthData = { totalAmount: 280000, count: 4, byDate: {} };
   const loadUsolNDayTasks = () => [];
 
-  // V14 v6 — 회사 송금 내역 (6개 원청만 / 유솔N은 별도 흐름)
+  // V14 v6 — 회사 송금 (완료 작업만 / 6원청 / 유솔N 제외)
   // feeAmount = total - engineerNet (= 회사로 보낼 돈)
-  // 사장님 Q6: 기사는 본인 송금액만 catch (수수료율 X)
+  // 시뮬 14건 중 완료 7건 → 6원청 5건 (유솔N 2건은 usolNGroupsMock 흐름)
   const paymentsMock = [
-    {
-      date: "2026-05-04", status: "pending", deadline: "22:00",
-      works: [
-        // 박지영: 올데이 세척 벽걸이 60k → eng 40k → company 20k
-        { id: "O260504-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
-        // 이상훈: KA 세척+점검 스탠드 2, 220k → eng 130k → company 90k
-        { id: "A260504-002", customerName: "이상훈", workType: "세척+점검", workItem: "스탠드", quantity: 2, feeAmount: 90000 },
-        // 김미경: 올데이 냉매 시스템 멀티 100k → eng 50k → company 50k
-        { id: "O260504-003", customerName: "김미경", workType: "냉매충전", workItem: "시스템 멀티", quantity: 1, feeAmount: 50000 },
-      ],
-      totalAmount: 160000,
-    },
+    // 5/3 (입금 대기) — 유솔N만 (회사 송금 X) → paymentsMock에 X
+    // 5/2 (입금 완료) — 정민호 + 한지원 = 220K
     {
       date: "2026-05-02", status: "completed", depositTime: "22:08",
       works: [
-        // 정민호: 올데이 세척 스탠드 2, 220k → eng 120k → company 100k
+        // 정민호: 올데이 세척 스탠드 2, 220K → eng 120K → company 100K
         { id: "O260502-001", customerName: "정민호", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 100000 },
+        // 한지원: KB 냉매 벽걸이 80K → eng 40K → company 40K
+        { id: "K-260502-002", customerName: "한지원", workType: "냉매충전", workItem: "벽걸이", quantity: 1, feeAmount: 40000 },
       ],
-      totalAmount: 100000,
+      totalAmount: 140000,
     },
+    // 5/1 (입금 완료) — 박은서 + 박정민 = 80K (이수진은 유솔N이라 제외)
     {
       date: "2026-05-01", status: "completed", depositTime: "22:30",
       works: [
-        // 박은서: 올데이 세척 벽걸이 60k → eng 40k → company 20k
+        // 박은서: 올데이 세척 벽걸이 60K → eng 40K → company 20K
         { id: "O260501-001", customerName: "박은서", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
+        // 박정민: KA 세척 4way 130K → eng 70K → company 60K
+        { id: "A260501-003", customerName: "박정민", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
       ],
-      totalAmount: 20000,
+      totalAmount: 80000,
     },
     // 4월 옛 입금 완료 (참고용)
     {
@@ -3898,35 +3893,28 @@ export default function EngineerApp({ user, onLogout }) {
     },
   ];
 
-  // V14 v6 — 유솔N 정산 (사장님 시뮬 3건 본작업+추가선택+냉매점검 반영)
+  // V14 v6 — 유솔N 정산 (완료 작업만 / 본작업+추가선택+냉매점검)
   // feeAmount = 기사 받을 돈 (본인 수익)
   const usolNGroupsMock = [
-    // 5월 (누적, 다음 달 15일 입금 예정)
+    // ── 5월 (받을 돈 — 6/15 입금 예정) ──
+    // 5/3 — 서민재 (추가선택) + 배준호 (냉매점검)
     {
-      date: "2026-05-14", status: "pending", payDate: "2026-06-15",
+      date: "2026-05-03", status: "pending", payDate: "2026-06-15",
       works: [
-        // 배준호: 유솔N 냉매점검 10K → 기사 0 (기본 100% 원청)
-        { id: "YS-N260514-001", customerName: "배준호", workType: "냉매점검", workItem: "에어컨", quantity: 1, feeAmount: 0 },
-      ],
-      totalAmount: 0,
-    },
-    {
-      date: "2026-05-09", status: "pending", payDate: "2026-06-15",
-      works: [
-        // 서민재: 유솔N 추가선택 송풍팬 20K → 기사 17K (85%)
-        { id: "YS-N260509-001", customerName: "서민재", workType: "추가선택", workItem: "송풍팬분해", quantity: 1, feeAmount: 17000 },
+        { id: "YS-N260503-001", customerName: "서민재", workType: "추가선택", workItem: "송풍팬분해", quantity: 1, feeAmount: 17000 },
+        { id: "YS-N260503-002", customerName: "배준호", workType: "냉매점검", workItem: "에어컨", quantity: 1, feeAmount: 0 },
       ],
       totalAmount: 17000,
     },
+    // 5/1 — 이수진 (본작업)
     {
       date: "2026-05-01", status: "pending", payDate: "2026-06-15",
       works: [
-        // 이수진: 유솔N 본작업 세척 60K → 기사 44K (단가 ×1.10)
         { id: "YS-N260501-002", customerName: "이수진", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 44000 },
       ],
       totalAmount: 44000,
     },
-    // 4월 (받을 돈, 5월 15일 입금 예정 — 옛 mock 유지)
+    // ── 4월 (받을 돈, 5/15 입금 예정 — 옛 mock 유지) ──
     {
       date: "2026-04-28", status: "pending", payDate: "2026-05-15",
       works: [
@@ -3941,7 +3929,7 @@ export default function EngineerApp({ user, onLogout }) {
       ],
       totalAmount: 66000,
     },
-    // 3월 (입금 완료, 4월 15일 입금됨)
+    // ── 3월 (입금 완료, 4/15 입금됨) ──
     {
       date: "2026-03-22", status: "completed", payDate: "2026-04-15",
       works: [

@@ -308,18 +308,21 @@ export const INITIAL_TASKS = [
   },
 
   // ============================================
-  // V14 v6 — 김동효(E001) 5월 시뮬 (사장님 결정 7가지 적용)
-  // estimateTotal = 평균 판매가 / engineerNet = 정확한 정책
-  // 분포: 올데이 9 / 에어컨프로(KA) 2 / 쿨가이(KB) 2 / 유솔N 3 (본작업+추가선택+냉매점검)
+  // V14 v6 — 김동효(E001) 5월 시뮬 14건 (사장님 결정)
+  // 정산 = 완료 작업만 표시 (사장님 spec)
+  // 완료 7건: 5/1 3건 + 5/2 2건 + 5/3 2건 → 정산에 표시
+  // 예정 7건: 5/4~5/8 (진행중/확정) → 캘린더/알림만
+  // 분포: 올데이 7 / 에어컨프로(KA) 2 / 쿨가이(KB) 2 / 유솔N 3
   // ============================================
-  // 5월 1일 (금) - 2건
+
+  // ── 5월 1일 (금) - 완료 3건 ──
   { id: "O260501-001", client: "올데이케어", customer: "박은서", phone: "010-1111-2222",
     address: "강남구 역삼동", fullAddress: "역삼로 123, 한국빌딩 1003호",
     workType: "세척", appliance: "벽걸이", qty: 1,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
     scheduledDate: "2026-05-01", scheduledTime: "10:00",
     time: "10:00", endTime: "11:30", duration: "1.5h",
-    status: "확정", startedAt: null, completedAt: null,
+    status: "완료", startedAt: "10:00", completedAt: "11:25",
     estimateTotal: 60000, engineerNet: 40000, // 올데이 직영 벽걸이 40K
   },
   { id: "YS-N260501-002", client: "유솔홈케어 N", customer: "이수진", phone: "010-2222-3333",
@@ -329,21 +332,63 @@ export const INITIAL_TASKS = [
     assignedEngineer: "김동효", assignedEngineerId: "E001",
     scheduledDate: "2026-05-01", scheduledTime: "14:00",
     time: "14:00", endTime: "15:30", duration: "1.5h",
-    status: "확정", startedAt: null, completedAt: null,
-    estimateTotal: 60000, engineerNet: 44000, // 유솔N 본작업 단가 ×1.10 = 44K
+    status: "완료", startedAt: "14:00", completedAt: "15:25",
+    estimateTotal: 60000, engineerNet: 44000, // 유솔N 본작업 단가 ×1.10
   },
-  // 5월 2일 (토) - 1건
+  { id: "A260501-003", client: "에어컨프로", customer: "박정민", phone: "010-9999-1111",
+    address: "강남구 논현동", fullAddress: "논현로 100, 르엘아파트 305호",
+    workType: "세척", appliance: "4way", qty: 1,
+    assignedEngineer: "김동효", assignedEngineerId: "E001",
+    scheduledDate: "2026-05-01", scheduledTime: "16:30",
+    time: "16:30", endTime: "18:00", duration: "1.5h",
+    status: "완료", startedAt: "16:30", completedAt: "17:55",
+    estimateTotal: 130000, engineerNet: 70000, // KA 세척 4way 단가 70K (실제)
+  },
+
+  // ── 5월 2일 (토) - 완료 2건 ──
   { id: "O260502-001", client: "올데이케어", customer: "정민호", phone: "010-3333-4444",
     address: "송파구 잠실동", fullAddress: "잠실로 789",
     workType: "세척", appliance: "스탠드", qty: 2,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
     scheduledDate: "2026-05-02", scheduledTime: "10:00",
     time: "10:00", endTime: "12:00", duration: "2h",
-    status: "확정", startedAt: null, completedAt: null,
+    status: "완료", startedAt: "10:00", completedAt: "11:55",
     estimateTotal: 220000, engineerNet: 120000, // 올데이 직영 스탠드 60K×2
   },
-  // 5월 4일 (월) - 오늘 - 3건 (진행중 1 + 확정 2)
-  { id: "O260504-001", client: "올데이케어", customer: "박지영(5/4)", phone: "010-4444-5555",
+  { id: "K-260502-002", client: "쿨가이", customer: "한지원", phone: "010-9999-2222",
+    address: "서초구 방배동", fullAddress: "방배로 50, 그랜드빌라 201호",
+    workType: "냉매충전", appliance: "벽걸이", qty: 1,
+    assignedEngineer: "김동효", assignedEngineerId: "E001",
+    scheduledDate: "2026-05-02", scheduledTime: "14:30",
+    time: "14:30", endTime: "16:00", duration: "1.5h",
+    status: "완료", startedAt: "14:30", completedAt: "15:55",
+    estimateTotal: 80000, engineerNet: 40000, // KB 냉매 50% (총 80K)
+  },
+
+  // ── 5월 3일 (일) - 완료 2건 (유솔N 추가선택 + 냉매점검) ──
+  { id: "YS-N260503-001", client: "유솔홈케어 N", customer: "서민재", phone: "010-4040-5050",
+    address: "강남구 압구정동", fullAddress: "압구정로 22",
+    workType: "추가선택", appliance: "송풍팬분해", qty: 1,
+    orderType: "extra_select",
+    assignedEngineer: "김동효", assignedEngineerId: "E001",
+    scheduledDate: "2026-05-03", scheduledTime: "11:00",
+    time: "11:00", endTime: "12:00", duration: "1h",
+    status: "완료", startedAt: "11:00", completedAt: "11:55",
+    estimateTotal: 20000, engineerNet: 17000, // 유솔N 추가선택 85%
+  },
+  { id: "YS-N260503-002", client: "유솔홈케어 N", customer: "배준호", phone: "010-8080-9090",
+    address: "강남구 대치동", fullAddress: "도곡로 100",
+    workType: "냉매점검", appliance: "에어컨", qty: 1,
+    orderType: "inspect",
+    assignedEngineer: "김동효", assignedEngineerId: "E001",
+    scheduledDate: "2026-05-03", scheduledTime: "14:00",
+    time: "14:00", endTime: "15:00", duration: "1h",
+    status: "완료", startedAt: "14:00", completedAt: "14:55",
+    estimateTotal: 10000, engineerNet: 0, // 유솔N 냉매점검 — 기본 100% 원청
+  },
+
+  // ── 5월 4일 (월) — 오늘 — 예정 3건 (진행중 1 + 확정 2) ──
+  { id: "O260504-001", client: "올데이케어", customer: "박지영", phone: "010-4444-5555",
     address: "강남구 청담동", fullAddress: "청담로 100, 청담아파트 201호",
     workType: "세척", appliance: "벽걸이", qty: 1,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
@@ -352,7 +397,7 @@ export const INITIAL_TASKS = [
     status: "진행중", startedAt: "09:05", completedAt: null,
     estimateTotal: 60000, engineerNet: 40000, // 올데이 직영 벽걸이 40K
   },
-  { id: "A260504-002", client: "에어컨프로", customer: "이상훈(5/4)", phone: "010-5555-6666",
+  { id: "A260504-002", client: "에어컨프로", customer: "이상훈", phone: "010-5555-6666",
     address: "서초구 반포동", fullAddress: "신반포로 270, 반포자이 103-1502",
     workType: "세척+점검", appliance: "스탠드", qty: 2,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
@@ -361,7 +406,7 @@ export const INITIAL_TASKS = [
     status: "확정", startedAt: null, completedAt: null,
     estimateTotal: 220000, engineerNet: 130000, // KA 세척 스탠드 60K×2 + 점검 +10K
   },
-  { id: "O260504-003", client: "올데이케어", customer: "김미경(5/4)", phone: "010-6666-7777",
+  { id: "O260504-003", client: "올데이케어", customer: "김미경", phone: "010-6666-7777",
     address: "송파구 잠실동", fullAddress: "잠실대로 100, 잠실파크 1502호",
     workType: "냉매충전", appliance: "시스템 멀티", qty: 1,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
@@ -370,83 +415,37 @@ export const INITIAL_TASKS = [
     status: "확정", startedAt: null, completedAt: null,
     estimateTotal: 100000, engineerNet: 50000, // 올데이 직영 냉매 50%
   },
-  // 5월 6일 (수) - 2건
+
+  // ── 5월 6일 (수) - 예정 2건 ──
   { id: "O260506-001", client: "올데이케어", customer: "최동석", phone: "010-7777-8888",
-    address: "강남구 도곡동", workType: "점검", appliance: "에어컨", qty: 1,
+    address: "강남구 도곡동", workType: "세척", appliance: "벽걸이", qty: 1,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
     scheduledDate: "2026-05-06", scheduledTime: "10:00",
-    time: "10:00", endTime: "11:00", duration: "1h",
-    status: "확정", estimateTotal: 50000, engineerNet: 35000, // 점검 단독 — fallback 70%
+    time: "10:00", endTime: "11:30", duration: "1.5h",
+    status: "확정", estimateTotal: 60000, engineerNet: 40000, // 올데이 벽걸이 40K
   },
   { id: "K-260506-002", client: "쿨가이", customer: "윤서연", phone: "010-8888-9999",
-    address: "서초구 양재동", workType: "설치", appliance: "벽걸이", qty: 1,
+    address: "서초구 양재동", workType: "냉매충전", appliance: "시스템 멀티", qty: 1,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
     scheduledDate: "2026-05-06", scheduledTime: "14:00",
     time: "14:00", endTime: "16:00", duration: "2h",
-    status: "확정", estimateTotal: 150000, engineerNet: 105000, // 설치 단독 — fallback 70%
+    status: "확정", estimateTotal: 100000, engineerNet: 50000, // KB 냉매 50% (총 100K)
   },
-  // 5월 8일 (금) - 3건
+
+  // ── 5월 8일 (금) - 예정 2건 ──
   { id: "O260508-001", client: "올데이케어", customer: "강지훈", phone: "010-1010-2020",
     address: "강남구 삼성동", workType: "세척", appliance: "스탠드", qty: 1,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
     scheduledDate: "2026-05-08", scheduledTime: "09:00",
     time: "09:00", endTime: "10:30", duration: "1.5h",
-    status: "확정", estimateTotal: 110000, engineerNet: 60000, // 올데이 직영 스탠드 60K
+    status: "확정", estimateTotal: 110000, engineerNet: 60000, // 올데이 스탠드 60K
   },
-  { id: "O260508-002", client: "올데이케어", customer: "한미래", phone: "010-2020-3030",
-    address: "서초구 잠원동", workType: "세척", appliance: "벽걸이", qty: 2,
-    assignedEngineer: "김동효", assignedEngineerId: "E001",
-    scheduledDate: "2026-05-08", scheduledTime: "11:30",
-    time: "11:30", endTime: "13:00", duration: "1.5h",
-    status: "확정", estimateTotal: 120000, engineerNet: 80000, // 올데이 직영 벽걸이 40K×2
-  },
-  { id: "K-260508-003", client: "쿨가이", customer: "오지원", phone: "010-3030-4040",
-    address: "송파구 송파동", workType: "냉매충전", appliance: "벽걸이", qty: 1,
-    assignedEngineer: "김동효", assignedEngineerId: "E001",
-    scheduledDate: "2026-05-08", scheduledTime: "15:00",
-    time: "15:00", endTime: "17:00", duration: "2h",
-    status: "확정", estimateTotal: 80000, engineerNet: 40000, // KB 냉매 50% (estimate 80K)
-  },
-  // 5월 9일 (토) - 1건 (약속대기) — 유솔N 추가선택 (송풍팬)
-  { id: "YS-N260509-001", client: "유솔홈케어 N", customer: "서민재", phone: "010-4040-5050",
-    address: "강남구 압구정동", workType: "추가선택", appliance: "송풍팬분해", qty: 1,
-    orderType: "extra_select",
-    assignedEngineer: "김동효", assignedEngineerId: "E001",
-    scheduledDate: "2026-05-09", scheduledTime: "11:00",
-    time: "11:00", endTime: "12:00", duration: "1h",
-    status: "약속대기", estimateTotal: 20000, engineerNet: 17000, // 유솔N 추가선택 85% = 17K
-  },
-  // 5월 11일 (월) - 1건
-  { id: "A260511-001", client: "에어컨프로", customer: "임수아", phone: "010-5050-6060",
+  { id: "A260508-002", client: "에어컨프로", customer: "임수아", phone: "010-5050-6060",
     address: "서초구 방배동", workType: "냉매충전", appliance: "시스템 멀티", qty: 1,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
-    scheduledDate: "2026-05-11", scheduledTime: "14:00",
+    scheduledDate: "2026-05-08", scheduledTime: "14:00",
     time: "14:00", endTime: "16:00", duration: "2h",
     status: "확정", estimateTotal: 100000, engineerNet: 50000, // KA 냉매 estimate_split 50%
-  },
-  // 5월 13일 (수) - 2건
-  { id: "O260513-001", client: "올데이케어", customer: "권태수", phone: "010-6060-7070",
-    address: "강남구 신사동", workType: "세척", appliance: "벽걸이", qty: 1,
-    assignedEngineer: "김동효", assignedEngineerId: "E001",
-    scheduledDate: "2026-05-13", scheduledTime: "10:00",
-    time: "10:00", endTime: "11:30", duration: "1.5h",
-    status: "확정", estimateTotal: 60000, engineerNet: 40000, // 올데이 직영 벽걸이 40K
-  },
-  { id: "O260513-002", client: "올데이케어", customer: "문혜진", phone: "010-7070-8080",
-    address: "송파구 가락동", workType: "세척", appliance: "스탠드", qty: 1,
-    assignedEngineer: "김동효", assignedEngineerId: "E001",
-    scheduledDate: "2026-05-13", scheduledTime: "14:00",
-    time: "14:00", endTime: "16:00", duration: "2h",
-    status: "확정", estimateTotal: 110000, engineerNet: 60000, // 올데이 직영 스탠드 60K
-  },
-  // 5월 14일 (목) - 1건 — 유솔N 냉매점검
-  { id: "YS-N260514-001", client: "유솔홈케어 N", customer: "배준호", phone: "010-8080-9090",
-    address: "강남구 대치동", workType: "냉매점검", appliance: "에어컨", qty: 1,
-    orderType: "inspect",
-    assignedEngineer: "김동효", assignedEngineerId: "E001",
-    scheduledDate: "2026-05-14", scheduledTime: "11:00",
-    time: "11:00", endTime: "12:00", duration: "1h",
-    status: "확정", estimateTotal: 10000, engineerNet: 0, // 유솔N 냉매점검 — 기본 100% 원청
   },
 ];
 
