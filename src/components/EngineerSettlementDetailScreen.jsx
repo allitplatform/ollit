@@ -5,6 +5,7 @@
 import { ArrowLeft } from "lucide-react";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { calcTaskEarning } from "../utils/feePolicy.js";
+import { UsolNBadge } from "./EngineerCalendarTab.jsx";
 
 function getEarning(t) {
   return t.engineerEarning || t.engineerNet || 0;
@@ -253,11 +254,17 @@ function WorkSettlementCard({ work, onClick }) {
         fontSize: 16, fontWeight: 700,
         color: "var(--text-primary)",
         marginBottom: 12,
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        display: "flex", alignItems: "center", gap: 6,
       }}>
-        {work.customer || "—"}
-        {work.appliance ? ` · ${work.appliance}` : ""}
-        {work.qty ? ` ×${work.qty}` : ""}
+        <span style={{
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          minWidth: 0, flex: "0 1 auto",
+        }}>
+          {work.customer || "—"}
+          {work.appliance ? ` · ${work.appliance}` : ""}
+          {work.qty ? ` ×${work.qty}` : ""}
+        </span>
+        <UsolNBadge task={{ client: work.client, workType: work.workType }}/>
       </div>
 
       {/* V14 v6 — 사장님 spec: 완료만 표시 / 본인 수익만 */}

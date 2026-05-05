@@ -3930,36 +3930,47 @@ export default function EngineerApp({ user, onLogout }) {
   const usolNMonthData = { totalAmount: 280000, count: 4, byDate: {} };
   const loadUsolNDayTasks = () => [];
 
-  // V14 v6 — 회사 송금 (동적 dateOffset / 시간 따라 자동)
-  // 오늘 = today / 일별 5일 catch (today ~ today-4)
+  // V14 v6 — 회사 송금 (동적 / 사장님 spec '미입금 = 완료 즉시 추가')
+  // 오늘 = todayTasks의 완료 작업 자동 합산 (실시간)
+  // 어제 이후 = 입금 완료
   function dateOffsetIso(days) {
     const d = new Date();
     d.setDate(d.getDate() + days);
     return d.toISOString().slice(0, 10);
   }
+  // 오늘 미입금 — todayTasks 완료 작업 (유솔N 제외) 자동
+  const todayCompletedNonUsolN = todayTasks.filter(
+    t => t.status === "완료" && t.client !== "유솔홈케어 N"
+  );
+  const todayPendingWorks = todayCompletedNonUsolN.map(t => ({
+    id: t.id,
+    customerName: t.customer || "—",
+    workType: t.workType || "세척",
+    workItem: t.appliance || "—",
+    quantity: t.qty || 1,
+    feeAmount: Math.max(0, (t.estimateTotal || 0) - (t.engineerNet || 0)),
+  }));
+  const todayPendingTotal = todayPendingWorks.reduce((s, w) => s + (w.feeAmount || 0), 0);
+
   const paymentsMock = [
-    // 오늘 — 미입금 (22:00 마감 전)
-    {
+    // 오늘 — 미입금 (실시간 자동 / todayTasks 완료 시 즉시 추가)
+    ...(todayPendingWorks.length > 0 ? [{
       date: dateOffsetIso(0), status: "pending", deadline: "22:00",
-      works: [
-        { id: "O260505-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
-        { id: "YS260505-002", customerName: "이상훈", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 100000 },
-        { id: "A260505-004", customerName: "정수진", workType: "냉매충전", workItem: "4way", quantity: 1, feeAmount: 50000 },
-      ],
-      totalAmount: 170000,
-    },
-    // 어제 — 미입금 (마감 지남)
+      works: todayPendingWorks,
+      totalAmount: todayPendingTotal,
+    }] : []),
+    // 어제 — 입금 완료 (사장님 spec: 어제 이후 모두 입금완료)
     {
-      date: dateOffsetIso(-1), status: "pending", deadline: "22:00",
+      date: dateOffsetIso(-1), status: "completed", depositTime: "22:10",
       works: [
         { id: "Y260504-001", customerName: "임수아", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
         { id: "CK260504-002", customerName: "장수빈", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
       ],
       totalAmount: 80000,
     },
-    // 그제 — 미입금
+    // 그제 — 입금 완료
     {
-      date: dateOffsetIso(-2), status: "pending", deadline: "22:00",
+      date: dateOffsetIso(-2), status: "completed", depositTime: "22:08",
       works: [
         { id: "O260503-001", customerName: "윤서연", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
         { id: "CK260503-002", customerName: "최동석", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },

@@ -858,8 +858,10 @@ function TimelineRow({ task, onClick }) {
         <div style={{
           fontSize: 16, fontWeight: 700, marginBottom: 6,
           color: isDone ? "var(--text-secondary)" : "var(--text-primary)",
+          display: "flex", alignItems: "center", gap: 6,
         }}>
-          {task.customer}
+          <span>{task.customer}</span>
+          <UsolNBadge task={task}/>
         </div>
 
         <div style={{
@@ -952,8 +954,10 @@ function DayTaskCard({ task, onClick }) {
         <div style={{
           fontSize: 16, fontWeight: 700,
           color: isDone ? "var(--text-secondary)" : "var(--text-primary)",
+          display: "flex", alignItems: "center", gap: 6,
         }}>
-          {task.customer}
+          <span>{task.customer}</span>
+          <UsolNBadge task={task}/>
         </div>
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
@@ -970,6 +974,29 @@ function DayTaskCard({ task, onClick }) {
       </div>
       <span style={{ fontSize: 18, color: "var(--text-secondary)" }}>›</span>
     </div>
+  );
+}
+
+// V14 v6 — 유솔N 세척 작업만 N 마크 (사장님 spec / 깔끔)
+export function UsolNBadge({ task }) {
+  if (!task) return null;
+  if (task.client !== "유솔홈케어 N") return null;
+  if (!(task.workType || "").includes("세척")) return null;
+  return (
+    <span style={{
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: 18, height: 18,
+      borderRadius: 4,
+      background: "#03C75A",
+      color: "#fff",
+      fontSize: 11,
+      fontWeight: 700,
+      flexShrink: 0,
+    }}>
+      N
+    </span>
   );
 }
 
