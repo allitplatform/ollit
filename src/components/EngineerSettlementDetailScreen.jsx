@@ -90,15 +90,15 @@ export function EngineerSettlementDetailScreen({
           <div style={{
             fontSize: 13, color: "#888", marginBottom: 16, fontWeight: 600,
           }}>
-            {completedCount} / {totalCount}건 완료 · 작업 끝나면 자동 갱신
+            {completedCount}건 완료 · 본인 수익 합계
           </div>
 
-          {/* V14 v6 — 사장님 Q6: 총 작업비/수수료 X (본인 수익만 catch) */}
+          {/* V14 v6 — 사장님 spec: 완료 작업만 표시 (예정 X) */}
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
           }}>
             <SubStat label="완료" amount={`${completed.length}건`}/>
-            <SubStat label="예정" amount={`${upcoming.length}건`}/>
+            <SubStat label="평균" amount={completed.length > 0 ? `₩${Math.round(todayEarning / completed.length).toLocaleString("ko-KR")}` : "—"}/>
           </div>
         </div>
       </div>
@@ -113,17 +113,17 @@ export function EngineerSettlementDetailScreen({
           📊 작업별 정산
         </div>
 
-        {todayTasks.length === 0 ? (
+        {completed.length === 0 ? (
           <div style={{
             padding: 28, textAlign: "center",
             color: "var(--text-tertiary)", fontSize: 14,
             background: "var(--bg-secondary)",
             borderRadius: 14,
           }}>
-            오늘 작업이 없습니다.
+            오늘 완료된 작업이 없습니다.
           </div>
         ) : (
-          [...completed, ...upcoming].map(work => (
+          completed.map(work => (
             <WorkSettlementCard
               key={work.id}
               work={work}
@@ -260,7 +260,7 @@ function WorkSettlementCard({ work, onClick }) {
         {work.qty ? ` ×${work.qty}` : ""}
       </div>
 
-      {/* V14 v6 — 사장님 Q6: 수수료 흐름 X / 본인 수익만 */}
+      {/* V14 v6 — 사장님 spec: 완료만 표시 / 본인 수익만 */}
       <div style={{
         background: "var(--flow-bg)",
         borderRadius: 10,
@@ -273,7 +273,7 @@ function WorkSettlementCard({ work, onClick }) {
           fontSize: 12, fontWeight: 700,
           color: "#FF1B8D",
         }}>
-          {isCompleted ? "💰 내 수익" : "💰 예상 수익"}
+          💰 내 수익
         </span>
         <span style={{
           fontSize: 18, fontWeight: 700,

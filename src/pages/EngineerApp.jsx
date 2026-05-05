@@ -3787,7 +3787,8 @@ export default function EngineerApp({ user, onLogout }) {
   // V13-FINAL2 — 4탭 mock 데이터
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayTasks = tasks.filter(x =>
-    (x.scheduledDate === todayStr || x.scheduledDate === "2026-04-27")
+    // V14 v6 — 사장님 spec '5/4 = 오늘' (시뮬 데이터 5/4 기준)
+    (x.scheduledDate === todayStr || x.scheduledDate === "2026-05-04")
   );
 
   const monthStats = {
@@ -3856,49 +3857,48 @@ export default function EngineerApp({ user, onLogout }) {
   const loadUsolNDayTasks = () => [];
 
   // V14 v6 — 회사 송금 (완료 작업만 / 6원청 / 유솔N 제외)
+  // 일별 정산 5/4 ~ 5/1 (4일 catch — 사장님 spec)
   // feeAmount = total - engineerNet (= 회사로 보낼 돈)
   const paymentsMock = [
-    // 5/3 (어제) — 미입금 (22:00 마감 지났지만 입금 X) — 김도현 + 한미경
+    // 5/4 (오늘) — 미입금 (22:00 마감 전) — 박지영 + 이상훈 + 김미경
     {
-      date: "2026-05-03", status: "pending", deadline: "22:00",
+      date: "2026-05-04", status: "pending", deadline: "22:00",
       works: [
-        // 김도현: 올데이 세척 4way 130K → eng 70K → company 60K
+        // 박지영: 올데이 세척 벽걸이 60K → eng 40K → company 20K
+        { id: "O260504-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
+        // 이상훈: KA 세척 스탠드 2, 220K → eng 120K → company 100K
+        { id: "A260504-002", customerName: "이상훈", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 100000 },
+        // 김미경: 올데이 냉매 시스템멀티 100K → eng 50K → company 50K
+        { id: "O260504-003", customerName: "김미경", workType: "냉매충전", workItem: "시스템 멀티", quantity: 1, feeAmount: 50000 },
+      ],
+      totalAmount: 170000,
+    },
+    // 5/3 (어제) — 입금 완료 — 김도현 + 한미경
+    {
+      date: "2026-05-03", status: "completed", depositTime: "22:10",
+      works: [
         { id: "O260503-001", customerName: "김도현", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
-        // 한미경: 올데이 세척 스탠드 110K → eng 60K → company 50K
         { id: "O260503-002", customerName: "한미경", workType: "세척", workItem: "스탠드", quantity: 1, feeAmount: 50000 },
       ],
       totalAmount: 110000,
     },
-    // 5/2 (입금 완료) — 정민호 + 한지원 = 140K
+    // 5/2 (입금 완료) — 정민호 + 한지원
     {
       date: "2026-05-02", status: "completed", depositTime: "22:08",
       works: [
-        // 정민호: 올데이 세척 스탠드 2, 220K → eng 120K → company 100K
         { id: "O260502-001", customerName: "정민호", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 100000 },
-        // 한지원: KB 냉매 벽걸이 80K → eng 40K → company 40K
         { id: "K-260502-002", customerName: "한지원", workType: "냉매충전", workItem: "벽걸이", quantity: 1, feeAmount: 40000 },
       ],
       totalAmount: 140000,
     },
-    // 5/1 (입금 완료) — 박은서 + 박정민 = 80K (이수진은 유솔N이라 제외)
+    // 5/1 (입금 완료) — 박은서 + 박정민 (이수진은 유솔N)
     {
       date: "2026-05-01", status: "completed", depositTime: "22:30",
       works: [
-        // 박은서: 올데이 세척 벽걸이 60K → eng 40K → company 20K
         { id: "O260501-001", customerName: "박은서", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
-        // 박정민: 올데이 세척 4way 130K → eng 70K → company 60K
         { id: "O260501-003", customerName: "박정민", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
       ],
       totalAmount: 80000,
-    },
-    // 4월 옛 입금 완료 (참고용)
-    {
-      date: "2026-04-28", status: "completed", depositTime: "22:00",
-      works: [
-        { id: null, customerName: "최민호", workType: "세척", workItem: "벽걸이", quantity: 2, feeAmount: 80000 },
-        { id: null, customerName: "박은비", workType: "냉매충전", workItem: "스탠드", quantity: 1, feeAmount: 50000 },
-      ],
-      totalAmount: 130000,
     },
   ];
 

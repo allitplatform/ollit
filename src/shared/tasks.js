@@ -385,14 +385,14 @@ export const INITIAL_TASKS = [
     estimateTotal: 110000, engineerNet: 60000, // 올데이 직영 스탠드 60K
   },
 
-  // ── 5월 4일 (월) — 오늘 — 예정 3건 (진행중 1 + 확정 2) ──
+  // ── 5월 4일 (월) — 오늘 — 완료 3건 (사장님 spec) ──
   { id: "O260504-001", client: "올데이케어", customer: "박지영", phone: "010-4444-5555",
     address: "강남구 청담동", fullAddress: "청담로 100, 청담아파트 201호",
     workType: "세척", appliance: "벽걸이", qty: 1,
     assignedEngineer: "김동효", assignedEngineerId: "E001",
     scheduledDate: "2026-05-04", scheduledTime: "09:05",
     time: "09:05", endTime: "10:30", duration: "1.5h",
-    status: "진행중", startedAt: "09:05", completedAt: null,
+    status: "완료", startedAt: "09:05", completedAt: "10:25",
     estimateTotal: 60000, engineerNet: 40000, // 올데이 직영 벽걸이 40K
   },
   { id: "A260504-002", client: "에어컨프로", customer: "이상훈", phone: "010-5555-6666",
@@ -401,7 +401,7 @@ export const INITIAL_TASKS = [
     assignedEngineer: "김동효", assignedEngineerId: "E001",
     scheduledDate: "2026-05-04", scheduledTime: "11:30",
     time: "11:30", endTime: "13:30", duration: "2h",
-    status: "확정", startedAt: null, completedAt: null,
+    status: "완료", startedAt: "11:30", completedAt: "13:25",
     estimateTotal: 220000, engineerNet: 120000, // KA 세척 스탠드 60K×2 (실제)
   },
   { id: "O260504-003", client: "올데이케어", customer: "김미경", phone: "010-6666-7777",
@@ -410,7 +410,7 @@ export const INITIAL_TASKS = [
     assignedEngineer: "김동효", assignedEngineerId: "E001",
     scheduledDate: "2026-05-04", scheduledTime: "14:00",
     time: "14:00", endTime: "16:30", duration: "2.5h",
-    status: "확정", startedAt: null, completedAt: null,
+    status: "완료", startedAt: "14:00", completedAt: "16:25",
     estimateTotal: 100000, engineerNet: 50000, // 올데이 직영 냉매 50%
   },
 
