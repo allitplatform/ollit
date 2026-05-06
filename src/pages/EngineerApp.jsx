@@ -3993,10 +3993,14 @@ export default function EngineerApp({ user, onLogout }) {
 
   function handleNotiClick(noti) {
     markAsRead(noti.id);
-    // 작업 취소 등 — 이동 X (인지만)
-    if (!noti.targetScreen && !noti.relatedId) return;
 
-    // relatedId 우선 — task 찾으면 status에 따라 detail 화면 진입
+    // V14 v6 — 사장님 spec: 알림 type별 라우팅 (relatedId보다 우선)
+    if (noti.type === "new_assignment")     return setScreen("newAssignmentList");
+    if (noti.type === "acceptance_pending") return setScreen("acceptanceList");
+    if (noti.type === "work_canceled")      return setScreen("calendar");
+    if (noti.type === "payment_received")   return setScreen("paymentHistory");
+
+    // team_message / schedule_changed / photo_missing — relatedId로 작업 상세
     if (noti.relatedId) {
       const t = tasks.find(x => x.id === noti.relatedId);
       if (t) {
@@ -4006,6 +4010,7 @@ export default function EngineerApp({ user, onLogout }) {
       }
     }
 
+    // fallback (relatedId 매칭 X 또는 type 미정)
     if (noti.targetScreen) setScreen(noti.targetScreen);
   }
 
