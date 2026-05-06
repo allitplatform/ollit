@@ -70,10 +70,13 @@ export function EngineerCalendarTab({
   onClickTask,
   onTabChange,
   unreadCount = 0,
+  initialDate = null,    // V14 v7 — '2026-05-08' 받으면 그 날 일별 뷰
+  initialView = null,    // 'today' | 'week' | 'month'
 }) {
-  const [view, setView] = useState("month");           // today / week / month
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState(new Date());
+  const initialDateObj = initialDate ? new Date(initialDate) : new Date();
+  const [view, setView] = useState(initialView || "month");
+  const [currentMonth, setCurrentMonth] = useState(initialDateObj);
+  const [selectedDate, setSelectedDate] = useState(initialDateObj);
 
   const monthData = useMemo(() => {
     if (typeof console !== "undefined") console.log("🔵 Calendar 렌더링 - offDays:", offDays);

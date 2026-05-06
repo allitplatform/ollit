@@ -630,6 +630,7 @@ function MainScreen({
   onClickAcceptanceList,
   onClickNewAssignmentList,
   onClickUsolN,
+  onClickTomorrow,
   pendingAcceptances = [],
   newAssignmentsOverride,
   usolNTotal = 0,
@@ -798,14 +799,9 @@ function MainScreen({
               오늘 번 돈 ₩{todayEarningLocal.toLocaleString("ko-KR")}
             </span>
           </div>
-          {/* 내일 일정 보기 (핑크 풀) */}
+          {/* 내일 일정 보기 (핑크 풀) — V14 v7: 캘린더 일별 뷰 라우팅 */}
           <button
-            onClick={() => {
-              if (typeof document !== "undefined") {
-                const next = document.querySelector('[data-next-schedule="true"]');
-                if (next) next.scrollIntoView({ behavior: "smooth", block: "start" });
-              }
-            }}
+            onClick={onClickTomorrow}
             style={{
               width: "100%",
               padding: 14,
@@ -1084,7 +1080,8 @@ function MainScreen({
         </div>
       )}
 
-      {/* 5. 다음 일정 (시간순) — V14 50대 글자 크기 */}
+      {/* 5. 다음 일정 (시간순) — V14 v7: allDone 시 중복 제거 (수고 카드 안 '내일 일정 보기' 버튼이 대체) */}
+      {!allDoneToday && (
       <div data-next-schedule="true" style={{ padding: "0 16px" }}>
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
@@ -1178,6 +1175,7 @@ function MainScreen({
           ));
         })()}
       </div>
+      )}
     </div>
   );
 }
@@ -3870,12 +3868,22 @@ export default function EngineerApp({ user, onLogout }) {
   const setScreen = (s) => setScreenStack(prev => (prev[prev.length - 1] === s ? prev : [...prev, s]));
   const goBack    = () => setScreenStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
   const resetTo   = (s) => setScreenStack([s]);
+  // V14 v7 — 캘린더 초기 날짜/뷰 (allDone 카드 '내일 일정 보기' 클릭 시 박음)
+  const [calendarInitial, setCalendarInitial] = useState(null);
   const handleTabChange = (tabId) => {
     if (tabId === "today")        resetTo("main");
     else if (tabId === "settle")  resetTo("settlement");
-    else if (tabId === "cal")     resetTo("calendar");
+    else if (tabId === "cal")     { setCalendarInitial(null); resetTo("calendar"); }
     else if (tabId === "noti")    resetTo("notifications");
     else if (tabId === "me")      resetTo("profile");
+  };
+  // V14 v7 — 내일 일정 보기 = 캘린더 일별 뷰 + 내일 날짜
+  const handleTomorrowClick = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const ymd = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+    setCalendarInitial({ date: ymd, view: "today" });
+    resetTo("calendar");
   };
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   // V13-1 — 가스 자동 배정 콜 (catch #10 — mock 1건 추가)
@@ -4369,6 +4377,7 @@ export default function EngineerApp({ user, onLogout }) {
               onClickAcceptanceList={() => setScreen("acceptanceList")}
               onClickNewAssignmentList={() => setScreen("newAssignmentList")}
               onClickUsolN={() => setScreen("usolNSettlement")}
+              onClickTomorrow={handleTomorrowClick}
               pendingAcceptances={pendingAcceptances}
               newAssignmentsOverride={newAssignments}
               usolNTotal={usolNGroupsMock
@@ -4420,6 +4429,8 @@ export default function EngineerApp({ user, onLogout }) {
             onClickTask={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
             onTabChange={handleTabChange}
             unreadCount={unreadCount}
+            initialDate={calendarInitial?.date}
+            initialView={calendarInitial?.view}
           />
         )}
 
