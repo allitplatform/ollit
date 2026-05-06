@@ -267,29 +267,50 @@ function WorkSettlementCard({ work, onClick }) {
         <UsolNBadge task={{ client: work.client, workType: work.workType }}/>
       </div>
 
-      {/* V14 v6 — 사장님 spec: 완료만 표시 / 본인 수익만 */}
-      <div style={{
-        background: "var(--flow-bg)",
-        borderRadius: 10,
-        padding: "12px 14px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}>
-        <span style={{
-          fontSize: 12, fontWeight: 700,
-          color: "#FF1B8D",
+      {/* V14 v6 — 가로형 2박스 (수익 + 수수료) / 마이너스 X (사장님 spec) */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {/* 내 수익 (핑크 박스) */}
+        <div style={{
+          background: "var(--earning-box-bg, #FFE5F2)",
+          borderRadius: 12,
+          padding: "10px 12px",
         }}>
-          💰 내 수익
-        </span>
-        <span style={{
-          fontSize: 18, fontWeight: 700,
-          color: "#FF1B8D",
-          letterSpacing: "-0.3px",
-          fontFamily: "inherit",
+          <div style={{
+            fontSize: 11, color: "#FF1B8D",
+            fontWeight: 700, marginBottom: 2,
+          }}>
+            💰 내 수익
+          </div>
+          <div style={{
+            fontSize: 17, fontWeight: 800,
+            color: "#FF1B8D",
+            letterSpacing: "-0.3px",
+            fontFamily: "inherit",
+          }}>
+            ₩{(estEarning || 0).toLocaleString("ko-KR")}
+          </div>
+        </div>
+        {/* 수수료 (회색 박스 / 마이너스 X) */}
+        <div style={{
+          background: "var(--fee-box-bg, #F5F2ED)",
+          borderRadius: 12,
+          padding: "10px 12px",
         }}>
-          ₩{(estEarning || 0).toLocaleString("ko-KR")}
-        </span>
+          <div style={{
+            fontSize: 11, color: "var(--text-secondary)",
+            fontWeight: 700, marginBottom: 2,
+          }}>
+            수수료
+          </div>
+          <div style={{
+            fontSize: 17, fontWeight: 700,
+            color: "var(--text-secondary)",
+            letterSpacing: "-0.3px",
+            fontFamily: "inherit",
+          }}>
+            ₩{(estFee || 0).toLocaleString("ko-KR")}
+          </div>
+        </div>
       </div>
     </div>
   );
