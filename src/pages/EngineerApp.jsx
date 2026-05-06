@@ -3982,14 +3982,15 @@ export default function EngineerApp({ user, onLogout }) {
     regions: ["강남구", "서초구", "송파구"],
   };
 
-  // V14 v6 — 알림 6가지 (사장님 spec / 사진 관련 제거)
+  // V14 v7 — 알림 7가지 (운영팀 메시지 = 단순 안내 / 입금 요청+확인 분리)
   const [notifications, setNotifications] = useState([
-    { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "새 배정 도착",         subtitle: "강지훈 고객님 · 모레 세척 4way 2대 · 강남구 청담동",         relatedId: "A260507-001", targetScreen: "detail" },
-    { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "수락 대기 · 선착순",     subtitle: "한미선 고객님 · 모레 세척 4way 3대 · 용산구 이태원동",       relatedId: "K-260507-002", targetScreen: "acceptanceList" },
-    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 60 * 60 * 1000),       timeAgo: "1시간 전",   title: "운영팀 메시지",         subtitle: "이번 주 마무리 잘 부탁드립니다. 안전 작업 우선이에요.",       relatedId: null,           targetScreen: "main" },
-    { id: "N004", type: "schedule_changed",   read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",    title: "일정 변경됨",           subtitle: "한미선 고객님 모레 16:00 → 14:00로 변경됐어요",              relatedId: "K-260507-002", targetScreen: "detail" },
-    { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),   timeAgo: "오늘 오전",  title: "작업 취소",            subtitle: "다음 주 예정 작업이 고객 사정으로 취소됐어요",              relatedId: null,           targetScreen: null },
-    { id: "N006", type: "payment_received",   read: true,  urgent: false, createdAt: new Date(Date.now() - 22 * 60 * 60 * 1000),  timeAgo: "어제 22:15", title: "입금 처리 완료",        subtitle: "그저께 회사 송금 50,000원 입금 확인됐어요",                relatedId: null,           targetScreen: "paymentHistory" },
+    { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "새 배정 도착",         subtitle: "강지훈 고객님 · 모레 세척 4way 2대 · 강남구 청담동",         relatedId: "A260509-001", targetScreen: "newAssignmentList" },
+    { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "수락 대기 · 선착순",     subtitle: "한미선 고객님 · 모레 세척 4way 3대 · 용산구 이태원동",       relatedId: "K-260509-002", targetScreen: "acceptanceList" },
+    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 60 * 60 * 1000),       timeAgo: "1시간 전",   title: "운영팀 메시지",         subtitle: "이번 주 정산 마감 5월 15일까지입니다",                       relatedId: null,           targetScreen: null },
+    { id: "N004", type: "schedule_changed",   read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",    title: "일정 변경됨",           subtitle: "한미선 고객님 모레 16:00 → 14:00로 변경됐어요",              relatedId: "K-260509-002", targetScreen: "detail" },
+    { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),   timeAgo: "오늘 오전",  title: "작업 취소",            subtitle: "5/10 예정 작업이 고객 사정으로 취소됐어요",                  relatedId: null,           targetScreen: "calendar" },
+    { id: "N006", type: "payment_request",    read: false, urgent: false, createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),  timeAgo: "어제 22:05", title: "입금 요청하였습니다",   subtitle: "5/6 마감분 50,000원 회사 송금 요청",                          relatedId: null,           targetScreen: "paymentHistory" },
+    { id: "N007", type: "payment_confirmed",  read: false, urgent: false, createdAt: new Date(Date.now() - 14 * 60 * 60 * 1000),  timeAgo: "오늘 09:30", title: "입금 확인되었습니다",   subtitle: "5/6 마감분 50,000원 처리 완료",                              relatedId: null,           targetScreen: "paymentHistory" },
   ]);
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -4003,13 +4004,18 @@ export default function EngineerApp({ user, onLogout }) {
   function handleNotiClick(noti) {
     markAsRead(noti.id);
 
-    // V14 v6 — 사장님 spec: 알림 type별 라우팅 (relatedId보다 우선)
+    // V14 v7 — 사장님 spec: 알림 type별 라우팅
+    // team_message = 라우팅 X (단순 안내)
+    if (noti.type === "team_message") return;
+
     if (noti.type === "new_assignment")     return setScreen("newAssignmentList");
     if (noti.type === "acceptance_pending") return setScreen("acceptanceList");
     if (noti.type === "work_canceled")      return setScreen("calendar");
-    if (noti.type === "payment_received")   return setScreen("paymentHistory");
+    if (noti.type === "payment_request")    return setScreen("paymentHistory");
+    if (noti.type === "payment_confirmed")  return setScreen("paymentHistory");
+    if (noti.type === "payment_received")   return setScreen("paymentHistory"); // 옛 alias
 
-    // team_message / schedule_changed / photo_missing — relatedId로 작업 상세
+    // schedule_changed — relatedId로 작업 상세
     if (noti.relatedId) {
       const t = tasks.find(x => x.id === noti.relatedId);
       if (t) {

@@ -87,22 +87,44 @@ const WORK_CANCELED = {
   group: "schedule",
 };
 
-const PAYMENT_RECEIVED = {
-  key: "payment_received",
-  label: "입금 처리",
+// V14 v7 — 입금 요청 (마감 직후 22:00 회사 송금)
+const PAYMENT_REQUEST = {
+  key: "payment_request",
+  label: "입금 요청",
   icon: "💰",
-  barColor: "#FF8A3D",
-  color: "#FF8A3D",
-  colorLight: "#C75A0A",
-  iconBoxBg: { light: "#FFE6D5", dark: "#2D1F0F" },
-  cardBg: { light: "#FFFFFF", dark: "#1C1C1E" },
-  cardBorder: { light: "#EFE9E0", dark: "#2A2A2A" },
-  bgLight: "rgba(255,138,61,0.10)",
-  bgDark:  "rgba(255,138,61,0.12)",
-  iconBgLight: "#FFE6D5",
+  barColor: "#F59E0B",
+  color: "#F59E0B",
+  colorLight: "#B45309",
+  iconBoxBg: { light: "#FEF3C7", dark: "#2D1F0F" },
+  cardBg: { light: "#FFFBEB", dark: "#1C1C1E" },
+  cardBorder: { light: "rgba(245,158,11,0.30)", dark: "#2A2A2A" },
+  bgLight: "rgba(245,158,11,0.10)",
+  bgDark:  "rgba(245,158,11,0.12)",
+  iconBgLight: "#FEF3C7",
   iconBgDark:  "#2D1F0F",
   group: "payment",
 };
+
+// V14 v7 — 입금 확인 (다음날 회사 처리)
+const PAYMENT_CONFIRMED = {
+  key: "payment_confirmed",
+  label: "입금 확인",
+  icon: "✅",
+  barColor: "#10B981",
+  color: "#10B981",
+  colorLight: "#047857",
+  iconBoxBg: { light: "#D1FAE5", dark: "#0F2D20" },
+  cardBg: { light: "#F0FDF4", dark: "#1C1C1E" },
+  cardBorder: { light: "rgba(16,185,129,0.30)", dark: "#2A2A2A" },
+  bgLight: "rgba(16,185,129,0.10)",
+  bgDark:  "rgba(16,185,129,0.12)",
+  iconBgLight: "#D1FAE5",
+  iconBgDark:  "#0F2D20",
+  group: "payment",
+};
+
+// 옛 payment_received alias = payment_confirmed (이미 처리된 입금)
+const PAYMENT_RECEIVED = PAYMENT_CONFIRMED;
 
 const PHOTO_MISSING = {
   key: "photo_missing",
@@ -121,24 +143,26 @@ const PHOTO_MISSING = {
   group: "message",
 };
 
-// 사장님 V14 spec 7가지
+// 사장님 V14 v7 spec 7가지 (입금 분리 + 사진 alias 유지)
 export const NOTI_CATEGORIES = {
   new_assignment:     NEW_ASSIGNMENT,
   acceptance_pending: ACCEPTANCE_PENDING,
   team_message:       TEAM_MESSAGE,
   schedule_changed:   SCHEDULE_CHANGED,
   work_canceled:      WORK_CANCELED,
-  payment_received:   PAYMENT_RECEIVED,
-  photo_missing:      PHOTO_MISSING,
+  payment_request:    PAYMENT_REQUEST,
+  payment_confirmed:  PAYMENT_CONFIRMED,
 
   // 옛 키 alias (기존 mock 데이터 호환)
+  payment_received:  PAYMENT_CONFIRMED,
   new_assign:        NEW_ASSIGNMENT,
   urgent:            ACCEPTANCE_PENDING,
   ops_memo:          TEAM_MESSAGE,
   schedule_change:   SCHEDULE_CHANGED,
   schedule_confirm:  SCHEDULE_CHANGED,
-  settlement:        PAYMENT_RECEIVED,
-  complete:          PAYMENT_RECEIVED,
+  settlement:        PAYMENT_CONFIRMED,
+  complete:          PAYMENT_CONFIRMED,
+  photo_missing:     PHOTO_MISSING,
 
   // UPPERCASE alias (옛 NotiCard 호환)
   NEW_ASSIGN:        NEW_ASSIGNMENT,
@@ -151,9 +175,11 @@ export const NOTI_CATEGORIES = {
   SCHEDULE_CHANGE:   SCHEDULE_CHANGED,
   SCHEDULE_CONFIRM:  SCHEDULE_CHANGED,
   WORK_CANCELED:     WORK_CANCELED,
-  PAYMENT_RECEIVED:  PAYMENT_RECEIVED,
-  SETTLEMENT:        PAYMENT_RECEIVED,
-  COMPLETE:          PAYMENT_RECEIVED,
+  PAYMENT_REQUEST:   PAYMENT_REQUEST,
+  PAYMENT_CONFIRMED: PAYMENT_CONFIRMED,
+  PAYMENT_RECEIVED:  PAYMENT_CONFIRMED,
+  SETTLEMENT:        PAYMENT_CONFIRMED,
+  COMPLETE:          PAYMENT_CONFIRMED,
   PHOTO_MISSING:     PHOTO_MISSING,
 };
 
