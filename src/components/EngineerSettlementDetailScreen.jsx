@@ -267,21 +267,17 @@ function WorkSettlementCard({ work, onClick }) {
         <UsolNBadge task={{ client: work.client, workType: work.workType }}/>
       </div>
 
-      {/* V14 v6 — 위계 박스 (수익 큰 / 구분선 / 수수료 작게 / 사장님 spec) */}
-      <div style={{
-        background: "var(--earning-box-bg, #FFE5F2)",
-        borderRadius: 12,
-        padding: "14px 16px",
-      }}>
-        {/* 내 수익 (큰 / 22px / 800) */}
+      {/* V14 v7 — 미니멀 라인 (사장님 spec: 핑크 박스 X / 라인만) */}
+      <div>
+        {/* 내 수익 (큰 / 22px / 800 / 핑크 숫자만) */}
         <div style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          marginBottom: 8,
+          marginBottom: 6,
         }}>
           <span style={{
-            fontSize: 12, color: "#FF1B8D", fontWeight: 700,
+            fontSize: 13, color: "#FF1B8D", fontWeight: 700,
           }}>
             💰 내 수익
           </span>
@@ -294,11 +290,11 @@ function WorkSettlementCard({ work, onClick }) {
             ₩{(estEarning || 0).toLocaleString("ko-KR")}
           </span>
         </div>
-        {/* 구분선 (옅은 핑크) */}
+        {/* 구분선 (옅은 회색) */}
         <div style={{
           height: 1,
-          background: "rgba(255, 27, 141, 0.15)",
-          marginBottom: 8,
+          background: "var(--border-subtle, #F0EBE3)",
+          marginBottom: 6,
         }}/>
         {/* 수수료 (작게 / 12px / 회색) */}
         <div style={{
