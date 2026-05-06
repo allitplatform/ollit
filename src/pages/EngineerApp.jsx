@@ -3970,15 +3970,14 @@ export default function EngineerApp({ user, onLogout }) {
     regions: ["강남구", "서초구", "송파구"],
   };
 
-  // V14 v6 — 알림 7가지 (동적 / 오늘 기준 시간)
+  // V14 v6 — 알림 6가지 (사장님 spec / 사진 관련 제거)
   const [notifications, setNotifications] = useState([
     { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "새 배정 도착",         subtitle: "강지훈 고객님 · 모레 세척 4way 2대 · 강남구 청담동",         relatedId: "A260507-001", targetScreen: "detail" },
     { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "수락 대기 · 선착순",     subtitle: "한미선 고객님 · 모레 세척 4way 3대 · 용산구 이태원동",       relatedId: "K-260507-002", targetScreen: "acceptanceList" },
-    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 60 * 60 * 1000),       timeAgo: "1시간 전",   title: "운영팀 메시지",         subtitle: "오늘 박지영 작업 사진 더 부탁드려요. 시작·중간·완료 3장 이상.", relatedId: "O260505-001", targetScreen: "detail" },
+    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 60 * 60 * 1000),       timeAgo: "1시간 전",   title: "운영팀 메시지",         subtitle: "이번 주 마무리 잘 부탁드립니다. 안전 작업 우선이에요.",       relatedId: null,           targetScreen: "main" },
     { id: "N004", type: "schedule_changed",   read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",    title: "일정 변경됨",           subtitle: "한미선 고객님 모레 16:00 → 14:00로 변경됐어요",              relatedId: "K-260507-002", targetScreen: "detail" },
     { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),   timeAgo: "오늘 오전",  title: "작업 취소",            subtitle: "다음 주 예정 작업이 고객 사정으로 취소됐어요",              relatedId: null,           targetScreen: null },
     { id: "N006", type: "payment_received",   read: true,  urgent: false, createdAt: new Date(Date.now() - 22 * 60 * 60 * 1000),  timeAgo: "어제 22:15", title: "입금 처리 완료",        subtitle: "그저께 회사 송금 50,000원 입금 확인됐어요",                relatedId: null,           targetScreen: "paymentHistory" },
-    { id: "N007", type: "photo_missing",      read: false, urgent: false, createdAt: new Date(Date.now() - 5 * 60 * 1000),        timeAgo: "5분 전",     title: "사진 누락",            subtitle: "박지영 오늘 작업의 After 사진을 추가해주세요",              relatedId: "O260505-001", targetScreen: "detail" },
   ]);
   const unreadCount = notifications.filter(n => !n.read).length;
 

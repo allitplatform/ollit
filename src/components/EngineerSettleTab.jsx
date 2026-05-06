@@ -2,6 +2,7 @@
 // 헌법 v3: weight 500 → 600 / 600 → 700 / Hero 사이즈 키움
 // [verify-2026-05-04] dist에 fontSize:64,fontWeight:700 적용 확정
 
+import { useState } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 
 function getEarning(t) {
@@ -12,9 +13,31 @@ function getRevenue(t) {
   return (t.estimateTotal || 0) + (t.addonFee || 0) + (t.extraFee || 0);
 }
 
-function copyToClipboard(text) {
-  if (typeof navigator !== "undefined" && navigator.clipboard) {
-    navigator.clipboard.writeText(text).catch(() => {});
+// V14 v6 — 계좌 복사 (폴백 + 토스트 / 사장님 spec)
+async function copyToClipboard(text, onToast, label = "계좌번호") {
+  if (!text) {
+    if (onToast) onToast("복사할 텍스트가 없습니다", "error");
+    return;
+  }
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      // 폴백 (구형 브라우저 / 비-HTTPS)
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    if (onToast) onToast(`${label}이(가) 복사되었습니다`, "success");
+  } catch (err) {
+    console.error("[copyToClipboard] failed:", err);
+    if (onToast) onToast("복사 실패. 직접 입력해주세요", "error");
   }
 }
 
@@ -33,6 +56,12 @@ export function EngineerSettleTab({
   onTabChange,
   unreadCount = 0,
 }) {
+  // V14 v6 — 토스트 state (계좌 복사 등)
+  const [toast, setToast] = useState(null); // { message, type }
+  function showToast(message, type = "success") {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  }
   const completedToday = todayTasks.filter(t => t.status === "완료");
   const todayEarning   = completedToday.reduce((s, t) => s + getEarning(t), 0);
   const todayRevenue   = completedToday.reduce((s, t) => s + getRevenue(t), 0);
@@ -207,7 +236,7 @@ export function EngineerSettleTab({
               </div>
             </div>
             <button
-              onClick={(e) => { e.stopPropagation(); copyToClipboard((account.number || "").replace(/-/g, "")); }}
+              onClick={(e) => { e.stopPropagation(); copyToClipboard((account.number || "").replace(/-/g, ""), showToast, "계좌번호"); }}
               style={{
                 padding: "8px 13px",
                 background: "var(--copy-btn-bg)",
@@ -304,6 +333,24 @@ export function EngineerSettleTab({
           <span style={{ color: "#FF1B8D", fontWeight: 700 }}>오늘 번 돈</span>을 눌러보세요
         </div>
       </div>
+
+      {/* V14 v6 — 토스트 (계좌 복사 등) */}
+      {toast && (
+        <div style={{
+          position: "fixed", bottom: 100, left: "50%",
+          transform: "translateX(-50%)",
+          background: toast.type === "error" ? "#FF3B5C" : "#03C75A",
+          color: "#fff",
+          padding: "12px 18px",
+          borderRadius: 999,
+          fontSize: 13, fontWeight: 700,
+          zIndex: 9999,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+          fontFamily: "inherit",
+        }}>
+          {toast.type === "error" ? "❌ " : "✓ "}{toast.message}
+        </div>
+      )}
 
       <EngineerBottomNav active="settle" onChange={onTabChange} unreadCount={unreadCount}/>
     </div>
