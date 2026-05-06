@@ -7,6 +7,7 @@ import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
+import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
 
 function addDays(date, n) {
   const d = new Date(date);
@@ -164,6 +165,19 @@ export function EngineerNewAssignDetailScreen({
             width: 4,
             background: colors.main,
           }}/>
+
+          {/* V14 v7 — 날짜 라인 */}
+          {task.scheduledDate && (
+            <div style={{
+              fontSize: 12, fontWeight: 700,
+              color: workDateColor(task.scheduledDate),
+              marginBottom: 8,
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <span>📅</span>
+              <span>{workDateLabel(task.scheduledDate)}</span>
+            </div>
+          )}
 
           <div style={{
             display: "flex", alignItems: "center", gap: 6,

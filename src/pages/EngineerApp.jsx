@@ -850,6 +850,20 @@ function MainScreen({
             width: 4,
             background: colors.main,
           }}/>
+
+          {/* V14 v7 — 날짜 라인 (사장님 spec '5월 7일 (목) · 오늘') */}
+          {activeTask.scheduledDate && (
+            <div style={{
+              fontSize: 12, fontWeight: 700,
+              color: workDateColor(activeTask.scheduledDate),
+              marginBottom: 10,
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <span>📅</span>
+              <span>{workDateLabel(activeTask.scheduledDate)}</span>
+            </div>
+          )}
+
           <div style={{
             display: "flex", justifyContent: "space-between",
             alignItems: "center", marginBottom: 10,

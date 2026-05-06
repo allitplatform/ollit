@@ -589,6 +589,19 @@ function WorkMainCard({ task }) {
         width: 4, background: colors.main,
       }}/>
 
+      {/* V14 v7 — 날짜 라인 (사장님 spec '5월 7일 (목) · 내일') */}
+      {task.scheduledDate && (
+        <div style={{
+          fontSize: 12, fontWeight: 700,
+          color: workDateColor(task.scheduledDate),
+          marginBottom: 10,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span>📅</span>
+          <span>{workDateLabel(task.scheduledDate)}</span>
+        </div>
+      )}
+
       {/* 영역 1 — 상태 + 시간 + (진행중인 경우 시작 시각 우측) */}
       <div style={{
         display: "flex", alignItems: "center", gap: 6, marginBottom: 12,
