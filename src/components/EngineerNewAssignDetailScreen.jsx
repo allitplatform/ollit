@@ -420,16 +420,37 @@ export function EngineerNewAssignDetailScreen({
         </div>
       </div>
 
-      {/* 5. 운영팀 문의 */}
-      <div style={{ padding: "20px 16px 8px", textAlign: "center" }}>
-        <button onClick={onAskOps} style={{
-          background: "transparent", border: "none",
-          color: "var(--ops-text)", fontSize: 14, fontWeight: 600,
-          cursor: "pointer", textDecoration: "underline",
-          fontFamily: "inherit",
-        }}>
-          💬 운영팀에 문의
-        </button>
+      {/* 5. 운영팀 문의 — V14 v8 카카오 공식 브랜딩 */}
+      <div style={{ padding: "20px 16px 8px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button onClick={onAskOps} style={{
+            background: "#34C759",
+            color: "#fff",
+            border: "none",
+            padding: 14,
+            borderRadius: 12,
+            fontSize: 14, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}>
+            📞 운영팀 전화
+          </button>
+          <button onClick={onAskOps} style={{
+            background: "#FEE500",
+            color: "#391B1B",
+            border: "none",
+            padding: 14,
+            borderRadius: 12,
+            fontSize: 14, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#391B1B" aria-hidden="true">
+              <path d="M12 3C6.48 3 2 6.48 2 10.8c0 2.76 1.74 5.16 4.36 6.55-.18.61-.65 2.18-.74 2.51-.12.4.15.4.31.29.13-.09 2.04-1.39 2.85-1.95.4.06.81.1 1.22.1 5.52 0 10-3.48 10-7.79S17.52 3 12 3z"/>
+            </svg>
+            카톡 문의
+          </button>
+        </div>
       </div>
     </div>
   );

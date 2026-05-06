@@ -3886,7 +3886,7 @@ export default function EngineerApp({ user, onLogout }) {
     resetTo("calendar");
   };
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-  // V13-1 — 가스 자동 배정 콜 (catch #10 — mock 1건 추가)
+  // V14 v8 — 수락 대기 콜 (가스 자동 + 세척 선착순)
   const [pendingAcceptances, setPendingAcceptances] = useState([
     {
       id: "ACCEPT-001",
@@ -3899,6 +3899,21 @@ export default function EngineerApp({ user, onLogout }) {
       workSchedule: "당일 (오후)",
       engineerRate: 80000,
       requestedAgo: "5분 전",
+    },
+    // V14 v8 — 한미선 5/8 [수락대기] (사장님 spec)
+    {
+      id: "K-260508-002",
+      type: "acceptance",
+      workType: "세척",
+      region: "용산구",
+      customer: "한미선",
+      phone: "010-7070-8080",
+      fullAddress: "서울시 용산구 이태원로 200, 이태원힐스 3층",
+      appliance: "4way",
+      qty: 3,
+      workSchedule: "모레 (5/8) 14:00",
+      engineerRate: 210000,
+      requestedAgo: "30분 전",
     },
   ]);
 
@@ -4006,10 +4021,10 @@ export default function EngineerApp({ user, onLogout }) {
 
   // V14 v7 — 알림 7가지 (운영팀 메시지 = 단순 안내 / 입금 요청+확인 분리)
   const [notifications, setNotifications] = useState([
-    { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "새 배정 도착",         subtitle: "강지훈 고객님 · 모레 세척 4way 2대 · 강남구 청담동",         relatedId: "A260509-001", targetScreen: "newAssignmentList" },
-    { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),  timeAgo: "어제",       title: "수락 대기 · 선착순",     subtitle: "한미선 고객님 · 모레 세척 4way 3대 · 용산구 이태원동",       relatedId: "K-260509-002", targetScreen: "acceptanceList" },
-    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 60 * 60 * 1000),       timeAgo: "1시간 전",   title: "운영팀 메시지",         subtitle: "이번 주 정산 마감 5월 15일까지입니다",                       relatedId: null,           targetScreen: null },
-    { id: "N004", type: "schedule_changed",   read: false, urgent: false, createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",    title: "일정 변경됨",           subtitle: "한미선 고객님 모레 16:00 → 14:00로 변경됐어요",              relatedId: "K-260509-002", targetScreen: "detail" },
+    { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 60 * 60 * 1000),       timeAgo: "1시간 전",   title: "새 배정 도착",         subtitle: "김상호 고객님 · 모레 세척 투인원 1대 · 마포구 상수동",         relatedId: "O260508-003", targetScreen: "newAssignmentList" },
+    { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",    title: "수락 대기 · 선착순",     subtitle: "한미선 고객님 · 모레 14:00 세척 4way 3대 · 용산구 이태원동", relatedId: "K-260508-002", targetScreen: "acceptanceList" },
+    { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   timeAgo: "2시간 전",   title: "운영팀 메시지",         subtitle: "이번 주 정산 마감 5월 15일까지입니다",                       relatedId: null,           targetScreen: null },
+    { id: "N004", type: "schedule_changed",   read: false, urgent: false, createdAt: new Date(Date.now() - 45 * 60 * 1000),       timeAgo: "45분 전",    title: "일정 변경됨",           subtitle: "강지훈 고객님 모레 11:00 → 10:00로 변경됐어요",              relatedId: "A260508-001", targetScreen: "detail" },
     { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),   timeAgo: "오늘 오전",  title: "작업 취소",            subtitle: "5/10 예정 작업이 고객 사정으로 취소됐어요",                  relatedId: null,           targetScreen: "calendar" },
     { id: "N006", type: "payment_request",    read: false, urgent: false, createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),  timeAgo: "어제 22:05", title: "입금 요청하였습니다",   subtitle: "5/6 마감분 50,000원 회사 송금 요청",                          relatedId: null,           targetScreen: "paymentHistory" },
     { id: "N007", type: "payment_confirmed",  read: false, urgent: false, createdAt: new Date(Date.now() - 14 * 60 * 60 * 1000),  timeAgo: "오늘 09:30", title: "입금 확인되었습니다",   subtitle: "5/6 마감분 50,000원 처리 완료",                              relatedId: null,           targetScreen: "paymentHistory" },
