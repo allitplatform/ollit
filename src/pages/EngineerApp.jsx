@@ -218,11 +218,11 @@ const SETTLEMENT_DATA = {
   recentJobs: [
     { id: "A260427-001", date: "04.27", time: "09:00", customer: "박지영", workType: "세척", 
       paymentType: "field", grossAmount: 80000, commission: 32000, myIncome: 48000, status: "완료" },
-    { id: "A260427-002", date: "04.27", time: "11:30", customer: "이상훈", workType: "세척+점검",
+    { id: "A260427-002", date: "04.27", time: "11:30", customer: "이상훈", workType: "세척",
       paymentType: "field", grossAmount: 140000, commission: 56000, myIncome: 84000, status: "완료" },
     { id: "A260427-003", date: "04.27", time: "14:00", customer: "김미경", workType: "냉매충전",
       paymentType: "company", grossAmount: 100000, commission: 50000, myIncome: 50000, status: "완료" },
-    { id: "A260426-008", date: "04.26", time: "10:00", customer: "최영주", workType: "점검",
+    { id: "A260426-008", date: "04.26", time: "10:00", customer: "최영주", workType: "세척",
       paymentType: "field", grossAmount: 60000, commission: 24000, myIncome: 36000, status: "완료" },
     { id: "A260426-005", date: "04.26", time: "14:00", customer: "김도훈", workType: "냉매충전",
       paymentType: "company", grossAmount: 120000, commission: 60000, myIncome: 60000, status: "완료" },

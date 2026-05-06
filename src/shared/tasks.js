@@ -80,7 +80,7 @@ export const INITIAL_TASKS = [
     client: "쿨가이",
     customer: "이상훈", phone: "010-3456-7890",
     address: "서초구 반포동", fullAddress: "신반포로 270, 반포자이 103-1502",
-    workType: "세척+점검", appliance: "스탠드", qty: 2,
+    workType: "세척", appliance: "스탠드", qty: 2,
     requestedDate: "2026-04-27", requestedTime: "낮 시간",
     receivedAt: "2026.04.24", channel: "전화",
     happycallStatus: "assigned",
@@ -182,7 +182,7 @@ export const INITIAL_TASKS = [
     client: "쿨가이",
     customer: "김민호", phone: "010-2345-6789",
     address: "송파구 잠실동", fullAddress: "올림픽로 240, 트리지움",
-    workType: "점검", appliance: "스탠드", qty: 1,
+    workType: "세척", appliance: "스탠드", qty: 1,
     requestedDate: "2026-04-29", requestedTime: "오전",
     receivedAt: "2026.04.27 13:53", receivedAgo: "30분 전", channel: "전화",
     happycallStatus: "uncontacted",
@@ -486,7 +486,8 @@ export const INITIAL_TASKS = [
       estimateTotal: 390000, engineerNet: 210000,
     },
   ].map(dynamicTask),
-];
+// V14 v6 — 옛 V11 시뮬도 dynamicTask 통과 (4월 작업 = 모두 '완료' 자동)
+].map(t => t.scheduledDate && t.scheduledTime && t.endTime ? dynamicTask(t) : t);
 
 // ============================================
 // 헬퍼 함수 - 화면별 데이터 변환
