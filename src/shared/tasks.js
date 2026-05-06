@@ -470,7 +470,7 @@ export const INITIAL_TASKS = [
 
     // ── +2일 후 (예정 / status 강제 '확정') ──
     { id: "A260507-001", client: "에어컨프로", customer: "강지훈", phone: "010-6060-7070",
-      address: "강남구 청담동", fullAddress: "청담로 200",
+      address: "강남구 청담동", fullAddress: "청담로 200, 청담아파트 101동 502호",
       workType: "세척", appliance: "4way", qty: 2,
       assignedEngineer: "김동효", assignedEngineerId: "E001",
       scheduledDate: dateOffset(2), scheduledTime: "10:00",
@@ -478,7 +478,7 @@ export const INITIAL_TASKS = [
       estimateTotal: 260000, engineerNet: 140000,
     },
     { id: "K-260507-002", client: "쿨가이", customer: "한미선", phone: "010-7070-8080",
-      address: "용산구 이태원동", fullAddress: "이태원로 100",
+      address: "용산구 이태원동", fullAddress: "이태원로 100, 이태원빌라 3층",
       workType: "세척", appliance: "4way", qty: 3,
       assignedEngineer: "김동효", assignedEngineerId: "E001",
       scheduledDate: dateOffset(2), scheduledTime: "14:00",

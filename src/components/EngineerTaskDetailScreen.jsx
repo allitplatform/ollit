@@ -59,8 +59,20 @@ function sendSms(phone) {
   if (phone) window.location.href = `sms:${phone}`;
 }
 
+// V14 v6 — 시/구/도로명 합치기 (T맵/네이버 정확 catch)
+function buildFullAddress(task) {
+  const region = task.region || task.address || ""; // 강남구 청담동
+  const detail = task.fullAddress || "";            // 청담로 200, 101동 502호
+  if (!region && !detail) return "";
+  if (!region) return detail;
+  if (!detail) return region;
+  // 시 prefix 자동 (서울특별시 / 경기도) — 시 박혀있지 X 면 region 그대로
+  const cityPrefix = region.includes("시") || region.includes("도") ? "" : "서울 ";
+  return `${cityPrefix}${region} ${detail}`.trim();
+}
+
 function openMap(task) {
-  const addrRaw = task.fullAddress || task.address || "";
+  const addrRaw = buildFullAddress(task);
   if (!addrRaw) { alert("주소 없음"); return; }
   const addr = encodeURIComponent(addrRaw);
   // V14 v6 — 네이버 지도 앱 시도 → 1.5초 후 웹 fallback
@@ -76,7 +88,7 @@ function openMap(task) {
 }
 
 function openTmap(task) {
-  const addrRaw = task.fullAddress || task.address || "";
+  const addrRaw = buildFullAddress(task);
   if (!addrRaw) { alert("주소 없음"); return; }
   const addr = encodeURIComponent(addrRaw);
   // V14 v6 — T맵 앱 시도 → 1.5초 후 웹 fallback
