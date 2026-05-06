@@ -651,6 +651,16 @@ function MainScreen({
   }, []);
   const activeTask = tasks.find(x => x.status === "진행중") || null;
 
+  // V14 v6 — 오늘 모두 완료 catch (사장님 spec 'allDone 카드')
+  const todayStrLocal = new Date().toISOString().slice(0, 10);
+  const todayTasksLocal = tasks.filter(t => t.scheduledDate === todayStrLocal);
+  const allDoneToday = !activeTask
+    && todayTasksLocal.length > 0
+    && todayTasksLocal.every(t => t.status === "완료");
+  const todayEarningLocal = todayTasksLocal
+    .filter(t => t.status === "완료")
+    .reduce((s, t) => s + (t.engineerNet || 0), 0);
+
   // V14 — 새 배정 = 약속대기 + 일정 미정 (extraAssignments 합산은 EngineerApp에서 처리)
   const newAssignments = newAssignmentsOverride || tasks.filter(x =>
     x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
@@ -748,6 +758,50 @@ function MainScreen({
           )}
         </div>
       </div>
+
+      {/* V14 v6 — 오늘 모두 완료 카드 (사장님 spec) */}
+      {allDoneToday && (
+        <div style={{
+          margin: "0 16px 14px",
+          background: "var(--card-bg)",
+          border: "1.5px solid #03C75A",
+          borderRadius: 18,
+          padding: "20px 18px",
+          position: "relative",
+          overflow: "hidden",
+        }}>
+          <div style={{
+            position: "absolute", left: 0, top: 0, bottom: 0,
+            width: 4, background: "#03C75A",
+          }}/>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
+          }}>
+            <span style={{ fontSize: 18 }}>🎉</span>
+            <span style={{
+              fontSize: 14, fontWeight: 700,
+              color: "#03C75A",
+            }}>
+              오늘 수고하셨습니다
+            </span>
+          </div>
+          <div style={{
+            fontSize: 13, color: "var(--text-secondary)",
+            fontWeight: 600, marginBottom: 14,
+          }}>
+            {todayTasksLocal.length}건 모두 완료 · 오늘 번 돈 ₩{todayEarningLocal.toLocaleString("ko-KR")}
+          </div>
+          <div style={{
+            background: "var(--bg-secondary)",
+            borderRadius: 10,
+            padding: "10px 12px",
+            fontSize: 12, color: "var(--text-secondary)",
+            fontWeight: 600,
+          }}>
+            💡 다음 일정은 아래에서 catch
+          </div>
+        </div>
+      )}
 
       {/* 2. 진행중 박스 (V14 통합 — 작업 종류 색 + 사이즈 키움) */}
       {activeTask && (() => {
@@ -1012,64 +1066,93 @@ function MainScreen({
           }}>
             예정된 일정 없음
           </div>
-        ) : (
-          upcomingTasks.map(task => (
-            <div
-              key={task.id}
-              onClick={() => onTaskClick(task.id)}
-              className="clickable"
-              style={{
-                display: "flex", alignItems: "center",
-                padding: 14,
-                background: "var(--bg-secondary)",
-                borderRadius: 10,
-                marginBottom: 8,
-                cursor: "pointer",
-              }}
-            >
-              <div style={{ width: 64 }}>
-                <div className="mono" style={{
-                  fontSize: 17, color: "var(--text-primary)",
-                  fontWeight: 800,
-                }}>
-                  {task.time || task.scheduledTime || "—"}
-                </div>
-                {task.duration && (
-                  <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                    {task.duration}
+        ) : (() => {
+          // V14 v6 — 날짜별 그룹화 (사장님 spec)
+          const groups = {};
+          upcomingTasks.forEach(t => {
+            const k = t.scheduledDate || "unknown";
+            if (!groups[k]) groups[k] = [];
+            groups[k].push(t);
+          });
+          const sortedDates = Object.keys(groups).sort();
+          const todayKey = new Date().toISOString().slice(0, 10);
+          const tomorrowKey = (() => {
+            const d = new Date(); d.setDate(d.getDate() + 1);
+            return d.toISOString().slice(0, 10);
+          })();
+          function dateLabel(ymd) {
+            if (ymd === todayKey) return "오늘";
+            if (ymd === tomorrowKey) return "내일";
+            const [y, m, d] = ymd.split("-").map(Number);
+            const dt = new Date(y, m - 1, d);
+            const days = ["일","월","화","수","목","금","토"];
+            return `${m}/${d} (${days[dt.getDay()]})`;
+          }
+          return sortedDates.map(date => (
+            <div key={date}>
+              <div style={{
+                fontSize: 12, color: "var(--text-secondary)",
+                fontWeight: 700, marginBottom: 6, marginTop: 8,
+                paddingLeft: 4,
+              }}>
+                📅 {dateLabel(date)} · {groups[date].length}건
+              </div>
+              {groups[date].map(task => (
+                <div
+                  key={task.id}
+                  onClick={() => onTaskClick(task.id)}
+                  className="clickable"
+                  style={{
+                    display: "flex", alignItems: "center",
+                    padding: 14,
+                    background: "var(--bg-secondary)",
+                    borderRadius: 10,
+                    marginBottom: 8,
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ width: 64 }}>
+                    <div className="mono" style={{
+                      fontSize: 17, color: "var(--text-primary)",
+                      fontWeight: 800,
+                    }}>
+                      {task.time || task.scheduledTime || "—"}
+                    </div>
+                    {task.duration && (
+                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                        {task.duration}
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <div style={{ flex: 1, padding: "0 10px", minWidth: 0 }}>
-                <div style={{
-                  fontSize: 16, color: "var(--text-primary)", fontWeight: 700,
-                  display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
-                }}>
-                  <span>{task.customer}</span>
-                  <span style={{
-                    fontSize: 12, color: "var(--text-secondary)",
-                    fontWeight: 600,
-                  }}>
-                    {task.address}
-                  </span>
+                  <div style={{ flex: 1, padding: "0 10px", minWidth: 0 }}>
+                    <div style={{
+                      fontSize: 16, color: "var(--text-primary)", fontWeight: 700,
+                      display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
+                    }}>
+                      <span>{task.customer}</span>
+                      <span style={{
+                        fontSize: 12, color: "var(--text-secondary)",
+                        fontWeight: 600,
+                      }}>
+                        {task.address}
+                      </span>
+                    </div>
+                    <div style={{
+                      fontSize: 13, marginTop: 4,
+                      display: "flex", alignItems: "center", gap: 4,
+                    }}>
+                      <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
+                      <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
+                        {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
+                      </span>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 18, color: "var(--text-secondary)" }}>›</span>
                 </div>
-                <div style={{
-                  fontSize: 13,
-                  marginTop: 4,
-                  display: "flex", alignItems: "center", gap: 4,
-                }}>
-                  <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
-                  <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
-                    {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
-                  </span>
-                </div>
-              </div>
-              <span style={{
-                fontSize: 18, color: "var(--text-secondary)",
-              }}>›</span>
+              ))}
             </div>
-          ))
-        )}
+          ));
+        })()}
       </div>
     </div>
   );

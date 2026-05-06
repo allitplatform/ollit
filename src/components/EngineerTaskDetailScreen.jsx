@@ -59,12 +59,35 @@ function sendSms(phone) {
 }
 
 function openMap(task) {
-  const addr = encodeURIComponent(task.fullAddress || task.address || "");
-  if (!addr) {
-    alert("주소 없음");
-    return;
-  }
-  window.open(`https://map.naver.com/v5/search/${addr}`, "_blank");
+  const addrRaw = task.fullAddress || task.address || "";
+  if (!addrRaw) { alert("주소 없음"); return; }
+  const addr = encodeURIComponent(addrRaw);
+  // V14 v6 — 네이버 지도 앱 시도 → 1.5초 후 웹 fallback
+  const appUrl = `nmap://search?query=${addr}&appname=ollit`;
+  const webUrl = `https://map.naver.com/v5/search/${addr}`;
+  const start = Date.now();
+  window.location.href = appUrl;
+  setTimeout(() => {
+    if (Date.now() - start < 2000 && document.visibilityState === "visible") {
+      window.open(webUrl, "_blank");
+    }
+  }, 1500);
+}
+
+function openTmap(task) {
+  const addrRaw = task.fullAddress || task.address || "";
+  if (!addrRaw) { alert("주소 없음"); return; }
+  const addr = encodeURIComponent(addrRaw);
+  // V14 v6 — T맵 앱 시도 → 1.5초 후 웹 fallback
+  const appUrl = `tmap://route?goalname=${addr}&goaladdr=${addr}`;
+  const webUrl = `https://tmap.life/?q=${addr}`;
+  const start = Date.now();
+  window.location.href = appUrl;
+  setTimeout(() => {
+    if (Date.now() - start < 2000 && document.visibilityState === "visible") {
+      window.open(webUrl, "_blank");
+    }
+  }, 1500);
 }
 
 // 작업 항목 정규화 (INITIAL_TASKS는 단일 workType/appliance만 — items 배열로 변환)
@@ -992,17 +1015,10 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
 }
 
 // ──────────────── 이동 정보 (확정만) ────────────────
-// V14 — 길찾기 두 버튼 (네이버 그린 / T맵 파랑)
+// V14 v6 — 길찾기 두 버튼 (네이버 그린 / T맵 파랑) + 앱 URL scheme
 function MapButtons({ task }) {
-  const addr = encodeURIComponent(task.fullAddress || task.address || "");
-  function openNaver() {
-    if (!addr) return;
-    window.open(`https://map.naver.com/v5/search/${addr}`, "_blank");
-  }
-  function openTmap() {
-    if (!addr) return;
-    window.open(`https://apis.openapi.sk.com/tmap/app/routes?appKey=guest&name=${addr}`, "_blank");
-  }
+  function openNaver() { openMap(task); }
+  function openTmapBtn() { openTmap(task); }
   return (
     <div style={{ padding: "0 16px 14px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
@@ -1026,7 +1042,7 @@ function MapButtons({ task }) {
           }}>N</span>
           네이버 지도
         </button>
-        <button onClick={openTmap} style={{
+        <button onClick={openTmapBtn} style={{
           padding: 13,
           background: "var(--card-bg)",
           border: "1.5px solid #1F8AFF",
