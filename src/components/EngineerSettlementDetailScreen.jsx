@@ -267,49 +267,58 @@ function WorkSettlementCard({ work, onClick }) {
         <UsolNBadge task={{ client: work.client, workType: work.workType }}/>
       </div>
 
-      {/* V14 v6 — 가로형 2박스 (수익 + 수수료) / 마이너스 X (사장님 spec) */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        {/* 내 수익 (핑크 박스) */}
+      {/* V14 v6 — 위계 박스 (수익 큰 / 구분선 / 수수료 작게 / 사장님 spec) */}
+      <div style={{
+        background: "var(--earning-box-bg, #FFE5F2)",
+        borderRadius: 12,
+        padding: "14px 16px",
+      }}>
+        {/* 내 수익 (큰 / 22px / 800) */}
         <div style={{
-          background: "var(--earning-box-bg, #FFE5F2)",
-          borderRadius: 12,
-          padding: "10px 12px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: 8,
         }}>
-          <div style={{
-            fontSize: 11, color: "#FF1B8D",
-            fontWeight: 700, marginBottom: 2,
+          <span style={{
+            fontSize: 12, color: "#FF1B8D", fontWeight: 700,
           }}>
             💰 내 수익
-          </div>
-          <div style={{
-            fontSize: 17, fontWeight: 800,
+          </span>
+          <span style={{
+            fontSize: 22, fontWeight: 800,
             color: "#FF1B8D",
-            letterSpacing: "-0.3px",
+            letterSpacing: "-0.5px",
             fontFamily: "inherit",
           }}>
             ₩{(estEarning || 0).toLocaleString("ko-KR")}
-          </div>
+          </span>
         </div>
-        {/* 수수료 (회색 박스 / 마이너스 X) */}
+        {/* 구분선 (옅은 핑크) */}
         <div style={{
-          background: "var(--fee-box-bg, #F5F2ED)",
-          borderRadius: 12,
-          padding: "10px 12px",
+          height: 1,
+          background: "rgba(255, 27, 141, 0.15)",
+          marginBottom: 8,
+        }}/>
+        {/* 수수료 (작게 / 12px / 회색) */}
+        <div style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
         }}>
-          <div style={{
-            fontSize: 11, color: "var(--text-secondary)",
-            fontWeight: 700, marginBottom: 2,
+          <span style={{
+            fontSize: 11, color: "var(--text-tertiary, #999)",
+            fontWeight: 600,
           }}>
             수수료
-          </div>
-          <div style={{
-            fontSize: 17, fontWeight: 700,
-            color: "var(--text-secondary)",
-            letterSpacing: "-0.3px",
+          </span>
+          <span style={{
+            fontSize: 12, fontWeight: 700,
+            color: "var(--text-tertiary, #999)",
             fontFamily: "inherit",
           }}>
             ₩{(estFee || 0).toLocaleString("ko-KR")}
-          </div>
+          </span>
         </div>
       </div>
     </div>
