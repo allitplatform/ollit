@@ -104,12 +104,13 @@ function openTmap(task) {
 }
 
 // 작업 항목 정규화 (INITIAL_TASKS는 단일 workType/appliance만 — items 배열로 변환)
+// V14 v7 — 사장님 catch: name = appliance(기종) 박음 (workType X)
 function getTaskItems(task) {
   if (Array.isArray(task.items) && task.items.length > 0) return task.items;
   if (!task.workType) return [];
   return [{
     id: `${task.id}-1`,
-    name: task.workType,
+    name: task.appliance || task.workType,
     qty: task.qty || 1,
     price: task.estimateTotal || 0,
     serviceType: task,
