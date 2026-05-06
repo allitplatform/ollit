@@ -21,6 +21,7 @@ import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "../components/WorkItemRow.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
+import { workDateLabel, workDateColor, relativeLabel, fullDateLabel } from "../utils/dateLabel.js";
 // V13-FINAL2 — 4탭 + 공유 컴포넌트
 import { EngineerBottomNav } from "../components/EngineerBottomNav.jsx";
 import { EngineerSettleTab } from "../components/EngineerSettleTab.jsx";
@@ -774,6 +775,15 @@ function MainScreen({
             position: "absolute", left: 0, top: 0, bottom: 0,
             width: 4, background: "#03C75A",
           }}/>
+          {/* 날짜 라인 */}
+          <div style={{
+            fontSize: 11, fontWeight: 700,
+            color: "#FF1B8D",
+            marginBottom: 8,
+            letterSpacing: 0.3,
+          }}>
+            {workDateLabel(todayStrLocal)}
+          </div>
           <div style={{
             display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
           }}>
@@ -798,7 +808,7 @@ function MainScreen({
             fontSize: 12, color: "var(--text-secondary)",
             fontWeight: 600,
           }}>
-            💡 다음 일정은 아래에서 catch
+            💡 다음 일정은 아래에서 확인하세요
           </div>
         </div>
       )}
@@ -1075,27 +1085,15 @@ function MainScreen({
             groups[k].push(t);
           });
           const sortedDates = Object.keys(groups).sort();
-          const todayKey = new Date().toISOString().slice(0, 10);
-          const tomorrowKey = (() => {
-            const d = new Date(); d.setDate(d.getDate() + 1);
-            return d.toISOString().slice(0, 10);
-          })();
-          function dateLabel(ymd) {
-            if (ymd === todayKey) return "오늘";
-            if (ymd === tomorrowKey) return "내일";
-            const [y, m, d] = ymd.split("-").map(Number);
-            const dt = new Date(y, m - 1, d);
-            const days = ["일","월","화","수","목","금","토"];
-            return `${m}/${d} (${days[dt.getDay()]})`;
-          }
           return sortedDates.map(date => (
             <div key={date}>
               <div style={{
-                fontSize: 12, color: "var(--text-secondary)",
+                fontSize: 12,
+                color: workDateColor(date),
                 fontWeight: 700, marginBottom: 6, marginTop: 8,
                 paddingLeft: 4,
               }}>
-                📅 {dateLabel(date)} · {groups[date].length}건
+                📅 {workDateLabel(date)} · {groups[date].length}건
               </div>
               {groups[date].map(task => (
                 <div

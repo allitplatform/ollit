@@ -13,6 +13,7 @@ import {
   TaskVisitOnlyScreen,
 } from "./EngineerTaskCompletionScreens.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
 
@@ -1624,8 +1625,16 @@ function CancelScreen({ task, onBack, onConfirm }) {
         <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
           {task.customer}님
         </div>
+        {/* V14 v6 — 날짜 라인 (사장님 spec: '5월 7일 (목) · 내일') */}
+        <div style={{
+          fontSize: 11,
+          color: workDateColor(task.scheduledDate),
+          fontWeight: 700, marginTop: 4, marginBottom: 2,
+        }}>
+          {workDateLabel(task.scheduledDate) || "—"}
+        </div>
         <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>
-          {task.scheduledDate || "—"} {task.scheduledTime || ""} · {task.address || ""}
+          {task.scheduledTime || ""} · {task.address || ""}
         </div>
       </div>
 
