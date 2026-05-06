@@ -665,6 +665,7 @@ function WorkMainCard({ task }) {
                 appliance={item.name}
                 qty={item.qty}
                 price={item.price}
+                client={task.client}
                 dividerTop={idx > 0}
               />
             ))}
@@ -893,6 +894,7 @@ function TaskItemsList({ task }) {
             appliance={item.name}
             qty={item.qty}
             price={item.price}
+            client={task.client}
             dividerTop={idx > 0}
           />
         ))}

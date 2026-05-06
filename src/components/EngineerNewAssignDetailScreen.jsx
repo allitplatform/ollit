@@ -191,6 +191,7 @@ export function EngineerNewAssignDetailScreen({
               appliance={task.appliance}
               qty={task.qty}
               price={task.estimateTotal}
+              client={task.client}
               dividerTop={false}
             />
           </div>

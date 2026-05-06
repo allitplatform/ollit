@@ -760,56 +760,67 @@ function MainScreen({
         </div>
       </div>
 
-      {/* V14 v6 — 오늘 모두 완료 카드 (사장님 spec) */}
+      {/* V14 v6 — 오늘 수고하셨습니다 카드 (검정 + 핑크 / 사장님 spec) */}
       {allDoneToday && (
         <div style={{
           margin: "0 16px 14px",
-          background: "var(--card-bg)",
-          border: "1.5px solid #03C75A",
+          background: "#1A1A1A",
           borderRadius: 18,
-          padding: "20px 18px",
-          position: "relative",
-          overflow: "hidden",
+          padding: "22px 20px",
+          color: "#fff",
+          boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
         }}>
-          <div style={{
-            position: "absolute", left: 0, top: 0, bottom: 0,
-            width: 4, background: "#03C75A",
-          }}/>
-          {/* 날짜 라인 */}
+          {/* 날짜 라인 (핑크) */}
           <div style={{
             fontSize: 11, fontWeight: 700,
             color: "#FF1B8D",
-            marginBottom: 8,
+            marginBottom: 10,
             letterSpacing: 0.3,
           }}>
             {workDateLabel(todayStrLocal)}
           </div>
+          {/* 헤드라인 */}
           <div style={{
-            display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
+            fontSize: 22, fontWeight: 700,
+            color: "#fff",
+            letterSpacing: "-0.4px",
+            marginBottom: 6,
           }}>
-            <span style={{ fontSize: 18 }}>🎉</span>
-            <span style={{
-              fontSize: 14, fontWeight: 700,
-              color: "#03C75A",
-            }}>
-              오늘 수고하셨습니다
+            🎉 오늘 수고하셨습니다
+          </div>
+          {/* 통계 */}
+          <div style={{
+            fontSize: 13, color: "#C8C8C8",
+            fontWeight: 600, marginBottom: 18,
+          }}>
+            {todayTasksLocal.length}건 완료 ·{" "}
+            <span style={{ color: "#FF1B8D", fontWeight: 700 }}>
+              오늘 번 돈 ₩{todayEarningLocal.toLocaleString("ko-KR")}
             </span>
           </div>
-          <div style={{
-            fontSize: 13, color: "var(--text-secondary)",
-            fontWeight: 600, marginBottom: 14,
-          }}>
-            {todayTasksLocal.length}건 모두 완료 · 오늘 번 돈 ₩{todayEarningLocal.toLocaleString("ko-KR")}
-          </div>
-          <div style={{
-            background: "var(--bg-secondary)",
-            borderRadius: 10,
-            padding: "10px 12px",
-            fontSize: 12, color: "var(--text-secondary)",
-            fontWeight: 600,
-          }}>
-            💡 다음 일정은 아래에서 확인하세요
-          </div>
+          {/* 내일 일정 보기 (핑크 풀) */}
+          <button
+            onClick={() => {
+              if (typeof document !== "undefined") {
+                const next = document.querySelector('[data-next-schedule="true"]');
+                if (next) next.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            }}
+            style={{
+              width: "100%",
+              padding: 14,
+              background: "#FF1B8D",
+              color: "#fff",
+              border: "none",
+              borderRadius: 12,
+              fontSize: 14, fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            }}
+          >
+            📅 내일 일정 보기 →
+          </button>
         </div>
       )}
 
@@ -904,6 +915,7 @@ function MainScreen({
               appliance={activeTask.appliance}
               qty={activeTask.qty}
               price={activeTask.estimateTotal}
+              client={activeTask.client}
               dividerTop={true}
             />
           </div>
@@ -1059,7 +1071,7 @@ function MainScreen({
       )}
 
       {/* 5. 다음 일정 (시간순) — V14 50대 글자 크기 */}
-      <div style={{ padding: "0 16px" }}>
+      <div data-next-schedule="true" style={{ padding: "0 16px" }}>
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
           marginBottom: 10, paddingLeft: 4, fontWeight: 700,

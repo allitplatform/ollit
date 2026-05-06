@@ -1,18 +1,19 @@
-// V14 최종 — 작업 항목 한 줄 박스 (메인 카드 통일 패턴)
-// 컬러 박스 36×36 + 작업명 + 단가 (작업 종류 색 19px)
+// V14 v6 — 작업 항목 한 줄 박스 (사장님 spec 정확)
+// 컬러 박스 36×36 + 작업 종류 (작은/컬러) + 기종 ×수량 (큰/검정) + 단가 우측
 // 사용처: 메인 홈 진행중 카드 / 작업 상세 / 새 배정 상세
 
-import { getWorkTypeColors, isDarkMode } from "../utils/workTypeColors.js";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 
-export function WorkItemRow({ workType, appliance, qty, price, dividerTop = true }) {
+function isUsolNCleaning(client, workType) {
+  return client === "유솔홈케어 N" && (workType || "").includes("세척");
+}
+
+export function WorkItemRow({ workType, appliance, qty, price, client, dividerTop = true }) {
   const colors = getWorkTypeColors(workType);
   const isDark = useIsDark();
   const boxBg = isDark ? colors.box.dark : colors.box.light;
-
-  const itemName = appliance
-    ? `${appliance}${qty ? ` ×${qty}` : ""}`
-    : `${colors.name}${qty ? ` ×${qty}` : ""}`;
+  const isUsolN = isUsolNCleaning(client, workType);
 
   return (
     <div style={{
@@ -32,19 +33,36 @@ export function WorkItemRow({ workType, appliance, qty, price, dividerTop = true
         {colors.icon}
       </div>
 
-      {/* 작업명 (가운데, 14px) */}
-      <span style={{
-        fontSize: 14, color: "var(--text-primary)",
-        flex: 1, fontWeight: 600,
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>
-        {itemName}
-      </span>
+      {/* 가운데: 종류 (작은/컬러) + 기종 ×수량 (큰/검정) */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 12, fontWeight: 700,
+          color: colors.main,
+          marginBottom: 2,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span>{colors.name}</span>
+          {isUsolN && (
+            <span style={{
+              background: "#03C75A", color: "#fff",
+              fontSize: 9, padding: "2px 5px",
+              borderRadius: 4, fontWeight: 800,
+            }}>N</span>
+          )}
+        </div>
+        <div style={{
+          fontSize: 14, fontWeight: 700,
+          color: "var(--text-primary)",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {appliance || colors.name}{qty ? ` ×${qty}` : ""}
+        </div>
+      </div>
 
-      {/* 단가 (우측, 작업 종류 색 19px) */}
+      {/* 단가 (우측, 컬러 17/800) */}
       {price != null && price > 0 && (
         <span style={{
-          fontSize: 19, color: colors.main, fontWeight: 600,
+          fontSize: 17, color: colors.main, fontWeight: 800,
           fontFamily: "inherit",
           letterSpacing: "-0.3px",
           flexShrink: 0,
