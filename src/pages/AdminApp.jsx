@@ -1947,13 +1947,80 @@ export default function AdminApp({ user, onLogout }) {
         onAssign={async (eng) => {
           // V14 2B-3 — 진짜 assignEngineer API (시트 Q 배정기사 + R 상태 박힘)
           // V14 속도 Phase 1 — Optimistic Update / fetchTasks 박지 X / apiTasks 직접 update
+          // V14 재배정 catch — 옛 기사 박혔으면 별도 흐름 (N + R 박지 X / '약속대기' 박힘)
           if (!selectedTask?.id || !eng?.name) {
             addToast({ type: "completed", title: "배정 X", message: "작업 / 기사 박지 X" });
             return;
           }
+          // V14 재배정 catch — 옛 기사 박혔는지 박기
+          const oldEngineer = selectedTask.assignedEngineer || selectedTask.engineer || "";
+          const isReassignment = !!oldEngineer && oldEngineer !== eng.name;
           setAssigning(true);
           setAssignError("");
           try {
+            // V14 재배정 — apiUpdateTask 호출 (Q + N catch X + R='약속대기' 한 번에)
+            if (isReassignment) {
+              console.log('[V14 재배정]', { taskId: selectedTask.id, oldEngineer, newEngineer: eng.name });
+              const res = await apiUpdateTask(selectedTask.id, {
+                assignedEngineer: eng.name,
+                // V14 헌법 — 새 기사가 새 일정 박는 catch (옛 N catch X)
+                scheduledAt: "",
+                confirmedAt: "",
+                confirmedDate: "",
+                confirmedTime: "",
+                status: "약속대기",
+              });
+              if (!res || res.ok === false) {
+                setAssignError((res && res.error) || '재배정 실패');
+                setAssigning(false);
+                return;
+              }
+              // V14 재배정 — Optimistic Update
+              setApiTasks(prev => prev.map(t =>
+                t.id === selectedTask.id
+                  ? {
+                      ...t,
+                      assignedEngineer: eng.name, engineer: eng.name, 배정기사: eng.name,
+                      scheduledAt: "", confirmedAt: "", 확정일시: "",
+                      schedule: "협의", time: "협의",
+                      status: '약속대기', 상태: '약속대기', state: 'waiting',
+                    }
+                  : t
+              ));
+              setSelectedTask(prev => prev ? {
+                ...prev,
+                assignedEngineer: eng.name, engineer: eng.name,
+                scheduledAt: "", confirmedAt: "",
+                schedule: "협의", time: "협의",
+                status: '약속대기', state: 'waiting',
+              } : prev);
+              updateReception(selectedTask.id, {
+                acceptedEngineer: eng.name,
+                engineerId: eng.id || eng.engineerId,
+                engineer: eng.name, assignedEngineer: eng.name,
+                scheduledAt: "", confirmedAt: "",
+                status: "약속대기", state: "waiting",
+                reassignedAt: new Date().toISOString(),
+              });
+              invalidateRecommendCache();
+              addNotification({
+                type: "assignment",
+                title: "기사 재배정",
+                message: `${selectedTask?.customer || ""} (${selectedTask?.workType || ""})`,
+                subInfo: `${oldEngineer} → ${eng.name} (일정 협의 catch)`,
+                taskId: selectedTask?.id,
+              });
+              addToast({
+                type: "assignment",
+                title: "✓ 재배정 박혔어",
+                message: `${eng.name} 기사 / 일정 협의 catch`,
+              });
+              setAssigning(false);
+              setScreen("taskDetail");
+              return;
+            }
+
+            // V14 새 배정 (옛 기사 박지 X) — assignEngineer 호출 (박은 거 catch)
             console.log('[V14 2B-3] assignEngineer', { taskId: selectedTask.id, engineerName: eng.name });
             const res = await apiAssignEngineer(selectedTask.id, eng.name);
             console.log('[V14 2B-3] 응답:', res);
