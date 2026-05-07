@@ -596,7 +596,7 @@ function _v14NormalizeTask(t) {
   const region    = t.region || t.지역 || _v14ExtractRegion(address);
   const principal = t.principal || t.client || t.원청 || "";
   const channel   = t.channel || t.채널 || "";
-  const summary   = t.summary || t.요약 || "";
+  const summary   = t.summary || t.작업요약 || t.요약 || "";
   const status    = t.status || t.상태 || "";
   const reqDate   = t.requestedDate || t.scheduledDate || t.예약일 || "";
   const reqTime   = t.requestedTime || t.scheduledTime || t.예약시간 || "";
@@ -1942,6 +1942,7 @@ export default function AdminApp({ user, onLogout }) {
       <AssignedTasksScreen
         t={t}
         filter={assignedFilter}
+        apiTasks={apiTasks}
         onBack={() => { goBack(); setAssignedFilter(null); }}
         onMemo={(task) => { setSelectedTask(task); setScreen("memoAdd"); }}
         onEdit={(task) => { setSelectedTask(task); setScreen("taskEdit"); }}
@@ -2351,33 +2352,37 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>🤝</span>} label="원청 수수료"        value={dynamicStats?.revenue?.principal ?? TODAY_STATS.principalFee} color={t.text}/>
         </div>
 
-        {/* 4. 긴급 알림 */}
-        <div onClick={onClickUrgentAssign} className="clickable" style={{
-          marginBottom: 16,
-          background: t.warningBg,
-          border: `1.5px solid ${t.warningBorder}`,
-          borderRadius: 12,
-          padding: "12px 14px",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <AlertTriangle size={13} style={{ color: t.warning }}/>
-            <span style={{ fontSize: 10, fontWeight: 800, color: t.warning, letterSpacing: 0.5 }}>긴급 · 당일 작업</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 2 }}>
-                {URGENT_TASK.customer} <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>· {URGENT_TASK.principal}</span>
-              </div>
-              <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.5 }}>
-                {URGENT_TASK.region} · {URGENT_TASK.appliance} ×{URGENT_TASK.qty} · {URGENT_TASK.schedule}
-              </div>
+        {/* V14 — 긴급/당일 (apiTasks 박힌 거 catch / 이지은 시뮬 폐기) */}
+        {dynamicStats?.urgentTasks && dynamicStats.urgentTasks.length > 0 && (
+          <div onClick={onClickUrgentAssign} className="clickable" style={{
+            marginBottom: 16,
+            background: t.warningBg,
+            border: `1.5px solid ${t.warningBorder}`,
+            borderRadius: 12,
+            padding: "12px 14px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <AlertTriangle size={13} style={{ color: t.warning }}/>
+              <span style={{ fontSize: 10, fontWeight: 800, color: t.warning, letterSpacing: 0.5 }}>
+                긴급 · 당일 작업 ({dynamicStats.urgentTasks.length}건)
+              </span>
             </div>
-            <button style={{
-              padding: "8px 14px", background: t.accent, color: "white", border: "none", borderRadius: 8,
-              fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
-            }}>배정</button>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 2 }}>
+                  {dynamicStats.urgentTasks[0].customer} <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>· {dynamicStats.urgentTasks[0].principal}</span>
+                </div>
+                <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.5 }}>
+                  {dynamicStats.urgentTasks[0].region} · {dynamicStats.urgentTasks[0].appliance || ""} {dynamicStats.urgentTasks[0].qty ? `×${dynamicStats.urgentTasks[0].qty}` : ""} · {dynamicStats.urgentTasks[0].schedule || dynamicStats.urgentTasks[0].time || "협의"}
+                </div>
+              </div>
+              <button style={{
+                padding: "8px 14px", background: t.accent, color: "white", border: "none", borderRadius: 8,
+                fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+              }}>배정</button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 탭 */}
@@ -3035,9 +3040,28 @@ function PlaceholderScreen({ t, title, label, onBack }) {
 // ─────────────────────────────────────────────
 // 배정 완료 / 일정 확정 화면 (Step 2-5b)
 // ─────────────────────────────────────────────
-function AssignedTasksScreen({ t, filter, onBack, onMemo, onEdit }) {
-  const all = ASSIGNED_TASKS.filter(x => x.assignmentStatus === filter);
+function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit }) {
+  // V14 — apiTasks 박힌 거 (status='확정' / Q 배정기사 박힘) catch
+  // V14 헌법: 확정 = 배정 완료 = 일정 확정 (동시 박힘 / 같은 status)
+  // assigned filter = 확정 박힌 모든 작업 (배정 박힘)
+  // confirmed filter = 확정 + N 확정일시 박힌 작업 (일정 박힘)
+  const statusOf = (x) => String(x.status || x.상태 || "").trim();
+  const allConfirmed = (apiTasks || []).filter(x => statusOf(x) === "확정");
   const isAssigned = filter === "assigned";
+
+  let all;
+  if (isAssigned) {
+    // 배정 완료 = 확정 박힌 모든 작업 (V14 = 확정 박히면 = 배정 박힘)
+    all = allConfirmed;
+  } else {
+    // 일정 확정 = 확정 + N 확정일시 박힌 작업
+    all = allConfirmed.filter(x => x.confirmedAt || x.확정일시);
+  }
+  // V14 — apiTasks 0건이면 옛 ASSIGNED_TASKS catch (옛 호환 / 시뮬 박힌 거)
+  if (allConfirmed.length === 0) {
+    all = ASSIGNED_TASKS.filter(x => x.assignmentStatus === filter);
+  }
+
   const titleText = isAssigned
     ? `배정 완료 ${all.length}건`
     : `일정 확정 ${all.length}건`;
@@ -3057,7 +3081,7 @@ function AssignedTasksScreen({ t, filter, onBack, onMemo, onEdit }) {
             해당 상태의 작업이 없어요
           </div>
         ) : all.map((task) => (
-          <AssignedCard key={task.id} t={t} task={task} onMemo={onMemo} onEdit={onEdit}/>
+          <AssignedCard key={task.id || task.taskCode} t={t} task={task} onMemo={onMemo} onEdit={onEdit}/>
         ))}
       </div>
     </div>
