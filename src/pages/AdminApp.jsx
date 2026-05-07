@@ -50,8 +50,14 @@ import { PrincipalEditScreen } from "../components/PrincipalEditScreen.jsx";
 import { NaverUploadScreen } from "../components/NaverUploadScreen.jsx";
 import { RatesManagementScreen } from "../components/RatesManagementScreen.jsx";
 import { createEmptyPrincipal } from "../data/principals.js";
-// V14 Week 1 1F + 2A — 진짜 API (시뮬 createTask + 시뮬 22건 폐기)
-import { createTask as apiCreateTask, calculateFee as apiCalculateFee, getTasks as apiGetTasks } from "../api.js";
+// V14 Week 1 1F + 2A + 2B-3 — 진짜 API (시뮬 createTask + 시뮬 22건 + RecommendScreen 폐기)
+import {
+  createTask as apiCreateTask,
+  calculateFee as apiCalculateFee,
+  getTasks as apiGetTasks,
+  getRecommendedEngineers as apiGetRecommendedEngineers,
+  assignEngineer as apiAssignEngineer,
+} from "../api.js";
 
 const NOW = "10:00";
 const TODAY = "MON · 27 APR";
@@ -605,6 +611,9 @@ function _v14NormalizeTask(t) {
   const appliance = t.appliance || t.기종      || (summaryItems[0]?.appliance) || "";
   const qty       = Number(t.qty || t.totalQty || t.수량 || (summaryItems[0]?.qty) || 1);
 
+  // V14 2B-3 — 배정 기사 매핑 (시트 Q 배정기사 컬럼)
+  const assignedEngineerName = t.assignedEngineer || t.engineer || t.배정기사 || "";
+
   // workItems 배열 — API 직접 박혀있으면 OK / summary 파싱 / 단일 wrap 순으로 catch
   let workItems = Array.isArray(t.workItems) && t.workItems.length > 0 ? t.workItems : null;
   if (!workItems && summaryItems.length > 0) {
@@ -629,6 +638,9 @@ function _v14NormalizeTask(t) {
     // V14 2B-1 — time = 약속 시간 (옛 시뮬은 "방금" 박혀있었지만 실데이터는 시간 박기)
     time: reqTime || reqDate || "협의",
     type: "work",                 // V14 — AdminTaskDetailScreen이 type === 'external'일 때 분기
+    // V14 2B-3 — 배정 기사 (시트 Q 컬럼) / engineer = 옛 컴포넌트 호환 (string 또는 object)
+    assignedEngineer: assignedEngineerName,
+    engineer:         assignedEngineerName || null,
     _api: true,                   // 진짜 API 출처 마킹
   };
 }
@@ -1337,6 +1349,9 @@ export default function AdminApp({ user, onLogout }) {
   const [apiTasks, setApiTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
+  // V14 2B-3 — 배정 진행/에러 (RecommendScreen 박힘)
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState("");
   // V14 디버그 — 0건 catch 시 raw 응답 박힘 (사장님 catch 용)
   const [tasksDebug, setTasksDebug] = useState(null);
 
@@ -1810,30 +1825,54 @@ export default function AdminApp({ user, onLogout }) {
         t={t}
         task={selectedTask}
         onBack={goBack}
-        onAssign={(eng) => {
-          // V11-9 — 배정 후 작업 상태 업데이트 (기존: setScreen(null)만 호출되어 진행 X 처럼 느껴짐)
-          if (selectedTask?.id) {
-            // 새접수 시드 (extraReceptions / NEW_RECEPTIONS) 업데이트
+        assigning={assigning}
+        assignError={assignError}
+        onAssign={async (eng) => {
+          // V14 2B-3 — 진짜 assignEngineer API (시트 Q 배정기사 + R 상태 박힘)
+          if (!selectedTask?.id || !eng?.name) {
+            addToast({ type: "completed", title: "배정 X", message: "작업 / 기사 박지 X" });
+            return;
+          }
+          setAssigning(true);
+          setAssignError("");
+          try {
+            console.log('[V14 2B-3] assignEngineer', { taskId: selectedTask.id, engineerName: eng.name });
+            const res = await apiAssignEngineer(selectedTask.id, eng.name);
+            console.log('[V14 2B-3] 응답:', res);
+            if (!res || res.ok === false) {
+              setAssignError((res && res.error) || '배정 실패');
+              setAssigning(false);
+              return;
+            }
+            // 즉시 UI 박힘 (refetch 전 lag 동안 박혀있음)
             updateReception(selectedTask.id, {
               autoAssignStatus: "accepted",
               acceptedEngineer: eng.name,
-              engineerId: eng.id,
+              engineerId: eng.id || eng.engineerId,
               engineer: eng.name,
-              status: "assigned",
+              assignedEngineer: eng.name,
+              status: "확정",
+              state: "scheduled",
               assignedAt: new Date().toISOString(),
             });
+            addNotification({
+              type: "assignment",
+              title: "기사 배정",
+              message: `${selectedTask?.customer || ""} (${selectedTask?.workType || ""})`,
+              subInfo: `${eng.name} 배정 완료`,
+              taskId: selectedTask?.id,
+            });
+            addToast({ type: "assignment", title: "✓ 배정 박혔어", message: `${eng.name} 기사` });
+            // 시트 새로고침 (정확 데이터 catch)
+            fetchTasks();
+            // 작업 상세 화면으로 돌아가기 (배정 박힌 기사 catch)
+            setAssigning(false);
+            setScreen("newReception");
+          } catch (e) {
+            console.error('[V14 2B-3] 배정 에러:', e);
+            setAssignError(e.message || '배정 실패');
+            setAssigning(false);
           }
-          addNotification({
-            type: "assignment",
-            title: "기사 배정",
-            message: `${selectedTask?.customer || ""} (${selectedTask?.workType || ""})`,
-            subInfo: `${eng.name} 배정 완료`,
-            taskId: selectedTask?.id,
-          });
-          addToast({ type: "assignment", title: "배정 완료", message: `${eng.name} 기사` });
-          // 새 접수 화면으로 복귀 (메인 X) — 다음 작업 처리 자연스럽게
-          setSelectedTask(null);
-          setScreen("newReception");
         }}
         onEngineerCardClick={(eng) => goEngineerDay(eng, "recommend")}
       />
@@ -5383,18 +5422,76 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   );
 }
 
-function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick }) {
+function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assigning = false, assignError = "" }) {
   // V11-10 — 모든 기사에서 선택 모달 (지역 매칭 X일 때 활성화)
   const [showAllEngineers, setShowAllEngineers] = useState(false);
+
+  // V14 2B-3 — 진짜 시트 catch (옛 ENGINEERS_MASTER + ZONE_MAPPINGS mock 폐기)
+  const [apiCandidates, setApiCandidates] = useState({ main: [], sub: [], capable: [] });
+  const [apiLoading, setApiLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
+  const [apiDebug, setApiDebug] = useState(null);
+
+  const mainWorkType = task ? (determineMainWorkType(task.workItems) || task.workType) : "";
+  const headItem = task ? ((task.workItems && task.workItems[0]) || { appliance: task.appliance, qty: task.qty }) : {};
+
+  useEffect(() => {
+    if (!task || !mainWorkType) return;
+    let cancelled = false;
+    (async () => {
+      setApiLoading(true);
+      setApiError("");
+      setApiDebug(null);
+      try {
+        const region = task.region || "";
+        const principal = task.principal || "";
+        console.log('[V14 2B-3] getRecommendedEngineers', { workType: mainWorkType, principal, region });
+        const res = await apiGetRecommendedEngineers(mainWorkType, principal, region);
+        console.log('[V14 2B-3] 응답:', res);
+        if (cancelled) return;
+        if (!res || res.ok === false) {
+          setApiError((res && res.error) || '추천 기사 catch X');
+          setApiDebug({ phase: 'error', res });
+          return;
+        }
+        // 응답 shape catch 다양성 (recommended / data / engineers / 그룹별 분리 등)
+        const main    = res.main    || res.recommended?.main    || [];
+        const sub     = res.sub     || res.recommended?.sub     || [];
+        const capable = res.capable || res.recommended?.capable || [];
+        // 응답이 평면 배열 (recommended)이면 group 박지 X → main에 박기
+        const flat = Array.isArray(res.recommended) ? res.recommended : (Array.isArray(res.engineers) ? res.engineers : null);
+        if (flat && main.length === 0 && sub.length === 0 && capable.length === 0) {
+          setApiCandidates({ main: flat, sub: [], capable: [] });
+        } else {
+          setApiCandidates({ main, sub, capable });
+        }
+        // 0건 박혀있으면 디버그 박기
+        const total = main.length + sub.length + capable.length + (flat ? flat.length : 0);
+        if (total === 0) {
+          setApiDebug({
+            phase: 'zero',
+            responseKeys: Object.keys(res || {}),
+            response: res,
+          });
+        }
+      } catch (e) {
+        console.error('[V14 2B-3] 에러:', e);
+        if (!cancelled) {
+          setApiError(e.message || '추천 기사 catch X');
+          setApiDebug({ phase: 'exception', error: e.message });
+        }
+      } finally {
+        if (!cancelled) setApiLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [task?.id, mainWorkType]);
 
   if (!task) {
     return <PlaceholderScreen t={t} title="추천 기사" label="작업 정보 없음" onBack={onBack}/>;
   }
 
-  // Step 5-3 — ZONE_MAPPINGS + ENGINEERS_MASTER 기반 후보 추출
-  const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
-  const headItem = (task.workItems && task.workItems[0]) || { appliance: task.appliance, qty: task.qty };
-  const candidates = getCandidateEngineers(mainWorkType, task.region, headItem.appliance);
+  const candidates = apiCandidates;
   const totalCandidates = candidates.main.length + candidates.sub.length + candidates.capable.length;
 
   // Step 5-3-3 — 그룹명 정정 ("벽걸이 전문" → "벽걸이 가능" / 신입도 포함)
@@ -5419,14 +5516,67 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick }) {
         </div>
       </div>
 
+      {/* V14 2B-3 — 배정 중 / 배정 에러 */}
+      {assigning && (
+        <div style={{ padding: "8px 16px", background: t.bgInset, fontSize: 11, color: t.textSecondary, fontWeight: 700, textAlign: "center" }}>
+          배정 박는 중...
+        </div>
+      )}
+      {assignError && (
+        <div style={{
+          margin: "8px 16px", padding: "10px 12px",
+          background: t.dangerBg || "#FEE2E2",
+          border: `1px solid ${t.danger || "#DC2626"}`,
+          borderRadius: 8,
+          fontSize: 11, fontWeight: 700, color: t.danger || "#B91C1C",
+        }}>⚠ 배정 X — {assignError}</div>
+      )}
+
       <div style={{ padding: "14px 16px 20px" }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
-          추천 기사 <span className="mono" style={{ color: t.accent }}>{totalCandidates}</span>명
-          <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
-          {extractZone(task.region) || "지역 추출 X"}
+          {apiLoading ? "추천 기사 catch 중..." : (
+            <>
+              추천 기사 <span className="mono" style={{ color: t.accent }}>{totalCandidates}</span>명
+              <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
+              {extractZone(task.region) || task.region || "지역 추출 X"}
+            </>
+          )}
         </div>
 
-        {totalCandidates === 0 ? (
+        {/* V14 2B-3 — API 에러 */}
+        {apiError && (
+          <div style={{
+            margin: "10px 0", padding: "10px 12px",
+            background: t.dangerBg || "#FEE2E2",
+            border: `1px solid ${t.danger || "#DC2626"}`,
+            borderRadius: 8,
+            fontSize: 12, fontWeight: 700, color: t.danger || "#B91C1C",
+          }}>⚠ {apiError}</div>
+        )}
+
+        {/* V14 2B-3 디버그 — 0건 catch 시 raw 응답 박기 */}
+        {!apiLoading && !apiError && apiDebug && apiDebug.phase === 'zero' && (
+          <div style={{
+            margin: "10px 0", padding: "10px 12px",
+            background: "#FFFBEB",
+            border: "1px solid #F59E0B",
+            borderRadius: 8,
+            fontSize: 11, fontWeight: 600, color: "#78350F",
+          }}>
+            <div style={{ fontWeight: 800, marginBottom: 4 }}>🔍 API 응답 디버그 (0건)</div>
+            <div>응답 키: <code style={{ background: "#FEF3C7", padding: "1px 4px" }}>{JSON.stringify(apiDebug.responseKeys)}</code></div>
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 700 }}>전체 응답 박기 ▼</summary>
+              <pre style={{
+                marginTop: 4, padding: 8, background: "#1A1A1A", color: "#A7F3D0",
+                borderRadius: 4, fontSize: 10, overflow: "auto", maxHeight: 200,
+                fontFamily: "monospace",
+              }}>{JSON.stringify(apiDebug.response, null, 2)}</pre>
+            </details>
+          </div>
+        )}
+
+        {apiLoading ? null : totalCandidates === 0 && !apiError ? (
           <div style={{ padding: "32px 20px", textAlign: "center", background: t.bgElevated, borderRadius: 12, border: `1px solid ${t.border}` }}>
             <div style={{ fontSize: 24, marginBottom: 10, opacity: 0.4 }}>🔍</div>
             <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 6 }}>이 지역에 등록된 기사가 없습니다</div>
@@ -5458,12 +5608,28 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick }) {
                   <span style={{ fontSize: 13, color: g.color }}>{g.list.length}명</span>
                 </div>
                 {g.list.map((eng) => {
-                  // Step 5-3-4 — capable 그룹: appliances 표시
-                  // main/sub 그룹: 작업 지역 매칭 1개만 (모든 zones 나열 X)
+                  // V14 2B-3 — API 엔지니어 우선 (eng.matchedZone / cleanZones / refrigZones / region)
+                  // 옛 ZONE_MAPPINGS fallback (API 응답 빈 키 catch X 시)
                   const taskZone = extractZone(task.region);
-                  const infoText = g.id === "capable"
-                    ? getEngineerApplianceList(eng.name, mainWorkType).join("·")
-                    : (getMatchedZone(eng.name, mainWorkType, taskZone) || "");
+                  let infoText = "";
+                  if (eng.matchedZone) {
+                    infoText = String(eng.matchedZone);
+                  } else if (g.id === "capable") {
+                    // appliance 가능 — API의 appliances / 옛 fallback
+                    const apps = Array.isArray(eng.appliances) ? eng.appliances
+                              : (typeof eng.appliances === "string" ? eng.appliances.split(/[,·]/).map(s => s.trim()) : []);
+                    const apiText = apps.filter(Boolean).join("·");
+                    infoText = apiText || (getEngineerApplianceList(eng.name, mainWorkType).join("·") || "");
+                  } else {
+                    // main/sub: workType별 zones 박기
+                    const apiZones = mainWorkType === "냉매충전"
+                      ? (eng.refrigZones || eng.냉매_지역)
+                      : (eng.cleanZones || eng.세척_지역);
+                    const apiZonesArr = Array.isArray(apiZones) ? apiZones
+                                      : (typeof apiZones === "string" ? apiZones.split(/[,]/).map(s => s.trim()).filter(Boolean) : []);
+                    const matched = apiZonesArr.find(z => z === taskZone) || apiZonesArr[0];
+                    infoText = matched || (getMatchedZone(eng.name, mainWorkType, taskZone) || "");
+                  }
                   return (
                     <RecommendCard
                       key={`${g.id}-${eng.id}`}

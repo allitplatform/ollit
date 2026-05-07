@@ -92,6 +92,34 @@ export async function getAllPolicies() {
 }
 
 // =====================================
+// V14 Week 2 2B-3 — 기사 / 추천 / 배정 API
+// =====================================
+
+// 시트 설정_기사 V2 read (5+ 열) — 모든 기사 catch
+export async function getEngineers() {
+  return apiCall('getEngineers', {});
+}
+
+// 추천 기사 (지역 + 작업유형 + 원청 매칭 / 시트 calc)
+// workType: '세척' / '냉매충전' / 등
+// principal: '올데이케어' / '에어컨프로 (KA)' / 등
+// region: '강남구' / '서초구' / 등
+export async function getRecommendedEngineers(workType, principal, region) {
+  return apiCall('getRecommendedEngineers', { workType, principal, region });
+}
+
+// 기사 배정 (시트 Q 배정기사 + R 상태=확정 박힘)
+export async function assignEngineer(taskId, engineerName) {
+  return apiCall('assignEngineer', { taskId, engineerName });
+}
+
+// 작업 다양한 컬럼 update (상태 변경 / 일정 변경 / 메모 / 등)
+// updates = { status, scheduledDate, scheduledTime, memo, ... }
+export async function updateTask(taskId, updates) {
+  return apiCall('updateTask', { taskId, ...updates });
+}
+
+// =====================================
 // 휴무 API ⭐ NEW
 // =====================================
 
