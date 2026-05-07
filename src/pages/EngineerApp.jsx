@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { getOffDays, addOffDay, deleteOffDay, getTasks } from "../api.js";
+import { getOffDays, addOffDay, deleteOffDay, getTasks, updateTask as apiUpdateTask } from "../api.js";
+import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
 import { 
   Phone, Navigation, CheckCircle2, MapPin, Wrench, Snowflake, Settings, Zap, 
   Sun, Moon, Bell, Camera, Wallet, ArrowRight, ArrowLeft, MessageCircle,
@@ -4010,11 +4011,81 @@ export default function EngineerApp({ user, onLogout }) {
     applyThemeVars(mode);
   }, [mode]);
 
-  // 공유 task state (shared/TasksContext.jsx)
-  const { tasks: allTasks, updateTask, resetTasks } = useTasks();
+  // 공유 task state (shared/TasksContext.jsx) — 옛 mock (extraAssignments / pendingAcceptances 박힘)
+  const { tasks: allTasks, updateTask: localUpdateTask, resetTasks } = useTasks();
 
-  // 본인 작업만 필터링 (engineerId 매칭)
-  const tasks = filterTasksForEngineer(allTasks, user?.engineerId);
+  // V14 — 진짜 시트 catch (apiTasks)
+  const [apiTasks, setApiTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksError, setTasksError] = useState("");
+
+  async function fetchTasks() {
+    setTasksLoading(true);
+    setTasksError("");
+    try {
+      console.log('[V14 EngineerApp] fetchTasks 시작');
+      const res = await getTasks('engineer', user?.engineerId || user?.id || 'engineer', null);
+      console.log('[V14 EngineerApp] raw 응답:', res);
+      if (!res || res.ok === false) {
+        setTasksError((res && res.error) || '불러오기 실패');
+        return;
+      }
+      const { list } = v14FindTaskList(res);
+      if (!Array.isArray(list)) {
+        setApiTasks([]);
+        return;
+      }
+      const normalized = list.map(v14NormalizeTask).filter(Boolean);
+      console.log('[V14 EngineerApp] normalized:', normalized.length, '건');
+      setApiTasks(normalized);
+    } catch (e) {
+      console.error('[V14 EngineerApp] fetchTasks 에러:', e);
+      setTasksError(e.message || '불러오기 실패');
+    } finally {
+      setTasksLoading(false);
+    }
+  }
+
+  // V14 — mount 시 한 번 + user 변경 시 재호출
+  useEffect(() => {
+    fetchTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.engineerId, user?.name]);
+
+  // V14 — updateTask = apiUpdateTask 호출 + Optimistic Update
+  const updateTask = async (taskId, updates) => {
+    if (!taskId) return;
+    console.log('[V14 EngineerApp] updateTask', { taskId, updates });
+
+    // Optimistic Update (즉시 UI catch)
+    setApiTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, ...updates } : t
+    ));
+    // 옛 호환 (TasksContext 박힌 거)
+    localUpdateTask(taskId, updates);
+
+    try {
+      // V14 — 시트 update 박기 (background / 5초 lag)
+      const res = await apiUpdateTask(taskId, updates);
+      console.log('[V14 EngineerApp] updateTask 응답:', res);
+      if (!res || res.ok === false) {
+        console.error('[V14 EngineerApp] updateTask 실패:', res);
+        fetchTasks();  // 실패 박힘 — refetch (시트 catch)
+      }
+    } catch (e) {
+      console.error('[V14 EngineerApp] updateTask 에러:', e);
+      fetchTasks();
+    }
+  };
+
+  // V14 — 본인 작업만 필터 (이름 매칭 우선 + ID 매칭)
+  // 시트 Q 배정기사 = 이름 박힘 (예: "류근학")
+  // user 박은 거 = name 박힘 (예: "류근학") + engineerId 박힘 (예: "E016")
+  const tasks = filterTasksForEngineerV14(
+    apiTasks.length > 0 ? apiTasks : allTasks,  // V14 우선 / 옛 mock fallback
+    user?.name,
+    user?.engineerId || user?.id
+  );
 
   const t = THEMES[mode];
   const selectedTask = tasks.find(x => x.id === selectedTaskId);
