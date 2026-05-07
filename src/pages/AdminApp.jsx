@@ -159,6 +159,19 @@ function formatWorkItem(item) {
   return `${item.workType} · ${item.appliance || "기종 미정"} ×${item.qty || 1}`;
 }
 
+// V14 2B-1 fix — 작업 항목 = 기종만 (작업유형은 별도 칩/알약 박혀있음)
+// 단일: "벽걸이 ×1" / multi: "벽걸이 ×1, 4way ×1" / 냉매충전: "냉매충전 ×1" (기종 없을 때 fallback)
+function formatWorkItemsAppliance(workItems) {
+  if (!workItems || workItems.length === 0) return "";
+  return workItems.map(item => {
+    const qty = item.qty || 1;
+    const appliance = item.appliance && String(item.appliance).trim();
+    if (appliance) return `${appliance} ×${qty}`;
+    // 기종 박지 X 박혀있어 → workType fallback (예: 옛 냉매충전 단일)
+    return `${item.workType || "—"} ×${qty}`;
+  }).join(", ");
+}
+
 // Step 5-1d — workItems 카드/알림 표시 (작업 종류별 그룹화)
 // 규칙:
 // - 1건            → "세척 · 벽걸이 ×2" / "냉매충전 ×1"
@@ -1778,6 +1791,15 @@ export default function AdminApp({ user, onLogout }) {
           setSelectedTask(selectedTaskDetail);
           setScreen("taskHistory");
         }}
+        onAssign={() => {
+          // V14 2B-1 fix — 기사 배정/변경 = RecommendScreen 진입
+          // (자동 배정 작업은 autoAssign / 그 외는 recommend / 옛 시뮬 mock OK)
+          const tk = selectedTaskDetail;
+          if (!tk) return;
+          const flow = WORK_TYPES_CONFIG[tk.workType]?.workflow || "manual_with_recommendation";
+          setSelectedTask(tk);
+          setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
+        }}
         user={user}
       />
     </Shell>;
@@ -2983,7 +3005,7 @@ function AssignedCard({ t, task, onMemo, onEdit }) {
 
       {/* 본문 */}
       <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
-        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItems(task.workItems) : `${task.appliance} ×${task.qty}`} · {task.schedule}
+        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`} · {task.schedule}
       </div>
       {task.estimateTotal > 0 && (
         <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginBottom: 6 }}>
@@ -3399,7 +3421,7 @@ function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
         )}
       </div>
       <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
-        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItems(task.workItems) : `${task.appliance} ×${task.qty}`} · {task.schedule}
+        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`} · {task.schedule}
       </div>
       {task.estimateTotal > 0 && (
         <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>
@@ -3475,7 +3497,7 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
         )}
       </div>
       <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
-        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItems(task.workItems) : `${task.appliance} ×${task.qty}`} · {task.schedule}
+        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`} · {task.schedule}
       </div>
       {task.estimateTotal > 0 && (
         <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>

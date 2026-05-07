@@ -25,7 +25,7 @@ function getStateInfo(task) {
   return STATE_MAP[task.state] || { label: "—", color: "var(--text-secondary)" };
 }
 
-export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, user }) {
+export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, user }) {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
   const [exceptionExpanded, setExceptionExpanded] = useState(false);
@@ -62,7 +62,7 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <DetailHeader task={task} onBack={onBack} onMenuAction={handleMenuAction}/>
       <MainCard task={task}/>
       <QuickActions task={task}/>
-      <EngineerCard task={task} onEdit={onEdit}/>
+      <EngineerCard task={task} onEdit={onEdit} onAssign={onAssign}/>
       <InfoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
       <CompletionNotice task={task}/>
       {showException && (
@@ -181,15 +181,15 @@ function MainCard({ task }) {
           </div>
         )}
 
-        {/* 시간 + 작업 */}
+        {/* 시간 + 작업 (V14 2B-1 fix — 기종 박기 / 작업유형은 별도 칩) */}
         <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
           🕐 {task.time || "—"}
           {task.state === "active" && task.startedAt && <> · 시작 {task.startedAt}</>}
           {Array.isArray(task.workItems) && task.workItems.length > 0 && (
-            <> · {task.workItems.map(w => `${w.workType}${w.qty ? ` ×${w.qty}` : ""}`).join(", ")}</>
+            <> · {task.workItems.map(w => `${w.appliance || w.workType || "—"}${w.qty ? ` ×${w.qty}` : ""}`).join(", ")}</>
           )}
-          {!task.workItems && task.workType && (
-            <> · {task.workType}{task.qty ? ` ×${task.qty}` : ""}</>
+          {!task.workItems && (task.appliance || task.workType) && (
+            <> · {task.appliance || task.workType}{task.qty ? ` ×${task.qty}` : ""}</>
           )}
         </div>
       </div>
@@ -246,7 +246,8 @@ function ActionButton({ icon, label, onClick, disabled }) {
 }
 
 // ──────────────── 4. EngineerCard ────────────────
-function EngineerCard({ task, onEdit }) {
+// V14 2B-1 fix — 기사 배정 = onAssign (RecommendScreen) / 기존 기사 변경 = onEdit
+function EngineerCard({ task, onEdit, onAssign }) {
   if (task.type === "external") return null;
 
   if (!task.engineer) {
@@ -263,7 +264,7 @@ function EngineerCard({ task, onEdit }) {
             아직 기사 미배정
           </div>
           <button
-            onClick={onEdit}
+            onClick={onAssign || onEdit}
             style={{
               marginTop: 8, padding: "6px 14px",
               background: "#FF1B8D",
@@ -315,7 +316,7 @@ function EngineerCard({ task, onEdit }) {
             </div>
           </div>
           <button
-            onClick={onEdit}
+            onClick={onAssign || onEdit}
             style={{
               padding: "4px 10px",
               background: "var(--bg-secondary)",
