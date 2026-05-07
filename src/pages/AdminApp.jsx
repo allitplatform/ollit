@@ -50,8 +50,8 @@ import { PrincipalEditScreen } from "../components/PrincipalEditScreen.jsx";
 import { NaverUploadScreen } from "../components/NaverUploadScreen.jsx";
 import { RatesManagementScreen } from "../components/RatesManagementScreen.jsx";
 import { createEmptyPrincipal } from "../data/principals.js";
-// V14 Week 1 1F — 진짜 API (시뮬 createTask 폐기)
-import { createTask as apiCreateTask, calculateFee as apiCalculateFee } from "../api.js";
+// V14 Week 1 1F + 2A — 진짜 API (시뮬 createTask + 시뮬 22건 폐기)
+import { createTask as apiCreateTask, calculateFee as apiCalculateFee, getTasks as apiGetTasks } from "../api.js";
 
 const NOW = "10:00";
 const TODAY = "MON · 27 APR";
@@ -507,18 +507,62 @@ const NOTI_TYPE_META = {
   urgent:             { icon: "⚠️", colorKey: "danger"  },
 };
 
+// V14 Week 2 2A — NEW_RECEPTIONS 시뮬 폐기 / 진짜 시트 catch (apiTasks)
+// 옛 호환을 위해 빈 배열로 박힘 — 데이터는 AdminApp의 apiTasks state에서 catch
 const NEW_RECEPTIONS = {
-  세척: [
-    { id: "A260427-005", customer: "박은서", phone: "010-1234-5678", appliance: "벽걸이", qty: 1, region: "강남 도곡", time: "10분 전", principal: "올데이케어",  schedule: "오늘 14:00", estimateTotal: 170000, memo: "" },
-    { id: "YS-260427-021", customer: "박서연", phone: "010-7891-2345", appliance: "스탠드", qty: 1, region: "강남 청담", time: "18분 전", principal: "유솔홈케어 H", schedule: "내일 오후", estimateTotal: 200000, memo: "네이버 결제 완료" },
-    { id: "CC-260427-014", customer: "정수아", phone: "010-4567-1234", appliance: "벽걸이", qty: 2, region: "송파 잠실", time: "1시간 전", principal: "올데이케어", schedule: "내일 오전", estimateTotal: 320000, memo: "" },
-  ],
-  냉매충전: [
-    // Step 5-3 v3 — autoAssignStatus 적용 / 카드 클릭 분기 (pushing → AutoAssignScreen / accepted → 작업 상세)
-    { id: "MG-260427-008", customer: "김지수", phone: "010-9012-3456", appliance: "벽걸이", qty: 2, region: "서초 잠원", time: "43분 전", principal: "에어컨프로", schedule: "내일 낮", workflow: "auto_first_accept", autoAssignStatus: "pushing",  acceptedEngineer: null,    pushCount: 4, estimateTotal: 240000, memo: "" },
-    { id: "A260427-006",  customer: "김민호", phone: "010-2345-6789", appliance: "스탠드", qty: 1, region: "송파 잠실", time: "30분 전", principal: "에어컨프로", schedule: "모레 오전", workflow: "auto_first_accept", autoAssignStatus: "accepted", acceptedEngineer: "김태승", estimateTotal: 130000, memo: "" },
-  ],
+  세척:    [],
+  냉매충전: [],
 };
+
+// V14 — 주소 첫 단어 = 지역 (예: "강남구 도곡동 ..." → "강남구")
+function _v14ExtractRegion(address) {
+  if (!address) return "";
+  const first = String(address).trim().split(/\s+/)[0];
+  return first || "";
+}
+
+// V14 — 시트 작업DB row → AdminApp 내부 task 객체로 정규화
+// API가 어떤 키로 반환하든 (taskId / id, principal / client 등) 양쪽 catch
+function _v14NormalizeTask(t) {
+  if (!t) return null;
+  const id        = t.id || t.taskId || t.task_id || t.작업번호 || "";
+  const customer  = t.customer || t.고객명 || "";
+  const phone     = t.phone || t.연락처 || t.전화 || "";
+  const address   = t.address || t.주소 || "";
+  const region    = t.region || t.지역 || _v14ExtractRegion(address);
+  const principal = t.principal || t.client || t.원청 || "";
+  const channel   = t.channel || t.채널 || "";
+  const workType  = t.workType || t.work_type || t.작업유형 || "";
+  const appliance = t.appliance || t.기종 || "";
+  const qty       = Number(t.qty || t.totalQty || t.수량 || 1);
+  const summary   = t.summary || t.요약 || "";
+  const status    = t.status || t.상태 || "";
+  const reqDate   = t.requestedDate || t.scheduledDate || t.예약일 || "";
+  const reqTime   = t.requestedTime || t.scheduledTime || t.예약시간 || "";
+  const memo      = t.memo || t.note || t.비고 || "";
+  const estimate  = Number(t.estimateTotal || t.quote || t.totalAmount || t.견적금액 || 0);
+  const settlement = t.settlementStatus || t.정산상태 || "";
+  const schedule  = t.schedule || [reqDate, reqTime].filter(Boolean).join(" ") || "협의";
+
+  // workItems 배열 — API가 직접 줘도 OK / 없으면 단일 항목으로 wrap
+  let workItems = Array.isArray(t.workItems) ? t.workItems : null;
+  if (!workItems && workType) {
+    workItems = [{ workType, appliance, qty }];
+  }
+
+  return {
+    id, customer, phone, address, region,
+    principal, channel, workType, appliance, qty,
+    summary, status, schedule, memo,
+    estimateTotal: estimate,
+    requestedDate: reqDate,
+    requestedTime: reqTime,
+    settlementStatus: settlement,
+    workItems: workItems || [],
+    time: "방금",     // 옛 표시 호환
+    _api: true,       // 진짜 API 출처 마킹
+  };
+}
 
 // LIVE_TASKS 는 Step 3-4 에서 제거됨 — TASKS_TODAY (ENGINEERS_DATA 평탄화) 가 단일 진실 소스
 // (정의는 ENGINEERS_DATA 아래)
@@ -1220,6 +1264,35 @@ export default function AdminApp({ user, onLogout }) {
   const [assignedFilter, setAssignedFilter] = useState(null);  // 'assigned' | 'confirmed'
   const [dashboardActiveTab, setDashboardActiveTab] = useState("overview");  // 외부에서 탭 변경 가능
 
+  // V14 Week 2 2A — 진짜 시트 작업DB catch (apiTasks)
+  const [apiTasks, setApiTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksError, setTasksError] = useState("");
+
+  async function fetchTasks() {
+    setTasksLoading(true);
+    setTasksError("");
+    try {
+      const res = await apiGetTasks('admin', user?.id || user?.userId || 'admin', null);
+      if (res && res.ok !== false) {
+        const list = res.tasks || res.data || res.rows || [];
+        setApiTasks(Array.isArray(list) ? list.map(_v14NormalizeTask) : []);
+      } else {
+        setTasksError((res && res.error) || '불러오기 실패');
+      }
+    } catch (e) {
+      setTasksError(e.message || '불러오기 실패');
+    } finally {
+      setTasksLoading(false);
+    }
+  }
+
+  // V14 — mount 시 한 번 + user 변경 시 재호출
+  useEffect(() => {
+    fetchTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.userId]);
+
   // Step 5 — 새 접수 등록 + 알림 (Phase 1 mock)
   // 새 접수 추가분 (NEW_RECEPTIONS const + 폼에서 등록한 항목)
   const [extraReceptions, setExtraReceptions] = useState([]);
@@ -1390,6 +1463,10 @@ export default function AdminApp({ user, onLogout }) {
         t={t}
         filter={newReceptionFilter}
         extraReceptions={extraReceptions}
+        apiTasks={apiTasks}
+        tasksLoading={tasksLoading}
+        tasksError={tasksError}
+        onRefresh={fetchTasks}
         receptionUpdates={receptionUpdates}
         onBack={() => { goBack(); setNewReceptionFilter(null); }}
         onAssign={(task) => {
@@ -1444,6 +1521,10 @@ export default function AdminApp({ user, onLogout }) {
         onSubmit={(form) => {
           addReception(form);
           setScreen("newReception");
+          // V14 2A — 진짜 API 등록 후 시트에서 다시 catch (작업번호 + 정확한 데이터)
+          if (form._v14ApiOk) {
+            fetchTasks();
+          }
         }}
       />
     </Shell>;
@@ -2821,45 +2902,57 @@ function AssignedCard({ t, task, onMemo, onEdit }) {
   );
 }
 
-function NewReceptionScreen({ t, filter, extraReceptions = [], receptionUpdates = {}, onBack, onAssign, onClickAdd, onClickPushing, onClickAccepted, onCardMenuAction }) {
-  // Step 5-1c — workItems 기반 분류 (세척+가스 같이 들어온 작업 → 양쪽 카테고리 표시)
-  // Step 5-3 v3 — receptionUpdates overlay (자동 배정 완료 등 카드 상태 변화 적용)
-  const [tasks, setTasks] = useState(() => {
-    // 구 데이터 (workItems 없음) → 단일 항목으로 wrap
+function NewReceptionScreen({
+  t, filter,
+  extraReceptions = [],
+  apiTasks = [],
+  tasksLoading = false,
+  tasksError = "",
+  onRefresh,
+  receptionUpdates = {},
+  onBack, onAssign, onClickAdd, onClickPushing, onClickAccepted, onCardMenuAction,
+}) {
+  // V14 2A — 진짜 시트 catch (apiTasks) + 폼에서 추가한 거 (extraReceptions)
+  // NEW_RECEPTIONS 시뮬 폐기 / extraReceptions는 등록 직후 lag 동안만 박혀 있음 (refetch 시 apiTasks가 진실)
+  // 화면 내부 편집 (saveTask) 호환을 위해 useState + useEffect 동기화
+  const computeTasks = () => {
     const wrap = (x) => ({
       ...x,
       workItems: x.workItems && x.workItems.length > 0
         ? x.workItems
-        : [{ workType: x.workType, appliance: x.appliance, qty: x.qty }],
+        : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
     });
     const allReceptions = [
-      ...extraReceptions,
-      ...NEW_RECEPTIONS.세척.map(x => wrap({ ...x, workType: "세척" })),
-      ...NEW_RECEPTIONS.냉매충전.map(x => wrap({ ...x, workType: "냉매충전" })),
+      ...apiTasks.map(wrap),        // 진짜 시트 작업DB
+      ...extraReceptions.map(wrap), // 등록 직후 임시 (refetch 후 apiTasks가 같은 id 가짐)
     ];
-    // 중복 제거 (id 기준) + receptionUpdates overlay
+    // 중복 제거 (id 기준 / api가 우선)
     const seen = new Set();
     const unique = allReceptions.filter(r => {
-      if (seen.has(r.id)) return false;
+      if (!r.id || seen.has(r.id)) return false;
       seen.add(r.id);
       return true;
     }).map(r => receptionUpdates[r.id] ? { ...r, ...receptionUpdates[r.id] } : r);
-    // Step 5-1e (통합) — 우선순위 정렬 후 메인 = sorted[0] 기준
-    // (사장님이 냉매→세척 순서로 추가했어도 메인은 세척)
+    // 작업유형별 분류 (메인 항목 기준)
     function getByType(type) {
       return unique.filter(r => {
         if (r.workItems && r.workItems.length > 0) {
           const main = determineMainWorkType(r.workItems);
           return main === type;
         }
-        return r.workType === type;  // 호환성 (구 데이터)
+        return r.workType === type;
       });
     }
     return {
       세척:    getByType("세척"),
       냉매충전: getByType("냉매충전"),
     };
-  });
+  };
+  const [tasks, setTasks] = useState(computeTasks);
+  useEffect(() => {
+    setTasks(computeTasks());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiTasks, extraReceptions, receptionUpdates]);
   const [memoTask, setMemoTask] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
 
@@ -2913,7 +3006,49 @@ function NewReceptionScreen({ t, filter, extraReceptions = [], receptionUpdates 
             <Plus size={12}/> 추가
           </button>
         )}
+        {/* V14 2A — 새로고침 (시트 작업DB 다시 catch) */}
+        {onRefresh && (
+          <button onClick={onRefresh} disabled={tasksLoading} style={{
+            display: "flex", alignItems: "center", gap: 4,
+            padding: "6px 10px",
+            background: "transparent",
+            border: `1px solid ${t.border}`, borderRadius: 8,
+            fontSize: 11, fontWeight: 700, color: t.textSecondary,
+            cursor: tasksLoading ? "not-allowed" : "pointer",
+            opacity: tasksLoading ? 0.5 : 1,
+            fontFamily: "inherit",
+          }}>
+            <RotateCcw size={12}/> {tasksLoading ? "..." : "새로고침"}
+          </button>
+        )}
       </div>
+
+      {/* V14 2A — 로딩 / 에러 박기 */}
+      {tasksLoading && total === 0 && (
+        <div style={{ padding: 30, textAlign: "center", color: t.textMuted, fontSize: 12, fontWeight: 600 }}>
+          시트 작업DB 불러오는 중...
+        </div>
+      )}
+      {tasksError && (
+        <div style={{
+          margin: "10px 16px", padding: "10px 12px",
+          background: t.dangerBg || "#FEE2E2",
+          border: `1px solid ${t.danger || "#DC2626"}`,
+          borderRadius: 8,
+          fontSize: 12, fontWeight: 700, color: t.danger || "#B91C1C",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+        }}>
+          <span>⚠ {tasksError}</span>
+          {onRefresh && (
+            <button onClick={onRefresh} style={{
+              padding: "4px 10px", background: "transparent",
+              border: `1px solid ${t.danger || "#DC2626"}`, borderRadius: 6,
+              fontSize: 11, fontWeight: 700, color: t.danger || "#B91C1C",
+              cursor: "pointer", fontFamily: "inherit",
+            }}>다시 catch</button>
+          )}
+        </div>
+      )}
 
       <div style={{ padding: "14px 16px 20px" }}>
         {showCleanings && (
@@ -5383,10 +5518,9 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     { id: "문자",   label: "문자" },
   ];
 
-  // 주소 → 첫 두 단어 지역 추출
+  // V14 2A — 주소 첫 한 단어 = 지역 (예: "강남구 도곡동" → "강남구")
   const region = (() => {
     const parts = (form.address || "").trim().split(/\s+/);
-    if (parts.length >= 2) return `${parts[0]} ${parts[1]}`;
     return parts[0] || "";
   })();
 
