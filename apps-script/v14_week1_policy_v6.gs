@@ -1,23 +1,25 @@
 /**
- * V14 Week 1 — 1B 수수료정책 V6 (V5 11열 폐기 → V6 9열 박기)
- * 작성: 2026-05-07
+ * V14 Week 1 — 1B 수수료정책 V6 CLEAN (8열 / 정책 텍스트)
+ * 작성: 2026-05-07 (CLEAN 버전 / 9열 → 8열 정리)
  * 대상: 사장님 운영 스프레드시트 (활성 스프레드시트 / "수수료정책" 시트)
  *
- * 박는 내용:
- *   - V5 ~60 row 폐기 (세스코 포함 모두) — 헤더까지 clear
- *   - V6 새 9열 헤더 박기
+ * V6 CLEAN 박는 내용:
+ *   - V5 / 옛 V6 9열 폐기 → V6 CLEAN 새 8열 헤더 박기
+ *   - "원청수수료" / "회사이익" 컬럼 폐기 (정책 텍스트로 대체 / 동적 계산은 1E API)
+ *   - "정책" 컬럼 신규 (텍스트 catch / 코드가 시트 정책 read해서 견적 × 정책 = 동적)
  *   - V6 ~90 row 박기 (49 세척 + 28 냉매 + 7 출장비 + 3 유솔N 추가선택 + 3 유솔N 냉매점검)
  *   - 빈 셀은 비워둠 (사장님 직접 catch — 시스템멀티 기사단가/가짜단가 등)
  *
  * 안전 원칙:
- *   - 자동 백업 (`_백업_수수료정책_YYYYMMDD_HHmmss`)
+ *   - 자동 백업 (`_백업_수수료정책_YYYYMMDD_HHmmss`) — 첫 백업 그대로 유지
  *   - DryRun 함수로 미리 보고 → 사장님 승인 후 Apply
  *   - 빈 셀 위치 정확히 보고 (사장님 catch 필요 부분)
  *
  * 사용:
- *   1) Apps Script 에디터에 새 파일 박기
- *   2) `createPolicyV6_DryRun` 실행 → 알림창 캡처해서 사장님께 전달
- *   3) 승인 후 `createPolicyV6_Apply` 실행
+ *   1) Apps Script 에디터에서 같은 파일 (v14_week1_policy_v6) 열기
+ *   2) 코드 다 지우고 본 파일 내용 박기
+ *   3) `createPolicyV6_DryRun` 실행 → 알림창 캡처해서 사장님께 전달
+ *   4) 승인 후 `createPolicyV6_Apply` 실행
  *
  * 헌법 박힘 (V14 v6 명세):
  *   원청 7개 (O / A / K / Y / YS / YS-N / CK)
@@ -30,9 +32,10 @@
 // ─────────────────────────────────────────────
 const POLICY_SHEET = '수수료정책';
 
+// V6 CLEAN: 9열 → 8열 (원청수수료/회사이익 폐기 / 정책 텍스트 신규)
 const POLICY_V6_HEADER = [
   '원청', '작업유형', '기종', '평균판매가', '기사단가', '가짜단가',
-  '원청수수료', '회사이익', '비고',
+  '정책', '비고',
 ];
 
 // ─────────────────────────────────────────────
@@ -113,71 +116,57 @@ function _v14p_blank_(v) {
 }
 
 // ─────────────────────────────────────────────
+// 정책 텍스트 (사장님 spec 그대로 / 코드는 시트 read해서 동적 계산)
+// ─────────────────────────────────────────────
+const CLEANING_POLICY = {
+  'O':    '직영 (0)',
+  'A':    '차감후 50% (가짜단가)',
+  'K':    '차감후 50% (가짜단가)',
+  'Y':    '정액 10K',
+  'YS':   '비율 15%',
+  'YS-N': '비율 15% / 기사 ×1.10',
+  'CK':   '비율 20%',
+};
+const REFRIG_POLICY = {
+  'O':    '직영 (50/50)',
+  'A':    '비율 10% / 기사 50%',
+  'K':    '비율 35% / 기사 50%',
+  'Y':    '정액 10K / 기사 50%',
+  'YS':   '정액 10K / 기사 50%',
+  'YS-N': '특수 (3 케이스 / 별도 row)',
+  'CK':   '비율 20% / 기사 50%',
+};
+
+// ─────────────────────────────────────────────
 // 1. 세척 49 row 생성 (7 원청 × 7 기종)
+// V6 CLEAN: 박힌 숫자 폐기 → 정책 텍스트만 / 동적 계산은 1E API
 // ─────────────────────────────────────────────
 function _buildCleaningRows_() {
   const rows = [];
   POLICY_PRINCIPALS.forEach((p) => {
     CLEANING_APPLIANCES.forEach((app) => {
       const sale     = CLEANING_PRICE[app];
-      const eng      = ENG_UNIT_PRICE[app];     // null = 시스템멀티
-      const fake     = FAKE_UNIT_PRICE[app];    // null = 시스템멀티
+      const eng      = ENG_UNIT_PRICE[app];     // null = 시스템멀티 (빈)
+      const fake     = FAKE_UNIT_PRICE[app];    // null = 시스템멀티 (빈)
       const showFake = (p.code === 'A' || p.code === 'K') ? fake : null;
+      const policy   = CLEANING_POLICY[p.code] || '';
 
-      let principalFee = null, engineerAmt = null, companyProfit = null, note = '';
-
-      if (p.code === 'O') {
-        // O 올데이 — 직영 (수수료 0)
-        principalFee  = 0;
-        engineerAmt   = eng;  // 기사단가
-        companyProfit = (eng != null) ? sale - eng : null;
-        note = '직영 (수수료 0)';
-      }
-      else if (p.code === 'A' || p.code === 'K') {
-        // KA / KB — 차감후비율 (가짜단가)
-        if (fake != null && eng != null) {
-          principalFee  = Math.round((sale - fake) * 0.5);
-          engineerAmt   = eng; // 실제 단가 (운영자 비밀)
-          companyProfit = sale - principalFee - engineerAmt;
-        }
-        note = `(판매가 - 가짜단가) × 50% / 기사 = 실제 단가${(p.code === 'A') ? ' (KA)' : ' (KB)'}`;
-      }
-      else if (p.code === 'Y') {
-        // Y 용인 — 정액 10K
-        principalFee  = 10000;
-        engineerAmt   = eng;
-        companyProfit = (eng != null) ? sale - 10000 - eng : null;
-        note = '정액 10K';
-      }
-      else if (p.code === 'YS') {
-        // YS 유솔H — 비율 15%
-        principalFee  = Math.round(sale * 0.15);
-        engineerAmt   = eng;
-        companyProfit = (eng != null) ? sale - principalFee - eng : null;
-        note = '비율 15%';
-      }
-      else if (p.code === 'YS-N') {
-        // YS-N 유솔N — 비율 15% / 기사 = 기사단가 × 1.10 (부가세 별도)
-        principalFee  = Math.round(sale * 0.15);
-        engineerAmt   = (eng != null) ? Math.round(eng * 1.10) : null;
-        companyProfit = (engineerAmt != null) ? sale - principalFee - engineerAmt : null;
-        note = '비율 15% / 기사 = 기사단가 × 1.10 (예: 벽걸이 44K)';
-      }
-      else if (p.code === 'CK') {
-        // CK 크리크린 — 비율 20%
-        principalFee  = Math.round(sale * 0.20);
-        engineerAmt   = eng;
-        companyProfit = (eng != null) ? sale - principalFee - eng : null;
-        note = '비율 20%';
-      }
+      // 비고 — 사람 catch용 자세한 설명
+      let note = '';
+      if (p.code === 'O')      note = '기사 = 기사단가 / 회사 = 판매가 - 기사단가';
+      else if (p.code === 'A') note = '원청 = (판매가 - 가짜단가) × 50% / 기사 = 실제 단가 (KA / 비밀)';
+      else if (p.code === 'K') note = '원청 = (판매가 - 가짜단가) × 50% / 기사 = 실제 단가 (KB / 비밀)';
+      else if (p.code === 'Y') note = '원청 정액 10K / 기사 = 기사단가 / 회사 = 나머지';
+      else if (p.code === 'YS')   note = '원청 = 판매가 × 15% / 기사 = 기사단가 / 회사 = 나머지';
+      else if (p.code === 'YS-N') note = '원청 = 판매가 × 15% / 기사 = 기사단가 × 1.10 (부가세 별도, 벽걸이 44K)';
+      else if (p.code === 'CK')   note = '원청 = 판매가 × 20% / 기사 = 기사단가 / 회사 = 나머지';
 
       rows.push([
         p.name, '세척', app,
         sale,
         _v14p_blank_(eng),
         _v14p_blank_(showFake),
-        _v14p_blank_(principalFee),
-        _v14p_blank_(companyProfit),
+        policy,
         note,
       ]);
     });
@@ -187,68 +176,29 @@ function _buildCleaningRows_() {
 
 // ─────────────────────────────────────────────
 // 2. 냉매충전 28 row 생성 (7 원청 × 4 기종)
+// V6 CLEAN: 기사단가 = 빈 (정책 "50% 동적" 박힘 / 코드가 견적 × 50% 계산)
 // ─────────────────────────────────────────────
 function _buildRefrigRows_() {
   const rows = [];
   POLICY_PRINCIPALS.forEach((p) => {
     REFRIG_APPLIANCES.forEach((app) => {
-      const sale = REFRIG_PRICE[app];
-      const eng  = _refrigEngAmount_(sale); // 기사 50% (모든 원청 공통, YS-N 제외)
-      let principalFee = null, engineerAmt = null, companyProfit = null, note = '';
-
-      if (p.code === 'O') {
-        principalFee  = 0;
-        engineerAmt   = eng;
-        companyProfit = sale - eng; // 50%
-        note = '직영 / 기사 50% / 회사 50%';
-      }
-      else if (p.code === 'A') {
-        // KA — 예상금액비율 10%
-        principalFee  = Math.round(sale * 0.10);
-        engineerAmt   = eng;
-        companyProfit = sale - principalFee - eng;
-        note = 'KA 가스 / 원청 10% / 기사 50% / 회사 40%';
-      }
-      else if (p.code === 'K') {
-        // KB — 예상금액비율 35%
-        principalFee  = Math.round(sale * 0.35);
-        engineerAmt   = eng;
-        companyProfit = sale - principalFee - eng;
-        note = 'KB 가스 / 원청 35% / 기사 50% / 회사 15%';
-      }
-      else if (p.code === 'Y') {
-        principalFee  = 10000;
-        engineerAmt   = eng;
-        companyProfit = sale - 10000 - eng;
-        note = '정액 10K / 기사 50% / 회사 나머지';
-      }
-      else if (p.code === 'YS') {
-        principalFee  = 10000;
-        engineerAmt   = eng;
-        companyProfit = sale - 10000 - eng;
-        note = '정액 10K / 기사 50% / 회사 나머지';
-      }
-      else if (p.code === 'YS-N') {
-        // YS-N 냉매 = 특수 (별도 row 3건 — 냉매점검 기본/추가발생/출장비)
-        principalFee  = null;
-        engineerAmt   = null;
-        companyProfit = null;
-        note = '특수 — 유솔N 냉매점검 row 참조 (기본/추가발생/출장비)';
-      }
-      else if (p.code === 'CK') {
-        principalFee  = Math.round(sale * 0.20);
-        engineerAmt   = eng;
-        companyProfit = sale - principalFee - eng;
-        note = '비율 20% / 기사 50% / 회사 30%';
-      }
+      const sale   = REFRIG_PRICE[app];
+      const policy = REFRIG_POLICY[p.code] || '';
+      let note = '';
+      if (p.code === 'O')         note = '직영 / 기사 50% / 회사 50%';
+      else if (p.code === 'A')    note = 'KA 가스 / 원청 = 견적 × 10% / 기사 = 견적 × 50% / 회사 = 나머지 (40%)';
+      else if (p.code === 'K')    note = 'KB 가스 / 원청 = 견적 × 35% / 기사 = 견적 × 50% / 회사 = 나머지 (15%)';
+      else if (p.code === 'Y')    note = '원청 정액 10K / 기사 = 견적 × 50% / 회사 = 나머지';
+      else if (p.code === 'YS')   note = '원청 정액 10K / 기사 = 견적 × 50% / 회사 = 나머지';
+      else if (p.code === 'YS-N') note = '특수 — 냉매점검(YS-N) row 3건 참조 (기본/추가발생/출장비)';
+      else if (p.code === 'CK')   note = '원청 = 견적 × 20% / 기사 = 견적 × 50% / 회사 = 30%';
 
       rows.push([
         p.name, '냉매충전', app,
         sale,
-        _v14p_blank_(engineerAmt),
+        '', // 기사단가 = 빈 (정책에 "기사 50%" 박힘 / 동적 계산)
         '', // 가짜단가 = 냉매에는 X
-        _v14p_blank_(principalFee),
-        _v14p_blank_(companyProfit),
+        policy,
         note,
       ]);
     });
@@ -260,19 +210,14 @@ function _buildRefrigRows_() {
 // 3. 출장비 7 row (모든 원청 / 30K / 기사 100%)
 // ─────────────────────────────────────────────
 function _buildTravelFeeRows_() {
-  const rows = [];
-  POLICY_PRINCIPALS.forEach((p) => {
-    rows.push([
-      p.name, '출장비', '(공통)',
-      30000,    // 평균판매가 = 출장비 30K
-      30000,    // 기사단가 = 30K (100%)
-      '',       // 가짜단가 X
-      0,        // 원청수수료 = 0
-      0,        // 회사이익 = 0
-      '기사 100% (모든 원청 공통)',
-    ]);
-  });
-  return rows;
+  return POLICY_PRINCIPALS.map((p) => [
+    p.name, '출장비', '(공통)',
+    30000,    // 평균판매가 = 출장비 30K
+    30000,    // 기사단가 = 30K (100%)
+    '',       // 가짜단가 X
+    '기사 100%',
+    '모든 원청 공통 / 작업 진행 X 시',
+  ]);
 }
 
 // ─────────────────────────────────────────────
@@ -284,11 +229,10 @@ function _buildUsolNAddOnRows_() {
   return items.map((label) => [
     '유솔홈케어 N', '추가선택(YS-N)', label,
     '',  // 평균판매가 = 빈 (사장님 catch — 시트별 가격)
-    '',  // 기사단가 = 빈 (= 판매가 × 85% / 시트 catch 후)
+    '',  // 기사단가 = 빈 (= 판매가 × 85% / 동적)
     '',  // 가짜단가 X
-    '',  // 원청수수료 = 빈 (= 판매가 × 15%)
-    0,   // 회사이익 = 0
-    '기사 85% / 원청 15% / 회사 0% (기사 동기 부여)',
+    '기사 85% / 원청 15%',
+    '회사 0% (기사 동기 부여) — 가격은 시트별',
   ]);
 }
 
@@ -303,27 +247,24 @@ function _buildUsolNRefrigCheckRows_() {
       10000,   // 평균판매가 = 네이버 1만원
       0,       // 기사단가 = 0 (유솔 100%)
       '',      // 가짜단가 X
-      10000,   // 원청수수료 = 10K (유솔 100%)
-      0,       // 회사이익 = 0
-      '유솔 100% / 기사 0 / 회사 0 (네이버 기본 1만원)',
+      '유솔 100% (네이버 1만원)',
+      '기사 0 / 회사 0 — 네이버 결제 기본 점검비',
     ],
     [
       '유솔홈케어 N', '냉매점검(YS-N)', '추가발생',
       '',      // 평균판매가 = variable (현장 추가 발생분)
-      '',      // 기사단가 = 50% (사장님 catch)
+      '',      // 기사단가 = 빈 (= 견적 × 50% / 동적)
       '',      // 가짜단가 X
-      0,       // 원청수수료 = 0 (원청 X)
-      '',      // 회사이익 = 50% (사장님 catch)
-      '기사 50% + 회사 50% (원청 X) — 현장 추가 발생분',
+      '기사 50% / 회사 50% (원청 X)',
+      '현장 추가 발생분 — 원청 0 / 기사·회사 반반',
     ],
     [
       '유솔홈케어 N', '냉매점검(YS-N)', '출장비',
       30000,   // 작업 불가 시 출장비 3만원
       30000,   // 기사 100%
       '',
-      0,
-      0,
-      '기사 100% (작업 불가 시 출장비 3만원)',
+      '기사 100% (작업 불가 시)',
+      '출장비 3만원 — 냉매 점검 후 작업 진행 X 시',
     ],
   ];
 }
@@ -347,19 +288,34 @@ function _buildAllPolicyRows_() {
 }
 
 // ─────────────────────────────────────────────
-// 빈 셀 위치 보고
+// 빈 셀 위치 보고 (V6 CLEAN 8열 catch)
+// 가짜단가 = KA/KB 외 일반 빈 = 정상 (skip)
+// 기사단가 = 냉매·추가선택·냉매점검 추가발생에서 빈 = 정상 (정책 텍스트 박힘)
 // ─────────────────────────────────────────────
 function _detectBlankCells_(rows) {
   const blanks = [];
   rows.forEach((row, idx) => {
+    const principal = row[0];
+    const workType  = row[1];
+    const appliance = row[2];
     POLICY_V6_HEADER.forEach((col, cIdx) => {
       const v = row[cIdx];
-      if (v === '' && col !== '가짜단가' /* 가짜단가는 KA/KB 외 일반 빈 = 정상 */) {
-        const principal  = row[0];
-        const workType   = row[1];
-        const appliance  = row[2];
-        blanks.push(`  · row ${idx + 2} [${principal} / ${workType} / ${appliance}] · ${col} 빈`);
-      }
+      if (v !== '') return;
+      // skip 정상 빈 셀
+      if (col === '가짜단가') return; // KA/KB 외 정상
+      // 냉매 / 추가선택 / 냉매점검 추가발생 → 기사단가 빈 = 정상 (정책 박힘)
+      if (col === '기사단가' && (
+        workType === '냉매충전' ||
+        workType === '추가선택(YS-N)' ||
+        (workType === '냉매점검(YS-N)' && appliance === '추가발생')
+      )) return;
+      // 추가선택 / 냉매점검 추가발생 → 평균판매가 빈 = 정상 (시트별 가격)
+      if (col === '평균판매가' && (
+        workType === '추가선택(YS-N)' ||
+        (workType === '냉매점검(YS-N)' && appliance === '추가발생')
+      )) return;
+      // 그 외 빈 = 사장님 catch 필요
+      blanks.push(`  · row ${idx + 2} [${principal} / ${workType} / ${appliance}] · ${col} 빈`);
     });
   });
   return blanks;
@@ -371,13 +327,13 @@ function _detectBlankCells_(rows) {
 function createPolicyV6_DryRun() {
   const ss = SpreadsheetApp.getActive();
   const lines = [];
-  lines.push('━━━ V14 Week 1 — 1B 수수료정책 V6 DRY RUN ━━━');
+  lines.push('━━━ V14 Week 1 — 1B 수수료정책 V6 CLEAN DRY RUN ━━━');
   lines.push(`스프레드시트: ${ss.getName()}`);
   lines.push(`실행 시각: ${_v14p_timestamp_()}`);
   lines.push('');
 
-  // V5 현재 상태
-  lines.push('━━━ V5 현재 상태 ━━━');
+  // 현재 상태
+  lines.push('━━━ 현재 시트 상태 ━━━');
   const sheet = ss.getSheetByName(POLICY_SHEET);
   if (!sheet) {
     lines.push(`  ⚠️ ${POLICY_SHEET} 시트 없음 — Apply 시 신규 생성됨`);
@@ -387,7 +343,7 @@ function createPolicyV6_DryRun() {
     const header  = lastCol > 0 ? sheet.getRange(1, 1, 1, lastCol).getValues()[0] : [];
     lines.push(`  현재: ${lastRow} row × ${lastCol} col`);
     lines.push(`  현재 헤더: ${JSON.stringify(header)}`);
-    lines.push(`  변경 후: 헤더 9열 + V6 row (V5 폐기)`);
+    lines.push(`  변경 후: 헤더 8열 + V6 CLEAN row (옛 폐기)`);
   }
   lines.push('');
 
@@ -399,8 +355,9 @@ function createPolicyV6_DryRun() {
   const addOnCount    = _buildUsolNAddOnRows_().length;
   const refrigCkCount = _buildUsolNRefrigCheckRows_().length;
 
-  lines.push('━━━ V6 새 헤더 (9열) ━━━');
+  lines.push('━━━ V6 CLEAN 새 헤더 (8열) ━━━');
   lines.push(`  ${JSON.stringify(POLICY_V6_HEADER)}`);
+  lines.push(`  변경 catch: "원청수수료" / "회사이익" 컬럼 폐기 → "정책" 텍스트 컬럼 신규`);
   lines.push('');
 
   lines.push('━━━ V6 row 생성 ━━━');
@@ -446,7 +403,7 @@ function createPolicyV6_DryRun() {
   Logger.log(report);
   try {
     SpreadsheetApp.getUi().alert(
-      'V14 1B 수수료정책 V6 DRY RUN',
+      'V14 1B 수수료정책 V6 CLEAN DRY RUN',
       report,
       SpreadsheetApp.getUi().ButtonSet.OK
     );
@@ -463,7 +420,7 @@ function createPolicyV6_Apply() {
   const ss = SpreadsheetApp.getActive();
   const ts = _v14p_timestamp_();
   const lines = [];
-  lines.push('━━━ V14 Week 1 — 1B 수수료정책 V6 APPLY 시작 ━━━');
+  lines.push('━━━ V14 Week 1 — 1B 수수료정책 V6 CLEAN APPLY 시작 ━━━');
   lines.push(`스프레드시트: ${ss.getName()}`);
   lines.push(`실행 시각: ${ts}`);
   lines.push('');
@@ -486,19 +443,19 @@ function createPolicyV6_Apply() {
   }
   lines.push('');
 
-  // [V5 폐기]
-  lines.push('━━━ [V5 폐기] 모든 row clear (헤더 포함) ━━━');
+  // [기존 폐기]
+  lines.push('━━━ [기존 row 폐기] 모든 row clear (헤더 포함) ━━━');
   if (!sheet) {
     sheet = ss.insertSheet(POLICY_SHEET);
     lines.push(`  ✓ 시트 신규 생성: ${POLICY_SHEET}`);
   } else {
     sheet.clear();
-    lines.push(`  ✓ 기존 V5 ~60 row clear`);
+    lines.push(`  ✓ 기존 row 모두 clear`);
   }
   lines.push('');
 
-  // [V6 헤더 박기]
-  lines.push('━━━ [V6 헤더 9열 박기] ━━━');
+  // [V6 CLEAN 헤더 박기]
+  lines.push('━━━ [V6 CLEAN 헤더 8열 박기] ━━━');
   sheet.getRange(1, 1, 1, POLICY_V6_HEADER.length).setValues([POLICY_V6_HEADER]);
   sheet.getRange(1, 1, 1, POLICY_V6_HEADER.length)
     .setFontWeight('bold')
@@ -553,14 +510,14 @@ function createPolicyV6_Apply() {
   }
   lines.push('');
 
-  lines.push('━━━ V14 1B APPLY 완료 ━━━');
-  lines.push(`다음: 1D AdminApp 작업 입력 폼 / 1E API`);
+  lines.push('━━━ V14 1B CLEAN APPLY 완료 ━━━');
+  lines.push(`다음: 1D AdminApp 작업 입력 폼 / 1E API (시트 정책 read → 견적 × 정책 = 동적)`);
 
   const report = lines.join('\n');
   Logger.log(report);
   try {
     SpreadsheetApp.getUi().alert(
-      'V14 1B 수수료정책 V6 APPLY 완료',
+      'V14 1B 수수료정책 V6 CLEAN APPLY 완료',
       report,
       SpreadsheetApp.getUi().ButtonSet.OK
     );
