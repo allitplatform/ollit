@@ -5,7 +5,8 @@
 | 파일 | 용도 |
 |---|---|
 | `v14_week1_reset.gs` | V14 Week 1 (1A 설정_원청 7개 + 1C 작업번호 형식 + 1D 데이터 폐기) |
-| `v14_week1_policy_v6.gs` | V14 Week 1 1B (수수료정책 V5 폐기 → V6 9열 / 90 row 박기) |
+| `v14_week1_policy_v6.gs` | V14 Week 1 1B CLEAN (수수료정책 V6 / 8열 / 90 row 박기) |
+| `v14_week1_api_backend.gs` | V14 Week 1 1C/1E (api-backend merge / 정책 catch + 동적 계산) |
 
 ## 사용 (V14 Week 1 처음 박을 때)
 
@@ -95,3 +96,58 @@
 2. `createPolicyV6_DryRun` 실행 → 알림창 캡처
 3. 사장님 승인 후 `createPolicyV6_Apply` 실행
 4. 자동 백업 (`_백업_수수료정책_YYYYMMDD_HHmmss` — 두 번째 백업, 첫 백업 그대로 유지)
+
+## 1C/1E api-backend.gs (`v14_week1_api_backend.gs`)
+
+**기존 api-backend.gs에 merge하는 V14 부분**. 시트 변경 X (코드만 변경 / 검증).
+
+**변경 함수 (덮어쓰기)**:
+- `generateTaskId(principalName, dateInput)` — 약자+YYMMDD-순번 / 7개 원청 매핑
+- `createTask(taskData)` (선택) — generateTaskId 호출만 V14 형식 / 작업DB 29열 layout 보존
+- `doPost(e)` — 신규 action 3개 분기 추가 (case 만 박기)
+
+**신규 함수 (그대로 추가)**:
+- `getPolicyForTask(principal, workType, applianceOrLabel)` — 수수료정책 8열 read
+- `parsePolicy(policyText)` — 정책 텍스트 → 구조화 (13가지 type)
+- `calculateFee(quote, parsedPolicy, engUnitPrice, fakeUnitPrice)` — 견적 × 정책 = 분배
+- `getAllPolicies()` — 모든 정책 catch (Admin/Happycall용)
+
+**신규 API actions** (doPost case 추가):
+- `getPolicy` → `{ policy, parsed }`
+- `calculateFee` → `{ policy, parsed, fee }`
+- `getAllPolicies` → `{ policies, count }`
+- `createTask` → `{ taskId }` (기존 그대로 유지 가능)
+
+**유지 함수 (변경 X)**:
+- `handleLogin` (시뮬 5명 / Week 1 끝까지)
+- `parseKakao` (별도 / 6번대 진행)
+
+**검증**:
+1. `testGenerateTaskId_AllPrincipals` 실행 → 7개 원청 형식 검증 (Logger 캡처)
+2. `testCalculateFee_AllPrincipals` 실행 → 13 케이스 분배 검증 (Logger 캡처)
+
+**사용**:
+1. 사장님 시트 → 확장 → Apps Script → api-backend 파일 열기
+2. 본 파일에서 변경 함수 = 기존 위에 덮어쓰기 / 신규 함수 = 그대로 추가
+3. `testGenerateTaskId_AllPrincipals` ▶ → Logger 캡처
+4. `testCalculateFee_AllPrincipals` ▶ → Logger 캡처
+5. 두 캡처 사장님께 전달
+
+**동적 계산 검증 — 견적 100K / 벽걸이 (사장님 spec 기대값)**:
+
+| 원청 | 작업 | 정책 | 원청 | 기사 | 회사 |
+|---|---|---|---|---|---|
+| 올데이 | 세척 | 직영(0) | 0 | 40K | 60K |
+| KA | 세척 | 차감후50%(가짜) | 25K | 40K | 35K |
+| KB | 세척 | 차감후50%(가짜) | 25K | 40K | 35K |
+| 용인 | 세척 | 정액10K | 10K | 40K | 50K |
+| 유솔H | 세척 | 비율15% | 15K | 40K | 45K |
+| 유솔N | 세척 | 비율15%×1.10 | 15K | 44K | 41K |
+| 크리크린 | 세척 | 비율20% | 20K | 40K | 40K |
+| 올데이 | 냉매 | 직영(50/50) | 0 | 50K | 50K |
+| KA | 냉매 | 비율10%/기사50% | 10K | 50K | 40K |
+| KB | 냉매 | 비율35%/기사50% | 35K | 50K | 15K |
+| 용인 | 냉매 | 정액10K/기사50% | 10K | 50K | 40K |
+| 유솔H | 냉매 | 정액10K/기사50% | 10K | 50K | 40K |
+| 유솔N | 냉매 | 특수 | (throws — 별도 row) | | |
+| 크리크린 | 냉매 | 비율20%/기사50% | 20K | 50K | 30K |
