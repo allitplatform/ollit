@@ -1268,20 +1268,85 @@ export default function AdminApp({ user, onLogout }) {
   const [apiTasks, setApiTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
+  // V14 디버그 — 0건 catch 시 raw 응답 박힘 (사장님 catch 용)
+  const [tasksDebug, setTasksDebug] = useState(null);
+
+  // 깊이 있는 배열 키 catch (시트/서버 응답 shape 다양성 catch)
+  function _v14FindTaskList(res) {
+    if (!res) return { list: null, key: 'null response' };
+    if (Array.isArray(res)) return { list: res, key: '(root array)' };
+    const candidates = ['tasks', 'data', 'rows', 'list', 'items', 'result', 'records'];
+    for (const k of candidates) {
+      if (Array.isArray(res[k])) return { list: res[k], key: k };
+    }
+    // 1단계 nested catch
+    for (const k of Object.keys(res)) {
+      const v = res[k];
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        for (const k2 of candidates) {
+          if (Array.isArray(v[k2])) return { list: v[k2], key: `${k}.${k2}` };
+        }
+      }
+    }
+    return { list: null, key: 'no array key found' };
+  }
 
   async function fetchTasks() {
     setTasksLoading(true);
     setTasksError("");
+    setTasksDebug(null);
     try {
+      console.log('[V14 2A] fetchTasks 시작 — role=admin / userId=', user?.id || user?.userId || 'admin');
       const res = await apiGetTasks('admin', user?.id || user?.userId || 'admin', null);
-      if (res && res.ok !== false) {
-        const list = res.tasks || res.data || res.rows || [];
-        setApiTasks(Array.isArray(list) ? list.map(_v14NormalizeTask) : []);
-      } else {
+      console.log('[V14 2A] raw 응답:', res);
+      console.log('[V14 2A] 응답 키:', res ? Object.keys(res) : 'null');
+
+      if (!res || res.ok === false) {
         setTasksError((res && res.error) || '불러오기 실패');
+        setTasksDebug({ phase: 'error', res });
+        return;
+      }
+
+      const { list, key } = _v14FindTaskList(res);
+      console.log(`[V14 2A] 배열 key="${key}" / length=${list ? list.length : 'null'}`);
+      if (list && list[0]) {
+        console.log('[V14 2A] 첫 row sample:', list[0]);
+        console.log('[V14 2A] 첫 row 키:', Object.keys(list[0]));
+      }
+
+      if (!Array.isArray(list)) {
+        // 0건 또는 catch X — UI에 디버그 박기
+        setApiTasks([]);
+        setTasksDebug({
+          phase: 'no-array',
+          arrayKey: key,
+          responseKeys: res ? Object.keys(res) : [],
+          response: res,
+        });
+        return;
+      }
+
+      const normalized = list.map(_v14NormalizeTask).filter(Boolean);
+      console.log('[V14 2A] normalized:', normalized.length, '건');
+      if (normalized[0]) console.log('[V14 2A] 첫 normalized:', normalized[0]);
+
+      setApiTasks(normalized);
+      // 0건이면 디버그 표시 (사장님 catch 위해)
+      if (normalized.length === 0) {
+        setTasksDebug({
+          phase: 'zero-after-normalize',
+          arrayKey: key,
+          responseKeys: res ? Object.keys(res) : [],
+          rawListLength: list.length,
+          firstRowSample: list[0] || null,
+          firstRowKeys: list[0] ? Object.keys(list[0]) : [],
+          response: res,
+        });
       }
     } catch (e) {
+      console.error('[V14 2A] fetchTasks 에러:', e);
       setTasksError(e.message || '불러오기 실패');
+      setTasksDebug({ phase: 'exception', error: e.message, stack: e.stack });
     } finally {
       setTasksLoading(false);
     }
@@ -1466,6 +1531,7 @@ export default function AdminApp({ user, onLogout }) {
         apiTasks={apiTasks}
         tasksLoading={tasksLoading}
         tasksError={tasksError}
+        tasksDebug={tasksDebug}
         onRefresh={fetchTasks}
         receptionUpdates={receptionUpdates}
         onBack={() => { goBack(); setNewReceptionFilter(null); }}
@@ -2908,6 +2974,7 @@ function NewReceptionScreen({
   apiTasks = [],
   tasksLoading = false,
   tasksError = "",
+  tasksDebug = null,
   onRefresh,
   receptionUpdates = {},
   onBack, onAssign, onClickAdd, onClickPushing, onClickAccepted, onCardMenuAction,
@@ -3047,6 +3114,56 @@ function NewReceptionScreen({
               cursor: "pointer", fontFamily: "inherit",
             }}>다시 catch</button>
           )}
+        </div>
+      )}
+
+      {/* V14 2A 디버그 — 0건 catch 시 raw 응답 박기 (사장님 catch 위해 / F12 X 안 박아도 OK) */}
+      {!tasksLoading && !tasksError && tasksDebug && (
+        <div style={{
+          margin: "10px 16px", padding: "10px 12px",
+          background: "#FFFBEB",
+          border: "1px solid #F59E0B",
+          borderRadius: 8,
+          fontSize: 11, fontWeight: 600, color: "#78350F",
+          fontFamily: "inherit",
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+            <span>🔍</span><span>API 응답 디버그 (0건 catch — fix 필요)</span>
+          </div>
+          <div style={{ marginBottom: 4 }}>· phase: <b>{tasksDebug.phase}</b></div>
+          {tasksDebug.arrayKey && <div style={{ marginBottom: 4 }}>· 배열 key: <code style={{ background: "#FEF3C7", padding: "1px 4px", borderRadius: 3 }}>{tasksDebug.arrayKey}</code></div>}
+          {tasksDebug.responseKeys && (
+            <div style={{ marginBottom: 4 }}>· 응답 키: <code style={{ background: "#FEF3C7", padding: "1px 4px", borderRadius: 3 }}>{JSON.stringify(tasksDebug.responseKeys)}</code></div>
+          )}
+          {typeof tasksDebug.rawListLength === 'number' && (
+            <div style={{ marginBottom: 4 }}>· raw list length: <b>{tasksDebug.rawListLength}</b></div>
+          )}
+          {tasksDebug.firstRowKeys && (
+            <div style={{ marginBottom: 4 }}>· 첫 row 키: <code style={{ background: "#FEF3C7", padding: "1px 4px", borderRadius: 3 }}>{JSON.stringify(tasksDebug.firstRowKeys)}</code></div>
+          )}
+          {tasksDebug.firstRowSample && (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 700 }}>첫 row sample 박기 ▼</summary>
+              <pre style={{
+                marginTop: 4, padding: 8, background: "#1A1A1A", color: "#A7F3D0",
+                borderRadius: 4, fontSize: 10, overflow: "auto", maxHeight: 200,
+                fontFamily: "monospace",
+              }}>{JSON.stringify(tasksDebug.firstRowSample, null, 2)}</pre>
+            </details>
+          )}
+          {tasksDebug.response && tasksDebug.phase === 'no-array' && (
+            <details style={{ marginTop: 6 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 700 }}>전체 응답 박기 ▼</summary>
+              <pre style={{
+                marginTop: 4, padding: 8, background: "#1A1A1A", color: "#FCA5A5",
+                borderRadius: 4, fontSize: 10, overflow: "auto", maxHeight: 200,
+                fontFamily: "monospace",
+              }}>{JSON.stringify(tasksDebug.response, null, 2)}</pre>
+            </details>
+          )}
+          <div style={{ marginTop: 8, fontSize: 10, color: "#92400E" }}>
+            · 캡처 → 저한테 catch (fix 박을 수 있음)
+          </div>
         </div>
       )}
 
