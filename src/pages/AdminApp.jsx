@@ -2267,10 +2267,8 @@ export default function AdminApp({ user, onLogout }) {
 // ============================================
 
 function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick }) {
-  // V14 2A — 새 접수 카운트 = apiTasks (진짜 시트) + NEW_RECEPTIONS 옛 호환
-  const totalNew = (apiTasks?.length || 0)
-    + NEW_RECEPTIONS.세척.length
-    + NEW_RECEPTIONS.냉매충전.length;
+  // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 박힌 거)
+  const totalNew = dynamicStats?.new ?? 0;
 
   return (
     <div className="fade-in">
@@ -2427,22 +2425,33 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
     { key: "수리",     label: "수리" },
   ];
 
-  // V14 2A — apiTasks의 workItems / workType 박은 거 카운트 (진짜 시트)
+  // V14 — apiTasks의 새 접수 (status='미배정'/'약속대기')만 카운트 + regex 매칭
   const workTypeCounts = useMemo(() => {
     const counts = { 세척: 0, 냉매충전: 0, 설치: 0, 누설: 0, 점검: 0, 수리: 0 };
-    // 옛 NEW_RECEPTIONS (이미 빈 배열이지만 호환)
-    counts["세척"]    += NEW_RECEPTIONS.세척.length;
-    counts["냉매충전"] += NEW_RECEPTIONS.냉매충전.length;
-    // 진짜 apiTasks (workItems 우선 / 없으면 workType)
-    (apiTasks || []).forEach(task => {
+    // V14 status 새 접수만 박기 (배정 박힌 거 제외)
+    const statusOf = (t) => String(t.status || t.상태 || "").trim();
+    const newTasks = (apiTasks || []).filter(t => {
+      const s = statusOf(t);
+      return !s || s === "미배정" || s === "약속대기";
+    });
+    // workItems 박기 → workType 추출 → regex 매칭
+    newTasks.forEach(task => {
       const items = (task.workItems && task.workItems.length > 0)
         ? task.workItems
         : (task.workType ? [{ workType: task.workType }] : []);
       items.forEach(item => {
-        const wt = item.workType;
-        if (counts[wt] != null) counts[wt]++;
+        const wt = String(item.workType || "");
+        if (/세척/.test(wt))           counts["세척"]++;
+        else if (/냉매|가스|충전/.test(wt)) counts["냉매충전"]++;
+        else if (/설치/.test(wt))      counts["설치"]++;
+        else if (/누설|누수/.test(wt))  counts["누설"]++;
+        else if (/점검/.test(wt))      counts["점검"]++;
+        else if (/수리|AS/i.test(wt))   counts["수리"]++;
       });
     });
+    // 옛 NEW_RECEPTIONS (빈 배열이지만 옛 호환)
+    counts["세척"]    += NEW_RECEPTIONS.세척.length;
+    counts["냉매충전"] += NEW_RECEPTIONS.냉매충전.length;
     return counts;
   }, [apiTasks]);
 
@@ -3148,6 +3157,7 @@ function NewReceptionScreen({
   onBack, onAssign, onClickAdd, onClickPushing, onClickAccepted, onCardMenuAction,
 }) {
   // V14 2A — 진짜 시트 catch (apiTasks) + 폼에서 추가한 거 (extraReceptions)
+  // V14 — 새 접수 = status '미배정' / '약속대기' 박힌 거만 (배정 박힌 거 = 별도 화면)
   // NEW_RECEPTIONS 시뮬 폐기 / extraReceptions는 등록 직후 lag 동안만 박혀 있음 (refetch 시 apiTasks가 진실)
   // 화면 내부 편집 (saveTask) 호환을 위해 useState + useEffect 동기화
   const computeTasks = () => {
@@ -3157,9 +3167,16 @@ function NewReceptionScreen({
         ? x.workItems
         : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
     });
+    // V14 — status '미배정' / '약속대기' 또는 status 빈 거만 새 접수 catch
+    const isNewReception = (t) => {
+      const s = String(t.status || t.상태 || "").trim();
+      return !s || s === "미배정" || s === "약속대기";
+    };
+    const apiNewOnly = apiTasks.filter(isNewReception);
+    const extraNewOnly = extraReceptions.filter(isNewReception);
     const allReceptions = [
-      ...apiTasks.map(wrap),        // 진짜 시트 작업DB
-      ...extraReceptions.map(wrap), // 등록 직후 임시 (refetch 후 apiTasks가 같은 id 가짐)
+      ...apiNewOnly.map(wrap),       // 진짜 시트 (새 접수만)
+      ...extraNewOnly.map(wrap),     // 등록 직후 임시 (refetch 후 apiTasks 박힘)
     ];
     // 중복 제거 (id 기준 / api가 우선)
     const seen = new Set();
