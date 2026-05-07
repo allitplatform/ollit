@@ -57,6 +57,7 @@ import {
   getTasks as apiGetTasks,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
+  invalidateRecommendCache,
 } from "../api.js";
 
 const NOW = "10:00";
@@ -1829,6 +1830,7 @@ export default function AdminApp({ user, onLogout }) {
         assignError={assignError}
         onAssign={async (eng) => {
           // V14 2B-3 — 진짜 assignEngineer API (시트 Q 배정기사 + R 상태 박힘)
+          // V14 속도 Phase 1 — Optimistic Update / fetchTasks 박지 X / apiTasks 직접 update
           if (!selectedTask?.id || !eng?.name) {
             addToast({ type: "completed", title: "배정 X", message: "작업 / 기사 박지 X" });
             return;
@@ -1844,7 +1846,32 @@ export default function AdminApp({ user, onLogout }) {
               setAssigning(false);
               return;
             }
-            // 즉시 UI 박힘 (refetch 전 lag 동안 박혀있음)
+
+            // [1-1] V14 속도 — apiTasks state 직접 update (즉시 UI catch)
+            setApiTasks(prev => prev.map(t =>
+              t.id === selectedTask.id
+                ? {
+                    ...t,
+                    assignedEngineer: eng.name,
+                    engineer: eng.name,
+                    배정기사: eng.name,
+                    status: '확정',
+                    상태: '확정',
+                    state: 'scheduled',
+                  }
+                : t
+            ));
+
+            // [1-2] V14 속도 — selectedTask도 즉시 update (작업 상세 진입 시 즉시 박힘)
+            setSelectedTask(prev => prev ? {
+              ...prev,
+              assignedEngineer: eng.name,
+              engineer: eng.name,
+              status: '확정',
+              state: 'scheduled',
+            } : prev);
+
+            // 옛 mock state 호환 (extraReceptions 박혀있어도)
             updateReception(selectedTask.id, {
               autoAssignStatus: "accepted",
               acceptedEngineer: eng.name,
@@ -1855,6 +1882,10 @@ export default function AdminApp({ user, onLogout }) {
               state: "scheduled",
               assignedAt: new Date().toISOString(),
             });
+
+            // 추천 cache invalidate (배정 박힌 기사 다음 추천에서 빼기)
+            invalidateRecommendCache();
+
             addNotification({
               type: "assignment",
               title: "기사 배정",
@@ -1863,9 +1894,10 @@ export default function AdminApp({ user, onLogout }) {
               taskId: selectedTask?.id,
             });
             addToast({ type: "assignment", title: "✓ 배정 박혔어", message: `${eng.name} 기사` });
-            // 시트 새로고침 (정확 데이터 catch)
-            fetchTasks();
-            // 작업 상세 화면으로 돌아가기 (배정 박힌 기사 catch)
+
+            // [1-3] fetchTasks() 박지 X — Optimistic만 박기 (5~7초 lag X)
+            // 다음 mount 시 자동 catch / 또는 사용자가 새로고침 박을 때
+
             setAssigning(false);
             setScreen("newReception");
           } catch (e) {

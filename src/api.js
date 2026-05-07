@@ -100,12 +100,47 @@ export async function getEngineers() {
   return apiCall('getEngineers', {});
 }
 
+// V14 속도 박기 — 추천 기사 cache (5분 TTL / in-memory Map)
+const _recommendCache = new Map();
+const _CACHE_TTL_MS = 5 * 60 * 1000; // 5분
+
+function _getCached(key) {
+  const entry = _recommendCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.ts > _CACHE_TTL_MS) {
+    _recommendCache.delete(key);
+    return null;
+  }
+  return entry.value;
+}
+
+function _setCached(key, value) {
+  _recommendCache.set(key, { ts: Date.now(), value });
+}
+
+// 배정 박힌 후 cache 박지 X (다음 호출 시 새로 catch / 배정 박힌 기사 빼기)
+export function invalidateRecommendCache() {
+  _recommendCache.clear();
+}
+
 // 추천 기사 (지역 + 작업유형 + 원청 매칭 / 시트 calc)
 // workType: '세척' / '냉매충전' / 등
 // principal: '올데이케어' / '에어컨프로 (KA)' / 등
 // region: '강남구' / '서초구' / 등
+// V14 속도 박기 — 5분 cache (같은 지역/원청 호출 시 즉시 박힘)
 export async function getRecommendedEngineers(workType, principal, region) {
-  return apiCall('getRecommendedEngineers', { workType, principal, region });
+  const key = `${workType}|${principal}|${region}`;
+  const cached = _getCached(key);
+  if (cached) {
+    console.log('[V14 cache] hit:', key);
+    return cached;
+  }
+  console.log('[V14 cache] miss:', key);
+  const result = await apiCall('getRecommendedEngineers', { workType, principal, region });
+  if (result && result.ok !== false) {
+    _setCached(key, result);
+  }
+  return result;
 }
 
 // 기사 배정 (시트 Q 배정기사 + R 상태=확정 박힘)
