@@ -41,6 +41,7 @@ import { EngineerRegionsScreen } from "../components/EngineerRegionsScreen.jsx";
 import { EngineerRegionChangeRequestScreen } from "../components/EngineerRegionChangeRequestScreen.jsx";
 import { EngineerNewAssignCallScreen } from "../components/EngineerNewAssignCallScreen.jsx";
 import { EngineerNewAssignDetailScreen } from "../components/EngineerNewAssignDetailScreen.jsx";
+import { UsolNBadge } from "../components/UsolNBadge.jsx";
 
 const NOW = "10:00";
 
@@ -724,13 +725,14 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
         {work.customer || "—"}
       </div>
 
-      {/* 작업 종류 + 기종 + 수량 */}
+      {/* 작업 종류 + N 마크 (유솔N 세척만) + 기종 + 수량 */}
       <div style={{
         fontSize: 13, color: "var(--text-secondary)",
         fontWeight: 600, marginBottom: 6,
         display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
       }}>
         <ServiceTypeIcon workType={work.workType} size={13} showLabel={true}/>
+        <UsolNBadge task={work} size="xs"/>
         <span style={{ color: "var(--text-tertiary)" }}>·</span>
         <span>{work.appliance || "—"}{work.qty ? ` ×${work.qty}` : ""}</span>
       </div>
@@ -1172,6 +1174,7 @@ function MainScreen({
                   display: "flex", alignItems: "center", gap: 4,
                 }}>
                   <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
+                  <UsolNBadge task={task} size="xs"/>
                   <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
                     {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
                   </span>

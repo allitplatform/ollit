@@ -16,6 +16,7 @@ import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
+import { UsolNBadge } from "./UsolNBadge.jsx";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -603,7 +604,7 @@ function WorkMainCard({ task }) {
         </div>
       )}
 
-      {/* 영역 1 — 상태 + 시간 + (진행중인 경우 시작 시각 우측) */}
+      {/* 영역 1 — 상태 + N 마크 (유솔N 세척만) + 시간 + (진행중인 경우 시작 시각 우측) */}
       <div style={{
         display: "flex", alignItems: "center", gap: 6, marginBottom: 12,
       }}>
@@ -613,6 +614,7 @@ function WorkMainCard({ task }) {
         <span style={{ fontSize: 14, color: labelColor, fontWeight: 700 }}>
           {isInProgress ? "진행중" : "확정"}
         </span>
+        <UsolNBadge task={task} size="sm"/>
         {isInProgress && task.startedAt && (
           <span style={{
             marginLeft: "auto",

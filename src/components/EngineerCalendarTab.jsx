@@ -980,28 +980,8 @@ function DayTaskCard({ task, onClick }) {
   );
 }
 
-// V14 v6 — 유솔N 세척 작업만 N 마크 (사장님 spec / 깔끔)
-export function UsolNBadge({ task }) {
-  if (!task) return null;
-  if (task.client !== "유솔홈케어 N") return null;
-  if (!(task.workType || "").includes("세척")) return null;
-  return (
-    <span style={{
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      width: 18, height: 18,
-      borderRadius: 4,
-      background: "#03C75A",
-      color: "#fff",
-      fontSize: 11,
-      fontWeight: 700,
-      flexShrink: 0,
-    }}>
-      N
-    </span>
-  );
-}
+// V14 v8 — UsolNBadge는 components/UsolNBadge.jsx로 분리됨 (8군데 통일)
+export { UsolNBadge } from "./UsolNBadge.jsx";
 
 function EmptyState({ text }) {
   return (

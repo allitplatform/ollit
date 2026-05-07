@@ -2,6 +2,7 @@
 // 흰 카드 + 좌측 4px 노랑 바 / 헤더 박스 + 텍스트 그룹 / 정보 + 단가 / 수락(노랑) + 거절(보더)
 
 import { ArrowLeft } from "lucide-react";
+import { UsolNBadge } from "./UsolNBadge.jsx";
 
 export function EngineerAcceptanceListScreen({
   pendingAcceptances = [],
@@ -68,6 +69,8 @@ function AcceptanceCard({ call, onAccept, onReject }) {
   const fee = call.engineerRate || 0;
   // 작업 종류 라벨 — 냉매충전 → 냉매
   const workTypeShort = call.workType === "냉매충전" ? "냉매" : (call.workType || "");
+  // V14 v8 — 수락 대기에 client 필드가 없으면 principalId 매칭 (유솔N 세척만 N 마크)
+  const badgeTask = { client: call.client, principalId: call.principalId, workType: call.workType };
   // 일정 라벨 (call.workSchedule = "당일 (오후)" → "당일 오후")
   const scheduleStr = (call.workSchedule || "").replace(/[()]/g, "").trim();
 
@@ -118,6 +121,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
             }}>
               {workTypeShort}
             </span>
+            <UsolNBadge task={badgeTask} size="xs"/>
             {scheduleStr && (
               <>
                 <span style={{ fontSize: 13, color: "#888" }}>·</span>

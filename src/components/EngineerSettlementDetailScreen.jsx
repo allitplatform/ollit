@@ -5,7 +5,7 @@
 import { ArrowLeft } from "lucide-react";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { calcTaskEarning } from "../utils/feePolicy.js";
-import { UsolNBadge } from "./EngineerCalendarTab.jsx";
+import { UsolNBadge } from "./UsolNBadge.jsx";
 
 function getEarning(t) {
   return t.engineerEarning || t.engineerNet || 0;
