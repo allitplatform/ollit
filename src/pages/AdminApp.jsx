@@ -1994,6 +1994,15 @@ export default function AdminApp({ user, onLogout }) {
                 schedule: "협의", time: "협의",
                 status: '약속대기', state: 'waiting',
               } : prev);
+              // V14 — 작업 상세 화면 (selectedTaskDetail) 도 박기 ⭐
+              setSelectedTaskDetail(prev => prev ? {
+                ...prev,
+                assignedEngineer: eng.name, engineer: eng.name,
+                배정기사: eng.name,
+                scheduledAt: "", confirmedAt: "", 확정일시: "",
+                schedule: "협의", time: "협의",
+                status: '약속대기', 상태: '약속대기', state: 'waiting',
+              } : prev);
               updateReception(selectedTask.id, {
                 acceptedEngineer: eng.name,
                 engineerId: eng.id || eng.engineerId,
@@ -2052,6 +2061,13 @@ export default function AdminApp({ user, onLogout }) {
               engineer: eng.name,
               status: '확정',
               state: 'scheduled',
+            } : prev);
+            // V14 — 작업 상세 화면 (selectedTaskDetail) 도 박기 ⭐
+            setSelectedTaskDetail(prev => prev ? {
+              ...prev,
+              assignedEngineer: eng.name, engineer: eng.name,
+              배정기사: eng.name,
+              status: '확정', 상태: '확정', state: 'scheduled',
             } : prev);
 
             // 옛 mock state 호환 (extraReceptions 박혀있어도)
