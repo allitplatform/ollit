@@ -57,6 +57,7 @@ import {
   getTasks as apiGetTasks,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
+  updateTask as apiUpdateTask,
   invalidateRecommendCache,
 } from "../api.js";
 
@@ -1815,6 +1816,108 @@ export default function AdminApp({ user, onLogout }) {
           const flow = WORK_TYPES_CONFIG[tk.workType]?.workflow || "manual_with_recommendation";
           setSelectedTask(tk);
           setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
+        }}
+        // V14 2B-2 — 일정 변경 (prompt 박은 임시 모달 / 진짜 picker = Phase 2)
+        onScheduleChange={async () => {
+          const tk = selectedTaskDetail;
+          if (!tk?.id) return;
+          const today = new Date().toISOString().slice(0, 10);
+          const dateStr = window.prompt("일정 날짜 박기 (YYYY-MM-DD):", tk.requestedDate || tk.confirmedDate || today);
+          if (!dateStr) return;
+          const timeStr = window.prompt("일정 시간 박기 (HH:MM):", tk.requestedTime || "10:00");
+          if (!timeStr) return;
+          const confirmedAt = `${dateStr} ${timeStr}`;
+          try {
+            console.log('[V14 2B-2] updateTask 일정', { taskId: tk.id, confirmedAt });
+            const res = await apiUpdateTask(tk.id, {
+              confirmedAt,
+              confirmedDate: dateStr,
+              confirmedTime: timeStr,
+              status: '확정',
+            });
+            if (!res || res.ok === false) {
+              alert(`일정 변경 catch X: ${(res && res.error) || '실패'}`);
+              return;
+            }
+            setApiTasks(prev => prev.map(t =>
+              t.id === tk.id
+                ? {
+                    ...t,
+                    confirmedAt, confirmedDate: dateStr, confirmedTime: timeStr,
+                    status: '확정', state: 'scheduled',
+                    schedule: confirmedAt, time: timeStr,
+                    확정일시: confirmedAt,
+                  }
+                : t
+            ));
+            setSelectedTaskDetail(prev => prev ? {
+              ...prev,
+              confirmedAt, confirmedDate: dateStr, confirmedTime: timeStr,
+              status: '확정', state: 'scheduled',
+              schedule: confirmedAt, time: timeStr,
+            } : prev);
+            addToast({ type: "schedule_change", title: "✓ 일정 박혔어", message: `${tk.customer || ""} · ${confirmedAt}` });
+            addNotification({
+              type: "schedule_changed",
+              title: "일정 변경",
+              message: tk.customer || "",
+              subInfo: confirmedAt,
+              taskId: tk.id,
+            });
+          } catch (e) {
+            console.error('[V14 2B-2] 일정 에러:', e);
+            alert(`일정 변경 에러: ${e.message || '실패'}`);
+          }
+        }}
+        // V14 2B-2 — 상태 변경 (작업중 / 완료 / 등)
+        onStatusChange={async (newStatus) => {
+          const tk = selectedTaskDetail;
+          if (!tk?.id || !newStatus) return;
+          try {
+            console.log('[V14 2B-2] updateTask 상태', { taskId: tk.id, status: newStatus });
+            const res = await apiUpdateTask(tk.id, { status: newStatus });
+            if (!res || res.ok === false) {
+              alert(`상태 변경 catch X: ${(res && res.error) || '실패'}`);
+              return;
+            }
+            const stateMap = {
+              '작업중': 'active', '진행중': 'active',
+              '완료': 'done', '정산완료': 'done',
+              '확정': 'scheduled',
+              '약속대기': 'waiting', '미배정': 'waiting',
+            };
+            setApiTasks(prev => prev.map(t =>
+              t.id === tk.id ? { ...t, status: newStatus, state: stateMap[newStatus] || t.state } : t
+            ));
+            setSelectedTaskDetail(prev => prev ? {
+              ...prev, status: newStatus, state: stateMap[newStatus] || prev.state
+            } : prev);
+            addToast({ type: "status_change", title: `✓ ${newStatus}`, message: tk.customer || "" });
+          } catch (e) {
+            console.error('[V14 2B-2] 상태 에러:', e);
+            alert(`상태 변경 에러: ${e.message || '실패'}`);
+          }
+        }}
+        // V14 2B-2 — 메모 변경
+        onMemoUpdate={async (newMemo) => {
+          const tk = selectedTaskDetail;
+          if (!tk?.id) return;
+          try {
+            console.log('[V14 2B-2] updateTask 메모', { taskId: tk.id, memo: newMemo });
+            const res = await apiUpdateTask(tk.id, { memo: newMemo, 작업메모: newMemo });
+            if (!res || res.ok === false) {
+              alert(`메모 변경 catch X: ${(res && res.error) || '실패'}`);
+              return;
+            }
+            setApiTasks(prev => prev.map(t =>
+              t.id === tk.id ? { ...t, memo: newMemo, 작업메모: newMemo } : t
+            ));
+            setSelectedTaskDetail(prev => prev ? { ...prev, memo: newMemo } : prev);
+            addToast({ type: "memo", title: "✓ 메모 박혔어", message: tk.customer || "" });
+          } catch (e) {
+            console.error('[V14 2B-2] 메모 에러:', e);
+            alert(`메모 에러: ${e.message || '실패'}`);
+          }
         }}
         user={user}
       />

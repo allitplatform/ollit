@@ -25,7 +25,7 @@ function getStateInfo(task) {
   return STATE_MAP[task.state] || { label: "—", color: "var(--text-secondary)" };
 }
 
-export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, user }) {
+export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user }) {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
   const [exceptionExpanded, setExceptionExpanded] = useState(false);
@@ -60,8 +60,8 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
   return (
     <div className="fade-in" style={{ background: "var(--bg-primary)", minHeight: "100vh" }}>
       <DetailHeader task={task} onBack={onBack} onMenuAction={handleMenuAction}/>
-      <MainCard task={task}/>
-      <QuickActions task={task}/>
+      <MainCard task={task} onStatusChange={onStatusChange}/>
+      <QuickActions task={task} onScheduleChange={onScheduleChange}/>
       <EngineerCard task={task} onEdit={onEdit} onAssign={onAssign}/>
       <InfoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
       <CompletionNotice task={task}/>
@@ -198,14 +198,14 @@ function MainCard({ task }) {
 }
 
 // ──────────────── 3. QuickActions ────────────────
-function QuickActions({ task }) {
+// V14 2B-2 — 일정 변경 = onScheduleChange callback (AdminApp prompt + updateTask)
+function QuickActions({ task, onScheduleChange }) {
   function callCustomer() {
     if (task.phone) window.location.href = `tel:${task.phone}`;
   }
   function contactEngineer() {
     if (task.engineerPhone) window.location.href = `tel:${task.engineerPhone}`;
   }
-  // 일정 변경은 onEdit 흐름과 별개. 향후 모달 — 지금은 안내만.
 
   const hasCustomerPhone = !!task.phone;
   const hasEngineer      = !!task.engineer;
@@ -215,7 +215,7 @@ function QuickActions({ task }) {
       <div style={{ display: "flex", gap: 6 }}>
         <ActionButton icon="📞" label="고객 통화" onClick={callCustomer} disabled={!hasCustomerPhone}/>
         <ActionButton icon="💬" label="기사 연락" onClick={contactEngineer} disabled={!hasEngineer}/>
-        <ActionButton icon="📅" label="일정 변경" onClick={() => alert("작업 수정에서 일정 변경 가능")}/>
+        <ActionButton icon="📅" label="일정 변경" onClick={onScheduleChange || (() => alert("일정 변경 박지 X"))}/>
       </div>
     </div>
   );
