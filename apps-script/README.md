@@ -7,6 +7,7 @@
 | `v14_week1_reset.gs` | V14 Week 1 (1A 설정_원청 7개 + 1C 작업번호 형식 + 1D 데이터 폐기) |
 | `v14_week1_policy_v6.gs` | V14 Week 1 1B CLEAN (수수료정책 V6 / 8열 / 90 row 박기) |
 | `v14_week1_api_backend.gs` | V14 Week 1 1C/1E (api-backend merge / 정책 catch + 동적 계산) |
+| `v14_week1_engineers.gs` | V14 Week 1 — 설정_기사 6열 마이그레이션 (옛 시트 백업 + V14 6열) |
 
 ## 사용 (V14 Week 1 처음 박을 때)
 
@@ -132,6 +133,35 @@
 3. `testGenerateTaskId_AllPrincipals` ▶ → Logger 캡처
 4. `testCalculateFee_AllPrincipals` ▶ → Logger 캡처
 5. 두 캡처 사장님께 전달
+
+## 설정_기사 V14 6열 마이그레이션 (`v14_week1_engineers.gs`)
+
+옛 기사 시트 (설정_기사 / 기사 / Engineers) → V14 6열 박기.
+
+**V14 6열**:
+기사ID | 이름 | 연락처 | 지역 | 직급 | 활성
+
+**박는 흐름**:
+1. 옛 시트 catch (시트명 다양성 — 설정_기사 / 기사 / Engineers)
+2. 옛 데이터 catch (이름 / 전화 / 이메일 — 첫 3열)
+3. 옛 시트 백업 (rename: `_백업_설정_기사_YYYYMMDD_HHmmss`)
+4. V14 6열 새 시트 박기 (핑크 헤더 #FF1B8D)
+5. 옛 데이터 → V14 형식 (이름 → 기사ID + 이름 / 지역·직급 빈 / 활성=true)
+6. 컬럼 너비 + 활성 컬럼 데이터 검증 (TRUE/FALSE)
+
+**사용**:
+1. Apps Script 에디터에 `v14_week1_engineers.gs` 박기
+2. `setupSheet_설정기사_V14` 실행
+3. 옛 시트 = 백업으로 rename / 새 V14 시트 박힘
+4. Logger 캡처: 마이그레이션 N명 박힘 catch
+5. 사장님 catch 박을 차례: 지역 / 직급 박기 (현재 빈)
+
+**박지 X (사장님 catch 박을 차례)**:
+- 기사ID 자동 (현재 = 이름 / 동명이인 시 charge X)
+- 지역 / 직급 (V14 헌법 박힌 거 / 사장님 박을 차례)
+- DryRun 패턴 X (백업 = rename으로 1번에 박힘 / 옛 시트는 백업 시트로 보존)
+
+---
 
 **동적 계산 검증 — 견적 100K / 벽걸이 (사장님 spec 기대값)**:
 
