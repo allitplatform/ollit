@@ -50,6 +50,8 @@ import { PrincipalEditScreen } from "../components/PrincipalEditScreen.jsx";
 import { NaverUploadScreen } from "../components/NaverUploadScreen.jsx";
 import { RatesManagementScreen } from "../components/RatesManagementScreen.jsx";
 import { createEmptyPrincipal } from "../data/principals.js";
+// V14 Week 1 1F — 진짜 API (시뮬 createTask 폐기)
+import { createTask as apiCreateTask, calculateFee as apiCalculateFee } from "../api.js";
 
 const NOW = "10:00";
 const TODAY = "MON · 27 APR";
@@ -73,18 +75,24 @@ const TODAY_STATS = {
   principalFee: 480000,  // 원청 수수료 — 보라
 };
 
-// V14 — 운영 6개 원청 (principals.js와 동기화 / 크리크린 추가)
+// V14 헌법 v6 — 운영 7개 원청 (api-backend.gs V14_PRINCIPAL_CODES와 동기화 / KA·KB 분리)
 const PRINCIPALS = [
-  { id: "올데이케어",     label: "올데이케어",          color: "#FF1B8D" },
-  { id: "에어컨프로",     label: "에어컨프로 (쿨가이)", color: "#06B6D4" },
-  { id: "용인컴퍼니",     label: "용인",                color: "#888780" },
-  { id: "유솔홈케어 H",   label: "유솔홈케어 H",        color: "#10B981" },
-  { id: "유솔홈케어 N",   label: "유솔홈케어 N",        color: "#03C75A" },
-  { id: "크리크린",       label: "크리크린",            color: "#7F77DD" },
+  { id: "올데이케어",      label: "올데이케어",       color: "#FF1B8D", code: "O"    },
+  { id: "에어컨프로 (KA)", label: "에어컨프로 (KA)",  color: "#06B6D4", code: "A"    },
+  { id: "쿨가이 (KB)",     label: "쿨가이 (KB)",      color: "#0891B2", code: "K"    },
+  { id: "용인컴퍼니",      label: "용인",              color: "#888780", code: "Y"    },
+  { id: "유솔홈케어 H",    label: "유솔홈케어 H",      color: "#10B981", code: "YS"   },
+  { id: "유솔홈케어 N",    label: "유솔홈케어 N",      color: "#03C75A", code: "YS-N" },
+  { id: "크리크린",        label: "크리크린",          color: "#7F77DD", code: "CK"   },
 ];
 
-// 원청 라벨 색 (id → color lookup) — 기존 코드 호환
-const PRINCIPAL_COLORS = Object.fromEntries(PRINCIPALS.map(p => [p.id, p.color]));
+// 원청 라벨 색 — V14 헌법 + 옛 호환 (시뮬 22건 점진 폐기)
+const PRINCIPAL_COLORS = {
+  ...Object.fromEntries(PRINCIPALS.map(p => [p.id, p.color])),
+  // 옛 시뮬 호환 (점진 폐기)
+  "에어컨프로": "#06B6D4",
+  "쿨가이":    "#0891B2",
+};
 
 // V14 — 회사 수익 계산 (commissionCalc.js로 폐기 통합 / principals.js 정책 그대로)
 // task.principal(원청 이름) → calcTaskEarning → { total, engineer, principal, company }
@@ -1303,8 +1311,9 @@ export default function AdminApp({ user, onLogout }) {
       const broadcast = getAutoBroadcastCandidates(head.workType, form.region, head.appliance, 4);
       pushCount = broadcast.length;
     }
+    // V14 1F — form.taskId 박혀있으면 진짜 API 결과 / 없으면 임시 시뮬 ID (점진 폐기)
     const newTask = {
-      id: `A${yy}${mm}${dd}-${seq}`,
+      id: form.taskId || `A${yy}${mm}${dd}-${seq}`,
       customer: form.customer,
       phone: form.phone,
       appliance: head.appliance,
@@ -1312,6 +1321,7 @@ export default function AdminApp({ user, onLogout }) {
       region: form.region || "—",
       time: "방금",
       principal: form.principal,
+      channel: form.channel || "",
       schedule: scheduleText,
       estimateTotal: form.estimateTotal || 0,
       memo: form.memo || "",
@@ -5296,9 +5306,33 @@ function FormChip({ t, active, color, onClick, children }) {
   );
 }
 
+// V14 1F — 분배 미리보기 셀 (관리자만)
+function FeePreviewCell({ t, label, value, color }) {
+  return (
+    <div style={{
+      padding: "8px 6px", textAlign: "center",
+      background: t.bg, borderRadius: 8,
+      border: `1px solid ${t.border}`,
+    }}>
+      <div style={{
+        fontSize: 9, fontWeight: 700, color: t.textMuted,
+        marginBottom: 2, letterSpacing: 0.3,
+      }}>
+        {label}
+      </div>
+      <div className="mono" style={{
+        fontSize: 13, fontWeight: 800, color,
+      }}>
+        ₩{Number(value || 0).toLocaleString("ko-KR")}
+      </div>
+    </div>
+  );
+}
+
 function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   const [form, setForm] = useState({
     principal: "",
+    channel: "",         // V14 1F — 채널 신규
     customer: "",
     phone: "",
     address: "",
@@ -5308,6 +5342,13 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     estimateTotal: 0,
   });
   const [errors, setErrors] = useState({});
+
+  // V14 1F — 진짜 API 등록 + 분배 미리보기 (관리자만)
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [feePreview, setFeePreview] = useState(null);   // { fee, policy, parsed } | null
+  const [feeLoading, setFeeLoading] = useState(false);
+  const [feeError, setFeeError] = useState("");
 
   // Step 5-1a — 카톡 자동 파싱 state
   const [kakaoText, setKakaoText] = useState("");
@@ -5321,8 +5362,26 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
   const [scheduleMode, setScheduleMode] = useState(null);  // null | "tbd" | "input"
 
-  const workTypes = ["세척", "냉매충전", "설치", "누설", "점검", "수리"];
-  const appliances = ["벽걸이", "스탠드", "시스템", "기타"];
+  // V14 헌법 v6 — 작업유형 5가지 / 기종 7가지
+  const workTypes = ["세척", "냉매충전", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
+  const appliances = ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"];
+  // 작업유형별 기종 풀 (V14 헌법 / 정책 시트와 일치)
+  const APPLIANCE_POOL = {
+    "세척":           ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"],
+    "냉매충전":       ["벽걸이", "스탠드", "4way", "투인원"],
+    "출장비":         ["(공통)"],
+    "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
+    "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
+  };
+
+  // V14 1F — 채널 5개 (사장님 spec)
+  const CHANNELS = [
+    { id: "카톡",   label: "카톡" },
+    { id: "전화",   label: "전화" },
+    { id: "네이버", label: "네이버" },
+    { id: "직접",   label: "직접" },
+    { id: "문자",   label: "문자" },
+  ];
 
   // 주소 → 첫 두 단어 지역 추출
   const region = (() => {
@@ -5425,20 +5484,17 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     setPriceConfirm(null);
   }
 
-  // workItems 조작
+  // workItems 조작 (V14 헌법 — 모든 작업유형 기종/케이스 필수)
   function addWorkItem() {
-    // Step 5-1e — 냉매충전은 기종 검증 X (기종 무관 / 가격 동일)
     if (!editItem.workType) {
       setErrors(prev => ({ ...prev, addItem: "종류 선택" }));
       return;
     }
-    if (editItem.workType !== "냉매충전" && !editItem.appliance) {
-      setErrors(prev => ({ ...prev, addItem: "기종 선택" }));
+    if (!editItem.appliance) {
+      setErrors(prev => ({ ...prev, addItem: "기종/케이스 선택" }));
       return;
     }
-    const item = editItem.workType === "냉매충전"
-      ? { workType: "냉매충전", appliance: "", qty: editItem.qty || 1 }
-      : { ...editItem, qty: editItem.qty || 1 };
+    const item = { ...editItem, qty: editItem.qty || 1 };
     setWorkItems(prev => [...prev, item]);
     setEditItem({ workType: "", appliance: "", qty: 1 });
     setShowAddItem(false);
@@ -5454,9 +5510,44 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     if (errors.addItem) setErrors(prev => ({ ...prev, addItem: null }));
   }
 
-  function handleSubmit() {
+  // V14 1F — 분배 미리보기 (관리자만 catch / 기사 X)
+  // 메인 항목 (workItems[0]) + 견적 박힐 때마다 debounce 500ms → calculateFee API 호출
+  useEffect(() => {
+    if (!form.principal || workItems.length === 0 || !form.estimateTotal) {
+      setFeePreview(null);
+      setFeeError("");
+      return;
+    }
+    const head = workItems[0];
+    if (!head.workType || !head.appliance) {
+      setFeePreview(null);
+      return;
+    }
+    setFeeLoading(true);
+    setFeeError("");
+    const timer = setTimeout(async () => {
+      try {
+        const res = await apiCalculateFee(form.principal, head.workType, head.appliance, form.estimateTotal);
+        if (res.ok) {
+          setFeePreview(res);
+        } else {
+          setFeeError(res.error || "계산 실패");
+          setFeePreview(null);
+        }
+      } catch (e) {
+        setFeeError(e.message);
+        setFeePreview(null);
+      } finally {
+        setFeeLoading(false);
+      }
+    }, 500);
+    return () => { clearTimeout(timer); setFeeLoading(false); };
+  }, [form.principal, workItems, form.estimateTotal]);
+
+  async function handleSubmit() {
     const errs = {};
     if (!form.principal)            errs.principal = "원청 선택";
+    if (!form.channel)              errs.channel = "채널 선택";
     if (!form.phone.trim())         errs.phone = "연락처 입력";
     if (!form.address.trim())       errs.address = "주소 입력";
     if (workItems.length === 0)     errs.workItems = "작업 항목 1개 이상";
@@ -5467,13 +5558,51 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     }
     const finalCustomer = autoGenerateCustomer(form, region);
     const scheduleType = scheduleMode === "input" ? "specific" : "tbd";
-    onSubmit({
-      ...form,
-      customer: finalCustomer,
-      region,
-      workItems,
-      scheduleType,
-    });
+    const head = workItems[0] || {};
+
+    // V14 1F — 진짜 createTask API (시트 작업DB row 박힘 / 작업번호 자동)
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const taskData = {
+        principal:     form.principal,         // V14 7개 헌법 이름
+        channel:       form.channel,
+        customer:      finalCustomer,
+        phone:         form.phone,
+        address:       form.address,
+        region,
+        workType:      head.workType,
+        appliance:     head.appliance,
+        qty:           head.qty || 1,
+        workItems,                              // 다중 항목 (시트가 catch)
+        quote:         form.estimateTotal,
+        estimateTotal: form.estimateTotal,
+        workDate:      form.requestDate,
+        scheduledDate: form.requestDate,
+        scheduledTime: form.requestTime,
+        memo:          form.memo,
+        status:        "약속대기",
+      };
+      const res = await apiCreateTask(taskData);
+      if (!res.ok) {
+        setSubmitError(res.error || "등록 실패");
+        setSubmitting(false);
+        return;
+      }
+      // V14 형식 작업번호 (예: O260507-001) — 부모로 전달
+      onSubmit({
+        ...form,
+        customer: finalCustomer,
+        region,
+        workItems,
+        scheduleType,
+        taskId:        res.taskId,
+        _v14ApiOk:     true,
+      });
+    } catch (e) {
+      setSubmitError(e.message || "등록 실패");
+      setSubmitting(false);
+    }
   }
 
   // 입력 박스 공용 스타일
@@ -5570,7 +5699,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
           )}
         </div>
 
-        {/* 1. 원청 — 드롭다운 */}
+        {/* 1. 원청 — V14 헌법 7개 드롭다운 */}
         <FormSection t={t} icon="🏢" label="원청" required error={errors.principal}>
           <div style={{ position: "relative" }}>
             <select
@@ -5595,6 +5724,20 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
               position: "absolute", right: 12, top: "50%",
               transform: "translateY(-50%)", color: t.textMuted, pointerEvents: "none",
             }}/>
+          </div>
+        </FormSection>
+
+        {/* V14 1F — 채널 드롭다운 */}
+        <FormSection t={t} icon="📥" label="채널" required error={errors.channel}>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {CHANNELS.map(c => (
+              <FormChip
+                t={t}
+                key={c.id}
+                active={form.channel === c.id}
+                onClick={() => update("channel", c.id)}
+              >{c.label}</FormChip>
+            ))}
           </div>
         </FormSection>
 
@@ -5667,11 +5810,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                 }}>
                   <span className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, minWidth: 20 }}>#{idx + 1}</span>
                   <span style={{ fontSize: 12, fontWeight: 800, color: t.text, flex: 1 }}>
-                    {item.workType === "냉매충전" ? (
-                      <>냉매충전 <span className="mono" style={{ color: t.accent }}>×{item.qty || 1}</span></>
-                    ) : (
-                      <>{item.workType} · {item.appliance || "기종 미정"} <span className="mono" style={{ color: t.accent }}>×{item.qty || 1}</span></>
-                    )}
+                    {item.workType} · {item.appliance || "—"} <span className="mono" style={{ color: t.accent }}>×{item.qty || 1}</span>
                   </span>
                   <button onClick={() => removeWorkItem(idx)} style={{
                     width: 26, height: 26,
@@ -5705,26 +5844,21 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                   ))}
                 </div>
               </div>
-              {editItem.workType !== "냉매충전" && (
+              {/* V14 헌법 — 작업유형별 기종 풀 (정책 시트와 일치) */}
+              {editItem.workType && (
                 <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>기종</div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>
+                    {editItem.workType === "추가선택(YS-N)" ? "추가 종류"
+                      : editItem.workType === "냉매점검(YS-N)" ? "케이스"
+                      : editItem.workType === "출장비" ? "구분"
+                      : "기종"}
+                  </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {appliances.map(a => (
+                    {(APPLIANCE_POOL[editItem.workType] || []).map(a => (
                       <FormChip t={t} key={a} active={editItem.appliance === a}
                         onClick={() => setEditItem(prev => ({ ...prev, appliance: a }))}>{a}</FormChip>
                     ))}
                   </div>
-                </div>
-              )}
-              {editItem.workType === "냉매충전" && (
-                <div style={{
-                  fontSize: 10, color: t.textMuted, fontWeight: 600,
-                  padding: "6px 10px",
-                  background: t.successBg || t.bgInset,
-                  border: `1px dashed ${t.successBorder || t.border}`,
-                  borderRadius: 6,
-                }}>
-                  · 냉매충전 = 기종 무관 (가격 동일)
                 </div>
               )}
               <div>
@@ -5818,6 +5952,60 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
               <span className="mono" style={{ color: t.accent, fontSize: 14, fontWeight: 800 }}>
                 ₩{form.estimateTotal.toLocaleString()}
               </span>
+            </div>
+          )}
+
+          {/* V14 1F — 분배 미리보기 (관리자만 catch / 기사 X) */}
+          {(form.principal && workItems.length > 0 && form.estimateTotal > 0) && (
+            <div style={{
+              marginTop: 12,
+              padding: "12px 14px",
+              background: t.bgInset,
+              border: `1px dashed ${t.accent}`,
+              borderRadius: 10,
+            }}>
+              <div style={{
+                fontSize: 10, fontWeight: 800, color: t.accent,
+                marginBottom: 8, letterSpacing: 0.5,
+                display: "flex", alignItems: "center", gap: 4,
+              }}>
+                <span>🔒</span>
+                <span>관리자 미리보기 (기사 X)</span>
+                {feeLoading && <span style={{ marginLeft: "auto", color: t.textMuted, fontWeight: 600 }}>계산 중...</span>}
+              </div>
+
+              {feeError && (
+                <div style={{ fontSize: 11, color: t.danger, fontWeight: 600 }}>
+                  ⚠ {feeError}
+                </div>
+              )}
+
+              {!feeError && feePreview && feePreview.fee && (
+                <>
+                  <div style={{
+                    fontSize: 11, color: t.textSecondary, fontWeight: 600,
+                    marginBottom: 8, lineHeight: 1.4,
+                  }}>
+                    정책: <span style={{ color: t.text, fontWeight: 800 }}>{feePreview.policy?.policyText || "—"}</span>
+                    {feePreview.parsed?.type && (
+                      <span style={{ color: t.textMuted, fontSize: 10, marginLeft: 4 }}>({feePreview.parsed.type})</span>
+                    )}
+                  </div>
+                  <div style={{
+                    display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8,
+                  }}>
+                    <FeePreviewCell t={t} label="원청" value={feePreview.fee.principalFee} color={t.textSecondary}/>
+                    <FeePreviewCell t={t} label="기사" value={feePreview.fee.engineerAmount} color={t.success || "#10B981"}/>
+                    <FeePreviewCell t={t} label="회사" value={feePreview.fee.companyProfit} color={t.accent}/>
+                  </div>
+                  <div style={{
+                    marginTop: 8, fontSize: 9, color: t.textMuted, fontWeight: 500,
+                    lineHeight: 1.4,
+                  }}>
+                    · 메인 항목 ({workItems[0]?.workType} / {workItems[0]?.appliance}) 기준 / 견적 ₩{form.estimateTotal.toLocaleString()}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </FormSection>
@@ -5914,23 +6102,42 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
           />
         </FormSection>
 
+        {/* V14 1F — 등록 에러 (createTask API 실패 시) */}
+        {submitError && (
+          <div style={{
+            marginTop: 12, padding: "10px 12px",
+            background: t.dangerBg || "#FEE2E2",
+            border: `1px solid ${t.danger || "#DC2626"}`,
+            borderRadius: 8,
+            fontSize: 12, fontWeight: 700, color: t.danger || "#B91C1C",
+          }}>
+            ⚠ {submitError}
+          </div>
+        )}
+
         {/* 하단 액션 */}
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button onClick={onBack} style={{
+          <button onClick={onBack} disabled={submitting} style={{
             flex: 1, padding: "12px",
             background: "transparent",
             border: `1px solid ${t.border}`, borderRadius: 10,
             fontSize: 13, fontWeight: 700, color: t.textSecondary,
-            cursor: "pointer", fontFamily: "inherit",
+            cursor: submitting ? "not-allowed" : "pointer",
+            opacity: submitting ? 0.5 : 1,
+            fontFamily: "inherit",
           }}>취소</button>
-          <button onClick={handleSubmit} style={{
+          <button onClick={handleSubmit} disabled={submitting} style={{
             flex: 2, padding: "12px",
-            background: t.accent, color: "white",
+            background: submitting ? t.bgInset : t.accent,
+            color: submitting ? t.textMuted : "white",
             border: "none", borderRadius: 10,
             fontSize: 13, fontWeight: 800,
-            cursor: "pointer", fontFamily: "inherit",
+            cursor: submitting ? "not-allowed" : "pointer",
+            fontFamily: "inherit",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}>등록하기 <ArrowRight size={14}/></button>
+          }}>
+            {submitting ? "등록 중..." : <>등록하기 <ArrowRight size={14}/></>}
+          </button>
         </div>
       </div>
 
