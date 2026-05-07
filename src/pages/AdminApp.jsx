@@ -1827,8 +1827,13 @@ export default function AdminApp({ user, onLogout }) {
           const timeStr = window.prompt("일정 시간 박기 (HH:MM):", tk.requestedTime || "10:00");
           if (!timeStr) return;
           const confirmedAt = `${dateStr} ${timeStr}`;
+          // V14 헌법 — '확정' = 배정 + 일정 박힌 catch
+          // 일정만 박은 경우 = 약속대기 그대로 / 배정 박힌 경우만 → 확정
+          // (사장님 catch: 기사가 일정 확정 박는 진짜 흐름 / 운영자는 예외 catch)
+          const hasEngineer = !!(tk.assignedEngineer || tk.engineer);
+          const newStatus = hasEngineer ? '확정' : (tk.status || '약속대기');
           try {
-            console.log('[V14 2B-2] updateTask 일정', { taskId: tk.id, scheduledAt: confirmedAt });
+            console.log('[V14 2B-2] updateTask 일정', { taskId: tk.id, scheduledAt: confirmedAt, hasEngineer, newStatus });
             const res = await apiUpdateTask(tk.id, {
               // V14 — backend 박은 키: scheduledAt (N 확정일시 catch)
               scheduledAt: confirmedAt,
@@ -1836,7 +1841,8 @@ export default function AdminApp({ user, onLogout }) {
               confirmedAt,
               confirmedDate: dateStr,
               confirmedTime: timeStr,
-              status: '확정',
+              // V14 헌법 — 배정 박힌 경우만 확정 / 박지 X = 약속대기 그대로
+              status: newStatus,
             });
             if (!res || res.ok === false) {
               alert(`일정 변경 catch X: ${(res && res.error) || '실패'}`);
@@ -1848,7 +1854,8 @@ export default function AdminApp({ user, onLogout }) {
                     ...t,
                     scheduledAt: confirmedAt,  // V14 backend 박은 키 (일정 확정 카운트 catch)
                     confirmedAt, confirmedDate: dateStr, confirmedTime: timeStr,
-                    status: '확정', state: 'scheduled',
+                    status: newStatus,
+                    state: newStatus === '확정' ? 'scheduled' : 'waiting',
                     schedule: confirmedAt, time: timeStr,
                     확정일시: confirmedAt,
                   }
@@ -1858,7 +1865,8 @@ export default function AdminApp({ user, onLogout }) {
               ...prev,
               scheduledAt: confirmedAt,
               confirmedAt, confirmedDate: dateStr, confirmedTime: timeStr,
-              status: '확정', state: 'scheduled',
+              status: newStatus,
+              state: newStatus === '확정' ? 'scheduled' : 'waiting',
               schedule: confirmedAt, time: timeStr,
             } : prev);
             addToast({ type: "schedule_change", title: "✓ 일정 박혔어", message: `${tk.customer || ""} · ${confirmedAt}` });
