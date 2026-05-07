@@ -14,24 +14,26 @@ function isToday(dateStr) {
       && d.getDate() === today.getDate();
 }
 
-// 메인 통계 계산 (AdminApp mock 데이터 기반)
-// 입력: { tasksToday, newReceptions, extraReceptions, assignedTasks, user }
+// 메인 통계 계산 (AdminApp mock + V14 2A apiTasks 기반)
+// 입력: { tasksToday, newReceptions, extraReceptions, apiTasks, assignedTasks, user }
 export function computeDashboardStats({
   tasksToday = [],
   newReceptions = { "세척": [], "냉매충전": [] },
   extraReceptions = [],
+  apiTasks = [],     // V14 2A — 진짜 시트 작업DB
   assignedTasks = [],
   user,
 } = {}) {
-  // 1. 새 접수 (NEW_RECEPTIONS + extraReceptions / 중복 제거)
+  // 1. 새 접수 (apiTasks + NEW_RECEPTIONS + extraReceptions / 중복 제거)
   const allReceptions = [
+    ...(apiTasks || []),                 // V14 2A — 진짜 시트 (우선)
     ...(newReceptions["세척"] || []),
     ...(newReceptions["냉매충전"] || []),
     ...(extraReceptions || []),
   ];
   const seenIds = new Set();
   const uniqueReceptions = allReceptions.filter(r => {
-    if (seenIds.has(r.id)) return false;
+    if (!r.id || seenIds.has(r.id)) return false;
     seenIds.add(r.id);
     return true;
   });

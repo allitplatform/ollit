@@ -1401,14 +1401,15 @@ export default function AdminApp({ user, onLogout }) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   // Step 10 — 진짜 카운팅 (기존 mock TODAY_STATS 대체)
-  // extraReceptions / receptionUpdates 변경 시 재계산
+  // V14 2A — apiTasks (진짜 시트) 박힘 / extraReceptions / receptionUpdates 변경 시 재계산
   const dynamicStats = useMemo(() => computeDashboardStats({
     tasksToday: TASKS_TODAY,
     newReceptions: NEW_RECEPTIONS,
     extraReceptions,
+    apiTasks,                                 // V14 2A — 진짜 시트
     assignedTasks: ASSIGNED_TASKS,
     user: getCurrentUserPerm(user),
-  }), [extraReceptions, receptionUpdates, user]);
+  }), [extraReceptions, receptionUpdates, user, apiTasks]);
 
   function addToast(toast) {
     const id = Date.now() + Math.random();
@@ -2117,6 +2118,7 @@ export default function AdminApp({ user, onLogout }) {
       onLogout={onLogout}
       user={user}
       dynamicStats={dynamicStats}
+      apiTasks={apiTasks}
       activeTab={dashboardActiveTab}
       setActiveTab={setDashboardActiveTab}
       unreadCount={unreadCount}
@@ -2141,8 +2143,11 @@ export default function AdminApp({ user, onLogout }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick }) {
-  const totalNew = NEW_RECEPTIONS.세척.length + NEW_RECEPTIONS.냉매충전.length;
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick }) {
+  // V14 2A — 새 접수 카운트 = apiTasks (진짜 시트) + NEW_RECEPTIONS 옛 호환
+  const totalNew = (apiTasks?.length || 0)
+    + NEW_RECEPTIONS.세척.length
+    + NEW_RECEPTIONS.냉매충전.length;
 
   return (
     <div className="fade-in">
@@ -2273,7 +2278,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, activ
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -2288,7 +2293,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, activ
 }
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
-function OverviewTab({ t, totalNew, onClickNewReception, onClickLiveWork, onClickAddReception }) {
+function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception }) {
   // 6종 작업 박스 (Step 3-1: ⚡ 박스 제거 + 종류별 6박스 확장)
   const workTypeOrder = [
     { key: "세척",     label: "세척" },
@@ -2298,11 +2303,25 @@ function OverviewTab({ t, totalNew, onClickNewReception, onClickLiveWork, onClic
     { key: "점검",     label: "점검" },
     { key: "수리",     label: "수리" },
   ];
-  const workTypeCounts = {
-    세척:     NEW_RECEPTIONS.세척.length,
-    냉매충전: NEW_RECEPTIONS.냉매충전.length,
-    설치: 0, 누설: 0, 점검: 0, 수리: 0,  // Phase 2 데이터 추가 시 자동
-  };
+
+  // V14 2A — apiTasks의 workItems / workType 박은 거 카운트 (진짜 시트)
+  const workTypeCounts = useMemo(() => {
+    const counts = { 세척: 0, 냉매충전: 0, 설치: 0, 누설: 0, 점검: 0, 수리: 0 };
+    // 옛 NEW_RECEPTIONS (이미 빈 배열이지만 호환)
+    counts["세척"]    += NEW_RECEPTIONS.세척.length;
+    counts["냉매충전"] += NEW_RECEPTIONS.냉매충전.length;
+    // 진짜 apiTasks (workItems 우선 / 없으면 workType)
+    (apiTasks || []).forEach(task => {
+      const items = (task.workItems && task.workItems.length > 0)
+        ? task.workItems
+        : (task.workType ? [{ workType: task.workType }] : []);
+      items.forEach(item => {
+        const wt = item.workType;
+        if (counts[wt] != null) counts[wt]++;
+      });
+    });
+    return counts;
+  }, [apiTasks]);
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
