@@ -597,6 +597,181 @@ function calcProgressPct(startedAt, endTime) {
   return Math.max(0, Math.min(100, pct));
 }
 
+// V14 v8 — 시간 헬퍼 (사장님 spec '시작까지 N분' / '완료까지 N분')
+function getMinutesUntilTime(timeStr, now) {
+  if (!timeStr) return null;
+  const m = String(timeStr).match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  const target = new Date(now);
+  target.setHours(Number(m[1]), Number(m[2]), 0, 0);
+  return Math.round((target - now) / 60000);
+}
+
+function formatMinutesLabel(min) {
+  if (min == null) return "";
+  if (min <= 0) return "지금";
+  if (min < 60) return `${min}분`;
+  const h = Math.floor(min / 60);
+  const r = min % 60;
+  return r === 0 ? `${h}시간` : `${h}시간 ${r}분`;
+}
+
+// V14 v8 — 진행 카드 (사장님 spec '가장 가까운 작업')
+// 모드: 진행 중 (now >= start && now < end) / 다음 작업 (시작 전)
+// 30분 이내 시작 → 핑크 강조 / 진행 중 → 펄스 + 완료 보고 버튼
+function NextWorkCard({ work, now, onClick, onCompleteReport }) {
+  if (!work) return null;
+  const startTime = work.scheduledTime || work.time || null;
+  const endTime   = work.endTime || null;
+  const startMin  = getMinutesUntilTime(startTime, now);
+  const endMin    = getMinutesUntilTime(endTime, now);
+  const isInProgress = work.status === "진행중"
+    || (startMin !== null && startMin <= 0 && endMin !== null && endMin > 0);
+  const isImminent = !isInProgress
+    && startMin !== null && startMin > 0 && startMin <= 30;
+
+  const accent = "#FF1B8D";
+  const cardBg = (isInProgress || isImminent)
+    ? "rgba(255,27,141,0.06)"
+    : "var(--card-bg)";
+  const cardBorder = (isInProgress || isImminent)
+    ? "rgba(255,27,141,0.30)"
+    : "var(--border)";
+
+  const headerIcon  = isInProgress ? "⚡" : "📍";
+  const headerLabel = isInProgress ? "진행 중" : "다음 작업";
+  const subLabel = (() => {
+    if (isInProgress) {
+      if (endMin == null)    return "시간 미정";
+      if (endMin <= 0)       return "마감 시간 지남";
+      return `완료까지 ${formatMinutesLabel(endMin)}`;
+    }
+    if (startMin == null) return "시간 미정";
+    if (startMin <= 0)    return "지금 시작 시간";
+    return `시작까지 ${formatMinutesLabel(startMin)}`;
+  })();
+
+  return (
+    <div
+      onClick={() => onClick && onClick(work.id)}
+      className={isInProgress ? "clickable pulse-subtle" : "clickable"}
+      style={{
+        position: "relative",
+        margin: "0 16px 14px",
+        background: cardBg,
+        border: `1px solid ${cardBorder}`,
+        borderRadius: 18,
+        padding: "16px 16px 16px 22px",
+        cursor: "pointer",
+        overflow: "hidden",
+      }}
+    >
+      {/* 좌측 4px 핑크 바 */}
+      <div style={{
+        position: "absolute",
+        left: 0, top: 0, bottom: 0,
+        width: 4,
+        background: accent,
+      }}/>
+
+      {/* 헤더: 아이콘 + 라벨 / 분 카운트다운 */}
+      <div style={{
+        display: "flex", justifyContent: "space-between",
+        alignItems: "center", marginBottom: 10,
+      }}>
+        <span style={{
+          fontSize: 13, fontWeight: 700, color: accent,
+          display: "flex", alignItems: "center", gap: 4,
+        }}>
+          <span>{headerIcon}</span>
+          <span>{headerLabel}</span>
+        </span>
+        <span style={{
+          fontSize: 12, fontWeight: 700,
+          color: (isInProgress || isImminent) ? accent : "var(--text-secondary)",
+        }}>
+          {subLabel}
+        </span>
+      </div>
+
+      {/* 시간 (큰 22px) + 종료 시간 */}
+      {startTime && (
+        <div style={{
+          display: "flex", alignItems: "baseline", gap: 8, marginBottom: 6,
+        }}>
+          <span style={{
+            fontSize: 22, fontWeight: 800,
+            color: "var(--text-primary)",
+            fontFamily: "inherit",
+            letterSpacing: "-0.5px",
+          }}>
+            {startTime}
+          </span>
+          {endTime && (
+            <span style={{ fontSize: 13, color: "#888", fontWeight: 600 }}>
+              ~ {endTime}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* 고객명 */}
+      <div style={{
+        fontSize: 17, fontWeight: 700,
+        color: "var(--text-primary)",
+        marginBottom: 4,
+      }}>
+        {work.customer || "—"}
+      </div>
+
+      {/* 작업 종류 + 기종 + 수량 */}
+      <div style={{
+        fontSize: 13, color: "var(--text-secondary)",
+        fontWeight: 600, marginBottom: 6,
+        display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
+      }}>
+        <ServiceTypeIcon workType={work.workType} size={13} showLabel={true}/>
+        <span style={{ color: "var(--text-tertiary)" }}>·</span>
+        <span>{work.appliance || "—"}{work.qty ? ` ×${work.qty}` : ""}</span>
+      </div>
+
+      {/* 주소 (1줄 ellipsis) */}
+      <div style={{
+        fontSize: 13, color: "var(--text-secondary)",
+        fontWeight: 600,
+        marginBottom: isInProgress ? 12 : 0,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        📍 {work.fullAddress || work.address || "—"}
+      </div>
+
+      {/* 진행 중 모드: 완료 보고 버튼 (큰 핑크) */}
+      {isInProgress && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onCompleteReport) onCompleteReport(work.id);
+            else if (onClick)     onClick(work.id);
+          }}
+          style={{
+            width: "100%",
+            padding: 14,
+            background: accent,
+            border: "none",
+            borderRadius: 12,
+            color: "#fff",
+            fontSize: 15, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+            marginTop: 4,
+          }}
+        >
+          ✓ 완료 보고
+        </button>
+      )}
+    </div>
+  );
+}
+
 // V13-1 — 일정 상태 알약 (다음 일정 카드용)
 function StatusPill({ status }) {
   const map = {
@@ -631,6 +806,8 @@ function MainScreen({
   onClickNewAssignmentList,
   onClickUsolN,
   onClickTomorrow,
+  onClickCalendar,
+  onCompleteReport,
   pendingAcceptances = [],
   newAssignmentsOverride,
   usolNTotal = 0,
@@ -647,8 +824,13 @@ function MainScreen({
     return `${dayShort} · ${month} ${day} · ${time}`;
   }
   const [nowLabel, setNowLabel] = useState(() => buildNowLabel());
+  // V14 v8 — Date 객체 (NextWorkCard 분 카운트다운에 사용 / 1분마다 업데이트)
+  const [nowDate, setNowDate] = useState(() => new Date());
   useEffect(() => {
-    const timer = setInterval(() => setNowLabel(buildNowLabel()), 60000);
+    const timer = setInterval(() => {
+      setNowLabel(buildNowLabel());
+      setNowDate(new Date());
+    }, 60000);
     return () => clearInterval(timer);
   }, []);
   const activeTask = tasks.find(x => x.status === "진행중") || null;
@@ -668,10 +850,22 @@ function MainScreen({
     x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
   );
 
-  // 다음 일정 = 시간 있는 확정 작업만 (진행중은 위 별도 박스)
-  const upcomingTasks = tasks
-    .filter(x => x.status === "확정" && (x.time || x.scheduledTime))
+  // V14 v8 — 오늘 남은 일정 (사장님 spec '미래 일정 X / 캘린더 탭에서')
+  // 진행중 + 확정 (오늘만) 시간순
+  const todayRemaining = todayTasksLocal
+    .filter(x => x.status !== "완료" && (x.time || x.scheduledTime))
     .sort((a, b) => (a.time || a.scheduledTime || "99:99").localeCompare(b.time || b.scheduledTime || "99:99"));
+
+  // V14 v8 — 진행 카드 = 가장 가까운 미완료 (진행중 우선, 다음 확정)
+  const nextWork = activeTask || todayRemaining.find(x => x.status === "확정") || null;
+
+  // 다음 일정 리스트 = 진행 카드에 들어간 작업은 제외 (중복 제거)
+  const upcomingTasks = todayRemaining.filter(x => !nextWork || x.id !== nextWork.id);
+
+  // 오늘 0건 (진행중도 확정도 약속대기도 X)
+  const noTaskToday = !activeTask
+    && todayTasksLocal.length === 0
+    && newAssignments.length === 0;
 
   // 한 줄 요약 — V14: 작업 종류별 (도구 준비 가이드)
   const counts = {
@@ -820,184 +1014,16 @@ function MainScreen({
         </div>
       )}
 
-      {/* 2. 진행중 박스 (V14 통합 — 작업 종류 색 + 사이즈 키움) */}
-      {activeTask && (() => {
-        const colors = getWorkTypeColors(activeTask.workType);
-        const labelColor = isDark ? colors.label.dark : colors.label.light;
-        return (
-        <div
-          onClick={() => onTaskClick(activeTask.id)}
-          className="clickable"
-          style={{
-            position: "relative",
-            margin: "0 16px 14px",
-            background: "var(--card-bg)",
-            border: "1px solid var(--border)",
-            borderRadius: 18,
-            padding: "18px 18px 18px 22px",
-            cursor: "pointer",
-            overflow: "hidden",
-          }}
-        >
-          {/* 좌측 4px 작업 종류 색 바 */}
-          <div style={{
-            position: "absolute",
-            left: 0, top: 0, bottom: 0,
-            width: 4,
-            background: colors.main,
-          }}/>
-
-          {/* V14 v7 — 날짜 라인 (사장님 spec '5월 7일 (목) · 오늘') */}
-          {activeTask.scheduledDate && (
-            <div style={{
-              fontSize: 12, fontWeight: 700,
-              color: workDateColor(activeTask.scheduledDate),
-              marginBottom: 10,
-              display: "flex", alignItems: "center", gap: 6,
-            }}>
-              <span>📅</span>
-              <span>{workDateLabel(activeTask.scheduledDate)}</span>
-            </div>
-          )}
-
-          <div style={{
-            display: "flex", justifyContent: "space-between",
-            alignItems: "center", marginBottom: 10,
-          }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{
-                width: 8, height: 8, borderRadius: "50%",
-                background: colors.main,
-                display: "inline-block",
-              }}/>
-              <span style={{
-                fontSize: 14, color: labelColor, fontWeight: 700,
-              }}>
-                진행중
-              </span>
-            </div>
-            <span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 600 }}>
-              {formatProgress(activeTask.startedAt)} 진행
-            </span>
-          </div>
-
-          {/* V14 — 큰 시간 표시 36px */}
-          {activeTask.startedAt && (
-            <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 8 }}>
-              <span style={{
-                fontSize: 36, fontWeight: 600,
-                fontFamily: "inherit",
-                color: "var(--text-primary)", letterSpacing: "-1px",
-              }}>
-                {activeTask.startedAt}
-              </span>
-              {activeTask.endTime && (
-                <span style={{ fontSize: 16, color: "#888", fontWeight: 600 }}>
-                  ~ {activeTask.endTime}
-                </span>
-              )}
-            </div>
-          )}
-
-          <div style={{
-            display: "flex", alignItems: "center",
-            justifyContent: "space-between", marginBottom: 8,
-          }}>
-            <div style={{
-              fontSize: 26, fontWeight: 700,
-              color: "var(--text-primary)",
-              letterSpacing: "-0.3px",
-            }}>
-              {activeTask.customer}
-            </div>
-            <span style={{
-              fontSize: 22, color: "var(--card-arrow)",
-              marginLeft: 8,
-            }}>
-              ›
-            </span>
-          </div>
-
-          {/* V14 — 작업 항목 한 줄 박스 (구분선 + 컬러박스 + 작업명 + 단가) */}
-          <div style={{ marginBottom: 14 }}>
-            <WorkItemRow
-              workType={activeTask.workType}
-              appliance={activeTask.appliance}
-              qty={activeTask.qty}
-              price={activeTask.estimateTotal}
-              client={activeTask.client}
-              dividerTop={true}
-            />
-          </div>
-
-          {/* 전체 주소 */}
-          <div style={{
-            fontSize: 14, color: "var(--text-primary)",
-            marginBottom: 12, lineHeight: 1.5, fontWeight: 600,
-          }}>
-            📍 {activeTask.fullAddress || activeTask.address || "—"}
-          </div>
-
-          {/* 시작/종료는 위 큰 시간 표시로 통합 */}
-
-          {/* V14 — progress bar (시작/종료 둘 다 있을 때만) */}
-          {activeTask.startedAt && activeTask.endTime && (
-            <div style={{
-              height: 3,
-              borderRadius: 2,
-              background: "var(--progress-bg)",
-              overflow: "hidden",
-              marginBottom: 14,
-            }}>
-              <div style={{
-                width: `${calcProgressPct(activeTask.startedAt, activeTask.endTime)}%`,
-                height: "100%",
-                background: colors.main,
-                transition: "width 0.3s",
-              }}/>
-            </div>
-          )}
-
-          {/* V14 — 통화 = 초록 / 길찾기 = 작업 종류 색 (사이즈 키움) */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
-          }}>
-            <button
-              onClick={(e) => { e.stopPropagation(); makeTel(activeTask.phone); }}
-              style={{
-                padding: 14,
-                background: "#34C759",
-                border: "none",
-                borderRadius: 10,
-                color: "#fff",
-                fontSize: 15, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-                display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 8,
-              }}
-            >
-              <PhoneSvgColored color="#fff"/> 통화
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); openMapForTask(activeTask); }}
-              style={{
-                padding: 14,
-                background: colors.main,
-                border: "none",
-                borderRadius: 10,
-                color: colors.buttonText || "#fff",
-                fontSize: 15, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-                display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 8,
-              }}
-            >
-              <NavSvgColored color={colors.buttonText || "#fff"}/> 길찾기
-            </button>
-          </div>
-        </div>
-        );
-      })()}
+      {/* V14 v8 — 진행 카드 (사장님 spec '가장 가까운 작업') */}
+      {/* 진행중 우선 → 다음 확정 / 알림 카드 위 / 30분 이내 임박 → 핑크 강조 */}
+      {nextWork && (
+        <NextWorkCard
+          work={nextWork}
+          now={nowDate}
+          onClick={onTaskClick}
+          onCompleteReport={onCompleteReport}
+        />
+      )}
 
       {/* 3. 수락 대기 배너 (V14 정제 — 흰 카드 + 좌측 4px 핑크 바 + 노랑 박스) */}
       {pendingAcceptances.length > 0 && (() => {
@@ -1080,14 +1106,15 @@ function MainScreen({
         </div>
       )}
 
-      {/* 5. 다음 일정 (시간순) — V14 v7: allDone 시 중복 제거 (수고 카드 안 '내일 일정 보기' 버튼이 대체) */}
-      {!allDoneToday && (
+      {/* V14 v8 — 오늘 남은 일정 (사장님 spec '미래 일정 X / 캘린더 탭에서') */}
+      {/* allDone = 수고 카드 / 0건 = 캘린더 안내 카드 / 그 외 = 오늘 남은 일정 리스트 */}
+      {!allDoneToday && !noTaskToday && (
       <div data-next-schedule="true" style={{ padding: "0 16px" }}>
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
           marginBottom: 10, paddingLeft: 4, fontWeight: 700,
         }}>
-          📅 다음 일정
+          📅 오늘 남은 일정 ({upcomingTasks.length}건)
         </div>
 
         {upcomingTasks.length === 0 ? (
@@ -1097,84 +1124,131 @@ function MainScreen({
             background: "var(--bg-secondary)",
             borderRadius: 10,
           }}>
-            예정된 일정 없음
+            진행 카드 외 남은 일정 없음
           </div>
-        ) : (() => {
-          // V14 v6 — 날짜별 그룹화 (사장님 spec)
-          const groups = {};
-          upcomingTasks.forEach(t => {
-            const k = t.scheduledDate || "unknown";
-            if (!groups[k]) groups[k] = [];
-            groups[k].push(t);
-          });
-          const sortedDates = Object.keys(groups).sort();
-          return sortedDates.map(date => (
-            <div key={date}>
-              <div style={{
-                fontSize: 12,
-                color: workDateColor(date),
-                fontWeight: 700, marginBottom: 6, marginTop: 8,
-                paddingLeft: 4,
-              }}>
-                📅 {workDateLabel(date)} · {groups[date].length}건
-              </div>
-              {groups[date].map(task => (
-                <div
-                  key={task.id}
-                  onClick={() => onTaskClick(task.id)}
-                  className="clickable"
-                  style={{
-                    display: "flex", alignItems: "center",
-                    padding: 14,
-                    background: "var(--bg-secondary)",
-                    borderRadius: 10,
-                    marginBottom: 8,
-                    cursor: "pointer",
-                  }}
-                >
-                  <div style={{ width: 64 }}>
-                    <div className="mono" style={{
-                      fontSize: 17, color: "var(--text-primary)",
-                      fontWeight: 800,
-                    }}>
-                      {task.time || task.scheduledTime || "—"}
-                    </div>
-                    {task.duration && (
-                      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                        {task.duration}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ flex: 1, padding: "0 10px", minWidth: 0 }}>
-                    <div style={{
-                      fontSize: 16, color: "var(--text-primary)", fontWeight: 700,
-                      display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
-                    }}>
-                      <span>{task.customer}</span>
-                      <span style={{
-                        fontSize: 12, color: "var(--text-secondary)",
-                        fontWeight: 600,
-                      }}>
-                        {task.address}
-                      </span>
-                    </div>
-                    <div style={{
-                      fontSize: 13, marginTop: 4,
-                      display: "flex", alignItems: "center", gap: 4,
-                    }}>
-                      <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
-                      <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
-                        {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
-                      </span>
-                    </div>
-                  </div>
-                  <span style={{ fontSize: 18, color: "var(--text-secondary)" }}>›</span>
+        ) : (
+          upcomingTasks.map(task => (
+            <div
+              key={task.id}
+              onClick={() => onTaskClick(task.id)}
+              className="clickable"
+              style={{
+                display: "flex", alignItems: "center",
+                padding: 14,
+                background: "var(--bg-secondary)",
+                borderRadius: 10,
+                marginBottom: 8,
+                cursor: "pointer",
+              }}
+            >
+              <div style={{ width: 64 }}>
+                <div className="mono" style={{
+                  fontSize: 17, color: "var(--text-primary)",
+                  fontWeight: 800,
+                }}>
+                  {task.time || task.scheduledTime || "—"}
                 </div>
-              ))}
+                {task.duration && (
+                  <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                    {task.duration}
+                  </div>
+                )}
+              </div>
+              <div style={{ flex: 1, padding: "0 10px", minWidth: 0 }}>
+                <div style={{
+                  fontSize: 16, color: "var(--text-primary)", fontWeight: 700,
+                  display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
+                }}>
+                  <span>{task.customer}</span>
+                  <span style={{
+                    fontSize: 12, color: "var(--text-secondary)",
+                    fontWeight: 600,
+                  }}>
+                    {task.address}
+                  </span>
+                </div>
+                <div style={{
+                  fontSize: 13, marginTop: 4,
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
+                  <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
+                    {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
+                  </span>
+                </div>
+              </div>
+              <span style={{ fontSize: 18, color: "var(--text-secondary)" }}>›</span>
             </div>
-          ));
-        })()}
+          ))
+        )}
+
+        {/* 미래 일정은 캘린더 탭 안내 */}
+        <button
+          onClick={onClickTomorrow}
+          className="clickable"
+          style={{
+            width: "100%",
+            padding: 12,
+            marginTop: 6,
+            background: "transparent",
+            border: "1px dashed var(--border)",
+            borderRadius: 10,
+            color: "var(--text-secondary)",
+            fontSize: 12, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+          }}
+        >
+          📅 내일 이후 일정 → 캘린더 탭
+        </button>
       </div>
+      )}
+
+      {/* V14 v8 — 오늘 0건 안내 카드 (사장님 spec) */}
+      {noTaskToday && (
+        <div style={{ padding: "0 16px" }}>
+          <div style={{
+            padding: "32px 20px",
+            background: "var(--bg-secondary)",
+            border: "1px dashed var(--border)",
+            borderRadius: 14,
+            textAlign: "center",
+          }}>
+            <div style={{
+              fontSize: 32,
+              marginBottom: 8,
+            }}>
+              🌤️
+            </div>
+            <div style={{
+              fontSize: 15, fontWeight: 700,
+              color: "var(--text-primary)",
+              marginBottom: 6,
+            }}>
+              오늘 일정 없습니다
+            </div>
+            <div style={{
+              fontSize: 12, color: "var(--text-secondary)",
+              fontWeight: 600, marginBottom: 16,
+            }}>
+              내일 이후 일정은 캘린더에서 확인하세요
+            </div>
+            <button
+              onClick={onClickCalendar || onClickTomorrow}
+              style={{
+                padding: "12px 24px",
+                background: "#FF1B8D",
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              📅 캘린더 보기
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -4393,6 +4467,8 @@ export default function EngineerApp({ user, onLogout }) {
               onClickNewAssignmentList={() => setScreen("newAssignmentList")}
               onClickUsolN={() => setScreen("usolNSettlement")}
               onClickTomorrow={handleTomorrowClick}
+              onClickCalendar={() => { setCalendarInitial(null); resetTo("calendar"); }}
+              onCompleteReport={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
               pendingAcceptances={pendingAcceptances}
               newAssignmentsOverride={newAssignments}
               usolNTotal={usolNGroupsMock
