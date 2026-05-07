@@ -2129,6 +2129,7 @@ export default function AdminApp({ user, onLogout }) {
         onBack={() => { goBack(); setAssignedFilter(null); }}
         onMemo={(task) => { setSelectedTask(task); setScreen("memoAdd"); }}
         onEdit={(task) => { setSelectedTask(task); setScreen("taskEdit"); }}
+        onTaskClick={(task) => goTaskDetail(task, "assignedList")}
       />
     </Shell>;
   }
@@ -3223,7 +3224,7 @@ function PlaceholderScreen({ t, title, label, onBack }) {
 // ─────────────────────────────────────────────
 // 배정 완료 / 일정 확정 화면 (Step 2-5b)
 // ─────────────────────────────────────────────
-function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit }) {
+function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit, onTaskClick }) {
   // V14 — apiTasks 박힌 거 (status='확정' / Q 배정기사 박힘) catch
   // V14 헌법: 확정 = 배정 완료 = 일정 확정 (동시 박힘 / 같은 status)
   // assigned filter = 확정 박힌 모든 작업 (배정 박힘)
@@ -3264,21 +3265,24 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit 
             해당 상태의 작업이 없어요
           </div>
         ) : all.map((task) => (
-          <AssignedCard key={task.id || task.taskCode} t={t} task={task} onMemo={onMemo} onEdit={onEdit}/>
+          <AssignedCard key={task.id || task.taskCode} t={t} task={task} onMemo={onMemo} onEdit={onEdit} onClick={onTaskClick}/>
         ))}
       </div>
     </div>
   );
 }
 
-function AssignedCard({ t, task, onMemo, onEdit }) {
+function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
   const isAssigned = task.assignmentStatus === "assigned";
 
   return (
-    <div style={{
-      background: t.bgElevated, border: `1px solid ${t.border}`,
-      borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-    }}>
+    <div
+      onClick={() => onClick && onClick(task)}
+      style={{
+        background: t.bgElevated, border: `1px solid ${t.border}`,
+        borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+        cursor: onClick ? "pointer" : "default",
+      }}>
       {/* 헤더: 원청 라벨 + 고객명 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
@@ -3341,8 +3345,8 @@ function AssignedCard({ t, task, onMemo, onEdit }) {
         </div>
       )}
 
-      {/* 액션 4개 (균등) */}
-      <div style={{ display: "flex", gap: 6 }}>
+      {/* 액션 4개 (균등) — V14 stopPropagation (카드 클릭 박지 X) */}
+      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 6 }}>
         <ActionIconBtn t={t} icon={<Phone size={13}/>}    href={`tel:${task.phone}`}         flex={1}/>
         <ActionIconBtn t={t} icon={<User size={13}/>}     href={`tel:${task.engineerPhone}`} flex={1}/>
         <ActionIconBtn t={t} icon={<FileText size={13}/>} onClick={() => onMemo && onMemo(task)} flex={1}/>
