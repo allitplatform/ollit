@@ -1828,8 +1828,11 @@ export default function AdminApp({ user, onLogout }) {
           if (!timeStr) return;
           const confirmedAt = `${dateStr} ${timeStr}`;
           try {
-            console.log('[V14 2B-2] updateTask 일정', { taskId: tk.id, confirmedAt });
+            console.log('[V14 2B-2] updateTask 일정', { taskId: tk.id, scheduledAt: confirmedAt });
             const res = await apiUpdateTask(tk.id, {
+              // V14 — backend 박은 키: scheduledAt (N 확정일시 catch)
+              scheduledAt: confirmedAt,
+              // 옛 호환 (frontend Optimistic 박은 거)
               confirmedAt,
               confirmedDate: dateStr,
               confirmedTime: timeStr,
@@ -1843,6 +1846,7 @@ export default function AdminApp({ user, onLogout }) {
               t.id === tk.id
                 ? {
                     ...t,
+                    scheduledAt: confirmedAt,  // V14 backend 박은 키 (일정 확정 카운트 catch)
                     confirmedAt, confirmedDate: dateStr, confirmedTime: timeStr,
                     status: '확정', state: 'scheduled',
                     schedule: confirmedAt, time: timeStr,
@@ -1852,6 +1856,7 @@ export default function AdminApp({ user, onLogout }) {
             ));
             setSelectedTaskDetail(prev => prev ? {
               ...prev,
+              scheduledAt: confirmedAt,
               confirmedAt, confirmedDate: dateStr, confirmedTime: timeStr,
               status: '확정', state: 'scheduled',
               schedule: confirmedAt, time: timeStr,

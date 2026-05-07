@@ -46,7 +46,8 @@ export function computeDashboardStats({
 
   // V14 헌법 v6 상태값 (시트 R열):
   //   '미배정' / '약속대기' → 새 접수 (배정 박지 X)
-  //   '확정'                → 배정 완료 = 일정 확정 (Q 배정기사 박힘)
+  //   '확정'                → 배정 완료 (Q 배정기사 박힘)
+  //   '확정' + N 확정일시   → 일정 확정 (시간 박힌 거만)
   //   '작업중'              → 진행중
   //   '완료' / '정산완료'    → 완료
   const newReceptionTasks = uniqueTasks.filter(t => _v14HasStatus(t, "미배정", "약속대기"));
@@ -54,9 +55,14 @@ export function computeDashboardStats({
   const inProgressTasks   = uniqueTasks.filter(t => _v14HasStatus(t, "작업중", "진행중"));
   const completedTasks    = uniqueTasks.filter(t => _v14HasStatus(t, "완료", "정산완료"));
 
+  // V14 — 일정 확정 = 확정 + N 확정일시 (scheduledAt) 박힌 거만
+  const scheduledTasks = confirmedTasks.filter(t =>
+    !!(t.scheduledAt || t.confirmedAt || t.확정일시)
+  );
+
   const newCount        = newReceptionTasks.length;
-  const assignedCount   = confirmedTasks.length;  // V14 배정 = 확정 (동시 박힘)
-  const confirmedCount  = confirmedTasks.length;  // V14 일정 확정 = 확정 (같은 카운트)
+  const assignedCount   = confirmedTasks.length;       // V14 배정 = 확정 (Q 배정기사 박힘)
+  const confirmedCount  = scheduledTasks.length;       // V14 일정 확정 = 확정 + 일시 박힘
   const inProgressCount = inProgressTasks.length;
   const completedCount  = completedTasks.length;
 
