@@ -521,8 +521,28 @@ function _v14ExtractRegion(address) {
   return first || "";
 }
 
+// V14 2A fix — summary 텍스트 → workItems 배열 파싱
+// "세척 · 벽걸이 ×1"                              → 1건
+// "세척 · 벽걸이 ×1 + 냉매충전 · 4way ×1"          → 2건 (multi-item)
+// "냉매충전 · (공통) ×1"                          → 1건
+function _v14ParseSummary(summary) {
+  if (!summary) return [];
+  return String(summary).split(' + ').map(part => {
+    const dotParts = part.split(/\s*·\s*/);
+    const workType = (dotParts[0] || '').trim();
+    let appliance = '', qty = 1;
+    if (dotParts[1]) {
+      const m = dotParts[1].match(/^(.+?)\s*[×x]\s*(\d+)/i);
+      if (m) { appliance = m[1].trim(); qty = Number(m[2]) || 1; }
+      else   { appliance = dotParts[1].trim(); }
+    }
+    return { workType, appliance, qty };
+  }).filter(it => it.workType);
+}
+
 // V14 — 시트 작업DB row → AdminApp 내부 task 객체로 정규화
 // API가 어떤 키로 반환하든 (taskId / id, principal / client 등) 양쪽 catch
+// V14 2A fix — workType/appliance/qty 컬럼 X / summary 텍스트만 박혀있을 때 → 파싱 박기
 function _v14NormalizeTask(t) {
   if (!t) return null;
   const id        = t.id || t.taskId || t.task_id || t.작업번호 || "";
@@ -532,9 +552,6 @@ function _v14NormalizeTask(t) {
   const region    = t.region || t.지역 || _v14ExtractRegion(address);
   const principal = t.principal || t.client || t.원청 || "";
   const channel   = t.channel || t.채널 || "";
-  const workType  = t.workType || t.work_type || t.작업유형 || "";
-  const appliance = t.appliance || t.기종 || "";
-  const qty       = Number(t.qty || t.totalQty || t.수량 || 1);
   const summary   = t.summary || t.요약 || "";
   const status    = t.status || t.상태 || "";
   const reqDate   = t.requestedDate || t.scheduledDate || t.예약일 || "";
@@ -544,9 +561,18 @@ function _v14NormalizeTask(t) {
   const settlement = t.settlementStatus || t.정산상태 || "";
   const schedule  = t.schedule || [reqDate, reqTime].filter(Boolean).join(" ") || "협의";
 
-  // workItems 배열 — API가 직접 줘도 OK / 없으면 단일 항목으로 wrap
-  let workItems = Array.isArray(t.workItems) ? t.workItems : null;
-  if (!workItems && workType) {
+  // V14 2A fix — summary 파싱 (작업DB에 workType/appliance 컬럼 X / 작업내역DB 별도)
+  const summaryItems = _v14ParseSummary(summary);
+
+  const workType  = t.workType  || t.work_type || t.작업유형 || (summaryItems[0]?.workType)  || "";
+  const appliance = t.appliance || t.기종      || (summaryItems[0]?.appliance) || "";
+  const qty       = Number(t.qty || t.totalQty || t.수량 || (summaryItems[0]?.qty) || 1);
+
+  // workItems 배열 — API 직접 박혀있으면 OK / summary 파싱 / 단일 wrap 순으로 catch
+  let workItems = Array.isArray(t.workItems) && t.workItems.length > 0 ? t.workItems : null;
+  if (!workItems && summaryItems.length > 0) {
+    workItems = summaryItems;
+  } else if (!workItems && workType) {
     workItems = [{ workType, appliance, qty }];
   }
 
