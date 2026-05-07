@@ -540,9 +540,33 @@ function _v14ParseSummary(summary) {
   }).filter(it => it.workType);
 }
 
+// V14 2B-1 — 한국어 status → 영어 state 매핑 (AdminTaskDetailScreen STATE_MAP catch)
+const _V14_STATUS_TO_STATE = {
+  "약속대기": "waiting",
+  "미배정":   "waiting",
+  "대기":     "waiting",
+  "확정":     "scheduled",
+  "배정":     "scheduled",
+  "예정":     "scheduled",
+  "이동중":   "moving",
+  "진행중":   "active",
+  "active":   "active",
+  "완료":     "done",
+  "done":     "done",
+  "취소":     "canceled",
+  "canceled": "canceled",
+};
+
+function _v14StatusToState(status) {
+  if (!status) return "waiting";
+  const s = String(status).trim();
+  return _V14_STATUS_TO_STATE[s] || s; // 매칭 X면 그대로 박힘
+}
+
 // V14 — 시트 작업DB row → AdminApp 내부 task 객체로 정규화
 // API가 어떤 키로 반환하든 (taskId / id, principal / client 등) 양쪽 catch
 // V14 2A fix — workType/appliance/qty 컬럼 X / summary 텍스트만 박혀있을 때 → 파싱 박기
+// V14 2B-1 — state 필드 박힘 (한국어 status → 영어 state) + time 정확
 function _v14NormalizeTask(t) {
   if (!t) return null;
   const id        = t.id || t.taskId || t.task_id || t.작업번호 || "";
@@ -577,16 +601,22 @@ function _v14NormalizeTask(t) {
   }
 
   return {
-    id, customer, phone, address, region,
+    id,
+    taskCode: id,                 // 옛 컴포넌트 호환 (DetailHeader는 task.taskCode || task.id)
+    customer, phone, address, region,
     principal, channel, workType, appliance, qty,
-    summary, status, schedule, memo,
+    summary, status,
+    state: _v14StatusToState(status),  // V14 2B-1 — AdminTaskDetailScreen STATE_MAP catch
+    schedule, memo,
     estimateTotal: estimate,
     requestedDate: reqDate,
     requestedTime: reqTime,
     settlementStatus: settlement,
     workItems: workItems || [],
-    time: "방금",     // 옛 표시 호환
-    _api: true,       // 진짜 API 출처 마킹
+    // V14 2B-1 — time = 약속 시간 (옛 시뮬은 "방금" 박혀있었지만 실데이터는 시간 박기)
+    time: reqTime || reqDate || "협의",
+    type: "work",                 // V14 — AdminTaskDetailScreen이 type === 'external'일 때 분기
+    _api: true,                   // 진짜 API 출처 마킹
   };
 }
 
@@ -3338,12 +3368,21 @@ function ActionIconBtn({ t, icon, onClick, href, flex }) {
 }
 
 function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
+  // V14 2B-1 — 카드 body 클릭 → 작업 상세 진입 (기사 배정 / ⋯ 메뉴는 stopPropagation)
+  const handleCardClick = () => {
+    if (onCardMenuAction) onCardMenuAction("detail", task);
+  };
   return (
-    <div style={{
-      background: t.bgElevated, border: `1px solid ${t.border}`,
-      borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-      overflow: "visible",
-    }}>
+    <div
+      onClick={handleCardClick}
+      className="clickable"
+      style={{
+        background: t.bgElevated, border: `1px solid ${t.border}`,
+        borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+        overflow: "visible",
+        cursor: "pointer",
+      }}
+    >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
           <PrincipalLabel name={task.principal}/>
@@ -3353,7 +3392,11 @@ function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
           )}
         </div>
         <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, flexShrink: 0 }}>{task.time}</span>
-        {onCardMenuAction && <TaskCardMenu task={task} onAction={onCardMenuAction}/>}
+        {onCardMenuAction && (
+          <span onClick={(e) => e.stopPropagation()}>
+            <TaskCardMenu task={task} onAction={onCardMenuAction}/>
+          </span>
+        )}
       </div>
       <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
         {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItems(task.workItems) : `${task.appliance} ×${task.qty}`} · {task.schedule}
@@ -3369,7 +3412,7 @@ function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
         </div>
       )}
       <div style={{ display: "flex", gap: 6 }}>
-        <button onClick={onAssign} style={{
+        <button onClick={(e) => { e.stopPropagation(); onAssign && onAssign(); }} style={{
           flex: 1,
           background: t.accent, color: "white", border: "none",
           padding: "10px",
@@ -3397,11 +3440,13 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
   const isAccepted = status === "accepted";
   const pushCount  = task.pushCount || (task.candidates?.length) || 4;
 
+  // V14 2B-1 — pushing/accepted 박혀있어 → 그 분기 / 그 외 → 작업 상세
   const handleCardClick = () => {
     if (isPushing  && onClickPushing)  onClickPushing(task);
     else if (isAccepted && onClickAccepted) onClickAccepted(task);
+    else if (onCardMenuAction)              onCardMenuAction("detail", task);
   };
-  const isClickable = (isPushing && onClickPushing) || (isAccepted && onClickAccepted);
+  const isClickable = (isPushing && onClickPushing) || (isAccepted && onClickAccepted) || !!onCardMenuAction;
 
   return (
     <div
@@ -3423,7 +3468,11 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
           )}
         </div>
         <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, flexShrink: 0 }}>{task.time}</span>
-        {onCardMenuAction && <TaskCardMenu task={task} onAction={onCardMenuAction}/>}
+        {onCardMenuAction && (
+          <span onClick={(e) => e.stopPropagation()}>
+            <TaskCardMenu task={task} onAction={onCardMenuAction}/>
+          </span>
+        )}
       </div>
       <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
         {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItems(task.workItems) : `${task.appliance} ×${task.qty}`} · {task.schedule}
