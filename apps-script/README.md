@@ -7,7 +7,8 @@
 | `v14_week1_reset.gs` | V14 Week 1 (1A 설정_원청 7개 + 1C 작업번호 형식 + 1D 데이터 폐기) |
 | `v14_week1_policy_v6.gs` | V14 Week 1 1B CLEAN (수수료정책 V6 / 8열 / 90 row 박기) |
 | `v14_week1_api_backend.gs` | V14 Week 1 1C/1E (api-backend merge / 정책 catch + 동적 계산) |
-| `v14_week1_engineers.gs` | V14 Week 1 — 설정_기사 6열 마이그레이션 (옛 시트 백업 + V14 6열) |
+| `v14_week1_engineers.gs` | V14 Week 1 — 설정_기사 6열 v1 (지역/직급) |
+| `v14_week1_engineers_import.gs` | V14 Week 1 — 설정_기사 6열 v2 (세척·냉매 지역) + 코드 → 시트 20명 import |
 
 ## 사용 (V14 Week 1 처음 박을 때)
 
