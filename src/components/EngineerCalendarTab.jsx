@@ -864,7 +864,13 @@ function TimelineRow({ task, onClick }) {
           display: "flex", alignItems: "center", gap: 6,
         }}>
           <span>{task.customer}</span>
-          <UsolNBadge task={task}/>
+          {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n') && (task.workType || '').includes('세척') && (
+            <span style={{
+              background: '#03C75A', color: 'white',
+              fontSize: 9, padding: '2px 5px',
+              borderRadius: 4, fontWeight: 800,
+            }}>N</span>
+          )}
         </div>
 
         <div style={{
@@ -960,7 +966,13 @@ function DayTaskCard({ task, onClick }) {
           display: "flex", alignItems: "center", gap: 6,
         }}>
           <span>{task.customer}</span>
-          <UsolNBadge task={task}/>
+          {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n') && (task.workType || '').includes('세척') && (
+            <span style={{
+              background: '#03C75A', color: 'white',
+              fontSize: 9, padding: '2px 5px',
+              borderRadius: 4, fontWeight: 800,
+            }}>N</span>
+          )}
         </div>
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
@@ -980,8 +992,7 @@ function DayTaskCard({ task, onClick }) {
   );
 }
 
-// V14 v8 — UsolNBadge는 components/UsolNBadge.jsx로 분리됨 (8군데 통일)
-export { UsolNBadge } from "./UsolNBadge.jsx";
+// V14 v8 fix — N 마크는 사장님 헌법 따라 모든 카드에서 인라인 렌더 (import 누락 위험 0)
 
 function EmptyState({ text }) {
   return (

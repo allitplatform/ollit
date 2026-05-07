@@ -5,7 +5,6 @@ import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
-import { UsolNBadge } from "./UsolNBadge.jsx";
 
 export function EngineerNewAssignmentListScreen({ tasks = [], onBack, onTaskClick }) {
   return (
@@ -136,7 +135,13 @@ function AssignmentCard({ task, onClick }) {
         marginBottom: 6,
       }}>
         <ServiceTypeIcon workType={task.workType} size={14} showLabel={true}/>
-        <UsolNBadge task={task} size="sm"/>
+        {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n') && (task.workType || '').includes('세척') && (
+          <span style={{
+            background: '#03C75A', color: 'white',
+            fontSize: 9, padding: '2px 5px',
+            borderRadius: 4, fontWeight: 800,
+          }}>N</span>
+        )}
         <span>
           {task.appliance ? `· ${task.appliance}` : ""}
           {task.qty ? ` ×${task.qty}` : ""}

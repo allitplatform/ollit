@@ -5,7 +5,6 @@
 import { ArrowLeft } from "lucide-react";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { calcTaskEarning } from "../utils/feePolicy.js";
-import { UsolNBadge } from "./UsolNBadge.jsx";
 
 function getEarning(t) {
   return t.engineerEarning || t.engineerNet || 0;
@@ -264,7 +263,14 @@ function WorkSettlementCard({ work, onClick }) {
           {work.appliance ? ` · ${work.appliance}` : ""}
           {work.qty ? ` ×${work.qty}` : ""}
         </span>
-        <UsolNBadge task={{ client: work.client, workType: work.workType }}/>
+        {(work.client === '유솔홈케어 N' || work.principalId === 'usol_n') && (work.workType || '').includes('세척') && (
+          <span style={{
+            background: '#03C75A', color: 'white',
+            fontSize: 9, padding: '2px 5px',
+            borderRadius: 4, fontWeight: 800,
+            marginLeft: 6,
+          }}>N</span>
+        )}
       </div>
 
       {/* V14 v7 — 미니멀 라인 (사장님 spec: 핑크 박스 X / 라인만) */}

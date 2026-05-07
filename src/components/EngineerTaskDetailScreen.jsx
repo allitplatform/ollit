@@ -16,7 +16,6 @@ import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
-import { UsolNBadge } from "./UsolNBadge.jsx";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -614,7 +613,14 @@ function WorkMainCard({ task }) {
         <span style={{ fontSize: 14, color: labelColor, fontWeight: 700 }}>
           {isInProgress ? "진행중" : "확정"}
         </span>
-        <UsolNBadge task={task} size="sm"/>
+        {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n') && (task.workType || '').includes('세척') && (
+          <span style={{
+            background: '#03C75A', color: 'white',
+            fontSize: 9, padding: '2px 5px',
+            borderRadius: 4, fontWeight: 800,
+            marginLeft: 4,
+          }}>N</span>
+        )}
         {isInProgress && task.startedAt && (
           <span style={{
             marginLeft: "auto",

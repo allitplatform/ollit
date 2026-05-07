@@ -41,7 +41,6 @@ import { EngineerRegionsScreen } from "../components/EngineerRegionsScreen.jsx";
 import { EngineerRegionChangeRequestScreen } from "../components/EngineerRegionChangeRequestScreen.jsx";
 import { EngineerNewAssignCallScreen } from "../components/EngineerNewAssignCallScreen.jsx";
 import { EngineerNewAssignDetailScreen } from "../components/EngineerNewAssignDetailScreen.jsx";
-import { UsolNBadge } from "../components/UsolNBadge.jsx";
 
 const NOW = "10:00";
 
@@ -732,7 +731,13 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
         display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap",
       }}>
         <ServiceTypeIcon workType={work.workType} size={13} showLabel={true}/>
-        <UsolNBadge task={work} size="xs"/>
+        {(work.client === '유솔홈케어 N' || work.principalId === 'usol_n') && (work.workType || '').includes('세척') && (
+          <span style={{
+            background: '#03C75A', color: 'white',
+            fontSize: 9, padding: '2px 5px',
+            borderRadius: 4, fontWeight: 800,
+          }}>N</span>
+        )}
         <span style={{ color: "var(--text-tertiary)" }}>·</span>
         <span>{work.appliance || "—"}{work.qty ? ` ×${work.qty}` : ""}</span>
       </div>
@@ -1174,7 +1179,13 @@ function MainScreen({
                   display: "flex", alignItems: "center", gap: 4,
                 }}>
                   <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
-                  <UsolNBadge task={task} size="xs"/>
+                  {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n') && (task.workType || '').includes('세척') && (
+                    <span style={{
+                      background: '#03C75A', color: 'white',
+                      fontSize: 9, padding: '2px 5px',
+                      borderRadius: 4, fontWeight: 800,
+                    }}>N</span>
+                  )}
                   <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
                     {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
                   </span>
