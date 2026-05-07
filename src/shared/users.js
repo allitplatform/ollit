@@ -8,11 +8,11 @@ export const REGISTERED_USERS = [
     userId: "kim.donghyo",
     name: "김동효",
     role: "engineer",
-    engineerId: "E001",
+    engineerId: "E005",  // V14 시트 catch (옛 V13 = E001)
     roleLabel: "기사님",
     roleIcon: "🔧",
     roleColor: "#10B981",
-    phone: "010-1111-1111",
+    phone: "010-9238-0412",  // V14 — 실제 김동효 폰
     password: "engineer1!",
     isFirstLogin: false,
   },
