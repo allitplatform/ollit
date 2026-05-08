@@ -1,33 +1,58 @@
-// 사용자 계정 (5개)
-// 4개 역할 + 1개 첫 로그인 (비밀번호 변경 시뮬)
-// + engineerId 필드 (engineer 역할만, EngineerApp.jsx의 ENGINEERS 배열과 매핑)
-// + clientName 필드 (principal 역할만, shared/tasks.js의 task.client와 매핑)
+// 사용자 계정 (V14 베타 / 7계정)
+// 시범 기사 3명 (사장님 catch: 조동욱 / 구현서 / 김현동) + 해피콜 1 + 사장님 1 + 원청 1 + 첫 로그인 시뮬 1
 
 export const REGISTERED_USERS = [
+  // 시범 기사 3명 (사장님 catch: 조동욱 / 구현서 / 김현동)
   {
-    userId: "kim.donghyo",
-    name: "김동효",
+    userId: "cho.dongwook",
+    name: "조동욱",
     role: "engineer",
-    engineerId: "E005",  // V14 시트 catch (옛 V13 = E001)
+    engineerId: "E022",
     roleLabel: "기사님",
     roleIcon: "🔧",
     roleColor: "#10B981",
-    phone: "010-9238-0412",  // V14 — 실제 김동효 폰
+    phone: "010-9447-1547",
     password: "engineer1!",
     isFirstLogin: false,
   },
   {
-    userId: "lee.jaehyun",
-    name: "이재현",
+    userId: "koo.hyunseo",
+    name: "구현서",
     role: "engineer",
     engineerId: "E002",
     roleLabel: "기사님",
     roleIcon: "🔧",
     roleColor: "#10B981",
-    phone: "010-2222-2222",
+    phone: "010-7372-3524",
+    password: "engineer1!",
+    isFirstLogin: false,
+  },
+  {
+    userId: "kim.hyundong",
+    name: "김현동",
+    role: "engineer",
+    engineerId: "E011",
+    roleLabel: "기사님",
+    roleIcon: "🔧",
+    roleColor: "#10B981",
+    phone: "010-5057-2312",
+    password: "engineer1!",
+    isFirstLogin: false,
+  },
+  // 첫 로그인 시뮬
+  {
+    userId: "test.firstlogin",
+    name: "임시 기사",
+    role: "engineer",
+    engineerId: "E099",
+    roleLabel: "기사님",
+    roleIcon: "🔧",
+    roleColor: "#10B981",
+    phone: "010-0000-0000",
     password: "temp1234",
     isFirstLogin: true,
   },
+  // 해피콜 / 사장님 / 원청 (V13 catch / 박은 거 그대로)
   {
     userId: "kim.jihye",
     name: "김지혜",
@@ -64,30 +89,9 @@ export const REGISTERED_USERS = [
   },
 ];
 
-// 역할별 기본 화면 정보
 export const ROLE_INFO = {
-  engineer: {
-    label: "기사님",
-    icon: "🔧",
-    color: "#10B981",
-    description: "현장 작업 수행",
-  },
-  happycall: {
-    label: "해피콜 담당자",
-    icon: "📞",
-    color: "#7F77DD",
-    description: "고객 응대 + 배정",
-  },
-  admin: {
-    label: "사장님",
-    icon: "👔",
-    color: "#E91860",
-    description: "운영 총괄",
-  },
-  principal: {
-    label: "원청 사장님",
-    icon: "🏪",
-    color: "#FFB800",
-    description: "원청 회사 대표",
-  },
+  engineer: { label: "기사님", icon: "🔧", color: "#10B981", description: "현장 작업 수행" },
+  happycall: { label: "해피콜 담당자", icon: "📞", color: "#7F77DD", description: "고객 응대 + 배정" },
+  admin: { label: "사장님", icon: "👔", color: "#E91860", description: "운영 총괄" },
+  principal: { label: "원청 사장님", icon: "🏪", color: "#FFB800", description: "원청 회사 대표" },
 };

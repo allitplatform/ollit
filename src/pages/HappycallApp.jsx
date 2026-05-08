@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { updateTaskStatus, getTasks } from "../api.js";
+import { updateTaskStatus, getTasks, updateTask as apiUpdateTask } from "../api.js";
+import { v14NormalizeTask, v14FindTaskList } from "../utils/v14Task.js";
 import { 
   Phone, MessageCircle, Snowflake, Wrench, Settings, Zap, ChevronRight, ChevronLeft,
   Sun, Moon, Plus, ArrowLeft, ArrowRight, User, MapPin, Calendar,
@@ -2102,9 +2103,71 @@ export default function HappycallApp({ user, onLogout }) {
   const [screen, setScreen] = useState("main");
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   
-  // 공유 task state (shared/TasksContext.jsx)
-  const { tasks, updateTask, addTask, resetTasks } = useTasks();
-  
+  // 공유 task state (shared/TasksContext.jsx) — 옛 mock
+  const { tasks: allTasks, updateTask: localUpdateTask, addTask, resetTasks } = useTasks();
+
+  // V14 — 진짜 시트 catch (apiTasks)
+  const [apiTasks, setApiTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+
+  async function fetchTasks() {
+    setTasksLoading(true);
+    try {
+      console.log('[V14 HappycallApp] fetchTasks 시작');
+      const res = await getTasks('happycall', user?.id || 'happycall', null);
+      console.log('[V14 HappycallApp] raw 응답:', res);
+      if (!res || res.ok === false) {
+        return;
+      }
+      const { list } = v14FindTaskList(res);
+      if (!Array.isArray(list)) {
+        setApiTasks([]);
+        return;
+      }
+      const normalized = list.map(v14NormalizeTask).filter(Boolean);
+      console.log('[V14 HappycallApp] normalized:', normalized.length, '건');
+      setApiTasks(normalized);
+    } catch (e) {
+      console.error('[V14 HappycallApp] fetchTasks 에러:', e);
+    } finally {
+      setTasksLoading(false);
+    }
+  }
+
+  // V14 — mount 시 한 번 + user 변경 시 재호출
+  useEffect(() => {
+    fetchTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // V14 — updateTask = apiUpdateTask 호출 + Optimistic Update
+  const updateTask = async (taskId, updates) => {
+    if (!taskId) return;
+    console.log('[V14 HappycallApp] updateTask', { taskId, updates });
+
+    // Optimistic Update
+    setApiTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, ...updates } : t
+    ));
+    // 옛 호환 (TasksContext 박힌 거)
+    localUpdateTask(taskId, updates);
+
+    try {
+      const res = await apiUpdateTask(taskId, updates);
+      console.log('[V14 HappycallApp] updateTask 응답:', res);
+      if (!res || res.ok === false) {
+        console.error('[V14 HappycallApp] updateTask 실패:', res);
+        fetchTasks();
+      }
+    } catch (e) {
+      console.error('[V14 HappycallApp] updateTask 에러:', e);
+      fetchTasks();
+    }
+  };
+
+  // V14 — 해피콜 = 모든 작업 catch (apiTasks 우선 / allTasks fallback)
+  const tasks = apiTasks.length > 0 ? apiTasks : allTasks;
+
   const t = THEMES[mode];
   const selectedTask = tasks.find(x => x.id === selectedTaskId);
 

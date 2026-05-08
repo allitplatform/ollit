@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { createTask } from "../api.js";
-import { 
+import { useState, useEffect } from "react";
+import { createTask, getTasks } from "../api.js";
+import {
   Sun, Moon, RotateCcw, ClipboardPaste, Plus, Send, ArrowLeft,
   ClipboardList, Wallet, Building2, ChevronRight, AlertCircle,
   CheckCircle2, Clock, User, Phone, MapPin, Calendar, Snowflake,
@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useTasks } from "../shared/TasksContext.jsx";
 import { filterTasksForPrincipal } from "../shared/tasks.js";
+import { v14NormalizeTask, v14FindTaskList } from "../utils/v14Task.js";
 
 const NOW = "10:00";
 const PRINCIPAL = { 
@@ -330,9 +331,47 @@ export default function PrincipalApp({ user, onLogout }) {
   const [selectedTask, setSelectedTask] = useState(null);
   const t = THEMES[mode];
   
-  // 공유 task 데이터에서 본인 원청 작업만 필터링
+  // 공유 task 데이터 (옛 mock fallback)
   const { tasks: allTasks, addTask } = useTasks();
-  const tasks = filterTasksForPrincipal(allTasks, user?.clientName);
+
+  // V14 — 진짜 시트 catch (apiTasks)
+  const [apiTasks, setApiTasks] = useState([]);
+
+  async function fetchTasks() {
+    try {
+      console.log('[V14 PrincipalApp] fetchTasks 시작 / clientName:', user?.clientName);
+      const res = await getTasks('principal', user?.id || 'principal', null);
+      if (!res || res.ok === false) return;
+      const { list } = v14FindTaskList(res);
+      if (!Array.isArray(list)) {
+        setApiTasks([]);
+        return;
+      }
+      const normalized = list.map(v14NormalizeTask).filter(Boolean);
+      console.log('[V14 PrincipalApp] normalized:', normalized.length, '건');
+      setApiTasks(normalized);
+    } catch (e) {
+      console.error('[V14 PrincipalApp] fetchTasks 에러:', e);
+    }
+  }
+
+  useEffect(() => {
+    fetchTasks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.clientName]);
+
+  // V14 — 본인 원청 작업만 필터 (clientName 매칭 / apiTasks 우선)
+  // 시트 C열 원청 = "쿨가이 (KB)" 박힌 catch / user.clientName = "쿨가이" 박힘
+  // → indexOf 매칭 박기 (fuzzy / V14 catch)
+  const sourceList = apiTasks.length > 0 ? apiTasks : allTasks;
+  const tasks = user?.clientName
+    ? sourceList.filter(t => {
+        const principal = t.principal || t.client || t.원청 || "";
+        return principal === user.clientName
+          || principal.indexOf(user.clientName) !== -1
+          || user.clientName.indexOf(principal) !== -1;
+      })
+    : filterTasksForPrincipal(sourceList, user?.clientName);
 
   const reset = () => {
     setTab("list");

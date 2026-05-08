@@ -101,8 +101,10 @@ export default function LoginScreen({ onLogin }) {
         </div>
         <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
           🎬 시뮬 계정:<br/>
-          kim.donghyo / engineer1! (김동효 기사님)<br/>
-          lee.jaehyun / temp1234 (첫 로그인 - 비번 변경)<br/>
+          cho.dongwook / engineer1! (조동욱 기사님 / E022)<br/>
+          koo.hyunseo / engineer1! (구현서 기사님 / E002)<br/>
+          kim.hyundong / engineer1! (김현동 기사님 / E011)<br/>
+          test.firstlogin / temp1234 (첫 로그인 시뮬 - 비번 변경)<br/>
           kim.jihye / happycall1! (해피콜 담당자) · lee.ceo / admin1234! (대표님)<br/>
           kim.coolguy / cool1234! (김쿨가이 원청 대표님)
         </div>

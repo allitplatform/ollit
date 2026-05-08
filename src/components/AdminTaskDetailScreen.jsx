@@ -153,13 +153,14 @@ function MainCard({ task }) {
           {stateInfo.label}
         </div>
 
-        {/* 작업 종류 칩 */}
+        {/* 작업 종류 칩 — V14: active=true 박기 (색 박힘) */}
         {!isExternal && (
           <Chip
             icon={serviceType.icon}
             label={serviceType.label}
             color={serviceType.color}
             size="sm"
+            active={true}
           />
         )}
 
