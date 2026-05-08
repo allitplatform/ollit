@@ -2188,6 +2188,7 @@ export default function AdminApp({ user, onLogout }) {
         onBack={goBack}
         assigning={assigning}
         assignError={assignError}
+        apiEngineers={apiEngineers}
         onAssign={async (eng) => {
           // V14 2B-3 — 진짜 assignEngineer API (시트 Q 배정기사 + R 상태 박힘)
           // V14 속도 Phase 1 — Optimistic Update / fetchTasks 박지 X / apiTasks 직접 update
@@ -3036,6 +3037,14 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
         const mo = String(d.getMonth() + 1).padStart(2, "0");
         const da = String(d.getDate()).padStart(2, "0");
         return `${yy}-${mo}-${da}`;
+      }
+      // V14 Step 3.2 — id에서 YYMMDD 추출 fallback (backend 응답에 날짜 키 박지 X)
+      // id 형식: 'O260508-001' / 'K260508-001' / 'YS-N260508-001' / 'A260419-001'
+      const id = String(t.id || t.taskId || t.작업번호 || "");
+      const m = id.match(/(\d{6})-/);
+      if (m) {
+        const yymmdd = m[1];
+        return `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
       }
       return "";
     };
@@ -6151,7 +6160,7 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   );
 }
 
-function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assigning = false, assignError = "" }) {
+function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assigning = false, assignError = "", apiEngineers = [] }) {
   // V11-10 — 모든 기사에서 선택 모달 (지역 매칭 X일 때 활성화)
   const [showAllEngineers, setShowAllEngineers] = useState(false);
 
@@ -6398,6 +6407,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
       {showAllEngineers && (
         <AllEngineersModal
           task={task}
+          engineers={apiEngineers && apiEngineers.length > 0 ? apiEngineers : undefined}
           onSelect={(engineerId, engineer) => {
             setShowAllEngineers(false);
             onAssign(engineer);
