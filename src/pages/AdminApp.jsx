@@ -721,8 +721,22 @@ function _v14NormalizeTask(t) {
   const reqDate   = t.requestedDate || t.scheduledDate || t.예약일 || "";
   const reqTime   = t.requestedTime || t.scheduledTime || t.예약시간 || "";
   const memo      = t.memo || t.note || t.비고 || "";
-  // V14 Step 3 Fix 2 — 상품금액 (AC열) / productPrice 박기
-  const estimate  = Number(t.estimateTotal || t.quote || t.totalAmount || t.견적금액 || t.productPrice || t.상품금액 || 0);
+  // V14 Step 3.1 Fix A — estimate 키 광범위 catch (backend 박힌 키 정확 박지 X)
+  // 옛 Step 3에서 박은 키 (productPrice/상품금액) catch X → 더 많은 키 박기 + console catch
+  const estimate  = Number(
+    t.estimateTotal || t.quote || t.totalAmount || t.견적금액 || t.견적합계 ||
+    t.productPrice || t.상품금액 || t.estimateAmount || t.amount ||
+    t.totalPrice || t.salePrice || t.판매가 || t.견적 ||
+    t.AC || t['AC'] || t.ac || 0
+  );
+  // 디버그 — 0건 catch 시 raw 키 박힘 (사장님 캡처 박을 차례)
+  if (typeof window !== 'undefined' && !window._v14EstimateLogged) {
+    if (t && (t.id || t.taskId)) {
+      window._v14EstimateLogged = true;
+      console.log('[V14 Step 3.1] task raw keys (estimate 디버그):', Object.keys(t));
+      console.log('[V14 Step 3.1] task sample:', t);
+    }
+  }
   const settlement = t.settlementStatus || t.정산상태 || "";
   const schedule  = t.schedule || [reqDate, reqTime].filter(Boolean).join(" ") || "협의";
 
@@ -3003,27 +3017,36 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
   const workTypeCounts = useMemo(() => {
     const counts = { 세척: 0, 냉매충전: 0, 설치: 0, 누설: 0, 점검: 0, 수리: 0 };
     // V14 status 새 접수만 박기 (배정 박힌 거 제외)
-    // V14 Step 3 Fix 4 — '오늘 작업' = 접수일시 (B열 / createdAt) 기준 박힘
-    // 옛: scheduledAt 박았는데 catch X → '오늘 접수' 박기 (B열)
-    const todayStr = new Date().toISOString().slice(0, 10);
+    // V14 Step 3.1 Fix B — '오늘 작업' = 접수일시 (B열) 기준 / 키 광범위 catch
+    // 옛 Step 3 키 (createdAt/receivedAt) catch X → 더 많은 키 + 디버그 박힘
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    const todayStr = `${yyyy}-${mm}-${dd}`;  // 로컬 타임존 박기 (UTC X)
     const dateOf = (t) => {
-      const v = t.createdAt || t.receivedAt || t.접수일시 || t.접수일
+      const v = t.createdAt || t.receivedAt || t.접수일시 || t.접수일 || t.created || t.regDate || t.등록일
+        || t.B || t['B'] || t.b
         || t.scheduledAt || t.scheduledDate || t.requestedDate || t.확정일시 || t.예약일 || t.희망일자 || "";
-      // ISO 박힌 거 + Date 박힌 거 양쪽 catch
       const s = String(v);
-      // 'YYYY-MM-DD' 또는 'YYYY-MM-DDTHH:MM:SS' 박힘 → 첫 10자
       if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
-      // ISO 박힌 거 (Date.toISOString) → Date 변환
       const d = new Date(v);
       if (!isNaN(d.getTime())) {
-        const yyyy = d.getFullYear();
-        const mm = String(d.getMonth() + 1).padStart(2, "0");
-        const dd = String(d.getDate()).padStart(2, "0");
-        return `${yyyy}-${mm}-${dd}`;
+        const yy = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, "0");
+        const da = String(d.getDate()).padStart(2, "0");
+        return `${yy}-${mo}-${da}`;
       }
       return "";
     };
     const todayTasks = (apiTasks || []).filter(t => dateOf(t) === todayStr);
+    // 디버그 — 카운트 0 catch 시 사장님 catch 박을 차례
+    if (typeof window !== 'undefined' && (apiTasks || []).length > 0 && todayTasks.length === 0 && !window._v14CountLogged) {
+      window._v14CountLogged = true;
+      console.log('[V14 Step 3.1 Fix B] todayStr:', todayStr);
+      console.log('[V14 Step 3.1 Fix B] apiTasks 첫 task:', apiTasks[0]);
+      console.log('[V14 Step 3.1 Fix B] dateOf 박힌 거:', apiTasks.map(t => dateOf(t)));
+    }
     // workItems 박기 → workType 추출 → regex 매칭
     todayTasks.forEach(task => {
       const items = (task.workItems && task.workItems.length > 0)
@@ -3723,17 +3746,25 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         </span>
       </div>
 
-      {/* 상태 박스 */}
-      {isAssigned ? (
-        <div style={{
-          background: t.warningBg, border: `1px solid ${t.warningBorder}`,
-          borderRadius: 8, padding: "8px 10px", marginBottom: 8,
-          display: "flex", alignItems: "center", gap: 6,
-        }}>
-          <span style={{ fontSize: 11 }}>⏳</span>
-          <span style={{ fontSize: 11, color: t.warning, fontWeight: 700 }}>일정 확정 대기</span>
-        </div>
-      ) : (
+      {/* 상태 박스 — V14 Step 3.1 Fix D: '협의' = 약속대기 / 시간 박힘 = 일정 확정 */}
+      {(() => {
+        const sched = String(task.schedule || "").trim();
+        const scheduledAt = task.scheduledAt || task.confirmedAt || task.확정일시 || "";
+        // 일정 박지 X = '협의' / 빈 거 / scheduledAt 박지 X
+        const isPending = !scheduledAt && (!sched || sched === "협의" || sched === "—");
+        if (isPending) {
+          return (
+            <div style={{
+              background: t.warningBg, border: `1px solid ${t.warningBorder}`,
+              borderRadius: 8, padding: "8px 10px", marginBottom: 8,
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <span style={{ fontSize: 11 }}>⏳</span>
+              <span style={{ fontSize: 11, color: t.warning, fontWeight: 700 }}>약속대기 · 협의</span>
+            </div>
+          );
+        }
+        return (
         <div style={{
           background: t.successBg, border: `1px solid ${t.successBorder}`,
           borderRadius: 8, padding: "8px 10px", marginBottom: 8,
@@ -3741,10 +3772,11 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         }}>
           <CheckCircle2 size={12} style={{ color: t.success }}/>
           <span style={{ fontSize: 11, color: t.success, fontWeight: 700 }}>
-            일정 확정 · {task.schedule}
+            일정 확정 · {scheduledAt || task.schedule}
           </span>
         </div>
-      )}
+        );
+      })()}
 
       {/* 액션 4개 (균등) — V14 stopPropagation (카드 클릭 박지 X) */}
       <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 6 }}>

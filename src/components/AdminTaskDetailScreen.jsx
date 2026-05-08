@@ -16,13 +16,25 @@ const STATE_MAP = {
   done:      { label: "완료",   color: "#00875A" },
   active:    { label: "진행중", color: "#FF1B8D" },
   moving:    { label: "이동중", color: "#FF8F00" },
-  waiting:   { label: "대기",   color: "var(--text-secondary)" },
+  waiting:   { label: "약속대기", color: "var(--text-secondary)" },
   scheduled: { label: "예정",   color: "var(--text-primary)" },
 };
 
+// V14 Step 3.1 Fix D — V열 (scheduledAt) 박힘 분기 박기
+// 옛: state 박힌 거 = '예정' / '대기' 박힘
+// 신규: V열 박혀있어 = '예정' / V열 박지 X = '약속대기'
 function getStateInfo(task) {
   if (task.type === "external") return { label: "외근", color: "#FF8F00" };
-  return STATE_MAP[task.state] || { label: "—", color: "var(--text-secondary)" };
+  // V14 — V열 (scheduledAt) 박혀있어 = 일정 박힘 / 박지 X = 약속대기
+  const scheduledAt = task.scheduledAt || task.confirmedAt || task.확정일시 || task.scheduledTime;
+  const completedAt = task.completedAt || task.완료시간;
+  const startedAt = task.startedAt || task.시작시간;
+  if (completedAt) return { label: "완료", color: "#00875A" };
+  if (startedAt && !completedAt) return { label: "진행중", color: "#FF1B8D" };
+  if (task.state === "waiting" || task.status === "약속대기" || task.status === "미배정" || !scheduledAt) {
+    return { label: "약속대기", color: "var(--text-secondary)" };
+  }
+  return STATE_MAP[task.state] || { label: "예정", color: "var(--text-primary)" };
 }
 
 export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user }) {
@@ -131,21 +143,24 @@ function MainCard({ task }) {
   const isExternal = task.type === "external";
   const titleText = isExternal ? (task.note || "외근") : (task.customer || "—");
 
+  // V14 Step 3.1 Fix C — 사이드바 + 우상단 알약 = 작업유형 색 박힘 (serviceType.color)
+  // 옛: stateInfo.color (state별 색) → 신규: serviceType.color (작업유형 색)
+  const sideColor = (serviceType && serviceType.color) || stateInfo.color;
   return (
     <div style={{ padding: "16px 16px 0" }}>
       <div style={{
         background: "var(--bg-secondary)",
         border: "1px solid var(--border)",
-        borderLeft: `4px solid ${stateInfo.color}`,
+        borderLeft: `4px solid ${sideColor}`,
         borderRadius: 12,
         padding: 14,
         position: "relative",
         marginBottom: 14,
       }}>
-        {/* 우측 상단 상태 알약 */}
+        {/* 우측 상단 상태 알약 — V14 Step 3.1: 작업유형 색 박힘 */}
         <div style={{
           position: "absolute", top: 12, right: 12,
-          background: stateInfo.color,
+          background: sideColor,
           color: "#fff",
           padding: "4px 12px", borderRadius: 20,
           fontSize: 10, fontWeight: 700,
