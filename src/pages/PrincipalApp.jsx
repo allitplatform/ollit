@@ -1375,15 +1375,6 @@ function SettleTab({ t, tasks }) {
         ))}
       </div>
 
-      <div style={{ marginTop: 16, padding: "12px 14px", background: t.infoBg || t.bgInset, border: `1px solid ${(t.info || t.textMuted)}30`, borderRadius: 10 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: t.info || t.textSecondary, marginBottom: 6 }}>
-          💡 수수료 정책
-        </div>
-        <div style={{ fontSize: 10, color: t.textSecondary, lineHeight: 1.7 }}>
-          {PRINCIPAL.name}님은 <strong style={{ color: t.text }}>차감형 50% 비율</strong>로 정산됩니다.<br/>
-          매일 영업일 다음에 입금 처리됩니다.
-        </div>
-      </div>
     </div>
   );
 }
