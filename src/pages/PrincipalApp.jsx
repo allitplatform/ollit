@@ -831,7 +831,7 @@ function SubmittedScreen({ t, task, onContinue }) {
       </div>
       <div style={{ fontSize: 13, color: t.textSecondary, fontWeight: 500, marginBottom: 30, lineHeight: 1.6 }}>
         올잇 운영팀에 접수되었어요<br/>
-        곧 해피콜 후 기사 배정될 예정이에요
+        곧 관리자 확인 후 프로 배정될 예정이에요
       </div>
 
       <div style={{
@@ -861,8 +861,8 @@ function SubmittedScreen({ t, task, onContinue }) {
         </div>
         <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.6 }}>
           1. 올잇 운영팀에 접수됨<br/>
-          2. 해피콜 → 일정 확정<br/>
-          3. 기사 배정 → 작업 진행<br/>
+          2. 관리자 확인 → 일정 확정<br/>
+          3. 프로 배정 → 작업 진행<br/>
           4. 완료 사진 + 정산 내역 자동 업데이트
         </div>
       </div>
@@ -1096,7 +1096,7 @@ function TaskDetail({ t, task, onBack }) {
           <DetailRow t={t} icon={MapPin} label="주소" value={task.address}/>
           <DetailRow t={t} icon={Hash} label="수량" value={`${task.qty || 1}대`}/>
           {scheduledDisplay && <DetailRow t={t} icon={Calendar} label="일정" value={scheduledDisplay}/>}
-          {task.assignedEngineer && <DetailRow t={t} icon={User} label="배정 기사" value={`${task.assignedEngineer} 기사님`}/>}
+          {task.assignedEngineer && <DetailRow t={t} icon={User} label="배정 프로" value={`${task.assignedEngineer} 프로님`}/>}
           {task.startedAt && <DetailRow t={t} icon={Clock} label="작업 시작" value={task.startedAt} color={t.warning}/>}
           {task.completedAt && <DetailRow t={t} icon={CheckCircle2} label="완료 시각" value={task.completedAt} color={t.success}/>}
         </div>
@@ -1185,7 +1185,7 @@ function TaskDetail({ t, task, onBack }) {
       {task.happycallMemo && (
         <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>
-            📝 해피콜 메모
+            📝 관리자 메모
           </div>
           <div style={{ fontSize: 12, color: t.textSecondary, lineHeight: 1.6 }}>
             {task.happycallMemo}
