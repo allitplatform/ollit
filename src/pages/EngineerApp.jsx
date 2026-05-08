@@ -1041,14 +1041,21 @@ function MainScreen({
 
       {/* V14 v8 — 진행 카드 (사장님 spec '가장 가까운 작업') */}
       {/* 진행중 우선 → 다음 확정 / 알림 카드 위 / 30분 이내 임박 → 핑크 강조 */}
-      {nextWork && (
+      {/* Phase 4-G — nextWork 없고 noTaskToday면 격려 박스 (메인 휑함 해결) */}
+      {nextWork ? (
         <NextWorkCard
           work={nextWork}
           now={nowDate}
           onClick={onTaskClick}
           onCompleteReport={onCompleteReport}
         />
-      )}
+      ) : noTaskToday ? (
+        <EncourageCard
+          icon="🌅"
+          title="오늘도 화이팅!"
+          subtitle="좋은 하루 보내세요"
+        />
+      ) : null}
 
       {/* 3. 수락 대기 배너 (V14 정제 — 흰 카드 + 좌측 4px 핑크 바 + 노랑 박스) */}
       {pendingAcceptances.length > 0 && (() => {
@@ -1282,6 +1289,29 @@ function MainScreen({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// V14 Phase 4-G — 격려 박스 (nextWork 없고 noTaskToday일 때 / 메인 휑함 해결)
+// 디자인: 부드러운 회색 배경 / 중앙 정렬 / 이모지 + 타이틀 + 부제
+function EncourageCard({ icon, title, subtitle }) {
+  return (
+    <div style={{
+      margin: "0 16px 14px",
+      padding: "20px 18px",
+      background: "var(--bg-elevated)",
+      border: "1px solid var(--border)",
+      borderRadius: 14,
+      textAlign: "center",
+    }}>
+      <div style={{ fontSize: 32, marginBottom: 8 }}>{icon}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
+        {title}
+      </div>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+        {subtitle}
+      </div>
     </div>
   );
 }
