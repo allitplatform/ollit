@@ -414,12 +414,6 @@ export default function PrincipalApp({ user, onLogout }) {
       `}</style>
 
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "rgba(10,10,10,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>
-          🏪 원청 대표님 화면
-        </div>
-        <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
-          카톡 자동 파싱 (자기 회사 작업만)
-        </div>
         <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
           {Object.entries(THEMES).map(([key, theme]) => {
             const Icon = key === "dark" ? Moon : Sun;
@@ -438,7 +432,7 @@ export default function PrincipalApp({ user, onLogout }) {
           })}
         </div>
         <button onClick={onLogout} style={{ width: "100%", padding: "6px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          <RotateCcw size={10}/><span>로그아웃 (다른 계정으로 로그인)</span>
+          <RotateCcw size={10}/><span>로그아웃</span>
         </button>
       </div>
 
@@ -1424,7 +1418,6 @@ function InfoTab({ t }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
           <Row t={t} label="작업번호 형식" value={`${PRINCIPAL.prefix}YYMMDD-NNN`} mono/>
           <Row t={t} label="이메일" value={PRINCIPAL.email} mono/>
-          <Row t={t} label="권한" value="대표 (자기 회사만)"/>
         </div>
       </div>
 
