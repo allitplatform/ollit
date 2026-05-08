@@ -3992,6 +3992,14 @@ export default function EngineerApp({ user, onLogout }) {
     resetTo("calendar");
   };
   const [selectedTaskId, setSelectedTaskId] = useState(null);
+
+  // V14 Step 4.2 — apiTasks 박힌 거 위로 이동 (TDZ fix)
+  // 옛 박힌 위치 (line 4044~) → 여기로 이동
+  // 옛 catch X: line 4001 useEffect deps array에서 apiTasks 박힘 = const 박지 X 박힌 catch (TDZ ReferenceError)
+  const [apiTasks, setApiTasks] = useState([]);
+  const [tasksLoading, setTasksLoading] = useState(false);
+  const [tasksError, setTasksError] = useState("");
+
   // V14 Phase 2 — 수락 대기 콜 시뮬 mock 폐기 (시트 기반 catch)
   // 옛 V14 v8 mock (한미선 / ACCEPT-001) = 박지 X
   // 시트 작업DB에서 본인 배정 + status='약속대기' 박힌 거 catch (apiTasks 박힌 거 활용)
@@ -4040,10 +4048,7 @@ export default function EngineerApp({ user, onLogout }) {
   // 공유 task state (shared/TasksContext.jsx) — 옛 mock (extraAssignments / pendingAcceptances 박힘)
   const { tasks: allTasks, updateTask: localUpdateTask, resetTasks } = useTasks();
 
-  // V14 — 진짜 시트 catch (apiTasks)
-  const [apiTasks, setApiTasks] = useState([]);
-  const [tasksLoading, setTasksLoading] = useState(false);
-  const [tasksError, setTasksError] = useState("");
+  // V14 Step 4.2 — apiTasks state 옛 위치 박지 X (위로 이동 = TDZ fix)
 
   async function fetchTasks() {
     setTasksLoading(true);
