@@ -1,7 +1,8 @@
 // Step 9 — 통합 설정 (3 카테고리)
 // 운영 / 시스템 / 개인 + 권한 적용 + 검색
 // V11-2 — 유솔 N (별도) 카테고리 추가 (운영자/관리자만)
-import { useState, useMemo } from "react";
+// V14 Step 4 — 글자 크기 조절 3단계 박힘 (EngineerMeTab 패턴)
+import { useState, useMemo, useEffect } from "react";
 import { hasPermission, getCurrentUser, ROLES } from "../data/users.js";
 import { loadPrincipals } from "../data/principals.js";
 import { loadEngineers } from "../data/engineers.js";
@@ -9,6 +10,21 @@ import { loadRegions } from "../data/regions.js";
 import { loadRates } from "../data/standardRates.js";
 import { canAccessMenu } from "../data/permissions.js";
 import { USOL_N_ENTRY, showUsolNEntry, GENERAL_MENU, showGeneralSettlementGroup } from "../data/menuStructure.js";
+
+// V14 Step 4 — 글자 크기 helper (EngineerMeTab과 동일 키 'ollit_font_size' 박힘)
+function loadFontSize() {
+  try {
+    const v = localStorage.getItem("ollit_font_size");
+    if (v === "small" || v === "medium" || v === "large") return v;
+  } catch (e) {}
+  return "medium";
+}
+function applyFontSize(size) {
+  if (typeof document !== "undefined") {
+    document.documentElement.setAttribute("data-font-size", size);
+  }
+  try { localStorage.setItem("ollit_font_size", size); } catch (e) {}
+}
 
 export function SettingsScreen({
   user, onBack, onLogout,
@@ -19,6 +35,10 @@ export function SettingsScreen({
 }) {
   const [search, setSearch] = useState("");
   const currentUser = getCurrentUser(user);
+
+  // V14 Step 4 — 글자 크기 (3단계: small/medium/large / EngineerMeTab과 동기)
+  const [fontSize, setFontSize] = useState(() => loadFontSize());
+  useEffect(() => { applyFontSize(fontSize); }, [fontSize]);
 
   const counts = useMemo(() => {
     try {
@@ -85,7 +105,7 @@ export function SettingsScreen({
     (!search || USOL_N_ENTRY.label.includes(search) || (USOL_N_ENTRY.sub || "").includes(search));
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: "calc(80px + env(safe-area-inset-bottom))" }}>
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
         <div style={titleStyle}>설정</div>
@@ -155,6 +175,8 @@ export function SettingsScreen({
               sub={item.sub}
               onClick={item.onClick}
             />)}
+            {/* V14 Step 4 — 글자 크기 조절 3단계 박힘 (EngineerApp 패턴 catch) */}
+            <FontSizeRow fontSize={fontSize} onChange={setFontSize}/>
           </Section>
         )}
 
@@ -253,6 +275,47 @@ function SettingRow({ icon, label, sub, onClick }) {
       </div>
       <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>›</span>
     </div>
+  );
+}
+
+// V14 Step 4 — 글자 크기 row (작게/보통/크게 / EngineerMeTab 패턴 박힘)
+function FontSizeRow({ fontSize, onChange }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "14px 14px",
+      borderBottom: "1px solid var(--border)",
+    }}>
+      <span style={{ fontSize: 18, width: 24, textAlign: "center" }}>🔠</span>
+      <div style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "var(--text-primary)" }}>
+        글자 크기
+      </div>
+      <div style={{ display: "flex", gap: 4 }}>
+        <FontSizeButton label="작게" size="small"  current={fontSize} onChange={onChange}/>
+        <FontSizeButton label="보통" size="medium" current={fontSize} onChange={onChange}/>
+        <FontSizeButton label="크게" size="large"  current={fontSize} onChange={onChange}/>
+      </div>
+    </div>
+  );
+}
+
+function FontSizeButton({ label, size, current, onChange }) {
+  const isActive = current === size;
+  const fs = size === "small" ? 11 : size === "large" ? 14 : 12;
+  return (
+    <button onClick={() => onChange(size)} style={{
+      background: isActive ? "#FF1B8D" : "transparent",
+      border: isActive ? "1px solid #FF1B8D" : "1px solid var(--border)",
+      color: isActive ? "#fff" : "var(--text-secondary)",
+      padding: "5px 10px",
+      borderRadius: 8,
+      fontSize: fs,
+      fontWeight: 700,
+      cursor: "pointer",
+      fontFamily: "inherit",
+    }}>
+      {label}
+    </button>
   );
 }
 
