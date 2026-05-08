@@ -441,17 +441,29 @@ function parseKakaoText(text) {
   const hasRefrigerant = detectedWorkTypes.includes("냉매충전");
   const otherWTs = detectedWorkTypes.filter(w => w !== "냉매충전");
 
-  // 1) 냉매충전 단독 항목 (기종 X) — 텍스트에서 수량 추출 시도
+  // 1) 냉매충전 — V14 헌법: 기종 박힌 catch (옛 V13 = 기종 X)
   if (hasRefrigerant) {
-    const refrigerantQtyRegex = /(?:냉매(?:충전|가스)?|가스(?:충전)?|충전)\s*(\d+)\s*대?/;
-    const qtyMatch = text.match(refrigerantQtyRegex);
-    const refrigerantQty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
-    result.workItems.push({ workType: "냉매충전", appliance: "", qty: refrigerantQty });
+    if (aps.length > 0) {
+      // V14 — 기종 박혀있으면 각 기종별 workItem 박기
+      for (const a of aps) {
+        result.workItems.push({ workType: "냉매충전", appliance: a.appliance, qty: a.qty });
+      }
+    } else {
+      // 기종 박지 X = 옛 흐름 (수량만 추출 / 사장님 검증 catch)
+      const refrigerantQtyRegex = /(?:냉매(?:충전|가스)?|가스(?:충전)?|충전)\s*(\d+)\s*대?/;
+      const qtyMatch = text.match(refrigerantQtyRegex);
+      const refrigerantQty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+      result.workItems.push({ workType: "냉매충전", appliance: "", qty: refrigerantQty });
+    }
   }
 
   // 2) 나머지 작업 종류 (세척 등) — 기종과 매칭
   if (otherWTs.length === 1 && aps.length > 0) {
-    for (const a of aps) result.workItems.push({ workType: otherWTs[0], appliance: a.appliance, qty: a.qty });
+    if (!hasRefrigerant) {
+      for (const a of aps) result.workItems.push({ workType: otherWTs[0], appliance: a.appliance, qty: a.qty });
+    } else {
+      for (const a of aps) result.workItems.push({ workType: otherWTs[0], appliance: a.appliance, qty: a.qty });
+    }
   } else if (otherWTs.length > 1 && aps.length === 1) {
     for (const wt of otherWTs) result.workItems.push({ workType: wt, appliance: aps[0].appliance, qty: aps[0].qty });
   } else if (otherWTs.length > 1 && aps.length > 1) {
