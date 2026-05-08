@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { getOffDays, addOffDay, deleteOffDay, getTasks, updateTask as apiUpdateTask } from "../api.js";
+import {
+  getOffDays, addOffDay, deleteOffDay, getTasks,
+  updateTask as apiUpdateTask,
+  requestCancel as apiRequestCancel,
+  changePrice as apiChangePrice,
+  startTask as apiStartTask,
+  completeTask as apiCompleteTask,
+} from "../api.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
+
+// V14 헬퍼 — File → base64 (사진 업로드 catch)
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 import { 
   Phone, Navigation, CheckCircle2, MapPin, Wrench, Snowflake, Settings, Zap, 
   Sun, Moon, Bell, Camera, Wallet, ArrowRight, ArrowLeft, MessageCircle,
@@ -4092,6 +4109,126 @@ export default function EngineerApp({ user, onLogout }) {
 
   const reset = () => { resetTasks(); resetTo("main"); setSelectedTaskId(null); };
 
+  // V14 큰 흐름 — 모달 state (취소 요청 / 금액 변경 / 완료 + 사진)
+  const [cancelRequestTask, setCancelRequestTask] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [priceChangeTask, setPriceChangeTask] = useState(null);
+  const [addAmount, setAddAmount] = useState(0);
+  const [addReason, setAddReason] = useState("");
+  const [completingTask, setCompletingTask] = useState(null);
+  const [completePhotos, setCompletePhotos] = useState([]);
+  const [completePhotoPreviews, setCompletePhotoPreviews] = useState([]);
+  const [completing, setCompleting] = useState(false);
+
+  // V14 — 작업 시작 (낙관 + API)
+  async function handleStartTask(taskId) {
+    if (!taskId) return;
+    console.log('[V14 EngineerApp] startTask', { taskId });
+    // Optimistic
+    setApiTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, status: '작업중', state: 'active' } : t
+    ));
+    try {
+      const res = await apiStartTask(taskId);
+      if (!res || res.ok === false) {
+        console.error('[V14] startTask 실패:', res);
+        fetchTasks();
+        return;
+      }
+    } catch (e) {
+      console.error('[V14] startTask 에러:', e);
+      fetchTasks();
+    }
+  }
+
+  // V14 — 취소 요청 박기
+  async function submitCancelRequest() {
+    if (!cancelRequestTask?.id || !cancelReason.trim()) return;
+    try {
+      const res = await apiRequestCancel(cancelRequestTask.id, cancelReason);
+      if (!res || res.ok === false) {
+        alert(`취소 요청 catch X: ${(res && res.error) || '실패'}`);
+        return;
+      }
+      // Optimistic
+      setApiTasks(prev => prev.map(t =>
+        t.id === cancelRequestTask.id ? { ...t, status: '취소요청', state: 'waiting' } : t
+      ));
+      setCancelRequestTask(null);
+      setCancelReason("");
+      fetchTasks();
+    } catch (e) {
+      alert(`취소 요청 에러: ${e.message}`);
+    }
+  }
+
+  // V14 — 금액 변경 박기
+  async function submitPriceChange() {
+    if (!priceChangeTask?.id || !addAmount) return;
+    const baseTotal = Number(priceChangeTask.estimateTotal || 0);
+    const newTotal = baseTotal + Number(addAmount);
+    try {
+      const res = await apiChangePrice(priceChangeTask.id, baseTotal, Number(addAmount), addReason);
+      if (!res || res.ok === false) {
+        alert(`금액 변경 catch X: ${(res && res.error) || '실패'}`);
+        return;
+      }
+      setApiTasks(prev => prev.map(t =>
+        t.id === priceChangeTask.id
+          ? { ...t, addonFee: Number(addAmount), totalAmount: newTotal, addonReason: addReason }
+          : t
+      ));
+      setPriceChangeTask(null);
+      setAddAmount(0);
+      setAddReason("");
+      fetchTasks();
+    } catch (e) {
+      alert(`금액 변경 에러: ${e.message}`);
+    }
+  }
+
+  // V14 — 사진 선택 (multiple files / preview)
+  async function handlePhotoSelect(e) {
+    const files = Array.from(e.target.files || []).slice(0, 3);
+    if (files.length === 0) return;
+    setCompletePhotos(files);
+    const previews = await Promise.all(
+      files.map(f => new Promise(r => {
+        const reader = new FileReader();
+        reader.onload = () => r(reader.result);
+        reader.readAsDataURL(f);
+      }))
+    );
+    setCompletePhotoPreviews(previews);
+  }
+
+  // V14 — 작업 완료 + 사진 업로드 박기
+  async function submitComplete() {
+    if (!completingTask?.id || completePhotos.length === 0) return;
+    setCompleting(true);
+    try {
+      const photoBase64Array = await Promise.all(completePhotos.map(file => fileToBase64(file)));
+      const res = await apiCompleteTask(completingTask.id, photoBase64Array);
+      if (!res || res.ok === false) {
+        alert(`완료 박기 catch X: ${(res && res.error) || '실패'}`);
+        setCompleting(false);
+        return;
+      }
+      // Optimistic
+      setApiTasks(prev => prev.map(t =>
+        t.id === completingTask.id ? { ...t, status: '완료', state: 'done', photoFolderUrl: res.folderUrl } : t
+      ));
+      setCompletingTask(null);
+      setCompletePhotos([]);
+      setCompletePhotoPreviews([]);
+      setCompleting(false);
+      fetchTasks();
+    } catch (e) {
+      alert(`완료 박기 에러: ${e.message}`);
+      setCompleting(false);
+    }
+  }
+
   // V14 — 수락한 acceptance를 새 배정 리스트에 추가 (newAssignments 계산 전에 선언)
   const [extraAssignments, setExtraAssignments] = useState([]);
 
@@ -4772,6 +4909,154 @@ export default function EngineerApp({ user, onLogout }) {
             }}
           />
         )}
+      </div>
+
+      {/* V14 큰 흐름 — 취소 요청 모달 */}
+      {cancelRequestTask && (
+        <V14Modal onClose={() => { setCancelRequestTask(null); setCancelReason(""); }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>취소 요청</h3>
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
+            {cancelRequestTask.customer} · {cancelRequestTask.workType} · {cancelRequestTask.address}
+          </div>
+          <textarea
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder="사유 박기... (예: 고객 부재 / 위치 X / 등)"
+            style={{
+              width: "100%", minHeight: 100, padding: 10,
+              borderRadius: 8, border: "1px solid #ddd",
+              fontSize: 13, fontFamily: "inherit", resize: "vertical",
+              boxSizing: "border-box",
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button
+              onClick={() => { setCancelRequestTask(null); setCancelReason(""); }}
+              style={{ flex: 1, padding: 12, background: "transparent", border: "1px solid #ddd", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+            >취소</button>
+            <button
+              disabled={!cancelReason.trim()}
+              onClick={submitCancelRequest}
+              style={{ flex: 1, padding: 12, background: cancelReason.trim() ? "#FF3B5C" : "#ccc", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: cancelReason.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+            >요청 박기</button>
+          </div>
+        </V14Modal>
+      )}
+
+      {/* V14 큰 흐름 — 금액 변경 모달 (현장 추가) */}
+      {priceChangeTask && (
+        <V14Modal onClose={() => { setPriceChangeTask(null); setAddAmount(0); setAddReason(""); }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>금액 변경 (현장 추가)</h3>
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
+            {priceChangeTask.customer} · 견적 ₩{Number(priceChangeTask.estimateTotal || 0).toLocaleString()}
+          </div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#888", display: "block", marginBottom: 4 }}>추가 금액 (원)</label>
+          <input
+            type="number"
+            value={addAmount || ""}
+            onChange={(e) => setAddAmount(parseInt(e.target.value) || 0)}
+            placeholder="추가 금액"
+            style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #ddd", fontSize: 14, fontFamily: "inherit", boxSizing: "border-box", marginBottom: 12 }}
+          />
+          <label style={{ fontSize: 11, fontWeight: 700, color: "#888", display: "block", marginBottom: 4 }}>사유</label>
+          <textarea
+            value={addReason}
+            onChange={(e) => setAddReason(e.target.value)}
+            placeholder="예: 가스 추가 / 부품 교체 / 작업 시간 추가"
+            style={{ width: "100%", minHeight: 80, padding: 10, borderRadius: 8, border: "1px solid #ddd", fontSize: 13, fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
+          />
+          {addAmount > 0 && (
+            <div style={{ marginTop: 8, fontSize: 12, color: "#FF1B8D", fontWeight: 700 }}>
+              새 총금액: ₩{(Number(priceChangeTask.estimateTotal || 0) + Number(addAmount)).toLocaleString()}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button
+              onClick={() => { setPriceChangeTask(null); setAddAmount(0); setAddReason(""); }}
+              style={{ flex: 1, padding: 12, background: "transparent", border: "1px solid #ddd", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+            >취소</button>
+            <button
+              disabled={!addAmount || addAmount <= 0}
+              onClick={submitPriceChange}
+              style={{ flex: 1, padding: 12, background: (addAmount > 0) ? "#FF1B8D" : "#ccc", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: (addAmount > 0) ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+            >변경 박기</button>
+          </div>
+        </V14Modal>
+      )}
+
+      {/* V14 큰 흐름 — 완료 + 사진 업로드 모달 (필수 1~3장) */}
+      {completingTask && (
+        <V14Modal onClose={completing ? undefined : () => { setCompletingTask(null); setCompletePhotos([]); setCompletePhotoPreviews([]); }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>작업 완료 + 사진 업로드</h3>
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
+            {completingTask.customer} · {completingTask.workType}
+          </div>
+          <label style={{ display: "block", padding: 14, border: "2px dashed #FF1B8D", borderRadius: 10, textAlign: "center", cursor: "pointer", marginBottom: 12 }}>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoSelect}
+              disabled={completing}
+              style={{ display: "none" }}
+            />
+            <div style={{ fontSize: 24, marginBottom: 6 }}>📸</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#FF1B8D" }}>
+              사진 박기 (1~3장 필수)
+            </div>
+            <div style={{ fontSize: 10, color: "#888", marginTop: 4 }}>
+              현재 {completePhotos.length}장 박힘
+            </div>
+          </label>
+          {completePhotoPreviews.length > 0 && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 12 }}>
+              {completePhotoPreviews.map((src, i) => (
+                <img key={i} src={src} alt="preview" style={{ width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 6 }}/>
+              ))}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button
+              disabled={completing}
+              onClick={() => { setCompletingTask(null); setCompletePhotos([]); setCompletePhotoPreviews([]); }}
+              style={{ flex: 1, padding: 12, background: "transparent", border: "1px solid #ddd", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: completing ? "not-allowed" : "pointer", fontFamily: "inherit", opacity: completing ? 0.5 : 1 }}
+            >취소</button>
+            <button
+              disabled={completePhotos.length === 0 || completing}
+              onClick={submitComplete}
+              style={{ flex: 2, padding: 12, background: (completePhotos.length > 0 && !completing) ? "#00875A" : "#ccc", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: (completePhotos.length > 0 && !completing) ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+            >
+              {completing ? "박는 중..." : `완료 박기 (사진 ${completePhotos.length}장)`}
+            </button>
+          </div>
+        </V14Modal>
+      )}
+    </div>
+  );
+}
+
+// V14 — 모달 wrapper (재사용)
+function V14Modal({ children, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+        zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--bg-primary, #fff)", color: "var(--text-primary, #1A1A1A)",
+          borderRadius: 14, padding: 18,
+          width: "100%", maxWidth: 380,
+          boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+          fontFamily: "'Pretendard', -apple-system, sans-serif",
+        }}
+      >
+        {children}
       </div>
     </div>
   );

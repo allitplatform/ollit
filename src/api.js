@@ -155,6 +155,45 @@ export async function updateTask(taskId, updates) {
 }
 
 // =====================================
+// V14 큰 흐름 — 취소 / 변경 / 작업 (7 API)
+// =====================================
+
+// === 취소 흐름 (3) ===
+// 기사 → 취소 요청 (시트 R='취소요청' / 메모 박힘)
+export async function requestCancel(taskId, reason) {
+  return apiCall('requestCancel', { taskId, reason });
+}
+// 운영자 → 취소 확인 (시트 R='취소' / 취소DB 이동)
+export async function approveCancel(taskId, reason) {
+  return apiCall('approveCancel', { taskId, reason });
+}
+// 운영자 → 취소 거절 (시트 R 옛 상태 복구 / 거절 사유 박힘)
+export async function rejectCancel(taskId, rejectReason) {
+  return apiCall('rejectCancel', { taskId, rejectReason });
+}
+
+// === 변경 흐름 (2 / changeSchedule = 옛 updateTask catch) ===
+// 기사 → 금액 변경 (V열 견적합계 + AC열 추가금 + AD열 추가사유)
+export async function changePrice(taskId, newPrice, addAmount, reason) {
+  return apiCall('changePrice', { taskId, newPrice, addAmount, reason });
+}
+// 운영자 → 작업 종류 변경 (작업요약 + 총수량 + 견적합계)
+export async function changeWorkType(taskId, newWorkType, newAppliance, newQty, newPrice) {
+  return apiCall('changeWorkType', { taskId, newWorkType, newAppliance, newQty, newPrice });
+}
+
+// === 작업 흐름 (2) ===
+// 기사 → 작업 시작 (시트 W열 + R='작업중')
+export async function startTask(taskId) {
+  return apiCall('startTask', { taskId });
+}
+// 기사 → 작업 완료 + 사진 업로드 (시트 Y + AB / Drive 폴더 박힘)
+// photoBase64Array: ['data:image/jpeg;base64,...', ...] 1~3장
+export async function completeTask(taskId, photoBase64Array) {
+  return apiCall('completeTask', { taskId, photos: photoBase64Array });
+}
+
+// =====================================
 // 휴무 API ⭐ NEW
 // =====================================
 

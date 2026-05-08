@@ -58,6 +58,8 @@ import {
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
   updateTask as apiUpdateTask,
+  approveCancel as apiApproveCancel,
+  rejectCancel as apiRejectCancel,
   invalidateRecommendCache,
 } from "../api.js";
 
@@ -1437,6 +1439,55 @@ export default function AdminApp({ user, onLogout }) {
   // V14 2B-3 — 배정 진행/에러 (RecommendScreen 박힘)
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
+
+  // V14 큰 흐름 — 취소 요청 처리 모달 state
+  const [cancelHandleTask, setCancelHandleTask] = useState(null);
+  const [cancelRejectReason, setCancelRejectReason] = useState("");
+
+  // V14 — 취소 확인
+  async function handleApproveCancel() {
+    if (!cancelHandleTask?.id) return;
+    try {
+      const res = await apiApproveCancel(cancelHandleTask.id, '운영자 확인');
+      if (!res || res.ok === false) {
+        addToast({ type: "completed", title: "취소 실패", message: (res && res.error) || "시트 박지 X" });
+        return;
+      }
+      // Optimistic
+      setApiTasks(prev => prev.map(t =>
+        t.id === cancelHandleTask.id ? { ...t, status: '취소', state: 'canceled' } : t
+      ));
+      addToast({ type: "assignment", title: "✓ 취소 박힘", message: `${cancelHandleTask.customer || ""} / 취소DB 이동` });
+      setCancelHandleTask(null);
+      setCancelRejectReason("");
+      fetchTasks();
+    } catch (e) {
+      addToast({ type: "completed", title: "취소 에러", message: e.message });
+    }
+  }
+
+  // V14 — 취소 거절
+  async function handleRejectCancel() {
+    if (!cancelHandleTask?.id || !cancelRejectReason.trim()) return;
+    try {
+      const res = await apiRejectCancel(cancelHandleTask.id, cancelRejectReason);
+      if (!res || res.ok === false) {
+        addToast({ type: "completed", title: "거절 실패", message: (res && res.error) || "시트 박지 X" });
+        return;
+      }
+      // Optimistic — 옛 상태 복구 (backend 응답에서 oldStatus 박힘)
+      const oldStatus = (res && res.oldStatus) || '약속대기';
+      setApiTasks(prev => prev.map(t =>
+        t.id === cancelHandleTask.id ? { ...t, status: oldStatus } : t
+      ));
+      addToast({ type: "assignment", title: "취소 거절", message: `${cancelHandleTask.customer || ""} / 기사 알림 박힘` });
+      setCancelHandleTask(null);
+      setCancelRejectReason("");
+      fetchTasks();
+    } catch (e) {
+      addToast({ type: "completed", title: "거절 에러", message: e.message });
+    }
+  }
   // V14 디버그 — 0건 catch 시 raw 응답 박힘 (사장님 catch 용)
   const [tasksDebug, setTasksDebug] = useState(null);
 
@@ -2557,15 +2608,78 @@ export default function AdminApp({ user, onLogout }) {
       onClickUrgentAssign={() => { setSelectedTask(URGENT_TASK); setScreen("recommend"); }}
       onEngineerClick={(eng) => goEngineerDay(eng, null)}
       onTaskClick={(task) => goTaskDetail(task, null)}
+      onClickCancelHandle={(task) => setCancelHandleTask(task)}
     />
+
+    {/* V14 큰 흐름 — 취소 요청 처리 모달 */}
+    {cancelHandleTask && (
+      <V14AdminModal onClose={() => { setCancelHandleTask(null); setCancelRejectReason(""); }}>
+        <h3 style={{ fontSize: 17, fontWeight: 800, marginBottom: 8, color: t.text }}>🚨 취소 요청 처리</h3>
+        <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 8 }}>
+          {cancelHandleTask.principal} · {cancelHandleTask.customer}
+        </div>
+        <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 12 }}>
+          {cancelHandleTask.address}
+        </div>
+        <div style={{ background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 4 }}>기사 요청 사유</div>
+          <div style={{ fontSize: 12, color: t.text, lineHeight: 1.5 }}>{cancelHandleTask.memo || "(사유 박지 X)"}</div>
+        </div>
+        <label style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, display: "block", marginBottom: 4 }}>거절 사유 (거절 시 박을 차례)</label>
+        <textarea
+          value={cancelRejectReason}
+          onChange={(e) => setCancelRejectReason(e.target.value)}
+          placeholder="예: 고객 직접 확인 박을 catch / 다른 기사 배정 catch"
+          style={{ width: "100%", minHeight: 60, padding: 10, borderRadius: 8, border: `1px solid ${t.border}`, fontSize: 12, fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", background: t.bgInset, color: t.text }}
+        />
+        <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+          <button
+            onClick={handleApproveCancel}
+            style={{ flex: 1, padding: 12, background: "#FF3B5C", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
+          >✓ 확인 (취소 박기)</button>
+          <button
+            disabled={!cancelRejectReason.trim()}
+            onClick={handleRejectCancel}
+            style={{ flex: 1, padding: 12, background: cancelRejectReason.trim() ? "#888" : "#ccc", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: cancelRejectReason.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+          >✗ 거절</button>
+        </div>
+      </V14AdminModal>
+    )}
   </Shell>;
+}
+
+// V14 — Admin 모달 wrapper (재사용)
+function V14AdminModal({ children, onClose }) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
+        zIndex: 9000, display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--bg-primary, #fff)", color: "var(--text-primary, #1A1A1A)",
+          borderRadius: 14, padding: 18,
+          width: "100%", maxWidth: 380,
+          boxShadow: "0 20px 50px rgba(0,0,0,0.3)",
+          fontFamily: "'Pretendard', -apple-system, sans-serif",
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
 }
 
 // ============================================
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick }) {
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick, onClickCancelHandle }) {
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 박힌 거)
   const totalNew = dynamicStats?.new ?? 0;
 
@@ -2649,6 +2763,47 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>👷</span>} label="기사 정산"          value={dynamicStats?.revenue?.engineer  ?? TODAY_STATS.engineerNet}  color={t.text}/>
           <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>🤝</span>} label="원청 수수료"        value={dynamicStats?.revenue?.principal ?? TODAY_STATS.principalFee} color={t.text}/>
         </div>
+
+        {/* V14 큰 흐름 — 취소 요청 알림 (status='취소요청' 박힌 거) */}
+        {(apiTasks || []).filter(t => (t.status || t.상태) === '취소요청').map(task => (
+          <div
+            key={`cancel-req-${task.id}`}
+            onClick={() => onClickCancelHandle && onClickCancelHandle(task)}
+            className="clickable"
+            style={{
+              marginBottom: 12,
+              background: "#FEE2E2",
+              border: "2px solid #EF4444",
+              borderRadius: 12,
+              padding: "12px 14px",
+              cursor: "pointer",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <span style={{ fontSize: 14 }}>🚨</span>
+              <span style={{ fontSize: 11, fontWeight: 800, color: "#B91C1C", letterSpacing: 0.5 }}>
+                취소 요청 박힘
+              </span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "#7F1D1D", marginBottom: 2 }}>
+                  {task.customer} · {task.principal}
+                </div>
+                <div style={{ fontSize: 11, color: "#991B1B", lineHeight: 1.4 }}>
+                  {task.region} · 사유: {(task.memo || "").slice(0, 40) || "(박지 X)"}
+                </div>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onClickCancelHandle && onClickCancelHandle(task); }}
+                style={{
+                  padding: "8px 14px", background: "#DC2626", color: "white", border: "none", borderRadius: 8,
+                  fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
+                }}
+              >처리</button>
+            </div>
+          </div>
+        ))}
 
         {/* V14 — 긴급/당일 (apiTasks 박힌 거 catch / 이지은 시뮬 폐기) */}
         {dynamicStats?.urgentTasks && dynamicStats.urgentTasks.length > 0 && (
