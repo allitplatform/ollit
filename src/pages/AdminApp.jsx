@@ -340,10 +340,26 @@ function parseKakaoText(text) {
   }
 
   // 4. 이름 (콜론 패턴)
+  // V14 Phase 2.5 — nameRegex2 blacklist 박기 (라벨 단어 박지 X)
+  // 옛 catch X: '원청:', '주소:', '기종:' 박힌 거 = 이름으로 박힘 ⚠️
+  const NAME_LABEL_BLACKLIST = new Set([
+    "원청", "주소", "연락처", "전화", "핸드폰", "휴대폰",
+    "기종", "견적", "금액", "가격", "수량",
+    "작업", "유형", "작업유형",
+    "일정", "시간", "날짜", "희망",
+    "메모", "비고", "요청", "사유",
+    "고객", "성함", "성명", "이름",
+    "확정", "예약", "구분", "채널",
+  ]);
   const nameRegex1 = /(?:이름|고객|성함|성명)\s*[:：]\s*([가-힣]{2,5})/;
   const nameRegex2 = /^([가-힣]{2,5})\s*[:：]/m;
   let nameMatch = text.match(nameRegex1);
-  if (!nameMatch) nameMatch = text.match(nameRegex2);
+  if (!nameMatch) {
+    const m2 = text.match(nameRegex2);
+    if (m2 && !NAME_LABEL_BLACKLIST.has(m2[1])) {
+      nameMatch = m2;
+    }
+  }
   if (nameMatch) {
     result.customer = nameMatch[1];
     result.matched.push("이름");
@@ -396,15 +412,29 @@ function parseKakaoText(text) {
     }
   }
 
-  // 5. 기종 + 수량 (벽걸이 / 스탠드 / 시스템 / 천장형 / 이동식)
+  // 5. 기종 + 수량 (V14 헌법 7 기종 + 옛 호환)
+  // V14 Phase 2.5 — '기종:' 라벨 박기 (우선) + V14 7 기종 + '×N' / 'xN' / 'N대' pattern
   const applianceItems = [];
-  const itemRegex = /(벽걸이|스탠드|시스템|천장형|이동식)\s*(\d+)?/g;
+  // V14 0순위: '기종:' 라벨 박힌 거 ('기종: 4way ×1' / '기종: 벽걸이 ×2')
+  const modelLabelRegex = /기종\s*[:：]\s*([^\n]+)/;
+  const modelLabelMatch = text.match(modelLabelRegex);
+  if (modelLabelMatch) {
+    const value = modelLabelMatch[1].trim();
+    // "4way ×1" / "벽걸이 2대" / "스탠드 ×3" 등 catch (영어/숫자 박힌 4way / 1way 박힘)
+    const m = value.match(/^([\w가-힣]+?)\s*(?:[×x]\s*)?(\d+)?\s*대?/i);
+    if (m && m[1]) {
+      applianceItems.push({ appliance: m[1].trim(), qty: parseInt(m[2]) || 1 });
+    }
+  }
+  // 옛 catch (V14 7 기종 + 옛 호환): '벽걸이 ×2' / '4way 1대' / '스탠드 3'
+  const itemRegex = /(벽걸이|1way|스탠드|4way|원형|투인원|시스템멀티|시스템\s?멀티|시스템|천장형|이동식)\s*(?:[×x]\s*)?(\d+)?\s*대?/gi;
   let itemMatch;
   while ((itemMatch = itemRegex.exec(text)) !== null) {
-    applianceItems.push({
-      appliance: itemMatch[1],
-      qty: parseInt(itemMatch[2]) || 1,
-    });
+    const appliance = itemMatch[1].replace(/\s+/g, "");
+    // 중복 박지 X (이미 modelLabel에서 박힌 거)
+    if (!applianceItems.some(x => x.appliance === appliance)) {
+      applianceItems.push({ appliance, qty: parseInt(itemMatch[2]) || 1 });
+    }
   }
   if (applianceItems.length > 0) {
     result.applianceItems = applianceItems;
