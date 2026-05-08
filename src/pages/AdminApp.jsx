@@ -635,7 +635,7 @@ const NOTIFICATIONS_MOCK = [
   { id: "n1", category: "new_assign",      categoryLabel: "새 접수",     title: "박은서 (세척 ×1)",   subtitle: "강남 도곡",                timeAgo: "5분 전",   createdAt: new Date(Date.now() - 5 * 60 * 1000),       read: false, taskId: "A260427-005" },
   { id: "n2", category: "schedule_confirm", categoryLabel: "일정 확정",   title: "이상훈 (세척 ×2)",   subtitle: "김동효 · 14:00",          timeAgo: "30분 전",  createdAt: new Date(Date.now() - 30 * 60 * 1000),      read: false, taskId: "A260427-002" },
   { id: "n3", category: "complete",        categoryLabel: "작업 완료",   title: "정수아 (세척 ×1)",   subtitle: "김동효 · 1시간 전",        timeAgo: "1시간 전", createdAt: new Date(Date.now() - 60 * 60 * 1000),      read: true,  taskId: "A260427-001" },
-  { id: "n4", category: "new_assign",      categoryLabel: "기사 배정",   title: "박은서 (세척)",      subtitle: "김동효 [과장] 배정 완료",   timeAgo: "2시간 전", createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),  read: true,  taskId: "A260427-005" },
+  { id: "n4", category: "new_assign",      categoryLabel: "프로 배정",   title: "박은서 (세척)",      subtitle: "김동효 [과장] 배정 완료",   timeAgo: "2시간 전", createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),  read: true,  taskId: "A260427-005" },
 ];
 
 // 알림 타입 → 아이콘/색깔 매핑
@@ -802,7 +802,7 @@ const ENGINEERS_MASTER = [
   { id: "M01", name: "김태승", careerLevel: "expert", level: "main",   phone: "010-8185-9700", regionLabel: "서대문" },
   { id: "M02", name: "양승문", careerLevel: "expert", level: "main",   phone: "010-3749-0294", regionLabel: "은평" },
   { id: "M03", name: "김윤섭", careerLevel: "expert", level: "main",   phone: "010-2063-4980", regionLabel: "용산" },
-  { id: "M04", name: "이상준", careerLevel: "expert", level: "main",   phone: "010-4729-8079", regionLabel: "전문 기사" },
+  { id: "M04", name: "이상준", careerLevel: "expert", level: "main",   phone: "010-4729-8079", regionLabel: "전문 프로" },
   { id: "M05", name: "정상현", careerLevel: "expert", level: "main",   phone: "010-2273-0976", regionLabel: "강북" },
   { id: "M06", name: "김영수", careerLevel: "expert", level: "main",   phone: "010-2635-5772", regionLabel: "동대문" },
   { id: "M07", name: "안승웅", careerLevel: "expert", level: "main",   phone: "010-5399-3651", regionLabel: "성동" },
@@ -814,8 +814,8 @@ const ENGINEERS_MASTER = [
   { id: "M13", name: "김현동", careerLevel: "expert", level: "main",   phone: "010-9999-0001", regionLabel: "강북" },
   { id: "M14", name: "임종일", careerLevel: "expert", level: "main",   phone: "010-9999-0002", regionLabel: "관악" },
   { id: "M15", name: "류근학", careerLevel: "expert", level: "main",   phone: "010-9999-0003", regionLabel: "강남" },
-  { id: "M16", name: "권창용", careerLevel: "expert", level: "main",   phone: "010-9999-0004", regionLabel: "전문 기사" },
-  { id: "M17", name: "김재현", careerLevel: "career", level: "backup", phone: "010-9999-0005", regionLabel: "전문 기사" },
+  { id: "M16", name: "권창용", careerLevel: "expert", level: "main",   phone: "010-9999-0004", regionLabel: "전문 프로" },
+  { id: "M17", name: "김재현", careerLevel: "career", level: "backup", phone: "010-9999-0005", regionLabel: "전문 프로" },
   { id: "M18", name: "문성목", careerLevel: "career", level: "backup", phone: "010-9999-0006", regionLabel: "성동" },
   { id: "M19", name: "손동식", careerLevel: "career", level: "backup", phone: "010-9999-0007", regionLabel: "은평" },
   { id: "M20", name: "김병철", careerLevel: "career", level: "backup", phone: "010-9999-0008", regionLabel: "남양주" },
@@ -1200,7 +1200,7 @@ const ENGINEERS_DATA = [
         state: "active" },
     ] },
   // 대기 — 2명 (M16 권창용 / M06 김영수)
-  { id: "M16", name: "권창용", rank: "senior", level: "main", careerLevel: "expert", region: "전문 기사", phone: "010-9999-0004",
+  { id: "M16", name: "권창용", rank: "senior", level: "main", careerLevel: "expert", region: "전문 프로", phone: "010-9999-0004",
     todaySchedule: [
       { type: "work", time: "13:00", taskCode: "A260427-033",
         customer: "최세영", phone: "010-3434-5656",
@@ -1231,7 +1231,7 @@ const ENGINEERS_DATA = [
     ] },
   // 0건 / 미정 — 12명
   { id: "M02", name: "양승문", rank: "junior",  level: "main",   careerLevel: "expert", region: "은평",       phone: "010-3749-0294", todaySchedule: [] },
-  { id: "M04", name: "이상준", rank: "senior",  level: "main",   careerLevel: "expert", region: "전문 기사",  phone: "010-4729-8079", todaySchedule: [] },
+  { id: "M04", name: "이상준", rank: "senior",  level: "main",   careerLevel: "expert", region: "전문 프로",  phone: "010-4729-8079", todaySchedule: [] },
   { id: "M05", name: "정상현", rank: "junior",  level: "main",   careerLevel: "expert", region: "강북",       phone: "010-2273-0976", todaySchedule: [] },
   { id: "M07", name: "안승웅", rank: "senior",  level: "main",   careerLevel: "expert", region: "성동",       phone: "010-5399-3651", todaySchedule: [] },
   { id: "M08", name: "변기현", rank: "junior",  level: "main",   careerLevel: "expert", region: "금천",       phone: "010-6351-8818", todaySchedule: [] },
@@ -1239,7 +1239,7 @@ const ENGINEERS_DATA = [
   { id: "M12", name: "전현진", rank: "junior",  level: "main",   careerLevel: "expert", region: "강서",       phone: "010-7764-4402", todaySchedule: [] },
   { id: "M13", name: "김현동", rank: "junior",  level: "main",   careerLevel: "expert", region: "강북",       phone: "010-9999-0001", todaySchedule: [] },
   { id: "M14", name: "임종일", rank: "junior",  level: "main",   careerLevel: "expert", region: "관악",       phone: "010-9999-0002", todaySchedule: [] },
-  { id: "M17", name: "김재현", rank: "junior",  level: "backup", careerLevel: "career", region: "전문 기사",  phone: "010-9999-0005", todaySchedule: [] },
+  { id: "M17", name: "김재현", rank: "junior",  level: "backup", careerLevel: "career", region: "전문 프로",  phone: "010-9999-0005", todaySchedule: [] },
   { id: "M18", name: "문성목", rank: "junior",  level: "backup", careerLevel: "career", region: "성동",       phone: "010-9999-0006", todaySchedule: [] },
   { id: "M19", name: "손동식", rank: "junior",  level: "backup", careerLevel: "career", region: "은평",       phone: "010-9999-0007", todaySchedule: [] },
 ];
@@ -1602,7 +1602,7 @@ export default function AdminApp({ user, onLogout }) {
       setApiTasks(prev => prev.map(t =>
         t.id === cancelHandleTask.id ? { ...t, status: oldStatus } : t
       ));
-      addToast({ type: "assignment", title: "취소 거절", message: `${cancelHandleTask.customer || ""} / 기사 알림 박힘` });
+      addToast({ type: "assignment", title: "취소 거절", message: `${cancelHandleTask.customer || ""} / 프로 알림 박힘` });
       setCancelHandleTask(null);
       setCancelRejectReason("");
       fetchTasks();
@@ -1740,7 +1740,7 @@ export default function AdminApp({ user, onLogout }) {
     // 옛 필드 (type/message/subInfo) → 새 필드 (category/title/subtitle) 자동 변환
     const ADMIN_TYPE_TO_CATEGORY = {
       new_reception:      { category: "new_assign",       label: "새 접수"   },
-      assignment:         { category: "new_assign",       label: "기사 배정" },
+      assignment:         { category: "new_assign",       label: "프로 배정" },
       schedule_confirmed: { category: "schedule_confirm", label: "일정 확정" },
       schedule_changed:   { category: "schedule_change",  label: "일정 변경" },
       completed:          { category: "complete",         label: "작업 완료" },
@@ -1782,7 +1782,7 @@ export default function AdminApp({ user, onLogout }) {
     const head = items[0] || { workType: "세척", appliance: "벽걸이", qty: 1 };
     const extraCount = items.length > 1 ? items.length - 1 : 0;
     const scheduleText = form.scheduleType === "tbd"
-      ? "기사님 컨택"
+      ? "프로님 컨택"
       : ([form.requestDate, form.requestTime].filter(Boolean).join(" ") || "협의");
     const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow || "manual_with_recommendation";
     // Step 5-3 v3 — 자동 배정 작업이면 등록 시점에 push 시작 (carded 상태 표시용)
@@ -2061,7 +2061,7 @@ export default function AdminApp({ user, onLogout }) {
             type: "completed",
             title: "🚗 출장비만 정산",
             message: `${selectedTaskDetail.customer || "—"} · 출장비 ${VISIT_FEE.amount.toLocaleString()}원`,
-            subInfo: `사유: ${payload.reasonLabel || "—"} · 기사 100%`,
+            subInfo: `사유: ${payload.reasonLabel || "—"} · 프로 100%`,
             taskId: selectedTaskDetail.id || selectedTaskDetail.taskCode,
           });
           addToast({
@@ -2225,7 +2225,7 @@ export default function AdminApp({ user, onLogout }) {
           // V14 속도 Phase 1 — Optimistic Update / fetchTasks 박지 X / apiTasks 직접 update
           // V14 재배정 catch — 옛 기사 박혔으면 별도 흐름 (N + R 박지 X / '약속대기' 박힘)
           if (!selectedTask?.id || !eng?.name) {
-            addToast({ type: "completed", title: "배정 X", message: "작업 / 기사 박지 X" });
+            addToast({ type: "completed", title: "배정 X", message: "작업 / 프로 박지 X" });
             return;
           }
           // V14 재배정 catch — 옛 기사 박혔는지 박기
@@ -2290,7 +2290,7 @@ export default function AdminApp({ user, onLogout }) {
               invalidateRecommendCache();
               addNotification({
                 type: "assignment",
-                title: "기사 재배정",
+                title: "프로 재배정",
                 message: `${selectedTask?.customer || ""} (${selectedTask?.workType || ""})`,
                 subInfo: `${oldEngineer} → ${eng.name} (일정 협의 catch)`,
                 taskId: selectedTask?.id,
@@ -2298,7 +2298,7 @@ export default function AdminApp({ user, onLogout }) {
               addToast({
                 type: "assignment",
                 title: "✓ 재배정 박혔어",
-                message: `${eng.name} 기사 / 일정 협의 catch`,
+                message: `${eng.name} 프로 / 일정 협의 catch`,
               });
               setAssigning(false);
               setScreen("taskDetail");
@@ -2363,12 +2363,12 @@ export default function AdminApp({ user, onLogout }) {
 
             addNotification({
               type: "assignment",
-              title: "기사 배정",
+              title: "프로 배정",
               message: `${selectedTask?.customer || ""} (${selectedTask?.workType || ""})`,
               subInfo: `${eng.name} 배정 완료`,
               taskId: selectedTask?.id,
             });
-            addToast({ type: "assignment", title: "✓ 배정 박혔어", message: `${eng.name} 기사` });
+            addToast({ type: "assignment", title: "✓ 배정 박혔어", message: `${eng.name} 프로` });
 
             // [1-3] fetchTasks() 박지 X — Optimistic만 박기 (5~7초 lag X)
             // 다음 mount 시 자동 catch / 또는 사용자가 새로고침 박을 때
@@ -2419,7 +2419,7 @@ export default function AdminApp({ user, onLogout }) {
             subInfo: `${eng.name} 자동 수락`,
             taskId: selectedTask?.id,
           });
-          addToast({ type: "assignment", title: "자동 배정", message: `${eng.name} 기사 수락` });
+          addToast({ type: "assignment", title: "자동 배정", message: `${eng.name} 프로 수락` });
           // V14 Step 3 Fix 5 — Optimistic Update 박기 (fetchTasks lag 5초 동안 옛 데이터 박지 X)
           if (selectedTask?.id && eng?.name) {
             setApiTasks(prev => prev.map(t =>
@@ -2514,7 +2514,7 @@ export default function AdminApp({ user, onLogout }) {
           // saved === null → 삭제
           addToast({
             type: "assignment",
-            title: saved === null ? "기사 삭제" : (editingIsNew ? "기사 추가" : "기사 저장"),
+            title: saved === null ? "프로 삭제" : (editingIsNew ? "프로 추가" : "프로 저장"),
             message: editingEngineer.name || "—",
           });
           setEditingEngineer(null);
@@ -2784,14 +2784,14 @@ export default function AdminApp({ user, onLogout }) {
           {cancelHandleTask.address}
         </div>
         <div style={{ background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 4 }}>기사 요청 사유</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 4 }}>프로 요청 사유</div>
           <div style={{ fontSize: 12, color: t.text, lineHeight: 1.5 }}>{cancelHandleTask.memo || "(사유 박지 X)"}</div>
         </div>
         <label style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, display: "block", marginBottom: 4 }}>거절 사유 (거절 시 박을 차례)</label>
         <textarea
           value={cancelRejectReason}
           onChange={(e) => setCancelRejectReason(e.target.value)}
-          placeholder="예: 고객 직접 확인 박을 catch / 다른 기사 배정 catch"
+          placeholder="예: 고객 직접 확인 박을 catch / 다른 프로 배정 catch"
           style={{ width: "100%", minHeight: 60, padding: 10, borderRadius: 8, border: `1px solid ${t.border}`, fontSize: 12, fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", background: t.bgInset, color: t.text }}
         />
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -2922,7 +2922,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           {dynamicStats?.revenue?.margin === undefined && (
             <MoneyBox t={t} icon={<TrendingUp size={12}/>} label="회사 마진"     value={TODAY_STATS.myMargin}                                       color={t.accent}/>
           )}
-          <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>👷</span>} label="기사 정산"          value={dynamicStats?.revenue?.engineer  ?? TODAY_STATS.engineerNet}  color={t.text}/>
+          <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>👷</span>} label="프로 정산"          value={dynamicStats?.revenue?.engineer  ?? TODAY_STATS.engineerNet}  color={t.text}/>
           <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>🤝</span>} label="원청 수수료"        value={dynamicStats?.revenue?.principal ?? TODAY_STATS.principalFee} color={t.text}/>
         </div>
 
@@ -3004,7 +3004,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
       <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 16, paddingBottom: 4 }}>
         <div style={{ padding: "0 16px 12px", display: "flex", gap: 6 }}>
           {["overview", "live", "engineers", "settlement"].map((tab) => {
-            const labels = { overview: "개요", live: "작업", engineers: "기사", settlement: "정산" };
+            const labels = { overview: "개요", live: "작업", engineers: "프로", settlement: "정산" };
             const active = activeTab === tab;
             return (
               <button key={tab} onClick={() => setActiveTab(tab)} style={{
@@ -3245,7 +3245,7 @@ function EngineersTab({ t, onEngineerClick, onClickManage }) {
           <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: t.textMuted }}/>
           <input
             type="text"
-            placeholder="기사 / 지역 / 작업 검색..."
+            placeholder="프로 / 지역 / 작업 검색..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             style={{
@@ -3782,7 +3782,7 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
       }}>
         <User size={12} style={{ color: t.textSecondary }}/>
         <span style={{ fontSize: 11, color: t.text, fontWeight: 600 }}>
-          {task.assignedEngineer} 기사 배정
+          {task.assignedEngineer} 프로 배정
         </span>
       </div>
 
@@ -4214,7 +4214,7 @@ function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
           fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
         }}>
-          기사 배정 <ArrowRight size={14}/>
+          프로 배정 <ArrowRight size={14}/>
         </button>
       </div>
     </div>
@@ -4289,7 +4289,7 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
         }}>
           <span style={{ fontSize: 11 }}>🟡</span>
           <span style={{ fontSize: 11, color: t.warning, fontWeight: 700, flex: 1 }}>
-            기사 <span className="mono">{pushCount}</span>명 푸시 중
+            프로 <span className="mono">{pushCount}</span>명 푸시 중
           </span>
           <span style={{ fontSize: 10, color: t.textMuted }}>수락 대기</span>
         </div>
@@ -4302,7 +4302,7 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
         }}>
           <span style={{ fontSize: 11 }}>🟢</span>
           <span style={{ fontSize: 11, color: t.success, fontWeight: 700, flex: 1 }}>
-            <strong>{acceptedName || "—"}</strong> 기사 수락
+            <strong>{acceptedName || "—"}</strong> 프로 수락
           </span>
           <span style={{ fontSize: 10, color: t.textMuted }}>자동 배정 완료</span>
         </div>
@@ -4557,7 +4557,7 @@ function InProgressListScreen({ t, onBack, onTaskClick }) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="고객 · 지역 · 작업 · 기사"
+            placeholder="고객 · 지역 · 작업 · 프로"
             style={{
               width: "100%", boxSizing: "border-box",
               padding: "8px 10px 8px 30px",
@@ -4702,7 +4702,7 @@ function SettlementContent({ t, onTaskClick, onClickManagePrincipals, containerP
       )}
       <div style={{ padding: tabPadding || "0 0 12px", display: "flex", gap: 6 }}>
         {[
-          { k: "engineers",  lbl: "👷 기사 그룹" },
+          { k: "engineers",  lbl: "👷 프로 그룹" },
           { k: "principals", lbl: "🏢 원청 그룹" },
         ].map((tab) => {
           const active = activeTab === tab.k;
@@ -4899,7 +4899,7 @@ function LiveWorkContent({ t, onTaskClick }) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="고객 · 지역 · 작업 · 기사"
+          placeholder="고객 · 지역 · 작업 · 프로"
           style={{
             width: "100%", boxSizing: "border-box",
             padding: "8px 10px 8px 30px",
@@ -5116,7 +5116,7 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
 // ─────────────────────────────────────────────
 
 function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
-  if (!engineer) return <PlaceholderScreen t={t} title="기사 오늘" label="기사 정보 없음" onBack={onBack}/>;
+  if (!engineer) return <PlaceholderScreen t={t} title="프로 오늘" label="프로 정보 없음" onBack={onBack}/>;
 
   const schedule = engineer.todaySchedule || [];
   const stats = getEngineerStats(engineer.id, TODAY_DATE);
@@ -5226,7 +5226,7 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
             color: t.accent, fontSize: 12, fontWeight: 800, textDecoration: "none",
           }}>
             <Phone size={14}/>
-            <span>기사 통화</span>
+            <span>프로 통화</span>
             <span className="mono" style={{ fontSize: 11, fontWeight: 700, opacity: 0.7 }}>{engineer.phone}</span>
           </a>
         )}
@@ -5773,7 +5773,7 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
 function TaskCancelDialog({ task, onClose, onConfirm }) {
   const reasons = [
     { id: "customer", emoji: "🙅", label: "고객 사정으로 취소", desc: "일정 변경 / 단순 변심 등" },
-    { id: "schedule", emoji: "📅", label: "일정 조율 실패",     desc: "기사·고객 시간이 안 맞음" },
+    { id: "schedule", emoji: "📅", label: "일정 조율 실패",     desc: "프로·고객 시간이 안 맞음" },
     { id: "onsite",   emoji: "⚠️", label: "현장 작업 불가",     desc: "기종 다름 / 접근 불가 등" },
     { id: "other",    emoji: "📝", label: "기타",              desc: "메모에 상세 입력" },
   ];
@@ -5983,7 +5983,7 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
           }}>
             <div style={{ fontSize: 48, color: t.success, marginBottom: 12, fontWeight: 800, lineHeight: 1 }}>✓</div>
             <div style={{ fontSize: 18, fontWeight: 800, color: t.success, marginBottom: 6 }}>
-              {acceptedEngineer.name} 기사 수락!
+              {acceptedEngineer.name} 프로 수락!
             </div>
             <div style={{ fontSize: 11, color: t.textSecondary }}>자동 배정 완료</div>
           </div>
@@ -6110,9 +6110,9 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
             borderRadius: 12, padding: "20px 14px", textAlign: "center",
           }}>
             <div style={{ fontSize: 22, marginBottom: 10, opacity: 0.4 }}>📡</div>
-            <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 6 }}>후보 기사 없음</div>
+            <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 6 }}>후보 프로 없음</div>
             <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 14 }}>
-              이 지역 ({extractZone(task.region) || "—"})에 배정 가능한 냉매 기사가 없습니다.
+              이 지역 ({extractZone(task.region) || "—"})에 배정 가능한 냉매 프로가 없습니다.
             </div>
             <button
               onClick={onFallbackManual}
@@ -6134,7 +6134,7 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
                 <span style={{ fontSize: 14 }}>📡</span>
                 <span style={{ fontSize: 11, fontWeight: 800, color: t.text }}>
-                  후보 기사 <span className="mono" style={{ color: t.accent }}>{candidates.length}</span>명에게 알림 전송 중...
+                  후보 프로 <span className="mono" style={{ color: t.accent }}>{candidates.length}</span>명에게 알림 전송 중...
                 </span>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -6183,7 +6183,7 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
         {/* 안내 — 시연 모드 */}
         <div style={{ marginTop: 14, padding: "10px 12px", background: t.bgInset, borderRadius: 8, border: `1px dashed ${t.border}` }}>
           <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>
-            <span style={{ fontWeight: 800, color: t.textSecondary }}>시연 모드</span> · 실제 환경에서는 실시간 알림이 기사에게 푸시되고 첫 수락이 자동으로 반영됩니다 (현재는 3초 후 첫 후보 자동 수락).
+            <span style={{ fontWeight: 800, color: t.textSecondary }}>시연 모드</span> · 실제 환경에서는 실시간 알림이 프로에게 푸시되고 첫 수락이 자동으로 반영됩니다 (현재는 3초 후 첫 후보 자동 수락).
           </div>
         </div>
       </div>
@@ -6219,7 +6219,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
         console.log('[V14 2B-3] 응답:', res);
         if (cancelled) return;
         if (!res || res.ok === false) {
-          setApiError((res && res.error) || '추천 기사 catch X');
+          setApiError((res && res.error) || '추천 프로 catch X');
           setApiDebug({ phase: 'error', res });
           return;
         }
@@ -6246,7 +6246,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
       } catch (e) {
         console.error('[V14 2B-3] 에러:', e);
         if (!cancelled) {
-          setApiError(e.message || '추천 기사 catch X');
+          setApiError(e.message || '추천 프로 catch X');
           setApiDebug({ phase: 'exception', error: e.message });
         }
       } finally {
@@ -6257,7 +6257,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
   }, [task?.id, mainWorkType]);
 
   if (!task) {
-    return <PlaceholderScreen t={t} title="추천 기사" label="작업 정보 없음" onBack={onBack}/>;
+    return <PlaceholderScreen t={t} title="추천 프로" label="작업 정보 없음" onBack={onBack}/>;
   }
 
   const candidates = apiCandidates;
@@ -6303,9 +6303,9 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
 
       <div style={{ padding: "14px 16px 20px" }}>
         <div style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
-          {apiLoading ? "추천 기사 catch 중..." : (
+          {apiLoading ? "추천 프로 catch 중..." : (
             <>
-              추천 기사 <span className="mono" style={{ color: t.accent }}>{totalCandidates}</span>명
+              추천 프로 <span className="mono" style={{ color: t.accent }}>{totalCandidates}</span>명
               <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
               {extractZone(task.region) || task.region || "지역 추출 X"}
             </>
@@ -6348,8 +6348,8 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
         {apiLoading ? null : totalCandidates === 0 && !apiError ? (
           <div style={{ padding: "32px 20px", textAlign: "center", background: t.bgElevated, borderRadius: 12, border: `1px solid ${t.border}` }}>
             <div style={{ fontSize: 24, marginBottom: 10, opacity: 0.4 }}>🔍</div>
-            <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 6 }}>이 지역에 등록된 기사가 없습니다</div>
-            <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 14 }}>전체 기사 중 점수가 높은 순으로 직접 선택할 수 있습니다.</div>
+            <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 6 }}>이 지역에 등록된 프로가 없습니다</div>
+            <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 14 }}>전체 프로 중 점수가 높은 순으로 직접 선택할 수 있습니다.</div>
             <button
               type="button"
               onClick={() => setShowAllEngineers(true)}
@@ -6360,7 +6360,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
                 fontSize: 11, fontWeight: 700, cursor: "pointer",
                 fontFamily: "inherit",
               }}
-            >👥 전체 기사에서 선택</button>
+            >👥 전체 프로에서 선택</button>
           </div>
         ) : (
           groups.map((g, idx) => {
@@ -6430,7 +6430,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
                 fontSize: 11, fontWeight: 600,
                 cursor: "pointer", fontFamily: "inherit",
               }}
-            >👥 전체 기사에서 직접 선택</button>
+            >👥 전체 프로에서 직접 선택</button>
           </div>
         )}
       </div>
@@ -7274,7 +7274,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                 display: "flex", alignItems: "center", gap: 4,
               }}>
                 <span>🔒</span>
-                <span>관리자 미리보기 (기사 X)</span>
+                <span>관리자 미리보기 (프로 X)</span>
                 {feeLoading && <span style={{ marginLeft: "auto", color: t.textMuted, fontWeight: 600 }}>계산 중...</span>}
               </div>
 
@@ -7299,7 +7299,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                     display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8,
                   }}>
                     <FeePreviewCell t={t} label="원청" value={feePreview.fee.principalFee} color={t.textSecondary}/>
-                    <FeePreviewCell t={t} label="기사" value={feePreview.fee.engineerAmount} color={t.success || "#10B981"}/>
+                    <FeePreviewCell t={t} label="프로" value={feePreview.fee.engineerAmount} color={t.success || "#10B981"}/>
                     <FeePreviewCell t={t} label="회사" value={feePreview.fee.companyProfit} color={t.accent}/>
                   </div>
                   <div style={{
@@ -7327,7 +7327,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                 lineHeight: 1.4,
               }}>
                 미정<br/>
-                <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>(기사님 컨택)</span>
+                <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>(프로님 컨택)</span>
               </button>
               <button onClick={() => setScheduleMode("input")} style={{
                 flex: 1, padding: "12px 10px",
@@ -7352,7 +7352,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                 display: "flex", alignItems: "center", gap: 8,
               }}>
                 <CheckCircle2 size={14} style={{ color: t.success }}/>
-                <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>미정 — 기사님이 고객 컨택 예정</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>미정 — 프로님이 고객 컨택 예정</span>
               </div>
               <button onClick={() => setScheduleMode("input")} style={{
                 width: "100%", padding: "8px",
