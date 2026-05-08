@@ -893,15 +893,16 @@ function MainScreen({
     && newAssignments.length === 0;
 
   // 한 줄 요약 — V14: 작업 종류별 (도구 준비 가이드)
+  // Phase 4-G 보완 — 헤더 "오늘 N건" 정확화 (todayTasksLocal 기준 / 미래 일정 미포함)
   const counts = {
     inProgress: tasks.filter(x => x.status === "진행중").length,
     confirmed:  tasks.filter(x => x.status === "확정").length,
     waiting:    newAssignments.length,
   };
-  const total = counts.inProgress + counts.confirmed + counts.waiting;
+  const total = todayTasksLocal.length;
   const workTypeCounts = {
-    세척:     tasks.filter(x => x.workType === "세척"     && x.status !== "완료").length,
-    냉매충전: tasks.filter(x => x.workType === "냉매충전" && x.status !== "완료").length,
+    세척:     todayTasksLocal.filter(x => x.workType === "세척"     && x.status !== "완료").length,
+    냉매충전: todayTasksLocal.filter(x => x.workType === "냉매충전" && x.status !== "완료").length,
   };
 
   return (
@@ -1053,7 +1054,9 @@ function MainScreen({
         <EncourageCard
           icon="🌅"
           title="오늘도 화이팅!"
-          subtitle="좋은 하루 보내세요"
+          subtitle1="좋은 하루 보내세요"
+          subtitle2="내일 이후 일정은 캘린더에서 확인하세요"
+          onCalendarClick={onClickCalendar || onClickTomorrow}
         />
       ) : null}
 
@@ -1243,75 +1246,53 @@ function MainScreen({
       </div>
       )}
 
-      {/* V14 v8 — 오늘 0건 안내 카드 (사장님 spec) */}
-      {noTaskToday && (
-        <div style={{ padding: "0 16px" }}>
-          <div style={{
-            padding: "32px 20px",
-            background: "var(--bg-secondary)",
-            border: "1px dashed var(--border)",
-            borderRadius: 14,
-            textAlign: "center",
-          }}>
-            <div style={{
-              fontSize: 32,
-              marginBottom: 8,
-            }}>
-              🌤️
-            </div>
-            <div style={{
-              fontSize: 15, fontWeight: 700,
-              color: "var(--text-primary)",
-              marginBottom: 6,
-            }}>
-              오늘 일정 없습니다
-            </div>
-            <div style={{
-              fontSize: 12, color: "var(--text-secondary)",
-              fontWeight: 600, marginBottom: 16,
-            }}>
-              내일 이후 일정은 캘린더에서 확인하세요
-            </div>
-            <button
-              onClick={onClickCalendar || onClickTomorrow}
-              style={{
-                padding: "12px 24px",
-                background: "#FF1B8D",
-                color: "#fff",
-                border: "none",
-                borderRadius: 10,
-                fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >
-              📅 캘린더 보기
-            </button>
-          </div>
-        </div>
-      )}
+      {/* V14 Phase 4-G 보완 — 옛 "오늘 일정 없습니다" 박스는 격려 박스 (라인 1044 분기)로 통합됨 */}
     </div>
   );
 }
 
-// V14 Phase 4-G — 격려 박스 (nextWork 없고 noTaskToday일 때 / 메인 휑함 해결)
-// 디자인: 부드러운 회색 배경 / 중앙 정렬 / 이모지 + 타이틀 + 부제
-function EncourageCard({ icon, title, subtitle }) {
+// V14 Phase 4-G 보완 — 격려 박스 (nextWork 없고 noTaskToday일 때 / "오늘 일정 없습니다" 박스 통합)
+// 디자인: 진행카드 톤 (var(--card-bg) / borderRadius 18) + 캘린더 버튼 통합
+function EncourageCard({ icon, title, subtitle1, subtitle2, onCalendarClick }) {
   return (
     <div style={{
       margin: "0 16px 14px",
-      padding: "20px 18px",
-      background: "var(--bg-elevated)",
+      padding: "24px 18px",
+      background: "var(--card-bg)",
       border: "1px solid var(--border)",
-      borderRadius: 14,
+      borderRadius: 18,
       textAlign: "center",
     }}>
       <div style={{ fontSize: 32, marginBottom: 8 }}>{icon}</div>
-      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>
         {title}
       </div>
-      <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-        {subtitle}
-      </div>
+      {subtitle1 && (
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+          {subtitle1}
+        </div>
+      )}
+      {subtitle2 && (
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: onCalendarClick ? 16 : 0 }}>
+          {subtitle2}
+        </div>
+      )}
+      {onCalendarClick && (
+        <button
+          onClick={onCalendarClick}
+          style={{
+            padding: "12px 24px",
+            background: "#FF1B8D",
+            color: "#fff",
+            border: "none",
+            borderRadius: 10,
+            fontSize: 13, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          📅 캘린더 보기
+        </button>
+      )}
     </div>
   );
 }
