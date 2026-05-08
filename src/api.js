@@ -58,6 +58,15 @@ export async function loginV14(phone, password) {
   return apiCall('loginV14', { phone, password });
 }
 
+// V14 Phase 4-E-1 — 강제 비밀번호 변경 (첫 로그인)
+// 입력: userId / oldPw (현재 비번 = F열 일치 검사용) / newPw (4~16자)
+// 응답: { ok, error }
+//   - ok=true → F열 갱신 + G열(비번변경여부) true 갱신
+//   - ok=false → 옛 비번 불일치 / 길이 위반 / userId 미존재 등
+export async function changePasswordV14(userId, oldPw, newPw) {
+  return apiCall('changePasswordV14', { userId, oldPw, newPw });
+}
+
 export async function getTasks(role, userId, principalCode) {
   return apiCall('getTasks', { role, userId, principalCode });
 }

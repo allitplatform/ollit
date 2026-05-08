@@ -10,6 +10,7 @@ import { applyTheme, loadTheme } from "./styles/themes.js";
 import { PWAInstallPrompt } from "./components/PWAInstallPrompt.jsx";
 import { KakaoBypassScreen } from "./components/KakaoBypassScreen.jsx";
 import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
+import { PasswordChangeScreen } from "./components/PasswordChangeScreen.jsx";
 
 // V14 Phase 4-D — 자동 로그인 (localStorage)
 const STORAGE_KEY = "ollit_currentUser";
@@ -90,10 +91,21 @@ export default function App() {
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
   };
 
+  // V14 Phase 4-E-1 — 강제 비번 변경 완료 콜백
+  const handlePasswordChanged = (updatedUser) => {
+    setCurrentUser(updatedUser);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser)); } catch {}
+  };
+
   // 화면 분기 (TasksProvider 안쪽에서 결정)
   const renderScreen = () => {
     if (!currentUser) {
       return <LoginScreen onLogin={handleLogin} />;
+    }
+    // V14 Phase 4-E-1 — 첫 로그인 강제 비번 변경 (passwordChanged === false 만 차단)
+    // 시범 7계정은 passwordChanged 필드 없음(undefined) → 통과
+    if (currentUser.passwordChanged === false) {
+      return <PasswordChangeScreen user={currentUser} onComplete={handlePasswordChanged} />;
     }
     switch (currentUser.role) {
       case "engineer":
