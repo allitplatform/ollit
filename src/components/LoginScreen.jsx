@@ -116,8 +116,8 @@ export function LoginScreen({ onLogin }) {
       style={{
         minHeight: "100vh", background: DARK.pageBg,
         display: "flex", flexDirection: "column",
-        alignItems: "center", justifyContent: "flex-start",
-        padding: "56px 0 30px", color: DARK.titleColor,
+        alignItems: "center", justifyContent: "center",
+        padding: "30px 0", color: DARK.titleColor,
         fontFamily: "-apple-system, 'Pretendard', sans-serif",
       }}
     >
