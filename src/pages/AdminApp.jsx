@@ -1805,7 +1805,7 @@ export default function AdminApp({ user, onLogout }) {
     return <Shell>
       <NewReceptionFormScreen
         t={t}
-        onBack={goBack}
+        onBack={() => { resetTo("main"); }}
         onSubmit={(form) => {
           addReception(form);
           setScreen("newReception");
@@ -2888,13 +2888,15 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
   const workTypeCounts = useMemo(() => {
     const counts = { 세척: 0, 냉매충전: 0, 설치: 0, 누설: 0, 점검: 0, 수리: 0 };
     // V14 status 새 접수만 박기 (배정 박힌 거 제외)
-    const statusOf = (t) => String(t.status || t.상태 || "").trim();
-    const newTasks = (apiTasks || []).filter(t => {
-      const s = statusOf(t);
-      return !s || s === "미배정" || s === "약속대기";
-    });
+    // V14 Phase 2 v2 — '오늘 작업' = scheduledAt / requestedDate가 오늘인 작업
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const dateOf = (t) => {
+      const v = t.scheduledAt || t.scheduledDate || t.requestedDate || t.확정일시 || t.예약일 || t.희망일자 || "";
+      return String(v).slice(0, 10);
+    };
+    const todayTasks = (apiTasks || []).filter(t => dateOf(t) === todayStr);
     // workItems 박기 → workType 추출 → regex 매칭
-    newTasks.forEach(task => {
+    todayTasks.forEach(task => {
       const items = (task.workItems && task.workItems.length > 0)
         ? task.workItems
         : (task.workType ? [{ workType: task.workType }] : []);
@@ -2908,21 +2910,21 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
         else if (/수리|AS/i.test(wt))   counts["수리"]++;
       });
     });
-    // 옛 NEW_RECEPTIONS (빈 배열이지만 옛 호환)
-    counts["세척"]    += NEW_RECEPTIONS.세척.length;
-    counts["냉매충전"] += NEW_RECEPTIONS.냉매충전.length;
     return counts;
   }, [apiTasks]);
 
+  // V14 Phase 2 v2 — '오늘 작업' 합계 (totalNew 박지 X / 오늘 카운트만)
+  const totalToday = Object.values(workTypeCounts).reduce((a, b) => a + b, 0);
+
   return (
     <div style={{ padding: "0 16px 16px" }}>
-      {/* 새 접수 종류 — 6박스 (2 × 3 grid) */}
+      {/* V14 Phase 2 v2 — '오늘 작업' (옛 '새 접수 종류' / scheduledAt = 오늘 박힌 거) */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
-            새 접수 종류
+            오늘 작업
           </span>
-          <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>{totalNew}건</span>
+          <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>{totalToday}건</span>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
           {workTypeOrder.map(({ key, label }) => {
@@ -6741,7 +6743,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
           <textarea
             value={kakaoText}
             onChange={(e) => setKakaoText(e.target.value)}
-            placeholder={"고객 카톡 텍스트를 그대로 붙여넣으세요.\n예: '서울 중구 마장로18길 16\n5월 2일 13:30\n16만원\n010-9289-2116'"}
+            placeholder={"고객 카톡 텍스트를 그대로 붙여넣으세요.\n예:\n원청: 쿨가이\n연락처: 010-5678-9012\n주소: 성동구 성수동\n작업유형: 냉매충전\n기종: 4way ×1\n견적: 100,000원"}
             style={{
               width: "100%", padding: "10px 12px",
               background: t.bgInset,
