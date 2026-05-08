@@ -408,7 +408,7 @@ function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction, user }) {
           </span>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 10, fontWeight: 700, color: t.accent, padding: "3px 8px", background: t.accentBg, borderRadius: 5 }}>
-              해피콜
+              관리자
             </span>
           </div>
         </div>
@@ -416,7 +416,7 @@ function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction, user }) {
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
-              해피콜 담당자
+              관리자
             </span>
             <span style={{ width: 4, height: 4, borderRadius: "50%", background: t.success }}/>
             <span style={{ fontSize: 10, color: t.success, fontWeight: 600 }}>온라인</span>
@@ -640,14 +640,14 @@ function HappycallTaskCard({ task, t, index, onAction }) {
           display: "flex", alignItems: "center", gap: 6,
         }}>
           <Star size={11}/>
-          <span>추천 기사: {task.recommendedEngineer}</span>
+          <span>추천 프로: {task.recommendedEngineer}</span>
         </div>
       )}
 
       {isAssigned && (
         <div style={{ padding: "8px 12px", background: t.successBg, border: `1px solid ${t.successBorder}`, borderRadius: 8, fontSize: 12, color: t.success, marginBottom: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
           <CheckCircle2 size={12}/>
-          <span>{task.assignedEngineer} 기사님 배정 완료</span>
+          <span>{task.assignedEngineer} 프로님 배정 완료</span>
         </div>
       )}
 
@@ -677,7 +677,7 @@ function HappycallTaskCard({ task, t, index, onAction }) {
                 fontSize: 12, fontWeight: 800, color: "white", cursor: "pointer", fontFamily: "inherit",
               }}>
                 <UserPlus size={13}/>
-                <span>기사 배정</span>
+                <span>프로 배정</span>
               </button>
             </>
           )}
@@ -1403,7 +1403,7 @@ function HappycallEditScreen({ t, task, onCancel, onSave }) {
         {/* 추천 기사 */}
         <div style={{ marginBottom: 16 }}>
           <label style={labelStyle(t)}>
-            ⭐ 추천 기사 <span style={{ fontSize: 10, color: t.textDim, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(휴무 자동 제외 · 선택사항)</span>
+            ⭐ 추천 프로 <span style={{ fontSize: 10, color: t.textDim, fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>(휴무 자동 제외 · 선택사항)</span>
           </label>
           
           {!requestedDate ? (
@@ -1417,14 +1417,14 @@ function HappycallEditScreen({ t, task, onCancel, onSave }) {
               color: t.textMuted, 
               lineHeight: 1.6,
             }}>
-              ℹ️ 희망 일정을 먼저 입력하면<br/>가능한 기사가 표시됩니다
+              ℹ️ 희망 일정을 먼저 입력하면<br/>가능한 프로가 표시됩니다
             </div>
           ) : (
             <>
               {/* 검색 */}
               <div style={{ position: "relative", marginBottom: 10 }}>
                 <Search size={14} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textMuted }}/>
-                <input type="text" placeholder="기사 이름 / 지역 검색" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ ...inputStyle(t), paddingLeft: 36 }}/>
+                <input type="text" placeholder="프로 이름 / 지역 검색" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ ...inputStyle(t), paddingLeft: 36 }}/>
               </div>
 
               <TimelineHeader t={t}/>
@@ -1501,7 +1501,7 @@ function HappycallEditScreen({ t, task, onCancel, onSave }) {
             💡 임시 저장 안내
           </div>
           <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.6 }}>
-            저장하면 <strong>"통화 후"</strong> 탭으로 이동해요. 검토 후 <strong>"기사 배정"</strong>을 누르면 그때 기사님에게 알림이 발송됩니다.
+            저장하면 <strong>"통화 후"</strong> 탭으로 이동해요. 검토 후 <strong>"프로 배정"</strong>을 누르면 그때 프로님에게 알림이 발송됩니다.
           </div>
         </div>
       </div>
@@ -1606,7 +1606,7 @@ function AssignEngineerScreen({ t, task, onCancel, onAssign }) {
         <div className="clickable" onClick={onCancel} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 8px" }}>
           <ArrowLeft size={18}/><span style={{ fontSize: 14, fontWeight: 600 }}>취소</span>
         </div>
-        <span style={{ fontSize: 14, fontWeight: 800 }}>기사 배정</span>
+        <span style={{ fontSize: 14, fontWeight: 800 }}>프로 배정</span>
         <div style={{ width: 60 }}/>
       </div>
 
@@ -1638,7 +1638,7 @@ function AssignEngineerScreen({ t, task, onCancel, onAssign }) {
         {/* 검색 */}
         <div style={{ position: "relative", marginBottom: 16 }}>
           <Search size={14} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: t.textMuted }}/>
-          <input type="text" placeholder="기사 이름 / 지역 검색" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ ...inputStyle(t), paddingLeft: 36 }}/>
+          <input type="text" placeholder="프로 이름 / 지역 검색" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} style={{ ...inputStyle(t), paddingLeft: 36 }}/>
         </div>
 
         {/* 시간 라벨 (24시간) */}
@@ -1720,9 +1720,9 @@ function AssignEngineerScreen({ t, task, onCancel, onAssign }) {
                 배정 시 자동 처리되는 항목
               </div>
               <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.8 }}>
-                <div style={{ marginBottom: 4 }}>📋 작업DB에 <strong style={{ color: t.text }}>{ENGINEERS.find(e => e.id === selectedEngineerId).name}</strong> 기사 배정 기록</div>
+                <div style={{ marginBottom: 4 }}>📋 작업DB에 <strong style={{ color: t.text }}>{ENGINEERS.find(e => e.id === selectedEngineerId).name}</strong> 프로 배정 기록</div>
                 <div style={{ marginBottom: 4 }}>📅 Google Calendar에 일정 자동 등록</div>
-                <div style={{ marginBottom: 4 }}>💬 기사님에게 <strong style={{ color: t.text }}>알림</strong> 발송 (인앱 + 푸시)</div>
+                <div style={{ marginBottom: 4 }}>💬 프로님에게 <strong style={{ color: t.text }}>알림</strong> 발송 (인앱 + 푸시)</div>
                 <div>🔄 작업 상태 "약속대기"로 변경</div>
               </div>
             </div>
@@ -1738,7 +1738,7 @@ function AssignEngineerScreen({ t, task, onCancel, onAssign }) {
           </button>
           <button onClick={selectedEngineerId ? handleAssign : undefined} disabled={!selectedEngineerId} style={{ ...btnPrimary(t), opacity: selectedEngineerId ? 1 : 0.4, cursor: selectedEngineerId ? "pointer" : "not-allowed" }}>
             <UserPlus size={15}/>
-            <span>{selectedEngineerId ? `${ENGINEERS.find(e => e.id === selectedEngineerId).name} 배정` : "기사 선택"}</span>
+            <span>{selectedEngineerId ? `${ENGINEERS.find(e => e.id === selectedEngineerId).name} 배정` : "프로 선택"}</span>
           </button>
         </div>
       </div>
@@ -2225,9 +2225,9 @@ export default function HappycallApp({ user, onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: "#0A0A0A" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "rgba(10,10,10,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>📞 해피콜 담당자 화면</div>
+        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>📞 관리자 화면</div>
         <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
-          고객 응대 + 기사 배정 (정산 권한 X)
+          고객 응대 + 프로 배정 (정산 권한 X)
         </div>
         <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
           {Object.entries(THEMES).map(([key, theme]) => {
