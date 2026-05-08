@@ -3631,7 +3631,7 @@ function StatBox({ t, label, value, color, onClick }) {
       background: t.bgElevated, border: `1px solid ${t.border}`,
       borderRadius: 10, padding: "10px 8px", textAlign: "center",
     }}>
-      <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4 }}>
+      <div style={{ fontSize: 7.5, color: t.textMuted, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 4, whiteSpace: "nowrap" }}>
         {label}
       </div>
       <div className="mono" style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: "-0.02em" }}>{value}</div>
