@@ -382,6 +382,7 @@ function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction, user }) {
     uncontacted: tasks.filter(x => x.happycallStatus === "uncontacted").length,
     contacted: tasks.filter(x => x.happycallStatus === "contacted").length,
     assigned: tasks.filter(x => x.happycallStatus === "assigned").length,
+    completed: tasks.filter(x => x.happycallStatus === "completed").length,
     urgent: tasks.filter(x => x.isUrgent && x.happycallStatus !== "assigned").length,
   };
 
@@ -425,7 +426,7 @@ function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction, user }) {
             안녕하세요, <span style={{ color: t.accent }}>{user?.name || HAPPYCALL_USER}</span>님
           </div>
           <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>
-            오늘 처리 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>12</span>건 · 미처리 <span className="mono" style={{ color: t.accent, fontWeight: 700 }}>{counts.uncontacted}</span>건
+            오늘 처리 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{counts.completed || 0}</span>건 · 미처리 <span className="mono" style={{ color: t.accent, fontWeight: 700 }}>{counts.uncontacted}</span>건
           </div>
         </div>
 
@@ -2104,7 +2105,7 @@ export default function HappycallApp({ user, onLogout }) {
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   
   // 공유 task state (shared/TasksContext.jsx) — 옛 mock
-  const { tasks: allTasks, updateTask: localUpdateTask, addTask, resetTasks } = useTasks();
+  const { updateTask: localUpdateTask, addTask, resetTasks } = useTasks();
 
   // V14 — 진짜 시트 catch (apiTasks)
   const [apiTasks, setApiTasks] = useState([]);
@@ -2165,8 +2166,8 @@ export default function HappycallApp({ user, onLogout }) {
     }
   };
 
-  // V14 — 해피콜 = 모든 작업 catch (apiTasks 우선 / allTasks fallback)
-  const tasks = apiTasks.length > 0 ? apiTasks : allTasks;
+  // V14 Phase 4-F-2-2 — 운영 모드: apiTasks만 사용 (mock fallback 제거 / 깜빡임 해결)
+  const tasks = apiTasks;
 
   const t = THEMES[mode];
   const selectedTask = tasks.find(x => x.id === selectedTaskId);

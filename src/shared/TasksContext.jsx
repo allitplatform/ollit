@@ -13,7 +13,9 @@ import { INITIAL_TASKS, updateTaskInList } from "./tasks.js";
 const TasksContext = createContext(null);
 
 export function TasksProvider({ children }) {
-  const [tasks, setTasks] = useState(INITIAL_TASKS);
+  // V14 Phase 4-F-2-2 — 운영 모드: 빈 배열로 시작 (각 앱 자체 fetchTasks 흐름 사용)
+  // INITIAL_TASKS import 보존 — resetTasks(시연/디자인 검증)에서 계속 사용
+  const [tasks, setTasks] = useState([]);
 
   // 작업 업데이트 (부분 업데이트)
   const updateTask = useCallback((id, updates) => {
