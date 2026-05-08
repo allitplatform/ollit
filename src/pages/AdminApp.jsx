@@ -277,12 +277,21 @@ function parseKakaoText(text) {
     result.matched.push("연락처");
   }
 
-  // 2. 금액 (만원 단위 추정)
+  // 2. 금액 (만원 단위 + 원 단위 + 콤마 박은 거 catch)
   const priceRegex1 = /(\d+)\s*만\s*원?/;          // "16만원" / "17만"
   const priceRegex2 = /가격은?\s*(\d{1,3})\b/;     // "가격은 17"
+  // V14 — 콤마 박은 거 + 원 catch (예: "100,000원" / "견적: 100,000원" / "1,000,000")
+  const priceRegex3 = /(?:견적|금액|가격)\s*[:：]?\s*(\d{1,3}(?:,\d{3})+|\d{4,})\s*원?/;
+  const priceRegex4 = /(\d{1,3}(?:,\d{3})+)\s*원/;
   let priceMatch = text.match(priceRegex1);
   if (priceMatch) {
     result.estimatedPrice = parseInt(priceMatch[1]) * 10000;
+    result.matched.push("금액");
+  } else if ((priceMatch = text.match(priceRegex3))) {
+    result.estimatedPrice = parseInt(priceMatch[1].replace(/,/g, ""), 10);
+    result.matched.push("금액");
+  } else if ((priceMatch = text.match(priceRegex4))) {
+    result.estimatedPrice = parseInt(priceMatch[1].replace(/,/g, ""), 10);
     result.matched.push("금액");
   } else {
     priceMatch = text.match(priceRegex2);
@@ -296,19 +305,35 @@ function parseKakaoText(text) {
   }
 
   // 3. 주소
-  // 1순위: 시 키워드 + 그 줄 끝까지 (greedy, 줄바꿈 전까지)
-  const cityRegex = /(서울|경기|인천|부산|대구|광주|대전|울산|세종|제주)[^\n]+/;
-  const cityMatch = text.match(cityRegex);
-  if (cityMatch) {
-    result.address = cityMatch[0].replace(/[\s,!.?]+$/, "").trim();
+  // V14 — 0순위: "주소:" 박은 catch (콜론 박은 후 줄 끝까지)
+  const addrColonRegex = /주소\s*[:：]\s*([^\n]+)/;
+  const addrColonMatch = text.match(addrColonRegex);
+  if (addrColonMatch) {
+    result.address = addrColonMatch[1].replace(/[\s,!.?]+$/, "").trim();
     result.matched.push("주소");
   } else {
-    // 2순위: 동/구/로/길 키워드 (이름 콜론 이후 / 공백 뒤 / 줄 시작)
-    const kwRegex = /(?:^|[\s:：])([가-힣]{2,}(?:동|구|로|길)[\s\d\-,]*\d+(?:\s*[가-힣]+\d*호?)?)/m;
-    const kwMatch = text.match(kwRegex);
-    if (kwMatch) {
-      result.address = kwMatch[1].replace(/[\s,!.?]+$/, "").trim();
+    // 1순위: 시 키워드 + 그 줄 끝까지 (greedy, 줄바꿈 전까지)
+    const cityRegex = /(서울|경기|인천|부산|대구|광주|대전|울산|세종|제주)[^\n]+/;
+    const cityMatch = text.match(cityRegex);
+    if (cityMatch) {
+      result.address = cityMatch[0].replace(/[\s,!.?]+$/, "").trim();
       result.matched.push("주소");
+    } else {
+      // 2순위: 동/구/로/길 키워드 (이름 콜론 이후 / 공백 뒤 / 줄 시작)
+      const kwRegex = /(?:^|[\s:：])([가-힣]{2,}(?:동|구|로|길)[\s\d\-,]*\d+(?:\s*[가-힣]+\d*호?)?)/m;
+      const kwMatch = text.match(kwRegex);
+      if (kwMatch) {
+        result.address = kwMatch[1].replace(/[\s,!.?]+$/, "").trim();
+        result.matched.push("주소");
+      } else {
+        // V14 3순위: 짧은 구/시 박은 catch (예: "강남구" / "송파구")
+        const shortRegex = /(?:^|[\s:：])([가-힣]{2,4}(?:구|시))(?:\s|$|[,.!?])/m;
+        const shortMatch = text.match(shortRegex);
+        if (shortMatch) {
+          result.address = shortMatch[1].trim();
+          result.matched.push("주소");
+        }
+      }
     }
   }
 
@@ -320,6 +345,52 @@ function parseKakaoText(text) {
   if (nameMatch) {
     result.customer = nameMatch[1];
     result.matched.push("이름");
+  }
+
+  // V14 — 4-1. 원청 (V14 헌법 7개 매핑)
+  // "원청: 올데이케어" / "원청 - 에어컨프로" / "쿨가이" 박은 catch
+  const principalMap = {
+    "올데이케어": "올데이케어",
+    "올데이":     "올데이케어",
+    "에어컨프로": "에어컨프로 (KA)",
+    "에어컨 프로": "에어컨프로 (KA)",
+    "KA":         "에어컨프로 (KA)",
+    "쿨가이":     "쿨가이 (KB)",
+    "KB":         "쿨가이 (KB)",
+    "용인컴퍼니": "용인컴퍼니",
+    "용인":       "용인컴퍼니",
+    "유솔홈케어 H": "유솔홈케어 H",
+    "유솔홈케어H":  "유솔홈케어 H",
+    "유솔 H":     "유솔홈케어 H",
+    "유솔홈케어 N": "유솔홈케어 N",
+    "유솔홈케어N":  "유솔홈케어 N",
+    "유솔 N":     "유솔홈케어 N",
+    "유솔":       "유솔홈케어 H",
+    "크리크린":   "크리크린",
+  };
+  const principalColonRegex = /원청\s*[:：\-]\s*([가-힣A-Za-z\s]+?)(?:\n|$|,|\/)/;
+  const principalColonMatch = text.match(principalColonRegex);
+  let principalDetected = null;
+  if (principalColonMatch) {
+    const raw = principalColonMatch[1].trim();
+    for (const [keyword, id] of Object.entries(principalMap).sort((a, b) => b[0].length - a[0].length)) {
+      if (raw.indexOf(keyword) !== -1) {
+        principalDetected = id;
+        break;
+      }
+    }
+    if (principalDetected) {
+      result.principal = principalDetected;
+      result.matched.push("원청");
+    }
+  } else {
+    for (const [keyword, id] of Object.entries(principalMap).sort((a, b) => b[0].length - a[0].length)) {
+      if (text.indexOf(keyword) !== -1) {
+        result.principal = id;
+        result.matched.push("원청");
+        break;
+      }
+    }
   }
 
   // 5. 기종 + 수량 (벽걸이 / 스탠드 / 시스템 / 천장형 / 이동식)
@@ -6235,6 +6306,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     const filledKeys = [];
     setForm(prev => {
       const next = { ...prev };
+      if (r.principal)    { next.principal = r.principal; filledKeys.push("principal"); }
       if (r.phone)        { next.phone = r.phone; filledKeys.push("phone"); }
       if (r.customer)     { next.customer = r.customer; filledKeys.push("customer"); }
       if (r.address)      { next.address = r.address; filledKeys.push("address"); }
