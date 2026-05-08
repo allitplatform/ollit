@@ -1396,7 +1396,7 @@ function SettlementInfo({ task }) {
           display: "flex", justifyContent: "space-between",
           alignItems: "center",
         }}>
-          <span style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700 }}>기사 수익</span>
+          <span style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700 }}>프로 수익</span>
           <span style={{ fontSize: 16, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
             ₩{engineerNet.toLocaleString("ko-KR")}
           </span>
@@ -1564,7 +1564,7 @@ function VisitOnlyDialog({ task, onClose, onConfirm }) {
               </span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
-              <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>기사 수익</span>
+              <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>프로 수익</span>
               <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
                 ₩30,000 (100%)
               </span>

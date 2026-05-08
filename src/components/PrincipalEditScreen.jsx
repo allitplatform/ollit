@@ -13,7 +13,7 @@ const WORK_TYPES = [
 ];
 
 const CLEANING_POLICY_TYPES = [
-  { key: "standard",          label: "표준",     desc: "원청 수수료 + 기사 단가" },
+  { key: "standard",          label: "표준",     desc: "원청 수수료 + 프로 단가" },
   { key: "fake_split",        label: "쿨가이형", desc: "(총 - 가짜) × split%" },
   { key: "naver_settlement",  label: "네이버형", desc: "정산금 + 추가선택" },
 ];
@@ -264,7 +264,7 @@ function CleaningPolicyEditor({ policy, principalData, onMutate, onChangeType, o
 
 function StandardCleaningSection({ policy, onMutate }) {
   return (
-    <SubSection title="원청 수수료" hint="기사 = 표준 단가표 적용 / 회사 = 나머지">
+    <SubSection title="원청 수수료" hint="프로 = 표준 단가표 적용 / 회사 = 나머지">
       <RadioRow
         options={[
           { key: "none",  label: "없음" },
@@ -309,7 +309,7 @@ function FakeSplitSection({ policy, onMutate }) {
           ))}
         </div>
         <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 8 }}>
-          참고: 실제 기사 단가 = {Object.entries(ENGINEER_STANDARD_RATES).map(([k, v]) => `${k} ${v.toLocaleString()}`).join(" / ")}
+          참고: 실제 프로 단가 = {Object.entries(ENGINEER_STANDARD_RATES).map(([k, v]) => `${k} ${v.toLocaleString()}`).join(" / ")}
         </div>
       </SubSection>
       <SubSection title="원청 split 비율">
@@ -341,7 +341,7 @@ function NaverSettlementSection({ policy, onMutate }) {
               return p;
             })}/>
         </Field>
-        <Field label="기사 비율 (%)">
+        <Field label="프로 비율 (%)">
           <NumberInput value={policy.additionalsPolicy?.engineerRate || 0} suffix="%"
             onChange={(v) => onMutate(p => {
               p.additionalsPolicy = { ...(p.additionalsPolicy || {}), engineerRate: v };
@@ -428,7 +428,7 @@ function RefrigerantPolicyEditor({ policy, onMutate, onRemove }) {
         )}
       </SubSection>
 
-      <SubSection title="기사 수익" hint="기사가 받음">
+      <SubSection title="프로 수익" hint="프로가 받음">
         <RadioRow
           options={[
             { key: "estimate", label: "견적금액 기준" },
@@ -472,7 +472,7 @@ function ResultBox({ calc }) {
       background: "var(--bg-inset)", borderRadius: 8, padding: 12, marginTop: 10,
     }}>
       <ResultRow color="#FF1B8D" label="원청"      value={calc.principal} total={calc.total}/>
-      <ResultRow color="#00875A" label="기사"      value={calc.engineer}  total={calc.total}/>
+      <ResultRow color="#00875A" label="프로"      value={calc.engineer}  total={calc.total}/>
       <ResultRow color="#FF1B8D" label="회사 마진" value={calc.company}   total={calc.total} isNegative={calc.isNegative}/>
       <div style={{
         borderTop: "1px solid var(--border)", paddingTop: 8, marginTop: 8,

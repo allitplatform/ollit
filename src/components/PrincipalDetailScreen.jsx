@@ -65,7 +65,7 @@ export function PrincipalDetailScreen({ principal, onBack }) {
         fontSize: 11, color: "var(--text-secondary)",
         marginBottom: 6, marginTop: 14,
       }}>
-        기사별 작업 ({byEngineer.length}명)
+        프로별 작업 ({byEngineer.length}명)
       </div>
 
       {byEngineer.length === 0 ? (
@@ -125,12 +125,12 @@ function SummaryCard({ period, taskCount, revenue, engineerEarning }) {
       borderRadius: 12,
     }}>
       <div style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700, marginBottom: 8 }}>
-        📊 {periodLabel} 작업 · 기사 정산
+        📊 {periodLabel} 작업 · 프로 정산
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
         <SummaryItem label="작업 수"    value={`${taskCount}건`}/>
         <SummaryItem label="원청 매출"  value={`₩${revenue.toLocaleString()}`}/>
-        <SummaryItem label="기사 정산"  value={`₩${engineerEarning.toLocaleString()}`} highlight/>
+        <SummaryItem label="프로 정산"  value={`₩${engineerEarning.toLocaleString()}`} highlight/>
       </div>
     </div>
   );

@@ -71,7 +71,7 @@ export function VisitOnlyDialog({ task, onConfirm, onClose }) {
             ₩{VISIT_FEE.amount.toLocaleString()}
           </div>
           <div style={{ fontSize: 9, color: "#fff", opacity: 0.85, marginTop: 4 }}>
-            전액 기사 수고비 (회사 0 / 원청 0)
+            전액 프로 수고비 (회사 0 / 원청 0)
           </div>
         </div>
 

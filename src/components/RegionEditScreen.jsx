@@ -49,7 +49,7 @@ export function RegionEditScreen({ region, isNew, onSaved, onBack }) {
 
     let msg = `"${data.name}" 지역을 삭제할까요?\n\n복구 불가합니다.`;
     if (usedBy.length > 0) {
-      msg = `⚠️ ${usedBy.length}명 기사가 이 지역을 담당하고 있습니다:\n${usedBy.map(e => "· " + e.name).join("\n")}\n\n그래도 삭제할까요?`;
+      msg = `⚠️ ${usedBy.length}명 프로가 이 지역을 담당하고 있습니다:\n${usedBy.map(e => "· " + e.name).join("\n")}\n\n그래도 삭제할까요?`;
     }
     if (!window.confirm(msg)) return;
 
@@ -118,7 +118,7 @@ export function RegionEditScreen({ region, isNew, onSaved, onBack }) {
             </span>
           </div>
           <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
-            비활성 시 작업을 받지 않으며 기사 매칭에서도 제외됩니다
+            비활성 시 작업을 받지 않으며 프로 매칭에서도 제외됩니다
           </div>
         </Field>
 

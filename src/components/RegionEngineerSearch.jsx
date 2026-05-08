@@ -71,7 +71,7 @@ export function RegionEngineerSearch({ region, onClose, onAdded }) {
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <div style={modalHeaderStyle}>
           <div style={{ fontSize: 14, fontWeight: 700 }}>
-            📍 {region.name}에 기사 추가
+            📍 {region.name}에 프로 추가
           </div>
           <button onClick={onClose} style={closeButtonStyle}>✕</button>
         </div>
@@ -131,7 +131,7 @@ export function RegionEngineerSearch({ region, onClose, onAdded }) {
           </div>
 
           <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 8 }}>
-            후보 기사 <b style={{ color: "var(--text-primary)" }}>{filtered.length}</b>명
+            후보 프로 <b style={{ color: "var(--text-primary)" }}>{filtered.length}</b>명
             {" "}/ 전체 {availableEngineers.length}명
           </div>
 
@@ -144,7 +144,7 @@ export function RegionEngineerSearch({ region, onClose, onAdded }) {
                 border: "1px dashed var(--border)",
                 borderRadius: 8,
               }}>
-                {searchQuery ? "검색 결과가 없습니다" : "추가 가능한 기사가 없습니다"}
+                {searchQuery ? "검색 결과가 없습니다" : "추가 가능한 프로가 없습니다"}
               </div>
             ) : (
               filtered.map(eng => (

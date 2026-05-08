@@ -52,7 +52,7 @@ export function RegionListScreen({ onBack, onAdd, onEdit }) {
   }
 
   function removeEngineerFromRegion(engineerId, regionName) {
-    if (!window.confirm(`${regionName}에서 이 기사를 제거할까요?`)) return;
+    if (!window.confirm(`${regionName}에서 이 프로를 제거할까요?`)) return;
     const updated = engineers.map(e => {
       if (e.id !== engineerId) return e;
       const next = { ...e, workTypes: { ...e.workTypes } };
@@ -167,7 +167,7 @@ export function RegionListScreen({ onBack, onAdd, onEdit }) {
 
         <div style={statsRowStyle}>
           <Stat label="활성 지역"   value={totalStats.active}    suffix="개" color="var(--text-primary)"/>
-          <Stat label="배정 기사"   value={totalStats.engineers} suffix="명" color="#00875A"/>
+          <Stat label="배정 프로"   value={totalStats.engineers} suffix="명" color="#00875A"/>
           <Stat label="미배정"     value={totalStats.unassigned} suffix="개" color={totalStats.unassigned > 0 ? "#FF1B8D" : "var(--text-secondary)"}/>
         </div>
 
@@ -208,8 +208,8 @@ export function RegionListScreen({ onBack, onAdd, onEdit }) {
         )}
 
         <InfoBox>
-          ℹ️ 미배정 = 작업이 들어왔을 때 안내됨 (담당 기사 없음)<br/>
-          ℹ️ 지역을 펼치면 담당 기사 명단을 보고 추가/제거할 수 있어요
+          ℹ️ 미배정 = 작업이 들어왔을 때 안내됨 (담당 프로 없음)<br/>
+          ℹ️ 지역을 펼치면 담당 프로 명단을 보고 추가/제거할 수 있어요
         </InfoBox>
       </div>
 
@@ -291,7 +291,7 @@ function GroupCard({
             <span style={{ fontSize: 10, color: "#FF1B8D" }}>· 미배정 {stats.unassignedCount}</span>
           )}
         </div>
-        <span style={{ fontSize: 10, color: "#00875A", marginRight: 6 }}>기사 {stats?.engineerCount || 0}명</span>
+        <span style={{ fontSize: 10, color: "#00875A", marginRight: 6 }}>프로 {stats?.engineerCount || 0}명</span>
         {/* [⋯] 메뉴 — useRef + 외부 클릭 감지 */}
         <div style={{ position: "relative" }}>
           <button
@@ -418,7 +418,7 @@ function RegionItem({ region, expanded, onToggle, regionEngineers, onEditRegion,
           background: "var(--bg-primary)",
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-            <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500 }}>담당 기사</div>
+            <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500 }}>담당 프로</div>
             <button
               onClick={(e) => { e.stopPropagation(); onEditRegion(region); }}
               style={editRegionBtnStyle}
@@ -446,14 +446,14 @@ function RegionItem({ region, expanded, onToggle, regionEngineers, onEditRegion,
             </div>
           ) : (
             <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 10, padding: "8px 0" }}>
-              아직 담당 기사가 없어요
+              아직 담당 프로가 없어요
             </div>
           )}
 
           <button
             onClick={(e) => { e.stopPropagation(); onAddEngineer(region); }}
             style={addEngBtnStyle}
-          >+ 기사 추가</button>
+          >+ 프로 추가</button>
         </div>
       )}
     </div>
@@ -495,7 +495,7 @@ function AddEngineerModal({ region, allEngineers, onClose, onComplete }) {
 
   function handleSubmit() {
     if (selectedIds.size === 0) {
-      alert("기사를 선택해주세요");
+      alert("프로를 선택해주세요");
       return;
     }
     const updated = allEngineers.map(e => {
@@ -539,10 +539,10 @@ function AddEngineerModal({ region, allEngineers, onClose, onComplete }) {
         }}
       >
         <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
-          {region.name}에 기사 추가
+          {region.name}에 프로 추가
         </div>
         <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 16 }}>
-          이 지역을 담당하지 않는 기사 목록
+          이 지역을 담당하지 않는 프로 목록
         </div>
 
         {/* 작업 종류 */}
@@ -569,7 +569,7 @@ function AddEngineerModal({ region, allEngineers, onClose, onComplete }) {
 
         {/* 역할 */}
         <div style={{ marginBottom: 12 }}>
-          <div style={subLabelStyle}>역할 (해당 작업 종류 미설정 기사일 때 적용)</div>
+          <div style={subLabelStyle}>역할 (해당 작업 종류 미설정 프로일 때 적용)</div>
           <div style={{ display: "flex", gap: 6 }}>
             {[
               { k: "main",   label: "메인" },
@@ -619,7 +619,7 @@ function AddEngineerModal({ region, allEngineers, onClose, onComplete }) {
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
             <div style={subLabelStyle}>
-              후보 기사 ({candidates.length}명)
+              후보 프로 ({candidates.length}명)
               {searchQuery && (
                 <span style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 4 }}>
                   · "{searchQuery}" 검색
@@ -632,7 +632,7 @@ function AddEngineerModal({ region, allEngineers, onClose, onComplete }) {
             <div style={{ padding: 20, textAlign: "center", color: "var(--text-secondary)", fontSize: 12 }}>
               {searchQuery
                 ? "검색 결과가 없습니다"
-                : "모든 기사가 이미 이 지역을 담당하고 있습니다"}
+                : "모든 프로가 이미 이 지역을 담당하고 있습니다"}
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 240, overflow: "auto" }}>

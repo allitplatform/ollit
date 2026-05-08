@@ -65,7 +65,7 @@ export function SettingsScreen({
   // 카테고리 정의
   const operations = [
     { key: "principals",    icon: "🏪", label: "원청 관리",    sub: `${counts.principals}곳`, perm: "menu.principals", onClick: onPrincipals },
-    { key: "engineers",     icon: "👷", label: "기사 관리",    sub: `${counts.engineers}명`,  perm: "menu.engineers",  onClick: onEngineers },
+    { key: "engineers",     icon: "👷", label: "프로 관리",    sub: `${counts.engineers}명`,  perm: "menu.engineers",  onClick: onEngineers },
     { key: "rates",         icon: "💰", label: "단가표",       sub: `세척 ${counts.rates}종 + 쿨가이`, perm: "menu.rates",  onClick: onRates },
     { key: "regions",       icon: "📍", label: "지역 관리",    sub: `활성 ${counts.regions}개`, perm: "menu.regions",  onClick: onRegions },
   ];

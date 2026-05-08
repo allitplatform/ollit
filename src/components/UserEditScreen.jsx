@@ -199,7 +199,7 @@ function EngineerLinkField({ data, updateField }) {
   const engineers = loadEngineers();
   const selected = engineers.find(e => e.id === data.engineerId);
   return (
-    <Field label="연결할 기사">
+    <Field label="연결할 프로">
       <select
         value={data.engineerId || ""}
         onChange={(e) => updateField("engineerId", e.target.value)}
@@ -216,11 +216,11 @@ function EngineerLinkField({ data, updateField }) {
         })}
       </select>
       <InfoBox color="#FF1B8D">
-        ℹ️ 이 사용자는 <strong>{selected?.name || "선택한 기사"}</strong>의 작업만 볼 수 있습니다.<br/>
+        ℹ️ 이 사용자는 <strong>{selected?.name || "선택한 프로"}</strong>의 작업만 볼 수 있습니다.<br/>
         · 자기 작업: 보임<br/>
         · 자기 수익: 보임 (단가 × 수량)<br/>
         · 회사 마진: 안 보임<br/>
-        · 다른 기사 작업: 안 보임
+        · 다른 프로 작업: 안 보임
       </InfoBox>
     </Field>
   );
@@ -247,7 +247,7 @@ function PrincipalLinkField({ data, updateField }) {
         ℹ️ 이 사용자는 <strong>{selected?.name || "선택한 원청"}</strong>의 작업만 볼 수 있습니다.<br/>
         · 다른 원청 작업: 안 보임<br/>
         · 회사 마진: 안 보임<br/>
-        · 기사 단가: 안 보임 (쿨가이는 가짜 단가만)<br/>
+        · 프로 단가: 안 보임 (쿨가이는 가짜 단가만)<br/>
         · 고객 연락처: 마스킹 (010-****-1234)
       </InfoBox>
     </Field>

@@ -51,13 +51,13 @@ export function UsolNEngineerSettlement() {
         borderRadius: 14, marginBottom: 12,
       }}>
         <div style={{ fontSize: 10, color: "#06B6D4", fontWeight: 700, marginBottom: 6 }}>
-          📤 {nextSettlementDate} 기사 입금 예정
+          📤 {nextSettlementDate} 프로 입금 예정
         </div>
         <div style={{ fontSize: 22, color: "#06B6D4", fontWeight: 700, fontFamily: "inherit" }}>
           ₩{monthData.totalToEngineers.toLocaleString()}
         </div>
         <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 4 }}>
-          {selectedMonth} 작업 {monthData.taskCount}건 · 기사 {monthData.engineerCount}명
+          {selectedMonth} 작업 {monthData.taskCount}건 · 프로 {monthData.engineerCount}명
         </div>
       </div>
 
@@ -71,12 +71,12 @@ export function UsolNEngineerSettlement() {
           📊 분배 구조
         </div>
         <SettlementRow label="회사 받음 (× 85%)" value={monthData.totalCompanyReceive}/>
-        <SettlementRow label="기사 분배"           value={monthData.totalToEngineers} color="#06B6D4"/>
+        <SettlementRow label="프로 분배"           value={monthData.totalToEngineers} color="#06B6D4"/>
         <SettlementRow label="회사 마진"           value={monthData.totalMargin}      color="#FF1B8D"/>
       </div>
 
       <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6, paddingLeft: 4 }}>
-        기사별 정산 ({monthData.byEngineer.length}명)
+        프로별 정산 ({monthData.byEngineer.length}명)
       </div>
 
       {monthData.byEngineer.length === 0 ? (

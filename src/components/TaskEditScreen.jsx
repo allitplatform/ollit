@@ -169,7 +169,7 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
             )}
             {canEditField(user, "engineerEarning") && (
               <FieldNumber
-                label="기사 단가"
+                label="프로 단가"
                 value={data.engineerEarning || 0}
                 onChange={v => set("engineerEarning", v)}
                 editable

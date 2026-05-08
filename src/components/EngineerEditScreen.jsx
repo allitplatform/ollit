@@ -55,7 +55,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
 
   function handleDelete() {
     if (isNew) return;
-    const ok = window.confirm(`${form.name} 기사를 삭제할까요?\n\n복구 불가합니다.`);
+    const ok = window.confirm(`${form.name} 프로를 삭제할까요?\n\n복구 불가합니다.`);
     if (!ok) return;
     const list = loadEngineers();
     saveEngineers(list.filter(e => e.id !== form.id));
@@ -68,7 +68,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
       {/* 헤더 */}
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
-        <div style={titleStyle}>{isNew ? "기사 추가" : "기사 편집"}</div>
+        <div style={titleStyle}>{isNew ? "프로 추가" : "프로 편집"}</div>
         {!isNew && (
           <button onClick={handleDelete} style={deleteBtnStyle}>삭제</button>
         )}

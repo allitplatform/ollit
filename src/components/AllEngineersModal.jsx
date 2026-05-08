@@ -60,7 +60,7 @@ export function AllEngineersModal({ task, engineers: enginerProp, onSelect, onCl
         <div style={headerStyle}>
           <div>
             <div style={{ fontSize: 14, fontWeight: 700 }}>
-              👥 전체 기사 {engineers.length}명
+              👥 전체 프로 {engineers.length}명
             </div>
             <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>
               점수 높은 순 · 검색 가능
@@ -94,7 +94,7 @@ export function AllEngineersModal({ task, engineers: enginerProp, onSelect, onCl
         <div style={{ flex: 1, overflowY: "auto", padding: 12 }}>
           {filtered.length === 0 ? (
             <div style={{ padding: 30, textAlign: "center", color: "var(--text-secondary)", fontSize: 12 }}>
-              {searchQuery ? "검색 결과가 없습니다" : "활성 기사가 없습니다"}
+              {searchQuery ? "검색 결과가 없습니다" : "활성 프로가 없습니다"}
             </div>
           ) : (
             filtered.map(rec => (

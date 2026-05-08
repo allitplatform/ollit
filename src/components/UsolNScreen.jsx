@@ -199,7 +199,7 @@ function calculateHeaderInfo(activeTab) {
     const next15th = getNext15thLabel();
     const pending  = calculatePendingForEngineers(tasks);
     return {
-      subtitle:   "기사 정산 · 매월 15일",
+      subtitle:   "프로 정산 · 매월 15일",
       rightLabel: `${next15th} 입금`,
       rightValue: `₩${pending.toLocaleString()}`,
       rightSub:   "예정",

@@ -230,7 +230,7 @@ function QuickActions({ task, onScheduleChange }) {
     <div style={{ padding: "0 16px", marginBottom: 14 }}>
       <div style={{ display: "flex", gap: 6 }}>
         <ActionButton icon="📞" label="고객 통화" onClick={callCustomer} disabled={!hasCustomerPhone}/>
-        <ActionButton icon="💬" label="기사 연락" onClick={contactEngineer} disabled={!hasEngineer}/>
+        <ActionButton icon="💬" label="프로 연락" onClick={contactEngineer} disabled={!hasEngineer}/>
         <ActionButton icon="📅" label="일정 변경" onClick={onScheduleChange || (() => alert("일정 변경 박지 X"))}/>
       </div>
     </div>
@@ -277,7 +277,7 @@ function EngineerCard({ task, onEdit, onAssign }) {
           textAlign: "center",
         }}>
           <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-            아직 기사 미배정
+            아직 프로 미배정
           </div>
           <button
             onClick={onAssign || onEdit}
@@ -288,7 +288,7 @@ function EngineerCard({ task, onEdit, onAssign }) {
               color: "#fff", fontSize: 11, fontWeight: 700,
               cursor: "pointer", fontFamily: "inherit",
             }}
-          >기사 배정</button>
+          >프로 배정</button>
         </div>
       </div>
     );
@@ -306,7 +306,7 @@ function EngineerCard({ task, onEdit, onAssign }) {
         padding: 12,
       }}>
         <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6 }}>
-          배정 기사
+          배정 프로
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{
@@ -452,7 +452,7 @@ function CompletionNotice({ task }) {
         borderRadius: 10, padding: "10px 12px",
       }}>
         <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginBottom: 4 }}>
-          ⏳ 기사가 작업 완료하면 자동으로 업데이트 됩니다
+          ⏳ 프로가 작업 완료하면 자동으로 업데이트 됩니다
         </div>
         <div style={{ fontSize: 9, color: "var(--text-secondary)" }}>
           완료 후 사진과 정산 자동 표시

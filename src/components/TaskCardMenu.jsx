@@ -58,7 +58,7 @@ export function TaskCardMenu({ task, onAction, align = "right" }) {
     actions.push({ icon: "✏️", label: "수정",       action: "edit" });
   }
   if (status === "assigned" || status === "confirmed") {
-    actions.push({ icon: "👷", label: "기사 변경",  action: "change_engineer" });
+    actions.push({ icon: "👷", label: "프로 변경",  action: "change_engineer" });
     actions.push({ icon: "📅", label: "일정 변경",  action: "change_schedule" });
   }
   if (status === "in_progress") {

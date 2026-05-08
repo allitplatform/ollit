@@ -142,7 +142,7 @@ export function SettlementScreen({ onBack, onClickPrincipalSettlement }) {
             fontSize: 10, color: "var(--text-secondary)", marginTop: 2,
             whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
           }}>
-            매일 22시까지 기사 → 회사 · 유솔 N 별도
+            매일 22시까지 프로 → 회사 · 유솔 N 별도
           </div>
         </div>
         <input
@@ -313,7 +313,7 @@ function TodayMarginSection({ analysis }) {
         gap: 6, marginBottom: 10,
       }}>
         <SummaryBox label="총 매출"   value={analysis.totalRevenue}         color="var(--text-primary)"/>
-        <SummaryBox label="기사 수익" value={analysis.totalEngineerEarning} color="#FF1B8D"/>
+        <SummaryBox label="프로 수익" value={analysis.totalEngineerEarning} color="#FF1B8D"/>
         <SummaryBox label="회사 마진" value={analysis.totalMargin}          color="#FF1B8D" highlight/>
       </div>
 
@@ -408,7 +408,7 @@ function TaskMarginRow({ item }) {
           ₩{revenue.toLocaleString()}
         </span>
 
-        <span>− 기사</span>
+        <span>− 프로</span>
         <span style={{ fontFamily: "inherit", textAlign: "right", color: "#FF1B8D" }}>
           ₩{engineerEarning.toLocaleString()}
         </span>
@@ -605,9 +605,9 @@ function BulkAction({ count }) {
 
 function Empty({ filterId }) {
   const messages = {
-    unpaid: "오늘 미입금 기사가 없습니다 ✨",
-    today:  "오늘 작업한 기사가 없습니다",
-    paid:   "입금 완료된 기사가 없습니다",
+    unpaid: "오늘 미입금 프로가 없습니다 ✨",
+    today:  "오늘 작업한 프로가 없습니다",
+    paid:   "입금 완료된 프로가 없습니다",
   };
   return (
     <div style={{

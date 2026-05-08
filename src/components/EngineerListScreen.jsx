@@ -43,7 +43,7 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
       {/* 헤더 */}
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
-        <div style={titleStyle}>기사 관리</div>
+        <div style={titleStyle}>프로 관리</div>
         <div style={{ display: "flex", gap: 6 }}>
           {onClickRegions && (
             <button onClick={onClickRegions} style={regionsBtnStyle}>📍 지역</button>

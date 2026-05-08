@@ -55,16 +55,16 @@ export function RatesManagementScreen({ onBack }) {
     <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
-        <div style={titleStyle}>기사 단가표</div>
+        <div style={titleStyle}>프로 단가표</div>
         <button onClick={handleSave} style={saveBtnStyle}>저장</button>
       </div>
 
       <div style={{ padding: 16 }}>
         {/* 안내 */}
         <InfoBox>
-          ℹ️ 모든 원청 공통 기사 단가표<br/>
+          ℹ️ 모든 원청 공통 프로 단가표<br/>
           · 원청별 부가세 정책 <strong>자동 적용</strong><br/>
-          · 유솔 N (부가세 별도) → 기사 단가 ×1.10 자동
+          · 유솔 N (부가세 별도) → 프로 단가 ×1.10 자동
         </InfoBox>
 
         {savedAt && (
@@ -80,7 +80,7 @@ export function RatesManagementScreen({ onBack }) {
         )}
 
         {/* 세척 표준 */}
-        <Section title="🧽 세척 표준 단가" subtitle="기사 1대당 (부가세 포함 기준)">
+        <Section title="🧽 세척 표준 단가" subtitle="프로 1대당 (부가세 포함 기준)">
           {APPLIANCE_OPTIONS.map(type => (
             <RateRow
               key={type} label={type}
@@ -128,7 +128,7 @@ export function RatesManagementScreen({ onBack }) {
         {/* 부가세 안내 */}
         <InfoBox color="#FF1B8D">
           📋 부가세 정책은 <strong>원청 관리</strong> 화면에서 설정<br/>
-          · 유솔 N = 부가세 별도 (기사 단가 ×1.10)<br/>
+          · 유솔 N = 부가세 별도 (프로 단가 ×1.10)<br/>
           · 나머지 5곳 = 부가세 포함 (단가 그대로)
         </InfoBox>
 
