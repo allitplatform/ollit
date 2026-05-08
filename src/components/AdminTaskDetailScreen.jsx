@@ -342,8 +342,8 @@ function InfoCard({ task, memos, onMemoAdd }) {
 
   return (
     <>
-      {/* 견적 */}
-      {!isExternal && task.estimateTotal != null && (
+      {/* 견적 — V14 Phase 2: 박지 X (0 / null) → "견적 미입력" 박힘 */}
+      {!isExternal && (
         <div style={{ padding: "0 16px", marginBottom: 8 }}>
           <div style={{
             background: "var(--bg-secondary)",
@@ -354,12 +354,18 @@ function InfoCard({ task, memos, onMemoAdd }) {
               <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
                 💰 {isDone ? "최종 금액" : "견적 금액"}
               </div>
-              <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "inherit", color: "var(--text-primary)" }}>
-                {sumTotal.toLocaleString()}
-                <span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500 }}>원</span>
-              </div>
+              {sumTotal > 0 ? (
+                <div style={{ fontSize: 18, fontWeight: 700, fontFamily: "inherit", color: "var(--text-primary)" }}>
+                  {sumTotal.toLocaleString()}
+                  <span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500 }}>원</span>
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "var(--text-tertiary)", fontWeight: 600 }}>
+                  견적 미입력
+                </div>
+              )}
             </div>
-            {!isDone && (
+            {!isDone && sumTotal > 0 && (
               <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 4 }}>
                 현장추가는 완료 시 입력
               </div>

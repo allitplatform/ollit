@@ -3992,36 +3992,45 @@ export default function EngineerApp({ user, onLogout }) {
     resetTo("calendar");
   };
   const [selectedTaskId, setSelectedTaskId] = useState(null);
-  // V14 v8 — 수락 대기 콜 (가스 자동 + 세척 선착순)
-  const [pendingAcceptances, setPendingAcceptances] = useState([
-    {
-      id: "ACCEPT-001",
-      type: "acceptance",
-      workType: "냉매충전",
-      region: "강남구",
-      fullAddress: "강남구 삼성동",
-      appliance: "시스템 멀티",
-      qty: 1,
-      workSchedule: "당일 (오후)",
-      engineerRate: 80000,
-      requestedAgo: "5분 전",
-    },
-    // V14 v8 — 한미선 5/8 [수락대기] (사장님 spec)
-    {
-      id: "K-260508-002",
-      type: "acceptance",
-      workType: "세척",
-      region: "용산구",
-      customer: "한미선",
-      phone: "010-7070-8080",
-      fullAddress: "서울시 용산구 이태원로 200, 이태원힐스 3층",
-      appliance: "4way",
-      qty: 3,
-      workSchedule: "모레 (5/8) 14:00",
-      engineerRate: 210000,
-      requestedAgo: "30분 전",
-    },
-  ]);
+  // V14 Phase 2 — 수락 대기 콜 시뮬 mock 폐기 (시트 기반 catch)
+  // 옛 V14 v8 mock (한미선 / ACCEPT-001) = 박지 X
+  // 시트 작업DB에서 본인 배정 + status='약속대기' 박힌 거 catch (apiTasks 박힌 거 활용)
+  const [pendingAcceptances, setPendingAcceptances] = useState([]);
+
+  // V14 Phase 2 — apiTasks에서 본인 배정 + 수락 대기 박힌 거 catch (자동 derive)
+  useEffect(() => {
+    if (!apiTasks || apiTasks.length === 0) {
+      setPendingAcceptances([]);
+      return;
+    }
+    const myName = user?.name;
+    const myId = user?.engineerId || user?.id;
+    const pending = apiTasks
+      .filter(t => {
+        const status = String(t.status || t.상태 || "").trim();
+        const isPending = status === "약속대기" || status === "수락대기" || status === "수락 대기";
+        if (!isPending) return false;
+        // 본인 배정 박힌 거만 catch
+        const eng = t.assignedEngineer || t.engineer || "";
+        const engId = t.assignedEngineerId || t.engineerId || "";
+        return (myName && eng === myName) || (myId && engId === myId);
+      })
+      .map(t => ({
+        id: t.id,
+        type: "acceptance",
+        workType: t.workType,
+        region: t.region,
+        customer: t.customer,
+        phone: t.phone,
+        fullAddress: t.address,
+        appliance: t.appliance,
+        qty: t.qty || 1,
+        workSchedule: t.requestedDate || t.scheduledDate || "협의",
+        engineerRate: Number(t.estimateTotal || 0),
+        requestedAgo: "",
+      }));
+    setPendingAcceptances(pending);
+  }, [apiTasks, user?.name, user?.engineerId, user?.id]);
 
   // V13-1-fix — mode 변경 시 CSS 변수 적용 (라이트/다크 토글 작동)
   useEffect(() => {

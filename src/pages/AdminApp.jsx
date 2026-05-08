@@ -349,26 +349,27 @@ function parseKakaoText(text) {
     result.matched.push("이름");
   }
 
-  // V14 — 4-1. 원청 (V14 헌법 7개 매핑 / lowercase ID)
-  // "원청: 올데이케어" / "원청 - 에어컨프로" / "쿨가이" 박은 catch
+  // V14 Phase 2 — 원청 매핑 = form dropdown value (Korean / KA/KB suffix 박힘)
+  // PRINCIPALS dropdown id 매칭 catch (form 자동 선택 박힘)
+  // 사장님 spec [4]: "쿨가이" → "쿨가이 (KB)" 자동 선택
   const principalMap = {
-    "올데이케어": "allday",
-    "올데이":     "allday",
-    "에어컨프로": "aircon_pro",
-    "에어컨 프로": "aircon_pro",
-    "KA":         "aircon_pro",
-    "쿨가이":     "coolguy",
-    "KB":         "coolguy",
-    "용인컴퍼니": "yongin",
-    "용인":       "yongin",
-    "유솔홈케어 H": "usol_h",
-    "유솔홈케어H":  "usol_h",
-    "유솔 H":     "usol_h",
-    "유솔홈케어 N": "usol_n",
-    "유솔홈케어N":  "usol_n",
-    "유솔 N":     "usol_n",
-    "유솔":       "usol_h",
-    "크리크린":   "crikrin",
+    "올데이케어": "올데이케어",
+    "올데이":     "올데이케어",
+    "에어컨프로": "에어컨프로 (KA)",
+    "에어컨 프로": "에어컨프로 (KA)",
+    "KA":         "에어컨프로 (KA)",
+    "쿨가이":     "쿨가이 (KB)",
+    "KB":         "쿨가이 (KB)",
+    "용인컴퍼니": "용인컴퍼니",
+    "용인":       "용인컴퍼니",
+    "유솔홈케어 H": "유솔홈케어 H",
+    "유솔홈케어H":  "유솔홈케어 H",
+    "유솔 H":     "유솔홈케어 H",
+    "유솔홈케어 N": "유솔홈케어 N",
+    "유솔홈케어N":  "유솔홈케어 N",
+    "유솔 N":     "유솔홈케어 N",
+    "유솔":       "유솔홈케어 H",
+    "크리크린":   "크리크린",
   };
   const principalColonRegex = /원청\s*[:：\-]\s*([가-힣A-Za-z\s]+?)(?:\n|$|,|\/)/;
   const principalColonMatch = text.match(principalColonRegex);
