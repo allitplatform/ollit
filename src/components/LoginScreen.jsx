@@ -1,9 +1,11 @@
 // V14 — 로그인 화면 (항상 다크 고정 / 시스템 설정 무관)
 // 첫 인상 / 브랜드 일관성: 다크 배경 + 핑크 로고 + 흰 타이틀
 // 인증 후 메인 앱부터는 시스템 테마 정상 적용
+// V14 Phase 4-C — 폰번호 + 4자리 비번 로그인 박힘 (시트 기반 / loginV14 API)
 import { useState } from "react";
 import { OllitMark } from "./OllitMark.jsx";
 import { REGISTERED_USERS } from "../shared/users.js";
+import { loginV14 } from "../api.js";
 
 const SHORT_ROLE = {
   engineer:  "기사",
@@ -29,24 +31,55 @@ const DARK = {
 };
 
 export function LoginScreen({ onLogin }) {
-  const [id, setId] = useState("");
+  // V14 Phase 4-C — id → phone 박힘 (11자리 숫자만 / 하이픈 박지 X)
+  const [phone, setPhone] = useState("");
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   // V14 — 개발 + 베타 단계: production에서도 빠른 로그인 항상 표시 + 기본 펼침
   const [showQuickLogin, setShowQuickLogin] = useState(true);
 
-  const handleLogin = () => {
+  // V14 Phase 4-C — 폰번호 정규화: 숫자만 + 11자리 max
+  const normalizePhone = (val) => String(val || "").replace(/\D/g, "").slice(0, 11);
+
+  const handleLogin = async () => {
     setError("");
-    const account = REGISTERED_USERS.find(a => a.userId === id && a.password === pw);
-    if (account) {
-      onLogin(account);
-    } else {
-      setError("아이디 또는 비밀번호가 틀렸습니다");
+    const cleanPhone = normalizePhone(phone);
+    if (cleanPhone.length !== 11) {
+      setError("폰번호 11자리를 입력해주세요");
+      return;
+    }
+    if (!pw) {
+      setError("비밀번호를 입력해주세요");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await loginV14(cleanPhone, pw);
+      if (!res || res.ok === false) {
+        setError(res?.error || "로그인 실패");
+        return;
+      }
+      const users = res.users || [];
+      if (users.length === 0) {
+        setError("일치하는 사용자가 없습니다");
+        return;
+      }
+      if (users.length === 1) {
+        onLogin(users[0]);
+        return;
+      }
+      // V14 Phase 4-C — users.length > 1 박힌 catch는 Fix 3 (역할 선택 모달) 박을 차례 / 다음 step
+      setError(`매칭된 역할 ${users.length}개. 다음 step에서 선택 모달 박힘`);
+    } catch (e) {
+      setError(e?.message || "로그인 실패 (네트워크)");
+    } finally {
+      setBusy(false);
     }
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === "Enter") handleLogin();
+    if (e.key === "Enter" && !busy) handleLogin();
   };
 
   return (
@@ -83,28 +116,36 @@ export function LoginScreen({ onLogin }) {
           </div>
         </div>
 
-        {/* 입력 폼 */}
+        {/* 입력 폼 — V14 Phase 4-C: 폰번호 + 비번 박힘 */}
         <div style={{ marginTop: 44 }}>
           <input
-            type="text" placeholder="아이디"
-            value={id}
-            onChange={(e) => setId(e.target.value)}
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            placeholder="폰번호 (숫자 11자리)"
+            value={phone}
+            onChange={(e) => setPhone(normalizePhone(e.target.value))}
             onKeyDown={handleKeyDown}
+            maxLength={11}
             style={{
               width: "100%", background: DARK.inputBg,
               border: `1px solid ${DARK.inputBd}`, borderRadius: 12,
               padding: "17px 18px", color: DARK.inputColor,
               fontSize: 16, fontFamily: "inherit",
               outline: "none", boxSizing: "border-box",
-              fontWeight: 500,
+              fontWeight: 500, letterSpacing: 1,
             }}
           />
           <div style={{ height: 12 }}/>
           <input
-            type="password" placeholder="비밀번호"
+            type="password"
+            inputMode="numeric"
+            autoComplete="current-password"
+            placeholder="비밀번호 (초기 = 폰번호 뒷 4자리)"
             value={pw}
             onChange={(e) => setPw(e.target.value)}
             onKeyDown={handleKeyDown}
+            maxLength={16}
             style={{
               width: "100%", background: DARK.inputBg,
               border: `1px solid ${DARK.inputBd}`, borderRadius: 12,
@@ -125,13 +166,18 @@ export function LoginScreen({ onLogin }) {
             }}>{error}</div>
           )}
           <div style={{ height: 18 }}/>
-          <button onClick={handleLogin} style={{
-            width: "100%", background: "#FF1B8D",
-            border: "none", borderRadius: 14, padding: 18,
-            color: "#fff", fontSize: 17, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit",
-          }}>
-            로그인
+          <button
+            onClick={handleLogin}
+            disabled={busy}
+            style={{
+              width: "100%", background: busy ? "#7A1450" : "#FF1B8D",
+              border: "none", borderRadius: 14, padding: 18,
+              color: "#fff", fontSize: 17, fontWeight: 700,
+              cursor: busy ? "not-allowed" : "pointer", fontFamily: "inherit",
+              opacity: busy ? 0.7 : 1,
+            }}
+          >
+            {busy ? "로그인 중..." : "로그인"}
           </button>
 
           <div style={{ textAlign: "center", marginTop: 16 }}>

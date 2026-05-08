@@ -48,6 +48,16 @@ export async function login(userId, password) {
   return apiCall('login', { userId, password });
 }
 
+// V14 Phase 4-C — 폰번호 + 4자리 비번 로그인 (시트 사용자 시트 read)
+// 입력: phone (11자리 숫자, 하이픈 박지 X) + password (4자리 숫자 / 또는 변경 박은 긴 비번)
+// 응답: { ok, users: [{ userId, name, role, phone, passwordChanged, ... }, ...], error }
+//   - users.length === 1 → 바로 로그인
+//   - users.length > 1  → 역할 선택 모달 (Fix 3 박을 차례 / 다음 step)
+//   - users.length === 0 또는 ok=false → 에러
+export async function loginV14(phone, password) {
+  return apiCall('loginV14', { phone, password });
+}
+
 export async function getTasks(role, userId, principalCode) {
   return apiCall('getTasks', { role, userId, principalCode });
 }
