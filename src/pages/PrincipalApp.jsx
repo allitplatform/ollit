@@ -12,6 +12,15 @@ import { v14NormalizeTask, v14FindTaskList } from "../utils/v14Task.js";
 
 const NOW = "10:00";
 
+// V14 Phase 4-F-1 — 헤더 양식 통일 (AdminApp 패턴 / 페이지 진입 시점 동적 날짜)
+const TODAY = (() => {
+  const d = new Date();
+  const day = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+  const date = d.getDate();
+  const month = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+  return `${day} · ${date} ${month}`;
+})();
+
 // V14 Phase 5-A 보완 — 한국어 조사 자동 처리 (받침 유무로 분기)
 // 한글 음절(0xAC00~0xD7A3): (코드 - 0xAC00) % 28 !== 0 → 받침 있음
 function josa(word, withFinal, withoutFinal) {
@@ -435,7 +444,7 @@ export default function PrincipalApp({ user, onLogout }) {
 
       <div style={{ maxWidth: 420, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Pretendard', sans-serif", paddingBottom: 80 }}>
         
-        <Header t={t}/>
+        <Header t={t} user={user}/>
 
         {selectedTask ? (
           <TaskDetail t={t} task={selectedTask} onBack={() => setSelectedTask(null)}/>
@@ -458,36 +467,16 @@ export default function PrincipalApp({ user, onLogout }) {
   );
 }
 
-function Header({ t }) {
+function Header({ t, user }) {
   return (
     <div style={{ padding: "20px 20px 0" }}>
-      <div style={{ 
-        background: PRINCIPAL.bg,
-        border: `1px solid ${PRINCIPAL.color}30`,
-        borderRadius: 14, padding: "14px 16px",
-        display: "flex", alignItems: "center", gap: 12,
-      }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 12,
-          background: PRINCIPAL.color, color: "white",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          flexShrink: 0,
-        }}>
-          <Building2 size={20}/>
+      <div style={{ marginBottom: 20 }}>
+        <div className="mono" style={{ fontSize: 10, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>
+          {TODAY} · {NOW}
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 800 }}>{PRINCIPAL.name}</div>
-          <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 500 }}>
-            {PRINCIPAL.user}님 · 자기 작업만 보입니다
-          </div>
+        <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+          안녕하세요, <span style={{ color: t.accent }}>{user?.name || PRINCIPAL.name}</span>님
         </div>
-        <span style={{ 
-          fontSize: 10, fontWeight: 800, padding: "4px 8px",
-          background: PRINCIPAL.color + "20", color: PRINCIPAL.color,
-          borderRadius: 100,
-        }}>
-          원청
-        </span>
       </div>
     </div>
   );
