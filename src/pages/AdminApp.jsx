@@ -2198,7 +2198,21 @@ export default function AdminApp({ user, onLogout }) {
         t={t}
         task={selectedTask}
         onBack={goBack}
-        onComplete={(eng) => {
+        onComplete={async (eng) => {
+          // V14 — apiAssignEngineer 호출 (시트 Q + R='확정' 박힘)
+          console.log('[V14 AutoAssign] apiAssignEngineer', { taskId: selectedTask?.id, engineerName: eng.name });
+          try {
+            const res = await apiAssignEngineer(selectedTask?.id, eng.name);
+            console.log('[V14 AutoAssign] apiAssignEngineer 응답:', res);
+            if (!res || res.ok === false) {
+              addToast({ type: "completed", title: "배정 실패", message: (res && res.error) || "시트 박지 X" });
+              return;
+            }
+          } catch (e) {
+            console.error('[V14 AutoAssign] apiAssignEngineer 에러:', e);
+            addToast({ type: "completed", title: "배정 실패", message: e.message || "네트워크 catch X" });
+            return;
+          }
           // Step 5-3 v3 — task 카드 상태 업데이트 (pushing → accepted) + 새 접수 리스트로 복귀
           updateReception(selectedTask?.id, {
             autoAssignStatus: "accepted",
@@ -2212,6 +2226,7 @@ export default function AdminApp({ user, onLogout }) {
             taskId: selectedTask?.id,
           });
           addToast({ type: "assignment", title: "자동 배정", message: `${eng.name} 기사 수락` });
+          fetchTasks();  // V14 — 시트 갱신 catch
           setScreen("newReception");
           setSelectedTask(null);
         }}
@@ -5511,13 +5526,49 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   const [countdown, setCountdown] = useState(3);
   const [acceptedEngineer, setAcceptedEngineer] = useState(null);
 
-  // 후보 추출 (initial) — Step 5-3 v3: broadcast (zone 매칭 우선 + 추가 메인 기사)
+  // V14 — 후보 추출 (시트 catch / apiGetRecommendedEngineers 호출)
   useEffect(() => {
     if (!task) return;
+    let cancelled = false;
     const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
-    const headItem = (task.workItems && task.workItems[0]) || { appliance: task.appliance };
-    const broadcast = getAutoBroadcastCandidates(mainWorkType, task.region, headItem.appliance, task.pushCount || 4);
-    setCandidates(broadcast);
+    const region = task.region || "";
+    const principal = task.principal || "";
+    console.log('[V14 AutoAssign] getRecommendedEngineers', { workType: mainWorkType, principal, region });
+    (async () => {
+      try {
+        const res = await apiGetRecommendedEngineers(mainWorkType, principal, region);
+        console.log('[V14 AutoAssign] 응답:', res);
+        if (cancelled) return;
+        if (!res || res.ok === false) {
+          // 폴백 (옛 시뮬 mock)
+          const headItem = (task.workItems && task.workItems[0]) || { appliance: task.appliance };
+          const broadcast = getAutoBroadcastCandidates(mainWorkType, region, headItem.appliance, task.pushCount || 4);
+          setCandidates(broadcast);
+          return;
+        }
+        // main / sub / capable 합쳐서 4명까지 박기
+        const main    = res.main    || res.recommended?.main    || [];
+        const sub     = res.sub     || res.recommended?.sub     || [];
+        const capable = res.capable || res.recommended?.capable || [];
+        const flat = Array.isArray(res.recommended) ? res.recommended : (Array.isArray(res.engineers) ? res.engineers : null);
+        let allCandidates = [];
+        if (flat && main.length === 0 && sub.length === 0 && capable.length === 0) {
+          allCandidates = flat;
+        } else {
+          allCandidates = [...main, ...sub, ...capable];
+        }
+        const broadcast = allCandidates.slice(0, task.pushCount || 4);
+        console.log('[V14 AutoAssign] candidates:', broadcast.length, '명');
+        setCandidates(broadcast);
+      } catch (e) {
+        console.error('[V14 AutoAssign] 에러:', e);
+        if (cancelled) return;
+        const headItem = (task.workItems && task.workItems[0]) || { appliance: task.appliance };
+        const broadcast = getAutoBroadcastCandidates(mainWorkType, region, headItem.appliance, task.pushCount || 4);
+        setCandidates(broadcast);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [task]);
 
   // 카운트다운
