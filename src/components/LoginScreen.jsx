@@ -8,8 +8,8 @@ import { REGISTERED_USERS } from "../shared/users.js";
 import { loginV14 } from "../api.js";
 
 const SHORT_ROLE = {
-  engineer:  "기사",
-  happycall: "해피콜",
+  engineer:  "프로",
+  happycall: "관리자",
   admin:     "대표",
   principal: "원청",
 };
