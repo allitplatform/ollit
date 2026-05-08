@@ -95,7 +95,7 @@ export function EngineerSettleTab({
           fontSize: 13, color: "var(--label-main)",
           marginTop: 4, fontWeight: 700,
         }}>
-          {engineer?.name || "기사"}님
+          {engineer?.name || "프로"}님
         </div>
       </div>
 
