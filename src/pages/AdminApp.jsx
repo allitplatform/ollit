@@ -413,20 +413,10 @@ function parseKakaoText(text) {
   }
 
   // 5. 기종 + 수량 (V14 헌법 7 기종 + 옛 호환)
-  // V14 Phase 2.5 — '기종:' 라벨 박기 (우선) + V14 7 기종 + '×N' / 'xN' / 'N대' pattern
+  // V14 Phase 2.5 Step 2.1 — modelLabelRegex 블록 박지 X (non-greedy = '벽' 박힘 / 중복 catch)
+  // → itemRegex 단독 = '기종: 벽걸이 ×2' 박힌 거 catch ✓
   const applianceItems = [];
-  // V14 0순위: '기종:' 라벨 박힌 거 ('기종: 4way ×1' / '기종: 벽걸이 ×2')
-  const modelLabelRegex = /기종\s*[:：]\s*([^\n]+)/;
-  const modelLabelMatch = text.match(modelLabelRegex);
-  if (modelLabelMatch) {
-    const value = modelLabelMatch[1].trim();
-    // "4way ×1" / "벽걸이 2대" / "스탠드 ×3" 등 catch (영어/숫자 박힌 4way / 1way 박힘)
-    const m = value.match(/^([\w가-힣]+?)\s*(?:[×x]\s*)?(\d+)?\s*대?/i);
-    if (m && m[1]) {
-      applianceItems.push({ appliance: m[1].trim(), qty: parseInt(m[2]) || 1 });
-    }
-  }
-  // 옛 catch (V14 7 기종 + 옛 호환): '벽걸이 ×2' / '4way 1대' / '스탠드 3'
+  // V14 7 기종 + 옛 호환: '벽걸이 ×2' / '4way 1대' / '스탠드 3' / '기종: 벽걸이 ×2' 모두 catch
   const itemRegex = /(벽걸이|1way|스탠드|4way|원형|투인원|시스템멀티|시스템\s?멀티|시스템|천장형|이동식)\s*(?:[×x]\s*)?(\d+)?\s*대?/gi;
   let itemMatch;
   while ((itemMatch = itemRegex.exec(text)) !== null) {
