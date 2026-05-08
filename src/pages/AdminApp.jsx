@@ -3987,7 +3987,8 @@ function NewReceptionScreen({
       )}
 
       {/* V14 2A 디버그 — 0건 catch 시 raw 응답 박기 (사장님 catch 위해 / F12 X 안 박아도 OK) */}
-      {!tasksLoading && !tasksError && tasksDebug && (
+      {/* Phase 4-F-2: dev 모드에서만 노출 (운영 사용자에는 X) */}
+      {process.env.NODE_ENV === 'development' && !tasksLoading && !tasksError && tasksDebug && (
         <div style={{
           margin: "10px 16px", padding: "10px 12px",
           background: "#FFFBEB",
@@ -6180,12 +6181,6 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
           </>
         )}
 
-        {/* 안내 — 시연 모드 */}
-        <div style={{ marginTop: 14, padding: "10px 12px", background: t.bgInset, borderRadius: 8, border: `1px dashed ${t.border}` }}>
-          <div style={{ fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>
-            <span style={{ fontWeight: 800, color: t.textSecondary }}>시연 모드</span> · 실제 환경에서는 실시간 알림이 프로에게 푸시되고 첫 수락이 자동으로 반영됩니다 (현재는 3초 후 첫 후보 자동 수락).
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -6324,7 +6319,8 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
         )}
 
         {/* V14 2B-3 디버그 — 0건 catch 시 raw 응답 박기 */}
-        {!apiLoading && !apiError && apiDebug && apiDebug.phase === 'zero' && (
+        {/* Phase 4-F-2: dev 모드에서만 노출 (운영 사용자에는 X) */}
+        {process.env.NODE_ENV === 'development' && !apiLoading && !apiError && apiDebug && apiDebug.phase === 'zero' && (
           <div style={{
             margin: "10px 0", padding: "10px 12px",
             background: "#FFFBEB",
@@ -7274,7 +7270,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                 display: "flex", alignItems: "center", gap: 4,
               }}>
                 <span>🔒</span>
-                <span>관리자 미리보기 (프로 X)</span>
+                <span>관리자만 보임</span>
                 {feeLoading && <span style={{ marginLeft: "auto", color: t.textMuted, fontWeight: 600 }}>계산 중...</span>}
               </div>
 
