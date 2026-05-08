@@ -1432,6 +1432,23 @@ export default function AdminApp({ user, onLogout }) {
   }, [mode]);
   const t = THEMES[mode];
 
+  // V14 Step 4.3 — AdminApp 글자 크기 적용 (EngineerApp 옛 박은 0.9/1.0/1.15 박지 X / 새 1.00/1.20/1.40 박힘)
+  // 새 키 'ollit_admin_font_size' + 새 attribute 'data-admin-font-size' (src/index.css scope)
+  // 옛 EngineerApp attribute 박지 X (충돌 catch / unmount 시 cleanup 박힘)
+  useEffect(() => {
+    let saved = "medium";
+    try {
+      const v = localStorage.getItem("ollit_admin_font_size");
+      if (v === "small" || v === "medium" || v === "large") saved = v;
+    } catch (e) {}
+    document.documentElement.removeAttribute("data-font-size");
+    document.documentElement.setAttribute("data-admin-font-size", saved);
+    return () => {
+      // AdminApp unmount 시 (예: 로그아웃 → EngineerApp 빠른 로그인) 옛 EngineerApp 비율 박힘
+      document.documentElement.removeAttribute("data-admin-font-size");
+    };
+  }, []);
+
   // V11-4 — 운영자/관리자 로그인 시 22시 자동 알림 스케줄러 시작
   useEffect(() => {
     const role = user?.role === "admin" && user?.userId === "lee.ceo" ? "owner" : user?.role;

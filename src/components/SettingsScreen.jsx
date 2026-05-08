@@ -11,19 +11,24 @@ import { loadRates } from "../data/standardRates.js";
 import { canAccessMenu } from "../data/permissions.js";
 import { USOL_N_ENTRY, showUsolNEntry, GENERAL_MENU, showGeneralSettlementGroup } from "../data/menuStructure.js";
 
-// V14 Step 4 — 글자 크기 helper (EngineerMeTab과 동일 키 'ollit_font_size' 박힘)
+// V14 Step 4.3 — AdminApp 전용 글자 크기 (EngineerApp 옛 키 'ollit_font_size' 박지 X)
+// 새 키: 'ollit_admin_font_size'
+// 새 attribute: 'data-admin-font-size' (CSS scope 분리 / src/index.css)
+// 새 비율 (사장님 결정 5/8): 100% / 120% / 140%
 function loadFontSize() {
   try {
-    const v = localStorage.getItem("ollit_font_size");
+    const v = localStorage.getItem("ollit_admin_font_size");
     if (v === "small" || v === "medium" || v === "large") return v;
   } catch (e) {}
   return "medium";
 }
 function applyFontSize(size) {
   if (typeof document !== "undefined") {
-    document.documentElement.setAttribute("data-font-size", size);
+    // 옛 EngineerApp attribute 박지 X (충돌 catch)
+    document.documentElement.removeAttribute("data-font-size");
+    document.documentElement.setAttribute("data-admin-font-size", size);
   }
-  try { localStorage.setItem("ollit_font_size", size); } catch (e) {}
+  try { localStorage.setItem("ollit_admin_font_size", size); } catch (e) {}
 }
 
 export function SettingsScreen({

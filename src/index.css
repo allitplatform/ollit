@@ -23,6 +23,14 @@ html, body {
 [data-font-size="small"]  { --font-scale: 0.9; }
 [data-font-size="medium"] { --font-scale: 1.0; }
 [data-font-size="large"]  { --font-scale: 1.15; }
+
+/* V14 Step 4.3 — AdminApp 전용 새 비율 (사장님 50대 친화 / 100% / 120% / 140%)
+   - 옛 data-font-size (EngineerApp 박힘)와 분리
+   - AdminApp 마운트 시 data-admin-font-size 박힘 + 옛 data-font-size 박지 X */
+[data-admin-font-size="small"]  { --font-scale: 1.00; }
+[data-admin-font-size="medium"] { --font-scale: 1.20; }
+[data-admin-font-size="large"]  { --font-scale: 1.40; }
+
 body {
   zoom: var(--font-scale);
 }
