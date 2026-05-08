@@ -92,7 +92,7 @@ export function EngineerMeTab({
   };
 
   const initial = (eng.name || "?").charAt(0);
-  const role = eng.role || "기사";
+  const role = eng.role || "프로";
   const company = eng.companyName || eng.company || "올데이케어";
 
   return (
