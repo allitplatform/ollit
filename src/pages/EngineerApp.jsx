@@ -4655,7 +4655,6 @@ export default function EngineerApp({ user, onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 700 }}>🔧 프로님 화면 ({user?.name || "—"})</div>
         <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
           에어컨 현장작업 운영관리 플랫폼
         </div>
@@ -4670,7 +4669,7 @@ export default function EngineerApp({ user, onLogout }) {
           })}
         </div>
         <button onClick={onLogout} style={{ width: "100%", padding: "8px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          <RotateCcw size={11}/><span>로그아웃 (다른 계정으로 로그인)</span>
+          <RotateCcw size={11}/><span>로그아웃</span>
         </button>
       </div>
       
