@@ -1414,8 +1414,6 @@ function InfoTab({ t }) {
           🔒 보안 안내
         </div>
         <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.7 }}>
-          · {PRINCIPAL.name} 작업만 보입니다<br/>
-          · 다른 원청 데이터 접근 X<br/>
           · 운영팀(올잇)이 모니터링 중<br/>
           · 30일 자동 로그인 유지
         </div>
