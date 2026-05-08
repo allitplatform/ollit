@@ -1,7 +1,7 @@
 // V14 — 로그인 화면 (항상 다크 고정 / 시스템 설정 무관)
 // 첫 인상 / 브랜드 일관성: 다크 배경 + 핑크 로고 + 흰 타이틀
 // 인증 후 메인 앱부터는 시스템 테마 정상 적용
-// V14 Phase 4-C — 폰번호 + 4자리 비번 로그인 박힘 (시트 기반 / loginV14 API)
+// V14 Phase 4-C — 폰번호 + 4자리 비번 로그인 (시트 기반 / loginV14 API)
 import { useState } from "react";
 import { OllitMark } from "./OllitMark.jsx";
 import { REGISTERED_USERS } from "../shared/users.js";
@@ -12,6 +12,22 @@ const SHORT_ROLE = {
   happycall: "해피콜",
   admin:     "대표",
   principal: "원청",
+};
+
+// V14 Phase 4-C Fix 3 — 역할 한글 라벨 (사장님 결정 5/8: 대표/관리자/프로/원청)
+const ROLE_LABELS = {
+  admin:     "대표",
+  happycall: "관리자",
+  engineer:  "프로",
+  principal: "원청",
+};
+
+// V14 Phase 4-C Fix 3 — 역할별 아바타 색상 (시각 구분)
+const ROLE_COLORS = {
+  admin:     "#FF1B8D",
+  happycall: "#4FC3F7",
+  engineer:  "#66BB6A",
+  principal: "#FFA726",
 };
 
 // V14 다크 고정 색 토큰 (시스템 무관)
@@ -31,13 +47,15 @@ const DARK = {
 };
 
 export function LoginScreen({ onLogin }) {
-  // V14 Phase 4-C — id → phone 박힘 (11자리 숫자만 / 하이픈 박지 X)
+  // V14 Phase 4-C — id → phone (11자리 숫자만 / 하이픈 자동 제거)
   const [phone, setPhone] = useState("");
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   // V14 — 개발 + 베타 단계: production에서도 빠른 로그인 항상 표시 + 기본 펼침
   const [showQuickLogin, setShowQuickLogin] = useState(true);
+  // V14 Phase 4-C Fix 3 — 역할 선택 모달 상태 (같은 폰번호로 여러 역할 매칭 시)
+  const [roleSelect, setRoleSelect] = useState({ open: false, users: [] });
 
   // V14 Phase 4-C — 폰번호 정규화: 숫자만 + 11자리 max
   const normalizePhone = (val) => String(val || "").replace(/\D/g, "").slice(0, 11);
@@ -69,8 +87,8 @@ export function LoginScreen({ onLogin }) {
         onLogin(users[0]);
         return;
       }
-      // V14 Phase 4-C — users.length > 1 박힌 catch는 Fix 3 (역할 선택 모달) 박을 차례 / 다음 step
-      setError(`매칭된 역할 ${users.length}개. 다음 step에서 선택 모달 박힘`);
+      // V14 Phase 4-C Fix 3 — 여러 역할 매칭 → 선택 모달 표시
+      setRoleSelect({ open: true, users });
     } catch (e) {
       setError(e?.message || "로그인 실패 (네트워크)");
     } finally {
@@ -78,11 +96,21 @@ export function LoginScreen({ onLogin }) {
     }
   };
 
+  // V14 Phase 4-C Fix 3 — 모달에서 역할 카드 클릭 → 해당 사용자로 로그인
+  const handleSelectRole = (user) => {
+    setRoleSelect({ open: false, users: [] });
+    onLogin(user);
+  };
+  const handleCancelRoleSelect = () => {
+    setRoleSelect({ open: false, users: [] });
+  };
+
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !busy) handleLogin();
   };
 
   return (
+    <>
     <div
       data-theme-locked="dark"
       style={{
@@ -249,6 +277,108 @@ export function LoginScreen({ onLogin }) {
         }}>
           v1.0 · Phase 1A
         </div>
+      </div>
+    </div>
+
+    {/* V14 Phase 4-C Fix 3 — 역할 선택 모달 (같은 폰번호로 여러 역할 매칭 시) */}
+    {roleSelect.open && (
+      <RoleSelectModal
+        users={roleSelect.users}
+        onSelect={handleSelectRole}
+        onCancel={handleCancelRoleSelect}
+      />
+    )}
+    </>
+  );
+}
+
+// V14 Phase 4-C Fix 3 — 역할 선택 모달 컴포넌트
+function RoleSelectModal({ users, onSelect, onCancel }) {
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed", inset: 0,
+        background: "rgba(0,0,0,0.7)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 9999, padding: 20,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#1C1C1E",
+          borderRadius: 16,
+          padding: 24,
+          maxWidth: 400, width: "100%",
+          maxHeight: "80vh", overflowY: "auto",
+          fontFamily: "-apple-system, 'Pretendard', sans-serif",
+        }}
+      >
+        <div style={{ color: "#FFFFFF", fontSize: 18, fontWeight: 700, marginBottom: 6 }}>
+          로그인할 역할을 선택해주세요
+        </div>
+        <div style={{ color: "#888", fontSize: 13, marginBottom: 20 }}>
+          같은 폰번호로 등록된 역할이 {users.length}개 있습니다
+        </div>
+
+        {users.map((user, idx) => (
+          <button
+            key={user.userId || idx}
+            onClick={() => onSelect(user)}
+            style={{
+              width: "100%",
+              background: "#2A2A2A",
+              border: "1px solid #3A3A3A",
+              borderRadius: 12,
+              padding: "14px 16px",
+              marginBottom: idx < users.length - 1 ? 10 : 0,
+              color: "#FFFFFF",
+              fontSize: 15,
+              cursor: "pointer",
+              textAlign: "left",
+              fontFamily: "inherit",
+              display: "flex", alignItems: "center", gap: 12,
+            }}
+          >
+            <div style={{
+              width: 40, height: 40, borderRadius: "50%",
+              background: ROLE_COLORS[user.role] || "#FF1B8D",
+              color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 700, fontSize: 16, flexShrink: 0,
+            }}>
+              {String(user.name || "?").charAt(0)}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 600 }}>
+                {user.name}
+                {user.userId && (
+                  <span style={{ fontSize: 12, color: "#aaa", marginLeft: 8, fontWeight: 400 }}>
+                    ({user.userId})
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>
+                {ROLE_LABELS[user.role] || user.role}
+              </div>
+            </div>
+          </button>
+        ))}
+
+        <button
+          onClick={onCancel}
+          style={{
+            width: "100%",
+            background: "transparent",
+            border: "none",
+            color: "#888",
+            fontSize: 13, marginTop: 16, padding: 8,
+            cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          취소
+        </button>
       </div>
     </div>
   );
