@@ -218,8 +218,8 @@ export function LoginScreen({ onLogin }) {
           </div>
         </div>
 
-        {/* V14 — 빠른 로그인 (베타 단계 항상 표시 / 접힘 토글) */}
-        {true && (
+        {/* V14 — 빠른 로그인 (개발용 / Phase 4-F-3: dev 모드만 표시 / production 빌드 dead-code 제거) */}
+        {process.env.NODE_ENV === 'development' && (
           <div style={{ marginTop: 32 }}>
             <div style={{
               height: 0.5, background: DARK.divider,
