@@ -11,11 +11,22 @@ import { filterTasksForPrincipal } from "../shared/tasks.js";
 import { v14NormalizeTask, v14FindTaskList } from "../utils/v14Task.js";
 
 const NOW = "10:00";
-const PRINCIPAL = { 
+
+// V14 Phase 5-A 보완 — 한국어 조사 자동 처리 (받침 유무로 분기)
+// 한글 음절(0xAC00~0xD7A3): (코드 - 0xAC00) % 28 !== 0 → 받침 있음
+function josa(word, withFinal, withoutFinal) {
+  if (!word) return withoutFinal;
+  const last = word.charCodeAt(word.length - 1);
+  if (last < 0xAC00 || last > 0xD7A3) return withoutFinal;
+  const hasFinal = (last - 0xAC00) % 28 !== 0;
+  return hasFinal ? withFinal : withoutFinal;
+}
+
+const PRINCIPAL = {
   id: "cool_guy", 
   name: "쿨가이", 
   prefix: "A-",
-  user: "김쿨가이 대표",
+  user: "쿨가이 대표",
   email: "cool@allit.co.kr",
   color: "#FFB800",
   bg: "rgba(255, 184, 0, 0.10)",
@@ -911,7 +922,7 @@ function ListTab({ t, onSelect, tasks }) {
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>📋 내 작업 리스트</div>
         <div style={{ fontSize: 12, color: t.textMuted }}>
-          {PRINCIPAL.name}이(가) 등록한 모든 작업
+          {PRINCIPAL.name}{josa(PRINCIPAL.name, "이", "가")} 등록한 모든 작업
         </div>
       </div>
 

@@ -77,7 +77,7 @@ export const REGISTERED_USERS = [
   },
   {
     userId: "kim.coolguy",
-    name: "김쿨가이",
+    name: "쿨가이",
     role: "principal",
     clientName: "쿨가이",
     roleLabel: "원청 사장님 (쿨가이)",
