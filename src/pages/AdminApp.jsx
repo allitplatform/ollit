@@ -2900,7 +2900,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
             {TODAY} · {NOW}
           </div>
           <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-            안녕하세요 <span style={{ color: t.accent }}>{ADMIN_USER}</span>님
+            안녕하세요 <span style={{ color: t.accent }}>{user?.name || ADMIN_USER}</span>님
           </div>
         </div>
 

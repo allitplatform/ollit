@@ -368,7 +368,7 @@ const btnPrimary = (t) => ({ flex: 1, display: "flex", alignItems: "center", jus
 // ============================================
 // 메인 화면 (해피콜)
 // ============================================
-function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction }) {
+function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction, user }) {
   const [activeTab, setActiveTab] = useState("uncontacted");
   
   const filteredTasks = tasks.filter(x => {
@@ -422,7 +422,7 @@ function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction }) {
             <span style={{ fontSize: 10, color: t.success, fontWeight: 600 }}>온라인</span>
           </div>
           <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-            안녕하세요, <span style={{ color: t.accent }}>{HAPPYCALL_USER}</span>님
+            안녕하세요, <span style={{ color: t.accent }}>{user?.name || HAPPYCALL_USER}</span>님
           </div>
           <div style={{ fontSize: 12, color: t.textMuted, marginTop: 6 }}>
             오늘 처리 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>12</span>건 · 미처리 <span className="mono" style={{ color: t.accent, fontWeight: 700 }}>{counts.uncontacted}</span>건
@@ -2245,7 +2245,7 @@ export default function HappycallApp({ user, onLogout }) {
       </div>
       
       <div style={{ maxWidth: 420, margin: "0 auto", position: "relative" }}>
-        {screen === "main" && <HappycallMainScreen t={t} tasks={tasks} onNewReception={handleNewReception} onTaskAction={handleTaskAction} />}
+        {screen === "main" && <HappycallMainScreen t={t} tasks={tasks} onNewReception={handleNewReception} onTaskAction={handleTaskAction} user={user} />}
         {screen === "newReception" && <NewReceptionScreen t={t} onCancel={() => setScreen("main")} onSubmit={handleSubmitReception} />}
         {screen === "edit" && selectedTask && <HappycallEditScreen t={t} task={selectedTask} onCancel={() => setScreen("main")} onSave={handleSaveEdit} />}
         {screen === "memo" && selectedTask && <MemoEditScreen t={t} task={selectedTask} onCancel={() => setScreen("main")} onSave={handleSaveMemo} />}
