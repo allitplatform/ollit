@@ -1133,16 +1133,13 @@ function TaskDetail({ t, task, onBack }) {
           border: `1.5px solid ${PRINCIPAL.color}40`,
           borderRadius: 10,
         }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 12, fontWeight: 800, color: PRINCIPAL.color }}>
               🏪 원청 ({PRINCIPAL.name}) 수수료
             </span>
             <span className="mono" style={{ fontSize: 20, fontWeight: 800, color: PRINCIPAL.color }}>
               ₩{principalFee.toLocaleString()}
             </span>
-          </div>
-          <div style={{ fontSize: 10, color: t.textMuted }}>
-            상품 금액의 50% 수수료 정책
           </div>
         </div>
 
