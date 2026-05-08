@@ -55,6 +55,7 @@ import {
   createTask as apiCreateTask,
   calculateFee as apiCalculateFee,
   getTasks as apiGetTasks,
+  getEngineers as apiGetEngineers,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
   updateTask as apiUpdateTask,
@@ -63,8 +64,20 @@ import {
   invalidateRecommendCache,
 } from "../api.js";
 
-const NOW = "10:00";
-const TODAY = "MON · 27 APR";
+// V14 Step 3 Fix 3 — 동적 날짜 (페이지 진입 시점 기준 / IIFE 박기)
+const NOW = (() => {
+  const d = new Date();
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  return `${hh}:${mm}`;
+})();
+const TODAY = (() => {
+  const d = new Date();
+  const day = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+  const date = d.getDate();
+  const month = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+  return `${day} · ${date} ${month}`;
+})();
 const TODAY_DATE = "2026-04-27";  // 비교용 (assignedDate / completedDate / workDate)
 const ADMIN_USER = "이대표";
 
@@ -708,7 +721,8 @@ function _v14NormalizeTask(t) {
   const reqDate   = t.requestedDate || t.scheduledDate || t.예약일 || "";
   const reqTime   = t.requestedTime || t.scheduledTime || t.예약시간 || "";
   const memo      = t.memo || t.note || t.비고 || "";
-  const estimate  = Number(t.estimateTotal || t.quote || t.totalAmount || t.견적금액 || 0);
+  // V14 Step 3 Fix 2 — 상품금액 (AC열) / productPrice 박기
+  const estimate  = Number(t.estimateTotal || t.quote || t.totalAmount || t.견적금액 || t.productPrice || t.상품금액 || 0);
   const settlement = t.settlementStatus || t.정산상태 || "";
   const schedule  = t.schedule || [reqDate, reqTime].filter(Boolean).join(" ") || "협의";
 
@@ -721,6 +735,8 @@ function _v14NormalizeTask(t) {
 
   // V14 2B-3 — 배정 기사 매핑 (시트 Q 배정기사 컬럼)
   const assignedEngineerName = t.assignedEngineer || t.engineer || t.배정기사 || "";
+  // V14 Step 3 Fix 1 — 배정 기사 연락처 (apiEngineers에서 lookup 박을 catch / normalize 박지 X / EngineerCard에서 박힘)
+  const assignedEngineerPhone = t.engineerPhone || t.assignedEngineerPhone || "";
 
   // workItems 배열 — API 직접 박혀있으면 OK / summary 파싱 / 단일 wrap 순으로 catch
   let workItems = Array.isArray(t.workItems) && t.workItems.length > 0 ? t.workItems : null;
@@ -749,6 +765,7 @@ function _v14NormalizeTask(t) {
     // V14 2B-3 — 배정 기사 (시트 Q 컬럼) / engineer = 옛 컴포넌트 호환 (string 또는 object)
     assignedEngineer: assignedEngineerName,
     engineer:         assignedEngineerName || null,
+    engineerPhone:    assignedEngineerPhone,  // V14 Step 3 Fix 1 — apiEngineers에서 박힘 (있으면)
     _api: true,                   // 진짜 API 출처 마킹
   };
 }
@@ -1483,6 +1500,33 @@ export default function AdminApp({ user, onLogout }) {
   const [apiTasks, setApiTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
+
+  // V14 Step 3 Fix 1 — 시트 설정_기사 catch (apiEngineers / 연락처 lookup 박기)
+  const [apiEngineers, setApiEngineers] = useState([]);
+  async function fetchEngineers() {
+    try {
+      console.log('[V14 Step 3] fetchEngineers 시작');
+      const res = await apiGetEngineers();
+      console.log('[V14 Step 3] engineers 응답:', res);
+      if (!res || res.ok === false) return;
+      const list = res.engineers || res.data || res.tasks || res.list || res.rows || [];
+      if (!Array.isArray(list)) return;
+      setApiEngineers(list);
+      console.log('[V14 Step 3] engineers:', list.length, '명');
+    } catch (e) {
+      console.error('[V14 Step 3] fetchEngineers 에러:', e);
+    }
+  }
+  useEffect(() => { fetchEngineers(); }, []);
+
+  // V14 Step 3 Fix 1 — 기사 이름 → 연락처 lookup helper
+  const getEngineerPhone = (name) => {
+    if (!name || apiEngineers.length === 0) return "";
+    const eng = apiEngineers.find(e =>
+      e.name === name || e.이름 === name || e.engineerId === name || e.기사ID === name
+    );
+    return (eng && (eng.phone || eng.연락처 || eng.전화)) || "";
+  };
   // V14 2B-3 — 배정 진행/에러 (RecommendScreen 박힘)
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
@@ -1950,7 +1994,11 @@ export default function AdminApp({ user, onLogout }) {
     return <Shell>
       <AdminTaskDetailScreen
         t={t}
-        task={selectedTaskDetail}
+        task={selectedTaskDetail ? {
+          ...selectedTaskDetail,
+          // V14 Step 3 Fix 1 — apiEngineers에서 연락처 lookup 박기 (normalize에 박지 X면 박힘)
+          engineerPhone: selectedTaskDetail.engineerPhone || getEngineerPhone(selectedTaskDetail.assignedEngineer || selectedTaskDetail.engineer),
+        } : null}
         onBack={goBackFromStack}
         onCancelTask={(reasonId, memo) => {
           addNotification({
@@ -2326,7 +2374,24 @@ export default function AdminApp({ user, onLogout }) {
             taskId: selectedTask?.id,
           });
           addToast({ type: "assignment", title: "자동 배정", message: `${eng.name} 기사 수락` });
-          fetchTasks();  // V14 — 시트 갱신 catch
+          // V14 Step 3 Fix 5 — Optimistic Update 박기 (fetchTasks lag 5초 동안 옛 데이터 박지 X)
+          if (selectedTask?.id && eng?.name) {
+            setApiTasks(prev => prev.map(t =>
+              t.id === selectedTask.id
+                ? {
+                    ...t,
+                    assignedEngineer: eng.name,
+                    engineer: eng.name,
+                    배정기사: eng.name,
+                    status: '확정',
+                    상태: '확정',
+                    state: 'scheduled',
+                    engineerPhone: eng.phone || getEngineerPhone(eng.name),
+                  }
+                : t
+            ));
+          }
+          fetchTasks();  // V14 — 시트 갱신 catch (background)
           // V14 Phase 2.5 — replaceScreen 박기 (autoAssign → newReception / stack 중복 X)
           replaceScreen("newReception");
           setSelectedTask(null);
@@ -2938,11 +3003,25 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
   const workTypeCounts = useMemo(() => {
     const counts = { 세척: 0, 냉매충전: 0, 설치: 0, 누설: 0, 점검: 0, 수리: 0 };
     // V14 status 새 접수만 박기 (배정 박힌 거 제외)
-    // V14 Phase 2 v2 — '오늘 작업' = scheduledAt / requestedDate가 오늘인 작업
+    // V14 Step 3 Fix 4 — '오늘 작업' = 접수일시 (B열 / createdAt) 기준 박힘
+    // 옛: scheduledAt 박았는데 catch X → '오늘 접수' 박기 (B열)
     const todayStr = new Date().toISOString().slice(0, 10);
     const dateOf = (t) => {
-      const v = t.scheduledAt || t.scheduledDate || t.requestedDate || t.확정일시 || t.예약일 || t.희망일자 || "";
-      return String(v).slice(0, 10);
+      const v = t.createdAt || t.receivedAt || t.접수일시 || t.접수일
+        || t.scheduledAt || t.scheduledDate || t.requestedDate || t.확정일시 || t.예약일 || t.희망일자 || "";
+      // ISO 박힌 거 + Date 박힌 거 양쪽 catch
+      const s = String(v);
+      // 'YYYY-MM-DD' 또는 'YYYY-MM-DDTHH:MM:SS' 박힘 → 첫 10자
+      if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
+      // ISO 박힌 거 (Date.toISOString) → Date 변환
+      const d = new Date(v);
+      if (!isNaN(d.getTime())) {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      }
+      return "";
     };
     const todayTasks = (apiTasks || []).filter(t => dateOf(t) === todayStr);
     // workItems 박기 → workType 추출 → regex 매칭

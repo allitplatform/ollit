@@ -312,8 +312,9 @@ function EngineerCard({ task, onEdit, onAssign }) {
               )}
             </div>
             <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>
-              {task.engineerLevel === "main" ? "메인" : task.engineerLevel === "sub" ? "보조" : task.engineerLevel === "backup" ? "백업" : "—"}
-              {task.region ? ` · ${task.region}` : ""}
+              {/* V14 Step 3 Fix 1 — 연락처 + 지역 박기 ('메인/보조/—' 박지 X) */}
+              {task.engineerPhone ? task.engineerPhone : ""}
+              {task.engineerPhone && task.region ? ` · ${task.region}` : (task.region ? task.region : "")}
             </div>
           </div>
           <button
