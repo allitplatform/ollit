@@ -2225,10 +2225,6 @@ export default function HappycallApp({ user, onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: "#0A0A0A" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "rgba(10,10,10,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 600 }}>📞 관리자 화면</div>
-        <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
-          고객 응대 + 프로 배정 (정산 권한 X)
-        </div>
         <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
           {Object.entries(THEMES).map(([key, theme]) => {
             const Icon = theme.icon;
@@ -2240,7 +2236,7 @@ export default function HappycallApp({ user, onLogout }) {
           })}
         </div>
         <button onClick={onLogout} style={{ width: "100%", padding: "8px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          <RotateCcw size={11}/><span>로그아웃 (다른 계정으로 로그인)</span>
+          <RotateCcw size={11}/><span>로그아웃</span>
         </button>
       </div>
       
