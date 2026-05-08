@@ -1837,10 +1837,24 @@ export default function AdminApp({ user, onLogout }) {
     `}</style>
   );
 
+  // V14 Step 4 — 모바일 풀스크린 fix (옛 maxWidth: 380 박힘 = 모바일 좌우 흰띠 catch)
+  // EngineerApp 패턴 박기: maxWidth 박지 X / minHeight 100vh / safe-area-inset 박힘
   const Shell = ({ children }) => (
-    <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
+    <div style={{ minHeight: "100vh", background: t.bg, color: t.text }}>
       {FontStyle}
-      <div style={{ maxWidth: 380, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Pretendard', sans-serif", paddingBottom: 80, position: "relative" }}>
+      <div style={{
+        width: "100%",
+        maxWidth: 480,           // 데스크톱은 480 박힘 (옛 380 박지 X) / 모바일은 100% 박힘
+        margin: "0 auto",
+        background: t.bg,
+        minHeight: "100vh",
+        color: t.text,
+        fontFamily: "'Pretendard', sans-serif",
+        paddingBottom: "calc(80px + env(safe-area-inset-bottom))",
+        paddingTop: "env(safe-area-inset-top)",
+        position: "relative",
+        boxSizing: "border-box",
+      }}>
         {children}
         <ToastContainer t={t} toasts={toasts}/>
       </div>
