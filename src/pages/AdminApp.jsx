@@ -1414,6 +1414,32 @@ export default function AdminApp({ user, onLogout }) {
   const goBack = () => {
     setScreenStack(prev => prev.length > 0 ? prev.slice(0, -1) : prev);
   };
+  // V14 Phase 2.5 — top 교체 (action 완료 시 사용 / stack 중복 박지 X)
+  // 예: newReceptionForm submit → replaceScreen('newReception')
+  //   → stack [newReception, newReceptionForm] → [newReception]
+  //   → 뒤로 = main ✓ (옛 setScreen은 [..., newReception] push → 뒤로 newReceptionForm 박힘 ⚠️)
+  // 추가 catch: 새 top과 그 아래가 같은 화면이면 중복 제거
+  //   예: [main, newReception, recommend] + replace('newReception') → [main, newReception, newReception]
+  //       → 중복 제거 → [main, newReception] → 뒤로 = main ✓
+  const replaceScreen = (name) => {
+    setScreenStack(prev => {
+      if (prev.length === 0) return name == null ? [] : [name];
+      if (name == null) return prev.slice(0, -1);
+      const newTop = [...prev.slice(0, -1), name];
+      if (newTop.length >= 2 && newTop[newTop.length - 2] === name) {
+        return newTop.slice(0, -1);
+      }
+      return newTop;
+    });
+  };
+  // V14 Phase 2.5 — stack 박지 X / 메인으로 직접 (강제 reset)
+  const resetTo = (name) => {
+    if (name == null || name === "main") {
+      setScreenStack([]);
+    } else {
+      setScreenStack([name]);
+    }
+  };
   const [editingEngineer, setEditingEngineer] = useState(null);  // 편집/추가 대상 (Step 6)
   const [editingIsNew, setEditingIsNew] = useState(false);
   // Step 7 — 원청 편집/추가 대상
@@ -1805,10 +1831,11 @@ export default function AdminApp({ user, onLogout }) {
     return <Shell>
       <NewReceptionFormScreen
         t={t}
-        onBack={() => { resetTo("main"); }}
+        onBack={goBack}
         onSubmit={(form) => {
           addReception(form);
-          setScreen("newReception");
+          // V14 Phase 2.5 — replaceScreen 박기 (옛 setScreen = stack 중복 / 뒤로 newReceptionForm 박힘 catch)
+          replaceScreen("newReception");
           // V14 2A — 진짜 API 등록 후 시트에서 다시 catch (작업번호 + 정확한 데이터)
           if (form._v14ApiOk) {
             fetchTasks();
@@ -2233,7 +2260,8 @@ export default function AdminApp({ user, onLogout }) {
             // 다음 mount 시 자동 catch / 또는 사용자가 새로고침 박을 때
 
             setAssigning(false);
-            setScreen("newReception");
+            // V14 Phase 2.5 — replaceScreen 박기 (recommend → newReception / stack 중복 X)
+            replaceScreen("newReception");
           } catch (e) {
             console.error('[V14 2B-3] 배정 에러:', e);
             setAssignError(e.message || '배정 실패');
@@ -2279,7 +2307,8 @@ export default function AdminApp({ user, onLogout }) {
           });
           addToast({ type: "assignment", title: "자동 배정", message: `${eng.name} 기사 수락` });
           fetchTasks();  // V14 — 시트 갱신 catch
-          setScreen("newReception");
+          // V14 Phase 2.5 — replaceScreen 박기 (autoAssign → newReception / stack 중복 X)
+          replaceScreen("newReception");
           setSelectedTask(null);
         }}
         onFallbackManual={() => setScreen("recommend")}
@@ -2555,7 +2584,8 @@ export default function AdminApp({ user, onLogout }) {
             title: "유솔 N 업로드 완료",
             message: `${newTasks.length}건 등록 완료`,
           });
-          setScreen("newReception");
+          // V14 Phase 2.5 — replaceScreen (NaverUpload → newReception / 박은 거 stack 중복 X)
+          replaceScreen("newReception");
           setNewReceptionFilter(null);
         }}
       />
