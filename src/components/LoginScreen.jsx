@@ -84,7 +84,7 @@ export function LoginScreen({ onLogin }) {
         return;
       }
       if (users.length === 1) {
-        onLogin(users[0]);
+        onLogin(users[0], false);
         return;
       }
       // V14 Phase 4-C Fix 3 — 여러 역할 매칭 → 선택 모달 표시
@@ -99,7 +99,7 @@ export function LoginScreen({ onLogin }) {
   // V14 Phase 4-C Fix 3 — 모달에서 역할 카드 클릭 → 해당 사용자로 로그인
   const handleSelectRole = (user) => {
     setRoleSelect({ open: false, users: [] });
-    onLogin(user);
+    onLogin(user, false);
   };
   const handleCancelRoleSelect = () => {
     setRoleSelect({ open: false, users: [] });
@@ -253,7 +253,7 @@ export function LoginScreen({ onLogin }) {
                 {REGISTERED_USERS.map((a, i) => (
                   <div
                     key={a.userId}
-                    onClick={() => onLogin(a)}
+                    onClick={() => onLogin(a, true)}
                     style={{
                       padding: "11px 10px", background: DARK.cardBg,
                       border: `1px solid ${DARK.cardBd}`, borderRadius: 10,

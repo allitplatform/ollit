@@ -11,6 +11,19 @@ import { PWAInstallPrompt } from "./components/PWAInstallPrompt.jsx";
 import { KakaoBypassScreen } from "./components/KakaoBypassScreen.jsx";
 import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
 
+// V14 Phase 4-D — 자동 로그인 (localStorage)
+const STORAGE_KEY = "ollit_currentUser";
+
+function readStoredUser() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.userId || !parsed?.role) return null;
+    return parsed;
+  } catch { return null; }
+}
+
 // 메인 App: 로그인 상태에 따라 화면 분기
 // TasksProvider를 최상위로 두어 로그인/로그아웃 시에도 task state 유지
 export default function App() {
@@ -20,8 +33,8 @@ export default function App() {
 
   // 첫 렌더 1.5초 스플래시 (올잇 마크 + 펄스)
   const [splashDone, setSplashDone] = useState(false);
-  // 로그인 상태 (현재 로그인한 유저 정보)
-  const [currentUser, setCurrentUser] = useState(null);
+  // 로그인 상태 (현재 로그인한 유저 정보) — V14 Phase 4-D: localStorage 자동 복원
+  const [currentUser, setCurrentUser] = useState(() => readStoredUser());
 
   // 카톡 인앱 감지 + 우회 시도 (마운트 직후 1회)
   useEffect(() => {
@@ -63,14 +76,18 @@ export default function App() {
     return <SplashScreen onDone={() => setSplashDone(true)}/>;
   }
 
-  // 로그인 콜백
-  const handleLogin = (user) => {
+  // 로그인 콜백 — V14 Phase 4-D: V14 path만 localStorage 저장 (시범 빠른 로그인은 저장 X)
+  const handleLogin = (user, isQuickLogin = false) => {
     setCurrentUser(user);
+    if (!isQuickLogin) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(user)); } catch {}
+    }
   };
 
-  // 로그아웃 콜백
+  // 로그아웃 콜백 — localStorage 제거
   const handleLogout = () => {
     setCurrentUser(null);
+    try { localStorage.removeItem(STORAGE_KEY); } catch {}
   };
 
   // 화면 분기 (TasksProvider 안쪽에서 결정)
