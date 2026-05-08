@@ -264,11 +264,11 @@ const NOTIFICATIONS = [
 
 // 직급 시스템
 const ENGINEER_RANKS = [
-  { id: "intern", name: "수습 기사", icon: "🌱", min: 0, max: 50, color: "#888780" },
-  { id: "junior", name: "주임 기사", icon: "🔧", min: 51, max: 150, color: "#378ADD" },
-  { id: "senior", name: "대리 기사", icon: "💼", min: 151, max: 300, color: "#00875A" },
-  { id: "manager", name: "과장 기사", icon: "🎖️", min: 301, max: 600, color: "#E91860" },
-  { id: "director", name: "부장 기사", icon: "👑", min: 601, max: 9999, color: "#BA7517" },
+  { id: "intern", name: "수습 프로", icon: "🌱", min: 0, max: 50, color: "#888780" },
+  { id: "junior", name: "주임 프로", icon: "🔧", min: 51, max: 150, color: "#378ADD" },
+  { id: "senior", name: "대리 프로", icon: "💼", min: 151, max: 300, color: "#00875A" },
+  { id: "manager", name: "과장 프로", icon: "🎖️", min: 301, max: 600, color: "#E91860" },
+  { id: "director", name: "부장 프로", icon: "👑", min: 601, max: 9999, color: "#BA7517" },
 ];
 
 // 프로필 데이터
@@ -951,7 +951,7 @@ function MainScreen({
           color: "var(--text-primary)",
           letterSpacing: "-0.02em",
         }}>
-          안녕하세요, {user?.name || "기사"}님
+          안녕하세요, {user?.name || "프로"}님
         </div>
         <div style={{
           fontSize: 13, color: "var(--text-secondary)",
@@ -1687,7 +1687,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
         )}
         {task.happycallMemo && (
           <div style={{ padding: "12px 14px", background: t.bgInset, borderRadius: 10 }}>
-            <div style={{ fontSize: 9, fontWeight: 700, color: t.textMuted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>📝 해피콜 메모</div>
+            <div style={{ fontSize: 9, fontWeight: 700, color: t.textMuted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 4 }}>📝 관리자 메모</div>
             <div style={{ fontSize: 12, lineHeight: 1.6, color: t.textSecondary }}>{task.happycallMemo}</div>
           </div>
         )}
@@ -2741,7 +2741,7 @@ function ProfileScreen({ t, mode, setMode }) {
       {/* 버전 */}
       <div style={{ padding: "30px 20px", textAlign: "center" }}>
         <div className="mono" style={{ fontSize: 10, color: t.textDim, fontWeight: 600 }}>
-          올잇(Ollit) v0.20 · 호칭: 기사님
+          올잇(Ollit) v0.20 · 호칭: 프로님
         </div>
       </div>
     </div>
@@ -4320,12 +4320,12 @@ export default function EngineerApp({ user, onLogout }) {
   };
 
   const engineerProfile = {
-    name: user?.name || "기사",
+    name: user?.name || "프로",
     phone: user?.phone || "",
     companyName: "올데이케어",
     bankName: "카카오뱅크",
     accountNumber: "3333-12-3456789",
-    accountHolder: user?.name || "기사",
+    accountHolder: user?.name || "프로",
     regions: ["강남구", "서초구", "송파구"],
   };
 
@@ -4655,7 +4655,7 @@ export default function EngineerApp({ user, onLogout }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 700 }}>🔧 기사님 화면 ({user?.name || "—"})</div>
+        <div style={{ fontSize: 10, color: "#888", letterSpacing: 2, marginBottom: 6, textAlign: "center", fontFamily: "system-ui", fontWeight: 700 }}>🔧 프로님 화면 ({user?.name || "—"})</div>
         <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
           에어컨 현장작업 운영관리 플랫폼
         </div>
