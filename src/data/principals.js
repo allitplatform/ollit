@@ -307,15 +307,21 @@ export function loadPrincipals() {
   });
 
   // 4) 시트 기반 병합 (Step 5-1 패턴)
+  // Step 5-3 hotfix — alias 매핑 추가 (cool_son ↔ coolguy 등)
   const merged = [];
   const usedOldIds = new Set();
   for (const s of sheetList) {
     const adapted = adaptSheetPrincipalToSeed(s);
     if (!adapted) continue;
-    const oldMatch = oldById.get(adapted.id) || oldByName.get(adapted.name);
+    // 매칭: id 우선 → alias 매핑 → 이름 fallback (정확 매칭)
+    const aliasOldId = SHEET_TO_OLD_ID_ALIAS[adapted.id];
+    const oldMatch = oldById.get(adapted.id)
+                  || (aliasOldId && oldById.get(aliasOldId))
+                  || oldByName.get(adapted.name);
     if (oldMatch) {
-      // 옛 SEED 우선 (commissionPolicy / vatPolicy / contact / nickname 보존)
+      // 옛 SEED 우선 (id / commissionPolicy / vatPolicy / contact / nickname 보존)
       // 시트 우선: name / prefix / color / type / note (사장님이 시트에서 갱신 가능한 필드)
+      // id는 옛 측 그대로 — 기존 task.principalId / 코드 비교문 호환 (GAS sync 시점에만 시트 id로 변환)
       merged.push({
         ...adapted,
         ...oldMatch,
@@ -324,6 +330,7 @@ export function loadPrincipals() {
         color:  adapted.color  || oldMatch.color,
         type:   adapted.type   || oldMatch.type,
         note:   adapted.note   || oldMatch.note,
+        commissionPolicy: oldMatch.commissionPolicy || adapted.commissionPolicy,
         _fromSheet: false,
       });
       usedOldIds.add(oldMatch.id);
@@ -373,7 +380,20 @@ export function getPrincipalsCache() {
   return [];
 }
 
+// Step 5-3 hotfix — 시트 id ↔ 옛 SEED id 매핑 (id 다른 케이스 catch)
+// KB만 mismatch — 시트 "coolguy" / 옛 SEED "cool_son". 다른 6곳은 동일.
+// 코드 측 task.principalId / principal.id는 옛 SEED id 그대로 사용 (호환성),
+// GAS sync 시점에만 시트 id로 변환.
+const SHEET_TO_OLD_ID_ALIAS = {
+  coolguy: "cool_son",
+};
+const OLD_TO_SHEET_ID_ALIAS = {
+  cool_son: "coolguy",
+};
+
 // 시트 측 한 행 → 옛 SEED 모델 (6열만 매핑, 나머지는 옛 SEED 또는 default)
+// Step 5-3 hotfix — commissionPolicy를 안전 standard default로 박음
+// 매칭 실패 시에도 type 접근 사용처 (PrincipalEditScreen / commissionCalc / feePolicy)에서 TypeError 방지
 function adaptSheetPrincipalToSeed(sheetP) {
   if (!sheetP) return null;
   const id     = sheetP.id || sheetP.principalId || sheetP.B || "";
@@ -394,16 +414,28 @@ function adaptSheetPrincipalToSeed(sheetP) {
     vatPolicy: "included",
     contact: { manager: "", phone: "", email: "" },
     note,
-    commissionPolicy: { cleaning: null, refrigerant: null },
+    commissionPolicy: {
+      cleaning: {
+        type: "standard",
+        principal: { type: "none", base: "total", value: 0 },
+      },
+      refrigerant: {
+        type: "standard",
+        principal: { type: "none", base: "total", value: 0 },
+        engineer:  { type: "rate",  base: "total", value: 50, overrides: [] },
+      },
+    },
     _fromSheet: true,
   };
 }
 
 // status → 시트 활성? (시트엔 활성 칼럼 X — 구분(D)이 따로). 단순히 status 그대로 박지 X
 // 코드 → 시트 sync payload (6열만)
+// Step 5-3 hotfix — 옛 측 id를 시트 측으로 변환 (cool_son → coolguy 등)
 function _toPrincipalSyncPayload(p) {
+  const sheetId = OLD_TO_SHEET_ID_ALIAS[p.id] || p.id;
   return {
-    principalId: p.id || "",
+    principalId: sheetId,
     name:        p.name || "",
     prefix:      p.prefix || "",
     color:       p.color || "",
@@ -441,8 +473,10 @@ export async function deletePrincipalWithSync(principalId) {
   if (!principalId) return { ok: false, error: "principalId 없음", localOk: false };
   const list = loadPrincipals();
   savePrincipals(list.filter(x => x.id !== principalId));
+  // Step 5-3 hotfix — 옛 측 id를 시트 측으로 변환
+  const sheetId = OLD_TO_SHEET_ID_ALIAS[principalId] || principalId;
   try {
-    const res = await apiDeletePrincipal(principalId);
+    const res = await apiDeletePrincipal(sheetId);
     if (!res || res.ok === false) {
       throw new Error((res && res.error) || "시트 sync 실패");
     }
