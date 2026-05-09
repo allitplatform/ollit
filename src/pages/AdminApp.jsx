@@ -20,7 +20,7 @@ import { NotiScreen } from "../components/notifications/NotiScreen.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
 import { VisitOnlyDialog } from "../components/VisitOnlyDialog.jsx";
 import { VISIT_FEE, getVisitReasonLabel } from "../data/visitFee.js";
-import { calcTaskEarning } from "../utils/feePolicy.js";
+import { calcTaskEarning, setEngineersCache } from "../utils/feePolicy.js";
 import { TaskCardMenu } from "../components/TaskCardMenu.jsx";
 import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
 import { loadMemos, getMemoTypeLabel } from "../data/memos.js";
@@ -1610,6 +1610,8 @@ export default function AdminApp({ user, onLogout }) {
       const list = res.engineers || res.data || res.tasks || res.list || res.rows || [];
       if (!Array.isArray(list)) return;
       setApiEngineers(list);
+      // Step 3 — feePolicy 캐시에도 박음 (앱 간 sync용 — 기사별 냉매 비율 lookup)
+      setEngineersCache(list);
       console.log('[V14 Step 3] engineers:', list.length, '명');
     } catch (e) {
       console.error('[V14 Step 3] fetchEngineers 에러:', e);
@@ -7419,6 +7421,15 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                   }}>
                     · 메인 항목 ({workItems[0]?.workType} / {workItems[0]?.appliance}) 기준 / 견적 ₩{form.estimateTotal.toLocaleString()}
                   </div>
+                  {/* Step 3 — 냉매충전은 기사별 비율 (50/60/100). 새 접수 시 미배정 = 기본 50% */}
+                  {workItems[0]?.workType === "냉매충전" && (
+                    <div style={{
+                      marginTop: 4, fontSize: 9, color: t.textMuted, fontWeight: 500,
+                      lineHeight: 1.4,
+                    }}>
+                      · 기사 미배정 — 기본 50% 비율 추정. 기사 배정 시 자동 갱신
+                    </div>
+                  )}
                 </>
               )}
             </div>

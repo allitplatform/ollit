@@ -12,6 +12,61 @@ import {
 import { loadPrincipals } from "../data/principals.js";
 import { VISIT_FEE } from "../data/visitFee.js";
 
+// ============================================================
+// Step 3 — 기사 캐시 (localStorage 백업으로 앱 간 sync)
+// ============================================================
+// AdminApp 등이 apiGetEngineers fetch 후 setEngineersCache(list) 호출 → 모든 앱 공유
+// 다른 앱은 캐시에서 lookup. 캐시 비어있으면 기본 50% fallback.
+const ENGINEERS_CACHE_KEY = "ollit_engineers_cache_v1";
+const DEFAULT_REFRIGERANT_RATE = 50;
+
+let _engineersCacheMem = null; // in-memory cache (lazy load)
+
+function _loadEngineersFromStorage() {
+  try {
+    const raw = localStorage.getItem(ENGINEERS_CACHE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* localStorage 접근 실패 시 무시 */ }
+  return [];
+}
+
+function _ensureCacheLoaded() {
+  if (_engineersCacheMem == null) _engineersCacheMem = _loadEngineersFromStorage();
+}
+
+// AdminApp 등 fetch 후 호출 — 메모리 + localStorage 둘 다 박음
+export function setEngineersCache(list) {
+  if (!Array.isArray(list)) return;
+  _engineersCacheMem = list;
+  try {
+    localStorage.setItem(ENGINEERS_CACHE_KEY, JSON.stringify(list));
+  } catch (e) { /* 저장 실패 시 메모리만 사용 */ }
+}
+
+export function getEngineersCache() {
+  _ensureCacheLoaded();
+  return _engineersCacheMem || [];
+}
+
+// 기사 식별자(id 또는 이름)로 cm_refrigerant_rate 추출 — 빈 / 없음 시 기본 50
+// 시트 칼럼: cm_refrigerant_rate (정수 50/60/100). 한글 키 cm_냉매비율도 fallback
+export function getEngineerRefrigerantRate(engineerIdOrName) {
+  if (engineerIdOrName == null || engineerIdOrName === "") return DEFAULT_REFRIGERANT_RATE;
+  _ensureCacheLoaded();
+  if (!_engineersCacheMem || _engineersCacheMem.length === 0) return DEFAULT_REFRIGERANT_RATE;
+  const target = String(engineerIdOrName).trim();
+  const eng = _engineersCacheMem.find(e =>
+    e.engineerId === target || e.id === target ||
+    e.기사ID    === target || e.name  === target ||
+    e.이름     === target
+  );
+  if (!eng) return DEFAULT_REFRIGERANT_RATE;
+  const raw = eng.cm_refrigerant_rate ?? eng.cm_냉매비율 ?? eng.refrigerant_rate;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_REFRIGERANT_RATE;
+  return n;
+}
+
 // 작업 종류 ID 통일
 // 'cleaning' | 'cleaning_inspect' (세척+점검) | 'refrigerant' | 'visit'
 // 'usolN_extra' (유솔N 추가선택 송풍팬/실외기/피톤치드) | 'usolN_inspect' (유솔N 냉매점검)
@@ -109,29 +164,36 @@ export function calcTaskEarning(task, principalsList) {
   }
 
   // ── 냉매충전 ──
+  // Step 3 — 기사별 비율 (cm_refrigerant_rate): 50 / 60 / 100 (잔여 전액)
+  // 미배정/캐시 비어있음 = 기본 50 (getEngineerRefrigerantRate fallback)
   if (code === "refrigerant") {
-    const refrigType = principal.commissionPolicy?.refrigerant?.type;
+    const refrigType   = principal.commissionPolicy?.refrigerant?.type;
+    const engineerKey  = task.assignedEngineerId || task.assignedEngineer || null;
+    const engineerRate = getEngineerRefrigerantRate(engineerKey);
 
-    // 견적_잔여_분배 — KA: 견적 × 35% 원청 / (잔여 + 추가) × 50% 기사·회사
+    // 견적_잔여_분배 — KA: 견적 × 35% 원청 / 풀 × engineerRate 기사
     if (refrigType === "estimate_remainder_split") {
       return calcEstimateRemainderSplit({
         policy: principal.commissionPolicy.refrigerant,
         estimate: task.estimateTotal || 0,
         extra: (task.addonFee || 0) + (task.extraFee || 0),
+        engineerRate,
       });
     }
 
-    // 예상금액비율 — KB: 견적 × 35% 원청 / 견적 × 50% 기사 / 추가 50:50
+    // 예상금액비율 — KB: 견적 × 35% 원청 / 견적 × engineerRate 기사 / 추가 50:50
     if (refrigType === "estimate_split") {
       return calcEstimateSplit({
         policy: principal.commissionPolicy.refrigerant,
         estimate: task.estimateTotal || 0,
         extra: (task.addonFee || 0) + (task.extraFee || 0),
+        engineerRate,
       });
     }
     // 일반 standard (올데이/용인/유솔H/크리크린)
     const policy = principal.commissionPolicy?.refrigerant;
     if (!policy) {
+      // 정책 없음 (유솔N 등): 기본 50% / 기사별 비율 적용 X (사장님 결재 — 유솔N 제외)
       const eng = Math.round(total * 0.5);
       return { total, engineer: eng, principal: 0, company: total - eng, isNegative: false };
     }
@@ -140,6 +202,7 @@ export function calcTaskEarning(task, principalsList) {
       estimate: task.estimateTotal || 0,
       extra: (task.addonFee || 0) + (task.extraFee || 0),
       engineerId: task.assignedEngineerId,
+      engineerRate,
     });
   }
 

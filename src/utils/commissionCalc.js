@@ -75,8 +75,9 @@ export function calcCleaning(opts) {
 }
 
 // ===== 냉매 =====
+// Step 3 — opts.engineerRate (50/60/100) 직접 전달 시 우선 사용. 100은 잔여 전액(회사 0)
 export function calcRefrigerant(opts) {
-  const { policy, estimate = 0, extra = 0, engineerId } = opts || {};
+  const { policy, estimate = 0, extra = 0, engineerId, engineerRate: engineerRateOpt } = opts || {};
 
   if (!policy) {
     return { error: "정책 없음", total: estimate + extra, principal: 0, engineer: 0, company: 0, isNegative: false };
@@ -92,12 +93,17 @@ export function calcRefrigerant(opts) {
     principal = policy.principal.value || 0;
   }
 
+  // 우선순위: opts.engineerRate > policy.engineer.overrides > policy.engineer.value
   let engineerRate = policy.engineer?.value || 0;
   const override = policy.engineer?.overrides?.find(o => o.engineerId === engineerId);
   if (override) engineerRate = override.value;
+  if (engineerRateOpt != null) engineerRate = engineerRateOpt;
 
   let engineer = 0;
-  if (policy.engineer?.type === "rate") {
+  // Step 3 — engineerRate=100 = 잔여 전액 / 회사 0 (정액 원청 시 음수 방지)
+  if (engineerRate === 100) {
+    engineer = Math.max(0, total - principal);
+  } else if (policy.engineer?.type === "rate") {
     const base = policy.engineer.base === "estimate" ? estimate : total;
     engineer = base * engineerRate / 100;
   } else if (policy.engineer?.type === "fixed") {
@@ -122,27 +128,43 @@ export function calculateCommission(opts) {
 
 // ===== V14 v6 — 새 calc_method =====
 
-// 예상금액비율 (쿨가이 KA 10/50/40 / KB 35/50/15)
-// 견적 × principal_fee% = 원청 / 견적 × 50% = 기사 / 나머지 = 회사
+// 예상금액비율 (쿨가이 KB 35/50/15)
+// 견적 × principal_fee% = 원청 / 견적 × engineerRate% = 기사 / 나머지 = 회사
 // 추가금: 사장님 50% + 기사 50% (원청 0%)
+// Step 3 — opts.engineerRate (50/60/100) 우선 사용. 100은 잔여 전액(회사 0)
 export function calcEstimateSplit(opts) {
-  const { policy, estimate = 0, extra = 0 } = opts || {};
+  const { policy, estimate = 0, extra = 0, engineerRate: engineerRateOpt } = opts || {};
   if (!policy) return { error: "정책 없음", total: estimate + extra, principal: 0, engineer: 0, company: 0, isNegative: false };
 
   const principalRate = (policy.principal?.value || 0) / 100;
-  const engineerRate  = (policy.engineer?.value  || 50) / 100;
+  const baseEngineerRate = engineerRateOpt != null
+    ? engineerRateOpt
+    : (policy.engineer?.value || 50);
+  const total     = estimate + extra;
+  const principal = Math.round(estimate * principalRate);
 
-  const principalBase = Math.round(estimate * principalRate);
+  // Step 3 — 100% 분기: 기사 전액 / 회사 0 (정액 원청 시 음수 방지)
+  if (baseEngineerRate === 100) {
+    const engineer = Math.max(0, total - principal);
+    const company  = total - principal - engineer;
+    return {
+      total:     Math.round(total),
+      principal: Math.round(principal),
+      engineer:  Math.round(engineer),
+      company:   Math.round(company),
+      isNegative: company < 0,
+    };
+  }
+
+  const engineerRate  = baseEngineerRate / 100;
   const engineerBase  = Math.round(estimate * engineerRate);
-  const companyBase   = estimate - principalBase - engineerBase;
+  const companyBase   = estimate - principal - engineerBase;
 
   // 추가금: 사장님 50% + 기사 50% (원청 0%)
   const extraEng = Math.round(extra * 0.5);
   const extraOwn = extra - extraEng;
 
-  const total     = estimate + extra;
   const engineer  = engineerBase + extraEng;
-  const principal = principalBase;
   const company   = companyBase + extraOwn;
 
   return {
@@ -154,26 +176,39 @@ export function calcEstimateSplit(opts) {
   };
 }
 
-// 견적_잔여_분배 (KA 냉매충전: 견적 × 35% 원청 / (견적-원청+추가) × 50% 기사·회사)
+// 견적_잔여_분배 (KA 냉매충전: 견적 × 35% 원청 / (견적-원청+추가) × engineerRate 기사)
 // 1) 원청 = 견적 × principalRate
 // 2) 풀   = (견적 - 원청) + 현장추가금
 // 3) 기사 = 풀 × engineerRate
 // 4) 회사 = 풀 - 기사
+// Step 3 — opts.engineerRate (50/60/100) 우선 사용. 100은 풀 전액(회사 0)
 export function calcEstimateRemainderSplit(opts) {
-  const { policy, estimate = 0, extra = 0 } = opts || {};
+  const { policy, estimate = 0, extra = 0, engineerRate: engineerRateOpt } = opts || {};
   if (!policy) {
     return { error: "정책 없음", total: estimate + extra, principal: 0, engineer: 0, company: 0, isNegative: false };
   }
 
   const principalRate = (policy.principalRate ?? 0) / 100;
-  const engineerRate  = (policy.engineerRate  ?? 50) / 100;
+  // 우선순위: opts.engineerRate > policy.engineerRate > 기본 50
+  const baseEngineerRate = engineerRateOpt != null
+    ? engineerRateOpt
+    : (policy.engineerRate ?? 50);
+  const engineerRate  = baseEngineerRate / 100;
 
   const principal = Math.round(estimate * principalRate);
   const remainder = estimate - principal;
   const pool      = remainder + extra;
 
-  const engineer = Math.round(pool * engineerRate);
-  const company  = pool - engineer;
+  // Step 3 — 100% 분기: 기사 풀 전액 / 회사 0
+  let engineer;
+  let company;
+  if (baseEngineerRate === 100) {
+    engineer = pool;
+    company  = 0;
+  } else {
+    engineer = Math.round(pool * engineerRate);
+    company  = pool - engineer;
+  }
 
   const total = estimate + extra;
   return {
