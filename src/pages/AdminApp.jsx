@@ -22,7 +22,7 @@ import { VisitOnlyDialog } from "../components/VisitOnlyDialog.jsx";
 import { VISIT_FEE, getVisitReasonLabel } from "../data/visitFee.js";
 import { calcTaskEarning, setEngineersCache } from "../utils/feePolicy.js";
 import { setPrincipalsCache } from "../data/principals.js";
-import { setEngineerRatesCache } from "../data/engineers.js";
+import { setEngineerRatesCache, setEngineerSkillsCache } from "../data/engineers.js";
 import { TaskCardMenu } from "../components/TaskCardMenu.jsx";
 import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
 import { loadMemos, getMemoTypeLabel } from "../data/memos.js";
@@ -61,6 +61,7 @@ import {
   getPrincipals as apiGetPrincipals,
   getAllPolicies as apiGetAllPolicies,
   getEngineerRates as apiGetEngineerRates,
+  getEngineerSkills as apiGetEngineerSkills,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
   updateTask as apiUpdateTask,
@@ -1638,6 +1639,21 @@ export default function AdminApp({ user, onLogout }) {
     }
   }
   useEffect(() => { fetchPrincipals(); }, []);
+
+  // Step 5-5 — 시트 설정_기사역량 read 캐시 (5-5-A / read만)
+  async function fetchEngineerSkills() {
+    try {
+      const res = await apiGetEngineerSkills();
+      if (!res || res.ok === false) return;
+      const list = res.skills || res.engineerSkills || res.data || res.list || res.rows || [];
+      if (!Array.isArray(list)) return;
+      setEngineerSkillsCache(list);
+      console.log('[V14 Step 5-5] engineer skills:', list.length, '행');
+    } catch (e) {
+      console.error('[V14 Step 5-5] fetchEngineerSkills 에러:', e);
+    }
+  }
+  useEffect(() => { fetchEngineerSkills(); }, []);
 
   // Step 5-4 — 시트 설정_기사단가 fetch + 캐시
   async function fetchEngineerRates() {

@@ -156,6 +156,15 @@ export async function deleteEngineerRate(payload) {
 }
 
 // =====================================
+// V14 Step 5-5 — 설정_기사역량 read 캐시 (5-5-A)
+// =====================================
+// 시트 5열: A 기사ID / B 원청 / C 작업유형 / D 지역 (콤마/"전국") / E 등급
+// 양방향 X — 시트 직접 편집 / 코드는 read만
+export async function getEngineerSkills() {
+  return apiCall('getEngineerSkills', {});
+}
+
+// =====================================
 // V14 Week 2 2B-3 — 기사 / 추천 / 배정 API
 // =====================================
 

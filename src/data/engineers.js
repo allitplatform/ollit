@@ -606,6 +606,95 @@ export async function deleteEngineerRateWithSync(payload) {
   }
 }
 
+// ============================================================
+// Step 5-5 — 설정_기사역량 read 캐시 (5-5-A)
+// ============================================================
+// 시트 5열: A 기사ID / B 원청 / C 작업유형 / D 지역 (콤마/"전국") / E 등급
+// 양방향 X — 시트 직접 편집 / 코드는 read만 (자동 배정/추천 lookup용)
+
+const ENGINEER_SKILLS_CACHE_KEY = "ollit_engineer_skills_cache_v1";
+
+export function setEngineerSkillsCache(list) {
+  if (!Array.isArray(list)) return;
+  try {
+    localStorage.setItem(ENGINEER_SKILLS_CACHE_KEY, JSON.stringify(list));
+  } catch (e) { /* */ }
+}
+
+export function getEngineerSkillsCache() {
+  try {
+    const raw = localStorage.getItem(ENGINEER_SKILLS_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) { /* */ }
+  return [];
+}
+
+// 행 키 호환 추출
+function _skillEngineerId(s) { return String(s.engineerId || s.기사ID || s.id || "").trim(); }
+function _skillPrincipal(s)  { return String(s.principal  || s.원청 || s.원청명 || "").trim(); }
+function _skillWorkType(s)   { return String(s.workType   || s.작업유형 || "").trim(); }
+function _skillGrade(s)      { return String(s.grade      || s.등급 || "").trim(); }
+function _skillZonesArray(s) {
+  if (Array.isArray(s.zonesArray)) return s.zonesArray;
+  if (Array.isArray(s.zones))      return s.zones;
+  const raw = s.zones || s.지역 || "";
+  if (typeof raw === "string") {
+    return raw.split(",").map(z => z.trim()).filter(Boolean);
+  }
+  return [];
+}
+
+// 특정 기사의 모든 역량 행
+export function getEngineerSkillsByEngineer(engineerId) {
+  if (!engineerId) return [];
+  const cache = getEngineerSkillsCache();
+  const target = String(engineerId).trim();
+  return cache
+    .filter(s => _skillEngineerId(s) === target)
+    .map(s => ({
+      engineerId: _skillEngineerId(s),
+      principal:  _skillPrincipal(s),
+      workType:   _skillWorkType(s),
+      grade:      _skillGrade(s),
+      zones:      _skillZonesArray(s),
+      raw:        s,
+    }));
+}
+
+// 자동 배정 / 추천 lookup 헬퍼 — 작업 1건이 기사 역량 매칭 여부
+// 매칭: engineerId + workType (정확) + 원청 ("(전체)" 또는 매칭) + 지역 ("전국" 또는 포함)
+// 반환: { matched: boolean, grade: string, skill: row | null }
+export function getEngineerSkillsByTask({ engineerId, principalId, principalName, workType, region } = {}) {
+  if (!engineerId || !workType) return { matched: false, grade: "", skill: null };
+  const skills = getEngineerSkillsByEngineer(engineerId);
+  const wt = String(workType).trim();
+  const r  = region ? String(region).trim() : "";
+  const pid   = principalId ? String(principalId).trim() : "";
+  const pname = principalName ? String(principalName).trim() : "";
+
+  for (const s of skills) {
+    if (s.workType !== wt) continue;
+    // 원청 매칭: "(전체)" 또는 정확 매칭 (id 또는 이름)
+    const sp = s.principal;
+    const principalMatch = !sp || sp === "(전체)" || sp === "전체"
+      || sp === pid || sp === pname;
+    if (!principalMatch) continue;
+    // 지역 매칭: "전국" 또는 zones 포함
+    const zones = s.zones || [];
+    const isAllRegion = zones.length === 0
+      || zones.includes("전국")
+      || zones.includes("(전국)")
+      || (zones.length === 1 && zones[0] === "");
+    const regionMatch = !r || isAllRegion || zones.includes(r);
+    if (!regionMatch) continue;
+    return { matched: true, grade: s.grade, skill: s };
+  }
+  return { matched: false, grade: "", skill: null };
+}
+
 // 특정 기사의 단가 행 모두 catch (옛 측 + 시트 캐시 병합 — id/key 정확 매칭)
 export function loadEngineerRatesByEngineer(engineerId) {
   if (!engineerId) return [];
