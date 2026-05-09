@@ -119,6 +119,18 @@ export async function getEngineers() {
   return apiCall('getEngineers', {});
 }
 
+// Step 5-2 — 시트 설정_기사 upsert (engineerId 기준 update / 없으면 append)
+// payload: { engineerId, name, phone, email, active(boolean), cm_refrigerant_rate(50/60/100) }
+// 응답: { ok, engineerId, action: 'update'|'create' } (engineerId가 자동 부여 시 새 ID 반환)
+export async function saveEngineer(eng) {
+  return apiCall('saveEngineer', eng);
+}
+
+// Step 5-2 — 시트 설정_기사 행 삭제
+export async function deleteEngineer(engineerId) {
+  return apiCall('deleteEngineer', { engineerId });
+}
+
 // V14 속도 박기 — 추천 기사 cache (5분 TTL / in-memory Map)
 const _recommendCache = new Map();
 const _CACHE_TTL_MS = 5 * 60 * 1000; // 5분

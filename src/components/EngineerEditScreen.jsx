@@ -1,21 +1,34 @@
 // Step 6 — 기사 편집/추가 화면
 // 사장님 catch: 직급/상태/작업종류별 역할/지역/기종 직접 컨트롤
+// Step 5-2 — 시트 설정_기사 양방향 sync (saveEngineerWithSync / deleteEngineerWithSync)
 import { useState, useMemo } from "react";
 import {
-  loadEngineers, saveEngineers, generateId,
+  generateId,
+  saveEngineerWithSync, deleteEngineerWithSync,
   CAREER_LEVELS, STATUS_OPTIONS, ROLE_OPTIONS, APPLIANCE_OPTIONS,
   SEOUL_DISTRICTS, GG_INCHEON,
 } from "../data/engineers.js";
 
+// Step 5-2 — 냉매충전 기사 비율 옵션
+const REFRIGERANT_RATE_OPTIONS = [
+  { value: 50,  label: "50% (일반 / 기본)" },
+  { value: 60,  label: "60% (A 그룹)" },
+  { value: 100, label: "100% (대표 / 잔여 전액)" },
+];
+
 export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
   const [form, setForm] = useState(() => ({
+    email: "",
+    cm_refrigerant_rate: 50,
     ...engineer,
     workTypes: {
       cleaning:    { ...engineer.workTypes.cleaning    },
       refrigerant: { ...engineer.workTypes.refrigerant },
     },
   }));
-  const [error, setError] = useState("");
+  const [error, setError]     = useState("");
+  const [toast, setToast]     = useState(null);  // { type: 'success'|'warn'|'error', message }
+  const [busy, setBusy]       = useState(false);
 
   function updateField(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -35,31 +48,55 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
     return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
   }
 
-  function handleSave() {
+  async function handleSave() {
     setError("");
+    setToast(null);
     const name = (form.name || "").trim();
     if (!name) {
       setError("이름을 입력해주세요");
       return;
     }
-    const list = loadEngineers();
     let saved = { ...form, name };
-    if (isNew) {
+    if (isNew && !saved.id) {
       saved.id = generateId(name);
-      saveEngineers([saved, ...list]);
-    } else {
-      saveEngineers(list.map(e => e.id === saved.id ? saved : e));
     }
-    onSaved && onSaved(saved);
+    setBusy(true);
+    const res = await saveEngineerWithSync(saved);
+    setBusy(false);
+    if (res.ok) {
+      setToast({ type: "success", message: "프로 저장 완료" });
+      // GAS가 새 ID 부여한 경우 saved.id 갱신
+      if (res.engineerId && res.engineerId !== saved.id) {
+        saved = { ...saved, id: res.engineerId };
+      }
+      // 짧은 딜레이 후 화면 복귀 (사장님이 토스트 보고)
+      setTimeout(() => onSaved && onSaved(saved), 600);
+    } else {
+      setToast({
+        type: "warn",
+        message: `로컬 저장 완료 / 시트 sync 실패: ${res.error || "알 수 없는 오류"} (저장 다시 누르면 재시도)`,
+      });
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (isNew) return;
     const ok = window.confirm(`${form.name} 프로를 삭제할까요?\n\n복구 불가합니다.`);
     if (!ok) return;
-    const list = loadEngineers();
-    saveEngineers(list.filter(e => e.id !== form.id));
-    onSaved && onSaved(null);
+    setError("");
+    setToast(null);
+    setBusy(true);
+    const res = await deleteEngineerWithSync(form.id);
+    setBusy(false);
+    if (res.ok) {
+      setToast({ type: "success", message: "프로 삭제 완료" });
+      setTimeout(() => onSaved && onSaved(null), 600);
+    } else {
+      setToast({
+        type: "warn",
+        message: `로컬 삭제 완료 / 시트 sync 실패: ${res.error || "알 수 없는 오류"}`,
+      });
+    }
   }
 
   return (
@@ -93,6 +130,26 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
               style={inputStyle}
             />
           </Field>
+          <Field label="이메일 (선택)">
+            <input
+              type="email" placeholder="예: kim@example.com"
+              value={form.email || ""}
+              onChange={(e) => updateField("email", e.target.value)}
+              style={inputStyle}
+            />
+          </Field>
+        </Section>
+
+        {/* 냉매충전 기사 비율 (Step 5-2 / Step 3) */}
+        <Section label="냉매충전 기사 비율">
+          <RadioRow
+            options={REFRIGERANT_RATE_OPTIONS.map(o => ({ key: o.value, label: o.label }))}
+            value={form.cm_refrigerant_rate ?? 50}
+            onChange={(v) => updateField("cm_refrigerant_rate", v)}
+          />
+          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6, lineHeight: 1.5 }}>
+            * 냉매충전 시 적용되는 기사 비율. 시트 설정_기사 cm_냉매비율과 양방향 sync.
+          </div>
         </Section>
 
         {/* 직급 */}
@@ -153,10 +210,34 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
           }}>{error}</div>
         )}
 
+        {/* Step 5-2 — 토스트 (성공 / 시트 sync 실패) */}
+        {toast && (
+          <div style={{
+            margin: "12px 0", padding: "10px 12px",
+            background: toast.type === "success"
+              ? "rgba(0, 135, 90, 0.10)"
+              : toast.type === "warn"
+              ? "rgba(245, 158, 11, 0.10)"
+              : "rgba(239, 68, 68, 0.10)",
+            border: `1px solid ${
+              toast.type === "success" ? "rgba(0, 135, 90, 0.30)"
+              : toast.type === "warn"  ? "rgba(245, 158, 11, 0.40)"
+              :                          "rgba(239, 68, 68, 0.30)"
+            }`,
+            borderRadius: 8,
+            color: toast.type === "success" ? "#00875A"
+              : toast.type === "warn"       ? "#B45309"
+              :                               "#FF3D5A",
+            fontSize: 12, lineHeight: 1.5, textAlign: "center",
+          }}>{toast.message}</div>
+        )}
+
         {/* 저장 버튼 */}
         <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
-          <button onClick={onBack} style={cancelBtnStyle}>취소</button>
-          <button onClick={handleSave} style={saveBtnStyle}>저장</button>
+          <button onClick={onBack} style={cancelBtnStyle} disabled={busy}>취소</button>
+          <button onClick={handleSave} style={{ ...saveBtnStyle, opacity: busy ? 0.6 : 1 }} disabled={busy}>
+            {busy ? "저장 중..." : "저장"}
+          </button>
         </div>
       </div>
     </div>

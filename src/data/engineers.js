@@ -1,6 +1,9 @@
 // Step 6 — 기사 마스터 데이터 + localStorage
 // Phase 1: localStorage / Phase 2: Supabase 자동 마이그레이션
 // 사장님 catch: 화면에서 직접 추가/삭제 / 코드 수정 0번
+// Step 5-2 — 시트 설정_기사 양방향 sync (saveEngineerWithSync / deleteEngineerWithSync)
+
+import { saveEngineer as apiSaveEngineer, deleteEngineer as apiDeleteEngineer } from "../api.js";
 
 const STORAGE_KEY = "ollit_engineers_v1";
 
@@ -343,17 +346,88 @@ export function generateId(name) {
 }
 
 // 신규 추가용 빈 객체
+// Step 5-2 — email / cm_refrigerant_rate 신규 필드 (시트 설정_기사 sync)
 export function createEmptyEngineer() {
   return {
     id: "",
     name: "",
     phone: "",
+    email: "",
     careerLevel: "rookie",
     status: "active",
+    cm_refrigerant_rate: 50,
     workTypes: {
       cleaning:    { role: "none", zones: [], appliances: [] },
       refrigerant: { role: "none", zones: [], appliances: [] },
     },
     note: "",
   };
+}
+
+// ============================================================
+// Step 5-2 — 양방향 sync 헬퍼 (localStorage 즉시 + GAS 비동기)
+// ============================================================
+// 매핑: status="active" → 활성=true / status="off"|"quit" → 활성=false
+// 시트 측 5칼럼 + cm_냉매비율만 sync. workTypes/careerLevel/note는 localStorage 전용 (Step 5-5에서)
+
+// status → 시트 활성(boolean)
+function statusToActive(status) {
+  return status === "active";
+}
+
+// engineer 객체 → GAS 페이로드
+function _toSyncPayload(eng) {
+  return {
+    engineerId: eng.id || "",
+    name:       eng.name || "",
+    phone:      eng.phone || "",
+    email:      eng.email || "",
+    active:     statusToActive(eng.status),
+    cm_refrigerant_rate: eng.cm_refrigerant_rate || 50,
+  };
+}
+
+// upsert: localStorage 즉시 박음 + GAS sync
+// 응답: { ok: true } | { ok: false, error, localOk: true }
+export async function saveEngineerWithSync(eng) {
+  // 1) localStorage 즉시 (UI 응답성)
+  const list = loadEngineers();
+  const existing = list.find(e => e.id === eng.id);
+  const next = existing
+    ? list.map(e => e.id === eng.id ? eng : e)
+    : [eng, ...list];
+  saveEngineers(next);
+
+  // 2) GAS sync (비동기 / 실패 시 localStorage는 유지)
+  try {
+    const res = await apiSaveEngineer(_toSyncPayload(eng));
+    if (!res || res.ok === false) {
+      throw new Error((res && res.error) || "시트 sync 실패");
+    }
+    // GAS가 새 engineerId 부여 시 (자동 E### 생성) — localStorage 갱신
+    if (res.engineerId && res.engineerId !== eng.id) {
+      const updated = next.map(e => e.id === eng.id ? { ...e, id: res.engineerId } : e);
+      saveEngineers(updated);
+      return { ok: true, action: res.action, engineerId: res.engineerId };
+    }
+    return { ok: true, action: res.action || "update", engineerId: res.engineerId || eng.id };
+  } catch (e) {
+    return { ok: false, error: e.message || "네트워크 오류", localOk: true };
+  }
+}
+
+// 삭제: localStorage 즉시 + GAS sync
+export async function deleteEngineerWithSync(engineerId) {
+  if (!engineerId) return { ok: false, error: "engineerId 없음", localOk: false };
+  const list = loadEngineers();
+  saveEngineers(list.filter(e => e.id !== engineerId));
+  try {
+    const res = await apiDeleteEngineer(engineerId);
+    if (!res || res.ok === false) {
+      throw new Error((res && res.error) || "시트 sync 실패");
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || "네트워크 오류", localOk: true };
+  }
 }
