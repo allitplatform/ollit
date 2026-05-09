@@ -31,6 +31,11 @@ const RATE_APPLIANCES = ["벽걸이", "스탠드", "1way", "4way", "원형", "�
 const SKILL_WORK_TYPES = ["세척", "냉매충전"];
 const SKILL_GRADES     = ["메인", "백업", "안 함"];
 
+// Step 5-5-C Phase 4-B — 새 역량 폼 hide 플래그 (옛 workTypes 폼만 사용)
+// 시트 read 캐시 (Step 5-5-A) + 자동 배정 fallback (Phase 5)은 그대로 동작.
+// 추후 양방향 재활성 시 true로 박음.
+const SKILLS_FORM_ENABLED = false;
+
 export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
   const [form, setForm] = useState(() => ({
     email: "",
@@ -209,28 +214,30 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
       if (rRes.ok) rateOk += 1; else rateFail += 1;
     }
 
-    // Step 5-5-C Phase 3 — 역량 행 sync (개별 호출)
-    const validSkills = skills.filter(s => s.principal && s.workType);
-    const skillDiff = _diffSkills(skillsOriginal, validSkills);
+    // Step 5-5-C Phase 3 — 역량 행 sync (Phase 4-B에서 SKILLS_FORM_ENABLED 가드로 비활성)
     let skillOk = 0, skillFail = 0;
-    for (const s of skillDiff.upserts) {
-      const sRes = await saveEngineerSkillWithSync({
-        engineerId: saved.id,
-        principal:  s.principal,
-        workType:   s.workType,
-        zones:      s.zones || "",
-        grade:      s.grade || "메인",
-        note:       s.note  || "",
-      });
-      if (sRes.ok) skillOk += 1; else skillFail += 1;
-    }
-    for (const s of skillDiff.deletes) {
-      const sRes = await deleteEngineerSkillWithSync({
-        engineerId: saved.id,
-        principal:  s.principal,
-        workType:   s.workType,
-      });
-      if (sRes.ok) skillOk += 1; else skillFail += 1;
+    if (SKILLS_FORM_ENABLED) {
+      const validSkills = skills.filter(s => s.principal && s.workType);
+      const skillDiff = _diffSkills(skillsOriginal, validSkills);
+      for (const s of skillDiff.upserts) {
+        const sRes = await saveEngineerSkillWithSync({
+          engineerId: saved.id,
+          principal:  s.principal,
+          workType:   s.workType,
+          zones:      s.zones || "",
+          grade:      s.grade || "메인",
+          note:       s.note  || "",
+        });
+        if (sRes.ok) skillOk += 1; else skillFail += 1;
+      }
+      for (const s of skillDiff.deletes) {
+        const sRes = await deleteEngineerSkillWithSync({
+          engineerId: saved.id,
+          principal:  s.principal,
+          workType:   s.workType,
+        });
+        if (sRes.ok) skillOk += 1; else skillFail += 1;
+      }
     }
 
     setBusy(false);
@@ -348,7 +355,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
           />
         </Section>
 
-        {/* 작업 종류 */}
+        {/* 작업 종류 (옛 workTypes 폼 — 그대로 유지) */}
         <Section label="🧽 세척">
           <WorkTypeEditor
             work={form.workTypes.cleaning}
@@ -411,10 +418,12 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
           }}>+ 단가 행 추가</button>
         </Section>
 
-        {/* Step 5-5-C Phase 3 — 역량 (선택) */}
+        {/* Step 5-5-C Phase 3 — 역량 (선택) — Phase 4-B SKILLS_FORM_ENABLED 가드로 hide */}
+        {SKILLS_FORM_ENABLED && (
         <Section label="역량 (선택)">
           <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 10, lineHeight: 1.5 }}>
-            * 시트 설정_기사역량과 양방향 sync. 원청별 작업유형 / 지역 / 등급. 비워두면 옛 폼 (세척 / 냉매충전 zones) 사용.
+            * 작업유형 / 지역 / 등급은 시트 양방향 sync. 시트 설정_기사역량에서도 직접 박을 수 있음.<br/>
+            * 비워두면 자동 배정 시 옛 데이터(세척/냉매충전 지역) 자동 fallback.
           </div>
           {skills.map((s, idx) => (
             <div key={idx} style={{
@@ -457,6 +466,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
             fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
           }}>+ 역량 행 추가</button>
         </Section>
+        )}
 
         {/* 메모 */}
         <Section label="메모 (선택)">
