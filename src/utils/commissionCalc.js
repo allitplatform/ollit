@@ -176,6 +176,52 @@ export function calcEstimateSplit(opts) {
   };
 }
 
+// 총금액_분배 (KB 냉매충전 Step 4: 총금액(견적+추가) × 원청% / × 기사% / 나머지 회사)
+// 1) 총   = 견적 + 추가
+// 2) 원청 = 총 × principalRate
+// 3) 기사 = 총 × engineerRate
+// 4) 회사 = 총 - 원청 - 기사
+// Step 3 — opts.engineerRate (50/60/100) 우선. 100은 잔여 전액(회사 0)
+export function calcTotalSplit(opts) {
+  const { policy, estimate = 0, extra = 0, engineerRate: engineerRateOpt } = opts || {};
+  if (!policy) {
+    return { error: "정책 없음", total: estimate + extra, principal: 0, engineer: 0, company: 0, isNegative: false };
+  }
+
+  const total = estimate + extra;
+  const principalRate = (policy.principalRate ?? 0) / 100;
+  const baseEngineerRate = engineerRateOpt != null
+    ? engineerRateOpt
+    : (policy.engineerRate ?? 50);
+
+  const principal = Math.round(total * principalRate);
+
+  // Step 3 — 100% 분기: 잔여 전액 / 회사 0
+  if (baseEngineerRate === 100) {
+    const engineer = Math.max(0, total - principal);
+    const company  = total - principal - engineer;
+    return {
+      total:     Math.round(total),
+      principal: Math.round(principal),
+      engineer:  Math.round(engineer),
+      company:   Math.round(company),
+      isNegative: company < 0,
+    };
+  }
+
+  const engineerRate = baseEngineerRate / 100;
+  const engineer = Math.round(total * engineerRate);
+  const company  = total - principal - engineer;
+
+  return {
+    total:     Math.round(total),
+    principal: Math.round(principal),
+    engineer:  Math.round(engineer),
+    company:   Math.round(company),
+    isNegative: company < 0,
+  };
+}
+
 // 견적_잔여_분배 (KA 냉매충전: 견적 × 35% 원청 / (견적-원청+추가) × engineerRate 기사)
 // 1) 원청 = 견적 × principalRate
 // 2) 풀   = (견적 - 원청) + 현장추가금

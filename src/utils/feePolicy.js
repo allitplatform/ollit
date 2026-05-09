@@ -6,6 +6,7 @@ import {
   calcRefrigerant,
   calcEstimateSplit,
   calcEstimateRemainderSplit,
+  calcTotalSplit,
   calcAgFullAdHalf,
   calcAdditional,
 } from "./commissionCalc.js";
@@ -181,7 +182,17 @@ export function calcTaskEarning(task, principalsList) {
       });
     }
 
-    // 예상금액비율 — KB: 견적 × 35% 원청 / 견적 × engineerRate 기사 / 추가 50:50
+    // 총금액_분배 — KB (Step 4): 총금액 × 35% 원청 / 총금액 × engineerRate 기사 / 나머지 회사
+    if (refrigType === "total_split") {
+      return calcTotalSplit({
+        policy: principal.commissionPolicy.refrigerant,
+        estimate: task.estimateTotal || 0,
+        extra: (task.addonFee || 0) + (task.extraFee || 0),
+        engineerRate,
+      });
+    }
+
+    // 예상금액비율 (legacy / 옛 KB) — 견적 × 원청% / 견적 × 기사% / 추가 50:50
     if (refrigType === "estimate_split") {
       return calcEstimateSplit({
         policy: principal.commissionPolicy.refrigerant,

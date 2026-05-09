@@ -9,6 +9,7 @@ import {
   calcRefrigerant,
   calcEstimateSplit,
   calcEstimateRemainderSplit,
+  calcTotalSplit,
 } from "../utils/commissionCalc.js";
 import { ENGINEER_STANDARD_RATES, APPLIANCE_OPTIONS } from "../data/standardRates.js";
 
@@ -24,9 +25,10 @@ const CLEANING_POLICY_TYPES = [
 ];
 
 const REFRIGERANT_POLICY_TYPES = [
-  { key: "standard",                  label: "표준",  desc: "원청 % + 기사 %" },
-  { key: "estimate_split",            label: "KB식",  desc: "견적 × 원청% / 견적 × 기사% / 추가 50:50" },
-  { key: "estimate_remainder_split",  label: "KA식",  desc: "견적 × 원청% / (잔여+추가) × 기사%" },
+  { key: "standard",                  label: "표준",         desc: "원청 % + 기사 %" },
+  { key: "total_split",               label: "KB식(총금액)", desc: "총금액 × 원청% / × 기사% / 나머지 회사" },
+  { key: "estimate_remainder_split",  label: "KA식",         desc: "견적 × 원청% / (잔여+추가) × 기사%" },
+  { key: "estimate_split",            label: "옛 KB식",      desc: "견적 × 원청% / 견적 × 기사% / 추가 50:50 (legacy)" },
 ];
 
 export function PrincipalEditScreen({ principal, isNew, onSaved, onBack }) {
@@ -422,6 +424,8 @@ function RefrigerantPolicyEditor({ policy, onMutate, onChangeType, onRemove }) {
 
       {policyType === "estimate_remainder_split"
         ? <RefrigerantRemainderSection policy={policy} onMutate={onMutate}/>
+        : policyType === "total_split"
+        ? <RefrigerantTotalSection     policy={policy} onMutate={onMutate}/>
         : <RefrigerantStandardSection  policy={policy} onMutate={onMutate}/>}
 
       <RefrigerantSimulation policy={policy}/>
@@ -491,6 +495,28 @@ function RefrigerantStandardSection({ policy, onMutate }) {
   );
 }
 
+// 총금액_분배 (KB식 / Step 4) — 총금액(견적+추가) × 원청% / × 기사% / 나머지 = 회사
+function RefrigerantTotalSection({ policy, onMutate }) {
+  return (
+    <>
+      <SubSection title="원청 수수료" hint="총금액 × N%">
+        <NumberInput value={policy.principalRate ?? 35} suffix="%"
+          onChange={(v) => onMutate(p => { p.principalRate = v; return p; })}/>
+        <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
+          (견적 + 현장추가) × N% = 원청 수수료
+        </div>
+      </SubSection>
+      <SubSection title="기사 비율" hint="총금액 × N% (Step 3 — 기사별 50/60/100 동적)">
+        <NumberInput value={policy.engineerRate ?? 50} suffix="%"
+          onChange={(v) => onMutate(p => { p.engineerRate = v; return p; })}/>
+        <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
+          (견적 + 현장추가) × N% = 기사 / 나머지 = 회사
+        </div>
+      </SubSection>
+    </>
+  );
+}
+
 // 견적_잔여_분배 (KA식) — 견적 × 원청% / (잔여+추가) × 기사% / 나머지 = 회사
 function RefrigerantRemainderSection({ policy, onMutate }) {
   return (
@@ -520,6 +546,8 @@ function RefrigerantSimulation({ policy }) {
   let calc;
   if (policy.type === "estimate_remainder_split") {
     calc = calcEstimateRemainderSplit({ policy, estimate, extra });
+  } else if (policy.type === "total_split") {
+    calc = calcTotalSplit({ policy, estimate, extra });
   } else if (policy.type === "estimate_split") {
     calc = calcEstimateSplit({ policy, estimate, extra });
   } else {

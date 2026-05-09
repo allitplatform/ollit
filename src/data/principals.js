@@ -67,7 +67,7 @@ const SEED_PRINCIPALS = [
     status: "active",
     vatPolicy: "included",
     contact: { manager: "", phone: "", email: "" },
-    note: "KB(아들) · 세척 = 차감후비율 50% · 냉매 = 예상금액비율 35%",
+    note: "KB(아들) · 세척 = 차감후비율 50% · 냉매 = 총금액_분배 35%/50% (Step 4)",
     commissionPolicy: {
       cleaning: {
         type: "fake_split",
@@ -78,9 +78,10 @@ const SEED_PRINCIPALS = [
         splitRate: 50,
       },
       refrigerant: {
-        type: "estimate_split",  // 예상금액비율 (KB 35%)
-        principal: { type: "rate", base: "estimate", value: 35 },
-        engineer:  { type: "rate", base: "estimate", value: 50, overrides: [] },
+        // 총금액_분배 — 총금액(견적+추가) × 35% 원청 / × engineerRate 기사 / 나머지 회사
+        type: "total_split",
+        principalRate: 35,
+        engineerRate:  50,
       },
     },
   },
@@ -226,17 +227,19 @@ export function loadPrincipals() {
     if (raw) {
       const parsed = JSON.parse(raw);
       // V2 마이그레이션 — vatPolicy 누락 시 기본값 채움 (유솔 N만 excluded)
-      // V3 마이그레이션 — KA 냉매 옛 정책(estimate_split 10%) → 새 정책(estimate_remainder_split 35%/50%)
+      // V3 마이그레이션 — KA 냉매 옛 정책(estimate_split 10%) → estimate_remainder_split 35%/50%
+      // V4 마이그레이션 — KB 냉매 옛 정책(estimate_split 35%) → total_split 35%/50%
       return parsed.map(p => {
         let next = {
           ...p,
           vatPolicy: p.vatPolicy || (p.id === "usol_n" ? "excluded" : "included"),
         };
-        const ka = next.commissionPolicy?.refrigerant;
+        const refrig = next.commissionPolicy?.refrigerant;
+        // KA 마이그레이션 (V3)
         if (
           next.id === "aircon_pro" &&
-          ka?.type === "estimate_split" &&
-          (ka.principal?.value ?? 0) === 10
+          refrig?.type === "estimate_split" &&
+          (refrig.principal?.value ?? 0) === 10
         ) {
           next = {
             ...next,
@@ -244,6 +247,25 @@ export function loadPrincipals() {
               ...next.commissionPolicy,
               refrigerant: {
                 type: "estimate_remainder_split",
+                principalRate: 35,
+                engineerRate:  50,
+              },
+            },
+          };
+        }
+        // KB 마이그레이션 (V4)
+        const refrigKB = next.commissionPolicy?.refrigerant;
+        if (
+          next.id === "cool_son" &&
+          refrigKB?.type === "estimate_split" &&
+          (refrigKB.principal?.value ?? 0) === 35
+        ) {
+          next = {
+            ...next,
+            commissionPolicy: {
+              ...next.commissionPolicy,
+              refrigerant: {
+                type: "total_split",
                 principalRate: 35,
                 engineerRate:  50,
               },
@@ -317,6 +339,13 @@ export function createEmptyPolicy(workType, policyType = "standard") {
   if (policyType === "estimate_remainder_split") {
     return {
       type: "estimate_remainder_split",
+      principalRate: 35,
+      engineerRate:  50,
+    };
+  }
+  if (policyType === "total_split") {
+    return {
+      type: "total_split",
       principalRate: 35,
       engineerRate:  50,
     };
