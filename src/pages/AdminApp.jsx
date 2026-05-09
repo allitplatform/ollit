@@ -152,6 +152,69 @@ const WORK_TYPES_CONFIG = {
   "점검":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
 };
 
+// V14 Step 2-B-2 — KA 1way 차등 단가 (동일 집 추가)
+// UI: 사용자가 "1way" + qty 입력 → 견적 자동 계산
+// 저장: workItems가 "1way 첫 대" / "1way 추가" 두 행으로 분리 (시트 매칭)
+// 표시: 카드/리스트는 두 행을 다시 합쳐 "1way × N"으로 노출
+const KA_PRINCIPAL_NAME       = "에어컨프로 (KA)";
+const KA_1WAY_FIRST_PRICE     = 90000;
+const KA_1WAY_ADDITIONAL_PRICE = 70000;
+
+// KA + 냉매충전 + 1way qty 합계 → 자동 견적
+// 첫 대 90,000 + 추가 (qty-1) × 70,000
+function calcKaOnewayEstimate(workItems) {
+  if (!Array.isArray(workItems)) return null;
+  const onewayQtySum = workItems.reduce((sum, w) => {
+    if (w.workType === "냉매충전" && w.appliance === "1way") return sum + (w.qty || 1);
+    return sum;
+  }, 0);
+  if (onewayQtySum <= 0) return null;
+  return KA_1WAY_FIRST_PRICE + Math.max(0, onewayQtySum - 1) * KA_1WAY_ADDITIONAL_PRICE;
+}
+
+// KA 작업 저장 직전 — "1way" + qty=N 항목을 "1way 첫 대" 1 + "1way 추가" (N-1)로 분리
+// KA 외 원청 / 다른 기종 / 1way가 아닌 항목은 그대로
+function splitWorkItemsForKa1way(items, principalName) {
+  if (principalName !== KA_PRINCIPAL_NAME || !Array.isArray(items)) return items;
+  const out = [];
+  for (const item of items) {
+    if (item.workType === "냉매충전" && item.appliance === "1way") {
+      const qty = item.qty || 1;
+      out.push({ ...item, appliance: "1way 첫 대", qty: 1 });
+      if (qty > 1) {
+        out.push({ ...item, appliance: "1way 추가", qty: qty - 1 });
+      }
+    } else {
+      out.push(item);
+    }
+  }
+  return out;
+}
+
+// 카드/리스트 표시용 — 분리 저장된 KA 1way 행을 단일 "1way × N"으로 합쳐 보여줌
+// "1way 첫 대" + "1way 추가" 행이 둘 다 있을 때만 합침. 다른 항목은 그대로
+function mergeKaOneway(items) {
+  if (!Array.isArray(items)) return items;
+  const hasFirst = items.some(w => w.workType === "냉매충전" && w.appliance === "1way 첫 대");
+  if (!hasFirst) return items;
+  const merged = [];
+  let mergedQty = 0;
+  let mergedTemplate = null;
+  for (const item of items) {
+    if (item.workType === "냉매충전" &&
+        (item.appliance === "1way 첫 대" || item.appliance === "1way 추가")) {
+      mergedQty += (item.qty || 1);
+      if (!mergedTemplate) mergedTemplate = item;
+    } else {
+      merged.push(item);
+    }
+  }
+  if (mergedTemplate) {
+    merged.push({ ...mergedTemplate, appliance: "1way", qty: mergedQty });
+  }
+  return merged;
+}
+
 function sortWorkItemsByPriority(workItems) {
   if (!Array.isArray(workItems)) return [];
   return [...workItems].sort((a, b) =>
@@ -184,9 +247,11 @@ function formatWorkItem(item) {
 
 // V14 2B-1 fix — 작업 항목 = 기종만 (작업유형은 별도 칩/알약 박혀있음)
 // 단일: "벽걸이 ×1" / multi: "벽걸이 ×1, 4way ×1" / 냉매충전: "냉매충전 ×1" (기종 없을 때 fallback)
+// Step 2-B-2 — KA "1way 첫 대" + "1way 추가" 분리 저장 → 표시는 "1way × N" 합쳐서
 function formatWorkItemsAppliance(workItems) {
-  if (!workItems || workItems.length === 0) return "";
-  return workItems.map(item => {
+  const items = mergeKaOneway(workItems);
+  if (!items || items.length === 0) return "";
+  return items.map(item => {
     const qty = item.qty || 1;
     const appliance = item.appliance && String(item.appliance).trim();
     if (appliance) return `${appliance} ×${qty}`;
@@ -202,10 +267,12 @@ function formatWorkItemsAppliance(workItems) {
 // - 다른 종류 추가 → "세척 · 벽걸이 ×2 (+ 냉매충전 ×1)"
 // - 혼합           → "세척 · 벽걸이 ×2 (+ 냉매충전 ×1, 점검 ×1)"
 function formatWorkItems(workItems) {
-  if (!workItems || workItems.length === 0) return "";
-  if (workItems.length === 1) return formatWorkItem(workItems[0]);
+  // Step 2-B-2 — KA 1way 분리 저장된 항목은 합쳐서 표시
+  const items = mergeKaOneway(workItems);
+  if (!items || items.length === 0) return "";
+  if (items.length === 1) return formatWorkItem(items[0]);
   // Step 5-1e (통합) — 우선순위 정렬 후 메인 선택
-  const sorted = sortWorkItemsByPriority(workItems);
+  const sorted = sortWorkItemsByPriority(items);
   const main = sorted[0];
   const mainText = formatWorkItem(main);
 
@@ -5480,15 +5547,19 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
         <Box>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {/* Step 5-1c — workItems 복수면 항목별 리스트 */}
-            {Array.isArray(task.workItems) && task.workItems.length > 1 ? (
+            {/* Step 2-B-2 — KA 1way 분리 저장된 항목은 합쳐서 표시 */}
+            {(() => {
+              const displayItems = mergeKaOneway(task.workItems);
+              if (!Array.isArray(displayItems) || displayItems.length <= 1) return null;
+              return (
               <>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12 }}>
                   <span style={{ fontSize: 12, width: 16, textAlign: "center", flexShrink: 0 }}>🔧</span>
                   <span style={{ color: t.textMuted, fontWeight: 600 }}>작업 항목</span>
-                  <span className="mono" style={{ color: t.accent, fontWeight: 800 }}>{task.workItems.length}건</span>
+                  <span className="mono" style={{ color: t.accent, fontWeight: 800 }}>{displayItems.length}건</span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingLeft: 24, marginTop: 2 }}>
-                  {task.workItems.map((item, idx) => (
+                  {displayItems.map((item, idx) => (
                     <div key={idx} style={{ fontSize: 12, color: t.text, display: "flex", alignItems: "center", gap: 6 }}>
                       <span className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, minWidth: 18 }}>#{idx + 1}</span>
                       <span style={{ fontWeight: 700 }}>{item.workType}</span>
@@ -5500,10 +5571,11 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
                   ))}
                 </div>
                 <div style={{ paddingLeft: 24, fontSize: 10, color: t.textMuted, fontWeight: 600 }}>
-                  · 총 작업 <span className="mono" style={{ color: t.textSecondary, fontWeight: 700 }}>{task.workItems.reduce((s, x) => s + (x.qty || 0), 0)}</span>대
+                  · 총 작업 <span className="mono" style={{ color: t.textSecondary, fontWeight: 700 }}>{displayItems.reduce((s, x) => s + (x.qty || 0), 0)}</span>대
                 </div>
               </>
-            ) : (
+              );
+            })() || (
               <Row icon="🔧" value={
                 <span>
                   <span style={{ fontWeight: 700 }}>{isExternal ? "외근" : task.workType}</span>
@@ -6662,6 +6734,9 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
   const [scheduleMode, setScheduleMode] = useState(null);  // null | "tbd" | "input"
 
+  // Step 2-B-2 — KA 1way 자동 견적 계산 — 사용자가 견적을 직접 박으면 자동 X
+  const [estimateTouched, setEstimateTouched] = useState(false);
+
   // V14 헌법 v6 — 작업유형 5가지 / 기종 7가지
   const workTypes = ["세척", "냉매충전", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
   const appliances = ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"];
@@ -6674,13 +6749,14 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
   };
 
-  // 냉매충전 1way 차등 단가 — KA만 "1way 첫 대"(90,000) / "1way 추가"(70,000) 분리
-  // 다른 6 원청 (KB / 용인 / 유솔 H / 유솔 N / 크리크린 / 올데이): 단일 "1way"
+  // 냉매충전 1way — UI에서는 모든 원청이 단일 "1way" 라벨 (KA 차등 단가는 자동 처리)
+  // KA: 사용자가 "1way" + qty 입력 → 견적 자동 계산 (KA_1WAY_FIRST/ADDITIONAL) + 저장 시
+  //     workItems가 "1way 첫 대" / "1way 추가" 두 행으로 자동 분리 → 시트 매칭
+  // 다른 6 원청: 단일 "1way" 그대로 (단일 단가)
+  // 함수 골격은 향후 다른 원청 / 다른 기종 차등 정책 박을 자리로 유지
   function getAppliancePool(workType, principalName) {
     if (workType === "냉매충전") {
-      if (principalName === "에어컨프로 (KA)") {
-        return ["벽걸이", "스탠드", "4way", "투인원", "1way 첫 대", "1way 추가"];
-      }
+      // 모든 원청 동일 풀 (KA 차등은 자동 계산 + 저장 시 분리로 처리)
       return ["벽걸이", "스탠드", "4way", "투인원", "1way"];
     }
     return APPLIANCE_POOL[workType] || [];
@@ -6746,6 +6822,8 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
       if (r.estimatedPrice && !r.priceNeedsConfirm) {
         next.estimateTotal = r.estimatedPrice;
         filledKeys.push("estimateTotal");
+        // 카톡 텍스트에 명시된 견적은 사용자 의도값 — 자동 계산이 덮어쓰기 X
+        setEstimateTouched(true);
       }
       return next;
     });
@@ -6786,15 +6864,30 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     setEditItem({ workType: "", appliance: "", qty: 1 });
     setScheduleMode(null);
     setErrors({});
+    setEstimateTouched(false);
   }
 
   function confirmPrice(yes) {
     if (yes && priceConfirm) {
       setForm(prev => ({ ...prev, estimateTotal: priceConfirm.estimated }));
       flashFields(["estimateTotal"]);
+      // 사용자가 confirm 버튼 누른 견적값 — 자동 계산 덮어쓰기 X
+      setEstimateTouched(true);
     }
     setPriceConfirm(null);
   }
+
+  // Step 2-B-2 — KA + 냉매충전 + "1way" 항목 감지 시 견적 자동 계산
+  // 첫 대 90,000 + 추가 (qty-1) × 70,000. 사용자가 견적을 직접 박은 후엔 X
+  useEffect(() => {
+    if (form.principal !== KA_PRINCIPAL_NAME) return;
+    if (estimateTouched) return;
+    const autoEstimate = calcKaOnewayEstimate(workItems);
+    if (autoEstimate == null) return;
+    setForm(prev =>
+      prev.estimateTotal === autoEstimate ? prev : { ...prev, estimateTotal: autoEstimate }
+    );
+  }, [form.principal, workItems, estimateTouched]);
 
   // workItems 조작 (V14 헌법 — 모든 작업유형 기종/케이스 필수)
   function addWorkItem() {
@@ -6824,6 +6917,8 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
 
   // V14 1F — 분배 미리보기 (관리자만 catch / 기사 X)
   // 메인 항목 (workItems[0]) + 견적 박힐 때마다 debounce 500ms → calculateFee API 호출
+  // Step 2-B-2 — KA + 냉매충전 + "1way" 케이스는 시트 매칭용 appliance="1way 첫 대"로 호출
+  //              (KA estimate_remainder_split 정책은 두 행 모두 동일 — 견적 합산만 정확하면 분배 동일)
   useEffect(() => {
     if (!form.principal || workItems.length === 0 || !form.estimateTotal) {
       setFeePreview(null);
@@ -6835,11 +6930,15 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
       setFeePreview(null);
       return;
     }
+    const isKaOneway = form.principal === KA_PRINCIPAL_NAME
+      && head.workType === "냉매충전"
+      && head.appliance === "1way";
+    const callAppliance = isKaOneway ? "1way 첫 대" : head.appliance;
     setFeeLoading(true);
     setFeeError("");
     const timer = setTimeout(async () => {
       try {
-        const res = await apiCalculateFee(form.principal, head.workType, head.appliance, form.estimateTotal);
+        const res = await apiCalculateFee(form.principal, head.workType, callAppliance, form.estimateTotal);
         if (res.ok) {
           setFeePreview(res);
         } else {
@@ -6873,6 +6972,8 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     const head = workItems[0] || {};
 
     // V14 1F — 진짜 createTask API (시트 작업DB row 박힘 / 작업번호 자동)
+    // Step 2-B-2 — KA 1way 항목은 저장 직전 "1way 첫 대" / "1way 추가" 두 행으로 분리
+    const splitItems = splitWorkItemsForKa1way(workItems, form.principal);
     setSubmitting(true);
     setSubmitError("");
     try {
@@ -6886,7 +6987,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
         workType:      head.workType,
         appliance:     head.appliance,
         qty:           head.qty || 1,
-        workItems,                              // 다중 항목 (시트가 catch)
+        workItems:     splitItems,              // 다중 항목 (KA 1way 분리됨 / 시트가 catch)
         quote:         form.estimateTotal,
         estimateTotal: form.estimateTotal,
         workDate:      form.requestDate,
@@ -6902,11 +7003,12 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
         return;
       }
       // V14 형식 작업번호 (예: O260507-001) — 부모로 전달
+      // Step 2-B-2 — 부모도 분리된 workItems 받도록 (시트와 일관성)
       onSubmit({
         ...form,
         customer: finalCustomer,
         region,
-        workItems,
+        workItems: splitItems,
         scheduleType,
         taskId:        res.taskId,
         _v14ApiOk:     true,
@@ -7233,7 +7335,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
               const value = n * 10000;
               const active = form.estimateTotal === value;
               return (
-                <FormChip t={t} key={n} active={active} onClick={() => update("estimateTotal", value)}>{n}만</FormChip>
+                <FormChip t={t} key={n} active={active} onClick={() => { update("estimateTotal", value); setEstimateTouched(true); }}>{n}만</FormChip>
               );
             })}
           </div>
@@ -7247,6 +7349,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
               onChange={(e) => {
                 const onlyDigits = e.target.value.replace(/\D/g, "");
                 update("estimateTotal", onlyDigits ? parseInt(onlyDigits) : 0);
+                setEstimateTouched(true);
               }}
               className={justFilled.has("estimateTotal") ? "flash-highlight" : undefined}
               style={{ ...inputStyle(!!errors.estimateTotal), paddingRight: 40 }}
