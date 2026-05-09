@@ -56,8 +56,39 @@ export function EngineerMeTab({
   const darkOn = theme === "dark" || (theme === "auto" && isDark);
   const [push, setPush] = useState(() => loadPush());
   const [fontSize, setFontSize] = useState(() => loadFontSize());
+  // Step 5-8 design 🅓 — 계좌번호 복사 토스트 (정산 탭 패턴)
+  const [copyToast, setCopyToast] = useState(null);
 
   useEffect(() => { applyFontSize(fontSize); }, [fontSize]);
+
+  // Step 5-8 design 🅓 — clipboard 복사 (정산 탭 copyToClipboard 동일 패턴 / 폴백)
+  async function handleCopyAccount() {
+    const text = (eng.accountNumber || "").replace(/-/g, "");
+    if (!text) {
+      setCopyToast("복사할 계좌번호가 없습니다");
+      setTimeout(() => setCopyToast(null), 2200);
+      return;
+    }
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.style.position = "fixed";
+        textarea.style.left = "-9999px";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopyToast("계좌번호 복사됨");
+    } catch (err) {
+      setCopyToast("복사 실패. 직접 입력해주세요");
+    }
+    setTimeout(() => setCopyToast(null), 2200);
+  }
 
   function handleDarkToggle(value) {
     if (onChangeTheme) onChangeTheme(value ? "dark" : "light");
@@ -210,19 +241,95 @@ export function EngineerMeTab({
           </div>
         </div>
 
-        {/* Step 5-8 F-5 — 계좌 카드 (내 계좌만 / 회사 송금은 정산탭 / 원청은 운영자) */}
-        <div style={{ ...cardStyle, padding: "6px 0" }}>
-          <SectionHeader isDark={isDark}>💳 계좌</SectionHeader>
-          <AccountBlock
-            isDark={isDark}
-            label="내 계좌"
-            sub="본인만 변경 가능"
-            holder={eng.accountHolder || ""}
-            bank={eng.bankName || ""}
-            number={eng.accountNumber || ""}
-            actionLabel="편집"
-            onAction={onChangeAccount}
-          />
+        {/* Step 5-8 design 🅓 — 정산 계좌 카드 (정산 탭 회사 송금 카드와 통일 디자인) */}
+        <div style={{ ...cardStyle, padding: 18 }}>
+          {/* 헤더 */}
+          <div style={{
+            fontSize: 14, fontWeight: 500,
+            color: isDark ? "#BBB" : "#6B6359",
+            marginBottom: 14,
+            display: "flex", alignItems: "center", gap: 6,
+            letterSpacing: "-0.1px",
+          }}>
+            💳 정산 계좌
+          </div>
+
+          {(() => {
+            const bank   = (eng.bankName      || "").trim();
+            const holder = (eng.accountHolder || eng.name || "").trim();
+            const number = (eng.accountNumber || "").trim();
+            const empty  = !bank && !holder && !number;
+            if (empty) {
+              return (
+                <div style={{
+                  fontSize: 13, fontStyle: "italic",
+                  color: isDark ? "#777" : "#9A9A9A",
+                  paddingBottom: 14, marginBottom: 14,
+                  borderBottom: `0.5px solid ${isDark ? "#2A2A2A" : "#F5F2ED"}`,
+                }}>
+                  계좌 정보가 없습니다
+                </div>
+              );
+            }
+            return (
+              <>
+                {/* 은행 · 예금주 */}
+                <div style={{
+                  fontSize: 15, fontWeight: 500,
+                  color: isDark ? "#FAF8F5" : "#1A1A1A",
+                  marginBottom: 6,
+                  letterSpacing: "-0.1px",
+                }}>
+                  {bank || "은행 미입력"} · {holder || "예금주 미입력"}
+                </div>
+
+                {/* 계좌번호 + 복사 */}
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 10,
+                  paddingBottom: 14, marginBottom: 14,
+                  borderBottom: `0.5px solid ${isDark ? "#2A2A2A" : "#F5F2ED"}`,
+                }}>
+                  <div style={{
+                    flex: 1, minWidth: 0,
+                    fontSize: 14,
+                    color: isDark ? "#BBB" : "#6B6359",
+                    fontFamily: "monospace",
+                    letterSpacing: 0.4,
+                    overflowWrap: "anywhere",
+                  }}>
+                    {number || "계좌번호 미입력"}
+                  </div>
+                  <button onClick={handleCopyAccount} style={{
+                    padding: "5px 12px",
+                    background: isDark ? "rgba(255,255,255,0.06)" : "#F5F2ED",
+                    border: "none",
+                    borderRadius: 8,
+                    color: isDark ? "#BBB" : "#6B6359",
+                    fontSize: 12, fontFamily: "inherit",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}>
+                    <span>📋</span> 복사
+                  </button>
+                </div>
+              </>
+            );
+          })()}
+
+          {/* 변경 신청 버튼 */}
+          <button onClick={onChangeAccount} style={{
+            width: "100%",
+            padding: 13,
+            background: "#FF1B8D",
+            border: "none", borderRadius: 12,
+            color: "#fff",
+            fontSize: 14, fontWeight: 500,
+            cursor: "pointer", fontFamily: "inherit",
+            letterSpacing: "-0.1px",
+          }}>
+            ✏️ 변경 신청
+          </button>
         </div>
 
         {/* 설정 카드 */}
@@ -281,6 +388,23 @@ export function EngineerMeTab({
       </div>
 
       <EngineerBottomNav active="me" onChange={onTabChange} unreadCount={unreadCount}/>
+
+      {/* Step 5-8 design 🅓 — 계좌번호 복사 토스트 */}
+      {copyToast && (
+        <div style={{
+          position: "fixed", left: "50%", bottom: "calc(96px + env(safe-area-inset-bottom))",
+          transform: "translateX(-50%)",
+          background: "rgba(0, 135, 90, 0.95)", color: "#fff",
+          padding: "10px 16px", borderRadius: 10,
+          fontSize: 12, fontWeight: 600,
+          maxWidth: "85%", textAlign: "center", lineHeight: 1.5,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          zIndex: 9999, fontFamily: "inherit",
+          pointerEvents: "none",
+        }}>
+          {copyToast}
+        </div>
+      )}
     </div>
   );
 }
