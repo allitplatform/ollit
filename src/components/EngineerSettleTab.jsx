@@ -2,8 +2,9 @@
 // 헌법 v3: weight 500 → 600 / 600 → 700 / Hero 사이즈 키움
 // [verify-2026-05-04] dist에 fontSize:64,fontWeight:700 적용 확정
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
+import { loadCompanyAccount } from "../data/companyAccount.js";
 
 function getEarning(t) {
   return t.engineerEarning || t.engineerNet || 0;
@@ -67,11 +68,23 @@ export function EngineerSettleTab({
   const todayRevenue   = completedToday.reduce((s, t) => s + getRevenue(t), 0);
   const toCompanyFinal = toCompany != null ? toCompany : Math.max(0, todayRevenue - todayEarning);
 
-  const account = companyAccount || {
-    company: "올데이케어",
-    bank:    "우리은행",
-    number:  "1002-XXX-XXXXXX",
-  };
+  // Step 5-8 F-6 — 회사 계좌 = 시트 양방향 sync (loadCompanyAccount)
+  // companyAccount prop이 박혀있으면 우선 / 없으면 시트 데이터 fallback / 없으면 기본값
+  const account = useMemo(() => {
+    if (companyAccount && (companyAccount.bankName || companyAccount.bank)) {
+      return {
+        company: companyAccount.accountHolder || companyAccount.company || "올데이케어",
+        bank:    companyAccount.bankName      || companyAccount.bank    || "",
+        number:  companyAccount.accountNumber || companyAccount.number  || "",
+      };
+    }
+    const fromSheet = loadCompanyAccount();
+    return {
+      company: fromSheet.accountHolder || "올데이케어",
+      bank:    fromSheet.bankName      || "",
+      number:  fromSheet.accountNumber || "",
+    };
+  }, [companyAccount]);
 
   return (
     <div style={{
