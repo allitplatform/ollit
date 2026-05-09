@@ -4664,8 +4664,9 @@ export default function EngineerApp({ user, onLogout }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
+    <div style={{ minHeight: "100vh", background: "var(--bg-primary)", paddingTop: "env(safe-area-inset-top, 12px)" }}>
       {/* Step 5-6 UX — 상단 sticky 박스 (다크/라이트/로그아웃) 제거 / "내 정보" 탭에 그대로 */}
+      {/* Step 5-6 UX hotfix — paddingTop env(safe-area-inset-top, 12px) — 휴대폰 status bar 영역 보호 */}
 
       <div style={{ maxWidth: 420, margin: "0 auto", position: "relative" }}>
         {/* V14 토스트 */}

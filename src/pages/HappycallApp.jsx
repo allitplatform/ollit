@@ -2224,8 +2224,9 @@ export default function HappycallApp({ user, onLogout }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0A0A0A" }}>
+    <div style={{ minHeight: "100vh", background: "#0A0A0A", paddingTop: "env(safe-area-inset-top, 12px)" }}>
       {/* Step 5-6 UX — 상단 sticky 박스 (다크/라이트/로그아웃) 제거 */}
+      {/* Step 5-6 UX hotfix — paddingTop env(safe-area-inset-top, 12px) — 휴대폰 status bar 영역 보호 */}
 
       <div style={{ maxWidth: 420, margin: "0 auto", position: "relative" }}>
         {screen === "main" && <HappycallMainScreen t={t} tasks={tasks} onNewReception={handleNewReception} onTaskAction={handleTaskAction} user={user} />}

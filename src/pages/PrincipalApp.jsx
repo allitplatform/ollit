@@ -401,7 +401,8 @@ export default function PrincipalApp({ user, onLogout }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0A0A0A" }}>
+    <div style={{ minHeight: "100vh", background: "#0A0A0A", paddingTop: "env(safe-area-inset-top, 12px)" }}>
+      {/* Step 5-6 UX hotfix — paddingTop env(safe-area-inset-top, 12px) — 휴대폰 status bar 영역 보호 */}
       <style>{`
         
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
