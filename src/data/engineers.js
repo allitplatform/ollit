@@ -250,6 +250,9 @@ function adaptSheetEngineerToSeed(sheetEng) {
   if (!id && !name) return null;
   const rateRaw = sheetEng.cm_refrigerant_rate ?? sheetEng.cm_냉매비율 ?? sheetEng.refrigerant_rate;
   const rateNum = parseInt(rateRaw, 10);
+  // Step 5-8 — 시트 H열 계좌번호 / I열 은행명 (다양한 키 호환)
+  const accountNumber = String(sheetEng.accountNumber || sheetEng.계좌번호 || "").trim();
+  const bankName      = String(sheetEng.bankName      || sheetEng.은행명   || "").trim();
   return {
     id: id || generateId(name),
     name,
@@ -262,6 +265,9 @@ function adaptSheetEngineerToSeed(sheetEng) {
     },
     note: "",
     cm_refrigerant_rate: Number.isFinite(rateNum) && rateNum > 0 ? rateNum : 50,
+    bankName,
+    accountNumber,
+    accountHolder: "",  // 시트 미보유 — 본인이 EngineerAccountEditScreen에서 박음 (옛 측 localStorage 보존)
     _fromSheet: true,
   };
 }
@@ -384,6 +390,10 @@ export function createEmptyEngineer() {
       refrigerant: { role: "none", zones: [], appliances: [] },
     },
     note: "",
+    // Step 5-8 — 계좌 필드 (시트 H/I 양방향 sync)
+    bankName: "",
+    accountNumber: "",
+    accountHolder: "",
   };
 }
 
@@ -399,6 +409,7 @@ function statusToActive(status) {
 }
 
 // engineer 객체 → GAS 페이로드
+// Step 5-8 — 계좌 필드 (bankName / accountNumber) 추가 sync
 function _toSyncPayload(eng) {
   return {
     engineerId: eng.id || "",
@@ -407,6 +418,8 @@ function _toSyncPayload(eng) {
     email:      eng.email || "",
     active:     statusToActive(eng.status),
     cm_refrigerant_rate: eng.cm_refrigerant_rate || 50,
+    bankName:      eng.bankName      || "",
+    accountNumber: eng.accountNumber || "",
   };
 }
 

@@ -443,6 +443,10 @@ function adaptSheetPrincipalToSeed(sheetP) {
   const type   = sheetP.type || sheetP.구분 || sheetP.D || "위탁";
   const note   = sheetP.note || sheetP.비고 || sheetP.F || "";
   if (!id && !name) return null;
+  // Step 5-8 — 시트 X열 계좌번호 / Y열 은행명 (다양한 키 호환)
+  const accountNumber = String(sheetP.accountNumber || sheetP.계좌번호 || "").trim();
+  const bankName      = String(sheetP.bankName      || sheetP.은행명   || "").trim();
+  const accountHolder = String(sheetP.accountHolder || sheetP.예금주   || "").trim();
   return {
     id: id || generatePrincipalId(name),
     name,
@@ -454,6 +458,9 @@ function adaptSheetPrincipalToSeed(sheetP) {
     vatPolicy: "included",
     contact: { manager: "", phone: "", email: "" },
     note,
+    bankName,
+    accountNumber,
+    accountHolder,
     commissionPolicy: {
       cleaning: {
         type: "standard",
@@ -481,6 +488,10 @@ function _toPrincipalSyncPayload(p) {
     color:       p.color || "",
     type:        p.type || "위탁",
     note:        p.note || "",
+    // Step 5-8 — 계좌 필드 (시트 X/Y 양방향 sync)
+    bankName:      p.bankName      || "",
+    accountNumber: p.accountNumber || "",
+    accountHolder: p.accountHolder || "",
   };
 }
 
@@ -548,6 +559,10 @@ export function createEmptyPrincipal() {
     vatPolicy: "included",
     contact: { manager: "", phone: "", email: "" },
     note: "",
+    // Step 5-8 — 계좌 필드 (시트 X/Y 양방향 sync)
+    bankName: "",
+    accountNumber: "",
+    accountHolder: "",
     commissionPolicy: { cleaning: null, refrigerant: null },
   };
 }
