@@ -31,6 +31,9 @@ function applyFontSize(size) {
   try { localStorage.setItem("ollit_admin_font_size", size); } catch (e) {}
 }
 
+// Step 5-7 — 시트 백업 (Google Sheets URL — 사장님이 [파일 → 사본 만들기])
+const SHEET_BACKUP_URL = "https://docs.google.com/spreadsheets/d/1z9ttYktjGQ8MPQb14Etd-1o6CYua0wAC7DwiiZopsag/edit";
+
 export function SettingsScreen({
   user, onBack, onLogout,
   onPrincipals, onEngineers, onRates, onRegions,
@@ -44,6 +47,14 @@ export function SettingsScreen({
   // V14 Step 4 — 글자 크기 (3단계: small/medium/large / EngineerMeTab과 동기)
   const [fontSize, setFontSize] = useState(() => loadFontSize());
   useEffect(() => { applyFontSize(fontSize); }, [fontSize]);
+
+  // Step 5-7 — 시트 백업 토스트
+  const [backupToast, setBackupToast] = useState(false);
+  function handleSheetBackup() {
+    try { window.open(SHEET_BACKUP_URL, "_blank"); } catch (e) { /* */ }
+    setBackupToast(true);
+    setTimeout(() => setBackupToast(false), 5000);
+  }
 
   const counts = useMemo(() => {
     try {
@@ -72,7 +83,7 @@ export function SettingsScreen({
   const system = [
     { key: "users",         icon: "👥", label: "사용자 / 권한", sub: "5역할",  perm: "menu.users",         onClick: onUsers },
     { key: "notifications", icon: "🔔", label: "알림",         sub: "시스템 / 푸시 / 이메일", perm: "menu.notifications", onClick: onNotifications },
-    { key: "backup",        icon: "💾", label: "백업 / 복원",  sub: "자동 매일 / 수동",  perm: "menu.backup",         onClick: onBackup },
+    { key: "backup",        icon: "💾", label: "시트 백업",   sub: "Google Sheets에서 사본 만들기", perm: "menu.backup", onClick: handleSheetBackup },
   ];
   const personal = [
     { key: "theme",   icon: themeMode === "dark" ? "🌙" : "☀️", label: "테마", sub: themeMode === "dark" ? "다크" : "라이트", onClick: onToggleTheme },
@@ -196,6 +207,23 @@ export function SettingsScreen({
           올잇 v1.0 · Phase 1A
         </div>
       </div>
+
+      {/* Step 5-7 — 시트 백업 안내 토스트 */}
+      {backupToast && (
+        <div style={{
+          position: "fixed", left: "50%", bottom: "calc(96px + env(safe-area-inset-bottom))",
+          transform: "translateX(-50%)",
+          background: "rgba(0, 135, 90, 0.95)", color: "#fff",
+          padding: "12px 18px", borderRadius: 10,
+          fontSize: 12, fontWeight: 600,
+          maxWidth: "90%", textAlign: "center", lineHeight: 1.5,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          zIndex: 9999, fontFamily: "inherit",
+          pointerEvents: "none",
+        }}>
+          📊 Google Sheets 새 탭에서 열림 — [파일 → 사본 만들기] 클릭하면 백업 완료
+        </div>
+      )}
     </div>
   );
 }

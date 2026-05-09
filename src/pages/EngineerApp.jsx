@@ -4476,36 +4476,7 @@ export default function EngineerApp({ user, onLogout }) {
       ],
       totalAmount: 44000,
     },
-    // ── 4월 (받을 돈, 5/15 입금 예정 — 옛 mock 유지) ──
-    {
-      date: "2026-04-28", status: "pending", payDate: "2026-05-15",
-      works: [
-        { id: null, customerName: "최민호", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 44000 },
-      ],
-      totalAmount: 44000,
-    },
-    {
-      date: "2026-04-25", status: "pending", payDate: "2026-05-15",
-      works: [
-        { id: null, customerName: "김민재", workType: "세척", workItem: "스탠드", quantity: 1, feeAmount: 66000 },
-      ],
-      totalAmount: 66000,
-    },
-    // ── 3월 (입금 완료, 4/15 입금됨) ──
-    {
-      date: "2026-03-22", status: "completed", payDate: "2026-04-15",
-      works: [
-        { id: null, customerName: "이태원", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 44000 },
-      ],
-      totalAmount: 44000,
-    },
-    {
-      date: "2026-03-10", status: "completed", payDate: "2026-04-15",
-      works: [
-        { id: null, customerName: "박은비", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 132000 },
-      ],
-      totalAmount: 132000,
-    },
+    // Step 5-7 — 4월 / 3월 임시 mock 데이터 제거 (운영 시작 정리 / 시트 양방향 sync 데이터로 교체)
   ];
 
   // 휴무 mock
