@@ -326,6 +326,8 @@ function CleaningPolicyEditor({ policy, principalData, onMutate, onChangeType, o
 }
 
 function StandardCleaningSection({ policy, onMutate }) {
+  // Step 5-3 hotfix 2 — policy.principal null safe (시트 병합 시 principal 객체 누락 catch)
+  const principalType = policy.principal?.type || "none";
   return (
     <SubSection title="원청 수수료" hint="프로 = 표준 단가표 적용 / 회사 = 나머지">
       <RadioRow
@@ -334,19 +336,31 @@ function StandardCleaningSection({ policy, onMutate }) {
           { key: "rate",  label: "정률 (%)" },
           { key: "fixed", label: "정액 (원)" },
         ]}
-        value={policy.principal.type}
-        onChange={(v) => onMutate(p => { p.principal.type = v; return p; })}
+        value={principalType}
+        onChange={(v) => onMutate(p => {
+          if (!p.principal) p.principal = { type: v, base: "total", value: 0 };
+          else p.principal.type = v;
+          return p;
+        })}
       />
-      {policy.principal.type === "rate" && (
+      {principalType === "rate" && (
         <div style={{ marginTop: 10 }}>
-          <NumberInput value={policy.principal.value} suffix="%"
-            onChange={(v) => onMutate(p => { p.principal.value = v; return p; })}/>
+          <NumberInput value={policy.principal?.value || 0} suffix="%"
+            onChange={(v) => onMutate(p => {
+              if (!p.principal) p.principal = { type: "rate", base: "total", value: v };
+              else p.principal.value = v;
+              return p;
+            })}/>
         </div>
       )}
-      {policy.principal.type === "fixed" && (
+      {principalType === "fixed" && (
         <div style={{ marginTop: 10 }}>
-          <NumberInput value={policy.principal.value} suffix="원"
-            onChange={(v) => onMutate(p => { p.principal.value = v; return p; })}/>
+          <NumberInput value={policy.principal?.value || 0} suffix="원"
+            onChange={(v) => onMutate(p => {
+              if (!p.principal) p.principal = { type: "fixed", base: "total", value: v };
+              else p.principal.value = v;
+              return p;
+            })}/>
         </div>
       )}
     </SubSection>

@@ -296,7 +296,10 @@ export function loadPrincipals() {
 
   // 2) 시트 캐시 (Step 5-3 setPrincipalsCache로 박힘)
   const sheetList = getPrincipalsCache();
-  if (!sheetList || sheetList.length === 0) return oldList;  // 시트 데이터 없음 → 옛 동작 그대로
+  if (!sheetList || sheetList.length === 0) {
+    // 시트 데이터 없음 → 옛 측만 반환. 단 깊이 null safe (cleaning/refrigerant 누락 catch)
+    return oldList.map(_ensureSafePolicy);
+  }
 
   // 3) 매칭 인덱스 (옛 SEED — id 우선 / 이름 fallback)
   const oldById   = new Map();
@@ -344,7 +347,8 @@ export function loadPrincipals() {
     if (!usedOldIds.has(o.id)) merged.push({ ...o, _onlyOld: true });
   }
 
-  return merged;
+  // Step 5-3 hotfix 2 — 깊이 null safe (cleaning/refrigerant 누락 시 default)
+  return merged.map(_ensureSafePolicy);
 }
 
 export function savePrincipals(list) {
@@ -390,6 +394,42 @@ const SHEET_TO_OLD_ID_ALIAS = {
 const OLD_TO_SHEET_ID_ALIAS = {
   cool_son: "coolguy",
 };
+
+// Step 5-3 hotfix 2 — 깊이 null safe (cleaning/refrigerant 각각 누락 시 default)
+// usol_n.refrigerant=null은 의도된 동작 (유솔N은 별도 ag_full_ad_half / 추가선택 분기) — 보존
+const SAFE_CLEANING_DEFAULT = {
+  type: "standard",
+  principal: { type: "none", base: "total", value: 0 },
+};
+const SAFE_REFRIGERANT_DEFAULT = {
+  type: "standard",
+  principal: { type: "none", base: "total", value: 0 },
+  engineer:  { type: "rate",  base: "total", value: 50, overrides: [] },
+};
+function _ensureSafePolicy(p) {
+  if (!p) return p;
+  const next = { ...p, commissionPolicy: { ...(p.commissionPolicy || {}) } };
+  if (next.commissionPolicy.cleaning == null) {
+    next.commissionPolicy.cleaning = { ...SAFE_CLEANING_DEFAULT };
+  } else if (next.commissionPolicy.cleaning.principal == null) {
+    next.commissionPolicy.cleaning = {
+      ...next.commissionPolicy.cleaning,
+      principal: { type: "none", base: "total", value: 0 },
+    };
+  }
+  // usol_n.refrigerant = null은 의도 — 보존. 그 외 원청은 default 박음
+  if (next.id !== "usol_n") {
+    if (next.commissionPolicy.refrigerant == null) {
+      next.commissionPolicy.refrigerant = { ...SAFE_REFRIGERANT_DEFAULT };
+    } else if (next.commissionPolicy.refrigerant.principal == null) {
+      next.commissionPolicy.refrigerant = {
+        ...next.commissionPolicy.refrigerant,
+        principal: { type: "none", base: "total", value: 0 },
+      };
+    }
+  }
+  return next;
+}
 
 // 시트 측 한 행 → 옛 SEED 모델 (6열만 매핑, 나머지는 옛 SEED 또는 default)
 // Step 5-3 hotfix — commissionPolicy를 안전 standard default로 박음

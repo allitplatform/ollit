@@ -76,13 +76,16 @@ function PrincipalRow({ principal: p, onClick }) {
   if (p.commissionPolicy?.refrigerant) set.push("냉매");
 
   // 냉매 정책 짧게 표시
+  // Step 5-3 hotfix 2 — ref.principal null safe (시트 병합 시 principal 객체 누락 catch)
   const ref = p.commissionPolicy?.refrigerant;
   let refDesc = "";
   if (ref) {
-    if (ref.principal.type === "rate") {
-      refDesc = `원청 ${ref.principal.value}%`;
-    } else if (ref.principal.type === "fixed") {
-      refDesc = `원청 ${ref.principal.value.toLocaleString()}원`;
+    const refType  = ref.principal?.type;
+    const refValue = ref.principal?.value;
+    if (refType === "rate") {
+      refDesc = `원청 ${refValue ?? 0}%`;
+    } else if (refType === "fixed") {
+      refDesc = `원청 ${(refValue ?? 0).toLocaleString()}원`;
     } else {
       refDesc = "원청 X";
     }
