@@ -9,6 +9,7 @@ import {
 } from "../api.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
 import { ENABLE_MOCK } from "../config/env.js";
+import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 
 // V14 헬퍼 — File → base64 (사진 업로드 catch)
 function fileToBase64(file) {
@@ -4560,9 +4561,31 @@ export default function EngineerApp({ user, onLogout }) {
   }
   function handleCallOps() { window.location.href = "tel:01012345678"; }
   function handleChatOps() { alert("운영팀 채팅"); }
-  function handleSaveAccount(payload) {
+  // Step 5-8 F-5 — 시트 양방향 sync (시트 H/I 컬럼 + saveEngineerWithSync)
+  // 옛 동작 보존: setSavedAccount + resetTo (UI 즉시) / 시트 sync는 best-effort
+  async function handleSaveAccount(payload) {
     setSavedAccount(payload);
     resetTo("profile");
+    const engineerId = user?.engineerId || user?.id || "";
+    if (!engineerId) {
+      showToast("⚠️ 사용자 ID가 없어 시트 sync 건너뜀");
+      return;
+    }
+    const list = loadEngineers();
+    const found = list.find(e => e.id === engineerId);
+    const merged = {
+      ...(found || createEmptyEngineer()),
+      id:    engineerId,
+      name:  found?.name  || user?.name  || "",
+      phone: found?.phone || user?.phone || "",
+      bankName:      payload.bankName      || "",
+      accountNumber: payload.accountNumber || "",
+      accountHolder: payload.accountHolder || "",
+    };
+    const res = await saveEngineerWithSync(merged);
+    if (res.ok)             showToast("✓ 계좌가 갱신되었습니다");
+    else if (res.localOk)   showToast("⚠️ 시트 sync 실패 — 로컬 저장됨");
+    else                    showToast(`⚠️ ${res.error || "저장 실패"}`);
   }
   function handleSaveRegions(regions) {
     setSavedRegions(regions);
