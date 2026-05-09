@@ -132,6 +132,30 @@ export async function deletePrincipal(principalId) {
 }
 
 // =====================================
+// V14 Step 5-4 — 설정_기사단가 양방향 sync (P4 신규 모델)
+// =====================================
+// 시트 5열: A 기사ID / B 작업유형 / C 기종 / D 단가 / E 비고
+// upsert 키 (3중): engineerId + workType + applianceType
+
+// 시트 read — 모든 행 catch
+export async function getEngineerRates() {
+  return apiCall('getEngineerRates', {});
+}
+
+// 시트 행 upsert
+// payload: { engineerId, workType, applianceType, rate, note }
+// 응답: { ok, action: 'create'|'update', engineerId, workType, applianceType }
+export async function saveEngineerRate(payload) {
+  return apiCall('saveEngineerRate', payload);
+}
+
+// 시트 행 삭제
+// payload: { engineerId, workType, applianceType }
+export async function deleteEngineerRate(payload) {
+  return apiCall('deleteEngineerRate', payload);
+}
+
+// =====================================
 // V14 Week 2 2B-3 — 기사 / 추천 / 배정 API
 // =====================================
 

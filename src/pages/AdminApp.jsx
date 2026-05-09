@@ -22,6 +22,7 @@ import { VisitOnlyDialog } from "../components/VisitOnlyDialog.jsx";
 import { VISIT_FEE, getVisitReasonLabel } from "../data/visitFee.js";
 import { calcTaskEarning, setEngineersCache } from "../utils/feePolicy.js";
 import { setPrincipalsCache } from "../data/principals.js";
+import { setEngineerRatesCache } from "../data/engineers.js";
 import { TaskCardMenu } from "../components/TaskCardMenu.jsx";
 import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
 import { loadMemos, getMemoTypeLabel } from "../data/memos.js";
@@ -59,6 +60,7 @@ import {
   getEngineers as apiGetEngineers,
   getPrincipals as apiGetPrincipals,
   getAllPolicies as apiGetAllPolicies,
+  getEngineerRates as apiGetEngineerRates,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
   updateTask as apiUpdateTask,
@@ -1636,6 +1638,21 @@ export default function AdminApp({ user, onLogout }) {
     }
   }
   useEffect(() => { fetchPrincipals(); }, []);
+
+  // Step 5-4 — 시트 설정_기사단가 fetch + 캐시
+  async function fetchEngineerRates() {
+    try {
+      const res = await apiGetEngineerRates();
+      if (!res || res.ok === false) return;
+      const list = res.rates || res.engineerRates || res.data || res.list || res.rows || [];
+      if (!Array.isArray(list)) return;
+      setEngineerRatesCache(list);
+      console.log('[V14 Step 5-4] engineer rates:', list.length, '행');
+    } catch (e) {
+      console.error('[V14 Step 5-4] fetchEngineerRates 에러:', e);
+    }
+  }
+  useEffect(() => { fetchEngineerRates(); }, []);
 
   // Step 5-3 — 시트 _수수료정책 read 캐시 (속도 ↑)
   const POLICIES_CACHE_KEY = "ollit_policies_cache_v1";

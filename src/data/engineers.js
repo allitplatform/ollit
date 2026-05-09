@@ -3,7 +3,12 @@
 // 사장님 catch: 화면에서 직접 추가/삭제 / 코드 수정 0번
 // Step 5-2 — 시트 설정_기사 양방향 sync (saveEngineerWithSync / deleteEngineerWithSync)
 
-import { saveEngineer as apiSaveEngineer, deleteEngineer as apiDeleteEngineer } from "../api.js";
+import {
+  saveEngineer as apiSaveEngineer,
+  deleteEngineer as apiDeleteEngineer,
+  saveEngineerRate as apiSaveEngineerRate,
+  deleteEngineerRate as apiDeleteEngineerRate,
+} from "../api.js";
 
 const STORAGE_KEY = "ollit_engineers_v1";
 
@@ -430,4 +435,207 @@ export async function deleteEngineerWithSync(engineerId) {
   } catch (e) {
     return { ok: false, error: e.message || "네트워크 오류", localOk: true };
   }
+}
+
+// ============================================================
+// Step 5-4 — 설정_기사단가 양방향 sync (P4 신규 모델)
+// ============================================================
+// 시트 5열: 기사ID / 작업유형 / 기종 / 단가 / 비고
+// upsert 키 (3중): engineerId + workType + applianceType
+
+const ENGINEER_RATES_CACHE_KEY = "ollit_engineer_rates_cache_v1";
+const POLICIES_CACHE_KEY       = "ollit_policies_cache_v1"; // Step 5-3 fetchAllPolicies 결과
+
+export function setEngineerRatesCache(list) {
+  if (!Array.isArray(list)) return;
+  try {
+    localStorage.setItem(ENGINEER_RATES_CACHE_KEY, JSON.stringify(list));
+  } catch (e) { /* */ }
+}
+
+export function getEngineerRatesCache() {
+  try {
+    const raw = localStorage.getItem(ENGINEER_RATES_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) { /* */ }
+  return [];
+}
+
+// 시트 행 키 정규화 (다양한 키 호환)
+function _matchEngineerRateRow(row, engineerId, workType, applianceType) {
+  if (!row) return false;
+  const rId  = String(row.engineerId    || row.기사ID || row.id    || "").trim();
+  const rWT  = String(row.workType      || row.작업유형             || "").trim();
+  const rApp = String(row.applianceType || row.appliance || row.기종 || "").trim();
+  return rId === String(engineerId).trim()
+      && rWT === String(workType).trim()
+      && rApp === String(applianceType).trim();
+}
+
+function _extractRate(row) {
+  const raw = row?.rate ?? row?.단가 ?? row?.unitPrice;
+  const n = parseInt(raw, 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+// 시트 _수수료정책 캐시 (Step 5-3)에서 원청×기종 단가 lookup (2차 fallback)
+function _findInPoliciesCache(principalId, principalName, workType, applianceType) {
+  if (!workType || !applianceType) return null;
+  try {
+    const raw = localStorage.getItem(POLICIES_CACHE_KEY);
+    if (!raw) return null;
+    const list = JSON.parse(raw);
+    if (!Array.isArray(list)) return null;
+    const wt  = String(workType).trim();
+    const app = String(applianceType).trim();
+    const pid = principalId ? String(principalId).trim() : "";
+    const pname = principalName ? String(principalName).trim() : "";
+    const found = list.find(r => {
+      const rPid   = String(r.principalId || r.원청ID || r.id || "").trim();
+      const rPname = String(r.principal || r.원청 || r.원청명 || r.회사명 || "").trim();
+      const rWT    = String(r.workType || r.작업유형 || "").trim();
+      const rApp   = String(r.applianceType || r.appliance || r.기종 || "").trim();
+      const principalMatch = (pid && rPid === pid) || (pname && rPname === pname);
+      return principalMatch && rWT === wt && rApp === app;
+    });
+    if (!found) return null;
+    const raw2 = found.rate ?? found.단가 ?? found.engineerRate ?? found.기사단가 ?? found.engineerUnitPrice;
+    const n = parseInt(raw2, 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return n;
+  } catch (e) { return null; }
+}
+
+// 3-tier fallback 단가 lookup
+// 1차: 시트 설정_기사단가 (engineerId + workType + applianceType 정확 매칭)
+// 2차: 시트 _수수료정책 (principalId/Name + workType + applianceType)
+// 3차: null 반환 — 호출처에서 standardRates fallback
+export function getEngineerRateForTask({ engineerId, principalId, principalName, workType, applianceType } = {}) {
+  if (!workType || !applianceType) return null;
+
+  // 1차
+  if (engineerId) {
+    const cache = getEngineerRatesCache();
+    const found = cache.find(r => _matchEngineerRateRow(r, engineerId, workType, applianceType));
+    const rate = _extractRate(found);
+    if (rate != null) return rate;
+  }
+
+  // 2차
+  const fromPolicy = _findInPoliciesCache(principalId, principalName, workType, applianceType);
+  if (fromPolicy != null) return fromPolicy;
+
+  // 3차 — null (호출처에서 standardRates fallback)
+  return null;
+}
+
+// ===== 단가 행 upsert / 삭제 (Step 5-2/5-3 패턴) =====
+
+// 옛 측 localStorage (앞으로 사장님이 박은 데이터 보존용 / 시트 빈 상태 시작)
+const ENGINEER_RATES_LOCAL_KEY = "ollit_engineer_rates_v1";
+
+function _loadLocalEngineerRates() {
+  try {
+    const raw = localStorage.getItem(ENGINEER_RATES_LOCAL_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) { /* */ }
+  return [];
+}
+
+function _saveLocalEngineerRates(list) {
+  try {
+    localStorage.setItem(ENGINEER_RATES_LOCAL_KEY, JSON.stringify(list));
+  } catch (e) { /* */ }
+}
+
+// upsert 키 비교 (옛 측 / 시트 측 동일 형식)
+function _sameRateKey(a, b) {
+  return String(a.engineerId).trim()    === String(b.engineerId).trim()
+      && String(a.workType).trim()      === String(b.workType).trim()
+      && String(a.applianceType).trim() === String(b.applianceType).trim();
+}
+
+export async function saveEngineerRateWithSync(payload) {
+  if (!payload || !payload.engineerId || !payload.workType || !payload.applianceType) {
+    return { ok: false, error: "필수 키 누락 (engineerId / workType / applianceType)", localOk: false };
+  }
+  // 1) 옛 측 localStorage 즉시
+  const local = _loadLocalEngineerRates();
+  const idx = local.findIndex(r => _sameRateKey(r, payload));
+  if (idx >= 0) local[idx] = { ...local[idx], ...payload };
+  else          local.push({ ...payload });
+  _saveLocalEngineerRates(local);
+
+  // 2) GAS sync
+  try {
+    const res = await apiSaveEngineerRate(payload);
+    if (!res || res.ok === false) {
+      throw new Error((res && res.error) || "시트 sync 실패");
+    }
+    return { ok: true, action: res.action || "update" };
+  } catch (e) {
+    return { ok: false, error: e.message || "네트워크 오류", localOk: true };
+  }
+}
+
+export async function deleteEngineerRateWithSync(payload) {
+  if (!payload || !payload.engineerId || !payload.workType || !payload.applianceType) {
+    return { ok: false, error: "필수 키 누락", localOk: false };
+  }
+  // 1) 옛 측
+  const local = _loadLocalEngineerRates();
+  const next = local.filter(r => !_sameRateKey(r, payload));
+  _saveLocalEngineerRates(next);
+
+  // 2) GAS sync
+  try {
+    const res = await apiDeleteEngineerRate(payload);
+    if (!res || res.ok === false) {
+      throw new Error((res && res.error) || "시트 sync 실패");
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || "네트워크 오류", localOk: true };
+  }
+}
+
+// 특정 기사의 단가 행 모두 catch (옛 측 + 시트 캐시 병합 — id/key 정확 매칭)
+export function loadEngineerRatesByEngineer(engineerId) {
+  if (!engineerId) return [];
+  const local = _loadLocalEngineerRates();
+  const sheet = getEngineerRatesCache();
+  // 합치고 중복 제거 (시트 측 우선 — sync 일관성)
+  const merged = [];
+  const seen = new Set();
+  const sameId = (rId) => String(rId || "").trim() === String(engineerId).trim();
+  for (const r of sheet) {
+    const rId = r.engineerId || r.기사ID || r.id;
+    if (!sameId(rId)) continue;
+    const key = `${r.workType || r.작업유형}|${r.applianceType || r.appliance || r.기종}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({
+      engineerId: rId,
+      workType: r.workType || r.작업유형 || "",
+      applianceType: r.applianceType || r.appliance || r.기종 || "",
+      rate: parseInt(r.rate ?? r.단가 ?? 0, 10) || 0,
+      note: r.note || r.비고 || "",
+      _fromSheet: true,
+    });
+  }
+  for (const r of local) {
+    if (!sameId(r.engineerId)) continue;
+    const key = `${r.workType}|${r.applianceType}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({ ...r });
+  }
+  return merged;
 }

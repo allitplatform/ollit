@@ -1,10 +1,13 @@
 // Step 6 — 기사 편집/추가 화면
 // 사장님 catch: 직급/상태/작업종류별 역할/지역/기종 직접 컨트롤
 // Step 5-2 — 시트 설정_기사 양방향 sync (saveEngineerWithSync / deleteEngineerWithSync)
+// Step 5-4 — 시트 설정_기사단가 양방향 sync (saveEngineerRateWithSync / deleteEngineerRateWithSync)
 import { useState, useMemo } from "react";
 import {
   generateId,
   saveEngineerWithSync, deleteEngineerWithSync,
+  saveEngineerRateWithSync, deleteEngineerRateWithSync,
+  loadEngineerRatesByEngineer,
   CAREER_LEVELS, STATUS_OPTIONS, ROLE_OPTIONS, APPLIANCE_OPTIONS,
   SEOUL_DISTRICTS, GG_INCHEON,
 } from "../data/engineers.js";
@@ -15,6 +18,10 @@ const REFRIGERANT_RATE_OPTIONS = [
   { value: 60,  label: "60% (A 그룹)" },
   { value: 100, label: "100% (대표 / 잔여 전액)" },
 ];
+
+// Step 5-4 — 단가 행 옵션
+const RATE_WORK_TYPES = ["세척", "냉매충전", "냉매점검", "출장비", "추가선택"];
+const RATE_APPLIANCES = ["벽걸이", "스탠드", "1way", "4way", "원형", "투인원", "시스템멀티", "천장형"];
 
 export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
   const [form, setForm] = useState(() => ({
@@ -29,6 +36,15 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
   const [error, setError]     = useState("");
   const [toast, setToast]     = useState(null);  // { type: 'success'|'warn'|'error', message }
   const [busy, setBusy]       = useState(false);
+
+  // Step 5-4 — 단가 행 state (기존 행 fetch + 변경 추적)
+  const [rates, setRates] = useState(() =>
+    !isNew && engineer.id ? loadEngineerRatesByEngineer(engineer.id) : []
+  );
+  // 옛 단가 — 저장 시 비교 (삭제된 행 catch). isNew면 빈 배열
+  const [ratesOriginal] = useState(() =>
+    !isNew && engineer.id ? loadEngineerRatesByEngineer(engineer.id) : []
+  );
 
   function updateField(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -48,6 +64,36 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
     return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
   }
 
+  // Step 5-4 — 단가 행 핸들러
+  function addRateRow() {
+    setRates(prev => [...prev, { workType: "세척", applianceType: "벽걸이", rate: 0, note: "" }]);
+  }
+  function updateRateRow(idx, field, value) {
+    setRates(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  }
+  function removeRateRow(idx) {
+    setRates(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  // 단가 행 비교 (저장 시 변경/추가/삭제 분류)
+  function _rateKey(r) { return `${r.workType}|${r.applianceType}`; }
+  function _diffRates(original, current) {
+    const origMap = new Map(original.map(r => [_rateKey(r), r]));
+    const curMap  = new Map(current.map(r => [_rateKey(r), r]));
+    const upserts = [];
+    const deletes = [];
+    for (const [k, r] of curMap) {
+      const prev = origMap.get(k);
+      if (!prev || prev.rate !== r.rate || prev.note !== r.note) {
+        upserts.push(r);
+      }
+    }
+    for (const [k, r] of origMap) {
+      if (!curMap.has(k)) deletes.push(r);
+    }
+    return { upserts, deletes };
+  }
+
   async function handleSave() {
     setError("");
     setToast(null);
@@ -62,21 +108,57 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
     }
     setBusy(true);
     const res = await saveEngineerWithSync(saved);
-    setBusy(false);
-    if (res.ok) {
-      setToast({ type: "success", message: "프로 저장 완료" });
-      // GAS가 새 ID 부여한 경우 saved.id 갱신
-      if (res.engineerId && res.engineerId !== saved.id) {
-        saved = { ...saved, id: res.engineerId };
-      }
-      // 짧은 딜레이 후 화면 복귀 (사장님이 토스트 보고)
-      setTimeout(() => onSaved && onSaved(saved), 600);
-    } else {
+    if (!res.ok) {
+      setBusy(false);
       setToast({
         type: "warn",
         message: `로컬 저장 완료 / 시트 sync 실패: ${res.error || "알 수 없는 오류"} (저장 다시 누르면 재시도)`,
       });
+      return;
     }
+    // GAS가 새 ID 부여한 경우 saved.id 갱신
+    if (res.engineerId && res.engineerId !== saved.id) {
+      saved = { ...saved, id: res.engineerId };
+    }
+
+    // Step 5-4 — 단가 행 sync (개별 호출 / batch X)
+    const validRates = rates.filter(r =>
+      r.workType && r.applianceType && Number(r.rate) > 0
+    );
+    const { upserts, deletes } = _diffRates(ratesOriginal, validRates);
+    let rateOk = 0, rateFail = 0;
+    for (const r of upserts) {
+      const rRes = await saveEngineerRateWithSync({
+        engineerId: saved.id,
+        workType: r.workType,
+        applianceType: r.applianceType,
+        rate: Number(r.rate) || 0,
+        note: r.note || "",
+      });
+      if (rRes.ok) rateOk += 1; else rateFail += 1;
+    }
+    for (const r of deletes) {
+      const rRes = await deleteEngineerRateWithSync({
+        engineerId: saved.id,
+        workType: r.workType,
+        applianceType: r.applianceType,
+      });
+      if (rRes.ok) rateOk += 1; else rateFail += 1;
+    }
+    setBusy(false);
+
+    const totalRateOps = rateOk + rateFail;
+    if (totalRateOps === 0) {
+      setToast({ type: "success", message: "프로 저장 완료" });
+    } else if (rateFail === 0) {
+      setToast({ type: "success", message: `프로 저장 완료 / 단가 ${rateOk}건 sync 완료` });
+    } else {
+      setToast({
+        type: "warn",
+        message: `프로 저장 완료 / 단가 sync 일부 실패 (${rateOk}건 성공 / ${rateFail}건 실패)`,
+      });
+    }
+    setTimeout(() => onSaved && onSaved(saved), 600);
   }
 
   async function handleDelete() {
@@ -187,6 +269,50 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
             onToggleZone={(z) => updateWork("refrigerant", "zones", toggleArrayItem(form.workTypes.refrigerant.zones, z))}
             onToggleAppliance={(a) => updateWork("refrigerant", "appliances", toggleArrayItem(form.workTypes.refrigerant.appliances, a))}
           />
+        </Section>
+
+        {/* Step 5-4 — 기사단가 (선택) */}
+        <Section label="기사단가 (선택)">
+          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 10, lineHeight: 1.5 }}>
+            * 비워두면 공통 단가 적용. 박힌 행은 우선 적용됨 (시트 설정_기사단가와 양방향 sync).
+          </div>
+          {rates.map((r, idx) => (
+            <div key={idx} style={{
+              display: "flex", flexDirection: "column", gap: 6,
+              padding: "10px 12px", marginBottom: 8,
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)", borderRadius: 8,
+            }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <select value={r.workType || ""} onChange={(e) => updateRateRow(idx, "workType", e.target.value)} style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}>
+                  {RATE_WORK_TYPES.map(w => <option key={w} value={w}>{w}</option>)}
+                </select>
+                <select value={r.applianceType || ""} onChange={(e) => updateRateRow(idx, "applianceType", e.target.value)} style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}>
+                  {RATE_APPLIANCES.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <button onClick={() => removeRateRow(idx)} style={{
+                  background: "transparent", border: "1px solid var(--border)",
+                  color: "#FF3D5A", fontSize: 11, padding: "6px 10px",
+                  borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                }}>삭제</button>
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input type="number" placeholder="단가" value={r.rate || ""}
+                  onChange={(e) => updateRateRow(idx, "rate", parseInt(e.target.value, 10) || 0)}
+                  style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}/>
+                <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>원</span>
+                <input type="text" placeholder="비고 (선택)" value={r.note || ""}
+                  onChange={(e) => updateRateRow(idx, "note", e.target.value)}
+                  style={{ ...inputStyle, flex: 2, padding: "6px 8px", fontSize: 12, fontFamily: "inherit" }}/>
+              </div>
+            </div>
+          ))}
+          <button onClick={addRateRow} style={{
+            width: "100%", padding: 10,
+            background: "transparent", border: "1px dashed var(--border)",
+            borderRadius: 8, color: "var(--text-secondary)",
+            fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          }}>+ 단가 행 추가</button>
         </Section>
 
         {/* 메모 */}

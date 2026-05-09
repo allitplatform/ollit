@@ -161,6 +161,7 @@ export function calcTaskEarning(task, principalsList) {
       appliances: [{ type: task.appliance || "벽걸이", count: task.qty || 1 }],
       total,
       additionals: task.additionals || [],
+      engineerId: task.assignedEngineerId || task.assignedEngineer,  // Step 5-4
     });
   }
 
@@ -228,6 +229,7 @@ export function calcTaskEarning(task, principalsList) {
     const result = calcCleaning({
       policy, principal, appliances, total,
       additionals: task.additionals || [],
+      engineerId: task.assignedEngineerId || task.assignedEngineer,  // Step 5-4
     });
     if (code === "cleaning_inspect") {
       const bonus = INSPECT_BONUS;

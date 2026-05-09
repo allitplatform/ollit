@@ -1,9 +1,12 @@
 // Step 7 V2 — 수수료 계산 (vatPolicy 자동 적용)
+// Step 5-4 — 3-tier 단가 lookup (시트 _기사단가 → _수수료정책 → standardRates)
 import { getEngineerRate, getCoolguyFakeRate } from "../data/standardRates.js";
+import { getEngineerRateForTask } from "../data/engineers.js";
 
 // ===== 세척 =====
 // type: standard | fake_split | naver_settlement
 // principal 객체에서 vatPolicy 추출
+// Step 5-4 — opts.engineerId 받아 3-tier lookup (시트 _기사단가 → _수수료정책 → standardRates)
 export function calcCleaning(opts) {
   const {
     policy,
@@ -11,6 +14,7 @@ export function calcCleaning(opts) {
     appliances = [],            // [{ type: '벽걸이', count: 1 }]
     total = 0,                  // 총금액 또는 정산예정금액
     additionals = [],           // [{ name, amount }] — 네이버형만
+    engineerId,                 // Step 5-4 신규 (선택) — 기사ID 박히면 단가 override 시도
   } = opts || {};
 
   if (!policy) {
@@ -19,10 +23,25 @@ export function calcCleaning(opts) {
 
   const vatPolicy = principalData?.vatPolicy || "included";
 
-  // 기사 단가 (부가세 자동 적용)
-  const engineerFromRates = appliances.reduce((sum, a) =>
-    sum + getEngineerRate(a.type, vatPolicy) * (a.count || 1)
-  , 0);
+  // 기사 단가 (3-tier fallback / 부가세 자동 적용)
+  // 1차: 시트 _기사단가 (engineerId + workType="세척" + 기종)
+  // 2차: 시트 _수수료정책 (원청ID/이름 + workType="세척" + 기종)
+  // 3차: standardRates (모든 원청 공통 + 부가세 적용)
+  const engineerFromRates = appliances.reduce((sum, a) => {
+    const customRate = getEngineerRateForTask({
+      engineerId,
+      principalId:   principalData?.id,
+      principalName: principalData?.name,
+      workType:      "세척",
+      applianceType: a.type,
+    });
+    if (customRate != null && customRate > 0) {
+      // 시트 측 단가는 그대로 사용 (부가세 적용 X — 시트 데이터가 정확하다는 가정)
+      return sum + customRate * (a.count || 1);
+    }
+    // fallback: standardRates (부가세 자동 적용)
+    return sum + getEngineerRate(a.type, vatPolicy) * (a.count || 1);
+  }, 0);
 
   let principal = 0;
   let engineer  = engineerFromRates;
