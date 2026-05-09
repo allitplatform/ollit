@@ -1,13 +1,11 @@
 // V14 — 내 정보 탭 (사장님 spec 마지막 화면)
 // 5섹션: 프로필 카드 / 운영팀 문의 / 설정 / 정보 / 로그아웃
 // 다크모드 + 글자 크기 = 전역 적용 / 통계 X / 비밀번호 변경 = 다음 단계
-// Step 5-8 F-5 — 계좌 카드 추가 (내 계좌 / 회사 계좌 / 원청 계좌)
+// Step 5-8 F-5 — 계좌 카드 (내 계좌만 / 회사·원청은 정산탭·운영자 영역에서 처리)
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { useIsDark } from "../hooks/useIsDark.js";
-import { loadCompanyAccount } from "../data/companyAccount.js";
-import { loadPrincipals } from "../data/principals.js";
 
 const APP_VERSION = "v1.0 · Phase 1A";
 
@@ -98,25 +96,6 @@ export function EngineerMeTab({
   const initial = (eng.name || "?").charAt(0);
   const role = eng.role || "프로";
   const company = eng.companyName || eng.company || "올데이케어";
-
-  // Step 5-8 F-5 — 회사 계좌 / 원청 계좌 (시트 양방향 sync 결과)
-  const companyAccount = useMemo(() => loadCompanyAccount(), []);
-  const principalAccounts = useMemo(() => {
-    const list = loadPrincipals();
-    return list
-      .filter(p => p.status !== "off")
-      .map(p => ({
-        id:   p.id,
-        name: p.name,
-        bankName:      p.bankName      || "",
-        accountNumber: p.accountNumber || "",
-        accountHolder: p.accountHolder || "",
-      }));
-  }, []);
-  const [selectedPrincipalId, setSelectedPrincipalId] = useState(
-    principalAccounts[0]?.id || ""
-  );
-  const selectedPrincipalAccount = principalAccounts.find(p => p.id === selectedPrincipalId) || null;
 
   return (
     <div style={{
@@ -231,11 +210,9 @@ export function EngineerMeTab({
           </div>
         </div>
 
-        {/* Step 5-8 F-5 — 계좌 카드 (내 계좌 / 회사 송금 / 원청 계좌) */}
+        {/* Step 5-8 F-5 — 계좌 카드 (내 계좌만 / 회사 송금은 정산탭 / 원청은 운영자) */}
         <div style={{ ...cardStyle, padding: "6px 0" }}>
           <SectionHeader isDark={isDark}>💳 계좌</SectionHeader>
-
-          {/* 내 계좌 */}
           <AccountBlock
             isDark={isDark}
             label="내 계좌"
@@ -246,70 +223,6 @@ export function EngineerMeTab({
             actionLabel="편집"
             onAction={onChangeAccount}
           />
-
-          {/* 회사 송금 계좌 (조회) */}
-          <AccountBlock
-            isDark={isDark}
-            label="회사 송금 계좌"
-            sub={companyAccount.changedAt ? `최근 변경 ${companyAccount.changedAt}` : "운영자 변경"}
-            holder={companyAccount.accountHolder || ""}
-            bank={companyAccount.bankName || ""}
-            number={companyAccount.accountNumber || ""}
-          />
-
-          {/* 원청 계좌 (조회 / 원청별 select) */}
-          <div style={{ padding: "12px 18px" }}>
-            <div style={{
-              fontSize: 13, fontWeight: 700,
-              color: isDark ? "#FAF8F5" : "#1A1A1A",
-              marginBottom: 4,
-            }}>
-              원청 계좌
-            </div>
-            <div style={{
-              fontSize: 11, color: isDark ? "#999" : "#6B6359",
-              marginBottom: 10,
-            }}>
-              원청별 입금 계좌 (조회만)
-            </div>
-            <select
-              value={selectedPrincipalId}
-              onChange={(e) => setSelectedPrincipalId(e.target.value)}
-              style={{
-                width: "100%", padding: "10px 12px",
-                background: isDark ? "#0E0E10" : "#FAF8F5",
-                border: `1px solid ${isDark ? "#2A2A2A" : "#EFE9E0"}`,
-                borderRadius: 10,
-                color: isDark ? "#FAF8F5" : "#1A1A1A",
-                fontSize: 13, fontFamily: "inherit",
-                outline: "none", marginBottom: 10,
-                boxSizing: "border-box",
-              }}
-            >
-              {principalAccounts.length === 0 && <option value="">원청 없음</option>}
-              {principalAccounts.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-            {selectedPrincipalAccount ? (
-              <div style={{
-                background: isDark ? "#0E0E10" : "#FAF8F5",
-                border: `1px solid ${isDark ? "#2A2A2A" : "#EFE9E0"}`,
-                borderRadius: 10, padding: 12,
-                fontSize: 12, lineHeight: 1.7,
-              }}>
-                <div style={{ fontWeight: 700, color: isDark ? "#FAF8F5" : "#1A1A1A" }}>
-                  {selectedPrincipalAccount.accountHolder || selectedPrincipalAccount.name || "—"} · {selectedPrincipalAccount.bankName || "—"}
-                </div>
-                <div style={{
-                  color: isDark ? "#999" : "#6B6359",
-                  fontFamily: "monospace", letterSpacing: 0.3,
-                }}>
-                  {selectedPrincipalAccount.accountNumber || "계좌 정보가 없습니다"}
-                </div>
-              </div>
-            ) : null}
-          </div>
         </div>
 
         {/* 설정 카드 */}
