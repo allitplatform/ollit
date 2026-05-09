@@ -124,7 +124,7 @@ export function NotiScreen({ notifications, onMarkAllRead, onCardClick, title = 
             알림이 없어요
           </div>
           <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-            새 알림이 박히면 여기에 표시됩니다
+            새 알림이 도착하면 여기에 표시됩니다
           </div>
         </div>
       )}

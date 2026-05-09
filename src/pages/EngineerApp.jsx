@@ -2037,7 +2037,7 @@ function SettlementScreen({ t }) {
             아직 정산 데이터가 없어요
           </div>
           <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>
-            작업 완료 후 정산 데이터가 자동으로 박혀요
+            작업 완료 후 정산 데이터가 자동으로 추가됩니다
           </div>
         </div>
       </div>
@@ -4973,10 +4973,10 @@ export default function EngineerApp({ user, onLogout }) {
             />
             <div style={{ fontSize: 24, marginBottom: 6 }}>📸</div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#FF1B8D" }}>
-              사진 박기 (1~3장 필수)
+              사진 첨부 (1~3장 필수)
             </div>
             <div style={{ fontSize: 10, color: "#888", marginTop: 4 }}>
-              현재 {completePhotos.length}장 박힘
+              현재 {completePhotos.length}장
             </div>
           </label>
           {completePhotoPreviews.length > 0 && (

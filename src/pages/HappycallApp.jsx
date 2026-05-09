@@ -468,7 +468,7 @@ function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction, user }) {
               아직 작업이 없어요
             </div>
             <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>
-              새 접수 또는 시트에서 박으면 여기에 박혀요
+              새 접수를 등록하거나 시트에 추가하면 여기에 표시됩니다
             </div>
           </div>
         ) : (

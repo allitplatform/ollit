@@ -1734,7 +1734,7 @@ export default function AdminApp({ user, onLogout }) {
       setApiTasks(prev => prev.map(t =>
         t.id === cancelHandleTask.id ? { ...t, status: '취소', state: 'canceled' } : t
       ));
-      addToast({ type: "assignment", title: "✓ 취소 박힘", message: `${cancelHandleTask.customer || ""} / 취소DB 이동` });
+      addToast({ type: "assignment", title: "✓ 취소 완료", message: `${cancelHandleTask.customer || ""} / 취소DB 이동` });
       setCancelHandleTask(null);
       setCancelRejectReason("");
       fetchTasks();
@@ -1757,7 +1757,7 @@ export default function AdminApp({ user, onLogout }) {
       setApiTasks(prev => prev.map(t =>
         t.id === cancelHandleTask.id ? { ...t, status: oldStatus } : t
       ));
-      addToast({ type: "assignment", title: "취소 거절", message: `${cancelHandleTask.customer || ""} / 프로 알림 박힘` });
+      addToast({ type: "assignment", title: "취소 거절", message: `${cancelHandleTask.customer || ""} / 프로에게 알림 전송됨` });
       setCancelHandleTask(null);
       setCancelRejectReason("");
       fetchTasks();
@@ -2299,7 +2299,7 @@ export default function AdminApp({ user, onLogout }) {
               state: newStatus === '확정' ? 'scheduled' : 'waiting',
               schedule: confirmedAt, time: timeStr,
             } : prev);
-            addToast({ type: "schedule_change", title: "✓ 일정 박혔어", message: `${tk.customer || ""} · ${confirmedAt}` });
+            addToast({ type: "schedule_change", title: "✓ 일정 변경됨", message: `${tk.customer || ""} · ${confirmedAt}` });
             addNotification({
               type: "schedule_changed",
               title: "일정 변경",
@@ -2356,7 +2356,7 @@ export default function AdminApp({ user, onLogout }) {
               t.id === tk.id ? { ...t, memo: newMemo, 작업메모: newMemo } : t
             ));
             setSelectedTaskDetail(prev => prev ? { ...prev, memo: newMemo } : prev);
-            addToast({ type: "memo", title: "✓ 메모 박혔어", message: tk.customer || "" });
+            addToast({ type: "memo", title: "✓ 메모 저장됨", message: tk.customer || "" });
           } catch (e) {
             console.error('[V14 2B-2] 메모 에러:', e);
             alert(`메모 에러: ${e.message || '실패'}`);
@@ -2452,7 +2452,7 @@ export default function AdminApp({ user, onLogout }) {
               });
               addToast({
                 type: "assignment",
-                title: "✓ 재배정 박혔어",
+                title: "✓ 재배정 완료",
                 message: `${eng.name} 프로 / 일정 협의 catch`,
               });
               setAssigning(false);
@@ -2523,7 +2523,7 @@ export default function AdminApp({ user, onLogout }) {
               subInfo: `${eng.name} 배정 완료`,
               taskId: selectedTask?.id,
             });
-            addToast({ type: "assignment", title: "✓ 배정 박혔어", message: `${eng.name} 프로` });
+            addToast({ type: "assignment", title: "✓ 배정 완료", message: `${eng.name} 프로` });
 
             // [1-3] fetchTasks() 박지 X — Optimistic만 박기 (5~7초 lag X)
             // 다음 mount 시 자동 catch / 또는 사용자가 새로고침 박을 때
@@ -2942,11 +2942,11 @@ export default function AdminApp({ user, onLogout }) {
           <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 4 }}>프로 요청 사유</div>
           <div style={{ fontSize: 12, color: t.text, lineHeight: 1.5 }}>{cancelHandleTask.memo || "(사유 박지 X)"}</div>
         </div>
-        <label style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, display: "block", marginBottom: 4 }}>거절 사유 (거절 시 박을 차례)</label>
+        <label style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, display: "block", marginBottom: 4 }}>거절 사유 (거절 시 입력)</label>
         <textarea
           value={cancelRejectReason}
           onChange={(e) => setCancelRejectReason(e.target.value)}
-          placeholder="예: 고객 직접 확인 박을 catch / 다른 프로 배정 catch"
+          placeholder="예: 고객 직접 확인 / 다른 프로 배정"
           style={{ width: "100%", minHeight: 60, padding: 10, borderRadius: 8, border: `1px solid ${t.border}`, fontSize: 12, fontFamily: "inherit", resize: "vertical", boxSizing: "border-box", background: t.bgInset, color: t.text }}
         />
         <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -3099,7 +3099,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
               <span style={{ fontSize: 14 }}>🚨</span>
               <span style={{ fontSize: 11, fontWeight: 800, color: "#B91C1C", letterSpacing: 0.5 }}>
-                취소 요청 박힘
+                취소 요청 접수됨
               </span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
@@ -4748,7 +4748,7 @@ function InProgressListScreen({ t, onBack, onTaskClick }) {
               </div>
               {!q && (
                 <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>
-                  새 접수 또는 시트에서 박으면 여기에 박혀요
+                  새 접수를 등록하거나 시트에 추가하면 여기에 표시됩니다
                 </div>
               )}
             </div>
@@ -4892,7 +4892,7 @@ function SettlementContent({ t, onTaskClick, onClickManagePrincipals, containerP
             아직 정산 데이터가 없어요
           </div>
           <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>
-            작업 완료 후 정산 데이터가 자동으로 박혀요
+            작업 완료 후 정산 데이터가 자동으로 추가됩니다
           </div>
         </div>
       ) : activeTab === "engineers" ? (

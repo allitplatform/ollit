@@ -231,7 +231,7 @@ function QuickActions({ task, onScheduleChange }) {
       <div style={{ display: "flex", gap: 6 }}>
         <ActionButton icon="📞" label="고객 통화" onClick={callCustomer} disabled={!hasCustomerPhone}/>
         <ActionButton icon="💬" label="프로 연락" onClick={contactEngineer} disabled={!hasEngineer}/>
-        <ActionButton icon="📅" label="일정 변경" onClick={onScheduleChange || (() => alert("일정 변경 박지 X"))}/>
+        <ActionButton icon="📅" label="일정 변경" onClick={onScheduleChange || (() => alert("일정 변경 기능을 준비 중입니다"))}/>
       </div>
     </div>
   );
