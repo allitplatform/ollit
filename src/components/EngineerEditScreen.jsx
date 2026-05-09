@@ -9,6 +9,7 @@ import {
   saveEngineerWithSync, deleteEngineerWithSync,
   saveEngineerRateWithSync, deleteEngineerRateWithSync,
   loadEngineerRatesByEngineer,
+  mapSheetSkillToWorkType,
   CAREER_LEVELS, STATUS_OPTIONS, ROLE_OPTIONS, APPLIANCE_OPTIONS,
   SEOUL_DISTRICTS, GG_INCHEON,
 } from "../data/engineers.js";
@@ -25,15 +26,25 @@ const RATE_WORK_TYPES = ["세척", "냉매충전", "냉매점검", "출장비", 
 const RATE_APPLIANCES = ["벽걸이", "스탠드", "1way", "4way", "원형", "투인원", "시스템멀티", "천장형"];
 
 export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
-  const [form, setForm] = useState(() => ({
-    email: "",
-    cm_refrigerant_rate: 50,
-    ...engineer,
-    workTypes: {
-      cleaning:    { ...engineer.workTypes.cleaning    },
-      refrigerant: { ...engineer.workTypes.refrigerant },
-    },
-  }));
+  // Step 5-5-C Phase 4-C-3 — engineer.skills (시트 _기사역량 캐시)에서 (전체) 원청 행 우선
+  // 시트에 (전체) 행 있으면 → form.workTypes 초기값 시트 데이터 / 없으면 옛 SEED workTypes fallback
+  const [form, setForm] = useState(() => {
+    const baseCleaning    = engineer.workTypes?.cleaning    || { role: "none", zones: [], appliances: [] };
+    const baseRefrigerant = engineer.workTypes?.refrigerant || { role: "none", zones: [], appliances: [] };
+    const skills = Array.isArray(engineer.skills) ? engineer.skills : [];
+    const isAllPrincipal = sp => sp === "(전체)" || sp === "전체";
+    const cleaningSkill    = skills.find(s => isAllPrincipal(s.principal) && s.workType === "세척");
+    const refrigerantSkill = skills.find(s => isAllPrincipal(s.principal) && s.workType === "냉매충전");
+    return {
+      email: "",
+      cm_refrigerant_rate: 50,
+      ...engineer,
+      workTypes: {
+        cleaning:    cleaningSkill    ? mapSheetSkillToWorkType(cleaningSkill)    : { ...baseCleaning },
+        refrigerant: refrigerantSkill ? mapSheetSkillToWorkType(refrigerantSkill) : { ...baseRefrigerant },
+      },
+    };
+  });
   const [error, setError]     = useState("");
   const [toast, setToast]     = useState(null);  // { type: 'success'|'warn'|'error', message }
   const [busy, setBusy]       = useState(false);

@@ -779,6 +779,35 @@ export async function deleteEngineerSkillWithSync(payload) {
   }
 }
 
+// Step 5-5-C Phase 4-C-3 — 시트 skill 행 → 옛 workTypes 모델 (옛 폼 form 초기값용)
+// 매핑: grade ↔ role / zones (배열 또는 콤마 string) / appliances (F열 / Phase 4-C-1)
+// 입력: getEngineerSkillsByEngineer 결과 한 행 ({ principal, workType, grade, zones, raw })
+// 반환: { role, zones (배열), appliances (배열) } — 옛 workTypes 형식
+export function mapSheetSkillToWorkType(skill) {
+  if (!skill) return null;
+  // grade → role 매핑
+  const grade = String(skill.grade || "").trim();
+  const roleMap = { "메인": "main", "백업": "sub", "안 함": "none", "": "none" };
+  const role = Object.prototype.hasOwnProperty.call(roleMap, grade) ? roleMap[grade] : "none";
+
+  // zones (배열 또는 콤마 string)
+  let zones = [];
+  if (Array.isArray(skill.zones)) zones = skill.zones;
+  else if (typeof skill.zones === "string") {
+    zones = skill.zones.split(",").map(z => z.trim()).filter(Boolean);
+  }
+
+  // appliances (F열 / Phase 4-C-1에서 GAS 측 박을 예정)
+  let appliances = [];
+  const rawApps = skill.appliances ?? skill.기종 ?? skill.raw?.appliances ?? skill.raw?.기종;
+  if (Array.isArray(rawApps)) appliances = rawApps;
+  else if (typeof rawApps === "string") {
+    appliances = rawApps.split(",").map(z => z.trim()).filter(Boolean);
+  }
+
+  return { role, zones, appliances };
+}
+
 // Step 5-5-C Phase 3 — 폼 초기값용: 시트 캐시 + 옛 측 localStorage 병합
 // 시트 우선 (Step 5-5-A getEngineerSkillsByEngineer) + 옛 측 fallback (Phase 2)
 // 반환 형식: [{ principal, workType, zones (콤마 string), grade, note }]
