@@ -221,6 +221,31 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack }) {
           </Field>
         </Section>
 
+        {/* Step 5-8 F-7 — 원청 계좌 (시트 X/Y열 양방향 sync) */}
+        <Section label="원청 계좌 (선택)">
+          <Field label="은행">
+            <Input
+              value={data.bankName || ""}
+              onChange={(v) => updateField("bankName", v)}
+              placeholder="예: 우리은행 / 신한은행 / KB국민은행"
+            />
+          </Field>
+          <Field label="계좌번호">
+            <Input
+              value={data.accountNumber || ""}
+              onChange={(v) => updateField("accountNumber", v.replace(/[^0-9-]/g, ""))}
+              placeholder="000-000-000000"
+            />
+          </Field>
+          <Field label="예금주">
+            <Input
+              value={data.accountHolder || ""}
+              onChange={(v) => updateField("accountHolder", v)}
+              placeholder="원청 / 법인명"
+            />
+          </Field>
+        </Section>
+
         <Section label="비고 (선택)">
           <textarea
             value={data.note || ""}
