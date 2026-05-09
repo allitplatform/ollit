@@ -413,28 +413,7 @@ export default function PrincipalApp({ user, onLogout }) {
         .tab-btn:hover { opacity: 0.8; }
       `}</style>
 
-      <div style={{ position: "sticky", top: 0, zIndex: 200, background: "rgba(10,10,10,0.96)", backdropFilter: "blur(20px)", borderBottom: "1px solid rgba(255,255,255,0.08)", padding: "10px 12px" }}>
-        <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-          {Object.entries(THEMES).map(([key, theme]) => {
-            const Icon = key === "dark" ? Moon : Sun;
-            return (
-              <button key={key} onClick={() => setMode(key)} style={{
-                flex: 1, padding: "8px",
-                background: mode === key ? (key === "dark" ? "#221C18" : "#FFFFFF") : "rgba(255,255,255,0.05)",
-                color: mode === key ? (key === "dark" ? "#FAF8F5" : "#0A0A0A") : "#888",
-                border: mode === key ? `1.5px solid ${theme.accent}` : "1px solid rgba(255,255,255,0.1)",
-                borderRadius: 10, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 5,
-              }}>
-                <Icon size={12}/><span>{theme.name}</span>
-              </button>
-            );
-          })}
-        </div>
-        <button onClick={onLogout} style={{ width: "100%", padding: "6px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 10, fontWeight: 600, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          <RotateCcw size={10}/><span>로그아웃</span>
-        </button>
-      </div>
+      {/* Step 5-6 UX — 상단 sticky 박스 (다크/라이트/로그아웃) 제거 */}
 
       <div style={{ maxWidth: 420, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Pretendard', sans-serif", paddingBottom: 80 }}>
         

@@ -4665,25 +4665,8 @@ export default function EngineerApp({ user, onLogout }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)" }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: "1px solid var(--border)", padding: "10px 12px" }}>
-        <div style={{ fontSize: 10, color: "#666", marginBottom: 8, textAlign: "center", fontFamily: "system-ui", lineHeight: 1.5 }}>
-          에어컨 현장작업 운영관리 플랫폼
-        </div>
-        <div style={{ display: "flex", gap: 6, marginBottom: 6 }}>
-          {Object.entries(THEMES).map(([key, theme]) => {
-            const Icon = theme.icon;
-            return (
-              <button key={key} onClick={() => setMode(key)} style={{ flex: 1, padding: "10px 8px", background: mode === key ? (key === "dark" ? "#221C18" : "#FFFFFF") : "rgba(255,255,255,0.05)", color: mode === key ? (key === "dark" ? "#FAF8F5" : "#0A0A0A") : "#888", border: mode === key ? `1.5px solid ${theme.accent}` : "1px solid rgba(255,255,255,0.1)", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <Icon size={14}/><span>{theme.name}</span>
-              </button>
-            );
-          })}
-        </div>
-        <button onClick={onLogout} style={{ width: "100%", padding: "8px 8px", background: "rgba(255,255,255,0.03)", color: "#aaa", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}>
-          <RotateCcw size={11}/><span>로그아웃</span>
-        </button>
-      </div>
-      
+      {/* Step 5-6 UX — 상단 sticky 박스 (다크/라이트/로그아웃) 제거 / "내 정보" 탭에 그대로 */}
+
       <div style={{ maxWidth: 420, margin: "0 auto", position: "relative" }}>
         {/* V14 토스트 */}
         {toast && (
