@@ -20,7 +20,8 @@ function getRegionSubgroup(regionName, regionsAll) {
 }
 
 // Step 5-5-C Phase 5 — engineer.skills 매칭 헬퍼
-// 매칭 조건: workType 정확 + 원청 ((전체) 또는 매칭) + 지역 (전국 또는 zones 포함)
+// Phase 4-D — 두 단계 lookup: 특정 원청 우선 → (전체) fallback
+// 매칭 조건: workType 정확 + 원청 (단계별) + 지역 (전국 또는 zones 포함)
 // 반환: { matched: boolean, grade: string, skill: row | null }
 function matchSkill(engineer, task) {
   const skills = Array.isArray(engineer?.skills) ? engineer.skills : [];
@@ -31,26 +32,44 @@ function matchSkill(engineer, task) {
   const tPid   = task?.principalId ? String(task.principalId).trim() : "";
   const tPname = task?.principal   ? String(task.principal).trim()   : "";
 
-  for (const s of skills) {
-    const sWT = String(s.workType || "").trim();
-    if (sWT !== wt) continue;
-    // 원청 매칭: "(전체)" / "전체" / id 매칭 / 이름 매칭
-    const sP = String(s.principal || "").trim();
-    const principalMatch = !sP || sP === "(전체)" || sP === "전체"
-      || sP === tPid || sP === tPname;
-    if (!principalMatch) continue;
-    // 지역 매칭: zones 비어있음 / "전국" / 포함
-    // s.zones는 시트 측: 배열 또는 콤마 string
-    let zones = [];
-    if (Array.isArray(s.zones)) zones = s.zones;
-    else if (typeof s.zones === "string") zones = s.zones.split(",").map(z => z.trim()).filter(Boolean);
-    const isAllRegion = zones.length === 0
-      || zones.includes("전국")
-      || zones.includes("(전국)");
-    const regionMatch = !r || isAllRegion || zones.includes(r);
-    if (!regionMatch) continue;
-    return { matched: true, grade: String(s.grade || "").trim(), skill: s };
+  // 원청 매칭 분기
+  // 특정 원청 매칭: 시트 principal이 task.principalId 또는 task.principal과 정확 일치
+  const isSpecificMatch = sP =>
+    !!sP && sP !== "(전체)" && sP !== "전체"
+    && (sP === tPid || sP === tPname);
+  // (전체) / 전체 / 빈 매칭: 와일드카드 fallback
+  const isGeneralMatch = sP =>
+    !sP || sP === "(전체)" || sP === "전체";
+
+  // 단계별 lookup — 매칭 조건(workType + 지역) 동일
+  function findByPrincipalFilter(filterFn) {
+    for (const s of skills) {
+      const sWT = String(s.workType || "").trim();
+      if (sWT !== wt) continue;
+      const sP = String(s.principal || "").trim();
+      if (!filterFn(sP)) continue;
+      // 지역 매칭: zones 비어있음 / "전국" / 포함
+      let zones = [];
+      if (Array.isArray(s.zones)) zones = s.zones;
+      else if (typeof s.zones === "string") zones = s.zones.split(",").map(z => z.trim()).filter(Boolean);
+      const isAllRegion = zones.length === 0
+        || zones.includes("전국")
+        || zones.includes("(전국)");
+      const regionMatch = !r || isAllRegion || zones.includes(r);
+      if (!regionMatch) continue;
+      return { matched: true, grade: String(s.grade || "").trim(), skill: s };
+    }
+    return null;
   }
+
+  // Step 1: 특정 원청 우선 (KA / 올데이케어 / 등)
+  const specific = findByPrincipalFilter(isSpecificMatch);
+  if (specific) return specific;
+
+  // Step 2: (전체) / 전체 와일드카드 fallback
+  const general = findByPrincipalFilter(isGeneralMatch);
+  if (general) return general;
+
   return { matched: false, grade: "", skill: null };
 }
 
