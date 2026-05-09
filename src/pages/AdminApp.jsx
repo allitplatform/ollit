@@ -6666,14 +6666,25 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   const workTypes = ["세척", "냉매충전", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
   const appliances = ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"];
   // 작업유형별 기종 풀 (V14 헌법 / 정책 시트와 일치)
-  // 냉매충전 1way: KA 정책 — "1way 첫 대" 90,000 / "1way 추가" 70,000 (동일 집 추가 단가)
+  // 냉매충전은 원청별 분기 — getAppliancePool() 사용 (KA만 1way 첫 대 / 1way 추가 분리)
   const APPLIANCE_POOL = {
     "세척":           ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"],
-    "냉매충전":       ["벽걸이", "스탠드", "4way", "투인원", "1way 첫 대", "1way 추가"],
     "출장비":         ["(공통)"],
     "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
     "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
   };
+
+  // 냉매충전 1way 차등 단가 — KA만 "1way 첫 대"(90,000) / "1way 추가"(70,000) 분리
+  // 다른 6 원청 (KB / 용인 / 유솔 H / 유솔 N / 크리크린 / 올데이): 단일 "1way"
+  function getAppliancePool(workType, principalName) {
+    if (workType === "냉매충전") {
+      if (principalName === "에어컨프로 (KA)") {
+        return ["벽걸이", "스탠드", "4way", "투인원", "1way 첫 대", "1way 추가"];
+      }
+      return ["벽걸이", "스탠드", "4way", "투인원", "1way"];
+    }
+    return APPLIANCE_POOL[workType] || [];
+  }
 
   // V14 1F — 채널 5개 (사장님 spec)
   const CHANNELS = [
@@ -7155,7 +7166,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                       : "기종"}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {(APPLIANCE_POOL[editItem.workType] || []).map(a => (
+                    {getAppliancePool(editItem.workType, form.principal).map(a => (
                       <FormChip t={t} key={a} active={editItem.appliance === a}
                         onClick={() => setEditItem(prev => ({ ...prev, appliance: a }))}>{a}</FormChip>
                     ))}
