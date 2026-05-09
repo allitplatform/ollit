@@ -19,9 +19,55 @@ function getRegionSubgroup(regionName, regionsAll) {
   return r?.subgroupId || null;
 }
 
+// Step 5-5-C Phase 5 — engineer.skills 매칭 헬퍼
+// 매칭 조건: workType 정확 + 원청 ((전체) 또는 매칭) + 지역 (전국 또는 zones 포함)
+// 반환: { matched: boolean, grade: string, skill: row | null }
+function matchSkill(engineer, task) {
+  const skills = Array.isArray(engineer?.skills) ? engineer.skills : [];
+  if (skills.length === 0) return { matched: false, grade: "", skill: null };
+
+  const wt = String(task?.workType || "").trim();
+  const r  = task?.region ? String(task.region).trim() : "";
+  const tPid   = task?.principalId ? String(task.principalId).trim() : "";
+  const tPname = task?.principal   ? String(task.principal).trim()   : "";
+
+  for (const s of skills) {
+    const sWT = String(s.workType || "").trim();
+    if (sWT !== wt) continue;
+    // 원청 매칭: "(전체)" / "전체" / id 매칭 / 이름 매칭
+    const sP = String(s.principal || "").trim();
+    const principalMatch = !sP || sP === "(전체)" || sP === "전체"
+      || sP === tPid || sP === tPname;
+    if (!principalMatch) continue;
+    // 지역 매칭: zones 비어있음 / "전국" / 포함
+    // s.zones는 시트 측: 배열 또는 콤마 string
+    let zones = [];
+    if (Array.isArray(s.zones)) zones = s.zones;
+    else if (typeof s.zones === "string") zones = s.zones.split(",").map(z => z.trim()).filter(Boolean);
+    const isAllRegion = zones.length === 0
+      || zones.includes("전국")
+      || zones.includes("(전국)");
+    const regionMatch = !r || isAllRegion || zones.includes(r);
+    if (!regionMatch) continue;
+    return { matched: true, grade: String(s.grade || "").trim(), skill: s };
+  }
+  return { matched: false, grade: "", skill: null };
+}
+
 // 지역 점수 (0~40)
-// 메인 = 40 / 서브 = 25 / 인접(같은 서브그룹) = 10 / 그 외 = 0
+// Step 5-5-C Phase 5 — skills 우선 lookup + workTypes fallback (점진 마이그레이션)
+// skills 매칭 시: 메인 = 40 / 백업 = 25 / 그 외 등급 = 10
+// fallback (옛 workTypes): 메인 = 40 / 서브 = 25 / 인접(같은 서브그룹) = 10
 function calcRegionScore(engineer, task, regionsAll) {
+  // 1차: skills (시트 _기사역량) 우선
+  const skillMatch = matchSkill(engineer, task);
+  if (skillMatch.matched) {
+    if (skillMatch.grade === "메인") return 40;
+    if (skillMatch.grade === "백업") return 25;
+    return 10;  // 등급 불명 / 안 함 등
+  }
+
+  // 2차: 옛 workTypes fallback (점진 마이그레이션)
   const wtKey = getWorkTypeKey(task);
   const wt    = engineer.workTypes?.[wtKey];
   if (!wt) return 0;
