@@ -21,6 +21,7 @@ import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../st
 import { VisitOnlyDialog } from "../components/VisitOnlyDialog.jsx";
 import { VISIT_FEE, getVisitReasonLabel } from "../data/visitFee.js";
 import { calcTaskEarning, setEngineersCache } from "../utils/feePolicy.js";
+import { ENABLE_MOCK } from "../config/env.js";
 import { setPrincipalsCache } from "../data/principals.js";
 import { setEngineerRatesCache, setEngineerSkillsCache } from "../data/engineers.js";
 import { setUsersCache } from "../data/users.js";
@@ -93,18 +94,16 @@ const ADMIN_USER = "이대표";
 // Mock 데이터 (시안 4-V4 / 1 / 5-V3 / 3-V5 검증용)
 // ============================================
 
-const TODAY_STATS = {
-  newReceived: 5,        // 새 접수 — 핑크
-  assigned:    2,        // 배정됨 (일정 미확정) — 노랑
-  confirmed:   4,        // 확정됨 (일정 정해짐) — 보라
-  inProgress:  3,        // 진행중 — 흰색
-  completed:   8,        // 완료 — 초록
-  // 돈 흐름 4구역
-  revenue:      2850000, // 오늘 매출 — 흰색
-  myMargin:     1140000, // 회사 마진 — 핑크
-  engineerNet:  1710000, // 기사 정산 — 초록
-  principalFee: 480000,  // 원청 수수료 — 보라
+// Step 5-7-C — TODAY_STATS 운영/시뮬 분기
+const _TODAY_STATS_MOCK = {
+  newReceived: 5, assigned: 2, confirmed: 4, inProgress: 3, completed: 8,
+  revenue: 2850000, myMargin: 1140000, engineerNet: 1710000, principalFee: 480000,
 };
+const _TODAY_STATS_EMPTY = {
+  newReceived: 0, assigned: 0, confirmed: 0, inProgress: 0, completed: 0,
+  revenue: 0, myMargin: 0, engineerNet: 0, principalFee: 0,
+};
+const TODAY_STATS = ENABLE_MOCK ? _TODAY_STATS_MOCK : _TODAY_STATS_EMPTY;
 
 // V14 헌법 v6 — 운영 7개 원청 (api-backend.gs V14_PRINCIPAL_CODES와 동기화 / KA·KB 분리)
 const PRINCIPALS = [
@@ -1083,7 +1082,8 @@ function getAutoBroadcastCandidates(workType, region, appliance, maxCount = 4) {
 // type:  "work" | "off_full" | "off_partial" | "external"
 // state (work/external만): "done" | "active" | "moving" | "waiting" | "scheduled"
 // Step 4: work 항목에 상세 필드 추가 (taskCode/phone/address/qty/estimateTotal/addonFee/principal/memo/startedAt/completedAt)
-const ENGINEERS_DATA = [
+// Step 5-7-C — ENGINEERS_DATA 운영/시뮬 분기 (raw seed → ENABLE_MOCK 토글)
+const _ENGINEERS_DATA_MOCK = [
   // 활동중 (5명)
   { id: "E001", name: "김동효", rank: "manager", level: "main", region: "강남", phone: "010-9999-0001",
     todaySchedule: [
@@ -1315,6 +1315,7 @@ const ENGINEERS_DATA = [
   { id: "M18", name: "문성목", rank: "junior",  level: "backup", careerLevel: "career", region: "성동",       phone: "010-9999-0006", todaySchedule: [] },
   { id: "M19", name: "손동식", rank: "junior",  level: "backup", careerLevel: "career", region: "은평",       phone: "010-9999-0007", todaySchedule: [] },
 ];
+const ENGINEERS_DATA = ENABLE_MOCK ? _ENGINEERS_DATA_MOCK : [];
 
 // 작업 탭 — 단일 진실 소스 평탄화 ("두 번 일 안 하기")
 // 사장님 시각: 기사 탭 = Who / 작업 탭 = What
@@ -1407,7 +1408,8 @@ function getEngineerStats(engId, today) {
 }
 
 // 배정 완료 / 일정 확정 화면용 — assigned 2 / confirmed 4 (TODAY_STATS와 일치)
-const ASSIGNED_TASKS = [
+// Step 5-7-C — ASSIGNED_TASKS 운영/시뮬 분기
+const _ASSIGNED_TASKS_MOCK = [
   // assigned (일정 확정 대기) — 2건
   { id: "A260427-005", customer: "박은서", phone: "010-1234-5678",
     appliance: "벽걸이", qty: 1, region: "강남 도곡", schedule: "오늘 14:00", estimateTotal: 170000,
@@ -1441,6 +1443,7 @@ const ASSIGNED_TASKS = [
     assignedEngineer: "김동효", engineerPhone: "010-9999-0001",
     assignmentStatus: "confirmed" },
 ];
+const ASSIGNED_TASKS = ENABLE_MOCK ? _ASSIGNED_TASKS_MOCK : [];
 
 // 기사 오늘 일정 mock (C 화면)
 const ENGINEER_DAY = {

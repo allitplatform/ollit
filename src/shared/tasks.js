@@ -2,7 +2,9 @@
 // 올잇 통합 Task 데이터 (단일 진실 소스)
 // V14 v6 — 동적 시뮬 (dateOffset + 시간 기반 status / 정체 X)
 // 모듈 로드 시점에 today 기준 catch / 새로고침 시 자동 반영
+// Step 5-7-C — ENABLE_MOCK 토글 (운영 = 빈 배열 / 시뮬 = 옛 SEED)
 // ============================================
+import { ENABLE_MOCK } from "../config/env.js";
 
 // 오늘 기준 N일 전/후 ISO 날짜 (YYYY-MM-DD)
 function dateOffset(days) {
@@ -45,7 +47,8 @@ function dynamicTask(t) {
   return cleaned;
 }
 
-export const INITIAL_TASKS = [
+// Step 5-7-C — INITIAL_TASKS raw seed (운영 시 빈 배열로 export)
+const _INITIAL_TASKS_RAW = [
   // ─── 기사 김동효(E001) 진행중 작업 ───
   {
     id: "A260427-001",
@@ -556,6 +559,9 @@ export const INITIAL_TASKS = [
   ].map(dynamicTask),
 // V14 v6 — 옛 V11 시뮬도 dynamicTask 통과 (4월 작업 = 모두 '완료' 자동)
 ].map(t => t.scheduledDate && t.scheduledTime && t.endTime ? dynamicTask(t) : t);
+
+// Step 5-7-C — 운영 모드는 빈 배열 / 시뮬 모드는 raw seed
+export const INITIAL_TASKS = ENABLE_MOCK ? _INITIAL_TASKS_RAW : [];
 
 // ============================================
 // 헬퍼 함수 - 화면별 데이터 변환

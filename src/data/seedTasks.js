@@ -6,6 +6,7 @@
 //   - 장승리 1건 (기본)
 //   - 정민호 1건 (기본 / 13일+ 정산 대기)
 import { makeEmptyTask } from "./tasks.js";
+import { ENABLE_MOCK } from "../config/env.js";
 
 // 오늘 기준 N일 전 ISO
 function daysAgo(n) {
@@ -14,7 +15,8 @@ function daysAgo(n) {
   return d.toISOString();
 }
 
-export const USOL_N_SEED_TASKS = [
+// Step 5-7-C — USOL_N_SEED_TASKS raw seed (운영 시 빈 배열로 export)
+const _USOL_N_SEED_TASKS_RAW = [
   // 차지현 — 기본 (4way 1대)
   makeEmptyTask({
     id: "usol_n_seed_001",
@@ -183,6 +185,9 @@ export const USOL_N_SEED_TASKS = [
     csvImportedAt:  daysAgo(21),
   }),
 ];
+
+// Step 5-7-C — 운영 모드는 빈 배열 / 시뮬 모드는 raw seed
+export const USOL_N_SEED_TASKS = ENABLE_MOCK ? _USOL_N_SEED_TASKS_RAW : [];
 
 // 시드를 localStorage에 박는 헬퍼 (검증용 — UI 영향 X)
 // 호출하면 src/data/tasks.js의 ollit_tasks_v1 키에 5건이 추가됩니다.
