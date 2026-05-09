@@ -779,6 +779,45 @@ export async function deleteEngineerSkillWithSync(payload) {
   }
 }
 
+// Step 5-5-C Phase 3 — 폼 초기값용: 시트 캐시 + 옛 측 localStorage 병합
+// 시트 우선 (Step 5-5-A getEngineerSkillsByEngineer) + 옛 측 fallback (Phase 2)
+// 반환 형식: [{ principal, workType, zones (콤마 string), grade, note }]
+export function loadEngineerSkillsByEngineerWithLocal(engineerId) {
+  if (!engineerId) return [];
+  const fromSheet = getEngineerSkillsByEngineer(engineerId);  // Step 5-5-A
+  const fromLocal = _loadLocalEngineerSkills().filter(s =>
+    String(s.engineerId).trim() === String(engineerId).trim()
+  );
+  const seen = new Set();
+  const merged = [];
+  for (const s of fromSheet) {
+    const key = `${s.principal}|${s.workType}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({
+      principal: s.principal || "",
+      workType:  s.workType  || "",
+      zones:     Array.isArray(s.zones) ? s.zones.join(", ") : (s.zones || ""),
+      grade:     s.grade     || "메인",
+      note:      (s.raw && (s.raw.note || s.raw.비고)) || "",
+      _fromSheet: true,
+    });
+  }
+  for (const s of fromLocal) {
+    const key = `${s.principal}|${s.workType}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push({
+      principal: s.principal || "",
+      workType:  s.workType  || "",
+      zones:     s.zones     || "",
+      grade:     s.grade     || "메인",
+      note:      s.note      || "",
+    });
+  }
+  return merged;
+}
+
 // 자동 배정 / 추천 lookup 헬퍼 — 작업 1건이 기사 역량 매칭 여부
 // 매칭: engineerId + workType (정확) + 원청 ("(전체)" 또는 매칭) + 지역 ("전국" 또는 포함)
 // 반환: { matched: boolean, grade: string, skill: row | null }

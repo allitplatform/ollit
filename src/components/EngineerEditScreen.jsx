@@ -2,15 +2,19 @@
 // 사장님 catch: 직급/상태/작업종류별 역할/지역/기종 직접 컨트롤
 // Step 5-2 — 시트 설정_기사 양방향 sync (saveEngineerWithSync / deleteEngineerWithSync)
 // Step 5-4 — 시트 설정_기사단가 양방향 sync (saveEngineerRateWithSync / deleteEngineerRateWithSync)
+// Step 5-5-C Phase 3 — 시트 설정_기사역량 양방향 sync (saveEngineerSkillWithSync / deleteEngineerSkillWithSync)
 import { useState, useMemo } from "react";
 import {
   generateId,
   saveEngineerWithSync, deleteEngineerWithSync,
   saveEngineerRateWithSync, deleteEngineerRateWithSync,
   loadEngineerRatesByEngineer,
+  saveEngineerSkillWithSync, deleteEngineerSkillWithSync,
+  loadEngineerSkillsByEngineerWithLocal,
   CAREER_LEVELS, STATUS_OPTIONS, ROLE_OPTIONS, APPLIANCE_OPTIONS,
   SEOUL_DISTRICTS, GG_INCHEON,
 } from "../data/engineers.js";
+import { loadPrincipals } from "../data/principals.js";
 
 // Step 5-2 — 냉매충전 기사 비율 옵션
 const REFRIGERANT_RATE_OPTIONS = [
@@ -22,6 +26,10 @@ const REFRIGERANT_RATE_OPTIONS = [
 // Step 5-4 — 단가 행 옵션
 const RATE_WORK_TYPES = ["세척", "냉매충전", "냉매점검", "출장비", "추가선택"];
 const RATE_APPLIANCES = ["벽걸이", "스탠드", "1way", "4way", "원형", "투인원", "시스템멀티", "천장형"];
+
+// Step 5-5-C — 역량 행 옵션
+const SKILL_WORK_TYPES = ["세척", "냉매충전"];
+const SKILL_GRADES     = ["메인", "백업", "안 함"];
 
 export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
   const [form, setForm] = useState(() => ({
@@ -45,6 +53,22 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
   const [ratesOriginal] = useState(() =>
     !isNew && engineer.id ? loadEngineerRatesByEngineer(engineer.id) : []
   );
+
+  // Step 5-5-C Phase 3 — 역량 행 state
+  const [skills, setSkills] = useState(() =>
+    !isNew && engineer.id ? loadEngineerSkillsByEngineerWithLocal(engineer.id) : []
+  );
+  const [skillsOriginal] = useState(() =>
+    !isNew && engineer.id ? loadEngineerSkillsByEngineerWithLocal(engineer.id) : []
+  );
+
+  // 원청 옵션 — Step 5-3 캐시 + (전체)
+  const principalOptions = useMemo(() => {
+    let list = [];
+    try { list = loadPrincipals(); } catch (e) { /* */ }
+    const names = list.map(p => p.name).filter(Boolean);
+    return ["(전체)", ...names];
+  }, []);
 
   function updateField(field, value) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -94,6 +118,45 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
     return { upserts, deletes };
   }
 
+  // Step 5-5-C Phase 3 — 역량 행 핸들러
+  function addSkillRow() {
+    setSkills(prev => [...prev, {
+      principal: principalOptions[0] || "(전체)",
+      workType:  "세척",
+      zones:     "",
+      grade:     "메인",
+      note:      "",
+    }]);
+  }
+  function updateSkillRow(idx, field, value) {
+    setSkills(prev => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
+  }
+  function removeSkillRow(idx) {
+    setSkills(prev => prev.filter((_, i) => i !== idx));
+  }
+
+  // 역량 행 비교 (3중 키: principal + workType — engineerId는 saved.id)
+  function _skillKey(s) { return `${s.principal}|${s.workType}`; }
+  function _diffSkills(original, current) {
+    const origMap = new Map(original.map(s => [_skillKey(s), s]));
+    const curMap  = new Map(current.map(s => [_skillKey(s), s]));
+    const upserts = [];
+    const deletes = [];
+    for (const [k, s] of curMap) {
+      const prev = origMap.get(k);
+      if (!prev
+          || (prev.zones || "") !== (s.zones || "")
+          || (prev.grade || "") !== (s.grade || "")
+          || (prev.note  || "") !== (s.note  || "")) {
+        upserts.push(s);
+      }
+    }
+    for (const [k, s] of origMap) {
+      if (!curMap.has(k)) deletes.push(s);
+    }
+    return { upserts, deletes };
+  }
+
   async function handleSave() {
     setError("");
     setToast(null);
@@ -125,9 +188,9 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
     const validRates = rates.filter(r =>
       r.workType && r.applianceType && Number(r.rate) > 0
     );
-    const { upserts, deletes } = _diffRates(ratesOriginal, validRates);
+    const rateDiff = _diffRates(ratesOriginal, validRates);
     let rateOk = 0, rateFail = 0;
-    for (const r of upserts) {
+    for (const r of rateDiff.upserts) {
       const rRes = await saveEngineerRateWithSync({
         engineerId: saved.id,
         workType: r.workType,
@@ -137,7 +200,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
       });
       if (rRes.ok) rateOk += 1; else rateFail += 1;
     }
-    for (const r of deletes) {
+    for (const r of rateDiff.deletes) {
       const rRes = await deleteEngineerRateWithSync({
         engineerId: saved.id,
         workType: r.workType,
@@ -145,19 +208,52 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
       });
       if (rRes.ok) rateOk += 1; else rateFail += 1;
     }
+
+    // Step 5-5-C Phase 3 — 역량 행 sync (개별 호출)
+    const validSkills = skills.filter(s => s.principal && s.workType);
+    const skillDiff = _diffSkills(skillsOriginal, validSkills);
+    let skillOk = 0, skillFail = 0;
+    for (const s of skillDiff.upserts) {
+      const sRes = await saveEngineerSkillWithSync({
+        engineerId: saved.id,
+        principal:  s.principal,
+        workType:   s.workType,
+        zones:      s.zones || "",
+        grade:      s.grade || "메인",
+        note:       s.note  || "",
+      });
+      if (sRes.ok) skillOk += 1; else skillFail += 1;
+    }
+    for (const s of skillDiff.deletes) {
+      const sRes = await deleteEngineerSkillWithSync({
+        engineerId: saved.id,
+        principal:  s.principal,
+        workType:   s.workType,
+      });
+      if (sRes.ok) skillOk += 1; else skillFail += 1;
+    }
+
     setBusy(false);
 
-    const totalRateOps = rateOk + rateFail;
-    if (totalRateOps === 0) {
-      setToast({ type: "success", message: "프로 저장 완료" });
-    } else if (rateFail === 0) {
-      setToast({ type: "success", message: `프로 저장 완료 / 단가 ${rateOk}건 sync 완료` });
-    } else {
-      setToast({
-        type: "warn",
-        message: `프로 저장 완료 / 단가 sync 일부 실패 (${rateOk}건 성공 / ${rateFail}건 실패)`,
-      });
+    // 통합 토스트 (Step 5-4 패턴 확장)
+    const rateOps  = rateOk  + rateFail;
+    const skillOps = skillOk + skillFail;
+    const parts = ["프로 저장 완료"];
+    if (rateOps > 0) {
+      parts.push(rateFail === 0
+        ? `단가 ${rateOk}건 sync 완료`
+        : `단가 sync 일부 실패 (${rateOk}/${rateOps})`);
     }
+    if (skillOps > 0) {
+      parts.push(skillFail === 0
+        ? `역량 ${skillOk}건 sync 완료`
+        : `역량 sync 일부 실패 (${skillOk}/${skillOps})`);
+    }
+    const anyFail = rateFail > 0 || skillFail > 0;
+    setToast({
+      type: anyFail ? "warn" : "success",
+      message: parts.join(" / "),
+    });
     setTimeout(() => onSaved && onSaved(saved), 600);
   }
 
@@ -313,6 +409,53 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
             borderRadius: 8, color: "var(--text-secondary)",
             fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
           }}>+ 단가 행 추가</button>
+        </Section>
+
+        {/* Step 5-5-C Phase 3 — 역량 (선택) */}
+        <Section label="역량 (선택)">
+          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 10, lineHeight: 1.5 }}>
+            * 시트 설정_기사역량과 양방향 sync. 원청별 작업유형 / 지역 / 등급. 비워두면 옛 폼 (세척 / 냉매충전 zones) 사용.
+          </div>
+          {skills.map((s, idx) => (
+            <div key={idx} style={{
+              display: "flex", flexDirection: "column", gap: 6,
+              padding: "10px 12px", marginBottom: 8,
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)", borderRadius: 8,
+            }}>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <select value={s.principal || ""} onChange={(e) => updateSkillRow(idx, "principal", e.target.value)} style={{ ...inputStyle, flex: 2, padding: "6px 8px", fontSize: 12 }}>
+                  {principalOptions.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+                <select value={s.workType || ""} onChange={(e) => updateSkillRow(idx, "workType", e.target.value)} style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}>
+                  {SKILL_WORK_TYPES.map(w => <option key={w} value={w}>{w}</option>)}
+                </select>
+                <button onClick={() => removeSkillRow(idx)} style={{
+                  background: "transparent", border: "1px solid var(--border)",
+                  color: "#FF3D5A", fontSize: 11, padding: "6px 10px",
+                  borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+                }}>삭제</button>
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <input type="text" placeholder='지역 (예: "마포구, 서대문구" 또는 "전국")'
+                  value={s.zones || ""}
+                  onChange={(e) => updateSkillRow(idx, "zones", e.target.value)}
+                  style={{ ...inputStyle, flex: 2, padding: "6px 8px", fontSize: 12, fontFamily: "inherit" }}/>
+                <select value={s.grade || "메인"} onChange={(e) => updateSkillRow(idx, "grade", e.target.value)} style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}>
+                  {SKILL_GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </div>
+              <input type="text" placeholder="비고 (선택)" value={s.note || ""}
+                onChange={(e) => updateSkillRow(idx, "note", e.target.value)}
+                style={{ ...inputStyle, padding: "6px 8px", fontSize: 11, fontFamily: "inherit" }}/>
+            </div>
+          ))}
+          <button onClick={addSkillRow} style={{
+            width: "100%", padding: 10,
+            background: "transparent", border: "1px dashed var(--border)",
+            borderRadius: 8, color: "var(--text-secondary)",
+            fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          }}>+ 역량 행 추가</button>
         </Section>
 
         {/* 메모 */}
