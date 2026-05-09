@@ -315,12 +315,22 @@ export function loadEngineers() {
     // 매칭: id 우선 / 이름 fallback (정확 매칭)
     const oldMatch = oldById.get(adapted.id) || oldByName.get(adapted.name);
     if (oldMatch) {
-      // 옛 SEED 정보 우선 (사장님이 박은 workTypes 등 보존). 시트 측 cm_refrigerant_rate는 우선 적용.
+      // Step 5-2/5-4 hotfix — 시트 id 우선 (옛 SEED kang_byeongik → E001 등 통일)
+      // task.assignedEngineerId는 이미 시트 id 형식 ("E001") 사용 중이라 호환성 영향 X.
+      // 옛 SEED 정보 (workTypes / careerLevel / status / note / phone) 보존.
       merged.push({
-        ...adapted,
-        ...oldMatch,
+        ...oldMatch,                  // 옛 SEED 정보 base (workTypes 등)
+        ...adapted,                   // 시트 측 우선 (id / name / phone / 기본값)
+        // 옛 SEED 풍부 정보 명시 보존 (어댑터 default를 옛 측이 덮음)
+        careerLevel: oldMatch.careerLevel || adapted.careerLevel,
+        status:      oldMatch.status      || adapted.status,
+        workTypes:   oldMatch.workTypes   || adapted.workTypes,
+        note:        oldMatch.note        || adapted.note,
+        // 시트 측 우선 (저장 시 sync 일관성)
+        id:          adapted.id,
         cm_refrigerant_rate: adapted.cm_refrigerant_rate,
-        _fromSheet: false,
+        _oldId:      oldMatch.id,     // 디버깅용 (옛 측 id)
+        _fromSheet:  false,
       });
       usedOldIds.add(oldMatch.id);
     } else {
