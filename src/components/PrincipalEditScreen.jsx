@@ -4,7 +4,12 @@ import {
   loadPrincipals, savePrincipals, generatePrincipalId, autoPrefix,
   createEmptyPolicy, PRINCIPAL_COLORS, STATUS_OPTIONS, VAT_OPTIONS,
 } from "../data/principals.js";
-import { calcCleaning, calcRefrigerant } from "../utils/commissionCalc.js";
+import {
+  calcCleaning,
+  calcRefrigerant,
+  calcEstimateSplit,
+  calcEstimateRemainderSplit,
+} from "../utils/commissionCalc.js";
 import { ENGINEER_STANDARD_RATES, APPLIANCE_OPTIONS } from "../data/standardRates.js";
 
 const WORK_TYPES = [
@@ -16,6 +21,12 @@ const CLEANING_POLICY_TYPES = [
   { key: "standard",          label: "표준",     desc: "원청 수수료 + 프로 단가" },
   { key: "fake_split",        label: "쿨가이형", desc: "(총 - 가짜) × split%" },
   { key: "naver_settlement",  label: "네이버형", desc: "정산금 + 추가선택" },
+];
+
+const REFRIGERANT_POLICY_TYPES = [
+  { key: "standard",                  label: "표준",  desc: "원청 % + 기사 %" },
+  { key: "estimate_split",            label: "KB식",  desc: "견적 × 원청% / 견적 × 기사% / 추가 50:50" },
+  { key: "estimate_remainder_split",  label: "KA식",  desc: "견적 × 원청% / (잔여+추가) × 기사%" },
 ];
 
 export function PrincipalEditScreen({ principal, isNew, onSaved, onBack }) {
@@ -166,6 +177,7 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack }) {
             <RefrigerantPolicyEditor
               policy={currentPolicy}
               onMutate={(mutator) => updatePolicy("refrigerant", mutator)}
+              onChangeType={(policyType) => setPolicyType("refrigerant", policyType)}
               onRemove={() => togglePolicyOff("refrigerant")}
             />
           )}
@@ -227,9 +239,13 @@ function PolicyEmptyState({ workType, onAdd }) {
           ))}
         </div>
       ) : (
-        <button onClick={() => onAdd("standard")} style={enableBtnStyle}>
-          + 정책 추가
-        </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {REFRIGERANT_POLICY_TYPES.map(pt => (
+            <button key={pt.key} onClick={() => onAdd(pt.key)} style={typeAddBtnStyle}>
+              + {pt.label} <span style={{ color: "var(--text-tertiary)", fontWeight: 400, marginLeft: 4 }}>· {pt.desc}</span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -388,10 +404,37 @@ function CleaningSimulation({ policy, principalData }) {
   );
 }
 
-// ===== 냉매 정책 편집 =====
-function RefrigerantPolicyEditor({ policy, onMutate, onRemove }) {
+// ===== 냉매 정책 편집 (type별 분기) =====
+function RefrigerantPolicyEditor({ policy, onMutate, onChangeType, onRemove }) {
+  const policyType = policy.type || "standard";
   return (
     <div>
+      <SubSection title="정책 종류">
+        <RadioRow
+          options={REFRIGERANT_POLICY_TYPES.map(pt => ({ key: pt.key, label: pt.label }))}
+          value={policyType}
+          onChange={onChangeType}
+        />
+        <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6 }}>
+          * 종류 변경 시 해당 type 기본값으로 초기화
+        </div>
+      </SubSection>
+
+      {policyType === "estimate_remainder_split"
+        ? <RefrigerantRemainderSection policy={policy} onMutate={onMutate}/>
+        : <RefrigerantStandardSection  policy={policy} onMutate={onMutate}/>}
+
+      <RefrigerantSimulation policy={policy}/>
+
+      <button onClick={onRemove} style={removeBtnStyle}>정책 제거</button>
+    </div>
+  );
+}
+
+// 표준 / KB식 — 기존 형식 (principal.type/base/value + engineer.base/value)
+function RefrigerantStandardSection({ policy, onMutate }) {
+  return (
+    <>
       <SubSection title="원청 수수료" hint="원청이 가져감">
         <RadioRow
           options={[
@@ -399,10 +442,10 @@ function RefrigerantPolicyEditor({ policy, onMutate, onRemove }) {
             { key: "rate",  label: "정률 (%)" },
             { key: "fixed", label: "정액 (원)" },
           ]}
-          value={policy.principal.type}
-          onChange={(v) => onMutate(p => { p.principal.type = v; return p; })}
+          value={policy.principal?.type || "none"}
+          onChange={(v) => onMutate(p => { p.principal = { ...(p.principal || {}), type: v }; return p; })}
         />
-        {policy.principal.type === "rate" && (
+        {policy.principal?.type === "rate" && (
           <>
             <div style={{ marginTop: 10 }}>
               <RadioRow
@@ -420,7 +463,7 @@ function RefrigerantPolicyEditor({ policy, onMutate, onRemove }) {
             </div>
           </>
         )}
-        {policy.principal.type === "fixed" && (
+        {policy.principal?.type === "fixed" && (
           <div style={{ marginTop: 10 }}>
             <NumberInput value={policy.principal.value} suffix="원"
               onChange={(v) => onMutate(p => { p.principal.value = v; return p; })}/>
@@ -428,32 +471,61 @@ function RefrigerantPolicyEditor({ policy, onMutate, onRemove }) {
         )}
       </SubSection>
 
-      <SubSection title="프로 수익" hint="프로가 받음">
-        <RadioRow
-          options={[
-            { key: "estimate", label: "견적금액 기준" },
-            { key: "total",    label: "총금액 기준" },
-          ]}
-          value={policy.engineer.base}
-          onChange={(v) => onMutate(p => { p.engineer.base = v; return p; })}
-        />
-        <div style={{ marginTop: 10 }}>
-          <NumberInput value={policy.engineer.value} suffix="%"
-            onChange={(v) => onMutate(p => { p.engineer.value = v; return p; })}/>
+      {policy.engineer && (
+        <SubSection title="프로 수익" hint="프로가 받음">
+          <RadioRow
+            options={[
+              { key: "estimate", label: "견적금액 기준" },
+              { key: "total",    label: "총금액 기준" },
+            ]}
+            value={policy.engineer.base}
+            onChange={(v) => onMutate(p => { p.engineer.base = v; return p; })}
+          />
+          <div style={{ marginTop: 10 }}>
+            <NumberInput value={policy.engineer.value} suffix="%"
+              onChange={(v) => onMutate(p => { p.engineer.value = v; return p; })}/>
+          </div>
+        </SubSection>
+      )}
+    </>
+  );
+}
+
+// 견적_잔여_분배 (KA식) — 견적 × 원청% / (잔여+추가) × 기사% / 나머지 = 회사
+function RefrigerantRemainderSection({ policy, onMutate }) {
+  return (
+    <>
+      <SubSection title="원청 수수료" hint="견적 × N%">
+        <NumberInput value={policy.principalRate ?? 35} suffix="%"
+          onChange={(v) => onMutate(p => { p.principalRate = v; return p; })}/>
+        <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
+          견적의 N% = 원청 수수료 (현장추가금 X)
         </div>
       </SubSection>
-
-      <RefrigerantSimulation policy={policy}/>
-
-      <button onClick={onRemove} style={removeBtnStyle}>정책 제거</button>
-    </div>
+      <SubSection title="기사 풀 비율" hint="(견적 - 원청 + 추가) × N%">
+        <NumberInput value={policy.engineerRate ?? 50} suffix="%"
+          onChange={(v) => onMutate(p => { p.engineerRate = v; return p; })}/>
+        <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
+          잔여 풀 (견적 - 원청 + 현장추가금) × N% = 기사 / 나머지 = 회사
+        </div>
+      </SubSection>
+    </>
   );
 }
 
 function RefrigerantSimulation({ policy }) {
   const [estimate, setEstimate] = useState(100000);
   const [extra, setExtra] = useState(30000);
-  const calc = calcRefrigerant({ policy, estimate, extra });
+
+  let calc;
+  if (policy.type === "estimate_remainder_split") {
+    calc = calcEstimateRemainderSplit({ policy, estimate, extra });
+  } else if (policy.type === "estimate_split") {
+    calc = calcEstimateSplit({ policy, estimate, extra });
+  } else {
+    calc = calcRefrigerant({ policy, estimate, extra });
+  }
+
   return (
     <SubSection title="🧮 시뮬레이션">
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>

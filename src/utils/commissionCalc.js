@@ -154,6 +154,37 @@ export function calcEstimateSplit(opts) {
   };
 }
 
+// 견적_잔여_분배 (KA 냉매충전: 견적 × 35% 원청 / (견적-원청+추가) × 50% 기사·회사)
+// 1) 원청 = 견적 × principalRate
+// 2) 풀   = (견적 - 원청) + 현장추가금
+// 3) 기사 = 풀 × engineerRate
+// 4) 회사 = 풀 - 기사
+export function calcEstimateRemainderSplit(opts) {
+  const { policy, estimate = 0, extra = 0 } = opts || {};
+  if (!policy) {
+    return { error: "정책 없음", total: estimate + extra, principal: 0, engineer: 0, company: 0, isNegative: false };
+  }
+
+  const principalRate = (policy.principalRate ?? 0) / 100;
+  const engineerRate  = (policy.engineerRate  ?? 50) / 100;
+
+  const principal = Math.round(estimate * principalRate);
+  const remainder = estimate - principal;
+  const pool      = remainder + extra;
+
+  const engineer = Math.round(pool * engineerRate);
+  const company  = pool - engineer;
+
+  const total = estimate + extra;
+  return {
+    total: Math.round(total),
+    principal: Math.round(principal),
+    engineer: Math.round(engineer),
+    company: Math.round(company),
+    isNegative: company < 0,
+  };
+}
+
 // 비율_총액기준 (쿨가이 가스 1way/4way/원형 2+: 25/50/25)
 export function calcRatioTotalBase(opts) {
   const { estimate = 0, qty = 1, extra = 0,

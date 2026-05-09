@@ -38,7 +38,7 @@ const SEED_PRINCIPALS = [
     status: "active",
     vatPolicy: "included",
     contact: { manager: "", phone: "", email: "" },
-    note: "KA(아버지) · 세척 = 차감후비율 50% · 냉매 = 예상금액비율 10%",
+    note: "KA(아버지) · 세척 = 차감후비율 50% · 냉매 = 견적_잔여_분배 35%/50%",
     commissionPolicy: {
       cleaning: {
         type: "fake_split",
@@ -49,9 +49,10 @@ const SEED_PRINCIPALS = [
         splitRate: 50,  // (총 - 가짜) × 50% = 원청
       },
       refrigerant: {
-        type: "estimate_split",  // 예상금액비율 (KA 10%)
-        principal: { type: "rate", base: "estimate", value: 10 },
-        engineer:  { type: "rate", base: "estimate", value: 50, overrides: [] },
+        // 견적_잔여_분배 — 견적 × 35% 원청 / (견적 - 원청 + 추가) × 50% 기사·회사
+        type: "estimate_remainder_split",
+        principalRate: 35,
+        engineerRate:  50,
       },
     },
   },
@@ -224,11 +225,33 @@ export function loadPrincipals() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      // V2 마이그레이션 — vatPolicy 박힌 거 X 면 기본값 박기 (유솔 N만 excluded)
-      return parsed.map(p => ({
-        ...p,
-        vatPolicy: p.vatPolicy || (p.id === "usol_n" ? "excluded" : "included"),
-      }));
+      // V2 마이그레이션 — vatPolicy 누락 시 기본값 채움 (유솔 N만 excluded)
+      // V3 마이그레이션 — KA 냉매 옛 정책(estimate_split 10%) → 새 정책(estimate_remainder_split 35%/50%)
+      return parsed.map(p => {
+        let next = {
+          ...p,
+          vatPolicy: p.vatPolicy || (p.id === "usol_n" ? "excluded" : "included"),
+        };
+        const ka = next.commissionPolicy?.refrigerant;
+        if (
+          next.id === "aircon_pro" &&
+          ka?.type === "estimate_split" &&
+          (ka.principal?.value ?? 0) === 10
+        ) {
+          next = {
+            ...next,
+            commissionPolicy: {
+              ...next.commissionPolicy,
+              refrigerant: {
+                type: "estimate_remainder_split",
+                principalRate: 35,
+                engineerRate:  50,
+              },
+            },
+          };
+        }
+        return next;
+      });
     }
   } catch (e) { console.error(e); }
   savePrincipals(SEED_PRINCIPALS);
@@ -291,6 +314,20 @@ export function createEmptyPolicy(workType, policyType = "standard") {
     };
   }
   // refrigerant
+  if (policyType === "estimate_remainder_split") {
+    return {
+      type: "estimate_remainder_split",
+      principalRate: 35,
+      engineerRate:  50,
+    };
+  }
+  if (policyType === "estimate_split") {
+    return {
+      type: "estimate_split",
+      principal: { type: "rate", base: "estimate", value: 35 },
+      engineer:  { type: "rate", base: "estimate", value: 50, overrides: [] },
+    };
+  }
   return {
     type: "standard",
     principal: { type: "none", base: "total", value: 0 },

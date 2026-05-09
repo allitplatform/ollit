@@ -5,6 +5,7 @@ import {
   calcCleaning,
   calcRefrigerant,
   calcEstimateSplit,
+  calcEstimateRemainderSplit,
   calcAgFullAdHalf,
   calcAdditional,
 } from "./commissionCalc.js";
@@ -109,8 +110,19 @@ export function calcTaskEarning(task, principalsList) {
 
   // ── 냉매충전 ──
   if (code === "refrigerant") {
-    // 에어컨프로(KA) / 쿨가이(KB): 예상금액비율 (estimate_split)
-    if (principal.commissionPolicy?.refrigerant?.type === "estimate_split") {
+    const refrigType = principal.commissionPolicy?.refrigerant?.type;
+
+    // 견적_잔여_분배 — KA: 견적 × 35% 원청 / (잔여 + 추가) × 50% 기사·회사
+    if (refrigType === "estimate_remainder_split") {
+      return calcEstimateRemainderSplit({
+        policy: principal.commissionPolicy.refrigerant,
+        estimate: task.estimateTotal || 0,
+        extra: (task.addonFee || 0) + (task.extraFee || 0),
+      });
+    }
+
+    // 예상금액비율 — KB: 견적 × 35% 원청 / 견적 × 50% 기사 / 추가 50:50
+    if (refrigType === "estimate_split") {
       return calcEstimateSplit({
         policy: principal.commissionPolicy.refrigerant,
         estimate: task.estimateTotal || 0,
