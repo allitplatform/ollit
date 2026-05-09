@@ -182,74 +182,28 @@ const ACTION_ALERTS = [
   { id: "settlement", type: "money", label: "오늘 정산", amount: 280000, sublabel: "순수익 (수수료 제외)", icon: Wallet, urgent: false },
 ];
 
-// 정산 데이터
+// Step 5-7-B — 정산 데이터 0건 처리 (운영 시작 = 깨끗한 상태)
+// 시트 양방향 sync 데이터로 교체 / 사용자가 새 작업 박을 때까지 빈 상태
+// SettlementScreen에 fallback UI 박혀 0건 일 때 친절한 안내 표시
 const SETTLEMENT_DATA = {
   today: {
-    netIncome: 132000,         // 오늘 내 수익 (수수료 제외)
-    completedCount: 3,         // 오늘 완료 작업수
-    avgPerJob: 44000,
-    fieldCollection: {         // 현장 수금
-      received: 220000,        // 고객에게 받은 총액
-      sentToCompany: 88000,    // 회사에 송금할 금액
-      myIncome: 132000,        // 내 수익
-      count: 2,
-    },
-    companySettlement: {       // 회사 정산 (회사가 줄 돈)
-      gross: 100000,           // 상품 금액
-      commission: 50000,       // 수수료
-      myIncome: 50000,         // 받을 금액
-      count: 1,
-      status: "pending",       // 다음주 입금 예정
-    },
+    netIncome: 0,
+    completedCount: 0,
+    avgPerJob: 0,
+    fieldCollection: { received: 0, sentToCompany: 0, myIncome: 0, count: 0 },
+    companySettlement: { gross: 0, commission: 0, myIncome: 0, count: 0, status: "pending" },
   },
   thisMonth: {
-    netIncome: 2910000,
-    completedCount: 36,
-    avgPerJob: 80833,
-    fieldCollection: {
-      received: 4200000,
-      sentToCompany: 1680000,
-      myIncome: 2520000,
-      count: 28,
-    },
-    companySettlement: {
-      gross: 780000,
-      commission: 390000,
-      myIncome: 390000,
-      count: 8,
-      status: "mixed",         // 일부 입금됨
-    },
+    netIncome: 0,
+    completedCount: 0,
+    avgPerJob: 0,
+    fieldCollection: { received: 0, sentToCompany: 0, myIncome: 0, count: 0 },
+    companySettlement: { gross: 0, commission: 0, myIncome: 0, count: 0, status: "pending" },
   },
-  pending: {
-    amount: 480000,
-    count: 6,
-  },
-  paid: {
-    amount: 2430000,
-    count: 30,
-  },
-  history: [
-    { id: "S260420", date: "2026.04.20", amount: 480000, count: 6, status: "지급완료", paidDate: "2026.04.21" },
-    { id: "S260413", date: "2026.04.13", amount: 720000, count: 9, status: "지급완료", paidDate: "2026.04.14" },
-    { id: "S260406", date: "2026.04.06", amount: 560000, count: 7, status: "지급완료", paidDate: "2026.04.07" },
-    { id: "S260330", date: "2026.03.30", amount: 670000, count: 8, status: "지급완료", paidDate: "2026.03.31" },
-  ],
-  recentJobs: [
-    { id: "A260427-001", date: "04.27", time: "09:00", customer: "박지영", workType: "세척", 
-      paymentType: "field", grossAmount: 80000, commission: 32000, myIncome: 48000, status: "완료" },
-    { id: "A260427-002", date: "04.27", time: "11:30", customer: "이상훈", workType: "세척",
-      paymentType: "field", grossAmount: 140000, commission: 56000, myIncome: 84000, status: "완료" },
-    { id: "A260427-003", date: "04.27", time: "14:00", customer: "김미경", workType: "냉매충전",
-      paymentType: "company", grossAmount: 100000, commission: 50000, myIncome: 50000, status: "완료" },
-    { id: "A260426-008", date: "04.26", time: "10:00", customer: "최영주", workType: "세척",
-      paymentType: "field", grossAmount: 60000, commission: 24000, myIncome: 36000, status: "완료" },
-    { id: "A260426-005", date: "04.26", time: "14:00", customer: "김도훈", workType: "냉매충전",
-      paymentType: "company", grossAmount: 120000, commission: 60000, myIncome: 60000, status: "완료" },
-    { id: "A260425-003", date: "04.25", time: "11:00", customer: "이서연", workType: "세척",
-      paymentType: "field", grossAmount: 80000, commission: 32000, myIncome: 48000, status: "완료" },
-    { id: "A260425-001", date: "04.25", time: "09:00", customer: "박민수", workType: "설치",
-      paymentType: "company", grossAmount: 200000, commission: 80000, myIncome: 96000, status: "완료" },
-  ],
+  pending: { amount: 0, count: 0 },
+  paid:    { amount: 0, count: 0 },
+  history: [],
+  recentJobs: [],
 };
 
 // 알림 데이터
@@ -2043,12 +1997,56 @@ function PhotoUploadBox({ t, label, uploaded, onClick, locked }) {
 function SettlementScreen({ t }) {
   const [period, setPeriod] = useState("today"); // 'today' or 'month'
   const data = period === "today" ? SETTLEMENT_DATA.today : SETTLEMENT_DATA.thisMonth;
-  
+
   // 기간별 작업 필터
-  const filteredJobs = period === "today" 
+  const filteredJobs = period === "today"
     ? SETTLEMENT_DATA.recentJobs.filter(j => j.date === "04.27")
     : SETTLEMENT_DATA.recentJobs;
-  
+
+  // Step 5-7-B — 0건 fallback UI (운영 시작 = 깨끗한 상태)
+  // 시트 양방향 sync 데이터 박힐 때까지 친절한 안내 표시
+  if (!data || data.completedCount === 0) {
+    return (
+      <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
+        <div style={{ padding: "28px 20px 0" }}>
+          <div style={{ marginBottom: 20 }}>
+            <span className="mono" style={{ fontSize: 11, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase" }}>
+              정산
+            </span>
+          </div>
+          <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 16 }}>
+            내 수익
+          </div>
+          {/* 기간 토글 — 0건이어도 토글 자체는 보존 */}
+          <div style={{ display: "flex", gap: 6, marginBottom: 20, background: t.bgInset, borderRadius: 10, padding: 4 }}>
+            {[
+              { id: "today", label: "오늘" },
+              { id: "month", label: "이번 달" },
+            ].map(opt => (
+              <button key={opt.id} onClick={() => setPeriod(opt.id)} style={{
+                flex: 1, padding: "10px 14px",
+                background: period === opt.id ? t.bgElevated : "transparent",
+                color: period === opt.id ? t.text : t.textMuted,
+                border: "none", borderRadius: 8,
+                fontSize: 13, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>{opt.label}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{ padding: "60px 20px", textAlign: "center" }}>
+          <Wallet size={48} style={{ color: t.textMuted, opacity: 0.5, margin: "0 auto 16px" }}/>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 10 }}>
+            아직 정산 데이터가 없어요
+          </div>
+          <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>
+            작업 완료 후 정산 데이터가 자동으로 박혀요
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ fontFamily: "'Pretendard', sans-serif", background: t.bg, minHeight: "100vh", paddingBottom: 100, color: t.text }}>
       <style>{`
@@ -4458,26 +4456,9 @@ export default function EngineerApp({ user, onLogout }) {
     },
   ];
 
-  // V14 v6 — 유솔N 정산 (동적 dateOffset)
-  const usolNGroupsMock = [
-    // 오늘 — 김미경 본작업
-    {
-      date: dateOffsetIso(0), status: "pending", payDate: "2026-06-15",
-      works: [
-        { id: "YS-N260505-003", customerName: "김미경", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 44000 },
-      ],
-      totalAmount: 44000,
-    },
-    // -3일 — 박은서 본작업
-    {
-      date: dateOffsetIso(-3), status: "pending", payDate: "2026-06-15",
-      works: [
-        { id: "YS-N260502-002", customerName: "박은서", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 44000 },
-      ],
-      totalAmount: 44000,
-    },
-    // Step 5-7 — 4월 / 3월 임시 mock 데이터 제거 (운영 시작 정리 / 시트 양방향 sync 데이터로 교체)
-  ];
+  // Step 5-7-B — 유솔N 정산 mock 모두 제거 (운영 시작 = 깨끗한 상태)
+  // 시트 양방향 sync 데이터로 교체 / 사용자가 새 작업 박을 때까지 빈 배열
+  const usolNGroupsMock = [];
 
   // 휴무 mock
   const offDays = [];
