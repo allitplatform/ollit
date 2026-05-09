@@ -159,9 +159,22 @@ export async function deleteEngineerRate(payload) {
 // V14 Step 5-5 — 설정_기사역량 read 캐시 (5-5-A)
 // =====================================
 // 시트 5열: A 기사ID / B 원청 / C 작업유형 / D 지역 (콤마/"전국") / E 등급
-// 양방향 X — 시트 직접 편집 / 코드는 read만
 export async function getEngineerSkills() {
   return apiCall('getEngineerSkills', {});
+}
+
+// V14 Step 5-5-C Phase 2 — 설정_기사역량 양방향 sync
+// payload: { engineerId, principal, workType, zones (콤마 string), grade, note? }
+// upsert 키 (3중): engineerId + principal + workType
+// 응답: { ok, action: 'create'|'update', engineerId, principal, workType }
+export async function saveEngineerSkill(payload) {
+  return apiCall('saveEngineerSkill', payload);
+}
+
+// 시트 행 삭제
+// payload: { engineerId, principal, workType }
+export async function deleteEngineerSkill(payload) {
+  return apiCall('deleteEngineerSkill', payload);
 }
 
 // =====================================

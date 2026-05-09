@@ -8,6 +8,8 @@ import {
   deleteEngineer as apiDeleteEngineer,
   saveEngineerRate as apiSaveEngineerRate,
   deleteEngineerRate as apiDeleteEngineerRate,
+  saveEngineerSkill as apiSaveEngineerSkill,
+  deleteEngineerSkill as apiDeleteEngineerSkill,
 } from "../api.js";
 
 const STORAGE_KEY = "ollit_engineers_v1";
@@ -678,6 +680,103 @@ export function getEngineerSkillsByEngineer(engineerId) {
       zones:      _skillZonesArray(s),
       raw:        s,
     }));
+}
+
+// ============================================================
+// Step 5-5-C Phase 2 — 양방향 sync 헬퍼 (saveEngineerSkillWithSync 등)
+// ============================================================
+// 옛 측 localStorage (사장님이 화면에서 박은 / 시트 빈 상태 시작) — Step 5-4 단가 패턴
+const ENGINEER_SKILLS_LOCAL_KEY = "ollit_engineer_skills_v1";
+
+function _loadLocalEngineerSkills() {
+  try {
+    const raw = localStorage.getItem(ENGINEER_SKILLS_LOCAL_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) { /* */ }
+  return [];
+}
+
+function _saveLocalEngineerSkills(list) {
+  try {
+    localStorage.setItem(ENGINEER_SKILLS_LOCAL_KEY, JSON.stringify(list));
+  } catch (e) { /* */ }
+}
+
+// upsert 키 (3중) 비교: engineerId + principal + workType
+function _sameSkillKey(a, b) {
+  return String(a.engineerId).trim() === String(b.engineerId).trim()
+      && String(a.principal).trim()  === String(b.principal).trim()
+      && String(a.workType).trim()   === String(b.workType).trim();
+}
+
+// payload 정규화 (zones 배열 → 콤마 string)
+function _normalizeSkillPayload(p) {
+  if (!p) return p;
+  let zones = p.zones;
+  if (Array.isArray(zones)) zones = zones.map(z => String(z).trim()).filter(Boolean).join(", ");
+  else if (typeof zones === "string") zones = zones.trim();
+  else zones = "";
+  return {
+    engineerId: String(p.engineerId || "").trim(),
+    principal:  String(p.principal  || "").trim(),
+    workType:   String(p.workType   || "").trim(),
+    zones,
+    grade:      String(p.grade      || "").trim(),
+    note:       String(p.note       || "").trim(),
+  };
+}
+
+// upsert: localStorage 즉시 + GAS 비동기 sync (Step 5-2/5-4 패턴)
+export async function saveEngineerSkillWithSync(payload) {
+  const norm = _normalizeSkillPayload(payload);
+  if (!norm.engineerId || !norm.principal || !norm.workType) {
+    return { ok: false, error: "필수 키 누락 (engineerId / principal / workType)", localOk: false };
+  }
+  // 1) 옛 측 localStorage 즉시 upsert
+  const local = _loadLocalEngineerSkills();
+  const idx = local.findIndex(r => _sameSkillKey(r, norm));
+  if (idx >= 0) local[idx] = { ...local[idx], ...norm };
+  else          local.push({ ...norm });
+  _saveLocalEngineerSkills(local);
+
+  // 2) GAS sync
+  try {
+    const res = await apiSaveEngineerSkill(norm);
+    if (!res || res.ok === false) {
+      throw new Error((res && res.error) || "시트 sync 실패");
+    }
+    return { ok: true, action: res.action || "update" };
+  } catch (e) {
+    return { ok: false, error: e.message || "네트워크 오류", localOk: true };
+  }
+}
+
+export async function deleteEngineerSkillWithSync(payload) {
+  const norm = _normalizeSkillPayload(payload);
+  if (!norm.engineerId || !norm.principal || !norm.workType) {
+    return { ok: false, error: "필수 키 누락", localOk: false };
+  }
+  // 1) 옛 측
+  const local = _loadLocalEngineerSkills();
+  const next = local.filter(r => !_sameSkillKey(r, norm));
+  _saveLocalEngineerSkills(next);
+  // 2) GAS sync
+  try {
+    const res = await apiDeleteEngineerSkill({
+      engineerId: norm.engineerId,
+      principal:  norm.principal,
+      workType:   norm.workType,
+    });
+    if (!res || res.ok === false) {
+      throw new Error((res && res.error) || "시트 sync 실패");
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || "네트워크 오류", localOk: true };
+  }
 }
 
 // 자동 배정 / 추천 lookup 헬퍼 — 작업 1건이 기사 역량 매칭 여부
