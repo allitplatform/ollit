@@ -38,6 +38,7 @@ export function SettingsScreen({
   user, onBack, onLogout,
   onPrincipals, onEngineers, onRates, onRegions,
   onUsers, onNotifications, onBackup,
+  onCompanyAccount,  // Step 5-8 F-4
   onUsolN, onSettlement, onPrincipalSettlement,
   themeMode, onToggleTheme,
 }) {
@@ -81,9 +82,10 @@ export function SettingsScreen({
     { key: "regions",       icon: "📍", label: "지역 관리",    sub: `활성 ${counts.regions}개`, perm: "menu.regions",  onClick: onRegions },
   ];
   const system = [
-    { key: "users",         icon: "👥", label: "사용자 / 권한", sub: "5역할",  perm: "menu.users",         onClick: onUsers },
-    { key: "notifications", icon: "🔔", label: "알림",         sub: "시스템 / 푸시 / 이메일", perm: "menu.notifications", onClick: onNotifications },
-    { key: "backup",        icon: "💾", label: "시트 백업",   sub: "Google Sheets에서 사본 만들기", perm: "menu.backup", onClick: handleSheetBackup },
+    { key: "users",           icon: "👥", label: "사용자 / 권한", sub: "5역할",  perm: "menu.users",         onClick: onUsers },
+    { key: "company_account", icon: "💳", label: "회사 계좌",     sub: "변경 가능 (운영자)", perm: "menu.company_account", onClick: onCompanyAccount },
+    { key: "notifications",   icon: "🔔", label: "알림",         sub: "시스템 / 푸시 / 이메일", perm: "menu.notifications", onClick: onNotifications },
+    { key: "backup",          icon: "💾", label: "시트 백업",     sub: "Google Sheets에서 사본 만들기", perm: "menu.backup", onClick: handleSheetBackup },
   ];
   const personal = [
     { key: "theme",   icon: themeMode === "dark" ? "🌙" : "☀️", label: "테마", sub: themeMode === "dark" ? "다크" : "라이트", onClick: onToggleTheme },

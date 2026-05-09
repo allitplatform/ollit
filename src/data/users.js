@@ -40,6 +40,7 @@ export const PERMISSIONS = {
   "menu.users":         ["owner", "admin"],   // Step 5-7-A — admin 추가 (관리자 = 사용자 관리 가능)
   "menu.notifications": ["owner", "admin"],
   "menu.backup":        ["owner", "admin"],   // Step 5-7-A — admin 추가 (관리자 = 시트 백업 가능)
+  "menu.company_account": ["owner", "admin"], // Step 5-8 F-4 — 회사 계좌 변경 (운영자/관리자만)
   // 액션
   "task.assign":        ["owner", "admin"],
   "task.cancel":        ["owner", "admin", "happycall"],

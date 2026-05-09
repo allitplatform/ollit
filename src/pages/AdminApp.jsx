@@ -45,6 +45,7 @@ import { RegionListScreen } from "../components/RegionListScreen.jsx";
 import { RegionEditScreen } from "../components/RegionEditScreen.jsx";
 import { createEmptyRegion } from "../data/regions.js";
 import { SettingsScreen } from "../components/SettingsScreen.jsx";
+import { CompanyAccountScreen } from "../components/CompanyAccountScreen.jsx";
 import { UserListScreen } from "../components/UserListScreen.jsx";
 import { UserEditScreen } from "../components/UserEditScreen.jsx";
 import { NotificationsScreen as NotiSettingsScreen } from "../components/NotificationsScreen.jsx";
@@ -2733,6 +2734,7 @@ export default function AdminApp({ user, onLogout }) {
         onRates={() => setScreen("ratesManagement")}
         onRegions={() => setScreen("regionList")}
         onUsers={() => setScreen("userList")}
+        onCompanyAccount={() => setScreen("companyAccount")}
         onNotifications={() => setScreen("notificationSettings")}
         onBackup={() => addToast({ type: "assignment", title: "백업 / 복원", message: "준비 중인 기능입니다" })}
         onUsolN={(menuId) => setScreen(menuId)}
@@ -2791,6 +2793,12 @@ export default function AdminApp({ user, onLogout }) {
   if (screen === "notificationSettings") {
     return <Shell>
       <NotiSettingsScreen onBack={goBack}/>
+    </Shell>;
+  }
+  // Step 5-8 F-4 — 회사 계좌 관리 (운영자/관리자만 / PERMISSIONS["menu.company_account"])
+  if (screen === "companyAccount") {
+    return <Shell>
+      <CompanyAccountScreen onBack={goBack}/>
     </Shell>;
   }
   // Step 7 — 원청 관리 (리스트 + 편집/추가 + 유솔 N CSV 업로드)
