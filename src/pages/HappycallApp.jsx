@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { updateTaskStatus, getTasks, updateTask as apiUpdateTask } from "../api.js";
 import { v14NormalizeTask, v14FindTaskList } from "../utils/v14Task.js";
-import { 
+import {
   Phone, MessageCircle, Snowflake, Wrench, Settings, Zap, ChevronRight, ChevronLeft,
   Sun, Moon, Plus, ArrowLeft, ArrowRight, User, MapPin, Calendar,
   Clock, FileText, RotateCcw, CheckCircle2, AlertCircle, AlertTriangle, Search, Star,
-  PhoneCall, UserPlus, Edit3, Bell, X
+  PhoneCall, UserPlus, Edit3, Bell, X, ClipboardList,
 } from "lucide-react";
 import { useTasks } from "../shared/TasksContext.jsx";
 
@@ -461,8 +461,15 @@ function HappycallMainScreen({ t, tasks, onNewReception, onTaskAction, user }) {
         </div>
 
         {filteredTasks.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: 13 }}>
-            해당 항목이 없어요
+          // Step 5-7-D — 작업 0건 fallback UI 강화
+          <div style={{ padding: "60px 20px", textAlign: "center" }}>
+            <ClipboardList size={48} style={{ color: t.textMuted, opacity: 0.5, margin: "0 auto 16px" }}/>
+            <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 10 }}>
+              아직 작업이 없어요
+            </div>
+            <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>
+              새 접수 또는 시트에서 박으면 여기에 박혀요
+            </div>
           </div>
         ) : (
           filteredTasks.map((task, idx) => (

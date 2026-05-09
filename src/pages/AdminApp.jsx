@@ -10,7 +10,7 @@ import {
   Sun, Moon, Plus, ArrowLeft, ArrowRight, User, MapPin, Calendar,
   Clock, FileText, RotateCcw, CheckCircle2, AlertCircle, Star, Search,
   Users, BarChart3, TrendingUp, Activity, Wallet, Bell, Camera,
-  Briefcase, Hash, AlertTriangle, MoreVertical, Award, XCircle, Edit3,
+  Briefcase, Hash, AlertTriangle, MoreVertical, Award, XCircle, Edit3, ClipboardList,
 } from "lucide-react";
 import { OllitMark } from "../components/OllitMark.jsx";
 import { EngineerBadge } from "../components/EngineerBadge.jsx";
@@ -4740,8 +4740,17 @@ function InProgressListScreen({ t, onBack, onTaskClick }) {
             );
           })}
           {activeCount === 0 && (
-            <div style={{ padding: "30px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
-              {q ? "검색 결과가 없어요" : "현재 진행중 작업이 없어요"}
+            // Step 5-7-D — 작업 0건 fallback UI 강화
+            <div style={{ padding: "60px 20px", textAlign: "center" }}>
+              <ClipboardList size={48} style={{ color: t.textMuted, opacity: 0.5, margin: "0 auto 16px" }}/>
+              <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 10 }}>
+                {q ? "검색 결과가 없어요" : "아직 작업이 없어요"}
+              </div>
+              {!q && (
+                <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>
+                  새 접수 또는 시트에서 박으면 여기에 박혀요
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -4876,8 +4885,15 @@ function SettlementContent({ t, onTaskClick, onClickManagePrincipals, containerP
       </div>
 
       {doneTasks.length === 0 ? (
-        <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
-          오늘 완료된 작업이 없어요
+        // Step 5-7-D — 정산 0건 fallback UI 강화
+        <div style={{ padding: "60px 20px", textAlign: "center" }}>
+          <Wallet size={48} style={{ color: t.textMuted, opacity: 0.5, margin: "0 auto 16px" }}/>
+          <div style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 10 }}>
+            아직 정산 데이터가 없어요
+          </div>
+          <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.6 }}>
+            작업 완료 후 정산 데이터가 자동으로 박혀요
+          </div>
         </div>
       ) : activeTab === "engineers" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
