@@ -296,7 +296,10 @@ export function loadEngineers() {
 
   // 2) 시트 캐시 (Step 3 setEngineersCache로 박힘)
   const sheetList = _loadSheetEngineersFromCache();
-  if (sheetList.length === 0) return oldList;  // 시트 데이터 없음 → 옛 동작 그대로
+  if (sheetList.length === 0) {
+    // 시트 데이터 없음 → 옛 측만 반환. Step 5-5-C Phase 1 — skills 빈 배열 첨부
+    return oldList.map(o => ({ ...o, skills: getEngineerSkillsByEngineer(o.id) }));
+  }
 
   // 3) 매칭 인덱스
   const oldById   = new Map();
@@ -344,7 +347,10 @@ export function loadEngineers() {
     if (!usedOldIds.has(o.id)) merged.push({ ...o, _onlyOld: true });
   }
 
-  return merged;
+  // 6) Step 5-5-C Phase 1 — engineer.skills 배열 첨부 (C-3 hybrid)
+  // 시트 _기사역량 캐시 (Step 5-5-A setEngineerSkillsCache)에서 engineerId로 lookup.
+  // 사용처 변경 X — 옛 workTypes/zones는 그대로 / skills는 별도 박음 (Phase 5에서 자동 배정에 사용 예정).
+  return merged.map(eng => ({ ...eng, skills: getEngineerSkillsByEngineer(eng.id) }));
 }
 
 export function saveEngineers(list) {
