@@ -712,19 +712,22 @@ function _sameSkillKey(a, b) {
       && String(a.workType).trim()   === String(b.workType).trim();
 }
 
-// payload 정규화 (zones 배열 → 콤마 string)
+// payload 정규화 (zones / appliances 배열 → 콤마 string)
+// Step 5-5-C Phase 4-C-2 — appliances 추가 (F열 / Phase 4-C-1 GAS 통과)
 function _normalizeSkillPayload(p) {
   if (!p) return p;
-  let zones = p.zones;
-  if (Array.isArray(zones)) zones = zones.map(z => String(z).trim()).filter(Boolean).join(", ");
-  else if (typeof zones === "string") zones = zones.trim();
-  else zones = "";
+  const toCommaString = v => {
+    if (Array.isArray(v)) return v.map(z => String(z).trim()).filter(Boolean).join(", ");
+    if (typeof v === "string") return v.trim();
+    return "";
+  };
   return {
     engineerId: String(p.engineerId || "").trim(),
     principal:  String(p.principal  || "").trim(),
     workType:   String(p.workType   || "").trim(),
-    zones,
+    zones:      toCommaString(p.zones),
     grade:      String(p.grade      || "").trim(),
+    appliances: toCommaString(p.appliances),
     note:       String(p.note       || "").trim(),
   };
 }

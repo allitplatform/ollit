@@ -10,9 +10,51 @@ import {
   saveEngineerRateWithSync, deleteEngineerRateWithSync,
   loadEngineerRatesByEngineer,
   mapSheetSkillToWorkType,
+  saveEngineerSkillWithSync, deleteEngineerSkillWithSync,
   CAREER_LEVELS, STATUS_OPTIONS, ROLE_OPTIONS, APPLIANCE_OPTIONS,
   SEOUL_DISTRICTS, GG_INCHEON,
 } from "../data/engineers.js";
+
+// Step 5-5-C Phase 4-C-2 — 시트 (전체) 행 매핑 헬퍼 (form 초기값 + workTypesOriginal 둘 다 호출)
+function _computeInitialWorkTypes(engineer) {
+  const baseCleaning    = engineer.workTypes?.cleaning    || { role: "none", zones: [], appliances: [] };
+  const baseRefrigerant = engineer.workTypes?.refrigerant || { role: "none", zones: [], appliances: [] };
+  const skills = Array.isArray(engineer.skills) ? engineer.skills : [];
+  const isAllPrincipal = sp => sp === "(전체)" || sp === "전체";
+  const cleaningSkill    = skills.find(s => isAllPrincipal(s.principal) && s.workType === "세척");
+  const refrigerantSkill = skills.find(s => isAllPrincipal(s.principal) && s.workType === "냉매충전");
+  return {
+    cleaning:    cleaningSkill    ? mapSheetSkillToWorkType(cleaningSkill)    : { ...baseCleaning },
+    refrigerant: refrigerantSkill ? mapSheetSkillToWorkType(refrigerantSkill) : { ...baseRefrigerant },
+  };
+}
+
+// role ↔ grade reverse 매핑
+function _roleToGrade(role) {
+  if (role === "main") return "메인";
+  if (role === "sub")  return "백업";
+  return "";  // none은 별도 처리 (delete)
+}
+
+// workTypes 변경 detect
+function _sameWorkType(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  if ((a.role || "none") !== (b.role || "none")) return false;
+  const az = (a.zones || []).slice().sort().join(",");
+  const bz = (b.zones || []).slice().sort().join(",");
+  if (az !== bz) return false;
+  const aa = (a.appliances || []).slice().sort().join(",");
+  const ba = (b.appliances || []).slice().sort().join(",");
+  if (aa !== ba) return false;
+  return true;
+}
+function _diffWorkTypes(original, current) {
+  return {
+    cleaningChanged:    !_sameWorkType(original?.cleaning,    current?.cleaning),
+    refrigerantChanged: !_sameWorkType(original?.refrigerant, current?.refrigerant),
+  };
+}
 
 // Step 5-2 — 냉매충전 기사 비율 옵션
 const REFRIGERANT_RATE_OPTIONS = [
@@ -27,24 +69,15 @@ const RATE_APPLIANCES = ["벽걸이", "스탠드", "1way", "4way", "원형", "�
 
 export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
   // Step 5-5-C Phase 4-C-3 — engineer.skills (시트 _기사역량 캐시)에서 (전체) 원청 행 우선
-  // 시트에 (전체) 행 있으면 → form.workTypes 초기값 시트 데이터 / 없으면 옛 SEED workTypes fallback
-  const [form, setForm] = useState(() => {
-    const baseCleaning    = engineer.workTypes?.cleaning    || { role: "none", zones: [], appliances: [] };
-    const baseRefrigerant = engineer.workTypes?.refrigerant || { role: "none", zones: [], appliances: [] };
-    const skills = Array.isArray(engineer.skills) ? engineer.skills : [];
-    const isAllPrincipal = sp => sp === "(전체)" || sp === "전체";
-    const cleaningSkill    = skills.find(s => isAllPrincipal(s.principal) && s.workType === "세척");
-    const refrigerantSkill = skills.find(s => isAllPrincipal(s.principal) && s.workType === "냉매충전");
-    return {
-      email: "",
-      cm_refrigerant_rate: 50,
-      ...engineer,
-      workTypes: {
-        cleaning:    cleaningSkill    ? mapSheetSkillToWorkType(cleaningSkill)    : { ...baseCleaning },
-        refrigerant: refrigerantSkill ? mapSheetSkillToWorkType(refrigerantSkill) : { ...baseRefrigerant },
-      },
-    };
-  });
+  // Phase 4-C-2 — _computeInitialWorkTypes 헬퍼로 form 초기값 + workTypesOriginal 둘 다 동일 매핑
+  const [form, setForm] = useState(() => ({
+    email: "",
+    cm_refrigerant_rate: 50,
+    ...engineer,
+    workTypes: _computeInitialWorkTypes(engineer),
+  }));
+  // Step 5-5-C Phase 4-C-2 — workTypes 변경 detect용 (저장 시 form.workTypes vs Original 비교)
+  const [workTypesOriginal] = useState(() => _computeInitialWorkTypes(engineer));
   const [error, setError]     = useState("");
   const [toast, setToast]     = useState(null);  // { type: 'success'|'warn'|'error', message }
   const [busy, setBusy]       = useState(false);
@@ -159,18 +192,60 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
       if (rRes.ok) rateOk += 1; else rateFail += 1;
     }
 
+    // Step 5-5-C Phase 4-C-2 — 옛 폼 → 시트 (전체) 행 양방향 sync
+    // 변경 detect: workTypesOriginal vs form.workTypes
+    // role="none" → deleteEngineerSkillWithSync / 그 외 → saveEngineerSkillWithSync
+    let skillOk = 0, skillFail = 0;
+    const wtDiff = _diffWorkTypes(workTypesOriginal, form.workTypes);
+
+    async function syncSkill(workTypeKr, wt) {
+      if (!wt || wt.role === "none") {
+        const sRes = await deleteEngineerSkillWithSync({
+          engineerId: saved.id,
+          principal:  "(전체)",
+          workType:   workTypeKr,
+        });
+        return sRes.ok;
+      }
+      const sRes = await saveEngineerSkillWithSync({
+        engineerId: saved.id,
+        principal:  "(전체)",
+        workType:   workTypeKr,
+        zones:      (wt.zones || []).join(", "),
+        grade:      _roleToGrade(wt.role),
+        appliances: (wt.appliances || []).join(", "),
+      });
+      return sRes.ok;
+    }
+
+    if (wtDiff.cleaningChanged) {
+      if (await syncSkill("세척", form.workTypes.cleaning)) skillOk += 1;
+      else skillFail += 1;
+    }
+    if (wtDiff.refrigerantChanged) {
+      if (await syncSkill("냉매충전", form.workTypes.refrigerant)) skillOk += 1;
+      else skillFail += 1;
+    }
+
     setBusy(false);
 
-    // 통합 토스트 (Step 5-4 패턴 — 단가만)
-    const rateOps = rateOk + rateFail;
+    // 통합 토스트 (Step 5-4 패턴 + 역량)
+    const rateOps  = rateOk  + rateFail;
+    const skillOps = skillOk + skillFail;
     const parts = ["프로 저장 완료"];
     if (rateOps > 0) {
       parts.push(rateFail === 0
         ? `단가 ${rateOk}건 sync 완료`
         : `단가 sync 일부 실패 (${rateOk}/${rateOps})`);
     }
+    if (skillOps > 0) {
+      parts.push(skillFail === 0
+        ? `역량 ${skillOk}건 sync 완료`
+        : `역량 sync 일부 실패 (${skillOk}/${skillOps})`);
+    }
+    const anyFail = rateFail > 0 || skillFail > 0;
     setToast({
-      type: rateFail > 0 ? "warn" : "success",
+      type: anyFail ? "warn" : "success",
       message: parts.join(" / "),
     });
     setTimeout(() => onSaved && onSaved(saved), 600);
