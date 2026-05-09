@@ -10,6 +10,7 @@ import {
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
 import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
+import { REGISTERED_USERS } from "../shared/users.js";
 
 // V14 헬퍼 — File → base64 (사진 업로드 catch)
 function fileToBase64(file) {
@@ -4561,30 +4562,73 @@ export default function EngineerApp({ user, onLogout }) {
   }
   function handleCallOps() { window.location.href = "tel:01012345678"; }
   function handleChatOps() { alert("운영팀 채팅"); }
-  // Step 5-8 F-5 — 시트 양방향 sync (시트 H/I 컬럼 + saveEngineerWithSync)
+  // Step 5-8 F-5 + hotfix — 시트 양방향 sync (시트 H/I 컬럼 + saveEngineerWithSync)
   // 옛 동작 보존: setSavedAccount + resetTo (UI 즉시) / 시트 sync는 best-effort
+  // engineerId 매핑 (multi-source / robust):
+  //   1) user.engineerId (GAS 응답 / REGISTERED_USERS 직접 로그인)
+  //   2) REGISTERED_USERS (시범 7계정 — userId / phone / name 매칭)
+  //   3) loadEngineers (시트 기사 — name / phone 매칭)
+  //   4) user.id (loginV14 시트 사용자 행 ID — fallback)
   async function handleSaveAccount(payload) {
     setSavedAccount(payload);
     resetTo("profile");
-    const engineerId = user?.engineerId || user?.id || "";
+
+    // Step 5-8 hotfix — 디버그 로그 (사장님 캡처용 / 콘솔 검증)
+    if (typeof console !== "undefined") {
+      console.log('[Step 5-8 디버그] user 전체:', user);
+      console.log('[Step 5-8 디버그] user.id:', user?.id);
+      console.log('[Step 5-8 디버그] user.userId:', user?.userId);
+      console.log('[Step 5-8 디버그] user.engineerId:', user?.engineerId);
+      console.log('[Step 5-8 디버그] user.name:', user?.name);
+      console.log('[Step 5-8 디버그] user.phone:', user?.phone);
+    }
+
+    // 옵션 🅑 — multi-source engineerId 매핑
+    const fromRegistered = REGISTERED_USERS.find(u =>
+      u.userId === user?.userId ||
+      u.userId === user?.id ||
+      (user?.phone && u.phone === user.phone) ||
+      (user?.name  && u.name  === user.name)
+    );
+    const list = loadEngineers();
+    const fromSheetEng = list.find(e =>
+      e.id === user?.engineerId ||
+      e.id === fromRegistered?.engineerId ||
+      (user?.name  && e.name  === user.name) ||
+      (user?.phone && e.phone === user.phone)
+    );
+
+    const engineerId =
+      user?.engineerId ||
+      fromRegistered?.engineerId ||
+      fromSheetEng?.id ||
+      user?.id ||
+      "";
+
+    if (typeof console !== "undefined") {
+      console.log('[Step 5-8 디버그] 매핑 결과 fromRegistered:', fromRegistered);
+      console.log('[Step 5-8 디버그] 매핑 결과 fromSheetEng:', fromSheetEng);
+      console.log('[Step 5-8 디버그] 최종 engineerId:', engineerId);
+    }
+
     if (!engineerId) {
-      showToast("⚠️ 사용자 ID가 없어 시트 sync 건너뜀");
+      showToast("✓ 로컬 저장됨 (시트 sync 보류)");
       return;
     }
-    const list = loadEngineers();
-    const found = list.find(e => e.id === engineerId);
+
+    const found = list.find(e => e.id === engineerId) || fromSheetEng || null;
     const merged = {
       ...(found || createEmptyEngineer()),
       id:    engineerId,
-      name:  found?.name  || user?.name  || "",
-      phone: found?.phone || user?.phone || "",
+      name:  found?.name  || fromRegistered?.name  || user?.name  || "",
+      phone: found?.phone || fromRegistered?.phone || user?.phone || "",
       bankName:      payload.bankName      || "",
       accountNumber: payload.accountNumber || "",
       accountHolder: payload.accountHolder || "",
     };
     const res = await saveEngineerWithSync(merged);
     if (res.ok)             showToast("✓ 계좌가 갱신되었습니다");
-    else if (res.localOk)   showToast("⚠️ 시트 sync 실패 — 로컬 저장됨");
+    else if (res.localOk)   showToast("✓ 로컬 저장됨 (시트 sync 보류)");
     else                    showToast(`⚠️ ${res.error || "저장 실패"}`);
   }
   function handleSaveRegions(regions) {
