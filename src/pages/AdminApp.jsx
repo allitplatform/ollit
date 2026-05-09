@@ -23,6 +23,7 @@ import { VISIT_FEE, getVisitReasonLabel } from "../data/visitFee.js";
 import { calcTaskEarning, setEngineersCache } from "../utils/feePolicy.js";
 import { setPrincipalsCache } from "../data/principals.js";
 import { setEngineerRatesCache, setEngineerSkillsCache } from "../data/engineers.js";
+import { setUsersCache } from "../data/users.js";
 import { TaskCardMenu } from "../components/TaskCardMenu.jsx";
 import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
 import { loadMemos, getMemoTypeLabel } from "../data/memos.js";
@@ -62,6 +63,7 @@ import {
   getAllPolicies as apiGetAllPolicies,
   getEngineerRates as apiGetEngineerRates,
   getEngineerSkills as apiGetEngineerSkills,
+  getUsers as apiGetUsers,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
   updateTask as apiUpdateTask,
@@ -1639,6 +1641,21 @@ export default function AdminApp({ user, onLogout }) {
     }
   }
   useEffect(() => { fetchPrincipals(); }, []);
+
+  // Step 5-7 — 시트 설정_사용자 read 캐시 (F-2 / read만)
+  async function fetchUsers() {
+    try {
+      const res = await apiGetUsers();
+      if (!res || res.ok === false) return;
+      const list = res.users || res.data || res.list || res.rows || [];
+      if (!Array.isArray(list)) return;
+      setUsersCache(list);
+      console.log('[V14 Step 5-7] users:', list.length, '명');
+    } catch (e) {
+      console.error('[V14 Step 5-7] fetchUsers 에러:', e);
+    }
+  }
+  useEffect(() => { fetchUsers(); }, []);
 
   // Step 5-5 — 시트 설정_기사역량 read 캐시 (5-5-A / read만)
   async function fetchEngineerSkills() {
