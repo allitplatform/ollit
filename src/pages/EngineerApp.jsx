@@ -8,6 +8,7 @@ import {
   completeTask as apiCompleteTask,
 } from "../api.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
+import { ENABLE_MOCK } from "../config/env.js";
 
 // V14 헬퍼 — File → base64 (사진 업로드 catch)
 function fileToBase64(file) {
@@ -176,11 +177,13 @@ function convertSheetTask(s) {
     scheduleHistory: [],
   };
 }
-const ACTION_ALERTS = [
+// Step 5-7-E — ACTION_ALERTS 운영/시뮬 분기 (운영 = 빈 배열 / 시뮬 = 옛 카드 3개)
+const _ACTION_ALERTS_MOCK = [
   { id: "new", type: "count", label: "새 배정", count: 1, sublabel: "신규 · 미수락", icon: Bell, urgent: true },
   { id: "report", type: "count", label: "미보고", count: 1, sublabel: "사진 미제출", icon: Camera, urgent: true },
   { id: "settlement", type: "money", label: "오늘 정산", amount: 280000, sublabel: "순수익 (수수료 제외)", icon: Wallet, urgent: false },
 ];
+const ACTION_ALERTS = ENABLE_MOCK ? _ACTION_ALERTS_MOCK : [];
 
 // Step 5-7-B — 정산 데이터 0건 처리 (운영 시작 = 깨끗한 상태)
 // 시트 양방향 sync 데이터로 교체 / 사용자가 새 작업 박을 때까지 빈 상태
@@ -4303,24 +4306,35 @@ export default function EngineerApp({ user, onLogout }) {
     x.scheduledDate === todayStr
   );
 
-  // V14 v6 — 사장님 시뮬 5/1~5/5 완료 13건 합계
-  // 5/1: 40+120+70 = 230K / 5/2: 60+44 = 104K / 5/3: 70+40 = 110K
-  // 5/4: 40+70 = 110K / 5/5: 40+120+44+50 = 254K
-  // 5월 누적 = 808K (= 230+104+110+110+254)
-  // 이번 주 (5/4~5/5) = 110 + 254 = 364K (5/6~5/10은 5/7 예정만)
-  const monthStats = {
+  // V14 v6 — 사장님 시뮬 5/1~5/5 완료 13건 합계 (ENABLE_MOCK 분기 / Step 5-7-E)
+  const _MONTH_STATS_MOCK = {
     month: 5,
-    weekEarning: 364000, weekCount: 6,    // 이번 주 (5/4~5/5 완료 6건)
-    monthEarning: 808000, monthCount: 13, // 5월 누적 13건 완료
+    weekEarning: 364000, weekCount: 6,
+    monthEarning: 808000, monthCount: 13,
     earning: 808000, count: 13,
     avgPerDay: 1.5, totalHours: 18,
   };
+  const _MONTH_STATS_EMPTY = {
+    month: new Date().getMonth() + 1,
+    weekEarning: 0, weekCount: 0,
+    monthEarning: 0, monthCount: 0,
+    earning: 0, count: 0,
+    avgPerDay: 0, totalHours: 0,
+  };
+  const monthStats = ENABLE_MOCK ? _MONTH_STATS_MOCK : _MONTH_STATS_EMPTY;
 
-  const usolN = {
+  // Step 5-7-E — 유솔N 받을 돈 분기
+  const _USOL_N_MOCK = {
     month: new Date().getMonth() + 1,
     payDate: `${new Date().getMonth() + 2}/15`,
     amount: 280000,
   };
+  const _USOL_N_EMPTY = {
+    month: new Date().getMonth() + 1,
+    payDate: "",
+    amount: 0,
+  };
+  const usolN = ENABLE_MOCK ? _USOL_N_MOCK : _USOL_N_EMPTY;
 
   const engineerProfile = {
     name: user?.name || "프로",
@@ -4333,7 +4347,8 @@ export default function EngineerApp({ user, onLogout }) {
   };
 
   // V14 v7 — 알림 7가지 (운영팀 메시지 = 단순 안내 / 입금 요청+확인 분리)
-  const [notifications, setNotifications] = useState([
+  // Step 5-7-E — ENABLE_MOCK 분기 (운영 = 빈 배열 / 시뮬 = 옛 7개)
+  const [notifications, setNotifications] = useState(ENABLE_MOCK ? [
     { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 60 * 60 * 1000),       timeAgo: "1시간 전",   title: "새 배정 도착",         subtitle: "김상호 고객님 · 모레 세척 투인원 1대 · 마포구 상수동",         relatedId: "O260508-003", targetScreen: "newAssignmentList" },
     { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",    title: "수락 대기 · 선착순",     subtitle: "한미선 고객님 · 모레 14:00 세척 4way 3대 · 용산구 이태원동", relatedId: "K-260508-002", targetScreen: "acceptanceList" },
     { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   timeAgo: "2시간 전",   title: "운영팀 메시지",         subtitle: "이번 주 정산 마감 5월 15일까지입니다",                       relatedId: null,           targetScreen: null },
@@ -4341,7 +4356,7 @@ export default function EngineerApp({ user, onLogout }) {
     { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),   timeAgo: "오늘 오전",  title: "작업 취소",            subtitle: "5/10 예정 작업이 고객 사정으로 취소됐어요",                  relatedId: null,           targetScreen: "calendar" },
     { id: "N006", type: "payment_request",    read: false, urgent: false, createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),  timeAgo: "어제 22:05", title: "입금 요청하였습니다",   subtitle: "5/6 마감분 50,000원 회사 송금 요청",                          relatedId: null,           targetScreen: "paymentHistory" },
     { id: "N007", type: "payment_confirmed",  read: false, urgent: false, createdAt: new Date(Date.now() - 14 * 60 * 60 * 1000),  timeAgo: "오늘 09:30", title: "입금 확인되었습니다",   subtitle: "5/6 마감분 50,000원 처리 완료",                              relatedId: null,           targetScreen: "paymentHistory" },
-  ]);
+  ] : []);
   const unreadCount = notifications.filter(n => !n.read).length;
 
   function markAllRead() {
@@ -4379,8 +4394,10 @@ export default function EngineerApp({ user, onLogout }) {
     if (noti.targetScreen) setScreen(noti.targetScreen);
   }
 
-  // 유솔N 달력 mock
-  const usolNMonthData = { totalAmount: 280000, count: 4, byDate: {} };
+  // 유솔N 달력 mock — Step 5-7-E ENABLE_MOCK 분기
+  const usolNMonthData = ENABLE_MOCK
+    ? { totalAmount: 280000, count: 4, byDate: {} }
+    : { totalAmount: 0,      count: 0, byDate: {} };
   const loadUsolNDayTasks = () => [];
 
   // V14 v6 — 회사 송금 (동적 / 사장님 spec '미입금 = 완료 즉시 추가')
@@ -4469,10 +4486,10 @@ export default function EngineerApp({ user, onLogout }) {
         if (Array.isArray(parsed)) return parsed;
       }
     } catch (e) {}
-    return [
-      // V14 v6 — 오늘 19~21시 시간 휴무 (가족 모임)
+    // Step 5-7-E — ENABLE_MOCK 분기 (운영 = 빈 배열 / 시뮬 = 가족 모임 mock)
+    return ENABLE_MOCK ? [
       { type: "hourly", date: new Date().toISOString().slice(0, 10), startTime: "19:00", endTime: "21:00", reason: "가족 모임" },
-    ];
+    ] : [];
   });
   useEffect(() => {
     try { localStorage.setItem("ollit_off_days", JSON.stringify(savedOffDays)); } catch (e) {}
