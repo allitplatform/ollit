@@ -1,7 +1,15 @@
 // Step 7 풀버전 — 원청 마스터 + 정책 type 정의
 // type: standard | fake_split (쿨가이) | naver_settlement (유솔 N)
+// Step 5-3 — 시트 설정_원청 양방향 sync + 시트 캐시 자동 병합 (Step 5-1 패턴)
+
+import {
+  savePrincipal as apiSavePrincipal,
+  deletePrincipal as apiDeletePrincipal,
+} from "../api.js";
 
 const STORAGE_KEY = "ollit_principals_v1";
+// Step 5-3 — 시트 설정_원청 fetch 캐시 (앱 간 sync용)
+const PRINCIPALS_CACHE_KEY = "ollit_principals_cache_v1";
 
 const SEED_PRINCIPALS = [
   // 1. 올데이케어 (직영)
@@ -221,7 +229,8 @@ export const PRINCIPAL_COLORS = [
   "#EC4899", "#3B82F6",
 ];
 
-export function loadPrincipals() {
+// 옛 SEED localStorage read + 마이그레이션 (V2/V3/V4)
+function _loadOldPrincipals() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
@@ -235,7 +244,6 @@ export function loadPrincipals() {
           vatPolicy: p.vatPolicy || (p.id === "usol_n" ? "excluded" : "included"),
         };
         const refrig = next.commissionPolicy?.refrigerant;
-        // KA 마이그레이션 (V3)
         if (
           next.id === "aircon_pro" &&
           refrig?.type === "estimate_split" &&
@@ -253,7 +261,6 @@ export function loadPrincipals() {
             },
           };
         }
-        // KB 마이그레이션 (V4)
         const refrigKB = next.commissionPolicy?.refrigerant;
         if (
           next.id === "cool_son" &&
@@ -276,8 +283,61 @@ export function loadPrincipals() {
       });
     }
   } catch (e) { console.error(e); }
-  savePrincipals(SEED_PRINCIPALS);
-  return SEED_PRINCIPALS;
+  return null;
+}
+
+export function loadPrincipals() {
+  // 1) 옛 SEED localStorage (마이그레이션 적용)
+  let oldList = _loadOldPrincipals();
+  if (!oldList || oldList.length === 0) {
+    savePrincipals(SEED_PRINCIPALS);
+    oldList = SEED_PRINCIPALS;
+  }
+
+  // 2) 시트 캐시 (Step 5-3 setPrincipalsCache로 박힘)
+  const sheetList = getPrincipalsCache();
+  if (!sheetList || sheetList.length === 0) return oldList;  // 시트 데이터 없음 → 옛 동작 그대로
+
+  // 3) 매칭 인덱스 (옛 SEED — id 우선 / 이름 fallback)
+  const oldById   = new Map();
+  const oldByName = new Map();
+  oldList.forEach(o => {
+    if (o.id)   oldById.set(o.id, o);
+    if (o.name) oldByName.set(o.name, o);
+  });
+
+  // 4) 시트 기반 병합 (Step 5-1 패턴)
+  const merged = [];
+  const usedOldIds = new Set();
+  for (const s of sheetList) {
+    const adapted = adaptSheetPrincipalToSeed(s);
+    if (!adapted) continue;
+    const oldMatch = oldById.get(adapted.id) || oldByName.get(adapted.name);
+    if (oldMatch) {
+      // 옛 SEED 우선 (commissionPolicy / vatPolicy / contact / nickname 보존)
+      // 시트 우선: name / prefix / color / type / note (사장님이 시트에서 갱신 가능한 필드)
+      merged.push({
+        ...adapted,
+        ...oldMatch,
+        name:   adapted.name   || oldMatch.name,
+        prefix: adapted.prefix || oldMatch.prefix,
+        color:  adapted.color  || oldMatch.color,
+        type:   adapted.type   || oldMatch.type,
+        note:   adapted.note   || oldMatch.note,
+        _fromSheet: false,
+      });
+      usedOldIds.add(oldMatch.id);
+    } else {
+      merged.push(adapted);
+    }
+  }
+
+  // 5) 옛 SEED에만 있는 항목 (시트에 없는) 보존
+  for (const o of oldList) {
+    if (!usedOldIds.has(o.id)) merged.push({ ...o, _onlyOld: true });
+  }
+
+  return merged;
 }
 
 export function savePrincipals(list) {
@@ -285,6 +345,111 @@ export function savePrincipals(list) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
     return true;
   } catch (e) { console.error(e); return false; }
+}
+
+// ============================================================
+// Step 5-3 — 시트 설정_원청 양방향 sync + 캐시 자동 병합
+// ============================================================
+// 시트 6열 매핑: A 약자(prefix) / B id(principalId) / C 회사명(name) /
+//                D 구분(type:직영/위탁) / E 색(color) / F 비고(note)
+// 다른 필드 (nickname / vatPolicy / contact / commissionPolicy) — localStorage 전용 (이번 sync X)
+
+// AdminApp 등 fetch 후 호출 — 메모리/localStorage 박음
+export function setPrincipalsCache(list) {
+  if (!Array.isArray(list)) return;
+  try {
+    localStorage.setItem(PRINCIPALS_CACHE_KEY, JSON.stringify(list));
+  } catch (e) { /* 저장 실패 시 무시 */ }
+}
+
+export function getPrincipalsCache() {
+  try {
+    const raw = localStorage.getItem(PRINCIPALS_CACHE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) { /* */ }
+  return [];
+}
+
+// 시트 측 한 행 → 옛 SEED 모델 (6열만 매핑, 나머지는 옛 SEED 또는 default)
+function adaptSheetPrincipalToSeed(sheetP) {
+  if (!sheetP) return null;
+  const id     = sheetP.id || sheetP.principalId || sheetP.B || "";
+  const name   = sheetP.name || sheetP.회사명 || sheetP.C || "";
+  const prefix = sheetP.prefix || sheetP.약자 || sheetP.A || "";
+  const color  = sheetP.color || sheetP.색 || sheetP.E || "#888780";
+  const type   = sheetP.type || sheetP.구분 || sheetP.D || "위탁";
+  const note   = sheetP.note || sheetP.비고 || sheetP.F || "";
+  if (!id && !name) return null;
+  return {
+    id: id || generatePrincipalId(name),
+    name,
+    nickname: "",
+    color,
+    prefix,
+    type,
+    status: "active",
+    vatPolicy: "included",
+    contact: { manager: "", phone: "", email: "" },
+    note,
+    commissionPolicy: { cleaning: null, refrigerant: null },
+    _fromSheet: true,
+  };
+}
+
+// status → 시트 활성? (시트엔 활성 칼럼 X — 구분(D)이 따로). 단순히 status 그대로 박지 X
+// 코드 → 시트 sync payload (6열만)
+function _toPrincipalSyncPayload(p) {
+  return {
+    principalId: p.id || "",
+    name:        p.name || "",
+    prefix:      p.prefix || "",
+    color:       p.color || "",
+    type:        p.type || "위탁",
+    note:        p.note || "",
+  };
+}
+
+// upsert: localStorage 즉시 + GAS 비동기 sync
+export async function savePrincipalWithSync(p) {
+  const list = loadPrincipals();
+  const existing = list.find(x => x.id === p.id);
+  const next = existing
+    ? list.map(x => x.id === p.id ? p : x)
+    : [p, ...list];
+  savePrincipals(next);
+
+  try {
+    const res = await apiSavePrincipal(_toPrincipalSyncPayload(p));
+    if (!res || res.ok === false) {
+      throw new Error((res && res.error) || "시트 sync 실패");
+    }
+    if (res.principalId && res.principalId !== p.id) {
+      const updated = next.map(x => x.id === p.id ? { ...x, id: res.principalId } : x);
+      savePrincipals(updated);
+      return { ok: true, action: res.action, principalId: res.principalId };
+    }
+    return { ok: true, action: res.action || "update", principalId: res.principalId || p.id };
+  } catch (e) {
+    return { ok: false, error: e.message || "네트워크 오류", localOk: true };
+  }
+}
+
+export async function deletePrincipalWithSync(principalId) {
+  if (!principalId) return { ok: false, error: "principalId 없음", localOk: false };
+  const list = loadPrincipals();
+  savePrincipals(list.filter(x => x.id !== principalId));
+  try {
+    const res = await apiDeletePrincipal(principalId);
+    if (!res || res.ok === false) {
+      throw new Error((res && res.error) || "시트 sync 실패");
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || "네트워크 오류", localOk: true };
+  }
 }
 
 export function generatePrincipalId(name) {

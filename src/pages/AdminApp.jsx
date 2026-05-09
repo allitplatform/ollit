@@ -21,6 +21,7 @@ import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../st
 import { VisitOnlyDialog } from "../components/VisitOnlyDialog.jsx";
 import { VISIT_FEE, getVisitReasonLabel } from "../data/visitFee.js";
 import { calcTaskEarning, setEngineersCache } from "../utils/feePolicy.js";
+import { setPrincipalsCache } from "../data/principals.js";
 import { TaskCardMenu } from "../components/TaskCardMenu.jsx";
 import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
 import { loadMemos, getMemoTypeLabel } from "../data/memos.js";
@@ -56,6 +57,8 @@ import {
   calculateFee as apiCalculateFee,
   getTasks as apiGetTasks,
   getEngineers as apiGetEngineers,
+  getPrincipals as apiGetPrincipals,
+  getAllPolicies as apiGetAllPolicies,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
   updateTask as apiUpdateTask,
@@ -1618,6 +1621,39 @@ export default function AdminApp({ user, onLogout }) {
     }
   }
   useEffect(() => { fetchEngineers(); }, []);
+
+  // Step 5-3 — 시트 설정_원청 fetch + localStorage 캐시
+  async function fetchPrincipals() {
+    try {
+      const res = await apiGetPrincipals();
+      if (!res || res.ok === false) return;
+      const list = res.principals || res.data || res.list || res.rows || [];
+      if (!Array.isArray(list) || list.length === 0) return;
+      setPrincipalsCache(list);
+      console.log('[V14 Step 5-3] principals:', list.length, '곳');
+    } catch (e) {
+      console.error('[V14 Step 5-3] fetchPrincipals 에러:', e);
+    }
+  }
+  useEffect(() => { fetchPrincipals(); }, []);
+
+  // Step 5-3 — 시트 _수수료정책 read 캐시 (속도 ↑)
+  const POLICIES_CACHE_KEY = "ollit_policies_cache_v1";
+  async function fetchAllPolicies() {
+    try {
+      const res = await apiGetAllPolicies();
+      if (!res || res.ok === false) return;
+      const list = res.policies || res.data || res.list || res.rows || [];
+      if (!Array.isArray(list) || list.length === 0) return;
+      try {
+        localStorage.setItem(POLICIES_CACHE_KEY, JSON.stringify(list));
+      } catch (e) { /* 저장 실패 시 무시 */ }
+      console.log('[V14 Step 5-3] policies:', list.length, '행');
+    } catch (e) {
+      console.error('[V14 Step 5-3] fetchAllPolicies 에러:', e);
+    }
+  }
+  useEffect(() => { fetchAllPolicies(); }, []);
 
   // V14 Step 3 Fix 1 — 기사 이름 → 연락처 lookup helper
   const getEngineerPhone = (name) => {

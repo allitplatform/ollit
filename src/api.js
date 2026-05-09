@@ -111,6 +111,27 @@ export async function getAllPolicies() {
 }
 
 // =====================================
+// V14 Step 5-3 — 설정_원청 양방향 sync (5-3-A)
+// =====================================
+
+// 시트 설정_원청 read (6열: 약자/id/회사명/구분/색/비고)
+export async function getPrincipals() {
+  return apiCall('getPrincipals', {});
+}
+
+// 시트 설정_원청 upsert (principalId 기준 update / 없으면 append)
+// payload: { principalId, name, prefix, color, type, note }
+// 응답: { ok, principalId, action: 'update'|'create' }
+export async function savePrincipal(p) {
+  return apiCall('savePrincipal', p);
+}
+
+// 시트 설정_원청 행 삭제
+export async function deletePrincipal(principalId) {
+  return apiCall('deletePrincipal', { principalId });
+}
+
+// =====================================
 // V14 Week 2 2B-3 — 기사 / 추천 / 배정 API
 // =====================================
 

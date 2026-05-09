@@ -1,7 +1,9 @@
 // Step 7 풀버전 — 원청 편집 (정책 type별 UI 분기)
+// Step 5-3 — 시트 설정_원청 양방향 sync (savePrincipalWithSync / deletePrincipalWithSync)
 import { useState } from "react";
 import {
-  loadPrincipals, savePrincipals, generatePrincipalId, autoPrefix,
+  loadPrincipals, generatePrincipalId, autoPrefix,
+  savePrincipalWithSync, deletePrincipalWithSync,
   createEmptyPolicy, PRINCIPAL_COLORS, STATUS_OPTIONS, VAT_OPTIONS,
 } from "../data/principals.js";
 import {
@@ -35,6 +37,8 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack }) {
   const [data, setData] = useState(() => deepClone(principal));
   const [activeTab, setActiveTab] = useState("refrigerant");
   const [error, setError] = useState("");
+  const [toast, setToast] = useState(null);  // Step 5-3 — { type: success|warn, message }
+  const [busy, setBusy]   = useState(false);
 
   function updateName(name) {
     setData(d => ({ ...d, name, prefix: d.prefix || autoPrefix(name) }));
@@ -66,32 +70,55 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack }) {
     setData(d => ({ ...d, commissionPolicy: { ...d.commissionPolicy, [workType]: null } }));
   }
 
-  function handleSave() {
+  async function handleSave() {
     setError("");
+    setToast(null);
     const name = (data.name || "").trim();
-    if (!name) { setError("이름을 박아주세요"); return; }
+    if (!name) { setError("이름을 입력해주세요"); return; }
     const list = loadPrincipals();
     let saved = { ...data, name, nickname: (data.nickname || "").trim() };
     if (isNew) {
-      saved.id = generatePrincipalId(name);
-      if (saved.prefix && list.some(p => p.prefix === saved.prefix)) {
+      if (!saved.id) saved.id = generatePrincipalId(name);
+      if (saved.prefix && list.some(p => p.prefix === saved.prefix && p.id !== saved.id)) {
         const ok = window.confirm(`"${saved.prefix}" prefix가 다른 원청에 이미 사용 중입니다.\n그래도 저장하시겠어요?`);
         if (!ok) return;
       }
-      savePrincipals([saved, ...list]);
-    } else {
-      savePrincipals(list.map(p => p.id === saved.id ? saved : p));
     }
-    onSaved && onSaved(saved);
+    setBusy(true);
+    const res = await savePrincipalWithSync(saved);
+    setBusy(false);
+    if (res.ok) {
+      setToast({ type: "success", message: "원청 저장 완료" });
+      if (res.principalId && res.principalId !== saved.id) {
+        saved = { ...saved, id: res.principalId };
+      }
+      setTimeout(() => onSaved && onSaved(saved), 600);
+    } else {
+      setToast({
+        type: "warn",
+        message: `로컬 저장 완료 / 시트 sync 실패: ${res.error || "알 수 없는 오류"} (저장 다시 누르면 재시도)`,
+      });
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (isNew) return;
     const ok = window.confirm(`"${data.name}" 원청을 삭제할까요?\n\n정산 이력이 남아 있을 수 있습니다. 복구 불가합니다.`);
     if (!ok) return;
-    const list = loadPrincipals();
-    savePrincipals(list.filter(p => p.id !== data.id));
-    onSaved && onSaved(null);
+    setError("");
+    setToast(null);
+    setBusy(true);
+    const res = await deletePrincipalWithSync(data.id);
+    setBusy(false);
+    if (res.ok) {
+      setToast({ type: "success", message: "원청 삭제 완료" });
+      setTimeout(() => onSaved && onSaved(null), 600);
+    } else {
+      setToast({
+        type: "warn",
+        message: `로컬 삭제 완료 / 시트 sync 실패: ${res.error || "알 수 없는 오류"}`,
+      });
+    }
   }
 
   const currentPolicy = data.commissionPolicy[activeTab];
@@ -213,9 +240,27 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack }) {
           }}>{error}</div>
         )}
 
+        {/* Step 5-3 — 토스트 */}
+        {toast && (
+          <div style={{
+            margin: "12px 0", padding: "10px 12px",
+            background: toast.type === "success"
+              ? "rgba(0, 135, 90, 0.10)"
+              : "rgba(245, 158, 11, 0.10)",
+            border: `1px solid ${
+              toast.type === "success" ? "rgba(0, 135, 90, 0.30)" : "rgba(245, 158, 11, 0.40)"
+            }`,
+            borderRadius: 8,
+            color: toast.type === "success" ? "#00875A" : "#B45309",
+            fontSize: 12, lineHeight: 1.5, textAlign: "center",
+          }}>{toast.message}</div>
+        )}
+
         <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
-          <button onClick={onBack} style={cancelBtnStyle}>취소</button>
-          <button onClick={handleSave} style={saveBtnStyle}>저장</button>
+          <button onClick={onBack} style={cancelBtnStyle} disabled={busy}>취소</button>
+          <button onClick={handleSave} style={{ ...saveBtnStyle, opacity: busy ? 0.6 : 1 }} disabled={busy}>
+            {busy ? "저장 중..." : "저장"}
+          </button>
         </div>
       </div>
     </div>
