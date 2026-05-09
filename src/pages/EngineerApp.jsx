@@ -206,15 +206,9 @@ const SETTLEMENT_DATA = {
   recentJobs: [],
 };
 
-// 알림 데이터
-const NOTIFICATIONS = [
-  { id: "N001", type: "assign", title: "새 배정", message: "정도현님 (강남구 청담동) 작업 배정되었습니다", time: "10분 전", unread: true, taskId: "A260427-004" },
-  { id: "N002", type: "schedule_change", title: "일정 변경", message: "이상훈님 작업 14:00 → 11:30으로 변경되었습니다", time: "1시간 전", unread: true, taskId: "A260427-002" },
-  { id: "N003", type: "ops", title: "운영팀", message: "5월부터 수수료 정책이 일부 변경됩니다. 자세한 내용은 공지를 확인하세요.", time: "어제", unread: false },
-  { id: "N004", type: "settlement", title: "정산 완료", message: "4/14 정산 720,000원이 입금 완료되었습니다", time: "2일 전", unread: false },
-  { id: "N005", type: "review", title: "고객 후기", message: "박지영님이 ⭐5.0 평가를 남겼습니다 - \"친절하고 깔끔하게 작업해주셨어요\"", time: "3일 전", unread: false },
-  { id: "N006", type: "ops", title: "공지사항", message: "5월 1일은 근로자의 날 휴무입니다. 작업 일정 참고하세요.", time: "5일 전", unread: false },
-];
+// Step 5-7-B — 알림 데이터 0건 (운영 시작 = 깨끗한 상태)
+// 시트 양방향 sync 또는 푸시 알림 박힐 때까지 빈 배열 / unreadCount=0 / Bell 배지 X
+const NOTIFICATIONS = [];
 
 // 직급 시스템
 const ENGINEER_RANKS = [

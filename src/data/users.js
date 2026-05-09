@@ -37,9 +37,9 @@ export const PERMISSIONS = {
   "menu.principals":    ["owner", "admin"],
   "menu.rates":         ["owner"],
   "menu.regions":       ["owner", "admin"],
-  "menu.users":         ["owner"],
+  "menu.users":         ["owner", "admin"],   // Step 5-7-A — admin 추가 (관리자 = 사용자 관리 가능)
   "menu.notifications": ["owner", "admin"],
-  "menu.backup":        ["owner"],
+  "menu.backup":        ["owner", "admin"],   // Step 5-7-A — admin 추가 (관리자 = 시트 백업 가능)
   // 액션
   "task.assign":        ["owner", "admin"],
   "task.cancel":        ["owner", "admin", "happycall"],

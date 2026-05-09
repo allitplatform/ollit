@@ -706,12 +706,9 @@ const WORK_TYPE_ICONS = {
 //    - 사용자별 권한 (운영자/기사/해피콜)
 // 3. 외부 의존 0 (텔레그램 X — 사장님 운영 원칙)
 // ─────────────────────────────────────────────
-const NOTIFICATIONS_MOCK = [
-  { id: "n1", category: "new_assign",      categoryLabel: "새 접수",     title: "박은서 (세척 ×1)",   subtitle: "강남 도곡",                timeAgo: "5분 전",   createdAt: new Date(Date.now() - 5 * 60 * 1000),       read: false, taskId: "A260427-005" },
-  { id: "n2", category: "schedule_confirm", categoryLabel: "일정 확정",   title: "이상훈 (세척 ×2)",   subtitle: "김동효 · 14:00",          timeAgo: "30분 전",  createdAt: new Date(Date.now() - 30 * 60 * 1000),      read: false, taskId: "A260427-002" },
-  { id: "n3", category: "complete",        categoryLabel: "작업 완료",   title: "정수아 (세척 ×1)",   subtitle: "김동효 · 1시간 전",        timeAgo: "1시간 전", createdAt: new Date(Date.now() - 60 * 60 * 1000),      read: true,  taskId: "A260427-001" },
-  { id: "n4", category: "new_assign",      categoryLabel: "프로 배정",   title: "박은서 (세척)",      subtitle: "김동효 [과장] 배정 완료",   timeAgo: "2시간 전", createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),  read: true,  taskId: "A260427-005" },
-];
+// Step 5-7-B — 알림 mock 0건 (운영 시작 = 깨끗한 상태)
+// 시트 양방향 sync 또는 푸시 알림 박힐 때까지 빈 배열 / unreadCount=0 / Bell 배지 X
+const NOTIFICATIONS_MOCK = [];
 
 // 알림 타입 → 아이콘/색깔 매핑
 const NOTI_TYPE_META = {

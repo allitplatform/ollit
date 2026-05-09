@@ -2,6 +2,7 @@
 // 헤더 24/700 / 카테고리 탭 (전체/배정/일정/메시지/정산) / 날짜 그룹 (오늘/어제/이전)
 
 import { useState, useMemo } from "react";
+import { Bell } from "lucide-react";
 import { NotiCard } from "./NotiCard.jsx";
 import { getNotiGroup } from "./notiCategories.js";
 
@@ -115,12 +116,16 @@ export function NotiScreen({ notifications, onMarkAllRead, onCardClick, title = 
         ))}
       </div>
 
+      {/* Step 5-7-B — 알림 0건 fallback UI (Bell 아이콘 + 친절 메시지) */}
       {filtered.length === 0 && (
-        <div style={{
-          padding: 40, textAlign: "center",
-          fontSize: 14, color: "var(--text-secondary)",
-        }}>
-          알림이 없습니다.
+        <div style={{ padding: "60px 20px", textAlign: "center" }}>
+          <Bell size={48} style={{ color: "var(--text-secondary)", opacity: 0.5, margin: "0 auto 16px" }}/>
+          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginBottom: 10 }}>
+            알림이 없어요
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+            새 알림이 박히면 여기에 표시됩니다
+          </div>
         </div>
       )}
     </div>
