@@ -733,6 +733,7 @@ function _normalizeSkillPayload(p) {
 }
 
 // upsert: localStorage 즉시 + GAS 비동기 sync (Step 5-2/5-4 패턴)
+// Phase 4-E — 시트 캐시 (ollit_engineer_skills_cache_v1)도 즉시 갱신 (옛 폼 재진입 시 stale 방지)
 export async function saveEngineerSkillWithSync(payload) {
   const norm = _normalizeSkillPayload(payload);
   if (!norm.engineerId || !norm.principal || !norm.workType) {
@@ -745,7 +746,30 @@ export async function saveEngineerSkillWithSync(payload) {
   else          local.push({ ...norm });
   _saveLocalEngineerSkills(local);
 
-  // 2) GAS sync
+  // 2) Phase 4-E — 시트 캐시도 즉시 갱신 (옛 폼 재진입 시 stale 방지)
+  const splitCsv = s => (s ? String(s).split(",").map(z => z.trim()).filter(Boolean) : []);
+  const cache = getEngineerSkillsCache();
+  const cacheIdx = cache.findIndex(r =>
+    String(r.engineerId || r.기사ID || r.id || "").trim() === norm.engineerId &&
+    String(r.principal  || r.원청 || r.원청명 || "").trim() === norm.principal &&
+    String(r.workType   || r.작업유형 || "").trim()         === norm.workType
+  );
+  const cacheRow = {
+    engineerId:      norm.engineerId,
+    principal:       norm.principal,
+    workType:        norm.workType,
+    zones:           norm.zones,
+    zonesArray:      splitCsv(norm.zones),
+    grade:           norm.grade,
+    appliances:      norm.appliances,
+    appliancesArray: splitCsv(norm.appliances),
+    note:            norm.note,
+  };
+  if (cacheIdx >= 0) cache[cacheIdx] = cacheRow;
+  else               cache.push(cacheRow);
+  setEngineerSkillsCache(cache);
+
+  // 3) GAS sync
   try {
     const res = await apiSaveEngineerSkill(norm);
     if (!res || res.ok === false) {
@@ -766,7 +790,17 @@ export async function deleteEngineerSkillWithSync(payload) {
   const local = _loadLocalEngineerSkills();
   const next = local.filter(r => !_sameSkillKey(r, norm));
   _saveLocalEngineerSkills(next);
-  // 2) GAS sync
+
+  // 2) Phase 4-E — 시트 캐시도 즉시 갱신 (옛 폼 재진입 시 stale 방지)
+  const cache = getEngineerSkillsCache();
+  const newCache = cache.filter(r => !(
+    String(r.engineerId || r.기사ID || r.id || "").trim() === norm.engineerId &&
+    String(r.principal  || r.원청 || r.원청명 || "").trim() === norm.principal &&
+    String(r.workType   || r.작업유형 || "").trim()         === norm.workType
+  ));
+  setEngineerSkillsCache(newCache);
+
+  // 3) GAS sync
   try {
     const res = await apiDeleteEngineerSkill({
       engineerId: norm.engineerId,
