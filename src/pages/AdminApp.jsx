@@ -3268,86 +3268,141 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 }
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
+// 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
 function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception }) {
-  // 6종 작업 박스 (Step 3-1: ⚡ 박스 제거 + 종류별 6박스 확장)
-  const workTypeOrder = [
-    { key: "세척",     label: "세척" },
-    { key: "냉매충전", label: "냉매" },
-    { key: "설치",     label: "설치" },
-    { key: "누설",     label: "누설" },
-    { key: "점검",     label: "점검" },
-    { key: "수리",     label: "수리" },
-  ];
+  // 2026-05-11 — 오늘 작업 흐름 (작업유형별 5단계: 신규/배정/확정/진행/완료)
+  // B열(접수일) 또는 N열(확정일) 또는 ID YYMMDD가 오늘인 작업만 catch
+  const workTypeFlowCounts = useMemo(() => {
+    const types = ['세척', '냉매충전']; // 시범 운영 — 2개만 (설치/누설/점검/수리는 추후)
+    const counts = {};
+    types.forEach(type => {
+      counts[type] = { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 };
+    });
 
-  // V14 — apiTasks의 새 접수 (status='미배정'/'약속대기')만 카운트 + regex 매칭
-  const workTypeCounts = useMemo(() => {
-    const counts = { 세척: 0, 냉매충전: 0, 설치: 0, 누설: 0, 점검: 0, 수리: 0 };
-    // 2026-05-10 명세 — 미배정/약속대기 작업 전체 카운트 (날짜 무관)
-    // 옛: 오늘 날짜 + 모든 상태 / 새: 모든 날짜 + 미배정/약속대기/빈값 (홈 카드와 일관)
-    const isNewReception = (t) => {
-      const s = String(t.status || t.상태 || "").trim();
-      return !s || s === "미배정" || s === "약속대기";
-    };
-    const newReceptionTasks = (apiTasks || []).filter(isNewReception);
-    // workItems 박기 → workType 추출 → regex 매칭
-    newReceptionTasks.forEach(task => {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    (apiTasks || []).forEach(task => {
+      // 1) ID 측 YYMMDD fallback / 2) B열 접수일 / 3) N열 확정일
+      let isToday = false;
+      const idStr = String(task.id || task.taskId || "");
+      const m = idStr.match(/(\d{6})-/);
+      if (m) {
+        const taskDate = `20${m[1].slice(0,2)}-${m[1].slice(2,4)}-${m[1].slice(4,6)}`;
+        if (taskDate === todayStr) isToday = true;
+      }
+      if (!isToday) {
+        const b = String(task.createdAt || task.receivedAt || task.접수일시 || task.B || "").slice(0, 10);
+        if (b === todayStr) isToday = true;
+      }
+      if (!isToday) {
+        const n = String(task.scheduledAt || task.scheduledDate || task.확정일시 || "").slice(0, 10);
+        if (n === todayStr) isToday = true;
+      }
+      if (!isToday) return;
+
+      // 작업유형 박음
       const items = (task.workItems && task.workItems.length > 0)
         ? task.workItems
         : (task.workType ? [{ workType: task.workType }] : []);
-      items.forEach(item => {
+      let workType = '';
+      for (const item of items) {
         const wt = String(item.workType || "");
-        if (/세척/.test(wt))           counts["세척"]++;
-        else if (/냉매|가스|충전/.test(wt)) counts["냉매충전"]++;
-        else if (/설치/.test(wt))      counts["설치"]++;
-        else if (/누설|누수/.test(wt))  counts["누설"]++;
-        else if (/점검/.test(wt))      counts["점검"]++;
-        else if (/수리|AS/i.test(wt))   counts["수리"]++;
-      });
+        if (/세척/.test(wt))           { workType = '세척'; break; }
+        if (/냉매|가스|충전/.test(wt)) { workType = '냉매충전'; break; }
+      }
+      if (!workType || !counts[workType]) return;
+
+      // 단계 분류 (status 기준)
+      const status = String(task.status || task.상태 || "").trim();
+      let stage = null;
+      if (!status || status === '미배정' || status === '약속대기') stage = '신규';
+      else if (status === '배정')                                  stage = '배정';
+      else if (status === '확정')                                  stage = '확정';
+      else if (status === '진행중')                                stage = '진행';
+      else if (status === '완료' || status === '정산완료')         stage = '완료';
+      else return; // 취소 등 분류 X
+
+      counts[workType][stage]++;
+      counts[workType]['총']++;
     });
+
     return counts;
   }, [apiTasks]);
 
-  // 합계 (홈 dynamicStats.new 와 동일 의미)
-  const totalToday = Object.values(workTypeCounts).reduce((a, b) => a + b, 0);
-
-  return (
-    <div style={{ padding: "0 16px 16px" }}>
-      {/* 2026-05-10 명세 — 미배정/약속대기 전체 (날짜 무관) / 홈 카드와 카운트 일관성 */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
-            신규 / 미배정
-          </span>
-          <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>{totalToday}건</span>
+  // 작업 흐름 카드 한 장 박는 헬퍼 (5단계 그리드)
+  const FlowCard = ({ icon, title, flow }) => {
+    const stages = [
+      { key: '신규', label: '신규', color: t.text },
+      { key: '배정', label: '배정', color: t.accent },
+      { key: '확정', label: '확정', color: t.text },
+      { key: '진행', label: '진행', color: t.warning },
+      { key: '완료', label: '완료', color: t.success },
+    ];
+    return (
+      <div style={{
+        background: t.bgElevated,
+        border: `1px solid ${t.border}`,
+        borderRadius: 10, padding: 12, marginBottom: 8,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>{icon} {title}</span>
+          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>{flow['총']}건</span>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6 }}>
-          {workTypeOrder.map(({ key, label }) => {
-            const count = workTypeCounts[key];
-            const hasItems = count > 0;
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, textAlign: "center" }}>
+          {stages.map(({ key, label, color }) => {
+            const value = flow[key] || 0;
             return (
-              <div
-                key={key}
-                onClick={() => hasItems && onClickNewReception(key)}
-                className={hasItems ? "clickable" : ""}
-                style={{
-                  background: t.bgElevated,
-                  border: `1px solid ${t.border}`,
-                  borderRadius: 10, padding: "10px",
-                  opacity: hasItems ? 1 : 0.4,
-                  cursor: hasItems ? "pointer" : "not-allowed",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 4 }}>
-                  <ServiceTypeIcon workType={key} size={14} showLabel={false}/>
-                  <span style={{ fontSize: 11, fontWeight: 700 }}>{label}</span>
-                </div>
-                <div className="mono" style={{ fontSize: 16, fontWeight: 800, color: hasItems ? t.accent : t.textMuted }}>
-                  {count}건
-                </div>
+              <div key={key} style={{
+                background: t.bgInset || t.bg,
+                padding: '6px 2px',
+                borderRadius: 4,
+                opacity: value > 0 ? 1 : 0.5,
+              }}>
+                <div style={{ fontSize: 9, color: t.textMuted, marginBottom: 2 }}>{label}</div>
+                <div className="mono" style={{ fontSize: 14, fontWeight: 700, color: value > 0 ? color : t.textMuted }}>{value}</div>
               </div>
             );
           })}
         </div>
+      </div>
+    );
+  };
+
+  const cleaningFlow      = workTypeFlowCounts['세척'];
+  const refrigerantFlow   = workTypeFlowCounts['냉매충전'];
+  const flowAnyHasItems   = (cleaningFlow && cleaningFlow['총'] > 0) || (refrigerantFlow && refrigerantFlow['총'] > 0);
+
+  return (
+    <div style={{ padding: "0 16px 16px" }}>
+      {/* 2026-05-11 — 오늘 작업 흐름 카드 (세척/냉매 5단계) */}
+      <div style={{ marginBottom: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
+            📊 오늘 작업 흐름
+          </span>
+        </div>
+        {flowAnyHasItems ? (
+          <>
+            {cleaningFlow && cleaningFlow['총'] > 0 && (
+              <FlowCard icon="🧽" title="세척" flow={cleaningFlow}/>
+            )}
+            {refrigerantFlow && refrigerantFlow['총'] > 0 && (
+              <FlowCard icon="❄️" title="냉매" flow={refrigerantFlow}/>
+            )}
+          </>
+        ) : (
+          <div style={{
+            background: t.bgElevated,
+            border: `1px solid ${t.border}`,
+            borderRadius: 10, padding: 16, textAlign: "center",
+          }}>
+            <div style={{ fontSize: 12, color: t.textMuted }}>오늘 등록된 작업이 없습니다</div>
+          </div>
+        )}
       </div>
 
       {/* + 새 접수 등록 (Step 5-1d: placeholder → 실제 폼 연결, FAB 제거) */}
