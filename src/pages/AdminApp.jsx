@@ -1880,7 +1880,8 @@ export default function AdminApp({ user, onLogout }) {
       setTasksLoading(false);
     }
   }
-  useRealtime(fetchTasks);
+  // 2026-05-10 — 신규접수 폼 진입 시 폴링 끊기 (입력 초기화 방지)
+  useRealtime(fetchTasks, 60000, { enabled: screen !== "newReceptionForm" });
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
   useEffect(() => {
