@@ -109,12 +109,15 @@ export default async function handler(req, res) {
     requireInteraction: !!requireInteraction,
   });
 
-  const results = await Promise.allSettled(subs.map(s => {
-    const subscription = {
+ const results = await Promise.allSettled(subs.map(s => {
+    // GAS 응답은 이미 { endpoint, keys: {p256dh, auth} } 표준 형식 박힘
+    // 옛 평면 형식도 호환 박는 fallback
+    const subscription = s.keys ? s : {
       endpoint: s.endpoint,
       keys: { p256dh: s.p256dh, auth: s.auth },
     };
     return webpush.sendNotification(subscription, payload).catch(err => {
+
       // 만료된 구독은 expired 마킹
       if (err && (err.statusCode === 404 || err.statusCode === 410)) {
         return { __expired: true, endpoint: s.endpoint };
