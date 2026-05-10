@@ -4047,11 +4047,17 @@ function NewReceptionScreen({
       return "";
     };
     const isToday = (t) => dateOf(t) === todayStr;
-    const apiTodayOnly   = apiTasks.filter(isToday);
-    const extraTodayOnly = extraReceptions.filter(isToday);
+    // 2026-05-10 fix-2 — 카드 목록은 미배정/약속대기/빈값만 (배정 완료된 작업은 제외)
+    // 카운트(workTypeCounts)는 isToday만 적용해서 전체 / 카드는 isToday + isNewReception 둘 다
+    const isNewReception = (t) => {
+      const s = String(t.status || t.상태 || "").trim();
+      return !s || s === "미배정" || s === "약속대기";
+    };
+    const apiTodayNew   = apiTasks.filter(t => isToday(t) && isNewReception(t));
+    const extraTodayNew = extraReceptions.filter(t => isToday(t) && isNewReception(t));
     const allReceptions = [
-      ...apiTodayOnly.map(wrap),     // 진짜 시트 (오늘 접수)
-      ...extraTodayOnly.map(wrap),   // 등록 직후 임시 (refetch 후 apiTasks가 진실)
+      ...apiTodayNew.map(wrap),     // 진짜 시트 (오늘 접수 + 미배정/약속대기)
+      ...extraTodayNew.map(wrap),   // 등록 직후 임시 (refetch 후 apiTasks가 진실)
     ];
     // 중복 제거 (id 기준 / api가 우선)
     const seen = new Set();
