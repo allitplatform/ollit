@@ -73,6 +73,38 @@ export function v14NormalizeTask(t) {
   if (!workItems && summaryItems.length > 0) workItems = summaryItems;
   else if (!workItems && workType) workItems = [{ workType, appliance, qty }];
 
+  // 2026-05-10 fix — scheduledDate fallback 추가 (N열 비어도 화면에 표시되도록)
+  // 1순위 scheduledAt (N열) > 2순위 reqDate (희망일자) > 3순위 ID 내부 YYMMDD > 4순위 빈 값
+  // AdminApp의 dateOf 패턴과 일관성 (workTypeCounts L3226 / NewReceptionScreen L4028)
+  const fallbackScheduledDate = (() => {
+    // 1순위: scheduledAt (N열)
+    if (scheduledAt) {
+      const s = String(scheduledAt);
+      if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
+      const d = new Date(scheduledAt);
+      if (!isNaN(d.getTime())) {
+        const yy = d.getFullYear();
+        const mo = String(d.getMonth() + 1).padStart(2, "0");
+        const da = String(d.getDate()).padStart(2, "0");
+        return `${yy}-${mo}-${da}`;
+      }
+    }
+    // 2순위: reqDate (희망일자)
+    if (reqDate) {
+      const s = String(reqDate);
+      if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
+    }
+    // 3순위: ID 내부 YYMMDD 추출 (예: O260510-001 → 2026-05-10)
+    const idStr = String(id || t.taskId || t.작업번호 || "");
+    const m = idStr.match(/(\d{6})-/);
+    if (m) {
+      const yymmdd = m[1];
+      return `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
+    }
+    // 4순위: 빈 값
+    return "";
+  })();
+
   return {
     id, taskCode: id,
     customer, phone, address, region,
@@ -84,7 +116,7 @@ export function v14NormalizeTask(t) {
     requestedDate: reqDate,
     requestedTime: reqTime,
     scheduledAt,
-    scheduledDate: scheduledAt ? String(scheduledAt).slice(0, 10) : "",
+    scheduledDate: fallbackScheduledDate,
     scheduledTime: scheduledAt && String(scheduledAt).length > 10 ? String(scheduledAt).slice(11, 16) : "",
     settlementStatus: settlement,
     workItems: workItems || [],
