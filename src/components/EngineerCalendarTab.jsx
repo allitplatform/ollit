@@ -386,7 +386,7 @@ function MonthView({
               </div>
             )}
 
-            {/* 시간 휴무 + 작업 (전체 휴무여도 시간 휴무가 박혀있으면 표시) */}
+            {/* 시간 휴무 + 작업 (전체 휴무여도 시간 휴무가 있으면 표시) */}
             {totalCount === 0 && !isFullOff ? (
               <EmptyState text="이 날은 일정이 없어요"/>
             ) : merged.length > 0 ? (

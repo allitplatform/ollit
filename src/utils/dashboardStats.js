@@ -20,7 +20,7 @@ function _v14HasStatus(t, ...statuses) {
   return statuses.includes(s);
 }
 
-// V14 메인 통계 계산 (apiTasks 진짜 시트 박힌 거 catch / 시뮬 mock 폐기)
+// V14 메인 통계 계산 (apiTasks 진짜 시트 데이터 사용 / 시뮬 mock 폐기)
 // 입력: { apiTasks, extraReceptions, user, tasksToday, newReceptions, assignedTasks (옛 호환) }
 export function computeDashboardStats({
   tasksToday = [],
@@ -47,7 +47,7 @@ export function computeDashboardStats({
   // V14 헌법 v6 상태값 (시트 R열):
   //   '미배정' / '약속대기' → 새 접수 (배정 박지 X)
   //   '확정'                → 배정 완료 (Q 배정기사 박힘)
-  //   '확정' + N 확정일시   → 일정 확정 (시간 박힌 거만)
+  //   '확정' + N 확정일시   → 일정 확정 (시간 있는 작업만)
   //   '작업중'              → 진행중
   //   '완료' / '정산완료'    → 완료
   const newReceptionTasks = uniqueTasks.filter(t => _v14HasStatus(t, "미배정", "약속대기"));
@@ -55,7 +55,7 @@ export function computeDashboardStats({
   const inProgressTasks   = uniqueTasks.filter(t => _v14HasStatus(t, "작업중", "진행중"));
   const completedTasks    = uniqueTasks.filter(t => _v14HasStatus(t, "완료", "정산완료"));
 
-  // V14 — 일정 확정 = 확정 + N 확정일시 (scheduledAt) 박힌 거만
+  // V14 — 일정 확정 = 확정 + N 확정일시 (scheduledAt) 있는 작업만
   const scheduledTasks = confirmedTasks.filter(t =>
     !!(t.scheduledAt || t.confirmedAt || t.확정일시)
   );
@@ -168,7 +168,7 @@ export function getUrgentTasks({ extraReceptions = [], newReceptions = {}, apiTa
   // 미배정 / 약속대기 + 오늘 / 당일 / 긴급 키워드
   return allReceptions.filter(r => {
     if (r.autoAssignStatus === "accepted") return false;
-    // V14 status 박힌 거 catch
+    // V14 status 값 추출
     const status = String(r.status || r.상태 || "").trim();
     const isPending = !status
       || status === "미배정"

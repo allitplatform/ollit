@@ -2157,7 +2157,7 @@ export default function HappycallApp({ user, onLogout }) {
     setApiTasks(prev => prev.map(t =>
       t.id === taskId ? { ...t, ...updates } : t
     ));
-    // 옛 호환 (TasksContext 박힌 거)
+    // 옛 호환 (TasksContext 데이터)
     localUpdateTask(taskId, updates);
 
     try {

@@ -118,8 +118,8 @@ export function v14FindTaskList(res) {
 }
 
 // V14 — 본인 작업만 필터 (이름 매칭 / engineerId 매칭 양쪽 catch)
-// 시트 Q 배정기사 = 이름 박힘 (예: "류근학")
-// user 박은 거 = name 박힘 (예: "류근학") + engineerId 박힘 (예: "E016")
+// 시트 Q 배정기사 = 이름 (예: "류근학")
+// user 객체 = name (예: "류근학") + engineerId (예: "E016")
 export function filterTasksForEngineerV14(tasks, engineerName, engineerId) {
   if (!engineerName && !engineerId) return [];
   return (tasks || []).filter(t => {

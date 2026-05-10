@@ -12,11 +12,11 @@ const LEVEL_COLOR_VARS = {
 function inferRole(engineer, contextWorkType) {
   if (!engineer) return null;
 
-  // 1. 명시 role 박힌 거 (eng._role / eng.role)
+  // 1. 명시 role 값 (eng._role / eng.role)
   if (engineer._role) return normalizeRole(engineer._role);
   if (engineer.role)  return normalizeRole(engineer.role);
 
-  // 2. workType 컨텍스트 박힌 거
+  // 2. workType 컨텍스트 값
   if (contextWorkType === "cleaning") {
     const r = engineer.workTypes?.cleaning?.role || engineer.cleaningRole;
     if (r && r !== "none") return normalizeRole(r);
@@ -26,7 +26,7 @@ function inferRole(engineer, contextWorkType) {
     if (r && r !== "none") return normalizeRole(r);
   }
 
-  // 3. fallback — workTypes 박힌 거 우선순위 (cleaning > refrigerant)
+  // 3. fallback — workTypes 값 우선순위 (cleaning > refrigerant)
   const cleaning = engineer.workTypes?.cleaning?.role || engineer.cleaningRole;
   const refrigerant = engineer.workTypes?.refrigerant?.role || engineer.refrigerantRole;
   if (cleaning && cleaning !== "none") return normalizeRole(cleaning);

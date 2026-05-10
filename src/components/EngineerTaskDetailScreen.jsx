@@ -66,7 +66,7 @@ function buildFullAddress(task) {
   if (!region && !detail) return "";
   if (!region) return detail;
   if (!detail) return region;
-  // 시 prefix 자동 (서울특별시 / 경기도) — 시 박혀있지 X 면 region 그대로
+  // 시 prefix 자동 (서울특별시 / 경기도) — 시가 없으면 region 그대로
   const cityPrefix = region.includes("시") || region.includes("도") ? "" : "서울 ";
   return `${cityPrefix}${region} ${detail}`.trim();
 }

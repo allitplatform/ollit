@@ -69,7 +69,7 @@ export function EngineerSettleTab({
   const toCompanyFinal = toCompany != null ? toCompany : Math.max(0, todayRevenue - todayEarning);
 
   // Step 5-8 F-6 — 회사 계좌 = 시트 양방향 sync (loadCompanyAccount)
-  // companyAccount prop이 박혀있으면 우선 / 없으면 시트 데이터 fallback / 없으면 기본값
+  // companyAccount prop이 있으면 우선 / 없으면 시트 데이터 fallback / 없으면 기본값
   const account = useMemo(() => {
     if (companyAccount && (companyAccount.bankName || companyAccount.bank)) {
       return {

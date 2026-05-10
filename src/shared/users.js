@@ -52,7 +52,7 @@ export const REGISTERED_USERS = [
     password: "temp1234",
     isFirstLogin: true,
   },
-  // 해피콜 / 사장님 / 원청 (V13 catch / 박은 거 그대로)
+  // 해피콜 / 사장님 / 원청 (V13 호환 / 그대로 유지)
   {
     userId: "kim.jihye",
     name: "김지혜",

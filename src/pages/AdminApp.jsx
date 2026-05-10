@@ -256,7 +256,7 @@ function formatWorkItem(item) {
   return `${item.workType} · ${item.appliance || "기종 미정"} ×${item.qty || 1}`;
 }
 
-// V14 2B-1 fix — 작업 항목 = 기종만 (작업유형은 별도 칩/알약 박혀있음)
+// V14 2B-1 fix — 작업 항목 = 기종만 (작업유형은 별도 칩/알약 표시)
 // 단일: "벽걸이 ×1" / multi: "벽걸이 ×1, 4way ×1" / 냉매충전: "냉매충전 ×1" (기종 없을 때 fallback)
 // Step 2-B-2 — KA "1way 첫 대" + "1way 추가" 분리 저장 → 표시는 "1way × N" 합쳐서
 function formatWorkItemsAppliance(workItems) {
@@ -266,7 +266,7 @@ function formatWorkItemsAppliance(workItems) {
     const qty = item.qty || 1;
     const appliance = item.appliance && String(item.appliance).trim();
     if (appliance) return `${appliance} ×${qty}`;
-    // 기종 박지 X 박혀있어 → workType fallback (예: 옛 냉매충전 단일)
+    // 기종이 비어있으면 → workType fallback (예: 옛 냉매충전 단일)
     return `${item.workType || "—"} ×${qty}`;
   }).join(", ");
 }
@@ -370,10 +370,10 @@ function parseKakaoText(text) {
     result.matched.push("연락처");
   }
 
-  // 2. 금액 (만원 단위 + 원 단위 + 콤마 박은 거 catch)
+  // 2. 금액 (만원 단위 + 원 단위 + 콤마 형식 처리)
   const priceRegex1 = /(\d+)\s*만\s*원?/;          // "16만원" / "17만"
   const priceRegex2 = /가격은?\s*(\d{1,3})\b/;     // "가격은 17"
-  // V14 — 콤마 박은 거 + 원 catch (예: "100,000원" / "견적: 100,000원" / "1,000,000")
+  // V14 — 콤마 + 원 형식 처리 (예: "100,000원" / "견적: 100,000원" / "1,000,000")
   const priceRegex3 = /(?:견적|금액|가격)\s*[:：]?\s*(\d{1,3}(?:,\d{3})+|\d{4,})\s*원?/;
   const priceRegex4 = /(\d{1,3}(?:,\d{3})+)\s*원/;
   let priceMatch = text.match(priceRegex1);
@@ -432,7 +432,7 @@ function parseKakaoText(text) {
 
   // 4. 이름 (콜론 패턴)
   // V14 Phase 2.5 — nameRegex2 blacklist 박기 (라벨 단어 박지 X)
-  // 옛 catch X: '원청:', '주소:', '기종:' 박힌 거 = 이름으로 박힘 ⚠️
+  // 옛 동작 주의: '원청:', '주소:', '기종:' 라벨이 들어가면 이름으로 인식됨 ⚠️
   const NAME_LABEL_BLACKLIST = new Set([
     "원청", "주소", "연락처", "전화", "핸드폰", "휴대폰",
     "기종", "견적", "금액", "가격", "수량",
@@ -505,14 +505,14 @@ function parseKakaoText(text) {
 
   // 5. 기종 + 수량 (V14 헌법 7 기종 + 옛 호환)
   // V14 Phase 2.5 Step 2.1 — modelLabelRegex 블록 박지 X (non-greedy = '벽' 박힘 / 중복 catch)
-  // → itemRegex 단독 = '기종: 벽걸이 ×2' 박힌 거 catch ✓
+  // → itemRegex 단독 = '기종: 벽걸이 ×2' 형식 처리 ✓
   const applianceItems = [];
   // V14 7 기종 + 옛 호환: '벽걸이 ×2' / '4way 1대' / '스탠드 3' / '기종: 벽걸이 ×2' 모두 catch
   const itemRegex = /(벽걸이|1way|스탠드|4way|원형|투인원|시스템멀티|시스템\s?멀티|시스템|천장형|이동식)\s*(?:[×x]\s*)?(\d+)?\s*대?/gi;
   let itemMatch;
   while ((itemMatch = itemRegex.exec(text)) !== null) {
     const appliance = itemMatch[1].replace(/\s+/g, "");
-    // 중복 박지 X (이미 modelLabel에서 박힌 거)
+    // 중복 추가 X (이미 modelLabel에서 처리한 것)
     if (!applianceItems.some(x => x.appliance === appliance)) {
       applianceItems.push({ appliance, qty: parseInt(itemMatch[2]) || 1 });
     }
@@ -558,7 +558,7 @@ function parseKakaoText(text) {
   // 1) 냉매충전 — V14 헌법: 기종 박힌 catch (옛 V13 = 기종 X)
   if (hasRefrigerant) {
     if (aps.length > 0) {
-      // V14 — 기종 박혀있으면 각 기종별 workItem 박기
+      // V14 — 기종이 있으면 각 기종별 workItem 생성
       for (const a of aps) {
         result.workItems.push({ workType: "냉매충전", appliance: a.appliance, qty: a.qty });
       }
@@ -780,7 +780,7 @@ function _v14StatusToState(status) {
 
 // V14 — 시트 작업DB row → AdminApp 내부 task 객체로 정규화
 // API가 어떤 키로 반환하든 (taskId / id, principal / client 등) 양쪽 catch
-// V14 2A fix — workType/appliance/qty 컬럼 X / summary 텍스트만 박혀있을 때 → 파싱 박기
+// V14 2A fix — workType/appliance/qty 컬럼 X / summary 텍스트만 있을 때 → 파싱 처리
 // V14 2B-1 — state 필드 박힘 (한국어 status → 영어 state) + time 정확
 function _v14NormalizeTask(t) {
   if (!t) return null;
@@ -827,7 +827,7 @@ function _v14NormalizeTask(t) {
   // V14 Step 3 Fix 1 — 배정 기사 연락처 (apiEngineers에서 lookup 박을 catch / normalize 박지 X / EngineerCard에서 박힘)
   const assignedEngineerPhone = t.engineerPhone || t.assignedEngineerPhone || "";
 
-  // workItems 배열 — API 직접 박혀있으면 OK / summary 파싱 / 단일 wrap 순으로 catch
+  // workItems 배열 — API 직접 들어있으면 OK / summary 파싱 / 단일 wrap 순으로 처리
   let workItems = Array.isArray(t.workItems) && t.workItems.length > 0 ? t.workItems : null;
   if (!workItems && summaryItems.length > 0) {
     workItems = summaryItems;
@@ -848,7 +848,7 @@ function _v14NormalizeTask(t) {
     requestedTime: reqTime,
     settlementStatus: settlement,
     workItems: workItems || [],
-    // V14 2B-1 — time = 약속 시간 (옛 시뮬은 "방금" 박혀있었지만 실데이터는 시간 박기)
+    // V14 2B-1 — time = 약속 시간 (옛 시뮬은 "방금"이었지만 실데이터는 실제 시간 사용)
     time: reqTime || reqDate || "협의",
     type: "work",                 // V14 — AdminTaskDetailScreen이 type === 'external'일 때 분기
     // V14 2B-3 — 배정 기사 (시트 Q 컬럼) / engineer = 옛 컴포넌트 호환 (string 또는 object)
@@ -1952,7 +1952,7 @@ export default function AdminApp({ user, onLogout }) {
       const broadcast = getAutoBroadcastCandidates(head.workType, form.region, head.appliance, 4);
       pushCount = broadcast.length;
     }
-    // V14 1F — form.taskId 박혀있으면 진짜 API 결과 / 없으면 임시 시뮬 ID (점진 폐기)
+    // V14 1F — form.taskId 가 있으면 진짜 API 결과 / 없으면 임시 시뮬 ID (점진 폐기)
     const newTask = {
       id: form.taskId || `A${yy}${mm}${dd}-${seq}`,
       customer: form.customer,
@@ -2272,7 +2272,7 @@ export default function AdminApp({ user, onLogout }) {
             const res = await apiUpdateTask(tk.id, {
               // V14 — backend 박은 키: scheduledAt (N 확정일시 catch)
               scheduledAt: confirmedAt,
-              // 옛 호환 (frontend Optimistic 박은 거)
+              // 옛 호환 (frontend Optimistic 적용 케이스)
               confirmedAt,
               confirmedDate: dateStr,
               confirmedTime: timeStr,
@@ -2383,12 +2383,12 @@ export default function AdminApp({ user, onLogout }) {
         onAssign={async (eng) => {
           // V14 2B-3 — 진짜 assignEngineer API (시트 Q 배정기사 + R 상태 박힘)
           // V14 속도 Phase 1 — Optimistic Update / fetchTasks 박지 X / apiTasks 직접 update
-          // V14 재배정 catch — 옛 기사 박혔으면 별도 흐름 (N + R 박지 X / '약속대기' 박힘)
+          // V14 재배정 처리 — 옛 기사가 있으면 별도 흐름 (N + R 변경 X / '약속대기' 적용)
           if (!selectedTask?.id || !eng?.name) {
             addToast({ type: "completed", title: "배정 X", message: "작업 / 프로 박지 X" });
             return;
           }
-          // V14 재배정 catch — 옛 기사 박혔는지 박기
+          // V14 재배정 처리 — 옛 기사가 있는지 확인
           const oldEngineer = selectedTask.assignedEngineer || selectedTask.engineer || "";
           const isReassignment = !!oldEngineer && oldEngineer !== eng.name;
           setAssigning(true);
@@ -2880,7 +2880,7 @@ export default function AdminApp({ user, onLogout }) {
             title: "유솔 N 업로드 완료",
             message: `${newTasks.length}건 등록 완료`,
           });
-          // V14 Phase 2.5 — replaceScreen (NaverUpload → newReception / 박은 거 stack 중복 X)
+          // V14 Phase 2.5 — replaceScreen (NaverUpload → newReception / stack 중복 방지)
           replaceScreen("newReception");
           setNewReceptionFilter(null);
         }}
@@ -3007,7 +3007,7 @@ function V14AdminModal({ children, onClose }) {
 // ============================================
 
 function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick, onClickCancelHandle }) {
-  // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 박힌 거)
+  // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
   return (
@@ -3091,7 +3091,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>🤝</span>} label="원청 수수료"        value={dynamicStats?.revenue?.principal ?? TODAY_STATS.principalFee} color={t.text}/>
         </div>
 
-        {/* V14 큰 흐름 — 취소 요청 알림 (status='취소요청' 박힌 거) */}
+        {/* V14 큰 흐름 — 취소 요청 알림 (status='취소요청' 인 작업) */}
         {(apiTasks || []).filter(t => (t.status || t.상태) === '취소요청').map(task => (
           <div
             key={`cancel-req-${task.id}`}
@@ -3132,7 +3132,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           </div>
         ))}
 
-        {/* V14 — 긴급/당일 (apiTasks 박힌 거 catch / 이지은 시뮬 폐기) */}
+        {/* V14 — 긴급/당일 (apiTasks 사용 / 이지은 시뮬 폐기) */}
         {dynamicStats?.urgentTasks && dynamicStats.urgentTasks.length > 0 && (
           <div onClick={onClickUrgentAssign} className="clickable" style={{
             marginBottom: 16,
@@ -3213,7 +3213,7 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
   // V14 — apiTasks의 새 접수 (status='미배정'/'약속대기')만 카운트 + regex 매칭
   const workTypeCounts = useMemo(() => {
     const counts = { 세척: 0, 냉매충전: 0, 설치: 0, 누설: 0, 점검: 0, 수리: 0 };
-    // V14 status 새 접수만 박기 (배정 박힌 거 제외)
+    // V14 status 새 접수만 카운트 (배정된 거 제외)
     // V14 Step 3.1 Fix B — '오늘 작업' = 접수일시 (B열) 기준 / 키 광범위 catch
     // 옛 Step 3 키 (createdAt/receivedAt) catch X → 더 많은 키 + 디버그 박힘
     const today = new Date();
@@ -3250,7 +3250,7 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
       window._v14CountLogged = true;
       console.log('[V14 Step 3.1 Fix B] todayStr:', todayStr);
       console.log('[V14 Step 3.1 Fix B] apiTasks 첫 task:', apiTasks[0]);
-      console.log('[V14 Step 3.1 Fix B] dateOf 박힌 거:', apiTasks.map(t => dateOf(t)));
+      console.log('[V14 Step 3.1 Fix B] dateOf 결과:', apiTasks.map(t => dateOf(t)));
     }
     // workItems 박기 → workType 추출 → regex 매칭
     todayTasks.forEach(task => {
@@ -3275,7 +3275,7 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
-      {/* V14 Phase 2 v2 — '오늘 작업' (옛 '새 접수 종류' / scheduledAt = 오늘 박힌 거) */}
+      {/* V14 Phase 2 v2 — '오늘 작업' (옛 '새 접수 종류' / scheduledAt = 오늘인 작업) */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
@@ -3854,7 +3854,7 @@ function PlaceholderScreen({ t, title, label, onBack }) {
 // 배정 완료 / 일정 확정 화면 (Step 2-5b)
 // ─────────────────────────────────────────────
 function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit, onTaskClick }) {
-  // V14 — apiTasks 박힌 거 (status='확정' / Q 배정기사 박힘) catch
+  // V14 — apiTasks 활용 (status='확정' / Q 배정기사 있음)
   // V14 헌법: 확정 = 배정 완료 = 일정 확정 (동시 박힘 / 같은 status)
   // assigned filter = 확정 박힌 모든 작업 (배정 박힘)
   // confirmed filter = 확정 + N 확정일시 박힌 작업 (일정 박힘)
@@ -3870,7 +3870,7 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
     // 일정 확정 = 확정 + N 확정일시 박힌 작업
     all = allConfirmed.filter(x => x.confirmedAt || x.확정일시);
   }
-  // V14 — apiTasks 0건이면 옛 ASSIGNED_TASKS catch (옛 호환 / 시뮬 박힌 거)
+  // V14 — apiTasks 0건이면 옛 ASSIGNED_TASKS 사용 (옛 호환 / 시뮬 mock)
   if (allConfirmed.length === 0) {
     all = ASSIGNED_TASKS.filter(x => x.assignmentStatus === filter);
   }
@@ -4426,7 +4426,7 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
   const isAccepted = status === "accepted";
   const pushCount  = task.pushCount || (task.candidates?.length) || 4;
 
-  // V14 2B-1 — pushing/accepted 박혀있어 → 그 분기 / 그 외 → 작업 상세
+  // V14 2B-1 — pushing/accepted 면 → 그 분기 / 그 외 → 작업 상세
   const handleCardClick = () => {
     if (isPushing  && onClickPushing)  onClickPushing(task);
     else if (isAccepted && onClickAccepted) onClickAccepted(task);
@@ -6441,7 +6441,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
         } else {
           setApiCandidates({ main, sub, capable });
         }
-        // 0건 박혀있으면 디버그 박기
+        // 0건이면 디버그 출력
         const total = main.length + sub.length + capable.length + (flat ? flat.length : 0);
         if (total === 0) {
           setApiDebug({

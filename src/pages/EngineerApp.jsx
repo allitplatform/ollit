@@ -4002,7 +4002,7 @@ export default function EngineerApp({ user, onLogout }) {
   };
   const [selectedTaskId, setSelectedTaskId] = useState(null);
 
-  // V14 Step 4.2 — apiTasks 박힌 거 위로 이동 (TDZ fix)
+  // V14 Step 4.2 — apiTasks 선언 위로 이동 (TDZ fix)
   // 옛 박힌 위치 (line 4044~) → 여기로 이동
   // 옛 catch X: line 4001 useEffect deps array에서 apiTasks 박힘 = const 박지 X 박힌 catch (TDZ ReferenceError)
   const [apiTasks, setApiTasks] = useState([]);
@@ -4011,10 +4011,10 @@ export default function EngineerApp({ user, onLogout }) {
 
   // V14 Phase 2 — 수락 대기 콜 시뮬 mock 폐기 (시트 기반 catch)
   // 옛 V14 v8 mock (한미선 / ACCEPT-001) = 박지 X
-  // 시트 작업DB에서 본인 배정 + status='약속대기' 박힌 거 catch (apiTasks 박힌 거 활용)
+  // 시트 작업DB에서 본인 배정 + status='약속대기' 인 작업만 추출 (apiTasks 활용)
   const [pendingAcceptances, setPendingAcceptances] = useState([]);
 
-  // V14 Phase 2 — apiTasks에서 본인 배정 + 수락 대기 박힌 거 catch (자동 derive)
+  // V14 Phase 2 — apiTasks에서 본인 배정 + 수락 대기 작업만 추출 (자동 derive)
   useEffect(() => {
     if (!apiTasks || apiTasks.length === 0) {
       setPendingAcceptances([]);
@@ -4027,7 +4027,7 @@ export default function EngineerApp({ user, onLogout }) {
         const status = String(t.status || t.상태 || "").trim();
         const isPending = status === "약속대기" || status === "수락대기" || status === "수락 대기";
         if (!isPending) return false;
-        // 본인 배정 박힌 거만 catch
+        // 본인 배정만 필터링
         const eng = t.assignedEngineer || t.engineer || "";
         const engId = t.assignedEngineerId || t.engineerId || "";
         return (myName && eng === myName) || (myId && engId === myId);
@@ -4102,7 +4102,7 @@ export default function EngineerApp({ user, onLogout }) {
     setApiTasks(prev => prev.map(t =>
       t.id === taskId ? { ...t, ...updates } : t
     ));
-    // 옛 호환 (TasksContext 박힌 거)
+    // 옛 호환 (TasksContext 데이터)
     localUpdateTask(taskId, updates);
 
     try {
@@ -4121,7 +4121,7 @@ export default function EngineerApp({ user, onLogout }) {
 
   // V14 — 본인 작업만 필터 (이름 매칭 우선 + ID 매칭)
   // 시트 Q 배정기사 = 이름 박힘 (예: "류근학")
-  // user 박은 거 = name 박힘 (예: "류근학") + engineerId 박힘 (예: "E016")
+  // user 객체 = name (예: "류근학") + engineerId (예: "E016")
   const tasks = filterTasksForEngineerV14(
     apiTasks.length > 0 ? apiTasks : allTasks,  // V14 우선 / 옛 mock fallback
     user?.name,

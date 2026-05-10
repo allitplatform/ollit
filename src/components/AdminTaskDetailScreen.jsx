@@ -20,12 +20,12 @@ const STATE_MAP = {
   scheduled: { label: "예정",   color: "var(--text-primary)" },
 };
 
-// V14 Step 3.1 Fix D — V열 (scheduledAt) 박힘 분기 박기
-// 옛: state 박힌 거 = '예정' / '대기' 박힘
-// 신규: V열 박혀있어 = '예정' / V열 박지 X = '약속대기'
+// V14 Step 3.1 Fix D — V열 (scheduledAt) 유무 분기
+// 옛: state 값 = '예정' / '대기'
+// 신규: V열 있음 = '예정' / V열 없음 = '약속대기'
 function getStateInfo(task) {
   if (task.type === "external") return { label: "외근", color: "#FF8F00" };
-  // V14 — V열 (scheduledAt) 박혀있어 = 일정 박힘 / 박지 X = 약속대기
+  // V14 — V열 (scheduledAt) 있음 = 일정 확정 / 없음 = 약속대기
   const scheduledAt = task.scheduledAt || task.confirmedAt || task.확정일시 || task.scheduledTime;
   const completedAt = task.completedAt || task.완료시간;
   const startedAt = task.startedAt || task.시작시간;
