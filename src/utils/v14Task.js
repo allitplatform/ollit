@@ -1,6 +1,8 @@
 // V14 Task Utils — 시트 작업DB row → 내부 task object 변환
 // AdminApp + EngineerApp + HappycallApp 공유 (재사용 module)
 
+import { calcCommission } from "./commissionPolicy.js";
+
 // V14 — 주소 첫 단어 = 지역 (예: "강남구 도곡동 ..." → "강남구")
 export function v14ExtractRegion(address) {
   if (!address) return "";
@@ -60,6 +62,12 @@ export function v14NormalizeTask(t) {
   const memo      = t.memo || t.note || t.작업메모 || t.비고 || "";
   const estimate  = Number(t.estimateTotal || t.quote || t.totalAmount || t.견적합계 || t.견적금액 || 0);
   const settlement = t.settlementStatus || t.정산상태 || "";
+
+  // 2026-05-10 — 정산 필드 (Hybrid 구조)
+  // GAS 응답에 engineerEarning 박혀있으면 그거 사용 (비밀 영역 KA/KB 세척)
+  // 아니면 calcCommission lookup 후 계산 (일반 영역)
+  const addonFee = Number(t.addonFee || t.현장추가금 || 0);
+  const extraFee = Number(t.extraFee || t.추가금 || t.addAmount || 0);
   const schedule  = t.schedule || [reqDate, reqTime].filter(Boolean).join(" ") || "협의";
   const scheduledAt = t.scheduledAt || t.확정일시 || t.confirmedAt || "";
   const summaryItems = v14ParseSummary(summary);
@@ -105,6 +113,30 @@ export function v14NormalizeTask(t) {
     return "";
   })();
 
+  // 2026-05-10 — 정산 계산 (Hybrid)
+  // 1) GAS 응답에 engineerEarning 박혀있으면 그거 사용 (비밀 영역 KA/KB 세척)
+  // 2) 일반 영역 → commissionPolicy lookup + 계산
+  const gasEarning = Number(t.engineerEarning || t.기사수익 || t.기사정산 || 0);
+  let commission;
+  if (gasEarning > 0) {
+    commission = {
+      engineerEarning: gasEarning,
+      principalFee:    Number(t.principalFee  || t.원청수수료 || 0),
+      companyMargin:   Number(t.companyMargin || t.회사마진   || 0),
+      source: "gas_secret",
+    };
+  } else {
+    commission = calcCommission({
+      principal,
+      workType,
+      appliance,
+      estimateTotal: estimate,
+      addonFee,
+      visitOnly:  !!(t.visitOnly  || t.출장비만),
+      isYsnExtra: !!(t.isYsnExtra || t.YSN추가),
+    });
+  }
+
   return {
     id, taskCode: id,
     customer, phone, address, region,
@@ -113,6 +145,8 @@ export function v14NormalizeTask(t) {
     state: v14StatusToState(status),
     schedule, memo,
     estimateTotal: estimate,
+    addonFee,
+    extraFee,
     requestedDate: reqDate,
     requestedTime: reqTime,
     scheduledAt,
@@ -125,6 +159,12 @@ export function v14NormalizeTask(t) {
     assignedEngineer: assignedEngineerName,
     engineer: assignedEngineerName || null,
     startedAt, completedAt,
+    // 정산 영역 (Hybrid)
+    engineerEarning:  commission.engineerEarning,
+    engineerNet:      commission.engineerEarning,  // 옛 호환 (EngineerSettleTab getEarning fallback)
+    principalFee:     commission.principalFee,
+    companyMargin:    commission.companyMargin,
+    commissionSource: commission.source,
     _api: true,
   };
 }
