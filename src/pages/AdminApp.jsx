@@ -3214,47 +3214,15 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
   // V14 — apiTasks의 새 접수 (status='미배정'/'약속대기')만 카운트 + regex 매칭
   const workTypeCounts = useMemo(() => {
     const counts = { 세척: 0, 냉매충전: 0, 설치: 0, 누설: 0, 점검: 0, 수리: 0 };
-    // V14 status 새 접수만 카운트 (배정된 거 제외)
-    // V14 Step 3.1 Fix B — '오늘 작업' = 접수일시 (B열) 기준 / 키 광범위 catch
-    // 옛 Step 3 키 (createdAt/receivedAt) catch X → 더 많은 키 + 디버그 박힘
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    const todayStr = `${yyyy}-${mm}-${dd}`;  // 로컬 타임존 박기 (UTC X)
-    const dateOf = (t) => {
-      const v = t.createdAt || t.receivedAt || t.접수일시 || t.접수일 || t.created || t.regDate || t.등록일
-        || t.B || t['B'] || t.b
-        || t.scheduledAt || t.scheduledDate || t.requestedDate || t.확정일시 || t.예약일 || t.희망일자 || "";
-      const s = String(v);
-      if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
-      const d = new Date(v);
-      if (!isNaN(d.getTime())) {
-        const yy = d.getFullYear();
-        const mo = String(d.getMonth() + 1).padStart(2, "0");
-        const da = String(d.getDate()).padStart(2, "0");
-        return `${yy}-${mo}-${da}`;
-      }
-      // V14 Step 3.2 — id에서 YYMMDD 추출 fallback (backend 응답에 날짜 키 박지 X)
-      // id 형식: 'O260508-001' / 'K260508-001' / 'YS-N260508-001' / 'A260419-001'
-      const id = String(t.id || t.taskId || t.작업번호 || "");
-      const m = id.match(/(\d{6})-/);
-      if (m) {
-        const yymmdd = m[1];
-        return `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
-      }
-      return "";
+    // 2026-05-10 명세 — 미배정/약속대기 작업 전체 카운트 (날짜 무관)
+    // 옛: 오늘 날짜 + 모든 상태 / 새: 모든 날짜 + 미배정/약속대기/빈값 (홈 카드와 일관)
+    const isNewReception = (t) => {
+      const s = String(t.status || t.상태 || "").trim();
+      return !s || s === "미배정" || s === "약속대기";
     };
-    const todayTasks = (apiTasks || []).filter(t => dateOf(t) === todayStr);
-    // 디버그 — 카운트 0 catch 시 사장님 catch 박을 차례
-    if (typeof window !== 'undefined' && (apiTasks || []).length > 0 && todayTasks.length === 0 && !window._v14CountLogged) {
-      window._v14CountLogged = true;
-      console.log('[V14 Step 3.1 Fix B] todayStr:', todayStr);
-      console.log('[V14 Step 3.1 Fix B] apiTasks 첫 task:', apiTasks[0]);
-      console.log('[V14 Step 3.1 Fix B] dateOf 결과:', apiTasks.map(t => dateOf(t)));
-    }
+    const newReceptionTasks = (apiTasks || []).filter(isNewReception);
     // workItems 박기 → workType 추출 → regex 매칭
-    todayTasks.forEach(task => {
+    newReceptionTasks.forEach(task => {
       const items = (task.workItems && task.workItems.length > 0)
         ? task.workItems
         : (task.workType ? [{ workType: task.workType }] : []);
@@ -3271,16 +3239,16 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
     return counts;
   }, [apiTasks]);
 
-  // V14 Phase 2 v2 — '오늘 작업' 합계 (totalNew 박지 X / 오늘 카운트만)
+  // 합계 (홈 dynamicStats.new 와 동일 의미)
   const totalToday = Object.values(workTypeCounts).reduce((a, b) => a + b, 0);
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
-      {/* V14 Phase 2 v2 — '오늘 작업' (옛 '새 접수 종류' / scheduledAt = 오늘인 작업) */}
+      {/* 2026-05-10 명세 — 미배정/약속대기 전체 (날짜 무관) / 홈 카드와 카운트 일관성 */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
-            오늘 작업
+            신규 / 미배정
           </span>
           <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>{totalToday}건</span>
         </div>
@@ -4007,9 +3975,8 @@ function NewReceptionScreen({
   onBack, onAssign, onClickAdd, onClickPushing, onClickAccepted, onCardMenuAction,
 }) {
   // V14 2A — 진짜 시트 데이터 (apiTasks) + 폼에서 추가한 항목 (extraReceptions)
-  // 2026-05-10 fix — 상태 필터 제거 + 오늘 접수 날짜 필터 추가 (홈 카드와 일관성)
-  // 옛 동작: status='미배정'/'약속대기'만 → 작업 목록 0건 표시 (확정/배정도 빠짐)
-  // 새 동작: 오늘 접수된 해당 작업유형의 모든 작업 표시
+  // 2026-05-10 명세 — 미배정/약속대기 작업 전체 표시 (날짜 필터 제거)
+  // 이유: 어제 이전 미배정 작업도 잊혀지지 않게 카드로 표시 / 홈 카드와 카운트 일치
   // NEW_RECEPTIONS 시뮬 폐기 / extraReceptions는 등록 직후 lag 동안만 존재 (refetch 시 apiTasks가 진실)
   // 화면 내부 편집 (saveTask) 호환을 위해 useState + useEffect 동기화
   const computeTasks = () => {
@@ -4019,46 +3986,16 @@ function NewReceptionScreen({
         ? x.workItems
         : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
     });
-    // 오늘 날짜 (로컬 타임존)
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    const todayStr = `${yyyy}-${mm}-${dd}`;
-    // 다양한 키 fallback + ID 내부 YYMMDD 추출 (workTypeCounts와 동일 패턴)
-    const dateOf = (t) => {
-      const v = t.createdAt || t.receivedAt || t.접수일시 || t.접수일 || t.created || t.regDate || t.등록일
-        || t.B || t['B'] || t.b
-        || t.scheduledAt || t.scheduledDate || t.requestedDate || t.확정일시 || t.예약일 || t.희망일자 || "";
-      const s = String(v);
-      if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
-      const d = new Date(v);
-      if (!isNaN(d.getTime())) {
-        const yy = d.getFullYear();
-        const mo = String(d.getMonth() + 1).padStart(2, "0");
-        const da = String(d.getDate()).padStart(2, "0");
-        return `${yy}-${mo}-${da}`;
-      }
-      const id = String(t.id || t.taskId || t.작업번호 || "");
-      const m = id.match(/(\d{6})-/);
-      if (m) {
-        const yymmdd = m[1];
-        return `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
-      }
-      return "";
-    };
-    const isToday = (t) => dateOf(t) === todayStr;
-    // 2026-05-10 fix-2 — 카드 목록은 미배정/약속대기/빈값만 (배정 완료된 작업은 제외)
-    // 카운트(workTypeCounts)는 isToday만 적용해서 전체 / 카드는 isToday + isNewReception 둘 다
+    // 미배정/약속대기/빈 값 만 카드 목록에 박힘 (배정/확정/진행중/완료는 별도 화면)
     const isNewReception = (t) => {
       const s = String(t.status || t.상태 || "").trim();
       return !s || s === "미배정" || s === "약속대기";
     };
-    const apiTodayNew   = apiTasks.filter(t => isToday(t) && isNewReception(t));
-    const extraTodayNew = extraReceptions.filter(t => isToday(t) && isNewReception(t));
+    const apiNew   = apiTasks.filter(isNewReception);
+    const extraNew = extraReceptions.filter(isNewReception);
     const allReceptions = [
-      ...apiTodayNew.map(wrap),     // 진짜 시트 (오늘 접수 + 미배정/약속대기)
-      ...extraTodayNew.map(wrap),   // 등록 직후 임시 (refetch 후 apiTasks가 진실)
+      ...apiNew.map(wrap),     // 진짜 시트 (미배정/약속대기 전체)
+      ...extraNew.map(wrap),   // 등록 직후 임시 (refetch 후 apiTasks가 진실)
     ];
     // 중복 제거 (id 기준 / api가 우선)
     const seen = new Set();
@@ -4237,7 +4174,7 @@ function NewReceptionScreen({
 
       <div style={{ padding: "14px 16px 20px" }}>
         {showCleanings && (
-          <ReceptionGroup t={t} workType="세척" title="에어컨 세척" subtitle="오늘" subtitleColor={t.textMuted} count={cleanings.length}>
+          <ReceptionGroup t={t} workType="세척" title="에어컨 세척" subtitle="신규" subtitleColor={t.textMuted} count={cleanings.length}>
             {cleanings.map((task) => (
               <CleaningCard key={task.id} t={t} task={task}
                 onAssign={() => onAssign(task)}
