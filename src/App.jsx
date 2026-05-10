@@ -11,6 +11,7 @@ import { PWAInstallPrompt } from "./components/PWAInstallPrompt.jsx";
 import { KakaoBypassScreen } from "./components/KakaoBypassScreen.jsx";
 import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen.jsx";
+import { addNotification as addNotificationToStore } from "./utils/notificationStore.js";
 
 // V14 Phase 4-D — 자동 로그인 (localStorage)
 const STORAGE_KEY = "ollit_currentUser";
@@ -65,6 +66,24 @@ export default function App() {
       if (v === "small" || v === "medium" || v === "large") saved = v;
     } catch (e) {}
     document.documentElement.setAttribute("data-font-size", saved);
+  }, []);
+
+  // 2026-05-10 — service worker push 메시지 수신 → IndexedDB 저장 + 카운터 갱신 트리거
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const handler = (event) => {
+      if (event.data?.type !== "PUSH_RECEIVED") return;
+      const payload = event.data.data || {};
+      const { title, body, url, taskId } = payload;
+      addNotificationToStore({ title, body, url, taskId }).then(() => {
+        // 카운터 갱신 트리거 (커스텀 이벤트)
+        try {
+          window.dispatchEvent(new CustomEvent("notification:added"));
+        } catch (e) { /* */ }
+      });
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
   }, []);
 
   // 카톡 인앱 — 안내 화면 표시 (다른 화면 진입 차단)
