@@ -1448,7 +1448,16 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
   const hasScheduleChange = task.scheduleHistory && task.scheduleHistory.length > 0;
 
   const handleConfirmSchedule = () => {
-    onUpdate(task.id, { status: "확정", scheduledDate: scheduleDate, scheduledTime: scheduleTime, time: scheduleTime, endTime: addHours(scheduleTime, 1), duration: "1h" });
+    // 2026-05-10 명세 — N열(scheduledAt) ISO 명시 (GAS 합성 의존 X)
+    onUpdate(task.id, {
+      status: "확정",
+      scheduledDate: scheduleDate,
+      scheduledTime: scheduleTime,
+      scheduledAt: `${scheduleDate}T${scheduleTime}:00`,
+      time: scheduleTime,
+      endTime: addHours(scheduleTime, 1),
+      duration: "1h",
+    });
   };
 
   const handleStart = () => onUpdate(task.id, { status: "진행중", startedAt: NOW });
@@ -4654,15 +4663,21 @@ export default function EngineerApp({ user, onLogout }) {
     const scheduledDate = payload?.scheduledDate || presetToISO(payload?.datePreset, payload?.customDate);
     const scheduledTime = payload?.scheduledTime || payload?.startTime;
 
+    // 2026-05-10 명세 — 일정 박혔으면 R="확정" + N열(scheduledAt) ISO 명시
+    // 일정 미박음 → R="배정" 그대로 (운영자가 박은 상태 유지) / "약속대기"로 되돌리지 X
+    const hasSchedule = !!(scheduledDate && scheduledTime);
+    const scheduledAtIso = hasSchedule ? `${scheduledDate}T${scheduledTime}:00` : "";
+
     // 진짜 task면 updateTask로 확정 처리
     if (tasks.find(x => x.id === id)) {
       updateTask(id, {
         scheduledDate,
         scheduledTime,
+        scheduledAt: scheduledAtIso,
         endTime: payload?.endTime,
         callMemo: payload?.memo,
         happycallMemo: payload?.memo,
-        status: scheduledDate && scheduledTime ? "확정" : "약속대기",
+        status: hasSchedule ? "확정" : "배정",
       });
     }
     // extraAssignments에 있으면 제거 (mock에서 확정 작업 별도 추가는 다음 catch)
