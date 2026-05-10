@@ -7145,7 +7145,10 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
         scheduledDate: form.requestDate,
         scheduledTime: form.requestTime,
         memo:          form.memo,
-        status:        "약속대기",
+        // 2026-05-10 명세 — 신규 접수 default = "미배정"
+        // (배정 흐름: 미배정 → 약속대기[냉매+추천] → 배정[운영자] → 확정[기사 일정] → 진행중 → 완료)
+        // 약속대기는 냉매충전 + 자동 추천 흐름에서만 박음 (별도 화면 / 여기 X)
+        status:        "미배정",
       };
       const res = await apiCreateTask(taskData);
       if (!res.ok) {
