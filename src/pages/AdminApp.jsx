@@ -7149,7 +7149,12 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
       };
       const res = await apiCreateTask(taskData);
       if (!res.ok) {
-        setSubmitError(res.error || "등록 실패");
+        // 2026-05-10 hotfix — timeout 시 "시트에 박혔을 수 있음" 안내 (재클릭 → 중복 방지)
+        if (res.timeout) {
+          setSubmitError("등록 처리 시간이 길어집니다. 시트에 이미 박혔을 수 있으니 새 접수 목록 새로고침 후 확인해주세요.");
+        } else {
+          setSubmitError(res.error || "등록 실패");
+        }
         setSubmitting(false);
         return;
       }

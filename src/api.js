@@ -1,7 +1,8 @@
 // 올잇 API 헬퍼 v4 - 휴무 API 추가
-// 2026-05-10 — apiCall 타임아웃 25초 추가 (assignEngineer 무한 로딩 방지)
+// 2026-05-10 — apiCall 타임아웃 60초 (createTask GAS 측 push 발송 sync 영역 catch)
+// 옛 25초는 createTask 응답 지연 (30~40초) 시 timeout → 사용자 재클릭 → 2건 박힘
 const API_URL = 'https://script.google.com/macros/s/AKfycbxow-YEIiKCIf5nuEG1s0qb2N3JgXrpzDZnV03Dt57yIvXtC05jpq3XF2HVBjemI1Gl/exec';
-const API_TIMEOUT_MS = 25000;
+const API_TIMEOUT_MS = 60000;
 
 async function apiCall(action, params = {}) {
   if (!API_URL) {
@@ -39,7 +40,7 @@ async function apiCall(action, params = {}) {
   } catch (err) {
     if (err.name === 'AbortError') {
       console.error('API 타임아웃:', action);
-      return { ok: false, error: '서버 응답 지연 (25초 초과). 다시 시도해주세요.' };
+      return { ok: false, error: '서버 응답 지연 (60초 초과). 시트에 이미 등록되었을 수 있으니 새로고침 후 확인해주세요.', timeout: true };
     }
     console.error('API error:', err);
     return { ok: false, error: err.message };
