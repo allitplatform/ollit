@@ -2535,7 +2535,8 @@ export default function AdminApp({ user, onLogout }) {
             // 2026-05-10 명세 — assignEngineer 후 R열="배정" (확정은 기사가 일정 박은 후)
             // 2026-05-10 hotfix — Optimistic 마킹 (_optimisticUntil) 추가 / 60초간 polling 덮어씀 방지
             console.log('[배정 hotfix] Optimistic 적용 시작 / taskId:', selectedTask.id);
-            const optimisticUntil = Date.now() + 60000; // 60초간 보호
+            // 2026-05-10 hotfix — 60초 → 5분 (300초) 보호 강화 / GAS R열 갱신 지연 catch
+            const optimisticUntil = Date.now() + 300000;
             setApiTasks(prev => {
               const next = prev.map(t =>
                 t.id === selectedTask.id
@@ -4054,8 +4055,14 @@ function NewReceptionScreen({
         : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
     });
     // 미배정/약속대기/빈 값 만 카드 목록에 박힘 (배정/확정/진행중/완료는 별도 화면)
+    // 2026-05-10 hotfix — 배정/확정/진행중/완료/정산완료/취소 명시 제외 (분류 정확성 강화)
     const isNewReception = (t) => {
       const s = String(t.status || t.상태 || "").trim();
+      // 배정 흐름 박힌 작업은 명시 제외
+      if (s === "배정" || s === "확정" || s === "진행중" || s === "완료" || s === "정산완료" || s === "취소") {
+        return false;
+      }
+      // 미배정 / 약속대기 / 빈 값 만 catch
       return !s || s === "미배정" || s === "약속대기";
     };
     const apiNew   = apiTasks.filter(isNewReception);
