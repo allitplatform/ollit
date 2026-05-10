@@ -2792,7 +2792,7 @@ export default function AdminApp({ user, onLogout }) {
   }
   if (screen === "notificationSettings") {
     return <Shell>
-      <NotiSettingsScreen onBack={goBack}/>
+   <NotiSettingsScreen user={user} onBack={goBack}/>
     </Shell>;
   }
   // Step 5-8 F-4 — 회사 계좌 관리 (운영자/관리자만 / PERMISSIONS["menu.company_account"])
