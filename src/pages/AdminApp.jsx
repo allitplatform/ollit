@@ -3372,42 +3372,23 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
     );
   };
 
-  const cleaningFlow      = workTypeFlowCounts['세척'];
-  const refrigerantFlow   = workTypeFlowCounts['냉매충전'];
-  const flowAnyHasItems   = (cleaningFlow && cleaningFlow['총'] > 0) || (refrigerantFlow && refrigerantFlow['총'] > 0);
+  const cleaningFlow    = workTypeFlowCounts['세척'];
+  const refrigerantFlow = workTypeFlowCounts['냉매충전'];
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
-      {/* 2026-05-11 — 오늘 작업 흐름 카드 (세척/냉매 5단계) */}
+      {/* 2026-05-11 — 오늘 작업 흐름 카드 (세척/냉매 5단계 / 0건이어도 박힘) */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
             📊 오늘 작업 흐름
           </span>
-          {flowAnyHasItems && (
-            <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>
-              {((cleaningFlow && cleaningFlow['총']) || 0) + ((refrigerantFlow && refrigerantFlow['총']) || 0)}건
-            </span>
-          )}
+          <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>
+            {((cleaningFlow && cleaningFlow['총']) || 0) + ((refrigerantFlow && refrigerantFlow['총']) || 0)}건
+          </span>
         </div>
-        {flowAnyHasItems ? (
-          <>
-            {cleaningFlow && cleaningFlow['총'] > 0 && (
-              <FlowCard icon="❄️" title="세척" flow={cleaningFlow}/>
-            )}
-            {refrigerantFlow && refrigerantFlow['총'] > 0 && (
-              <FlowCard icon="⚡" title="냉매" flow={refrigerantFlow}/>
-            )}
-          </>
-        ) : (
-          <div style={{
-            background: t.bgElevated,
-            border: `1px solid ${t.border}`,
-            borderRadius: 10, padding: 16, textAlign: "center",
-          }}>
-            <div style={{ fontSize: 12, color: t.textMuted }}>오늘 등록된 작업이 없습니다</div>
-          </div>
-        )}
+        <FlowCard icon="❄️" title="세척" flow={cleaningFlow || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
+        <FlowCard icon="⚡" title="냉매" flow={refrigerantFlow || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
       </div>
 
       {/* + 새 접수 등록 (Step 5-1d: placeholder → 실제 폼 연결, FAB 제거) */}
