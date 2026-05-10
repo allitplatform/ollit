@@ -77,6 +77,33 @@ import {
 // 🚀 Phase 1-B 2-E ─ 실시간 새로고침 hook
 import { useRealtime } from "../hooks/useRealtime.js";
 import { formatTimeOnly, formatDateOnly } from "../utils/dateLabel.js";
+import {
+  listNotifications as listStoredNotifications,
+  markAsRead as markStoredAsRead,
+  markAllAsRead as markAllStoredAsRead,
+} from "../utils/notificationStore.js";
+
+// IndexedDB 측 알림 → AdminApp NotiScreen 형식 어댑트
+function adaptStoredAdminNoti(stored) {
+  const title = stored.title || "";
+  let category = "general";
+  if (/배정|새 작업|새 접수/.test(title)) category = "new_assign";
+  else if (/일정/.test(title)) category = "schedule";
+  else if (/완료/.test(title)) category = "completed";
+  else if (/취소/.test(title)) category = "canceled";
+  else if (/정산|입금/.test(title)) category = "settlement";
+  return {
+    id: stored.id,
+    category,
+    title,
+    subtitle: stored.body || "",
+    createdAt: new Date(stored.timestamp || Date.now()),
+    read: !!stored.read,
+    relatedId: stored.taskId || null,
+    targetScreen: stored.url || null,
+    _stored: true,
+  };
+}
 
 // V14 Step 3 Fix 3 — 동적 날짜 (페이지 진입 시점 기준 / IIFE 박기)
 const NOW = (() => {
@@ -1871,7 +1898,26 @@ export default function AdminApp({ user, onLogout }) {
     setReceptionUpdates(prev => ({ ...prev, [id]: { ...(prev[id] || {}), ...partial } }));
   }
   // In-App 알림 (Phase 2: Web Push + Supabase Realtime)
+  // 2026-05-10 — IndexedDB 측 push 알림 통합 (notification:added 이벤트로 자동 갱신)
   const [notifications, setNotifications] = useState(NOTIFICATIONS_MOCK);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function reload() {
+      const stored = await listStoredNotifications();
+      if (cancelled) return;
+      const adapted = stored.map(adaptStoredAdminNoti);
+      // mock + IndexedDB 합쳐서 (옛 mock 호환 / push 받은 거 추가)
+      setNotifications([...adapted, ...NOTIFICATIONS_MOCK]);
+    }
+    reload();
+    const handler = () => reload();
+    window.addEventListener("notification:added", handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("notification:added", handler);
+    };
+  }, []);
   // 화면 상단 toast (3초 자동 사라짐)
   const [toasts, setToasts] = useState([]);
 

@@ -12,6 +12,36 @@ import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 import { REGISTERED_USERS } from "../shared/users.js";
 import { useRealtime } from "../hooks/useRealtime.js";
+import {
+  listNotifications as listStoredNotifications,
+  markAsRead as markStoredAsRead,
+  markAllAsRead as markAllStoredAsRead,
+  clearAll as clearAllStored,
+} from "../utils/notificationStore.js";
+
+// IndexedDB 측 알림 → NotiScreen props 형식 어댑트
+function adaptStoredNoti(stored) {
+  const title = stored.title || "";
+  let type = "team_message";
+  if (/배정|새 작업/.test(title)) type = "new_assignment";
+  else if (/수락 대기/.test(title)) type = "acceptance_pending";
+  else if (/일정/.test(title)) type = "schedule_changed";
+  else if (/취소/.test(title)) type = "work_canceled";
+  else if (/입금 요청|송금/.test(title)) type = "payment_request";
+  else if (/입금 확인|입금 완료/.test(title)) type = "payment_confirmed";
+  return {
+    id: stored.id,
+    type,
+    read: !!stored.read,
+    urgent: false,
+    createdAt: new Date(stored.timestamp || Date.now()),
+    title,
+    subtitle: stored.body || "",
+    relatedId: stored.taskId || null,
+    targetScreen: stored.url || null,
+    _stored: true,
+  };
+}
 
 // V14 헬퍼 — File → base64 (사진 업로드 catch)
 function fileToBase64(file) {
@@ -4342,7 +4372,8 @@ export default function EngineerApp({ user, onLogout }) {
 
   // V14 v7 — 알림 7가지 (운영팀 메시지 = 단순 안내 / 입금 요청+확인 분리)
   // Step 5-7-E — ENABLE_MOCK 분기 (운영 = 빈 배열 / 시뮬 = 옛 7개)
-  const [notifications, setNotifications] = useState(ENABLE_MOCK ? [
+  // 2026-05-10 — IndexedDB 측 알림으로 마이그레이션 (push 받으면 자동 추가)
+  const _MOCK_NOTIFICATIONS = ENABLE_MOCK ? [
     { id: "N001", type: "new_assignment",     read: false, urgent: false, createdAt: new Date(Date.now() - 60 * 60 * 1000),       timeAgo: "1시간 전",   title: "새 배정 도착",         subtitle: "김상호 고객님 · 모레 세척 투인원 1대 · 마포구 상수동",         relatedId: "O260508-003", targetScreen: "newAssignmentList" },
     { id: "N002", type: "acceptance_pending", read: false, urgent: true,  createdAt: new Date(Date.now() - 30 * 60 * 1000),       timeAgo: "30분 전",    title: "수락 대기 · 선착순",     subtitle: "한미선 고객님 · 모레 14:00 세척 4way 3대 · 용산구 이태원동", relatedId: "K-260508-002", targetScreen: "acceptanceList" },
     { id: "N003", type: "team_message",       read: false, urgent: false, createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),   timeAgo: "2시간 전",   title: "운영팀 메시지",         subtitle: "이번 주 정산 마감 5월 15일까지입니다",                       relatedId: null,           targetScreen: null },
@@ -4350,14 +4381,38 @@ export default function EngineerApp({ user, onLogout }) {
     { id: "N005", type: "work_canceled",      read: true,  urgent: false, createdAt: new Date(Date.now() - 6 * 60 * 60 * 1000),   timeAgo: "오늘 오전",  title: "작업 취소",            subtitle: "5/10 예정 작업이 고객 사정으로 취소됐어요",                  relatedId: null,           targetScreen: "calendar" },
     { id: "N006", type: "payment_request",    read: false, urgent: false, createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),  timeAgo: "어제 22:05", title: "입금 요청하였습니다",   subtitle: "5/6 마감분 50,000원 회사 송금 요청",                          relatedId: null,           targetScreen: "paymentHistory" },
     { id: "N007", type: "payment_confirmed",  read: false, urgent: false, createdAt: new Date(Date.now() - 14 * 60 * 60 * 1000),  timeAgo: "오늘 09:30", title: "입금 확인되었습니다",   subtitle: "5/6 마감분 50,000원 처리 완료",                              relatedId: null,           targetScreen: "paymentHistory" },
-  ] : []);
+  ] : [];
+  const [notifications, setNotifications] = useState(_MOCK_NOTIFICATIONS);
+
+  // IndexedDB 측 알림 로드 (마운트 + push 받을 때마다)
+  useEffect(() => {
+    let cancelled = false;
+    async function reload() {
+      const stored = await listStoredNotifications();
+      if (cancelled) return;
+      const adapted = stored.map(adaptStoredNoti);
+      // ENABLE_MOCK 모드면 mock + IndexedDB 합쳐서 / 운영 모드면 IndexedDB만
+      setNotifications(ENABLE_MOCK ? [...adapted, ..._MOCK_NOTIFICATIONS] : adapted);
+    }
+    reload();
+    const handler = () => reload();
+    window.addEventListener("notification:added", handler);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("notification:added", handler);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  function markAllRead() {
+  async function markAllRead() {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    await markAllStoredAsRead();
   }
-  function markAsRead(id) {
+  async function markAsRead(id) {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+    if (typeof id === "number") await markStoredAsRead(id);
   }
 
   function handleNotiClick(noti) {
