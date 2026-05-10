@@ -1,23 +1,33 @@
 // 올잇 API 헬퍼 v4 - 휴무 API 추가
+// 2026-05-10 — apiCall 타임아웃 25초 추가 (assignEngineer 무한 로딩 방지)
 const API_URL = 'https://script.google.com/macros/s/AKfycbxow-YEIiKCIf5nuEG1s0qb2N3JgXrpzDZnV03Dt57yIvXtC05jpq3XF2HVBjemI1Gl/exec';
+const API_TIMEOUT_MS = 25000;
 
 async function apiCall(action, params = {}) {
   if (!API_URL) {
     return { ok: false, error: 'API URL이 설정되지 않았어요.' };
   }
-  
+
   const url = new URL(API_URL);
   url.searchParams.append('action', action);
-  
+
   Object.entries(params).forEach(([k, v]) => {
     if (v !== undefined && v !== null) {
       const value = typeof v === 'object' ? JSON.stringify(v) : String(v);
       url.searchParams.append(k, value);
     }
   });
-  
+
+  // AbortController로 타임아웃 처리
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
   try {
-    const response = await fetch(url.toString(), { method: 'GET', redirect: 'follow' });
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      redirect: 'follow',
+      signal: controller.signal,
+    });
     const text = await response.text();
     if (!text || text.length === 0) return { ok: false, error: '서버 응답이 비어있습니다.' };
     try {
@@ -27,8 +37,14 @@ async function apiCall(action, params = {}) {
       return { ok: false, error: '서버 응답이 JSON이 아닙니다.', rawResponse: text.substring(0, 200) };
     }
   } catch (err) {
+    if (err.name === 'AbortError') {
+      console.error('API 타임아웃:', action);
+      return { ok: false, error: '서버 응답 지연 (25초 초과). 다시 시도해주세요.' };
+    }
     console.error('API error:', err);
     return { ok: false, error: err.message };
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 

@@ -2399,7 +2399,7 @@ export default function AdminApp({ user, onLogout }) {
               console.log('[V14 재배정]', { taskId: selectedTask.id, oldEngineer, newEngineer: eng.name });
               const res = await apiUpdateTask(selectedTask.id, {
                 assignedEngineer: eng.name,
-                // V14 헌법 — 새 기사가 새 일정 박는 catch (옛 N catch X)
+                // V14 헌법 — 새 기사가 새 일정 입력 (옛 N 보존 X)
                 scheduledAt: "",
                 confirmedAt: "",
                 confirmedDate: "",
@@ -2408,7 +2408,6 @@ export default function AdminApp({ user, onLogout }) {
               });
               if (!res || res.ok === false) {
                 setAssignError((res && res.error) || '재배정 실패');
-                setAssigning(false);
                 return;
               }
               // V14 재배정 — Optimistic Update
@@ -2430,7 +2429,7 @@ export default function AdminApp({ user, onLogout }) {
                 schedule: "협의", time: "협의",
                 status: '약속대기', state: 'waiting',
               } : prev);
-              // V14 — 작업 상세 화면 (selectedTaskDetail) 도 박기 ⭐
+              // V14 — 작업 상세 화면 (selectedTaskDetail) 도 동기화 ⭐
               setSelectedTaskDetail(prev => prev ? {
                 ...prev,
                 assignedEngineer: eng.name, engineer: eng.name,
@@ -2452,30 +2451,28 @@ export default function AdminApp({ user, onLogout }) {
                 type: "assignment",
                 title: "프로 재배정",
                 message: `${selectedTask?.customer || ""} (${selectedTask?.workType || ""})`,
-                subInfo: `${oldEngineer} → ${eng.name} (일정 협의 catch)`,
+                subInfo: `${oldEngineer} → ${eng.name} (일정 협의 필요)`,
                 taskId: selectedTask?.id,
               });
               addToast({
                 type: "assignment",
                 title: "✓ 재배정 완료",
-                message: `${eng.name} 프로 / 일정 협의 catch`,
+                message: `${eng.name} 프로 / 일정 협의 필요`,
               });
-              setAssigning(false);
               setScreen("taskDetail");
               return;
             }
 
-            // V14 새 배정 (옛 기사 박지 X) — assignEngineer 호출 (박은 거 catch)
+            // V14 새 배정 — assignEngineer 호출
             console.log('[V14 2B-3] assignEngineer', { taskId: selectedTask.id, engineerName: eng.name });
             const res = await apiAssignEngineer(selectedTask.id, eng.name);
             console.log('[V14 2B-3] 응답:', res);
             if (!res || res.ok === false) {
               setAssignError((res && res.error) || '배정 실패');
-              setAssigning(false);
               return;
             }
 
-            // [1-1] V14 속도 — apiTasks state 직접 update (즉시 UI catch)
+            // [1-1] V14 속도 — apiTasks state 직접 update (즉시 UI 반영)
             setApiTasks(prev => prev.map(t =>
               t.id === selectedTask.id
                 ? {
@@ -2490,7 +2487,7 @@ export default function AdminApp({ user, onLogout }) {
                 : t
             ));
 
-            // [1-2] V14 속도 — selectedTask도 즉시 update (작업 상세 진입 시 즉시 박힘)
+            // [1-2] V14 속도 — selectedTask도 즉시 update (작업 상세 진입 시 즉시 반영)
             setSelectedTask(prev => prev ? {
               ...prev,
               assignedEngineer: eng.name,
@@ -2498,7 +2495,7 @@ export default function AdminApp({ user, onLogout }) {
               status: '확정',
               state: 'scheduled',
             } : prev);
-            // V14 — 작업 상세 화면 (selectedTaskDetail) 도 박기 ⭐
+            // V14 — 작업 상세 화면 (selectedTaskDetail) 도 동기화 ⭐
             setSelectedTaskDetail(prev => prev ? {
               ...prev,
               assignedEngineer: eng.name, engineer: eng.name,
@@ -2506,7 +2503,7 @@ export default function AdminApp({ user, onLogout }) {
               status: '확정', 상태: '확정', state: 'scheduled',
             } : prev);
 
-            // 옛 mock state 호환 (extraReceptions 박혀있어도)
+            // 옛 mock state 호환 (extraReceptions 사용 시)
             updateReception(selectedTask.id, {
               autoAssignStatus: "accepted",
               acceptedEngineer: eng.name,
@@ -2518,7 +2515,7 @@ export default function AdminApp({ user, onLogout }) {
               assignedAt: new Date().toISOString(),
             });
 
-            // 추천 cache invalidate (배정 박힌 기사 다음 추천에서 빼기)
+            // 추천 cache invalidate (배정된 기사 다음 추천에서 제외)
             invalidateRecommendCache();
 
             addNotification({
@@ -2530,15 +2527,16 @@ export default function AdminApp({ user, onLogout }) {
             });
             addToast({ type: "assignment", title: "✓ 배정 완료", message: `${eng.name} 프로` });
 
-            // [1-3] fetchTasks() 박지 X — Optimistic만 박기 (5~7초 lag X)
-            // 다음 mount 시 자동 catch / 또는 사용자가 새로고침 박을 때
+            // [1-3] fetchTasks() 호출 X — Optimistic만 적용 (5~7초 lag 방지)
+            // 다음 mount 시 자동 fetch / 또는 사용자가 새로고침 시
 
-            setAssigning(false);
-            // V14 Phase 2.5 — replaceScreen 박기 (recommend → newReception / stack 중복 X)
+            // V14 Phase 2.5 — replaceScreen 사용 (recommend → newReception / stack 중복 방지)
             replaceScreen("newReception");
           } catch (e) {
             console.error('[V14 2B-3] 배정 에러:', e);
             setAssignError(e.message || '배정 실패');
+          } finally {
+            // 2026-05-10 fix — 모든 분기에서 setAssigning(false) 보장 (무한 로딩 방지)
             setAssigning(false);
           }
         }}
