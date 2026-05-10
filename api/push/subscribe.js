@@ -59,7 +59,7 @@ export default async function handler(req, res) {
     params.append("role",       String(role || ""));
     params.append("endpoint",   endpoint);
     params.append("p256dh",     p256dh);
-    params.append("auth",       auth);
+    params.append("pushAuth",       auth);
     params.append("ua",         req.headers["user-agent"] || "");
     // ⚠️ subscription 파라미터 박지 X (분해해서 보냄 / GAS 측 parse 실패 catch)
 
