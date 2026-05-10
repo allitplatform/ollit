@@ -1859,7 +1859,18 @@ export default function AdminApp({ user, onLogout }) {
       console.log('[V14 2A] normalized:', normalized.length, '건');
       if (normalized[0]) console.log('[V14 2A] 첫 normalized:', normalized[0]);
 
-      setApiTasks(normalized);
+      // 2026-05-10 hotfix — Optimistic 마킹된 task는 polling 결과 덮어씀 방지 (60초간)
+      setApiTasks(prev => {
+        const optimisticMap = new Map();
+        const now = Date.now();
+        for (const t of prev) {
+          if (t._optimisticUntil && t._optimisticUntil > now) {
+            optimisticMap.set(t.id, t);
+          }
+        }
+        if (optimisticMap.size === 0) return normalized;
+        return normalized.map(t => optimisticMap.has(t.id) ? optimisticMap.get(t.id) : t);
+      });
       // 0건이면 디버그 표시 (사장님 catch 위해)
       if (normalized.length === 0) {
         setTasksDebug({
@@ -2522,19 +2533,27 @@ export default function AdminApp({ user, onLogout }) {
 
             // [1-1] V14 속도 — apiTasks state 직접 update (즉시 UI 반영)
             // 2026-05-10 명세 — assignEngineer 후 R열="배정" (확정은 기사가 일정 박은 후)
-            setApiTasks(prev => prev.map(t =>
-              t.id === selectedTask.id
-                ? {
-                    ...t,
-                    assignedEngineer: eng.name,
-                    engineer: eng.name,
-                    배정기사: eng.name,
-                    status: '배정',
-                    상태: '배정',
-                    state: 'scheduled',
-                  }
-                : t
-            ));
+            // 2026-05-10 hotfix — Optimistic 마킹 (_optimisticUntil) 추가 / 60초간 polling 덮어씀 방지
+            console.log('[배정 hotfix] Optimistic 적용 시작 / taskId:', selectedTask.id);
+            const optimisticUntil = Date.now() + 60000; // 60초간 보호
+            setApiTasks(prev => {
+              const next = prev.map(t =>
+                t.id === selectedTask.id
+                  ? {
+                      ...t,
+                      _optimisticUntil: optimisticUntil,
+                      assignedEngineer: eng.name,
+                      engineer: eng.name,
+                      배정기사: eng.name,
+                      status: '배정',
+                      상태: '배정',
+                      state: 'scheduled',
+                    }
+                  : t
+              );
+              console.log('[배정 hotfix] Optimistic 후 task:', next.find(t => t.id === selectedTask.id));
+              return next;
+            });
 
             // [1-2] V14 속도 — selectedTask도 즉시 update (작업 상세 진입 시 즉시 반영)
             setSelectedTask(prev => prev ? {
