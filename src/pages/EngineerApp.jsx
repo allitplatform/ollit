@@ -824,16 +824,20 @@ function MainScreen({
     .filter(t => t.status === "완료")
     .reduce((s, t) => s + (t.engineerNet || 0), 0);
 
-  // V14 — 새 배정 = 약속대기 + 일정 미정 (extraAssignments 합산은 EngineerApp에서 처리)
+  // V14 — 새 배정 = 배정됐는데 일정 미정 (extraAssignments 합산은 EngineerApp에서 처리)
+  // 2026-05-10 명세 (이행 기간): "배정" + 옛 "확정"+일정X 둘 다 catch
   const newAssignments = newAssignmentsOverride || tasks.filter(x =>
-    x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
+    x.status === "배정" ||
+    (x.status === "확정" && (!x.scheduledDate || !x.scheduledTime))
   );
 
   // V14 v8 — 오늘 남은 일정 (사장님 spec '미래 일정 X / 캘린더 탭에서')
-  // 진행중 + 확정 (오늘만) 시간순
+  // 진행중 + 확정 (오늘만 / 시간 박혀있는 작업만) 시간순
+  // 2026-05-10 명세 — "확정" + scheduledTime 있는 작업만 일정 확정 카드로 분류
+  // (배정만 박힌 작업은 newAssignments / 일정 미박은 확정도 newAssignments)
   const todayRemaining = todayTasksLocal
-    .filter(x => x.status !== "완료" && (x.time || x.scheduledTime))
-    .sort((a, b) => (a.time || a.scheduledTime || "99:99").localeCompare(b.time || b.scheduledTime || "99:99"));
+    .filter(x => x.status !== "완료" && !!x.scheduledTime && (x.status === "확정" || x.status === "진행중"))
+    .sort((a, b) => (a.scheduledTime || a.time || "99:99").localeCompare(b.scheduledTime || b.time || "99:99"));
 
   // V14 v8 — 진행 카드 = 가장 가까운 미완료 (진행중 우선, 다음 확정)
   const nextWork = activeTask || todayRemaining.find(x => x.status === "확정") || null;
@@ -4267,9 +4271,13 @@ export default function EngineerApp({ user, onLogout }) {
 
   // V13-1 — 새 배정 리스트 (오늘 화면 새 배정 박스 클릭)
   // V14 — 수락한 acceptance(extraAssignments)도 합산
+  // 2026-05-10 명세 (이행 기간 호환):
+  //   - 새 데이터: status="배정" (운영자가 박은 후 / 일정 미정)
+  //   - 옛 데이터: status="확정" + 일정 미정 (옛 GAS 흐름 호환)
   const newAssignments = [
     ...tasks.filter(x =>
-      x.status === "약속대기" && (!x.scheduledDate || !x.scheduledTime)
+      x.status === "배정" ||
+      (x.status === "확정" && (!x.scheduledDate || !x.scheduledTime))
     ),
     ...extraAssignments,
   ];
