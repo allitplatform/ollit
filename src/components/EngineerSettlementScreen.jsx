@@ -9,6 +9,7 @@ import {
   markNotificationAsRead,
   getUnreadCount,
 } from "../utils/notificationQueue.js";
+import { formatDateOnly } from "../utils/dateLabel.js";
 
 const VIEW_TABS = [
   { id: "today",   label: "오늘" },
@@ -292,7 +293,7 @@ function TaskRow({ task, showDate }) {
         </span>
       </div>
       <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 2, paddingLeft: 16 }}>
-        {showDate && task.completedAt && new Date(task.completedAt).toLocaleDateString("ko-KR")}
+        {showDate && task.completedAt && formatDateOnly(task.completedAt)}
         {showDate && items && " · "}
         {items}
       </div>
@@ -315,7 +316,7 @@ function UsolNTaskRow({ task }) {
         </span>
       </div>
       <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))" }}>
-        {task.completedAt ? new Date(task.completedAt).toLocaleDateString("ko-KR") : "—"}
+        {task.completedAt ? (formatDateOnly(task.completedAt) || "—") : "—"}
         {" · "}
         {task.orderType === "extra" ? "추가" : "기본"}
       </div>

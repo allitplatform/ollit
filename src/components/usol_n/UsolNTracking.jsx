@@ -4,6 +4,7 @@
 // V11-7: 주차 카드 클릭 시 작업 목록 모달
 import { useState, useMemo } from "react";
 import { loadTasks, getLongPendingTasks } from "../../data/tasks.js";
+import { formatDateOnly } from "../../utils/dateLabel.js";
 
 const COMPANY_RATE = 0.85;
 
@@ -269,7 +270,7 @@ function WeekDetailTaskRow({ task }) {
         </span>
       </div>
       <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))" }}>
-        {task.completedAt ? new Date(task.completedAt).toLocaleDateString("ko-KR") : "—"}
+        {task.completedAt ? (formatDateOnly(task.completedAt) || "—") : "—"}
         {items ? ` · ${items}` : ""}
       </div>
     </div>

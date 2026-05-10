@@ -76,6 +76,7 @@ import {
 
 // 🚀 Phase 1-B 2-E ─ 실시간 새로고침 hook
 import { useRealtime } from "../hooks/useRealtime.js";
+import { formatTimeOnly, formatDateOnly } from "../utils/dateLabel.js";
 
 // V14 Step 3 Fix 3 — 동적 날짜 (페이지 진입 시점 기준 / IIFE 박기)
 const NOW = (() => {
@@ -5528,8 +5529,8 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
   // 진행 상태 표기
   const stateLabel = (() => {
     if (isExternal) return { icon: "🌐", label: "외근", color: t.purple, sub: task.note };
-    if (task.state === "done")      return { icon: "✓",  label: "완료",   color: t.textSecondary, sub: task.completedAt ? `완료 ${task.completedAt}` : null };
-    if (task.state === "active")    return { icon: "🟢", label: "진행중", color: t.success,        sub: task.startedAt  ? `시작 ${task.startedAt}` : null };
+    if (task.state === "done")      return { icon: "✓",  label: "완료",   color: t.textSecondary, sub: task.completedAt ? `완료 ${formatTimeOnly(task.completedAt)}` : null };
+    if (task.state === "active")    return { icon: "🟢", label: "진행중", color: t.success,        sub: task.startedAt  ? `시작 ${formatTimeOnly(task.startedAt)}` : null };
     if (task.state === "moving")    return { icon: "🟡", label: "이동중", color: t.warning,        sub: null };
     if (task.state === "waiting")   return { icon: "⏳", label: "대기 중", color: t.textMuted,      sub: null };
     if (task.state === "scheduled") return { icon: "📅", label: "예정",   color: t.text,           sub: task.time ? `예정 ${task.time}` : null };

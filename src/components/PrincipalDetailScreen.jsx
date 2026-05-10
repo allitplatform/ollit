@@ -6,6 +6,7 @@ import { loadTasks } from "../data/tasks.js";
 import { loadEngineers } from "../data/engineers.js";
 import { EngineerBadge } from "./EngineerBadge.jsx";
 import { calcEngineerEarning as calcUsolNEngineer } from "../utils/usolNCommission.js";
+import { formatDateOnly } from "../utils/dateLabel.js";
 
 export function PrincipalDetailScreen({ principal, onBack }) {
   const [period, setPeriod] = useState("today");
@@ -218,7 +219,7 @@ function TaskRow({ task, principalId }) {
         </span>
       </div>
       <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))" }}>
-        {task.completedAt ? new Date(task.completedAt).toLocaleDateString("ko-KR") : "—"}
+        {task.completedAt ? (formatDateOnly(task.completedAt) || "—") : "—"}
         {items ? ` · ${items}` : ""}
         {task.orderType === "extra" ? " · 추가선택" : ""}
       </div>

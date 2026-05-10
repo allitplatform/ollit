@@ -43,7 +43,7 @@ import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "../components/WorkItemRow.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
-import { workDateLabel, workDateColor, relativeLabel, fullDateLabel } from "../utils/dateLabel.js";
+import { workDateLabel, workDateColor, relativeLabel, fullDateLabel, formatTimeOnly, formatDateOnly } from "../utils/dateLabel.js";
 // V13-FINAL2 — 4탭 + 공유 컴포넌트
 import { EngineerBottomNav } from "../components/EngineerBottomNav.jsx";
 import { EngineerSettleTab } from "../components/EngineerSettleTab.jsx";
@@ -1541,8 +1541,8 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
               <span className="mono" style={{ fontSize: 48, fontWeight: 700, letterSpacing: "-0.04em", lineHeight: 1 }}>{task.time}</span>
               <span style={{ fontSize: 16, color: t.textMuted, fontWeight: 700 }}>~ {task.endTime}</span>
             </div>
-            {isInProgress && task.startedAt && <div style={{ fontSize: 12, color: t.warning, fontWeight: 700, marginTop: 4 }}>🟡 {task.startedAt} 시작 · 작업 중</div>}
-            {isCompleted && <div style={{ fontSize: 12, color: t.success, fontWeight: 700, marginTop: 4 }}>✅ {task.completedAt} 완료</div>}
+            {isInProgress && task.startedAt && <div style={{ fontSize: 12, color: t.warning, fontWeight: 700, marginTop: 4 }}>🟡 {formatTimeOnly(task.startedAt)} 시작 · 작업 중</div>}
+            {isCompleted && <div style={{ fontSize: 12, color: t.success, fontWeight: 700, marginTop: 4 }}>✅ {formatTimeOnly(task.completedAt)} 완료</div>}
             {!isInProgress && !isCompleted && <div style={{ fontSize: 13, color: t.textMuted, fontWeight: 600 }}>소요 시간 약 {task.duration}</div>}
             
             {hasScheduleChange && (
@@ -2889,34 +2889,7 @@ function BottomTabBar({ t, activeTab, onTabChange, unreadCount }) {
 // 캘린더 화면 (월별 뷰)
 // =====================================
 
-// 시간 포맷 헬퍼 (1899-12-30 같은 이상한 값 처리)
-function formatTimeOnly(timeStr) {
-  if (!timeStr) return '';
-  const str = String(timeStr);
-  
-  // ISO 날짜 문자열 (1899-12-30T...) → 시간만 추출
-  if (str.includes('T')) {
-    const timePart = str.split('T')[1];
-    if (timePart) {
-      return timePart.slice(0, 5); // HH:MM
-    }
-  }
-  
-  // 1899로 시작 (엑셀 기본 날짜) → 시간만 추출
-  if (str.startsWith('1899')) {
-    return str.slice(11, 16) || '';
-  }
-  
-  // "종일" 같은 텍스트
-  if (str === '종일') return '';
-  
-  // HH:MM 형식
-  if (str.match(/^\d{2}:\d{2}/)) {
-    return str.slice(0, 5);
-  }
-  
-  return str;
-}
+// 시간 포맷 헬퍼 — utils/dateLabel.js의 formatTimeOnly 사용 (이전 inline 정의 제거)
 
 function CalendarScreen({ t, engineerName, tasks }) {
   const [year, setYear] = useState(new Date().getFullYear());

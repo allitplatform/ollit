@@ -9,6 +9,7 @@ import {
 import { useTasks } from "../shared/TasksContext.jsx";
 import { filterTasksForPrincipal } from "../shared/tasks.js";
 import { v14NormalizeTask, v14FindTaskList } from "../utils/v14Task.js";
+import { formatTimeOnly } from "../utils/dateLabel.js";
 
 const NOW = "10:00";
 
@@ -1071,8 +1072,8 @@ function TaskDetail({ t, task, onBack }) {
           <DetailRow t={t} icon={Hash} label="수량" value={`${task.qty || 1}대`}/>
           {scheduledDisplay && <DetailRow t={t} icon={Calendar} label="일정" value={scheduledDisplay}/>}
           {task.assignedEngineer && <DetailRow t={t} icon={User} label="배정 프로" value={`${task.assignedEngineer} 프로님`}/>}
-          {task.startedAt && <DetailRow t={t} icon={Clock} label="작업 시작" value={task.startedAt} color={t.warning}/>}
-          {task.completedAt && <DetailRow t={t} icon={CheckCircle2} label="완료 시각" value={task.completedAt} color={t.success}/>}
+          {task.startedAt && <DetailRow t={t} icon={Clock} label="작업 시작" value={formatTimeOnly(task.startedAt)} color={t.warning}/>}
+          {task.completedAt && <DetailRow t={t} icon={CheckCircle2} label="완료 시각" value={formatTimeOnly(task.completedAt)} color={t.success}/>}
         </div>
       </div>
 

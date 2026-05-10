@@ -8,6 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import { Chip } from "./Chip.jsx";
 import { detectServiceType } from "../data/serviceTypes.js";
 import { TaskCardMenu } from "./TaskCardMenu.jsx";
+import { formatTimeOnly } from "../utils/dateLabel.js";
 import { VisitOnlyDialog } from "./VisitOnlyDialog.jsx";
 import { loadMemos } from "../data/memos.js";
 
@@ -200,7 +201,7 @@ function MainCard({ task }) {
         {/* 시간 + 작업 (V14 2B-1 fix — 기종 박기 / 작업유형은 별도 칩) */}
         <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
           🕐 {task.time || "—"}
-          {task.state === "active" && task.startedAt && <> · 시작 {task.startedAt}</>}
+          {task.state === "active" && task.startedAt && <> · 시작 {formatTimeOnly(task.startedAt)}</>}
           {Array.isArray(task.workItems) && task.workItems.length > 0 && (
             <> · {task.workItems.map(w => `${w.appliance || w.workType || "—"}${w.qty ? ` ×${w.qty}` : ""}`).join(", ")}</>
           )}

@@ -13,7 +13,7 @@ import {
   TaskVisitOnlyScreen,
 } from "./EngineerTaskCompletionScreens.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
-import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
+import { workDateLabel, workDateColor, formatTimeOnly } from "../utils/dateLabel.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
 
@@ -25,8 +25,12 @@ function getCurrentTime() {
 
 function calcTotalDuration(task) {
   if (!task.startedAt || !task.completedAt) return "—";
-  const [sh, sm] = String(task.startedAt).split(":").map(n => parseInt(n, 10) || 0);
-  const [eh, em] = String(task.completedAt).split(":").map(n => parseInt(n, 10) || 0);
+  // 1899 / ISO 형식 정규화 후 split (formatTimeOnly → "HH:MM")
+  const startStr = formatTimeOnly(task.startedAt);
+  const endStr   = formatTimeOnly(task.completedAt);
+  if (!startStr || !endStr) return "—";
+  const [sh, sm] = startStr.split(":").map(n => parseInt(n, 10) || 0);
+  const [eh, em] = endStr.split(":").map(n => parseInt(n, 10) || 0);
   const diff = Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
   if (diff < 60) return `${diff}분`;
   return `${Math.floor(diff / 60)}시간 ${diff % 60}분`;
@@ -560,7 +564,8 @@ function WorkMainCard({ task }) {
   const pct = (() => {
     if (!task.startedAt || !task.endTime) return 0;
     const toMin = (s) => {
-      const [h, m] = String(s).split(":");
+      const norm = formatTimeOnly(s);
+      const [h, m] = String(norm || s).split(":");
       return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
     };
     const startMin = toMin(task.startedAt);
@@ -626,7 +631,7 @@ function WorkMainCard({ task }) {
             marginLeft: "auto",
             fontSize: 13, color: "var(--label-main)", fontWeight: 700,
           }}>
-            {task.startedAt} 시작
+            {formatTimeOnly(task.startedAt)} 시작
           </span>
         )}
       </div>
@@ -639,11 +644,11 @@ function WorkMainCard({ task }) {
           color: "var(--text-primary)",
           letterSpacing: "-1px", lineHeight: 1,
         }}>
-          {(isInProgress ? task.startedAt : task.scheduledTime) || task.time || "—"}
+          {formatTimeOnly(isInProgress ? task.startedAt : task.scheduledTime) || formatTimeOnly(task.time) || "—"}
         </span>
         {task.endTime && (
           <span style={{ fontSize: 18, color: "#888", fontWeight: 700 }}>
-            ~ {task.endTime}
+            ~ {formatTimeOnly(task.endTime) || task.endTime}
           </span>
         )}
       </div>
@@ -777,7 +782,8 @@ function StatusBlockInProgress({ task }) {
   const pct = (() => {
     if (!task.startedAt || !task.endTime) return 0;
     const toMin = (s) => {
-      const [h, m] = String(s).split(":");
+      const norm = formatTimeOnly(s);
+      const [h, m] = String(norm || s).split(":");
       return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
     };
     const startMin = toMin(task.startedAt);
@@ -807,7 +813,7 @@ function StatusBlockInProgress({ task }) {
         </div>
         {task.startedAt && (
           <span style={{ fontSize: 13, color: "#888", fontWeight: 600 }}>
-            {task.startedAt} 시작
+            {formatTimeOnly(task.startedAt)} 시작
           </span>
         )}
       </div>
@@ -817,11 +823,11 @@ function StatusBlockInProgress({ task }) {
           fontSize: 36, fontWeight: 600, fontFamily: "inherit",
           color: "var(--text-primary)", letterSpacing: "-1px",
         }}>
-          {task.startedAt || task.scheduledTime || "—"}
+          {formatTimeOnly(task.startedAt) || formatTimeOnly(task.scheduledTime) || "—"}
         </div>
         {task.endTime && (
           <div style={{ fontSize: 16, color: "#888", fontWeight: 600 }}>
-            ~ {task.endTime}
+            ~ {formatTimeOnly(task.endTime) || task.endTime}
           </div>
         )}
       </div>
@@ -866,10 +872,10 @@ function StatusBlockCompleted({ task }) {
           fontSize: 28, fontWeight: 700, fontFamily: "inherit",
           color: "var(--text-primary)",
         }}>
-          {task.startedAt || "—"}
+          {formatTimeOnly(task.startedAt) || "—"}
         </div>
         <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
-          ~ {task.completedAt || "—"}
+          ~ {formatTimeOnly(task.completedAt) || "—"}
         </div>
       </div>
       <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>

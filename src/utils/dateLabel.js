@@ -62,3 +62,61 @@ export function workDateColor(ymd) {
   if (diff > 0)   return "var(--text-secondary, #555)";
   return "var(--text-tertiary, #999)";
 }
+
+// 2026-05-10 — 시간 표시 헬퍼 (시트의 1899-12-30 같은 Excel epoch 처리)
+// 우선순위: ISO("YYYY-MM-DDTHH:MM..") → 1899 prefix → "HH:MM" 직접 → Date 파싱 (1899 제외)
+export function formatTimeOnly(value) {
+  if (!value && value !== 0) return "";
+  const str = String(value).trim();
+  if (!str) return "";
+  // ISO 형식 ("2026-05-10T14:30:00" / "1899-12-30T12:57:08.000Z")
+  if (str.includes("T")) {
+    const timePart = str.split("T")[1] || "";
+    const m = timePart.match(/^(\d{2}:\d{2})/);
+    if (m) return m[1];
+  }
+  // 1899 prefix (Excel 시간만 셀)
+  if (str.startsWith("1899")) {
+    const m = str.match(/(\d{2}:\d{2})/);
+    if (m) return m[1];
+  }
+  // "종일" 같은 텍스트
+  if (str === "종일") return "";
+  // HH:MM 또는 HH:MM:SS 직접
+  if (/^\d{2}:\d{2}/.test(str)) return str.slice(0, 5);
+  // Date 파싱 fallback (1899년은 무시)
+  const d = new Date(str);
+  if (!isNaN(d.getTime()) && d.getFullYear() > 1899) {
+    const hh = String(d.getHours()).padStart(2, "0");
+    const mm = String(d.getMinutes()).padStart(2, "0");
+    return `${hh}:${mm}`;
+  }
+  return "";
+}
+
+// 날짜 표시 헬퍼 (1899 epoch 케이스에서는 빈 값 반환)
+// 입력: "2026-05-10" / ISO / Date / 빈 값
+// 출력: 한국어 날짜 ("2026. 5. 10.") 또는 ""
+export function formatDateOnly(value) {
+  if (!value) return "";
+  const str = String(value).trim();
+  if (!str) return "";
+  // 1899 prefix (Excel 시간만 셀) → 날짜 부분 표시 X
+  if (str.startsWith("1899")) return "";
+  // ISO 형식 → 날짜 부분 추출
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+    const datePart = str.slice(0, 10);
+    if (datePart.startsWith("1899")) return "";
+    const d = new Date(datePart);
+    if (!isNaN(d.getTime()) && d.getFullYear() > 1899) {
+      return d.toLocaleDateString("ko-KR");
+    }
+    return datePart;
+  }
+  // Date 파싱
+  const d = new Date(str);
+  if (!isNaN(d.getTime()) && d.getFullYear() > 1899) {
+    return d.toLocaleDateString("ko-KR");
+  }
+  return "";
+}
