@@ -74,6 +74,9 @@ import {
   invalidateRecommendCache,
 } from "../api.js";
 
+// 🚀 Phase 1-B 2-E ─ 실시간 새로고침 hook
+import { useRealtime } from "../hooks/useRealtime.js";
+
 // V14 Step 3 Fix 3 — 동적 날짜 (페이지 진입 시점 기준 / IIFE 박기)
 const NOW = (() => {
   const d = new Date();
@@ -1849,6 +1852,7 @@ export default function AdminApp({ user, onLogout }) {
       setTasksLoading(false);
     }
   }
+  useRealtime(fetchTasks);
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
   useEffect(() => {

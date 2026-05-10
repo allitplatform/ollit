@@ -11,6 +11,7 @@ import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "..
 import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 import { REGISTERED_USERS } from "../shared/users.js";
+import { useRealtime } from "../hooks/useRealtime.js";
 
 // V14 헬퍼 — File → base64 (사진 업로드 catch)
 function fileToBase64(file) {
@@ -4084,6 +4085,7 @@ export default function EngineerApp({ user, onLogout }) {
       setTasksLoading(false);
     }
   }
+  useRealtime(fetchTasks);
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
   useEffect(() => {
