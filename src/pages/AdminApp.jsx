@@ -3384,14 +3384,19 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
           <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
             📊 오늘 작업 흐름
           </span>
+          {flowAnyHasItems && (
+            <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>
+              {((cleaningFlow && cleaningFlow['총']) || 0) + ((refrigerantFlow && refrigerantFlow['총']) || 0)}건
+            </span>
+          )}
         </div>
         {flowAnyHasItems ? (
           <>
             {cleaningFlow && cleaningFlow['총'] > 0 && (
-              <FlowCard icon="🧽" title="세척" flow={cleaningFlow}/>
+              <FlowCard icon="❄️" title="세척" flow={cleaningFlow}/>
             )}
             {refrigerantFlow && refrigerantFlow['총'] > 0 && (
-              <FlowCard icon="❄️" title="냉매" flow={refrigerantFlow}/>
+              <FlowCard icon="⚡" title="냉매" flow={refrigerantFlow}/>
             )}
           </>
         ) : (
