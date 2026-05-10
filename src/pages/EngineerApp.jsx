@@ -5066,7 +5066,7 @@ export default function EngineerApp({ user, onLogout }) {
               onClick={submitComplete}
               style={{ flex: 2, padding: 12, background: (completePhotos.length > 0 && !completing) ? "#00875A" : "#ccc", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: (completePhotos.length > 0 && !completing) ? "pointer" : "not-allowed", fontFamily: "inherit" }}
             >
-              {completing ? "박는 중..." : `완료 박기 (사진 ${completePhotos.length}장)`}
+              {completing ? "처리 중..." : `완료하기 (사진 ${completePhotos.length}장)`}
             </button>
           </div>
         </V14Modal>

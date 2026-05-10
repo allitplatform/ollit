@@ -6471,7 +6471,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
       {/* V14 2B-3 — 배정 중 / 배정 에러 */}
       {assigning && (
         <div style={{ padding: "8px 16px", background: t.bgInset, fontSize: 11, color: t.textSecondary, fontWeight: 700, textAlign: "center" }}>
-          배정 박는 중...
+          배정 중...
         </div>
       )}
       {assignError && (
