@@ -2473,6 +2473,7 @@ export default function AdminApp({ user, onLogout }) {
             }
 
             // [1-1] V14 속도 — apiTasks state 직접 update (즉시 UI 반영)
+            // 2026-05-10 명세 — assignEngineer 후 R열="배정" (확정은 기사가 일정 박은 후)
             setApiTasks(prev => prev.map(t =>
               t.id === selectedTask.id
                 ? {
@@ -2480,8 +2481,8 @@ export default function AdminApp({ user, onLogout }) {
                     assignedEngineer: eng.name,
                     engineer: eng.name,
                     배정기사: eng.name,
-                    status: '확정',
-                    상태: '확정',
+                    status: '배정',
+                    상태: '배정',
                     state: 'scheduled',
                   }
                 : t
@@ -2492,7 +2493,7 @@ export default function AdminApp({ user, onLogout }) {
               ...prev,
               assignedEngineer: eng.name,
               engineer: eng.name,
-              status: '확정',
+              status: '배정',
               state: 'scheduled',
             } : prev);
             // V14 — 작업 상세 화면 (selectedTaskDetail) 도 동기화 ⭐
@@ -2500,7 +2501,7 @@ export default function AdminApp({ user, onLogout }) {
               ...prev,
               assignedEngineer: eng.name, engineer: eng.name,
               배정기사: eng.name,
-              status: '확정', 상태: '확정', state: 'scheduled',
+              status: '배정', 상태: '배정', state: 'scheduled',
             } : prev);
 
             // 옛 mock state 호환 (extraReceptions 사용 시)
@@ -2510,7 +2511,7 @@ export default function AdminApp({ user, onLogout }) {
               engineerId: eng.id || eng.engineerId,
               engineer: eng.name,
               assignedEngineer: eng.name,
-              status: "확정",
+              status: "배정",
               state: "scheduled",
               assignedAt: new Date().toISOString(),
             });
