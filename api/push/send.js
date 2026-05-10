@@ -131,6 +131,7 @@ export default async function handler(req, res) {
       else sent++;
     } else {
       failed++;
+      console.error("[push send error]", r.reason?.message, r.reason?.statusCode, r.reason?.body);
     }
   }
 
