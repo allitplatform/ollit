@@ -15,6 +15,8 @@ import {
   getPermissionState,
   getCurrentSubscription,
 } from "../utils/pushNotification.js";
+import { REGISTERED_USERS } from "../shared/users.js";
+import { loadEngineers as loadSheetEngineers } from "../data/engineers.js";
 
 const APP_VERSION = "v1.0 · Phase 1A";
 
@@ -124,6 +126,40 @@ export function EngineerMeTab({
     return () => { cancelled = true; };
   }, []);
 
+  // Step 6-2 hotfix-2 — multi-source engineerId / userId 매핑 (Step 5-8 패턴)
+  // eng prop에 id 박지 X 케이스 catch — REGISTERED_USERS + loadSheetEngineers fallback
+  function resolveEngineerIds() {
+    const fromRegistered = REGISTERED_USERS.find(u =>
+      u.userId === eng?.userId || u.userId === eng?.id ||
+      (eng?.phone && u.phone === eng.phone) ||
+      (eng?.name  && u.name  === eng.name)
+    );
+    const sheetList = loadSheetEngineers();
+    const fromSheet = sheetList.find(e =>
+      e.id === eng?.engineerId || e.id === fromRegistered?.engineerId ||
+      (eng?.name  && e.name  === eng.name) ||
+      (eng?.phone && e.phone === eng.phone)
+    );
+    const finalEngineerId =
+      eng?.engineerId ||
+      fromRegistered?.engineerId ||
+      fromSheet?.id ||
+      eng?.id ||
+      "";
+    const finalUserId =
+      eng?.userId ||
+      fromRegistered?.userId ||
+      "";
+    if (typeof console !== "undefined") {
+      console.log("[푸시 디버그] eng prop:", eng);
+      console.log("[푸시 디버그] fromRegistered:", fromRegistered);
+      console.log("[푸시 디버그] fromSheet:", fromSheet);
+      console.log("[푸시 디버그] finalEngineerId:", finalEngineerId);
+      console.log("[푸시 디버그] finalUserId:", finalUserId);
+    }
+    return { finalEngineerId, finalUserId };
+  }
+
   async function handlePushToggle(value) {
     if (value) {
       // ON 흐름
@@ -135,9 +171,10 @@ export function EngineerMeTab({
         showLocalToast("⚠️ 홈 화면에 추가한 후 다시 시도해주세요");
         return;
       }
+      const { finalEngineerId, finalUserId } = resolveEngineerIds();
       const res = await subscribePushWithSync({
-        userId:     eng.userId || eng.id || "",
-        engineerId: eng.id || eng.engineerId || "",
+        userId:     finalUserId,
+        engineerId: finalEngineerId,
         role:       "engineer",
       });
       if (res.ok) {
@@ -156,9 +193,10 @@ export function EngineerMeTab({
       }
     } else {
       // OFF 흐름
+      const { finalEngineerId, finalUserId } = resolveEngineerIds();
       const res = await unsubscribePushWithSync({
-        userId:     eng.userId || eng.id || "",
-        engineerId: eng.id || eng.engineerId || "",
+        userId:     finalUserId,
+        engineerId: finalEngineerId,
       });
       handlePushTogglePref(false);
       if (res.ok) showLocalToast("✓ 푸시 알림이 비활성화되었습니다");
