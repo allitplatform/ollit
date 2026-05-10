@@ -6,6 +6,15 @@
 import { useState, useEffect } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { useIsDark } from "../hooks/useIsDark.js";
+import {
+  subscribePushWithSync,
+  unsubscribePushWithSync,
+  isPushSupported,
+  isStandalone,
+  isIOS,
+  getPermissionState,
+  getCurrentSubscription,
+} from "../utils/pushNotification.js";
 
 const APP_VERSION = "v1.0 · Phase 1A";
 
@@ -94,9 +103,73 @@ export function EngineerMeTab({
     if (onChangeTheme) onChangeTheme(value ? "dark" : "light");
   }
 
-  function handlePushToggle(value) {
+  // 옛 단순 토글 (localStorage만) 보존 — 시범 호환
+  function handlePushTogglePref(value) {
     setPush(value);
     try { localStorage.setItem("ollit_push", String(value)); } catch (e) {}
+  }
+
+  // Step 6-2 (2-D) — 진짜 푸시 권한 + 구독 흐름
+  // 마운트 시 현재 구독 상태로 토글 동기화
+  useEffect(() => {
+    if (!isPushSupported()) return;
+    let cancelled = false;
+    getCurrentSubscription().then(sub => {
+      if (cancelled) return;
+      const granted = getPermissionState() === "granted";
+      const next = !!(sub && granted);
+      setPush(next);
+      try { localStorage.setItem("ollit_push", String(next)); } catch (e) {}
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function handlePushToggle(value) {
+    if (value) {
+      // ON 흐름
+      if (!isPushSupported()) {
+        showLocalToast("⚠️ 이 브라우저는 푸시 알림을 지원하지 않습니다");
+        return;
+      }
+      if (isIOS() && !isStandalone()) {
+        showLocalToast("⚠️ 홈 화면에 추가한 후 다시 시도해주세요");
+        return;
+      }
+      const res = await subscribePushWithSync({
+        userId:     eng.userId || eng.id || "",
+        engineerId: eng.id || eng.engineerId || "",
+        role:       "engineer",
+      });
+      if (res.ok) {
+        handlePushTogglePref(true);
+        showLocalToast("✓ 푸시 알림이 활성화되었습니다");
+      } else if (res.reason === "denied") {
+        showLocalToast("⚠️ 알림 권한이 거부되었습니다 (휴대폰 설정에서 변경)");
+      } else if (res.reason === "no_vapid") {
+        showLocalToast("⚠️ 푸시 키가 설정되지 않았습니다");
+      } else if (res.reason === "sync_failed") {
+        // 로컬 구독은 박힘 / 시트 sync만 실패 → 토글 ON 유지
+        handlePushTogglePref(true);
+        showLocalToast("✓ 활성화됨 (시트 sync 보류)");
+      } else {
+        showLocalToast(`⚠️ ${res.error || "활성화 실패"}`);
+      }
+    } else {
+      // OFF 흐름
+      const res = await unsubscribePushWithSync({
+        userId:     eng.userId || eng.id || "",
+        engineerId: eng.id || eng.engineerId || "",
+      });
+      handlePushTogglePref(false);
+      if (res.ok) showLocalToast("✓ 푸시 알림이 비활성화되었습니다");
+      else        showLocalToast(`⚠️ ${res.error || "비활성화 실패"}`);
+    }
+  }
+
+  // 토스트 (간단 버전 — copyToast 자리 재사용)
+  function showLocalToast(msg) {
+    setCopyToast(msg);
+    setTimeout(() => setCopyToast(null), 2400);
   }
 
   function handleLogoutClick() {

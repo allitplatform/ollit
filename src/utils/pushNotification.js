@@ -106,3 +106,111 @@ export async function enablePush(userId) {
   if (!perm.ok) return perm;
   return subscribePush(userId);
 }
+
+// ============================================================
+// Step 6-2 (2-D) — Vercel API 측 sync 박은 신규 함수
+// ============================================================
+// 옛 subscribePush / unsubscribePush 보존 (보호) — 신규 함수는 시트 sync까지 박음
+
+// 권한 + 구독 + Vercel API 호출 (한 번에)
+// 응답: { ok: true, subscription, action } | { ok: false, reason, error }
+//   reason: 'unsupported' | 'denied' | 'no_vapid' | 'sync_failed' | 'error'
+export async function subscribePushWithSync({ userId, engineerId, role } = {}) {
+  if (!isPushSupported()) return { ok: false, reason: "unsupported" };
+  const vapidPublic = import.meta.env.VITE_VAPID_PUBLIC;
+  if (!vapidPublic) return { ok: false, reason: "no_vapid" };
+
+  // 1) 권한 요청
+  const perm = await requestPushPermission();
+  if (!perm.ok) return perm;
+
+  // 2) Service Worker 측 구독
+  let subData;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(vapidPublic),
+      });
+    }
+    subData = sub.toJSON();
+  } catch (e) {
+    return { ok: false, reason: "error", error: e?.message || "구독 실패" };
+  }
+
+  // 3) localStorage 백업 (sync 실패 catch)
+  const lsKey = `ollit_push_subscription_${engineerId || userId || "anon"}`;
+  try { localStorage.setItem(lsKey, JSON.stringify(subData)); } catch (e) { /* */ }
+
+  // 4) Vercel API 호출 (/api/push/subscribe)
+  try {
+    const res = await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId:     userId     || "",
+        engineerId: engineerId || "",
+        role:       role       || "",
+        subscription: subData,
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+      }),
+    });
+    const json = await res.json();
+    if (json && json.ok) {
+      return { ok: true, subscription: subData, action: json.action || "create" };
+    }
+    return {
+      ok: false, reason: "sync_failed",
+      error: json?.error || "시트 sync 실패",
+      subscription: subData, localOk: true,
+    };
+  } catch (e) {
+    return {
+      ok: false, reason: "sync_failed",
+      error: e?.message || "네트워크 오류",
+      subscription: subData, localOk: true,
+    };
+  }
+}
+
+// 구독 해제 + Vercel API 호출
+// 응답: { ok: true } | { ok: false, reason, error }
+export async function unsubscribePushWithSync({ userId, engineerId } = {}) {
+  if (!isPushSupported()) return { ok: false, reason: "unsupported" };
+
+  let endpoint = "";
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      endpoint = sub.endpoint;
+      await sub.unsubscribe();
+    }
+  } catch (e) { /* unsubscribe 실패해도 Vercel 측 정리 시도 */ }
+
+  // localStorage 정리
+  const lsKey = `ollit_push_subscription_${engineerId || userId || "anon"}`;
+  try { localStorage.removeItem(lsKey); } catch (e) { /* */ }
+
+  // Vercel API DELETE 호출 (best-effort)
+  if (endpoint) {
+    try {
+      await fetch("/api/push/subscribe", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoints: [endpoint] }),
+      });
+    } catch (e) { /* 정리 실패는 무시 */ }
+  }
+
+  return { ok: true };
+}
+
+// 알림 권한 상태 (UI 표시용)
+// 'granted' | 'denied' | 'default' | 'unsupported'
+export function getPermissionState() {
+  if (!isPushSupported()) return "unsupported";
+  return Notification.permission || "default";
+}

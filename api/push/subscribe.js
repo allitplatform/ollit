@@ -17,6 +17,12 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     return res.status(204).end();
   }
+
+  // Step 6-2 (2-D) — DELETE 메서드 (구독 해제 / endpoints 배열)
+  if (req.method === "DELETE") {
+    return handleDelete(req, res);
+  }
+
   if (req.method !== "POST") {
     return res.status(405).json({ ok: false, error: "Method not allowed" });
   }
@@ -65,4 +71,31 @@ export default async function handler(req, res) {
 function safeParse(text) {
   if (!text) return null;
   try { return JSON.parse(text); } catch (e) { return null; }
+}
+
+// Step 6-2 (2-D) — DELETE 구독 해제 (GAS deletePushSubscriptions forward)
+async function handleDelete(req, res) {
+  const body = typeof req.body === "string" ? safeParse(req.body) : (req.body || {});
+  const { endpoints } = body;
+  if (!Array.isArray(endpoints) || endpoints.length === 0) {
+    return res.status(400).json({ ok: false, error: "endpoints 배열 필수" });
+  }
+  const gasUrl = process.env.GAS_WEBAPP_URL;
+  if (!gasUrl) {
+    return res.status(500).json({ ok: false, error: "GAS_WEBAPP_URL 환경변수 누락" });
+  }
+  try {
+    const params = new URLSearchParams();
+    params.append("action",    "deletePushSubscriptions");
+    params.append("endpoints", JSON.stringify(endpoints));
+    const r = await fetch(`${gasUrl}?${params.toString()}`, { method: "GET", redirect: "follow" });
+    const text = await r.text();
+    const data = safeParse(text);
+    if (!data) {
+      return res.status(502).json({ ok: false, error: "GAS 응답이 JSON이 아닙니다", raw: text.slice(0, 200) });
+    }
+    return res.status(200).json(data);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: e?.message || "GAS 호출 실패" });
+  }
 }
