@@ -28,9 +28,18 @@ export default async function handler(req, res) {
   }
 
   const body = typeof req.body === "string" ? safeParse(req.body) : (req.body || {});
-  const { userId, engineerId, role, subscription } = body;
+  const { userId, engineerId, role } = body || {};
 
-  if (!subscription || !subscription.endpoint) {
+  // Step 6-2 hotfix — subscription 객체 분해해서 별도 파라미터로 박음
+  // GAS 측은 endpoint / p256dh / auth 개별 파라미터로 catch (subscription 묶음 X)
+  // null safety 명시적 박음 (optional chaining catch 안 되는 환경 대비)
+  const sub = (body && body.subscription) || {};
+  const endpoint = sub.endpoint || "";
+  const keys     = sub.keys || {};
+  const p256dh   = keys.p256dh || "";
+  const auth     = keys.auth   || "";
+
+  if (!endpoint) {
     return res.status(400).json({ ok: false, error: "subscription.endpoint 필수" });
   }
   if (!userId && !engineerId) {
@@ -48,10 +57,21 @@ export default async function handler(req, res) {
     params.append("userId",     String(userId || ""));
     params.append("engineerId", String(engineerId || ""));
     params.append("role",       String(role || ""));
-    params.append("endpoint",   subscription.endpoint);
-    params.append("p256dh",     subscription.keys?.p256dh || "");
-    params.append("auth",       subscription.keys?.auth   || "");
+    params.append("endpoint",   endpoint);
+    params.append("p256dh",     p256dh);
+    params.append("auth",       auth);
     params.append("ua",         req.headers["user-agent"] || "");
+    // ⚠️ subscription 파라미터 박지 X (분해해서 보냄 / GAS 측 parse 실패 catch)
+
+    // 디버그 로그 (Vercel Functions logs / 운영자 진단용)
+    console.log("[Step 6-2 푸시] /api/push/subscribe POST →",
+      "userId:", userId || "-",
+      "engineerId:", engineerId || "-",
+      "role:", role || "-",
+      "endpoint head:", endpoint.slice(0, 60) + "...",
+      "p256dh len:", p256dh.length,
+      "auth len:", auth.length,
+    );
 
     const r = await fetch(`${gasUrl}?${params.toString()}`, {
       method: "GET",
