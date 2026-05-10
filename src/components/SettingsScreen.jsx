@@ -152,8 +152,7 @@ export function SettingsScreen({
   const system = [
     { key: "users",           icon: "👥", label: "사용자 / 권한", sub: "5역할",  perm: "menu.users",         onClick: onUsers },
     { key: "company_account", icon: "💳", label: "회사 계좌",     sub: "변경 가능 (운영자)", perm: "menu.company_account", onClick: onCompanyAccount },
-    { key: "push_device",     icon: "📲", label: "푸시 알림 (이 기기)", sub: pushBusy ? "처리 중..." : (pushOn ? "✓ 활성화됨 — 끄려면 클릭" : "꺼져 있음 — 켜려면 클릭"), onClick: handlePushToggle },
-    { key: "notifications",   icon: "🔔", label: "알림",         sub: "시스템 / 푸시 / 이메일", perm: "menu.notifications", onClick: onNotifications },
+       { key: "notifications",   icon: "🔔", label: "알림",         sub: "시스템 / 푸시 / 이메일", perm: "menu.notifications", onClick: onNotifications },
     { key: "backup",          icon: "💾", label: "시트 백업",     sub: "Google Sheets에서 사본 만들기", perm: "menu.backup", onClick: handleSheetBackup },
   ];
   const personal = [
