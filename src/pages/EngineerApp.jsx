@@ -4025,28 +4025,38 @@ export default function EngineerApp({ user, onLogout }) {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
 
-  // V14 Phase 2 — 수락 대기 콜 시뮬 mock 폐기 (시트 기반 catch)
-  // 옛 V14 v8 mock (한미선 / ACCEPT-001) = 박지 X
-  // 시트 작업DB에서 본인 배정 + status='약속대기' 인 작업만 추출 (apiTasks 활용)
+  // 2026-05-11 5단계 — pendingAcceptances 재설계 (명세: P열 추천기사 + status 미배정 + Q열 빈 값)
+  // 옛: status="약속대기" / Q열="본인" → 본인 배정 catch
+  // 새 (흐름 B 냉매 자동 추천):
+  //   - status = "미배정" (또는 빈 값)
+  //   - Q열 (assignedEngineer) = 빈 값 (아직 배정 X)
+  //   - P열 (recommendedEngineer) 에 본인 이름 박혀있음 (콤마/공백 구분 다수 catch)
   const [pendingAcceptances, setPendingAcceptances] = useState([]);
 
-  // V14 Phase 2 — apiTasks에서 본인 배정 + 수락 대기 작업만 추출 (자동 derive)
   useEffect(() => {
     if (!apiTasks || apiTasks.length === 0) {
       setPendingAcceptances([]);
       return;
     }
     const myName = user?.name;
-    const myId = user?.engineerId || user?.id;
+    if (!myName) {
+      setPendingAcceptances([]);
+      return;
+    }
     const pending = apiTasks
       .filter(t => {
         const status = String(t.status || t.상태 || "").trim();
-        const isPending = status === "약속대기" || status === "수락대기" || status === "수락 대기";
-        if (!isPending) return false;
-        // 본인 배정만 필터링
-        const eng = t.assignedEngineer || t.engineer || "";
-        const engId = t.assignedEngineerId || t.engineerId || "";
-        return (myName && eng === myName) || (myId && engId === myId);
+        // 미배정 또는 빈 값만 catch (배정/확정/진행중/완료/취소 명시 제외)
+        if (status && status !== "미배정") return false;
+        // Q열 (배정기사) 빈 값이어야 함 — 이미 배정 박혀있으면 catch X
+        const assigned = String(t.assignedEngineer || t.engineer || t.배정기사 || "").trim();
+        if (assigned) return false;
+        // P열 (추천기사) 박혀있어야 함
+        const recommendedRaw = String(t.recommendedEngineer || t.추천기사 || t.P || "").trim();
+        if (!recommendedRaw) return false;
+        // 콤마/한글콤마/공백 구분 + 본인 이름 catch
+        const recommendedNames = recommendedRaw.split(/[,，、\s]+/).map(s => s.trim()).filter(Boolean);
+        return recommendedNames.includes(myName);
       })
       .map(t => ({
         id: t.id,
@@ -4063,7 +4073,7 @@ export default function EngineerApp({ user, onLogout }) {
         requestedAgo: "",
       }));
     setPendingAcceptances(pending);
-  }, [apiTasks, user?.name, user?.engineerId, user?.id]);
+  }, [apiTasks, user?.name]);
 
   // V13-1-fix — mode 변경 시 CSS 변수 적용 (라이트/다크 토글 작동)
   useEffect(() => {
