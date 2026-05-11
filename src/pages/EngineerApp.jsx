@@ -4323,8 +4323,9 @@ export default function EngineerApp({ user, onLogout }) {
       showToast("⚠️ 사용자 이름이 없어 수락이 박지 X");
       return;
     }
-    // 옵티미스틱 — 카드 즉시 제거
+    // 옵티미스틱 — 카드 즉시 제거 + 즉시 피드백 토스트 (사용자 대기 시간 X)
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
+    showToast("✅ 수락 완료");
     resetTo("main");
 
     try {
@@ -4347,7 +4348,7 @@ export default function EngineerApp({ user, onLogout }) {
               }
             : t
         ));
-        showToast("✅ 수락 완료! 새 배정으로 박혀있어요");
+        // 성공 토스트 박지 X (이미 옵티미스틱 측 박혔음)
       } else {
         // 선착순 측 진 케이스 또는 GAS 측 에러
         const errMsg = (res && res.error) || "수락 실패";
