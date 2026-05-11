@@ -137,6 +137,21 @@ export function v14NormalizeTask(t) {
     });
   }
 
+  // 2026-05-11 진단 — window.__DEBUG_NORMALIZE 켜면 status 매핑 추적
+  if (typeof window !== "undefined" && window.__DEBUG_NORMALIZE) {
+    console.log("[normalize-status]", {
+      id,
+      status_normalized: status,
+      assignedEngineer: assignedEngineerName,
+      raw_상태: t["상태"],
+      raw_R: t.R,
+      raw_status: t.status,
+      raw_배정기사: t["배정기사"],
+      raw_Q: t.Q,
+      row_keys: Object.keys(t).slice(0, 35),
+    });
+  }
+
   return {
     id, taskCode: id,
     customer, phone, address, region,

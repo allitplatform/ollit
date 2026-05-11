@@ -68,6 +68,11 @@ export default function App() {
     document.documentElement.setAttribute("data-font-size", saved);
   }, []);
 
+  // 2026-05-11 진단 — 콘솔에서 켤 수 있는 normalize 진단 플래그
+  if (typeof window !== "undefined" && typeof window.__DEBUG_NORMALIZE === "undefined") {
+    window.__DEBUG_NORMALIZE = false;
+  }
+
   // 2026-05-10 — service worker push 메시지 수신 → IndexedDB 저장 + 카운터 갱신 트리거
   useEffect(() => {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
