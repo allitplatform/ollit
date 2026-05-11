@@ -6,6 +6,7 @@ import {
   changePrice as apiChangePrice,
   startTask as apiStartTask,
   completeTask as apiCompleteTask,
+  acceptOffer as apiAcceptOffer,
 } from "../api.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
 import { ENABLE_MOCK } from "../config/env.js";
@@ -4295,39 +4296,57 @@ export default function EngineerApp({ user, onLogout }) {
     ...extraAssignments,
   ];
 
-  // V14 (정정) — 수락 / 거절 핸들러
-  // 수락 = acceptance를 새 배정 리스트에 추가 → 토스트 + 메인 홈 (즉시 일정 협의 X)
-  // 거절 = 메인 홈으로 (다음 기사에게 이관)
-  function handleAcceptCall(callId) {
+  // 2026-05-11 7단계 — 수락 / 거절 핸들러 (GAS acceptOffer API 연동)
+  // 수락 흐름:
+  //   1) 옵티미스틱 — pendingAcceptances 즉시 제거
+  //   2) apiAcceptOffer 호출 (시트 측 P열 측 catch → Q열 박음 → status="배정")
+  //   3) 성공 → apiTasks 측 status="배정" / Q열=본인 옵티미스틱 / 토스트
+  //   4) 실패 (선착순 X) → 토스트 + fetchTasks 호출 (새 상태 박음)
+  async function handleAcceptCall(callId) {
     const accepted = pendingAcceptances.find(c => c.id === callId);
     if (!accepted) return;
+    const myName = user?.name;
+    if (!myName) {
+      showToast("⚠️ 사용자 이름이 없어 수락이 박지 X");
+      return;
+    }
+    // 옵티미스틱 — 카드 즉시 제거
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));
-
-    // V14 — 시뮬 데이터: 수락 시 가짜 풀 고객 정보 자동 생성 (백엔드 연동 시 제거)
-    const fakeName     = generateFakeKoreanName();
-    const fakePhone    = generateFakePhone();
-    const fakeAddress  = generateFakeAddress(accepted.region);
-    const desiredDate  = convertTimeHintToDate(accepted.workSchedule);
-    const desiredTime  = extractTimeHint(accepted.workSchedule);
-
-    setExtraAssignments(prev => [...prev, {
-      id:            accepted.id,
-      customer:      accepted.customer || fakeName,
-      phone:         accepted.phone || fakePhone,
-      workType:      accepted.workType,
-      appliance:     accepted.appliance,
-      qty:           accepted.qty,
-      fullAddress:   accepted.fullAddress || fakeAddress,
-      region:        accepted.region,
-      estimateTotal: accepted.engineerRate,
-      requestedAgo:  accepted.requestedAgo,
-      requestedDate: desiredDate,
-      requestedTime: desiredTime,
-      assignedAt:    new Date().toISOString(),
-      status:        "미배정",
-    }]);
-    showToast("수락 완료. 새 배정에 추가됐습니다.");
     resetTo("main");
+
+    try {
+      const res = await apiAcceptOffer(callId, myName);
+      console.log('[V14 7단계 acceptOffer] 응답:', res);
+      if (res && res.ok === true) {
+        // 옵티미스틱 — apiTasks 측 status="배정" + Q열=본인 박음 (5분 보호)
+        const optimisticUntil = Date.now() + 300000;
+        setApiTasks(prev => prev.map(t =>
+          t.id === callId
+            ? {
+                ...t,
+                _optimisticUntil: optimisticUntil,
+                assignedEngineer: myName,
+                engineer: myName,
+                배정기사: myName,
+                status: '배정',
+                상태: '배정',
+                state: 'scheduled',
+              }
+            : t
+        ));
+        showToast("✅ 수락 완료! 새 배정으로 박혀있어요");
+      } else {
+        // 선착순 측 진 케이스 또는 GAS 측 에러
+        const errMsg = (res && res.error) || "수락 실패";
+        showToast(`⚠️ ${errMsg}`);
+        // 새 상태 fetchTasks 호출 (시트 측 진실 박음)
+        if (typeof fetchTasks === 'function') fetchTasks();
+      }
+    } catch (e) {
+      console.error('[V14 7단계 acceptOffer] 에러:', e);
+      showToast(`⚠️ 네트워크 오류 — 다시 시도해주세요`);
+      if (typeof fetchTasks === 'function') fetchTasks();
+    }
   }
   function handleRejectCall(callId) {
     setPendingAcceptances(prev => prev.filter(c => c.id !== callId));

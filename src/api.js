@@ -292,6 +292,16 @@ export async function assignEngineer(taskId, engineerName) {
   return apiCall('assignEngineer', { taskId, engineerName });
 }
 
+// 2026-05-11 7단계 — 기사 측 수락 (흐름 B / 냉매 자동 추천)
+// GAS 측 acceptOffer: P열 추천기사 catch → 본인 박혀있고 Q열 빈 값이면 Q열 박음 + status="배정" + 다른 추천 측 P열 정리
+// 응답: { ok: true, taskId } | { ok: false, error: "이미 다른 기사가 수락" 등 }
+export async function acceptOffer(taskId, engineerName) {
+  if (!taskId || !engineerName) {
+    return { ok: false, error: 'taskId / engineerName 박지 X' };
+  }
+  return apiCall('acceptOffer', { taskId, engineerName });
+}
+
 // 작업 다양한 컬럼 update (상태 변경 / 일정 변경 / 메모 / 등)
 // updates = { status, scheduledDate, scheduledTime, memo, ... }
 export async function updateTask(taskId, updates) {
