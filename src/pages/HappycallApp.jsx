@@ -1732,7 +1732,7 @@ function AssignEngineerScreen({ t, task, onCancel, onAssign }) {
                 <div style={{ marginBottom: 4 }}>📋 작업DB에 <strong style={{ color: t.text }}>{ENGINEERS.find(e => e.id === selectedEngineerId).name}</strong> 프로 배정 기록</div>
                 <div style={{ marginBottom: 4 }}>📅 Google Calendar에 일정 자동 등록</div>
                 <div style={{ marginBottom: 4 }}>💬 프로님에게 <strong style={{ color: t.text }}>알림</strong> 발송 (인앱 + 푸시)</div>
-                <div>🔄 작업 상태 "약속대기"로 변경</div>
+                <div>🔄 작업 상태 "배정"으로 변경</div>
               </div>
             </div>
           </div>

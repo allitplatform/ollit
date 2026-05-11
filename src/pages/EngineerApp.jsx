@@ -565,7 +565,7 @@ function findNextTask(tasks) {
     return sorted[0];
   }
   
-  const waiting = tasks.find(x => x.status === "약속대기");
+  const waiting = tasks.find(x => x.status === "미배정");
   if (waiting) return waiting;
   
   return null;
@@ -786,7 +786,7 @@ function StatusPill({ status }) {
   const map = {
     "진행중":   { label: "진행중",  bg: "rgba(255,27,141,0.15)", color: "#FF1B8D" },
     "확정":     { label: "다음",    bg: "rgba(255,255,255,0.10)", color: "var(--text-primary)" },
-    "약속대기": { label: "약속미정", bg: "rgba(255,179,0,0.20)",  color: "#FFB300" },
+    "미배정": { label: "약속미정", bg: "rgba(255,179,0,0.20)",  color: "#FFB300" },
     "완료":     { label: "완료",    bg: "rgba(0,135,90,0.20)",   color: "#00875A" },
   };
   const cfg = map[status] || map["확정"];
@@ -1398,7 +1398,7 @@ function CompactTaskCard({ task, t, index, onClick }) {
   const Icon = getIconForTask(task.workType);
   const isInProgress = task.status === "진행중";
   const isConfirmed = task.status === "확정";
-  const isWaiting = task.status === "약속대기";
+  const isWaiting = task.status === "미배정";
   const isCompleted = task.status === "완료";
   const showAccentBar = isConfirmed || isInProgress || isCompleted;
   const hasScheduleChange = task.scheduleHistory && task.scheduleHistory.length > 0;
@@ -1454,7 +1454,7 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
   const Icon = getIconForTask(task.workType);
   const isInProgress = task.status === "진행중";
   const isConfirmed = task.status === "확정";
-  const isWaiting = task.status === "약속대기";
+  const isWaiting = task.status === "미배정";
   const isCompleted = task.status === "완료";
   const showPhotoSection = isCompleted;
   const isLocked = isCompleted;
@@ -4314,7 +4314,7 @@ export default function EngineerApp({ user, onLogout }) {
       requestedDate: desiredDate,
       requestedTime: desiredTime,
       assignedAt:    new Date().toISOString(),
-      status:        "약속대기",
+      status:        "미배정",
     }]);
     showToast("수락 완료. 새 배정에 추가됐습니다.");
     resetTo("main");
@@ -4898,7 +4898,7 @@ export default function EngineerApp({ user, onLogout }) {
             onUnableSchedule={() => {
               const id = callTaskId || (acceptedCall && acceptedCall.id);
               if (id && tasks.find(x => x.id === id)) {
-                updateTask(id, { status: "약속대기", unableSchedule: true });
+                updateTask(id, { status: "미배정", unableSchedule: true });
               }
               if (id) setExtraAssignments(prev => prev.filter(a => a.id !== id));
               setCallTaskId(null);

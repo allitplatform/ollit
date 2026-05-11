@@ -568,7 +568,7 @@ function NewTab({ t, onSubmit, addTask }) {
         assignedEngineer: null, assignedEngineerId: null,
         recommendedEngineer: null,
         scheduledDate: null, scheduledTime: null,
-        status: "약속대기",
+        status: "미배정",
         startedAt: null, completedAt: null,
         estimateTotal: null,
         productPrice: parseInt(estimateTotal) || 0, travelFee: 0, extraFee: 0, extraReason: "",
@@ -877,7 +877,7 @@ function ListTab({ t, onSelect, tasks }) {
   
   const stats = {
     total: tasks.length,
-    inProgress: tasks.filter(x => ["미배정", "약속대기", "확정", "진행중"].includes(x.status)).length,
+    inProgress: tasks.filter(x => ["미배정", "확정", "진행중"].includes(x.status)).length,
     completed: tasks.filter(x => x.status === "완료").length,
   };
 
@@ -916,7 +916,7 @@ function ListTab({ t, onSelect, tasks }) {
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 16, flexWrap: "wrap" }}>
-        {["all", "미배정", "약속대기", "확정", "완료"].map(f => (
+        {["all", "미배정", "확정", "완료"].map(f => (
           <button key={f} onClick={() => setFilter(f)} style={{
             padding: "6px 12px",
             background: filter === f ? t.accent : t.bgInset,
@@ -959,7 +959,6 @@ function TaskCard({ t, task, onClick }) {
     "완료": { color: t.success, bg: t.successBg },
     "진행중": { color: t.warning, bg: t.warningBg },
     "확정": { color: t.text, bg: t.bgInset },
-    "약속대기": { color: t.accent, bg: t.accentBg },
     "미배정": { color: t.danger, bg: t.dangerBg },
   };
   const ss = statusStyle[task.status] || { color: t.textMuted, bg: t.bgInset };
@@ -1014,7 +1013,7 @@ function TaskDetail({ t, task, onBack }) {
     "완료": { color: t.success, bg: t.successBg },
     "진행중": { color: t.warning, bg: t.warningBg },
     "확정": { color: t.text, bg: t.bgInset },
-    "약속대기": { color: t.accent, bg: t.accentBg },
+    "미배정": { color: t.accent, bg: t.accentBg },
     "미접수": { color: t.danger, bg: t.dangerBg },
   };
   const ss = statusStyle[task.status] || { color: t.textMuted, bg: t.bgInset };
@@ -1203,7 +1202,7 @@ function SettleTab({ t, tasks }) {
   };
 
   const completed = safeTasks.filter(x => x.status === "완료");
-  const inProgress = safeTasks.filter(x => ["확정", "진행중", "약속대기"].includes(x.status));
+  const inProgress = safeTasks.filter(x => ["확정", "진행중"].includes(x.status));
 
   const todayCompleted = completed.filter(matchToday);
   const todayInProgress = inProgress.filter(matchToday);

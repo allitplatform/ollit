@@ -372,7 +372,7 @@ function MonthView({
                   {offCount > 0 && ` (휴무 ${offCount}건 포함)`}
                   {countByStatus(dayTasks, "진행중") > 0 && ` · 진행중 ${countByStatus(dayTasks, "진행중")}`}
                   {countByStatus(dayTasks, "확정")   > 0 && ` · 확정 ${countByStatus(dayTasks, "확정")}`}
-                  {countByStatus(dayTasks, "약속대기") > 0 && ` · 약속미정 ${countByStatus(dayTasks, "약속대기")}`}
+                  {countByStatus(dayTasks, "미배정") > 0 && ` · 약속미정 ${countByStatus(dayTasks, "미배정")}`}
                 </div>
               )}
             </div>
@@ -808,7 +808,7 @@ function TimelineRow({ task, onClick }) {
   const status = task.status;
   const isInProgress = status === "진행중";
   const isDone = status === "완료";
-  const isUntimed = status === "약속대기";
+  const isUntimed = status === "미배정";
 
   // 점 색
   const dotColor = isInProgress ? "#FF1B8D"
@@ -917,7 +917,7 @@ function StatusBadge({ status }) {
 
 function DayTaskCard({ task, onClick }) {
   const isActive = task.status === "진행중";
-  const isUntimed = task.status === "약속대기";
+  const isUntimed = task.status === "미배정";
   const isDone = task.status === "완료";
 
   const cardStyle = isActive

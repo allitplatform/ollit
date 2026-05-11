@@ -17,7 +17,7 @@ const STATE_MAP = {
   done:      { label: "완료",   color: "#00875A" },
   active:    { label: "진행중", color: "#FF1B8D" },
   moving:    { label: "이동중", color: "#FF8F00" },
-  waiting:   { label: "약속대기", color: "var(--text-secondary)" },
+  waiting:   { label: "미배정", color: "var(--text-secondary)" },
   scheduled: { label: "예정",   color: "var(--text-primary)" },
 };
 
@@ -32,8 +32,8 @@ function getStateInfo(task) {
   const startedAt = task.startedAt || task.시작시간;
   if (completedAt) return { label: "완료", color: "#00875A" };
   if (startedAt && !completedAt) return { label: "진행중", color: "#FF1B8D" };
-  if (task.state === "waiting" || task.status === "약속대기" || task.status === "미배정" || !scheduledAt) {
-    return { label: "약속대기", color: "var(--text-secondary)" };
+  if (task.state === "waiting" || task.status === "미배정" || !scheduledAt) {
+    return { label: "미배정", color: "var(--text-secondary)" };
   }
   return STATE_MAP[task.state] || { label: "예정", color: "var(--text-primary)" };
 }

@@ -1,7 +1,7 @@
 // V13-FINAL — 기사 PWA 작업 상세 (3 상태 + 부분 취소 + 일정 변경 + 출장비만)
 // V14 — 사진 분류 X / 완료 분기 3가지 (완료 / 부분 / 출장비만)
 // 진입: 오늘 화면 / 새 배정 리스트 / 다음 일정
-// 상태: "약속대기" / "확정" / "진행중" / "완료" / "visit_only" / "취소"
+// 상태: "미배정" / "배정" / "확정" / "진행중" / "완료" / "visit_only" / "취소"
 // 한 화면 흐름 (별도 완료보고 화면 X)
 
 import { useRef, useState } from "react";
@@ -245,7 +245,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
   const isConfirmed = task.status === "확정";
   const isInProgress = task.status === "진행중";
   const isCompleted = task.status === "완료" || task.status === "visit_only";
-  const isWaiting = task.status === "약속대기";
+  const isWaiting = task.status === "미배정";
 
   // ──────────── 액션 핸들러 ────────────
   function handleStartTask() {
@@ -1463,7 +1463,7 @@ function TaskMenu({ task, onClose, onReschedule, onCancel, onContactOps }) {
         {(task.status === "완료" || task.status === "visit_only") && (
           <MenuItem icon="⚠️" label="운영팀 연락" onClick={onContactOps}/>
         )}
-        {task.status === "약속대기" && (
+        {task.status === "미배정" && (
           <MenuItem icon="⚠️" label="운영팀 연락" onClick={onContactOps}/>
         )}
       </div>

@@ -785,7 +785,6 @@ function _v14ParseSummary(summary) {
 
 // V14 2B-1 — 한국어 status → 영어 state 매핑 (AdminTaskDetailScreen STATE_MAP catch)
 const _V14_STATUS_TO_STATE = {
-  "약속대기": "waiting",
   "미배정":   "waiting",
   "대기":     "waiting",
   "확정":     "scheduled",
@@ -1785,7 +1784,7 @@ export default function AdminApp({ user, onLogout }) {
         return;
       }
       // Optimistic — 옛 상태 복구 (backend 응답에서 oldStatus 박힘)
-      const oldStatus = (res && res.oldStatus) || '약속대기';
+      const oldStatus = (res && res.oldStatus) || '미배정';
       setApiTasks(prev => prev.map(t =>
         t.id === cancelHandleTask.id ? { ...t, status: oldStatus } : t
       ));
@@ -2325,7 +2324,7 @@ export default function AdminApp({ user, onLogout }) {
           // 일정만 박은 경우 = 약속대기 그대로 / 배정 박힌 경우만 → 확정
           // (사장님 catch: 기사가 일정 확정 박는 진짜 흐름 / 운영자는 예외 catch)
           const hasEngineer = !!(tk.assignedEngineer || tk.engineer);
-          const newStatus = hasEngineer ? '확정' : (tk.status || '약속대기');
+          const newStatus = hasEngineer ? '확정' : (tk.status || '미배정');
           try {
             console.log('[V14 2B-2] updateTask 일정', { taskId: tk.id, scheduledAt: confirmedAt, hasEngineer, newStatus });
             const res = await apiUpdateTask(tk.id, {
@@ -2391,7 +2390,7 @@ export default function AdminApp({ user, onLogout }) {
               '작업중': 'active', '진행중': 'active',
               '완료': 'done', '정산완료': 'done',
               '확정': 'scheduled',
-              '약속대기': 'waiting', '미배정': 'waiting',
+              '미배정': 'waiting',
             };
             setApiTasks(prev => prev.map(t =>
               t.id === tk.id ? { ...t, status: newStatus, state: stateMap[newStatus] || t.state } : t
@@ -2463,7 +2462,7 @@ export default function AdminApp({ user, onLogout }) {
                 confirmedAt: "",
                 confirmedDate: "",
                 confirmedTime: "",
-                status: "약속대기",
+                status: "미배정",
               });
               if (!res || res.ok === false) {
                 setAssignError((res && res.error) || '재배정 실패');
@@ -2477,7 +2476,7 @@ export default function AdminApp({ user, onLogout }) {
                       assignedEngineer: eng.name, engineer: eng.name, 배정기사: eng.name,
                       scheduledAt: "", confirmedAt: "", 확정일시: "",
                       schedule: "협의", time: "협의",
-                      status: '약속대기', 상태: '약속대기', state: 'waiting',
+                      status: '미배정', 상태: '미배정', state: 'waiting',
                     }
                   : t
               ));
@@ -2486,7 +2485,7 @@ export default function AdminApp({ user, onLogout }) {
                 assignedEngineer: eng.name, engineer: eng.name,
                 scheduledAt: "", confirmedAt: "",
                 schedule: "협의", time: "협의",
-                status: '약속대기', state: 'waiting',
+                status: '미배정', state: 'waiting',
               } : prev);
               // V14 — 작업 상세 화면 (selectedTaskDetail) 도 동기화 ⭐
               setSelectedTaskDetail(prev => prev ? {
@@ -2495,14 +2494,14 @@ export default function AdminApp({ user, onLogout }) {
                 배정기사: eng.name,
                 scheduledAt: "", confirmedAt: "", 확정일시: "",
                 schedule: "협의", time: "협의",
-                status: '약속대기', 상태: '약속대기', state: 'waiting',
+                status: '미배정', 상태: '미배정', state: 'waiting',
               } : prev);
               updateReception(selectedTask.id, {
                 acceptedEngineer: eng.name,
                 engineerId: eng.id || eng.engineerId,
                 engineer: eng.name, assignedEngineer: eng.name,
                 scheduledAt: "", confirmedAt: "",
-                status: "약속대기", state: "waiting",
+                status: "미배정", state: "waiting",
                 reassignedAt: new Date().toISOString(),
               });
               invalidateRecommendCache();
@@ -3321,7 +3320,7 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
       // B열 오늘 → 신규/배정/확정
       if (isCreatedToday(task)) {
-        if (!status || status === '미배정' || status === '약속대기') {
+        if (!status || status === '미배정') {
           counts[workType]['신규']++;
           counts[workType]['총']++;
         } else if (status === '배정') {
@@ -4058,7 +4057,7 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
               display: "flex", alignItems: "center", gap: 6,
             }}>
               <span style={{ fontSize: 11 }}>⏳</span>
-              <span style={{ fontSize: 11, color: t.warning, fontWeight: 700 }}>약속대기 · 협의</span>
+              <span style={{ fontSize: 11, color: t.warning, fontWeight: 700 }}>미배정 · 협의</span>
             </div>
           );
         }
@@ -4119,7 +4118,7 @@ function NewReceptionScreen({
         return false;
       }
       // 미배정 / 약속대기 / 빈 값 만 catch
-      return !s || s === "미배정" || s === "약속대기";
+      return !s || s === "미배정";
     };
     const apiNew   = apiTasks.filter(isNewReception);
     const extraNew = extraReceptions.filter(isNewReception);

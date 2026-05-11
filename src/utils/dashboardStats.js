@@ -45,7 +45,7 @@ export function computeDashboardStats({
   });
 
   // 2026-05-11 명세 — 카운트 영역 통일 (B열/N열 기준 / 단계별 분리)
-  //   새접수    = B열(접수일) 오늘 + 미배정/약속대기
+  //   새접수    = B열(접수일) 오늘 + 미배정
   //   배정완료  = B열 오늘 + 배정
   //   일정확정  = B열 오늘 + 확정
   //   진행중    = N열(확정일) 오늘 + 진행중
@@ -67,7 +67,7 @@ export function computeDashboardStats({
     return n.startsWith(todayStr);
   };
 
-  const newReceptionTasks = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "미배정", "약속대기"));
+  const newReceptionTasks = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "미배정"));
   const assignedTasksList = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "배정"));
   const confirmedTasks    = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "확정"));
   const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
@@ -178,14 +178,13 @@ export function getUrgentTasks({ extraReceptions = [], newReceptions = {}, apiTa
     ...(newReceptions["냉매충전"] || []),
     ...(extraReceptions || []),
   ];
-  // 미배정 / 약속대기 + 오늘 / 당일 / 긴급 키워드
+  // 미배정 + 오늘 / 당일 / 긴급 키워드
   return allReceptions.filter(r => {
     if (r.autoAssignStatus === "accepted") return false;
     // V14 status 값 추출
     const status = String(r.status || r.상태 || "").trim();
     const isPending = !status
       || status === "미배정"
-      || status === "약속대기"
       || r.assignedEngineer === ""
       || !r.assignedEngineer;
     if (!isPending) return false;
