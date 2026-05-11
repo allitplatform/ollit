@@ -31,7 +31,7 @@ export function v14ParseSummary(summary) {
 
 // V14 — 한국어 status → 영어 state 매핑
 const V14_STATUS_TO_STATE = {
-  "약속대기": "waiting", "미배정": "waiting", "대기": "waiting",
+  "미배정": "waiting", "대기": "waiting",
   "확정": "scheduled", "배정": "scheduled", "예정": "scheduled",
   "이동중": "moving",
   "진행중": "active", "작업중": "active", "active": "active",

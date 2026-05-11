@@ -33,6 +33,6 @@ export function pwaToSheet(task) {
     requestedDate: task.requestedDate || "",
     requestedTime: task.requestedTime || "",
     estimateTotal: task.productPrice || 0,
-    status: task.status || "약속대기",
+    status: task.status || "미배정",
   };
 }
