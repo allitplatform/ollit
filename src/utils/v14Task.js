@@ -75,6 +75,8 @@ export function v14NormalizeTask(t) {
   const appliance = t.appliance || t.기종      || (summaryItems[0]?.appliance) || "";
   const qty       = Number(t.qty || t.totalQty || t.수량 || (summaryItems[0]?.qty) || 1);
   const assignedEngineerName = t.assignedEngineer || t.engineer || t.배정기사 || "";
+  // 2026-05-11 — P열 (추천기사) 매핑 추가 / 7단계 pendingAcceptances 측 catch
+  const recommendedEngineer = t.recommendedEngineer || t.추천기사 || t.P || "";
   const startedAt   = t.startedAt   || t.시작시간 || "";
   const completedAt = t.completedAt || t.완료시간 || "";
   let workItems = Array.isArray(t.workItems) && t.workItems.length > 0 ? t.workItems : null;
@@ -173,6 +175,7 @@ export function v14NormalizeTask(t) {
     type: "work",
     assignedEngineer: assignedEngineerName,
     engineer: assignedEngineerName || null,
+    recommendedEngineer,
     startedAt, completedAt,
     // 정산 영역 (Hybrid)
     engineerEarning:  commission.engineerEarning,
