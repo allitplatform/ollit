@@ -44,25 +44,38 @@ export function computeDashboardStats({
     return true;
   });
 
-  // V14 헌법 v6 상태값 (시트 R열):
-  //   '미배정' / '약속대기' → 새 접수 (배정 박지 X)
-  //   '확정'                → 배정 완료 (Q 배정기사 박힘)
-  //   '확정' + N 확정일시   → 일정 확정 (시간 있는 작업만)
-  //   '작업중'              → 진행중
-  //   '완료' / '정산완료'    → 완료
-  const newReceptionTasks = uniqueTasks.filter(t => _v14HasStatus(t, "미배정", "약속대기"));
-  const confirmedTasks    = uniqueTasks.filter(t => _v14HasStatus(t, "확정"));
-  const inProgressTasks   = uniqueTasks.filter(t => _v14HasStatus(t, "작업중", "진행중"));
-  const completedTasks    = uniqueTasks.filter(t => _v14HasStatus(t, "완료", "정산완료"));
+  // 2026-05-11 명세 — 카운트 영역 통일 (B열/N열 기준 / 단계별 분리)
+  //   새접수    = B열(접수일) 오늘 + 미배정/약속대기
+  //   배정완료  = B열 오늘 + 배정
+  //   일정확정  = B열 오늘 + 확정
+  //   진행중    = N열(확정일) 오늘 + 진행중
+  //   완료      = N열 오늘 + 완료
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const isCreatedToday = (t) => {
+    const b = String(t.createdAt || t.receivedAt || t.접수일시 || t.B || "");
+    if (b.startsWith(todayStr)) return true;
+    const idStr = String(t.id || t.taskId || t.작업번호 || "");
+    const m = idStr.match(/(\d{6})-/);
+    if (m) {
+      const taskDate = `20${m[1].slice(0,2)}-${m[1].slice(2,4)}-${m[1].slice(4,6)}`;
+      if (taskDate === todayStr) return true;
+    }
+    return false;
+  };
+  const isScheduledToday = (t) => {
+    const n = String(t.scheduledAt || t.확정일시 || t.confirmedAt || t.N || "");
+    return n.startsWith(todayStr);
+  };
 
-  // V14 — 일정 확정 = 확정 + N 확정일시 (scheduledAt) 있는 작업만
-  const scheduledTasks = confirmedTasks.filter(t =>
-    !!(t.scheduledAt || t.confirmedAt || t.확정일시)
-  );
+  const newReceptionTasks = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "미배정", "약속대기"));
+  const assignedTasksList = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "배정"));
+  const confirmedTasks    = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "확정"));
+  const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
+  const completedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "완료", "정산완료"));
 
   const newCount        = newReceptionTasks.length;
-  const assignedCount   = confirmedTasks.length;       // V14 배정 = 확정 (Q 배정기사 박힘)
-  const confirmedCount  = scheduledTasks.length;       // V14 일정 확정 = 확정 + 일시 박힘
+  const assignedCount   = assignedTasksList.length;
+  const confirmedCount  = confirmedTasks.length;
   const inProgressCount = inProgressTasks.length;
   const completedCount  = completedTasks.length;
 

@@ -3270,8 +3270,9 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
 function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception }) {
-  // 2026-05-11 — 오늘 작업 흐름 (작업유형별 5단계: 신규/배정/확정/진행/완료)
-  // B열(접수일) 또는 N열(확정일) 또는 ID YYMMDD가 오늘인 작업만 catch
+  // 2026-05-11 명세 — 오늘 작업 흐름 (작업유형별 5단계 / B열·N열 분리)
+  //   신규/배정/확정 → B열(접수일) 오늘 기준
+  //   진행/완료      → N열(확정일) 오늘 기준
   const workTypeFlowCounts = useMemo(() => {
     const types = ['세척', '냉매충전']; // 시범 운영 — 2개만 (설치/누설/점검/수리는 추후)
     const counts = {};
@@ -3285,26 +3286,26 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
     const dd = String(today.getDate()).padStart(2, "0");
     const todayStr = `${yyyy}-${mm}-${dd}`;
 
-    (apiTasks || []).forEach(task => {
-      // 1) ID 측 YYMMDD fallback / 2) B열 접수일 / 3) N열 확정일
-      let isToday = false;
-      const idStr = String(task.id || task.taskId || "");
+    // B열 (접수일시) = 오늘?
+    const isCreatedToday = (task) => {
+      const b = String(task.createdAt || task.receivedAt || task.접수일시 || task.B || "");
+      if (b.startsWith(todayStr)) return true;
+      const idStr = String(task.id || task.taskId || task.작업번호 || "");
       const m = idStr.match(/(\d{6})-/);
       if (m) {
         const taskDate = `20${m[1].slice(0,2)}-${m[1].slice(2,4)}-${m[1].slice(4,6)}`;
-        if (taskDate === todayStr) isToday = true;
+        if (taskDate === todayStr) return true;
       }
-      if (!isToday) {
-        const b = String(task.createdAt || task.receivedAt || task.접수일시 || task.B || "").slice(0, 10);
-        if (b === todayStr) isToday = true;
-      }
-      if (!isToday) {
-        const n = String(task.scheduledAt || task.scheduledDate || task.확정일시 || "").slice(0, 10);
-        if (n === todayStr) isToday = true;
-      }
-      if (!isToday) return;
+      return false;
+    };
+    // N열 (확정일시) = 오늘?
+    const isScheduledToday = (task) => {
+      const n = String(task.scheduledAt || task.scheduledDate || task.확정일시 || task.N || "");
+      return n.startsWith(todayStr);
+    };
 
-      // 작업유형 박음
+    (apiTasks || []).forEach(task => {
+      // 작업유형 추출
       const items = (task.workItems && task.workItems.length > 0)
         ? task.workItems
         : (task.workType ? [{ workType: task.workType }] : []);
@@ -3316,18 +3317,32 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
       }
       if (!workType || !counts[workType]) return;
 
-      // 단계 분류 (status 기준)
       const status = String(task.status || task.상태 || "").trim();
-      let stage = null;
-      if (!status || status === '미배정' || status === '약속대기') stage = '신규';
-      else if (status === '배정')                                  stage = '배정';
-      else if (status === '확정')                                  stage = '확정';
-      else if (status === '진행중')                                stage = '진행';
-      else if (status === '완료' || status === '정산완료')         stage = '완료';
-      else return; // 취소 등 분류 X
 
-      counts[workType][stage]++;
-      counts[workType]['총']++;
+      // B열 오늘 → 신규/배정/확정
+      if (isCreatedToday(task)) {
+        if (!status || status === '미배정' || status === '약속대기') {
+          counts[workType]['신규']++;
+          counts[workType]['총']++;
+        } else if (status === '배정') {
+          counts[workType]['배정']++;
+          counts[workType]['총']++;
+        } else if (status === '확정') {
+          counts[workType]['확정']++;
+          counts[workType]['총']++;
+        }
+      }
+
+      // N열 오늘 → 진행/완료
+      if (isScheduledToday(task)) {
+        if (status === '진행중') {
+          counts[workType]['진행']++;
+          counts[workType]['총']++;
+        } else if (status === '완료' || status === '정산완료') {
+          counts[workType]['완료']++;
+          counts[workType]['총']++;
+        }
+      }
     });
 
     return counts;
