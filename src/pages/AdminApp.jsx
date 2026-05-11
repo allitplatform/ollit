@@ -4109,6 +4109,21 @@ function NewReceptionScreen({
         ? x.workItems
         : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
     });
+    // 2026-05-11 진단 — NewReceptionScreen 데이터 source 추적
+    console.log('[NewReceptionScreen 진단]', {
+      apiTasksAll: apiTasks.map(t => ({
+        id: t.id,
+        status: t.status,
+        _opt: !!t._optimisticUntil,
+        source: '_api',
+      })),
+      extraReceptionsAll: extraReceptions.map(r => ({
+        id: r.id,
+        status: r.status,
+        source: 'extra',
+      })),
+      receptionUpdatesKeys: Object.keys(receptionUpdates || {}),
+    });
     // 미배정/약속대기/빈 값 만 카드 목록에 박힘 (배정/확정/진행중/완료는 별도 화면)
     // 2026-05-10 hotfix — 배정/확정/진행중/완료/정산완료/취소 명시 제외 (분류 정확성 강화)
     const isNewReception = (t) => {
