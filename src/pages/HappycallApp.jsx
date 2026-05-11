@@ -183,8 +183,9 @@ function getEngineerGrade(engineer, requestedDate, durationHours) {
   return { grade: "불가", slot: null, alternatives: [], offReason: null };
 }
 // 시트 → INITIAL_TASKS 형식 변환 (해피콜용)
+// 2026-05-11 — 약속대기 매핑 제거 / status 값 그대로 catch
 function convertSheetTaskHC(s) {
-  const statusMap = { "미배정": "약속대기", "배정완료": "확정", "확정": "확정", "진행중": "진행중", "완료": "완료" };
+  const statusMap = { "배정완료": "확정", "확정": "확정", "진행중": "진행중", "완료": "완료" };
   const happycallStatusMap = { "미배정": "uncontacted", "확정": "assigned", "진행중": "assigned", "완료": "completed" };
   
   const toDate = v => {
@@ -205,7 +206,7 @@ function convertSheetTaskHC(s) {
     appliance: "기종",
 icon: Wrench,
     qty: s.totalQty || 1,
-    status: statusMap[s.status] || "약속대기",
+    status: statusMap[s.status] || s.status || "미배정",
     happycallStatus: happycallStatusMap[s.status] || "uncontacted",
     assignedEngineer: s.assignedEngineer || null,
     happycallMemo: "",

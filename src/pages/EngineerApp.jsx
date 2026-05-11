@@ -141,10 +141,10 @@ function makeTel(phone) {
 }
 
 // 시트 데이터 → INITIAL_TASKS 형식 변환
+// 2026-05-11 — 약속대기 매핑 제거 / status 값 그대로 catch
 function convertSheetTask(s) {
-  // 시트 status → 화면 status 매핑
+  // 시트 status → 화면 status 매핑 (status 변환 X / 그대로 catch)
   const statusMap = {
-    "미배정": "약속대기",
     "배정완료": "확정",
     "확정": "확정",
     "진행중": "진행중",
@@ -183,7 +183,7 @@ function convertSheetTask(s) {
     workType: s.summary || "작업",
     appliance: "기종",
     qty: s.totalQty || 1,
-    status: statusMap[s.status] || "약속대기",
+    status: statusMap[s.status] || s.status || "미배정",
     icon: Wrench,
     distance: "—",
     travelTime: "—",
