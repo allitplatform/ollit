@@ -4073,12 +4073,18 @@ export default function EngineerApp({ user, onLogout }) {
         engineerRate: Number(t.estimateTotal || 0),
         requestedAgo: "",
       }));
-    // 2026-05-11 진단 — 7단계 pendingAcceptances 추적
+    // 2026-05-11 진단 — 7단계 pendingAcceptances 추적 (apiTasks 상세 박음)
     console.log('[7단계 진단] pendingAcceptances 박힌 영역:', {
       count: pending.length,
       items: pending.map(p => ({ id: p.id, customer: p.customer })),
       myName: user?.name,
       apiTasksCount: apiTasks?.length || 0,
+      apiTasksAll: (apiTasks || []).map(t => ({
+        id: t.id,
+        status: t.status || t.상태,
+        assigned: t.assignedEngineer || t.배정기사,
+        recommended: t.recommendedEngineer || t.추천기사,
+      })),
     });
     setPendingAcceptances(pending);
   }, [apiTasks, user?.name]);
