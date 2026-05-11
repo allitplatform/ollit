@@ -4135,8 +4135,12 @@ function NewReceptionScreen({
       // 미배정 / 약속대기 / 빈 값 만 catch
       return !s || s === "미배정";
     };
+    // 2026-05-11 dedupe — apiTasks에 있는 ID는 extraReceptions에서 제외
+    // (옵티미스틱 박힌 status가 apiTasks 측에만 박혀서, 중복 박힌 ID는 시트 측 우선)
+    const apiTaskIds = new Set(apiTasks.map(t => String(t.id || "").trim()).filter(Boolean));
+    const dedupedExtras = extraReceptions.filter(r => !apiTaskIds.has(String(r.id || "").trim()));
     const apiNew   = apiTasks.filter(isNewReception);
-    const extraNew = extraReceptions.filter(isNewReception);
+    const extraNew = dedupedExtras.filter(isNewReception);
     const allReceptions = [
       ...apiNew.map(wrap),     // 진짜 시트 (미배정/약속대기 전체)
       ...extraNew.map(wrap),   // 등록 직후 임시 (refetch 후 apiTasks가 진실)
