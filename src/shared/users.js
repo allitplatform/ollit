@@ -26,14 +26,14 @@ export const REGISTERED_USERS = [
     roleLabel: "대표님", roleIcon: "👔", roleColor: "#E91860",
   },
 
-  // ===== happycall 2명 (A 시리즈 동명이인 별도 인물) =====
+  // ===== operator 2명 ("해피콜 담당자" / DB role='operator' / A 시리즈 동명이인 별도 인물) =====
   {
-    code: "H001", name: "최수연", role: "happycall",
+    code: "H001", name: "최수연", role: "operator",
     phone: "010-4937-2007",
     roleLabel: "해피콜 담당자", roleIcon: "📞", roleColor: "#7F77DD",
   },
   {
-    code: "H002", name: "조동석", role: "happycall",
+    code: "H002", name: "조동석", role: "operator",
     phone: "010-3626-4002",
     roleLabel: "해피콜 담당자", roleIcon: "📞", roleColor: "#7F77DD",
   },
@@ -89,7 +89,7 @@ export const REGISTERED_USERS = [
 
 export const ROLE_INFO = {
   engineer:  { label: "기사님",         icon: "🔧", color: "#10B981", description: "현장 작업 수행" },
-  happycall: { label: "해피콜 담당자",  icon: "📞", color: "#7F77DD", description: "고객 응대 + 배정" },
+  operator:  { label: "해피콜 담당자",  icon: "📞", color: "#7F77DD", description: "고객 응대 + 배정" },
   admin:     { label: "사장님",         icon: "👔", color: "#E91860", description: "운영 총괄" },
   principal: { label: "원청 사장님",    icon: "🏪", color: "#FFB800", description: "원청 회사 대표" },
 };

@@ -160,7 +160,7 @@ ON CONFLICT (id) DO NOTHING;
 -- [8] user_roles — 38 row
 --   admin    : 4  (A003 + A004 + E022 + E002)
 --   engineer : 29 (E022 + E002 + E001 + E003~E029 / E022·E002 = primary)
---   happycall: 2  (H001 + H002)
+--   operator : 2  (H001 + H002 / "해피콜 담당자" — DB CHECK = 'operator')
 --   partner  : 3  (P001=KA / P002=crikrin / P003=usol_h)
 --   합계      : 4 + 29 + 2 + 3 = 38
 -- ============================================
@@ -204,10 +204,10 @@ INSERT INTO user_roles (user_id, role, is_primary) VALUES
   ('77777777-7777-7777-7777-7777777e0028',  'engineer', true),
   ('77777777-7777-7777-7777-7777777e0029',  'engineer', true);
 
--- happycall (2)
+-- operator (2 / "해피콜 담당자" — DB CHECK = 'operator')
 INSERT INTO user_roles (user_id, role, is_primary) VALUES
-  ('77777777-7777-7777-7777-bbbbbbbb0001', 'happycall', true),
-  ('77777777-7777-7777-7777-bbbbbbbb0002', 'happycall', true);
+  ('77777777-7777-7777-7777-bbbbbbbb0001', 'operator', true),
+  ('77777777-7777-7777-7777-bbbbbbbb0002', 'operator', true);
 
 -- partner (3 / principal_id 박은 영역)
 --   P001 (에어컨프로 사장님) → 옛 KA UUID

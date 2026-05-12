@@ -22,7 +22,7 @@ SELECT
   (SELECT count(*) FROM engineer_permissions) AS permissions;
 
 -- ============================================
--- 역할별 사용자 카운트 (기대: admin 4 / engineer 29 / happycall 2 / partner 3)
+-- 역할별 사용자 카운트 (기대: admin 4 / engineer 29 / operator 2 / partner 3)
 -- ============================================
 SELECT role, count(*) AS cnt FROM user_roles GROUP BY role ORDER BY role;
 
