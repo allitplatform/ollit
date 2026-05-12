@@ -1,11 +1,20 @@
 // V14 — 로그인 화면 (항상 다크 고정 / 시스템 설정 무관)
 // 첫 인상 / 브랜드 일관성: 다크 배경 + 핑크 로고 + 흰 타이틀
 // 인증 후 메인 앱부터는 시스템 테마 정상 적용
-// V14 Phase 4-C — 폰번호 + 4자리 비번 로그인 (시트 기반 / loginV14 API)
+// Phase 2 — Supabase Custom RPC (sign_in_with_phone) 박은 영역 / loginV14 박은 영역 박은 영역
 import { useState } from "react";
 import { OllitMark } from "./OllitMark.jsx";
 import { REGISTERED_USERS } from "../shared/users.js";
-import { loginV14 } from "../api.js";
+import { signInWithPhone } from "../lib/auth.js";
+
+// DB role → app role 매핑 (App.jsx switch 박은 영역 박은 영역)
+const DB_TO_APP_ROLE = {
+  owner:    "admin",
+  admin:    "admin",
+  engineer: "engineer",
+  operator: "happycall",
+  partner:  "principal",
+};
 
 const SHORT_ROLE = {
   engineer:  "프로",
@@ -54,11 +63,25 @@ export function LoginScreen({ onLogin }) {
   const [busy, setBusy] = useState(false);
   // V14 — 개발 + 베타 단계: production에서도 빠른 로그인 항상 표시 + 기본 펼침
   const [showQuickLogin, setShowQuickLogin] = useState(true);
-  // V14 Phase 4-C Fix 3 — 역할 선택 모달 상태 (같은 폰번호로 여러 역할 매칭 시)
-  const [roleSelect, setRoleSelect] = useState({ open: false, users: [] });
+  // 한 user × 여러 role (예: E022 = admin + engineer) → 역할 선택 모달
+  const [roleSelect, setRoleSelect] = useState({ open: false, user: null });
 
   // V14 Phase 4-C — 폰번호 정규화: 숫자만 + 11자리 max
   const normalizePhone = (val) => String(val || "").replace(/\D/g, "").slice(0, 11);
+
+  // RPC 응답 user → app user 정규화 (role / userId 호환)
+  const buildAppUser = (rpcUser, dbRole) => {
+    const appRole = DB_TO_APP_ROLE[dbRole] || dbRole;
+    return {
+      ...rpcUser,
+      userId: rpcUser.code || rpcUser.user_id,    // 옛 컴포넌트 호환 (userId 박은 영역 박은 영역)
+      role: appRole,                              // App.jsx switch 박은 영역
+      dbRole,                                     // 디버깅용 (원본 DB role)
+      name: rpcUser.name,
+      phone: rpcUser.phone,
+      engineerId: rpcUser.code && String(rpcUser.code).startsWith("E") ? rpcUser.code : undefined,
+    };
+  };
 
   const handleLogin = async () => {
     setError("");
@@ -73,22 +96,29 @@ export function LoginScreen({ onLogin }) {
     }
     setBusy(true);
     try {
-      const res = await loginV14(cleanPhone, pw);
-      if (!res || res.ok === false) {
-        setError(res?.error || "로그인 실패");
+      const res = await signInWithPhone(cleanPhone, pw);
+      if (!res || !res.ok) {
+        const msgMap = {
+          user_not_found:    "등록되지 않은 폰번호예요",
+          invalid_password:  "비밀번호가 틀렸어요",
+          password_not_set:  "비밀번호 미설정 (관리자 문의)",
+          phone_required:    "폰번호를 입력해주세요",
+          password_required: "비밀번호를 입력해주세요",
+        };
+        setError(msgMap[res?.error] || res?.error || "로그인 실패");
         return;
       }
-      const users = res.users || [];
-      if (users.length === 0) {
-        setError("일치하는 사용자가 없습니다");
+      const roles = Array.isArray(res.roles) ? res.roles : [];
+      if (roles.length === 0) {
+        setError("역할이 설정되지 않았습니다 (관리자 문의)");
         return;
       }
-      if (users.length === 1) {
-        onLogin(users[0], false);
+      if (roles.length === 1) {
+        onLogin(buildAppUser(res, roles[0]), false);
         return;
       }
-      // V14 Phase 4-C Fix 3 — 여러 역할 매칭 → 선택 모달 표시
-      setRoleSelect({ open: true, users });
+      // 여러 role (예: E022 = admin + engineer) → 선택 모달
+      setRoleSelect({ open: true, user: res });
     } catch (e) {
       setError(e?.message || "로그인 실패 (네트워크)");
     } finally {
@@ -96,13 +126,14 @@ export function LoginScreen({ onLogin }) {
     }
   };
 
-  // V14 Phase 4-C Fix 3 — 모달에서 역할 카드 클릭 → 해당 사용자로 로그인
-  const handleSelectRole = (user) => {
-    setRoleSelect({ open: false, users: [] });
-    onLogin(user, false);
+  // 모달에서 역할 선택 → 해당 role 박은 영역 박은 영역
+  const handleSelectRole = (dbRole) => {
+    const user = roleSelect.user;
+    setRoleSelect({ open: false, user: null });
+    if (user) onLogin(buildAppUser(user, dbRole), false);
   };
   const handleCancelRoleSelect = () => {
-    setRoleSelect({ open: false, users: [] });
+    setRoleSelect({ open: false, user: null });
   };
 
   const handleKeyDown = (e) => {
@@ -280,10 +311,10 @@ export function LoginScreen({ onLogin }) {
       </div>
     </div>
 
-    {/* V14 Phase 4-C Fix 3 — 역할 선택 모달 (같은 폰번호로 여러 역할 매칭 시) */}
-    {roleSelect.open && (
+    {/* 한 사용자 × 여러 role → 역할 선택 모달 */}
+    {roleSelect.open && roleSelect.user && (
       <RoleSelectModal
-        users={roleSelect.users}
+        user={roleSelect.user}
         onSelect={handleSelectRole}
         onCancel={handleCancelRoleSelect}
       />
@@ -292,8 +323,9 @@ export function LoginScreen({ onLogin }) {
   );
 }
 
-// V14 Phase 4-C Fix 3 — 역할 선택 모달 컴포넌트
-function RoleSelectModal({ users, onSelect, onCancel }) {
+// 한 사용자 박은 영역 박은 영역 role 박은 영역 박은 영역 모달 (E022 = admin + engineer 등)
+function RoleSelectModal({ user, onSelect, onCancel }) {
+  const roles = Array.isArray(user.roles) ? user.roles : [];
   return (
     <div
       onClick={onCancel}
@@ -319,52 +351,55 @@ function RoleSelectModal({ users, onSelect, onCancel }) {
           로그인할 역할을 선택해주세요
         </div>
         <div style={{ color: "#888", fontSize: 13, marginBottom: 20 }}>
-          같은 폰번호로 등록된 역할이 {users.length}개 있습니다
+          {user.name}님은 {roles.length}개 역할을 가지고 있어요
         </div>
 
-        {users.map((user, idx) => (
-          <button
-            key={user.userId || idx}
-            onClick={() => onSelect(user)}
-            style={{
-              width: "100%",
-              background: "#2A2A2A",
-              border: "1px solid #3A3A3A",
-              borderRadius: 12,
-              padding: "14px 16px",
-              marginBottom: idx < users.length - 1 ? 10 : 0,
-              color: "#FFFFFF",
-              fontSize: 15,
-              cursor: "pointer",
-              textAlign: "left",
-              fontFamily: "inherit",
-              display: "flex", alignItems: "center", gap: 12,
-            }}
-          >
-            <div style={{
-              width: 40, height: 40, borderRadius: "50%",
-              background: ROLE_COLORS[user.role] || "#FF1B8D",
-              color: "#fff",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontWeight: 700, fontSize: 16, flexShrink: 0,
-            }}>
-              {String(user.name || "?").charAt(0)}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600 }}>
-                {user.name}
-                {user.userId && (
-                  <span style={{ fontSize: 12, color: "#aaa", marginLeft: 8, fontWeight: 400 }}>
-                    ({user.userId})
-                  </span>
-                )}
+        {roles.map((dbRole, idx) => {
+          const appRole = DB_TO_APP_ROLE[dbRole] || dbRole;
+          return (
+            <button
+              key={dbRole}
+              onClick={() => onSelect(dbRole)}
+              style={{
+                width: "100%",
+                background: "#2A2A2A",
+                border: "1px solid #3A3A3A",
+                borderRadius: 12,
+                padding: "14px 16px",
+                marginBottom: idx < roles.length - 1 ? 10 : 0,
+                color: "#FFFFFF",
+                fontSize: 15,
+                cursor: "pointer",
+                textAlign: "left",
+                fontFamily: "inherit",
+                display: "flex", alignItems: "center", gap: 12,
+              }}
+            >
+              <div style={{
+                width: 40, height: 40, borderRadius: "50%",
+                background: ROLE_COLORS[appRole] || "#FF1B8D",
+                color: "#fff",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 700, fontSize: 16, flexShrink: 0,
+              }}>
+                {String(user.name || "?").charAt(0)}
               </div>
-              <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>
-                {ROLE_LABELS[user.role] || user.role}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600 }}>
+                  {user.name}
+                  {user.code && (
+                    <span style={{ fontSize: 12, color: "#aaa", marginLeft: 8, fontWeight: 400 }}>
+                      ({user.code})
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>
+                  {ROLE_LABELS[appRole] || appRole}
+                </div>
               </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
 
         <button
           onClick={onCancel}

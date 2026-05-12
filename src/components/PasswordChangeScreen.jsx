@@ -1,9 +1,10 @@
 // V14 Phase 4-E-1 — 강제 비밀번호 변경 화면 (첫 로그인)
-// passwordChanged === false 사용자 → 본 화면 진입 차단
+// must_change_password === true 사용자 → 본 화면 진입 차단
+// Phase 2 — Supabase Custom RPC (change_password) 박은 영역 / changePasswordV14 박은 영역 박은 영역
 // 디자인: LoginScreen 스타일 (다크 고정 / 핑크 accent)
 import { useState } from "react";
 import { OllitMark } from "./OllitMark.jsx";
-import { changePasswordV14 } from "../api.js";
+import { changePassword } from "../lib/auth.js";
 
 const DARK = {
   pageBg:     "#0A0A0A",
@@ -38,12 +39,19 @@ export function PasswordChangeScreen({ user, onComplete }) {
     if (v) { setError(v); return; }
     setBusy(true);
     try {
-      const res = await changePasswordV14(user.userId, oldPw, newPw);
-      if (!res || res.ok === false) {
-        setError(res?.error || "비밀번호 변경 실패");
+      const userId = user.user_id || user.id;  // RPC 응답 박은 영역 박은 영역
+      const res = await changePassword(userId, oldPw, newPw);
+      if (!res || !res.ok) {
+        const msgMap = {
+          invalid_old_password: "현재 비밀번호가 맞지 않아요",
+          password_too_short:   "새 비밀번호는 4자 이상이어야 해요",
+          user_not_found:       "사용자를 찾을 수 없어요",
+          user_id_required:     "사용자 정보 누락 (다시 로그인해주세요)",
+        };
+        setError(msgMap[res?.error] || res?.error || "비밀번호 변경 실패");
         return;
       }
-      onComplete({ ...user, passwordChanged: true });
+      onComplete({ ...user, must_change_password: false });
     } catch (e) {
       setError(e?.message || "비밀번호 변경 실패 (네트워크)");
     } finally {

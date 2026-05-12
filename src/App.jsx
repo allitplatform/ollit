@@ -13,15 +13,17 @@ import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen.jsx";
 import { addNotification as addNotificationToStore } from "./utils/notificationStore.js";
 
-// V14 Phase 4-D — 자동 로그인 (localStorage)
-const STORAGE_KEY = "ollit_currentUser";
+// Phase 2 — 자동 로그인 (localStorage)
+// auth.js 측 LS_KEY = "allit.user" 박은 영역 박은 영역 (signInWithPhone 측 박은 영역 박은 영역 박은 영역)
+const STORAGE_KEY = "allit.user";
 
 function readStoredUser() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed?.userId || !parsed?.role) return null;
+    // user_id (RPC 응답) 또는 role 박은 영역 박은 영역 박은 영역 — LoginScreen 박은 영역 박은 영역 role 박음
+    if (!parsed?.role && !parsed?.user_id) return null;
     return parsed;
   } catch { return null; }
 }
@@ -101,7 +103,8 @@ export default function App() {
     return <SplashScreen onDone={() => setSplashDone(true)}/>;
   }
 
-  // 로그인 콜백 — V14 Phase 4-D: V14 path만 localStorage 저장 (시범 빠른 로그인은 저장 X)
+  // 로그인 콜백 — Phase 2: 항상 localStorage 박음 (auth.js 박은 영역 박은 영역 박은 영역 박은 영역 박은 영역)
+  // isQuickLogin 박은 영역 박은 영역 박은 영역 박을 영역 박혀있어 박힘 박을 영역 (점진 교체 박을 영역)
   const handleLogin = (user, isQuickLogin = false) => {
     setCurrentUser(user);
     if (!isQuickLogin) {
@@ -115,7 +118,7 @@ export default function App() {
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
   };
 
-  // V14 Phase 4-E-1 — 강제 비번 변경 완료 콜백
+  // Phase 2 — 강제 비번 변경 완료 콜백 (must_change_password=false 박음)
   const handlePasswordChanged = (updatedUser) => {
     setCurrentUser(updatedUser);
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser)); } catch {}
@@ -126,9 +129,9 @@ export default function App() {
     if (!currentUser) {
       return <LoginScreen onLogin={handleLogin} />;
     }
-    // V14 Phase 4-E-1 — 첫 로그인 강제 비번 변경 (passwordChanged === false 만 차단)
-    // 시범 7계정은 passwordChanged 필드 없음(undefined) → 통과
-    if (currentUser.passwordChanged === false) {
+    // Phase 2 — 첫 로그인 강제 비번 변경 (must_change_password === true 만 차단)
+    // 시범 빠른 로그인은 필드 없음(undefined) → 통과
+    if (currentUser.must_change_password === true) {
       return <PasswordChangeScreen user={currentUser} onComplete={handlePasswordChanged} />;
     }
     switch (currentUser.role) {
