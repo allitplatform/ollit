@@ -54,6 +54,7 @@ import { PrincipalListScreen } from "../components/PrincipalListScreen.jsx";
 import { PrincipalEditScreen } from "../components/PrincipalEditScreen.jsx";
 import { NaverUploadScreen } from "../components/NaverUploadScreen.jsx";
 import { RatesManagementScreen } from "../components/RatesManagementScreen.jsx";
+import { CommissionPolicyManagement } from "../components/admin/CommissionPolicyManagement.jsx";
 import { createEmptyPrincipal } from "../data/principals.js";
 // V14 Week 1 1F + 2A + 2B-3 — 진짜 API (시뮬 createTask + 시뮬 22건 + RecommendScreen 폐기)
 import {
@@ -2810,8 +2811,15 @@ export default function AdminApp({ user, onLogout }) {
         onUsolN={(menuId) => setScreen(menuId)}
         onSettlement={() => setScreen("settlement")}
         onPrincipalSettlement={() => setScreen("principal_settlement")}
+        onCommissionPolicy={() => setScreen("commissionPolicy")}
         onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
       />
+    </Shell>;
+  }
+  // Phase 2 — 수수료정책 관리 (admin/owner/operator)
+  if (screen === "commissionPolicy") {
+    return <Shell>
+      <CommissionPolicyManagement user={user} onBack={goBack}/>
     </Shell>;
   }
   // V11-2-fix — 유솔 N 워크스페이스 (단일 라우트, 5탭 컨테이너 내부)

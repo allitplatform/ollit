@@ -50,6 +50,7 @@ export function SettingsScreen({
   onUsers, onNotifications, onBackup,
   onCompanyAccount,  // Step 5-8 F-4
   onUsolN, onSettlement, onPrincipalSettlement,
+  onCommissionPolicy,  // Phase 2 — 수수료정책 관리 (admin/owner/operator)
   themeMode, onToggleTheme,
 }) {
   const [search, setSearch] = useState("");
@@ -148,6 +149,7 @@ export function SettingsScreen({
     { key: "engineers",     icon: "👷", label: "프로 관리",    sub: `${counts.engineers}명`,  perm: "menu.engineers",  onClick: onEngineers },
     { key: "rates",         icon: "💰", label: "단가표",       sub: `세척 ${counts.rates}종 + 쿨가이`, perm: "menu.rates",  onClick: onRates },
     { key: "regions",       icon: "📍", label: "지역 관리",    sub: `활성 ${counts.regions}개`, perm: "menu.regions",  onClick: onRegions },
+    { key: "commission_policy", icon: "📊", label: "수수료정책 관리", sub: "Supabase 78 정책 + 계산기", onClick: onCommissionPolicy },
   ];
   const system = [
     { key: "users",           icon: "👥", label: "사용자 / 권한", sub: "5역할",  perm: "menu.users",         onClick: onUsers },
