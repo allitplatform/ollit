@@ -1,15 +1,15 @@
 ﻿-- ============================================
 -- Migration 004 — Seed Data
--- 작성일  : 2026-05-12 (Day 5 / 시트 실제 명단 38명 + 원청 3 통합)
+-- 작성일  : 2026-05-12 (Day 5 / 시트 명단 36 + 옛 원청 7 + 옛 정책 72 유지)
 -- 범위    :
---   tenants 1 / principals 3 / users 36 / user_roles 38
---   categories 1 / service_types 7 / appliance_types 7 / work_types 14
---   tenant_categories 1
--- 박지 X  : commission_policies / engineer_permissions (engineer 자동 INSERT 박혀있음 / 사장님 결정 후 다음 단계 박을 영역)
+--   tenants 1 / principals 7 (옛 그대로) / categories 1
+--   service_types 7 / appliance_types 7 / work_types 13
+--   users 36 (시트 박은 영역) / user_roles 38
+--   commission_policies 72 (옛 그대로 / 수수료 별도 단계 박은 영역)
+-- 박지 X  : engineer_permissions (다음 단계 박을 영역)
 -- 전제    : 001 + 003 적용 박힘
 -- 실행    : Supabase 콘솔 → SQL Editor → 통째 붙여넣기 → Run
--- ============================================
--- 정규화 원칙: 한 사람 = 한 row (예: 조동욱 admin+engineer = 1 user row + 2 user_roles row)
+-- 정규화 : 한 사람 = 한 row (조동욱/구현서 = admin+engineer 2 role / 1 user row)
 -- ============================================
 
 BEGIN;
@@ -22,21 +22,20 @@ INSERT INTO tenants (id, code, name, plan, config) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
--- [2] principals (3 / 옛 7 → 3 통합)
---   옛 allday/KB(자사) → 박지 X
---   옛 yongin(다이렉트) → 박지 X
---   옛 KA → aircon_pro (P001)
---   옛 crikrin → crikrin (P002)
---   옛 usol_h + usol_n → usol (P003) 통합
+-- [2] principals — 7 원청 (옛 박은 영역 / 수수료 별도 단계 박을 영역 박을 영역 박은 영역 박지 X)
 -- ============================================
 INSERT INTO principals (id, tenant_id, code, name, type, active, notes) VALUES
-  ('22222222-2222-2222-2222-222222222001', '11111111-1111-1111-1111-111111111111', 'aircon_pro', '에어컨프로 (P001)',  'external', true, '옛 KA 비밀 정책'),
-  ('22222222-2222-2222-2222-222222222002', '11111111-1111-1111-1111-111111111111', 'crikrin',    '크리크린 (P002)',    'external', true, ''),
-  ('22222222-2222-2222-2222-222222222003', '11111111-1111-1111-1111-111111111111', 'usol',       '유솔홈케어 (P003)',  'external', true, '옛 유솔H + 유솔N 통합')
+  ('22222222-2222-2222-2222-222222222001', '11111111-1111-1111-1111-111111111111', 'allday',   '올데이케어',     'direct',   true, '직영 / 원청 수수료 0'),
+  ('22222222-2222-2222-2222-222222222002', '11111111-1111-1111-1111-111111111111', 'KA',       '에어컨프로 (KA)', 'external', true, 'KA 비밀 정책 (가짜단가 / 차감후 50%)'),
+  ('22222222-2222-2222-2222-222222222003', '11111111-1111-1111-1111-111111111111', 'KB',       '쿨가이 (KB)',     'external', true, 'KB 비밀 정책 (가짜단가 / 차감후 50%) + 냉매 총금액분배'),
+  ('22222222-2222-2222-2222-222222222004', '11111111-1111-1111-1111-111111111111', 'yongin',   '용인컴퍼니',     'external', true, '원청 정액 10,000원'),
+  ('22222222-2222-2222-2222-222222222005', '11111111-1111-1111-1111-111111111111', 'usol_h',   '유솔홈케어 H',   'external', true, '현금 / 세척 15% / 냉매 정액 10K + 기사 50%'),
+  ('22222222-2222-2222-2222-222222222006', '11111111-1111-1111-1111-111111111111', 'usol_n',   '유솔홈케어 N',   'external', true, '네이버 / 본작업 15% / 추가 85/15 / 냉매점검 100원청+추가50:50'),
+  ('22222222-2222-2222-2222-222222222007', '11111111-1111-1111-1111-111111111111', 'crikrin',  '크리크린',       'external', true, '냉매 견적 20% / 세척 총 20%')
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
--- [3] categories (1) — 에어컨
+-- [3] categories — 에어컨
 -- ============================================
 INSERT INTO categories (id, code, name, unit, qty_kind, active) VALUES
   ('33333333-3333-3333-3333-333333333001', 'aircon', '에어컨', '대', 'integer', true)
@@ -47,7 +46,7 @@ INSERT INTO tenant_categories (tenant_id, category_id, active) VALUES
 ON CONFLICT (tenant_id, category_id) DO NOTHING;
 
 -- ============================================
--- [4] service_types (7)
+-- [4] service_types — 작업유형
 -- ============================================
 INSERT INTO service_types (id, category_id, code, name) VALUES
   ('44444444-4444-4444-4444-444444444001', '33333333-3333-3333-3333-333333333001', 'cleaning',    '세척'),
@@ -60,7 +59,7 @@ INSERT INTO service_types (id, category_id, code, name) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
--- [5] appliance_types (7)
+-- [5] appliance_types — 7 기종
 -- ============================================
 INSERT INTO appliance_types (id, category_id, code, name) VALUES
   ('55555555-5555-5555-5555-555555555001', '33333333-3333-3333-3333-333333333001', 'wall',     '벽걸이'),
@@ -73,7 +72,7 @@ INSERT INTO appliance_types (id, category_id, code, name) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
--- [6] work_types (14)
+-- [6] work_types — service × appliance (13 row)
 -- ============================================
 INSERT INTO work_types (service_type_id, appliance_type_id, code, name, default_unit_price) VALUES
   ('44444444-4444-4444-4444-444444444001', '55555555-5555-5555-5555-555555555001', 'clean_wall',  '세척_벽걸이',     40000),
@@ -92,51 +91,51 @@ INSERT INTO work_types (service_type_id, appliance_type_id, code, name, default_
 ON CONFLICT (service_type_id, appliance_type_id, code) DO NOTHING;
 
 -- ============================================
--- [7] users (36 / 한 사람 = 한 row 정규화)
---   - admin only          : A004 / A003          (2 row)
---   - admin + engineer    : E022 / E002          (2 row / code 박은 영역 = engineer code)
---   - happycall only      : H001 / H002          (2 row / A 시리즈와 다른 사람)
---   - engineer only       : E001 + E003~E029 (E022/E002 박지 X) (27 row)
---   - partner             : P001 / P002 / P003   (3 row)
---   합계                  : 2 + 2 + 2 + 27 + 3 = 36
+-- [7] users — 36 row (시트 명단 / 한 사람 = 한 row 정규화)
+--   - admin only      : A003 / A004                      (2 row / 새 UUID)
+--   - admin+engineer  : E022 (=A001) / E002 (=A002)      (2 row / 옛 UUID / engineer code 박은 영역)
+--   - happycall       : H001 / H002 (별도 사람 / phone 다름) (2 row / 새 UUID)
+--   - engineer        : E001 + E003~E029 (E022/E002 박지 X) (27 row / 옛 UUID)
+--   - partner         : P001 / P002 / P003                (3 row / 새 UUID)
+--   합계              : 2 + 2 + 2 + 27 + 3 = 36
 -- ============================================
 
 -- admin only (2)
 INSERT INTO users (id, tenant_id, code, name, phone, is_active, must_change_pin) VALUES
-  ('77777777-7777-7777-7777-aaaaaaaa0004', '11111111-1111-1111-1111-111111111111', 'A004', '최수연', '010-4887-4002', true, true),
-  ('77777777-7777-7777-7777-aaaaaaaa0003', '11111111-1111-1111-1111-111111111111', 'A003', '조동석', '010-4785-6910', true, true)
+  ('77777777-7777-7777-7777-aaaaaaaa0003', '11111111-1111-1111-1111-111111111111', 'A003', '조동석', '010-4785-6910', true, true),
+  ('77777777-7777-7777-7777-aaaaaaaa0004', '11111111-1111-1111-1111-111111111111', 'A004', '최수연', '010-4887-4002', true, true)
 ON CONFLICT (id) DO NOTHING;
 
--- admin + engineer (2 / 같은 사람 / engineer code 박은 영역 박은 영역)
+-- admin + engineer (2 / 같은 사람 / engineer code 박은 영역 / 옛 UUID 재사용)
 INSERT INTO users (id, tenant_id, code, name, phone, is_active, must_change_pin) VALUES
   ('77777777-7777-7777-7777-777777770022',  '11111111-1111-1111-1111-111111111111', 'E022', '조동욱', '010-9447-1547', true, true),
   ('77777777-7777-7777-7777-77777770002b',  '11111111-1111-1111-1111-111111111111', 'E002', '구현서', '010-7372-3524', true, true)
 ON CONFLICT (id) DO NOTHING;
 
--- happycall (2 / A 시리즈와 동명이인이지만 phone 다른 별도 인물)
+-- happycall (2 / A 시리즈와 동명이인 별도 인물 / phone 다름)
 INSERT INTO users (id, tenant_id, code, name, phone, is_active, must_change_pin) VALUES
   ('77777777-7777-7777-7777-bbbbbbbb0001', '11111111-1111-1111-1111-111111111111', 'H001', '최수연', '010-4937-2007', true, true),
   ('77777777-7777-7777-7777-bbbbbbbb0002', '11111111-1111-1111-1111-111111111111', 'H002', '조동석', '010-3626-4002', true, true)
 ON CONFLICT (id) DO NOTHING;
 
--- engineer only (27 / E022/E002 박지 X)
+-- engineer only (27 / E001 + E003~E029 / phone 시트 박은 영역)
 INSERT INTO users (id, tenant_id, code, name, phone, is_active, must_change_pin) VALUES
   ('77777777-7777-7777-7777-7777777e0001', '11111111-1111-1111-1111-111111111111', 'E001', '강병익', '010-9089-1726', true, true),
   ('77777777-7777-7777-7777-7777777e0003', '11111111-1111-1111-1111-111111111111', 'E003', '권창용', '010-7277-5157', true, true),
-  ('77777777-7777-7777-7777-7777777e0004', '11111111-1111-1111-1111-111111111111', 'E004', '김경호', '010-9576-1048', true, true),
+  ('77777777-7777-7777-7777-7777777e0004', '11111111-1111-1111-1111-111111111111', 'E004', '김경호', '010-2414-5974', true, true),
   ('77777777-7777-7777-7777-7777777e0005', '11111111-1111-1111-1111-111111111111', 'E005', '김동효', '010-9238-0412', true, true),
   ('77777777-7777-7777-7777-7777777e0006', '11111111-1111-1111-1111-111111111111', 'E006', '김병철', '010-9836-9839', true, true),
   ('77777777-7777-7777-7777-7777777e0007', '11111111-1111-1111-1111-111111111111', 'E007', '김영수', '010-2635-5772', true, true),
   ('77777777-7777-7777-7777-7777777e0008', '11111111-1111-1111-1111-111111111111', 'E008', '김윤섭', '010-2063-4980', true, true),
   ('77777777-7777-7777-7777-7777777e0009', '11111111-1111-1111-1111-111111111111', 'E009', '김재현', '010-2983-8814', true, true),
-  ('77777777-7777-7777-7777-7777777e0010', '11111111-1111-1111-1111-111111111111', 'E010', '김태승', '010-8185-9700', true, true),
+  ('77777777-7777-7777-7777-7777777e0010', '11111111-1111-1111-1111-111111111111', 'E010', '김태승', '010-8683-9711', true, true),
   ('77777777-7777-7777-7777-7777777e0011', '11111111-1111-1111-1111-111111111111', 'E011', '김현동', '010-5057-2312', true, true),
   ('77777777-7777-7777-7777-7777777e0012', '11111111-1111-1111-1111-111111111111', 'E012', '문성목', '010-9397-8940', true, true),
   ('77777777-7777-7777-7777-7777777e0013', '11111111-1111-1111-1111-111111111111', 'E013', '손동식', '010-9213-7040', true, true),
   ('77777777-7777-7777-7777-7777777e0014', '11111111-1111-1111-1111-111111111111', 'E014', '안승웅', '010-5399-3651', true, true),
-  ('77777777-7777-7777-7777-7777777e0015', '11111111-1111-1111-1111-111111111111', 'E015', '양승문', '010-3749-0294', true, true),
+  ('77777777-7777-7777-7777-7777777e0015', '11111111-1111-1111-1111-111111111111', 'E015', '양승문', '010-4686-0294', true, true),
   ('77777777-7777-7777-7777-7777777e0016', '11111111-1111-1111-1111-111111111111', 'E016', '류근학', '010-4233-8586', true, true),
-  ('77777777-7777-7777-7777-7777777e0017', '11111111-1111-1111-1111-111111111111', 'E017', '이상준', '010-4729-8079', true, true),
+  ('77777777-7777-7777-7777-7777777e0017', '11111111-1111-1111-1111-111111111111', 'E017', '이상준', '010-2909-5934', true, true),
   ('77777777-7777-7777-7777-7777777e0018', '11111111-1111-1111-1111-111111111111', 'E018', '임종일', '010-3035-3766', true, true),
   ('77777777-7777-7777-7777-7777777e0019', '11111111-1111-1111-1111-111111111111', 'E019', '전현진', '010-7764-4402', true, true),
   ('77777777-7777-7777-7777-7777777e0020', '11111111-1111-1111-1111-111111111111', 'E020', '정상현', '010-2273-0976', true, true),
@@ -150,7 +149,7 @@ INSERT INTO users (id, tenant_id, code, name, phone, is_active, must_change_pin)
   ('77777777-7777-7777-7777-7777777e0029', '11111111-1111-1111-1111-111111111111', 'E029', '신은용', '010-8879-8596', true, true)
 ON CONFLICT (id) DO NOTHING;
 
--- partner (3 / principal 박은 영역 사장님)
+-- partner (3 / 원청 사장님)
 INSERT INTO users (id, tenant_id, code, name, phone, is_active, must_change_pin) VALUES
   ('77777777-7777-7777-7777-cccccccc0001', '11111111-1111-1111-1111-111111111111', 'P001', '에어컨프로 사장님', '010-2017-4415', true, true),
   ('77777777-7777-7777-7777-cccccccc0002', '11111111-1111-1111-1111-111111111111', 'P002', '크리크린 사장님',   '010-8430-2620', true, true),
@@ -158,22 +157,18 @@ INSERT INTO users (id, tenant_id, code, name, phone, is_active, must_change_pin)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================
--- [8] user_roles (38)
---   owner     : 1  (A004)
---   admin     : 3  (A003 + E022 + E002 / E022/E002 = is_primary=false / engineer 박은 영역 primary)
---   engineer  : 29 (E022 + E002 + E001 + E003~E029)
---   happycall : 2  (H001 + H002)
---   partner   : 3  (P001 + P002 + P003 / principal_id 박은 영역)
---   합계       : 1 + 3 + 29 + 2 + 3 = 38
+-- [8] user_roles — 38 row
+--   admin    : 4  (A003 + A004 + E022 + E002)
+--   engineer : 29 (E022 + E002 + E001 + E003~E029 / E022·E002 = primary)
+--   happycall: 2  (H001 + H002)
+--   partner  : 3  (P001=KA / P002=crikrin / P003=usol_h)
+--   합계      : 4 + 29 + 2 + 3 = 38
 -- ============================================
 
--- owner (1)
-INSERT INTO user_roles (user_id, role, is_primary) VALUES
-  ('77777777-7777-7777-7777-aaaaaaaa0004', 'owner', true);
-
--- admin (3 / A003 primary / E022/E002 박은 영역 secondary 박혀있어 engineer = primary)
+-- admin (4 / A003·A004 = primary / E022·E002 = secondary 박은 영역 박은 영역 engineer primary)
 INSERT INTO user_roles (user_id, role, is_primary) VALUES
   ('77777777-7777-7777-7777-aaaaaaaa0003', 'admin', true),
+  ('77777777-7777-7777-7777-aaaaaaaa0004', 'admin', true),
   ('77777777-7777-7777-7777-777777770022', 'admin', false),
   ('77777777-7777-7777-7777-77777770002b', 'admin', false);
 
@@ -215,40 +210,141 @@ INSERT INTO user_roles (user_id, role, is_primary) VALUES
   ('77777777-7777-7777-7777-bbbbbbbb0002', 'happycall', true);
 
 -- partner (3 / principal_id 박은 영역)
+--   P001 (에어컨프로 사장님) → 옛 KA UUID
+--   P002 (크리크린 사장님)   → 옛 crikrin UUID
+--   P003 (유솔홈케어 사장님) → 옛 usol_h UUID
 INSERT INTO user_roles (user_id, role, is_primary, principal_id) VALUES
-  ('77777777-7777-7777-7777-cccccccc0001', 'partner', true, '22222222-2222-2222-2222-222222222001'),
-  ('77777777-7777-7777-7777-cccccccc0002', 'partner', true, '22222222-2222-2222-2222-222222222002'),
-  ('77777777-7777-7777-7777-cccccccc0003', 'partner', true, '22222222-2222-2222-2222-222222222003');
+  ('77777777-7777-7777-7777-cccccccc0001', 'partner', true, '22222222-2222-2222-2222-222222222002'),
+  ('77777777-7777-7777-7777-cccccccc0002', 'partner', true, '22222222-2222-2222-2222-222222222007'),
+  ('77777777-7777-7777-7777-cccccccc0003', 'partner', true, '22222222-2222-2222-2222-222222222005');
 
 -- ============================================
--- [9] commission_policies — 박지 X (사장님 결정 / 별도 단계)
--- 옛 7 원청 정책 박은 영역 박은 영역 박은 영역 박은 영역 박지 X 박혀있어 박힘 박을 영역
---   → 옛 KA/KB 비밀 / 유솔H+N 통합 / 자사 정책 박은 영역 박은 영역 박을 영역
---   → 다음 단계 측 사장님 결정 후 박을 영역
+-- [9] commission_policies — 72 row (옛 박은 영역 / 수수료 별도 단계 박을 영역 박을 영역 박은 영역 박지 X)
 -- ============================================
 
--- ============================================
--- [10] engineer_permissions — 모든 engineer 측 cleaning + refrigerant 메인 자동 박음
--- ============================================
-INSERT INTO engineer_permissions (user_id, service_code, level, active)
-SELECT u.id, 'cleaning', 'main', true
-FROM users u
-JOIN user_roles ur ON u.id = ur.user_id
-WHERE ur.role = 'engineer'
-  AND u.tenant_id = '11111111-1111-1111-1111-111111111111';
+-- 올데이 — 세척 (engineer = 기사단가 / 회사 = 견적 - 기사단가)
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_base) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'cleaning', '벽걸이',     '금액', 'allday_cleaning_wall',   40000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'cleaning', '1way',       '금액', 'allday_cleaning_1way',   50000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'cleaning', '스탠드',     '금액', 'allday_cleaning_stand',  60000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'cleaning', '4way',       '금액', 'allday_cleaning_4way',   70000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'cleaning', '원형',       '금액', 'allday_cleaning_round',  80000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'cleaning', '투인원',     '금액', 'allday_cleaning_2in1',   100000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'cleaning', '시스템멀티', '금액', 'allday_cleaning_multi',  0);
 
-INSERT INTO engineer_permissions (user_id, service_code, level, active)
-SELECT u.id, 'refrigerant', 'main', true
-FROM users u
-JOIN user_roles ur ON u.id = ur.user_id
-WHERE ur.role = 'engineer'
-  AND u.tenant_id = '11111111-1111-1111-1111-111111111111';
+-- 올데이 냉매 (50/50)
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_ad_rate) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'refrigerant', '벽걸이', '비율', 'allday_refri_wall',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'refrigerant', '스탠드', '비율', 'allday_refri_stand', 0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'refrigerant', '1way',   '비율', 'allday_refri_1way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'refrigerant', '4way',   '비율', 'allday_refri_4way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'allday', 'refrigerant', '투인원', '비율', 'allday_refri_2in1',  0.5);
+
+-- KA — 비밀 정책 (차감후비율 / GAS 측 calcSecretCommission_ 호출)
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, notes) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KA', 'cleaning', NULL, '차감후비율', 'KA_cleaning_secret', '비밀 정책 / GAS 측 calcSecretCommission_ 호출');
+
+-- KA 냉매 — 예상금액비율
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_ad_rate) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KA', 'refrigerant', '벽걸이', '예상금액비율', 'KA_refri_wall',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KA', 'refrigerant', '스탠드', '예상금액비율', 'KA_refri_stand', 0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KA', 'refrigerant', '4way',   '예상금액비율', 'KA_refri_4way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KA', 'refrigerant', '투인원', '예상금액비율', 'KA_refri_2in1',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KA', 'refrigerant', '1way',   '예상금액비율', 'KA_refri_1way',  0.5);
+
+-- KB — 비밀 정책
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, notes) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KB', 'cleaning', NULL, '차감후비율', 'KB_cleaning_secret', '비밀 정책 / GAS 측 calcSecretCommission_ 호출');
+
+-- KB 냉매 — 총금액분배
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_ad_rate) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KB', 'refrigerant', '벽걸이', '비율_총액기준', 'KB_refri_wall',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KB', 'refrigerant', '스탠드', '비율_총액기준', 'KB_refri_stand', 0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KB', 'refrigerant', '1way',   '비율_총액기준', 'KB_refri_1way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KB', 'refrigerant', '4way',   '비율_총액기준', 'KB_refri_4way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'KB', 'refrigerant', '투인원', '비율_총액기준', 'KB_refri_2in1',  0.5);
+
+-- 용인 — 세척
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_base) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'cleaning', '벽걸이',     '금액', 'yongin_cleaning_wall',  40000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'cleaning', '1way',       '금액', 'yongin_cleaning_1way',  50000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'cleaning', '스탠드',     '금액', 'yongin_cleaning_stand', 60000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'cleaning', '4way',       '금액', 'yongin_cleaning_4way',  70000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'cleaning', '원형',       '금액', 'yongin_cleaning_round', 80000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'cleaning', '투인원',     '금액', 'yongin_cleaning_2in1',  100000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'cleaning', '시스템멀티', '금액', 'yongin_cleaning_multi', 0);
+
+-- 용인 냉매 (50/50)
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_ad_rate) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'refrigerant', '벽걸이', '비율', 'yongin_refri_wall',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'refrigerant', '스탠드', '비율', 'yongin_refri_stand', 0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'refrigerant', '1way',   '비율', 'yongin_refri_1way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'refrigerant', '4way',   '비율', 'yongin_refri_4way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'yongin', 'refrigerant', '투인원', '비율', 'yongin_refri_2in1',  0.5);
+
+-- 유솔H — 세척
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_base) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'cleaning', '벽걸이',     '금액', 'usol_h_cleaning_wall',  40000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'cleaning', '1way',       '금액', 'usol_h_cleaning_1way',  50000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'cleaning', '스탠드',     '금액', 'usol_h_cleaning_stand', 60000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'cleaning', '4way',       '금액', 'usol_h_cleaning_4way',  70000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'cleaning', '원형',       '금액', 'usol_h_cleaning_round', 80000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'cleaning', '투인원',     '금액', 'usol_h_cleaning_2in1',  100000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'cleaning', '시스템멀티', '금액', 'usol_h_cleaning_multi', 0);
+
+-- 유솔H 냉매 (50/50)
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_ad_rate) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'refrigerant', '벽걸이', '비율', 'usol_h_refri_wall',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'refrigerant', '스탠드', '비율', 'usol_h_refri_stand', 0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'refrigerant', '1way',   '비율', 'usol_h_refri_1way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'refrigerant', '4way',   '비율', 'usol_h_refri_4way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_h', 'refrigerant', '투인원', '비율', 'usol_h_refri_2in1',  0.5);
+
+-- 유솔N — 네이버형 (기사단가 × 1.10)
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_base) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'cleaning', '벽걸이',     '금액', 'usol_n_cleaning_wall',  44000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'cleaning', '1way',       '금액', 'usol_n_cleaning_1way',  55000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'cleaning', '스탠드',     '금액', 'usol_n_cleaning_stand', 66000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'cleaning', '4way',       '금액', 'usol_n_cleaning_4way',  77000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'cleaning', '원형',       '금액', 'usol_n_cleaning_round', 88000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'cleaning', '투인원',     '금액', 'usol_n_cleaning_2in1',  110000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'cleaning', '시스템멀티', '금액', 'usol_n_cleaning_multi', 0);
+
+-- 유솔N 냉매 — YSN 특수 (AG전체_AD반반)
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'refrigerant', '벽걸이', 'AG전체_AD반반', 'usol_n_refri_wall'),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'refrigerant', '스탠드', 'AG전체_AD반반', 'usol_n_refri_stand'),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'refrigerant', '1way',   'AG전체_AD반반', 'usol_n_refri_1way'),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'refrigerant', '4way',   'AG전체_AD반반', 'usol_n_refri_4way'),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'usol_n', 'refrigerant', '투인원', 'AG전체_AD반반', 'usol_n_refri_2in1');
+
+-- 크리크린 — 세척
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_base) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'cleaning', '벽걸이',     '금액', 'crikrin_cleaning_wall',  40000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'cleaning', '1way',       '금액', 'crikrin_cleaning_1way',  50000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'cleaning', '스탠드',     '금액', 'crikrin_cleaning_stand', 60000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'cleaning', '4way',       '금액', 'crikrin_cleaning_4way',  70000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'cleaning', '원형',       '금액', 'crikrin_cleaning_round', 80000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'cleaning', '투인원',     '금액', 'crikrin_cleaning_2in1',  100000),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'cleaning', '시스템멀티', '금액', 'crikrin_cleaning_multi', 0);
+
+-- 크리크린 냉매 (기사 50%)
+INSERT INTO commission_policies (tenant_id, category_id, principal_code, service_code, appliance_code, calc_method, policy_key, engineer_ad_rate) VALUES
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'refrigerant', '벽걸이', '비율', 'crikrin_refri_wall',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'refrigerant', '스탠드', '비율', 'crikrin_refri_stand', 0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'refrigerant', '1way',   '비율', 'crikrin_refri_1way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'refrigerant', '4way',   '비율', 'crikrin_refri_4way',  0.5),
+  ('11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333001', 'crikrin', 'refrigerant', '투인원', '비율', 'crikrin_refri_2in1',  0.5);
+
+-- ============================================
+-- [10] engineer_permissions — 박지 X (사장님 결정 / 다음 단계 박을 영역)
+-- ============================================
 
 COMMIT;
 
 -- ============================================
--- 끝 — tenant 1 / principals 3 / users 36 / user_roles 38
---      categories 1 / service_types 7 / appliance_types 7 / work_types 14
---      commission_policies 0 (별도) / engineer_permissions 58 (29 × 2)
--- 다음: 005_validation.sql (검증) / commission_policies 박을 영역 (별도)
+-- 끝 — tenant 1 / principals 7 / users 36 / user_roles 38
+--      categories 1 / service_types 7 / appliance_types 7 / work_types 13
+--      commission_policies 72 / engineer_permissions 0 (다음 단계)
+-- 다음: 005_validation.sql (검증) / engineer_permissions 박을 영역 (별도)
 -- ============================================

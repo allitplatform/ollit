@@ -45,7 +45,7 @@ const SEED_ENGINEERS = [
     note: "벽걸이 전문",
   },
   {
-    id: "E004", name: "김경호", phone: "010-9576-1048",
+    id: "E004", name: "김경호", phone: "010-2414-5974",
     careerLevel: "career", status: "active",
     workTypes: {
       cleaning:    { role: "none", zones: [], appliances: [] },
@@ -99,7 +99,7 @@ const SEED_ENGINEERS = [
     note: "신입 / 벽걸이 가능",
   },
   {
-    id: "E010", name: "김태승", phone: "010-8185-9700",
+    id: "E010", name: "김태승", phone: "010-8683-9711",
     careerLevel: "career", status: "active",
     workTypes: {
       cleaning:    { role: "backup", zones: ["서대문구","중구"], appliances: [] },
@@ -144,7 +144,7 @@ const SEED_ENGINEERS = [
     note: "",
   },
   {
-    id: "E015", name: "양승문", phone: "010-3749-0294",
+    id: "E015", name: "양승문", phone: "010-4686-0294",
     careerLevel: "expert", status: "active",
     workTypes: {
       cleaning:    { role: "main", zones: ["고양시","은평구","서대문구"], appliances: [] },
@@ -162,7 +162,7 @@ const SEED_ENGINEERS = [
     note: "",
   },
   {
-    id: "E017", name: "이상준", phone: "010-4729-8079",
+    id: "E017", name: "이상준", phone: "010-2909-5934",
     careerLevel: "expert", status: "active",
     workTypes: {
       cleaning:    { role: "backup", zones: [], appliances: ["벽걸이"] },
