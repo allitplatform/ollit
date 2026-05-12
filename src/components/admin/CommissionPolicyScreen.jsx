@@ -83,7 +83,7 @@ export function CommissionPolicyScreen({ onBack }) {
       {/* 헤더 */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
         {onBack && (
-          <button onClick={onBack} style={btnGhost}>← 뒤로</button>
+          <button type="button" onClick={onBack} style={btnGhost}>← 뒤로</button>
         )}
         <div style={{ fontSize: 20, fontWeight: 700 }}>수수료 정책</div>
         <div style={{ marginLeft: "auto", fontSize: 13, color: "#888" }}>
@@ -168,7 +168,7 @@ function PolicyRow({ row, onClick }) {
   const hasFake = !!(row.notes && row.notes.includes("fake_base"));
 
   return (
-    <button onClick={onClick} style={rowStyle}>
+    <button type="button" onClick={onClick} style={rowStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 11, color: "#888", marginBottom: 2, fontFamily: "monospace" }}>

@@ -127,8 +127,8 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-          <button onClick={onClose} disabled={busy} style={btnGhost}>취소</button>
-          <button onClick={handleSave} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>
+          <button type="button" onClick={onClose} disabled={busy} style={btnGhost}>취소</button>
+          <button type="button" onClick={handleSave} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>
             {busy ? "저장중..." : "저장"}
           </button>
         </div>

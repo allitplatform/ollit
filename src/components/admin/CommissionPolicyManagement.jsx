@@ -28,7 +28,7 @@ export function CommissionPolicyManagement({ user, onBack }) {
         padding: 16, borderBottom: "1px solid #2A2A2A",
       }}>
         {onBack && (
-          <button onClick={onBack} style={btnGhost}>← 뒤로</button>
+          <button type="button" onClick={onBack} style={btnGhost}>← 뒤로</button>
         )}
         <div style={{ fontSize: 20, fontWeight: 700 }}>수수료정책 관리</div>
       </div>
@@ -55,7 +55,7 @@ export function CommissionPolicyManagement({ user, onBack }) {
 
 function TabButton({ active, onClick, children }) {
   return (
-    <button onClick={onClick} style={{
+    <button type="button" onClick={onClick} style={{
       background: "transparent",
       border: "none",
       color: active ? "#FF1B8D" : "#888",
@@ -85,7 +85,7 @@ function PermissionDeniedView({ onBack, role }) {
         현재 role: {role || "(없음)"}
       </div>
       {onBack && (
-        <button onClick={onBack} style={{
+        <button type="button" onClick={onBack} style={{
           background: "#FF1B8D", border: "none", color: "#FFF",
           borderRadius: 10, padding: "12px 24px",
           fontSize: 14, fontWeight: 700, cursor: "pointer",

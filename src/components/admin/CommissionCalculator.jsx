@@ -83,7 +83,7 @@ export function CommissionCalculator({ onBack }) {
   return (
     <div style={{ padding: 16, minHeight: "100vh", background: "#0A0A0A", color: "#FFF" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        {onBack && <button onClick={onBack} style={btnGhost}>← 뒤로</button>}
+        {onBack && <button type="button" onClick={onBack} style={btnGhost}>← 뒤로</button>}
         <div style={{ fontSize: 20, fontWeight: 700 }}>수수료 계산기</div>
       </div>
 
@@ -118,7 +118,7 @@ export function CommissionCalculator({ onBack }) {
           <input type="number" value={naverFee} onChange={(e) => setNaverFee(e.target.value)} style={inputStyle}/>
         </Row>
 
-        <button onClick={handleCalculate} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1, marginTop: 12 }}>
+        <button type="button" onClick={handleCalculate} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1, marginTop: 12 }}>
           {busy ? "계산중..." : "계산"}
         </button>
 
