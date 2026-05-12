@@ -2968,6 +2968,7 @@ export default function AdminApp({ user, onLogout }) {
       <PrincipalEditScreen
         principal={editingPrincipal}
         isNew={editingPrincipalIsNew}
+        onGoCommissionPolicy={() => setScreen("commissionPolicy")}
         onBack={() => {
           setEditingPrincipal(null);
           setEditingPrincipalIsNew(false);
