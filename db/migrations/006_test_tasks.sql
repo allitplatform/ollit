@@ -15,13 +15,14 @@
 BEGIN;
 
 INSERT INTO tasks (
-  tenant_id, task_no, principal_id, channel,
+  tenant_id, task_no, principal_id, category_id, channel,
   customer_name, phone, address, district, request_note,
   status, product_price, travel_fee
 ) VALUES (
   '11111111-1111-1111-1111-111111111111',
   'TEST-260512-001',
   '22222222-2222-2222-2222-222222222001',   -- allday (올데이케어)
+  '33333333-3333-3333-3333-333333333001',   -- aircon (Phase 1 MVP)
   'phone',
   '테스트 고객',
   '010-1234-5678',

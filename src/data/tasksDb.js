@@ -7,6 +7,9 @@ import { supabase } from "../lib/supabase.js";
 // Phase 1 MVP 단일 테넌트 (allit). 멀티 테넌트 박을 영역에서 user.tenant_id 측 박음.
 export const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 
+// Phase 1 MVP 단일 카테고리 (aircon). tasks.category_id NOT NULL — task.categoryId 박지 X 박힌 영역 측 fallback.
+export const CATEGORY_ID_AIRCON = "33333333-3333-3333-3333-333333333001";
+
 // ============================================================
 // normalize — Supabase row ↔ 클라이언트 task
 // ============================================================
@@ -97,7 +100,9 @@ export function taskToRow(task, partial = false) {
   if (task.taskNo !== undefined || task.taskCode !== undefined) {
     row.task_no = task.taskNo || task.taskCode;
   }
-  if (task.categoryId !== undefined)  row.category_id  = task.categoryId;
+  // category_id 는 NOT NULL — insert 측 task.categoryId 박지 X 박혔으면 Phase 1 MVP 박은 영역 (aircon) fallback
+  if (task.categoryId !== undefined) row.category_id = task.categoryId;
+  else if (!partial)                 row.category_id = CATEGORY_ID_AIRCON;
   if (task.principalId !== undefined) row.principal_id = task.principalId;
 
   // 고객
