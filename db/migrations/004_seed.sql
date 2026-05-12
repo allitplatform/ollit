@@ -17,7 +17,7 @@ BEGIN;
 -- ============================================
 -- [1] tenants (1)
 -- ============================================
-INSERT INTO tenants (id, code, name, plan, config) VALUES
+INSERT INTO tenants (id, slug, name, plan, settings) VALUES
   ('11111111-1111-1111-1111-111111111111', 'allit', '올잇', 'free', '{}'::jsonb)
 ON CONFLICT (id) DO NOTHING;
 
