@@ -1,7 +1,7 @@
 // Phase 2 — 수수료 정책 수정 모달
-// admin / operator 박은 영역 (RLS 박은 영역)
-// 박은 영역 박은 영역: engineer_base / fee_rate / principal_fee / notes
-// 박지 X 박은 영역: id / tenant_id / category_id / policy_key (immutable)
+// 디자인 — 원청관리 스타일 통일 (CSS 변수)
+// 박은 영역: engineer_base / fee_rate / principal_fee / notes
+// 박지 X (immutable): id / tenant_id / category_id / policy_key
 
 import { useState } from "react";
 import { updateCommissionPolicy, PRINCIPAL_LABEL, SERVICE_LABEL, CALC_METHOD_DESC } from "../../lib/commissionPoliciesDb.js";
@@ -61,20 +61,21 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
   return (
     <div onClick={onClose} style={overlayStyle}>
       <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
-        <div style={{ fontSize: 11, color: "#888", fontFamily: "monospace", marginBottom: 4 }}>
+        <div style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "monospace", marginBottom: 4 }}>
           {policy.policy_key}
         </div>
-        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-primary)" }}>
           {principalLabel} · {serviceLabel}
           {policy.appliance_code && ` · ${policy.appliance_code}`}
         </div>
         {policy.qty_condition && (
-          <div style={{ fontSize: 12, color: "#FFB800", marginBottom: 4 }}>
+          <div style={{ fontSize: 11, color: "#FFB800", marginBottom: 4 }}>
             qty: {policy.qty_condition}
           </div>
         )}
-        <div style={{ fontSize: 12, color: "#aaa", marginBottom: 16 }}>
-          {policy.calc_method} — {CALC_METHOD_DESC[policy.calc_method] || ""}
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 20 }}>
+          <span style={{ color: "#FF1B8D", fontWeight: 600 }}>{policy.calc_method}</span>
+          <span> — {CALC_METHOD_DESC[policy.calc_method] || ""}</span>
         </div>
 
         <FormRow label="engineer_base (기사 단가)">
@@ -113,22 +114,24 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder='{"fake_base":{"벽걸이":50000,...}}'
-            style={{ ...inputStyle, minHeight: 80, fontFamily: "monospace", fontSize: 12 }}
+            style={{ ...inputStyle, minHeight: 80, fontFamily: "monospace", fontSize: 12, resize: "vertical" }}
           />
         </FormRow>
 
         {error && (
-          <div style={{
-            marginTop: 12, padding: 10,
-            background: "rgba(255, 59, 92, 0.10)",
-            border: "1px solid rgba(255, 59, 92, 0.30)",
-            borderRadius: 8, color: "#FF3B5C", fontSize: 13,
-          }}>{error}</div>
+          <div style={{ marginTop: 12 }}>
+            <div style={errorStyle}>{error}</div>
+          </div>
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 20 }}>
-          <button type="button" onClick={onClose} disabled={busy} style={btnGhost}>취소</button>
-          <button type="button" onClick={handleSave} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1 }}>
+          <button type="button" onClick={onClose} disabled={busy} style={ghostBtnStyle}>
+            취소
+          </button>
+          <button type="button" onClick={handleSave} disabled={busy} style={{
+            ...pinkBtnStyle,
+            opacity: busy ? 0.6 : 1,
+          }}>
             {busy ? "저장중..." : "저장"}
           </button>
         </div>
@@ -140,7 +143,9 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
 function FormRow({ label, children }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 12, color: "#aaa", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6, fontWeight: 500 }}>
+        {label}
+      </div>
       {children}
     </div>
   );
@@ -149,50 +154,61 @@ function FormRow({ label, children }) {
 // ============= 스타일 =============
 const overlayStyle = {
   position: "fixed", inset: 0,
-  background: "rgba(0,0,0,0.8)",
+  background: "rgba(0, 0, 0, 0.7)",
   display: "flex", alignItems: "center", justifyContent: "center",
   zIndex: 9999, padding: 20,
 };
 const modalStyle = {
-  background: "#1C1C1E",
-  borderRadius: 16,
+  background: "var(--bg-primary)",
+  borderRadius: 14,
   padding: 24,
   maxWidth: 480, width: "100%",
   maxHeight: "90vh", overflowY: "auto",
   fontFamily: "-apple-system, 'Pretendard', sans-serif",
-  color: "#FFF",
+  color: "var(--text-primary)",
+  border: "1px solid var(--border)",
 };
 const inputStyle = {
   width: "100%",
-  background: "#0A0A0A",
-  border: "1px solid #2A2A2A",
-  color: "#FFF",
-  borderRadius: 8,
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
+  color: "var(--text-primary)",
+  borderRadius: 10,
   padding: "10px 12px",
   fontSize: 14,
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
 };
-const btnGhost = {
+const ghostBtnStyle = {
   flex: 1,
   background: "transparent",
-  border: "1px solid #2A2A2A",
-  color: "#FFF",
+  border: "1px solid var(--border)",
+  color: "var(--text-primary)",
   borderRadius: 10,
   padding: "12px 16px",
   fontSize: 14,
+  fontWeight: 600,
   cursor: "pointer",
   fontFamily: "inherit",
 };
-const btnPrimary = {
+const pinkBtnStyle = {
   flex: 2,
   background: "#FF1B8D",
   border: "none",
   color: "#FFF",
   borderRadius: 10,
   padding: "12px 16px",
-  fontSize: 14, fontWeight: 700,
+  fontSize: 14,
+  fontWeight: 700,
   cursor: "pointer",
   fontFamily: "inherit",
+};
+const errorStyle = {
+  padding: "10px 14px",
+  background: "rgba(255, 59, 92, 0.10)",
+  border: "1px solid rgba(255, 59, 92, 0.30)",
+  borderRadius: 10,
+  color: "#FF3B5C",
+  fontSize: 13,
 };

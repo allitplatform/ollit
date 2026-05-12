@@ -1,5 +1,5 @@
 // Phase 2 — 수수료 계산기 (calculate_commission RPC 박은 영역)
-// 사용자 입력 → RPC 호출 → 결과 표시 (principal / engineer / company)
+// 디자인 — 원청관리 스타일 통일 (CSS 변수)
 
 import { useState } from "react";
 import { calculateCommissionRpc } from "../../lib/commissionPoliciesDb.js";
@@ -30,7 +30,6 @@ const APPLIANCE_OPTIONS = [
   { value: "4way",   label: "4way" },
   { value: "원형",   label: "원형" },
   { value: "투인원", label: "투인원" },
-  // 유솔N 추가선택
   { value: "송풍팬분해", label: "송풍팬분해 (유솔N 추가)" },
   { value: "실외기",     label: "실외기 (유솔N 추가)" },
   { value: "피톤치드",   label: "피톤치드 (유솔N 추가)" },
@@ -42,7 +41,7 @@ const QTY_OPTIONS = [
   { value: "추가", label: "추가 (KA 1way 박은 영역)" },
 ];
 
-export function CommissionCalculator({ onBack }) {
+export function CommissionCalculator() {
   const [principal, setPrincipal] = useState("KA");
   const [service, setService]     = useState("refrigerant");
   const [appliance, setAppliance] = useState("벽걸이");
@@ -53,6 +52,8 @@ export function CommissionCalculator({ onBack }) {
   const [result, setResult]       = useState(null);
   const [busy, setBusy]           = useState(false);
   const [error, setError]         = useState("");
+
+  const showQty = principal === "KA" && service === "refrigerant" && appliance === "1way";
 
   const handleCalculate = async () => {
     setError("");
@@ -81,13 +82,8 @@ export function CommissionCalculator({ onBack }) {
   };
 
   return (
-    <div style={{ padding: 16, minHeight: "100vh", background: "#0A0A0A", color: "#FFF" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 20 }}>
-        {onBack && <button type="button" onClick={onBack} style={btnGhost}>← 뒤로</button>}
-        <div style={{ fontSize: 20, fontWeight: 700 }}>수수료 계산기</div>
-      </div>
-
-      <div style={{ maxWidth: 480 }}>
+    <div style={{ padding: "16px 16px 80px" }}>
+      <div style={{ maxWidth: 480, margin: "0 auto" }}>
         <Row label="원청">
           <select value={principal} onChange={(e) => setPrincipal(e.target.value)} style={selectStyle}>
             {PRINCIPAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -103,11 +99,13 @@ export function CommissionCalculator({ onBack }) {
             {APPLIANCE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </Row>
-        <Row label="qty_condition (KA 1way 박은 영역)">
-          <select value={qty} onChange={(e) => setQty(e.target.value)} style={selectStyle}>
-            {QTY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </Row>
+        {showQty && (
+          <Row label="🅰 KA 1way 박은 영역 — 첫대/추가 박은 영역 박을 영역">
+            <select value={qty} onChange={(e) => setQty(e.target.value)} style={selectStyle}>
+              {QTY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </Row>
+        )}
         <Row label="견적금액 (판매가)">
           <input type="number" value={quoted} onChange={(e) => setQuoted(e.target.value)} style={inputStyle}/>
         </Row>
@@ -118,25 +116,26 @@ export function CommissionCalculator({ onBack }) {
           <input type="number" value={naverFee} onChange={(e) => setNaverFee(e.target.value)} style={inputStyle}/>
         </Row>
 
-        <button type="button" onClick={handleCalculate} disabled={busy} style={{ ...btnPrimary, opacity: busy ? 0.6 : 1, marginTop: 12 }}>
+        <button type="button" onClick={handleCalculate} disabled={busy} style={{
+          ...pinkBtnStyle,
+          opacity: busy ? 0.6 : 1,
+          marginTop: 16,
+        }}>
           {busy ? "계산중..." : "계산"}
         </button>
 
         {error && (
-          <div style={{
-            marginTop: 16, padding: 12,
-            background: "rgba(255, 59, 92, 0.10)",
-            border: "1px solid rgba(255, 59, 92, 0.30)",
-            borderRadius: 8, color: "#FF3B5C", fontSize: 13,
-          }}>{error}</div>
+          <div style={{ marginTop: 16 }}>
+            <div style={errorStyle}>{error}</div>
+          </div>
         )}
 
         {result && result.ok && (
-          <div style={{ marginTop: 20, padding: 16, background: "#1C1C1E", border: "1px solid #2A2A2A", borderRadius: 12 }}>
-            <div style={{ fontSize: 11, color: "#888", marginBottom: 8, fontFamily: "monospace" }}>
+          <div style={resultCardStyle}>
+            <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 10, fontFamily: "monospace" }}>
               {result.policy_key} · {result.calc_method}
             </div>
-            <ResultRow label="총금액" value={result.total} highlight={false}/>
+            <ResultRow label="총금액" value={result.total} color="var(--text-primary)"/>
             <ResultRow label="원청 (principal)" value={result.principal} color="#FFB800"/>
             <ResultRow label="기사 (engineer)" value={result.engineer} color="#10B981"/>
             <ResultRow label="회사 (company)" value={result.company} color="#FF1B8D"/>
@@ -150,7 +149,9 @@ export function CommissionCalculator({ onBack }) {
 function Row({ label, children }) {
   return (
     <div style={{ marginBottom: 12 }}>
-      <div style={{ fontSize: 12, color: "#aaa", marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6, fontWeight: 500 }}>
+        {label}
+      </div>
       {children}
     </div>
   );
@@ -158,9 +159,13 @@ function Row({ label, children }) {
 
 function ResultRow({ label, value, color }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-      <span style={{ color: "#aaa", fontSize: 13 }}>{label}</span>
-      <span style={{ color: color || "#FFF", fontSize: 15, fontWeight: 600 }}>
+    <div style={{
+      display: "flex", justifyContent: "space-between",
+      padding: "8px 0",
+      borderBottom: "1px solid var(--border)",
+    }}>
+      <span style={{ color: "var(--text-secondary)", fontSize: 13 }}>{label}</span>
+      <span style={{ color: color || "var(--text-primary)", fontSize: 15, fontWeight: 700 }}>
         {Number(value || 0).toLocaleString()}원
       </span>
     </div>
@@ -168,33 +173,12 @@ function ResultRow({ label, value, color }) {
 }
 
 // ============= 스타일 =============
-const btnGhost = {
-  background: "transparent",
-  border: "1px solid #2A2A2A",
-  color: "#FFF",
-  borderRadius: 8,
-  padding: "8px 12px",
-  fontSize: 13,
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
-const btnPrimary = {
-  width: "100%",
-  background: "#FF1B8D",
-  border: "none",
-  color: "#FFF",
-  borderRadius: 10,
-  padding: "14px 16px",
-  fontSize: 15, fontWeight: 700,
-  cursor: "pointer",
-  fontFamily: "inherit",
-};
 const selectStyle = {
   width: "100%",
-  background: "#1C1C1E",
-  border: "1px solid #2A2A2A",
-  color: "#FFF",
-  borderRadius: 8,
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
+  color: "var(--text-primary)",
+  borderRadius: 10,
   padding: "10px 12px",
   fontSize: 14,
   fontFamily: "inherit",
@@ -202,13 +186,40 @@ const selectStyle = {
 };
 const inputStyle = {
   width: "100%",
-  background: "#1C1C1E",
-  border: "1px solid #2A2A2A",
-  color: "#FFF",
-  borderRadius: 8,
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
+  color: "var(--text-primary)",
+  borderRadius: 10,
   padding: "10px 12px",
   fontSize: 14,
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
+};
+const pinkBtnStyle = {
+  width: "100%",
+  background: "#FF1B8D",
+  border: "none",
+  color: "#FFF",
+  borderRadius: 10,
+  padding: "14px 16px",
+  fontSize: 15,
+  fontWeight: 700,
+  cursor: "pointer",
+  fontFamily: "inherit",
+};
+const resultCardStyle = {
+  marginTop: 20,
+  padding: 16,
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
+  borderRadius: 12,
+};
+const errorStyle = {
+  padding: "10px 14px",
+  background: "rgba(255, 59, 92, 0.10)",
+  border: "1px solid rgba(255, 59, 92, 0.30)",
+  borderRadius: 10,
+  color: "#FF3B5C",
+  fontSize: 13,
 };

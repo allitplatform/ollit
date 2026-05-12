@@ -1,5 +1,5 @@
 // Phase 2 — 수수료 정책 목록 화면 (admin / operator 박은 영역)
-// RLS — admin/operator 박은 영역 박을 영역 (가짜단가 JSON 박은 영역 박은 영역 박은 영역 박은 영역 박은 영역 박은 영역)
+// 디자인 — 원청관리 (PrincipalListScreen) 스타일 통일 (CSS 변수)
 // db/migrations/009_commission_policies_v6.sql 박은 영역 박은 영역 78 row
 
 import { useState, useEffect, useMemo } from "react";
@@ -31,7 +31,7 @@ const SERVICE_OPTIONS = [
   { value: "visit_fee",   label: "출장비" },
 ];
 
-export function CommissionPolicyScreen({ onBack }) {
+export function CommissionPolicyScreen() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -79,20 +79,19 @@ export function CommissionPolicyScreen({ onBack }) {
   };
 
   return (
-    <div style={{ padding: 16, minHeight: "100vh", background: "#0A0A0A", color: "#FFF" }}>
-      {/* 헤더 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        {onBack && (
-          <button type="button" onClick={onBack} style={btnGhost}>← 뒤로</button>
-        )}
-        <div style={{ fontSize: 20, fontWeight: 700 }}>수수료 정책</div>
-        <div style={{ marginLeft: "auto", fontSize: 13, color: "#888" }}>
-          {filtered.length} / {rows.length} 정책
-        </div>
+    <div>
+      {/* 카운터 */}
+      <div style={counterStyle}>
+        <span style={{ color: "var(--text-primary)" }}>
+          정책 <strong style={{ color: "#FF1B8D" }}>{filtered.length}</strong>
+        </span>
+        <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>
+          · 전체 {rows.length}건
+        </span>
       </div>
 
       {/* 필터 */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+      <div style={filterBarStyle}>
         <select
           value={filterPrincipal}
           onChange={(e) => setFilterPrincipal(e.target.value)}
@@ -111,39 +110,38 @@ export function CommissionPolicyScreen({ onBack }) {
             <option key={o.value} value={o.value}>서비스: {o.label}</option>
           ))}
         </select>
+      </div>
+
+      {/* 검색 */}
+      <div style={{ padding: "0 16px 12px" }}>
         <input
           type="text"
-          placeholder="policy_key / 기종 검색"
+          placeholder="🔍 policy_key / 기종 검색"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={{ ...inputStyle, flex: 1, minWidth: 180 }}
+          style={searchStyle}
         />
       </div>
 
       {/* 에러 */}
       {error && (
-        <div style={{
-          marginBottom: 12, padding: 12,
-          background: "rgba(255, 59, 92, 0.10)",
-          border: "1px solid rgba(255, 59, 92, 0.30)",
-          borderRadius: 8, color: "#FF3B5C", fontSize: 13,
-        }}>{error}</div>
+        <div style={{ padding: "0 16px 12px" }}>
+          <div style={errorStyle}>{error}</div>
+        </div>
       )}
 
       {/* 로딩 */}
       {loading && (
-        <div style={{ textAlign: "center", padding: 40, color: "#888" }}>로딩중...</div>
+        <div style={emptyStyle}>로딩중...</div>
       )}
 
       {/* 목록 */}
       {!loading && filtered.length === 0 && (
-        <div style={{ textAlign: "center", padding: 40, color: "#666" }}>
-          조회 결과 없음
-        </div>
+        <div style={emptyStyle}>조회 결과 없음</div>
       )}
 
       {!loading && filtered.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ padding: "0 16px 24px" }}>
           {filtered.map(row => (
             <PolicyRow key={row.id} row={row} onClick={() => setEditing(row)} />
           ))}
@@ -169,29 +167,38 @@ function PolicyRow({ row, onClick }) {
 
   return (
     <button type="button" onClick={onClick} style={rowStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 11, color: "#888", marginBottom: 2, fontFamily: "monospace" }}>
+          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 4, fontFamily: "monospace" }}>
             {row.policy_key}
           </div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 2 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: "var(--text-primary)" }}>
             {principalLabel} · {serviceLabel}
             {row.appliance_code && ` · ${row.appliance_code}`}
             {row.qty_condition && (
-              <span style={{ marginLeft: 6, fontSize: 12, color: "#FFB800" }}>
+              <span style={{ marginLeft: 6, fontSize: 11, color: "#FFB800", fontWeight: 500 }}>
                 ({row.qty_condition})
               </span>
             )}
           </div>
-          <div style={{ fontSize: 12, color: "#aaa" }}>
-            {row.calc_method} · {CALC_METHOD_DESC[row.calc_method] || ""}
+          <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+            <span style={{ color: "#FF1B8D", fontWeight: 600 }}>{row.calc_method}</span>
+            <span style={{ marginLeft: 6 }}>· {CALC_METHOD_DESC[row.calc_method] || ""}</span>
           </div>
         </div>
-        <div style={{ textAlign: "right", fontSize: 12, color: "#ccc", whiteSpace: "nowrap" }}>
-          {row.engineer_base != null && <div>기사 {row.engineer_base.toLocaleString()}원</div>}
-          {row.fee_rate != null && <div>비율 {(row.fee_rate * 100).toFixed(0)}%</div>}
-          {row.principal_fee && <div>원청 {Number(row.principal_fee).toLocaleString()}원</div>}
-          {hasFake && <div style={{ color: "#FF1B8D", fontSize: 11 }}>🔒 가짜단가</div>}
+        <div style={{ textAlign: "right", fontSize: 11, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+          {row.engineer_base != null && (
+            <div>기사 {row.engineer_base.toLocaleString()}원</div>
+          )}
+          {row.fee_rate != null && (
+            <div>비율 {(row.fee_rate * 100).toFixed(0)}%</div>
+          )}
+          {row.principal_fee && (
+            <div>원청 {Number(row.principal_fee).toLocaleString()}원</div>
+          )}
+          {hasFake && (
+            <div style={{ color: "#FF1B8D", fontSize: 10, marginTop: 2 }}>🔒 가짜단가</div>
+          )}
         </div>
       </div>
     </button>
@@ -199,43 +206,59 @@ function PolicyRow({ row, onClick }) {
 }
 
 // ============= 스타일 =============
-const btnGhost = {
-  background: "transparent",
-  border: "1px solid #2A2A2A",
-  color: "#FFF",
-  borderRadius: 8,
-  padding: "8px 12px",
-  fontSize: 13,
-  cursor: "pointer",
-  fontFamily: "inherit",
+const counterStyle = {
+  padding: "14px 16px 8px",
+  fontSize: 12,
+};
+const filterBarStyle = {
+  display: "flex", gap: 8,
+  padding: "0 16px 12px",
 };
 const selectStyle = {
-  background: "#1C1C1E",
-  border: "1px solid #2A2A2A",
-  color: "#FFF",
-  borderRadius: 8,
-  padding: "8px 10px",
-  fontSize: 13,
-  fontFamily: "inherit",
-};
-const inputStyle = {
-  background: "#1C1C1E",
-  border: "1px solid #2A2A2A",
-  color: "#FFF",
-  borderRadius: 8,
-  padding: "8px 12px",
+  flex: 1,
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
+  color: "var(--text-primary)",
+  borderRadius: 10,
+  padding: "10px 12px",
   fontSize: 13,
   fontFamily: "inherit",
   outline: "none",
 };
+const searchStyle = {
+  width: "100%",
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
+  borderRadius: 10,
+  padding: "10px 14px",
+  color: "var(--text-primary)",
+  fontSize: 13,
+  fontFamily: "inherit",
+  outline: "none",
+  boxSizing: "border-box",
+};
 const rowStyle = {
   width: "100%",
-  background: "#1C1C1E",
-  border: "1px solid #2A2A2A",
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
   borderRadius: 10,
   padding: "12px 14px",
+  marginBottom: 8,
   cursor: "pointer",
   textAlign: "left",
   fontFamily: "inherit",
-  color: "#FFF",
+};
+const emptyStyle = {
+  textAlign: "center",
+  padding: 40,
+  color: "var(--text-secondary)",
+  fontSize: 13,
+};
+const errorStyle = {
+  padding: "10px 14px",
+  background: "rgba(255, 59, 92, 0.10)",
+  border: "1px solid rgba(255, 59, 92, 0.30)",
+  borderRadius: 10,
+  color: "#FF3B5C",
+  fontSize: 13,
 };
