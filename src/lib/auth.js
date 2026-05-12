@@ -50,9 +50,9 @@ export async function changePassword(userId, oldPassword, newPassword) {
   }
 
   const { data, error } = await supabase.rpc("change_password", {
-    p_user_id:      userId,
-    p_old_password: oldPassword,
-    p_new_password: newPassword,
+    p_user_id: userId,
+    p_old:     oldPassword,
+    p_new:     newPassword,
   });
 
   if (error) {
