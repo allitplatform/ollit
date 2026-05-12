@@ -43,9 +43,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_email
 UPDATE users
 SET
   email                = REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '+', '') || '@allit.internal',
-  password_hash        = crypt(
+  password_hash        = extensions.crypt(
     RIGHT(REPLACE(REPLACE(REPLACE(phone, '-', ''), ' ', ''), '+', ''), 4),
-    gen_salt('bf')
+    extensions.gen_salt('bf')
   ),
   must_change_password = true
 WHERE tenant_id = '11111111-1111-1111-1111-111111111111'
@@ -90,7 +90,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'password_not_set');
   END IF;
 
-  v_ok := (v_user.password_hash = crypt(p_password, v_user.password_hash));
+  v_ok := (v_user.password_hash = extensions.crypt(p_password, v_user.password_hash));
   IF NOT v_ok THEN
     RETURN jsonb_build_object('ok', false, 'error', 'invalid_password');
   END IF;
@@ -142,14 +142,14 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'user_not_found');
   END IF;
 
-  v_ok := (v_user.password_hash = crypt(p_old_password, v_user.password_hash));
+  v_ok := (v_user.password_hash = extensions.crypt(p_old_password, v_user.password_hash));
   IF NOT v_ok THEN
     RETURN jsonb_build_object('ok', false, 'error', 'invalid_old_password');
   END IF;
 
   UPDATE users
   SET
-    password_hash        = crypt(p_new_password, gen_salt('bf')),
+    password_hash        = extensions.crypt(p_new_password, extensions.gen_salt('bf')),
     must_change_password = false
   WHERE id = p_user_id;
 
