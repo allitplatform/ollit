@@ -4,9 +4,9 @@
 -- 범위    : 001 + 003 + 004 적용 박힌 영역 측 검증
 -- 실행    : Supabase 콘솔 → SQL Editor → 통째 붙여넣기 → Run
 -- 기대 결과:
---   tenants: 1 / principals: 7 / users: 28 / user_roles: 28
+--   tenants: 1 / principals: 7 / users: 33 / user_roles: 33
 --   service_types: 7 / appliance_types: 7 / work_types: 13
---   policies: ~62 / permissions: ~48
+--   policies: ~62 / permissions: ~60
 -- ============================================
 
 SELECT

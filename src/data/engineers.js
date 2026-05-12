@@ -14,102 +14,29 @@ import {
 
 const STORAGE_KEY = "ollit_engineers_v1";
 
+// 2026-05-12 — 대표님 시트 측 실제 명단 29명(E001~E029) 반영.
+// 옛 이름-매칭으로 workTypes/careerLevel 보존, 신규 8명(E002/E004/E022/E023/E024/E025/E026/E027/E029)은 기본값.
 const SEED_ENGINEERS = [
-  // 세척 메인 10명
   {
-    id: "yang_seungmoon", name: "양승문", phone: "010-3749-0294",
-    careerLevel: "expert", status: "active",
+    id: "E001", name: "강병익", phone: "010-9089-1726",
+    careerLevel: "career", status: "active",
     workTypes: {
-      cleaning:    { role: "main", zones: ["고양시","은평구","서대문구"], appliances: [] },
-      refrigerant: { role: "main", zones: ["은평구"], appliances: [] },
+      cleaning:    { role: "none", zones: [], appliances: [] },
+      refrigerant: { role: "main", zones: ["동작구","영등포구"], appliances: [] },
     },
     note: "",
   },
   {
-    id: "kim_yunseop", name: "김윤섭", phone: "010-2063-4980",
-    careerLevel: "expert", status: "active",
+    id: "E002", name: "구현서", phone: "010-7372-3524",
+    careerLevel: "career", status: "active",
     workTypes: {
-      cleaning:    { role: "main", zones: ["마포구","용산구","중구"], appliances: [] },
-      refrigerant: { role: "main", zones: ["용산구","중구"], appliances: [] },
-    },
-    note: "",
-  },
-  {
-    id: "jung_sanghyun", name: "정상현", phone: "010-2273-0976",
-    careerLevel: "expert", status: "active",
-    workTypes: {
-      cleaning:    { role: "main", zones: ["종로구","성북구","동대문구"], appliances: [] },
-      refrigerant: { role: "main", zones: ["강북구","도봉구","노원구"], appliances: [] },
-    },
-    note: "",
-  },
-  {
-    id: "an_seungwoong", name: "안승웅", phone: "010-5399-3651",
-    careerLevel: "expert", status: "active",
-    workTypes: {
-      cleaning:    { role: "main", zones: ["성동구","광진구","중랑구"], appliances: [] },
-      refrigerant: { role: "main", zones: ["성동구","광진구"], appliances: [] },
-    },
-    note: "",
-  },
-  {
-    id: "kim_youngsoo", name: "김영수", phone: "010-2635-5772",
-    careerLevel: "expert", status: "active",
-    workTypes: {
-      cleaning:    { role: "main", zones: ["의정부","구리","남양주","양주"], appliances: [] },
-      refrigerant: { role: "main", zones: ["동대문구","중랑구"], appliances: [] },
-    },
-    note: "",
-  },
-  {
-    id: "kim_hyundong", name: "김현동", phone: "",
-    careerLevel: "expert", status: "active",
-    workTypes: {
-      cleaning:    { role: "main", zones: ["강북구","도봉구","노원구"], appliances: [] },
+      cleaning:    { role: "none", zones: [], appliances: [] },
       refrigerant: { role: "none", zones: [], appliances: [] },
     },
     note: "",
   },
   {
-    id: "lim_jongil", name: "임종일", phone: "",
-    careerLevel: "expert", status: "active",
-    workTypes: {
-      cleaning:    { role: "main", zones: ["동작구","관악구","시흥시"], appliances: [] },
-      refrigerant: { role: "none", zones: [], appliances: [] },
-    },
-    note: "",
-  },
-  {
-    id: "ryu_geunhak", name: "류근학", phone: "",
-    careerLevel: "expert", status: "active",
-    workTypes: {
-      cleaning:    { role: "main", zones: ["서초구","강남구","용인","하남"], appliances: [] },
-      refrigerant: { role: "none", zones: [], appliances: [] },
-    },
-    note: "",
-  },
-  {
-    id: "jung_hoon", name: "정훈", phone: "010-2143-9620",
-    careerLevel: "expert", status: "active",
-    workTypes: {
-      cleaning:    { role: "main", zones: ["송파구","강동구","용인","하남"], appliances: [] },
-      refrigerant: { role: "main", zones: ["서초구","강남구"], appliances: [] },
-    },
-    note: "",
-  },
-  {
-    id: "jeon_hyunjin", name: "전현진", phone: "010-7764-4402",
-    careerLevel: "expert", status: "active",
-    workTypes: {
-      cleaning:    { role: "main", zones: ["양천구","구로구","금천구","강서구"], appliances: [] },
-      refrigerant: { role: "main", zones: ["강서구","양천구","구로구"], appliances: [] },
-    },
-    note: "",
-  },
-
-  // 벽걸이 전문가 2명
-  {
-    id: "kwon_changyong", name: "권창용", phone: "",
+    id: "E003", name: "권창용", phone: "010-7277-5157",
     careerLevel: "expert", status: "active",
     workTypes: {
       cleaning:    { role: "backup", zones: [], appliances: ["벽걸이"] },
@@ -118,54 +45,25 @@ const SEED_ENGINEERS = [
     note: "벽걸이 전문",
   },
   {
-    id: "lee_sangjun", name: "이상준", phone: "010-4729-8079",
+    id: "E004", name: "김경호", phone: "010-9576-1048",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "none", zones: [], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E005", name: "김동효", phone: "010-9238-0412",
     careerLevel: "expert", status: "active",
     workTypes: {
-      cleaning:    { role: "backup", zones: [], appliances: ["벽걸이"] },
-      refrigerant: { role: "main", zones: ["종로구","성북구"], appliances: [] },
-    },
-    note: "",
-  },
-
-  // 세척 백업 + 냉매 메인 6명
-  {
-    id: "kim_jaehyun", name: "김재현", phone: "",
-    careerLevel: "rookie", status: "active",
-    workTypes: {
-      cleaning:    { role: "backup", zones: [], appliances: ["벽걸이"] },
-      refrigerant: { role: "none", zones: [], appliances: [] },
-    },
-    note: "신입 / 벽걸이 가능",
-  },
-  {
-    id: "kim_taeseung", name: "김태승", phone: "010-8185-9700",
-    careerLevel: "career", status: "active",
-    workTypes: {
-      cleaning:    { role: "backup", zones: ["서대문구","중구"], appliances: [] },
-      refrigerant: { role: "main", zones: ["마포구","서대문구"], appliances: [] },
+      cleaning:    { role: "backup", zones: ["관악구","동작구","시흥시","금천구","강서구"], appliances: [] },
+      refrigerant: { role: "main", zones: ["송파구","강동구"], appliances: [] },
     },
     note: "",
   },
   {
-    id: "moon_seongmok", name: "문성목", phone: "",
-    careerLevel: "career", status: "active",
-    workTypes: {
-      cleaning:    { role: "backup", zones: ["성동구","광진구","중랑구"], appliances: [] },
-      refrigerant: { role: "none", zones: [], appliances: [] },
-    },
-    note: "",
-  },
-  {
-    id: "son_dongsik", name: "손동식", phone: "",
-    careerLevel: "career", status: "active",
-    workTypes: {
-      cleaning:    { role: "backup", zones: ["고양시","은평구"], appliances: [] },
-      refrigerant: { role: "none", zones: [], appliances: [] },
-    },
-    note: "",
-  },
-  {
-    id: "kim_byeongchul", name: "김병철", phone: "",
+    id: "E006", name: "김병철", phone: "010-9836-9839",
     careerLevel: "career", status: "active",
     workTypes: {
       cleaning:    { role: "backup", zones: ["남양주","구리","의정부"], appliances: [] },
@@ -174,18 +72,196 @@ const SEED_ENGINEERS = [
     note: "",
   },
   {
-    id: "kim_donghyo", name: "김동효", phone: "010-9238-0412",
+    id: "E007", name: "김영수", phone: "010-2635-5772",
     careerLevel: "expert", status: "active",
     workTypes: {
-      cleaning:    { role: "backup", zones: ["관악구","동작구","시흥시","금천구","강서구"], appliances: [] },
-      refrigerant: { role: "main", zones: ["송파구","강동구"], appliances: [] },
+      cleaning:    { role: "main", zones: ["의정부","구리","남양주","양주"], appliances: [] },
+      refrigerant: { role: "main", zones: ["동대문구","중랑구"], appliances: [] },
     },
     note: "",
   },
-
-  // 냉매 전용 2명
   {
-    id: "byun_kihyun", name: "변기현", phone: "010-6351-8818",
+    id: "E008", name: "김윤섭", phone: "010-2063-4980",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "main", zones: ["마포구","용산구","중구"], appliances: [] },
+      refrigerant: { role: "main", zones: ["용산구","중구"], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E009", name: "김재현", phone: "010-2983-8814",
+    careerLevel: "rookie", status: "active",
+    workTypes: {
+      cleaning:    { role: "backup", zones: [], appliances: ["벽걸이"] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "신입 / 벽걸이 가능",
+  },
+  {
+    id: "E010", name: "김태승", phone: "010-8185-9700",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "backup", zones: ["서대문구","중구"], appliances: [] },
+      refrigerant: { role: "main", zones: ["마포구","서대문구"], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E011", name: "김현동", phone: "010-5057-2312",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "main", zones: ["강북구","도봉구","노원구"], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E012", name: "문성목", phone: "010-9397-8940",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "backup", zones: ["성동구","광진구","중랑구"], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E013", name: "손동식", phone: "010-9213-7040",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "backup", zones: ["고양시","은평구"], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E014", name: "안승웅", phone: "010-5399-3651",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "main", zones: ["성동구","광진구","중랑구"], appliances: [] },
+      refrigerant: { role: "main", zones: ["성동구","광진구"], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E015", name: "양승문", phone: "010-3749-0294",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "main", zones: ["고양시","은평구","서대문구"], appliances: [] },
+      refrigerant: { role: "main", zones: ["은평구"], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E016", name: "류근학", phone: "010-4233-8586",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "main", zones: ["서초구","강남구","용인","하남"], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E017", name: "이상준", phone: "010-4729-8079",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "backup", zones: [], appliances: ["벽걸이"] },
+      refrigerant: { role: "main", zones: ["종로구","성북구"], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E018", name: "임종일", phone: "010-3035-3766",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "main", zones: ["동작구","관악구","시흥시"], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E019", name: "전현진", phone: "010-7764-4402",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "main", zones: ["양천구","구로구","금천구","강서구"], appliances: [] },
+      refrigerant: { role: "main", zones: ["강서구","양천구","구로구"], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E020", name: "정상현", phone: "010-2273-0976",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "main", zones: ["종로구","성북구","동대문구"], appliances: [] },
+      refrigerant: { role: "main", zones: ["강북구","도봉구","노원구"], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E021", name: "정훈", phone: "010-2143-9620",
+    careerLevel: "expert", status: "active",
+    workTypes: {
+      cleaning:    { role: "main", zones: ["송파구","강동구","용인","하남"], appliances: [] },
+      refrigerant: { role: "main", zones: ["서초구","강남구"], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E022", name: "조동욱", phone: "010-9447-1547",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "none", zones: [], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E023", name: "이세환", phone: "010-3077-2388",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "none", zones: [], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E024", name: "신경일", phone: "010-7144-4291",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "none", zones: [], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E025", name: "김만수", phone: "010-2194-7634",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "none", zones: [], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E026", name: "김근욱", phone: "010-4212-6826",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "none", zones: [], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E027", name: "안민철", phone: "010-3226-7704",
+    careerLevel: "career", status: "active",
+    workTypes: {
+      cleaning:    { role: "none", zones: [], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
+    },
+    note: "",
+  },
+  {
+    id: "E028", name: "변기현", phone: "010-6351-8818",
     careerLevel: "career", status: "active",
     workTypes: {
       cleaning:    { role: "none", zones: [], appliances: [] },
@@ -194,11 +270,11 @@ const SEED_ENGINEERS = [
     note: "",
   },
   {
-    id: "kang_byeongik", name: "강병익", phone: "010-9089-1726",
+    id: "E029", name: "신은용", phone: "010-8879-8596",
     careerLevel: "career", status: "active",
     workTypes: {
       cleaning:    { role: "none", zones: [], appliances: [] },
-      refrigerant: { role: "main", zones: ["동작구","영등포구"], appliances: [] },
+      refrigerant: { role: "none", zones: [], appliances: [] },
     },
     note: "",
   },
