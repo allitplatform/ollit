@@ -405,38 +405,6 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
           }}>+ 단가 행 추가</button>
         </Section>
 
-        {/* Phase 3-6-add — 계좌 정보 (관리자 직접 입력 가능) */}
-        {/* 기사 본인은 EngineerApp 내정보 탭 측 EngineerAccountEditScreen에서도 변경 가능 */}
-        <Section label="계좌 정보 (선택)">
-          <Field label="은행">
-            <input
-              type="text" placeholder="예: 카카오뱅크 / KB국민은행 / 토스뱅크"
-              value={form.bankName || ""}
-              onChange={(e) => updateField("bankName", e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
-          <Field label="계좌번호">
-            <input
-              type="text" placeholder="000-000-000000"
-              value={form.accountNumber || ""}
-              onChange={(e) => updateField("accountNumber", e.target.value.replace(/[^0-9-]/g, ""))}
-              style={inputStyle}
-            />
-          </Field>
-          <Field label="예금주">
-            <input
-              type="text" placeholder="기사 본인 이름"
-              value={form.accountHolder || ""}
-              onChange={(e) => updateField("accountHolder", e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
-          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6, lineHeight: 1.5 }}>
-            * 정산 시 사용. 기사 본인이 내정보 탭에서도 변경 가능합니다.
-          </div>
-        </Section>
-
         {/* 메모 */}
         <Section label="메모 (선택)">
           <textarea
