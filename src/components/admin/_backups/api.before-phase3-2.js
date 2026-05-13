@@ -61,15 +61,28 @@ export async function getSystemInfo() {
   return apiCall('systemInfo');
 }
 
-// =====================================
-// 로그인 / 비밀번호 변경
-// Phase 3-2 (2026-05-13) — 시트 로그인 함수 폐기.
-//   - login / loginV14 / changePasswordV14 삭제됨 (호출처 0건 확인 후 정리).
-//   - 대체: src/lib/auth.js
-//     · signInWithPhone(phone, password) — sign_in_with_phone RPC
-//     · changePassword(userId, oldPassword, newPassword) — change_password RPC
-//   - 실 사용 화면: src/components/LoginScreen.jsx, src/components/PasswordChangeScreen.jsx
-// =====================================
+export async function login(userId, password) {
+  return apiCall('login', { userId, password });
+}
+
+// V14 Phase 4-C — 폰번호 + 4자리 비번 로그인 (시트 사용자 시트 read)
+// 입력: phone (11자리 숫자, 하이픈 박지 X) + password (4자리 숫자 / 또는 변경 박은 긴 비번)
+// 응답: { ok, users: [{ userId, name, role, phone, passwordChanged, ... }, ...], error }
+//   - users.length === 1 → 바로 로그인
+//   - users.length > 1  → 역할 선택 모달 (Fix 3 박을 차례 / 다음 step)
+//   - users.length === 0 또는 ok=false → 에러
+export async function loginV14(phone, password) {
+  return apiCall('loginV14', { phone, password });
+}
+
+// V14 Phase 4-E-1 — 강제 비밀번호 변경 (첫 로그인)
+// 입력: userId / oldPw (현재 비번 = F열 일치 검사용) / newPw (4~16자)
+// 응답: { ok, error }
+//   - ok=true → F열 갱신 + G열(비번변경여부) true 갱신
+//   - ok=false → 옛 비번 불일치 / 길이 위반 / userId 미존재 등
+export async function changePasswordV14(userId, oldPw, newPw) {
+  return apiCall('changePasswordV14', { userId, oldPw, newPw });
+}
 
 export async function getTasks(role, userId, principalCode) {
   return apiCall('getTasks', { role, userId, principalCode });
