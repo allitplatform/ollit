@@ -310,12 +310,25 @@ export async function completeTask(taskId, photoBase64Array) {
 }
 
 // =====================================
-// 휴무
-// Phase 3-5 (2026-05-13) — 시트 휴무 호출 폐기.
-//   - getOffDays / getOffDaysByDate / addOffDay / deleteOffDay 삭제됨.
-//     · getOffDaysByDate 호출처 0건 → 신규 모듈에 만들지 않음.
-//   - 대체: src/lib/offDaysDb.js
-//     · getOffDays(engineer) / addOffDay({...}) / deleteOffDay(offId)
-//   - DB user_off_days 테이블 직접 사용
-//   - engineerName → user_id 매핑은 모듈 내부 Map 캐시
+// 휴무 API ⭐ NEW
 // =====================================
+
+// 한 기사의 모든 휴무 조회
+export async function getOffDays(engineer) {
+  return apiCall('getOffDays', { engineer });
+}
+
+// 특정 날짜의 모든 기사 휴무 (해피콜 추천 시)
+export async function getOffDaysByDate(date) {
+  return apiCall('getOffDaysByDate', { date });
+}
+
+// 휴무 추가
+export async function addOffDay({ engineer, type, date, startTime, endTime, memo }) {
+  return apiCall('addOffDay', { engineer, type, date, startTime, endTime, memo });
+}
+
+// 휴무 삭제
+export async function deleteOffDay(offId) {
+  return apiCall('deleteOffDay', { offId });
+}
