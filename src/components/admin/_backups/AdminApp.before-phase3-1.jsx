@@ -57,12 +57,13 @@ import { RatesManagementScreen } from "../components/RatesManagementScreen.jsx";
 import { CommissionPolicyManagement } from "../components/admin/CommissionPolicyManagement.jsx";
 import { createEmptyPrincipal } from "../data/principals.js";
 // V14 Week 1 1F + 2A + 2B-3 — 진짜 API (시뮬 createTask + 시뮬 22건 + RecommendScreen 폐기)
-// Phase 3-1 — 정책 호출은 DB (commissionPoliciesDb.js) 측 어댑터 사용. 시트 calculateFee / getAllPolicies 폐기.
 import {
   createTask as apiCreateTask,
+  calculateFee as apiCalculateFee,
   getTasks as apiGetTasks,
   getEngineers as apiGetEngineers,
   getPrincipals as apiGetPrincipals,
+  getAllPolicies as apiGetAllPolicies,
   getEngineerRates as apiGetEngineerRates,
   getEngineerSkills as apiGetEngineerSkills,
   getUsers as apiGetUsers,
@@ -73,10 +74,6 @@ import {
   rejectCancel as apiRejectCancel,
   invalidateRecommendCache,
 } from "../api.js";
-import {
-  calculateFeeCompat,
-  listPoliciesSheetShape,
-} from "../lib/commissionPoliciesDb.js";
 
 // 🚀 Phase 1-B 2-E ─ 실시간 새로고침 hook
 import { useRealtime } from "../hooks/useRealtime.js";
@@ -1722,21 +1719,20 @@ export default function AdminApp({ user, onLogout }) {
   }
   useEffect(() => { fetchEngineerRates(); }, []);
 
-  // Phase 3-1 — 정책 캐시 (시트 → DB 전환).
-  // listPoliciesSheetShape 측 옛 sheet 형태로 변환된 row 반환 → engineers.js._findInPoliciesCache 호환 유지.
+  // Step 5-3 — 시트 _수수료정책 read 캐시 (속도 ↑)
   const POLICIES_CACHE_KEY = "ollit_policies_cache_v1";
   async function fetchAllPolicies() {
     try {
-      const res = await listPoliciesSheetShape();
+      const res = await apiGetAllPolicies();
       if (!res || res.ok === false) return;
-      const list = res.policies || [];
+      const list = res.policies || res.data || res.list || res.rows || [];
       if (!Array.isArray(list) || list.length === 0) return;
       try {
         localStorage.setItem(POLICIES_CACHE_KEY, JSON.stringify(list));
       } catch (e) { /* 저장 실패 시 무시 */ }
-      console.log('[Phase 3-1] policies(DB):', list.length, '행');
+      console.log('[V14 Step 5-3] policies:', list.length, '행');
     } catch (e) {
-      console.error('[Phase 3-1] fetchAllPolicies 에러:', e);
+      console.error('[V14 Step 5-3] fetchAllPolicies 에러:', e);
     }
   }
   useEffect(() => { fetchAllPolicies(); }, []);
@@ -7183,8 +7179,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     setFeeError("");
     const timer = setTimeout(async () => {
       try {
-        // Phase 3-1 — DB RPC (calculate_commission) 측 어댑터 호출. 응답 형태는 옛 calculateFee와 동일.
-        const res = await calculateFeeCompat(form.principal, head.workType, callAppliance, form.estimateTotal);
+        const res = await apiCalculateFee(form.principal, head.workType, callAppliance, form.estimateTotal);
         if (res.ok) {
           setFeePreview(res);
         } else {
