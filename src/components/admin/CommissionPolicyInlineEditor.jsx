@@ -87,12 +87,9 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
     setModifiedMap(prev => {
       const next = { ...prev };
       const cur = { ...(next[policyId] || {}) };
-
-      // 원본 박은 영역 박은 영역 박은 영역 → patch 박지 X (revert)
-      // 박힌 영역 박은 영역 박을 영역 박을 영역 박은 영역 — 정밀한 비교 박지 X / 단순 박은 영역
       cur[field] = newValue;
 
-      // 박힌 영역 박을 영역 박은 영역 박은 영역 박은 영역 (옛 박은 영역 박은 영역)
+      // 원본 박은 영역 박은 영역 박은 영역 → patch 박지 X (revert)
       const origValue = originalPolicy[field];
       const isSame = (cur[field] === origValue) ||
                      (cur[field] != null && origValue != null && Number(cur[field]) === Number(origValue));
@@ -105,6 +102,8 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
       } else {
         next[policyId] = cur;
       }
+      // 디버그 로그
+      console.log("[PolicyEdit] change", { policyId, field, newValue, origValue, isSame, modifiedCount: Object.keys(next).length });
       return next;
     });
   };
@@ -163,10 +162,14 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
         })}
       </div>
 
-      {/* 변경 카운터 */}
+      {/* 변경 카운터 — sticky 강조 박은 영역 */}
       {modifiedCount > 0 && (
         <div style={modifiedNoticeStyle}>
-          📝 변경된 정책 <strong style={{ color: "#FFB800" }}>{modifiedCount}</strong>건 — 저장 박을 영역 박을 영역
+          <span style={{ fontSize: 18 }}>📝</span>
+          <span>
+            변경된 정책 <strong style={{ color: "#FF1B8D", fontSize: 16 }}>{modifiedCount}</strong>건 —
+            <strong style={{ color: "#FF1B8D" }}> 저장 버튼</strong> 박은 영역 박을 영역
+          </span>
         </div>
       )}
 
@@ -205,19 +208,29 @@ function PolicyEditCard({ policy, original, isModified, onChange }) {
   return (
     <div style={{
       ...cardStyle,
-      borderColor: isModified ? "#FFB800" : "var(--border)",
+      border: isModified ? "2px solid #FF1B8D" : "1px solid var(--border)",
+      background: isModified ? "rgba(255, 27, 141, 0.06)" : "var(--bg-secondary)",
+      padding: isModified ? "11px 13px" : "12px 14px",  // border 박은 영역 박은 영역 박은 영역
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8, marginBottom: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
-            {policy.appliance_code || "(전체)"}
+          <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+            <span>{policy.appliance_code || "(전체)"}</span>
             {qtyLabel && (
-              <span style={{ marginLeft: 6, fontSize: 11, color: "#FFB800", fontWeight: 500 }}>
+              <span style={{ fontSize: 11, color: "#FFB800", fontWeight: 500 }}>
                 ({qtyLabel})
               </span>
             )}
             {isModified && (
-              <span style={{ marginLeft: 6, color: "#FFB800" }}>●</span>
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 4,
+                background: "#FF1B8D", color: "#FFF",
+                fontSize: 10, fontWeight: 700,
+                padding: "2px 8px", borderRadius: 10,
+                letterSpacing: 0.3,
+              }}>
+                ● 수정됨
+              </span>
             )}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
@@ -342,13 +355,22 @@ const tabBarStyle = {
   WebkitOverflowScrolling: "touch",
 };
 const modifiedNoticeStyle = {
-  padding: "8px 12px",
-  background: "rgba(255, 184, 0, 0.10)",
-  border: "1px solid rgba(255, 184, 0, 0.30)",
-  borderRadius: 8,
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  padding: "12px 14px",
+  background: "rgba(255, 27, 141, 0.12)",
+  border: "2px solid #FF1B8D",
+  borderRadius: 10,
   color: "var(--text-primary)",
-  fontSize: 12,
-  marginBottom: 8,
+  fontSize: 13,
+  fontWeight: 600,
+  marginBottom: 12,
+  marginTop: 8,
+  position: "sticky",
+  top: 0,
+  zIndex: 5,
+  backdropFilter: "blur(4px)",
 };
 const cardStyle = {
   background: "var(--bg-secondary)",
