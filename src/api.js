@@ -127,26 +127,27 @@ export async function parseKakao(text) {
 // =====================================
 
 // =====================================
-// V14 Step 5-5 — 설정_기사역량 read 캐시 (5-5-A)
+// 기사 역량
+// Phase 3-9 (2026-05-13) — 시트 기사역량 호출 폐기.
+//   - getEngineerSkills / saveEngineerSkill / deleteEngineerSkill 삭제됨.
+//   - 대체: src/lib/engineerSkillsDb.js
+//     · listEngineerSkillsFromDb() — epp + ez JOIN → 시트 호환 shape (users.code 포함)
+//     · upsertEngineerSkillToDb(payload) — epp 3중 키 upsert + ez user_id 단위 전체 교체
+//     · deleteEngineerSkillFromDb(payload) — epp 3중 키 hard DELETE (ez는 보존)
+//   - 저장소: engineer_principal_permissions (36행) + engineer_zones (70행)
+//   - 매핑:
+//     · PWA engineerId("E001") → users.code → users.id (UUID FK)
+//     · PWA principal "(전체)"/"전체"/"" ↔ DB principal_code NULL
+//     · PWA workType "세척"/"냉매충전" ↔ DB service_code "cleaning"/"refrigerant"
+//     · PWA grade "메인"/"백업" ↔ DB level "main"/"sub"
+//     · PWA grade "안 함" → 호출처에서 deleteEngineerSkillWithSync로 분기
+//     · PWA zones 콤마 string ↔ DB engineer_zones 분리 행 (user 단위 단일 세트)
+//     · PWA appliances → DB 컬럼 없음 (localStorage만 유지)
+//   - RLS: epp / ez 모두 anon SELECT/INSERT/UPDATE/DELETE 정책 박혀있음 (사전 확인 완료)
+//   - data/engineers.js 측 saveEngineerSkillWithSync / deleteEngineerSkillWithSync 내부만 교체
+//   - AdminApp.jsx 측 fetchEngineerSkills 내부 한 줄 교체
+//     (시그니처 / 응답 형태 동일 — EngineerEditScreen 변경 0)
 // =====================================
-// 시트 5열: A 기사ID / B 원청 / C 작업유형 / D 지역 (콤마/"전국") / E 등급
-export async function getEngineerSkills() {
-  return apiCall('getEngineerSkills', {});
-}
-
-// V14 Step 5-5-C Phase 2 — 설정_기사역량 양방향 sync
-// payload: { engineerId, principal, workType, zones (콤마 string), grade, note? }
-// upsert 키 (3중): engineerId + principal + workType
-// 응답: { ok, action: 'create'|'update', engineerId, principal, workType }
-export async function saveEngineerSkill(payload) {
-  return apiCall('saveEngineerSkill', payload);
-}
-
-// 시트 행 삭제
-// payload: { engineerId, principal, workType }
-export async function deleteEngineerSkill(payload) {
-  return apiCall('deleteEngineerSkill', payload);
-}
 
 // =====================================
 // 회사 계좌

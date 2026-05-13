@@ -6,11 +6,8 @@
 // Phase 3-6 — 기사 마스터 시트 호출 폐기. DB 직접 사용 (src/lib/engineersDb.js).
 // 함수명 / 시그니처 유지 — 10곳 호출처 동기 read 패턴 그대로.
 // Phase 3-8 (2026-05-13) — 기사 단가 시트 호출 폐기. DB 직접 사용 (src/lib/engineerRatesDb.js).
-// engineer_skills 시트 함수는 별도 단계에서 정리 예정.
-import {
-  saveEngineerSkill as apiSaveEngineerSkill,
-  deleteEngineerSkill as apiDeleteEngineerSkill,
-} from "../api.js";
+// Phase 3-9 (2026-05-13) — 기사 역량 시트 호출 폐기.
+//   epp (engineer_principal_permissions) + ez (engineer_zones) 직접 사용 (src/lib/engineerSkillsDb.js).
 import {
   upsertEngineerToDb,
   deleteEngineerFromDb,
@@ -19,6 +16,10 @@ import {
   upsertEngineerRateToDb,
   deleteEngineerRateFromDb,
 } from "../lib/engineerRatesDb.js";
+import {
+  upsertEngineerSkillToDb,
+  deleteEngineerSkillFromDb,
+} from "../lib/engineerSkillsDb.js";
 
 const STORAGE_KEY = "ollit_engineers_v1";
 
@@ -868,11 +869,11 @@ export async function saveEngineerSkillWithSync(payload) {
   else               cache.push(cacheRow);
   setEngineerSkillsCache(cache);
 
-  // 3) GAS sync
+  // 3) DB sync (Phase 3-9 — epp upsert + ez 전체 교체)
   try {
-    const res = await apiSaveEngineerSkill(norm);
+    const res = await upsertEngineerSkillToDb(norm);
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || "시트 sync 실패");
+      throw new Error((res && res.error) || "DB sync 실패");
     }
     return { ok: true, action: res.action || "update" };
   } catch (e) {
@@ -899,15 +900,15 @@ export async function deleteEngineerSkillWithSync(payload) {
   ));
   setEngineerSkillsCache(newCache);
 
-  // 3) GAS sync
+  // 3) DB sync (Phase 3-9 — epp 행 hard DELETE / ez는 보존)
   try {
-    const res = await apiDeleteEngineerSkill({
+    const res = await deleteEngineerSkillFromDb({
       engineerId: norm.engineerId,
       principal:  norm.principal,
       workType:   norm.workType,
     });
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || "시트 sync 실패");
+      throw new Error((res && res.error) || "DB sync 실패");
     }
     return { ok: true };
   } catch (e) {

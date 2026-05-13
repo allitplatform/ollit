@@ -62,7 +62,6 @@ import { createEmptyPrincipal } from "../data/principals.js";
 import {
   createTask as apiCreateTask,
   getTasks as apiGetTasks,
-  getEngineerSkills as apiGetEngineerSkills,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
   updateTask as apiUpdateTask,
@@ -71,6 +70,7 @@ import {
   invalidateRecommendCache,
 } from "../api.js";
 import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
+import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import {
   calculateFeeCompat,
   listPoliciesSheetShape,
@@ -1692,17 +1692,17 @@ export default function AdminApp({ user, onLogout }) {
   }
   useEffect(() => { fetchUsers(); }, []);
 
-  // Step 5-5 — 시트 설정_기사역량 read 캐시 (5-5-A / read만)
+  // Phase 3-9 — engineer_principal_permissions + engineer_zones DB fetch + 캐시
   async function fetchEngineerSkills() {
     try {
-      const res = await apiGetEngineerSkills();
+      const res = await listEngineerSkillsFromDb();
       if (!res || res.ok === false) return;
-      const list = res.skills || res.engineerSkills || res.data || res.list || res.rows || [];
+      const list = res.skills || [];
       if (!Array.isArray(list)) return;
       setEngineerSkillsCache(list);
-      console.log('[V14 Step 5-5] engineer skills:', list.length, '행');
+      console.log('[Phase 3-9] engineer skills:', list.length, '행');
     } catch (e) {
-      console.error('[V14 Step 5-5] fetchEngineerSkills 에러:', e);
+      console.error('[Phase 3-9] fetchEngineerSkills 에러:', e);
     }
   }
   useEffect(() => { fetchEngineerSkills(); }, []);
