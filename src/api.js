@@ -111,28 +111,20 @@ export async function parseKakao(text) {
 // =====================================
 
 // =====================================
-// V14 Step 5-4 — 설정_기사단가 양방향 sync (P4 신규 모델)
+// 기사 단가
+// Phase 3-8 (2026-05-13) — 시트 기사단가 호출 폐기.
+//   - getEngineerRates / saveEngineerRate / deleteEngineerRate 삭제됨.
+//   - 대체: src/lib/engineerRatesDb.js
+//     · listEngineerRatesFromDb() — engineer_rates 전체 조회 (users JOIN으로 code 포함)
+//     · upsertEngineerRateToDb(payload) — 3중 키 (user_id, work_type, appliance_code) upsert
+//     · deleteEngineerRateFromDb(payload) — 3중 키 hard DELETE
+//   - 저장소: engineer_rates 테이블 (db/migrations/012_engineer_rates.sql)
+//   - 매핑: PWA engineerId("E001") → users.code → users.id (UUID FK)
+//   - RLS: tenant 격리 + anon 4개 정책 (SELECT/INSERT/UPDATE/DELETE)
+//   - data/engineers.js 측 saveEngineerRateWithSync / deleteEngineerRateWithSync 내부만 교체
+//   - AdminApp.jsx 측 fetchEngineerRates 내부 한 줄 교체
+//     (시그니처 / 응답 형태 동일 — EngineerEditScreen 변경 0)
 // =====================================
-// 시트 5열: A 기사ID / B 작업유형 / C 기종 / D 단가 / E 비고
-// upsert 키 (3중): engineerId + workType + applianceType
-
-// 시트 read — 모든 행 catch
-export async function getEngineerRates() {
-  return apiCall('getEngineerRates', {});
-}
-
-// 시트 행 upsert
-// payload: { engineerId, workType, applianceType, rate, note }
-// 응답: { ok, action: 'create'|'update', engineerId, workType, applianceType }
-export async function saveEngineerRate(payload) {
-  return apiCall('saveEngineerRate', payload);
-}
-
-// 시트 행 삭제
-// payload: { engineerId, workType, applianceType }
-export async function deleteEngineerRate(payload) {
-  return apiCall('deleteEngineerRate', payload);
-}
 
 // =====================================
 // V14 Step 5-5 — 설정_기사역량 read 캐시 (5-5-A)

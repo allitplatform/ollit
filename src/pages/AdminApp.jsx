@@ -62,7 +62,6 @@ import { createEmptyPrincipal } from "../data/principals.js";
 import {
   createTask as apiCreateTask,
   getTasks as apiGetTasks,
-  getEngineerRates as apiGetEngineerRates,
   getEngineerSkills as apiGetEngineerSkills,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
@@ -71,6 +70,7 @@ import {
   rejectCancel as apiRejectCancel,
   invalidateRecommendCache,
 } from "../api.js";
+import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
 import {
   calculateFeeCompat,
   listPoliciesSheetShape,
@@ -1707,17 +1707,17 @@ export default function AdminApp({ user, onLogout }) {
   }
   useEffect(() => { fetchEngineerSkills(); }, []);
 
-  // Step 5-4 — 시트 설정_기사단가 fetch + 캐시
+  // Phase 3-8 — engineer_rates DB fetch + 캐시 (시트 호출 폐기)
   async function fetchEngineerRates() {
     try {
-      const res = await apiGetEngineerRates();
+      const res = await listEngineerRatesFromDb();
       if (!res || res.ok === false) return;
-      const list = res.rates || res.engineerRates || res.data || res.list || res.rows || [];
+      const list = res.rates || [];
       if (!Array.isArray(list)) return;
       setEngineerRatesCache(list);
-      console.log('[V14 Step 5-4] engineer rates:', list.length, '행');
+      console.log('[Phase 3-8] engineer rates:', list.length, '행');
     } catch (e) {
-      console.error('[V14 Step 5-4] fetchEngineerRates 에러:', e);
+      console.error('[Phase 3-8] fetchEngineerRates 에러:', e);
     }
   }
   useEffect(() => { fetchEngineerRates(); }, []);

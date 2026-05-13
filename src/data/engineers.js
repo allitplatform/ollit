@@ -5,10 +5,9 @@
 
 // Phase 3-6 — 기사 마스터 시트 호출 폐기. DB 직접 사용 (src/lib/engineersDb.js).
 // 함수명 / 시그니처 유지 — 10곳 호출처 동기 read 패턴 그대로.
-// engineer_rates / engineer_skills 시트 함수는 Phase 3-7 등 별도 단계에서 정리 예정.
+// Phase 3-8 (2026-05-13) — 기사 단가 시트 호출 폐기. DB 직접 사용 (src/lib/engineerRatesDb.js).
+// engineer_skills 시트 함수는 별도 단계에서 정리 예정.
 import {
-  saveEngineerRate as apiSaveEngineerRate,
-  deleteEngineerRate as apiDeleteEngineerRate,
   saveEngineerSkill as apiSaveEngineerSkill,
   deleteEngineerSkill as apiDeleteEngineerSkill,
 } from "../api.js";
@@ -16,6 +15,10 @@ import {
   upsertEngineerToDb,
   deleteEngineerFromDb,
 } from "../lib/engineersDb.js";
+import {
+  upsertEngineerRateToDb,
+  deleteEngineerRateFromDb,
+} from "../lib/engineerRatesDb.js";
 
 const STORAGE_KEY = "ollit_engineers_v1";
 
@@ -687,11 +690,11 @@ export async function saveEngineerRateWithSync(payload) {
   else          local.push({ ...payload });
   _saveLocalEngineerRates(local);
 
-  // 2) GAS sync
+  // 2) DB sync (Phase 3-8 — engineer_rates upsert)
   try {
-    const res = await apiSaveEngineerRate(payload);
+    const res = await upsertEngineerRateToDb(payload);
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || "시트 sync 실패");
+      throw new Error((res && res.error) || "DB sync 실패");
     }
     return { ok: true, action: res.action || "update" };
   } catch (e) {
@@ -708,11 +711,11 @@ export async function deleteEngineerRateWithSync(payload) {
   const next = local.filter(r => !_sameRateKey(r, payload));
   _saveLocalEngineerRates(next);
 
-  // 2) GAS sync
+  // 2) DB sync (Phase 3-8 — engineer_rates delete)
   try {
-    const res = await apiDeleteEngineerRate(payload);
+    const res = await deleteEngineerRateFromDb(payload);
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || "시트 sync 실패");
+      throw new Error((res && res.error) || "DB sync 실패");
     }
     return { ok: true };
   } catch (e) {
