@@ -4,7 +4,14 @@
 // 박지 X (immutable): id / tenant_id / category_id / policy_key
 
 import { useState } from "react";
-import { updateCommissionPolicy, PRINCIPAL_LABEL, SERVICE_LABEL, CALC_METHOD_DESC } from "../../lib/commissionPoliciesDb.js";
+import {
+  updateCommissionPolicy,
+  PRINCIPAL_LABEL,
+  SERVICE_LABEL,
+  CALC_METHOD_LABEL,
+  CALC_METHOD_DESC,
+  QTY_LABEL,
+} from "../../lib/commissionPoliciesDb.js";
 
 export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
   const [engineerBase, setEngineerBase] = useState(policy.engineer_base ?? "");
@@ -21,12 +28,12 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
       const patch = {};
       if (engineerBase !== "" && engineerBase !== policy.engineer_base) {
         const n = parseInt(engineerBase, 10);
-        if (!Number.isFinite(n)) { setError("engineer_base 숫자 박을 영역"); setBusy(false); return; }
+        if (!Number.isFinite(n)) { setError("기사 단가 박은 영역 숫자 박을 영역"); setBusy(false); return; }
         patch.engineer_base = n;
       }
       if (feeRate !== "" && Number(feeRate) !== Number(policy.fee_rate)) {
         const r = parseFloat(feeRate);
-        if (!Number.isFinite(r) || r < 0 || r > 1) { setError("fee_rate 박은 영역 0~1 사이 박을 영역"); setBusy(false); return; }
+        if (!Number.isFinite(r) || r < 0 || r > 1) { setError("수수료율 박은 영역 0~1 사이 박을 영역"); setBusy(false); return; }
         patch.fee_rate = r;
       }
       if (principalFee !== policy.principal_fee) {
@@ -57,28 +64,31 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
 
   const principalLabel = PRINCIPAL_LABEL[policy.principal_code] || policy.principal_code;
   const serviceLabel   = SERVICE_LABEL[policy.service_code]     || policy.service_code;
+  const calcLabel      = CALC_METHOD_LABEL[policy.calc_method]  || policy.calc_method;
+  const calcDesc       = CALC_METHOD_DESC[policy.calc_method]   || "";
+  const qtyLabel       = policy.qty_condition ? (QTY_LABEL[policy.qty_condition] || policy.qty_condition) : "";
 
   return (
     <div onClick={onClose} style={overlayStyle}>
       <div onClick={(e) => e.stopPropagation()} style={modalStyle}>
-        <div style={{ fontSize: 10, color: "var(--text-tertiary)", fontFamily: "monospace", marginBottom: 4 }}>
-          {policy.policy_key}
-        </div>
         <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4, color: "var(--text-primary)" }}>
           {principalLabel} · {serviceLabel}
           {policy.appliance_code && ` · ${policy.appliance_code}`}
         </div>
-        {policy.qty_condition && (
+        {qtyLabel && (
           <div style={{ fontSize: 11, color: "#FFB800", marginBottom: 4 }}>
-            qty: {policy.qty_condition}
+            수량 조건: {qtyLabel}
           </div>
         )}
-        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 20 }}>
-          <span style={{ color: "#FF1B8D", fontWeight: 600 }}>{policy.calc_method}</span>
-          <span> — {CALC_METHOD_DESC[policy.calc_method] || ""}</span>
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>
+          <span style={{ color: "#FF1B8D", fontWeight: 600 }}>{calcLabel}</span>
+          {calcDesc && <span> — {calcDesc}</span>}
+        </div>
+        <div style={{ fontSize: 9, color: "var(--text-tertiary)", fontFamily: "monospace", opacity: 0.6, marginBottom: 20 }}>
+          {policy.policy_key}
         </div>
 
-        <FormRow label="engineer_base (기사 단가)">
+        <FormRow label="기사 단가">
           <input
             type="number"
             value={engineerBase}
@@ -88,7 +98,7 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
           />
         </FormRow>
 
-        <FormRow label="fee_rate (비율 / 0~1)">
+        <FormRow label="수수료율 (0~1 사이 / 예: 0.15 = 15%)">
           <input
             type="number"
             step="0.01"
@@ -99,7 +109,7 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
           />
         </FormRow>
 
-        <FormRow label="principal_fee (원청 정액 / text)">
+        <FormRow label="원청 수수료 (정액 / 예: 10000)">
           <input
             type="text"
             value={principalFee}
@@ -109,7 +119,7 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
           />
         </FormRow>
 
-        <FormRow label="notes (가짜단가 JSON 박은 영역)">
+        <FormRow label="추가 메모 (JSON 형식 / 가짜단가 박은 영역)">
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

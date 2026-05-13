@@ -7,7 +7,9 @@ import {
   listCommissionPolicies,
   PRINCIPAL_LABEL,
   SERVICE_LABEL,
+  CALC_METHOD_LABEL,
   CALC_METHOD_DESC,
+  QTY_LABEL,
 } from "../../lib/commissionPoliciesDb.js";
 import { CommissionPolicyEditModal } from "./CommissionPolicyEditModal.jsx";
 
@@ -80,6 +82,11 @@ export function CommissionPolicyScreen() {
 
   return (
     <div>
+      {/* 안내 박스 */}
+      <div style={infoBoxStyle}>
+        💡 수수료 정책은 7개 원청 × 78개 정책으로 구성됩니다. 수정 시 즉시 정산에 반영됩니다.
+      </div>
+
       {/* 카운터 */}
       <div style={counterStyle}>
         <span style={{ color: "var(--text-primary)" }}>
@@ -163,41 +170,49 @@ export function CommissionPolicyScreen() {
 function PolicyRow({ row, onClick }) {
   const principalLabel = PRINCIPAL_LABEL[row.principal_code] || row.principal_code;
   const serviceLabel   = SERVICE_LABEL[row.service_code]     || row.service_code;
+  const calcLabel      = CALC_METHOD_LABEL[row.calc_method]  || row.calc_method;
+  const calcDesc       = CALC_METHOD_DESC[row.calc_method]   || "";
+  const qtyLabel       = row.qty_condition ? (QTY_LABEL[row.qty_condition] || row.qty_condition) : "";
   const hasFake = !!(row.notes && row.notes.includes("fake_base"));
 
   return (
     <button type="button" onClick={onClick} style={rowStyle}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 4, fontFamily: "monospace" }}>
-            {row.policy_key}
-          </div>
           <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: "var(--text-primary)" }}>
             {principalLabel} · {serviceLabel}
             {row.appliance_code && ` · ${row.appliance_code}`}
-            {row.qty_condition && (
+            {qtyLabel && (
               <span style={{ marginLeft: 6, fontSize: 11, color: "#FFB800", fontWeight: 500 }}>
-                ({row.qty_condition})
+                ({qtyLabel})
               </span>
             )}
           </div>
-          <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-            <span style={{ color: "#FF1B8D", fontWeight: 600 }}>{row.calc_method}</span>
-            <span style={{ marginLeft: 6 }}>· {CALC_METHOD_DESC[row.calc_method] || ""}</span>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
+            <span style={{ color: "#FF1B8D", fontWeight: 600 }}>{calcLabel}</span>
+            {calcDesc && <span style={{ marginLeft: 6 }}>· {calcDesc}</span>}
+          </div>
+          <div style={{ fontSize: 9, color: "var(--text-tertiary)", fontFamily: "monospace", opacity: 0.7 }}>
+            {row.policy_key}
           </div>
         </div>
         <div style={{ textAlign: "right", fontSize: 11, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
           {row.engineer_base != null && (
-            <div>기사 {row.engineer_base.toLocaleString()}원</div>
+            <div>기사 단가 {row.engineer_base.toLocaleString()}원</div>
           )}
           {row.fee_rate != null && (
-            <div>비율 {(row.fee_rate * 100).toFixed(0)}%</div>
+            <div>수수료율 {(row.fee_rate * 100).toFixed(0)}%</div>
           )}
           {row.principal_fee && (
-            <div>원청 {Number(row.principal_fee).toLocaleString()}원</div>
+            <div>원청 정액 {Number(row.principal_fee).toLocaleString()}원</div>
           )}
           {hasFake && (
-            <div style={{ color: "#FF1B8D", fontSize: 10, marginTop: 2 }}>🔒 가짜단가</div>
+            <div
+              style={{ color: "#FF1B8D", fontSize: 10, marginTop: 2 }}
+              title="운영자만 볼 수 있는 가격"
+            >
+              🔒 가짜단가
+            </div>
           )}
         </div>
       </div>
@@ -206,6 +221,16 @@ function PolicyRow({ row, onClick }) {
 }
 
 // ============= 스타일 =============
+const infoBoxStyle = {
+  margin: "12px 16px",
+  padding: "10px 14px",
+  background: "rgba(255, 27, 141, 0.06)",
+  border: "1px solid rgba(255, 27, 141, 0.20)",
+  borderRadius: 10,
+  color: "var(--text-secondary)",
+  fontSize: 12,
+  lineHeight: 1.5,
+};
 const counterStyle = {
   padding: "14px 16px 8px",
   fontSize: 12,

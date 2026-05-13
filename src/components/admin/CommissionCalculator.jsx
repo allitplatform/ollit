@@ -2,7 +2,10 @@
 // 디자인 — 원청관리 스타일 통일 (CSS 변수)
 
 import { useState } from "react";
-import { calculateCommissionRpc } from "../../lib/commissionPoliciesDb.js";
+import {
+  calculateCommissionRpc,
+  CALC_METHOD_LABEL,
+} from "../../lib/commissionPoliciesDb.js";
 
 const PRINCIPAL_OPTIONS = [
   { value: "allday",  label: "올데이케어" },
@@ -30,15 +33,15 @@ const APPLIANCE_OPTIONS = [
   { value: "4way",   label: "4way" },
   { value: "원형",   label: "원형" },
   { value: "투인원", label: "투인원" },
-  { value: "송풍팬분해", label: "송풍팬분해 (유솔N 추가)" },
-  { value: "실외기",     label: "실외기 (유솔N 추가)" },
-  { value: "피톤치드",   label: "피톤치드 (유솔N 추가)" },
+  { value: "송풍팬분해", label: "송풍팬분해 (유솔N 추가 옵션)" },
+  { value: "실외기",     label: "실외기 (유솔N 추가 옵션)" },
+  { value: "피톤치드",   label: "피톤치드 (유솔N 추가 옵션)" },
 ];
 
 const QTY_OPTIONS = [
-  { value: "",     label: "(NULL)" },
-  { value: "첫대", label: "첫대 (KA 1way 박은 영역)" },
-  { value: "추가", label: "추가 (KA 1way 박은 영역)" },
+  { value: "",     label: "(없음)" },
+  { value: "첫대", label: "첫 대" },
+  { value: "추가", label: "추가 (2번째부터)" },
 ];
 
 export function CommissionCalculator() {
@@ -89,7 +92,7 @@ export function CommissionCalculator() {
             {PRINCIPAL_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         </Row>
-        <Row label="서비스">
+        <Row label="작업 유형">
           <select value={service} onChange={(e) => setService(e.target.value)} style={selectStyle}>
             {SERVICE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -100,7 +103,7 @@ export function CommissionCalculator() {
           </select>
         </Row>
         {showQty && (
-          <Row label="🅰 KA 1way 박은 영역 — 첫대/추가 박은 영역 박을 영역">
+          <Row label="수량 조건 (에어컨프로 1way 박은 영역 — 첫 대 / 추가)">
             <select value={qty} onChange={(e) => setQty(e.target.value)} style={selectStyle}>
               {QTY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -109,7 +112,7 @@ export function CommissionCalculator() {
         <Row label="견적금액 (판매가)">
           <input type="number" value={quoted} onChange={(e) => setQuoted(e.target.value)} style={inputStyle}/>
         </Row>
-        <Row label="현장추가금">
+        <Row label="현장 추가금">
           <input type="number" value={extra} onChange={(e) => setExtra(e.target.value)} style={inputStyle}/>
         </Row>
         <Row label="네이버 수수료 (유솔N만)">
@@ -132,13 +135,16 @@ export function CommissionCalculator() {
 
         {result && result.ok && (
           <div style={resultCardStyle}>
-            <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 10, fontFamily: "monospace" }}>
-              {result.policy_key} · {result.calc_method}
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: "#FF1B8D" }}>
+              {CALC_METHOD_LABEL[result.calc_method] || result.calc_method}
+            </div>
+            <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginBottom: 12, fontFamily: "monospace", opacity: 0.6 }}>
+              {result.policy_key}
             </div>
             <ResultRow label="총금액" value={result.total} color="var(--text-primary)"/>
-            <ResultRow label="원청 (principal)" value={result.principal} color="#FFB800"/>
-            <ResultRow label="기사 (engineer)" value={result.engineer} color="#10B981"/>
-            <ResultRow label="회사 (company)" value={result.company} color="#FF1B8D"/>
+            <ResultRow label="원청 수수료" value={result.principal} color="#FFB800"/>
+            <ResultRow label="기사 수익" value={result.engineer} color="#10B981"/>
+            <ResultRow label="회사 이익" value={result.company} color="#FF1B8D"/>
           </div>
         )}
       </div>
