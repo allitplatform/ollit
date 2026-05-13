@@ -501,6 +501,7 @@ function _toSyncPayload(eng) {
     cm_refrigerant_rate: eng.cm_refrigerant_rate || 50,
     bankName:      eng.bankName      || "",
     accountNumber: eng.accountNumber || "",
+    accountHolder: eng.accountHolder || "",
   };
 }
 
