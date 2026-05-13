@@ -62,6 +62,7 @@ import { createEmptyPrincipal } from "../data/principals.js";
 import {
   createTask as apiCreateTask,
   getTasks as apiGetTasks,
+  getEngineers as apiGetEngineers,
   getEngineerRates as apiGetEngineerRates,
   getEngineerSkills as apiGetEngineerSkills,
   getRecommendedEngineers as apiGetRecommendedEngineers,
@@ -77,7 +78,6 @@ import {
 } from "../lib/commissionPoliciesDb.js";
 import { listPrincipalsFromDb } from "../lib/principalsDb.js";
 import { listUsersFromDb } from "../lib/usersDb.js";
-import { listEngineersFromDb } from "../lib/engineersDb.js";
 
 // 🚀 Phase 1-B 2-E ─ 실시간 새로고침 hook
 import { useRealtime } from "../hooks/useRealtime.js";
@@ -1645,19 +1645,20 @@ export default function AdminApp({ user, onLogout }) {
 
   // V14 Step 3 Fix 1 — 시트 설정_기사 catch (apiEngineers / 연락처 lookup 박기)
   const [apiEngineers, setApiEngineers] = useState([]);
-  // Phase 3-6 — DB 측 기사 fetch + localStorage 캐시 (loadEngineers 병합 호환)
   async function fetchEngineers() {
     try {
-      const res = await listEngineersFromDb();
+      console.log('[V14 Step 3] fetchEngineers 시작');
+      const res = await apiGetEngineers();
+      console.log('[V14 Step 3] engineers 응답:', res);
       if (!res || res.ok === false) return;
-      const list = res.engineers || [];
+      const list = res.engineers || res.data || res.tasks || res.list || res.rows || [];
       if (!Array.isArray(list)) return;
       setApiEngineers(list);
-      // feePolicy 캐시에도 저장 (앱 간 sync — 기사별 냉매 비율 lookup)
+      // Step 3 — feePolicy 캐시에도 박음 (앱 간 sync용 — 기사별 냉매 비율 lookup)
       setEngineersCache(list);
-      console.log('[Phase 3-6] engineers(DB):', list.length, '명');
+      console.log('[V14 Step 3] engineers:', list.length, '명');
     } catch (e) {
-      console.error('[Phase 3-6] fetchEngineers 에러:', e);
+      console.error('[V14 Step 3] fetchEngineers 에러:', e);
     }
   }
   useEffect(() => { fetchEngineers(); }, []);

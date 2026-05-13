@@ -186,23 +186,25 @@ export async function saveCompanyAccount(payload) {
 // =====================================
 
 // =====================================
-// 기사 마스터
-// Phase 3-6 (2026-05-13) — 시트 기사 호출 폐기.
-//   - getEngineers / saveEngineer / deleteEngineer 삭제됨.
-//   - 대체: src/lib/engineersDb.js
-//     · listEngineersFromDb() — users + user_roles(engineer) JOIN
-//     · upsertEngineerToDb(eng) — code 기준 upsert + 신규 시 engineer 역할 자동 부여
-//     · deleteEngineerFromDb(code) — hard DELETE (user_roles 측 CASCADE)
-//   - data/engineers.js 측 saveEngineerWithSync / deleteEngineerWithSync 내부만 교체
-//     (시그니처 / 응답 형태 동일 — 10곳 호출처 변경 X)
-//   - DB 필드: code / name / phone / email / is_active / refrigerant_rate /
-//             bank_name / bank_account / account_holder / region
-//   - PWA 전용 (localStorage 유지): workTypes / zones / appliances / careerLevel / note
+// V14 Week 2 2B-3 — 기사 / 추천 / 배정 API
 // =====================================
 
-// =====================================
-// 추천 / 배정 API
-// =====================================
+// 시트 설정_기사 V2 read (5+ 열) — 모든 기사 catch
+export async function getEngineers() {
+  return apiCall('getEngineers', {});
+}
+
+// Step 5-2 — 시트 설정_기사 upsert (engineerId 기준 update / 없으면 append)
+// payload: { engineerId, name, phone, email, active(boolean), cm_refrigerant_rate(50/60/100) }
+// 응답: { ok, engineerId, action: 'update'|'create' } (engineerId가 자동 부여 시 새 ID 반환)
+export async function saveEngineer(eng) {
+  return apiCall('saveEngineer', eng);
+}
+
+// Step 5-2 — 시트 설정_기사 행 삭제
+export async function deleteEngineer(engineerId) {
+  return apiCall('deleteEngineer', { engineerId });
+}
 
 // V14 속도 박기 — 추천 기사 cache (5분 TTL / in-memory Map)
 const _recommendCache = new Map();

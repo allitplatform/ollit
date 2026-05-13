@@ -3,19 +3,14 @@
 // 사장님 catch: 화면에서 직접 추가/삭제 / 코드 수정 0번
 // Step 5-2 — 시트 설정_기사 양방향 sync (saveEngineerWithSync / deleteEngineerWithSync)
 
-// Phase 3-6 — 기사 마스터 시트 호출 폐기. DB 직접 사용 (src/lib/engineersDb.js).
-// 함수명 / 시그니처 유지 — 10곳 호출처 동기 read 패턴 그대로.
-// engineer_rates / engineer_skills 시트 함수는 Phase 3-7 등 별도 단계에서 정리 예정.
 import {
+  saveEngineer as apiSaveEngineer,
+  deleteEngineer as apiDeleteEngineer,
   saveEngineerRate as apiSaveEngineerRate,
   deleteEngineerRate as apiDeleteEngineerRate,
   saveEngineerSkill as apiSaveEngineerSkill,
   deleteEngineerSkill as apiDeleteEngineerSkill,
 } from "../api.js";
-import {
-  upsertEngineerToDb,
-  deleteEngineerFromDb,
-} from "../lib/engineersDb.js";
 
 const STORAGE_KEY = "ollit_engineers_v1";
 
@@ -504,9 +499,8 @@ function _toSyncPayload(eng) {
   };
 }
 
-// upsert: localStorage 즉시 + Supabase DB 비동기 sync
-// Phase 3-6 — apiSaveEngineer (시트) → upsertEngineerToDb (DB). 시그니처 / 응답 형태 동일.
-// 응답: { ok: true, action, engineerId } | { ok: false, error, localOk: true }
+// upsert: localStorage 즉시 박음 + GAS sync
+// 응답: { ok: true } | { ok: false, error, localOk: true }
 export async function saveEngineerWithSync(eng) {
   // 1) localStorage 즉시 (UI 응답성)
   const list = loadEngineers();
@@ -516,13 +510,13 @@ export async function saveEngineerWithSync(eng) {
     : [eng, ...list];
   saveEngineers(next);
 
-  // 2) DB sync (비동기 / 실패 시 localStorage는 유지)
+  // 2) GAS sync (비동기 / 실패 시 localStorage는 유지)
   try {
-    const res = await upsertEngineerToDb(_toSyncPayload(eng));
+    const res = await apiSaveEngineer(_toSyncPayload(eng));
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || "DB sync 실패");
+      throw new Error((res && res.error) || "시트 sync 실패");
     }
-    // DB가 새 engineerId 부여 시 (자동 생성) — localStorage 갱신
+    // GAS가 새 engineerId 부여 시 (자동 E### 생성) — localStorage 갱신
     if (res.engineerId && res.engineerId !== eng.id) {
       const updated = next.map(e => e.id === eng.id ? { ...e, id: res.engineerId } : e);
       saveEngineers(updated);
@@ -534,15 +528,15 @@ export async function saveEngineerWithSync(eng) {
   }
 }
 
-// 삭제: localStorage 즉시 + DB sync
+// 삭제: localStorage 즉시 + GAS sync
 export async function deleteEngineerWithSync(engineerId) {
   if (!engineerId) return { ok: false, error: "engineerId 없음", localOk: false };
   const list = loadEngineers();
   saveEngineers(list.filter(e => e.id !== engineerId));
   try {
-    const res = await deleteEngineerFromDb(engineerId);
+    const res = await apiDeleteEngineer(engineerId);
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || "DB sync 실패");
+      throw new Error((res && res.error) || "시트 sync 실패");
     }
     return { ok: true };
   } catch (e) {
