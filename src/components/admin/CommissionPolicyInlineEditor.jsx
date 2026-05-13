@@ -111,8 +111,6 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
       } else {
         next[policyId] = cur;
       }
-      // 디버그 로그
-      console.log("[PolicyEdit] change", { policyId, field, newValue, origValue, isSame, modifiedCount: Object.keys(next).length });
       return next;
     });
   };

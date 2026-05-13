@@ -52,9 +52,6 @@ export function FakeBaseEditor({ principalId, onModifiedChange }) {
     listCommissionPolicies({ principalCode, serviceCode: "cleaning" })
       .then(res => {
         if (cancelled) return;
-        // Phase B-2 debug — 버그 2 진단용
-        console.log("[FakeBase load] principalCode:", principalCode, "result:", res);
-        console.log("[FakeBase load] first.notes:", res.data?.[0]?.notes);
         if (!res.ok) {
           setError(res.error || "가짜단가 로딩 실패");
           setLoading(false);
@@ -69,7 +66,6 @@ export function FakeBaseEditor({ principalId, onModifiedChange }) {
           try {
             const parsed = JSON.parse(first.notes);
             const fb = parsed?.fake_base || {};
-            console.log("[FakeBase load] parsed fake_base:", fb);
             setFakeBase(fb);
             setOriginalFakeBase(fb);
             setBaseNotesObj(parsed || {});

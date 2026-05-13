@@ -69,15 +69,10 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
     let fakeBaseTotal = 0;
     if (modifiedFakeBase && Array.isArray(modifiedFakeBase.cleaningPolicyIds)) {
       fakeBaseTotal = modifiedFakeBase.cleaningPolicyIds.length;
-      // Phase B-2 debug — 버그 2 진단용
-      console.log("[FakeBase save] cleaningPolicyIds:", modifiedFakeBase.cleaningPolicyIds);
-      console.log("[FakeBase save] notes:", modifiedFakeBase.notes);
       for (const pid of modifiedFakeBase.cleaningPolicyIds) {
         const r = await updateCommissionPolicy(pid, { notes: modifiedFakeBase.notes });
-        console.log("[FakeBase save]", pid, "→", r);
         if (!r.ok) fakeBaseFails += 1;
       }
-      console.log("[FakeBase save] total:", fakeBaseTotal, "fails:", fakeBaseFails);
     }
 
     setBusy(false);
