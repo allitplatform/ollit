@@ -157,23 +157,17 @@ export async function deleteEngineerSkill(payload) {
 }
 
 // =====================================
-// V14 Step 5-8 — 회사 계좌 양방향 sync
+// 회사 계좌
+// Phase 3-7 (2026-05-13) — 시트 회사 계좌 호출 폐기.
+//   - getCompanyAccount / saveCompanyAccount 삭제됨.
+//   - 대체: src/lib/companyAccountDb.js
+//     · getCompanyAccountFromDb() — tenants.settings.company_account 조회
+//     · saveCompanyAccountToDb(payload) — tenants.settings jsonb 부분 갱신
+//   - 저장소: tenants.settings.company_account (jsonb / 단일 행)
+//   - 마이그레이션 0개 (settings jsonb 컬럼 기존 활용) / 추가 RLS 0개 (tenants 기존 정책)
+//   - data/companyAccount.js 측 fetchCompanyAccount / saveCompanyAccountWithSync 내부만 교체
+//     (시그니처 / 응답 형태 동일 — CompanyAccountScreen / EngineerSettleTab 변경 0)
 // =====================================
-// 시트 설정_회사 (key-value): 회사_계좌번호 / 회사_은행명 / 회사_예금주 / 회사_계좌_변경일
-// 권한 (운영자/관리자만 변경) — GAS 측에서 검증
-
-// 시트 read — 회사 계좌 1건 catch
-// 응답: { ok, account: { bankName, accountNumber, accountHolder, changedAt } } 또는 직접 객체
-export async function getCompanyAccount() {
-  return apiCall('getCompanyAccount', {});
-}
-
-// 시트 회사 계좌 갱신 (단일 행 / 변경일 자동 박힘)
-// payload: { bankName, accountNumber, accountHolder, changedAt? }
-// 응답: { ok, action: 'update' }
-export async function saveCompanyAccount(payload) {
-  return apiCall('saveCompanyAccount', payload);
-}
 
 // =====================================
 // 설정_사용자

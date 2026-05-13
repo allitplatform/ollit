@@ -1,12 +1,14 @@
 // Step 5-8 — 회사 계좌 양방향 sync (Step 5-2/5-3 패턴 동일)
-// 시트 설정_회사 (key-value 형식): 회사_계좌번호 / 회사_은행명 / 회사_예금주 / 회사_계좌_변경일
+// Phase 3-7 (2026-05-13) — 시트 호출 폐기. DB 직접 사용 (src/lib/companyAccountDb.js).
+//   - 저장소: tenants.settings.company_account (jsonb) — 마이그레이션 0개
+//   - 함수 시그니처 / 응답 형태 유지 — 외부 호출처 (CompanyAccountScreen, EngineerSettleTab) 변경 0
 // 권한: 변경 = owner / admin (PERMISSIONS["menu.company_account"])
 // 조회 = 모든 사용자 (기사 정산 화면 / 회사 송금 표시)
 
 import {
-  getCompanyAccount as apiGetCompanyAccount,
-  saveCompanyAccount as apiSaveCompanyAccount,
-} from "../api.js";
+  getCompanyAccountFromDb,
+  saveCompanyAccountToDb,
+} from "../lib/companyAccountDb.js";
 
 const STORAGE_KEY  = "ollit_company_account_v1";       // 옛 측 (사장님이 화면에서 박은 마지막 값)
 const SHEET_CACHE_KEY = "ollit_company_account_cache_v1"; // 시트 fetch 결과 캐시
@@ -81,13 +83,14 @@ export function loadCompanyAccount() {
   return { ...DEFAULT_COMPANY_ACCOUNT };
 }
 
-// 시트 read → 캐시 갱신 (AdminApp/EngineerApp 부팅 시 호출)
+// DB read → 캐시 갱신 (AdminApp/EngineerApp 부팅 시 호출)
+// Phase 3-7 — tenants.settings.company_account 직접 조회. 응답 형태 동일.
 export async function fetchCompanyAccount() {
   try {
-    const res = await apiGetCompanyAccount();
+    const res = await getCompanyAccountFromDb();
     if (!res || res.ok === false) return null;
-    // GAS 응답: { ok: true, account: { ... } } 또는 직접 객체
-    const data = res.account || res.data || res;
+    const data = res.account;
+    if (!data) return null;
     const adapted = _adaptSheetCompanyAccount(data);
     if (adapted) {
       setCompanyAccountCache(adapted);
@@ -120,11 +123,11 @@ export async function saveCompanyAccountWithSync(payload) {
   _saveLocalCompanyAccount(data);
   setCompanyAccountCache(data);
 
-  // 2) GAS sync
+  // 2) DB sync (Phase 3-7 — tenants.settings.company_account 갱신)
   try {
-    const res = await apiSaveCompanyAccount(data);
+    const res = await saveCompanyAccountToDb(data);
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || "시트 sync 실패");
+      throw new Error((res && res.error) || "DB sync 실패");
     }
     return { ok: true, action: res.action || "update" };
   } catch (e) {
