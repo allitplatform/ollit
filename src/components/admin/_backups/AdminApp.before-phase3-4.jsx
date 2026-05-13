@@ -65,6 +65,7 @@ import {
   getEngineers as apiGetEngineers,
   getEngineerRates as apiGetEngineerRates,
   getEngineerSkills as apiGetEngineerSkills,
+  getUsers as apiGetUsers,
   getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
   updateTask as apiUpdateTask,
@@ -77,7 +78,6 @@ import {
   listPoliciesSheetShape,
 } from "../lib/commissionPoliciesDb.js";
 import { listPrincipalsFromDb } from "../lib/principalsDb.js";
-import { listUsersFromDb } from "../lib/usersDb.js";
 
 // 🚀 Phase 1-B 2-E ─ 실시간 새로고침 hook
 import { useRealtime } from "../hooks/useRealtime.js";
@@ -1678,17 +1678,17 @@ export default function AdminApp({ user, onLogout }) {
   }
   useEffect(() => { fetchPrincipals(); }, []);
 
-  // Phase 3-4 — DB 측 사용자 fetch + localStorage 캐시 (loadUsers 병합 호환)
+  // Step 5-7 — 시트 설정_사용자 read 캐시 (F-2 / read만)
   async function fetchUsers() {
     try {
-      const res = await listUsersFromDb();
+      const res = await apiGetUsers();
       if (!res || res.ok === false) return;
-      const list = res.users || [];
+      const list = res.users || res.data || res.list || res.rows || [];
       if (!Array.isArray(list)) return;
       setUsersCache(list);
-      console.log('[Phase 3-4] users(DB):', list.length, '명');
+      console.log('[V14 Step 5-7] users:', list.length, '명');
     } catch (e) {
-      console.error('[Phase 3-4] fetchUsers 에러:', e);
+      console.error('[V14 Step 5-7] fetchUsers 에러:', e);
     }
   }
   useEffect(() => { fetchUsers(); }, []);

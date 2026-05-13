@@ -176,14 +176,14 @@ export async function saveCompanyAccount(payload) {
 }
 
 // =====================================
-// 설정_사용자
-// Phase 3-4 (2026-05-13) — 시트 사용자 호출 폐기.
-//   - getUsers 삭제됨 (호출처 1건 → DB 측 교체 완료).
-//   - 대체: src/lib/usersDb.js
-//     · listUsersFromDb() — users + user_roles JOIN, 시트 호환 shape 반환
-//   - 다중 역할 처리: 우선순위 단일 role + roles[] 배열
-//   - 역할 이름 매핑: operator → happycall / partner → principal
+// V14 Step 5-7 — 설정_사용자 read 캐시 (F-2)
 // =====================================
+// 시트 ~40행: A001~A004 대표 / H001~H004 관리자 / E001~E029 기사 / P001~P003 원청
+// 양방향 X — 시트 직접 편집 / 코드는 read만
+// 비번 칼럼 GAS 측에서 skip (보안)
+export async function getUsers() {
+  return apiCall('getUsers', {});
+}
 
 // =====================================
 // V14 Week 2 2B-3 — 기사 / 추천 / 배정 API
