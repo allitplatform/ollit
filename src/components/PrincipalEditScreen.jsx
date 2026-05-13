@@ -1,17 +1,24 @@
-// Step 7 풀버전 — 원청 편집 (Phase B — 수수료 정책 영역 박지 X / CommissionPolicyScreen 박은 영역)
+// Step 7 풀버전 — 원청 편집 (Phase B-1 — 수수료 정책 인라인 편집 박음)
 // Step 5-3 — 시트 설정_원청 양방향 sync (savePrincipalWithSync / deletePrincipalWithSync)
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   loadPrincipals, generatePrincipalId, autoPrefix,
   savePrincipalWithSync, deletePrincipalWithSync,
   PRINCIPAL_COLORS, STATUS_OPTIONS, VAT_OPTIONS,
 } from "../data/principals.js";
+import { CommissionPolicyInlineEditor } from "./admin/CommissionPolicyInlineEditor.jsx";
+import { updateCommissionPolicy } from "../lib/commissionPoliciesDb.js";
 
 export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCommissionPolicy }) {
   const [data, setData] = useState(() => deepClone(principal));
   const [error, setError] = useState("");
   const [toast, setToast] = useState(null);  // Step 5-3 — { type: success|warn, message }
   const [busy, setBusy]   = useState(false);
+  // Phase B-1 — 정책 변경 추적 ({ [policyId]: { engineer_base?, fee_rate?, principal_fee? } })
+  const [modifiedPolicies, setModifiedPolicies] = useState({});
+  const handlePolicyModified = useCallback((map) => {
+    setModifiedPolicies(map || {});
+  }, []);
 
   function updateName(name) {
     setData(d => ({ ...d, name, prefix: d.prefix || autoPrefix(name) }));
@@ -39,9 +46,30 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
     }
     setBusy(true);
     const res = await savePrincipalWithSync(saved);
+
+    // Phase B-1 — 정책 변경 박혀있으면 Supabase 측 박음 (병행)
+    const policyIds = Object.keys(modifiedPolicies);
+    let policyFails = 0;
+    if (policyIds.length > 0) {
+      for (const pid of policyIds) {
+        const patch = modifiedPolicies[pid];
+        const r = await updateCommissionPolicy(pid, patch);
+        if (!r.ok) policyFails += 1;
+      }
+    }
+
     setBusy(false);
     if (res.ok) {
-      setToast({ type: "success", message: "원청 저장 완료" });
+      let msg = "원청 저장 완료";
+      if (policyIds.length > 0) {
+        if (policyFails === 0) {
+          msg += ` · 정책 ${policyIds.length}건 박음`;
+          setModifiedPolicies({});
+        } else {
+          msg += ` · 정책 ${policyIds.length - policyFails}/${policyIds.length}건 박음`;
+        }
+      }
+      setToast({ type: policyFails > 0 ? "warn" : "success", message: msg });
       if (res.principalId && res.principalId !== saved.id) {
         saved = { ...saved, id: res.principalId };
       }
@@ -118,41 +146,50 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
         </Section>
 
         <Section label="💰 수수료 정책">
-          <div style={{
-            padding: 20,
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border)",
-            borderRadius: 12,
-            textAlign: "center",
-          }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📊</div>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: "var(--text-primary)" }}>
-              수수료 정책은 통합 화면에서 관리됩니다
+          {isNew ? (
+            <div style={{
+              padding: 20,
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              textAlign: "center",
+            }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>💡</div>
+              <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: "var(--text-primary)" }}>
+                새 원청 박은 영역
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+                먼저 기본 정보 박은 영역 저장 박은 영역.<br/>
+                저장 후 → 박힐 영역 박은 영역 박은 영역 박을 영역 박은 영역 박을 영역.<br/>
+                <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>(Phase B-3 측 박음)</span>
+              </div>
             </div>
-            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 16, lineHeight: 1.5 }}>
-              78개 정책 + 자동 계산 함수가 적용되어 있습니다.<br/>
-              Supabase 기반으로 정확하고 안전합니다.
-            </div>
-            {onGoCommissionPolicy && (
+          ) : (
+            <CommissionPolicyInlineEditor
+              principalId={data.id}
+              onModifiedChange={handlePolicyModified}
+            />
+          )}
+          {!isNew && onGoCommissionPolicy && (
+            <div style={{ marginTop: 12, textAlign: "right" }}>
               <button
                 type="button"
                 onClick={onGoCommissionPolicy}
                 style={{
-                  background: "#FF1B8D",
-                  color: "#FFF",
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "12px 24px",
-                  fontSize: 14,
-                  fontWeight: 700,
+                  background: "transparent",
+                  color: "var(--text-secondary)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "8px 14px",
+                  fontSize: 12,
                   cursor: "pointer",
                   fontFamily: "inherit",
                 }}
               >
-                수수료정책 관리로 이동 →
+                전체 정책 관리 화면 →
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </Section>
 
         <Section label="담당자 (선택)">

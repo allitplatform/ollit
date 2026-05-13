@@ -6,6 +6,35 @@ import { supabase } from "./supabase.js";
 
 export const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 
+// 옛 시스템 principal.id ↔ 새 시스템 principal_code 매핑
+// principals.js 박은 영역 박은 영역 = aircon_pro / cool_son (옛 박은 영역)
+// Supabase commission_policies 박은 영역 = KA / KB (새 박은 영역)
+export const PRINCIPAL_ID_TO_CODE = {
+  allday:     "allday",
+  aircon_pro: "KA",
+  cool_son:   "KB",
+  yongin:     "yongin",
+  usol_h:     "usol_h",
+  usol_n:     "usol_n",
+  crikrin:    "crikrin",
+};
+
+export const PRINCIPAL_CODE_TO_ID = {
+  allday:  "allday",
+  KA:      "aircon_pro",
+  KB:      "cool_son",
+  yongin:  "yongin",
+  usol_h:  "usol_h",
+  usol_n:  "usol_n",
+  crikrin: "crikrin",
+};
+
+// 헬퍼 — principal.id (옛) → principal_code (새 / Supabase 박은 영역)
+export function getPrincipalCode(principalId) {
+  if (!principalId) return null;
+  return PRINCIPAL_ID_TO_CODE[principalId] || principalId;
+}
+
 // ============================================================
 // 조회 (READ)
 // ============================================================
