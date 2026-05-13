@@ -58,11 +58,11 @@ import { CommissionPolicyManagement } from "../components/admin/CommissionPolicy
 import { createEmptyPrincipal } from "../data/principals.js";
 // V14 Week 1 1F + 2A + 2B-3 — 진짜 API (시뮬 createTask + 시뮬 22건 + RecommendScreen 폐기)
 // Phase 3-1 — 정책 호출은 DB (commissionPoliciesDb.js) 측 어댑터 사용. 시트 calculateFee / getAllPolicies 폐기.
-// Phase 3-3 — 원청 마스터도 DB (principalsDb.js) 측 어댑터 사용. 시트 getPrincipals 폐기.
 import {
   createTask as apiCreateTask,
   getTasks as apiGetTasks,
   getEngineers as apiGetEngineers,
+  getPrincipals as apiGetPrincipals,
   getEngineerRates as apiGetEngineerRates,
   getEngineerSkills as apiGetEngineerSkills,
   getUsers as apiGetUsers,
@@ -77,7 +77,6 @@ import {
   calculateFeeCompat,
   listPoliciesSheetShape,
 } from "../lib/commissionPoliciesDb.js";
-import { listPrincipalsFromDb } from "../lib/principalsDb.js";
 
 // 🚀 Phase 1-B 2-E ─ 실시간 새로고침 hook
 import { useRealtime } from "../hooks/useRealtime.js";
@@ -1663,17 +1662,17 @@ export default function AdminApp({ user, onLogout }) {
   }
   useEffect(() => { fetchEngineers(); }, []);
 
-  // Phase 3-3 — DB 측 원청 fetch + localStorage 캐시 (loadPrincipals 병합 호환)
+  // Step 5-3 — 시트 설정_원청 fetch + localStorage 캐시
   async function fetchPrincipals() {
     try {
-      const res = await listPrincipalsFromDb();
+      const res = await apiGetPrincipals();
       if (!res || res.ok === false) return;
-      const list = res.principals || [];
+      const list = res.principals || res.data || res.list || res.rows || [];
       if (!Array.isArray(list) || list.length === 0) return;
       setPrincipalsCache(list);
-      console.log('[Phase 3-3] principals(DB):', list.length, '곳');
+      console.log('[V14 Step 5-3] principals:', list.length, '곳');
     } catch (e) {
-      console.error('[Phase 3-3] fetchPrincipals 에러:', e);
+      console.error('[V14 Step 5-3] fetchPrincipals 에러:', e);
     }
   }
   useEffect(() => { fetchPrincipals(); }, []);

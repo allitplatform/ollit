@@ -2,12 +2,10 @@
 // type: standard | fake_split (쿨가이) | naver_settlement (유솔 N)
 // Step 5-3 — 시트 설정_원청 양방향 sync + 시트 캐시 자동 병합 (Step 5-1 패턴)
 
-// Phase 3-3 — 시트 호출 폐기. DB 직접 사용 (src/lib/principalsDb.js).
-// 함수명 / 시그니처 유지 — 7곳 호출처 동기 read 패턴 그대로.
 import {
-  upsertPrincipalToDb,
-  deletePrincipalFromDb,
-} from "../lib/principalsDb.js";
+  savePrincipal as apiSavePrincipal,
+  deletePrincipal as apiDeletePrincipal,
+} from "../api.js";
 
 const STORAGE_KEY = "ollit_principals_v1";
 // Step 5-3 — 시트 설정_원청 fetch 캐시 (앱 간 sync용)
@@ -497,8 +495,7 @@ function _toPrincipalSyncPayload(p) {
   };
 }
 
-// upsert: localStorage 즉시 + Supabase DB 비동기 sync
-// Phase 3-3 — apiSavePrincipal (시트) → upsertPrincipalToDb (DB). 시그니처 / 응답 형태 동일.
+// upsert: localStorage 즉시 + GAS 비동기 sync
 export async function savePrincipalWithSync(p) {
   const list = loadPrincipals();
   const existing = list.find(x => x.id === p.id);
@@ -508,9 +505,9 @@ export async function savePrincipalWithSync(p) {
   savePrincipals(next);
 
   try {
-    const res = await upsertPrincipalToDb(_toPrincipalSyncPayload(p));
+    const res = await apiSavePrincipal(_toPrincipalSyncPayload(p));
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || "DB sync 실패");
+      throw new Error((res && res.error) || "시트 sync 실패");
     }
     if (res.principalId && res.principalId !== p.id) {
       const updated = next.map(x => x.id === p.id ? { ...x, id: res.principalId } : x);
@@ -527,12 +524,12 @@ export async function deletePrincipalWithSync(principalId) {
   if (!principalId) return { ok: false, error: "principalId 없음", localOk: false };
   const list = loadPrincipals();
   savePrincipals(list.filter(x => x.id !== principalId));
-  // 옛 측 id를 시트 측 id로 변환 (cool_son → coolguy). DB 내부에서 다시 code로 변환.
+  // Step 5-3 hotfix — 옛 측 id를 시트 측으로 변환
   const sheetId = OLD_TO_SHEET_ID_ALIAS[principalId] || principalId;
   try {
-    const res = await deletePrincipalFromDb(sheetId);
+    const res = await apiDeletePrincipal(sheetId);
     if (!res || res.ok === false) {
-      throw new Error((res && res.error) || "DB sync 실패");
+      throw new Error((res && res.error) || "시트 sync 실패");
     }
     return { ok: true };
   } catch (e) {

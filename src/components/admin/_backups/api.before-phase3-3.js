@@ -101,14 +101,25 @@ export async function parseKakao(text) {
 // =====================================
 
 // =====================================
-// 설정_원청
-// Phase 3-3 (2026-05-13) — 시트 원청 호출 폐기.
-//   - getPrincipals / savePrincipal / deletePrincipal 삭제됨.
-//   - 대체: src/lib/principalsDb.js
-//     · listPrincipalsFromDb / upsertPrincipalToDb / deletePrincipalFromDb
-//   - DB 컬럼 확장: db/migrations/010_principals_extra_columns.sql
-//     (prefix / color / bank_name / account_number / account_holder)
+// V14 Step 5-3 — 설정_원청 양방향 sync (5-3-A)
 // =====================================
+
+// 시트 설정_원청 read (6열: 약자/id/회사명/구분/색/비고)
+export async function getPrincipals() {
+  return apiCall('getPrincipals', {});
+}
+
+// 시트 설정_원청 upsert (principalId 기준 update / 없으면 append)
+// payload: { principalId, name, prefix, color, type, note }
+// 응답: { ok, principalId, action: 'update'|'create' }
+export async function savePrincipal(p) {
+  return apiCall('savePrincipal', p);
+}
+
+// 시트 설정_원청 행 삭제
+export async function deletePrincipal(principalId) {
+  return apiCall('deletePrincipal', { principalId });
+}
 
 // =====================================
 // V14 Step 5-4 — 설정_기사단가 양방향 sync (P4 신규 모델)
