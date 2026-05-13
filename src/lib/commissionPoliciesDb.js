@@ -13,6 +13,7 @@ export const PRINCIPAL_ID_TO_CODE = {
   allday:     "allday",
   aircon_pro: "KA",
   cool_son:   "KB",
+  coolguy:    "KB",   // 시트 측 id alias (KB만 mismatch — principals.js SHEET_TO_OLD_ID_ALIAS 참고)
   yongin:     "yongin",
   usol_h:     "usol_h",
   usol_n:     "usol_n",

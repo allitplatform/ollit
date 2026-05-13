@@ -1,7 +1,8 @@
 // Phase B-1 — 원청 편집 측 수수료 정책 인라인 편집
+// Phase B-2 — KA/KB 가짜단가 편집 추가
 // PrincipalEditScreen 측 박은 영역
-// 박은 영역: 작업 유형 탭 / 정책 카드 / 인라인 수정 / 변경 추적
-// 박지 X: 가짜단가 (Phase B-2) / 새 원청 추가 (Phase B-3)
+// 박은 영역: 작업 유형 탭 / 정책 카드 / 인라인 수정 / 변경 추적 / 가짜단가 (KA/KB)
+// 박지 X: 새 원청 추가 (Phase B-3)
 
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
@@ -12,6 +13,7 @@ import {
   QTY_LABEL,
   SERVICE_LABEL,
 } from "../../lib/commissionPoliciesDb.js";
+import { FakeBaseEditor } from "./FakeBaseEditor.jsx";
 
 const SERVICE_TABS = [
   { key: "cleaning",    label: "🧽 세척" },
@@ -21,7 +23,9 @@ const SERVICE_TABS = [
 ];
 
 // 박은 영역: principalId (옛 system id — aircon_pro / cool_son 등)
-//          onModifiedChange(modifiedMap) — 부모 측 박은 영역 박음 (저장 박은 영역 박을 영역)
+//          onModifiedChange({ policies, fakeBase }) — 부모 측 박은 영역 박음
+//            policies = { [policyId]: { engineer_base?, fee_rate?, principal_fee? } }  (Phase B-1)
+//            fakeBase = { cleaningPolicyIds, notes } | null                            (Phase B-2)
 export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) {
   const [policies, setPolicies] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,6 +33,8 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
   const [activeService, setActiveService] = useState("cleaning");
   // modifiedMap = { [policyId]: { engineer_base?, fee_rate?, principal_fee? } }
   const [modifiedMap, setModifiedMap] = useState({});
+  // Phase B-2 — 가짜단가 변경 (KA/KB 한정)
+  const [modifiedFakeBase, setModifiedFakeBase] = useState(null);
   // 박은 영역 박은 영역 박은 영역 박은 영역 — 부모 박은 영역 호출 박은 영역 stale closure 박을 영역
   const onModifiedChangeRef = useRef(onModifiedChange);
   onModifiedChangeRef.current = onModifiedChange;
@@ -53,12 +59,15 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
     return () => { cancelled = true; };
   }, [principalCode]);
 
-  // modifiedMap 박은 영역 박은 영역 → 부모 박음 알림
+  // 변경 박은 영역 → 부모 알림 (정책 + 가짜단가 통합)
   useEffect(() => {
     if (onModifiedChangeRef.current) {
-      onModifiedChangeRef.current(modifiedMap);
+      onModifiedChangeRef.current({
+        policies: modifiedMap,
+        fakeBase: modifiedFakeBase,
+      });
     }
-  }, [modifiedMap]);
+  }, [modifiedMap, modifiedFakeBase]);
 
   // 박힌 영역 박은 영역 박은 영역 박을 영역 (변경 박은 영역 박은 영역)
   const displayedPolicies = useMemo(() => {
@@ -129,6 +138,7 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
   }
 
   const modifiedCount = Object.keys(modifiedMap).length;
+  const fakeBaseChanged = !!modifiedFakeBase;
 
   return (
     <div>
@@ -162,13 +172,25 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
         })}
       </div>
 
+      {/* Phase B-2 — KA / KB 가짜단가 편집 (다른 원청은 null) */}
+      <FakeBaseEditor
+        principalId={principalId}
+        onModifiedChange={setModifiedFakeBase}
+      />
+
       {/* 변경 카운터 — sticky 강조 박은 영역 */}
-      {modifiedCount > 0 && (
+      {(modifiedCount > 0 || fakeBaseChanged) && (
         <div style={modifiedNoticeStyle}>
           <span style={{ fontSize: 18 }}>📝</span>
           <span>
-            변경된 정책 <strong style={{ color: "#FF1B8D", fontSize: 16 }}>{modifiedCount}</strong>건 —
-            <strong style={{ color: "#FF1B8D" }}> 저장 버튼</strong> 박은 영역 박을 영역
+            {modifiedCount > 0 && (
+              <>변경된 정책 <strong style={{ color: "#FF1B8D", fontSize: 16 }}>{modifiedCount}</strong>건</>
+            )}
+            {modifiedCount > 0 && fakeBaseChanged && <> · </>}
+            {fakeBaseChanged && (
+              <><strong style={{ color: "#FF1B8D" }}>가짜단가 수정됨</strong></>
+            )}
+            {" "}— <strong style={{ color: "#FF1B8D" }}>저장 버튼</strong> 박은 영역 박을 영역
           </span>
         </div>
       )}

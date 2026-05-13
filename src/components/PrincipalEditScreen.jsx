@@ -1,4 +1,6 @@
-// Step 7 풀버전 — 원청 편집 (Phase B-1 — 수수료 정책 인라인 편집 박음)
+// Step 7 풀버전 — 원청 편집
+// Phase B-1 — 수수료 정책 인라인 편집
+// Phase B-2 — KA/KB 가짜단가 편집 (Supabase notes JSON)
 // Step 5-3 — 시트 설정_원청 양방향 sync (savePrincipalWithSync / deletePrincipalWithSync)
 import { useState, useCallback } from "react";
 import {
@@ -16,8 +18,12 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
   const [busy, setBusy]   = useState(false);
   // Phase B-1 — 정책 변경 추적 ({ [policyId]: { engineer_base?, fee_rate?, principal_fee? } })
   const [modifiedPolicies, setModifiedPolicies] = useState({});
-  const handlePolicyModified = useCallback((map) => {
-    setModifiedPolicies(map || {});
+  // Phase B-2 — 가짜단가 변경 ({ cleaningPolicyIds, notes } | null)
+  const [modifiedFakeBase, setModifiedFakeBase] = useState(null);
+  // InlineEditor → 통합 콜백 ({ policies, fakeBase })
+  const handleInlineChange = useCallback((payload) => {
+    setModifiedPolicies(payload?.policies || {});
+    setModifiedFakeBase(payload?.fakeBase || null);
   }, []);
 
   function updateName(name) {
@@ -58,6 +64,22 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
       }
     }
 
+    // Phase B-2 — 가짜단가 변경 박혀있으면 KA/KB 세척 정책 6 row notes 통합 박음
+    let fakeBaseFails = 0;
+    let fakeBaseTotal = 0;
+    if (modifiedFakeBase && Array.isArray(modifiedFakeBase.cleaningPolicyIds)) {
+      fakeBaseTotal = modifiedFakeBase.cleaningPolicyIds.length;
+      // Phase B-2 debug — 버그 2 진단용
+      console.log("[FakeBase save] cleaningPolicyIds:", modifiedFakeBase.cleaningPolicyIds);
+      console.log("[FakeBase save] notes:", modifiedFakeBase.notes);
+      for (const pid of modifiedFakeBase.cleaningPolicyIds) {
+        const r = await updateCommissionPolicy(pid, { notes: modifiedFakeBase.notes });
+        console.log("[FakeBase save]", pid, "→", r);
+        if (!r.ok) fakeBaseFails += 1;
+      }
+      console.log("[FakeBase save] total:", fakeBaseTotal, "fails:", fakeBaseFails);
+    }
+
     setBusy(false);
     if (res.ok) {
       let msg = "원청 저장 완료";
@@ -69,7 +91,15 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
           msg += ` · 정책 ${policyIds.length - policyFails}/${policyIds.length}건 박음`;
         }
       }
-      setToast({ type: policyFails > 0 ? "warn" : "success", message: msg });
+      if (fakeBaseTotal > 0) {
+        if (fakeBaseFails === 0) {
+          msg += " · 가짜단가 박음";
+          setModifiedFakeBase(null);
+        } else {
+          msg += ` · 가짜단가 ${fakeBaseTotal - fakeBaseFails}/${fakeBaseTotal}건 박음`;
+        }
+      }
+      setToast({ type: (policyFails > 0 || fakeBaseFails > 0) ? "warn" : "success", message: msg });
       if (res.principalId && res.principalId !== saved.id) {
         saved = { ...saved, id: res.principalId };
       }
@@ -167,7 +197,7 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
           ) : (
             <CommissionPolicyInlineEditor
               principalId={data.id}
-              onModifiedChange={handlePolicyModified}
+              onModifiedChange={handleInlineChange}
             />
           )}
           {!isNew && onGoCommissionPolicy && (
