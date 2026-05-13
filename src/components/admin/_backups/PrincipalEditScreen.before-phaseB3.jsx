@@ -9,7 +9,6 @@ import {
   PRINCIPAL_COLORS, STATUS_OPTIONS, VAT_OPTIONS,
 } from "../data/principals.js";
 import { CommissionPolicyInlineEditor } from "./admin/CommissionPolicyInlineEditor.jsx";
-import { NewPrincipalSetup } from "./admin/NewPrincipalSetup.jsx";
 import { updateCommissionPolicy } from "../lib/commissionPoliciesDb.js";
 
 export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCommissionPolicy }) {
@@ -21,10 +20,6 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
   const [modifiedPolicies, setModifiedPolicies] = useState({});
   // Phase B-2 — 가짜단가 변경 ({ cleaningPolicyIds, notes } | null)
   const [modifiedFakeBase, setModifiedFakeBase] = useState(null);
-  // Phase B-3 — 새 원청 추가 흐름
-  const [principalCode, setPrincipalCode] = useState("");      // isNew 측 운영자 입력 (영문 소문자)
-  const [savedNewId, setSavedNewId]       = useState(null);    // isNew 저장 완료 후 set → NewPrincipalSetup 표시
-  const [policiesSeeded, setPoliciesSeeded] = useState(false); // 기본 정책 12건 생성 완료 → InlineEditor 표시
   // InlineEditor → 통합 콜백 ({ policies, fakeBase })
   const handleInlineChange = useCallback((payload) => {
     setModifiedPolicies(payload?.policies || {});
@@ -48,19 +43,8 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
     if (!name) { setError("이름을 입력해주세요"); return; }
     const list = loadPrincipals();
     let saved = { ...data, name, nickname: (data.nickname || "").trim() };
-    if (isNew && !savedNewId) {
-      // Phase B-3 — 운영자 직접 입력한 원청 코드 사용
-      const code = (principalCode || "").trim().toLowerCase();
-      if (!code) { setError("원청 코드를 입력해주세요 (영문 소문자, 예: myc)"); return; }
-      if (!/^[a-z][a-z0-9_]{1,19}$/.test(code)) {
-        setError("원청 코드: 영문 소문자로 시작 + 영문/숫자/언더스코어 (2~20자)");
-        return;
-      }
-      if (list.some(p => p.id === code)) {
-        setError(`"${code}"는 이미 사용 중인 원청 코드입니다`);
-        return;
-      }
-      saved.id = code;
+    if (isNew) {
+      if (!saved.id) saved.id = generatePrincipalId(name);
       if (saved.prefix && list.some(p => p.prefix === saved.prefix && p.id !== saved.id)) {
         const ok = window.confirm(`"${saved.prefix}" prefix가 다른 원청에 이미 사용 중입니다.\n그래도 저장하시겠어요?`);
         if (!ok) return;
@@ -114,14 +98,7 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
       if (res.principalId && res.principalId !== saved.id) {
         saved = { ...saved, id: res.principalId };
       }
-      // Phase B-3 — isNew 첫 저장 → 같은 화면에서 정책 12건 생성으로 이어감
-      if (isNew && !savedNewId) {
-        setData(saved);
-        setSavedNewId(saved.id);
-        // onSaved 호출 X — 운영자가 정책 생성 후 "저장 완료" 또는 "취소"로 빠져나감
-      } else {
-        setTimeout(() => onSaved && onSaved(saved), 600);
-      }
+      setTimeout(() => onSaved && onSaved(saved), 600);
     } else {
       setToast({
         type: "warn",
@@ -155,11 +132,7 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
 
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
-        <div style={titleStyle}>
-          {savedNewId
-            ? `${data.name || "—"} 편집 (정책 설정)`
-            : isNew ? "원청 추가" : `${data.name || "—"} 편집`}
-        </div>
+        <div style={titleStyle}>{isNew ? "원청 추가" : `${data.name || "—"} 편집`}</div>
         {!isNew && <button onClick={handleDelete} style={dangerBtnStyle}>삭제</button>}
       </div>
 
@@ -169,26 +142,6 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
           <Field label="이름">
             <Input value={data.name} onChange={updateName} placeholder="예: 올데이케어"/>
           </Field>
-          {isNew && !savedNewId && (
-            <Field label="원청 코드 (영문 소문자, 필수)">
-              <Input
-                value={principalCode}
-                onChange={(v) => setPrincipalCode(v.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                placeholder="예: myc / newone"
-                mono
-              />
-              <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4, lineHeight: 1.5 }}>
-                저장 후 변경 불가. 수수료 정책 / DB 매핑에 사용됩니다.
-              </div>
-            </Field>
-          )}
-          {savedNewId && (
-            <Field label="원청 코드">
-              <div style={{ ...inputStyle, color: "var(--text-secondary)", background: "var(--bg-tertiary)" }}>
-                {savedNewId}
-              </div>
-            </Field>
-          )}
           <Field label="별명 (선택)">
             <Input value={data.nickname} onChange={(v) => updateField("nickname", v)} placeholder="예: 자체영업"/>
           </Field>
@@ -218,7 +171,7 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
         </Section>
 
         <Section label="💰 수수료 정책">
-          {isNew && !savedNewId ? (
+          {isNew ? (
             <div style={{
               padding: 20,
               background: "var(--bg-secondary)",
@@ -228,25 +181,21 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
             }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>💡</div>
               <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, color: "var(--text-primary)" }}>
-                먼저 기본 정보를 저장해주세요
+                새 원청 박은 영역
               </div>
               <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-                저장 완료 후 이 영역에서 기본 정책 12건을<br/>
-                자동 생성할 수 있습니다.
+                먼저 기본 정보 박은 영역 저장 박은 영역.<br/>
+                저장 후 → 박힐 영역 박은 영역 박은 영역 박을 영역 박은 영역 박을 영역.<br/>
+                <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>(Phase B-3 측 박음)</span>
               </div>
             </div>
-          ) : savedNewId && !policiesSeeded ? (
-            <NewPrincipalSetup
-              principalCode={savedNewId}
-              onCreated={() => setPoliciesSeeded(true)}
-            />
           ) : (
             <CommissionPolicyInlineEditor
               principalId={data.id}
               onModifiedChange={handleInlineChange}
             />
           )}
-          {(!isNew || policiesSeeded) && onGoCommissionPolicy && (
+          {!isNew && onGoCommissionPolicy && (
             <div style={{ marginTop: 12, textAlign: "right" }}>
               <button
                 type="button"
@@ -340,10 +289,7 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
         <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
           <button onClick={onBack} style={cancelBtnStyle} disabled={busy}>취소</button>
           <button onClick={handleSave} style={{ ...saveBtnStyle, opacity: busy ? 0.6 : 1 }} disabled={busy}>
-            {busy
-              ? "저장 중..."
-              : (isNew && !savedNewId) ? "원청 생성"
-              : "저장"}
+            {busy ? "저장 중..." : "저장"}
           </button>
         </div>
       </div>
