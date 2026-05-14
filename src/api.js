@@ -254,26 +254,22 @@ export function invalidateRecommendCache() {
 //     · cancelApproveReason / cancelApprovedAt
 //     · cancelRejectReason  / cancelRejectedAt
 
-// === 변경 흐름 (2 / changeSchedule = 옛 updateTask catch) ===
-// 기사 → 금액 변경 (V열 견적합계 + AC열 추가금 + AD열 추가사유)
-export async function changePrice(taskId, newPrice, addAmount, reason) {
-  return apiCall('changePrice', { taskId, newPrice, addAmount, reason });
-}
-// 운영자 → 작업 종류 변경 (작업요약 + 총수량 + 견적합계)
-export async function changeWorkType(taskId, newWorkType, newAppliance, newQty, newPrice) {
-  return apiCall('changeWorkType', { taskId, newWorkType, newAppliance, newQty, newPrice });
-}
-
-// === 작업 흐름 (2) ===
-// 기사 → 작업 시작 (시트 W열 + R='작업중')
-export async function startTask(taskId) {
-  return apiCall('startTask', { taskId });
-}
-// 기사 → 작업 완료 + 사진 업로드 (시트 Y + AB / Drive 폴더 박힘)
-// photoBase64Array: ['data:image/jpeg;base64,...', ...] 1~3장
-export async function completeTask(taskId, photoBase64Array) {
-  return apiCall('completeTask', { taskId, photos: photoBase64Array });
-}
+// === 작업 시작 / 완료 / 금액 변경 (Phase 4-5) ===
+// Phase 4-5 (2026-05-14) — 시트 작업 흐름 호출 폐기.
+//   - startTask / completeTask / changePrice 삭제됨.
+//   - changeWorkType 삭제됨 (호출처 0건 — dead code).
+//   - 대체:
+//     · src/data/tasksDb.js
+//       - startTaskAdapter(taskId) — status='진행중' + startedAt
+//       - completeTaskAdapter(taskId) — status='완료' + completedAt
+//       - changePriceAdapter(taskId, newPrice, addAmount, reason)
+//         → productPrice / extraFee / extraReason 박음
+//     · src/lib/photosDb.js
+//       - uploadPhoto(taskId, file, step, uploadedBy) — Storage 업로드 + photos row
+//       - listPhotosByTask(taskId) — public URL 박은 후 응답
+//       - deletePhoto(photoId) — Storage + photos row 삭제
+//   - Storage 버킷: task-photos (공개) + RLS anon 정책 (대표님 SQL 실행 완료)
+//   - photos 테이블 RLS anon 정책 (대표님 SQL 실행 완료)
 
 // =====================================
 // 휴무

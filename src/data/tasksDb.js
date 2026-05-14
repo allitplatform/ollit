@@ -822,6 +822,43 @@ export async function assignEngineerAdapter(taskId, engineerName, options = {}) 
   }
 }
 
+// ============================================================
+// Phase 4-5 — 작업 시작 / 완료 / 금액 변경 어댑터
+// ============================================================
+
+// 기사 측 작업 시작 — status='진행중' + startedAt 박음
+// 응답: { ok: true, task } | { ok: false, error }
+export async function startTaskAdapter(taskId) {
+  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  return updateTaskStatusAdapter(taskId, "진행중", {
+    startedAt: new Date().toISOString(),
+  });
+}
+
+// 기사 측 작업 완료 — status='완료' + completedAt 박음
+// (사진 업로드는 호출처 측 photosDb.uploadPhoto 별도 박음)
+// 응답: { ok: true, task } | { ok: false, error }
+export async function completeTaskAdapter(taskId) {
+  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  return updateTaskStatusAdapter(taskId, "완료", {
+    completedAt: new Date().toISOString(),
+  });
+}
+
+// 기사 측 금액 변경 — productPrice / extraFee / extraReason 박음
+// 시그니처 호환: (taskId, newPrice, addAmount, reason)
+// 응답: { ok: true, task } | { ok: false, error }
+export async function changePriceAdapter(taskId, newPrice, addAmount, reason) {
+  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  const updates = {
+    extraFeeAt: new Date().toISOString(),
+  };
+  if (newPrice  !== undefined && newPrice  !== null) updates.productPrice = Number(newPrice)  || 0;
+  if (addAmount !== undefined && addAmount !== null) updates.extraFee     = Number(addAmount) || 0;
+  if (reason)                                        updates.extraReason  = String(reason);
+  return updateTaskAdapter(taskId, updates);
+}
+
 // 기사 측 자동 배정 수락 — 시트 acceptOffer(taskId, engineerName) 어댑터
 // race condition catch: assigned_engineer_id IS NULL 조건부 UPDATE
 // 이미 다른 기사 박혀있으면 "이미 다른 기사가 수락" 에러 반환 (선착순)

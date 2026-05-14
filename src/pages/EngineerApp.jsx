@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from "react";
 import {
-  changePrice as apiChangePrice,
-  startTask as apiStartTask,
-  completeTask as apiCompleteTask,
-} from "../api.js";
-import {
   loadTasksForRole as getTasks,
   updateTaskAdapter as apiUpdateTask,
   requestCancelAdapter as apiRequestCancel,
   acceptOfferAdapter as apiAcceptOffer,
+  startTaskAdapter as apiStartTask,
+  completeTaskAdapter as apiCompleteTask,
+  changePriceAdapter as apiChangePrice,
 } from "../data/tasksDb.js";
+import { uploadPhoto } from "../lib/photosDb.js";
 // Phase 3-5 — 휴무는 DB 측 (offDaysDb.js) 어댑터 사용. 시그니처 동일.
 import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
@@ -4270,21 +4269,37 @@ export default function EngineerApp({ user, onLogout }) {
     setCompletePhotoPreviews(previews);
   }
 
-  // V14 — 작업 완료 + 사진 업로드 박기
+  // Phase 4-5 — 작업 완료 + 사진 업로드 (Supabase Storage)
+  // 흐름: 사진 병렬 업로드 → completeTaskAdapter(status='완료' + completedAt)
   async function submitComplete() {
     if (!completingTask?.id || completePhotos.length === 0) return;
     setCompleting(true);
     try {
-      const photoBase64Array = await Promise.all(completePhotos.map(file => fileToBase64(file)));
-      const res = await apiCompleteTask(completingTask.id, photoBase64Array);
-      if (!res || res.ok === false) {
-        alert(`완료 박기 catch X: ${(res && res.error) || '실패'}`);
+      const taskId = completingTask.id;
+      const uploadedBy = user?.id || null;
+
+      // [1] 사진 병렬 업로드 (1~3장)
+      const uploadResults = await Promise.all(
+        completePhotos.map(file => uploadPhoto(taskId, file, '완료', uploadedBy))
+      );
+      const failures = uploadResults.filter(r => !r.ok);
+      if (failures.length > 0) {
+        alert(`사진 업로드 실패 (${failures.length}장): ${failures[0].error || '알 수 없는 오류'}`);
         setCompleting(false);
         return;
       }
+
+      // [2] status='완료' 박음
+      const res = await apiCompleteTask(taskId);
+      if (!res || res.ok === false) {
+        alert(`완료 처리 실패: ${(res && res.error) || '알 수 없는 오류'}`);
+        setCompleting(false);
+        return;
+      }
+
       // Optimistic
       setApiTasks(prev => prev.map(t =>
-        t.id === completingTask.id ? { ...t, status: '완료', state: 'done', photoFolderUrl: res.folderUrl } : t
+        t.id === taskId ? { ...t, status: '완료', state: 'done' } : t
       ));
       setCompletingTask(null);
       setCompletePhotos([]);
@@ -4292,7 +4307,8 @@ export default function EngineerApp({ user, onLogout }) {
       setCompleting(false);
       fetchTasks();
     } catch (e) {
-      alert(`완료 박기 에러: ${e.message}`);
+      console.error('[submitComplete] 에러:', e);
+      alert(`완료 처리 에러: ${e.message}`);
       setCompleting(false);
     }
   }
