@@ -1876,7 +1876,21 @@ export default function AdminApp({ user, onLogout }) {
       // 2026-05-10 hotfix — Optimistic 마킹된 task는 polling 결과 덮어씀 방지 (60초간)
       // 2026-05-14 fix — DB 측 status가 finalized (취소/완료/정산완료/취소요청) 박혔으면
       //                  Optimistic 무시 + DB 측 status 우선 (다른 사용자 변경 즉시 catch)
+      // 2026-05-14 DEBUG — apiTasks 측 status 잔존 catch
       setApiTasks(prev => {
+        console.log('[Phase 4-DEBUG] setApiTasks 전 prev[0]:', prev[0] ? {
+          id: prev[0].id,
+          status: prev[0].status,
+          taskCode: prev[0].taskCode,
+          _optimisticUntil: prev[0]._optimisticUntil,
+          _optimisticActive: prev[0]._optimisticUntil ? (prev[0]._optimisticUntil > Date.now()) : false,
+        } : 'prev empty');
+        console.log('[Phase 4-DEBUG] normalized[0]:', normalized[0] ? {
+          id: normalized[0].id,
+          status: normalized[0].status,
+          taskCode: normalized[0].taskCode,
+        } : 'normalized empty');
+
         const optimisticMap = new Map();
         const now = Date.now();
         const dbMap = new Map(normalized.map(n => [n.id, n]));
@@ -1885,14 +1899,32 @@ export default function AdminApp({ user, onLogout }) {
           if (t._optimisticUntil && t._optimisticUntil > now) {
             // DB 측 동일 task의 status가 finalized 박혔으면 Optimistic 무시
             const dbVersion = dbMap.get(t.id);
+            console.log('[Phase 4-DEBUG] Optimistic catch:', {
+              id: t.id,
+              memoryStatus: t.status,
+              dbStatus: dbVersion?.status,
+              isFinalized: dbVersion ? FINALIZED.has(dbVersion.status) : 'no dbVersion',
+              willSkip: !!(dbVersion && FINALIZED.has(dbVersion.status)),
+            });
             if (dbVersion && FINALIZED.has(dbVersion.status)) {
               continue;
             }
             optimisticMap.set(t.id, t);
           }
         }
-        if (optimisticMap.size === 0) return normalized;
-        return normalized.map(t => optimisticMap.has(t.id) ? optimisticMap.get(t.id) : t);
+
+        console.log('[Phase 4-DEBUG] optimisticMap size:', optimisticMap.size);
+        if (optimisticMap.size === 0) {
+          console.log('[Phase 4-DEBUG] 최종 result (normalized 그대로) [0]:', normalized[0]?.status);
+          return normalized;
+        }
+        const result = normalized.map(t => optimisticMap.has(t.id) ? optimisticMap.get(t.id) : t);
+        console.log('[Phase 4-DEBUG] 최종 result[0]:', result[0] ? {
+          id: result[0].id,
+          status: result[0].status,
+          source: optimisticMap.has(result[0].id) ? 'optimistic' : 'db',
+        } : 'result empty');
+        return result;
       });
       // 0건이면 디버그 표시 (사장님 catch 위해)
       if (normalized.length === 0) {
