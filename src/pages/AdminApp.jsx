@@ -842,14 +842,6 @@ function _v14NormalizeTask(t) {
     t.totalPrice || t.salePrice || t.판매가 || t.견적 ||
     t.AC || t['AC'] || t.ac || 0
   );
-  // 디버그 — 0건 catch 시 raw 키 박힘 (사장님 캡처 박을 차례)
-  if (typeof window !== 'undefined' && !window._v14EstimateLogged) {
-    if (t && (t.id || t.taskId)) {
-      window._v14EstimateLogged = true;
-      console.log('[V14 Step 3.1] task raw keys (estimate 디버그):', Object.keys(t));
-      console.log('[V14 Step 3.1] task sample:', t);
-    }
-  }
   const settlement = t.settlementStatus || t.정산상태 || "";
   const schedule  = t.schedule || [reqDate, reqTime].filter(Boolean).join(" ") || "협의";
 
@@ -2200,14 +2192,6 @@ export default function AdminApp({ user, onLogout }) {
         t={t}
         onBack={goBack}
         onSubmit={(form) => {
-          // 2026-05-14 DEBUG — 자동 진입 catch X 박힌 영역 catch
-          console.log('[Auto-Assign Debug] onSubmit form:', {
-            _v14ApiOk: form._v14ApiOk,
-            taskId: form.taskId,
-            workItems: form.workItems,
-            workType: form.workItems?.[0]?.workType,
-          });
-
           addReception(form);
 
           // 2026-05-14 fix — 냉매충전 (auto_first_accept) 박힌 영역 자동 AutoAssignScreen 진입
@@ -2217,16 +2201,7 @@ export default function AdminApp({ user, onLogout }) {
           const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow;
           const isAuto = workflow === "auto_first_accept";
 
-          console.log('[Auto-Assign Debug] workflow catch:', {
-            head,
-            workflow,
-            isAuto,
-            condition_v14ApiOk: !!form._v14ApiOk,
-            condition_taskId: !!form.taskId,
-          });
-
           if (form._v14ApiOk && isAuto && form.taskId) {
-            console.log('[Auto-Assign Debug] 자동 진입 박음! taskId:', form.taskId);
             setSelectedTask({
               id:         form.taskId,
               taskId:     form.taskId,
@@ -2244,18 +2219,13 @@ export default function AdminApp({ user, onLogout }) {
               pushCount:  4,
             });
             replaceScreen("autoAssign");
-            fetchTasks();
+            // 2026-05-14 fix — fetchTasks 박지 X (Realtime 측 자동 박힘 / 중복 catch 회피)
             return;
           }
 
-          console.log('[Auto-Assign Debug] 자동 진입 박지 X — 옛 흐름 측 박음');
-
           // V14 Phase 2.5 — replaceScreen 박기 (옛 setScreen = stack 중복 / 뒤로 newReceptionForm 박힘 catch)
           replaceScreen("newReception");
-          // V14 2A — 진짜 API 등록 후 시트에서 다시 catch (작업번호 + 정확한 데이터)
-          if (form._v14ApiOk) {
-            fetchTasks();
-          }
+          // V14 2A — 진짜 API 등록 후 Realtime 측 자동 박힘 (옛 fetchTasks 호출 박지 X)
         }}
       />
     </Shell>;
@@ -4226,21 +4196,6 @@ function NewReceptionScreen({
       workItems: x.workItems && x.workItems.length > 0
         ? x.workItems
         : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
-    });
-    // 2026-05-11 진단 — NewReceptionScreen 데이터 source 추적
-    console.log('[NewReceptionScreen 진단]', {
-      apiTasksAll: apiTasks.map(t => ({
-        id: t.id,
-        status: t.status,
-        _opt: !!t._optimisticUntil,
-        source: '_api',
-      })),
-      extraReceptionsAll: extraReceptions.map(r => ({
-        id: r.id,
-        status: r.status,
-        source: 'extra',
-      })),
-      receptionUpdatesKeys: Object.keys(receptionUpdates || {}),
     });
     // 미배정/약속대기/빈 값 만 카드 목록에 박힘 (배정/확정/진행중/완료는 별도 화면)
     // 2026-05-10 hotfix — 배정/확정/진행중/완료/정산완료/취소 명시 제외 (분류 정확성 강화)
@@ -6344,20 +6299,25 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
         setCandidates(broadcast);
 
         // Phase 4 후속 — DB tasks.push_candidates 박음 (기사 PWA 측 Realtime 측 catch)
-        // 후보 이름 + code 둘 다 박음 (이름 매칭 / code 매칭 둘 다 catch 박을 차례)
+        // 2026-05-14 fix — 이미 박힌 영역 박지 X (무한 catch 회피)
         if (task?.id && broadcast.length > 0) {
-          const candidateKeys = broadcast.flatMap(c =>
-            [c.name, c.engineerId, c.id].filter(Boolean)
-          );
-          try {
-            const { error: pushErr } = await supabase
-              .from('tasks')
-              .update({ push_candidates: candidateKeys })
-              .eq('id', task.id);
-            if (pushErr) console.error('[AutoAssign push_candidates]', pushErr);
-            else console.log('[AutoAssign] push_candidates 박힘:', candidateKeys.length, '명');
-          } catch (pushErr) {
-            console.error('[AutoAssign push_candidates] 에러:', pushErr);
+          const existingPushed = task.pushCandidates || task.push_candidates || [];
+          if (existingPushed.length === 0) {
+            const candidateKeys = broadcast.flatMap(c =>
+              [c.name, c.engineerId, c.id].filter(Boolean)
+            );
+            try {
+              const { error: pushErr } = await supabase
+                .from('tasks')
+                .update({ push_candidates: candidateKeys })
+                .eq('id', task.id);
+              if (pushErr) console.error('[AutoAssign push_candidates]', pushErr);
+              else console.log('[AutoAssign] push_candidates 박힘:', candidateKeys.length, '명');
+            } catch (pushErr) {
+              console.error('[AutoAssign push_candidates] 에러:', pushErr);
+            }
+          } else {
+            console.log('[AutoAssign] push_candidates 이미 박혀있음 / skip', existingPushed.length, '명');
           }
         }
       } catch (e) {
@@ -6369,7 +6329,9 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
       }
     })();
     return () => { cancelled = true; };
-  }, [task]);
+    // 2026-05-14 fix — task 객체 identity 변경 catch 박지 X / id만 박음 (무한 루프 catch)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task?.id]);
 
   // 카운트다운
   useEffect(() => {
