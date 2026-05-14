@@ -220,20 +220,19 @@ export function invalidateRecommendCache() {
   // 추천 캐시 폐기됨 (Phase 3-10). 호출처 시그니처 보존용 no-op.
 }
 
-// 기사 배정 (시트 Q 배정기사 + R 상태=확정 박힘)
-export async function assignEngineer(taskId, engineerName) {
-  return apiCall('assignEngineer', { taskId, engineerName });
-}
-
-// 2026-05-11 7단계 — 기사 측 수락 (흐름 B / 냉매 자동 추천)
-// GAS 측 acceptOffer: P열 추천기사 catch → 본인 박혀있고 Q열 빈 값이면 Q열 박음 + status="배정" + 다른 추천 측 P열 정리
-// 응답: { ok: true, taskId } | { ok: false, error: "이미 다른 기사가 수락" 등 }
-export async function acceptOffer(taskId, engineerName) {
-  if (!taskId || !engineerName) {
-    return { ok: false, error: 'taskId / engineerName 박지 X' };
-  }
-  return apiCall('acceptOffer', { taskId, engineerName });
-}
+// =====================================
+// 배정 흐름 (Phase 4-4)
+// =====================================
+// Phase 4-4 (2026-05-14) — 시트 배정 호출 폐기.
+//   - assignEngineer / acceptOffer 삭제됨.
+//   - 대체: src/data/tasksDb.js
+//     · assignEngineerAdapter(taskId, engineerName, options)
+//       - 이름/code → users.id (UUID) 변환 후 assignEngineerDb 호출
+//       - status 기본값 '배정' (Phase 3-9 분리 운영 일관)
+//     · acceptOfferAdapter(taskId, engineerName)
+//       - assigned_engineer_id IS NULL 조건부 UPDATE
+//       - race condition catch: "이미 다른 기사가 수락" 에러 분리
+//     · _getUsersCache / _resolveUserIdByName 헬퍼 (Phase 4-2 _getPrincipalsCache 패턴)
 
 // Phase 4-2 — updateTask 시트 호출 폐기. updateTaskAdapter 사용 (tasksDb.js).
 

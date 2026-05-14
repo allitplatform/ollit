@@ -60,7 +60,6 @@ import { createEmptyPrincipal } from "../data/principals.js";
 // Phase 3-1 — 정책 호출은 DB (commissionPoliciesDb.js) 측 어댑터 사용. 시트 calculateFee / getAllPolicies 폐기.
 // Phase 3-3 — 원청 마스터도 DB (principalsDb.js) 측 어댑터 사용. 시트 getPrincipals 폐기.
 import {
-  assignEngineer as apiAssignEngineer,
   invalidateRecommendCache,
 } from "../api.js";
 import {
@@ -69,6 +68,7 @@ import {
   updateTaskAdapter as apiUpdateTask,
   approveCancelAdapter as apiApproveCancel,
   rejectCancelAdapter as apiRejectCancel,
+  assignEngineerAdapter as apiAssignEngineer,
 } from "../data/tasksDb.js";
 import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";

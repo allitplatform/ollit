@@ -759,6 +759,117 @@ export async function approveCancelAdapter(taskId, reason) {
   }
 }
 
+// ============================================================
+// Phase 4-4 — 배정 흐름 어댑터 + users 캐시
+// ============================================================
+
+// users 캐시 (engineer 역할 측 중심 / 1분 TTL)
+let _usersCache = null;
+let _usersCacheAt = 0;
+async function _getUsersCache() {
+  if (_usersCache && Date.now() - _usersCacheAt < 60000) {
+    return _usersCache;
+  }
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, code, name, phone")
+    .eq("tenant_id", TENANT_ID);
+  if (error) {
+    console.error("[tasksDb._getUsersCache]", error);
+    return [];
+  }
+  _usersCache = data || [];
+  _usersCacheAt = Date.now();
+  return _usersCache;
+}
+
+// 이름 또는 code → users.id (UUID) 변환
+// 동명이인 시 첫 매칭 사용 (engineer 역할 측 중복 가능성 낮음)
+async function _resolveUserIdByName(nameOrCode) {
+  if (!nameOrCode) return null;
+  const key = String(nameOrCode).trim();
+  if (!key) return null;
+  const list = await _getUsersCache();
+  // code 우선 매칭 (E001 형식)
+  const byCode = list.find(u => u.code === key);
+  if (byCode) return byCode.id;
+  // name 매칭 (한글 이름)
+  const byName = list.find(u => u.name === key);
+  if (byName) return byName.id;
+  return null;
+}
+
+// 운영자 측 기사 배정 — 시트 assignEngineer(taskId, engineerName) 어댑터
+// engineerName 이름 또는 code 박힘 → users.id (UUID) 변환 후 assignEngineerDb 호출
+// 응답: { ok: true, taskId, task } | { ok: false, error }
+export async function assignEngineerAdapter(taskId, engineerName, options = {}) {
+  if (!taskId)        return { ok: false, error: "taskId 박지 X" };
+  if (!engineerName)  return { ok: false, error: "engineerName 박지 X" };
+
+  try {
+    const userId = await _resolveUserIdByName(engineerName);
+    if (!userId) {
+      return { ok: false, error: `기사 매핑 실패 (${engineerName})` };
+    }
+
+    const status = options.status || "배정";
+    const res = await assignEngineerDb(taskId, userId, { status });
+    if (!res.ok) return res;
+    return { ok: true, taskId: res.data?.id, task: res.data };
+  } catch (e) {
+    console.error("[tasksDb.assignEngineerAdapter]", e);
+    return { ok: false, error: e.message || "배정 실패" };
+  }
+}
+
+// 기사 측 자동 배정 수락 — 시트 acceptOffer(taskId, engineerName) 어댑터
+// race condition catch: assigned_engineer_id IS NULL 조건부 UPDATE
+// 이미 다른 기사 박혀있으면 "이미 다른 기사가 수락" 에러 반환 (선착순)
+// 응답: { ok: true, taskId, task } | { ok: false, error: "이미 다른 기사가 수락" 등 }
+export async function acceptOfferAdapter(taskId, engineerName) {
+  if (!taskId)       return { ok: false, error: "taskId 박지 X" };
+  if (!engineerName) return { ok: false, error: "engineerName 박지 X" };
+
+  try {
+    const userId = await _resolveUserIdByName(engineerName);
+    if (!userId) {
+      return { ok: false, error: `기사 매핑 실패 (${engineerName})` };
+    }
+
+    // 조건부 UPDATE — assigned_engineer_id IS NULL 측만 박음 (race condition catch)
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({
+        assigned_engineer_id: userId,
+        status: "배정",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", taskId)
+      .is("assigned_engineer_id", null)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error("[tasksDb.acceptOfferAdapter]", error);
+      return { ok: false, error: error.message };
+    }
+    // data가 null이면 조건 불일치 (이미 다른 기사 박혀있음 또는 task 없음)
+    if (!data) {
+      // 추가 catch: task 존재 여부 확인 (에러 메시지 정확하게)
+      const existing = await getTaskByIdDb(taskId);
+      if (!existing) {
+        return { ok: false, error: "작업 없음" };
+      }
+      return { ok: false, error: "이미 다른 기사가 수락했습니다" };
+    }
+
+    return { ok: true, taskId: data.id, task: rowToTask(data) };
+  } catch (e) {
+    console.error("[tasksDb.acceptOfferAdapter]", e);
+    return { ok: false, error: e.message || "수락 실패" };
+  }
+}
+
 // 운영자 측 취소 거절 — previousStatus 복원 + cancelRejectReason 저장
 // 응답에 oldStatus 박음 (호출처 측 Optimistic Update 활용)
 export async function rejectCancelAdapter(taskId, rejectReason) {
