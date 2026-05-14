@@ -1839,13 +1839,8 @@ export default function AdminApp({ user, onLogout }) {
     setTasksError("");
     setTasksDebug(null);
     try {
-      console.log('[Phase 4 긴급 디버그] ===== fetchTasks 시작 =====');
-      console.log('[Phase 4 긴급 디버그] 호출 시각:', new Date().toISOString());
       console.log('[V14 2A] fetchTasks 시작 — role=admin / userId=', user?.id || user?.userId || 'admin');
       const res = await apiGetTasks('admin', user?.id || user?.userId || 'admin', null);
-      console.log('[Phase 4 긴급 디버그] DB raw 응답:', res);
-      console.log('[Phase 4 긴급 디버그] DB tasks[0]:', res?.tasks?.[0]);
-      console.log('[Phase 4 긴급 디버그] DB tasks[0].status:', res?.tasks?.[0]?.status);
       console.log('[V14 2A] raw 응답:', res);
       console.log('[V14 2A] 응답 키:', res ? Object.keys(res) : 'null');
 
@@ -1877,69 +1872,27 @@ export default function AdminApp({ user, onLogout }) {
       const normalized = list.map(_v14NormalizeTask).filter(Boolean);
       console.log('[V14 2A] normalized:', normalized.length, '건');
       if (normalized[0]) console.log('[V14 2A] 첫 normalized:', normalized[0]);
-      console.log('[Phase 4 긴급 디버그] normalized[0]:', normalized[0]);
-      console.log('[Phase 4 긴급 디버그] normalized[0].status:', normalized[0]?.status);
-      console.log('[Phase 4 긴급 디버그] normalized[0].id:', normalized[0]?.id);
 
       // 2026-05-10 hotfix — Optimistic 마킹된 task는 polling 결과 덮어씀 방지 (60초간)
       // 2026-05-14 fix — DB 측 status가 finalized (취소/완료/정산완료/취소요청) 박혔으면
       //                  Optimistic 무시 + DB 측 status 우선 (다른 사용자 변경 즉시 catch)
-      // 2026-05-14 DEBUG — apiTasks 측 status 잔존 catch
       setApiTasks(prev => {
-        console.log('[Phase 4 긴급 디버그] setApiTasks 호출 직전 prev[0]:', prev?.[0]);
-        console.log('[Phase 4 긴급 디버그] setApiTasks 호출 직전 _optimisticUntil:', prev?.[0]?._optimisticUntil);
-        console.log('[Phase 4 긴급 디버그] 현재 시각:', Date.now());
-        console.log('[Phase 4-DEBUG] setApiTasks 전 prev[0]:', prev[0] ? {
-          id: prev[0].id,
-          status: prev[0].status,
-          taskCode: prev[0].taskCode,
-          _optimisticUntil: prev[0]._optimisticUntil,
-          _optimisticActive: prev[0]._optimisticUntil ? (prev[0]._optimisticUntil > Date.now()) : false,
-        } : 'prev empty');
-        console.log('[Phase 4-DEBUG] normalized[0]:', normalized[0] ? {
-          id: normalized[0].id,
-          status: normalized[0].status,
-          taskCode: normalized[0].taskCode,
-        } : 'normalized empty');
-
         const optimisticMap = new Map();
         const now = Date.now();
         const dbMap = new Map(normalized.map(n => [n.id, n]));
         const FINALIZED = new Set(['취소', '완료', '정산완료', '취소요청']);
         for (const t of prev) {
           if (t._optimisticUntil && t._optimisticUntil > now) {
-            console.log('[Phase 4 긴급 디버그] Optimistic 보호 진입');
             // DB 측 동일 task의 status가 finalized 박혔으면 Optimistic 무시
             const dbVersion = dbMap.get(t.id);
-            console.log('[Phase 4 긴급 디버그] dbVersion.status:', dbVersion?.status);
-            console.log('[Phase 4 긴급 디버그] FINALIZED.has(dbVersion.status):', dbVersion ? FINALIZED.has(dbVersion.status) : 'no dbVersion');
-            console.log('[Phase 4-DEBUG] Optimistic catch:', {
-              id: t.id,
-              memoryStatus: t.status,
-              dbStatus: dbVersion?.status,
-              isFinalized: dbVersion ? FINALIZED.has(dbVersion.status) : 'no dbVersion',
-              willSkip: !!(dbVersion && FINALIZED.has(dbVersion.status)),
-            });
             if (dbVersion && FINALIZED.has(dbVersion.status)) {
               continue;
             }
             optimisticMap.set(t.id, t);
           }
         }
-
-        console.log('[Phase 4-DEBUG] optimisticMap size:', optimisticMap.size);
-        if (optimisticMap.size === 0) {
-          console.log('[Phase 4-DEBUG] 최종 result (normalized 그대로) [0]:', normalized[0]?.status);
-          return normalized;
-        }
-        const result = normalized.map(t => optimisticMap.has(t.id) ? optimisticMap.get(t.id) : t);
-        console.log('[Phase 4-DEBUG] 최종 result[0]:', result[0] ? {
-          id: result[0].id,
-          status: result[0].status,
-          source: optimisticMap.has(result[0].id) ? 'optimistic' : 'db',
-        } : 'result empty');
-        console.log('[Phase 4 긴급 디버그] 최종 result[0].status:', result?.[0]?.status);
-        return result;
+        if (optimisticMap.size === 0) return normalized;
+        return normalized.map(t => optimisticMap.has(t.id) ? optimisticMap.get(t.id) : t);
       });
       // 0건이면 디버그 표시 (사장님 catch 위해)
       if (normalized.length === 0) {
@@ -2334,16 +2287,38 @@ export default function AdminApp({ user, onLogout }) {
           engineerPhone: selectedTaskDetail.engineerPhone || getEngineerPhone(selectedTaskDetail.assignedEngineer || selectedTaskDetail.engineer),
         } : null}
         onBack={goBackFromStack}
-        onCancelTask={(reasonId, memo) => {
-          addNotification({
-            type: "completed",
-            title: "작업 취소",
-            message: `${selectedTaskDetail.customer || "—"}`,
-            subInfo: `사유: ${reasonId} ${memo ? "· " + memo.slice(0, 20) : ""}`,
-            taskId: selectedTaskDetail.id || selectedTaskDetail.taskCode,
-          });
-          addToast({ type: "completed", title: "작업 취소", message: selectedTaskDetail.customer || "—" });
-          goBackFromStack();
+        onCancelTask={async (reasonId, memo) => {
+          // Phase 4-3-b — 운영자 측 [예외처리 → 취소] 흐름 DB 호출 추가
+          // 시트 시절 시뮬 코드 (알림 + 토스트만) → approveCancelAdapter 호출
+          const tk = selectedTaskDetail;
+          if (!tk?.id) {
+            addToast({ type: "completed", title: "취소 실패", message: "작업 정보 없음" });
+            return;
+          }
+          const reason = `${reasonId}${memo ? " · " + memo : ""}`;
+          try {
+            const res = await apiApproveCancel(tk.id, reason);
+            if (!res || res.ok === false) {
+              addToast({ type: "completed", title: "취소 실패", message: (res && res.error) || "알 수 없는 오류" });
+              return;
+            }
+            // Optimistic Update — 화면 측 즉시 반영
+            setApiTasks(prev => prev.map(t =>
+              t.id === tk.id ? { ...t, status: "취소", state: "canceled" } : t
+            ));
+            addNotification({
+              type: "completed",
+              title: "작업 취소",
+              message: `${tk.customer || "—"}`,
+              subInfo: `사유: ${reasonId} ${memo ? "· " + memo.slice(0, 20) : ""}`,
+              taskId: tk.id || tk.taskCode,
+            });
+            addToast({ type: "completed", title: "작업 취소", message: tk.customer || "—" });
+            goBackFromStack();
+          } catch (e) {
+            console.error("[onCancelTask] 에러:", e);
+            addToast({ type: "completed", title: "취소 에러", message: e.message || "취소 처리 중 오류" });
+          }
         }}
         onVisitOnly={(payload) => {
           addNotification({
