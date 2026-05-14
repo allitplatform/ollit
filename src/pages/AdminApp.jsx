@@ -4564,6 +4564,28 @@ function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
           <FileText size={10}/><span>{task.memo}</span>
         </div>
       )}
+      {/* 2026-05-14 — push_candidates 기반 알림 발송 표시 */}
+      {(() => {
+        const keys = Array.isArray(task.pushCandidates) ? task.pushCandidates : [];
+        const engineerCount = keys.filter(k => /^E\d+$/.test(k)).length;
+        if (engineerCount === 0) return null;
+        return (
+          <div style={{
+            marginBottom: 10,
+            padding: "4px 8px",
+            background: t.bgInset,
+            borderRadius: 6,
+            fontSize: 11,
+            color: t.textMuted,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}>
+            <span>📡</span>
+            <span>{engineerCount}명의 프로에게 알림 발송됨</span>
+          </div>
+        );
+      })()}
       <div style={{ display: "flex", gap: 6 }}>
         <button onClick={(e) => { e.stopPropagation(); onAssign && onAssign(); }} style={{
           flex: 1,
@@ -4640,6 +4662,23 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
           <FileText size={10}/><span>{task.memo}</span>
         </div>
       )}
+      {/* 2026-05-14 — push_candidates 기반 알림 발송 표시 */}
+      {(() => {
+        const keys = Array.isArray(task.pushCandidates) ? task.pushCandidates : [];
+        const engineerCount = keys.filter(k => /^E\d+$/.test(k)).length;
+        if (engineerCount === 0) return null;
+        return (
+          <div style={{
+            marginBottom: 10, padding: "4px 8px",
+            background: t.bgInset, borderRadius: 6,
+            fontSize: 11, color: t.textMuted,
+            display: "flex", alignItems: "center", gap: 4,
+          }}>
+            <span>📡</span>
+            <span>{engineerCount}명의 프로에게 알림 발송됨</span>
+          </div>
+        );
+      })()}
       {isPushing && (
         <div style={{
           background: t.warningBg, border: `1px solid ${t.warningBorder}`,
