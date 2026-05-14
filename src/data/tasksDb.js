@@ -281,6 +281,7 @@ export async function searchTasksDb({ query, principalId, region, limit = 50 } =
 export async function createTaskDb(task) {
   if (!task) return { ok: false, error: "task 필수" };
   const row = taskToRow(task);
+  console.log('[createTaskDb INSERT row]', JSON.stringify(row, null, 2));
 
   const { data, error } = await supabase
     .from("tasks")
