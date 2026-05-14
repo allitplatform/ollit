@@ -2194,34 +2194,32 @@ export default function AdminApp({ user, onLogout }) {
         onSubmit={(form) => {
           addReception(form);
 
-          // 2026-05-14 fix — 냉매충전 (auto_first_accept) 박힌 영역 자동 AutoAssignScreen 진입
-          // 옛 흐름: 등록 후 newReception 화면 측 돌아옴 → 사용자 카드 클릭 박을 차례
-          // 신규: 등록 직후 자동 진입 → push_candidates 박힘 → 기사 PWA 측 Realtime catch
-          const head = (form.workItems && form.workItems[0]) || {};
-          const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow;
-          const isAuto = workflow === "auto_first_accept";
-
-          if (form._v14ApiOk && isAuto && form.taskId) {
-            setSelectedTask({
-              id:         form.taskId,
-              taskId:     form.taskId,
-              taskCode:   form.taskId,
-              workType:   head.workType,
-              appliance:  head.appliance,
-              qty:        head.qty || 1,
-              workItems:  form.workItems,
-              region:     form.region,
-              principal:  form.principal,
-              customer:   form.customer,
-              phone:      form.phone,
-              address:    form.address,
-              estimateTotal: form.estimateTotal || 0,
-              pushCount:  4,
-            });
-            replaceScreen("autoAssign");
-            // 2026-05-14 fix — fetchTasks 박지 X (Realtime 측 자동 박힘 / 중복 catch 회피)
-            return;
-          }
+          // 2026-05-14 임시 — 자동 AutoAssignScreen 진입 박지 X (무한 루프 catch 박힐 영역까지)
+          // 옛 흐름 측 박음: 등록 후 새 접수 화면 측 돌아옴 → 운영자가 카드 클릭 박아야 AutoAssignScreen 진입
+          // 복원 박을 차례 — 무한 루프 catch 박힌 영역 정확히 catch 박은 후
+          // const head = (form.workItems && form.workItems[0]) || {};
+          // const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow;
+          // const isAuto = workflow === "auto_first_accept";
+          // if (form._v14ApiOk && isAuto && form.taskId) {
+          //   setSelectedTask({
+          //     id:         form.taskId,
+          //     taskId:     form.taskId,
+          //     taskCode:   form.taskId,
+          //     workType:   head.workType,
+          //     appliance:  head.appliance,
+          //     qty:        head.qty || 1,
+          //     workItems:  form.workItems,
+          //     region:     form.region,
+          //     principal:  form.principal,
+          //     customer:   form.customer,
+          //     phone:      form.phone,
+          //     address:    form.address,
+          //     estimateTotal: form.estimateTotal || 0,
+          //     pushCount:  4,
+          //   });
+          //   replaceScreen("autoAssign");
+          //   return;
+          // }
 
           // V14 Phase 2.5 — replaceScreen 박기 (옛 setScreen = stack 중복 / 뒤로 newReceptionForm 박힘 catch)
           replaceScreen("newReception");
