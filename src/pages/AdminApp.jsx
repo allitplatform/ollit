@@ -1834,8 +1834,13 @@ export default function AdminApp({ user, onLogout }) {
     return { list: null, key: 'no array key found' };
   }
 
-  async function fetchTasks() {
-    setTasksLoading(true);
+  async function fetchTasks(options = {}) {
+    // 2026-05-14 fix — 60초 폴링 시 로딩 인디케이터 박지 X (깜박임 catch)
+    // 초기 mount / 수동 새로고침: 로딩 박음 / 폴링: 백그라운드
+    const isBackground = options.background === true;
+    if (!isBackground) {
+      setTasksLoading(true);
+    }
     setTasksError("");
     setTasksDebug(null);
     try {
@@ -1911,11 +1916,18 @@ export default function AdminApp({ user, onLogout }) {
       setTasksError(e.message || '불러오기 실패');
       setTasksDebug({ phase: 'exception', error: e.message, stack: e.stack });
     } finally {
-      setTasksLoading(false);
+      if (!isBackground) {
+        setTasksLoading(false);
+      }
     }
   }
   // 2026-05-10 — 신규접수 폼 진입 시 폴링 끊기 (입력 초기화 방지)
-  useRealtime(fetchTasks, 60000, { enabled: screen !== "newReceptionForm" });
+  // 2026-05-14 fix — 폴링은 background 박음 (로딩 인디케이터 깜박임 catch)
+  useRealtime(
+    () => fetchTasks({ background: true }),
+    60000,
+    { enabled: screen !== "newReceptionForm" }
+  );
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
   useEffect(() => {
