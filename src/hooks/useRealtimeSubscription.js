@@ -33,6 +33,14 @@ export function useRealtimeTasks(onChange) {
         (payload) => {
           const id = payload.new?.id || payload.old?.id;
           console.log('[Realtime] tasks', payload.eventType, id);
+          // 진단용 — UPDATE 측 push_candidates 측 변경 catch
+          if (payload.eventType === 'UPDATE') {
+            console.log('[DIAG realtime UPDATE]', {
+              taskId: payload.new?.id,
+              pushCount: payload.new?.push_candidates?.length,
+              time: Date.now(),
+            });
+          }
           if (onChangeRef.current) onChangeRef.current(payload);
         }
       )

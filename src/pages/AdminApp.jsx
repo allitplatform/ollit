@@ -2194,32 +2194,31 @@ export default function AdminApp({ user, onLogout }) {
         onSubmit={(form) => {
           addReception(form);
 
-          // 2026-05-14 임시 — 자동 AutoAssignScreen 진입 박지 X (무한 루프 catch 박힐 영역까지)
-          // 옛 흐름 측 박음: 등록 후 새 접수 화면 측 돌아옴 → 운영자가 카드 클릭 박아야 AutoAssignScreen 진입
-          // 복원 박을 차례 — 무한 루프 catch 박힌 영역 정확히 catch 박은 후
-          // const head = (form.workItems && form.workItems[0]) || {};
-          // const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow;
-          // const isAuto = workflow === "auto_first_accept";
-          // if (form._v14ApiOk && isAuto && form.taskId) {
-          //   setSelectedTask({
-          //     id:         form.taskId,
-          //     taskId:     form.taskId,
-          //     taskCode:   form.taskId,
-          //     workType:   head.workType,
-          //     appliance:  head.appliance,
-          //     qty:        head.qty || 1,
-          //     workItems:  form.workItems,
-          //     region:     form.region,
-          //     principal:  form.principal,
-          //     customer:   form.customer,
-          //     phone:      form.phone,
-          //     address:    form.address,
-          //     estimateTotal: form.estimateTotal || 0,
-          //     pushCount:  4,
-          //   });
-          //   replaceScreen("autoAssign");
-          //   return;
-          // }
+          // 2026-05-14 진단용 — 자동 AutoAssignScreen 진입 임시 다시 켜기 (디버그 로그 catch 박을 차례)
+          // 무한 루프 catch 박힐 영역 catch 박은 후 다시 결정 박을 차례
+          const head = (form.workItems && form.workItems[0]) || {};
+          const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow;
+          const isAuto = workflow === "auto_first_accept";
+          if (form._v14ApiOk && isAuto && form.taskId) {
+            setSelectedTask({
+              id:         form.taskId,
+              taskId:     form.taskId,
+              taskCode:   form.taskId,
+              workType:   head.workType,
+              appliance:  head.appliance,
+              qty:        head.qty || 1,
+              workItems:  form.workItems,
+              region:     form.region,
+              principal:  form.principal,
+              customer:   form.customer,
+              phone:      form.phone,
+              address:    form.address,
+              estimateTotal: form.estimateTotal || 0,
+              pushCount:  4,
+            });
+            replaceScreen("autoAssign");
+            return;
+          }
 
           // V14 Phase 2.5 — replaceScreen 박기 (옛 setScreen = stack 중복 / 뒤로 newReceptionForm 박힘 catch)
           replaceScreen("newReception");
@@ -6263,9 +6262,26 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   // 2026-05-14 긴급 fix — push_candidates 측 1회만 박음 (useRef 박음 / 무한 catch 회피)
   const pushedRef = useRef(new Set());
 
+  // 진단용 — 마운트/언마운트 추적
+  useEffect(() => {
+    const mountTime = Date.now();
+    console.log('[DIAG mount]', { taskId: task?.id, time: mountTime });
+    return () => {
+      console.log('[DIAG unmount]', { taskId: task?.id, duration: Date.now() - mountTime });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Phase 3-10 — PWA 클라이언트 추천 (recommendEngineersGroupedAdapter)
   useEffect(() => {
     if (!task?.id) return;
+    // 진단용 — useRef 상태 추적
+    console.log('[DIAG useRef state]', {
+      taskId: task?.id,
+      refSize: pushedRef.current.size,
+      refEntries: Array.from(pushedRef.current),
+      hasThis: pushedRef.current.has(task?.id),
+    });
     // 이미 박은 task 박힘 → skip (Realtime broadcast 측 무한 catch 회피)
     if (pushedRef.current.has(task.id)) {
       console.log('[AutoAssign] 이미 박은 task / skip', task.id);
@@ -6310,11 +6326,13 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
           const candidateKeys = broadcast.flatMap(c =>
             [c.name, c.engineerId, c.id].filter(Boolean)
           );
+          console.log('[DIAG update BEFORE]', { taskId: task?.id, candidates: candidateKeys.length });
           try {
             const { error: pushErr } = await supabase
               .from('tasks')
               .update({ push_candidates: candidateKeys })
               .eq('id', task.id);
+            console.log('[DIAG update AFTER]', { taskId: task?.id, error: pushErr?.message });
             if (pushErr) console.error('[AutoAssign push_candidates]', pushErr);
             else console.log('[AutoAssign] push_candidates 박힘:', candidateKeys.length, '명');
           } catch (pushErr) {
