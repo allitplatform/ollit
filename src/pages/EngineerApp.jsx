@@ -16,6 +16,7 @@ import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 import { REGISTERED_USERS } from "../shared/users.js";
 import { useRealtime } from "../hooks/useRealtime.js";
+import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -4128,7 +4129,8 @@ export default function EngineerApp({ user, onLogout }) {
       setTasksLoading(false);
     }
   }
-  useRealtime(fetchTasks);
+  // Phase 4 후속 — Supabase Realtime 구독 (옛 60초 폴링 폐기)
+  useRealtimeTasks(() => fetchTasks());
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
   useEffect(() => {

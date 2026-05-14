@@ -5,6 +5,7 @@ import {
   updateTaskStatusAdapter as updateTaskStatus,
 } from "../data/tasksDb.js";
 import { v14NormalizeTask, v14FindTaskList } from "../utils/v14Task.js";
+import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
 import {
   Phone, MessageCircle, Snowflake, Wrench, Settings, Zap, ChevronRight, ChevronLeft,
   Sun, Moon, Plus, ArrowLeft, ArrowRight, User, MapPin, Calendar,
@@ -2152,6 +2153,9 @@ export default function HappycallApp({ user, onLogout }) {
     fetchTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  // Phase 4 후속 — Supabase Realtime 구독 (실시간 catch)
+  useRealtimeTasks(() => fetchTasks());
 
   // V14 — updateTask = apiUpdateTask 호출 + Optimistic Update
   const updateTask = async (taskId, updates) => {

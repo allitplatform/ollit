@@ -12,6 +12,7 @@ import {
 import { useTasks } from "../shared/TasksContext.jsx";
 import { filterTasksForPrincipal } from "../shared/tasks.js";
 import { v14NormalizeTask, v14FindTaskList } from "../utils/v14Task.js";
+import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
 import { formatTimeOnly } from "../utils/dateLabel.js";
 
 const NOW = "10:00";
@@ -383,6 +384,9 @@ export default function PrincipalApp({ user, onLogout }) {
     fetchTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.clientName]);
+
+  // Phase 4 후속 — Supabase Realtime 구독 (실시간 catch)
+  useRealtimeTasks(() => fetchTasks());
 
   // V14 — 본인 원청 작업만 필터 (clientName 매칭 / apiTasks 우선)
   // 시트 C열 원청 = "쿨가이 (KB)" 박힌 catch / user.clientName = "쿨가이" 박힘

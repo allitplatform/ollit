@@ -83,6 +83,8 @@ import { listEngineersFromDb } from "../lib/engineersDb.js";
 
 // 🚀 Phase 1-B 2-E ─ 실시간 새로고침 hook
 import { useRealtime } from "../hooks/useRealtime.js";
+// Phase 4 후속 — Supabase Realtime 구독 (폴링 폐기)
+import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
 import { formatTimeOnly, formatDateOnly } from "../utils/dateLabel.js";
 import {
   listNotifications as listStoredNotifications,
@@ -1921,13 +1923,13 @@ export default function AdminApp({ user, onLogout }) {
       }
     }
   }
-  // 2026-05-10 — 신규접수 폼 진입 시 폴링 끊기 (입력 초기화 방지)
-  // 2026-05-14 fix — 폴링은 background 박음 (로딩 인디케이터 깜박임 catch)
-  useRealtime(
-    () => fetchTasks({ background: true }),
-    60000,
-    { enabled: screen !== "newReceptionForm" }
-  );
+  // 2026-05-14 — Supabase Realtime 구독 (옛 60초 폴링 폐기)
+  // 신규접수 폼 진입 시 fetch 끊기 (입력 초기화 방지)
+  // payload 분기 박지 X / 단순 refetch 패턴 (background:true 측 깜박임 X)
+  useRealtimeTasks(() => {
+    if (screen === "newReceptionForm") return;
+    fetchTasks({ background: true });
+  });
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
   useEffect(() => {
