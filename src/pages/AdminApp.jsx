@@ -2201,6 +2201,36 @@ export default function AdminApp({ user, onLogout }) {
         onBack={goBack}
         onSubmit={(form) => {
           addReception(form);
+
+          // 2026-05-14 fix — 냉매충전 (auto_first_accept) 박힌 영역 자동 AutoAssignScreen 진입
+          // 옛 흐름: 등록 후 newReception 화면 측 돌아옴 → 사용자 카드 클릭 박을 차례
+          // 신규: 등록 직후 자동 진입 → push_candidates 박힘 → 기사 PWA 측 Realtime catch
+          const head = (form.workItems && form.workItems[0]) || {};
+          const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow;
+          const isAuto = workflow === "auto_first_accept";
+
+          if (form._v14ApiOk && isAuto && form.taskId) {
+            setSelectedTask({
+              id:         form.taskId,
+              taskId:     form.taskId,
+              taskCode:   form.taskId,
+              workType:   head.workType,
+              appliance:  head.appliance,
+              qty:        head.qty || 1,
+              workItems:  form.workItems,
+              region:     form.region,
+              principal:  form.principal,
+              customer:   form.customer,
+              phone:      form.phone,
+              address:    form.address,
+              estimateTotal: form.estimateTotal || 0,
+              pushCount:  4,
+            });
+            replaceScreen("autoAssign");
+            fetchTasks();
+            return;
+          }
+
           // V14 Phase 2.5 — replaceScreen 박기 (옛 setScreen = stack 중복 / 뒤로 newReceptionForm 박힘 catch)
           replaceScreen("newReception");
           // V14 2A — 진짜 API 등록 후 시트에서 다시 catch (작업번호 + 정확한 데이터)
