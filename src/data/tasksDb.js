@@ -17,6 +17,9 @@ export const CATEGORY_ID_AIRCON = "33333333-3333-3333-3333-333333333001";
 // Supabase row → 클라이언트 task (camelCase / v14NormalizeTask 호환)
 export function rowToTask(row) {
   if (!row) return null;
+  // Phase 4-2 fix — category_data jsonb 평탄화 (workType/workItems 등 별도 추출)
+  // 화면 필터 (NewReceptionScreen.getByType / v14NormalizeTask) 호환
+  const cat = row.category_data || {};
   return {
     // 식별
     id:           row.id,
@@ -71,7 +74,14 @@ export function rowToTask(row) {
     estimateTotal: row.total_amount,
 
     // 메타
-    categoryData:  row.category_data || {},
+    categoryData:  cat,
+    // Phase 4-2 fix — category_data 평탄화 (시트 호환 / 화면 필터 통과)
+    workItems:     Array.isArray(cat.workItems) ? cat.workItems : [],
+    workType:      cat.workType  || "",
+    appliance:     cat.appliance || "",
+    qty:           Number(cat.qty) || 1,
+    quote:         cat.quote      || 0,
+    scheduleType:  cat.scheduleType || "",
     receivedAt:    row.received_at,
     createdAt:     row.created_at,
     updatedAt:     row.updated_at,
