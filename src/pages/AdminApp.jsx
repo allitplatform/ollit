@@ -61,14 +61,14 @@ import { createEmptyPrincipal } from "../data/principals.js";
 // Phase 3-3 — 원청 마스터도 DB (principalsDb.js) 측 어댑터 사용. 시트 getPrincipals 폐기.
 import {
   assignEngineer as apiAssignEngineer,
-  approveCancel as apiApproveCancel,
-  rejectCancel as apiRejectCancel,
   invalidateRecommendCache,
 } from "../api.js";
 import {
   loadTasksForRole as apiGetTasks,
   createTaskAdapter as apiCreateTask,
   updateTaskAdapter as apiUpdateTask,
+  approveCancelAdapter as apiApproveCancel,
+  rejectCancelAdapter as apiRejectCancel,
 } from "../data/tasksDb.js";
 import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";

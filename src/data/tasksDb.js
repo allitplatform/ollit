@@ -672,3 +672,122 @@ export async function updateTaskStatusAdapter(taskId, status, updates = {}) {
     return { ok: false, error: e.message || "상태 변경 실패" };
   }
 }
+
+// ============================================================
+// Phase 4-3 — 취소 흐름 어댑터 3개
+// ============================================================
+// 시트 GAS (requestCancel / approveCancel / rejectCancel) 대체.
+//
+// 흐름:
+//   [배정/확정 진행 중]
+//     ↓ 기사 측 취소 요청 (사유 입력)
+//   status='취소요청' + category_data.cancelReason=사유 + category_data.previousStatus=이전 status
+//     ↓ 운영자 측 V14AdminModal
+//     ├─ ✓ 확인 → status='취소' + category_data.cancelApproveReason=확인 사유
+//     └─ ✗ 거절 → previousStatus 복원 + category_data.cancelRejectReason=거절 사유
+//
+// 응답:
+//   requestCancelAdapter — { ok: true, task } | { ok: false, error }
+//   approveCancelAdapter — { ok: true, task } | { ok: false, error }
+//   rejectCancelAdapter  — { ok: true, task, oldStatus } | { ok: false, error }
+//
+// DB 의존:
+//   · status enum에 '취소요청' 박혀있어야 (대표님 SQL 실행 완료)
+//   · category_data jsonb 활용 (마이그 0개)
+
+// 기사 측 취소 요청 — status='취소요청' + previousStatus 저장
+export async function requestCancelAdapter(taskId, reason) {
+  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  const reasonText = String(reason || "").trim();
+  if (!reasonText) return { ok: false, error: "취소 사유 박지 X" };
+
+  try {
+    // [1] 현재 task 조회 (이전 status 박을 차례)
+    const current = await getTaskByIdDb(taskId);
+    if (!current) return { ok: false, error: "작업 없음" };
+
+    const previousStatus = current.status || "배정";
+
+    // [2] category_data 박음 (cancelReason + previousStatus)
+    const nextCategoryData = {
+      ...(current.categoryData || {}),
+      cancelReason:   reasonText,
+      previousStatus,
+      cancelRequestedAt: new Date().toISOString(),
+    };
+
+    // [3] updateTaskDb 호출
+    const res = await updateTaskDb(taskId, {
+      status:       "취소요청",
+      categoryData: nextCategoryData,
+    });
+    if (!res.ok) return res;
+    return { ok: true, task: res.data };
+  } catch (e) {
+    console.error("[tasksDb.requestCancelAdapter]", e);
+    return { ok: false, error: e.message || "취소 요청 실패" };
+  }
+}
+
+// 운영자 측 취소 확인 — status='취소' + cancelApproveReason 저장
+export async function approveCancelAdapter(taskId, reason) {
+  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  const reasonText = String(reason || "운영자 확인").trim();
+
+  try {
+    // [1] 현재 task 조회 (category_data 보존)
+    const current = await getTaskByIdDb(taskId);
+    if (!current) return { ok: false, error: "작업 없음" };
+
+    // [2] category_data 박음 (cancelApproveReason + 시각)
+    const nextCategoryData = {
+      ...(current.categoryData || {}),
+      cancelApproveReason: reasonText,
+      cancelApprovedAt:    new Date().toISOString(),
+    };
+
+    // [3] updateTaskDb 호출
+    const res = await updateTaskDb(taskId, {
+      status:       "취소",
+      categoryData: nextCategoryData,
+    });
+    if (!res.ok) return res;
+    return { ok: true, task: res.data };
+  } catch (e) {
+    console.error("[tasksDb.approveCancelAdapter]", e);
+    return { ok: false, error: e.message || "취소 확인 실패" };
+  }
+}
+
+// 운영자 측 취소 거절 — previousStatus 복원 + cancelRejectReason 저장
+// 응답에 oldStatus 박음 (호출처 측 Optimistic Update 활용)
+export async function rejectCancelAdapter(taskId, rejectReason) {
+  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  const reasonText = String(rejectReason || "").trim();
+  if (!reasonText) return { ok: false, error: "거절 사유 박지 X" };
+
+  try {
+    // [1] 현재 task 조회 (previousStatus 추출)
+    const current = await getTaskByIdDb(taskId);
+    if (!current) return { ok: false, error: "작업 없음" };
+
+    const oldStatus = current.categoryData?.previousStatus || "미배정";
+
+    // [2] category_data 박음 (cancelRejectReason + 시각 / previousStatus 제거)
+    const nextCategoryData = { ...(current.categoryData || {}) };
+    delete nextCategoryData.previousStatus;
+    nextCategoryData.cancelRejectReason = reasonText;
+    nextCategoryData.cancelRejectedAt   = new Date().toISOString();
+
+    // [3] updateTaskDb 호출 (status를 previousStatus로 복원)
+    const res = await updateTaskDb(taskId, {
+      status:       oldStatus,
+      categoryData: nextCategoryData,
+    });
+    if (!res.ok) return res;
+    return { ok: true, task: res.data, oldStatus };
+  } catch (e) {
+    console.error("[tasksDb.rejectCancelAdapter]", e);
+    return { ok: false, error: e.message || "취소 거절 실패" };
+  }
+}

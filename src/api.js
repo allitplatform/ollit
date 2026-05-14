@@ -241,19 +241,19 @@ export async function acceptOffer(taskId, engineerName) {
 // V14 큰 흐름 — 취소 / 변경 / 작업 (7 API)
 // =====================================
 
-// === 취소 흐름 (3) ===
-// 기사 → 취소 요청 (시트 R='취소요청' / 메모 박힘)
-export async function requestCancel(taskId, reason) {
-  return apiCall('requestCancel', { taskId, reason });
-}
-// 운영자 → 취소 확인 (시트 R='취소' / 취소DB 이동)
-export async function approveCancel(taskId, reason) {
-  return apiCall('approveCancel', { taskId, reason });
-}
-// 운영자 → 취소 거절 (시트 R 옛 상태 복구 / 거절 사유 박힘)
-export async function rejectCancel(taskId, rejectReason) {
-  return apiCall('rejectCancel', { taskId, rejectReason });
-}
+// === 취소 흐름 (Phase 4-3) ===
+// Phase 4-3 (2026-05-14) — 시트 취소 호출 폐기.
+//   - requestCancel / approveCancel / rejectCancel 삭제됨.
+//   - 대체: src/data/tasksDb.js
+//     · requestCancelAdapter(taskId, reason) — status='취소요청' + previousStatus 저장
+//     · approveCancelAdapter(taskId, reason) — status='취소' + cancelApproveReason 저장
+//     · rejectCancelAdapter(taskId, rejectReason) — previousStatus 복원 + cancelRejectReason 저장
+//       · 응답에 oldStatus 박음 (호출처 Optimistic Update 활용)
+//   - DB enum '취소요청' 추가 (대표님 SQL 실행 완료)
+//   - 취소 사유: category_data jsonb 활용 (마이그 0개)
+//     · cancelReason / previousStatus / cancelRequestedAt
+//     · cancelApproveReason / cancelApprovedAt
+//     · cancelRejectReason  / cancelRejectedAt
 
 // === 변경 흐름 (2 / changeSchedule = 옛 updateTask catch) ===
 // 기사 → 금액 변경 (V열 견적합계 + AC열 추가금 + AD열 추가사유)
