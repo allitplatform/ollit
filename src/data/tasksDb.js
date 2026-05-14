@@ -92,6 +92,9 @@ export function rowToTask(row) {
     externalPrincipalNo: row.external_principal_no,
     externalReceivedAt:  row.external_received_at,
 
+    // Phase 4 후속 — 자동 배정 푸시 후보 (jsonb 배열 / 이름 또는 code 박힘)
+    pushCandidates: Array.isArray(row.push_candidates) ? row.push_candidates : [],
+
     _source: "supabase",
   };
 }

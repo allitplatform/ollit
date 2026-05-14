@@ -85,6 +85,8 @@ import { listEngineersFromDb } from "../lib/engineersDb.js";
 import { useRealtime } from "../hooks/useRealtime.js";
 // Phase 4 후속 — Supabase Realtime 구독 (폴링 폐기)
 import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
+// Phase 4 후속 — push_candidates 박음 (AutoAssignScreen 측)
+import { supabase } from "../lib/supabase.js";
 import { formatTimeOnly, formatDateOnly } from "../utils/dateLabel.js";
 import {
   listNotifications as listStoredNotifications,
@@ -6291,6 +6293,24 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
         const broadcast = allCandidates.slice(0, task.pushCount || 4);
         console.log('[V14 AutoAssign] candidates:', broadcast.length, '명');
         setCandidates(broadcast);
+
+        // Phase 4 후속 — DB tasks.push_candidates 박음 (기사 PWA 측 Realtime 측 catch)
+        // 후보 이름 + code 둘 다 박음 (이름 매칭 / code 매칭 둘 다 catch 박을 차례)
+        if (task?.id && broadcast.length > 0) {
+          const candidateKeys = broadcast.flatMap(c =>
+            [c.name, c.engineerId, c.id].filter(Boolean)
+          );
+          try {
+            const { error: pushErr } = await supabase
+              .from('tasks')
+              .update({ push_candidates: candidateKeys })
+              .eq('id', task.id);
+            if (pushErr) console.error('[AutoAssign push_candidates]', pushErr);
+            else console.log('[AutoAssign] push_candidates 박힘:', candidateKeys.length, '명');
+          } catch (pushErr) {
+            console.error('[AutoAssign push_candidates] 에러:', pushErr);
+          }
+        }
       } catch (e) {
         console.error('[V14 AutoAssign] 에러:', e);
         if (cancelled) return;

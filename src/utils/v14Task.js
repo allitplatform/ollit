@@ -1,7 +1,7 @@
 // V14 Task Utils — 시트 작업DB row → 내부 task object 변환
 // AdminApp + EngineerApp + HappycallApp 공유 (재사용 module)
 
-import { calcCommission } from "./commissionPolicy.js";
+import { calcCommission, calcCommissionMulti } from "./commissionPolicy.js";
 
 // V14 — 주소 첫 단어 = 지역 (예: "강남구 도곡동 ..." → "강남구")
 export function v14ExtractRegion(address) {
@@ -128,7 +128,9 @@ export function v14NormalizeTask(t) {
       source: "gas_secret",
     };
   } else {
-    commission = calcCommission({
+    // 다중 항목 catch — workItems 길이 > 1 이면 calcCommissionMulti 측 합산
+    const useMulti = Array.isArray(workItems) && workItems.length > 1;
+    const commissionInput = {
       principal,
       workType,
       appliance,
@@ -136,7 +138,11 @@ export function v14NormalizeTask(t) {
       addonFee,
       visitOnly:  !!(t.visitOnly  || t.출장비만),
       isYsnExtra: !!(t.isYsnExtra || t.YSN추가),
-    });
+      workItems,
+    };
+    commission = useMulti
+      ? calcCommissionMulti(commissionInput)
+      : calcCommission(commissionInput);
   }
 
   // 2026-05-11 진단 — window.__DEBUG_NORMALIZE 켜면 status 매핑 추적
@@ -183,6 +189,11 @@ export function v14NormalizeTask(t) {
     // Phase 4-2 fix — DB 전환 측 누락 필드 (dashboardStats 카운트 catch)
     createdAt:  t.createdAt  || t.created_at  || t.receivedAt || t.received_at || "",
     receivedAt: t.receivedAt || t.received_at || "",
+
+    // Phase 4 후속 — 자동 배정 푸시 후보 (Realtime 측 catch)
+    pushCandidates: Array.isArray(t.pushCandidates) ? t.pushCandidates
+                  : Array.isArray(t.push_candidates) ? t.push_candidates
+                  : [],
     // 정산 영역 (Hybrid)
     engineerEarning:  commission.engineerEarning,
     engineerNet:      commission.engineerEarning,  // 옛 호환 (EngineerSettleTab getEarning fallback)

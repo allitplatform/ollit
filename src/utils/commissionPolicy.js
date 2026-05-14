@@ -366,6 +366,65 @@ function zeroResult(reason) {
 }
 
 // ===== 디버그 / 추적 =====
+// 다중 작업 항목 측 정산 합산
+// workItems = [{ workType, appliance, qty, unitPrice? }, ...]
+// 각 항목별 calcCommission 호출 후 qty 곱하기 + 합산
+// unitPrice 박혀있으면 항목별 estimate 사용 / 박지 X면 task.estimateTotal 측 균등 분배
+export function calcCommissionMulti(task) {
+  const items = (task && Array.isArray(task.workItems)) ? task.workItems : [];
+
+  // 항목 0개 — 단일 task 측 calcCommission 호출
+  if (items.length === 0) return calcCommission(task);
+
+  // 항목 1개 — workType/appliance 측 정정 후 calcCommission
+  if (items.length === 1) {
+    return calcCommission({
+      ...task,
+      workType:  items[0].workType  || task.workType,
+      appliance: items[0].appliance || task.appliance,
+    });
+  }
+
+  // 다중 항목 — 각 항목별 계산 후 합산
+  const totalTaskEstimate = Number(task.estimateTotal) || 0;
+  let totalEngineer  = 0;
+  let totalPrincipal = 0;
+  let totalMargin   = 0;
+  let totalEstimate = 0;
+
+  for (const item of items) {
+    const qty = Number(item.qty) || 1;
+    const unitPrice = Number(item.unitPrice || item.quote) || 0;
+    // unitPrice 박혀있으면 단가 × qty / 박지 X면 task 측 estimate 항목 수 균등 분배
+    const itemEstimate = unitPrice > 0
+      ? unitPrice * qty
+      : (totalTaskEstimate / items.length);
+
+    const r = calcCommission({
+      ...task,
+      workType:      item.workType  || task.workType,
+      appliance:     item.appliance || task.appliance,
+      estimateTotal: itemEstimate,
+    });
+
+    // 단가 type (직영 / 정액10K / 비율15 등) — engineerRate 박힌 영역 qty 곱하기
+    // 비율 type (직영_50_50 / 정액10K_기사50) — estimate 박힌 영역 측 이미 분배됨
+    totalEngineer  += (r.engineerEarning || 0) * qty;
+    totalPrincipal += (r.principalFee    || 0) * qty;
+    totalMargin    += (r.companyMargin   || 0) * qty;
+    totalEstimate  += itemEstimate;
+  }
+
+  return {
+    engineerEarning: totalEngineer,
+    principalFee:    totalPrincipal,
+    companyMargin:   totalMargin,
+    estimateTotal:   totalEstimate,
+    isSecret:        false,
+    source:          'multi_items',
+  };
+}
+
 // 사용처: console.log(commissionDebug(task))
 export function commissionDebug(task) {
   const result = calcCommission(task);

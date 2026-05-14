@@ -4056,7 +4056,13 @@ export default function EngineerApp({ user, onLogout }) {
         // Q열 (배정기사) 빈 값이어야 함 — 이미 배정 박혀있으면 catch X
         const assigned = String(t.assignedEngineer || t.engineer || t.배정기사 || "").trim();
         if (assigned) return false;
-        // P열 (추천기사) 박혀있어야 함
+        // Phase 4 후속 — pushCandidates (DB jsonb) 측 본인 catch (Realtime 측 알림)
+        const pushCands = Array.isArray(t.pushCandidates) ? t.pushCandidates : [];
+        if (pushCands.length > 0) {
+          const myCode = user?.engineerId || user?.id || "";
+          if (pushCands.includes(myName) || (myCode && pushCands.includes(myCode))) return true;
+        }
+        // 옛 호환 — P열 (recommendedEngineer) 박혀있으면 catch (시트 시절 흐름)
         const recommendedRaw = String(t.recommendedEngineer || t.추천기사 || t.P || "").trim();
         if (!recommendedRaw) return false;
         // 콤마/한글콤마/공백 구분 + 본인 이름 catch
