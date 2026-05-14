@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import {
-  getTasks,
   updateTask as apiUpdateTask,
   requestCancel as apiRequestCancel,
   changePrice as apiChangePrice,
@@ -8,6 +7,7 @@ import {
   completeTask as apiCompleteTask,
   acceptOffer as apiAcceptOffer,
 } from "../api.js";
+import { loadTasksForRole as getTasks } from "../data/tasksDb.js";
 // Phase 3-5 — 휴무는 DB 측 (offDaysDb.js) 어댑터 사용. 시그니처 동일.
 import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";

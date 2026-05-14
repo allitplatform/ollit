@@ -71,13 +71,19 @@ export async function getSystemInfo() {
 //   - 실 사용 화면: src/components/LoginScreen.jsx, src/components/PasswordChangeScreen.jsx
 // =====================================
 
-export async function getTasks(role, userId, principalCode) {
-  return apiCall('getTasks', { role, userId, principalCode });
-}
-
-export async function getTaskDetail(taskId) {
-  return apiCall('getTaskDetail', { taskId });
-}
+// =====================================
+// 작업 조회 (Phase 4-1)
+// =====================================
+// Phase 4-1 (2026-05-14) — 시트 작업 조회 호출 폐기.
+//   - getTasks / getTaskDetail 삭제됨.
+//   - 대체: src/data/tasksDb.js
+//     · loadTasksForRole(role, userId, principalCode) — 시그니처 호환 어댑터
+//       · 응답 { ok: true, tasks: [...] } / role별 필터링은 호출처 활용
+//       · principals + users in-memory join (principal name / engineer name 박음)
+//     · getTaskDetailForId(taskId) — getTaskByIdDb 래퍼
+//   - 호출처: AdminApp / EngineerApp / HappycallApp / PrincipalApp 4곳
+//   - DB 측 tenants_tasks 정책 활용 (anon SELECT 박힘)
+// =====================================
 
 export async function createTask(taskData) {
   return apiCall('createTask', { task: taskData });

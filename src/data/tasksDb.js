@@ -356,3 +356,106 @@ export async function updateTaskStatusDb(taskId, status, { startedAt, completedA
   }
   return { ok: true, data: rowToTask(data) };
 }
+
+// ============================================================
+// Phase 4-1 — 시트 getTasks 어댑터 (시그니처 호환)
+// ============================================================
+// 옛 api.js 측 getTasks(role, userId, principalCode) 시그니처 호환.
+// 호출처 (AdminApp / EngineerApp / HappycallApp / PrincipalApp) 4곳 응답 처리:
+//   - res.ok === false 분기 + v14FindTaskList(res)의 'tasks' 키 매칭
+// 응답 shape: { ok: true, tasks: [...] } | { ok: false, error, tasks: [] }
+//
+// role별 처리:
+//   - admin / happycall — 모든 작업 반환 (호출처에서 추가 필터 없음)
+//   - engineer — 모든 작업 반환 (호출처 측 filterTasksForEngineerV14 활용)
+//   - principal — 모든 작업 반환 (호출처 측 clientName 측 fuzzy 매칭 활용)
+//
+// principal name / assigned engineer name 박음:
+//   tasks 측 principal_id (UUID) / assigned_engineer_id (UUID) 만 박혀있어서
+//   별도 fetch 후 in-memory join (PostgREST embed PGRST201 회피).
+export async function loadTasksForRole(role, userId, principalCode) {
+  try {
+    // [1] 작업 전체
+    const { data: rows, error } = await supabase
+      .from("tasks")
+      .select("*")
+      .eq("tenant_id", TENANT_ID)
+      .order("received_at", { ascending: false })
+      .limit(500);
+    if (error) {
+      console.error("[tasksDb.loadTasksForRole:tasks]", error);
+      return { ok: false, error: error.message, tasks: [] };
+    }
+
+    if (!rows || rows.length === 0) {
+      return { ok: true, tasks: [] };
+    }
+
+    // [2] principals lookup (in-memory join)
+    const principalIds = [...new Set(rows.map(r => r.principal_id).filter(Boolean))];
+    let principalMap = new Map();
+    if (principalIds.length > 0) {
+      const { data: pData, error: pErr } = await supabase
+        .from("principals")
+        .select("id, code, name, color, prefix")
+        .in("id", principalIds);
+      if (pErr) {
+        console.error("[tasksDb.loadTasksForRole:principals]", pErr);
+      } else {
+        principalMap = new Map((pData || []).map(p => [p.id, p]));
+      }
+    }
+
+    // [3] users (배정 기사) lookup
+    const userIds = [...new Set(rows.map(r => r.assigned_engineer_id).filter(Boolean))];
+    let userMap = new Map();
+    if (userIds.length > 0) {
+      const { data: uData, error: uErr } = await supabase
+        .from("users")
+        .select("id, code, name, phone")
+        .in("id", userIds);
+      if (uErr) {
+        console.error("[tasksDb.loadTasksForRole:users]", uErr);
+      } else {
+        userMap = new Map((uData || []).map(u => [u.id, u]));
+      }
+    }
+
+    // [4] rowToTask + 시트 호환 필드 박음 (principal name / assignedEngineer name 등)
+    const tasks = rows.map(row => {
+      const task = rowToTask(row);
+      if (row.principal_id) {
+        const p = principalMap.get(row.principal_id);
+        if (p) {
+          task.principal       = p.name || "";
+          task.principalCode   = p.code || "";
+          task.principalColor  = p.color || "";
+          task.principalPrefix = p.prefix || "";
+        }
+      }
+      if (row.assigned_engineer_id) {
+        const u = userMap.get(row.assigned_engineer_id);
+        if (u) {
+          task.assignedEngineer = u.name || "";
+          task.engineer         = u.name || "";
+          task.engineerPhone    = u.phone || "";
+          task.engineerCode     = u.code || "";
+        }
+      }
+      return task;
+    });
+
+    return { ok: true, tasks };
+  } catch (e) {
+    console.error("[tasksDb.loadTasksForRole]", e);
+    return { ok: false, error: e.message || '조회 실패', tasks: [] };
+  }
+}
+
+// Phase 4-1 — 시트 getTaskDetail 어댑터 (호출처 0건이지만 시그니처 호환 보존)
+// 응답: { ok: true, task } | { ok: false, error }
+export async function getTaskDetailForId(taskId) {
+  const task = await getTaskByIdDb(taskId);
+  if (!task) return { ok: false, error: "작업 없음" };
+  return { ok: true, task };
+}
