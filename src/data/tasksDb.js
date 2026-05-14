@@ -459,3 +459,205 @@ export async function getTaskDetailForId(taskId) {
   if (!task) return { ok: false, error: "작업 없음" };
   return { ok: true, task };
 }
+
+// ============================================================
+// Phase 4-2 — 시트 createTask / updateTask / updateTaskStatus 어댑터
+// ============================================================
+import { generateTaskNo } from "../lib/taskNoGenerator.js";
+
+// principals lookup 캐시 (name / code → id)
+let _principalsCache = null;
+let _principalsCacheAt = 0;
+async function _getPrincipalsCache() {
+  if (_principalsCache && Date.now() - _principalsCacheAt < 60000) {
+    return _principalsCache;
+  }
+  const { data, error } = await supabase
+    .from("principals")
+    .select("id, code, name, prefix")
+    .eq("tenant_id", TENANT_ID);
+  if (error) {
+    console.error("[tasksDb._getPrincipalsCache]", error);
+    return [];
+  }
+  _principalsCache = data || [];
+  _principalsCacheAt = Date.now();
+  return _principalsCache;
+}
+
+// principal 이름 또는 code → id (UUID) 변환
+async function _resolvePrincipalId({ principal, principalCode, principalId } = {}) {
+  if (principalId) return principalId;
+  const list = await _getPrincipalsCache();
+  if (principalCode) {
+    const m = list.find(p => p.code === principalCode);
+    if (m) return m.id;
+  }
+  if (principal) {
+    const m = list.find(p => p.name === principal || p.code === principal);
+    if (m) return m.id;
+  }
+  return null;
+}
+
+// principal 이름 → code 변환
+async function _resolvePrincipalCode(principalName) {
+  if (!principalName) return null;
+  const list = await _getPrincipalsCache();
+  const m = list.find(p => p.name === principalName || p.code === principalName);
+  return m ? m.code : null;
+}
+
+// ============================================================
+// createTaskAdapter — 시트 createTask(taskData) 어댑터
+// ============================================================
+// 입력: taskData (옛 시트 호환 shape)
+//   { principal, channel, customer, phone, address, region,
+//     workType, appliance, qty, workItems, quote, estimateTotal,
+//     scheduledDate, scheduledTime, memo, status, ... }
+//
+// 처리:
+//   1) principal 이름 → principal_id (UUID) 변환
+//   2) 작업번호 자동 박음 (generateTaskNo)
+//   3) tasks 측 INSERT (category_data jsonb에 workItems 박음)
+//
+// 응답: { ok: true, taskId, task_no, task } | { ok: false, error, timeout? }
+// 호환: 호출처 res.ok / res.taskId / res.task_no 사용
+export async function createTaskAdapter(taskData) {
+  if (!taskData) return { ok: false, error: "taskData 박지 X" };
+
+  try {
+    // [1] principal 변환
+    const principalCode = taskData.principalCode || await _resolvePrincipalCode(taskData.principal);
+    const principalId = await _resolvePrincipalId({
+      principal: taskData.principal,
+      principalCode,
+      principalId: taskData.principalId,
+    });
+    if (!principalId) {
+      return { ok: false, error: `원청 매핑 실패: ${taskData.principal || taskData.principalCode}` };
+    }
+
+    // [2] 작업번호 자동 박음
+    const tnRes = await generateTaskNo({ principalCode });
+    if (!tnRes.ok) {
+      return { ok: false, error: `작업번호 생성 실패: ${tnRes.error}` };
+    }
+    const taskNo = tnRes.taskNo;
+
+    // [3] scheduled_at ISO 박음 (호출처가 scheduledDate + scheduledTime 별도 박는 경우)
+    let scheduledAtIso = taskData.scheduledAt || null;
+    if (!scheduledAtIso && taskData.scheduledDate && taskData.scheduledTime) {
+      scheduledAtIso = `${taskData.scheduledDate}T${taskData.scheduledTime}:00`;
+    }
+
+    // [4] category_data jsonb 박음 (workItems / 메타)
+    const categoryData = {
+      ...(taskData.workItems ? { workItems: taskData.workItems } : {}),
+      ...(taskData.workType  ? { workType:  taskData.workType  } : {}),
+      ...(taskData.appliance ? { appliance: taskData.appliance } : {}),
+      ...(taskData.qty       ? { qty:       taskData.qty       } : {}),
+      ...(taskData.quote     ? { quote:     taskData.quote     } : {}),
+      ...(taskData.scheduleType ? { scheduleType: taskData.scheduleType } : {}),
+    };
+
+    // [5] tasks row 박음
+    const taskRow = {
+      taskNo,
+      principalId,
+      customer:      taskData.customer  || "",
+      phone:         taskData.phone     || "",
+      address:       taskData.address   || "",
+      region:        taskData.region    || taskData.district || "",
+      channel:       taskData.channel   || "",
+      requestNote:   taskData.memo      || taskData.request || taskData.requestNote || "",
+      status:        taskData.status    || "미배정",
+      productPrice:  Number(taskData.estimateTotal || taskData.quote || taskData.productPrice || 0),
+      extraFee:      Number(taskData.extraFee  || 0),
+      travelFee:     Number(taskData.travelFee || 0),
+      requestedDate: taskData.scheduledDate || taskData.requestedDate || null,
+      requestedTime: taskData.scheduledTime || taskData.requestedTime || null,
+      scheduledAt:   scheduledAtIso,
+      categoryData,
+    };
+
+    const res = await createTaskDb(taskRow);
+    if (!res.ok) {
+      return { ok: false, error: res.error };
+    }
+
+    return {
+      ok: true,
+      taskId: res.data?.id,
+      task_no: res.data?.taskCode,
+      taskNo: res.data?.taskCode,
+      task: res.data,
+    };
+  } catch (e) {
+    console.error("[tasksDb.createTaskAdapter]", e);
+    return { ok: false, error: e.message || "생성 실패" };
+  }
+}
+
+// ============================================================
+// updateTaskAdapter — 시트 updateTask(taskId, updates) 어댑터
+// ============================================================
+// 입력: taskId, updates (camelCase / 한국어 키 호환)
+//   updates 예: { status, scheduledAt, memo, assignedEngineer, cancelReason, ... }
+//
+// 처리:
+//   · assignedEngineer (이름) → assigned_engineer_id (UUID) 변환은 별도 Phase
+//     (현재 어댑터는 직접 ID만 catch — Phase 4-3 배정 단계에서 박을 차례)
+//   · memo / 작업메모 → workMemo 또는 requestNote
+//
+// 응답: { ok: true, task } | { ok: false, error }
+export async function updateTaskAdapter(taskId, updates) {
+  if (!taskId || !updates) return { ok: false, error: "taskId / updates 박지 X" };
+
+  // 시트 호환 키 정규화
+  const normalized = { ...updates };
+  if (normalized.작업메모 !== undefined && normalized.memo === undefined) {
+    normalized.memo = normalized.작업메모;
+  }
+  if (normalized.memo !== undefined && normalized.workMemo === undefined) {
+    normalized.workMemo = normalized.memo;
+  }
+  if (normalized.확정일시 !== undefined && normalized.scheduledAt === undefined) {
+    normalized.scheduledAt = normalized.확정일시;
+  }
+
+  try {
+    const res = await updateTaskDb(taskId, normalized);
+    return res;
+  } catch (e) {
+    console.error("[tasksDb.updateTaskAdapter]", e);
+    return { ok: false, error: e.message || "수정 실패" };
+  }
+}
+
+// ============================================================
+// updateTaskStatusAdapter — 시트 updateTaskStatus(taskId, status, updates) 어댑터
+// ============================================================
+// 응답: { ok: true, task } | { ok: false, error }
+export async function updateTaskStatusAdapter(taskId, status, updates = {}) {
+  if (!taskId || !status) return { ok: false, error: "taskId / status 박지 X" };
+  try {
+    // updates 측 startedAt / completedAt 박힐 수 있음
+    const opts = {};
+    if (updates.startedAt   !== undefined) opts.startedAt   = updates.startedAt;
+    if (updates.completedAt !== undefined) opts.completedAt = updates.completedAt;
+    const res = await updateTaskStatusDb(taskId, status, opts);
+
+    // 추가 필드 박혔으면 별도 updateTaskDb 호출
+    const extraKeys = Object.keys(updates).filter(k => k !== "startedAt" && k !== "completedAt");
+    if (res.ok && extraKeys.length > 0) {
+      const extra = {};
+      for (const k of extraKeys) extra[k] = updates[k];
+      await updateTaskDb(taskId, extra);
+    }
+    return res;
+  } catch (e) {
+    console.error("[tasksDb.updateTaskStatusAdapter]", e);
+    return { ok: false, error: e.message || "상태 변경 실패" };
+  }
+}

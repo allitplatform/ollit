@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
-import { createTask } from "../api.js";
-import { loadTasksForRole as getTasks } from "../data/tasksDb.js";
+import {
+  loadTasksForRole as getTasks,
+  createTaskAdapter as createTask,
+} from "../data/tasksDb.js";
 import {
   Sun, Moon, RotateCcw, ClipboardPaste, Plus, Send, ArrowLeft,
   ClipboardList, Wallet, Building2, ChevronRight, AlertCircle,

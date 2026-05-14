@@ -85,13 +85,21 @@ export async function getSystemInfo() {
 //   - DB 측 tenants_tasks 정책 활용 (anon SELECT 박힘)
 // =====================================
 
-export async function createTask(taskData) {
-  return apiCall('createTask', { task: taskData });
-}
-
-export async function updateTaskStatus(taskId, status, updates = {}) {
-  return apiCall('updateTaskStatus', { taskId, status, updates });
-}
+// =====================================
+// 작업 생성 + 수정 (Phase 4-2)
+// =====================================
+// Phase 4-2 (2026-05-14) — 시트 작업 생성/수정 호출 폐기.
+//   - createTask / updateTask / updateTaskStatus 삭제됨.
+//   - 대체: src/data/tasksDb.js
+//     · createTaskAdapter(taskData) — principal name → id 변환 + 작업번호 자동
+//       · 응답 { ok: true, taskId, task_no, task }
+//     · updateTaskAdapter(taskId, updates) — 한국어/camelCase 키 호환
+//     · updateTaskStatusAdapter(taskId, status, updates) — startedAt/completedAt 별도 처리
+//   - 작업번호 생성: src/lib/taskNoGenerator.js
+//     · generateTaskNo({ principalCode | principalName })
+//     · 패턴: {prefix}{YYMMDD}-{seq} (예: A-260514-001)
+//     · prefix는 DB principals.prefix lookup
+// =====================================
 
 export async function parseKakao(text) {
   return apiCall('parseKakao', { text });
@@ -227,11 +235,7 @@ export async function acceptOffer(taskId, engineerName) {
   return apiCall('acceptOffer', { taskId, engineerName });
 }
 
-// 작업 다양한 컬럼 update (상태 변경 / 일정 변경 / 메모 / 등)
-// updates = { status, scheduledDate, scheduledTime, memo, ... }
-export async function updateTask(taskId, updates) {
-  return apiCall('updateTask', { taskId, ...updates });
-}
+// Phase 4-2 — updateTask 시트 호출 폐기. updateTaskAdapter 사용 (tasksDb.js).
 
 // =====================================
 // V14 큰 흐름 — 취소 / 변경 / 작업 (7 API)
