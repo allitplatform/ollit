@@ -253,3 +253,32 @@ export const RECOMMEND_INFO = {
   weights:   { region: 40, appliance: 20, schedule: 20, activity: 10, rating: 10 },
   tiers:     ["best", "good", "possible", "fallback"],
 };
+
+// ============================================================
+// Phase 3-10 — 시트 getRecommendedEngineers 대체 어댑터
+// 시그니처: (workType, principal, region) — 옛 GAS 호출과 동일
+// 응답: { ok: true, main, sub, capable } — main/sub/capable은 engineer 객체 배열
+// ============================================================
+// regionMatch 분류:
+//   · "main"     → main 그룹 (지역 메인)
+//   · "sub"      → sub 그룹 (지역 백업)
+//   · "possible" → capable 그룹 (인접 지역)
+//   · "none"     → 제외
+//
+// 평탄화: { engineer, score, tier, reasons, ... } → engineer 객체 그대로
+//        (AdminApp.jsx 호출처가 eng.name / eng.id 등 직접 접근)
+// 비동기 시그니처 (async) 유지 — 호출처 await 호환.
+export async function recommendEngineersGroupedAdapter(workType, principal, region) {
+  const task = {
+    workType: workType || "",
+    principal: principal || "",
+    region: region || "",
+  };
+  const scored = recommendEngineers(task, { limit: 999 });
+
+  const main    = scored.filter(s => s.regionMatch === "main").map(s => s.engineer);
+  const sub     = scored.filter(s => s.regionMatch === "sub").map(s => s.engineer);
+  const capable = scored.filter(s => s.regionMatch === "possible").map(s => s.engineer);
+
+  return { ok: true, main, sub, capable };
+}

@@ -62,7 +62,6 @@ import { createEmptyPrincipal } from "../data/principals.js";
 import {
   createTask as apiCreateTask,
   getTasks as apiGetTasks,
-  getRecommendedEngineers as apiGetRecommendedEngineers,
   assignEngineer as apiAssignEngineer,
   updateTask as apiUpdateTask,
   approveCancel as apiApproveCancel,
@@ -71,6 +70,7 @@ import {
 } from "../api.js";
 import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
+import { recommendEngineersGroupedAdapter } from "../utils/engineerRecommendation.js";
 import {
   calculateFeeCompat,
   listPoliciesSheetShape,
@@ -6203,17 +6203,17 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   const [countdown, setCountdown] = useState(3);
   const [acceptedEngineer, setAcceptedEngineer] = useState(null);
 
-  // V14 — 후보 추출 (시트 catch / apiGetRecommendedEngineers 호출)
+  // Phase 3-10 — PWA 클라이언트 추천 (recommendEngineersGroupedAdapter)
   useEffect(() => {
     if (!task) return;
     let cancelled = false;
     const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
     const region = task.region || "";
     const principal = task.principal || "";
-    console.log('[V14 AutoAssign] getRecommendedEngineers', { workType: mainWorkType, principal, region });
+    console.log('[Phase 3-10 AutoAssign] recommendEngineers', { workType: mainWorkType, principal, region });
     (async () => {
       try {
-        const res = await apiGetRecommendedEngineers(mainWorkType, principal, region);
+        const res = await recommendEngineersGroupedAdapter(mainWorkType, principal, region);
         console.log('[V14 AutoAssign] 응답:', res);
         if (cancelled) return;
         if (!res || res.ok === false) {
@@ -6526,8 +6526,8 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
       try {
         const region = task.region || "";
         const principal = task.principal || "";
-        console.log('[V14 2B-3] getRecommendedEngineers', { workType: mainWorkType, principal, region });
-        const res = await apiGetRecommendedEngineers(mainWorkType, principal, region);
+        console.log('[Phase 3-10 추천] recommendEngineers', { workType: mainWorkType, principal, region });
+        const res = await recommendEngineersGroupedAdapter(mainWorkType, principal, region);
         console.log('[V14 2B-3] 응답:', res);
         if (cancelled) return;
         if (!res || res.ok === false) {

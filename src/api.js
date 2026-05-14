@@ -190,48 +190,20 @@ export async function parseKakao(text) {
 // =====================================
 // 추천 / 배정 API
 // =====================================
+// Phase 3-10 (2026-05-14) — 시트 추천 호출 폐기.
+//   - getRecommendedEngineers 함수 + 5분 TTL in-memory 캐시 (Map / _getCached / _setCached) 모두 삭제됨.
+//   - 대체: src/utils/engineerRecommendation.js
+//     · recommendEngineers(task, options) — V11-10 PWA 클라이언트 추천 (점수 100, threshold 50, tier 4단계)
+//     · recommendEngineersGroupedAdapter(workType, principal, region) — 옛 GAS 시그니처 호환 어댑터
+//       (regionMatch별 main/sub/capable 분류 + engineer 객체 평탄화)
+//   - 입력 데이터: Phase 3-3~3-9 DB 데이터 종합 활용 (users / engineer.skills / tasks / regions)
+//   - 캐시 제거 근거: loadEngineers/loadTasks가 이미 빠름 (localStorage/DB 캐시) → 5분 TTL 무의미
+//   - invalidateRecommendCache 함수는 호출처 (AdminApp.jsx 2곳) 보존을 위해 no-op 유지
+// =====================================
 
-// V14 속도 박기 — 추천 기사 cache (5분 TTL / in-memory Map)
-const _recommendCache = new Map();
-const _CACHE_TTL_MS = 5 * 60 * 1000; // 5분
-
-function _getCached(key) {
-  const entry = _recommendCache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.ts > _CACHE_TTL_MS) {
-    _recommendCache.delete(key);
-    return null;
-  }
-  return entry.value;
-}
-
-function _setCached(key, value) {
-  _recommendCache.set(key, { ts: Date.now(), value });
-}
-
-// 배정 박힌 후 cache 박지 X (다음 호출 시 새로 catch / 배정 박힌 기사 빼기)
+// Phase 3-10 — no-op 유지 (호출처 변경 0). 캐시 자체는 폐기됨.
 export function invalidateRecommendCache() {
-  _recommendCache.clear();
-}
-
-// 추천 기사 (지역 + 작업유형 + 원청 매칭 / 시트 calc)
-// workType: '세척' / '냉매충전' / 등
-// principal: '올데이케어' / '에어컨프로 (KA)' / 등
-// region: '강남구' / '서초구' / 등
-// V14 속도 박기 — 5분 cache (같은 지역/원청 호출 시 즉시 박힘)
-export async function getRecommendedEngineers(workType, principal, region) {
-  const key = `${workType}|${principal}|${region}`;
-  const cached = _getCached(key);
-  if (cached) {
-    console.log('[V14 cache] hit:', key);
-    return cached;
-  }
-  console.log('[V14 cache] miss:', key);
-  const result = await apiCall('getRecommendedEngineers', { workType, principal, region });
-  if (result && result.ok !== false) {
-    _setCached(key, result);
-  }
-  return result;
+  // 추천 캐시 폐기됨 (Phase 3-10). 호출처 시그니처 보존용 no-op.
 }
 
 // 기사 배정 (시트 Q 배정기사 + R 상태=확정 박힘)
