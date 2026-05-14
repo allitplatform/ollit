@@ -87,6 +87,11 @@ import { useRealtime } from "../hooks/useRealtime.js";
 import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
 // Phase 4 후속 — push_candidates 박음 (AutoAssignScreen 측)
 import { supabase } from "../lib/supabase.js";
+
+// 2026-05-14 — push_candidates 1회 제한용 모듈 레벨 Set
+// AutoAssignScreen unmount/remount 박힌 영역 catch — useRef 측 매 mount 시 새 Set 박힘
+// 모듈 레벨 측 박은 영역 — 컴포넌트 instance 박은 영역과 무관 / 페이지 라이프타임 유지
+const _pushedTasksGlobal = new Set();
 import { formatTimeOnly, formatDateOnly } from "../utils/dateLabel.js";
 import {
   listNotifications as listStoredNotifications,
@@ -6259,8 +6264,6 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   const [candidates, setCandidates] = useState([]);
   const [countdown, setCountdown] = useState(3);
   const [acceptedEngineer, setAcceptedEngineer] = useState(null);
-  // 2026-05-14 긴급 fix — push_candidates 측 1회만 박음 (useRef 박음 / 무한 catch 회피)
-  const pushedRef = useRef(new Set());
 
   // 진단용 — 마운트/언마운트 추적
   useEffect(() => {
@@ -6275,19 +6278,19 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   // Phase 3-10 — PWA 클라이언트 추천 (recommendEngineersGroupedAdapter)
   useEffect(() => {
     if (!task?.id) return;
-    // 진단용 — useRef 상태 추적
-    console.log('[DIAG useRef state]', {
+    // 2026-05-14 — module-level Set 측 catch (useRef 측 unmount/remount 박힌 영역 catch X 박혀서 박지 X)
+    console.log('[DIAG global state]', {
       taskId: task?.id,
-      refSize: pushedRef.current.size,
-      refEntries: Array.from(pushedRef.current),
-      hasThis: pushedRef.current.has(task?.id),
+      globalSize: _pushedTasksGlobal.size,
+      globalEntries: Array.from(_pushedTasksGlobal),
+      hasThis: _pushedTasksGlobal.has(task?.id),
     });
     // 이미 박은 task 박힘 → skip (Realtime broadcast 측 무한 catch 회피)
-    if (pushedRef.current.has(task.id)) {
+    if (_pushedTasksGlobal.has(task.id)) {
       console.log('[AutoAssign] 이미 박은 task / skip', task.id);
       return;
     }
-    pushedRef.current.add(task.id);
+    _pushedTasksGlobal.add(task.id);
     let cancelled = false;
     const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
     const region = task.region || "";
@@ -6321,13 +6324,30 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
         setCandidates(broadcast);
 
         // Phase 4 후속 — DB tasks.push_candidates 박음 (기사 PWA 측 Realtime 측 catch)
-        // 2026-05-14 긴급 fix — useRef 측 1회만 박힘 (useEffect 진입 직후 catch 박음)
+        // 2026-05-14 fix — 2중 방어:
+        //   1차: module-level Set (위 박힌 영역 / 같은 페이지 라이프타임 catch)
+        //   2차: DB 사전 조회 박은 후 빈 배열 측만 박음 (서버 측 보호 / 새로고침 박아도 catch)
         if (task?.id && broadcast.length > 0) {
           const candidateKeys = broadcast.flatMap(c =>
             [c.name, c.engineerId, c.id].filter(Boolean)
           );
           console.log('[DIAG update BEFORE]', { taskId: task?.id, candidates: candidateKeys.length });
           try {
+            // 사전 조회 — DB 측 push_candidates 박힌 영역 catch
+            const { data: current, error: selErr } = await supabase
+              .from('tasks')
+              .select('push_candidates')
+              .eq('id', task.id)
+              .single();
+            if (selErr) {
+              console.error('[AutoAssign 사전 조회 에러]', selErr);
+            }
+            const existingDb = current?.push_candidates || [];
+            if (existingDb.length > 0) {
+              console.log('[DIAG update SKIP] DB 측 이미 박힌 영역:', existingDb.length, '명');
+              return;
+            }
+
             const { error: pushErr } = await supabase
               .from('tasks')
               .update({ push_candidates: candidateKeys })
