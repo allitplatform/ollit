@@ -4,7 +4,7 @@
 // 다음 단계: 4 placeholder 화면 → 실제 시안 1 / C / 5-V3 / 3-V5 코드
 // ============================================
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   Phone, MessageCircle, Snowflake, Wrench, Settings, Zap, ChevronRight, ChevronDown, ChevronUp,
   Sun, Moon, Plus, ArrowLeft, ArrowRight, User, MapPin, Calendar,
@@ -6262,10 +6262,18 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   const [candidates, setCandidates] = useState([]);
   const [countdown, setCountdown] = useState(3);
   const [acceptedEngineer, setAcceptedEngineer] = useState(null);
+  // 2026-05-14 긴급 fix — push_candidates 측 1회만 박음 (useRef 박음 / 무한 catch 회피)
+  const pushedRef = useRef(new Set());
 
   // Phase 3-10 — PWA 클라이언트 추천 (recommendEngineersGroupedAdapter)
   useEffect(() => {
-    if (!task) return;
+    if (!task?.id) return;
+    // 이미 박은 task 박힘 → skip (Realtime broadcast 측 무한 catch 회피)
+    if (pushedRef.current.has(task.id)) {
+      console.log('[AutoAssign] 이미 박은 task / skip', task.id);
+      return;
+    }
+    pushedRef.current.add(task.id);
     let cancelled = false;
     const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
     const region = task.region || "";
@@ -6299,25 +6307,20 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
         setCandidates(broadcast);
 
         // Phase 4 후속 — DB tasks.push_candidates 박음 (기사 PWA 측 Realtime 측 catch)
-        // 2026-05-14 fix — 이미 박힌 영역 박지 X (무한 catch 회피)
+        // 2026-05-14 긴급 fix — useRef 측 1회만 박힘 (useEffect 진입 직후 catch 박음)
         if (task?.id && broadcast.length > 0) {
-          const existingPushed = task.pushCandidates || task.push_candidates || [];
-          if (existingPushed.length === 0) {
-            const candidateKeys = broadcast.flatMap(c =>
-              [c.name, c.engineerId, c.id].filter(Boolean)
-            );
-            try {
-              const { error: pushErr } = await supabase
-                .from('tasks')
-                .update({ push_candidates: candidateKeys })
-                .eq('id', task.id);
-              if (pushErr) console.error('[AutoAssign push_candidates]', pushErr);
-              else console.log('[AutoAssign] push_candidates 박힘:', candidateKeys.length, '명');
-            } catch (pushErr) {
-              console.error('[AutoAssign push_candidates] 에러:', pushErr);
-            }
-          } else {
-            console.log('[AutoAssign] push_candidates 이미 박혀있음 / skip', existingPushed.length, '명');
+          const candidateKeys = broadcast.flatMap(c =>
+            [c.name, c.engineerId, c.id].filter(Boolean)
+          );
+          try {
+            const { error: pushErr } = await supabase
+              .from('tasks')
+              .update({ push_candidates: candidateKeys })
+              .eq('id', task.id);
+            if (pushErr) console.error('[AutoAssign push_candidates]', pushErr);
+            else console.log('[AutoAssign] push_candidates 박힘:', candidateKeys.length, '명');
+          } catch (pushErr) {
+            console.error('[AutoAssign push_candidates] 에러:', pushErr);
           }
         }
       } catch (e) {
