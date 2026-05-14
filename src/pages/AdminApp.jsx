@@ -6262,8 +6262,8 @@ function TaskCancelDialog({ task, onClose, onConfirm }) {
 // ============================================
 function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   const [candidates, setCandidates] = useState([]);
-  const [countdown, setCountdown] = useState(3);
-  const [acceptedEngineer, setAcceptedEngineer] = useState(null);
+  // 2026-05-14 — 자동 수락 시뮬레이션 박지 X (countdown / acceptedEngineer state 박지 X)
+  // 운영 의도: 기사 PWA 측 [수락] 박은 영역만 박힘 / 운영자 측 [강제 배정] 박은 영역만 박힘
 
   // 진단용 — 마운트/언마운트 추적
   useEffect(() => {
@@ -6362,19 +6362,15 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task?.id]);
 
-  // 카운트다운
-  useEffect(() => {
-    if (acceptedEngineer || countdown <= 0) return;
-    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [countdown, acceptedEngineer]);
-
-  // 0초 도달 + 후보 있음 → 첫 후보 자동 수락 (mock)
-  useEffect(() => {
-    if (countdown === 0 && !acceptedEngineer && candidates.length > 0) {
-      setAcceptedEngineer(candidates[0]);
-    }
-  }, [countdown, acceptedEngineer, candidates]);
+  // 2026-05-14 — 자동 수락 시뮬레이션 박지 X
+  // 옛 흐름:
+  //   · 3초 카운트다운 박힘 → countdown===0 → setAcceptedEngineer(candidates[0]) 박음 (mock)
+  //   · acceptedEngineer state 박힘 → "프로 수락!" 화면 박힘 → [확인] 박은 후 DB UPDATE
+  // 신규 흐름:
+  //   · 카운트다운 박지 X / 자동 수락 박지 X
+  //   · 후보 카드 측 "수락 대기 중" 박힘 — 기사 PWA 측 [수락] 박은 영역 박힘
+  //   · Realtime 측 자동 반영 박힘 (useRealtimeTasks)
+  //   · 후보 카드 각각 측 [강제 배정] 버튼 박음 — onComplete 호출 (운영자 강제 배정)
 
   if (!task) {
     return <PlaceholderScreen t={t} title="자동 배정" label="작업 정보 없음" onBack={onBack}/>;
@@ -6387,8 +6383,10 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
     ? formatWorkItems(task.workItems)
     : `${mainWorkType}${headItem.qty ? ` ×${headItem.qty}` : ""}`;
 
-  // ===== 결과 화면 (early-return 분리 — 사장님 catch 정정) =====
-  if (acceptedEngineer) {
+  // ===== 결과 화면 박지 X (자동 수락 시뮬레이션 박지 X / 2026-05-14)
+  // 옛 흐름 측 박은 영역 — 강제 배정 박힌 영역 측 onComplete 박은 후 toast + replaceScreen 박음
+  // eslint-disable-next-line no-constant-condition
+  if (false) {
     return (
       <div className="fade-in">
         <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
@@ -6496,8 +6494,8 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
     );
   }
 
-  // ===== 카운트다운 / 후보 없음 화면 =====
-  const progress = Math.max(0, Math.min(100, ((3 - countdown) / 3) * 100));
+  // ===== 수락 대기 중 / 후보 없음 화면 =====
+  console.log('[AutoAssign] 후보 표시 — 기사 수락 대기 중', candidates.length, '명');
 
   return (
     <div className="fade-in">
@@ -6506,7 +6504,7 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
           <ArrowLeft size={18}/>
         </button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>자동 배정 진행중</div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>수락 대기 중</div>
           <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
             {mainWorkType} · {extractZone(task.region) || task.region || "—"}
           </div>
@@ -6557,17 +6555,30 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
             >수동 배정으로</button>
           </div>
         ) : (
-          /* 후보 알림 + 카운트다운 */
+          /* 후보 알림 + 수락 대기 중 + 강제 배정 버튼 */
           <>
+            {/* 상단 안내 */}
             <div style={{
               background: t.bgElevated, border: `1px solid ${t.border}`,
-              borderRadius: 12, padding: "12px 14px", marginBottom: 10,
+              borderRadius: 12, padding: "14px", marginBottom: 10,
+              textAlign: "center",
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-                <span style={{ fontSize: 14 }}>📡</span>
-                <span style={{ fontSize: 11, fontWeight: 800, color: t.text }}>
-                  후보 프로 <span className="mono" style={{ color: t.accent }}>{candidates.length}</span>명에게 알림 전송 중...
-                </span>
+              <div style={{ fontSize: 16, marginBottom: 6 }}>📡</div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: t.text, marginBottom: 4 }}>
+                <span className="mono" style={{ color: t.accent }}>{candidates.length}</span>명의 프로에게 알림 발송됨
+              </div>
+              <div style={{ fontSize: 11, color: t.textMuted }}>
+                기사가 수락하면 자동으로 배정됩니다
+              </div>
+            </div>
+
+            {/* 후보 카드 — 각각 [강제 배정] 버튼 박힘 */}
+            <div style={{
+              background: t.bgElevated, border: `1px solid ${t.border}`,
+              borderRadius: 12, padding: "12px 14px",
+            }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 8 }}>
+                알림 발송 ({candidates.length}명)
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                 {candidates.map((eng) => {
@@ -6575,38 +6586,28 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
                   const zoneText = zones.length > 0 ? zones.slice(0, 3).join("·") : (eng.regionLabel || "—");
                   return (
                     <div key={eng.id} style={{
-                      padding: "8px 10px", background: t.bgInset, borderRadius: 8,
+                      padding: "10px 12px", background: t.bgInset, borderRadius: 8,
                       display: "flex", alignItems: "center", gap: 8,
                     }}>
                       <span style={{ fontSize: 12 }}>⚪</span>
                       <EngineerBadge engineer={eng} size="sm"/>
                       <span style={{ fontSize: 10, color: t.textMuted, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>— {zoneText}</span>
-                      <span style={{ fontSize: 10, color: t.success, fontWeight: 700, whiteSpace: "nowrap" }}>전송 ✓</span>
+                      <button
+                        onClick={() => onComplete(eng)}
+                        style={{
+                          padding: "6px 10px",
+                          background: t.accent, color: "white",
+                          border: "none", borderRadius: 6,
+                          fontSize: 10, fontWeight: 700, cursor: "pointer",
+                          fontFamily: "inherit", whiteSpace: "nowrap",
+                        }}
+                      >강제 배정</button>
                     </div>
                   );
                 })}
               </div>
-            </div>
-
-            <div style={{
-              background: t.bgElevated, border: `1px solid ${t.border}`,
-              borderRadius: 12, padding: "12px 14px",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-                <Clock size={13} style={{ color: t.warning }}/>
-                <span style={{ fontSize: 11, fontWeight: 800, color: t.text }}>첫 응답자 대기 중...</span>
-                <div style={{ flex: 1 }}/>
-                <span className="mono" style={{ fontSize: 13, fontWeight: 800, color: t.accent }}>{countdown}s</span>
-              </div>
-              <div style={{
-                width: "100%", height: 6, background: t.bgInset,
-                borderRadius: 3, overflow: "hidden",
-              }}>
-                <div style={{
-                  width: `${progress}%`, height: "100%",
-                  background: t.accent, borderRadius: 3,
-                  transition: "width 1s linear",
-                }}/>
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 8, lineHeight: 1.5 }}>
+                * 긴급/노쇼 측 [강제 배정] 박은 영역 — 운영자 측 직접 배정 박힘
               </div>
             </div>
           </>
