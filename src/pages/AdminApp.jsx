@@ -1874,11 +1874,20 @@ export default function AdminApp({ user, onLogout }) {
       if (normalized[0]) console.log('[V14 2A] 첫 normalized:', normalized[0]);
 
       // 2026-05-10 hotfix — Optimistic 마킹된 task는 polling 결과 덮어씀 방지 (60초간)
+      // 2026-05-14 fix — DB 측 status가 finalized (취소/완료/정산완료/취소요청) 박혔으면
+      //                  Optimistic 무시 + DB 측 status 우선 (다른 사용자 변경 즉시 catch)
       setApiTasks(prev => {
         const optimisticMap = new Map();
         const now = Date.now();
+        const dbMap = new Map(normalized.map(n => [n.id, n]));
+        const FINALIZED = new Set(['취소', '완료', '정산완료', '취소요청']);
         for (const t of prev) {
           if (t._optimisticUntil && t._optimisticUntil > now) {
+            // DB 측 동일 task의 status가 finalized 박혔으면 Optimistic 무시
+            const dbVersion = dbMap.get(t.id);
+            if (dbVersion && FINALIZED.has(dbVersion.status)) {
+              continue;
+            }
             optimisticMap.set(t.id, t);
           }
         }
