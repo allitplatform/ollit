@@ -2200,6 +2200,14 @@ export default function AdminApp({ user, onLogout }) {
         t={t}
         onBack={goBack}
         onSubmit={(form) => {
+          // 2026-05-14 DEBUG — 자동 진입 catch X 박힌 영역 catch
+          console.log('[Auto-Assign Debug] onSubmit form:', {
+            _v14ApiOk: form._v14ApiOk,
+            taskId: form.taskId,
+            workItems: form.workItems,
+            workType: form.workItems?.[0]?.workType,
+          });
+
           addReception(form);
 
           // 2026-05-14 fix — 냉매충전 (auto_first_accept) 박힌 영역 자동 AutoAssignScreen 진입
@@ -2209,7 +2217,16 @@ export default function AdminApp({ user, onLogout }) {
           const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow;
           const isAuto = workflow === "auto_first_accept";
 
+          console.log('[Auto-Assign Debug] workflow catch:', {
+            head,
+            workflow,
+            isAuto,
+            condition_v14ApiOk: !!form._v14ApiOk,
+            condition_taskId: !!form.taskId,
+          });
+
           if (form._v14ApiOk && isAuto && form.taskId) {
+            console.log('[Auto-Assign Debug] 자동 진입 박음! taskId:', form.taskId);
             setSelectedTask({
               id:         form.taskId,
               taskId:     form.taskId,
@@ -2230,6 +2247,8 @@ export default function AdminApp({ user, onLogout }) {
             fetchTasks();
             return;
           }
+
+          console.log('[Auto-Assign Debug] 자동 진입 박지 X — 옛 흐름 측 박음');
 
           // V14 Phase 2.5 — replaceScreen 박기 (옛 setScreen = stack 중복 / 뒤로 newReceptionForm 박힘 catch)
           replaceScreen("newReception");
