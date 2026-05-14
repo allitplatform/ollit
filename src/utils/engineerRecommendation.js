@@ -73,41 +73,18 @@ function matchSkill(engineer, task) {
   return { matched: false, grade: "", skill: null };
 }
 
-// 지역 점수 (0~40)
-// Step 5-5-C Phase 5 — skills 우선 lookup + workTypes fallback (점진 마이그레이션)
+// 지역 점수 (0~40) — DB skills 단일 출처 박힘
+// 2026-05-14 fix — 2차 fallback (옛 workTypes / SEED_ENGINEERS) 박지 X
+//   · 옛 SEED 박은 영역과 DB 박은 영역 충돌 catch 박힌 영역 (정훈 강남구 매칭 등)
+//   · DB epp + ez 측 박은 영역만 박음
 // skills 매칭 시: 메인 = 40 / 백업 = 25 / 그 외 등급 = 10
-// fallback (옛 workTypes): 메인 = 40 / 서브 = 25 / 인접(같은 서브그룹) = 10
-function calcRegionScore(engineer, task, regionsAll) {
-  // 1차: skills (시트 _기사역량) 우선
+// 매칭 박지 X → 0점 (regionMatch="none")
+function calcRegionScore(engineer, task /*, regionsAll */) {
   const skillMatch = matchSkill(engineer, task);
-  if (skillMatch.matched) {
-    if (skillMatch.grade === "메인") return 40;
-    if (skillMatch.grade === "백업") return 25;
-    return 10;  // 등급 불명 / 안 함 등
-  }
-
-  // 2차: 옛 workTypes fallback (점진 마이그레이션)
-  const wtKey = getWorkTypeKey(task);
-  const wt    = engineer.workTypes?.[wtKey];
-  if (!wt) return 0;
-
-  const taskRegion = task.region;
-  if (!taskRegion) return 0;
-
-  const zones = wt.zones || [];
-  const role  = wt.role  || null;
-
-  if (zones.includes(taskRegion) && role === "main") return 40;
-  if (zones.includes(taskRegion) && role === "sub")  return 25;
-
-  // 인접 (같은 서브그룹)
-  if (zones.length > 0) {
-    const taskSub = getRegionSubgroup(taskRegion, regionsAll);
-    if (taskSub && zones.some(z => getRegionSubgroup(z, regionsAll) === taskSub)) {
-      return 10;
-    }
-  }
-  return 0;
+  if (!skillMatch.matched) return 0;
+  if (skillMatch.grade === "메인") return 40;
+  if (skillMatch.grade === "백업") return 25;
+  return 10;  // 등급 불명 / 안 함 등
 }
 
 // 기종 점수 (0~20). 시드 appliances는 빈 배열 → 모두 가능 가정 (18점)
