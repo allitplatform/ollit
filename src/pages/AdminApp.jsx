@@ -2651,7 +2651,9 @@ export default function AdminApp({ user, onLogout }) {
             taskId: selectedTask?.id,
           });
           addToast({ type: "assignment", title: "자동 배정", message: `${eng.name} 프로 수락` });
-          // V14 Step 3 Fix 5 — Optimistic Update 박기 (fetchTasks lag 5초 동안 옛 데이터 박지 X)
+          // status 분리 운영 (옵션 🅑):
+          //   자동 배정도 일단 status="배정" (기사 통화 후 [✓ 일정 확정]에서 "확정"으로 전환)
+          //   세척 측 Optimistic(line 2553)과 동일 패턴
           if (selectedTask?.id && eng?.name) {
             setApiTasks(prev => prev.map(t =>
               t.id === selectedTask.id
@@ -2660,8 +2662,8 @@ export default function AdminApp({ user, onLogout }) {
                     assignedEngineer: eng.name,
                     engineer: eng.name,
                     배정기사: eng.name,
-                    status: '확정',
-                    상태: '확정',
+                    status: '배정',
+                    상태: '배정',
                     state: 'scheduled',
                     engineerPhone: eng.phone || getEngineerPhone(eng.name),
                   }
@@ -3959,24 +3961,21 @@ function PlaceholderScreen({ t, title, label, onBack }) {
 // 배정 완료 / 일정 확정 화면 (Step 2-5b)
 // ─────────────────────────────────────────────
 function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit, onTaskClick }) {
-  // V14 — apiTasks 활용 (status='확정' / Q 배정기사 있음)
-  // V14 헌법: 확정 = 배정 완료 = 일정 확정 (동시 박힘 / 같은 status)
-  // assigned filter = 확정 박힌 모든 작업 (배정 박힘)
-  // confirmed filter = 확정 + N 확정일시 박힌 작업 (일정 박힘)
+  // status 분리 운영 (옵션 🅑):
+  //   · 배정 완료 = status="배정" (기사 배정됨, 기사가 고객 통화 중)
+  //   · 일정 확정 = status="확정" (기사가 고객 통화 완료, 일정 입력)
+  //   · 트리거: 기사 측 [✓ 일정 확정] 버튼 (EngineerApp.jsx:4761)
   const statusOf = (x) => String(x.status || x.상태 || "").trim();
-  const allConfirmed = (apiTasks || []).filter(x => statusOf(x) === "확정");
   const isAssigned = filter === "assigned";
 
   let all;
   if (isAssigned) {
-    // 배정 완료 = 확정 박힌 모든 작업 (V14 = 확정 박히면 = 배정 박힘)
-    all = allConfirmed;
+    all = (apiTasks || []).filter(x => statusOf(x) === "배정");
   } else {
-    // 일정 확정 = 확정 + N 확정일시 박힌 작업
-    all = allConfirmed.filter(x => x.confirmedAt || x.확정일시);
+    all = (apiTasks || []).filter(x => statusOf(x) === "확정");
   }
-  // V14 — apiTasks 0건이면 옛 ASSIGNED_TASKS 사용 (옛 호환 / 시뮬 mock)
-  if (allConfirmed.length === 0) {
+  // V14 — apiTasks에서 매칭 0건이면 옛 ASSIGNED_TASKS 사용 (옛 호환 / 시뮬 mock)
+  if (all.length === 0) {
     all = ASSIGNED_TASKS.filter(x => x.assignmentStatus === filter);
   }
 
