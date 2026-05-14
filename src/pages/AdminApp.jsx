@@ -88,10 +88,10 @@ import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
 // Phase 4 후속 — push_candidates 박음 (AutoAssignScreen 측)
 import { supabase } from "../lib/supabase.js";
 
-// 2026-05-14 — push_candidates 1회 제한용 모듈 레벨 Set
-// AutoAssignScreen unmount/remount 박힌 영역 catch — useRef 측 매 mount 시 새 Set 박힘
-// 모듈 레벨 측 박은 영역 — 컴포넌트 instance 박은 영역과 무관 / 페이지 라이프타임 유지
-const _pushedTasksGlobal = new Set();
+// 2026-05-14 — 모듈 레벨 Set 박지 X
+// StrictMode 측 cleanup → 2차 mount 측 early return 박은 영역 catch 박힘
+// → setCandidates 박지 X / 화면 "후보 없음" 박힘
+// 대안: DB 사전 조회 측만 박음 (UI 측 setCandidates 박힘 / DB 측 1회만 박힘)
 import { formatTimeOnly, formatDateOnly } from "../utils/dateLabel.js";
 import {
   listNotifications as listStoredNotifications,
@@ -6278,19 +6278,9 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   // Phase 3-10 — PWA 클라이언트 추천 (recommendEngineersGroupedAdapter)
   useEffect(() => {
     if (!task?.id) return;
-    // 2026-05-14 — module-level Set 측 catch (useRef 측 unmount/remount 박힌 영역 catch X 박혀서 박지 X)
-    console.log('[DIAG global state]', {
-      taskId: task?.id,
-      globalSize: _pushedTasksGlobal.size,
-      globalEntries: Array.from(_pushedTasksGlobal),
-      hasThis: _pushedTasksGlobal.has(task?.id),
-    });
-    // 이미 박은 task 박힘 → skip (Realtime broadcast 측 무한 catch 회피)
-    if (_pushedTasksGlobal.has(task.id)) {
-      console.log('[AutoAssign] 이미 박은 task / skip', task.id);
-      return;
-    }
-    _pushedTasksGlobal.add(task.id);
+    // 2026-05-14 — early return 박지 X / setCandidates 박힘 보장
+    // 무한 catch 측 DB 사전 조회 측만 박음 (supabase.update 박는 영역에서 catch)
+    console.log('[DIAG mount internal]', { taskId: task?.id });
     let cancelled = false;
     const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
     const region = task.region || "";

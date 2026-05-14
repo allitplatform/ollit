@@ -56,14 +56,29 @@ function gradeToLevel(g) {
   return null;
 }
 
+// 2026-05-14 — principal code → 한글명 매핑
+// TODO: DB principals 테이블 측 박은 영역 동기화 박을 차례 (현재 하드코딩)
+const PRINCIPAL_CODE_TO_NAME = {
+  allday:  "올데이케어",
+  KA:      "에어컨프로 (KA)",
+  KB:      "쿨가이 (KB)",
+  yongin:  "용인컴퍼니",
+  usol_h:  "유솔홈케어",
+  usol_n:  "유솔홈케어 N",
+  crikrin: "크리크린",
+  cesco:   "세스코",
+};
+
 function principalCodeToText(pc) {
   if (pc === null || pc === undefined || pc === "") return "(전체)";
-  return pc;
+  return PRINCIPAL_CODE_TO_NAME[pc] || pc;
 }
 
 function principalTextToCode(p) {
   if (!p || p === "(전체)" || p === "전체") return null;
-  return String(p).trim();
+  // 한글명 박힌 영역 → code 변환 (역방향)
+  const code = Object.keys(PRINCIPAL_CODE_TO_NAME).find(k => PRINCIPAL_CODE_TO_NAME[k] === String(p).trim());
+  return code || String(p).trim();
 }
 
 // users.code → users.id (UUID) 변환 (Phase 3-8 동일 패턴)
