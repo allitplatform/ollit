@@ -99,9 +99,10 @@ function _applyPrincipalCondition(query, principalCode) {
 // ============================================================
 export async function listEngineerSkillsFromDb() {
   // [1] epp 전체 + users(code) JOIN
+  // Phase 3-9 fix — PGRST201 회피: FK 이름 명시 (스키마 캐시 / 다중 FK 후보 대응)
   const { data: eppRows, error: eppErr } = await supabase
     .from("engineer_principal_permissions")
-    .select("id, user_id, principal_code, service_code, level, active, users(code)")
+    .select("id, user_id, principal_code, service_code, level, active, users!engineer_principal_permissions_user_id_fkey(code)")
     .eq("active", true);
 
   if (eppErr) {
