@@ -871,7 +871,9 @@ function _v14NormalizeTask(t) {
 
   return {
     id,
-    taskCode: id,                 // 옛 컴포넌트 호환 (DetailHeader는 task.taskCode || task.id)
+    // Phase 4-2 fix — taskCode 측 작업번호 우선 (UUID는 fallback)
+    taskCode: t.taskCode || t.taskNo || t.task_no || t.작업번호 || id,
+    taskNo:   t.taskNo   || t.task_no || t.작업번호 || "",
     customer, phone, address, region,
     principal, channel, workType, appliance, qty,
     summary, status,
@@ -889,6 +891,12 @@ function _v14NormalizeTask(t) {
     assignedEngineer: assignedEngineerName,
     engineer:         assignedEngineerName || null,
     engineerPhone:    assignedEngineerPhone,  // V14 Step 3 Fix 1 — apiEngineers에서 박힘 (있으면)
+    // Phase 4-2 fix — DB 전환 측 누락 필드 (dashboardStats 카운트 catch)
+    createdAt:   t.createdAt   || t.created_at   || t.receivedAt || t.received_at || "",
+    receivedAt:  t.receivedAt  || t.received_at  || "",
+    scheduledAt: t.scheduledAt || t.scheduled_at || t.확정일시 || "",
+    completedAt: t.completedAt || t.completed_at || t.완료시간 || "",
+    startedAt:   t.startedAt   || t.started_at   || t.시작시간 || "",
     _api: true,                   // 진짜 API 출처 마킹
   };
 }

@@ -155,7 +155,10 @@ export function v14NormalizeTask(t) {
   }
 
   return {
-    id, taskCode: id,
+    id,
+    // Phase 4-2 fix — taskCode 측 작업번호 우선 (UUID는 fallback)
+    taskCode: t.taskCode || t.taskNo || t.task_no || t.작업번호 || id,
+    taskNo:   t.taskNo   || t.task_no || t.작업번호 || "",
     customer, phone, address, region,
     principal, channel, workType, appliance, qty,
     summary, status,
@@ -177,6 +180,9 @@ export function v14NormalizeTask(t) {
     engineer: assignedEngineerName || null,
     recommendedEngineer,
     startedAt, completedAt,
+    // Phase 4-2 fix — DB 전환 측 누락 필드 (dashboardStats 카운트 catch)
+    createdAt:  t.createdAt  || t.created_at  || t.receivedAt || t.received_at || "",
+    receivedAt: t.receivedAt || t.received_at || "",
     // 정산 영역 (Hybrid)
     engineerEarning:  commission.engineerEarning,
     engineerNet:      commission.engineerEarning,  // 옛 호환 (EngineerSettleTab getEarning fallback)
