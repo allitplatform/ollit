@@ -4160,7 +4160,7 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         }}>
           <CheckCircle2 size={12} style={{ color: t.success }}/>
           <span style={{ fontSize: 11, color: t.success, fontWeight: 700 }}>
-            일정 확정 · {scheduledAt || task.schedule}
+            일정 확정
           </span>
         </div>
         );
