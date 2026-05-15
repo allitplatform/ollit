@@ -19,8 +19,9 @@ import { WorkItemRow } from "./WorkItemRow.jsx";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
-  const d = new Date();
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  // 2026-05-15 fix — DB 측 timestamptz 박힘 → ISO 박는 spec
+  // UI 측 박는 거 formatTimeOnly 측 ISO → "HH:MM" 변환 박힘 (robust)
+  return new Date().toISOString();
 }
 
 function calcTotalDuration(task) {
