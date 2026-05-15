@@ -638,6 +638,10 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
     && startMin !== null && startMin > 0 && startMin <= 30;
 
   const accent = "#FF1B8D";
+  // 2026-05-15 — 좌측 사이드바만 workType별 색 (캘린더 범례와 일관성)
+  // 세척 #0EA5E9 파랑 / 냉매 #FFB800 노랑 / 기타 #FF1B8D 핑크
+  // accent는 헤더 라벨 / 임박 색 / 완료 버튼 — "상태/임박" 표시용으로 유지
+  const barColor = getWorkTypeColors(work.workType).main;
   const cardBg = (isInProgress || isImminent)
     ? "rgba(255,27,141,0.06)"
     : "var(--card-bg)";
@@ -673,12 +677,12 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
         overflow: "hidden",
       }}
     >
-      {/* 좌측 4px 핑크 바 */}
+      {/* 좌측 4px workType 컬러 바 — 세척 파랑 / 냉매 노랑 / 기타 핑크 */}
       <div style={{
         position: "absolute",
         left: 0, top: 0, bottom: 0,
         width: 4,
-        background: accent,
+        background: barColor,
       }}/>
 
       {/* 헤더: 아이콘 + 라벨 / 분 카운트다운 */}
