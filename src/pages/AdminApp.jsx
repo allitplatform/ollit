@@ -92,7 +92,7 @@ import { supabase } from "../lib/supabase.js";
 // StrictMode 측 cleanup → 2차 mount 측 early return 박은 영역 catch 박힘
 // → setCandidates 박지 X / 화면 "후보 없음" 박힘
 // 대안: DB 사전 조회 측만 박음 (UI 측 setCandidates 박힘 / DB 측 1회만 박힘)
-import { formatTimeOnly, formatDateOnly } from "../utils/dateLabel.js";
+import { formatTimeOnly, formatDateOnly, formatScheduleShort } from "../utils/dateLabel.js";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -4134,35 +4134,39 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         </span>
       </div>
 
-      {/* 상태 박스 — V14 Step 3.1 Fix D: '협의' = 약속대기 / 시간 박힘 = 일정 확정 */}
-      {(() => {
-        const sched = String(task.schedule || "").trim();
-        const scheduledAt = task.scheduledAt || task.confirmedAt || task.확정일시 || "";
-        // 일정 박지 X = '협의' / 빈 거 / scheduledAt 박지 X
-        const isPending = !scheduledAt && (!sched || sched === "협의" || sched === "—");
-        if (isPending) {
-          return (
-            <div style={{
-              background: t.warningBg, border: `1px solid ${t.warningBorder}`,
-              borderRadius: 8, padding: "8px 10px", marginBottom: 8,
-              display: "flex", alignItems: "center", gap: 6,
-            }}>
-              <span style={{ fontSize: 11 }}>⏳</span>
-              <span style={{ fontSize: 11, color: t.warning, fontWeight: 700 }}>미배정 · 협의</span>
-            </div>
-          );
-        }
-        return (
+      {/* 상태 박스 — status 기반 분기 (2026-05-15 사장님 spec) */}
+      {task.status === '배정' && (
         <div style={{
-          background: t.successBg, border: `1px solid ${t.successBorder}`,
-          borderRadius: 8, padding: "8px 10px", marginBottom: 8,
-          display: "flex", alignItems: "center", gap: 6,
+          marginTop: 10,
+          marginBottom: 8,
+          padding: "6px 10px",
+          background: "rgba(255, 193, 7, 0.04)",
+          border: t.isLight
+            ? "1px solid rgba(255, 152, 0, 0.40)"
+            : "1px solid rgba(255, 193, 7, 0.35)",
+          borderRadius: 8,
+          fontSize: 11,
+          fontWeight: 500,
+          color: t.isLight ? "#E65100" : "#FFD54F",
+          display: "flex", alignItems: "center", gap: 5,
         }}>
-          <CheckCircle2 size={12} style={{ color: t.success }}/>
-          <span style={{ fontSize: 11, color: t.success, fontWeight: 700 }}>
-            일정 확정
-          </span>
+          🟡 약속 대기
         </div>
+      )}
+      {task.status === '확정' && (() => {
+        const scheduledAt = task.scheduledAt || task.confirmedAt || task.확정일시 || "";
+        const timeText = formatScheduleShort(scheduledAt) || task.schedule;
+        return (
+          <div style={{
+            background: t.successBg, border: `1px solid ${t.successBorder}`,
+            borderRadius: 8, padding: "8px 10px", marginBottom: 8,
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            <CheckCircle2 size={12} style={{ color: t.success }}/>
+            <span style={{ fontSize: 11, color: t.success, fontWeight: 700 }}>
+              일정 확정{timeText ? ` · ${timeText}` : ""}
+            </span>
+          </div>
         );
       })()}
 

@@ -120,3 +120,19 @@ export function formatDateOnly(value) {
   }
   return "";
 }
+
+// "5/15 (목) 14:30" — KST 변환, 한국식 짧은 포맷 (카드 상태 박스 등 좁은 공간)
+export function formatScheduleShort(value) {
+  if (!value) return "";
+  const str = String(value).trim();
+  if (!str || str.startsWith("1899")) return "";
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return "";
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const mm = kst.getUTCMonth() + 1;
+  const dd = kst.getUTCDate();
+  const day = ['일','월','화','수','목','금','토'][kst.getUTCDay()];
+  const hh = String(kst.getUTCHours()).padStart(2, "0");
+  const mi = String(kst.getUTCMinutes()).padStart(2, "0");
+  return `${mm}/${dd} (${day}) ${hh}:${mi}`;
+}
