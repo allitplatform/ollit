@@ -4556,7 +4556,7 @@ function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
         {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`} · {task.schedule}
       </div>
       {task.estimateTotal > 0 && (
-        <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>
+        <div className="mono" style={{ fontSize: 11, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>
           견적 ₩{task.estimateTotal.toLocaleString()}
         </div>
       )}
@@ -4572,20 +4572,20 @@ function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
         if (engineerCount === 0) return null;
         return (
           <div style={{
-            marginTop: 12,
-            marginBottom: 10,
-            padding: "10px 14px",
+            marginTop: 10,
+            marginBottom: 8,
+            padding: "6px 10px",
             background: "rgba(255, 27, 141, 0.04)",
             border: t.isLight
               ? "1px solid rgba(255, 27, 141, 0.40)"
               : "1px solid rgba(255, 27, 141, 0.35)",
-            borderRadius: 12,
-            fontSize: 13,
+            borderRadius: 8,
+            fontSize: 11,
             fontWeight: 500,
             color: t.isLight ? "#C2185B" : "#FF8FBC",
             display: "flex",
             alignItems: "center",
-            gap: 7,
+            gap: 5,
           }}>
             <span>📡</span>
             <span>{engineerCount}명의 프로에게 알림 발송됨</span>
@@ -4659,7 +4659,7 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
         {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`} · {task.schedule}
       </div>
       {task.estimateTotal > 0 && (
-        <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>
+        <div className="mono" style={{ fontSize: 11, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>
           견적 ₩{task.estimateTotal.toLocaleString()}
         </div>
       )}
@@ -4675,18 +4675,18 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
         if (engineerCount === 0) return null;
         return (
           <div style={{
-            marginTop: 12,
-            marginBottom: 10,
-            padding: "10px 14px",
+            marginTop: 10,
+            marginBottom: 8,
+            padding: "6px 10px",
             background: "rgba(255, 27, 141, 0.04)",
             border: t.isLight
               ? "1px solid rgba(255, 27, 141, 0.40)"
               : "1px solid rgba(255, 27, 141, 0.35)",
-            borderRadius: 12,
-            fontSize: 13,
+            borderRadius: 8,
+            fontSize: 11,
             fontWeight: 500,
             color: t.isLight ? "#C2185B" : "#FF8FBC",
-            display: "flex", alignItems: "center", gap: 7,
+            display: "flex", alignItems: "center", gap: 5,
           }}>
             <span>📡</span>
             <span>{engineerCount}명의 프로에게 알림 발송됨</span>
