@@ -7,7 +7,7 @@
 --
 -- 의존:
 --   · pg_net extension (Supabase 기본 박혀있음 / 박지 X면 CREATE EXTENSION 박힘)
---   · app.push_api_key DB setting (별도 ALTER DATABASE 박은 후 박힘)
+--   · Vault 측 PUSH_API_KEY 박힘 (vault.decrypted_secrets 박는 거)
 --   · /api/push/send Vercel endpoint 배포 박힘 (ollit.vercel.app)
 --
 -- 흐름:
@@ -21,16 +21,16 @@
 -- 보호:
 --   · push_candidates 박지 X / 빈 배열 → skip
 --   · OLD = NEW (동일) → skip (재발송 박지 X)
---   · api_key 박지 X → silent skip (RAISE NOTICE만)
+--   · api_key (vault) 박지 X → silent skip (RAISE NOTICE만)
 --   · net.http_post는 비동기 — response 안 기다림 (트랜잭션 부담 X)
 --
 -- 제한 사항 (별도 round 박을 차례):
---   · 수동 배정(assignEngineerDb) 측 push 박지 X — push_candidates 박지 X 박힘
---   · 일정 확정/시작/완료 알림 별도 trigger 박을 차례
+--   · 수동 배정(assignEngineerDb) 측 push 박지 X — push_candidates 박지 X 박힘 (72203ee 측 Path B 박힘)
+--   · 일정 확정/시작/완료 알림 별도 trigger 박을 차례 (Migration 015 측 박힘)
 --
 -- 실행:
 --   · Supabase SQL Editor → 통째 박기 → Run
---   · 사전 박은 거: ALTER DATABASE postgres SET app.push_api_key = '...' (별도)
+--   · Vault 측 PUSH_API_KEY 박은 후 박을 차례
 -- ============================================
 
 BEGIN;
@@ -47,7 +47,7 @@ CREATE OR REPLACE FUNCTION notify_push_candidates() RETURNS TRIGGER AS $$
 DECLARE
   cand        TEXT;
   push_url    TEXT := 'https://ollit.vercel.app/api/push/send';
-  api_key     TEXT := current_setting('app.push_api_key', true);
+  api_key     TEXT;
   payload     JSONB;
   task_title  TEXT := '🚀 새 작업 도착';
   task_body   TEXT;
@@ -64,9 +64,14 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  -- API key 박지 X → silent skip
+  -- 2026-05-15 — Vault 측 API key catch (current_setting 박지 X)
+  SELECT decrypted_secret INTO api_key
+    FROM vault.decrypted_secrets
+    WHERE name = 'PUSH_API_KEY'
+    LIMIT 1;
+
   IF api_key IS NULL OR api_key = '' THEN
-    RAISE NOTICE '[push trigger] app.push_api_key not configured — skipping';
+    RAISE NOTICE '[push trigger] PUSH_API_KEY (vault) not configured — skipping';
     RETURN NEW;
   END IF;
 
