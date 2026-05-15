@@ -896,6 +896,9 @@ function _v14NormalizeTask(t) {
     createdAt:   t.createdAt   || t.created_at   || t.receivedAt || t.received_at || t.접수일시 || t.B || "",
     receivedAt:  t.receivedAt  || t.received_at  || "",
     scheduledAt: t.scheduledAt || t.scheduled_at || t.확정일시 || "",
+    // 2026-05-15 — Migration 013 status 변경 시점 (이력 화면 TimestampHistory catch)
+    assignedAt:            t.assignedAt           || t.assigned_at            || "",
+    scheduledConfirmedAt:  t.scheduledConfirmedAt || t.scheduled_confirmed_at || "",
     completedAt: t.completedAt || t.completed_at || t.완료시간 || "",
     startedAt:   t.startedAt   || t.started_at   || t.시작시간 || "",
     pushCandidates: Array.isArray(t.pushCandidates) ? t.pushCandidates : Array.isArray(t.push_candidates) ? t.push_candidates : [],

@@ -62,6 +62,9 @@ export function rowToTask(row) {
     scheduledAt:   row.scheduled_at,
     startedAt:     row.started_at,
     completedAt:   row.completed_at,
+    // 2026-05-15 — Migration 013 status 변경 시점 (trigger 자동 박음 / 이력 화면 catch)
+    assignedAt:            row.assigned_at,
+    scheduledConfirmedAt:  row.scheduled_confirmed_at,
     workMemo:      row.work_memo,
 
     // 금액
