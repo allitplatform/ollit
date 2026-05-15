@@ -5,10 +5,9 @@ const CACHE = "ollit-push-v1";
 
 // 2026-05-10 — IndexedDB 직접 저장 (iOS 백그라운드 push 측 catch)
 // broadcast 의존 X / SW 자체에서 박음 (PWA 비활성 상태에서 받은 push도 catch)
-function saveToIndexedDB(notificationData) {
+function openDB() {
   return new Promise((resolve, reject) => {
     const dbReq = indexedDB.open("ollit_notifications", 1);
-
     dbReq.onupgradeneeded = (e) => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains("notifications")) {
@@ -20,39 +19,57 @@ function saveToIndexedDB(notificationData) {
         store.createIndex("read", "read", { unique: false });
       }
     };
-
-    dbReq.onsuccess = (e) => {
-      const db = e.target.result;
-      const tx = db.transaction("notifications", "readwrite");
-      const store = tx.objectStore("notifications");
-
-      const data = {
-        title: notificationData.title || "",
-        body: notificationData.body || "",
-        url: notificationData.url || "/",
-        taskId: notificationData.taskId || null,
-        timestamp: Date.now(),
-        read: false,
-      };
-
-      const addReq = store.add(data);
-      addReq.onsuccess = () => {
-        // 30개 이상이면 옛 알림 자동 삭제
-        const allReq = store.getAll();
-        allReq.onsuccess = () => {
-          const all = allReq.result;
-          if (all.length > 30) {
-            all.sort((a, b) => a.timestamp - b.timestamp);
-            const toDelete = all.slice(0, all.length - 30);
-            toDelete.forEach((item) => store.delete(item.id));
-          }
-          resolve();
-        };
-      };
-      addReq.onerror = () => reject(addReq.error);
-    };
-
+    dbReq.onsuccess = () => resolve(dbReq.result);
     dbReq.onerror = () => reject(dbReq.error);
+  });
+}
+
+async function saveToIndexedDB(data) {
+  const db = await openDB();
+
+  // 2026-05-15 fix — dedup 박기 (notificationStore A1 박은 거와 일관 spec)
+  // 박은 거 같은 폰 측 endpoint 2개 박힌 경우 SW 2번 호출 박힘 → 2 row 박힘 박지 X
+  const ts = data.timestamp || Date.now();
+  const readTx = db.transaction("notifications", "readonly");
+  const allReq = readTx.objectStore("notifications").getAll();
+  const all = await new Promise((res, rej) => {
+    allReq.onsuccess = () => res(allReq.result);
+    allReq.onerror = () => rej(allReq.error);
+  });
+  const duplicate = all.some(n =>
+    n.taskId === (data.taskId || null) &&
+    n.title === data.title &&
+    Math.abs((n.timestamp || 0) - ts) < 5000
+  );
+  if (duplicate) {
+    console.log('[SW] saveToIndexedDB dedup 박힘:', data.title);
+    return;
+  }
+
+  const tx = db.transaction("notifications", "readwrite");
+  const store = tx.objectStore("notifications");
+  store.add({
+    title: data.title || "",
+    body: data.body || "",
+    url: data.url || "/",
+    taskId: data.taskId || null,
+    timestamp: ts,
+    read: false,
+  });
+
+  // 30개 이상이면 옛 알림 자동 삭제 (기존 spec 보존)
+  const allReq2 = store.getAll();
+  await new Promise((res, rej) => {
+    allReq2.onsuccess = () => {
+      const all2 = allReq2.result;
+      if (all2.length > 30) {
+        all2.sort((a, b) => a.timestamp - b.timestamp);
+        const toDelete = all2.slice(0, all2.length - 30);
+        toDelete.forEach((item) => store.delete(item.id));
+      }
+      res();
+    };
+    allReq2.onerror = () => rej(allReq2.error);
   });
 }
 
