@@ -1503,7 +1503,8 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
     });
   };
 
-  const handleStart = () => onUpdate(task.id, { status: "진행중", startedAt: NOW });
+  // 2026-05-15 fix — NOW("10:00") 박지 X / ISO 박기 (DB started_at = timestamptz)
+  const handleStart = () => onUpdate(task.id, { status: "진행중", startedAt: new Date().toISOString() });
 
   const handleSubmitScheduleChange = () => {
     if (!canConfirmChange) return;
@@ -1891,7 +1892,8 @@ function CompletionReportScreen({ t, task, onCancel, onComplete }) {
   const handleSubmit = () => {
     if (!canComplete) return;
     onComplete({
-      status: "완료", completedAt: NOW, beforePhoto: true, afterPhoto: true,
+      // 2026-05-15 fix — NOW("10:00") 박지 X / ISO 박기 (DB completed_at = timestamptz)
+      status: "완료", completedAt: new Date().toISOString(), beforePhoto: true, afterPhoto: true,
       workMemo, extraFee: extraFeeNum, extraReason,
     });
   };
