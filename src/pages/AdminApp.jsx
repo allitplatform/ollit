@@ -758,11 +758,16 @@ const WORK_TYPE_ICONS = {
 const NOTIFICATIONS_MOCK = [];
 
 // 알림 타입 → 아이콘/색깔 매핑
+// 2026-05-15 사장님 spec — 8개 시나리오 이모지 통일
 const NOTI_TYPE_META = {
-  new_reception:      { icon: "🆕", colorKey: "accent"  },
-  assignment:         { icon: "👷", colorKey: "purple"  },
-  schedule_confirmed: { icon: "📅", colorKey: "warning" },
-  completed:          { icon: "✓",  colorKey: "success" },
+  new_reception:      { icon: "📥", colorKey: "accent"  },  // 1 새 접수
+  assignment:         { icon: "🎯", colorKey: "purple"  },  // 2 배정 (수동)
+  schedule_confirmed: { icon: "📅", colorKey: "warning" },  // 3 일정 확정
+  started:            { icon: "▶️", colorKey: "warning" },  // 4 작업 시작 (NEW)
+  completed:          { icon: "✅", colorKey: "success" },  // 5 작업 완료
+  schedule_changed:   { icon: "🔄", colorKey: "warning" },  // 6 일정 변경 (NEW — 토스트 아이콘 박힘)
+  cancelled:          { icon: "❌", colorKey: "danger"  },  // 7 작업 취소 (NEW)
+  reassignment:       { icon: "🔄", colorKey: "purple"  },  // 8 재배정 (NEW)
   urgent:             { icon: "⚠️", colorKey: "danger"  },
 };
 
@@ -2001,8 +2006,11 @@ export default function AdminApp({ user, onLogout }) {
       new_reception:      { category: "new_assign",       label: "새 접수"   },
       assignment:         { category: "new_assign",       label: "프로 배정" },
       schedule_confirmed: { category: "schedule_confirm", label: "일정 확정" },
+      started:            { category: "schedule_confirm", label: "작업 시작" },  // NEW (SVG: schedule_confirm 재사용)
       schedule_changed:   { category: "schedule_change",  label: "일정 변경" },
       completed:          { category: "complete",         label: "작업 완료" },
+      cancelled:          { category: "complete",         label: "작업 취소" },  // NEW
+      reassignment:       { category: "new_assign",       label: "프로 재배정" },  // NEW
       urgent:             { category: "urgent",           label: "긴급"     },
     };
     const isOldStyle = noti.message !== undefined;
@@ -2348,13 +2356,13 @@ export default function AdminApp({ user, onLogout }) {
               t.id === tk.id ? { ...t, status: "취소", state: "canceled" } : t
             ));
             addNotification({
-              type: "completed",
+              type: "cancelled",
               title: "작업 취소",
               message: `${tk.customer || "—"}`,
               subInfo: `사유: ${reasonId} ${memo ? "· " + memo.slice(0, 20) : ""}`,
               taskId: tk.id || tk.taskCode,
             });
-            addToast({ type: "completed", title: "작업 취소", message: tk.customer || "—" });
+            addToast({ type: "cancelled", title: "작업 취소", message: tk.customer || "—" });
             goBackFromStack();
           } catch (e) {
             console.error("[onCancelTask] 에러:", e);
@@ -2593,14 +2601,14 @@ export default function AdminApp({ user, onLogout }) {
               });
               invalidateRecommendCache();
               addNotification({
-                type: "assignment",
+                type: "reassignment",
                 title: "프로 재배정",
                 message: `${selectedTask?.customer || ""} (${selectedTask?.workType || ""})`,
                 subInfo: `${oldEngineer} → ${eng.name} (일정 협의 필요)`,
                 taskId: selectedTask?.id,
               });
               addToast({
-                type: "assignment",
+                type: "reassignment",
                 title: "✓ 재배정 완료",
                 message: `${eng.name} 프로 / 일정 협의 필요`,
               });
