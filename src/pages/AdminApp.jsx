@@ -3364,9 +3364,13 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
 function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception }) {
-  // 2026-05-11 명세 — 오늘 작업 흐름 (작업유형별 5단계 / B열·N열 분리)
-  //   신규/배정/확정 → B열(접수일) 오늘 기준
-  //   진행/완료      → N열(확정일) 오늘 기준
+  // 2026-05-15 명세 — 오늘 작업 흐름 (작업유형별 5단계 / 각 단계 = 오늘 일어난 액션)
+  //   신규 → createdAt today + (미배정 or 빈값)     (오늘 접수 + 대기열)
+  //   배정 → assignedAt today                        (오늘 배정/수락) — Migration 013
+  //   확정 → scheduledConfirmedAt today              (오늘 일정 확정 누름) — Migration 013
+  //   진행 → startedAt today                         (오늘 작업 시작)
+  //   완료 → completedAt today                       (오늘 작업 완료)
+  // 별도 if 블록 5개 (else if X) — 같은 작업이 오늘 여러 액션 했으면 각 단계마다 +1
   const workTypeFlowCounts = useMemo(() => {
     const types = ['세척', '냉매충전']; // 시범 운영 — 2개만 (설치/누설/점검/수리는 추후)
     const counts = {};
@@ -3380,22 +3384,22 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
     const dd = String(today.getDate()).padStart(2, "0");
     const todayStr = `${yyyy}-${mm}-${dd}`;
 
-    // B열 (접수일시) = 오늘?
-    const isCreatedToday = (task) => {
-      const b = String(task.createdAt || task.receivedAt || task.접수일시 || task.B || "");
-      if (b.startsWith(todayStr)) return true;
-      const idStr = String(task.id || task.taskId || task.작업번호 || "");
-      const m = idStr.match(/(\d{6})-/);
-      if (m) {
-        const taskDate = `20${m[1].slice(0,2)}-${m[1].slice(2,4)}-${m[1].slice(4,6)}`;
-        if (taskDate === todayStr) return true;
+    // 특정 필드 값이 오늘인지 (여러 fallback 키 catch)
+    // createdAt 측만 ID 패턴 fallback (다른 시점 필드엔 ID 패턴 의미 X)
+    const isFieldToday = (task, ...fieldNames) => {
+      for (const f of fieldNames) {
+        const v = String(task[f] || "");
+        if (v.startsWith(todayStr)) return true;
+      }
+      if (fieldNames.includes("createdAt")) {
+        const idStr = String(task.id || task.taskId || task.작업번호 || "");
+        const m = idStr.match(/(\d{6})-/);
+        if (m) {
+          const taskDate = `20${m[1].slice(0,2)}-${m[1].slice(2,4)}-${m[1].slice(4,6)}`;
+          if (taskDate === todayStr) return true;
+        }
       }
       return false;
-    };
-    // N열 (확정일시) = 오늘?
-    const isScheduledToday = (task) => {
-      const n = String(task.scheduledAt || task.scheduledDate || task.확정일시 || task.N || "");
-      return n.startsWith(todayStr);
     };
 
     (apiTasks || []).forEach(task => {
@@ -3413,29 +3417,30 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
       const status = String(task.status || task.상태 || "").trim();
 
-      // B열 오늘 → 신규/배정/확정
-      if (isCreatedToday(task)) {
-        if (!status || status === '미배정') {
-          counts[workType]['신규']++;
-          counts[workType]['총']++;
-        } else if (status === '배정') {
-          counts[workType]['배정']++;
-          counts[workType]['총']++;
-        } else if (status === '확정') {
-          counts[workType]['확정']++;
-          counts[workType]['총']++;
-        }
+      // 신규 — createdAt today + (미배정 or 빈값)
+      if ((!status || status === '미배정') && isFieldToday(task, "createdAt", "receivedAt")) {
+        counts[workType]['신규']++;
+        counts[workType]['총']++;
       }
-
-      // N열 오늘 → 진행/완료
-      if (isScheduledToday(task)) {
-        if (status === '진행중') {
-          counts[workType]['진행']++;
-          counts[workType]['총']++;
-        } else if (status === '완료' || status === '정산완료') {
-          counts[workType]['완료']++;
-          counts[workType]['총']++;
-        }
+      // 배정 — assignedAt today (Migration 013)
+      if (isFieldToday(task, "assignedAt")) {
+        counts[workType]['배정']++;
+        counts[workType]['총']++;
+      }
+      // 확정 — scheduledConfirmedAt today (Migration 013)
+      if (isFieldToday(task, "scheduledConfirmedAt")) {
+        counts[workType]['확정']++;
+        counts[workType]['총']++;
+      }
+      // 진행 — startedAt today
+      if (isFieldToday(task, "startedAt")) {
+        counts[workType]['진행']++;
+        counts[workType]['총']++;
+      }
+      // 완료 — completedAt today
+      if (isFieldToday(task, "completedAt")) {
+        counts[workType]['완료']++;
+        counts[workType]['총']++;
       }
     });
 
