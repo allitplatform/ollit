@@ -4572,15 +4572,20 @@ function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
         if (engineerCount === 0) return null;
         return (
           <div style={{
+            marginTop: 12,
             marginBottom: 10,
-            padding: "4px 8px",
-            background: t.bgInset,
-            borderRadius: 6,
-            fontSize: 11,
-            color: t.textMuted,
+            padding: "10px 14px",
+            background: "rgba(255, 27, 141, 0.04)",
+            border: t.isLight
+              ? "1px solid rgba(255, 27, 141, 0.40)"
+              : "1px solid rgba(255, 27, 141, 0.35)",
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 500,
+            color: t.isLight ? "#C2185B" : "#FF8FBC",
             display: "flex",
             alignItems: "center",
-            gap: 4,
+            gap: 7,
           }}>
             <span>📡</span>
             <span>{engineerCount}명의 프로에게 알림 발송됨</span>
@@ -4670,10 +4675,18 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
         if (engineerCount === 0) return null;
         return (
           <div style={{
-            marginBottom: 10, padding: "4px 8px",
-            background: t.bgInset, borderRadius: 6,
-            fontSize: 11, color: t.textMuted,
-            display: "flex", alignItems: "center", gap: 4,
+            marginTop: 12,
+            marginBottom: 10,
+            padding: "10px 14px",
+            background: "rgba(255, 27, 141, 0.04)",
+            border: t.isLight
+              ? "1px solid rgba(255, 27, 141, 0.40)"
+              : "1px solid rgba(255, 27, 141, 0.35)",
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 500,
+            color: t.isLight ? "#C2185B" : "#FF8FBC",
+            display: "flex", alignItems: "center", gap: 7,
           }}>
             <span>📡</span>
             <span>{engineerCount}명의 프로에게 알림 발송됨</span>
