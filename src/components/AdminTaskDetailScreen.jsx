@@ -464,7 +464,9 @@ function TimestampHistory({ task }) {
   const rows = [
     { label: "접수",      value: task.createdAt },
     { label: "배정",      value: task.assignedAt },
-    { label: "일정 확정", value: task.scheduledAt || task.confirmedAt || task.확정일시 },
+    // 2026-05-15 fix — 이력 = "일어난 시점"(과거). scheduledAt은 "약속 시간"(미래)이라 의미 X.
+    // scheduledConfirmedAt 추적 시스템 X → 항상 "—" 박힘 (별도 round에서 추적 추가).
+    { label: "일정 확정", value: task.scheduledConfirmedAt },
     { label: "진행",      value: task.startedAt },
     { label: "완료",      value: task.completedAt },
   ];

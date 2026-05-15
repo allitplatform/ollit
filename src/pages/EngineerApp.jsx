@@ -4772,8 +4772,9 @@ export default function EngineerApp({ user, onLogout }) {
 
     // 2026-05-10 명세 — 일정 박혔으면 R="확정" + N열(scheduledAt) ISO 명시
     // 일정 미박음 → R="배정" 그대로 (운영자가 박은 상태 유지) / "약속대기"로 되돌리지 X
+    // 2026-05-15 fix — KST 이중 변환 버그 근본 해결: TZ(+09:00) 명시로 DB가 정확한 UTC 저장
     const hasSchedule = !!(scheduledDate && scheduledTime);
-    const scheduledAtIso = hasSchedule ? `${scheduledDate}T${scheduledTime}:00` : "";
+    const scheduledAtIso = hasSchedule ? `${scheduledDate}T${scheduledTime}:00+09:00` : "";
 
     // 진짜 task면 updateTask로 확정 처리
     if (tasks.find(x => x.id === id)) {
