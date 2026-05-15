@@ -45,8 +45,12 @@ export async function addNotification(notification) {
         req.onsuccess = () => resolve(req.result);
         req.onerror = () => reject(req.error);
       });
+      // 2026-05-15 fix — 같은 taskId 박은 거 다른 시나리오 박힐 차례
+      //   (예: 시나리오 2 배정 + 4 시작 + 5 완료 = 같은 taskId / 다른 title)
+      //   → title 박는 spec 박은 거 시나리오별 분기 박힘
       const duplicate = all.some(n =>
         n.taskId === notification.taskId &&
+        n.title === notification.title &&
         Math.abs((n.timestamp || 0) - ts) < 5000
       );
       if (duplicate) {
