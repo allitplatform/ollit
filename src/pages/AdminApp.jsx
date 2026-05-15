@@ -2620,7 +2620,6 @@ export default function AdminApp({ user, onLogout }) {
             // [1-1] V14 속도 — apiTasks state 직접 update (즉시 UI 반영)
             // 2026-05-10 명세 — assignEngineer 후 R열="배정" (확정은 기사가 일정 박은 후)
             // 2026-05-10 hotfix — Optimistic 마킹 (_optimisticUntil) 추가 / 60초간 polling 덮어씀 방지
-            console.log('[배정 hotfix] Optimistic 적용 시작 / taskId:', selectedTask.id);
             // 2026-05-10 hotfix — 60초 → 5분 (300초) 보호 강화 / GAS R열 갱신 지연 catch
             const optimisticUntil = Date.now() + 300000;
             setApiTasks(prev => {
@@ -2638,7 +2637,6 @@ export default function AdminApp({ user, onLogout }) {
                     }
                   : t
               );
-              console.log('[배정 hotfix] Optimistic 후 task:', next.find(t => t.id === selectedTask.id));
               return next;
             });
 
@@ -5681,7 +5679,6 @@ function PhotoBox({ t, photos }) {
   const empty = total === 0;
   const handlePhotoClick = (label) => {
     // Drive 폴더의 사진 큰 보기 모달 — 준비 중인 기능
-    console.log("[photo]", label);
   };
   const handleFolderClick = () => {
     // 외부 Drive 폴더 새 탭으로 열기 (URL이 있을 때)
@@ -6325,22 +6322,11 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
   // 2026-05-14 — 자동 수락 시뮬레이션 박지 X (countdown / acceptedEngineer state 박지 X)
   // 운영 의도: 기사 PWA 측 [수락] 박은 영역만 박힘 / 운영자 측 [강제 배정] 박은 영역만 박힘
 
-  // 진단용 — 마운트/언마운트 추적
-  useEffect(() => {
-    const mountTime = Date.now();
-    console.log('[DIAG mount]', { taskId: task?.id, time: mountTime });
-    return () => {
-      console.log('[DIAG unmount]', { taskId: task?.id, duration: Date.now() - mountTime });
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Phase 3-10 — PWA 클라이언트 추천 (recommendEngineersGroupedAdapter)
   useEffect(() => {
     if (!task?.id) return;
     // 2026-05-14 — early return 박지 X / setCandidates 박힘 보장
     // 무한 catch 측 DB 사전 조회 측만 박음 (supabase.update 박는 영역에서 catch)
-    console.log('[DIAG mount internal]', { taskId: task?.id });
     let cancelled = false;
     const mainWorkType = determineMainWorkType(task.workItems) || task.workType;
     const region = task.region || "";
@@ -6381,7 +6367,6 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
           const candidateKeys = broadcast.flatMap(c =>
             [c.name, c.engineerId, c.id].filter(Boolean)
           );
-          console.log('[DIAG update BEFORE]', { taskId: task?.id, candidates: candidateKeys.length });
           try {
             // 사전 조회 — DB 측 push_candidates 박힌 영역 catch
             const { data: current, error: selErr } = await supabase
@@ -6394,7 +6379,6 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
             }
             const existingDb = current?.push_candidates || [];
             if (existingDb.length > 0) {
-              console.log('[DIAG update SKIP] DB 측 이미 박힌 영역:', existingDb.length, '명');
               return;
             }
 
@@ -6402,7 +6386,6 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
               .from('tasks')
               .update({ push_candidates: candidateKeys })
               .eq('id', task.id);
-            console.log('[DIAG update AFTER]', { taskId: task?.id, error: pushErr?.message });
             if (pushErr) console.error('[AutoAssign push_candidates]', pushErr);
             else console.log('[AutoAssign] push_candidates 박힘:', candidateKeys.length, '명');
           } catch (pushErr) {

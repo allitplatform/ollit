@@ -150,13 +150,6 @@ export function EngineerMeTab({
       eng?.userId ||
       fromRegistered?.userId ||
       "";
-    if (typeof console !== "undefined") {
-      console.log("[푸시 디버그] eng prop:", eng);
-      console.log("[푸시 디버그] fromRegistered:", fromRegistered);
-      console.log("[푸시 디버그] fromSheet:", fromSheet);
-      console.log("[푸시 디버그] finalEngineerId:", finalEngineerId);
-      console.log("[푸시 디버그] finalUserId:", finalUserId);
-    }
     return { finalEngineerId, finalUserId };
   }
 

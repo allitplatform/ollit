@@ -2,7 +2,7 @@
 // 헌법 v3: weight 500 → 600 / 600 → 700 / Hero 사이즈 키움
 // [verify-2026-05-04] dist에 fontSize:64,fontWeight:700 적용 확정
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { loadCompanyAccount } from "../data/companyAccount.js";
 
@@ -67,15 +67,6 @@ export function EngineerSettleTab({
   const todayEarning   = completedToday.reduce((s, t) => s + getEarning(t), 0);
   const todayRevenue   = completedToday.reduce((s, t) => s + getRevenue(t), 0);
   const toCompanyFinal = toCompany != null ? toCompany : Math.max(0, todayRevenue - todayEarning);
-
-  // 2026-05-10 — 정산 디버그 (개발 모드 / 첫 완료 task 1건)
-  // Phase A — commissionDebug 박지 X (옛 commissionPolicy.js 박은 영역 박지 X)
-  useEffect(() => {
-    if (typeof console === "undefined") return;
-    const sample = completedToday[0];
-    if (!sample) return;
-    console.log("[정산 디버그] todayEarning:", todayEarning, "/ todayRevenue:", todayRevenue, "/ toCompanyFinal:", toCompanyFinal);
-  }, [completedToday.length, todayEarning, todayRevenue, toCompanyFinal]);
 
   // Step 5-8 F-6 — 회사 계좌 = 시트 양방향 sync (loadCompanyAccount)
   // companyAccount prop이 있으면 우선 / 없으면 시트 데이터 fallback / 없으면 기본값
