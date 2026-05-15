@@ -4111,7 +4111,7 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`} · {task.schedule}
       </div>
       {task.estimateTotal > 0 && (
-        <div className="mono" style={{ fontSize: 10, color: t.textMuted, marginBottom: 6 }}>
+        <div className="mono" style={{ fontSize: 11, color: t.textMuted, marginBottom: 6 }}>
           견적 ₩{task.estimateTotal.toLocaleString()}
         </div>
       )}
