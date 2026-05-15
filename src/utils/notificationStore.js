@@ -27,10 +27,34 @@ function openDB() {
   });
 }
 
-// 알림 추가
+// 알림 추가 (taskId + 5초 window dedup 박힘 — SW 측 + App 측 양쪽 path 박혀도 1개만 박힘)
 export async function addNotification(notification) {
   try {
     const db = await openDB();
+    const ts = Date.now();
+
+    // 2026-05-15 fix — taskId + 5초 window dedup
+    // SW saveToIndexedDB (service-worker.js:117) + App addNotificationToStore (App.jsx:85)
+    // 양쪽 path 박힌 의도 보존 (iOS 백그라운드 catch + 포그라운드 즉시 갱신)
+    // race condition (SW vs App 측 먼저 박힌 거) catch
+    if (notification.taskId) {
+      const txRead = db.transaction(STORE_NAME, "readonly");
+      const storeRead = txRead.objectStore(STORE_NAME);
+      const all = await new Promise((resolve, reject) => {
+        const req = storeRead.getAll();
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+      const duplicate = all.some(n =>
+        n.taskId === notification.taskId &&
+        Math.abs((n.timestamp || 0) - ts) < 5000
+      );
+      if (duplicate) {
+        db.close();
+        return false;  // skip dedup
+      }
+    }
+
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
 
@@ -39,7 +63,7 @@ export async function addNotification(notification) {
       body: notification.body || "",
       url: notification.url || "/",
       taskId: notification.taskId || null,
-      timestamp: Date.now(),
+      timestamp: ts,
       read: false,
     };
 
