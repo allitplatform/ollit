@@ -893,7 +893,7 @@ function _v14NormalizeTask(t) {
     engineer:         assignedEngineerName || null,
     engineerPhone:    assignedEngineerPhone,  // V14 Step 3 Fix 1 — apiEngineers에서 박힘 (있으면)
     // Phase 4-2 fix — DB 전환 측 누락 필드 (dashboardStats 카운트 catch)
-    createdAt:   t.createdAt   || t.created_at   || t.receivedAt || t.received_at || "",
+    createdAt:   t.createdAt   || t.created_at   || t.receivedAt || t.received_at || t.접수일시 || t.B || "",
     receivedAt:  t.receivedAt  || t.received_at  || "",
     scheduledAt: t.scheduledAt || t.scheduled_at || t.확정일시 || "",
     completedAt: t.completedAt || t.completed_at || t.완료시간 || "",

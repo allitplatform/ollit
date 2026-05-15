@@ -45,9 +45,10 @@ export function computeDashboardStats({
   });
 
   // 2026-05-11 명세 — 카운트 영역 통일 (B열/N열 기준 / 단계별 분리)
-  //   새접수    = B열(접수일) 오늘 + 미배정
-  //   배정완료  = B열 오늘 + 배정
-  //   일정확정  = B열 오늘 + 확정
+  //   2026-05-15 사장님 spec 수정:
+  //   새접수    = 전체 + 미배정 (시간 필터 X — 처리 대기열)
+  //   배정완료  = 전체 + 배정   (시간 필터 X — 처리 대기열)
+  //   일정확정  = N열(확정일) 오늘 + 확정 (서비스 일자=오늘)
   //   진행중    = N열(확정일) 오늘 + 진행중
   //   완료      = N열 오늘 + 완료
   const todayStr = new Date().toISOString().slice(0, 10);
@@ -67,9 +68,9 @@ export function computeDashboardStats({
     return n.startsWith(todayStr);
   };
 
-  const newReceptionTasks = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "미배정"));
-  const assignedTasksList = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "배정"));
-  const confirmedTasks    = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "확정"));
+  const newReceptionTasks = uniqueTasks.filter(t => _v14HasStatus(t, "미배정"));
+  const assignedTasksList = uniqueTasks.filter(t => _v14HasStatus(t, "배정"));
+  const confirmedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "확정"));
   const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
   const completedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "완료", "정산완료"));
 
