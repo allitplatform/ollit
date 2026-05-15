@@ -77,6 +77,7 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <QuickActions task={task} onScheduleChange={onScheduleChange}/>
       <EngineerCard task={task} onEdit={onEdit} onAssign={onAssign}/>
       <InfoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
+      <TimestampHistory task={task}/>
       <CompletionNotice task={task}/>
       {showException && (
         <ExceptionActions
@@ -437,6 +438,59 @@ function InfoCard({ task, memos, onMemoAdd }) {
         </div>
       </div>
     </>
+  );
+}
+
+// ──────────────── 5.5 TimestampHistory ────────────────
+// "2026-05-15 14:30" 형태 (KST = UTC+9 변환).
+// assignedAt: DB/시트 컬럼 X (추적 시스템 별도 작업) → 항상 "—".
+function formatDateTimeKST(value) {
+  if (!value) return "—";
+  const str = String(value).trim();
+  if (!str || str.startsWith("1899")) return "—";
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return "—";
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const yyyy = kst.getUTCFullYear();
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(kst.getUTCDate()).padStart(2, "0");
+  const hh = String(kst.getUTCHours()).padStart(2, "0");
+  const mi = String(kst.getUTCMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+function TimestampHistory({ task }) {
+  if (task.type === "external") return null;
+  const rows = [
+    { label: "접수",      value: task.createdAt },
+    { label: "배정",      value: task.assignedAt },
+    { label: "일정 확정", value: task.scheduledAt || task.confirmedAt || task.확정일시 },
+    { label: "진행",      value: task.startedAt },
+    { label: "완료",      value: task.completedAt },
+  ];
+  return (
+    <div style={{ padding: "0 16px", marginBottom: 12 }}>
+      <div style={{
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        borderRadius: 10, padding: 12,
+      }}>
+        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6 }}>
+          🕐 이력
+        </div>
+        {rows.map((r, i) => (
+          <div key={r.label} style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            fontSize: 11, paddingTop: i === 0 ? 0 : 4,
+          }}>
+            <span style={{ color: "var(--text-secondary)" }}>{r.label}</span>
+            <span className="mono" style={{ color: "var(--text-primary)" }}>
+              {formatDateTimeKST(r.value)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
