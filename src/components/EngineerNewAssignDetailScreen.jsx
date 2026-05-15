@@ -4,6 +4,7 @@
 import { useState, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
+import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
 import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
@@ -59,7 +60,8 @@ export function EngineerNewAssignDetailScreen({
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [showCustom, setShowCustom]     = useState(false);
   const [customDate, setCustomDate]     = useState("");
-  const [customTime, setCustomTime]     = useState("");
+  const [customHour, setCustomHour]     = useState("14");
+  const [customMin, setCustomMin]       = useState("00");
 
   // 사장님 운영 패턴 (당일 +15분~2h) — 30분 단위 5개 빠른 슬롯, 현재시간 +15분 반올림 기준
   const slots = useMemo(() => {
@@ -103,9 +105,9 @@ export function EngineerNewAssignDetailScreen({
     const today = new Date();
     const todayYmd = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
     let scheduledDate, scheduledTime;
-    if (showCustom && customDate && customTime) {
+    if (showCustom && customDate) {
       scheduledDate = customDate;
-      scheduledTime = customTime;
+      scheduledTime = `${customHour}:${customMin}`;
     } else if (selectedSlot) {
       scheduledDate = todayYmd;
       scheduledTime = selectedSlot;
@@ -122,7 +124,7 @@ export function EngineerNewAssignDetailScreen({
   }
 
   // 확정 버튼에 박을 시간
-  const confirmTime = showCustom ? customTime : selectedSlot;
+  const confirmTime = showCustom ? `${customHour}:${customMin}` : selectedSlot;
   const canConfirm = !!confirmTime && (!showCustom || !!customDate);
 
   return (
@@ -386,9 +388,13 @@ export function EngineerNewAssignDetailScreen({
               <input type="date" value={customDate}
                 onChange={(e) => setCustomDate(e.target.value)}
                 style={inputStyle}/>
-              <input type="time" value={customTime}
-                onChange={(e) => setCustomTime(e.target.value)}
-                style={inputStyle}/>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 13, color: "var(--text-secondary)", width: 36, fontWeight: 600 }}>시간</span>
+                <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
+                  <DropdownPicker value={customHour} options={HOURS_24}    onChange={setCustomHour}/>
+                  <DropdownPicker value={customMin}  options={MINUTES_30}  onChange={setCustomMin}/>
+                </div>
+              </div>
             </div>
           )}
 
@@ -404,10 +410,10 @@ export function EngineerNewAssignDetailScreen({
       <div style={{ padding: "0 16px" }}>
         <button onClick={handleSave} disabled={!canConfirm} style={{
           width: "100%", padding: 14,
-          background: canConfirm ? "#FF1B8D" : "var(--bg-secondary)",
-          opacity: canConfirm ? 1 : 0.5,
-          border: "none",
-          borderRadius: 12, color: "#fff",
+          background: canConfirm ? "#FF1B8D" : "transparent",
+          border: canConfirm ? "none" : "1px solid var(--border)",
+          borderRadius: 12,
+          color: canConfirm ? "#fff" : "var(--text-secondary)",
           fontSize: 14, fontWeight: 600,
           cursor: canConfirm ? "pointer" : "not-allowed", fontFamily: "inherit",
           marginBottom: 8,
