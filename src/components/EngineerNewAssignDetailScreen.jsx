@@ -1,25 +1,12 @@
 // V14 정제 — 새 배정 상세
 // 흰 카드 + 좌측 4px 핑크 바 / 추가금 영역 제거 / 색 절제
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
-import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
 import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
-
-function addDays(date, n) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
-}
-
-function formatMd(date) {
-  const d = new Date(date);
-  const days = ["일", "월", "화", "수", "목", "금", "토"];
-  return `${d.getMonth() + 1}/${d.getDate()} (${days[d.getDay()]})`;
-}
 
 const PhoneSvgWhite = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -68,13 +55,29 @@ export function EngineerNewAssignDetailScreen({
   onCustomerCancel,
   onAskOps,
 }) {
-  const [memo, setMemo]               = useState(task?.callMemo || "");
-  const [datePreset, setDatePreset]   = useState("tomorrow");
-  const [customDate, setCustomDate]   = useState("");
-  const [startHour, setStartHour]     = useState("14");
-  const [startMin, setStartMin]       = useState("00");
-  const [endHour, setEndHour]         = useState("16");
-  const [endMin, setEndMin]           = useState("00");
+  const [memo, setMemo]                 = useState(task?.callMemo || "");
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [showCustom, setShowCustom]     = useState(false);
+  const [customDate, setCustomDate]     = useState("");
+  const [customTime, setCustomTime]     = useState("");
+
+  // 사장님 운영 패턴 (당일 +15분~2h) — 30분 단위 5개 빠른 슬롯, 현재시간 +15분 반올림 기준
+  const slots = useMemo(() => {
+    const now = new Date();
+    const minPlus15 = new Date(now.getTime() + 15 * 60 * 1000);
+    const rounded = Math.ceil(minPlus15.getMinutes() / 30) * 30;
+    const firstSlot = new Date(minPlus15);
+    firstSlot.setMinutes(rounded, 0, 0);
+    return Array.from({ length: 5 }, (_, i) => {
+      const t = new Date(firstSlot.getTime() + i * 30 * 60 * 1000);
+      const hh = String(t.getHours()).padStart(2, "0");
+      const mm = String(t.getMinutes()).padStart(2, "0");
+      return {
+        hhmm: `${hh}:${mm}`,
+        diffMin: Math.max(0, Math.round((t.getTime() - now.getTime()) / 60000)),
+      };
+    });
+  }, []);
 
   if (!task) {
     return (
@@ -85,8 +88,6 @@ export function EngineerNewAssignDetailScreen({
   }
 
   const colors = getWorkTypeColors(task.workType);
-  const today    = new Date();
-  const tomorrow = addDays(today, 1);
 
   function makeCall() {
     if (task.phone) window.location.href = `tel:${task.phone}`;
@@ -99,24 +100,30 @@ export function EngineerNewAssignDetailScreen({
   }
 
   function handleSave() {
-    onSave && onSave({
-      memo, datePreset, customDate,
-      startTime: `${startHour}:${startMin}`,
-      endTime:   `${endHour}:${endMin}`,
-    });
+    const today = new Date();
+    const todayYmd = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+    let scheduledDate, scheduledTime;
+    if (showCustom && customDate && customTime) {
+      scheduledDate = customDate;
+      scheduledTime = customTime;
+    } else if (selectedSlot) {
+      scheduledDate = todayYmd;
+      scheduledTime = selectedSlot;
+    } else {
+      return;
+    }
+    // endTime = scheduledTime + 1h 자동 fallback (캘린더/DB NOT NULL 안전망)
+    const [sh, sm] = scheduledTime.split(":").map(Number);
+    const endMins = sh * 60 + sm + 60;
+    const eh = Math.floor(endMins / 60) % 24;
+    const em = endMins % 60;
+    const endTime = `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
+    onSave && onSave({ memo, scheduledDate, scheduledTime, endTime });
   }
 
-  // 시간 미리보기
-  const startStr = `${startHour}:${startMin}`;
-  const endStr   = `${endHour}:${endMin}`;
-  const startMins = parseInt(startHour) * 60 + parseInt(startMin);
-  const endMins   = parseInt(endHour)   * 60 + parseInt(endMin);
-  const durationMins = endMins - startMins;
-  const durationStr = durationMins > 0
-    ? durationMins % 60 === 0
-        ? `${durationMins / 60}시간`
-        : `${Math.floor(durationMins / 60)}시간 ${durationMins % 60}분`
-    : "—";
+  // 확정 버튼에 박을 시간
+  const confirmTime = showCustom ? customTime : selectedSlot;
+  const canConfirm = !!confirmTime && (!showCustom || !!customDate);
 
   return (
     <div style={{
@@ -320,78 +327,92 @@ export function EngineerNewAssignDetailScreen({
           borderRadius: 16,
           padding: "18px 16px",
         }}>
-          {/* 일정 협의 */}
-          <SectionLabel>📅 일정 협의</SectionLabel>
+          {/* 1. 도착 예정 시간 (오늘) — 30분 단위 5개 빠른 슬롯 */}
+          <SectionLabel>🕐 도착 예정 시간 (오늘)</SectionLabel>
           <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8,
-            marginBottom: 14,
+            display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6,
+            marginBottom: 12,
           }}>
-            <DatePill active={datePreset === "today"}    label="오늘"    sub={formatMd(today)}    onClick={() => setDatePreset("today")}/>
-            <DatePill active={datePreset === "tomorrow"} label="내일"    sub={formatMd(tomorrow)} onClick={() => setDatePreset("tomorrow")}/>
-            <DatePill active={datePreset === "custom"}   label="다른 날짜" sub="📅"                onClick={() => setDatePreset("custom")}/>
+            {slots.map(({ hhmm, diffMin }) => {
+              const active = !showCustom && selectedSlot === hhmm;
+              return (
+                <button
+                  key={hhmm}
+                  onClick={() => { setShowCustom(false); setSelectedSlot(hhmm); }}
+                  style={{
+                    padding: "10px 0",
+                    background: active ? "rgba(255,27,141,0.04)" : "var(--card-bg)",
+                    border: active ? "2px solid #FF1B8D" : "1px solid var(--border)",
+                    borderRadius: 10,
+                    color: "var(--text-primary)",
+                    cursor: "pointer", fontFamily: "inherit",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                  }}
+                >
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{hhmm}</span>
+                  <span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 600 }}>
+                    +{diffMin}분 후
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {datePreset === "custom" && (
-            <input type="date" value={customDate}
-              onChange={(e) => setCustomDate(e.target.value)}
-              style={{ ...inputStyle, marginBottom: 14 }}/>
+          {/* 2. 다른 시간/날짜 직접 선택 — 부가 흐름 (접힘 → 펼침) */}
+          <button
+            onClick={() => {
+              const next = !showCustom;
+              setShowCustom(next);
+              if (next) setSelectedSlot(null);
+            }}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              background: showCustom ? "rgba(255,27,141,0.04)" : "var(--card-bg)",
+              border: showCustom ? "2px solid #FF1B8D" : "1px solid var(--border)",
+              borderRadius: 10,
+              color: "var(--text-primary)",
+              fontSize: 13, fontWeight: 600,
+              cursor: "pointer", fontFamily: "inherit",
+              textAlign: "left",
+              marginBottom: showCustom ? 8 : 14,
+            }}
+          >
+            📅 다른 시간/날짜 직접 선택
+          </button>
+
+          {showCustom && (
+            <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+              <input type="date" value={customDate}
+                onChange={(e) => setCustomDate(e.target.value)}
+                style={inputStyle}/>
+              <input type="time" value={customTime}
+                onChange={(e) => setCustomTime(e.target.value)}
+                style={inputStyle}/>
+            </div>
           )}
 
-          {/* 시간 선택 */}
-          <SectionLabel>⏰ 시간 선택</SectionLabel>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 13, color: "var(--text-secondary)", width: 36, fontWeight: 600 }}>시작</span>
-            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-              <DropdownPicker value={startHour} options={HOURS_24}    onChange={setStartHour}/>
-              <DropdownPicker value={startMin}  options={MINUTES_30}  onChange={setStartMin}/>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <span style={{ fontSize: 13, color: "var(--text-secondary)", width: 36, fontWeight: 600 }}>종료</span>
-            <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-              <DropdownPicker value={endHour} options={HOURS_24}   onChange={setEndHour}/>
-              <DropdownPicker value={endMin}  options={MINUTES_30} onChange={setEndMin}/>
-            </div>
-          </div>
-          <div style={{
-            padding: 11,
-            background: "var(--time-summary-bg)",
-            borderRadius: 10,
-            fontSize: 14, fontWeight: 600,
-            color: "var(--text-primary)",
-            textAlign: "center",
-            marginBottom: 16,
-          }}>
-            <span style={{
-              fontFamily: "inherit",
-            }}>
-              {startStr} ~ {endStr}
-            </span>
-            <span style={{ color: "var(--text-secondary)", margin: "0 6px" }}>·</span>
-            <span style={{ color: "var(--time-summary-accent)", fontWeight: 600 }}>
-              {durationStr}
-            </span>
-          </div>
-
-          {/* 메모 */}
-          <SectionLabel>📝 메모</SectionLabel>
+          {/* 3. 협의 메모 */}
+          <SectionLabel>📝 협의 메모 (선택)</SectionLabel>
           <textarea value={memo} onChange={(e) => setMemo(e.target.value)}
             placeholder="고객과 협의한 내용 / 특이사항"
-            style={{ ...inputStyle, minHeight: 56, resize: "vertical" }}/>
+            style={{ ...inputStyle, height: 70, fontSize: 12, resize: "vertical" }}/>
         </div>
       </div>
 
       {/* 4. 액션 3개 */}
       <div style={{ padding: "0 16px" }}>
-        <button onClick={handleSave} style={{
-          width: "100%", padding: 16,
-          background: "#FF1B8D", border: "none",
+        <button onClick={handleSave} disabled={!canConfirm} style={{
+          width: "100%", padding: 14,
+          background: canConfirm ? "#FF1B8D" : "var(--bg-secondary)",
+          opacity: canConfirm ? 1 : 0.5,
+          border: "none",
           borderRadius: 12, color: "#fff",
-          fontSize: 16, fontWeight: 600,
-          cursor: "pointer", fontFamily: "inherit",
+          fontSize: 14, fontWeight: 600,
+          cursor: canConfirm ? "pointer" : "not-allowed", fontFamily: "inherit",
           marginBottom: 8,
         }}>
-          ✓ 일정 확정
+          {canConfirm ? `✓ 일정 확정 → ${confirmTime} 도착 예정` : "도착 시간 선택"}
         </button>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -453,32 +474,6 @@ export function EngineerNewAssignDetailScreen({
         </div>
       </div>
     </div>
-  );
-}
-
-function DatePill({ active, label, sub, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: "14px 4px",
-      background: active ? "#FF1B8D" : "var(--card-bg)",
-      border: active ? "1px solid #FF1B8D" : "1px solid var(--input-border)",
-      borderRadius: 12,
-      color: active ? "#fff" : "var(--text-primary)",
-      fontSize: 14, fontWeight: 600,
-      cursor: "pointer", fontFamily: "inherit",
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", gap: 2,
-    }}>
-      <span>{label}</span>
-      <span style={{
-        fontSize: 11,
-        fontWeight: 600,
-        color: active ? "rgba(255,255,255,0.85)" : "var(--text-tertiary)",
-        fontFamily: sub && /[0-9]/.test(sub) ? "inherit" : "inherit",
-      }}>
-        {sub}
-      </span>
-    </button>
   );
 }
 
