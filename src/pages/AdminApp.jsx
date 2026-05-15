@@ -102,12 +102,12 @@ import {
 // IndexedDB 측 알림 → AdminApp NotiScreen 형식 어댑트
 function adaptStoredAdminNoti(stored) {
   const title = stored.title || "";
-  let category = "general";
-  if (/배정|새 작업|새 접수/.test(title)) category = "new_assign";
-  else if (/일정/.test(title)) category = "schedule";
-  else if (/완료/.test(title)) category = "completed";
-  else if (/취소/.test(title)) category = "canceled";
-  else if (/정산|입금/.test(title)) category = "settlement";
+  // 2026-05-15 fix — NOTI_CATEGORIES 측 박은 키 박힌 거 박기 (NotiCard 측 return null 박지 X)
+  let category = "team_message";
+  if (/배정|새 작업|새 접수|재배정/.test(title)) category = "new_assignment";
+  else if (/일정|시작|진행|완료/.test(title)) category = "schedule_changed";
+  else if (/취소/.test(title)) category = "work_canceled";
+  else if (/정산|입금/.test(title)) category = "payment_confirmed";
   return {
     id: stored.id,
     category,
