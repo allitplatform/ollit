@@ -898,6 +898,7 @@ function _v14NormalizeTask(t) {
     scheduledAt: t.scheduledAt || t.scheduled_at || t.확정일시 || "",
     completedAt: t.completedAt || t.completed_at || t.완료시간 || "",
     startedAt:   t.startedAt   || t.started_at   || t.시작시간 || "",
+    pushCandidates: Array.isArray(t.pushCandidates) ? t.pushCandidates : Array.isArray(t.push_candidates) ? t.push_candidates : [],
     _api: true,                   // 진짜 API 출처 마킹
   };
 }
