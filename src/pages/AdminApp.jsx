@@ -2617,6 +2617,22 @@ export default function AdminApp({ user, onLogout }) {
               return;
             }
 
+            // 2026-05-15 Path B — 배정된 기사 1명에게 push 박기
+            // 세척 = workflow="manual_with_recommendation" (수동 배정)
+            // Migration 014 trigger가 push_candidates UPDATE 감지 → 자동 발송
+            // push 실패해도 배정 자체는 OK (try/catch + log)
+            if (eng?.id) {
+              try {
+                const { error: pushErr } = await supabase
+                  .from('tasks')
+                  .update({ push_candidates: [eng.id] })
+                  .eq('id', selectedTask.id);
+                if (pushErr) console.error('[Path B push]', pushErr);
+              } catch (err) {
+                console.error('[Path B push]', err);
+              }
+            }
+
             // [1-1] V14 속도 — apiTasks state 직접 update (즉시 UI 반영)
             // 2026-05-10 명세 — assignEngineer 후 R열="배정" (확정은 기사가 일정 박은 후)
             // 2026-05-10 hotfix — Optimistic 마킹 (_optimisticUntil) 추가 / 60초간 polling 덮어씀 방지
