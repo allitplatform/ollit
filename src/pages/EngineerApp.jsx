@@ -1469,6 +1469,16 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
   const isLocked = isCompleted;
   const canChangeSchedule = isConfirmed; // 확정 상태만 변경 가능
 
+  // 2026-05-15 — 메인 카드(NextWorkCard) spec과 통일 (박스색 + 사이드바)
+  //   isInProgress / isImminent → rgba(255,27,141,0.06)
+  //   workType 사이드바 4px 박힘
+  const _now = new Date();
+  const _startMin = getMinutesUntilTime(task.time, _now);
+  const _isImminent = !isInProgress && _startMin !== null && _startMin > 0 && _startMin <= 30;
+  const _cardBg     = (isInProgress || _isImminent) ? "rgba(255,27,141,0.06)" : "var(--card-bg)";
+  const _cardBorder = (isInProgress || _isImminent) ? "rgba(255,27,141,0.30)" : "var(--border)";
+  const _barColor   = getWorkTypeColors(task.workType).main;
+
   // 약속 잡기
   const [scheduleDate, setScheduleDate] = useState(task.requestedDate || "");
   const [scheduleTime, setScheduleTime] = useState("");
@@ -1551,7 +1561,22 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
       </div>
 
       {/* 1. 시간 + 상태 + 변경 버튼 */}
-      <div className="section" style={{ padding: "24px 20px 20px" }}>
+      <div className="section" style={{
+        position: "relative",
+        margin: "0 16px 14px",
+        background: _cardBg,
+        border: `1px solid ${_cardBorder}`,
+        borderRadius: 18,
+        padding: "16px 16px 16px 22px",
+        overflow: "hidden",
+      }}>
+        {/* 좌측 4px workType 컬러 바 — 메인 카드와 일관 */}
+        <div style={{
+          position: "absolute",
+          left: 0, top: 0, bottom: 0,
+          width: 4,
+          background: _barColor,
+        }}/>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, padding: "5px 10px", borderRadius: 6, background: statusBg, color: statusColor, letterSpacing: 0.5 }}>
             <span style={{ width: 5, height: 5, background: statusColor, borderRadius: "50%" }}/>
