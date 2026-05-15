@@ -6369,9 +6369,9 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
         //   1차: module-level Set (위 박힌 영역 / 같은 페이지 라이프타임 catch)
         //   2차: DB 사전 조회 박은 후 빈 배열 측만 박음 (서버 측 보호 / 새로고침 박아도 catch)
         if (task?.id && broadcast.length > 0) {
-          // 2026-05-15 fix — engineerId만 박음 (GAS 시트 매칭이 engineerId 기준)
-          // 이전: [name, engineerId, id] 혼합 → name/id 측 "대상 구독 없음" 절반 이상 박힘
-          const candidateKeys = broadcast.map(c => c.engineerId).filter(Boolean);
+          const candidateKeys = broadcast.flatMap(c =>
+            [c.name, c.engineerId, c.id].filter(Boolean)
+          );
           try {
             // 사전 조회 — DB 측 push_candidates 박힌 영역 catch
             const { data: current, error: selErr } = await supabase
