@@ -136,3 +136,17 @@ export function formatScheduleShort(value) {
   const mi = String(kst.getUTCMinutes()).padStart(2, "0");
   return `${mm}/${dd} (${day}) ${hh}:${mi}`;
 }
+
+// "16:00" — KST 변환, 시간만 (HH:MM) — 카드/리스트 좁은 공간
+// 빈값/잘못된 입력 → "" (호출처가 fallback 박을 수 있게)
+export function formatTimeKST(value) {
+  if (!value) return "";
+  const str = String(value).trim();
+  if (!str || str.startsWith("1899")) return "";
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return "";
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const hh = String(kst.getUTCHours()).padStart(2, "0");
+  const mi = String(kst.getUTCMinutes()).padStart(2, "0");
+  return `${hh}:${mi}`;
+}

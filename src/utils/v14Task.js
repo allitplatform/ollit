@@ -1,6 +1,7 @@
 // V14 Task Utils — 시트 작업DB row → 내부 task object 변환
 // AdminApp + EngineerApp + HappycallApp 공유 (재사용 module)
 
+import { formatTimeKST } from "./dateLabel.js";
 import { calcCommission, calcCommissionMulti } from "./commissionPolicy.js";
 
 // V14 — 주소 첫 단어 = 지역 (예: "강남구 도곡동 ..." → "강남구")
@@ -177,10 +178,11 @@ export function v14NormalizeTask(t) {
     requestedTime: reqTime,
     scheduledAt,
     scheduledDate: fallbackScheduledDate,
-    scheduledTime: scheduledAt && String(scheduledAt).length > 10 ? String(scheduledAt).slice(11, 16) : "",
+    // 2026-05-15 fix — KST 변환 (이전 string slice는 UTC raw 박혀서 기사 메인 카드에 07:00 박힘)
+    scheduledTime: formatTimeKST(scheduledAt),
     settlementStatus: settlement,
     workItems: workItems || [],
-    time: reqTime || (scheduledAt && String(scheduledAt).length > 10 ? String(scheduledAt).slice(11, 16) : "") || reqDate || "협의",
+    time: reqTime || formatTimeKST(scheduledAt) || reqDate || "협의",
     type: "work",
     assignedEngineer: assignedEngineerName,
     engineer: assignedEngineerName || null,
