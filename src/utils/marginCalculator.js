@@ -24,8 +24,8 @@ export function analyzeTaskMargin(task, principalMap) {
     // 5원청 — 시드 호환 (totalAmount 또는 estimateTotal+addonFee)
     revenue         = task.totalAmount
       ?? ((task.estimateTotal || 0) + (task.addonFee || 0));
-    engineerEarning = task.engineerEarning || 0;
-    const principalFee = task.principalFee || 0;
+    engineerEarning = task.engineer_amount || 0;
+    const principalFee = task.principal_amount || 0;
     margin          = revenue - engineerEarning - principalFee;
   }
 

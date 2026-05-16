@@ -224,7 +224,7 @@ function calculatePendingForEngineers(tasks) {
   return tasks
     .filter(t => t.naverSettledAt && !t.engineerSettledAt)
     .reduce((s, t) => {
-      const earning = t.engineerEarning || Math.floor((t.netAmount || 0) * COMPANY_RATE);
+      const earning = t.engineer_amount || Math.floor((t.netAmount || 0) * COMPANY_RATE);
       return s + earning;
     }, 0);
 }

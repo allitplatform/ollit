@@ -26,7 +26,7 @@ const backBtnStyle = {
 };
 
 function getEarning(t) {
-  return t.engineerEarning || t.engineerNet || 0;
+  return t.engineer_amount || 0;
 }
 
 export function UsolNCalendarScreen({

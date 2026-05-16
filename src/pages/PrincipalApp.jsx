@@ -1003,9 +1003,9 @@ function TaskCard({ t, task, onClick }) {
           {task.scheduled && <span> · {task.scheduled.split(" ")[0]}</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          {task.principalFee > 0 && (
+          {task.principal_amount > 0 && (
             <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: PRINCIPAL.color }}>
-              +₩{(task.principalFee / 1000).toFixed(0)}K
+              +₩{(task.principal_amount / 1000).toFixed(0)}K
             </span>
           )}
           <ChevronRight size={14} style={{ color: t.textMuted }}/>

@@ -25,7 +25,7 @@ export const FIELD_PERMISSIONS = {
   // V11-1 — 유솔 N 정산 필드
   "task.netAmount":           ["owner", "admin", "happycall", "engineer"],
   "task.companyReceive":      ["owner", "admin"],            // 회사 받을 돈
-  "task.companyMargin":       ["owner"],                     // 회사 마진 (운영자만)
+  "task.owner_amount":       ["owner"],                     // 회사 마진 (운영자만)
   "task.naverSettledAt":      ["owner", "admin", "engineer"],
   "task.companyReceivedAt":   ["owner", "admin"],
   "task.engineerSettledAt":   ["owner", "admin", "engineer"],
@@ -113,9 +113,9 @@ export const FIELD_EDIT_PERMISSIONS = {
   "estimateTotal":   ["owner", "admin"],
   "extraFee":        ["owner", "admin"],
   "addonFee":        ["owner", "admin"],
-  "engineerEarning": ["owner"],
-  "companyMargin":   ["owner"],
-  "principalFee":    ["owner", "admin"],
+  "engineer_amount": ["owner"],
+  "owner_amount":   ["owner"],
+  "principal_amount":    ["owner", "admin"],
 
   // 배정
   "engineerId":      ["owner", "admin"],
@@ -155,10 +155,10 @@ export function getDisplayAmount(task, user) {
     if (user.role === "engineer") {
       // 자기 단가만 노출
       if (task.engineerId === user.engineerId || task.engineer === user.name) {
-        result.engineerRate = task.engineerEarning || 0;
+        result.engineerRate = task.engineer_amount || 0;
       }
     } else if (["owner", "admin"].includes(user.role)) {
-      result.engineerRate = task.engineerEarning || 0;
+      result.engineerRate = task.engineer_amount || 0;
     }
   }
 
@@ -170,15 +170,15 @@ export function getDisplayAmount(task, user) {
         result.engineerRateFake = task.fakeEngineerRate || 0;
         // 진짜 단가 X
       }
-      result.principalFee = task.principalFee || 0;
+      result.principalFee = task.principal_amount || 0;
     } else if (["owner", "admin"].includes(user.role)) {
-      result.principalFee = task.principalFee || 0;
+      result.principalFee = task.principal_amount || 0;
     }
   }
 
   // 회사 마진
   if (canSeeField(user, "task.company_margin")) {
-    result.companyMargin = task.companyMargin || 0;
+    result.companyMargin = task.owner_amount || 0;
   }
 
   // 가짜 단가 (운영자만)

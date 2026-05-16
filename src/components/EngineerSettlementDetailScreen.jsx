@@ -7,7 +7,7 @@ import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { calcTaskEarning } from "../utils/feePolicy.js";
 
 function getEarning(t) {
-  return t.engineerEarning || t.engineerNet || 0;
+  return t.engineer_amount || 0;
 }
 
 function getRevenue(t) {

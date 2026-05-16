@@ -138,7 +138,7 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
         </Section>
 
         {(canEditField(user, "estimateTotal") || canEditField(user, "addonFee")
-          || canEditField(user, "engineerEarning") || canEditField(user, "principalFee")) && (
+          || canEditField(user, "engineer_amount") || canEditField(user, "principal_amount")) && (
           <Section title="💰 금액">
             {canEditField(user, "estimateTotal") && (
               <FieldNumber
@@ -158,29 +158,29 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
                 suffix="원"
               />
             )}
-            {canEditField(user, "principalFee") && (
+            {canEditField(user, "principal_amount") && (
               <FieldNumber
                 label="원청 수수료"
-                value={data.principalFee || 0}
-                onChange={v => set("principalFee", v)}
+                value={data.principal_amount || 0}
+                onChange={v => set("principal_amount", v)}
                 editable
                 suffix="원"
               />
             )}
-            {canEditField(user, "engineerEarning") && (
+            {canEditField(user, "engineer_amount") && (
               <FieldNumber
                 label="프로 단가"
-                value={data.engineerEarning || 0}
-                onChange={v => set("engineerEarning", v)}
+                value={data.engineer_amount || 0}
+                onChange={v => set("engineer_amount", v)}
                 editable
                 suffix="원"
               />
             )}
-            {canEditField(user, "companyMargin") && (
+            {canEditField(user, "owner_amount") && (
               <FieldNumber
                 label="회사 마진"
-                value={data.companyMargin || 0}
-                onChange={v => set("companyMargin", v)}
+                value={data.owner_amount || 0}
+                onChange={v => set("owner_amount", v)}
                 editable
                 suffix="원"
               />

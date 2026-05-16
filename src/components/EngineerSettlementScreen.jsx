@@ -86,9 +86,9 @@ function TodayView({ tasks }) {
     t.principalId !== "usol_n"
   );
 
-  const totalEarning = todayTasks.reduce((s, t) => s + (t.engineerEarning || 0), 0);
+  const totalEarning = todayTasks.reduce((s, t) => s + (t.engineer_amount || 0), 0);
   const paidAmount   = todayTasks.filter(t => t.engineerPaidAt)
-    .reduce((s, t) => s + (t.engineerEarning || 0), 0);
+    .reduce((s, t) => s + (t.engineer_amount || 0), 0);
   const unpaidAmount = totalEarning - paidAmount;
 
   return (
@@ -142,7 +142,7 @@ function MonthlyView({ tasks }) {
       ["completed", "partial", "visit_only"].includes(t.status);
   });
 
-  const totalEarning = monthTasks.reduce((s, t) => s + (t.engineerEarning || 0), 0);
+  const totalEarning = monthTasks.reduce((s, t) => s + (t.engineer_amount || 0), 0);
 
   return (
     <div>
@@ -289,7 +289,7 @@ function TaskRow({ task, showDate }) {
           <span style={{ fontSize: 12, fontWeight: 600 }}>{task.customer || "—"}</span>
         </div>
         <span style={{ fontSize: 11, fontFamily: "inherit", color: isPaid ? "#00875A" : "var(--text-primary)" }}>
-          ₩{(task.engineerEarning || 0).toLocaleString()}
+          ₩{(task.engineer_amount || 0).toLocaleString()}
         </span>
       </div>
       <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 2, paddingLeft: 16 }}>

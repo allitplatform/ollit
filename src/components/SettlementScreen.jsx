@@ -23,7 +23,7 @@ function formatDateInput(date) {
 function pickEngineerToCompanyAmount(t) {
   if (typeof t.companyReceiveFromEngineer === "number") return t.companyReceiveFromEngineer;
   const total = (t.estimateTotal || 0) + (t.addonFee || 0);
-  return Math.max(0, total - (t.engineerEarning || 0));
+  return Math.max(0, total - (t.engineer_amount || 0));
 }
 
 export function SettlementScreen({ onBack, onClickPrincipalSettlement }) {

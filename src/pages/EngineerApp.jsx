@@ -864,7 +864,7 @@ function MainScreen({
     && todayTasksLocal.every(t => t.status === "완료");
   const todayEarningLocal = todayTasksLocal
     .filter(t => t.status === "완료")
-    .reduce((s, t) => s + (t.engineerNet || 0), 0);
+    .reduce((s, t) => s + (t.engineer_amount || 0), 0);
 
   // V14 — 새 배정 = 배정됐는데 일정 미정 (extraAssignments 합산은 EngineerApp에서 처리)
   // 2026-05-10 명세 (이행 기간): "배정" + 옛 "확정"+일정X 둘 다 catch
@@ -3997,7 +3997,7 @@ export default function EngineerApp({ user, onLogout }) {
     workType: t.workType || "세척",
     workItem: t.appliance || "—",
     quantity: t.qty || 1,
-    feeAmount: Math.max(0, (t.estimateTotal || 0) - (t.engineerNet || 0)),
+    feeAmount: Math.max(0, (t.estimateTotal || 0) - (t.engineer_amount || 0)),
   }));
   const todayPendingTotal = todayPendingWorks.reduce((s, w) => s + (w.feeAmount || 0), 0);
 

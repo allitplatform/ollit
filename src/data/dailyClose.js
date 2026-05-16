@@ -35,7 +35,7 @@ function pickAmountFromEngineer(t) {
   // 시드 호환: companyReceiveFromEngineer 우선 / 없으면 estimateTotal - engineerEarning
   if (typeof t.companyReceiveFromEngineer === "number") return t.companyReceiveFromEngineer;
   const total = (t.estimateTotal || 0) + (t.addonFee || 0);
-  return Math.max(0, total - (t.engineerEarning || 0));
+  return Math.max(0, total - (t.engineer_amount || 0));
 }
 
 // 특정 날짜의 마감 상태 (기사 → 회사)

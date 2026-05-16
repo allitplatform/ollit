@@ -321,8 +321,8 @@ function calculateDailyByPrincipal(date, principals) {
     if (!r) return; // 5원청 외 (유솔 N 등) 제외
 
     const total = (t.totalAmount || ((t.estimateTotal || 0) + (t.addonFee || 0)));
-    const principalFee  = t.principalFee || 0;
-    const engineerEarning = t.engineerEarning || 0;
+    const principalFee  = t.principal_amount || 0;
+    const engineerEarning = t.engineer_amount || 0;
     const companyRevenue = typeof t.companyRevenue === "number"
       ? t.companyRevenue
       : Math.max(0, total - principalFee - engineerEarning);

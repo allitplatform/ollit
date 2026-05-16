@@ -7,7 +7,7 @@ import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { loadCompanyAccount } from "../data/companyAccount.js";
 
 function getEarning(t) {
-  return t.engineerEarning || t.engineerNet || 0;
+  return t.engineer_amount || 0;
 }
 
 function getRevenue(t) {

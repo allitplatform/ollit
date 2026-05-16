@@ -119,28 +119,8 @@ export function v14NormalizeTask(t) {
     return "";
   })();
 
-  // 2026-05-10 — 정산 계산 (Hybrid)
-  // 1) GAS 응답에 engineerEarning 박혀있으면 그거 사용 (비밀 영역 KA/KB 세척)
-  // 2) 일반 영역 → commissionPolicy lookup + 계산
-  const gasEarning = Number(t.engineerEarning || t.기사수익 || t.기사정산 || 0);
-  let commission;
-  if (gasEarning > 0) {
-    commission = {
-      engineerEarning: gasEarning,
-      principalFee:    Number(t.principalFee  || t.원청수수료 || 0),
-      companyMargin:   Number(t.companyMargin || t.회사마진   || 0),
-      source: "gas_secret",
-    };
-  } else {
-    // 2026-05-16 Phase 4 통합 2-D — calcCommission 박지 X (DB payments 박은 spec 사용)
-    // compute_payment v7 trigger 박힘 박을 spec — 작업 완료 시 자동 계산
-    commission = {
-      engineerEarning:  t.engineer_amount  ?? 0,
-      principalFee:     t.principal_amount ?? 0,
-      companyMargin:    t.owner_amount     ?? 0,
-      source:           t.calc_method      ?? null,
-    };
-  }
+  // 2026-05-16 Phase 4 통합 2-E #2 — commission 박은 spec 박지 X (DB payments 박은 spec 직접 박음)
+  // GAS 박지 X 박혀있어 호환 박지 X 박음. compute_payment v7 trigger 박은 spec — 작업 완료 시 자동 계산
 
   // 2026-05-11 진단 — window.__DEBUG_NORMALIZE 켜면 status 매핑 추적
   if (typeof window !== "undefined" && window.__DEBUG_NORMALIZE) {
@@ -201,12 +181,6 @@ export function v14NormalizeTask(t) {
     payment_status:   t.payment_status   ?? null,
     is_balanced:      t.is_balanced      ?? null,
 
-    // 호환용 alias (camelCase, 옛 화면용 — 별도 round 측 박지 X 박을 spec)
-    engineerEarning:  commission.engineerEarning,
-    engineerNet:      commission.engineerEarning,
-    principalFee:     commission.principalFee,
-    companyMargin:    commission.companyMargin,
-    commissionSource: commission.source,
     _api: true,
   };
 }

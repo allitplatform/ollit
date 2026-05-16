@@ -92,12 +92,12 @@ export function computeDashboardStats({
     const total = todayCompletedTasks.reduce((s, t) =>
       s + Number(t.totalAmount || t.총금액 || t.estimateTotal || 0), 0
     );
-    const principal = todayCompletedTasks.reduce((s, t) => s + Number(t.principalFee || 0), 0);
-    const engineer  = todayCompletedTasks.reduce((s, t) => s + Number(t.engineerEarning || 0), 0);
+    const principal = todayCompletedTasks.reduce((s, t) => s + Number(t.principal_amount || 0), 0);
+    const engineer  = todayCompletedTasks.reduce((s, t) => s + Number(t.engineer_amount || 0), 0);
     revenue = { total, principal, engineer };
 
     if (canSeeField(user, "task.company_margin")) {
-      revenue.margin = todayCompletedTasks.reduce((s, t) => s + Number(t.companyMargin || 0), 0);
+      revenue.margin = todayCompletedTasks.reduce((s, t) => s + Number(t.owner_amount || 0), 0);
     }
   }
 
@@ -146,7 +146,7 @@ export function computeEngineerStats({ tasksToday = [], user } = {}) {
   // 오늘 수익
   const todayEarning = myTasks
     .filter(t => t.state === "done")
-    .reduce((s, t) => s + (t.engineerEarning || 0), 0);
+    .reduce((s, t) => s + (t.engineer_amount || 0), 0);
 
   return { scheduled, inProgress, completed, todayEarning, nextTask };
 }
@@ -165,7 +165,7 @@ export function computePrincipalStats({ tasksToday = [], user } = {}) {
   if (canSeeField(user, "task.principal_fee")) {
     ourFee = ourTasks
       .filter(t => t.state === "done")
-      .reduce((s, t) => s + (t.principalFee || 0), 0);
+      .reduce((s, t) => s + (t.principal_amount || 0), 0);
   }
 
   return { scheduled, inProgress, completed, ourFee, ourTasks };
