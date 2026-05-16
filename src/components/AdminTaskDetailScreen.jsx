@@ -8,7 +8,7 @@ import { ArrowLeft } from "lucide-react";
 import { Chip } from "./Chip.jsx";
 import { detectServiceType } from "../data/serviceTypes.js";
 import { TaskCardMenu } from "./TaskCardMenu.jsx";
-import { formatTimeOnly } from "../utils/dateLabel.js";
+import { formatTimeOnly, formatDateTimeKST } from "../utils/dateLabel.js";
 import { VisitOnlyDialog } from "./VisitOnlyDialog.jsx";
 import { loadMemos } from "../data/memos.js";
 
@@ -442,23 +442,6 @@ function InfoCard({ task, memos, onMemoAdd }) {
 }
 
 // ──────────────── 5.5 TimestampHistory ────────────────
-// "2026-05-15 14:30" 형태 (KST = UTC+9 변환).
-// assignedAt: DB/시트 컬럼 X (추적 시스템 별도 작업) → 항상 "—".
-function formatDateTimeKST(value) {
-  if (!value) return "—";
-  const str = String(value).trim();
-  if (!str || str.startsWith("1899")) return "—";
-  const d = new Date(str);
-  if (isNaN(d.getTime())) return "—";
-  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
-  const yyyy = kst.getUTCFullYear();
-  const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(kst.getUTCDate()).padStart(2, "0");
-  const hh = String(kst.getUTCHours()).padStart(2, "0");
-  const mi = String(kst.getUTCMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
-}
-
 function TimestampHistory({ task }) {
   if (task.type === "external") return null;
   const rows = [

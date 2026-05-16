@@ -13,7 +13,7 @@ import {
   TaskVisitOnlyScreen,
 } from "./EngineerTaskCompletionScreens.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
-import { workDateLabel, workDateColor, formatTimeOnly } from "../utils/dateLabel.js";
+import { workDateLabel, workDateColor, formatTimeOnly, calcTotalDuration } from "../utils/dateLabel.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
 
@@ -22,19 +22,6 @@ function getCurrentTime() {
   // 2026-05-15 fix — DB 측 timestamptz 박힘 → ISO 박는 spec
   // UI 측 박는 거 formatTimeOnly 측 ISO → "HH:MM" 변환 박힘 (robust)
   return new Date().toISOString();
-}
-
-function calcTotalDuration(task) {
-  if (!task.startedAt || !task.completedAt) return "—";
-  // 1899 / ISO 형식 정규화 후 split (formatTimeOnly → "HH:MM")
-  const startStr = formatTimeOnly(task.startedAt);
-  const endStr   = formatTimeOnly(task.completedAt);
-  if (!startStr || !endStr) return "—";
-  const [sh, sm] = startStr.split(":").map(n => parseInt(n, 10) || 0);
-  const [eh, em] = endStr.split(":").map(n => parseInt(n, 10) || 0);
-  const diff = Math.max(0, (eh * 60 + em) - (sh * 60 + sm));
-  if (diff < 60) return `${diff}분`;
-  return `${Math.floor(diff / 60)}시간 ${diff % 60}분`;
 }
 
 function calcDepartureTime(task) {
@@ -880,7 +867,7 @@ function StatusBlockCompleted({ task }) {
         </div>
       </div>
       <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-        총 {calcTotalDuration(task)} 작업
+        총 {calcTotalDuration(task.startedAt, task.completedAt)} 작업
       </div>
     </div>
   );

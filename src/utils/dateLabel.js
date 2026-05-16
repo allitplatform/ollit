@@ -69,11 +69,15 @@ export function formatTimeOnly(value) {
   if (!value && value !== 0) return "";
   const str = String(value).trim();
   if (!str) return "";
-  // ISO 형식 ("2026-05-10T14:30:00" / "1899-12-30T12:57:08.000Z")
-  if (str.includes("T")) {
-    const timePart = str.split("T")[1] || "";
-    const m = timePart.match(/^(\d{2}:\d{2})/);
-    if (m) return m[1];
+  // ISO 형식 ("2026-05-10T14:30:00" / "1899-12-30T12:57:08.000Z") → KST 변환 (UTC+9)
+  if (str.includes("T") && !str.startsWith("1899")) {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+      const hh = String(kst.getUTCHours()).padStart(2, "0");
+      const mi = String(kst.getUTCMinutes()).padStart(2, "0");
+      return `${hh}:${mi}`;
+    }
   }
   // 1899 prefix (Excel 시간만 셀)
   if (str.startsWith("1899")) {
@@ -149,4 +153,34 @@ export function formatTimeKST(value) {
   const hh = String(kst.getUTCHours()).padStart(2, "0");
   const mi = String(kst.getUTCMinutes()).padStart(2, "0");
   return `${hh}:${mi}`;
+}
+
+// "2026-05-16 22:22" — ISO → KST 변환, 날짜 + 시간 (이력 / 상세 화면)
+// 빈값/1899 epoch → "—"
+export function formatDateTimeKST(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime()) || d.getFullYear() < 1900) return "—";
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const yyyy = kst.getUTCFullYear();
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(kst.getUTCDate()).padStart(2, "0");
+  const hh = String(kst.getUTCHours()).padStart(2, "0");
+  const mi = String(kst.getUTCMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
+// 작업 소요 시간 (startedAt ~ completedAt) — 초/분/시간 단위
+// "21초" / "5분" / "1시간 30분"
+export function calcTotalDuration(startedAt, completedAt) {
+  if (!startedAt || !completedAt) return "—";
+  const start = new Date(startedAt);
+  const end   = new Date(completedAt);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return "—";
+  const sec = Math.max(0, Math.floor((end - start) / 1000));
+  if (sec < 60)   return `${sec}초`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}분`;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return `${h}시간 ${m}분`;
 }

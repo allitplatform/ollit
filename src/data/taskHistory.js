@@ -2,6 +2,8 @@
 // 누가 / 언제 / 뭘 바꿨는지 자동 기록
 // Phase 2 — Supabase task_history 테이블로 동일 인터페이스 사용
 
+import { formatDateTimeKST } from "../utils/dateLabel.js";
+
 const STORAGE_KEY = "ollit_task_history_v1";
 const MAX_ENTRIES = 1000;
 
@@ -105,6 +107,10 @@ export function getActionIcon(action) {
 export function formatHistoryValue(v) {
   if (v === null || v === undefined || v === "") return "—";
   if (typeof v === "number") return v.toLocaleString("ko-KR");
+  // 2026-05-17 catch #3 fix — ISO timestamp 박은 spec KST 변환 박음
+  if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+    return formatDateTimeKST(v);
+  }
   if (Array.isArray(v)) {
     if (v.length === 0) return "(빈 목록)";
     const first = v[0];
