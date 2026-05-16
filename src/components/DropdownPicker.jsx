@@ -6,8 +6,8 @@ import { useState } from "react";
 export const HOURS   = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
 export const MINUTES = ["00", "10", "20", "30", "40", "50"];
 export const AMPM    = ["오전", "오후"];
-// V14 — 24시간 시간 picker (09~21 / 00 또는 30)
-export const HOURS_24    = ["09","10","11","12","13","14","15","16","17","18","19","20","21"];
+// 2026-05-16 fix — 00~23 전체 시간 박기 (사장님 spec)
+export const HOURS_24    = Array.from({length: 24}, (_, i) => String(i).padStart(2, '0'));
 export const MINUTES_30  = ["00", "30"];
 
 export function DropdownPicker({ value, options, onChange }) {
