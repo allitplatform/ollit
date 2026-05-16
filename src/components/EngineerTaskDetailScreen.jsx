@@ -369,7 +369,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
           fontSize: 11, color: "var(--text-secondary)",
           fontFamily: "inherit",
         }}>
-          {task.id || "—"}
+          {task.taskNo || task.id || "—"}
         </div>
         <button onClick={() => setMenuOpen(true)} style={{
           background: "transparent", border: "none",
