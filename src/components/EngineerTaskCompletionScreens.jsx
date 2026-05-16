@@ -1,12 +1,13 @@
 // V14 — 작업 완료 분기 3가지 (완료 / 부분 완료 / 출장비만)
 // 정산 요약 카드 일관 (수수료 흐름 표시) / 사장님 catch 14개 반영
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { calcTaskEarning } from "../utils/feePolicy.js";
+import { calculateCommissionMultiRpc } from "../lib/commissionPoliciesDb.js";
 
 const PARTIAL_REASONS = [
   { id: "customer_change", label: "고객 요청 변경" },
@@ -406,7 +407,26 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   const extraFee   = task.extraFee || 0;
   // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec (compute_payment v7)
   const total      = baseAmount + extraFee;
-  const earning    = task.engineer_amount || 0;
+  // 2026-05-17 catch #8 fix — 진행중 박은 spec 측 payments 박지 X 박은 spec → client RPC fallback
+  const [earning, setEarning] = useState(task.engineer_amount || 0);
+  useEffect(() => {
+    if (task.engineer_amount && task.engineer_amount > 0) {
+      setEarning(task.engineer_amount);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await calculateCommissionMultiRpc({
+          principalId: task.principalId,
+          workItems:   task.workItems || [],
+          totalQuote:  total,
+        });
+        if (!cancelled && res?.ok) setEarning(res.engineer || 0);
+      } catch (e) { /* fail silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [task.id, task.engineer_amount, total]);
   const commission = Math.max(0, total - earning); // 회사+원청 송금액 (= 수수료 합)
 
   function handleConfirm() {
@@ -444,7 +464,26 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const baseAmount     = totalQty > 0 ? Math.round(baseAmountFull * (actualQty / totalQty)) : 0;
   const extraFee       = task.extraFee || 0;
   // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec + qty 비례 박음
-  const earningFull    = task.engineer_amount || 0;
+  // 2026-05-17 catch #8 fix — 진행중 박은 spec 측 payments 박지 X 박은 spec → client RPC fallback
+  const [earningFull, setEarningFull] = useState(task.engineer_amount || 0);
+  useEffect(() => {
+    if (task.engineer_amount && task.engineer_amount > 0) {
+      setEarningFull(task.engineer_amount);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await calculateCommissionMultiRpc({
+          principalId: task.principalId,
+          workItems:   task.workItems || [],
+          totalQuote:  baseAmountFull,
+        });
+        if (!cancelled && res?.ok) setEarningFull(res.engineer || 0);
+      } catch (e) { /* fail silent */ }
+    })();
+    return () => { cancelled = true; };
+  }, [task.id, task.engineer_amount, baseAmountFull]);
   const earning        = totalQty > 0 ? Math.round(earningFull * (actualQty / totalQty)) : 0;
   const total          = baseAmount + extraFee;
   const commission     = Math.max(0, total - earning);
