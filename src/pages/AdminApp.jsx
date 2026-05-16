@@ -7172,7 +7172,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   // Step 5-1b — 복수 작업 항목 + 일정 모드
   const [workItems, setWorkItems] = useState([]);          // [{ workType, appliance, qty }]
   const [showAddItem, setShowAddItem] = useState(false);
-  const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1, unitPrice: 0 });
+  const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
   const [scheduleMode, setScheduleMode] = useState(null);  // null | "tbd" | "input"
 
   // Step 2-B-2 — KA 1way 자동 견적 계산 — 사용자가 견적을 직접 박으면 자동 X
@@ -7302,7 +7302,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     setParseResult(null);
     setWorkItems([]);
     setShowAddItem(false);
-    setEditItem({ workType: "", appliance: "", qty: 1, unitPrice: 0 });
+    setEditItem({ workType: "", appliance: "", qty: 1 });
     setScheduleMode(null);
     setErrors({});
     setEstimateTouched(false);
@@ -7340,16 +7340,9 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
       setErrors(prev => ({ ...prev, addItem: "기종/케이스 선택" }));
       return;
     }
-    // 2026-05-16 Phase 4 — unitPrice + quote 둘 다 박음 (017 trigger 호환)
-    const unitPriceVal = Number(editItem.unitPrice) || 0;
-    const item = {
-      ...editItem,
-      qty: editItem.qty || 1,
-      unitPrice: unitPriceVal,
-      quote: unitPriceVal,
-    };
+    const item = { ...editItem, qty: editItem.qty || 1 };
     setWorkItems(prev => [...prev, item]);
-    setEditItem({ workType: "", appliance: "", qty: 1, unitPrice: 0 });
+    setEditItem({ workType: "", appliance: "", qty: 1 });
     setShowAddItem(false);
     if (errors.workItems) setErrors(prev => ({ ...prev, workItems: null }));
     if (errors.addItem)   setErrors(prev => ({ ...prev, addItem: null }));
@@ -7358,7 +7351,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     setWorkItems(prev => prev.filter((_, i) => i !== idx));
   }
   function cancelAddItem() {
-    setEditItem({ workType: "", appliance: "", qty: 1, unitPrice: 0 });
+    setEditItem({ workType: "", appliance: "", qty: 1 });
     setShowAddItem(false);
     if (errors.addItem) setErrors(prev => ({ ...prev, addItem: null }));
   }
@@ -7704,11 +7697,6 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                   <span className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, minWidth: 20 }}>#{idx + 1}</span>
                   <span style={{ fontSize: 12, fontWeight: 800, color: t.text, flex: 1 }}>
                     {item.workType} · {item.appliance || "—"} <span className="mono" style={{ color: t.accent }}>×{item.qty || 1}</span>
-                    {item.unitPrice > 0 && (
-                      <span className="mono" style={{ fontSize: 10, color: t.textMuted, marginLeft: 6, fontWeight: 600 }}>
-                        | ₩{Number(item.unitPrice).toLocaleString()}
-                      </span>
-                    )}
                   </span>
                   <button onClick={() => removeWorkItem(idx)} style={{
                     width: 26, height: 26,
@@ -7776,25 +7764,6 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                     cursor: "pointer", fontFamily: "inherit",
                   }}>+</button>
                 </div>
-              </div>
-              {/* 2026-05-16 Phase 4 — 단가 입력 (선택 / 박지 X 박힘 균등 분배) */}
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>
-                  단가 (선택 — 박지 X 박힘 견적 ÷ 총수량 균등 분배)
-                </div>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={editItem.unitPrice || ""}
-                  onChange={(e) => setEditItem(prev => ({ ...prev, unitPrice: Number(e.target.value) || 0 }))}
-                  placeholder="0"
-                  style={{
-                    width: "100%", padding: "8px 12px", boxSizing: "border-box",
-                    background: t.bg, border: `1px solid ${t.border}`,
-                    borderRadius: 8, fontSize: 13, color: t.text,
-                    fontFamily: "inherit", fontWeight: 700, outline: "none",
-                  }}
-                />
               </div>
               {errors.addItem && (
                 <div style={{ fontSize: 10, color: t.danger, fontWeight: 700 }}>{errors.addItem}</div>
