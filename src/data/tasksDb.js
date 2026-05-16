@@ -14,12 +14,31 @@ export const CATEGORY_ID_AIRCON = "33333333-3333-3333-3333-333333333001";
 // normalize — Supabase row ↔ 클라이언트 task
 // ============================================================
 
+// 2026-05-16 Phase 4 통합 2-C — payments JOIN select string (6곳 공통 박음)
+// payments 측 task_id UNIQUE 박지 X 박혀있어 PostgREST array 박힘 → rowToTask 측 [0] 박음
+const PAYMENT_SELECT = `
+  *,
+  payment:payments(
+    calc_method,
+    policy_key,
+    engineer_amount,
+    principal_amount,
+    owner_amount,
+    is_balanced,
+    status,
+    computed_at
+  )
+`;
+
 // Supabase row → 클라이언트 task (camelCase / v14NormalizeTask 호환)
 export function rowToTask(row) {
   if (!row) return null;
   // Phase 4-2 fix — category_data jsonb 평탄화 (workType/workItems 등 별도 추출)
   // 화면 필터 (NewReceptionScreen.getByType / v14NormalizeTask) 호환
   const cat = row.category_data || {};
+  // 2026-05-16 Phase 4 통합 2-C — payments JOIN 박은 spec (one-to-many 박지만 1 task = 1 payment)
+  const paymentRaw = Array.isArray(row.payment) ? row.payment[0] : row.payment;
+  const payment = paymentRaw || null;
   return {
     // 식별
     id:           row.id,
@@ -97,6 +116,15 @@ export function rowToTask(row) {
 
     // Phase 4 후속 — 자동 배정 푸시 후보 (jsonb 배열 / 이름 또는 code 박힘)
     pushCandidates: Array.isArray(row.push_candidates) ? row.push_candidates : [],
+
+    // 2026-05-16 Phase 4 통합 2-C — payments JOIN 박음 (compute_payment v7 박은 spec)
+    payment,
+    engineer_amount:  payment?.engineer_amount  || 0,
+    principal_amount: payment?.principal_amount || 0,
+    owner_amount:     payment?.owner_amount     || 0,
+    calc_method:      payment?.calc_method      || null,
+    payment_status:   payment?.status           || null,
+    is_balanced:      payment?.is_balanced      ?? null,
 
     _source: "supabase",
   };
@@ -182,7 +210,7 @@ export function taskToRow(task, partial = false) {
 export async function loadTasksDb({ status, engineerId, limit = 200 } = {}) {
   let query = supabase
     .from("tasks")
-    .select("*")
+    .select(PAYMENT_SELECT)
     .eq("tenant_id", TENANT_ID)
     .order("received_at", { ascending: false })
     .limit(limit);
@@ -203,7 +231,7 @@ export async function getTaskByIdDb(id) {
   if (!id) return null;
   const { data, error } = await supabase
     .from("tasks")
-    .select("*")
+    .select(PAYMENT_SELECT)
     .eq("id", id)
     .maybeSingle();
   if (error) {
@@ -218,7 +246,7 @@ export async function getTaskByTaskNoDb(taskNo) {
   if (!taskNo) return null;
   const { data, error } = await supabase
     .from("tasks")
-    .select("*")
+    .select(PAYMENT_SELECT)
     .eq("tenant_id", TENANT_ID)
     .eq("task_no", taskNo)
     .maybeSingle();
@@ -234,7 +262,7 @@ export async function listTasksByEngineerDb(engineerId) {
   if (!engineerId) return [];
   const { data, error } = await supabase
     .from("tasks")
-    .select("*")
+    .select(PAYMENT_SELECT)
     .eq("tenant_id", TENANT_ID)
     .eq("assigned_engineer_id", engineerId)
     .order("scheduled_at", { ascending: true, nullsFirst: false })
@@ -267,7 +295,7 @@ export async function countTasksByStatusDb() {
 export async function searchTasksDb({ query, principalId, region, limit = 50 } = {}) {
   let q = supabase
     .from("tasks")
-    .select("*")
+    .select(PAYMENT_SELECT)
     .eq("tenant_id", TENANT_ID)
     .order("received_at", { ascending: false })
     .limit(limit);
@@ -395,7 +423,7 @@ export async function loadTasksForRole(role, userId, principalCode) {
     // [1] 작업 전체
     const { data: rows, error } = await supabase
       .from("tasks")
-      .select("*")
+      .select(PAYMENT_SELECT)
       .eq("tenant_id", TENANT_ID)
       .order("received_at", { ascending: false })
       .limit(500);
