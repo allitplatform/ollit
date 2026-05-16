@@ -248,7 +248,7 @@ function getRevenue(t) {
 
 function getEngineerEarning(t, principalId) {
   if (principalId === "usol_n") return calcUsolNEngineer(t) || 0;
-  return t.engineerEarning || 0;
+  return t.engineer_amount || 0;
 }
 
 function filterByPeriod(tasks, period) {

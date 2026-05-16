@@ -1361,7 +1361,7 @@ function CompletedMemo({ memo }) {
 function SettlementInfo({ task }) {
   const workAmount = task.workAmount || task.estimateTotal || 0;
   const total = workAmount + (task.extraFee || 0);
-  const engineerNet = task.engineerNet || 0;
+  const engineerNet = task.engineer_amount || 0;
   // V14 v6 — 사장님 spec: 수수료 = 판매가 - 기사 수익 (실제 회사 송금 금액 / % 표시 X)
   const commission = Math.max(0, total - engineerNet);
 
