@@ -645,10 +645,10 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
   // 세척 #0EA5E9 파랑 / 냉매 #FFB800 노랑 / 기타 #FF1B8D 핑크
   // accent는 헤더 라벨 / 임박 색 / 완료 버튼 — "상태/임박" 표시용으로 유지
   const barColor = getWorkTypeColors(work.workType).main;
-  const cardBg = (isInProgress || isImminent)
+  const cardBg = isInProgress
     ? "rgba(255,27,141,0.06)"
     : "var(--card-bg)";
-  const cardBorder = (isInProgress || isImminent)
+  const cardBorder = isInProgress
     ? "rgba(255,27,141,0.30)"
     : "var(--border)";
 
