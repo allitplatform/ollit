@@ -143,6 +143,42 @@ const PHOTO_MISSING = {
   group: "message",
 };
 
+// 2026-05-16 — 작업 시작 (시나리오 4 분리, schedule_changed에서 떼냄)
+const WORK_STARTED = {
+  key: "work_started",
+  label: "작업 시작",
+  icon: "▶️",
+  barColor: "#3B82F6",
+  color: "#3B82F6",
+  colorLight: "#1D4ED8",
+  iconBoxBg: { light: "#DBEAFE", dark: "#172554" },
+  cardBg: { light: "#EFF6FF", dark: "#1C1C1E" },
+  cardBorder: { light: "rgba(59,130,246,0.30)", dark: "#2A2A2A" },
+  bgLight: "rgba(59,130,246,0.10)",
+  bgDark:  "rgba(59,130,246,0.12)",
+  iconBgLight: "#DBEAFE",
+  iconBgDark:  "#172554",
+  group: "schedule",
+};
+
+// 2026-05-16 — 작업 완료 (시나리오 5 분리, complete=PAYMENT_CONFIRMED 의미 충돌 해소)
+const WORK_COMPLETED = {
+  key: "work_completed",
+  label: "작업 완료",
+  icon: "✅",
+  barColor: "#10B981",
+  color: "#10B981",
+  colorLight: "#047857",
+  iconBoxBg: { light: "#D1FAE5", dark: "#0F2D20" },
+  cardBg: { light: "#F0FDF4", dark: "#1C1C1E" },
+  cardBorder: { light: "rgba(16,185,129,0.30)", dark: "#2A2A2A" },
+  bgLight: "rgba(16,185,129,0.10)",
+  bgDark:  "rgba(16,185,129,0.12)",
+  iconBgLight: "#D1FAE5",
+  iconBgDark:  "#0F2D20",
+  group: "schedule",
+};
+
 // 사장님 V14 v7 spec 7가지 (입금 분리 + 사진 alias 유지)
 export const NOTI_CATEGORIES = {
   new_assignment:     NEW_ASSIGNMENT,
@@ -150,6 +186,8 @@ export const NOTI_CATEGORIES = {
   team_message:       TEAM_MESSAGE,
   schedule_changed:   SCHEDULE_CHANGED,
   work_canceled:      WORK_CANCELED,
+  work_started:       WORK_STARTED,
+  work_completed:     WORK_COMPLETED,
   payment_request:    PAYMENT_REQUEST,
   payment_confirmed:  PAYMENT_CONFIRMED,
 
@@ -159,9 +197,10 @@ export const NOTI_CATEGORIES = {
   urgent:            ACCEPTANCE_PENDING,
   ops_memo:          TEAM_MESSAGE,
   schedule_change:   SCHEDULE_CHANGED,
-  schedule_confirm:  SCHEDULE_CHANGED,
+  // 2026-05-16 — 의미 정정: schedule_confirm은 시작 의미, complete는 완료 의미
+  schedule_confirm:  WORK_STARTED,
   settlement:        PAYMENT_CONFIRMED,
-  complete:          PAYMENT_CONFIRMED,
+  complete:          WORK_COMPLETED,
   photo_missing:     PHOTO_MISSING,
 
   // UPPERCASE alias (옛 NotiCard 호환)
@@ -173,8 +212,10 @@ export const NOTI_CATEGORIES = {
   OPS_MEMO:          TEAM_MESSAGE,
   SCHEDULE_CHANGED:  SCHEDULE_CHANGED,
   SCHEDULE_CHANGE:   SCHEDULE_CHANGED,
-  SCHEDULE_CONFIRM:  SCHEDULE_CHANGED,
+  SCHEDULE_CONFIRM:  WORK_STARTED,
   WORK_CANCELED:     WORK_CANCELED,
+  WORK_STARTED:      WORK_STARTED,
+  WORK_COMPLETED:    WORK_COMPLETED,
   PAYMENT_REQUEST:   PAYMENT_REQUEST,
   PAYMENT_CONFIRMED: PAYMENT_CONFIRMED,
   PAYMENT_RECEIVED:  PAYMENT_CONFIRMED,

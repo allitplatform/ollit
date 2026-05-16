@@ -30,6 +30,23 @@ export function NotiIcon({ category, color }) {
       </svg>
     );
   }
+  // 2026-05-16 — 신규 분기 (옛 schedule_confirm/complete 분기는 옛 데이터 호환 위해 유지)
+  if (category === "work_started") {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+           stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+    );
+  }
+  if (category === "work_completed") {
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+           stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    );
+  }
   if (category === "urgent") {
     return (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none"

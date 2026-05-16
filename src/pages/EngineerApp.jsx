@@ -30,6 +30,9 @@ function adaptStoredNoti(stored) {
   let type = "team_message";
   if (/배정|새 작업/.test(title)) type = "new_assignment";
   else if (/수락 대기/.test(title)) type = "acceptance_pending";
+  // 2026-05-16 — Admin과 동기화: 시작/완료/일정 분리
+  else if (/시작|진행/.test(title)) type = "work_started";
+  else if (/완료/.test(title)) type = "work_completed";
   else if (/일정/.test(title)) type = "schedule_changed";
   else if (/취소/.test(title)) type = "work_canceled";
   else if (/입금 요청|송금/.test(title)) type = "payment_request";

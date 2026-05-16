@@ -105,7 +105,10 @@ function adaptStoredAdminNoti(stored) {
   // 2026-05-15 fix — NOTI_CATEGORIES 측 박은 키 박힌 거 박기 (NotiCard 측 return null 박지 X)
   let category = "team_message";
   if (/배정|새 작업|새 접수|재배정/.test(title)) category = "new_assignment";
-  else if (/일정|시작|진행|완료/.test(title)) category = "schedule_changed";
+  // 2026-05-16 — 시작/완료/일정 분리 (옛 spec은 모두 schedule_changed로 박힘). 순서 중요 — 시작/완료가 일정 매칭보다 먼저
+  else if (/시작|진행/.test(title)) category = "work_started";
+  else if (/완료/.test(title)) category = "work_completed";
+  else if (/일정/.test(title)) category = "schedule_changed";
   else if (/취소/.test(title)) category = "work_canceled";
   else if (/정산|입금/.test(title)) category = "payment_confirmed";
   return {
@@ -2005,11 +2008,14 @@ export default function AdminApp({ user, onLogout }) {
     const ADMIN_TYPE_TO_CATEGORY = {
       new_reception:      { category: "new_assign",       label: "새 접수"   },
       assignment:         { category: "new_assign",       label: "프로 배정" },
-      schedule_confirmed: { category: "schedule_confirm", label: "일정 확정" },
-      started:            { category: "schedule_confirm", label: "작업 시작" },  // NEW (SVG: schedule_confirm 재사용)
-      schedule_changed:   { category: "schedule_change",  label: "일정 변경" },
-      completed:          { category: "complete",         label: "작업 완료" },
-      cancelled:          { category: "complete",         label: "작업 취소" },  // NEW
+      // 2026-05-16 — schedule_confirm alias 박은 거 박지 X (WORK_STARTED 박힘), 정식 키 사용
+      schedule_confirmed: { category: "schedule_changed", label: "일정 확정" },
+      // 2026-05-16 — 시작/완료 정식 카테고리 분리 (schedule_confirm/complete alias 박지 X)
+      started:            { category: "work_started",     label: "작업 시작" },
+      schedule_changed:   { category: "schedule_changed", label: "일정 변경" },
+      completed:          { category: "work_completed",   label: "작업 완료" },
+      // 2026-05-16 — complete alias 박은 거 박지 X (WORK_COMPLETED 박힘), 정식 키 사용
+      cancelled:          { category: "work_canceled",    label: "작업 취소" },
       reassignment:       { category: "new_assign",       label: "프로 재배정" },  // NEW
       urgent:             { category: "urgent",           label: "긴급"     },
     };
