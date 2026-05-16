@@ -4001,50 +4001,15 @@ export default function EngineerApp({ user, onLogout }) {
   }));
   const todayPendingTotal = todayPendingWorks.reduce((s, w) => s + (w.feeAmount || 0), 0);
 
-  const paymentsMock = [
-    // 오늘 — 미입금 (실시간 자동 / todayTasks 완료 시 즉시 추가)
-    ...(todayPendingWorks.length > 0 ? [{
-      date: dateOffsetIso(0), status: "pending", deadline: "22:00",
-      works: todayPendingWorks,
-      totalAmount: todayPendingTotal,
-    }] : []),
-    // 어제 — 입금 완료 (사장님 spec: 어제 이후 모두 입금완료)
-    {
-      date: dateOffsetIso(-1), status: "completed", depositTime: "22:10",
-      works: [
-        { id: "Y260504-001", customerName: "임수아", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
-        { id: "CK260504-002", customerName: "장수빈", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
-      ],
-      totalAmount: 80000,
-    },
-    // 그제 — 입금 완료
-    {
-      date: dateOffsetIso(-2), status: "completed", depositTime: "22:08",
-      works: [
-        { id: "O260503-001", customerName: "윤서연", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
-        { id: "CK260503-002", customerName: "최동석", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
-      ],
-      totalAmount: 80000,
-    },
-    // -3일 — 입금 완료
-    {
-      date: dateOffsetIso(-3), status: "completed", depositTime: "22:08",
-      works: [
-        { id: "K-260502-001", customerName: "정민호", workType: "세척", workItem: "스탠드", quantity: 1, feeAmount: 50000 },
-      ],
-      totalAmount: 50000,
-    },
-    // -4일 — 입금 완료
-    {
-      date: dateOffsetIso(-4), status: "completed", depositTime: "22:30",
-      works: [
-        { id: "O260501-001", customerName: "박지영", workType: "세척", workItem: "벽걸이", quantity: 1, feeAmount: 20000 },
-        { id: "YS260501-002", customerName: "이상훈", workType: "세척", workItem: "스탠드", quantity: 2, feeAmount: 100000 },
-        { id: "A260501-003", customerName: "김재현", workType: "세척", workItem: "4way", quantity: 1, feeAmount: 60000 },
-      ],
-      totalAmount: 180000,
-    },
-  ];
+  // 2026-05-17 catch #2 fix — 어제~ 4개 일자 mock 박지 X (모든 기사 공통 박혀있었음)
+  // 실제 입금 완료 내역은 Phase 5 측 DB payments group + status='paid' 박을 spec
+  const payments = todayPendingWorks.length > 0 ? [{
+    date: dateOffsetIso(0),
+    status: "pending",
+    deadline: "22:00",
+    works: todayPendingWorks,
+    totalAmount: todayPendingTotal,
+  }] : [];
 
   // Step 5-7-B — 유솔N 정산 mock 모두 제거 (운영 시작 = 깨끗한 상태)
   // 시트 양방향 sync 데이터로 교체 / 사용자가 새 작업 박을 때까지 빈 배열
@@ -4491,7 +4456,7 @@ export default function EngineerApp({ user, onLogout }) {
         )}
         {screen === "paymentHistory" && (
           <PaymentHistoryScreen
-            payments={paymentsMock}
+            payments={payments}
             onBack={goBack}
             onTaskClick={(taskId) => {
               const t = tasks.find(x => x.id === taskId);
