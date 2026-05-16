@@ -412,6 +412,158 @@ export async function calculateFeeCompat(principalName, workType, applianceWithQ
   };
 }
 
+// ============================================================
+// Phase 4 — 멀티 항목 정산 (calculateCommissionMultiRpc)
+// 신규접수 측 workItems 배열 박은 spec — 항목별 RPC 호출 + 합산
+// ============================================================
+//
+// 분기 spec (DB calc_method):
+// - 단가형: 직영_0, 비율_견적금액, 비율_판매가, 출장비_30K → engineer 고정 × qty
+// - 비율형: 직영_50_50, 차감후비율_50, 비율_총금액 → estimate × ratio, qty>1이면 재호출
+// - 정액: 정액 → principal 1작업당 1번만
+//
+// 유솔N (usol_n_*) skip — NaverUploadScreen 측 엑셀 업로드 spec
+
+export async function calculateCommissionMultiRpc({
+  principalName,
+  workItems,
+  totalEstimate,
+  totalExtra = 0,
+  totalNaverFee = 0,
+}) {
+  // 0. 유솔N skip (엑셀 업로드 spec)
+  if (principalName === "유솔홈케어 N" || (principalName || "").toLowerCase().includes("usol_n")) {
+    return {
+      engineer_amount: 0,
+      principal_amount: 0,
+      company_margin: 0,
+      calc_method: "usol_n_skip",
+      error: null,
+      message: "유솔N 작업은 네이버 엑셀 업로드 spec",
+      skip: true,
+    };
+  }
+
+  const principalCode = PRINCIPAL_NAME_TO_CODE[principalName];
+  if (!principalCode) {
+    return { error: "principal_not_found", principalName };
+  }
+  if (!Array.isArray(workItems) || workItems.length === 0) {
+    return { error: "empty_workItems" };
+  }
+
+  // 항목별 unitPrice 박혀있으면 그대로, 박지 X면 균등 분배 (totalEstimate / totalQty)
+  const totalQty = workItems.reduce((s, i) => s + (Number(i.qty) || 1), 0);
+  const fallbackUnitPrice = totalQty > 0 ? totalEstimate / totalQty : 0;
+
+  // 비율형: itemEstimate에 qty 박혔으니 결과 그대로 (× 1)
+  // 단가형: engineer 고정값이라 결과에 × qty
+  const RATIO_METHODS = new Set([
+    "직영_50_50",
+    "차감후비율_50",
+    "비율_총금액",
+  ]);
+  // 정액 type — 1작업당 principal 1번만 박음
+  const FIXED_PRINCIPAL_METHODS = new Set(["정액"]);
+
+  let totalEngineer = 0;
+  let totalPrincipal = 0;
+  let principalApplied = false;
+  let lastCalcMethod = null;
+  const itemResults = [];
+
+  for (const item of workItems) {
+    const qty = Number(item.qty) || 1;
+    const unitPrice = Number(item.unitPrice) > 0 ? Number(item.unitPrice) : fallbackUnitPrice;
+
+    const serviceCode = WORKTYPE_TO_SERVICE[item.workType] || item.workType;
+    const { appliance: applianceCode, qtyCondition } = splitApplianceQty(item.appliance);
+
+    // probe — 1대분
+    const probe = await calculateCommissionRpc({
+      principalCode,
+      serviceCode,
+      applianceCode,
+      quotedAmount: unitPrice,
+      extraAmount: 0,
+      naverFee: 0,
+      qtyCondition,
+    });
+
+    if (probe.error || probe.ok === false) {
+      return { ...probe, failedItem: item };
+    }
+
+    const isRatio = RATIO_METHODS.has(probe.calc_method);
+    const isFixed = FIXED_PRINCIPAL_METHODS.has(probe.calc_method);
+
+    // 비율형 + multi qty: 전체 estimate 박은 재호출
+    let r;
+    if (isRatio && qty > 1) {
+      r = await calculateCommissionRpc({
+        principalCode,
+        serviceCode,
+        applianceCode,
+        quotedAmount: unitPrice * qty,
+        extraAmount: 0,
+        naverFee: 0,
+        qtyCondition,
+      });
+      if (r.error || r.ok === false) {
+        return { ...r, failedItem: item };
+      }
+    } else {
+      r = probe;
+    }
+
+    const mult = isRatio ? 1 : qty;
+    const itemEngineer  = Number(r.engineer ?? r.engineer_amount) || 0;
+    const itemPrincipal = Number(r.principal ?? r.principal_amount) || 0;
+
+    totalEngineer += itemEngineer * mult;
+
+    let principalContribution;
+    if (isFixed) {
+      if (!principalApplied) {
+        totalPrincipal += itemPrincipal;
+        principalApplied = true;
+        principalContribution = itemPrincipal;
+      } else {
+        principalContribution = 0;
+      }
+    } else {
+      totalPrincipal += itemPrincipal * mult;
+      principalContribution = itemPrincipal * mult;
+    }
+
+    lastCalcMethod = r.calc_method || lastCalcMethod;
+    itemResults.push({
+      qty,
+      unitPrice,
+      workType: item.workType,
+      appliance: item.appliance,
+      calc_method: r.calc_method,
+      engineer: itemEngineer * mult,
+      principal: principalContribution,
+      itemTotal: unitPrice * qty,
+    });
+  }
+
+  // 네이버 수수료 박은 spec: estimate에서 차감 박은 후 margin 계산
+  const adjustedTotal = (totalEstimate - (totalNaverFee || 0)) + (totalExtra || 0);
+  const totalMargin = adjustedTotal - totalEngineer - totalPrincipal;
+
+  return {
+    engineer_amount: totalEngineer,
+    principal_amount: totalPrincipal,
+    company_margin: totalMargin,
+    calc_method: lastCalcMethod,
+    items: itemResults,
+    error: null,
+    skip: false,
+  };
+}
+
 // 옛 getAllPolicies 호환 어댑터 (캐시용)
 // engineers.js._findInPoliciesCache 측 sheet shape 호환 — { principalId, principal, workType, applianceType, rate }
 // engineers.js Phase 3-3 측 정리 예정 — 그 전까지 호환 박힘 유지.
