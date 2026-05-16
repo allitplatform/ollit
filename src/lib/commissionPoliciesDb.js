@@ -453,8 +453,9 @@ export async function calculateCommissionMultiRpc({
   }
 
   // 항목별 unitPrice 박혀있으면 그대로, 박지 X면 균등 분배 (totalEstimate / totalQty)
+  // 2026-05-16 fix — Math.floor (DB p_quoted_amount int 박혀있어 소수점 박힘 박지 X)
   const totalQty = workItems.reduce((s, i) => s + (Number(i.qty) || 1), 0);
-  const fallbackUnitPrice = totalQty > 0 ? totalEstimate / totalQty : 0;
+  const fallbackUnitPrice = totalQty > 0 ? Math.floor(totalEstimate / totalQty) : 0;
 
   // 비율형: itemEstimate에 qty 박혔으니 결과 그대로 (× 1)
   // 단가형: engineer 고정값이라 결과에 × qty
