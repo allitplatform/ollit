@@ -4,9 +4,10 @@
 // 상태: "미배정" / "배정" / "확정" / "진행중" / "완료" / "visit_only" / "취소"
 // 한 화면 흐름 (별도 완료보고 화면 X)
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
+import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
 import {
   TaskCompleteScreen as CompletionCompleteScreen,
   TaskPartialScreen,
@@ -247,14 +248,25 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
     fileInputRef.current?.click();
   }
 
-  function handlePhotoChange(e) {
+  async function handlePhotoChange(e) {
     const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    const next = files.map(file => {
-      try { return URL.createObjectURL(file); } catch { return "✓"; }
-    });
-    setPhotos(prev => [...prev, ...next]);
     e.target.value = "";
+    if (files.length === 0) return;
+
+    for (const file of files) {
+      try {
+        const step = task.status === "진행중" ? "시작" : "완료";
+        const res = await uploadPhoto(task.id, file, step);
+        if (res?.ok && res?.url) {
+          setPhotos(prev => [...prev, res.url]);
+        } else {
+          alert("사진 업로드 박지 X: " + (res?.error || "unknown"));
+        }
+      } catch (err) {
+        console.error("사진 업로드 박지 X:", err);
+        alert("사진 업로드 박지 X: " + err.message);
+      }
+    }
   }
 
   function handleRemovePhoto(idx) {
@@ -392,7 +404,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
           />
           <input
             ref={fileInputRef}
-            type="file" accept="image/*" capture="environment" multiple
+            type="file" accept="image/*" multiple
             onChange={handlePhotoChange}
             style={{ display: "none" }}
           />
@@ -1279,6 +1291,26 @@ function WorkMemoInput({ value, onChange }) {
 
 // ──────────────── 완료 사진 ────────────────
 function CompletedPhotos({ task }) {
+  const [photos, setPhotos] = useState({ before: [], after: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await listPhotosByTask(task.id);
+        if (cancelled || !res?.ok) return;
+        const all = res.photos || [];
+        setPhotos({
+          before: all.filter(p => p.step === "시작"),
+          after:  all.filter(p => p.step === "완료"),
+        });
+      } catch (e) {
+        console.error("사진 로드 박지 X:", e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [task.id]);
+
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
@@ -1290,26 +1322,51 @@ function CompletedPhotos({ task }) {
       <div style={{
         display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
       }}>
-        <CompletedPhotoSlot label="작업 전"/>
-        <CompletedPhotoSlot label="작업 후"/>
+        <CompletedPhotoSlot label="작업 전" photos={photos.before}/>
+        <CompletedPhotoSlot label="작업 후" photos={photos.after}/>
       </div>
     </div>
   );
 }
 
-function CompletedPhotoSlot({ label }) {
-  return (
-    <div
-      onClick={() => alert("사진 크게 보기")}
-      style={{
+function CompletedPhotoSlot({ label, photos = [] }) {
+  if (photos.length === 0) {
+    return (
+      <div style={{
         aspectRatio: "4/3",
         background: "var(--bg-secondary)",
         borderRadius: 8,
         display: "flex", alignItems: "center", justifyContent: "center",
+        position: "relative",
+      }}>
+        <span style={{ color: "var(--text-tertiary)", fontSize: 11 }}>사진 박지 X</span>
+        <div style={{
+          position: "absolute", bottom: 6, left: 6,
+          fontSize: 9, color: "var(--text-secondary)",
+          background: "rgba(0,0,0,0.15)",
+          padding: "2px 6px", borderRadius: 10,
+        }}>
+          {label}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div
+      onClick={() => window.open(photos[0].url, "_blank")}
+      style={{
+        aspectRatio: "4/3",
+        background: "var(--bg-secondary)",
+        borderRadius: 8,
         cursor: "pointer", position: "relative",
+        overflow: "hidden",
       }}
     >
-      <div style={{ fontSize: 22, color: "#00875A" }}>✓</div>
+      <img
+        src={photos[0].url}
+        alt={label}
+        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+      />
       <div style={{
         position: "absolute", bottom: 6, left: 6,
         fontSize: 9, color: "#fff",
@@ -1318,6 +1375,16 @@ function CompletedPhotoSlot({ label }) {
       }}>
         {label}
       </div>
+      {photos.length > 1 && (
+        <div style={{
+          position: "absolute", top: 6, right: 6,
+          fontSize: 10, fontWeight: 700, color: "#fff",
+          background: "rgba(0,0,0,0.6)",
+          padding: "2px 6px", borderRadius: 6,
+        }}>
+          +{photos.length - 1}
+        </div>
+      )}
     </div>
   );
 }
