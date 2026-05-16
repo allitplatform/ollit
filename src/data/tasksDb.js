@@ -847,9 +847,24 @@ export async function startTaskAdapter(taskId) {
 // 응답: { ok: true, task } | { ok: false, error }
 export async function completeTaskAdapter(taskId) {
   if (!taskId) return { ok: false, error: "taskId 박지 X" };
-  return updateTaskStatusAdapter(taskId, "완료", {
+  const res = await updateTaskStatusAdapter(taskId, "완료", {
     completedAt: new Date().toISOString(),
   });
+
+  // 2026-05-16 — Phase 4 B-2: 작업 완료 시 정산 자동 계산 (이중 안전망 frontend layer)
+  // DB trigger도 박혀있어 둘 다 catch. compute_payment는 idempotent (DELETE + INSERT)
+  if (res.ok) {
+    try {
+      const { error } = await supabase.rpc('compute_payment', { p_task_id: taskId });
+      if (error) {
+        console.warn('[completeTaskAdapter] compute_payment 실패 (작업 완료는 통과):', error.message);
+      }
+    } catch (e) {
+      console.warn('[completeTaskAdapter] compute_payment 예외 (작업 완료는 통과):', e.message);
+    }
+  }
+
+  return res;
 }
 
 // 기사 측 금액 변경 — productPrice / extraFee / extraReason 박음
