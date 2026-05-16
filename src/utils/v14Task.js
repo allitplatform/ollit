@@ -91,9 +91,12 @@ export function v14NormalizeTask(t) {
     // 1순위: scheduledAt (N열)
     if (scheduledAt) {
       const s = String(scheduledAt);
-      if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
+      // 2026-05-16 fix — date-only(YYYY-MM-DD)만 slice, datetime은 KST 환산
+      // 직전 버그 — /^\d{4}-\d{2}-\d{2}/는 datetime도 매칭해서 UTC 날짜 그대로 사용
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;  // date-only만
       const d = new Date(scheduledAt);
       if (!isNaN(d.getTime())) {
+        // KST 로컬 변환 (브라우저 timezone 의존, 한국 사용자 기준)
         const yy = d.getFullYear();
         const mo = String(d.getMonth() + 1).padStart(2, "0");
         const da = String(d.getDate()).padStart(2, "0");
