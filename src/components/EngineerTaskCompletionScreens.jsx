@@ -7,7 +7,12 @@ import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { calcTaskEarning } from "../utils/feePolicy.js";
-import { calculateCommissionMultiRpc } from "../lib/commissionPoliciesDb.js";
+import { calculateCommissionMultiRpc, PRINCIPAL_NAME_TO_CODE } from "../lib/commissionPoliciesDb.js";
+
+// principalId (code) → principalName 역변환 박은 spec (catch #8 후속 fix)
+const PRINCIPAL_CODE_TO_NAME = Object.fromEntries(
+  Object.entries(PRINCIPAL_NAME_TO_CODE).map(([name, code]) => [code, name])
+);
 
 const PARTIAL_REASONS = [
   { id: "customer_change", label: "고객 요청 변경" },
@@ -418,9 +423,9 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
     (async () => {
       try {
         const res = await calculateCommissionMultiRpc({
-          principalId: task.principalId,
-          workItems:   task.workItems || [],
-          totalQuote:  total,
+          principalName: task.principal || PRINCIPAL_CODE_TO_NAME[task.principalId] || "",
+          workItems:     task.workItems || [],
+          totalEstimate: baseAmount,
         });
         if (!cancelled && res?.ok) setEarning(res.engineer || 0);
       } catch (e) { /* fail silent */ }
@@ -475,9 +480,9 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
     (async () => {
       try {
         const res = await calculateCommissionMultiRpc({
-          principalId: task.principalId,
-          workItems:   task.workItems || [],
-          totalQuote:  baseAmountFull,
+          principalName: task.principal || PRINCIPAL_CODE_TO_NAME[task.principalId] || "",
+          workItems:     task.workItems || [],
+          totalEstimate: baseAmountFull,
         });
         if (!cancelled && res?.ok) setEarningFull(res.engineer || 0);
       } catch (e) { /* fail silent */ }
