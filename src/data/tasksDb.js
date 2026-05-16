@@ -93,7 +93,7 @@ export function rowToTask(row) {
     extraReason:   row.extra_reason,
     extraFeeAt:    row.extra_fee_at,
     totalAmount:   row.total_amount,
-    estimateTotal: row.total_amount,
+    estimateTotal: row.product_price,
 
     // 메타
     categoryData:  cat,
