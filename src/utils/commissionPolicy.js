@@ -376,52 +376,102 @@ export function calcCommissionMulti(task) {
   // 항목 0개 — 단일 task 측 calcCommission 호출
   if (items.length === 0) return calcCommission(task);
 
-  // 항목 1개 — workType/appliance 측 정정 후 calcCommission
-  if (items.length === 1) {
-    return calcCommission({
-      ...task,
-      workType:  items[0].workType  || task.workType,
-      appliance: items[0].appliance || task.appliance,
-    });
-  }
-
-  // 다중 항목 — 각 항목별 계산 후 합산
+  // 2026-05-16 fix — items.length === 1 분기 제거 (qty 누락 catch B1)
+  // 모든 케이스 합산 루프 통과해서 qty 박힘
+  // 검증 케이스:
+  //   · 벽걸이 3대 (직영)            → 40K × 3 = 120K
+  //   · 벽걸이 2대 (직영_50_50)      → 80K × 2 × 0.5 = 80K
+  //   · 벽걸이+스탠드×2 (직영)       → 40K + 60K × 2 = 160K
+  //   · 벽걸이+스탠드×2 (직영_50_50) → (60K×1 + 80K×2)×0.5 = 110K
   const totalTaskEstimate = Number(task.estimateTotal) || 0;
   let totalEngineer  = 0;
   let totalPrincipal = 0;
   let totalMargin   = 0;
   let totalEstimate = 0;
+  let lastSource    = null;
+  let lastIsSecret  = false;
+  let principalApplied = false;  // 2026-05-16 — 정액 type 1작업당 1번 박은 flag
+
+  // 비율형 calc — itemEstimate에 qty 박혔으니 결과 그대로 합산 (× 1)
+  // 단가형 calc — engineerRate 고정값이라 결과에 × qty
+  const RATIO_TYPES = new Set([
+    "직영_50_50",
+    "정액10K_기사50",
+    "비율20_기사50",
+    "잔여분배_KA",
+    "총금액분배_KB",
+    "YSN_특수_기본",
+  ]);
+
+  // 2026-05-16 — 1작업당 principal 고정 박는 calc type (대당 X)
+  const FIXED_PRINCIPAL_TYPES = new Set([
+    "정액10K",         // 용인 세척, 유솔H 세척(아닌가? — 유솔H는 비율15)
+    "정액10K_기사50",  // 용인 냉매, 유솔H 냉매
+  ]);
 
   for (const item of items) {
     const qty = Number(item.qty) || 1;
     const unitPrice = Number(item.unitPrice || item.quote) || 0;
     // unitPrice 박혀있으면 단가 × qty / 박지 X면 task 측 estimate 항목 수 균등 분배
-    const itemEstimate = unitPrice > 0
+    const fullItemEstimate = unitPrice > 0
       ? unitPrice * qty
       : (totalTaskEstimate / items.length);
 
-    const r = calcCommission({
+    // 2026-05-16 fix F2 — probe로 type 박힘 catch
+    // 단가형: estimate=1대분(unitPrice) → 결과 × qty (principal/company도 1대분이라 합당)
+    // 비율형: estimate=전체(unitPrice×qty) → 결과 × 1 (전체 estimate 기준 분배)
+    const probeEstimate = unitPrice > 0 ? unitPrice : fullItemEstimate;
+    const probe = calcCommission({
       ...task,
       workType:      item.workType  || task.workType,
       appliance:     item.appliance || task.appliance,
-      estimateTotal: itemEstimate,
+      estimateTotal: probeEstimate,
     });
+    const isRatio = RATIO_TYPES.has(probe.source);
 
-    // 단가 type (직영 / 정액10K / 비율15 등) — engineerRate 박힌 영역 qty 곱하기
-    // 비율 type (직영_50_50 / 정액10K_기사50) — estimate 박힌 영역 측 이미 분배됨
-    totalEngineer  += (r.engineerEarning || 0) * qty;
-    totalPrincipal += (r.principalFee    || 0) * qty;
-    totalMargin    += (r.companyMargin   || 0) * qty;
-    totalEstimate  += itemEstimate;
+    // 비율형 + multi qty: 전체 estimate로 다시 호출 (probe는 1대분이라 부족)
+    let r;
+    if (isRatio && unitPrice > 0 && qty > 1) {
+      r = calcCommission({
+        ...task,
+        workType:      item.workType  || task.workType,
+        appliance:     item.appliance || task.appliance,
+        estimateTotal: fullItemEstimate,
+      });
+    } else {
+      r = probe;
+    }
+
+    const mult = isRatio ? 1 : qty;
+    totalEngineer  += (r.engineerEarning || 0) * mult;
+
+    // 2026-05-16 — 정액 type은 1작업당 principal 1번만 박음 (대당 X)
+    const isFixedPrincipal = FIXED_PRINCIPAL_TYPES.has(r.source);
+    if (isFixedPrincipal) {
+      if (!principalApplied) {
+        totalPrincipal += r.principalFee || 0;
+        principalApplied = true;
+      }
+    } else {
+      totalPrincipal += (r.principalFee || 0) * mult;
+    }
+
+    totalEstimate  += fullItemEstimate;
+
+    lastSource = r.source || lastSource;
+    lastIsSecret = r.isSecret || lastIsSecret;
   }
+
+  // 2026-05-16 — margin 자동 파생 (정액 spec 단순화)
+  totalMargin = totalEstimate - totalEngineer - totalPrincipal;
 
   return {
     engineerEarning: totalEngineer,
     principalFee:    totalPrincipal,
     companyMargin:   totalMargin,
     estimateTotal:   totalEstimate,
-    isSecret:        false,
-    source:          'multi_items',
+    isSecret:        lastIsSecret,
+    source:          items.length === 1 ? lastSource : 'multi_items',
   };
 }
 
