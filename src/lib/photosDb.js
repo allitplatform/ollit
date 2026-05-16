@@ -18,6 +18,15 @@ import { supabase } from "./supabase.js";
 
 const BUCKET = "task-photos";
 
+// Supabase Storage key 측 — 한글 박지 X 박힘 (Invalid key error)
+// 박은 spec 측 — storage_path 측만 영어 박음. DB photos.step 컬럼 측 — 한글 박힘 (UI 호환).
+const STEP_TO_EN = {
+  "시작":  "before",
+  "완료":  "after",
+  before:  "before",
+  after:   "after",
+};
+
 // 파일 확장자 추출 (대소문자 정규화 + fallback)
 function _extOf(file) {
   const name = String(file?.name || "").toLowerCase();
@@ -49,7 +58,8 @@ export async function uploadPhoto(taskId, file, step = "완료", uploadedBy = nu
 
   try {
     const ext = _extOf(file);
-    const path = `${taskId}/${step}_${_timestamp()}.${ext}`;
+    const stepEn = STEP_TO_EN[step] || "other";
+    const path = `${taskId}/${stepEn}_${_timestamp()}.${ext}`;
 
     // [1] Storage 업로드
     const { error: upErr } = await supabase.storage
