@@ -320,18 +320,12 @@ export async function updateTaskDb(id, updates) {
   delete row.tenant_id;
   delete row.created_at;
 
-  // 2026-05-16 debug — PATCH 406 root cause 진단용
-  console.log('[updateTaskDb] 시작:', { id, row });
   const { data, error } = await supabase
     .from("tasks")
     .update(row)
     .eq("id", id)
     .select()
-    .maybeSingle();   // single → maybeSingle (0 row여도 에러 안 던짐)
-  console.log('[updateTaskDb] 응답:', { data, error });
-  if (!data && !error) {
-    console.warn('[updateTaskDb] UPDATE 됐지만 SELECT 0 row — RLS SELECT policy 의심');
-  }
+    .maybeSingle();   // 2026-05-16 — single → maybeSingle (PATCH 406 PGRST116 fix)
   if (error) {
     console.error("[tasksDb.updateTaskDb]", error);
     return { ok: false, error: error.message };
