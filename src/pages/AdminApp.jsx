@@ -20,7 +20,6 @@ import { NotiScreen } from "../components/notifications/NotiScreen.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
 import { VisitOnlyDialog } from "../components/VisitOnlyDialog.jsx";
 import { VISIT_FEE, getVisitReasonLabel } from "../data/visitFee.js";
-import { calcTaskEarning } from "../utils/feePolicy.js";  // Commit #3 측 박지 X 박을 spec
 import { setEngineersCache } from "../utils/engineersCache.js";
 import { ENABLE_MOCK } from "../config/env.js";
 import { setPrincipalsCache } from "../data/principals.js";

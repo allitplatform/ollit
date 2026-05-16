@@ -4,7 +4,6 @@
 
 import { ArrowLeft } from "lucide-react";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
-import { calcTaskEarning } from "../utils/feePolicy.js";
 import { formatTimeOnly } from "../utils/dateLabel.js";
 
 function getEarning(t) {

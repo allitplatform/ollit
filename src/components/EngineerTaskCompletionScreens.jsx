@@ -6,7 +6,6 @@ import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
-import { calcTaskEarning } from "../utils/feePolicy.js";
 import { calculateCommissionMultiRpc, PRINCIPAL_NAME_TO_CODE } from "../lib/commissionPoliciesDb.js";
 
 // principalId (code) → principalName 역변환 박은 spec (catch #8 후속 fix)
