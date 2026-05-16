@@ -328,6 +328,18 @@ export const WORKTYPE_TO_SERVICE = {
   "수리":            "repair",
 };
 
+// 2026-05-16 fix — 폼 측 한글 기종 → DB appliance_code (영문)
+// DB commission_policies.appliance_code = 영문 ('wall', 'stand' 등) 박혀있어 매핑 필요
+export const APPLIANCE_NAME_TO_CODE = {
+  "벽걸이":     "wall",
+  "스탠드":     "stand",
+  "1way":       "1way",
+  "4way":       "4way",
+  "원형":       "round",
+  "투인원":     "2in1",
+  "시스템멀티": "multi",
+};
+
 // "1way 첫 대" / "1way 추가" → { appliance, qtyCondition }
 // 일반 기종은 qtyCondition=null
 export function splitApplianceQty(applianceStr) {
@@ -339,9 +351,13 @@ export function splitApplianceQty(applianceStr) {
     const appliance = m[1].trim();
     const qtyRaw = m[2].replace(/\s+/g, "");
     const qtyCondition = qtyRaw === "첫대" || qtyRaw === "첫 대" ? "첫대" : "추가";
-    return { appliance, qtyCondition };
+    // 2026-05-16 fix — 한글 → 영문 변환 (DB commission_policies.appliance_code 영문 매칭)
+    const applianceCode = APPLIANCE_NAME_TO_CODE[appliance] || appliance;
+    return { appliance: applianceCode, qtyCondition };
   }
-  return { appliance: s, qtyCondition: null };
+  // 2026-05-16 fix — 한글 → 영문 변환
+  const applianceCode = APPLIANCE_NAME_TO_CODE[s] || s;
+  return { appliance: applianceCode, qtyCondition: null };
 }
 
 // 옛 calculateFee 호환 어댑터

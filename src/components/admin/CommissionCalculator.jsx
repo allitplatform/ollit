@@ -5,6 +5,7 @@ import { useState } from "react";
 import {
   calculateCommissionRpc,
   CALC_METHOD_LABEL,
+  APPLIANCE_NAME_TO_CODE,
 } from "../../lib/commissionPoliciesDb.js";
 
 const PRINCIPAL_OPTIONS = [
@@ -66,7 +67,9 @@ export function CommissionCalculator() {
       const res = await calculateCommissionRpc({
         principalCode: principal,
         serviceCode:   service,
-        applianceCode: appliance,
+        // 2026-05-16 fix — 한글 → 영문 변환 (DB commission_policies.appliance_code 영문)
+        // 매핑 박지 X 박힌 한글 (유솔N 추가 등)은 그대로 박힘 (fallback)
+        applianceCode: APPLIANCE_NAME_TO_CODE[appliance] || appliance,
         quotedAmount:  Number(quoted)   || 0,
         extraAmount:   Number(extra)    || 0,
         naverFee:      Number(naverFee) || 0,
