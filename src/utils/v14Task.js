@@ -132,21 +132,14 @@ export function v14NormalizeTask(t) {
       source: "gas_secret",
     };
   } else {
-    // 다중 항목 catch — workItems 길이 > 1 이면 calcCommissionMulti 측 합산
-    const useMulti = Array.isArray(workItems) && workItems.length > 1;
-    const commissionInput = {
-      principal,
-      workType,
-      appliance,
-      estimateTotal: estimate,
-      addonFee,
-      visitOnly:  !!(t.visitOnly  || t.출장비만),
-      isYsnExtra: !!(t.isYsnExtra || t.YSN추가),
-      workItems,
+    // 2026-05-16 Phase 4 통합 2-D — calcCommission 박지 X (DB payments 박은 spec 사용)
+    // compute_payment v7 trigger 박힘 박을 spec — 작업 완료 시 자동 계산
+    commission = {
+      engineerEarning:  t.engineer_amount  ?? 0,
+      principalFee:     t.principal_amount ?? 0,
+      companyMargin:    t.owner_amount     ?? 0,
+      source:           t.calc_method      ?? null,
     };
-    commission = useMulti
-      ? calcCommissionMulti(commissionInput)
-      : calcCommission(commissionInput);
   }
 
   // 2026-05-11 진단 — window.__DEBUG_NORMALIZE 켜면 status 매핑 추적
@@ -199,9 +192,18 @@ export function v14NormalizeTask(t) {
     pushCandidates: Array.isArray(t.pushCandidates) ? t.pushCandidates
                   : Array.isArray(t.push_candidates) ? t.push_candidates
                   : [],
-    // 정산 영역 (Hybrid)
+    // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec (compute_payment v7)
+    payment:          t.payment || null,
+    engineer_amount:  t.engineer_amount  ?? 0,
+    principal_amount: t.principal_amount ?? 0,
+    owner_amount:     t.owner_amount     ?? 0,
+    calc_method:      t.calc_method      ?? null,
+    payment_status:   t.payment_status   ?? null,
+    is_balanced:      t.is_balanced      ?? null,
+
+    // 호환용 alias (camelCase, 옛 화면용 — 별도 round 측 박지 X 박을 spec)
     engineerEarning:  commission.engineerEarning,
-    engineerNet:      commission.engineerEarning,  // 옛 호환 (EngineerSettleTab getEarning fallback)
+    engineerNet:      commission.engineerEarning,
     principalFee:     commission.principalFee,
     companyMargin:    commission.companyMargin,
     commissionSource: commission.source,

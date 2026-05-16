@@ -404,10 +404,9 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   const [memo, setMemo] = useState("");
   const baseAmount = task.estimateTotal || 0;
   const extraFee   = task.extraFee || 0;
-  // V14 — 정확한 정책 적용 (commissionCalc / 원청별 분기)
-  const calc       = calcTaskEarning(task);
-  const total      = calc.total || (baseAmount + extraFee);
-  const earning    = calc.engineer;
+  // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec (compute_payment v7)
+  const total      = baseAmount + extraFee;
+  const earning    = task.engineer_amount || 0;
   const commission = Math.max(0, total - earning); // 회사+원청 송금액 (= 수수료 합)
 
   function handleConfirm() {
@@ -444,10 +443,10 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const baseAmountFull = task.estimateTotal || 0;
   const baseAmount     = totalQty > 0 ? Math.round(baseAmountFull * (actualQty / totalQty)) : 0;
   const extraFee       = task.extraFee || 0;
-  const partialTask    = { ...task, qty: actualQty, estimateTotal: baseAmount };
-  const calc           = calcTaskEarning(partialTask);
-  const total          = calc.total || (baseAmount + extraFee);
-  const earning        = calc.engineer;
+  // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec + qty 비례 박음
+  const earningFull    = task.engineer_amount || 0;
+  const earning        = totalQty > 0 ? Math.round(earningFull * (actualQty / totalQty)) : 0;
+  const total          = baseAmount + extraFee;
   const commission     = Math.max(0, total - earning);
 
   const canSubmit = !!reasonId && actualQty > 0 && actualQty <= totalQty;

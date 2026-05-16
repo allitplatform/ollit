@@ -182,21 +182,13 @@ const PRINCIPAL_COLORS = {
 // 기존 호출자 호환: { total, rate, amount, isConfirmed } 모양 유지
 // amount = 회사가 가져가는 돈 (= principal + company = total - engineer)
 function calculateCommission(task) {
-  const t = {
-    ...task,
-    client: task.principal || task.client,
-    estimateTotal: task.estimateTotal || 0,
-    addonFee: task.addonFee || 0,
-    extraFee: task.extraFee || 0,
-    workType: task.workType || (task.workItems?.[0]?.workType ?? ""),
-    appliance: task.appliance || (task.workItems?.[0]?.appliance ?? ""),
-    qty: task.qty || (task.workItems?.[0]?.qty ?? 1),
-  };
-  const r = calcTaskEarning(t);
-  const isConfirmed = task.state === "done";
-  const amount = Math.max(0, r.total - r.engineer);
-  const rate = r.total > 0 ? Math.round((amount / r.total) * 100) : 0;
-  return { total: r.total, rate, amount, isConfirmed };
+  // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec (compute_payment v7)
+  const total = Number(task.estimateTotal) || 0;
+  const engineer = Number(task.engineer_amount) || 0;
+  const amount = Math.max(0, total - engineer);
+  const rate = total > 0 ? Math.round((amount / total) * 100) : 0;
+  const isConfirmed = task.state === "done" || !!task.engineer_amount;
+  return { total, rate, amount, isConfirmed };
 }
 
 // Step 5-3 — 작업 종류 단일 진실 소스 (편집 친화)

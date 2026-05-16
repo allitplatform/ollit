@@ -164,10 +164,9 @@ function SubStat({ label, amount }) {
 function WorkSettlementCard({ work, onClick }) {
   const colors      = getWorkTypeColors(work.workType);
   const isCompleted = work.status === "완료";
-  // V14 — 완료/예정 모두 정확한 정책으로 계산 (calcTaskEarning)
-  const calc        = calcTaskEarning(work);
-  const revenue     = isCompleted ? getRevenue(work) : (calc.total || work.estimateTotal || 0);
-  const earning     = isCompleted ? getEarning(work) : calc.engineer;
+  // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec (compute_payment v7)
+  const revenue     = isCompleted ? getRevenue(work) : (Number(work.estimateTotal) || 0);
+  const earning     = isCompleted ? getEarning(work) : (work.engineer_amount || 0);
   const fee         = Math.max(0, revenue - earning);
   const estRevenue  = revenue;
   const estFee      = fee;
