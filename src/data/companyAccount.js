@@ -9,6 +9,7 @@ import {
   getCompanyAccountFromDb,
   saveCompanyAccountToDb,
 } from "../lib/companyAccountDb.js";
+import { todayYmd } from "../utils/dateLabel.js";
 
 const STORAGE_KEY  = "ollit_company_account_v1";       // 옛 측 (사장님이 화면에서 박은 마지막 값)
 const SHEET_CACHE_KEY = "ollit_company_account_cache_v1"; // 시트 fetch 결과 캐시
@@ -108,7 +109,7 @@ export async function saveCompanyAccountWithSync(payload) {
   if (!payload || typeof payload !== "object") {
     return { ok: false, error: "payload 누락", localOk: false };
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayYmd();
   const data = {
     bankName:      String(payload.bankName      || "").trim(),
     accountNumber: String(payload.accountNumber || "").trim(),

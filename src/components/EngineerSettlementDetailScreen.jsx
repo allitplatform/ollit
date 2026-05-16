@@ -5,6 +5,7 @@
 import { ArrowLeft } from "lucide-react";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { calcTaskEarning } from "../utils/feePolicy.js";
+import { formatTimeOnly } from "../utils/dateLabel.js";
 
 function getEarning(t) {
   return t.engineer_amount || 0;
@@ -174,8 +175,8 @@ function WorkSettlementCard({ work, onClick }) {
   const showRevenue = revenue;
   const ratePct     = estRevenue > 0 ? Math.round((estFee / estRevenue) * 100) : 0;
 
-  const time    = work.completedAt || work.scheduledTime || work.time || "";
-  const endTime = work.endTime || "";
+  const time    = formatTimeOnly(work.completedAt || work.scheduledTime || work.time) || "";
+  const endTime = formatTimeOnly(work.endTime) || work.endTime || "";
 
   return (
     <div

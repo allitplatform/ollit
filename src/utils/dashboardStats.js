@@ -3,6 +3,7 @@
 // 추후 Phase 2 — Supabase 연결 시 동일 인터페이스 사용
 
 import { filterTasksForUser, canSeeField } from "../data/permissions.js";
+import { todayYmd } from "./dateLabel.js";
 
 // 오늘 0시 ~ 24시
 function isToday(dateStr) {
@@ -51,7 +52,7 @@ export function computeDashboardStats({
   //   일정확정  = N열(확정일) 오늘 + 확정 (서비스 일자=오늘)
   //   진행중    = N열(확정일) 오늘 + 진행중
   //   완료      = N열 오늘 + 완료
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = todayYmd();
   const isCreatedToday = (t) => {
     const b = String(t.createdAt || t.receivedAt || t.접수일시 || t.B || "");
     if (b.startsWith(todayStr)) return true;
@@ -81,7 +82,7 @@ export function computeDashboardStats({
   const completedCount  = completedTasks.length;
 
   // V14 매출 — 오늘 완료된 작업의 총금액 합 (Z 총금액 / Asia/Seoul today)
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayYmd();
   let revenue = null;
   if (canSeeField(user, "task.total_amount")) {
     const todayCompletedTasks = completedTasks.filter(t => {

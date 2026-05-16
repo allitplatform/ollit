@@ -16,6 +16,7 @@
 // 외부 호출처 (data/companyAccount.js)는 import만 변경.
 
 import { supabase } from "./supabase.js";
+import { todayYmd } from "../utils/dateLabel.js";
 
 const TENANT_ID    = "11111111-1111-1111-1111-111111111111";
 const SETTINGS_KEY = "company_account";
@@ -66,7 +67,7 @@ export async function saveCompanyAccountToDb(payload) {
   if (!bankName || !accountNumber || !accountHolder) {
     return { ok: false, error: "필수 항목 누락 (은행 / 번호 / 예금주)" };
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayYmd();
   const account = {
     bankName,
     accountNumber,

@@ -95,7 +95,7 @@ import { supabase } from "../lib/supabase.js";
 // StrictMode 측 cleanup → 2차 mount 측 early return 박은 영역 catch 박힘
 // → setCandidates 박지 X / 화면 "후보 없음" 박힘
 // 대안: DB 사전 조회 측만 박음 (UI 측 setCandidates 박힘 / DB 측 1회만 박힘)
-import { formatTimeOnly, formatDateOnly, formatScheduleShort } from "../utils/dateLabel.js";
+import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd } from "../utils/dateLabel.js";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -2410,7 +2410,7 @@ export default function AdminApp({ user, onLogout }) {
         onScheduleChange={async () => {
           const tk = selectedTaskDetail;
           if (!tk?.id) return;
-          const today = new Date().toISOString().slice(0, 10);
+          const today = todayYmd();
           const dateStr = window.prompt("일정 날짜 박기 (YYYY-MM-DD):", tk.requestedDate || tk.confirmedDate || today);
           if (!dateStr) return;
           const timeStr = window.prompt("일정 시간 박기 (HH:MM):", tk.requestedTime || "10:00");

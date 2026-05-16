@@ -11,8 +11,16 @@ function ymdToDate(ymd) {
   return new Date(y, m - 1, d);
 }
 
-function todayYmd() {
+// 오늘 (KST local) "YYYY-MM-DD" — new Date().toISOString().slice(0,10) 박지 X (UTC 박음)
+export function todayYmd() {
   const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+// 오늘 + days offset (KST local) "YYYY-MM-DD"
+export function dateOffsetYmd(days) {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 

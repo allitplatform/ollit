@@ -81,7 +81,7 @@ import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "../components/WorkItemRow.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
-import { workDateLabel, workDateColor, relativeLabel, fullDateLabel, formatTimeOnly, formatDateOnly } from "../utils/dateLabel.js";
+import { workDateLabel, workDateColor, relativeLabel, fullDateLabel, formatTimeOnly, formatDateOnly, todayYmd, dateOffsetYmd } from "../utils/dateLabel.js";
 // V13-FINAL2 — 4탭 + 공유 컴포넌트
 import { EngineerBottomNav } from "../components/EngineerBottomNav.jsx";
 import { EngineerSettleTab } from "../components/EngineerSettleTab.jsx";
@@ -857,7 +857,7 @@ function MainScreen({
   const activeTask = tasks.find(x => x.status === "진행중") || null;
 
   // V14 v6 — 오늘 모두 완료 catch (사장님 spec 'allDone 카드')
-  const todayStrLocal = new Date().toISOString().slice(0, 10);
+  const todayStrLocal = todayYmd();
   const todayTasksLocal = tasks.filter(t => t.scheduledDate === todayStrLocal);
   const allDoneToday = !activeTask
     && todayTasksLocal.length > 0
@@ -3259,7 +3259,7 @@ function DragTimePicker({ value, onChange, t, label }) {
 // =====================================
 function AddOffDayModal({ t, engineerName, defaultDate, onClose, onSaved }) {
   const [type, setType] = useState("휴무종일");
-  const [date, setDate] = useState(defaultDate || new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(defaultDate || todayYmd());
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [memo, setMemo] = useState("");
@@ -3855,7 +3855,7 @@ export default function EngineerApp({ user, onLogout }) {
   }
 
   // V13-FINAL2 — 4탭 mock 데이터
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = todayYmd();
   const todayTasks = tasks.filter(x =>
     x.scheduledDate === todayStr
   );
@@ -3982,11 +3982,7 @@ export default function EngineerApp({ user, onLogout }) {
   // V14 v6 — 회사 송금 (동적 / 사장님 spec '미입금 = 완료 즉시 추가')
   // 오늘 = todayTasks의 완료 작업 자동 합산 (실시간)
   // 어제 이후 = 입금 완료
-  function dateOffsetIso(days) {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
-  }
+  const dateOffsetIso = dateOffsetYmd;
   // 오늘 미입금 — todayTasks 완료 작업 (유솔N 제외) 자동
   const todayCompletedNonUsolN = todayTasks.filter(
     t => t.status === "완료" && t.client !== "유솔홈케어 N"
@@ -4032,7 +4028,7 @@ export default function EngineerApp({ user, onLogout }) {
     } catch (e) {}
     // Step 5-7-E — ENABLE_MOCK 분기 (운영 = 빈 배열 / 시뮬 = 가족 모임 mock)
     return ENABLE_MOCK ? [
-      { type: "hourly", date: new Date().toISOString().slice(0, 10), startTime: "19:00", endTime: "21:00", reason: "가족 모임" },
+      { type: "hourly", date: todayYmd(), startTime: "19:00", endTime: "21:00", reason: "가족 모임" },
     ] : [];
   });
   useEffect(() => {
