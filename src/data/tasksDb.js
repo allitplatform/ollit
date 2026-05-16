@@ -565,7 +565,8 @@ export async function createTaskAdapter(taskData) {
     // [3] scheduled_at ISO 박음 (호출처가 scheduledDate + scheduledTime 별도 박는 경우)
     let scheduledAtIso = taskData.scheduledAt || null;
     if (!scheduledAtIso && taskData.scheduledDate && taskData.scheduledTime) {
-      scheduledAtIso = `${taskData.scheduledDate}T${taskData.scheduledTime}:00`;
+      // 2026-05-16 fix — KST timezone 명시
+      scheduledAtIso = `${taskData.scheduledDate}T${taskData.scheduledTime}:00+09:00`;
     }
 
     // [4] category_data jsonb 박음 (workItems / 메타)

@@ -1506,7 +1506,8 @@ function TaskDetailScreen({ t, task, onBack, onUpdate, onCompleteReport }) {
       status: "확정",
       scheduledDate: scheduleDate,
       scheduledTime: scheduleTime,
-      scheduledAt: `${scheduleDate}T${scheduleTime}:00`,
+      // 2026-05-16 fix — KST timezone 명시 (Postgres timestamptz UTC 해석 방지)
+      scheduledAt: `${scheduleDate}T${scheduleTime}:00+09:00`,
       time: scheduleTime,
       endTime: addHours(scheduleTime, 1),
       duration: "1h",
@@ -3610,38 +3611,42 @@ function TimeWheelSheet({ t, isOpen, initialValue, label, onClose, onSelect }) {
   
   const ITEM_HEIGHT = 40;
   const VISIBLE = 5;
-  const PADDING = ITEM_HEIGHT * 2;
+  // 2026-05-16 fix — PADDING 80→120 (마지막 시간 22,23이 center snap에 잡히도록)
+  // highlight 위치는 시트 가운데로 분리, scrollTop 계산은 SCROLL_OFFSET 사용
+  const PADDING = ITEM_HEIGHT * 3;
   const SHEET_HEIGHT = ITEM_HEIGHT * VISIBLE;
-  
+  const HIGHLIGHT_TOP = SHEET_HEIGHT / 2 - ITEM_HEIGHT / 2;
+  const SCROLL_OFFSET = PADDING - HIGHLIGHT_TOP;
+
   // 초기 스크롤 위치 설정
   React.useEffect(() => {
     if (isOpen) {
       setTimeout(() => {
-        if (hourRef.current) hourRef.current.scrollTop = initH * ITEM_HEIGHT;
-        if (minRef.current) minRef.current.scrollTop = (initM === 30 ? 1 : 0) * ITEM_HEIGHT;
+        if (hourRef.current) hourRef.current.scrollTop = SCROLL_OFFSET + initH * ITEM_HEIGHT;
+        if (minRef.current) minRef.current.scrollTop = SCROLL_OFFSET + (initM === 30 ? 1 : 0) * ITEM_HEIGHT;
       }, 50);
     }
   }, [isOpen, initH, initM]);
-  
+
   // 스크롤 → 가운데 항목 추적
   const handleHourScroll = e => {
-    const idx = Math.round(e.target.scrollTop / ITEM_HEIGHT);
+    const idx = Math.round((e.target.scrollTop - SCROLL_OFFSET) / ITEM_HEIGHT);
     const clamped = Math.max(0, Math.min(23, idx));
     if (clamped !== selectedHour) setSelectedHour(clamped);
   };
-  
+
   const handleMinScroll = e => {
-    const idx = Math.round(e.target.scrollTop / ITEM_HEIGHT);
+    const idx = Math.round((e.target.scrollTop - SCROLL_OFFSET) / ITEM_HEIGHT);
     const m = idx === 0 ? 0 : 30;
     if (m !== selectedMin) setSelectedMin(m);
   };
-  
+
   // 항목 탭 → 그 위치로 스크롤
   const goToHour = h => {
-    if (hourRef.current) hourRef.current.scrollTo({ top: h * ITEM_HEIGHT, behavior: 'smooth' });
+    if (hourRef.current) hourRef.current.scrollTo({ top: SCROLL_OFFSET + h * ITEM_HEIGHT, behavior: 'smooth' });
   };
   const goToMin = m => {
-    if (minRef.current) minRef.current.scrollTo({ top: (m === 30 ? 1 : 0) * ITEM_HEIGHT, behavior: 'smooth' });
+    if (minRef.current) minRef.current.scrollTo({ top: SCROLL_OFFSET + (m === 30 ? 1 : 0) * ITEM_HEIGHT, behavior: 'smooth' });
   };
   
   if (!isOpen) return null;
@@ -3689,7 +3694,7 @@ function TimeWheelSheet({ t, isOpen, initialValue, label, onClose, onSelect }) {
           {/* 가운데 highlight (포인터 이벤트 없음) */}
           <div style={{
             position: 'absolute',
-            top: PADDING, left: 0, right: 0,
+            top: HIGHLIGHT_TOP, left: 0, right: 0,
             height: ITEM_HEIGHT,
             background: 'rgba(255, 27, 141, 0.12)',
             border: `1px solid ${t.accent}`,
