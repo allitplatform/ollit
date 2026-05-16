@@ -92,7 +92,7 @@ BEGIN
       NULL
     );
 
-    IF (v_calc_result ->> 'ok')::boolean = false THEN
+    IF NOT (v_calc_result ->> 'ok')::boolean THEN
       RAISE EXCEPTION 'calculate_commission 박지 X: %', v_calc_result;
     END IF;
 
@@ -113,7 +113,7 @@ BEGIN
         0,
         NULL
       );
-      IF (v_calc_result ->> 'ok')::boolean = false THEN
+      IF NOT (v_calc_result ->> 'ok')::boolean THEN
         RAISE EXCEPTION 'calculate_commission 재호출 박지 X: %', v_calc_result;
       END IF;
     END IF;
