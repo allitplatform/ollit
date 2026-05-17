@@ -4003,7 +4003,13 @@ export default function EngineerApp({ user, onLogout }) {
     workType: t.workType || "세척",
     workItem: t.appliance || "—",
     quantity: t.qty || 1,
-    feeAmount: Math.max(0, (t.totalAmount || 0) - (t.engineer_amount || 0)),
+    feeAmount: Math.max(0,
+      (t.totalAmount ||
+        (t.product_price || t.estimateTotal || 0) +
+        (t.extra_fee || t.extraFee || 0) +
+        (t.travel_fee || t.travelFee || 0)
+      ) - (t.engineer_amount || 0)
+    ),
   }));
   const todayPendingTotal = todayPendingWorks.reduce((s, w) => s + (w.feeAmount || 0), 0);
 
