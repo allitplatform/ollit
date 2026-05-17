@@ -8,6 +8,7 @@ import { useRef, useState, useEffect } from "react";
 import { ArrowLeft, Camera, X } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
+import { changePriceAdapter as apiChangePrice } from "../data/tasksDb.js";
 import {
   TaskCompleteScreen as CompletionCompleteScreen,
   TaskPartialScreen,
@@ -129,9 +130,35 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [visitOnlyOpen, setVisitOnlyOpen] = useState(false);
   const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule"
+  const [saving, setSaving] = useState(false); // 2026-05-17 — 완료 분기 진입 직전 extraFee 사전 저장 표시
   const beforeFileRef = useRef(null);
   const afterFileRef  = useRef(null);
   const PHOTO_MIN = 2;
+
+  // 2026-05-17 시나리오 B — 진행중 화면에서 ExtraFeeInput에 타이핑한 추가금은 로컬 state만 갱신됨.
+  // 완료 분기 화면(완료/부분/출장비) 진입 직전에 DB에 먼저 박아둬야
+  // 다음 화면 mount 시 compute_payment가 정확한 extra_fee로 재계산함.
+  // changePriceAdapter는 내부에서 compute_payment RPC를 호출하므로 payments도 갱신됨.
+  async function persistExtraFeeAndNavigate(target) {
+    if (saving) return; // 더블 클릭 방지
+    const parsed    = parseInt(extraFee || "0", 10);
+    const currentDb = Number(task.extraFee || 0);
+    if (parsed !== currentDb) {
+      setSaving(true);
+      try {
+        // newPrice는 이 화면에서 변경하지 않으므로 undefined.
+        const res = await apiChangePrice(task.id, undefined, parsed, undefined);
+        if (!res || res.ok === false) {
+          console.warn('[EngineerTaskDetailScreen] extraFee 사전 저장 실패:', res?.error);
+        }
+      } catch (e) {
+        console.warn('[EngineerTaskDetailScreen] extraFee 사전 저장 예외:', e?.message);
+      } finally {
+        setSaving(false);
+      }
+    }
+    setSubScreen(target);
+  }
 
   if (!task) {
     return (
@@ -470,32 +497,35 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         <div style={{ padding: "14px 16px 22px" }}>
           {/* V14 — 메인 액션 (작업 완료 / 핑크 풀 V14 메인 액션) */}
           <button
-            onClick={() => {
+            onClick={async () => {
               if (!enough) {
                 alert(`사진은 최소 ${PHOTO_MIN}장 필요합니다.`);
                 return;
               }
-              setSubScreen("complete");
+              await persistExtraFeeAndNavigate("complete");
             }}
-            disabled={!enough}
+            disabled={!enough || saving}
             style={{
               width: "100%", padding: 18,
-              background: enough ? "#FF1B8D" : "var(--bg-tertiary)",
+              background: (enough && !saving) ? "#FF1B8D" : "var(--bg-tertiary)",
               border: "none", borderRadius: 16,
-              color: enough ? "#fff" : "var(--text-tertiary)",
+              color: (enough && !saving) ? "#fff" : "var(--text-tertiary)",
               fontSize: 17, fontWeight: 600,
-              cursor: enough ? "pointer" : "not-allowed",
+              cursor: (enough && !saving) ? "pointer" : "not-allowed",
               fontFamily: "inherit",
               marginBottom: 10,
             }}
           >
-            {enough ? "✓ 작업 완료" : `✓ 작업 완료 (사진 ${PHOTO_MIN}장 필요)`}
+            {saving
+              ? "저장 중..."
+              : (enough ? "✓ 작업 완료" : `✓ 작업 완료 (사진 ${PHOTO_MIN}장 필요)`)}
           </button>
 
           {/* V14 헌법 — 부분 완료 = 회색 (중립) / 출장비만 = 빨강 (취소) */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <button
-              onClick={() => setSubScreen("partial")}
+              onClick={() => persistExtraFeeAndNavigate("partial")}
+              disabled={saving}
               style={{
                 padding: 13,
                 background: "transparent",
@@ -503,7 +533,9 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
                 borderRadius: 12,
                 color: "#555",
                 fontSize: 14, fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit",
+                cursor: saving ? "not-allowed" : "pointer",
+                opacity: saving ? 0.5 : 1,
+                fontFamily: "inherit",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
@@ -511,7 +543,8 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
               부분 완료
             </button>
             <button
-              onClick={() => setSubScreen("visitOnly")}
+              onClick={() => persistExtraFeeAndNavigate("visitOnly")}
+              disabled={saving}
               style={{
                 padding: 13,
                 background: "transparent",
@@ -519,7 +552,9 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
                 borderRadius: 12,
                 color: "var(--cancel-text)",
                 fontSize: 14, fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit",
+                cursor: saving ? "not-allowed" : "pointer",
+                opacity: saving ? 0.5 : 1,
+                fontFamily: "inherit",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
               }}
             >
