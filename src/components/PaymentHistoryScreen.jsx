@@ -230,7 +230,7 @@ function DailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
       {isExpanded && (
         <div style={{
           borderTop: "0.5px solid var(--border)",
-          padding: "8px 14px 14px 22px",
+          padding: "8px 12px 12px 16px",
           background: expandedBg,
         }}>
           {(data.works || []).map((w, idx, arr) => (
@@ -240,12 +240,12 @@ function DailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "12px 16px",
+                padding: "8px 12px",
                 borderBottom: idx < arr.length - 1 ? "0.5px solid var(--border)" : "none",
                 cursor: w.id ? "pointer" : "default",
-                gap: 10,
+                gap: 8,
               }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
                 <WorkTypeBadge type={w.workType || "세척"}/>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
@@ -283,6 +283,8 @@ function WorkTypeBadge({ type }) {
   const bg    = isCleaning ? "#E6F1FB" : "#FAEEDA";
   const color = isCleaning ? "#0C447C" : "#854F0B";
   const icon  = isCleaning ? "❄" : "⚡";
+  // 짧은 이름 박음 (사장님 spec: "냉매충전" → "냉매")
+  const shortName = isCleaning ? "세척" : "냉매";
   return (
     <div style={{
       background: bg,
@@ -298,7 +300,7 @@ function WorkTypeBadge({ type }) {
       whiteSpace: "nowrap",
     }}>
       <span style={{ fontSize: 10 }}>{icon}</span>
-      <span>{type}</span>
+      <span>{shortName}</span>
     </div>
   );
 }
