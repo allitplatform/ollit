@@ -11,7 +11,9 @@ function getEarning(t) {
 }
 
 function getRevenue(t) {
-  return (t.estimateTotal || 0) + (t.addonFee || 0) + (t.extraFee || 0);
+  // 사장님 spec: "기사 수익 제외 전체가 회사 수수료"
+  // totalAmount = DB GENERATED (product + extra + travel + naver)
+  return t.totalAmount || 0;
 }
 
 // V14 v6 — 계좌 복사 (폴백 + 토스트 / 사장님 spec)
