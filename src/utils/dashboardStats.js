@@ -4,6 +4,7 @@
 
 import { filterTasksForUser, canSeeField } from "../data/permissions.js";
 import { todayYmd } from "./dateLabel.js";
+import { isTrackARemittance } from "./remitFilter.js";
 
 // 오늘 0시 ~ 24시
 function isToday(dateStr) {
@@ -81,24 +82,31 @@ export function computeDashboardStats({
   const inProgressCount = inProgressTasks.length;
   const completedCount  = completedTasks.length;
 
-  // V14 매출 — 오늘 완료된 작업의 총금액 합 (Z 총금액 / Asia/Seoul today)
+  // V14 매출 — 오늘 완료 + 트랙 🅐 작업의 합 (Asia/Seoul today)
+  // 2026-05-17 Round 1 마무리 — 사장님 spec 확정 🅑:
+  //   4개 카드(매출/마진/정산/수수료) 모두 같은 dataset 기준으로 합산.
+  //   dataset = { completedAt 오늘, status='완료', isTrackARemittance() = true }
+  //   미정산 필터는 적용 X — 정산 끝나도 매출은 그대로 (일반적 매출 의미).
+  //   completedAt 비어있으면 보수적으로 제외.
+  //   상태 카드 "완료" count(completedCount)는 별개 의미라 위 completedTasks 그대로 유지.
   const today = todayYmd();
   let revenue = null;
   if (canSeeField(user, "task.total_amount")) {
-    const todayCompletedTasks = completedTasks.filter(t => {
-      const completed = t.completedAt || t.completedDate || t.완료시간 || t.completedTime;
+    const revenueBaseTasks = uniqueTasks.filter(t => {
+      if (!isTrackARemittance(t)) return false;
+      const completed = t.completedAt || t.completed_at || t.completedDate || t.완료시간 || t.completedTime;
       if (!completed) return false;
       return String(completed).slice(0, 10) === today;
     });
-    const total = todayCompletedTasks.reduce((s, t) =>
+    const total = revenueBaseTasks.reduce((s, t) =>
       s + Number(t.totalAmount || t.총금액 || t.estimateTotal || 0), 0
     );
-    const principal = todayCompletedTasks.reduce((s, t) => s + Number(t.principal_amount || 0), 0);
-    const engineer  = todayCompletedTasks.reduce((s, t) => s + Number(t.engineer_amount || 0), 0);
+    const principal = revenueBaseTasks.reduce((s, t) => s + Number(t.principal_amount || 0), 0);
+    const engineer  = revenueBaseTasks.reduce((s, t) => s + Number(t.engineer_amount || 0), 0);
     revenue = { total, principal, engineer };
 
     if (canSeeField(user, "task.company_margin")) {
-      revenue.margin = todayCompletedTasks.reduce((s, t) => s + Number(t.owner_amount || 0), 0);
+      revenue.margin = revenueBaseTasks.reduce((s, t) => s + Number(t.owner_amount || 0), 0);
     }
   }
 
