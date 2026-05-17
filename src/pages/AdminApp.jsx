@@ -5031,9 +5031,17 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [] }
   ).length;
   // 2026-05-17 Round 1 Fix #4 — 메인 "완료" 카드 진입 시 헤더 분기.
   // "실시간"은 진행 중 작업 전용 표현이므로 완료 컨텍스트에선 사용 X.
+  // 2026-05-18 — 헤더 카운트를 LiveWorkContent의 base 필터와 동일 spec으로 통일.
+  // 옛(state==="done"만)은 트랙/날짜 무시라 본 영역(11) ↔ 헤더(12) mismatch.
+  // 자정 넘으면 어제 done이 헤더에 남는 stale 문제도 함께 해결(todayYmd 매 호출 재계산).
   const isCompletedToday = initialFilter === "completed-today";
   const completedCount = isCompletedToday
-    ? baseSource.filter(s => s.type === "work" && s.state === "done").length
+    ? baseSource.filter((s) => {
+        if (!isTrackARemittance(s)) return false;
+        const completed = s.completedAt || s.completed_at;
+        if (!completed) return false;
+        return toKstYmd(completed) === todayYmd();
+      }).length
     : 0;
   return (
     <div className="fade-in">
