@@ -3129,6 +3129,7 @@ export default function AdminApp({ user, onLogout }) {
       user={user}
       dynamicStats={dynamicStats}
       apiTasks={apiTasks}
+      apiEngineers={apiEngineers}
       activeTab={dashboardActiveTab}
       setActiveTab={setDashboardActiveTab}
       unreadCount={unreadCount}
@@ -3216,7 +3217,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick, onClickCancelHandle }) {
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick, onClickCancelHandle }) {
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
@@ -3396,7 +3397,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 
         {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
-        {activeTab === "engineers"  && <EngineersTab t={t} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
+        {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
           <div style={{ padding: "0 16px 16px" }}>
             <SettlementContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick} onClickManagePrincipals={onClickManagePrincipals}/>
@@ -3581,7 +3582,7 @@ function StubTab({ t, label }) {
 // ─────────────────────────────────────────────
 // 기사 탭 — Step 3-2 정정: 검색 + 자동 그룹 (필터 칩 제거 / 외근→활동중)
 // ─────────────────────────────────────────────
-function EngineersTab({ t, onEngineerClick, onClickManage }) {
+function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, onClickManage }) {
   const [search, setSearch] = useState("");
 
   // 자동 상태 계산 — Step 3-3: 활동중 그룹 분리 (진행중/이동중/외근중 → 별도 그룹)
@@ -3602,10 +3603,48 @@ function EngineersTab({ t, onEngineerClick, onClickManage }) {
     return { label: "대기", icon: "⏳", color: t.textSecondary, group: "waiting" };
   };
 
-  const engineersWithStatus = ENGINEERS_DATA.map(eng => ({
-    ...eng,
-    status: computeStatus(eng.todaySchedule),
-  }));
+  // 2026-05-17 Round 2 Fix #10 — apiEngineers (실 DB) + apiTasks (오늘 작업)로
+  // engineersWithStatus 합성. apiEngineers가 비어있으면 ENGINEERS_DATA로 fallback
+  // (ENABLE_MOCK=true 환경 보존).
+  const useApiData = (apiEngineers && apiEngineers.length > 0);
+  const todayStr = todayYmd();
+  // 오늘 일정 = scheduledDate(또는 scheduledAt 정규화)가 오늘인 작업
+  const todayTasks = apiTasks.filter(t => {
+    const sched = t.scheduledDate || (t.scheduledAt ? toKstYmd(t.scheduledAt) : "");
+    return sched === todayStr;
+  });
+  const engineersWithStatus = useApiData
+    ? apiEngineers.map(eng => {
+        // engineer 본인 작업 = 이름 매칭(시트 Q열 호환) 또는 engineerId 매칭
+        const mySlots = todayTasks
+          .filter(task =>
+            (eng.name && (task.assignedEngineer === eng.name || task.engineer === eng.name)) ||
+            ((eng.engineerId || eng.id) && (task.assignedEngineerId === (eng.engineerId || eng.id) || task.engineerId === (eng.engineerId || eng.id)))
+          )
+          .map(task => ({
+            type: "work",
+            state: task.state,
+            customer: task.customer,
+            workType: task.workType,
+            region: task.region,
+            note: task.workMemo || task.note || "",
+            taskCode: task.taskCode,
+            time: task.time,
+            principal: task.principal,
+          }));
+        return {
+          ...eng,
+          // 화면 표시용 fallback 필드 (mock은 추가 메타가 있었음)
+          region: eng.region || "—",
+          todaySchedule: mySlots,
+          todayCount: mySlots.length,  // EngineerCard 라인의 "오늘 N건" 표시용
+          status: computeStatus(mySlots),
+        };
+      })
+    : ENGINEERS_DATA.map(eng => ({
+        ...eng,
+        status: computeStatus(eng.todaySchedule),
+      }));
 
   // 검색 (필터 칩 제거)
   const sLower = search.trim().toLowerCase();
