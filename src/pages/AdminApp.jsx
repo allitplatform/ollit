@@ -904,6 +904,15 @@ function _v14NormalizeTask(t) {
     completedAt: t.completedAt || t.completed_at || t.완료시간 || "",
     startedAt:   t.startedAt   || t.started_at   || t.시작시간 || "",
     pushCandidates: Array.isArray(t.pushCandidates) ? t.pushCandidates : Array.isArray(t.push_candidates) ? t.push_candidates : [],
+    // 2026-05-17 Round 1 Fix #1 — payments JOIN 패스스루 (dashboardStats 매출 카드용).
+    // 공유 v14NormalizeTask(src/utils/v14Task.js)에는 이미 매핑돼 있으나
+    // AdminApp은 별개 로컬 _v14NormalizeTask를 사용 → 여기서도 동일 6필드 매핑 필요 ("두 곳 모두 매핑" 트랩).
+    payment:          t.payment || null,
+    engineer_amount:  t.engineer_amount  ?? 0,
+    principal_amount: t.principal_amount ?? 0,
+    owner_amount:     t.owner_amount     ?? 0,
+    payment_status:   t.payment_status   ?? null,
+    is_balanced:      t.is_balanced      ?? null,
     _api: true,                   // 진짜 API 출처 마킹
   };
 }
@@ -1653,6 +1662,8 @@ export default function AdminApp({ user, onLogout }) {
   const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
   const [newReceptionFilter, setNewReceptionFilter] = useState(null);  // null | '세척' | '냉매충전'
   const [assignedFilter, setAssignedFilter] = useState(null);  // 'assigned' | 'confirmed'
+  // 2026-05-17 Round 1 Fix #2 — 메인 "완료" 카드 클릭 시 작업 탭으로 이동 + 필터 (오늘+완료)
+  const [liveWorkFilter, setLiveWorkFilter] = useState(null);  // null | 'completed-today'
   const [dashboardActiveTab, setDashboardActiveTab] = useState("overview");  // 외부에서 탭 변경 가능
 
   // V14 Week 2 2A — 진짜 시트 작업DB catch (apiTasks)
@@ -2311,8 +2322,9 @@ export default function AdminApp({ user, onLogout }) {
     return <Shell>
       <LiveWorkScreen
         t={t}
-        onBack={goBack}
+        onBack={() => { goBack(); setLiveWorkFilter(null); }}
         onTaskClick={(task) => goTaskDetail(task, "liveWork")}
+        initialFilter={liveWorkFilter}
       />
     </Shell>;
   }
@@ -3113,7 +3125,7 @@ export default function AdminApp({ user, onLogout }) {
       onClickAddReception={() => setScreen("newReceptionForm")}
       onClickNewReception={(filter) => { setNewReceptionFilter(filter || null); setScreen("newReception"); }}
       onClickAssignedList={(filter) => { setAssignedFilter(filter); setScreen("assignedList"); }}
-      onClickLiveWork={() => setScreen("liveWork")}
+      onClickLiveWork={(filter) => { setLiveWorkFilter(filter || null); setScreen("liveWork"); }}
       onClickInProgress={() => setScreen("inProgressList")}
       onClickSettlement={() => setScreen("settlement")}
       onClickManage={() => setScreen("engineerList")}
@@ -3262,7 +3274,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           <StatBox t={t} label="배정 완료" value={dynamicStats?.assigned  ?? TODAY_STATS.assigned}    color={t.text}    onClick={() => onClickAssignedList("assigned")}/>
           <StatBox t={t} label="일정 확정" value={dynamicStats?.confirmed ?? TODAY_STATS.confirmed}   color={t.text}    onClick={() => onClickAssignedList("confirmed")}/>
           <StatBox t={t} label="진행중"   value={dynamicStats?.inProgress ?? TODAY_STATS.inProgress}  color={t.accent}  onClick={onClickInProgress}/>
-          <StatBox t={t} label="완료"     value={dynamicStats?.completed  ?? TODAY_STATS.completed}   color={t.success} onClick={onClickSettlement}/>
+          <StatBox t={t} label="완료"     value={dynamicStats?.completed  ?? TODAY_STATS.completed}   color={t.success} onClick={() => onClickLiveWork("completed-today")}/>
         </div>
 
         {/* 3. 돈 흐름 — 회사 마진만 핫핑크 (사장님 KPI) / 나머지 무채색 */}
@@ -4939,7 +4951,7 @@ const TASK_GROUPS = [
   { id: "done",      label: "완료",    colorKey: "textMuted",       predicate: (s) => s.type === "work"     && s.state === "done"    },
 ];
 
-function LiveWorkScreen({ t, onBack, onTaskClick }) {
+function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter }) {
   const activeCount = TASKS_TODAY.filter(
     (s) => (s.type === "work" && (s.state === "active" || s.state === "moving")) || s.type === "external"
   ).length;
@@ -4957,7 +4969,7 @@ function LiveWorkScreen({ t, onBack, onTaskClick }) {
         </div>
       </div>
       <div style={{ paddingTop: 14 }}>
-        <LiveWorkContent t={t} onTaskClick={onTaskClick}/>
+        <LiveWorkContent t={t} onTaskClick={onTaskClick} initialFilter={initialFilter}/>
       </div>
     </div>
   );
@@ -5338,12 +5350,27 @@ function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick }) {
   );
 }
 
-function LiveWorkContent({ t, onTaskClick }) {
+function LiveWorkContent({ t, onTaskClick, initialFilter }) {
   const [query, setQuery] = useState("");
+
+  // 2026-05-17 Round 1 Fix #2 — 메인 "완료" 카드 진입 시 오늘+완료 사전 필터.
+  // 진입 경로별 base 데이터 셋을 좁힌 뒤 검색어 필터를 그 위에 얹는다.
+  const isCompletedToday = initialFilter === "completed-today";
+  const todayStr = todayYmd();
+  const base = isCompletedToday
+    ? TASKS_TODAY.filter((s) => {
+        const isDone = s.state === "done" || s.status === "완료" || s.status === "정산완료";
+        if (!isDone) return false;
+        const sched = s.scheduledDate
+          || (s.scheduledAt ? String(s.scheduledAt).slice(0, 10) : "")
+          || (s.service_scheduled_at ? String(s.service_scheduled_at).slice(0, 10) : "");
+        return sched === todayStr;
+      })
+    : TASKS_TODAY;
 
   // 검색: 고객명 / 지역 / 작업종류 / 기사명 / 외근 note
   const q = query.trim().toLowerCase();
-  const filtered = !q ? TASKS_TODAY : TASKS_TODAY.filter((s) => {
+  const filtered = !q ? base : base.filter((s) => {
     const fields = [
       s.customer, s.region, s.workType, s.engineer, s.note,
     ].filter(Boolean).join(" ").toLowerCase();
