@@ -3993,35 +3993,54 @@ export default function EngineerApp({ user, onLogout }) {
   // 오늘 = todayTasks의 완료 작업 자동 합산 (실시간)
   // 어제 이후 = 입금 완료
   const dateOffsetIso = dateOffsetYmd;
-  // 오늘 미입금 — 오늘 완료 작업 (유솔N 제외) 자동
-  const todayCompletedNonUsolN = todayCompletedTasks.filter(
-    t => t.client !== "유솔홈케어 N"
-  );
-  const todayPendingWorks = todayCompletedNonUsolN.map(t => ({
-    id: t.id,
-    customerName: t.customer || "—",
-    workType: t.workType || "세척",
-    workItem: t.appliance || "—",
-    quantity: t.qty || 1,
-    feeAmount: Math.max(0,
-      (t.totalAmount ||
-        (t.product_price || t.estimateTotal || 0) +
-        (t.extra_fee || t.extraFee || 0) +
-        (t.travel_fee || t.travelFee || 0)
-      ) - (t.engineer_amount || 0)
-    ),
-  }));
-  const todayPendingTotal = todayPendingWorks.reduce((s, w) => s + (w.feeAmount || 0), 0);
 
-  // 2026-05-17 catch #2 fix — 어제~ 4개 일자 mock 박지 X (모든 기사 공통 박혀있었음)
-  // 실제 입금 완료 내역은 Phase 5 측 DB payments group + status='paid' 박을 spec
-  const payments = todayPendingWorks.length > 0 ? [{
-    date: dateOffsetIso(0),
-    status: "pending",
-    deadline: "22:00",
-    works: todayPendingWorks,
-    totalAmount: todayPendingTotal,
-  }] : [];
+  // 모든 미입금 완료 작업 (유솔N 제외)
+  // 박을 spec 측 — Migration 025 박은 후 engineerRemittedConfirmedAt 박을 spec
+  // 현재: 입금 확인 컬럼 박지 X 박혀있으므로 모든 완료 작업 박음
+  const allPendingNonUsolN = tasks.filter(t =>
+    t.status === "완료" &&
+    t.client !== "유솔홈케어 N"
+    // && !t.engineerRemittedConfirmedAt  // 박을 spec 측 — Migration 025 박은 후
+  );
+
+  // completedAt 기준 일자별 그룹화
+  const groupedByDate = {};
+  allPendingNonUsolN.forEach(t => {
+    if (!t.completedAt) return;
+    const d = new Date(t.completedAt);
+    const ymd = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    if (!groupedByDate[ymd]) groupedByDate[ymd] = [];
+    groupedByDate[ymd].push(t);
+  });
+
+  // payments 박음 (최신순 정렬)
+  const payments = Object.entries(groupedByDate)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([date, dateTasks]) => {
+      const works = dateTasks.map(t => ({
+        id: t.id,
+        customerName: t.customer || "—",
+        principal: t.client || t.principal,
+        workType: t.workType || "세척",
+        workItem: t.appliance || "—",
+        quantity: t.qty || 1,
+        feeAmount: Math.max(0,
+          (t.totalAmount ||
+            (t.product_price || t.estimateTotal || 0) +
+            (t.extra_fee || t.extraFee || 0) +
+            (t.travel_fee || t.travelFee || 0)
+          ) - (t.engineer_amount || 0)
+        ),
+      }));
+      const totalAmount = works.reduce((s, w) => s + (w.feeAmount || 0), 0);
+      return {
+        date,
+        status: "pending",
+        deadline: "23:00",
+        works,
+        totalAmount,
+      };
+    });
 
   // Step 5-7-B — 유솔N 정산 mock 모두 제거 (운영 시작 = 깨끗한 상태)
   // 시트 양방향 sync 데이터로 교체 / 사용자가 새 작업 박을 때까지 빈 배열
