@@ -3606,7 +3606,15 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
   // 2026-05-17 Round 2 Fix #10 — apiEngineers (실 DB) + apiTasks (오늘 작업)로
   // engineersWithStatus 합성. apiEngineers가 비어있으면 ENGINEERS_DATA로 fallback
   // (ENABLE_MOCK=true 환경 보존).
-  const useApiData = (apiEngineers && apiEngineers.length > 0);
+  //
+  // 2026-05-17 Round 2 Fix #11 — DB에 seed 등록된 29명 중 active 기사만 노출.
+  // listEngineersFromDb는 inactive/quit 기사도 모두 반환하기 때문에
+  // EngineersTab 진입 시점에 필터링 (다른 화면은 전체 명단이 필요할 수 있어
+  // 데이터 레이어가 아니라 이 화면에서만 좁힘). active = is_active true.
+  const activeApiEngineers = (apiEngineers || []).filter(
+    eng => eng.active === true || eng.status === "active"
+  );
+  const useApiData = activeApiEngineers.length > 0;
   const todayStr = todayYmd();
   // 오늘 일정 = scheduledDate(또는 scheduledAt 정규화)가 오늘인 작업
   const todayTasks = apiTasks.filter(t => {
@@ -3614,7 +3622,7 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
     return sched === todayStr;
   });
   const engineersWithStatus = useApiData
-    ? apiEngineers.map(eng => {
+    ? activeApiEngineers.map(eng => {
         // engineer 본인 작업 = 이름 매칭(시트 Q열 호환) 또는 engineerId 매칭
         const mySlots = todayTasks
           .filter(task =>
