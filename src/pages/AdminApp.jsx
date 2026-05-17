@@ -913,6 +913,10 @@ function _v14NormalizeTask(t) {
     owner_amount:     t.owner_amount     ?? 0,
     payment_status:   t.payment_status   ?? null,
     is_balanced:      t.is_balanced      ?? null,
+    // 2026-05-17 Round 1 Fix #5 — total_amount 패스스루 (오늘 매출 카드에 extra_fee 포함되도록).
+    // tasksDb.rowToTask는 row.total_amount(GENERATED, product+extra+travel)를 totalAmount로 박는데
+    // 로컬 _v14NormalizeTask가 이 필드를 떨어뜨려 dashboardStats가 estimateTotal(productPrice)로 fallback.
+    totalAmount: Number(t.totalAmount || t.total_amount || 0) || estimate,
     _api: true,                   // 진짜 API 출처 마킹
   };
 }
@@ -5096,7 +5100,9 @@ function groupDoneByEngineer(tasks) {
       };
     }
     map[key].tasks.push(task);
-    map[key].total += calculateCommission(task).amount || 0;
+    // 2026-05-17 Round 1 Fix #6 — "정산금" = 기사 본인이 받을 돈(engineer_amount).
+    // 옛값 calculateCommission(task).amount는 회사+원청 수수료라 라벨과 의미 불일치였음.
+    map[key].total += Number(task.engineer_amount) || 0;
   }
   return Object.values(map);
 }
@@ -5290,8 +5296,9 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
       {open && (
         <div style={{ borderTop: `1px solid ${t.border}`, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
           {group.tasks.map((task) => {
-            const c = calculateCommission(task);
             const itemSummary = `${task.workType} ×${task.qty || 1}`;
+            // 2026-05-17 Round 1 Fix #6 — 작업당 표시값도 기사 본인 정산액(engineer_amount).
+            const earning = Number(task.engineer_amount) || 0;
             return (
               <div
                 key={task.taskId}
@@ -5307,7 +5314,7 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
                 <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{task.customer}</span>
                 <span style={{ fontSize: 11, color: t.textSecondary }}>({itemSummary})</span>
                 <div style={{ flex: 1 }}/>
-                <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>{fmtKRW(c.amount)}</span>
+                <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>{fmtKRW(earning)}</span>
               </div>
             );
           })}
