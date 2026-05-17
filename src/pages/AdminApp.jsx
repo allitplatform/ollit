@@ -95,7 +95,7 @@ import { supabase } from "../lib/supabase.js";
 // → setCandidates 박지 X / 화면 "후보 없음" 박힘
 // 대안: DB 사전 조회 측만 박음 (UI 측 setCandidates 박힘 / DB 측 1회만 박힘)
 import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd } from "../utils/dateLabel.js";
-import { isTrackARemittance } from "../utils/remitFilter.js";
+import { isTrackARemittance, isPendingRemit } from "../utils/remitFilter.js";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -3649,10 +3649,10 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
           status: computeStatus(mySlots),
         };
       })
-    : ENGINEERS_DATA.map(eng => ({
-        ...eng,
-        status: computeStatus(eng.todaySchedule),
-      }));
+    // 2026-05-17 Round 2 Fix #16 — 옛 ENGINEERS_DATA fallback 차단 (mock 누출 방지).
+    // ENABLE_MOCK 토글이 어떤 경로로든 true가 되어도 EngineersTab엔 mock 표시 X.
+    // apiEngineers fetch 실패 시 사용자가 빈 화면을 보면 진짜 원인이 표면화됨.
+    : [];
 
   // 검색 (필터 칩 제거)
   const sLower = search.trim().toLowerCase();
@@ -5157,12 +5157,13 @@ function groupDoneByEngineer(tasks) {
       };
     }
     map[key].tasks.push(task);
-    // 2026-05-17 Round 2 Fix #12 — 사장님 spec 재확인: "정산금" = 기사가 회사에
-    // 정산해야 할 돈 = total - engineer_amount = 회사 마진 + 원청 수수료.
-    // (Round 1 Fix #6에서 engineer_amount로 박았던 것 revert. 라벨 "정산금"의
-    // 사장님 멘탈 모델이 "기사→회사 정산해야 할 금액"이라 calculateCommission
-    // 결과가 맞음.)
-    map[key].total += calculateCommission(task).amount || 0;
+    // 2026-05-17 Round 2 Fix #14 — "정산금" = 회사 마진 + 원청 수수료 = principal + owner.
+    // calculateCommission(task).amount는 task.estimateTotal(productPrice만, extra/travel 빠짐)
+    // 기반이라 정확하지 X. compute_payment v7 보장: total = engineer + principal + owner.
+    // 직영 100% 정책(engineer만 챙기는 작업)이라도 원청 수수료는 별도 입금되므로
+    // principal_amount + owner_amount 직접 합산이 사장님 spec과 일치.
+    const settleAmount = (Number(task.principal_amount) || 0) + (Number(task.owner_amount) || 0);
+    map[key].total += settleAmount;
   }
   return Object.values(map);
 }
@@ -5180,7 +5181,9 @@ function groupDoneByPrincipal(tasks) {
       };
     }
     map[key].tasks.push(task);
-    map[key].total += calculateCommission(task).amount || 0;
+    // 2026-05-17 Round 2 Fix #15 — 원청 그룹 "정산금" = 회사가 그 원청에 송금해야 할 돈
+    // = principal_amount 합. (기사 정산이나 회사 마진 X — 원청 몫만.)
+    map[key].total += Number(task.principal_amount) || 0;
   }
   return Object.values(map);
 }
@@ -5217,12 +5220,18 @@ function SettlementContent({ t, apiTasks = [], onTaskClick, onClickManagePrincip
   const [activeTab, setActiveTab] = useState("engineers");  // "engineers" | "principals"
   const [expanded, setExpanded] = useState(() => new Set());
 
-  // 2026-05-17 Round 1 Fix #7 — 회사 송금 대기(트랙 🅐) 공통 필터 적용.
-  // 기사 PWA의 PaymentHistoryScreen 데이터 소스와 동일한 isTrackARemittance를 사용해
-  // 양쪽 화면의 건수/금액이 일치하도록 정합. 날짜 필터 제거(전체 미정산 트랙 🅐).
-  // apiTasks 없으면 mock fallback(기존 동작 보존).
+  // 2026-05-17 Round 2 Fix #13 — 사장님 spec: 정산 탭도 메인 매출과 같은 dataset.
+  //   { completedAt 오늘, status='완료', isTrackARemittance() = true } + 미정산.
+  // isPendingRemit = isTrackARemittance + engineerRemitConfirmedAt 비어있음.
+  // 추가로 completedAt(KST 정규화)가 오늘인 것만. 이전 라운드의 timezone 정합.
+  const todayStr = todayYmd();
   const doneTasks = (apiTasks && apiTasks.length > 0)
-    ? apiTasks.filter(isTrackARemittance)
+    ? apiTasks.filter(t => {
+        if (!isPendingRemit(t)) return false;
+        const completed = t.completedAt || t.completed_at;
+        if (!completed) return false;
+        return toKstYmd(completed) === todayStr;
+      })
     : getTodayDoneTasks();
   const engineerGroups = groupDoneByEngineer(doneTasks);
   const principalGroups = groupDoneByPrincipal(doneTasks);
@@ -5350,9 +5359,9 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
         <div style={{ borderTop: `1px solid ${t.border}`, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
           {group.tasks.map((task) => {
             const itemSummary = `${task.workType} ×${task.qty || 1}`;
-            // 2026-05-17 Round 2 Fix #12 — 작업당 표시값도 회사 수수료(total - engineer_amount).
-            // 라벨 "정산금"의 의미를 그룹 합계와 동일하게 유지.
-            const earning = calculateCommission(task).amount || 0;
+            // 2026-05-17 Round 2 Fix #14 — 작업당 표시값 = principal + owner (= 회사+원청 수수료).
+            // 그룹 합계(groupDoneByEngineer)와 동일 계산식.
+            const earning = (Number(task.principal_amount) || 0) + (Number(task.owner_amount) || 0);
             return (
               <div
                 key={task.taskId}
@@ -5409,8 +5418,10 @@ function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick }) {
       {open && (
         <div style={{ borderTop: `1px solid ${t.border}`, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
           {group.tasks.map((task) => {
-            const c = calculateCommission(task);
             const itemSummary = `${task.workType} ×${task.qty || 1}`;
+            // 2026-05-17 Round 2 Fix #15 — 작업당 표시값 = task.principal_amount (회사→원청 송금액).
+            // 그룹 합계(groupDoneByPrincipal)와 동일 계산식.
+            const principalAmt = Number(task.principal_amount) || 0;
             return (
               <div
                 key={task.taskId}
@@ -5426,7 +5437,7 @@ function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick }) {
                 <span style={{ fontSize: 11, color: t.textSecondary }}>({itemSummary})</span>
                 <span style={{ fontSize: 10, color: t.textMuted, whiteSpace: "nowrap" }}>· {task.engineer}</span>
                 <div style={{ flex: 1 }}/>
-                <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>{fmtKRW(c.amount)}</span>
+                <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>{fmtKRW(principalAmt)}</span>
               </div>
             );
           })}
