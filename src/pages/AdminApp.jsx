@@ -95,6 +95,7 @@ import { supabase } from "../lib/supabase.js";
 // → setCandidates 박지 X / 화면 "후보 없음" 박힘
 // 대안: DB 사전 조회 측만 박음 (UI 측 setCandidates 박힘 / DB 측 1회만 박힘)
 import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd } from "../utils/dateLabel.js";
+import { isTrackARemittance } from "../utils/remitFilter.js";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -917,6 +918,11 @@ function _v14NormalizeTask(t) {
     // tasksDb.rowToTask는 row.total_amount(GENERATED, product+extra+travel)를 totalAmount로 박는데
     // 로컬 _v14NormalizeTask가 이 필드를 떨어뜨려 dashboardStats가 estimateTotal(productPrice)로 fallback.
     totalAmount: Number(t.totalAmount || t.total_amount || 0) || estimate,
+    // 2026-05-17 Round 1 Fix #7 — calc_method 패스스루 (트랙 🅐/🅑 판별 키).
+    // isTrackARemittance가 usol_n_본작업/usol_n_추가선택을 식별하려면 필요.
+    calc_method: t.calc_method ?? null,
+    engineerRemittedAt:       t.engineerRemittedAt       || t.engineer_remitted_at        || null,
+    engineerRemitConfirmedAt: t.engineerRemitConfirmedAt || t.engineer_remit_confirmed_at || null,
     _api: true,                   // 진짜 API 출처 마킹
   };
 }
@@ -5157,19 +5163,12 @@ function SettlementContent({ t, apiTasks = [], onTaskClick, onClickManagePrincip
   const [activeTab, setActiveTab] = useState("engineers");  // "engineers" | "principals"
   const [expanded, setExpanded] = useState(() => new Set());
 
-  // 2026-05-17 Round 1 Fix #3 — apiTasks 우선 (진짜 DB 데이터), 없으면 mock fallback.
-  // 필터: dashboardStats.completed와 동일(scheduledAt 오늘 + status='완료'/'정산완료').
-  // 이렇게 해야 메인 "완료" 카드 카운트와 정산 탭 건수가 일치.
+  // 2026-05-17 Round 1 Fix #7 — 회사 송금 대기(트랙 🅐) 공통 필터 적용.
+  // 기사 PWA의 PaymentHistoryScreen 데이터 소스와 동일한 isTrackARemittance를 사용해
+  // 양쪽 화면의 건수/금액이 일치하도록 정합. 날짜 필터 제거(전체 미정산 트랙 🅐).
+  // apiTasks 없으면 mock fallback(기존 동작 보존).
   const doneTasks = (apiTasks && apiTasks.length > 0)
-    ? (() => {
-        const todayStr = todayYmd();
-        return apiTasks.filter(t => {
-          const status = String(t.status || "").trim();
-          if (status !== "완료" && status !== "정산완료") return false;
-          const sched = String(t.scheduledAt || t.scheduledDate || "");
-          return sched.startsWith(todayStr);
-        });
-      })()
+    ? apiTasks.filter(isTrackARemittance)
     : getTodayDoneTasks();
   const engineerGroups = groupDoneByEngineer(doneTasks);
   const principalGroups = groupDoneByPrincipal(doneTasks);

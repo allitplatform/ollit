@@ -12,6 +12,7 @@ import { uploadPhoto } from "../lib/photosDb.js";
 // Phase 3-5 — 휴무는 DB 측 (offDaysDb.js) 어댑터 사용. 시그니처 동일.
 import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
+import { isTrackARemittance } from "../utils/remitFilter.js";
 import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 import { REGISTERED_USERS } from "../shared/users.js";
@@ -4002,14 +4003,10 @@ export default function EngineerApp({ user, onLogout }) {
   // 어제 이후 = 입금 완료
   const dateOffsetIso = dateOffsetYmd;
 
-  // 모든 미입금 완료 작업 (유솔N 제외)
-  // 박을 spec 측 — Migration 025 박은 후 engineerRemittedConfirmedAt 박을 spec
-  // 현재: 입금 확인 컬럼 박지 X 박혀있으므로 모든 완료 작업 박음
-  const allPendingNonUsolN = tasks.filter(t =>
-    t.status === "완료" &&
-    t.client !== "유솔홈케어 N"
-    // && !t.engineerRemittedConfirmedAt  // 박을 spec 측 — Migration 025 박은 후
-  );
+  // 2026-05-17 Round 1 Fix #8 — 회사 송금 대기 공통 필터(트랙 🅐) 사용.
+  // 운영자 PWA SettlementContent와 동일 규칙으로 정합. 옛 client 이름 매칭
+  // 대신 calc_method 기반으로 usol_n 본작업/추가선택만 제외하고 usol_n 냉매점검은 포함.
+  const allPendingNonUsolN = tasks.filter(isTrackARemittance);
 
   // completedAt 기준 일자별 그룹화
   const groupedByDate = {};
