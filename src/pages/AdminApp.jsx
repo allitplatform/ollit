@@ -96,6 +96,7 @@ import { supabase } from "../lib/supabase.js";
 // 대안: DB 사전 조회 측만 박음 (UI 측 setCandidates 박힘 / DB 측 1회만 박힘)
 import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { isTrackARemittance, isPendingRemit } from "../utils/remitFilter.js";
+import { confirmEngineerRemit } from "../lib/paymentsDb.js";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -889,7 +890,11 @@ function _v14NormalizeTask(t) {
     settlementStatus: settlement,
     workItems: workItems || [],
     // V14 2B-1 — time = 약속 시간 (옛 시뮬은 "방금"이었지만 실데이터는 실제 시간 사용)
-    time: reqTime || reqDate || "협의",
+    // 2026-05-17 Round 2 Fix #23 — scheduledAt (timestamptz)에서 시간 추출 추가.
+    // 옛엔 requestedTime / requestedDate만 봐서 N열(scheduledAt)에만 시간 있는 작업이
+    // "협의"로 떨어졌음. 공유 v14NormalizeTask(v14Task.js:160)는 이미 처리하지만
+    // AdminApp 로컬 _v14NormalizeTask는 누락된 트랩 변형.
+    time: reqTime || formatTimeOnly(t.scheduledAt || t.scheduled_at) || reqDate || "협의",
     type: "work",                 // V14 — AdminTaskDetailScreen이 type === 'external'일 때 분기
     // V14 2B-3 — 배정 기사 (시트 Q 컬럼) / engineer = 옛 컴포넌트 호환 (string 또는 object)
     assignedEngineer: assignedEngineerName,
@@ -3130,6 +3135,7 @@ export default function AdminApp({ user, onLogout }) {
       dynamicStats={dynamicStats}
       apiTasks={apiTasks}
       apiEngineers={apiEngineers}
+      onRefreshTasks={fetchTasks}
       activeTab={dashboardActiveTab}
       setActiveTab={setDashboardActiveTab}
       unreadCount={unreadCount}
@@ -3217,7 +3223,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick, onClickCancelHandle }) {
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick, onClickCancelHandle }) {
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
@@ -3400,7 +3406,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
           <div style={{ padding: "0 16px 16px" }}>
-            <SettlementContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick} onClickManagePrincipals={onClickManagePrincipals}/>
+            <SettlementContent t={t} apiTasks={apiTasks} user={user} onRefreshTasks={onRefreshTasks} onTaskClick={onTaskClick} onClickManagePrincipals={onClickManagePrincipals}/>
           </div>
         )}
       </div>
@@ -3796,11 +3802,9 @@ function EngineerCard({ t, eng, expanded, onToggle, onTaskClick }) {
   // 강병익 펼치면 정수아/박은서 등 mock customer 노출되던 root cause.
   // EngineersTab에서 박은 실데이터 eng.todaySchedule 사용.
   const items = Array.isArray(eng.todaySchedule) ? eng.todaySchedule : [];
-  // "신규 +N" 배지 = 오늘 새로 배정된 작업 수 (배정 공평성 모니터링)
-  const todayStr = todayYmd();
-  const additionalCount = items.filter(
-    item => item.assignedAt && toKstYmd(item.assignedAt) === todayStr
-  ).length;
+  // 2026-05-17 Round 2 Fix #25 — 사장님 spec 🅑: "+N" = 그 기사의 오늘 작업 실제 숫자.
+  // (옛 spec "오늘 새로 배정된 수"는 assignedAt 의존 → 누락/혼란 발생.)
+  const additionalCount = items.length;
 
   return (
     <>
@@ -5225,7 +5229,7 @@ function SettlementScreen({ t, onBack, onTaskClick, onClickManagePrincipals }) {
 }
 
 // Step 5-3 — 정산 콘텐츠 분리: SettlementScreen (헤더+합계) + 대시보드 정산 탭에서 공유
-function SettlementContent({ t, apiTasks = [], onTaskClick, onClickManagePrincipals, containerPadding, tabPadding }) {
+function SettlementContent({ t, apiTasks = [], user, onRefreshTasks, onTaskClick, onClickManagePrincipals, containerPadding, tabPadding }) {
   const [activeTab, setActiveTab] = useState("engineers");  // "engineers" | "principals"
   const [expanded, setExpanded] = useState(() => new Set());
 
@@ -5311,6 +5315,8 @@ function SettlementContent({ t, apiTasks = [], onTaskClick, onClickManagePrincip
                 open={expanded.has(key)}
                 onToggle={() => toggle(key)}
                 onTaskClick={onTaskClick}
+                user={user}
+                onRefreshTasks={onRefreshTasks}
               />
             );
           })}
@@ -5377,10 +5383,38 @@ function RemitStatusBadge({ status }) {
   );
 }
 
-function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
+function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, onRefreshTasks }) {
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
   // 2026-05-17 Round 2 Fix #21 — 그룹 헤더에 통합 상태 배지
   const groupStatus = computeGroupStatus(group.tasks);
+  // 2026-05-17 Round 2 Fix #24 — 입금 확인 (그룹 일별 통합). reported 상태일 때만 노출.
+  const [confirming, setConfirming] = useState(false);
+  async function handleConfirmRemit(e) {
+    e.stopPropagation();  // 그룹 펼침/접힘 토글 방지
+    if (confirming) return;
+    const adminUserId = user?.id || user?.userId;
+    if (!adminUserId) {
+      alert("관리자 사용자 ID를 찾을 수 없습니다.");
+      return;
+    }
+    const taskIds = (group.tasks || []).map(t => t.id).filter(Boolean);
+    if (taskIds.length === 0) return;
+    setConfirming(true);
+    try {
+      const res = await confirmEngineerRemit(taskIds, adminUserId);
+      if (!res || res.ok === false) {
+        alert(`입금 확인 실패: ${(res && res.error) || "알 수 없는 오류"}`);
+      } else {
+        // 성공 — apiTasks 새로고침해서 status가 reported → confirmed로 반영되도록
+        if (typeof onRefreshTasks === "function") onRefreshTasks();
+      }
+    } catch (err) {
+      console.error("[SettlementEngineerCard] confirmRemit 예외:", err);
+      alert(`입금 확인 예외: ${err?.message || err}`);
+    } finally {
+      setConfirming(false);
+    }
+  }
 
   return (
     <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
@@ -5399,6 +5433,29 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
             size="sm"
           />
           <div style={{ flex: 1 }}/>
+          {/* 2026-05-17 Round 2 Fix #24 — 확인 대기 상태일 때만 입금 확인 버튼 노출 */}
+          {groupStatus === "reported" && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleConfirmRemit}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleConfirmRemit(e); }}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                padding: "3px 8px", borderRadius: 8,
+                background: confirming ? t.bgInset : "#0F6E56",
+                color: confirming ? t.textMuted : "#9FE1CB",
+                fontSize: 10, fontWeight: 700,
+                cursor: confirming ? "wait" : "pointer",
+                opacity: confirming ? 0.6 : 1,
+                whiteSpace: "nowrap",
+                userSelect: "none",
+              }}
+            >
+              <CheckCircle2 size={10}/>
+              {confirming ? "확인 중..." : "확인"}
+            </span>
+          )}
           {/* 2026-05-17 Round 2 Fix #21 — 그룹 통합 상태 배지 */}
           <RemitStatusBadge status={groupStatus}/>
           {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
@@ -5572,28 +5629,49 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
         />
       </div>
 
-      {/* 6 그룹 */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {TASK_GROUPS.map((g) => {
-          const items = filtered.filter(g.predicate);
-          if (items.length === 0) return null;
-          return (
-            <TaskGroupSection
-              key={g.id}
-              t={t}
-              group={g}
-              items={items}
-              defaultOpen={g.id === "active"}
-              onTaskClick={onTaskClick}
-            />
-          );
-        })}
-        {filtered.length === 0 && (
-          <div style={{ padding: "30px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
-            검색 결과가 없어요
-          </div>
-        )}
-      </div>
+      {/* 2026-05-17 Round 2 Fix #26 — 메인 "완료" 카드 진입 시 그룹화 건너뛰고 평면 리스트.
+          사장님 spec: "리스트만" 명확. (옛엔 "완료 N건" 그룹 카드가 접힌 상태로 표시) */}
+      {isCompletedToday ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: "30px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+              오늘 완료된 작업이 없어요
+            </div>
+          ) : (
+            filtered.map(task => (
+              <TaskCard
+                key={task.taskId || task.id}
+                t={t}
+                task={task}
+                onClick={() => onTaskClick(task)}
+              />
+            ))
+          )}
+        </div>
+      ) : (
+        /* 6 그룹 — 일반 진입 (하단 탭 등) */
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {TASK_GROUPS.map((g) => {
+            const items = filtered.filter(g.predicate);
+            if (items.length === 0) return null;
+            return (
+              <TaskGroupSection
+                key={g.id}
+                t={t}
+                group={g}
+                items={items}
+                defaultOpen={g.id === "active"}
+                onTaskClick={onTaskClick}
+              />
+            );
+          })}
+          {filtered.length === 0 && (
+            <div style={{ padding: "30px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+              검색 결과가 없어요
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
