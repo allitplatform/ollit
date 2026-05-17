@@ -5,7 +5,7 @@
 // 한 화면 흐름 (별도 완료보고 화면 X)
 
 import { useRef, useState, useEffect } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Camera, X } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
 import {
@@ -112,12 +112,15 @@ function getTaskItems(task) {
 
 // ──────────────── 메인 컴포넌트 ────────────────
 export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
-  // V14 — 사진 = 단일 array (분류 X / 최소 2장)
+  // V14 — 사진 = {url, step} array (작업 전/후 명시적 박음 / 최소 2장 합산)
   const initialPhotos = (() => {
-    if (Array.isArray(task.photos)) return task.photos.map(p => typeof p === "string" ? p : p?.url || "✓");
+    if (Array.isArray(task.photos)) return task.photos.map(p => {
+      if (typeof p === "string") return { url: p, step: "시작" };
+      return { url: p?.url || "✓", step: p?.step || "시작" };
+    });
     const old = [];
-    if (task.photoBefore || task.beforePhoto) old.push("✓");
-    if (task.photoAfter  || task.afterPhoto)  old.push("✓");
+    if (task.photoBefore || task.beforePhoto) old.push({ url: "✓", step: "시작" });
+    if (task.photoAfter  || task.afterPhoto)  old.push({ url: "✓", step: "완료" });
     return old;
   })();
   const [photos, setPhotos] = useState(initialPhotos);
@@ -126,7 +129,8 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [visitOnlyOpen, setVisitOnlyOpen] = useState(false);
   const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule"
-  const fileInputRef = useRef(null);
+  const beforeFileRef = useRef(null);
+  const afterFileRef  = useRef(null);
   const PHOTO_MIN = 2;
 
   if (!task) {
@@ -176,7 +180,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
           onUpdate && onUpdate(task.id, {
             status: "완료",
             completedAt: getCurrentTime(),
-            photos: photos.map(p => ({ url: p })),
+            photos: photos.map(p => ({ url: p.url, step: p.step })),
             extraFee: parseInt(extraFee || "0", 10),
             workMemo: workMemo + (payload.memo ? "\n[마무리] " + payload.memo : ""),
           });
@@ -199,7 +203,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
             partialReason: payload.reasonId,
             partialMemo: payload.memo,
             actualQty: payload.actualQty,
-            photos: photos.map(p => ({ url: p })),
+            photos: photos.map(p => ({ url: p.url, step: p.step })),
             extraFee: parseInt(extraFee || "0", 10),
             workMemo: workMemo,
           });
@@ -222,7 +226,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
             visitOnlyMemo: payload.memo,
             completedAt: getCurrentTime(),
             extraFee: payload.fee,
-            photos: photos.map(p => ({ url: p })),
+            photos: photos.map(p => ({ url: p.url, step: p.step })),
           });
           setSubScreen(null);
           onBack && onBack();
@@ -244,21 +248,16 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
     });
   }
 
-  function handleTakePhoto() {
-    fileInputRef.current?.click();
-  }
-
-  async function handlePhotoChange(e) {
+  async function handlePhotoChange(e, step) {
     const files = Array.from(e.target.files || []);
     e.target.value = "";
     if (files.length === 0) return;
 
     for (const file of files) {
       try {
-        const step = task.status === "진행중" ? "시작" : "완료";
         const res = await uploadPhoto(task.id, file, step);
         if (res?.ok && res?.url) {
-          setPhotos(prev => [...prev, res.url]);
+          setPhotos(prev => [...prev, { url: res.url, step }]);
         } else {
           alert("사진 업로드 박지 X: " + (res?.error || "unknown"));
         }
@@ -272,7 +271,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
   function handleRemovePhoto(idx) {
     setPhotos(prev => {
       const next = [...prev];
-      try { if (next[idx] && next[idx].startsWith("blob:")) URL.revokeObjectURL(next[idx]); } catch {}
+      try { if (next[idx]?.url?.startsWith("blob:")) URL.revokeObjectURL(next[idx].url); } catch {}
       next.splice(idx, 1);
       return next;
     });
@@ -286,7 +285,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
     onUpdate && onUpdate(task.id, {
       status: "완료",
       completedAt: getCurrentTime(),
-      photos: photos.map(p => ({ url: p })),
+      photos: photos.map(p => ({ url: p.url, step: p.step })),
       photoBefore: true,
       photoAfter: true,
       beforePhoto: true,
@@ -396,17 +395,12 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       {/* 진행중 — 사진 / 추가금 / 메모 */}
       {isInProgress && (
         <>
-          <PhotoGrid
+          <PhotoSection
             photos={photos}
-            minRequired={PHOTO_MIN}
-            onAdd={handleTakePhoto}
+            beforeFileRef={beforeFileRef}
+            afterFileRef={afterFileRef}
+            onPhotoChange={handlePhotoChange}
             onRemove={handleRemovePhoto}
-          />
-          <input
-            ref={fileInputRef}
-            type="file" accept="image/*" multiple
-            onChange={handlePhotoChange}
-            style={{ display: "none" }}
           />
           <ExtraFeeInput value={extraFee} onChange={setExtraFee} onAdd={addExtra}/>
           <WorkMemoInput value={workMemo} onChange={setWorkMemo}/>
@@ -1285,6 +1279,100 @@ function WorkMemoInput({ value, onChange }) {
           fontFamily: "inherit",
         }}
       />
+    </div>
+  );
+}
+
+// ──────────────── 진행중 사진 (작업 전 / 후 박스 + 미리보기) ────────────────
+function PhotoSection({ photos, beforeFileRef, afterFileRef, onPhotoChange, onRemove }) {
+  const beforePhotos = photos.filter(p => p.step === "시작");
+  const afterPhotos  = photos.filter(p => p.step === "완료");
+  return (
+    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+      {/* 박스 2개 — 작업 전 / 작업 후 */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div onClick={() => beforeFileRef.current?.click()}
+             style={{
+               background: "var(--card-bg)",
+               borderRadius: 8,
+               border: "1px dashed #FF1B8D",
+               padding: 12, minHeight: 100,
+               display: "flex", flexDirection: "column",
+               alignItems: "center", justifyContent: "center",
+               cursor: "pointer",
+             }}>
+          <Camera size={28} color="#FF1B8D"/>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginTop: 6 }}>작업 전</div>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>{beforePhotos.length}장</div>
+        </div>
+        <div onClick={() => afterFileRef.current?.click()}
+             style={{
+               background: "var(--card-bg)",
+               borderRadius: 8,
+               border: afterPhotos.length > 0 ? "1px dashed #FF1B8D" : "1px dashed var(--border)",
+               padding: 12, minHeight: 100,
+               display: "flex", flexDirection: "column",
+               alignItems: "center", justifyContent: "center",
+               cursor: "pointer",
+             }}>
+          <Camera size={28} color={afterPhotos.length > 0 ? "#FF1B8D" : "var(--text-secondary)"}/>
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginTop: 6 }}>작업 후</div>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>{afterPhotos.length}장</div>
+        </div>
+      </div>
+
+      {/* 미리보기 — 작업 전 / 작업 후 */}
+      <PhotoPreview label="작업 전 사진" photos={beforePhotos} allPhotos={photos} onRemove={onRemove}/>
+      <PhotoPreview label="작업 후 사진" photos={afterPhotos}  allPhotos={photos} onRemove={onRemove}/>
+
+      <input ref={beforeFileRef} type="file" accept="image/*" capture="environment" multiple
+             onChange={(e) => onPhotoChange(e, "시작")} style={{ display: "none" }}/>
+      <input ref={afterFileRef}  type="file" accept="image/*" capture="environment" multiple
+             onChange={(e) => onPhotoChange(e, "완료")} style={{ display: "none" }}/>
+    </div>
+  );
+}
+
+function PhotoPreview({ label, photos, allPhotos, onRemove }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6 }}>
+        {label} ({photos.length})
+      </div>
+      {photos.length === 0 ? (
+        <div style={{
+          fontSize: 11, color: "var(--text-tertiary)", textAlign: "center",
+          padding: 12, background: "var(--card-bg)", borderRadius: 6,
+          border: "0.5px solid var(--border)",
+        }}>
+          아직 박지 X
+        </div>
+      ) : (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+          {photos.map(p => {
+            const realIdx = allPhotos.findIndex(x => x.url === p.url && x.step === p.step);
+            return (
+              <div key={`${p.url}-${p.step}`} style={{
+                aspectRatio: "1", background: "var(--surface-secondary)",
+                borderRadius: 6, position: "relative", overflow: "hidden",
+              }}>
+                <img src={p.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }}/>
+                <button onClick={(e) => { e.stopPropagation(); onRemove(realIdx); }}
+                        style={{
+                          position: "absolute", top: 2, right: 2,
+                          background: "rgba(0,0,0,0.5)", color: "#fff",
+                          width: 18, height: 18, borderRadius: "50%",
+                          border: "none", cursor: "pointer",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          padding: 0,
+                        }}>
+                  <X size={10}/>
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
