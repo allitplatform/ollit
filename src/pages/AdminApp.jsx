@@ -5459,6 +5459,11 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
   // 2026-05-17 Round 2 Fix #17 — 메인 매출 / 정산 탭과 동일 dataset 사용:
   //   { completedAt 오늘 (KST), status='완료', isTrackARemittance() = true }
   // 옛 scheduledDate 비교는 어제 완료된 작업이 오늘 예정이면 잡혀 메인과 불일치.
+  //
+  // 2026-05-17 Round 2 Fix #18 — 사장님 spec 확정: 작업 탭은 "오늘 모니터링".
+  // initialFilter 없는 일반 진입(하단 탭 등)에서도 오늘 작업만 표시.
+  // 트랙 🅐/🅑 모두 노출(작업 진행 모니터링 목적 — 정산/매출 dataset과 다름).
+  // "오늘 작업" = 오늘 일정 OR 오늘 완료 (어제 일정 ↔ 오늘 완료 케이스 catch).
   const isCompletedToday = initialFilter === "completed-today";
   const todayStr = todayYmd();
   const base = isCompletedToday
@@ -5468,7 +5473,15 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
         if (!completed) return false;
         return toKstYmd(completed) === todayStr;
       })
-    : dataSource;
+    : dataSource.filter((s) => {
+        const scheduled = s.scheduledDate
+          || (s.scheduledAt ? toKstYmd(s.scheduledAt) : "")
+          || (s.service_scheduled_at ? toKstYmd(s.service_scheduled_at) : "");
+        const completed = (s.completedAt || s.completed_at)
+          ? toKstYmd(s.completedAt || s.completed_at)
+          : "";
+        return scheduled === todayStr || completed === todayStr;
+      });
 
   // 검색: 고객명 / 지역 / 작업종류 / 기사명 / 외근 note
   const q = query.trim().toLowerCase();
