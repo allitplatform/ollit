@@ -26,7 +26,10 @@ const PAYMENT_SELECT = `
     owner_amount,
     is_balanced,
     status,
-    computed_at
+    computed_at,
+    engineer_remitted_at,
+    engineer_remit_confirmed_at,
+    engineer_remit_confirmed_by
   )
 `;
 
@@ -125,6 +128,11 @@ export function rowToTask(row) {
     calc_method:      payment?.calc_method      || null,
     payment_status:   payment?.status           || null,
     is_balanced:      payment?.is_balanced      ?? null,
+
+    // 2026-05-17 Migration 025 — 기사 → 회사 송금 흐름
+    engineerRemittedAt:       payment?.engineer_remitted_at        || null,
+    engineerRemitConfirmedAt: payment?.engineer_remit_confirmed_at || null,
+    engineerRemitConfirmedBy: payment?.engineer_remit_confirmed_by || null,
 
     _source: "supabase",
   };
