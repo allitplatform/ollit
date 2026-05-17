@@ -3388,7 +3388,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
         {activeTab === "engineers"  && <EngineersTab t={t} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
           <div style={{ padding: "0 16px 16px" }}>
-            <SettlementContent t={t} onTaskClick={onTaskClick} onClickManagePrincipals={onClickManagePrincipals}/>
+            <SettlementContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick} onClickManagePrincipals={onClickManagePrincipals}/>
           </div>
         )}
       </div>
@@ -4955,6 +4955,12 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter }) {
   const activeCount = TASKS_TODAY.filter(
     (s) => (s.type === "work" && (s.state === "active" || s.state === "moving")) || s.type === "external"
   ).length;
+  // 2026-05-17 Round 1 Fix #4 — 메인 "완료" 카드 진입 시 헤더 분기.
+  // "실시간"은 진행 중 작업 전용 표현이므로 완료 컨텍스트에선 사용 X.
+  const isCompletedToday = initialFilter === "completed-today";
+  const completedCount = isCompletedToday
+    ? TASKS_TODAY.filter(s => s.type === "work" && s.state === "done").length
+    : 0;
   return (
     <div className="fade-in">
       <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
@@ -4962,9 +4968,15 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter }) {
           <ArrowLeft size={18}/>
         </button>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 16, fontWeight: 800 }}>실시간 작업 현황</div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>
+            {isCompletedToday ? "오늘 완료 작업" : "실시간 작업 현황"}
+          </div>
           <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
-            활성 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{activeCount}</span>건 · 전체 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{TASKS_TODAY.length}</span>건
+            {isCompletedToday ? (
+              <>총 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{completedCount}</span>건</>
+            ) : (
+              <>활성 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{activeCount}</span>건 · 전체 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{TASKS_TODAY.length}</span>건</>
+            )}
           </div>
         </div>
       </div>
@@ -5135,11 +5147,24 @@ function SettlementScreen({ t, onBack, onTaskClick, onClickManagePrincipals }) {
 }
 
 // Step 5-3 — 정산 콘텐츠 분리: SettlementScreen (헤더+합계) + 대시보드 정산 탭에서 공유
-function SettlementContent({ t, onTaskClick, onClickManagePrincipals, containerPadding, tabPadding }) {
+function SettlementContent({ t, apiTasks = [], onTaskClick, onClickManagePrincipals, containerPadding, tabPadding }) {
   const [activeTab, setActiveTab] = useState("engineers");  // "engineers" | "principals"
   const [expanded, setExpanded] = useState(() => new Set());
 
-  const doneTasks = getTodayDoneTasks();
+  // 2026-05-17 Round 1 Fix #3 — apiTasks 우선 (진짜 DB 데이터), 없으면 mock fallback.
+  // 필터: dashboardStats.completed와 동일(scheduledAt 오늘 + status='완료'/'정산완료').
+  // 이렇게 해야 메인 "완료" 카드 카운트와 정산 탭 건수가 일치.
+  const doneTasks = (apiTasks && apiTasks.length > 0)
+    ? (() => {
+        const todayStr = todayYmd();
+        return apiTasks.filter(t => {
+          const status = String(t.status || "").trim();
+          if (status !== "완료" && status !== "정산완료") return false;
+          const sched = String(t.scheduledAt || t.scheduledDate || "");
+          return sched.startsWith(todayStr);
+        });
+      })()
+    : getTodayDoneTasks();
   const engineerGroups = groupDoneByEngineer(doneTasks);
   const principalGroups = groupDoneByPrincipal(doneTasks);
 
