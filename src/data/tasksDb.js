@@ -924,7 +924,23 @@ export async function changePriceAdapter(taskId, newPrice, addAmount, reason) {
   if (newPrice  !== undefined && newPrice  !== null) updates.productPrice = Number(newPrice)  || 0;
   if (addAmount !== undefined && addAmount !== null) updates.extraFee     = Number(addAmount) || 0;
   if (reason)                                        updates.extraReason  = String(reason);
-  return updateTaskAdapter(taskId, updates);
+  const res = await updateTaskAdapter(taskId, updates);
+
+  // 2026-05-17 — extra_fee 변경 시 payments 선행 재계산.
+  // trigger_compute_payment는 status='완료'에서만 발화하므로 진행중 단계 변경분은 stale.
+  // 완료 확인 화면이 표시할 engineer_amount가 정확하도록 여기서 미리 박아둠. idempotent.
+  if (res.ok) {
+    try {
+      const { error } = await supabase.rpc('compute_payment', { p_task_id: taskId });
+      if (error) {
+        console.warn('[changePriceAdapter] compute_payment 실패 (금액 변경은 통과):', error.message);
+      }
+    } catch (e) {
+      console.warn('[changePriceAdapter] compute_payment 예외 (금액 변경은 통과):', e.message);
+    }
+  }
+
+  return res;
 }
 
 // 기사 측 자동 배정 수락 — 시트 acceptOffer(taskId, engineerName) 어댑터

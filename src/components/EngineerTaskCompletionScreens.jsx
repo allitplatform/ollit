@@ -7,6 +7,26 @@ import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { calculateCommissionMultiRpc, PRINCIPAL_NAME_TO_CODE } from "../lib/commissionPoliciesDb.js";
+import { supabase } from "../lib/supabase.js";
+
+// 2026-05-17 — 진행중 상태는 trigger_compute_payment가 발화하지 않아 payments가 stale.
+// 완료 확인 화면 mount 시 RPC를 직접 호출해서 재계산 후 payments를 다시 읽어옴.
+async function recomputeAndFetchEarning(taskId) {
+  const { error: rpcErr } = await supabase.rpc('compute_payment', { p_task_id: taskId });
+  if (rpcErr) {
+    console.warn('[TaskCompletionScreens] compute_payment 실패:', rpcErr.message);
+  }
+  const { data, error: selErr } = await supabase
+    .from('payments')
+    .select('engineer_amount')
+    .eq('task_id', taskId)
+    .maybeSingle();
+  if (selErr) {
+    console.warn('[TaskCompletionScreens] payments refetch 실패:', selErr.message);
+    return null;
+  }
+  return data?.engineer_amount ?? null;
+}
 
 // principalId (code) → principalName 역변환 박은 spec (catch #8 후속 fix)
 const PRINCIPAL_CODE_TO_NAME = Object.fromEntries(
@@ -102,7 +122,7 @@ function CustomerCard({ task, accentColor, subText }) {
 // ───────────────────────────────────────────────
 // V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X)
 // ───────────────────────────────────────────────
-function EarningOnlyCard({ amount, color = "#FF1B8D", subText }) {
+function EarningOnlyCard({ amount, color = "#FF1B8D", subText, loading = false }) {
   return (
     <div style={{
       margin: "0 16px 14px",
@@ -120,11 +140,16 @@ function EarningOnlyCard({ amount, color = "#FF1B8D", subText }) {
         <span style={{ fontSize: 15 }}>💰</span> 내 수익
       </div>
       <div style={{
-        fontSize: 44, fontWeight: 700,
-        color, letterSpacing: "-1.5px",
-        lineHeight: 1, marginBottom: subText ? 10 : 0,
+        fontSize: loading ? 20 : 44,
+        fontWeight: 700,
+        color: loading ? "var(--text-secondary)" : color,
+        letterSpacing: loading ? 0 : "-1.5px",
+        lineHeight: 1,
+        marginBottom: subText ? 10 : 0,
+        minHeight: 44,
+        display: "flex", alignItems: "center", justifyContent: "center",
       }}>
-        ₩{(amount || 0).toLocaleString("ko-KR")}
+        {loading ? "계산 중..." : `₩${(amount || 0).toLocaleString("ko-KR")}`}
       </div>
       {subText && (
         <div style={{
@@ -411,26 +436,39 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   const extraFee   = task.extraFee || 0;
   // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec (compute_payment v7)
   const total      = baseAmount + extraFee;
-  // 2026-05-17 catch #8 fix — 진행중 박은 spec 측 payments 박지 X 박은 spec → client RPC fallback
+  // 2026-05-17 — 진행중 상태에선 trigger가 안 돌아 payments가 stale.
+  // mount 시 compute_payment RPC를 직접 호출해서 재계산한 뒤 payments를 refetch.
   const [earning, setEarning] = useState(task.engineer_amount || 0);
+  const [earningLoading, setEarningLoading] = useState(false);
   useEffect(() => {
-    if (task.engineer_amount && task.engineer_amount > 0) {
-      setEarning(task.engineer_amount);
-      return;
-    }
+    if (!task.id) return;
     let cancelled = false;
+    setEarningLoading(true);
     (async () => {
       try {
-        const res = await calculateCommissionMultiRpc({
-          principalName: task.principal || PRINCIPAL_CODE_TO_NAME[task.principalId] || "",
-          workItems:     task.workItems || [],
-          totalEstimate: baseAmount,
-        });
-        if (!cancelled && res?.ok) setEarning(res.engineer || 0);
-      } catch (e) { /* fail silent */ }
+        const fresh = await recomputeAndFetchEarning(task.id);
+        if (cancelled) return;
+        if (fresh != null) {
+          setEarning(fresh);
+        } else {
+          // DB 경로 실패 — client commission 계산으로 최종 fallback
+          try {
+            const res = await calculateCommissionMultiRpc({
+              principalName: task.principal || PRINCIPAL_CODE_TO_NAME[task.principalId] || "",
+              workItems:     task.workItems || [],
+              totalEstimate: baseAmount,
+            });
+            if (!cancelled && res?.ok) setEarning(res.engineer || 0);
+          } catch (e) { /* fail silent */ }
+        }
+      } catch (e) {
+        console.warn('[TaskCompleteScreen] mount 재계산 예외:', e.message);
+      } finally {
+        if (!cancelled) setEarningLoading(false);
+      }
     })();
     return () => { cancelled = true; };
-  }, [task.id, task.engineer_amount, total]);
+  }, [task.id]);
   const commission = Math.max(0, total - earning); // 회사+원청 송금액 (= 수수료 합)
 
   function handleConfirm() {
@@ -447,7 +485,7 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
       <ScreenHeader title="✓ 작업 완료" onBack={onBack}/>
       <CustomerCard task={task} accentColor="#FF1B8D"/>
       {/* V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X) */}
-      <EarningOnlyCard amount={earning} color="#FF1B8D"/>
+      <EarningOnlyCard amount={earning} color="#FF1B8D" loading={earningLoading}/>
       <MemoBox label="📝 마무리 메모 (선택)" value={memo} onChange={setMemo}/>
       <MainAction label="✓ 완료 처리" color="#FF1B8D" onClick={handleConfirm}/>
     </Container>
@@ -468,26 +506,38 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const baseAmount     = totalQty > 0 ? Math.round(baseAmountFull * (actualQty / totalQty)) : 0;
   const extraFee       = task.extraFee || 0;
   // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec + qty 비례 박음
-  // 2026-05-17 catch #8 fix — 진행중 박은 spec 측 payments 박지 X 박은 spec → client RPC fallback
+  // 2026-05-17 — 진행중 상태에선 trigger가 안 돌아 payments가 stale.
+  // mount 시 compute_payment RPC를 직접 호출해서 재계산한 뒤 payments를 refetch.
   const [earningFull, setEarningFull] = useState(task.engineer_amount || 0);
+  const [earningLoading, setEarningLoading] = useState(false);
   useEffect(() => {
-    if (task.engineer_amount && task.engineer_amount > 0) {
-      setEarningFull(task.engineer_amount);
-      return;
-    }
+    if (!task.id) return;
     let cancelled = false;
+    setEarningLoading(true);
     (async () => {
       try {
-        const res = await calculateCommissionMultiRpc({
-          principalName: task.principal || PRINCIPAL_CODE_TO_NAME[task.principalId] || "",
-          workItems:     task.workItems || [],
-          totalEstimate: baseAmountFull,
-        });
-        if (!cancelled && res?.ok) setEarningFull(res.engineer || 0);
-      } catch (e) { /* fail silent */ }
+        const fresh = await recomputeAndFetchEarning(task.id);
+        if (cancelled) return;
+        if (fresh != null) {
+          setEarningFull(fresh);
+        } else {
+          try {
+            const res = await calculateCommissionMultiRpc({
+              principalName: task.principal || PRINCIPAL_CODE_TO_NAME[task.principalId] || "",
+              workItems:     task.workItems || [],
+              totalEstimate: baseAmountFull,
+            });
+            if (!cancelled && res?.ok) setEarningFull(res.engineer || 0);
+          } catch (e) { /* fail silent */ }
+        }
+      } catch (e) {
+        console.warn('[TaskPartialScreen] mount 재계산 예외:', e.message);
+      } finally {
+        if (!cancelled) setEarningLoading(false);
+      }
     })();
     return () => { cancelled = true; };
-  }, [task.id, task.engineer_amount, baseAmountFull]);
+  }, [task.id]);
   const earning        = totalQty > 0 ? Math.round(earningFull * (actualQty / totalQty)) : 0;
   const total          = baseAmount + extraFee;
   const commission     = Math.max(0, total - earning);
@@ -564,7 +614,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
       />
 
       {/* V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X) */}
-      <EarningOnlyCard amount={earning} color="#888" subText={`${actualQty}대 / ${totalQty}대 처리`}/>
+      <EarningOnlyCard amount={earning} color="#888" subText={`${actualQty}대 / ${totalQty}대 처리`} loading={earningLoading}/>
 
       {reasonId === "other" && (
         <MemoBox label="📝 사유 메모" value={memo} onChange={setMemo}/>
