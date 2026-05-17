@@ -5456,17 +5456,17 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
 
   // 2026-05-17 Round 1 Fix #2 — 메인 "완료" 카드 진입 시 오늘+완료 사전 필터.
   // 진입 경로별 base 데이터 셋을 좁힌 뒤 검색어 필터를 그 위에 얹는다.
-  // 2026-05-17 Round 2 — 날짜 비교는 KST 정규화(toKstYmd) 사용해 새벽 작업 누락 방지.
+  // 2026-05-17 Round 2 Fix #17 — 메인 매출 / 정산 탭과 동일 dataset 사용:
+  //   { completedAt 오늘 (KST), status='완료', isTrackARemittance() = true }
+  // 옛 scheduledDate 비교는 어제 완료된 작업이 오늘 예정이면 잡혀 메인과 불일치.
   const isCompletedToday = initialFilter === "completed-today";
   const todayStr = todayYmd();
   const base = isCompletedToday
     ? dataSource.filter((s) => {
-        const isDone = s.state === "done" || s.status === "완료" || s.status === "정산완료";
-        if (!isDone) return false;
-        const sched = s.scheduledDate
-          || (s.scheduledAt ? toKstYmd(s.scheduledAt) : "")
-          || (s.service_scheduled_at ? toKstYmd(s.service_scheduled_at) : "");
-        return sched === todayStr;
+        if (!isTrackARemittance(s)) return false;
+        const completed = s.completedAt || s.completed_at;
+        if (!completed) return false;
+        return toKstYmd(completed) === todayStr;
       })
     : dataSource;
 
