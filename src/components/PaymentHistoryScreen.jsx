@@ -233,47 +233,72 @@ function DailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
           padding: "8px 14px 14px 22px",
           background: expandedBg,
         }}>
-          {(data.works || []).map((w, idx, arr) => {
-            const colors = getWorkTypeColors(w.workType);
-            return (
-              <div key={w.id || idx}
-                onClick={() => onTaskClick && w.id && onTaskClick(w.id)}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "8px 0",
-                  borderBottom: idx < arr.length - 1 ? "0.5px solid var(--border)" : "none",
-                  cursor: w.id ? "pointer" : "default",
-                  gap: 8,
-                }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
-                  <span style={{
-                    fontSize: 12, color: colors.main, fontWeight: 700,
-                    flexShrink: 0, whiteSpace: "nowrap",
-                  }}>
-                    {colors.icon} {colors.name}
-                  </span>
-                  <span style={{
-                    fontSize: 13, color: "var(--text-primary)", fontWeight: 600,
+          {(data.works || []).map((w, idx, arr) => (
+            <div key={w.id || idx}
+              onClick={() => onTaskClick && w.id && onTaskClick(w.id)}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 16px",
+                borderBottom: idx < arr.length - 1 ? "0.5px solid var(--border)" : "none",
+                cursor: w.id ? "pointer" : "default",
+                gap: 10,
+              }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1, minWidth: 0 }}>
+                <WorkTypeBadge type={w.workType || "세척"}/>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 500,
+                    color: "var(--text-primary)",
                     overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                   }}>
                     {w.customerName || w.customer || "—"}
-                    {w.workItem ? ` · ${w.workItem}` : ""}
-                    {w.quantity ? ` ×${w.quantity}` : ""}
-                  </span>
+                  </div>
+                  <div style={{
+                    fontSize: 12, color: "var(--text-secondary)",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>
+                    {w.workItem || "—"}{w.quantity ? ` ×${w.quantity}` : ""}
+                  </div>
                 </div>
-                <span style={{
-                  fontSize: 13, color: "var(--text-primary)", fontWeight: 700,
-                  flexShrink: 0,
-                }}>
-                  +{(w.feeAmount || 0).toLocaleString("ko-KR")}원
-                </span>
               </div>
-            );
-          })}
+              <div style={{
+                fontSize: 14, fontWeight: 500,
+                color: "var(--text-primary)",
+                whiteSpace: "nowrap", flexShrink: 0,
+              }}>
+                +{(w.feeAmount || 0).toLocaleString("ko-KR")}원
+              </div>
+            </div>
+          ))}
         </div>
       )}
+    </div>
+  );
+}
+
+function WorkTypeBadge({ type }) {
+  const isCleaning = type === "세척";
+  const bg    = isCleaning ? "#E6F1FB" : "#FAEEDA";
+  const color = isCleaning ? "#0C447C" : "#854F0B";
+  const icon  = isCleaning ? "❄" : "⚡";
+  return (
+    <div style={{
+      background: bg,
+      color: color,
+      fontSize: 11,
+      padding: "3px 8px",
+      borderRadius: 8,
+      fontWeight: 500,
+      flexShrink: 0,
+      display: "flex",
+      alignItems: "center",
+      gap: 4,
+      whiteSpace: "nowrap",
+    }}>
+      <span style={{ fontSize: 10 }}>{icon}</span>
+      <span>{type}</span>
     </div>
   );
 }
