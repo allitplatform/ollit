@@ -186,7 +186,7 @@ function DailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
 
       {/* 헤더 (클릭 토글) */}
       <div onClick={onToggle} style={{
-        padding: "14px 14px 14px 18px",
+        padding: "10px 12px",
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
@@ -230,7 +230,7 @@ function DailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
       {isExpanded && (
         <div style={{
           borderTop: "0.5px solid var(--border)",
-          padding: "8px 12px 12px 16px",
+          padding: "4px 8px 8px 8px",
           background: expandedBg,
         }}>
           {(data.works || []).map((w, idx, arr) => (
@@ -240,12 +240,12 @@ function DailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "8px 12px",
+                padding: "6px 8px",
                 borderBottom: idx < arr.length - 1 ? "0.5px solid var(--border)" : "none",
                 cursor: w.id ? "pointer" : "default",
-                gap: 8,
+                gap: 6,
               }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
                 <WorkTypeBadge type={w.workType || "세척"}/>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
