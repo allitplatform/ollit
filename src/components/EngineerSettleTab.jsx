@@ -13,7 +13,11 @@ function getEarning(t) {
 function getRevenue(t) {
   // 사장님 spec: "기사 수익 제외 전체가 회사 수수료"
   // totalAmount = DB GENERATED (product + extra + travel + naver)
-  return t.totalAmount || 0;
+  // fallback: totalAmount 박지 X 박힐 spec 측 — product + extra + travel 합산
+  return t.totalAmount ||
+    (t.product_price || t.estimateTotal || 0) +
+    (t.extra_fee || t.extraFee || 0) +
+    (t.travel_fee || t.travelFee || 0);
 }
 
 // V14 v6 — 계좌 복사 (폴백 + 토스트 / 사장님 spec)
