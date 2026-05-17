@@ -3639,6 +3639,8 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
             taskCode: task.taskCode,
             time: task.time,
             principal: task.principal,
+            // 2026-05-17 Round 2 Fix #19 — EngineerCard의 "신규 +N" 카운트용
+            assignedAt: task.assignedAt || null,
           }));
         return {
           ...eng,
@@ -3789,9 +3791,16 @@ function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, enginee
 // V13-FINAL2-fix3 — 카드 클릭 = 그 기사 작업 인라인 펼침 (EngineerDay 진입 X)
 // +N 위치 = 진행중 배지 앞
 function EngineerCard({ t, eng, expanded, onToggle, onTaskClick }) {
-  const stats = getEngineerStats(eng.id, TODAY_DATE);
-  const items = stats.items || [];
-  const additionalCount = stats.todayAssigned || 0;
+  // 2026-05-17 Round 2 Fix #19 — 옛 getEngineerStats(eng.id, TODAY_DATE) 제거.
+  // 그 헬퍼는 ENGINEER_ASSIGNMENTS mock + 하드코딩된 "2026-04-27"을 읽어서
+  // 강병익 펼치면 정수아/박은서 등 mock customer 노출되던 root cause.
+  // EngineersTab에서 박은 실데이터 eng.todaySchedule 사용.
+  const items = Array.isArray(eng.todaySchedule) ? eng.todaySchedule : [];
+  // "신규 +N" 배지 = 오늘 새로 배정된 작업 수 (배정 공평성 모니터링)
+  const todayStr = todayYmd();
+  const additionalCount = items.filter(
+    item => item.assignedAt && toKstYmd(item.assignedAt) === todayStr
+  ).length;
 
   return (
     <>
@@ -5327,8 +5336,51 @@ function SettlementContent({ t, apiTasks = [], onTaskClick, onClickManagePrincip
   );
 }
 
+// 2026-05-17 Round 2 Fix #21 — 일별 통합 정산: 한 기사 = 한 상태.
+// 모든 작업의 engineer_remit_* 상태를 보고 통합 상태(4종)를 산출.
+//   confirmed = 모든 작업 운영자 확인 완료 (engineerRemitConfirmedAt 박힘)
+//   reported  = 모든 작업 기사 입금 보고 완료 (engineerRemittedAt 박힘) — 확인 대기
+//   overdue   = 23:00 KST 이후 + 일부 작업 보고 안 됨 (연체)
+//   pending   = 그 외 (미입금)
+function computeGroupStatus(tasks) {
+  if (!Array.isArray(tasks) || tasks.length === 0) return "pending";
+  if (tasks.every(t => t.engineerRemitConfirmedAt)) return "confirmed";
+  if (tasks.every(t => t.engineerRemittedAt)) return "reported";
+  const kstHourStr = new Date().toLocaleString("en-US", {
+    timeZone: "Asia/Seoul", hour: "numeric", hour12: false,
+  });
+  const kstHour = parseInt(kstHourStr, 10);
+  if (kstHour >= 23 && tasks.some(t => !t.engineerRemittedAt)) return "overdue";
+  return "pending";
+}
+
+function RemitStatusBadge({ status }) {
+  // pending / reported / confirmed / overdue
+  const MAP = {
+    pending:   { Icon: null,           bg: "rgba(180,178,169,0.18)", color: "#B4B2A9", label: "미입금" },
+    reported:  { Icon: Clock,          bg: "rgba(24,95,165,0.20)",   color: "#B5D4F4", label: "확인 대기" },
+    confirmed: { Icon: CheckCircle2,   bg: "rgba(15,110,86,0.25)",   color: "#9FE1CB", label: "입금 완료" },
+    overdue:   { Icon: AlertTriangle,  bg: "rgba(192,57,43,0.20)",   color: "#FF8E7F", label: "연체" },
+  };
+  const cfg = MAP[status] || MAP.pending;
+  const Icon = cfg.Icon;
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "2px 7px", borderRadius: 8,
+      background: cfg.bg, color: cfg.color,
+      fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+    }}>
+      {Icon && <Icon size={10} aria-hidden="true"/>}
+      {cfg.label}
+    </span>
+  );
+}
+
 function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
+  // 2026-05-17 Round 2 Fix #21 — 그룹 헤더에 통합 상태 배지
+  const groupStatus = computeGroupStatus(group.tasks);
 
   return (
     <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
@@ -5347,6 +5399,8 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
             size="sm"
           />
           <div style={{ flex: 1 }}/>
+          {/* 2026-05-17 Round 2 Fix #21 — 그룹 통합 상태 배지 */}
+          <RemitStatusBadge status={groupStatus}/>
           {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
         </div>
         <div style={{ fontSize: 11, color: t.textSecondary }}>
@@ -5358,7 +5412,11 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
       {open && (
         <div style={{ borderTop: `1px solid ${t.border}`, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
           {group.tasks.map((task) => {
-            const itemSummary = `${task.workType} ×${task.qty || 1}`;
+            // 2026-05-17 Round 2 Fix #20 — 사장님 spec: (모델×수량) + workType 아이콘.
+            // appliance(벽걸이/스탠드)를 모델로 표시, workType은 ⚡/❄ 아이콘으로 압축.
+            const itemSummary = `${task.appliance || "—"}×${task.qty || 1}`;
+            const WorkIcon = task.workType === "냉매충전" ? Zap : Snowflake;
+            const workColor = task.workType === "냉매충전" ? "#EF9F27" : "#5DCAA5";
             // 2026-05-17 Round 2 Fix #14 — 작업당 표시값 = principal + owner (= 회사+원청 수수료).
             // 그룹 합계(groupDoneByEngineer)와 동일 계산식.
             const earning = (Number(task.principal_amount) || 0) + (Number(task.owner_amount) || 0);
@@ -5372,7 +5430,7 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
                   display: "flex", alignItems: "center", gap: 6,
                 }}
               >
-                <CheckCircle2 size={12} style={{ color: t.success, flexShrink: 0 }}/>
+                <WorkIcon size={13} style={{ color: workColor, flexShrink: 0 }}/>
                 <span className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{task.time}</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{task.customer}</span>
                 <span style={{ fontSize: 11, color: t.textSecondary }}>({itemSummary})</span>
@@ -5609,109 +5667,101 @@ function ActivityGroupSection({ t, group, defaultOpen, onTaskClick }) {
   );
 }
 
+// 2026-05-17 Round 2 Fix #22 — 사장님 spec 🅒: 1줄 컴팩트 카드 (높이 ~38px).
+// 한 화면에 15~18건 모니터링 목적. 기사명을 작은 박스로 분리해 시각 영역 구분.
 function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
   const isExternal = task.type === "external";
-  // 외근: customer 슬롯 = note (앞부분), workType = "외근"
   const titleText = isExternal ? (task.note || "외근") : task.customer;
-  const workTypeText = isExternal ? "외근" : task.workType;
-  const qtyText = !isExternal && task.qty ? ` ×${task.qty}` : "";
   const commission = (showCompanyProfit && !isExternal && task.principal && task.state === "done") ? calculateCommission(task) : null;
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
 
-  // AdminApp-fix1 — 좌측 보더 무채색 / 우측 상단 작은 배지만 색
-  const isActive = task.state === "active";
-  const pillLabel = (() => {
-    if (isExternal) return "외근";
-    if (task.state === "active")    return "진행중";
-    if (task.state === "moving")    return "이동중";
-    if (task.state === "waiting")   return "대기";
-    if (task.state === "scheduled") return "예정";
-    if (task.state === "done")      return "완료";
+  // workType 아이콘 (사장님 spec): ⚡ 냉매(코랄) / ❄ 세척(청록)
+  const WorkIcon = task.workType === "냉매충전" ? Zap : Snowflake;
+  const workColor = task.workType === "냉매충전" ? "#EF9F27" : "#5DCAA5";
+
+  // 정보 텍스트: "(모델×수량) · 지역"
+  const infoBits = [];
+  if (!isExternal) {
+    infoBits.push(`(${task.appliance || "—"}×${task.qty || 1})`);
+  }
+  if (task.region) infoBits.push(task.region);
+  const infoText = infoBits.join(" · ");
+
+  // 상태 배지 (사장님 spec 색):
+  //   완료=그린계열 / 진행(active/moving)=블루계열 / 예정·대기=중성 / 외근=보라
+  const pill = (() => {
+    if (isExternal)              return { bg: "rgba(127,119,221,0.18)", color: "#C8C2F1", label: "외근" };
+    if (task.state === "done")   return { bg: "#0F6E56", color: "#9FE1CB", label: "완료" };
+    if (task.state === "active") return { bg: "#185FA5", color: "#B5D4F4", label: "진행" };
+    if (task.state === "moving") return { bg: "#185FA5", color: "#B5D4F4", label: "이동" };
+    if (task.state === "waiting")   return { bg: "#2c2c2a", color: "#B4B2A9", label: "대기" };
+    if (task.state === "scheduled") return { bg: "#2c2c2a", color: "#B4B2A9", label: "예정" };
     return null;
-  })();
-  const pillCfg = (() => {
-    if (isExternal)                 return { bg: "rgba(127,119,221,0.15)",  color: "#7F77DD" }; // 외근 = 보라
-    if (task.state === "active")    return { bg: "rgba(255,27,141,0.15)",   color: "#FF1B8D" }; // 진행중 = 핫핑크
-    if (task.state === "moving")    return { bg: "rgba(255,179,0,0.15)",    color: "#FFB300" }; // 이동중 = 노랑
-    if (task.state === "done")      return { bg: "rgba(0,135,90,0.15)",     color: "#00875A" }; // 완료 = 그린
-    return { bg: t.bgInset || t.bgElevated, color: t.textSecondary };                            // 대기/예정 = 무채색
   })();
 
   return (
-    <div onClick={onClick} className="clickable" style={{
-      background: t.bgElevated,
-      border: `1px solid ${t.border}`,
-      borderLeft: `3px solid ${t.border}`,  // 무채색 통일
-      borderRadius: 10, padding: "10px 12px",
-      position: "relative",
-    }}>
-      {/* 우측 상단 상태 배지 — 작게 + 종류색 */}
-      {pillLabel && (
-        <div style={{
-          position: "absolute", top: 8, right: 8,
-          background: pillCfg.bg,
-          color: pillCfg.color,
-          padding: "2px 8px", borderRadius: 10,
-          fontSize: 9, fontWeight: 700,
-        }}>
-          {pillLabel}
-        </div>
-      )}
-
-      {/* 1행: 고객(또는 외근 note) — dot 제거 (알약으로 대체) */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, gap: 6, paddingRight: 56 }}>
+    <>
+      <div onClick={onClick} className="clickable" style={{
+        background: t.bgElevated,
+        border: `1px solid ${t.border}`,
+        borderRadius: 8,
+        padding: "8px 10px",
+        display: "flex", alignItems: "center", gap: 8,
+        minHeight: 38,
+      }}>
+        {/* workType 아이콘 */}
+        {!isExternal && (
+          <WorkIcon size={13} style={{ color: workColor, flexShrink: 0 }}/>
+        )}
+        {/* 고객명 */}
         <span style={{
-          fontSize: 13, fontWeight: 800, color: t.text,
-          flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          fontSize: 12, fontWeight: 500, color: t.text,
+          flexShrink: 0,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          maxWidth: 90,
         }}>{titleText}</span>
-      </div>
-
-      {/* 2행: workType · region */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: t.textSecondary, marginBottom: 4 }}>
-        {!isExternal && <ServiceTypeIcon workType={task.workType} size={12} showLabel={false}/>}
-        <span style={{ fontWeight: 600, color: t.text }}>{workTypeText}{qtyText}</span>
-        {task.region && (
-          <>
-            <span style={{ color: t.textDim }}>·</span>
-            <span style={{
-              flex: 1, minWidth: 0, color: t.textMuted,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>{task.region}</span>
-          </>
-        )}
-      </div>
-
-      {/* 3행: 시간 · EngineerBadge › */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11 }}>
-        <Clock size={11} style={{ color: t.textMuted, flexShrink: 0 }}/>
-        <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{task.time}</span>
-        <span style={{ color: t.textDim }}>·</span>
+        {/* (모델×수량) · 지역 */}
+        <span style={{
+          fontSize: 11, fontWeight: 400, color: "#888",
+          flex: 1, minWidth: 0,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{infoText}</span>
+        {/* 기사명 박스 */}
         {task.engineer && (
-          <EngineerBadge
-            engineer={{ name: task.engineer, careerLevel: getCareerLevel({ rank: task.engineerRank, level: task.engineerLevel }) }}
-            role={task.engineerLevel === "main" ? "main" : (task.engineerLevel === "backup" || task.engineerLevel === "sub") ? "backup" : null}
-            size="sm"
-          />
+          <span style={{
+            fontSize: 11, fontWeight: 500, color: "#ddd",
+            background: "#2a2a2a",
+            padding: "2px 8px", borderRadius: 4,
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+          }}>{task.engineer}</span>
         )}
-        <div style={{ flex: 1 }}/>
-        <ChevronRight size={13} style={{ color: t.textMuted, flexShrink: 0 }}/>
+        {/* 상태 배지 */}
+        {pill && (
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            padding: "2px 7px", borderRadius: 8,
+            background: pill.bg, color: pill.color,
+            flexShrink: 0, whiteSpace: "nowrap",
+          }}>{pill.label}</span>
+        )}
       </div>
 
-      {/* 회사 수익 (기사 상세 완료 그룹에서만 노출 — 사장님 catch: 색깔 X / 임시 라벨) */}
+      {/* 회사 수익 (ActivityGroupSection의 showCompanyProfit 경로만 노출 — 임시 라벨) */}
       {commission && (
         <div style={{
-          marginTop: 6, paddingTop: 6,
-          borderTop: `1px dashed ${t.border}`,
+          margin: "0 0 6px 12px",
           display: "flex", alignItems: "center", gap: 6, fontSize: 11,
+          color: t.textMuted,
         }}>
-          <span style={{ fontSize: 11 }}>🏢</span>
-          <span style={{ color: t.textMuted, fontWeight: 600 }}>회사 수익</span>
+          <span>🏢</span>
+          <span style={{ fontWeight: 600 }}>회사 수익</span>
           <span className="mono" style={{ color: t.textSecondary, fontWeight: 700 }}>{fmtKRW(commission.amount)}</span>
           <div style={{ flex: 1 }}/>
-          <span style={{ fontSize: 9, color: t.textMuted, fontStyle: "italic" }}>임시</span>
+          <span style={{ fontSize: 9, fontStyle: "italic" }}>임시</span>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
