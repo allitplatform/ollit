@@ -3856,9 +3856,19 @@ export default function EngineerApp({ user, onLogout }) {
 
   // V13-FINAL2 — 4탭 mock 데이터
   const todayStr = todayYmd();
+  // 캘린더/홈용 — 오늘 예약 작업 (기존 의미 유지)
   const todayTasks = tasks.filter(x =>
     x.scheduledDate === todayStr
   );
+  // 정산용 — 오늘(KST) 완료 작업 (completedAt 기준)
+  const todayCompletedTasks = tasks.filter(x => {
+    if (x.status !== "완료") return false;
+    if (!x.completedAt) return false;
+    const d = new Date(x.completedAt);
+    if (isNaN(d.getTime())) return false;
+    const kstYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return kstYmd === todayStr;
+  });
 
   // V14 v6 — 사장님 시뮬 5/1~5/5 완료 13건 합계 (ENABLE_MOCK 분기 / Step 5-7-E)
   const _MONTH_STATS_MOCK = {
@@ -3983,9 +3993,9 @@ export default function EngineerApp({ user, onLogout }) {
   // 오늘 = todayTasks의 완료 작업 자동 합산 (실시간)
   // 어제 이후 = 입금 완료
   const dateOffsetIso = dateOffsetYmd;
-  // 오늘 미입금 — todayTasks 완료 작업 (유솔N 제외) 자동
-  const todayCompletedNonUsolN = todayTasks.filter(
-    t => t.status === "완료" && t.client !== "유솔홈케어 N"
+  // 오늘 미입금 — 오늘 완료 작업 (유솔N 제외) 자동
+  const todayCompletedNonUsolN = todayCompletedTasks.filter(
+    t => t.client !== "유솔홈케어 N"
   );
   const todayPendingWorks = todayCompletedNonUsolN.map(t => ({
     id: t.id,
@@ -4275,7 +4285,7 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "settlement" && (
           <EngineerSettleTab
             engineer={engineerProfile}
-            todayTasks={todayTasks}
+            todayTasks={todayCompletedTasks}
             monthStats={monthStats}
             usolN={usolN}
             onClickToday={() => setScreen("settlementDetail")}
@@ -4290,7 +4300,7 @@ export default function EngineerApp({ user, onLogout }) {
         {/* 정산 상세 (V14 NEW) */}
         {screen === "settlementDetail" && (
           <EngineerSettlementDetailScreen
-            todayTasks={todayTasks}
+            todayTasks={todayCompletedTasks}
             onBack={goBack}
             onTaskClick={(task) => { setSelectedTaskId(task.id); setScreen("detail"); }}
           />
