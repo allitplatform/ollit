@@ -4035,14 +4035,6 @@ export default function EngineerApp({ user, onLogout }) {
       }));
       const totalAmount = works.reduce((s, w) => s + (w.feeAmount || 0), 0);
 
-      // [DEBUG remit] 박은 spec 측 — 임시 catch 박은 spec (catch 박은 후 박지 X)
-      console.log('[remit debug]', date, dateTasks.map(t => ({
-        taskNo: t.taskNo,
-        engineerRemittedAt: t.engineerRemittedAt,
-        engineerRemitConfirmedAt: t.engineerRemitConfirmedAt,
-        payment: t.payment,
-      })));
-
       // 4상태 자동 계산 (사장님 spec)
       const allRemitted  = dateTasks.every(t => t.engineerRemittedAt);
       const allConfirmed = dateTasks.every(t => t.engineerRemitConfirmedAt);

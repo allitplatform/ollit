@@ -179,6 +179,10 @@ export function v14NormalizeTask(t) {
     calc_method:      t.calc_method      ?? null,
     payment_status:   t.payment_status   ?? null,
     is_balanced:      t.is_balanced      ?? null,
+    // 2026-05-17 Migration 025 — 기사 → 회사 송금 흐름
+    engineerRemittedAt:       t.engineerRemittedAt       || null,
+    engineerRemitConfirmedAt: t.engineerRemitConfirmedAt || null,
+    engineerRemitConfirmedBy: t.engineerRemitConfirmedBy || null,
 
     _api: true,
   };
