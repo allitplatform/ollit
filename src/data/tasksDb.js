@@ -42,6 +42,15 @@ export function rowToTask(row) {
   // 2026-05-16 Phase 4 통합 2-C — payments JOIN 박은 spec (one-to-many 박지만 1 task = 1 payment)
   const paymentRaw = Array.isArray(row.payment) ? row.payment[0] : row.payment;
   const payment = paymentRaw || null;
+  // [DEBUG remit] 박은 spec 측 — payment object 측 keys catch 박을 spec (catch 박은 후 박지 X)
+  if (payment && row.task_no) {
+    console.log('[remit-mapping]', row.task_no, {
+      payment_isArray: Array.isArray(row.payment),
+      payment_eRA: payment.engineer_remitted_at,
+      payment_eRCA: payment.engineer_remit_confirmed_at,
+      payment_keys: Object.keys(payment),
+    });
+  }
   return {
     // 식별
     id:           row.id,
