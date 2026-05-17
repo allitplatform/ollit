@@ -17,6 +17,18 @@ export function todayYmd() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// 2026-05-17 — ISO/Date 값을 KST 로컬 "YYYY-MM-DD"로 변환.
+// todayYmd()와 동일한 변환 규칙(브라우저 로컬 = 한국 사용자 기준 KST).
+// 비교 시 String(value).slice(0,10) 박지 X — UTC 자정 넘은 KST 새벽 시각이
+// 전날 UTC 날짜로 잡혀 매출/카운트 mismatch 일으킴.
+// 사용처: dashboardStats의 isCreatedToday/isScheduledToday/revenueBase 비교.
+export function toKstYmd(value) {
+  if (!value) return "";
+  const d = (value instanceof Date) ? value : new Date(value);
+  if (isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 // 오늘 + days offset (KST local) "YYYY-MM-DD"
 export function dateOffsetYmd(days) {
   const d = new Date();

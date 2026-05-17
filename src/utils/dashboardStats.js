@@ -3,7 +3,7 @@
 // 추후 Phase 2 — Supabase 연결 시 동일 인터페이스 사용
 
 import { filterTasksForUser, canSeeField } from "../data/permissions.js";
-import { todayYmd } from "./dateLabel.js";
+import { todayYmd, toKstYmd } from "./dateLabel.js";
 import { isTrackARemittance } from "./remitFilter.js";
 
 // 오늘 0시 ~ 24시
@@ -54,9 +54,11 @@ export function computeDashboardStats({
   //   진행중    = N열(확정일) 오늘 + 진행중
   //   완료      = N열 오늘 + 완료
   const todayStr = todayYmd();
+  // 2026-05-17 — UTC ISO 문자열 .startsWith(todayStr) 박지 X (KST 새벽 작업이 전날 UTC로 잡힘).
+  // toKstYmd가 KST 로컬 날짜로 정규화 후 비교 → 시간대 mismatch 해결.
   const isCreatedToday = (t) => {
-    const b = String(t.createdAt || t.receivedAt || t.접수일시 || t.B || "");
-    if (b.startsWith(todayStr)) return true;
+    const b = t.createdAt || t.receivedAt || t.접수일시 || t.B || "";
+    if (b && toKstYmd(b) === todayStr) return true;
     const idStr = String(t.id || t.taskId || t.작업번호 || "");
     const m = idStr.match(/(\d{6})-/);
     if (m) {
@@ -66,8 +68,8 @@ export function computeDashboardStats({
     return false;
   };
   const isScheduledToday = (t) => {
-    const n = String(t.scheduledAt || t.확정일시 || t.confirmedAt || t.N || "");
-    return n.startsWith(todayStr);
+    const n = t.scheduledAt || t.확정일시 || t.confirmedAt || t.N || "";
+    return !!n && toKstYmd(n) === todayStr;
   };
 
   const newReceptionTasks = uniqueTasks.filter(t => _v14HasStatus(t, "미배정"));
@@ -96,7 +98,8 @@ export function computeDashboardStats({
       if (!isTrackARemittance(t)) return false;
       const completed = t.completedAt || t.completed_at || t.completedDate || t.완료시간 || t.completedTime;
       if (!completed) return false;
-      return String(completed).slice(0, 10) === today;
+      // 2026-05-17 — String slice 박지 X (UTC 자정 넘은 KST 새벽 작업이 전날로 잡힘).
+      return toKstYmd(completed) === today;
     });
     const total = revenueBaseTasks.reduce((s, t) =>
       s + Number(t.totalAmount || t.총금액 || t.estimateTotal || 0), 0
