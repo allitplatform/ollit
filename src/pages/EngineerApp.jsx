@@ -3608,6 +3608,13 @@ export default function EngineerApp({ user, onLogout }) {
   const updateTask = async (taskId, updates) => {
     if (!taskId) return;
     console.log('[V14 EngineerApp] updateTask', { taskId, updates });
+    // [DEBUG remit-update] extraFee 박혀있나 catch
+    console.log('[remit-update debug]', {
+      taskId,
+      updates_keys: Object.keys(updates),
+      extraFee: updates.extraFee,
+      extraFee_typeof: typeof updates.extraFee,
+    });
 
     // Optimistic Update (즉시 UI catch)
     setApiTasks(prev => prev.map(t =>

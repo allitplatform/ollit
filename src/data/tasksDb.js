@@ -207,6 +207,16 @@ export function taskToRow(task, partial = false) {
   if (task.externalPrincipalNo !== undefined) row.external_principal_no  = task.externalPrincipalNo;
   if (task.externalReceivedAt  !== undefined) row.external_received_at   = task.externalReceivedAt;
 
+  // [DEBUG remit-row] extraFee 매핑 catch
+  if (task.extraFee !== undefined || row.extra_fee !== undefined) {
+    console.log('[remit-row debug]', {
+      task_extraFee: task.extraFee,
+      task_extraFee_typeof: typeof task.extraFee,
+      row_extra_fee: row.extra_fee,
+      row_keys: Object.keys(row),
+    });
+  }
+
   return row;
 }
 

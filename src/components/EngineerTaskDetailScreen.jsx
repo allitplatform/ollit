@@ -282,6 +282,14 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       alert(`사진은 최소 ${PHOTO_MIN}장 필요합니다.`);
       return;
     }
+    // [DEBUG remit-complete] extraFee 흐름 catch
+    console.log('[remit-complete debug]', {
+      extraFee_state: extraFee,
+      extraFee_typeof: typeof extraFee,
+      extraFee_parsed: parseInt(extraFee || "0", 10),
+      workMemo: workMemo,
+      photos_count: photos.length,
+    });
     onUpdate && onUpdate(task.id, {
       status: "완료",
       completedAt: getCurrentTime(),
