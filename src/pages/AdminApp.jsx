@@ -5157,9 +5157,12 @@ function groupDoneByEngineer(tasks) {
       };
     }
     map[key].tasks.push(task);
-    // 2026-05-17 Round 1 Fix #6 — "정산금" = 기사 본인이 받을 돈(engineer_amount).
-    // 옛값 calculateCommission(task).amount는 회사+원청 수수료라 라벨과 의미 불일치였음.
-    map[key].total += Number(task.engineer_amount) || 0;
+    // 2026-05-17 Round 2 Fix #12 — 사장님 spec 재확인: "정산금" = 기사가 회사에
+    // 정산해야 할 돈 = total - engineer_amount = 회사 마진 + 원청 수수료.
+    // (Round 1 Fix #6에서 engineer_amount로 박았던 것 revert. 라벨 "정산금"의
+    // 사장님 멘탈 모델이 "기사→회사 정산해야 할 금액"이라 calculateCommission
+    // 결과가 맞음.)
+    map[key].total += calculateCommission(task).amount || 0;
   }
   return Object.values(map);
 }
@@ -5347,8 +5350,9 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick }) {
         <div style={{ borderTop: `1px solid ${t.border}`, padding: "8px 10px", display: "flex", flexDirection: "column", gap: 6 }}>
           {group.tasks.map((task) => {
             const itemSummary = `${task.workType} ×${task.qty || 1}`;
-            // 2026-05-17 Round 1 Fix #6 — 작업당 표시값도 기사 본인 정산액(engineer_amount).
-            const earning = Number(task.engineer_amount) || 0;
+            // 2026-05-17 Round 2 Fix #12 — 작업당 표시값도 회사 수수료(total - engineer_amount).
+            // 라벨 "정산금"의 의미를 그룹 합계와 동일하게 유지.
+            const earning = calculateCommission(task).amount || 0;
             return (
               <div
                 key={task.taskId}
