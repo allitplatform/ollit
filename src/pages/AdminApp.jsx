@@ -94,7 +94,7 @@ import { supabase } from "../lib/supabase.js";
 // StrictMode 측 cleanup → 2차 mount 측 early return 박은 영역 catch 박힘
 // → setCandidates 박지 X / 화면 "후보 없음" 박힘
 // 대안: DB 사전 조회 측만 박음 (UI 측 setCandidates 박힘 / DB 측 1회만 박힘)
-import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd } from "../utils/dateLabel.js";
+import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { isTrackARemittance } from "../utils/remitFilter.js";
 import {
   listNotifications as listStoredNotifications,
@@ -2335,6 +2335,7 @@ export default function AdminApp({ user, onLogout }) {
         onBack={() => { goBack(); setLiveWorkFilter(null); }}
         onTaskClick={(task) => goTaskDetail(task, "liveWork")}
         initialFilter={liveWorkFilter}
+        apiTasks={apiTasks}
       />
     </Shell>;
   }
@@ -3394,7 +3395,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
         </div>
 
         {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception}/>}
-        {activeTab === "live"       && <LiveWorkContent t={t} onTaskClick={onTaskClick}/>}
+        {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
           <div style={{ padding: "0 16px 16px" }}>
@@ -4961,15 +4962,18 @@ const TASK_GROUPS = [
   { id: "done",      label: "완료",    colorKey: "textMuted",       predicate: (s) => s.type === "work"     && s.state === "done"    },
 ];
 
-function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter }) {
-  const activeCount = TASKS_TODAY.filter(
+function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [] }) {
+  // 2026-05-17 Round 2 Fix #9 — TASKS_TODAY 모의 데이터 대신 apiTasks 우선 사용.
+  // 빈 배열이면(개발/preview ENABLE_MOCK 토글) 옛 TASKS_TODAY로 fallback.
+  const baseSource = (apiTasks && apiTasks.length > 0) ? apiTasks : TASKS_TODAY;
+  const activeCount = baseSource.filter(
     (s) => (s.type === "work" && (s.state === "active" || s.state === "moving")) || s.type === "external"
   ).length;
   // 2026-05-17 Round 1 Fix #4 — 메인 "완료" 카드 진입 시 헤더 분기.
   // "실시간"은 진행 중 작업 전용 표현이므로 완료 컨텍스트에선 사용 X.
   const isCompletedToday = initialFilter === "completed-today";
   const completedCount = isCompletedToday
-    ? TASKS_TODAY.filter(s => s.type === "work" && s.state === "done").length
+    ? baseSource.filter(s => s.type === "work" && s.state === "done").length
     : 0;
   return (
     <div className="fade-in">
@@ -4985,13 +4989,13 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter }) {
             {isCompletedToday ? (
               <>총 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{completedCount}</span>건</>
             ) : (
-              <>활성 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{activeCount}</span>건 · 전체 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{TASKS_TODAY.length}</span>건</>
+              <>활성 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{activeCount}</span>건 · 전체 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{baseSource.length}</span>건</>
             )}
           </div>
         </div>
       </div>
       <div style={{ paddingTop: 14 }}>
-        <LiveWorkContent t={t} onTaskClick={onTaskClick} initialFilter={initialFilter}/>
+        <LiveWorkContent t={t} onTaskClick={onTaskClick} initialFilter={initialFilter} apiTasks={apiTasks}/>
       </div>
     </div>
   );
@@ -5381,29 +5385,34 @@ function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick }) {
   );
 }
 
-function LiveWorkContent({ t, onTaskClick, initialFilter }) {
+function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
   const [query, setQuery] = useState("");
+
+  // 2026-05-17 Round 2 Fix #9 — TASKS_TODAY 모의 데이터 대신 apiTasks 우선 사용.
+  // 빈 배열이면(개발/preview ENABLE_MOCK 토글) 옛 TASKS_TODAY로 fallback.
+  const dataSource = (apiTasks && apiTasks.length > 0) ? apiTasks : TASKS_TODAY;
 
   // 2026-05-17 Round 1 Fix #2 — 메인 "완료" 카드 진입 시 오늘+완료 사전 필터.
   // 진입 경로별 base 데이터 셋을 좁힌 뒤 검색어 필터를 그 위에 얹는다.
+  // 2026-05-17 Round 2 — 날짜 비교는 KST 정규화(toKstYmd) 사용해 새벽 작업 누락 방지.
   const isCompletedToday = initialFilter === "completed-today";
   const todayStr = todayYmd();
   const base = isCompletedToday
-    ? TASKS_TODAY.filter((s) => {
+    ? dataSource.filter((s) => {
         const isDone = s.state === "done" || s.status === "완료" || s.status === "정산완료";
         if (!isDone) return false;
         const sched = s.scheduledDate
-          || (s.scheduledAt ? String(s.scheduledAt).slice(0, 10) : "")
-          || (s.service_scheduled_at ? String(s.service_scheduled_at).slice(0, 10) : "");
+          || (s.scheduledAt ? toKstYmd(s.scheduledAt) : "")
+          || (s.service_scheduled_at ? toKstYmd(s.service_scheduled_at) : "");
         return sched === todayStr;
       })
-    : TASKS_TODAY;
+    : dataSource;
 
   // 검색: 고객명 / 지역 / 작업종류 / 기사명 / 외근 note
   const q = query.trim().toLowerCase();
   const filtered = !q ? base : base.filter((s) => {
     const fields = [
-      s.customer, s.region, s.workType, s.engineer, s.note,
+      s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note,
     ].filter(Boolean).join(" ").toLowerCase();
     return fields.includes(q);
   });
