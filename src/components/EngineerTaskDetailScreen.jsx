@@ -1325,9 +1325,9 @@ function PhotoSection({ photos, beforeFileRef, afterFileRef, onPhotoChange, onRe
       <PhotoPreview label="작업 전 사진" photos={beforePhotos} allPhotos={photos} onRemove={onRemove}/>
       <PhotoPreview label="작업 후 사진" photos={afterPhotos}  allPhotos={photos} onRemove={onRemove}/>
 
-      <input ref={beforeFileRef} type="file" accept="image/*" capture="environment" multiple
+      <input ref={beforeFileRef} type="file" accept="image/*" multiple
              onChange={(e) => onPhotoChange(e, "시작")} style={{ display: "none" }}/>
-      <input ref={afterFileRef}  type="file" accept="image/*" capture="environment" multiple
+      <input ref={afterFileRef}  type="file" accept="image/*" multiple
              onChange={(e) => onPhotoChange(e, "완료")} style={{ display: "none" }}/>
     </div>
   );
