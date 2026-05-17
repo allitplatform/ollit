@@ -3,9 +3,22 @@
 // 미입금 = 핫핑크 / 입금 완료 = 그린
 
 import { useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Clock, Check, AlertCircle } from "lucide-react";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { reportEngineerRemit } from "../lib/paymentsDb.js";
+
+async function handleReport(taskIds) {
+  if (!Array.isArray(taskIds) || taskIds.length === 0) return;
+  if (!confirm("이 날짜의 입금을 완료 보고할까요?")) return;
+  const res = await reportEngineerRemit(taskIds);
+  if (res.ok) {
+    alert("입금 완료 보고 박혔어요. 운영자 확인 대기 박힘.");
+    window.location.reload();
+  } else {
+    alert("박지 X: " + res.error);
+  }
+}
 
 function ymdMonth(ymd) { return ymd ? ymd.slice(0, 7) : ""; }
 function ymdMonthLabel(m) {
@@ -163,17 +176,31 @@ function SummaryStat({ label, amount, color }) {
 }
 
 function DailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
-  const isPending = data.status === "pending";
-  const barColor = isPending ? "#FF1B8D" : "#03C75A";
-  const amountColor = isPending ? "#FF1B8D" : "var(--text-primary)";
-  const expandedBg = isPending
-    ? (isDark ? "rgba(255,27,141,0.06)" : "#FFF5FA")
-    : (isDark ? "rgba(3,199,90,0.06)"  : "#F0FDF4");
+  const isPending   = data.status === "pending";
+  const isOverdue   = data.status === "overdue";
+  const isReported  = data.status === "reported";
+  const isConfirmed = data.status === "confirmed";
+  const isUnpaid    = isPending || isOverdue;  // 보고 박을 spec 측
+
+  const barColor =
+    isConfirmed ? "#04342C" :
+    isReported  ? "#0C447C" :
+    isOverdue   ? "#501313" :
+                  "#FF1B8D";
+  const amountColor = isUnpaid ? "#FF1B8D" : "var(--text-primary)";
+  const expandedBg =
+    isOverdue   ? (isDark ? "rgba(252,235,235,0.06)" : "#FCEBEB") :
+    isReported  ? (isDark ? "rgba(230,241,251,0.06)" : "#E6F1FB") :
+    isConfirmed ? (isDark ? "rgba(225,245,238,0.06)" : "#E1F5EE") :
+                  (isDark ? "rgba(255,27,141,0.06)"  : "#FFF5FA");
+  const cardBorder = isOverdue
+    ? "0.5px solid #F09595"
+    : `1px solid ${isUnpaid ? "rgba(255,27,141,0.25)" : "var(--border)"}`;
 
   return (
     <div style={{
       background: "var(--card-bg)",
-      border: `1px solid ${isPending ? "rgba(255,27,141,0.25)" : "var(--border)"}`,
+      border: cardBorder,
       borderRadius: 14,
       overflow: "hidden",
       position: "relative",
@@ -272,6 +299,27 @@ function DailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
               </div>
             </div>
           ))}
+          {/* 입금 완료 보고 버튼 — 미입금/연체만 박힘 */}
+          {isUnpaid && (
+            <div style={{ marginTop: 8, paddingTop: 8, borderTop: "0.5px solid var(--border)" }}>
+              <button
+                onClick={() => handleReport((data.works || []).map(w => w.id).filter(Boolean))}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  background: "#FF1B8D",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}>
+                💸 입금 완료 보고
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -306,17 +354,30 @@ function WorkTypeBadge({ type }) {
 }
 
 function StatusPill({ status }) {
-  const isPending = status === "pending";
+  // 사장님 spec: 4상태 (pending / reported / confirmed / overdue)
+  const config = {
+    pending:   { bg: "#F1EFE8", color: "#444441", Icon: null,        text: "미입금" },
+    reported:  { bg: "#E6F1FB", color: "#0C447C", Icon: Clock,       text: "확인대기" },
+    confirmed: { bg: "#E1F5EE", color: "#04342C", Icon: Check,       text: "입금완료" },
+    overdue:   { bg: "#FCEBEB", color: "#501313", Icon: AlertCircle, text: "연체" },
+  };
+  const c = config[status] || config.pending;
+  const Icon = c.Icon;
   return (
     <span style={{
-      fontSize: 11, fontWeight: 700,
-      padding: "2px 9px",
-      borderRadius: 999,
-      background: isPending ? "rgba(255,27,141,0.10)" : "rgba(3,199,90,0.10)",
-      color: isPending ? "#FF1B8D" : "#03C75A",
+      background: c.bg,
+      color: c.color,
+      fontSize: 11,
+      padding: "3px 8px",
+      borderRadius: 6,
+      fontWeight: 500,
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 4,
       whiteSpace: "nowrap",
     }}>
-      {isPending ? "미입금" : "✓ 입금"}
+      {Icon && <Icon size={11} aria-hidden="true"/>}
+      {c.text}
     </span>
   );
 }

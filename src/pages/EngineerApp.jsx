@@ -91,6 +91,7 @@ import { EngineerNotiTab } from "../components/EngineerNotiTab.jsx";
 import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
 import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
 import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
+import { reportEngineerRemit } from "../lib/paymentsDb.js";
 import { UsolNSettlementScreen } from "../components/UsolNSettlementScreen.jsx";
 import { ConfirmModal } from "../components/ConfirmModal.jsx";
 // V13-FINAL2-fix1 신규 화면
@@ -4033,9 +4034,24 @@ export default function EngineerApp({ user, onLogout }) {
         ),
       }));
       const totalAmount = works.reduce((s, w) => s + (w.feeAmount || 0), 0);
+
+      // 4상태 자동 계산 (사장님 spec)
+      const allRemitted  = dateTasks.every(t => t.engineerRemittedAt);
+      const allConfirmed = dateTasks.every(t => t.engineerRemitConfirmedAt);
+      // 연체 catch — 23:00 KST 마감 박은 spec 박지 X
+      const now = new Date();
+      const dateObj = new Date(date + "T23:00:00+09:00");
+      const isOverdue = !allRemitted && now > dateObj;
+
+      let status;
+      if (allConfirmed)       status = "confirmed";
+      else if (allRemitted)   status = "reported";
+      else if (isOverdue)     status = "overdue";
+      else                    status = "pending";
+
       return {
         date,
-        status: "pending",
+        status,
         deadline: "23:00",
         works,
         totalAmount,
@@ -4316,7 +4332,23 @@ export default function EngineerApp({ user, onLogout }) {
             onClickToday={() => setScreen("settlementDetail")}
             onClickUsolN={() => setScreen("usolNSettlement")}
             onClickPaymentHistory={() => setScreen("paymentHistory")}
-            onConfirmPaymentSent={() => alert("입금 완료 보고")}
+            onConfirmPaymentSent={async () => {
+              // 오늘 미입금/연체 그룹 박은 spec 측 task ids 박음
+              const todayStrLocal = todayYmd();
+              const todayGroup = payments.find(p => p.date === todayStrLocal);
+              if (!todayGroup || (todayGroup.status !== "pending" && todayGroup.status !== "overdue")) {
+                alert("오늘 미입금 작업 박지 X");
+                return;
+              }
+              if (!confirm("오늘 입금을 완료 보고할까요?")) return;
+              const res = await reportEngineerRemit(todayGroup.works.map(w => w.id));
+              if (res.ok) {
+                alert("입금 완료 보고 박혔어요. 운영자 확인 대기 박힘.");
+                window.location.reload();
+              } else {
+                alert("박지 X: " + res.error);
+              }
+            }}
             onTabChange={handleTabChange}
             unreadCount={unreadCount}
           />
