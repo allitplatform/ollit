@@ -3897,14 +3897,47 @@ export default function EngineerApp({ user, onLogout }) {
     earning: 808000, count: 13,
     avgPerDay: 1.5, totalHours: 18,
   };
-  const _MONTH_STATS_EMPTY = {
-    month: new Date().getMonth() + 1,
-    weekEarning: 0, weekCount: 0,
-    monthEarning: 0, monthCount: 0,
-    earning: 0, count: 0,
-    avgPerDay: 0, totalHours: 0,
-  };
-  const monthStats = ENABLE_MOCK ? _MONTH_STATS_MOCK : _MONTH_STATS_EMPTY;
+
+  // 2026-05-19 Fix #30 — 실제 task 기반 weekStats / monthStats 계산 (사장님 spec).
+  // 옛 _MONTH_STATS_EMPTY (항상 0) 폐기. completedAt KST 기준 필터 (월~일 / 1일~말일).
+  function _computeMonthStats(taskList) {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dow = today.getDay();   // 0=일, 1=월, ..., 6=토
+    const mondayOffset = dow === 0 ? -6 : 1 - dow;
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() + mondayOffset);
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 7);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const inRange = (t, start, end) => {
+      if (t.status !== '완료') return false;
+      if (!t.completedAt) return false;
+      const d = new Date(t.completedAt);
+      if (isNaN(d.getTime())) return false;
+      return d >= start && d < end;
+    };
+
+    const weekTasks  = (taskList || []).filter(t => inRange(t, weekStart, weekEnd));
+    const monthTasks = (taskList || []).filter(t => inRange(t, monthStart, monthEnd));
+    const sumEarning = (arr) => arr.reduce((s, t) => s + Number(t.engineer_amount || 0), 0);
+
+    return {
+      month:        now.getMonth() + 1,
+      weekEarning:  sumEarning(weekTasks),
+      weekCount:    weekTasks.length,
+      monthEarning: sumEarning(monthTasks),
+      monthCount:   monthTasks.length,
+      earning:      sumEarning(monthTasks),  // 옛 호환
+      count:        monthTasks.length,
+      avgPerDay:    0,                       // 미사용 (옛 호환)
+      totalHours:   0,                       // 미사용 (옛 호환)
+    };
+  }
+
+  const monthStats = ENABLE_MOCK ? _MONTH_STATS_MOCK : _computeMonthStats(tasks);
 
   // Step 5-7-E — 유솔N 받을 돈 분기
   const _USOL_N_MOCK = {
