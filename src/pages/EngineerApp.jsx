@@ -4004,8 +4004,9 @@ export default function EngineerApp({ user, onLogout }) {
   const dateOffsetIso = dateOffsetYmd;
 
   // 2026-05-17 Round 1 Fix #8 — 회사 송금 대기 공통 필터(트랙 🅐) 사용.
-  // 운영자 PWA SettlementContent와 동일 규칙으로 정합. 옛 client 이름 매칭
-  // 대신 calc_method 기반으로 usol_n 본작업/추가선택만 제외하고 usol_n 냉매점검은 포함.
+  // 운영자 PWA SettlementContent와 동일 규칙으로 정합.
+  // 2026-05-18 Fix #29 — 분류는 payments.track 컬럼(compute_payment v10 자동 결정).
+  // usol_n + non-refrigerant → 'B' 제외, 그 외 → 'A' 포함.
   const allPendingNonUsolN = tasks.filter(isTrackARemittance);
 
   // completedAt 기준 일자별 그룹화

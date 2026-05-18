@@ -64,7 +64,7 @@ export function v14NormalizeTask(t) {
   const settlement = t.settlementStatus || t.정산상태 || "";
 
   // 2026-05-10 — 정산 필드 (Hybrid 구조)
-  // GAS 응답에 engineerEarning 박혀있으면 그거 사용 (비밀 영역 KA/KB 세척)
+  // GAS 응답에 engineerEarning 있으면 그거 사용 (비밀 영역 KA/KB 세척)
   // 아니면 calcCommission lookup 후 계산 (일반 영역)
   const addonFee = Number(t.addonFee || t.현장추가금 || 0);
   const extraFee = Number(t.extraFee || t.추가금 || t.addAmount || 0);
@@ -118,8 +118,8 @@ export function v14NormalizeTask(t) {
     return "";
   })();
 
-  // 2026-05-16 Phase 4 통합 2-E #2 — commission 박은 spec 박지 X (DB payments 박은 spec 직접 박음)
-  // GAS 박지 X 박혀있어 호환 박지 X 박음. compute_payment v7 trigger 박은 spec — 작업 완료 시 자동 계산
+  // 2026-05-16 Phase 4 통합 2-E #2 — commission 별도 계산 안 함 (DB payments 결과 직접 사용)
+  // GAS 의존 제거 후 호환 코드도 제거. compute_payment v7 trigger spec — 작업 완료 시 자동 계산
 
   // 2026-05-11 진단 — window.__DEBUG_NORMALIZE 켜면 status 매핑 추적
   if (typeof window !== "undefined" && window.__DEBUG_NORMALIZE) {
@@ -153,7 +153,7 @@ export function v14NormalizeTask(t) {
     requestedTime: reqTime,
     scheduledAt,
     scheduledDate: fallbackScheduledDate,
-    // 2026-05-15 fix — KST 변환 (이전 string slice는 UTC raw 박혀서 기사 메인 카드에 07:00 박힘)
+    // 2026-05-15 fix — KST 변환 (이전 string slice는 UTC raw 노출돼 기사 메인 카드에 07:00 표시)
     scheduledTime: formatTimeKST(scheduledAt),
     settlementStatus: settlement,
     workItems: workItems || [],
@@ -171,7 +171,7 @@ export function v14NormalizeTask(t) {
     pushCandidates: Array.isArray(t.pushCandidates) ? t.pushCandidates
                   : Array.isArray(t.push_candidates) ? t.push_candidates
                   : [],
-    // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec (compute_payment v7)
+    // 2026-05-16 Phase 4 통합 2-D — DB payments 적용 spec (compute_payment v7)
     payment:          t.payment || null,
     engineer_amount:  t.engineer_amount  ?? 0,
     principal_amount: t.principal_amount ?? 0,
@@ -179,6 +179,10 @@ export function v14NormalizeTask(t) {
     calc_method:      t.calc_method      ?? null,
     payment_status:   t.payment_status   ?? null,
     is_balanced:      t.is_balanced      ?? null,
+    // 2026-05-18 Fix #29 — 자금 흐름 트랙 (Migration 031/032, compute_payment v10 자동 결정).
+    // 'A'=일일정산(기사→회사), 'B'=월정산(회사→기사). isTrackARemittance가 task.track 판별.
+    // tasksDb.rowToTask가 이미 매핑한 top-level track 우선, 누락 시 payment 객체에서 재추출.
+    track: t.track || t.payment_track || t.paymentTrack || t.payment?.track || 'A',
     // 2026-05-17 Migration 025 — 기사 → 회사 송금 흐름
     engineerRemittedAt:       t.engineerRemittedAt       || null,
     engineerRemitConfirmedAt: t.engineerRemitConfirmedAt || null,

@@ -923,9 +923,12 @@ function _v14NormalizeTask(t) {
     // tasksDb.rowToTask는 row.total_amount(GENERATED, product+extra+travel)를 totalAmount로 박는데
     // 로컬 _v14NormalizeTask가 이 필드를 떨어뜨려 dashboardStats가 estimateTotal(productPrice)로 fallback.
     totalAmount: Number(t.totalAmount || t.total_amount || 0) || estimate,
-    // 2026-05-17 Round 1 Fix #7 — calc_method 패스스루 (트랙 🅐/🅑 판별 키).
-    // isTrackARemittance가 usol_n_본작업/usol_n_추가선택을 식별하려면 필요.
+    // 2026-05-17 Round 1 Fix #7 — calc_method 패스스루 (정산 정책 표시용).
+    // 2026-05-18 Fix #29 — 트랙 판별은 payments.track으로 일원화. calc_method는 트랙 판별과 무관.
     calc_method: t.calc_method ?? null,
+    // 2026-05-18 Fix #29 — 자금 흐름 트랙 (Migration 031/032, compute_payment v10 자동 결정).
+    // 'A'=일일정산(기사→회사), 'B'=월정산(회사→기사). 공유 v14Task.js와 동일 매핑 ("두 곳 모두 매핑" 트랩).
+    track: t.track || t.payment_track || t.paymentTrack || t.payment?.track || 'A',
     engineerRemittedAt:       t.engineerRemittedAt       || t.engineer_remitted_at        || null,
     engineerRemitConfirmedAt: t.engineerRemitConfirmedAt || t.engineer_remit_confirmed_at || null,
     _api: true,                   // 진짜 API 출처 마킹

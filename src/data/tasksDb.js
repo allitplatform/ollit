@@ -1,21 +1,21 @@
 // Phase 2 — Supabase tasks CRUD (점진 교체용 신규 모듈)
-// 옛 src/data/tasks.js (localStorage)는 그대로 두고, 신규 흐름은 여기서 박음.
-// 외부 인터페이스(rowToTask 결과)는 옛 v14NormalizeTask 결과와 호환되게 camelCase 박음.
+// 옛 src/data/tasks.js (localStorage)는 그대로 두고, 신규 흐름은 여기서 처리.
+// 외부 인터페이스(rowToTask 결과)는 옛 v14NormalizeTask 결과와 호환되게 camelCase로 반환.
 
 import { supabase } from "../lib/supabase.js";
 
-// Phase 1 MVP 단일 테넌트 (allit). 멀티 테넌트 박을 영역에서 user.tenant_id 측 박음.
+// Phase 1 MVP 단일 테넌트 (allit). 멀티 테넌트 확장 시 user.tenant_id 사용.
 export const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 
-// Phase 1 MVP 단일 카테고리 (aircon). tasks.category_id NOT NULL — task.categoryId 박지 X 박힌 영역 측 fallback.
+// Phase 1 MVP 단일 카테고리 (aircon). tasks.category_id NOT NULL — task.categoryId 누락 시 fallback.
 export const CATEGORY_ID_AIRCON = "33333333-3333-3333-3333-333333333001";
 
 // ============================================================
 // normalize — Supabase row ↔ 클라이언트 task
 // ============================================================
 
-// 2026-05-16 Phase 4 통합 2-C — payments JOIN select string (6곳 공통 박음)
-// payments 측 task_id UNIQUE 박지 X 박혀있어 PostgREST array 박힘 → rowToTask 측 [0] 박음
+// 2026-05-16 Phase 4 통합 2-C — payments JOIN select string (6곳 공통 사용)
+// payments 측 task_id UNIQUE 없어 PostgREST 응답이 array → rowToTask가 [0] 추출
 const PAYMENT_SELECT = `
   *,
   payment:payments(
@@ -27,6 +27,7 @@ const PAYMENT_SELECT = `
     is_balanced,
     status,
     computed_at,
+    track,
     engineer_remitted_at,
     engineer_remit_confirmed_at,
     engineer_remit_confirmed_by
@@ -39,7 +40,7 @@ export function rowToTask(row) {
   // Phase 4-2 fix — category_data jsonb 평탄화 (workType/workItems 등 별도 추출)
   // 화면 필터 (NewReceptionScreen.getByType / v14NormalizeTask) 호환
   const cat = row.category_data || {};
-  // 2026-05-16 Phase 4 통합 2-C — payments JOIN 박은 spec (one-to-many 박지만 1 task = 1 payment)
+  // 2026-05-16 Phase 4 통합 2-C — payments JOIN 적용 spec (one-to-many 관계지만 1 task = 1 payment)
   const paymentRaw = Array.isArray(row.payment) ? row.payment[0] : row.payment;
   const payment = paymentRaw || null;
   return {
@@ -84,7 +85,7 @@ export function rowToTask(row) {
     scheduledAt:   row.scheduled_at,
     startedAt:     row.started_at,
     completedAt:   row.completed_at,
-    // 2026-05-15 — Migration 013 status 변경 시점 (trigger 자동 박음 / 이력 화면 catch)
+    // 2026-05-15 — Migration 013 status 변경 시점 (trigger 자동 기록 / 이력 화면 표시)
     assignedAt:            row.assigned_at,
     scheduledConfirmedAt:  row.scheduled_confirmed_at,
     workMemo:      row.work_memo,
@@ -117,10 +118,10 @@ export function rowToTask(row) {
     externalPrincipalNo: row.external_principal_no,
     externalReceivedAt:  row.external_received_at,
 
-    // Phase 4 후속 — 자동 배정 푸시 후보 (jsonb 배열 / 이름 또는 code 박힘)
+    // Phase 4 후속 — 자동 배정 푸시 후보 (jsonb 배열 / 이름 또는 code 형태)
     pushCandidates: Array.isArray(row.push_candidates) ? row.push_candidates : [],
 
-    // 2026-05-16 Phase 4 통합 2-C — payments JOIN 박음 (compute_payment v7 박은 spec)
+    // 2026-05-16 Phase 4 통합 2-C — payments JOIN 적용 (compute_payment v7 spec)
     payment,
     engineer_amount:  payment?.engineer_amount  || 0,
     principal_amount: payment?.principal_amount || 0,
@@ -128,6 +129,10 @@ export function rowToTask(row) {
     calc_method:      payment?.calc_method      || null,
     payment_status:   payment?.status           || null,
     is_balanced:      payment?.is_balanced      ?? null,
+
+    // 2026-05-18 Fix #29 — Migration 031/032: 자금 흐름 트랙 (compute_payment v10 자동 결정).
+    // 'A'=일일정산(기사→회사), 'B'=월정산(회사→기사). isTrackARemittance가 task.track으로 판별.
+    track:            payment?.track            ?? 'A',
 
     // 2026-05-17 Migration 025 — 기사 → 회사 송금 흐름
     engineerRemittedAt:       payment?.engineer_remitted_at        || null,
@@ -139,7 +144,7 @@ export function rowToTask(row) {
 }
 
 // 클라이언트 task → Supabase row (snake_case)
-// partial=true 측 박은 영역 update — undefined 박은 영역 무시.
+// partial=true 측 부분 update — undefined 필드는 무시.
 export function taskToRow(task, partial = false) {
   if (!task) return null;
   const row = {};
@@ -152,7 +157,7 @@ export function taskToRow(task, partial = false) {
   if (task.taskNo !== undefined || task.taskCode !== undefined) {
     row.task_no = task.taskNo || task.taskCode;
   }
-  // category_id 는 NOT NULL — insert 측 task.categoryId 박지 X 박혔으면 Phase 1 MVP 박은 영역 (aircon) fallback
+  // category_id 는 NOT NULL — insert 시 task.categoryId 누락이면 Phase 1 MVP 기본값 (aircon) fallback
   if (task.categoryId !== undefined) row.category_id = task.categoryId;
   else if (!partial)                 row.category_id = CATEGORY_ID_AIRCON;
   if (task.principalId !== undefined) row.principal_id = task.principalId;
@@ -192,7 +197,7 @@ export function taskToRow(task, partial = false) {
   if (task.completedAt   !== undefined) row.completed_at   = task.completedAt;
   if (task.workMemo      !== undefined) row.work_memo      = task.workMemo;
 
-  // 금액 (total_amount 은 GENERATED 라 박지 X)
+  // 금액 (total_amount 은 GENERATED 라 row에 직접 설정 X)
   if (task.productPrice !== undefined) row.product_price = task.productPrice;
   if (task.travelFee    !== undefined) row.travel_fee    = task.travelFee;
   if (task.extraFee     !== undefined) row.extra_fee     = task.extraFee;
@@ -207,7 +212,7 @@ export function taskToRow(task, partial = false) {
   if (task.externalPrincipalNo !== undefined) row.external_principal_no  = task.externalPrincipalNo;
   if (task.externalReceivedAt  !== undefined) row.external_received_at   = task.externalReceivedAt;
 
-  // [DEBUG remit-row] extraFee 매핑 catch
+  // [DEBUG remit-row] extraFee 매핑 확인
   if (task.extraFee !== undefined || row.extra_fee !== undefined) {
     console.log('[remit-row debug]', {
       task_extraFee: task.extraFee,
@@ -244,7 +249,7 @@ export async function loadTasksDb({ status, engineerId, limit = 200 } = {}) {
   return (data || []).map(rowToTask);
 }
 
-// id 박은 영역 단건
+// id 단건 조회
 export async function getTaskByIdDb(id) {
   if (!id) return null;
   const { data, error } = await supabase
@@ -259,7 +264,7 @@ export async function getTaskByIdDb(id) {
   return rowToTask(data);
 }
 
-// task_no 박은 영역 단건 (tenant 측 박음)
+// task_no 단건 조회 (tenant 필터 적용)
 export async function getTaskByTaskNoDb(taskNo) {
   if (!taskNo) return null;
   const { data, error } = await supabase
@@ -275,7 +280,7 @@ export async function getTaskByTaskNoDb(taskNo) {
   return rowToTask(data);
 }
 
-// 특정 기사 박은 영역 작업 — scheduled_at 빠른 순
+// 특정 기사 작업 조회 — scheduled_at 빠른 순
 export async function listTasksByEngineerDb(engineerId) {
   if (!engineerId) return [];
   const { data, error } = await supabase
@@ -339,7 +344,7 @@ export async function searchTasksDb({ query, principalId, region, limit = 50 } =
 // 변경 (WRITE)
 // ============================================================
 
-// 신규 작업 박음 — 응답: { ok, data, error }
+// 신규 작업 추가 — 응답: { ok, data, error }
 export async function createTaskDb(task) {
   if (!task) return { ok: false, error: "task 필수" };
   const row = taskToRow(task);
@@ -357,11 +362,11 @@ export async function createTaskDb(task) {
   return { ok: true, data: rowToTask(data) };
 }
 
-// 작업 박은 영역 박음 — partial update (undefined 박은 영역 무시)
+// 작업 부분 업데이트 — partial update (undefined 필드 무시)
 export async function updateTaskDb(id, updates) {
   if (!id || !updates) return { ok: false, error: "id / updates 필수" };
   const row = taskToRow(updates, true);
-  // immutable 필드 제거 (혹시 박혔으면)
+  // immutable 필드 제거 (혹시 들어왔으면)
   delete row.id;
   delete row.tenant_id;
   delete row.created_at;
@@ -433,8 +438,8 @@ export async function updateTaskStatusDb(taskId, status, { startedAt, completedA
 //   - engineer — 모든 작업 반환 (호출처 측 filterTasksForEngineerV14 활용)
 //   - principal — 모든 작업 반환 (호출처 측 clientName 측 fuzzy 매칭 활용)
 //
-// principal name / assigned engineer name 박음:
-//   tasks 측 principal_id (UUID) / assigned_engineer_id (UUID) 만 박혀있어서
+// principal name / assigned engineer name 추가:
+//   tasks 측 principal_id (UUID) / assigned_engineer_id (UUID) 만 있어서
 //   별도 fetch 후 in-memory join (PostgREST embed PGRST201 회피).
 export async function loadTasksForRole(role, userId, principalCode) {
   try {
@@ -484,7 +489,7 @@ export async function loadTasksForRole(role, userId, principalCode) {
       }
     }
 
-    // [4] rowToTask + 시트 호환 필드 박음 (principal name / assignedEngineer name 등)
+    // [4] rowToTask + 시트 호환 필드 추가 (principal name / assignedEngineer name 등)
     const tasks = rows.map(row => {
       const task = rowToTask(row);
       if (row.principal_id) {
@@ -581,13 +586,13 @@ async function _resolvePrincipalCode(principalName) {
 //
 // 처리:
 //   1) principal 이름 → principal_id (UUID) 변환
-//   2) 작업번호 자동 박음 (generateTaskNo)
-//   3) tasks 측 INSERT (category_data jsonb에 workItems 박음)
+//   2) 작업번호 자동 생성 (generateTaskNo)
+//   3) tasks 측 INSERT (category_data jsonb에 workItems 포함)
 //
 // 응답: { ok: true, taskId, task_no, task } | { ok: false, error, timeout? }
 // 호환: 호출처 res.ok / res.taskId / res.task_no 사용
 export async function createTaskAdapter(taskData) {
-  if (!taskData) return { ok: false, error: "taskData 박지 X" };
+  if (!taskData) return { ok: false, error: "taskData 없음" };
 
   try {
     // [1] principal 변환
@@ -601,21 +606,21 @@ export async function createTaskAdapter(taskData) {
       return { ok: false, error: `원청 매핑 실패: ${taskData.principal || taskData.principalCode}` };
     }
 
-    // [2] 작업번호 자동 박음
+    // [2] 작업번호 자동 생성
     const tnRes = await generateTaskNo({ principalCode });
     if (!tnRes.ok) {
       return { ok: false, error: `작업번호 생성 실패: ${tnRes.error}` };
     }
     const taskNo = tnRes.taskNo;
 
-    // [3] scheduled_at ISO 박음 (호출처가 scheduledDate + scheduledTime 별도 박는 경우)
+    // [3] scheduled_at ISO 조합 (호출처가 scheduledDate + scheduledTime 별도 전달 경우)
     let scheduledAtIso = taskData.scheduledAt || null;
     if (!scheduledAtIso && taskData.scheduledDate && taskData.scheduledTime) {
       // 2026-05-16 fix — KST timezone 명시
       scheduledAtIso = `${taskData.scheduledDate}T${taskData.scheduledTime}:00+09:00`;
     }
 
-    // [4] category_data jsonb 박음 (workItems / 메타)
+    // [4] category_data jsonb 구성 (workItems / 메타)
     const categoryData = {
       ...(taskData.workItems ? { workItems: taskData.workItems } : {}),
       ...(taskData.workType  ? { workType:  taskData.workType  } : {}),
@@ -625,7 +630,7 @@ export async function createTaskAdapter(taskData) {
       ...(taskData.scheduleType ? { scheduleType: taskData.scheduleType } : {}),
     };
 
-    // [5] tasks row 박음
+    // [5] tasks row INSERT
     const taskRow = {
       taskNo,
       principalId,
@@ -671,12 +676,12 @@ export async function createTaskAdapter(taskData) {
 //
 // 처리:
 //   · assignedEngineer (이름) → assigned_engineer_id (UUID) 변환은 별도 Phase
-//     (현재 어댑터는 직접 ID만 catch — Phase 4-3 배정 단계에서 박을 차례)
+//     (현재 어댑터는 직접 ID만 처리 — Phase 4-3 배정 단계에서 이름→ID 변환 예정)
 //   · memo / 작업메모 → workMemo 또는 requestNote
 //
 // 응답: { ok: true, task } | { ok: false, error }
 export async function updateTaskAdapter(taskId, updates) {
-  if (!taskId || !updates) return { ok: false, error: "taskId / updates 박지 X" };
+  if (!taskId || !updates) return { ok: false, error: "taskId / updates 없음" };
 
   // 시트 호환 키 정규화
   const normalized = { ...updates };
@@ -704,15 +709,15 @@ export async function updateTaskAdapter(taskId, updates) {
 // ============================================================
 // 응답: { ok: true, task } | { ok: false, error }
 export async function updateTaskStatusAdapter(taskId, status, updates = {}) {
-  if (!taskId || !status) return { ok: false, error: "taskId / status 박지 X" };
+  if (!taskId || !status) return { ok: false, error: "taskId / status 없음" };
   try {
-    // updates 측 startedAt / completedAt 박힐 수 있음
+    // updates에 startedAt / completedAt 포함 가능
     const opts = {};
     if (updates.startedAt   !== undefined) opts.startedAt   = updates.startedAt;
     if (updates.completedAt !== undefined) opts.completedAt = updates.completedAt;
     const res = await updateTaskStatusDb(taskId, status, opts);
 
-    // 추가 필드 박혔으면 별도 updateTaskDb 호출
+    // 추가 필드 있으면 별도 updateTaskDb 호출
     const extraKeys = Object.keys(updates).filter(k => k !== "startedAt" && k !== "completedAt");
     if (res.ok && extraKeys.length > 0) {
       const extra = {};
@@ -745,23 +750,23 @@ export async function updateTaskStatusAdapter(taskId, status, updates = {}) {
 //   rejectCancelAdapter  — { ok: true, task, oldStatus } | { ok: false, error }
 //
 // DB 의존:
-//   · status enum에 '취소요청' 박혀있어야 (대표님 SQL 실행 완료)
+//   · status enum에 '취소요청' 등록돼 있어야 (대표님 SQL 실행 완료)
 //   · category_data jsonb 활용 (마이그 0개)
 
 // 기사 측 취소 요청 — status='취소요청' + previousStatus 저장
 export async function requestCancelAdapter(taskId, reason) {
-  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
   const reasonText = String(reason || "").trim();
-  if (!reasonText) return { ok: false, error: "취소 사유 박지 X" };
+  if (!reasonText) return { ok: false, error: "취소 사유 없음" };
 
   try {
-    // [1] 현재 task 조회 (이전 status 박을 차례)
+    // [1] 현재 task 조회 (이전 status 추출용)
     const current = await getTaskByIdDb(taskId);
     if (!current) return { ok: false, error: "작업 없음" };
 
     const previousStatus = current.status || "배정";
 
-    // [2] category_data 박음 (cancelReason + previousStatus)
+    // [2] category_data 업데이트 (cancelReason + previousStatus)
     const nextCategoryData = {
       ...(current.categoryData || {}),
       cancelReason:   reasonText,
@@ -784,7 +789,7 @@ export async function requestCancelAdapter(taskId, reason) {
 
 // 운영자 측 취소 확인 — status='취소' + cancelApproveReason 저장
 export async function approveCancelAdapter(taskId, reason) {
-  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
   const reasonText = String(reason || "운영자 확인").trim();
 
   try {
@@ -792,7 +797,7 @@ export async function approveCancelAdapter(taskId, reason) {
     const current = await getTaskByIdDb(taskId);
     if (!current) return { ok: false, error: "작업 없음" };
 
-    // [2] category_data 박음 (cancelApproveReason + 시각)
+    // [2] category_data 업데이트 (cancelApproveReason + 시각)
     const nextCategoryData = {
       ...(current.categoryData || {}),
       cancelApproveReason: reasonText,
@@ -853,11 +858,11 @@ async function _resolveUserIdByName(nameOrCode) {
 }
 
 // 운영자 측 기사 배정 — 시트 assignEngineer(taskId, engineerName) 어댑터
-// engineerName 이름 또는 code 박힘 → users.id (UUID) 변환 후 assignEngineerDb 호출
+// engineerName 이름 또는 code 형태 → users.id (UUID) 변환 후 assignEngineerDb 호출
 // 응답: { ok: true, taskId, task } | { ok: false, error }
 export async function assignEngineerAdapter(taskId, engineerName, options = {}) {
-  if (!taskId)        return { ok: false, error: "taskId 박지 X" };
-  if (!engineerName)  return { ok: false, error: "engineerName 박지 X" };
+  if (!taskId)        return { ok: false, error: "taskId 없음" };
+  if (!engineerName)  return { ok: false, error: "engineerName 없음" };
 
   try {
     const userId = await _resolveUserIdByName(engineerName);
@@ -879,26 +884,26 @@ export async function assignEngineerAdapter(taskId, engineerName, options = {}) 
 // Phase 4-5 — 작업 시작 / 완료 / 금액 변경 어댑터
 // ============================================================
 
-// 기사 측 작업 시작 — status='진행중' + startedAt 박음
+// 기사 측 작업 시작 — status='진행중' + startedAt 기록
 // 응답: { ok: true, task } | { ok: false, error }
 export async function startTaskAdapter(taskId) {
-  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
   return updateTaskStatusAdapter(taskId, "진행중", {
     startedAt: new Date().toISOString(),
   });
 }
 
-// 기사 측 작업 완료 — status='완료' + completedAt 박음
-// (사진 업로드는 호출처 측 photosDb.uploadPhoto 별도 박음)
+// 기사 측 작업 완료 — status='완료' + completedAt 기록
+// (사진 업로드는 호출처에서 photosDb.uploadPhoto 별도 호출)
 // 응답: { ok: true, task } | { ok: false, error }
 export async function completeTaskAdapter(taskId) {
-  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
   const res = await updateTaskStatusAdapter(taskId, "완료", {
     completedAt: new Date().toISOString(),
   });
 
   // 2026-05-16 — Phase 4 B-2: 작업 완료 시 정산 자동 계산 (이중 안전망 frontend layer)
-  // DB trigger도 박혀있어 둘 다 catch. compute_payment는 idempotent (DELETE + INSERT)
+  // DB trigger도 등록돼 있어 둘 다 발화. compute_payment는 idempotent (DELETE + INSERT)
   if (res.ok) {
     try {
       const { error } = await supabase.rpc('compute_payment', { p_task_id: taskId });
@@ -913,11 +918,11 @@ export async function completeTaskAdapter(taskId) {
   return res;
 }
 
-// 기사 측 금액 변경 — productPrice / extraFee / extraReason 박음
+// 기사 측 금액 변경 — productPrice / extraFee / extraReason 업데이트
 // 시그니처 호환: (taskId, newPrice, addAmount, reason)
 // 응답: { ok: true, task } | { ok: false, error }
 export async function changePriceAdapter(taskId, newPrice, addAmount, reason) {
-  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
   const updates = {
     extraFeeAt: new Date().toISOString(),
   };
@@ -928,7 +933,7 @@ export async function changePriceAdapter(taskId, newPrice, addAmount, reason) {
 
   // 2026-05-17 — extra_fee 변경 시 payments 선행 재계산.
   // trigger_compute_payment는 status='완료'에서만 발화하므로 진행중 단계 변경분은 stale.
-  // 완료 확인 화면이 표시할 engineer_amount가 정확하도록 여기서 미리 박아둠. idempotent.
+  // 완료 확인 화면이 표시할 engineer_amount가 정확하도록 여기서 미리 호출. idempotent.
   if (res.ok) {
     try {
       const { error } = await supabase.rpc('compute_payment', { p_task_id: taskId });
@@ -944,12 +949,12 @@ export async function changePriceAdapter(taskId, newPrice, addAmount, reason) {
 }
 
 // 기사 측 자동 배정 수락 — 시트 acceptOffer(taskId, engineerName) 어댑터
-// race condition catch: assigned_engineer_id IS NULL 조건부 UPDATE
-// 이미 다른 기사 박혀있으면 "이미 다른 기사가 수락" 에러 반환 (선착순)
+// race condition 처리: assigned_engineer_id IS NULL 조건부 UPDATE
+// 이미 다른 기사 배정돼 있으면 "이미 다른 기사가 수락" 에러 반환 (선착순)
 // 응답: { ok: true, taskId, task } | { ok: false, error: "이미 다른 기사가 수락" 등 }
 export async function acceptOfferAdapter(taskId, engineerName) {
-  if (!taskId)       return { ok: false, error: "taskId 박지 X" };
-  if (!engineerName) return { ok: false, error: "engineerName 박지 X" };
+  if (!taskId)       return { ok: false, error: "taskId 없음" };
+  if (!engineerName) return { ok: false, error: "engineerName 없음" };
 
   try {
     const userId = await _resolveUserIdByName(engineerName);
@@ -957,7 +962,7 @@ export async function acceptOfferAdapter(taskId, engineerName) {
       return { ok: false, error: `기사 매핑 실패 (${engineerName})` };
     }
 
-    // 조건부 UPDATE — assigned_engineer_id IS NULL 측만 박음 (race condition catch)
+    // 조건부 UPDATE — assigned_engineer_id IS NULL 조건만 통과 (race condition 처리)
     const { data, error } = await supabase
       .from("tasks")
       .update({
@@ -974,9 +979,9 @@ export async function acceptOfferAdapter(taskId, engineerName) {
       console.error("[tasksDb.acceptOfferAdapter]", error);
       return { ok: false, error: error.message };
     }
-    // data가 null이면 조건 불일치 (이미 다른 기사 박혀있음 또는 task 없음)
+    // data가 null이면 조건 불일치 (이미 다른 기사 배정됨 또는 task 없음)
     if (!data) {
-      // 추가 catch: task 존재 여부 확인 (에러 메시지 정확하게)
+      // 추가 확인: task 존재 여부 (에러 메시지 정확하게)
       const existing = await getTaskByIdDb(taskId);
       if (!existing) {
         return { ok: false, error: "작업 없음" };
@@ -992,11 +997,11 @@ export async function acceptOfferAdapter(taskId, engineerName) {
 }
 
 // 운영자 측 취소 거절 — previousStatus 복원 + cancelRejectReason 저장
-// 응답에 oldStatus 박음 (호출처 측 Optimistic Update 활용)
+// 응답에 oldStatus 포함 (호출처 측 Optimistic Update 활용)
 export async function rejectCancelAdapter(taskId, rejectReason) {
-  if (!taskId) return { ok: false, error: "taskId 박지 X" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
   const reasonText = String(rejectReason || "").trim();
-  if (!reasonText) return { ok: false, error: "거절 사유 박지 X" };
+  if (!reasonText) return { ok: false, error: "거절 사유 없음" };
 
   try {
     // [1] 현재 task 조회 (previousStatus 추출)
@@ -1005,7 +1010,7 @@ export async function rejectCancelAdapter(taskId, rejectReason) {
 
     const oldStatus = current.categoryData?.previousStatus || "미배정";
 
-    // [2] category_data 박음 (cancelRejectReason + 시각 / previousStatus 제거)
+    // [2] category_data 업데이트 (cancelRejectReason + 시각 / previousStatus 제거)
     const nextCategoryData = { ...(current.categoryData || {}) };
     delete nextCategoryData.previousStatus;
     nextCategoryData.cancelRejectReason = reasonText;
