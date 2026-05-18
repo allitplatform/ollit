@@ -12,7 +12,7 @@ import { uploadPhoto } from "../lib/photosDb.js";
 // Phase 3-5 — 휴무는 DB 측 (offDaysDb.js) 어댑터 사용. 시그니처 동일.
 import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
-import { isTrackARemittance } from "../utils/remitFilter.js";
+import { isTrackARemittance, isTrackC } from "../utils/remitFilter.js";
 import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 import { REGISTERED_USERS } from "../shared/users.js";
@@ -3881,6 +3881,14 @@ export default function EngineerApp({ user, onLogout }) {
   // EngineerSettleTab.toCompany 합계가 트랙 🅑(usol_n 세척 등) 제외하도록 분리.
   const todayTrackATasks = todayCompletedTasks.filter(isTrackARemittance);
 
+  // 2026-05-19 Fix #30 🅒 — 유솔 송금 대상 (트랙 🅒, 현장 추가건 있는 cleaning).
+  // compute_payment v11이 principal_amount=15% 자동 계산 → 그 합계가 유솔 송금 금액.
+  const todayTrackCTasks = todayCompletedTasks.filter(isTrackC);
+  const usolRemit = todayTrackCTasks.length > 0 ? {
+    amount: todayTrackCTasks.reduce((s, t) => s + Number(t.principal_amount || 0), 0),
+    count:  todayTrackCTasks.length,
+  } : null;
+
   // V14 v6 — 사장님 시뮬 5/1~5/5 완료 13건 합계 (ENABLE_MOCK 분기 / Step 5-7-E)
   const _MONTH_STATS_MOCK = {
     month: 5,
@@ -4337,6 +4345,7 @@ export default function EngineerApp({ user, onLogout }) {
             toCompanyTasks={todayTrackATasks}
             monthStats={monthStats}
             usolN={usolN}
+            usolRemit={usolRemit}
             onClickToday={() => setScreen("settlementDetail")}
             onClickUsolN={() => setScreen("usolNSettlement")}
             onClickPaymentHistory={() => setScreen("paymentHistory")}

@@ -55,6 +55,9 @@ export function EngineerSettleTab({
   toCompanyTasks = null,
   monthStats,
   usolN,
+  // 2026-05-19 Fix #30 🅒 — 유솔 송금 카드 (현장 추가건 15% 유솔 직접 송금).
+  // usolRemit = { amount, count } 또는 null (해당 task 없으면 카드 미표시).
+  usolRemit = null,
   companyAccount,
   toCompany,
   isPaymentSent = false,
@@ -148,11 +151,11 @@ export function EngineerSettleTab({
           }}>
             <span style={{ fontSize: 15 }}>💰</span> 오늘 번 돈
           </div>
-          {/* Hero ₩ 64px / 700 */}
+          {/* Hero ₩ — 2026-05-19 Fix #30 사장님 spec: 36px (시안 그대로) */}
           <div style={{
-            fontSize: 64, fontWeight: 700, color: "#fff",
+            fontSize: 36, fontWeight: 700, color: "#fff",
             fontFamily: "inherit",
-            letterSpacing: "-2.5px", lineHeight: 1,
+            letterSpacing: "-1px", lineHeight: 1,
             marginBottom: 10,
           }}>
             ₩{todayEarning.toLocaleString("ko-KR")}
@@ -166,21 +169,8 @@ export function EngineerSettleTab({
             <span style={{ color: "#fff", fontWeight: 700 }}>자세히 보기 ›</span>
           </div>
 
-          {/* 두 칸 박스 (반투명 0.16) */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
-          }}>
-            <PeriodStat
-              label="이번 주"
-              amount={monthStats?.weekEarning || 0}
-              count={monthStats?.weekCount || 0}
-            />
-            <PeriodStat
-              label="이번 달"
-              amount={monthStats?.monthEarning || 0}
-              count={monthStats?.monthCount || 0}
-            />
-          </div>
+          {/* 2026-05-19 Fix #30 — sub 박스 (이번 주 / 이번 달) 제거 (사장님 spec: Hero 단순화). */}
+          {/* 통계는 정산 상세 화면(EngineerSettlementDetailScreen)으로 이동 예정 (별도 단계). */}
         </div>
 
         {/* 회사 송금 카드 — 36px / 700 (카드 클릭 → 송금 내역) */}
@@ -344,6 +334,48 @@ export function EngineerSettleTab({
               </div>
             </div>
             <span style={{ color: "#03C75A", fontSize: 20, fontWeight: 700 }}>›</span>
+          </div>
+        )}
+
+        {/* 2026-05-19 Fix #30 🅒 — 유솔 송금 카드 (현장 추가건 15% 유솔 직접 송금) */}
+        {usolRemit && usolRemit.count > 0 && (
+          <div style={{
+            background: "var(--card-bg)",
+            border: "1.5px solid #FF8A3D",
+            borderRadius: 16,
+            padding: "16px 18px",
+            display: "flex", justifyContent: "space-between",
+            alignItems: "center", marginBottom: 14,
+          }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{
+                display: "flex", alignItems: "center", gap: 6,
+                fontSize: 13, color: "#FF8A3D", fontWeight: 700,
+                marginBottom: 7,
+              }}>
+                <span style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  width: 19, height: 19, borderRadius: 5,
+                  background: "#FF8A3D", color: "#fff",
+                  fontSize: 11, fontWeight: 700,
+                }}>📤</span>
+                <span>유솔에 송금할 돈</span>
+              </div>
+              <div style={{
+                fontSize: 26, fontWeight: 700,
+                fontFamily: "inherit",
+                color: "var(--text-primary)",
+                letterSpacing: "-0.6px", lineHeight: 1,
+              }}>
+                {(usolRemit.amount || 0).toLocaleString("ko-KR")}원
+              </div>
+              <div style={{
+                fontSize: 12, color: "var(--label-main)",
+                marginTop: 5, fontWeight: 700,
+              }}>
+                오늘 작업 {usolRemit.count}건 · 15% 분
+              </div>
+            </div>
           </div>
         )}
 
