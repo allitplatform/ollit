@@ -3868,7 +3868,7 @@ export default function EngineerApp({ user, onLogout }) {
   const todayTasks = tasks.filter(x =>
     x.scheduledDate === todayStr
   );
-  // 정산용 — 오늘(KST) 완료 작업 (completedAt 기준)
+  // 정산용 — 오늘(KST) 완료 작업 전체 (정산 상세 화면용)
   const todayCompletedTasks = tasks.filter(x => {
     if (x.status !== "완료") return false;
     if (!x.completedAt) return false;
@@ -3877,6 +3877,9 @@ export default function EngineerApp({ user, onLogout }) {
     const kstYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     return kstYmd === todayStr;
   });
+  // 2026-05-18 Fix #30 D — 회사 송금용 (트랙 🅐만, isTrackARemittance 통과)
+  // EngineerSettleTab.toCompany 합계가 트랙 🅑(usol_n 세척 등) 제외하도록 분리.
+  const todayTrackATasks = todayCompletedTasks.filter(isTrackARemittance);
 
   // V14 v6 — 사장님 시뮬 5/1~5/5 완료 13건 합계 (ENABLE_MOCK 분기 / Step 5-7-E)
   const _MONTH_STATS_MOCK = {
@@ -4331,6 +4334,7 @@ export default function EngineerApp({ user, onLogout }) {
           <EngineerSettleTab
             engineer={engineerProfile}
             todayTasks={todayCompletedTasks}
+            toCompanyTasks={todayTrackATasks}
             monthStats={monthStats}
             usolN={usolN}
             onClickToday={() => setScreen("settlementDetail")}

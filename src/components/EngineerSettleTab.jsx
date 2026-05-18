@@ -51,6 +51,8 @@ async function copyToClipboard(text, onToast, label = "계좌번호") {
 export function EngineerSettleTab({
   engineer,
   todayTasks = [],
+  // 2026-05-18 Fix #30 D — 회사 송금 카드 전용 (트랙 🅐만). null이면 todayTasks fallback (옛 호환).
+  toCompanyTasks = null,
   monthStats,
   usolN,
   companyAccount,
@@ -69,10 +71,16 @@ export function EngineerSettleTab({
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   }
+  // "오늘 번 돈" Hero — 기사 입장 전체 수익 (트랙 🅐+🅑 모두 포함)
   const completedToday = todayTasks.filter(t => t.status === "완료");
   const todayEarning   = completedToday.reduce((s, t) => s + getEarning(t), 0);
   const todayRevenue   = completedToday.reduce((s, t) => s + getRevenue(t), 0);
-  const toCompanyFinal = toCompany != null ? toCompany : Math.max(0, todayRevenue - todayEarning);
+
+  // 2026-05-18 Fix #30 D — "회사 송금" 카드는 트랙 🅐만 (toCompanyTasks 별도, 없으면 옛 호환 fallback)
+  const toCompanySource  = (toCompanyTasks || todayTasks).filter(t => t.status === "완료");
+  const toCompanyRevenue = toCompanySource.reduce((s, t) => s + getRevenue(t), 0);
+  const toCompanyEarning = toCompanySource.reduce((s, t) => s + getEarning(t), 0);
+  const toCompanyFinal   = toCompany != null ? toCompany : Math.max(0, toCompanyRevenue - toCompanyEarning);
 
   // Step 5-8 F-6 — 회사 계좌 = 시트 양방향 sync (loadCompanyAccount)
   // companyAccount prop이 있으면 우선 / 없으면 시트 데이터 fallback / 없으면 기본값
