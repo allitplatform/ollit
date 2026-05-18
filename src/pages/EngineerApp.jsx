@@ -73,7 +73,6 @@ import {
 import { useTasks } from "../shared/TasksContext.jsx";
 import { filterTasksForEngineer } from "../shared/tasks.js";
 import { OllitLoader } from "../components/OllitLoader.jsx";
-import { EngineerSettlementScreen as EngineerSettlementV11 } from "../components/EngineerSettlementScreen.jsx";
 import { EngineerNewAssignmentListScreen } from "../components/EngineerNewAssignmentListScreen.jsx";
 import { EngineerAcceptanceListScreen } from "../components/EngineerAcceptanceListScreen.jsx";
 import { EngineerTaskDetailScreen } from "../components/EngineerTaskDetailScreen.jsx";
@@ -4338,20 +4337,20 @@ export default function EngineerApp({ user, onLogout }) {
             onClickUsolN={() => setScreen("usolNSettlement")}
             onClickPaymentHistory={() => setScreen("paymentHistory")}
             onConfirmPaymentSent={async () => {
-              // 오늘 미입금/연체 그룹 박은 spec 측 task ids 박음
+              // 오늘 미입금/연체 그룹 task ids 추출
               const todayStrLocal = todayYmd();
               const todayGroup = payments.find(p => p.date === todayStrLocal);
               if (!todayGroup || (todayGroup.status !== "pending" && todayGroup.status !== "overdue")) {
-                alert("오늘 미입금 작업 박지 X");
+                alert("오늘 미입금 작업이 없습니다.");
                 return;
               }
               if (!confirm("오늘 입금을 완료 보고할까요?")) return;
               const res = await reportEngineerRemit(todayGroup.works.map(w => w.id));
               if (res.ok) {
-                alert("입금 완료 보고 박혔어요. 운영자 확인 대기 박힘.");
+                alert("입금 완료 보고를 접수했습니다. 운영자 확인을 기다려 주세요.");
                 window.location.reload();
               } else {
-                alert("박지 X: " + res.error);
+                alert("처리에 실패했습니다: " + res.error);
               }
             }}
             onTabChange={handleTabChange}
