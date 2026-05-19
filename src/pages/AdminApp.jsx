@@ -2622,6 +2622,12 @@ export default function AdminApp({ user, onLogout }) {
           // V14 재배정 처리 — 옛 기사가 있는지 확인
           const oldEngineer = selectedTask.assignedEngineer || selectedTask.engineer || "";
           const isReassignment = !!oldEngineer && oldEngineer !== eng.name;
+          // 2026-05-19 Phase 5 Step 0.C-5-a — 기사 변경 사유 (재배정만 prompt / 신규 배정은 X)
+          let assignReason = null;
+          if (isReassignment) {
+            assignReason = window.prompt(`기사 변경 사유 (${oldEngineer} → ${eng.name}):`, "");
+            if (assignReason === null) return; // 사용자 취소
+          }
           setAssigning(true);
           setAssignError("");
           try {
@@ -2689,6 +2695,16 @@ export default function AdminApp({ user, onLogout }) {
                 type: "reassignment",
                 title: "✓ 재배정 완료",
                 message: `${eng.name} 프로 / 일정 협의 필요`,
+              });
+              // 2026-05-19 Phase 5 Step 0.C-5-a — 변경 이력 audit log (재배정)
+              insertTaskChange({
+                taskId:        selectedTask.id,
+                changeType:    "engineer",
+                before:        { engineerName: oldEngineer || null },
+                after:         { engineerName: eng.name, engineerId: eng.id || null },
+                note:          assignReason || null,
+                changedBy:     user?.id || null,
+                changedByName: user?.name || null,
               });
               setScreen("taskDetail");
               return;
@@ -2781,6 +2797,17 @@ export default function AdminApp({ user, onLogout }) {
               taskId: selectedTask?.id,
             });
             addToast({ type: "assignment", title: "✓ 배정 완료", message: `${eng.name} 프로` });
+
+            // 2026-05-19 Phase 5 Step 0.C-5-a — 변경 이력 audit log (신규 배정)
+            insertTaskChange({
+              taskId:        selectedTask.id,
+              changeType:    "engineer",
+              before:        { engineerName: oldEngineer || null },
+              after:         { engineerName: eng.name, engineerId: eng.id || null },
+              note:          null,  // 신규 배정은 사유 X
+              changedBy:     user?.id || null,
+              changedByName: user?.name || null,
+            });
 
             // [1-3] fetchTasks() 호출 X — Optimistic만 적용 (5~7초 lag 방지)
             // 다음 mount 시 자동 fetch / 또는 사용자가 새로고침 시

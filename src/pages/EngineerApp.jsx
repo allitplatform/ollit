@@ -17,6 +17,8 @@ import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 // 2026-05-19 Fix #30 account-fetch — 회사 계좌 DB 우선 조회 (localStorage 의존 제거)
 import { fetchCompanyAccount, loadCompanyAccount } from "../data/companyAccount.js";
+// 2026-05-19 Phase 5 Step 0.C-5-b — 추가금 변경 이력 audit log (Migration 039)
+import { insertTaskChange } from "../lib/taskChangesDb.js";
 import { REGISTERED_USERS } from "../shared/users.js";
 import { useRealtime } from "../hooks/useRealtime.js";
 import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
@@ -3734,6 +3736,16 @@ export default function EngineerApp({ user, onLogout }) {
           ? { ...t, addonFee: Number(addAmount), totalAmount: newTotal, addonReason: addReason }
           : t
       ));
+      // 2026-05-19 Phase 5 Step 0.C-5-b — 추가금 변경 이력 audit log
+      insertTaskChange({
+        taskId:        priceChangeTask.id,
+        changeType:    "extra_fee",
+        before:        { extra_fee: Number(priceChangeTask.extraFee || priceChangeTask.addonFee || 0) },
+        after:         { extra_fee: Number(addAmount), extra_reason: addReason || null },
+        note:          addReason || null,
+        changedBy:     user?.id || null,
+        changedByName: user?.name || null,
+      });
       setPriceChangeTask(null);
       setAddAmount(0);
       setAddReason("");

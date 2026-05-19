@@ -72,11 +72,20 @@ export function computeDashboardStats({
     return !!n && toKstYmd(n) === todayStr;
   };
 
-  const newReceptionTasks = uniqueTasks.filter(t => _v14HasStatus(t, "미배정"));
+  // 2026-05-19 Phase 5 Step 0.C-6 — 사장님 spec 측 오늘 기준 필터 강화:
+  //   신규 접수 = DATE(created_at KST) = today + 미배정 (옛: 미배정 전체 / 시간 필터 X)
+  //   진행중   = DATE(scheduled_at KST) = today + 진행중 (옛 그대로)
+  //   완료     = DATE(completed_at KST) = today + 완료 (옛: scheduled_at 기준 → completed_at 측)
+  // 배정 / 확정 = 옛 spec 유지 (작업 흐름 5단계 시각화 측)
+  const isCompletedTodayLocal = (t) => {
+    const c = t.completedAt || t.completed_at || t.완료시간 || "";
+    return !!c && toKstYmd(c) === todayStr;
+  };
+  const newReceptionTasks = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "미배정"));
   const assignedTasksList = uniqueTasks.filter(t => _v14HasStatus(t, "배정"));
   const confirmedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "확정"));
   const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
-  const completedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "완료", "정산완료"));
+  const completedTasks    = uniqueTasks.filter(t => isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
 
   const newCount        = newReceptionTasks.length;
   const assignedCount   = assignedTasksList.length;
