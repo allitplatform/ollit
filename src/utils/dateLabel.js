@@ -190,6 +190,22 @@ export function formatDateTimeKST(value) {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
+// "2026.05.10 12:00" — KST 변환, 사장님 spec 양식 (점 구분자)
+// 유솔N 화면 측 일관 양식 (formatDateTimeKST의 dash 대신 dot)
+// 빈값/1899 epoch → "—"
+export function formatYmdHm(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime()) || d.getFullYear() < 1900) return "—";
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const yyyy = kst.getUTCFullYear();
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(kst.getUTCDate()).padStart(2, "0");
+  const hh = String(kst.getUTCHours()).padStart(2, "0");
+  const mi = String(kst.getUTCMinutes()).padStart(2, "0");
+  return `${yyyy}.${mm}.${dd} ${hh}:${mi}`;
+}
+
 // 작업 소요 시간 (startedAt ~ completedAt) — 초/분/시간 단위
 // "21초" / "5분" / "1시간 30분"
 export function calcTotalDuration(startedAt, completedAt) {

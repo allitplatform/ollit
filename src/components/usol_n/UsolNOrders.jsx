@@ -14,6 +14,7 @@ import {
   loadTasks, saveTasks, findTaskByProductOrderId,
 } from "../../data/tasks.js";
 import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
+import { formatYmdHm } from "../../utils/dateLabel.js";
 
 const PAGE_SIZE = 50;
 
@@ -194,7 +195,7 @@ function TaskRow({ task }) {
 
       {task.received_at && (
         <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 6 }}>
-          {new Date(task.received_at).toLocaleDateString("ko-KR")} 접수 · {task.phone || "—"}
+          {formatYmdHm(task.received_at)} 접수 · {task.phone || "—"}
         </div>
       )}
     </div>

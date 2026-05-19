@@ -7,6 +7,7 @@
 //   - status 필터 칩 (DB의 한글 status 측 매핑)
 import { useState, useMemo, useEffect } from "react";
 import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
+import { formatYmdHm } from "../../utils/dateLabel.js";
 
 const PAGE_SIZE = 50;
 
@@ -213,22 +214,13 @@ function TaskRow({ task }) {
           marginTop: 4, paddingTop: 4,
           borderTop: "1px dashed var(--border)",
         }}>
-          {task.completed_at ? `완료: ${formatDt(task.completed_at)}` :
-           task.started_at   ? `시작: ${formatDt(task.started_at)}`   :
-           task.scheduled_at ? `예정: ${formatDt(task.scheduled_at)}` : ""}
+          {task.completed_at ? `완료: ${formatYmdHm(task.completed_at)}` :
+           task.started_at   ? `시작: ${formatYmdHm(task.started_at)}`   :
+           task.scheduled_at ? `예정: ${formatYmdHm(task.scheduled_at)}` : ""}
         </div>
       )}
     </div>
   );
-}
-
-function formatDt(ts) {
-  if (!ts) return "—";
-  try {
-    return new Date(ts).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
-  } catch {
-    return "—";
-  }
 }
 
 function StatusBadge({ status }) {
