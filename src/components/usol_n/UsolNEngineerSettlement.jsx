@@ -1,26 +1,109 @@
-// V11-2 — 유솔 N · 기사 정산 탭
-// 매월 15일 일괄 입금 / 분배 구조 시각화 / 기사별 합계
-import { useState, useMemo } from "react";
-import { loadTasks } from "../../data/tasks.js";
+// Phase 5 Step 0.C-2 — 유솔N · 기사 정산 (DB 전환)
+// 2026-05-19
+// 흐름:
+//   1) fetchUsolNCompletedTaskItems → 완료 task_items 측 (6개월 cutoff)
+//   2) 선택 월 (이번달 기본) 필터 — tasks.completed_at yearMonth
+//   3) 기사별 합산 (assigned_engineer_id 기준 / net_amount 합)
+//   4) "기사 정산 완료" 일괄 버튼 → 그 달 정산 X 항목 → engineer_settled_at 일괄 UPDATE
+//   5) 정산된 항목 = 🟢 표시 / 정산 X = 대기 표시
+// 매월 15일 일괄 입금 spec. net_amount NULL → fallback (subtotal × 0.85 × 0.6 추정).
+import { useState, useMemo, useEffect } from "react";
+import { fetchUsolNCompletedTaskItems, markTaskItemsField } from "../../lib/usolNTasksDb.js";
 import { loadEngineers } from "../../data/engineers.js";
-import {
-  calcCompanyReceive, calcEngineerEarning, calcCompanyMargin,
-} from "../../utils/usolNCommission.js";
 import { EngineerBadge } from "../EngineerBadge.jsx";
+import { formatYmdHmAlways } from "../../utils/dateLabel.js";
+
+const ENGINEER_RATIO_FALLBACK = 0.6;   // net_amount NULL 시 기사 분배 추정
+const COMPANY_RATE_FALLBACK   = 0.85;  // subtotal → 회사 받음
+
+function calcItemEngineerAmount(item) {
+  if (item == null) return 0;
+  // net_amount = 사장님이 직접 입력한 실수령 (정확한 기사 분배)
+  if (item.net_amount != null) return item.net_amount;
+  // fallback — subtotal × 회사 비율 × 기사 분배 (추정 / 정확한 spec은 사장님 입력 필요)
+  const subtotal = item.subtotal || 0;
+  return Math.floor(subtotal * COMPANY_RATE_FALLBACK * ENGINEER_RATIO_FALLBACK);
+}
 
 export function UsolNEngineerSettlement() {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
+  const [items,   setItems]   = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState("");
+  const [confirming, setConfirming] = useState(false);
+  const [confirmedInfo, setConfirmedInfo] = useState(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
+  // engineers는 옛 localStorage 측 lookup (이름 표시용) — 별도 stage 측 DB 전환 spec
   const engineers = useMemo(() => {
     try { return loadEngineers(); } catch { return []; }
   }, []);
 
-  const monthData = useMemo(
-    () => calculateMonthData(selectedMonth, engineers),
-    [selectedMonth, engineers]
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError("");
+    fetchUsolNCompletedTaskItems({ monthsBack: 6 })
+      .then(res => {
+        if (!alive) return;
+        if (!res.ok) {
+          setError(res.error || "불러오기 실패");
+          setItems([]);
+        } else {
+          setItems(res.items);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [reloadTick]);
+
+  // 선택 월 측 items 필터
+  const monthItems = useMemo(() => {
+    return items.filter(it => {
+      const completedAt = it.tasks && it.tasks.completed_at;
+      if (!completedAt) return false;
+      const d = new Date(completedAt);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      return ym === selectedMonth;
+    });
+  }, [items, selectedMonth]);
+
+  // 기사별 합산 + 정산 상태
+  const byEngineer = useMemo(() => groupItemsByEngineer(monthItems, engineers), [monthItems, engineers]);
+
+  // 그 달 정산 안 된 task_items (engineer_settled_at IS NULL)
+  const pendingItems = useMemo(
+    () => monthItems.filter(it => !it.engineer_settled_at),
+    [monthItems]
   );
 
+  const totalSettled = monthItems
+    .filter(it => it.engineer_settled_at)
+    .reduce((s, it) => s + calcItemEngineerAmount(it), 0);
+
+  const totalPending = pendingItems.reduce((s, it) => s + calcItemEngineerAmount(it), 0);
+  const totalMonth   = totalSettled + totalPending;
+
   const nextSettlementDate = getNextSettlementLabel();
+
+  async function handleBulkSettle() {
+    if (pendingItems.length === 0 || confirming) return;
+    if (!confirm(`${pendingItems.length}개 항목 측 기사 정산 완료 마킹할까요?\n총 ₩${totalPending.toLocaleString()}`)) return;
+    setConfirming(true);
+    setError("");
+    const res = await markTaskItemsField(pendingItems.map(it => it.id), "engineer_settled_at");
+    setConfirming(false);
+    if (!res.ok) {
+      setError(res.error || "기사 정산 완료 마킹 실패");
+      return;
+    }
+    setConfirmedInfo({
+      count: res.count,
+      timestamp: res.timestamp,
+      monthLabel: selectedMonth,
+    });
+    setReloadTick(v => v + 1);
+  }
 
   return (
     <div>
@@ -44,74 +127,104 @@ export function UsolNEngineerSettlement() {
         </select>
       </div>
 
-      <div style={{
-        padding: 16,
-        background: "rgba(14,165,233,0.10)",
-        border: "2px solid #06B6D4",
-        borderRadius: 14, marginBottom: 12,
-      }}>
-        <div style={{ fontSize: 10, color: "#06B6D4", fontWeight: 700, marginBottom: 6 }}>
-          📤 {nextSettlementDate} 프로 입금 예정
-        </div>
-        <div style={{ fontSize: 22, color: "#06B6D4", fontWeight: 700, fontFamily: "inherit" }}>
-          ₩{monthData.totalToEngineers.toLocaleString()}
-        </div>
-        <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 4 }}>
-          {selectedMonth} 작업 {monthData.taskCount}건 · 프로 {monthData.engineerCount}명
-        </div>
-      </div>
-
-      <div style={{
-        padding: 12,
-        background: "rgba(3,199,90,0.06)",
-        border: "1px solid rgba(3,199,90,0.3)",
-        borderRadius: 10, marginBottom: 14,
-      }}>
-        <div style={{ fontSize: 10, color: "#03C75A", fontWeight: 600, marginBottom: 6 }}>
-          📊 분배 구조
-        </div>
-        <SettlementRow label="회사 받음 (× 85%)" value={monthData.totalCompanyReceive}/>
-        <SettlementRow label="프로 분배"           value={monthData.totalToEngineers} color="#06B6D4"/>
-        <SettlementRow label="회사 마진"           value={monthData.totalMargin}      color="#FF1B8D"/>
-      </div>
-
-      <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6, paddingLeft: 4 }}>
-        프로별 정산 ({monthData.byEngineer.length}명)
-      </div>
-
-      {monthData.byEngineer.length === 0 ? (
-        <Empty>{selectedMonth} 정산할 작업이 없습니다</Empty>
-      ) : (
-        monthData.byEngineer.map(item => (
-          <EngineerSettlementRow key={item.engineerId || item.engineer?.name} item={item}/>
-        ))
+      {error && (
+        <div style={errorBoxStyle}>⚠️ {error}</div>
       )}
 
-      {monthData.totalToEngineers > 0 && (
-        <button style={{
-          width: "100%", marginTop: 16, padding: 14,
-          background: "#06B6D4", border: "none", borderRadius: 10,
-          color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer",
-          fontFamily: "inherit",
-        }}>
-          {nextSettlementDate} 일괄 입금 실행 (₩{monthData.totalToEngineers.toLocaleString()})
-        </button>
+      {confirmedInfo && (
+        <div style={confirmedBoxStyle}>
+          ✓ 직전 기사 정산 완료: {confirmedInfo.count}개 / {formatYmdHmAlways(confirmedInfo.timestamp)}
+        </div>
+      )}
+
+      {loading ? (
+        <Empty>불러오는 중...</Empty>
+      ) : (
+        <>
+          {/* 입금 예정 카드 */}
+          <div style={{
+            padding: 16,
+            background: "rgba(14,165,233,0.10)",
+            border: "2px solid #06B6D4",
+            borderRadius: 14, marginBottom: 12,
+          }}>
+            <div style={{ fontSize: 10, color: "#06B6D4", fontWeight: 700, marginBottom: 6 }}>
+              📤 {nextSettlementDate} 기사 정산 예정
+            </div>
+            <div style={{ fontSize: 22, color: "#06B6D4", fontWeight: 700, fontFamily: "inherit" }}>
+              ₩{totalPending.toLocaleString()}
+            </div>
+            <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 4 }}>
+              {selectedMonth} 정산 X 항목 {pendingItems.length}개 · 기사 {byEngineer.length}명
+            </div>
+          </div>
+
+          {/* 분배 구조 */}
+          <div style={{
+            padding: 12,
+            background: "rgba(3,199,90,0.06)",
+            border: "1px solid rgba(3,199,90,0.3)",
+            borderRadius: 10, marginBottom: 14,
+          }}>
+            <div style={{ fontSize: 10, color: "#03C75A", fontWeight: 600, marginBottom: 6 }}>
+              📊 {selectedMonth} 분배
+            </div>
+            <SettlementRow label="정산 완료 (🟢)" value={totalSettled} color="#1D9E75"/>
+            <SettlementRow label="정산 대기 (대기)" value={totalPending} color="#06B6D4"/>
+            <div style={{ height: 1, background: "rgba(3,199,90,0.2)", margin: "6px 0" }}/>
+            <SettlementRow label="이번달 총" value={totalMonth} color="#03C75A" bold/>
+          </div>
+
+          <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6, paddingLeft: 4 }}>
+            기사별 정산 ({byEngineer.length}명)
+          </div>
+
+          {byEngineer.length === 0 ? (
+            <Empty>{selectedMonth} 정산할 항목이 없습니다</Empty>
+          ) : (
+            byEngineer.map(row => (
+              <EngineerRow key={row.engineerKey} row={row}/>
+            ))
+          )}
+
+          {pendingItems.length > 0 && (
+            <button
+              onClick={handleBulkSettle}
+              disabled={confirming}
+              style={{
+                width: "100%", marginTop: 16, padding: 14,
+                background: "#06B6D4", border: "none", borderRadius: 10,
+                color: "#fff", fontSize: 13, fontWeight: 700,
+                cursor: confirming ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+                opacity: confirming ? 0.5 : 1,
+              }}
+            >
+              {confirming
+                ? "마킹 중..."
+                : `${nextSettlementDate} 기사 정산 완료 (🟢 마킹) — ₩${totalPending.toLocaleString()}`}
+            </button>
+          )}
+        </>
       )}
     </div>
   );
 }
 
-function SettlementRow({ label, value, color }) {
+function SettlementRow({ label, value, color, bold }) {
   return (
     <div style={{
       display: "grid", gridTemplateColumns: "1fr auto", gap: 4,
-      fontSize: 10, padding: "2px 0",
+      fontSize: bold ? 11 : 10, padding: "2px 0",
     }}>
-      <span style={{ color: "var(--text-secondary)" }}>{label}</span>
+      <span style={{
+        color: bold ? "var(--text-primary)" : "var(--text-secondary)",
+        fontWeight: bold ? 700 : 400,
+      }}>{label}</span>
       <span style={{
         color: color || "var(--text-primary)",
         fontFamily: "inherit",
-        fontWeight: color ? 600 : 400,
+        fontWeight: bold ? 700 : 600,
       }}>
         ₩{value.toLocaleString()}
       </span>
@@ -119,26 +232,39 @@ function SettlementRow({ label, value, color }) {
   );
 }
 
-function EngineerSettlementRow({ item }) {
+function EngineerRow({ row }) {
+  const total      = row.items.reduce((s, it) => s + calcItemEngineerAmount(it), 0);
+  const pending    = row.items.filter(it => !it.engineer_settled_at);
+  const settled    = row.items.filter(it => it.engineer_settled_at);
+  const isAllDone  = pending.length === 0 && row.items.length > 0;
+
   return (
     <div style={{
       padding: 10,
-      background: "var(--bg-secondary)",
-      border: "1px solid var(--border)",
+      background: isAllDone ? "rgba(29,158,117,0.05)" : "var(--bg-secondary)",
+      border: isAllDone ? "1px solid rgba(29,158,117,0.3)" : "1px solid var(--border)",
       borderRadius: 10, marginBottom: 4,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        {item.engineer ? (
-          <EngineerBadge engineer={item.engineer} size="sm"/>
+        {row.engineer ? (
+          <EngineerBadge engineer={row.engineer} size="sm"/>
         ) : (
-          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{item.engineerName || "미배정"}</span>
+          <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+            {row.engineerName || (row.engineerKey === "unassigned" ? "미배정" : `기사 ${row.engineerKey.slice(0, 8)}`)}
+          </span>
         )}
-        <span style={{ fontSize: 12, color: "#06B6D4", fontWeight: 700, fontFamily: "inherit" }}>
-          ₩{item.totalEarning.toLocaleString()}
+        <span style={{
+          fontSize: 12,
+          color: isAllDone ? "#1D9E75" : "#06B6D4",
+          fontWeight: 700, fontFamily: "inherit",
+        }}>
+          ₩{total.toLocaleString()}
         </span>
       </div>
-      <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 2, paddingLeft: 14 }}>
-        {item.taskCount}건 (기본 {item.basicCount} + 추가 {item.extraCount})
+      <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 2, paddingLeft: 14, display: "flex", gap: 6 }}>
+        <span>항목 {row.items.length}개</span>
+        {settled.length > 0 && <span style={{ color: "#1D9E75" }}>🟢 {settled.length}</span>}
+        {pending.length > 0 && <span style={{ color: "#06B6D4" }}>대기 {pending.length}</span>}
       </div>
     </div>
   );
@@ -187,61 +313,46 @@ function getNextSettlementLabel() {
   return `${target.getMonth() + 1}/${target.getDate()}`;
 }
 
-function calculateMonthData(yearMonth, engineers) {
-  const tasks = loadTasks().filter(t => {
-    if (t.principalId !== "usol_n") return false;
-    if (!["completed", "partial", "visit_only"].includes(t.status)) return false;
-    if (!t.naverSettledAt) return false;
-    if (!t.completedAt)    return false;
-    const d = new Date(t.completedAt);
-    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    return ym === yearMonth;
-  });
-
-  const engineerMap = {};
-  let totalCompanyReceive = 0;
-  let totalToEngineers    = 0;
-  let totalMargin         = 0;
-
-  tasks.forEach(t => {
-    const cReceive = calcCompanyReceive(t);
-    const eEarning = calcEngineerEarning(t) || 0;
-    const margin   = calcCompanyMargin(t)   || 0;
-
-    totalCompanyReceive += cReceive;
-    totalToEngineers    += eEarning;
-    totalMargin         += margin;
-
-    const key = t.engineerId || t.engineer || "unassigned";
-    if (!engineerMap[key]) {
-      engineerMap[key] = {
-        engineerId:   t.engineerId || null,
-        engineerName: t.engineer || "미배정",
-        engineer:     engineers.find(e => e.id === t.engineerId) || null,
-        tasks: [],
-        totalEarning: 0,
-        basicCount: 0,
-        extraCount: 0,
+// 기사별 합산 — assigned_engineer_id 기준
+function groupItemsByEngineer(items, engineers) {
+  const map = {};
+  items.forEach(it => {
+    const engineerId = (it.tasks && it.tasks.assigned_engineer_id) || null;
+    const key = engineerId || "unassigned";
+    if (!map[key]) {
+      map[key] = {
+        engineerKey:  key,
+        engineerId:   engineerId,
+        engineer:     engineers.find(e => e.id === engineerId) || null,
+        engineerName: null,
+        items: [],
       };
     }
-    engineerMap[key].tasks.push(t);
-    engineerMap[key].totalEarning += eEarning;
-    if (t.orderType === "extra") engineerMap[key].extraCount += 1;
-    else                          engineerMap[key].basicCount += 1;
+    map[key].items.push(it);
   });
 
-  const byEngineer = Object.values(engineerMap)
-    .map(it => ({ ...it, taskCount: it.tasks.length }))
-    .sort((a, b) => b.totalEarning - a.totalEarning);
-
-  return {
-    taskCount:           tasks.length,
-    engineerCount:       byEngineer.length,
-    totalCompanyReceive,
-    totalToEngineers,
-    totalMargin,
-    byEngineer,
-  };
+  return Object.values(map).sort((a, b) => {
+    const aTotal = a.items.reduce((s, it) => s + calcItemEngineerAmount(it), 0);
+    const bTotal = b.items.reduce((s, it) => s + calcItemEngineerAmount(it), 0);
+    return bTotal - aTotal;
+  });
 }
+
+const confirmedBoxStyle = {
+  padding: 12,
+  background: "rgba(29,158,117,0.10)",
+  border: "1px solid rgba(29,158,117,0.4)",
+  borderRadius: 8, marginBottom: 12,
+  color: "#1D9E75", fontSize: 12, fontWeight: 600,
+  textAlign: "center",
+};
+
+const errorBoxStyle = {
+  padding: 10,
+  background: "rgba(255,68,68,0.08)",
+  border: "1px solid rgba(255,68,68,0.3)",
+  borderRadius: 8, marginBottom: 12,
+  color: "#ff4444", fontSize: 11, fontWeight: 600,
+};
 
 export default UsolNEngineerSettlement;
