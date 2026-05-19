@@ -15,25 +15,29 @@
 //   useRealtimeTasks((payload) => fetchTasks({ background: true }));
 //   또는 payload 분기 (eventType: 'INSERT' / 'UPDATE' / 'DELETE')
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useId } from 'react';
 import { supabase } from '../lib/supabase.js';
 
 // tasks 테이블 변경 구독
 // onChange(payload) — payload = { eventType, new, old, schema, table, commit_timestamp }
+// 2026-05-19 Phase 5 Step 0.C-9-fix — useId 측 channel 이름 unique 부여
+//   옛: 'tasks-changes' 고정 → 같은 channel 측 다중 subscribe 충돌
+//   에러: "cannot add postgres_changes callbacks ... after subscribe()" + status CLOSED
+//   정정: useId() 측 컴포넌트 instance별 unique suffix.
 export function useRealtimeTasks(onChange) {
   const onChangeRef = useRef(onChange);
+  const channelId = useId();
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
   useEffect(() => {
     const channel = supabase
-      .channel('tasks-changes')
+      .channel(`tasks-changes-${channelId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
         (payload) => {
           const id = payload.new?.id || payload.old?.id;
           console.log('[Realtime] tasks', payload.eventType, id);
-          // 진단용 — UPDATE 측 push_candidates 측 변경 catch
           if (payload.eventType === 'UPDATE') {
             console.log('[DIAG realtime UPDATE]', {
               taskId: payload.new?.id,
@@ -45,26 +49,28 @@ export function useRealtimeTasks(onChange) {
         }
       )
       .subscribe((status) => {
-        console.log('[Realtime] subscription status:', status);
+        console.log(`[Realtime] tasks-changes-${channelId} status:`, status);
       });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [channelId]);
 }
 
 // 일반 테이블 측 구독 (재사용)
 // 사용: useRealtimeTable('photos', (payload) => { ... });
 // 사용 + filter: useRealtimeTable('task_items', cb, `task_id=eq.${taskId}`);
 //   Supabase Realtime postgres_changes filter spec — eq / neq / gt / lt / in 측 지원.
+// 2026-05-19 Phase 5 Step 0.C-9-fix — useId 측 channel 이름 unique 부여 (다중 subscribe 충돌 차단)
 export function useRealtimeTable(tableName, onChange, filter = null) {
   const onChangeRef = useRef(onChange);
+  const channelId = useId();
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
   useEffect(() => {
     if (!tableName) return;
-    const channelName = filter ? `${tableName}-${filter}` : `${tableName}-changes`;
+    const channelName = `${tableName}-${channelId}${filter ? `-${filter}` : ''}`;
     const config = { event: '*', schema: 'public', table: tableName };
     if (filter) config.filter = filter;
     const channel = supabase
@@ -78,10 +84,12 @@ export function useRealtimeTable(tableName, onChange, filter = null) {
           if (onChangeRef.current) onChangeRef.current(payload);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log(`[Realtime] ${channelName} status:`, status);
+      });
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tableName, filter]);
+  }, [tableName, filter, channelId]);
 }
