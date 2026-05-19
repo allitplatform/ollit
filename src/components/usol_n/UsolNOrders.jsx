@@ -1,6 +1,11 @@
-// V11-2 — 유솔 N · 새 접수 탭
-// 접수 CSV 업로드 → 자동 분류 → 일괄 등록 → 묶음 카드 표시
-import { useState, useMemo, useRef } from "react";
+// Phase 5 Step 0.B — 유솔N · 접수 탭 (DB 전환)
+// 2026-05-19
+// 변경:
+//   - loadTasks() (localStorage) → fetchUsolNTasks() (Supabase)
+//   - 1 task = 1 줄 + task_items 측 작업 종류 칩 + 정산 사이클 색상 상태
+//   - 페이지네이션 50건/page
+//   - 기존 CSV 업로드 영역은 일단 유지 (UI 그대로 / DB INSERT 흐름은 Stage 0.C/0.D 측 정정 spec)
+import { useState, useMemo, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import {
   csvOrderRowToTask,
@@ -8,20 +13,46 @@ import {
 import {
   loadTasks, saveTasks, findTaskByProductOrderId,
 } from "../../data/tasks.js";
+import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
+
+const PAGE_SIZE = 50;
 
 export function UsolNOrders() {
-  const [tasksVersion, setTasksVersion] = useState(0);
   const [pendingRows, setPendingRows] = useState([]);
   const fileInputRef = useRef(null);
 
-  const tasks = useMemo(
-    () => loadTasks().filter(t => t.principalId === "usol_n" && t.status === "received"),
-    [tasksVersion]
-  );
+  // DB fetch state (Phase 5 Step 0.B)
+  const [tasks, setTasks]       = useState([]);
+  const [total, setTotal]       = useState(0);
+  const [page, setPage]         = useState(0); // 0-indexed
+  const [loading, setLoading]   = useState(false);
+  const [fetchError, setFetchError] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
 
-  function refresh() { setTasksVersion(v => v + 1); }
+  // status = '미배정' (옛 'received' 매핑) — 접수 탭 = 미배정만
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setFetchError("");
+    fetchUsolNTasks({ statusIn: ["미배정"], limit: PAGE_SIZE, offset: page * PAGE_SIZE })
+      .then(res => {
+        if (!alive) return;
+        if (!res.ok) {
+          setFetchError(res.error || "불러오기 실패");
+          setTasks([]);
+          setTotal(0);
+        } else {
+          setTasks(res.tasks);
+          setTotal(res.total);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [page, reloadTick]);
 
-  // CSV 업로드 → 파싱 → 중복 제거 → 미리보기
+  function refresh() { setReloadTick(v => v + 1); }
+
+  // CSV 업로드 → 파싱 → 중복 제거 → 미리보기 (Stage 0.B는 기존 흐름 유지 / DB INSERT는 0.C 정정)
   function handleFileSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -47,6 +78,7 @@ export function UsolNOrders() {
   }
 
   function handleConfirmImport() {
+    // Stage 0.B — 기존 localStorage 측 일단 유지 (0.C 정정 spec / DB INSERT 흐름)
     const all = loadTasks();
     pendingRows.forEach(row => {
       const t = csvOrderRowToTask(row);
@@ -64,16 +96,7 @@ export function UsolNOrders() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  // 같은 주문번호 묶음
-  const grouped = useMemo(() => {
-    const m = {};
-    tasks.forEach(t => {
-      const key = t.orderNumber || t.id;
-      if (!m[key]) m[key] = [];
-      m[key].push(t);
-    });
-    return m;
-  }, [tasks]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div>
@@ -86,18 +109,127 @@ export function UsolNOrders() {
       />
 
       <div style={sectionTitleStyle}>
-        접수 대기 <span style={{ color: "#03C75A", fontWeight: 700 }}>{Object.keys(grouped).length}</span>건
+        접수 대기{" "}
+        <span style={{ color: "#03C75A", fontWeight: 700 }}>{total.toLocaleString()}</span>건
+        {totalPages > 1 && (
+          <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
+            · {page + 1} / {totalPages}p
+          </span>
+        )}
       </div>
 
-      {Object.keys(grouped).length === 0 ? (
+      {loading ? (
+        <Empty>불러오는 중...</Empty>
+      ) : fetchError ? (
+        <Empty>⚠️ {fetchError}</Empty>
+      ) : tasks.length === 0 ? (
         <Empty>대기 중인 새 접수가 없습니다</Empty>
       ) : (
-        Object.entries(grouped).map(([orderNumber, items]) => (
-          <OrderGroupCard key={orderNumber} items={items}/>
-        ))
+        tasks.map(task => <TaskRow key={task.id} task={task}/>)
+      )}
+
+      {totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} onChange={setPage}/>
       )}
     </div>
   );
+}
+
+// 1 task = 1 줄 (사장님 spec)
+// 좌: 색상 dot + 고객명 + task_no + 작업 종류 칩 (task_items별)
+// 우: total_amount
+function TaskRow({ task }) {
+  const taskColor = getTaskSettlementColor(task);
+  const items     = task.task_items || [];
+
+  return (
+    <div style={{
+      padding: 12,
+      background: "var(--usol-n-card-bg)",
+      border: "1px solid var(--usol-n-border)",
+      borderLeft: `3px solid ${taskColor.color === "#1D9E75" ? "#1D9E75" :
+                                taskColor.color === "#F59E0B" ? "#F59E0B" :
+                                taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)"}`,
+      borderRadius: 10, marginBottom: 6,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 12 }}>{taskColor.dot}</span>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+            {task.customer_name || "—"}
+          </span>
+          <span style={taskNoStyle}>{task.task_no || ""}</span>
+        </div>
+        <span style={{ fontSize: 13, color: "#03C75A", fontWeight: 700, fontFamily: "inherit" }}>
+          ₩{(task.total_amount || 0).toLocaleString()}
+        </span>
+      </div>
+
+      {task.address && (
+        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6 }}>
+          {String(task.address).split("(")[0].trim()}
+        </div>
+      )}
+
+      {items.length > 0 && (
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+          {items.map(item => {
+            const c = getItemSettlementColor(item);
+            return (
+              <span key={item.id} style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                fontSize: 9,
+                color: "var(--text-primary)",
+                background: "var(--bg-secondary)",
+                border: `1px solid ${c.color}`,
+                padding: "2px 6px", borderRadius: 4, fontWeight: 600,
+              }}>
+                <span style={{ fontSize: 9 }}>{c.dot}</span>
+                <span>{getItemChipLabel(item)} ×{item.qty || 1}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {task.received_at && (
+        <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 6 }}>
+          {new Date(task.received_at).toLocaleDateString("ko-KR")} 접수 · {task.phone || "—"}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Pagination({ page, totalPages, onChange }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 14 }}>
+      <button
+        onClick={() => onChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+        style={pageBtnStyle(page === 0)}
+      >← 이전</button>
+      <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+        {page + 1} / {totalPages}
+      </span>
+      <button
+        onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
+        disabled={page >= totalPages - 1}
+        style={pageBtnStyle(page >= totalPages - 1)}
+      >다음 →</button>
+    </div>
+  );
+}
+
+function pageBtnStyle(disabled) {
+  return {
+    padding: "6px 12px",
+    background: disabled ? "transparent" : "var(--bg-secondary)",
+    border: "1px solid var(--border)", borderRadius: 6,
+    color: disabled ? "var(--text-tertiary, var(--text-secondary))" : "var(--text-primary)",
+    fontSize: 11, cursor: disabled ? "not-allowed" : "pointer",
+    fontFamily: "inherit", opacity: disabled ? 0.5 : 1,
+  };
 }
 
 function UploadBox({ fileInputRef, onFileSelect, pendingCount, onConfirm, onCancel }) {
@@ -143,67 +275,6 @@ function UploadBox({ fileInputRef, onFileSelect, pendingCount, onConfirm, onCanc
   );
 }
 
-function OrderGroupCard({ items }) {
-  const totalNet = items.reduce((s, t) => s + (t.netAmount || 0), 0);
-  const isGroup = items.length > 1;
-  const first   = items[0];
-
-  return (
-    <div style={isGroup ? cardGroupStyle : cardStyle}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
-            {first.customer || "—"}
-          </span>
-          <span style={statusBadgeStyle}>접수</span>
-          {isGroup && <span style={groupBadgeStyle}>묶음 {items.length}</span>}
-        </div>
-        <span style={{ fontSize: 13, color: "#03C75A", fontWeight: 700, fontFamily: "inherit" }}>
-          ₩{totalNet.toLocaleString()}
-        </span>
-      </div>
-
-      {first.address && (
-        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
-          {String(first.address).split("(")[0].trim()}
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
-        {items.map((t, idx) => {
-          const wi = Array.isArray(t.workItems) && t.workItems.length > 0 ? t.workItems[0] : null;
-          const type = t.orderType === "extra"
-            ? (t.appliance || "추가")
-            : (wi?.type || t.appliance || "?");
-          const isExtra = t.orderType === "extra";
-          return (
-            <span key={idx} style={{
-              fontSize: 9,
-              color: isExtra ? "#F59E0B" : "#03C75A",
-              background: isExtra ? "rgba(245,158,11,0.10)" : "rgba(3,199,90,0.10)",
-              padding: "2px 6px", borderRadius: 4, fontWeight: 600,
-            }}>
-              {type} ×{t.qty || 1}
-            </span>
-          );
-        })}
-      </div>
-
-      {first.buyerName && first.buyerName !== first.customer && (
-        <div style={{ fontSize: 9, color: "#A855F7", marginTop: 4 }}>
-          ⚠️ 구매자: {first.buyerName} (수취인 다름)
-        </div>
-      )}
-
-      {first.paidAt && (
-        <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 4 }}>
-          {new Date(first.paidAt).toLocaleDateString("ko-KR")} 결제 · {first.phone || "—"}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function Empty({ children }) {
   return (
     <div style={{
@@ -219,6 +290,13 @@ function Empty({ children }) {
 const sectionTitleStyle = {
   fontSize: 11, color: "var(--text-secondary)",
   marginBottom: 8, paddingLeft: 4, marginTop: 16,
+};
+
+const taskNoStyle = {
+  fontSize: 9, color: "var(--text-secondary)",
+  background: "var(--bg-inset, var(--bg-secondary))",
+  padding: "1px 5px", borderRadius: 3,
+  fontFamily: "inherit",
 };
 
 const uploadDropStyle = {
@@ -249,31 +327,6 @@ const secondaryButtonStyle = {
   border: "1px solid var(--border)", borderRadius: 6,
   color: "var(--text-secondary)", fontSize: 12, cursor: "pointer",
   fontFamily: "inherit",
-};
-
-const cardStyle = {
-  padding: 12,
-  background: "var(--usol-n-card-bg)",
-  border: "1px solid var(--usol-n-border)",
-  borderRadius: 10, marginBottom: 6,
-  boxShadow: "var(--usol-n-shadow)",
-};
-
-const cardGroupStyle = {
-  ...cardStyle,
-  borderLeft: "3px solid #A855F7",
-};
-
-const statusBadgeStyle = {
-  fontSize: 9, color: "var(--text-secondary)",
-  background: "var(--bg-inset, var(--bg-secondary))",
-  padding: "1px 5px", borderRadius: 3,
-};
-
-const groupBadgeStyle = {
-  fontSize: 9, color: "#A855F7",
-  background: "rgba(168,85,247,0.15)",
-  padding: "1px 5px", borderRadius: 3,
 };
 
 export default UsolNOrders;

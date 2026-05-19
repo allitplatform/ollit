@@ -1,50 +1,73 @@
-// V11-2 — 유솔 N · 진행중 탭
-// 배정 / 진행 / 완료 작업 필터 + 카드 뷰
-import { useState, useMemo } from "react";
-import { loadTasks } from "../../data/tasks.js";
-import { loadEngineers } from "../../data/engineers.js";
-import { EngineerBadge } from "../EngineerBadge.jsx";
+// Phase 5 Step 0.B — 유솔N · 진행 탭 (DB 전환)
+// 2026-05-19
+// 변경:
+//   - loadTasks() (localStorage) → fetchUsolNTasks() (Supabase)
+//   - 1 task = 1 줄 + task_items 측 작업 종류 칩 + 정산 사이클 색상 상태
+//   - 페이지네이션 50건/page
+//   - status 필터 칩 (DB의 한글 status 측 매핑)
+import { useState, useMemo, useEffect } from "react";
+import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
 
+const PAGE_SIZE = 50;
+
+// 필터 ↔ DB status 매핑 (Q-i B안 — DB CHECK는 한글 6개)
 const STATUS_FILTERS = [
-  { id: "all",         label: "전체",   statuses: ["assigned", "confirmed", "in_progress", "completed", "partial", "visit_only"] },
-  { id: "assigned",    label: "배정",   statuses: ["assigned", "confirmed"] },
-  { id: "in_progress", label: "진행중", statuses: ["in_progress"] },
-  { id: "completed",   label: "완료",   statuses: ["completed", "partial", "visit_only"] },
+  { id: "all",         label: "전체",   statuses: ["약속대기", "확정", "진행중", "완료"] },
+  { id: "assigned",    label: "배정",   statuses: ["약속대기", "확정"] },
+  { id: "in_progress", label: "진행중", statuses: ["진행중"] },
+  { id: "completed",   label: "완료",   statuses: ["완료"] },
 ];
 
 export function UsolNInProgress() {
   const [filterId, setFilterId] = useState("all");
+  const [page, setPage]         = useState(0);
 
-  const usolNTasks = useMemo(
-    () => loadTasks().filter(t =>
-      t.principalId === "usol_n" && t.status !== "received"
-    ),
-    []
-  );
+  const [tasks, setTasks]       = useState([]);
+  const [total, setTotal]       = useState(0);
+  const [loading, setLoading]   = useState(false);
+  const [fetchError, setFetchError] = useState("");
 
-  const engineers = useMemo(() => {
-    try { return loadEngineers(); } catch { return []; }
-  }, []);
+  const currentFilter = STATUS_FILTERS.find(f => f.id === filterId) || STATUS_FILTERS[0];
 
-  const counts = useMemo(() => {
-    return STATUS_FILTERS.reduce((acc, f) => {
-      acc[f.id] = usolNTasks.filter(t => f.statuses.includes(t.status)).length;
-      return acc;
-    }, {});
-  }, [usolNTasks]);
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setFetchError("");
+    fetchUsolNTasks({
+      statusIn: currentFilter.statuses,
+      limit:    PAGE_SIZE,
+      offset:   page * PAGE_SIZE,
+    })
+      .then(res => {
+        if (!alive) return;
+        if (!res.ok) {
+          setFetchError(res.error || "불러오기 실패");
+          setTasks([]);
+          setTotal(0);
+        } else {
+          setTasks(res.tasks);
+          setTotal(res.total);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [filterId, page]);
 
-  const filteredTasks = useMemo(() => {
-    const f = STATUS_FILTERS.find(x => x.id === filterId);
-    return usolNTasks.filter(t => f.statuses.includes(t.status));
-  }, [usolNTasks, filterId]);
+  function handleFilterChange(id) {
+    setFilterId(id);
+    setPage(0); // 필터 변경 시 첫 페이지로
+  }
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <div>
+      {/* 필터 칩 */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         {STATUS_FILTERS.map(filter => (
           <button
             key={filter.id}
-            onClick={() => setFilterId(filter.id)}
+            onClick={() => handleFilterChange(filter.id)}
             style={{
               padding: "5px 10px",
               background: filterId === filter.id ? "rgba(168,85,247,0.15)" : "transparent",
@@ -55,100 +78,183 @@ export function UsolNInProgress() {
               cursor: "pointer", fontFamily: "inherit",
             }}
           >
-            {filter.label} {counts[filter.id]}
+            {filter.label}
           </button>
         ))}
       </div>
 
-      {filteredTasks.length === 0 ? (
+      <div style={sectionTitleStyle}>
+        {currentFilter.label}{" "}
+        <span style={{ color: "#A855F7", fontWeight: 700 }}>{total.toLocaleString()}</span>건
+        {totalPages > 1 && (
+          <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
+            · {page + 1} / {totalPages}p
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <Empty>불러오는 중...</Empty>
+      ) : fetchError ? (
+        <Empty>⚠️ {fetchError}</Empty>
+      ) : tasks.length === 0 ? (
         <Empty>해당 상태의 작업이 없습니다</Empty>
       ) : (
-        filteredTasks.map(task => (
-          <TaskCard key={task.id} task={task} engineers={engineers}/>
-        ))
+        tasks.map(task => <TaskRow key={task.id} task={task}/>)
+      )}
+
+      {totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} onChange={setPage}/>
       )}
     </div>
   );
 }
 
-function TaskCard({ task, engineers }) {
-  const engineer = engineers.find(e => e.id === task.engineerId);
-  const isCurrentlyWorking = task.status === "in_progress";
+// 1 task = 1 줄 (UsolNOrders와 동일 패턴 — 일관성 spec)
+function TaskRow({ task }) {
+  const taskColor = getTaskSettlementColor(task);
+  const items     = task.task_items || [];
+  const isCurrentlyWorking = task.status === "진행중";
 
   return (
     <div style={{
       padding: 12,
       background: isCurrentlyWorking
         ? "rgba(255,27,141,0.10)"
-        : "var(--bg-secondary)",
+        : "var(--usol-n-card-bg)",
       border: isCurrentlyWorking
         ? "2px solid #FF1B8D"
-        : "1px solid var(--border)",
+        : "1px solid var(--usol-n-border)",
+      borderLeft: isCurrentlyWorking
+        ? "2px solid #FF1B8D"
+        : `3px solid ${taskColor.color === "#1D9E75" ? "#1D9E75" :
+                       taskColor.color === "#F59E0B" ? "#F59E0B" :
+                       taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)"}`,
       borderRadius: 10, marginBottom: 6,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12 }}>{taskColor.dot}</span>
           <StatusIcon status={task.status}/>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer || "—"}</span>
+          <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer_name || "—"}</span>
           <StatusBadge status={task.status}/>
         </div>
-        <span style={{ fontSize: 11, fontFamily: "inherit", color: isCurrentlyWorking ? "#A855F7" : "var(--text-primary)" }}>
-          ₩{(task.netAmount || 0).toLocaleString()}
+        <span style={{
+          fontSize: 11, fontFamily: "inherit",
+          color: isCurrentlyWorking ? "#A855F7" : "var(--text-primary)",
+        }}>
+          ₩{(task.total_amount || 0).toLocaleString()}
         </span>
       </div>
 
       <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
-        {task.address ? String(task.address).split("(")[0].trim() : "—"}
-        {task.workItems && task.workItems.length > 0 && (
-          <> · {task.workItems.map(a => `${a.type} ×${a.count}`).join(", ")}</>
+        {task.task_no || "—"}
+        {task.address && (
+          <> · {String(task.address).split("(")[0].trim()}</>
         )}
       </div>
 
-      {engineer && (
+      {items.length > 0 && (
+        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
+          {items.map(item => {
+            const c = getItemSettlementColor(item);
+            return (
+              <span key={item.id} style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                fontSize: 9,
+                color: "var(--text-primary)",
+                background: "var(--bg-secondary)",
+                border: `1px solid ${c.color}`,
+                padding: "2px 6px", borderRadius: 4, fontWeight: 600,
+              }}>
+                <span style={{ fontSize: 9 }}>{c.dot}</span>
+                <span>{getItemChipLabel(item)} ×{item.qty || 1}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {(task.scheduled_at || task.started_at || task.completed_at) && (
         <div style={{
-          display: "flex", alignItems: "center", gap: 4,
+          fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))",
           marginTop: 4, paddingTop: 4,
           borderTop: "1px dashed var(--border)",
         }}>
-          <EngineerBadge engineer={engineer} size="sm"/>
-          {(task.scheduledAt || task.time) && (
-            <span style={{ fontSize: 9, color: "var(--text-tertiary)", marginLeft: "auto" }}>
-              {task.scheduledAt
-                ? new Date(task.scheduledAt).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })
-                : task.time}
-            </span>
-          )}
+          {task.completed_at ? `완료: ${formatDt(task.completed_at)}` :
+           task.started_at   ? `시작: ${formatDt(task.started_at)}`   :
+           task.scheduled_at ? `예정: ${formatDt(task.scheduled_at)}` : ""}
         </div>
       )}
     </div>
   );
 }
 
+function formatDt(ts) {
+  if (!ts) return "—";
+  try {
+    return new Date(ts).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "—";
+  }
+}
+
 function StatusIcon({ status }) {
+  // DB 한글 status 측 아이콘 매핑
   const map = {
-    assigned: "🟡", confirmed: "🔵",
-    in_progress: "🟢", completed: "⚪",
-    partial: "🔶", visit_only: "🚗",
+    "약속대기": "🟡",
+    "확정":     "🔵",
+    "진행중":   "🟢",
+    "완료":     "⚪",
   };
   return <span style={{ fontSize: 12 }}>{map[status] || "⚪"}</span>;
 }
 
 function StatusBadge({ status }) {
   const map = {
-    assigned:    { label: "배정",   color: "#06B6D4" },
-    confirmed:   { label: "확정",   color: "#06B6D4" },
-    in_progress: { label: "진행중", color: "#A855F7" },
-    completed:   { label: "완료",   color: "#1D9E75" },
-    partial:     { label: "부분",   color: "#F59E0B" },
-    visit_only:  { label: "출장비", color: "#FF1B8D" },
+    "약속대기": { label: "약속대기", color: "#06B6D4" },
+    "확정":     { label: "확정",     color: "#06B6D4" },
+    "진행중":   { label: "진행중",   color: "#A855F7" },
+    "완료":     { label: "완료",     color: "#1D9E75" },
   };
-  const it = map[status] || { label: status, color: "var(--text-secondary)" };
+  const it = map[status] || { label: status || "—", color: "var(--text-secondary)" };
   return (
     <span style={{
       fontSize: 9, color: it.color, background: `${it.color}26`,
       padding: "1px 5px", borderRadius: 3,
     }}>{it.label}</span>
   );
+}
+
+function Pagination({ page, totalPages, onChange }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 14 }}>
+      <button
+        onClick={() => onChange(Math.max(0, page - 1))}
+        disabled={page === 0}
+        style={pageBtnStyle(page === 0)}
+      >← 이전</button>
+      <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+        {page + 1} / {totalPages}
+      </span>
+      <button
+        onClick={() => onChange(Math.min(totalPages - 1, page + 1))}
+        disabled={page >= totalPages - 1}
+        style={pageBtnStyle(page >= totalPages - 1)}
+      >다음 →</button>
+    </div>
+  );
+}
+
+function pageBtnStyle(disabled) {
+  return {
+    padding: "6px 12px",
+    background: disabled ? "transparent" : "var(--bg-secondary)",
+    border: "1px solid var(--border)", borderRadius: 6,
+    color: disabled ? "var(--text-tertiary, var(--text-secondary))" : "var(--text-primary)",
+    fontSize: 11, cursor: disabled ? "not-allowed" : "pointer",
+    fontFamily: "inherit", opacity: disabled ? 0.5 : 1,
+  };
 }
 
 function Empty({ children }) {
@@ -162,5 +268,10 @@ function Empty({ children }) {
     }}>{children}</div>
   );
 }
+
+const sectionTitleStyle = {
+  fontSize: 11, color: "var(--text-secondary)",
+  marginBottom: 8, paddingLeft: 4,
+};
 
 export default UsolNInProgress;

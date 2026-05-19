@@ -243,16 +243,7 @@ export function SettingsScreen({
           </Section>
         )}
 
-        {showUsolNRow && (
-          <UsolNSection>
-            <UsolNRow
-              icon={USOL_N_ENTRY.icon}
-              label={USOL_N_ENTRY.label}
-              sub={USOL_N_ENTRY.sub}
-              onClick={() => onUsolN && onUsolN(USOL_N_ENTRY.id)}
-            />
-          </UsolNSection>
-        )}
+        {/* 2026-05-19 Phase 5 Step 0.B — 유솔N 진입 = 개요 탭 박스 단일 경로. 설정 측 항목 제거. */}
 
         {perFiltered.length > 0 && (
           <Section label="🎨 개인">

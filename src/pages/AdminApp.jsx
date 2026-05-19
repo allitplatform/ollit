@@ -3152,6 +3152,7 @@ export default function AdminApp({ user, onLogout }) {
       onClickManage={() => setScreen("engineerList")}
       onClickManagePrincipals={() => setScreen("principalList")}
       onClickSettings={() => setScreen("settings")}
+      onClickUsolN={() => setScreen("usol_n")}
       onClickUrgentAssign={() => { setSelectedTask(URGENT_TASK); setScreen("recommend"); }}
       onEngineerClick={(eng) => goEngineerDay(eng, null)}
       onTaskClick={(task) => goTaskDetail(task, null)}
@@ -3226,7 +3227,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onEngineerClick, onTaskClick, onClickCancelHandle }) {
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onClickUsolN, onEngineerClick, onTaskClick, onClickCancelHandle }) {
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
@@ -3404,7 +3405,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -3420,7 +3421,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
-function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception }) {
+function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN }) {
   // 2026-05-15 명세 — 오늘 작업 흐름 (작업유형별 5단계 / 각 단계 = 오늘 일어난 액션)
   //   신규 → createdAt today + (미배정 or 빈값)     (오늘 접수 + 대기열)
   //   배정 → assignedAt today                        (오늘 배정/수락) — Migration 013
@@ -3548,6 +3549,29 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
+      {/* 2026-05-19 Phase 5 Step 0.B — 유솔N 사이클 진입 (단일 경로 / 설정 측 항목 제거) */}
+      {onClickUsolN && (
+        <button
+          onClick={onClickUsolN}
+          style={{
+            width: "100%",
+            padding: "12px 14px",
+            background: t.bgElevated,
+            border: `1px solid ${t.border}`,
+            borderLeft: "3px solid #03C75A",
+            borderRadius: 10,
+            marginBottom: 14,
+            cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontFamily: "inherit",
+            color: t.text,
+          }}
+        >
+          <span style={{ fontSize: 13, fontWeight: 700 }}>🟢 유솔N</span>
+          <span style={{ fontSize: 16, color: t.textMuted }}>→</span>
+        </button>
+      )}
+
       {/* 2026-05-11 — 오늘 작업 흐름 카드 (세척/냉매 5단계 / 0건이어도 박힘) */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
