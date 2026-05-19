@@ -2964,9 +2964,23 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   // V11-2-fix — 유솔 N 워크스페이스 (단일 라우트, 5탭 컨테이너 내부)
+  // 2026-05-19 Phase 5 Step 0.B — onTaskClick prop drilling (Supabase row → v14 정규화 → AdminTaskDetailScreen)
   if (screen === "usol_n") {
     return <Shell>
-      <UsolNScreen user={user} onBack={goBack}/>
+      <UsolNScreen
+        user={user}
+        onBack={goBack}
+        onTaskClick={(task) => {
+          // UsolNScreen task = Supabase raw row (customer_name / district 측 snake_case)
+          // _v14NormalizeTask는 customer / region 키 측 fallback이라 추가 별칭 매핑
+          const adapted = {
+            ...task,
+            customer: task.customer_name || task.customer,
+            region:   task.district      || task.region,
+          };
+          goTaskDetail(_v14NormalizeTask(adapted), "usol_n");
+        }}
+      />
     </Shell>;
   }
   if (screen === "userList") {

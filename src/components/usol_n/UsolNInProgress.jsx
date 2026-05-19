@@ -19,7 +19,7 @@ const STATUS_FILTERS = [
   { id: "completed",   label: "완료",   statuses: ["완료"] },
 ];
 
-export function UsolNInProgress() {
+export function UsolNInProgress({ onTaskClick }) {
   const [filterId, setFilterId] = useState("all");
   const [page, setPage]         = useState(0);
   const [searchInput, setSearchInput] = useState(""); // 입력값 (debounce 전)
@@ -134,7 +134,7 @@ export function UsolNInProgress() {
       ) : tasks.length === 0 ? (
         <Empty>해당 상태의 작업이 없습니다</Empty>
       ) : (
-        tasks.map(task => <TaskRow key={task.id} task={task}/>)
+        tasks.map(task => <TaskRow key={task.id} task={task} onClick={onTaskClick}/>)
       )}
 
       {totalPages > 1 && (
@@ -145,27 +145,33 @@ export function UsolNInProgress() {
 }
 
 // 1 task = 1 줄 (UsolNOrders와 동일 패턴 — 일관성 spec)
-function TaskRow({ task }) {
+// 클릭 → onClick(task) → AdminTaskDetailScreen 진입 (AdminApp 측 v14 정규화 후 navigate)
+function TaskRow({ task, onClick }) {
   const taskColor = getTaskSettlementColor(task);
   const items     = task.task_items || [];
   const isCurrentlyWorking = task.status === "진행중";
+  const clickable = typeof onClick === "function";
 
   return (
-    <div style={{
-      padding: 12,
-      background: isCurrentlyWorking
-        ? "rgba(255,27,141,0.10)"
-        : "var(--usol-n-card-bg)",
-      border: isCurrentlyWorking
-        ? "2px solid #FF1B8D"
-        : "1px solid var(--usol-n-border)",
-      borderLeft: isCurrentlyWorking
-        ? "2px solid #FF1B8D"
-        : `3px solid ${taskColor.color === "#1D9E75" ? "#1D9E75" :
-                       taskColor.color === "#F59E0B" ? "#F59E0B" :
-                       taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)"}`,
-      borderRadius: 10, marginBottom: 6,
-    }}>
+    <div
+      onClick={clickable ? () => onClick(task) : undefined}
+      style={{
+        padding: 12,
+        background: isCurrentlyWorking
+          ? "rgba(255,27,141,0.10)"
+          : "var(--usol-n-card-bg)",
+        border: isCurrentlyWorking
+          ? "2px solid #FF1B8D"
+          : "1px solid var(--usol-n-border)",
+        borderLeft: isCurrentlyWorking
+          ? "2px solid #FF1B8D"
+          : `3px solid ${taskColor.color === "#1D9E75" ? "#1D9E75" :
+                         taskColor.color === "#F59E0B" ? "#F59E0B" :
+                         taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)"}`,
+        borderRadius: 10, marginBottom: 6,
+        cursor: clickable ? "pointer" : "default",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 12 }}>{taskColor.dot}</span>

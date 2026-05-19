@@ -18,7 +18,7 @@ import { formatYmdHm } from "../../utils/dateLabel.js";
 
 const PAGE_SIZE = 50;
 
-export function UsolNOrders() {
+export function UsolNOrders({ onTaskClick }) {
   const [pendingRows, setPendingRows] = useState([]);
   const fileInputRef = useRef(null);
 
@@ -126,7 +126,7 @@ export function UsolNOrders() {
       ) : tasks.length === 0 ? (
         <Empty>대기 중인 새 접수가 없습니다</Empty>
       ) : (
-        tasks.map(task => <TaskRow key={task.id} task={task}/>)
+        tasks.map(task => <TaskRow key={task.id} task={task} onClick={onTaskClick}/>)
       )}
 
       {totalPages > 1 && (
@@ -139,20 +139,26 @@ export function UsolNOrders() {
 // 1 task = 1 줄 (사장님 spec)
 // 좌: 색상 dot + 고객명 + task_no + 작업 종류 칩 (task_items별)
 // 우: total_amount
-function TaskRow({ task }) {
+// 클릭 → onClick(task) → AdminTaskDetailScreen 진입 (AdminApp 측 v14 정규화 후 navigate)
+function TaskRow({ task, onClick }) {
   const taskColor = getTaskSettlementColor(task);
   const items     = task.task_items || [];
+  const clickable = typeof onClick === "function";
 
   return (
-    <div style={{
-      padding: 12,
-      background: "var(--usol-n-card-bg)",
-      border: "1px solid var(--usol-n-border)",
-      borderLeft: `3px solid ${taskColor.color === "#1D9E75" ? "#1D9E75" :
-                                taskColor.color === "#F59E0B" ? "#F59E0B" :
-                                taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)"}`,
-      borderRadius: 10, marginBottom: 6,
-    }}>
+    <div
+      onClick={clickable ? () => onClick(task) : undefined}
+      style={{
+        padding: 12,
+        background: "var(--usol-n-card-bg)",
+        border: "1px solid var(--usol-n-border)",
+        borderLeft: `3px solid ${taskColor.color === "#1D9E75" ? "#1D9E75" :
+                                  taskColor.color === "#F59E0B" ? "#F59E0B" :
+                                  taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)"}`,
+        borderRadius: 10, marginBottom: 6,
+        cursor: clickable ? "pointer" : "default",
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
           <span style={{ fontSize: 12 }}>{taskColor.dot}</span>

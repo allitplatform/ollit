@@ -16,7 +16,7 @@ import { UsolNEngineerSettlement } from "./usol_n/UsolNEngineerSettlement.jsx";
 
 const COMPANY_RATE = 0.85;
 
-export function UsolNScreen({ user, initialTab, onBack }) {
+export function UsolNScreen({ user, initialTab, onBack, onTaskClick }) {
   const currentUser = getCurrentUser(user);
   const visibleTabs = useMemo(
     () => USOL_N_TABS.filter(t => canAccessMenu(currentUser, t.perm)),
@@ -72,8 +72,8 @@ export function UsolNScreen({ user, initialTab, onBack }) {
 
       {/* 본문 */}
       <div style={tabContentStyle}>
-        {activeTab === "orders"              && <UsolNOrders/>}
-        {activeTab === "in_progress"         && <UsolNInProgress/>}
+        {activeTab === "orders"              && <UsolNOrders      onTaskClick={onTaskClick}/>}
+        {activeTab === "in_progress"         && <UsolNInProgress  onTaskClick={onTaskClick}/>}
         {activeTab === "csv_match"           && <UsolNCsvMatch/>}
         {activeTab === "tracking"            && <UsolNTracking/>}
         {activeTab === "engineer_settlement" && <UsolNEngineerSettlement/>}
