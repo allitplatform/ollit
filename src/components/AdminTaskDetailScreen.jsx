@@ -15,8 +15,12 @@ import { loadMemos } from "../data/memos.js";
 import { UsolNSettlementCycleCard } from "./usol_n/UsolNSettlementCycleCard.jsx";
 // Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
 import { listPhotosByTask } from "../lib/photosDb.js";
-// Phase 5 Step 0.C-3-c — 상태 변경 이력 (status_history 테이블)
-import { listStatusHistory } from "../lib/statusHistoryDb.js";
+// Phase 5 Step 0.C-3-c — 상태 변경 이력 (status_history 테이블) — 0.C-4 측 task_changes 통합으로 사용 제거
+// import { listStatusHistory } from "../lib/statusHistoryDb.js";
+// Phase 5 Step 0.C-4 — 변경 이력 audit log (task_changes 테이블 / Migration 039)
+import { listTaskChanges } from "../lib/taskChangesDb.js";
+// 작업 소요 시간 계산
+import { calcTotalDuration } from "../utils/dateLabel.js";
 
 // state → 알약 라벨/색
 const STATE_MAP = {
@@ -79,13 +83,20 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
   return (
     <div className="fade-in" style={{ background: "var(--bg-primary)", minHeight: "100vh" }}>
       <DetailHeader task={task} onBack={onBack} onMenuAction={handleMenuAction}/>
+      {/* 카드 1 */}
       <MainCard task={task} onStatusChange={onStatusChange}/>
+      {/* 카드 2 */}
       <QuickActions task={task} onScheduleChange={onScheduleChange}/>
+      {/* 카드 3 */}
       <EngineerCard task={task} onEdit={onEdit} onAssign={onAssign}/>
-      <InfoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
-      <TimestampHistory task={task}/>
-      <StatusHistorySection taskId={task.id} taskType={task.type}/>
+      {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
+      <SettlementInfoCard task={task}/>
       {task.principal === "usol_n" && <UsolNSettlementCycleCard taskId={task.id}/>}
+      {/* 카드 5 — 작업 시간 · 이력 통합 */}
+      <WorkTimeHistoryCard task={task}/>
+      {/* 카드 6 — 요청사항 · 메모 */}
+      <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
+      {/* 카드 7 — 작업 사진 */}
       <PhotoSection taskId={task.id} taskType={task.type}/>
       <CompletionNotice task={task}/>
       {showException && (
@@ -354,6 +365,328 @@ function EngineerCard({ task, onEdit, onAssign }) {
               fontSize: 9, cursor: "pointer", fontFamily: "inherit",
             }}
           >변경</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────── 카드 4 — SettlementInfoCard (Phase 5 Step 0.C-4) ────────────────
+// 작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배
+// 회사 수익 / 기사 분배 = payments 측 매핑 (task.engineer_amount / task.owner_amount)
+function SettlementInfoCard({ task }) {
+  const isExternal = task.type === "external";
+  if (isExternal) return null;
+
+  const isDone = task.state === "done";
+  const baseAmount   = Number(task.estimateTotal || 0);
+  const extraFeeAmt  = Number(task.extraFee || task.addonFee || 0);
+  const extraReason  = task.extraReason || "";
+  const sumTotal     = isDone ? baseAmount + extraFeeAmt : baseAmount;
+  const engineerAmt  = Number(task.engineer_amount || 0);
+  const ownerAmt     = Number(task.owner_amount || 0);
+  const principalAmt = Number(task.principal_amount || 0);
+  const hasPayment   = engineerAmt > 0 || ownerAmt > 0 || principalAmt > 0;
+
+  return (
+    <div style={{ padding: "0 16px", marginBottom: 8 }}>
+      <div style={{
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        borderRadius: 10, padding: 12,
+      }}>
+        <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 8 }}>
+          💰 정산 정보
+        </div>
+
+        {sumTotal > 0 ? (
+          <>
+            {/* 작업 금액 */}
+            <SettlementRow label="작업 금액" value={baseAmount}/>
+            {/* 추가금 (있을 때만) */}
+            {extraFeeAmt > 0 && (
+              <>
+                <SettlementRow label="+ 현장 추가금" value={extraFeeAmt} color="#F59E0B"/>
+                {extraReason && (
+                  <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 1, paddingLeft: 4, lineHeight: 1.5 }}>
+                    ↳ 사유: {extraReason}
+                  </div>
+                )}
+              </>
+            )}
+            {/* 합계 */}
+            <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }}/>
+            <SettlementRow label="합계" value={sumTotal} color="var(--text-primary)" bold/>
+
+            {hasPayment && (
+              <>
+                <div style={{ height: 1, background: "var(--border)", margin: "8px 0" }}/>
+                <div style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+                  📊 분배
+                </div>
+                {engineerAmt  > 0 && <SettlementRow label="기사 분배" value={engineerAmt}  color="#06B6D4"/>}
+                {ownerAmt     > 0 && <SettlementRow label="회사 수익" value={ownerAmt}     color="#1D9E75"/>}
+                {principalAmt > 0 && <SettlementRow label="원청 수수료" value={principalAmt} color="#A855F7"/>}
+              </>
+            )}
+          </>
+        ) : (
+          <div style={{ fontSize: 12, color: "var(--text-tertiary)", fontWeight: 600, textAlign: "center", padding: 6 }}>
+            견적 미입력
+          </div>
+        )}
+
+        {!isDone && sumTotal > 0 && (
+          <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 6 }}>
+            현장 추가금은 완료 시 입력
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SettlementRow({ label, value, color, bold }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-between", alignItems: "center",
+      fontSize: bold ? 12 : 11, padding: "2px 0",
+    }}>
+      <span style={{
+        color: bold ? "var(--text-primary)" : "var(--text-secondary)",
+        fontWeight: bold ? 700 : 500,
+      }}>{label}</span>
+      <span style={{
+        color: color || "var(--text-primary)",
+        fontFamily: "inherit",
+        fontWeight: bold ? 700 : 600,
+      }}>
+        {Number(value || 0).toLocaleString()}<span style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 500 }}> 원</span>
+      </span>
+    </div>
+  );
+}
+
+// ──────────────── 카드 5 — WorkTimeHistoryCard (Phase 5 Step 0.C-4) ────────────────
+// 작업 시간 (startedAt~completedAt + duration) + 진행 5단계 TimestampHistory + 변경 이력 TaskChangesSection
+function WorkTimeHistoryCard({ task }) {
+  if (task.type === "external") return null;
+
+  const startedAt   = task.startedAt;
+  const completedAt = task.completedAt;
+  const duration    = (startedAt && completedAt) ? calcTotalDuration(startedAt, completedAt) : null;
+
+  return (
+    <div style={{ padding: "0 16px", marginBottom: 12 }}>
+      <div style={{
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        borderRadius: 10, padding: 12,
+      }}>
+        <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 8 }}>
+          🕐 작업 시간 · 이력
+        </div>
+
+        {/* 작업 시간 (시작~완료 + 총 소요) */}
+        {(startedAt || completedAt) && (
+          <div style={{
+            padding: 8,
+            background: "var(--bg-primary)",
+            borderRadius: 6, marginBottom: 8,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 2 }}>
+              <span style={{ color: "var(--text-secondary)" }}>시작</span>
+              <span className="mono" style={{ color: "var(--text-primary)" }}>{formatDateTimeKST(startedAt)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 2 }}>
+              <span style={{ color: "var(--text-secondary)" }}>완료</span>
+              <span className="mono" style={{ color: "var(--text-primary)" }}>{formatDateTimeKST(completedAt)}</span>
+            </div>
+            {duration && (
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, paddingTop: 4, borderTop: "1px dashed var(--border)" }}>
+                <span style={{ color: "#FF1B8D", fontWeight: 700 }}>총 소요</span>
+                <span style={{ color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>{duration}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 진행 5단계 (옛 TimestampHistory 영역) */}
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+            진행 단계
+          </div>
+          <TimestampRows task={task}/>
+        </div>
+
+        {/* 변경 이력 (task_changes) */}
+        <TaskChangesSection taskId={task.id}/>
+      </div>
+    </div>
+  );
+}
+
+function TimestampRows({ task }) {
+  const rows = [
+    { label: "접수",      value: task.createdAt },
+    { label: "배정",      value: task.assignedAt },
+    { label: "일정 확정", value: task.scheduledConfirmedAt },
+    { label: "진행",      value: task.startedAt },
+    { label: "완료",      value: task.completedAt },
+  ];
+  return (
+    <div>
+      {rows.map((r, i) => (
+        <div key={r.label} style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          fontSize: 10, paddingTop: i === 0 ? 0 : 2,
+        }}>
+          <span style={{ color: "var(--text-secondary)" }}>{r.label}</span>
+          <span className="mono" style={{ color: "var(--text-primary)" }}>
+            {formatDateTimeKST(r.value)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// 변경 이력 (task_changes 측 fetch) — 본문 측 inline 렌더
+function TaskChangesSection({ taskId }) {
+  const [changes, setChanges] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+
+  useEffect(() => {
+    if (!taskId) return;
+    let alive = true;
+    setLoading(true);
+    setError("");
+    listTaskChanges(taskId)
+      .then(res => {
+        if (!alive) return;
+        if (!res.ok) {
+          setError(res.error || "");
+          setChanges([]);
+        } else {
+          setChanges(res.changes || []);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [taskId]);
+
+  return (
+    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--border)" }}>
+      <div style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+        📜 변경 이력{changes.length > 0 && <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 4 }}>({changes.length})</span>}
+      </div>
+      {loading ? (
+        <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>불러오는 중...</div>
+      ) : error ? (
+        <div style={{ fontSize: 9, color: "#ff4444" }}>⚠️ {error}</div>
+      ) : changes.length === 0 ? (
+        <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>변경 이력 X (새 작업부터 누적)</div>
+      ) : (
+        <div>
+          {changes.map(ch => (
+            <ChangeEntry key={ch.id} entry={ch}/>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const CHANGE_TYPE_ICON = {
+  schedule:   "📅",
+  engineer:   "👷",
+  items:      "📋",
+  extra_fee:  "💰",
+  cancel:     "❌",
+  visit_only: "🚗",
+  status:     "🔄",
+};
+const CHANGE_TYPE_LABEL = {
+  schedule:   "일정 변경",
+  engineer:   "기사 변경",
+  items:      "항목 변경",
+  extra_fee:  "추가금",
+  cancel:     "작업 취소",
+  visit_only: "출장비만",
+  status:     "상태 변경",
+};
+
+function ChangeEntry({ entry }) {
+  const icon  = CHANGE_TYPE_ICON[entry.change_type]  || "•";
+  const label = CHANGE_TYPE_LABEL[entry.change_type] || entry.change_type;
+  const who   = entry.changed_by_name || "—";
+  return (
+    <div style={{
+      padding: 6,
+      background: "var(--bg-primary)",
+      borderRadius: 4, marginTop: 4,
+      borderLeft: "2px solid #FF1B8D",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span style={{ fontSize: 10 }}>{icon}</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-primary)" }}>{label}</span>
+          <span style={{ fontSize: 8, color: "var(--text-tertiary, var(--text-secondary))" }}>· {who}</span>
+        </div>
+        <span className="mono" style={{ fontSize: 8, color: "var(--text-tertiary, var(--text-secondary))" }}>
+          {formatDateTimeKST(entry.changed_at)}
+        </span>
+      </div>
+      {entry.note && (
+        <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 2, lineHeight: 1.4 }}>
+          ↳ {entry.note}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────── 카드 6 — RequestMemoCard (Phase 5 Step 0.C-4) ────────────────
+// 옛 InfoCard 측 요청사항 + 메모 영역 분리.
+function RequestMemoCard({ task, memos, onMemoAdd }) {
+  return (
+    <div style={{ padding: "0 16px", marginBottom: 12 }}>
+      <div style={{
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        borderRadius: 10, padding: 12,
+      }}>
+        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
+          📝 요청사항
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-primary)", lineHeight: 1.5 }}>
+          {task.memo || "없음"}
+        </div>
+
+        {memos.length > 0 && (
+          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
+              메모 ({memos.length})
+            </div>
+            {memos.slice(0, 3).map((m, i) => (
+              <div key={i} style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>
+                · {m.content}
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+          <button
+            onClick={onMemoAdd}
+            style={{
+              fontSize: 10, color: "#FF1B8D",
+              background: "transparent", border: "none",
+              cursor: "pointer", padding: 0, fontWeight: 600,
+              fontFamily: "inherit",
+            }}
+          >＋ 메모 추가</button>
         </div>
       </div>
     </div>

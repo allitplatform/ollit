@@ -15,6 +15,8 @@ import {
 import { OllitMark } from "../components/OllitMark.jsx";
 import { EngineerBadge } from "../components/EngineerBadge.jsx";
 import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
+// 2026-05-19 Phase 5 Step 0.C-4 — 변경 이력 audit log (Migration 039)
+import { insertTaskChange } from "../lib/taskChangesDb.js";
 import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
 import { NotiScreen } from "../components/notifications/NotiScreen.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
@@ -2399,6 +2401,16 @@ export default function AdminApp({ user, onLogout }) {
               taskId: tk.id || tk.taskCode,
             });
             addToast({ type: "cancelled", title: "작업 취소", message: tk.customer || "—" });
+            // 2026-05-19 Phase 5 Step 0.C-4 — 변경 이력 audit log
+            insertTaskChange({
+              taskId:        tk.id,
+              changeType:    "cancel",
+              before:        { status: tk.status || null },
+              after:         { status: "취소" },
+              note:          reason,
+              changedBy:     user?.id || null,
+              changedByName: user?.name || null,
+            });
             goBackFromStack();
           } catch (e) {
             console.error("[onCancelTask] 에러:", e);
@@ -2417,6 +2429,16 @@ export default function AdminApp({ user, onLogout }) {
             type: "completed",
             title: "출장비만 확정",
             message: `${selectedTaskDetail.customer || "—"} · ₩${VISIT_FEE.amount.toLocaleString()}`,
+          });
+          // 2026-05-19 Phase 5 Step 0.C-4 — 변경 이력 audit log
+          insertTaskChange({
+            taskId:        selectedTaskDetail.id,
+            changeType:    "visit_only",
+            before:        { status: selectedTaskDetail.status || null },
+            after:         { status: "완료", visit_fee: VISIT_FEE.amount, type: "visit_only" },
+            note:          payload?.reasonLabel || null,
+            changedBy:     user?.id || null,
+            changedByName: user?.name || null,
           });
           goBackFromStack();
         }}
@@ -2501,6 +2523,16 @@ export default function AdminApp({ user, onLogout }) {
               subInfo: confirmedAt,
               taskId: tk.id,
             });
+            // 2026-05-19 Phase 5 Step 0.C-4 — 변경 이력 audit log
+            insertTaskChange({
+              taskId:        tk.id,
+              changeType:    "schedule",
+              before:        { scheduledAt: tk.scheduledAt || null, status: tk.status || null },
+              after:         { scheduledAt: confirmedAt, status: newStatus },
+              note:          null,
+              changedBy:     user?.id || null,
+              changedByName: user?.name || null,
+            });
           } catch (e) {
             console.error('[V14 2B-2] 일정 에러:', e);
             alert(`일정 변경 에러: ${e.message || '실패'}`);
@@ -2530,6 +2562,16 @@ export default function AdminApp({ user, onLogout }) {
               ...prev, status: newStatus, state: stateMap[newStatus] || prev.state
             } : prev);
             addToast({ type: "status_change", title: `✓ ${newStatus}`, message: tk.customer || "" });
+            // 2026-05-19 Phase 5 Step 0.C-4 — 변경 이력 audit log
+            insertTaskChange({
+              taskId:        tk.id,
+              changeType:    "status",
+              before:        { status: tk.status || null },
+              after:         { status: newStatus },
+              note:          null,
+              changedBy:     user?.id || null,
+              changedByName: user?.name || null,
+            });
           } catch (e) {
             console.error('[V14 2B-2] 상태 에러:', e);
             alert(`상태 변경 에러: ${e.message || '실패'}`);
