@@ -180,6 +180,37 @@ function ItemRow({ item }) {
           {item.net_amount != null && <span>실수령: ₩{item.net_amount.toLocaleString()}</span>}
         </div>
       )}
+
+      {/* 2026-05-19 Phase 5 Step 0.C-12 — 정산 채널별 세부 시각 (Migration 041) */}
+      {(item.cash_settled_at || item.naver_received_at || item.cash_received_at) && (
+        <div style={{
+          fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))",
+          marginTop: 4, paddingTop: 4,
+          borderTop: "1px dashed var(--border)",
+        }}>
+          <div style={{ fontWeight: 600, marginBottom: 2 }}>세부 정산 채널</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 2 }}>
+            {item.cash_settled_at && (
+              <>
+                <span>💵 현금 결제</span>
+                <span style={{ fontFamily: "inherit" }}>{formatYmdHm(item.cash_settled_at)}</span>
+              </>
+            )}
+            {item.naver_received_at && (
+              <>
+                <span>🟦 네이버 → 회사</span>
+                <span style={{ fontFamily: "inherit" }}>{formatYmdHm(item.naver_received_at)}</span>
+              </>
+            )}
+            {item.cash_received_at && (
+              <>
+                <span>💴 현금 → 회사</span>
+                <span style={{ fontFamily: "inherit" }}>{formatYmdHm(item.cash_received_at)}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

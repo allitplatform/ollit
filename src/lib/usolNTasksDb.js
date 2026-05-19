@@ -61,7 +61,9 @@ export async function fetchUsolNTasks({ statusIn = null, searchTerm = "", limit 
        work_memo,
        task_items (
          id, qty, unit_price, subtotal, description,
-         naver_settled_at, company_received_at, engineer_settled_at,
+         naver_settled_at, cash_settled_at,
+         naver_received_at, cash_received_at, company_received_at,
+         engineer_settled_at,
          net_amount, product_order_id, order_type,
          work_types ( id, name ),
          appliance_types ( id, name )
@@ -135,7 +137,9 @@ export async function fetchTaskItemsByTaskId(taskId) {
     .from("task_items")
     .select(
       `id, qty, unit_price, subtotal, description,
-       naver_settled_at, company_received_at, engineer_settled_at,
+       naver_settled_at, cash_settled_at,
+       naver_received_at, cash_received_at, company_received_at,
+       engineer_settled_at,
        net_amount, product_order_id, order_type,
        work_types ( id, name ),
        appliance_types ( id, name )`
@@ -162,7 +166,9 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
     .from("task_items")
     .select(
       `id, task_id, product_order_id, order_type, qty, unit_price, subtotal,
-       naver_settled_at, company_received_at, engineer_settled_at, net_amount,
+       naver_settled_at, cash_settled_at,
+       naver_received_at, cash_received_at, company_received_at,
+       engineer_settled_at, net_amount,
        work_types ( id, name ),
        appliance_types ( id, name ),
        tasks!inner ( id, task_no, customer_name, principal_id, status, completed_at )`
@@ -177,11 +183,17 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
   return { ok: true, items: data || [] };
 }
 
-// 일괄 UPDATE — naver_settled_at / company_received_at / engineer_settled_at
-// 입력: itemIds (uuid[]), fieldName (allowed 3개), timestamp (ISO / null = now)
+// 일괄 UPDATE — 정산 사이클 측 시각 컬럼 (Migration 041 측 신규 컬럼 포함)
+// 입력: itemIds (uuid[]), fieldName (allowed 6개), timestamp (ISO / null = now)
 // 응답: { ok, count, timestamp }
+// 참고: company_received_at = MAX(naver_received_at, cash_received_at) DB 측 자동 계산
+//   직접 UPDATE 측 가능 — 옛 호환 spec.
 export async function markTaskItemsField(itemIds, fieldName, timestamp = null) {
-  const allowedFields = ["naver_settled_at", "company_received_at", "engineer_settled_at"];
+  const allowedFields = [
+    "naver_settled_at", "cash_settled_at",
+    "naver_received_at", "cash_received_at", "company_received_at",
+    "engineer_settled_at",
+  ];
   if (!allowedFields.includes(fieldName)) {
     return { ok: false, error: `field 측 X: ${fieldName}` };
   }
@@ -214,7 +226,9 @@ export async function fetchUsolNCompletedTaskItems({ monthsBack = 3 } = {}) {
     .from("task_items")
     .select(
       `id, task_id, product_order_id, order_type, qty, unit_price, subtotal,
-       naver_settled_at, company_received_at, engineer_settled_at, net_amount,
+       naver_settled_at, cash_settled_at,
+       naver_received_at, cash_received_at, company_received_at,
+       engineer_settled_at, net_amount,
        work_types ( id, name ),
        appliance_types ( id, name ),
        tasks!inner ( id, task_no, customer_name, principal_id, status,
