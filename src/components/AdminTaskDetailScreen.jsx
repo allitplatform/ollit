@@ -3,7 +3,7 @@
 // + ExceptionActions (접힘: 출장비 / 수동완료 / 취소)
 // 메인 "완료" 버튼 X (기사가 완료 처리 → 자동 업데이트)
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Chip } from "./Chip.jsx";
 import { detectServiceType } from "../data/serviceTypes.js";
@@ -13,6 +13,10 @@ import { VisitOnlyDialog } from "./VisitOnlyDialog.jsx";
 import { loadMemos } from "../data/memos.js";
 // Phase 5 Step 0.C-1 — 유솔N 정산 사이클 카드 (조건 분기 / 다른 원청 영향 0)
 import { UsolNSettlementCycleCard } from "./usol_n/UsolNSettlementCycleCard.jsx";
+// Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
+import { listPhotosByTask } from "../lib/photosDb.js";
+// Phase 5 Step 0.C-3-c — 상태 변경 이력 (status_history 테이블)
+import { listStatusHistory } from "../lib/statusHistoryDb.js";
 
 // state → 알약 라벨/색
 const STATE_MAP = {
@@ -80,7 +84,9 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <EngineerCard task={task} onEdit={onEdit} onAssign={onAssign}/>
       <InfoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
       <TimestampHistory task={task}/>
+      <StatusHistorySection taskId={task.id} taskType={task.type}/>
       {task.principal === "usol_n" && <UsolNSettlementCycleCard taskId={task.id}/>}
+      <PhotoSection taskId={task.id} taskType={task.type}/>
       <CompletionNotice task={task}/>
       {showException && (
         <ExceptionActions
@@ -359,11 +365,14 @@ function InfoCard({ task, memos, onMemoAdd }) {
   const isExternal = task.type === "external";
   const isDone = task.state === "done";
   const sumEstimate = task.estimateTotal || 0;
-  const sumTotal = isDone ? sumEstimate + (task.addonFee || 0) : sumEstimate;
+  // 2026-05-19 Phase 5 Step 0.C-3-a — extraFee 매핑 정정 (옛 addonFee 측 fallback)
+  const extraFeeAmount = Number(task.extraFee || task.addonFee || 0);
+  const extraReason    = task.extraReason || "";
+  const sumTotal = isDone ? sumEstimate + extraFeeAmount : sumEstimate;
 
   return (
     <>
-      {/* 견적 — V14 Phase 2: 박지 X (0 / null) → "견적 미입력" 박힘 */}
+      {/* 견적 — V14 Phase 2: 견적 X (0 / null) → "견적 미입력" 표시 */}
       {!isExternal && (
         <div style={{ padding: "0 16px", marginBottom: 8 }}>
           <div style={{
@@ -388,12 +397,24 @@ function InfoCard({ task, memos, onMemoAdd }) {
             </div>
             {!isDone && sumTotal > 0 && (
               <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 4 }}>
-                현장추가는 완료 시 입력
+                현장 추가금은 완료 시 입력
               </div>
             )}
-            {isDone && task.addonFee > 0 && (
-              <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 4 }}>
-                견적 {sumEstimate.toLocaleString()}원 + 현장추가 {task.addonFee.toLocaleString()}원
+            {isDone && extraFeeAmount > 0 && (
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed var(--border)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 2 }}>
+                  <span style={{ color: "var(--text-secondary)" }}>견적</span>
+                  <span style={{ color: "var(--text-primary)", fontFamily: "inherit" }}>{sumEstimate.toLocaleString()}원</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10 }}>
+                  <span style={{ color: "#F59E0B", fontWeight: 600 }}>+ 현장 추가금</span>
+                  <span style={{ color: "#F59E0B", fontWeight: 600, fontFamily: "inherit" }}>{extraFeeAmount.toLocaleString()}원</span>
+                </div>
+                {extraReason && (
+                  <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 4, paddingLeft: 4, lineHeight: 1.5 }}>
+                    ↳ 사유: {extraReason}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -481,6 +502,272 @@ function TimestampHistory({ task }) {
     </div>
   );
 }
+
+// ──────────────── 5.55 StatusHistorySection (Phase 5 Step 0.C-3-c) ────────────────
+// status_history 측 SELECT → 타임라인 표시. 옛 작업 데이터 0건 = "변경 이력 X" 안내.
+function StatusHistorySection({ taskId, taskType }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+
+  useEffect(() => {
+    if (taskType === "external" || !taskId) return;
+    let alive = true;
+    setLoading(true);
+    setError("");
+    listStatusHistory(taskId)
+      .then(res => {
+        if (!alive) return;
+        if (!res.ok) {
+          setError(res.error || "이력 조회 실패");
+          setHistory([]);
+        } else {
+          setHistory(res.history || []);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [taskId, taskType]);
+
+  if (taskType === "external") return null;
+  if (!taskId) return null;
+  if (loading) {
+    return (
+      <div style={historyCardStyle}>
+        <HistorySectionLabel count={null}/>
+        <div style={historyEmptyStyle}>불러오는 중...</div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div style={historyCardStyle}>
+        <HistorySectionLabel count={null}/>
+        <div style={historyEmptyStyle}>⚠️ {error}</div>
+      </div>
+    );
+  }
+  if (history.length === 0) {
+    return (
+      <div style={historyCardStyle}>
+        <HistorySectionLabel count={0}/>
+        <div style={historyEmptyStyle}>변경 이력 X (새 작업부터 누적)</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={historyCardStyle}>
+      <HistorySectionLabel count={history.length}/>
+      <div style={{ position: "relative", paddingLeft: 14 }}>
+        {/* 좌측 세로 라인 */}
+        <div style={{
+          position: "absolute", left: 4, top: 4, bottom: 4,
+          width: 1, background: "var(--border)",
+        }}/>
+        {history.map(entry => (
+          <HistoryEntry key={entry.id} entry={entry}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function HistoryEntry({ entry }) {
+  const from = entry.from_status || "—";
+  const to   = entry.to_status   || "—";
+  return (
+    <div style={{ position: "relative", marginBottom: 8 }}>
+      {/* dot */}
+      <div style={{
+        position: "absolute", left: -14, top: 4,
+        width: 9, height: 9, borderRadius: "50%",
+        background: "#FF1B8D",
+        border: "2px solid var(--bg-secondary)",
+      }}/>
+      <div style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 600 }}>
+        {from} → {to}
+      </div>
+      <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 1, fontFamily: "inherit" }}>
+        {formatDateTimeKST(entry.changed_at)}
+      </div>
+      {entry.note && (
+        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2, lineHeight: 1.4 }}>
+          ↳ {entry.note}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistorySectionLabel({ count }) {
+  return (
+    <div style={{
+      fontSize: 10, color: "var(--text-secondary)",
+      marginBottom: 8, fontWeight: 600,
+    }}>
+      📜 변경 이력{count != null && <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 4 }}>({count})</span>}
+    </div>
+  );
+}
+
+const historyCardStyle = {
+  margin: "0 16px 12px",
+  padding: 12,
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
+  borderRadius: 10,
+};
+
+const historyEmptyStyle = {
+  fontSize: 11, color: "var(--text-secondary)",
+  textAlign: "center", padding: 10,
+};
+
+// ──────────────── 5.6 PhotoSection (Phase 5 Step 0.C-3-b) ────────────────
+// listPhotosByTask 측 fetch → 그리드 표시. photos 0건 시 섹션 숨김.
+function PhotoSection({ taskId, taskType }) {
+  const [photos, setPhotos]   = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [zoomUrl, setZoomUrl] = useState(null);
+
+  useEffect(() => {
+    if (taskType === "external" || !taskId) return;
+    let alive = true;
+    setLoading(true);
+    setError("");
+    listPhotosByTask(taskId)
+      .then(res => {
+        if (!alive) return;
+        if (!res.ok) {
+          setError(res.error || "사진 조회 실패");
+          setPhotos([]);
+        } else {
+          setPhotos(res.photos || []);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [taskId, taskType]);
+
+  if (taskType === "external") return null;
+  if (!taskId) return null;
+  if (loading) {
+    return (
+      <div style={photoCardStyle}>
+        <PhotoSectionLabel count={null}/>
+        <div style={photoEmptyStyle}>불러오는 중...</div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div style={photoCardStyle}>
+        <PhotoSectionLabel count={null}/>
+        <div style={photoEmptyStyle}>⚠️ {error}</div>
+      </div>
+    );
+  }
+  if (photos.length === 0) return null; // 사진 X = 섹션 숨김
+
+  // step별 그룹
+  const groups = {};
+  photos.forEach(p => {
+    const step = p.step || "기타";
+    if (!groups[step]) groups[step] = [];
+    groups[step].push(p);
+  });
+  const stepOrder = ["시작", "완료", "추가", "기타"];
+  const sortedSteps = Object.keys(groups).sort((a, b) => {
+    const ai = stepOrder.indexOf(a);
+    const bi = stepOrder.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+
+  return (
+    <div style={photoCardStyle}>
+      <PhotoSectionLabel count={photos.length}/>
+      {sortedSteps.map(step => (
+        <div key={step} style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4, fontWeight: 600 }}>
+            {step === "시작" ? "🔍 작업 전" : step === "완료" ? "✨ 작업 후" : `📷 ${step}`}
+            <span style={{ color: "var(--text-tertiary, var(--text-secondary))", fontWeight: 400, marginLeft: 4 }}>
+              ({groups[step].length})
+            </span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
+            {groups[step].map(p => (
+              <button
+                key={p.id}
+                onClick={() => p.url && setZoomUrl(p.url)}
+                style={{
+                  padding: 0, border: "1px solid var(--border)", borderRadius: 6,
+                  cursor: p.url ? "pointer" : "default",
+                  overflow: "hidden", background: "var(--bg-secondary)",
+                  aspectRatio: "1 / 1",
+                }}
+              >
+                {p.url ? (
+                  <img
+                    src={p.url}
+                    alt={`${step} 사진`}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    loading="lazy"
+                  />
+                ) : (
+                  <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>URL X</div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {zoomUrl && (
+        <div
+          onClick={() => setZoomUrl(null)}
+          style={{
+            position: "fixed", inset: 0,
+            background: "rgba(0,0,0,0.85)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            zIndex: 2000, padding: 16, cursor: "pointer",
+          }}
+        >
+          <img
+            src={zoomUrl}
+            alt="확대"
+            style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PhotoSectionLabel({ count }) {
+  return (
+    <div style={{
+      fontSize: 10, color: "var(--text-secondary)",
+      marginBottom: 8, fontWeight: 600,
+    }}>
+      📷 작업 사진{count != null && <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 4 }}>({count})</span>}
+    </div>
+  );
+}
+
+const photoCardStyle = {
+  margin: "0 16px 12px",
+  padding: 12,
+  background: "var(--bg-secondary)",
+  border: "1px solid var(--border)",
+  borderRadius: 10,
+};
+
+const photoEmptyStyle = {
+  fontSize: 11, color: "var(--text-secondary)",
+  textAlign: "center", padding: 10,
+};
 
 // ──────────────── 6. CompletionNotice ────────────────
 function CompletionNotice({ task }) {

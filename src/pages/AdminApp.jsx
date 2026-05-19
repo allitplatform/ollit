@@ -923,6 +923,11 @@ function _v14NormalizeTask(t) {
     // tasksDb.rowToTask는 row.total_amount(GENERATED, product+extra+travel)를 totalAmount로 박는데
     // 로컬 _v14NormalizeTask가 이 필드를 떨어뜨려 dashboardStats가 estimateTotal(productPrice)로 fallback.
     totalAmount: Number(t.totalAmount || t.total_amount || 0) || estimate,
+    // 2026-05-19 Phase 5 Step 0.C-3-a — extraFee / extraReason 매핑 ("두 곳 모두 매핑" 트랩)
+    // 공유 v14Task.js 측 매핑 있음 / 로컬 _v14NormalizeTask 측 누락 — AdminTaskDetailScreen 측 현장 추가금 표시용
+    extraFee:    Number(t.extraFee    || t.extra_fee    || t.추가금 || t.addAmount || 0),
+    extraReason: t.extraReason  || t.extra_reason  || "",
+    extraFeeAt:  t.extraFeeAt   || t.extra_fee_at   || null,
     // 2026-05-17 Round 1 Fix #7 — calc_method 패스스루 (정산 정책 표시용).
     // 2026-05-18 Fix #29 — 트랙 판별은 payments.track으로 일원화. calc_method는 트랙 판별과 무관.
     calc_method: t.calc_method ?? null,
