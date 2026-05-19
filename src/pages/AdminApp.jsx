@@ -2014,13 +2014,13 @@ export default function AdminApp({ user, onLogout }) {
   const unreadCount = notifications.filter(n => !n.read).length;
 
   // Step 10 — 진짜 카운팅 (기존 mock TODAY_STATS 대체)
-  // V14 2A — apiTasks (진짜 시트) 박힘 / extraReceptions / receptionUpdates 변경 시 재계산
+  // 2026-05-19 Phase 5 Step 0.C-10 — mock data source 측 모두 제거
+  //   옛: tasksToday=TASKS_TODAY, newReceptions=NEW_RECEPTIONS, assignedTasks=ASSIGNED_TASKS
+  //   새: apiTasks 측 only + extraReceptions (옵티미스틱 측만 / 등록 직후 lag 동안)
+  //   사장님 catch: 메인 카운트 측 mock 잔존 측 detail 측 mismatch 발생.
   const dynamicStats = useMemo(() => computeDashboardStats({
-    tasksToday: TASKS_TODAY,
-    newReceptions: NEW_RECEPTIONS,
     extraReceptions,
-    apiTasks,                                 // V14 2A — 진짜 시트
-    assignedTasks: ASSIGNED_TASKS,
+    apiTasks,
     user: getCurrentUserPerm(user),
   }), [extraReceptions, receptionUpdates, user, apiTasks]);
 
@@ -5145,9 +5145,10 @@ const TASK_GROUPS = [
 ];
 
 function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [] }) {
-  // 2026-05-17 Round 2 Fix #9 — TASKS_TODAY 모의 데이터 대신 apiTasks 우선 사용.
-  // 빈 배열이면(개발/preview ENABLE_MOCK 토글) 옛 TASKS_TODAY로 fallback.
-  const baseSource = (apiTasks && apiTasks.length > 0) ? apiTasks : TASKS_TODAY;
+  // 2026-05-19 Phase 5 Step 0.C-10 — TASKS_TODAY mock fallback 제거
+  //   사장님 catch: 박소영 (관악구 김재현) 가짜 작업 측 TASKS_TODAY 측 잔존 measure 측.
+  //   apiTasks 측 only.
+  const baseSource = apiTasks || [];
   const activeCount = baseSource.filter(
     (s) => (s.type === "work" && (s.state === "active" || s.state === "moving")) || s.type === "external"
   ).length;
@@ -5211,12 +5212,11 @@ function InProgressListScreen({ t, onBack, onTaskClick, apiTasks = [] }) {
     const n = t.scheduledAt || t.scheduled_at || t.확정일시 || t.confirmedAt || "";
     return !!n && toKstYmd(n) === todayStrLocal;
   };
-  const baseSource = (apiTasks && apiTasks.length > 0)
-    ? apiTasks.filter(x => {
-        const s = String(x.status || x.상태 || "").trim();
-        return _isScheduledTodayLocal(x) && (s === "진행중" || s === "작업중");
-      })
-    : TASKS_TODAY;
+  // 2026-05-19 Phase 5 Step 0.C-10 — TASKS_TODAY mock fallback 제거
+  const baseSource = (apiTasks || []).filter(x => {
+    const s = String(x.status || x.상태 || "").trim();
+    return _isScheduledTodayLocal(x) && (s === "진행중" || s === "작업중");
+  });
   const groups = TASK_GROUPS.filter(g => IN_PROGRESS_GROUP_IDS.has(g.id));
 
   const q = query.trim().toLowerCase();
@@ -5713,9 +5713,8 @@ function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick }) {
 function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
   const [query, setQuery] = useState("");
 
-  // 2026-05-17 Round 2 Fix #9 — TASKS_TODAY 모의 데이터 대신 apiTasks 우선 사용.
-  // 빈 배열이면(개발/preview ENABLE_MOCK 토글) 옛 TASKS_TODAY로 fallback.
-  const dataSource = (apiTasks && apiTasks.length > 0) ? apiTasks : TASKS_TODAY;
+  // 2026-05-19 Phase 5 Step 0.C-10 — TASKS_TODAY mock fallback 제거 (가짜 작업 catch X)
+  const dataSource = apiTasks || [];
 
   // 2026-05-17 Round 1 Fix #2 — 메인 "완료" 카드 진입 시 오늘+완료 사전 필터.
   // 진입 경로별 base 데이터 셋을 좁힌 뒤 검색어 필터를 그 위에 얹는다.
