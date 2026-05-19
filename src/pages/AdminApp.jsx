@@ -5157,15 +5157,18 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [] }
   // 2026-05-18 — 헤더 카운트를 LiveWorkContent의 base 필터와 동일 spec으로 통일.
   // 옛(state==="done"만)은 트랙/날짜 무시라 본 영역(11) ↔ 헤더(12) mismatch.
   // 자정 넘으면 어제 done이 헤더에 남는 stale 문제도 함께 해결(todayYmd 매 호출 재계산).
-  // 2026-05-19 Phase 5 Step 0.C-8 — 메인 카운트 spec 일치:
-  //   완료 = isCompletedToday AND 완료/정산완료 (유솔N 포함 / 트랙 무관)
-  //   옛 spec (isTrackARemittance) → 유솔N 트랙 🅑 측 제외 → 메인 카운트 mismatch → 정정.
+  // 2026-05-19 Phase 5 Step 0.C-11 — 완료 카드: isScheduledToday AND isCompletedToday
+  //   사장님 catch: 박소영 scheduled_at=5/11 (옛) + completed_at=5/19 00:00 (마이그 자정) 측 옛 시트 catch
+  //   둘 다 today 측 동시 catch → 옛 시트 마이그 자정 측 제외.
+  const todayStrLocal = todayYmd();
   const isCompletedToday = initialFilter === "completed-today";
   const completedCount = isCompletedToday
     ? baseSource.filter((s) => {
+        const scheduled = s.scheduledAt || s.scheduled_at || s.확정일시;
         const completed = s.completedAt || s.completed_at;
-        if (!completed) return false;
-        if (toKstYmd(completed) !== todayYmd()) return false;
+        if (!completed || !scheduled) return false;
+        if (toKstYmd(scheduled) !== todayStrLocal) return false;
+        if (toKstYmd(completed) !== todayStrLocal) return false;
         const st = String(s.status || s.상태 || "").trim();
         return st === "완료" || st === "정산완료";
       }).length
@@ -5726,15 +5729,16 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
   // initialFilter 없는 일반 진입(하단 탭 등)에서도 오늘 작업만 표시.
   // 트랙 🅐/🅑 모두 노출(작업 진행 모니터링 목적 — 정산/매출 dataset과 다름).
   // "오늘 작업" = 오늘 일정 OR 오늘 완료 (어제 일정 ↔ 오늘 완료 케이스 catch).
-  // 2026-05-19 Phase 5 Step 0.C-8 — 메인 카운트 spec 일치:
-  //   완료 카드 (isCompletedToday) = 완료/정산완료 + 오늘 completed_at (유솔N 포함 / 트랙 무관)
-  //   옛 spec (isTrackARemittance) → 유솔N 트랙 🅑 제외 → mismatch → 정정.
+  // 2026-05-19 Phase 5 Step 0.C-11 — 완료 카드: isScheduledToday AND isCompletedToday
+  //   사장님 catch: 옛 시트 마이그 자정 측 catch X spec — 둘 다 today 측 동시 catch.
   const isCompletedToday = initialFilter === "completed-today";
   const todayStr = todayYmd();
   const base = isCompletedToday
     ? dataSource.filter((s) => {
+        const scheduled = s.scheduledAt || s.scheduled_at || s.확정일시;
         const completed = s.completedAt || s.completed_at;
-        if (!completed) return false;
+        if (!completed || !scheduled) return false;
+        if (toKstYmd(scheduled) !== todayStr) return false;
         if (toKstYmd(completed) !== todayStr) return false;
         const st = String(s.status || s.상태 || "").trim();
         return st === "완료" || st === "정산완료";

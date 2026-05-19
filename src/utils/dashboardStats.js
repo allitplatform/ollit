@@ -57,7 +57,8 @@ export function computeDashboardStats({
   // 2026-05-17 — UTC ISO 문자열 .startsWith(todayStr) 박지 X (KST 새벽 작업이 전날 UTC로 잡힘).
   // toKstYmd가 KST 로컬 날짜로 정규화 후 비교 → 시간대 mismatch 해결.
   const isCreatedToday = (t) => {
-    const b = t.createdAt || t.receivedAt || t.접수일시 || t.B || "";
+    // 2026-05-19 Phase 5 Step 0.C-11 — created_at (snake_case) 추가 (NewReceptionScreen 측 spec 일치)
+    const b = t.createdAt || t.created_at || t.receivedAt || t.received_at || t.접수일시 || t.B || "";
     if (b && toKstYmd(b) === todayStr) return true;
     const idStr = String(t.id || t.taskId || t.작업번호 || "");
     const m = idStr.match(/(\d{6})-/);
@@ -68,7 +69,7 @@ export function computeDashboardStats({
     return false;
   };
   const isScheduledToday = (t) => {
-    const n = t.scheduledAt || t.확정일시 || t.confirmedAt || t.N || "";
+    const n = t.scheduledAt || t.scheduled_at || t.확정일시 || t.confirmedAt || t.N || "";
     return !!n && toKstYmd(n) === todayStr;
   };
 
@@ -95,7 +96,10 @@ export function computeDashboardStats({
   const assignedTasksList = uniqueTasks.filter(t => !_isUsolN(t) && _v14HasStatus(t, "배정"));
   const confirmedTasks    = uniqueTasks.filter(t => !_isUsolN(t) && isScheduledToday(t) && _v14HasStatus(t, "확정"));
   const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
-  const completedTasks    = uniqueTasks.filter(t => isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
+  // 2026-05-19 Phase 5 Step 0.C-11 — 완료 카드: isScheduledToday AND isCompletedToday 동시 catch
+  //   사장님 catch: 박소영 = scheduled_at=5/11 (옛) + completed_at=5/19 00:00 (마이그 자정) 측 옛 시트 데이터
+  //   완료 카드 = 오늘 일정 + 오늘 완료 동시 spec — 옛 시트 마이그 자정 시각 측 제외.
+  const completedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
 
   const newCount        = newReceptionTasks.length;
   const assignedCount   = assignedTasksList.length;
