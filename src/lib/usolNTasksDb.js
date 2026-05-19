@@ -127,15 +127,15 @@ export function getTaskSettlementColor(task) {
   return { dot: "⚪", color: "var(--text-tertiary, var(--text-secondary))", label: "대기" };
 }
 
-// 작업 종류 칩 라벨 — work_types + appliance_types 측 name JOIN 결과 우선
-// 예: "세척·벽걸이" / "피톤치드" / "방문비" 등
+// 작업 종류 칩 라벨 — appliance_name 우선 (가장 간결 + 중복 제거)
+// 예: "벽걸이" (appliance 있음) / "피톤치드" (추가선택 / appliance X)
+// 사장님 spec — work_types "세척_벽걸이" + appliance "벽걸이" 측 중복 catch 방지
 export function getItemChipLabel(item) {
   if (!item) return "—";
   const wt = item.work_types && item.work_types.name;
   const at = item.appliance_types && item.appliance_types.name;
-  if (wt && at) return `${wt}·${at}`;
-  if (wt) return wt;
-  if (at) return at;
+  if (at) return at;  // appliance 우선 → 가장 간결
+  if (wt) return wt;  // appliance X → work_type fallback (추가선택 등)
   if (item.description) return item.description;
   if (item.order_type)  return item.order_type;
   return "항목";

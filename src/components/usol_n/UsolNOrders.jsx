@@ -145,23 +145,26 @@ function TaskRow({ task, onClick }) {
   const items     = task.task_items || [];
   const clickable = typeof onClick === "function";
 
+  // 정산 사이클 색상 = 박스 왼쪽 강조선만 (사장님 spec — 고객명 앞 dot 제거)
+  const leftBorderColor =
+    taskColor.color === "#1D9E75" ? "#1D9E75" :
+    taskColor.color === "#F59E0B" ? "#F59E0B" :
+    taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)";
+
   return (
     <div
       onClick={clickable ? () => onClick(task) : undefined}
       style={{
-        padding: 12,
+        padding: 10,
         background: "var(--usol-n-card-bg)",
         border: "1px solid var(--usol-n-border)",
-        borderLeft: `3px solid ${taskColor.color === "#1D9E75" ? "#1D9E75" :
-                                  taskColor.color === "#F59E0B" ? "#F59E0B" :
-                                  taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)"}`,
-        borderRadius: 10, marginBottom: 6,
+        borderLeft: `3px solid ${leftBorderColor}`,
+        borderRadius: 10, marginBottom: 4,
         cursor: clickable ? "pointer" : "default",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 12 }}>{taskColor.dot}</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
             {task.customer_name || "—"}
           </span>
@@ -173,7 +176,7 @@ function TaskRow({ task, onClick }) {
       </div>
 
       {task.address && (
-        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6 }}>
+        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
           {String(task.address).split("(")[0].trim()}
         </div>
       )}
@@ -189,7 +192,7 @@ function TaskRow({ task, onClick }) {
                 color: "var(--text-primary)",
                 background: "var(--bg-secondary)",
                 border: `1px solid ${c.color}`,
-                padding: "2px 6px", borderRadius: 4, fontWeight: 600,
+                padding: "2px 5px", borderRadius: 4, fontWeight: 600,
               }}>
                 <span style={{ fontSize: 9 }}>{c.dot}</span>
                 <span>{getItemChipLabel(item)} ×{item.qty || 1}</span>
@@ -200,7 +203,7 @@ function TaskRow({ task, onClick }) {
       )}
 
       {task.received_at && (
-        <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 6 }}>
+        <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 4 }}>
           {formatYmdHm(task.received_at)} 접수 · {task.phone || "—"}
         </div>
       )}

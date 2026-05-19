@@ -146,17 +146,23 @@ export function UsolNInProgress({ onTaskClick }) {
 
 // 1 task = 1 줄 (UsolNOrders와 동일 패턴 — 일관성 spec)
 // 클릭 → onClick(task) → AdminTaskDetailScreen 진입 (AdminApp 측 v14 정규화 후 navigate)
+// 정산 사이클 색상 = 박스 왼쪽 강조선만 (사장님 spec — 고객명 앞 dot 제거)
 function TaskRow({ task, onClick }) {
   const taskColor = getTaskSettlementColor(task);
   const items     = task.task_items || [];
   const isCurrentlyWorking = task.status === "진행중";
   const clickable = typeof onClick === "function";
 
+  const leftBorderColor =
+    taskColor.color === "#1D9E75" ? "#1D9E75" :
+    taskColor.color === "#F59E0B" ? "#F59E0B" :
+    taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)";
+
   return (
     <div
       onClick={clickable ? () => onClick(task) : undefined}
       style={{
-        padding: 12,
+        padding: 10,
         background: isCurrentlyWorking
           ? "rgba(255,27,141,0.10)"
           : "var(--usol-n-card-bg)",
@@ -165,16 +171,13 @@ function TaskRow({ task, onClick }) {
           : "1px solid var(--usol-n-border)",
         borderLeft: isCurrentlyWorking
           ? "2px solid #FF1B8D"
-          : `3px solid ${taskColor.color === "#1D9E75" ? "#1D9E75" :
-                         taskColor.color === "#F59E0B" ? "#F59E0B" :
-                         taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)"}`,
-        borderRadius: 10, marginBottom: 6,
+          : `3px solid ${leftBorderColor}`,
+        borderRadius: 10, marginBottom: 4,
         cursor: clickable ? "pointer" : "default",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 12 }}>{taskColor.dot}</span>
           <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer_name || "—"}</span>
           <StatusBadge status={task.status}/>
         </div>
@@ -204,7 +207,7 @@ function TaskRow({ task, onClick }) {
                 color: "var(--text-primary)",
                 background: "var(--bg-secondary)",
                 border: `1px solid ${c.color}`,
-                padding: "2px 6px", borderRadius: 4, fontWeight: 600,
+                padding: "2px 5px", borderRadius: 4, fontWeight: 600,
               }}>
                 <span style={{ fontSize: 9 }}>{c.dot}</span>
                 <span>{getItemChipLabel(item)} ×{item.qty || 1}</span>

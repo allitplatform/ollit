@@ -193,6 +193,7 @@ export function formatDateTimeKST(value) {
 // "2026.05.10 12:00" — KST 변환, 사장님 spec 양식 (점 구분자)
 // 유솔N 화면 측 일관 양식 (formatDateTimeKST의 dash 대신 dot)
 // 빈값/1899 epoch → "—"
+// 00:00 KST (시간 없는 date 측 timestamptz cast) → 시간 부분 생략 ("2026.05.10")
 export function formatYmdHm(value) {
   if (!value) return "—";
   const d = new Date(value);
@@ -201,9 +202,11 @@ export function formatYmdHm(value) {
   const yyyy = kst.getUTCFullYear();
   const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(kst.getUTCDate()).padStart(2, "0");
-  const hh = String(kst.getUTCHours()).padStart(2, "0");
-  const mi = String(kst.getUTCMinutes()).padStart(2, "0");
-  return `${yyyy}.${mm}.${dd} ${hh}:${mi}`;
+  const hh = kst.getUTCHours();
+  const mi = kst.getUTCMinutes();
+  // 자정 (00:00) = 시간 정보 없음 spec → 날짜만
+  if (hh === 0 && mi === 0) return `${yyyy}.${mm}.${dd}`;
+  return `${yyyy}.${mm}.${dd} ${String(hh).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
 }
 
 // 작업 소요 시간 (startedAt ~ completedAt) — 초/분/시간 단위
