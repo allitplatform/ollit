@@ -33,16 +33,17 @@ export async function getUsolNPrincipalId() {
   return _usolNPrincipalId;
 }
 
-// usol_n tasks fetch — task_items 측 inline JOIN
+// usol_n tasks fetch — task_items + work_types + appliance_types inline JOIN
 // 옵션:
-//   statusIn: string[] (예: ["미배정"] / ["약속대기", "확정", "진행중"] / ["완료"])
-//   limit:    number (기본 50)
-//   offset:   number (기본 0)
+//   statusIn:   string[] (예: ["미배정"] / ["약속대기", "확정", "진행중"] / ["완료"])
+//   searchTerm: string (customer_name / task_no / address / phone 측 ilike or)
+//   limit:      number (기본 50)
+//   offset:     number (기본 0)
 //
 // 응답:
 //   { ok: true, tasks: [...], total: number, principalId }
 //   { ok: false, error, tasks: [], total: 0 }
-export async function fetchUsolNTasks({ statusIn = null, limit = 50, offset = 0 } = {}) {
+export async function fetchUsolNTasks({ statusIn = null, searchTerm = "", limit = 50, offset = 0 } = {}) {
   const pid = await getUsolNPrincipalId();
   if (!pid) {
     return { ok: false, error: "usol_n principal 조회 실패", tasks: [], total: 0, principalId: null };
@@ -59,9 +60,11 @@ export async function fetchUsolNTasks({ statusIn = null, limit = 50, offset = 0 
        requested_date, scheduled_at, started_at, completed_at, received_at,
        work_memo,
        task_items (
-         id, work_type_id, appliance_type_id, qty, unit_price, subtotal, description,
+         id, qty, unit_price, subtotal, description,
          naver_settled_at, company_received_at, engineer_settled_at,
-         net_amount, product_order_id, order_type
+         net_amount, product_order_id, order_type,
+         work_types ( id, name ),
+         appliance_types ( id, name )
        )`,
       { count: "exact" }
     )
@@ -71,6 +74,16 @@ export async function fetchUsolNTasks({ statusIn = null, limit = 50, offset = 0 
 
   if (Array.isArray(statusIn) && statusIn.length > 0) {
     q = q.in("status", statusIn);
+  }
+
+  // 검색어 — task 본체 4개 필드 측 or ilike
+  // (work_type_name 측 nested 검색은 별도 stage 예정 — 일관된 페이지네이션 확보 우선)
+  const kw = (searchTerm || "").trim();
+  if (kw) {
+    const esc = kw.replace(/[%_]/g, "\\$&");
+    q = q.or(
+      `customer_name.ilike.%${esc}%,task_no.ilike.%${esc}%,address.ilike.%${esc}%,phone.ilike.%${esc}%`
+    );
   }
 
   const { data, count, error } = await q;
@@ -114,10 +127,15 @@ export function getTaskSettlementColor(task) {
   return { dot: "⚪", color: "var(--text-tertiary, var(--text-secondary))", label: "대기" };
 }
 
-// 작업 종류 칩 라벨 (work_type_id resolve는 별도 / 일단 description / order_type 우선)
-// description 있으면 사용, 없으면 order_type fallback
+// 작업 종류 칩 라벨 — work_types + appliance_types 측 name JOIN 결과 우선
+// 예: "세척·벽걸이" / "피톤치드" / "방문비" 등
 export function getItemChipLabel(item) {
   if (!item) return "—";
+  const wt = item.work_types && item.work_types.name;
+  const at = item.appliance_types && item.appliance_types.name;
+  if (wt && at) return `${wt}·${at}`;
+  if (wt) return wt;
+  if (at) return at;
   if (item.description) return item.description;
   if (item.order_type)  return item.order_type;
   return "항목";

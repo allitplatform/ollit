@@ -21,6 +21,8 @@ const STATUS_FILTERS = [
 export function UsolNInProgress() {
   const [filterId, setFilterId] = useState("all");
   const [page, setPage]         = useState(0);
+  const [searchInput, setSearchInput] = useState(""); // 입력값 (debounce 전)
+  const [searchTerm,  setSearchTerm]  = useState(""); // 실제 fetch에 사용 (debounce 후)
 
   const [tasks, setTasks]       = useState([]);
   const [total, setTotal]       = useState(0);
@@ -29,14 +31,24 @@ export function UsolNInProgress() {
 
   const currentFilter = STATUS_FILTERS.find(f => f.id === filterId) || STATUS_FILTERS[0];
 
+  // 검색 입력 debounce — 300ms 후 실제 fetch 트리거 + page reset
+  useEffect(() => {
+    const id = setTimeout(() => {
+      setSearchTerm(searchInput.trim());
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(id);
+  }, [searchInput]);
+
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setFetchError("");
     fetchUsolNTasks({
-      statusIn: currentFilter.statuses,
-      limit:    PAGE_SIZE,
-      offset:   page * PAGE_SIZE,
+      statusIn:   currentFilter.statuses,
+      searchTerm: searchTerm,
+      limit:      PAGE_SIZE,
+      offset:     page * PAGE_SIZE,
     })
       .then(res => {
         if (!alive) return;
@@ -51,7 +63,7 @@ export function UsolNInProgress() {
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [filterId, page]);
+  }, [filterId, page, searchTerm]);
 
   function handleFilterChange(id) {
     setFilterId(id);
@@ -62,6 +74,27 @@ export function UsolNInProgress() {
 
   return (
     <div>
+      {/* 검색 (사장님 spec — 고객명/작업번호/주소/전화) */}
+      <div style={{ marginBottom: 10 }}>
+        <input
+          type="text"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="🔍 고객명 / 작업번호 / 주소 / 전화 검색"
+          style={{
+            width: "100%", padding: "8px 12px",
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            color: "var(--text-primary)",
+            fontSize: 12,
+            fontFamily: "inherit",
+            boxSizing: "border-box",
+            outline: "none",
+          }}
+        />
+      </div>
+
       {/* 필터 칩 */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
         {STATUS_FILTERS.map(filter => (
@@ -135,7 +168,6 @@ function TaskRow({ task }) {
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{ fontSize: 12 }}>{taskColor.dot}</span>
-          <StatusIcon status={task.status}/>
           <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer_name || "—"}</span>
           <StatusBadge status={task.status}/>
         </div>
@@ -197,17 +229,6 @@ function formatDt(ts) {
   } catch {
     return "—";
   }
-}
-
-function StatusIcon({ status }) {
-  // DB 한글 status 측 아이콘 매핑
-  const map = {
-    "약속대기": "🟡",
-    "확정":     "🔵",
-    "진행중":   "🟢",
-    "완료":     "⚪",
-  };
-  return <span style={{ fontSize: 12 }}>{map[status] || "⚪"}</span>;
 }
 
 function StatusBadge({ status }) {
