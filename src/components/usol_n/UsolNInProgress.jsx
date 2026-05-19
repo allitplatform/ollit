@@ -7,7 +7,7 @@
 //   - status 필터 칩 (DB의 한글 status 측 매핑)
 import { useState, useMemo, useEffect } from "react";
 import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
-import { formatYmdHm } from "../../utils/dateLabel.js";
+import { formatYmdHm, formatYmdHmAlways } from "../../utils/dateLabel.js";
 
 const PAGE_SIZE = 50;
 
@@ -223,7 +223,7 @@ function TaskRow({ task, onClick }) {
           marginTop: 4, paddingTop: 4,
           borderTop: "1px dashed var(--border)",
         }}>
-          {task.completed_at ? `완료: ${formatYmdHm(task.completed_at)}` :
+          {task.completed_at ? `완료: ${formatYmdHmAlways(task.completed_at)}` :
            task.started_at   ? `시작: ${formatYmdHm(task.started_at)}`   :
            task.scheduled_at ? `예정: ${formatYmdHm(task.scheduled_at)}` : ""}
         </div>

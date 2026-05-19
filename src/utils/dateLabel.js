@@ -190,10 +190,27 @@ export function formatDateTimeKST(value) {
   return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
 }
 
+// "2026.05.10 12:00" — KST 변환, 자정 항상 표시 (완료 시간 등 의미 있는 0시 spec)
+// formatYmdHm은 자정 시간 생략, formatYmdHmAlways는 자정도 "00:00" 그대로 표시.
+// 사장님 spec — 완료 시간은 00:00도 의미 있는 정보 (실제 자정 완료 가능성)
+export function formatYmdHmAlways(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime()) || d.getFullYear() < 1900) return "—";
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const yyyy = kst.getUTCFullYear();
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(kst.getUTCDate()).padStart(2, "0");
+  const hh = String(kst.getUTCHours()).padStart(2, "0");
+  const mi = String(kst.getUTCMinutes()).padStart(2, "0");
+  return `${yyyy}.${mm}.${dd} ${hh}:${mi}`;
+}
+
 // "2026.05.10 12:00" — KST 변환, 사장님 spec 양식 (점 구분자)
 // 유솔N 화면 측 일관 양식 (formatDateTimeKST의 dash 대신 dot)
 // 빈값/1899 epoch → "—"
 // 00:00 KST (시간 없는 date 측 timestamptz cast) → 시간 부분 생략 ("2026.05.10")
+// 사용처: 접수 시간 / 시작 시간 / 예정 시간 (시간 정보 없는 경우 날짜만 표시 spec)
 export function formatYmdHm(value) {
   if (!value) return "—";
   const d = new Date(value);
