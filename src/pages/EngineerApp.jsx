@@ -15,6 +15,8 @@ import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "..
 import { isTrackARemittance, isTrackC } from "../utils/remitFilter.js";
 import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
+// 2026-05-19 Fix #30 account-fetch — 회사 계좌 DB 우선 조회 (localStorage 의존 제거)
+import { fetchCompanyAccount, loadCompanyAccount } from "../data/companyAccount.js";
 import { REGISTERED_USERS } from "../shared/users.js";
 import { useRealtime } from "../hooks/useRealtime.js";
 import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
@@ -3564,6 +3566,18 @@ export default function EngineerApp({ user, onLogout }) {
     applyThemeVars(mode);
   }, [mode]);
 
+  // 2026-05-19 Fix #30 account-fetch — 회사 계좌 DB 직접 조회.
+  // loadCompanyAccount()는 localStorage만 보므로 다른 디바이스에서 DEFAULT 노출 발생.
+  // 마운트 시 fetchCompanyAccount()로 tenants.settings.company_account에서 최신값 갱신.
+  const [companyAccount, setCompanyAccount] = useState(() => loadCompanyAccount());
+  useEffect(() => {
+    let alive = true;
+    fetchCompanyAccount().then(data => {
+      if (alive && data) setCompanyAccount(data);
+    });
+    return () => { alive = false; };
+  }, []);
+
   // 공유 task state (shared/TasksContext.jsx) — 옛 mock (extraAssignments / pendingAcceptances 박힘)
   const { tasks: allTasks, updateTask: localUpdateTask, resetTasks } = useTasks();
 
@@ -4379,6 +4393,7 @@ export default function EngineerApp({ user, onLogout }) {
             monthStats={monthStats}
             usolN={usolN}
             usolRemit={usolRemit}
+            companyAccount={companyAccount}
             onClickToday={() => setScreen("settlementDetail")}
             onClickUsolN={() => setScreen("usolNSettlement")}
             onClickPaymentHistory={() => setScreen("paymentHistory")}
