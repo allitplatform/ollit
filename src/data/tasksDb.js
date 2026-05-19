@@ -99,6 +99,9 @@ export function rowToTask(row) {
     totalAmount:   row.total_amount,
     estimateTotal: row.product_price,
 
+    // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy (Migration 042) — 옛 시트 데이터 측 marker
+    isLegacy:      !!row.is_legacy,
+
     // 메타
     categoryData:  cat,
     // Phase 4-2 fix — category_data 평탄화 (시트 호환 / 화면 필터 통과)

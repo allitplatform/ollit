@@ -930,6 +930,8 @@ function _v14NormalizeTask(t) {
     extraFee:    Number(t.extraFee    || t.extra_fee    || t.추가금 || t.addAmount || 0),
     extraReason: t.extraReason  || t.extra_reason  || "",
     extraFeeAt:  t.extraFeeAt   || t.extra_fee_at   || null,
+    // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy (Migration 042) 매핑 ("두 곳 모두 매핑" 트랩)
+    isLegacy:    !!(t.isLegacy ?? t.is_legacy),
     // 2026-05-17 Round 1 Fix #7 — calc_method 패스스루 (정산 정책 표시용).
     // 2026-05-18 Fix #29 — 트랙 판별은 payments.track으로 일원화. calc_method는 트랙 판별과 무관.
     calc_method: t.calc_method ?? null,
@@ -4272,11 +4274,13 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
     return !!n && toKstYmd(n) === todayStrLocal;
   };
 
+  // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy 옛 시트 측 제외
+  const _isLegacyLocal = (x) => !!(x.isLegacy ?? x.is_legacy);
   let all;
   if (isAssigned) {
-    all = (apiTasks || []).filter(x => !_isUsolN(x) && statusOf(x) === "배정");
+    all = (apiTasks || []).filter(x => !_isLegacyLocal(x) && !_isUsolN(x) && statusOf(x) === "배정");
   } else {
-    all = (apiTasks || []).filter(x => !_isUsolN(x) && _isScheduledTodayLocal(x) && statusOf(x) === "확정");
+    all = (apiTasks || []).filter(x => !_isLegacyLocal(x) && !_isUsolN(x) && _isScheduledTodayLocal(x) && statusOf(x) === "확정");
   }
 
   const titleText = isAssigned
@@ -4441,6 +4445,8 @@ function NewReceptionScreen({
         : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
     });
     const isNewReception = (t) => {
+      // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy 옛 시트 측 제외
+      if (t.isLegacy ?? t.is_legacy) return false;
       if (_isUsolN(t)) return false; // 유솔N 메인 측 제외
       const s = String(t.status || t.상태 || "").trim();
       if (s === "배정" || s === "확정" || s === "진행중" || s === "완료" || s === "정산완료" || s === "취소") {
@@ -5157,13 +5163,12 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [] }
   // 2026-05-18 — 헤더 카운트를 LiveWorkContent의 base 필터와 동일 spec으로 통일.
   // 옛(state==="done"만)은 트랙/날짜 무시라 본 영역(11) ↔ 헤더(12) mismatch.
   // 자정 넘으면 어제 done이 헤더에 남는 stale 문제도 함께 해결(todayYmd 매 호출 재계산).
-  // 2026-05-19 Phase 5 Step 0.C-11 — 완료 카드: isScheduledToday AND isCompletedToday
-  //   사장님 catch: 박소영 scheduled_at=5/11 (옛) + completed_at=5/19 00:00 (마이그 자정) 측 옛 시트 catch
-  //   둘 다 today 측 동시 catch → 옛 시트 마이그 자정 측 제외.
+  // 2026-05-19 Phase 5 Step 0.C-11 + 0.C-13 — 완료 카드: !is_legacy + isScheduledToday AND isCompletedToday
   const todayStrLocal = todayYmd();
   const isCompletedToday = initialFilter === "completed-today";
   const completedCount = isCompletedToday
     ? baseSource.filter((s) => {
+        if (s.isLegacy ?? s.is_legacy) return false;
         const scheduled = s.scheduledAt || s.scheduled_at || s.확정일시;
         const completed = s.completedAt || s.completed_at;
         if (!completed || !scheduled) return false;
@@ -5216,7 +5221,9 @@ function InProgressListScreen({ t, onBack, onTaskClick, apiTasks = [] }) {
     return !!n && toKstYmd(n) === todayStrLocal;
   };
   // 2026-05-19 Phase 5 Step 0.C-10 — TASKS_TODAY mock fallback 제거
+  // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy 옛 시트 측 제외
   const baseSource = (apiTasks || []).filter(x => {
+    if (x.isLegacy ?? x.is_legacy) return false;
     const s = String(x.status || x.상태 || "").trim();
     return _isScheduledTodayLocal(x) && (s === "진행중" || s === "작업중");
   });
@@ -5729,12 +5736,12 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
   // initialFilter 없는 일반 진입(하단 탭 등)에서도 오늘 작업만 표시.
   // 트랙 🅐/🅑 모두 노출(작업 진행 모니터링 목적 — 정산/매출 dataset과 다름).
   // "오늘 작업" = 오늘 일정 OR 오늘 완료 (어제 일정 ↔ 오늘 완료 케이스 catch).
-  // 2026-05-19 Phase 5 Step 0.C-11 — 완료 카드: isScheduledToday AND isCompletedToday
-  //   사장님 catch: 옛 시트 마이그 자정 측 catch X spec — 둘 다 today 측 동시 catch.
+  // 2026-05-19 Phase 5 Step 0.C-11 + 0.C-13 — 완료 카드: !is_legacy + isScheduledToday AND isCompletedToday
   const isCompletedToday = initialFilter === "completed-today";
   const todayStr = todayYmd();
   const base = isCompletedToday
     ? dataSource.filter((s) => {
+        if (s.isLegacy ?? s.is_legacy) return false;
         const scheduled = s.scheduledAt || s.scheduled_at || s.확정일시;
         const completed = s.completedAt || s.completed_at;
         if (!completed || !scheduled) return false;
@@ -5744,6 +5751,7 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
         return st === "완료" || st === "정산완료";
       })
     : dataSource.filter((s) => {
+        if (s.isLegacy ?? s.is_legacy) return false;
         const scheduled = s.scheduledDate
           || (s.scheduledAt ? toKstYmd(s.scheduledAt) : "")
           || (s.service_scheduled_at ? toKstYmd(s.service_scheduled_at) : "");

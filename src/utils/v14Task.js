@@ -149,6 +149,8 @@ export function v14NormalizeTask(t) {
     estimateTotal: estimate,
     addonFee,
     extraFee,
+    // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy (Migration 042) 매핑
+    isLegacy: !!(t.isLegacy ?? t.is_legacy),
     requestedDate: reqDate,
     requestedTime: reqTime,
     scheduledAt,

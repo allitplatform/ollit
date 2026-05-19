@@ -92,14 +92,14 @@ export function computeDashboardStats({
     const name = String(t.principal || t.client || t.원청 || "");
     return code === "usol_n" || name === "유솔홈케어 N";
   };
-  const newReceptionTasks = uniqueTasks.filter(t => !_isUsolN(t) && isCreatedToday(t) && _v14HasStatus(t, "미배정"));
-  const assignedTasksList = uniqueTasks.filter(t => !_isUsolN(t) && _v14HasStatus(t, "배정"));
-  const confirmedTasks    = uniqueTasks.filter(t => !_isUsolN(t) && isScheduledToday(t) && _v14HasStatus(t, "확정"));
-  const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
-  // 2026-05-19 Phase 5 Step 0.C-11 — 완료 카드: isScheduledToday AND isCompletedToday 동시 catch
-  //   사장님 catch: 박소영 = scheduled_at=5/11 (옛) + completed_at=5/19 00:00 (마이그 자정) 측 옛 시트 데이터
-  //   완료 카드 = 오늘 일정 + 오늘 완료 동시 spec — 옛 시트 마이그 자정 시각 측 제외.
-  const completedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
+  // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy (Migration 042) 측 옛 시트 데이터 제외
+  const _isLegacy = (t) => !!(t.isLegacy ?? t.is_legacy);
+  const newReceptionTasks = uniqueTasks.filter(t => !_isLegacy(t) && !_isUsolN(t) && isCreatedToday(t) && _v14HasStatus(t, "미배정"));
+  const assignedTasksList = uniqueTasks.filter(t => !_isLegacy(t) && !_isUsolN(t) && _v14HasStatus(t, "배정"));
+  const confirmedTasks    = uniqueTasks.filter(t => !_isLegacy(t) && !_isUsolN(t) && isScheduledToday(t) && _v14HasStatus(t, "확정"));
+  const inProgressTasks   = uniqueTasks.filter(t => !_isLegacy(t) && isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
+  // 2026-05-19 Phase 5 Step 0.C-11 + 0.C-13 — 완료 카드: !_isLegacy + isScheduledToday AND isCompletedToday
+  const completedTasks    = uniqueTasks.filter(t => !_isLegacy(t) && isScheduledToday(t) && isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
 
   const newCount        = newReceptionTasks.length;
   const assignedCount   = assignedTasksList.length;
@@ -118,10 +118,10 @@ export function computeDashboardStats({
   let revenue = null;
   if (canSeeField(user, "task.total_amount")) {
     const revenueBaseTasks = uniqueTasks.filter(t => {
+      if (_isLegacy(t)) return false; // 2026-05-19 Phase 5 Step 0.C-13 — 옛 시트 데이터 매출 측 제외
       if (!isTrackARemittance(t)) return false;
       const completed = t.completedAt || t.completed_at || t.completedDate || t.완료시간 || t.completedTime;
       if (!completed) return false;
-      // 2026-05-17 — String slice 박지 X (UTC 자정 넘은 KST 새벽 작업이 전날로 잡힘).
       return toKstYmd(completed) === today;
     });
     const total = revenueBaseTasks.reduce((s, t) =>
