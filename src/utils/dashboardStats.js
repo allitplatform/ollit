@@ -77,13 +77,23 @@ export function computeDashboardStats({
   //   진행중   = DATE(scheduled_at KST) = today + 진행중 (옛 그대로)
   //   완료     = DATE(completed_at KST) = today + 완료 (옛: scheduled_at 기준 → completed_at 측)
   // 배정 / 확정 = 옛 spec 유지 (작업 흐름 5단계 시각화 측)
+  //
+  // 2026-05-19 Phase 5 Step 0.C-7 — 유솔N 분기:
+  //   유솔N 측 메인 카운트 (신규/배정/확정) 제외 — 별도 유솔N 박스 측 진입.
+  //   유솔N 진행중 / 완료 = 메인 포함 (모니터링 의도).
+  //   옛 시트 1,143건 (Migration 033) = 운영 시작 전 = 모든 usol_n 데이터가 옛 시트 측.
   const isCompletedTodayLocal = (t) => {
     const c = t.completedAt || t.completed_at || t.완료시간 || "";
     return !!c && toKstYmd(c) === todayStr;
   };
-  const newReceptionTasks = uniqueTasks.filter(t => isCreatedToday(t) && _v14HasStatus(t, "미배정"));
-  const assignedTasksList = uniqueTasks.filter(t => _v14HasStatus(t, "배정"));
-  const confirmedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "확정"));
+  const _isUsolN = (t) => {
+    const code = String(t.principalCode || t.principal_code || "").toLowerCase();
+    const name = String(t.principal || t.client || t.원청 || "");
+    return code === "usol_n" || name === "유솔홈케어 N";
+  };
+  const newReceptionTasks = uniqueTasks.filter(t => !_isUsolN(t) && isCreatedToday(t) && _v14HasStatus(t, "미배정"));
+  const assignedTasksList = uniqueTasks.filter(t => !_isUsolN(t) && _v14HasStatus(t, "배정"));
+  const confirmedTasks    = uniqueTasks.filter(t => !_isUsolN(t) && isScheduledToday(t) && _v14HasStatus(t, "확정"));
   const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
   const completedTasks    = uniqueTasks.filter(t => isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
 
