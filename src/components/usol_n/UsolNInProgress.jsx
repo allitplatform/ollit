@@ -8,6 +8,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
 import { formatYmdHm, formatYmdHmAlways } from "../../utils/dateLabel.js";
+// Phase 5 Step 0.C-9 — realtime subscription
+import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 
 const PAGE_SIZE = 50;
 
@@ -29,8 +31,13 @@ export function UsolNInProgress({ onTaskClick }) {
   const [total, setTotal]       = useState(0);
   const [loading, setLoading]   = useState(false);
   const [fetchError, setFetchError] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
 
   const currentFilter = STATUS_FILTERS.find(f => f.id === filterId) || STATUS_FILTERS[0];
+
+  // Phase 5 Step 0.C-9 — realtime subscription
+  useRealtimeTasks(() => setReloadTick(v => v + 1));
+  useRealtimeTable("task_items", () => setReloadTick(v => v + 1));
 
   // 검색 입력 debounce — 300ms 후 실제 fetch 트리거 + page reset
   useEffect(() => {
@@ -64,7 +71,7 @@ export function UsolNInProgress({ onTaskClick }) {
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [filterId, page, searchTerm]);
+  }, [filterId, page, searchTerm, reloadTick]);
 
   function handleFilterChange(id) {
     setFilterId(id);

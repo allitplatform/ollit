@@ -9,6 +9,8 @@
 import { useState, useEffect } from "react";
 import { fetchTaskItemsByTaskId, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
 import { formatYmdHm, formatYmdHmAlways } from "../../utils/dateLabel.js";
+// Phase 5 Step 0.C-9 — task_items 변경 시 자동 refetch (정산 사이클 카드 갱신)
+import { useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 
 const STAGES = [
   { key: "wait",     label: "대기",            dot: "⚪", color: "var(--text-tertiary, var(--text-secondary))", field: null },
@@ -28,6 +30,10 @@ export function UsolNSettlementCycleCard({ taskId }) {
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
+
+  // Phase 5 Step 0.C-9 — task_id 측 task_items 변경 시 자동 refetch
+  useRealtimeTable("task_items", () => setReloadTick(v => v + 1), taskId ? `task_id=eq.${taskId}` : null);
 
   useEffect(() => {
     if (!taskId) return;
@@ -46,7 +52,7 @@ export function UsolNSettlementCycleCard({ taskId }) {
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [taskId]);
+  }, [taskId, reloadTick]);
 
   if (loading) {
     return (

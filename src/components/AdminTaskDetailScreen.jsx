@@ -19,6 +19,8 @@ import { listPhotosByTask } from "../lib/photosDb.js";
 // import { listStatusHistory } from "../lib/statusHistoryDb.js";
 // Phase 5 Step 0.C-4 — 변경 이력 audit log (task_changes 테이블 / Migration 039)
 import { listTaskChanges } from "../lib/taskChangesDb.js";
+// Phase 5 Step 0.C-9 — task_changes 변경 시 자동 refetch (변경 이력 카드 갱신)
+import { useRealtimeTable } from "../hooks/useRealtimeSubscription.js";
 // 작업 소요 시간 계산
 import { calcTotalDuration } from "../utils/dateLabel.js";
 
@@ -556,6 +558,10 @@ function TaskChangesSection({ taskId }) {
   const [changes, setChanges] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
+
+  // Phase 5 Step 0.C-9 — task_id 측 task_changes 변경 시 자동 refetch
+  useRealtimeTable("task_changes", () => setReloadTick(v => v + 1), taskId ? `task_id=eq.${taskId}` : null);
 
   useEffect(() => {
     if (!taskId) return;
@@ -574,7 +580,7 @@ function TaskChangesSection({ taskId }) {
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [taskId]);
+  }, [taskId, reloadTick]);
 
   return (
     <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--border)" }}>

@@ -54,22 +54,27 @@ export function useRealtimeTasks(onChange) {
   }, []);
 }
 
-// 일반 테이블 측 구독 (재사용 박을 차례)
+// 일반 테이블 측 구독 (재사용)
 // 사용: useRealtimeTable('photos', (payload) => { ... });
-export function useRealtimeTable(tableName, onChange) {
+// 사용 + filter: useRealtimeTable('task_items', cb, `task_id=eq.${taskId}`);
+//   Supabase Realtime postgres_changes filter spec — eq / neq / gt / lt / in 측 지원.
+export function useRealtimeTable(tableName, onChange, filter = null) {
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
   useEffect(() => {
     if (!tableName) return;
+    const channelName = filter ? `${tableName}-${filter}` : `${tableName}-changes`;
+    const config = { event: '*', schema: 'public', table: tableName };
+    if (filter) config.filter = filter;
     const channel = supabase
-      .channel(`${tableName}-changes`)
+      .channel(channelName)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: tableName },
+        config,
         (payload) => {
           const id = payload.new?.id || payload.old?.id;
-          console.log(`[Realtime] ${tableName}`, payload.eventType, id);
+          console.log(`[Realtime] ${tableName}`, payload.eventType, id, filter || '');
           if (onChangeRef.current) onChangeRef.current(payload);
         }
       )
@@ -78,5 +83,5 @@ export function useRealtimeTable(tableName, onChange) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [tableName]);
+  }, [tableName, filter]);
 }

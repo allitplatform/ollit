@@ -15,6 +15,8 @@ import {
 } from "../../data/tasks.js";
 import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
 import { formatYmdHm } from "../../utils/dateLabel.js";
+// Phase 5 Step 0.C-9 — realtime subscription (tasks + task_items 변경 시 자동 refetch)
+import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 
 const PAGE_SIZE = 50;
 
@@ -52,6 +54,10 @@ export function UsolNOrders({ onTaskClick }) {
   }, [page, reloadTick]);
 
   function refresh() { setReloadTick(v => v + 1); }
+
+  // Phase 5 Step 0.C-9 — realtime subscription
+  useRealtimeTasks(() => refresh());
+  useRealtimeTable("task_items", () => refresh());
 
   // CSV 업로드 → 파싱 → 중복 제거 → 미리보기 (Stage 0.B는 기존 흐름 유지 / DB INSERT는 0.C 정정)
   function handleFileSelect(e) {
