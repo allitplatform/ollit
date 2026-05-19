@@ -16,6 +16,9 @@ export const CATEGORY_ID_AIRCON = "33333333-3333-3333-3333-333333333001";
 
 // 2026-05-16 Phase 4 통합 2-C — payments JOIN select string (6곳 공통 사용)
 // payments 측 task_id UNIQUE 없어 PostgREST 응답이 array → rowToTask가 [0] 추출
+// 2026-05-19 Phase 5 Step 0.C-16 — task_items + work_types + appliance_types 측 inline JOIN
+//   사장님 catch: 박소영 측 work_type 표시 X — category_data.workItems 측 NULL + task_items 측 별도 데이터.
+//   task_items 측 name 측 fetch → rowToTask 측 workItems fallback 매핑 spec.
 const PAYMENT_SELECT = `
   *,
   payment:payments(
@@ -31,6 +34,11 @@ const PAYMENT_SELECT = `
     engineer_remitted_at,
     engineer_remit_confirmed_at,
     engineer_remit_confirmed_by
+  ),
+  task_items (
+    id, qty, unit_price, subtotal,
+    work_types ( id, name ),
+    appliance_types ( id, name )
   )
 `;
 
@@ -105,10 +113,18 @@ export function rowToTask(row) {
     // 메타
     categoryData:  cat,
     // Phase 4-2 fix — category_data 평탄화 (시트 호환 / 화면 필터 통과)
-    workItems:     Array.isArray(cat.workItems) ? cat.workItems : [],
-    workType:      cat.workType  || "",
-    appliance:     cat.appliance || "",
-    qty:           Number(cat.qty) || 1,
+    // 2026-05-19 Phase 5 Step 0.C-16 — task_items 측 fallback 매핑 (category_data.workItems 측 NULL 측 catch)
+    workItems:     Array.isArray(cat.workItems) && cat.workItems.length > 0
+                     ? cat.workItems
+                     : (Array.isArray(row.task_items) ? row.task_items.map(it => ({
+                         workType:  it.work_types && it.work_types.name,
+                         appliance: it.appliance_types && it.appliance_types.name,
+                         qty:       Number(it.qty) || 1,
+                         unitPrice: Number(it.unit_price) || 0,
+                       })) : []),
+    workType:      cat.workType  || (Array.isArray(row.task_items) && row.task_items[0]?.work_types?.name) || "",
+    appliance:     cat.appliance || (Array.isArray(row.task_items) && row.task_items[0]?.appliance_types?.name) || "",
+    qty:           Number(cat.qty) || (Array.isArray(row.task_items) && Number(row.task_items[0]?.qty)) || 1,
     quote:         cat.quote      || 0,
     scheduleType:  cat.scheduleType || "",
     receivedAt:    row.received_at,
