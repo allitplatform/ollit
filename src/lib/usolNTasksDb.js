@@ -127,6 +127,111 @@ export function getTaskSettlementColor(task) {
   return { dot: "⚪", color: "var(--text-tertiary, var(--text-secondary))", label: "대기" };
 }
 
+// 특정 task 측 task_items 측 — AdminTaskDetailScreen 측 유솔N 정산 사이클 섹션
+// 응답: { ok, items: [...] }
+export async function fetchTaskItemsByTaskId(taskId) {
+  if (!taskId) return { ok: false, error: "taskId X", items: [] };
+  const { data, error } = await supabase
+    .from("task_items")
+    .select(
+      `id, qty, unit_price, subtotal, description,
+       naver_settled_at, company_received_at, engineer_settled_at,
+       net_amount, product_order_id, order_type,
+       work_types ( id, name ),
+       appliance_types ( id, name )`
+    )
+    .eq("task_id", taskId)
+    .order("id");
+  if (error) {
+    console.error("[usolNTasksDb.fetchByTaskId]", error);
+    return { ok: false, error: error.message, items: [] };
+  }
+  return { ok: true, items: data || [] };
+}
+
+// task_items 측 product_order_id IN 매칭 — UsolNCsvMatch 정산 CSV 매칭
+// 응답: { ok, items: [...] } / 각 item = task_items 행 + nested work_types / appliance_types / tasks
+export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
+  if (!Array.isArray(productOrderIds) || productOrderIds.length === 0) {
+    return { ok: true, items: [] };
+  }
+  const pid = await getUsolNPrincipalId();
+  if (!pid) return { ok: false, error: "usol_n principal X", items: [] };
+
+  const { data, error } = await supabase
+    .from("task_items")
+    .select(
+      `id, task_id, product_order_id, order_type, qty, unit_price, subtotal,
+       naver_settled_at, company_received_at, engineer_settled_at, net_amount,
+       work_types ( id, name ),
+       appliance_types ( id, name ),
+       tasks!inner ( id, task_no, customer_name, principal_id, status, completed_at )`
+    )
+    .in("product_order_id", productOrderIds)
+    .eq("tasks.principal_id", pid);
+
+  if (error) {
+    console.error("[usolNTasksDb.fetchByOrderIds]", error);
+    return { ok: false, error: error.message, items: [] };
+  }
+  return { ok: true, items: data || [] };
+}
+
+// 일괄 UPDATE — naver_settled_at / company_received_at / engineer_settled_at
+// 입력: itemIds (uuid[]), fieldName (allowed 3개), timestamp (ISO / null = now)
+// 응답: { ok, count, timestamp }
+export async function markTaskItemsField(itemIds, fieldName, timestamp = null) {
+  const allowedFields = ["naver_settled_at", "company_received_at", "engineer_settled_at"];
+  if (!allowedFields.includes(fieldName)) {
+    return { ok: false, error: `field 측 X: ${fieldName}` };
+  }
+  if (!Array.isArray(itemIds) || itemIds.length === 0) {
+    return { ok: false, error: "itemIds 측 X" };
+  }
+  const ts = timestamp || new Date().toISOString();
+  const { error } = await supabase
+    .from("task_items")
+    .update({ [fieldName]: ts })
+    .in("id", itemIds);
+  if (error) {
+    console.error("[usolNTasksDb.markField]", error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, count: itemIds.length, timestamp: ts };
+}
+
+// 완료된 usol_n task_items 측 — UsolNTracking 주간 입금 이력 + UsolNEngineerSettlement
+// 옵션: monthsBack (기본 3개월)
+export async function fetchUsolNCompletedTaskItems({ monthsBack = 3 } = {}) {
+  const pid = await getUsolNPrincipalId();
+  if (!pid) return { ok: false, error: "usol_n principal X", items: [] };
+
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - monthsBack);
+  cutoff.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("task_items")
+    .select(
+      `id, task_id, product_order_id, order_type, qty, unit_price, subtotal,
+       naver_settled_at, company_received_at, engineer_settled_at, net_amount,
+       work_types ( id, name ),
+       appliance_types ( id, name ),
+       tasks!inner ( id, task_no, customer_name, principal_id, status,
+                     completed_at, assigned_engineer_id )`
+    )
+    .eq("tasks.principal_id", pid)
+    .eq("tasks.status", "완료")
+    .gte("tasks.completed_at", cutoff.toISOString())
+    .order("naver_settled_at", { ascending: false });
+
+  if (error) {
+    console.error("[usolNTasksDb.fetchCompleted]", error);
+    return { ok: false, error: error.message, items: [] };
+  }
+  return { ok: true, items: data || [] };
+}
+
 // 작업 종류 칩 라벨 — appliance_name 우선 (가장 간결 + 중복 제거)
 // 예: "벽걸이" (appliance 있음) / "피톤치드" (추가선택 / appliance X)
 // 사장님 spec — work_types "세척_벽걸이" + appliance "벽걸이" 측 중복 catch 방지

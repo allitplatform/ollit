@@ -1,13 +1,26 @@
-// V11-2 — 유솔 N · 정산 CSV 매칭 탭
-// CSV 업로드 → 자동 분류 (우리/다른 회사/미매칭) → 일괄 확정
+// Phase 5 Step 0.C-1 — 유솔N · 정산 CSV 매칭 (DB 전환)
+// 2026-05-19
+// 흐름:
+//   1) CSV (네이버 정산 시트) 업로드 → XLSX parse
+//   2) row["상품주문번호"] 측 추출 → Supabase task_items.product_order_id IN 매칭
+//   3) 분류 (matched / otherCompany / unmatched)
+//   4) "결제완료 확정" 버튼 → matched 측 naver_settled_at 일괄 UPDATE
+// 옛 흐름 (localStorage + autoMatchSettlementCsv) 폐기.
 import { useState, useRef } from "react";
 import * as XLSX from "xlsx";
-import { autoMatchSettlementCsv, confirmMatching } from "../../utils/usolNAutoMatch.js";
+import { fetchUsolNTaskItemsByOrderIds, markTaskItemsField } from "../../lib/usolNTasksDb.js";
+
+// 우리 작업 분류 키워드 (상품명 측)
+// "에어컨청소" / "에어컨 청소" — 우리 본작업
+// 그 외 (의류건조기, 세탁기 등) — 다른 회사
+const OUR_PRODUCT_KEYWORDS = ["에어컨청소", "에어컨 청소", "피톤치드", "스팀살균", "송풍팬"];
 
 export function UsolNCsvMatch() {
   const [csvData, setCsvData]         = useState(null);
   const [matchResult, setMatchResult] = useState(null);
-  const [confirmedCount, setConfirmedCount] = useState(0);
+  const [confirming, setConfirming]   = useState(false);
+  const [confirmedInfo, setConfirmedInfo] = useState(null);
+  const [error, setError] = useState("");
   const fileInputRef = useRef(null);
 
   function toInt(v) {
@@ -17,11 +30,19 @@ export function UsolNCsvMatch() {
     return isNaN(n) ? 0 : n;
   }
 
-  function handleFileSelect(e) {
+  function isOurProduct(productName) {
+    const name = String(productName || "");
+    return OUR_PRODUCT_KEYWORDS.some(kw => name.includes(kw));
+  }
+
+  async function handleFileSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setError("");
+    setConfirmedInfo(null);
+
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const data  = new Uint8Array(evt.target.result);
         const wb    = XLSX.read(data, { type: "array" });
@@ -31,26 +52,93 @@ export function UsolNCsvMatch() {
         const totalAmount = rows.reduce((s, r) => s + toInt(r["정산예정금액"]), 0);
 
         setCsvData({
-          fileName: file.name,
+          fileName:   file.name,
           uploadedAt: new Date().toISOString(),
           rows,
-          totalCount: rows.length,
+          totalCount:  rows.length,
           totalAmount,
         });
-        setMatchResult(autoMatchSettlementCsv(rows));
-        setConfirmedCount(0);
+
+        // 1차 분류 — 상품명 측 우리/다른 회사 (productOrderId 측 X 영역도 포함)
+        const ourRows   = [];
+        const otherRows = [];
+        rows.forEach(row => {
+          const productOrderId = String(row["상품주문번호"] || "").trim();
+          const productName    = String(row["상품명"] || "");
+          if (isOurProduct(productName)) {
+            ourRows.push({ row, productOrderId, productName });
+          } else {
+            otherRows.push({ row, productOrderId, productName });
+          }
+        });
+
+        // 우리 row 측 product_order_id 추출 → Supabase 측 매칭
+        const ourOrderIds = ourRows
+          .map(r => r.productOrderId)
+          .filter(Boolean);
+
+        const fetchRes = await fetchUsolNTaskItemsByOrderIds(ourOrderIds);
+        if (!fetchRes.ok) {
+          setError(fetchRes.error || "DB 매칭 실패");
+          return;
+        }
+
+        const matchedOrderIdSet = new Set(
+          (fetchRes.items || []).map(it => it.product_order_id).filter(Boolean)
+        );
+
+        // matched: DB 측 product_order_id 일치
+        // unmatched: 우리 row 중 DB 측 X (작업DB에 X)
+        const matched = ourRows.filter(r => matchedOrderIdSet.has(r.productOrderId));
+        const unmatched = ourRows.filter(r => !matchedOrderIdSet.has(r.productOrderId));
+
+        // matched 측 row + task_item 매핑 (이미 결제완료 측 제외)
+        const itemByOrderId = new Map();
+        (fetchRes.items || []).forEach(it => {
+          if (it.product_order_id) itemByOrderId.set(it.product_order_id, it);
+        });
+
+        // 이미 결제완료 측 분리 (재마킹 방지)
+        const matchedFresh    = [];
+        const matchedAlready  = [];
+        matched.forEach(m => {
+          const item = itemByOrderId.get(m.productOrderId);
+          if (item && item.naver_settled_at) matchedAlready.push({ ...m, item });
+          else if (item)                     matchedFresh.push({ ...m, item });
+        });
+
+        setMatchResult({
+          matched:        matchedFresh,
+          matchedAlready: matchedAlready,
+          unmatched:      unmatched,
+          otherCompany:   otherRows,
+        });
       } catch (err) {
         console.error("[UsolNCsvMatch.parse]", err);
-        alert("CSV 파싱 실패: " + err.message);
+        setError("CSV 파싱 실패: " + (err.message || ""));
       }
     };
     reader.readAsArrayBuffer(file);
   }
 
-  function handleConfirmMatching() {
+  async function handleConfirmMatching() {
     if (!matchResult?.matched?.length) return;
-    const updated = confirmMatching(matchResult.matched);
-    setConfirmedCount(updated.length);
+    setConfirming(true);
+    setError("");
+
+    const itemIds = matchResult.matched.map(m => m.item.id);
+    const res = await markTaskItemsField(itemIds, "naver_settled_at");
+    setConfirming(false);
+
+    if (!res.ok) {
+      setError(res.error || "결제완료 확정 실패");
+      return;
+    }
+
+    setConfirmedInfo({
+      count:     res.count,
+      timestamp: res.timestamp,
+    });
     setCsvData(null);
     setMatchResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
@@ -59,6 +147,7 @@ export function UsolNCsvMatch() {
   function handleReset() {
     setCsvData(null);
     setMatchResult(null);
+    setError("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -66,18 +155,12 @@ export function UsolNCsvMatch() {
     return (
       <div>
         <UploadDropZone fileInputRef={fileInputRef} onFileSelect={handleFileSelect}/>
-        {confirmedCount > 0 && (
-          <div style={{
-            padding: 12,
-            background: "rgba(29,158,117,0.10)",
-            border: "1px solid rgba(29,158,117,0.4)",
-            borderRadius: 8, marginBottom: 12,
-            color: "#1D9E75", fontSize: 12, fontWeight: 600,
-            textAlign: "center",
-          }}>
-            ✓ 직전 매칭 확정: {confirmedCount}건 정산 정보 업데이트 완료
+        {confirmedInfo && (
+          <div style={confirmedBoxStyle}>
+            ✓ 직전 결제완료 확정: {confirmedInfo.count}건 / {new Date(confirmedInfo.timestamp).toLocaleString("ko-KR")}
           </div>
         )}
+        {error && <div style={errorBoxStyle}>⚠️ {error}</div>}
         <Empty>오늘 받은 정산 CSV를 업로드하세요</Empty>
       </div>
     );
@@ -86,7 +169,8 @@ export function UsolNCsvMatch() {
   return (
     <div>
       <CsvInfoCard csvData={csvData} onReset={handleReset}/>
-      <ClassificationResults result={matchResult}/>
+      {error && <div style={errorBoxStyle}>⚠️ {error}</div>}
+      {matchResult && <ClassificationResults result={matchResult}/>}
 
       {matchResult?.matched?.length > 0 && (
         <MatchedItemsPreview items={matchResult.matched}/>
@@ -98,14 +182,16 @@ export function UsolNCsvMatch() {
 
       <button
         onClick={handleConfirmMatching}
-        disabled={!matchResult?.matched?.length}
+        disabled={!matchResult?.matched?.length || confirming}
         style={{
           ...confirmButtonStyle,
-          opacity: matchResult?.matched?.length ? 1 : 0.5,
-          cursor: matchResult?.matched?.length ? "pointer" : "not-allowed",
+          opacity: (matchResult?.matched?.length && !confirming) ? 1 : 0.5,
+          cursor:  (matchResult?.matched?.length && !confirming) ? "pointer" : "not-allowed",
         }}
       >
-        {matchResult?.matched?.length || 0}건 매칭 확정
+        {confirming
+          ? "확정 중..."
+          : `${matchResult?.matched?.length || 0}건 결제완료 확정 (🟡 마킹)`}
       </button>
     </div>
   );
@@ -181,12 +267,22 @@ function ClassificationResults({ result }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
       <ResultBox
         icon="✅"
-        label="우리 매칭"
+        label="우리 매칭 (신규)"
         count={result.matched.length}
         rightExtra={`₩${totalMatchedAmount.toLocaleString()}`}
         color="#03C75A"
         accent
       />
+      {result.matchedAlready?.length > 0 && (
+        <ResultBox
+          icon="🟡"
+          label="이미 결제완료"
+          count={result.matchedAlready.length}
+          rightExtra="중복 마킹 제외"
+          color="#FACC15"
+          muted
+        />
+      )}
       <ResultBox
         icon="🔇"
         label="다른 회사 (자동)"
@@ -200,7 +296,7 @@ function ClassificationResults({ result }) {
           icon="⚠️"
           label="미매칭"
           count={result.unmatched.length}
-          rightExtra="확인 필요"
+          rightExtra="작업DB에 X"
           color="#F59E0B"
           accent
         />
@@ -258,11 +354,12 @@ function MatchedItemsPreview({ items }) {
       <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 6 }}>
         매칭 항목 (상위 5)
       </div>
-      {items.slice(0, 5).map((item, idx) => {
-        const row         = item.row || {};
+      {items.slice(0, 5).map((m, idx) => {
+        const row         = m.row || {};
         const productName = row["상품명"] || "";
         const isExtra     = !productName.includes("에어컨청소") && !productName.includes("에어컨 청소");
         const netAmount   = parseInt(row["정산예정금액"]) || 0;
+        const item        = m.item || {};
 
         return (
           <div key={idx} style={{
@@ -274,7 +371,7 @@ function MatchedItemsPreview({ items }) {
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 2 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <span style={{ fontSize: 11, fontWeight: 600 }}>
-                  {row["구매자명"] || row["수취인명"] || "—"}
+                  {item.tasks?.customer_name || row["구매자명"] || row["수취인명"] || "—"}
                 </span>
                 {isExtra && (
                   <span style={{
@@ -294,7 +391,7 @@ function MatchedItemsPreview({ items }) {
               </span>
             </div>
             <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>
-              {productName.length > 40 ? productName.slice(0, 40) + "..." : productName}
+              {item.tasks?.task_no || ""} · {productName.length > 32 ? productName.slice(0, 32) + "..." : productName}
             </div>
           </div>
         );
@@ -346,6 +443,23 @@ const confirmButtonStyle = {
   color: "#fff", fontSize: 13, fontWeight: 700,
   fontFamily: "inherit",
   transition: "transform 0.1s, box-shadow 0.1s",
+};
+
+const confirmedBoxStyle = {
+  padding: 12,
+  background: "rgba(29,158,117,0.10)",
+  border: "1px solid rgba(29,158,117,0.4)",
+  borderRadius: 8, marginBottom: 12,
+  color: "#1D9E75", fontSize: 12, fontWeight: 600,
+  textAlign: "center",
+};
+
+const errorBoxStyle = {
+  padding: 10,
+  background: "rgba(255,68,68,0.08)",
+  border: "1px solid rgba(255,68,68,0.3)",
+  borderRadius: 8, marginBottom: 12,
+  color: "#ff4444", fontSize: 11, fontWeight: 600,
 };
 
 export default UsolNCsvMatch;

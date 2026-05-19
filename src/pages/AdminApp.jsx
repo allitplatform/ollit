@@ -2975,8 +2975,9 @@ export default function AdminApp({ user, onLogout }) {
           // _v14NormalizeTask는 customer / region 키 측 fallback이라 추가 별칭 매핑
           const adapted = {
             ...task,
-            customer: task.customer_name || task.customer,
-            region:   task.district      || task.region,
+            customer:  task.customer_name || task.customer,
+            region:    task.district      || task.region,
+            principal: "usol_n",  // AdminTaskDetailScreen 측 정산 사이클 섹션 조건 분기
           };
           goTaskDetail(_v14NormalizeTask(adapted), "usol_n");
         }}

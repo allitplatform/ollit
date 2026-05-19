@@ -11,6 +11,8 @@ import { TaskCardMenu } from "./TaskCardMenu.jsx";
 import { formatTimeOnly, formatDateTimeKST } from "../utils/dateLabel.js";
 import { VisitOnlyDialog } from "./VisitOnlyDialog.jsx";
 import { loadMemos } from "../data/memos.js";
+// Phase 5 Step 0.C-1 — 유솔N 정산 사이클 카드 (조건 분기 / 다른 원청 영향 0)
+import { UsolNSettlementCycleCard } from "./usol_n/UsolNSettlementCycleCard.jsx";
 
 // state → 알약 라벨/색
 const STATE_MAP = {
@@ -78,6 +80,7 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <EngineerCard task={task} onEdit={onEdit} onAssign={onAssign}/>
       <InfoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
       <TimestampHistory task={task}/>
+      {task.principal === "usol_n" && <UsolNSettlementCycleCard taskId={task.id}/>}
       <CompletionNotice task={task}/>
       {showException && (
         <ExceptionActions
