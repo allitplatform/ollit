@@ -2906,6 +2906,7 @@ export default function AdminApp({ user, onLogout }) {
       <InProgressListScreen
         t={t}
         onBack={goBack}
+        apiTasks={apiTasks}
         onTaskClick={(task) => goTaskDetail(task, "inProgressList")}
       />
     </Shell>;
@@ -4255,22 +4256,27 @@ function PlaceholderScreen({ t, title, label, onBack }) {
 // 배정 완료 / 일정 확정 화면 (Step 2-5b)
 // ─────────────────────────────────────────────
 function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit, onTaskClick }) {
-  // status 분리 운영 (옵션 🅑):
-  //   · 배정 완료 = status="배정" (기사 배정됨, 기사가 고객 통화 중)
-  //   · 일정 확정 = status="확정" (기사가 고객 통화 완료, 일정 입력)
-  //   · 트리거: 기사 측 [✓ 일정 확정] 버튼 (EngineerApp.jsx:4761)
+  // 2026-05-19 Phase 5 Step 0.C-8 — 메인 카운트 spec 일치:
+  //   배정 완료 = !_isUsolN(t) AND status === '배정'
+  //   일정 확정 = !_isUsolN(t) AND isScheduledToday AND status === '확정'
   const statusOf = (x) => String(x.status || x.상태 || "").trim();
   const isAssigned = filter === "assigned";
+  const todayStrLocal = todayYmd();
+  const _isUsolN = (t) => {
+    const code = String(t.principalCode || t.principal_code || "").toLowerCase();
+    const name = String(t.principal || t.client || t.원청 || "");
+    return code === "usol_n" || name === "유솔홈케어 N";
+  };
+  const _isScheduledTodayLocal = (t) => {
+    const n = t.scheduledAt || t.scheduled_at || t.확정일시 || t.confirmedAt || "";
+    return !!n && toKstYmd(n) === todayStrLocal;
+  };
 
   let all;
   if (isAssigned) {
-    all = (apiTasks || []).filter(x => statusOf(x) === "배정");
+    all = (apiTasks || []).filter(x => !_isUsolN(x) && statusOf(x) === "배정");
   } else {
-    all = (apiTasks || []).filter(x => statusOf(x) === "확정");
-  }
-  // V14 — apiTasks에서 매칭 0건이면 옛 ASSIGNED_TASKS 사용 (옛 호환 / 시뮬 mock)
-  if (all.length === 0) {
-    all = ASSIGNED_TASKS.filter(x => x.assignmentStatus === filter);
+    all = (apiTasks || []).filter(x => !_isUsolN(x) && _isScheduledTodayLocal(x) && statusOf(x) === "확정");
   }
 
   const titleText = isAssigned
@@ -4407,11 +4413,26 @@ function NewReceptionScreen({
   receptionUpdates = {},
   onBack, onAssign, onClickAdd, onClickPushing, onClickAccepted, onCardMenuAction,
 }) {
-  // V14 2A — 진짜 시트 데이터 (apiTasks) + 폼에서 추가한 항목 (extraReceptions)
-  // 2026-05-10 명세 — 미배정/약속대기 작업 전체 표시 (날짜 필터 제거)
-  // 이유: 어제 이전 미배정 작업도 잊혀지지 않게 카드로 표시 / 홈 카드와 카운트 일치
-  // NEW_RECEPTIONS 시뮬 폐기 / extraReceptions는 등록 직후 lag 동안만 존재 (refetch 시 apiTasks가 진실)
-  // 화면 내부 편집 (saveTask) 호환을 위해 useState + useEffect 동기화
+  // 2026-05-19 Phase 5 Step 0.C-8 — 메인 카운트 spec 일치:
+  //   !_isUsolN(t) AND isCreatedToday AND 미배정
+  //   옛 spec (날짜 필터 X) → 메인 카운트 (오늘 + 미배정) 측 mismatch 발생 → 정정.
+  const todayStrLocal = todayYmd();
+  const _isUsolN = (t) => {
+    const code = String(t.principalCode || t.principal_code || "").toLowerCase();
+    const name = String(t.principal || t.client || t.원청 || "");
+    return code === "usol_n" || name === "유솔홈케어 N";
+  };
+  const _isCreatedTodayLocal = (t) => {
+    const b = t.createdAt || t.created_at || t.receivedAt || t.received_at || t.접수일시 || "";
+    if (b && toKstYmd(b) === todayStrLocal) return true;
+    const idStr = String(t.id || t.taskId || t.작업번호 || "");
+    const m = idStr.match(/(\d{6})-/);
+    if (m) {
+      const taskDate = `20${m[1].slice(0,2)}-${m[1].slice(2,4)}-${m[1].slice(4,6)}`;
+      if (taskDate === todayStrLocal) return true;
+    }
+    return false;
+  };
   const computeTasks = () => {
     const wrap = (x) => ({
       ...x,
@@ -4419,16 +4440,15 @@ function NewReceptionScreen({
         ? x.workItems
         : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
     });
-    // 미배정/약속대기/빈 값 만 카드 목록에 박힘 (배정/확정/진행중/완료는 별도 화면)
-    // 2026-05-10 hotfix — 배정/확정/진행중/완료/정산완료/취소 명시 제외 (분류 정확성 강화)
     const isNewReception = (t) => {
+      if (_isUsolN(t)) return false; // 유솔N 메인 측 제외
       const s = String(t.status || t.상태 || "").trim();
-      // 배정 흐름 박힌 작업은 명시 제외
       if (s === "배정" || s === "확정" || s === "진행중" || s === "완료" || s === "정산완료" || s === "취소") {
         return false;
       }
-      // 미배정 / 약속대기 / 빈 값 만 catch
-      return !s || s === "미배정";
+      // 미배정 / 빈 값 + 오늘 접수만
+      if (s && s !== "미배정") return false;
+      return _isCreatedTodayLocal(t);
     };
     // 2026-05-11 dedupe — apiTasks에 있는 ID는 extraReceptions에서 제외
     // (옵티미스틱 박힌 status가 apiTasks 측에만 박혀서, 중복 박힌 ID는 시트 측 우선)
@@ -5136,13 +5156,17 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [] }
   // 2026-05-18 — 헤더 카운트를 LiveWorkContent의 base 필터와 동일 spec으로 통일.
   // 옛(state==="done"만)은 트랙/날짜 무시라 본 영역(11) ↔ 헤더(12) mismatch.
   // 자정 넘으면 어제 done이 헤더에 남는 stale 문제도 함께 해결(todayYmd 매 호출 재계산).
+  // 2026-05-19 Phase 5 Step 0.C-8 — 메인 카운트 spec 일치:
+  //   완료 = isCompletedToday AND 완료/정산완료 (유솔N 포함 / 트랙 무관)
+  //   옛 spec (isTrackARemittance) → 유솔N 트랙 🅑 측 제외 → 메인 카운트 mismatch → 정정.
   const isCompletedToday = initialFilter === "completed-today";
   const completedCount = isCompletedToday
     ? baseSource.filter((s) => {
-        if (!isTrackARemittance(s)) return false;
         const completed = s.completedAt || s.completed_at;
         if (!completed) return false;
-        return toKstYmd(completed) === todayYmd();
+        if (toKstYmd(completed) !== todayYmd()) return false;
+        const st = String(s.status || s.상태 || "").trim();
+        return st === "완료" || st === "정산완료";
       }).length
     : 0;
   return (
@@ -5177,16 +5201,30 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [] }
 // ============================================
 const IN_PROGRESS_GROUP_IDS = new Set(["active", "moving", "external"]);
 
-function InProgressListScreen({ t, onBack, onTaskClick }) {
+function InProgressListScreen({ t, onBack, onTaskClick, apiTasks = [] }) {
   const [query, setQuery] = useState("");
+  // 2026-05-19 Phase 5 Step 0.C-8 — 메인 카운트 spec 일치:
+  //   진행중 = isScheduledToday AND 진행중/작업중 (유솔N 포함)
+  //   옛 spec (TASKS_TODAY 시뮬 mock) → apiTasks 측 진짜 데이터 사용 spec.
+  const todayStrLocal = todayYmd();
+  const _isScheduledTodayLocal = (t) => {
+    const n = t.scheduledAt || t.scheduled_at || t.확정일시 || t.confirmedAt || "";
+    return !!n && toKstYmd(n) === todayStrLocal;
+  };
+  const baseSource = (apiTasks && apiTasks.length > 0)
+    ? apiTasks.filter(x => {
+        const s = String(x.status || x.상태 || "").trim();
+        return _isScheduledTodayLocal(x) && (s === "진행중" || s === "작업중");
+      })
+    : TASKS_TODAY;
   const groups = TASK_GROUPS.filter(g => IN_PROGRESS_GROUP_IDS.has(g.id));
 
   const q = query.trim().toLowerCase();
-  const filtered = !q ? TASKS_TODAY : TASKS_TODAY.filter((s) => {
+  const filtered = !q ? baseSource : baseSource.filter((s) => {
     const fields = [s.customer, s.region, s.workType, s.engineer, s.note].filter(Boolean).join(" ").toLowerCase();
     return fields.includes(q);
   });
-  const activeCount = filtered.filter((s) => groups.some(g => g.predicate(s))).length;
+  const activeCount = filtered.length;
 
   return (
     <div className="fade-in">
@@ -5689,14 +5727,18 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
   // initialFilter 없는 일반 진입(하단 탭 등)에서도 오늘 작업만 표시.
   // 트랙 🅐/🅑 모두 노출(작업 진행 모니터링 목적 — 정산/매출 dataset과 다름).
   // "오늘 작업" = 오늘 일정 OR 오늘 완료 (어제 일정 ↔ 오늘 완료 케이스 catch).
+  // 2026-05-19 Phase 5 Step 0.C-8 — 메인 카운트 spec 일치:
+  //   완료 카드 (isCompletedToday) = 완료/정산완료 + 오늘 completed_at (유솔N 포함 / 트랙 무관)
+  //   옛 spec (isTrackARemittance) → 유솔N 트랙 🅑 제외 → mismatch → 정정.
   const isCompletedToday = initialFilter === "completed-today";
   const todayStr = todayYmd();
   const base = isCompletedToday
     ? dataSource.filter((s) => {
-        if (!isTrackARemittance(s)) return false;
         const completed = s.completedAt || s.completed_at;
         if (!completed) return false;
-        return toKstYmd(completed) === todayStr;
+        if (toKstYmd(completed) !== todayStr) return false;
+        const st = String(s.status || s.상태 || "").trim();
+        return st === "완료" || st === "정산완료";
       })
     : dataSource.filter((s) => {
         const scheduled = s.scheduledDate
