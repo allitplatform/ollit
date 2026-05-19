@@ -3544,8 +3544,11 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
       const name = String(task.principal || task.client || task.원청 || "");
       return code === "usol_n" || name === "유솔홈케어 N";
     };
+    // 2026-05-19 Phase 5 Step 0.C-14 — is_legacy 옛 시트 측 제외 (옛 1,143건 측 흐름 카운트 catch X)
+    const _isLegacyTask = (task) => !!(task.isLegacy ?? task.is_legacy);
 
     (apiTasks || []).forEach(task => {
+      if (_isLegacyTask(task)) return; // 옛 시트 측 제외
       if (_isUsolN(task)) return; // 유솔N 메인 흐름 제외
 
       const items = (task.workItems && task.workItems.length > 0)
