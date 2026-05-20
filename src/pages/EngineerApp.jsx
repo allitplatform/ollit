@@ -1173,15 +1173,20 @@ function MainScreen({
             // 2026-05-20 Phase 5 Step 0.F-1 — 유솔N N 마크 = 고객 이름 옆 위치 spec
             const isUsolNCleaning = (task.client === '유솔홈케어 N' || task.principalId === 'usol_n')
                                  && (task.workType || '').includes('세척');
-            // 2026-05-20 Phase 5 Step 0.F-1 — task_items / workItems 전부 표시 spec
-            //   본작업 + 추가선택 측 전부 — workItems 배열 측 우선 / fallback 단일 appliance
-            const itemsText = Array.isArray(task.workItems) && task.workItems.length > 0
-              ? task.workItems.map(it => {
-                  const a = it.appliance || it.workType || "";
-                  const q = it.qty || 1;
-                  return a ? `${a} ×${q}` : "";
-                }).filter(Boolean).join(" / ")
+            // 2026-05-20 Phase 5 Step 0.F-4 — C안: 본작업 1줄 + 추가선택 sub-line
+            const items = Array.isArray(task.workItems) ? task.workItems : [];
+            let mainItem = items.find(it => it.order_type === '본작업' || it.orderType === '본작업');
+            if (!mainItem) mainItem = items[0] || null;
+            const extraItems = mainItem ? items.filter(it => it !== mainItem) : [];
+            const mainText = mainItem
+              ? `${mainItem.appliance || mainItem.workType || ""}${mainItem.qty ? ` ×${mainItem.qty}` : ""}`
               : (task.appliance ? `${task.appliance}${task.qty ? ` ×${task.qty}` : ""}` : "");
+            const extraText = extraItems
+              .map(it => {
+                const a = it.appliance || it.workType || "";
+                const q = it.qty || 1;
+                return a ? (q > 1 ? `${a} ×${q}` : a) : "";
+              }).filter(Boolean).join(" · ");
             return (
               <div
                 key={task.id}
@@ -1242,14 +1247,29 @@ function MainScreen({
                   <div style={{
                     fontSize: 13, marginTop: 4,
                     display: "flex", alignItems: "center", gap: 4,
+                    whiteSpace: "nowrap",
                   }}>
-                    <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
-                    {itemsText && (
-                      <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
-                        {itemsText}
+                    <span style={{ flexShrink: 0 }}>
+                      <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
+                    </span>
+                    {mainText && (
+                      <span style={{
+                        color: "var(--text-secondary)", fontWeight: 700,
+                        overflow: "hidden", textOverflow: "ellipsis",
+                      }}>
+                        {mainText}
                       </span>
                     )}
                   </div>
+                  {extraText && (
+                    <div style={{
+                      fontSize: 11, color: "var(--text-secondary)",
+                      marginTop: 2, opacity: 0.85,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      + {extraText}
+                    </div>
+                  )}
                 </div>
                 <span style={{ fontSize: 18, color: "var(--text-secondary)" }}>›</span>
               </div>
