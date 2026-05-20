@@ -1226,12 +1226,18 @@ function MainScreen({
                         borderRadius: 4, fontWeight: 800,
                       }}>N</span>
                     )}
-                    <span style={{
-                      fontSize: 12, color: "var(--text-secondary)",
-                      fontWeight: 600,
-                    }}>
-                      {task.address}
-                    </span>
+                    {/* 2026-05-20 Phase 5 Step 0.F-3 — 주소 측 district 키워드만 (전체 주소 측 = 상세 화면) */}
+                    {/*   region (v14 매핑) 측 = district 우선 / fallback = address 측 구(區) 키워드 추출 */}
+                    {(() => {
+                      const region = task.region
+                        || (task.address && (String(task.address).match(/[가-힣]+(구|시|군)/) || [])[0])
+                        || "";
+                      return region ? (
+                        <span style={{
+                          fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
+                        }}>{region}</span>
+                      ) : null;
+                    })()}
                   </div>
                   <div style={{
                     fontSize: 13, marginTop: 4,
