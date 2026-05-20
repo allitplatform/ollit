@@ -1188,7 +1188,18 @@ function MainScreen({
           upcomingTasks.map(task => {
             // 2026-05-20 Phase 5 Step 0.F-1 — 작업유형 색 사이드바 4px (workTypeColors V14)
             const barColor = getWorkTypeColors(task.workType).main;
-            // 2026-05-20 Phase 5 Step 0.F-5 — N 마크 제거 (사장님 spec)
+            // 2026-05-20 Phase 5 Step 0.F-6 — N 마크 복구 + 조건 보강
+            //   principal name (v14NormalizeTask) / principalCode (rowToTask) / client (옛) 측 모두 catch
+            //   workType 측 "세척" / "세척_벽걸이" 측 모두 catch
+            const _principal = String(task.principal || task.client || task.원청 || "");
+            const _principalCode = String(task.principalCode || task.principal_code || "").toLowerCase();
+            const _wt = String(task.workType || "");
+            const isUsolNCleaning = (
+              _principalCode === "usol_n" ||
+              _principal === "유솔홈케어 N" ||
+              _principal === "유솔 N" ||
+              task.principalId === "usol_n"
+            ) && _wt.includes("세척");
             // 2026-05-20 Phase 5 Step 0.F-4 — C안: 본작업 1줄 + 추가선택 sub-line
             const items = Array.isArray(task.workItems) ? task.workItems : [];
             let mainItem = items.find(it => it.order_type === '본작업' || it.orderType === '본작업');
@@ -1240,6 +1251,13 @@ function MainScreen({
                     display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap",
                   }}>
                     <span>{task.customer}</span>
+                    {isUsolNCleaning && (
+                      <span style={{
+                        background: '#03C75A', color: 'white',
+                        fontSize: 9, padding: '2px 5px',
+                        borderRadius: 4, fontWeight: 800,
+                      }}>N</span>
+                    )}
                     {/* 2026-05-20 Phase 5 Step 0.F-3 — 주소 측 district 키워드만 (전체 주소 측 = 상세 화면) */}
                     {/*   region (v14 매핑) 측 = district 우선 / fallback = address 측 구(區) 키워드 추출 */}
                     {(() => {

@@ -4002,7 +4002,16 @@ function EngineerTaskMiniCard({ t, task, onClick }) {
     if (task.state === "done")      return "완료";
     return "";
   })();
-  // 2026-05-20 Phase 5 Step 0.F-5 — N 마크 제거 (사장님 spec)
+  // 2026-05-20 Phase 5 Step 0.F-6 — N 마크 복구 + 조건 보강
+  const _principal = String(task.principal || task.client || task.원청 || "");
+  const _principalCode = String(task.principalCode || task.principal_code || "").toLowerCase();
+  const _wt = String(task.workType || "");
+  const isUsolNCleaning = (
+    _principalCode === "usol_n" ||
+    _principal === "유솔홈케어 N" ||
+    _principal === "유솔 N" ||
+    task.principalId === "usol_n"
+  ) && _wt.includes("세척");
   // task_items / workItems 전부 표시 spec
   const itemsText = Array.isArray(task.workItems) && task.workItems.length > 0
     ? task.workItems.map(it => {
@@ -4030,6 +4039,13 @@ function EngineerTaskMiniCard({ t, task, onClick }) {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, marginBottom: 2 }}>
         <span>{task.customer || task.note || "—"}</span>
+        {isUsolNCleaning && (
+          <span style={{
+            background: '#03C75A', color: 'white',
+            fontSize: 8, padding: '1px 4px',
+            borderRadius: 3, fontWeight: 800,
+          }}>N</span>
+        )}
         {statusLabel && (
           <span style={{ fontSize: 9, color: t.textSecondary, fontWeight: 500 }}>
             · {statusLabel}
