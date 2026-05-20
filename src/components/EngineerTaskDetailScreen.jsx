@@ -5,7 +5,7 @@
 // 한 화면 흐름 (별도 완료보고 화면 X)
 
 import { useRef, useState, useEffect } from "react";
-import { ArrowLeft, Camera, X } from "lucide-react";
+import { ArrowLeft, Camera, X, Copy } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
 import { changePriceAdapter as apiChangePrice } from "../data/tasksDb.js";
@@ -85,8 +85,9 @@ function openTmap(task) {
   const addrRaw = buildFullAddress(task);
   if (!addrRaw) { alert("주소 없음"); return; }
   const addr = encodeURIComponent(addrRaw);
-  // V14 v6 — T맵 앱 시도 → 1.5초 후 웹 fallback
-  const appUrl = `tmap://route?goalname=${addr}&goaladdr=${addr}`;
+  // 2026-05-20 — T맵 search 스킴 정정 (옛 route 스킴 측 좌표 필요 spec → 빈 검색 catch)
+  //   search 측 주소 텍스트 자동 입력 spec 동작
+  const appUrl = `tmap://search?name=${addr}`;
   const webUrl = `https://tmap.life/?q=${addr}`;
   const start = Date.now();
   window.location.href = appUrl;
@@ -95,6 +96,99 @@ function openTmap(task) {
       window.open(webUrl, "_blank");
     }
   }, 1500);
+}
+
+// 2026-05-20 — 카카오맵 신규 (앱 deeplink + 웹 fallback)
+function openKakaoMap(task) {
+  const addrRaw = buildFullAddress(task);
+  if (!addrRaw) { alert("주소 없음"); return; }
+  const addr = encodeURIComponent(addrRaw);
+  const appUrl = `kakaomap://search?q=${addr}`;
+  const webUrl = `https://map.kakao.com/?q=${addr}`;
+  const start = Date.now();
+  window.location.href = appUrl;
+  setTimeout(() => {
+    if (Date.now() - start < 2000 && document.visibilityState === "visible") {
+      window.open(webUrl, "_blank");
+    }
+  }, 1500);
+}
+
+// 2026-05-20 — 주소 복사 (clipboard + 토스트 + 햅틱)
+async function copyAddress(task, onToast) {
+  const addr = buildFullAddress(task);
+  if (!addr) {
+    if (onToast) onToast("주소 없음");
+    return;
+  }
+  try {
+    if (navigator?.clipboard?.writeText) {
+      await navigator.clipboard.writeText(addr);
+    } else {
+      const textarea = document.createElement("textarea");
+      textarea.value = addr;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    if (navigator?.vibrate) navigator.vibrate(30);
+    if (onToast) onToast("주소 복사됨");
+  } catch (err) {
+    console.error("[copyAddress] failed:", err);
+    if (onToast) onToast("복사 실패");
+  }
+}
+
+// 2026-05-20 — 주소 + 복사 아이콘 inline 컴포넌트 (재사용)
+//   주소 표시 영역 측 두 곳 (StatusBlockReady / WorkMainCard) 측 공통 spec
+function AddressLine({ task, baseStyle, iconColor = "var(--label-main)" }) {
+  const [toast, setToast] = useState(null);
+  const addr = task.fullAddress || task.address || "—";
+  const hasAddr = addr && addr !== "—";
+
+  function handleCopy(e) {
+    e.stopPropagation();
+    copyAddress(task, (msg) => {
+      setToast(msg);
+      setTimeout(() => setToast(null), 1500);
+    });
+  }
+
+  return (
+    <div style={{ position: "relative", ...baseStyle, display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ flex: 1, minWidth: 0 }}>📍 {addr}</span>
+      {hasAddr && (
+        <button
+          onClick={handleCopy}
+          aria-label="주소 복사"
+          style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 26, height: 26, padding: 0,
+            background: "transparent", border: "1px solid var(--border)",
+            borderRadius: 6, color: iconColor,
+            cursor: "pointer", flexShrink: 0,
+          }}
+        >
+          <Copy size={14}/>
+        </button>
+      )}
+      {toast && (
+        <span style={{
+          position: "absolute", right: 0, top: "100%", marginTop: 4,
+          background: "rgba(0,0,0,0.85)", color: "#fff",
+          fontSize: 11, fontWeight: 600,
+          padding: "4px 10px", borderRadius: 6,
+          whiteSpace: "nowrap", zIndex: 10,
+        }}>
+          {toast}
+        </span>
+      )}
+    </div>
+  );
 }
 
 // 작업 항목 정규화 (INITIAL_TASKS는 단일 workType/appliance만 — items 배열로 변환)
@@ -758,12 +852,9 @@ function WorkMainCard({ task }) {
             📞 {task.phone}
           </div>
         )}
-        <div style={{
-          fontSize: 14, color: "var(--label-main)",
-          fontWeight: 700,
-        }}>
-          📍 {task.fullAddress || task.address || "—"}
-        </div>
+        <AddressLine task={task} baseStyle={{
+          fontSize: 14, color: "var(--label-main)", fontWeight: 700,
+        }}/>
       </div>
     </div>
   );
@@ -996,12 +1087,10 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
               📞 {task.phone}
             </div>
           )}
-          <div style={{
+          <AddressLine task={task} baseStyle={{
             fontSize: 14, color: "var(--text-secondary)",
             fontWeight: 600, marginBottom: 12,
-          }}>
-            📍 {task.fullAddress || task.address || "—"}
-          </div>
+          }} iconColor="var(--text-secondary)"/>
         </>
       )}
 
@@ -1095,39 +1184,22 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
 }
 
 // ──────────────── 이동 정보 (확정만) ────────────────
-// V14 v6 — 길찾기 두 버튼 (네이버 그린 / T맵 파랑) + 앱 URL scheme
+// 2026-05-20 — 길찾기 두 버튼 (T맵 빨강 / 카카오맵 노랑) + 앱 URL scheme
+//   옛 네이버 지도 측 제거 (사장님 spec) / openMap 함수 측 코드 유지 (다른 화면 측 호출 가능성)
 function MapButtons({ task }) {
-  function openNaver() { openMap(task); }
-  function openTmapBtn() { openTmap(task); }
+  function openTmapBtn()   { openTmap(task); }
+  function openKakaoBtn()  { openKakaoMap(task); }
   return (
     <div style={{ padding: "0 16px 14px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
         display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
       }}>
-        <button onClick={openNaver} style={{
-          padding: 13,
-          background: "var(--card-bg)",
-          border: "1.5px solid #03C75A",
-          borderRadius: 10,
-          color: "#03C75A",
-          fontSize: 14, fontWeight: 600,
-          cursor: "pointer", fontFamily: "inherit",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-        }}>
-          <span style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 18, height: 18, borderRadius: 4,
-            background: "#03C75A", color: "#fff",
-            fontSize: 11, fontWeight: 600,
-          }}>N</span>
-          네이버 지도
-        </button>
         <button onClick={openTmapBtn} style={{
           padding: 13,
           background: "var(--card-bg)",
-          border: "1.5px solid #1F8AFF",
+          border: "1.5px solid #E53935",
           borderRadius: 10,
-          color: "#1F8AFF",
+          color: "#E53935",
           fontSize: 14, fontWeight: 600,
           cursor: "pointer", fontFamily: "inherit",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
@@ -1135,10 +1207,28 @@ function MapButtons({ task }) {
           <span style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             width: 18, height: 18, borderRadius: 4,
-            background: "#1F8AFF", color: "#fff",
+            background: "#E53935", color: "#fff",
             fontSize: 11, fontWeight: 600,
           }}>T</span>
           T맵
+        </button>
+        <button onClick={openKakaoBtn} style={{
+          padding: 13,
+          background: "var(--card-bg)",
+          border: "1.5px solid #FAE100",
+          borderRadius: 10,
+          color: "#3C1E1E",
+          fontSize: 14, fontWeight: 600,
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 18, height: 18, borderRadius: 4,
+            background: "#FAE100", color: "#3C1E1E",
+            fontSize: 11, fontWeight: 700,
+          }}>K</span>
+          카카오맵
         </button>
       </div>
     </div>
