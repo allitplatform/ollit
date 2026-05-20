@@ -635,6 +635,8 @@ function formatMinutesLabel(min) {
 // 모드: 진행 중 (now >= start && now < end) / 다음 작업 (시작 전)
 // 30분 이내 시작 → 핑크 강조 / 진행 중 → 펄스 + 완료 보고 버튼
 function NextWorkCard({ work, now, onClick, onCompleteReport }) {
+  // 2026-05-20 Phase 5 Step 0.F-8 — 주소 복사 토스트 spec
+  const [copyToast, setCopyToast] = useState(null);
   if (!work) return null;
   const startTime = work.scheduledTime || work.time || null;
   const endTime   = work.endTime || null;
@@ -761,73 +763,162 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
         <span>{work.appliance || "—"}{work.qty ? ` ×${work.qty}` : ""}</span>
       </div>
 
-      {/* 주소 (1줄 ellipsis) */}
+      {/* 2026-05-20 Phase 5 Step 0.F-8 — 주소 2줄 허용 (옛 1줄 ellipsis 측 짤림 catch) */}
       <div style={{
         fontSize: 13, color: "var(--text-secondary)",
         fontWeight: 600,
         marginBottom: 12,
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        display: "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        lineHeight: 1.4,
       }}>
         📍 {work.fullAddress || work.address || "—"}
       </div>
 
-      {/* 2026-05-20 Phase 5 Step 0.F-7 — 시안 2번: 길찾기 + 작업 시작 버튼 2개 */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
-        marginTop: 4,
-      }}>
+      {/* 2026-05-20 Phase 5 Step 0.F-8 — 진행 중 = 완료 보고 1버튼 / 그 외 = 길찾기/전화/복사 3버튼 */}
+      {isInProgress ? (
         <button
           onClick={(e) => {
             e.stopPropagation();
-            const addr = encodeURIComponent(work.fullAddress || work.address || "");
-            if (!addr) return;
-            // 카카오맵 앱 deeplink 시도 + 1.5초 후 웹 fallback
-            const appUrl = `kakaomap://search?q=${addr}`;
-            const webUrl = `https://map.kakao.com/?q=${addr}`;
-            const start = Date.now();
-            window.location.href = appUrl;
-            setTimeout(() => {
-              if (Date.now() - start < 2000 && document.visibilityState === "visible") {
-                window.open(webUrl, "_blank");
-              }
-            }, 1500);
+            if (onCompleteReport) onCompleteReport(work.id);
+            else if (onClick) onClick(work.id);
           }}
           style={{
-            padding: 13,
-            background: "var(--card-bg)",
-            border: `1.5px solid ${barColor}`,
-            borderRadius: 10,
-            color: barColor,
-            fontSize: 14, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-        >
-          🗺️ 길찾기
-        </button>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            if (isInProgress && onCompleteReport) {
-              onCompleteReport(work.id);
-            } else if (onClick) {
-              onClick(work.id);
-            }
-          }}
-          style={{
-            padding: 13,
-            background: isInProgress ? accent : barColor,
+            width: "100%",
+            padding: 14,
+            background: accent,
             border: "none",
             borderRadius: 10,
             color: "#fff",
-            fontSize: 14, fontWeight: 800,
+            fontSize: 15, fontWeight: 800,
             cursor: "pointer", fontFamily: "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+            marginTop: 4,
           }}
         >
-          {isInProgress ? "✓ 완료 보고" : "▶ 작업 시작"}
+          ✓ 완료 보고
         </button>
-      </div>
+      ) : (() => {
+        const phone = work.phone || work.customerPhone || work.customer_phone || "";
+        const hasPhone = !!String(phone || "").replace(/\D/g, "");
+        return (
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6,
+            marginTop: 4,
+          }}>
+            {/* 길찾기 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const addr = encodeURIComponent(work.fullAddress || work.address || "");
+                if (!addr) return;
+                const appUrl = `kakaomap://search?q=${addr}`;
+                const webUrl = `https://map.kakao.com/?q=${addr}`;
+                const start = Date.now();
+                window.location.href = appUrl;
+                setTimeout(() => {
+                  if (Date.now() - start < 2000 && document.visibilityState === "visible") {
+                    window.open(webUrl, "_blank");
+                  }
+                }, 1500);
+              }}
+              style={{
+                padding: "12px 8px",
+                background: "var(--card-bg)",
+                border: `1.5px solid ${barColor}`,
+                borderRadius: 10,
+                color: barColor,
+                fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>🗺️</span>
+              <span>길찾기</span>
+            </button>
+            {/* 고객 전화 */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (hasPhone) window.location.href = `tel:${phone}`;
+              }}
+              disabled={!hasPhone}
+              style={{
+                padding: "12px 8px",
+                background: "var(--card-bg)",
+                border: hasPhone ? "1.5px solid var(--border-strong, var(--border))" : "1.5px solid var(--border)",
+                borderRadius: 10,
+                color: hasPhone ? "var(--text-primary)" : "var(--text-tertiary)",
+                fontSize: 12, fontWeight: 700,
+                cursor: hasPhone ? "pointer" : "not-allowed",
+                opacity: hasPhone ? 1 : 0.5,
+                fontFamily: "inherit",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>📞</span>
+              <span>전화</span>
+            </button>
+            {/* 주소 복사 */}
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                const addr = work.fullAddress || work.address || "";
+                if (!addr) return;
+                try {
+                  if (navigator?.clipboard?.writeText) {
+                    await navigator.clipboard.writeText(addr);
+                  } else {
+                    const ta = document.createElement("textarea");
+                    ta.value = addr;
+                    ta.style.position = "fixed"; ta.style.left = "-9999px";
+                    document.body.appendChild(ta);
+                    ta.focus(); ta.select();
+                    document.execCommand("copy");
+                    document.body.removeChild(ta);
+                  }
+                  if (navigator?.vibrate) navigator.vibrate(30);
+                  setCopyToast("주소 복사됨");
+                  setTimeout(() => setCopyToast(null), 1500);
+                } catch (err) {
+                  console.error("[NextWorkCard.copy]", err);
+                  setCopyToast("복사 실패");
+                  setTimeout(() => setCopyToast(null), 1500);
+                }
+              }}
+              style={{
+                padding: "12px 8px",
+                background: "var(--card-bg)",
+                border: "1.5px solid var(--border-strong, var(--border))",
+                borderRadius: 10,
+                color: "var(--text-primary)",
+                fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>📋</span>
+              <span>주소 복사</span>
+            </button>
+          </div>
+        );
+      })()}
+
+      {copyToast && (
+        <div style={{
+          position: "absolute", left: "50%", bottom: 14,
+          transform: "translateX(-50%)",
+          background: "rgba(0,0,0,0.85)", color: "#fff",
+          fontSize: 11, fontWeight: 600,
+          padding: "5px 12px", borderRadius: 6,
+          whiteSpace: "nowrap", zIndex: 5,
+          pointerEvents: "none",
+        }}>
+          {copyToast}
+        </div>
+      )}
     </div>
   );
 }
