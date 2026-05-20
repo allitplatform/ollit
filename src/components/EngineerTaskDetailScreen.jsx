@@ -194,13 +194,35 @@ function AddressLine({ task, baseStyle, iconColor = "var(--label-main)" }) {
 // 작업 항목 정규화 (INITIAL_TASKS는 단일 workType/appliance만 — items 배열로 변환)
 // V14 v7 — 사장님 catch: name = appliance(기종) 박음 (workType X)
 function getTaskItems(task) {
+  // 2026-05-20 Phase 5 Step 0.F-10 — task_items 전부 표시 spec
+  //   각 항목 측 기사 단가 = subtotal × 기사 비율 (engineer_amount / total_amount)
+  //   비율 측 X 시 fallback = subtotal × 0.6 (옛 spec)
   if (Array.isArray(task.items) && task.items.length > 0) return task.items;
+  const totalAmount = Number(task.totalAmount || task.total_amount || task.estimateTotal || 0);
+  const engineerAmount = Number(task.engineer_amount || 0);
+  const engRatio = (totalAmount > 0 && engineerAmount > 0)
+    ? (engineerAmount / totalAmount)
+    : 0.6;
+  if (Array.isArray(task.workItems) && task.workItems.length > 0) {
+    return task.workItems.map((wi, i) => {
+      const subtotal = Number(wi.subtotal || wi.unitPrice || wi.unit_price || 0) * (wi.subtotal ? 1 : (wi.qty || 1));
+      const engPrice = Math.floor(subtotal * engRatio);
+      return {
+        id: `${task.id}-${i}`,
+        name: wi.appliance || wi.workType || "",
+        qty: wi.qty || 1,
+        price: engPrice,
+        serviceType: { workType: wi.workType || task.workType },
+        orderType: wi.order_type || wi.orderType,
+      };
+    });
+  }
   if (!task.workType) return [];
   return [{
     id: `${task.id}-1`,
     name: task.appliance || task.workType,
     qty: task.qty || 1,
-    price: task.estimateTotal || 0,
+    price: engineerAmount || Math.floor((task.estimateTotal || 0) * engRatio),
     serviceType: task,
   }];
 }
@@ -1152,27 +1174,27 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
         </div>
       )}
 
-      {/* V14 — 전화 (초록) / 문자 (보더) */}
+      {/* 2026-05-20 Phase 5 Step 0.F-10 A안 — 전화 (#22C55E) / 문자 (#3B82F6) 채움 */}
       {!isCompleted && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <button onClick={() => makeCall(task.phone)} style={{
             padding: 13,
-            background: "#34C759",
+            background: "#22C55E",
             border: "none",
             borderRadius: 10,
             color: "#fff",
-            fontSize: 14, fontWeight: 600,
+            fontSize: 14, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
           }}>
             📞 전화
           </button>
           <button onClick={() => sendSms(task.phone)} style={{
             padding: 13,
-            background: "var(--card-bg)",
-            border: "1.5px solid var(--input-border)",
+            background: "#3B82F6",
+            border: "none",
             borderRadius: 10,
-            color: "var(--text-secondary)",
-            fontSize: 14, fontWeight: 600,
+            color: "#fff",
+            fontSize: 14, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
           }}>
             💬 문자
@@ -1184,8 +1206,7 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
 }
 
 // ──────────────── 이동 정보 (확정만) ────────────────
-// 2026-05-20 — 길찾기 두 버튼 (T맵 빨강 / 카카오맵 노랑) + 앱 URL scheme
-//   옛 네이버 지도 측 제거 (사장님 spec) / openMap 함수 측 코드 유지 (다른 화면 측 호출 가능성)
+// 2026-05-20 Phase 5 Step 0.F-10 A안 — T맵 (#EE2737 채움) / 카카오맵 (#FEE500 채움)
 function MapButtons({ task }) {
   function openTmapBtn()   { openTmap(task); }
   function openKakaoBtn()  { openKakaoMap(task); }
@@ -1196,37 +1217,37 @@ function MapButtons({ task }) {
       }}>
         <button onClick={openTmapBtn} style={{
           padding: 13,
-          background: "var(--card-bg)",
-          border: "1.5px solid #E53935",
+          background: "#EE2737",
+          border: "none",
           borderRadius: 10,
-          color: "#E53935",
-          fontSize: 14, fontWeight: 600,
+          color: "#fff",
+          fontSize: 14, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}>
           <span style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             width: 18, height: 18, borderRadius: 4,
-            background: "#E53935", color: "#fff",
-            fontSize: 11, fontWeight: 600,
+            background: "#fff", color: "#EE2737",
+            fontSize: 11, fontWeight: 800,
           }}>T</span>
           T맵
         </button>
         <button onClick={openKakaoBtn} style={{
           padding: 13,
-          background: "var(--card-bg)",
-          border: "1.5px solid #FAE100",
+          background: "#FEE500",
+          border: "none",
           borderRadius: 10,
-          color: "#3C1E1E",
-          fontSize: 14, fontWeight: 600,
+          color: "#181600",
+          fontSize: 14, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}>
           <span style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             width: 18, height: 18, borderRadius: 4,
-            background: "#FAE100", color: "#3C1E1E",
-            fontSize: 11, fontWeight: 700,
+            background: "#181600", color: "#FEE500",
+            fontSize: 11, fontWeight: 800,
           }}>K</span>
           카카오맵
         </button>
