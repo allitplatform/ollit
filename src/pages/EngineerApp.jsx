@@ -765,35 +765,69 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
       <div style={{
         fontSize: 13, color: "var(--text-secondary)",
         fontWeight: 600,
-        marginBottom: isInProgress ? 12 : 0,
+        marginBottom: 12,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
         📍 {work.fullAddress || work.address || "—"}
       </div>
 
-      {/* 진행 중 모드: 완료 보고 버튼 (큰 핑크) */}
-      {isInProgress && (
+      {/* 2026-05-20 Phase 5 Step 0.F-7 — 시안 2번: 길찾기 + 작업 시작 버튼 2개 */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
+        marginTop: 4,
+      }}>
         <button
           onClick={(e) => {
             e.stopPropagation();
-            if (onCompleteReport) onCompleteReport(work.id);
-            else if (onClick)     onClick(work.id);
+            const addr = encodeURIComponent(work.fullAddress || work.address || "");
+            if (!addr) return;
+            // 카카오맵 앱 deeplink 시도 + 1.5초 후 웹 fallback
+            const appUrl = `kakaomap://search?q=${addr}`;
+            const webUrl = `https://map.kakao.com/?q=${addr}`;
+            const start = Date.now();
+            window.location.href = appUrl;
+            setTimeout(() => {
+              if (Date.now() - start < 2000 && document.visibilityState === "visible") {
+                window.open(webUrl, "_blank");
+              }
+            }, 1500);
           }}
           style={{
-            width: "100%",
-            padding: 14,
-            background: accent,
-            border: "none",
-            borderRadius: 12,
-            color: "#fff",
-            fontSize: 15, fontWeight: 700,
+            padding: 13,
+            background: "var(--card-bg)",
+            border: `1.5px solid ${barColor}`,
+            borderRadius: 10,
+            color: barColor,
+            fontSize: 14, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
-            marginTop: 4,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}
         >
-          ✓ 완료 보고
+          🗺️ 길찾기
         </button>
-      )}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isInProgress && onCompleteReport) {
+              onCompleteReport(work.id);
+            } else if (onClick) {
+              onClick(work.id);
+            }
+          }}
+          style={{
+            padding: 13,
+            background: isInProgress ? accent : barColor,
+            border: "none",
+            borderRadius: 10,
+            color: "#fff",
+            fontSize: 14, fontWeight: 800,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          {isInProgress ? "✓ 완료 보고" : "▶ 작업 시작"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -848,8 +882,10 @@ function MainScreen({
     const day      = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", day:   "numeric" });
     // 오후/오전 표시 시각 (12h)
     const time     = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour: "numeric", minute: "2-digit", hour12: true });
+    // 2026-05-20 Phase 5 Step 0.F-7 — month/day 측 ko-KR `numeric` 측 = "5월"/"20일" 측 단위 포함
+    //   템플릿 측 추가 "월"/"일" 측 catch X (옛: "5월월 20일일" 중복)
     return {
-      date: `${dayShort} · ${month}월 ${day}일`,
+      date: `${dayShort} · ${month} ${day}`,
       time: time,
     };
   }
