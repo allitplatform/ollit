@@ -4002,12 +4002,7 @@ function EngineerTaskMiniCard({ t, task, onClick }) {
     if (task.state === "done")      return "완료";
     return "";
   })();
-  // 2026-05-20 Phase 5 Step 0.F-1 — 유솔N N 마크 (유솔N + 세척 조건)
-  const isUsolNCleaning = (task.client === '유솔홈케어 N'
-                        || task.principal === '유솔홈케어 N'
-                        || task.principalCode === 'usol_n'
-                        || task.principalId === 'usol_n')
-                        && String(task.workType || '').includes('세척');
+  // 2026-05-20 Phase 5 Step 0.F-5 — N 마크 제거 (사장님 spec)
   // task_items / workItems 전부 표시 spec
   const itemsText = Array.isArray(task.workItems) && task.workItems.length > 0
     ? task.workItems.map(it => {
@@ -4035,13 +4030,6 @@ function EngineerTaskMiniCard({ t, task, onClick }) {
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, marginBottom: 2 }}>
         <span>{task.customer || task.note || "—"}</span>
-        {isUsolNCleaning && (
-          <span style={{
-            background: '#03C75A', color: 'white',
-            fontSize: 8, padding: '1px 4px',
-            borderRadius: 3, fontWeight: 800,
-          }}>N</span>
-        )}
         {statusLabel && (
           <span style={{ fontSize: 9, color: t.textSecondary, fontWeight: 500 }}>
             · {statusLabel}

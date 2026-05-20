@@ -840,21 +840,25 @@ function MainScreen({
   usolNPayDate = "",
 }) {
   const isDark = useIsDark();
-  // V14 v6 — 실시간 (Asia/Seoul) 1분마다 자동 업데이트
-  function buildNowLabel() {
+  // 2026-05-20 Phase 5 Step 0.F-5 — 상단 헤더 시안 1번 (위 작은 날짜 + 큰 시각)
+  function buildNowParts() {
     const d = new Date();
     const dayShort = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", weekday: "short" });
     const month    = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric" });
     const day      = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", day:   "numeric" });
-    const time     = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false });
-    return `${dayShort} · ${month} ${day} · ${time}`;
+    // 오후/오전 표시 시각 (12h)
+    const time     = d.toLocaleString("ko-KR", { timeZone: "Asia/Seoul", hour: "numeric", minute: "2-digit", hour12: true });
+    return {
+      date: `${dayShort} · ${month}월 ${day}일`,
+      time: time,
+    };
   }
-  const [nowLabel, setNowLabel] = useState(() => buildNowLabel());
+  const [nowLabel, setNowLabel] = useState(() => buildNowParts());
   // V14 v8 — Date 객체 (NextWorkCard 분 카운트다운에 사용 / 1분마다 업데이트)
   const [nowDate, setNowDate] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => {
-      setNowLabel(buildNowLabel());
+      setNowLabel(buildNowParts());
       setNowDate(new Date());
     }, 60000);
     return () => clearInterval(timer);
@@ -930,30 +934,44 @@ function MainScreen({
         input, textarea { font-family: inherit; }
       `}</style>
 
-      {/* 1. 인사 + 한 줄 요약 */}
+      {/* 2026-05-20 Phase 5 Step 0.F-5 — 시안 1번: 위 작은 날짜 + 큰 시각 + 실시간 배지 */}
       <div style={{ padding: "16px" }}>
         <div style={{
           display: "flex", justifyContent: "space-between",
-          alignItems: "center", marginBottom: 6,
+          alignItems: "flex-start", marginBottom: 10,
         }}>
-          <span className="mono" style={{
-            fontSize: 11, color: "var(--text-secondary)",
-            letterSpacing: 1.5, fontWeight: 600,
+          <div>
+            <div style={{
+              fontSize: 11, color: "var(--text-secondary)",
+              fontWeight: 600, letterSpacing: 0.3, marginBottom: 2,
+            }}>
+              {nowLabel.date}
+            </div>
+            <div className="mono" style={{
+              fontSize: 34, fontWeight: 800,
+              color: "var(--text-primary)",
+              letterSpacing: "-0.5px", lineHeight: 1.1,
+            }}>
+              {nowLabel.time}
+            </div>
+          </div>
+          <span style={{
+            fontSize: 10, color: "var(--text-primary)", fontWeight: 600,
+            display: "inline-flex", alignItems: "center",
+            background: "rgba(255,27,141,0.10)",
+            padding: "4px 8px", borderRadius: 12,
+            border: "1px solid rgba(255,27,141,0.3)",
           }}>
-            {/* V14 v6 — 실시간 (Asia/Seoul, 1분마다 자동 업데이트) */}
-            {nowLabel}
-          </span>
-          <span style={{ fontSize: 11, color: "var(--text-primary)" }}>
             <span className="pulse-subtle" style={{
               display: "inline-block", width: 6, height: 6,
               borderRadius: "50%", background: "#FF1B8D",
-              marginRight: 4, verticalAlign: "middle",
+              marginRight: 4,
             }}/>
             실시간
           </span>
         </div>
         <div style={{
-          fontSize: 22, fontWeight: 800,
+          fontSize: 20, fontWeight: 800,
           color: "var(--text-primary)",
           letterSpacing: "-0.02em",
         }}>
@@ -1170,9 +1188,7 @@ function MainScreen({
           upcomingTasks.map(task => {
             // 2026-05-20 Phase 5 Step 0.F-1 — 작업유형 색 사이드바 4px (workTypeColors V14)
             const barColor = getWorkTypeColors(task.workType).main;
-            // 2026-05-20 Phase 5 Step 0.F-1 — 유솔N N 마크 = 고객 이름 옆 위치 spec
-            const isUsolNCleaning = (task.client === '유솔홈케어 N' || task.principalId === 'usol_n')
-                                 && (task.workType || '').includes('세척');
+            // 2026-05-20 Phase 5 Step 0.F-5 — N 마크 제거 (사장님 spec)
             // 2026-05-20 Phase 5 Step 0.F-4 — C안: 본작업 1줄 + 추가선택 sub-line
             const items = Array.isArray(task.workItems) ? task.workItems : [];
             let mainItem = items.find(it => it.order_type === '본작업' || it.orderType === '본작업');
@@ -1224,13 +1240,6 @@ function MainScreen({
                     display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap",
                   }}>
                     <span>{task.customer}</span>
-                    {isUsolNCleaning && (
-                      <span style={{
-                        background: '#03C75A', color: 'white',
-                        fontSize: 9, padding: '2px 5px',
-                        borderRadius: 4, fontWeight: 800,
-                      }}>N</span>
-                    )}
                     {/* 2026-05-20 Phase 5 Step 0.F-3 — 주소 측 district 키워드만 (전체 주소 측 = 상세 화면) */}
                     {/*   region (v14 매핑) 측 = district 우선 / fallback = address 측 구(區) 키워드 추출 */}
                     {(() => {
