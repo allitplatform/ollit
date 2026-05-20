@@ -3923,15 +3923,7 @@ export default function EngineerApp({ user, onLogout }) {
     count:  todayTrackCTasks.length,
   } : null;
 
-  // V14 v6 — 사장님 시뮬 5/1~5/5 완료 13건 합계 (ENABLE_MOCK 분기 / Step 5-7-E)
-  const _MONTH_STATS_MOCK = {
-    month: 5,
-    weekEarning: 364000, weekCount: 6,
-    monthEarning: 808000, monthCount: 13,
-    earning: 808000, count: 13,
-    avgPerDay: 1.5, totalHours: 18,
-  };
-
+  // 2026-05-20 Phase 5 Step 0.E-2 — _MONTH_STATS_MOCK 측 제거 (운영 측 X)
   // 2026-05-19 Fix #30 — 실제 task 기반 weekStats / monthStats 계산 (사장님 spec).
   // 옛 _MONTH_STATS_EMPTY (항상 0) 폐기. completedAt KST 기준 필터 (월~일 / 1일~말일).
   function _computeMonthStats(taskList) {
@@ -3971,20 +3963,15 @@ export default function EngineerApp({ user, onLogout }) {
     };
   }
 
-  const monthStats = ENABLE_MOCK ? _MONTH_STATS_MOCK : _computeMonthStats(tasks);
+  // 2026-05-20 Phase 5 Step 0.E-2 — mock 분기 제거 (apiTasks only)
+  const monthStats = _computeMonthStats(tasks);
 
-  // Step 5-7-E — 유솔N 받을 돈 분기
-  const _USOL_N_MOCK = {
-    month: new Date().getMonth() + 1,
-    payDate: `${new Date().getMonth() + 2}/15`,
-    amount: 280000,
-  };
-  const _USOL_N_EMPTY = {
-    month: new Date().getMonth() + 1,
+  // 유솔N 받을 돈 — 옛 _USOL_N_MOCK 측 제거 / 빈 spec 측 default
+  const usolN = {
+    month:   new Date().getMonth() + 1,
     payDate: "",
-    amount: 0,
+    amount:  0,
   };
-  const usolN = ENABLE_MOCK ? _USOL_N_MOCK : _USOL_N_EMPTY;
 
   const engineerProfile = {
     name: user?.name || "프로",
