@@ -102,12 +102,15 @@ export function computeDashboardStats({
       : [{ workType: t.workType }];
     return items.some(it => String(it.workType || "").includes("세척"));
   };
+  // 2026-05-20 Phase 5 Step 0.G-3 — 진행/완료 = 유솔N+세척 포함 (사장님 spec)
+  //   신규/배정/확정 = !_isUsolNCleaning (대기열 spec / 메인 X)
+  //   진행/완료 = 오늘 기준 (유솔N+세척 포함 / 운영 모니터링 spec)
   const newReceptionTasks = uniqueTasks.filter(t => !_isUsolNCleaning(t) && _v14HasStatus(t, "미배정"));
   const assignedTasksList = uniqueTasks.filter(t => !_isUsolNCleaning(t) && _v14HasStatus(t, "배정"));
   const confirmedTasks    = uniqueTasks.filter(t => !_isUsolNCleaning(t) && _v14HasStatus(t, "확정"));
-  const inProgressTasks   = uniqueTasks.filter(t => !_isUsolNCleaning(t) && isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
+  const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
   // 완료 카드: isScheduledToday AND isCompletedToday (옛 시트 자정 catch X / 0.C-11 spec)
-  const completedTasks    = uniqueTasks.filter(t => !_isUsolNCleaning(t) && isScheduledToday(t) && isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
+  const completedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
 
   const newCount        = newReceptionTasks.length;
   const assignedCount   = assignedTasksList.length;
@@ -126,8 +129,8 @@ export function computeDashboardStats({
   let revenue = null;
   if (canSeeField(user, "task.total_amount")) {
     const revenueBaseTasks = uniqueTasks.filter(t => {
-      // 2026-05-20 Phase 5 Step 0.G — 유솔N + 세척 제외 (트랙 🅑 측 메인 매출 측 spec 동일)
-      if (_isUsolNCleaning(t)) return false;
+      // 매출 측 = isTrackARemittance (트랙 🅐 / 일일정산) — 트랙 🅑 (유솔N 세척) 측 별도 spec
+      //   사장님 spec — 5카운트 spec 측 변경 — 매출 측 변경 X
       if (!isTrackARemittance(t)) return false;
       const completed = t.completedAt || t.completed_at || t.completedDate || t.완료시간 || t.completedTime;
       if (!completed) return false;

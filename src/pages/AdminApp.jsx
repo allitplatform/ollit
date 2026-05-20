@@ -3553,7 +3553,8 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
       return its.some(it => String(it.workType || "").includes("세척"));
     };
     (apiTasks || []).forEach(task => {
-      if (_isUsolNCleaning(task)) return; // 유솔N + 세척만 제외 (냉매 측 포함)
+      // 2026-05-20 Phase 5 Step 0.G-3 — 유솔N+세척 = 신규/배정/확정 측만 skip (진행/완료 포함)
+      const isUsolNCleaning = _isUsolNCleaning(task);
 
       const items = (task.workItems && task.workItems.length > 0)
         ? task.workItems
@@ -3568,16 +3569,18 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
       const status = String(task.status || task.상태 || "").trim();
 
-      // 2026-05-20 Phase 5 Step 0.G-2 — 5카운트 spec 통일
-      //   신규 / 배정 / 확정 = 시간 필터 X (대기열)
-      //   진행 = isScheduledToday / 완료 = isScheduledToday + isCompletedToday
+      // 신규 / 배정 / 확정 = !isUsolNCleaning (대기열)
+      // 진행 / 완료 = 유솔N+세척 포함 (운영 모니터링 spec)
       if (!status || status === '미배정') {
+        if (isUsolNCleaning) return;
         counts[workType]['신규']++;
         counts[workType]['총']++;
       } else if (status === '배정') {
+        if (isUsolNCleaning) return;
         counts[workType]['배정']++;
         counts[workType]['총']++;
       } else if (status === '확정') {
+        if (isUsolNCleaning) return;
         counts[workType]['확정']++;
         counts[workType]['총']++;
       } else if ((status === '진행중' || status === '작업중')
