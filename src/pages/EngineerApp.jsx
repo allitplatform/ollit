@@ -763,22 +763,67 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
         <span>{work.appliance || "—"}{work.qty ? ` ×${work.qty}` : ""}</span>
       </div>
 
-      {/* 2026-05-20 Phase 5 Step 0.F-8 — 주소 2줄 허용 (옛 1줄 ellipsis 측 짤림 catch) */}
+      {/* 2026-05-20 Phase 5 Step 0.F-8 — 주소 2줄 허용 / 0.F-9 — 줄 끝 복사 아이콘 inline */}
       <div style={{
-        fontSize: 13, color: "var(--text-secondary)",
-        fontWeight: 600,
+        display: "flex", alignItems: "flex-start", gap: 6,
         marginBottom: 12,
-        display: "-webkit-box",
-        WebkitLineClamp: 2,
-        WebkitBoxOrient: "vertical",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
-        lineHeight: 1.4,
       }}>
-        📍 {work.fullAddress || work.address || "—"}
+        <div style={{
+          flex: 1, minWidth: 0,
+          fontSize: 13, color: "var(--text-secondary)",
+          fontWeight: 600,
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          lineHeight: 1.4,
+        }}>
+          📍 {work.fullAddress || work.address || "—"}
+        </div>
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            const addr = work.fullAddress || work.address || "";
+            if (!addr) return;
+            try {
+              if (navigator?.clipboard?.writeText) {
+                await navigator.clipboard.writeText(addr);
+              } else {
+                const ta = document.createElement("textarea");
+                ta.value = addr;
+                ta.style.position = "fixed"; ta.style.left = "-9999px";
+                document.body.appendChild(ta);
+                ta.focus(); ta.select();
+                document.execCommand("copy");
+                document.body.removeChild(ta);
+              }
+              if (navigator?.vibrate) navigator.vibrate(30);
+              setCopyToast("주소 복사됨");
+              setTimeout(() => setCopyToast(null), 1500);
+            } catch (err) {
+              console.error("[NextWorkCard.copy]", err);
+              setCopyToast("복사 실패");
+              setTimeout(() => setCopyToast(null), 1500);
+            }
+          }}
+          aria-label="주소 복사"
+          style={{
+            flexShrink: 0,
+            background: "transparent", border: "none",
+            padding: 2, cursor: "pointer", lineHeight: 0,
+            color: "var(--text-info, var(--text-secondary))",
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+          </svg>
+        </button>
       </div>
 
-      {/* 2026-05-20 Phase 5 Step 0.F-8 — 진행 중 = 완료 보고 1버튼 / 그 외 = 길찾기/전화/복사 3버튼 */}
+      {/* 2026-05-20 Phase 5 Step 0.F-9 — 진행 중 = 완료 보고 1버튼 / 그 외 = 길찾기 / 전화 2버튼 (회색 통일) */}
       {isInProgress ? (
         <button
           onClick={(e) => {
@@ -803,12 +848,20 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
       ) : (() => {
         const phone = work.phone || work.customerPhone || work.customer_phone || "";
         const hasPhone = !!String(phone || "").replace(/\D/g, "");
+        const btnBase = {
+          padding: 14,
+          background: "var(--card-bg)",
+          borderRadius: 10,
+          fontSize: 14, fontWeight: 700,
+          fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+        };
         return (
           <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6,
+            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
             marginTop: 4,
           }}>
-            {/* 길찾기 */}
+            {/* 길찾기 (회색 통일) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -825,20 +878,16 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
                 }, 1500);
               }}
               style={{
-                padding: "12px 8px",
-                background: "var(--card-bg)",
-                border: `1.5px solid ${barColor}`,
-                borderRadius: 10,
-                color: barColor,
-                fontSize: 12, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                ...btnBase,
+                border: "1.5px solid var(--border-secondary, var(--border))",
+                color: "var(--text-primary)",
+                cursor: "pointer",
               }}
             >
-              <span style={{ fontSize: 16 }}>🗺️</span>
+              <span style={{ fontSize: 17 }}>🚗</span>
               <span>길찾기</span>
             </button>
-            {/* 고객 전화 */}
+            {/* 고객 전화 (회색 통일 / 번호 X = 비활성) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -846,61 +895,15 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
               }}
               disabled={!hasPhone}
               style={{
-                padding: "12px 8px",
-                background: "var(--card-bg)",
-                border: hasPhone ? "1.5px solid var(--border-strong, var(--border))" : "1.5px solid var(--border)",
-                borderRadius: 10,
+                ...btnBase,
+                border: "1.5px solid var(--border-secondary, var(--border))",
                 color: hasPhone ? "var(--text-primary)" : "var(--text-tertiary)",
-                fontSize: 12, fontWeight: 700,
                 cursor: hasPhone ? "pointer" : "not-allowed",
                 opacity: hasPhone ? 1 : 0.5,
-                fontFamily: "inherit",
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
               }}
             >
-              <span style={{ fontSize: 16 }}>📞</span>
-              <span>전화</span>
-            </button>
-            {/* 주소 복사 */}
-            <button
-              onClick={async (e) => {
-                e.stopPropagation();
-                const addr = work.fullAddress || work.address || "";
-                if (!addr) return;
-                try {
-                  if (navigator?.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(addr);
-                  } else {
-                    const ta = document.createElement("textarea");
-                    ta.value = addr;
-                    ta.style.position = "fixed"; ta.style.left = "-9999px";
-                    document.body.appendChild(ta);
-                    ta.focus(); ta.select();
-                    document.execCommand("copy");
-                    document.body.removeChild(ta);
-                  }
-                  if (navigator?.vibrate) navigator.vibrate(30);
-                  setCopyToast("주소 복사됨");
-                  setTimeout(() => setCopyToast(null), 1500);
-                } catch (err) {
-                  console.error("[NextWorkCard.copy]", err);
-                  setCopyToast("복사 실패");
-                  setTimeout(() => setCopyToast(null), 1500);
-                }
-              }}
-              style={{
-                padding: "12px 8px",
-                background: "var(--card-bg)",
-                border: "1.5px solid var(--border-strong, var(--border))",
-                borderRadius: 10,
-                color: "var(--text-primary)",
-                fontSize: 12, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit",
-                display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-              }}
-            >
-              <span style={{ fontSize: 16 }}>📋</span>
-              <span>주소 복사</span>
+              <span style={{ fontSize: 17 }}>📞</span>
+              <span>고객 전화</span>
             </button>
           </div>
         );
