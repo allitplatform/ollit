@@ -250,7 +250,10 @@ export function LoginScreen({ onLogin }) {
         </div>
 
         {/* V14 — 빠른 로그인 (개발용 / Phase 4-F-3: dev 모드만 표시 / production 빌드 dead-code 제거) */}
-        {process.env.NODE_ENV === 'development' && (
+        {/* 2026-05-20 Phase 5 Step 0.D-A — process.env.NODE_ENV → import.meta.env.DEV 정정 */}
+        {/*   옛: process.env.NODE_ENV 측 Vite production 측 polyfill 측 catch X 가능 */}
+        {/*   새: import.meta.env.DEV 측 Vite 표준 — dev 측 true / production build 측 false */}
+        {import.meta.env.DEV && (
           <div style={{ marginTop: 32 }}>
             <div style={{
               height: 0.5, background: DARK.divider,
