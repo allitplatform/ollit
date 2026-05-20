@@ -17,6 +17,8 @@ import { EngineerBadge } from "../components/EngineerBadge.jsx";
 import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
 // 2026-05-19 Phase 5 Step 0.C-4 — 변경 이력 audit log (Migration 039)
 import { insertTaskChange } from "../lib/taskChangesDb.js";
+// 2026-05-20 Phase 5 Step 0.F-1 — 작업유형 색 사이드바 (V14 spec)
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
 import { NotiScreen } from "../components/notifications/NotiScreen.jsx";
 import { applyTheme as applyThemeVars, loadTheme as loadThemeSaved } from "../styles/themes.js";
@@ -3973,15 +3975,11 @@ function EngineerCard({ t, eng, expanded, onToggle, onTaskClick }) {
 }
 
 function EngineerTaskMiniCard({ t, task, onClick }) {
-  const statusBorder = (() => {
-    if (task.state === "active")    return "rgba(255,27,141,0.4)";
-    if (task.state === "moving")    return "rgba(255,179,0,0.4)";
-    if (task.state === "scheduled") return t.border;
-    if (task.state === "waiting")   return "rgba(255,179,0,0.4)";
-    if (task.state === "done")      return "rgba(0,135,90,0.4)";
-    if (task.type === "external")   return "rgba(127,119,221,0.4)";
-    return t.border;
-  })();
+  // 2026-05-20 Phase 5 Step 0.F-1 — 작업유형 색 사이드바 (옛 statusBorder → workTypeColors V14)
+  //   외근 측 = 보라 (옛 spec keep)
+  const barColor = task.type === "external"
+    ? "rgba(127,119,221,0.8)"
+    : getWorkTypeColors(task.workType).main;
   const statusLabel = (() => {
     if (task.type === "external")   return "외근";
     if (task.state === "active")    return "진행중";
@@ -3991,6 +3989,24 @@ function EngineerTaskMiniCard({ t, task, onClick }) {
     if (task.state === "done")      return "완료";
     return "";
   })();
+  // 2026-05-20 Phase 5 Step 0.F-1 — 유솔N N 마크 (유솔N + 세척 조건)
+  const isUsolNCleaning = (task.client === '유솔홈케어 N'
+                        || task.principal === '유솔홈케어 N'
+                        || task.principalCode === 'usol_n'
+                        || task.principalId === 'usol_n')
+                        && String(task.workType || '').includes('세척');
+  // task_items / workItems 전부 표시 spec
+  const itemsText = Array.isArray(task.workItems) && task.workItems.length > 0
+    ? task.workItems.map(it => {
+        const a = it.appliance || it.workType || "";
+        const q = it.qty || 1;
+        return a ? `${a} ×${q}` : "";
+      }).filter(Boolean).join(" / ")
+    : (task.workType
+        ? `${task.workType}${task.qty ? ` ×${task.qty}` : ""}`
+        : "");
+  // 시각 spec: scheduledTime 우선 (옛 "오후" 측 catch X)
+  const timeText = task.scheduledTime || task.time || "";
 
   return (
     <div
@@ -3999,13 +4015,20 @@ function EngineerTaskMiniCard({ t, task, onClick }) {
       style={{
         padding: 10,
         background: t.bg,
-        borderLeft: `2px solid ${statusBorder}`,
+        borderLeft: `4px solid ${barColor}`,
         borderRadius: "0 6px 6px 0",
         marginBottom: 4,
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, marginBottom: 2 }}>
         <span>{task.customer || task.note || "—"}</span>
+        {isUsolNCleaning && (
+          <span style={{
+            background: '#03C75A', color: 'white',
+            fontSize: 8, padding: '1px 4px',
+            borderRadius: 3, fontWeight: 800,
+          }}>N</span>
+        )}
         {statusLabel && (
           <span style={{ fontSize: 9, color: t.textSecondary, fontWeight: 500 }}>
             · {statusLabel}
@@ -4013,10 +4036,9 @@ function EngineerTaskMiniCard({ t, task, onClick }) {
         )}
       </div>
       <div style={{ fontSize: 10, color: t.textMuted }}>
-        {task.workType ? `${task.workType}` : ""}
-        {task.qty ? ` ×${task.qty}` : ""}
+        {itemsText}
         {task.region ? ` · ${task.region}` : ""}
-        {task.time ? ` · ${task.time}` : ""}
+        {timeText ? ` · ${timeText}` : ""}
       </div>
     </div>
   );

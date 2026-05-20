@@ -1167,66 +1167,88 @@ function MainScreen({
             진행 카드 외 남은 일정 없음
           </div>
         ) : (
-          upcomingTasks.map(task => (
-            <div
-              key={task.id}
-              onClick={() => onTaskClick(task.id)}
-              className="clickable"
-              style={{
-                display: "flex", alignItems: "center",
-                padding: 14,
-                background: "var(--bg-secondary)",
-                borderRadius: 10,
-                marginBottom: 8,
-                cursor: "pointer",
-              }}
-            >
-              <div style={{ width: 64 }}>
-                <div className="mono" style={{
-                  fontSize: 17, color: "var(--text-primary)",
-                  fontWeight: 800,
-                }}>
-                  {task.time || task.scheduledTime || "—"}
-                </div>
-                {task.duration && (
-                  <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
-                    {task.duration}
-                  </div>
-                )}
-              </div>
-              <div style={{ flex: 1, padding: "0 10px", minWidth: 0 }}>
-                <div style={{
-                  fontSize: 16, color: "var(--text-primary)", fontWeight: 700,
-                  display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
-                }}>
-                  <span>{task.customer}</span>
-                  <span style={{
-                    fontSize: 12, color: "var(--text-secondary)",
-                    fontWeight: 600,
+          upcomingTasks.map(task => {
+            // 2026-05-20 Phase 5 Step 0.F-1 — 작업유형 색 사이드바 4px (workTypeColors V14)
+            const barColor = getWorkTypeColors(task.workType).main;
+            // 2026-05-20 Phase 5 Step 0.F-1 — 유솔N N 마크 = 고객 이름 옆 위치 spec
+            const isUsolNCleaning = (task.client === '유솔홈케어 N' || task.principalId === 'usol_n')
+                                 && (task.workType || '').includes('세척');
+            // 2026-05-20 Phase 5 Step 0.F-1 — task_items / workItems 전부 표시 spec
+            //   본작업 + 추가선택 측 전부 — workItems 배열 측 우선 / fallback 단일 appliance
+            const itemsText = Array.isArray(task.workItems) && task.workItems.length > 0
+              ? task.workItems.map(it => {
+                  const a = it.appliance || it.workType || "";
+                  const q = it.qty || 1;
+                  return a ? `${a} ×${q}` : "";
+                }).filter(Boolean).join(" / ")
+              : (task.appliance ? `${task.appliance}${task.qty ? ` ×${task.qty}` : ""}` : "");
+            return (
+              <div
+                key={task.id}
+                onClick={() => onTaskClick(task.id)}
+                className="clickable"
+                style={{
+                  position: "relative",
+                  display: "flex", alignItems: "center",
+                  padding: 14,
+                  paddingLeft: 18,
+                  background: "var(--bg-secondary)",
+                  borderRadius: 10,
+                  borderLeft: `4px solid ${barColor}`,
+                  marginBottom: 8,
+                  cursor: "pointer",
+                }}
+              >
+                <div style={{ width: 64 }}>
+                  <div className="mono" style={{
+                    fontSize: 17, color: "var(--text-primary)",
+                    fontWeight: 800,
                   }}>
-                    {task.address}
-                  </span>
-                </div>
-                <div style={{
-                  fontSize: 13, marginTop: 4,
-                  display: "flex", alignItems: "center", gap: 4,
-                }}>
-                  <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
-                  {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n') && (task.workType || '').includes('세척') && (
-                    <span style={{
-                      background: '#03C75A', color: 'white',
-                      fontSize: 9, padding: '2px 5px',
-                      borderRadius: 4, fontWeight: 800,
-                    }}>N</span>
+                    {/* 2026-05-20 Phase 5 Step 0.F-1 — scheduledTime 측 우선 (옛 "오후" 측 catch X) */}
+                    {task.scheduledTime || task.time || "—"}
+                  </div>
+                  {task.duration && (
+                    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>
+                      {task.duration}
+                    </div>
                   )}
-                  <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
-                    {task.appliance ? task.appliance : ""}{task.qty ? ` ×${task.qty}` : ""}
-                  </span>
                 </div>
+                <div style={{ flex: 1, padding: "0 10px", minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 16, color: "var(--text-primary)", fontWeight: 700,
+                    display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap",
+                  }}>
+                    <span>{task.customer}</span>
+                    {isUsolNCleaning && (
+                      <span style={{
+                        background: '#03C75A', color: 'white',
+                        fontSize: 9, padding: '2px 5px',
+                        borderRadius: 4, fontWeight: 800,
+                      }}>N</span>
+                    )}
+                    <span style={{
+                      fontSize: 12, color: "var(--text-secondary)",
+                      fontWeight: 600,
+                    }}>
+                      {task.address}
+                    </span>
+                  </div>
+                  <div style={{
+                    fontSize: 13, marginTop: 4,
+                    display: "flex", alignItems: "center", gap: 4,
+                  }}>
+                    <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
+                    {itemsText && (
+                      <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>
+                        {itemsText}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span style={{ fontSize: 18, color: "var(--text-secondary)" }}>›</span>
               </div>
-              <span style={{ fontSize: 18, color: "var(--text-secondary)" }}>›</span>
-            </div>
-          ))
+            );
+          })
         )}
 
         {/* 미래 일정은 캘린더 탭 안내 */}
