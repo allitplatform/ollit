@@ -21,7 +21,7 @@ import { fetchCompanyAccount, loadCompanyAccount } from "../data/companyAccount.
 import { insertTaskChange } from "../lib/taskChangesDb.js";
 import { REGISTERED_USERS } from "../shared/users.js";
 import { useRealtime } from "../hooks/useRealtime.js";
-import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
+import { useRealtimeTasks, useRealtimeTable } from "../hooks/useRealtimeSubscription.js";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -3581,7 +3581,10 @@ export default function EngineerApp({ user, onLogout }) {
   }, []);
 
   // 공유 task state (shared/TasksContext.jsx) — 옛 mock (extraAssignments / pendingAcceptances 박힘)
-  const { tasks: allTasks, updateTask: localUpdateTask, resetTasks } = useTasks();
+  // 2026-05-20 Phase 5 Step 0.E-1 — allTasks (useTasks context mock) 측 fallback 제거
+  //   apiTasks 측 only spec — 운영자 PWA Stage 0.C-10 측 동일 spec 일관.
+  //   useTasks 측 updateTask / resetTasks 측 기능 측 keep.
+  const { updateTask: localUpdateTask, resetTasks } = useTasks();
 
   // V14 Step 4.2 — apiTasks state 옛 위치 박지 X (위로 이동 = TDZ fix)
 
@@ -3612,7 +3615,11 @@ export default function EngineerApp({ user, onLogout }) {
     }
   }
   // Phase 4 후속 — Supabase Realtime 구독 (옛 60초 폴링 폐기)
+  // 2026-05-20 Phase 5 Step 0.E-1 — task_items / task_changes 측 subscription 추가
+  //   운영자 PWA Stage 0.C-9 측 동일 spec — 정산 / 변경 이력 측 변경 시 자동 refetch
   useRealtimeTasks(() => fetchTasks());
+  useRealtimeTable("task_items", () => fetchTasks());
+  useRealtimeTable("task_changes", () => fetchTasks());
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
   useEffect(() => {
@@ -3656,8 +3663,9 @@ export default function EngineerApp({ user, onLogout }) {
   // V14 — 본인 작업만 필터 (이름 매칭 우선 + ID 매칭)
   // 시트 Q 배정기사 = 이름 박힘 (예: "류근학")
   // user 객체 = name (예: "류근학") + engineerId (예: "E016")
+  // 2026-05-20 Phase 5 Step 0.E-1 — apiTasks only (옛 allTasks mock fallback 제거)
   const tasks = filterTasksForEngineerV14(
-    apiTasks.length > 0 ? apiTasks : allTasks,  // V14 우선 / 옛 mock fallback
+    apiTasks,
     user?.name,
     user?.engineerId || user?.id
   );
