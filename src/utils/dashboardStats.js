@@ -87,20 +87,27 @@ export function computeDashboardStats({
     const c = t.completedAt || t.completed_at || t.완료시간 || "";
     return !!c && toKstYmd(c) === todayStr;
   };
-  const _isUsolN = (t) => {
+  // 2026-05-20 Phase 5 Step 0.G — 메인 5카운트 spec 정정
+  //   공통 제외: 유솔N + 세척만 (유솔N 냉매 측 = 메인 포함)
+  //   새 접수 / 배정 / 확정 = status 측만 (시간 필터 X — 대기열 spec)
+  //   진행중 / 완료 = 시간 필터 (오늘 기준)
+  const _isUsolNCleaning = (t) => {
     const code = String(t.principalCode || t.principal_code || "").toLowerCase();
     const name = String(t.principal || t.client || t.원청 || "");
-    return code === "usol_n" || name === "유솔홈케어 N";
+    const isUsolN = code === "usol_n" || name === "유솔홈케어 N";
+    if (!isUsolN) return false;
+    // workItems 측 세척 catch — workItems 측 X 시 workType fallback
+    const items = Array.isArray(t.workItems) && t.workItems.length > 0
+      ? t.workItems
+      : [{ workType: t.workType }];
+    return items.some(it => String(it.workType || "").includes("세척"));
   };
-  // 2026-05-19 Phase 5 Step 0.C-15 — _isLegacy 필터 롤백 (DB 측 is_legacy 컬럼 그대로 유지 / 매핑 keep)
-  //   사장님 spec: 새 접수 = isCreatedToday → isScheduledToday 측 정정
-  //   이유: 옛 시트 자정 catch 위험 제거 + scheduled_at NULL 측 catch X
-  const newReceptionTasks = uniqueTasks.filter(t => !_isUsolN(t) && isScheduledToday(t) && _v14HasStatus(t, "미배정"));
-  const assignedTasksList = uniqueTasks.filter(t => !_isUsolN(t) && _v14HasStatus(t, "배정"));
-  const confirmedTasks    = uniqueTasks.filter(t => !_isUsolN(t) && isScheduledToday(t) && _v14HasStatus(t, "확정"));
-  const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
-  // 2026-05-19 Phase 5 Step 0.C-11 — 완료 카드: isScheduledToday AND isCompletedToday
-  const completedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
+  const newReceptionTasks = uniqueTasks.filter(t => !_isUsolNCleaning(t) && _v14HasStatus(t, "미배정"));
+  const assignedTasksList = uniqueTasks.filter(t => !_isUsolNCleaning(t) && _v14HasStatus(t, "배정"));
+  const confirmedTasks    = uniqueTasks.filter(t => !_isUsolNCleaning(t) && _v14HasStatus(t, "확정"));
+  const inProgressTasks   = uniqueTasks.filter(t => !_isUsolNCleaning(t) && isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
+  // 완료 카드: isScheduledToday AND isCompletedToday (옛 시트 자정 catch X / 0.C-11 spec)
+  const completedTasks    = uniqueTasks.filter(t => !_isUsolNCleaning(t) && isScheduledToday(t) && isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
 
   const newCount        = newReceptionTasks.length;
   const assignedCount   = assignedTasksList.length;
@@ -119,7 +126,8 @@ export function computeDashboardStats({
   let revenue = null;
   if (canSeeField(user, "task.total_amount")) {
     const revenueBaseTasks = uniqueTasks.filter(t => {
-      // 2026-05-19 Phase 5 Step 0.C-15 — _isLegacy 필터 롤백 (옛 spec 그대로)
+      // 2026-05-20 Phase 5 Step 0.G — 유솔N + 세척 제외 (트랙 🅑 측 메인 매출 측 spec 동일)
+      if (_isUsolNCleaning(t)) return false;
       if (!isTrackARemittance(t)) return false;
       const completed = t.completedAt || t.completed_at || t.completedDate || t.완료시간 || t.completedTime;
       if (!completed) return false;
