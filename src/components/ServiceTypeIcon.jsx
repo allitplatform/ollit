@@ -44,6 +44,17 @@ function getThemeMode() {
   return "light";  // 기본 라이트
 }
 
+// 2026-05-20 Phase 5 Step 0.F-2 — baseType split spec
+//   옛 시트 데이터 측 workType = "세척_벽걸이" / "세척_1way" 측 단일 문자열
+//   split("_")[0] 측 첫 토큰 catch → "세척" 측 정규화 → 색 / 아이콘 / 라벨 측 동작
+function _baseType(workType) {
+  const s = String(workType || "").trim();
+  if (!s) return "";
+  // 옛 시트 측 "세척_벽걸이" 등 — 첫 토큰만 catch
+  const idx = s.indexOf("_");
+  return idx > 0 ? s.slice(0, idx) : s;
+}
+
 function ServiceTypeIcon({ workType, count = null, size = 14, showLabel = true }) {
   const [mode, setMode] = useState(getThemeMode());
 
@@ -61,12 +72,13 @@ function ServiceTypeIcon({ workType, count = null, size = 14, showLabel = true }
     return () => observer.disconnect();
   }, []);
 
+  const baseType = _baseType(workType);
   const isActive = count === null || count > 0;
   const colors = COLOR_MAP[mode] || COLOR_MAP.light;
-  const color = isActive ? colors[workType] : "#888888";
+  const color = isActive ? (colors[baseType] || "#888888") : "#888888";
 
   const labelMap = { "냉매충전": "냉매" };
-  const label = labelMap[workType] || workType;
+  const label = labelMap[baseType] || baseType;
 
   return (
     <span style={{
@@ -74,12 +86,12 @@ function ServiceTypeIcon({ workType, count = null, size = 14, showLabel = true }
       alignItems: "center",
       gap: 4,
     }}>
-      <SvgByType workType={workType} size={size} color={color}/>
+      <SvgByType workType={baseType} size={size} color={color}/>
       {showLabel && (
         <span style={{
           fontSize: 12,
           fontWeight: 700,
-          color: color,  // ⭐ 인라인 강제
+          color: color,
         }}>
           {label}
         </span>

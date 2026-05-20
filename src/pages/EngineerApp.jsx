@@ -1190,12 +1190,12 @@ function MainScreen({
                 style={{
                   position: "relative",
                   display: "flex", alignItems: "center",
-                  padding: 14,
-                  paddingLeft: 18,
+                  padding: 10,
+                  paddingLeft: 14,
                   background: "var(--bg-secondary)",
                   borderRadius: 10,
                   borderLeft: `4px solid ${barColor}`,
-                  marginBottom: 8,
+                  marginBottom: 6,
                   cursor: "pointer",
                 }}
               >

@@ -1,26 +1,27 @@
 // V12-3 — 작업 종류 색깔 (Chip 패턴: 흰배경 + 컬러 보더 + 컬러 글자)
-// cleaning ❄️ 시안 (#00BCD4)
-// refrigerant ⚡ 노랑 (#FFB300)
-// visit     🚗 그레이 (#555)
-// extra     ➕ 주황 (#FF8F00)
+// 2026-05-20 Phase 5 Step 0.F-2 — 세척 #0EA5E9 통일 (workTypeColors V14 spec)
+//   cleaning ❄️ 파랑 (#0EA5E9)
+//   refrigerant ⚡ 노랑 (#FFB800)
+//   visit     🚗 그레이 (#555)
+//   extra     ➕ 주황 (#FF8F00)
 export const SERVICE_TYPES = {
   cleaning: {
     id:          "cleaning",
     label:       "세척",
     icon:        "❄️",
-    color:       "#00BCD4",
-    textColor:   "#00BCD4",
+    color:       "#0EA5E9",
+    textColor:   "#0EA5E9",
     bgColor:     "var(--bg-secondary)",
-    borderColor: "#00BCD4",
+    borderColor: "#0EA5E9",
   },
   refrigerant: {
     id:          "refrigerant",
     label:       "냉매",
     icon:        "⚡",
-    color:       "#FFB300",
-    textColor:   "#FFB300",
+    color:       "#FFB800",
+    textColor:   "#FFB800",
     bgColor:     "var(--bg-secondary)",
-    borderColor: "#FFB300",
+    borderColor: "#FFB800",
   },
   visit: {
     id:          "visit",
