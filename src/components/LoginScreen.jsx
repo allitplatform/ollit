@@ -4,7 +4,8 @@
 // Phase 2 — Supabase Custom RPC (sign_in_with_phone) 박은 영역 / loginV14 박은 영역 박은 영역
 import { useState } from "react";
 import { OllitMark } from "./OllitMark.jsx";
-import { REGISTERED_USERS } from "../shared/users.js";
+// 2026-05-20 Phase 5 Step 0.D-A2 — REGISTERED_USERS 측 import 제거 (빠른 로그인 section 완전 제거)
+// (REGISTERED_USERS 측 EngineerMeTab.jsx 측 별도 사용 — shared/users.js 측 정의 유지)
 import { signInWithPhone } from "../lib/auth.js";
 
 // DB role → app role 매핑 (App.jsx switch 박은 영역 박은 영역)
@@ -61,8 +62,7 @@ export function LoginScreen({ onLogin }) {
   const [pw, setPw] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  // V14 — 개발 + 베타 단계: production에서도 빠른 로그인 항상 표시 + 기본 펼침
-  const [showQuickLogin, setShowQuickLogin] = useState(true);
+  // 2026-05-20 Phase 5 Step 0.D-A2 — showQuickLogin state 제거 (빠른 로그인 section 완전 제거)
   // 한 user × 여러 role (예: E022 = admin + engineer) → 역할 선택 모달
   const [roleSelect, setRoleSelect] = useState({ open: false, user: null });
 
@@ -249,61 +249,9 @@ export function LoginScreen({ onLogin }) {
           </div>
         </div>
 
-        {/* V14 — 빠른 로그인 (개발용 / Phase 4-F-3: dev 모드만 표시 / production 빌드 dead-code 제거) */}
-        {/* 2026-05-20 Phase 5 Step 0.D-A — process.env.NODE_ENV → import.meta.env.DEV 정정 */}
-        {/*   옛: process.env.NODE_ENV 측 Vite production 측 polyfill 측 catch X 가능 */}
-        {/*   새: import.meta.env.DEV 측 Vite 표준 — dev 측 true / production build 측 false */}
-        {import.meta.env.DEV && (
-          <div style={{ marginTop: 32 }}>
-            <div style={{
-              height: 0.5, background: DARK.divider,
-              marginBottom: 16,
-            }}/>
-
-            <button
-              onClick={() => setShowQuickLogin(v => !v)}
-              style={{
-                width: "100%", background: "transparent",
-                border: `1px solid ${DARK.toggleBd}`,
-                color: DARK.toggleText, padding: 13,
-                borderRadius: 12, fontSize: 13, fontWeight: 500,
-                cursor: "pointer", fontFamily: "inherit",
-                display: "flex", alignItems: "center",
-                justifyContent: "center", gap: 6,
-              }}
-            >
-              <span style={{ fontSize: 14 }}>⚙️</span>
-              개발용 · 빠른 로그인
-              <span style={{ fontSize: 12, opacity: 0.6 }}>
-                {showQuickLogin ? "△" : "▽"}
-              </span>
-            </button>
-
-            {showQuickLogin && (
-              <div style={{
-                marginTop: 12,
-                display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
-              }}>
-                {REGISTERED_USERS.map((a, i) => (
-                  <div
-                    key={a.userId}
-                    onClick={() => onLogin(a, true)}
-                    style={{
-                      padding: "11px 10px", background: DARK.cardBg,
-                      border: `1px solid ${DARK.cardBd}`, borderRadius: 10,
-                      textAlign: "center", fontSize: 12,
-                      color: DARK.subColor, cursor: "pointer",
-                      fontWeight: 500,
-                      gridColumn: i === REGISTERED_USERS.length - 1 && REGISTERED_USERS.length % 2 === 1 ? "span 2" : "span 1",
-                    }}
-                  >
-                    {a.roleIcon} {a.name} · {SHORT_ROLE[a.role] || a.role}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+        {/* 2026-05-20 Phase 5 Step 0.D-A2 — "개발용 · 빠른 로그인" section 측 완전 제거 */}
+        {/*   사장님 spec: production 측 = 완전 X / dev 측 = 전화+PIN 측 정상 로그인 spec */}
+        {/*   옛 spec: import.meta.env.DEV 측 dev 표시 — 본 stage 측 코드 자체 측 제거 */}
 
         <div style={{
           textAlign: "center", padding: "30px 16px 0",
