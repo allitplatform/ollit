@@ -3541,14 +3541,19 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
       return false;
     };
 
-    const _isUsolN = (task) => {
+    // 2026-05-20 Phase 5 Step 0.G-2 — _isUsolN → _isUsolNCleaning 정정 (유솔N+세척만 제외)
+    const _isUsolNCleaning = (task) => {
       const code = String(task.principalCode || task.principal_code || "").toLowerCase();
       const name = String(task.principal || task.client || task.원청 || "");
-      return code === "usol_n" || name === "유솔홈케어 N";
+      const isUsolN = code === "usol_n" || name === "유솔홈케어 N";
+      if (!isUsolN) return false;
+      const its = Array.isArray(task.workItems) && task.workItems.length > 0
+        ? task.workItems
+        : [{ workType: task.workType }];
+      return its.some(it => String(it.workType || "").includes("세척"));
     };
-    // 2026-05-19 Phase 5 Step 0.C-15 — _isLegacy 필터 롤백 (DB 측 컬럼 그대로)
     (apiTasks || []).forEach(task => {
-      if (_isUsolN(task)) return; // 유솔N 메인 흐름 제외
+      if (_isUsolNCleaning(task)) return; // 유솔N + 세척만 제외 (냉매 측 포함)
 
       const items = (task.workItems && task.workItems.length > 0)
         ? task.workItems
@@ -3563,20 +3568,25 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
       const status = String(task.status || task.상태 || "").trim();
 
-      // 현재 status 단계만 (else if 측 중복 차단)
-      if ((!status || status === '미배정') && isFieldToday(task, "createdAt", "receivedAt")) {
+      // 2026-05-20 Phase 5 Step 0.G-2 — 5카운트 spec 통일
+      //   신규 / 배정 / 확정 = 시간 필터 X (대기열)
+      //   진행 = isScheduledToday / 완료 = isScheduledToday + isCompletedToday
+      if (!status || status === '미배정') {
         counts[workType]['신규']++;
         counts[workType]['총']++;
       } else if (status === '배정') {
         counts[workType]['배정']++;
         counts[workType]['총']++;
-      } else if (status === '확정' && isFieldToday(task, "scheduledAt", "확정일시")) {
+      } else if (status === '확정') {
         counts[workType]['확정']++;
         counts[workType]['총']++;
-      } else if (status === '진행중' || status === '작업중') {
+      } else if ((status === '진행중' || status === '작업중')
+                 && isFieldToday(task, "scheduledAt", "확정일시")) {
         counts[workType]['진행']++;
         counts[workType]['총']++;
-      } else if ((status === '완료' || status === '정산완료') && isFieldToday(task, "completedAt")) {
+      } else if ((status === '완료' || status === '정산완료')
+                 && isFieldToday(task, "scheduledAt", "확정일시")
+                 && isFieldToday(task, "completedAt")) {
         counts[workType]['완료']++;
         counts[workType]['총']++;
       }
@@ -4438,17 +4448,17 @@ function NewReceptionScreen({
   receptionUpdates = {},
   onBack, onAssign, onClickAdd, onClickPushing, onClickAccepted, onCardMenuAction,
 }) {
-  // 2026-05-19 Phase 5 Step 0.C-15 — 새 접수 spec: isScheduledToday + 미배정 (옛: isCreatedToday)
-  //   옛 시트 자정 catch 위험 제거 + scheduled_at NULL 측 catch X
-  const todayStrLocal = todayYmd();
-  const _isUsolN = (t) => {
+  // 2026-05-20 Phase 5 Step 0.G-2 — 메인 5카운트 spec 통일 (대기열 / 시간 필터 X)
+  //   공통 제외: 유솔N + 세척만 (유솔N 냉매 측 = 메인 포함)
+  const _isUsolNCleaning = (t) => {
     const code = String(t.principalCode || t.principal_code || "").toLowerCase();
     const name = String(t.principal || t.client || t.원청 || "");
-    return code === "usol_n" || name === "유솔홈케어 N";
-  };
-  const _isScheduledTodayLocal = (t) => {
-    const n = t.scheduledAt || t.scheduled_at || t.확정일시 || t.confirmedAt || "";
-    return !!n && toKstYmd(n) === todayStrLocal;
+    const isUsolN = code === "usol_n" || name === "유솔홈케어 N";
+    if (!isUsolN) return false;
+    const items = Array.isArray(t.workItems) && t.workItems.length > 0
+      ? t.workItems
+      : [{ workType: t.workType }];
+    return items.some(it => String(it.workType || "").includes("세척"));
   };
   const computeTasks = () => {
     const wrap = (x) => ({
@@ -4458,15 +4468,13 @@ function NewReceptionScreen({
         : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
     });
     const isNewReception = (t) => {
-      // 2026-05-19 Phase 5 Step 0.C-15 — _isLegacy 필터 롤백 + isScheduledToday spec
-      if (_isUsolN(t)) return false; // 유솔N 메인 측 제외
+      // Stage 0.G-2 — 미배정 전체 (시간 필터 X / 대기열 spec)
+      if (_isUsolNCleaning(t)) return false;
       const s = String(t.status || t.상태 || "").trim();
       if (s === "배정" || s === "확정" || s === "진행중" || s === "완료" || s === "정산완료" || s === "취소") {
         return false;
       }
-      // 미배정 / 빈 값 + 오늘 일정만 (옛 시트 자정 catch X)
-      if (s && s !== "미배정") return false;
-      return _isScheduledTodayLocal(t);
+      return !s || s === "미배정";
     };
     // 2026-05-11 dedupe — apiTasks에 있는 ID는 extraReceptions에서 제외
     // (옵티미스틱 박힌 status가 apiTasks 측에만 박혀서, 중복 박힌 ID는 시트 측 우선)
