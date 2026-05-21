@@ -55,6 +55,13 @@ export function rowToTask(row) {
   // 2026-05-16 Phase 4 통합 2-C — payments JOIN 적용 spec (one-to-many 관계지만 1 task = 1 payment)
   const paymentRaw = Array.isArray(row.payment) ? row.payment[0] : row.payment;
   const payment = paymentRaw || null;
+  // 2026-05-21 Phase 5 Step 0.G-6-B/C — task 레벨 boolean (유솔N 본작업 + 냉매 판정)
+  //   카운트 통일 spec — _isUsolNMainRefrigerant 측 spec 측
+  //   category_data.workItems 측 serviceCode/orderType 측 측 X 측 = task_items 측 직접 catch
+  const hasUsolNMainRefrigerant = Array.isArray(row.task_items) && row.task_items.some(it =>
+    it.order_type === '본작업' &&
+    it.work_types?.service_types?.code === 'refrigerant'
+  );
   return {
     // 식별
     id:           row.id,
@@ -113,6 +120,10 @@ export function rowToTask(row) {
 
     // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy (Migration 042) — 옛 시트 데이터 측 marker
     isLegacy:      !!row.is_legacy,
+
+    // 2026-05-21 Phase 5 Step 0.G-6-B/C — task 레벨 boolean (유솔N 본작업 + 냉매)
+    //   _isUsolNMainRefrigerant 측 spec / category_data.workItems 측 측 측 X 측 = task_items 직접 catch
+    hasUsolNMainRefrigerant,
 
     // 메타
     categoryData:  cat,

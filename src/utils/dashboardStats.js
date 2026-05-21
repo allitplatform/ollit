@@ -28,13 +28,15 @@ function _v14HasStatus(t, ...statuses) {
 //   다른 6원청 (allday / KA / KB / yongin / usol_h / crikrin) = 전부 포함.
 //   적용 카드: 새 접수 / 배정 / 확정 (진행중 / 완료 = 원청 구분 없이 전부 포함)
 const _isUsolNMainRefrigerant = (t) => {
+  // 2026-05-21 Phase 5 Step 0.G-6-A — name fallback 추가 (옛 _isUsolNCleaning 측 동일 방식)
+  //   principalCode 측 정규화 측 dropped 측 측 측 측 name 측 catch 측 spec
   const code = String(t.principalCode || t.principal_code || "").toLowerCase();
-  if (code !== "usol_n") return true;        // 유솔N 외 6원청 = 전부 포함
-  const items = Array.isArray(t.workItems) ? t.workItems : [];
-  return items.some(it =>
-    it.orderType === '본작업' &&
-    String(it.serviceCode || '') === 'refrigerant'
-  );
+  const name = String(t.principal || t.client || t.원청 || "");
+  const isUsolN = code === "usol_n" || name === "유솔홈케어 N";
+  if (!isUsolN) return true;        // 유솔N 외 6원청 = 전부 포함
+  // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean 측 사용 (workItems 측 측 측 X)
+  //   category_data.workItems 측 serviceCode/orderType 측 측 X 측 = rowToTask 측 task_items 직접 catch
+  return !!t.hasUsolNMainRefrigerant;
 };
 
 // 2026-05-21 Phase 5 Step 0.G-5-B — module-scope helper (TASK_FILTERS 측 측)

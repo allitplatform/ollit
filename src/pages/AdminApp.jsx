@@ -895,7 +895,13 @@ function _v14NormalizeTask(t) {
     taskCode: t.taskCode || t.taskNo || t.task_no || t.작업번호 || id,
     taskNo:   t.taskNo   || t.task_no || t.작업번호 || "",
     customer, phone, address, region,
-    principal, channel, workType, appliance, qty,
+    // 2026-05-21 Phase 5 Step 0.G-6-A — principalCode 매핑 복구 ("3곳 매핑 트랩")
+    //   카운트 통일 spec — _isUsolNMainRefrigerant 측 t.principalCode 측 필요
+    //   공유 v14Task.js + tasksDb.rowToTask 측 동일 매핑 적용
+    principal, principalCode: t.principalCode || t.principal_code || "",
+    // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean (유솔N 본작업 + 냉매)
+    hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
+    channel, workType, appliance, qty,
     summary, status,
     state: _v14StatusToState(status),  // V14 2B-1 — AdminTaskDetailScreen STATE_MAP catch
     schedule, memo,
