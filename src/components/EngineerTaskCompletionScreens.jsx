@@ -33,6 +33,69 @@ const PRINCIPAL_CODE_TO_NAME = Object.fromEntries(
   Object.entries(PRINCIPAL_NAME_TO_CODE).map(([name, code]) => [code, name])
 );
 
+// 2026-05-21 — 견적 / 추가 / 총액 요약 카드 (3개 완료 화면 측 측측 측측)
+function AmountSummaryCard({ baseAmount = 0, extraFee = 0, accentColor = "#FF1B8D" }) {
+  const total = baseAmount + extraFee;
+  const isUndecided = baseAmount === 0;
+  return (
+    <div style={{
+      margin: "0 16px 14px",
+      padding: "14px",
+      background: "var(--bg-secondary)",
+      border: "1px solid var(--border)",
+      borderRadius: 12,
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 800, color: "var(--text-secondary)",
+        letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10,
+      }}>
+        💰 금액 요약
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <SummaryRow
+          label="견적"
+          value={isUndecided ? "미정 (현장 확정)" : `₩${baseAmount.toLocaleString("ko-KR")}`}
+          isItalic={isUndecided}
+        />
+        <SummaryRow
+          label="추가"
+          value={`₩${extraFee.toLocaleString("ko-KR")}`}
+        />
+        <div style={{
+          height: 1, background: "var(--border)", margin: "4px 0",
+        }}/>
+        <SummaryRow
+          label="총액"
+          value={`₩${total.toLocaleString("ko-KR")}`}
+          isBold
+          accentColor={accentColor}
+        />
+      </div>
+    </div>
+  );
+}
+
+function SummaryRow({ label, value, isBold, isItalic, accentColor }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      fontSize: isBold ? 14 : 13,
+      fontWeight: isBold ? 800 : 600,
+    }}>
+      <span style={{ color: "var(--text-secondary)" }}>{label}</span>
+      <span
+        className="mono"
+        style={{
+          color: isBold ? (accentColor || "var(--accent)") : "var(--text-primary)",
+          fontStyle: isItalic ? "italic" : "normal",
+        }}
+      >
+        {value}
+      </span>
+    </div>
+  );
+}
+
 const PARTIAL_REASONS = [
   { id: "customer_change", label: "고객 요청 변경" },
   { id: "device_bad",      label: "기기 상태 불량 (작업 불가)" },
@@ -484,6 +547,8 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
     <Container>
       <ScreenHeader title="✓ 작업 완료" onBack={onBack}/>
       <CustomerCard task={task} accentColor="#FF1B8D"/>
+      {/* 2026-05-21 — 견적 / 추가 / 총액 요약 (사장님 spec) */}
+      <AmountSummaryCard baseAmount={baseAmount} extraFee={extraFee} accentColor="#FF1B8D"/>
       {/* V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X) */}
       <EarningOnlyCard amount={earning} color="#FF1B8D" loading={earningLoading}/>
       <MemoBox label="📝 마무리 메모 (선택)" value={memo} onChange={setMemo}/>
@@ -613,6 +678,8 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
         label="⚠️ 부분 완료 사유 (필수)"
       />
 
+      {/* 2026-05-21 — 견적 / 추가 / 총액 요약 (= 부분 완료 측 qty 비례 견적 / 사장님 spec) */}
+      <AmountSummaryCard baseAmount={baseAmount} extraFee={extraFee} accentColor="#888"/>
       {/* V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X) */}
       <EarningOnlyCard amount={earning} color="#888" subText={`${actualQty}대 / ${totalQty}대 처리`} loading={earningLoading}/>
 
@@ -677,6 +744,8 @@ export function TaskVisitOnlyScreen({ task, photos = [], onBack, onConfirm }) {
         subText="작업 불가 (출장비만 청구)"
       />
 
+      {/* 2026-05-21 — 출장비 측 = 견적 측 측 / 출장비 = 측 기사 (Migration 048) */}
+      <AmountSummaryCard baseAmount={0} extraFee={fee} accentColor="#FF3B5C"/>
       {/* V14 v6 — 사장님 Q6: 본인 수익만 */}
       <EarningOnlyCard amount={earning} color="#FF1B8D" subText="출장비 (작업 불가)"/>
 

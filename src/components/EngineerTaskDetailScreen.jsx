@@ -553,7 +553,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
             onPhotoChange={handlePhotoChange}
             onRemove={handleRemovePhoto}
           />
-          <ExtraFeeInput value={extraFee} onChange={setExtraFee} onAdd={addExtra}/>
+          <ExtraFeeInput value={extraFee} onChange={setExtraFee} onAdd={addExtra} baseAmount={task.estimateTotal || 0}/>
           <WorkMemoInput value={workMemo} onChange={setWorkMemo}/>
         </>
       )}
@@ -1342,7 +1342,11 @@ function PhotoGrid({ photos, minRequired = 2, onAdd, onRemove }) {
 }
 
 // V14 — 추가금 (옅은 주황 톤)
-function ExtraFeeInput({ value, onChange, onAdd }) {
+// 2026-05-21 — 견적금액 안내 카드 + 실시간 총액 표시 추가 (사장님 spec)
+function ExtraFeeInput({ value, onChange, onAdd, baseAmount = 0 }) {
+  const extraNum = Number(value) || 0;
+  const total = baseAmount + extraNum;
+  const isUndecided = baseAmount === 0;
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
@@ -1356,6 +1360,27 @@ function ExtraFeeInput({ value, onChange, onAdd }) {
         }}>
           💰 현장 추가금 (있으면)
         </div>
+
+        {/* 2026-05-21 — 견적금액 안내 카드 (사장님 spec) */}
+        <div style={{
+          padding: "10px 12px", marginBottom: 10,
+          background: "var(--card-bg)",
+          border: `1px solid ${isUndecided ? "var(--warning)" : "var(--border)"}`,
+          borderRadius: 8,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          fontSize: 12, fontWeight: 600,
+          color: isUndecided ? "var(--warning)" : "var(--text-secondary)",
+        }}>
+          <span>견적금액</span>
+          {isUndecided ? (
+            <span style={{ fontStyle: "italic" }}>미정 (현장 확정)</span>
+          ) : (
+            <span className="mono" style={{ color: "var(--text-primary)", fontSize: 14, fontWeight: 700 }}>
+              ₩{baseAmount.toLocaleString("ko-KR")}
+            </span>
+          )}
+        </div>
+
         <input
           type="number"
           inputMode="numeric"
@@ -1403,6 +1428,28 @@ function ExtraFeeInput({ value, onChange, onAdd }) {
           </button>
         ))}
         </div>
+
+        {/* 2026-05-21 — 실시간 총액 (추가금 > 0 측만) */}
+        {extraNum > 0 && (
+          <div style={{
+            marginTop: 10, padding: "8px 12px",
+            background: "var(--card-bg)",
+            borderRadius: 8,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            fontSize: 12, fontWeight: 700,
+            color: "var(--text-primary)",
+          }}>
+            <span>총액</span>
+            <span className="mono" style={{ color: "var(--accent)", fontSize: 14 }}>
+              ₩{total.toLocaleString("ko-KR")}
+              {!isUndecided && (
+                <span style={{ fontSize: 10, color: "var(--text-tertiary)", fontWeight: 500, marginLeft: 6 }}>
+                  = 견적 + 추가
+                </span>
+              )}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
