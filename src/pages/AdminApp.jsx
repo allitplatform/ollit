@@ -7639,8 +7639,14 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
   const [scheduleMode, setScheduleMode] = useState(null);  // null | "tbd" | "input"
 
-  // Step 2-B-2 — KA 1way 자동 견적 계산 — 사용자가 견적을 직접 박으면 자동 X
+  // Step 2-B-2 — KA 1way 자동 견적 계산 — 사용자가 견적을 직접 입력하면 자동 X
   const [estimateTouched, setEstimateTouched] = useState(false);
+
+  // 2026-05-21 Migration 047 — 견적금액 미정 토글 (사장님 spec)
+  //   현장 측 금액 확정 측 작업 (usol_n 냉매 / allday 일부 측) 측 spec
+  //   체크 측: estimateTotal=0 + input disabled + product_price=0 측 저장
+  //   기사 측 작업 완료 측 현장 추가금 측 측 (allday 측 동일 흐름)
+  const [priceTBD, setPriceTBD] = useState(false);
 
   // V14 헌법 v6 — 작업유형 5가지 / 기종 7가지
   const workTypes = ["세척", "냉매충전", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
@@ -7890,7 +7896,8 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     if (!form.phone.trim())         errs.phone = "연락처 입력";
     if (!form.address.trim())       errs.address = "주소 입력";
     if (workItems.length === 0)     errs.workItems = "작업 항목 1개 이상";
-    if (!form.estimateTotal || form.estimateTotal <= 0) errs.estimateTotal = "견적 금액 입력";
+    // 2026-05-21 Migration 047 — 견적금액 미정 토글 시 검증 skip (product_price=0 측 저장)
+    if (!priceTBD && (!form.estimateTotal || form.estimateTotal <= 0)) errs.estimateTotal = "견적 금액 입력";
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
       return;
@@ -8263,13 +8270,39 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
           )}
         </FormSection>
 
-        {/* 4-1. 견적 금액 (Step 5-1c) — 단축 칩 + 직접 입력 */}
-        <FormSection t={t} icon="💰" label="견적 금액" required error={errors.estimateTotal}>
+        {/* 4-1. 견적 금액 (Step 5-1c) — 단축 칩 + 직접 입력 / 2026-05-21 Migration 047 — 미정 토글 */}
+        <FormSection t={t} icon="💰" label="견적 금액" required={!priceTBD} error={errors.estimateTotal}>
+          {/* 2026-05-21 Migration 047 — 견적금액 미정 토글 */}
+          <label style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "8px 10px", marginBottom: 10,
+            background: priceTBD ? t.accentBg : t.bgInset,
+            border: `1px solid ${priceTBD ? t.accent : t.border}`,
+            borderRadius: 8, cursor: "pointer",
+            fontSize: 12, fontWeight: 600,
+            color: priceTBD ? t.accent : t.textSecondary,
+          }}>
+            <input
+              type="checkbox"
+              checked={priceTBD}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setPriceTBD(checked);
+                if (checked) {
+                  update("estimateTotal", 0);
+                  setEstimateTouched(true);
+                }
+              }}
+              style={{ margin: 0, cursor: "pointer" }}
+            />
+            <span>견적 금액 미정 (현장 측 측 확정)</span>
+          </label>
+
           {/* 단축 칩 */}
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, marginBottom: 8 }}>
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, marginBottom: 8, opacity: priceTBD ? 0.4 : 1, pointerEvents: priceTBD ? "none" : "auto" }}>
             {[10, 15, 20, 25, 30].map(n => {
               const value = n * 10000;
-              const active = form.estimateTotal === value;
+              const active = !priceTBD && form.estimateTotal === value;
               return (
                 <FormChip t={t} key={n} active={active} onClick={() => { update("estimateTotal", value); setEstimateTouched(true); }}>{n}만</FormChip>
               );
@@ -8280,15 +8313,21 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
             <input
               type="text"
               inputMode="numeric"
-              placeholder="직접 입력 (숫자만)"
-              value={form.estimateTotal ? String(form.estimateTotal) : ""}
+              placeholder={priceTBD ? "미정" : "직접 입력 (숫자만)"}
+              value={priceTBD ? "" : (form.estimateTotal ? String(form.estimateTotal) : "")}
               onChange={(e) => {
                 const onlyDigits = e.target.value.replace(/\D/g, "");
                 update("estimateTotal", onlyDigits ? parseInt(onlyDigits) : 0);
                 setEstimateTouched(true);
               }}
+              disabled={priceTBD}
               className={justFilled.has("estimateTotal") ? "flash-highlight" : undefined}
-              style={{ ...inputStyle(!!errors.estimateTotal), paddingRight: 40 }}
+              style={{
+                ...inputStyle(!!errors.estimateTotal),
+                paddingRight: 40,
+                opacity: priceTBD ? 0.5 : 1,
+                cursor: priceTBD ? "not-allowed" : "text",
+              }}
             />
             <span style={{
               position: "absolute", right: 12, top: "50%",
@@ -8297,7 +8336,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
             }}>원</span>
           </div>
           {/* 현재 값 강조 표시 */}
-          {form.estimateTotal > 0 && (
+          {!priceTBD && form.estimateTotal > 0 && (
             <div style={{ marginTop: 8, fontSize: 11, color: t.textMuted, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
               <span>현재:</span>
               <span className="mono" style={{ color: t.accent, fontSize: 14, fontWeight: 800 }}>
