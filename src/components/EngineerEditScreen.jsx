@@ -193,10 +193,11 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
     }
 
     // Step 5-5-C Phase 4-C-2 — 옛 폼 → 시트 (전체) 행 양방향 sync
-    // 변경 detect: workTypesOriginal vs form.workTypes
+    // 2026-05-21 — 변경 검사 제거 (사장님 spec):
+    //   _diffWorkTypes 측 변경 측 측 측 측 X / 측 측 측 측 측 측 측 측 측
+    //   → cleaning + refrigerant 측 측 측 syncSkill 호출 → epp/ez 측 측 측 측
     // role="none" → deleteEngineerSkillWithSync / 그 외 → saveEngineerSkillWithSync
     let skillOk = 0, skillFail = 0;
-    const wtDiff = _diffWorkTypes(workTypesOriginal, form.workTypes);
 
     async function syncSkill(workTypeKr, wt) {
       if (!wt || wt.role === "none") {
@@ -218,14 +219,11 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
       return sRes.ok;
     }
 
-    if (wtDiff.cleaningChanged) {
-      if (await syncSkill("세척", form.workTypes.cleaning)) skillOk += 1;
-      else skillFail += 1;
-    }
-    if (wtDiff.refrigerantChanged) {
-      if (await syncSkill("냉매충전", form.workTypes.refrigerant)) skillOk += 1;
-      else skillFail += 1;
-    }
+    // 2026-05-21 — 측 측 호출 (변경 측 측 측 측 X)
+    if (await syncSkill("세척", form.workTypes.cleaning)) skillOk += 1;
+    else skillFail += 1;
+    if (await syncSkill("냉매충전", form.workTypes.refrigerant)) skillOk += 1;
+    else skillFail += 1;
 
     setBusy(false);
 

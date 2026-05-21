@@ -401,6 +401,87 @@ function formatPhone(raw) {
 //       { workType: "세척", appliance: "벽걸이", qty: 2 },
 //     ]
 //     phone: "010-1234-5678"
+// 2026-05-21 — KA 자유 텍스트 파서 (라벨 X / 전화 앵커 + "가.충" 패턴)
+//   입력 예: "공릉동공릉아파트 603동1505호\n벽걸이 .가.충. 70.000\n01039291303"
+//   출력: 기존 parseKakaoText 측 동일 형식 (handleAutoFill 측 매핑 그대로)
+function parseKaText(text, phoneMatch) {
+  const result = { matched: [], unmatched: [] };
+
+  // 전화번호 표준화 (formatPhone 사용)
+  let pDigits = phoneMatch[0].replace(/^\+?82\s?-?\s?/, "").replace(/\D/g, "");
+  if (pDigits.startsWith("10") || pDigits.startsWith("11") || pDigits.startsWith("16") || pDigits.startsWith("17") || pDigits.startsWith("18") || pDigits.startsWith("19")) {
+    pDigits = "0" + pDigits;
+  }
+  result.phone = formatPhone(pDigits);
+  result.matched.push("연락처");
+
+  // 전화번호 측 측 측측 / 측측 분리
+  const phoneIdx = text.indexOf(phoneMatch[0]);
+  const before = text.slice(0, phoneIdx).replace(/\s+$/, "");
+  const after  = text.slice(phoneIdx + phoneMatch[0].length).trim();
+
+  // 측측 측 측 단위 split (빈 측측 제거)
+  const lines = before.split(/\n+/).map(s => s.trim()).filter(Boolean);
+
+  // "가.충" / "가 . 충" / "가충" 측 측측 (= 종류측)
+  const gachungRegex = /가\s*\.?\s*충/;
+  const itemLineIdx = lines.findIndex(l => gachungRegex.test(l));
+
+  if (itemLineIdx >= 0) {
+    const itemLine = lines[itemLineIdx];
+    const addressLines = lines.slice(0, itemLineIdx);
+
+    // 주소 = 종류측 측측측측 합침 (1~3측측 가변)
+    if (addressLines.length > 0) {
+      result.address = addressLines.join(" ").replace(/\s+/g, " ").trim();
+      result.matched.push("주소");
+    }
+
+    // 기종 측 측 (한국어 측 측 / 폼 매칭) — 측 측 측 X / 측 측 측 측
+    //   사장님 spec: KA 1way 측 = 자동 측 (splitWorkItemsForKa1way 측 측)
+    const APPLIANCE_KR = ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원"];
+    let appliance = null;
+    for (const kr of APPLIANCE_KR) {
+      if (itemLine.includes(kr)) { appliance = kr; break; }
+    }
+
+    // 금액 측 — "가.충" 측측 측측측 측측 측 측 (전화 측측 측 측 X)
+    //   "70.000" / "100.000" → 70000 / 100000 (점 천단위 패턴 우선)
+    //   "70000" 측 측 = 측 숫자 측 측 측
+    const priceLine = itemLine.replace(gachungRegex, " ");
+    const dotPriceMatch = priceLine.match(/(\d{1,3}(?:\.\d{3})+)/);
+    const plainPriceMatch = priceLine.match(/(\d{4,})/);
+    if (dotPriceMatch) {
+      result.estimatedPrice = parseInt(dotPriceMatch[1].replace(/\./g, ""), 10);
+      result.matched.push("금액");
+    } else if (plainPriceMatch) {
+      result.estimatedPrice = parseInt(plainPriceMatch[1], 10);
+      result.matched.push("금액");
+    }
+
+    // workItems 측 (= 냉매충전 + 기종 / qty=1 default)
+    if (appliance) {
+      result.workItems = [{ workType: "냉매충전", appliance, qty: 1 }];
+      result.applianceItems = [{ appliance, qty: 1 }];
+      result.detectedWorkTypes = ["냉매충전"];
+      result.matched.push("기종");
+      result.matched.push("작업 종류 1건");
+    }
+  }
+
+  // 원청 = KA 측 (= 패턴 측 측 측 측 = 측 측)
+  result.principal = "에어컨프로 (KA)";
+  result.matched.push("원청(KA)");
+
+  // 메모 = 전화 측측측측 측 (= 측 측 측 측만)
+  if (after) {
+    result.memo = after;
+    result.matched.push("메모");
+  }
+
+  return result;
+}
+
 function parseKakaoText(text) {
   const result = { matched: [], unmatched: [] };
   if (!text || !text.trim()) return result;
@@ -408,6 +489,12 @@ function parseKakaoText(text) {
   // 1. 연락처 (다양한 형식: +82 / 국가코드 / 공백 / 점 / 하이픈)
   const phoneRegex = /(?:\+?82[\s-]?)?0?1[0-9][\s.-]?\d{3,4}[\s.-]?\d{4}/;
   const phoneMatch = text.match(phoneRegex);
+
+  // 2026-05-21 — KA 패턴 측 측 "가.충" / "가 . 충" / "가충" 측 + 전화 측 측 → KA 측 측 측
+  //   KA 측 = 라벨 X / 자유 텍스트 / 측 측 측 측 측 측 측 (= 측 측 측 측 측 측 측 측 측)
+  if (phoneMatch && /가\s*\.?\s*충/.test(text)) {
+    return parseKaText(text, phoneMatch);
+  }
   if (phoneMatch) {
     let p = phoneMatch[0].replace(/^\+?82\s?-?\s?/, "").replace(/\D/g, "");
     if (p.startsWith("10") || p.startsWith("11") || p.startsWith("16") || p.startsWith("17") || p.startsWith("18") || p.startsWith("19")) {
@@ -2860,6 +2947,7 @@ export default function AdminApp({ user, onLogout }) {
       <AutoAssignScreen
         t={t}
         task={selectedTask}
+        apiEngineers={apiEngineers}
         onBack={goBack}
         onComplete={async (eng) => {
           // V14 — apiAssignEngineer 호출 (시트 Q + R='확정' 박힘)
@@ -6818,8 +6906,10 @@ function TaskCancelDialog({ task, onClose, onConfirm }) {
 // 후보 기사 알림 전송 → 3초 카운트다운 → 첫 후보 자동 수락 (Phase 1 mock)
 // Phase 2 — Web Push + Supabase Realtime 실시간 처리
 // ============================================
-function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
+function AutoAssignScreen({ t, task, apiEngineers = [], onBack, onComplete, onFallbackManual }) {
   const [candidates, setCandidates] = useState([]);
+  // 2026-05-21 — 전체 기사 검색 모달 (= 권한 측 측 기사 측 측 측 측 측 spec)
+  const [showAllEngineers, setShowAllEngineers] = useState(false);
   // 2026-05-14 — 자동 수락 시뮬레이션 박지 X (countdown / acceptedEngineer state 박지 X)
   // 운영 의도: 기사 PWA 측 [수락] 박은 영역만 박힘 / 운영자 측 [강제 배정] 박은 영역만 박힘
 
@@ -6841,7 +6931,7 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
         if (!res || res.ok === false) {
           // 폴백 (옛 시뮬 mock)
           const headItem = (task.workItems && task.workItems[0]) || { appliance: task.appliance };
-          const broadcast = getAutoBroadcastCandidates(mainWorkType, region, headItem.appliance, task.pushCount || 4);
+          const broadcast = getAutoBroadcastCandidates(mainWorkType, region, headItem.appliance, task.pushCount || 10);
           setCandidates(broadcast);
           return;
         }
@@ -6856,7 +6946,8 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
         } else {
           allCandidates = [...main, ...sub, ...capable];
         }
-        const broadcast = allCandidates.slice(0, task.pushCount || 4);
+        // 2026-05-21 — 발송 대상 4 → 10명 (사장님 spec)
+        const broadcast = allCandidates.slice(0, task.pushCount || 10);
         console.log('[V14 AutoAssign] candidates:', broadcast.length, '명');
         setCandidates(broadcast);
 
@@ -7152,13 +7243,42 @@ function AutoAssignScreen({ t, task, onBack, onComplete, onFallbackManual }) {
                 })}
               </div>
               <div style={{ fontSize: 10, color: t.textMuted, marginTop: 8, lineHeight: 1.5 }}>
-                * 긴급/노쇼 측 [강제 배정] 박은 영역 — 운영자 측 직접 배정 박힘
+                * 긴급/노쇼 측 [강제 배정] 사용 — 운영자 측 직접 배정 spec
               </div>
             </div>
+
+            {/* 2026-05-21 — 전체 기사 검색 (권한 측 측 측 기사 측 측 측) */}
+            <button
+              onClick={() => setShowAllEngineers(true)}
+              style={{
+                marginTop: 10, width: "100%",
+                padding: "12px 14px",
+                background: t.bgInset, color: t.text,
+                border: `1px dashed ${t.border}`, borderRadius: 10,
+                fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              🔍 전체 기사에서 검색 (발송 대상 외)
+            </button>
           </>
         )}
 
       </div>
+
+      {/* 2026-05-21 — AllEngineersModal 측 (RecommendScreen 측 동일 spec) */}
+      {showAllEngineers && (
+        <AllEngineersModal
+          task={task}
+          engineers={apiEngineers && apiEngineers.length > 0 ? apiEngineers : undefined}
+          onSelect={(engineerId, engineer) => {
+            setShowAllEngineers(false);
+            onComplete(engineer);
+          }}
+          onClose={() => setShowAllEngineers(false)}
+        />
+      )}
     </div>
   );
 }
