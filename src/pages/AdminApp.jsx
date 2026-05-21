@@ -2524,7 +2524,7 @@ export default function AdminApp({ user, onLogout }) {
               before:        { status: tk.status || null },
               after:         { status: "취소" },
               note:          reason,
-              changedBy:     user?.id || null,
+              changedBy:     user?.user_id || user?.id || null,
               changedByName: user?.name || null,
             });
             goBackFromStack();
@@ -2553,7 +2553,7 @@ export default function AdminApp({ user, onLogout }) {
             before:        { status: selectedTaskDetail.status || null },
             after:         { status: "완료", visit_fee: VISIT_FEE.amount, type: "visit_only" },
             note:          payload?.reasonLabel || null,
-            changedBy:     user?.id || null,
+            changedBy:     user?.user_id || user?.id || null,
             changedByName: user?.name || null,
           });
           goBackFromStack();
@@ -2646,7 +2646,7 @@ export default function AdminApp({ user, onLogout }) {
               before:        { scheduledAt: tk.scheduledAt || null, status: tk.status || null },
               after:         { scheduledAt: confirmedAt, status: newStatus },
               note:          null,
-              changedBy:     user?.id || null,
+              changedBy:     user?.user_id || user?.id || null,
               changedByName: user?.name || null,
             });
           } catch (e) {
@@ -2685,7 +2685,7 @@ export default function AdminApp({ user, onLogout }) {
               before:        { status: tk.status || null },
               after:         { status: newStatus },
               note:          null,
-              changedBy:     user?.id || null,
+              changedBy:     user?.user_id || user?.id || null,
               changedByName: user?.name || null,
             });
           } catch (e) {
@@ -2819,7 +2819,7 @@ export default function AdminApp({ user, onLogout }) {
                 before:        { engineerName: oldEngineer || null },
                 after:         { engineerName: eng.name, engineerId: eng.id || null },
                 note:          assignReason || null,
-                changedBy:     user?.id || null,
+                changedBy:     user?.user_id || user?.id || null,
                 changedByName: user?.name || null,
               });
               setScreen("taskDetail");
@@ -2921,7 +2921,7 @@ export default function AdminApp({ user, onLogout }) {
               before:        { engineerName: oldEngineer || null },
               after:         { engineerName: eng.name, engineerId: eng.id || null },
               note:          null,  // 신규 배정은 사유 X
-              changedBy:     user?.id || null,
+              changedBy:     user?.user_id || user?.id || null,
               changedByName: user?.name || null,
             });
 
@@ -5651,7 +5651,9 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
   async function handleConfirmRemit(e) {
     e.stopPropagation();  // 그룹 펼침/접힘 토글 방지
     if (confirming) return;
-    const adminUserId = user?.id || user?.userId;
+    // 2026-05-21 — user.user_id = UUID (RPC 응답) / user.userId = code ('A004') / user.id = undefined
+    //   → engineer_remit_confirmed_by (uuid 컬럼) 측 user.user_id 측 측 측 사용
+    const adminUserId = user?.user_id || user?.id;
     if (!adminUserId) {
       alert("관리자 사용자 ID를 찾을 수 없습니다.");
       return;
