@@ -3533,28 +3533,28 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
 function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN }) {
-  // 2026-05-21 Phase 5 Step 0.G-5-B — 작업 흐름 카운트 통일 (TASK_FILTERS 공유 / 사장님 spec 확정)
+  // 2026-05-21 Phase 5 Step 0.H — 작업 흐름 = 세척 / 냉매 2개 카드 (사장님 결정: 기타 제거)
   //   신규 / 배정 / 확정 = TASK_FILTERS 측 동일 (유솔N 본작업 냉매만 / 그 외 유솔N 제외 / 6원청 전부)
   //   진행 / 완료 = TASK_FILTERS 측 동일 (오늘 + 전부 포함)
-  //   workType 분류 = 세척 / 냉매 / 기타 (3개) — 정규식 측 측 측 측 = 기타 측 집계 (누락 0건)
+  //   workType 분류 = 세척 / 냉매 (2개) — 정규식 측 측 측 측 measure 측 측 측 합계 측 측 (의도)
   const workTypeFlowCounts = useMemo(() => {
     const counts = {
       '세척':    { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 },
       '냉매충전':{ 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 },
-      '기타':    { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 },
     };
 
     (apiTasks || []).forEach(task => {
-      // workType 분류 — workItems 측 첫 매칭 측 우선 / 측 측 측 측 측 측 = '기타'
+      // workType 분류 — workItems 측 첫 매칭 측 우선 / 매칭 측 측 측 측 측 측 측
       const items = (task.workItems && task.workItems.length > 0)
         ? task.workItems
         : (task.workType ? [{ workType: task.workType }] : []);
-      let workType = '기타';
+      let workType = '';
       for (const item of items) {
         const wt = String(item.workType || "");
         if (/세척/.test(wt))           { workType = '세척'; break; }
         if (/냉매|가스|충전/.test(wt)) { workType = '냉매충전'; break; }
       }
+      if (!workType || !counts[workType]) return;
 
       // 5단계 = TASK_FILTERS 측 동일 기준 적용
       if      (TASK_FILTERS.newReception(task)) { counts[workType]['신규']++; counts[workType]['총']++; }
@@ -3608,7 +3608,6 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
   const cleaningFlow    = workTypeFlowCounts['세척'];
   const refrigerantFlow = workTypeFlowCounts['냉매충전'];
-  const etcFlow         = workTypeFlowCounts['기타'];
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
@@ -3635,19 +3634,18 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
         </button>
       )}
 
-      {/* 2026-05-21 Phase 5 Step 0.G-5-B — 오늘 작업 흐름 (세척/냉매/기타 3개 카드 / 5단계) */}
+      {/* 2026-05-21 Phase 5 Step 0.H — 오늘 작업 흐름 (세척/냉매 2개 카드 / 사장님 결정 — 기타 제거) */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
             📊 오늘 작업 흐름
           </span>
           <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>
-            {((cleaningFlow && cleaningFlow['총']) || 0) + ((refrigerantFlow && refrigerantFlow['총']) || 0) + ((etcFlow && etcFlow['총']) || 0)}건
+            {((cleaningFlow && cleaningFlow['총']) || 0) + ((refrigerantFlow && refrigerantFlow['총']) || 0)}건
           </span>
         </div>
         <FlowCard icon="❄️" title="세척" flow={cleaningFlow    || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
         <FlowCard icon="⚡" title="냉매" flow={refrigerantFlow || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
-        <FlowCard icon="📋" title="기타" flow={etcFlow         || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
       </div>
 
       {/* + 새 접수 등록 (Step 5-1d: placeholder → 실제 폼 연결, FAB 제거) */}
@@ -4272,8 +4270,16 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
   //   배정 완료 = TASK_FILTERS.assigned (유솔N 본작업 냉매만 + status='배정' / 날짜 X)
   //   일정 확정 = TASK_FILTERS.confirmed (유솔N 본작업 냉매만 + status='확정' / 날짜 X)
   //   옛 spec (유솔N 전체 제외 + 오늘 날짜 필터) 측 제거 — 카드 카운트 측 일치 spec.
+  const [query, setQuery] = useState("");
   const isAssigned = filter === "assigned";
-  const all = (apiTasks || []).filter(isAssigned ? TASK_FILTERS.assigned : TASK_FILTERS.confirmed);
+  const baseSource = (apiTasks || []).filter(isAssigned ? TASK_FILTERS.assigned : TASK_FILTERS.confirmed);
+
+  // 2026-05-21 Phase 5 Step 0.H — 검색란 추가 (InProgressListScreen 측 동일 spec)
+  const q = query.trim().toLowerCase();
+  const all = !q ? baseSource : baseSource.filter((s) => {
+    const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo].filter(Boolean).join(" ").toLowerCase();
+    return fields.includes(q);
+  });
 
   const titleText = isAssigned
     ? `배정 완료 ${all.length}건`
@@ -4289,9 +4295,27 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
       </div>
 
       <div style={{ padding: "14px 16px 20px" }}>
+        <div style={{ position: "relative", marginBottom: 10 }}>
+          <Search size={13} style={{
+            position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+            color: t.textMuted, pointerEvents: "none",
+          }}/>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="고객 · 지역 · 작업 · 프로"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              padding: "8px 10px 8px 30px",
+              background: t.bgInset, border: `1px solid ${t.border}`,
+              borderRadius: 8, color: t.text,
+              fontSize: 12, fontFamily: "inherit", outline: "none",
+            }}
+          />
+        </div>
         {all.length === 0 ? (
           <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
-            해당 상태의 작업이 없어요
+            {q ? "검색 결과가 없어요" : "해당 상태의 작업이 없어요"}
           </div>
         ) : all.map((task) => (
           <AssignedCard key={task.id || task.taskCode} t={t} task={task} onMemo={onMemo} onEdit={onEdit} onClick={onTaskClick}/>
@@ -4460,8 +4484,18 @@ function NewReceptionScreen({
   const [memoTask, setMemoTask] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
 
-  const cleanings    = tasks.세척;
-  const refrigerants = tasks.냉매충전;
+  // 2026-05-21 Phase 5 Step 0.H — 검색란 추가 (InProgressListScreen 측 동일 spec)
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+  const filterByQuery = (arr) => {
+    if (!q) return arr;
+    return arr.filter((s) => {
+      const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo].filter(Boolean).join(" ").toLowerCase();
+      return fields.includes(q);
+    });
+  };
+  const cleanings    = filterByQuery(tasks.세척);
+  const refrigerants = filterByQuery(tasks.냉매충전);
   const total = cleanings.length + refrigerants.length;
 
   // 헤더 텍스트 + 그룹 표시 분기 (filter prop)
@@ -4606,6 +4640,25 @@ function NewReceptionScreen({
       )}
 
       <div style={{ padding: "14px 16px 20px" }}>
+        {/* 2026-05-21 Phase 5 Step 0.H — 검색란 (InProgressListScreen 측 동일 스타일) */}
+        <div style={{ position: "relative", marginBottom: 14 }}>
+          <Search size={13} style={{
+            position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+            color: t.textMuted, pointerEvents: "none",
+          }}/>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="고객 · 지역 · 작업 · 프로"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              padding: "8px 10px 8px 30px",
+              background: t.bgInset, border: `1px solid ${t.border}`,
+              borderRadius: 8, color: t.text,
+              fontSize: 12, fontFamily: "inherit", outline: "none",
+            }}
+          />
+        </div>
         {showCleanings && (
           <ReceptionGroup t={t} workType="세척" title="에어컨 세척" subtitle="신규" subtitleColor={t.textMuted} count={cleanings.length}>
             {cleanings.map((task) => (
@@ -5704,11 +5757,27 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
 
   // 검색: 고객명 / 지역 / 작업종류 / 기사명 / 외근 note
   const q = query.trim().toLowerCase();
-  const filtered = !q ? base : base.filter((s) => {
+  const matched = !q ? base : base.filter((s) => {
     const fields = [
       s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note,
     ].filter(Boolean).join(" ").toLowerCase();
     return fields.includes(q);
+  });
+
+  // 2026-05-21 Phase 5 Step 0.H — 작업 예정 시간 오름차순 정렬 (가까운 시간 측 측 측)
+  //   scheduledAt(or scheduled_at) 측 측 측 task 측 목록 측 측 측
+  const filtered = [...matched].sort((a, b) => {
+    const sa = a.scheduledAt || a.scheduled_at || a.확정일시 || "";
+    const sb = b.scheduledAt || b.scheduled_at || b.확정일시 || "";
+    if (!sa && !sb) return 0;
+    if (!sa) return 1;
+    if (!sb) return -1;
+    const ta = new Date(sa).getTime();
+    const tb = new Date(sb).getTime();
+    if (isNaN(ta) && isNaN(tb)) return 0;
+    if (isNaN(ta)) return 1;
+    if (isNaN(tb)) return -1;
+    return ta - tb;
   });
 
   return (
