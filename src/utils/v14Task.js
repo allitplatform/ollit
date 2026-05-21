@@ -2,6 +2,7 @@
 // AdminApp + EngineerApp + HappycallApp 공유 (재사용 module)
 
 import { formatTimeKST } from "./dateLabel.js";
+import { _getEffectiveStatus } from "./dashboardStats.js";
 
 // V14 — 주소 첫 단어 = 지역 (예: "강남구 도곡동 ..." → "강남구")
 export function v14ExtractRegion(address) {
@@ -160,7 +161,8 @@ export function v14NormalizeTask(t) {
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
     channel, workType, appliance, qty,
     summary, status,
-    state: v14StatusToState(status),
+    // 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 기반 state (예정 시간 측 측 → 진행중 자동)
+    state: v14StatusToState(_getEffectiveStatus(t)),
     schedule, memo,
     estimateTotal: estimate,
     addonFee,

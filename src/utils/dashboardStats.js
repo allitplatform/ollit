@@ -22,6 +22,25 @@ function _v14HasStatus(t, ...statuses) {
   return statuses.includes(s);
 }
 
+// 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 계산 (사장님 spec 확정)
+//   DB status 측 변경 측 측 측 / 렌더링 측 집계 시점 측 측만 측 계산
+//   dbStatus 측 '확정' 또는 '배정' 측 + scheduled_at 측 현재 시각 측 측 → '진행중' 측 측 측
+//   기사 PWA 측 status='진행중' 측 변경 측 측 = dbStatus 측 측 그대로 catch (충돌 X)
+export function _getEffectiveStatus(t) {
+  const s = String(t?.status || t?.상태 || "").trim();
+  if (s !== '확정' && s !== '배정') return s;
+  const sched = t?.scheduledAt || t?.scheduled_at || t?.확정일시 || "";
+  if (!sched) return s;
+  const ts = new Date(sched).getTime();
+  if (isNaN(ts)) return s;
+  return ts <= Date.now() ? '진행중' : s;
+}
+
+// 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 측 status helper
+function _v14HasStatusEffective(t, ...statuses) {
+  return statuses.includes(_getEffectiveStatus(t));
+}
+
 // 2026-05-21 Phase 5 Step 0.G-5-B — 메인 카운트 공유 판정 함수 (사장님 spec 확정)
 //   유솔N task = "본작업(orderType='본작업') + 냉매(serviceCode='refrigerant')" 측만 메인 포함.
 //   그 외 유솔N (세척 / 추가선택 / 방문비 / 현금수동 등) = 전부 제외.
@@ -53,16 +72,20 @@ const _isCompletedTodayModule = (t) => {
 //   5곳 통일: 상단 카드 / 작업 흐름 / 일정확정 상세 / 진행중 상세 / 완료 상세
 //   _isUsolNMainRefrigerant: 유솔N 본작업 냉매만 포함 (그 외 유솔N 제외 / 6원청 전부 포함)
 //   isLegacy 조건 = 미사용 (837건 전부 false라 무의미 — 사장님 결정)
+// 2026-05-21 Phase 5 Step 0.H-5 — _v14HasStatusEffective 측 통일 (effectiveStatus 기반)
+//   예정 시간 측 task = effectiveStatus '진행중' 측 → 확정 카드 측 측 / 진행중 카드 측 측
+//   한 작업 측 한 카드 측만 catch (중복 X)
 export const TASK_FILTERS = {
   isUsolNMainRefrigerant: _isUsolNMainRefrigerant,
   isScheduledToday:       _isScheduledTodayModule,
   isCompletedToday:       _isCompletedTodayModule,
+  getEffectiveStatus:     _getEffectiveStatus,
 
-  newReception: (t) => _isUsolNMainRefrigerant(t) && _v14HasStatus(t, "미배정"),
-  assigned:     (t) => _isUsolNMainRefrigerant(t) && _v14HasStatus(t, "배정"),
-  confirmed:    (t) => _isUsolNMainRefrigerant(t) && _v14HasStatus(t, "확정"),
-  inProgress:   (t) => _isScheduledTodayModule(t) && _v14HasStatus(t, "작업중", "진행중"),
-  completed:    (t) => _isScheduledTodayModule(t) && _isCompletedTodayModule(t) && _v14HasStatus(t, "완료", "정산완료"),
+  newReception: (t) => _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "미배정"),
+  assigned:     (t) => _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "배정"),
+  confirmed:    (t) => _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "확정"),
+  inProgress:   (t) => _isScheduledTodayModule(t) && _v14HasStatusEffective(t, "작업중", "진행중"),
+  completed:    (t) => _isScheduledTodayModule(t) && _isCompletedTodayModule(t) && _v14HasStatusEffective(t, "완료", "정산완료"),
 };
 
 // V14 메인 통계 계산 (apiTasks 진짜 시트 데이터 사용 / 시뮬 mock 폐기)

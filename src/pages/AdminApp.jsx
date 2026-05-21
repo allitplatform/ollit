@@ -40,7 +40,7 @@ import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
 import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
 import { startDailyAlertScheduler, stopDailyAlertScheduler } from "../utils/dailyAlertScheduler.js";
-import { computeDashboardStats, TASK_FILTERS } from "../utils/dashboardStats.js";
+import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../utils/dashboardStats.js";
 import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
 import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
 import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
@@ -903,7 +903,8 @@ function _v14NormalizeTask(t) {
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
     channel, workType, appliance, qty,
     summary, status,
-    state: _v14StatusToState(status),  // V14 2B-1 — AdminTaskDetailScreen STATE_MAP catch
+    // 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 기반 state (예정 시간 측 측 → 진행중 자동)
+    state: _v14StatusToState(_getEffectiveStatus(t)),
     schedule, memo,
     estimateTotal: estimate,
     requestedDate: reqDate,
@@ -2039,11 +2040,18 @@ export default function AdminApp({ user, onLogout }) {
   //   옛: tasksToday=TASKS_TODAY, newReceptions=NEW_RECEPTIONS, assignedTasks=ASSIGNED_TASKS
   //   새: apiTasks 측 only + extraReceptions (옵티미스틱 측만 / 등록 직후 lag 동안)
   //   사장님 catch: 메인 카운트 측 mock 잔존 측 detail 측 mismatch 발생.
+  // 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 측 1분 자동 갱신
+  //   예정 시간 측 측 작업 측 자동 진행중 측 측 → 매 분 마다 dynamicStats 재계산
+  const [minuteTick, setMinuteTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setMinuteTick(v => v + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
   const dynamicStats = useMemo(() => computeDashboardStats({
     extraReceptions,
     apiTasks,
     user: getCurrentUserPerm(user),
-  }), [extraReceptions, receptionUpdates, user, apiTasks]);
+  }), [extraReceptions, receptionUpdates, user, apiTasks, minuteTick]);
 
   function addToast(toast) {
     const id = Date.now() + Math.random();
@@ -5728,6 +5736,14 @@ function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick }) {
 
 function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
   const [query, setQuery] = useState("");
+
+  // 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 측 1분 자동 갱신
+  //   작업 탭 측 = 예정 시간 측 측 작업 측 자동 진행중 카드 측 측 → 매 분 rerender
+  const [, setMinuteTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setMinuteTick(v => v + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   // 2026-05-19 Phase 5 Step 0.C-10 — TASKS_TODAY mock fallback 제거 (가짜 작업 catch X)
   const dataSource = apiTasks || [];
