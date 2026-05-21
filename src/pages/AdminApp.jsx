@@ -3765,11 +3765,20 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
   });
 
   // 그룹 자동 묶기 (6 그룹: active / moving / external / waiting / done / off)
+  // 2026-05-21 Phase 5 Step 0.H-3 — 대기 그룹 측 측 정렬:
+  //   "미정"(오늘 배정 작업 0건 / status.label === "미정")은 측 측
+  //   "대기"(작업 있음 / partial off 등)는 측 측
   const grouped = {
     active:   searched.filter(e => e.status.group === "active"),
     moving:   searched.filter(e => e.status.group === "moving"),
     external: searched.filter(e => e.status.group === "external"),
-    waiting:  searched.filter(e => e.status.group === "waiting"),
+    waiting:  searched.filter(e => e.status.group === "waiting").sort((a, b) => {
+      const aUndecided = a.status?.label === "미정";
+      const bUndecided = b.status?.label === "미정";
+      if (aUndecided && !bUndecided) return 1;
+      if (!aUndecided && bUndecided) return -1;
+      return 0;
+    }),
     done:     searched.filter(e => e.status.group === "done"),
     off:      searched.filter(e => e.status.group === "off"),
   };
@@ -5627,7 +5636,8 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
             // appliance(벽걸이/스탠드)를 모델로 표시, workType은 ⚡/❄ 아이콘으로 압축.
             const itemSummary = `${task.appliance || "—"}×${task.qty || 1}`;
             const WorkIcon = task.workType === "냉매충전" ? Zap : Snowflake;
-            const workColor = task.workType === "냉매충전" ? "#EF9F27" : "#5DCAA5";
+            // 2026-05-21 Phase 5 Step 0.H-3 — 세척 색 = 파랑 (t.info / 통일)
+            const workColor = task.workType === "냉매충전" ? "#EF9F27" : t.info;
             // 2026-05-17 Round 2 Fix #14 — 작업당 표시값 = principal + owner (= 회사+원청 수수료).
             // 그룹 합계(groupDoneByEngineer)와 동일 계산식.
             const earning = (Number(task.principal_amount) || 0) + (Number(task.owner_amount) || 0);
@@ -5926,16 +5936,19 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
   const commission = (showCompanyProfit && !isExternal && task.principal && task.state === "done") ? calculateCommission(task) : null;
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
 
-  // workType 아이콘 (사장님 spec): ⚡ 냉매(코랄) / ❄ 세척(청록)
+  // workType 아이콘 — 2026-05-21 Phase 5 Step 0.H-3: 세척 색 = 파랑 (t.info)
   const WorkIcon = task.workType === "냉매충전" ? Zap : Snowflake;
-  const workColor = task.workType === "냉매충전" ? "#EF9F27" : "#5DCAA5";
+  const workColor = task.workType === "냉매충전" ? "#EF9F27" : t.info;
 
-  // 정보 텍스트: "(모델×수량) · 지역"
+  // 정보 텍스트: "(모델×수량) · 지역 · 시간"
+  //   2026-05-21 Phase 5 Step 0.H-3 — 작업 예정 시간 표시 (정렬 결과 catch 측 spec)
   const infoBits = [];
   if (!isExternal) {
     infoBits.push(`(${task.appliance || "—"}×${task.qty || 1})`);
   }
   if (task.region) infoBits.push(task.region);
+  const timeText = formatTimeOnly(task.scheduledAt || task.scheduled_at);
+  if (timeText) infoBits.push(timeText);
   const infoText = infoBits.join(" · ");
 
   // 상태 배지 (사장님 spec 색):
