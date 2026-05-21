@@ -37,7 +37,11 @@ const PAYMENT_SELECT = `
   ),
   task_items (
     id, qty, unit_price, subtotal,
-    work_types ( id, name ),
+    order_type,
+    work_types (
+      id, name,
+      service_types ( id, code )
+    ),
     appliance_types ( id, name )
   )
 `;
@@ -114,13 +118,18 @@ export function rowToTask(row) {
     categoryData:  cat,
     // Phase 4-2 fix — category_data 평탄화 (시트 호환 / 화면 필터 통과)
     // 2026-05-19 Phase 5 Step 0.C-16 — task_items 측 fallback 매핑 (category_data.workItems 측 NULL 측 catch)
+    // 2026-05-21 Phase 5 Step 0.G-5-A — serviceCode / orderType 측 측 추가
+    //   카운트 통일 spec — "유솔N 본작업(order_type='본작업') + 냉매(service='refrigerant') 측만 포함"
+    //   category_data.workItems 측 → 그대로 사용 / task_items fallback 측 → 두 필드 추가 매핑
     workItems:     Array.isArray(cat.workItems) && cat.workItems.length > 0
                      ? cat.workItems
                      : (Array.isArray(row.task_items) ? row.task_items.map(it => ({
-                         workType:  it.work_types && it.work_types.name,
-                         appliance: it.appliance_types && it.appliance_types.name,
-                         qty:       Number(it.qty) || 1,
-                         unitPrice: Number(it.unit_price) || 0,
+                         workType:    it.work_types && it.work_types.name,
+                         serviceCode: it.work_types?.service_types?.code || null,
+                         orderType:   it.order_type || null,
+                         appliance:   it.appliance_types && it.appliance_types.name,
+                         qty:         Number(it.qty) || 1,
+                         unitPrice:   Number(it.unit_price) || 0,
                        })) : []),
     workType:      cat.workType  || (Array.isArray(row.task_items) && row.task_items[0]?.work_types?.name) || "",
     appliance:     cat.appliance || (Array.isArray(row.task_items) && row.task_items[0]?.appliance_types?.name) || "",

@@ -40,7 +40,7 @@ import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
 import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
 import { startDailyAlertScheduler, stopDailyAlertScheduler } from "../utils/dailyAlertScheduler.js";
-import { computeDashboardStats } from "../utils/dashboardStats.js";
+import { computeDashboardStats, TASK_FILTERS } from "../utils/dashboardStats.js";
 import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
 import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
 import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
@@ -876,6 +876,17 @@ function _v14NormalizeTask(t) {
     workItems = summaryItems;
   } else if (!workItems && workType) {
     workItems = [{ workType, appliance, qty }];
+  }
+
+  // 2026-05-21 Phase 5 Step 0.G-5-A — serviceCode / orderType 보존 ("3곳 매핑 트랩")
+  //   카운트 통일 spec — "유솔N 본작업 + 냉매" 판정 측 두 필드 필요
+  //   공유 v14Task.js + tasksDb.rowToTask 측 동일 매핑 적용
+  if (Array.isArray(workItems) && workItems.length > 0) {
+    workItems = workItems.map(it => ({
+      ...it,
+      serviceCode: it.serviceCode || it.service_code || null,
+      orderType:   it.orderType   || it.order_type   || null,
+    }));
   }
 
   return {
@@ -3516,83 +3527,35 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
 function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN }) {
-  // 2026-05-19 Phase 5 Step 0.C-7-c — 작업 흐름 카운트 spec 정정 (현재 단계만):
-  //   옛 spec: 각 단계 액션 시각 today catch 시 +1 (누적 / 한 작업이 여러 단계 catch 시 중복)
-  //   새 spec: 현재 status === '단계' 만 (중복 X / 합계 = 실제 작업 수)
-  //   유솔N 제외 — 별도 유솔N 박스 측 진입.
+  // 2026-05-21 Phase 5 Step 0.G-5-B — 작업 흐름 카운트 통일 (TASK_FILTERS 공유 / 사장님 spec 확정)
+  //   신규 / 배정 / 확정 = TASK_FILTERS 측 동일 (유솔N 본작업 냉매만 / 그 외 유솔N 제외 / 6원청 전부)
+  //   진행 / 완료 = TASK_FILTERS 측 동일 (오늘 + 전부 포함)
+  //   workType 분류 = 세척 / 냉매 / 기타 (3개) — 정규식 측 측 측 측 = 기타 측 집계 (누락 0건)
   const workTypeFlowCounts = useMemo(() => {
-    const types = ['세척', '냉매충전'];
-    const counts = {};
-    types.forEach(type => {
-      counts[type] = { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 };
-    });
-
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
-    const todayStr = `${yyyy}-${mm}-${dd}`;
-
-    const isFieldToday = (task, ...fieldNames) => {
-      for (const f of fieldNames) {
-        const v = String(task[f] || "");
-        if (v.startsWith(todayStr)) return true;
-      }
-      return false;
+    const counts = {
+      '세척':    { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 },
+      '냉매충전':{ 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 },
+      '기타':    { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 },
     };
 
-    // 2026-05-20 Phase 5 Step 0.G-2 — _isUsolN → _isUsolNCleaning 정정 (유솔N+세척만 제외)
-    const _isUsolNCleaning = (task) => {
-      const code = String(task.principalCode || task.principal_code || "").toLowerCase();
-      const name = String(task.principal || task.client || task.원청 || "");
-      const isUsolN = code === "usol_n" || name === "유솔홈케어 N";
-      if (!isUsolN) return false;
-      const its = Array.isArray(task.workItems) && task.workItems.length > 0
-        ? task.workItems
-        : [{ workType: task.workType }];
-      return its.some(it => String(it.workType || "").includes("세척"));
-    };
     (apiTasks || []).forEach(task => {
-      // 2026-05-20 Phase 5 Step 0.G-3 — 유솔N+세척 = 신규/배정/확정 측만 skip (진행/완료 포함)
-      const isUsolNCleaning = _isUsolNCleaning(task);
-
+      // workType 분류 — workItems 측 첫 매칭 측 우선 / 측 측 측 측 측 측 = '기타'
       const items = (task.workItems && task.workItems.length > 0)
         ? task.workItems
         : (task.workType ? [{ workType: task.workType }] : []);
-      let workType = '';
+      let workType = '기타';
       for (const item of items) {
         const wt = String(item.workType || "");
         if (/세척/.test(wt))           { workType = '세척'; break; }
         if (/냉매|가스|충전/.test(wt)) { workType = '냉매충전'; break; }
       }
-      if (!workType || !counts[workType]) return;
 
-      const status = String(task.status || task.상태 || "").trim();
-
-      // 신규 / 배정 / 확정 = !isUsolNCleaning (대기열)
-      // 진행 / 완료 = 유솔N+세척 포함 (운영 모니터링 spec)
-      if (!status || status === '미배정') {
-        if (isUsolNCleaning) return;
-        counts[workType]['신규']++;
-        counts[workType]['총']++;
-      } else if (status === '배정') {
-        if (isUsolNCleaning) return;
-        counts[workType]['배정']++;
-        counts[workType]['총']++;
-      } else if (status === '확정') {
-        if (isUsolNCleaning) return;
-        counts[workType]['확정']++;
-        counts[workType]['총']++;
-      } else if ((status === '진행중' || status === '작업중')
-                 && isFieldToday(task, "scheduledAt", "확정일시")) {
-        counts[workType]['진행']++;
-        counts[workType]['총']++;
-      } else if ((status === '완료' || status === '정산완료')
-                 && isFieldToday(task, "scheduledAt", "확정일시")
-                 && isFieldToday(task, "completedAt")) {
-        counts[workType]['완료']++;
-        counts[workType]['총']++;
-      }
+      // 5단계 = TASK_FILTERS 측 동일 기준 적용
+      if      (TASK_FILTERS.newReception(task)) { counts[workType]['신규']++; counts[workType]['총']++; }
+      else if (TASK_FILTERS.assigned(task))     { counts[workType]['배정']++; counts[workType]['총']++; }
+      else if (TASK_FILTERS.confirmed(task))    { counts[workType]['확정']++; counts[workType]['총']++; }
+      else if (TASK_FILTERS.inProgress(task))   { counts[workType]['진행']++; counts[workType]['총']++; }
+      else if (TASK_FILTERS.completed(task))    { counts[workType]['완료']++; counts[workType]['총']++; }
     });
 
     return counts;
@@ -3639,6 +3602,7 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
   const cleaningFlow    = workTypeFlowCounts['세척'];
   const refrigerantFlow = workTypeFlowCounts['냉매충전'];
+  const etcFlow         = workTypeFlowCounts['기타'];
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
@@ -3665,18 +3629,19 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
         </button>
       )}
 
-      {/* 2026-05-11 — 오늘 작업 흐름 카드 (세척/냉매 5단계 / 0건이어도 박힘) */}
+      {/* 2026-05-21 Phase 5 Step 0.G-5-B — 오늘 작업 흐름 (세척/냉매/기타 3개 카드 / 5단계) */}
       <div style={{ marginBottom: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
             📊 오늘 작업 흐름
           </span>
           <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>
-            {((cleaningFlow && cleaningFlow['총']) || 0) + ((refrigerantFlow && refrigerantFlow['총']) || 0)}건
+            {((cleaningFlow && cleaningFlow['총']) || 0) + ((refrigerantFlow && refrigerantFlow['총']) || 0) + ((etcFlow && etcFlow['총']) || 0)}건
           </span>
         </div>
-        <FlowCard icon="❄️" title="세척" flow={cleaningFlow || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
+        <FlowCard icon="❄️" title="세척" flow={cleaningFlow    || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
         <FlowCard icon="⚡" title="냉매" flow={refrigerantFlow || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
+        <FlowCard icon="📋" title="기타" flow={etcFlow         || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
       </div>
 
       {/* + 새 접수 등록 (Step 5-1d: placeholder → 실제 폼 연결, FAB 제거) */}
@@ -4297,29 +4262,12 @@ function PlaceholderScreen({ t, title, label, onBack }) {
 // 배정 완료 / 일정 확정 화면 (Step 2-5b)
 // ─────────────────────────────────────────────
 function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit, onTaskClick }) {
-  // 2026-05-19 Phase 5 Step 0.C-8 — 메인 카운트 spec 일치:
-  //   배정 완료 = !_isUsolN(t) AND status === '배정'
-  //   일정 확정 = !_isUsolN(t) AND isScheduledToday AND status === '확정'
-  const statusOf = (x) => String(x.status || x.상태 || "").trim();
+  // 2026-05-21 Phase 5 Step 0.G-5-B — 메인 카운트 통일 (TASK_FILTERS 공유 / 사장님 spec 확정)
+  //   배정 완료 = TASK_FILTERS.assigned (유솔N 본작업 냉매만 + status='배정' / 날짜 X)
+  //   일정 확정 = TASK_FILTERS.confirmed (유솔N 본작업 냉매만 + status='확정' / 날짜 X)
+  //   옛 spec (유솔N 전체 제외 + 오늘 날짜 필터) 측 제거 — 카드 카운트 측 일치 spec.
   const isAssigned = filter === "assigned";
-  const todayStrLocal = todayYmd();
-  const _isUsolN = (t) => {
-    const code = String(t.principalCode || t.principal_code || "").toLowerCase();
-    const name = String(t.principal || t.client || t.원청 || "");
-    return code === "usol_n" || name === "유솔홈케어 N";
-  };
-  const _isScheduledTodayLocal = (t) => {
-    const n = t.scheduledAt || t.scheduled_at || t.확정일시 || t.confirmedAt || "";
-    return !!n && toKstYmd(n) === todayStrLocal;
-  };
-
-  // 2026-05-19 Phase 5 Step 0.C-15 — _isLegacy 필터 롤백 (DB 측 컬럼 그대로)
-  let all;
-  if (isAssigned) {
-    all = (apiTasks || []).filter(x => !_isUsolN(x) && statusOf(x) === "배정");
-  } else {
-    all = (apiTasks || []).filter(x => !_isUsolN(x) && _isScheduledTodayLocal(x) && statusOf(x) === "확정");
-  }
+  const all = (apiTasks || []).filter(isAssigned ? TASK_FILTERS.assigned : TASK_FILTERS.confirmed);
 
   const titleText = isAssigned
     ? `배정 완료 ${all.length}건`
@@ -4455,18 +4403,9 @@ function NewReceptionScreen({
   receptionUpdates = {},
   onBack, onAssign, onClickAdd, onClickPushing, onClickAccepted, onCardMenuAction,
 }) {
-  // 2026-05-20 Phase 5 Step 0.G-2 — 메인 5카운트 spec 통일 (대기열 / 시간 필터 X)
-  //   공통 제외: 유솔N + 세척만 (유솔N 냉매 측 = 메인 포함)
-  const _isUsolNCleaning = (t) => {
-    const code = String(t.principalCode || t.principal_code || "").toLowerCase();
-    const name = String(t.principal || t.client || t.원청 || "");
-    const isUsolN = code === "usol_n" || name === "유솔홈케어 N";
-    if (!isUsolN) return false;
-    const items = Array.isArray(t.workItems) && t.workItems.length > 0
-      ? t.workItems
-      : [{ workType: t.workType }];
-    return items.some(it => String(it.workType || "").includes("세척"));
-  };
+  // 2026-05-21 Phase 5 Step 0.G-5-C-2 — 메인 카운트 통일 (TASK_FILTERS 공유)
+  //   상단 카드 "새 접수" + 새 접수 상세 = 동일 기준 (TASK_FILTERS.newReception)
+  //   기준: 유솔N 본작업 냉매만 포함 / 그 외 유솔N 제외 / 6원청 전부 포함 / status='미배정'
   const computeTasks = () => {
     const wrap = (x) => ({
       ...x,
@@ -4474,15 +4413,7 @@ function NewReceptionScreen({
         ? x.workItems
         : (x.workType ? [{ workType: x.workType, appliance: x.appliance, qty: x.qty }] : []),
     });
-    const isNewReception = (t) => {
-      // Stage 0.G-2 — 미배정 전체 (시간 필터 X / 대기열 spec)
-      if (_isUsolNCleaning(t)) return false;
-      const s = String(t.status || t.상태 || "").trim();
-      if (s === "배정" || s === "확정" || s === "진행중" || s === "완료" || s === "정산완료" || s === "취소") {
-        return false;
-      }
-      return !s || s === "미배정";
-    };
+    const isNewReception = TASK_FILTERS.newReception;
     // 2026-05-11 dedupe — apiTasks에 있는 ID는 extraReceptions에서 제외
     // (옵티미스틱 박힌 status가 apiTasks 측에만 박혀서, 중복 박힌 ID는 시트 측 우선)
     const apiTaskIds = new Set(apiTasks.map(t => String(t.id || "").trim()).filter(Boolean));
@@ -5190,19 +5121,11 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [] }
   // 2026-05-18 — 헤더 카운트를 LiveWorkContent의 base 필터와 동일 spec으로 통일.
   // 옛(state==="done"만)은 트랙/날짜 무시라 본 영역(11) ↔ 헤더(12) mismatch.
   // 자정 넘으면 어제 done이 헤더에 남는 stale 문제도 함께 해결(todayYmd 매 호출 재계산).
-  // 2026-05-19 Phase 5 Step 0.C-15 — _isLegacy 필터 롤백 (옛 0.C-11 spec 유지)
-  const todayStrLocal = todayYmd();
+  // 2026-05-21 Phase 5 Step 0.G-5-B — 메인 카운트 통일 (TASK_FILTERS 공유)
+  //   완료 = isScheduledToday + isCompletedToday + status='완료'/'정산완료' (전부 포함)
   const isCompletedToday = initialFilter === "completed-today";
   const completedCount = isCompletedToday
-    ? baseSource.filter((s) => {
-        const scheduled = s.scheduledAt || s.scheduled_at || s.확정일시;
-        const completed = s.completedAt || s.completed_at;
-        if (!completed || !scheduled) return false;
-        if (toKstYmd(scheduled) !== todayStrLocal) return false;
-        if (toKstYmd(completed) !== todayStrLocal) return false;
-        const st = String(s.status || s.상태 || "").trim();
-        return st === "완료" || st === "정산완료";
-      }).length
+    ? baseSource.filter(TASK_FILTERS.completed).length
     : 0;
   return (
     <div className="fade-in">
@@ -5238,19 +5161,9 @@ const IN_PROGRESS_GROUP_IDS = new Set(["active", "moving", "external"]);
 
 function InProgressListScreen({ t, onBack, onTaskClick, apiTasks = [] }) {
   const [query, setQuery] = useState("");
-  // 2026-05-19 Phase 5 Step 0.C-8 — 메인 카운트 spec 일치:
-  //   진행중 = isScheduledToday AND 진행중/작업중 (유솔N 포함)
-  //   옛 spec (TASKS_TODAY 시뮬 mock) → apiTasks 측 진짜 데이터 사용 spec.
-  const todayStrLocal = todayYmd();
-  const _isScheduledTodayLocal = (t) => {
-    const n = t.scheduledAt || t.scheduled_at || t.확정일시 || t.confirmedAt || "";
-    return !!n && toKstYmd(n) === todayStrLocal;
-  };
-  // 2026-05-19 Phase 5 Step 0.C-15 — _isLegacy 필터 롤백
-  const baseSource = (apiTasks || []).filter(x => {
-    const s = String(x.status || x.상태 || "").trim();
-    return _isScheduledTodayLocal(x) && (s === "진행중" || s === "작업중");
-  });
+  // 2026-05-21 Phase 5 Step 0.G-5-B — 메인 카운트 통일 (TASK_FILTERS 공유)
+  //   진행중 = isScheduledToday + status='진행중'/'작업중' (원청 구분 없이 전부 포함)
+  const baseSource = (apiTasks || []).filter(TASK_FILTERS.inProgress);
   const groups = TASK_GROUPS.filter(g => IN_PROGRESS_GROUP_IDS.has(g.id));
 
   const q = query.trim().toLowerCase();

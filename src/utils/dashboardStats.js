@@ -16,11 +16,52 @@ function isToday(dateStr) {
       && d.getDate() === today.getDate();
 }
 
-// V14 — 한국어 status helper (시트 R열 박힌 값)
+// V14 — 한국어 status helper (시트 R열 매핑 값)
 function _v14HasStatus(t, ...statuses) {
   const s = String(t.status || t.상태 || "").trim();
   return statuses.includes(s);
 }
+
+// 2026-05-21 Phase 5 Step 0.G-5-B — 메인 카운트 공유 판정 함수 (사장님 spec 확정)
+//   유솔N task = "본작업(orderType='본작업') + 냉매(serviceCode='refrigerant')" 측만 메인 포함.
+//   그 외 유솔N (세척 / 추가선택 / 방문비 / 현금수동 등) = 전부 제외.
+//   다른 6원청 (allday / KA / KB / yongin / usol_h / crikrin) = 전부 포함.
+//   적용 카드: 새 접수 / 배정 / 확정 (진행중 / 완료 = 원청 구분 없이 전부 포함)
+const _isUsolNMainRefrigerant = (t) => {
+  const code = String(t.principalCode || t.principal_code || "").toLowerCase();
+  if (code !== "usol_n") return true;        // 유솔N 외 6원청 = 전부 포함
+  const items = Array.isArray(t.workItems) ? t.workItems : [];
+  return items.some(it =>
+    it.orderType === '본작업' &&
+    String(it.serviceCode || '') === 'refrigerant'
+  );
+};
+
+// 2026-05-21 Phase 5 Step 0.G-5-B — module-scope helper (TASK_FILTERS 측 측)
+const _isScheduledTodayModule = (t) => {
+  const n = t.scheduledAt || t.scheduled_at || t.확정일시 || t.confirmedAt || t.N || "";
+  return !!n && toKstYmd(n) === todayYmd();
+};
+const _isCompletedTodayModule = (t) => {
+  const c = t.completedAt || t.completed_at || t.완료시간 || "";
+  return !!c && toKstYmd(c) === todayYmd();
+};
+
+// 2026-05-21 Phase 5 Step 0.G-5-B — TASK_FILTERS (메인 5카드 공유 필터)
+//   5곳 통일: 상단 카드 / 작업 흐름 / 일정확정 상세 / 진행중 상세 / 완료 상세
+//   _isUsolNMainRefrigerant: 유솔N 본작업 냉매만 포함 (그 외 유솔N 제외 / 6원청 전부 포함)
+//   isLegacy 조건 = 미사용 (837건 전부 false라 무의미 — 사장님 결정)
+export const TASK_FILTERS = {
+  isUsolNMainRefrigerant: _isUsolNMainRefrigerant,
+  isScheduledToday:       _isScheduledTodayModule,
+  isCompletedToday:       _isCompletedTodayModule,
+
+  newReception: (t) => _isUsolNMainRefrigerant(t) && _v14HasStatus(t, "미배정"),
+  assigned:     (t) => _isUsolNMainRefrigerant(t) && _v14HasStatus(t, "배정"),
+  confirmed:    (t) => _isUsolNMainRefrigerant(t) && _v14HasStatus(t, "확정"),
+  inProgress:   (t) => _isScheduledTodayModule(t) && _v14HasStatus(t, "작업중", "진행중"),
+  completed:    (t) => _isScheduledTodayModule(t) && _isCompletedTodayModule(t) && _v14HasStatus(t, "완료", "정산완료"),
+};
 
 // V14 메인 통계 계산 (apiTasks 진짜 시트 데이터 사용 / 시뮬 mock 폐기)
 // 입력: { apiTasks, extraReceptions, user, tasksToday, newReceptions, assignedTasks (옛 호환) }
@@ -54,7 +95,7 @@ export function computeDashboardStats({
   //   진행중    = N열(확정일) 오늘 + 진행중
   //   완료      = N열 오늘 + 완료
   const todayStr = todayYmd();
-  // 2026-05-17 — UTC ISO 문자열 .startsWith(todayStr) 박지 X (KST 새벽 작업이 전날 UTC로 잡힘).
+  // 2026-05-17 — UTC ISO 문자열 .startsWith(todayStr) 미사용 (KST 새벽 작업이 전날 UTC로 잡힘).
   // toKstYmd가 KST 로컬 날짜로 정규화 후 비교 → 시간대 mismatch 해결.
   const isCreatedToday = (t) => {
     // 2026-05-19 Phase 5 Step 0.C-11 — created_at (snake_case) 추가 (NewReceptionScreen 측 spec 일치)
@@ -79,38 +120,22 @@ export function computeDashboardStats({
   //   완료     = DATE(completed_at KST) = today + 완료 (옛: scheduled_at 기준 → completed_at 측)
   // 배정 / 확정 = 옛 spec 유지 (작업 흐름 5단계 시각화 측)
   //
-  // 2026-05-19 Phase 5 Step 0.C-7 — 유솔N 분기:
-  //   유솔N 측 메인 카운트 (신규/배정/확정) 제외 — 별도 유솔N 박스 측 진입.
-  //   유솔N 진행중 / 완료 = 메인 포함 (모니터링 의도).
-  //   옛 시트 1,143건 (Migration 033) = 운영 시작 전 = 모든 usol_n 데이터가 옛 시트 측.
+  // 2026-05-21 Phase 5 Step 0.G-5-B — 메인 카운트 spec 통일 (사장님 확정)
+  //   새 접수 / 배정 / 확정 = _isUsolNMainRefrigerant + status 매칭 (날짜 필터 X)
+  //     → 유솔N 외 6원청 = 전부 포함
+  //     → 유솔N = 본작업(orderType='본작업') + 냉매(serviceCode='refrigerant')만 포함, 그 외 유솔N 전부 제외
+  //   진행중 / 완료 = isScheduledToday + 해당 status (원청 구분 없이 전부 포함)
+  //   is_legacy 조건 = 미사용 (837건 전부 false라 무의미)
+  //   TASK_FILTERS 측 5곳(상단 카드 / 작업 흐름 / 일정확정 상세 / 진행중 상세 / 완료 상세) 통일.
   const isCompletedTodayLocal = (t) => {
     const c = t.completedAt || t.completed_at || t.완료시간 || "";
     return !!c && toKstYmd(c) === todayStr;
   };
-  // 2026-05-20 Phase 5 Step 0.G — 메인 5카운트 spec 정정
-  //   공통 제외: 유솔N + 세척만 (유솔N 냉매 측 = 메인 포함)
-  //   새 접수 / 배정 / 확정 = status 측만 (시간 필터 X — 대기열 spec)
-  //   진행중 / 완료 = 시간 필터 (오늘 기준)
-  const _isUsolNCleaning = (t) => {
-    const code = String(t.principalCode || t.principal_code || "").toLowerCase();
-    const name = String(t.principal || t.client || t.원청 || "");
-    const isUsolN = code === "usol_n" || name === "유솔홈케어 N";
-    if (!isUsolN) return false;
-    // workItems 측 세척 catch — workItems 측 X 시 workType fallback
-    const items = Array.isArray(t.workItems) && t.workItems.length > 0
-      ? t.workItems
-      : [{ workType: t.workType }];
-    return items.some(it => String(it.workType || "").includes("세척"));
-  };
-  // 2026-05-20 Phase 5 Step 0.G-3 — 진행/완료 = 유솔N+세척 포함 (사장님 spec)
-  //   신규/배정/확정 = !_isUsolNCleaning (대기열 spec / 메인 X)
-  //   진행/완료 = 오늘 기준 (유솔N+세척 포함 / 운영 모니터링 spec)
-  const newReceptionTasks = uniqueTasks.filter(t => !_isUsolNCleaning(t) && _v14HasStatus(t, "미배정"));
-  const assignedTasksList = uniqueTasks.filter(t => !_isUsolNCleaning(t) && _v14HasStatus(t, "배정"));
-  const confirmedTasks    = uniqueTasks.filter(t => !_isUsolNCleaning(t) && _v14HasStatus(t, "확정"));
-  const inProgressTasks   = uniqueTasks.filter(t => isScheduledToday(t) && _v14HasStatus(t, "작업중", "진행중"));
-  // 완료 카드: isScheduledToday AND isCompletedToday (옛 시트 자정 catch X / 0.C-11 spec)
-  const completedTasks    = uniqueTasks.filter(t => isScheduledToday(t) && isCompletedTodayLocal(t) && _v14HasStatus(t, "완료", "정산완료"));
+  const newReceptionTasks = uniqueTasks.filter(TASK_FILTERS.newReception);
+  const assignedTasksList = uniqueTasks.filter(TASK_FILTERS.assigned);
+  const confirmedTasks    = uniqueTasks.filter(TASK_FILTERS.confirmed);
+  const inProgressTasks   = uniqueTasks.filter(TASK_FILTERS.inProgress);
+  const completedTasks    = uniqueTasks.filter(TASK_FILTERS.completed);
 
   const newCount        = newReceptionTasks.length;
   const assignedCount   = assignedTasksList.length;
@@ -148,7 +173,7 @@ export function computeDashboardStats({
     }
   }
 
-  // V14 긴급 (당일/긴급 키워드 박힌 새 접수)
+  // V14 긴급 (당일/긴급 키워드 있는 새 접수)
   const urgentTasks = newReceptionTasks.filter(t => {
     const note = String(t.requestNote || t.요청사항 || t.memo || t.비고 || "");
     return /긴급|당일|급함|asap/i.test(note);
@@ -165,7 +190,7 @@ export function computeDashboardStats({
     completed: completedCount,
     revenue,
     completedTasks,
-    newReceptionTasks,        // V14 — workType 분류용 (OverviewTab 박힘)
+    newReceptionTasks,        // V14 — workType 분류용 (OverviewTab 측 사용)
     confirmedTasks,
     inProgressTasks,
     urgentTasks,              // V14 — 긴급 (이지은 시뮬 폐기)

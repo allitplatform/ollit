@@ -83,6 +83,17 @@ export function v14NormalizeTask(t) {
   if (!workItems && summaryItems.length > 0) workItems = summaryItems;
   else if (!workItems && workType) workItems = [{ workType, appliance, qty }];
 
+  // 2026-05-21 Phase 5 Step 0.G-5-A — serviceCode / orderType 보존 ("3곳 매핑 트랩")
+  //   카운트 통일 spec — "유솔N 본작업 + 냉매" 판정 측 두 필드 필요 (tasksDb.rowToTask 측 매핑 완료)
+  //   fallback: it.serviceCode || it.service_code / it.orderType || it.order_type
+  if (Array.isArray(workItems) && workItems.length > 0) {
+    workItems = workItems.map(it => ({
+      ...it,
+      serviceCode: it.serviceCode || it.service_code || null,
+      orderType:   it.orderType   || it.order_type   || null,
+    }));
+  }
+
   // 2026-05-10 fix — scheduledDate fallback 추가 (N열 비어도 화면에 표시되도록)
   // 1순위 scheduledAt (N열) > 2순위 reqDate (희망일자) > 3순위 ID 내부 YYMMDD > 4순위 빈 값
   // AdminApp의 dateOf 패턴과 일관성 (workTypeCounts L3226 / NewReceptionScreen L4028)
