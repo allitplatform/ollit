@@ -57,6 +57,7 @@ import { createEmptyUser } from "../data/users.js";
 import { PrincipalListScreen } from "../components/PrincipalListScreen.jsx";
 import { PrincipalEditScreen } from "../components/PrincipalEditScreen.jsx";
 import { NaverUploadScreen } from "../components/NaverUploadScreen.jsx";
+import { bulkInsertUsolNOrders } from "../lib/usolNTasksDb.js";
 import { RatesManagementScreen } from "../components/RatesManagementScreen.jsx";
 import { CommissionPolicyManagement } from "../components/admin/CommissionPolicyManagement.jsx";
 import { createEmptyPrincipal } from "../data/principals.js";
@@ -3315,54 +3316,47 @@ export default function AdminApp({ user, onLogout }) {
     return <Shell t={t} toasts={toasts}>
       <NaverUploadScreen
         onBack={goBack}
-        onComplete={(orders) => {
-          // 각 주문을 extraReceptions에 추가
-          const newTasks = orders.map((o, i) => {
-            const ts = Date.now().toString(36).slice(-4);
-            const seq = String(i + 1).padStart(2, "0");
-            const items = (o.appliances || []).map(a => ({
-              workType: "세척",
-              appliance: a.type || "벽걸이",
-              qty: a.count || 1,
-            }));
-            return {
-              id: `YS-N-${ts}${seq}`,
-              customer: o.customerName || "—",
-              phone: o.phone || "",
-              appliance: items[0]?.appliance || "벽걸이",
-              qty: items[0]?.qty || 1,
-              region: o.region || (o.address ? o.address.split(/\s+/).slice(0, 2).join(" ") : "—"),
-              time: "방금",
-              principal: "유솔홈케어 N",
-              schedule: "협의",
-              estimateTotal: o.settlementAmount || o.totalAmount || 0,
-              memo: `네이버 주문 ${o.orderId}`,
-              workType: "세척",
-              workItems: items,
-              extraCount: items.length > 1 ? items.length - 1 : 0,
-              scheduleType: "tbd",
-              workflow: "manual_with_recommendation",
-              hasRefrigerant: false,
-              autoAssignStatus: null,
-              acceptedEngineer: null,
-              pushCount: 0,
-              naverOrderId: o.orderId,
-              address: o.address,
-            };
-          });
-          setExtraReceptions(prev => [...newTasks, ...prev]);
-          addNotification({
-            type: "new_reception",
-            title: "유솔 N 업로드",
-            message: `${newTasks.length}건 신규접수 등록`,
-            subInfo: "CSV 업로드",
-          });
+        onComplete={async (orders) => {
+          // 2026-05-23 — DB 일괄 INSERT (옛 extraReceptions in-memory 제거)
+          //   bulkInsertUsolNOrders 측 tasks + task_items 측 DB INSERT
+          //   중복 orderId 측 skip / 이상값 측 warnings 분류
+          const res = await bulkInsertUsolNOrders(orders);
+          if (!res || res.ok === false) {
+            addToast({
+              type: "completed",
+              title: "유솔 N 업로드 실패",
+              message: res?.error || "알 수 없는 오류",
+            });
+            return;
+          }
+          // 결과 토스트 — 등록 / 중복 / 경고 / 에러 종합
+          const parts = [];
+          if (res.inserted > 0) parts.push(`${res.inserted}건 등록`);
+          if (res.skipped  > 0) parts.push(`${res.skipped}건 중복 건너뜀`);
+          if (res.warnings?.length > 0) parts.push(`경고 ${res.warnings.length}건`);
+          if (res.errors?.length   > 0) parts.push(`실패 ${res.errors.length}건`);
           addToast({
             type: "new_reception",
             title: "유솔 N 업로드 완료",
-            message: `${newTasks.length}건 등록 완료`,
+            message: parts.join(" · ") || "변경 없음",
           });
-          // V14 Phase 2.5 — replaceScreen (NaverUpload → newReception / stack 중복 방지)
+          addNotification({
+            type: "new_reception",
+            title: "유솔 N 업로드",
+            message: `${res.inserted}건 등록 · ${res.skipped}건 중복`,
+            subInfo: res.warnings?.length > 0
+              ? `⚠️ 서비스종류 이상값 ${res.warnings.length}건 — 운영자 확인 필요`
+              : "CSV 업로드",
+          });
+          // 경고 항목 측 콘솔 측 자세히 출력 (운영자 디버그)
+          if (res.warnings?.length > 0) {
+            console.warn("[유솔 N 업로드 경고]", res.warnings);
+          }
+          if (res.errors?.length > 0) {
+            console.error("[유솔 N 업로드 에러]", res.errors);
+          }
+          // DB INSERT 후 fetchTasks 측 새로고침 (extraReceptions 측 안 씀)
+          if (typeof fetchTasks === "function") fetchTasks();
           replaceScreen("newReception");
           setNewReceptionFilter(null);
         }}

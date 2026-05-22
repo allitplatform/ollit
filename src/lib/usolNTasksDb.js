@@ -259,3 +259,252 @@ export function getItemChipLabel(item) {
   if (item.order_type)  return item.order_type;
   return "항목";
 }
+
+// ============================================================
+// 2026-05-23 — 네이버 CSV 일괄 INSERT (사장님 spec: 시트 → DB 마이그)
+// ============================================================
+// 흐름:
+//   1) usol_n principal_id 조회
+//   2) external_order_no 측 기존 row 측 조회 → 중복 skip
+//   3) appliance / work_type 매핑 캐시 (한 번만 lookup)
+//   4) 각 order 측:
+//      · tasks INSERT (status='미배정', external_order_no=orderId)
+//      · task_items INSERT (각 appliance 측 row 추가)
+//        - order_type = item.orderType ("본작업" / "추가선택" / null)
+//        - work_type_id = lookup (cleaning + appliance 또는 추가선택 측 별도)
+//        - appliance_type_id = lookup
+//        - qty / unit_price = item 측 값
+//        - product_order_id = item.productOrderId
+//        - metadata = { external_item_no: productOrderId }
+//   5) 이상값 (orderType=null) 측 별도 warnings 분류
+//
+// 응답: { ok, inserted, skipped, warnings, errors }
+//   · inserted: 정상 INSERT 측 task 수
+//   · skipped:  중복 orderId 측 skip 수
+//   · warnings: 이상값 측 항목 (운영자 확인 필요)
+//   · errors:   INSERT 실패 측 (네트워크 / RLS 등)
+
+// 한글 → appliance_types.code 매핑 (시드 Migration 004 + 사장님 DB 확인 2026-05-23)
+//   2way 측 시드 측 존재 (clean_2way work_type id: 66666666-6666-6666-6666-666666660002)
+const APPLIANCE_KR_TO_CODE = {
+  "벽걸이":     "wall",
+  "1way":       "1way",
+  "2way":       "2way",
+  "스탠드":     "stand",
+  "4way":       "4way",
+  "원형":       "round",
+  "투인원":     "2in1",
+  "시스템멀티": "multi",
+};
+
+// 추가선택 측 service_types.code → work_types.code (Migration 034)
+// 옵션정보 / 서비스구분 측 키워드 → 추가선택 work_type 매핑
+// 2026-05-23 — 사장님 실제 시트 검증 측 4종 catch:
+//   · 냉매점검(서울 경기북부만 가능) 96건 → refri_no_appliance (Migration 034)
+//   · 송풍팬분해/층고 92건 → fan_disassembly
+//   · 실외기 34건 → outdoor_unit
+//   · 순수 천연 피톤치드 분사 24건 → phytoncide
+const ADDON_KR_TO_WT_CODE = {
+  "냉매":     "refri_no_appliance",  // "냉매점검(서울 경기북부만 가능)" catch
+  "송풍팬":   "fan_disassembly",
+  "층고":     "fan_disassembly",
+  "실외기":   "outdoor_unit",
+  "피톤치드": "phytoncide",
+};
+
+// 신규 함수 — CSV 업로드 일괄 처리
+export async function bulkInsertUsolNOrders(orders) {
+  if (!Array.isArray(orders) || orders.length === 0) {
+    return { ok: false, error: "orders 없음", inserted: 0, skipped: 0, warnings: [], errors: [] };
+  }
+
+  try {
+    // 1) usol_n principal_id
+    const principalId = await getUsolNPrincipalId();
+    if (!principalId) {
+      return { ok: false, error: "usol_n principal 조회 실패", inserted: 0, skipped: 0, warnings: [], errors: [] };
+    }
+
+    // 2) 중복 체크 — external_order_no 측 기존 row
+    const orderIds = orders.map(o => String(o.orderId || "")).filter(Boolean);
+    const { data: existing, error: dupErr } = await supabase
+      .from("tasks")
+      .select("external_order_no")
+      .in("external_order_no", orderIds);
+    if (dupErr) {
+      console.error("[bulkInsertUsolNOrders:dup]", dupErr);
+      return { ok: false, error: dupErr.message, inserted: 0, skipped: 0, warnings: [], errors: [] };
+    }
+    const existingSet = new Set((existing || []).map(r => r.external_order_no));
+    const fresh = orders.filter(o => !existingSet.has(String(o.orderId)));
+    const skipped = orders.length - fresh.length;
+
+    if (fresh.length === 0) {
+      return { ok: true, inserted: 0, skipped, warnings: [], errors: [] };
+    }
+
+    // 3) work_types / appliance_types / service_types 캐시 lookup (한 번만)
+    const [wtRes, atRes, stRes] = await Promise.all([
+      supabase.from("work_types").select("id, code, service_type_id, appliance_type_id"),
+      supabase.from("appliance_types").select("id, code, name"),
+      supabase.from("service_types").select("id, code, name"),
+    ]);
+    if (wtRes.error || atRes.error || stRes.error) {
+      const e = wtRes.error || atRes.error || stRes.error;
+      console.error("[bulkInsertUsolNOrders:lookup]", e);
+      return { ok: false, error: e.message, inserted: 0, skipped, warnings: [], errors: [] };
+    }
+    const workTypes = wtRes.data || [];
+    const applianceByCode = new Map((atRes.data || []).map(a => [a.code, a.id]));
+    const cleaningServiceId = (stRes.data || []).find(s => s.code === "cleaning")?.id;
+
+    // 헬퍼: 본작업 측 work_type_id (cleaning + appliance)
+    function findCleaningWorkTypeId(applianceCode) {
+      if (!cleaningServiceId || !applianceCode) return null;
+      const applianceId = applianceByCode.get(applianceCode);
+      if (!applianceId) return null;
+      const wt = workTypes.find(w =>
+        w.service_type_id === cleaningServiceId && w.appliance_type_id === applianceId
+      );
+      return wt?.id || null;
+    }
+    // 헬퍼: 추가선택 측 work_type_id (옵션 키워드 → addon work_type code)
+    function findAddonWorkTypeId(optionText) {
+      if (!optionText) return null;
+      const t = String(optionText);
+      for (const [kr, code] of Object.entries(ADDON_KR_TO_WT_CODE)) {
+        if (t.includes(kr)) {
+          const wt = workTypes.find(w => w.code === code);
+          return wt?.id || null;
+        }
+      }
+      return null;
+    }
+
+    // 4) 각 order 측 tasks + task_items INSERT
+    const warnings = [];
+    const errors = [];
+    let inserted = 0;
+
+    // task_no 측 timestamp + sequence (간단 unique key, external_order_no 측 진실)
+    const tsBase = Date.now().toString(36).slice(-4);
+
+    for (let i = 0; i < fresh.length; i++) {
+      const order = fresh[i];
+      const taskNo = `YS-N-${tsBase}${String(i + 1).padStart(3, "0")}`;
+      const settlementSum = Number(order.settlementAmount || order.totalAmount || 0);
+
+      // [a] tasks INSERT
+      const { data: taskRow, error: taskErr } = await supabase
+        .from("tasks")
+        .insert({
+          tenant_id: "11111111-1111-1111-1111-111111111111",
+          category_id: "33333333-3333-3333-3333-333333333001",
+          task_no: taskNo,
+          principal_id: principalId,
+          customer_name: order.customerName || "—",
+          phone:         order.phone || "",
+          address:       order.address || "",
+          district:      order.region || "",
+          channel:       "네이버",
+          request_note:  `네이버 주문 ${order.orderId}`,
+          status:        "미배정",
+          product_price: settlementSum,
+          extra_fee:     0,
+          travel_fee:    0,
+          external_order_no: String(order.orderId),
+          external_received_at: order.paymentDate || null,
+          // category_data 측 빈 객체 (Migration 017 trigger 측 workItems 측 없으면 task_items 자동 생성 X)
+          category_data: {},
+        })
+        .select("id, task_no")
+        .single();
+
+      if (taskErr || !taskRow) {
+        console.error("[bulkInsertUsolNOrders:taskInsert]", taskErr, order.orderId);
+        errors.push({ orderId: order.orderId, error: taskErr?.message || "task insert 실패" });
+        continue;
+      }
+
+      // [b] task_items INSERT (각 appliance 측 row)
+      const itemRows = [];
+      for (const app of (order.appliances || [])) {
+        // order_type 측 이상값 측 경고
+        if (!app.orderType) {
+          warnings.push({
+            orderId: order.orderId,
+            taskNo,
+            serviceTypeRaw: app.serviceTypeRaw || "(없음)",
+            note: "서비스종류 측 \"에어컨청소\" / \"추가선택\" 외 이상값 — 운영자 확인 필요",
+          });
+          // 이상값 측 task_items 측 INSERT 안 함 (운영자 측 검토 후 수동 추가)
+          continue;
+        }
+
+        let workTypeId = null;
+        let applianceTypeId = null;
+
+        if (app.orderType === "본작업") {
+          // cleaning + appliance 측 매핑
+          const applianceCode = APPLIANCE_KR_TO_CODE[app.type] || null;
+          if (!applianceCode) {
+            warnings.push({
+              orderId: order.orderId, taskNo,
+              serviceTypeRaw: app.serviceTypeRaw,
+              note: `기종 측 매핑 실패 (${app.type || "X"})`,
+            });
+            continue;
+          }
+          applianceTypeId = applianceByCode.get(applianceCode);
+          workTypeId = findCleaningWorkTypeId(applianceCode);
+        } else if (app.orderType === "추가선택") {
+          // 옵션 측 키워드 측 addon work_type 매핑 (appliance 측 NULL)
+          workTypeId = findAddonWorkTypeId(app.serviceTypeRaw) || findAddonWorkTypeId(app.type);
+          if (!workTypeId) {
+            warnings.push({
+              orderId: order.orderId, taskNo,
+              serviceTypeRaw: app.serviceTypeRaw,
+              note: "추가선택 측 키워드 매핑 실패 (송풍팬/실외기/피톤치드 측 외)",
+            });
+            continue;
+          }
+        }
+
+        if (!workTypeId) {
+          warnings.push({ orderId: order.orderId, taskNo, note: "work_type 측 매핑 실패" });
+          continue;
+        }
+
+        itemRows.push({
+          task_id: taskRow.id,
+          work_type_id: workTypeId,
+          appliance_type_id: applianceTypeId,
+          qty: app.count || 1,
+          unit_price: app.amount || 0,
+          order_type: app.orderType,
+          product_order_id: app.productOrderId || null,
+          metadata: app.productOrderId
+            ? { external_item_no: String(app.productOrderId) }
+            : {},
+        });
+      }
+
+      if (itemRows.length > 0) {
+        const { error: itemErr } = await supabase.from("task_items").insert(itemRows);
+        if (itemErr) {
+          console.error("[bulkInsertUsolNOrders:itemInsert]", itemErr, order.orderId);
+          errors.push({ orderId: order.orderId, error: `task_items 측 ${itemErr.message}` });
+          // task 측 INSERT 된 후 items 측 실패 — task 측 별도 정리 안 함 (운영자 측 확인)
+          continue;
+        }
+      }
+
+      inserted++;
+    }
+
+    return { ok: true, inserted, skipped, warnings, errors };
+  } catch (e) {
+    console.error("[bulkInsertUsolNOrders]", e);
+    return { ok: false, error: e.message || "일괄 INSERT 예외", inserted: 0, skipped: 0, warnings: [], errors: [] };
+  }
+}

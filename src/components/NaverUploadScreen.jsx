@@ -176,6 +176,10 @@ function parseNaverOrders(rows) {
     quantity:         findColumn(sample, ["수량"]),
     totalAmount:      findColumn(sample, ["최종 상품별 총 주문금액", "정산기준금액", "결제금액"]),
     settlementAmount: findColumn(sample, ["정산예정금액"]),
+    // 2026-05-23 — 사장님 spec: "서비스종류" 컬럼 측 본작업/추가선택 판정
+    //   값: "가정집 에어컨청소" / "사무실 에어컨청소" / "추가선택" / (이상값)
+    //   "에어컨청소" 포함 → 본작업, "추가선택" → 추가선택, 그 외 → 경고
+    serviceType:      findColumn(sample, ["서비스종류", "서비스 종류", "유형", "구분"]),
   };
 
   if (!COL.orderId) {
@@ -192,13 +196,24 @@ function parseNaverOrders(rows) {
 
   const orders = Object.entries(grouped).map(([orderId, items]) => {
     const first = items[0];
-    const appliances = items.map(r => ({
-      type: extractAppliance((COL.optionInfo && r[COL.optionInfo]) || (COL.productName && r[COL.productName]) || ""),
-      count: parseIntSafe(COL.quantity ? r[COL.quantity] : 1) || 1,
-      productOrderId: COL.productOrderId ? r[COL.productOrderId] : "",
-      amount: parseIntSafe(COL.totalAmount ? r[COL.totalAmount] : 0),
-      settlement: parseIntSafe(COL.settlementAmount ? r[COL.settlementAmount] : 0),
-    }));
+    const appliances = items.map(r => {
+      // 2026-05-23 — extractAppliance 측 우선순위: 서비스구분 > 옵션정보 > 상품명
+      //   사장님 시트 측 "서비스구분" 컬럼 측 본작업 기종 측 직접 들어있음.
+      //   긴 이름 ("가정용 스탠드 (송풍팬 뒷판 포함)" 등) 측 includes 측 부분 매칭 catch.
+      const serviceVal = COL.serviceType ? String(r[COL.serviceType] || "").trim() : "";
+      const optionVal  = COL.optionInfo  ? String(r[COL.optionInfo]  || "").trim() : "";
+      const productVal = COL.productName ? String(r[COL.productName] || "").trim() : "";
+      return {
+        type: extractAppliance(serviceVal) || extractAppliance(optionVal) || extractAppliance(productVal) || null,
+        count: parseIntSafe(COL.quantity ? r[COL.quantity] : 1) || 1,
+        productOrderId: COL.productOrderId ? r[COL.productOrderId] : "",
+        amount: parseIntSafe(COL.totalAmount ? r[COL.totalAmount] : 0),
+        settlement: parseIntSafe(COL.settlementAmount ? r[COL.settlementAmount] : 0),
+        // 서비스종류 raw 값 + order_type 판정 (deriveOrderType 측 키워드 catch)
+        serviceTypeRaw: serviceVal,
+        orderType: deriveOrderType(serviceVal),
+      };
+    });
     const address = (COL.address && first[COL.address]) || "";
     const totalSettlement = items.reduce((sum, r) =>
       sum + parseIntSafe(COL.settlementAmount ? r[COL.settlementAmount] : 0)
@@ -240,10 +255,40 @@ function parseIntSafe(v) {
   return isNaN(n) ? 0 : n;
 }
 
+// 2026-05-23 — 서비스종류 → task_items.order_type 판정 (사장님 spec / 실제 시트 검증)
+//   본작업 (524+254+201+29+14+1 = 1023건): "에어컨청소" 포함 — 가정집/사무실 측
+//     · 기종 측 "벽걸이" / "1way" / "스탠드" / "4way" / "2way" / "투인원" 등 catch
+//     · 2way (1건) — clean_2way work_type 시드 측 존재 (Migration 004 + appliance code "2way")
+//   추가선택 (96+92+34+1+24 = 247건):
+//     · "추가선택" 명시
+//     · "냉매점검" — 96건 (Migration 034 측 refri_no_appliance)
+//     · "송풍팬" / "층고" — 92건 (fan_disassembly)
+//     · "실외기" — 34건 (outdoor_unit) — "대형실외기" 1건 측 동일 카테고리 (원청 15% / 기사 85%)
+//     · "피톤치드" — 24건
+//   이상값 (예: "서울지역" 같은 입력 오류) → null (운영자 확인 필요)
+function deriveOrderType(serviceTypeValue) {
+  if (!serviceTypeValue) return null;
+  const v = String(serviceTypeValue).trim();
+  // 본작업 catch — "에어컨청소" 포함 (가정집/사무실)
+  if (v.includes("에어컨청소")) return "본작업";
+  if (v.includes("벽걸이") || v.includes("스탠드") || v.includes("1way") || v.includes("2way") || v.includes("4way")
+   || v.includes("투인원") || v.includes("원형") || v.includes("시스템멀티")) {
+    return "본작업";
+  }
+  // 추가선택 catch
+  if (v.includes("추가선택"))   return "추가선택";
+  if (v.includes("냉매점검"))   return "추가선택";
+  if (v.includes("송풍팬") || v.includes("층고")) return "추가선택";
+  if (v.includes("피톤치드"))   return "추가선택";
+  if (v.includes("실외기"))     return "추가선택";   // "대형실외기" 포함 (원청 15% / 기사 85% 동일)
+  return null;  // 이상값 — 경고 대상
+}
+
 function extractAppliance(text) {
   if (!text) return null;
   const t = String(text).toLowerCase();
   if (t.includes("1way") || t.includes("1WAY".toLowerCase())) return "1way";
+  if (t.includes("2way") || t.includes("2WAY".toLowerCase())) return "2way";
   if (t.includes("4way") || t.includes("4WAY".toLowerCase())) return "4way";
   if (t.includes("스탠드")) return "스탠드";
   if (t.includes("벽걸이")) return "벽걸이";
