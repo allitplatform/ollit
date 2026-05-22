@@ -204,7 +204,8 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
         fontSize: 13, lineHeight: 1.7, color: "var(--text-primary)",
         whiteSpace: "pre-wrap",
       }}>
-        <div style={{ fontWeight: 800, marginBottom: 10, fontSize: 14 }}>
+        <div style={{ fontWeight: 700, marginBottom: 6 }}>[본 서비스 안내]</div>
+        <div>
           본 서비스는 에어컨 냉매 가스를 정상적으로 충전하는 작업입니다.
         </div>
 
@@ -227,6 +228,12 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
           이는 충전 작업의 불량이 아니라 제품 자체의 결함이며, 재충전으로 해결되지 않습니다.
           근본 해결은 해당 부위의 A/S 또는 기계 교체가 필요하며, 재방문·재충전은
           제공되지 않습니다.
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          또한, 수리한 누설 부위 외에 다른 부위에서 새로 누설이 발생하더라도
+          이는 본 서비스의 책임 범위에 해당하지 않습니다.
+          수리 서비스는 정상적으로 이행되었습니다.
         </div>
 
         <div style={{
