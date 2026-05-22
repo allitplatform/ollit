@@ -7977,6 +7977,8 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
       if (r.address)      { next.address = r.address; filledKeys.push("address"); }
       if (r.requestDate)  { next.requestDate = r.requestDate; filledKeys.push("requestDate"); }
       if (r.requestTime)  { next.requestTime = r.requestTime; filledKeys.push("requestTime"); }
+      // 2026-05-23 — r.memo → form.memo 매핑 누락 정정 (KA 파서 측 메모 catch 측 폼 측 안 들어가던 함정)
+      if (r.memo)         { next.memo = r.memo; filledKeys.push("memo"); }
       if (r.estimatedPrice && !r.priceNeedsConfirm) {
         next.estimateTotal = r.estimatedPrice;
         filledKeys.push("estimateTotal");
