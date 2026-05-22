@@ -9,6 +9,7 @@ import {
   changePriceAdapter as apiChangePrice,
 } from "../data/tasksDb.js";
 import { uploadPhoto } from "../lib/photosDb.js";
+import { supabase } from "../lib/supabase.js";
 // Phase 3-5 — 휴무는 DB 측 (offDaysDb.js) 어댑터 사용. 시그니처 동일.
 import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
@@ -3845,6 +3846,46 @@ export default function EngineerApp({ user, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 2026-05-22 — DB 계좌 정보 직접 조회 (운영자 SQL UPDATE 즉시 반영용).
+  // 옛 흐름: engineerProfile 측 mock 하드코딩 (bankName="카카오뱅크" 등) → DB 변경 사항 영원히 안 보임.
+  // 새 흐름: users 테이블 측 bank_name/bank_account/account_holder 측 fetch → engineerProfile 측 DB 우선.
+  // savedAccount (기사 본인 Optimistic) 측 그대로 — 우선순위 가장 높음.
+  const [dbProfile, setDbProfile] = useState(null);
+  async function fetchDbProfile() {
+    const code = user?.engineerId;
+    if (!code) return;
+    try {
+      const { data, error } = await supabase
+        .from("users")
+        .select("bank_name, bank_account, account_holder, refrigerant_rate")
+        .eq("code", code)
+        .maybeSingle();
+      if (error) {
+        console.warn("[EngineerApp] fetchDbProfile 실패:", error.message);
+        return;
+      }
+      if (data) setDbProfile(data);
+    } catch (e) {
+      console.warn("[EngineerApp] fetchDbProfile 예외:", e?.message || e);
+    }
+  }
+  useEffect(() => {
+    fetchDbProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.engineerId]);
+
+  // 2026-05-22 — 폴링 안전망: 60초 주기 fetchTasks + fetchDbProfile.
+  // realtime 측 실패 / WebSocket 끊김 / publication 비활성 측 시 backup.
+  // 최대 60초 지연으로 화면 갱신 (사용자 측 "앱 껐다 켜야 보임" 함정 완화).
+  useEffect(() => {
+    const id = setInterval(() => {
+      fetchTasks();
+      fetchDbProfile();
+    }, 60000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // V14 — updateTask = apiUpdateTask 호출 + Optimistic Update
   const updateTask = async (taskId, updates) => {
     if (!taskId) return;
@@ -4191,13 +4232,14 @@ export default function EngineerApp({ user, onLogout }) {
     amount:  0,
   };
 
+  // 2026-05-22 — engineerProfile 측 DB 값 우선 (옛 mock 하드코딩 폴백만 유지)
   const engineerProfile = {
     name: user?.name || "프로",
     phone: user?.phone || "",
     companyName: "올데이케어",
-    bankName: "카카오뱅크",
-    accountNumber: "3333-12-3456789",
-    accountHolder: user?.name || "프로",
+    bankName:      dbProfile?.bank_name      || "카카오뱅크",
+    accountNumber: dbProfile?.bank_account   || "3333-12-3456789",
+    accountHolder: dbProfile?.account_holder || user?.name || "프로",
     regions: ["강남구", "서초구", "송파구"],
   };
 
