@@ -53,8 +53,8 @@ function _timestamp() {
 // 선택: uploadedBy (uuid / null 박을 차례)
 // 응답: { ok: true, photoId, storage_path, url } | { ok: false, error }
 export async function uploadPhoto(taskId, file, step = "완료", uploadedBy = null) {
-  if (!taskId) return { ok: false, error: "taskId 박지 X" };
-  if (!file)   return { ok: false, error: "file 박지 X" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  if (!file)   return { ok: false, error: "file 없음" };
 
   try {
     const ext = _extOf(file);
@@ -109,7 +109,7 @@ export async function uploadPhoto(taskId, file, step = "완료", uploadedBy = nu
 // 응답: { ok: true, photos: [...] } | { ok: false, error, photos: [] }
 //   photos[i] = { id, step, storage_path, url, uploadedBy, uploadedAt }
 export async function listPhotosByTask(taskId) {
-  if (!taskId) return { ok: false, error: "taskId 박지 X", photos: [] };
+  if (!taskId) return { ok: false, error: "taskId 없음", photos: [] };
 
   try {
     const { data, error } = await supabase
@@ -148,7 +148,7 @@ export async function listPhotosByTask(taskId) {
 // 입력: photoId (uuid)
 // 응답: { ok: true } | { ok: false, error }
 export async function deletePhoto(photoId) {
-  if (!photoId) return { ok: false, error: "photoId 박지 X" };
+  if (!photoId) return { ok: false, error: "photoId 없음" };
 
   try {
     // [1] storage_path 박힌 영역 조회

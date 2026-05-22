@@ -3988,7 +3988,7 @@ export default function EngineerApp({ user, onLogout }) {
     try {
       const res = await apiRequestCancel(cancelRequestTask.id, cancelReason);
       if (!res || res.ok === false) {
-        alert(`취소 요청 catch X: ${(res && res.error) || '실패'}`);
+        alert(`취소 요청 실패: ${(res && res.error) || '실패'}`);
         return;
       }
       // Optimistic
@@ -4011,7 +4011,7 @@ export default function EngineerApp({ user, onLogout }) {
     try {
       const res = await apiChangePrice(priceChangeTask.id, baseTotal, Number(addAmount), addReason);
       if (!res || res.ok === false) {
-        alert(`금액 변경 catch X: ${(res && res.error) || '실패'}`);
+        alert(`금액 변경 실패: ${(res && res.error) || '실패'}`);
         return;
       }
       setApiTasks(prev => prev.map(t =>
@@ -4124,7 +4124,7 @@ export default function EngineerApp({ user, onLogout }) {
     if (!accepted) return;
     const myName = user?.name;
     if (!myName) {
-      showToast("⚠️ 사용자 이름이 없어 수락이 박지 X");
+      showToast("⚠️ 사용자 이름이 없어 수락할 수 없습니다");
       return;
     }
     // 옵티미스틱 — 카드 즉시 제거 + 즉시 피드백 토스트 (사용자 대기 시간 X)

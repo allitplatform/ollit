@@ -428,11 +428,11 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         if (res?.ok && res?.url) {
           setPhotos(prev => [...prev, { url: res.url, step }]);
         } else {
-          alert("사진 업로드 박지 X: " + (res?.error || "unknown"));
+          alert("사진 업로드 실패: " + (res?.error || "unknown"));
         }
       } catch (err) {
         console.error("사진 업로드 박지 X:", err);
-        alert("사진 업로드 박지 X: " + err.message);
+        alert("사진 업로드 실패: " + err.message);
       }
     }
   }
@@ -1702,7 +1702,7 @@ function CompletedPhotoSlot({ label, photos = [] }) {
         display: "flex", alignItems: "center", justifyContent: "center",
         position: "relative",
       }}>
-        <span style={{ color: "var(--text-tertiary)", fontSize: 11 }}>사진 박지 X</span>
+        <span style={{ color: "var(--text-tertiary)", fontSize: 11 }}>사진 미등록</span>
         <div style={{
           position: "absolute", bottom: 6, left: 6,
           fontSize: 9, color: "var(--text-secondary)",

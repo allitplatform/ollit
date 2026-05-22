@@ -13,10 +13,10 @@ async function handleReport(taskIds) {
   if (!confirm("이 날짜의 입금을 완료 보고할까요?")) return;
   const res = await reportEngineerRemit(taskIds);
   if (res.ok) {
-    alert("입금 완료 보고 박혔어요. 운영자 확인 대기 박힘.");
+    alert("입금 완료 보고가 등록됐어요. 운영자 확인 대기 중입니다.");
     window.location.reload();
   } else {
-    alert("박지 X: " + res.error);
+    alert("등록 실패: " + res.error);
   }
 }
 

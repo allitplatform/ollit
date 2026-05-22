@@ -2638,7 +2638,7 @@ export default function AdminApp({ user, onLogout }) {
               status: newStatus,
             });
             if (!res || res.ok === false) {
-              alert(`일정 변경 catch X: ${(res && res.error) || '실패'}`);
+              alert(`일정 변경 실패: ${(res && res.error) || '실패'}`);
               return;
             }
             setApiTasks(prev => prev.map(t =>
@@ -2693,7 +2693,7 @@ export default function AdminApp({ user, onLogout }) {
             console.log('[V14 2B-2] updateTask 상태', { taskId: tk.id, status: newStatus });
             const res = await apiUpdateTask(tk.id, { status: newStatus });
             if (!res || res.ok === false) {
-              alert(`상태 변경 catch X: ${(res && res.error) || '실패'}`);
+              alert(`상태 변경 실패: ${(res && res.error) || '실패'}`);
               return;
             }
             const stateMap = {
@@ -2732,7 +2732,7 @@ export default function AdminApp({ user, onLogout }) {
             console.log('[V14 2B-2] updateTask 메모', { taskId: tk.id, memo: newMemo });
             const res = await apiUpdateTask(tk.id, { memo: newMemo, 작업메모: newMemo });
             if (!res || res.ok === false) {
-              alert(`메모 변경 catch X: ${(res && res.error) || '실패'}`);
+              alert(`메모 변경 실패: ${(res && res.error) || '실패'}`);
               return;
             }
             setApiTasks(prev => prev.map(t =>
@@ -2763,7 +2763,7 @@ export default function AdminApp({ user, onLogout }) {
           // V14 속도 Phase 1 — Optimistic Update / fetchTasks 박지 X / apiTasks 직접 update
           // V14 재배정 처리 — 옛 기사가 있으면 별도 흐름 (N + R 변경 X / '약속대기' 적용)
           if (!selectedTask?.id || !eng?.name) {
-            addToast({ type: "completed", title: "배정 X", message: "작업 / 프로 박지 X" });
+            addToast({ type: "completed", title: "배정 실패", message: "작업 또는 프로 정보 없음" });
             return;
           }
           // V14 재배정 처리 — 옛 기사가 있는지 확인
@@ -3435,7 +3435,7 @@ export default function AdminApp({ user, onLogout }) {
         </div>
         <div style={{ background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 4 }}>프로 요청 사유</div>
-          <div style={{ fontSize: 12, color: t.text, lineHeight: 1.5 }}>{cancelHandleTask.memo || "(사유 박지 X)"}</div>
+          <div style={{ fontSize: 12, color: t.text, lineHeight: 1.5 }}>{cancelHandleTask.memo || "(사유 없음)"}</div>
         </div>
         <label style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, display: "block", marginBottom: 4 }}>거절 사유 (거절 시 입력)</label>
         <textarea
@@ -3448,7 +3448,7 @@ export default function AdminApp({ user, onLogout }) {
           <button
             onClick={handleApproveCancel}
             style={{ flex: 1, padding: 12, background: "#FF3B5C", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}
-          >✓ 확인 (취소 박기)</button>
+          >✓ 확인 (취소 처리)</button>
           <button
             disabled={!cancelRejectReason.trim()}
             onClick={handleRejectCancel}
@@ -4777,7 +4777,7 @@ function NewReceptionScreen({
           )}
           {tasksDebug.firstRowSample && (
             <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontWeight: 700 }}>첫 row sample 박기 ▼</summary>
+              <summary style={{ cursor: "pointer", fontWeight: 700 }}>첫 row 샘플 보기 ▼</summary>
               <pre style={{
                 marginTop: 4, padding: 8, background: "#1A1A1A", color: "#A7F3D0",
                 borderRadius: 4, fontSize: 10, overflow: "auto", maxHeight: 200,
@@ -4787,7 +4787,7 @@ function NewReceptionScreen({
           )}
           {tasksDebug.response && tasksDebug.phase === 'no-array' && (
             <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontWeight: 700 }}>전체 응답 박기 ▼</summary>
+              <summary style={{ cursor: "pointer", fontWeight: 700 }}>전체 응답 보기 ▼</summary>
               <pre style={{
                 marginTop: 4, padding: 8, background: "#1A1A1A", color: "#FCA5A5",
                 borderRadius: 4, fontSize: 10, overflow: "auto", maxHeight: 200,
@@ -7553,7 +7553,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
             <div style={{ fontWeight: 800, marginBottom: 4 }}>🔍 API 응답 디버그 (0건)</div>
             <div>응답 키: <code style={{ background: "#FEF3C7", padding: "1px 4px" }}>{JSON.stringify(apiDebug.responseKeys)}</code></div>
             <details style={{ marginTop: 6 }}>
-              <summary style={{ cursor: "pointer", fontWeight: 700 }}>전체 응답 박기 ▼</summary>
+              <summary style={{ cursor: "pointer", fontWeight: 700 }}>전체 응답 보기 ▼</summary>
               <pre style={{
                 marginTop: 4, padding: 8, background: "#1A1A1A", color: "#A7F3D0",
                 borderRadius: 4, fontSize: 10, overflow: "auto", maxHeight: 200,

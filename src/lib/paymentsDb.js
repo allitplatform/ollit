@@ -17,7 +17,7 @@ import { supabase } from "./supabase.js";
 // ============================================
 export async function reportEngineerRemit(taskIds) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
-    return { ok: false, error: "taskIds 박지 X" };
+    return { ok: false, error: "taskIds 없음" };
   }
 
   const { error } = await supabase
@@ -37,10 +37,10 @@ export async function reportEngineerRemit(taskIds) {
 // ============================================
 export async function confirmEngineerRemit(taskIds, adminUserId) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
-    return { ok: false, error: "taskIds 박지 X" };
+    return { ok: false, error: "taskIds 없음" };
   }
   if (!adminUserId) {
-    return { ok: false, error: "adminUserId 박지 X" };
+    return { ok: false, error: "adminUserId 없음" };
   }
 
   const { error } = await supabase
