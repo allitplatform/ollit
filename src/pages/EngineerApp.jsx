@@ -3886,6 +3886,22 @@ export default function EngineerApp({ user, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 2026-05-22 — visibilitychange: 앱 복귀(visible) 즉시 최신 상태 반영.
+  // 알림 클릭 → PWA 복귀 / 백그라운드 → 포그라운드 케이스에서 60초 폴링 지연 회피.
+  // (브라우저 백그라운드 시 setInterval 측 throttle 또는 정지될 수 있어 폴링 단독 의존 불충분)
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const handler = () => {
+      if (document.visibilityState === "visible") {
+        fetchTasks();
+        fetchDbProfile();
+      }
+    };
+    document.addEventListener("visibilitychange", handler);
+    return () => document.removeEventListener("visibilitychange", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // V14 — updateTask = apiUpdateTask 호출 + Optimistic Update
   const updateTask = async (taskId, updates) => {
     if (!taskId) return;
