@@ -1,19 +1,14 @@
 // Phase 5 Step 0.B — 유솔N · 접수 탭 (DB 전환)
-// 2026-05-19
-// 변경:
-//   - loadTasks() (localStorage) → fetchUsolNTasks() (Supabase)
-//   - 1 task = 1 줄 + task_items 측 작업 종류 칩 + 정산 사이클 색상 상태
-//   - 페이지네이션 50건/page
-//   - 기존 CSV 업로드 영역은 일단 유지 (UI 그대로 / DB INSERT 흐름은 Stage 0.C/0.D 측 정정 spec)
-import { useState, useMemo, useRef, useEffect } from "react";
+// 2026-05-19 — 목록 측 Supabase 측 측 (fetchUsolNTasks)
+// 2026-05-23 — CSV 업로드 측 측 localStorage → Supabase DB INSERT 측 전환
+//   · parseNaverOrders (src/lib/naverOrderParser.js) 측 측 측 — NaverUploadScreen 측 측 측
+//   · bulkInsertUsolNOrders (src/lib/usolNTasksDb.js) 측 일괄 INSERT
+//   · 중복 체크 측 DB level (external_order_no) 측 위임 — 미리보기 측 측 전체 주문 수 표시
+//   · 결과 banner 측 inserted / skipped / warnings / errors 측 표시 (첫 에러 메시지 포함)
+import { useState, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
-import {
-  csvOrderRowToTask,
-} from "../../data/usolNOrderCsv.js";
-import {
-  loadTasks, saveTasks, findTaskByProductOrderId,
-} from "../../data/tasks.js";
-import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
+import { parseNaverOrders } from "../../lib/naverOrderParser.js";
+import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel, bulkInsertUsolNOrders } from "../../lib/usolNTasksDb.js";
 import { formatYmdHm } from "../../utils/dateLabel.js";
 // Phase 5 Step 0.C-9 — realtime subscription (tasks + task_items 변경 시 자동 refetch)
 import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
@@ -21,7 +16,11 @@ import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubsc
 const PAGE_SIZE = 50;
 
 export function UsolNOrders({ onTaskClick }) {
-  const [pendingRows, setPendingRows] = useState([]);
+  // 2026-05-23 — pendingRows → pendingOrders (parseNaverOrders 측 결과 측 측)
+  //   importing / importResult 측 — DB INSERT 진행 측 + 결과 표시 측
+  const [pendingOrders, setPendingOrders] = useState([]);
+  const [importing,     setImporting]     = useState(false);
+  const [importResult,  setImportResult]  = useState(null);
   const fileInputRef = useRef(null);
 
   // DB fetch state (Phase 5 Step 0.B)
@@ -59,23 +58,24 @@ export function UsolNOrders({ onTaskClick }) {
   useRealtimeTasks(() => refresh());
   useRealtimeTable("task_items", () => refresh());
 
-  // CSV 업로드 → 파싱 → 중복 제거 → 미리보기 (Stage 0.B는 기존 흐름 유지 / DB INSERT는 0.C 정정)
+  // 2026-05-23 — CSV 업로드 → parseNaverOrders → 미리보기 → DB INSERT
+  //   중복 체크 측 DB level (external_order_no) 측 위임 — 미리보기 측 측 전체 주문 수 표시
   function handleFileSelect(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setImportResult(null);
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
         const data = new Uint8Array(evt.target.result);
-        const wb   = XLSX.read(data, { type: "array" });
+        // 2026-05-23 — cellDates:true 측 — 날짜 셀 측 Date 객체 측 (Excel serial 숫자 X)
+        //   timestamptz 측 INSERT 측 측 측 (Migration 002a external_received_at)
+        const wb   = XLSX.read(data, { type: "array", cellDates: true });
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows  = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-        const newRows = rows.filter(row => {
-          const productOrderId = row["상품주문번호"];
-          return productOrderId && !findTaskByProductOrderId(productOrderId);
-        });
-        setPendingRows(newRows);
+        const { orders } = parseNaverOrders(rows);
+        setPendingOrders(orders);
       } catch (err) {
         console.error("[UsolNOrders.parse]", err);
         alert("CSV 파싱 실패: " + err.message);
@@ -84,22 +84,29 @@ export function UsolNOrders({ onTaskClick }) {
     reader.readAsArrayBuffer(file);
   }
 
-  function handleConfirmImport() {
-    // Stage 0.B — 기존 localStorage 측 일단 유지 (0.C 정정 spec / DB INSERT 흐름)
-    const all = loadTasks();
-    pendingRows.forEach(row => {
-      const t = csvOrderRowToTask(row);
-      if (t.productOrderId) t.id = `usol_n_${t.productOrderId}`;
-      all.push(t);
-    });
-    saveTasks(all);
-    setPendingRows([]);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    refresh();
+  async function handleConfirmImport() {
+    if (pendingOrders.length === 0 || importing) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const res = await bulkInsertUsolNOrders(pendingOrders);
+      setImportResult(res);
+      if (res?.ok !== false) {
+        setPendingOrders([]);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        refresh();
+      }
+    } catch (err) {
+      console.error("[UsolNOrders.import]", err);
+      setImportResult({ ok: false, error: err.message || "일괄 등록 실패" });
+    } finally {
+      setImporting(false);
+    }
   }
 
   function handleCancel() {
-    setPendingRows([]);
+    setPendingOrders([]);
+    setImportResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -110,10 +117,12 @@ export function UsolNOrders({ onTaskClick }) {
       <UploadBox
         fileInputRef={fileInputRef}
         onFileSelect={handleFileSelect}
-        pendingCount={pendingRows.length}
+        pendingCount={pendingOrders.length}
+        importing={importing}
         onConfirm={handleConfirmImport}
         onCancel={handleCancel}
       />
+      {importResult && <ImportResultBanner result={importResult} onDismiss={() => setImportResult(null)} />}
 
       <div style={sectionTitleStyle}>
         접수 대기{" "}
@@ -248,21 +257,21 @@ function pageBtnStyle(disabled) {
   };
 }
 
-function UploadBox({ fileInputRef, onFileSelect, pendingCount, onConfirm, onCancel }) {
+function UploadBox({ fileInputRef, onFileSelect, pendingCount, importing, onConfirm, onCancel }) {
   if (pendingCount > 0) {
     return (
       <div style={uploadConfirmStyle}>
         <div style={{ fontSize: 13, color: "#03C75A", fontWeight: 700, marginBottom: 6 }}>
-          📥 신규 접수 {pendingCount}건 발견
+          📥 주문 {pendingCount}건 — 일괄 등록
         </div>
         <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 12 }}>
-          이미 등록된 작업은 자동 제외했습니다
+          중복 주문 측 DB 측 자동 제외됩니다 (결과 측 측 표시)
         </div>
         <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={onConfirm} style={primaryButtonStyle}>
-            {pendingCount}건 일괄 등록
+          <button onClick={onConfirm} disabled={importing} style={{ ...primaryButtonStyle, opacity: importing ? 0.6 : 1, cursor: importing ? "wait" : "pointer" }}>
+            {importing ? "등록 중..." : `${pendingCount}건 일괄 등록`}
           </button>
-          <button onClick={onCancel} style={secondaryButtonStyle}>취소</button>
+          <button onClick={onCancel} disabled={importing} style={secondaryButtonStyle}>취소</button>
         </div>
       </div>
     );
@@ -287,6 +296,57 @@ function UploadBox({ fileInputRef, onFileSelect, pendingCount, onConfirm, onCanc
         onChange={onFileSelect}
         style={{ display: "none" }}
       />
+    </div>
+  );
+}
+
+function ImportResultBanner({ result, onDismiss }) {
+  if (!result) return null;
+  const hasError = result.ok === false || (result.errors?.length || 0) > 0;
+  const inserted = result.inserted || 0;
+  const skipped  = result.skipped || 0;
+  const warningCount = result.warnings?.length || 0;
+  const errorCount   = result.errors?.length || 0;
+  const firstError   = result.errors?.[0];
+  const topLevelError = result.ok === false ? result.error : null;
+
+  const lineColor = hasError ? "#EF4444" : "#03C75A";
+  const bg = hasError ? "rgba(239,68,68,0.10)" : "rgba(3,199,90,0.10)";
+
+  return (
+    <div style={{
+      padding: 12,
+      background: bg,
+      border: `1px solid ${lineColor}`,
+      borderRadius: 10, marginBottom: 16,
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: lineColor }}>
+          {hasError ? "⚠️ 일괄 등록 — 일부 실패" : "✅ 일괄 등록 완료"}
+        </div>
+        <button onClick={onDismiss} style={{
+          background: "transparent", border: "none", color: "var(--text-secondary)",
+          fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+        }}>닫기 ✕</button>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.6 }}>
+        {topLevelError && <div style={{ color: "#EF4444", marginBottom: 4 }}>오류: {topLevelError}</div>}
+        <div>· 등록: <b>{inserted}</b>건</div>
+        <div>· 중복 제외: <b>{skipped}</b>건</div>
+        {warningCount > 0 && <div style={{ color: "#F59E0B" }}>· 경고: <b>{warningCount}</b>건 (서비스종류 이상값 — 운영자 확인 필요)</div>}
+        {errorCount > 0 && (
+          <div style={{ color: "#EF4444", marginTop: 4 }}>
+            · 실패: <b>{errorCount}</b>건
+            {firstError && (
+              <div style={{ fontSize: 11, marginTop: 2, paddingLeft: 8, color: "var(--text-secondary)" }}>
+                첫 에러: {firstError.error || "알 수 없음"}
+                {firstError.code ? ` (${firstError.code})` : ""}
+                {firstError.details ? ` — ${firstError.details}` : ""}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

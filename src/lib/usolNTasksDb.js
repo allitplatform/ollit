@@ -297,6 +297,31 @@ const APPLIANCE_KR_TO_CODE = {
   "시스템멀티": "multi",
 };
 
+// 2026-05-23 — timestamptz 측 안전 변환
+//   Excel cellDates:true 측 Date 객체 측, 단 일부 환경 측 — 측 측 측 측 측 측 측 측 안전망.
+//   · Date 객체 → toISOString()
+//   · 유효한 ISO/SQL 측 측 측 → 그대로 (Postgres 측 측 측 측 측)
+//   · 숫자 (Excel serial, 예: 45123.42) → null (잘못된 측 측 X)
+//   · 빈 값 / 잘못된 측 → null
+function normalizeTimestamp(v) {
+  if (v == null || v === "") return null;
+  if (v instanceof Date) {
+    if (isNaN(v.getTime())) return null;
+    return v.toISOString();
+  }
+  if (typeof v === "number") {
+    // Excel serial 측 측 측 X (cellDates:true 측 측 측). 측 측 측 측 null 측 안전 측.
+    return null;
+  }
+  const s = String(v).trim();
+  if (!s) return null;
+  // 측 측 측 측 측 측 — Postgres 측 측 측 측 측 측 측 측 측 측 측 측.
+  // 단 — Date 측 parse 측 측 측 — 측 measurement 측 측 측 측 측 측.
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 // 추가선택 측 service_types.code → work_types.code (Migration 034)
 // 옵션정보 / 서비스구분 측 키워드 → 추가선택 work_type 매핑
 // 2026-05-23 — 사장님 실제 시트 검증 측 4종 catch:
@@ -412,7 +437,8 @@ export async function bulkInsertUsolNOrders(orders) {
         extra_fee:     0,
         travel_fee:    0,
         external_order_no: String(order.orderId),
-        external_received_at: order.paymentDate || null,
+        // 2026-05-23 — normalizeTimestamp — Excel cellDates:true 측 Date 측, 측 측 ISO 측 측 측 안전망
+        external_received_at: normalizeTimestamp(order.paymentDate),
         // category_data 측 빈 객체 (Migration 017 trigger 측 workItems 측 없으면 task_items 자동 생성 X)
         category_data: {},
       };
