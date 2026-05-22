@@ -100,7 +100,8 @@ import { supabase } from "../lib/supabase.js";
 // 대안: DB 사전 조회 측만 박음 (UI 측 setCandidates 박힘 / DB 측 1회만 박힘)
 import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { isTrackARemittance, isPendingRemit } from "../utils/remitFilter.js";
-import { confirmEngineerRemit } from "../lib/paymentsDb.js";
+import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
+import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -3036,6 +3037,17 @@ export default function AdminApp({ user, onLogout }) {
       />
     </Shell>;
   }
+  // 2026-05-22 — 입금 내역 (회사 송금 통장 내역, 조회 전용)
+  if (screen === "settlementHistory") {
+    return <Shell>
+      <SettlementHistoryContent
+        t={t}
+        apiTasks={apiTasks}
+        onBack={goBack}
+        onTaskClick={(task) => goTaskDetail(task, null)}
+      />
+    </Shell>;
+  }
   if (screen === "principal_settlement") {
     return <Shell>
       <PrincipalSettlementScreen onBack={goBack}/>
@@ -3358,6 +3370,7 @@ export default function AdminApp({ user, onLogout }) {
       onClickSettlement={() => setScreen("settlement")}
       onClickManage={() => setScreen("engineerList")}
       onClickManagePrincipals={() => setScreen("principalList")}
+      onClickSettlementHistory={() => setScreen("settlementHistory")}
       onClickSettings={() => setScreen("settings")}
       onClickUsolN={() => setScreen("usol_n")}
       onClickUrgentAssign={() => { setSelectedTask(URGENT_TASK); setScreen("recommend"); }}
@@ -3434,7 +3447,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettings, onClickUsolN, onEngineerClick, onTaskClick, onClickCancelHandle }) {
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onEngineerClick, onTaskClick, onClickCancelHandle }) {
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
@@ -3617,7 +3630,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
           <div style={{ padding: "0 16px 16px" }}>
-            <SettlementContent t={t} apiTasks={apiTasks} user={user} onRefreshTasks={onRefreshTasks} onTaskClick={onTaskClick} onClickManagePrincipals={onClickManagePrincipals}/>
+            <SettlementContent t={t} apiTasks={apiTasks} user={user} onRefreshTasks={onRefreshTasks} onTaskClick={onTaskClick} onClickSettlementHistory={onClickSettlementHistory}/>
           </div>
         )}
       </div>
@@ -5488,24 +5501,24 @@ function SettlementScreen({ t, onBack, onTaskClick, onClickManagePrincipals }) {
 }
 
 // Step 5-3 — 정산 콘텐츠 분리: SettlementScreen (헤더+합계) + 대시보드 정산 탭에서 공유
-function SettlementContent({ t, apiTasks = [], user, onRefreshTasks, onTaskClick, onClickManagePrincipals, containerPadding, tabPadding }) {
+function SettlementContent({ t, apiTasks = [], user, onRefreshTasks, onTaskClick, onClickSettlementHistory, containerPadding, tabPadding }) {
   const [activeTab, setActiveTab] = useState("engineers");  // "engineers" | "principals"
   const [expanded, setExpanded] = useState(() => new Set());
 
-  // 2026-05-17 Round 2 Fix #13 — 사장님 spec: 정산 탭도 메인 매출과 같은 dataset.
-  //   { completedAt 오늘, status='완료', isTrackARemittance() = true } + 미정산.
-  // isPendingRemit = isTrackARemittance + engineerRemitConfirmedAt 비어있음.
-  // 추가로 completedAt(KST 정규화)가 오늘인 것만. 이전 라운드의 timezone 정합.
+  // 2026-05-22 — 사장님 spec: 확인 완료해도 사라지지 않음, 맨 아래로 정렬.
+  //   기준: 트랙 🅐 (isTrackARemittance) AND completedAt(KST) = 오늘.
+  //   미확인(pending/reported/overdue) → 위, 확인 완료(confirmed) → 아래.
+  // 2026-05-17 Round 2 Fix #13 — 메인 매출과 동일 dataset (트랙 🅐 + 오늘 완료).
   const todayStr = todayYmd();
   const doneTasks = (apiTasks && apiTasks.length > 0)
     ? apiTasks.filter(t => {
-        if (!isPendingRemit(t)) return false;
+        if (!isTrackARemittance(t)) return false;
         const completed = t.completedAt || t.completed_at;
         if (!completed) return false;
         return toKstYmd(completed) === todayStr;
       })
     : getTodayDoneTasks();
-  const engineerGroups = groupDoneByEngineer(doneTasks);
+  const engineerGroups = sortGroupsConfirmedLast(groupDoneByEngineer(doneTasks));
   const principalGroups = groupDoneByPrincipal(doneTasks);
 
   function toggle(key) {
@@ -5518,18 +5531,18 @@ function SettlementContent({ t, apiTasks = [], user, onRefreshTasks, onTaskClick
 
   return (
     <div style={{ padding: containerPadding || "0" }}>
-      {/* Step 7 — 원청 관리 진입점 */}
-      {onClickManagePrincipals && (
+      {/* 2026-05-22 — 입금 내역 진입점 (옛 "원청 관리" 버튼 자리, 원청 관리는 설정으로 이동) */}
+      {onClickSettlementHistory && (
         <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 0 8px" }}>
           <button
-            onClick={onClickManagePrincipals}
+            onClick={onClickSettlementHistory}
             style={{
               padding: "6px 12px", background: t.accentBg,
               border: `1px solid ${t.accent}`, borderRadius: 7,
               color: t.accent, fontSize: 11, fontWeight: 600,
               cursor: "pointer", fontFamily: "inherit",
             }}
-          >🏢 원청 관리</button>
+          >📜 입금 내역</button>
         </div>
       )}
       <div style={{ padding: tabPadding || "0 0 12px", display: "flex", gap: 6 }}>
@@ -5601,10 +5614,21 @@ function SettlementContent({ t, apiTasks = [], user, onRefreshTasks, onTaskClick
   );
 }
 
+// 2026-05-22 — 그룹 정렬: 미확인(pending/reported/overdue) 위, 확인 완료 아래.
+// 같은 그룹 내에서는 정산금 큰 순서 유지.
+function sortGroupsConfirmedLast(groups) {
+  return [...groups].sort((a, b) => {
+    const aConfirmed = computeGroupStatus(a.tasks) === "confirmed" ? 1 : 0;
+    const bConfirmed = computeGroupStatus(b.tasks) === "confirmed" ? 1 : 0;
+    if (aConfirmed !== bConfirmed) return aConfirmed - bConfirmed;
+    return (b.total || 0) - (a.total || 0);
+  });
+}
+
 // 2026-05-17 Round 2 Fix #21 — 일별 통합 정산: 한 기사 = 한 상태.
 // 모든 작업의 engineer_remit_* 상태를 보고 통합 상태(4종)를 산출.
-//   confirmed = 모든 작업 운영자 확인 완료 (engineerRemitConfirmedAt 박힘)
-//   reported  = 모든 작업 기사 입금 보고 완료 (engineerRemittedAt 박힘) — 확인 대기
+//   confirmed = 모든 작업 운영자 확인 완료 (engineerRemitConfirmedAt 채워짐)
+//   reported  = 모든 작업 기사 입금 보고 완료 (engineerRemittedAt 채워짐) — 확인 대기
 //   overdue   = 23:00 KST 이후 + 일부 작업 보고 안 됨 (연체)
 //   pending   = 그 외 (미입금)
 function computeGroupStatus(tasks) {
@@ -5648,11 +5672,12 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
   const groupStatus = computeGroupStatus(group.tasks);
   // 2026-05-17 Round 2 Fix #24 — 입금 확인 (그룹 일별 통합). reported 상태일 때만 노출.
   const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   async function handleConfirmRemit(e) {
     e.stopPropagation();  // 그룹 펼침/접힘 토글 방지
     if (confirming) return;
     // 2026-05-21 — user.user_id = UUID (RPC 응답) / user.userId = code ('A004') / user.id = undefined
-    //   → engineer_remit_confirmed_by (uuid 컬럼) 측 user.user_id 측 측 측 사용
+    //   → engineer_remit_confirmed_by (uuid 컬럼) 에 user.user_id 사용
     const adminUserId = user?.user_id || user?.id;
     if (!adminUserId) {
       alert("관리자 사용자 ID를 찾을 수 없습니다.");
@@ -5674,6 +5699,34 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
       alert(`입금 확인 예외: ${err?.message || err}`);
     } finally {
       setConfirming(false);
+    }
+  }
+
+  // 2026-05-22 — 확인 취소 (confirmed → reported 되돌리기). 실수 정정용.
+  async function handleCancelConfirm(e) {
+    e.stopPropagation();
+    if (cancelling) return;
+    const ok = window.confirm(
+      `${group.engineer} 기사의 입금 확인을 취소하시겠습니까?\n\n` +
+      `완료 ${group.tasks.length}건 · 정산금 ${fmtKRW(group.total)}\n` +
+      `상태가 "확인 대기"로 되돌아갑니다.`
+    );
+    if (!ok) return;
+    const taskIds = (group.tasks || []).map(t => t.id).filter(Boolean);
+    if (taskIds.length === 0) return;
+    setCancelling(true);
+    try {
+      const res = await cancelConfirmRemit(taskIds);
+      if (!res || res.ok === false) {
+        alert(`확인 취소 실패: ${(res && res.error) || "알 수 없는 오류"}`);
+      } else {
+        if (typeof onRefreshTasks === "function") onRefreshTasks();
+      }
+    } catch (err) {
+      console.error("[SettlementEngineerCard] cancelConfirm 예외:", err);
+      alert(`확인 취소 예외: ${err?.message || err}`);
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -5715,6 +5768,30 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
             >
               <CheckCircle2 size={10}/>
               {confirming ? "확인 중..." : "확인"}
+            </span>
+          )}
+          {/* 2026-05-22 — 확인 완료 상태에서만 [확인 취소] 버튼 노출 (실수 정정용) */}
+          {groupStatus === "confirmed" && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={handleCancelConfirm}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleCancelConfirm(e); }}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 3,
+                padding: "3px 8px", borderRadius: 8,
+                background: cancelling ? t.bgInset : "rgba(192,57,43,0.18)",
+                color: cancelling ? t.textMuted : "#FF8E7F",
+                border: `1px solid ${cancelling ? t.border : "rgba(192,57,43,0.4)"}`,
+                fontSize: 10, fontWeight: 700,
+                cursor: cancelling ? "wait" : "pointer",
+                opacity: cancelling ? 0.6 : 1,
+                whiteSpace: "nowrap",
+                userSelect: "none",
+              }}
+            >
+              <RotateCcw size={10}/>
+              {cancelling ? "취소 중..." : "확인 취소"}
             </span>
           )}
           {/* 2026-05-17 Round 2 Fix #21 — 그룹 통합 상태 배지 */}

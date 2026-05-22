@@ -92,11 +92,11 @@ export async function listPendingRemits() {
 }
 
 // ============================================
-// 4) 기사 보고 취소 (옵션) — 확인 박힌 spec 측 박지 X
+// 4) 기사 보고 취소 (옵션) — 운영자 확인 완료 row는 건드리지 않음
 // ============================================
 export async function cancelEngineerRemit(taskIds) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
-    return { ok: false, error: "taskIds 박지 X" };
+    return { ok: false, error: "taskIds 없음" };
   }
 
   const { error } = await supabase
@@ -106,8 +106,34 @@ export async function cancelEngineerRemit(taskIds) {
     .is("engineer_remit_confirmed_at", null);
 
   if (error) {
-    console.error("[cancelEngineerRemit] 박지 X:", error);
+    console.error("[cancelEngineerRemit] 실패:", error);
     return { ok: false, error: error.message };
   }
   return { ok: true };
+}
+
+// ============================================
+// 5) 2026-05-22 — 운영자 "확인 완료" 취소 (confirmed → reported 복귀)
+// engineer_remit_confirmed_at / engineer_remit_confirmed_by 만 NULL,
+// engineer_remitted_at(기사 보고 시각)은 유지 → 상태가 reported 로 회귀.
+// 사장님 실수 정정 용도 — 호출처에서 confirm dialog 권장.
+// ============================================
+export async function cancelConfirmRemit(taskIds) {
+  if (!Array.isArray(taskIds) || taskIds.length === 0) {
+    return { ok: false, error: "taskIds 없음" };
+  }
+
+  const { error } = await supabase
+    .from("payments")
+    .update({
+      engineer_remit_confirmed_at: null,
+      engineer_remit_confirmed_by: null,
+    })
+    .in("task_id", taskIds);
+
+  if (error) {
+    console.error("[cancelConfirmRemit] 실패:", error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, count: taskIds.length };
 }
