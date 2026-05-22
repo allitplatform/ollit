@@ -100,6 +100,8 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
       {/* 2026-05-22 — 냉매 충전 동의서 (있을 때만 노출, Phase 1) */}
       {task.consent?.signedAt && <ConsentCard consent={task.consent}/>}
+      {/* 2026-05-22 — 재배정 요청 카드 (있을 때만 노출) */}
+      {task.reassignRequest?.requestedAt && <ReassignRequestCard request={task.reassignRequest}/>}
       {/* 카드 7 — 작업 사진 */}
       <PhotoSection taskId={task.id} taskType={task.type}/>
       <CompletionNotice task={task}/>
@@ -1017,6 +1019,52 @@ function ConsentCard({ consent }) {
           />
         </div>
       )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 2026-05-22 — 재배정 요청 카드 (운영자 측 알림 + 안내)
+// task.reassignRequest = { reason, requestedAt }
+// ──────────────────────────────────────────────
+function ReassignRequestCard({ request }) {
+  const reason = request?.reason || "";
+  const requestedAt = request?.requestedAt || "";
+  const requestedAtLabel = requestedAt ? formatDateTimeKST(requestedAt) : "";
+
+  return (
+    <div style={{
+      margin: "0 16px 12px",
+      padding: "14px 14px 12px",
+      background: "rgba(255,27,141,0.06)",
+      border: "1px solid rgba(255,27,141,0.35)",
+      borderRadius: 12,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "#FF1B8D" }}>
+          🔁 재배정 요청
+        </div>
+        <div style={{ flex: 1 }}/>
+        <span style={{
+          padding: "2px 8px", borderRadius: 8,
+          background: "rgba(255,27,141,0.15)",
+          color: "#FF1B8D",
+          fontSize: 10, fontWeight: 700,
+        }}>처리 대기</span>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7 }}>
+        {reason && <div>사유: <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{reason}</span></div>}
+        {requestedAtLabel && <div>요청 시각: <span style={{ color: "var(--text-primary)" }}>{requestedAtLabel}</span></div>}
+      </div>
+      <div style={{
+        marginTop: 10, padding: "8px 10px",
+        background: "rgba(255,184,0,0.10)",
+        border: "1px solid rgba(255,184,0,0.30)",
+        borderRadius: 8,
+        fontSize: 11, color: "var(--text-primary)", lineHeight: 1.5,
+      }}>
+        💡 위 [배정 프로] 카드 측 [변경] 버튼으로 다른 기사를 배정해 주세요.
+      </div>
     </div>
   );
 }

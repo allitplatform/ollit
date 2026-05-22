@@ -229,7 +229,7 @@ function getTaskItems(task) {
 }
 
 // ──────────────── 메인 컴포넌트 ────────────────
-export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
+export function EngineerTaskDetailScreen({ task, onBack, onUpdate, onRequestReassign }) {
   // V14 — 사진 = {url, step} array (작업 전/후 명시적 박음 / 최소 2장 합산)
   const initialPhotos = (() => {
     if (Array.isArray(task.photos)) return task.photos.map(p => {
@@ -584,7 +584,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         </>
       )}
 
-      {/* 완료 — 박힌 사진 + 메모 + 정산 */}
+      {/* 완료 — 등록된 사진 + 메모 + 정산 */}
       {isCompleted && (
         <>
           <CompletedPhotos task={task}/>
@@ -592,6 +592,53 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
           <SettlementInfo task={task}/>
         </>
       )}
+
+      {/* 2026-05-22 — 재배정 요청 (배정 / 확정 / 진행중 status 측 노출, 사장님 spec) */}
+      {(() => {
+        const isReassignable = ["배정", "확정", "진행중"].includes(task.status);
+        if (!isReassignable) return null;
+        const hasRequest = !!(task.reassignRequest?.requestedAt);
+        const reqAt = hasRequest ? formatTimeOnly(task.reassignRequest.requestedAt) : "";
+        const reqReason = hasRequest ? (task.reassignRequest.reason || "") : "";
+        return (
+          <div style={{ padding: "8px 16px 0" }}>
+            {hasRequest ? (
+              <div style={{
+                padding: "10px 12px",
+                background: "rgba(255,27,141,0.08)",
+                border: "1px solid rgba(255,27,141,0.30)",
+                borderRadius: 10,
+                fontSize: 12, lineHeight: 1.6,
+                color: "var(--text-primary)",
+              }}>
+                <div style={{ fontWeight: 700, color: "#FF1B8D", marginBottom: 4 }}>
+                  🔁 재배정 요청됨 — 운영자 확인 대기{reqAt ? ` (${reqAt})` : ""}
+                </div>
+                {reqReason && (
+                  <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                    사유: {reqReason}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={() => onRequestReassign?.(task)}
+                style={{
+                  width: "100%", padding: "11px 14px",
+                  background: "transparent",
+                  border: "1px solid rgba(255,27,141,0.45)",
+                  borderRadius: 10,
+                  color: "#FF1B8D",
+                  fontSize: 13, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                🔁 재배정 요청
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 약속대기 — 안내 */}
       {isWaiting && (

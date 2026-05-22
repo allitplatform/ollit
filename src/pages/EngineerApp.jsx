@@ -3,6 +3,7 @@ import {
   loadTasksForRole as getTasks,
   updateTaskAdapter as apiUpdateTask,
   requestCancelAdapter as apiRequestCancel,
+  requestReassignAdapter as apiRequestReassign,
   acceptOfferAdapter as apiAcceptOffer,
   startTaskAdapter as apiStartTask,
   completeTaskAdapter as apiCompleteTask,
@@ -3953,6 +3954,9 @@ export default function EngineerApp({ user, onLogout }) {
   // V14 큰 흐름 — 모달 state (취소 요청 / 금액 변경 / 완료 + 사진)
   const [cancelRequestTask, setCancelRequestTask] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
+  // 2026-05-22 — 재배정 요청 모달 state (cancelRequest 패턴 차용)
+  const [reassignRequestTask, setReassignRequestTask] = useState(null);
+  const [reassignReason, setReassignReason] = useState("");
   const [priceChangeTask, setPriceChangeTask] = useState(null);
   const [addAmount, setAddAmount] = useState(0);
   const [addReason, setAddReason] = useState("");
@@ -4000,6 +4004,30 @@ export default function EngineerApp({ user, onLogout }) {
       fetchTasks();
     } catch (e) {
       alert(`취소 요청 에러: ${e.message}`);
+    }
+  }
+
+  // 2026-05-22 — 재배정 요청 전송 (submitCancelRequest 패턴 동일)
+  async function submitReassignRequest() {
+    if (!reassignRequestTask?.id || !reassignReason.trim()) return;
+    try {
+      const res = await apiRequestReassign(reassignRequestTask.id, reassignReason);
+      if (!res || res.ok === false) {
+        alert(`재배정 요청 실패: ${(res && res.error) || '실패'}`);
+        return;
+      }
+      // Optimistic — category_data.reassignRequest 반영 (UI 측 빠른 표시)
+      const now = new Date().toISOString();
+      setApiTasks(prev => prev.map(t =>
+        t.id === reassignRequestTask.id
+          ? { ...t, reassignRequest: { reason: reassignReason.trim(), requestedAt: now } }
+          : t
+      ));
+      setReassignRequestTask(null);
+      setReassignReason("");
+      fetchTasks();
+    } catch (e) {
+      alert(`재배정 요청 에러: ${e.message}`);
     }
   }
 
@@ -4855,6 +4883,7 @@ export default function EngineerApp({ user, onLogout }) {
             task={selectedTask}
             onBack={() => { goBack(); setSelectedTaskId(null); }}
             onUpdate={updateTask}
+            onRequestReassign={(t) => setReassignRequestTask(t)}
           />
         )}
         {screen === "usolN" && (
@@ -4901,7 +4930,7 @@ export default function EngineerApp({ user, onLogout }) {
           <textarea
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}
-            placeholder="사유 박기... (예: 고객 부재 / 위치 X / 등)"
+            placeholder="사유 입력... (예: 고객 부재 / 위치 안 됨 등)"
             style={{
               width: "100%", minHeight: 100, padding: 10,
               borderRadius: 8, border: "1px solid #ddd",
@@ -4918,7 +4947,42 @@ export default function EngineerApp({ user, onLogout }) {
               disabled={!cancelReason.trim()}
               onClick={submitCancelRequest}
               style={{ flex: 1, padding: 12, background: cancelReason.trim() ? "#FF3B5C" : "#ccc", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: cancelReason.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}
-            >요청 박기</button>
+            >요청 전송</button>
+          </div>
+        </V14Modal>
+      )}
+
+      {/* 2026-05-22 — 재배정 요청 모달 (취소 요청 패턴 차용) */}
+      {reassignRequestTask && (
+        <V14Modal onClose={() => { setReassignRequestTask(null); setReassignReason(""); }}>
+          <h3 style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>🔁 재배정 요청</h3>
+          <div style={{ fontSize: 12, color: "#888", marginBottom: 12 }}>
+            {reassignRequestTask.customer} · {reassignRequestTask.workType} · {reassignRequestTask.address}
+          </div>
+          <div style={{ fontSize: 11, color: "#888", marginBottom: 10, lineHeight: 1.5 }}>
+            운영자에게 재배정 요청을 보냅니다. 운영자가 다른 기사로 교체합니다.
+          </div>
+          <textarea
+            value={reassignReason}
+            onChange={(e) => setReassignReason(e.target.value)}
+            placeholder="사유 입력... (예: 일정 충돌 / 위치 거리 / 컨디션 등)"
+            style={{
+              width: "100%", minHeight: 100, padding: 10,
+              borderRadius: 8, border: "1px solid #ddd",
+              fontSize: 13, fontFamily: "inherit", resize: "vertical",
+              boxSizing: "border-box",
+            }}
+          />
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+            <button
+              onClick={() => { setReassignRequestTask(null); setReassignReason(""); }}
+              style={{ flex: 1, padding: 12, background: "transparent", border: "1px solid #ddd", borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}
+            >취소</button>
+            <button
+              disabled={!reassignReason.trim()}
+              onClick={submitReassignRequest}
+              style={{ flex: 1, padding: 12, background: reassignReason.trim() ? "#FF1B8D" : "#ccc", color: "#fff", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 800, cursor: reassignReason.trim() ? "pointer" : "not-allowed", fontFamily: "inherit" }}
+            >요청 전송</button>
           </div>
         </V14Modal>
       )}

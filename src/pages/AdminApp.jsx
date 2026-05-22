@@ -1050,6 +1050,8 @@ function _v14NormalizeTask(t) {
     engineerRemitConfirmedAt: t.engineerRemitConfirmedAt || t.engineer_remit_confirmed_at || null,
     // 2026-05-22 — 냉매 동의서 (3곳 매핑 트랩)
     consent: t.consent || t.categoryData?.consent || null,
+    // 2026-05-22 — 재배정 요청 (3곳 매핑 트랩)
+    reassignRequest: t.reassignRequest || t.categoryData?.reassignRequest || null,
     _api: true,                   // 진짜 API 출처 마킹
   };
 }

@@ -130,6 +130,9 @@ export function rowToTask(row) {
     // 2026-05-22 — 냉매 동의서 (category_data.consent jsonb 평탄화)
     //   { customerName, signatureUrl, signedAt } — 없으면 null
     consent:       cat.consent || null,
+    // 2026-05-22 — 기사 재배정 요청 (category_data.reassignRequest jsonb 평탄화)
+    //   { reason, requestedAt } — 없으면 null
+    reassignRequest: cat.reassignRequest || null,
     // Phase 4-2 fix — category_data 평탄화 (시트 호환 / 화면 필터 통과)
     // 2026-05-19 Phase 5 Step 0.C-16 — task_items 측 fallback 매핑 (category_data.workItems 측 NULL 측 catch)
     // 2026-05-21 Phase 5 Step 0.G-5-A — serviceCode / orderType 측 측 추가
@@ -915,6 +918,12 @@ export async function assignEngineerAdapter(taskId, engineerName, options = {}) 
     const status = options.status || "배정";
     const res = await assignEngineerDb(taskId, userId, { status });
     if (!res.ok) return res;
+
+    // 2026-05-22 Phase 2 — 재배정 후 reassignRequest 키 자동 정리 (best-effort)
+    // 운영자가 [변경] 측 기사 교체 시 jsonb 측 reassignRequest 측 남아있으면 카드 측 잔존.
+    // 실패해도 배정 자체 측 통과 — 다음 polling 측 정리됨.
+    _clearReassignRequest(taskId);
+
     return { ok: true, taskId: res.data?.id, task: res.data };
   } catch (e) {
     console.error("[tasksDb.assignEngineerAdapter]", e);
@@ -988,6 +997,53 @@ export async function changePriceAdapter(taskId, newPrice, addAmount, reason) {
   }
 
   return res;
+}
+
+// ============================================================
+// 2026-05-22 — 기사 재배정 요청 (Phase 1)
+// ============================================================
+// RPC request_reassign (Migration 056) 래퍼.
+// category_data.reassignRequest jsonb 머지 + 운영자 push 발사.
+// status 변경 X — 배정/확정/진행중 그대로 유지.
+//
+// 입력: taskId, reason
+// 출력: { ok: true, taskId } | { ok: false, error }
+export async function requestReassignAdapter(taskId, reason) {
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  if (!String(reason || "").trim()) return { ok: false, error: "사유 없음" };
+  try {
+    const { data, error } = await supabase.rpc("request_reassign", {
+      p_task_id: taskId,
+      p_reason:  String(reason).trim(),
+    });
+    if (error) {
+      console.error("[tasksDb.requestReassignAdapter:rpc]", error);
+      return { ok: false, error: error.message };
+    }
+    if (data && data.ok === false) {
+      return { ok: false, error: data.error || "재배정 요청 실패" };
+    }
+    return { ok: true, taskId: data?.task_id || taskId };
+  } catch (e) {
+    console.error("[tasksDb.requestReassignAdapter]", e);
+    return { ok: false, error: e.message || "재배정 요청 예외" };
+  }
+}
+
+// 2026-05-22 Phase 2 — 운영자 재배정 후 reassignRequest 키 정리.
+// assignEngineerAdapter 측 자동 호출 — 새 기사 배정 후 jsonb 측 reassignRequest 키 삭제.
+// 다른 jsonb 키 (consent / cancelReason 등) 보존.
+async function _clearReassignRequest(taskId) {
+  if (!taskId) return;
+  try {
+    const current = await getTaskByIdDb(taskId);
+    if (!current?.categoryData?.reassignRequest) return;  // 키 없으면 skip
+    const nextCategoryData = { ...current.categoryData };
+    delete nextCategoryData.reassignRequest;
+    await updateTaskDb(taskId, { categoryData: nextCategoryData });
+  } catch (e) {
+    console.warn("[_clearReassignRequest]", e?.message || e);
+  }
 }
 
 // ============================================================

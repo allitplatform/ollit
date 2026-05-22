@@ -210,6 +210,8 @@ export function v14NormalizeTask(t) {
 
     // 2026-05-22 — 냉매 동의서 (category_data.consent 평탄화, 3곳 매핑 트랩)
     consent: t.consent || t.categoryData?.consent || null,
+    // 2026-05-22 — 재배정 요청 (category_data.reassignRequest 평탄화, 3곳 매핑 트랩)
+    reassignRequest: t.reassignRequest || t.categoryData?.reassignRequest || null,
 
     _api: true,
   };
