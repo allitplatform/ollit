@@ -1695,6 +1695,54 @@ const THEMES = {
 };
 
 // ============================================
+// 2026-05-22 — Shell + FontStyle 모듈 레벨 컴포넌트 (옛 AdminApp 안 정의 → 매 렌더 재정의 → 자식 unmount)
+//
+// 원인: AdminApp 함수 본체 안에서 const Shell = ... 정의 시 매 렌더마다 새 함수 identity →
+// React reconciliation 측 다른 컴포넌트로 인식 → 자식 트리(NewReceptionFormScreen 등) unmount/remount →
+// 폼 입력 state 소실 (특히 minute tick setInterval 측 매 분 발화).
+//
+// 정정: 모듈 레벨 함수로 추출 + t/toasts props 전달. 호출처 측 props 명시.
+// 부가 효과: 모든 화면(작업 상세 / 정산 / 설정 등) 측 우발 unmount 함정 동시 해소.
+// ============================================
+const FontStyle = (
+  <style>{`
+
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes flash { 0%, 100% { background-color: transparent; } 30% { background-color: rgba(251, 191, 36, 0.25); } }
+    .fade-in { animation: slideUp 0.4s ease-out; }
+    .flash-highlight { animation: flash 1.5s ease-out; }
+    .mono { font-family: inherit; }
+    .clickable { cursor: pointer; transition: all 0.15s; }
+    .clickable:active { opacity: 0.7; transform: scale(0.98); }
+  `}</style>
+);
+
+function Shell({ t, toasts, children }) {
+  return (
+    <div style={{ minHeight: "100vh", background: t.bg, color: t.text }}>
+      {FontStyle}
+      <div style={{
+        width: "100%",
+        maxWidth: 480,
+        margin: "0 auto",
+        background: t.bg,
+        minHeight: "100vh",
+        color: t.text,
+        fontFamily: "'Pretendard', sans-serif",
+        paddingBottom: "calc(80px + env(safe-area-inset-bottom))",
+        paddingTop: "env(safe-area-inset-top)",
+        position: "relative",
+        boxSizing: "border-box",
+      }}>
+        {children}
+        <ToastContainer t={t} toasts={toasts}/>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
 // 메인 export — 화면 분기 (모달 state)
 // ============================================
 
@@ -2276,47 +2324,12 @@ export default function AdminApp({ user, onLogout }) {
   const goEngineerDay  = (eng,  from) => { setSelectedEngineer(eng);    setPrevScreen(from); setScreen("engineerDay"); };
   const goBackFromStack = () => { setPrevScreen(null); goBack(); };
 
-  const FontStyle = (
-    <style>{`
-      
-      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
-      @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-      @keyframes flash { 0%, 100% { background-color: transparent; } 30% { background-color: rgba(251, 191, 36, 0.25); } }
-      .fade-in { animation: slideUp 0.4s ease-out; }
-      .flash-highlight { animation: flash 1.5s ease-out; }
-      .mono { font-family: inherit; }
-      .clickable { cursor: pointer; transition: all 0.15s; }
-      .clickable:active { opacity: 0.7; transform: scale(0.98); }
-    `}</style>
-  );
-
-  // V14 Step 4 — 모바일 풀스크린 fix (옛 maxWidth: 380 박힘 = 모바일 좌우 흰띠 catch)
-  // EngineerApp 패턴 박기: maxWidth 박지 X / minHeight 100vh / safe-area-inset 박힘
-  const Shell = ({ children }) => (
-    <div style={{ minHeight: "100vh", background: t.bg, color: t.text }}>
-      {FontStyle}
-      <div style={{
-        width: "100%",
-        maxWidth: 480,           // 데스크톱은 480 박힘 (옛 380 박지 X) / 모바일은 100% 박힘
-        margin: "0 auto",
-        background: t.bg,
-        minHeight: "100vh",
-        color: t.text,
-        fontFamily: "'Pretendard', sans-serif",
-        paddingBottom: "calc(80px + env(safe-area-inset-bottom))",
-        paddingTop: "env(safe-area-inset-top)",
-        position: "relative",
-        boxSizing: "border-box",
-      }}>
-        {children}
-        <ToastContainer t={t} toasts={toasts}/>
-      </div>
-    </div>
-  );
+  // 2026-05-22 — Shell + FontStyle 측 모듈 레벨 함수로 추출 (위 정의 참조).
+  // 옛 const 정의 측 매 렌더마다 새 함수 identity → 자식 unmount → 폼 state 소실.
 
   // 화면 분기
   if (screen === "newReception") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <NewReceptionScreen
         t={t}
         filter={newReceptionFilter}
@@ -2373,7 +2386,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "newReceptionForm") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <NewReceptionFormScreen
         t={t}
         onBack={goBack}
@@ -2414,7 +2427,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "memoAdd" && selectedTask) {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <MemoAddScreen
         task={selectedTask}
         user={user}
@@ -2426,7 +2439,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "taskEdit" && selectedTask) {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <TaskFullEditScreen
         task={selectedTask}
         user={user}
@@ -2442,7 +2455,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "taskHistory" && selectedTask) {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <TaskHistoryScreen
         task={selectedTask}
         onBack={goBack}
@@ -2450,7 +2463,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "notifications") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <NotificationScreen
         t={t}
         notifications={notifications}
@@ -2477,7 +2490,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "liveWork") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <LiveWorkScreen
         t={t}
         onBack={() => { goBack(); setLiveWorkFilter(null); }}
@@ -2488,7 +2501,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "engineerDay" && selectedEngineer) {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <EngineerDayScreen
         t={t}
         engineer={selectedEngineer}
@@ -2498,7 +2511,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "taskDetail" && selectedTaskDetail) {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <AdminTaskDetailScreen
         t={t}
         task={selectedTaskDetail ? {
@@ -2736,7 +2749,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "recommend") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <RecommendScreen
         t={t}
         task={selectedTask}
@@ -2960,7 +2973,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "autoAssign") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <AutoAssignScreen
         t={t}
         task={selectedTask}
@@ -3037,7 +3050,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "assignedList") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <AssignedTasksScreen
         t={t}
         filter={assignedFilter}
@@ -3050,7 +3063,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "inProgressList") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <InProgressListScreen
         t={t}
         onBack={goBack}
@@ -3060,7 +3073,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "settlement") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <SettlementDailyClose
         onBack={goBack}
         onClickPrincipalSettlement={() => setScreen("principal_settlement")}
@@ -3069,7 +3082,7 @@ export default function AdminApp({ user, onLogout }) {
   }
   // 2026-05-22 — 입금 내역 (회사 송금 통장 내역, 조회 전용)
   if (screen === "settlementHistory") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <SettlementHistoryContent
         t={t}
         apiTasks={apiTasks}
@@ -3079,13 +3092,13 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "principal_settlement") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <PrincipalSettlementScreen onBack={goBack}/>
     </Shell>;
   }
   // Step 6 — 기사 관리 (리스트 + 편집/추가)
   if (screen === "engineerList") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <EngineerListScreen
         onBack={goBack}
         onAdd={() => {
@@ -3103,7 +3116,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "engineerEdit" && editingEngineer) {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <EngineerEditScreen
         engineer={editingEngineer}
         isNew={editingIsNew}
@@ -3128,7 +3141,7 @@ export default function AdminApp({ user, onLogout }) {
   }
   // Step 8 — 지역 관리 (리스트 + 편집/추가)
   if (screen === "regionList") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <RegionListScreen
         onBack={goBack}
         onAdd={() => {
@@ -3145,7 +3158,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "regionEdit" && editingRegion) {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <RegionEditScreen
         region={editingRegion}
         isNew={editingRegionIsNew}
@@ -3169,7 +3182,7 @@ export default function AdminApp({ user, onLogout }) {
   }
   // Step 9 — 통합 설정
   if (screen === "settings") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <SettingsScreen
         user={user}
         themeMode={mode}
@@ -3193,14 +3206,14 @@ export default function AdminApp({ user, onLogout }) {
   }
   // Phase 2 — 수수료정책 관리 (admin/owner/operator)
   if (screen === "commissionPolicy") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <CommissionPolicyManagement user={user} onBack={goBack}/>
     </Shell>;
   }
   // V11-2-fix — 유솔 N 워크스페이스 (단일 라우트, 5탭 컨테이너 내부)
   // 2026-05-19 Phase 5 Step 0.B — onTaskClick prop drilling (Supabase row → v14 정규화 → AdminTaskDetailScreen)
   if (screen === "usol_n") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <UsolNScreen
         user={user}
         onBack={goBack}
@@ -3219,7 +3232,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "userList") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <UserListScreen
         onBack={goBack}
         onAdd={() => {
@@ -3236,7 +3249,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "userEdit" && editingUser) {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <UserEditScreen
         user={editingUser}
         isNew={editingUserIsNew}
@@ -3259,19 +3272,19 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "notificationSettings") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
    <NotiSettingsScreen user={user} onBack={goBack}/>
     </Shell>;
   }
   // Step 5-8 F-4 — 회사 계좌 관리 (운영자/관리자만 / PERMISSIONS["menu.company_account"])
   if (screen === "companyAccount") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <CompanyAccountScreen onBack={goBack}/>
     </Shell>;
   }
   // Step 7 — 원청 관리 (리스트 + 편집/추가 + 유솔 N CSV 업로드)
   if (screen === "principalList") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <PrincipalListScreen
         onBack={goBack}
         onAdd={() => {
@@ -3289,14 +3302,14 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "ratesManagement") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <RatesManagementScreen
         onBack={goBack}
       />
     </Shell>;
   }
   if (screen === "naverUpload") {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <NaverUploadScreen
         onBack={goBack}
         onComplete={(orders) => {
@@ -3354,7 +3367,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   if (screen === "principalEdit" && editingPrincipal) {
-    return <Shell>
+    return <Shell t={t} toasts={toasts}>
       <PrincipalEditScreen
         principal={editingPrincipal}
         isNew={editingPrincipalIsNew}
@@ -3379,7 +3392,7 @@ export default function AdminApp({ user, onLogout }) {
   }
 
   // 메인 대시보드
-  return <Shell>
+  return <Shell t={t} toasts={toasts}>
     <DashboardScreen
       t={t} mode={mode} setMode={setMode}
       onLogout={onLogout}
