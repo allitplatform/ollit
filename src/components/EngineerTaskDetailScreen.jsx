@@ -1823,8 +1823,15 @@ function CompletedMemo({ memo }) {
 
 // ──────────────── 정산 정보 (완료) ────────────────
 function SettlementInfo({ task }) {
-  const workAmount = task.workAmount || task.estimateTotal || 0;
-  const total = workAmount + (task.extraFee || 0);
+  // 2026-05-22 — DB totalAmount 우선 (visit_only 측 travel_fee 포함 / product_price=0 처리).
+  //   옛 흐름 측 task.estimateTotal 측 옛 견적 측 남아있어 visit_only 작업 측 잘못된 작업 금액 표시.
+  //   DB total_amount = product_price + extra_fee + travel_fee (GENERATED) — 모든 status 측 일관.
+  //   fallback: 옛 산식 (estimateTotal + extraFee) — 일반 흐름 측 회귀 안전.
+  const dbTotal = Number(task.totalAmount || task.total_amount || 0);
+  const total = dbTotal > 0
+    ? dbTotal
+    : ((task.workAmount || task.estimateTotal || 0) + (task.extraFee || 0));
+  const workAmount = total - (task.extraFee || 0);
   const engineerNet = task.engineer_amount || 0;
   // V14 v6 — 사장님 spec: 수수료 = 판매가 - 기사 수익 (실제 회사 송금 금액 / % 표시 X)
   const commission = Math.max(0, total - engineerNet);
