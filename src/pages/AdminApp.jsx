@@ -2413,7 +2413,8 @@ export default function AdminApp({ user, onLogout }) {
               phone:      form.phone,
               address:    form.address,
               estimateTotal: form.estimateTotal || 0,
-              pushCount:  4,
+              // 2026-05-22 — 사장님 spec: 푸시 후보 10명 (옛 4명 → 10명)
+              pushCount:  10,
             });
             replaceScreen("autoAssign");
             return;

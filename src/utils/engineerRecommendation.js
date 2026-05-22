@@ -73,18 +73,18 @@ function matchSkill(engineer, task) {
   return { matched: false, grade: "", skill: null };
 }
 
-// 지역 점수 (0~40) — DB skills 단일 출처 박힘
-// 2026-05-14 fix — 2차 fallback (옛 workTypes / SEED_ENGINEERS) 박지 X
-//   · 옛 SEED 박은 영역과 DB 박은 영역 충돌 catch 박힌 영역 (정훈 강남구 매칭 등)
-//   · DB epp + ez 측 박은 영역만 박음
-// skills 매칭 시: 메인 = 40 / 백업 = 25 / 그 외 등급 = 10
-// 매칭 박지 X → 0점 (regionMatch="none")
+// 지역 점수 (0~40) — DB skills 단일 출처
+// 2026-05-22 fix — 등급 화이트리스트 ("메인" / "백업"만 후보).
+//   옛 spec: 그 외 등급 (빈 grade / "안 함" / null 등) → 10점 → capable 그룹 진입 → push 후보 포함.
+//   사장님 spec: 그 외 등급 = 후보 X. 시트 row 측 옛 "메인" 측 남아있다가 사장님이 "안 함" 변경 시
+//     deleteEngineerSkill 측 실패 (silent) 측 시트 row 그대로 남는 케이스 보호.
+// 매칭 안 됨 → 0점 (regionMatch="none")
 function calcRegionScore(engineer, task /*, regionsAll */) {
   const skillMatch = matchSkill(engineer, task);
   if (!skillMatch.matched) return 0;
   if (skillMatch.grade === "메인") return 40;
   if (skillMatch.grade === "백업") return 25;
-  return 10;  // 등급 불명 / 안 함 등
+  return 0;  // 등급 명시 없음 (빈 grade / "안 함" 등) → 후보 제외
 }
 
 // 기종 점수 (0~20). 시드 appliances는 빈 배열 → 모두 가능 가정 (18점)
