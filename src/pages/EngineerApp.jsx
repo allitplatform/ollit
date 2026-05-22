@@ -3832,6 +3832,19 @@ export default function EngineerApp({ user, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.engineerId, user?.name]);
 
+  // 2026-05-22 — Service Worker push 메시지 도착 시 자동 refetch (이중 안전망)
+  // realtime 측 실패해도 푸시 받으면 화면 갱신. 강제 배정 알림 + 일정 변경 등 즉시 반영.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const handler = (event) => {
+      if (event.data?.type !== "PUSH_RECEIVED") return;
+      fetchTasks();
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // V14 — updateTask = apiUpdateTask 호출 + Optimistic Update
   const updateTask = async (taskId, updates) => {
     if (!taskId) return;

@@ -64,7 +64,10 @@ export default async function handler(req, res) {
   }
 
   const body = typeof req.body === "string" ? safeParse(req.body) : (req.body || {});
-  const { targetType, targetId, title, body: msgBody, url, tag, icon, badge, requireInteraction } = body;
+  // 2026-05-22 P1 — taskId destructure 추가 (SW saveToIndexedDB dedup 정상화).
+  // trigger(015b) 측 payload에 'taskId' 들어있으나 이전엔 여기서 빠뜨려 SW data.taskId=null.
+  // → 같은 title + 5초 이내 알림이 인앱 dedup 으로 묶임. 연쇄 알림 첫 1건만 보임.
+  const { targetType, targetId, title, body: msgBody, url, tag, icon, badge, requireInteraction, taskId } = body;
 
   if (!targetType || !title) {
     return res.status(400).json({ ok: false, error: "targetType + title 필수" });
@@ -99,6 +102,7 @@ export default async function handler(req, res) {
   }
 
   // 2) web-push로 각 구독에 발송
+  // 2026-05-22 P1 — taskId forward (SW data.taskId 로 들어가 dedup 식별자 역할).
   const payload = JSON.stringify({
     title,
     body: msgBody || "",
@@ -107,6 +111,7 @@ export default async function handler(req, res) {
     icon: icon  || "/icon-192.png",
     badge: badge || "/icon-192.png",
     requireInteraction: !!requireInteraction,
+    taskId: taskId || null,
   });
 
  const results = await Promise.allSettled(subs.map(s => {

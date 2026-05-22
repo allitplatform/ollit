@@ -2088,6 +2088,20 @@ export default function AdminApp({ user, onLogout }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.userId]);
 
+  // 2026-05-22 — Service Worker push 메시지 도착 시 자동 refetch (이중 안전망)
+  // realtime 측 실패해도 push 도착할 때마다 화면 갱신. 신규접수 폼 진입 시는 끊기.
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const handler = (event) => {
+      if (event.data?.type !== "PUSH_RECEIVED") return;
+      if (screen === "newReceptionForm") return;
+      fetchTasks({ background: true });
+    };
+    navigator.serviceWorker.addEventListener("message", handler);
+    return () => navigator.serviceWorker.removeEventListener("message", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen]);
+
   // Step 5 — 새 접수 등록 + 알림 (Phase 1 mock)
   // 새 접수 추가분 (NEW_RECEPTIONS const + 폼에서 등록한 항목)
   const [extraReceptions, setExtraReceptions] = useState([]);
@@ -2957,13 +2971,27 @@ export default function AdminApp({ user, onLogout }) {
             const res = await apiAssignEngineer(selectedTask?.id, eng.name);
             console.log('[V14 AutoAssign] apiAssignEngineer 응답:', res);
             if (!res || res.ok === false) {
-              addToast({ type: "completed", title: "배정 실패", message: (res && res.error) || "시트 박지 X" });
+              addToast({ type: "completed", title: "배정 실패", message: (res && res.error) || "시트 갱신 실패" });
               return;
             }
           } catch (e) {
             console.error('[V14 AutoAssign] apiAssignEngineer 에러:', e);
-            addToast({ type: "completed", title: "배정 실패", message: e.message || "네트워크 catch X" });
+            addToast({ type: "completed", title: "배정 실패", message: e.message || "네트워크 오류" });
             return;
+          }
+          // 2026-05-22 — 강제 배정 / 전체 기사 검색 흐름 측 push_candidates UPDATE 추가.
+          // Path B 측 동일 패턴 — Migration 014 trigger 발화 → 배정 기사에게 푸시 알림.
+          // 알림 실패해도 배정 자체는 OK (try/catch + log).
+          if (selectedTask?.id && eng?.id) {
+            try {
+              const { error: pushErr } = await supabase
+                .from('tasks')
+                .update({ push_candidates: [eng.id] })
+                .eq('id', selectedTask.id);
+              if (pushErr) console.error('[AutoAssign 강제배정 push]', pushErr);
+            } catch (err) {
+              console.error('[AutoAssign 강제배정 push]', err);
+            }
           }
           // Step 5-3 v3 — task 카드 상태 업데이트 (pushing → accepted) + 새 접수 리스트로 복귀
           updateReception(selectedTask?.id, {
