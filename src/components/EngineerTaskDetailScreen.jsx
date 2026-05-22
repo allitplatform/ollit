@@ -8,7 +8,7 @@ import { useRef, useState, useEffect } from "react";
 import { ArrowLeft, Camera, X, Copy } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
-import { changePriceAdapter as apiChangePrice } from "../data/tasksDb.js";
+import { changePriceAdapter as apiChangePrice, markVisitOnlyAdapter } from "../data/tasksDb.js";
 import {
   TaskCompleteScreen as CompletionCompleteScreen,
   TaskPartialScreen,
@@ -363,14 +363,20 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
         task={task}
         photos={photos}
         onBack={() => setSubScreen(null)}
-        onConfirm={(payload) => {
+        onConfirm={async (payload) => {
+          // 2026-05-22 Phase 2 — mark_visit_only RPC 측 원자적 처리.
+          // 옛 onUpdate({status:'visit_only', extraFee:30000}) 흐름은 4 곳 깨진 곳 (status enum / 정산 컬럼 / task_items / trigger) 측 동작 X.
+          // RPC 측 task_items 재구성 + tasks UPDATE + payments 직접 INSERT 한 트랜잭션 처리.
+          const res = await markVisitOnlyAdapter(task.id, payload.reasonId, payload.memo);
+          if (!res?.ok) {
+            alert(`출장비 처리 실패: ${res?.error || "알 수 없는 오류"}`);
+            return;
+          }
+          // Optimistic UI — status 즉시 반영 (apiUpdateTask 후속 호출도 053 적용 후엔 정상).
+          // RPC 측 이미 DB 변경 완료 → 다음 fetchTasks refetch 측 일관 동기화.
           onUpdate && onUpdate(task.id, {
             status: "visit_only",
-            visitOnlyReason: payload.reasonId,
-            visitOnlyMemo: payload.memo,
             completedAt: getCurrentTime(),
-            extraFee: payload.fee,
-            photos: photos.map(p => ({ url: p.url, step: p.step })),
           });
           setSubScreen(null);
           onBack && onBack();

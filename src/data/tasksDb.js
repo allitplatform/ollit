@@ -991,6 +991,38 @@ export async function changePriceAdapter(taskId, newPrice, addAmount, reason) {
 }
 
 // ============================================================
+// 2026-05-22 — 출장비만 처리 (Phase 2)
+// ============================================================
+// RPC mark_visit_only (Migration 054) 래퍼.
+// 한 트랜잭션 측 task_items 재구성 + tasks UPDATE + payments 직접 INSERT.
+// engineer 30000 / principal 0 / owner 0 / calc_method='출장비_30K'.
+//
+// 입력: taskId, reason(string), memo(string, optional)
+// 출력: { ok: true, task_id } | { ok: false, error }
+export async function markVisitOnlyAdapter(taskId, reason, memo = "") {
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  try {
+    const { data, error } = await supabase.rpc("mark_visit_only", {
+      p_task_id: taskId,
+      p_reason:  String(reason || ""),
+      p_memo:    String(memo || ""),
+    });
+    if (error) {
+      console.error("[tasksDb.markVisitOnlyAdapter:rpc]", error);
+      return { ok: false, error: error.message };
+    }
+    // RPC 응답 jsonb — { ok, task_id } | { ok: false, error }
+    if (data && data.ok === false) {
+      return { ok: false, error: data.error || "출장비 처리 실패" };
+    }
+    return { ok: true, taskId: data?.task_id || taskId };
+  } catch (e) {
+    console.error("[tasksDb.markVisitOnlyAdapter]", e);
+    return { ok: false, error: e.message || "출장비 처리 예외" };
+  }
+}
+
+// ============================================================
 // 2026-05-22 — 냉매 동의서 저장 (Phase 1)
 // ============================================================
 // 현재 category_data 측 consent 키만 머지 — 다른 키(cancelReason 등) 보존.
