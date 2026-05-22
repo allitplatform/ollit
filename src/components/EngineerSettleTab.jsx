@@ -5,6 +5,7 @@
 import { useState, useMemo } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { loadCompanyAccount } from "../data/companyAccount.js";
+import { isCompletedStatus } from "../utils/taskStatus.js";
 
 function getEarning(t) {
   return t.engineer_amount || 0;
@@ -75,12 +76,14 @@ export function EngineerSettleTab({
     setTimeout(() => setToast(null), 3000);
   }
   // "오늘 번 돈" Hero — 기사 입장 전체 수익 (트랙 🅐+🅑 모두 포함)
-  const completedToday = todayTasks.filter(t => t.status === "완료");
+  // 2026-05-22 — visit_only 측 "완료 계열" 포함 (출장비 30k 측 합산)
+  const completedToday = todayTasks.filter(t => isCompletedStatus(t.status));
   const todayEarning   = completedToday.reduce((s, t) => s + getEarning(t), 0);
   const todayRevenue   = completedToday.reduce((s, t) => s + getRevenue(t), 0);
 
   // 2026-05-18 Fix #30 D — "회사 송금" 카드는 트랙 🅐만 (toCompanyTasks 별도, 없으면 옛 호환 fallback)
-  const toCompanySource  = (toCompanyTasks || todayTasks).filter(t => t.status === "완료");
+  // 2026-05-22 — visit_only 측 "완료 계열" 포함 (트랙 'A' 측 출장비도 회사 송금 대상)
+  const toCompanySource  = (toCompanyTasks || todayTasks).filter(t => isCompletedStatus(t.status));
   const toCompanyRevenue = toCompanySource.reduce((s, t) => s + getRevenue(t), 0);
   const toCompanyEarning = toCompanySource.reduce((s, t) => s + getEarning(t), 0);
   const toCompanyFinal   = toCompany != null ? toCompany : Math.max(0, toCompanyRevenue - toCompanyEarning);

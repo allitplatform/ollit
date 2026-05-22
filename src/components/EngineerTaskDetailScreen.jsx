@@ -1138,20 +1138,29 @@ function StatusBlockCompleted({ task }) {
           {isVisitOnly ? "출장비만" : "완료"}
         </span>
       </div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
-        <div style={{
-          fontSize: 28, fontWeight: 700, fontFamily: "inherit",
-          color: "var(--text-primary)",
-        }}>
-          {formatTimeOnly(task.startedAt) || "—"}
+      {/* 2026-05-22 — visit_only 측 startedAt NULL → "총 — 작업" 깨짐 → 별도 간결 표시 */}
+      {isVisitOnly ? (
+        <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
+          출장비만 처리 · {formatTimeOnly(task.completedAt) || "—"}
         </div>
-        <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
-          ~ {formatTimeOnly(task.completedAt) || "—"}
-        </div>
-      </div>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-        총 {calcTotalDuration(task.startedAt, task.completedAt)} 작업
-      </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
+            <div style={{
+              fontSize: 28, fontWeight: 700, fontFamily: "inherit",
+              color: "var(--text-primary)",
+            }}>
+              {formatTimeOnly(task.startedAt) || "—"}
+            </div>
+            <div style={{ fontSize: 14, color: "var(--text-secondary)" }}>
+              ~ {formatTimeOnly(task.completedAt) || "—"}
+            </div>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+            총 {calcTotalDuration(task.startedAt, task.completedAt)} 작업
+          </div>
+        </>
+      )}
     </div>
   );
 }

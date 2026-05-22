@@ -4,6 +4,7 @@
 import { useMemo, useState } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
+import { isCompletedStatus, statusLabel } from "../utils/taskStatus.js";
 import {
   CalendarGrid, Legend,
   formatYmd, formatMonthLabel, formatMonthShort, formatDateLong,
@@ -806,7 +807,8 @@ function FullDayOffBox() {
 function TimelineRow({ task, onClick }) {
   const status = task.status;
   const isInProgress = status === "진행중";
-  const isDone = status === "완료";
+  // 2026-05-22 — visit_only 측 "완료 계열" (흐릿 카드 스타일 적용)
+  const isDone = isCompletedStatus(status);
   const isUntimed = status === "미배정";
 
   // 점 색
@@ -917,7 +919,8 @@ function StatusBadge({ status }) {
 function DayTaskCard({ task, onClick }) {
   const isActive = task.status === "진행중";
   const isUntimed = task.status === "미배정";
-  const isDone = task.status === "완료";
+  // 2026-05-22 — visit_only 측 "완료 계열" (흐릿 + opacity)
+  const isDone = isCompletedStatus(task.status);
 
   const cardStyle = isActive
     ? { background: "transparent", border: "2px solid #FF1B8D" }
@@ -953,7 +956,8 @@ function DayTaskCard({ task, onClick }) {
               color: isActive ? "#FF1B8D" : isDone ? "#03C75A" : "var(--text-secondary)",
               fontWeight: 700, marginTop: 2,
             }}>
-              {task.status}
+              {/* 2026-05-22 — visit_only 측 한글 변환 ("출장비만") */}
+              {statusLabel(task.status)}
             </div>
           </>
         )}
