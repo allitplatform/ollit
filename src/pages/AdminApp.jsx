@@ -3330,15 +3330,20 @@ export default function AdminApp({ user, onLogout }) {
             return;
           }
           // 결과 토스트 — 등록 / 중복 / 경고 / 에러 종합
+          // 2026-05-23 진단용 — errors 측 첫 번째 메시지 측 토스트 측 표시 (사장님 측 콘솔 안 봐도 catch 가능)
           const parts = [];
           if (res.inserted > 0) parts.push(`${res.inserted}건 등록`);
           if (res.skipped  > 0) parts.push(`${res.skipped}건 중복 건너뜀`);
           if (res.warnings?.length > 0) parts.push(`경고 ${res.warnings.length}건`);
-          if (res.errors?.length   > 0) parts.push(`실패 ${res.errors.length}건`);
+          if (res.errors?.length   > 0) parts.push(`❌ 실패 ${res.errors.length}건`);
+          const firstError = res.errors?.[0];
+          const errorDetail = firstError
+            ? ` | 첫 에러: ${firstError.error || "알 수 없음"}${firstError.code ? ` (${firstError.code})` : ""}${firstError.details ? ` — ${firstError.details}` : ""}`
+            : "";
           addToast({
-            type: "new_reception",
-            title: "유솔 N 업로드 완료",
-            message: parts.join(" · ") || "변경 없음",
+            type: res.errors?.length > 0 ? "completed" : "new_reception",
+            title: res.errors?.length > 0 ? "유솔 N 업로드 — 실패 발생" : "유솔 N 업로드 완료",
+            message: (parts.join(" · ") || "변경 없음") + errorDetail,
           });
           addNotification({
             type: "new_reception",

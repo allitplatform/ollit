@@ -395,34 +395,47 @@ export async function bulkInsertUsolNOrders(orders) {
       const settlementSum = Number(order.settlementAmount || order.totalAmount || 0);
 
       // [a] tasks INSERT
+      // 2026-05-23 진단용 — INSERT 시도 row 측 별도 변수 측 측 측 측 측 측 dump
+      const taskInsertRow = {
+        tenant_id: "11111111-1111-1111-1111-111111111111",
+        category_id: "33333333-3333-3333-3333-333333333001",
+        task_no: taskNo,
+        principal_id: principalId,
+        customer_name: order.customerName || "—",
+        phone:         order.phone || "",
+        address:       order.address || "",
+        district:      order.region || "",
+        channel:       "네이버",
+        request_note:  `네이버 주문 ${order.orderId}`,
+        status:        "미배정",
+        product_price: settlementSum,
+        extra_fee:     0,
+        travel_fee:    0,
+        external_order_no: String(order.orderId),
+        external_received_at: order.paymentDate || null,
+        // category_data 측 빈 객체 (Migration 017 trigger 측 workItems 측 없으면 task_items 자동 생성 X)
+        category_data: {},
+      };
       const { data: taskRow, error: taskErr } = await supabase
         .from("tasks")
-        .insert({
-          tenant_id: "11111111-1111-1111-1111-111111111111",
-          category_id: "33333333-3333-3333-3333-333333333001",
-          task_no: taskNo,
-          principal_id: principalId,
-          customer_name: order.customerName || "—",
-          phone:         order.phone || "",
-          address:       order.address || "",
-          district:      order.region || "",
-          channel:       "네이버",
-          request_note:  `네이버 주문 ${order.orderId}`,
-          status:        "미배정",
-          product_price: settlementSum,
-          extra_fee:     0,
-          travel_fee:    0,
-          external_order_no: String(order.orderId),
-          external_received_at: order.paymentDate || null,
-          // category_data 측 빈 객체 (Migration 017 trigger 측 workItems 측 없으면 task_items 자동 생성 X)
-          category_data: {},
-        })
+        .insert(taskInsertRow)
         .select("id, task_no")
         .single();
 
       if (taskErr || !taskRow) {
-        console.error("[bulkInsertUsolNOrders:taskInsert]", taskErr, order.orderId);
-        errors.push({ orderId: order.orderId, error: taskErr?.message || "task insert 실패" });
+        // 2026-05-23 진단용 — 사장님 측 toast / console 측 정확한 원인 catch 가능하도록 측 측 출력
+        console.error("[usolN tasks INSERT 실패]",
+          JSON.stringify(taskErr), "| orderId:", order.orderId,
+          "| 시도한 row:", JSON.stringify(taskInsertRow));
+        errors.push({
+          orderId: order.orderId,
+          error: taskErr?.message || "task insert 실패",
+          code: taskErr?.code || null,
+          details: taskErr?.details || null,
+          hint: taskErr?.hint || null,
+          paymentDate: order.paymentDate,
+          paymentDateType: typeof order.paymentDate,
+        });
         continue;
       }
 
@@ -502,9 +515,20 @@ export async function bulkInsertUsolNOrders(orders) {
       inserted++;
     }
 
+    // 2026-05-23 진단용 — 함수 끝 측 errors / warnings 측 전체 출력 (사장님 측 console 측 확인)
+    console.warn("[usolN bulk INSERT 결과]",
+      "inserted:", inserted, "| skipped:", skipped,
+      "| errors:", errors.length, "| warnings:", warnings.length);
+    if (errors.length > 0) {
+      console.error("[usolN errors 전체]", JSON.stringify(errors, null, 2));
+    }
+    if (warnings.length > 0) {
+      console.warn("[usolN warnings 측 3건]", JSON.stringify(warnings.slice(0, 3), null, 2));
+    }
+
     return { ok: true, inserted, skipped, warnings, errors };
   } catch (e) {
     console.error("[bulkInsertUsolNOrders]", e);
-    return { ok: false, error: e.message || "일괄 INSERT 예외", inserted: 0, skipped: 0, warnings: [], errors: [] };
+    return { ok: false, error: e.message || "일괄 INSERT 예외", inserted: 0, skipped: 0, warnings: [], errors: [{ error: e.message, stack: e.stack }] };
   }
 }

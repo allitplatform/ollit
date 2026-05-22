@@ -236,6 +236,25 @@ function parseNaverOrders(rows) {
     };
   });
 
+  // 2026-05-23 진단용 — 첫 번째 order 측 측 측 측 측 측 측 측 (Excel 측 날짜 측 직렬 측 측 측 timestamptz 측 측 측 측 측 측 catch)
+  if (orders.length > 0) {
+    const f = orders[0];
+    console.warn("[parseNaverOrders 진단]",
+      "주문 수:", orders.length,
+      "| 매핑 catch 컬럼:", JSON.stringify(COL),
+      "| 첫 order:", JSON.stringify({
+        orderId: f.orderId,
+        paymentDate: f.paymentDate,
+        paymentDate_type: typeof f.paymentDate,
+        paymentDate_isDate: f.paymentDate instanceof Date,
+        customerName: f.customerName,
+        address: f.address,
+        appliances_count: f.appliances?.length,
+        first_appliance: f.appliances?.[0],
+      }, null, 2),
+      "| sample row keys:", Object.keys(rows[0] || {}).slice(0, 30));
+  }
+
   return { orders, mapping: COL };
 }
 
