@@ -28,10 +28,12 @@ export function parseNaverOrders(rows) {
     quantity:         findColumn(sample, ["수량"]),
     totalAmount:      findColumn(sample, ["최종 상품별 총 주문금액", "정산기준금액", "결제금액"]),
     settlementAmount: findColumn(sample, ["정산예정금액"]),
-    // 2026-05-23 — 사장님 spec: "서비스종류" 컬럼 측 본작업/추가선택 판정
-    //   값: "가정집 에어컨청소" / "사무실 에어컨청소" / "추가선택" / (이상값)
-    //   "에어컨청소" 포함 → 본작업, "추가선택" → 추가선택, 그 외 → 경고
-    serviceType:      findColumn(sample, ["서비스종류", "서비스 종류", "유형", "구분"]),
+    // 2026-05-23 — 사장님 spec 측 정정:
+    //   네이버 원본 엑셀 측 "서비스종류" 컬럼 측 X. order_type/기종 정보 측 "옵션정보" 측 통째로
+    //   (예: "서비스 종류: 가정집 에어컨청소 / 구분: 벽걸이").
+    //   → COL.serviceType = null 측 정상. orderType 판정 측 optionVal fallback (deriveOrderType 키워드 catch).
+    //   "유형" / "구분" 측 후보 측 제거 — "배송비 유형" 측 부분 매칭 측 잘못된 catch 방지.
+    serviceType:      findColumn(sample, ["서비스종류", "서비스 종류"]),
   };
 
   if (!COL.orderId) {
@@ -61,9 +63,11 @@ export function parseNaverOrders(rows) {
         productOrderId: COL.productOrderId ? r[COL.productOrderId] : "",
         amount: parseIntSafe(COL.totalAmount ? r[COL.totalAmount] : 0),
         settlement: parseIntSafe(COL.settlementAmount ? r[COL.settlementAmount] : 0),
-        // 서비스종류 raw 값 + order_type 판정 (deriveOrderType 측 키워드 catch)
-        serviceTypeRaw: serviceVal,
-        orderType: deriveOrderType(serviceVal),
+        // 2026-05-23 — serviceTypeRaw 측 — serviceVal 있으면 측 측, 측 측 optionVal fallback
+        //   네이버 원본 측 "서비스종류" 컬럼 측 X (COL.serviceType=null) → optionVal 측 사용
+        serviceTypeRaw: serviceVal || optionVal,
+        // orderType 판정 — serviceVal 또는 optionVal 측 deriveOrderType (키워드 catch)
+        orderType: deriveOrderType(serviceVal || optionVal),
       };
     });
     const address = (COL.address && first[COL.address]) || "";
@@ -110,9 +114,19 @@ export function parseNaverOrders(rows) {
   return { orders, mapping: COL };
 }
 
+// 2026-05-23 — 정확 일치 우선 + 측 측 측 부분 일치 fallback
+//   "주문번호" / "상품주문번호" 측 측 측 측 측 측 부분 매칭 측 잘못된 catch 방지.
+//   1순위: 키 측 정확 일치 (trim 후 ===)
+//   2순위: 측 측 측 측 측 부분 일치 (includes) — "서비스 종류" 측 catch 측
 export function findColumn(row, candidates) {
   if (!row) return null;
   const keys = Object.keys(row);
+  // 1순위 — 정확 일치
+  for (const c of candidates) {
+    const exact = keys.find(k => k.trim() === c);
+    if (exact) return exact;
+  }
+  // 2순위 — 부분 일치 (옛 흐름 보존)
   for (const c of candidates) {
     const found = keys.find(k => k.trim().includes(c));
     if (found) return found;

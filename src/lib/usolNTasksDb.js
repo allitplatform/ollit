@@ -13,6 +13,7 @@
 //   - select() 측 task_items 측 inline JOIN (별도 호출 0)
 
 import { supabase } from "./supabase.js";
+import { generateTaskNosBulk } from "./taskNoGenerator.js";
 
 const USOL_N_PRINCIPAL_CODE = "usol_n";
 let _usolNPrincipalId = null;
@@ -406,17 +407,23 @@ export async function bulkInsertUsolNOrders(orders) {
       return null;
     }
 
-    // 4) 각 order 측 tasks + task_items INSERT
+    // 4) task_no 일괄 측 — 회사 규칙 {prefix}{YYMMDD}-{seq} (taskNoGenerator)
+    //    측 시작 측 1회 catch → race condition X / 측 시점 i 측 시점 i 측 시점 i
+    const tnRes = await generateTaskNosBulk(USOL_N_PRINCIPAL_CODE, fresh.length);
+    if (!tnRes.ok) {
+      console.error("[bulkInsertUsolNOrders:taskNo]", tnRes.error);
+      return { ok: false, error: `task_no 측 측 실패: ${tnRes.error}`, inserted: 0, skipped, warnings: [], errors: [] };
+    }
+    const taskNos = tnRes.taskNos;  // ["YS-N-260523-001", ...]
+
+    // 5) 각 order 측 tasks + task_items INSERT
     const warnings = [];
     const errors = [];
     let inserted = 0;
 
-    // task_no 측 timestamp + sequence (간단 unique key, external_order_no 측 진실)
-    const tsBase = Date.now().toString(36).slice(-4);
-
     for (let i = 0; i < fresh.length; i++) {
       const order = fresh[i];
-      const taskNo = `YS-N-${tsBase}${String(i + 1).padStart(3, "0")}`;
+      const taskNo = taskNos[i];
       const settlementSum = Number(order.settlementAmount || order.totalAmount || 0);
 
       // [a] tasks INSERT

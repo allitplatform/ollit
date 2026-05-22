@@ -103,3 +103,27 @@ export async function generateTaskNo({ principalCode, principalName } = {}) {
 
   return { ok: true, taskNo, prefix, principalCode: resolvedCode };
 }
+
+// ============================================================
+// 2026-05-23 — 일괄 측 측 (CSV 업로드 측 N개 task_no 측 시점 측 측)
+// ============================================================
+// generateTaskNo 측 측 호출 측 — 측 측 측 측 같은 count 측 catch (race condition).
+// 측 시작 시 1회 count → 측 시점 측 += i 측 측 측 측 측 일관 측.
+//
+// 입력: principalCode (예: "usol_n") + count (생성할 task_no 개수)
+// 응답: { ok: true, taskNos: ["YS-N-260523-001", ...], prefix, yymmdd } | { ok: false, error }
+export async function generateTaskNosBulk(principalCode, count) {
+  if (!principalCode) return { ok: false, error: "principalCode 측 X" };
+  if (!Number.isInteger(count) || count <= 0) return { ok: false, error: "count 측 측 측 측" };
+
+  const prefix = await _getPrefixByCode(principalCode);
+  if (prefix === "?-") return { ok: false, error: `prefix lookup 실패 (code=${principalCode})` };
+
+  const yymmdd = todayYymmdd();
+  const existingCount = await _countTasksForToday(prefix, yymmdd);
+  const taskNos = Array.from({ length: count }, (_, i) =>
+    `${prefix}${yymmdd}-${String(existingCount + 1 + i).padStart(3, "0")}`
+  );
+
+  return { ok: true, taskNos, prefix, yymmdd };
+}
