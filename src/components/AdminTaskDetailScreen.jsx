@@ -98,6 +98,8 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <WorkTimeHistoryCard task={task}/>
       {/* 카드 6 — 요청사항 · 메모 */}
       <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
+      {/* 2026-05-22 — 냉매 충전 동의서 (있을 때만 노출, Phase 1) */}
+      {task.consent?.signedAt && <ConsentCard consent={task.consent}/>}
       {/* 카드 7 — 작업 사진 */}
       <PhotoSection taskId={task.id} taskType={task.type}/>
       <CompletionNotice task={task}/>
@@ -965,6 +967,60 @@ const historyEmptyStyle = {
 
 // ──────────────── 5.6 PhotoSection (Phase 5 Step 0.C-3-b) ────────────────
 // listPhotosByTask 측 fetch → 그리드 표시. photos 0건 시 섹션 숨김.
+// ──────────────────────────────────────────────
+// 2026-05-22 — 냉매 충전 동의서 카드 (조회 전용)
+// task.consent = { customerName, signatureUrl, signedAt }
+// ──────────────────────────────────────────────
+function ConsentCard({ consent }) {
+  const customerName = consent?.customerName || "—";
+  const signatureUrl = consent?.signatureUrl || "";
+  const signedAt = consent?.signedAt || "";
+  const signedAtLabel = signedAt ? formatDateTimeKST(signedAt) : "";
+
+  return (
+    <div style={{
+      margin: "0 16px 12px",
+      padding: "14px 14px 12px",
+      background: "var(--bg-secondary)",
+      border: "1px solid var(--border-color)",
+      borderRadius: 12,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
+          📝 냉매 충전 동의서
+        </div>
+        <div style={{ flex: 1 }}/>
+        <span style={{
+          padding: "2px 8px", borderRadius: 8,
+          background: "rgba(15,110,86,0.15)",
+          color: "#0F6E56",
+          fontSize: 10, fontWeight: 700,
+        }}>동의 완료</span>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7 }}>
+        <div>고객: <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{customerName}</span></div>
+        {signedAtLabel && <div>시각: <span style={{ color: "var(--text-primary)" }}>{signedAtLabel}</span></div>}
+      </div>
+      {signatureUrl && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 5 }}>서명</div>
+          <img
+            src={signatureUrl}
+            alt="고객 서명"
+            style={{
+              maxWidth: "100%", maxHeight: 140,
+              background: "#fff",
+              border: "1px solid var(--border-color)",
+              borderRadius: 8,
+              display: "block",
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PhotoSection({ taskId, taskType }) {
   const [photos, setPhotos]   = useState([]);
   const [loading, setLoading] = useState(false);

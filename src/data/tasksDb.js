@@ -127,6 +127,9 @@ export function rowToTask(row) {
 
     // 메타
     categoryData:  cat,
+    // 2026-05-22 — 냉매 동의서 (category_data.consent jsonb 평탄화)
+    //   { customerName, signatureUrl, signedAt } — 없으면 null
+    consent:       cat.consent || null,
     // Phase 4-2 fix — category_data 평탄화 (시트 호환 / 화면 필터 통과)
     // 2026-05-19 Phase 5 Step 0.C-16 — task_items 측 fallback 매핑 (category_data.workItems 측 NULL 측 catch)
     // 2026-05-21 Phase 5 Step 0.G-5-A — serviceCode / orderType 측 측 추가
@@ -985,6 +988,41 @@ export async function changePriceAdapter(taskId, newPrice, addAmount, reason) {
   }
 
   return res;
+}
+
+// ============================================================
+// 2026-05-22 — 냉매 동의서 저장 (Phase 1)
+// ============================================================
+// 현재 category_data 측 consent 키만 머지 — 다른 키(cancelReason 등) 보존.
+// requestCancelAdapter 패턴 동일 차용 (current 조회 → spread → 저장).
+//
+// 입력: taskId, { customerName, signatureUrl }
+// 출력: { ok: true, task } | { ok: false, error }
+export async function saveConsentAdapter(taskId, { customerName, signatureUrl }) {
+  if (!taskId)        return { ok: false, error: "taskId 없음" };
+  if (!customerName)  return { ok: false, error: "고객 성함 없음" };
+  if (!signatureUrl)  return { ok: false, error: "서명 없음" };
+
+  try {
+    const current = await getTaskByIdDb(taskId);
+    if (!current) return { ok: false, error: "작업 없음" };
+
+    const nextCategoryData = {
+      ...(current.categoryData || {}),
+      consent: {
+        customerName: String(customerName).trim(),
+        signatureUrl,
+        signedAt: new Date().toISOString(),
+      },
+    };
+
+    const res = await updateTaskDb(taskId, { categoryData: nextCategoryData });
+    if (!res.ok) return res;
+    return { ok: true, task: res.data };
+  } catch (e) {
+    console.error("[tasksDb.saveConsentAdapter]", e);
+    return { ok: false, error: e.message || "동의서 저장 실패" };
+  }
 }
 
 // 기사 측 자동 배정 수락 — 시트 acceptOffer(taskId, engineerName) 어댑터

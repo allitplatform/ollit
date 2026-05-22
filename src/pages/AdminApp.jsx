@@ -1048,6 +1048,8 @@ function _v14NormalizeTask(t) {
     track: t.track || t.payment_track || t.paymentTrack || t.payment?.track || 'A',
     engineerRemittedAt:       t.engineerRemittedAt       || t.engineer_remitted_at        || null,
     engineerRemitConfirmedAt: t.engineerRemitConfirmedAt || t.engineer_remit_confirmed_at || null,
+    // 2026-05-22 — 냉매 동의서 (3곳 매핑 트랩)
+    consent: t.consent || t.categoryData?.consent || null,
     _api: true,                   // 진짜 API 출처 마킹
   };
 }

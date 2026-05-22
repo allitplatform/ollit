@@ -208,6 +208,9 @@ export function v14NormalizeTask(t) {
     engineerRemitConfirmedAt: t.engineerRemitConfirmedAt || null,
     engineerRemitConfirmedBy: t.engineerRemitConfirmedBy || null,
 
+    // 2026-05-22 — 냉매 동의서 (category_data.consent 평탄화, 3곳 매핑 트랩)
+    consent: t.consent || t.categoryData?.consent || null,
+
     _api: true,
   };
 }

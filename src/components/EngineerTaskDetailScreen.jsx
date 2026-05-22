@@ -14,6 +14,7 @@ import {
   TaskPartialScreen,
   TaskVisitOnlyScreen,
 } from "./EngineerTaskCompletionScreens.jsx";
+import RefrigerantConsentScreen from "./RefrigerantConsentScreen.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { workDateLabel, workDateColor, formatTimeOnly, calcTotalDuration } from "../utils/dateLabel.js";
 import { useIsDark } from "../hooks/useIsDark.js";
@@ -377,6 +378,25 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       />
     );
   }
+  // 2026-05-22 — 냉매 동의서 (Phase 1)
+  if (subScreen === "consent") {
+    return (
+      <RefrigerantConsentScreen
+        task={task}
+        onBack={() => setSubScreen(null)}
+        onComplete={(consent) => {
+          // saveConsentAdapter 측 이미 DB 반영 — 로컬 task 캐시 갱신 위해 onUpdate 호출
+          // (category_data 전체 덮어쓰기 회피 — consent 키만 별도 머지 신호 전달)
+          onUpdate && onUpdate(task.id, { consent });
+          setSubScreen(null);
+        }}
+        onReject={() => {
+          // Phase 2 — visit_only 정산 정상화 후 본격 연결. 현재는 라우팅만.
+          setSubScreen("visitOnly");
+        }}
+      />
+    );
+  }
 
   const isConfirmed = task.status === "확정";
   const isInProgress = task.status === "진행중";
@@ -584,16 +604,63 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
       )}
 
       {/* V14 헌법 — 메인 CTA = 핑크 풀 (작업 종류 색 X) */}
-      {isConfirmed && (
+      {/* 2026-05-22 — 냉매 작업 측 동의서 필수 가드 (Phase 1) */}
+      {isConfirmed && (() => {
+        const isRefrigerant = task.workType === "냉매충전";
+        const hasConsent = !!(task.consent?.signedAt);
+        const startBlocked = isRefrigerant && !hasConsent;
+        const signedAtLabel = hasConsent ? formatTimeOnly(task.consent.signedAt) : "";
+        return (
         <div style={{ padding: "16px" }}>
+          {/* 냉매 작업 — 동의 전: 동의서 버튼 / 동의 후: 완료 표시 */}
+          {isRefrigerant && !hasConsent && (
+            <button
+              onClick={() => setSubScreen("consent")}
+              style={{
+                width: "100%", padding: 15,
+                background: "#0F6E56", border: "none",
+                borderRadius: 14, color: "#fff",
+                fontSize: 15, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+                marginBottom: 10,
+              }}
+            >
+              📝 냉매 충전 동의서
+            </button>
+          )}
+          {isRefrigerant && hasConsent && (
+            <div style={{
+              padding: "10px 12px", marginBottom: 10,
+              background: "rgba(15,110,86,0.10)",
+              border: "1px solid rgba(15,110,86,0.35)",
+              borderRadius: 10,
+              fontSize: 12, fontWeight: 700, color: "#0F6E56",
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <span>✅ 동의 완료</span>
+              <span style={{ color: "var(--text-secondary)", fontWeight: 600 }}>
+                · {task.consent.customerName}
+              </span>
+              {signedAtLabel && (
+                <span style={{ color: "var(--text-tertiary)", fontWeight: 600, marginLeft: "auto", fontSize: 11 }}>
+                  {signedAtLabel}
+                </span>
+              )}
+            </div>
+          )}
+
           <button
             onClick={handleStartTask}
+            disabled={startBlocked}
             style={{
               width: "100%", padding: 19,
-              background: "#FF1B8D", border: "none",
-              borderRadius: 16, color: "#fff",
+              background: startBlocked ? "var(--bg-tertiary)" : "#FF1B8D",
+              border: "none",
+              borderRadius: 16,
+              color: startBlocked ? "var(--text-tertiary)" : "#fff",
               fontSize: 18, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
+              cursor: startBlocked ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
             }}
           >
             ▶ 작업 시작
@@ -602,10 +669,11 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate }) {
             marginTop: 10, textAlign: "center",
             fontSize: 12, color: "#888", fontWeight: 600,
           }}>
-            현장 도착 후 시작
+            {startBlocked ? "동의서 완료 후 시작 가능" : "현장 도착 후 시작"}
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {isInProgress && (() => {
         const enough = photos.length >= PHOTO_MIN;
