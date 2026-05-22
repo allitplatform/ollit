@@ -5643,13 +5643,14 @@ function computeGroupStatus(tasks) {
   return "pending";
 }
 
-function RemitStatusBadge({ status }) {
-  // pending / reported / confirmed / overdue
+// 2026-05-22 — 테마 토큰화 (라이트/다크 양쪽 대비 확보).
+// 옛 하드코딩 톤은 다크 모드 전제라 라이트 모드에서 텍스트 묻힘 → t.* 토큰으로 통일.
+function RemitStatusBadge({ status, t }) {
   const MAP = {
-    pending:   { Icon: null,           bg: "rgba(180,178,169,0.18)", color: "#B4B2A9", label: "미입금" },
-    reported:  { Icon: Clock,          bg: "rgba(24,95,165,0.20)",   color: "#B5D4F4", label: "확인 대기" },
-    confirmed: { Icon: CheckCircle2,   bg: "rgba(15,110,86,0.25)",   color: "#9FE1CB", label: "입금 완료" },
-    overdue:   { Icon: AlertTriangle,  bg: "rgba(192,57,43,0.20)",   color: "#FF8E7F", label: "연체" },
+    pending:   { Icon: null,          fg: t.textMuted, bg: t.bgInset,   bd: t.borderStrong,  label: "미입금" },
+    reported:  { Icon: Clock,         fg: t.info,      bg: t.infoBg,    bd: `${t.info}33`,   label: "확인 대기" },
+    confirmed: { Icon: CheckCircle2,  fg: t.success,   bg: t.successBg, bd: t.successBorder, label: "입금 완료" },
+    overdue:   { Icon: AlertTriangle, fg: t.danger,    bg: t.dangerBg,  bd: t.dangerBorder,  label: "연체" },
   };
   const cfg = MAP[status] || MAP.pending;
   const Icon = cfg.Icon;
@@ -5657,7 +5658,8 @@ function RemitStatusBadge({ status }) {
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
       padding: "2px 7px", borderRadius: 8,
-      background: cfg.bg, color: cfg.color,
+      background: cfg.bg, color: cfg.fg,
+      border: `1px solid ${cfg.bd}`,
       fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
     }}>
       {Icon && <Icon size={10} aria-hidden="true"/>}
@@ -5795,7 +5797,7 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
             </span>
           )}
           {/* 2026-05-17 Round 2 Fix #21 — 그룹 통합 상태 배지 */}
-          <RemitStatusBadge status={groupStatus}/>
+          <RemitStatusBadge status={groupStatus} t={t}/>
           {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
         </div>
         <div style={{ fontSize: 11, color: t.textSecondary }}>

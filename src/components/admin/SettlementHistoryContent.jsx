@@ -75,13 +75,14 @@ function dateLabel(ymd) {
 }
 
 // ──────────────────────────────────────────────
-// 상태 배지 — 메인 탭 RemitStatusBadge 와 동일 톤 (단순화 — 3상태만)
+// 상태 배지 — 메인 탭 RemitStatusBadge 와 동일 톤 (테마 토큰 사용, 라이트/다크 대응).
+// 입금 내역은 조회 전용이라 3상태만 (pending/reported/confirmed).
 // ──────────────────────────────────────────────
 function StatusBadge({ status, t }) {
   const MAP = {
-    pending:   { Icon: AlertTriangle, bg: "rgba(180,178,169,0.18)", color: "#B4B2A9", label: "미입금" },
-    reported:  { Icon: Clock,         bg: "rgba(24,95,165,0.20)",   color: "#B5D4F4", label: "확인 대기" },
-    confirmed: { Icon: CheckCircle2,  bg: "rgba(15,110,86,0.25)",   color: "#9FE1CB", label: "입금 완료" },
+    pending:   { Icon: AlertTriangle, fg: t.textMuted, bg: t.bgInset,   bd: t.borderStrong,  label: "미입금" },
+    reported:  { Icon: Clock,         fg: t.info,      bg: t.infoBg,    bd: `${t.info}33`,   label: "확인 대기" },
+    confirmed: { Icon: CheckCircle2,  fg: t.success,   bg: t.successBg, bd: t.successBorder, label: "입금 완료" },
   };
   const cfg = MAP[status] || MAP.pending;
   const Icon = cfg.Icon;
@@ -89,7 +90,8 @@ function StatusBadge({ status, t }) {
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 3,
       padding: "2px 7px", borderRadius: 8,
-      background: cfg.bg, color: cfg.color,
+      background: cfg.bg, color: cfg.fg,
+      border: `1px solid ${cfg.bd}`,
       fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
     }}>
       <Icon size={10} aria-hidden="true"/>
