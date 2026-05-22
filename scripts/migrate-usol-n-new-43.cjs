@@ -330,9 +330,11 @@ async function main() {
     const assignedEngineerId = engName ? userByName.get(engName) : null;
     if (engName && !assignedEngineerId) stats.engineerUnmatched.add(engName);
 
-    // product_price — Migration 033 측 task=주문 단위 measurement
-    //   사장님 spec: 측 주문 항목들의 정산예정금액 합계
-    const productPrice = grp.reduce((sum, r) => sum + toInt(r["정산예정금액"]), 0);
+    // product_price — Migration 045/046 spec: 시트 최종상품금액 (판매가 / 네이버 수수료 포함)
+    //   · task_items.unit_price = 정산예정금액 (네이버 수수료 차감 측 측 정산 baseline)
+    //   · product_price = 최종상품금액 (네이버 수수료 포함 판매가)
+    //   · usol_n owner 측 측 = SUM(subtotal) measurement product_price 측 X 측 측
+    const productPrice = grp.reduce((sum, r) => sum + toInt(r["최종상품금액"]), 0);
 
     // tasks INSERT row
     const taskRow = {
@@ -395,7 +397,8 @@ async function main() {
         work_type_id: workTypeId,
         appliance_type_id: applianceTypeId,   // 추가선택 측 NULL
         qty: toInt(r["수량"]) || 1,
-        unit_price: toInt(r["최종상품금액"]),
+        // Migration 045/046 spec — unit_price = 정산예정금액 (정산 baseline / 네이버 수수료 차감 측)
+        unit_price: toInt(r["정산예정금액"]),
         order_type: orderType,
         product_order_id: cleanStr(r["상품주문번호"]) || null,
         metadata: {
