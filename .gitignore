@@ -54,3 +54,4 @@ db/
 # 일회성 마이그레이션 측 CSV (사장님 운영 데이터)
 /신규_43주문_INSERT용.csv
 .env.migrate
+/유솔홈케어_운영.xlsx
