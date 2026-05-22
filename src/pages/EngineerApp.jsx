@@ -15,6 +15,7 @@ import { supabase } from "../lib/supabase.js";
 import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
 import { isTrackARemittance, isTrackC } from "../utils/remitFilter.js";
+import { isCompletedStatus } from "../utils/taskStatus.js";
 import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 // 2026-05-19 Fix #30 account-fetch — 회사 계좌 DB 우선 조회 (localStorage 의존 제거)
@@ -4206,8 +4207,9 @@ export default function EngineerApp({ user, onLogout }) {
     x.scheduledDate === todayStr
   );
   // 정산용 — 오늘(KST) 완료 작업 전체 (정산 상세 화면용)
+  // 2026-05-23 — visit_only 측 "완료 계열" 포함 (출장비 30k 기사 수익 합산)
   const todayCompletedTasks = tasks.filter(x => {
-    if (x.status !== "완료") return false;
+    if (!isCompletedStatus(x.status)) return false;
     if (!x.completedAt) return false;
     const d = new Date(x.completedAt);
     if (isNaN(d.getTime())) return false;

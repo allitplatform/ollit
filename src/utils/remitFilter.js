@@ -36,6 +36,8 @@
 //   v2 (현재) — payments.track 컬럼 단일 진실 소스로 일원화.
 // ──────────────────────────────────────────────
 
+import { isCompletedStatus } from "./taskStatus.js";
+
 /**
  * 회사 송금 대기 대상(트랙 🅐) 작업인지 판별한다.
  *
@@ -44,7 +46,10 @@
  */
 export function isTrackARemittance(task) {
   if (!task) return false;
-  if (task.status !== "완료") return false;
+  // 2026-05-23 — visit_only 측 "완료 계열" 포함 (출장비도 트랙 'A' 측 회사 송금 대상).
+  //   visit_only 측 owner=0/principal=0 측 → 합계 산식 (total - engineer) 측 자동 0.
+  //   목록 측 표시되지만 실제 송금 금액 측 0 추가.
+  if (!isCompletedStatus(task.status)) return false;
 
   // task.track 우선, snake/camel 백업, 최종 fallback 'A' (정규화 매핑 누락 시 안전망).
   const track = task.track || task.payment_track || task.paymentTrack || "A";
@@ -76,7 +81,8 @@ export function isPendingRemit(task) {
  */
 export function isTrackC(task) {
   if (!task) return false;
-  if (task.status !== "완료") return false;
+  // 2026-05-23 — visit_only 측 "완료 계열" 포함 (일관성). usol_n + extra_fee > 0 측만 통과라 영향 거의 0.
+  if (!isCompletedStatus(task.status)) return false;
 
   // principalCode 채워진 경로: loadTasksForRole의 in-memory join (tasksDb.js:499)
   const principalCode = task.principalCode || task.principal_code || task.principal;

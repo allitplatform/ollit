@@ -199,6 +199,9 @@ export function v14NormalizeTask(t) {
     calc_method:      t.calc_method      ?? null,
     payment_status:   t.payment_status   ?? null,
     is_balanced:      t.is_balanced      ?? null,
+    // 2026-05-23 — totalAmount 매핑 (3곳 트랩 — rowToTask + _v14NormalizeTask 측엔 있으나 v14NormalizeTask 측 누락)
+    //   DB total_amount = product + extra + travel (GENERATED). visit_only 측 작업 측 화면 정산 카드 측 사용.
+    totalAmount: Number(t.totalAmount || t.total_amount || 0) || 0,
     // 2026-05-18 Fix #29 — 자금 흐름 트랙 (Migration 031/032, compute_payment v10 자동 결정).
     // 'A'=일일정산(기사→회사), 'B'=월정산(회사→기사). isTrackARemittance가 task.track 판별.
     // tasksDb.rowToTask가 이미 매핑한 top-level track 우선, 누락 시 payment 객체에서 재추출.
