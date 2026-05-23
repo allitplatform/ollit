@@ -17,15 +17,30 @@ import { Search } from "lucide-react";
 const N_BADGE_COLOR    = "#2E9E54";
 const CLEAN_COLOR      = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
+const DATE_TIME_COLOR  = "#F2B84B";   // 측 측 측 측 (앰버)
 
-// task → 측 측 서비스 측 (본작업/추가선택)
-//   workItems[0].orderType 측 catch (v14NormalizeTask 측 측)
-function getServiceKind(task) {
+// task → 측 측 본작업 측 (workItems 측 측 측 측 측 catch)
+//   사장님 spec — "세척류 항목(벽걸이/스탠드/1way/4way 등)이 하나라도 있으면 → 측 측"
+//   판정: orderType='본작업' 측 측 측 측 측 측 측 (③ 단계 측 측 측 99.9% 정확)
+//   fallback: 측 측 측 측 측 측 X 측 → appliance 측 측 측 키워드 catch
+const MAIN_APPLIANCE_KEYWORDS = ["벽걸이", "스탠드", "1way", "2way", "4way", "투인원", "원형", "시스템멀티"];
+
+function getMainItem(task) {
   const items = Array.isArray(task.workItems) ? task.workItems : [];
-  const first = items[0] || {};
-  const ot = first.orderType || task.orderType || "";
-  if (ot === "추가선택") return "addon";
-  return "main";   // 측 측 측 측 본작업 (세척)
+  // 1순위 — order_type='본작업' 측 측
+  let main = items.find(it => (it.orderType || it.order_type) === "본작업");
+  if (main) return main;
+  // 2순위 — appliance 측 측 측 키워드 catch (order_type 측 측 X 측 측)
+  main = items.find(it => {
+    const a = String(it.appliance || "").trim();
+    return MAIN_APPLIANCE_KEYWORDS.some(kw => a.includes(kw));
+  });
+  return main || null;
+}
+
+// task → 서비스 측 (main / addon)
+function getServiceKind(task) {
+  return getMainItem(task) ? "main" : "addon";
 }
 
 // task → status 배지 색상
@@ -102,7 +117,9 @@ export function PrincipalListTab({ t, tasks, onSelect }) {
     completed:  tasks.filter(x => x.status === "완료" || x.status === "visit_only").length,
   }), [tasks]);
 
-  // 필터
+  // 필터 + 정렬 (received_at desc — 최신 측)
+  //   loadTasksForRole 측 측 received_at desc measurement, 측 — useMemo 측 측 측 측 측 측 측
+  //   안전망: 측 측 측 측 측 received_at desc 측 측
   const filtered = useMemo(() => {
     let list = tasks;
     if (filter === "미배정") list = list.filter(x => x.status === "미배정");
@@ -119,7 +136,12 @@ export function PrincipalListTab({ t, tasks, onSelect }) {
         return cust.includes(q) || addr.includes(q) || tno.includes(q);
       });
     }
-    return list;
+    // 정렬 안전망 — received_at desc (NULL 측 측 측)
+    return [...list].sort((a, b) => {
+      const ra = a.received_at || a.receivedAt || a.created_at || a.createdAt || "";
+      const rb = b.received_at || b.receivedAt || b.created_at || b.createdAt || "";
+      return String(rb).localeCompare(String(ra));
+    });
   }, [tasks, filter, search]);
 
   return (
@@ -240,17 +262,19 @@ function TaskRow({ task, onClick }) {
   const time = formatTime(task);
   const date = formatDate(task);
   const items = Array.isArray(task.workItems) ? task.workItems : [];
-  const first = items[0] || {};
-  const appliance = first.appliance || task.appliance || "";
-  const qty = first.qty || task.qty || 1;
-  const moreCount = items.length > 1 ? items.length - 1 : 0;
 
-  // 정보 텍스트 (기종 · 지역 · 시간) — AdminApp TaskCard 측 측 측 (괄호 catch)
-  const infoBits = [`(${appliance || "—"}${qty > 1 ? `×${qty}` : ""}${moreCount > 0 ? ` +${moreCount}` : ""})`];
-  if (task.region) infoBits.push(task.region);
+  // 측 — 본작업 측 측 측 측 측 catch (사장님 spec)
+  //   세척 본작업 측 measurement → 측 측 측 측 ⚡ measurement 측 → 측 측 측 / 측 측 측
+  const mainItem = getMainItem(task);
+  const displayItem = mainItem || items[0] || {};
+  const appliance = displayItem.appliance || task.appliance || "";
+  const qty = displayItem.qty || task.qty || 1;
+  // 측 측 — 본작업 측 측 측 측 측 측 측 측 추가선택 측 (송풍팬 측), 측 측 측 측 측 +N 측 측
+  const otherCount = mainItem ? Math.max(0, items.length - 1) : Math.max(0, items.length - 1);
+
+  // 기종 측 (앰버 측 측 측 측 측 측 측)
+  const applianceText = `(${appliance || "—"}${qty > 1 ? `×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""})`;
   const timeStr = [date, time !== "—" ? time : ""].filter(Boolean).join(" ");
-  if (timeStr) infoBits.push(timeStr);
-  const infoText = infoBits.join(" · ");
 
   return (
     <div
@@ -283,13 +307,22 @@ function TaskRow({ task, onClick }) {
       {/* 3. N 배지 (usol_n 측만) */}
       <ChannelBadge task={task}/>
 
-      {/* 4. 정보 텍스트 — flex:1, ellipsis (11 / 400 / #888) */}
+      {/* 4. 정보 텍스트 — flex:1, ellipsis (11 / 400 / #888) — 측 측 측 측 #F2B84B */}
       <span style={{
         flex: 1, minWidth: 0,
         fontSize: 11, fontWeight: 400,
         color: "#888",
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-      }}>{infoText}</span>
+      }}>
+        {applianceText}
+        {task.region ? ` · ${task.region}` : ""}
+        {timeStr && (
+          <>
+            {" · "}
+            <span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span>
+          </>
+        )}
+      </span>
 
       {/* 5. 기사명 칩 — AdminApp 측 측: 11 / 500 / #ddd / #2a2a2a / radius 4 */}
       {task.assignedEngineer && (
