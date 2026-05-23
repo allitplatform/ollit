@@ -371,10 +371,10 @@ function WeekCard({ week, remitMap, isThisWeek, onClick }) {
       }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary, #FAF8F5)" }}>정산 대기</span>
-          <span style={{ fontSize: 11, fontWeight: 700, color: C_AMBER }}>대기</span>
+          <span style={{ fontSize: 11, color: C_GRAY }}>{week.items.length}건</span>
         </div>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 11, color: C_GRAY }}>{week.items.length}건</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: C_AMBER }}>대기</span>
           <span style={{ fontSize: 15, fontWeight: 800, color: C_MAGENTA, fontFamily: "inherit" }}>
             ₩{sumSubtotal.toLocaleString()}
           </span>
@@ -425,10 +425,10 @@ function WeekCard({ week, remitMap, isThisWeek, onClick }) {
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary, #FAF8F5)" }}>{weekLabel}</span>
           <span style={{ fontSize: 11, color: C_GRAY }}>{dateRange}</span>
         </div>
-        {statusElem}
+        <span style={{ fontSize: 11, color: C_GRAY, whiteSpace: "nowrap" }}>네이버 정산 {week.items.length}건</span>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, color: C_GRAY }}>네이버 정산 {week.items.length}건</span>
+        {statusElem}
         <span style={{ fontSize: 17, fontWeight: 800, color: C_MAGENTA, fontFamily: "inherit", lineHeight: 1 }}>
           ₩{sumSubtotal.toLocaleString()}
         </span>
