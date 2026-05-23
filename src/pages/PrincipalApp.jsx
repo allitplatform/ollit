@@ -17,6 +17,8 @@ import { formatTimeOnly } from "../utils/dateLabel.js";
 // 2026-05-23 — 유솔홈케어 통합 포털 1라운드: "작업 현황" 탭 측 컴포넌트
 import { PrincipalListTab } from "../components/principal/PrincipalListTab.jsx";
 import { PrincipalSettleTab } from "../components/principal/PrincipalSettleTab.jsx";
+import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
+import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
 
 const NOW = "10:00";
 
@@ -1004,10 +1006,43 @@ function TaskDetail({ t, task, onBack }) {
     "미접수": { color: t.danger, bg: t.dangerBg },
   };
   const ss = statusStyle[task.status] || { color: t.textMuted, bg: t.bgInset };
-  
+
   // 금액 계산
   const customerAmount = (task.productPrice || task.estimateTotal || 0) + (task.extraFee || 0);
   const principalFee = Math.round((task.productPrice || task.estimateTotal || 0) * 0.5);
+
+  // 상품주문별 정산 — task_items + remit 별도 fetch (mount 시)
+  const [settleItems, setSettleItems] = useState([]);
+  const [settleRemits, setSettleRemits] = useState([]);
+  const [settleLoading, setSettleLoading] = useState(false);
+  const [settleError, setSettleError] = useState("");
+
+  useEffect(() => {
+    if (!task?.id) return;
+    let alive = true;
+    setSettleLoading(true);
+    setSettleError("");
+    const principalCodes = task.principalCode ? [task.principalCode] : [];
+    Promise.all([
+      fetchTaskItemsForDetail(task.id),
+      principalCodes.length > 0
+        ? fetchPrincipalWeeklyRemittances({ principalCodes, monthsBack: 3 })
+        : Promise.resolve({ ok: true, remits: [] }),
+    ]).then(([itemsRes, remitRes]) => {
+      if (!alive) return;
+      if (!itemsRes.ok) setSettleError(itemsRes.error || "항목 조회 실패");
+      setSettleItems(itemsRes.items || []);
+      setSettleRemits(remitRes.remits || []);
+    }).finally(() => { if (alive) setSettleLoading(false); });
+    return () => { alive = false; };
+  }, [task?.id, task?.principalCode]);
+
+  // remitMap — `${principal_id}|${week_start}` → row
+  const remitMap = (() => {
+    const m = new Map();
+    for (const r of settleRemits) m.set(`${r.principal_id}|${r.week_start}`, r);
+    return m;
+  })();
   
   // 일정 표시
   const scheduledDisplay = task.scheduledDate && task.scheduledTime 
@@ -1118,6 +1153,16 @@ function TaskDetail({ t, task, onBack }) {
         </div>
       </div>
 
+      {/* 📊 상품주문별 정산 */}
+      <SettleDetailBox
+        t={t}
+        items={settleItems}
+        remitMap={remitMap}
+        principalId={task.principalId}
+        loading={settleLoading}
+        error={settleError}
+      />
+
       {task.afterPhoto && (
         <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
@@ -1150,6 +1195,210 @@ function TaskDetail({ t, task, onBack }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// 📊 상품주문별 정산 박스 (TaskDetail "💰 금액 정보" 직후)
+//   단계 판정 (1차 진단대로):
+//     ① 정산대기     — naver_settled_at NULL
+//     ② 네이버정산완료 — naver_settled_at 있음 + (③ 조건 X)
+//     ③ 회사입금완료   — naver_settled_at 있음 + 측 주차 remit row confirmed_at 있음
+//   금액 (net_amount = 운영팀이 입력한 네이버 정산금액):
+//     유솔 수수료      = ROUND(net_amount × 0.15)
+//     올데이케어 수수료 = net_amount − 유솔 수수료
+//   net_amount NULL → 금액 3종 "—", 단계는 ① 정산대기.
+function getItemStageKey(item, remitMap, principalId) {
+  if (!item.naver_settled_at) return "wait";
+  const wk = getNaverSettleWeek(item);
+  if (!wk || !principalId) return "naver";
+  const monday = wk.monday;
+  const weekStart = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+  const remit = remitMap.get(`${principalId}|${weekStart}`);
+  if (remit?.confirmed_at) return "company";
+  return "naver";
+}
+
+const SETTLE_DETAIL_STAGES = [
+  { key: "wait",    label: "정산대기",       color: "#9CA3AF" },
+  { key: "naver",   label: "네이버정산완료", color: "#FACC15" },
+  { key: "company", label: "회사입금완료",   color: "#5DCAA5" },
+];
+
+function StageProgress({ stage }) {
+  const currentIdx = SETTLE_DETAIL_STAGES.findIndex(s => s.key === stage);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8, marginBottom: 10 }}>
+      {SETTLE_DETAIL_STAGES.map((s, idx) => {
+        const isPast    = idx < currentIdx;
+        const isCurrent = idx === currentIdx;
+        const filled    = isPast || isCurrent;
+        const dotSize   = isCurrent ? 12 : 8;
+        return (
+          <div key={s.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+            <div style={{
+              width: dotSize, height: dotSize, borderRadius: "50%",
+              background: filled ? s.color : "transparent",
+              border: `${isCurrent ? 2 : 1.5}px solid ${s.color}`,
+              opacity: filled ? 1 : 0.35,
+              transition: "all 0.2s",
+            }}/>
+            <div style={{
+              fontSize: 9, fontWeight: isCurrent ? 700 : 500,
+              color: filled ? s.color : "#666",
+              whiteSpace: "nowrap",
+            }}>{s.label}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function SettleDetailBox({ t, items, remitMap, principalId, loading, error }) {
+  if (loading) {
+    return (
+      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
+          📊 상품주문별 정산
+        </div>
+        <div style={{ padding: "20px 0", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+          불러오는 중...
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
+          📊 상품주문별 정산
+        </div>
+        <div style={{ padding: "20px 0", textAlign: "center", color: "#EF4444", fontSize: 11 }}>
+          ⚠️ {error}
+        </div>
+      </div>
+    );
+  }
+  if (!items || items.length === 0) return null;
+
+  // 합계
+  let sumNaver = 0, sumUsol = 0, sumAllday = 0;
+  for (const it of items) {
+    const n = it.net_amount;
+    if (n != null) {
+      const usol = Math.round(n * 0.15);
+      sumNaver += n;
+      sumUsol  += usol;
+      sumAllday += n - usol;
+    }
+  }
+
+  return (
+    <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
+        📊 상품주문별 정산
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {items.map(item => (
+          <SettleItemDetailCard
+            key={item.id}
+            t={t}
+            item={item}
+            stage={getItemStageKey(item, remitMap, principalId)}
+          />
+        ))}
+      </div>
+
+      {/* 박스 하단 — 작업 전체 합계 3종 */}
+      <div style={{
+        marginTop: 14, paddingTop: 12,
+        borderTop: `1px solid ${t.border}`,
+        display: "flex", flexDirection: "column", gap: 6,
+      }}>
+        <SumRow label="네이버 정산금액 합계" value={sumNaver} t={t} bold/>
+        <SumRow label="유솔 수수료 합계 (15%)"      value={sumUsol}   color="#FF4D9E"/>
+        <SumRow label="올데이케어 수수료 합계 (85%)" value={sumAllday} color="#5DCAA5"/>
+      </div>
+    </div>
+  );
+}
+
+function SettleItemDetailCard({ t, item, stage }) {
+  const appliance = item.appliance_types?.name || "";
+  const workType  = item.work_types?.name || "";
+  const label     = appliance || workType || item.description || "—";
+  const sub       = appliance && workType && appliance !== workType ? workType : "";
+  const qty       = item.qty || 1;
+  const orderId   = item.product_order_id || "";
+  const orderTail = orderId ? `…${String(orderId).slice(-6)}` : "—";
+
+  const net    = item.net_amount;
+  const usol   = net != null ? Math.round(net * 0.15) : null;
+  const allday = net != null && usol != null ? net - usol : null;
+  const fmt    = (n) => n != null ? `₩${n.toLocaleString()}` : "—";
+
+  return (
+    <div style={{
+      background: t.bgInset,
+      border: `1px solid ${t.border}`,
+      borderRadius: 10,
+      padding: "12px 14px",
+    }}>
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {label}{sub ? <span style={{ fontSize: 11, fontWeight: 500, color: t.textMuted }}> · {sub}</span> : null}
+          </div>
+          <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>
+            {qty}대 · 주문번호 {orderTail}
+          </div>
+        </div>
+      </div>
+
+      {/* 진행바 */}
+      <StageProgress stage={stage}/>
+
+      {/* 금액 3종 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>네이버 정산금액</span>
+          <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: t.text }}>
+            {fmt(net)}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#FF4D9E" }}>└ 유솔 수수료 (15%)</div>
+            <div style={{ fontSize: 9, color: t.textMuted, marginTop: 1 }}>당사 수익 · 15%</div>
+          </div>
+          <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: "#FF4D9E" }}>
+            {fmt(usol)}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#5DCAA5" }}>└ 올데이케어 수수료 (85%)</div>
+            <div style={{ fontSize: 9, color: t.textMuted, marginTop: 1 }}>협력사 지급 · 85%</div>
+          </div>
+          <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: "#5DCAA5" }}>
+            {fmt(allday)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SumRow({ label, value, color, bold, t }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+      <span style={{ fontSize: 11, color: color || t.textMuted, fontWeight: bold ? 700 : 600 }}>{label}</span>
+      <span className="mono" style={{ fontSize: bold ? 15 : 13, fontWeight: bold ? 800 : 700, color: color || t.text }}>
+        ₩{value.toLocaleString()}
+      </span>
     </div>
   );
 }

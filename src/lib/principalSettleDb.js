@@ -152,6 +152,29 @@ function computeIsoWeek(date) {
   };
 }
 
+// TaskDetail "상품주문별 정산" 측 catch — 측 task_id 측 task_items 별도 fetch
+//   PAYMENT_SELECT 측 catch 측 catch product_order_id / net_amount / naver_settled_at 측 catch
+//   기본 list view 측 catch X 측 — TaskDetail mount 측 catch 별도 fetch.
+export async function fetchTaskItemsForDetail(taskId) {
+  if (!taskId) return { ok: false, error: "taskId 누락", items: [] };
+  const { data, error } = await supabase
+    .from("task_items")
+    .select(
+      `id, qty, unit_price, subtotal, description, order_type,
+       net_amount, product_order_id,
+       naver_settled_at, naver_received_at, company_received_at,
+       work_types ( id, name, service_types ( id, code ) ),
+       appliance_types ( id, name )`
+    )
+    .eq("task_id", taskId)
+    .order("id");
+  if (error) {
+    console.error("[principalSettleDb.fetchItemsForDetail]", error);
+    return { ok: false, error: error.message, items: [] };
+  }
+  return { ok: true, items: data || [] };
+}
+
 // 항목 칩 라벨 — appliance > work_type > description > order_type
 export function getItemLabel(item) {
   if (!item) return "—";
