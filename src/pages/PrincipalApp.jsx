@@ -39,15 +39,27 @@ function josa(word, withFinal, withoutFinal) {
   return hasFinal ? withFinal : withoutFinal;
 }
 
-const PRINCIPAL = {
-  id: "cool_guy", 
-  name: "쿨가이", 
-  prefix: "A-",
-  user: "쿨가이 대표",
-  email: "cool@allit.co.kr",
-  color: "#FFB800",
-  bg: "rgba(255, 184, 0, 0.10)",
-};
+// 2026-05-23 — PRINCIPAL mock 제거. 색은 마젠타(정산 탭 일관), 라벨은 로그인 user 기반.
+const PRINCIPAL_COLOR = "#FF4D9E";
+const PRINCIPAL_BG    = "rgba(255,77,158,0.10)";
+
+// user.principals → 표시용 원청 라벨 (공통 접두사 추출).
+//   ["유솔홈케어 H", "유솔홈케어 N"]  → "유솔홈케어"
+//   ["올데이케어"]                   → "올데이케어"
+//   []                              → ""
+function getPrincipalLabel(user) {
+  if (!user || !Array.isArray(user.principals) || user.principals.length === 0) return "";
+  const names = user.principals.map(p => p?.name).filter(Boolean);
+  if (names.length === 0) return "";
+  if (names.length === 1) return names[0];
+  let prefix = names[0];
+  for (const n of names) {
+    while (prefix && !n.startsWith(prefix)) prefix = prefix.slice(0, -1);
+    if (!prefix) break;
+  }
+  prefix = (prefix || "").trim().replace(/[\s\-_·]+$/g, "");
+  return prefix || names[0];
+}
 
 const SAMPLES = [
   {
@@ -403,9 +415,9 @@ export default function PrincipalApp({ user, onLogout }) {
         ) : (
           <>
             {tab === "list" && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
-            {tab === "new" && <NewTab t={t} onSubmit={(task) => setSubmittedTask(task)} addTask={addTask}/>}
+            {tab === "new" && <NewTab t={t} user={user} onSubmit={(task) => setSubmittedTask(task)} addTask={addTask}/>}
             {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes}/>}
-            {tab === "info" && <InfoTab t={t}/>}
+            {tab === "info" && <InfoTab t={t} user={user}/>}
           </>
         )}
 
@@ -425,7 +437,7 @@ function Header({ t, user }) {
           {TODAY} · {NOW}
         </div>
         <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-          안녕하세요, <span style={{ color: t.accent }}>{user?.name || PRINCIPAL.name}</span>님
+          안녕하세요, <span style={{ color: t.accent }}>{user?.name || getPrincipalLabel(user) || "원청"}</span>님
         </div>
       </div>
     </div>
@@ -475,7 +487,7 @@ function BottomNav({ t, tab, onChange }) {
   );
 }
 
-function NewTab({ t, onSubmit, addTask }) {
+function NewTab({ t, user, onSubmit, addTask }) {
   const [text, setText] = useState("");
   const [parsed, setParsed] = useState(null);
   const [showFields, setShowFields] = useState(false);
@@ -529,7 +541,7 @@ function NewTab({ t, onSubmit, addTask }) {
       
       const newTask = {
         id: taskId,
-        client: "쿨가이",
+        client: getPrincipalLabel(user) || "원청",
         customer: name, phone, address, fullAddress: address,
         workType, appliance: "", qty: quantity,
         requestedDate: dateText || null,
@@ -861,7 +873,7 @@ function ListTab({ t, onSelect, tasks }) {
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>📋 내 작업 리스트</div>
         <div style={{ fontSize: 12, color: t.textMuted }}>
-          {PRINCIPAL.name}{josa(PRINCIPAL.name, "이", "가")} 등록한 모든 작업
+          원청이 등록한 모든 작업
         </div>
       </div>
 
@@ -972,7 +984,7 @@ function TaskCard({ t, task, onClick }) {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {task.principal_amount > 0 && (
-            <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: PRINCIPAL.color }}>
+            <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: PRINCIPAL_COLOR }}>
               +₩{(task.principal_amount / 1000).toFixed(0)}K
             </span>
           )}
@@ -1084,15 +1096,15 @@ function TaskDetail({ t, task, onBack }) {
 
         <div style={{
           padding: "14px 16px",
-          background: PRINCIPAL.bg,
-          border: `1.5px solid ${PRINCIPAL.color}40`,
+          background: PRINCIPAL_BG,
+          border: `1.5px solid ${PRINCIPAL_COLOR}40`,
           borderRadius: 10,
         }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: PRINCIPAL.color }}>
-              🏪 원청 ({PRINCIPAL.name}) 수수료
+            <span style={{ fontSize: 12, fontWeight: 800, color: PRINCIPAL_COLOR }}>
+              🏪 원청{task.principal ? ` (${task.principal})` : ""} 수수료
             </span>
-            <span className="mono" style={{ fontSize: 20, fontWeight: 800, color: PRINCIPAL.color }}>
+            <span className="mono" style={{ fontSize: 20, fontWeight: 800, color: PRINCIPAL_COLOR }}>
               ₩{principalFee.toLocaleString()}
             </span>
           </div>
@@ -1199,7 +1211,7 @@ function SettleTab({ t, tasks }) {
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>💰 내 수수료</div>
         <div style={{ fontSize: 12, color: t.textMuted }}>
-          {PRINCIPAL.name}님이 받는 수수료 · 매일 정산
+          원청이 받는 수수료 · 매일 정산
         </div>
       </div>
 
@@ -1223,12 +1235,12 @@ function SettleTab({ t, tasks }) {
       </div>
 
       <div style={{
-        background: PRINCIPAL.bg,
-        border: `1.5px solid ${PRINCIPAL.color}40`,
+        background: PRINCIPAL_BG,
+        border: `1.5px solid ${PRINCIPAL_COLOR}40`,
         borderRadius: 16, padding: "20px", marginBottom: 12
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: PRINCIPAL.color, letterSpacing: 1, textTransform: "uppercase" }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: PRINCIPAL_COLOR, letterSpacing: 1, textTransform: "uppercase" }}>
             🏪 {periodLabel} 받을 수수료
           </div>
           {period === "today" && (
@@ -1238,7 +1250,7 @@ function SettleTab({ t, tasks }) {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 8 }}>
-          <span className="mono" style={{ fontSize: 32, fontWeight: 800, color: PRINCIPAL.color }}>
+          <span className="mono" style={{ fontSize: 32, fontWeight: 800, color: PRINCIPAL_COLOR }}>
             ₩{completedFee.toLocaleString()}
           </span>
         </div>
@@ -1315,7 +1327,7 @@ function SettleTab({ t, tasks }) {
                 </div>
               </div>
               <div style={{ textAlign: "right", flexShrink: 0 }}>
-                <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: PRINCIPAL.color }}>
+                <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: PRINCIPAL_COLOR }}>
                   ₩{getFee(task).toLocaleString()}
                 </div>
                 <div style={{ fontSize: 9, color: t.textMuted, marginTop: 2 }}>
@@ -1331,13 +1343,17 @@ function SettleTab({ t, tasks }) {
   );
 }
 
-function InfoTab({ t }) {
+function InfoTab({ t, user }) {
+  const principalLabel = getPrincipalLabel(user) || "원청";
+  const userName       = user?.name || `${principalLabel} 대표`;
+  const userPhone      = user?.phone || "";
+  const userCode       = user?.code || "";
   return (
     <div className="fade-in" style={{ padding: "20px" }}>
       <div style={{ marginBottom: 16 }}>
         <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>👤 내 정보</div>
         <div style={{ fontSize: 12, color: t.textMuted }}>
-          쿨가이 대표님
+          {userName}님
         </div>
       </div>
 
@@ -1345,22 +1361,22 @@ function InfoTab({ t }) {
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
           <div style={{
             width: 56, height: 56, borderRadius: 16,
-            background: PRINCIPAL.color, color: "white",
+            background: PRINCIPAL_COLOR, color: "white",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             <Building2 size={28}/>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>{PRINCIPAL.name}</div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>{principalLabel}</div>
             <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 500 }}>
-              {PRINCIPAL.user}님
+              {userName}님
             </div>
           </div>
         </div>
-        
+
         <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
-          <Row t={t} label="작업번호 형식" value={`${PRINCIPAL.prefix}YYMMDD-NNN`} mono/>
-          <Row t={t} label="이메일" value={PRINCIPAL.email} mono/>
+          {userCode && <Row t={t} label="계정 코드" value={userCode} mono/>}
+          {userPhone && <Row t={t} label="연락처" value={userPhone} mono/>}
         </div>
       </div>
 
