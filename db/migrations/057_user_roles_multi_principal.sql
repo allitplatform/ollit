@@ -58,6 +58,12 @@ WHERE NOT EXISTS (
 -- ============================================
 -- [3] sign_in_with_phone — 응답 측 principals[] 측
 -- ============================================
+-- 측 측 반환 측 측 변경 (principals 측) → CREATE OR REPLACE 측 측 X (PG 42P13 에러)
+-- → DROP FUNCTION 측 측 측 측 CREATE.
+-- 측 측 측 측: (text, text) — Migration 007 측 측 측.
+-- 측 측: validation 측 SELECT 호출 측 X (다른 함수/trigger/view 측 측 X).
+DROP FUNCTION IF EXISTS sign_in_with_phone(text, text);
+
 CREATE OR REPLACE FUNCTION sign_in_with_phone(p_phone text, p_password text)
 RETURNS jsonb
 LANGUAGE plpgsql
