@@ -358,51 +358,15 @@ export default function PrincipalApp({ user, onLogout }) {
   const [submittedTask, setSubmittedTask] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const t = THEMES[mode];
-  
-  // 공유 task 데이터 (옛 mock fallback)
-  const { tasks: allTasks, addTask } = useTasks();
 
-  // V14 — 진짜 시트 catch (apiTasks)
-  const [apiTasks, setApiTasks] = useState([]);
+  // NewTab 신규 접수용 mock fallback (사장님 spec — addTask만 필요)
+  const { addTask } = useTasks();
 
   // 2026-05-23 — user.principals (Migration 057) 측 측 → 옛 clientName fuzzy 폐기
   //   유솔홈케어 통합계정 측 user.principals = [{code:'usol_h',...}, {code:'usol_n',...}]
-  //   → 측 원청 작업 합쳐 catch
+  // 2026-05-23 후속 — fetchTasks 측 catch PrincipalListTab 측 측 catch (뷰 A=가벼운 fetch, 뷰 B=전체)
   const principalCodes = Array.isArray(user?.principals)
     ? user.principals.map(p => p?.code).filter(Boolean)
-    : [];
-
-  async function fetchTasks() {
-    try {
-      console.log('[V14 PrincipalApp] fetchTasks 시작 / principals:', principalCodes);
-      const res = await getTasks('principal', user?.id || 'principal', null);
-      if (!res || res.ok === false) return;
-      const { list } = v14FindTaskList(res);
-      if (!Array.isArray(list)) {
-        setApiTasks([]);
-        return;
-      }
-      const normalized = list.map(v14NormalizeTask).filter(Boolean);
-      console.log('[V14 PrincipalApp] normalized:', normalized.length, '건');
-      setApiTasks(normalized);
-    } catch (e) {
-      console.error('[V14 PrincipalApp] fetchTasks 에러:', e);
-    }
-  }
-
-  useEffect(() => {
-    fetchTasks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, principalCodes.join(",")]);
-
-  // Phase 4 후속 — Supabase Realtime 구독 (실시간 catch)
-  useRealtimeTasks(() => fetchTasks());
-
-  // 2026-05-23 — user.principals 측 measurement principal 측 측
-  //   task.principalCode (v14NormalizeTask 측 measurement) 측 catch
-  const sourceList = apiTasks.length > 0 ? apiTasks : allTasks;
-  const tasks = principalCodes.length > 0
-    ? filterTasksForPrincipal(sourceList, principalCodes)
     : [];
 
   const reset = () => {
@@ -438,7 +402,7 @@ export default function PrincipalApp({ user, onLogout }) {
           <SubmittedScreen t={t} task={submittedTask} onContinue={() => { setSubmittedTask(null); setTab("list"); }}/>
         ) : (
           <>
-            {tab === "list" && <PrincipalListTab t={t} onSelect={setSelectedTask} tasks={tasks}/>}
+            {tab === "list" && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
             {tab === "new" && <NewTab t={t} onSubmit={(task) => setSubmittedTask(task)} addTask={addTask}/>}
             {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes}/>}
             {tab === "info" && <InfoTab t={t}/>}
