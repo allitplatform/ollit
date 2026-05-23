@@ -244,51 +244,58 @@ function TaskRow({ task, onClick, isLast }) {
   const qty = first.qty || task.qty || 1;
   const moreCount = items.length > 1 ? items.length - 1 : 0;
 
+  // 정보 텍스트 (기종 · 지역 · 시간)
+  const infoText = [
+    `${appliance}${qty > 1 ? `×${qty}` : ""}${moreCount > 0 ? ` +${moreCount}` : ""}`,
+    task.region || "",
+    [date, time !== "—" ? time : ""].filter(Boolean).join(" "),
+  ].filter(Boolean).join(" · ");
+
   return (
     <div
       onClick={onClick}
       style={{
-        padding: "10px 12px",
+        display: "flex", alignItems: "center", gap: 7,
+        padding: "11px 12px",
         borderBottom: isLast ? "none" : "1px solid var(--border, #2A2A2A)",
         cursor: "pointer",
-        display: "flex", alignItems: "center", gap: 8,
       }}
     >
-      {/* 측 측 아이콘 */}
-      <div style={{ flexShrink: 0, width: 18, textAlign: "center" }}>
+      {/* 1. 서비스 아이콘 */}
+      <div style={{ flexShrink: 0, width: 16, textAlign: "center" }}>
         <ServiceIcon kind={kind}/>
       </div>
 
-      {/* 측 측 측 */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {/* 1행 — 고객명 + 채널 배지 + 기종 + 지역 + 시간 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-          <span style={{
-            fontSize: 13, fontWeight: 700,
-            color: "var(--text-primary, #FAF8F5)",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            maxWidth: 100,
-          }}>{task.customer || "—"}</span>
-          <ChannelBadge task={task}/>
-          <span style={{
-            fontSize: 10, color: "var(--text-secondary, #B5B0A8)",
-            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-            flex: 1, minWidth: 0,
-          }}>
-            {appliance}{qty > 1 ? `×${qty}` : ""}{moreCount > 0 ? ` +${moreCount}` : ""}
-            {task.region ? ` · ${task.region}` : ""}
-            {date || time !== "—" ? ` · ${date} ${time}` : ""}
-          </span>
-        </div>
-        {/* 2행 — 기사 */}
-        {task.assignedEngineer && (
-          <div style={{ fontSize: 10, color: "var(--text-tertiary, #9CA3AF)" }}>
-            {task.assignedEngineer}
-          </div>
-        )}
-      </div>
+      {/* 2. 고객명 */}
+      <span style={{
+        flexShrink: 0,
+        fontSize: 13, fontWeight: 500,
+        color: "var(--text-primary, #FAF8F5)",
+      }}>{task.customer || "—"}</span>
 
-      {/* 상태 배지 */}
+      {/* 3. N 배지 (usol_n 측만) */}
+      <ChannelBadge task={task}/>
+
+      {/* 4. 정보 텍스트 — flex:1, ellipsis */}
+      <span style={{
+        flex: 1, minWidth: 0,
+        fontSize: 11, color: "var(--text-secondary, #B5B0A8)",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+      }}>{infoText}</span>
+
+      {/* 5. 기사명 — 회색 칩 */}
+      {task.assignedEngineer && (
+        <span style={{
+          flexShrink: 0,
+          fontSize: 11, fontWeight: 500,
+          color: "#C8C7CF",
+          background: "#2F2E38",
+          borderRadius: 5,
+          padding: "2px 8px",
+        }}>{task.assignedEngineer}</span>
+      )}
+
+      {/* 6. 상태 배지 */}
       <span style={{
         flexShrink: 0,
         fontSize: 10, fontWeight: 700,
