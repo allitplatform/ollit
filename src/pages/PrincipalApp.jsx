@@ -19,6 +19,7 @@ import { PrincipalListTab } from "../components/principal/PrincipalListTab.jsx";
 import { PrincipalSettleTab } from "../components/principal/PrincipalSettleTab.jsx";
 import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
 import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
+import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
 
 const NOW = "10:00";
 
@@ -998,14 +999,9 @@ function TaskCard({ t, task, onClick }) {
 }
 
 function TaskDetail({ t, task, onBack }) {
-  const statusStyle = {
-    "완료": { color: t.success, bg: t.successBg },
-    "진행중": { color: t.warning, bg: t.warningBg },
-    "확정": { color: t.text, bg: t.bgInset },
-    "미배정": { color: t.accent, bg: t.accentBg },
-    "미접수": { color: t.danger, bg: t.dangerBg },
-  };
-  const ss = statusStyle[task.status] || { color: t.textMuted, bg: t.bgInset };
+  // 2026-05-24 — 상태 배지 측 PrincipalListTab 측 catch utility 측 catch 통일
+  const ss = getPrincipalStatusBadge(task.status);
+  const statusLabel = getPrincipalStatusLabel(task.status);
 
   // 상품주문별 정산 — task_items + remit 별도 fetch (mount 시)
   const [settleItems, setSettleItems] = useState([]);
@@ -1064,11 +1060,12 @@ function TaskDetail({ t, task, onBack }) {
             {task.customer || "—"}
           </span>
           <span style={{
-            fontSize: 11, fontWeight: 800, padding: "4px 10px",
-            background: ss.bg, color: ss.color,
-            borderRadius: 100,
+            fontSize: 10, fontWeight: 700,
+            color: ss.color, background: ss.bg,
+            padding: "2px 7px", borderRadius: 8,
+            whiteSpace: "nowrap",
           }}>
-            {task.status}
+            {statusLabel}
           </span>
         </div>
         <div style={{ fontSize: 12, color: t.textMuted }}>
@@ -1084,7 +1081,7 @@ function TaskDetail({ t, task, onBack }) {
           <LabelRow t={t} label="연락처" value={task.phone || "—"} mono/>
           <LabelRow t={t} label="주소"   value={task.address || "—"} wrap/>
           <LabelRow t={t} label="수량"   value={`${task.qty || 1}대`}/>
-          {scheduledDisplay && <LabelRow t={t} label="일정" value={scheduledDisplay}/>}
+          {scheduledDisplay && <LabelRow t={t} label="일정" value={scheduledDisplay} highlight/>}
           {task.assignedEngineer && <LabelRow t={t} label="배정 프로" value={`${task.assignedEngineer} 프로님`}/>}
         </div>
       </div>
@@ -1163,30 +1160,67 @@ const SETTLE_DETAIL_STAGES = [
 
 function StageProgress({ stage }) {
   const currentIdx = SETTLE_DETAIL_STAGES.findIndex(s => s.key === stage);
+  const N = SETTLE_DETAIL_STAGES.length;
+  // 측 단계 측 catch flex:1 → dot center 측 catch 측 측 측 (100/(2N))% offset.
+  const sideOffset = `${100 / (2 * N)}%`;
+  const lineSpan   = 100 - (100 / N); // 첫 dot 측 마지막 dot 사이 측 측 폭
+  const safeIdx    = currentIdx < 0 ? 0 : currentIdx;
+  const progressPct = N <= 1 ? 0 : (safeIdx / (N - 1)) * lineSpan;
+  const currentColor = currentIdx >= 0 ? SETTLE_DETAIL_STAGES[currentIdx].color : "#9CA3AF";
+
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 8, marginBottom: 10 }}>
-      {SETTLE_DETAIL_STAGES.map((s, idx) => {
-        const isPast    = idx < currentIdx;
-        const isCurrent = idx === currentIdx;
-        const filled    = isPast || isCurrent;
-        const dotSize   = isCurrent ? 12 : 8;
-        return (
-          <div key={s.key} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-            <div style={{
-              width: dotSize, height: dotSize, borderRadius: "50%",
-              background: filled ? s.color : "transparent",
-              border: `${isCurrent ? 2 : 1.5}px solid ${s.color}`,
-              opacity: filled ? 1 : 0.35,
-              transition: "all 0.2s",
-            }}/>
-            <div style={{
-              fontSize: 9, fontWeight: isCurrent ? 700 : 500,
-              color: filled ? s.color : "#666",
-              whiteSpace: "nowrap",
-            }}>{s.label}</div>
-          </div>
-        );
-      })}
+    <div style={{ position: "relative", marginTop: 8, marginBottom: 10 }}>
+      {/* 배경 라인 */}
+      <div style={{
+        position: "absolute", top: 6,
+        left: sideOffset, right: sideOffset,
+        height: 2, background: "#3A3A3A",
+        zIndex: 0,
+      }}/>
+      {/* 진행 라인 */}
+      <div style={{
+        position: "absolute", top: 6,
+        left: sideOffset,
+        width: `${progressPct}%`, height: 2,
+        background: currentColor,
+        zIndex: 1,
+        transition: "width 0.3s",
+      }}/>
+
+      {/* 단계 dot + 라벨 */}
+      <div style={{ position: "relative", display: "flex", gap: 4, zIndex: 2 }}>
+        {SETTLE_DETAIL_STAGES.map((s, idx) => {
+          const isPast    = idx < currentIdx;
+          const isCurrent = idx === currentIdx;
+          const filled    = isPast || isCurrent;
+          const dotSize   = isCurrent ? 12 : 8;
+          return (
+            <div key={s.key} style={{
+              flex: 1,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            }}>
+              {/* dot wrapper — 측 dot 측 center y 정렬 (라인 위치 6 + 1 = 7) */}
+              <div style={{
+                width: 14, height: 14,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <div style={{
+                  width: dotSize, height: dotSize, borderRadius: "50%",
+                  background: filled ? s.color : "#1F1F1F",
+                  border: `2px solid ${filled ? s.color : "#3A3A3A"}`,
+                  boxSizing: "border-box",
+                  transition: "all 0.2s",
+                }}/>
+              </div>
+              <div style={{
+                fontSize: 9, fontWeight: isCurrent ? 700 : 500,
+                color: filled ? s.color : "#666",
+                whiteSpace: "nowrap",
+              }}>{s.label}</div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1318,7 +1352,11 @@ function ItemProgress({ t, item, stage }) {
 }
 
 // 작업 정보 박스의 라벨 row — 아이콘 X, 라벨(고정폭 78px, 회색 12px) + 값(13~14px)
-function LabelRow({ t, label, value, mono, wrap, color }) {
+//   highlight=true → 일정 등 강조 row (노란색 14px 800)
+function LabelRow({ t, label, value, mono, wrap, color, highlight }) {
+  const valueColor  = color || (highlight ? "#FACC15" : t.text);
+  const valueSize   = highlight ? 14 : 13;
+  const valueWeight = highlight ? 800 : 600;
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
       <span style={{
@@ -1328,7 +1366,7 @@ function LabelRow({ t, label, value, mono, wrap, color }) {
       }}>{label}</span>
       <span className={mono ? "mono" : ""} style={{
         flex: 1, minWidth: 0,
-        fontSize: 13, fontWeight: 600, color: color || t.text,
+        fontSize: valueSize, fontWeight: valueWeight, color: valueColor,
         lineHeight: 1.5,
         wordBreak: wrap ? "break-word" : "normal",
         whiteSpace: wrap ? "normal" : "nowrap",
