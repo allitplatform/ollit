@@ -489,12 +489,15 @@ export async function updateTaskStatusDb(taskId, status, { startedAt, completedA
 export async function loadTasksForRole(role, userId, principalCode) {
   try {
     // [1] 작업 전체
+    // 2026-05-23 — principal role 측 limit 5000 (admin/engineer/happycall 측 500 측)
+    //   유솔 통합계정 측 usol_h+usol_n 합 885건 → 500건 측 측 측 측 측 측 (484건 측 측)
+    const rowLimit = role === "principal" ? 5000 : 500;
     const { data: rows, error } = await supabase
       .from("tasks")
       .select(PAYMENT_SELECT)
       .eq("tenant_id", TENANT_ID)
       .order("received_at", { ascending: false })
-      .limit(500);
+      .limit(rowLimit);
     if (error) {
       console.error("[tasksDb.loadTasksForRole:tasks]", error);
       return { ok: false, error: error.message, tasks: [] };
