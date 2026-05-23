@@ -205,7 +205,7 @@ function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSel
           type="text"
           readOnly
           tabIndex={-1}
-          placeholder="고객명 · 주소 · 작업번호 검색"
+          placeholder="고객명 · 주소 · 작업번호 · 상품주문번호 검색"
           onClick={(e) => { e.preventDefault(); e.currentTarget.blur(); onSearchClick(); }}
           onFocus={(e) => e.currentTarget.blur()}
           style={{
@@ -311,7 +311,14 @@ function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect }) {
         const cust = String(x.customer || "").toLowerCase();
         const addr = String(x.address || "").toLowerCase();
         const tno  = String(x.taskNo || x.taskCode || "").toLowerCase();
-        return cust.includes(q) || addr.includes(q) || tno.includes(q);
+        if (cust.includes(q) || addr.includes(q) || tno.includes(q)) return true;
+        // 상품주문번호 — workItems 측 productOrderId 측 매칭 (부분 일치)
+        const items = Array.isArray(x.workItems) ? x.workItems : [];
+        for (const it of items) {
+          const poid = String(it.productOrderId || it.product_order_id || "").toLowerCase();
+          if (poid && poid.includes(q)) return true;
+        }
+        return false;
       });
     }
     return [...list].sort((a, b) => {
@@ -349,7 +356,7 @@ function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect }) {
           ref={searchRef}
           type="text" value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="고객명 / 주소 / 작업번호"
+          placeholder="고객명 / 주소 / 작업번호 / 상품주문번호"
           style={{
             width: "100%", padding: "10px 12px 10px 32px",
             background: "var(--bg-secondary, #1A1A1A)",

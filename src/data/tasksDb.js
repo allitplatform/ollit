@@ -37,7 +37,7 @@ const PAYMENT_SELECT = `
   ),
   task_items (
     id, qty, unit_price, subtotal,
-    order_type,
+    order_type, product_order_id,
     work_types (
       id, name,
       service_types ( id, code )
@@ -141,12 +141,13 @@ export function rowToTask(row) {
     workItems:     Array.isArray(cat.workItems) && cat.workItems.length > 0
                      ? cat.workItems
                      : (Array.isArray(row.task_items) ? row.task_items.map(it => ({
-                         workType:    it.work_types && it.work_types.name,
-                         serviceCode: it.work_types?.service_types?.code || null,
-                         orderType:   it.order_type || null,
-                         appliance:   it.appliance_types && it.appliance_types.name,
-                         qty:         Number(it.qty) || 1,
-                         unitPrice:   Number(it.unit_price) || 0,
+                         workType:       it.work_types && it.work_types.name,
+                         serviceCode:    it.work_types?.service_types?.code || null,
+                         orderType:      it.order_type || null,
+                         appliance:      it.appliance_types && it.appliance_types.name,
+                         qty:            Number(it.qty) || 1,
+                         unitPrice:      Number(it.unit_price) || 0,
+                         productOrderId: it.product_order_id || null,
                        })) : []),
     workType:      cat.workType  || (Array.isArray(row.task_items) && row.task_items[0]?.work_types?.name) || "",
     appliance:     cat.appliance || (Array.isArray(row.task_items) && row.task_items[0]?.appliance_types?.name) || "",

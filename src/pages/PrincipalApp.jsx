@@ -1007,10 +1007,6 @@ function TaskDetail({ t, task, onBack }) {
   };
   const ss = statusStyle[task.status] || { color: t.textMuted, bg: t.bgInset };
 
-  // 금액 계산
-  const customerAmount = (task.productPrice || task.estimateTotal || 0) + (task.extraFee || 0);
-  const principalFee = Math.round((task.productPrice || task.estimateTotal || 0) * 0.5);
-
   // 상품주문별 정산 — task_items + remit 별도 fetch (mount 시)
   const [settleItems, setSettleItems] = useState([]);
   const [settleRemits, setSettleRemits] = useState([]);
@@ -1063,9 +1059,9 @@ function TaskDetail({ t, task, onBack }) {
       </button>
 
       <div style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-          <span className="mono" style={{ fontSize: 12, color: t.textMuted, fontWeight: 700 }}>
-            {task.id}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+          <span style={{ fontSize: 21, fontWeight: 800, color: t.text }}>
+            {task.customer || "—"}
           </span>
           <span style={{
             fontSize: 11, fontWeight: 800, padding: "4px 10px",
@@ -1075,85 +1071,25 @@ function TaskDetail({ t, task, onBack }) {
             {task.status}
           </span>
         </div>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>
-          {task.customer}
-        </div>
-        <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+        <div style={{ fontSize: 12, color: t.textMuted }}>
           {task.workType}{task.appliance ? ` · ${task.appliance}` : ""} ({task.qty || 1}대)
         </div>
       </div>
 
       <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
-          📋 작업 정보
+        <div style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, marginBottom: 12 }}>
+          작업 정보
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <DetailRow t={t} icon={Phone} label="연락처" value={task.phone} mono/>
-          <DetailRow t={t} icon={MapPin} label="주소" value={task.address}/>
-          <DetailRow t={t} icon={Hash} label="수량" value={`${task.qty || 1}대`}/>
-          {scheduledDisplay && <DetailRow t={t} icon={Calendar} label="일정" value={scheduledDisplay}/>}
-          {task.assignedEngineer && <DetailRow t={t} icon={User} label="배정 프로" value={`${task.assignedEngineer} 프로님`}/>}
-          {task.startedAt && <DetailRow t={t} icon={Clock} label="작업 시작" value={formatTimeOnly(task.startedAt)} color={t.warning}/>}
-          {task.completedAt && <DetailRow t={t} icon={CheckCircle2} label="완료 시각" value={formatTimeOnly(task.completedAt)} color={t.success}/>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <LabelRow t={t} label="연락처" value={task.phone || "—"} mono/>
+          <LabelRow t={t} label="주소"   value={task.address || "—"} wrap/>
+          <LabelRow t={t} label="수량"   value={`${task.qty || 1}대`}/>
+          {scheduledDisplay && <LabelRow t={t} label="일정" value={scheduledDisplay}/>}
+          {task.assignedEngineer && <LabelRow t={t} label="배정 프로" value={`${task.assignedEngineer} 프로님`}/>}
         </div>
       </div>
 
-      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
-          💰 금액 정보
-        </div>
-
-        <div style={{ marginBottom: 8, padding: "14px 16px", background: t.bgInset, borderRadius: 10 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>상품 금액</span>
-            <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: t.text }}>
-              ₩{(task.productPrice || task.estimateTotal || 0).toLocaleString()}
-            </span>
-          </div>
-          {task.extraFee > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${t.border}` }}>
-              <div>
-                <div style={{ fontSize: 12, color: t.warning, fontWeight: 700 }}>+ 현장 추가금</div>
-                {task.extraReason && <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>{task.extraReason}</div>}
-              </div>
-              <span className="mono" style={{ fontSize: 14, fontWeight: 700, color: t.warning }}>
-                +₩{task.extraFee.toLocaleString()}
-              </span>
-            </div>
-          )}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}` }}>
-            <span style={{ fontSize: 13, color: t.text, fontWeight: 700 }}>고객 결제 합계</span>
-            <span className="mono" style={{ fontSize: 18, fontWeight: 800, color: t.text }}>
-              ₩{customerAmount.toLocaleString()}
-            </span>
-          </div>
-        </div>
-
-        <div style={{
-          padding: "14px 16px",
-          background: PRINCIPAL_BG,
-          border: `1.5px solid ${PRINCIPAL_COLOR}40`,
-          borderRadius: 10,
-        }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: PRINCIPAL_COLOR }}>
-              🏪 원청{task.principal ? ` (${task.principal})` : ""} 수수료
-            </span>
-            <span className="mono" style={{ fontSize: 20, fontWeight: 800, color: PRINCIPAL_COLOR }}>
-              ₩{principalFee.toLocaleString()}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10, color: t.textMuted, lineHeight: 1.5 }}>
-            <span>📌</span>
-            <span>{task.status === "완료" ? "정산 가능 (매월 정산)" : "작업 완료 후 정산 처리"}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 📊 상품주문별 정산 */}
+      {/* 📊 정산 — 작업 전체 합계 + 상품주문별 진행바 */}
       <SettleDetailBox
         t={t}
         items={settleItems}
@@ -1258,51 +1194,56 @@ function StageProgress({ stage }) {
 function SettleDetailBox({ t, items, remitMap, principalId, loading, error }) {
   if (loading) {
     return (
-      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
-          📊 상품주문별 정산
-        </div>
-        <div style={{ padding: "20px 0", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
-          불러오는 중...
-        </div>
+      <div style={settleBoxStyle(t)}>
+        <SettleBoxHeader t={t}/>
+        <div style={{ padding: "20px 0", textAlign: "center", color: t.textMuted, fontSize: 12 }}>불러오는 중...</div>
       </div>
     );
   }
   if (error) {
     return (
-      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
-          📊 상품주문별 정산
-        </div>
-        <div style={{ padding: "20px 0", textAlign: "center", color: "#EF4444", fontSize: 11 }}>
-          ⚠️ {error}
-        </div>
+      <div style={settleBoxStyle(t)}>
+        <SettleBoxHeader t={t}/>
+        <div style={{ padding: "20px 0", textAlign: "center", color: "#EF4444", fontSize: 11 }}>⚠️ {error}</div>
       </div>
     );
   }
   if (!items || items.length === 0) return null;
 
-  // 합계
+  // 합계 — 고객 결제(subtotal) / 네이버 정산금액(net_amount, NULL 제외)
+  let sumCustomer = 0;
   let sumNaver = 0, sumUsol = 0, sumAllday = 0;
   for (const it of items) {
+    sumCustomer += Number(it.subtotal) || 0;
     const n = it.net_amount;
     if (n != null) {
       const usol = Math.round(n * 0.15);
-      sumNaver += n;
-      sumUsol  += usol;
+      sumNaver  += n;
+      sumUsol   += usol;
       sumAllday += n - usol;
     }
   }
 
   return (
-    <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
-        📊 상품주문별 정산
+    <div style={settleBoxStyle(t)}>
+      <SettleBoxHeader t={t}/>
+
+      {/* (a) 작업 전체 금액 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <SumLine label="고객 결제 합계" value={sumCustomer} t={t} size="sm"/>
+        <Divider t={t}/>
+        <SumLine label="네이버 정산금액" value={sumNaver} t={t} size="lg"/>
+        <SumLine label="└ 유솔 수수료 (15%)"      value={sumUsol}   color="#FF4D9E" indent t={t}/>
+        <SumLine label="└ 올데이케어 수수료 (85%)" value={sumAllday} color="#5DCAA5" indent t={t}/>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* (b) 구분선 */}
+      <div style={{ height: 1, background: t.border, margin: "16px 0" }}/>
+
+      {/* (c) 상품주문별 진행 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {items.map(item => (
-          <SettleItemDetailCard
+          <ItemProgress
             key={item.id}
             t={t}
             item={item}
@@ -1310,111 +1251,90 @@ function SettleDetailBox({ t, items, remitMap, principalId, loading, error }) {
           />
         ))}
       </div>
-
-      {/* 박스 하단 — 작업 전체 합계 3종 */}
-      <div style={{
-        marginTop: 14, paddingTop: 12,
-        borderTop: `1px solid ${t.border}`,
-        display: "flex", flexDirection: "column", gap: 6,
-      }}>
-        <SumRow label="네이버 정산금액 합계" value={sumNaver} t={t} bold/>
-        <SumRow label="유솔 수수료 합계 (15%)"      value={sumUsol}   color="#FF4D9E"/>
-        <SumRow label="올데이케어 수수료 합계 (85%)" value={sumAllday} color="#5DCAA5"/>
-      </div>
     </div>
   );
 }
 
-function SettleItemDetailCard({ t, item, stage }) {
-  const appliance = item.appliance_types?.name || "";
-  const workType  = item.work_types?.name || "";
-  const label     = appliance || workType || item.description || "—";
-  const sub       = appliance && workType && appliance !== workType ? workType : "";
-  const qty       = item.qty || 1;
-  const orderId   = item.product_order_id || "";
-  const orderTail = orderId ? `…${String(orderId).slice(-6)}` : "—";
+function settleBoxStyle(t) {
+  return {
+    background: t.bgElevated,
+    borderRadius: 14,
+    padding: "16px",
+    marginBottom: 12,
+  };
+}
 
-  const net    = item.net_amount;
-  const usol   = net != null ? Math.round(net * 0.15) : null;
-  const allday = net != null && usol != null ? net - usol : null;
-  const fmt    = (n) => n != null ? `₩${n.toLocaleString()}` : "—";
+function SettleBoxHeader({ t }) {
+  return (
+    <div style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, marginBottom: 12 }}>
+      정산
+    </div>
+  );
+}
 
+function SumLine({ label, value, color, size, indent, t }) {
+  // size: "sm" | "md" | "lg"
+  const isLg = size === "lg";
+  const isSm = size === "sm";
+  const valueSize  = isLg ? 17 : (isSm ? 13 : 13);
+  const labelColor = color || (isLg ? t.text : t.textMuted);
+  const valueColor = color || (isLg ? t.text : (isSm ? t.text : t.text));
+  const valueWeight = isLg ? 800 : 700;
   return (
     <div style={{
-      background: t.bgInset,
-      border: `1px solid ${t.border}`,
-      borderRadius: 10,
-      padding: "12px 14px",
+      display: "flex", justifyContent: "space-between", alignItems: "baseline",
+      paddingLeft: indent ? 12 : 0,
     }}>
-      {/* 헤더 */}
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            {label}{sub ? <span style={{ fontSize: 11, fontWeight: 500, color: t.textMuted }}> · {sub}</span> : null}
-          </div>
-          <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>
-            {qty}대 · 주문번호 {orderTail}
-          </div>
-        </div>
-      </div>
-
-      {/* 진행바 */}
-      <StageProgress stage={stage}/>
-
-      {/* 금액 3종 */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>네이버 정산금액</span>
-          <span className="mono" style={{ fontSize: 16, fontWeight: 700, color: t.text }}>
-            {fmt(net)}
-          </span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 12 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#FF4D9E" }}>└ 유솔 수수료 (15%)</div>
-            <div style={{ fontSize: 9, color: t.textMuted, marginTop: 1 }}>당사 수익 · 15%</div>
-          </div>
-          <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: "#FF4D9E" }}>
-            {fmt(usol)}
-          </span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", paddingLeft: 12 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "#5DCAA5" }}>└ 올데이케어 수수료 (85%)</div>
-            <div style={{ fontSize: 9, color: t.textMuted, marginTop: 1 }}>협력사 지급 · 85%</div>
-          </div>
-          <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: "#5DCAA5" }}>
-            {fmt(allday)}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function SumRow({ label, value, color, bold, t }) {
-  return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-      <span style={{ fontSize: 11, color: color || t.textMuted, fontWeight: bold ? 700 : 600 }}>{label}</span>
-      <span className="mono" style={{ fontSize: bold ? 15 : 13, fontWeight: bold ? 800 : 700, color: color || t.text }}>
-        ₩{value.toLocaleString()}
+      <span style={{ fontSize: 12, color: labelColor, fontWeight: indent ? 700 : 600 }}>{label}</span>
+      <span className="mono" style={{ fontSize: valueSize, fontWeight: valueWeight, color: valueColor }}>
+        ₩{(value || 0).toLocaleString()}
       </span>
     </div>
   );
 }
 
-function DetailRow({ t, icon: Icon, label, value, mono, color }) {
+function Divider({ t }) {
+  return <div style={{ height: 1, background: t.border, marginTop: 2, marginBottom: 2 }}/>;
+}
+
+function ItemProgress({ t, item, stage }) {
+  const orderId = item.product_order_id || "";
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-      <Icon size={14} style={{ color: t.textMuted, marginTop: 2, flexShrink: 0 }}/>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 2 }}>
-          {label}
-        </div>
-        <div className={mono ? "mono" : ""} style={{ fontSize: 13, fontWeight: 700, color: color || t.text }}>
-          {value}
-        </div>
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 700, flexShrink: 0 }}>
+          상품주문번호
+        </span>
+        <span className="mono" style={{
+          fontSize: 13, fontWeight: 700, color: t.text,
+          wordBreak: "break-all", letterSpacing: 0.2,
+        }}>
+          {orderId || "—"}
+        </span>
       </div>
+      <StageProgress stage={stage}/>
+    </div>
+  );
+}
+
+// 작업 정보 박스의 라벨 row — 아이콘 X, 라벨(고정폭 78px, 회색 12px) + 값(13~14px)
+function LabelRow({ t, label, value, mono, wrap, color }) {
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <span style={{
+        flexShrink: 0, width: 78,
+        fontSize: 12, color: t.textMuted, fontWeight: 500,
+        lineHeight: 1.5,
+      }}>{label}</span>
+      <span className={mono ? "mono" : ""} style={{
+        flex: 1, minWidth: 0,
+        fontSize: 13, fontWeight: 600, color: color || t.text,
+        lineHeight: 1.5,
+        wordBreak: wrap ? "break-word" : "normal",
+        whiteSpace: wrap ? "normal" : "nowrap",
+        overflow: wrap ? "visible" : "hidden",
+        textOverflow: wrap ? "clip" : "ellipsis",
+      }}>{value}</span>
     </div>
   );
 }

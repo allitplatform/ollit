@@ -90,8 +90,9 @@ export function v14NormalizeTask(t) {
   if (Array.isArray(workItems) && workItems.length > 0) {
     workItems = workItems.map(it => ({
       ...it,
-      serviceCode: it.serviceCode || it.service_code || null,
-      orderType:   it.orderType   || it.order_type   || null,
+      serviceCode:    it.serviceCode    || it.service_code    || null,
+      orderType:      it.orderType      || it.order_type      || null,
+      productOrderId: it.productOrderId || it.product_order_id || null,
     }));
   }
 
