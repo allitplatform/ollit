@@ -4,7 +4,7 @@
 //   · 뷰 B: 검색 + 필터 칩 + 전체 작업 리스트 (← 뒤로)
 //   · fetch 분리: 뷰 A = 오늘+카운트만 / 뷰 B = 전체 (의도적 진입 시)
 //   · KST 기준 오늘 비교 (utils/dateLabel.toKstYmd / todayYmd 사용)
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Search, ArrowLeft } from "lucide-react";
 import { filterTasksForPrincipal } from "../../shared/tasks.js";
 import { loadTasksForRole as getTasks } from "../../data/tasksDb.js";
@@ -88,6 +88,11 @@ function ServiceIcon({ kind, size = 14 }) {
 
 export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
   const [view, setView] = useState("today");   // 'today' | 'all'
+  const [autoFocusSearchOnAll, setAutoFocusSearchOnAll] = useState(false);
+  const goToAll = useCallback((focusSearch = false) => {
+    setAutoFocusSearchOnAll(focusSearch);
+    setView("all");
+  }, []);
 
   // 뷰 A — 오늘 작업 + 카운트
   const [todayTasks, setTodayTasks]   = useState([]);
@@ -156,7 +161,8 @@ export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
       <ViewAll
         tasks={allTasks}
         loading={loadingB}
-        onBack={() => setView("today")}
+        autoFocusSearch={autoFocusSearchOnAll}
+        onBack={() => { setAutoFocusSearchOnAll(false); setView("today"); }}
         onSelect={onSelect}
       />
     );
@@ -166,7 +172,8 @@ export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
       todayTasks={todayTasks}
       counts={counts}
       loading={loadingA}
-      onSeeAll={() => setView("all")}
+      onSeeAll={() => goToAll(false)}
+      onSearchClick={() => goToAll(true)}
       onSelect={onSelect}
     />
   );
@@ -175,19 +182,52 @@ export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
 // ════════════════════════════════════════════════════════════
 // 뷰 A — 첫 화면
 // ════════════════════════════════════════════════════════════
-function ViewToday({ todayTasks, counts, loading, onSeeAll, onSelect }) {
+function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSelect }) {
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
       {/* 한 줄 통계 */}
       <div style={{
         fontSize: 12, color: "#B5B0A8", fontWeight: 600,
-        marginBottom: 18, letterSpacing: 0.2,
+        marginBottom: 12, letterSpacing: 0.2,
       }}>
         전체 <Stat n={counts.total}/> · 진행중 <Stat n={counts.inProgress}/> · 완료 <Stat n={counts.completed}/>
       </div>
 
+      {/* 검색창 (탭 → 뷰 B + autoFocus). 직접 입력 X. */}
+      <div onClick={onSearchClick} style={{
+        position: "relative", marginBottom: 10, cursor: "pointer",
+      }}>
+        <Search size={14} style={{
+          position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+          color: "#9CA3AF", pointerEvents: "none",
+        }}/>
+        <input
+          type="text"
+          readOnly
+          tabIndex={-1}
+          placeholder="고객명 · 주소 · 작업번호 검색"
+          onClick={(e) => { e.preventDefault(); e.currentTarget.blur(); onSearchClick(); }}
+          onFocus={(e) => e.currentTarget.blur()}
+          style={{
+            width: "100%", padding: "10px 12px 10px 32px",
+            background: "#161619",
+            border: "1px solid #29292F",
+            borderRadius: 10,
+            color: "var(--text-primary, #FAF8F5)",
+            fontSize: 12, fontWeight: 600,
+            fontFamily: "inherit", outline: "none",
+            cursor: "pointer",
+          }}
+        />
+      </div>
+
+      {/* 전체 작업 보기 버튼 — 검색창 바로 아래 */}
+      <button onClick={onSeeAll} style={seeAllButtonStyle}>
+        전체 작업 {counts.total.toLocaleString()}건 보기 →
+      </button>
+
       {/* 오늘 작업 섹션 */}
-      <div style={{ marginBottom: 14, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+      <div style={{ marginTop: 22, marginBottom: 14, display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary, #FAF8F5)" }}>오늘 작업</span>
         {!loading && (
           <span style={{ fontSize: 11, color: "#9CA3AF" }}>{todayTasks.length}건</span>
@@ -205,11 +245,6 @@ function ViewToday({ todayTasks, counts, loading, onSeeAll, onSelect }) {
           ))}
         </div>
       )}
-
-      {/* 전체 작업 보기 버튼 */}
-      <button onClick={onSeeAll} style={seeAllButtonStyle}>
-        전체 작업 {counts.total.toLocaleString()}건 보기 →
-      </button>
     </div>
   );
 }
@@ -311,9 +346,18 @@ function EmptyToday({ onSeeAll }) {
 // ════════════════════════════════════════════════════════════
 // 뷰 B — 전체 목록 (옛 PrincipalListTab 동작)
 // ════════════════════════════════════════════════════════════
-function ViewAll({ tasks, loading, onBack, onSelect }) {
+function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const searchRef = useRef(null);
+
+  useEffect(() => {
+    if (autoFocusSearch && searchRef.current) {
+      // 모바일 키보드 대응 — 마운트 직후 1tick 뒤
+      const id = setTimeout(() => searchRef.current?.focus(), 50);
+      return () => clearTimeout(id);
+    }
+  }, [autoFocusSearch]);
 
   const filtered = useMemo(() => {
     let list = tasks;
@@ -363,6 +407,7 @@ function ViewAll({ tasks, loading, onBack, onSelect }) {
           color: "#9CA3AF", pointerEvents: "none",
         }}/>
         <input
+          ref={searchRef}
           type="text" value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="고객명 / 주소 / 작업번호"
