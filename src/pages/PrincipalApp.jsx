@@ -1332,20 +1332,33 @@ function Divider({ t }) {
 }
 
 function ItemProgress({ t, item, stage }) {
-  const orderId = item.product_order_id || "";
+  const orderId   = item.product_order_id || "";
+  const workType  = item.work_types?.name || "";
+  const appliance = item.appliance_types?.name || "";
+  const qty       = item.qty || 1;
+  const labelParts = [workType, appliance].filter(Boolean);
+  labelParts.push(`${qty}대`);
+  const itemLabel = labelParts.length > 1 ? labelParts.join(" · ") : (item.description || "—");
+
   return (
     <div>
+      {/* 상품 이름 — workType · appliance · qty */}
+      <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 4 }}>
+        {itemLabel}
+      </div>
+      {/* 상품주문번호 */}
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 700, flexShrink: 0 }}>
+        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, flexShrink: 0 }}>
           상품주문번호
         </span>
         <span className="mono" style={{
-          fontSize: 13, fontWeight: 700, color: t.text,
+          fontSize: 12, fontWeight: 600, color: t.textSecondary || t.text,
           wordBreak: "break-all", letterSpacing: 0.2,
         }}>
           {orderId || "—"}
         </span>
       </div>
+      {/* 진행바 */}
       <StageProgress stage={stage}/>
     </div>
   );
