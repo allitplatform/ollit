@@ -181,25 +181,26 @@ export function PrincipalListTab({ t, tasks, onSelect }) {
         })}
       </div>
 
-      {/* 측 (측 행 컴팩트) */}
-      <div style={{
-        background: "var(--bg-secondary, #1A1A1A)",
-        border: "1px solid var(--border, #2A2A2A)",
-        borderRadius: 12, overflow: "hidden",
-      }}>
-        {filtered.length === 0 ? (
-          <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--text-tertiary, #9CA3AF)", fontSize: 12 }}>
-            작업이 없습니다
-          </div>
-        ) : filtered.map((task, idx) => (
-          <TaskRow
-            key={task.id || task.taskNo || idx}
-            task={task}
-            onClick={() => onSelect?.(task)}
-            isLast={idx === filtered.length - 1}
-          />
-        ))}
-      </div>
+      {/* 측 — 측 측 측 측 측 catch (AdminApp TaskCard 측 측: gap 6 / 개별 카드) */}
+      {filtered.length === 0 ? (
+        <div style={{
+          padding: "40px 20px", textAlign: "center",
+          color: "var(--text-tertiary, #9CA3AF)", fontSize: 12,
+          background: "var(--bg-secondary, #1A1A1A)",
+          border: "1px solid var(--border, #2A2A2A)",
+          borderRadius: 8,
+        }}>작업이 없습니다</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {filtered.map((task, idx) => (
+            <TaskRow
+              key={task.id || task.taskNo || idx}
+              task={task}
+              onClick={() => onSelect?.(task)}
+            />
+          ))}
+        </div>
+      )}
 
       {/* 측 측 측 */}
       <div style={{
@@ -233,7 +234,7 @@ function CountCard({ label, value, accent }) {
   );
 }
 
-function TaskRow({ task, onClick, isLast }) {
+function TaskRow({ task, onClick }) {
   const kind = getServiceKind(task);
   const status = getStatusBadge(task.status);
   const time = formatTime(task);
@@ -244,63 +245,71 @@ function TaskRow({ task, onClick, isLast }) {
   const qty = first.qty || task.qty || 1;
   const moreCount = items.length > 1 ? items.length - 1 : 0;
 
-  // 정보 텍스트 (기종 · 지역 · 시간)
-  const infoText = [
-    `${appliance}${qty > 1 ? `×${qty}` : ""}${moreCount > 0 ? ` +${moreCount}` : ""}`,
-    task.region || "",
-    [date, time !== "—" ? time : ""].filter(Boolean).join(" "),
-  ].filter(Boolean).join(" · ");
+  // 정보 텍스트 (기종 · 지역 · 시간) — AdminApp TaskCard 측 측 측 (괄호 catch)
+  const infoBits = [`(${appliance || "—"}${qty > 1 ? `×${qty}` : ""}${moreCount > 0 ? ` +${moreCount}` : ""})`];
+  if (task.region) infoBits.push(task.region);
+  const timeStr = [date, time !== "—" ? time : ""].filter(Boolean).join(" ");
+  if (timeStr) infoBits.push(timeStr);
+  const infoText = infoBits.join(" · ");
 
   return (
     <div
       onClick={onClick}
       style={{
-        display: "flex", alignItems: "center", gap: 7,
-        padding: "11px 12px",
-        borderBottom: isLast ? "none" : "1px solid var(--border, #2A2A2A)",
+        // AdminApp TaskCard 측 측 catch: bgElevated + radius 8 + padding 8x10 + minHeight 38
+        background: "var(--bg-elevated, #1F1F1F)",
+        border: "1px solid var(--border, #2A2A2A)",
+        borderRadius: 8,
+        padding: "8px 10px",
+        display: "flex", alignItems: "center", gap: 8,
+        minHeight: 38,
         cursor: "pointer",
       }}
     >
       {/* 1. 서비스 아이콘 */}
-      <div style={{ flexShrink: 0, width: 16, textAlign: "center" }}>
+      <div style={{ flexShrink: 0, width: 14, textAlign: "center" }}>
         <ServiceIcon kind={kind}/>
       </div>
 
-      {/* 2. 고객명 */}
+      {/* 2. 고객명 — AdminApp 측 측: 12 / 500 / maxWidth 90 */}
       <span style={{
         flexShrink: 0,
-        fontSize: 13, fontWeight: 500,
+        fontSize: 12, fontWeight: 500,
         color: "var(--text-primary, #FAF8F5)",
+        maxWidth: 90,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>{task.customer || "—"}</span>
 
       {/* 3. N 배지 (usol_n 측만) */}
       <ChannelBadge task={task}/>
 
-      {/* 4. 정보 텍스트 — flex:1, ellipsis */}
+      {/* 4. 정보 텍스트 — flex:1, ellipsis (11 / 400 / #888) */}
       <span style={{
         flex: 1, minWidth: 0,
-        fontSize: 11, color: "var(--text-secondary, #B5B0A8)",
+        fontSize: 11, fontWeight: 400,
+        color: "#888",
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>{infoText}</span>
 
-      {/* 5. 기사명 — 회색 칩 */}
+      {/* 5. 기사명 칩 — AdminApp 측 측: 11 / 500 / #ddd / #2a2a2a / radius 4 */}
       {task.assignedEngineer && (
         <span style={{
           flexShrink: 0,
           fontSize: 11, fontWeight: 500,
-          color: "#C8C7CF",
-          background: "#2F2E38",
-          borderRadius: 5,
-          padding: "2px 8px",
+          color: "#ddd",
+          background: "#2a2a2a",
+          padding: "2px 8px", borderRadius: 4,
+          whiteSpace: "nowrap",
         }}>{task.assignedEngineer}</span>
       )}
 
-      {/* 6. 상태 배지 */}
+      {/* 6. 상태 배지 — AdminApp 측 측: 10 / 700 / padding 2x7 / radius 8 */}
       <span style={{
         flexShrink: 0,
         fontSize: 10, fontWeight: 700,
         color: status.color, background: status.bg,
-        padding: "3px 8px", borderRadius: 6,
+        padding: "2px 7px", borderRadius: 8,
+        whiteSpace: "nowrap",
       }}>{getStatusLabel(task.status)}</span>
     </div>
   );
