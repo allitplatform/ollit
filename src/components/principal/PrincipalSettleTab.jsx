@@ -156,13 +156,19 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
     };
   }, [items]);
 
-  // 주차 묶음
+  // 주차 묶음 (사장님 결정 — 정산 대기 정의 통일)
+  //   pending 묶음 = 전체 현황 summary.pendingCount와 같은 집합
+  //     = task.status='완료' AND naver_settled_at NULL
+  //   미완료(배정/확정/진행중/미배정) + 취소 task_item은 정산 탭에 안 나타남.
   const weeks = useMemo(() => {
     const map = new Map();
     const pending = [];
     for (const it of items) {
       const wk = getNaverSettleWeek(it);
-      if (!wk) { pending.push(it); continue; }
+      if (!wk) {
+        if (it.task_status === "완료") pending.push(it);
+        continue;
+      }
       if (!map.has(wk.key)) map.set(wk.key, { ...wk, items: [] });
       map.get(wk.key).items.push(it);
     }
