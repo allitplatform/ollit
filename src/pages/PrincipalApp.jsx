@@ -16,6 +16,7 @@ import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
 import { formatTimeOnly } from "../utils/dateLabel.js";
 // 2026-05-23 — 유솔홈케어 통합 포털 1라운드: "작업 현황" 탭 측 컴포넌트
 import { PrincipalListTab } from "../components/principal/PrincipalListTab.jsx";
+import { PrincipalSettleTab } from "../components/principal/PrincipalSettleTab.jsx";
 
 const NOW = "10:00";
 
@@ -439,7 +440,7 @@ export default function PrincipalApp({ user, onLogout }) {
           <>
             {tab === "list" && <PrincipalListTab t={t} onSelect={setSelectedTask} tasks={tasks}/>}
             {tab === "new" && <NewTab t={t} onSubmit={(task) => setSubmittedTask(task)} addTask={addTask}/>}
-            {tab === "settle" && <SettleTab t={t} tasks={tasks}/>}
+            {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes}/>}
             {tab === "info" && <InfoTab t={t}/>}
           </>
         )}
