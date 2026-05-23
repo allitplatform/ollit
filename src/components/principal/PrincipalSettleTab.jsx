@@ -1,16 +1,17 @@
-// 유솔 포털 정산 탭 — 네이버 주차 정산 (시안 확정안)
+// 유솔 포털 정산 탭 — 네이버 주차 정산 + 입금 워크플로 (Phase 1+2)
 // 2026-05-23
 //
 // 사장님 spec:
-//   · 단위: 항목(task_item), 자기 naver_settled_at 주차에 배치
+//   · 단위: 항목(task_item), naver_settled_at 기준 ISO 주(월~일) 묶음
 //   · 금액: subtotal
-//   · 주차: ISO 주 (월~일), 라벨 = "M월 N주차" (그 달 첫 주부터 카운트)
-//   · 단계: 대기 / 네이버 결제완료 / 회사 입금완료
-//   · 냉매 제외 필터 없음 — 추가선택 냉매점검도 일반 항목으로 포함
-//   · 전체 현황 섹션 (최상단): 접수→작업 전→완료→정산 대기→정산완료
-//   · 입금예정일 = 주차 종료(일) 다음 월요일
-//   · 무채 베이스, 포인트 색 4종 (마젠타·초록·파랑·앰버)
-import { useState, useMemo, useEffect } from "react";
+//   · 주차 카드 상태 3단계:
+//       입금 예정     (row 없음)                       — 파랑
+//       입금 확인 중  (remitted_at NOT NULL, !confirm) — 앰버
+//       입금완료     (confirmed_at NOT NULL)           — 초록
+//   · 드릴인에 "입금했습니다" / "보고 취소" 버튼
+//   · 이번 주(오늘 포함) 카드 테두리 — 핑크 #FF4D9E
+//   · 전체 현황 — 배경·테두리 제거 (단계 시각만 표시)
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { Search, ChevronLeft, Check } from "lucide-react";
 import {
   fetchPrincipalSettleItems,
@@ -19,6 +20,12 @@ import {
   getItemLabel,
   SETTLE_STAGES,
 } from "../../lib/principalSettleDb.js";
+import {
+  fetchPrincipalWeeklyRemittances,
+  markPrincipalRemitted,
+  undoPrincipalRemit,
+} from "../../lib/principalRemitDb.js";
+import { supabase } from "../../lib/supabase.js";
 
 // 색 토큰 — 시안 확정
 const C_MAGENTA = "#FF4D9E";
@@ -42,22 +49,28 @@ function getKoreanWeekLabel(monday, sunday) {
   return `${month + 1}월 ${diff + 1}주차`;
 }
 
-// 오늘이 속한 주의 monday (KST 로컬)
 function getThisWeekMondayKey() {
   const now = new Date();
   const dow = now.getDay() || 7;
   const mon = new Date(now);
   mon.setDate(now.getDate() - (dow - 1));
   mon.setHours(0, 0, 0, 0);
-  return mon.toISOString().slice(0, 10);
+  return toIsoDate(mon);
 }
 
-// 주차 종료 다음 월요일 = 입금예정일
 function getNextMonday(sunday) {
   const d = new Date(sunday);
   d.setDate(sunday.getDate() + 1);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+function toIsoDate(d) {
+  // 로컬 KST 기준 YYYY-MM-DD (UTC slice 측 측 catch)
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function formatMD(d) {
@@ -68,54 +81,60 @@ function formatMDWithDow(d) {
   return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
 
-// 주차 상태 — 회사 입금 후 / 전
-// 후: 항목 중 하나라도 company_received_at 있음 → MAX(company_received_at)을 입금일로 표시
-// 전: naver_settled_at NOT NULL 항목들이 모두 입금 전
-function getWeekDepositStatus(items, sunday) {
-  let maxCompany = null;
-  for (const it of items) {
-    if (it.company_received_at) {
-      if (!maxCompany || it.company_received_at > maxCompany) maxCompany = it.company_received_at;
-    }
-  }
-  if (maxCompany) {
-    const d = new Date(maxCompany);
-    return { kind: "done", text: `입금완료 ${formatMD(d)}` };
-  }
-  const expected = getNextMonday(sunday);
-  return { kind: "expected", text: `${formatMDWithDow(expected)} 입금 예정` };
+// 주차 입금 상태 — 신규 워크플로 (principal_weekly_remittances)
+// 항목 측 principal_id별 remitMap에 row가 있는지 확인
+function getWeekRemitStatus(items, remitMap) {
+  // 항목 측 principal_id 측 — 같은 주차에 여러 principal 측 측 측 catch
+  const principalIds = [...new Set(items.map(it => it.principal_id).filter(Boolean))];
+  if (principalIds.length === 0) return { kind: "expected", remits: [] };
+
+  const remits = principalIds.map(pid => remitMap.get(pid));
+  const anyExist = remits.some(r => r);
+  if (!anyExist) return { kind: "expected", remits: [] };
+
+  const allConfirmed = remits.every(r => r && r.confirmed_at);
+  if (allConfirmed) return { kind: "done", remits };
+
+  const allReported = remits.every(r => r && r.remitted_at);
+  if (allReported) return { kind: "reported", remits };
+
+  // 일부만 보고된 (혼합) 경우 — "확인 중"으로 표시
+  return { kind: "reported", remits: remits.filter(Boolean) };
 }
 
 export function PrincipalSettleTab({ principalCodes }) {
   const [items, setItems] = useState([]);
+  const [remits, setRemits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
 
-  // 뷰 전환 — list (주차 카드) ↔ detail (드릴인)
+  // 뷰 전환
   const [selectedWeekKey, setSelectedWeekKey] = useState(null);
-
-  // 드릴인 state
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
 
-  // fetch
+  const refresh = useCallback(() => setReloadTick(v => v + 1), []);
+
   useEffect(() => {
     if (!Array.isArray(principalCodes) || principalCodes.length === 0) return;
     let alive = true;
     setLoading(true);
     setError("");
-    fetchPrincipalSettleItems({ principalCodes, monthsBack: 3 })
-      .then(res => {
-        if (!alive) return;
-        if (!res.ok) { setError(res.error || "정산 항목 조회 실패"); setItems([]); }
-        else setItems(res.items);
-      })
-      .finally(() => { if (alive) setLoading(false); });
+    Promise.all([
+      fetchPrincipalSettleItems({ principalCodes, monthsBack: 3 }),
+      fetchPrincipalWeeklyRemittances({ principalCodes, monthsBack: 3 }),
+    ]).then(([itemsRes, remitRes]) => {
+      if (!alive) return;
+      if (!itemsRes.ok) setError(itemsRes.error || "정산 항목 조회 실패");
+      setItems(itemsRes.items || []);
+      setRemits(remitRes.remits || []);
+    }).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [principalCodes]);
+  }, [principalCodes, reloadTick]);
 
-  // 전체 현황 수치 — 단위: task_item, 취소 task 제외
+  // 전체 현황 수치
   const summary = useMemo(() => {
     const live = items.filter(it => it.task_status !== "취소");
     const before = live.filter(it => ["배정", "확정"].includes(it.task_status));
@@ -124,59 +143,112 @@ export function PrincipalSettleTab({ principalCodes }) {
     const pendingSettle = done.filter(it => !it.naver_settled_at);
     const pendingAmount = pendingSettle.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
     return {
-      received:       live.length,
-      beforeWork:     before.length,
-      doneWork:       done.length,
-      settled:        settled.length,
-      pendingCount:   pendingSettle.length,
-      pendingAmount,
+      received: live.length, beforeWork: before.length, doneWork: done.length,
+      settled: settled.length, pendingCount: pendingSettle.length, pendingAmount,
     };
   }, [items]);
 
-  // 주차별 묶음
+  // 주차 묶음
   const weeks = useMemo(() => {
     const map = new Map();
     const pending = [];
     for (const it of items) {
       const wk = getNaverSettleWeek(it);
-      if (!wk) {
-        pending.push(it);
-        continue;
-      }
+      if (!wk) { pending.push(it); continue; }
       if (!map.has(wk.key)) map.set(wk.key, { ...wk, items: [] });
       map.get(wk.key).items.push(it);
     }
     const list = [...map.values()].sort((a, b) => b.key.localeCompare(a.key));
     if (pending.length > 0) {
-      list.push({
-        key: "pending",
-        year: null, week: null, monday: null, sunday: null,
-        items: pending,
-      });
+      list.push({ key: "pending", year: null, week: null, monday: null, sunday: null, items: pending });
     }
     return list;
   }, [items]);
 
+  // 입금 보고 lookup — (principal_id, week_start) → remit row
+  const remitMap = useMemo(() => {
+    const m = new Map(); // key = `${principal_id}|${week_start}`
+    for (const r of remits) {
+      m.set(`${r.principal_id}|${r.week_start}`, r);
+    }
+    return m;
+  }, [remits]);
+
+  function getRemitMapForWeek(weekMondayIso) {
+    const sub = new Map();
+    for (const r of remits) {
+      if (r.week_start === weekMondayIso) sub.set(r.principal_id, r);
+    }
+    return sub;
+  }
+
+  // 보고 액션
+  async function handleReport(week) {
+    const weekStart = toIsoDate(week.monday);
+    const weekEnd   = toIsoDate(week.sunday);
+    // principal_id 측 그룹 — 측 principal 측 measurement 측 RPC 호출 (Promise.all)
+    const byPrincipal = new Map();
+    for (const it of week.items) {
+      const pid = it.principal_id;
+      if (!pid) continue;
+      if (!byPrincipal.has(pid)) byPrincipal.set(pid, { sum: 0, code: null });
+      const slot = byPrincipal.get(pid);
+      slot.sum += Number(it.subtotal) || 0;
+    }
+    // principal_id → code 매핑 (principalCodes 측 catch 측 측 X → tasks JOIN 측 측 X)
+    // 측 측 — items 측 측 principal_id 그대로 RPC 측 측 (markPrincipalRemitted 측 code 측 받음 → 측 측 측 측)
+    // 측 측 measurement code 측 측 — fetchPrincipalSettleItems 측 측 principal_id 측 측. code 측 측 X.
+    // → markPrincipalRemitted 측 principalId 측 측 측 측 X → principalRemitDb 측 principalCode 측 → principal_id 매핑
+    // 측 — items 측 principal_id 측 catch 측 measurement, principalCodes prop 측 측 catch
+    // 측 measurement (principal_id → code): principalCodes 측 측 1:1 측 X → fetch 측 측 catch
+    const reverseMap = await resolvePidToCodeMap(principalCodes);
+
+    const tasks = [];
+    for (const [pid, slot] of byPrincipal) {
+      const code = reverseMap.get(pid);
+      if (!code) continue;
+      tasks.push(markPrincipalRemitted({
+        principalCode: code,
+        weekStart, weekEnd,
+        amount: slot.sum,
+      }));
+    }
+    const results = await Promise.all(tasks);
+    const failed = results.find(r => !r.ok);
+    if (failed) {
+      alert("보고 실패: " + (failed.error || "알 수 없는 오류"));
+      return;
+    }
+    refresh();
+  }
+
+  async function handleUndo(remitIds) {
+    const results = await Promise.all(remitIds.map(id => undoPrincipalRemit({ remitId: id })));
+    const failed = results.find(r => !r.ok);
+    if (failed) {
+      alert("보고 취소 실패: " + (failed.error || "알 수 없는 오류"));
+      return;
+    }
+    refresh();
+  }
+
   const thisWeekMondayKey = getThisWeekMondayKey();
 
-  if (loading) {
-    return <div style={{ padding: "40px 20px", textAlign: "center", color: C_GRAY, fontSize: 12 }}>불러오는 중...</div>;
-  }
-  if (error) {
-    return <div style={{ padding: "40px 20px", textAlign: "center", color: "#EF4444", fontSize: 12 }}>⚠️ {error}</div>;
-  }
+  if (loading) return <div style={{ padding: "40px 20px", textAlign: "center", color: C_GRAY, fontSize: 12 }}>불러오는 중...</div>;
+  if (error)   return <div style={{ padding: "40px 20px", textAlign: "center", color: "#EF4444", fontSize: 12 }}>⚠️ {error}</div>;
 
   // 드릴인 뷰
   if (selectedWeekKey) {
     const wk = weeks.find(w => w.key === selectedWeekKey);
-    if (!wk) {
-      setSelectedWeekKey(null);
-      return null;
-    }
+    if (!wk) { setSelectedWeekKey(null); return null; }
+    const weekRemits = wk.monday ? getRemitMapForWeek(toIsoDate(wk.monday)) : new Map();
     return (
       <WeekDetailView
         week={wk}
+        weekRemits={weekRemits}
         onBack={() => { setSelectedWeekKey(null); setSearch(""); setStageFilter("all"); setDateFilter(""); }}
+        onReport={() => handleReport(wk)}
+        onUndo={(ids) => handleUndo(ids)}
         search={search} setSearch={setSearch}
         stageFilter={stageFilter} setStageFilter={setStageFilter}
         dateFilter={dateFilter} setDateFilter={setDateFilter}
@@ -201,7 +273,8 @@ export function PrincipalSettleTab({ principalCodes }) {
             <WeekCard
               key={wk.key}
               week={wk}
-              isThisWeek={wk.monday && wk.monday.toISOString().slice(0, 10) === thisWeekMondayKey}
+              remitMap={wk.monday ? getRemitMapForWeek(toIsoDate(wk.monday)) : new Map()}
+              isThisWeek={wk.monday && toIsoDate(wk.monday) === thisWeekMondayKey}
               onClick={() => setSelectedWeekKey(wk.key)}
             />
           ))}
@@ -211,41 +284,36 @@ export function PrincipalSettleTab({ principalCodes }) {
   );
 }
 
-// 전체 현황 섹션 — 세로 단계 + 정산 대기 강조 박스
+// principal_id → code 매핑 (1:1)
+async function resolvePidToCodeMap(codes) {
+  const { data } = await supabase.from("principals").select("id, code").in("code", codes);
+  const m = new Map();
+  for (const p of (data || [])) m.set(p.id, p.code);
+  return m;
+}
+
+// 전체 현황 섹션 — 배경·테두리 없음 (시안 확정)
 function SummarySection({ summary }) {
   const steps = [
-    { key: "received",   label: "접수",            value: summary.received,   green: false },
-    { key: "beforeWork", label: "일정 확정·작업 전", value: summary.beforeWork, green: false },
-    { key: "doneWork",   label: "작업완료",         value: summary.doneWork,   green: false },
+    { key: "received",   label: "접수",            value: summary.received },
+    { key: "beforeWork", label: "일정 확정·작업 전", value: summary.beforeWork },
+    { key: "doneWork",   label: "작업완료",         value: summary.doneWork },
   ];
   return (
-    <div style={{
-      background: "var(--bg-secondary, #1A1A1A)",
-      border: "1px solid var(--border, #2A2A2A)",
-      borderRadius: 12,
-      padding: "14px 16px 16px",
-    }}>
+    <div style={{ padding: "4px 4px 0" }}>
       <div style={{ fontSize: 11, color: C_GRAY, fontWeight: 600, marginBottom: 10 }}>
         전체 현황
       </div>
 
-      {steps.map((s, idx) => (
-        <StepRow key={s.key} {...s} hasLineBelow={true}/>
-      ))}
+      {steps.map(s => <StepRow key={s.key} {...s} green={false} hasLineBelow={true}/>)}
 
-      {/* 정산 대기 강조 박스 — 작업완료와 정산완료 사이 */}
       <div style={{ position: "relative", marginLeft: 4 }}>
-        {/* 연결선 (위) */}
-        <div style={{
-          position: "absolute", left: 5, top: -8, width: 2, height: 18,
-          background: C_DOT,
-        }}/>
+        <div style={{ position: "absolute", left: 5, top: -8, width: 2, height: 18, background: C_DOT }}/>
         <div style={{
           marginLeft: 16, marginBottom: 6, marginTop: 10,
           background: "rgba(230,163,58,0.08)",
           borderLeft: `3px solid ${C_AMBER}`,
-          borderRadius: 8,
-          padding: "10px 12px",
+          borderRadius: 8, padding: "10px 12px",
         }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: C_AMBER, marginBottom: 2 }}>
             정산 대기 {summary.pendingCount}건
@@ -256,11 +324,7 @@ function SummarySection({ summary }) {
             </span>
           </div>
         </div>
-        {/* 연결선 (아래) */}
-        <div style={{
-          position: "absolute", left: 5, bottom: -8, width: 2, height: 18,
-          background: C_DOT,
-        }}/>
+        <div style={{ position: "absolute", left: 5, bottom: -8, width: 2, height: 18, background: C_DOT }}/>
       </div>
 
       <StepRow label="정산완료" value={summary.settled} green={true} hasLineBelow={false}/>
@@ -271,7 +335,6 @@ function SummarySection({ summary }) {
 function StepRow({ label, value, green, hasLineBelow }) {
   return (
     <div style={{ position: "relative", marginLeft: 4, paddingLeft: 16, paddingBottom: hasLineBelow ? 14 : 0, minHeight: 22 }}>
-      {/* 점 */}
       <div style={{
         position: "absolute", left: 0, top: 6,
         width: 12, height: 12, borderRadius: "50%",
@@ -279,7 +342,6 @@ function StepRow({ label, value, green, hasLineBelow }) {
         border: green ? `2px solid ${C_GREEN}` : `2px solid ${C_DOT}`,
         boxShadow: green ? `0 0 0 3px rgba(93,202,165,0.18)` : "none",
       }}/>
-      {/* 연결선 (아래) */}
       {hasLineBelow && (
         <div style={{
           position: "absolute", left: 5, top: 18, width: 2, height: "calc(100% - 18px)",
@@ -296,11 +358,10 @@ function StepRow({ label, value, green, hasLineBelow }) {
   );
 }
 
-function WeekCard({ week, isThisWeek, onClick }) {
+function WeekCard({ week, remitMap, isThisWeek, onClick }) {
   const isPending = week.key === "pending";
   const sumSubtotal = week.items.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
 
-  // 정산 대기 묶음 (naver_settled_at NULL) — 별도 UI
   if (isPending) {
     return (
       <div onClick={onClick} style={{
@@ -324,31 +385,47 @@ function WeekCard({ week, isThisWeek, onClick }) {
 
   const weekLabel = getKoreanWeekLabel(week.monday, week.sunday);
   const dateRange = `${formatMD(week.monday)} ~ ${formatMD(week.sunday)}`;
-  const deposit = getWeekDepositStatus(week.items, week.sunday);
+  const status    = getWeekRemitStatus(week.items, remitMap);
+
+  let statusElem;
+  if (status.kind === "done") {
+    const lastConfirm = status.remits.map(r => r.confirmed_at).filter(Boolean).sort().pop();
+    const d = new Date(lastConfirm);
+    statusElem = (
+      <span style={{ fontSize: 11, fontWeight: 700, color: C_GREEN, display: "inline-flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
+        <Check size={12} strokeWidth={3}/>입금완료 {formatMD(d)}
+      </span>
+    );
+  } else if (status.kind === "reported") {
+    statusElem = (
+      <span style={{ fontSize: 11, fontWeight: 700, color: C_AMBER, whiteSpace: "nowrap" }}>
+        입금 확인 중
+      </span>
+    );
+  } else {
+    const expected = getNextMonday(week.sunday);
+    statusElem = (
+      <span style={{ fontSize: 11, fontWeight: 700, color: C_BLUE, whiteSpace: "nowrap" }}>
+        {formatMDWithDow(expected)} 입금 예정
+      </span>
+    );
+  }
 
   return (
     <div onClick={onClick} style={{
       background: "var(--bg-elevated, #1F1F1F)",
-      border: `1px solid ${isThisWeek ? C_BLUE : "var(--border, #2A2A2A)"}`,
+      border: `1px solid ${isThisWeek ? C_MAGENTA : "var(--border, #2A2A2A)"}`,
       borderRadius: 10,
       padding: "12px 14px",
       cursor: "pointer",
-      boxShadow: isThisWeek ? `0 0 0 1px ${C_BLUE}55` : "none",
+      boxShadow: isThisWeek ? `0 0 0 1px ${C_MAGENTA}55` : "none",
     }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary, #FAF8F5)" }}>{weekLabel}</span>
           <span style={{ fontSize: 11, color: C_GRAY }}>{dateRange}</span>
         </div>
-        {deposit.kind === "done" ? (
-          <span style={{ fontSize: 11, fontWeight: 700, color: C_GREEN, display: "inline-flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
-            <Check size={12} strokeWidth={3}/>{deposit.text}
-          </span>
-        ) : (
-          <span style={{ fontSize: 11, fontWeight: 700, color: C_BLUE, whiteSpace: "nowrap" }}>
-            {deposit.text}
-          </span>
-        )}
+        {statusElem}
       </div>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         <span style={{ fontSize: 11, color: C_GRAY }}>네이버 정산 {week.items.length}건</span>
@@ -360,15 +437,13 @@ function WeekCard({ week, isThisWeek, onClick }) {
   );
 }
 
-function WeekDetailView({ week, onBack, search, setSearch, stageFilter, setStageFilter, dateFilter, setDateFilter }) {
+function WeekDetailView({ week, weekRemits, onBack, onReport, onUndo, search, setSearch, stageFilter, setStageFilter, dateFilter, setDateFilter }) {
+  const [submitting, setSubmitting] = useState(false);
+
   const filtered = useMemo(() => {
     let list = week.items;
-    if (stageFilter !== "all") {
-      list = list.filter(it => getSettleStageKey(it) === stageFilter);
-    }
-    if (dateFilter) {
-      list = list.filter(it => (it.naver_settled_at || "").slice(0, 10) === dateFilter);
-    }
+    if (stageFilter !== "all") list = list.filter(it => getSettleStageKey(it) === stageFilter);
+    if (dateFilter) list = list.filter(it => (it.naver_settled_at || "").slice(0, 10) === dateFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(it => {
@@ -384,22 +459,39 @@ function WeekDetailView({ week, onBack, search, setSearch, stageFilter, setStage
 
   const dateOptions = useMemo(() => {
     const set = new Set();
-    for (const it of week.items) {
-      if (it.naver_settled_at) set.add(it.naver_settled_at.slice(0, 10));
-    }
+    for (const it of week.items) if (it.naver_settled_at) set.add(it.naver_settled_at.slice(0, 10));
     return [...set].sort();
   }, [week.items]);
 
   const sumSubtotal = filtered.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
   const isPending = week.key === "pending";
-
   const headerLabel = isPending
     ? "정산 대기"
     : `${getKoreanWeekLabel(week.monday, week.sunday)}  네이버 정산 ${formatMD(week.monday)}~${formatMD(week.sunday)}`;
 
+  // 보고 버튼 상태 — 해당 주차에 remit row가 모두 있는지(=보고됨), confirmed 측 측
+  const status = !isPending ? getWeekRemitStatus(week.items, weekRemits) : { kind: "expected", remits: [] };
+  const canReport = !isPending && status.kind === "expected";
+  const canUndo   = !isPending && status.kind === "reported";
+  const isDone    = status.kind === "done";
+
+  async function doReport() {
+    if (!confirm(`이번 주차(₩${sumSubtotal.toLocaleString()})에 입금했습니까?`)) return;
+    setSubmitting(true);
+    await onReport();
+    setSubmitting(false);
+  }
+  async function doUndo() {
+    if (!confirm("보고를 취소하시겠습니까?")) return;
+    const ids = status.remits.map(r => r.id).filter(Boolean);
+    if (ids.length === 0) return;
+    setSubmitting(true);
+    await onUndo(ids);
+    setSubmitting(false);
+  }
+
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
-      {/* 헤더 */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <button onClick={onBack} style={{
           background: "var(--bg-secondary, #1A1A1A)",
@@ -421,7 +513,12 @@ function WeekDetailView({ week, onBack, search, setSearch, stageFilter, setStage
         </div>
       </div>
 
-      {/* 검색 */}
+      {/* 입금 워크플로 버튼 */}
+      {!isPending && (
+        <RemitAction status={status} canReport={canReport} canUndo={canUndo} isDone={isDone}
+          submitting={submitting} onReport={doReport} onUndo={doUndo}/>
+      )}
+
       <div style={{ position: "relative", marginBottom: 8 }}>
         <Search size={14} style={{
           position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
@@ -474,6 +571,63 @@ function WeekDetailView({ week, onBack, search, setSearch, stageFilter, setStage
   );
 }
 
+function RemitAction({ status, canReport, canUndo, isDone, submitting, onReport, onUndo }) {
+  if (isDone) {
+    const lastConfirm = status.remits.map(r => r.confirmed_at).filter(Boolean).sort().pop();
+    const d = lastConfirm ? new Date(lastConfirm) : null;
+    return (
+      <div style={{
+        marginBottom: 12, padding: "10px 12px",
+        background: "rgba(93,202,165,0.10)",
+        border: `1px solid ${C_GREEN}55`,
+        borderRadius: 10,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: C_GREEN, display: "inline-flex", alignItems: "center", gap: 4 }}>
+          <Check size={14} strokeWidth={3}/>회사 입금 확인 완료
+          {d && <span style={{ color: C_GRAY, fontWeight: 500, marginLeft: 4 }}>{formatMD(d)}</span>}
+        </span>
+      </div>
+    );
+  }
+  if (canUndo) {
+    const lastReport = status.remits.map(r => r.remitted_at).filter(Boolean).sort().pop();
+    const d = lastReport ? new Date(lastReport) : null;
+    return (
+      <div style={{
+        marginBottom: 12, padding: "10px 12px",
+        background: "rgba(230,163,58,0.08)",
+        border: `1px solid ${C_AMBER}55`,
+        borderRadius: 10,
+        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+      }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: C_AMBER }}>입금 보고 완료 · 회사 확인 대기</div>
+          {d && <div style={{ fontSize: 10, color: C_GRAY, marginTop: 2 }}>보고 시각 {formatMD(d)}</div>}
+        </div>
+        <button onClick={onUndo} disabled={submitting} style={{
+          background: "transparent", border: `1px solid ${C_AMBER}`, color: C_AMBER,
+          padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700,
+          cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit",
+          opacity: submitting ? 0.5 : 1, whiteSpace: "nowrap",
+        }}>보고 취소</button>
+      </div>
+    );
+  }
+  if (canReport) {
+    return (
+      <button onClick={onReport} disabled={submitting} style={{
+        width: "100%", marginBottom: 12, padding: 12,
+        background: C_MAGENTA, border: "none", borderRadius: 10,
+        color: "#fff", fontSize: 13, fontWeight: 700,
+        cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit",
+        opacity: submitting ? 0.5 : 1,
+      }}>{submitting ? "보고 중..." : "💸 입금했습니다"}</button>
+    );
+  }
+  return null;
+}
+
 function SettleItemRow({ item }) {
   const stageKey = getSettleStageKey(item);
   const stage = SETTLE_STAGES.find(s => s.key === stageKey) || SETTLE_STAGES[0];
@@ -502,24 +656,17 @@ function SettleItemRow({ item }) {
       }}>{item.customer_name || "—"}</span>
       <span style={{
         flex: 1, minWidth: 0,
-        fontSize: 11, fontWeight: 400,
-        color: "#888",
+        fontSize: 11, fontWeight: 400, color: "#888",
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>
         ({label}{qty > 1 ? `×${qty}` : ""})
         {item.district ? ` · ${item.district}` : ""}
-        {naverDate && (
-          <>
-            {" · "}
-            <span style={{ color: "#F2B84B", fontWeight: 600 }}>{naverDate}</span>
-          </>
-        )}
+        {naverDate && (<>{" · "}<span style={{ color: "#F2B84B", fontWeight: 600 }}>{naverDate}</span></>)}
       </span>
       <span style={{
         flexShrink: 0,
         fontSize: 12, fontWeight: 700,
-        color: C_MAGENTA,
-        fontFamily: "inherit",
+        color: C_MAGENTA, fontFamily: "inherit",
       }}>₩{subtotal.toLocaleString()}</span>
     </div>
   );
@@ -534,8 +681,7 @@ function FilterChip({ children, active, onClick }) {
       border: `1px solid ${active ? C_MAGENTA : "var(--border, #2A2A2A)"}`,
       borderRadius: 100,
       fontSize: 11, fontWeight: 700,
-      cursor: "pointer", fontFamily: "inherit",
-      whiteSpace: "nowrap",
+      cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
     }}>{children}</button>
   );
 }
