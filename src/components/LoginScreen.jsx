@@ -80,6 +80,9 @@ export function LoginScreen({ onLogin }) {
       name: rpcUser.name,
       phone: rpcUser.phone,
       engineerId: rpcUser.code && String(rpcUser.code).startsWith("E") ? rpcUser.code : undefined,
+      // 2026-05-23 — partner role 측 사용자 측 측 principal 목록 측 (Migration 057 측)
+      //   PrincipalApp 측 user.principals 측 catch 측 (예: 유솔홈케어 통합계정 = usol_h + usol_n)
+      principals: Array.isArray(rpcUser.principals) ? rpcUser.principals : [],
     };
   };
 

@@ -362,9 +362,16 @@ export default function PrincipalApp({ user, onLogout }) {
   // V14 — 진짜 시트 catch (apiTasks)
   const [apiTasks, setApiTasks] = useState([]);
 
+  // 2026-05-23 — user.principals (Migration 057) 측 측 → 옛 clientName fuzzy 폐기
+  //   유솔홈케어 통합계정 측 user.principals = [{code:'usol_h',...}, {code:'usol_n',...}]
+  //   → 측 원청 작업 합쳐 catch
+  const principalCodes = Array.isArray(user?.principals)
+    ? user.principals.map(p => p?.code).filter(Boolean)
+    : [];
+
   async function fetchTasks() {
     try {
-      console.log('[V14 PrincipalApp] fetchTasks 시작 / clientName:', user?.clientName);
+      console.log('[V14 PrincipalApp] fetchTasks 시작 / principals:', principalCodes);
       const res = await getTasks('principal', user?.id || 'principal', null);
       if (!res || res.ok === false) return;
       const { list } = v14FindTaskList(res);
@@ -383,23 +390,17 @@ export default function PrincipalApp({ user, onLogout }) {
   useEffect(() => {
     fetchTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user?.clientName]);
+  }, [user?.id, principalCodes.join(",")]);
 
   // Phase 4 후속 — Supabase Realtime 구독 (실시간 catch)
   useRealtimeTasks(() => fetchTasks());
 
-  // V14 — 본인 원청 작업만 필터 (clientName 매칭 / apiTasks 우선)
-  // 시트 C열 원청 = "쿨가이 (KB)" 박힌 catch / user.clientName = "쿨가이" 박힘
-  // → indexOf 매칭 박기 (fuzzy / V14 catch)
+  // 2026-05-23 — user.principals 측 measurement principal 측 측
+  //   task.principalCode (v14NormalizeTask 측 measurement) 측 catch
   const sourceList = apiTasks.length > 0 ? apiTasks : allTasks;
-  const tasks = user?.clientName
-    ? sourceList.filter(t => {
-        const principal = t.principal || t.client || t.원청 || "";
-        return principal === user.clientName
-          || principal.indexOf(user.clientName) !== -1
-          || user.clientName.indexOf(principal) !== -1;
-      })
-    : filterTasksForPrincipal(sourceList, user?.clientName);
+  const tasks = principalCodes.length > 0
+    ? filterTasksForPrincipal(sourceList, principalCodes)
+    : [];
 
   const reset = () => {
     setTab("list");

@@ -579,11 +579,27 @@ export function filterTasksForEngineer(tasks, engineerId) {
   return tasks.filter(t => t.assignedEngineerId === engineerId);
 }
 
-// 원청 사장님 화면용 필터 (자기 원청의 작업만)
-// clientName 매칭 (예: "쿨가이" → 쿨가이 원청 작업만)
-export function filterTasksForPrincipal(tasks, clientName) {
-  if (!clientName) return [];
-  return tasks.filter(t => t.client === clientName);
+// 원청 사장님 화면용 필터
+// 2026-05-23 — Migration 057 측 다중 principal 측 — user.principals (code 배열) 측 측
+//   옛 호환: clientName 측 string 측 측 (단일 원청 — 옛 in-memory tasks)
+//   신규: principalCodes 측 array 측 측 (예: ['usol_h', 'usol_n']) — DB 측 measurement task 측
+//
+// 인자:
+//   tasks         — task 배열 (DB 측 측 measurement)
+//   principalKey  — string 또는 string[] 또는 null/undefined
+export function filterTasksForPrincipal(tasks, principalKey) {
+  if (!principalKey) return [];
+  // 배열 측 — principalCode 매칭 (Migration 057 측 — 신규 흐름)
+  if (Array.isArray(principalKey)) {
+    if (principalKey.length === 0) return [];
+    const codeSet = new Set(principalKey);
+    return tasks.filter(t => {
+      const code = t.principalCode || t.principal_code;
+      return code && codeSet.has(code);
+    });
+  }
+  // 단일 string — 옛 호환 (clientName fuzzy 측 X, 정확 일치)
+  return tasks.filter(t => t.client === principalKey);
 }
 
 // 작업번호 자동 생성 (원청 prefix 기반)
