@@ -284,6 +284,12 @@ function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect }) {
 
   const filtered = useMemo(() => {
     let list = tasks;
+    // 기본 화면(검색 X + 필터 'all') 측 catch 완료/visit_only 측 catch.
+    //   검색하면 측 catch / 필터 칩 측 catch 측 catch 측 catch 표시.
+    const noSearch = !search.trim();
+    if (filter === "all" && noSearch) {
+      list = list.filter(x => x.status !== "완료" && x.status !== "visit_only");
+    }
     if (filter === "미배정") list = list.filter(x => x.status === "미배정");
     else if (filter === "확정") list = list.filter(x => ["배정", "확정"].includes(x.status));
     else if (filter === "완료") list = list.filter(x => x.status === "완료" || x.status === "visit_only");

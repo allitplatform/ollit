@@ -37,6 +37,14 @@ const C_DOT     = "#4A4A4A";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
+// 회사 입금액 = ROUND(net_amount × 0.85). net_amount NULL → 0.
+//   (사장님 정의 — 네이버 정산금액 × 0.85)
+function companyAmountOf(item) {
+  const n = item?.net_amount;
+  if (n == null) return 0;
+  return Math.round(Number(n) * 0.85);
+}
+
 // "M월 N주차" — 그 달의 첫 주(1일 포함 주)부터 카운트, sunday의 달 기준
 function getKoreanWeekLabel(monday, sunday) {
   const year  = sunday.getFullYear();
@@ -193,7 +201,8 @@ export function PrincipalSettleTab({ principalCodes }) {
       if (!pid) continue;
       if (!byPrincipal.has(pid)) byPrincipal.set(pid, { sum: 0, code: null });
       const slot = byPrincipal.get(pid);
-      slot.sum += Number(it.subtotal) || 0;
+      // 회사 입금액 = ROUND(net_amount × 0.85). net_amount NULL → 0.
+      slot.sum += companyAmountOf(it);
     }
     // principal_id → code 매핑 (principalCodes 측 catch 측 측 X → tasks JOIN 측 측 X)
     // 측 측 — items 측 측 principal_id 그대로 RPC 측 측 (markPrincipalRemitted 측 code 측 받음 → 측 측 측 측)
@@ -301,7 +310,7 @@ function SummarySection({ summary }) {
   ];
   return (
     <div style={{ padding: "4px 4px 0" }}>
-      <div style={{ fontSize: 11, color: C_GRAY, fontWeight: 600, marginBottom: 10 }}>
+      <div style={{ fontSize: 14, color: "var(--text-primary, #FAF8F5)", fontWeight: 800, marginBottom: 14 }}>
         전체 현황
       </div>
 
@@ -313,13 +322,13 @@ function SummarySection({ summary }) {
           marginLeft: 16, marginBottom: 6, marginTop: 10,
           background: "rgba(230,163,58,0.08)",
           borderLeft: `3px solid ${C_AMBER}`,
-          borderRadius: 8, padding: "10px 12px",
+          borderRadius: 8, padding: "12px 14px",
         }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: C_AMBER, marginBottom: 2 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: C_AMBER, marginBottom: 4 }}>
             정산 대기 {summary.pendingCount}건
           </div>
-          <div style={{ fontSize: 11, color: C_GRAY }}>
-            작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 700 }}>
+          <div style={{ fontSize: 12, color: C_GRAY }}>
+            작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: 13 }}>
               ₩{summary.pendingAmount.toLocaleString()}
             </span>
           </div>
@@ -334,9 +343,9 @@ function SummarySection({ summary }) {
 
 function StepRow({ label, value, green, hasLineBelow }) {
   return (
-    <div style={{ position: "relative", marginLeft: 4, paddingLeft: 16, paddingBottom: hasLineBelow ? 14 : 0, minHeight: 22 }}>
+    <div style={{ position: "relative", marginLeft: 4, paddingLeft: 18, paddingBottom: hasLineBelow ? 18 : 0, minHeight: 26 }}>
       <div style={{
-        position: "absolute", left: 0, top: 6,
+        position: "absolute", left: 0, top: 8,
         width: 12, height: 12, borderRadius: "50%",
         background: green ? C_GREEN : C_DOT,
         border: green ? `2px solid ${C_GREEN}` : `2px solid ${C_DOT}`,
@@ -344,13 +353,13 @@ function StepRow({ label, value, green, hasLineBelow }) {
       }}/>
       {hasLineBelow && (
         <div style={{
-          position: "absolute", left: 5, top: 18, width: 2, height: "calc(100% - 18px)",
+          position: "absolute", left: 5, top: 20, width: 2, height: "calc(100% - 20px)",
           background: C_DOT,
         }}/>
       )}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 12, color: "var(--text-primary, #FAF8F5)", fontWeight: 500 }}>{label}</span>
-        <span style={{ fontSize: 19, fontWeight: 800, color: "var(--text-primary, #FAF8F5)", fontFamily: "inherit", lineHeight: 1 }}>
+        <span style={{ fontSize: 14, color: "var(--text-primary, #FAF8F5)", fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 24, fontWeight: 800, color: "var(--text-primary, #FAF8F5)", fontFamily: "inherit", lineHeight: 1 }}>
           {value.toLocaleString()}
         </span>
       </div>
@@ -360,7 +369,8 @@ function StepRow({ label, value, green, hasLineBelow }) {
 
 function WeekCard({ week, remitMap, isThisWeek, onClick }) {
   const isPending = week.key === "pending";
-  const sumSubtotal = week.items.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+  // 회사 입금액 = Σ ROUND(net_amount × 0.85)
+  const sumSubtotal = week.items.reduce((s, it) => s + companyAmountOf(it), 0);
 
   if (isPending) {
     return (
@@ -463,7 +473,7 @@ function WeekDetailView({ week, weekRemits, onBack, onReport, onUndo, search, se
     return [...set].sort();
   }, [week.items]);
 
-  const sumSubtotal = filtered.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+  const sumSubtotal = filtered.reduce((s, it) => s + companyAmountOf(it), 0);
   const isPending = week.key === "pending";
   const headerLabel = isPending
     ? "정산 대기"

@@ -170,7 +170,7 @@ function ThisWeekCard({ week, onClick }) {
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ fontSize: 11, color: "#03C75A", fontWeight: 700 }}>
-          📥 이번 주 받을 돈
+          📥 이번 주 네이버 정산금액
         </div>
         <span style={{
           fontSize: 9, color: "#03C75A",
@@ -295,7 +295,7 @@ function WeekDetailModal({ week, onClose, onConfirmRemit }) {
           borderRadius: 10, marginBottom: 14,
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, color: "#03C75A", fontWeight: 700 }}>회사 받을 돈</span>
+            <span style={{ fontSize: 11, color: "#03C75A", fontWeight: 700 }}>네이버 정산금액</span>
             <span style={{
               fontFamily: "inherit", color: "#03C75A",
               fontWeight: 700, fontSize: 13,
