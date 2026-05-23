@@ -8,6 +8,20 @@ import { supabase } from "./supabase.js";
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 
+// 자체 users 인증(anon key only) 측 supabase.auth 측 측 X →
+// auth.uid() = NULL. RPC 측 권한 검사 측 measurement 측 catch user_id 측 catch.
+//   localStorage("allit.user") 측 catch sign_in_with_phone RPC 응답 측 저장.
+function currentUserId() {
+  try {
+    const raw = typeof window !== "undefined" ? localStorage.getItem("allit.user") : null;
+    if (!raw) return null;
+    const u = JSON.parse(raw);
+    return u?.user_id || null;
+  } catch {
+    return null;
+  }
+}
+
 // principalCodes → principal_id[] 매핑 (모듈 캐시)
 const _principalIdCache = new Map();
 async function resolvePrincipalIds(codes) {
@@ -63,9 +77,12 @@ export async function fetchPrincipalWeeklyRemittances({ principalCodes = [], mon
 //   입력: { principalCode, weekStart: "YYYY-MM-DD", weekEnd, amount, note? }
 //   반환: { ok, id?, error? }
 export async function markPrincipalRemitted({ principalCode, weekStart, weekEnd, amount, note = null }) {
+  const userId = currentUserId();
+  if (!userId) return { ok: false, error: "not_logged_in" };
   const pids = await resolvePrincipalIds([principalCode]);
   if (pids.length === 0) return { ok: false, error: "principal_id 매핑 실패" };
   const { data, error } = await supabase.rpc("mark_principal_remitted", {
+    p_user_id:      userId,
     p_principal_id: pids[0],
     p_week_start:   weekStart,
     p_week_end:     weekEnd,
@@ -81,7 +98,12 @@ export async function markPrincipalRemitted({ principalCode, weekStart, weekEnd,
 
 // 보고 취소 — undo_principal_remit RPC (confirmed_at NULL 측 측)
 export async function undoPrincipalRemit({ remitId }) {
-  const { data, error } = await supabase.rpc("undo_principal_remit", { p_id: remitId });
+  const userId = currentUserId();
+  if (!userId) return { ok: false, error: "not_logged_in" };
+  const { data, error } = await supabase.rpc("undo_principal_remit", {
+    p_user_id: userId,
+    p_id:      remitId,
+  });
   if (error) {
     console.error("[principalRemitDb.undo]", error);
     return { ok: false, error: error.message };
@@ -119,7 +141,12 @@ export async function fetchPrincipalRemitsForAdmin({ principalCodes = ["usol_h",
 
 // 확인 — confirm_principal_remittance RPC
 export async function confirmPrincipalRemit({ remitId }) {
-  const { data, error } = await supabase.rpc("confirm_principal_remittance", { p_id: remitId });
+  const userId = currentUserId();
+  if (!userId) return { ok: false, error: "not_logged_in" };
+  const { data, error } = await supabase.rpc("confirm_principal_remittance", {
+    p_user_id: userId,
+    p_id:      remitId,
+  });
   if (error) {
     console.error("[principalRemitDb.confirm]", error);
     return { ok: false, error: error.message };
