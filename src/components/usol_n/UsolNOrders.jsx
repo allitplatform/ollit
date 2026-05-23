@@ -15,7 +15,8 @@ import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubsc
 
 const PAGE_SIZE = 50;
 
-export function UsolNOrders({ onTaskClick }) {
+// hideList=true → 업로드 영역만 (PrincipalApp 측 catch 측 catch 측 측 X 측 X 측 X)
+export function UsolNOrders({ onTaskClick, hideList = false }) {
   // 2026-05-23 — pendingRows → pendingOrders (parseNaverOrders 측 결과 측 측)
   //   importing / importResult 측 — DB INSERT 진행 측 + 결과 표시 측
   const [pendingOrders, setPendingOrders] = useState([]);
@@ -124,28 +125,32 @@ export function UsolNOrders({ onTaskClick }) {
       />
       {importResult && <ImportResultBanner result={importResult} onDismiss={() => setImportResult(null)} />}
 
-      <div style={sectionTitleStyle}>
-        접수 대기{" "}
-        <span style={{ color: "#03C75A", fontWeight: 700 }}>{total.toLocaleString()}</span>건
-        {totalPages > 1 && (
-          <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
-            · {page + 1} / {totalPages}p
-          </span>
-        )}
-      </div>
+      {!hideList && (
+        <>
+          <div style={sectionTitleStyle}>
+            접수 대기{" "}
+            <span style={{ color: "#03C75A", fontWeight: 700 }}>{total.toLocaleString()}</span>건
+            {totalPages > 1 && (
+              <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
+                · {page + 1} / {totalPages}p
+              </span>
+            )}
+          </div>
 
-      {loading ? (
-        <Empty>불러오는 중...</Empty>
-      ) : fetchError ? (
-        <Empty>⚠️ {fetchError}</Empty>
-      ) : tasks.length === 0 ? (
-        <Empty>대기 중인 새 접수가 없습니다</Empty>
-      ) : (
-        tasks.map(task => <TaskRow key={task.id} task={task} onClick={onTaskClick}/>)
-      )}
+          {loading ? (
+            <Empty>불러오는 중...</Empty>
+          ) : fetchError ? (
+            <Empty>⚠️ {fetchError}</Empty>
+          ) : tasks.length === 0 ? (
+            <Empty>대기 중인 새 접수가 없습니다</Empty>
+          ) : (
+            tasks.map(task => <TaskRow key={task.id} task={task} onClick={onTaskClick}/>)
+          )}
 
-      {totalPages > 1 && (
-        <Pagination page={page} totalPages={totalPages} onChange={setPage}/>
+          {totalPages > 1 && (
+            <Pagination page={page} totalPages={totalPages} onChange={setPage}/>
+          )}
+        </>
       )}
     </div>
   );

@@ -20,6 +20,8 @@ import { formatTimeOnly } from "../utils/dateLabel.js";
 // 2026-05-23 — 유솔홈케어 통합 포털 1라운드: "작업 현황" 탭 측 컴포넌트
 import { PrincipalListTab } from "../components/principal/PrincipalListTab.jsx";
 import { PrincipalSettleTab } from "../components/principal/PrincipalSettleTab.jsx";
+import { UsolNOrders } from "../components/usol_n/UsolNOrders.jsx";
+import { UsolNCsvMatch } from "../components/usol_n/UsolNCsvMatch.jsx";
 import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
 import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
 import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
@@ -420,10 +422,10 @@ export default function PrincipalApp({ user, onLogout }) {
           <SubmittedScreen t={t} task={submittedTask} onContinue={() => { setSubmittedTask(null); setTab("list"); }}/>
         ) : (
           <>
-            {tab === "list" && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
-            {tab === "new" && <NewTab t={t} user={user} onSubmit={(task) => setSubmittedTask(task)} addTask={addTask}/>}
+            {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
+            {tab === "upload" && <UploadTab t={t} user={user} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)}/>}
             {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
-            {tab === "info" && <InfoTab t={t} user={user}/>}
+            {tab === "info"   && <InfoTab t={t} user={user}/>}
           </>
         )}
 
@@ -452,10 +454,10 @@ function Header({ t, user }) {
 
 function BottomNav({ t, tab, onChange }) {
   const tabs = [
-    { id: "list", icon: ClipboardList, label: "내 작업" },
-    { id: "new", icon: Plus, label: "신규 접수" },
-    { id: "settle", icon: Wallet, label: "정산" },
-    { id: "info", icon: User, label: "내 정보" },
+    { id: "list",   icon: ClipboardList, label: "내 작업" },
+    { id: "upload", icon: Plus,          label: "업로드" },
+    { id: "settle", icon: Wallet,        label: "정산" },
+    { id: "info",   icon: User,          label: "내 정보" },
   ];
   return (
     <div style={{ 
@@ -468,7 +470,7 @@ function BottomNav({ t, tab, onChange }) {
       {tabs.map(b => {
         const Icon = b.icon;
         const active = tab === b.id;
-        const isPlus = b.id === "new";
+        const isPlus = b.id === "upload";
         return (
           <button key={b.id} onClick={() => onChange(b.id)} className="tab-btn" style={{
             flex: 1, background: "transparent", border: "none",
@@ -493,11 +495,86 @@ function BottomNav({ t, tab, onChange }) {
   );
 }
 
-function NewTab({ t, user, onSubmit, addTask }) {
-  const [text, setText] = useState("");
-  const [parsed, setParsed] = useState(null);
-  const [showFields, setShowFields] = useState(false);
-  
+// 업로드 탭 — 토글 2개 (접수 / 정산) + "새 접수 등록" 진입.
+//   접수 → <UsolNOrders hideList/> + 새 접수 버튼
+//   정산 → <UsolNCsvMatch/>
+function UploadTab({ t, user, onTaskClick, onSubmit }) {
+  const [sub, setSub] = useState("receive");   // 'receive' | 'settle'
+  const [showNewForm, setShowNewForm] = useState(false);
+
+  if (showNewForm) {
+    return (
+      <NewTab
+        t={t} user={user}
+        onBack={() => setShowNewForm(false)}
+        onSubmit={(task) => { setShowNewForm(false); onSubmit?.(task); }}
+      />
+    );
+  }
+
+  return (
+    <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
+      <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>📤 업로드</div>
+
+      {/* 토글 — 접수 / 정산 */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
+        <UploadToggleBtn active={sub === "receive"} onClick={() => setSub("receive")} t={t}>접수 CSV</UploadToggleBtn>
+        <UploadToggleBtn active={sub === "settle"}  onClick={() => setSub("settle")} t={t}>정산 CSV</UploadToggleBtn>
+      </div>
+
+      {sub === "receive" && (
+        <>
+          <UsolNOrders hideList onTaskClick={onTaskClick}/>
+          <div style={{
+            marginTop: 18, paddingTop: 14,
+            borderTop: `1px solid ${t.border}`,
+          }}>
+            <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginBottom: 8 }}>
+              직접 입력 (유솔홈케어 H)
+            </div>
+            <button
+              onClick={() => setShowNewForm(true)}
+              style={{
+                width: "100%", padding: "14px 16px",
+                background: "transparent",
+                border: `1px solid #FF4D9E`,
+                borderRadius: 10,
+                color: "#FF4D9E",
+                fontSize: 13, fontWeight: 700,
+                fontFamily: "inherit",
+                cursor: "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}
+            >
+              <Plus size={14}/><span>새 접수 등록</span>
+            </button>
+          </div>
+        </>
+      )}
+
+      {sub === "settle" && <UsolNCsvMatch/>}
+    </div>
+  );
+}
+
+function UploadToggleBtn({ active, onClick, t, children }) {
+  return (
+    <button onClick={onClick} style={{
+      flex: 1, padding: "10px 12px",
+      background: active ? "#FF4D9E" : t.bgInset,
+      color: active ? "#fff" : t.text,
+      border: `1px solid ${active ? "#FF4D9E" : t.border}`,
+      borderRadius: 10,
+      fontSize: 12, fontWeight: 700,
+      fontFamily: "inherit",
+      cursor: "pointer",
+    }}>{children}</button>
+  );
+}
+
+// 새 접수 — 직접 입력 폼만. usol_h 측 catch DB INSERT (createTaskAdapter).
+//   parseKakao 측 catch 측 X (사장님 spec).
+function NewTab({ t, user, onSubmit, onBack }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
@@ -507,231 +584,121 @@ function NewTab({ t, user, onSubmit, addTask }) {
   const [timeText, setTimeText] = useState("");
   const [memo, setMemo] = useState("");
   const [estimateTotal, setEstimateTotal] = useState("");
-  
+  const [submitting, setSubmitting] = useState(false);
+
   const formatPhone = (val) => {
     const nums = val.replace(/\D/g, "").slice(0, 11);
     if (nums.length < 4) return nums;
     if (nums.length < 8) return `${nums.slice(0, 3)}-${nums.slice(3)}`;
     return `${nums.slice(0, 3)}-${nums.slice(3, 7)}-${nums.slice(7)}`;
   };
-  
-  const handleParse = () => {
-    const result = parseKakao(text);
-    setParsed(result);
-    setName(result.name);
-    setPhone(result.phone);
-    setAddress(result.address);
-    setWorkType(result.workType);
-    setQuantity(result.quantity);
-    setDateText(result.dateText);
-    setTimeText(result.timeText);
-    setEstimateTotal(result.estimateTotal != null ? String(result.estimateTotal) : "");
-    setMemo(result.memo || "");
-    setShowFields(true);
-  };
-  
-  const useSample = (idx) => {
-    setText(SAMPLES[idx].text);
-  };
-  
-  const [submitting, setSubmitting] = useState(false);
-  
-  const submit = () => {
+
+  // 사장님 spec — 새 접수는 usol_h 고정 (= 측 직접 입력)
+  //   통합계정 P003은 user.principals에 usol_h + usol_n 둘 다 있음 — usol_h 우선.
+  const principalCodesArr = Array.isArray(user?.principals)
+    ? user.principals.map(p => p?.code).filter(Boolean)
+    : [];
+  const newReceptionPrincipalCode =
+    principalCodesArr.includes("usol_h") ? "usol_h" : (principalCodesArr[0] || null);
+
+  const submit = async () => {
     if (submitting) return;
+    if (!newReceptionPrincipalCode) {
+      alert("원청 코드 매핑 실패 — 로그아웃 후 재시도");
+      return;
+    }
     setSubmitting(true);
-    
     try {
-      // 시뮬: addTask로 직접 추가 (백엔드 연결 시 fetch로 교체)
-      const dateStr = new Date().toISOString().slice(2,10).replace(/-/g, "");
-      const taskId = `A${dateStr}-${String(Math.floor(Math.random() * 999) + 100)}`;
-      
-      const newTask = {
-        id: taskId,
-        client: getPrincipalLabel(user) || "원청",
-        customer: name, phone, address, fullAddress: address,
-        workType, appliance: "", qty: quantity,
-        requestedDate: dateText || null,
-        requestedTime: timeText || null,
-        receivedAt: new Date().toLocaleString("ko-KR"),
-        receivedAgo: "방금",
-        channel: "카톡",
-        happycallStatus: "uncontacted",
-        happycallMemo: "",
-        requestNote: memo,
-        assignedEngineer: null, assignedEngineerId: null,
-        recommendedEngineer: null,
-        scheduledDate: null, scheduledTime: null,
+      const taskData = {
+        principalCode: newReceptionPrincipalCode,
+        channel: "직접 입력",
+        customer: name,
+        phone,
+        address,
+        workType,
+        qty: quantity,
+        scheduledDate: dateText || null,
+        scheduledTime: timeText || null,
+        estimateTotal: parseInt(estimateTotal) || 0,
+        memo,
         status: "미배정",
-        startedAt: null, completedAt: null,
-        estimateTotal: null,
-        productPrice: parseInt(estimateTotal) || 0, travelFee: 0, extraFee: 0, extraReason: "",
-        commissionRate: 50, commission: 0, engineerNet: 0,
-        workMemo: "", beforePhoto: false, afterPhoto: false,
-        scheduleHistory: [],
-        isUrgent: false,
       };
-      
-      addTask(newTask);
-      onSubmit(newTask);
+      const res = await createTask(taskData);
+      if (!res.ok) {
+        alert("등록 실패: " + (res.error || "알 수 없는 오류"));
+        return;
+      }
+      onSubmit({
+        id: res.taskId,
+        taskNo: res.task_no,
+        customer: name, phone, address,
+        workType, qty: quantity,
+      });
     } catch (err) {
       alert("등록 오류: " + err.message);
     } finally {
       setSubmitting(false);
     }
   };
-  
+
   const canSubmit = name && phone && address && workType;
 
   return (
     <div className="fade-in" style={{ padding: "20px" }}>
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>📝 신규 접수</div>
-        <div style={{ fontSize: 12, color: t.textMuted }}>
-          카톡 메시지 붙여넣기 → 자동 입력 ✨
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+        {onBack && (
+          <button onClick={onBack} style={{
+            background: t.bgInset,
+            border: `1px solid ${t.border}`,
+            borderRadius: 8, padding: "6px 8px",
+            color: t.text, cursor: "pointer",
+            display: "flex", alignItems: "center",
+            fontFamily: "inherit",
+          }}><ArrowLeft size={14}/></button>
+        )}
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 2 }}>📝 새 접수 등록</div>
+          <div style={{ fontSize: 11, color: t.textMuted }}>
+            유솔홈케어 H · 직접 입력
+          </div>
         </div>
       </div>
 
-      {!showFields && (
-        <>
-          <div style={{ marginBottom: 16 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, letterSpacing: 1, textTransform: "uppercase" }}>
-                💬 카톡 텍스트
-              </div>
-              <div style={{ display: "flex", gap: 12 }}>
-                {SAMPLES.map((s, i) => (
-                  <button key={i} onClick={() => useSample(i)} style={{
-                    fontSize: 11, fontWeight: 600, color: t.accent,
-                    background: "transparent", border: "none", cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}>
-                    {s.label} ↗
-                  </button>
-                ))}
-              </div>
-            </div>
-            <textarea
-              placeholder={`고객 카톡 메시지를 그대로 붙여넣으세요\n\n예: 성함: 홍길동\n주소: 강남구 역삼동\n연락처: 010-1234-5678\n작업: 벽걸이 세척\n희망: 4/30 오후`}
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              style={{
-                width: "100%", minHeight: 220,
-                padding: "14px 16px",
-                background: t.bgElevated, color: t.text,
-                border: `1.5px solid ${text ? t.accent : t.border}`,
-                borderRadius: 12, fontSize: 13,
-                lineHeight: 1.6, boxSizing: "border-box", outline: "none",
-                resize: "vertical",
-                fontFamily: "inherit",
-              }}
-            />
-          </div>
+      <Field t={t} label="고객명" icon={User} value={name} onChange={setName} placeholder="이름 입력"/>
+      <Field t={t} label="연락처" icon={Phone} value={phone} onChange={(v) => setPhone(formatPhone(v))} placeholder="010-0000-0000" mono/>
+      <Field t={t} label="주소" icon={MapPin} value={address} onChange={setAddress} placeholder="시/구/동/번지" multiline/>
+      <Field t={t} label="작업 종류" icon={Snowflake} value={workType} onChange={setWorkType} placeholder="예: 벽걸이 세척, 냉매충전"/>
 
-          <button
-            onClick={handleParse}
-            disabled={!text.trim()}
-            style={{
-              width: "100%", padding: "16px",
-              background: text.trim() ? t.accent : t.bgInset,
-              color: text.trim() ? "white" : t.textMuted,
-              border: "none", borderRadius: 12,
-              fontSize: 14, fontWeight: 700,
-              cursor: text.trim() ? "pointer" : "not-allowed",
-              fontFamily: "inherit",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            }}
-          >
-            <Sparkles size={16}/>
-            <span>자동 파싱하기</span>
-          </button>
-
-          <div style={{ marginTop: 16, padding: "12px 14px", background: t.bgElevated, borderRadius: 10 }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>
-              💡 자동 파싱하는 항목
-            </div>
-            <div style={{ fontSize: 10, color: t.textSecondary, lineHeight: 1.7 }}>
-              · 성함 / 이름<br/>
-              · 연락처 (전화번호 자동 인식)<br/>
-              · 주소<br/>
-              · 작업 종류 + 수량<br/>
-              · 희망 날짜 / 시간대
-            </div>
-          </div>
-
-          <div style={{ marginTop: 16, textAlign: "center" }}>
-            <button onClick={() => setShowFields(true)} style={{
-              fontSize: 12, fontWeight: 600, color: t.textMuted,
-              background: "transparent", border: "none", cursor: "pointer",
-              fontFamily: "inherit", padding: "6px 0",
-            }}>
-              직접 입력하기 →
-            </button>
-          </div>
-        </>
-      )}
-
-      {showFields && (
-        <div className="fade-in">
-          <div style={{
-            background: t.successBg, border: `1px solid ${t.success}40`,
-            borderRadius: 12, padding: "12px 14px", marginBottom: 16,
-            display: "flex", alignItems: "center", gap: 10,
-          }}>
-            <CheckCircle2 size={18} style={{ color: t.success, flexShrink: 0 }}/>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: t.success }}>
-                자동 파싱 완료!
-              </div>
-              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>
-                필요 시 수정 후 등록하세요
-              </div>
-            </div>
-            <button onClick={() => setShowFields(false)} style={{
-              fontSize: 11, fontWeight: 600, color: t.accent,
-              background: "transparent", border: "none", cursor: "pointer",
-              fontFamily: "inherit",
-            }}>
-              ↩ 다시
-            </button>
-          </div>
-
-          <Field t={t} label="고객명" icon={User} value={name} onChange={setName} placeholder="이름 입력"/>
-          <Field t={t} label="연락처" icon={Phone} value={phone} onChange={(v) => setPhone(formatPhone(v))} placeholder="010-0000-0000" mono/>
-          <Field t={t} label="주소" icon={MapPin} value={address} onChange={setAddress} placeholder="시/구/동/번지" multiline/>
-          <Field t={t} label="작업 종류" icon={Snowflake} value={workType} onChange={setWorkType} placeholder="예: 벽걸이 세척, 냉매충전"/>
-          
-          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-            <div style={{ flex: 1 }}>
-              <Field t={t} label="수량" icon={Hash} value={quantity} onChange={(v) => setQuantity(parseInt(v) || 1)} placeholder="1" mono/>
-            </div>
-            <div style={{ flex: 2 }}>
-              <Field t={t} label="희망 날짜" icon={Calendar} value={dateText} onChange={setDateText} placeholder="(선택) 4/30"/>
-            </div>
-          </div>
-
-          <Field t={t} label="희망 시간대" icon={Clock} value={timeText} onChange={setTimeText} placeholder="(선택) 오전 / 오후"/>
-          <Field t={t} label="예상 금액 (선택)" icon={DollarSign} value={estimateTotal} onChange={(v) => setEstimateTotal(v.replace(/[^0-9]/g, ""))} placeholder="200000" mono/>
-          <Field t={t} label="메모 (선택)" icon={FileText} value={memo} onChange={setMemo} placeholder="추가 요청사항" multiline/>
-
-          <button
-            onClick={submit}
-            disabled={!canSubmit || submitting}
-            style={{
-              width: "100%", padding: "16px", marginTop: 8,
-              background: (canSubmit && !submitting) ? t.accent : t.bgInset,
-              color: (canSubmit && !submitting) ? "white" : t.textMuted,
-              border: "none", borderRadius: 12,
-              fontSize: 14, fontWeight: 700,
-              cursor: (canSubmit && !submitting) ? "pointer" : "not-allowed",
-              fontFamily: "inherit",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            }}
-          >
-            <Send size={16}/>
-            <span>{submitting ? '저장 중...' : '접수 등록하기'}</span>
-          </button>
+      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+        <div style={{ flex: 1 }}>
+          <Field t={t} label="수량" icon={Hash} value={quantity} onChange={(v) => setQuantity(parseInt(v) || 1)} placeholder="1" mono/>
         </div>
-      )}
+        <div style={{ flex: 2 }}>
+          <Field t={t} label="희망 날짜" icon={Calendar} value={dateText} onChange={setDateText} placeholder="(선택) 4/30"/>
+        </div>
+      </div>
+
+      <Field t={t} label="희망 시간대" icon={Clock} value={timeText} onChange={setTimeText} placeholder="(선택) 오전 / 오후"/>
+      <Field t={t} label="예상 금액 (선택)" icon={DollarSign} value={estimateTotal} onChange={(v) => setEstimateTotal(v.replace(/[^0-9]/g, ""))} placeholder="200000" mono/>
+      <Field t={t} label="메모 (선택)" icon={FileText} value={memo} onChange={setMemo} placeholder="추가 요청사항" multiline/>
+
+      <button
+        onClick={submit}
+        disabled={!canSubmit || submitting}
+        style={{
+          width: "100%", padding: "16px", marginTop: 8,
+          background: (canSubmit && !submitting) ? "#FF4D9E" : t.bgInset,
+          color: (canSubmit && !submitting) ? "white" : t.textMuted,
+          border: "none", borderRadius: 12,
+          fontSize: 14, fontWeight: 700,
+          cursor: (canSubmit && !submitting) ? "pointer" : "not-allowed",
+          fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}
+      >
+        <Send size={16}/>
+        <span>{submitting ? "저장 중..." : "접수 등록하기"}</span>
+      </button>
     </div>
   );
 }
