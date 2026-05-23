@@ -51,7 +51,11 @@ function formatDate(task) {
   const ymd = task.scheduledDate || task.requestedDate || "";
   const m = String(ymd).match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return "";
-  return `${parseInt(m[2])}/${parseInt(m[3])}`;
+  // 2026-05-24 fix — 정규식 매칭 후에도 mm/dd 유효성 검사 (예: '2015-15-94' invalid date 방지)
+  const mm = parseInt(m[2], 10);
+  const dd = parseInt(m[3], 10);
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return "";
+  return `${mm}/${dd}`;
 }
 
 function ChannelBadge({ task }) {

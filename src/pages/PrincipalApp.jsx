@@ -22,6 +22,7 @@ import { PrincipalListTab } from "../components/principal/PrincipalListTab.jsx";
 import { PrincipalSettleTab } from "../components/principal/PrincipalSettleTab.jsx";
 import { UsolNOrders } from "../components/usol_n/UsolNOrders.jsx";
 import { UsolNCsvMatch } from "../components/usol_n/UsolNCsvMatch.jsx";
+import { NewReceptionScreenLite } from "../components/principal/NewReceptionScreenLite.jsx";
 import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
 import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
 import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
@@ -504,8 +505,8 @@ function UploadTab({ t, user, onTaskClick, onSubmit }) {
 
   if (showNewForm) {
     return (
-      <NewTab
-        t={t} user={user}
+      <NewReceptionScreenLite
+        t={t}
         onBack={() => setShowNewForm(false)}
         onSubmit={(task) => { setShowNewForm(false); onSubmit?.(task); }}
       />
@@ -569,183 +570,6 @@ function UploadToggleBtn({ active, onClick, t, children }) {
       fontFamily: "inherit",
       cursor: "pointer",
     }}>{children}</button>
-  );
-}
-
-// 새 접수 — 직접 입력 폼만. usol_h 측 catch DB INSERT (createTaskAdapter).
-//   parseKakao 측 catch 측 X (사장님 spec).
-function NewTab({ t, user, onSubmit, onBack }) {
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [workType, setWorkType] = useState("");
-  const [quantity, setQuantity] = useState(1);
-  const [dateText, setDateText] = useState("");
-  const [timeText, setTimeText] = useState("");
-  const [memo, setMemo] = useState("");
-  const [estimateTotal, setEstimateTotal] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const formatPhone = (val) => {
-    const nums = val.replace(/\D/g, "").slice(0, 11);
-    if (nums.length < 4) return nums;
-    if (nums.length < 8) return `${nums.slice(0, 3)}-${nums.slice(3)}`;
-    return `${nums.slice(0, 3)}-${nums.slice(3, 7)}-${nums.slice(7)}`;
-  };
-
-  // 사장님 spec — 새 접수는 usol_h 고정 (= 측 직접 입력)
-  //   통합계정 P003은 user.principals에 usol_h + usol_n 둘 다 있음 — usol_h 우선.
-  const principalCodesArr = Array.isArray(user?.principals)
-    ? user.principals.map(p => p?.code).filter(Boolean)
-    : [];
-  const newReceptionPrincipalCode =
-    principalCodesArr.includes("usol_h") ? "usol_h" : (principalCodesArr[0] || null);
-
-  const submit = async () => {
-    if (submitting) return;
-    if (!newReceptionPrincipalCode) {
-      alert("원청 코드 매핑 실패 — 로그아웃 후 재시도");
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const taskData = {
-        principalCode: newReceptionPrincipalCode,
-        channel: "직접 입력",
-        customer: name,
-        phone,
-        address,
-        workType,
-        qty: quantity,
-        scheduledDate: dateText || null,
-        scheduledTime: timeText || null,
-        estimateTotal: parseInt(estimateTotal) || 0,
-        memo,
-        status: "미배정",
-      };
-      const res = await createTask(taskData);
-      if (!res.ok) {
-        alert("등록 실패: " + (res.error || "알 수 없는 오류"));
-        return;
-      }
-      onSubmit({
-        id: res.taskId,
-        taskNo: res.task_no,
-        customer: name, phone, address,
-        workType, qty: quantity,
-      });
-    } catch (err) {
-      alert("등록 오류: " + err.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const canSubmit = name && phone && address && workType;
-
-  return (
-    <div className="fade-in" style={{ padding: "20px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
-        {onBack && (
-          <button onClick={onBack} style={{
-            background: t.bgInset,
-            border: `1px solid ${t.border}`,
-            borderRadius: 8, padding: "6px 8px",
-            color: t.text, cursor: "pointer",
-            display: "flex", alignItems: "center",
-            fontFamily: "inherit",
-          }}><ArrowLeft size={14}/></button>
-        )}
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 2 }}>📝 새 접수 등록</div>
-          <div style={{ fontSize: 11, color: t.textMuted }}>
-            유솔홈케어 H · 직접 입력
-          </div>
-        </div>
-      </div>
-
-      <Field t={t} label="고객명" icon={User} value={name} onChange={setName} placeholder="이름 입력"/>
-      <Field t={t} label="연락처" icon={Phone} value={phone} onChange={(v) => setPhone(formatPhone(v))} placeholder="010-0000-0000" mono/>
-      <Field t={t} label="주소" icon={MapPin} value={address} onChange={setAddress} placeholder="시/구/동/번지" multiline/>
-      <Field t={t} label="작업 종류" icon={Snowflake} value={workType} onChange={setWorkType} placeholder="예: 벽걸이 세척, 냉매충전"/>
-
-      <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
-        <div style={{ flex: 1 }}>
-          <Field t={t} label="수량" icon={Hash} value={quantity} onChange={(v) => setQuantity(parseInt(v) || 1)} placeholder="1" mono/>
-        </div>
-        <div style={{ flex: 2 }}>
-          <Field t={t} label="희망 날짜" icon={Calendar} value={dateText} onChange={setDateText} placeholder="(선택) 4/30"/>
-        </div>
-      </div>
-
-      <Field t={t} label="희망 시간대" icon={Clock} value={timeText} onChange={setTimeText} placeholder="(선택) 오전 / 오후"/>
-      <Field t={t} label="예상 금액 (선택)" icon={DollarSign} value={estimateTotal} onChange={(v) => setEstimateTotal(v.replace(/[^0-9]/g, ""))} placeholder="200000" mono/>
-      <Field t={t} label="메모 (선택)" icon={FileText} value={memo} onChange={setMemo} placeholder="추가 요청사항" multiline/>
-
-      <button
-        onClick={submit}
-        disabled={!canSubmit || submitting}
-        style={{
-          width: "100%", padding: "16px", marginTop: 8,
-          background: (canSubmit && !submitting) ? "#FF4D9E" : t.bgInset,
-          color: (canSubmit && !submitting) ? "white" : t.textMuted,
-          border: "none", borderRadius: 12,
-          fontSize: 14, fontWeight: 700,
-          cursor: (canSubmit && !submitting) ? "pointer" : "not-allowed",
-          fontFamily: "inherit",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-        }}
-      >
-        <Send size={16}/>
-        <span>{submitting ? "저장 중..." : "접수 등록하기"}</span>
-      </button>
-    </div>
-  );
-}
-
-function Field({ t, label, icon: Icon, value, onChange, placeholder, mono, multiline }) {
-  return (
-    <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 6 }}>
-        {label}
-      </div>
-      <div style={{ position: "relative" }}>
-        <Icon size={14} style={{ position: "absolute", left: 14, top: multiline ? 14 : "50%", transform: multiline ? "none" : "translateY(-50%)", color: t.textMuted }}/>
-        {multiline ? (
-          <textarea
-            placeholder={placeholder}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            style={{
-              width: "100%", minHeight: 64,
-              padding: "12px 14px 12px 38px",
-              background: t.bgElevated, color: t.text,
-              border: `1.5px solid ${value ? t.accent : t.border}`,
-              borderRadius: 10, fontSize: 13, fontWeight: 600,
-              boxSizing: "border-box", outline: "none",
-              resize: "vertical",
-              fontFamily: mono ? "inherit" : "inherit",
-            }}
-          />
-        ) : (
-          <input
-            type="text"
-            placeholder={placeholder}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            style={{
-              width: "100%",
-              padding: "12px 14px 12px 38px",
-              background: t.bgElevated, color: t.text,
-              border: `1.5px solid ${value ? t.accent : t.border}`,
-              borderRadius: 10, fontSize: 13, fontWeight: 600,
-              boxSizing: "border-box", outline: "none",
-              fontFamily: mono ? "inherit" : "inherit",
-            }}
-          />
-        )}
-      </div>
-    </div>
   );
 }
 

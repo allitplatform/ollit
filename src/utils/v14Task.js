@@ -121,11 +121,17 @@ export function v14NormalizeTask(t) {
       if (s.match(/^\d{4}-\d{2}-\d{2}/)) return s.slice(0, 10);
     }
     // 3순위: ID 내부 YYMMDD 추출 (예: O260510-001 → 2026-05-10)
+    // 2026-05-24 fix — 무조건 해석 안 함. mm/dd 유효성 검사 통과 시에만 사용.
+    //   '151594'처럼 비날짜 숫자는 '2015-15-94'(invalid)가 돼 'invalid date' / '15/94' 표시 사고 유발.
     const idStr = String(id || t.taskId || t.작업번호 || "");
     const m = idStr.match(/(\d{6})-/);
     if (m) {
       const yymmdd = m[1];
-      return `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
+      const mm = parseInt(yymmdd.slice(2, 4), 10);
+      const dd = parseInt(yymmdd.slice(4, 6), 10);
+      if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+        return `20${yymmdd.slice(0, 2)}-${yymmdd.slice(2, 4)}-${yymmdd.slice(4, 6)}`;
+      }
     }
     // 4순위: 빈 값
     return "";
