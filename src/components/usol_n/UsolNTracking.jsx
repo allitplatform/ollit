@@ -283,7 +283,7 @@ function WeekDetailModal({ week, onClose, onConfirmRemit }) {
               {week.mondayLabel} (월) 입금 상세
             </div>
             <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>
-              {week.dateRange} · 항목 {week.items.length}개 · 대기 {pendingItems.length}개
+              {week.dateRange} · 항목 {week.items.length}개 · 확인 대기 {pendingRemits.length}건
             </div>
           </div>
           <button onClick={onClose} style={closeButtonStyle}>✕</button>
