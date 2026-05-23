@@ -26,6 +26,11 @@ export function parseNaverOrders(rows) {
     productName:      findColumn(sample, ["상품명"]),
     optionInfo:       findColumn(sample, ["옵션정보", "옵션"]),
     quantity:         findColumn(sample, ["수량"]),
+    // 2026-05-24 — 사장님 spec (옵션 C):
+    //   customerPaid    = "최종 상품별 총 주문금액"(AG) = 고객 실결제액 (예: 10,000)
+    //   settlementAmount = "정산예정금액"               = 네이버 수수료 차감 후 (예: 9,444)
+    //   기존 totalAmount (= "최종 상품별 총 주문금액" 우선) 호환용으로 유지하되, INSERT 측 명시 분리.
+    customerPaid:     findColumn(sample, ["최종 상품별 총 주문금액"]),
     totalAmount:      findColumn(sample, ["최종 상품별 총 주문금액", "정산기준금액", "결제금액"]),
     settlementAmount: findColumn(sample, ["정산예정금액"]),
     // 2026-05-23 — 사장님 spec 측 정정:
@@ -63,6 +68,8 @@ export function parseNaverOrders(rows) {
         productOrderId: COL.productOrderId ? r[COL.productOrderId] : "",
         amount: parseIntSafe(COL.totalAmount ? r[COL.totalAmount] : 0),
         settlement: parseIntSafe(COL.settlementAmount ? r[COL.settlementAmount] : 0),
+        // 2026-05-24 — 고객 실결제액 (AG 칼럼 "최종 상품별 총 주문금액") — 표시 전용
+        customerPaid: parseIntSafe(COL.customerPaid ? r[COL.customerPaid] : 0),
         // 2026-05-23 — serviceTypeRaw 측 — serviceVal 있으면 측 측, 측 측 optionVal fallback
         //   네이버 원본 측 "서비스종류" 컬럼 측 X (COL.serviceType=null) → optionVal 측 사용
         serviceTypeRaw: serviceVal || optionVal,

@@ -161,7 +161,7 @@ export async function fetchTaskItemsForDetail(taskId) {
     .from("task_items")
     .select(
       `id, qty, unit_price, subtotal, description, order_type,
-       net_amount, product_order_id,
+       net_amount, customer_paid_amount, product_order_id,
        naver_settled_at, naver_received_at, company_received_at,
        work_types ( id, name, service_types ( id, code ) ),
        appliance_types ( id, name )`

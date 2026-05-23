@@ -1120,11 +1120,16 @@ function SettleDetailBox({ t, items, remitMap, principalId, loading, error }) {
   }
   if (!items || items.length === 0) return null;
 
-  // 합계 — 고객 결제(subtotal) / 네이버 정산금액(net_amount, NULL 제외)
-  let sumCustomer = 0;
+  // 2026-05-24 — 옵션 C spec:
+  //   고객 결제 합계 = SUM(customer_paid_amount)  ← 고객 실결제액 (NULL이면 0)
+  //   정산예정 합계  = SUM(subtotal)              ← 네이버 수수료 차감 후
+  //   네이버 정산금액 = SUM(net_amount, NULL 제외) ← 정산 CSV 측 catch UPDATE
+  let sumCustomerPaid = 0;
+  let sumSettle = 0;
   let sumNaver = 0, sumUsol = 0, sumAllday = 0;
   for (const it of items) {
-    sumCustomer += Number(it.subtotal) || 0;
+    sumCustomerPaid += Number(it.customer_paid_amount) || 0;
+    sumSettle       += Number(it.subtotal) || 0;
     const n = it.net_amount;
     if (n != null) {
       const usol = Math.round(n * 0.15);
@@ -1140,7 +1145,8 @@ function SettleDetailBox({ t, items, remitMap, principalId, loading, error }) {
 
       {/* (a) 작업 전체 금액 */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <SumLine label="고객 결제 합계" value={sumCustomer} t={t} size="sm"/>
+        <SumLine label="고객 결제 합계" value={sumCustomerPaid} t={t} size="sm"/>
+        <SumLine label="정산예정 합계"  value={sumSettle}       t={t} size="sm"/>
         <Divider t={t}/>
         <SumLine label="네이버 정산금액" value={sumNaver} t={t} size="lg"/>
         <SumLine label="└ 유솔 수수료 (15%)"      value={sumUsol}   color="#FF4D9E" indent t={t}/>
@@ -1246,10 +1252,15 @@ function ItemProgress({ t, item, stage }) {
 }
 
 function ItemAmounts({ t, item }) {
-  const subtotal = Number(item.subtotal) || 0;
-  const net      = item.net_amount;
-  const settled  = item.naver_settled_at != null && net != null;
-  const usolFee  = settled ? Math.round(net * 0.15) : 0;
+  // 2026-05-24 — 옵션 C spec:
+  //   고객 결제   = customer_paid_amount (네이버 AG 칼럼, 고객 실결제액 / 기존 row NULL → 0 가드)
+  //   정산예정금액 = subtotal             (네이버 수수료 차감 후)
+  //   네이버 정산금액 = net_amount        (정산 CSV 측 catch UPDATE)
+  const customerPaid = Number(item.customer_paid_amount) || 0;
+  const settleAmt    = Number(item.subtotal) || 0;
+  const net          = item.net_amount;
+  const settled      = item.naver_settled_at != null && net != null;
+  const usolFee      = settled ? Math.round(net * 0.15) : 0;
   const alldayAmount = settled ? (net - usolFee) : 0;
 
   const rowStyle = {
@@ -1261,7 +1272,13 @@ function ItemAmounts({ t, item }) {
       <div style={rowStyle}>
         <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>고객 결제</span>
         <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
-          ₩{subtotal.toLocaleString()}
+          ₩{customerPaid.toLocaleString()}
+        </span>
+      </div>
+      <div style={rowStyle}>
+        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>정산예정금액</span>
+        <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
+          ₩{settleAmt.toLocaleString()}
         </span>
       </div>
       {settled ? (

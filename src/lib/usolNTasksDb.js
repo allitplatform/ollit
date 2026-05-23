@@ -521,12 +521,18 @@ export async function bulkInsertUsolNOrders(orders) {
           continue;
         }
 
+        // 2026-05-24 — 사장님 spec (옵션 C):
+        //   unit_price → subtotal (GENERATED) = 정산예정금액 (네이버 수수료 차감 후, 9,444)
+        //   customer_paid_amount               = 최종 상품별 총 주문금액 (AG, 고객 실결제액 10,000)
+        //   기존엔 unit_price 측 totalAmount(10,000) 측 catch — 정산 계산 측 측 X 측 측 spec
+        //   (Migration 046 v11 SUM(subtotal) = 정산예정금액 합) → settlement(=정산예정금액) 측 catch.
         itemRows.push({
           task_id: taskRow.id,
           work_type_id: workTypeId,
           appliance_type_id: applianceTypeId,
           qty: app.count || 1,
-          unit_price: app.amount || 0,
+          unit_price: app.settlement || 0,
+          customer_paid_amount: app.customerPaid || null,
           order_type: app.orderType,
           product_order_id: app.productOrderId || null,
           metadata: app.productOrderId
