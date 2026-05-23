@@ -1109,23 +1109,18 @@ function TaskDetail({ t, task: initialTask, onBack }) {
         <ArrowLeft size={14}/><span>리스트로 돌아가기</span>
       </button>
 
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-          <span style={{ fontSize: 21, fontWeight: 800, color: t.text }}>
-            {task.customer || "—"}
-          </span>
-          <span style={{
-            fontSize: 10, fontWeight: 700,
-            color: ss.color, background: ss.bg,
-            padding: "2px 7px", borderRadius: 8,
-            whiteSpace: "nowrap",
-          }}>
-            {statusLabel}
-          </span>
-        </div>
-        <div style={{ fontSize: 12, color: t.textMuted }}>
-          {task.workType}{task.appliance ? ` · ${task.appliance}` : ""} ({task.qty || 1}대)
-        </div>
+      <div style={{ marginBottom: 20, display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 21, fontWeight: 800, color: t.text }}>
+          {task.customer || "—"}
+        </span>
+        <span style={{
+          fontSize: 10, fontWeight: 700,
+          color: ss.color, background: ss.bg,
+          padding: "2px 7px", borderRadius: 8,
+          whiteSpace: "nowrap",
+        }}>
+          {statusLabel}
+        </span>
       </div>
 
       <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
@@ -1426,7 +1421,10 @@ function ItemProgress({ t, item, stage }) {
   const workType  = item.work_types?.name || "";
   const appliance = item.appliance_types?.name || "";
   const qty       = item.qty || 1;
-  const labelParts = [workType, appliance].filter(Boolean);
+  // workType이 appliance 문자열을 이미 포함하면 appliance 생략 (예: "세척_벽걸이" + "벽걸이")
+  const labelParts = [];
+  if (workType) labelParts.push(workType);
+  if (appliance && !(workType && workType.includes(appliance))) labelParts.push(appliance);
   labelParts.push(`${qty}대`);
   const itemLabel = labelParts.length > 1 ? labelParts.join(" · ") : (item.description || "—");
 
