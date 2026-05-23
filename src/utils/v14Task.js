@@ -171,6 +171,10 @@ export function v14NormalizeTask(t) {
     // 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 기반 state (예정 시간 측 측 → 진행중 자동)
     state: v14StatusToState(_getEffectiveStatus(t)),
     schedule, memo,
+    // 2026-05-24 fix — work_memo 매핑 추가 (저장 후 refetch/재진입 시 textarea 초기화 함정 차단)
+    //   rowToTask 측 workMemo 측 catch 측 measurement, v14NormalizeTask 측 매핑이 누락돼
+    //   PrincipalApp TaskDetail / EngineerTaskDetailScreen 측 task.workMemo === undefined → setMemo("")
+    workMemo: t.workMemo ?? t.work_memo ?? "",
     estimateTotal: estimate,
     addonFee,
     extraFee,
