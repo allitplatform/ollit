@@ -239,9 +239,9 @@ function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSel
       ) : todayTasks.length === 0 ? (
         <EmptyToday onSeeAll={onSeeAll}/>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {todayTasks.map(task => (
-            <TodayCard key={task.id} task={task} onClick={() => onSelect?.(task)}/>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {todayTasks.map((task, idx) => (
+            <TaskRow key={task.id || task.taskNo || idx} task={task} onClick={() => onSelect?.(task)}/>
           ))}
         </div>
       )}
@@ -254,67 +254,6 @@ function Stat({ n }) {
     <span style={{ color: "var(--text-primary, #FAF8F5)", fontWeight: 800 }}>
       {(n || 0).toLocaleString()}
     </span>
-  );
-}
-
-function TodayCard({ task, onClick }) {
-  const kind = getServiceKind(task);
-  const status = getStatusBadge(task.status);
-  const time = formatTime(task);
-  const items = Array.isArray(task.workItems) ? task.workItems : [];
-  const mainItem = getMainItem(task);
-  const displayItem = mainItem || items[0] || {};
-  const appliance = displayItem.appliance || task.appliance || "";
-  const qty = displayItem.qty || task.qty || 1;
-  const otherCount = Math.max(0, items.length - 1);
-
-  return (
-    <div onClick={onClick} style={{
-      background: "var(--bg-elevated, #1F1F1F)",
-      border: "1px solid var(--border, #2A2A2A)",
-      borderRadius: 12,
-      padding: "14px 14px 12px",
-      cursor: "pointer",
-      display: "flex", flexDirection: "column", gap: 8,
-    }}>
-      {/* 1줄 — 고객명 (큰) + 채널 + 상태 배지 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-          <ServiceIcon kind={kind} size={16}/>
-          <span style={{
-            fontSize: 15, fontWeight: 700,
-            color: "var(--text-primary, #FAF8F5)",
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>{task.customer || "—"}</span>
-          <ChannelBadge task={task}/>
-        </div>
-        <span style={{
-          flexShrink: 0,
-          fontSize: 11, fontWeight: 700,
-          color: status.color, background: status.bg,
-          padding: "3px 9px", borderRadius: 8,
-          whiteSpace: "nowrap",
-        }}>{getStatusLabel(task.status)}</span>
-      </div>
-
-      {/* 2줄 — 기종·지역 */}
-      <div style={{ fontSize: 12, color: "#B5B0A8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {appliance || "—"}{qty > 1 ? ` ×${qty}` : ""}{otherCount > 0 ? ` +${otherCount}` : ""}
-        {task.region ? ` · ${task.region}` : ""}
-      </div>
-
-      {/* 3줄 — 기사·시간 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11 }}>
-        <span style={{ color: "#888" }}>
-          {task.assignedEngineer
-            ? <span style={{ color: "#ddd" }}>{task.assignedEngineer}</span>
-            : <span style={{ color: "#666" }}>기사 미배정</span>}
-        </span>
-        {time !== "—" && (
-          <span style={{ color: DATE_TIME_COLOR, fontWeight: 700 }}>{time}</span>
-        )}
-      </div>
-    </div>
   );
 }
 
