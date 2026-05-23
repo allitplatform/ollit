@@ -110,7 +110,7 @@ function getWeekRemitStatus(items, remitMap) {
   return { kind: "reported", remits: remits.filter(Boolean) };
 }
 
-export function PrincipalSettleTab({ principalCodes }) {
+export function PrincipalSettleTab({ principalCodes, onSelect }) {
   const [items, setItems] = useState([]);
   const [remits, setRemits] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -258,6 +258,7 @@ export function PrincipalSettleTab({ principalCodes }) {
         onBack={() => { setSelectedWeekKey(null); setSearch(""); setStageFilter("all"); setDateFilter(""); }}
         onReport={() => handleReport(wk)}
         onUndo={(ids) => handleUndo(ids)}
+        onSelect={onSelect}
         search={search} setSearch={setSearch}
         stageFilter={stageFilter} setStageFilter={setStageFilter}
         dateFilter={dateFilter} setDateFilter={setDateFilter}
@@ -447,7 +448,7 @@ function WeekCard({ week, remitMap, isThisWeek, onClick }) {
   );
 }
 
-function WeekDetailView({ week, weekRemits, onBack, onReport, onUndo, search, setSearch, stageFilter, setStageFilter, dateFilter, setDateFilter }) {
+function WeekDetailView({ week, weekRemits, onBack, onReport, onUndo, onSelect, search, setSearch, stageFilter, setStageFilter, dateFilter, setDateFilter }) {
   const [submitting, setSubmitting] = useState(false);
 
   const filtered = useMemo(() => {
@@ -574,7 +575,13 @@ function WeekDetailView({ week, weekRemits, onBack, onReport, onUndo, search, se
         <EmptyBox>해당 항목이 없습니다</EmptyBox>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {filtered.map(it => <SettleItemRow key={it.id} item={it}/>)}
+          {filtered.map(it => (
+            <SettleItemRow
+              key={it.id}
+              item={it}
+              onClick={onSelect ? () => onSelect({ id: it.task_id, customer: it.customer_name, status: it.task_status }) : null}
+            />
+          ))}
         </div>
       )}
     </div>
@@ -638,46 +645,63 @@ function RemitAction({ status, canReport, canUndo, isDone, submitting, onReport,
   return null;
 }
 
-function SettleItemRow({ item }) {
+function SettleItemRow({ item, onClick }) {
   const stageKey = getSettleStageKey(item);
   const stage = SETTLE_STAGES.find(s => s.key === stageKey) || SETTLE_STAGES[0];
   const label = getItemLabel(item);
   const qty = item.qty || 1;
-  const subtotal = Number(item.subtotal) || 0;
+  const companyAmt = companyAmountOf(item);
   const naverDate = item.naver_settled_at ? item.naver_settled_at.slice(5, 10).replace("-", "/") : "";
+  const orderId = item.product_order_id || "";
 
   return (
-    <div style={{
-      background: "var(--bg-elevated, #1F1F1F)",
-      border: "1px solid var(--border, #2A2A2A)",
-      borderLeft: `3px solid ${stage.color}`,
-      borderRadius: 8,
-      padding: "8px 10px",
-      display: "flex", alignItems: "center", gap: 8,
-      minHeight: 38,
-    }}>
-      <div style={{ flexShrink: 0, fontSize: 14 }}>{stage.dot}</div>
-      <span style={{
-        flexShrink: 0,
-        fontSize: 12, fontWeight: 500,
-        color: "var(--text-primary, #FAF8F5)",
-        maxWidth: 80,
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>{item.customer_name || "—"}</span>
-      <span style={{
-        flex: 1, minWidth: 0,
-        fontSize: 11, fontWeight: 400, color: "#888",
-        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-      }}>
-        ({label}{qty > 1 ? `×${qty}` : ""})
-        {item.district ? ` · ${item.district}` : ""}
-        {naverDate && (<>{" · "}<span style={{ color: "#F2B84B", fontWeight: 600 }}>{naverDate}</span></>)}
-      </span>
-      <span style={{
-        flexShrink: 0,
-        fontSize: 12, fontWeight: 700,
-        color: C_MAGENTA, fontFamily: "inherit",
-      }}>₩{subtotal.toLocaleString()}</span>
+    <div
+      onClick={onClick || undefined}
+      style={{
+        background: "var(--bg-elevated, #1F1F1F)",
+        border: "1px solid var(--border, #2A2A2A)",
+        borderLeft: `3px solid ${stage.color}`,
+        borderRadius: 8,
+        padding: "8px 10px",
+        display: "flex", flexDirection: "column", gap: 4,
+        minHeight: 38,
+        cursor: onClick ? "pointer" : "default",
+      }}
+    >
+      {/* 1줄 — 단계 + 고객명 + 정보 + 금액 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ flexShrink: 0, fontSize: 14 }}>{stage.dot}</div>
+        <span style={{
+          flexShrink: 0,
+          fontSize: 12, fontWeight: 500,
+          color: "var(--text-primary, #FAF8F5)",
+          maxWidth: 80,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{item.customer_name || "—"}</span>
+        <span style={{
+          flex: 1, minWidth: 0,
+          fontSize: 11, fontWeight: 400, color: "#888",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>
+          ({label}{qty > 1 ? `×${qty}` : ""})
+          {item.district ? ` · ${item.district}` : ""}
+          {naverDate && (<>{" · "}<span style={{ color: "#F2B84B", fontWeight: 600 }}>{naverDate}</span></>)}
+        </span>
+        <span style={{
+          flexShrink: 0,
+          fontSize: 12, fontWeight: 700,
+          color: C_MAGENTA, fontFamily: "inherit",
+        }}>₩{companyAmt.toLocaleString()}</span>
+      </div>
+      {/* 2줄 — 상품주문번호 (mono, 작게) */}
+      {orderId && (
+        <div className="mono" style={{
+          fontSize: 10, color: "#666", paddingLeft: 22,
+          letterSpacing: 0.2,
+        }}>
+          {orderId}
+        </div>
+      )}
     </div>
   );
 }

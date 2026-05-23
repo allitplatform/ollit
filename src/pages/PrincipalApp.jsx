@@ -2,7 +2,10 @@ import { useState, useEffect } from "react";
 import {
   loadTasksForRole as getTasks,
   createTaskAdapter as createTask,
+  getTaskByIdDb,
+  updateTaskAdapter,
 } from "../data/tasksDb.js";
+import { listPhotosByTask } from "../lib/photosDb.js";
 import {
   Sun, Moon, RotateCcw, ClipboardPaste, Plus, Send, ArrowLeft,
   ClipboardList, Wallet, Building2, ChevronRight, AlertCircle,
@@ -419,7 +422,7 @@ export default function PrincipalApp({ user, onLogout }) {
           <>
             {tab === "list" && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
             {tab === "new" && <NewTab t={t} user={user} onSubmit={(task) => setSubmittedTask(task)} addTask={addTask}/>}
-            {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes}/>}
+            {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
             {tab === "info" && <InfoTab t={t} user={user}/>}
           </>
         )}
@@ -998,10 +1001,62 @@ function TaskCard({ t, task, onClick }) {
   );
 }
 
-function TaskDetail({ t, task, onBack }) {
+function TaskDetail({ t, task: initialTask, onBack }) {
+  // 정산 탭에서 진입 시 부분 task — mount 시 full task refetch.
+  //   목록 탭은 normalized task라 영향 X (덮어쓰면 동일 내용).
+  const [task, setTask] = useState(initialTask);
+  useEffect(() => { setTask(initialTask); }, [initialTask]);
+  useEffect(() => {
+    if (!initialTask?.id) return;
+    let alive = true;
+    getTaskByIdDb(initialTask.id).then(row => {
+      if (!alive || !row) return;
+      const normalized = v14NormalizeTask(row);
+      if (normalized) setTask(normalized);
+    });
+    return () => { alive = false; };
+  }, [initialTask?.id]);
+
   // 2026-05-24 — 상태 배지 측 PrincipalListTab 측 catch utility 측 catch 통일
   const ss = getPrincipalStatusBadge(task.status);
   const statusLabel = getPrincipalStatusLabel(task.status);
+
+  // 완료 작업 사진 — 완료/visit_only 측만 fetch
+  const [photos, setPhotos] = useState([]);
+  useEffect(() => {
+    if (!task?.id) return;
+    if (task.status !== "완료" && task.status !== "visit_only") {
+      setPhotos([]);
+      return;
+    }
+    let alive = true;
+    listPhotosByTask(task.id).then(res => {
+      if (alive && res.ok) setPhotos(res.photos);
+    });
+    return () => { alive = false; };
+  }, [task?.id, task?.status]);
+
+  // 공유 작업 메모 (work_memo)
+  const [memo, setMemo] = useState("");
+  const [memoSaving, setMemoSaving] = useState(false);
+  const [memoSavedTick, setMemoSavedTick] = useState(0);
+  useEffect(() => { setMemo(task?.workMemo || ""); }, [task?.workMemo]);
+  const memoDirty = (memo || "") !== (task?.workMemo || "");
+
+  async function saveMemo() {
+    if (!task?.id || memoSaving) return;
+    setMemoSaving(true);
+    try {
+      const res = await updateTaskAdapter(task.id, { workMemo: memo });
+      if (res && res.ok === false) throw new Error(res.error || "저장 실패");
+      setTask(prev => ({ ...prev, workMemo: memo }));
+      setMemoSavedTick(v => v + 1);
+    } catch (e) {
+      alert("메모 저장 실패: " + (e.message || ""));
+    } finally {
+      setMemoSaving(false);
+    }
+  }
 
   // 상품주문별 정산 — task_items + remit 별도 fetch (mount 시)
   const [settleItems, setSettleItems] = useState([]);
@@ -1096,27 +1151,62 @@ function TaskDetail({ t, task, onBack }) {
         error={settleError}
       />
 
-      {task.afterPhoto && (
+      {photos.length > 0 && (
         <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
-            📷 완료 사진
+          <div style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, marginBottom: 12 }}>
+            완료 사진 ({photos.length})
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            {[1, 2].map(i => (
-              <div key={i} style={{
-                aspectRatio: "1", background: t.bgInset, borderRadius: 8,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                color: t.textMuted,
-              }}>
-                <Camera size={24}/>
-              </div>
+            {photos.map(p => (
+              <a key={p.id} href={p.url} target="_blank" rel="noopener noreferrer" style={{ display: "block" }}>
+                <img src={p.url} alt={p.step || ""} style={{
+                  width: "100%", aspectRatio: "1", objectFit: "cover", borderRadius: 8,
+                  background: t.bgInset, display: "block",
+                }}/>
+              </a>
             ))}
-          </div>
-          <div style={{ fontSize: 10, color: t.textMuted, marginTop: 8, textAlign: "center" }}>
-            (실제 환경에서 사진 표시)
           </div>
         </div>
       )}
+
+      {/* 작업 메모 — work_memo 공유 (운영자·원청·기사 모두 보고 수정) */}
+      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: t.textMuted }}>작업 메모</span>
+          {memoSavedTick > 0 && !memoDirty && !memoSaving && (
+            <span style={{ fontSize: 10, color: "#5DCAA5", fontWeight: 700 }}>✓ 저장됨</span>
+          )}
+        </div>
+        <textarea
+          value={memo}
+          onChange={e => setMemo(e.target.value)}
+          placeholder="메모 입력 — 운영자·원청·기사 공유"
+          rows={3}
+          style={{
+            width: "100%", padding: "10px 12px",
+            background: t.bgInset,
+            border: `1px solid ${t.border}`,
+            borderRadius: 8,
+            color: t.text,
+            fontSize: 13, fontWeight: 500,
+            fontFamily: "inherit", outline: "none",
+            resize: "vertical",
+            lineHeight: 1.5,
+            boxSizing: "border-box",
+          }}
+        />
+        {memoDirty && (
+          <button onClick={saveMemo} disabled={memoSaving} style={{
+            marginTop: 8, padding: "8px 14px",
+            background: "#FF4D9E", color: "#fff",
+            border: "none", borderRadius: 8,
+            fontSize: 12, fontWeight: 700,
+            fontFamily: "inherit",
+            cursor: memoSaving ? "not-allowed" : "pointer",
+            opacity: memoSaving ? 0.5 : 1,
+          }}>{memoSaving ? "저장 중..." : "메모 저장"}</button>
+        )}
+      </div>
 
       {task.happycallMemo && (
         <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
