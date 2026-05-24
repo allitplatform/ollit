@@ -34,7 +34,7 @@ dist-ssr/
 .env.local
 .env.*.local
 
-# Backups (모든 백업 박힘 제외)
+# Backups (모든 백업 제외)
 *.backup
 *.backup_*
 
@@ -55,3 +55,8 @@ db/
 /신규_43주문_INSERT용.csv
 .env.migrate
 /유솔홈케어_운영.xlsx
+
+# 이관 백업 / 운영 시트 / 옛 파일 backup (개인정보 포함)
+scripts/backup-*.json
+scripts/*.xlsx
+*.before-*
