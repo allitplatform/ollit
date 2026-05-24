@@ -1243,7 +1243,7 @@ function ItemProgress({ t, item, stage }) {
           {orderId || "—"}
         </span>
       </div>
-      {/* 주문별 정산금액 — 고객 결제 / 네이버 정산 (15:85) 또는 정산 전 */}
+      {/* 주문별 정산금액 — 정산예정 / 올데이케어 정산금액 / 네이버 정산(상태바) */}
       <ItemAmounts t={t} item={item}/>
       {/* 진행바 */}
       <StageProgress stage={stage}/>
@@ -1252,11 +1252,10 @@ function ItemProgress({ t, item, stage }) {
 }
 
 function ItemAmounts({ t, item }) {
-  // 2026-05-24 — 옵션 C spec:
-  //   고객 결제   = customer_paid_amount (네이버 AG 칼럼, 고객 실결제액 / 기존 row NULL → 0 가드)
-  //   정산예정금액 = subtotal             (네이버 수수료 차감 후)
-  //   네이버 정산금액 = net_amount        (정산 CSV 측 catch UPDATE)
-  const customerPaid = Number(item.customer_paid_amount) || 0;
+  // 2026-05-24 — 사장님 spec:
+  //   정산예정금액     = subtotal             (네이버 수수료 차감 후)
+  //   올데이케어 정산금액 = net_amount - round(net_amount * 0.15)  (85% 몫)
+  //   네이버 정산(상태바) = net_amount         (정산 완료 시) / "정산 전" (미정산)
   const settleAmt    = Number(item.subtotal) || 0;
   const net          = item.net_amount;
   const settled      = item.naver_settled_at != null && net != null;
@@ -1270,38 +1269,30 @@ function ItemAmounts({ t, item }) {
   return (
     <div style={{ marginBottom: 8, display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={rowStyle}>
-        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>고객 결제</span>
-        <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
-          ₩{customerPaid.toLocaleString()}
-        </span>
-      </div>
-      <div style={rowStyle}>
         <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>정산예정금액</span>
         <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
           ₩{settleAmt.toLocaleString()}
         </span>
       </div>
+      <div style={rowStyle}>
+        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>올데이케어 정산금액</span>
+        {settled ? (
+          <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
+            ₩{alldayAmount.toLocaleString()}
+          </span>
+        ) : (
+          <span style={{ fontSize: 11, color: t.textMuted, fontStyle: "italic", fontWeight: 600 }}>
+            정산 전
+          </span>
+        )}
+      </div>
       {settled ? (
-        <>
-          <div style={rowStyle}>
-            <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>네이버 정산금액</span>
-            <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
-              ₩{net.toLocaleString()}
-            </span>
-          </div>
-          <div style={{ ...rowStyle, paddingLeft: 12 }}>
-            <span style={{ fontSize: 10, color: "#FF4D9E", fontWeight: 700 }}>└ 유솔 수수료 (15%)</span>
-            <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: "#FF4D9E" }}>
-              ₩{usolFee.toLocaleString()}
-            </span>
-          </div>
-          <div style={{ ...rowStyle, paddingLeft: 12 }}>
-            <span style={{ fontSize: 10, color: "#5DCAA5", fontWeight: 700 }}>└ 올데이케어 (85%)</span>
-            <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: "#5DCAA5" }}>
-              ₩{alldayAmount.toLocaleString()}
-            </span>
-          </div>
-        </>
+        <div style={rowStyle}>
+          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>네이버 정산금액</span>
+          <span className="mono" style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
+            ₩{net.toLocaleString()}
+          </span>
+        </div>
       ) : (
         <div style={rowStyle}>
           <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>네이버 정산</span>
