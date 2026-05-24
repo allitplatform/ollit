@@ -3708,6 +3708,10 @@ export default function EngineerApp({ user, onLogout }) {
   };
   const [selectedTaskId, setSelectedTaskId] = useState(null);
 
+  // 2026-05-24 버그2 — task 상세 진입 시 task_items별 기사 몫 (Migration 065 RPC 결과)
+  //   { [task_item_id]: engineer_amount } 형식. RPC 실패 시 빈 객체 — 컴포넌트가 분배식 fallback.
+  const [itemEngineerAmounts, setItemEngineerAmounts] = useState({});
+
   // V14 Step 4.2 — apiTasks 선언 위로 이동 (TDZ fix)
   // 옛 박힌 위치 (line 4044~) → 여기로 이동
   // 옛 catch X: line 4001 useEffect deps array에서 apiTasks 박힘 = const 박지 X 박힌 catch (TDZ ReferenceError)
@@ -3949,6 +3953,29 @@ export default function EngineerApp({ user, onLogout }) {
 
   const t = THEMES[mode];
   const selectedTask = tasks.find(x => x.id === selectedTaskId);
+
+  // 2026-05-24 버그2 — task 상세 진입 시 Migration 065 RPC 호출 (1회)
+  //   결과: [{ task_item_id, engineer_amount }, ...] → map으로 변환
+  //   RPC 실패 시 빈 객체 → EngineerTaskDetailScreen이 분배식 fallback 사용
+  useEffect(() => {
+    if (!selectedTaskId) { setItemEngineerAmounts({}); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("compute_engineer_amount_per_item", { p_task_id: selectedTaskId });
+        if (cancelled) return;
+        if (error || !Array.isArray(data)) { setItemEngineerAmounts({}); return; }
+        const map = {};
+        for (const row of data) {
+          if (row?.task_item_id != null) map[row.task_item_id] = Number(row.engineer_amount) || 0;
+        }
+        setItemEngineerAmounts(map);
+      } catch {
+        if (!cancelled) setItemEngineerAmounts({});
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedTaskId]);
 
   const reset = () => { resetTasks(); resetTo("main"); setSelectedTaskId(null); };
 
@@ -4883,6 +4910,7 @@ export default function EngineerApp({ user, onLogout }) {
         {screen === "detail" && selectedTask && (
           <EngineerTaskDetailScreen
             task={selectedTask}
+            itemEngineerAmounts={itemEngineerAmounts}
             onBack={() => { goBack(); setSelectedTaskId(null); }}
             onUpdate={updateTask}
             onRequestReassign={(t) => setReassignRequestTask(t)}

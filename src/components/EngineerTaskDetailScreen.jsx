@@ -194,20 +194,33 @@ function AddressLine({ task, baseStyle, iconColor = "var(--label-main)" }) {
 
 // 작업 항목 정규화 (INITIAL_TASKS는 단일 workType/appliance만 — items 배열로 변환)
 // V14 v7 — 사장님 catch: name = appliance(기종) 박음 (workType X)
-function getTaskItems(task) {
-  // 2026-05-20 Phase 5 Step 0.F-10 — task_items 전부 표시 spec
-  //   각 항목 측 기사 단가 = subtotal × 기사 비율 (engineer_amount / total_amount)
-  //   비율 측 X 시 fallback = subtotal × 0.6 (옛 spec)
+//
+// 2026-05-24 버그2 정정 — item별 '기사 몫' 표시
+//   1순위: itemEngineerAmounts (Migration 065 RPC 결과 — task_item.id → engineer_amount)
+//          compute_payment v14와 동일 로직 — 측 6 원청 + usol_n 정확.
+//   2순위 (RPC 실패 등): 분배식 — engineer_amount × (subtotal / SUM(subtotal))
+//          합계는 일치 / item별 분포는 정확도 ↓
+//   3순위 (옛 fallback): subtotal × 0.6
+function getTaskItems(task, itemEngineerAmounts) {
   if (Array.isArray(task.items) && task.items.length > 0) return task.items;
-  const totalAmount = Number(task.totalAmount || task.total_amount || task.estimateTotal || 0);
   const engineerAmount = Number(task.engineer_amount || 0);
-  const engRatio = (totalAmount > 0 && engineerAmount > 0)
-    ? (engineerAmount / totalAmount)
-    : 0.6;
   if (Array.isArray(task.workItems) && task.workItems.length > 0) {
+    // 분배식 fallback 측 catch SUM(subtotal) 계산
+    const sumSubtotal = task.workItems.reduce((s, w) => {
+      const sub = Number(w.subtotal || w.unitPrice || w.unit_price || 0) * (w.subtotal ? 1 : (w.qty || 1));
+      return s + sub;
+    }, 0);
+    const distRatio = (sumSubtotal > 0 && engineerAmount > 0)
+      ? (engineerAmount / sumSubtotal)
+      : 0.6;
     return task.workItems.map((wi, i) => {
       const subtotal = Number(wi.subtotal || wi.unitPrice || wi.unit_price || 0) * (wi.subtotal ? 1 : (wi.qty || 1));
-      const engPrice = Math.floor(subtotal * engRatio);
+      // 1순위 — RPC 결과 (task_item.id 매칭)
+      const itemId = wi.id || wi.task_item_id;
+      const rpcAmount = (itemEngineerAmounts && itemId != null) ? itemEngineerAmounts[itemId] : undefined;
+      const engPrice = (rpcAmount != null)
+        ? rpcAmount
+        : Math.floor(subtotal * distRatio);
       return {
         id: `${task.id}-${i}`,
         name: wi.appliance || wi.workType || "",
@@ -223,13 +236,13 @@ function getTaskItems(task) {
     id: `${task.id}-1`,
     name: task.appliance || task.workType,
     qty: task.qty || 1,
-    price: engineerAmount || Math.floor((task.estimateTotal || 0) * engRatio),
+    price: engineerAmount,
     serviceType: task,
   }];
 }
 
 // ──────────────── 메인 컴포넌트 ────────────────
-export function EngineerTaskDetailScreen({ task, onBack, onUpdate, onRequestReassign }) {
+export function EngineerTaskDetailScreen({ task, itemEngineerAmounts, onBack, onUpdate, onRequestReassign }) {
   // V14 — 사진 = {url, step} array (작업 전/후 명시적 박음 / 최소 2장 합산)
   const initialPhotos = (() => {
     if (Array.isArray(task.photos)) return task.photos.map(p => {
@@ -495,7 +508,7 @@ export function EngineerTaskDetailScreen({ task, onBack, onUpdate, onRequestReas
   }
 
   function handleCancel({ items, reason, memo }) {
-    const allItems = getTaskItems(task);
+    const allItems = getTaskItems(task, itemEngineerAmounts);
     if (items.length < allItems.length) {
       const remaining = allItems.filter(i => !items.find(c => c.id === i.id));
       onUpdate && onUpdate(task.id, {
@@ -850,7 +863,7 @@ function WorkMainCard({ task }) {
     return Math.max(0, Math.min(100, ((nowMin - startMin) / (endMin - startMin)) * 100));
   })();
 
-  const items = getTaskItems(task);
+  const items = getTaskItems(task, itemEngineerAmounts);
   const dividerColor = "var(--border)";
 
   return (
@@ -1190,7 +1203,7 @@ function StatusBlockWaiting({ task }) {
 // ──────────────── 작업 항목 (진행중) ────────────────
 // V14 — 작업 항목 한 줄 박스 (단일 항목 / 컬러 박스 + 작업명 + 단가)
 function TaskItemsList({ task }) {
-  const items = getTaskItems(task);
+  const items = getTaskItems(task, itemEngineerAmounts);
   if (items.length === 0) return null;
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
@@ -2095,7 +2108,7 @@ function VisitOnlyDialog({ task, onClose, onConfirm }) {
 
 // ──────────────── CancelScreen (부분 취소) ────────────────
 function CancelScreen({ task, onBack, onConfirm }) {
-  const allItems = getTaskItems(task);
+  const allItems = getTaskItems(task, itemEngineerAmounts);
   const [items, setItems] = useState(allItems.map(it => ({ ...it, checked: false })));
   const [reason, setReason] = useState("");
   const [memo, setMemo] = useState("");
