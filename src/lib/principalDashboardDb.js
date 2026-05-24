@@ -115,8 +115,10 @@ export async function fetchPrincipalTodayTasks({ principalCodes = [] } = {}) {
 }
 
 // 통계 카운트 — status 컬럼만 fetch, client-side group
-//   row 본문 없이 status만 받음 — 가벼운 쿼리 (885건 측 catch).
-//   취소 제외한 카운트 측 반환.
+//   row 본문 없이 status만 받음 — 가벼운 쿼리.
+//   취소 제외한 카운트 반환.
+//   2026-05-25 — Supabase hosted db.max_rows=1000 cap 대응: .range() 페이지 루프로 전체 fetch.
+//                기존 단일 .select()는 1000건에서 잘려 "976" 같은 잘못된 합계가 노출됨.
 export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
   if (!Array.isArray(principalCodes) || principalCodes.length === 0) {
     return { ok: false, error: "principalCodes X", counts: null };
@@ -124,25 +126,34 @@ export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
   const pids = await resolvePids(principalCodes);
   if (pids.length === 0) return { ok: false, error: "principal_id X", counts: null };
 
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("status")
-    .eq("tenant_id", TENANT_ID)
-    .in("principal_id", pids);
-
-  if (error) {
-    console.error("[principalDashboardDb.counts]", error);
-    return { ok: false, error: error.message, counts: null };
+  // page loop — 1000건 단위로 전체 fetch (PostgREST max_rows 우회)
+  let data = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from("tasks")
+      .select("status")
+      .eq("tenant_id", TENANT_ID)
+      .in("principal_id", pids)
+      .range(from, from + 999);
+    if (error) {
+      console.error("[principalDashboardDb.counts]", error);
+      return { ok: false, error: error.message, counts: null };
+    }
+    if (!page || page.length === 0) break;
+    data = data.concat(page);
+    if (page.length < 1000) break;
+    from += 1000;
   }
 
   const dist = {};
-  for (const r of (data || [])) dist[r.status] = (dist[r.status] || 0) + 1;
+  for (const r of data) dist[r.status] = (dist[r.status] || 0) + 1;
 
   // 사장님 spec — 전체 / 진행중 / 완료
   //   전체     = 취소 제외 합
   //   진행중   = 미배정 + 배정 + 확정 + 진행중
   //   완료     = 완료 + visit_only
-  const total      = (data || []).filter(r => r.status !== "취소").length;
+  const total      = data.filter(r => r.status !== "취소").length;
   const inProgress =
     (dist["미배정"] || 0) + (dist["배정"] || 0) +
     (dist["확정"] || 0)   + (dist["진행중"] || 0);

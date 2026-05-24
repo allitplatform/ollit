@@ -365,17 +365,27 @@ export async function listTasksByEngineerDb(engineerId) {
 }
 
 // 상태별 카운트 — { 미배정: N, 확정: N, ... }
+// 2026-05-25 — Supabase hosted db.max_rows=1000 cap 대응: .range() 페이지 루프로 전체 fetch.
 export async function countTasksByStatusDb() {
-  const { data, error } = await supabase
-    .from("tasks")
-    .select("status")
-    .eq("tenant_id", TENANT_ID);
-  if (error) {
-    console.error("[tasksDb.countTasksByStatusDb]", error);
-    return {};
+  let rows = [];
+  let from = 0;
+  while (true) {
+    const { data: page, error } = await supabase
+      .from("tasks")
+      .select("status")
+      .eq("tenant_id", TENANT_ID)
+      .range(from, from + 999);
+    if (error) {
+      console.error("[tasksDb.countTasksByStatusDb]", error);
+      return {};
+    }
+    if (!page || page.length === 0) break;
+    rows = rows.concat(page);
+    if (page.length < 1000) break;
+    from += 1000;
   }
   const counts = {};
-  for (const row of data || []) {
+  for (const row of rows) {
     counts[row.status] = (counts[row.status] || 0) + 1;
   }
   return counts;
@@ -511,20 +521,29 @@ export async function updateTaskStatusDb(taskId, status, { startedAt, completedA
 export async function loadTasksForRole(role, userId, principalCode) {
   try {
     // [1] 작업 전체
-    // 2026-05-24 — 모든 role limit 5000 통일.
-    //   직전 spec — engineer만 server-side filter(.eq assigned_engineer_id)였으나
-    //   PWA가 넘기는 userId가 tasks.assigned_engineer_id와 매칭되지 않아 0건 사고 → 제거.
-    //   client-side에서 본인 task 필터 기존대로 동작 + limit 5000으로 920건 환경 누락 차단.
-    const rowLimit = 5000;
-    const { data: rows, error } = await supabase
-      .from("tasks")
-      .select(PAYMENT_SELECT)
-      .eq("tenant_id", TENANT_ID)
-      .order("received_at", { ascending: false })
-      .limit(rowLimit);
-    if (error) {
-      console.error("[tasksDb.loadTasksForRole:tasks]", error);
-      return { ok: false, error: error.message, tasks: [] };
+    // 2026-05-25 — Supabase hosted db.max_rows=1000 cap 확인.
+    //   .limit(5000) 지정해도 PostgREST가 1000건에서 응답 잘림 → AdminApp 1,283/1,345 같은 불일치 원인.
+    //   .range() 페이지 루프 (1000건 단위)로 전체 fetch.
+    //   안전상 상한 10000건 (Phase 1 MVP 운영 규모 충분 + 무한 루프 방지).
+    const PAGE = 1000;
+    const HARD_CAP = 10000;
+    let rows = [];
+    let from = 0;
+    while (from < HARD_CAP) {
+      const { data: page, error } = await supabase
+        .from("tasks")
+        .select(PAYMENT_SELECT)
+        .eq("tenant_id", TENANT_ID)
+        .order("received_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (error) {
+        console.error("[tasksDb.loadTasksForRole:tasks]", error);
+        return { ok: false, error: error.message, tasks: [] };
+      }
+      if (!page || page.length === 0) break;
+      rows = rows.concat(page);
+      if (page.length < PAGE) break;
+      from += PAGE;
     }
 
     if (!rows || rows.length === 0) {
