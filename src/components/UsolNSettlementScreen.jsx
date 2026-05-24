@@ -99,7 +99,8 @@ export function UsolNSettlementScreen({
   }, [groupsByMonth, selectedMonth]);
 
   // Hero 색 토큰 (라이트/다크)
-  const heroBg     = isDark ? "rgba(3,199,90,0.10)" : "#F0FDF4";
+  // 2026-05-25 — day 카드와 동일 배경 (초록 반투명 제거, 측 catch 측 catch)
+  const heroBg     = "var(--card-bg)";
   const heroBorder = "#03C75A";
   const heroAmount = isDark ? "#FAF8F5" : "#1A1A1A";
   const subAmount  = isDark ? "#FAF8F5" : "#1A1A1A";
