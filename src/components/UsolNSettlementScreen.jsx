@@ -371,8 +371,8 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
                   {w.naverSettled && (
                     <span style={{
                       fontSize: 9, fontWeight: 700,
-                      padding: "1px 5px", borderRadius: 4,
-                      background: "rgba(3,199,90,0.15)", color: "#03C75A",
+                      padding: "3px 9px", borderRadius: 4,
+                      background: "#03C75A", color: "#ffffff",
                       whiteSpace: "nowrap", flexShrink: 0,
                     }}>✓ 네이버정산</span>
                   )}
