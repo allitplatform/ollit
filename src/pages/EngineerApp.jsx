@@ -11,6 +11,8 @@ import {
 } from "../data/tasksDb.js";
 import { uploadPhoto } from "../lib/photosDb.js";
 import { supabase } from "../lib/supabase.js";
+// 2026-05-24 — 기사 PWA 유솔N 정산 화면 데이터 측 catch (Migration 067 RPC batch 측 catch)
+import { fetchUsolNCompletedTaskItems, getItemChipLabel } from "../lib/usolNTasksDb.js";
 // Phase 3-5 — 휴무는 DB 측 (offDaysDb.js) 어댑터 사용. 시그니처 동일.
 import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
@@ -4460,9 +4462,86 @@ export default function EngineerApp({ user, onLogout }) {
       };
     });
 
-  // Step 5-7-B — 유솔N 정산 mock 모두 제거 (운영 시작 = 깨끗한 상태)
-  // 시트 양방향 sync 데이터로 교체 / 사용자가 새 작업 박을 때까지 빈 배열
-  const usolNGroupsMock = [];
+  // 2026-05-24 — 기사 PWA 유솔N 정산 화면 — 본인 완료 task의 item별 정산 내역
+  //   1) fetchUsolNCompletedTaskItems(usol_n + status=완료 + monthsBack:3)
+  //   2) 본인 assigned_engineer_id filter (users.code → users.id UUID lookup)
+  //   3) Migration 067 RPC batch — item별 engineer_amount 1 round-trip 측 catch
+  //   4) item 단위 group (date 기준) — work = task_item
+  //   5) status='pending' 고정 (= "정산예정" 표시)
+  const [usolNGroups, setUsolNGroups] = useState([]);
+  const currentYm = useMemo(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+  const prevYm = useMemo(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+
+  useEffect(() => {
+    if (!user?.engineerId) { setUsolNGroups([]); return; }
+    let alive = true;
+    (async () => {
+      // 1) 본인 user.id (UUID) lookup
+      const { data: u } = await supabase
+        .from("users").select("id").eq("code", user.engineerId).maybeSingle();
+      if (!alive || !u?.id) { setUsolNGroups([]); return; }
+      const myUserId = u.id;
+
+      // 2) usol_n 완료 task_items
+      const res = await fetchUsolNCompletedTaskItems({ monthsBack: 3 });
+      if (!alive || !res.ok) { setUsolNGroups([]); return; }
+
+      // 3) 본인 task filter
+      const mine = (res.items || []).filter(it => it.tasks?.assigned_engineer_id === myUserId);
+      if (mine.length === 0) { setUsolNGroups([]); return; }
+
+      // 4) Migration 067 RPC batch — item별 engineer_amount
+      const taskIds = [...new Set(mine.map(it => it.tasks.id))];
+      let engByItem = new Map();
+      const { data: rpcData } = await supabase
+        .rpc("compute_engineer_amount_per_item_batch", { p_task_ids: taskIds });
+      if (Array.isArray(rpcData)) {
+        engByItem = new Map(rpcData.map(r => [r.task_item_id, Number(r.engineer_amount) || 0]));
+      }
+
+      // 5) item 단위 group (date 기준, KST 변환)
+      const byDate = new Map();
+      for (const it of mine) {
+        const completedAt = it.tasks?.completed_at;
+        if (!completedAt) continue;
+        const d = new Date(new Date(completedAt).getTime() + 9 * 3600 * 1000);
+        const date = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+        if (!byDate.has(date)) byDate.set(date, []);
+        byDate.get(date).push({
+          id: it.tasks.id,                       // task_id — onClick 측 catch
+          itemId: it.id,                         // task_item_id — works.map key 측 catch
+          workType: "세척",
+          customerName: it.tasks.customer_name,
+          workItem: getItemChipLabel(it),
+          quantity: it.qty || 1,
+          feeAmount: engByItem.get(it.id) || 0,
+          naverSettled: !!it.naver_settled_at,
+          naverSettledAt: it.naver_settled_at,
+        });
+      }
+
+      // 6) group 측 catch (status='pending' 고정)
+      const groups = [];
+      for (const [date, works] of byDate.entries()) {
+        groups.push({
+          date,
+          totalAmount: works.reduce((s, w) => s + (w.feeAmount || 0), 0),
+          status: "pending",
+          payDate: "",
+          works,
+        });
+      }
+      if (alive) setUsolNGroups(groups);
+    })();
+    return () => { alive = false; };
+  }, [user?.engineerId]);
 
   // 휴무 mock
   const offDays = [];
@@ -4711,8 +4790,8 @@ export default function EngineerApp({ user, onLogout }) {
               onCompleteReport={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
               pendingAcceptances={pendingAcceptances}
               newAssignmentsOverride={newAssignments}
-              usolNTotal={usolNGroupsMock
-                .filter(g => g.date && g.date.slice(0, 7) === new Date().toISOString().slice(0, 7))
+              usolNTotal={usolNGroups
+                .filter(g => g.date && g.date.slice(0, 7) === currentYm)
                 .reduce((s, g) => s + (g.totalAmount || 0), 0)}
               usolNPayDate="6월 15일"
             />
@@ -4936,11 +5015,11 @@ export default function EngineerApp({ user, onLogout }) {
         )}
         {screen === "usolNSettlement" && (
           <UsolNSettlementScreen
-            groups={usolNGroupsMock}
-            currentYm="2026-05"
-            prevYm="2026-04"
-            thisMonthDepositDate="6월 15일"
-            prevMonthDepositDate="5월 15일"
+            groups={usolNGroups}
+            currentYm={currentYm}
+            prevYm={prevYm}
+            thisMonthDepositDate="다음 달 15일"
+            prevMonthDepositDate="이번 달 15일"
             onBack={goBack}
             onTaskClick={(taskId) => {
               const t = tasks.find(x => x.id === taskId);

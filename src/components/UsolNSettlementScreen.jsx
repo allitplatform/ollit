@@ -32,7 +32,7 @@ function nextMonthLabel(m) {
 }
 function monthFilterLabel(m, currentYm, prevYm) {
   if (m === currentYm) return `${ymdMonthShort(m)} (누적)`;
-  if (m === prevYm)    return `${ymdMonthShort(m)} (받을 돈)`;
+  if (m === prevYm)    return `${ymdMonthShort(m)} (정산예정)`;
   return `${ymdMonthShort(m)} (입금 완료)`;
 }
 
@@ -196,7 +196,7 @@ export function UsolNSettlementScreen({
                 fontSize: 12, color: subLabelColor, fontWeight: 700,
                 marginBottom: 4,
               }}>
-                {ymdMonthShort(prevYm)} 받을 돈
+                {ymdMonthShort(prevYm)} 정산예정
               </div>
               <div style={{
                 fontSize: 11, color: fineColor, fontWeight: 600,
@@ -299,7 +299,7 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
               color: "#03C75A",
               whiteSpace: "nowrap",
             }}>
-              {isPending ? "받을 돈" : "✓ 입금"}
+              {isPending ? "정산예정" : "✓ 입금"}
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
@@ -332,8 +332,10 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
         }}>
           {(data.works || []).map((w, idx, arr) => {
             const colors = getWorkTypeColors(w.workType);
+            // 2026-05-24 — work = task_item 단위 — key는 itemId(task_item_id)로
+            //   (같은 task의 item 측 catch task_id가 동일 → key 측 catch 측 catch React 측 catch)
             return (
-              <div key={w.id || idx}
+              <div key={w.itemId || w.id || idx}
                 onClick={() => onTaskClick && w.id && onTaskClick(w.id)}
                 style={{
                   display: "flex",
@@ -359,6 +361,15 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
                     {w.workItem ? ` · ${w.workItem}` : ""}
                     {w.quantity ? ` ×${w.quantity}` : ""}
                   </span>
+                  {/* 2026-05-24 — 네이버정산 완료 측 catch (naver_settled_at != null) */}
+                  {w.naverSettled && (
+                    <span style={{
+                      fontSize: 9, fontWeight: 700,
+                      padding: "1px 5px", borderRadius: 4,
+                      background: "rgba(3,199,90,0.15)", color: "#03C75A",
+                      whiteSpace: "nowrap", flexShrink: 0,
+                    }}>✓ 네이버정산</span>
+                  )}
                 </div>
                 <span style={{
                   fontSize: 13, color: "#03C75A", fontWeight: 700,
