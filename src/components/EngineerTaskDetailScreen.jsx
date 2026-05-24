@@ -201,7 +201,7 @@ function AddressLine({ task, baseStyle, iconColor = "var(--label-main)" }) {
 //   2순위 (RPC 실패 등): 분배식 — engineer_amount × (subtotal / SUM(subtotal))
 //          합계는 일치 / item별 분포는 정확도 ↓
 //   3순위 (옛 fallback): subtotal × 0.6
-function getTaskItems(task, itemEngineerAmounts) {
+function getTaskItems(task, itemEngineerAmounts = {}) {
   if (Array.isArray(task.items) && task.items.length > 0) return task.items;
   const engineerAmount = Number(task.engineer_amount || 0);
   if (Array.isArray(task.workItems) && task.workItems.length > 0) {
@@ -242,7 +242,7 @@ function getTaskItems(task, itemEngineerAmounts) {
 }
 
 // ──────────────── 메인 컴포넌트 ────────────────
-export function EngineerTaskDetailScreen({ task, itemEngineerAmounts, onBack, onUpdate, onRequestReassign }) {
+export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBack, onUpdate, onRequestReassign }) {
   // V14 — 사진 = {url, step} array (작업 전/후 명시적 박음 / 최소 2장 합산)
   const initialPhotos = (() => {
     if (Array.isArray(task.photos)) return task.photos.map(p => {
@@ -303,6 +303,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts, onBack, on
     return (
       <CancelScreen
         task={task}
+        itemEngineerAmounts={itemEngineerAmounts}
         onBack={() => setSubScreen(null)}
         onConfirm={(payload) => {
           handleCancel(payload);
@@ -569,12 +570,12 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts, onBack, on
       </div>
 
       {/* V14 — 확정/진행중 = 통합 메인 카드 (시간 + 작업 항목 + 고객) */}
-      {(isConfirmed || isInProgress) && <WorkMainCard task={task}/>}
+      {(isConfirmed || isInProgress) && <WorkMainCard task={task} itemEngineerAmounts={itemEngineerAmounts}/>}
       {isCompleted && <StatusBlockCompleted task={task}/>}
       {isWaiting && <StatusBlockWaiting task={task}/>}
 
       {/* 완료/대기 — 작업 항목 별도 (확정/진행중은 WorkMainCard 안에 통합됨) */}
-      {(isCompleted || isWaiting) && <TaskItemsList task={task}/>}
+      {(isCompleted || isWaiting) && <TaskItemsList task={task} itemEngineerAmounts={itemEngineerAmounts}/>}
 
       {/* 영역 3 — 요청사항 + 운영 메모 + 전화/문자 (확정/진행중은 고객 헤더 숨김) */}
       <CustomerInfo task={task} hideCustomerHeader={isConfirmed || isInProgress}/>
@@ -841,7 +842,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts, onBack, on
 
 // ──────────────── 상태 블록 ────────────────
 // V14 — 통합 메인 카드 (시간 + 작업 항목 + 고객 / 좌측 4px 바 카드 전체 연속)
-function WorkMainCard({ task }) {
+function WorkMainCard({ task, itemEngineerAmounts = {} }) {
   const colors = getWorkTypeColors(task.workType);
   const isDark = useIsDark();
   const labelColor = isDark ? colors.label.dark : colors.label.light;
@@ -1202,7 +1203,7 @@ function StatusBlockWaiting({ task }) {
 
 // ──────────────── 작업 항목 (진행중) ────────────────
 // V14 — 작업 항목 한 줄 박스 (단일 항목 / 컬러 박스 + 작업명 + 단가)
-function TaskItemsList({ task }) {
+function TaskItemsList({ task, itemEngineerAmounts = {} }) {
   const items = getTaskItems(task, itemEngineerAmounts);
   if (items.length === 0) return null;
   return (
@@ -2107,7 +2108,7 @@ function VisitOnlyDialog({ task, onClose, onConfirm }) {
 }
 
 // ──────────────── CancelScreen (부분 취소) ────────────────
-function CancelScreen({ task, onBack, onConfirm }) {
+function CancelScreen({ task, itemEngineerAmounts = {}, onBack, onConfirm }) {
   const allItems = getTaskItems(task, itemEngineerAmounts);
   const [items, setItems] = useState(allItems.map(it => ({ ...it, checked: false })));
   const [reason, setReason] = useState("");
