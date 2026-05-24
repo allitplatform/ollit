@@ -295,7 +295,8 @@ function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect }) {
       list = list.filter(x => x.status !== "완료" && x.status !== "visit_only");
     }
     if (filter === "미배정") list = list.filter(x => x.status === "미배정");
-    else if (filter === "확정") list = list.filter(x => ["배정", "확정"].includes(x.status));
+    else if (filter === "배정") list = list.filter(x => x.status === "배정");
+    else if (filter === "확정") list = list.filter(x => x.status === "확정");
     else if (filter === "완료") list = list.filter(x => x.status === "완료" || x.status === "visit_only");
     else if (filter === "취소") list = list.filter(x => x.status === "취소");
 
@@ -368,6 +369,7 @@ function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect }) {
         {[
           { id: "all",    label: "전체" },
           { id: "미배정", label: "미배정" },
+          { id: "배정",   label: "배정" },
           { id: "확정",   label: "확정" },
           { id: "완료",   label: "완료" },
           { id: "취소",   label: "취소" },
