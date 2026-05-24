@@ -151,10 +151,11 @@ export function rowToTask(row) {
     // 2026-05-21 Phase 5 Step 0.G-5-A — serviceCode / orderType 측 측 추가
     //   카운트 통일 spec — "유솔N 본작업(order_type='본작업') + 냉매(service='refrigerant') 측만 포함"
     //   category_data.workItems 측 → 그대로 사용 / task_items fallback 측 → 두 필드 추가 매핑
-    workItems:     Array.isArray(cat.workItems) && cat.workItems.length > 0
-                     ? cat.workItems
-                     : sortedTaskItems.map(it => ({
-                         id:             it.id,    // 2026-05-24 — RPC compute_engineer_amount_per_item 결과 매칭 키
+    // 2026-05-25 — task_items가 있으면 측 catch (id 측 catch 측 catch). cat.workItems 측 catch 측 catch task_items가 측 catch task만 fallback.
+    //   기존 — cat.workItems 측 catch 측 catch 측 catch 측 catch 측 catch 측 catch X → 부분완료 UI 측 catch wi.id가 undefined → 측 catch 측 catch
+    workItems:     sortedTaskItems.length > 0
+                     ? sortedTaskItems.map(it => ({
+                         id:             it.id,    // task_items.id (UUID) — RPC 매칭 + 부분완료 측 catch
                          workType:       it.work_types && it.work_types.name,
                          serviceCode:    it.work_types?.service_types?.code || null,
                          orderType:      it.order_type || null,
@@ -163,7 +164,8 @@ export function rowToTask(row) {
                          unitPrice:      Number(it.unit_price) || 0,
                          subtotal:       Number(it.subtotal) || 0,
                          productOrderId: it.product_order_id || null,
-                       })),
+                       }))
+                     : (Array.isArray(cat.workItems) ? cat.workItems : []),
     // 2026-05-24 — 대표값도 본작업 우선 (sortedTaskItems[0])
     workType:      cat.workType  || sortedTaskItems[0]?.work_types?.name || "",
     appliance:     cat.appliance || sortedTaskItems[0]?.appliance_types?.name || "",

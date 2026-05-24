@@ -689,54 +689,52 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
             <div key={wi.id} style={{
               background: "var(--bg-secondary)",
               border: "1px solid var(--border)",
-              borderRadius: 12, padding: 14, marginBottom: 8,
+              borderRadius: 10, padding: "10px 12px", marginBottom: 6,
+              display: "flex", alignItems: "center", gap: 10,
             }}>
-              <div style={{
-                display: "flex", justifyContent: "space-between", alignItems: "center",
-                marginBottom: 10, gap: 8,
-              }}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
-                    {name}
-                    {orderTypeLabel && (
-                      <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontWeight: 600, marginLeft: 6 }}>
-                        ({orderTypeLabel})
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600, marginTop: 2 }}>
-                    주문 {ord}대
-                  </div>
+              {/* 측 catch — 상품명 + 주문 수량 */}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 700, color: "var(--text-primary)",
+                  display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap",
+                }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                  {orderTypeLabel && (
+                    <span style={{ fontSize: 10, color: "var(--text-tertiary)", fontWeight: 600 }}>
+                      ({orderTypeLabel})
+                    </span>
+                  )}
+                  {cancelled && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      padding: "1px 6px", borderRadius: 999,
+                      background: "rgba(255,59,92,0.12)", color: "#FF3B5C",
+                      whiteSpace: "nowrap",
+                    }}>취소</span>
+                  )}
                 </div>
-                {cancelled && (
-                  <span style={{
-                    fontSize: 11, fontWeight: 700,
-                    padding: "3px 9px", borderRadius: 999,
-                    background: "rgba(255,59,92,0.12)", color: "#FF3B5C",
-                    whiteSpace: "nowrap",
-                  }}>취소</span>
-                )}
+                <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 600, marginTop: 1 }}>
+                  주문 {ord}대
+                </div>
               </div>
+              {/* 측 catch — 측 catch 측 catch 측 catch */}
               <div style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
+                display: "flex", alignItems: "center", gap: 8, flexShrink: 0,
               }}>
                 <CounterBtn
                   label="−"
+                  size={30}
                   disabled={act <= 0}
                   onClick={() => setItemQty(wi.id, Math.max(0, act - 1))}
                 />
-                <div style={{ textAlign: "center", minWidth: 70 }}>
-                  <div style={{
-                    fontSize: 28, fontWeight: 700, fontFamily: "inherit",
-                    color: cancelled ? "var(--text-tertiary)" : "var(--text-primary)",
-                    lineHeight: 1,
-                  }}>{act}</div>
-                  <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 700, marginTop: 4 }}>
-                    {act}대 / {ord}대
-                  </div>
-                </div>
+                <div style={{
+                  fontSize: 18, fontWeight: 700, fontFamily: "inherit",
+                  color: cancelled ? "var(--text-tertiary)" : "var(--text-primary)",
+                  minWidth: 22, textAlign: "center", lineHeight: 1,
+                }}>{act}</div>
                 <CounterBtn
                   label="+"
+                  size={30}
                   disabled={act >= ord}
                   onClick={() => setItemQty(wi.id, Math.min(ord, act + 1))}
                 />
@@ -772,17 +770,20 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   );
 }
 
-function CounterBtn({ label, onClick, disabled }) {
+function CounterBtn({ label, onClick, disabled, size = 56 }) {
+  const fontSize = size <= 32 ? 18 : 28;
+  const radius   = size <= 32 ? 8  : 12;
   return (
     <button onClick={onClick} disabled={disabled} style={{
-      width: 56, height: 56, borderRadius: 12,
+      width: size, height: size, borderRadius: radius,
       background: disabled ? "var(--bg-tertiary)" : "#C8C8C8",
       border: "none",
       color: disabled ? "var(--text-tertiary)" : "#1A1A1A",
-      fontSize: 28, fontWeight: 700,
+      fontSize, fontWeight: 700,
       cursor: disabled ? "not-allowed" : "pointer",
       fontFamily: "inherit",
       opacity: disabled ? 0.5 : 1,
+      flexShrink: 0,
     }}>
       {label}
     </button>
