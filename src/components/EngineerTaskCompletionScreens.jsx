@@ -558,21 +558,38 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
 }
 
 // ═══════════════════════════════════════════════════════
-// 2. V14 헌법 — 부분 완료 (회색 / 중립) — 수량 +/- 카운터
+// 2. V14 헌법 — 부분 완료 — 상품(task_item)별 실 작업 수량 (2026-05-25 개편)
+//   사장님 spec: 측 상품별로 측 catch 한 수량 측 catch. 측 catch 수량 측 catch 측 catch. (재방문 X)
 // ═══════════════════════════════════════════════════════
 export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
-  const totalQty = task.qty || 1;
-  const [actualQty, setActualQty] = useState(Math.max(1, totalQty - 1));
-  const [reasonId, setReasonId]   = useState("customer_change");
-  const [memo, setMemo]           = useState("");
+  // task.workItems 측 catch — sortedTaskItems 측 catch (tasksDb.rowToTask) → 본작업 우선
+  //   각 item: { id (task_item_id), workType, appliance, qty, unitPrice, subtotal, orderType, ... }
+  const workItems = Array.isArray(task.workItems) ? task.workItems : [];
+  const [actualQtyById, setActualQtyById] = useState(() => {
+    const init = {};
+    for (const wi of workItems) {
+      init[wi.id] = Number(wi.qty) || 1;   // 측 catch 측 catch 측 catch
+    }
+    return init;
+  });
+  const [reasonId, setReasonId] = useState("customer_change");
+  const [memo, setMemo]         = useState("");
 
-  // 수량 비례 계산 — 부분 완료 시 task의 qty를 actualQty로 교체해서 정확한 정책 호출
-  const baseAmountFull = task.estimateTotal || 0;
-  const baseAmount     = totalQty > 0 ? Math.round(baseAmountFull * (actualQty / totalQty)) : 0;
-  const extraFee       = task.extraFee || 0;
-  // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec + qty 비례 박음
-  // 2026-05-17 — 진행중 상태에선 trigger가 안 돌아 payments가 stale.
-  // mount 시 compute_payment RPC를 직접 호출해서 재계산한 뒤 payments를 refetch.
+  function setItemQty(itemId, nextQty) {
+    setActualQtyById(prev => ({ ...prev, [itemId]: nextQty }));
+  }
+
+  // 측 catch 한 작업 합계 = SUM(item.unit_price × actualQty)
+  const baseAmount = workItems.reduce((s, wi) => {
+    const aq = Number(actualQtyById[wi.id] ?? wi.qty) || 0;
+    return s + (Number(wi.unitPrice) || 0) * aq;
+  }, 0);
+  const extraFee   = task.extraFee || 0;
+  const total      = baseAmount + extraFee;
+
+  // 측 catch 측 catch 측 catch — 측 catch 합계 / 측 catch 합계 측 catch 비례 (= 측 catch 측 catch X 측 catch)
+  //   measurement 측 catch payments.engineer_amount 측 catch 측 catch (현 task) — 측 catch baseAmount/origAmount 측 catch
+  const origAmount = workItems.reduce((s, wi) => s + (Number(wi.subtotal) || 0), 0);
   const [earningFull, setEarningFull] = useState(task.engineer_amount || 0);
   const [earningLoading, setEarningLoading] = useState(false);
   useEffect(() => {
@@ -582,19 +599,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
     (async () => {
       try {
         const fresh = await recomputeAndFetchEarning(task.id);
-        if (cancelled) return;
-        if (fresh != null) {
-          setEarningFull(fresh);
-        } else {
-          try {
-            const res = await calculateCommissionMultiRpc({
-              principalName: task.principal || PRINCIPAL_CODE_TO_NAME[task.principalId] || "",
-              workItems:     task.workItems || [],
-              totalEstimate: baseAmountFull,
-            });
-            if (!cancelled && res?.ok) setEarningFull(res.engineer || 0);
-          } catch (e) { /* fail silent */ }
-        }
+        if (!cancelled && fresh != null) setEarningFull(fresh);
       } catch (e) {
         console.warn('[TaskPartialScreen] mount 재계산 예외:', e.message);
       } finally {
@@ -603,19 +608,50 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
     })();
     return () => { cancelled = true; };
   }, [task.id]);
-  const earning        = totalQty > 0 ? Math.round(earningFull * (actualQty / totalQty)) : 0;
-  const total          = baseAmount + extraFee;
-  const commission     = Math.max(0, total - earning);
+  const earning = origAmount > 0
+    ? Math.round((Number(earningFull) || 0) * (baseAmount / origAmount))
+    : 0;
 
-  const canSubmit = !!reasonId && actualQty > 0 && actualQty <= totalQty;
+  // 측 catch 측 catch — 측 catch 측 catch task_item 측 catch qty>0 + 사유 측 catch
+  const anyPositive = workItems.some(wi => (Number(actualQtyById[wi.id] ?? wi.qty) || 0) > 0);
+  const allUnchanged = workItems.every(wi =>
+    (Number(actualQtyById[wi.id] ?? wi.qty) || 0) === (Number(wi.qty) || 0)
+  );
+  const canSubmit = !!reasonId && anyPositive && !allUnchanged;
+
+  // 측 catch 측 catch 자동 측 catch (상품별 주문→실제, 취소 K건)
+  function buildAutoMemo() {
+    const lines = [];
+    let cancelCount = 0;
+    for (const wi of workItems) {
+      const ord = Number(wi.qty) || 0;
+      const act = Number(actualQtyById[wi.id] ?? wi.qty) || 0;
+      if (act < ord) cancelCount += (ord - act);
+      const name = wi.appliance || wi.workType || wi.workItem || "측 catch";
+      if (act !== ord) lines.push(`${name} 주문${ord}→실제${act}`);
+    }
+    const head = lines.length ? `부분완료 — ${lines.join(", ")}` : "부분완료";
+    const cancel = cancelCount > 0 ? `, 취소 ${cancelCount}건` : "";
+    const userMemo = memo.trim() ? `\n[기사 메모] ${memo.trim()}` : "";
+    return `${head}${cancel}.${userMemo}`;
+  }
 
   function handleConfirm() {
     if (!canSubmit) return;
+    // 측 task_item 측 catch UPDATE 측 catch — { id, newQty } 배열
+    const itemUpdates = workItems.map(wi => ({
+      id: wi.id,
+      newQty: Number(actualQtyById[wi.id] ?? wi.qty) || 0,
+      originalQty: Number(wi.qty) || 0,
+    }));
     onConfirm && onConfirm({
       type: "partial",
-      actualQty, totalQty,
-      reasonId, memo,
-      total, commission, earning,
+      itemUpdates,
+      reasonId,
+      memo,
+      autoMemo: buildAutoMemo(),
+      total,
+      earning,
       photos: photos.length,
     });
   }
@@ -626,48 +662,88 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
       <CustomerCard
         task={task}
         accentColor="#888"
-        subText={`의뢰: ${task.workType || ""} ×${totalQty}대`}
+        subText={workItems.length ? `의뢰: ${workItems.length}개 항목` : ""}
       />
 
-      {/* 실 작업 수량 카운터 */}
+      {/* 측 상품별 실 작업 수량 측 catch */}
       <div style={{ margin: "0 16px 14px" }}>
         <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>
-          🔢 실 작업 수량
+          🔢 측 상품 실 작업 수량
         </div>
-        <div style={{
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: 16,
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
-        }}>
-          <CounterBtn
-            label="−"
-            disabled={actualQty <= 1}
-            onClick={() => setActualQty(q => Math.max(1, q - 1))}
-          />
-          <div style={{ textAlign: "center", minWidth: 80 }}>
-            <div style={{
-              fontSize: 32, fontWeight: 700,
-              fontFamily: "inherit",
-              color: "var(--text-primary)",
-              lineHeight: 1,
-            }}>
-              {actualQty}
-            </div>
-            <div style={{
-              fontSize: 13, color: "var(--text-secondary)",
-              fontWeight: 700, marginTop: 4,
-            }}>
-              {actualQty}대 / {totalQty}대
-            </div>
+        {workItems.length === 0 ? (
+          <div style={{
+            padding: 14, textAlign: "center",
+            color: "var(--text-secondary)", fontSize: 13,
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border)", borderRadius: 12,
+          }}>
+            상품 정보가 없습니다.
           </div>
-          <CounterBtn
-            label="+"
-            disabled={actualQty >= totalQty}
-            onClick={() => setActualQty(q => Math.min(totalQty, q + 1))}
-          />
-        </div>
+        ) : workItems.map(wi => {
+          const ord = Number(wi.qty) || 0;
+          const act = Number(actualQtyById[wi.id] ?? wi.qty) || 0;
+          const cancelled = act === 0;
+          const name = wi.appliance || wi.workType || wi.workItem || "측 catch";
+          const orderTypeLabel = wi.orderType || wi.order_type || "";
+          return (
+            <div key={wi.id} style={{
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: 12, padding: 14, marginBottom: 8,
+            }}>
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                marginBottom: 10, gap: 8,
+              }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
+                    {name}
+                    {orderTypeLabel && (
+                      <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontWeight: 600, marginLeft: 6 }}>
+                        ({orderTypeLabel})
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600, marginTop: 2 }}>
+                    주문 {ord}대
+                  </div>
+                </div>
+                {cancelled && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 700,
+                    padding: "3px 9px", borderRadius: 999,
+                    background: "rgba(255,59,92,0.12)", color: "#FF3B5C",
+                    whiteSpace: "nowrap",
+                  }}>취소</span>
+                )}
+              </div>
+              <div style={{
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 16,
+              }}>
+                <CounterBtn
+                  label="−"
+                  disabled={act <= 0}
+                  onClick={() => setItemQty(wi.id, Math.max(0, act - 1))}
+                />
+                <div style={{ textAlign: "center", minWidth: 70 }}>
+                  <div style={{
+                    fontSize: 28, fontWeight: 700, fontFamily: "inherit",
+                    color: cancelled ? "var(--text-tertiary)" : "var(--text-primary)",
+                    lineHeight: 1,
+                  }}>{act}</div>
+                  <div style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 700, marginTop: 4 }}>
+                    {act}대 / {ord}대
+                  </div>
+                </div>
+                <CounterBtn
+                  label="+"
+                  disabled={act >= ord}
+                  onClick={() => setItemQty(wi.id, Math.min(ord, act + 1))}
+                />
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       <ReasonRadioList
@@ -678,10 +754,9 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
         label="⚠️ 부분 완료 사유 (필수)"
       />
 
-      {/* 2026-05-21 — 견적 / 추가 / 총액 요약 (= 부분 완료 측 qty 비례 견적 / 사장님 spec) */}
+      {/* 측 catch / 측 catch / 측 catch 측 catch (= 측 catch 측 catch 측 catch 측 catch) */}
       <AmountSummaryCard baseAmount={baseAmount} extraFee={extraFee} accentColor="#888"/>
-      {/* V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X) */}
-      <EarningOnlyCard amount={earning} color="#888" subText={`${actualQty}대 / ${totalQty}대 처리`} loading={earningLoading}/>
+      <EarningOnlyCard amount={earning} color="#888" loading={earningLoading}/>
 
       {reasonId === "other" && (
         <MemoBox label="📝 사유 메모" value={memo} onChange={setMemo}/>

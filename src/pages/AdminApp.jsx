@@ -1022,6 +1022,9 @@ function _v14NormalizeTask(t) {
     scheduledConfirmedAt:  t.scheduledConfirmedAt || t.scheduled_confirmed_at || "",
     completedAt: t.completedAt || t.completed_at || t.완료시간 || "",
     startedAt:   t.startedAt   || t.started_at   || t.시작시간 || "",
+    // 2026-05-25 — 부분완료 (Migration 068)
+    partialReason: t.partialReason ?? t.partial_reason ?? null,
+    partialMemo:   t.partialMemo   ?? t.partial_memo   ?? null,
     pushCandidates: Array.isArray(t.pushCandidates) ? t.pushCandidates : Array.isArray(t.push_candidates) ? t.push_candidates : [],
     // 2026-05-17 Round 1 Fix #1 — payments JOIN 패스스루 (dashboardStats 매출 카드용).
     // 공유 v14NormalizeTask(src/utils/v14Task.js)에는 이미 매핑돼 있으나

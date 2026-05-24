@@ -9,6 +9,7 @@ import { ArrowLeft, Camera, X, Copy } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
 import { changePriceAdapter as apiChangePrice, markVisitOnlyAdapter } from "../data/tasksDb.js";
+import { supabase } from "../lib/supabase.js";
 import {
   TaskCompleteScreen as CompletionCompleteScreen,
   TaskPartialScreen,
@@ -354,13 +355,27 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         task={{ ...task, extraFee: parseInt(extraFee || "0", 10) }}
         photos={photos}
         onBack={() => setSubScreen(null)}
-        onConfirm={(payload) => {
+        onConfirm={async (payload) => {
+          // 2026-05-25 — 측 catch 측 catch 측 catch 측 catch:
+          //   1) 측 task_item.qty UPDATE (= trigger fire → payments 자동 재계산)
+          //   2) tasks UPDATE: status='완료', completed_at, partial_reason, partial_memo
+          try {
+            for (const u of (payload.itemUpdates || [])) {
+              if (Number.isFinite(u.newQty) && u.newQty !== u.originalQty) {
+                await supabase
+                  .from("task_items")
+                  .update({ qty: u.newQty })
+                  .eq("id", u.id);
+              }
+            }
+          } catch (e) {
+            console.warn("[partial] task_items UPDATE 측 catch:", e?.message);
+          }
           onUpdate && onUpdate(task.id, {
             status: "완료",
             completedAt: getCurrentTime(),
             partialReason: payload.reasonId,
-            partialMemo: payload.memo,
-            actualQty: payload.actualQty,
+            partialMemo: payload.autoMemo,
             photos: photos.map(p => ({ url: p.url, step: p.step })),
             extraFee: parseInt(extraFee || "0", 10),
             workMemo: workMemo,

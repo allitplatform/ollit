@@ -194,6 +194,9 @@ export function v14NormalizeTask(t) {
     engineer: assignedEngineerName || null,
     recommendedEngineer,
     startedAt, completedAt,
+    // 2026-05-25 — 부분완료 (Migration 068)
+    partialReason: t.partialReason ?? t.partial_reason ?? null,
+    partialMemo:   t.partialMemo   ?? t.partial_memo   ?? null,
     // Phase 4-2 fix — DB 전환 측 누락 필드 (dashboardStats 카운트 catch)
     createdAt:  t.createdAt  || t.created_at  || t.receivedAt || t.received_at || "",
     receivedAt: t.receivedAt || t.received_at || "",

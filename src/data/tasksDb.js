@@ -118,6 +118,9 @@ export function rowToTask(row) {
     assignedAt:            row.assigned_at,
     scheduledConfirmedAt:  row.scheduled_confirmed_at,
     workMemo:      row.work_memo,
+    // 2026-05-25 — 부분완료 (Migration 068)
+    partialReason: row.partial_reason,
+    partialMemo:   row.partial_memo,
 
     // 금액
     productPrice:  row.product_price,
@@ -255,6 +258,9 @@ export function taskToRow(task, partial = false) {
   if (task.startedAt     !== undefined) row.started_at     = task.startedAt;
   if (task.completedAt   !== undefined) row.completed_at   = task.completedAt;
   if (task.workMemo      !== undefined) row.work_memo      = task.workMemo;
+  // 2026-05-25 — 부분완료 (Migration 068)
+  if (task.partialReason !== undefined) row.partial_reason = task.partialReason;
+  if (task.partialMemo   !== undefined) row.partial_memo   = task.partialMemo;
 
   // 금액 (total_amount 은 GENERATED 라 row에 직접 설정 X)
   if (task.productPrice !== undefined) row.product_price = task.productPrice;
