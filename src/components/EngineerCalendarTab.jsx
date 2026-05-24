@@ -810,6 +810,8 @@ function TimelineRow({ task, onClick }) {
   // 2026-05-22 — visit_only 측 "완료 계열" (흐릿 카드 스타일 적용)
   const isDone = isCompletedStatus(status);
   const isUntimed = status === "미배정";
+  // 2026-05-24 — 취소 카드 흐리게 (opacity 0.4)
+  const isCancelled = status === "취소";
 
   // 점 색
   const dotColor = isInProgress ? "#FF1B8D"
@@ -825,6 +827,8 @@ function TimelineRow({ task, onClick }) {
       : isUntimed
         ? { background: "rgba(255,138,61,0.08)", border: "1px solid rgba(255,138,61,0.30)" }
         : { background: "var(--bg-secondary)", border: "1px solid var(--border)" };
+  // 취소 카드 — opacity 덮어쓰기
+  if (isCancelled) cardStyle.opacity = 0.4;
 
   return (
     <div style={{ position: "relative", marginBottom: 14 }}>
@@ -865,7 +869,7 @@ function TimelineRow({ task, onClick }) {
           display: "flex", alignItems: "center", gap: 6,
         }}>
           <span>{task.customer}</span>
-          {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n') && (task.workType || '').includes('세척') && (
+          {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n' || task.principalCode === 'usol_n') && (
             <span style={{
               background: '#03C75A', color: 'white',
               fontSize: 9, padding: '2px 5px',
@@ -921,6 +925,8 @@ function DayTaskCard({ task, onClick }) {
   const isUntimed = task.status === "미배정";
   // 2026-05-22 — visit_only 측 "완료 계열" (흐릿 + opacity)
   const isDone = isCompletedStatus(task.status);
+  // 2026-05-24 — 취소 카드 흐리게 (opacity 0.4)
+  const isCancelled = task.status === "취소";
 
   const cardStyle = isActive
     ? { background: "transparent", border: "2px solid #FF1B8D" }
@@ -929,6 +935,7 @@ function DayTaskCard({ task, onClick }) {
       : isDone
         ? { background: "var(--bg-secondary)", border: "1px solid var(--border)", opacity: 0.7 }
         : { background: "var(--bg-secondary)", border: "1px solid var(--border)" };
+  if (isCancelled) cardStyle.opacity = 0.4;
 
   return (
     <div onClick={onClick} className="clickable" style={{
@@ -969,7 +976,7 @@ function DayTaskCard({ task, onClick }) {
           display: "flex", alignItems: "center", gap: 6,
         }}>
           <span>{task.customer}</span>
-          {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n') && (task.workType || '').includes('세척') && (
+          {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n' || task.principalCode === 'usol_n') && (
             <span style={{
               background: '#03C75A', color: 'white',
               fontSize: 9, padding: '2px 5px',

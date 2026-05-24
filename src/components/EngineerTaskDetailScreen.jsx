@@ -1138,6 +1138,20 @@ function StatusBlockInProgress({ task }) {
 
 function StatusBlockCompleted({ task }) {
   const isVisitOnly = task.status === "visit_only";
+  // 2026-05-24 — 시트 import된 완료 작업은 startedAt NULL → "── ~ 00:00 / 총 ── 작업" 깨짐
+  //   startedAt 없으면 완료일만 간결 표시 (PWA로 완료한 작업은 기존 시작~완료 + 소요시간 그대로)
+  const hasStartedAt = !!task.startedAt;
+  const completedYmd = task.completedAt
+    ? (() => {
+        const d = new Date(task.completedAt);
+        if (isNaN(d.getTime())) return "";
+        // KST 변환 — completed_at이 KST 자정 → UTC 전날 15:00이라 +9h로 한국 날짜 복원
+        const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+        const mm = kst.getUTCMonth() + 1;
+        const dd = kst.getUTCDate();
+        return `${mm}월 ${dd}일`;
+      })()
+    : "";
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
@@ -1157,7 +1171,8 @@ function StatusBlockCompleted({ task }) {
         <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
           출장비만 처리 · {formatTimeOnly(task.completedAt) || "—"}
         </div>
-      ) : (
+      ) : hasStartedAt ? (
+        // PWA로 진행한 작업 — 시작 ~ 완료 + 소요 시간 (기존)
         <>
           <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 6 }}>
             <div style={{
@@ -1174,6 +1189,11 @@ function StatusBlockCompleted({ task }) {
             총 {calcTotalDuration(task.startedAt, task.completedAt)} 작업
           </div>
         </>
+      ) : (
+        // 시트 import된 완료 작업 — startedAt 없음 → 완료일만
+        <div style={{ fontSize: 14, color: "var(--text-secondary)", fontWeight: 600 }}>
+          {completedYmd ? `${completedYmd} 완료` : "작업 완료"}
+        </div>
       )}
     </div>
   );

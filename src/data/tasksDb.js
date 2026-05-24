@@ -52,6 +52,16 @@ export function rowToTask(row) {
   // Phase 4-2 fix — category_data jsonb 평탄화 (workType/workItems 등 별도 추출)
   // 화면 필터 (NewReceptionScreen.getByType / v14NormalizeTask) 호환
   const cat = row.category_data || {};
+  // 2026-05-24 — task_items 본작업 우선 정렬 (order_type='본작업'이 먼저, 추가선택이 나중)
+  //   대표값(workType/appliance/qty) + workItems 둘 다 정렬된 기준 사용.
+  //   측 6 원청은 order_type NULL이라 정렬 변동 없음 (안정 정렬).
+  const sortedTaskItems = Array.isArray(row.task_items)
+    ? [...row.task_items].sort((a, b) => {
+        const aMain = a.order_type === '본작업' ? 0 : 1;
+        const bMain = b.order_type === '본작업' ? 0 : 1;
+        return aMain - bMain;
+      })
+    : [];
   // 2026-05-16 Phase 4 통합 2-C — payments JOIN 적용 spec (one-to-many 관계지만 1 task = 1 payment)
   const paymentRaw = Array.isArray(row.payment) ? row.payment[0] : row.payment;
   const payment = paymentRaw || null;
@@ -140,7 +150,7 @@ export function rowToTask(row) {
     //   category_data.workItems 측 → 그대로 사용 / task_items fallback 측 → 두 필드 추가 매핑
     workItems:     Array.isArray(cat.workItems) && cat.workItems.length > 0
                      ? cat.workItems
-                     : (Array.isArray(row.task_items) ? row.task_items.map(it => ({
+                     : sortedTaskItems.map(it => ({
                          id:             it.id,    // 2026-05-24 — RPC compute_engineer_amount_per_item 결과 매칭 키
                          workType:       it.work_types && it.work_types.name,
                          serviceCode:    it.work_types?.service_types?.code || null,
@@ -150,10 +160,11 @@ export function rowToTask(row) {
                          unitPrice:      Number(it.unit_price) || 0,
                          subtotal:       Number(it.subtotal) || 0,
                          productOrderId: it.product_order_id || null,
-                       })) : []),
-    workType:      cat.workType  || (Array.isArray(row.task_items) && row.task_items[0]?.work_types?.name) || "",
-    appliance:     cat.appliance || (Array.isArray(row.task_items) && row.task_items[0]?.appliance_types?.name) || "",
-    qty:           Number(cat.qty) || (Array.isArray(row.task_items) && Number(row.task_items[0]?.qty)) || 1,
+                       })),
+    // 2026-05-24 — 대표값도 본작업 우선 (sortedTaskItems[0])
+    workType:      cat.workType  || sortedTaskItems[0]?.work_types?.name || "",
+    appliance:     cat.appliance || sortedTaskItems[0]?.appliance_types?.name || "",
+    qty:           Number(cat.qty) || Number(sortedTaskItems[0]?.qty) || 1,
     quote:         cat.quote      || 0,
     scheduleType:  cat.scheduleType || "",
     receivedAt:    row.received_at,
