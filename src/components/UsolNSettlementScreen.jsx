@@ -63,6 +63,14 @@ export function UsolNSettlementScreen({
 
   const thisMonthEarning = thisMonthGroups.reduce((s, g) => s + (g.totalAmount || 0), 0);
   const thisMonthCount   = thisMonthGroups.reduce((s, g) => s + (g.works || []).length, 0);
+  // 2026-05-25 — 확정 (naver_settled_at != null) work의 feeAmount 합 + 비율
+  const thisMonthConfirmed = thisMonthGroups
+    .flatMap(g => g.works || [])
+    .filter(w => w.naverSettled)
+    .reduce((s, w) => s + (w.feeAmount || 0), 0);
+  const confirmedPct = thisMonthEarning > 0
+    ? Math.round(thisMonthConfirmed / thisMonthEarning * 100)
+    : 0;
   const prevMonthEarning = prevMonthGroups.reduce((s, g) => s + (g.totalAmount || 0), 0);
   const prevMonthCount   = prevMonthGroups.reduce((s, g) => s + (g.works || []).length, 0);
 
@@ -172,9 +180,32 @@ export function UsolNSettlementScreen({
           {/* 부속 설명 */}
           <div style={{
             fontSize: 13, color: fineColor,
-            marginBottom: 18, fontWeight: 600,
+            marginBottom: 10, fontWeight: 600,
           }}>
             {thisMonthDepositDate || "다음 달 15일"} 입금 예정 · {ymdMonthShort(currentYm)} 작업 {thisMonthCount}건 (계속 누적)
+          </div>
+
+          {/* 2026-05-25 — 확정 진행률 막대그래프 (= 확정/정산예정 비율) */}
+          <div style={{
+            width: "100%",
+            height: 6,
+            background: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)",
+            borderRadius: 3,
+            overflow: "hidden",
+            marginBottom: 8,
+          }}>
+            <div style={{
+              width: `${Math.min(100, Math.max(0, confirmedPct))}%`,
+              height: "100%",
+              background: "#03C75A",
+              transition: "width 0.3s ease",
+            }}/>
+          </div>
+          <div style={{
+            fontSize: 12, color: fineColor,
+            marginBottom: 18, fontWeight: 600,
+          }}>
+            확정 ₩{thisMonthConfirmed.toLocaleString("ko-KR")} ({confirmedPct}%) · 매월 15일 지급
           </div>
 
           {/* 2026-05-24 — 전달 데이터 0건이면 측 catch + 측 catch 측 catch */}
@@ -367,14 +398,13 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
                     {w.workItem ? ` · ${w.workItem}` : ""}
                     {w.quantity ? ` ×${w.quantity}` : ""}
                   </span>
-                  {/* 2026-05-24 — 네이버정산 완료 측 catch (naver_settled_at != null) */}
+                  {/* 2026-05-25 — 확정 측 catch (naver_settled_at != null) — 측 catch 측 catch */}
                   {w.naverSettled && (
                     <span style={{
-                      fontSize: 9, fontWeight: 700,
-                      padding: "3px 9px", borderRadius: 4,
-                      background: "#03C75A", color: "#ffffff",
+                      fontSize: 11, fontWeight: 700,
+                      color: "#03C75A",
                       whiteSpace: "nowrap", flexShrink: 0,
-                    }}>✓ 네이버정산</span>
+                    }}>✓ 확정</span>
                   )}
                 </div>
                 <span style={{
