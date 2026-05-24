@@ -70,7 +70,8 @@ export function UsolNSettlementScreen({
   const monthOptions = useMemo(() => {
     const set = new Set(Object.keys(groupsByMonth));
     if (currentYm) set.add(currentYm);
-    if (prevYm)    set.add(prevYm);
+    // 2026-05-24 — prevYm 데이터가 측 catch 측 catch 측 catch (= 측 catch 측 catch 측 catch)
+    if (prevYm && (groupsByMonth[prevYm] || []).length > 0) set.add(prevYm);
     return Array.from(set).sort().reverse();
   }, [groupsByMonth, currentYm, prevYm]);
 
@@ -176,42 +177,47 @@ export function UsolNSettlementScreen({
             {thisMonthDepositDate || "다음 달 15일"} 입금 예정 · {ymdMonthShort(currentYm)} 작업 {thisMonthCount}건 (계속 누적)
           </div>
 
-          {/* 구분선 */}
-          <div style={{
-            height: 0.5,
-            background: "rgba(3,199,90,0.25)",
-            marginBottom: 14,
-          }}/>
+          {/* 2026-05-24 — 전달 데이터 0건이면 측 catch + 측 catch 측 catch */}
+          {prevMonthCount > 0 && (
+            <>
+              {/* 구분선 */}
+              <div style={{
+                height: 0.5,
+                background: "rgba(3,199,90,0.25)",
+                marginBottom: 14,
+              }}/>
 
-          {/* 전달 받을 돈 (곧 들어올 돈) */}
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            padding: "6px 0",
-            gap: 12,
-          }}>
-            <div style={{ minWidth: 0 }}>
+              {/* 전달 정산예정 (곧 들어올 돈) */}
               <div style={{
-                fontSize: 12, color: subLabelColor, fontWeight: 700,
-                marginBottom: 4,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "6px 0",
+                gap: 12,
               }}>
-                {ymdMonthShort(prevYm)} 정산예정
+                <div style={{ minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 12, color: subLabelColor, fontWeight: 700,
+                    marginBottom: 4,
+                  }}>
+                    {ymdMonthShort(prevYm)} 정산예정
+                  </div>
+                  <div style={{
+                    fontSize: 11, color: fineColor, fontWeight: 600,
+                  }}>
+                    {prevMonthDepositDate || "이번 달 15일"} 입금 예정 · {prevMonthCount}건
+                  </div>
+                </div>
+                <div style={{
+                  fontSize: 22, color: subAmount, fontWeight: 700,
+                  letterSpacing: "-0.4px",
+                  flexShrink: 0,
+                }}>
+                  {prevMonthEarning.toLocaleString("ko-KR")}원
+                </div>
               </div>
-              <div style={{
-                fontSize: 11, color: fineColor, fontWeight: 600,
-              }}>
-                {prevMonthDepositDate || "이번 달 15일"} 입금 예정 · {prevMonthCount}건
-              </div>
-            </div>
-            <div style={{
-              fontSize: 22, color: subAmount, fontWeight: 700,
-              letterSpacing: "-0.4px",
-              flexShrink: 0,
-            }}>
-              {prevMonthEarning.toLocaleString("ko-KR")}원
-            </div>
-          </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -267,7 +273,7 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
   return (
     <div style={{
       background: "var(--card-bg)",
-      border: "1.5px solid #03C75A",
+      border: "1px solid var(--border)",
       borderRadius: 14,
       overflow: "hidden",
       position: "relative",
@@ -275,7 +281,7 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
     }}>
       <div style={{
         position: "absolute", left: 0, top: 0, bottom: 0,
-        width: 4, background: "#03C75A",
+        width: 3, background: "var(--text-tertiary)",
       }}/>
 
       <div onClick={onToggle} style={{
@@ -295,8 +301,8 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
               fontSize: 11, fontWeight: 700,
               padding: "2px 9px",
               borderRadius: 999,
-              background: "rgba(3,199,90,0.10)",
-              color: "#03C75A",
+              background: isPending ? "var(--bg-secondary)" : "rgba(3,199,90,0.10)",
+              color: isPending ? "var(--text-secondary)" : "#03C75A",
               whiteSpace: "nowrap",
             }}>
               {isPending ? "정산예정" : "✓ 입금"}

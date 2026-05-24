@@ -4300,12 +4300,16 @@ export default function EngineerApp({ user, onLogout }) {
   // 2026-05-20 Phase 5 Step 0.E-2 — mock 분기 제거 (apiTasks only)
   const monthStats = _computeMonthStats(tasks);
 
-  // 유솔N 받을 돈 — 옛 _USOL_N_MOCK 측 제거 / 빈 spec 측 default
-  const usolN = {
-    month:   new Date().getMonth() + 1,
-    payDate: "",
-    amount:  0,
-  };
+  // 2026-05-24 — 유솔N 정산 (정산 탭) — usolNGroups 측 catch 이번달 합계
+  const usolN = useMemo(() => {
+    const thisMonth = usolNGroups.filter(g => g.date && g.date.slice(0, 7) === currentYm);
+    return {
+      month:   new Date().getMonth() + 1,
+      payDate: "다음 달 15일",
+      amount:  thisMonth.reduce((s, g) => s + (g.totalAmount || 0), 0),
+      count:   thisMonth.reduce((s, g) => s + (g.works || []).length, 0),
+    };
+  }, [usolNGroups, currentYm]);
 
   // 2026-05-22 — engineerProfile 측 DB 값 우선 (옛 mock 하드코딩 폴백만 유지)
   const engineerProfile = {
@@ -4790,10 +4794,8 @@ export default function EngineerApp({ user, onLogout }) {
               onCompleteReport={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
               pendingAcceptances={pendingAcceptances}
               newAssignmentsOverride={newAssignments}
-              usolNTotal={usolNGroups
-                .filter(g => g.date && g.date.slice(0, 7) === currentYm)
-                .reduce((s, g) => s + (g.totalAmount || 0), 0)}
-              usolNPayDate="6월 15일"
+              usolNTotal={0}
+              usolNPayDate=""
             />
             <EngineerBottomNav
               active="today"
