@@ -4300,17 +4300,6 @@ export default function EngineerApp({ user, onLogout }) {
   // 2026-05-20 Phase 5 Step 0.E-2 — mock 분기 제거 (apiTasks only)
   const monthStats = _computeMonthStats(tasks);
 
-  // 2026-05-24 — 유솔N 정산 (정산 탭) — usolNGroups 측 catch 이번달 합계
-  const usolN = useMemo(() => {
-    const thisMonth = usolNGroups.filter(g => g.date && g.date.slice(0, 7) === currentYm);
-    return {
-      month:   new Date().getMonth() + 1,
-      payDate: "다음 달 15일",
-      amount:  thisMonth.reduce((s, g) => s + (g.totalAmount || 0), 0),
-      count:   thisMonth.reduce((s, g) => s + (g.works || []).length, 0),
-    };
-  }, [usolNGroups, currentYm]);
-
   // 2026-05-22 — engineerProfile 측 DB 값 우선 (옛 mock 하드코딩 폴백만 유지)
   const engineerProfile = {
     name: user?.name || "프로",
@@ -4482,6 +4471,18 @@ export default function EngineerApp({ user, onLogout }) {
     d.setMonth(d.getMonth() - 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   }, []);
+
+  // 2026-05-24 — 유솔N 정산 (정산 탭) — usolNGroups 측 catch 이번달 합계
+  // ※ usolNGroups + currentYm 측 catch 측 catch 측 catch — TDZ 측 catch
+  const usolN = useMemo(() => {
+    const thisMonth = usolNGroups.filter(g => g.date && g.date.slice(0, 7) === currentYm);
+    return {
+      month:   new Date().getMonth() + 1,
+      payDate: "다음 달 15일",
+      amount:  thisMonth.reduce((s, g) => s + (g.totalAmount || 0), 0),
+      count:   thisMonth.reduce((s, g) => s + (g.works || []).length, 0),
+    };
+  }, [usolNGroups, currentYm]);
 
   useEffect(() => {
     if (!user?.engineerId) { setUsolNGroups([]); return; }
