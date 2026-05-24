@@ -40,6 +40,19 @@
 
 BEGIN;
 
+-- [0] commission_policies_calc_method_check 갱신 — 측 calc_method 'usol_n_추가선택_냉매' 측 catch
+-- (Migration 009 측 catch CHECK 측 catch 11개 + 1 = 12개. 기존 측 catch 측 catch 측 catch — 측 catch 측 catch 측 catch 측 catch.)
+ALTER TABLE commission_policies DROP CONSTRAINT IF EXISTS commission_policies_calc_method_check;
+ALTER TABLE commission_policies ADD CONSTRAINT commission_policies_calc_method_check
+  CHECK (calc_method IN (
+    '직영_0', '직영_50_50',
+    '차감후비율_50',
+    '비율_견적금액', '비율_총금액', '비율_판매가',
+    '정액',
+    'usol_n_본작업', 'usol_n_추가선택', 'usol_n_추가선택_냉매', 'usol_n_냉매점검',
+    '출장비_30K'
+  ));
+
 -- [1] calculate_commission v8 — 새 WHEN 측 catch 추가
 CREATE OR REPLACE FUNCTION calculate_commission(
   p_principal_code text,
