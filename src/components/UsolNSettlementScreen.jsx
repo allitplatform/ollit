@@ -206,7 +206,7 @@ export function UsolNSettlementScreen({
             fontSize: 12, color: fineColor,
             marginBottom: 18, fontWeight: 600,
           }}>
-            확정 ₩{thisMonthConfirmed.toLocaleString("ko-KR")} ({confirmedPct}%) · 매월 15일 지급
+            <span style={{ color: "#03C75A", fontWeight: 700 }}>확정 ₩{thisMonthConfirmed.toLocaleString("ko-KR")}</span> ({confirmedPct}%) · 매월 15일 지급
           </div>
 
           {/* 2026-05-24 — 전달 데이터 0건이면 측 catch + 측 catch 측 catch */}
