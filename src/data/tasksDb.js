@@ -490,18 +490,15 @@ export async function updateTaskStatusDb(taskId, status, { startedAt, completedA
 export async function loadTasksForRole(role, userId, principalCode) {
   try {
     // [1] 작업 전체
-    // 2026-05-24 — engineer는 본인 task만 server-side filter + limit 5000 통일.
-    //   직전 spec — tenant 전체 task를 받아 received_at desc 500건 cut → 옛 task 누락 (920건 환경 측 측 catch).
-    //   유근학 5월 task 58건 중 14건만 캘린더에 보이는 사고 원인.
+    // 2026-05-24 — 모든 role limit 5000 통일.
+    //   직전 spec — engineer만 server-side filter(.eq assigned_engineer_id)였으나
+    //   PWA가 넘기는 userId가 tasks.assigned_engineer_id와 매칭되지 않아 0건 사고 → 제거.
+    //   client-side에서 본인 task 필터 기존대로 동작 + limit 5000으로 920건 환경 누락 차단.
     const rowLimit = 5000;
-    let query = supabase
+    const { data: rows, error } = await supabase
       .from("tasks")
       .select(PAYMENT_SELECT)
-      .eq("tenant_id", TENANT_ID);
-    if (role === "engineer" && userId) {
-      query = query.eq("assigned_engineer_id", userId);   // 본인 task만 (다른 기사 task 받지 않음)
-    }
-    const { data: rows, error } = await query
+      .eq("tenant_id", TENANT_ID)
       .order("received_at", { ascending: false })
       .limit(rowLimit);
     if (error) {
