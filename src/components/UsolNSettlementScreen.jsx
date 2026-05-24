@@ -300,7 +300,8 @@ export function UsolNSettlementScreen({
 
 function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
   const isPending = data.status === "pending";
-  const expandedBg = isDark ? "rgba(3,199,90,0.06)" : "#F0FDF4";
+  // 2026-05-25 — 카드 측 catch 측 catch 측 catch (옅은 초록 측 catch) — 측 catch borderTop만 측 catch 측 catch 측 catch
+  const expandedBg = "var(--card-bg)";
 
   return (
     <div style={{
