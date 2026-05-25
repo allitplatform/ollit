@@ -4274,13 +4274,15 @@ export default function EngineerApp({ user, onLogout }) {
   // 2026-05-19 Fix #30 🅒 — 유솔 송금 대상 (트랙 🅒, 현장 추가건 있는 cleaning).
   // 2026-05-25 — 금액 정정: SUM(principal_amount) 측 본작업 유솔 몫이 섞임 → 현장추가금 15%만.
   //   compute_payment v16 의 FLOOR(extra_fee * 0.15) 와 동일 공식.
+  // 2026-05-26 — 0건이어도 카드 항상 표시 (회사 송금 카드 패턴). hasItems=false 시 비활성.
   const todayTrackCTasks = todayCompletedTasks.filter(isTrackC);
-  const usolRemit = todayTrackCTasks.length > 0 ? {
+  const usolRemit = {
     amount:     todayTrackCTasks.reduce((s, t) => s + Math.floor(Number(t.extraFee || t.extra_fee || 0) * 0.15), 0),
     count:      todayTrackCTasks.length,
-    isReported: todayTrackCTasks.every(t => !!t.usolRemittedAt),
+    hasItems:   todayTrackCTasks.length > 0,
+    isReported: todayTrackCTasks.length > 0 && todayTrackCTasks.every(t => !!t.usolRemittedAt),
     taskIds:    todayTrackCTasks.map(t => t.id),
-  } : null;
+  };
 
   // 2026-05-20 Phase 5 Step 0.E-2 — _MONTH_STATS_MOCK 측 제거 (운영 측 X)
   // 2026-05-19 Fix #30 — 실제 task 기반 weekStats / monthStats 계산 (사장님 spec).

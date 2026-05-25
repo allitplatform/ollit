@@ -343,12 +343,17 @@ export function EngineerSettleTab({
           </div>
         )}
 
-        {/* 2026-05-19 Fix #30 🅒 — 유솔 송금 카드 (현장 추가건 15% 유솔 직접 송금).
-              2026-05-25 — 액션 추가 (계좌 박스 + 입금 완료 보고 + pill). 회사 송금 카드 패턴 그대로. */}
-        {usolRemit && usolRemit.count > 0 && (
+        {/* 2026-05-19 Fix #30 🅒 — 유솔 송금 카드.
+              2026-05-25 — 액션 추가 (계좌 + 보고 + pill).
+              2026-05-26 — 0건이어도 항상 표시 + 색상 초록 계열 (유솔N 카드 톤). */}
+        {usolRemit && (() => {
+          const hasItems   = !!usolRemit.hasItems;
+          const isReported = !!usolRemit.isReported;
+          const buttonDisabled = !hasItems || isReported;
+          return (
           <div style={{
             background: "var(--card-bg)",
-            border: "1.5px solid #FF8A3D",
+            border: "1.5px solid #2E6B4A",
             borderRadius: 16,
             padding: 18,
             marginBottom: 14,
@@ -360,25 +365,35 @@ export function EngineerSettleTab({
             }}>
               <div style={{
                 display: "flex", alignItems: "center", gap: 6,
-                fontSize: 14, color: "#FF8A3D", fontWeight: 700,
+                fontSize: 14, color: "#3FB87A", fontWeight: 700,
               }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                   width: 19, height: 19, borderRadius: 5,
-                  background: "#FF8A3D", color: "#fff",
+                  background: "#3FB87A", color: "#fff",
                   fontSize: 11, fontWeight: 700,
                 }}>📤</span>
                 <span>유솔 입금</span>
               </div>
-              <span style={{
-                fontSize: 12, fontWeight: 700,
-                color: usolRemit.isReported ? "#03C75A" : "var(--transfer-pill-text)",
-                padding: "4px 11px",
-                background: usolRemit.isReported ? "rgba(3,199,90,0.10)" : "var(--transfer-pill-bg)",
-                borderRadius: 999,
-              }}>
-                {usolRemit.isReported ? "입금 완료" : "미입금"}
-              </span>
+              {hasItems ? (
+                <span style={{
+                  fontSize: 12, fontWeight: 700,
+                  color: isReported ? "#03C75A" : "var(--transfer-pill-text)",
+                  padding: "4px 11px",
+                  background: isReported ? "rgba(3,199,90,0.10)" : "var(--transfer-pill-bg)",
+                  borderRadius: 999,
+                }}>
+                  {isReported ? "입금 완료" : "미입금"}
+                </span>
+              ) : (
+                <span style={{
+                  fontSize: 12, fontWeight: 700,
+                  color: "var(--text-tertiary)",
+                  padding: "4px 11px",
+                  background: "var(--bg-tertiary)",
+                  borderRadius: 999,
+                }}>—</span>
+              )}
             </div>
 
             {/* Hero 금액 */}
@@ -397,7 +412,7 @@ export function EngineerSettleTab({
               <div style={{
                 fontSize: 12, color: "var(--label-main)", fontWeight: 700,
               }}>
-                오늘 {usolRemit.count}건 · 15%
+                오늘 {usolRemit.count}건{hasItems ? " · 15%" : ""}
               </div>
             </div>
 
@@ -445,24 +460,27 @@ export function EngineerSettleTab({
               </div>
             )}
 
-            {/* 입금 완료 보고 — 주황 풀 */}
+            {/* 입금 완료 보고 — 초록 풀 (유솔N 받을 돈 카드 톤). 0건/완료 시 비활성 */}
             <button
-              onClick={() => onConfirmUsolRemit && onConfirmUsolRemit()}
-              disabled={usolRemit.isReported}
+              onClick={() => { if (!buttonDisabled) onConfirmUsolRemit && onConfirmUsolRemit(); }}
+              disabled={buttonDisabled}
               style={{
                 width: "100%", padding: 14,
-                background: usolRemit.isReported ? "var(--bg-tertiary)" : "#FF8A3D",
+                background: buttonDisabled ? "var(--bg-tertiary)" : "#1D9E75",
                 border: "none", borderRadius: 13,
-                color: usolRemit.isReported ? "var(--text-secondary)" : "#fff",
+                color: buttonDisabled ? "var(--text-secondary)" : "#fff",
                 fontSize: 15, fontWeight: 700,
-                cursor: usolRemit.isReported ? "default" : "pointer",
+                cursor: buttonDisabled ? "default" : "pointer",
                 fontFamily: "inherit",
               }}
             >
-              {usolRemit.isReported ? "✓ 입금 완료" : "입금 완료 보고"}
+              {!hasItems
+                ? "오늘 보낼 금액 없음"
+                : (isReported ? "✓ 입금 완료" : "입금 완료 보고")}
             </button>
           </div>
-        )}
+          );
+        })()}
 
         {/* 헬퍼 박스 — 옅은 핑크 */}
         <div style={{
