@@ -874,30 +874,43 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
               borderRadius: 12,
               overflow: "hidden",
             }}>
-              {/* 헤더 — 토글 (기본 접힘) */}
+              {/* 헤더 — 토글 (기본 접힘). 2줄 구조: 라벨 + 보조 안내. */}
               <button
                 onClick={() => setActionsOpen(v => !v)}
                 style={{
                   width: "100%",
-                  padding: "12px 14px",
+                  padding: "11px 14px",
                   background: "transparent",
                   border: "none",
-                  fontSize: 12, fontWeight: 700,
-                  color: "var(--text-tertiary)",
-                  letterSpacing: 0.3,
                   cursor: "pointer", fontFamily: "inherit",
                   display: "flex", alignItems: "center",
                   textAlign: "left",
                 }}
               >
-                <span>일정 변경 · 취소</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 600,
+                    color: "var(--text-secondary)",
+                    letterSpacing: 0.2,
+                  }}>
+                    일정 변경 · 취소
+                  </div>
+                  <div style={{
+                    fontSize: 11,
+                    color: "var(--text-tertiary)",
+                    marginTop: 2,
+                  }}>
+                    일정 바꾸기 · 재배정 요청 · 작업 취소
+                  </div>
+                </div>
                 <span style={{
-                  marginLeft: "auto",
+                  marginLeft: 10,
                   fontSize: 13,
                   color: "var(--text-tertiary)",
                   transition: "transform 0.15s",
                   transform: actionsOpen ? "rotate(180deg)" : "rotate(0deg)",
                   display: "inline-block",
+                  flexShrink: 0,
                 }}>▾</span>
               </button>
 
