@@ -26,6 +26,8 @@ import {
   undoPrincipalRemit,
 } from "../../lib/principalRemitDb.js";
 import { supabase } from "../../lib/supabase.js";
+// 2026-05-26 — 기사 입금 내역 화면 (usol_n 측 cleaning + extra_fee 15%)
+import { UsolRemitHistoryScreen } from "./UsolRemitHistoryScreen.jsx";
 
 // 색 토큰 — 시안 확정
 const C_MAGENTA = "#FF4D9E";
@@ -122,6 +124,8 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
+  // 2026-05-26 — 기사 입금 내역 화면 진입 state (usol_n principal 만 노출)
+  const [showUsolHistory, setShowUsolHistory] = useState(false);
 
   const refresh = useCallback(() => setReloadTick(v => v + 1), []);
 
@@ -272,10 +276,49 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
     );
   }
 
+  // 2026-05-26 — 기사 입금 내역 화면 (usol_n 측만 노출). 사장님 spec: settle 탭 측 카드 클릭 진입.
+  if (showUsolHistory) {
+    return <UsolRemitHistoryScreen onBack={() => setShowUsolHistory(false)}/>;
+  }
+
+  // usol_n principal 측 노출 — principalCodes 측 usol_n 포함 시만 진입 카드 표시
+  const hasUsolN = Array.isArray(principalCodes) && principalCodes.includes("usol_n");
+
   // 리스트 뷰
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
       <SummarySection summary={summary}/>
+
+      {/* 2026-05-26 — 기사 입금 내역 진입 카드 (usol_n 측만) */}
+      {hasUsolN && (
+        <div
+          onClick={() => setShowUsolHistory(true)}
+          className="clickable"
+          style={{
+            marginTop: 14,
+            background: "var(--bg-elevated, #1F1F1F)",
+            border: "1px solid var(--border, #2A2A2A)",
+            borderRadius: 12,
+            padding: "14px 16px",
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            cursor: "pointer", gap: 10,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 13, fontWeight: 800,
+              color: "var(--text-primary, #FAF8F5)",
+              marginBottom: 3,
+            }}>
+              📥 기사 입금 내역
+            </div>
+            <div style={{ fontSize: 11, color: C_GRAY, fontWeight: 600 }}>
+              세척 현장추가금 15% · 이번 달 기사별 보고 현황
+            </div>
+          </div>
+          <span style={{ color: C_GRAY, fontSize: 18, fontWeight: 700 }}>›</span>
+        </div>
+      )}
 
       <div style={{ fontSize: 11, color: C_GRAY, margin: "18px 0 10px", fontWeight: 600 }}>
         주차별 정산
