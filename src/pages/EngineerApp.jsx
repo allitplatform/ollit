@@ -101,6 +101,8 @@ import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
 import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
 import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
 import { reportEngineerRemit } from "../lib/paymentsDb.js";
+// Round 3 — Migration 076 RPC (anon 키 + p_actor 패턴, 옛 requestCancelAdapter 경로 우회)
+import { requestEngineerCancel } from "../lib/engineerTaskRpc.js";
 import { UsolNSettlementScreen } from "../components/UsolNSettlementScreen.jsx";
 import { ConfirmModal } from "../components/ConfirmModal.jsx";
 // V13-FINAL2-fix1 신규 화면
@@ -4016,11 +4018,14 @@ export default function EngineerApp({ user, onLogout }) {
     }
   }
 
-  // V14 — 취소 요청 박기
+  // V14 — 취소 요청
+  // 2026-05-25 Round 3 — 옛 apiRequestCancel(updateTaskDb) 경로는 RLS 측 0행 → 저장 실패.
+  //   request_engineer_cancel RPC (Migration 076) 로 직접 호출. category_data 키는
+  //   옛 spec 그대로 (cancelReason / previousStatus / cancelRequestedAt) — AdminApp 승인 화면 호환.
   async function submitCancelRequest() {
     if (!cancelRequestTask?.id || !cancelReason.trim()) return;
     try {
-      const res = await apiRequestCancel(cancelRequestTask.id, cancelReason);
+      const res = await requestEngineerCancel(cancelRequestTask.id, cancelReason);
       if (!res || res.ok === false) {
         alert(`취소 요청 실패: ${(res && res.error) || '실패'}`);
         return;

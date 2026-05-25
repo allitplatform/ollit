@@ -466,7 +466,13 @@ export async function updateTaskDb(id, updates) {
     console.error("[tasksDb.updateTaskDb]", error);
     return { ok: false, error: error.message };
   }
-  return { ok: true, data: data ? rowToTask(data) : null };
+  // 2026-05-25 Round 3 안전망 — data=null (0행 매칭, RLS 차단 또는 id 미존재) 시 명시 실패.
+  //   옛 동작: ok=true + data=null → 호출처가 성공 인식, 다음 fetch 시 옛 값 복귀(되돌아감).
+  if (!data) {
+    console.warn("[tasksDb.updateTaskDb] 0 rows affected — RLS 차단 또는 id 미존재:", id);
+    return { ok: false, error: "저장 실패 (권한 또는 작업 없음)" };
+  }
+  return { ok: true, data: rowToTask(data) };
 }
 
 // 기사 배정 — status="배정" + assigned_engineer_id 설정

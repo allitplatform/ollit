@@ -11,8 +11,8 @@
 import { supabase } from "./supabase.js";
 
 // localStorage("allit.user") 의 user_id — sign_in_with_phone RPC 응답 저장값.
-// principalRemitDb.currentUserId() 측 동일 패턴.
-function currentUserId() {
+// principalRemitDb.currentUserId() 측 동일 패턴. engineerTaskRpc 측 재사용 위해 export.
+export function currentUserId() {
   try {
     const raw = typeof window !== "undefined" ? localStorage.getItem("allit.user") : null;
     if (!raw) return null;
@@ -23,12 +23,14 @@ function currentUserId() {
   }
 }
 
-function normalize(resp) {
+export function normalizeRpcResp(resp) {
   if (resp.error) return { ok: false, error: resp.error.message || "RPC 호출 실패" };
   const data = resp.data;
   if (data && data.ok === false) return { ok: false, error: data.error || "RPC 거부" };
   return { ok: true, data };
 }
+// 옛 이름 호환 (모듈 내부 사용)
+const normalize = normalizeRpcResp;
 
 // 원청 전체 취소 — 자기 원청 task 만 허용. 기본 수고비 'none'.
 export async function partnerFullCancel(taskId, reason) {

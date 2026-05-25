@@ -20,6 +20,8 @@ import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { workDateLabel, workDateColor, formatTimeOnly, calcTotalDuration } from "../utils/dateLabel.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
+// Round 3 — Migration 076 RPC (anon 키 + p_actor 패턴, 옛 updateTaskAdapter 경로 우회)
+import { rescheduleEngineerTask } from "../lib/engineerTaskRpc.js";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -535,14 +537,22 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     onBack && onBack();
   }
 
-  function handleReschedule({ newDate, newStart, newEnd, reason }) {
+  // 2026-05-25 Round 3 — 옛 onUpdate(updateTaskAdapter) 경로는 RLS 측 0행 → 화면 되돌아감.
+  //   reschedule_engineer_task RPC (Migration 076) 로 직접 호출. KST 기준 ISO 조합.
+  //   endTime / rescheduleReason / rescheduledAt 은 tasks 컬럼 부재 — 옛에도 무시됐음.
+  async function handleReschedule({ newDate, newStart /*, newEnd, reason */ }) {
+    if (!task?.id || !newDate || !newStart) return;
+    const iso = `${newDate}T${newStart}:00+09:00`;  // KST 기준
+    // Optimistic — 즉시 화면 갱신 (실패 시 onUpdate 가 fetchTasks 측 회복)
     onUpdate && onUpdate(task.id, {
       scheduledDate: newDate,
       scheduledTime: newStart,
-      endTime: newEnd,
-      rescheduleReason: reason,
-      rescheduledAt: getCurrentTime(),
+      scheduledAt:   iso,
     });
+    const res = await rescheduleEngineerTask(task.id, iso);
+    if (!res || res.ok === false) {
+      alert(`일정 변경 실패: ${res?.error || "알 수 없는 오류"}`);
+    }
   }
 
   function handleCancel({ items, reason, memo }) {
