@@ -23,7 +23,7 @@
 --   · 모든 취소 RPC 가 cancel_engineer_comp_kind='none', amount=0 자동 세팅 (기본 '없음').
 --   · 운영자가 AdminApp 작업상세 컨트롤에서 'visit_fee' 로 토글 가능 (admin_set_cancel_compensation).
 --   · 'full' (전액) 옵션 없음 — 사장님 spec: 출장비만 / 없음 두 가지.
---   · 'visit_fee' amount = COALESCE(task.travel_fee, 30000).
+--   · 'visit_fee' amount = COALESCE(NULLIF(task.travel_fee, 0), 30000) — 0 도 30000 fallback.
 --
 -- 권한 가드 (RPC 본문):
 --   · partner RPC: auth.uid() → user_roles partner + principal_id 일치 검증.
@@ -65,7 +65,7 @@ END $$;
 COMMENT ON COLUMN tasks.cancel_engineer_comp_kind IS
   '취소 건 기사 수고비 kind. NULL=비-취소 task / visit_fee=출장비만 (task.travel_fee 또는 30k) / none=없음(0). 취소 RPC가 기본 none 세팅, 운영자가 작업상세 컨트롤에서 visit_fee 로 토글 가능.';
 COMMENT ON COLUMN tasks.cancel_engineer_comp_amount IS
-  '취소 건 기사 수고비 금액 (원). kind 측 visit_fee 시 task.travel_fee 또는 30000, none 시 0.';
+  '취소 건 기사 수고비 금액 (원). kind 측 visit_fee 시 COALESCE(NULLIF(task.travel_fee, 0), 30000), none 시 0.';
 
 -- ============================================================================
 -- [2] compute_payment v16 — status='취소' + kind 지정 시 engineer_amount 우선
@@ -589,8 +589,9 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', '취소된 작업만 수고비 지정 가능');
   END IF;
 
+  -- α 패치: travel_fee=0 도 30000 fallback (NULLIF). 사장님 spec "없으면 3만원" — NULL/0 둘 다 "없음".
   v_comp_amount := CASE p_kind
-    WHEN 'visit_fee' THEN COALESCE(v_task.travel_fee, 30000)
+    WHEN 'visit_fee' THEN COALESCE(NULLIF(v_task.travel_fee, 0), 30000)
     WHEN 'none'      THEN 0
   END;
 
@@ -647,42 +648,93 @@ COMMIT;
 -- SELECT obj_description((SELECT oid FROM pg_proc WHERE proname='compute_payment' LIMIT 1));
 -- 기대: 'v16 (Migration 073)' 포함.
 --
--- D. 시뮬 — 운영자(예: 최수연 계정) 직접 취소 + 사후 수고비 토글
--- 본 시뮬은 authenticated 운영자 세션에서 실행해야 _caller_is_admin() 통과.
--- service_role 세션은 auth.uid()=NULL 측 권한 가드 통과 X.
+-- D. 시뮬 — 운영자 H001 최수연(operator) 세션 심기 + admin RPC 전 흐름 검증
+-- 본 시뮬은 BEGIN/ROLLBACK 으로 감싸 실 데이터 무영향.
+-- SET LOCAL request.jwt.claims 측 jsonb 측 auth.uid() 측 흐름 측 운영자 세션 시뮬.
+-- 테스트 task: YS-260520-016 (김복주 / 완료 / 김동효 배정 / engineer_amount=66000 / travel_fee=0).
 --
--- (가) admin_full_cancel — 기본 kind='none' 으로 취소
+-- ⚠️ 동명이인 주의 — 최수연 user 2명:
+--    · A004 (admin role)    → _caller_is_admin() 거부 (가드는 owner/operator만)
+--    · H001 (operator role) → 통과 ✅
+--    본 시뮬은 H001 (id=77777777-7777-7777-7777-bbbbbbbb0001) 사용.
+--
+-- 통째 복붙 → SQL Editor → Run.
+--
+-- BEGIN;
+--
+-- -- 운영자 세션 시뮬 (트랜잭션 내에서만)
+-- SET LOCAL request.jwt.claims = '{"sub":"77777777-7777-7777-7777-bbbbbbbb0001","role":"authenticated"}';
+-- SELECT auth.uid() AS caller_uid;  -- 기대: 77777777-7777-7777-7777-bbbbbbbb0001
+--
+-- -- 사전 스냅샷
+-- SELECT 'BEFORE' AS phase, status,
+--        cancel_engineer_comp_kind, cancel_engineer_comp_amount,
+--        category_data->>'cancelActor' AS actor
+-- FROM tasks WHERE id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+--
+-- SELECT 'BEFORE' AS phase, engineer_amount, principal_amount, owner_amount, is_balanced, status
+-- FROM payments WHERE task_id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+--
+-- -- (가) admin_full_cancel — 기본 kind='none' 으로 즉시 취소
 -- SELECT admin_full_cancel(
---   (SELECT id FROM tasks WHERE task_no='<test-task-no>'),
---   '시뮬 — 운영자 직접 취소'
--- );
--- 기대: { ok: true, comp_kind: 'none' }
--- 검증:
---   SELECT status, cancel_engineer_comp_kind, cancel_engineer_comp_amount,
---          category_data->>'cancelActor' AS actor
---   FROM tasks WHERE task_no='<test-task-no>';
---   → status='취소' / kind='none' / amount=0 / actor='operator'
+--   '7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid,
+--   '시뮬 — Round 2 D 검증 (롤백 예정)'
+-- ) AS result;
 --
---   SELECT engineer_amount, principal_amount, owner_amount, is_balanced
---   FROM payments WHERE task_id=(SELECT id FROM tasks WHERE task_no='<test-task-no>');
---   → 0 / 0 / 0 / true
+-- SELECT '(가) after admin_full_cancel' AS phase, status,
+--        cancel_engineer_comp_kind, cancel_engineer_comp_amount,
+--        category_data->>'cancelActor' AS actor,
+--        category_data->>'wasCompleted' AS was_completed
+-- FROM tasks WHERE id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+-- -- 기대: status='취소' / kind='none' / amount=0 / actor='operator' / was_completed='true'
 --
--- (나) admin_set_cancel_compensation — visit_fee 로 토글
+-- SELECT '(가) payments' AS phase, engineer_amount, principal_amount, owner_amount, is_balanced
+-- FROM payments WHERE task_id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+-- -- 기대: 0 / 0 / 0 / true
+--
+-- -- (나) admin_set_cancel_compensation — visit_fee 토글
 -- SELECT admin_set_cancel_compensation(
---   (SELECT id FROM tasks WHERE task_no='<test-task-no>'),
+--   '7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid,
 --   'visit_fee'
--- );
--- 기대: { ok: true, kind: 'visit_fee', engineer_amount: <task.travel_fee 또는 30000> }
--- 검증:
---   SELECT engineer_amount, owner_amount, is_balanced
---   FROM payments WHERE task_id=(SELECT id FROM tasks WHERE task_no='<test-task-no>');
---   → engineer_amount=30000(또는 travel_fee) / owner_amount=-30000 / is_balanced=true (0=0)
+-- ) AS result;
+-- -- α 패치 후: travel_fee=0 도 30000 fallback (NULLIF). 기대 engineer_amount=30000.
 --
--- (다) 다시 none 으로 토글 — admin_set_cancel_compensation kind='none'
--- 기대: engineer_amount=0 / owner_amount=0.
+-- SELECT '(나) after visit_fee toggle' AS phase,
+--        cancel_engineer_comp_kind, cancel_engineer_comp_amount
+-- FROM tasks WHERE id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+--
+-- SELECT '(나) payments' AS phase, engineer_amount, principal_amount, owner_amount, is_balanced
+-- FROM payments WHERE task_id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+-- -- 기대: engineer_amount=30000 / owner_amount=-30000 / is_balanced=true (0=0)
+--
+-- -- (다) 다시 none 토글
+-- SELECT admin_set_cancel_compensation(
+--   '7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid,
+--   'none'
+-- ) AS result;
+--
+-- SELECT '(다) after none toggle' AS phase,
+--        cancel_engineer_comp_kind, cancel_engineer_comp_amount
+-- FROM tasks WHERE id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+--
+-- SELECT '(다) payments' AS phase, engineer_amount, principal_amount, owner_amount, is_balanced
+-- FROM payments WHERE task_id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+-- -- 기대: engineer_amount=0 / owner_amount=0 / is_balanced=true
+--
+-- ROLLBACK;
+--
+-- -- ROLLBACK 후 원복 확인 (트랜잭션 외)
+-- SELECT 'AFTER ROLLBACK' AS phase, status, cancel_engineer_comp_kind
+-- FROM tasks WHERE id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+-- -- 기대: status='완료' / kind=NULL (원복)
+--
+-- SELECT 'AFTER ROLLBACK' AS phase, engineer_amount
+-- FROM payments WHERE task_id='7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6'::uuid;
+-- -- 기대: 66000 (원복)
 --
 -- E. 원청 측 자기 외 원청 task 호출 시 거부 (RAISE EXCEPTION)
--- — service_role 측 시뮬 불가. PWA 측 authenticated partner 로그인 후 검증.
+-- — H001 최수연은 partner 역할이 아니므로 partner_full_cancel 호출 시
+--   '권한 없음 — partner 역할 필요' 예외. PWA 측 authenticated partner 로그인 후 검증.
 --
 -- ============================================================================
 -- 롤백
