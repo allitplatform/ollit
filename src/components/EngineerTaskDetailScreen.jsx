@@ -597,13 +597,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         }}>
           {task.taskNo || task.id || "—"}
         </div>
-        <button onClick={() => setMenuOpen(true)} style={{
-          background: "transparent", border: "none",
-          color: "var(--text-primary)", fontSize: 16,
-          cursor: "pointer",
-        }}>
-          ⋮
-        </button>
+        {/* 2026-05-25 — ⋮ 메뉴 제거. 일정변경/재배정/취소 는 하단 '일정 변경 · 취소' 카드로 통합. */}
+        <div style={{ width: 56 }} aria-hidden="true"/>
       </div>
 
       {/* V14 — 확정/진행중 = 통합 메인 카드 (시간 + 작업 항목 + 고객) */}
@@ -644,49 +639,112 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         </>
       )}
 
-      {/* 2026-05-22 — 재배정 요청 (배정 / 확정 / 진행중 status 측 노출, 사장님 spec) */}
+      {/* 2026-05-25 — '일정 변경 · 취소' 통합 카드 (옛 ⋮ 메뉴 + 재배정 요청 + 부분/전체 취소).
+            상태별 행 표시:
+              · 확정    : 일정 변경 / 재배정 요청 / 작업 취소 (3개)
+              · 배정    : 재배정 요청 / 작업 취소 (2개)
+              · 진행중  : 재배정 요청 / 부분 취소 (2개)
+              · 그 외   : 카드 미표시.
+            '작업 취소' / '부분 취소' 행은 빨강. */}
       {(() => {
-        const isReassignable = ["배정", "확정", "진행중"].includes(task.status);
-        if (!isReassignable) return null;
-        const hasRequest = !!(task.reassignRequest?.requestedAt);
-        const reqAt = hasRequest ? formatTimeOnly(task.reassignRequest.requestedAt) : "";
-        const reqReason = hasRequest ? (task.reassignRequest.reason || "") : "";
+        const isAssigned   = task.status === "배정";
+        const showCard = isAssigned || isConfirmed || isInProgress;
+        if (!showCard) return null;
+
+        const hasReassignReq = !!(task.reassignRequest?.requestedAt);
+        const reassignReqAt  = hasReassignReq ? formatTimeOnly(task.reassignRequest.requestedAt) : "";
+        const reassignReason = hasReassignReq ? (task.reassignRequest.reason || "") : "";
+
+        const ROW_STYLE = {
+          width: "100%",
+          padding: "13px 14px",
+          background: "transparent",
+          border: "none",
+          color: "var(--text-primary)",
+          fontSize: 14, fontWeight: 600,
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", gap: 10,
+          textAlign: "left",
+        };
+        const DIVIDER_STYLE = { height: 1, background: "var(--border)" };
+        const ARROW = (
+          <span style={{ marginLeft: "auto", color: "var(--text-tertiary)", fontSize: 14 }}>›</span>
+        );
+
+        const Row = ({ icon, label, danger, onClick, disabled = false }) => (
+          <button
+            onClick={disabled ? undefined : onClick}
+            disabled={disabled}
+            style={{
+              ...ROW_STYLE,
+              color: disabled
+                ? "var(--text-tertiary)"
+                : (danger ? "#FF3B5C" : "var(--text-primary)"),
+              cursor: disabled ? "not-allowed" : "pointer",
+              opacity: disabled ? 0.5 : 1,
+            }}
+          >
+            <span style={{ fontSize: 16, width: 22, textAlign: "center" }}>{icon}</span>
+            <span>{label}</span>
+            {ARROW}
+          </button>
+        );
+
         return (
-          <div style={{ padding: "8px 16px 0" }}>
-            {hasRequest ? (
+          <div style={{ padding: "12px 16px 4px" }}>
+            <div style={{
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              overflow: "hidden",
+            }}>
               <div style={{
-                padding: "10px 12px",
-                background: "rgba(255,27,141,0.08)",
-                border: "1px solid rgba(255,27,141,0.30)",
-                borderRadius: 10,
-                fontSize: 12, lineHeight: 1.6,
-                color: "var(--text-primary)",
+                padding: "10px 14px 6px",
+                fontSize: 11, fontWeight: 700,
+                color: "var(--text-tertiary)",
+                letterSpacing: 0.3,
               }}>
-                <div style={{ fontWeight: 700, color: "#FF1B8D", marginBottom: 4 }}>
-                  🔁 재배정 요청됨 — 운영자 확인 대기{reqAt ? ` (${reqAt})` : ""}
-                </div>
-                {reqReason && (
-                  <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-                    사유: {reqReason}
-                  </div>
-                )}
+                일정 변경 · 취소
               </div>
-            ) : (
-              <button
-                onClick={() => onRequestReassign?.(task)}
-                style={{
-                  width: "100%", padding: "11px 14px",
-                  background: "transparent",
-                  border: "1px solid rgba(255,27,141,0.45)",
-                  borderRadius: 10,
-                  color: "#FF1B8D",
-                  fontSize: 13, fontWeight: 700,
-                  cursor: "pointer", fontFamily: "inherit",
-                }}
-              >
-                🔁 재배정 요청
-              </button>
-            )}
+
+              {isConfirmed && (
+                <>
+                  <Row icon="🕐" label="일정 변경" onClick={() => setSubScreen("reschedule")}/>
+                  <div style={DIVIDER_STYLE}/>
+                </>
+              )}
+
+              {hasReassignReq ? (
+                <div style={{
+                  padding: "10px 14px",
+                  background: "rgba(255,27,141,0.08)",
+                  borderTop: isConfirmed ? "1px solid var(--border)" : "none",
+                  borderBottom: "1px solid var(--border)",
+                  fontSize: 12, lineHeight: 1.6,
+                }}>
+                  <div style={{ fontWeight: 700, color: "#FF1B8D", marginBottom: 2 }}>
+                    🔁 재배정 요청됨 — 운영자 확인 대기{reassignReqAt ? ` (${reassignReqAt})` : ""}
+                  </div>
+                  {reassignReason && (
+                    <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                      사유: {reassignReason}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <Row icon="🔁" label="재배정 요청" onClick={() => onRequestReassign?.(task)}/>
+                  <div style={DIVIDER_STYLE}/>
+                </>
+              )}
+
+              <Row
+                icon="⛔"
+                label={isInProgress ? "부분 취소" : "작업 취소"}
+                danger
+                onClick={() => setSubScreen("cancel")}
+              />
+            </div>
           </div>
         );
       })()}
@@ -854,16 +912,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         );
       })()}
 
-      {/* ⋮ 메뉴 (BottomSheet) */}
-      {menuOpen && (
-        <TaskMenu
-          task={task}
-          onClose={() => setMenuOpen(false)}
-          onReschedule={() => { setMenuOpen(false); setSubScreen("reschedule"); }}
-          onCancel={() => { setMenuOpen(false); setSubScreen("cancel"); }}
-          onContactOps={() => { setMenuOpen(false); alert("운영팀 연락"); }}
-        />
-      )}
+      {/* 2026-05-25 — ⋮ 메뉴(TaskMenu) 호출 제거. 항목은 '일정 변경 · 취소' 카드로 통합. */}
 
       {/* 출장비만 다이얼로그 */}
       {visitOnlyOpen && (
@@ -999,7 +1048,8 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
           marginTop: 8, marginBottom: 16, fontWeight: 700,
           display: "flex", alignItems: "center", gap: 4,
         }}>
-          <span style={{ fontSize: 14 }}>📅</span> 예정 시각 {task.scheduledTime || task.time || "—"}
+          {/* 2026-05-25 — 큰 시간(Hero 36px) 과 중복 제거. 라벨만. */}
+          <span style={{ fontSize: 14 }}>📅</span> 예정 시각
         </div>
       )}
 
@@ -1377,30 +1427,34 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
         </div>
       )}
 
-      {/* 2026-05-20 Phase 5 Step 0.F-10 A안 — 전화 (#22C55E) / 문자 (#3B82F6) 채움 */}
+      {/* 2026-05-25 — 톤다운: 풀 컬러 → 중립 배경 + 작은 컬러 아이콘 */}
       {!isCompleted && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <button onClick={() => makeCall(task.phone)} style={{
-            padding: 13,
-            background: "#22C55E",
-            border: "none",
+            padding: 12,
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border)",
             borderRadius: 10,
-            color: "#fff",
-            fontSize: 14, fontWeight: 700,
+            color: "var(--text-primary)",
+            fontSize: 13, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}>
-            📞 전화
+            <span style={{ color: "#22C55E", fontSize: 15 }}>📞</span>
+            전화
           </button>
           <button onClick={() => sendSms(task.phone)} style={{
-            padding: 13,
-            background: "#3B82F6",
-            border: "none",
+            padding: 12,
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border)",
             borderRadius: 10,
-            color: "#fff",
-            fontSize: 14, fontWeight: 700,
+            color: "var(--text-primary)",
+            fontSize: 13, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           }}>
-            💬 문자
+            <span style={{ color: "#3B82F6", fontSize: 15 }}>💬</span>
+            문자
           </button>
         </div>
       )}
@@ -1418,38 +1472,39 @@ function MapButtons({ task }) {
       <div style={{
         display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
       }}>
+        {/* 2026-05-25 — 톤다운: 풀 컬러 → 중립 배경 + 작은 컬러 아이콘 (T·K 라벨만 브랜드색 유지) */}
         <button onClick={openTmapBtn} style={{
-          padding: 13,
-          background: "#EE2737",
-          border: "none",
+          padding: 12,
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border)",
           borderRadius: 10,
-          color: "#fff",
-          fontSize: 14, fontWeight: 700,
+          color: "var(--text-primary)",
+          fontSize: 13, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}>
           <span style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             width: 18, height: 18, borderRadius: 4,
-            background: "#fff", color: "#EE2737",
+            background: "#EE2737", color: "#fff",
             fontSize: 11, fontWeight: 800,
           }}>T</span>
           T맵
         </button>
         <button onClick={openKakaoBtn} style={{
-          padding: 13,
-          background: "#FEE500",
-          border: "none",
+          padding: 12,
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border)",
           borderRadius: 10,
-          color: "#181600",
-          fontSize: 14, fontWeight: 700,
+          color: "var(--text-primary)",
+          fontSize: 13, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
         }}>
           <span style={{
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             width: 18, height: 18, borderRadius: 4,
-            background: "#181600", color: "#FEE500",
+            background: "#FEE500", color: "#181600",
             fontSize: 11, fontWeight: 800,
           }}>K</span>
           카카오맵
