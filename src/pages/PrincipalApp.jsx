@@ -1217,6 +1217,38 @@ function Divider({ t }) {
 }
 
 function ItemProgress({ t, item, stage }) {
+  // 2026-05-25 — 출장비(work_types.code='visit') 항목 분기.
+  //   네이버 정산 흐름(정산대기→네이버정산완료→회사입금완료)이 무관 — 현장 현금 수령 완료 상태로 정적 표시.
+  if (item?.work_types?.code === "visit") {
+    const visitAmount = Number(item.subtotal) || Number(item.unit_price) * Number(item.qty || 1) || 0;
+    const visitLabel  = item.work_types?.name || "출장비";
+    return (
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 6 }}>
+          {visitLabel}
+        </div>
+        <div style={{
+          padding: "10px 12px",
+          background: t.bgInset || "#161619",
+          border: `1px solid ${t.border || "#2A2A2A"}`,
+          borderRadius: 8,
+          display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8,
+          fontSize: 12, fontWeight: 600, color: t.text,
+        }}>
+          <span style={{ color: "#5DCAA5", fontWeight: 800 }}>✓</span>
+          <span>현장 현금정산 완료</span>
+          <span style={{ color: t.textMuted }}>·</span>
+          <span>
+            기사{" "}
+            <span className="mono" style={{ fontWeight: 800 }}>
+              ₩{visitAmount.toLocaleString()}
+            </span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   const orderId   = item.product_order_id || "";
   const workType  = item.work_types?.name || "";
   const appliance = item.appliance_types?.name || "";
