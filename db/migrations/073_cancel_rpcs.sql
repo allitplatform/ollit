@@ -28,7 +28,7 @@
 -- 권한 가드 (RPC 본문):
 --   · partner RPC: auth.uid() → user_roles partner + principal_id 일치 검증.
 --     RLS가 tenant 단위라 RPC 본문이 다른 원청 건 거부 필수.
---   · admin RPC: owner/operator 역할만.
+--   · admin RPC: owner/operator/admin 역할.
 --   · 모두 SECURITY DEFINER + GRANT EXECUTE TO authenticated.
 --
 -- 회귀 방지:
@@ -344,10 +344,11 @@ LANGUAGE plpgsql SECURITY DEFINER STABLE
 SET search_path = public
 AS $$
 BEGIN
+  -- 'admin' 포함 — 대표 계정(A004 최수연 등)이 admin role 보유. 함수명과 일관.
   RETURN EXISTS (
     SELECT 1 FROM user_roles
     WHERE user_id = auth.uid()
-      AND role IN ('owner', 'operator')
+      AND role IN ('owner', 'operator', 'admin')
   );
 END;
 $$;
@@ -483,7 +484,7 @@ BEGIN
   IF p_task_id IS NULL THEN RETURN jsonb_build_object('ok', false, 'error', 'task_id 누락'); END IF;
   IF COALESCE(TRIM(p_reason), '') = '' THEN RETURN jsonb_build_object('ok', false, 'error', '사유 누락'); END IF;
 
-  IF NOT _caller_is_admin() THEN RAISE EXCEPTION '권한 없음 — operator/owner 필요'; END IF;
+  IF NOT _caller_is_admin() THEN RAISE EXCEPTION '권한 없음 — operator/owner/admin 필요'; END IF;
 
   SELECT * INTO v_task FROM tasks WHERE id = p_task_id;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'error', '작업 없음'); END IF;
@@ -543,7 +544,7 @@ BEGIN
   IF p_item_id IS NULL THEN RETURN jsonb_build_object('ok', false, 'error', 'item_id 누락'); END IF;
   IF COALESCE(TRIM(p_reason), '') = '' THEN RETURN jsonb_build_object('ok', false, 'error', '사유 누락'); END IF;
 
-  IF NOT _caller_is_admin() THEN RAISE EXCEPTION '권한 없음 — operator/owner 필요'; END IF;
+  IF NOT _caller_is_admin() THEN RAISE EXCEPTION '권한 없음 — operator/owner/admin 필요'; END IF;
 
   SELECT * INTO v_item FROM task_items WHERE id = p_item_id;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'error', '품목을 찾을 수 없습니다'); END IF;
@@ -581,7 +582,7 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'kind 측 visit_fee / none 중 하나');
   END IF;
 
-  IF NOT _caller_is_admin() THEN RAISE EXCEPTION '권한 없음 — operator/owner 필요'; END IF;
+  IF NOT _caller_is_admin() THEN RAISE EXCEPTION '권한 없음 — operator/owner/admin 필요'; END IF;
 
   SELECT * INTO v_task FROM tasks WHERE id = p_task_id;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok', false, 'error', '작업 없음'); END IF;
@@ -648,23 +649,23 @@ COMMIT;
 -- SELECT obj_description((SELECT oid FROM pg_proc WHERE proname='compute_payment' LIMIT 1));
 -- 기대: 'v16 (Migration 073)' 포함.
 --
--- D. 시뮬 — 운영자 H001 최수연(operator) 세션 심기 + admin RPC 전 흐름 검증
+-- D. 시뮬 — 대표 A004 최수연(admin) 세션 심기 + admin RPC 전 흐름 검증
 -- 본 시뮬은 BEGIN/ROLLBACK 으로 감싸 실 데이터 무영향.
 -- SET LOCAL request.jwt.claims 측 jsonb 측 auth.uid() 측 흐름 측 운영자 세션 시뮬.
 -- 테스트 task: YS-260520-016 (김복주 / 완료 / 김동효 배정 / engineer_amount=66000 / travel_fee=0).
 --
--- ⚠️ 동명이인 주의 — 최수연 user 2명:
---    · A004 (admin role)    → _caller_is_admin() 거부 (가드는 owner/operator만)
+-- 운영자 식별 — 최수연 동명이인 2명:
+--    · A004 (admin role)    → 가드 확장 후 통과 ✅ (대표 계정)
 --    · H001 (operator role) → 통과 ✅
---    본 시뮬은 H001 (id=77777777-7777-7777-7777-bbbbbbbb0001) 사용.
+--    본 시뮬은 A004 (대표, id=77777777-7777-7777-7777-aaaaaaaa0004) 사용 — 대표가 실제 쓰는 계정 검증.
 --
 -- 통째 복붙 → SQL Editor → Run.
 --
 -- BEGIN;
 --
--- -- 운영자 세션 시뮬 (트랜잭션 내에서만)
--- SET LOCAL request.jwt.claims = '{"sub":"77777777-7777-7777-7777-bbbbbbbb0001","role":"authenticated"}';
--- SELECT auth.uid() AS caller_uid;  -- 기대: 77777777-7777-7777-7777-bbbbbbbb0001
+-- -- 대표 세션 시뮬 (트랜잭션 내에서만)
+-- SET LOCAL request.jwt.claims = '{"sub":"77777777-7777-7777-7777-aaaaaaaa0004","role":"authenticated"}';
+-- SELECT auth.uid() AS caller_uid;  -- 기대: 77777777-7777-7777-7777-aaaaaaaa0004
 --
 -- -- 사전 스냅샷
 -- SELECT 'BEFORE' AS phase, status,
