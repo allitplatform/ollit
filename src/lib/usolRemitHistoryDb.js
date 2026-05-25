@@ -139,3 +139,40 @@ export function summarize(items) {
   }
   return { pending, done, total: pending + done, count: items.length };
 }
+
+// KST 측 YYYY-MM-DD 변환 (completed_at 측 그룹 키)
+export function toKstYmd(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const k = new Date(d.getTime() + 9 * 3600 * 1000);
+  return `${k.getUTCFullYear()}-${String(k.getUTCMonth() + 1).padStart(2, "0")}-${String(k.getUTCDate()).padStart(2, "0")}`;
+}
+
+// 2026-05-26 — 1차: 완료일 (KST) / 2차: 기사별.
+//   반환: [{ ymd, total15Pct, count, engineerGroups: [groupByEngineer 결과] }]
+//   정렬: ymd desc (최신일 위).
+export function groupByDateThenEngineer(items) {
+  // 1차: ymd → items
+  const byDate = new Map();
+  for (const it of items) {
+    const ymd = toKstYmd(it.completedAt);
+    if (!ymd) continue;
+    if (!byDate.has(ymd)) byDate.set(ymd, []);
+    byDate.get(ymd).push(it);
+  }
+  // 2차: 각 날짜 안에서 기사별
+  const arr = [...byDate.entries()].map(([ymd, dateItems]) => {
+    const engineerGroups = groupByEngineer(dateItems);
+    const total15Pct = dateItems.reduce((s, it) => s + it.fifteenPct, 0);
+    return {
+      ymd,
+      count: dateItems.length,
+      total15Pct,
+      engineerGroups,
+    };
+  });
+  // ymd desc
+  arr.sort((a, b) => b.ymd.localeCompare(a.ymd));
+  return arr;
+}

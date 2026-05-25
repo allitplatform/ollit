@@ -8,7 +8,12 @@
 
 import { useEffect, useState, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
-import { fetchUsolRemitHistory, groupByEngineer, summarize } from "../../lib/usolRemitHistoryDb.js";
+import {
+  fetchUsolRemitHistory,
+  groupByDateThenEngineer,
+  summarize,
+  toKstYmd,
+} from "../../lib/usolRemitHistoryDb.js";
 
 const C_PENDING = "#FF3B5C";
 const C_DONE    = "#1D9E75";
@@ -46,13 +51,40 @@ export function UsolRemitHistoryScreen({ onBack }) {
   }, []);
 
   const summary = useMemo(() => summarize(items), [items]);
-  const groups  = useMemo(() => groupByEngineer(items), [items]);
+  // 2026-05-26 — 1차 그룹 = 작업 완료일 (KST), 2차 = 기사별.
+  const dateGroups = useMemo(() => groupByDateThenEngineer(items), [items]);
 
   // 이번 달 라벨 (KST)
   const monthLabel = useMemo(() => {
     const now = new Date();
     return `${now.getFullYear()}년 ${now.getMonth() + 1}월`;
   }, []);
+
+  // KST 오늘 ymd
+  const todayYmd = useMemo(() => {
+    const k = new Date(Date.now() + 9 * 3600 * 1000);
+    return `${k.getUTCFullYear()}-${String(k.getUTCMonth() + 1).padStart(2, "0")}-${String(k.getUTCDate()).padStart(2, "0")}`;
+  }, []);
+
+  // 펼침 상태 — 날짜 그룹별. 기본: 오늘 ymd 만 true.
+  //   items fetch 완료 후 첫 렌더에서 오늘 그룹만 true 로 초기화.
+  const [openDates, setOpenDates] = useState({});
+  useEffect(() => {
+    if (dateGroups.length === 0) return;
+    setOpenDates(prev => {
+      // 이미 사용자가 토글한 게 있으면 보존, 없으면 오늘만 펼침.
+      if (Object.keys(prev).length > 0) return prev;
+      const next = {};
+      for (const g of dateGroups) {
+        next[g.ymd] = (g.ymd === todayYmd);
+      }
+      return next;
+    });
+  }, [dateGroups, todayYmd]);
+
+  function toggleDate(ymd) {
+    setOpenDates(prev => ({ ...prev, [ymd]: !prev[ymd] }));
+  }
 
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
@@ -85,14 +117,100 @@ export function UsolRemitHistoryScreen({ onBack }) {
       {/* 로딩 / 에러 / 빈 상태 */}
       {loading && <EmptyBox>불러오는 중...</EmptyBox>}
       {!loading && error && <EmptyBox color="#FF3B5C">⚠️ {error}</EmptyBox>}
-      {!loading && !error && groups.length === 0 && (
+      {!loading && !error && dateGroups.length === 0 && (
         <EmptyBox>이번 달 기사 입금 내역이 없습니다</EmptyBox>
       )}
 
-      {/* 기사별 그룹 카드 */}
-      {!loading && groups.length > 0 && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {groups.map(g => <EngineerGroupCard key={g.engineerId || g.engineerCode || g.engineerName} group={g}/>)}
+      {/* 날짜별 그룹 (1차) → 기사별 카드 (2차, 펼침 시) */}
+      {!loading && dateGroups.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {dateGroups.map(dg => (
+            <DateGroup
+              key={dg.ymd}
+              dateGroup={dg}
+              isToday={dg.ymd === todayYmd}
+              isOpen={!!openDates[dg.ymd]}
+              onToggle={() => toggleDate(dg.ymd)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 날짜 라벨 — "5/26 (수)" 또는 "오늘" 측 자연 표시
+function formatDateHeader(ymd, isToday) {
+  const [y, m, d] = ymd.split("-").map(n => parseInt(n, 10));
+  if (!y || !m || !d) return ymd;
+  const date = new Date(y, m - 1, d);
+  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+  const label = `${m}/${d} (${weekdays[date.getDay()]})`;
+  return isToday ? `오늘 · ${label}` : label;
+}
+
+function DateGroup({ dateGroup, isToday, isOpen, onToggle }) {
+  const { ymd, count, total15Pct, engineerGroups } = dateGroup;
+  return (
+    <div style={{
+      background: "var(--bg-elevated, #1F1F1F)",
+      border: `1px solid ${isToday ? "rgba(255, 27, 141, 0.35)" : "var(--border, #2A2A2A)"}`,
+      borderRadius: 12,
+      overflow: "hidden",
+    }}>
+      {/* 날짜 헤더 — 토글 */}
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          padding: "12px 14px",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", gap: 10,
+          textAlign: "left",
+        }}
+      >
+        <span style={{
+          fontSize: 13, fontWeight: 800,
+          color: isToday ? "#FF4D9E" : "var(--text-primary, #FAF8F5)",
+        }}>
+          {formatDateHeader(ymd, isToday)}
+        </span>
+        <span style={{ color: C_GRAY, fontSize: 11 }}>·</span>
+        <span style={{ fontSize: 11, color: C_GRAY, fontWeight: 600 }}>
+          {count}건
+        </span>
+        <span className="mono" style={{
+          marginLeft: "auto",
+          fontSize: 13, fontWeight: 800,
+          color: "var(--text-primary, #FAF8F5)",
+          letterSpacing: "-0.2px",
+        }}>
+          {formatKrw(total15Pct)}
+        </span>
+        <span style={{
+          fontSize: 13, color: C_GRAY,
+          transition: "transform 0.15s",
+          transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
+          display: "inline-block",
+        }}>▾</span>
+      </button>
+
+      {/* 펼침 — 기사별 그룹 카드 */}
+      {isOpen && (
+        <div style={{
+          padding: "0 12px 12px",
+          display: "flex", flexDirection: "column", gap: 10,
+          borderTop: "1px solid var(--border, #2A2A2A)",
+          paddingTop: 12,
+        }}>
+          {engineerGroups.map(g => (
+            <EngineerGroupCard
+              key={g.engineerId || g.engineerCode || g.engineerName}
+              group={g}
+            />
+          ))}
         </div>
       )}
     </div>
