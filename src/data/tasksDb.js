@@ -38,6 +38,7 @@ const PAYMENT_SELECT = `
   task_items (
     id, qty, unit_price, subtotal,
     order_type, product_order_id,
+    is_canceled, canceled_reason, canceled_at,
     work_types (
       id, name,
       service_types ( id, code )
@@ -164,6 +165,10 @@ export function rowToTask(row) {
                          unitPrice:      Number(it.unit_price) || 0,
                          subtotal:       Number(it.subtotal) || 0,
                          productOrderId: it.product_order_id || null,
+                         // 2026-05-25 Round 1 마이그 070 — 부분취소 플래그
+                         isCanceled:     !!it.is_canceled,
+                         canceledReason: it.canceled_reason || null,
+                         canceledAt:     it.canceled_at || null,
                        }))
                      : (Array.isArray(cat.workItems) ? cat.workItems : []),
     // 2026-05-24 — 대표값도 본작업 우선 (sortedTaskItems[0])

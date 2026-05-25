@@ -93,6 +93,10 @@ export function v14NormalizeTask(t) {
       serviceCode:    it.serviceCode    || it.service_code    || null,
       orderType:      it.orderType      || it.order_type      || null,
       productOrderId: it.productOrderId || it.product_order_id || null,
+      // 2026-05-25 Round 1 마이그 070 — 부분취소 플래그 (3곳 매핑 트랩)
+      isCanceled:     it.isCanceled     ?? !!it.is_canceled,
+      canceledReason: it.canceledReason || it.canceled_reason || null,
+      canceledAt:     it.canceledAt     || it.canceled_at     || null,
     }));
   }
 
