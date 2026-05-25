@@ -3,7 +3,8 @@
 export function getStatusBadge(status) {
   switch (status) {
     case "완료":       return { color: "#1D9E75", bg: "rgba(29,158,117,0.12)" };
-    case "확정":       return { color: "#03C75A", bg: "rgba(3,199,90,0.12)" };
+    // 2026-05-25 — '확정' 색 변경: #03C75A(초록) → #6366F1(indigo). 완료(초록)·배정(파랑)과 시각 분리.
+    case "확정":       return { color: "#6366F1", bg: "rgba(99,102,241,0.12)" };
     case "진행중":     return { color: "#F59E0B", bg: "rgba(245,158,11,0.12)" };
     case "배정":       return { color: "#3B82F6", bg: "rgba(59,130,246,0.12)" };
     case "미배정":     return { color: "#9CA3AF", bg: "rgba(156,163,175,0.14)" };
