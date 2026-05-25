@@ -141,6 +141,9 @@ export function rowToTask(row) {
 
     // 메타
     categoryData:  cat,
+    // 2026-05-25 Round 2 — 취소 건 기사 수고비 (Migration 073)
+    cancelEngineerCompKind:   row.cancel_engineer_comp_kind   || null,
+    cancelEngineerCompAmount: row.cancel_engineer_comp_amount ?? null,
     // 2026-05-22 — 냉매 동의서 (category_data.consent jsonb 평탄화)
     //   { customerName, signatureUrl, signedAt } — 없으면 null
     consent:       cat.consent || null,

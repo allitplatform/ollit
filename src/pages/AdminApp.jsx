@@ -75,6 +75,13 @@ import {
   rejectCancelAdapter as apiRejectCancel,
   assignEngineerAdapter as apiAssignEngineer,
 } from "../data/tasksDb.js";
+// Round 2 — 취소 RPC (옛 어댑터와 분리)
+import {
+  adminFullCancel,
+  adminPartialCancelItem,
+  adminSetCancelCompensation,
+} from "../lib/cancelRpc.js";
+import { PartialCancelDialog } from "../components/CancelDialogs.jsx";
 import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { recommendEngineersGroupedAdapter } from "../utils/engineerRecommendation.js";
@@ -1029,6 +1036,9 @@ function _v14NormalizeTask(t) {
     // 2026-05-25 — 부분완료 (Migration 068)
     partialReason: t.partialReason ?? t.partial_reason ?? null,
     partialMemo:   t.partialMemo   ?? t.partial_memo   ?? null,
+    // 2026-05-25 Round 2 — 취소 건 기사 수고비 (Migration 073) — 3곳 매핑 트랩
+    cancelEngineerCompKind:   t.cancelEngineerCompKind   ?? t.cancel_engineer_comp_kind   ?? null,
+    cancelEngineerCompAmount: t.cancelEngineerCompAmount ?? t.cancel_engineer_comp_amount ?? null,
     pushCandidates: Array.isArray(t.pushCandidates) ? t.pushCandidates : Array.isArray(t.push_candidates) ? t.push_candidates : [],
     // 2026-05-17 Round 1 Fix #1 — payments JOIN 패스스루 (dashboardStats 매출 카드용).
     // 공유 v14NormalizeTask(src/utils/v14Task.js)에는 이미 매핑돼 있으나
@@ -1982,13 +1992,16 @@ export default function AdminApp({ user, onLogout }) {
   const [cancelHandleTask, setCancelHandleTask] = useState(null);
   const [cancelRejectReason, setCancelRejectReason] = useState("");
 
-  // V14 — 취소 확인
+  // V14 — 취소 확인 (기사 취소요청 → 운영자 승인)
+  // 2026-05-25 Round 2 — 옛 approveCancelAdapter 폐기, admin_full_cancel RPC 로 통일.
+  //   부수처리 (Optimistic / 토스트 / 모달 close / fetchTasks) 는 그대로 유지.
+  //   거절(handleRejectCancel) / 기사 측 취소요청(requestCancelAdapter) 경로는 무수정.
   async function handleApproveCancel() {
     if (!cancelHandleTask?.id) return;
     try {
-      const res = await apiApproveCancel(cancelHandleTask.id, '운영자 확인');
+      const res = await adminFullCancel(cancelHandleTask.id, '운영자 확인');
       if (!res || res.ok === false) {
-        addToast({ type: "completed", title: "취소 실패", message: (res && res.error) || "시트 박지 X" });
+        addToast({ type: "completed", title: "취소 실패", message: (res && res.error) || "알 수 없는 오류" });
         return;
       }
       // Optimistic
@@ -2534,8 +2547,9 @@ export default function AdminApp({ user, onLogout }) {
         } : null}
         onBack={goBackFromStack}
         onCancelTask={async (reasonId, memo) => {
-          // Phase 4-3-b — 운영자 측 [예외처리 → 취소] 흐름 DB 호출 추가
-          // 시트 시절 시뮬 코드 (알림 + 토스트만) → approveCancelAdapter 호출
+          // 2026-05-25 Round 2 — 옛 approveCancelAdapter 경로 폐기, 신규 admin_full_cancel RPC 호출.
+          //   RPC 가 status='취소' + task_items 전부 is_canceled=true 자동 + 070 트리거 연쇄.
+          //   기본 수고비 kind='none'. 운영자가 작업상세 컨트롤에서 visit_fee 토글 가능.
           const tk = selectedTaskDetail;
           if (!tk?.id) {
             addToast({ type: "completed", title: "취소 실패", message: "작업 정보 없음" });
@@ -2543,7 +2557,7 @@ export default function AdminApp({ user, onLogout }) {
           }
           const reason = `${reasonId}${memo ? " · " + memo : ""}`;
           try {
-            const res = await apiApproveCancel(tk.id, reason);
+            const res = await adminFullCancel(tk.id, reason);
             if (!res || res.ok === false) {
               addToast({ type: "completed", title: "취소 실패", message: (res && res.error) || "알 수 없는 오류" });
               return;
@@ -2575,6 +2589,40 @@ export default function AdminApp({ user, onLogout }) {
             console.error("[onCancelTask] 에러:", e);
             addToast({ type: "completed", title: "취소 에러", message: e.message || "취소 처리 중 오류" });
           }
+        }}
+        onPartialCancel={async (itemIds, reason) => {
+          // 2026-05-25 Round 2 — 운영자 부분취소 (item별 admin_partial_cancel_item RPC 순차 호출).
+          const tk = selectedTaskDetail;
+          if (!tk?.id || !Array.isArray(itemIds) || itemIds.length === 0) return;
+          let ok = 0, fail = 0;
+          for (const itemId of itemIds) {
+            const res = await adminPartialCancelItem(itemId, reason);
+            if (res && res.ok) ok += 1; else fail += 1;
+          }
+          if (fail === 0) {
+            addToast({ type: "completed", title: "부분 취소 완료", message: `${ok}건 처리됨` });
+          } else {
+            addToast({ type: "completed", title: "부분 취소 일부 실패", message: `성공 ${ok} / 실패 ${fail}` });
+          }
+          // refetch trigger — realtime / 다음 polling 시 동기. Optimistic 갱신 X (item 단위).
+        }}
+        onSetCompensation={async (kind) => {
+          // 2026-05-25 Round 2 — 취소 건 기사 수고비 토글 (admin_set_cancel_compensation RPC).
+          const tk = selectedTaskDetail;
+          if (!tk?.id || !kind) return;
+          const res = await adminSetCancelCompensation(tk.id, kind);
+          if (!res || res.ok === false) {
+            addToast({ type: "completed", title: "수고비 변경 실패", message: (res && res.error) || "오류" });
+            return;
+          }
+          const amount = res.data?.engineer_amount ?? 0;
+          // Optimistic — 화면 즉시 반영
+          setApiTasks(prev => prev.map(t =>
+            t.id === tk.id
+              ? { ...t, cancelEngineerCompKind: kind, cancelEngineerCompAmount: amount }
+              : t
+          ));
+          addToast({ type: "completed", title: "수고비 변경", message: `${kind === "visit_fee" ? "출장비만" : "없음"} · ₩${amount.toLocaleString("ko-KR")}` });
         }}
         onVisitOnly={(payload) => {
           addNotification({
@@ -6516,9 +6564,10 @@ function PhotoThumbnail({ t, label, type, onClick }) {
   );
 }
 
-function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, user }) {
+function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onPartialCancel, onSetCompensation, user }) {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
+  const [showPartialDialog, setShowPartialDialog] = useState(false);
   const memos = task ? loadMemos(task.id) : [];
   const historyCount = task ? getHistoryCount(task.id) : 0;
   const canSeeHistory = user && ["owner", "admin"].includes(user.role);
@@ -6869,14 +6918,16 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
           )}
         </div>
 
-        {/* Step 8+9 V7 — 활성 단계 액션 (출장비만 / 작업 취소) */}
-        {!isExternal && task.state !== "done" && (
+        {/* 2026-05-25 Round 2 — 액션 박스: 전 상태(취소 제외) 표시. 부분취소 + 전체취소.
+              · 기존 'state !== "done"' 가드 제거 — 완료 건도 즉시 취소 가능 (사장님 spec).
+              · 새 ◐ 부분 취소 버튼 — admin_partial_cancel_item RPC.
+              · 기존 ⚫ 작업 취소 → admin_full_cancel RPC (옛 approveCancelAdapter 폐기). */}
+        {!isExternal && task.status !== "취소" && (
           <div style={{
             marginTop: 18, paddingTop: 14,
             borderTop: `1px solid ${t.border}`,
             display: "flex", flexDirection: "column", gap: 8,
           }}>
-            {/* 진행중 (active/moving)일 때 [🚗 출장비만] 노출 */}
             {(task.state === "active" || task.state === "moving") && (
               <button
                 onClick={() => setShowVisitOnlyDialog(true)}
@@ -6890,6 +6941,16 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
               >🚗 출장비만 정산 (작업 못함)</button>
             )}
             <button
+              onClick={() => setShowPartialDialog(true)}
+              style={{
+                width: "100%", padding: "12px",
+                background: "rgba(156, 163, 175, 0.10)",
+                border: "1px solid rgba(156, 163, 175, 0.30)",
+                color: "#9CA3AF", fontSize: 13, fontWeight: 600,
+                borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+              }}
+            >◐ 품목별 취소</button>
+            <button
               onClick={() => setShowCancelDialog(true)}
               style={{
                 width: "100%", padding: "12px",
@@ -6898,7 +6959,55 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
                 color: "#FF3D5A", fontSize: 13, fontWeight: 600,
                 borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
               }}
-            >⚫ 작업 취소</button>
+            >⚫ 작업 전체 취소</button>
+          </div>
+        )}
+
+        {/* 2026-05-25 Round 2 — 기사 수고비 컨트롤 (취소된 task + 배정기사 있을 때만).
+              · admin_set_cancel_compensation RPC 호출.
+              · 옵션 2개: visit_fee(출장비만, 30000 또는 task.travel_fee) / none(없음, 0). */}
+        {task.status === "취소" && task.assigned_engineer_id && (
+          <div style={{
+            marginTop: 18, paddingTop: 14,
+            borderTop: `1px solid ${t.border}`,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, marginBottom: 8 }}>
+              기사 수고비 (취소 작업)
+            </div>
+            <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 10 }}>
+              배정: <strong style={{ color: t.text }}>{task.assignedEngineer || "—"}</strong>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[
+                { kind: "visit_fee", label: "출장비만", amountHint: task.travel_fee ? `₩${Number(task.travel_fee).toLocaleString("ko-KR")}` : "₩30,000" },
+                { kind: "none",      label: "없음",     amountHint: "₩0" },
+              ].map(opt => {
+                const active = task.cancelEngineerCompKind === opt.kind;
+                return (
+                  <button
+                    key={opt.kind}
+                    onClick={() => onSetCompensation && onSetCompensation(opt.kind)}
+                    style={{
+                      flex: 1, padding: "10px 8px",
+                      background: active ? "rgba(255, 27, 141, 0.12)" : t.bgInset,
+                      border: `1px solid ${active ? "#FF1B8D" : t.border}`,
+                      color: active ? "#FF1B8D" : t.textSecondary,
+                      fontSize: 12, fontWeight: 700,
+                      borderRadius: 8, cursor: "pointer", fontFamily: "inherit",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                    }}
+                  >
+                    <span>{opt.label}</span>
+                    <span className="mono" style={{ fontSize: 10, fontWeight: 500 }}>{opt.amountHint}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {task.cancelEngineerCompAmount != null && (
+              <div style={{ fontSize: 10, color: t.textMuted, marginTop: 8, textAlign: "right" }}>
+                현재 적용: <span className="mono">₩{Number(task.cancelEngineerCompAmount).toLocaleString("ko-KR")}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -6911,6 +7020,18 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
           onConfirm={(reasonId, memo) => {
             setShowCancelDialog(false);
             onCancelTask && onCancelTask(reasonId, memo);
+          }}
+        />
+      )}
+
+      {/* 부분취소 다이얼로그 (Round 2) */}
+      {showPartialDialog && (
+        <PartialCancelDialog
+          task={task}
+          onClose={() => setShowPartialDialog(false)}
+          onConfirm={async (itemIds, reason) => {
+            setShowPartialDialog(false);
+            if (onPartialCancel) await onPartialCancel(itemIds, reason);
           }}
         />
       )}

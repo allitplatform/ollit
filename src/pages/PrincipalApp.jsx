@@ -26,6 +26,9 @@ import { UsolNCsvMatch } from "../components/usol_n/UsolNCsvMatch.jsx";
 import { NewReceptionScreenLite } from "../components/principal/NewReceptionScreenLite.jsx";
 import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
 import { getPartialReasonLabel } from "../components/EngineerTaskCompletionScreens.jsx";
+// Round 2 — 원청 취소 RPC + 공유 다이얼로그
+import { partnerFullCancel, partnerPartialCancelItem } from "../lib/cancelRpc.js";
+import { FullCancelDialog, PartialCancelDialog } from "../components/CancelDialogs.jsx";
 import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
 import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
 
@@ -854,6 +857,54 @@ function TaskDetail({ t, task: initialTask, onBack }) {
     }
   }
 
+  // 2026-05-25 Round 2 — 원청 취소 액션 (전체 + 부분)
+  const [showFullCancel, setShowFullCancel]       = useState(false);
+  const [showPartialCancel, setShowPartialCancel] = useState(false);
+  const [cancelBusy, setCancelBusy]               = useState(false);
+
+  async function handleFullCancel(reason) {
+    if (!task?.id || cancelBusy) return;
+    setCancelBusy(true);
+    try {
+      const res = await partnerFullCancel(task.id, reason);
+      if (!res?.ok) {
+        alert("취소 실패: " + (res?.error || "알 수 없는 오류"));
+        return;
+      }
+      setShowFullCancel(false);
+      // Optimistic + refetch
+      setTask(prev => ({ ...prev, status: "취소" }));
+      const row = await getTaskByIdDb(task.id);
+      if (row) {
+        const normalized = v14NormalizeTask(row);
+        if (normalized) setTask(normalized);
+      }
+    } finally {
+      setCancelBusy(false);
+    }
+  }
+
+  async function handlePartialCancel(itemIds, reason) {
+    if (!task?.id || !Array.isArray(itemIds) || itemIds.length === 0) return;
+    setCancelBusy(true);
+    let ok = 0, fail = 0;
+    try {
+      for (const itemId of itemIds) {
+        const res = await partnerPartialCancelItem(itemId, reason);
+        if (res && res.ok) ok += 1; else fail += 1;
+      }
+      if (fail > 0) alert(`부분 취소 — 성공 ${ok} / 실패 ${fail}`);
+      setShowPartialCancel(false);
+      const row = await getTaskByIdDb(task.id);
+      if (row) {
+        const normalized = v14NormalizeTask(row);
+        if (normalized) setTask(normalized);
+      }
+    } finally {
+      setCancelBusy(false);
+    }
+  }
+
   // 상품주문별 정산 — task_items + remit 별도 fetch (mount 시)
   const [settleItems, setSettleItems] = useState([]);
   const [settleRemits, setSettleRemits] = useState([]);
@@ -998,6 +1049,54 @@ function TaskDetail({ t, task: initialTask, onBack }) {
           }}>{memoSaving ? "저장 중..." : "메모 저장"}</button>
         )}
       </div>
+
+      {/* 2026-05-25 Round 2 — 원청 취소 액션 박스 (status='취소' 인 task 는 미표시) */}
+      {task.status !== "취소" && (
+        <div style={{
+          background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12,
+          display: "flex", flexDirection: "column", gap: 8,
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, marginBottom: 2 }}>
+            취소 처리
+          </div>
+          <button
+            onClick={() => setShowPartialCancel(true)}
+            style={{
+              width: "100%", padding: "12px",
+              background: "rgba(156, 163, 175, 0.10)",
+              border: "1px solid rgba(156, 163, 175, 0.30)",
+              color: "#9CA3AF", fontSize: 13, fontWeight: 600,
+              borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >◐ 품목별 취소</button>
+          <button
+            onClick={() => setShowFullCancel(true)}
+            style={{
+              width: "100%", padding: "12px",
+              background: "rgba(239, 68, 68, 0.10)",
+              border: "1px solid rgba(239, 68, 68, 0.30)",
+              color: "#FF3D5A", fontSize: 13, fontWeight: 600,
+              borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >⛔ 작업 전체 취소</button>
+        </div>
+      )}
+
+      {showFullCancel && (
+        <FullCancelDialog
+          task={task}
+          onClose={() => setShowFullCancel(false)}
+          onConfirm={handleFullCancel}
+        />
+      )}
+
+      {showPartialCancel && (
+        <PartialCancelDialog
+          task={task}
+          onClose={() => setShowPartialCancel(false)}
+          onConfirm={handlePartialCancel}
+        />
+      )}
 
       {task.happycallMemo && (
         <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>

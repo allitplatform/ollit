@@ -201,6 +201,9 @@ export function v14NormalizeTask(t) {
     // 2026-05-25 — 부분완료 (Migration 068)
     partialReason: t.partialReason ?? t.partial_reason ?? null,
     partialMemo:   t.partialMemo   ?? t.partial_memo   ?? null,
+    // 2026-05-25 Round 2 — 취소 건 기사 수고비 (Migration 073) — 3곳 매핑
+    cancelEngineerCompKind:   t.cancelEngineerCompKind   ?? t.cancel_engineer_comp_kind   ?? null,
+    cancelEngineerCompAmount: t.cancelEngineerCompAmount ?? t.cancel_engineer_comp_amount ?? null,
     // Phase 4-2 fix — DB 전환 측 누락 필드 (dashboardStats 카운트 catch)
     createdAt:  t.createdAt  || t.created_at  || t.receivedAt || t.received_at || "",
     receivedAt: t.receivedAt || t.received_at || "",
