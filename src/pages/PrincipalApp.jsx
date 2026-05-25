@@ -1709,7 +1709,7 @@ function InfoTab({ t, user, onLogout }) {
         </div>
       </div>
 
-      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "20px", marginBottom: 12 }}>
+      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "20px", marginBottom: 16 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
           <div style={{
             width: 56, height: 56, borderRadius: 16,
@@ -1729,27 +1729,6 @@ function InfoTab({ t, user, onLogout }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
           {userCode && <Row t={t} label="계정 코드" value={userCode} mono/>}
           {userPhone && <Row t={t} label="연락처" value={userPhone} mono/>}
-        </div>
-      </div>
-
-      <div style={{ background: t.infoBg, border: `1px solid ${t.info}30`, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: t.info, marginBottom: 8 }}>
-          🔒 보안 안내
-        </div>
-        <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.7 }}>
-          · 운영팀(올잇)이 모니터링 중<br/>
-          · 30일 자동 로그인 유지
-        </div>
-      </div>
-
-      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
-          📞 문의
-        </div>
-        <div style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.7 }}>
-          시스템 관련: 올잇 운영팀<br/>
-          긴급 작업: 카카오톡 운영팀<br/>
-          이메일: support@allit.co.kr
         </div>
       </div>
 
