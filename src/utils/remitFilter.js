@@ -91,5 +91,17 @@ export function isTrackC(task) {
   const extraFee = Number(task.extraFee || task.extra_fee || 0);
   if (extraFee <= 0) return false;
 
+  // 2026-05-26 — 세척(cleaning) 한정. compute_payment v16 v_cleaning_principal_bonus
+  //   분기 조건 (v_service_code='cleaning' AND v_principal_code='usol_n') 일치.
+  //   냉매 작업에 현장추가금 붙어도 15% 보너스는 cleaning item 측만 부여 — refrigerant_rate 별도 정산.
+  const items = Array.isArray(task.workItems) ? task.workItems : [];
+  const hasCleaning = items.some(it => {
+    const code = it.serviceCode || it.service_code;
+    if (code === 'cleaning') return true;
+    const wt = String(it.workType || it.work_type || "");
+    return wt.includes('세척');
+  });
+  if (!hasCleaning) return false;
+
   return true;
 }

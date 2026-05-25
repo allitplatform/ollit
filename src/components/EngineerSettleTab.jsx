@@ -345,11 +345,27 @@ export function EngineerSettleTab({
 
         {/* 2026-05-19 Fix #30 🅒 — 유솔 송금 카드.
               2026-05-25 — 액션 추가 (계좌 + 보고 + pill).
-              2026-05-26 — 0건이어도 항상 표시 + 색상 초록 계열 (유솔N 카드 톤). */}
-        {usolRemit && (() => {
-          const hasItems   = !!usolRemit.hasItems;
+              2026-05-26 — 색상 초록 계열 + 항상 표시. 0건 시 한 줄 헤더만 (회색 톤). */}
+        {usolRemit && !usolRemit.hasItems && (
+          <div style={{
+            background: "var(--card-bg)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: "11px 14px",
+            marginBottom: 14,
+            display: "flex", alignItems: "center", gap: 8,
+            fontSize: 13, color: "var(--text-tertiary)", fontWeight: 600,
+          }}>
+            <span style={{ fontSize: 14 }}>📤</span>
+            <span>유솔 입금</span>
+            <span style={{ color: "var(--border)" }}>·</span>
+            <span>오늘 0건</span>
+          </div>
+        )}
+        {usolRemit && usolRemit.hasItems && (() => {
+          const hasItems   = true;
           const isReported = !!usolRemit.isReported;
-          const buttonDisabled = !hasItems || isReported;
+          const buttonDisabled = isReported;
           return (
           <div style={{
             background: "var(--card-bg)",
@@ -375,25 +391,15 @@ export function EngineerSettleTab({
                 }}>📤</span>
                 <span>유솔 입금</span>
               </div>
-              {hasItems ? (
-                <span style={{
-                  fontSize: 12, fontWeight: 700,
-                  color: isReported ? "#03C75A" : "var(--transfer-pill-text)",
-                  padding: "4px 11px",
-                  background: isReported ? "rgba(3,199,90,0.10)" : "var(--transfer-pill-bg)",
-                  borderRadius: 999,
-                }}>
-                  {isReported ? "입금 완료" : "미입금"}
-                </span>
-              ) : (
-                <span style={{
-                  fontSize: 12, fontWeight: 700,
-                  color: "var(--text-tertiary)",
-                  padding: "4px 11px",
-                  background: "var(--bg-tertiary)",
-                  borderRadius: 999,
-                }}>—</span>
-              )}
+              <span style={{
+                fontSize: 12, fontWeight: 700,
+                color: isReported ? "#03C75A" : "var(--transfer-pill-text)",
+                padding: "4px 11px",
+                background: isReported ? "rgba(3,199,90,0.10)" : "var(--transfer-pill-bg)",
+                borderRadius: 999,
+              }}>
+                {isReported ? "입금 완료" : "미입금"}
+              </span>
             </div>
 
             {/* Hero 금액 */}
