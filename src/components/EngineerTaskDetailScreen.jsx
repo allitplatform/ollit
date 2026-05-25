@@ -269,6 +269,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   const [menuOpen, setMenuOpen] = useState(false);
   const [visitOnlyOpen, setVisitOnlyOpen] = useState(false);
   const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule"
+  // 2026-05-25 — '일정 변경 · 취소' 카드 접힘/펼침. 기본 접힘 (기사 실수 방지 spec).
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [saving, setSaving] = useState(false); // 2026-05-17 — 완료 분기 진입 직전 extraFee 사전 저장 표시
   const beforeFileRef = useRef(null);
   const afterFileRef  = useRef(null);
@@ -649,115 +651,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         </>
       )}
 
-      {/* 2026-05-25 — '일정 변경 · 취소' 통합 카드 (옛 ⋮ 메뉴 + 재배정 요청 + 부분/전체 취소).
-            상태별 행 표시:
-              · 확정    : 일정 변경 / 재배정 요청 / 작업 취소 (3개)
-              · 배정    : 재배정 요청 / 작업 취소 (2개)
-              · 진행중  : 재배정 요청 / 부분 취소 (2개)
-              · 그 외   : 카드 미표시.
-            '작업 취소' / '부분 취소' 행은 빨강. */}
-      {(() => {
-        const isAssigned   = task.status === "배정";
-        const showCard = isAssigned || isConfirmed || isInProgress;
-        if (!showCard) return null;
-
-        const hasReassignReq = !!(task.reassignRequest?.requestedAt);
-        const reassignReqAt  = hasReassignReq ? formatTimeOnly(task.reassignRequest.requestedAt) : "";
-        const reassignReason = hasReassignReq ? (task.reassignRequest.reason || "") : "";
-
-        const ROW_STYLE = {
-          width: "100%",
-          padding: "13px 14px",
-          background: "transparent",
-          border: "none",
-          color: "var(--text-primary)",
-          fontSize: 14, fontWeight: 600,
-          cursor: "pointer", fontFamily: "inherit",
-          display: "flex", alignItems: "center", gap: 10,
-          textAlign: "left",
-        };
-        const DIVIDER_STYLE = { height: 1, background: "var(--border)" };
-        const ARROW = (
-          <span style={{ marginLeft: "auto", color: "var(--text-tertiary)", fontSize: 14 }}>›</span>
-        );
-
-        const Row = ({ icon, label, danger, onClick, disabled = false }) => (
-          <button
-            onClick={disabled ? undefined : onClick}
-            disabled={disabled}
-            style={{
-              ...ROW_STYLE,
-              color: disabled
-                ? "var(--text-tertiary)"
-                : (danger ? "#FF3B5C" : "var(--text-primary)"),
-              cursor: disabled ? "not-allowed" : "pointer",
-              opacity: disabled ? 0.5 : 1,
-            }}
-          >
-            <span style={{ fontSize: 16, width: 22, textAlign: "center" }}>{icon}</span>
-            <span>{label}</span>
-            {ARROW}
-          </button>
-        );
-
-        return (
-          <div style={{ padding: "12px 16px 4px" }}>
-            <div style={{
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: 12,
-              overflow: "hidden",
-            }}>
-              <div style={{
-                padding: "10px 14px 6px",
-                fontSize: 11, fontWeight: 700,
-                color: "var(--text-tertiary)",
-                letterSpacing: 0.3,
-              }}>
-                일정 변경 · 취소
-              </div>
-
-              {isConfirmed && (
-                <>
-                  <Row icon="🕐" label="일정 변경" onClick={() => setSubScreen("reschedule")}/>
-                  <div style={DIVIDER_STYLE}/>
-                </>
-              )}
-
-              {hasReassignReq ? (
-                <div style={{
-                  padding: "10px 14px",
-                  background: "rgba(255,27,141,0.08)",
-                  borderTop: isConfirmed ? "1px solid var(--border)" : "none",
-                  borderBottom: "1px solid var(--border)",
-                  fontSize: 12, lineHeight: 1.6,
-                }}>
-                  <div style={{ fontWeight: 700, color: "#FF1B8D", marginBottom: 2 }}>
-                    🔁 재배정 요청됨 — 운영자 확인 대기{reassignReqAt ? ` (${reassignReqAt})` : ""}
-                  </div>
-                  {reassignReason && (
-                    <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-                      사유: {reassignReason}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <Row icon="🔁" label="재배정 요청" onClick={() => onRequestReassign?.(task)}/>
-                  <div style={DIVIDER_STYLE}/>
-                </>
-              )}
-
-              <Row
-                icon="⛔"
-                label={isInProgress ? "부분 취소" : "작업 취소"}
-                danger
-                onClick={() => setSubScreen("cancel")}
-              />
-            </div>
-          </div>
-        );
-      })()}
+      {/* 2026-05-25 — '일정 변경 · 취소' 카드는 화면 맨 아래 (작업 시작/완료 버튼 아래) 로 이동.
+            여기 자리는 비움. 약속대기 안내 → 메인 CTA 흐름 그대로. */}
 
       {/* 약속대기 — 안내 */}
       {isWaiting && (
@@ -923,6 +818,136 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
       })()}
 
       {/* 2026-05-25 — ⋮ 메뉴(TaskMenu) 호출 제거. 항목은 '일정 변경 · 취소' 카드로 통합. */}
+
+      {/* 2026-05-25 — '일정 변경 · 취소' 카드 (화면 맨 아래, 작업 시작/완료 버튼 아래).
+            기본 접힘 — 헤더만 보이고 ▾. 탭 시 펼침 + 행 3개. (기사 실수 방지 spec)
+            상태별 행:
+              · 확정    : 일정 변경 / 재배정 요청 / 작업 취소 (3개)
+              · 배정    : 재배정 요청 / 작업 취소 (2개)
+              · 진행중  : 재배정 요청 / 부분 취소 (2개)
+              · 그 외   : 카드 미표시.
+            '작업 취소' / '부분 취소' 행은 빨강. */}
+      {(() => {
+        const isAssigned = task.status === "배정";
+        const showCard   = isAssigned || isConfirmed || isInProgress;
+        if (!showCard) return null;
+
+        const hasReassignReq = !!(task.reassignRequest?.requestedAt);
+        const reassignReqAt  = hasReassignReq ? formatTimeOnly(task.reassignRequest.requestedAt) : "";
+        const reassignReason = hasReassignReq ? (task.reassignRequest.reason || "") : "";
+
+        const ROW_STYLE = {
+          width: "100%",
+          padding: "13px 14px",
+          background: "transparent",
+          border: "none",
+          color: "var(--text-primary)",
+          fontSize: 14, fontWeight: 600,
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", gap: 10,
+          textAlign: "left",
+        };
+        const DIVIDER_STYLE = { height: 1, background: "var(--border)" };
+        const ARROW = (
+          <span style={{ marginLeft: "auto", color: "var(--text-tertiary)", fontSize: 14 }}>›</span>
+        );
+
+        const Row = ({ icon, label, danger, onClick }) => (
+          <button
+            onClick={onClick}
+            style={{
+              ...ROW_STYLE,
+              color: danger ? "#FF3B5C" : "var(--text-primary)",
+            }}
+          >
+            <span style={{ fontSize: 16, width: 22, textAlign: "center" }}>{icon}</span>
+            <span>{label}</span>
+            {ARROW}
+          </button>
+        );
+
+        return (
+          <div style={{ padding: "4px 16px 22px" }}>
+            <div style={{
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: 12,
+              overflow: "hidden",
+            }}>
+              {/* 헤더 — 토글 (기본 접힘) */}
+              <button
+                onClick={() => setActionsOpen(v => !v)}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  background: "transparent",
+                  border: "none",
+                  fontSize: 12, fontWeight: 700,
+                  color: "var(--text-tertiary)",
+                  letterSpacing: 0.3,
+                  cursor: "pointer", fontFamily: "inherit",
+                  display: "flex", alignItems: "center",
+                  textAlign: "left",
+                }}
+              >
+                <span>일정 변경 · 취소</span>
+                <span style={{
+                  marginLeft: "auto",
+                  fontSize: 13,
+                  color: "var(--text-tertiary)",
+                  transition: "transform 0.15s",
+                  transform: actionsOpen ? "rotate(180deg)" : "rotate(0deg)",
+                  display: "inline-block",
+                }}>▾</span>
+              </button>
+
+              {/* 펼침 시 행 표시 */}
+              {actionsOpen && (
+                <>
+                  <div style={DIVIDER_STYLE}/>
+
+                  {isConfirmed && (
+                    <>
+                      <Row icon="🕐" label="일정 변경" onClick={() => setSubScreen("reschedule")}/>
+                      <div style={DIVIDER_STYLE}/>
+                    </>
+                  )}
+
+                  {hasReassignReq ? (
+                    <div style={{
+                      padding: "10px 14px",
+                      background: "rgba(255,27,141,0.08)",
+                      borderBottom: "1px solid var(--border)",
+                      fontSize: 12, lineHeight: 1.6,
+                    }}>
+                      <div style={{ fontWeight: 700, color: "#FF1B8D", marginBottom: 2 }}>
+                        🔁 재배정 요청됨 — 운영자 확인 대기{reassignReqAt ? ` (${reassignReqAt})` : ""}
+                      </div>
+                      {reassignReason && (
+                        <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                          사유: {reassignReason}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <Row icon="🔁" label="재배정 요청" onClick={() => onRequestReassign?.(task)}/>
+                      <div style={DIVIDER_STYLE}/>
+                    </>
+                  )}
+
+                  <Row
+                    icon="⛔"
+                    label={isInProgress ? "부분 취소" : "작업 취소"}
+                    danger
+                    onClick={() => setSubScreen("cancel")}
+                  />
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 출장비만 다이얼로그 */}
       {visitOnlyOpen && (
