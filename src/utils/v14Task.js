@@ -231,6 +231,8 @@ export function v14NormalizeTask(t) {
     engineerRemittedAt:       t.engineerRemittedAt       || null,
     engineerRemitConfirmedAt: t.engineerRemitConfirmedAt || null,
     engineerRemitConfirmedBy: t.engineerRemitConfirmedBy || null,
+    // 2026-05-25 Migration 077 — 기사 → 유솔 입금 흐름 (trackC, self-report)
+    usolRemittedAt:           t.usolRemittedAt           ?? t.usol_remitted_at ?? null,
 
     // 2026-05-22 — 냉매 동의서 (category_data.consent 평탄화, 3곳 매핑 트랩)
     consent: t.consent || t.categoryData?.consent || null,

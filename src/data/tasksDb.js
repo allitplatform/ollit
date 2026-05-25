@@ -33,7 +33,8 @@ const PAYMENT_SELECT = `
     track,
     engineer_remitted_at,
     engineer_remit_confirmed_at,
-    engineer_remit_confirmed_by
+    engineer_remit_confirmed_by,
+    usol_remitted_at
   ),
   task_items (
     id, qty, unit_price, subtotal,
@@ -210,6 +211,8 @@ export function rowToTask(row) {
     engineerRemittedAt:       payment?.engineer_remitted_at        || null,
     engineerRemitConfirmedAt: payment?.engineer_remit_confirmed_at || null,
     engineerRemitConfirmedBy: payment?.engineer_remit_confirmed_by || null,
+    // 2026-05-25 Migration 077 — 기사 → 유솔 입금 흐름 (trackC, self-report only)
+    usolRemittedAt:           payment?.usol_remitted_at            || null,
 
     _source: "supabase",
   };

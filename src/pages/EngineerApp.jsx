@@ -100,7 +100,7 @@ import { EngineerNotiTab } from "../components/EngineerNotiTab.jsx";
 import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
 import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
 import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
-import { reportEngineerRemit } from "../lib/paymentsDb.js";
+import { reportEngineerRemit, reportUsolRemit } from "../lib/paymentsDb.js";
 // Round 3 — Migration 076 RPC (anon 키 + p_actor 패턴, 옛 requestCancelAdapter 경로 우회)
 import { requestEngineerCancel } from "../lib/engineerTaskRpc.js";
 import { UsolNSettlementScreen } from "../components/UsolNSettlementScreen.jsx";
@@ -3687,6 +3687,23 @@ function extractTimeHint(hint) {
 export default function EngineerApp({ user, onLogout }) {
   // V13-1-fix — localStorage 모드 로드 + CSS 변수 적용
   const [mode, setMode] = useState(() => loadThemeSaved());
+  // 2026-05-25 — 유솔 입금 카드: usol_n principal 계좌 정보 (마운트 1회 fetch).
+  const [usolAccount, setUsolAccount] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    supabase.from("principals")
+      .select("bank_name, account_number, account_holder, name")
+      .eq("code", "usol_n").maybeSingle()
+      .then(({ data }) => {
+        if (!alive || !data) return;
+        setUsolAccount({
+          bankName:      data.bank_name      || "",
+          accountNumber: data.account_number || "",
+          accountHolder: data.account_holder || data.name || "유솔홈케어",
+        });
+      });
+    return () => { alive = false; };
+  }, []);
   // V14 — navigation stack: 알림 → 작업 → 뒤로 = 알림 복귀
   const [screenStack, setScreenStack] = useState(["main"]);
   const screen = screenStack[screenStack.length - 1];
@@ -4255,11 +4272,14 @@ export default function EngineerApp({ user, onLogout }) {
   const todayTrackATasks = todayCompletedTasks.filter(isTrackARemittance);
 
   // 2026-05-19 Fix #30 🅒 — 유솔 송금 대상 (트랙 🅒, 현장 추가건 있는 cleaning).
-  // compute_payment v11이 principal_amount=15% 자동 계산 → 그 합계가 유솔 송금 금액.
+  // 2026-05-25 — 금액 정정: SUM(principal_amount) 측 본작업 유솔 몫이 섞임 → 현장추가금 15%만.
+  //   compute_payment v16 의 FLOOR(extra_fee * 0.15) 와 동일 공식.
   const todayTrackCTasks = todayCompletedTasks.filter(isTrackC);
   const usolRemit = todayTrackCTasks.length > 0 ? {
-    amount: todayTrackCTasks.reduce((s, t) => s + Number(t.principal_amount || 0), 0),
-    count:  todayTrackCTasks.length,
+    amount:     todayTrackCTasks.reduce((s, t) => s + Math.floor(Number(t.extraFee || t.extra_fee || 0) * 0.15), 0),
+    count:      todayTrackCTasks.length,
+    isReported: todayTrackCTasks.every(t => !!t.usolRemittedAt),
+    taskIds:    todayTrackCTasks.map(t => t.id),
   } : null;
 
   // 2026-05-20 Phase 5 Step 0.E-2 — _MONTH_STATS_MOCK 측 제거 (운영 측 X)
@@ -4820,6 +4840,25 @@ export default function EngineerApp({ user, onLogout }) {
             monthStats={monthStats}
             usolN={usolN}
             usolRemit={usolRemit}
+            usolAccount={usolAccount}
+            onConfirmUsolRemit={async () => {
+              if (!usolRemit || usolRemit.count === 0) {
+                alert("오늘 유솔에 송금할 작업이 없습니다.");
+                return;
+              }
+              if (usolRemit.isReported) {
+                alert("이미 입금 완료 보고됨.");
+                return;
+              }
+              if (!confirm(`유솔에 ${usolRemit.amount.toLocaleString("ko-KR")}원 입금 보고할까요?`)) return;
+              const res = await reportUsolRemit(usolRemit.taskIds);
+              if (res.ok) {
+                alert("유솔 입금 보고 접수됨.");
+                window.location.reload();
+              } else {
+                alert("처리 실패: " + res.error);
+              }
+            }}
             companyAccount={companyAccount}
             onClickToday={() => setScreen("settlementDetail")}
             onClickUsolN={() => setScreen("usolNSettlement")}

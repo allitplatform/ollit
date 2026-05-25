@@ -13,7 +13,7 @@
 import { supabase } from "./supabase.js";
 
 // ============================================
-// 1) 기사 "입금 완료 보고" 박음 (taskIds 일괄)
+// 1) 기사 "입금 완료 보고" (회사 송금 — taskIds 일괄)
 // ============================================
 export async function reportEngineerRemit(taskIds) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
@@ -26,7 +26,29 @@ export async function reportEngineerRemit(taskIds) {
     .in("task_id", taskIds);
 
   if (error) {
-    console.error("[reportEngineerRemit] 박지 X:", error);
+    console.error("[reportEngineerRemit] 실패:", error);
+    return { ok: false, error: error.message };
+  }
+  return { ok: true, count: taskIds.length };
+}
+
+// ============================================
+// 1-B) 2026-05-25 — 기사 "유솔 입금 완료 보고" (Migration 077 — usol_remitted_at)
+// ============================================
+//   회사 송금 reportEngineerRemit 와 동일 방식 — payments_anon_update 정책으로 통과.
+//   확인(운영자/유솔) 단계 없음 — 기사 self-report. taskIds 일괄 UPDATE.
+export async function reportUsolRemit(taskIds) {
+  if (!Array.isArray(taskIds) || taskIds.length === 0) {
+    return { ok: false, error: "taskIds 없음" };
+  }
+
+  const { error } = await supabase
+    .from("payments")
+    .update({ usol_remitted_at: new Date().toISOString() })
+    .in("task_id", taskIds);
+
+  if (error) {
+    console.error("[reportUsolRemit] 실패:", error);
     return { ok: false, error: error.message };
   }
   return { ok: true, count: taskIds.length };

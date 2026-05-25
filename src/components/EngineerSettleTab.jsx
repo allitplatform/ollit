@@ -57,8 +57,11 @@ export function EngineerSettleTab({
   monthStats,
   usolN,
   // 2026-05-19 Fix #30 🅒 — 유솔 송금 카드 (현장 추가건 15% 유솔 직접 송금).
-  // usolRemit = { amount, count } 또는 null (해당 task 없으면 카드 미표시).
+  // 2026-05-25 — 액션 추가 (계좌 박스 + 입금 완료 보고 + pill). 회사 송금 카드 패턴.
+  // usolRemit = { amount, count, isReported, taskIds } 또는 null (해당 task 없으면 카드 미표시).
   usolRemit = null,
+  usolAccount = null,             // { bankName, accountNumber, accountHolder } — usol_n principals fetch 결과
+  onConfirmUsolRemit,             // 입금 완료 보고 콜백 — reportUsolRemit 호출
   companyAccount,
   toCompany,
   isPaymentSent = false,
@@ -340,21 +343,24 @@ export function EngineerSettleTab({
           </div>
         )}
 
-        {/* 2026-05-19 Fix #30 🅒 — 유솔 송금 카드 (현장 추가건 15% 유솔 직접 송금) */}
+        {/* 2026-05-19 Fix #30 🅒 — 유솔 송금 카드 (현장 추가건 15% 유솔 직접 송금).
+              2026-05-25 — 액션 추가 (계좌 박스 + 입금 완료 보고 + pill). 회사 송금 카드 패턴 그대로. */}
         {usolRemit && usolRemit.count > 0 && (
           <div style={{
             background: "var(--card-bg)",
             border: "1.5px solid #FF8A3D",
             borderRadius: 16,
-            padding: "16px 18px",
-            display: "flex", justifyContent: "space-between",
-            alignItems: "center", marginBottom: 14,
+            padding: 18,
+            marginBottom: 14,
           }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            {/* 헤더 + 상태 pill */}
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              alignItems: "center", marginBottom: 12,
+            }}>
               <div style={{
                 display: "flex", alignItems: "center", gap: 6,
-                fontSize: 13, color: "#FF8A3D", fontWeight: 700,
-                marginBottom: 7,
+                fontSize: 14, color: "#FF8A3D", fontWeight: 700,
               }}>
                 <span style={{
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
@@ -362,23 +368,99 @@ export function EngineerSettleTab({
                   background: "#FF8A3D", color: "#fff",
                   fontSize: 11, fontWeight: 700,
                 }}>📤</span>
-                <span>유솔에 송금할 돈</span>
+                <span>유솔 입금</span>
               </div>
+              <span style={{
+                fontSize: 12, fontWeight: 700,
+                color: usolRemit.isReported ? "#03C75A" : "var(--transfer-pill-text)",
+                padding: "4px 11px",
+                background: usolRemit.isReported ? "rgba(3,199,90,0.10)" : "var(--transfer-pill-bg)",
+                borderRadius: 999,
+              }}>
+                {usolRemit.isReported ? "입금 완료" : "미입금"}
+              </span>
+            </div>
+
+            {/* Hero 금액 */}
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              alignItems: "baseline", marginBottom: 14,
+            }}>
               <div style={{
                 fontSize: 26, fontWeight: 700,
                 fontFamily: "inherit",
                 color: "var(--text-primary)",
                 letterSpacing: "-0.6px", lineHeight: 1,
               }}>
-                {(usolRemit.amount || 0).toLocaleString("ko-KR")}원
+                ₩{(usolRemit.amount || 0).toLocaleString("ko-KR")}
               </div>
               <div style={{
-                fontSize: 12, color: "var(--label-main)",
-                marginTop: 5, fontWeight: 700,
+                fontSize: 12, color: "var(--label-main)", fontWeight: 700,
               }}>
-                오늘 작업 {usolRemit.count}건 · 15% 분
+                오늘 {usolRemit.count}건 · 15%
               </div>
             </div>
+
+            {/* 계좌 박스 (회사 송금 카드와 동일 스타일) */}
+            {usolAccount && usolAccount.accountNumber && (
+              <div style={{
+                background: "var(--account-box-bg)",
+                borderRadius: 12,
+                padding: "13px 15px",
+                display: "flex", justifyContent: "space-between",
+                alignItems: "center", marginBottom: 12, gap: 8,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 700,
+                    color: "var(--account-name)",
+                  }}>
+                    {usolAccount.accountHolder} · {usolAccount.bankName}
+                  </div>
+                  <div style={{
+                    fontSize: 12, fontWeight: 700,
+                    color: "var(--account-num)",
+                    fontFamily: "inherit",
+                    marginTop: 2,
+                  }}>
+                    {usolAccount.accountNumber}
+                  </div>
+                </div>
+                <button
+                  onClick={() => copyToClipboard((usolAccount.accountNumber || "").replace(/-/g, ""), showToast, "계좌번호")}
+                  style={{
+                    padding: "8px 13px",
+                    background: "var(--copy-btn-bg)",
+                    border: "1px solid var(--copy-btn-bd)",
+                    borderRadius: 9,
+                    color: "var(--copy-btn-text)",
+                    fontSize: 13, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit",
+                    display: "flex", alignItems: "center", gap: 4,
+                    flexShrink: 0,
+                  }}
+                >
+                  <span style={{ fontSize: 13 }}>📋</span> 복사
+                </button>
+              </div>
+            )}
+
+            {/* 입금 완료 보고 — 주황 풀 */}
+            <button
+              onClick={() => onConfirmUsolRemit && onConfirmUsolRemit()}
+              disabled={usolRemit.isReported}
+              style={{
+                width: "100%", padding: 14,
+                background: usolRemit.isReported ? "var(--bg-tertiary)" : "#FF8A3D",
+                border: "none", borderRadius: 13,
+                color: usolRemit.isReported ? "var(--text-secondary)" : "#fff",
+                fontSize: 15, fontWeight: 700,
+                cursor: usolRemit.isReported ? "default" : "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {usolRemit.isReported ? "✓ 입금 완료" : "입금 완료 보고"}
+            </button>
           </div>
         )}
 
