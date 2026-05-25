@@ -10,7 +10,8 @@ import {
   Sun, Moon, RotateCcw, ClipboardPaste, Plus, Send, ArrowLeft,
   ClipboardList, Wallet, Building2, ChevronRight, AlertCircle,
   CheckCircle2, Clock, User, Phone, MapPin, Calendar, Snowflake,
-  Hash, Edit3, Camera, FileText, Sparkles, Search, Filter, DollarSign
+  Hash, Edit3, Camera, FileText, Sparkles, Search, Filter, DollarSign,
+  LogOut
 } from "lucide-react";
 import { useTasks } from "../shared/TasksContext.jsx";
 import { filterTasksForPrincipal } from "../shared/tasks.js";
@@ -24,6 +25,7 @@ import { UsolNOrders } from "../components/usol_n/UsolNOrders.jsx";
 import { UsolNCsvMatch } from "../components/usol_n/UsolNCsvMatch.jsx";
 import { NewReceptionScreenLite } from "../components/principal/NewReceptionScreenLite.jsx";
 import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
+import { getPartialReasonLabel } from "../components/EngineerTaskCompletionScreens.jsx";
 import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
 import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
 
@@ -427,7 +429,7 @@ export default function PrincipalApp({ user, onLogout }) {
               {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
               {tab === "upload" && <UploadTab t={t} user={user} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)}/>}
               {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
-              {tab === "info"   && <InfoTab t={t} user={user}/>}
+              {tab === "info"   && <InfoTab t={t} user={user} onLogout={onLogout}/>}
             </div>
             {selectedTask && <TaskDetail t={t} task={selectedTask} onBack={() => setSelectedTask(null)}/>}
           </>
@@ -1217,6 +1219,58 @@ function Divider({ t }) {
 }
 
 function ItemProgress({ t, item, stage }) {
+  // 2026-05-25 Round 1 (c) — 취소 품목 분기 (Migration 070).
+  //   is_canceled=true → ✗ 취소 배지 + ₩0 정적 표시. 사유 라벨 없으면 줄 생략.
+  if (item?.is_canceled === true) {
+    const workType  = item.work_types?.name || "";
+    const appliance = item.appliance_types?.name || "";
+    const qty       = item.qty || 1;
+    const labelParts = [];
+    if (workType) labelParts.push(workType);
+    if (appliance && !(workType && workType.includes(appliance))) labelParts.push(appliance);
+    labelParts.push(`${qty}대`);
+    const itemLabel = labelParts.length > 1 ? labelParts.join(" · ") : (item.description || "—");
+    const reasonLabel = getPartialReasonLabel(item.canceled_reason);
+    return (
+      <div style={{ opacity: 0.55 }}>
+        <div style={{
+          fontSize: 13, fontWeight: 700,
+          color: t.textMuted || "#9CA3AF",
+          marginBottom: 6,
+          display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+        }}>
+          <span style={{ textDecoration: "line-through" }}>{itemLabel}</span>
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            color: "#9CA3AF",
+            background: "rgba(156, 163, 175, 0.18)",
+            padding: "2px 7px",
+            borderRadius: 6,
+          }}>✗ 취소</span>
+        </div>
+        <div style={{
+          padding: "10px 12px",
+          background: t.bgInset || "#161619",
+          border: `1px solid ${t.border || "#2A2A2A"}`,
+          borderRadius: 8,
+          display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8,
+          fontSize: 12, fontWeight: 600,
+          color: t.textMuted || "#9CA3AF",
+        }}>
+          {reasonLabel && (
+            <>
+              <span>사유: {reasonLabel}</span>
+              <span style={{ color: t.textMuted }}>·</span>
+            </>
+          )}
+          <span>
+            <span className="mono" style={{ fontWeight: 800 }}>₩0</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
   // 2026-05-25 — 출장비(work_types.code='visit') 항목 분기.
   //   네이버 정산 흐름(정산대기→네이버정산완료→회사입금완료)이 무관 — 현장 현금 수령 완료 상태로 정적 표시.
   if (item?.work_types?.code === "visit") {
@@ -1539,11 +1593,14 @@ function SettleTab({ t, tasks }) {
   );
 }
 
-function InfoTab({ t, user }) {
+function InfoTab({ t, user, onLogout }) {
   const principalLabel = getPrincipalLabel(user) || "원청";
   const userName       = user?.name || `${principalLabel} 대표`;
   const userPhone      = user?.phone || "";
   const userCode       = user?.code || "";
+  const handleLogout = () => {
+    if (window.confirm("로그아웃 하시겠습니까?")) onLogout?.();
+  };
   return (
     <div className="fade-in" style={{ padding: "20px" }}>
       <div style={{ marginBottom: 16 }}>
@@ -1586,7 +1643,7 @@ function InfoTab({ t, user }) {
         </div>
       </div>
 
-      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px" }}>
+      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>
           📞 문의
         </div>
@@ -1596,6 +1653,20 @@ function InfoTab({ t, user }) {
           이메일: support@allit.co.kr
         </div>
       </div>
+
+      <button
+        onClick={handleLogout}
+        style={{
+          width: "100%", padding: "14px",
+          background: t.dangerBg, color: t.danger,
+          border: `1px solid ${t.danger}40`, borderRadius: 14,
+          fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+          cursor: "pointer",
+        }}
+      >
+        <LogOut size={16}/> 로그아웃
+      </button>
     </div>
   );
 }

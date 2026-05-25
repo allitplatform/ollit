@@ -103,6 +103,14 @@ const PARTIAL_REASONS = [
   { id: "other",           label: "기타 (메모 작성)" },
 ];
 
+// 2026-05-25 — 부분취소 사유 라벨 조회 (작업상세 취소 배지용).
+//   매핑 없는 키(backfill_qty0 등) → null 반환 → 호출처 측 사유 줄 생략.
+export function getPartialReasonLabel(reasonId) {
+  if (!reasonId) return null;
+  const r = PARTIAL_REASONS.find(x => x.id === reasonId);
+  return r?.label || null;
+}
+
 // ───────────────────────────────────────────────
 // 공통 헤더
 // ───────────────────────────────────────────────

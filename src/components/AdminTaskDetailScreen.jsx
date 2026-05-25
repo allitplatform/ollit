@@ -230,7 +230,10 @@ function MainCard({ task }) {
           🕐 {task.time || "—"}
           {task.state === "active" && task.startedAt && <> · 시작 {formatTimeOnly(task.startedAt)}</>}
           {Array.isArray(task.workItems) && task.workItems.length > 0 && (
-            <> · {task.workItems.map(w => `${w.appliance || w.workType || "—"}${w.qty ? ` ×${w.qty}` : ""}`).join(", ")}</>
+            <> · {task.workItems.map(w => {
+              const base = `${w.appliance || w.workType || "—"}${w.qty ? ` ×${w.qty}` : ""}`;
+              return (w.isCanceled || w.is_canceled) ? `${base} (취소)` : base;
+            }).join(", ")}</>
           )}
           {!task.workItems && (task.appliance || task.workType) && (
             <> · {task.appliance || task.workType}{task.qty ? ` ×${task.qty}` : ""}</>

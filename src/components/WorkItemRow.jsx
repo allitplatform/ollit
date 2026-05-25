@@ -9,7 +9,7 @@ function isUsolNCleaning(client, workType) {
   return client === "유솔홈케어 N" && (workType || "").includes("세척");
 }
 
-export function WorkItemRow({ workType, appliance, qty, price, client, dividerTop = true }) {
+export function WorkItemRow({ workType, appliance, qty, price, client, dividerTop = true, isCanceled = false }) {
   const colors = getWorkTypeColors(workType);
   const isDark = useIsDark();
   const boxBg = isDark ? colors.box.dark : colors.box.light;
@@ -21,6 +21,7 @@ export function WorkItemRow({ workType, appliance, qty, price, client, dividerTo
       paddingTop: dividerTop ? 14 : 0,
       paddingBottom: 4,
       display: "flex", alignItems: "center", gap: 10,
+      opacity: isCanceled ? 0.55 : 1,
     }}>
       {/* 컬러 박스 36×36 */}
       <div style={{
@@ -29,6 +30,7 @@ export function WorkItemRow({ workType, appliance, qty, price, client, dividerTo
         display: "flex", alignItems: "center", justifyContent: "center",
         flexShrink: 0,
         fontSize: 18,
+        filter: isCanceled ? "grayscale(1)" : "none",
       }}>
         {colors.icon}
       </div>
@@ -37,30 +39,47 @@ export function WorkItemRow({ workType, appliance, qty, price, client, dividerTo
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontSize: 12, fontWeight: 700,
-          color: colors.main,
+          color: isCanceled ? "#9CA3AF" : colors.main,
           marginBottom: 2,
           display: "flex", alignItems: "center", gap: 6,
         }}>
           <span>{colors.name}</span>
-          {isUsolN && (
+          {isUsolN && !isCanceled && (
             <span style={{
               background: "#03C75A", color: "#fff",
               fontSize: 9, padding: "2px 5px",
               borderRadius: 4, fontWeight: 800,
             }}>N</span>
           )}
+          {isCanceled && (
+            <span style={{
+              background: "rgba(156, 163, 175, 0.18)", color: "#9CA3AF",
+              fontSize: 9, padding: "2px 6px",
+              borderRadius: 4, fontWeight: 800,
+            }}>✗ 취소</span>
+          )}
         </div>
         <div style={{
           fontSize: 14, fontWeight: 700,
-          color: "var(--text-primary)",
+          color: isCanceled ? "#9CA3AF" : "var(--text-primary)",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          textDecoration: isCanceled ? "line-through" : "none",
         }}>
           {appliance || colors.name}{qty ? ` ×${qty}` : ""}
         </div>
       </div>
 
-      {/* 단가 (우측, 컬러 17/800) */}
-      {price != null && price > 0 && (
+      {/* 단가 (우측, 컬러 17/800) — 취소 시 ₩0 회색 */}
+      {isCanceled ? (
+        <span style={{
+          fontSize: 17, color: "#9CA3AF", fontWeight: 800,
+          fontFamily: "inherit",
+          letterSpacing: "-0.3px",
+          flexShrink: 0,
+        }}>
+          ₩0
+        </span>
+      ) : (price != null && price > 0 && (
         <span style={{
           fontSize: 17, color: colors.main, fontWeight: 800,
           fontFamily: "inherit",
@@ -69,7 +88,7 @@ export function WorkItemRow({ workType, appliance, qty, price, client, dividerTo
         }}>
           ₩{price.toLocaleString("ko-KR")}
         </span>
-      )}
+      ))}
     </div>
   );
 }

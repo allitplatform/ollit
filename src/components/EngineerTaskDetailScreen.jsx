@@ -215,13 +215,16 @@ function getTaskItems(task, itemEngineerAmounts = {}) {
       ? (engineerAmount / sumSubtotal)
       : 0.6;
     return task.workItems.map((wi, i) => {
+      const isCanceled = !!(wi.isCanceled ?? wi.is_canceled);
       const subtotal = Number(wi.subtotal || wi.unitPrice || wi.unit_price || 0) * (wi.subtotal ? 1 : (wi.qty || 1));
       // 1순위 — RPC 결과 (task_item.id 매칭)
       const itemId = wi.id || wi.task_item_id;
       const rpcAmount = (itemEngineerAmounts && itemId != null) ? itemEngineerAmounts[itemId] : undefined;
-      const engPrice = (rpcAmount != null)
-        ? rpcAmount
-        : Math.floor(subtotal * distRatio);
+      const engPrice = isCanceled
+        ? 0
+        : (rpcAmount != null
+            ? rpcAmount
+            : Math.floor(subtotal * distRatio));
       return {
         id: `${task.id}-${i}`,
         name: wi.appliance || wi.workType || "",
@@ -229,6 +232,9 @@ function getTaskItems(task, itemEngineerAmounts = {}) {
         price: engPrice,
         serviceType: { workType: wi.workType || task.workType },
         orderType: wi.order_type || wi.orderType,
+        // 2026-05-25 Round 1 (c) — 부분취소 플래그 (카드 표시 분기용)
+        isCanceled,
+        canceledReason: wi.canceledReason || wi.canceled_reason || null,
       };
     });
   }
@@ -1013,6 +1019,7 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
                 price={item.price}
                 client={task.client}
                 dividerTop={idx > 0}
+                isCanceled={item.isCanceled}
               />
             ))}
           </div>
@@ -1269,6 +1276,7 @@ function TaskItemsList({ task, itemEngineerAmounts = {} }) {
             price={item.price}
             client={task.client}
             dividerTop={idx > 0}
+            isCanceled={item.isCanceled}
           />
         ))}
       </div>

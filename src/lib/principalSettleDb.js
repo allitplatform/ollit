@@ -163,6 +163,7 @@ export async function fetchTaskItemsForDetail(taskId) {
       `id, qty, unit_price, subtotal, description, order_type,
        net_amount, customer_paid_amount, product_order_id,
        naver_settled_at, naver_received_at, company_received_at,
+       is_canceled, canceled_reason, canceled_at,
        work_types ( id, code, name, service_types ( id, code ) ),
        appliance_types ( id, name )`
     )
