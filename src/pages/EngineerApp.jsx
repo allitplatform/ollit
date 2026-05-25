@@ -1007,7 +1007,7 @@ function MainScreen({
     && todayTasksLocal.length > 0
     && todayTasksLocal.every(t => t.status === "완료");
   const todayEarningLocal = todayTasksLocal
-    .filter(t => t.status === "완료")
+    .filter(t => isCompletedStatus(t.status))
     .reduce((s, t) => s + (t.engineer_amount || 0), 0);
 
   // V14 — 새 배정 = 배정됐는데 일정 미정 (extraAssignments 합산은 EngineerApp에서 처리)

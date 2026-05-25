@@ -5,6 +5,7 @@
 import { ArrowLeft } from "lucide-react";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { formatTimeOnly } from "../utils/dateLabel.js";
+import { isCompletedStatus } from "../utils/taskStatus.js";
 
 function getEarning(t) {
   return t.engineer_amount || 0;
@@ -29,7 +30,7 @@ export function EngineerSettlementDetailScreen({
   onBack,
   onTaskClick,
 }) {
-  const completed = todayTasks.filter(t => t.status === "완료");
+  const completed = todayTasks.filter(t => isCompletedStatus(t.status));
   const upcoming  = todayTasks.filter(t => t.status !== "완료");
 
   const todayEarning   = completed.reduce((s, t) => s + getEarning(t), 0);
