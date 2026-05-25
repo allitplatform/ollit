@@ -171,6 +171,17 @@ export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
 // 뷰 A — 첫 화면
 // ════════════════════════════════════════════════════════════
 function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSelect }) {
+  // 2026-05-25 — 취소 항목 맨 아래로. 그 외는 scheduled_at asc (fetchPrincipalTodayTasks 정렬 유지).
+  const sortedToday = useMemo(() => {
+    return [...todayTasks].sort((a, b) => {
+      const ca = a.status === "취소" ? 1 : 0;
+      const cb = b.status === "취소" ? 1 : 0;
+      if (ca !== cb) return ca - cb;
+      const sa = a.scheduledAt || a.scheduled_at || "";
+      const sb = b.scheduledAt || b.scheduled_at || "";
+      return String(sa).localeCompare(String(sb));
+    });
+  }, [todayTasks]);
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
       {/* 한 줄 통계 */}
@@ -228,7 +239,7 @@ function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSel
         <EmptyToday onSeeAll={onSeeAll}/>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {todayTasks.map((task, idx) => (
+          {sortedToday.map((task, idx) => (
             <TaskRow key={task.id || task.taskNo || idx} task={task} onClick={() => onSelect?.(task)}/>
           ))}
         </div>
@@ -317,6 +328,10 @@ function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect }) {
       });
     }
     return [...list].sort((a, b) => {
+      // 2026-05-25 — 취소 항목은 맨 아래로
+      const ca = a.status === "취소" ? 1 : 0;
+      const cb = b.status === "취소" ? 1 : 0;
+      if (ca !== cb) return ca - cb;
       const ra = a.received_at || a.receivedAt || a.created_at || a.createdAt || "";
       const rb = b.received_at || b.receivedAt || b.created_at || b.createdAt || "";
       return String(rb).localeCompare(String(ra));
@@ -423,6 +438,7 @@ function TaskRow({ task, onClick }) {
   const applianceText = `(${appliance || "—"}${qty > 1 ? `×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""})`;
   const timeStr = [date, time !== "—" ? time : ""].filter(Boolean).join(" ");
 
+  const isCancelled = task.status === "취소";
   return (
     <div onClick={onClick} style={{
       background: "var(--bg-elevated, #1F1F1F)",
@@ -432,6 +448,7 @@ function TaskRow({ task, onClick }) {
       display: "flex", alignItems: "center", gap: 8,
       minHeight: 38,
       cursor: "pointer",
+      opacity: isCancelled ? 0.45 : 1,
     }}>
       <div style={{ flexShrink: 0, width: 14, textAlign: "center" }}>
         <ServiceIcon kind={kind}/>
