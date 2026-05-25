@@ -19,6 +19,7 @@ import { getStatusBadge, getStatusLabel } from "../../utils/principalStatusBadge
 const N_BADGE_COLOR     = "#2E9E54";
 const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
+const VISIT_COLOR       = "#9CA3AF";
 const DATE_TIME_COLOR   = "#F2B84B";
 const MAGENTA           = "#FF4D9E";
 const MAIN_APPLIANCE_KEYWORDS = ["벽걸이", "스탠드", "1way", "2way", "4way", "투인원", "원형", "시스템멀티"];
@@ -33,7 +34,11 @@ function getMainItem(task) {
   });
   return main || null;
 }
-function getServiceKind(task) { return getMainItem(task) ? "main" : "addon"; }
+function getServiceKind(task) {
+  // 2026-05-25 — 출장비 전용(visit_only) 분기를 main/addon 판정보다 먼저.
+  if (task && task.status === "visit_only") return "visit";
+  return getMainItem(task) ? "main" : "addon";
+}
 
 function formatTime(task) {
   if (task.scheduledTime) return String(task.scheduledTime).slice(0, 5);
@@ -70,6 +75,7 @@ function ChannelBadge({ task }) {
   );
 }
 function ServiceIcon({ kind, size = 14 }) {
+  if (kind === "visit") return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
   if (kind === "addon") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
   return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
 }
