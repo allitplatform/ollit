@@ -638,7 +638,12 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
 
   function handleConfirm() {
     if (!canSubmit) return;
-    // 측 task_item 측 catch UPDATE 측 catch — { id, newQty } 배열
+    // 2026-05-25 — task_item 변경 spec (Round 1 마이그 070 적용 후):
+    //   newQty=0 (미수행/전부 취소) → is_canceled=true (qty 원본 보존).
+    //                                 070 BEFORE 트리거가 customer_paid_amount·net_amount=0 + metadata 백업,
+    //                                 AFTER 트리거가 tasks.product_price 자동 동기.
+    //   newQty>0 && newQty<originalQty (부분수량 감소) → qty UPDATE (옛 동작 유지).
+    //   newQty>=originalQty 또는 변경 없음 → skip.
     const itemUpdates = workItems.map(wi => ({
       id: wi.id,
       newQty: Number(actualQtyById[wi.id] ?? wi.qty) || 0,

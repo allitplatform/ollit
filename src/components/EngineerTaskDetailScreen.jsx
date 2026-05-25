@@ -356,12 +356,28 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         photos={photos}
         onBack={() => setSubScreen(null)}
         onConfirm={async (payload) => {
-          // 2026-05-25 — 측 catch 측 catch 측 catch 측 catch:
-          //   1) 측 task_item.qty UPDATE (= trigger fire → payments 자동 재계산)
-          //   2) tasks UPDATE: status='완료', completed_at, partial_reason, partial_memo
+          // 2026-05-25 Round 1 마이그 070 적용 — qty=0 대신 is_canceled=true:
+          //   newQty===0: is_canceled=true + canceled_reason + canceled_at UPDATE.
+          //               qty 원본 유지. 070 BEFORE 트리거가 customer_paid·net=0 + metadata 백업,
+          //               AFTER 트리거가 tasks.product_price 자동 동기.
+          //   newQty>0 && newQty<originalQty: 옛 spec 유지 — qty UPDATE.
+          //               (부분수량 감소는 별도 모델 — 본 Round 1 범위 외)
+          //   변경 없음: skip.
+          // 이후 task_items_compute_trg(Mig 028)가 compute_payment v15(071) 호출 → payments 재계산.
           try {
+            const nowIso = new Date().toISOString();
             for (const u of (payload.itemUpdates || [])) {
-              if (Number.isFinite(u.newQty) && u.newQty !== u.originalQty) {
+              if (!Number.isFinite(u.newQty) || u.newQty === u.originalQty) continue;
+              if (u.newQty === 0) {
+                await supabase
+                  .from("task_items")
+                  .update({
+                    is_canceled: true,
+                    canceled_reason: payload.reasonId || null,
+                    canceled_at: nowIso,
+                  })
+                  .eq("id", u.id);
+              } else {
                 await supabase
                   .from("task_items")
                   .update({ qty: u.newQty })
@@ -369,7 +385,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
               }
             }
           } catch (e) {
-            console.warn("[partial] task_items UPDATE 측 catch:", e?.message);
+            console.warn("[partial] task_items UPDATE 실패:", e?.message);
           }
           onUpdate && onUpdate(task.id, {
             status: "완료",
