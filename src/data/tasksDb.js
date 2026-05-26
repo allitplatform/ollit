@@ -220,6 +220,15 @@ export function rowToTask(row) {
 
 // 클라이언트 task → Supabase row (snake_case)
 // partial=true 측 부분 update — undefined 필드는 무시.
+// 2026-05-26 — timestamptz / date 컬럼 측 catch 빈 문자열 측 catch 측 catch NULL 변환.
+//   PostgreSQL 측 catch timestamptz / date 측 catch 빈 문자열 측 catch 측 X
+//   (invalid input syntax for type timestamp with time zone: "").
+//   AdminApp V14 재배정 측 catch `scheduledAt: ""` 측 catch 측 catch — 400 에러 측 catch.
+//   text 컬럼(requested_time 등)은 그대로 빈 문자열 측 catch.
+function _toTsOrNull(v) {
+  return v === "" || v == null ? null : v;
+}
+
 export function taskToRow(task, partial = false) {
   if (!task) return null;
   const row = {};
@@ -256,7 +265,7 @@ export function taskToRow(task, partial = false) {
   if (task.happycallStatus       !== undefined) row.happycall_status        = task.happycallStatus;
   if (task.happycallMemo         !== undefined) row.happycall_memo          = task.happycallMemo;
   if (task.happycallInternalNote !== undefined) row.happycall_internal_note = task.happycallInternalNote;
-  if (task.happycallAt           !== undefined) row.happycall_at            = task.happycallAt;
+  if (task.happycallAt           !== undefined) row.happycall_at            = _toTsOrNull(task.happycallAt);
 
   // 배정
   if (task.recommendedEngineerId !== undefined) row.recommended_engineer_id = task.recommendedEngineerId;
@@ -264,12 +273,12 @@ export function taskToRow(task, partial = false) {
   else if (task.engineerId       !== undefined) row.assigned_engineer_id    = task.engineerId;
   if (task.assignmentType        !== undefined) row.assignment_type         = task.assignmentType;
 
-  // 일정
-  if (task.requestedDate !== undefined) row.requested_date = task.requestedDate;
+  // 일정 — 2026-05-26 fix: timestamptz/date 컬럼 측 catch "" → null 변환 (requested_time text 측 catch 제외)
+  if (task.requestedDate !== undefined) row.requested_date = _toTsOrNull(task.requestedDate);
   if (task.requestedTime !== undefined) row.requested_time = task.requestedTime;
-  if (task.scheduledAt   !== undefined) row.scheduled_at   = task.scheduledAt;
-  if (task.startedAt     !== undefined) row.started_at     = task.startedAt;
-  if (task.completedAt   !== undefined) row.completed_at   = task.completedAt;
+  if (task.scheduledAt   !== undefined) row.scheduled_at   = _toTsOrNull(task.scheduledAt);
+  if (task.startedAt     !== undefined) row.started_at     = _toTsOrNull(task.startedAt);
+  if (task.completedAt   !== undefined) row.completed_at   = _toTsOrNull(task.completedAt);
   if (task.workMemo      !== undefined) row.work_memo      = task.workMemo;
   // 2026-05-25 — 부분완료 (Migration 068)
   if (task.partialReason !== undefined) row.partial_reason = task.partialReason;
@@ -280,7 +289,7 @@ export function taskToRow(task, partial = false) {
   if (task.travelFee    !== undefined) row.travel_fee    = task.travelFee;
   if (task.extraFee     !== undefined) row.extra_fee     = task.extraFee;
   if (task.extraReason  !== undefined) row.extra_reason  = task.extraReason;
-  if (task.extraFeeAt   !== undefined) row.extra_fee_at  = task.extraFeeAt;
+  if (task.extraFeeAt   !== undefined) row.extra_fee_at  = _toTsOrNull(task.extraFeeAt);
 
   if (task.categoryData !== undefined) row.category_data = task.categoryData;
 
@@ -288,7 +297,7 @@ export function taskToRow(task, partial = false) {
   if (task.calendarEventId     !== undefined) row.calendar_event_id      = task.calendarEventId;
   if (task.externalOrderNo     !== undefined) row.external_order_no      = task.externalOrderNo;
   if (task.externalPrincipalNo !== undefined) row.external_principal_no  = task.externalPrincipalNo;
-  if (task.externalReceivedAt  !== undefined) row.external_received_at   = task.externalReceivedAt;
+  if (task.externalReceivedAt  !== undefined) row.external_received_at   = _toTsOrNull(task.externalReceivedAt);
 
   // [DEBUG remit-row] extraFee 매핑 확인
   if (task.extraFee !== undefined || row.extra_fee !== undefined) {
