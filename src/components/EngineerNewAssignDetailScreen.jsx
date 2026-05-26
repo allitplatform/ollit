@@ -1,13 +1,15 @@
 // V14 정제 — 새 배정 상세
 // 흰 카드 + 좌측 4px 핑크 바 / 추가금 영역 제거 / 색 절제
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
 import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
+// 2026-05-27 — usol_n 품목별 engineer_amount RPC (작업 상세 패턴 동일 — EngineerApp.jsx:3983-4001)
+import { supabase } from "../lib/supabase.js";
 
 const PhoneSvgWhite = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -62,6 +64,27 @@ export function EngineerNewAssignDetailScreen({
   const [customDate, setCustomDate]     = useState("");
   const [customHour, setCustomHour]     = useState("14");
   const [customMin, setCustomMin]       = useState("00");
+  // 2026-05-27 — usol_n 품목별 engineer_amount (Migration 065 RPC).
+  //   작업 상세 화면 패턴 동일 (EngineerApp.jsx:3983-4001).
+  //   RPC 실패 시 빈 객체 → 아래 렌더에서 분배식 fallback (engineer_amount × subtotal/SUM).
+  const [itemEngineerAmounts, setItemEngineerAmounts] = useState({});
+  useEffect(() => {
+    if (!task?.id) return;
+    if (task.principalCode !== "usol_n") return;  // usol_n만 RPC 의미 있음
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("compute_engineer_amount_per_item", { p_task_id: task.id });
+        if (cancelled || error || !Array.isArray(data)) return;
+        const map = {};
+        for (const row of data) {
+          if (row?.task_item_id != null) map[row.task_item_id] = Number(row.engineer_amount) || 0;
+        }
+        setItemEngineerAmounts(map);
+      } catch { /* RPC 실패 — 분배 fallback */ }
+    })();
+    return () => { cancelled = true; };
+  }, [task?.id, task?.principalCode]);
 
   // 사장님 운영 패턴 (당일 +15분~2h) — 30분 단위 5개 빠른 슬롯, 현재시간 +15분 반올림 기준
   const slots = useMemo(() => {
@@ -207,21 +230,49 @@ export function EngineerNewAssignDetailScreen({
             )}
           </div>
 
-          {/* V14 — 작업 항목 한 줄 박스 */}
-          <div style={{ marginBottom: 14 }}>
-            {/* 2026-05-27 — usol_n은 회사가 월 15일 정산 → 기사한텐 본인 정산금만.
-                다른 6원청·현금은 기사 현장 수금 → 총액 그대로. */}
-            <WorkItemRow
-              workType={task.workType}
-              appliance={task.appliance}
-              qty={task.qty}
-              price={task.principalCode === "usol_n"
-                ? (task.engineer_amount || 0)
-                : task.estimateTotal}
-              priceLabel={task.principalCode === "usol_n" ? "내 정산금" : null}
-              client={task.client}
-              dividerTop={false}
-            />
+          {/* 2026-05-27 — 작업 항목 다중 렌더 (task.workItems 배열 전부).
+              옛: head 한 줄(task.workType 등) — 추가선택 품목 누락 사고 (신정원·김상협).
+              신: task.workItems map → 품목 전부 표시. 작업 상세(EngineerTaskDetailScreen) 패턴.
+              · usol_n: 각 item의 engineer_amount (RPC 1순위 / 분배식 fallback) + "내 정산금" 라벨
+              · 다른 6원청: 각 item의 subtotal (상품가) + 라벨 없음 */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+            {(() => {
+              const isUsolN = task.principalCode === "usol_n";
+              const workItems = Array.isArray(task.workItems) && task.workItems.length > 0
+                ? task.workItems
+                : [{ workType: task.workType, appliance: task.appliance, qty: task.qty,
+                     subtotal: task.estimateTotal }];
+              // usol_n 분배 fallback 계수 (RPC 실패 시)
+              const totalEng = Number(task.engineer_amount || 0);
+              const sumSub = workItems.reduce((s, w) => {
+                const sub = Number(w.subtotal ?? (w.unit_price ?? w.unitPrice ?? 0) * (w.qty || 1));
+                return s + sub;
+              }, 0);
+              const distRatio = (sumSub > 0 && totalEng > 0) ? (totalEng / sumSub) : 0.6;
+              return workItems.map((wi, idx) => {
+                const subtotal = Number(wi.subtotal ?? (wi.unit_price ?? wi.unitPrice ?? 0) * (wi.qty || 1));
+                let price;
+                if (isUsolN) {
+                  const itemId = wi.id || wi.task_item_id;
+                  const rpcAmount = (itemId != null) ? itemEngineerAmounts[itemId] : undefined;
+                  price = (rpcAmount != null) ? rpcAmount : Math.floor(subtotal * distRatio);
+                } else {
+                  price = subtotal;
+                }
+                return (
+                  <WorkItemRow
+                    key={wi.id || idx}
+                    workType={wi.work_types?.name || wi.workType || task.workType}
+                    appliance={wi.appliance_types?.name || wi.appliance || ""}
+                    qty={wi.qty || 1}
+                    price={price}
+                    priceLabel={isUsolN ? "내 정산금" : null}
+                    client={task.client}
+                    dividerTop={idx > 0}
+                  />
+                );
+              });
+            })()}
           </div>
 
           <div style={{
