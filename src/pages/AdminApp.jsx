@@ -2841,22 +2841,32 @@ export default function AdminApp({ user, onLogout }) {
           setAssignError("");
           try {
             // V14 재배정 — apiUpdateTask 호출 (Q + N catch X + R='약속대기' 한 번에)
+            // 2026-05-26 fix:
+            //   ① timestamp 컬럼은 "" 가 아닌 null (PostgreSQL invalid input syntax 회피, f61c79a 와 일관)
+            //   ② category_data.reassignRequest 키 측 측 측 catch — 측 측 UPDATE 측 catch 측 같이 처리
+            //     (assignEngineerAdapter 측 _clearReassignRequest 측 측 catch X 측 catch 측 catch path 측 catch)
             if (isReassignment) {
               console.log('[V14 재배정]', { taskId: selectedTask.id, oldEngineer, newEngineer: eng.name });
+              const currentTask = apiTasks.find(t => t.id === selectedTask.id) || selectedTask || {};
+              const currentCD = currentTask.categoryData || currentTask.category_data || {};
+              const newCategoryData = { ...currentCD };
+              delete newCategoryData.reassignRequest;
+
               const res = await apiUpdateTask(selectedTask.id, {
                 assignedEngineer: eng.name,
                 // V14 헌법 — 새 기사가 새 일정 입력 (옛 N 보존 X)
-                scheduledAt: "",
-                confirmedAt: "",
-                confirmedDate: "",
-                confirmedTime: "",
+                scheduledAt: null,
+                confirmedAt: null,
+                confirmedDate: null,
+                confirmedTime: null,
                 status: "미배정",
+                categoryData: newCategoryData,   // ★ reassignRequest 키 제거 측 catch
               });
               if (!res || res.ok === false) {
                 setAssignError((res && res.error) || '재배정 실패');
                 return;
               }
-              // V14 재배정 — Optimistic Update
+              // V14 재배정 — Optimistic Update (2026-05-26: reassignRequest 측 catch state 측 catch 같이 측 catch)
               setApiTasks(prev => prev.map(t =>
                 t.id === selectedTask.id
                   ? {
@@ -2865,6 +2875,9 @@ export default function AdminApp({ user, onLogout }) {
                       scheduledAt: "", confirmedAt: "", 확정일시: "",
                       schedule: "협의", time: "협의",
                       status: '미배정', 상태: '미배정', state: 'waiting',
+                      reassignRequest: null,
+                      categoryData: newCategoryData,
+                      category_data: newCategoryData,
                     }
                   : t
               ));
@@ -2874,6 +2887,9 @@ export default function AdminApp({ user, onLogout }) {
                 scheduledAt: "", confirmedAt: "",
                 schedule: "협의", time: "협의",
                 status: '미배정', state: 'waiting',
+                reassignRequest: null,
+                categoryData: newCategoryData,
+                category_data: newCategoryData,
               } : prev);
               // V14 — 작업 상세 화면 (selectedTaskDetail) 도 동기화 ⭐
               setSelectedTaskDetail(prev => prev ? {
@@ -2883,6 +2899,9 @@ export default function AdminApp({ user, onLogout }) {
                 scheduledAt: "", confirmedAt: "", 확정일시: "",
                 schedule: "협의", time: "협의",
                 status: '미배정', 상태: '미배정', state: 'waiting',
+                reassignRequest: null,
+                categoryData: newCategoryData,
+                category_data: newCategoryData,
               } : prev);
               updateReception(selectedTask.id, {
                 acceptedEngineer: eng.name,
