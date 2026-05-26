@@ -351,17 +351,26 @@ export async function bulkInsertUsolNOrders(orders) {
       return { ok: false, error: "usol_n principal 조회 실패", inserted: 0, skipped: 0, warnings: [], errors: [] };
     }
 
-    // 2) 중복 체크 — external_order_no 측 기존 row
+    // 2) 중복 체크 — external_order_no 측 기존 row (usol_n 한정)
+    //   2026-05-26 fix:
+    //     · principal_id 필터 추가 — 다른 원청에 같은 상품주문번호 있어도 usol_n 신규 작업 오판 X
+    //     · orderIds 500개씩 청크 분할 — Supabase 기본 1000행 cap 우회
     const orderIds = orders.map(o => String(o.orderId || "")).filter(Boolean);
-    const { data: existing, error: dupErr } = await supabase
-      .from("tasks")
-      .select("external_order_no")
-      .in("external_order_no", orderIds);
-    if (dupErr) {
-      console.error("[bulkInsertUsolNOrders:dup]", dupErr);
-      return { ok: false, error: dupErr.message, inserted: 0, skipped: 0, warnings: [], errors: [] };
+    const CHUNK = 500;
+    const existingSet = new Set();
+    for (let i = 0; i < orderIds.length; i += CHUNK) {
+      const chunk = orderIds.slice(i, i + CHUNK);
+      const { data: existing, error: dupErr } = await supabase
+        .from("tasks")
+        .select("external_order_no")
+        .eq("principal_id", principalId)
+        .in("external_order_no", chunk);
+      if (dupErr) {
+        console.error("[bulkInsertUsolNOrders:dup]", dupErr);
+        return { ok: false, error: dupErr.message, inserted: 0, skipped: 0, warnings: [], errors: [] };
+      }
+      for (const r of (existing || [])) existingSet.add(r.external_order_no);
     }
-    const existingSet = new Set((existing || []).map(r => r.external_order_no));
     const fresh = orders.filter(o => !existingSet.has(String(o.orderId)));
     const skipped = orders.length - fresh.length;
 
@@ -416,66 +425,81 @@ export async function bulkInsertUsolNOrders(orders) {
     }
     const taskNos = tnRes.taskNos;  // ["YS-N-260523-001", ...]
 
-    // 5) 각 order 측 tasks + task_items INSERT
+    // 5) tasks 일괄 INSERT (2026-05-26 — 순차 await → bulk 측 변경)
+    //   · 각 fresh order 측 row 1건 생성 → fresh.length 행을 한 번에 .insert(array)
+    //   · 반환된 id 사용해 task_items 도 한 번에 bulk insert
+    //   · Supabase .insert(array) 측 all-or-nothing — fail 시 전체 롤백, 모든 order 측 errors 측 catch
     const warnings = [];
     const errors = [];
-    let inserted = 0;
 
-    for (let i = 0; i < fresh.length; i++) {
-      const order = fresh[i];
-      const taskNo = taskNos[i];
-      const settlementSum = Number(order.settlementAmount || order.totalAmount || 0);
+    const taskRows = fresh.map((order, i) => ({
+      tenant_id: "11111111-1111-1111-1111-111111111111",
+      category_id: "33333333-3333-3333-3333-333333333001",
+      task_no: taskNos[i],
+      principal_id: principalId,
+      customer_name: order.customerName || "—",
+      phone:         order.phone || "",
+      address:       order.address || "",
+      district:      order.region || "",
+      channel:       "네이버",
+      request_note:  `네이버 주문 ${order.orderId}`,
+      status:        "미배정",
+      product_price: Number(order.settlementAmount || order.totalAmount || 0),
+      extra_fee:     0,
+      travel_fee:    0,
+      external_order_no: String(order.orderId),
+      external_received_at: normalizeTimestamp(order.paymentDate),
+      category_data: {},
+    }));
 
-      // [a] tasks INSERT
-      // 2026-05-23 진단용 — INSERT 시도 row 측 별도 변수 측 측 측 측 측 측 dump
-      const taskInsertRow = {
-        tenant_id: "11111111-1111-1111-1111-111111111111",
-        category_id: "33333333-3333-3333-3333-333333333001",
-        task_no: taskNo,
-        principal_id: principalId,
-        customer_name: order.customerName || "—",
-        phone:         order.phone || "",
-        address:       order.address || "",
-        district:      order.region || "",
-        channel:       "네이버",
-        request_note:  `네이버 주문 ${order.orderId}`,
-        status:        "미배정",
-        product_price: settlementSum,
-        extra_fee:     0,
-        travel_fee:    0,
-        external_order_no: String(order.orderId),
-        // 2026-05-23 — normalizeTimestamp — Excel cellDates:true 측 Date 측, 측 측 ISO 측 측 측 안전망
-        external_received_at: normalizeTimestamp(order.paymentDate),
-        // category_data 측 빈 객체 (Migration 017 trigger 측 workItems 측 없으면 task_items 자동 생성 X)
-        category_data: {},
+    const { data: insertedTasks, error: tasksErr } = await supabase
+      .from("tasks")
+      .insert(taskRows)
+      .select("id, task_no, external_order_no");
+
+    if (tasksErr || !Array.isArray(insertedTasks)) {
+      console.error("[bulkInsertUsolNOrders:tasks bulk]", tasksErr);
+      // 전체 롤백 — fresh 모든 order 측 errors 측 catch
+      return {
+        ok: false,
+        error: tasksErr?.message || "tasks 일괄 INSERT 실패",
+        inserted: 0,
+        skipped,
+        warnings: [],
+        errors: fresh.map((o, i) => ({
+          orderId: o.orderId,
+          taskNo: taskNos[i],
+          error: tasksErr?.message || "tasks bulk INSERT 실패",
+          code: tasksErr?.code || null,
+          details: tasksErr?.details || null,
+          hint: tasksErr?.hint || null,
+        })),
       };
-      const { data: taskRow, error: taskErr } = await supabase
-        .from("tasks")
-        .insert(taskInsertRow)
-        .select("id, task_no")
-        .single();
+    }
 
-      if (taskErr || !taskRow) {
-        // 2026-05-23 진단용 — 사장님 측 toast / console 측 정확한 원인 catch 가능하도록 측 측 출력
-        console.error("[usolN tasks INSERT 실패]",
-          JSON.stringify(taskErr), "| orderId:", order.orderId,
-          "| 시도한 row:", JSON.stringify(taskInsertRow));
-        errors.push({
-          orderId: order.orderId,
-          error: taskErr?.message || "task insert 실패",
-          code: taskErr?.code || null,
-          details: taskErr?.details || null,
-          hint: taskErr?.hint || null,
-          paymentDate: order.paymentDate,
-          paymentDateType: typeof order.paymentDate,
-        });
+    // 5-a) external_order_no → 새 task.id 매핑 (task_items insert 시 task_id 측 catch)
+    const taskIdByExt = new Map();
+    const taskNoByExt = new Map();
+    for (const t of insertedTasks) {
+      taskIdByExt.set(t.external_order_no, t.id);
+      taskNoByExt.set(t.external_order_no, t.task_no);
+    }
+    const inserted = insertedTasks.length;
+
+    // 5-b) task_items rows 측 catch — fresh 측 catch appliance 측 catch
+    //      warnings 분류 측 catch 기존 로직 그대로 (이상값 / 매핑 실패 → task_items insert 측 catch X)
+    const itemRows = [];
+    for (const order of fresh) {
+      const extKey = String(order.orderId);
+      const taskId = taskIdByExt.get(extKey);
+      const taskNo = taskNoByExt.get(extKey);
+      if (!taskId) {
+        // bulk return 측 catch external_order_no 매핑 실패 — 측 measurement (insertedTasks 측 catch 측 catch)
+        errors.push({ orderId: order.orderId, error: "task id 매핑 실패 (insert 결과 측 catch)" });
         continue;
       }
-
-      // [b] task_items INSERT (각 appliance 측 row)
-      const itemRows = [];
       for (const app of (order.appliances || [])) {
-        // order_type 측 이상값 측 경고
+        // order_type 이상값 → 경고
         if (!app.orderType) {
           warnings.push({
             orderId: order.orderId,
@@ -483,7 +507,6 @@ export async function bulkInsertUsolNOrders(orders) {
             serviceTypeRaw: app.serviceTypeRaw || "(없음)",
             note: "서비스종류 측 \"에어컨청소\" / \"추가선택\" 외 이상값 — 운영자 확인 필요",
           });
-          // 이상값 측 task_items 측 INSERT 안 함 (운영자 측 검토 후 수동 추가)
           continue;
         }
 
@@ -491,7 +514,6 @@ export async function bulkInsertUsolNOrders(orders) {
         let applianceTypeId = null;
 
         if (app.orderType === "본작업") {
-          // cleaning + appliance 측 매핑
           const applianceCode = APPLIANCE_KR_TO_CODE[app.type] || null;
           if (!applianceCode) {
             warnings.push({
@@ -504,7 +526,6 @@ export async function bulkInsertUsolNOrders(orders) {
           applianceTypeId = applianceByCode.get(applianceCode);
           workTypeId = findCleaningWorkTypeId(applianceCode);
         } else if (app.orderType === "추가선택") {
-          // 옵션 측 키워드 측 addon work_type 매핑 (appliance 측 NULL)
           workTypeId = findAddonWorkTypeId(app.serviceTypeRaw) || findAddonWorkTypeId(app.type);
           if (!workTypeId) {
             warnings.push({
@@ -521,13 +542,8 @@ export async function bulkInsertUsolNOrders(orders) {
           continue;
         }
 
-        // 2026-05-24 — 사장님 spec (옵션 C):
-        //   unit_price → subtotal (GENERATED) = 정산예정금액 (네이버 수수료 차감 후, 9,444)
-        //   customer_paid_amount               = 최종 상품별 총 주문금액 (AG, 고객 실결제액 10,000)
-        //   기존엔 unit_price 측 totalAmount(10,000) 측 catch — 정산 계산 측 측 X 측 측 spec
-        //   (Migration 046 v11 SUM(subtotal) = 정산예정금액 합) → settlement(=정산예정금액) 측 catch.
         itemRows.push({
-          task_id: taskRow.id,
+          task_id: taskId,
           work_type_id: workTypeId,
           appliance_type_id: applianceTypeId,
           qty: app.count || 1,
@@ -540,18 +556,22 @@ export async function bulkInsertUsolNOrders(orders) {
             : {},
         });
       }
+    }
 
-      if (itemRows.length > 0) {
-        const { error: itemErr } = await supabase.from("task_items").insert(itemRows);
-        if (itemErr) {
-          console.error("[bulkInsertUsolNOrders:itemInsert]", itemErr, order.orderId);
-          errors.push({ orderId: order.orderId, error: `task_items 측 ${itemErr.message}` });
-          // task 측 INSERT 된 후 items 측 실패 — task 측 별도 정리 안 함 (운영자 측 확인)
-          continue;
-        }
+    // 5-c) task_items 일괄 INSERT
+    if (itemRows.length > 0) {
+      const { error: itemsErr } = await supabase.from("task_items").insert(itemRows);
+      if (itemsErr) {
+        console.error("[bulkInsertUsolNOrders:items bulk]", itemsErr);
+        // tasks 측 catch 성공 → task_items 측 catch 측 catch — task 측 catch 측 측 정리 X (운영자 확인)
+        errors.push({
+          orderId: "(all task_items)",
+          error: `task_items 일괄 INSERT 실패: ${itemsErr.message}`,
+          code: itemsErr.code || null,
+          details: itemsErr.details || null,
+          hint: itemsErr.hint || null,
+        });
       }
-
-      inserted++;
     }
 
     // 2026-05-23 진단용 — 함수 끝 측 errors / warnings 측 전체 출력 (사장님 측 console 측 확인)
