@@ -140,7 +140,7 @@ export function UsolNOrders({ onTaskClick, hideList = false }) {
         <>
           <div style={sectionTitleStyle}>
             접수 대기{" "}
-            <span style={{ color: "#03C75A", fontWeight: 700 }}>{total.toLocaleString()}</span>건
+            <span style={{ color: "var(--accent)", fontWeight: 700 }}>{total.toLocaleString()}</span>건
             {totalPages > 1 && (
               <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
                 · {page + 1} / {totalPages}p
@@ -201,7 +201,7 @@ function TaskRow({ task, onClick }) {
           </span>
           <span style={taskNoStyle}>{task.task_no || ""}</span>
         </div>
-        <span style={{ fontSize: 13, color: "#03C75A", fontWeight: 700, fontFamily: "inherit" }}>
+        <span style={{ fontSize: 13, color: "var(--accent)", fontWeight: 700, fontFamily: "inherit" }}>
           ₩{(task.total_amount || 0).toLocaleString()}
         </span>
       </div>
@@ -280,7 +280,7 @@ function UploadBox({ fileInputRef, onFileSelect, onFile, pendingCount, importing
   if (pendingCount > 0) {
     return (
       <div style={uploadConfirmStyle}>
-        <div style={{ fontSize: 13, color: "#03C75A", fontWeight: 700, marginBottom: 6 }}>
+        <div style={{ fontSize: 13, color: "var(--accent)", fontWeight: 700, marginBottom: 6 }}>
           📥 주문 {pendingCount}건 — 일괄 등록
         </div>
         <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 12 }}>
@@ -318,8 +318,8 @@ function UploadBox({ fileInputRef, onFileSelect, onFile, pendingCount, importing
   // 드래그 중 강조 스타일 — 초록 점선 굵게 + 배경 진하게
   const activeStyle = isDragging
     ? {
-        background: "rgba(3,199,90,0.18)",
-        border: "2px dashed #03C75A",
+        background: "var(--accent-bg)",
+        border: "2px dashed var(--accent)",
         transform: "scale(1.01)",
       }
     : {};
@@ -338,7 +338,7 @@ function UploadBox({ fileInputRef, onFileSelect, onFile, pendingCount, importing
       onDrop={handleDrop}
     >
       <div style={{ fontSize: 24, marginBottom: 8 }}>{isDragging ? "📂" : "📤"}</div>
-      <div style={{ fontSize: 13, color: "#03C75A", fontWeight: 600 }}>
+      <div style={{ fontSize: 13, color: "var(--accent)", fontWeight: 600 }}>
         {isDragging ? "여기에 놓으세요" : "접수 CSV 업로드"}
       </div>
       <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 4 }}>
@@ -365,8 +365,8 @@ function ImportResultBanner({ result, onDismiss }) {
   const firstError   = result.errors?.[0];
   const topLevelError = result.ok === false ? result.error : null;
 
-  const lineColor = hasError ? "#EF4444" : "#03C75A";
-  const bg = hasError ? "rgba(239,68,68,0.10)" : "rgba(3,199,90,0.10)";
+  const lineColor = hasError ? "#EF4444" : "var(--accent)";
+  const bg = hasError ? "rgba(239,68,68,0.10)" : "var(--accent-bg)";
 
   return (
     <div style={{
@@ -432,22 +432,22 @@ const taskNoStyle = {
 
 const uploadDropStyle = {
   padding: 16,
-  background: "rgba(3,199,90,0.06)",
-  border: "1px dashed rgba(3,199,90,0.4)",
+  background: "var(--accent-bg)",
+  border: "1px dashed var(--accent)",
   borderRadius: 10, textAlign: "center", cursor: "pointer",
   marginBottom: 16,
 };
 
 const uploadConfirmStyle = {
   padding: 14,
-  background: "rgba(3,199,90,0.12)",
-  border: "1px solid #03C75A",
+  background: "var(--accent-bg)",
+  border: "1px solid var(--accent)",
   borderRadius: 10, marginBottom: 16,
 };
 
 const primaryButtonStyle = {
   flex: 1, padding: 10,
-  background: "#03C75A", border: "none",
+  background: "var(--accent)", border: "none",
   borderRadius: 6, color: "#fff",
   fontSize: 12, fontWeight: 700, cursor: "pointer",
   fontFamily: "inherit",

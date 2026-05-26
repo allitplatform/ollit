@@ -113,9 +113,9 @@ export function UsolNInProgress({ onTaskClick }) {
             onClick={() => handleFilterChange(filter.id)}
             style={{
               padding: "5px 10px",
-              background: filterId === filter.id ? "rgba(168,85,247,0.15)" : "transparent",
-              border: filterId === filter.id ? "1px solid #A855F7" : "1px solid var(--border)",
-              color: filterId === filter.id ? "#A855F7" : "var(--text-secondary)",
+              background: filterId === filter.id ? "var(--accent-bg)" : "transparent",
+              border: filterId === filter.id ? "1px solid var(--accent)" : "1px solid var(--border)",
+              color: filterId === filter.id ? "var(--accent)" : "var(--text-secondary)",
               fontSize: 10, borderRadius: 12,
               fontWeight: filterId === filter.id ? 600 : 400,
               cursor: "pointer", fontFamily: "inherit",
@@ -128,7 +128,7 @@ export function UsolNInProgress({ onTaskClick }) {
 
       <div style={sectionTitleStyle}>
         {currentFilter.label}{" "}
-        <span style={{ color: "#A855F7", fontWeight: 700 }}>{total.toLocaleString()}</span>건
+        <span style={{ color: "var(--accent)", fontWeight: 700 }}>{total.toLocaleString()}</span>건
         {totalPages > 1 && (
           <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
             · {page + 1} / {totalPages}p
@@ -192,7 +192,7 @@ function TaskRow({ task, onClick }) {
         </div>
         <span style={{
           fontSize: 11, fontFamily: "inherit",
-          color: isCurrentlyWorking ? "#A855F7" : "var(--text-primary)",
+          color: isCurrentlyWorking ? "var(--accent)" : "var(--text-primary)",
         }}>
           ₩{(task.total_amount || 0).toLocaleString()}
         </span>
@@ -245,7 +245,7 @@ function StatusBadge({ status }) {
   const map = {
     "약속대기": { label: "약속대기", color: "#06B6D4" },
     "확정":     { label: "확정",     color: "#06B6D4" },
-    "진행중":   { label: "진행중",   color: "#A855F7" },
+    "진행중":   { label: "진행중",   color: "var(--accent)" },
     "완료":     { label: "완료",     color: "#1D9E75" },
   };
   const it = map[status] || { label: status || "—", color: "var(--text-secondary)" };

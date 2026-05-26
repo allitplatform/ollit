@@ -22,8 +22,7 @@ const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
 const VISIT_COLOR       = "#9CA3AF";
 const DATE_TIME_COLOR   = "#F2B84B";
-const PINK_COLOR        = "#FF1B8D";
-const NAVER_GREEN       = "#03C75A";
+// 2026-05-26 — 핑크 통일: NAVER_GREEN 제거. 측 catch var(--accent) 측 catch (PrincipalApp 측 catch).
 
 const MAIN_APPLIANCE_KEYWORDS = ["벽걸이", "스탠드", "1way", "2way", "4way", "투인원", "원형", "시스템멀티"];
 
@@ -133,14 +132,14 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
       {/* 상단 요약 — "배정 필요 N건" */}
       <div style={{
         padding: "10px 12px",
-        background: "rgba(3,199,90,0.10)",
-        border: `1px solid rgba(3,199,90,0.40)`,
+        background: "var(--accent-bg)",
+        border: "1px solid var(--accent)",
         borderRadius: 10,
         marginBottom: 12,
         display: "flex", alignItems: "center", gap: 8,
       }}>
         <span style={{ fontSize: 14 }}>📋</span>
-        <span style={{ fontSize: 13, fontWeight: 800, color: NAVER_GREEN }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent)" }}>
           배정 필요 {totalCount}건
         </span>
         <span style={{ fontSize: 11, color: "var(--text-secondary)", marginLeft: "auto" }}>
@@ -162,7 +161,7 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
             width: "100%", boxSizing: "border-box",
             padding: "8px 10px 8px 30px",
             background: "var(--bg-inset, var(--bg-secondary))",
-            border: "1px solid var(--usol-n-border)",
+            border: "1px solid var(--border)",
             borderRadius: 8, color: "var(--text-primary)",
             fontSize: 12, fontFamily: "inherit", outline: "none",
           }}
@@ -174,7 +173,7 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
         <button onClick={onSeeAll} style={{
           width: "100%", padding: "10px 12px",
           background: "transparent",
-          border: "1px solid var(--usol-n-border)",
+          border: "1px solid var(--border)",
           borderRadius: 8,
           color: "var(--text-primary)",
           fontSize: 12, fontWeight: 700,
@@ -235,8 +234,8 @@ function TaskRowOperator({ task, onClick }) {
       onClick={onClick}
       className="clickable"
       style={{
-        background: "var(--usol-n-card-bg)",
-        border: "1px solid var(--usol-n-border)",
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
         borderRadius: 8,
         padding: "8px 10px",
         display: "flex", alignItems: "center", gap: 8,
@@ -264,13 +263,13 @@ function TaskRowOperator({ task, onClick }) {
         {timeStr && (<>{" · "}<span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span></>)}
       </span>
 
-      {/* 측 catch 측 catch — 재배정 요청 */}
+      {/* 측 catch 측 catch — 재배정 요청 (핑크 = --accent) */}
       {hasReassignReq && (
         <span style={{
           fontSize: 9, fontWeight: 800,
-          color: PINK_COLOR,
-          background: "rgba(255,27,141,0.12)",
-          border: `1px solid rgba(255,27,141,0.40)`,
+          color: "var(--accent)",
+          background: "var(--accent-bg)",
+          border: "1px solid var(--accent)",
           padding: "2px 6px", borderRadius: 999,
           flexShrink: 0, whiteSpace: "nowrap",
         }} title={cat.reassignRequest.reason || ""}>
@@ -309,8 +308,8 @@ function Empty({ children, color }) {
       padding: "40px 16px", textAlign: "center",
       color: color || "var(--text-secondary)",
       fontSize: 12, fontWeight: 600,
-      background: "var(--usol-n-card-bg)",
-      border: "1px dashed var(--usol-n-border)",
+      background: "var(--bg-elevated)",
+      border: "1px dashed var(--border)",
       borderRadius: 10,
     }}>{children}</div>
   );

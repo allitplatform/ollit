@@ -90,7 +90,7 @@ function GradientHeader({ info, onBack }) {
   return (
     <div style={{
       padding: "14px 16px",
-      background: "#03C75A",
+      background: "var(--accent)",
       color: "#fff",
       flexShrink: 0,
       overflow: "hidden",
@@ -126,7 +126,7 @@ function GradientHeader({ info, onBack }) {
           <div style={{
             fontSize: 18, fontWeight: 700, letterSpacing: "-0.3px",
           }}>
-            🟢 유솔 N
+            유솔 N
           </div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
@@ -263,8 +263,8 @@ const tabsContainerStyle = {
   display: "flex",
   width: "100%",
   flexWrap: "nowrap",
-  background: "var(--usol-n-card-bg)",
-  borderBottom: "1px solid var(--usol-n-border)",
+  background: "var(--bg-elevated)",
+  borderBottom: "1px solid var(--border)",
   overflowX: "hidden",
   overflowY: "hidden",
   position: "sticky", top: 0, zIndex: 9,
@@ -291,8 +291,8 @@ const tabButtonStyle = {
 };
 
 const activeTabStyle = {
-  color: "#03C75A",
-  borderBottomColor: "#03C75A",
+  color: "var(--accent)",
+  borderBottomColor: "var(--accent)",
   fontWeight: 700,
 };
 
@@ -301,7 +301,7 @@ const tabContentStyle = {
   overflowY: "auto",
   overflowX: "hidden",
   padding: 16, paddingBottom: 40,
-  background: "var(--usol-n-content-bg)",
+  background: "var(--bg-secondary)",
 };
 
 const emptyStyle = {

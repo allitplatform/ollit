@@ -270,7 +270,7 @@ function ClassificationResults({ result }) {
         label="우리 매칭 (신규)"
         count={result.matched.length}
         rightExtra={`₩${totalMatchedAmount.toLocaleString()}`}
-        color="#03C75A"
+        color="var(--accent)"
         accent
       />
       {result.matchedAlready?.length > 0 && (
@@ -438,7 +438,7 @@ function Empty({ children }) {
 
 const confirmButtonStyle = {
   width: "100%", marginTop: 16, padding: 14,
-  background: "#03C75A",
+  background: "var(--accent)",
   border: "none", borderRadius: 10,
   color: "#fff", fontSize: 13, fontWeight: 700,
   fontFamily: "inherit",
