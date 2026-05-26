@@ -2859,14 +2859,18 @@ export default function AdminApp({ user, onLogout }) {
                 confirmedAt: null,
                 confirmedDate: null,
                 confirmedTime: null,
-                status: "미배정",
+                // 2026-05-26 — 사장님 spec: 재배정 측 catch 측 측 '배정' 완료 (옛: "미배정")
+                //   새 배정 경로(apiAssignEngineer → assignEngineerDb default)와 동일 status.
+                //   일정은 비움 — 운영자가 새 기사와 협의 후 일정 측 catch.
+                status: "배정",
                 categoryData: newCategoryData,   // ★ reassignRequest 키 제거 측 catch
               });
               if (!res || res.ok === false) {
                 setAssignError((res && res.error) || '재배정 실패');
                 return;
               }
-              // V14 재배정 — Optimistic Update (2026-05-26: reassignRequest 측 catch state 측 catch 같이 측 catch)
+              // V14 재배정 — Optimistic Update (2026-05-26: '배정' 완료 + 일정 협의)
+              //   새 배정 경로(line 2986)와 동일: status='배정', 상태='배정', state='scheduled'
               setApiTasks(prev => prev.map(t =>
                 t.id === selectedTask.id
                   ? {
@@ -2874,7 +2878,7 @@ export default function AdminApp({ user, onLogout }) {
                       assignedEngineer: eng.name, engineer: eng.name, 배정기사: eng.name,
                       scheduledAt: "", confirmedAt: "", 확정일시: "",
                       schedule: "협의", time: "협의",
-                      status: '미배정', 상태: '미배정', state: 'waiting',
+                      status: '배정', 상태: '배정', state: 'scheduled',
                       reassignRequest: null,
                       categoryData: newCategoryData,
                       category_data: newCategoryData,
@@ -2886,7 +2890,7 @@ export default function AdminApp({ user, onLogout }) {
                 assignedEngineer: eng.name, engineer: eng.name,
                 scheduledAt: "", confirmedAt: "",
                 schedule: "협의", time: "협의",
-                status: '미배정', state: 'waiting',
+                status: '배정', state: 'scheduled',
                 reassignRequest: null,
                 categoryData: newCategoryData,
                 category_data: newCategoryData,
@@ -2898,7 +2902,7 @@ export default function AdminApp({ user, onLogout }) {
                 배정기사: eng.name,
                 scheduledAt: "", confirmedAt: "", 확정일시: "",
                 schedule: "협의", time: "협의",
-                status: '미배정', 상태: '미배정', state: 'waiting',
+                status: '배정', 상태: '배정', state: 'scheduled',
                 reassignRequest: null,
                 categoryData: newCategoryData,
                 category_data: newCategoryData,
@@ -2908,7 +2912,7 @@ export default function AdminApp({ user, onLogout }) {
                 engineerId: eng.id || eng.engineerId,
                 engineer: eng.name, assignedEngineer: eng.name,
                 scheduledAt: "", confirmedAt: "",
-                status: "미배정", state: "waiting",
+                status: "배정", state: "scheduled",
                 reassignedAt: new Date().toISOString(),
               });
               invalidateRecommendCache();

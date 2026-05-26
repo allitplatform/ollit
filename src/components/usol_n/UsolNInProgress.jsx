@@ -14,9 +14,11 @@ import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubsc
 const PAGE_SIZE = 50;
 
 // 필터 ↔ DB status 매핑 (Q-i B안 — DB CHECK는 한글 6개)
+// 2026-05-26 — '배정' status 측 catch (AdminApp V14 재배정 측 catch 측 catch usol_n task 측 catch '배정' 측 catch 측 catch).
+//   "전체" + "배정" 두 필터 측 catch '배정' 추가. usol_h 측 catch 측 catch X (UsolNInProgress 측 catch usol_n principal 측 catch).
 const STATUS_FILTERS = [
-  { id: "all",         label: "전체",   statuses: ["약속대기", "확정", "진행중", "완료"] },
-  { id: "assigned",    label: "배정",   statuses: ["약속대기", "확정"] },
+  { id: "all",         label: "전체",   statuses: ["배정", "약속대기", "확정", "진행중", "완료"] },
+  { id: "assigned",    label: "배정",   statuses: ["배정", "약속대기", "확정"] },
   { id: "in_progress", label: "진행중", statuses: ["진행중"] },
   { id: "completed",   label: "완료",   statuses: ["완료"] },
 ];
