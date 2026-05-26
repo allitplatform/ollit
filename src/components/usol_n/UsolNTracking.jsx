@@ -143,8 +143,8 @@ function ThisWeekCard({ week, onClick }) {
     return (
       <div style={{
         padding: 14,
-        background: "rgba(3,199,90,0.04)",
-        border: "1px dashed rgba(3,199,90,0.3)",
+        background: "var(--accent-bg)",
+        border: "1px dashed var(--accent)",
         borderRadius: 12, marginBottom: 14,
         textAlign: "center",
       }}>
@@ -162,25 +162,25 @@ function ThisWeekCard({ week, onClick }) {
       onClick={onClick}
       style={{
         width: "100%", padding: 14,
-        background: "rgba(3,199,90,0.10)",
-        border: "2px solid #03C75A",
+        background: "var(--accent-bg)",
+        border: "2px solid var(--accent)",
         borderRadius: 12, marginBottom: 14,
         cursor: "pointer", textAlign: "left", fontFamily: "inherit",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-        <div style={{ fontSize: 11, color: "#03C75A", fontWeight: 700 }}>
+        <div style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>
           📥 이번 주 네이버 정산금액
         </div>
         <span style={{
-          fontSize: 9, color: "#03C75A",
-          background: "rgba(3,199,90,0.15)",
+          fontSize: 9, color: "var(--accent)",
+          background: "var(--accent-bg)",
           padding: "1px 5px", borderRadius: 3,
         }}>
           {week.mondayLabel} (월)
         </span>
       </div>
-      <div style={{ fontSize: 22, color: "#03C75A", fontWeight: 700, fontFamily: "inherit" }}>
+      <div style={{ fontSize: 22, color: "var(--accent)", fontWeight: 700, fontFamily: "inherit" }}>
         ₩{companyReceive.toLocaleString()}
       </div>
       <div style={{
@@ -190,7 +190,7 @@ function ThisWeekCard({ week, onClick }) {
         <span style={{ fontSize: 9, color: "var(--text-secondary)" }}>
           {week.dateRange} 작업 항목 {week.items.length}개
         </span>
-        <span style={{ fontSize: 9, color: "#03C75A", fontWeight: 600 }}>
+        <span style={{ fontSize: 9, color: "var(--accent)", fontWeight: 600 }}>
           상세 보기 →
         </span>
       </div>
@@ -210,7 +210,7 @@ function WeekHistoryCard({ week, latest, onClick }) {
 
   let statusBadge;
   if (allConfirmed) {
-    statusBadge = <span style={{ fontSize: 9, color: "#03C75A" }}>✓ 입금 확인 완료</span>;
+    statusBadge = <span style={{ fontSize: 9, color: "var(--accent)" }}>✓ 입금 확인 완료</span>;
   } else if (anyReported) {
     statusBadge = <span style={{ fontSize: 9, color: "#F59E0B", fontWeight: 700 }}>⏳ 유솔 보고 측 — 확인 대기</span>;
   } else {
@@ -222,10 +222,10 @@ function WeekHistoryCard({ week, latest, onClick }) {
       onClick={onClick}
       style={{
         width: "100%", padding: 11,
-        background: anyReported ? "rgba(245,158,11,0.10)" : (latest ? "rgba(3,199,90,0.06)" : "var(--bg-secondary)"),
+        background: anyReported ? "rgba(245,158,11,0.10)" : (latest ? "var(--accent-bg)" : "var(--bg-secondary)"),
         border: anyReported
           ? "2px solid rgba(245,158,11,0.5)"
-          : (latest ? "1px solid rgba(3,199,90,0.3)" : "1px solid var(--border)"),
+          : (latest ? "1px solid var(--accent)" : "1px solid var(--border)"),
         borderRadius: 10, marginBottom: 4,
         cursor: "pointer",
         textAlign: "left", fontFamily: "inherit",
@@ -234,7 +234,7 @@ function WeekHistoryCard({ week, latest, onClick }) {
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span style={{
             fontSize: 11,
-            color: latest ? "#03C75A" : "var(--text-primary)",
+            color: latest ? "var(--accent)" : "var(--text-primary)",
             fontWeight: latest ? 700 : 600,
           }}>
             {week.mondayLabel} (월)
@@ -243,7 +243,7 @@ function WeekHistoryCard({ week, latest, onClick }) {
         </div>
         <span style={{
           fontSize: 12, fontFamily: "inherit",
-          color: latest ? "#03C75A" : "var(--text-primary)",
+          color: latest ? "var(--accent)" : "var(--text-primary)",
           fontWeight: latest ? 700 : 600,
         }}>
           ₩{companyReceive.toLocaleString()}
@@ -279,7 +279,7 @@ function WeekDetailModal({ week, onClose, onConfirmRemit }) {
       <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={modalHeaderStyle}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#03C75A" }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--accent)" }}>
               {week.mondayLabel} (월) 입금 상세
             </div>
             <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>
@@ -291,13 +291,13 @@ function WeekDetailModal({ week, onClose, onConfirmRemit }) {
 
         <div style={{
           padding: 14,
-          background: "rgba(3,199,90,0.08)",
+          background: "var(--accent-bg)",
           borderRadius: 10, marginBottom: 14,
         }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, color: "#03C75A", fontWeight: 700 }}>네이버 정산금액</span>
+            <span style={{ fontSize: 11, color: "var(--accent)", fontWeight: 700 }}>네이버 정산금액</span>
             <span style={{
-              fontFamily: "inherit", color: "#03C75A",
+              fontFamily: "inherit", color: "var(--accent)",
               fontWeight: 700, fontSize: 13,
             }}>
               ₩{companyReceive.toLocaleString()}
@@ -358,7 +358,7 @@ function WeekDetailModal({ week, onClose, onConfirmRemit }) {
             disabled={confirming}
             style={{
               width: "100%", padding: 12,
-              background: "#03C75A",
+              background: "var(--accent)",
               border: "none", borderRadius: 10,
               color: "#fff", fontSize: 12, fontWeight: 700,
               fontFamily: "inherit",
@@ -373,10 +373,10 @@ function WeekDetailModal({ week, onClose, onConfirmRemit }) {
         {allConfirmed && (
           <div style={{
             marginTop: 14, padding: 10,
-            background: "rgba(3,199,90,0.08)",
-            border: "1px solid rgba(3,199,90,0.3)",
+            background: "var(--accent-bg)",
+            border: "1px solid var(--accent)",
             borderRadius: 10,
-            textAlign: "center", fontSize: 11, color: "#03C75A", fontWeight: 700,
+            textAlign: "center", fontSize: 11, color: "var(--accent)", fontWeight: 700,
           }}>
             ✓ 입금 확인 완료
           </div>
@@ -426,7 +426,7 @@ function DetailItemRow({ item }) {
         </div>
         <span style={{
           fontSize: 11, fontFamily: "inherit",
-          color: "#03C75A", fontWeight: 600,
+          color: "var(--accent)", fontWeight: 600,
         }}>
           ₩{receive.toLocaleString()}
         </span>
@@ -463,11 +463,11 @@ function MonthSummaryCard({ summary }) {
   return (
     <div style={{
       padding: 11,
-      background: "rgba(168,85,247,0.06)",
-      border: "1px solid rgba(168,85,247,0.3)",
+      background: "var(--accent-bg)",
+      border: "1px solid var(--accent)",
       borderRadius: 10, marginTop: 14,
     }}>
-      <div style={{ fontSize: 10, color: "#A855F7", fontWeight: 700, marginBottom: 6 }}>
+      <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700, marginBottom: 6 }}>
         📊 {summary.monthLabel} 누적
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 4, fontSize: 10 }}>
@@ -476,16 +476,16 @@ function MonthSummaryCard({ summary }) {
           ₩{summary.received.toLocaleString()}
         </span>
         <span style={{ color: "var(--text-secondary)" }}>받을 예정</span>
-        <span style={{ color: "#03C75A", fontFamily: "inherit" }}>
+        <span style={{ color: "var(--accent)", fontFamily: "inherit" }}>
           ₩{summary.pending.toLocaleString()}
         </span>
       </div>
-      <div style={{ height: 1, background: "rgba(168,85,247,0.2)", margin: "6px 0" }}/>
+      <div style={{ height: 1, background: "var(--accent)", margin: "6px 0" }}/>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 10, color: "var(--text-primary)", fontWeight: 700 }}>
           {summary.monthLabel} 총
         </span>
-        <span style={{ fontSize: 13, color: "#A855F7", fontWeight: 700, fontFamily: "inherit" }}>
+        <span style={{ fontSize: 13, color: "var(--accent)", fontWeight: 700, fontFamily: "inherit" }}>
           ₩{summary.total.toLocaleString()}
         </span>
       </div>
