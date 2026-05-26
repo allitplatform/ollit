@@ -3555,6 +3555,14 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
+  // 2026-05-26 — 기사 재배정 요청 알림 줄 (Mig 056 — category_data.reassignRequest)
+  //   status 변경 X 측 catch 목록 측 catch 측 catch 측 X — 측 catch 측 카드 측 catch 분홍 배지 + 상단 알림 줄.
+  //   취소된 task 제외 (운영자 측 측 측 catch 측 catch 측 catch).
+  const reassignTasks = (apiTasks || []).filter(t =>
+    t?.reassignRequest?.requestedAt && t.status !== "취소"
+  );
+  const reassignCount = reassignTasks.length;
+
   return (
     <div className="fade-in">
       {/* 상단 헤더 — 올잇 마크 + 메타 + 테마 토글 + 로그아웃 */}
@@ -3622,6 +3630,26 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           <StatBox t={t} label="진행중"   value={dynamicStats?.inProgress ?? TODAY_STATS.inProgress}  color={t.accent}  onClick={onClickInProgress}/>
           <StatBox t={t} label="완료"     value={dynamicStats?.completed  ?? TODAY_STATS.completed}   color={t.success} onClick={() => onClickLiveWork("completed-today")}/>
         </div>
+
+        {/* 2026-05-26 — 기사 재배정 요청 알림 줄 (1건 이상 측 catch 노출) */}
+        {reassignCount > 0 && (
+          <div style={{
+            marginBottom: 14,
+            padding: "10px 12px",
+            background: "rgba(255,27,141,0.10)",
+            border: "1px solid rgba(255,27,141,0.40)",
+            borderRadius: 10,
+            display: "flex", alignItems: "center", gap: 8,
+          }}>
+            <span style={{ fontSize: 14 }}>🔁</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#FF1B8D" }}>
+              재배정 요청 {reassignCount}건
+            </span>
+            <span style={{ fontSize: 11, color: t.textSecondary, marginLeft: "auto" }}>
+              배정·확정·진행중 카드 측 분홍 배지 확인
+            </span>
+          </div>
+        )}
 
         {/* 3. 돈 흐름 — 회사 마진만 핫핑크 (사장님 KPI) / 나머지 무채색 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
@@ -4558,13 +4586,26 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         borderRadius: 12, padding: "12px 14px", marginBottom: 8,
         cursor: onClick ? "pointer" : "default",
       }}>
-      {/* 헤더: 원청 라벨 + 고객명 */}
+      {/* 헤더: 원청 라벨 + 고객명 + 재배정 요청 배지 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
           <PrincipalLabel name={task.principal}/>
           <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
           {task.hasRefrigerant && task.workType !== "냉매충전" && (
             <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
+          )}
+          {/* 2026-05-26 — 기사 재배정 요청 배지 (category_data.reassignRequest 있을 때만) */}
+          {task.reassignRequest?.requestedAt && (
+            <span style={{
+              fontSize: 10, fontWeight: 800,
+              color: "#FF1B8D",
+              background: "rgba(255,27,141,0.12)",
+              border: "1px solid rgba(255,27,141,0.40)",
+              padding: "2px 7px", borderRadius: 999,
+              flexShrink: 0, whiteSpace: "nowrap",
+            }} title={task.reassignRequest.reason || ""}>
+              🔁 재배정 요청
+            </span>
           )}
         </div>
       </div>
@@ -6299,6 +6340,19 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
             flexShrink: 0,
             whiteSpace: "nowrap",
           }}>{task.engineer}</span>
+        )}
+        {/* 2026-05-26 — 기사 재배정 요청 배지 (category_data.reassignRequest 있을 때) */}
+        {task.reassignRequest?.requestedAt && (
+          <span style={{
+            fontSize: 10, fontWeight: 800,
+            color: "#FF1B8D",
+            background: "rgba(255,27,141,0.12)",
+            border: "1px solid rgba(255,27,141,0.40)",
+            padding: "2px 7px", borderRadius: 999,
+            flexShrink: 0, whiteSpace: "nowrap",
+          }} title={task.reassignRequest.reason || ""}>
+            🔁 재배정
+          </span>
         )}
         {/* 상태 배지 */}
         {pill && (
