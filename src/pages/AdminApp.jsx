@@ -4684,13 +4684,24 @@ function NewReceptionScreen({
       return true;
     }).map(r => receptionUpdates[r.id] ? { ...r, ...receptionUpdates[r.id] } : r);
     // 작업유형별 분류 (메인 항목 기준)
+    // 2026-05-26 fix: 측 catch 측 measurement workType 측 catch ("세척_벽걸이" 측 catch "냉매점검") 측 catch
+    //   measurement 측 catch 측 catch 측 measurement 측 X 측 catch — service_types.code 기반 매칭 측 변경.
+    //   카운트(_isUsolNMainRefrigerant)는 service_types.code 기반 측 catch — 분류 측 catch 통일.
+    //   workItems 측 X 측 catch task 측 catch 옛 호환 측 catch r.workType fallback 유지.
     function getByType(type) {
       return unique.filter(r => {
-        if (r.workItems && r.workItems.length > 0) {
-          const main = determineMainWorkType(r.workItems);
-          return main === type;
+        const items = Array.isArray(r.workItems) ? r.workItems : [];
+        if (items.length === 0) return r.workType === type;
+        const main = items[0];
+        if (type === "세척") {
+          return main.serviceCode === "cleaning"
+            || String(main.workType || "").startsWith("세척");
         }
-        return r.workType === type;
+        if (type === "냉매충전") {
+          return main.serviceCode === "refrigerant"
+            || /냉매/.test(String(main.workType || ""));
+        }
+        return determineMainWorkType(r.workItems) === type;
       });
     }
     return {

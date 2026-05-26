@@ -613,7 +613,17 @@ function SubmittedScreen({ t, task, onContinue }) {
           <Row t={t} label="고객" value={task.customer}/>
           <Row t={t} label="연락처" value={task.phone} mono/>
           <Row t={t} label="주소" value={task.address}/>
-          <Row t={t} label="작업" value={`${task.workType} (${task.quantity}대)`}/>
+          {/* 2026-05-26 fix: task.workType / task.quantity 측 NewReceptionScreenLite onSubmit payload 측 X →
+              workItems[0] 측 catch — appliance × qty (앞서 admin/engineer 측 catch 측 패턴) */}
+          <Row t={t} label="작업" value={(() => {
+            const items = Array.isArray(task.workItems) ? task.workItems : [];
+            const main = items[0];
+            const wt   = main?.workType  || task.workType  || "—";
+            const app  = main?.appliance || task.appliance || "";
+            const qty  = main?.qty       || task.qty       || task.quantity || 1;
+            const more = items.length > 1 ? ` 외 ${items.length - 1}건` : "";
+            return app ? `${wt} · ${app} ×${qty}${more}` : `${wt} ×${qty}${more}`;
+          })()}/>
           {task.scheduled && <Row t={t} label="희망일" value={task.scheduled}/>}
         </div>
       </div>
