@@ -43,12 +43,15 @@ export const SERVICE_TYPES = {
   },
 };
 
-// 작업 분류 자동 감지 (변경 X)
+// 작업 분류 자동 감지
+// 2026-05-26 C-1 — workType 정확일치 → isRefrigerant (DB "냉매점검(...)" 측 catch).
+import { isRefrigerant } from "../utils/workTypeKind.js";
+
 export function detectServiceType(task) {
   if (!task) return SERVICE_TYPES.cleaning;
   if (task.status === "visit_only") return SERVICE_TYPES.visit;
   if (task.orderType === "extra")   return SERVICE_TYPES.extra;
-  if (task.workType === "냉매충전") return SERVICE_TYPES.refrigerant;
+  if (isRefrigerant(task))          return SERVICE_TYPES.refrigerant;
 
   const text = `${task.productName || ""} ${task.workType || ""}`.toLowerCase();
   if (text.includes("냉매") || text.includes("가스") || text.includes("충전")) {

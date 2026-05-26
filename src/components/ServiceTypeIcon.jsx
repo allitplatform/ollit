@@ -2,6 +2,7 @@
 // theme context / CSS variable 의존 없는 강제 인라인 버전
 
 import { useEffect, useState } from "react";
+import { getServiceKind } from "../utils/workTypeKind.js";
 
 // V14 — 라이트·다크 동일 색 (시안 파랑 + 노랑)
 const COLOR_MAP = {
@@ -44,13 +45,18 @@ function getThemeMode() {
   return "light";  // 기본 라이트
 }
 
-// 2026-05-20 Phase 5 Step 0.F-2 — baseType split spec
-//   옛 시트 데이터 측 workType = "세척_벽걸이" / "세척_1way" 측 단일 문자열
-//   split("_")[0] 측 첫 토큰 catch → "세척" 측 정규화 → 색 / 아이콘 / 라벨 측 동작
+// 2026-05-26 C-1 — workType 정규화 (getServiceKind 측 catch + 옛 split 측 catch).
+//   getServiceKind 측 catch 측 catch case ("세척_1way", "냉매점검(서울 경기북부만 가능)" 측) 측 catch.
+//   설치/누설/점검/수리 측 catch — 옛 split 측 catch fallback.
 function _baseType(workType) {
+  const kind = getServiceKind(workType);
+  if (kind === "cleaning")    return "세척";
+  if (kind === "refrigerant") return "냉매충전";
+  if (kind === "install")     return "설치";
+  if (kind === "leak")        return "누설";
+  // 측 catch (점검/수리 등) — 옛 split fallback
   const s = String(workType || "").trim();
   if (!s) return "";
-  // 옛 시트 측 "세척_벽걸이" 등 — 첫 토큰만 catch
   const idx = s.indexOf("_");
   return idx > 0 ? s.slice(0, idx) : s;
 }

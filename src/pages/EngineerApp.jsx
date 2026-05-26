@@ -18,6 +18,7 @@ import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
 import { isTrackARemittance, isTrackC } from "../utils/remitFilter.js";
 import { isCompletedStatus } from "../utils/taskStatus.js";
+import { isCleaning, isRefrigerant } from "../utils/workTypeKind.js";
 import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 // 2026-05-19 Fix #30 account-fetch — 회사 계좌 DB 우선 조회 (localStorage 의존 제거)
@@ -1046,9 +1047,10 @@ function MainScreen({
     waiting:    newAssignments.length,
   };
   const total = todayTasksLocal.length;
+  // 2026-05-26 C-1 — workType 정확일치 → getServiceKind 측 catch (DB 측 catch "세척_1way", "냉매점검(...)" 측 catch).
   const workTypeCounts = {
-    세척:     todayTasksLocal.filter(x => x.workType === "세척"     && x.status !== "완료").length,
-    냉매충전: todayTasksLocal.filter(x => x.workType === "냉매충전" && x.status !== "완료").length,
+    세척:     todayTasksLocal.filter(x => isCleaning(x)    && x.status !== "완료").length,
+    냉매충전: todayTasksLocal.filter(x => isRefrigerant(x) && x.status !== "완료").length,
   };
 
   return (

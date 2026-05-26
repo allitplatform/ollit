@@ -37,6 +37,7 @@ import { TaskHistoryScreen } from "../components/TaskHistoryScreen.jsx";
 import { getHistoryCount } from "../data/taskHistory.js";
 import { UsolNScreen } from "../components/UsolNScreen.jsx";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
+import { isRefrigerant } from "../utils/workTypeKind.js";
 import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
 import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
@@ -6108,9 +6109,11 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
             // 2026-05-17 Round 2 Fix #20 — 사장님 spec: (모델×수량) + workType 아이콘.
             // appliance(벽걸이/스탠드)를 모델로 표시, workType은 ⚡/❄ 아이콘으로 압축.
             const itemSummary = `${task.appliance || "—"}×${task.qty || 1}`;
-            const WorkIcon = task.workType === "냉매충전" ? Zap : Snowflake;
+            // 2026-05-26 C-1 — workType 정확일치 → isRefrigerant (DB "냉매점검(...)" 측 catch).
+            const isRef = isRefrigerant(task);
+            const WorkIcon = isRef ? Zap : Snowflake;
             // 2026-05-21 Phase 5 Step 0.H-3 — 세척 색 = 파랑 (t.info / 통일)
-            const workColor = task.workType === "냉매충전" ? "#EF9F27" : t.info;
+            const workColor = isRef ? "#EF9F27" : t.info;
             // 2026-05-17 Round 2 Fix #14 — 작업당 표시값 = principal + owner (= 회사+원청 수수료).
             // 그룹 합계(groupDoneByEngineer)와 동일 계산식.
             const earning = (Number(task.principal_amount) || 0) + (Number(task.owner_amount) || 0);
@@ -6418,8 +6421,10 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
 
   // workType 아이콘 — 2026-05-21 Phase 5 Step 0.H-3: 세척 색 = 파랑 (t.info)
-  const WorkIcon = task.workType === "냉매충전" ? Zap : Snowflake;
-  const workColor = task.workType === "냉매충전" ? "#EF9F27" : t.info;
+  // 2026-05-26 C-1 — workType 정확일치 → isRefrigerant.
+  const isRef = isRefrigerant(task);
+  const WorkIcon = isRef ? Zap : Snowflake;
+  const workColor = isRef ? "#EF9F27" : t.info;
 
   // 정보 텍스트: "(모델×수량) · 지역 · 시간"
   //   2026-05-21 Phase 5 Step 0.H-3 — 작업 예정 시간 표시 (정렬 결과 catch 측 spec)
