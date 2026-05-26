@@ -61,9 +61,15 @@ export function UsolNOrders({ onTaskClick, hideList = false }) {
 
   // 2026-05-23 — CSV 업로드 → parseNaverOrders → 미리보기 → DB INSERT
   //   중복 체크 측 DB level (external_order_no) 측 위임 — 미리보기 측 측 전체 주문 수 표시
-  function handleFileSelect(e) {
-    const file = e.target.files?.[0];
+  // 2026-05-26 — 드래그 앤 드롭 측 catch handleFile(file) 측 catch 분리. handleFileSelect 측 catch <input onChange> 측 catch 측 catch.
+  function handleFile(file) {
     if (!file) return;
+    // 확장자 검증 — .xlsx / .xls / .csv 측 catch 측 catch 측 measurement (alert 측 catch)
+    const ext = String(file.name || "").toLowerCase().split(".").pop();
+    if (!["xlsx", "xls", "csv"].includes(ext)) {
+      alert(`엑셀/CSV 파일만 측 catch (.xlsx, .xls, .csv). 측 catch: .${ext}`);
+      return;
+    }
     setImportResult(null);
     const reader = new FileReader();
     reader.onload = (evt) => {
@@ -83,6 +89,10 @@ export function UsolNOrders({ onTaskClick, hideList = false }) {
       }
     };
     reader.readAsArrayBuffer(file);
+  }
+
+  function handleFileSelect(e) {
+    handleFile(e.target.files?.[0]);
   }
 
   async function handleConfirmImport() {
@@ -118,6 +128,7 @@ export function UsolNOrders({ onTaskClick, hideList = false }) {
       <UploadBox
         fileInputRef={fileInputRef}
         onFileSelect={handleFileSelect}
+        onFile={handleFile}
         pendingCount={pendingOrders.length}
         importing={importing}
         onConfirm={handleConfirmImport}
@@ -262,7 +273,10 @@ function pageBtnStyle(disabled) {
   };
 }
 
-function UploadBox({ fileInputRef, onFileSelect, pendingCount, importing, onConfirm, onCancel }) {
+function UploadBox({ fileInputRef, onFileSelect, onFile, pendingCount, importing, onConfirm, onCancel }) {
+  // 2026-05-26 — 드래그 앤 드롭 상태 (시각 피드백)
+  const [isDragging, setIsDragging] = useState(false);
+
   if (pendingCount > 0) {
     return (
       <div style={uploadConfirmStyle}>
@@ -282,17 +296,53 @@ function UploadBox({ fileInputRef, onFileSelect, pendingCount, importing, onConf
     );
   }
 
+  // 드래그 핸들러 — onDragOver preventDefault 필수 (안 하면 drop 측 catch X)
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  }
+  function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file && typeof onFile === "function") onFile(file);
+  }
+
+  // 드래그 중 강조 스타일 — 초록 점선 굵게 + 배경 진하게
+  const activeStyle = isDragging
+    ? {
+        background: "rgba(3,199,90,0.18)",
+        border: "2px dashed #03C75A",
+        transform: "scale(1.01)",
+      }
+    : {};
+
   return (
     <div
-      style={uploadDropStyle}
+      style={{
+        ...uploadDropStyle,
+        ...activeStyle,
+        transition: "background 0.12s, border 0.12s, transform 0.12s",
+      }}
       onClick={() => fileInputRef.current?.click()}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
     >
-      <div style={{ fontSize: 24, marginBottom: 8 }}>📤</div>
+      <div style={{ fontSize: 24, marginBottom: 8 }}>{isDragging ? "📂" : "📤"}</div>
       <div style={{ fontSize: 13, color: "#03C75A", fontWeight: 600 }}>
-        접수 CSV 업로드
+        {isDragging ? "여기에 놓으세요" : "접수 CSV 업로드"}
       </div>
       <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 4 }}>
-        네이버 발주 엑셀 파일을 선택하세요
+        네이버 발주 엑셀 파일을 선택하거나 끌어다 놓으세요
       </div>
       <input
         type="file"
