@@ -600,33 +600,29 @@ function WorkTimeHistoryCard({ task }) {
           🕐 작업 시간 · 이력
         </div>
 
-        {/* 작업 시간 (시작~완료 + 총 소요) */}
+        {/* 작업 시간 (시작~완료 + 총 소요) — 2026-05-26 D-4 LabelRow 톤 */}
         {(startedAt || completedAt) && (
           <div style={{
-            padding: 8,
-            background: "var(--bg-primary)",
-            borderRadius: 6, marginBottom: 8,
+            padding: 10,
+            background: "var(--bg-secondary)",
+            borderRadius: 8, marginBottom: 10,
           }}>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 2 }}>
-              <span style={{ color: "var(--text-secondary)" }}>시작</span>
-              <span className="mono" style={{ color: "var(--text-primary)" }}>{formatDateTimeKST(startedAt)}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, marginBottom: 2 }}>
-              <span style={{ color: "var(--text-secondary)" }}>완료</span>
-              <span className="mono" style={{ color: "var(--text-primary)" }}>{formatDateTimeKST(completedAt)}</span>
-            </div>
+            <D4TimeRow label="시작" value={formatDateTimeKST(startedAt)}/>
+            <D4TimeRow label="완료" value={formatDateTimeKST(completedAt)}/>
             {duration && (
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginTop: 4, paddingTop: 4, borderTop: "1px dashed var(--border)" }}>
-                <span style={{ color: "#FF1B8D", fontWeight: 700 }}>총 소요</span>
-                <span style={{ color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>{duration}</span>
+              <div style={{ marginTop: 6, paddingTop: 6, borderTop: "1px dashed var(--border)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: "var(--accent)", fontWeight: 700 }}>총 소요</span>
+                  <span style={{ fontSize: 13, color: "var(--accent)", fontWeight: 800, fontFamily: "inherit" }}>{duration}</span>
+                </div>
               </div>
             )}
           </div>
         )}
 
         {/* 진행 5단계 (옛 TimestampHistory 영역) */}
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
             진행 단계
           </div>
           <TimestampRows task={task}/>
@@ -648,18 +644,26 @@ function TimestampRows({ task }) {
     { label: "완료",      value: task.completedAt },
   ];
   return (
-    <div>
-      {rows.map((r, i) => (
-        <div key={r.label} style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          fontSize: 10, paddingTop: i === 0 ? 0 : 2,
-        }}>
-          <span style={{ color: "var(--text-secondary)" }}>{r.label}</span>
-          <span className="mono" style={{ color: "var(--text-primary)" }}>
-            {formatDateTimeKST(r.value)}
-          </span>
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      {rows.map(r => (
+        <D4TimeRow key={r.label} label={r.label} value={formatDateTimeKST(r.value)}/>
       ))}
+    </div>
+  );
+}
+
+// 2026-05-26 D-4 — 시간 row 측 catch (유솔앱 LabelRow 톤)
+//   라벨 12 textSecondary / 값 13 mono textPrimary
+function D4TimeRow({ label, value }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", justifyContent: "space-between",
+      gap: 10,
+    }}>
+      <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>{label}</span>
+      <span className="mono" style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 600 }}>
+        {value || "—"}
+      </span>
     </div>
   );
 }
@@ -694,18 +698,18 @@ function TaskChangesSection({ taskId }) {
   }, [taskId, reloadTick]);
 
   return (
-    <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--border)" }}>
-      <div style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
         📜 변경 이력{changes.length > 0 && <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 4 }}>({changes.length})</span>}
       </div>
       {loading ? (
-        <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>불러오는 중...</div>
+        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>불러오는 중...</div>
       ) : error ? (
-        <div style={{ fontSize: 9, color: "#ff4444" }}>⚠️ {error}</div>
+        <div style={{ fontSize: 11, color: "#ff4444" }}>⚠️ {error}</div>
       ) : changes.length === 0 ? (
-        <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>변경 이력 X (새 작업부터 누적)</div>
+        <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>변경 이력 X (새 작업부터 누적)</div>
       ) : (
-        <div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {changes.map(ch => (
             <ChangeEntry key={ch.id} entry={ch}/>
           ))}
@@ -740,23 +744,23 @@ function ChangeEntry({ entry }) {
   const who   = entry.changed_by_name || "—";
   return (
     <div style={{
-      padding: 6,
-      background: "var(--bg-primary)",
-      borderRadius: 4, marginTop: 4,
-      borderLeft: "2px solid #FF1B8D",
+      padding: 8,
+      background: "var(--bg-secondary)",
+      borderRadius: 8,
+      borderLeft: "3px solid var(--accent)",
     }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 10 }}>{icon}</span>
-          <span style={{ fontSize: 10, fontWeight: 700, color: "var(--text-primary)" }}>{label}</span>
-          <span style={{ fontSize: 8, color: "var(--text-tertiary, var(--text-secondary))" }}>· {who}</span>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <span style={{ fontSize: 12 }}>{icon}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>{label}</span>
+          <span style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))" }}>· {who}</span>
         </div>
-        <span className="mono" style={{ fontSize: 8, color: "var(--text-tertiary, var(--text-secondary))" }}>
+        <span className="mono" style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}>
           {formatDateTimeKST(entry.changed_at)}
         </span>
       </div>
       {entry.note && (
-        <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 2, lineHeight: 1.4 }}>
+        <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>
           ↳ {entry.note}
         </div>
       )}
@@ -773,30 +777,32 @@ function RequestMemoCard({ task, memos, onMemoAdd }) {
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
           📝 요청사항
         </div>
-        <div style={{ fontSize: 11, color: "var(--text-primary)", lineHeight: 1.5 }}>
+        <div style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontWeight: 500 }}>
           {task.memo || "없음"}
         </div>
 
         {memos.length > 0 && (
-          <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
-            <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
               메모 ({memos.length})
             </div>
-            {memos.slice(0, 3).map((m, i) => (
-              <div key={i} style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>
-                · {m.content}
-              </div>
-            ))}
+            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {memos.slice(0, 3).map((m, i) => (
+                <div key={i} style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                  · {m.content}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--border)" }}>
+        <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
           <button
             onClick={onMemoAdd}
             style={{
-              fontSize: 10, color: "#FF1B8D",
+              fontSize: 12, color: "var(--accent)",
               background: "transparent", border: "none",
-              cursor: "pointer", padding: 0, fontWeight: 600,
+              cursor: "pointer", padding: 0, fontWeight: 700,
               fontFamily: "inherit",
             }}
           >＋ 메모 추가</button>
@@ -1086,20 +1092,20 @@ function ConsentCard({ consent }) {
     <div style={{ padding: D1_OUTER_PAD }}>
     <div style={D1_CARD_STYLE}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>
           📝 냉매 충전 동의서
         </div>
         <div style={{ flex: 1 }}/>
         <span style={{
-          padding: "2px 8px", borderRadius: 8,
-          background: "rgba(15,110,86,0.15)",
-          color: "#0F6E56",
-          fontSize: 10, fontWeight: 700,
+          padding: "3px 10px", borderRadius: 999,
+          background: "rgba(29,158,117,0.18)",
+          color: "#1D9E75",
+          fontSize: 11, fontWeight: 700,
         }}>동의 완료</span>
       </div>
-      <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7 }}>
-        <div>고객: <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>{customerName}</span></div>
-        {signedAtLabel && <div>시각: <span style={{ color: "var(--text-primary)" }}>{signedAtLabel}</span></div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <D4TimeRow label="고객" value={customerName}/>
+        {signedAtLabel && <D4TimeRow label="시각" value={signedAtLabel}/>}
       </div>
       {signatureUrl && (
         <div style={{ marginTop: 10 }}>
@@ -1138,28 +1144,33 @@ function ReassignRequestCard({ request }) {
       background: "rgba(255,27,141,0.06)",
       border: "1px solid rgba(255,27,141,0.35)",
     }}>
-      <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "#FF1B8D" }}>
+      <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: "#FF1B8D" }}>
           🔁 재배정 요청
         </div>
         <div style={{ flex: 1 }}/>
         <span style={{
-          padding: "2px 8px", borderRadius: 8,
-          background: "rgba(255,27,141,0.15)",
+          padding: "3px 10px", borderRadius: 999,
+          background: "rgba(255,27,141,0.18)",
           color: "#FF1B8D",
-          fontSize: 10, fontWeight: 700,
+          fontSize: 11, fontWeight: 700,
         }}>처리 대기</span>
       </div>
-      <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.7 }}>
-        {reason && <div>사유: <span style={{ color: "var(--text-primary)", fontWeight: 600 }}>{reason}</span></div>}
-        {requestedAtLabel && <div>요청 시각: <span style={{ color: "var(--text-primary)" }}>{requestedAtLabel}</span></div>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {reason && (
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+            <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600, flexShrink: 0 }}>사유</span>
+            <span style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 700, textAlign: "right" }}>{reason}</span>
+          </div>
+        )}
+        {requestedAtLabel && <D4TimeRow label="요청 시각" value={requestedAtLabel}/>}
       </div>
       <div style={{
-        marginTop: 10, padding: "8px 10px",
+        marginTop: 12, padding: "10px 12px",
         background: "rgba(255,184,0,0.10)",
         border: "1px solid rgba(255,184,0,0.30)",
         borderRadius: 8,
-        fontSize: 11, color: "var(--text-primary)", lineHeight: 1.5,
+        fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, fontWeight: 500,
       }}>
         💡 위 [배정 프로] 카드 측 [변경] 버튼으로 다른 기사를 배정해 주세요.
       </div>
@@ -1231,10 +1242,10 @@ function PhotoSection({ taskId, taskType }) {
     <div style={photoCardStyle}>
       <PhotoSectionLabel count={photos.length}/>
       {sortedSteps.map(step => (
-        <div key={step} style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4, fontWeight: 600 }}>
+        <div key={step} style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 6, fontWeight: 700 }}>
             {step === "시작" ? "🔍 작업 전" : step === "완료" ? "✨ 작업 후" : `📷 ${step}`}
-            <span style={{ color: "var(--text-tertiary, var(--text-secondary))", fontWeight: 400, marginLeft: 4 }}>
+            <span style={{ color: "var(--text-tertiary, var(--text-secondary))", fontWeight: 500, marginLeft: 4 }}>
               ({groups[step].length})
             </span>
           </div>
@@ -1290,10 +1301,10 @@ function PhotoSection({ taskId, taskType }) {
 function PhotoSectionLabel({ count }) {
   return (
     <div style={{
-      fontSize: 10, color: "var(--text-secondary)",
-      marginBottom: 8, fontWeight: 600,
+      fontSize: 12, color: "var(--text-secondary)",
+      marginBottom: 10, fontWeight: 700,
     }}>
-      📷 작업 사진{count != null && <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 4 }}>({count})</span>}
+      📷 작업 사진{count != null && <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 4, fontWeight: 600 }}>({count})</span>}
     </div>
   );
 }
