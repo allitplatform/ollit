@@ -3135,6 +3135,19 @@ export default function AdminApp({ user, onLogout }) {
       />
     </Shell>;
   }
+  // 2026-05-26 — 기사 재배정 요청 목록 (대시보드 알림 줄 클릭 → 진입)
+  if (screen === "reassignList") {
+    return <Shell t={t} toasts={toasts}>
+      <ReassignRequestListScreen
+        t={t}
+        apiTasks={apiTasks}
+        onBack={goBack}
+        onMemo={(task) => { setSelectedTask(task); setScreen("memoAdd"); }}
+        onEdit={(task) => { setSelectedTask(task); setScreen("taskEdit"); }}
+        onTaskClick={(task) => goTaskDetail(task, "reassignList")}
+      />
+    </Shell>;
+  }
   if (screen === "settlement") {
     return <Shell t={t} toasts={toasts}>
       <SettlementDailyClose
@@ -3471,6 +3484,7 @@ export default function AdminApp({ user, onLogout }) {
       onClickAssignedList={(filter) => { setAssignedFilter(filter); setScreen("assignedList"); }}
       onClickLiveWork={(filter) => { setLiveWorkFilter(filter || null); setScreen("liveWork"); }}
       onClickInProgress={() => setScreen("inProgressList")}
+      onClickReassign={() => setScreen("reassignList")}
       onClickSettlement={() => setScreen("settlement")}
       onClickManage={() => setScreen("engineerList")}
       onClickManagePrincipals={() => setScreen("principalList")}
@@ -3551,7 +3565,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onEngineerClick, onTaskClick, onClickCancelHandle }) {
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onEngineerClick, onTaskClick, onClickCancelHandle }) {
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
@@ -3631,23 +3645,29 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           <StatBox t={t} label="완료"     value={dynamicStats?.completed  ?? TODAY_STATS.completed}   color={t.success} onClick={() => onClickLiveWork("completed-today")}/>
         </div>
 
-        {/* 2026-05-26 — 기사 재배정 요청 알림 줄 (1건 이상 측 catch 노출) */}
+        {/* 2026-05-26 — 기사 재배정 요청 알림 줄 (1건 이상 측 catch 노출 / 클릭 측 catch 측 catch 측 진입) */}
         {reassignCount > 0 && (
-          <div style={{
-            marginBottom: 14,
-            padding: "10px 12px",
-            background: "rgba(255,27,141,0.10)",
-            border: "1px solid rgba(255,27,141,0.40)",
-            borderRadius: 10,
-            display: "flex", alignItems: "center", gap: 8,
-          }}>
+          <div
+            onClick={onClickReassign}
+            className="clickable"
+            style={{
+              marginBottom: 14,
+              padding: "10px 12px",
+              background: "rgba(255,27,141,0.10)",
+              border: "1px solid rgba(255,27,141,0.40)",
+              borderRadius: 10,
+              display: "flex", alignItems: "center", gap: 8,
+              cursor: typeof onClickReassign === "function" ? "pointer" : "default",
+            }}
+          >
             <span style={{ fontSize: 14 }}>🔁</span>
             <span style={{ fontSize: 12, fontWeight: 800, color: "#FF1B8D" }}>
               재배정 요청 {reassignCount}건
             </span>
             <span style={{ fontSize: 11, color: t.textSecondary, marginLeft: "auto" }}>
-              배정·확정·진행중 카드 측 분홍 배지 확인
+              목록 보기
             </span>
+            <span style={{ fontSize: 14, color: "#FF1B8D", fontWeight: 700, flexShrink: 0 }}>›</span>
           </div>
         )}
 
@@ -4515,6 +4535,71 @@ function PlaceholderScreen({ t, title, label, onBack }) {
 // ─────────────────────────────────────────────
 // 배정 완료 / 일정 확정 화면 (Step 2-5b)
 // ─────────────────────────────────────────────
+// 2026-05-26 — 기사 재배정 요청 목록 화면.
+//   Mig 056 category_data.reassignRequest 측 catch task 측 catch — status 변경 X (배정/확정/진행중 유지).
+//   AssignedTasksScreen 측 catch filter prop 측 catch 내부 TASK_FILTERS 측 catch 측 catch — 측 catch 측 catch 측 catch X.
+//   별도 화면 — AssignedCard 측 catch 측 catch (카드 모양 일관성).
+function ReassignRequestListScreen({ t, apiTasks = [], onBack, onMemo, onEdit, onTaskClick }) {
+  const [query, setQuery] = useState("");
+  const baseSource = (apiTasks || []).filter(t =>
+    t?.reassignRequest?.requestedAt && t.status !== "취소"
+  );
+  // 요청 시각 최신순 정렬 (최근 요청 측 위)
+  const sorted = [...baseSource].sort((a, b) => {
+    const ta = String(a?.reassignRequest?.requestedAt || "");
+    const tb = String(b?.reassignRequest?.requestedAt || "");
+    return tb.localeCompare(ta);
+  });
+
+  const q = query.trim().toLowerCase();
+  const all = !q ? sorted : sorted.filter((s) => {
+    const reason = String(s?.reassignRequest?.reason || "").toLowerCase();
+    const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo, reason].filter(Boolean).join(" ").toLowerCase();
+    return fields.includes(q);
+  });
+
+  return (
+    <div className="fade-in">
+      <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10 }}>
+        <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+          <ArrowLeft size={18}/>
+        </button>
+        <div style={{ fontSize: 16, fontWeight: 800, color: "#FF1B8D" }}>
+          🔁 재배정 요청 {all.length}건
+        </div>
+      </div>
+
+      <div style={{ padding: "14px 16px 20px" }}>
+        <div style={{ position: "relative", marginBottom: 10 }}>
+          <Search size={13} style={{
+            position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+            color: t.textMuted, pointerEvents: "none",
+          }}/>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="고객 · 지역 · 작업 · 프로 · 사유"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              padding: "8px 10px 8px 30px",
+              background: t.bgInset, border: `1px solid ${t.border}`,
+              borderRadius: 8, color: t.text,
+              fontSize: 12, fontFamily: "inherit", outline: "none",
+            }}
+          />
+        </div>
+        {all.length === 0 ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+            {q ? "검색 결과가 없어요" : "재배정 요청이 없어요"}
+          </div>
+        ) : all.map((task) => (
+          <AssignedCard key={task.id || task.taskCode} t={t} task={task} onMemo={onMemo} onEdit={onEdit} onClick={onTaskClick}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit, onTaskClick }) {
   // 2026-05-21 Phase 5 Step 0.G-5-B — 메인 카운트 통일 (TASK_FILTERS 공유 / 사장님 spec 확정)
   //   배정 완료 = TASK_FILTERS.assigned (유솔N 본작업 냉매만 + status='배정' / 날짜 X)
