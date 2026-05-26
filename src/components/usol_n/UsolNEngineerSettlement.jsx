@@ -144,14 +144,14 @@ export function UsolNEngineerSettlement() {
           {/* 입금 예정 카드 */}
           <div style={{
             padding: 16,
-            background: "rgba(14,165,233,0.10)",
-            border: "2px solid #06B6D4",
+            background: "var(--accent-bg)",
+            border: "2px solid var(--accent)",
             borderRadius: 14, marginBottom: 12,
           }}>
-            <div style={{ fontSize: 10, color: "#06B6D4", fontWeight: 700, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 700, marginBottom: 6 }}>
               📤 {nextSettlementDate} 기사 정산 예정
             </div>
-            <div style={{ fontSize: 22, color: "#06B6D4", fontWeight: 700, fontFamily: "inherit" }}>
+            <div style={{ fontSize: 22, color: "var(--accent)", fontWeight: 700, fontFamily: "inherit" }}>
               ₩{totalPending.toLocaleString()}
             </div>
             <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 4 }}>
@@ -162,17 +162,17 @@ export function UsolNEngineerSettlement() {
           {/* 분배 구조 */}
           <div style={{
             padding: 12,
-            background: "rgba(3,199,90,0.06)",
-            border: "1px solid rgba(3,199,90,0.3)",
+            background: "var(--accent-bg)",
+            border: "1px solid var(--accent)",
             borderRadius: 10, marginBottom: 14,
           }}>
-            <div style={{ fontSize: 10, color: "#03C75A", fontWeight: 600, marginBottom: 6 }}>
+            <div style={{ fontSize: 10, color: "var(--accent)", fontWeight: 600, marginBottom: 6 }}>
               📊 {selectedMonth} 분배
             </div>
             <SettlementRow label="정산 완료 (🟢)" value={totalSettled} color="#1D9E75"/>
-            <SettlementRow label="정산 대기 (대기)" value={totalPending} color="#06B6D4"/>
-            <div style={{ height: 1, background: "rgba(3,199,90,0.2)", margin: "6px 0" }}/>
-            <SettlementRow label="이번달 총" value={totalMonth} color="#03C75A" bold/>
+            <SettlementRow label="정산 대기 (대기)" value={totalPending} color="var(--accent)"/>
+            <div style={{ height: 1, background: "var(--accent)", margin: "6px 0" }}/>
+            <SettlementRow label="이번달 총" value={totalMonth} color="var(--accent)" bold/>
           </div>
 
           <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6, paddingLeft: 4 }}>
@@ -193,7 +193,7 @@ export function UsolNEngineerSettlement() {
               disabled={confirming}
               style={{
                 width: "100%", marginTop: 16, padding: 14,
-                background: "#06B6D4", border: "none", borderRadius: 10,
+                background: "var(--accent)", border: "none", borderRadius: 10,
                 color: "#fff", fontSize: 13, fontWeight: 700,
                 cursor: confirming ? "not-allowed" : "pointer",
                 fontFamily: "inherit",
@@ -255,7 +255,7 @@ function EngineerRow({ row }) {
         )}
         <span style={{
           fontSize: 12,
-          color: isAllDone ? "#1D9E75" : "#06B6D4",
+          color: isAllDone ? "#1D9E75" : "var(--accent)",
           fontWeight: 700, fontFamily: "inherit",
         }}>
           ₩{total.toLocaleString()}
@@ -264,7 +264,7 @@ function EngineerRow({ row }) {
       <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 2, paddingLeft: 14, display: "flex", gap: 6 }}>
         <span>항목 {row.items.length}개</span>
         {settled.length > 0 && <span style={{ color: "#1D9E75" }}>🟢 {settled.length}</span>}
-        {pending.length > 0 && <span style={{ color: "#06B6D4" }}>대기 {pending.length}</span>}
+        {pending.length > 0 && <span style={{ color: "var(--accent)" }}>대기 {pending.length}</span>}
       </div>
     </div>
   );
