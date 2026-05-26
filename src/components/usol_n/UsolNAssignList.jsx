@@ -1,0 +1,314 @@
+// 운영자 유솔N · 배정 측 catch 리스트 (메인 측 catch)
+// 2026-05-26 — 1단계 신규
+//
+// 사장님 spec:
+//   · 메인 = "배정해야 할 작업 리스트"
+//   · 필터: status IN ['배정','약속대기','미배정'] (statusIn fetch)
+//            + reassignRequest 측 catch task (in-memory — '배정' 측 catch 측 catch task 측 catch 측 catch)
+//            + status='배정' AND scheduledAt NULL 측 catch 측 catch (in-memory)
+//   · 컴팩트 한 줄 카드 (PrincipalListTab TaskRow 측 catch — 운영자 전용 복제)
+//   · 검색바 (고객명/주소/작업번호/상품주문번호)
+//   · 상단 "배정 필요 N건" 측 catch + "전체 작업 측 catch" 버튼 → in_progress 탭
+//
+// 호환: 측 컴포넌트 측 catch 측 catch fetch (AdminApp apiTasks prop 측 catch X).
+
+import { useState, useEffect, useMemo } from "react";
+import { Search, Snowflake, Zap } from "lucide-react";
+import { fetchUsolNTasks } from "../../lib/usolNTasksDb.js";
+import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
+import { formatYmdHm } from "../../utils/dateLabel.js";
+
+const CLEAN_COLOR       = "#378ADD";
+const REFRIGERANT_COLOR = "#EF9F27";
+const VISIT_COLOR       = "#9CA3AF";
+const DATE_TIME_COLOR   = "#F2B84B";
+const PINK_COLOR        = "#FF1B8D";
+const NAVER_GREEN       = "#03C75A";
+
+const MAIN_APPLIANCE_KEYWORDS = ["벽걸이", "스탠드", "1way", "2way", "4way", "투인원", "원형", "시스템멀티"];
+
+function getMainItem(task) {
+  const items = Array.isArray(task.task_items) ? task.task_items : (Array.isArray(task.workItems) ? task.workItems : []);
+  // task_items (Supabase row) 측 catch '본작업' 또는 appliance 키워드 측 catch 측 catch
+  let main = items.find(it => (it.orderType || it.order_type) === "본작업");
+  if (main) return main;
+  main = items.find(it => {
+    const apName = it.appliance_types?.name || it.appliance || "";
+    return MAIN_APPLIANCE_KEYWORDS.some(kw => String(apName).includes(kw));
+  });
+  return main || items[0] || null;
+}
+
+function getServiceKind(task) {
+  const main = getMainItem(task);
+  if (!main) return "addon";
+  const code = main?.work_types?.service_types?.code || main?.serviceCode || "";
+  if (code === "cleaning") return "main";
+  if (code === "refrigerant") return "addon";
+  // fallback — work_type name 측 catch '세척' 측 catch '냉매' 측 catch
+  const wt = String(main?.work_types?.name || main?.workType || "");
+  if (wt.includes("세척")) return "main";
+  if (wt.includes("냉매")) return "addon";
+  return "main";
+}
+
+function ServiceIcon({ kind, size = 14 }) {
+  if (kind === "visit") return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
+  if (kind === "addon") return <Zap size={size} style={{ color: REFRIGERANT_COLOR }}/>;
+  return <Snowflake size={size} style={{ color: CLEAN_COLOR }}/>;
+}
+
+function getStatusBadge(status) {
+  if (status === "미배정")  return { bg: "rgba(255,59,92,0.18)",  color: "#FF3B5C", label: "미배정" };
+  if (status === "배정")    return { bg: "rgba(234,88,12,0.18)",  color: "#EA580C", label: "배정" };
+  if (status === "약속대기") return { bg: "rgba(255,193,7,0.18)", color: "#FFC107", label: "약속대기" };
+  if (status === "확정")    return { bg: "rgba(29,158,117,0.18)", color: "#1D9E75", label: "확정" };
+  return { bg: "rgba(156,163,175,0.18)", color: "#9CA3AF", label: status || "—" };
+}
+
+export function UsolNAssignList({ onTaskClick, onSeeAll }) {
+  const [tasks, setTasks]     = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+  const [search, setSearch]   = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
+
+  // realtime — tasks / task_items 변경 시 refetch
+  useRealtimeTasks(() => setReloadTick(v => v + 1));
+  useRealtimeTable("task_items", () => setReloadTick(v => v + 1));
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError("");
+    fetchUsolNTasks({
+      statusIn: ["배정", "약속대기", "미배정"],
+      limit: 200,
+      offset: 0,
+    }).then(res => {
+      if (!alive) return;
+      if (!res.ok) {
+        setError(res.error || "불러오기 실패");
+        setTasks([]);
+      } else {
+        setTasks(res.tasks || []);
+      }
+    }).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [reloadTick]);
+
+  // 배정 필요 필터 — fetch 결과 + reassignRequest 측 catch (status 측 catch)
+  // 측 catch fetch 측 catch status IN ['배정','약속대기','미배정'] 측 catch 측 catch → 측 catch 전부 측 catch 측 catch.
+  // (status='확정' + reassignRequest 측 catch case 측 catch 측 X — V14 재배정 측 catch 측 catch '배정' 측 catch 측 catch)
+  const actionNeeded = useMemo(() => tasks, [tasks]);
+
+  // 검색 필터
+  const filtered = useMemo(() => {
+    if (!search.trim()) return actionNeeded;
+    const q = search.trim().toLowerCase();
+    return actionNeeded.filter(t => {
+      const cust = String(t.customer_name || "").toLowerCase();
+      const addr = String(t.address || "").toLowerCase();
+      const tno  = String(t.task_no || "").toLowerCase();
+      if (cust.includes(q) || addr.includes(q) || tno.includes(q)) return true;
+      // 상품주문번호 — task_items 측 catch
+      const items = Array.isArray(t.task_items) ? t.task_items : [];
+      for (const it of items) {
+        const poid = String(it.product_order_id || "").toLowerCase();
+        if (poid && poid.includes(q)) return true;
+      }
+      return false;
+    });
+  }, [actionNeeded, search]);
+
+  const totalCount = actionNeeded.length;
+
+  return (
+    <div className="fade-in" style={{ padding: "4px 0" }}>
+      {/* 상단 요약 — "배정 필요 N건" */}
+      <div style={{
+        padding: "10px 12px",
+        background: "rgba(3,199,90,0.10)",
+        border: `1px solid rgba(3,199,90,0.40)`,
+        borderRadius: 10,
+        marginBottom: 12,
+        display: "flex", alignItems: "center", gap: 8,
+      }}>
+        <span style={{ fontSize: 14 }}>📋</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: NAVER_GREEN }}>
+          배정 필요 {totalCount}건
+        </span>
+        <span style={{ fontSize: 11, color: "var(--text-secondary)", marginLeft: "auto" }}>
+          미배정 · 약속대기 · 배정(일정 협의)
+        </span>
+      </div>
+
+      {/* 검색 */}
+      <div style={{ position: "relative", marginBottom: 10 }}>
+        <Search size={13} style={{
+          position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)",
+          color: "var(--text-tertiary, var(--text-secondary))", pointerEvents: "none",
+        }}/>
+        <input
+          type="text" value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="고객명 / 주소 / 작업번호 / 상품주문번호"
+          style={{
+            width: "100%", boxSizing: "border-box",
+            padding: "8px 10px 8px 30px",
+            background: "var(--bg-inset, var(--bg-secondary))",
+            border: "1px solid var(--usol-n-border)",
+            borderRadius: 8, color: "var(--text-primary)",
+            fontSize: 12, fontFamily: "inherit", outline: "none",
+          }}
+        />
+      </div>
+
+      {/* 전체 작업 보기 버튼 → in_progress 탭 */}
+      {onSeeAll && (
+        <button onClick={onSeeAll} style={{
+          width: "100%", padding: "10px 12px",
+          background: "transparent",
+          border: "1px solid var(--usol-n-border)",
+          borderRadius: 8,
+          color: "var(--text-primary)",
+          fontSize: 12, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit",
+          marginBottom: 12,
+        }}>
+          전체 작업 보기 (진행 탭으로) →
+        </button>
+      )}
+
+      {/* 리스트 */}
+      {loading ? (
+        <Empty>불러오는 중...</Empty>
+      ) : error ? (
+        <Empty color="#FF3B5C">⚠️ {error}</Empty>
+      ) : filtered.length === 0 ? (
+        <Empty>{search.trim() ? "검색 결과가 없어요" : "배정 측 catch 측 catch 측 X"}</Empty>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {filtered.map(task => (
+            <TaskRowOperator
+              key={task.id}
+              task={task}
+              onClick={() => onTaskClick?.(task)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 운영자 전용 측 catch 카드 — PrincipalListTab.TaskRow 측 catch (ChannelBadge X, 측 catch 측 catch 추가)
+function TaskRowOperator({ task, onClick }) {
+  const kind = getServiceKind(task);
+  const status = getStatusBadge(task.status);
+  const mainItem = getMainItem(task);
+  const items = Array.isArray(task.task_items) ? task.task_items : [];
+
+  const appliance = mainItem?.appliance_types?.name || mainItem?.appliance || "";
+  const qty = mainItem?.qty || 1;
+  const otherCount = Math.max(0, items.length - 1);
+  const applianceText = `(${appliance || "—"}${qty > 1 ? `×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""})`;
+
+  // 지역 — district 또는 address 측 catch 측 catch
+  const region = task.district || String(task.address || "").split(/\s+/)[0] || "";
+
+  // 시간 — scheduled_at 측 catch
+  const timeStr = task.scheduled_at ? formatYmdHm(task.scheduled_at) : "";
+
+  // 측 catch 측 catch
+  const cat = task.category_data || {};
+  const hasReassignReq = !!(cat?.reassignRequest?.requestedAt);
+  const needSchedule = task.status === "배정" && !task.scheduled_at;
+
+  return (
+    <div
+      onClick={onClick}
+      className="clickable"
+      style={{
+        background: "var(--usol-n-card-bg)",
+        border: "1px solid var(--usol-n-border)",
+        borderRadius: 8,
+        padding: "8px 10px",
+        display: "flex", alignItems: "center", gap: 8,
+        minHeight: 38,
+        cursor: "pointer",
+      }}
+    >
+      <div style={{ flexShrink: 0, width: 14, textAlign: "center" }}>
+        <ServiceIcon kind={kind}/>
+      </div>
+      <span style={{
+        flexShrink: 0, fontSize: 12, fontWeight: 600,
+        color: "var(--text-primary)",
+        maxWidth: 80,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>{task.customer_name || "—"}</span>
+
+      <span style={{
+        flex: 1, minWidth: 0,
+        fontSize: 11, color: "var(--text-secondary)",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+      }}>
+        {applianceText}
+        {region ? ` · ${region}` : ""}
+        {timeStr && (<>{" · "}<span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span></>)}
+      </span>
+
+      {/* 측 catch 측 catch — 재배정 요청 */}
+      {hasReassignReq && (
+        <span style={{
+          fontSize: 9, fontWeight: 800,
+          color: PINK_COLOR,
+          background: "rgba(255,27,141,0.12)",
+          border: `1px solid rgba(255,27,141,0.40)`,
+          padding: "2px 6px", borderRadius: 999,
+          flexShrink: 0, whiteSpace: "nowrap",
+        }} title={cat.reassignRequest.reason || ""}>
+          🔁 재배정
+        </span>
+      )}
+
+      {/* 측 catch 측 catch — 일정 협의 */}
+      {needSchedule && !hasReassignReq && (
+        <span style={{
+          fontSize: 9, fontWeight: 800,
+          color: "#FFC107",
+          background: "rgba(255,193,7,0.15)",
+          border: "1px solid rgba(255,193,7,0.40)",
+          padding: "2px 6px", borderRadius: 999,
+          flexShrink: 0, whiteSpace: "nowrap",
+        }}>
+          🕐 일정 협의
+        </span>
+      )}
+
+      {/* 상태 배지 */}
+      <span style={{
+        fontSize: 10, fontWeight: 700,
+        padding: "2px 7px", borderRadius: 8,
+        background: status.bg, color: status.color,
+        flexShrink: 0, whiteSpace: "nowrap",
+      }}>{status.label}</span>
+    </div>
+  );
+}
+
+function Empty({ children, color }) {
+  return (
+    <div style={{
+      padding: "40px 16px", textAlign: "center",
+      color: color || "var(--text-secondary)",
+      fontSize: 12, fontWeight: 600,
+      background: "var(--usol-n-card-bg)",
+      border: "1px dashed var(--usol-n-border)",
+      borderRadius: 10,
+    }}>{children}</div>
+  );
+}
+
+export default UsolNAssignList;

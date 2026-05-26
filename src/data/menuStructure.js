@@ -39,12 +39,15 @@ export function showUsolNEntry(user) {
 export const showUsolNGroup  = showUsolNEntry;
 export const filterUsolNMenu = (user) => showUsolNEntry(user) ? [USOL_N_ENTRY] : [];
 
-// V11-2-fix — 5탭 정의 (UsolNScreen이 import)
-// 라벨 짧게: 접수 / 진행 / 매칭 / 추적 / 정산 (가로 스크롤 X / flex:1 균등)
+// 2026-05-26 — 6탭 (사장님 spec — 메인 = 배정 리스트 / 업로드 측 catch 백업)
+// 라벨 짧게: 배정 / 업로드 / 진행 / 매칭 / 추적 / 정산
+//   - 'assign': 측 측 측 catch (UsolNAssignList) — 배정 측 catch task 리스트
+//   - 'orders': 업로드 측 catch (UsolNOrders hideList) — CSV 업로드만, 측 catch list X
 export const USOL_N_TABS = [
-  { id: "orders",              label: "접수", perm: "menu:usol_n_orders" },
-  { id: "in_progress",         label: "진행", perm: "menu:usol_n_in_progress" },
-  { id: "csv_match",           label: "매칭", perm: "menu:usol_n_csv_match" },
-  { id: "tracking",            label: "추적", perm: "menu:usol_n_tracking" },
-  { id: "engineer_settlement", label: "정산", perm: "menu:usol_n_engineer_settlement" },
+  { id: "assign",              label: "배정",   perm: "menu:usol_n_orders" },
+  { id: "orders",              label: "업로드", perm: "menu:usol_n_orders" },
+  { id: "in_progress",         label: "진행",   perm: "menu:usol_n_in_progress" },
+  { id: "csv_match",           label: "매칭",   perm: "menu:usol_n_csv_match" },
+  { id: "tracking",            label: "추적",   perm: "menu:usol_n_tracking" },
+  { id: "engineer_settlement", label: "정산",   perm: "menu:usol_n_engineer_settlement" },
 ];

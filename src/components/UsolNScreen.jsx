@@ -8,6 +8,7 @@ import { loadTasks, getLongPendingTasks } from "../data/tasks.js";
 import { loadUsolNSeedToStorage } from "../data/seedTasks.js";
 import { USOL_N_TABS } from "../data/menuStructure.js";
 
+import { UsolNAssignList } from "./usol_n/UsolNAssignList.jsx";
 import { UsolNOrders } from "./usol_n/UsolNOrders.jsx";
 import { UsolNInProgress } from "./usol_n/UsolNInProgress.jsx";
 import { UsolNCsvMatch } from "./usol_n/UsolNCsvMatch.jsx";
@@ -23,7 +24,7 @@ export function UsolNScreen({ user, initialTab, onBack, onTaskClick }) {
     [currentUser]
   );
   const [activeTab, setActiveTab] = useState(
-    visibleTabs.some(t => t.id === initialTab) ? initialTab : (visibleTabs[0]?.id || "orders")
+    visibleTabs.some(t => t.id === initialTab) ? initialTab : (visibleTabs[0]?.id || "assign")
   );
   // 시드 추가 후 헤더 카운트 갱신을 위한 tick
   const [tick, setTick] = useState(0);
@@ -72,7 +73,10 @@ export function UsolNScreen({ user, initialTab, onBack, onTaskClick }) {
 
       {/* 본문 */}
       <div style={tabContentStyle}>
-        {activeTab === "orders"              && <UsolNOrders      onTaskClick={onTaskClick}/>}
+        {/* 2026-05-26 — 신규 'assign' 탭 (메인 — 배정 측 catch 리스트) */}
+        {activeTab === "assign"              && <UsolNAssignList  onTaskClick={onTaskClick} onSeeAll={() => setActiveTab("in_progress")}/>}
+        {/* 2026-05-26 — 'orders' 측 catch hideList=true 측 catch — 측 catch CSV 업로드만 (백업) */}
+        {activeTab === "orders"              && <UsolNOrders      hideList onTaskClick={onTaskClick}/>}
         {activeTab === "in_progress"         && <UsolNInProgress  onTaskClick={onTaskClick}/>}
         {activeTab === "csv_match"           && <UsolNCsvMatch/>}
         {activeTab === "tracking"            && <UsolNTracking/>}
@@ -154,12 +158,22 @@ function calculateHeaderInfo(activeTab) {
   let tasks = [];
   try { tasks = loadTasks().filter(t => t.principalId === "usol_n"); } catch {}
 
-  if (activeTab === "orders") {
-    const newReceived = tasks.filter(t => t.status === "received").length;
+  // 2026-05-26 — 신규 'assign' 탭 헤더 (UsolNAssignList 측 catch 측 catch 측 catch 측 catch 측 측 측 X 측 catch 단순)
+  if (activeTab === "assign") {
     return {
-      subtitle:   "네이버 결제 · 매주 월요일",
-      rightLabel: "접수 대기",
-      rightValue: `${newReceived}건`,
+      subtitle:   "배정 측 catch 작업 (미배정·약속대기·일정 협의)",
+      rightLabel: "메인",
+      rightValue: "배정 리스트",
+      rightSub:   null,
+    };
+  }
+
+  if (activeTab === "orders") {
+    // 2026-05-26 — 라벨 "접수" → "업로드" (hideList=true 측 catch CSV 업로드 측 catch)
+    return {
+      subtitle:   "네이버 발주 CSV 업로드 (백업 측 catch)",
+      rightLabel: "업로드",
+      rightValue: "CSV",
       rightSub:   "네이버 발주",
     };
   }
