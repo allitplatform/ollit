@@ -9,6 +9,7 @@ import { ArrowLeft, Camera, X, Copy } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
 import { changePriceAdapter as apiChangePrice, markVisitOnlyAdapter } from "../data/tasksDb.js";
+import { isRefrigerant as isRefrigerantWorkType } from "../utils/workTypeKind.js";
 import { supabase } from "../lib/supabase.js";
 import {
   TaskCompleteScreen as CompletionCompleteScreen,
@@ -673,7 +674,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
       {/* V14 헌법 — 메인 CTA = 핑크 풀 (작업 종류 색 X) */}
       {/* 2026-05-22 — 냉매 작업 측 동의서 필수 가드 (Phase 1) */}
       {isConfirmed && (() => {
-        const isRefrigerant = task.workType === "냉매충전";
+        // 2026-05-26 C-2 — workType 정확일치 → isRefrigerantWorkType (DB "냉매점검(...)" 측 catch).
+        const isRefrigerant = isRefrigerantWorkType(task);
         const hasConsent = !!(task.consent?.signedAt);
         const startBlocked = isRefrigerant && !hasConsent;
         const signedAtLabel = hasConsent ? formatTimeOnly(task.consent.signedAt) : "";

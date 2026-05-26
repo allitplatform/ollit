@@ -5,11 +5,13 @@
 import { loadEngineers } from "../data/engineers.js";
 import { loadTasks } from "../data/tasks.js";
 import { loadRegions } from "../data/regions.js";
+import { isRefrigerant } from "./workTypeKind.js";
 
 const RECOMMEND_THRESHOLD = 50; // isRecommended 기준
 
+// 2026-05-26 C-2 — workType 정확일치 → isRefrigerant (DB "냉매점검(...)" 측 catch).
 function getWorkTypeKey(task) {
-  if (task?.workType === "냉매충전") return "refrigerant";
+  if (isRefrigerant(task)) return "refrigerant";
   return "cleaning";
 }
 

@@ -301,8 +301,11 @@ function determineWorkflow(workItems) {
   return WORK_TYPES_CONFIG[main]?.workflow || "manual_with_recommendation";
 }
 
+// 2026-05-26 C-2 — workType 정확일치 → isRefrigerant (item 단위).
+//   사용처: AdminApp.jsx:2327 hasRefrigerant: hasRefrigerantItem(items) — ⚡ 표시용 (UI 측 catch).
+//   금액 측 catch X 측 catch — 안전 측 catch.
 function hasRefrigerantItem(workItems) {
-  return Array.isArray(workItems) && workItems.some(it => it.workType === "냉매충전");
+  return Array.isArray(workItems) && workItems.some(it => isRefrigerant(it));
 }
 
 // Step 5-1e — 단일 작업 항목 포맷 (냉매충전은 기종 X / 가격 동일)
@@ -7952,7 +7955,8 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
                     infoText = apiText || (getEngineerApplianceList(eng.name, mainWorkType).join("·") || "");
                   } else {
                     // main/sub: workType별 zones 박기
-                    const apiZones = mainWorkType === "냉매충전"
+                    // 2026-05-26 C-2 — workType 정확일치 → isRefrigerant (string 측 catch — getServiceKind 측 catch).
+                    const apiZones = isRefrigerant(mainWorkType)
                       ? (eng.refrigZones || eng.냉매_지역)
                       : (eng.cleanZones || eng.세척_지역);
                     const apiZonesArr = Array.isArray(apiZones) ? apiZones
