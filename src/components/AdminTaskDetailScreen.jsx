@@ -175,15 +175,11 @@ function MainCard({ task }) {
   // 옛: stateInfo.color (state별 색) → 신규: serviceType.color (작업유형 색)
   const sideColor = (serviceType && serviceType.color) || stateInfo.color;
   return (
-    <div style={{ padding: "16px 16px 0" }}>
+    <div style={{ padding: "20px 20px 0" }}>
       <div style={{
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
+        ...D1_CARD_STYLE,
         borderLeft: `4px solid ${sideColor}`,
-        borderRadius: 12,
-        padding: 14,
         position: "relative",
-        marginBottom: 14,
       }}>
         {/* 우측 상단 상태 알약 — V14 Step 3.1: 작업유형 색 박힘 */}
         <div style={{
@@ -258,7 +254,7 @@ function QuickActions({ task, onScheduleChange }) {
   const hasEngineer      = !!task.engineer;
 
   return (
-    <div style={{ padding: "0 16px", marginBottom: 14 }}>
+    <div style={{ padding: D1_OUTER_PAD, marginBottom: 12 }}>
       <div style={{ display: "flex", gap: 6 }}>
         <ActionButton icon="📞" label="고객 통화" onClick={callCustomer} disabled={!hasCustomerPhone}/>
         <ActionButton icon="💬" label="프로 연락" onClick={contactEngineer} disabled={!hasEngineer}/>
@@ -299,12 +295,10 @@ function EngineerCard({ task, onEdit, onAssign }) {
 
   if (!task.engineer) {
     return (
-      <div style={{ padding: "0 16px", marginBottom: 8 }}>
+      <div style={{ padding: D1_OUTER_PAD }}>
         <div style={{
-          padding: 12,
-          background: "var(--bg-secondary)",
+          ...D1_CARD_STYLE,
           border: "1px dashed var(--border)",
-          borderRadius: 10,
           textAlign: "center",
         }}>
           <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
@@ -329,14 +323,9 @@ function EngineerCard({ task, onEdit, onAssign }) {
   const isExpert = task.engineerRank === "expert" || task.engineerRank === "베테랑";
 
   return (
-    <div style={{ padding: "0 16px", marginBottom: 8 }}>
-      <div style={{
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        padding: 12,
-      }}>
-        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 6 }}>
+    <div style={{ padding: D1_OUTER_PAD }}>
+      <div style={D1_CARD_STYLE}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
           배정 프로
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -398,13 +387,9 @@ function SettlementInfoCard({ task }) {
   const hasPayment   = engineerAmt > 0 || ownerAmt > 0 || principalAmt > 0;
 
   return (
-    <div style={{ padding: "0 16px", marginBottom: 8 }}>
-      <div style={{
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
-        borderRadius: 10, padding: 12,
-      }}>
-        <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 8 }}>
+    <div style={{ padding: D1_OUTER_PAD }}>
+      <div style={D1_CARD_STYLE}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
           💰 정산 정보
         </div>
 
@@ -486,13 +471,9 @@ function WorkTimeHistoryCard({ task }) {
   const duration    = (startedAt && completedAt) ? calcTotalDuration(startedAt, completedAt) : null;
 
   return (
-    <div style={{ padding: "0 16px", marginBottom: 12 }}>
-      <div style={{
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
-        borderRadius: 10, padding: 12,
-      }}>
-        <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 8 }}>
+    <div style={{ padding: D1_OUTER_PAD }}>
+      <div style={D1_CARD_STYLE}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
           🕐 작업 시간 · 이력
         </div>
 
@@ -664,13 +645,9 @@ function ChangeEntry({ entry }) {
 // 옛 InfoCard 측 요청사항 + 메모 영역 분리.
 function RequestMemoCard({ task, memos, onMemoAdd }) {
   return (
-    <div style={{ padding: "0 16px", marginBottom: 12 }}>
-      <div style={{
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
-        borderRadius: 10, padding: 12,
-      }}>
-        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
+    <div style={{ padding: D1_OUTER_PAD }}>
+      <div style={D1_CARD_STYLE}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
           📝 요청사항
         </div>
         <div style={{ fontSize: 11, color: "var(--text-primary)", lineHeight: 1.5 }}>
@@ -983,13 +960,8 @@ function ConsentCard({ consent }) {
   const signedAtLabel = signedAt ? formatDateTimeKST(signedAt) : "";
 
   return (
-    <div style={{
-      margin: "0 16px 12px",
-      padding: "14px 14px 12px",
-      background: "var(--bg-secondary)",
-      border: "1px solid var(--border-color)",
-      borderRadius: 12,
-    }}>
+    <div style={{ padding: D1_OUTER_PAD }}>
+    <div style={D1_CARD_STYLE}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
           📝 냉매 충전 동의서
@@ -1023,6 +995,7 @@ function ConsentCard({ consent }) {
         </div>
       )}
     </div>
+    </div>
   );
 }
 
@@ -1036,12 +1009,11 @@ function ReassignRequestCard({ request }) {
   const requestedAtLabel = requestedAt ? formatDateTimeKST(requestedAt) : "";
 
   return (
+    <div style={{ padding: D1_OUTER_PAD }}>
     <div style={{
-      margin: "0 16px 12px",
-      padding: "14px 14px 12px",
+      ...D1_CARD_STYLE,
       background: "rgba(255,27,141,0.06)",
       border: "1px solid rgba(255,27,141,0.35)",
-      borderRadius: 12,
     }}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: "#FF1B8D" }}>
@@ -1068,6 +1040,7 @@ function ReassignRequestCard({ request }) {
       }}>
         💡 위 [배정 프로] 카드 측 [변경] 버튼으로 다른 기사를 배정해 주세요.
       </div>
+    </div>
     </div>
   );
 }
@@ -1203,11 +1176,11 @@ function PhotoSectionLabel({ count }) {
 }
 
 const photoCardStyle = {
-  margin: "0 16px 12px",
-  padding: 12,
-  background: "var(--bg-secondary)",
+  margin: "0 20px 12px",
+  padding: 16,
+  background: "var(--bg-elevated)",
   border: "1px solid var(--border)",
-  borderRadius: 10,
+  borderRadius: 14,
 };
 
 const photoEmptyStyle = {
@@ -1221,16 +1194,12 @@ function CompletionNotice({ task }) {
   if (!["scheduled", "moving", "active"].includes(task.state)) return null;
 
   return (
-    <div style={{ padding: "0 16px", marginBottom: 12 }}>
-      <div style={{
-        background: "var(--bg-tertiary)",
-        border: "1px solid var(--border)",
-        borderRadius: 10, padding: "10px 12px",
-      }}>
-        <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginBottom: 4 }}>
+    <div style={{ padding: D1_OUTER_PAD }}>
+      <div style={D1_CARD_STYLE}>
+        <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 4 }}>
           ⏳ 프로가 작업 완료하면 자동으로 업데이트 됩니다
         </div>
-        <div style={{ fontSize: 9, color: "var(--text-secondary)" }}>
+        <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
           완료 후 사진과 정산 자동 표시
         </div>
       </div>
@@ -1241,11 +1210,10 @@ function CompletionNotice({ task }) {
 // ──────────────── 7. ExceptionActions (접힘) ────────────────
 function ExceptionActions({ expanded, onToggle, onVisitOnly, onCancel }) {
   return (
-    <div style={{ padding: "0 16px 24px" }}>
+    <div style={{ padding: "0 20px 24px" }}>
       <div style={{
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
-        borderRadius: 10, padding: "8px 12px",
+        ...D1_CARD_STYLE,
+        padding: "8px 14px",
         marginBottom: 4,
       }}>
         <button
@@ -1397,6 +1365,23 @@ const iconBtnStyle = {
   cursor: "pointer", fontFamily: "inherit",
   color: "var(--text-primary)",
   display: "flex", alignItems: "center", justifyContent: "center",
+};
+
+// 2026-05-26 D-1 — 카드 골격 통일 (유솔앱 PrincipalApp.jsx:813~ TaskDetail 패턴)
+//   · 측 카드 외부 wrapper: padding "0 20px" (측 catch 측 catch), marginBottom 측 catch 측 catch
+//   · 측 카드 내부: var(--bg-elevated), borderRadius 14, padding 16, marginBottom 12
+//   · 측 라벨: fontSize 12, fontWeight 700, color var(--text-secondary)
+const D1_OUTER_PAD = "0 20px";
+const D1_CARD_STYLE = {
+  background: "var(--bg-elevated)",
+  border: "1px solid var(--border)",
+  borderRadius: 14,
+  padding: 16,
+  marginBottom: 12,
+};
+// eslint-disable-next-line no-unused-vars
+const D1_LABEL_STYLE = {
+  fontSize: 12, fontWeight: 700, color: "var(--text-secondary)",
 };
 
 export default AdminTaskDetailScreen;
