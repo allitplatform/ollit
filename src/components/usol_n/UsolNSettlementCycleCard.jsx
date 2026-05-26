@@ -64,6 +64,13 @@ export function UsolNSettlementCycleCard({ taskId }) {
   if (items.length === 0) {
     return null; // 항목 X → 카드 자체 표시 X
   }
+  // 2026-05-26 — 네이버 발주 신호 가드.
+  //   사이클(네이버 결제→회사 입금→기사 정산)은 네이버 발주 건 전용.
+  //   현금/수동 접수(external_order_no NULL, product_order_id NULL)는 카드 숨김.
+  //   판정 신호: items 중 하나라도 product_order_id 있으면 네이버 발주.
+  //   (bulkInsertUsolNOrders가 product_order_id 채움 / 수동 입력은 NULL)
+  const hasNaverItem = items.some(i => i.product_order_id);
+  if (!hasNaverItem) return null;
 
   return (
     <div style={outerStyle}>
