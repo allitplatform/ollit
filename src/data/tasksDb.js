@@ -792,8 +792,8 @@ export async function createTaskAdapter(taskData) {
 //   updates 예: { status, scheduledAt, memo, assignedEngineer, cancelReason, ... }
 //
 // 처리:
-//   · assignedEngineer (이름) → assigned_engineer_id (UUID) 변환은 별도 Phase
-//     (현재 어댑터는 직접 ID만 처리 — Phase 4-3 배정 단계에서 이름→ID 변환 예정)
+//   · assignedEngineer (이름) → assigned_engineer_id (UUID) 자동 변환
+//     (2026-05-26 fix — 재배정 path 측 이름만 넘기던 버그 차단. 호출처 측 ID 직접 지정도 가능.)
 //   · memo / 작업메모 → workMemo 또는 requestNote
 //
 // 응답: { ok: true, task } | { ok: false, error }
@@ -810,6 +810,20 @@ export async function updateTaskAdapter(taskId, updates) {
   }
   if (normalized.확정일시 !== undefined && normalized.scheduledAt === undefined) {
     normalized.scheduledAt = normalized.확정일시;
+  }
+
+  // 2026-05-26 fix — 기사 이름→ID resolve (재배정 path 누락 차단)
+  //   호출처가 assignedEngineer(이름)만 전달하면 taskToRow가 assigned_engineer_id 매핑을
+  //   놓쳐 UPDATE row에서 누락됐던 버그(YS-N-260526-031 정민구 등) 차단.
+  //   ID 직접 전달(assignedEngineerId) 시는 resolve 생략.
+  if (normalized.assignedEngineer && normalized.assignedEngineerId === undefined) {
+    const uid = await _resolveUserIdByName(normalized.assignedEngineer);
+    if (uid) {
+      normalized.assignedEngineerId = uid;
+    } else {
+      console.warn("[tasksDb.updateTaskAdapter] 기사 이름→ID resolve 실패:", normalized.assignedEngineer);
+      return { ok: false, error: `기사 매핑 실패 (${normalized.assignedEngineer})` };
+    }
   }
 
   try {
