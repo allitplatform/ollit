@@ -3906,13 +3906,16 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
-      {/* 2026-05-26 — 유솔N 진입 카드 (네이버 초록 채움 / 흰 N 박스 / "배정 필요 N건")
-            기준: 단일 헬퍼 isUsolNActionNeeded (usolNTasksDb.js).
-              · status IN ('미배정','약속대기','배정')
-              · OR (reassignRequest 측 catch AND status NOT IN ('취소','완료','visit_only'))
-            UsolNAssignList 측 catch 같은 헬퍼 사용 → 카드 숫자 = 화면 숫자 일치. */}
+      {/* 2026-05-26 — 유솔N 진입 카드 ("미배정 N건")
+            기준: usol_n principal + status === '미배정' 인 작업 수.
+              · status가 진실 소스. assigned_engineer_id 무관.
+              · 평소 0건 / 새 발주 업로드되면 증가 → 사장님이 배정하면 다시 0.
+            ※ UsolNAssignList(배정 탭)는 별개 — isUsolNActionNeeded 그대로 유지. */}
       {onClickUsolN && (() => {
-        const usolNAssignCount = (apiTasks || []).filter(t => isUsolNActionNeeded(t)).length;
+        const usolNAssignCount = (apiTasks || []).filter(t => {
+          const code = t.principalCode || t.principal_code;
+          return code === "usol_n" && t.status === "미배정";
+        }).length;
         return (
           <button
             onClick={onClickUsolN}
@@ -3945,7 +3948,7 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
                 유솔N · 네이버 접수
               </span>
               <span style={{ fontSize: 12, fontWeight: 700, color: "#EAFBF1" }}>
-                배정 필요 {usolNAssignCount}건
+                미배정 {usolNAssignCount}건
               </span>
             </div>
             {/* 우측: › 셰브런 */}

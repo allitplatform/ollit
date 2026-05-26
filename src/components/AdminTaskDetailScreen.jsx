@@ -33,21 +33,21 @@ const STATE_MAP = {
   scheduled: { label: "예정",   color: "var(--text-primary)" },
 };
 
-// V14 Step 3.1 Fix D — V열 (scheduledAt) 유무 분기
-// 옛: state 값 = '예정' / '대기'
-// 신규: V열 있음 = '예정' / V열 없음 = '약속대기'
+// 2026-05-26 — task.status를 진실 소스로. !scheduledAt만으로 "미배정" 단정 X.
+//   사고: 윤다희 YS-N-260526-046 — status='배정' + 기사 있음 + scheduled_at NULL
+//         → 옛 코드는 거짓 "미배정" 표시. 새 코드는 status='배정' → "배정" 표시.
 function getStateInfo(task) {
   if (task.type === "external") return { label: "외근", color: "#FF8F00" };
-  // V14 — V열 (scheduledAt) 있음 = 일정 확정 / 없음 = 약속대기
-  const scheduledAt = task.scheduledAt || task.confirmedAt || task.확정일시 || task.scheduledTime;
   const completedAt = task.completedAt || task.완료시간;
-  const startedAt = task.startedAt || task.시작시간;
-  if (completedAt) return { label: "완료", color: "#00875A" };
-  if (startedAt && !completedAt) return { label: "진행중", color: "#FF1B8D" };
-  if (task.state === "waiting" || task.status === "미배정" || !scheduledAt) {
-    return { label: "미배정", color: "var(--text-secondary)" };
-  }
-  return STATE_MAP[task.state] || { label: "예정", color: "var(--text-primary)" };
+  const startedAt   = task.startedAt   || task.시작시간;
+  if (completedAt)                return { label: "완료",   color: "#00875A" };
+  if (startedAt && !completedAt)  return { label: "진행중", color: "#FF1B8D" };
+  if (task.status === "미배정")   return { label: "미배정", color: "var(--text-secondary)" };
+  if (task.status === "약속대기") return { label: "약속대기", color: "var(--text-secondary)" };
+  if (task.status === "배정")     return { label: "배정",   color: "var(--text-primary)" };
+  if (task.status === "확정")     return { label: "확정",   color: "var(--text-primary)" };
+  if (task.status === "취소")     return { label: "취소",   color: "var(--text-tertiary)" };
+  return STATE_MAP[task.state] || { label: task.status || "예정", color: "var(--text-primary)" };
 }
 
 export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user }) {
