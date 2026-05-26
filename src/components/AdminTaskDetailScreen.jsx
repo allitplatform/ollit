@@ -85,12 +85,12 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
   return (
     <div className="fade-in" style={{ background: "var(--bg-primary)", minHeight: "100vh" }}>
       <DetailHeader task={task} onBack={onBack} onMenuAction={handleMenuAction}/>
-      {/* 카드 1 */}
+      {/* 카드 1 — 상태 + 작업 종류 측 catch (변경 X) */}
       <MainCard task={task} onStatusChange={onStatusChange}/>
-      {/* 카드 2 */}
-      <QuickActions task={task} onScheduleChange={onScheduleChange}/>
-      {/* 카드 3 */}
-      <EngineerCard task={task} onEdit={onEdit} onAssign={onAssign}/>
+      {/* 카드 2 — 2026-05-26 D-2: 작업 정보 통합 (연락처/주소/일정 + 배정 프로 + 측 측 측 측)
+            옛 QuickActions(3 버튼) + EngineerCard 측 WorkInfoCard 측 catch 합침.
+            핸들러 측 catch (onAssign/onEdit/onScheduleChange/callCustomer). */}
+      <WorkInfoCard task={task} onAssign={onAssign} onEdit={onEdit} onScheduleChange={onScheduleChange}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
       <SettlementInfoCard task={task}/>
       {task.principal === "usol_n" && <UsolNSettlementCycleCard taskId={task.id}/>}
@@ -241,6 +241,128 @@ function MainCard({ task }) {
 }
 
 // ──────────────── 3. QuickActions ────────────────
+// 2026-05-26 D-2 — 작업 정보 카드 (연락처/주소/일정 + 배정 프로 + 고객 통화·일정 변경)
+//   유솔앱 PrincipalApp.jsx:983~ 패턴 측 catch. 핸들러 100% 측 catch (onAssign / onEdit /
+//   onScheduleChange / callCustomer 측 catch — 측 측 측 측 측 측 측 X).
+function WorkInfoCard({ task, onAssign, onEdit, onScheduleChange }) {
+  function callCustomer() {
+    if (task.phone) window.location.href = `tel:${task.phone}`;
+  }
+  const hasCustomerPhone = !!task.phone;
+  const hasEngineer      = !!task.engineer;
+  // 일정 표시
+  const scheduledDisplay =
+    task.scheduledDate && task.scheduledTime
+      ? `${task.scheduledDate} ${task.scheduledTime}`
+      : (task.scheduledDate || task.requestedDate)
+        ? `${task.scheduledDate || task.requestedDate}${task.scheduledTime || task.requestedTime ? " " + (task.scheduledTime || task.requestedTime) : ""}`
+        : "—";
+
+  return (
+    <div style={{ padding: D1_OUTER_PAD }}>
+      <div style={D1_CARD_STYLE}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 12 }}>
+          작업 정보
+        </div>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
+          <D2LabelRow label="연락처" value={task.phone || "—"} mono/>
+          <D2LabelRow label="주소"   value={task.address || "—"} wrap/>
+          <D2LabelRow label="일정"   value={scheduledDisplay} highlight/>
+        </div>
+
+        {/* 배정 프로 */}
+        <div style={{
+          paddingTop: 10, marginBottom: 12,
+          borderTop: "1px solid var(--border)",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+        }}>
+          <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>배정 프로</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: hasEngineer ? "var(--text-primary)" : "var(--text-tertiary, var(--text-secondary))" }}>
+              {hasEngineer ? task.engineer : "미배정"}
+            </span>
+            <button
+              onClick={hasEngineer ? (onEdit || onAssign) : (onAssign || onEdit)}
+              style={{
+                padding: "5px 12px",
+                background: hasEngineer ? "var(--bg-secondary)" : "var(--accent)",
+                border: hasEngineer ? "1px solid var(--border)" : "none",
+                borderRadius: 8,
+                color: hasEngineer ? "var(--text-secondary)" : "#fff",
+                fontSize: 11, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              {hasEngineer ? "변경 ›" : "배정 ›"}
+            </button>
+          </div>
+        </div>
+
+        {/* 측 측 측 측 — 고객 통화 / 일정 변경 */}
+        <div style={{ display: "flex", gap: 6 }}>
+          <button
+            onClick={callCustomer}
+            disabled={!hasCustomerPhone}
+            style={{
+              flex: 1, padding: 10,
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              cursor: hasCustomerPhone ? "pointer" : "default",
+              opacity: hasCustomerPhone ? 1 : 0.4,
+              fontSize: 12, fontWeight: 700,
+              color: "var(--text-primary)",
+              fontFamily: "inherit",
+            }}
+          >
+            📞 고객 통화
+          </button>
+          <button
+            onClick={onScheduleChange || (() => alert("일정 변경 기능을 준비 중입니다"))}
+            style={{
+              flex: 1, padding: 10,
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              cursor: "pointer",
+              fontSize: 12, fontWeight: 700,
+              color: "var(--text-primary)",
+              fontFamily: "inherit",
+            }}
+          >
+            📅 일정 변경
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function D2LabelRow({ label, value, mono, wrap, highlight }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "flex-start",
+      justifyContent: "space-between", gap: 10,
+    }}>
+      <span style={{
+        fontSize: 11, color: "var(--text-secondary)",
+        fontWeight: 600, flexShrink: 0,
+      }}>{label}</span>
+      <span
+        className={mono ? "mono" : ""}
+        style={{
+          fontSize: 13, fontWeight: 700,
+          color: highlight ? "var(--accent)" : "var(--text-primary)",
+          textAlign: "right",
+          wordBreak: wrap ? "break-word" : "normal",
+          whiteSpace: wrap ? "normal" : "nowrap",
+        }}
+      >{value}</span>
+    </div>
+  );
+}
+
 // V14 2B-2 — 일정 변경 = onScheduleChange callback (AdminApp prompt + updateTask)
 function QuickActions({ task, onScheduleChange }) {
   function callCustomer() {
