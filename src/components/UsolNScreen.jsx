@@ -9,11 +9,9 @@ import { loadUsolNSeedToStorage } from "../data/seedTasks.js";
 import { USOL_N_TABS } from "../data/menuStructure.js";
 
 import { UsolNAssignList } from "./usol_n/UsolNAssignList.jsx";
-import { UsolNOrders } from "./usol_n/UsolNOrders.jsx";
 import { UsolNInProgress } from "./usol_n/UsolNInProgress.jsx";
-// 2026-05-26 R2-1 — UsolNCsvMatch import 유지 (R2-2 측 catch UploadToggle 측 catch 측 catch 측 catch)
-// eslint-disable-next-line no-unused-vars
-import { UsolNCsvMatch } from "./usol_n/UsolNCsvMatch.jsx";
+// 2026-05-26 R2-2 — UsolNUploadToggle (접수/정산 CSV 토글) — UsolNOrders + UsolNCsvMatch 측 catch.
+import { UsolNUploadToggle } from "./usol_n/UsolNUploadToggle.jsx";
 import { UsolNTracking } from "./usol_n/UsolNTracking.jsx";
 import { UsolNEngineerSettlement } from "./usol_n/UsolNEngineerSettlement.jsx";
 
@@ -77,8 +75,8 @@ export function UsolNScreen({ user, initialTab, onBack, onTaskClick }) {
       <div style={tabContentStyle}>
         {activeTab === "assign"          && <UsolNAssignList  onTaskClick={onTaskClick} onSeeAll={() => setActiveTab("all")}/>}
         {activeTab === "all"             && <UsolNInProgress  onTaskClick={onTaskClick}/>}
-        {/* R2-1 임시: upload 탭 측 catch UsolNOrders hideList만 (R2-2 측 catch UploadToggle 측 catch 측 catch) */}
-        {activeTab === "upload"          && <UsolNOrders      hideList onTaskClick={onTaskClick}/>}
+        {/* R2-2: upload 탭 = 접수 CSV / 정산 CSV 토글 (UploadToggle 측 catch UsolNOrders + UsolNCsvMatch) */}
+        {activeTab === "upload"          && <UsolNUploadToggle onTaskClick={onTaskClick}/>}
         {activeTab === "usol_settle"     && <UsolNTracking/>}
         {activeTab === "engineer_settle" && <UsolNEngineerSettlement/>}
       </div>
