@@ -11,6 +11,8 @@ import { USOL_N_TABS } from "../data/menuStructure.js";
 import { UsolNAssignList } from "./usol_n/UsolNAssignList.jsx";
 import { UsolNOrders } from "./usol_n/UsolNOrders.jsx";
 import { UsolNInProgress } from "./usol_n/UsolNInProgress.jsx";
+// 2026-05-26 R2-1 — UsolNCsvMatch import 유지 (R2-2 측 catch UploadToggle 측 catch 측 catch 측 catch)
+// eslint-disable-next-line no-unused-vars
 import { UsolNCsvMatch } from "./usol_n/UsolNCsvMatch.jsx";
 import { UsolNTracking } from "./usol_n/UsolNTracking.jsx";
 import { UsolNEngineerSettlement } from "./usol_n/UsolNEngineerSettlement.jsx";
@@ -71,16 +73,14 @@ export function UsolNScreen({ user, initialTab, onBack, onTaskClick }) {
         ))}
       </div>
 
-      {/* 본문 */}
+      {/* 본문 — 2026-05-26 round 2: 5탭 */}
       <div style={tabContentStyle}>
-        {/* 2026-05-26 — 신규 'assign' 탭 (메인 — 배정 측 catch 리스트) */}
-        {activeTab === "assign"              && <UsolNAssignList  onTaskClick={onTaskClick} onSeeAll={() => setActiveTab("in_progress")}/>}
-        {/* 2026-05-26 — 'orders' 측 catch hideList=true 측 catch — 측 catch CSV 업로드만 (백업) */}
-        {activeTab === "orders"              && <UsolNOrders      hideList onTaskClick={onTaskClick}/>}
-        {activeTab === "in_progress"         && <UsolNInProgress  onTaskClick={onTaskClick}/>}
-        {activeTab === "csv_match"           && <UsolNCsvMatch/>}
-        {activeTab === "tracking"            && <UsolNTracking/>}
-        {activeTab === "engineer_settlement" && <UsolNEngineerSettlement/>}
+        {activeTab === "assign"          && <UsolNAssignList  onTaskClick={onTaskClick} onSeeAll={() => setActiveTab("all")}/>}
+        {activeTab === "all"             && <UsolNInProgress  onTaskClick={onTaskClick}/>}
+        {/* R2-1 임시: upload 탭 측 catch UsolNOrders hideList만 (R2-2 측 catch UploadToggle 측 catch 측 catch) */}
+        {activeTab === "upload"          && <UsolNOrders      hideList onTaskClick={onTaskClick}/>}
+        {activeTab === "usol_settle"     && <UsolNTracking/>}
+        {activeTab === "engineer_settle" && <UsolNEngineerSettlement/>}
       </div>
     </div>
   );
@@ -90,7 +90,7 @@ function GradientHeader({ info, onBack }) {
   return (
     <div style={{
       padding: "14px 16px",
-      background: "var(--accent)",
+      background: "#03C75A",
       color: "#fff",
       flexShrink: 0,
       overflow: "hidden",
@@ -153,12 +153,11 @@ function GradientHeader({ info, onBack }) {
   );
 }
 
-// 탭별 헤더 정보 계산
+// 탭별 헤더 정보 계산 — 2026-05-26 round 2: 5탭
 function calculateHeaderInfo(activeTab) {
   let tasks = [];
   try { tasks = loadTasks().filter(t => t.principalId === "usol_n"); } catch {}
 
-  // 2026-05-26 — 신규 'assign' 탭 헤더 (UsolNAssignList 측 catch 측 catch 측 catch 측 catch 측 측 측 X 측 catch 단순)
   if (activeTab === "assign") {
     return {
       subtitle:   "배정 측 catch 작업 (미배정·약속대기·일정 협의)",
@@ -168,55 +167,45 @@ function calculateHeaderInfo(activeTab) {
     };
   }
 
-  if (activeTab === "orders") {
-    // 2026-05-26 — 라벨 "접수" → "업로드" (hideList=true 측 catch CSV 업로드 측 catch)
-    return {
-      subtitle:   "네이버 발주 CSV 업로드 (백업 측 catch)",
-      rightLabel: "업로드",
-      rightValue: "CSV",
-      rightSub:   "네이버 발주",
-    };
-  }
-
-  if (activeTab === "in_progress") {
-    const inProgress = tasks.filter(t =>
+  if (activeTab === "all") {
+    const active = tasks.filter(t =>
       ["assigned", "confirmed", "in_progress"].includes(t.status)
     ).length;
     return {
-      subtitle:   "진행중 작업 · 배정/확정/진행",
-      rightLabel: "진행",
-      rightValue: `${inProgress}건`,
+      subtitle:   "전체 작업 · 검색·필터",
+      rightLabel: "전체",
+      rightValue: `${active}건`,
       rightSub:   null,
     };
   }
 
-  if (activeTab === "csv_match") {
+  if (activeTab === "upload") {
     return {
-      subtitle:   "CSV 매칭 · 매일",
-      rightLabel: "정산 CSV",
-      rightValue: "업로드",
-      rightSub:   "자동 분류",
+      subtitle:   "업로드 · 접수/정산 CSV",
+      rightLabel: "업로드",
+      rightValue: "CSV",
+      rightSub:   "접수/정산",
     };
   }
 
-  if (activeTab === "tracking") {
+  if (activeTab === "usol_settle") {
     const monthTotal = calculateMonthTotal(tasks);
     return {
-      subtitle:   "정산 추적 · 주간",
+      subtitle:   "유솔 정산 · 주간",
       rightLabel: `${new Date().getMonth() + 1}월 누적`,
       rightValue: `₩${monthTotal.toLocaleString()}`,
       rightSub:   "받을 예정 포함",
     };
   }
 
-  if (activeTab === "engineer_settlement") {
+  if (activeTab === "engineer_settle") {
     const next15th = getNext15thLabel();
     const pending  = calculatePendingForEngineers(tasks);
     return {
-      subtitle:   "프로 정산 · 매월 15일",
+      subtitle:   "기사 정산 · 매월 15일",
       rightLabel: `${next15th} 입금`,
       rightValue: `₩${pending.toLocaleString()}`,
-      rightSub:   "예정",
+      rightSub:   "측 catch",
     };
   }
 
@@ -291,8 +280,8 @@ const tabButtonStyle = {
 };
 
 const activeTabStyle = {
-  color: "var(--accent)",
-  borderBottomColor: "var(--accent)",
+  color: "#03C75A",
+  borderBottomColor: "#03C75A",
   fontWeight: 700,
 };
 
