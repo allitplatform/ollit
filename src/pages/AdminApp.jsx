@@ -2934,7 +2934,13 @@ export default function AdminApp({ user, onLogout }) {
                 changedBy:     user?.user_id || user?.id || null,
                 changedByName: user?.name || null,
               });
-              setScreen("taskDetail");
+              // 2026-05-26 fix: setScreen push → replaceScreen 변경
+              //   기존: screenStack=[..., reassignList, taskDetail, recommend] 측 catch
+              //         setScreen("taskDetail") push → [..., recommend, taskDetail]
+              //         뒤로가기 측 recommend(기사 배정 화면) 측 catch — reassignList 측 catch 못 돌아감.
+              //   변경: replaceScreen 측 catch top(recommend) → taskDetail 측 catch + 중복 제거
+              //         → [..., reassignList, taskDetail] → 뒤로가기 측 reassignList 정상 복귀.
+              replaceScreen("taskDetail");
               return;
             }
 
