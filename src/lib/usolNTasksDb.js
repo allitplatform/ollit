@@ -596,12 +596,26 @@ export async function bulkInsertUsolNOrders(orders) {
           continue;
         }
 
+        // 2026-05-27 — CSV "정산예정금액" 동적 판정 (이중곱 방지).
+        //   배경: 5/25 시점부터 CSV "정산예정금액"이 행 합계(qty×단가)로 들어옴.
+        //         그 값을 그대로 unit_price에 넣으면 GENERATED subtotal=qty×unit_price 이중곱.
+        //   판정: settlement > (customerPaid / qty) × 1.1 → 합계로 간주 → ÷qty 로 단가 환산.
+        //   회귀: 옛 정상 데이터(평균 비율 0.93)는 settlement ≤ perUnitPaid → 분기 안 탐 → 그대로.
+        //   판정 불가(qty<2 또는 customerPaid 없음) → 보수적으로 settlement 그대로.
+        const _qty         = app.count || 1;
+        const _settlement  = app.settlement || 0;
+        const _perUnitPaid = (app.customerPaid && _qty) ? app.customerPaid / _qty : null;
+        let _unitPrice = _settlement;
+        if (_qty >= 2 && _perUnitPaid && _settlement > _perUnitPaid * 1.1) {
+          _unitPrice = Math.round(_settlement / _qty);
+        }
+
         itemRows.push({
           task_id: taskId,
           work_type_id: workTypeId,
           appliance_type_id: applianceTypeId,
-          qty: app.count || 1,
-          unit_price: app.settlement || 0,
+          qty: _qty,
+          unit_price: _unitPrice,
           customer_paid_amount: app.customerPaid || null,
           order_type: app.orderType,
           product_order_id: app.productOrderId || null,
