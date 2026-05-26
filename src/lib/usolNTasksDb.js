@@ -496,6 +496,8 @@ export async function bulkInsertUsolNOrders(orders) {
       address:       order.address || "",
       district:      order.region || "",
       channel:       "네이버",
+      // 2026-05-27 Migration 077 — 네이버 발주 CSV는 항상 네이버 결제 흐름
+      payment_method: "naver_pay",
       request_note:  `네이버 주문 ${order.orderId}`,
       status:        "미배정",
       product_price: Number(order.settlementAmount || order.totalAmount || 0),
