@@ -94,7 +94,33 @@ export async function fetchUsolNTasks({ statusIn = null, searchTerm = "", limit 
     console.error("[usolNTasksDb.fetch]", error);
     return { ok: false, error: error.message, tasks: [], total: 0, principalId: pid };
   }
-  return { ok: true, tasks: data || [], total: count || 0, principalId: pid };
+
+  // 2026-05-26 — users in-memory JOIN (assigned_engineer_id → assignedEngineer name).
+  //   PostgREST nested embed 측 catch task_items 측 catch + tasks 측 catch 같이 측 catch X 측 catch X (PGRST201).
+  //   loadTasksForRole 패턴 측 catch — task_id 측 catch 측 catch 측 catch 측 catch fetch 측 in-memory join.
+  //   UsolNAssignList / UsolNInProgress 측 catch 측 catch 카드 측 catch 측 catch name 측 catch.
+  const engineerIds = [...new Set((data || []).map(r => r.assigned_engineer_id).filter(Boolean))];
+  let userMap = new Map();
+  if (engineerIds.length > 0) {
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, code, name, phone")
+      .in("id", engineerIds);
+    userMap = new Map((users || []).map(u => [u.id, u]));
+  }
+  const enriched = (data || []).map(row => {
+    if (!row.assigned_engineer_id) return row;
+    const u = userMap.get(row.assigned_engineer_id);
+    if (!u) return row;
+    return {
+      ...row,
+      assignedEngineer:     u.name || "",
+      assignedEngineerCode: u.code || "",
+      engineerPhone:        u.phone || "",
+    };
+  });
+
+  return { ok: true, tasks: enriched, total: count || 0, principalId: pid };
 }
 
 // 정산 사이클 색상 상태 (사장님 spec)

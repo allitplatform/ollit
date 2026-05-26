@@ -140,7 +140,7 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
       }}>
         <span style={{ fontSize: 14 }}>📋</span>
         <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent)" }}>
-          배정 필요 {totalCount}건
+          일정 협의 필요 {totalCount}건
         </span>
         <span style={{ fontSize: 11, color: "var(--text-secondary)", marginLeft: "auto" }}>
           미배정 · 약속대기 · 배정(일정 협의)
@@ -228,7 +228,8 @@ export function TaskRowOperator({ task, onClick }) {
   // 측 catch 측 catch
   const cat = task.category_data || {};
   const hasReassignReq = !!(cat?.reassignRequest?.requestedAt);
-  const needSchedule = task.status === "배정" && !task.scheduled_at;
+  // 2026-05-26 — 측 catch 측 catch 측 catch (fetchUsolNTasks 측 catch users in-memory JOIN 측 catch 측 catch)
+  const engineerName = task.assignedEngineer || task.assigned_engineer || "";
 
   return (
     <div
@@ -278,18 +279,16 @@ export function TaskRowOperator({ task, onClick }) {
         </span>
       )}
 
-      {/* 측 catch 측 catch — 일정 협의 */}
-      {needSchedule && !hasReassignReq && (
+      {/* 2026-05-26 — 측 catch 측 측 측 측 측 (PrincipalListTab.TaskRow 패턴).
+            옛 "🕐 일정 협의" 배지 측 catch — 사장님 결정 🅐. */}
+      {engineerName && (
         <span style={{
-          fontSize: 9, fontWeight: 800,
-          color: "#FFC107",
-          background: "rgba(255,193,7,0.15)",
-          border: "1px solid rgba(255,193,7,0.40)",
-          padding: "2px 6px", borderRadius: 999,
-          flexShrink: 0, whiteSpace: "nowrap",
-        }}>
-          🕐 일정 협의
-        </span>
+          flexShrink: 0, fontSize: 11, fontWeight: 500,
+          color: "var(--text-primary)",
+          background: "var(--bg-secondary)",
+          padding: "2px 8px", borderRadius: 4,
+          whiteSpace: "nowrap",
+        }}>{engineerName}</span>
       )}
 
       {/* 상태 배지 */}
