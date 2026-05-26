@@ -230,6 +230,8 @@ export function TaskRowOperator({ task, onClick }) {
   const hasReassignReq = !!(cat?.reassignRequest?.requestedAt);
   // 2026-05-26 — 측 catch 측 catch 측 catch (fetchUsolNTasks 측 catch users in-memory JOIN 측 catch 측 catch)
   const engineerName = task.assignedEngineer || task.assigned_engineer || "";
+  // 2026-05-26 — 완료 측 catch 흐릿 (사장님 spec — UsolNInProgress '전체' 탭 측 catch)
+  const isCompleted = task.status === "완료";
 
   return (
     <div
@@ -243,6 +245,7 @@ export function TaskRowOperator({ task, onClick }) {
         display: "flex", alignItems: "center", gap: 8,
         minHeight: 38,
         cursor: "pointer",
+        opacity: isCompleted ? 0.5 : 1,
       }}
     >
       <div style={{ flexShrink: 0, width: 14, textAlign: "center" }}>
