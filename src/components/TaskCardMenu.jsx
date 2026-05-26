@@ -51,7 +51,11 @@ export function TaskCardMenu({ task, onAction, align = "right" }) {
   // 단계별 액션
   const actions = [];
   actions.push({ icon: "📋", label: "상세 보기", action: "detail" });
-  actions.push({ icon: "📞", label: "통화하기",  action: "call" });
+  actions.push({ icon: "📞", label: "고객 통화", action: "call" });
+  // 2026-05-26 D-5 — 프로 연락 (배정 기사 있을 때만)
+  if (task.engineer || task.assignedEngineer || task.engineerPhone) {
+    actions.push({ icon: "💬", label: "프로 연락", action: "engineer_call" });
+  }
   actions.push({ icon: "📝", label: "메모 추가", action: "memo" });
 
   if (status === "received") {

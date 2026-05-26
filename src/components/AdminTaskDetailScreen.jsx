@@ -76,6 +76,13 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       if (phone) window.location.href = `tel:${phone}`;
       return;
     }
+    // 2026-05-26 D-5 — 프로 연락 (옛 QuickActions contactEngineer 측 catch — ⋮ 메뉴 측 catch 측 catch)
+    if (action === "engineer_call") {
+      const phone = taskArg.engineerPhone;
+      if (phone) window.location.href = `tel:${phone}`;
+      else alert("프로 연락처가 없습니다");
+      return;
+    }
     if (action === "memo")        return onMemoAdd && onMemoAdd();
     if (action === "edit")        return onEdit && onEdit();
     if (action === "visit_only")  return setShowVisitOnlyDialog(true);
@@ -363,133 +370,10 @@ function D2LabelRow({ label, value, mono, wrap, highlight }) {
   );
 }
 
-// V14 2B-2 — 일정 변경 = onScheduleChange callback (AdminApp prompt + updateTask)
-function QuickActions({ task, onScheduleChange }) {
-  function callCustomer() {
-    if (task.phone) window.location.href = `tel:${task.phone}`;
-  }
-  function contactEngineer() {
-    if (task.engineerPhone) window.location.href = `tel:${task.engineerPhone}`;
-  }
-
-  const hasCustomerPhone = !!task.phone;
-  const hasEngineer      = !!task.engineer;
-
-  return (
-    <div style={{ padding: D1_OUTER_PAD, marginBottom: 12 }}>
-      <div style={{ display: "flex", gap: 6 }}>
-        <ActionButton icon="📞" label="고객 통화" onClick={callCustomer} disabled={!hasCustomerPhone}/>
-        <ActionButton icon="💬" label="프로 연락" onClick={contactEngineer} disabled={!hasEngineer}/>
-        <ActionButton icon="📅" label="일정 변경" onClick={onScheduleChange || (() => alert("일정 변경 기능을 준비 중입니다"))}/>
-      </div>
-    </div>
-  );
-}
-
-function ActionButton({ icon, label, onClick, disabled }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        flex: 1, padding: 12,
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        cursor: disabled ? "default" : "pointer",
-        textAlign: "center",
-        opacity: disabled ? 0.4 : 1,
-        fontFamily: "inherit",
-      }}
-    >
-      <div style={{ fontSize: 18 }}>{icon}</div>
-      <div style={{ fontSize: 9, color: "var(--text-primary)", fontWeight: 600, marginTop: 2 }}>
-        {label}
-      </div>
-    </button>
-  );
-}
-
-// ──────────────── 4. EngineerCard ────────────────
-// V14 2B-1 fix — 기사 배정 = onAssign (RecommendScreen) / 기존 기사 변경 = onEdit
-function EngineerCard({ task, onEdit, onAssign }) {
-  if (task.type === "external") return null;
-
-  if (!task.engineer) {
-    return (
-      <div style={{ padding: D1_OUTER_PAD }}>
-        <div style={{
-          ...D1_CARD_STYLE,
-          border: "1px dashed var(--border)",
-          textAlign: "center",
-        }}>
-          <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
-            아직 프로 미배정
-          </div>
-          <button
-            onClick={onAssign || onEdit}
-            style={{
-              marginTop: 8, padding: "6px 14px",
-              background: "#FF1B8D",
-              border: "none", borderRadius: 6,
-              color: "#fff", fontSize: 11, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-            }}
-          >프로 배정</button>
-        </div>
-      </div>
-    );
-  }
-
-  const initial = task.engineer ? task.engineer[0] : "?";
-  const isExpert = task.engineerRank === "expert" || task.engineerRank === "베테랑";
-
-  return (
-    <div style={{ padding: D1_OUTER_PAD }}>
-      <div style={D1_CARD_STYLE}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
-          배정 프로
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: "50%",
-            background: "#FF1B8D", color: "#fff",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 13, fontWeight: 700, flexShrink: 0,
-          }}>
-            {initial}
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
-              {task.engineer}
-              {isExpert && (
-                <span style={{ fontSize: 9, color: "#FF1B8D", marginLeft: 4 }}>
-                  ⭐ 베테랑
-                </span>
-              )}
-            </div>
-            <div style={{ fontSize: 9, color: "var(--text-tertiary)" }}>
-              {/* V14 Step 3 Fix 1 — 연락처 + 지역 박기 ('메인/보조/—' 박지 X) */}
-              {task.engineerPhone ? task.engineerPhone : ""}
-              {task.engineerPhone && task.region ? ` · ${task.region}` : (task.region ? task.region : "")}
-            </div>
-          </div>
-          <button
-            onClick={onAssign || onEdit}
-            style={{
-              padding: "4px 10px",
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              color: "var(--text-secondary)",
-              fontSize: 9, cursor: "pointer", fontFamily: "inherit",
-            }}
-          >변경</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// 2026-05-26 D-5 — 옛 QuickActions / ActionButton / EngineerCard 측 catch.
+//   D-2(c5f6fc4) 측 catch WorkInfoCard 측 catch 측 catch — 측 측 측 측 측 측 측 X.
+//   contactEngineer 측 ⋮ 메뉴 'engineer_call' 측 catch 측 catch (D-5-a).
+//   고객 통화 / 일정 변경 측 WorkInfoCard 측 측 측 측 측 측 측 측 측.
 
 // ──────────────── 카드 4 — SettlementInfoCard (Phase 5 Step 0.C-4) ────────────────
 // 작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배
@@ -812,8 +696,11 @@ function RequestMemoCard({ task, memos, onMemoAdd }) {
   );
 }
 
-// ──────────────── 5. InfoCard (견적 + 메모) ────────────────
-function InfoCard({ task, memos, onMemoAdd }) {
+// 2026-05-26 D-5 — InfoCard dead code 제거 (어디서도 render 측 X).
+//   견적 / 메모 측 catch 측 SettlementInfoCard + RequestMemoCard 측 catch 측 catch.
+//   2026-05-26 D-5 — TimestampHistory dead code 제거 (WorkTimeHistoryCard 측 TimestampRows 측 catch 측 catch).
+// eslint-disable-next-line no-unused-vars
+function _DEAD_InfoCard({ task, memos, onMemoAdd }) {
   const isExternal = task.type === "external";
   const isDone = task.state === "done";
   const sumEstimate = task.estimateTotal || 0;
@@ -917,8 +804,9 @@ function InfoCard({ task, memos, onMemoAdd }) {
   );
 }
 
-// ──────────────── 5.5 TimestampHistory ────────────────
-function TimestampHistory({ task }) {
+// ──────────────── 5.5 TimestampHistory (dead — D-5 측 catch) ────────────────
+// eslint-disable-next-line no-unused-vars
+function _DEAD_TimestampHistory({ task }) {
   if (task.type === "external") return null;
   const rows = [
     { label: "접수",      value: task.createdAt },
@@ -1342,13 +1230,14 @@ function CompletionNotice({ task }) {
 }
 
 // ──────────────── 7. ExceptionActions (접힘) ────────────────
+// 2026-05-26 D-5 — 톤 정돈 (글자/여백). 핸들러 측 catch — onVisitOnly / onCancel 측 catch.
 function ExceptionActions({ expanded, onToggle, onVisitOnly, onCancel }) {
   return (
     <div style={{ padding: "0 20px 24px" }}>
       <div style={{
         ...D1_CARD_STYLE,
-        padding: "8px 14px",
-        marginBottom: 4,
+        padding: "10px 14px",
+        marginBottom: expanded ? 8 : 0,
       }}>
         <button
           onClick={onToggle}
@@ -1360,13 +1249,13 @@ function ExceptionActions({ expanded, onToggle, onVisitOnly, onCancel }) {
             fontFamily: "inherit",
           }}
         >
-          <span style={{ fontSize: 11, color: "var(--text-primary)" }}>⚙️ 예외 처리</span>
-          <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>{expanded ? "▲" : "▼"}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>⚙️ 예외 처리</span>
+          <span style={{ fontSize: 12, color: "var(--text-tertiary, var(--text-secondary))" }}>{expanded ? "▲" : "▼"}</span>
         </button>
       </div>
 
       {expanded && (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4, padding: "8px 0" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <ExceptionButton
             label="🚗 출장비만 정산 (작업 못함)"
             onClick={onVisitOnly}
@@ -1387,12 +1276,12 @@ function ExceptionButton({ label, onClick, color }) {
     <button
       onClick={onClick}
       style={{
-        padding: 10,
-        background: "var(--bg-secondary)",
+        padding: "12px 14px",
+        background: "var(--bg-elevated)",
         border: `1px solid ${color || "var(--border)"}`,
-        borderRadius: 8,
+        borderRadius: 10,
         color: color || "var(--text-secondary)",
-        fontSize: 10, textAlign: "left",
+        fontSize: 12, fontWeight: 700, textAlign: "left",
         cursor: "pointer", fontFamily: "inherit",
       }}
     >
