@@ -97,7 +97,7 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       {/* 카드 2 — 2026-05-26 D-2: 작업 정보 통합 (연락처/주소/일정 + 배정 프로 + 측 측 측 측)
             옛 QuickActions(3 버튼) + EngineerCard 측 WorkInfoCard 측 catch 합침.
             핸들러 측 catch (onAssign/onEdit/onScheduleChange/callCustomer). */}
-      <WorkInfoCard task={task} onAssign={onAssign} onEdit={onEdit} onScheduleChange={onScheduleChange}/>
+      <WorkInfoCard task={task} onAssign={onAssign} onScheduleChange={onScheduleChange}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
       <SettlementInfoCard task={task}/>
       {task.principal === "usol_n" && <UsolNSettlementCycleCard taskId={task.id}/>}
@@ -251,7 +251,7 @@ function MainCard({ task }) {
 // 2026-05-26 D-2 — 작업 정보 카드 (연락처/주소/일정 + 배정 프로 + 고객 통화·일정 변경)
 //   유솔앱 PrincipalApp.jsx:983~ 패턴 측 catch. 핸들러 100% 측 catch (onAssign / onEdit /
 //   onScheduleChange / callCustomer 측 catch — 측 측 측 측 측 측 측 X).
-function WorkInfoCard({ task, onAssign, onEdit, onScheduleChange }) {
+function WorkInfoCard({ task, onAssign, onScheduleChange }) {
   function callCustomer() {
     if (task.phone) window.location.href = `tel:${task.phone}`;
   }
@@ -290,7 +290,7 @@ function WorkInfoCard({ task, onAssign, onEdit, onScheduleChange }) {
               {hasEngineer ? task.engineer : "미배정"}
             </span>
             <button
-              onClick={hasEngineer ? (onEdit || onAssign) : (onAssign || onEdit)}
+              onClick={onAssign}
               style={{
                 padding: "5px 12px",
                 background: hasEngineer ? "var(--bg-secondary)" : "var(--accent)",
