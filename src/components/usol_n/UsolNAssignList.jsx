@@ -126,6 +126,13 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
   }, [actionNeeded, search]);
 
   const totalCount = actionNeeded.length;
+  // 2026-05-26 — 상단 핑크 박스는 "진짜 미배정"만 셈 (개요 탭 진입 카드와 동일 기준).
+  //   리스트(filtered)는 그대로 — 미배정/약속대기/배정 모두 노출.
+  //   fetch limit=500 + 활성 usol_n 280건 → 한 페이지에 다 들어옴 (페이징 X).
+  const unassignedCount = useMemo(
+    () => tasks.filter(t => t.status === "미배정").length,
+    [tasks]
+  );
 
   return (
     <div className="fade-in" style={{ padding: "4px 0" }}>
@@ -140,7 +147,7 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
       }}>
         <span style={{ fontSize: 14 }}>📋</span>
         <span style={{ fontSize: 13, fontWeight: 800, color: "var(--accent)" }}>
-          일정 협의 필요 {totalCount}건
+          미배정 {unassignedCount}건
         </span>
         <span style={{ fontSize: 11, color: "var(--text-secondary)", marginLeft: "auto" }}>
           미배정 · 약속대기 · 배정(일정 협의)
