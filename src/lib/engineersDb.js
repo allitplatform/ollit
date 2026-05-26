@@ -161,6 +161,23 @@ export async function upsertEngineerToDb(eng) {
       console.error("[engineersDb.upsert:update]", updErr);
       return { ok: false, error: updErr.message };
     }
+    // 2026-05-27 — 역할 자동 복구 안전망 (멱등).
+    //   배경: 옛 INSERT 시점에 user_roles upsert가 실패해 권한 누락된 ghost user가 있을 때
+    //         운영자가 다시 저장하면 이 update 경로로 와서 자동 복구.
+    //   onConflict=user_id,role + ignoreDuplicates=true:
+    //     - 이미 engineer 역할 있으면 그대로 skip (is_primary 등 기존 값 보존)
+    //     - 없으면 새 row 생성 (is_primary=true)
+    //   다중 역할(admin+engineer 등)은 role 컬럼이 다르므로 충돌 X — engineer 한 줄만 건드림.
+    const { error: roleErr } = await supabase
+      .from("user_roles")
+      .upsert(
+        { user_id: existing.id, role: "engineer", is_primary: true },
+        { onConflict: "user_id,role", ignoreDuplicates: true }
+      );
+    if (roleErr) {
+      console.error("[engineersDb.upsert:update:role]", roleErr);
+      return { ok: false, error: `사용자 update OK / 역할 부여 실패: ${roleErr.message}` };
+    }
     return { ok: true, action: "update", engineerId: row.code };
   }
 
