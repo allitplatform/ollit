@@ -153,7 +153,9 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
     const done = live.filter(it => it.task_status === "완료");
     const settled = live.filter(it => it.naver_settled_at);
     const pendingSettle = done.filter(it => !it.naver_settled_at);
-    const pendingAmount = pendingSettle.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+    // 2026-05-26 — 회사→유솔 실 입금액(=ROUND(net_amount × 0.85))으로 통일.
+    //   기존 Σsubtotal 은 네이버 수수료/마진 차감 전 그로스라 주차별 카드와 불일치 → 시정.
+    const pendingAmount = pendingSettle.reduce((s, it) => s + companyAmountOf(it), 0);
     return {
       received: live.length, beforeWork: before.length, doneWork: done.length,
       settled: settled.length, pendingCount: pendingSettle.length, pendingAmount,
@@ -284,10 +286,17 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   // usol_n principal 측 노출 — principalCodes 측 usol_n 포함 시만 진입 카드 표시
   const hasUsolN = Array.isArray(principalCodes) && principalCodes.includes("usol_n");
 
+  // pending 묶음 존재 시 SummarySection 의 정산 대기 줄을 클릭 가능하게.
+  //   클릭 → setSelectedWeekKey('pending') → WeekDetailView 측 catch 측 catch 426건 상세 진입.
+  const hasPendingBucket = weeks.some(w => w.key === "pending");
+
   // 리스트 뷰
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
-      <SummarySection summary={summary}/>
+      <SummarySection
+        summary={summary}
+        onPendingClick={hasPendingBucket ? () => setSelectedWeekKey("pending") : null}
+      />
 
       {/* 2026-05-26 — 기사 입금 내역 진입 카드 (usol_n 측만) */}
       {hasUsolN && (
@@ -324,21 +333,27 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
         주차별 정산
       </div>
 
-      {weeks.length === 0 ? (
-        <EmptyBox>정산 항목이 없습니다</EmptyBox>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {weeks.map(wk => (
-            <WeekCard
-              key={wk.key}
-              week={wk}
-              remitMap={wk.monday ? getRemitMapForWeek(toIsoDate(wk.monday)) : new Map()}
-              isThisWeek={wk.monday && toIsoDate(wk.monday) === thisWeekMondayKey}
-              onClick={() => setSelectedWeekKey(wk.key)}
-            />
-          ))}
-        </div>
-      )}
+      {/* 2026-05-26 — pending(정산 대기) 묶음은 위쪽 SummarySection 으로 통합.
+            데이터(weeks)에서는 보존(드릴인 진입 측 catch 측 catch), 리스트 표시에서만 제외. */}
+      {(() => {
+        const visibleWeeks = weeks.filter(wk => wk.key !== "pending");
+        if (visibleWeeks.length === 0) {
+          return <EmptyBox>정산 항목이 없습니다</EmptyBox>;
+        }
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {visibleWeeks.map(wk => (
+              <WeekCard
+                key={wk.key}
+                week={wk}
+                remitMap={wk.monday ? getRemitMapForWeek(toIsoDate(wk.monday)) : new Map()}
+                isThisWeek={wk.monday && toIsoDate(wk.monday) === thisWeekMondayKey}
+                onClick={() => setSelectedWeekKey(wk.key)}
+              />
+            ))}
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -352,12 +367,13 @@ async function resolvePidToCodeMap(codes) {
 }
 
 // 전체 현황 섹션 — 배경·테두리 없음 (시안 확정)
-function SummarySection({ summary }) {
+function SummarySection({ summary, onPendingClick }) {
   const steps = [
     { key: "received",   label: "접수",            value: summary.received },
     { key: "beforeWork", label: "일정 확정·작업 전", value: summary.beforeWork },
     { key: "doneWork",   label: "작업완료",         value: summary.doneWork },
   ];
+  const clickable = typeof onPendingClick === "function" && summary.pendingCount > 0;
   return (
     <div style={{ padding: "4px 4px 0" }}>
       <div style={{ fontSize: 14, color: "var(--text-primary, #FAF8F5)", fontWeight: 800, marginBottom: 14 }}>
@@ -368,20 +384,31 @@ function SummarySection({ summary }) {
 
       <div style={{ position: "relative", marginLeft: 4 }}>
         <div style={{ position: "absolute", left: 5, top: -8, width: 2, height: 18, background: C_DOT }}/>
-        <div style={{
-          marginLeft: 16, marginBottom: 6, marginTop: 10,
-          background: "rgba(230,163,58,0.08)",
-          borderLeft: `3px solid ${C_AMBER}`,
-          borderRadius: 8, padding: "12px 14px",
-        }}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: C_AMBER, marginBottom: 4 }}>
-            정산 대기 {summary.pendingCount}건
+        <div
+          onClick={clickable ? onPendingClick : undefined}
+          className={clickable ? "clickable" : ""}
+          style={{
+            marginLeft: 16, marginBottom: 6, marginTop: 10,
+            background: "rgba(230,163,58,0.08)",
+            borderLeft: `3px solid ${C_AMBER}`,
+            borderRadius: 8, padding: "12px 14px",
+            cursor: clickable ? "pointer" : "default",
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: C_AMBER, marginBottom: 4 }}>
+              정산 대기 {summary.pendingCount}건
+            </div>
+            <div style={{ fontSize: 12, color: C_GRAY }}>
+              작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: 13 }}>
+                ₩{summary.pendingAmount.toLocaleString()}
+              </span>
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: C_GRAY }}>
-            작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: 13 }}>
-              ₩{summary.pendingAmount.toLocaleString()}
-            </span>
-          </div>
+          {clickable && (
+            <span style={{ color: C_GRAY, fontSize: 18, fontWeight: 700, flexShrink: 0 }}>›</span>
+          )}
         </div>
         <div style={{ position: "absolute", left: 5, bottom: -8, width: 2, height: 18, background: C_DOT }}/>
       </div>
