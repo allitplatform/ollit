@@ -207,7 +207,8 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
 }
 
 // 운영자 전용 측 catch 카드 — PrincipalListTab.TaskRow 측 catch (ChannelBadge X, 측 catch 측 catch 추가)
-function TaskRowOperator({ task, onClick }) {
+// 2026-05-26 R2-3 — export 측 catch (UsolNInProgress 측 catch 측 catch 재사용 — 카드 1곳)
+export function TaskRowOperator({ task, onClick }) {
   const kind = getServiceKind(task);
   const status = getStatusBadge(task.status);
   const mainItem = getMainItem(task);

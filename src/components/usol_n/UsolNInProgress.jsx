@@ -1,13 +1,14 @@
 // Phase 5 Step 0.B — 유솔N · 진행 탭 (DB 전환)
 // 2026-05-19
-// 변경:
-//   - loadTasks() (localStorage) → fetchUsolNTasks() (Supabase)
-//   - 1 task = 1 줄 + task_items 측 작업 종류 칩 + 정산 사이클 색상 상태
-//   - 페이지네이션 50건/page
-//   - status 필터 칩 (DB의 한글 status 측 매핑)
-import { useState, useMemo, useEffect } from "react";
-import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
-import { formatYmdHm, formatYmdHmAlways } from "../../utils/dateLabel.js";
+// 2026-05-26 R2-3 — '전체' 탭 (라벨 측 catch) — ViewAll 패턴 측 catch:
+//   · 검색바 ViewAll 스타일 (Search icon + 측 catch padding)
+//   · 필터칩 측 catch 채움 (accent 측 catch — ViewAll 패턴)
+//   · 카드 → TaskRowOperator (UsolNAssignList 측 catch 측 catch — 카드 1곳)
+//   · 서버 fetch · 페이징 · status 필터 로직 측 catch (사장님 spec)
+import { useState, useEffect } from "react";
+import { Search } from "lucide-react";
+import { fetchUsolNTasks } from "../../lib/usolNTasksDb.js";
+import { TaskRowOperator } from "./UsolNAssignList.jsx";
 // Phase 5 Step 0.C-9 — realtime subscription
 import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 
@@ -84,20 +85,24 @@ export function UsolNInProgress({ onTaskClick }) {
 
   return (
     <div>
-      {/* 검색 (사장님 spec — 고객명/작업번호/주소/전화) */}
-      <div style={{ marginBottom: 10 }}>
+      {/* 검색 (ViewAll 패턴 — Search icon + 측 catch padding) */}
+      <div style={{ position: "relative", marginBottom: 10 }}>
+        <Search size={14} style={{
+          position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+          color: "var(--text-tertiary, var(--text-secondary))", pointerEvents: "none",
+        }}/>
         <input
           type="text"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="🔍 고객명 / 작업번호 / 주소 / 전화 검색"
+          placeholder="고객명 / 작업번호 / 주소 / 전화 검색"
           style={{
-            width: "100%", padding: "8px 12px",
+            width: "100%", padding: "10px 12px 10px 32px",
             background: "var(--bg-secondary)",
             border: "1px solid var(--border)",
-            borderRadius: 8,
+            borderRadius: 10,
             color: "var(--text-primary)",
-            fontSize: 12,
+            fontSize: 12, fontWeight: 600,
             fontFamily: "inherit",
             boxSizing: "border-box",
             outline: "none",
@@ -105,25 +110,28 @@ export function UsolNInProgress({ onTaskClick }) {
         />
       </div>
 
-      {/* 필터 칩 */}
+      {/* 필터 chip — ViewAll 패턴 (측 catch 채움) */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
-        {STATUS_FILTERS.map(filter => (
-          <button
-            key={filter.id}
-            onClick={() => handleFilterChange(filter.id)}
-            style={{
-              padding: "5px 10px",
-              background: filterId === filter.id ? "var(--accent-bg)" : "transparent",
-              border: filterId === filter.id ? "1px solid var(--accent)" : "1px solid var(--border)",
-              color: filterId === filter.id ? "var(--accent)" : "var(--text-secondary)",
-              fontSize: 10, borderRadius: 12,
-              fontWeight: filterId === filter.id ? 600 : 400,
-              cursor: "pointer", fontFamily: "inherit",
-            }}
-          >
-            {filter.label}
-          </button>
-        ))}
+        {STATUS_FILTERS.map(filter => {
+          const active = filterId === filter.id;
+          return (
+            <button
+              key={filter.id}
+              onClick={() => handleFilterChange(filter.id)}
+              style={{
+                padding: "6px 12px",
+                background: active ? "var(--accent)" : "var(--bg-secondary)",
+                color: active ? "#fff" : "var(--text-secondary)",
+                border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                borderRadius: 100,
+                fontSize: 11, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              {filter.label}
+            </button>
+          );
+        })}
       </div>
 
       <div style={sectionTitleStyle}>
@@ -143,7 +151,11 @@ export function UsolNInProgress({ onTaskClick }) {
       ) : tasks.length === 0 ? (
         <Empty>해당 상태의 작업이 없습니다</Empty>
       ) : (
-        tasks.map(task => <TaskRow key={task.id} task={task} onClick={onTaskClick}/>)
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {tasks.map(task => (
+            <TaskRowOperator key={task.id} task={task} onClick={() => onTaskClick?.(task)}/>
+          ))}
+        </div>
       )}
 
       {totalPages > 1 && (
@@ -153,109 +165,7 @@ export function UsolNInProgress({ onTaskClick }) {
   );
 }
 
-// 1 task = 1 줄 (UsolNOrders와 동일 패턴 — 일관성 spec)
-// 클릭 → onClick(task) → AdminTaskDetailScreen 진입 (AdminApp 측 v14 정규화 후 navigate)
-// 정산 사이클 색상 = 박스 왼쪽 강조선만 (사장님 spec — 고객명 앞 dot 제거)
-function TaskRow({ task, onClick }) {
-  const taskColor = getTaskSettlementColor(task);
-  const items     = task.task_items || [];
-  const isCurrentlyWorking = task.status === "진행중";
-  const clickable = typeof onClick === "function";
-
-  const leftBorderColor =
-    taskColor.color === "#1D9E75" ? "#1D9E75" :
-    taskColor.color === "#F59E0B" ? "#F59E0B" :
-    taskColor.color === "#FACC15" ? "#FACC15" : "var(--usol-n-border)";
-
-  return (
-    <div
-      onClick={clickable ? () => onClick(task) : undefined}
-      style={{
-        padding: 10,
-        background: isCurrentlyWorking
-          ? "rgba(255,27,141,0.10)"
-          : "var(--usol-n-card-bg)",
-        border: isCurrentlyWorking
-          ? "2px solid #FF1B8D"
-          : "1px solid var(--usol-n-border)",
-        borderLeft: isCurrentlyWorking
-          ? "2px solid #FF1B8D"
-          : `3px solid ${leftBorderColor}`,
-        borderRadius: 10, marginBottom: 4,
-        cursor: clickable ? "pointer" : "default",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer_name || "—"}</span>
-          <StatusBadge status={task.status}/>
-        </div>
-        <span style={{
-          fontSize: 11, fontFamily: "inherit",
-          color: isCurrentlyWorking ? "var(--accent)" : "var(--text-primary)",
-        }}>
-          ₩{(task.total_amount || 0).toLocaleString()}
-        </span>
-      </div>
-
-      <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
-        {task.task_no || "—"}
-        {task.address && (
-          <> · {String(task.address).split("(")[0].trim()}</>
-        )}
-      </div>
-
-      {items.length > 0 && (
-        <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
-          {items.map(item => {
-            const c = getItemSettlementColor(item);
-            return (
-              <span key={item.id} style={{
-                display: "inline-flex", alignItems: "center", gap: 3,
-                fontSize: 9,
-                color: "var(--text-primary)",
-                background: "var(--bg-secondary)",
-                border: `1px solid ${c.color}`,
-                padding: "2px 5px", borderRadius: 4, fontWeight: 600,
-              }}>
-                <span style={{ fontSize: 9 }}>{c.dot}</span>
-                <span>{getItemChipLabel(item)} ×{item.qty || 1}</span>
-              </span>
-            );
-          })}
-        </div>
-      )}
-
-      {(task.scheduled_at || task.started_at || task.completed_at) && (
-        <div style={{
-          fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))",
-          marginTop: 4, paddingTop: 4,
-          borderTop: "1px dashed var(--border)",
-        }}>
-          {task.completed_at ? `완료: ${formatYmdHmAlways(task.completed_at)}` :
-           task.started_at   ? `시작: ${formatYmdHm(task.started_at)}`   :
-           task.scheduled_at ? `예정: ${formatYmdHm(task.scheduled_at)}` : ""}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StatusBadge({ status }) {
-  const map = {
-    "약속대기": { label: "약속대기", color: "#06B6D4" },
-    "확정":     { label: "확정",     color: "#06B6D4" },
-    "진행중":   { label: "진행중",   color: "var(--accent)" },
-    "완료":     { label: "완료",     color: "#1D9E75" },
-  };
-  const it = map[status] || { label: status || "—", color: "var(--text-secondary)" };
-  return (
-    <span style={{
-      fontSize: 9, color: it.color, background: `${it.color}26`,
-      padding: "1px 5px", borderRadius: 3,
-    }}>{it.label}</span>
-  );
-}
+// 2026-05-26 R2-3 — 옛 TaskRow / StatusBadge 측 catch (UsolNAssignList.TaskRowOperator 측 catch 통일).
 
 function Pagination({ page, totalPages, onChange }) {
   return (
