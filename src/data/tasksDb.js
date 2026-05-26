@@ -91,6 +91,8 @@ export function rowToTask(row) {
 
     // 채널 / 요청
     channel:      row.channel,
+    // 2026-05-27 — Migration 077: 결제 방식 (3곳 매핑 트랩)
+    paymentMethod: row.payment_method,
     request:      row.request_note,
     requestNote:  row.request_note,
     isUrgent:     row.is_urgent,
@@ -254,6 +256,8 @@ export function taskToRow(task, partial = false) {
 
   // 채널 / 요청
   if (task.channel     !== undefined) row.channel      = task.channel;
+  // 2026-05-27 — Migration 077: 결제 방식 write
+  if (task.paymentMethod !== undefined) row.payment_method = task.paymentMethod;
   if (task.requestNote !== undefined) row.request_note = task.requestNote;
   else if (task.request !== undefined) row.request_note = task.request;
   if (task.isUrgent !== undefined) row.is_urgent = !!task.isUrgent;
@@ -756,6 +760,8 @@ export async function createTaskAdapter(taskData) {
       address:       taskData.address   || "",
       region:        taskData.region    || taskData.district || "",
       channel:       taskData.channel   || "",
+      // 2026-05-27 — Migration 077: 결제 방식 (선택 안 함 = null)
+      paymentMethod: taskData.paymentMethod || null,
       requestNote:   taskData.memo      || taskData.request || taskData.requestNote || "",
       status:        taskData.status    || "미배정",
       productPrice:  Number(taskData.estimateTotal || taskData.quote || taskData.productPrice || 0),

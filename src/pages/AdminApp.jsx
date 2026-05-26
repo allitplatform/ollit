@@ -37,6 +37,7 @@ import { TaskHistoryScreen } from "../components/TaskHistoryScreen.jsx";
 import { getHistoryCount } from "../data/taskHistory.js";
 import { UsolNScreen } from "../components/UsolNScreen.jsx";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
+import { PAYMENT_METHOD_OPTIONS } from "../data/paymentMethods.js";
 import { isRefrigerant } from "../utils/workTypeKind.js";
 import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
@@ -943,6 +944,8 @@ function _v14NormalizeTask(t) {
   const region    = t.region || t.지역 || _v14ExtractRegion(address);
   const principal = t.principal || t.client || t.원청 || "";
   const channel   = t.channel || t.채널 || "";
+  // 2026-05-27 — Migration 077: 결제 방식 (3곳 매핑 트랩 / null 허용)
+  const paymentMethod = t.paymentMethod || t.payment_method || null;
   const summary   = t.summary || t.작업요약 || t.요약 || "";
   const status    = t.status || t.상태 || "";
   const reqDate   = t.requestedDate || t.scheduledDate || t.예약일 || "";
@@ -1006,7 +1009,8 @@ function _v14NormalizeTask(t) {
     principal, principalCode: t.principalCode || t.principal_code || "",
     // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean (유솔N 본작업 + 냉매)
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
-    channel, workType, appliance, qty,
+    channel, paymentMethod,
+    workType, appliance, qty,
     summary, status,
     // 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 기반 state (예정 시간 측 측 → 진행중 자동)
     state: _v14StatusToState(_getEffectiveStatus(t)),
@@ -8205,6 +8209,7 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   const [form, setForm] = useState({
     principal: "",
     channel: "",         // V14 1F — 채널 신규
+    paymentMethod: "",   // 2026-05-27 Migration 077 — 결제 방식 (선택 사항)
     customer: "",
     phone: "",
     address: "",
@@ -8516,6 +8521,8 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
       const taskData = {
         principal:     form.principal,         // V14 7개 헌법 이름
         channel:       form.channel,
+        // 2026-05-27 Migration 077 — 결제 방식 (선택 안 함 → null)
+        paymentMethod: form.paymentMethod || null,
         customer:      finalCustomer,
         phone:         form.phone,
         address:       form.address,
@@ -8695,6 +8702,20 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
                 active={form.channel === c.id}
                 onClick={() => update("channel", c.id)}
               >{c.label}</FormChip>
+            ))}
+          </div>
+        </FormSection>
+
+        {/* 2026-05-27 Migration 077 — 결제 방식 (선택 사항) */}
+        <FormSection t={t} icon="💳" label="결제 방식">
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {PAYMENT_METHOD_OPTIONS.map(p => (
+              <FormChip
+                t={t}
+                key={p.id}
+                active={form.paymentMethod === p.id}
+                onClick={() => update("paymentMethod", form.paymentMethod === p.id ? "" : p.id)}
+              >{p.label}</FormChip>
             ))}
           </div>
         </FormSection>

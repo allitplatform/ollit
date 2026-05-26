@@ -12,6 +12,7 @@
 import { useState } from "react";
 import { ArrowLeft, Send, Plus, X } from "lucide-react";
 import { createTaskAdapter as createTask } from "../../data/tasksDb.js";
+import { PAYMENT_METHOD_OPTIONS } from "../../data/paymentMethods.js";
 
 // 유솔H spec — 작업 종류 / 기종 풀
 const WORK_TYPES = ["세척", "냉매충전", "출장비"];
@@ -41,6 +42,7 @@ export function NewReceptionScreenLite({ t, onBack, onSubmit }) {
     customer: "", phone: "", address: "",
     requestDate: "", requestTime: "", memo: "",
     estimateTotal: 0,
+    paymentMethod: "",   // 2026-05-27 Migration 077 — 결제 방식 (선택 사항)
   });
   const [errors, setErrors] = useState({});
   const [workItems, setWorkItems] = useState([]);
@@ -116,6 +118,8 @@ export function NewReceptionScreenLite({ t, onBack, onSubmit }) {
       const taskData = {
         principalCode: "usol_h",
         channel:       CHANNEL_FIXED,
+        // 2026-05-27 Migration 077 — 결제 방식 (선택 안 함 → null)
+        paymentMethod: form.paymentMethod || null,
         customer:      finalCustomer,
         phone:         form.phone,
         address:       form.address,
@@ -310,6 +314,20 @@ export function NewReceptionScreenLite({ t, onBack, onSubmit }) {
               </div>
             </div>
           )}
+        </FormSection>
+
+        {/* 2026-05-27 Migration 077 — 결제 방식 (선택 사항) */}
+        <FormSection t={t} icon="💳" label="결제 방식">
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {PAYMENT_METHOD_OPTIONS.map(p => (
+              <FormChip
+                t={t}
+                key={p.id}
+                active={form.paymentMethod === p.id}
+                onClick={() => update("paymentMethod", form.paymentMethod === p.id ? "" : p.id)}
+              >{p.label}</FormChip>
+            ))}
+          </div>
         </FormSection>
 
         {/* 견적 */}
