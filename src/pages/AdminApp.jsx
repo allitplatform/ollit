@@ -36,6 +36,7 @@ import { TaskEditScreen as TaskFullEditScreen } from "../components/TaskEditScre
 import { TaskHistoryScreen } from "../components/TaskHistoryScreen.jsx";
 import { getHistoryCount } from "../data/taskHistory.js";
 import { UsolNScreen } from "../components/UsolNScreen.jsx";
+import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
 import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
 import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
@@ -3902,12 +3903,12 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
   return (
     <div style={{ padding: "0 16px 16px" }}>
       {/* 2026-05-26 — 유솔N 진입 카드 (네이버 초록 채움 / 흰 N 박스 / "배정 필요 N건")
-            기준: principalCode==='usol_n' AND status==='미배정' (UsolNOrders fetch 측 catch 동일).
-            _v14NormalizeTask:1001 측 catch principalCode (camel) 측 catch 측 catch — principal_code 측 fallback 안전. */}
+            기준: 단일 헬퍼 isUsolNActionNeeded (usolNTasksDb.js).
+              · status IN ('미배정','약속대기','배정')
+              · OR (reassignRequest 측 catch AND status NOT IN ('취소','완료','visit_only'))
+            UsolNAssignList 측 catch 같은 헬퍼 사용 → 카드 숫자 = 화면 숫자 일치. */}
       {onClickUsolN && (() => {
-        const usolNAssignCount = (apiTasks || []).filter(t =>
-          (t?.principalCode || t?.principal_code) === "usol_n" && t?.status === "미배정"
-        ).length;
+        const usolNAssignCount = (apiTasks || []).filter(t => isUsolNActionNeeded(t)).length;
         return (
           <button
             onClick={onClickUsolN}

@@ -14,7 +14,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Search, Snowflake, Zap } from "lucide-react";
-import { fetchUsolNTasks } from "../../lib/usolNTasksDb.js";
+import { fetchUsolNTasks, isUsolNActionNeeded } from "../../lib/usolNTasksDb.js";
 import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 import { formatYmdHm } from "../../utils/dateLabel.js";
 
@@ -81,9 +81,11 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
     let alive = true;
     setLoading(true);
     setError("");
+    // 2026-05-26 — fetch 범위 측 catch (확정/진행중 측 catch reassignRequest 측 catch task 측 catch 측 catch).
+    //   완료/취소/visit_only 측 catch — isUsolNActionNeeded 측 catch 측 catch in-memory filter 측 catch 측 catch.
     fetchUsolNTasks({
-      statusIn: ["배정", "약속대기", "미배정"],
-      limit: 200,
+      statusIn: ["미배정", "약속대기", "배정", "확정", "진행중"],
+      limit: 500,
       offset: 0,
     }).then(res => {
       if (!alive) return;
@@ -97,10 +99,13 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
     return () => { alive = false; };
   }, [reloadTick]);
 
-  // 배정 필요 필터 — fetch 결과 + reassignRequest 측 catch (status 측 catch)
-  // 측 catch fetch 측 catch status IN ['배정','약속대기','미배정'] 측 catch 측 catch → 측 catch 전부 측 catch 측 catch.
-  // (status='확정' + reassignRequest 측 catch case 측 catch 측 X — V14 재배정 측 catch 측 catch '배정' 측 catch 측 catch)
-  const actionNeeded = useMemo(() => tasks, [tasks]);
+  // 배정 필요 필터 — 단일 헬퍼 isUsolNActionNeeded 적용.
+  //   fetch 측 catch 측 catch usol_n 측 catch 측 catch → skipPrincipalCheck:true.
+  //   확정/진행중 측 catch reassignRequest 측 catch task 측 catch 측 catch — fetch 측 catch in-memory filter 측 catch 측 catch.
+  const actionNeeded = useMemo(
+    () => tasks.filter(t => isUsolNActionNeeded(t, { skipPrincipalCheck: true })),
+    [tasks]
+  );
 
   // 검색 필터
   const filtered = useMemo(() => {

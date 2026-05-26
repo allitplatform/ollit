@@ -247,6 +247,34 @@ export async function fetchUsolNCompletedTaskItems({ monthsBack = 3 } = {}) {
   return { ok: true, items: data || [] };
 }
 
+// ============================================================
+// 2026-05-26 — "배정 측 catch 측 catch" 단일 판정 헬퍼
+// ============================================================
+// 사장님 spec — 운영자 액션 필요 task:
+//   (principal_id=usol_n) AND (
+//     status IN ('미배정','약속대기','배정')
+//     OR (category_data.reassignRequest 측 catch AND status NOT IN ('취소','완료','visit_only'))
+//   )
+//
+// 사용처: UsolNAssignList (skipPrincipalCheck=true — fetch 측 catch usol_n 측 catch)
+//        AdminApp 유솔N 진입 카드 (skipPrincipalCheck=false — apiTasks 전체 측 catch)
+//
+// task object — DB row (snake_case) 또는 _v14NormalizeTask 결과 (camel) 둘 다 측 catch.
+export function isUsolNActionNeeded(task, { skipPrincipalCheck = false } = {}) {
+  if (!task) return false;
+  if (!skipPrincipalCheck) {
+    const code = task.principalCode || task.principal_code;
+    if (code !== "usol_n") return false;
+  }
+  const status = task.status;
+  if (status === "취소" || status === "완료" || status === "visit_only") return false;
+  if (status === "미배정" || status === "약속대기" || status === "배정") return true;
+  // status='확정' 또는 '진행중' — reassignRequest 측 catch 측 catch 측 catch.
+  const cat = task.category_data || task.categoryData || {};
+  if (cat?.reassignRequest?.requestedAt) return true;
+  return false;
+}
+
 // 작업 종류 칩 라벨 — appliance_name 우선 (가장 간결 + 중복 제거)
 // 예: "벽걸이" (appliance 있음) / "피톤치드" (추가선택 / appliance X)
 // 사장님 spec — work_types "세척_벽걸이" + appliance "벽걸이" 측 중복 catch 방지
