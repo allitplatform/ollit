@@ -91,6 +91,20 @@ export function NewReceptionScreenLite({ t, onBack, onSubmit }) {
     const finalCustomer = autoGenerateCustomer(form, region);
     const scheduleType  = scheduleMode === "input" ? "specific" : "tbd";
     const head = workItems[0] || {};
+    const headQty = head.qty || 1;
+
+    // 2026-05-26 fix — 금액 2배 버그 (옵션 C, 프론트엔드만):
+    //   estimateTotal 측 catch "측 catch 항목 측 catch 총액" 의도 (UI 측 catch [+ 작업 항목 추가] 측 catch X 측 catch head 측 catch).
+    //   Migration 017 trigger 측 catch workItem.quote 측 catch task_items.unit_price 측 catch 측 catch.
+    //   측 catch quote 측 X 측 catch → NEW.product_price (총액) 측 catch fallback → unit_price=총액 → subtotal=qty×총액 → ×qty 측 catch.
+    //   측 catch totalAmount 측 catch headQty 측 catch 측 catch 단가 측 catch quote 측 catch 측 catch.
+    //   tasks.product_price 측 catch totalAmount 측 catch INSERT 측 catch 측 catch Mig 070 측 catch resync 측 catch 측 catch 측 catch update X.
+    const totalAmount = priceTBD ? 0 : (form.estimateTotal || 0);
+    const unitPrice = headQty > 0 ? Math.floor(totalAmount / headQty) : totalAmount;
+    const workItemsWithQuote = workItems.map((it, i) => ({
+      ...it,
+      quote: i === 0 ? unitPrice : 0,
+    }));
 
     setSubmitting(true);
     setSubmitError("");
@@ -104,10 +118,10 @@ export function NewReceptionScreenLite({ t, onBack, onSubmit }) {
         region,
         workType:      head.workType,
         appliance:     head.appliance,
-        qty:           head.qty || 1,
-        workItems,
-        quote:         priceTBD ? 0 : form.estimateTotal,
-        estimateTotal: priceTBD ? 0 : form.estimateTotal,
+        qty:           headQty,
+        workItems:     workItemsWithQuote,
+        quote:         totalAmount,
+        estimateTotal: totalAmount,
         scheduledDate: scheduleMode === "input" ? form.requestDate : null,
         scheduledTime: scheduleMode === "input" ? form.requestTime : null,
         memo:          form.memo,
