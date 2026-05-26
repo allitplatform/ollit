@@ -209,11 +209,16 @@ export function EngineerNewAssignDetailScreen({
 
           {/* V14 — 작업 항목 한 줄 박스 */}
           <div style={{ marginBottom: 14 }}>
+            {/* 2026-05-27 — usol_n은 회사가 월 15일 정산 → 기사한텐 본인 정산금만.
+                다른 6원청·현금은 기사 현장 수금 → 총액 그대로. */}
             <WorkItemRow
               workType={task.workType}
               appliance={task.appliance}
               qty={task.qty}
-              price={task.estimateTotal}
+              price={task.principalCode === "usol_n"
+                ? (task.engineer_amount || 0)
+                : task.estimateTotal}
+              priceLabel={task.principalCode === "usol_n" ? "내 정산금" : null}
               client={task.client}
               dividerTop={false}
             />

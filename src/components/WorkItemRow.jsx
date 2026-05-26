@@ -9,7 +9,7 @@ function isUsolNCleaning(client, workType) {
   return client === "유솔홈케어 N" && (workType || "").includes("세척");
 }
 
-export function WorkItemRow({ workType, appliance, qty, price, client, dividerTop = true, isCanceled = false }) {
+export function WorkItemRow({ workType, appliance, qty, price, client, dividerTop = true, isCanceled = false, priceLabel = null }) {
   const colors = getWorkTypeColors(workType);
   const isDark = useIsDark();
   const boxBg = isDark ? colors.box.dark : colors.box.light;
@@ -69,7 +69,8 @@ export function WorkItemRow({ workType, appliance, qty, price, client, dividerTo
         </div>
       </div>
 
-      {/* 단가 (우측, 컬러 17/800) — 취소 시 ₩0 회색 */}
+      {/* 단가 (우측, 컬러 17/800) — 취소 시 ₩0 회색
+          2026-05-27: priceLabel 옵션 — 있으면 금액 위에 마이크로 라벨 (usol_n "내 정산금" 등) */}
       {isCanceled ? (
         <span style={{
           fontSize: 17, color: "#9CA3AF", fontWeight: 800,
@@ -80,14 +81,26 @@ export function WorkItemRow({ workType, appliance, qty, price, client, dividerTo
           ₩0
         </span>
       ) : (price != null && price > 0 && (
-        <span style={{
-          fontSize: 17, color: colors.main, fontWeight: 800,
-          fontFamily: "inherit",
-          letterSpacing: "-0.3px",
-          flexShrink: 0,
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "flex-end",
+          flexShrink: 0, lineHeight: 1.1,
         }}>
-          ₩{price.toLocaleString("ko-KR")}
-        </span>
+          {priceLabel && (
+            <span style={{
+              fontSize: 9, fontWeight: 700,
+              color: "var(--text-secondary)",
+              marginBottom: 2,
+              letterSpacing: 0.2,
+            }}>{priceLabel}</span>
+          )}
+          <span style={{
+            fontSize: 17, color: colors.main, fontWeight: 800,
+            fontFamily: "inherit",
+            letterSpacing: "-0.3px",
+          }}>
+            ₩{price.toLocaleString("ko-KR")}
+          </span>
+        </div>
       ))}
     </div>
   );
