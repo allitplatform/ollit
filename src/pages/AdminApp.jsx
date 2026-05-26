@@ -3897,28 +3897,53 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
 
   return (
     <div style={{ padding: "0 16px 16px" }}>
-      {/* 2026-05-19 Phase 5 Step 0.B — 유솔N 사이클 진입 (단일 경로 / 설정 측 항목 제거) */}
-      {onClickUsolN && (
-        <button
-          onClick={onClickUsolN}
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            background: t.bgElevated,
-            border: `1px solid ${t.border}`,
-            borderLeft: "3px solid #03C75A",
-            borderRadius: 10,
-            marginBottom: 14,
-            cursor: "pointer",
-            display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontFamily: "inherit",
-            color: t.text,
-          }}
-        >
-          <span style={{ fontSize: 13, fontWeight: 700 }}>🟢 유솔N</span>
-          <span style={{ fontSize: 16, color: t.textMuted }}>→</span>
-        </button>
-      )}
+      {/* 2026-05-26 — 유솔N 진입 카드 (네이버 초록 채움 / 흰 N 박스 / "배정 필요 N건")
+            기준: principalCode==='usol_n' AND status==='미배정' (UsolNOrders fetch 측 catch 동일).
+            _v14NormalizeTask:1001 측 catch principalCode (camel) 측 catch 측 catch — principal_code 측 fallback 안전. */}
+      {onClickUsolN && (() => {
+        const usolNAssignCount = (apiTasks || []).filter(t =>
+          (t?.principalCode || t?.principal_code) === "usol_n" && t?.status === "미배정"
+        ).length;
+        return (
+          <button
+            onClick={onClickUsolN}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              background: "#03C75A",
+              border: "none",
+              borderRadius: 10,
+              marginBottom: 14,
+              cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 12,
+              fontFamily: "inherit",
+              color: "#fff",
+              textAlign: "left",
+            }}
+          >
+            {/* 좌측: 흰 둥근 사각형 + 초록 N */}
+            <span style={{
+              width: 38, height: 38, flexShrink: 0,
+              background: "#fff",
+              borderRadius: 9,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              fontSize: 20, fontWeight: 900, color: "#03C75A",
+              letterSpacing: "-0.5px",
+            }}>N</span>
+            {/* 중앙: 2줄 텍스트 */}
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: "-0.2px" }}>
+                유솔N · 네이버 접수
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#EAFBF1" }}>
+                배정 필요 {usolNAssignCount}건
+              </span>
+            </div>
+            {/* 우측: › 셰브런 */}
+            <span style={{ fontSize: 22, fontWeight: 700, color: "#fff", flexShrink: 0, lineHeight: 1 }}>›</span>
+          </button>
+        );
+      })()}
 
       {/* 2026-05-21 Phase 5 Step 0.H — 오늘 작업 흐름 (세척/냉매 2개 카드 / 사장님 결정 — 기타 제거) */}
       <div style={{ marginBottom: 14 }}>
