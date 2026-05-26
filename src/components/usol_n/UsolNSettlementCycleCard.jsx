@@ -1,30 +1,21 @@
 // Phase 5 Step 0.C-1 — 유솔N 정산 사이클 카드 (AdminTaskDetailScreen 측 조건 분기)
-// 2026-05-19
-// task.principal === 'usol_n' 일 때만 표시.
-// 각 task_item별 4단계 정산 사이클 시각:
-//   ⚪ 대기 → 🟡 네이버 결제 완료 → 🟠 회사 입금 완료 → 🟢 기사 정산 완료
-// 시각 (naver_settled_at / company_received_at / engineer_settled_at)
+// 2026-05-26 D-3 — 시안(admin_task_detail_cycle_card_v2) 측 catch 재배치:
+//   · 헤더: ● 유솔N 정산 사이클 (#03C75A)
+//   · 품목별 블록: 품목명 ×수량 + 금액 / 상품주문번호 {product_order_id}
+//   · 사이클 3칸 (flex:1):
+//     ① 네이버 결제 — 실 데이터 (net_amount + naver_settled_at MM-DD), 초록 채움
+//     ② 회사 입금 — "정산 전" 회색 (데이터 없음 — company_received_at 0%)
+//     ③ 기사 정산 — "정산 전" 회색 (데이터 없음 — engineer_settled_at 0%)
+//   · 하단 안내문: 회사 입금·기사 정산일은 작업별 기록이 아직 X.
+//
+// ⚠️ 데이터 source (사장님 결정 🅐):
+//   · 네이버 단계만 실제 날짜·금액 (item.net_amount / item.naver_settled_at)
+//   · 회사 입금 / 기사 정산은 "정산 전" 고정 (억지 데이터 표시 X).
 //
 // 영향 범위 = 유솔N 작업만. 다른 6원청 영향 0 (AdminTaskDetailScreen 측 조건 분기).
 import { useState, useEffect } from "react";
-import { fetchTaskItemsByTaskId, getItemSettlementColor, getItemChipLabel } from "../../lib/usolNTasksDb.js";
-import { formatYmdHm, formatYmdHmAlways } from "../../utils/dateLabel.js";
-// Phase 5 Step 0.C-9 — task_items 변경 시 자동 refetch (정산 사이클 카드 갱신)
+import { fetchTaskItemsByTaskId, getItemChipLabel } from "../../lib/usolNTasksDb.js";
 import { useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
-
-const STAGES = [
-  { key: "wait",     label: "대기",            dot: "⚪", color: "var(--text-tertiary, var(--text-secondary))", field: null },
-  { key: "naver",    label: "네이버 결제완료",   dot: "🟡", color: "#FACC15", field: "naver_settled_at" },
-  { key: "company",  label: "회사 입금완료",     dot: "🟠", color: "#F59E0B", field: "company_received_at" },
-  { key: "engineer", label: "기사 정산완료",     dot: "🟢", color: "#1D9E75", field: "engineer_settled_at" },
-];
-
-function getCurrentStage(item) {
-  if (item.engineer_settled_at) return "engineer";
-  if (item.company_received_at) return "company";
-  if (item.naver_settled_at)    return "naver";
-  return "wait";
-}
 
 export function UsolNSettlementCycleCard({ taskId }) {
   const [items, setItems]     = useState([]);
@@ -75,11 +66,14 @@ export function UsolNSettlementCycleCard({ taskId }) {
   }
 
   return (
+    <div style={outerStyle}>
     <div style={cardStyle}>
       <SectionLabel/>
       {items.map(item => (
-        <ItemRow key={item.id} item={item}/>
+        <ItemBlock key={item.id} item={item}/>
       ))}
+      <NoticeFooter/>
+    </div>
     </div>
   );
 }
@@ -87,140 +81,154 @@ export function UsolNSettlementCycleCard({ taskId }) {
 function SectionLabel() {
   return (
     <div style={{
-      fontSize: 10, color: "#03C75A", fontWeight: 700,
-      marginBottom: 8, letterSpacing: 0.3,
+      fontSize: 12, color: "#03C75A", fontWeight: 800,
+      marginBottom: 12, letterSpacing: 0.3,
+      display: "flex", alignItems: "center", gap: 6,
     }}>
-      🟢 유솔N 정산 사이클
+      <span style={{
+        display: "inline-block", width: 8, height: 8, borderRadius: "50%",
+        background: "#03C75A",
+      }}/>
+      유솔N 정산 사이클
     </div>
   );
 }
 
-function ItemRow({ item }) {
-  const c = getItemSettlementColor(item);
+function NoticeFooter() {
+  return (
+    <div style={{
+      marginTop: 8, padding: "8px 10px",
+      fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))",
+      lineHeight: 1.5,
+      background: "var(--bg-secondary)",
+      border: "1px dashed var(--border)",
+      borderRadius: 6,
+    }}>
+      💡 회사 입금·기사 정산일은 작업별 기록이 아직 없어 '정산 전'으로 표시됩니다.
+    </div>
+  );
+}
+
+function formatMd(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "";
+  const k = new Date(d.getTime() + 9 * 3600 * 1000);
+  return `${k.getUTCMonth() + 1}-${String(k.getUTCDate()).padStart(2, "0")}`;
+}
+
+function ItemBlock({ item }) {
   const label = getItemChipLabel(item);
-  const currentStage = getCurrentStage(item);
-  const currentStageIdx = STAGES.findIndex(s => s.key === currentStage);
+  const qty   = item.qty || 1;
+  const naverDone = !!item.naver_settled_at;
+  const naverAmt  = item.net_amount != null ? Number(item.net_amount) : null;
+  const naverDate = naverDone ? formatMd(item.naver_settled_at) : "";
 
   return (
     <div style={{
-      padding: 10,
+      padding: 12,
       background: "var(--bg-secondary)",
       border: "1px solid var(--border)",
-      borderLeft: `3px solid ${c.color}`,
-      borderRadius: 8, marginBottom: 6,
+      borderRadius: 10,
+      marginBottom: 8,
     }}>
-      {/* 헤더 — 항목명 + 단계 라벨 + 금액 */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{label}</span>
-          <span style={{ fontSize: 9, color: "var(--text-tertiary)" }}>×{item.qty || 1}</span>
-          <span style={{
-            fontSize: 9, fontWeight: 600,
-            color: c.color,
-            background: `${c.color}1A`,
-            padding: "1px 5px", borderRadius: 3,
-          }}>
-            {c.dot} {c.label}
-          </span>
-        </div>
-        <span style={{ fontSize: 11, fontFamily: "inherit", color: "var(--text-primary)" }}>
+      {/* 헤더: 품목명 ×수량 + 금액 */}
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+          {label} ×{qty}
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", fontFamily: "inherit" }}>
           ₩{(item.subtotal || 0).toLocaleString()}
         </span>
       </div>
 
-      {/* 4단계 progress */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
-        {STAGES.map((stage, idx) => {
-          const isPassed = idx <= currentStageIdx;
-          const isCurrent = idx === currentStageIdx;
-          const ts = stage.field ? item[stage.field] : null;
-          return (
-            <div key={stage.key} style={{
-              flex: 1, textAlign: "center",
-              padding: "4px 2px",
-              borderRadius: 4,
-              background: isCurrent ? `${stage.color}1A` : "transparent",
-              border: isCurrent ? `1px solid ${stage.color}` : "1px solid transparent",
-            }}>
-              <div style={{
-                fontSize: 12,
-                opacity: isPassed ? 1 : 0.3,
-              }}>{stage.dot}</div>
-              <div style={{
-                fontSize: 8,
-                color: isPassed ? stage.color : "var(--text-tertiary, var(--text-secondary))",
-                fontWeight: isCurrent ? 700 : 500,
-                marginTop: 1,
-              }}>{stage.label}</div>
-              {ts && (
-                <div style={{
-                  fontSize: 7,
-                  color: "var(--text-tertiary, var(--text-secondary))",
-                  marginTop: 1,
-                  fontFamily: "inherit",
-                }}>
-                  {stage.key === "engineer" ? formatYmdHmAlways(ts) : formatYmdHm(ts)}
-                </div>
-              )}
-            </div>
-          );
-        })}
+      {/* 상품주문번호 */}
+      {item.product_order_id && (
+        <div style={{
+          fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))",
+          marginTop: 4, fontFamily: "inherit",
+        }}>
+          상품주문번호 {item.product_order_id}
+        </div>
+      )}
+
+      {/* 사이클 3칸 (flex:1) */}
+      <div style={{ display: "flex", gap: 4, marginTop: 10 }}>
+        <StageCell
+          label="네이버 결제"
+          done={naverDone}
+          amount={naverAmt}
+          date={naverDate}
+          doneColor="#03C75A"
+        />
+        <StageCell label="회사 입금"  done={false}/>
+        <StageCell label="기사 정산"  done={false}/>
       </div>
-
-      {/* 부가 정보 — order_type / product_order_id / net_amount */}
-      {(item.order_type || item.product_order_id) && (
-        <div style={{
-          fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))",
-          marginTop: 6, paddingTop: 6,
-          borderTop: "1px dashed var(--border)",
-          display: "flex", gap: 8, flexWrap: "wrap",
-        }}>
-          {item.order_type && <span>유형: {item.order_type}</span>}
-          {item.product_order_id && <span>주문번호: {item.product_order_id}</span>}
-          {item.net_amount != null && <span>실수령: ₩{item.net_amount.toLocaleString()}</span>}
-        </div>
-      )}
-
-      {/* 2026-05-19 Phase 5 Step 0.C-12 — 정산 채널별 세부 시각 (Migration 041) */}
-      {(item.cash_settled_at || item.naver_received_at || item.cash_received_at) && (
-        <div style={{
-          fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))",
-          marginTop: 4, paddingTop: 4,
-          borderTop: "1px dashed var(--border)",
-        }}>
-          <div style={{ fontWeight: 600, marginBottom: 2 }}>세부 정산 채널</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 2 }}>
-            {item.cash_settled_at && (
-              <>
-                <span>💵 현금 결제</span>
-                <span style={{ fontFamily: "inherit" }}>{formatYmdHm(item.cash_settled_at)}</span>
-              </>
-            )}
-            {item.naver_received_at && (
-              <>
-                <span>🟦 네이버 → 회사</span>
-                <span style={{ fontFamily: "inherit" }}>{formatYmdHm(item.naver_received_at)}</span>
-              </>
-            )}
-            {item.cash_received_at && (
-              <>
-                <span>💴 현금 → 회사</span>
-                <span style={{ fontFamily: "inherit" }}>{formatYmdHm(item.cash_received_at)}</span>
-              </>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
+// 측 cell — 측 catch 측 catch 측 catch 측 catch (네이버) / 측 catch 측 catch (회사·기사 측 catch)
+function StageCell({ label, done, amount, date, doneColor }) {
+  if (done) {
+    return (
+      <div style={{
+        flex: 1,
+        padding: "8px 6px",
+        background: `${doneColor || "#03C75A"}1A`,
+        border: `1px solid ${doneColor || "#03C75A"}`,
+        borderRadius: 8,
+        textAlign: "center",
+      }}>
+        <div style={{ fontSize: 9, color: doneColor || "#03C75A", fontWeight: 800, marginBottom: 3 }}>
+          {label}
+        </div>
+        {amount != null && (
+          <div style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 800, fontFamily: "inherit" }}>
+            ₩{amount.toLocaleString()}
+          </div>
+        )}
+        {date && (
+          <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 1, fontFamily: "inherit" }}>
+            {date}
+          </div>
+        )}
+      </div>
+    );
+  }
+  // 정산 전 — 회색
+  return (
+    <div style={{
+      flex: 1,
+      padding: "8px 6px",
+      background: "var(--bg-primary)",
+      border: "1px dashed var(--border)",
+      borderRadius: 8,
+      textAlign: "center",
+    }}>
+      <div style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 3 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", fontWeight: 600 }}>
+        정산 전
+      </div>
+      <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 1 }}>
+        —
+      </div>
+    </div>
+  );
+}
+
+// 측 측 측 측 측 D-1 패턴 측 catch
+const outerStyle = {
+  padding: "0 20px",
+};
 const cardStyle = {
-  padding: 12,
+  padding: 16,
   background: "rgba(3,199,90,0.04)",
   border: "1px solid rgba(3,199,90,0.3)",
-  borderRadius: 10,
-  margin: "0 16px 12px",
+  borderRadius: 14,
+  marginBottom: 12,
 };
 
 const emptyTextStyle = {

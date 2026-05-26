@@ -562,22 +562,23 @@ function SettlementInfoCard({ task }) {
   );
 }
 
+// 2026-05-26 D-3 — 유솔앱 LabelRow 톤 (라벨 12 textSecondary / 값 13 bold)
 function SettlementRow({ label, value, color, bold }) {
   return (
     <div style={{
       display: "flex", justifyContent: "space-between", alignItems: "center",
-      fontSize: bold ? 12 : 11, padding: "2px 0",
+      fontSize: bold ? 13 : 12, padding: "3px 0",
     }}>
       <span style={{
         color: bold ? "var(--text-primary)" : "var(--text-secondary)",
-        fontWeight: bold ? 700 : 500,
+        fontWeight: bold ? 700 : 600,
       }}>{label}</span>
       <span style={{
         color: color || "var(--text-primary)",
         fontFamily: "inherit",
-        fontWeight: bold ? 700 : 600,
+        fontWeight: bold ? 800 : 700,
       }}>
-        {Number(value || 0).toLocaleString()}<span style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 500 }}> 원</span>
+        {Number(value || 0).toLocaleString()}<span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500 }}> 원</span>
       </span>
     </div>
   );
