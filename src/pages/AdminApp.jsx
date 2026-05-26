@@ -8277,26 +8277,30 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     { id: "문자",   label: "문자" },
   ];
 
-  // V14 2A — 주소 첫 한 단어 = 지역 (예: "강남구 도곡동" → "강남구")
+  // 2026-05-26 — 지역(region) 추출. 도로명 주소 "서울특별시 성북구 ..." → "성북구".
+  //   우선: '구'로 끝나는 토큰 (행정구역 구)
+  //   다음: '시'/'군'으로 끝나는 토큰 (단 광역시/특별시/특별자치시·도 제외)
+  //   fallback: 첫 토큰
   const region = (() => {
-    const parts = (form.address || "").trim().split(/\s+/);
-    return parts[0] || "";
+    const tokens = (form.address || "").trim().split(/\s+/);
+    const gu = tokens.find(tok => /^[가-힣]+구$/.test(tok));
+    if (gu) return gu;
+    const siGun = tokens.find(tok =>
+      /^[가-힣]+(시|군)$/.test(tok) &&
+      !/(특별시|광역시|특별자치시|특별자치도)$/.test(tok)
+    );
+    if (siGun) return siGun;
+    return tokens[0] || "";
   })();
 
-  // Step 5-1c — 고객 자동 생성 (지역구 + 폰 4자리)
-  // 예: 강남구 도곡동 + 010-1234-5678 → "강남5678"
+  // 2026-05-26 — 고객 자동 생성. region("성북구") 그대로 + 전화 끝 4자리 → "성북구4696".
+  //   옛: 정규식 /([가-힣]+?)(?:구|시|동|군)/ 게으른 매칭이 "서울특별시"에서 "서울특별"만 잡는 사고.
+  //   신: region 추출을 위에서 정확히 처리하므로 정규식 불필요.
   function autoGenerateCustomer(form, region) {
     if (form.customer && form.customer.trim()) return form.customer.trim();
     const digits = (form.phone || "").replace(/\D/g, "");
     const last4  = digits.length >= 4 ? digits.slice(-4) : "";
-    let regionShort = "";
-    const src = region || form.address || "";
-    if (src) {
-      // 지역구/시/동/군 추출 — 강남구 → 강남
-      const m = src.match(/([가-힣]+?)(?:구|시|동|군)/);
-      if (m) regionShort = m[1];
-      else regionShort = src.split(/\s+/)[0];
-    }
+    const regionShort = region || (form.address || "").trim().split(/\s+/)[0] || "";
     if (regionShort && last4) return `${regionShort}${last4}`;
     if (regionShort)          return `${regionShort}고객`;
     if (last4)                return `고객${last4}`;

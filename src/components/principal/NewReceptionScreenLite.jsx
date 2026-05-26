@@ -22,18 +22,14 @@ const APPLIANCE_POOL = {
 };
 const CHANNEL_FIXED = "직접";
 
-// 이름 자동 생성 — 운영자 PWA NewReceptionFormScreen 측 catch 측 그대로
+// 2026-05-26 — 고객 자동 생성. region("성북구") 그대로 + 전화 끝 4자리 → "성북구4696".
+//   옛: /([가-힣]+?)(?:구|시|동|군)/ 게으른 매칭이 "서울특별시"에서 "서울특별"만 잡는 사고.
+//   신: 호출처에서 '구' 우선 추출(아래 region 변수)하므로 정규식 불필요.
 function autoGenerateCustomer(form, region) {
   if (form.customer && form.customer.trim()) return form.customer.trim();
   const digits = (form.phone || "").replace(/\D/g, "");
   const last4  = digits.length >= 4 ? digits.slice(-4) : "";
-  let regionShort = "";
-  const src = region || form.address || "";
-  if (src) {
-    const m = src.match(/([가-힣]+?)(?:구|시|동|군)/);
-    if (m) regionShort = m[1];
-    else regionShort = src.split(/\s+/)[0];
-  }
+  const regionShort = region || (form.address || "").trim().split(/\s+/)[0] || "";
   if (regionShort && last4) return `${regionShort}${last4}`;
   if (regionShort)          return `${regionShort}고객`;
   if (last4)                return `고객${last4}`;
@@ -60,10 +56,18 @@ export function NewReceptionScreenLite({ t, onBack, onSubmit }) {
     if (errors[key]) setErrors(prev => ({ ...prev, [key]: null }));
   }
 
-  // 지역 — 주소 첫 단어
+  // 2026-05-26 — 지역(region) 추출. 도로명 "서울특별시 성북구 ..." → "성북구".
+  //   '구' 우선 → '시'/'군' (광역시·특별시·특별자치시·도 제외) → 첫 토큰 fallback.
   const region = (() => {
-    const parts = (form.address || "").trim().split(/\s+/);
-    return parts[0] || "";
+    const tokens = (form.address || "").trim().split(/\s+/);
+    const gu = tokens.find(tok => /^[가-힣]+구$/.test(tok));
+    if (gu) return gu;
+    const siGun = tokens.find(tok =>
+      /^[가-힣]+(시|군)$/.test(tok) &&
+      !/(특별시|광역시|특별자치시|특별자치도)$/.test(tok)
+    );
+    if (siGun) return siGun;
+    return tokens[0] || "";
   })();
 
   function addWorkItem() {

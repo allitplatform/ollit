@@ -58,14 +58,17 @@ function sendSms(phone) {
   if (phone) window.location.href = `sms:${phone}`;
 }
 
-// V14 v6 — 시/구/도로명 합치기 (T맵/네이버 정확 catch)
+// 2026-05-26 — 길찾기용 주소 합성.
+//   DB tasks.address 컬럼이 풀 주소로 저장됨(시·도부터 동·호수까지).
+//   풀 주소가 있으면 그대로 사용 → 네이버/T맵/카카오 검색 정확.
+//   옛 시드(address="강남구 청담동" + fullAddress="청담로 200,...") 호환을 위해 fallback만 유지.
 function buildFullAddress(task) {
-  const region = task.region || task.address || ""; // 강남구 청담동
-  const detail = task.fullAddress || "";            // 청담로 200, 101동 502호
+  if (task.address && String(task.address).trim()) return String(task.address).trim();
+  const region = task.region || "";
+  const detail = task.fullAddress || "";
   if (!region && !detail) return "";
   if (!region) return detail;
   if (!detail) return region;
-  // 시 prefix 자동 (서울특별시 / 경기도) — 시가 없으면 region 그대로
   const cityPrefix = region.includes("시") || region.includes("도") ? "" : "서울 ";
   return `${cityPrefix}${region} ${detail}`.trim();
 }
