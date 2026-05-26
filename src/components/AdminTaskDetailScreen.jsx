@@ -100,7 +100,12 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <WorkInfoCard task={task} onAssign={onAssign} onScheduleChange={onScheduleChange}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
       <SettlementInfoCard task={task}/>
-      {task.principal === "usol_n" && <UsolNSettlementCycleCard taskId={task.id}/>}
+      {task.principal === "usol_n" && (
+        <UsolNSettlementCycleCard
+          taskId={task.id}
+          paymentMethod={task.paymentMethod || task.payment_method || null}
+        />
+      )}
       {/* 카드 5 — 작업 시간 · 이력 통합 */}
       <WorkTimeHistoryCard task={task}/>
       {/* 카드 6 — 요청사항 · 메모 */}

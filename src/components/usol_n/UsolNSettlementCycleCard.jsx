@@ -17,7 +17,7 @@ import { useState, useEffect } from "react";
 import { fetchTaskItemsByTaskId, getItemChipLabel } from "../../lib/usolNTasksDb.js";
 import { useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 
-export function UsolNSettlementCycleCard({ taskId }) {
+export function UsolNSettlementCycleCard({ taskId, paymentMethod = null }) {
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
@@ -64,13 +64,17 @@ export function UsolNSettlementCycleCard({ taskId }) {
   if (items.length === 0) {
     return null; // 항목 X → 카드 자체 표시 X
   }
-  // 2026-05-26 — 네이버 발주 신호 가드.
-  //   사이클(네이버 결제→회사 입금→기사 정산)은 네이버 발주 건 전용.
-  //   현금/수동 접수(external_order_no NULL, product_order_id NULL)는 카드 숨김.
-  //   판정 신호: items 중 하나라도 product_order_id 있으면 네이버 발주.
-  //   (bulkInsertUsolNOrders가 product_order_id 채움 / 수동 입력은 NULL)
-  const hasNaverItem = items.some(i => i.product_order_id);
-  if (!hasNaverItem) return null;
+  // 2026-05-27 — 네이버 발주 신호 가드 (Mig 077 payment_method 우선 + fallback).
+  //   사이클(네이버 결제→회사 입금→기사 정산)은 네이버 결제 작업 전용.
+  //   1순위: paymentMethod — 'naver_pay'면 표시, 'cash'/'card'/'transfer'면 숨김
+  //   2순위: paymentMethod NULL 또는 미전달 시 — items 중 하나라도 product_order_id 있으면 표시
+  //          (bulkInsertUsolNOrders가 product_order_id 채움 / 수동 입력은 NULL)
+  if (paymentMethod) {
+    if (paymentMethod !== "naver_pay") return null;
+  } else {
+    const hasNaverItem = items.some(i => i.product_order_id);
+    if (!hasNaverItem) return null;
+  }
 
   return (
     <div style={outerStyle}>
