@@ -4,7 +4,7 @@
 // 정렬: 취소 맨 아래 / received_at desc — UsolN 과 일관.
 
 import { useState, useEffect, useMemo } from "react";
-import { Search } from "lucide-react";
+import { Search, ChevronDown, ChevronRight } from "lucide-react";
 import {
   fetchAllPrincipalTasks,
   PRINCIPAL_CHIP_ORDER,
@@ -43,6 +43,9 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
   const [loading, setLoading]   = useState(false);
   const [fetchError, setFetchError] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
+  // 2026-05-27 — '전체' 칩일 때만 완료/취소 접기. 각 섹션 독립 토글, 기본 닫힘.
+  const [completedOpen, setCompletedOpen] = useState(false);
+  const [canceledOpen,  setCanceledOpen]  = useState(false);
 
   useRealtimeTasks(() => setReloadTick(v => v + 1));
   useRealtimeTable("task_items", () => setReloadTick(v => v + 1));
@@ -128,20 +131,36 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
   }, [statusScoped]);
 
   // 최종 표시 (두 필터 + 정렬)
+  //   · '전체' 칩: 진행(0) → 완료(1) → 취소(2) 순서 + 각 구간 안 received_at desc.
+  //     렌더는 buckets 로 3구간 분리 (완료/취소 접기). displayedTasks 는 카운트/empty 체크용.
+  //   · 다른 칩: 그 status 만 필터, received_at desc 평면.
   const displayedTasks = useMemo(() => {
     const f = STATUS_FILTERS.find(x => x.id === statusId) || STATUS_FILTERS[0];
     let base = searchFiltered;
     if (principalCode) base = base.filter(t => t.principalCode === principalCode);
     if (f.match)       base = base.filter(t => t.status === f.match);
+    const rankFn = (s) => s === "취소" ? 2 : s === "완료" ? 1 : 0;
     return [...base].sort((a, b) => {
-      const rankA = a.status === "취소" ? 1 : 0;
-      const rankB = b.status === "취소" ? 1 : 0;
-      if (rankA !== rankB) return rankA - rankB;
+      if (statusId === "all") {
+        const rankA = rankFn(a.status);
+        const rankB = rankFn(b.status);
+        if (rankA !== rankB) return rankA - rankB;
+      }
       const ra = a.received_at || "";
       const rb = b.received_at || "";
       return String(rb).localeCompare(String(ra));
     });
   }, [searchFiltered, statusId, principalCode]);
+
+  // '전체' 칩일 때만 3구간 분리. 다른 칩은 null (평면 displayedTasks 사용).
+  const buckets = useMemo(() => {
+    if (statusId !== "all") return null;
+    return {
+      ongoing:   displayedTasks.filter(t => t.status !== "완료" && t.status !== "취소"),
+      completed: displayedTasks.filter(t => t.status === "완료"),
+      canceled:  displayedTasks.filter(t => t.status === "취소"),
+    };
+  }, [displayedTasks, statusId]);
 
   const currentStatus = STATUS_FILTERS.find(f => f.id === statusId) || STATUS_FILTERS[0];
   const currentPrincipal = PRINCIPAL_FILTERS.find(p => p.code === principalCode);
@@ -228,7 +247,56 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
           <Empty>⚠️ {fetchError}</Empty>
         ) : displayedTasks.length === 0 ? (
           <Empty>해당 조건의 작업이 없습니다</Empty>
+        ) : buckets ? (
+          // '전체' 칩 — 진행(펼침) + 완료(접기) + 취소(접기)
+          <>
+            {buckets.ongoing.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {buckets.ongoing.map(task => (
+                  <TaskRowOperator
+                    key={task.id}
+                    task={task}
+                    onClick={() => onTaskClick?.(task)}
+                    principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                  />
+                ))}
+              </div>
+            )}
+            {buckets.completed.length > 0 && (
+              <CollapseSection
+                title={`완료 ${buckets.completed.length.toLocaleString()}건`}
+                open={completedOpen}
+                onToggle={() => setCompletedOpen(v => !v)}
+              >
+                {buckets.completed.map(task => (
+                  <TaskRowOperator
+                    key={task.id}
+                    task={task}
+                    onClick={() => onTaskClick?.(task)}
+                    principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                  />
+                ))}
+              </CollapseSection>
+            )}
+            {buckets.canceled.length > 0 && (
+              <CollapseSection
+                title={`취소 ${buckets.canceled.length.toLocaleString()}건`}
+                open={canceledOpen}
+                onToggle={() => setCanceledOpen(v => !v)}
+              >
+                {buckets.canceled.map(task => (
+                  <TaskRowOperator
+                    key={task.id}
+                    task={task}
+                    onClick={() => onTaskClick?.(task)}
+                    principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                  />
+                ))}
+              </CollapseSection>
+            )}
+          </>
         ) : (
+          // 직접 선택 칩 — 평면 리스트
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             {displayedTasks.map(task => (
               <TaskRowOperator
@@ -301,6 +369,41 @@ function chipStyle(active) {
     fontSize: 11, fontWeight: 700,
     cursor: "pointer", fontFamily: "inherit",
   };
+}
+
+// 완료/취소 접기 섹션 — '전체' 칩에서만 사용. 헤더 클릭 시 토글.
+//   클릭 영역 넉넉히 (50대 사용자 spec — padding 12px ≈ 44px 높이).
+function CollapseSection({ title, open, onToggle, children }) {
+  return (
+    <div style={{ marginTop: 14 }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%",
+          padding: "12px 14px",
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          display: "flex", alignItems: "center", gap: 8,
+          cursor: "pointer",
+          fontFamily: "inherit",
+          color: "var(--text-secondary)",
+          fontSize: 12, fontWeight: 700,
+          textAlign: "left",
+        }}
+      >
+        {open
+          ? <ChevronDown  size={16} style={{ flexShrink: 0 }}/>
+          : <ChevronRight size={16} style={{ flexShrink: 0 }}/>}
+        <span style={{ flex: 1 }}>{title}</span>
+      </button>
+      {open && (
+        <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function Empty({ children }) {
