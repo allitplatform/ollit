@@ -659,14 +659,14 @@ function ChangeEntry({ entry }) {
 
 // ──────────────── 카드 6 — RequestMemoCard (Phase 5 Step 0.C-4) ────────────────
 // 옛 InfoCard 측 요청사항 + 메모 영역 분리.
-// 2026-05-27 — requestNote (DB request_note) 표시 + 기사 일정변경 사유 (category_data.rescheduleReason) 표시.
+// 2026-05-27 — requestNote (DB request_note) + 기사 협의 메모 (callMemo) + 기사 일정변경 사유 (rescheduleReason).
+//   세 값 모두 3곳 매핑 트랩으로 평탄화 — task.callMemo / task.rescheduleReason / task.rescheduledAt 직접 사용.
 function RequestMemoCard({ task, memos, onMemoAdd }) {
   // 요청사항 본문 — task.requestNote (DB request_note 매핑) 우선, 옛 task.memo fallback.
-  const requestText = task.requestNote || task.memo || "";
-  // 기사 일정 변경 사유 — category_data.rescheduleReason (RPC reschedule_engineer_task 갱신본이 머지)
-  const cat = task.categoryData || task.category_data || {};
-  const rescheduleReason = cat.rescheduleReason || "";
-  const rescheduledAt    = cat.rescheduledAt    || "";
+  const requestText      = task.requestNote      || task.memo || "";
+  const callMemo         = task.callMemo         || "";
+  const rescheduleReason = task.rescheduleReason || "";
+  const rescheduledAt    = task.rescheduledAt    || "";
   return (
     <div style={{ padding: D1_OUTER_PAD }}>
       <div style={D1_CARD_STYLE}>
@@ -676,6 +676,17 @@ function RequestMemoCard({ task, memos, onMemoAdd }) {
         <div style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontWeight: 500 }}>
           {requestText || "없음"}
         </div>
+
+        {callMemo && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
+              📞 기사 협의 메모 (고객 통화)
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, fontWeight: 500 }}>
+              {callMemo}
+            </div>
+          </div>
+        )}
 
         {rescheduleReason && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>

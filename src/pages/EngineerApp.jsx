@@ -4746,13 +4746,25 @@ export default function EngineerApp({ user, onLogout }) {
 
     // 진짜 task면 updateTask로 확정 처리
     if (tasks.find(x => x.id === id)) {
+      // 2026-05-27 — 협의 메모 저장 키 정정.
+      //   옛: happycallMemo (해피콜 담당자 칸 덮어씀 — 잘못) + callMemo (DB 매핑 없는 죽은 키).
+      //   새: category_data.callMemo 머지 (cancelReason / rescheduleReason 패턴).
+      //   taskToRow 는 categoryData 통째 덮어쓰기라 다른 키(consent / reassignRequest 등) 보존 위해
+      //   클라 측에서 현재 categoryData 읽고 spread 머지.
+      const memoText = payload?.memo ? String(payload.memo).trim() : "";
+      const currentTask = tasks.find(x => x.id === id) || {};
+      const currentCat = currentTask.categoryData || currentTask.category_data || {};
+      const nextCategoryData = memoText
+        ? { ...currentCat, callMemo: memoText, callMemoAt: new Date().toISOString() }
+        : currentCat;
+
       updateTask(id, {
         scheduledDate,
         scheduledTime,
         scheduledAt: scheduledAtIso,
         endTime: payload?.endTime,
-        callMemo: payload?.memo,
-        happycallMemo: payload?.memo,
+        // category_data 머지 — memoText 있을 때만 덮어쓰기 (없으면 변화 X)
+        ...(memoText ? { categoryData: nextCategoryData } : {}),
         status: hasSchedule ? "확정" : "배정",
       });
     }

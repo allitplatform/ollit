@@ -1087,6 +1087,10 @@ function _v14NormalizeTask(t) {
     consent: t.consent || t.categoryData?.consent || null,
     // 2026-05-22 — 재배정 요청 (3곳 매핑 트랩)
     reassignRequest: t.reassignRequest || t.categoryData?.reassignRequest || null,
+    // 2026-05-27 — 기사 일정변경 사유 + 협의 메모 (category_data 평탄화, 3곳 매핑 트랩)
+    rescheduleReason: t.rescheduleReason || t.categoryData?.rescheduleReason || "",
+    rescheduledAt:    t.rescheduledAt    || t.categoryData?.rescheduledAt    || "",
+    callMemo:         t.callMemo         || t.categoryData?.callMemo         || "",
     _api: true,                   // 진짜 API 출처 마킹
   };
 }

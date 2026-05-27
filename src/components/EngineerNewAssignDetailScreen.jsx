@@ -58,7 +58,10 @@ export function EngineerNewAssignDetailScreen({
   onCustomerCancel,
   onAskOps,
 }) {
-  const [memo, setMemo]                 = useState(task?.callMemo || "");
+  // 2026-05-27 — 옛 task.callMemo (DB 매핑 없는 죽은 키) → 평탄화된 task.callMemo
+  //   (v14NormalizeTask 가 category_data.callMemo 평탄화) 또는 raw category_data.callMemo fallback.
+  //   재진입 시 본인이 쓴 메모 그대로 보이게.
+  const [memo, setMemo]                 = useState(task?.callMemo || task?.categoryData?.callMemo || "");
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [showCustom, setShowCustom]     = useState(false);
   const [customDate, setCustomDate]     = useState("");

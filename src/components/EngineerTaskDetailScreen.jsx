@@ -1462,35 +1462,47 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
         </div>
       )}
 
-      {/* 2026-05-27 — 내가 남긴 일정 변경 사유 (category_data.rescheduleReason).
-            RescheduleScreen 에서 입력한 reason 이 RPC 갱신본을 통해 머지됨. */}
-      {(() => {
-        const cat = task.categoryData || task.category_data || {};
-        const reason = cat.rescheduleReason || "";
-        const at     = cat.rescheduledAt    || "";
-        if (!reason) return null;
-        return (
-          <div style={{
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: "10px 12px",
-            marginBottom: 10,
-          }}>
-            <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 4 }}>
-              🕐 내가 남긴 일정 변경 사유
-            </div>
-            <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 500, lineHeight: 1.5 }}>
-              {reason}
-            </div>
-            {at && (
-              <div style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 4 }}>
-                {String(at).slice(0, 16).replace("T", " ")}
-              </div>
-            )}
+      {/* 2026-05-27 — 내가 남긴 협의 메모 (새 배정 화면에서 입력 / category_data.callMemo 평탄화) */}
+      {task.callMemo && (
+        <div style={{
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          padding: "10px 12px",
+          marginBottom: 10,
+        }}>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 4 }}>
+            📞 내가 남긴 협의 메모 (고객 통화)
           </div>
-        );
-      })()}
+          <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 500, lineHeight: 1.5 }}>
+            {task.callMemo}
+          </div>
+        </div>
+      )}
+
+      {/* 2026-05-27 — 내가 남긴 일정 변경 사유 (category_data.rescheduleReason 평탄화).
+            RescheduleScreen 에서 입력한 reason 이 RPC v2(2026-05-27) 가 머지. */}
+      {task.rescheduleReason && (
+        <div style={{
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          padding: "10px 12px",
+          marginBottom: 10,
+        }}>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 4 }}>
+            🕐 내가 남긴 일정 변경 사유
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 500, lineHeight: 1.5 }}>
+            {task.rescheduleReason}
+          </div>
+          {task.rescheduledAt && (
+            <div style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 4 }}>
+              {String(task.rescheduledAt).slice(0, 16).replace("T", " ")}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* V14 — 운영팀 메모 (보라 박스 + 좌측 3px 보라 바) */}
       {operatorNote && (

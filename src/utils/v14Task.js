@@ -245,6 +245,13 @@ export function v14NormalizeTask(t) {
     consent: t.consent || t.categoryData?.consent || null,
     // 2026-05-22 — 재배정 요청 (category_data.reassignRequest 평탄화, 3곳 매핑 트랩)
     reassignRequest: t.reassignRequest || t.categoryData?.reassignRequest || null,
+    // 2026-05-27 — 기사 일정변경 사유 (category_data.rescheduleReason / rescheduledAt 평탄화, 3곳 매핑 트랩)
+    //   reschedule_engineer_task RPC v2(2026-05-27) 가 category_data 머지 → 본 평탄화로 화면 사용.
+    rescheduleReason: t.rescheduleReason || t.categoryData?.rescheduleReason || "",
+    rescheduledAt:    t.rescheduledAt    || t.categoryData?.rescheduledAt    || "",
+    // 2026-05-27 — 기사 새 배정 협의 메모 (category_data.callMemo 평탄화, 3곳 매핑 트랩)
+    //   EngineerApp handleSaveCall 가 머지. 운영자 PWA + 기사 PWA 작업 상세에서 표시.
+    callMemo: t.callMemo || t.categoryData?.callMemo || "",
 
     _api: true,
   };
