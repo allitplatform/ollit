@@ -4985,15 +4985,33 @@ export default function EngineerApp({ user, onLogout }) {
               goBack();
             }}
             onSave={handleSaveCall}
-            onUnableSchedule={() => {
+            onUnableSchedule={async () => {
+              // 2026-05-27 — 옛 죽은 키(updateTask {status:"미배정", unableSchedule:true})
+              //   제거. requestReassignAdapter 재사용 (Mig 056 RPC):
+              //     · category_data.reassignRequest 머지 (운영자 화면 "🔁 재배정" 배지)
+              //     · admin role push 발사
+              //     · status 변경 X / assigned_engineer_id 유지 (옛 기사 누군지 운영자 표시 가능)
+              //   submitReassignRequest(4067-4088) 패턴 그대로 차용.
               const id = callTaskId || (acceptedCall && acceptedCall.id);
-              if (id && tasks.find(x => x.id === id)) {
-                updateTask(id, { status: "미배정", unableSchedule: true });
+              if (!id) { resetTo("main"); return; }
+              if (tasks.find(x => x.id === id)) {
+                const res = await apiRequestReassign(id, "기사 일정 불가");
+                if (!res || res.ok === false) {
+                  alert(`재배정 요청 실패: ${(res && res.error) || '실패'}`);
+                  return;
+                }
+                // Optimistic — UI 즉시 반영 (submitReassignRequest 패턴 동일)
+                const now = new Date().toISOString();
+                setApiTasks(prev => prev.map(t =>
+                  t.id === id
+                    ? { ...t, reassignRequest: { reason: "기사 일정 불가", requestedAt: now } }
+                    : t
+                ));
               }
-              if (id) setExtraAssignments(prev => prev.filter(a => a.id !== id));
+              setExtraAssignments(prev => prev.filter(a => a.id !== id));
               setCallTaskId(null);
               setAcceptedCall(null);
-              showToast("일정 불가 — 운영팀에 알림 보냈습니다.");
+              showToast("일정 불가 — 운영자에게 재배정 요청을 보냈습니다.");
               resetTo("main");
             }}
             onCustomerCancel={() => {
