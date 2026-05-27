@@ -126,6 +126,31 @@ export async function listEngineersFromDb() {
 // 변경 (WRITE)
 // ============================================================
 
+// engineer 역할 보장 — partial unique index 회피 (SELECT → 없으면 INSERT).
+// 배경: Migration 057 이 user_roles PK 를 partial unique index 2개로 교체:
+//   ① (user_id, role) WHERE principal_id IS NULL
+//   ② (user_id, role, principal_id) WHERE principal_id IS NOT NULL
+// Supabase JS 의 onConflict: 'user_id,role' 단순 옵션은 partial predicate 미지정 →
+// PG 가 "no unique or exclusion constraint matching" 으로 거부.
+// 우회: principal_id IS NULL 조건으로 SELECT → 있으면 skip, 없으면 INSERT (principal_id=NULL).
+// 057 멀티 원청 구조 보존 (partner+principal_id 행은 별도 경로 ②).
+async function ensureEngineerRole(userId) {
+  const { data: found, error: selErr } = await supabase
+    .from("user_roles")
+    .select("user_id")
+    .eq("user_id", userId)
+    .eq("role", "engineer")
+    .is("principal_id", null)
+    .maybeSingle();
+  if (selErr) return { ok: false, error: selErr.message };
+  if (found) return { ok: true, skipped: true };
+  const { error: insErr } = await supabase
+    .from("user_roles")
+    .insert({ user_id: userId, role: "engineer", is_primary: true, principal_id: null });
+  if (insErr) return { ok: false, error: insErr.message };
+  return { ok: true, skipped: false };
+}
+
 // upsert — code 기준 존재 여부 catch 후 update 또는 insert
 // 응답: { ok, action: 'create'|'update', engineerId } | { ok: false, error }
 export async function upsertEngineerToDb(eng) {
@@ -162,21 +187,13 @@ export async function upsertEngineerToDb(eng) {
       return { ok: false, error: updErr.message };
     }
     // 2026-05-27 — 역할 자동 복구 안전망 (멱등).
-    //   배경: 옛 INSERT 시점에 user_roles upsert가 실패해 권한 누락된 ghost user가 있을 때
+    //   배경: 옛 INSERT 시점에 user_roles upsert 가 실패해 권한 누락된 ghost user 가 있을 때
     //         운영자가 다시 저장하면 이 update 경로로 와서 자동 복구.
-    //   onConflict=user_id,role + ignoreDuplicates=true:
-    //     - 이미 engineer 역할 있으면 그대로 skip (is_primary 등 기존 값 보존)
-    //     - 없으면 새 row 생성 (is_primary=true)
-    //   다중 역할(admin+engineer 등)은 role 컬럼이 다르므로 충돌 X — engineer 한 줄만 건드림.
-    const { error: roleErr } = await supabase
-      .from("user_roles")
-      .upsert(
-        { user_id: existing.id, role: "engineer", is_primary: true },
-        { onConflict: "user_id,role", ignoreDuplicates: true }
-      );
-    if (roleErr) {
-      console.error("[engineersDb.upsert:update:role]", roleErr);
-      return { ok: false, error: `사용자 update OK / 역할 부여 실패: ${roleErr.message}` };
+    //   ensureEngineerRole: SELECT 먼저 → 있으면 skip / 없으면 INSERT (partial index 우회).
+    const roleRes = await ensureEngineerRole(existing.id);
+    if (!roleRes.ok) {
+      console.error("[engineersDb.upsert:update:role]", roleRes.error);
+      return { ok: false, error: `사용자 update OK / 역할 부여 실패: ${roleRes.error}` };
     }
     return { ok: true, action: "update", engineerId: row.code };
   }
@@ -193,17 +210,11 @@ export async function upsertEngineerToDb(eng) {
     return { ok: false, error: insErr.message };
   }
 
-  // engineer 역할 추가 (이미 있으면 upsert로 무시)
-  const { error: roleErr } = await supabase
-    .from("user_roles")
-    .upsert(
-      { user_id: inserted.id, role: "engineer", is_primary: true },
-      { onConflict: "user_id,role" }
-    );
-
-  if (roleErr) {
-    console.error("[engineersDb.upsert:role]", roleErr);
-    return { ok: false, error: `사용자 생성 OK / 역할 부여 실패: ${roleErr.message}` };
+  // engineer 역할 추가 — partial index 우회 (SELECT → 없으면 INSERT)
+  const roleRes = await ensureEngineerRole(inserted.id);
+  if (!roleRes.ok) {
+    console.error("[engineersDb.upsert:role]", roleRes.error);
+    return { ok: false, error: `사용자 생성 OK / 역할 부여 실패: ${roleRes.error}` };
   }
 
   return { ok: true, action: "create", engineerId: row.code };
