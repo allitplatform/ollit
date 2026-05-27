@@ -3855,82 +3855,6 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
 function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks }) {
-  // 2026-05-21 Phase 5 Step 0.H — 작업 흐름 = 세척 / 냉매 2개 카드 (사장님 결정: 기타 제거)
-  //   신규 / 배정 / 확정 = TASK_FILTERS 측 동일 (유솔N 본작업 냉매만 / 그 외 유솔N 제외 / 6원청 전부)
-  //   진행 / 완료 = TASK_FILTERS 측 동일 (오늘 + 전부 포함)
-  //   workType 분류 = 세척 / 냉매 (2개) — 정규식 측 측 측 측 measure 측 측 측 합계 측 측 (의도)
-  const workTypeFlowCounts = useMemo(() => {
-    const counts = {
-      '세척':    { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 },
-      '냉매충전':{ 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 },
-    };
-
-    (apiTasks || []).forEach(task => {
-      // workType 분류 — workItems 측 첫 매칭 측 우선 / 매칭 측 측 측 측 측 측 측
-      const items = (task.workItems && task.workItems.length > 0)
-        ? task.workItems
-        : (task.workType ? [{ workType: task.workType }] : []);
-      let workType = '';
-      for (const item of items) {
-        const wt = String(item.workType || "");
-        if (/세척/.test(wt))           { workType = '세척'; break; }
-        if (/냉매|가스|충전/.test(wt)) { workType = '냉매충전'; break; }
-      }
-      if (!workType || !counts[workType]) return;
-
-      // 5단계 = TASK_FILTERS 측 동일 기준 적용
-      if      (TASK_FILTERS.newReception(task)) { counts[workType]['신규']++; counts[workType]['총']++; }
-      else if (TASK_FILTERS.assigned(task))     { counts[workType]['배정']++; counts[workType]['총']++; }
-      else if (TASK_FILTERS.confirmed(task))    { counts[workType]['확정']++; counts[workType]['총']++; }
-      else if (TASK_FILTERS.inProgress(task))   { counts[workType]['진행']++; counts[workType]['총']++; }
-      else if (TASK_FILTERS.completed(task))    { counts[workType]['완료']++; counts[workType]['총']++; }
-    });
-
-    return counts;
-  }, [apiTasks]);
-
-  // 작업 흐름 카드 한 장 박는 헬퍼 (5단계 그리드)
-  const FlowCard = ({ icon, title, flow }) => {
-    const stages = [
-      { key: '신규', label: '신규', color: t.text },
-      { key: '배정', label: '배정', color: t.accent },
-      { key: '확정', label: '확정', color: t.text },
-      { key: '진행', label: '진행', color: t.warning },
-      { key: '완료', label: '완료', color: t.success },
-    ];
-    return (
-      <div style={{
-        background: t.bgElevated,
-        border: `1px solid ${t.border}`,
-        borderRadius: 10, padding: 12, marginBottom: 8,
-      }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{icon} {title}</span>
-          <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>{flow['총']}건</span>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 4, textAlign: "center" }}>
-          {stages.map(({ key, label, color }) => {
-            const value = flow[key] || 0;
-            return (
-              <div key={key} style={{
-                background: t.bgInset || t.bg,
-                padding: '6px 2px',
-                borderRadius: 4,
-                opacity: value > 0 ? 1 : 0.5,
-              }}>
-                <div style={{ fontSize: 9, color: t.textMuted, marginBottom: 2 }}>{label}</div>
-                <div className="mono" style={{ fontSize: 14, fontWeight: 700, color: value > 0 ? color : t.textMuted }}>{value}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const cleaningFlow    = workTypeFlowCounts['세척'];
-  const refrigerantFlow = workTypeFlowCounts['냉매충전'];
-
   return (
     <div style={{ padding: "0 16px 16px" }}>
       {/* 2026-05-26 — 유솔N 진입 카드 ("미배정 N건")
@@ -4027,20 +3951,6 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
           </button>
         );
       })()}
-
-      {/* 2026-05-21 Phase 5 Step 0.H — 오늘 작업 흐름 (세척/냉매 2개 카드 / 사장님 결정 — 기타 제거) */}
-      <div style={{ marginBottom: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <span style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase" }}>
-            📊 오늘 작업 흐름
-          </span>
-          <span className="mono" style={{ fontSize: 10, color: t.accent, fontWeight: 700 }}>
-            {((cleaningFlow && cleaningFlow['총']) || 0) + ((refrigerantFlow && refrigerantFlow['총']) || 0)}건
-          </span>
-        </div>
-        <FlowCard icon="❄️" title="세척" flow={cleaningFlow    || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
-        <FlowCard icon="⚡" title="냉매" flow={refrigerantFlow || { 신규: 0, 배정: 0, 확정: 0, 진행: 0, 완료: 0, 총: 0 }}/>
-      </div>
 
       {/* + 새 접수 등록 (Step 5-1d: placeholder → 실제 폼 연결, FAB 제거) */}
       <button onClick={onClickAddReception} style={{
