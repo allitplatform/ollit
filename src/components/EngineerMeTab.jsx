@@ -128,17 +128,28 @@ export function EngineerMeTab({
 
   // Step 6-2 hotfix-2 — multi-source engineerId / userId 매핑 (Step 5-8 패턴)
   // eng prop에 id 박지 X 케이스 catch — REGISTERED_USERS + loadSheetEngineers fallback
+  //
+  // 2026-05-27 ★ 긴급 수정 — 모든 기사가 E022로 저장되던 버그.
+  //   REGISTERED_USERS 36개 row에 userId 필드 자체 없음 (code 필드만 존재).
+  //   옛 조건 `u.userId === eng?.userId` → `undefined === undefined === true` →
+  //   find() 가 항상 첫 row (A001 조동욱, engineerId="E022") 매칭 →
+  //   어떤 기사가 로그인하든 푸시 구독 시 engineerId="E022" 저장 →
+  //   조동욱 알림이 다른 기사 전부에게 도착.
+  //   수정: truthy 가드 + REGISTERED_USERS 키 정정 (userId → code).
+  //   sheetList find / fromRegistered.userId fallback 도 같은 함정 가능성 — 가드 추가.
   function resolveEngineerIds() {
     const fromRegistered = REGISTERED_USERS.find(u =>
-      u.userId === eng?.userId || u.userId === eng?.id ||
-      (eng?.phone && u.phone === eng.phone) ||
-      (eng?.name  && u.name  === eng.name)
+      (eng?.userId && u.code  === eng.userId) ||
+      (eng?.id     && u.code  === eng.id)     ||
+      (eng?.phone  && u.phone === eng.phone)  ||
+      (eng?.name   && u.name  === eng.name)
     );
     const sheetList = loadSheetEngineers();
     const fromSheet = sheetList.find(e =>
-      e.id === eng?.engineerId || e.id === fromRegistered?.engineerId ||
-      (eng?.name  && e.name  === eng.name) ||
-      (eng?.phone && e.phone === eng.phone)
+      (eng?.engineerId           && e.id   === eng.engineerId) ||
+      (fromRegistered?.engineerId && e.id   === fromRegistered.engineerId) ||
+      (eng?.name                 && e.name  === eng.name)  ||
+      (eng?.phone                && e.phone === eng.phone)
     );
     const finalEngineerId =
       eng?.engineerId ||
@@ -146,10 +157,9 @@ export function EngineerMeTab({
       fromSheet?.id ||
       eng?.id ||
       "";
-    const finalUserId =
-      eng?.userId ||
-      fromRegistered?.userId ||
-      "";
+    // 2026-05-27 — fromRegistered.userId 도 REGISTERED_USERS 에 없는 필드. fallback 의미 없으나
+    //   안전 차원에서 eng.userId 만 유효. 옛 fallback 제거.
+    const finalUserId = eng?.userId || "";
     return { finalEngineerId, finalUserId };
   }
 
