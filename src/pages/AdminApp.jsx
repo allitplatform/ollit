@@ -32,7 +32,8 @@ import { setEngineerRatesCache, setEngineerSkillsCache } from "../data/engineers
 import { setUsersCache } from "../data/users.js";
 import { TaskCardMenu } from "../components/TaskCardMenu.jsx";
 import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
-import { loadMemos, getMemoTypeLabel } from "../data/memos.js";
+// 2026-05-27 Phase 2 — localStorage memos.js → Supabase task_memos
+import { useTaskMemos, getMemoTypeLabel } from "../lib/taskMemosDb.js";
 import { TaskEditScreen as TaskFullEditScreen } from "../components/TaskEditScreen.jsx";
 import { TaskHistoryScreen } from "../components/TaskHistoryScreen.jsx";
 import { getHistoryCount } from "../data/taskHistory.js";
@@ -6773,7 +6774,9 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
   const [showPartialDialog, setShowPartialDialog] = useState(false);
-  const memos = task ? loadMemos(task.id) : [];
+  // 2026-05-27 — Supabase task_memos hook (realtime 자동 갱신).
+  //   task=null 시 hook 은 빈 배열 반환 (taskId 가드).
+  const { memos } = useTaskMemos(task?.id);
   const historyCount = task ? getHistoryCount(task.id) : 0;
   const canSeeHistory = user && ["owner", "admin"].includes(user.role);
   if (!task) return <PlaceholderScreen t={t} title="작업 상세" label="작업 정보 없음" onBack={onBack}/>;
@@ -7109,13 +7112,18 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
                     display: "flex", justifyContent: "space-between", alignItems: "center",
                     marginBottom: 4, fontSize: 10, color: t.textMuted, fontWeight: 600,
                   }}>
-                    <span>{getMemoTypeLabel(m.type)}</span>
+                    <span>{getMemoTypeLabel(m.memo_type)}</span>
                     <span className="mono">
-                      {new Date(m.createdAt).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      {new Date(m.created_at).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   </div>
+                  {m.author_name && (
+                    <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 4 }}>
+                      {m.author_name}{m.author_role ? ` (${m.author_role})` : ""}
+                    </div>
+                  )}
                   <div style={{ fontSize: 12, color: t.text, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
-                    {m.content}
+                    {m.body}
                   </div>
                 </div>
               ))}

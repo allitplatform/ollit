@@ -1,23 +1,33 @@
 // Step 8+9 V8 — 메모 추가 화면
 // 카드 [⋯] → "메모 추가" → 이 화면
 // 타입 라디오 (일반/통화/이슈) + textarea + [저장]
+// 2026-05-27 Phase 2 — localStorage memos.js → Supabase task_memos (saveMemoAsync)
 import { useState } from "react";
-import { saveMemo, MEMO_TYPES } from "../data/memos.js";
+import { saveMemoAsync, MEMO_TYPES } from "../lib/taskMemosDb.js";
 
 export function MemoAddScreen({ task, user, onBack, onSaved }) {
   const [type, setType] = useState("general");
   const [content, setContent] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError]   = useState("");
 
-  function handleSave() {
+  async function handleSave() {
     const trimmed = content.trim();
-    if (!trimmed) return;
-    const memo = saveMemo({
-      taskId: task?.id,
-      type,
-      content: trimmed,
-      author: user?.displayName || user?.username || "",
+    if (!trimmed || saving) return;
+    setSaving(true);
+    setError("");
+    const res = await saveMemoAsync({
+      taskId:   task?.id,
+      memoType: type,
+      body:     trimmed,
+      user,
     });
-    onSaved?.(memo);
+    setSaving(false);
+    if (!res.ok) {
+      setError(res.error || "저장 실패");
+      return;
+    }
+    onSaved?.(res.memo);
     onBack?.();
   }
 
@@ -110,32 +120,42 @@ export function MemoAddScreen({ task, user, onBack, onSaved }) {
           />
         </div>
 
+        {error && (
+          <div style={{
+            marginBottom: 12, padding: "8px 12px",
+            background: "rgba(239,68,68,0.10)",
+            border: "1px solid #EF4444", borderRadius: 8,
+            color: "#EF4444", fontSize: 12, fontWeight: 600,
+          }}>⚠️ {error}</div>
+        )}
+
         {/* 버튼 */}
         <div style={{ display: "flex", gap: 10 }}>
-          <button onClick={onBack} style={{
+          <button onClick={onBack} disabled={saving} style={{
             flex: 1,
             background: "var(--bg-secondary)",
             border: "1px solid var(--border)",
             color: "var(--text-secondary)",
             fontSize: 14, fontWeight: 500,
             padding: 12, borderRadius: 10,
-            cursor: "pointer", fontFamily: "inherit",
+            cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit",
+            opacity: saving ? 0.6 : 1,
           }}>취소</button>
           <button
             onClick={handleSave}
-            disabled={!content.trim()}
+            disabled={!content.trim() || saving}
             style={{
               flex: 2,
-              background: content.trim() ? "var(--accent)" : "var(--bg-secondary)",
+              background: content.trim() && !saving ? "var(--accent)" : "var(--bg-secondary)",
               border: "none",
-              color: content.trim() ? "#fff" : "var(--text-tertiary)",
+              color: content.trim() && !saving ? "#fff" : "var(--text-tertiary)",
               fontSize: 14, fontWeight: 600,
               padding: 12, borderRadius: 10,
-              cursor: content.trim() ? "pointer" : "not-allowed",
+              cursor: content.trim() && !saving ? "pointer" : "not-allowed",
               fontFamily: "inherit",
-              opacity: content.trim() ? 1 : 0.6,
+              opacity: content.trim() && !saving ? 1 : 0.6,
             }}
-          >저장</button>
+          >{saving ? "저장 중..." : "저장"}</button>
         </div>
       </div>
     </div>

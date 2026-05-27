@@ -23,6 +23,8 @@ import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
 // Round 3 — Migration 076 RPC (anon 키 + p_actor 패턴, 옛 updateTaskAdapter 경로 우회)
 import { rescheduleEngineerTask } from "../lib/engineerTaskRpc.js";
+// 2026-05-27 Phase 2 — Supabase task_memos (운영자↔기사 양방향)
+import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -255,7 +257,8 @@ function getTaskItems(task, itemEngineerAmounts = {}) {
 }
 
 // ──────────────── 메인 컴포넌트 ────────────────
-export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBack, onUpdate, onRequestReassign }) {
+// 2026-05-27 — props user, onMemoAdd 추가 (작업 메모 카드 + 추가 버튼)
+export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBack, onUpdate, onRequestReassign, user, onMemoAdd }) {
   // V14 — 사진 = {url, step} array (작업 전/후 명시적 박음 / 최소 2장 합산)
   const initialPhotos = (() => {
     if (Array.isArray(task.photos)) return task.photos.map(p => {
@@ -276,6 +279,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   // 2026-05-25 — '일정 변경 · 취소' 카드 접힘/펼침. 기본 접힘 (기사 실수 방지 spec).
   const [actionsOpen, setActionsOpen] = useState(false);
   const [saving, setSaving] = useState(false); // 2026-05-17 — 완료 분기 진입 직전 extraFee 사전 저장 표시
+  // 2026-05-27 Phase 2 — task_memos hook (Supabase, realtime 자동 갱신)
+  const { memos: taskMemos } = useTaskMemos(task?.id);
   const beforeFileRef = useRef(null);
   const afterFileRef  = useRef(null);
   const PHOTO_MIN = 2;
@@ -1503,6 +1508,65 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
           )}
         </div>
       )}
+
+      {/* 2026-05-27 Phase 2 — 작업 메모 (운영자↔기사 양방향, task_memos 테이블) */}
+      <div style={{
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        padding: "10px 12px",
+        marginBottom: 10,
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          marginBottom: 8,
+        }}>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700 }}>
+            💬 메모 ({taskMemos.length})
+          </div>
+          {onMemoAdd && (
+            <button
+              onClick={onMemoAdd}
+              style={{
+                fontSize: 11, color: "var(--accent)",
+                background: "transparent", border: "none",
+                cursor: "pointer", padding: 0, fontWeight: 700,
+                fontFamily: "inherit",
+              }}
+            >+ 메모 추가</button>
+          )}
+        </div>
+        {taskMemos.length === 0 ? (
+          <div style={{ fontSize: 11, color: "var(--text-tertiary, var(--text-secondary))", padding: "4px 0" }}>
+            아직 메모가 없습니다
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {taskMemos.map(m => (
+              <div key={m.id} style={{
+                background: "var(--bg-elevated)",
+                borderRadius: 6, padding: "8px 10px",
+              }}>
+                <div style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))",
+                  marginBottom: 4, fontWeight: 600,
+                }}>
+                  <span>{getMemoTypeLabel(m.memo_type)}</span>
+                  <span>·</span>
+                  <span>{getAuthorRoleEmoji(m.author_role)} {m.author_name || "—"}</span>
+                  <span style={{ marginLeft: "auto" }}>
+                    {m.created_at ? String(m.created_at).slice(0, 16).replace("T", " ") : ""}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                  {m.body}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* V14 — 운영팀 메모 (보라 박스 + 좌측 3px 보라 바) */}
       {operatorNote && (

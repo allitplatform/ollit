@@ -114,6 +114,8 @@ import { EngineerRegionsScreen } from "../components/EngineerRegionsScreen.jsx";
 import { EngineerRegionChangeRequestScreen } from "../components/EngineerRegionChangeRequestScreen.jsx";
 import { EngineerNewAssignCallScreen } from "../components/EngineerNewAssignCallScreen.jsx";
 import { EngineerNewAssignDetailScreen } from "../components/EngineerNewAssignDetailScreen.jsx";
+// 2026-05-27 Phase 2 — task_memos 작성 (운영자↔기사 양방향). MemoAddScreen 공유.
+import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
 
 const NOW = "10:00";
 
@@ -5049,6 +5051,16 @@ export default function EngineerApp({ user, onLogout }) {
             onReject={handleRejectCall}
           />
         )}
+        {screen === "memoAdd" && selectedTask && (
+          <MemoAddScreen
+            task={selectedTask}
+            user={user}
+            onBack={goBack}
+            onSaved={() => {
+              // useTaskMemos realtime 으로 자동 갱신 — 별도 reload X
+            }}
+          />
+        )}
         {screen === "detail" && selectedTask && (
           <EngineerTaskDetailScreen
             task={selectedTask}
@@ -5056,6 +5068,8 @@ export default function EngineerApp({ user, onLogout }) {
             onBack={() => { goBack(); setSelectedTaskId(null); }}
             onUpdate={updateTask}
             onRequestReassign={(t) => setReassignRequestTask(t)}
+            user={user}
+            onMemoAdd={() => setScreen("memoAdd")}
           />
         )}
         {screen === "usolN" && (

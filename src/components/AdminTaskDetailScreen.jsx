@@ -10,7 +10,8 @@ import { detectServiceType } from "../data/serviceTypes.js";
 import { TaskCardMenu } from "./TaskCardMenu.jsx";
 import { formatTimeOnly, formatDateTimeKST } from "../utils/dateLabel.js";
 import { VisitOnlyDialog } from "./VisitOnlyDialog.jsx";
-import { loadMemos } from "../data/memos.js";
+// 2026-05-27 Phase 2 — localStorage memos.js → Supabase task_memos
+import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
 // Phase 5 Step 0.C-1 — 유솔N 정산 사이클 카드 (조건 분기 / 다른 원청 영향 0)
 import { UsolNSettlementCycleCard } from "./usol_n/UsolNSettlementCycleCard.jsx";
 // Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
@@ -66,7 +67,8 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
     );
   }
 
-  const memos = loadMemos(task.id) || [];
+  // 2026-05-27 — Supabase task_memos hook (realtime 자동 갱신)
+  const { memos } = useTaskMemos(task.id);
   const isExternal = task.type === "external";
   const showException = !isExternal && task.state !== "done";
 
@@ -704,15 +706,33 @@ function RequestMemoCard({ task, memos, onMemoAdd }) {
           </div>
         )}
 
+        {/* 2026-05-27 — DB task_memos: 작성자(이름·역할 이모지) + 시각(KST) + 본문 */}
         {memos.length > 0 && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
             <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
-              메모 ({memos.length})
+              💬 메모 ({memos.length})
             </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {memos.slice(0, 3).map((m, i) => (
-                <div key={i} style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
-                  · {m.content}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {memos.slice(0, 3).map((m) => (
+                <div key={m.id} style={{
+                  background: "var(--bg-secondary)",
+                  borderRadius: 6, padding: "8px 10px",
+                }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))",
+                    marginBottom: 4, fontWeight: 600,
+                  }}>
+                    <span>{getMemoTypeLabel(m.memo_type)}</span>
+                    <span>·</span>
+                    <span>{getAuthorRoleEmoji(m.author_role)} {m.author_name || "—"}</span>
+                    <span style={{ marginLeft: "auto" }}>
+                      {m.created_at ? String(m.created_at).slice(0, 16).replace("T", " ") : ""}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5 }}>
+                    {m.body}
+                  </div>
                 </div>
               ))}
             </div>
