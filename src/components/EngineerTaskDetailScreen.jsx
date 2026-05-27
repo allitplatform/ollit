@@ -279,8 +279,6 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   // 2026-05-25 — '일정 변경 · 취소' 카드 접힘/펼침. 기본 접힘 (기사 실수 방지 spec).
   const [actionsOpen, setActionsOpen] = useState(false);
   const [saving, setSaving] = useState(false); // 2026-05-17 — 완료 분기 진입 직전 extraFee 사전 저장 표시
-  // 2026-05-27 Phase 2 — task_memos hook (Supabase, realtime 자동 갱신)
-  const { memos: taskMemos } = useTaskMemos(task?.id);
   const beforeFileRef = useRef(null);
   const afterFileRef  = useRef(null);
   const PHOTO_MIN = 2;
@@ -642,7 +640,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
       {(isCompleted || isWaiting) && <TaskItemsList task={task} itemEngineerAmounts={itemEngineerAmounts}/>}
 
       {/* 영역 3 — 요청사항 + 운영 메모 + 전화/문자 (확정/진행중은 고객 헤더 숨김) */}
-      <CustomerInfo task={task} hideCustomerHeader={isConfirmed || isInProgress}/>
+      <CustomerInfo task={task} hideCustomerHeader={isConfirmed || isInProgress} user={user} onMemoAdd={onMemoAdd}/>
 
       {/* V14 — 길찾기 (확정만 / 네이버 + T맵) */}
       {isConfirmed && <MapButtons task={task}/>}
@@ -1404,7 +1402,11 @@ function TaskItemsList({ task, itemEngineerAmounts = {} }) {
 }
 
 // ──────────────── 고객 + 요청사항 + 운영팀 메모 ────────────────
-function CustomerInfo({ task, hideCustomerHeader = false }) {
+function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
+  // 2026-05-27 Phase 2 — task_memos hook (Supabase, realtime 자동 갱신).
+  //   CustomerInfo 안의 "💬 메모" 카드 JSX 가 이 변수 사용.
+  //   직전 14e733b 에서 선언이 부모(EngineerTaskDetailScreen)에 있어 ReferenceError 발생.
+  const { memos: taskMemos } = useTaskMemos(task?.id);
   const isInProgress = task.status === "진행중";
   const isCompleted = task.status === "완료" || task.status === "visit_only";
   const isConfirmed = task.status === "확정";
