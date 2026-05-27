@@ -36,6 +36,7 @@ import { TaskEditScreen as TaskFullEditScreen } from "../components/TaskEditScre
 import { TaskHistoryScreen } from "../components/TaskHistoryScreen.jsx";
 import { getHistoryCount } from "../data/taskHistory.js";
 import { UsolNScreen } from "../components/UsolNScreen.jsx";
+import { AllTasksScreen } from "../components/AllTasksScreen.jsx";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../data/paymentMethods.js";
 import { isRefrigerant } from "../utils/workTypeKind.js";
@@ -3345,6 +3346,26 @@ export default function AdminApp({ user, onLogout }) {
       />
     </Shell>;
   }
+  // 2026-05-27 — 운영자 PWA "전체 작업" (6원청, usol_n 제외).
+  //   TaskRowOperator 재사용 + AdminTaskDetailScreen 재사용 — 새 상세 X.
+  if (screen === "allTasks") {
+    return <Shell t={t} toasts={toasts}>
+      <AllTasksScreen
+        onBack={goBack}
+        onTaskClick={(task) => {
+          // task = allPrincipalTasksDb fetched row (snake_case + principalCode)
+          // _v14NormalizeTask 측 fallback 위해 별칭 매핑 (usol_n 패턴 그대로)
+          const adapted = {
+            ...task,
+            customer:  task.customer_name || task.customer,
+            region:    task.district      || task.region,
+            principal: task.principalCode || task.principal_code || "",
+          };
+          goTaskDetail(_v14NormalizeTask(adapted), null);
+        }}
+      />
+    </Shell>;
+  }
   if (screen === "userList") {
     return <Shell t={t} toasts={toasts}>
       <UserListScreen
@@ -3529,6 +3550,7 @@ export default function AdminApp({ user, onLogout }) {
       onClickSettlementHistory={() => setScreen("settlementHistory")}
       onClickSettings={() => setScreen("settings")}
       onClickUsolN={() => setScreen("usol_n")}
+      onClickAllTasks={() => setScreen("allTasks")}
       onClickUrgentAssign={() => { setSelectedTask(URGENT_TASK); setScreen("recommend"); }}
       onEngineerClick={(eng) => goEngineerDay(eng, null)}
       onTaskClick={(task) => goTaskDetail(task, null)}
@@ -3603,7 +3625,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onEngineerClick, onTaskClick, onClickCancelHandle }) {
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onEngineerClick, onTaskClick, onClickCancelHandle }) {
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
@@ -3815,7 +3837,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -3831,7 +3853,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
-function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN }) {
+function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks }) {
   // 2026-05-21 Phase 5 Step 0.H — 작업 흐름 = 세척 / 냉매 2개 카드 (사장님 결정: 기타 제거)
   //   신규 / 배정 / 확정 = TASK_FILTERS 측 동일 (유솔N 본작업 냉매만 / 그 외 유솔N 제외 / 6원청 전부)
   //   진행 / 완료 = TASK_FILTERS 측 동일 (오늘 + 전부 포함)
@@ -3956,6 +3978,51 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
               </span>
             </div>
             {/* 우측: › 셰브런 */}
+            <span style={{ fontSize: 22, fontWeight: 700, color: "#fff", flexShrink: 0, lineHeight: 1 }}>›</span>
+          </button>
+        );
+      })()}
+
+      {/* 2026-05-27 — "전체 작업" (6원청, usol_n 제외) 진입 버튼.
+            카드 패턴은 유솔N 버튼과 동일, 색은 회색톤. apiTasks 기준 6원청 합계 카운트. */}
+      {onClickAllTasks && (() => {
+        const allTasksCount = (apiTasks || []).filter(t => {
+          const code = t.principalCode || t.principal_code;
+          return code && code !== "usol_n";
+        }).length;
+        return (
+          <button
+            onClick={onClickAllTasks}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              background: "#475569",
+              border: "none",
+              borderRadius: 10,
+              marginBottom: 14,
+              cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 12,
+              fontFamily: "inherit",
+              color: "#fff",
+              textAlign: "left",
+            }}
+          >
+            <span style={{
+              width: 38, height: 38, flexShrink: 0,
+              background: "#fff",
+              borderRadius: 9,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18, fontWeight: 900, color: "#475569",
+              letterSpacing: "-0.5px",
+            }}>전</span>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: "-0.2px" }}>
+                전체 작업 · 6원청
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#E2E8F0" }}>
+                전체 {allTasksCount.toLocaleString()}건 · 검색·필터
+              </span>
+            </div>
             <span style={{ fontSize: 22, fontWeight: 700, color: "#fff", flexShrink: 0, lineHeight: 1 }}>›</span>
           </button>
         );

@@ -20,7 +20,7 @@ const N_BADGE_COLOR     = "#2E9E54";
 const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
 const VISIT_COLOR       = "#9CA3AF";
-const DATE_TIME_COLOR   = "#F2B84B";
+const DATE_TIME_COLOR   = "#BA7517";
 const MAGENTA           = "#FF4D9E";
 const MAIN_APPLIANCE_KEYWORDS = ["벽걸이", "스탠드", "1way", "2way", "4way", "투인원", "원형", "시스템멀티"];
 

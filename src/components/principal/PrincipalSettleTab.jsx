@@ -761,7 +761,7 @@ function SettleItemRow({ item, onClick }) {
         }}>
           ({label}{qty > 1 ? `×${qty}` : ""})
           {item.district ? ` · ${item.district}` : ""}
-          {naverDate && (<>{" · "}<span style={{ color: "#F2B84B", fontWeight: 600 }}>{naverDate}</span></>)}
+          {naverDate && (<>{" · "}<span style={{ color: "#BA7517", fontWeight: 600 }}>{naverDate}</span></>)}
         </span>
         <span style={{
           flexShrink: 0,

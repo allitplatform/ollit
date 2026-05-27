@@ -21,7 +21,7 @@ import { formatYmdHm } from "../../utils/dateLabel.js";
 const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
 const VISIT_COLOR       = "#9CA3AF";
-const DATE_TIME_COLOR   = "#F2B84B";
+const DATE_TIME_COLOR   = "#BA7517";
 // 2026-05-26 — 핑크 통일: NAVER_GREEN 제거. 측 catch var(--accent) 측 catch (PrincipalApp 측 catch).
 
 const MAIN_APPLIANCE_KEYWORDS = ["벽걸이", "스탠드", "1way", "2way", "4way", "투인원", "원형", "시스템멀티"];
@@ -215,7 +215,9 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
 
 // 운영자 전용 측 catch 카드 — PrincipalListTab.TaskRow 측 catch (ChannelBadge X, 측 catch 측 catch 추가)
 // 2026-05-26 R2-3 — export 측 catch (UsolNInProgress 측 catch 측 catch 재사용 — 카드 1곳)
-export function TaskRowOperator({ task, onClick }) {
+// 2026-05-27 — principalBadge prop 추가 (옵션). 6원청 "전체 작업" 화면에서 원청 배지 표시용.
+//   UsolN 호출 (미지정) — 기존 동작 유지. 새 화면 호출 — 기사 배지 왼쪽에 회색 pill 노출.
+export function TaskRowOperator({ task, onClick, principalBadge = null }) {
   const kind = getServiceKind(task);
   const status = getStatusBadge(task.status);
   const mainItem = getMainItem(task);
@@ -287,6 +289,18 @@ export function TaskRowOperator({ task, onClick }) {
         }} title={cat.reassignRequest.reason || ""}>
           🔁 재배정
         </span>
+      )}
+
+      {/* 2026-05-27 — 원청 배지 (옵션, 6원청 화면에서만 표시). 기사 배지 왼쪽. */}
+      {principalBadge && (
+        <span style={{
+          flexShrink: 0, fontSize: 10, fontWeight: 700,
+          color: "var(--text-secondary)",
+          background: "var(--bg-secondary)",
+          padding: "2px 7px", borderRadius: 4,
+          whiteSpace: "nowrap",
+          border: "1px solid var(--border)",
+        }}>{principalBadge}</span>
       )}
 
       {/* 2026-05-26 — 측 catch 측 측 측 측 측 (PrincipalListTab.TaskRow 패턴).
