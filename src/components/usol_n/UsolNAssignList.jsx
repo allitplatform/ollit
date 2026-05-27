@@ -17,6 +17,7 @@ import { Search, Snowflake, Zap } from "lucide-react";
 import { fetchUsolNTasks, isUsolNActionNeeded } from "../../lib/usolNTasksDb.js";
 import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 import { formatYmdHm } from "../../utils/dateLabel.js";
+import { statusLabel } from "../../utils/taskStatus.js";
 
 const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
@@ -39,6 +40,9 @@ function getMainItem(task) {
 }
 
 function getServiceKind(task) {
+  // 2026-05-27 — 출장비 전용(visit_only) 분기. ServiceIcon "visit"→🚗 와 연결.
+  //   원청 PWA PrincipalListTab.jsx 패턴 그대로.
+  if (task?.status === "visit_only") return "visit";
   const main = getMainItem(task);
   if (!main) return "addon";
   const code = main?.work_types?.service_types?.code || main?.serviceCode || "";
@@ -58,11 +62,14 @@ function ServiceIcon({ kind, size = 14 }) {
 }
 
 function getStatusBadge(status) {
-  if (status === "미배정")  return { bg: "rgba(255,59,92,0.18)",  color: "#FF3B5C", label: "미배정" };
-  if (status === "배정")    return { bg: "rgba(234,88,12,0.18)",  color: "#EA580C", label: "배정" };
-  if (status === "약속대기") return { bg: "rgba(255,193,7,0.18)", color: "#FFC107", label: "약속대기" };
-  if (status === "확정")    return { bg: "rgba(29,158,117,0.18)", color: "#1D9E75", label: "확정" };
-  return { bg: "rgba(156,163,175,0.18)", color: "#9CA3AF", label: status || "—" };
+  // 2026-05-27 — label은 공용 statusLabel() 사용 (visit_only → "출장비만").
+  //   색(bg/color)은 status별 기존 분기 유지. 모르는 status는 회색 fallback.
+  const label = statusLabel(status) || "—";
+  if (status === "미배정")  return { bg: "rgba(255,59,92,0.18)",  color: "#FF3B5C", label };
+  if (status === "배정")    return { bg: "rgba(234,88,12,0.18)",  color: "#EA580C", label };
+  if (status === "약속대기") return { bg: "rgba(255,193,7,0.18)", color: "#FFC107", label };
+  if (status === "확정")    return { bg: "rgba(29,158,117,0.18)", color: "#1D9E75", label };
+  return { bg: "rgba(156,163,175,0.18)", color: "#9CA3AF", label };
 }
 
 export function UsolNAssignList({ onTaskClick, onSeeAll }) {
