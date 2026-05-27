@@ -11,6 +11,7 @@ import {
   Clock, FileText, RotateCcw, CheckCircle2, AlertCircle, Star, Search,
   Users, BarChart3, TrendingUp, Activity, Wallet, Bell, Camera,
   Briefcase, Hash, AlertTriangle, MoreVertical, Award, XCircle, Edit3, ClipboardList,
+  ListChecks,
 } from "lucide-react";
 import { OllitMark } from "../components/OllitMark.jsx";
 import { EngineerBadge } from "../components/EngineerBadge.jsx";
@@ -3984,7 +3985,7 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
       })()}
 
       {/* 2026-05-27 — "전체 작업" (6원청, usol_n 제외) 진입 버튼.
-            카드 패턴은 유솔N 버튼과 동일, 색은 회색톤. apiTasks 기준 6원청 합계 카운트. */}
+            시안 C — 흰 카드 + 핑크 아이콘. 핑크 CSS 변수(--accent / --accent-bg) 사용. */}
       {onClickAllTasks && (() => {
         const allTasksCount = (apiTasks || []).filter(t => {
           const code = t.principalCode || t.principal_code;
@@ -3996,34 +3997,33 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
             style={{
               width: "100%",
               padding: "12px 14px",
-              background: "#475569",
-              border: "none",
+              background: "var(--bg-elevated)",
+              border: "0.5px solid var(--border)",
               borderRadius: 10,
               marginBottom: 14,
               cursor: "pointer",
               display: "flex", alignItems: "center", gap: 12,
               fontFamily: "inherit",
-              color: "#fff",
               textAlign: "left",
             }}
           >
             <span style={{
               width: 38, height: 38, flexShrink: 0,
-              background: "#fff",
+              background: "var(--accent-bg)",
               borderRadius: 9,
               display: "inline-flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18, fontWeight: 900, color: "#475569",
-              letterSpacing: "-0.5px",
-            }}>전</span>
+            }}>
+              <ListChecks size={20} style={{ color: "var(--accent)" }}/>
+            </span>
             <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: "-0.2px" }}>
-                전체 작업 · 6원청
+              <span style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+                전체 작업
               </span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#E2E8F0" }}>
-                전체 {allTasksCount.toLocaleString()}건 · 검색·필터
+              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                6원청 · {allTasksCount.toLocaleString()}건 · 검색·필터
               </span>
             </div>
-            <span style={{ fontSize: 22, fontWeight: 700, color: "#fff", flexShrink: 0, lineHeight: 1 }}>›</span>
+            <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
           </button>
         );
       })()}
