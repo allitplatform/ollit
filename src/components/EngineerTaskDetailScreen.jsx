@@ -545,17 +545,28 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
 
   // 2026-05-25 Round 3 — 옛 onUpdate(updateTaskAdapter) 경로는 RLS 측 0행 → 화면 되돌아감.
   //   reschedule_engineer_task RPC (Migration 076) 로 직접 호출. KST 기준 ISO 조합.
-  //   endTime / rescheduleReason / rescheduledAt 은 tasks 컬럼 부재 — 옛에도 무시됐음.
-  async function handleReschedule({ newDate, newStart /*, newEnd, reason */ }) {
+  // 2026-05-27 — reason 살림. RPC 갱신본이 category_data.rescheduleReason 에 머지.
+  //   (endTime / rescheduledAt 은 여전히 tasks 컬럼 부재 — 옛에도 무시됐음.)
+  async function handleReschedule({ newDate, newStart, /* newEnd, */ reason }) {
     if (!task?.id || !newDate || !newStart) return;
     const iso = `${newDate}T${newStart}:00+09:00`;  // KST 기준
+    const trimmedReason = reason ? String(reason).trim() : "";
     // Optimistic — 즉시 화면 갱신 (실패 시 onUpdate 가 fetchTasks 측 회복)
-    onUpdate && onUpdate(task.id, {
+    const optimistic = {
       scheduledDate: newDate,
       scheduledTime: newStart,
       scheduledAt:   iso,
-    });
-    const res = await rescheduleEngineerTask(task.id, iso);
+    };
+    if (trimmedReason) {
+      // category_data 머지 — 다른 키(reassignRequest 등) 보존
+      optimistic.categoryData = {
+        ...(task.categoryData || task.category_data || {}),
+        rescheduleReason: trimmedReason,
+        rescheduledAt:    new Date().toISOString(),
+      };
+    }
+    onUpdate && onUpdate(task.id, optimistic);
+    const res = await rescheduleEngineerTask(task.id, iso, trimmedReason || null);
     if (!res || res.ok === false) {
       alert(`일정 변경 실패: ${res?.error || "알 수 없는 오류"}`);
     }
@@ -1450,6 +1461,36 @@ function CustomerInfo({ task, hideCustomerHeader = false }) {
           </div>
         </div>
       )}
+
+      {/* 2026-05-27 — 내가 남긴 일정 변경 사유 (category_data.rescheduleReason).
+            RescheduleScreen 에서 입력한 reason 이 RPC 갱신본을 통해 머지됨. */}
+      {(() => {
+        const cat = task.categoryData || task.category_data || {};
+        const reason = cat.rescheduleReason || "";
+        const at     = cat.rescheduledAt    || "";
+        if (!reason) return null;
+        return (
+          <div style={{
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border)",
+            borderRadius: 8,
+            padding: "10px 12px",
+            marginBottom: 10,
+          }}>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 4 }}>
+              🕐 내가 남긴 일정 변경 사유
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 500, lineHeight: 1.5 }}>
+              {reason}
+            </div>
+            {at && (
+              <div style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 4 }}>
+                {String(at).slice(0, 16).replace("T", " ")}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* V14 — 운영팀 메모 (보라 박스 + 좌측 3px 보라 바) */}
       {operatorNote && (

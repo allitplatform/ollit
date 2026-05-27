@@ -260,6 +260,10 @@ export function taskToRow(task, partial = false) {
   if (task.paymentMethod !== undefined) row.payment_method = task.paymentMethod;
   if (task.requestNote !== undefined) row.request_note = task.requestNote;
   else if (task.request !== undefined) row.request_note = task.request;
+  // 2026-05-27 — 운영자/원청 접수 폼은 `memo: form.memo` 키로 보냄.
+  //   이전엔 requestNote/request 만 받아 memo 입력이 통째로 버려져 DB 미저장 → 화면 미공유.
+  //   workMemo(작업 메모) 와 충돌 X — taskToRow 의 workMemo 는 line 286에서 별도 처리.
+  else if (task.memo !== undefined) row.request_note = task.memo;
   if (task.isUrgent !== undefined) row.is_urgent = !!task.isUrgent;
 
   // 상태

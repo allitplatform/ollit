@@ -659,7 +659,14 @@ function ChangeEntry({ entry }) {
 
 // ──────────────── 카드 6 — RequestMemoCard (Phase 5 Step 0.C-4) ────────────────
 // 옛 InfoCard 측 요청사항 + 메모 영역 분리.
+// 2026-05-27 — requestNote (DB request_note) 표시 + 기사 일정변경 사유 (category_data.rescheduleReason) 표시.
 function RequestMemoCard({ task, memos, onMemoAdd }) {
+  // 요청사항 본문 — task.requestNote (DB request_note 매핑) 우선, 옛 task.memo fallback.
+  const requestText = task.requestNote || task.memo || "";
+  // 기사 일정 변경 사유 — category_data.rescheduleReason (RPC reschedule_engineer_task 갱신본이 머지)
+  const cat = task.categoryData || task.category_data || {};
+  const rescheduleReason = cat.rescheduleReason || "";
+  const rescheduledAt    = cat.rescheduledAt    || "";
   return (
     <div style={{ padding: D1_OUTER_PAD }}>
       <div style={D1_CARD_STYLE}>
@@ -667,8 +674,24 @@ function RequestMemoCard({ task, memos, onMemoAdd }) {
           📝 요청사항
         </div>
         <div style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontWeight: 500 }}>
-          {task.memo || "없음"}
+          {requestText || "없음"}
         </div>
+
+        {rescheduleReason && (
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
+              🕐 기사 일정변경 사유
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, fontWeight: 500 }}>
+              {rescheduleReason}
+            </div>
+            {rescheduledAt && (
+              <div style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 4 }}>
+                {String(rescheduledAt).slice(0, 16).replace("T", " ")}
+              </div>
+            )}
+          </div>
+        )}
 
         {memos.length > 0 && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>

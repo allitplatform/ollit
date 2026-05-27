@@ -1019,6 +1019,8 @@ function _v14NormalizeTask(t) {
     schedule, memo,
     // 2026-05-24 fix — work_memo 매핑 추가 (3곳 매핑 트랩 / v14Task.js·rowToTask·로컬본 통일)
     workMemo: t.workMemo ?? t.work_memo ?? "",
+    // 2026-05-27 — request_note 매핑 (3곳 매핑 트랩 / 운영자 접수 메모 → AdminTaskDetailScreen 표시 복구)
+    requestNote: t.requestNote ?? t.request_note ?? "",
     estimateTotal: estimate,
     requestedDate: reqDate,
     requestedTime: reqTime,

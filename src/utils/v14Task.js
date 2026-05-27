@@ -182,6 +182,10 @@ export function v14NormalizeTask(t) {
     //   rowToTask 측 workMemo 측 catch 측 measurement, v14NormalizeTask 측 매핑이 누락돼
     //   PrincipalApp TaskDetail / EngineerTaskDetailScreen 측 task.workMemo === undefined → setMemo("")
     workMemo: t.workMemo ?? t.work_memo ?? "",
+    // 2026-05-27 — request_note 매핑 (3곳 매핑 트랩 / 운영자 접수 메모 → 기사 PWA 표시 복구)
+    //   rowToTask 측 requestNote 매핑 있으나 v14NormalizeTask 측 누락돼
+    //   EngineerTaskDetailScreen 노랑 박스 (task.requestNote) 항상 미노출.
+    requestNote: t.requestNote ?? t.request_note ?? "",
     estimateTotal: estimate,
     addonFee,
     extraFee,

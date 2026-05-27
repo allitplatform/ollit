@@ -13,7 +13,9 @@ import { supabase } from "./supabase.js";
 import { currentUserId, normalizeRpcResp } from "./cancelRpc.js";
 
 // 기사 일정 변경 — tasks.scheduled_at UPDATE. 종착 상태(완료/취소/visit_only) 거부.
-export async function rescheduleEngineerTask(taskId, scheduledAtIso) {
+// 2026-05-27 — 변경 사유(reason) 파라미터 추가. RPC 본체(Mig 076 갱신)가
+//   category_data.rescheduleReason 에 머지. reason 비면 RPC 가 무시 (옛 호출 호환).
+export async function rescheduleEngineerTask(taskId, scheduledAtIso, reason = null) {
   const actorId = currentUserId();
   if (!actorId) return { ok: false, error: "로그인 필요" };
   if (!taskId) return { ok: false, error: "taskId 없음" };
@@ -22,6 +24,7 @@ export async function rescheduleEngineerTask(taskId, scheduledAtIso) {
     p_task_id:      taskId,
     p_scheduled_at: scheduledAtIso,
     p_actor:        actorId,
+    p_reason:       reason || null,
   });
   return normalizeRpcResp(r);
 }
