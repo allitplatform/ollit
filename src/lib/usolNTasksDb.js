@@ -440,6 +440,11 @@ export async function markTaskItemsField(itemIds, fieldName, timestamp = null) {
 
 // 완료된 usol_n task_items 측 — UsolNTracking 주간 입금 이력 + UsolNEngineerSettlement
 // 옵션: monthsBack (기본 3개월)
+// 2026-05-29 — users in-memory JOIN 추가 (fetchUsolNTasksPage 와 동일 패턴).
+//   기사정산 탭 이름 표시 결손 해결 (옛 localStorage engineers 매칭 mismatch 우회).
+//   각 item.tasks 에 assignedEngineer (이름) / assignedEngineerCode / engineerPhone 추가.
+//   기존 필드 (id, task_no, customer_name, principal_id, status, completed_at,
+//   assigned_engineer_id) 전부 보존 — 추가 필드만 (옛 호출처 EngineerApp / UsolNTracking 안전).
 export async function fetchUsolNCompletedTaskItems({ monthsBack = 3 } = {}) {
   const pid = await getUsolNPrincipalId();
   if (!pid) return { ok: false, error: "usol_n principal X", items: [] };
@@ -469,7 +474,43 @@ export async function fetchUsolNCompletedTaskItems({ monthsBack = 3 } = {}) {
     console.error("[usolNTasksDb.fetchCompleted]", error);
     return { ok: false, error: error.message, items: [] };
   }
-  return { ok: true, items: data || [] };
+
+  const items = data || [];
+
+  // users in-memory JOIN — 기사 18~30명, Max rows 1000 무관.
+  const engineerIds = [...new Set(
+    items.map(it => it.tasks && it.tasks.assigned_engineer_id).filter(Boolean)
+  )];
+  let userMap = new Map();
+  if (engineerIds.length > 0) {
+    const { data: users, error: uErr } = await supabase
+      .from("users")
+      .select("id, code, name, phone")
+      .in("id", engineerIds);
+    if (uErr) {
+      console.error("[usolNTasksDb.fetchCompleted:users]", uErr);
+      // users lookup 실패 시 items 그대로 반환 (옛 동작 유지 — 정산 계산 무영향)
+      return { ok: true, items };
+    }
+    userMap = new Map((users || []).map(u => [u.id, u]));
+  }
+
+  const enriched = items.map(it => {
+    if (!it.tasks || !it.tasks.assigned_engineer_id) return it;
+    const u = userMap.get(it.tasks.assigned_engineer_id);
+    if (!u) return it;
+    return {
+      ...it,
+      tasks: {
+        ...it.tasks,
+        assignedEngineer:     u.name  || "",
+        assignedEngineerCode: u.code  || "",
+        engineerPhone:        u.phone || "",
+      },
+    };
+  });
+
+  return { ok: true, items: enriched };
 }
 
 // ============================================================

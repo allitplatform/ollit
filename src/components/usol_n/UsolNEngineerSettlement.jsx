@@ -324,7 +324,10 @@ function groupItemsByEngineer(items, engineers) {
         engineerKey:  key,
         engineerId:   engineerId,
         engineer:     engineers.find(e => e.id === engineerId) || null,
-        engineerName: null,
+        // 2026-05-29 — fetchUsolNCompletedTaskItems 의 users JOIN 결과 (it.tasks.assignedEngineer)
+        //   를 fallback 이름으로 사용. 옛 localStorage engineers (e.id=code/랜덤) 와 uuid mismatch
+        //   로 engineer 객체 매칭 실패 시 render 가 이 값으로 표시 (line 253 fallback).
+        engineerName: (it.tasks && it.tasks.assignedEngineer) || null,
         items: [],
       };
     }
