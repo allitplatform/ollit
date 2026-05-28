@@ -2975,21 +2975,12 @@ export default function AdminApp({ user, onLogout }) {
               return;
             }
 
-            // 2026-05-15 Path B — 배정된 기사 1명에게 push 박기
-            // 세척 = workflow="manual_with_recommendation" (수동 배정)
-            // Migration 014 trigger가 push_candidates UPDATE 감지 → 자동 발송
-            // push 실패해도 배정 자체는 OK (try/catch + log)
-            if (eng?.id) {
-              try {
-                const { error: pushErr } = await supabase
-                  .from('tasks')
-                  .update({ push_candidates: [eng.id] })
-                  .eq('id', selectedTask.id);
-                if (pushErr) console.error('[Path B push]', pushErr);
-              } catch (err) {
-                console.error('[Path B push]', err);
-              }
-            }
+            // 2026-05-29 — 옛 Path B (push_candidates: [eng.id] UPDATE) 제거.
+            //   배경: 옛 spec (Migration 014 만) 시절엔 시나리오 9 trigger 가 없어서
+            //         배정 후 push_candidates 업데이트로 알림 발사하는 게 유일했음.
+            //   현재: Migration 051/078 + ad-hoc v5 (2026-05-29) 시나리오 9 가
+            //         (9b) '📥 작업 배정 완료' 자동 발사 (냉매/비냉매 모두) — 옛 Path B 와 중복.
+            //   삭제 효과: 같은 기사 알림 2개 → 1개 정상화.
 
             // [1-1] V14 속도 — apiTasks state 직접 update (즉시 UI 반영)
             // 2026-05-10 명세 — assignEngineer 후 R열="배정" (확정은 기사가 일정 박은 후)
@@ -3104,20 +3095,10 @@ export default function AdminApp({ user, onLogout }) {
             addToast({ type: "completed", title: "배정 실패", message: e.message || "네트워크 오류" });
             return;
           }
-          // 2026-05-22 — 강제 배정 / 전체 기사 검색 흐름 측 push_candidates UPDATE 추가.
-          // Path B 측 동일 패턴 — Migration 014 trigger 발화 → 배정 기사에게 푸시 알림.
-          // 알림 실패해도 배정 자체는 OK (try/catch + log).
-          if (selectedTask?.id && eng?.id) {
-            try {
-              const { error: pushErr } = await supabase
-                .from('tasks')
-                .update({ push_candidates: [eng.id] })
-                .eq('id', selectedTask.id);
-              if (pushErr) console.error('[AutoAssign 강제배정 push]', pushErr);
-            } catch (err) {
-              console.error('[AutoAssign 강제배정 push]', err);
-            }
-          }
+          // 2026-05-29 — 옛 강제 배정 push_candidates UPDATE 제거 (Path B 와 동일 spec).
+          //   notify_lifecycle_push v5 시나리오 9b 가 모든 작업 (냉매/비냉매) 자동 발사 → 옛 흐름과 중복.
+          //   삭제 효과: 강제 배정도 같은 기사 알림 1개 정상화.
+
           // Step 5-3 v3 — task 카드 상태 업데이트 (pushing → accepted) + 새 접수 리스트로 복귀
           updateReception(selectedTask?.id, {
             autoAssignStatus: "accepted",
