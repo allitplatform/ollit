@@ -143,17 +143,36 @@ export async function listEngineerSkillsFromDb() {
     zonesByUser.get(z.user_id).push(z.district);
   }
 
-  // [4] epp 행 → 시트 호환 shape (각 epp row에 user의 zones 박음)
-  const skills = (eppRows || []).map(row => {
+  // [4] epp 행 → 시트 호환 shape (각 epp row에 user의 zones 추가)
+  //
+  // 2026-05-29 — (user_id, service_code) 그룹화 + principal_code=NULL normalize.
+  //   옛: 모든 epp row 그대로 매핑 → 같은 user 의 NULL + 원청별 row 각각 별 skill 로 노출.
+  //        EngineerEditScreen `isAllPrincipal` 매칭은 "(전체)" 만 잡아 원청별 row 결손 표시.
+  //   새: user × service 그룹마다 1개 skill — NULL row 우선 / 없으면 가장 높은 level row.
+  //        principal 항상 "(전체)" (NULL normalize) — 폼 spec 정합.
+  //        SQL 정리 (ad-hoc 2026-05-29) 후엔 NULL row 만 남아 그룹별 1개 자연 — 정리 전 호환 안전망.
+  const byKey = new Map();   // key = `${user_id}|${service_code}` → 최적 row
+  for (const row of eppRows || []) {
+    const key = `${row.user_id}|${row.service_code}`;
+    const prev = byKey.get(key);
+    // 우선순위: principal_code = NULL > 더 높은 level > 작은 id
+    const isBetter = !prev
+      || (row.principal_code === null && prev.principal_code !== null)
+      || (row.principal_code === prev.principal_code && (row.level || 0) > (prev.level || 0))
+      || (row.principal_code === prev.principal_code && row.level === prev.level && row.id < prev.id);
+    if (isBetter) byKey.set(key, row);
+  }
+
+  const skills = Array.from(byKey.values()).map(row => {
     const userZones = zonesByUser.get(row.user_id) || [];
     return {
       engineerId:      row.users?.code || "",
-      principal:       principalCodeToText(row.principal_code),
+      principal:       "(전체)",                 // 원청 무관 normalize
       workType:        serviceCodeToWorkType(row.service_code),
       grade:           levelToGrade(row.level),
       zones:           userZones.join(", "),
       zonesArray:      userZones.slice(),
-      appliances:      "",                // DB 없음 — localStorage만 유지
+      appliances:      "",                       // DB 없음 — localStorage만 유지
       appliancesArray: [],
       note:            "",
     };
@@ -190,48 +209,39 @@ export async function upsertEngineerSkillToDb(payload) {
     return { ok: false, error: `grade가 main/sub가 아님: ${payload.grade} (삭제 경로 사용 필요)` };
   }
 
-  // [3] epp 존재 여부 확인 (3중 키)
-  let selQ = supabase
+  // 2026-05-29 — 원청별 칸 제거, principal_code=NULL 1개로 통합 (사장님 spec).
+  //   옛: 3중 키 (user_id, principal_code, service_code) SELECT → UPDATE / INSERT.
+  //        같은 user 의 다른 principal_code (NULL + 원청별) row 가 별개로 잔존.
+  //   새: 같은 (user_id, service_code) 의 기존 모든 row DELETE → NULL row 1개 INSERT.
+  //        다중 row 재발 방지 + 폼 spec (원청 무관 1줄) 정합.
+  //   호출처 EngineerEditScreen syncSkill 항상 principal:"(전체)" 전달 — principalCode=null 유지.
+
+  // [3a] 같은 (user_id, service_code) 의 모든 기존 row 삭제 — NULL + 원청별 동시 정리
+  const { error: delPrevErr } = await supabase
     .from("engineer_principal_permissions")
-    .select("id")
+    .delete()
     .eq("user_id", userId)
     .eq("service_code", serviceCode);
-  selQ = _applyPrincipalCondition(selQ, principalCode);
-
-  const { data: existing, error: selErr } = await selQ.maybeSingle();
-  if (selErr) {
-    console.error("[engineerSkillsDb.upsert:select]", selErr);
-    return { ok: false, error: selErr.message };
+  if (delPrevErr) {
+    console.error("[engineerSkillsDb.upsert:cleanup]", delPrevErr);
+    return { ok: false, error: delPrevErr.message };
   }
 
-  let action = "update";
-  if (existing) {
-    // UPDATE
-    const { error: updErr } = await supabase
-      .from("engineer_principal_permissions")
-      .update({ level, active: true })
-      .eq("id", existing.id);
-    if (updErr) {
-      console.error("[engineerSkillsDb.upsert:update]", updErr);
-      return { ok: false, error: updErr.message };
-    }
-  } else {
-    // INSERT
-    const { error: insErr } = await supabase
-      .from("engineer_principal_permissions")
-      .insert({
-        user_id:        userId,
-        principal_code: principalCode,
-        service_code:   serviceCode,
-        level,
-        active:         true,
-      });
-    if (insErr) {
-      console.error("[engineerSkillsDb.upsert:insert]", insErr);
-      return { ok: false, error: insErr.message };
-    }
-    action = "create";
+  // [3b] principal_code=NULL row 1개 INSERT — "(전체)" 권한
+  const { error: insErr } = await supabase
+    .from("engineer_principal_permissions")
+    .insert({
+      user_id:        userId,
+      principal_code: principalCode,   // "(전체)" → null (호출처 spec)
+      service_code:   serviceCode,
+      level,
+      active:         true,
+    });
+  if (insErr) {
+    console.error("[engineerSkillsDb.upsert:insert]", insErr);
+    return { ok: false, error: insErr.message };
   }
+  const action = "upsert";
 
   // [4] zones 전체 교체 (D7 결정)
   //   · user_id 측 모든 ez DELETE → 새 zones INSERT
@@ -297,15 +307,15 @@ export async function deleteEngineerSkillFromDb(payload) {
     return { ok: false, error: `workType 변환 실패: ${payload.workType}` };
   }
 
-  // epp DELETE (3중 키)
-  let delQ = supabase
+  // 2026-05-29 — principal_code 가드 제거 (사장님 spec, NULL 통합).
+  //   옛: WHERE principal_code IS NULL 만 DELETE → 원청별 row (allday/KA 등) 잔존.
+  //   새: WHERE user_id + service_code 만 매칭 → 모든 칸 (NULL + 원청별) DELETE.
+  //   호출처 (EngineerEditScreen syncSkill) 가 principal:"(전체)" 1줄만 다루는 정합.
+  const { error } = await supabase
     .from("engineer_principal_permissions")
     .delete()
     .eq("user_id", userId)
     .eq("service_code", serviceCode);
-  delQ = _applyPrincipalCondition(delQ, principalCode);
-
-  const { error } = await delQ;
   if (error) {
     console.error("[engineerSkillsDb.delete]", error);
     return { ok: false, error: error.message };
