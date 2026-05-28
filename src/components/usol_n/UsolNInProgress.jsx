@@ -10,6 +10,14 @@
 //     · 렌더는 react-virtuoso — 보이는 영역만 DOM, 무한 스크롤 endReached → loadMore
 //     · 검색·필터 변경 시 reset cursor + 첫 페이지 + 카운트 RPC (병렬)
 //     · realtime 알림은 reloadTick 으로 동일 경로 재호출
+// 2026-05-28 hotfix — realtime 리셋으로 맨 위 튐 방지
+//   증상: 스크롤 내려 보는 중 realtime → 첫 페이지 리셋 → 맨 위로 튐.
+//   수정: useEffect 3개로 분해.
+//     A. 사용자 액션(칩/검색) — 목록 리셋 + 첫 페이지 + 로딩 표시
+//     B. 카운트 RPC — 검색 변경 + realtime — 조용히 칩 숫자만 갱신 (목록 무영향)
+//     C. realtime 목록 갱신 — Virtuoso 맨 위(isAtTop=true)일 때만 첫 페이지 조용한 replace
+//   트레이드오프: 아래 스크롤 중 새 작업은 목록에 즉시 반영 X (칩 숫자만 갱신).
+//                 맨 위로 복귀 또는 칩 재선택 시 최신.
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Search } from "lucide-react";
 import { Virtuoso } from "react-virtuoso";
@@ -47,8 +55,10 @@ export function UsolNInProgress({ onTaskClick }) {
   const [fetchError, setFetchError] = useState("");
   const [counts, setCounts] = useState({});
   const [reloadTick, setReloadTick] = useState(0);
+  // Virtuoso 맨 위 여부 — realtime 시 스크롤 위치 유지 조건. 초기 마운트는 맨 위로 간주.
+  const [isAtTop, setIsAtTop] = useState(true);
 
-  // realtime — 변경 감지 시 reloadTick++ → 첫 페이지 + 카운트 재호출
+  // realtime — 변경 감지 시 reloadTick++. Effect B(카운트) 즉시 / Effect C(목록) 맨 위에서만 발화.
   useRealtimeTasks(() => setReloadTick(v => v + 1));
   useRealtimeTable("task_items", () => setReloadTick(v => v + 1));
 
@@ -67,8 +77,9 @@ export function UsolNInProgress({ onTaskClick }) {
   const currentFilter = STATUS_FILTERS.find(f => f.id === filterId) || STATUS_FILTERS[0];
   const statusIn = currentFilter.match ? [currentFilter.match] : null;
 
-  // 첫 페이지 + 카운트 RPC — filterId / searchTerm / reloadTick 변경 시
-  // engineerCodes 는 searchTerm 파생이라 deps 에 추가 X (무한 루프 방지). statusIn 도 filterId 파생.
+  // Effect A — 사용자 액션 (칩 / 검색) 변경 시 목록 전체 리셋 + 첫 페이지 fetch
+  //   loading 표시 + tasks 비우기 + cursor null → 명시적 새 시작.
+  //   reloadTick 은 deps X — realtime 으로 인한 리셋 차단 (Effect C 가 맨 위에서만 조용히 갱신).
   useEffect(() => {
     let alive = true;
     setLoading(true);
@@ -77,37 +88,23 @@ export function UsolNInProgress({ onTaskClick }) {
     setCursor(null);
     setHasMore(false);
 
-    const rpcArgs = {
-      p_search: searchTerm || null,
-      p_engineer_codes: engineerCodes.length > 0 ? engineerCodes : null,
-    };
-
-    Promise.all([
-      fetchUsolNTasksPage({
-        cursor: null,
-        pageSize: PAGE_SIZE,
-        statusIn,
-        searchTerm,
-        engineerCodes,
-      }),
-      supabase.rpc("usol_n_counts_by_status", rpcArgs),
-    ]).then(([fetchRes, rpcRes]) => {
+    fetchUsolNTasksPage({
+      cursor: null,
+      pageSize: PAGE_SIZE,
+      statusIn,
+      searchTerm,
+      engineerCodes,
+    }).then(res => {
       if (!alive) return;
-      if (!fetchRes.ok) {
-        setFetchError(fetchRes.error || "불러오기 실패");
+      if (!res.ok) {
+        setFetchError(res.error || "불러오기 실패");
         setTasks([]);
         setCursor(null);
         setHasMore(false);
       } else {
-        setTasks(fetchRes.tasks);
-        setCursor(fetchRes.nextCursor);
-        setHasMore(fetchRes.hasMore);
-      }
-      if (rpcRes.error) {
-        console.error("[UsolNInProgress:counts RPC]", rpcRes.error);
-        setCounts({});
-      } else {
-        setCounts(rpcRes.data || {});
+        setTasks(res.tasks);
+        setCursor(res.nextCursor);
+        setHasMore(res.hasMore);
       }
     }).catch(err => {
       if (!alive) return;
@@ -119,7 +116,60 @@ export function UsolNInProgress({ onTaskClick }) {
 
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterId, searchTerm, reloadTick]);
+  }, [filterId, searchTerm]);
+
+  // Effect B — 카운트 RPC. 검색 변경 + realtime 모두 발화. 칩 숫자만 조용히 갱신 (목록 무영향).
+  //   filterId 는 RPC 인자에 없어 deps X (RPC 는 모든 status 카운트 한 번에 반환).
+  useEffect(() => {
+    let alive = true;
+    supabase.rpc("usol_n_counts_by_status", {
+      p_search: searchTerm || null,
+      p_engineer_codes: engineerCodes.length > 0 ? engineerCodes : null,
+    }).then(rpcRes => {
+      if (!alive) return;
+      if (rpcRes.error) {
+        console.error("[UsolNInProgress:counts RPC]", rpcRes.error);
+        setCounts({});
+      } else {
+        setCounts(rpcRes.data || {});
+      }
+    }).catch(err => {
+      if (!alive) return;
+      console.error("[UsolNInProgress:counts RPC throw]", err);
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, reloadTick]);
+
+  // Effect C — realtime 목록 조용한 갱신. Virtuoso 맨 위(isAtTop=true)일 때만 첫 페이지 replace.
+  //   초기 마운트(reloadTick=0)는 Effect A 가 처리하므로 skip.
+  //   isAtTop deps 포함 — 사용자가 아래로 스크롤 중 realtime 발생 후 다시 맨 위로 올리면
+  //   그 시점에 최신 reloadTick 기준 fetch (스크롤 위치 무손상).
+  useEffect(() => {
+    if (reloadTick === 0) return;
+    if (!isAtTop) return;
+    let alive = true;
+    fetchUsolNTasksPage({
+      cursor: null,
+      pageSize: PAGE_SIZE,
+      statusIn,
+      searchTerm,
+      engineerCodes,
+    }).then(res => {
+      if (!alive) return;
+      if (res.ok) {
+        setTasks(res.tasks);
+        setCursor(res.nextCursor);
+        setHasMore(res.hasMore);
+      } else {
+        console.error("[UsolNInProgress:realtime refetch]", res.error);
+      }
+    }).catch(err => {
+      console.error("[UsolNInProgress:realtime refetch throw]", err);
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reloadTick, isAtTop]);
 
   // 더보기 — Virtuoso endReached 콜백
   const loadMore = useCallback(async () => {
@@ -229,6 +279,7 @@ export function UsolNInProgress({ onTaskClick }) {
           style={{ height: "calc(100dvh - 320px)", minHeight: 240 }}
           data={tasks}
           endReached={loadMore}
+          atTopStateChange={setIsAtTop}
           increaseViewportBy={400}
           itemContent={(_idx, task) => (
             <div style={{ paddingBottom: 4 }}>
