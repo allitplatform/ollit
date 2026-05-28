@@ -123,6 +123,165 @@ export async function fetchUsolNTasks({ statusIn = null, searchTerm = "", limit 
   return { ok: true, tasks: enriched, total: count || 0, principalId: pid };
 }
 
+// ============================================================
+// 2026-05-28 — fetchUsolNTasksPage (keyset 페이징)
+// ============================================================
+// 배경: UsolNInProgress 전체 탭 1092건 중 92건이 Supabase Max rows 1000 한도에 잘림.
+//       옛 fetchUsolNTasks (offset/limit + count:exact) 는 한 번에 전체 받기 전제.
+//       페이지 단위 fetch + keyset 커서 (received_at, id) 로 정밀 연속 페이지.
+//       카운트는 별도 RPC usol_n_counts_by_status() 사용 (검색·기사 필터 정합).
+//
+// 시그니처:
+//   cursor:        { received_at: ISO, id: uuid } | null   첫 페이지는 null
+//   pageSize:      number (기본 50)
+//   statusIn:      string[] | null  특정 status 필터 (예: ["완료"]). null = 전체.
+//   searchTerm:    string  4필드(customer_name/task_no/address/phone) ILIKE 키워드
+//   engineerCodes: string[]  기사 code 배열 — 클라가 REGISTERED_USERS 변환 후 전달.
+//                            assigned_engineer_id IN (위 codes → users.id 매핑) 으로 조회.
+//
+// 검색 OR 동작 (옛 클라 5필드 includes 와 정합):
+//   (searchTerm 4필드 ILIKE OR engineerCodes 매칭) — 둘 중 하나라도 매칭되면 결과.
+//
+// 정렬: received_at DESC, id DESC (tiebreaker — keyset 정합 필수).
+//
+// 응답:
+//   { ok: true, tasks: [...], nextCursor: {received_at,id}|null, hasMore: boolean }
+//   { ok: false, error, tasks: [], nextCursor: null, hasMore: false }
+export async function fetchUsolNTasksPage({
+  cursor = null,
+  pageSize = 50,
+  statusIn = null,
+  searchTerm = "",
+  engineerCodes = [],
+} = {}) {
+  const pid = await getUsolNPrincipalId();
+  if (!pid) {
+    return { ok: false, error: "usol_n principal 조회 실패", tasks: [], nextCursor: null, hasMore: false };
+  }
+
+  let q = supabase
+    .from("tasks")
+    .select(
+      `id, task_no, customer_name, phone, address, district,
+       status, assignment_type,
+       product_price, extra_fee, travel_fee, total_amount,
+       category_data,
+       recommended_engineer_id, assigned_engineer_id,
+       requested_date, scheduled_at, started_at, completed_at, received_at,
+       work_memo,
+       task_items (
+         id, qty, unit_price, subtotal, description,
+         naver_settled_at, cash_settled_at,
+         naver_received_at, cash_received_at, company_received_at,
+         engineer_settled_at,
+         net_amount, product_order_id, order_type,
+         work_types ( id, name ),
+         appliance_types ( id, name )
+       )`
+    )
+    .eq("principal_id", pid)
+    .order("received_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(pageSize);
+
+  // keyset 커서 — (received_at, id) < (cursor.received_at, cursor.id)
+  // PostgREST tuple 비교 직접 지원 X — .or() 로 두 조건 합성:
+  //   received_at < cursor.received_at
+  //   OR (received_at = cursor.received_at AND id < cursor.id)
+  if (cursor && cursor.received_at && cursor.id) {
+    const cra = String(cursor.received_at);
+    const cid = String(cursor.id);
+    q = q.or(
+      `received_at.lt.${cra},and(received_at.eq.${cra},id.lt.${cid})`
+    );
+  }
+
+  // status 필터
+  if (Array.isArray(statusIn) && statusIn.length > 0) {
+    q = q.in("status", statusIn);
+  }
+
+  // 검색 — searchTerm 4필드 ILIKE OR engineerCodes 매칭
+  const kw = (searchTerm || "").trim();
+  const hasSearch = !!kw;
+  const hasEng = Array.isArray(engineerCodes) && engineerCodes.length > 0;
+
+  if (hasSearch || hasEng) {
+    let engIds = [];
+    if (hasEng) {
+      const { data: engUsers, error: engErr } = await supabase
+        .from("users")
+        .select("id")
+        .in("code", engineerCodes);
+      if (engErr) {
+        console.error("[usolNTasksDb.page:engLookup]", engErr);
+        // 기사 lookup 실패 시 keyword 만으로 진행 (정합 우선)
+      } else {
+        engIds = (engUsers || []).map(u => u.id).filter(Boolean);
+      }
+    }
+
+    const orParts = [];
+    if (hasSearch) {
+      const esc = kw.replace(/[%_]/g, "\\$&");
+      orParts.push(`customer_name.ilike.%${esc}%`);
+      orParts.push(`task_no.ilike.%${esc}%`);
+      orParts.push(`address.ilike.%${esc}%`);
+      orParts.push(`phone.ilike.%${esc}%`);
+    }
+    if (hasEng && engIds.length > 0) {
+      orParts.push(`assigned_engineer_id.in.(${engIds.join(",")})`);
+    }
+
+    // hasEng 인데 engIds 0건 + hasSearch 도 없으면 — 매칭 0건 보장 (검색 결과 빈 페이지)
+    // hasEng 인데 engIds 0건 + hasSearch 있으면 — 키워드만으로 진행 (orParts 에 4필드)
+    if (orParts.length > 0) {
+      q = q.or(orParts.join(","));
+    } else if (hasEng) {
+      // 기사명 입력했는데 매칭 user 0건 → 결과 0건 보장 (불가능 조건)
+      q = q.eq("id", "00000000-0000-0000-0000-000000000000");
+    }
+  }
+
+  const { data, error } = await q;
+  if (error) {
+    console.error("[usolNTasksDb.page]", error);
+    return { ok: false, error: error.message, tasks: [], nextCursor: null, hasMore: false };
+  }
+
+  // users in-memory JOIN (옛 fetch 와 동일 — assignedEngineer 표시용)
+  const rows = data || [];
+  const engineerIds = [...new Set(rows.map(r => r.assigned_engineer_id).filter(Boolean))];
+  let userMap = new Map();
+  if (engineerIds.length > 0) {
+    const { data: users } = await supabase
+      .from("users")
+      .select("id, code, name, phone")
+      .in("id", engineerIds);
+    userMap = new Map((users || []).map(u => [u.id, u]));
+  }
+  const enriched = rows.map(row => {
+    if (!row.assigned_engineer_id) return row;
+    const u = userMap.get(row.assigned_engineer_id);
+    if (!u) return row;
+    return {
+      ...row,
+      assignedEngineer:     u.name || "",
+      assignedEngineerCode: u.code || "",
+      engineerPhone:        u.phone || "",
+    };
+  });
+
+  // nextCursor + hasMore — pageSize 와 정확히 같으면 다음 페이지 후보
+  const hasMore = enriched.length === pageSize;
+  const last = enriched[enriched.length - 1];
+  const nextCursor = (hasMore && last && last.received_at && last.id)
+    ? { received_at: last.received_at, id: last.id }
+    : null;
+
+  return { ok: true, tasks: enriched, nextCursor, hasMore };
+}
+
 // 정산 사이클 색상 상태 (사장님 spec)
 // ⚪ 대기 (아직 정산 진행 X)
 // 🟡 네이버 결제 완료 (naver_settled_at IS NOT NULL)

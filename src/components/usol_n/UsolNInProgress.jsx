@@ -1,26 +1,29 @@
 // Phase 5 Step 0.B — 유솔N · 진행 탭 (DB 전환)
-// 2026-05-19
-// 2026-05-26 R2-3 — '전체' 탭 (라벨 측 catch) — ViewAll 패턴 측 catch:
-//   · 검색바 ViewAll 스타일 (Search icon + 측 catch padding)
-//   · 필터칩 측 catch 채움 (accent 측 catch — ViewAll 패턴)
-//   · 카드 → TaskRowOperator (UsolNAssignList 측 catch 측 catch — 카드 1곳)
-//   · 서버 fetch · 페이징 · status 필터 로직 측 catch (사장님 spec)
-import { useState, useEffect, useMemo } from "react";
+// 2026-05-19 최초
+// 2026-05-26 R2-3 — 검색바 / 필터칩 / TaskRowOperator 카드 통합
+// 2026-05-28 — 2단계 페이징 (keyset + 서버 검색 + 가상 스크롤)
+//   배경: Supabase Max rows 1000 한도로 옛 1092건 중 92건 잘림. 검색 시 옛 완료 작업 누락.
+//   전략:
+//     · 페이지 fetch 50건 (keyset 커서 received_at DESC + id DESC)
+//     · 검색 시 서버 ILIKE 4필드 OR 기사명 매칭 (REGISTERED_USERS → engineerId 변환)
+//     · 칩 카운트는 RPC usol_n_counts_by_status() 별도 호출 (검색·기사 필터 정합)
+//     · 렌더는 react-virtuoso — 보이는 영역만 DOM, 무한 스크롤 endReached → loadMore
+//     · 검색·필터 변경 시 reset cursor + 첫 페이지 + 카운트 RPC (병렬)
+//     · realtime 알림은 reloadTick 으로 동일 경로 재호출
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Search } from "lucide-react";
-import { fetchUsolNTasks } from "../../lib/usolNTasksDb.js";
+import { Virtuoso } from "react-virtuoso";
+import { fetchUsolNTasksPage } from "../../lib/usolNTasksDb.js";
+import { findEngineerCodesByName } from "../../utils/engineerSearch.js";
+import { supabase } from "../../lib/supabase.js";
 import { TaskRowOperator } from "./UsolNAssignList.jsx";
-// Phase 5 Step 0.C-9 — realtime subscription
 import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 
-// 2026-05-27 — 항상 전체 fetch (사장님 spec): 칩 7개 모두 클라이언트 필터 + 카운트.
-//   정렬 일관 (취소 맨 아래 / received_at desc), 페이징 미사용.
-// 2026-05-28 임시 — 잘린 옛 작업 복구 (1000→1500). 근본은 2단계(서버검색+가상스크롤) 예정.
-const ALL_LIMIT = 1500;
-const ALL_STATUSES = ["미배정", "배정", "약속대기", "확정", "진행중", "완료", "취소", "visit_only"];
+const PAGE_SIZE = 50;
 
-// 2026-05-27 — 칩 7개 (사장님 spec):
+// 칩 7개 (사장님 spec — 2026-05-27):
 //   전체 (필터 해제) / 미배정 / 배정 / 확정 / 진행중 / 완료 / 취소
-//   ※ '약속대기' / 'visit_only' 는 별도 칩 없음 — '전체' 에서만 노출.
+//   ※ '약속대기' / 'visit_only' 별도 칩 없음 — '전체' 에서만 노출.
 const STATUS_FILTERS = [
   { id: "all",         label: "전체",   match: null },
   { id: "unassigned",  label: "미배정", match: "미배정" },
@@ -33,103 +36,128 @@ const STATUS_FILTERS = [
 
 export function UsolNInProgress({ onTaskClick }) {
   const [filterId, setFilterId] = useState("all");
-  const [searchInput, setSearchInput] = useState(""); // 입력값 (debounce 전)
-  const [searchTerm,  setSearchTerm]  = useState(""); // 실제 fetch에 사용 (debounce 후)
+  const [searchInput, setSearchInput] = useState("");
+  const [searchTerm,  setSearchTerm]  = useState("");
 
-  const [allTasks, setAllTasks] = useState([]);
-  const [loading, setLoading]   = useState(false);
+  const [tasks, setTasks] = useState([]);
+  const [cursor, setCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [fetchError, setFetchError] = useState("");
+  const [counts, setCounts] = useState({});
   const [reloadTick, setReloadTick] = useState(0);
 
-  // Phase 5 Step 0.C-9 — realtime subscription
+  // realtime — 변경 감지 시 reloadTick++ → 첫 페이지 + 카운트 재호출
   useRealtimeTasks(() => setReloadTick(v => v + 1));
   useRealtimeTable("task_items", () => setReloadTick(v => v + 1));
 
-  // 검색 입력 debounce — 300ms 후 실제 fetch 트리거
+  // 검색 debounce — 300ms
   useEffect(() => {
-    const id = setTimeout(() => {
-      setSearchTerm(searchInput.trim());
-    }, 300);
+    const id = setTimeout(() => setSearchTerm(searchInput.trim()), 300);
     return () => clearTimeout(id);
   }, [searchInput]);
 
-  // 2026-05-27 — 항상 전체 fetch (statusIn 8개 모두) → 칩 카운트·필터·정렬 모두 클라이언트.
-  //   사장님 spec: 필터 걸려도 정렬 규칙(취소 맨 아래 / received_at desc) 일관.
-  // 2026-05-28 — 검색도 클라로 일원화 (AllTasksScreen 패턴, cea449b/v18).
-  //   서버 검색은 4필드(customer/task_no/address/phone)만 가능 + assignedEngineer 매칭 불가능.
-  //   → searchTerm 서버에 보내지 X, 전체 받아 클라가 5필드 매칭.
+  // 검색어 → 기사 코드 배열 (REGISTERED_USERS name → engineerId)
+  const engineerCodes = useMemo(
+    () => findEngineerCodesByName(searchTerm),
+    [searchTerm]
+  );
+
+  const currentFilter = STATUS_FILTERS.find(f => f.id === filterId) || STATUS_FILTERS[0];
+  const statusIn = currentFilter.match ? [currentFilter.match] : null;
+
+  // 첫 페이지 + 카운트 RPC — filterId / searchTerm / reloadTick 변경 시
+  // engineerCodes 는 searchTerm 파생이라 deps 에 추가 X (무한 루프 방지). statusIn 도 filterId 파생.
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setFetchError("");
-    fetchUsolNTasks({
-      statusIn:   ALL_STATUSES,
-      searchTerm: "",
-      limit:      ALL_LIMIT,
-      offset:     0,
-    })
-      .then(res => {
-        if (!alive) return;
-        if (!res.ok) {
-          setFetchError(res.error || "불러오기 실패");
-          setAllTasks([]);
-        } else {
-          setAllTasks(res.tasks);
-        }
-      })
-      .finally(() => { if (alive) setLoading(false); });
+    setTasks([]);
+    setCursor(null);
+    setHasMore(false);
+
+    const rpcArgs = {
+      p_search: searchTerm || null,
+      p_engineer_codes: engineerCodes.length > 0 ? engineerCodes : null,
+    };
+
+    Promise.all([
+      fetchUsolNTasksPage({
+        cursor: null,
+        pageSize: PAGE_SIZE,
+        statusIn,
+        searchTerm,
+        engineerCodes,
+      }),
+      supabase.rpc("usol_n_counts_by_status", rpcArgs),
+    ]).then(([fetchRes, rpcRes]) => {
+      if (!alive) return;
+      if (!fetchRes.ok) {
+        setFetchError(fetchRes.error || "불러오기 실패");
+        setTasks([]);
+        setCursor(null);
+        setHasMore(false);
+      } else {
+        setTasks(fetchRes.tasks);
+        setCursor(fetchRes.nextCursor);
+        setHasMore(fetchRes.hasMore);
+      }
+      if (rpcRes.error) {
+        console.error("[UsolNInProgress:counts RPC]", rpcRes.error);
+        setCounts({});
+      } else {
+        setCounts(rpcRes.data || {});
+      }
+    }).catch(err => {
+      if (!alive) return;
+      console.error("[UsolNInProgress:fetch]", err);
+      setFetchError(err?.message || "불러오기 예외");
+    }).finally(() => {
+      if (alive) setLoading(false);
+    });
+
     return () => { alive = false; };
-  }, [reloadTick]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterId, searchTerm, reloadTick]);
 
-  // 2026-05-28 — 클라이언트 검색 필터 (AllTasksScreen 동일 패턴):
-  //   5개 필드 includes (대소문자 무시) — customer_name / task_no / address / phone / assignedEngineer
-  //   fetchUsolNTasks 가 users in-memory JOIN 으로 task.assignedEngineer 채움.
-  const searchFiltered = useMemo(() => {
-    const kw = searchTerm.trim().toLowerCase();
-    if (!kw) return allTasks;
-    return allTasks.filter(t => {
-      const fields = [
-        t.customer_name,
-        t.task_no,
-        t.address,
-        t.phone,
-        t.assignedEngineer,
-      ];
-      return fields.some(f => f && String(f).toLowerCase().includes(kw));
-    });
-  }, [allTasks, searchTerm]);
-
-  // 칩별 카운트 — 검색 필터 적용 후 기준
-  const counts = useMemo(() => {
-    const c = { all: searchFiltered.length };
-    for (const f of STATUS_FILTERS) {
-      if (f.match) c[f.id] = searchFiltered.filter(t => t.status === f.match).length;
+  // 더보기 — Virtuoso endReached 콜백
+  const loadMore = useCallback(async () => {
+    if (!hasMore || loadingMore || loading || !cursor) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetchUsolNTasksPage({
+        cursor,
+        pageSize: PAGE_SIZE,
+        statusIn,
+        searchTerm,
+        engineerCodes,
+      });
+      if (res.ok) {
+        setTasks(prev => [...prev, ...res.tasks]);
+        setCursor(res.nextCursor);
+        setHasMore(res.hasMore);
+      } else {
+        console.error("[UsolNInProgress:loadMore]", res.error);
+      }
+    } finally {
+      setLoadingMore(false);
     }
-    return c;
-  }, [searchFiltered]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasMore, loadingMore, loading, cursor, statusIn?.[0], searchTerm, engineerCodes]);
 
-  // 필터 적용 + 정렬 (취소 맨 아래 / received_at desc) — 모든 칩에 일관 적용
-  const displayedTasks = useMemo(() => {
-    const filter = STATUS_FILTERS.find(f => f.id === filterId) || STATUS_FILTERS[0];
-    const base = filter.match
-      ? searchFiltered.filter(t => t.status === filter.match)
-      : searchFiltered;
-    return [...base].sort((a, b) => {
-      const rankA = a.status === "취소" ? 1 : 0;
-      const rankB = b.status === "취소" ? 1 : 0;
-      if (rankA !== rankB) return rankA - rankB;
-      const ra = a.received_at || "";
-      const rb = b.received_at || "";
-      return String(rb).localeCompare(String(ra));
-    });
-  }, [searchFiltered, filterId]);
-
-  const currentFilter = STATUS_FILTERS.find(f => f.id === filterId) || STATUS_FILTERS[0];
+  // 칩 카운트 — RPC 결과 직접 사용. "전체" = 모든 status 합계.
+  const totalCount = useMemo(
+    () => Object.values(counts).reduce((a, b) => a + (Number(b) || 0), 0),
+    [counts]
+  );
+  const getChipCount = (filter) =>
+    filter.match ? (Number(counts[filter.match]) || 0) : totalCount;
 
   return (
-    <div>
-      {/* 검색 (ViewAll 패턴 — Search icon + 측 catch padding) */}
-      <div style={{ position: "relative", marginBottom: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      {/* 검색 (ViewAll 패턴 — Search icon + 좌측 padding) */}
+      <div style={{ position: "relative", marginBottom: 10, flexShrink: 0 }}>
         <Search size={14} style={{
           position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
           color: "var(--text-tertiary, var(--text-secondary))", pointerEvents: "none",
@@ -153,11 +181,11 @@ export function UsolNInProgress({ onTaskClick }) {
         />
       </div>
 
-      {/* 필터 chip — 7개 + 칩 옆 카운트 (2026-05-27 사장님 spec) */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+      {/* 필터 chip — 7개 + 카운트 (RPC 직접) */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap", flexShrink: 0 }}>
         {STATUS_FILTERS.map(filter => {
           const active = filterId === filter.id;
-          const cnt = counts[filter.id] || 0;
+          const cnt = getChipCount(filter);
           return (
             <button
               key={filter.id}
@@ -178,23 +206,55 @@ export function UsolNInProgress({ onTaskClick }) {
         })}
       </div>
 
-      <div style={sectionTitleStyle}>
+      <div style={{ ...sectionTitleStyle, flexShrink: 0 }}>
         {currentFilter.label}{" "}
-        <span style={{ color: "var(--accent)", fontWeight: 700 }}>{displayedTasks.length.toLocaleString()}</span>건
+        <span style={{ color: "var(--accent)", fontWeight: 700 }}>
+          {getChipCount(currentFilter).toLocaleString()}
+        </span>건
+        {tasks.length < getChipCount(currentFilter) && (
+          <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6, fontWeight: 500 }}>
+            (현재 {tasks.length.toLocaleString()}건 표시 · 스크롤로 더 불러오기)
+          </span>
+        )}
       </div>
 
       {loading ? (
         <Empty>불러오는 중...</Empty>
       ) : fetchError ? (
         <Empty>⚠️ {fetchError}</Empty>
-      ) : displayedTasks.length === 0 ? (
+      ) : tasks.length === 0 ? (
         <Empty>해당 상태의 작업이 없습니다</Empty>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {displayedTasks.map(task => (
-            <TaskRowOperator key={task.id} task={task} onClick={() => onTaskClick?.(task)}/>
-          ))}
-        </div>
+        <Virtuoso
+          style={{ height: "calc(100dvh - 320px)", minHeight: 240 }}
+          data={tasks}
+          endReached={loadMore}
+          increaseViewportBy={400}
+          itemContent={(_idx, task) => (
+            <div style={{ paddingBottom: 4 }}>
+              <TaskRowOperator task={task} onClick={() => onTaskClick?.(task)}/>
+            </div>
+          )}
+          components={{
+            Footer: () => {
+              if (loadingMore) {
+                return (
+                  <div style={{ padding: 12, textAlign: "center", fontSize: 11, color: "var(--text-secondary)" }}>
+                    불러오는 중...
+                  </div>
+                );
+              }
+              if (!hasMore && tasks.length > 0) {
+                return (
+                  <div style={{ padding: 12, textAlign: "center", fontSize: 11, color: "var(--text-tertiary, var(--text-secondary))" }}>
+                    모든 작업을 표시했습니다
+                  </div>
+                );
+              }
+              return null;
+            },
+          }}
+        />
       )}
     </div>
   );
