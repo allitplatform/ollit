@@ -4692,15 +4692,23 @@ export default function EngineerApp({ user, onLogout }) {
       (user?.phone && e.phone === user.phone)
     );
 
+    // 2026-05-28 — 신규 기사 안전망 (push 옵션 A 동일 패턴, 367705d).
+    //   login RPC (sign_in_with_phone) 응답 = { user_id, code, name, phone, roles, ... }
+    //   신규 기사 폰: REGISTERED_USERS (코드 안 고정 36명) 미갱신 + loadEngineers (localStorage)
+    //   캐시 0 + user.engineerId / user.id 결손 → "" → "시트 sync 보류" 토스트.
+    //   → user.code (login 응답) 를 마지막 fallback 으로 추가. 기존 기사 무영향 (앞 fallback 우선).
     const engineerId =
       user?.engineerId ||
       fromRegistered?.engineerId ||
       fromSheetEng?.id ||
       user?.id ||
+      user?.code ||
       "";
 
     if (!engineerId) {
-      showToast("✓ 로컬 저장됨 (시트 sync 보류)");
+      // 2026-05-28 — 식별자 결손 분리 안내 (push 옵션 C 동일 톤).
+      //   옵션 A (user.code fallback) 적용 후엔 도달 어려운 안전망.
+      showToast("⚠️ 기사 식별 실패 — 운영팀에 문의해주세요");
       return;
     }
 
@@ -4716,7 +4724,7 @@ export default function EngineerApp({ user, onLogout }) {
     };
     const res = await saveEngineerWithSync(merged);
     if (res.ok)             showToast("✓ 계좌가 갱신되었습니다");
-    else if (res.localOk)   showToast("✓ 로컬 저장됨 (시트 sync 보류)");
+    else if (res.localOk)   showToast("✓ 로컬 저장됨 (DB sync 보류)");
     else                    showToast(`⚠️ ${res.error || "저장 실패"}`);
   }
   function handleSaveRegions(regions) {
