@@ -128,11 +128,14 @@ export async function fetchUsolNTasks({ statusIn = null, searchTerm = "", limit 
 // ============================================================
 // 배경: UsolNInProgress 전체 탭 1092건 중 92건이 Supabase Max rows 1000 한도에 잘림.
 //       옛 fetchUsolNTasks (offset/limit + count:exact) 는 한 번에 전체 받기 전제.
-//       페이지 단위 fetch + keyset 커서 (received_at, id) 로 정밀 연속 페이지.
+//       페이지 단위 fetch + keyset 커서 로 정밀 연속 페이지.
 //       카운트는 별도 RPC usol_n_counts_by_status() 사용 (검색·기사 필터 정합).
 //
 // 시그니처:
-//   cursor:        { received_at: ISO, id: uuid } | null   첫 페이지는 null
+//   cursor:        keyset 커서 — 분기 ↓
+//                    · 전체 칩(statusIn=null): { sort_terminal:0|1, received_at:ISO, id:uuid }
+//                    · 특정 칩(statusIn=[...]):              { received_at:ISO, id:uuid }
+//                  첫 페이지는 null.
 //   pageSize:      number (기본 50)
 //   statusIn:      string[] | null  특정 status 필터 (예: ["완료"]). null = 전체.
 //   searchTerm:    string  4필드(customer_name/task_no/address/phone) ILIKE 키워드
@@ -142,10 +145,16 @@ export async function fetchUsolNTasks({ statusIn = null, searchTerm = "", limit 
 // 검색 OR 동작 (옛 클라 5필드 includes 와 정합):
 //   (searchTerm 4필드 ILIKE OR engineerCodes 매칭) — 둘 중 하나라도 매칭되면 결과.
 //
-// 정렬: received_at DESC, id DESC (tiebreaker — keyset 정합 필수).
+// 정렬 (2026-05-28 sort_terminal 도입):
+//   · 전체 칩 (statusIn=null):
+//       sort_terminal ASC, received_at DESC, id DESC
+//       → 활성(0) 위 / 완료·취소(1) 아래. 인덱스 idx_tasks_sort_terminal_order 사용.
+//   · 특정 칩 (단일 status):
+//       received_at DESC, id DESC
+//       → 같은 sort_terminal 이라 정렬 동일. 옛 2-tuple 유지.
 //
 // 응답:
-//   { ok: true, tasks: [...], nextCursor: {received_at,id}|null, hasMore: boolean }
+//   { ok: true, tasks: [...], nextCursor: cursor|null, hasMore: boolean }
 //   { ok: false, error, tasks: [], nextCursor: null, hasMore: false }
 export async function fetchUsolNTasksPage({
   cursor = null,
@@ -159,11 +168,14 @@ export async function fetchUsolNTasksPage({
     return { ok: false, error: "usol_n principal 조회 실패", tasks: [], nextCursor: null, hasMore: false };
   }
 
+  // 전체 칩 여부 — 정렬·커서·nextCursor 분기 키.
+  const isAllChip = !Array.isArray(statusIn) || statusIn.length === 0;
+
   let q = supabase
     .from("tasks")
     .select(
       `id, task_no, customer_name, phone, address, district,
-       status, assignment_type,
+       status, sort_terminal, assignment_type,
        product_price, extra_fee, travel_fee, total_amount,
        category_data,
        recommended_engineer_id, assigned_engineer_id,
@@ -179,21 +191,39 @@ export async function fetchUsolNTasksPage({
          appliance_types ( id, name )
        )`
     )
-    .eq("principal_id", pid)
-    .order("received_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(pageSize);
+    .eq("principal_id", pid);
 
-  // keyset 커서 — (received_at, id) < (cursor.received_at, cursor.id)
-  // PostgREST tuple 비교 직접 지원 X — .or() 로 두 조건 합성:
-  //   received_at < cursor.received_at
-  //   OR (received_at = cursor.received_at AND id < cursor.id)
-  if (cursor && cursor.received_at && cursor.id) {
-    const cra = String(cursor.received_at);
-    const cid = String(cursor.id);
-    q = q.or(
-      `received_at.lt.${cra},and(received_at.eq.${cra},id.lt.${cid})`
-    );
+  // 정렬 — 전체 칩만 sort_terminal ASC 추가. 특정 칩은 옛 2-order 그대로.
+  if (isAllChip) {
+    q = q.order("sort_terminal", { ascending: true });
+  }
+  q = q.order("received_at", { ascending: false })
+       .order("id", { ascending: false })
+       .limit(pageSize);
+
+  // keyset 커서 분기:
+  //   전체 칩 (3-tuple) — (sort_terminal ASC, received_at DESC, id DESC) < cursor
+  //     · sort_terminal > cs                                  → 다음 페이지 (더 뒤 그룹)
+  //     · sort_terminal = cs AND received_at < cr             → 같은 그룹 내 다음
+  //     · sort_terminal = cs AND received_at = cr AND id < ci → tiebreaker
+  //   특정 칩 (2-tuple) — (received_at DESC, id DESC) < cursor
+  if (cursor) {
+    if (isAllChip && cursor.sort_terminal != null && cursor.received_at && cursor.id) {
+      const cs  = Number(cursor.sort_terminal);
+      const cra = String(cursor.received_at);
+      const cid = String(cursor.id);
+      q = q.or(
+        `sort_terminal.gt.${cs},` +
+        `and(sort_terminal.eq.${cs},received_at.lt.${cra}),` +
+        `and(sort_terminal.eq.${cs},received_at.eq.${cra},id.lt.${cid})`
+      );
+    } else if (!isAllChip && cursor.received_at && cursor.id) {
+      const cra = String(cursor.received_at);
+      const cid = String(cursor.id);
+      q = q.or(
+        `received_at.lt.${cra},and(received_at.eq.${cra},id.lt.${cid})`
+      );
+    }
   }
 
   // status 필터
@@ -273,11 +303,21 @@ export async function fetchUsolNTasksPage({
   });
 
   // nextCursor + hasMore — pageSize 와 정확히 같으면 다음 페이지 후보
+  // 전체 칩이면 3-tuple, 특정 칩이면 2-tuple.
   const hasMore = enriched.length === pageSize;
   const last = enriched[enriched.length - 1];
-  const nextCursor = (hasMore && last && last.received_at && last.id)
-    ? { received_at: last.received_at, id: last.id }
-    : null;
+  let nextCursor = null;
+  if (hasMore && last && last.received_at && last.id) {
+    if (isAllChip) {
+      nextCursor = {
+        sort_terminal: last.sort_terminal ?? 0,
+        received_at:   last.received_at,
+        id:            last.id,
+      };
+    } else {
+      nextCursor = { received_at: last.received_at, id: last.id };
+    }
+  }
 
   return { ok: true, tasks: enriched, nextCursor, hasMore };
 }
