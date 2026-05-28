@@ -108,10 +108,13 @@ import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
 // Phase 4 후속 — push_candidates 박음 (AutoAssignScreen 측)
 import { supabase } from "../lib/supabase.js";
 
-// 2026-05-14 — 모듈 레벨 Set 박지 X
-// StrictMode 측 cleanup → 2차 mount 측 early return 박은 영역 catch 박힘
-// → setCandidates 박지 X / 화면 "후보 없음" 박힘
-// 대안: DB 사전 조회 측만 박음 (UI 측 setCandidates 박힘 / DB 측 1회만 박힘)
+// 2026-05-29 — 자동 배정 push_candidates 중복 UPDATE 차단 (race / StrictMode 더블 mount).
+//   옛 (2026-05-14) 분석: useEffect 함수 시작점 가드라 2차 mount 의 setCandidates 까지
+//   차단 → "후보 없음" 표시. 그래서 Set 폐기 + DB 사전 조회만.
+//   새 (옵션 A): supabase.update 직전 가드만 → setCandidates 영향 0.
+//                같은 마이크로초 다중 UPDATE 차단 (iOS 알림 같은 tag 덮어쓰기 회피).
+//                새로고침 시 Set 초기화 — DB 사전 조회 가드 (line 7424) 가 보호.
+const _pushedTaskIds = new Set();
 import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { isTrackARemittance, isPendingRemit } from "../utils/remitFilter.js";
 import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
@@ -7424,6 +7427,16 @@ function AutoAssignScreen({ t, task, apiEngineers = [], onBack, onComplete, onFa
             if (existingDb.length > 0) {
               return;
             }
+
+            // 2026-05-29 옵션 A — 모듈 Set 가드 (StrictMode 더블 mount + 다른 race 차단).
+            //   같은 페이지 라이프타임 내 한 task 의 UPDATE 1회만 보장.
+            //   사전 조회 가드는 async race 에 취약 (두 mount 가 동시에 existingDb=[] 받음).
+            //   본 Set 은 동기 가드 — 1차 mount 가 Set.add 한 직후 2차 mount 가 Set.has 차단.
+            if (_pushedTaskIds.has(task.id)) {
+              console.log('[AutoAssign] push_candidates 중복 차단:', task.id);
+              return;
+            }
+            _pushedTaskIds.add(task.id);
 
             const { error: pushErr } = await supabase
               .from('tasks')
