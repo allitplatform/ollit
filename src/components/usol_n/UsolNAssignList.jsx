@@ -114,6 +114,8 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
   );
 
   // 검색 필터
+  // 2026-05-28 — 기사명 매칭 추가 (AllTasksScreen v18 패턴, cea449b 참고).
+  //   fetchUsolNTasks 가 users in-memory JOIN 으로 task.assignedEngineer 채움.
   const filtered = useMemo(() => {
     if (!search.trim()) return actionNeeded;
     const q = search.trim().toLowerCase();
@@ -121,7 +123,8 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
       const cust = String(t.customer_name || "").toLowerCase();
       const addr = String(t.address || "").toLowerCase();
       const tno  = String(t.task_no || "").toLowerCase();
-      if (cust.includes(q) || addr.includes(q) || tno.includes(q)) return true;
+      const eng  = String(t.assignedEngineer || "").toLowerCase();
+      if (cust.includes(q) || addr.includes(q) || tno.includes(q) || (eng && eng.includes(q))) return true;
       // 상품주문번호 — task_items 측 catch
       const items = Array.isArray(t.task_items) ? t.task_items : [];
       for (const it of items) {
@@ -170,7 +173,7 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
         <input
           type="text" value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="고객명 / 주소 / 작업번호 / 상품주문번호"
+          placeholder="고객명 / 주소 / 작업번호 / 상품주문번호 / 기사명"
           style={{
             width: "100%", boxSizing: "border-box",
             padding: "8px 10px 8px 30px",

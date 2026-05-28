@@ -54,13 +54,16 @@ export function UsolNInProgress({ onTaskClick }) {
 
   // 2026-05-27 — 항상 전체 fetch (statusIn 8개 모두) → 칩 카운트·필터·정렬 모두 클라이언트.
   //   사장님 spec: 필터 걸려도 정렬 규칙(취소 맨 아래 / received_at desc) 일관.
+  // 2026-05-28 — 검색도 클라로 일원화 (AllTasksScreen 패턴, cea449b/v18).
+  //   서버 검색은 4필드(customer/task_no/address/phone)만 가능 + assignedEngineer 매칭 불가능.
+  //   → searchTerm 서버에 보내지 X, 전체 받아 클라가 5필드 매칭.
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setFetchError("");
     fetchUsolNTasks({
       statusIn:   ALL_STATUSES,
-      searchTerm: searchTerm,
+      searchTerm: "",
       limit:      ALL_LIMIT,
       offset:     0,
     })
@@ -75,23 +78,41 @@ export function UsolNInProgress({ onTaskClick }) {
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [searchTerm, reloadTick]);
+  }, [reloadTick]);
 
-  // 칩별 카운트 — fetched 전체 기준
+  // 2026-05-28 — 클라이언트 검색 필터 (AllTasksScreen 동일 패턴):
+  //   5개 필드 includes (대소문자 무시) — customer_name / task_no / address / phone / assignedEngineer
+  //   fetchUsolNTasks 가 users in-memory JOIN 으로 task.assignedEngineer 채움.
+  const searchFiltered = useMemo(() => {
+    const kw = searchTerm.trim().toLowerCase();
+    if (!kw) return allTasks;
+    return allTasks.filter(t => {
+      const fields = [
+        t.customer_name,
+        t.task_no,
+        t.address,
+        t.phone,
+        t.assignedEngineer,
+      ];
+      return fields.some(f => f && String(f).toLowerCase().includes(kw));
+    });
+  }, [allTasks, searchTerm]);
+
+  // 칩별 카운트 — 검색 필터 적용 후 기준
   const counts = useMemo(() => {
-    const c = { all: allTasks.length };
+    const c = { all: searchFiltered.length };
     for (const f of STATUS_FILTERS) {
-      if (f.match) c[f.id] = allTasks.filter(t => t.status === f.match).length;
+      if (f.match) c[f.id] = searchFiltered.filter(t => t.status === f.match).length;
     }
     return c;
-  }, [allTasks]);
+  }, [searchFiltered]);
 
   // 필터 적용 + 정렬 (취소 맨 아래 / received_at desc) — 모든 칩에 일관 적용
   const displayedTasks = useMemo(() => {
     const filter = STATUS_FILTERS.find(f => f.id === filterId) || STATUS_FILTERS[0];
     const base = filter.match
-      ? allTasks.filter(t => t.status === filter.match)
-      : allTasks;
+      ? searchFiltered.filter(t => t.status === filter.match)
+      : searchFiltered;
     return [...base].sort((a, b) => {
       const rankA = a.status === "취소" ? 1 : 0;
       const rankB = b.status === "취소" ? 1 : 0;
@@ -100,7 +121,7 @@ export function UsolNInProgress({ onTaskClick }) {
       const rb = b.received_at || "";
       return String(rb).localeCompare(String(ra));
     });
-  }, [allTasks, filterId]);
+  }, [searchFiltered, filterId]);
 
   const currentFilter = STATUS_FILTERS.find(f => f.id === filterId) || STATUS_FILTERS[0];
 
@@ -116,7 +137,7 @@ export function UsolNInProgress({ onTaskClick }) {
           type="text"
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="고객명 / 작업번호 / 주소 / 전화 검색"
+          placeholder="고객명 / 작업번호 / 주소 / 전화 / 기사명 검색"
           style={{
             width: "100%", padding: "10px 12px 10px 32px",
             background: "var(--bg-secondary)",
