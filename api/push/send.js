@@ -97,6 +97,19 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: e?.message || "GAS 호출 실패" });
   }
 
+  // 2026-05-28 — endpoint 기준 dedup (GAS 시트의 같은 endpoint 다중 row 방어).
+  //   getPushSubscriptions 가 시트 row 그대로 반환 → 같은 폰에서 알림 OFF/ON 반복 또는
+  //   옛 잘못된 row(E022 버그 잔재) + 신규 정상 row 누적 시 한 endpoint 다중 sub 발생.
+  //   send.js 단에서 1 endpoint = 1 발송 보장. 시트 정리 안 해도 즉시 중복 차단.
+  //   endpoint 없는 row 는 발송 불가라 같이 제외.
+  subs = Array.from(
+    new Map(
+      subs
+        .filter(s => s && s.endpoint)
+        .map(s => [s.endpoint, s])
+    ).values()
+  );
+
   if (subs.length === 0) {
     return res.status(200).json({ ok: true, sent: 0, failed: 0, expired: 0, note: "대상 구독 없음" });
   }
