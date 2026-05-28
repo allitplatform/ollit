@@ -151,15 +151,20 @@ export function EngineerMeTab({
       (eng?.name                 && e.name  === eng.name)  ||
       (eng?.phone                && e.phone === eng.phone)
     );
+    // 2026-05-28 — 신규 기사 안전망 (옵션 A):
+    //   login RPC (sign_in_with_phone) 응답 = { user_id, code, name, phone, roles, ... }
+    //   신규 기사 폰에서는 REGISTERED_USERS (코드 안 고정 36명) + sheetList (localStorage 캐시)
+    //   양쪽 결손 → 옛 fallback (eng.engineerId / eng.id) 도 결손 → "" → /api/push/subscribe 400.
+    //   → eng.code (login 응답) 를 마지막 fallback 으로 추가. 기존 기사 무영향 (앞 fallback 우선).
     const finalEngineerId =
       eng?.engineerId ||
       fromRegistered?.engineerId ||
       fromSheet?.id ||
       eng?.id ||
+      eng?.code ||
       "";
-    // 2026-05-27 — fromRegistered.userId 도 REGISTERED_USERS 에 없는 필드. fallback 의미 없으나
-    //   안전 차원에서 eng.userId 만 유효. 옛 fallback 제거.
-    const finalUserId = eng?.userId || "";
+    // login RPC 응답 user_id (snake) fallback 추가 — userId(camel) 옛 호환 유지.
+    const finalUserId = eng?.userId || eng?.user_id || "";
     return { finalEngineerId, finalUserId };
   }
 
@@ -187,8 +192,11 @@ export function EngineerMeTab({
         showLocalToast("⚠️ 알림 권한이 거부되었습니다 (휴대폰 설정에서 변경)");
       } else if (res.reason === "no_vapid") {
         showLocalToast("⚠️ 푸시 키가 설정되지 않았습니다");
+      } else if (res.reason === "no_engineer_id") {
+        // 2026-05-28 옵션 C — 식별자 결손 분리 안내. 옵션 A 적용 후엔 도달 어려운 안전망.
+        showLocalToast("⚠️ 기사 식별 실패 — 운영팀에 문의해주세요");
       } else if (res.reason === "sync_failed") {
-        // 로컬 구독은 박힘 / 시트 sync만 실패 → 토글 ON 유지
+        // 로컬 구독은 살아있음 / 시트 sync만 실패 → 토글 ON 유지
         handlePushTogglePref(true);
         showLocalToast("✓ 활성화됨 (시트 sync 보류)");
       } else {

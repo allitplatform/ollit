@@ -114,7 +114,10 @@ export async function enablePush(userId) {
 
 // 권한 + 구독 + Vercel API 호출 (한 번에)
 // 응답: { ok: true, subscription, action } | { ok: false, reason, error }
-//   reason: 'unsupported' | 'denied' | 'no_vapid' | 'sync_failed' | 'error'
+//   reason: 'unsupported' | 'denied' | 'no_vapid' | 'no_engineer_id' | 'sync_failed' | 'error'
+//     · no_engineer_id  — Vercel /api/push/subscribe 가 400 (식별자 결손) — 옵션 C 분리 (2026-05-28).
+//                          기사 식별 fallback 체인이 모두 결손한 신규 기사 케이스. 운영팀 안내 필요.
+//     · sync_failed     — GAS 시트 저장 실패 (502 / GAS 응답 ok:false / 네트워크). 브라우저 구독은 살아있음.
 export async function subscribePushWithSync({ userId, engineerId, role } = {}) {
   if (!isPushSupported()) return { ok: false, reason: "unsupported" };
   const vapidPublic = import.meta.env.VITE_VAPID_PUBLIC;
@@ -161,10 +164,14 @@ export async function subscribePushWithSync({ userId, engineerId, role } = {}) {
     if (json && json.ok) {
       return { ok: true, subscription: subData, action: json.action || "create" };
     }
+    // 옵션 C (2026-05-28) — 식별자 결손(400) 과 GAS 실패(502/응답 ok:false) 분리
+    //   · 400: userId/engineerId 둘 다 빈값 — 신규 기사 매핑 결손 시그널
+    //   · 그 외: GAS 측 저장 실패 — 브라우저 구독은 살아있음, 토글 ON 유지 가능
+    const reason = res.status === 400 ? "no_engineer_id" : "sync_failed";
     return {
-      ok: false, reason: "sync_failed",
-      error: json?.error || "시트 sync 실패",
-      subscription: subData, localOk: true,
+      ok: false, reason,
+      error: json?.error || (reason === "no_engineer_id" ? "기사 식별 실패" : "시트 sync 실패"),
+      subscription: subData, localOk: reason !== "no_engineer_id",
     };
   } catch (e) {
     return {
