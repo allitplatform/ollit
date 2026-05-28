@@ -5,18 +5,42 @@
 //   - targetType: 'engineer' | 'user' | 'role'
 //   - targetId  : 'E022' | 'A001' | 'engineer' / 'admin' / 'happycall' / ...
 // 동작:
-//   1) GAS getPushSubscriptions → 대상 구독 리스트
-//   2) web-push 라이브러리로 각 구독에 발송
-//   3) 만료(404/410) 구독은 GAS deletePushSubscriptions로 정리
+//   1) Supabase push_subscriptions 조회 → 대상 구독 리스트
+//   2) web-push 라이브러리로 각 구독에 발송 (VAPID / payload 무변경)
+//   3) 만료(404/410) 구독은 push_subscriptions DELETE 로 정리
 //
-// 환경변수 필수: VITE_VAPID_PUBLIC / VAPID_PRIVATE / VAPID_SUBJECT / GAS_WEBAPP_URL / PUSH_API_KEY
+// 2026-05-29 — GAS getPushSubscriptions / deletePushSubscriptions → Supabase 전환.
+//   조회: push_subscriptions ps JOIN users u ON u.id = ps.user_id
+//         · engineer / user targetType + code (E0xx 등) → u.code 매칭
+//         · engineer / user targetType + uuid          → ps.user_id 매칭
+//         · role targetType                            → user_roles.role IN 매칭
+//   발송: web-push 그대로 (VAPID / payload / dedup 동일)
+//   정리: push_subscriptions DELETE WHERE endpoint IN (expired)
+//
+// 환경변수 필수:
+//   VITE_VAPID_PUBLIC / VAPID_PRIVATE / VAPID_SUBJECT
+//   VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY
+//   PUSH_API_KEY
 
 import webpush from "web-push";
+import { createClient } from "@supabase/supabase-js";
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 const VAPID_PUBLIC   = process.env.VITE_VAPID_PUBLIC;
 const VAPID_PRIVATE  = process.env.VAPID_PRIVATE;
 const VAPID_SUBJECT  = process.env.VAPID_SUBJECT || "mailto:admin@allday-care.com";
+
+const SUPABASE_URL     = process.env.VITE_SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+// 모듈 레벨 1회 생성 (Vercel cold start 비용 절감)
+const supabase = (SUPABASE_URL && SERVICE_ROLE_KEY)
+  ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    })
+  : null;
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 let vapidConfigured = false;
 function configureVapid() {
@@ -63,6 +87,13 @@ export default async function handler(req, res) {
     return res.status(500).json({ ok: false, error: "VAPID 환경변수 누락 (VITE_VAPID_PUBLIC / VAPID_PRIVATE)" });
   }
 
+  if (!supabase) {
+    return res.status(500).json({
+      ok: false,
+      error: "VITE_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 환경변수 누락",
+    });
+  }
+
   const body = typeof req.body === "string" ? safeParse(req.body) : (req.body || {});
   // 2026-05-22 P1 — taskId destructure 추가 (SW saveToIndexedDB dedup 정상화).
   // trigger(015b) 측 payload에 'taskId' 들어있으나 이전엔 여기서 빠뜨려 SW data.taskId=null.
@@ -73,35 +104,67 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: "targetType + title 필수" });
   }
 
-  const gasUrl = process.env.GAS_WEBAPP_URL;
-  if (!gasUrl) {
-    return res.status(500).json({ ok: false, error: "GAS_WEBAPP_URL 환경변수 누락" });
-  }
-
-  // 1) GAS에서 대상 구독 리스트 가져오기
+  // 1) Supabase push_subscriptions 조회 — targetType 분기
+  //    engineer / user + targetId 가 code (E0xx 등) → users.code 매칭
+  //    engineer / user + targetId 가 uuid          → push_subscriptions.user_id 매칭
+  //    role + targetId ('engineer'/'admin'/'operator' 등) → user_roles.role 매칭 → user_id IN
   let subs = [];
   try {
-    const params = new URLSearchParams();
-    params.append("action",     "getPushSubscriptions");
-    params.append("targetType", String(targetType));
-    params.append("targetId",   String(targetId || ""));
+    let targetUserIds = null;
 
-    const r = await fetch(`${gasUrl}?${params.toString()}`, { method: "GET", redirect: "follow" });
-    const text = await r.text();
-    const data = safeParse(text);
-    if (!data || !data.ok) {
-      return res.status(502).json({ ok: false, error: data?.error || "GAS 구독 리스트 조회 실패", raw: text.slice(0, 200) });
+    if (targetType === "role" && targetId) {
+      const { data: roleRows, error: roleErr } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", String(targetId));
+      if (roleErr) {
+        console.error("[push send:role lookup]", roleErr);
+        return res.status(500).json({ ok: false, error: roleErr.message || "user_roles 조회 실패" });
+      }
+      targetUserIds = (roleRows || []).map(r => r.user_id).filter(Boolean);
+      if (targetUserIds.length === 0) {
+        return res.status(200).json({ ok: true, sent: 0, failed: 0, expired: 0, total: 0, note: "role 매칭 user 없음" });
+      }
+    } else if ((targetType === "engineer" || targetType === "user") && targetId) {
+      // code (E0xx 등) → users.id (uuid) lookup
+      if (UUID_RE.test(String(targetId))) {
+        targetUserIds = [String(targetId)];
+      } else {
+        const { data: userRow, error: uErr } = await supabase
+          .from("users")
+          .select("id")
+          .eq("code", String(targetId))
+          .maybeSingle();
+        if (uErr) {
+          console.error("[push send:user code lookup]", uErr);
+          return res.status(500).json({ ok: false, error: uErr.message || "users.code 조회 실패" });
+        }
+        if (!userRow || !userRow.id) {
+          return res.status(200).json({ ok: true, sent: 0, failed: 0, expired: 0, total: 0, note: `users.code=${targetId} 매칭 없음` });
+        }
+        targetUserIds = [userRow.id];
+      }
+    } else {
+      return res.status(400).json({ ok: false, error: "targetType + targetId 조합 불완전" });
     }
-    subs = Array.isArray(data.subscriptions) ? data.subscriptions : [];
+
+    // push_subscriptions 조회
+    const { data: rows, error: psErr } = await supabase
+      .from("push_subscriptions")
+      .select("endpoint, p256dh, auth, user_id")
+      .in("user_id", targetUserIds);
+    if (psErr) {
+      console.error("[push send:ps select]", psErr);
+      return res.status(500).json({ ok: false, error: psErr.message || "push_subscriptions 조회 실패" });
+    }
+    subs = rows || [];
   } catch (e) {
-    return res.status(500).json({ ok: false, error: e?.message || "GAS 호출 실패" });
+    console.error("[push send:lookup exception]", e);
+    return res.status(500).json({ ok: false, error: e?.message || "구독 조회 실패" });
   }
 
-  // 2026-05-28 — endpoint 기준 dedup (GAS 시트의 같은 endpoint 다중 row 방어).
-  //   getPushSubscriptions 가 시트 row 그대로 반환 → 같은 폰에서 알림 OFF/ON 반복 또는
-  //   옛 잘못된 row(E022 버그 잔재) + 신규 정상 row 누적 시 한 endpoint 다중 sub 발생.
-  //   send.js 단에서 1 endpoint = 1 발송 보장. 시트 정리 안 해도 즉시 중복 차단.
-  //   endpoint 없는 row 는 발송 불가라 같이 제외.
+  // 2026-05-28 — endpoint 기준 dedup (push_subscriptions.endpoint 는 UNIQUE 라 보통 1행이지만
+  //   안전 차원에서 dedup 코드 유지. 옛 GAS 잔재가 마이그된 케이스도 1 endpoint 1 발송 보장).
   subs = Array.from(
     new Map(
       subs
@@ -127,15 +190,14 @@ export default async function handler(req, res) {
     taskId: taskId || null,
   });
 
- const results = await Promise.allSettled(subs.map(s => {
-    // GAS 응답은 이미 { endpoint, keys: {p256dh, auth} } 표준 형식 박힘
-    // 옛 평면 형식도 호환 박는 fallback
+  // 2) web-push 발송 (Supabase 조회 결과 형식 = { endpoint, p256dh, auth, user_id })
+  //    옛 GAS 호환 fallback (s.keys) 도 유지 — 별도 호출 경로 안전망.
+  const results = await Promise.allSettled(subs.map(s => {
     const subscription = s.keys ? s : {
       endpoint: s.endpoint,
       keys: { p256dh: s.p256dh, auth: s.auth },
     };
     return webpush.sendNotification(subscription, payload).catch(err => {
-
       // 만료된 구독은 expired 마킹
       if (err && (err.statusCode === 404 || err.statusCode === 410)) {
         return { __expired: true, endpoint: s.endpoint };
@@ -156,14 +218,21 @@ export default async function handler(req, res) {
     }
   }
 
-  // 3) 만료 구독 정리 (best-effort)
+  // 3) 만료 구독 정리 (best-effort) — Supabase push_subscriptions DELETE
   if (expiredEndpoints.length > 0) {
     try {
-      const params = new URLSearchParams();
-      params.append("action", "deletePushSubscriptions");
-      params.append("endpoints", JSON.stringify(expiredEndpoints));
-      await fetch(`${gasUrl}?${params.toString()}`, { method: "GET", redirect: "follow" });
-    } catch (e) { /* 정리 실패는 무시 */ }
+      const { error: delErr, count } = await supabase
+        .from("push_subscriptions")
+        .delete({ count: "exact" })
+        .in("endpoint", expiredEndpoints);
+      if (delErr) {
+        console.warn("[push send:expired cleanup]", delErr.message);
+      } else {
+        console.log("[push send] expired cleaned:", count, "of", expiredEndpoints.length);
+      }
+    } catch (e) {
+      console.warn("[push send:expired cleanup exception]", e?.message);
+    }
   }
 
   return res.status(200).json({
