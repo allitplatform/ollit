@@ -14,7 +14,8 @@ import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubsc
 
 // 2026-05-27 — 항상 전체 fetch (사장님 spec): 칩 7개 모두 클라이언트 필터 + 카운트.
 //   정렬 일관 (취소 맨 아래 / received_at desc), 페이징 미사용.
-const ALL_LIMIT = 1000;
+// 2026-05-28 임시 — 잘린 옛 작업 복구 (1000→1500). 근본은 2단계(서버검색+가상스크롤) 예정.
+const ALL_LIMIT = 1500;
 const ALL_STATUSES = ["미배정", "배정", "약속대기", "확정", "진행중", "완료", "취소", "visit_only"];
 
 // 2026-05-27 — 칩 7개 (사장님 spec):
