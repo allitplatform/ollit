@@ -5,7 +5,6 @@
 // Step 5-5-C Phase 4-B-2 — 새 역량 폼 코드 완전 제거 (옛 workTypes 폼만 / Phase 4-C 양방향 박을 예정)
 import { useState, useMemo } from "react";
 import {
-  generateId,
   saveEngineerWithSync, deleteEngineerWithSync,
   saveEngineerRateWithSync, deleteEngineerRateWithSync,
   loadEngineerRatesByEngineer,
@@ -14,6 +13,10 @@ import {
   CAREER_LEVELS, STATUS_OPTIONS, ROLE_OPTIONS, APPLIANCE_OPTIONS,
   SEOUL_DISTRICTS, GG_INCHEON,
 } from "../data/engineers.js";
+// 2026-05-28 — 신규 기사 code 자동 부여 (next_engineer_code RPC).
+//   옛: generateId(name) = `${name}_${Date.now().toString(36)}` → "이름_랜덤" 비정상 code.
+//   새: Supabase RPC 가 max(E0xx)+1 반환 → 'E035' 형식 보장. RPC 실패 시 fallback X (사장님 spec).
+import { supabase } from "../lib/supabase.js";
 
 // Step 5-5-C Phase 4-C-2 — 시트 (전체) 행 매핑 헬퍼 (form 초기값 + workTypesOriginal 둘 다 호출)
 function _computeInitialWorkTypes(engineer) {
@@ -150,7 +153,14 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
     }
     let saved = { ...form, name };
     if (isNew && !saved.id) {
-      saved.id = generateId(name);
+      // 2026-05-28 — generateId("이름_랜덤") 폐기 → Supabase RPC 자동 부여.
+      //   실패 시 fallback X — 비정상 code 재발 차단 (사장님 spec).
+      const { data: nextCode, error: rpcErr } = await supabase.rpc("next_engineer_code");
+      if (rpcErr || !nextCode) {
+        setError(`기사 번호 부여 실패: ${rpcErr?.message || "응답 없음"}`);
+        return;
+      }
+      saved.id = nextCode;
     }
     setBusy(true);
     const res = await saveEngineerWithSync(saved);

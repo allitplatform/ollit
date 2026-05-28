@@ -453,6 +453,10 @@ export function saveEngineers(list) {
   } catch (e) { console.error(e); return false; }
 }
 
+// 2026-05-28 — 옛 시트 import 정규화 fallback 전용 (`${name}_${Date.now().toString(36)}`).
+//   ⚠️ 신규 기사 등록 경로 사용 X — Supabase next_engineer_code() RPC 가 E0xx 자동 부여.
+//   본 함수는 옛 시트 row 정규화 (data/engineers.js:342) 의 id 결손 케이스 호환만 유지.
+//   호출 신규 추가 금지.
 export function generateId(name) {
   const ts = Date.now().toString(36);
   const safe = (name || "engineer").replace(/\s+/g, "_").toLowerCase().slice(0, 12);

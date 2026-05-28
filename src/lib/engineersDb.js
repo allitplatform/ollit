@@ -154,11 +154,21 @@ async function ensureEngineerRole(userId) {
 // upsert — code 기준 존재 여부 catch 후 update 또는 insert
 // 응답: { ok, action: 'create'|'update', engineerId } | { ok: false, error }
 export async function upsertEngineerToDb(eng) {
-  if (!eng || !(eng.engineerId || eng.id)) {
-    return { ok: false, error: "engineerId 없음" };
-  }
+  if (!eng) return { ok: false, error: "eng 없음" };
   const row = syncPayloadToRow(eng);
-  if (!row.code) return { ok: false, error: "code 없음" };
+
+  // 2026-05-28 — code 비어있으면 Supabase next_engineer_code() RPC 자동 부여 (안전망).
+  //   1순위 호출 = EngineerEditScreen handleSave (UX 즉시 응답).
+  //   여기 fallback = 다른 진입 경로 (시트 import / 옛 흐름) 가 code 빼먹어도 보호.
+  //   RPC 실패 시 옛 generateId fallback X — 비정상 "이름_랜덤" code 재발 차단 (사장님 spec).
+  if (!row.code) {
+    const { data: nextCode, error: rpcErr } = await supabase.rpc("next_engineer_code");
+    if (rpcErr || !nextCode) {
+      console.error("[engineersDb.upsert:next_engineer_code]", rpcErr);
+      return { ok: false, error: `next_engineer_code RPC 실패: ${rpcErr?.message || "응답 없음"}` };
+    }
+    row.code = nextCode;
+  }
 
   // code 기준 존재 여부
   const { data: existing, error: selErr } = await supabase
