@@ -278,6 +278,7 @@ export function EngineerNewAssignDetailScreen({
                     priceLabel={isUsolN ? "내 정산금" : null}
                     client={task.client}
                     dividerTop={idx > 0}
+                    isCanceled={!!(wi.isCanceled ?? wi.is_canceled)}
                   />
                 );
               });
