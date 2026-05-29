@@ -314,20 +314,6 @@ export function NewReceptionScreenLite({ t, onBack, onSubmit }) {
           )}
         </FormSection>
 
-        {/* 2026-05-27 Migration 077 — 결제 방식 (선택 사항) */}
-        <FormSection t={t} icon="💳" label="결제 방식">
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {PAYMENT_METHOD_OPTIONS.map(p => (
-              <FormChip
-                t={t}
-                key={p.id}
-                active={form.paymentMethod === p.id}
-                onClick={() => update("paymentMethod", form.paymentMethod === p.id ? "" : p.id)}
-              >{p.label}</FormChip>
-            ))}
-          </div>
-        </FormSection>
-
         {/* 견적 */}
         <FormSection t={t} icon="💰" label="견적 금액" required error={errors.estimateTotal}>
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
@@ -348,6 +334,20 @@ export function NewReceptionScreenLite({ t, onBack, onSubmit }) {
               ⚠️ 현장에서 금액 확정 — 작업 완료 후 추가금 입력
             </div>
           )}
+        </FormSection>
+
+        {/* 2026-05-29 위치 이동 — 결제 방식 (견적 결정 → 결제 흐름 자연 순서) */}
+        <FormSection t={t} icon="💳" label="결제 방식">
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {PAYMENT_METHOD_OPTIONS.map(p => (
+              <FormChip
+                t={t}
+                key={p.id}
+                active={form.paymentMethod === p.id}
+                onClick={() => update("paymentMethod", form.paymentMethod === p.id ? "" : p.id)}
+              >{p.label}</FormChip>
+            ))}
+          </div>
         </FormSection>
 
         {/* 일정 */}

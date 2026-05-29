@@ -8663,20 +8663,6 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
           </div>
         </FormSection>
 
-        {/* 2026-05-27 Migration 077 — 결제 방식 (선택 사항) */}
-        <FormSection t={t} icon="💳" label="결제 방식">
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {PAYMENT_METHOD_OPTIONS.map(p => (
-              <FormChip
-                t={t}
-                key={p.id}
-                active={form.paymentMethod === p.id}
-                onClick={() => update("paymentMethod", form.paymentMethod === p.id ? "" : p.id)}
-              >{p.label}</FormChip>
-            ))}
-          </div>
-        </FormSection>
-
         {/* 2. 고객 정보 — 이름 선택 (자동 생성) */}
         <FormSection t={t} icon="👤" label="고객 정보" required error={errors.phone}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -9001,6 +8987,20 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
               )}
             </div>
           )}
+        </FormSection>
+
+        {/* 2026-05-29 위치 이동 — 결제 방식 (견적 결정 → 결제 흐름 자연 순서) */}
+        <FormSection t={t} icon="💳" label="결제 방식">
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {PAYMENT_METHOD_OPTIONS.map(p => (
+              <FormChip
+                t={t}
+                key={p.id}
+                active={form.paymentMethod === p.id}
+                onClick={() => update("paymentMethod", form.paymentMethod === p.id ? "" : p.id)}
+              >{p.label}</FormChip>
+            ))}
+          </div>
         </FormSection>
 
         {/* 5. 일정 — 미정 / 입력 토글 (Step 5-1b) */}
