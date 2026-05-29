@@ -6078,28 +6078,28 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
               {confirming ? "확인 중..." : "확인"}
             </span>
           )}
-          {/* 2026-05-22 — 확인 완료 상태에서만 [확인 취소] 버튼 노출 (실수 정정용) */}
+          {/* 2026-05-22 — 확인 완료 상태에서만 [확인 취소] 버튼 노출 (실수 정정용)
+                2026-05-29 — 아이콘만 (텍스트 제거) + aria-label/title 로 의미 유지. */}
           {groupStatus === "confirmed" && (
             <span
               role="button"
               tabIndex={0}
+              aria-label="확인 취소"
+              title={cancelling ? "취소 중..." : "확인 취소"}
               onClick={handleCancelConfirm}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleCancelConfirm(e); }}
               style={{
-                display: "inline-flex", alignItems: "center", gap: 3,
-                padding: "3px 8px", borderRadius: 8,
-                background: cancelling ? t.bgInset : "rgba(192,57,43,0.18)",
-                color: cancelling ? t.textMuted : "#FF8E7F",
-                border: `1px solid ${cancelling ? t.border : "rgba(192,57,43,0.4)"}`,
-                fontSize: 10, fontWeight: 700,
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                padding: "6px 8px", borderRadius: 8,
+                background: cancelling ? t.bgInset : "#C0392B",
+                color: cancelling ? t.textMuted : "#FFFFFF",
+                border: `1px solid ${cancelling ? t.border : "#C0392B"}`,
                 cursor: cancelling ? "wait" : "pointer",
                 opacity: cancelling ? 0.6 : 1,
-                whiteSpace: "nowrap",
                 userSelect: "none",
               }}
             >
-              <RotateCcw size={10}/>
-              {cancelling ? "취소 중..." : "확인 취소"}
+              <RotateCcw size={12}/>
             </span>
           )}
           {/* 2026-05-17 Round 2 Fix #21 — 그룹 통합 상태 배지 */}
