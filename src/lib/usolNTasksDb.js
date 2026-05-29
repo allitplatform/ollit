@@ -633,6 +633,31 @@ const ADDON_KR_TO_WT_CODE = {
 };
 
 // 신규 함수 — CSV 업로드 일괄 처리
+// 2026-05-29 — Migration 080: 발주 원본 audit (raw_orders). 운영 차단 X 안전 wrapper.
+async function _safeAuditRawOrders({ rows, sourceLabel = "csv_upload" }) {
+  // 동적 import — 순환 의존 가드 + lazy load (CSV 흐름 안 탈 때 영향 0)
+  try {
+    const mod = await import("./rawOrdersDb.js");
+    for (const r of rows) {
+      // 각 INSERT 실패해도 다음 row 계속. safeInsertRawOrder 자체가 try/catch.
+      await mod.safeInsertRawOrder({
+        principalCode:    "usol_n",
+        source:           sourceLabel,
+        externalOrderNo:  r.externalOrderNo,
+        productOrderNo:   r.productOrderNo,
+        customerName:     r.customerName,
+        phone:            r.phone,
+        address:          r.address,
+        rawPayload:       r.rawPayload,
+        taskId:           r.taskId || null,
+        notes:            r.notes  || null,
+      });
+    }
+  } catch (e) {
+    console.warn("[bulkInsertUsolNOrders:rawAudit] 모듈 로드 실패 (운영 영향 X):", e);
+  }
+}
+
 export async function bulkInsertUsolNOrders(orders) {
   if (!Array.isArray(orders) || orders.length === 0) {
     return { ok: false, error: "orders 없음", inserted: 0, skipped: 0, warnings: [], errors: [] };
@@ -671,6 +696,25 @@ export async function bulkInsertUsolNOrders(orders) {
     }
     const fresh = orders.filter(o => !existingSet.has(String(o.orderId)));
     const skipped = orders.length - fresh.length;
+
+    // 2026-05-29 — Migration 080 raw_orders audit: 중복 케이스도 원본 보존 (task_id=NULL).
+    //   존재 흐름 가드 (existingSet) 측 status='취소' 제외 후에도 중복 = 옛 비-취소 작업.
+    //   notes='중복_기존작업' 으로 표시 — archive 화면 측 검색 가능.
+    if (skipped > 0) {
+      const dupOrders = orders.filter(o => existingSet.has(String(o.orderId)));
+      const dupRows = dupOrders.map(o => ({
+        externalOrderNo: String(o.orderId || ""),
+        productOrderNo:  null,
+        customerName:    o.customerName || null,
+        phone:           o.phone || null,
+        address:         o.address || null,
+        rawPayload:      o,
+        taskId:          null,
+        notes:           "중복_기존작업",
+      }));
+      // 비동기 / 운영 차단 X — await 안 함 (CSV 흐름 차단 방지)
+      _safeAuditRawOrders({ rows: dupRows, sourceLabel: "csv_upload" });
+    }
 
     if (fresh.length === 0) {
       return { ok: true, inserted: 0, skipped, warnings: [], errors: [] };
@@ -887,6 +931,24 @@ export async function bulkInsertUsolNOrders(orders) {
         });
       }
     }
+
+    // 5-d) 2026-05-29 — Migration 080 raw_orders audit: 신규 INSERT 원본 보존 (task_id 연결).
+    //   각 fresh order 측 raw_orders row 1건. task_items 실패와 무관 (task 성공만으로 raw 보존).
+    //   운영 차단 X — 비동기 / 실패 시 console.warn 만.
+    const freshRawRows = fresh.map(order => {
+      const extKey = String(order.orderId);
+      return {
+        externalOrderNo: extKey,
+        productOrderNo:  null,
+        customerName:    order.customerName || null,
+        phone:           order.phone || null,
+        address:         order.address || null,
+        rawPayload:      order,
+        taskId:          taskIdByExt.get(extKey) || null,
+        notes:           null,
+      };
+    });
+    _safeAuditRawOrders({ rows: freshRawRows, sourceLabel: "csv_upload" });
 
     // 2026-05-23 진단용 — 함수 끝 측 errors / warnings 측 전체 출력 (사장님 측 console 측 확인)
     console.warn("[usolN bulk INSERT 결과]",
