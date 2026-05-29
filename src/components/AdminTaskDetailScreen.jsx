@@ -3,7 +3,7 @@
 // + ExceptionActions (접힘: 출장비 / 수동완료 / 취소)
 // 메인 "완료" 버튼 X (기사가 완료 처리 → 자동 업데이트)
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Chip } from "./Chip.jsx";
 import { detectServiceType } from "../data/serviceTypes.js";
@@ -118,8 +118,7 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <WorkTimeHistoryCard task={task}/>
       {/* 카드 6 — 요청사항 · 메모 */}
       <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
-      {/* 2026-05-29 — 취소 정보 카드 (status='취소' 일 때만 / 옛 데이터 fallback) */}
-      {task.status === "취소" && <CancelInfoCard task={task}/>}
+      {/* 2026-05-29 v2 (D6) — CancelInfoCard 폐기. 변경 이력 카드 측 cancel 이벤트 빨강 강조로 대체. */}
       {/* 2026-05-22 — 냉매 충전 동의서 (있을 때만 노출, Phase 1) */}
       {task.consent?.signedAt && <ConsentCard consent={task.consent}/>}
       {/* 2026-05-22 — 재배정 요청 카드 (있을 때만 노출) */}
@@ -531,8 +530,8 @@ function WorkTimeHistoryCard({ task }) {
           <TimestampRows task={task}/>
         </div>
 
-        {/* 변경 이력 (task_changes) */}
-        <TaskChangesSection taskId={task.id}/>
+        {/* 변경 이력 (task_changes) — 2026-05-29 v2: task 객체 전달 (synthetic cancel row 옛 작업 fallback) */}
+        <TaskChangesSection task={task}/>
       </div>
     </div>
   );
@@ -572,7 +571,10 @@ function D4TimeRow({ label, value }) {
 }
 
 // 변경 이력 (task_changes 측 fetch) — 본문 측 inline 렌더
-function TaskChangesSection({ taskId }) {
+// 2026-05-29 v2 — 옛 작업 fallback (D6): task_changes 측 cancel 이벤트 없고 status='취소' 이면
+//   category_data.cancel* 기반 synthetic cancel row 를 prepend (Migration 073 이전 cancel 호환).
+function TaskChangesSection({ task }) {
+  const taskId = task?.id;
   const [changes, setChanges] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
@@ -600,20 +602,46 @@ function TaskChangesSection({ taskId }) {
     return () => { alive = false; };
   }, [taskId, reloadTick]);
 
+  // 2026-05-29 v2 (D6) — synthetic cancel row: 옛 작업 (task_changes 측 cancel 없음) fallback.
+  const displayChanges = useMemo(() => {
+    if (!task || task.status !== "취소") return changes;
+    const hasCancelChange = changes.some(c => c.change_type === "cancel");
+    if (hasCancelChange) return changes;
+    // 옛 cancel 정보 — 평탄화 키 우선 + category_data fallback
+    const cat = task.categoryData || {};
+    const reason       = task.cancelReason             || cat.cancelReason             || null;
+    const actor        = task.cancelActor              || cat.cancelActor              || null;
+    const actorUid     = task.cancelActorUserId        || cat.cancelActorUserId        || null;
+    const principalCode = task.cancelActorPrincipalCode || cat.cancelActorPrincipalCode || null;
+    const at           = task.cancelAt                 || cat.cancelAt                 || task.updatedAt || null;
+    if (!reason && !actor && !at) return changes;
+    const u = actorUid ? getUserById(actorUid) : null;
+    const actorName = getCancelActorLabel({ actor, name: u?.name || null, principalCode });
+    const synthetic = {
+      id:              "_synthetic_cancel",
+      change_type:     "cancel",
+      note:            reason || null,
+      changed_at:      at,
+      changed_by_name: actorName,
+      _synthetic:      true,
+    };
+    return [synthetic, ...changes];
+  }, [task, changes]);
+
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
       <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
-        📜 변경 이력{changes.length > 0 && <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 4 }}>({changes.length})</span>}
+        📜 변경 이력{displayChanges.length > 0 && <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 4 }}>({displayChanges.length})</span>}
       </div>
       {loading ? (
         <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>불러오는 중...</div>
       ) : error ? (
         <div style={{ fontSize: 11, color: "#ff4444" }}>⚠️ {error}</div>
-      ) : changes.length === 0 ? (
+      ) : displayChanges.length === 0 ? (
         <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>변경 이력 X (새 작업부터 누적)</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {changes.map(ch => (
+          {displayChanges.map(ch => (
             <ChangeEntry key={ch.id} entry={ch}/>
           ))}
         </div>
@@ -653,14 +681,14 @@ function ChangeEntry({ entry }) {
   return (
     <div style={{
       padding: 8,
-      background: "var(--bg-secondary)",
+      background: isCancel ? "rgba(220,38,38,0.06)" : "var(--bg-secondary)",
       borderRadius: 8,
-      borderLeft: "3px solid var(--accent)",
+      borderLeft: `3px solid ${isCancel ? "#DC2626" : "var(--accent)"}`,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
           <span style={{ fontSize: 12 }}>{icon}</span>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>{label}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: isCancel ? "#DC2626" : "var(--text-primary)" }}>{label}</span>
           <span style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))" }}>· {who}</span>
         </div>
         <span className="mono" style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}>
@@ -1143,93 +1171,8 @@ function ReassignRequestCard({ request }) {
   );
 }
 
-// ──────────────────────────────────────────────
-// 2026-05-29 — 취소 정보 카드 (status='취소' 일 때만 노출)
-//   데이터 소스 (평탄화 commit 7893f2f / 3곳 매핑 트랩):
-//     task.cancelReason / cancelActor / cancelActorUserId / cancelActorPrincipalCode
-//     task.cancelAt / cancelPreviousStatus / cancelWasCompleted
-//     task.cancelEngineerCompKind / cancelEngineerCompAmount
-//   옛 데이터 (Migration 073 이전 취소, 84건 중 55건) — cancel 정보 없음 → "정보 없음" + updatedAt fallback.
-// ──────────────────────────────────────────────
-function CancelInfoCard({ task }) {
-  const reason        = task.cancelReason             || task.categoryData?.cancelReason             || null;
-  const actor         = task.cancelActor              || task.categoryData?.cancelActor              || null;
-  const actorUid      = task.cancelActorUserId        || task.categoryData?.cancelActorUserId        || null;
-  const principalCode = task.cancelActorPrincipalCode || task.categoryData?.cancelActorPrincipalCode || null;
-  const at            = task.cancelAt                 || task.categoryData?.cancelAt                 || null;
-  const prevStatus    = task.cancelPreviousStatus     || task.categoryData?.previousStatus           || null;
-  const wasCompleted  = task.cancelWasCompleted       ?? task.categoryData?.wasCompleted             ?? null;
-  const compKind      = task.cancelEngineerCompKind   || null;
-  const compAmount    = task.cancelEngineerCompAmount ?? 0;
-
-  const hasInfo = !!(reason || actor || at);
-  const u = actorUid ? getUserById(actorUid) : null;
-  const userName = u?.name || null;
-
-  // 2026-05-29 v2 — 이름 위주 (D2): 역할 라벨 제거.
-  const actorLabel = getCancelActorLabel({ actor, name: userName, principalCode });
-  // 2026-05-29 v2 — 한국어 사유 라벨 (reasonId → CANCEL_REASONS 매핑)
-  const reasonLabel = getCancelReasonLabel(reason);
-
-  const atLabel = at
-    ? formatDateTimeKST(at)
-    : (task.updatedAt ? formatDateTimeKST(task.updatedAt) : null);
-
-  return (
-    <div style={{ padding: D1_OUTER_PAD }}>
-      <div style={{
-        ...D1_CARD_STYLE,
-        background: "rgba(220,38,38,0.06)",
-        border: "1px solid rgba(220,38,38,0.35)",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: "#DC2626" }}>
-            ❌ 취소 정보
-          </div>
-          <div style={{ flex: 1 }}/>
-          {!hasInfo && (
-            <span style={{
-              padding: "3px 10px", borderRadius: 999,
-              background: "rgba(156,163,175,0.18)",
-              color: "#9CA3AF",
-              fontSize: 11, fontWeight: 700,
-            }}>옛 작업</span>
-          )}
-        </div>
-
-        {hasInfo ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {reasonLabel && <D2LabelRow label="사유"   value={reasonLabel} wrap/>}
-            <D2LabelRow label="취소자" value={actorLabel}/>
-            {atLabel && <D4TimeRow label="시각" value={atLabel}/>}
-            {prevStatus && <D2LabelRow label="옛 상태" value={`${prevStatus} → 취소`}/>}
-            {wasCompleted === true && (
-              <D2LabelRow label="완료 후 취소" value="예 (정정 흐름)" highlight/>
-            )}
-            {compKind && (
-              <D2LabelRow
-                label="기사 수고비"
-                value={compKind === "visit_fee"
-                  ? `출장비 ${(compAmount || 0).toLocaleString()}원`
-                  : "없음"}
-              />
-            )}
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <div style={{
-              fontSize: 12, color: "var(--text-secondary)",
-              fontWeight: 600, lineHeight: 1.5,
-            }}>
-              취소 사유 / 취소자 정보 없음 (Migration 073 이전 취소)
-            </div>
-            {atLabel && <D4TimeRow label="최종 변경 시각" value={atLabel}/>}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
+// 2026-05-29 v2 (D6) — CancelInfoCard 폐기. 변경 이력 카드(TaskChangesSection) 측
+//   cancel 이벤트 빨강 강조 + synthetic row(옛 작업 fallback) 으로 통합 표시.
 
 function PhotoSection({ taskId, taskType }) {
   const [photos, setPhotos]   = useState([]);
