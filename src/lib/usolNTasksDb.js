@@ -658,6 +658,10 @@ export async function bulkInsertUsolNOrders(orders) {
         .from("tasks")
         .select("external_order_no")
         .eq("principal_id", principalId)
+        // 2026-05-29 — 옛 취소 작업이 같은 orderId 재주문을 막던 사고 차단.
+        //   사고: 임다혜 YS-N-260529-021 / YS-N-260526-034 (status='취소') 의 external_order_no 가
+        //   신규 CSV 와 매칭 → "중복 제외 2건, 등록 0건". DB UNIQUE 제약 없음 → 신규 row 공존 안전.
+        .neq("status", "취소")
         .in("external_order_no", chunk);
       if (dupErr) {
         console.error("[bulkInsertUsolNOrders:dup]", dupErr);
