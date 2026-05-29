@@ -10,6 +10,8 @@ import { WorkItemRow } from "./WorkItemRow.jsx";
 import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
 // 2026-05-27 — usol_n 품목별 engineer_amount RPC (작업 상세 패턴 동일 — EngineerApp.jsx:3983-4001)
 import { supabase } from "../lib/supabase.js";
+// 2026-05-29 — 운영자/원청 별도 메모 (현장결제 안내 등) 새 배정 단계에서도 표시
+import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
 
 const PhoneSvgWhite = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -71,6 +73,8 @@ export function EngineerNewAssignDetailScreen({
   //   작업 상세 화면 패턴 동일 (EngineerApp.jsx:3983-4001).
   //   RPC 실패 시 빈 객체 → 아래 렌더에서 분배식 fallback (engineer_amount × subtotal/SUM).
   const [itemEngineerAmounts, setItemEngineerAmounts] = useState({});
+  // task_memos realtime — 운영자가 새 배정 알림 후 추가한 메모도 자동 갱신.
+  const { memos } = useTaskMemos(task?.id);
   useEffect(() => {
     if (!task?.id) return;
     if (task.principalCode !== "usol_n") return;  // usol_n만 RPC 의미 있음
@@ -334,8 +338,10 @@ export function EngineerNewAssignDetailScreen({
         </div>
       </div>
 
-      {/* 2. 노랑 요청사항 박스 */}
-      {(task.customerRequest || task.requestedDate) && (
+      {/* 2. 노랑 요청사항 박스 — task.requestNote (DB request_note 매핑, v14NormalizeTask 평탄화).
+           2026-05-29 — 옛 task.customerRequest 죽은 키 (어디서도 채워지지 않음) → requestNote 정정.
+           운영자 form.memo 입력이 즉시 새 배정 화면에 표시되게. */}
+      {(task.requestNote || task.requestedDate) && (
         <div style={{ padding: "0 16px 14px" }}>
           <div style={{
             position: "relative",
@@ -358,14 +364,14 @@ export function EngineerNewAssignDetailScreen({
             }}>
               ⚠️ 고객 요청사항
             </div>
-            {task.customerRequest && (
+            {task.requestNote && (
               <div style={{
                 fontSize: 14, fontWeight: 600,
                 color: "var(--text-primary)",
                 lineHeight: 1.5,
                 marginBottom: task.requestedDate ? 6 : 0,
               }}>
-                {task.customerRequest}
+                {task.requestNote}
               </div>
             )}
             {task.requestedDate && (
@@ -376,6 +382,51 @@ export function EngineerNewAssignDetailScreen({
                 🕐 고객 희망: {task.requestedDate} {task.requestedTime || ""}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 2026-05-29 — 운영자/원청 메모 카드 (task_memos) — 작업 정보 아래, 협의 입력 위.
+          현장결제 안내 등 수락 전 알아야 할 안전 정보 전부 노출 (slice 없음). */}
+      {memos.length > 0 && (
+        <div style={{ padding: "0 16px 14px" }}>
+          <div style={{
+            background: "var(--card-bg)",
+            border: "1px solid var(--border)",
+            borderRadius: 12,
+            padding: "14px 16px",
+          }}>
+            <div style={{
+              fontSize: 12, fontWeight: 700,
+              color: "var(--text-secondary)",
+              marginBottom: 10,
+            }}>
+              💬 메모 ({memos.length})
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {memos.map((m) => (
+                <div key={m.id} style={{
+                  background: "var(--bg-secondary)",
+                  borderRadius: 6, padding: "8px 10px",
+                }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))",
+                    marginBottom: 4, fontWeight: 600,
+                  }}>
+                    <span>{getMemoTypeLabel(m.memo_type)}</span>
+                    <span>·</span>
+                    <span>{getAuthorRoleEmoji(m.author_role)} {m.author_name || "—"}</span>
+                    <span style={{ marginLeft: "auto" }}>
+                      {m.created_at ? String(m.created_at).slice(0, 16).replace("T", " ") : ""}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.5, fontWeight: 500 }}>
+                    {m.body}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}
