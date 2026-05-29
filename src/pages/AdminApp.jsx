@@ -1094,6 +1094,16 @@ function _v14NormalizeTask(t) {
     rescheduleReason: t.rescheduleReason || t.categoryData?.rescheduleReason || "",
     rescheduledAt:    t.rescheduledAt    || t.categoryData?.rescheduledAt    || "",
     callMemo:         t.callMemo         || t.categoryData?.callMemo         || "",
+    // 2026-05-29 — 취소 정보 평탄화 (category_data.cancel* / 3곳 매핑 트랩).
+    //   partner_full_cancel / admin_full_cancel RPC (Migration 073) 가 머지하는 키.
+    //   옛 데이터 (category_data 측 cancel 키 없음) → null. 화면 측 updatedAt fallback.
+    cancelReason:             t.cancelReason             ?? t.categoryData?.cancelReason             ?? null,
+    cancelActor:              t.cancelActor              ?? t.categoryData?.cancelActor              ?? null,
+    cancelActorUserId:        t.cancelActorUserId        ?? t.categoryData?.cancelActorUserId        ?? null,
+    cancelActorPrincipalCode: t.cancelActorPrincipalCode ?? t.categoryData?.cancelActorPrincipalCode ?? null,
+    cancelAt:                 t.cancelAt                 ?? t.categoryData?.cancelAt                 ?? null,
+    cancelPreviousStatus:     t.cancelPreviousStatus     ?? t.categoryData?.previousStatus           ?? null,
+    cancelWasCompleted:       t.cancelWasCompleted       ?? t.categoryData?.wasCompleted             ?? null,
     _api: true,                   // 진짜 API 출처 마킹
   };
 }

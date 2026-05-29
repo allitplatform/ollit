@@ -146,6 +146,16 @@ export function rowToTask(row) {
     // 2026-05-25 Round 2 — 취소 건 기사 수고비 (Migration 073)
     cancelEngineerCompKind:   row.cancel_engineer_comp_kind   || null,
     cancelEngineerCompAmount: row.cancel_engineer_comp_amount ?? null,
+    // 2026-05-29 — 취소 정보 평탄화 (category_data.cancel* / 3곳 매핑 트랩).
+    //   partner_full_cancel / admin_full_cancel RPC (Migration 073) 가 머지하는 키.
+    //   옛 데이터 (category_data 측 cancel 키 없음) → null. 화면 측 updatedAt fallback.
+    cancelReason:             cat.cancelReason             || null,
+    cancelActor:              cat.cancelActor              || null,
+    cancelActorUserId:        cat.cancelActorUserId        || null,
+    cancelActorPrincipalCode: cat.cancelActorPrincipalCode || null,
+    cancelAt:                 cat.cancelAt                 || null,
+    cancelPreviousStatus:     cat.previousStatus           || null,
+    cancelWasCompleted:       cat.wasCompleted             ?? null,
     // 2026-05-22 — 냉매 동의서 (category_data.consent jsonb 평탄화)
     //   { customerName, signatureUrl, signedAt } — 없으면 null
     consent:       cat.consent || null,

@@ -252,6 +252,17 @@ export function v14NormalizeTask(t) {
     //   EngineerApp handleSaveCall 가 머지. 운영자 PWA + 기사 PWA 작업 상세에서 표시.
     callMemo: t.callMemo || t.categoryData?.callMemo || "",
 
+    // 2026-05-29 — 취소 정보 평탄화 (category_data.cancel* / 3곳 매핑 트랩).
+    //   partner_full_cancel / admin_full_cancel RPC (Migration 073) 가 머지하는 키.
+    //   옛 데이터 (category_data 측 cancel 키 없음) → null. 화면 측 updatedAt fallback.
+    cancelReason:             t.cancelReason             ?? t.categoryData?.cancelReason             ?? null,
+    cancelActor:              t.cancelActor              ?? t.categoryData?.cancelActor              ?? null,
+    cancelActorUserId:        t.cancelActorUserId        ?? t.categoryData?.cancelActorUserId        ?? null,
+    cancelActorPrincipalCode: t.cancelActorPrincipalCode ?? t.categoryData?.cancelActorPrincipalCode ?? null,
+    cancelAt:                 t.cancelAt                 ?? t.categoryData?.cancelAt                 ?? null,
+    cancelPreviousStatus:     t.cancelPreviousStatus     ?? t.categoryData?.previousStatus           ?? null,
+    cancelWasCompleted:       t.cancelWasCompleted       ?? t.categoryData?.wasCompleted             ?? null,
+
     _api: true,
   };
 }

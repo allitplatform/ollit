@@ -70,6 +70,16 @@ export function getUsersCache() {
   return [];
 }
 
+// 2026-05-29 — UUID → user 객체 lookup helper.
+//   cancel 정보 표시 측 cancelActorName 결정용 (cancelActorUserId 가 auth.uid() UUID).
+//   AdminApp fetchUsers (mount 1회) 가 listUsersFromDb → setUsersCache. DB row 는 id=UUID.
+//   없으면 null. 화면 측 user?.name fallback 처리.
+export function getUserById(userId) {
+  if (!userId) return null;
+  const list = getUsersCache();
+  return list.find(u => u.id === userId) || null;
+}
+
 // 시트 행 → 코드 모델 (옛 SEED 형식)
 // 시트 매핑: A 사용자ID / B 이름 / C 역할 / D 폰 / E 활성 (다양한 키 호환)
 function _adaptSheetUserToSeed(sheetU) {
