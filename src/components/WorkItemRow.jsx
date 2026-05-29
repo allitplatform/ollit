@@ -65,7 +65,7 @@ export function WorkItemRow({ workType, appliance, qty, price, client, dividerTo
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           textDecoration: isCanceled ? "line-through" : "none",
         }}>
-          {appliance || colors.name}{qty ? ` ×${qty}` : ""}
+          {appliance || workType || colors.name}{qty ? ` ×${qty}` : ""}
         </div>
       </div>
 
