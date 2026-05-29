@@ -6079,28 +6079,31 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
             </span>
           )}
           {/* 2026-05-22 — 확인 완료 상태에서만 [확인 취소] 버튼 노출 (실수 정정용)
-                2026-05-29 — 아이콘만 (텍스트 제거) + aria-label/title 로 의미 유지. */}
+                2026-05-29 — 아이콘만 (텍스트 제거) + aria-label/title 로 의미 유지.
+                2026-05-29 v2 — 투명 배경 + 회색 테두리 + 회색 아이콘.
+                  입금 완료 배지 (RemitStatusBadge) 와 동일 padding/borderRadius/아이콘 사이즈.
+                  시각 무게 동일 → 입금 완료 (초록) 가 자연스러운 강조. */}
           {groupStatus === "confirmed" && (
-            <span
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
               aria-label="확인 취소"
               title={cancelling ? "취소 중..." : "확인 취소"}
               onClick={handleCancelConfirm}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleCancelConfirm(e); }}
               style={{
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                padding: "6px 8px", borderRadius: 8,
-                background: cancelling ? t.bgInset : "#C0392B",
-                color: cancelling ? t.textMuted : "#FFFFFF",
-                border: `1px solid ${cancelling ? t.border : "#C0392B"}`,
+                background: "transparent",
+                border: `1px solid ${t.border}`,
+                color: t.textMuted,
+                padding: "2px 7px",
+                borderRadius: 8,
                 cursor: cancelling ? "wait" : "pointer",
                 opacity: cancelling ? 0.6 : 1,
-                userSelect: "none",
+                display: "inline-flex",
+                alignItems: "center",
+                fontFamily: "inherit",
               }}
             >
-              <RotateCcw size={12}/>
-            </span>
+              <RotateCcw size={10}/>
+            </button>
           )}
           {/* 2026-05-17 Round 2 Fix #21 — 그룹 통합 상태 배지 */}
           <RemitStatusBadge status={groupStatus} t={t}/>
