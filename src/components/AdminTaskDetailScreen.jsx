@@ -18,6 +18,8 @@ import { UsolNSettlementCycleCard } from "./usol_n/UsolNSettlementCycleCard.jsx"
 import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
 // 2026-05-29 — 취소 정보 카드 측 사용자 이름 lookup (사장님 D2-b)
 import { getUserById } from "../data/users.js";
+// 2026-05-29 v2 — 이름 위주 표시 (D2) + 한국어 사유/원청 라벨
+import { getCancelReasonLabel, getCancelActorLabel } from "../data/cancelReasons.js";
 // Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
 import { listPhotosByTask } from "../lib/photosDb.js";
 // Phase 5 Step 0.C-3-c — 상태 변경 이력 (status_history 테이블) — 0.C-4 측 task_changes 통합으로 사용 제거
@@ -643,6 +645,11 @@ function ChangeEntry({ entry }) {
   const icon  = CHANGE_TYPE_ICON[entry.change_type]  || "•";
   const label = CHANGE_TYPE_LABEL[entry.change_type] || entry.change_type;
   const who   = entry.changed_by_name || "—";
+  // 2026-05-29 v2 — cancel 이벤트 note 한국어 매핑 (reasonId → CANCEL_REASONS 라벨)
+  const isCancel = entry.change_type === "cancel";
+  const noteDisplay = isCancel
+    ? (getCancelReasonLabel(entry.note) || entry.note)
+    : entry.note;
   return (
     <div style={{
       padding: 8,
@@ -660,9 +667,9 @@ function ChangeEntry({ entry }) {
           {formatDateTimeKST(entry.changed_at)}
         </span>
       </div>
-      {entry.note && (
+      {noteDisplay && (
         <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>
-          ↳ {entry.note}
+          ↳ {noteDisplay}
         </div>
       )}
     </div>
@@ -1159,14 +1166,10 @@ function CancelInfoCard({ task }) {
   const u = actorUid ? getUserById(actorUid) : null;
   const userName = u?.name || null;
 
-  let actorLabel = "—";
-  if (actor === "partner") {
-    actorLabel = userName
-      ? (principalCode ? `${userName} · 원청 (${principalCode})` : `${userName} · 원청`)
-      : "원청";
-  } else if (actor === "operator") {
-    actorLabel = userName ? `${userName} · 운영자` : "운영자";
-  }
+  // 2026-05-29 v2 — 이름 위주 (D2): 역할 라벨 제거.
+  const actorLabel = getCancelActorLabel({ actor, name: userName, principalCode });
+  // 2026-05-29 v2 — 한국어 사유 라벨 (reasonId → CANCEL_REASONS 매핑)
+  const reasonLabel = getCancelReasonLabel(reason);
 
   const atLabel = at
     ? formatDateTimeKST(at)
@@ -1196,7 +1199,7 @@ function CancelInfoCard({ task }) {
 
         {hasInfo ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {reason && <D2LabelRow label="사유"   value={reason} wrap/>}
+            {reasonLabel && <D2LabelRow label="사유"   value={reasonLabel} wrap/>}
             <D2LabelRow label="취소자" value={actorLabel}/>
             {atLabel && <D4TimeRow label="시각" value={atLabel}/>}
             {prevStatus && <D2LabelRow label="옛 상태" value={`${prevStatus} → 취소`}/>}

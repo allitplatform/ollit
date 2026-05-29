@@ -20,6 +20,8 @@ import { formatYmdHm } from "../../utils/dateLabel.js";
 import { statusLabel } from "../../utils/taskStatus.js";
 // 2026-05-29 — 취소 row 사유/취소자 표시 (사장님 spec D2-b: users in-memory lookup)
 import { getUserById } from "../../data/users.js";
+// 2026-05-29 v2 — 이름 위주 표시 (D2) + 한국어 사유/원청 라벨
+import { getCancelReasonShort, getCancelActorLabel } from "../../data/cancelReasons.js";
 
 const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
@@ -269,23 +271,15 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
     const u    = actorUid ? getUserById(actorUid) : null;
     const name = u?.name || null;
 
-    let actorLabel;
-    if (actor === "partner") {
-      actorLabel = name ? (principalCode ? `${name} (${principalCode})` : `${name} (원청)`) : "원청";
-    } else if (actor === "operator") {
-      actorLabel = name || "운영자";
-    } else {
-      actorLabel = name || null;
-    }
-
+    // 2026-05-29 v2 — 이름 위주 (D2): 역할 라벨 제거. 이름 우선, 없으면 원청 한국 라벨 / fallback.
+    const actorLabel = (actor || name) ? getCancelActorLabel({ actor, name, principalCode }) : null;
     const atShort = at ? formatYmdHm(at) : "";
 
     if (!reason && !actorLabel) {
       return `정보 없음${atShort ? ` · ${atShort}` : ""}`;
     }
-    const reasonShort = reason
-      ? (reason.length > 12 ? reason.slice(0, 12) + "…" : reason)
-      : "—";
+    // 2026-05-29 v2 — 한국어 사유 (reasonId → CANCEL_REASONS 라벨 매핑)
+    const reasonShort = getCancelReasonShort(reason, 12) || "—";
     const parts = [reasonShort];
     if (actorLabel) parts.push(actorLabel);
     if (atShort)    parts.push(atShort);
