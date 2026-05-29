@@ -16,6 +16,8 @@ import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskM
 import { UsolNSettlementCycleCard } from "./usol_n/UsolNSettlementCycleCard.jsx";
 // 2026-05-29 — 결제 방식 라벨 표시 (현장결제 등 안전 정보 시각화)
 import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
+// 2026-05-29 — 취소 정보 카드 측 사용자 이름 lookup (사장님 D2-b)
+import { getUserById } from "../data/users.js";
 // Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
 import { listPhotosByTask } from "../lib/photosDb.js";
 // Phase 5 Step 0.C-3-c — 상태 변경 이력 (status_history 테이블) — 0.C-4 측 task_changes 통합으로 사용 제거
@@ -114,6 +116,8 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <WorkTimeHistoryCard task={task}/>
       {/* 카드 6 — 요청사항 · 메모 */}
       <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
+      {/* 2026-05-29 — 취소 정보 카드 (status='취소' 일 때만 / 옛 데이터 fallback) */}
+      {task.status === "취소" && <CancelInfoCard task={task}/>}
       {/* 2026-05-22 — 냉매 충전 동의서 (있을 때만 노출, Phase 1) */}
       {task.consent?.signedAt && <ConsentCard consent={task.consent}/>}
       {/* 2026-05-22 — 재배정 요청 카드 (있을 때만 노출) */}
@@ -1128,6 +1132,98 @@ function ReassignRequestCard({ request }) {
         💡 위 [배정 프로] 카드 측 [변경] 버튼으로 다른 기사를 배정해 주세요.
       </div>
     </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 2026-05-29 — 취소 정보 카드 (status='취소' 일 때만 노출)
+//   데이터 소스 (평탄화 commit 7893f2f / 3곳 매핑 트랩):
+//     task.cancelReason / cancelActor / cancelActorUserId / cancelActorPrincipalCode
+//     task.cancelAt / cancelPreviousStatus / cancelWasCompleted
+//     task.cancelEngineerCompKind / cancelEngineerCompAmount
+//   옛 데이터 (Migration 073 이전 취소, 84건 중 55건) — cancel 정보 없음 → "정보 없음" + updatedAt fallback.
+// ──────────────────────────────────────────────
+function CancelInfoCard({ task }) {
+  const reason        = task.cancelReason             || task.categoryData?.cancelReason             || null;
+  const actor         = task.cancelActor              || task.categoryData?.cancelActor              || null;
+  const actorUid      = task.cancelActorUserId        || task.categoryData?.cancelActorUserId        || null;
+  const principalCode = task.cancelActorPrincipalCode || task.categoryData?.cancelActorPrincipalCode || null;
+  const at            = task.cancelAt                 || task.categoryData?.cancelAt                 || null;
+  const prevStatus    = task.cancelPreviousStatus     || task.categoryData?.previousStatus           || null;
+  const wasCompleted  = task.cancelWasCompleted       ?? task.categoryData?.wasCompleted             ?? null;
+  const compKind      = task.cancelEngineerCompKind   || null;
+  const compAmount    = task.cancelEngineerCompAmount ?? 0;
+
+  const hasInfo = !!(reason || actor || at);
+  const u = actorUid ? getUserById(actorUid) : null;
+  const userName = u?.name || null;
+
+  let actorLabel = "—";
+  if (actor === "partner") {
+    actorLabel = userName
+      ? (principalCode ? `${userName} · 원청 (${principalCode})` : `${userName} · 원청`)
+      : "원청";
+  } else if (actor === "operator") {
+    actorLabel = userName ? `${userName} · 운영자` : "운영자";
+  }
+
+  const atLabel = at
+    ? formatDateTimeKST(at)
+    : (task.updatedAt ? formatDateTimeKST(task.updatedAt) : null);
+
+  return (
+    <div style={{ padding: D1_OUTER_PAD }}>
+      <div style={{
+        ...D1_CARD_STYLE,
+        background: "rgba(220,38,38,0.06)",
+        border: "1px solid rgba(220,38,38,0.35)",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#DC2626" }}>
+            ❌ 취소 정보
+          </div>
+          <div style={{ flex: 1 }}/>
+          {!hasInfo && (
+            <span style={{
+              padding: "3px 10px", borderRadius: 999,
+              background: "rgba(156,163,175,0.18)",
+              color: "#9CA3AF",
+              fontSize: 11, fontWeight: 700,
+            }}>옛 작업</span>
+          )}
+        </div>
+
+        {hasInfo ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {reason && <D2LabelRow label="사유"   value={reason} wrap/>}
+            <D2LabelRow label="취소자" value={actorLabel}/>
+            {atLabel && <D4TimeRow label="시각" value={atLabel}/>}
+            {prevStatus && <D2LabelRow label="옛 상태" value={`${prevStatus} → 취소`}/>}
+            {wasCompleted === true && (
+              <D2LabelRow label="완료 후 취소" value="예 (정정 흐름)" highlight/>
+            )}
+            {compKind && (
+              <D2LabelRow
+                label="기사 수고비"
+                value={compKind === "visit_fee"
+                  ? `출장비 ${(compAmount || 0).toLocaleString()}원`
+                  : "없음"}
+              />
+            )}
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{
+              fontSize: 12, color: "var(--text-secondary)",
+              fontWeight: 600, lineHeight: 1.5,
+            }}>
+              취소 사유 / 취소자 정보 없음 (Migration 073 이전 취소)
+            </div>
+            {atLabel && <D4TimeRow label="최종 변경 시각" value={atLabel}/>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
