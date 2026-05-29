@@ -39,6 +39,8 @@ import { TaskHistoryScreen } from "../components/TaskHistoryScreen.jsx";
 import { getHistoryCount } from "../data/taskHistory.js";
 import { UsolNScreen } from "../components/UsolNScreen.jsx";
 import { AllTasksScreen } from "../components/AllTasksScreen.jsx";
+// 2026-05-29 Phase 1 — 발주 원본 archive (Migration 080)
+import { RawOrdersArchiveScreen } from "../components/admin/RawOrdersArchiveScreen.jsx";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../data/paymentMethods.js";
 import { isRefrigerant } from "../utils/workTypeKind.js";
@@ -3366,6 +3368,21 @@ export default function AdminApp({ user, onLogout }) {
       />
     </Shell>;
   }
+  // 2026-05-29 Phase 1 — 발주 원본 archive (Migration 080). 헤더 📄 버튼으로 진입.
+  if (screen === "rawOrdersArchive") {
+    return <Shell t={t} toasts={toasts}>
+      <RawOrdersArchiveScreen
+        t={t}
+        onBack={goBack}
+        onTaskClick={(task) => {
+          // task = raw_orders.task 측 JOIN 결과 (id, task_no, status, customer_name)
+          // 작업 상세 진입을 위해 apiTasks 측 풀 task 객체 찾아 normalize.
+          const full = (apiTasks || []).find(t => t.id === task?.id) || task;
+          goTaskDetail(_v14NormalizeTask(full), "rawOrdersArchive");
+        }}
+      />
+    </Shell>;
+  }
   if (screen === "userList") {
     return <Shell t={t} toasts={toasts}>
       <UserListScreen
@@ -3551,6 +3568,8 @@ export default function AdminApp({ user, onLogout }) {
       onClickSettings={() => setScreen("settings")}
       onClickUsolN={() => setScreen("usol_n")}
       onClickAllTasks={() => setScreen("allTasks")}
+      // 2026-05-29 Phase 1 — 발주 원본 archive (Migration 080)
+      onClickRawOrdersArchive={() => setScreen("rawOrdersArchive")}
       onClickUrgentAssign={() => { setSelectedTask(URGENT_TASK); setScreen("recommend"); }}
       onEngineerClick={(eng) => goEngineerDay(eng, null)}
       onTaskClick={(task) => goTaskDetail(task, null)}
@@ -3625,7 +3644,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onEngineerClick, onTaskClick, onClickCancelHandle }) {
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle }) {
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
@@ -3678,6 +3697,10 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
                 fontFamily: "system-ui",
               }}>{unreadCount}</span>
             )}
+          </button>
+          {/* 2026-05-29 Phase 1 — 발주 원본 archive (Migration 080). 급할 때만 진입. */}
+          <button onClick={onClickRawOrdersArchive} title="발주 원본 archive" style={{ padding: "5px 8px", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7, color: t.textMuted, fontSize: 10, cursor: "pointer", fontFamily: "system-ui", display: "flex", alignItems: "center" }}>
+            📄
           </button>
           <button onClick={onClickSettings} title="설정" style={{ padding: "5px 8px", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7, color: t.textMuted, fontSize: 10, cursor: "pointer", fontFamily: "system-ui" }}>
             <Settings size={11}/>
