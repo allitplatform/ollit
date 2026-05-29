@@ -324,8 +324,9 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
         {timeStr && (<>{" · "}<span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span></>)}
       </span>
 
-      {/* 측 catch 측 catch — 재배정 요청 (핑크 = --accent) */}
-      {hasReassignReq && (
+      {/* 측 catch 측 catch — 재배정 요청 (핑크 = --accent).
+           2026-05-29 v2 (D7): status='취소' 면 숨김 (취소 우선, 재배정 의미 없음). */}
+      {hasReassignReq && !isCancelled && (
         <span style={{
           fontSize: 9, fontWeight: 800,
           color: "var(--accent)",

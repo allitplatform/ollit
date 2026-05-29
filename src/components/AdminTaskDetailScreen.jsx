@@ -121,8 +121,9 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       {/* 2026-05-29 v2 (D6) — CancelInfoCard 폐기. 변경 이력 카드 측 cancel 이벤트 빨강 강조로 대체. */}
       {/* 2026-05-22 — 냉매 충전 동의서 (있을 때만 노출, Phase 1) */}
       {task.consent?.signedAt && <ConsentCard consent={task.consent}/>}
-      {/* 2026-05-22 — 재배정 요청 카드 (있을 때만 노출) */}
-      {task.reassignRequest?.requestedAt && <ReassignRequestCard request={task.reassignRequest}/>}
+      {/* 2026-05-22 — 재배정 요청 카드 (있을 때만 노출).
+            2026-05-29 v2 (D7): status='취소' 면 숨김 (취소 우선, 재배정 의미 없음). */}
+      {task.reassignRequest?.requestedAt && task.status !== "취소" && <ReassignRequestCard request={task.reassignRequest}/>}
       {/* 카드 7 — 작업 사진 */}
       <PhotoSection taskId={task.id} taskType={task.type}/>
       <CompletionNotice task={task}/>
