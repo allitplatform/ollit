@@ -12,6 +12,8 @@ import { workDateLabel, workDateColor } from "../utils/dateLabel.js";
 import { supabase } from "../lib/supabase.js";
 // 2026-05-29 — 운영자/원청 별도 메모 (현장결제 안내 등) 새 배정 단계에서도 표시
 import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
+// 2026-05-29 — 결제 방식 라벨 (현장결제/선결제 등 안전 정보 시각화)
+import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
 
 const PhoneSvgWhite = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -305,6 +307,17 @@ export function EngineerNewAssignDetailScreen({
           }}>
             📍 {task.fullAddress || task.address || "—"}
           </div>
+
+          {/* 2026-05-29 — 결제 방식 라벨 (선택값 있을 때만 / NULL 숨김) */}
+          {task.paymentMethod && (
+            <div style={{
+              fontSize: 14, fontWeight: 600,
+              color: "var(--text-secondary)",
+              marginTop: 4,
+            }}>
+              💳 {PAYMENT_METHOD_LABELS[task.paymentMethod] || task.paymentMethod}
+            </div>
+          )}
         </div>
 
         {/* 통화 + 길찾기 */}

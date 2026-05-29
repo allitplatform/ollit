@@ -25,6 +25,8 @@ import { WorkItemRow } from "./WorkItemRow.jsx";
 import { rescheduleEngineerTask } from "../lib/engineerTaskRpc.js";
 // 2026-05-27 Phase 2 — Supabase task_memos (운영자↔기사 양방향)
 import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
+// 2026-05-29 — 결제 방식 라벨 (현장결제/선결제 등 안전 정보 시각화)
+import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
 
 // ──────────────── helpers ────────────────
 function getCurrentTime() {
@@ -1438,6 +1440,16 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
             fontWeight: 600, marginBottom: 12,
           }} iconColor="var(--text-secondary)"/>
         </>
+      )}
+
+      {/* 2026-05-29 — 결제 방식 라벨 (선택값 있을 때만 / NULL 숨김) */}
+      {task.paymentMethod && (
+        <div style={{
+          fontSize: 14, color: "var(--text-secondary)",
+          fontWeight: 600, marginBottom: 12,
+        }}>
+          💳 결제: {PAYMENT_METHOD_LABELS[task.paymentMethod] || task.paymentMethod}
+        </div>
       )}
 
       {/* V14 — 요청사항 (노랑 박스 + 좌측 3px 노란 바) */}

@@ -14,6 +14,8 @@ import { VisitOnlyDialog } from "./VisitOnlyDialog.jsx";
 import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
 // Phase 5 Step 0.C-1 — 유솔N 정산 사이클 카드 (조건 분기 / 다른 원청 영향 0)
 import { UsolNSettlementCycleCard } from "./usol_n/UsolNSettlementCycleCard.jsx";
+// 2026-05-29 — 결제 방식 라벨 표시 (현장결제 등 안전 정보 시각화)
+import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
 // Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
 import { listPhotosByTask } from "../lib/photosDb.js";
 // Phase 5 Step 0.C-3-c — 상태 변경 이력 (status_history 테이블) — 0.C-4 측 task_changes 통합으로 사용 제거
@@ -283,6 +285,10 @@ function WorkInfoCard({ task, onAssign, onScheduleChange }) {
           <D2LabelRow label="연락처" value={task.phone || "—"} mono/>
           <D2LabelRow label="주소"   value={task.address || "—"} wrap/>
           <D2LabelRow label="일정"   value={scheduledDisplay} highlight/>
+          {/* 2026-05-29 — 결제 방식 라벨 (선택값 있을 때만 / NULL 숨김) */}
+          {task.paymentMethod && (
+            <D2LabelRow label="💳 결제" value={PAYMENT_METHOD_LABELS[task.paymentMethod] || task.paymentMethod}/>
+          )}
         </div>
 
         {/* 배정 프로 */}
