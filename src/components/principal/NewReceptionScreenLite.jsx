@@ -21,7 +21,6 @@ const APPLIANCE_POOL = {
   "냉매충전": ["벽걸이", "스탠드", "4way", "투인원", "1way"],
   "출장비":   ["(공통)"],
 };
-const CHANNEL_FIXED = "직접";
 
 // 2026-05-26 — 고객 자동 생성. region("성북구") 그대로 + 전화 끝 4자리 → "성북구4696".
 //   옛: /([가-힣]+?)(?:구|시|동|군)/ 게으른 매칭이 "서울특별시"에서 "서울특별"만 잡는 사고.
@@ -117,7 +116,6 @@ export function NewReceptionScreenLite({ t, onBack, onSubmit }) {
     try {
       const taskData = {
         principalCode: "usol_h",
-        channel:       CHANNEL_FIXED,
         // 2026-05-27 Migration 077 — 결제 방식 (선택 안 함 → null)
         paymentMethod: form.paymentMethod || null,
         customer:      finalCustomer,

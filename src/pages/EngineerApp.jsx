@@ -219,7 +219,6 @@ function convertSheetTask(s) {
     engineerNet: Math.floor((s.estimateTotal || 0) * 0.6),
     requestNote: s.requestNote || "",
     happycallMemo: "",
-    channel: s.channel || "—",
     receivedAt: toDate(s.receivedAt) || "",
     requestedDate: requestedDate || "",
     requestedTime: s.requestedTime || "",

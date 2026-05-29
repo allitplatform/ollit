@@ -55,7 +55,6 @@ export function v14NormalizeTask(t) {
   const address   = t.address || t.주소 || "";
   const region    = t.region || t.지역 || v14ExtractRegion(address);
   const principal = t.principal || t.client || t.원청 || "";
-  const channel   = t.channel || t.채널 || "";
   // 2026-05-27 — Migration 077: 결제 방식 (3곳 매핑 트랩 / null 허용)
   const paymentMethod = t.paymentMethod || t.payment_method || null;
   const summary   = t.summary || t.작업요약 || t.요약 || "";
@@ -172,7 +171,7 @@ export function v14NormalizeTask(t) {
     principal, principalCode: t.principalCode || t.principal_code || "",
     // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean (유솔N 본작업 + 냉매)
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
-    channel, paymentMethod,
+    paymentMethod,
     workType, appliance, qty,
     summary, status,
     // 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 기반 state (예정 시간 측 측 → 진행중 자동)

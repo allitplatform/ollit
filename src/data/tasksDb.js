@@ -89,8 +89,7 @@ export function rowToTask(row) {
     address:      row.address,
     region:       row.district,
 
-    // 채널 / 요청
-    channel:      row.channel,
+    // 요청 (채널 컬럼은 DB 보존 / 코드 측 미사용 — usol_n bulk insert "네이버" fingerprint 전용)
     // 2026-05-27 — Migration 077: 결제 방식 (3곳 매핑 트랩)
     paymentMethod: row.payment_method,
     request:      row.request_note,
@@ -254,8 +253,7 @@ export function taskToRow(task, partial = false) {
   if (task.address  !== undefined) row.address       = task.address;
   if (task.region   !== undefined) row.district      = task.region;
 
-  // 채널 / 요청
-  if (task.channel     !== undefined) row.channel      = task.channel;
+  // 요청 (채널 컬럼은 코드 측 write 안 함 — usol_n bulk insert 직접 INSERT로만 들어감)
   // 2026-05-27 — Migration 077: 결제 방식 write
   if (task.paymentMethod !== undefined) row.payment_method = task.paymentMethod;
   if (task.requestNote !== undefined) row.request_note = task.requestNote;
@@ -763,7 +761,6 @@ export async function createTaskAdapter(taskData) {
       phone:         taskData.phone     || "",
       address:       taskData.address   || "",
       region:        taskData.region    || taskData.district || "",
-      channel:       taskData.channel   || "",
       // 2026-05-27 — Migration 077: 결제 방식 (선택 안 함 = null)
       paymentMethod: taskData.paymentMethod || null,
       requestNote:   taskData.memo      || taskData.request || taskData.requestNote || "",

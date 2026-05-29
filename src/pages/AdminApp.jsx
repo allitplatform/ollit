@@ -595,7 +595,7 @@ function parseKakaoText(text) {
     "일정", "시간", "날짜", "희망",
     "메모", "비고", "요청", "사유",
     "고객", "성함", "성명", "이름",
-    "확정", "예약", "구분", "채널",
+    "확정", "예약", "구분",
   ]);
   const nameRegex1 = /(?:이름|고객|성함|성명)\s*[:：]\s*([가-힣]{2,5})/;
   const nameRegex2 = /^([가-힣]{2,5})\s*[:：]/m;
@@ -949,7 +949,6 @@ function _v14NormalizeTask(t) {
   const address   = t.address || t.주소 || "";
   const region    = t.region || t.지역 || _v14ExtractRegion(address);
   const principal = t.principal || t.client || t.원청 || "";
-  const channel   = t.channel || t.채널 || "";
   // 2026-05-27 — Migration 077: 결제 방식 (3곳 매핑 트랩 / null 허용)
   const paymentMethod = t.paymentMethod || t.payment_method || null;
   const summary   = t.summary || t.작업요약 || t.요약 || "";
@@ -1015,7 +1014,7 @@ function _v14NormalizeTask(t) {
     principal, principalCode: t.principalCode || t.principal_code || "",
     // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean (유솔N 본작업 + 냉매)
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
-    channel, paymentMethod,
+    paymentMethod,
     workType, appliance, qty,
     summary, status,
     // 2026-05-21 Phase 5 Step 0.H-5 — effectiveStatus 기반 state (예정 시간 측 측 → 진행중 자동)
@@ -2334,7 +2333,6 @@ export default function AdminApp({ user, onLogout }) {
       region: form.region || "—",
       time: "방금",
       principal: form.principal,
-      channel: form.channel || "",
       schedule: scheduleText,
       estimateTotal: form.estimateTotal || 0,
       memo: form.memo || "",
@@ -8193,7 +8191,6 @@ function FeePreviewCell({ t, label, value, color }) {
 function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   const [form, setForm] = useState({
     principal: "",
-    channel: "",         // V14 1F — 채널 신규
     paymentMethod: "",   // 2026-05-27 Migration 077 — 결제 방식 (선택 사항)
     customer: "",
     phone: "",
@@ -8257,15 +8254,6 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     }
     return APPLIANCE_POOL[workType] || [];
   }
-
-  // V14 1F — 채널 5개 (사장님 spec)
-  const CHANNELS = [
-    { id: "카톡",   label: "카톡" },
-    { id: "전화",   label: "전화" },
-    { id: "네이버", label: "네이버" },
-    { id: "직접",   label: "직접" },
-    { id: "문자",   label: "문자" },
-  ];
 
   // 2026-05-26 — 지역(region) 추출. 도로명 주소 "서울특별시 성북구 ..." → "성북구".
   //   우선: '구'로 끝나는 토큰 (행정구역 구)
@@ -8483,7 +8471,6 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   async function handleSubmit() {
     const errs = {};
     if (!form.principal)            errs.principal = "원청 선택";
-    if (!form.channel)              errs.channel = "채널 선택";
     if (!form.phone.trim())         errs.phone = "연락처 입력";
     if (!form.address.trim())       errs.address = "주소 입력";
     if (workItems.length === 0)     errs.workItems = "작업 항목 1개 이상";
@@ -8505,7 +8492,6 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     try {
       const taskData = {
         principal:     form.principal,         // V14 7개 헌법 이름
-        channel:       form.channel,
         // 2026-05-27 Migration 077 — 결제 방식 (선택 안 함 → null)
         paymentMethod: form.paymentMethod || null,
         customer:      finalCustomer,
@@ -8674,20 +8660,6 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
               position: "absolute", right: 12, top: "50%",
               transform: "translateY(-50%)", color: t.textMuted, pointerEvents: "none",
             }}/>
-          </div>
-        </FormSection>
-
-        {/* V14 1F — 채널 드롭다운 */}
-        <FormSection t={t} icon="📥" label="채널" required error={errors.channel}>
-          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            {CHANNELS.map(c => (
-              <FormChip
-                t={t}
-                key={c.id}
-                active={form.channel === c.id}
-                onClick={() => update("channel", c.id)}
-              >{c.label}</FormChip>
-            ))}
           </div>
         </FormSection>
 
