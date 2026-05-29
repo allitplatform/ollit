@@ -18,6 +18,8 @@ import { fetchUsolNTasks, isUsolNActionNeeded } from "../../lib/usolNTasksDb.js"
 import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 import { formatYmdHm } from "../../utils/dateLabel.js";
 import { statusLabel } from "../../utils/taskStatus.js";
+// 2026-05-29 — 취소 row 사유/취소자 표시 (사장님 spec D2-b: users in-memory lookup)
+import { getUserById } from "../../data/users.js";
 
 const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
@@ -252,6 +254,44 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
   // 2026-05-26 — 완료 측 catch 흐릿 (사장님 spec — UsolNInProgress '전체' 탭 측 catch)
   const isCompleted = task.status === "완료";
 
+  // 2026-05-29 — 취소 row 사유/취소자/시각 한 줄. status='취소' 일 때만 표시.
+  //   평탄화 키 우선 (rowToTask + v14NormalizeTask + _v14NormalizeTask), category_data fallback.
+  //   옛 데이터 (cancel 정보 없음) → "정보 없음 + updated_at" fallback (사장님 D3-c).
+  const isCancelled = task.status === "취소";
+  const cancelInfo = (() => {
+    if (!isCancelled) return null;
+    const reason        = task.cancelReason             || cat.cancelReason             || null;
+    const actor         = task.cancelActor              || cat.cancelActor              || null;
+    const actorUid      = task.cancelActorUserId        || cat.cancelActorUserId        || null;
+    const principalCode = task.cancelActorPrincipalCode || cat.cancelActorPrincipalCode || null;
+    const at            = task.cancelAt                 || cat.cancelAt                 || task.updated_at || null;
+
+    const u    = actorUid ? getUserById(actorUid) : null;
+    const name = u?.name || null;
+
+    let actorLabel;
+    if (actor === "partner") {
+      actorLabel = name ? (principalCode ? `${name} (${principalCode})` : `${name} (원청)`) : "원청";
+    } else if (actor === "operator") {
+      actorLabel = name || "운영자";
+    } else {
+      actorLabel = name || null;
+    }
+
+    const atShort = at ? formatYmdHm(at) : "";
+
+    if (!reason && !actorLabel) {
+      return `정보 없음${atShort ? ` · ${atShort}` : ""}`;
+    }
+    const reasonShort = reason
+      ? (reason.length > 12 ? reason.slice(0, 12) + "…" : reason)
+      : "—";
+    const parts = [reasonShort];
+    if (actorLabel) parts.push(actorLabel);
+    if (atShort)    parts.push(atShort);
+    return parts.join(" · ");
+  })();
+
   return (
     <div
       onClick={onClick}
@@ -260,13 +300,16 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
         background: "var(--bg-elevated)",
         border: "1px solid var(--border)",
         borderRadius: 8,
+        cursor: "pointer",
+        opacity: isCompleted ? 0.5 : 1,
+        display: "flex", flexDirection: "column",
+      }}
+    >
+      <div style={{
         padding: "8px 10px",
         display: "flex", alignItems: "center", gap: 8,
         minHeight: 38,
-        cursor: "pointer",
-        opacity: isCompleted ? 0.5 : 1,
-      }}
-    >
+      }}>
       <div style={{ flexShrink: 0, width: 14, textAlign: "center" }}>
         <ServiceIcon kind={kind}/>
       </div>
@@ -332,6 +375,20 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
         background: status.bg, color: status.color,
         flexShrink: 0, whiteSpace: "nowrap",
       }}>{status.label}</span>
+      </div>
+
+      {/* 2026-05-29 — 취소 row 사유/취소자/시각 한 줄 (status='취소' 일 때만 / D5-a 회색) */}
+      {isCancelled && cancelInfo && (
+        <div style={{
+          padding: "4px 10px 8px 32px",
+          fontSize: 10, fontWeight: 500,
+          color: "var(--text-secondary)",
+          borderTop: "1px dashed var(--border)",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>
+          ❌ {cancelInfo}
+        </div>
+      )}
     </div>
   );
 }
