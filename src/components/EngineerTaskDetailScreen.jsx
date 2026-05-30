@@ -8,7 +8,7 @@ import { useRef, useState, useEffect } from "react";
 import { ArrowLeft, Camera, X, Copy } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
-import { changePriceAdapter as apiChangePrice, markVisitOnlyAdapter } from "../data/tasksDb.js";
+import { changePriceAdapter as apiChangePrice, markVisitOnlyAdapter, setReceivedTotalAdapter as apiSetReceivedTotal } from "../data/tasksDb.js";
 import { isRefrigerant as isRefrigerantWorkType } from "../utils/workTypeKind.js";
 import { supabase } from "../lib/supabase.js";
 import {
@@ -274,6 +274,12 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   })();
   const [photos, setPhotos] = useState(initialPhotos);
   const [extraFee, setExtraFee] = useState(task.extraFee ? String(task.extraFee) : "");
+  // 2026-05-30 — Phase B Step 3 — 신규 흐름 (received_total 입력) state.
+  //   분기: usesReceivedTotalFlow = principalCode != 'usol_n' && paymentMethod != 'prepaid'.
+  //   가드 케이스 (usol_n / prepaid) 는 옛 흐름 (extraFee 직접 입력) 그대로 유지.
+  const [receivedTotal, setReceivedTotal] = useState(
+    task.receivedTotal != null ? String(task.receivedTotal) : ""
+  );
   const [workMemo, setWorkMemo] = useState(task.workMemo || "");
   const [menuOpen, setMenuOpen] = useState(false);
   const [visitOnlyOpen, setVisitOnlyOpen] = useState(false);
@@ -285,19 +291,29 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   const afterFileRef  = useRef(null);
   const PHOTO_MIN = 2;
 
-  // 2026-05-17 시나리오 B — 진행중 화면에서 ExtraFeeInput에 타이핑한 추가금은 로컬 state만 갱신됨.
-  // 완료 분기 화면(완료/부분/출장비) 진입 직전에 DB에 먼저 박아둬야
+  // 2026-05-30 — Phase B Step 3 — 결제 흐름 분기.
+  //   가드 케이스 (usol_n OR payment_method='prepaid') → 옛 흐름 (extra_fee 직접 입력).
+  //   그 외 → 신규 흐름 (received_total 입력, DB BEFORE 트리거가 extra_fee 자동 sync).
+  const usesReceivedTotalFlow =
+    task.principalCode !== 'usol_n' && task.paymentMethod !== 'prepaid';
+
+  // 정규화된 파싱 값 (네비게이션 spread 측 측 X 측 재사용)
+  const parsedExtra    = parseInt(extraFee || "0", 10);
+  const parsedReceived = parseInt(receivedTotal || "0", 10);
+  // 신규 흐름의 자동 계산 추가금 (DB 트리거 공식과 동일: GREATEST(received - product, 0))
+  const derivedExtra   = Math.max(parsedReceived - (task.estimateTotal || 0), 0);
+
+  // 2026-05-17 시나리오 B — 진행중 화면에서 입력란에 타이핑한 값은 로컬 state만 갱신됨.
+  // 완료 분기 화면(완료/부분/출장비) 진입 직전에 DB에 먼저 저장해야
   // 다음 화면 mount 시 compute_payment가 정확한 extra_fee로 재계산함.
-  // changePriceAdapter는 내부에서 compute_payment RPC를 호출하므로 payments도 갱신됨.
+  // changePriceAdapter / setReceivedTotalAdapter 측 모두 내부에서 compute_payment RPC 호출.
   async function persistExtraFeeAndNavigate(target) {
     if (saving) return; // 더블 클릭 방지
-    const parsed    = parseInt(extraFee || "0", 10);
     const currentDb = Number(task.extraFee || 0);
-    if (parsed !== currentDb) {
+    if (parsedExtra !== currentDb) {
       setSaving(true);
       try {
-        // newPrice는 이 화면에서 변경하지 않으므로 undefined.
-        const res = await apiChangePrice(task.id, undefined, parsed, undefined);
+        const res = await apiChangePrice(task.id, undefined, parsedExtra, undefined);
         if (!res || res.ok === false) {
           console.warn('[EngineerTaskDetailScreen] extraFee 사전 저장 실패:', res?.error);
         }
@@ -309,6 +325,40 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     }
     setSubScreen(target);
   }
+
+  // 2026-05-30 — Phase B Step 3 — 신규 흐름 persist.
+  //   received_total 만 write → BEFORE 트리거가 extra_fee 자동 sync,
+  //   AFTER compute_payment_trg 가 정산 재계산 (Migration 083 컬럼 확장).
+  async function persistReceivedTotalAndNavigate(target) {
+    if (saving) return;
+    const currentDb = Number(task.receivedTotal ?? 0);
+    if (parsedReceived !== currentDb) {
+      setSaving(true);
+      try {
+        const res = await apiSetReceivedTotal(task.id, parsedReceived);
+        if (!res || res.ok === false) {
+          console.warn('[EngineerTaskDetailScreen] receivedTotal 사전 저장 실패:', res?.error);
+        }
+      } catch (e) {
+        console.warn('[EngineerTaskDetailScreen] receivedTotal 사전 저장 예외:', e?.message);
+      } finally {
+        setSaving(false);
+      }
+    }
+    setSubScreen(target);
+  }
+
+  // 흐름에 따라 어느 persist 함수를 쓸지 통합
+  const persistAndNavigate = usesReceivedTotalFlow
+    ? persistReceivedTotalAndNavigate
+    : persistExtraFeeAndNavigate;
+
+  // 완료 분기 화면에 넘길 task override (extraFee 는 화면에서 표시용)
+  //   신규 흐름: receivedTotal + 트리거 공식으로 derived extraFee 둘 다 명시
+  //   옛 흐름: extraFee 만 (기존 동작)
+  const completionTaskOverride = usesReceivedTotalFlow
+    ? { receivedTotal: parsedReceived, extraFee: derivedExtra }
+    : { extraFee: parsedExtra };
 
   if (!task) {
     return (
@@ -351,7 +401,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   if (subScreen === "complete") {
     return (
       <CompletionCompleteScreen
-        task={{ ...task, extraFee: parseInt(extraFee || "0", 10) }}
+        task={{ ...task, ...completionTaskOverride }}
         photos={photos}
         onBack={() => setSubScreen(null)}
         onConfirm={(payload) => {
@@ -359,7 +409,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
             status: "완료",
             completedAt: getCurrentTime(),
             photos: photos.map(p => ({ url: p.url, step: p.step })),
-            extraFee: parseInt(extraFee || "0", 10),
+            ...completionTaskOverride,
             workMemo: workMemo + (payload.memo ? "\n[마무리] " + payload.memo : ""),
           });
           setSubScreen(null);
@@ -371,7 +421,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   if (subScreen === "partial") {
     return (
       <TaskPartialScreen
-        task={{ ...task, extraFee: parseInt(extraFee || "0", 10) }}
+        task={{ ...task, ...completionTaskOverride }}
         photos={photos}
         onBack={() => setSubScreen(null)}
         onConfirm={async (payload) => {
@@ -412,7 +462,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
             partialReason: payload.reasonId,
             partialMemo: payload.autoMemo,
             photos: photos.map(p => ({ url: p.url, step: p.step })),
-            extraFee: parseInt(extraFee || "0", 10),
+            ...completionTaskOverride,
             workMemo: workMemo,
           });
           setSubScreen(null);
@@ -531,7 +581,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
       photoAfter: true,
       beforePhoto: true,
       afterPhoto: true,
-      extraFee: parseInt(extraFee || "0", 10),
+      ...completionTaskOverride,
       workMemo: workMemo,
     });
     onBack && onBack();
@@ -601,6 +651,11 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     const cur = parseInt(extraFee || "0", 10);
     setExtraFee(String(cur + amount));
   }
+  // 2026-05-30 — Phase B Step 3 — 신규 흐름 받은 돈 quick add
+  function addReceived(amount) {
+    const cur = parseInt(receivedTotal || "0", 10);
+    setReceivedTotal(String(cur + amount));
+  }
 
   return (
     <div style={{
@@ -657,7 +712,21 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
             onPhotoChange={handlePhotoChange}
             onRemove={handleRemovePhoto}
           />
-          <ExtraFeeInput value={extraFee} onChange={setExtraFee} onAdd={addExtra} baseAmount={task.estimateTotal || 0}/>
+          {usesReceivedTotalFlow ? (
+            <ReceivedTotalInput
+              value={receivedTotal}
+              onChange={setReceivedTotal}
+              onAdd={addReceived}
+              baseAmount={task.estimateTotal || 0}
+            />
+          ) : (
+            <ExtraFeeInput
+              value={extraFee}
+              onChange={setExtraFee}
+              onAdd={addExtra}
+              baseAmount={task.estimateTotal || 0}
+            />
+          )}
           <WorkMemoInput value={workMemo} onChange={setWorkMemo}/>
         </>
       )}
@@ -774,7 +843,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
                 alert(`사진은 최소 ${PHOTO_MIN}장 필요합니다.`);
                 return;
               }
-              await persistExtraFeeAndNavigate("complete");
+              await persistAndNavigate("complete");
             }}
             disabled={!enough || saving}
             style={{
@@ -796,7 +865,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
           {/* V14 헌법 — 부분 완료 = 회색 (중립) / 출장비만 = 빨강 (취소) */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
             <button
-              onClick={() => persistExtraFeeAndNavigate("partial")}
+              onClick={() => persistAndNavigate("partial")}
               disabled={saving}
               style={{
                 padding: 13,
@@ -815,7 +884,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
               부분 완료
             </button>
             <button
-              onClick={() => persistExtraFeeAndNavigate("visitOnly")}
+              onClick={() => persistAndNavigate("visitOnly")}
               disabled={saving}
               style={{
                 padding: 13,
@@ -1890,6 +1959,139 @@ function ExtraFeeInput({ value, onChange, onAdd, baseAmount = 0 }) {
                 </span>
               )}
             </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 2026-05-30 — Phase B Step 3 — 고객 결제 총액 입력 (신규 흐름).
+//   사용자가 입력 = received_total. DB BEFORE 트리거가 extra_fee 자동 sync.
+//   자동 계산된 추가금 = GREATEST(received_total - product_price, 0). 트리거 공식과 동일.
+//   분기: principalCode != 'usol_n' && paymentMethod != 'prepaid' 일 때만 렌더.
+function ReceivedTotalInput({ value, onChange, onAdd, baseAmount = 0 }) {
+  const receivedNum = Number(value) || 0;
+  const isUndecided = baseAmount === 0;
+  const autoExtra   = Math.max(receivedNum - baseAmount, 0);
+  return (
+    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+      <div style={{
+        background: "var(--extra-fee-bg)",
+        borderRadius: 12,
+        padding: 14,
+      }}>
+        <div style={{
+          fontSize: 13, color: "var(--extra-fee-header)",
+          fontWeight: 600, marginBottom: 2,
+        }}>
+          💰 고객 결제 총액
+        </div>
+        <div style={{
+          fontSize: 11, color: "var(--text-tertiary)",
+          fontWeight: 500, marginBottom: 10,
+        }}>
+          현장에서 받은 돈 (견적 + 추가금 합계)
+        </div>
+
+        {/* 견적 합 안내 카드 */}
+        <div style={{
+          padding: "10px 12px", marginBottom: 10,
+          background: "var(--card-bg)",
+          border: `1px solid ${isUndecided ? "var(--warning)" : "var(--border)"}`,
+          borderRadius: 8,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          fontSize: 12, fontWeight: 600,
+          color: isUndecided ? "var(--warning)" : "var(--text-secondary)",
+        }}>
+          <span>견적 합 (자동)</span>
+          {isUndecided ? (
+            <span style={{ fontStyle: "italic" }}>미정 (현장 확정)</span>
+          ) : (
+            <span className="mono" style={{ color: "var(--text-primary)", fontSize: 14, fontWeight: 700 }}>
+              ₩{baseAmount.toLocaleString("ko-KR")}
+            </span>
+          )}
+        </div>
+
+        {/* 받은 돈 입력 */}
+        <input
+          type="number"
+          inputMode="numeric"
+          placeholder="현장에서 받은 돈"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{
+            width: "100%", padding: 12,
+            background: "var(--card-bg)",
+            border: "1px solid var(--extra-fee-border)",
+            borderRadius: 10,
+            color: "var(--text-primary)",
+            fontSize: 16, boxSizing: "border-box",
+            outline: "none", marginBottom: 10,
+            fontFamily: "inherit",
+            fontWeight: 600,
+          }}
+        />
+
+        {/* Quick add — 받은 돈에 더하기 */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 6,
+        }}>
+          {[
+            { amount: 5000,   label: "+5천"  },
+            { amount: 10000,  label: "+1만"  },
+            { amount: 50000,  label: "+5만"  },
+            { amount: 100000, label: "+10만" },
+          ].map(b => (
+            <button
+              key={b.amount}
+              onClick={() => onAdd(b.amount)}
+              style={{
+                padding: 8,
+                background: "var(--card-bg)",
+                border: "1px solid var(--extra-fee-border)",
+                borderRadius: 8,
+                color: "var(--extra-fee-text)",
+                fontSize: 12, fontWeight: 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+              }}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+
+        {/* 자동 계산된 추가금 + 총액 (받은 돈 > 0 일 때) */}
+        {receivedNum > 0 && (
+          <div style={{
+            marginTop: 10, padding: "10px 12px",
+            background: "var(--card-bg)",
+            borderRadius: 8,
+            display: "flex", flexDirection: "column", gap: 6,
+            fontSize: 12, fontWeight: 700,
+          }}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              color: "var(--text-secondary)",
+            }}>
+              <span>= 자동 계산된 추가금</span>
+              <span className="mono" style={{ color: "var(--text-primary)" }}>
+                ₩{autoExtra.toLocaleString("ko-KR")}
+              </span>
+            </div>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              color: "var(--text-primary)",
+            }}>
+              <span>총액 = 결제 총액</span>
+              <span className="mono" style={{ color: "var(--accent)", fontSize: 14 }}>
+                ₩{receivedNum.toLocaleString("ko-KR")}
+              </span>
+            </div>
           </div>
         )}
       </div>

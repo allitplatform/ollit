@@ -1078,6 +1078,37 @@ export async function completeTaskAdapter(taskId) {
   return res;
 }
 
+// 2026-05-30 — Migration 083 — 고객 결제 총액 (received_total) write 어댑터.
+// 신규 흐름 (principal_code != 'usol_n' && payment_method != 'prepaid') 전용.
+// DB BEFORE 트리거 trg_tasks_sync_extra_fee 가 extra_fee 자동 sync,
+// AFTER compute_payment_trg (083 에서 received_total 컬럼 추가) 가 정산 재계산.
+// 진행중 단계에서도 compute_payment RPC idempotent 호출 (changePriceAdapter 와 동일 패턴).
+//
+// 시그니처: (taskId, receivedTotal)  — number | null
+// 응답: { ok: true, task } | { ok: false, error }
+export async function setReceivedTotalAdapter(taskId, receivedTotal) {
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  const updates = {
+    receivedTotal: receivedTotal == null ? null : (Number(receivedTotal) || 0),
+    extraFeeAt:    new Date().toISOString(),
+  };
+  const res = await updateTaskAdapter(taskId, updates);
+
+  // status='진행중' 단계의 정산 재계산 보장 (changePriceAdapter 와 동일 사유)
+  if (res.ok) {
+    try {
+      const { error } = await supabase.rpc('compute_payment', { p_task_id: taskId });
+      if (error) {
+        console.warn('[setReceivedTotalAdapter] compute_payment 실패 (write 는 통과):', error.message);
+      }
+    } catch (e) {
+      console.warn('[setReceivedTotalAdapter] compute_payment 예외 (write 는 통과):', e.message);
+    }
+  }
+
+  return res;
+}
+
 // 기사 측 금액 변경 — productPrice / extraFee / extraReason 업데이트
 // 시그니처 호환: (taskId, newPrice, addAmount, reason)
 // 응답: { ok: true, task } | { ok: false, error }
