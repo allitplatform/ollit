@@ -70,6 +70,9 @@ export function v14NormalizeTask(t) {
   // 아니면 calcCommission lookup 후 계산 (일반 영역)
   const addonFee = Number(t.addonFee || t.현장추가금 || 0);
   const extraFee = Number(t.extraFee || t.추가금 || t.addAmount || 0);
+  // 2026-05-30 — Migration 083 — 고객 결제 총액. NULL 보존 (가드/미입력 구분).
+  //   Number() 강제 변환 안 함 → null 그대로 UI 분기 판단용.
+  const receivedTotal = t.receivedTotal ?? t.received_total ?? null;
   const schedule  = t.schedule || [reqDate, reqTime].filter(Boolean).join(" ") || "협의";
   const scheduledAt = t.scheduledAt || t.확정일시 || t.confirmedAt || "";
   const summaryItems = v14ParseSummary(summary);
@@ -188,6 +191,7 @@ export function v14NormalizeTask(t) {
     estimateTotal: estimate,
     addonFee,
     extraFee,
+    receivedTotal,
     // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy (Migration 042) 매핑
     isLegacy: !!(t.isLegacy ?? t.is_legacy),
     requestedDate: reqDate,

@@ -1076,6 +1076,9 @@ function _v14NormalizeTask(t) {
     extraFee:    Number(t.extraFee    || t.extra_fee    || t.추가금 || t.addAmount || 0),
     extraReason: t.extraReason  || t.extra_reason  || "",
     extraFeeAt:  t.extraFeeAt   || t.extra_fee_at   || null,
+    // 2026-05-30 — Migration 083 — 고객 결제 총액 ("두 곳 모두 매핑" 트랩).
+    //   NULL 보존 (가드 케이스 usol_n/prepaid 또는 미입력 구분용) — Number() 강제 변환 안 함.
+    receivedTotal: t.receivedTotal ?? t.received_total ?? null,
     // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy (Migration 042) 매핑 ("두 곳 모두 매핑" 트랩)
     isLegacy:    !!(t.isLegacy ?? t.is_legacy),
     // 2026-05-17 Round 1 Fix #7 — calc_method 패스스루 (정산 정책 표시용).

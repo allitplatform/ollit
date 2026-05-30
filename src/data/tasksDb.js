@@ -131,6 +131,10 @@ export function rowToTask(row) {
     extraFee:      row.extra_fee,
     extraReason:   row.extra_reason,
     extraFeeAt:    row.extra_fee_at,
+    // 2026-05-30 — Migration 083 — 고객 결제 총액 (3곳 매핑 트랩)
+    //   가드 (usol_n / payment_method=prepaid) → NULL 유지, 옛 흐름.
+    //   그 외 → received_total 입력 시 BEFORE 트리거가 extra_fee 자동 sync.
+    receivedTotal: row.received_total,
     totalAmount:   row.total_amount,
     estimateTotal: row.product_price,
 
@@ -306,6 +310,8 @@ export function taskToRow(task, partial = false) {
   if (task.extraFee     !== undefined) row.extra_fee     = task.extraFee;
   if (task.extraReason  !== undefined) row.extra_reason  = task.extraReason;
   if (task.extraFeeAt   !== undefined) row.extra_fee_at  = _toTsOrNull(task.extraFeeAt);
+  // 2026-05-30 — Migration 083 — received_total write. NULL 허용 (가드 케이스).
+  if (task.receivedTotal !== undefined) row.received_total = task.receivedTotal;
 
   if (task.categoryData !== undefined) row.category_data = task.categoryData;
 
