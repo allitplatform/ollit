@@ -698,32 +698,50 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
           const cancelled = act === 0;
           const name = wi.appliance || wi.workType || wi.workItem || "측 catch";
           const orderTypeLabel = wi.orderType || wi.order_type || "";
+          const colors = getWorkTypeColors(wi.workType);
           return (
             <div key={wi.id} style={{
               background: "var(--bg-secondary)",
               border: "1px solid var(--border)",
               borderRadius: 10, padding: "10px 12px", marginBottom: 6,
               display: "flex", alignItems: "center", gap: 10,
+              opacity: cancelled ? 0.7 : 1,
             }}>
-              {/* 측 catch — 상품명 + 주문 수량 */}
+              {/* 좌측 — 작업종류 컬러 라벨 + 기종 + 주문 수량 */}
               <div style={{ minWidth: 0, flex: 1 }}>
+                {/* 작업종류 라벨 (아이콘 + 이름) + 취소 배지 — v21 일관성 톤 */}
                 <div style={{
-                  fontSize: 13, fontWeight: 700, color: "var(--text-primary)",
+                  fontSize: 11, fontWeight: 800,
+                  color: cancelled ? "#9CA3AF" : colors.main,
+                  marginBottom: 3,
+                  display: "flex", alignItems: "center", gap: 6,
+                  letterSpacing: 0.2,
+                }}>
+                  <span style={{ fontSize: 13, filter: cancelled ? "grayscale(1)" : "none" }}>{colors.icon}</span>
+                  <span>{colors.name}</span>
+                  {cancelled && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 800,
+                      padding: "1px 6px", borderRadius: 999,
+                      background: "#FCEBEB", color: "#A32D2D",
+                      whiteSpace: "nowrap",
+                    }}>✗ 취소</span>
+                  )}
+                </div>
+                {/* 기종 + (주문유형) — 취소 시 회색 + 취소선 */}
+                <div style={{
+                  fontSize: 13, fontWeight: 700,
+                  color: cancelled ? "#9CA3AF" : "var(--text-primary)",
                   display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap",
                 }}>
-                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                  <span style={{
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    textDecoration: cancelled ? "line-through" : "none",
+                  }}>{name}</span>
                   {orderTypeLabel && (
                     <span style={{ fontSize: 10, color: "var(--text-tertiary)", fontWeight: 600 }}>
                       ({orderTypeLabel})
                     </span>
-                  )}
-                  {cancelled && (
-                    <span style={{
-                      fontSize: 10, fontWeight: 700,
-                      padding: "1px 6px", borderRadius: 999,
-                      background: "rgba(255,59,92,0.12)", color: "#FF3B5C",
-                      whiteSpace: "nowrap",
-                    }}>취소</span>
                   )}
                 </div>
                 <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 600, marginTop: 1 }}>

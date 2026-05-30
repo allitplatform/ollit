@@ -5,6 +5,7 @@
 // 호출자: 새 RPC 헬퍼 (cancelRpc.js) 호출 — 옛 어댑터와 섞지 말 것.
 
 import { useState } from "react";
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
 
 // ============================================================================
 // 공통 — 모달 wrapper
@@ -176,12 +177,11 @@ export function PartialCancelDialog({ task, onClose, onConfirm }) {
           {items.map(it => {
             const done = !!it.isCanceled;
             const checked = checkedIds.has(it.id);
-            const label = [
-              it.workType || it.work_type,
-              it.appliance || it.appliance_type,
-            ].filter(Boolean).join(" · ") || "—";
+            const workTypeRaw = it.workType || it.work_type || "";
+            const applianceName = it.appliance || it.appliance_type || "";
             const qty = it.qty || 1;
             const amount = Number(it.subtotal) || (Number(it.unitPrice) * qty) || 0;
+            const colors = getWorkTypeColors(workTypeRaw);
             return (
               <label key={it.id} style={{
                 display: "flex", alignItems: "center", gap: 10,
@@ -200,11 +200,30 @@ export function PartialCancelDialog({ task, onClose, onConfirm }) {
                   style={{ width: 16, height: 16, cursor: done ? "not-allowed" : "pointer" }}
                 />
                 <div style={{ flex: 1, minWidth: 0 }}>
+                  {/* 작업종류 컬러 라벨 (아이콘 + 이름) + 취소 배지 — v21 일관성 톤 */}
+                  <div style={{
+                    fontSize: 11, fontWeight: 800,
+                    color: done ? "#9CA3AF" : colors.main,
+                    marginBottom: 3,
+                    display: "flex", alignItems: "center", gap: 6,
+                    letterSpacing: 0.2,
+                  }}>
+                    <span style={{ fontSize: 13, filter: done ? "grayscale(1)" : "none" }}>{colors.icon}</span>
+                    <span>{colors.name}</span>
+                    {done && (
+                      <span style={{
+                        fontSize: 10, fontWeight: 800,
+                        padding: "1px 6px", borderRadius: 999,
+                        background: "#FCEBEB", color: "#A32D2D",
+                        whiteSpace: "nowrap",
+                      }}>✗ 취소</span>
+                    )}
+                  </div>
                   <div style={{
                     fontSize: 13, fontWeight: 700,
                     color: done ? "#9CA3AF" : "var(--text-primary, #FAF8F5)",
                     textDecoration: done ? "line-through" : "none",
-                  }}>{label} ×{qty}</div>
+                  }}>{applianceName || colors.name} ×{qty}</div>
                   <div className="mono" style={{
                     fontSize: 11, color: "#9CA3AF", marginTop: 2,
                   }}>₩{amount.toLocaleString("ko-KR")}{done && " · 이미 취소됨"}</div>
