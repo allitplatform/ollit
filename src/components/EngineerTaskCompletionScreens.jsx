@@ -96,6 +96,127 @@ function SummaryRow({ label, value, isBold, isItalic, accentColor }) {
   );
 }
 
+// 2026-05-30 — Phase B Step 4 — 부분 완료 화면용 받은 돈 입력 + 변화 표시 카드 (신규 흐름).
+//   - 견적 합: 부분 취소로 줄어든 경우 (baseAmount < origAmount) 취소선 + 새 값 + ↓ 아이콘
+//   - 받은 돈: 사용자 입력 (기본값 = task.receivedTotal 또는 productPrice fallback). 그대로 유지 권장.
+//   - 자동 추가금: GREATEST(받은 돈 - 새 견적, 0). 견적 합 줄어든 만큼 자동 증가 → 취소선 + 새 값 + ↑.
+//   - 총액: 받은 돈 그대로 (강조 색).
+//   DB 동기: 호출처가 task_items 변경 후 apiSetReceivedTotal 로 received_total UPDATE → BEFORE 트리거가 extra_fee 자동 sync.
+function PartialReceivedSummary({ baseAmount = 0, origAmount = 0, receivedTotal = "", onReceivedChange, accentColor = "#D4537E" }) {
+  const receivedNum  = Number(receivedTotal) || 0;
+  const autoExtra    = Math.max(receivedNum - baseAmount, 0);
+  const origAutoExtra = Math.max(receivedNum - origAmount, 0);
+  const baseChanged  = baseAmount !== origAmount;
+  const extraChanged = autoExtra  !== origAutoExtra;
+
+  return (
+    <div style={{
+      margin: "0 16px 14px",
+      padding: 14,
+      background: "var(--bg-secondary)",
+      border: "1px solid var(--border)",
+      borderRadius: 12,
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 800, color: "var(--text-secondary)",
+        letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10,
+      }}>
+        💰 금액 요약
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {/* 견적 합 — 변화 시 취소선 + 새 값 + ↓ */}
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          fontSize: 13, fontWeight: 600,
+        }}>
+          <span style={{ color: "var(--text-secondary)" }}>견적 합</span>
+          {baseChanged ? (
+            <span className="mono" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <s style={{ color: "var(--text-tertiary)", fontWeight: 500 }}>
+                ₩{origAmount.toLocaleString("ko-KR")}
+              </s>
+              <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                ₩{baseAmount.toLocaleString("ko-KR")}
+              </span>
+              <span style={{ color: accentColor, fontSize: 11, fontWeight: 800 }}>↓</span>
+            </span>
+          ) : (
+            <span className="mono" style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+              ₩{baseAmount.toLocaleString("ko-KR")}
+            </span>
+          )}
+        </div>
+
+        {/* 받은 돈 입력 — 사용자 직접 (기본값 진행중 입력값) */}
+        <div>
+          <div style={{
+            fontSize: 11, color: "var(--text-secondary)",
+            fontWeight: 700, marginBottom: 4,
+          }}>
+            받은 돈 (수정 가능)
+          </div>
+          <input
+            type="number"
+            inputMode="numeric"
+            placeholder="현장에서 받은 돈"
+            value={receivedTotal}
+            onChange={(e) => onReceivedChange && onReceivedChange(e.target.value)}
+            style={{
+              width: "100%", padding: 10,
+              background: "var(--card-bg)",
+              border: `1px solid ${accentColor}`,
+              borderRadius: 8,
+              color: "var(--text-primary)",
+              fontSize: 14, boxSizing: "border-box",
+              outline: "none",
+              fontFamily: "inherit",
+              fontWeight: 700,
+            }}
+          />
+        </div>
+
+        {/* 자동 추가금 — 변화 시 취소선 + 새 값 + ↑ */}
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          fontSize: 13, fontWeight: 600,
+        }}>
+          <span style={{ color: "var(--text-secondary)" }}>= 자동 추가금</span>
+          {extraChanged ? (
+            <span className="mono" style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <s style={{ color: "var(--text-tertiary)", fontWeight: 500 }}>
+                ₩{origAutoExtra.toLocaleString("ko-KR")}
+              </s>
+              <span style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                ₩{autoExtra.toLocaleString("ko-KR")}
+              </span>
+              <span style={{ color: accentColor, fontSize: 11, fontWeight: 800 }}>↑</span>
+            </span>
+          ) : (
+            <span className="mono" style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+              ₩{autoExtra.toLocaleString("ko-KR")}
+            </span>
+          )}
+        </div>
+
+        {/* 구분선 */}
+        <div style={{ height: 1, background: "var(--border)", margin: "2px 0" }}/>
+
+        {/* 총액 = 받은 돈 (변경 없음) — 강조 색 */}
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          fontSize: 14, fontWeight: 800,
+        }}>
+          <span style={{ color: "var(--text-secondary)" }}>총액 = 받은 돈</span>
+          <span className="mono" style={{ color: accentColor, fontWeight: 800 }}>
+            ₩{receivedNum.toLocaleString("ko-KR")}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const PARTIAL_REASONS = [
   { id: "customer_change", label: "고객 요청 변경" },
   { id: "device_bad",      label: "기기 상태 불량 (작업 불가)" },
@@ -583,6 +704,19 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const [reasonId, setReasonId] = useState("customer_change");
   const [memo, setMemo]         = useState("");
 
+  // 2026-05-30 — Phase B Step 4 — 결제 흐름 분기 (Step 3 진행중 화면 분기와 동일)
+  //   가드 케이스 (usol_n / payment_method='prepaid') → 옛 흐름 (extraFee 직접 입력 유지).
+  //   그 외 → 신규 흐름 (받은 돈 입력 + 자동 추가금 재계산).
+  const usesReceivedTotalFlow =
+    task.principalCode !== 'usol_n' && task.paymentMethod !== 'prepaid';
+
+  // 받은 돈 default — 진행중에서 입력한 값 (task.receivedTotal) > productPrice (fallback)
+  const [receivedTotal, setReceivedTotal] = useState(() => {
+    if (task.receivedTotal != null) return String(task.receivedTotal);
+    const baseline = task.productPrice ?? task.estimateTotal ?? 0;
+    return baseline ? String(baseline) : "";
+  });
+
   function setItemQty(itemId, nextQty) {
     setActualQtyById(prev => ({ ...prev, [itemId]: nextQty }));
   }
@@ -593,7 +727,11 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
     return s + (Number(wi.unitPrice) || 0) * aq;
   }, 0);
   const extraFee   = task.extraFee || 0;
-  const total      = baseAmount + extraFee;
+  // 신규 흐름: 받은 돈 그대로 = 총액, 자동 추가금 = max(received - 새 견적, 0).
+  // 옛 흐름: total = baseAmount + extraFee (기존).
+  const receivedNum = Number(receivedTotal) || 0;
+  const autoExtra   = usesReceivedTotalFlow ? Math.max(receivedNum - baseAmount, 0) : 0;
+  const total       = usesReceivedTotalFlow ? receivedNum : baseAmount + extraFee;
 
   // 측 catch 측 catch 측 catch — 측 catch 합계 / 측 catch 합계 측 catch 비례 (= 측 catch 측 catch X 측 catch)
   //   measurement 측 catch payments.engineer_amount 측 catch 측 catch (현 task) — 측 catch baseAmount/origAmount 측 catch
@@ -664,6 +802,10 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
       memo,
       autoMemo: buildAutoMemo(),
       total,
+      // 2026-05-30 — Phase B Step 4 — 신규 흐름 받은 돈 + 새 견적 합 전달 (호출처 persist + onUpdate 용).
+      //   가드 케이스 (옛 흐름) → receivedTotal null.
+      receivedTotal: usesReceivedTotalFlow ? receivedNum : null,
+      baseAmount,
       earning,
       photos: photos.length,
     });
@@ -783,8 +925,21 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
         label="⚠️ 부분 완료 사유 (필수)"
       />
 
-      {/* 측 catch / 측 catch / 측 catch 측 catch (= 측 catch 측 catch 측 catch 측 catch) */}
-      <AmountSummaryCard baseAmount={baseAmount} extraFee={extraFee} accentColor="#888"/>
+      {/* 2026-05-30 — Phase B Step 4 — 금액 요약 분기:
+            신규 흐름: PartialReceivedSummary (받은 돈 입력 + 견적 합/추가금 변화 표시)
+            옛 흐름:   AmountSummaryCard (기존 견적 + 추가 + 총액)
+          accentColor 핑크 강조 #D4537E 시안 적용. */}
+      {usesReceivedTotalFlow ? (
+        <PartialReceivedSummary
+          baseAmount={baseAmount}
+          origAmount={origAmount}
+          receivedTotal={receivedTotal}
+          onReceivedChange={setReceivedTotal}
+          accentColor="#D4537E"
+        />
+      ) : (
+        <AmountSummaryCard baseAmount={baseAmount} extraFee={extraFee} accentColor="#888"/>
+      )}
       <EarningOnlyCard amount={earning} color="#888" loading={earningLoading}/>
 
       {reasonId === "other" && (

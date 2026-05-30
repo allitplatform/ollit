@@ -456,13 +456,39 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
           } catch (e) {
             console.warn("[partial] task_items UPDATE 실패:", e?.message);
           }
+          // 2026-05-30 — Phase B Step 4 — 신규 흐름 received_total 별도 persist.
+          //   task_items 변경으로 product_price 가 자동 sync 된 후, received_total UPDATE 시
+          //   BEFORE 트리거가 새 product_price 기준으로 extra_fee 자동 재계산.
+          if (usesReceivedTotalFlow && payload.receivedTotal != null) {
+            const currentDb = Number(task.receivedTotal ?? 0);
+            if (Number(payload.receivedTotal) !== currentDb) {
+              try {
+                const res = await apiSetReceivedTotal(task.id, Number(payload.receivedTotal));
+                if (!res || res.ok === false) {
+                  console.warn('[partial] receivedTotal UPDATE 실패:', res?.error);
+                }
+              } catch (e) {
+                console.warn('[partial] receivedTotal UPDATE 예외:', e?.message);
+              }
+            }
+          }
+          // onUpdate override — 부분완료 후 in-memory task 일치화.
+          //   신규 흐름: 새 product_price (= payload.baseAmount), 사용자 받은 돈, derived extraFee.
+          //   옛 흐름:   completionTaskOverride 그대로 (extraFee 진행중 입력값).
+          const partialOverride = usesReceivedTotalFlow && payload.receivedTotal != null
+            ? {
+                receivedTotal: Number(payload.receivedTotal),
+                productPrice:  Number(payload.baseAmount) || 0,
+                extraFee:      Math.max(Number(payload.receivedTotal) - (Number(payload.baseAmount) || 0), 0),
+              }
+            : completionTaskOverride;
           onUpdate && onUpdate(task.id, {
             status: "완료",
             completedAt: getCurrentTime(),
             partialReason: payload.reasonId,
             partialMemo: payload.autoMemo,
             photos: photos.map(p => ({ url: p.url, step: p.step })),
-            ...completionTaskOverride,
+            ...partialOverride,
             workMemo: workMemo,
           });
           setSubScreen(null);
