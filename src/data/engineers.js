@@ -500,13 +500,16 @@ function statusToActive(status) {
 // engineer 객체 → GAS 페이로드
 // Step 5-8 — 계좌 필드 (bankName / accountNumber) 추가 sync
 function _toSyncPayload(eng) {
+  // 2026-05-31 — Bug 1 fix — cm_refrigerant_rate fallback 제거.
+  //   옛: `|| 50` 측 falsy fallback → undefined/empty 측 50 강제 → engineersDb 측 도달해도 reset 위험.
+  //   새: 값 그대로 pass-through → engineersDb 측 syncPayloadToRow 측 정확 validate + omit-on-undefined.
   return {
     engineerId: eng.id || "",
     name:       eng.name || "",
     phone:      eng.phone || "",
     email:      eng.email || "",
     active:     statusToActive(eng.status),
-    cm_refrigerant_rate: eng.cm_refrigerant_rate || 50,
+    cm_refrigerant_rate: eng.cm_refrigerant_rate,
     bankName:      eng.bankName      || "",
     accountNumber: eng.accountNumber || "",
     accountHolder: eng.accountHolder || "",

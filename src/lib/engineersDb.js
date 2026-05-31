@@ -57,18 +57,32 @@ function syncPayloadToRow(eng) {
   if (typeof eng.active === "boolean") isActive = eng.active;
   else                                 isActive = statusToDbActive(eng.status || "active");
 
-  return {
+  const row = {
     tenant_id:        TENANT_ID,
     code,
     name:             eng.name  || "",
     phone:            eng.phone || "",
     email:            eng.email || null,
     is_active:        isActive,
-    refrigerant_rate: typeof eng.cm_refrigerant_rate === "number" ? eng.cm_refrigerant_rate : 50,
     bank_name:        eng.bankName      || null,
     bank_account:     eng.accountNumber || null,
     account_holder:   eng.accountHolder || null,
   };
+
+  // 2026-05-31 — Bug 1 fix — refrigerant_rate 측 유효 값만 row 포함.
+  //   옛 spec: typeof === "number" 측 strict → string ("100") 측 fallback 50 강제 → DB 측 reset.
+  //   새 spec: number 또는 string 측 parse 시도, 유효 값만 set.
+  //             undefined / null / "" 측 omit → UPDATE 측 기존 DB 값 보존 (sync path 측 측정 안전망).
+  //   INSERT 측 omit 시 DB 컬럼 default 적용.
+  const rateRaw = eng.cm_refrigerant_rate;
+  if (rateRaw != null && rateRaw !== "") {
+    const n = typeof rateRaw === "number" ? rateRaw : Number(rateRaw);
+    if (Number.isFinite(n) && n > 0) {
+      row.refrigerant_rate = n;
+    }
+  }
+
+  return row;
 }
 
 // ============================================================
