@@ -160,6 +160,7 @@ export function UsolNToEngineerSection() {
   const [confirming, setConfirming] = useState(false);
   const [confirmedInfo, setConfirmedInfo] = useState(null);
   const [reloadTick, setReloadTick] = useState(0);
+  const [showEngineerList, setShowEngineerList] = useState(false);
 
   // 옛 localStorage 기반 — 표시용 이름 매칭 (D10 — 변경 X).
   const engineers = useMemo(() => {
@@ -214,6 +215,17 @@ export function UsolNToEngineerSection() {
     setReloadTick(v => v + 1);
   }
 
+  // 기사별 보기 — 별도 화면 (D8 — 인라인 X. 16명+ 가독성 위해 분리).
+  if (showEngineerList) {
+    return (
+      <EngineerListScreen
+        rows={byEng}
+        monthLabel={selectedMonth}
+        onBack={() => setShowEngineerList(false)}
+      />
+    );
+  }
+
   return (
     <div>
       {/* 월 셀렉터 */}
@@ -237,14 +249,31 @@ export function UsolNToEngineerSection() {
             split={split}
           />
 
-          <EngineerListSection rows={byEng}/>
+          {/* 기사별 보기 진입 버튼 (회색 톤 — 핑크 X) */}
+          <button
+            onClick={() => setShowEngineerList(true)}
+            style={{
+              width: "100%", marginTop: 10, padding: "12px 14px",
+              background: "var(--bg-elevated, #1F1F1F)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              color: "var(--text-primary)",
+              fontSize: 12, fontWeight: 700,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}
+          >
+            <span>기사별 보기 ({byEng.length}명)</span>
+            <span style={{ color: C_GRAY, fontSize: 18, fontWeight: 700 }}>›</span>
+          </button>
 
           {split.pendingItems.length > 0 && (
             <button
               onClick={handleBulkSettle}
               disabled={confirming}
               style={{
-                width: "100%", marginTop: 16, padding: 14,
+                width: "100%", marginTop: 10, padding: 14,
                 background: C_PINK, border: "none", borderRadius: 10,
                 color: "#fff", fontSize: 13, fontWeight: 800,
                 cursor: confirming ? "not-allowed" : "pointer",
@@ -416,8 +445,9 @@ function CycleRow({ dot, label, amount, amountColor }) {
   );
 }
 
-// ── 기사별 목록 + 이름 검색 (인라인 — D8) ───────────────────
-function EngineerListSection({ rows }) {
+// ── 기사별 보기 — 별도 화면 (D8) ────────────────────────────
+// 헤더(뒤로) + 이름 검색 + 기사 목록. 클릭 상세는 Phase B (D9).
+function EngineerListScreen({ rows, monthLabel, onBack }) {
   const [search, setSearch] = useState("");
 
   const filtered = useMemo(() => {
@@ -430,13 +460,23 @@ function EngineerListSection({ rows }) {
   }, [rows, search]);
 
   return (
-    <div style={{ marginTop: 6 }}>
+    <div>
+      {/* 헤더 — 뒤로가기 + 월 라벨 + N명 */}
       <div style={{
-        fontSize: 11, color: C_GRAY, fontWeight: 600,
-        marginBottom: 8, paddingLeft: 2,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        display: "flex", alignItems: "center", gap: 8, marginBottom: 12,
       }}>
-        <span>기사별 보기 ({rows.length}명)</span>
+        <button onClick={onBack} style={backButtonStyle}>‹</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{
+            fontSize: 14, fontWeight: 800,
+            color: "var(--text-primary, #FAF8F5)",
+          }}>
+            기사별 보기
+          </div>
+          <div style={{ fontSize: 10, color: C_GRAY, marginTop: 2 }}>
+            {monthLabel} · {rows.length}명
+          </div>
+        </div>
       </div>
 
       <input
@@ -468,6 +508,10 @@ function EngineerListSection({ rows }) {
   );
 }
 
+// 색 규칙 (2026-06-01 R-A3 fix):
+//   · 합계 — 기본색 (primary), 핑크 X. 한 행 한 큰 숫자.
+//   · 1차 / 2차 — 작은 회색 라벨 + 회색 금액.
+//   · 핑크는 위 요약(미지급 총액 + 1차 바)에만, 목록 행엔 사용 X.
 function EngineerRow({ row }) {
   const total = row.firstAmount + row.secondAmount;
   const isAllDone = total === 0 && row.doneAmount > 0;
@@ -494,8 +538,8 @@ function EngineerRow({ row }) {
           </span>
         )}
         <span style={{
-          fontSize: 13, fontFamily: "inherit", fontWeight: 800,
-          color: total > 0 ? C_PINK : C_GREEN,
+          fontSize: 14, fontFamily: "inherit", fontWeight: 800,
+          color: isAllDone ? C_GREEN : "var(--text-primary, #FAF8F5)",
         }}>
           ₩{total.toLocaleString()}
         </span>
@@ -506,16 +550,19 @@ function EngineerRow({ row }) {
         gap: 4, fontSize: 10,
       }}>
         <span style={{ color: C_GRAY }}>
-          1차 <span style={{
-            color: row.firstAmount > 0 ? C_PINK : C_GRAY,
+          1차{" "}
+          <span style={{
+            color: C_GRAY,
             fontFamily: "inherit", fontWeight: 700, marginLeft: 4,
           }}>
             ₩{row.firstAmount.toLocaleString()}
           </span>
         </span>
         <span style={{ color: C_GRAY, textAlign: "right" }}>
-          2차 <span style={{
-            color: C_GRAY, fontFamily: "inherit", fontWeight: 700, marginLeft: 4,
+          2차{" "}
+          <span style={{
+            color: C_GRAY,
+            fontFamily: "inherit", fontWeight: 700, marginLeft: 4,
           }}>
             ₩{row.secondAmount.toLocaleString()}
           </span>
@@ -559,6 +606,18 @@ const confirmedBoxStyle = {
   borderRadius: 8,
   color: C_GREEN, fontSize: 12, fontWeight: 600,
   textAlign: "center",
+};
+
+const backButtonStyle = {
+  background: "var(--bg-secondary, #1A1A1A)",
+  border: "1px solid var(--border, #2A2A2A)",
+  borderRadius: 8,
+  padding: "6px 10px",
+  color: "var(--text-primary, #FAF8F5)",
+  fontSize: 14, fontWeight: 700,
+  fontFamily: "inherit",
+  cursor: "pointer",
+  flexShrink: 0,
 };
 
 export default UsolNToEngineerSection;
