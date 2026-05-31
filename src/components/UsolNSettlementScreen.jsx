@@ -192,8 +192,9 @@ export function UsolNSettlementScreen({
         <div style={{ width: 28 }}/>
       </div>
 
-      {/* Hero — 이번 달 누적 + 전달 받을 돈 */}
-      <div style={{ padding: 16 }}>
+      {/* Hero — 이번 달 누적 + 전달 받을 돈.
+            2026-06-01 (Step 6-2): 좌우 여백 측측 (16 → 10) — 측 화면 측측 측측측 측측 wrapper 측측 X. */}
+      <div style={{ padding: "16px 10px" }}>
         <div style={{
           background: heroBg,
           border: `1.5px solid ${heroBorder}`,
@@ -261,14 +262,15 @@ export function UsolNSettlementScreen({
         </div>
 
         {/* 2026-06-01 (Step 5) — "N월 정산" 측측 카드 (Hero 측측 측측).
-              border 측측 측측 (초록 X), Hero 측측 측측측. */}
+              border 측측 측측 (초록 X), Hero 측측 측측측.
+              Step 6-2: padding 16→13, marginTop 14→10 (시안 측측 측측 측측). */}
         {prevMonthCount > 0 && (
           <div style={{
             background: heroBg,
             border: "1px solid var(--border)",
             borderRadius: 16,
-            padding: 16,
-            marginTop: 14,
+            padding: 13,
+            marginTop: 10,
           }}>
             {/* 헤더 — "N월 정산" + 우측 측측·건수 (시안 측측) */}
             <div style={{
@@ -355,7 +357,7 @@ export function UsolNSettlementScreen({
       </div>
 
       {/* 월별 필터 */}
-      <div style={{ padding: "0 16px 14px" }}>
+      <div style={{ padding: "0 10px 14px" }}>
         <div style={{ display: "flex", gap: 6, overflowX: "auto" }}>
           {monthOptions.map(m => (
             <button key={m} onClick={() => setSelectedMonth(m)} style={{
@@ -375,7 +377,7 @@ export function UsolNSettlementScreen({
       </div>
 
       {/* 일별 그룹 */}
-      <div style={{ padding: "0 16px" }}>
+      <div style={{ padding: "0 10px" }}>
         {monthGroups.length === 0 ? (
           <div style={{
             padding: 28, textAlign: "center",
