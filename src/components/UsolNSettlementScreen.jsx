@@ -549,7 +549,7 @@ function SettleBucketRow({ color = "#9CA3AF", icon: Icon = Circle, label, count 
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
-      padding: "13px 0",
+      padding: "11px 0",
       gap: 10,
       borderTop: "0.5px solid rgba(255,255,255,0.08)",  // 2026-06-01 (Step 7-2): 행 측측 측측 측측
     }}>
@@ -557,7 +557,7 @@ function SettleBucketRow({ color = "#9CA3AF", icon: Icon = Circle, label, count 
         <Icon size={18} color={color} strokeWidth={2.2} style={{ flexShrink: 0 }}/>
         <div style={{ minWidth: 0 }}>
           <div style={{
-            fontSize: 15, color: color, fontWeight: 700,
+            fontSize: 18, color: color, fontWeight: 700,
             letterSpacing: 0.2,
             display: "flex", alignItems: "baseline", gap: 6,
           }}>
@@ -577,10 +577,10 @@ function SettleBucketRow({ color = "#9CA3AF", icon: Icon = Circle, label, count 
         </div>
       </div>
       <span className="mono" style={{
-        fontSize: 30, fontWeight: 700,
+        fontSize: 24, fontWeight: 700,
         color: color,
         flexShrink: 0,
-        letterSpacing: "-0.8px",
+        letterSpacing: "-0.6px",
       }}>
         ₩{(Number(amount) || 0).toLocaleString("ko-KR")}
       </span>
