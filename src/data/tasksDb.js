@@ -40,6 +40,7 @@ const PAYMENT_SELECT = `
     id, qty, unit_price, subtotal,
     order_type, product_order_id,
     is_canceled, canceled_reason, canceled_at,
+    received_amount,
     work_types (
       id, name,
       service_types ( id, code )
@@ -188,6 +189,10 @@ export function rowToTask(row) {
                          isCanceled:     !!it.is_canceled,
                          canceledReason: it.canceled_reason || null,
                          canceledAt:     it.canceled_at || null,
+                         // 2026-05-31 — Phase C Step 3 — Migration 084 task_items.received_amount per-row.
+                         //   NULL 보존 (legacy 완료 작업 측 백필 skip → NULL → compute_payment v17 legacy path).
+                         //   값 있음 → Phase C path 측 row 측 받은 돈 직접 사용.
+                         receivedAmount: it.received_amount ?? null,
                        }))
                      : (Array.isArray(cat.workItems) ? cat.workItems : []),
     // 2026-05-24 — 대표값도 본작업 우선 (sortedTaskItems[0])
@@ -1107,6 +1112,88 @@ export async function setReceivedTotalAdapter(taskId, receivedTotal) {
   }
 
   return res;
+}
+
+// 2026-05-31 — Migration 084/085 Phase C — task_item row 측 받은 돈 (received_amount) write 어댑터.
+// 신규 흐름 메인 2개+ 케이스 전용. 단일 row UPDATE → DB 트리거 task_items_a_sync_received_total_trg 가
+// tasks.received_total + extra_fee 자동 sync → compute_payment_trg (085 v17) 발화 → 정산 재계산.
+// idempotent compute_payment RPC 호출 — 진행중 상태 안전망 (setReceivedTotalAdapter 동일 패턴).
+//
+// 시그니처: (itemId, receivedAmount)  — number | null
+// 응답: { ok: true, item } | { ok: false, error }
+export async function setTaskItemReceivedAmount(itemId, receivedAmount) {
+  if (!itemId) return { ok: false, error: "itemId 없음" };
+  const value = receivedAmount == null ? null : (Number(receivedAmount) || 0);
+
+  const { data, error } = await supabase
+    .from('task_items')
+    .update({ received_amount: value })
+    .eq('id', itemId)
+    .select('id, task_id, received_amount')
+    .maybeSingle();
+
+  if (error) return { ok: false, error: error.message };
+  if (!data) return { ok: false, error: 'task_item 없음' };
+
+  // 진행중 상태 안전망 — task_items_a_sync_received_total_trg → compute_payment_trg 발화하나
+  // 트리거 발화 보장 차원 idempotent RPC 호출. changePriceAdapter / setReceivedTotalAdapter 동일 패턴.
+  try {
+    const { error: rpcErr } = await supabase.rpc('compute_payment', { p_task_id: data.task_id });
+    if (rpcErr) {
+      console.warn('[setTaskItemReceivedAmount] compute_payment 실패 (write 는 통과):', rpcErr.message);
+    }
+  } catch (e) {
+    console.warn('[setTaskItemReceivedAmount] compute_payment 예외 (write 는 통과):', e.message);
+  }
+
+  return { ok: true, item: data };
+}
+
+// 2026-05-31 — Migration 084/085 Phase C — 일괄 task_item 받은 돈 update.
+// 신규 흐름 메인 2개+ 케이스 전용 (부분 완료 화면 측 다건 update 측 single network round-trip).
+// updates: [{ itemId, receivedAmount }]  — receivedAmount: number | null
+// 응답: { ok: true, results: [{ itemId, ok }] } | { ok: false, error }
+export async function setAllTaskItemReceivedAmounts(taskId, updates) {
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  if (!Array.isArray(updates) || updates.length === 0) {
+    return { ok: false, error: "updates 비어있음" };
+  }
+
+  const results = [];
+  let okCount = 0;
+  let failCount = 0;
+  for (const u of updates) {
+    if (!u || !u.itemId) {
+      results.push({ itemId: u?.itemId || null, ok: false });
+      failCount += 1;
+      continue;
+    }
+    const value = u.receivedAmount == null ? null : (Number(u.receivedAmount) || 0);
+    const { error } = await supabase
+      .from('task_items')
+      .update({ received_amount: value })
+      .eq('id', u.itemId);
+    if (error) {
+      console.warn('[setAllTaskItemReceivedAmounts] item update 실패:', u.itemId, error.message);
+      results.push({ itemId: u.itemId, ok: false });
+      failCount += 1;
+    } else {
+      results.push({ itemId: u.itemId, ok: true });
+      okCount += 1;
+    }
+  }
+
+  // 일괄 처리 후 compute_payment RPC 1회 — 트리거 측 idempotent fallback
+  try {
+    const { error: rpcErr } = await supabase.rpc('compute_payment', { p_task_id: taskId });
+    if (rpcErr) {
+      console.warn('[setAllTaskItemReceivedAmounts] compute_payment 실패:', rpcErr.message);
+    }
+  } catch (e) {
+    console.warn('[setAllTaskItemReceivedAmounts] compute_payment 예외:', e.message);
+  }
+
+  return { ok: failCount === 0, results, okCount, failCount };
 }
 
 // 기사 측 금액 변경 — productPrice / extraFee / extraReason 업데이트

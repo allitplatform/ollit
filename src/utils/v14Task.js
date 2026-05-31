@@ -101,6 +101,9 @@ export function v14NormalizeTask(t) {
       isCanceled:     it.isCanceled     ?? !!it.is_canceled,
       canceledReason: it.canceledReason || it.canceled_reason || null,
       canceledAt:     it.canceledAt     || it.canceled_at     || null,
+      // 2026-05-31 — Phase C Step 3 — Migration 084 received_amount per-row (3곳 매핑 트랩).
+      //   NULL 보존 — Number() 강제 변환 안 함. legacy NULL → compute_payment v17 legacy path.
+      receivedAmount: it.receivedAmount ?? it.received_amount ?? null,
     }));
   }
 
