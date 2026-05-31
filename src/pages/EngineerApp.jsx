@@ -4559,6 +4559,9 @@ export default function EngineerApp({ user, onLogout }) {
           feeAmount: engByItem.get(it.id) || 0,
           naverSettled: !!it.naver_settled_at,
           naverSettledAt: it.naver_settled_at,
+          // 2026-06-01 — bucket model 측 측측 측측 측측 추가 (회차 측측 측측 측측).
+          //   engineer_settled_at IS NOT NULL → 측측 측측 측측 (1차/2차 측 KST 측측 측측측측).
+          engineerSettledAt: it.engineer_settled_at,
         });
       }
 
