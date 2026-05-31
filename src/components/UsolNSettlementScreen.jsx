@@ -85,16 +85,6 @@ export function UsolNSettlementScreen({
   const thisMonthGroups = groupsByMonth[currentYm] || [];
   const prevMonthGroups = groupsByMonth[prevYm] || [];
 
-  // 2026-06-01 B2 diag — engineerId / prevYm / 박스 노출 조건 1회용 진단 로그.
-  //   확인 후 제거 가능. console 에서 [UsolNSettlementScreen.diag] 확인.
-  useEffect(() => {
-    console.log("[UsolNSettlementScreen.diag]", {
-      engineerId,
-      prevYm,
-      prevMonthGroupsCount: prevMonthGroups.length,
-    });
-  }, [engineerId, prevYm, prevMonthGroups.length]);
-
   const thisMonthEarning = thisMonthGroups.reduce((s, g) => s + (g.totalAmount || 0), 0);
   const thisMonthCount   = thisMonthGroups.reduce((s, g) => s + (g.works || []).length, 0);
   // 2026-05-25 — 확정 (naver_settled_at != null) work의 feeAmount 합 + 비율
@@ -627,12 +617,6 @@ function TaxInvoiceRow({ engineerId, ym, ymLabel }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
-
-  // 2026-06-01 B2 diag — engineerId/ym 진단 (행이 안 보이면 console 확인). 확인 후 제거.
-  useEffect(() => {
-    console.log("[TaxInvoiceRow.diag] engineerId:", engineerId, "ym:", ym,
-      "→", engineerId ? "render" : "hidden (engineerId null)");
-  }, [engineerId, ym]);
 
   useEffect(() => {
     if (!engineerId || !ym) return;

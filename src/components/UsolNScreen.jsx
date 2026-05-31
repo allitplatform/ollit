@@ -20,11 +20,6 @@ const COMPANY_RATE = 0.85;
 
 export function UsolNScreen({ user, initialTab, onBack, onTaskClick }) {
   const currentUser = getCurrentUser(user);
-  // 2026-06-01 B3 diag — currentUser 객체 dump (UUID 필드 확인). 확인 후 제거.
-  useEffect(() => {
-    console.log("[UsolNScreen.currentUser]", currentUser);
-    console.log("[UsolNScreen.currentUser] keys:", currentUser ? Object.keys(currentUser) : null);
-  }, [currentUser]);
   const visibleTabs = useMemo(
     () => USOL_N_TABS.filter(t => canAccessMenu(currentUser, t.perm)),
     [currentUser]

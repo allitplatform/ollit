@@ -3688,12 +3688,6 @@ function extractTimeHint(hint) {
 }
 
 export default function EngineerApp({ user, onLogout }) {
-  // 2026-06-01 B2 diag — user 객체 dump (UUID 필드 찾기). 확인 후 제거.
-  useEffect(() => {
-    console.log("[EngineerApp.user]", user);
-    console.log("[EngineerApp.user] keys:", user ? Object.keys(user) : null);
-  }, [user]);
-
   // V13-1-fix — localStorage 모드 로드 + CSS 변수 적용
   const [mode, setMode] = useState(() => loadThemeSaved());
   // 2026-05-25 — 유솔 입금 카드: usol_n principal 계좌 정보 (마운트 1회 fetch).

@@ -33,6 +33,9 @@ import {
   confirmTaxInvoice,
   unconfirmTaxInvoice,
 } from "../../lib/taxInvoiceDb.js";
+// 2026-06-01 reconcile fix — usol_n 월정산 정책(세척 100% / 추가선택 85% / 냉매 제외) DB 측 RPC.
+//   기사앱 EngineerApp.jsx line 4544 와 동일 호출 → 양쪽 금액 정합.
+import { supabase } from "../../lib/supabase.js";
 
 const C_PINK   = "#FF1B8D";
 const C_GREEN  = "#1D9E75";
@@ -47,9 +50,17 @@ const SHOW_BULK_PAY = false;
 const ENGINEER_RATIO_FALLBACK = 0.6;
 const COMPANY_RATE_FALLBACK   = 0.85;
 
-// ── 돈 계산 (UsolNEngineerSettlement 과 동일 수식) ─────────────
-function calcItemEngineerAmount(item) {
+// ── 돈 계산 (정책 — 세척 100% / 추가선택 85% / 냉매 제외) ────
+// 2026-06-01 reconcile fix:
+//   1순위 — engByItem (RPC compute_engineer_amount_per_item_batch) 결과 사용.
+//     기사앱 EngineerApp.jsx 측 같은 RPC → 양쪽 금액 정합.
+//   2순위 — RPC 미반환 시 fallback (legacy 추정 수식). 운영 데이터에선 거의 안 탐.
+function calcItemEngineerAmount(item, engByItem) {
   if (item == null) return 0;
+  if (engByItem && engByItem.has(item.id)) {
+    return Number(engByItem.get(item.id)) || 0;
+  }
+  // fallback (RPC 결과 없을 때만 — 정확도 낮음)
   if (item.net_amount != null) return item.net_amount;
   const subtotal = item.subtotal || 0;
   return Math.floor(subtotal * COMPANY_RATE_FALLBACK * ENGINEER_RATIO_FALLBACK);
@@ -79,7 +90,7 @@ function bucketItem(item, year, month) {
 // 집계 — 측 item을 bucketItem 로 분류한 후 합산.
 // 반환: { firstItems, secondItems, doneItems, firstTotal, secondTotal, doneTotal,
 //        pendingTotal, pendingItems }
-function splitByBucket(items, year, month) {
+function splitByBucket(items, year, month, engByItem) {
   const result = {
     firstItems: [], secondItems: [], doneItems: [],
     firstTotal: 0, secondTotal: 0, doneTotal: 0,
@@ -87,7 +98,7 @@ function splitByBucket(items, year, month) {
   for (const it of items) {
     const k = bucketItem(it, year, month);
     if (!k) continue;
-    const amt = calcItemEngineerAmount(it);
+    const amt = calcItemEngineerAmount(it, engByItem);
     if (k === "first")  { result.firstItems.push(it);  result.firstTotal  += amt; }
     if (k === "second") { result.secondItems.push(it); result.secondTotal += amt; }
     if (k === "done_1" || k === "done_2") {
@@ -102,7 +113,7 @@ function splitByBucket(items, year, month) {
 
 // ── 기사별 그룹 ───────────────────────────────────────────
 // 2026-06-01 B3 — pendingItemIds 추가 (기사별 게이트 지급 대상).
-function groupItemsByEngineer(items, engineers, year, month) {
+function groupItemsByEngineer(items, engineers, year, month, engByItem) {
   const map = {};
   for (const it of items) {
     const k = bucketItem(it, year, month);
@@ -123,7 +134,7 @@ function groupItemsByEngineer(items, engineers, year, month) {
       };
     }
     const slot = map[key];
-    const amt = calcItemEngineerAmount(it);
+    const amt = calcItemEngineerAmount(it, engByItem);
     if (k === "first")  { slot.firstAmount  += amt; slot.pendingItemIds.push(it.id); }
     if (k === "second") { slot.secondAmount += amt; slot.pendingItemIds.push(it.id); }
     if (k === "done_1" || k === "done_2") slot.doneAmount += amt;
@@ -200,11 +211,40 @@ export function UsolNToEngineerSection({ adminId = null }) {
     return () => { alive = false; };
   }, [reloadTick]);
 
+  // 2026-06-01 reconcile fix — RPC 측 item별 engineer_amount 측측 (정책 측측).
+  //   기사앱 EngineerApp.jsx line 4544 와 동일 호출 — 같은 RPC = 같은 금액.
+  const [engByItem, setEngByItem] = useState(new Map());
+
+  useEffect(() => {
+    if (!items || items.length === 0) { setEngByItem(new Map()); return; }
+    let alive = true;
+    const taskIds = [...new Set(items.map(it => it.tasks?.id).filter(Boolean))];
+    if (taskIds.length === 0) { setEngByItem(new Map()); return; }
+    (async () => {
+      const { data, error } = await supabase
+        .rpc("compute_engineer_amount_per_item_batch", { p_task_ids: taskIds });
+      if (!alive) return;
+      if (error) {
+        console.error("[UsolNToEngineerSection.engRpc]", error);
+        return;
+      }
+      if (Array.isArray(data)) {
+        setEngByItem(new Map(
+          data.map(r => [r.task_item_id, Number(r.engineer_amount) || 0])
+        ));
+      }
+    })();
+    return () => { alive = false; };
+  }, [items]);
+
   const [year, month] = selectedMonth.split("-").map(Number);
-  const split  = useMemo(() => splitByBucket(items, year, month), [items, year, month]);
+  const split  = useMemo(
+    () => splitByBucket(items, year, month, engByItem),
+    [items, year, month, engByItem]
+  );
   const byEng  = useMemo(
-    () => groupItemsByEngineer(items, engineers, year, month),
-    [items, engineers, year, month]
+    () => groupItemsByEngineer(items, engineers, year, month, engByItem),
+    [items, engineers, year, month, engByItem]
   );
 
   // 2026-06-01 B3 — 세금계산서 / 게이트 지급 기준 ym = 한 달 전 (지급월 → 작업월).
