@@ -270,14 +270,47 @@ export function UsolNSettlementScreen({
             padding: 16,
             marginTop: 14,
           }}>
-            {/* 헤더 — "N월 정산" (이전달 자동, prevYm 측 측측측) */}
+            {/* 헤더 — "N월 정산" + 우측 측측·건수 (시안 측측) */}
             <div style={{
-              fontSize: 13, color: subLabelColor, fontWeight: 800,
-              marginBottom: 10,
-              letterSpacing: 0.2,
+              display: "flex", justifyContent: "space-between", alignItems: "baseline",
+              marginBottom: 10, gap: 8,
             }}>
-              {ymdMonthShort(prevYm)} 정산
+              <div style={{
+                fontSize: 13, color: subLabelColor, fontWeight: 800,
+                letterSpacing: 0.2,
+              }}>
+                {ymdMonthShort(prevYm)} 정산
+              </div>
+              <div style={{
+                fontSize: 11, color: "var(--text-tertiary)", fontWeight: 600,
+                whiteSpace: "nowrap",
+              }}>
+                총 {(prevMonthBuckets.received + prevMonthBuckets.pending + prevMonthBuckets.unconfirmed).toLocaleString("ko-KR")}원 · {prevMonthCount}건
+              </div>
             </div>
+
+            {/* 3색 비율 막대 (받음/예정/미확정) — 시안 측측 측측 */}
+            {(() => {
+              const total = prevMonthBuckets.received + prevMonthBuckets.pending + prevMonthBuckets.unconfirmed;
+              if (total <= 0) return null;
+              const pctReceived    = (prevMonthBuckets.received    / total) * 100;
+              const pctPending     = (prevMonthBuckets.pending     / total) * 100;
+              const pctUnconfirmed = (prevMonthBuckets.unconfirmed / total) * 100;
+              return (
+                <div style={{
+                  display: "flex",
+                  width: "100%", height: 7,
+                  borderRadius: 4,
+                  overflow: "hidden",
+                  marginBottom: 12,
+                  background: "rgba(255,255,255,0.04)",
+                }}>
+                  {pctReceived    > 0 && <div style={{ width: `${pctReceived}%`,    background: "#03C75A" }}/>}
+                  {pctPending     > 0 && <div style={{ width: `${pctPending}%`,     background: "#EF9F27" }}/>}
+                  {pctUnconfirmed > 0 && <div style={{ width: `${pctUnconfirmed}%`, background: "#4a4a4a" }}/>}
+                </div>
+              );
+            })()}
 
             {/* 3구간 (받음 / 예정 / 미확정) */}
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -300,9 +333,9 @@ export function UsolNSettlementScreen({
                     : null
                 }
               />
-              {/* 예정 */}
+              {/* 예정 — 시안 측측 측측 #EF9F27 */}
               <SettleBucketRow
-                color="#B45309"
+                color="#EF9F27"
                 label="예정"
                 count={prevMonthBuckets.pendingCount}
                 amount={prevMonthBuckets.pending}
