@@ -2718,6 +2718,14 @@ export default function AdminApp({ user, onLogout }) {
           if (!dateStr) return;
           const timeStr = window.prompt("일정 시간 박기 (HH:MM):", tk.requestedTime || "10:00");
           if (!timeStr) return;
+          // 2026-05-31 — Bug 2 fix — KST timezone offset 명시 (+09:00).
+          //   옛: `${dateStr} ${timeStr}` — timezone 정보 없음 → PG session TimeZone 측 의존.
+          //         PG TimeZone='UTC' 측 10:00 → UTC 10:00 (KST 19:00) → 사용자 의도와 다름.
+          //         PG TimeZone='Asia/Seoul' 측 10:00 → UTC 01:00 (KST 10:00) → 정상.
+          //   새: ISO 8601 측 KST offset 명시 → PG TimeZone 변경 측 무관 안전.
+          //         "2026-06-30T10:00:00+09:00" → PG 측 UTC 변환 측 정확 (01:00 UTC = 10:00 KST).
+          const scheduledAtISO = `${dateStr}T${timeStr}:00+09:00`;
+          // 디스플레이 (토스트 / 알림) 측 human-readable 측 유지
           const confirmedAt = `${dateStr} ${timeStr}`;
           // V14 헌법 — '확정' = 배정 + 일정 박힌 catch
           // 일정만 박은 경우 = 약속대기 그대로 / 배정 박힌 경우만 → 확정
@@ -2725,10 +2733,10 @@ export default function AdminApp({ user, onLogout }) {
           const hasEngineer = !!(tk.assignedEngineer || tk.engineer);
           const newStatus = hasEngineer ? '확정' : (tk.status || '미배정');
           try {
-            console.log('[V14 2B-2] updateTask 일정', { taskId: tk.id, scheduledAt: confirmedAt, hasEngineer, newStatus });
+            console.log('[V14 2B-2] updateTask 일정', { taskId: tk.id, scheduledAtISO, hasEngineer, newStatus });
             const res = await apiUpdateTask(tk.id, {
-              // V14 — backend 박은 키: scheduledAt (N 확정일시 catch)
-              scheduledAt: confirmedAt,
+              // V14 — backend 측 키: scheduledAt (N 확정일시 catch). KST offset 명시.
+              scheduledAt: scheduledAtISO,
               // 옛 호환 (frontend Optimistic 적용 케이스)
               confirmedAt,
               confirmedDate: dateStr,
