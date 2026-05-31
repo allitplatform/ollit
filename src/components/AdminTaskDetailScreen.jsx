@@ -30,6 +30,9 @@ import { listTaskChanges } from "../lib/taskChangesDb.js";
 import { useRealtimeTable } from "../hooks/useRealtimeSubscription.js";
 // 작업 소요 시간 계산
 import { calcTotalDuration } from "../utils/dateLabel.js";
+// 2026-05-31 — Phase C Step 6 — per-item received_amount UI 측
+import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { setTaskItemReceivedAmount as apiSetItemReceived } from "../data/tasksDb.js";
 
 // state → 알약 라벨/색
 const STATE_MAP = {
@@ -108,6 +111,8 @@ export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOn
       <WorkInfoCard task={task} onAssign={onAssign} onScheduleChange={onScheduleChange}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
       <SettlementInfoCard task={task}/>
+      {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출) */}
+      <TaskItemsCard task={task}/>
       {task.principal === "usol_n" && (
         <UsolNSettlementCycleCard
           taskId={task.id}
@@ -483,6 +488,213 @@ function SettlementRow({ label, value, color, bold }) {
       }}>
         {Number(value || 0).toLocaleString()}<span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 500 }}> 원</span>
       </span>
+    </div>
+  );
+}
+
+// ──────────────── Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 카드 ────────────────
+// 2026-05-31 — task_items per-item 표시 + 신규 흐름 (non-usol_n / non-prepaid) 측 받은 돈 input.
+// onBlur 측 setTaskItemReceivedAmount 호출 → DB 트리거 chain → tasks.received_total + extra_fee + compute_payment 자동 sync.
+function TaskItemsCard({ task }) {
+  if (task?.type === "external") return null;
+
+  const items = Array.isArray(task?.workItems) ? task.workItems : [];
+  const usesReceivedTotalFlow =
+    task?.principalCode !== 'usol_n' && task?.paymentMethod !== 'prepaid';
+
+  // local input state
+  const [localReceived, setLocalReceived] = useState(() => {
+    const init = {};
+    for (const it of items) {
+      if (!it || !it.id) continue;
+      if (it.isCanceled) init[it.id] = "0";
+      else if (it.receivedAmount != null) init[it.id] = String(it.receivedAmount);
+      else init[it.id] = "";
+    }
+    return init;
+  });
+  const [saving, setSaving] = useState({});
+
+  // task.workItems 측 외부 변경 (refetch) 시 sync — 사용자 입력 중이 아닌 row 측만 갱신
+  useEffect(() => {
+    setLocalReceived(prev => {
+      const next = { ...prev };
+      for (const it of items) {
+        if (!it || !it.id) continue;
+        if (saving[it.id]) continue; // 저장 중이면 skip
+        const dbValue = it.isCanceled ? "0"
+          : (it.receivedAmount != null ? String(it.receivedAmount) : "");
+        // 기존 입력값과 DB 값이 다르면서 사용자 입력 흔적 없음 측 fresh init
+        if (next[it.id] == null) next[it.id] = dbValue;
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length, items.map(i => `${i?.id}:${i?.receivedAmount}:${i?.isCanceled}`).join('|')]);
+
+  async function handleBlur(itemId, originalValue) {
+    const newValue = parseInt(localReceived[itemId] || "0", 10) || 0;
+    const dbValue  = Number(originalValue ?? 0);
+    if (newValue === dbValue) return;
+    setSaving(prev => ({ ...prev, [itemId]: true }));
+    try {
+      const res = await apiSetItemReceived(itemId, newValue);
+      if (!res || res.ok === false) {
+        console.warn('[admin/TaskItemsCard] received_amount 저장 실패:', res?.error);
+      }
+    } catch (e) {
+      console.warn('[admin/TaskItemsCard] received_amount 예외:', e?.message);
+    } finally {
+      setSaving(prev => ({ ...prev, [itemId]: false }));
+    }
+  }
+
+  if (items.length === 0) return null;
+
+  return (
+    <div style={{ padding: D1_OUTER_PAD }}>
+      <div style={D1_CARD_STYLE}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
+          🔢 작업 항목별
+        </div>
+
+        {items.map((it, idx) => {
+          const colors    = getWorkTypeColors(it.workType);
+          const qty       = Number(it.qty) || 1;
+          const unitPrice = Number(it.unitPrice) || 0;
+          const subtotal  = Number(it.subtotal) || (unitPrice * qty);
+          const isMain    = (it.orderType || it.order_type) !== '추가선택';
+          const isCanceled = !!it.isCanceled;
+          const canShowInput = usesReceivedTotalFlow && isMain && !isCanceled;
+          const orderTypeLabel = it.orderType || it.order_type || "";
+
+          return (
+            <div key={it.id || idx} style={{
+              borderTop: idx === 0 ? "none" : "1px solid var(--border)",
+              padding: "10px 0",
+              opacity: isCanceled ? 0.55 : 1,
+            }}>
+              {/* 헤더 — 아이콘 + work_type + appliance ×qty + 추가선택 라벨 + ✗ 취소 */}
+              <div style={{
+                display: "flex", alignItems: "center", gap: 6, marginBottom: 6, flexWrap: "wrap",
+              }}>
+                <span style={{ fontSize: 14, filter: isCanceled ? "grayscale(1)" : "none" }}>{colors.icon}</span>
+                <span style={{
+                  fontSize: 11, fontWeight: 800,
+                  color: isCanceled ? "#9CA3AF" : colors.main,
+                }}>
+                  {colors.name}
+                </span>
+                <span style={{
+                  fontSize: 12, fontWeight: 700,
+                  color: isCanceled ? "#9CA3AF" : "var(--text-primary)",
+                  textDecoration: isCanceled ? "line-through" : "none",
+                }}>
+                  {it.appliance || colors.name} ×{qty}
+                </span>
+                {orderTypeLabel && (
+                  <span style={{ fontSize: 9, color: "var(--text-tertiary)", fontWeight: 600 }}>
+                    ({orderTypeLabel})
+                  </span>
+                )}
+                {isCanceled && (
+                  <span style={{
+                    fontSize: 9, fontWeight: 800,
+                    padding: "1px 5px", borderRadius: 999,
+                    background: "#FCEBEB", color: "#A32D2D",
+                    marginLeft: "auto",
+                  }}>✗ 취소</span>
+                )}
+              </div>
+
+              {/* 견적 */}
+              <div style={{
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+                fontSize: 11, fontWeight: 600,
+                color: "var(--text-secondary)",
+                marginBottom: canShowInput ? 6 : 0,
+              }}>
+                <span>견적 (단가 × {qty})</span>
+                <span className="mono" style={{
+                  color: isCanceled ? "var(--text-tertiary)" : "var(--text-primary)",
+                  fontWeight: 700,
+                  textDecoration: isCanceled ? "line-through" : "none",
+                }}>
+                  ₩{subtotal.toLocaleString("ko-KR")}
+                </span>
+              </div>
+
+              {/* 받은 돈 input — 신규 흐름 + 메인 + 비-취소 측만 */}
+              {canShowInput && (
+                <div style={{
+                  display: "flex", justifyContent: "space-between", alignItems: "center",
+                  gap: 8, marginTop: 4,
+                }}>
+                  <span style={{
+                    fontSize: 11, color: "#D4537E", fontWeight: 800,
+                    letterSpacing: 0.3, whiteSpace: "nowrap",
+                  }}>
+                    💰 받은 돈
+                  </span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={localReceived[it.id] != null ? localReceived[it.id] : ""}
+                    placeholder={String(subtotal)}
+                    onChange={(e) => setLocalReceived(prev => ({ ...prev, [it.id]: e.target.value }))}
+                    onBlur={() => handleBlur(it.id, it.receivedAmount)}
+                    disabled={!!saving[it.id]}
+                    style={{
+                      width: 130,
+                      padding: "5px 8px",
+                      background: "var(--card-bg)",
+                      border: `1px solid ${colors.main}`,
+                      borderRadius: 6,
+                      color: "var(--text-primary)",
+                      fontSize: 13, fontWeight: 700,
+                      textAlign: "right",
+                      outline: "none",
+                      fontFamily: "inherit",
+                      opacity: saving[it.id] ? 0.5 : 1,
+                    }}
+                  />
+                </div>
+              )}
+
+              {/* 가드 케이스 안내 (usol_n / prepaid) */}
+              {!usesReceivedTotalFlow && isMain && !isCanceled && (
+                <div style={{
+                  fontSize: 9, color: "var(--text-tertiary)",
+                  marginTop: 4, fontStyle: "italic",
+                }}>
+                  ↳ 가드 케이스 (usol_n / prepaid) — 옛 흐름 (extra_fee 직접 입력)
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {/* 합계 표시 (신규 흐름) — DB 트리거가 자동 sync 한 task.received_total */}
+        {usesReceivedTotalFlow && (
+          <>
+            <div style={{ height: 1, background: "var(--border)", margin: "10px 0 8px" }}/>
+            <div style={{
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              fontSize: 13, fontWeight: 800,
+            }}>
+              <span style={{ color: "#D4537E", display: "flex", alignItems: "center", gap: 4 }}>
+                💰 총 받은 돈
+              </span>
+              <span className="mono" style={{ color: "#D4537E", fontWeight: 800 }}>
+                ₩{Number(task?.receivedTotal || 0).toLocaleString("ko-KR")}
+              </span>
+            </div>
+            <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 3 }}>
+              ↳ DB 트리거 자동 sync — 각 row 받은 돈 합 (비-취소).
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
