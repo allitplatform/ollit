@@ -71,9 +71,12 @@ export function UsolNEngineerSettlement() {
   // 기사별 합산 + 정산 상태
   const byEngineer = useMemo(() => groupItemsByEngineer(monthItems, engineers), [monthItems, engineers]);
 
-  // 그 달 정산 안 된 task_items (engineer_settled_at IS NULL)
+  // 그 달 측 측측 측측측 + 측측 측측측 task_items (= bucket model 측 측측측 측측).
+  //   2026-06-01 — 필터 fix: 옛 spec 측 engineer_settled_at NULL 측측 측측 → 네이버 측측측
+  //   측측 측 일괄 측측 측 측측 측 측측.
+  //   새 spec: naver_settled_at NOT NULL AND engineer_settled_at NULL (확정·미지급 측측).
   const pendingItems = useMemo(
-    () => monthItems.filter(it => !it.engineer_settled_at),
+    () => monthItems.filter(it => it.naver_settled_at && !it.engineer_settled_at),
     [monthItems]
   );
 
