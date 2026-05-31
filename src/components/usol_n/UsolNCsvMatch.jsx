@@ -1,10 +1,12 @@
 // Phase 5 Step 0.C-1 — 유솔N · 정산 CSV 매칭 (DB 전환)
-// 2026-05-19
+// 2026-05-19 / 2026-06-01 bugfix
 // 흐름:
 //   1) CSV (네이버 정산 시트) 업로드 → XLSX parse
-//   2) row["상품주문번호"] 측 추출 → Supabase task_items.product_order_id IN 매칭
+//   2) row["상품주문번호"] 추출 → Supabase task_items.product_order_id IN 매칭
 //   3) 분류 (matched / otherCompany / unmatched)
-//   4) "결제완료 확정" 버튼 → matched 측 naver_settled_at 일괄 UPDATE
+//   4) "결제완료 확정" 버튼 → matched 행의 row["정산완료일"] 기준
+//      naver_settled_at UPDATE (정산일 그룹별 markTaskItemsField 호출).
+//      정산완료일 누락 행 = skip + 콘솔 경고.
 // 옛 흐름 (localStorage + autoMatchSettlementCsv) 폐기.
 import { useState, useRef } from "react";
 import * as XLSX from "xlsx";
@@ -126,22 +128,105 @@ export function UsolNCsvMatch() {
     setConfirming(true);
     setError("");
 
-    const itemIds = matchResult.matched.map(m => m.item.id);
-    const res = await markTaskItemsField(itemIds, "naver_settled_at");
-    setConfirming(false);
+    // 2026-06-01 bugfix:
+    //   옛 호출은 timestamp 인자 누락 → markTaskItemsField 기본값 NOW() 폴백.
+    //   결과: CSV 업로드한 날짜로 매일 일괄 stamp되는 버그.
+    //   교정: CSV "정산완료일" 컬럼 → 정산일 그룹별 markTaskItemsField 호출.
+    //   timestamp arg 명시 전달.
 
-    if (!res.ok) {
-      setError(res.error || "결제완료 확정 실패");
+    // 1회용 디버그 — 첫 row 컬럼 구조 콘솔 출력 (확인 후 제거 가능)
+    if (matchResult.matched[0]?.row) {
+      console.log(
+        "[UsolNCsvMatch] matched[0].row 컬럼:",
+        Object.keys(matchResult.matched[0].row)
+      );
+    }
+
+    const SETTLED_DATE_COL = "정산완료일";
+    const groups  = new Map();   // isoTs → [itemIds]
+    const skipped = [];          // {orderId, reason}
+
+    for (const m of matchResult.matched) {
+      const rawDate = m.row?.[SETTLED_DATE_COL];
+      if (rawDate == null || String(rawDate).trim() === "") {
+        skipped.push({ orderId: m.productOrderId, reason: "정산완료일 누락" });
+        continue;
+      }
+      const isoTs = parseSettledDateToISO(rawDate);
+      if (!isoTs) {
+        skipped.push({
+          orderId: m.productOrderId,
+          reason: `날짜 형식 인식 실패: ${rawDate}`,
+        });
+        continue;
+      }
+      if (!groups.has(isoTs)) groups.set(isoTs, []);
+      groups.get(isoTs).push(m.item.id);
+    }
+
+    if (skipped.length > 0) {
+      console.warn("[UsolNCsvMatch] 정산완료일 누락/오류 건:", skipped);
+    }
+
+    if (groups.size === 0) {
+      setConfirming(false);
+      setError(
+        `전체 ${matchResult.matched.length}건 모두 정산완료일 누락/오류 — 확정 불가.`
+      );
       return;
     }
 
+    // 정산일 그룹별로 markTaskItemsField 호출 (timestamp arg 명시 전달)
+    let totalOk = 0;
+    let lastTimestamp = null;
+    for (const [isoTs, itemIds] of groups.entries()) {
+      const res = await markTaskItemsField(itemIds, "naver_settled_at", isoTs);
+      if (!res.ok) {
+        setConfirming(false);
+        setError(
+          `${isoTs.slice(0, 10)} 그룹 (${itemIds.length}건) 실패: ${res.error || "unknown"}`
+        );
+        return;
+      }
+      totalOk += res.count;
+      lastTimestamp = res.timestamp;
+    }
+    setConfirming(false);
+
     setConfirmedInfo({
-      count:     res.count,
-      timestamp: res.timestamp,
+      count:       totalOk,
+      timestamp:   lastTimestamp,
+      dateGroups:  groups.size,
+      skippedCnt:  skipped.length,
     });
     setCsvData(null);
     setMatchResult(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
+  // 네이버 정산내역 "정산완료일" → ISO 타임스탬프 (KST 자정 → UTC)
+  // 허용:
+  //   - Date 객체 (XLSX cellDates 모드)
+  //   - "YYYY-MM-DD" / "YYYY.MM.DD" / "YYYY/MM/DD"
+  //   - "YYYY-MM-DD HH:mm:ss" 등 시각 포함 문자열의 앞 10자리
+  // 반환: ISO 문자열 또는 null (인식 실패)
+  function parseSettledDateToISO(raw) {
+    if (raw instanceof Date) {
+      if (isNaN(raw.getTime())) return null;
+      return raw.toISOString();
+    }
+    const s = String(raw).replace(/[./]/g, "-").trim();
+    const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (!m) return null;
+    const y  = Number(m[1]);
+    const mo = Number(m[2]);
+    const d  = Number(m[3]);
+    if (!y || !mo || !d) return null;
+    if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+    // KST 자정 = UTC 전날 15:00 (Date.UTC 시간에 -9 전달 → 자동 조정)
+    const utc = new Date(Date.UTC(y, mo - 1, d, -9, 0, 0, 0));
+    if (isNaN(utc.getTime())) return null;
+    return utc.toISOString();
   }
 
   function handleReset() {
@@ -157,7 +242,17 @@ export function UsolNCsvMatch() {
         <UploadDropZone fileInputRef={fileInputRef} onFileSelect={handleFileSelect}/>
         {confirmedInfo && (
           <div style={confirmedBoxStyle}>
-            ✓ 직전 결제완료 확정: {confirmedInfo.count}건 / {new Date(confirmedInfo.timestamp).toLocaleString("ko-KR")}
+            ✓ 직전 결제완료 확정: {confirmedInfo.count}건
+            {confirmedInfo.dateGroups != null && (
+              <span style={{ marginLeft: 4 }}>
+                ({confirmedInfo.dateGroups}개 정산일 그룹)
+              </span>
+            )}
+            {confirmedInfo.skippedCnt > 0 && (
+              <div style={{ color: "#F59E0B", fontSize: 11, marginTop: 4 }}>
+                ⚠️ 정산완료일 누락/오류 {confirmedInfo.skippedCnt}건 — 미확정 (콘솔 확인)
+              </div>
+            )}
           </div>
         )}
         {error && <div style={errorBoxStyle}>⚠️ {error}</div>}
