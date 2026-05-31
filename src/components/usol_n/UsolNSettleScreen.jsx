@@ -1,13 +1,10 @@
-// 2026-06-01 Phase 5 R-A1 / R-A2 — 운영자 유솔 N 정산 화면 통합.
-// Phase A 원칙:
-//   · UI 재배치 + 1·2차 분류 표시만. 돈 로직 0건 변경.
-//   · ① 섹션: 2026-06-01 R-A2 부터 UsolNToCompanySection (PrincipalSettleTab 디자인 미러링).
-//   · ② 섹션: R-A3 까지 옛 UsolNEngineerSettlement 그대로 사용 (R-A3 에서 1·2차 스택바 교체).
+// 2026-06-01 Phase 5 R-A1 / R-A2 / R-A3 — 운영자 유솔 N 정산 화면 통합.
+// Phase A 원칙: UI 재배치 + 1·2차 분류 표시만. 돈 로직 0건 변경.
 //
 // 화면 구조 (위→아래):
 //   ⓪ 정산 대기 한 줄  — 전체 funnel 대체 (Σ 회사 받을 돈, 작업완료 AND naver_settled_at NULL)
 //   ① 유솔 → 회사 · 주차별 받을 돈 — UsolNToCompanySection (R-A2)
-//   ② 회사 → 기사 · 월정산 — UsolNEngineerSettlement (R-A3 에서 교체)
+//   ② 회사 → 기사 · 월정산 1·2차 — UsolNToEngineerSection (R-A3)
 //
 // 정산 대기 합계 reconcile:
 //   유솔앱 PrincipalSettleTab.summary.pendingAmount 와 동일 수식·동일 데이터 소스.
@@ -15,10 +12,12 @@
 //   = fetchPrincipalSettleItems({ principalCodes: ["usol_n"], monthsBack: 3 })
 //     필터: task_status === "완료" AND naver_settled_at NULL.
 //   사장님 spec: "운영자·유솔 숫자가 어긋나면 신뢰 깨짐" → 같은 함수·같은 필터 사용 필수.
+//
+// 옛 UsolNTracking / UsolNEngineerSettlement 파일은 D10 — 참고용 보존 (라우팅 X).
 import { useState, useEffect, useMemo } from "react";
 import { fetchPrincipalSettleItems } from "../../lib/principalSettleDb.js";
 import { UsolNToCompanySection } from "./UsolNToCompanySection.jsx";
-import { UsolNEngineerSettlement } from "./UsolNEngineerSettlement.jsx";
+import { UsolNToEngineerSection } from "./UsolNToEngineerSection.jsx";
 
 const C_MAGENTA = "#FF1B8D";
 const C_AMBER   = "#E6A33A";
@@ -89,12 +88,12 @@ export function UsolNSettleScreen() {
       />
       <UsolNToCompanySection/>
 
-      {/* ② 회사 → 기사 · 월정산 (R-A3 에서 1·2차 스택바 + 기사별 보기로 교체) */}
+      {/* ② 회사 → 기사 · 월정산 (R-A3 — 1·2차 스택바 + 기사별 보기 + 일괄 지급) */}
       <SectionHeader
         title="② 회사 → 기사"
         sub="월정산 — 1차 매월 15일 · 2차 매월 말일"
       />
-      <UsolNEngineerSettlement/>
+      <UsolNToEngineerSection/>
     </div>
   );
 }
