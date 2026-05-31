@@ -5,6 +5,27 @@ import { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { getSettleRound } from "../utils/usolNSettleRound.js";
+
+// 2026-06-01 — bucket model 측 측측 측측 측측측측측.
+//   받음   = engineer_settled_at 측측 (1차/2차 측 측측측 KST day 측측측측측)
+//   예정   = naver_settled_at 측측 AND engineer_settled_at 측측
+//   미확정 = naver_settled_at 측측
+function getWorkStatus(w) {
+  if (w && w.engineerSettledAt) {
+    const round = getSettleRound(w.engineerSettledAt);
+    return {
+      kind:  "received",
+      label: round ? `받음 ${round}` : "받음",
+      color: "#03C75A",
+      bg:    "rgba(3,199,90,0.12)",
+    };
+  }
+  if (w && w.naverSettled) {
+    return { kind: "pending", label: "예정", color: "#B45309", bg: "rgba(245,158,11,0.14)" };
+  }
+  return { kind: "unconfirmed", label: "미확정", color: "#6B7280", bg: "rgba(156,163,175,0.16)" };
+}
 
 function ymdMonth(ymd) { return ymd ? ymd.slice(0, 7) : ""; }
 function monthFromYmd(ymd) { return ymd ? Number(ymd.slice(5, 7)) : 0; }
@@ -73,6 +94,34 @@ export function UsolNSettlementScreen({
     : 0;
   const prevMonthEarning = prevMonthGroups.reduce((s, g) => s + (g.totalAmount || 0), 0);
   const prevMonthCount   = prevMonthGroups.reduce((s, g) => s + (g.works || []).length, 0);
+
+  // 2026-06-01 — bucket model 측측 측측 측측 3구간 측측 (받음/예정/미확정).
+  //   받음 측 1차/2차 측측측 (engineer_settled_at KST day 측측).
+  const prevMonthBuckets = useMemo(() => {
+    const works = prevMonthGroups.flatMap(g => g.works || []);
+    let received = 0, received1 = 0, received2 = 0, pending = 0, unconfirmed = 0;
+    let receivedCount = 0, received1Count = 0, received2Count = 0;
+    let pendingCount = 0, unconfirmedCount = 0;
+    for (const w of works) {
+      const amt = Number(w.feeAmount) || 0;
+      if (w.engineerSettledAt) {
+        received += amt; receivedCount += 1;
+        const r = getSettleRound(w.engineerSettledAt);
+        if (r === "1차") { received1 += amt; received1Count += 1; }
+        else             { received2 += amt; received2Count += 1; }
+      } else if (w.naverSettled) {
+        pending += amt; pendingCount += 1;
+      } else {
+        unconfirmed += amt; unconfirmedCount += 1;
+      }
+    }
+    return {
+      received, received1, received2,
+      receivedCount, received1Count, received2Count,
+      pending, pendingCount,
+      unconfirmed, unconfirmedCount,
+    };
+  }, [prevMonthGroups]);
 
   // 월별 옵션 (최신순) — 데이터에 있는 모든 월
   const monthOptions = useMemo(() => {
@@ -209,7 +258,8 @@ export function UsolNSettlementScreen({
             <span style={{ color: "#03C75A", fontWeight: 700 }}>확정 ₩{thisMonthConfirmed.toLocaleString("ko-KR")}</span> ({confirmedPct}%) · 매월 15일 지급
           </div>
 
-          {/* 2026-05-24 — 전달 데이터 0건이면 측 catch + 측 catch 측 catch */}
+          {/* 2026-06-01 — 이전달 정산 박스 (bucket model 3구간).
+                받음 (1차/2차 분해) / 예정 (확정·미지급) / 미확정 (네이버 미확정). */}
           {prevMonthCount > 0 && (
             <>
               {/* 구분선 */}
@@ -219,34 +269,52 @@ export function UsolNSettlementScreen({
                 marginBottom: 14,
               }}/>
 
-              {/* 전달 정산예정 (곧 들어올 돈) */}
+              {/* 헤더 — "N월 정산" (이전달 자동, prevYm 측 측측측) */}
               <div style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "6px 0",
-                gap: 12,
+                fontSize: 13, color: subLabelColor, fontWeight: 800,
+                marginBottom: 10,
+                letterSpacing: 0.2,
               }}>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{
-                    fontSize: 12, color: subLabelColor, fontWeight: 700,
-                    marginBottom: 4,
-                  }}>
-                    {ymdMonthShort(prevYm)} 정산예정
-                  </div>
-                  <div style={{
-                    fontSize: 11, color: fineColor, fontWeight: 600,
-                  }}>
-                    {prevMonthDepositDate || "이번 달 15일"} 입금 예정 · {prevMonthCount}건
-                  </div>
-                </div>
-                <div style={{
-                  fontSize: 22, color: subAmount, fontWeight: 700,
-                  letterSpacing: "-0.4px",
-                  flexShrink: 0,
-                }}>
-                  {prevMonthEarning.toLocaleString("ko-KR")}원
-                </div>
+                {ymdMonthShort(prevYm)} 정산
+              </div>
+
+              {/* 3구간 (받음 / 예정 / 미확정) */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {/* 받음 (1차 + 2차 합) */}
+                <SettleBucketRow
+                  color="#03C75A"
+                  label="받음"
+                  count={prevMonthBuckets.receivedCount}
+                  amount={prevMonthBuckets.received}
+                  sub={
+                    (prevMonthBuckets.received1Count > 0 || prevMonthBuckets.received2Count > 0)
+                      ? [
+                          prevMonthBuckets.received1Count > 0
+                            ? `1차 ${prevMonthBuckets.received1.toLocaleString("ko-KR")}원`
+                            : null,
+                          prevMonthBuckets.received2Count > 0
+                            ? `2차 ${prevMonthBuckets.received2.toLocaleString("ko-KR")}원`
+                            : null,
+                        ].filter(Boolean).join(" · ")
+                      : null
+                  }
+                />
+                {/* 예정 */}
+                <SettleBucketRow
+                  color="#B45309"
+                  label="예정"
+                  count={prevMonthBuckets.pendingCount}
+                  amount={prevMonthBuckets.pending}
+                  sub={`${prevMonthDepositDate || "이번 달 15일"} 입금 예정`}
+                />
+                {/* 미확정 */}
+                <SettleBucketRow
+                  color="#6B7280"
+                  label="미확정"
+                  count={prevMonthBuckets.unconfirmedCount}
+                  amount={prevMonthBuckets.unconfirmed}
+                  sub="네이버 정산 측측"
+                />
               </div>
             </>
           )}
@@ -400,14 +468,21 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
                     {w.workItem ? ` · ${w.workItem}` : ""}
                     {w.quantity ? ` ×${w.quantity}` : ""}
                   </span>
-                  {/* 2026-05-25 — 확정 측 catch (naver_settled_at != null) — 측 catch 측 catch */}
-                  {w.naverSettled && (
-                    <span style={{
-                      fontSize: 11, fontWeight: 700,
-                      color: "#03C75A",
-                      whiteSpace: "nowrap", flexShrink: 0,
-                    }}>✓ 확정</span>
-                  )}
+                  {/* 2026-06-01 — bucket model 측측 측측 배지 (받음 1차/2차 / 예정 / 미확정) */}
+                  {(() => {
+                    const status = getWorkStatus(w);
+                    return (
+                      <span style={{
+                        fontSize: 10, fontWeight: 800,
+                        color: status.color,
+                        background: status.bg,
+                        padding: "2px 7px",
+                        borderRadius: 999,
+                        whiteSpace: "nowrap", flexShrink: 0,
+                        letterSpacing: 0.2,
+                      }}>{status.label}</span>
+                    );
+                  })()}
                 </div>
                 <span style={{
                   fontSize: 13, color: "#03C75A", fontWeight: 700,
@@ -420,6 +495,59 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// 2026-06-01 — 이전달 정산 박스 측 3구간 측 (받음 / 예정 / 미확정).
+//   color: 좌측 dot / label 색 / amount 색
+//   label: "받음" / "예정" / "미확정"
+//   count: N건 (옆 측측측)
+//   amount: 금액
+//   sub: 측측측 (예: "1차 X · 2차 Y" / "이번 달 15일 입금 예정")
+function SettleBucketRow({ color = "#9CA3AF", label, count = 0, amount = 0, sub = null }) {
+  return (
+    <div style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "8px 0",
+      gap: 10,
+    }}>
+      <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{
+          width: 8, height: 8, borderRadius: "50%",
+          background: color, flexShrink: 0,
+        }}/>
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize: 13, color: color, fontWeight: 800,
+            letterSpacing: 0.2,
+            display: "flex", alignItems: "baseline", gap: 6,
+          }}>
+            <span>{label}</span>
+            {count > 0 && (
+              <span style={{ fontSize: 10, color: "var(--text-tertiary)", fontWeight: 600 }}>
+                {count}건
+              </span>
+            )}
+          </div>
+          {sub && (
+            <div style={{
+              fontSize: 10, color: "var(--text-tertiary)",
+              fontWeight: 600, marginTop: 2,
+            }}>{sub}</div>
+          )}
+        </div>
+      </div>
+      <span className="mono" style={{
+        fontSize: 15, fontWeight: 800,
+        color: color,
+        flexShrink: 0,
+        letterSpacing: "-0.3px",
+      }}>
+        ₩{(Number(amount) || 0).toLocaleString("ko-KR")}
+      </span>
     </div>
   );
 }
