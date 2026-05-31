@@ -5125,6 +5125,7 @@ export default function EngineerApp({ user, onLogout }) {
             prevYm={prevYm}
             thisMonthDepositDate="다음 달 15일"
             prevMonthDepositDate="이번 달 15일"
+            engineerId={user?.id || null}
             onBack={goBack}
             onTaskClick={(taskId) => {
               const t = tasks.find(x => x.id === taskId);

@@ -1,11 +1,13 @@
 // V14 — 유솔N 정산 (사장님 spec v2)
 // Hero 카드 = 이번 달 누적 + 전달 받을 돈 (구분선) / 월별 필터 / 일별 그룹
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { ArrowLeft, CheckCircle2, Clock, Circle, Wallet } from "lucide-react";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { getSettleRound } from "../utils/usolNSettleRound.js";
+// 2026-06-01 Phase B (B2) — 세금계산서 발행/확인 상태 lib 래퍼.
+import { fetchTaxInvoice, markTaxInvoice } from "../lib/taxInvoiceDb.js";
 
 // 2026-06-01 — bucket model 측 측측 측측 측측측측측.
 //   받음   = engineer_settled_at 측측 (1차/2차 측 측측측 KST day 측측측측측)
@@ -63,6 +65,7 @@ export function UsolNSettlementScreen({
   prevYm,                    // "2026-04" — 받을 돈 (다음 달 입금 예정)
   thisMonthDepositDate,      // "6월 15일" — currentYm 입금 예정일 라벨
   prevMonthDepositDate,      // "5월 15일" — prevYm 입금 예정일 라벨
+  engineerId,                // users.id UUID — Phase B 세금계산서 기준 키
   onBack,
   onTaskClick,
 }) {
@@ -357,6 +360,18 @@ export function UsolNSettlementScreen({
                 sub="네이버 정산 대기"
               />
             </div>
+
+            {/* 2026-06-01 Phase B (B2) — 세금계산서 발행/확인 상태 + 버튼.
+                · ym = prevYm (지난 달 = 이번 달 15일 지급 대상)
+                · 그 달 정산 총액 0 시 숨김
+                · 돈 처리 X — 상태 기록만 (engineer_settled_at·정산 계산 안 건드림). */}
+            {(prevMonthBuckets.received + prevMonthBuckets.pending + prevMonthBuckets.unconfirmed) > 0 && (
+              <TaxInvoiceRow
+                engineerId={engineerId}
+                ym={prevYm}
+                ymLabel={ymdMonthLabel(prevYm)}
+              />
+            )}
           </div>
         )}
       </div>
@@ -586,6 +601,147 @@ function SettleBucketRow({ color = "#9CA3AF", icon: Icon = Circle, label, count 
       }}>
         ₩{(Number(amount) || 0).toLocaleString("ko-KR")}
       </span>
+    </div>
+  );
+}
+
+// 2026-06-01 Phase B (B2) — 세금계산서 발행 상태 + 버튼.
+//   상태 (engineer_tax_invoices row):
+//     · 미발행      = row 없음 OR marked_at NULL  → [세금계산서 발행함] 버튼 (accent)
+//     · 발행함·미확인 = marked_at O, confirmed_at NULL → "✓ 발행 표시함 · 회사 확인 대기" (회색)
+//     · 확인됨      = confirmed_at O                  → "✓ 회사 확인 완료" (초록)
+//   돈 처리 X — 상태 기록만. engineer_settled_at·정산 계산 0건 변경.
+function TaxInvoiceRow({ engineerId, ym, ymLabel }) {
+  const [invoice, setInvoice] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
+
+  useEffect(() => {
+    if (!engineerId || !ym) return;
+    let alive = true;
+    setLoading(true);
+    setError("");
+    fetchTaxInvoice({ engineerId, ym })
+      .then(res => {
+        if (!alive) return;
+        if (!res.ok) {
+          setError(res.error || "세금계산서 상태 조회 실패");
+          setInvoice(null);
+        } else {
+          setInvoice(res.invoice);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [engineerId, ym, reloadTick]);
+
+  async function handleMark() {
+    if (submitting) return;
+    if (!confirm(
+      `${ymLabel} 세금계산서를 발행하셨나요?\n` +
+      `회사가 확인하면 지급됩니다.`
+    )) return;
+    setSubmitting(true);
+    setError("");
+    const res = await markTaxInvoice({ engineerId, ym });
+    setSubmitting(false);
+    if (!res.ok) {
+      setError(res.error || "발행 마킹 실패");
+      return;
+    }
+    setReloadTick(v => v + 1);
+  }
+
+  // engineerId 누락 시 (보호) — 행 자체 숨김.
+  if (!engineerId) return null;
+
+  const isConfirmed   = !!(invoice && invoice.confirmed_at);
+  const isMarked      = !!(invoice && invoice.marked_at);
+  const isUnmarked    = !invoice || !isMarked;
+
+  return (
+    <div style={{
+      marginTop: 12, paddingTop: 12,
+      borderTop: "1px solid rgba(255,255,255,0.10)",
+    }}>
+      <div style={{
+        fontSize: 11, color: "var(--text-tertiary)",
+        fontWeight: 700, marginBottom: 8,
+        display: "flex", alignItems: "center", gap: 6,
+      }}>
+        <span>📄</span>
+        <span>{ymLabel} 세금계산서</span>
+      </div>
+
+      {loading && (
+        <div style={{
+          fontSize: 11, color: "var(--text-tertiary)", padding: "6px 0",
+        }}>
+          상태 확인 중...
+        </div>
+      )}
+
+      {!loading && isConfirmed && (
+        <div style={{
+          padding: "10px 12px",
+          background: "rgba(3,199,90,0.08)",
+          border: "1px solid rgba(3,199,90,0.4)",
+          borderRadius: 8,
+          color: "#03C75A", fontSize: 12, fontWeight: 700,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <CheckCircle2 size={14} strokeWidth={2.4}/>
+          <span>회사 확인 완료</span>
+        </div>
+      )}
+
+      {!loading && !isConfirmed && isMarked && (
+        <div style={{
+          padding: "10px 12px",
+          background: "rgba(156,163,175,0.10)",
+          border: "1px solid rgba(156,163,175,0.30)",
+          borderRadius: 8,
+          color: "var(--text-tertiary)", fontSize: 12, fontWeight: 600,
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <CheckCircle2 size={14} strokeWidth={2.2}/>
+          <span>발행 표시함 · 회사 확인 대기</span>
+        </div>
+      )}
+
+      {!loading && isUnmarked && (
+        <button
+          onClick={handleMark}
+          disabled={submitting}
+          style={{
+            width: "100%", padding: "11px 14px",
+            background: "var(--accent, #03C75A)",
+            border: "none", borderRadius: 8,
+            color: "#fff", fontSize: 13, fontWeight: 700,
+            cursor: submitting ? "not-allowed" : "pointer",
+            fontFamily: "inherit",
+            opacity: submitting ? 0.5 : 1,
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          <span>📄</span>
+          <span>{submitting ? "처리 중..." : "세금계산서 발행함"}</span>
+        </button>
+      )}
+
+      {error && (
+        <div style={{
+          marginTop: 6, padding: "8px 10px",
+          background: "rgba(255,68,68,0.08)",
+          border: "1px solid rgba(255,68,68,0.3)",
+          borderRadius: 6,
+          color: "#ff4444", fontSize: 10, fontWeight: 600,
+        }}>
+          ⚠️ {error}
+        </div>
+      )}
     </div>
   );
 }
