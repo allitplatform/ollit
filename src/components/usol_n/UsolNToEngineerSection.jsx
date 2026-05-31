@@ -27,11 +27,22 @@ import { fetchUsolNCompletedTaskItems, markTaskItemsField } from "../../lib/usol
 import { loadEngineers } from "../../data/engineers.js";
 import { EngineerBadge } from "../EngineerBadge.jsx";
 import { formatYmdHmAlways } from "../../utils/dateLabel.js";
+// 2026-06-01 Phase B (B3) — 세금계산서 확인 / 운영자 측 RPC.
+import {
+  fetchTaxInvoicesByYm,
+  confirmTaxInvoice,
+  unconfirmTaxInvoice,
+} from "../../lib/taxInvoiceDb.js";
 
 const C_PINK   = "#FF1B8D";
 const C_GREEN  = "#1D9E75";
+const C_AMBER  = "#F59E0B";
 const C_GRAY   = "#9CA3AF";
 const C_GRAY_BAR = "#3A3A3A";
+
+// 2026-06-01 B3 — 옛 일괄 지급 버튼 보존 (코드 유지, render 숨김).
+//   결정 🅑 — 기사별 게이트 지급으로 전환. 복구 시 SHOW_BULK_PAY 을 true 로.
+const SHOW_BULK_PAY = false;
 
 const ENGINEER_RATIO_FALLBACK = 0.6;
 const COMPANY_RATE_FALLBACK   = 0.85;
@@ -89,7 +100,8 @@ function splitByBucket(items, year, month) {
   return result;
 }
 
-// ── 기사별 그룹 (UsolNEngineerSettlement 측 측측 측측) ─────────
+// ── 기사별 그룹 ───────────────────────────────────────────
+// 2026-06-01 B3 — pendingItemIds 추가 (기사별 게이트 지급 대상).
 function groupItemsByEngineer(items, engineers, year, month) {
   const map = {};
   for (const it of items) {
@@ -99,20 +111,21 @@ function groupItemsByEngineer(items, engineers, year, month) {
     const key = eid || "unassigned";
     if (!map[key]) {
       map[key] = {
-        engineerKey:  key,
-        engineerId:   eid,
-        engineer:     engineers.find(e => e.id === eid) || null,
-        engineerName: (it.tasks && it.tasks.assignedEngineer) || null,
-        firstAmount:  0,
-        secondAmount: 0,
-        doneAmount:   0,
-        itemCount:    0,
+        engineerKey:    key,
+        engineerId:     eid,
+        engineer:       engineers.find(e => e.id === eid) || null,
+        engineerName:   (it.tasks && it.tasks.assignedEngineer) || null,
+        firstAmount:    0,
+        secondAmount:   0,
+        doneAmount:     0,
+        itemCount:      0,
+        pendingItemIds: [],   // 1차 + 2차 (미지급) item ids — B3 게이트 지급용
       };
     }
     const slot = map[key];
     const amt = calcItemEngineerAmount(it);
-    if (k === "first")  slot.firstAmount  += amt;
-    if (k === "second") slot.secondAmount += amt;
+    if (k === "first")  { slot.firstAmount  += amt; slot.pendingItemIds.push(it.id); }
+    if (k === "second") { slot.secondAmount += amt; slot.pendingItemIds.push(it.id); }
     if (k === "done_1" || k === "done_2") slot.doneAmount += amt;
     slot.itemCount += 1;
   }
@@ -152,7 +165,9 @@ function getCycleDates(year, month) {
 }
 
 // ── 메인 컴포넌트 ────────────────────────────────────────────
-export function UsolNToEngineerSection() {
+// 2026-06-01 B3 — adminId (로그인 운영자 users.id) prop 추가.
+//   gateYm = prevMonth(selectedMonth) — 세금계산서 / 게이트 지급 기준 (기사 prevYm 과 동일).
+export function UsolNToEngineerSection({ adminId = null }) {
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey());
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -192,6 +207,14 @@ export function UsolNToEngineerSection() {
     [items, engineers, year, month]
   );
 
+  // 2026-06-01 B3 — 세금계산서 / 게이트 지급 기준 ym = 한 달 전 (지급월 → 작업월).
+  const gateYm = useMemo(() => {
+    const prevDate = new Date(year, month - 2, 1);
+    return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+  }, [year, month]);
+
+  function refresh() { setReloadTick(v => v + 1); }
+
   async function handleBulkSettle() {
     if (split.pendingItems.length === 0 || confirming) return;
     if (!confirm(
@@ -221,6 +244,10 @@ export function UsolNToEngineerSection() {
       <EngineerListScreen
         rows={byEng}
         monthLabel={selectedMonth}
+        gateYm={gateYm}
+        adminId={adminId}
+        reloadTick={reloadTick}
+        onRefresh={refresh}
         onBack={() => setShowEngineerList(false)}
       />
     );
@@ -265,9 +292,9 @@ export function UsolNToEngineerSection() {
             <span style={{ fontSize: 18, fontWeight: 700, opacity: 0.85 }}>›</span>
           </button>
 
-          {/* 일괄 지급 — secondary 회색 (R-A3 fix: 실수 클릭 방지 + Phase B 측 기사별
-              게이트 지급 측 측측. 큰 ₩ 측측 측측 측 측측 측측 측측). */}
-          {split.pendingItems.length > 0 && (
+          {/* 일괄 지급 — Phase B (B3): 기사별 게이트 지급으로 전환. 평소 숨김.
+              SHOW_BULK_PAY=true 로 바꾸면 복구. handleBulkSettle / RPC 호출 그대로 유지. */}
+          {SHOW_BULK_PAY && split.pendingItems.length > 0 && (
             <button
               onClick={handleBulkSettle}
               disabled={confirming}
@@ -448,9 +475,36 @@ function CycleRow({ dot, label, amount, amountColor }) {
 }
 
 // ── 기사별 보기 — 별도 화면 (D8) ────────────────────────────
-// 헤더(뒤로) + 이름 검색 + 기사 목록. 클릭 상세는 Phase B (D9).
-function EngineerListScreen({ rows, monthLabel, onBack }) {
+// 2026-06-01 B3 — 세금계산서 일괄 조회 (gateYm 기준 한 번) + 기사별 게이트 지급.
+function EngineerListScreen({
+  rows, monthLabel, gateYm, adminId, reloadTick, onRefresh, onBack,
+}) {
   const [search, setSearch] = useState("");
+  const [invoiceMap, setInvoiceMap] = useState(new Map());
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [invoiceError, setInvoiceError] = useState("");
+
+  // gateYm 변화 또는 부모 reloadTick → 일괄 조회.
+  useEffect(() => {
+    if (!gateYm) return;
+    let alive = true;
+    setInvoiceLoading(true);
+    setInvoiceError("");
+    fetchTaxInvoicesByYm({ ym: gateYm })
+      .then(res => {
+        if (!alive) return;
+        if (!res.ok) {
+          setInvoiceError(res.error || "세금계산서 조회 실패");
+          setInvoiceMap(new Map());
+        } else {
+          const m = new Map();
+          for (const inv of res.invoices) m.set(inv.engineer_id, inv);
+          setInvoiceMap(m);
+        }
+      })
+      .finally(() => { if (alive) setInvoiceLoading(false); });
+    return () => { alive = false; };
+  }, [gateYm, reloadTick]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -476,7 +530,7 @@ function EngineerListScreen({ rows, monthLabel, onBack }) {
             기사별 보기
           </div>
           <div style={{ fontSize: 10, color: C_GRAY, marginTop: 2 }}>
-            {monthLabel} · {rows.length}명
+            {monthLabel} 지급 · 세금계산서 기준 {gateYm} · {rows.length}명
           </div>
         </div>
       </div>
@@ -497,26 +551,118 @@ function EngineerListScreen({ rows, monthLabel, onBack }) {
         }}
       />
 
+      {invoiceError && (
+        <div style={{
+          padding: "8px 10px", marginBottom: 8,
+          background: "rgba(255,68,68,0.08)",
+          border: "1px solid rgba(255,68,68,0.3)",
+          borderRadius: 6,
+          color: "#ff4444", fontSize: 10, fontWeight: 600,
+        }}>
+          ⚠️ {invoiceError}
+        </div>
+      )}
+
       {filtered.length === 0 ? (
         <SectionEmpty>
           {search ? "검색 결과 없음" : "해당 월 항목 없음"}
         </SectionEmpty>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {filtered.map(row => <EngineerRow key={row.engineerKey} row={row}/>)}
+          {filtered.map(row => (
+            <EngineerRow
+              key={row.engineerKey}
+              row={row}
+              invoice={row.engineerId ? invoiceMap.get(row.engineerId) || null : null}
+              invoiceLoading={invoiceLoading}
+              gateYm={gateYm}
+              adminId={adminId}
+              onRefresh={onRefresh}
+            />
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-// 색 규칙 (2026-06-01 R-A3 fix):
+// 색 규칙 (R-A3 fix):
 //   · 합계 — 기본색 (primary), 핑크 X. 한 행 한 큰 숫자.
 //   · 1차 / 2차 — 작은 회색 라벨 + 회색 금액.
 //   · 핑크는 위 요약(미지급 총액 + 1차 바)에만, 목록 행엔 사용 X.
-function EngineerRow({ row }) {
+// 2026-06-01 B3:
+//   · 세금계산서 상태 뱃지 (미발행 / 발행함·확인 필요 / 확인 완료).
+//   · [확인] 버튼 (발행함·미확인 시) → confirmTaxInvoice.
+//   · [지급] 버튼 (게이트) — confirmed_at 있을 때만 활성. pending 항목만 마킹.
+//   · [확인 취소] secondary (확인됨 시 옆에) → unconfirmTaxInvoice.
+function EngineerRow({ row, invoice, invoiceLoading, gateYm, adminId, onRefresh }) {
+  const [busy, setBusy] = useState(false);
+
   const total = row.firstAmount + row.secondAmount;
   const isAllDone = total === 0 && row.doneAmount > 0;
+  const isUnassigned = row.engineerKey === "unassigned" || !row.engineerId;
+
+  const engineerLabel = row.engineer?.name
+    || row.engineerName
+    || (isUnassigned ? "미배정" : `기사 ${(row.engineerKey || "").slice(0, 8)}`);
+
+  // 세금계산서 상태 판정.
+  //   unknown (load 중 / unassigned)
+  const invStatus = useMemo(() => {
+    if (isUnassigned) return "unassigned";
+    if (invoiceLoading && !invoice) return "loading";
+    if (!invoice || !invoice.marked_at) return "unmarked";
+    if (invoice.confirmed_at) return "confirmed";
+    return "marked";
+  }, [invoice, invoiceLoading, isUnassigned]);
+
+  async function handleConfirm() {
+    if (busy || !row.engineerId || !gateYm) return;
+    if (!confirm(
+      `${engineerLabel} 기사의 ${gateYm} 세금계산서 확인 처리할까요?\n` +
+      `→ 지급 버튼이 활성화됩니다.`
+    )) return;
+    setBusy(true);
+    const res = await confirmTaxInvoice({
+      engineerId: row.engineerId, ym: gateYm, actor: adminId,
+    });
+    setBusy(false);
+    if (!res.ok) { alert("확인 처리 실패: " + res.error); return; }
+    onRefresh && onRefresh();
+  }
+
+  async function handleUnconfirm() {
+    if (busy || !row.engineerId || !gateYm) return;
+    if (!confirm(
+      `${engineerLabel} 기사의 ${gateYm} 세금계산서 확인을 취소할까요?\n` +
+      `→ 지급 버튼이 비활성화됩니다.`
+    )) return;
+    setBusy(true);
+    const res = await unconfirmTaxInvoice({
+      engineerId: row.engineerId, ym: gateYm,
+    });
+    setBusy(false);
+    if (!res.ok) { alert("확인 취소 실패: " + res.error); return; }
+    onRefresh && onRefresh();
+  }
+
+  async function handleSettle() {
+    if (busy) return;
+    if (row.pendingItemIds.length === 0) return;
+    if (invStatus !== "confirmed") return;
+    if (!confirm(
+      `${engineerLabel} 기사에게 ${row.pendingItemIds.length}건 지급 마킹할까요?\n` +
+      `1차 ₩${row.firstAmount.toLocaleString()} + 2차 ₩${row.secondAmount.toLocaleString()}\n` +
+      `= 총 ₩${total.toLocaleString()}`
+    )) return;
+    setBusy(true);
+    const res = await markTaskItemsField(row.pendingItemIds, "engineer_settled_at");
+    setBusy(false);
+    if (!res.ok) { alert("지급 마킹 실패: " + res.error); return; }
+    onRefresh && onRefresh();
+  }
+
+  const canSettle = invStatus === "confirmed" && row.pendingItemIds.length > 0;
 
   return (
     <div style={{
@@ -525,6 +671,7 @@ function EngineerRow({ row }) {
       border: isAllDone ? `1px solid ${C_GREEN}55` : "1px solid var(--border)",
       borderRadius: 10,
     }}>
+      {/* 1행 — 이름 + 총액 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         marginBottom: 4,
@@ -533,10 +680,7 @@ function EngineerRow({ row }) {
           <EngineerBadge engineer={row.engineer} size="sm"/>
         ) : (
           <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-            {row.engineerName
-              || (row.engineerKey === "unassigned"
-                  ? "미배정"
-                  : `기사 ${row.engineerKey.slice(0, 8)}`)}
+            {engineerLabel}
           </span>
         )}
         <span style={{
@@ -546,16 +690,15 @@ function EngineerRow({ row }) {
           ₩{total.toLocaleString()}
         </span>
       </div>
+
+      {/* 2행 — 1차 / 2차 */}
       <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 4, fontSize: 10,
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, fontSize: 10,
       }}>
         <span style={{ color: C_GRAY }}>
           1차{" "}
           <span style={{
-            color: C_GRAY,
-            fontFamily: "inherit", fontWeight: 700, marginLeft: 4,
+            color: C_GRAY, fontFamily: "inherit", fontWeight: 700, marginLeft: 4,
           }}>
             ₩{row.firstAmount.toLocaleString()}
           </span>
@@ -563,13 +706,13 @@ function EngineerRow({ row }) {
         <span style={{ color: C_GRAY, textAlign: "right" }}>
           2차{" "}
           <span style={{
-            color: C_GRAY,
-            fontFamily: "inherit", fontWeight: 700, marginLeft: 4,
+            color: C_GRAY, fontFamily: "inherit", fontWeight: 700, marginLeft: 4,
           }}>
             ₩{row.secondAmount.toLocaleString()}
           </span>
         </span>
       </div>
+
       {row.doneAmount > 0 && (
         <div style={{
           fontSize: 9, color: C_GREEN, marginTop: 4, fontWeight: 600,
@@ -577,7 +720,115 @@ function EngineerRow({ row }) {
           ✓ 이미 지급 ₩{row.doneAmount.toLocaleString()}
         </div>
       )}
+
+      {/* 3행 — 세금계산서 뱃지 + 액션 */}
+      {!isUnassigned && (
+        <div style={{
+          marginTop: 8, paddingTop: 8,
+          borderTop: "1px dashed var(--border)",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 6, flexWrap: "wrap",
+        }}>
+          <TaxBadge status={invStatus}/>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {invStatus === "marked" && (
+              <SmallBtn
+                kind="primary"
+                onClick={handleConfirm}
+                disabled={busy || !adminId}
+                title={!adminId ? "운영자 ID 누락" : ""}
+              >
+                확인
+              </SmallBtn>
+            )}
+            {invStatus === "confirmed" && (
+              <SmallBtn
+                kind="secondary"
+                onClick={handleUnconfirm}
+                disabled={busy}
+              >
+                확인 취소
+              </SmallBtn>
+            )}
+            <SmallBtn
+              kind={canSettle ? "settle" : "disabled"}
+              onClick={canSettle ? handleSettle : undefined}
+              disabled={!canSettle || busy}
+              title={
+                !canSettle && invStatus !== "confirmed"
+                  ? "세금계산서 확인 먼저"
+                  : (row.pendingItemIds.length === 0 ? "지급 대상 없음" : "")
+              }
+            >
+              {row.pendingItemIds.length === 0
+                ? "지급 대상 없음"
+                : `지급 (${row.pendingItemIds.length}건)`}
+            </SmallBtn>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+// ── 세금계산서 상태 뱃지 ────────────────────────────────────
+function TaxBadge({ status }) {
+  if (status === "unassigned") {
+    return <BadgeBase color={C_GRAY}>미배정 — 세금계산서 X</BadgeBase>;
+  }
+  if (status === "loading") {
+    return <BadgeBase color={C_GRAY}>세금계산서 확인 중...</BadgeBase>;
+  }
+  if (status === "unmarked") {
+    return <BadgeBase color={C_GRAY}>세금계산서 미발행</BadgeBase>;
+  }
+  if (status === "marked") {
+    return <BadgeBase color={C_AMBER}>발행함 · 확인 필요</BadgeBase>;
+  }
+  // confirmed
+  return <BadgeBase color={C_GREEN}>✓ 확인 완료</BadgeBase>;
+}
+
+function BadgeBase({ color, children }) {
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 700, color,
+      padding: "3px 8px", borderRadius: 6,
+      background: `${color}1A`,
+      border: `1px solid ${color}55`,
+      whiteSpace: "nowrap",
+    }}>
+      {children}
+    </span>
+  );
+}
+
+// ── 작은 액션 버튼 ───────────────────────────────────────────
+function SmallBtn({ kind = "primary", onClick, disabled, title, children }) {
+  const styleByKind = {
+    primary:   { background: "var(--accent, #03C75A)", color: "#fff", border: "none" },
+    secondary: { background: "transparent",            color: C_GRAY,  border: `1px solid ${C_GRAY}55` },
+    settle:    { background: C_PINK,                   color: "#fff", border: "none" },
+    disabled:  { background: "var(--bg-secondary, #1A1A1A)", color: C_GRAY, border: "1px solid var(--border)" },
+  };
+  const s = styleByKind[kind] || styleByKind.primary;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title || ""}
+      style={{
+        ...s,
+        padding: "5px 10px",
+        borderRadius: 6,
+        fontSize: 11, fontWeight: 700,
+        fontFamily: "inherit",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.55 : 1,
+      }}
+    >
+      {children}
+    </button>
   );
 }
 

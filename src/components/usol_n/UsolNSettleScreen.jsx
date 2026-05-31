@@ -31,7 +31,7 @@ function companyAmountOf(item) {
   return Math.round(Number(n) * 0.85);
 }
 
-export function UsolNSettleScreen() {
+export function UsolNSettleScreen({ adminId = null }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -93,7 +93,7 @@ export function UsolNSettleScreen() {
         title="② 회사 → 기사"
         sub="월정산 — 1차 매월 15일 · 2차 매월 말일"
       />
-      <UsolNToEngineerSection/>
+      <UsolNToEngineerSection adminId={adminId}/>
     </div>
   );
 }

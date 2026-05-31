@@ -77,8 +77,9 @@ export function UsolNScreen({ user, initialTab, onBack, onTaskClick }) {
         {activeTab === "assign" && <UsolNAssignList  onTaskClick={onTaskClick} onSeeAll={() => setActiveTab("all")}/>}
         {activeTab === "all"    && <UsolNInProgress  onTaskClick={onTaskClick}/>}
         {activeTab === "upload" && <UsolNUploadToggle onTaskClick={onTaskClick}/>}
-        {/* R-A1: 옛 usol_settle + engineer_settle → 단일 settle 탭 (UsolNSettleScreen 내부에서 ① + ② 통합) */}
-        {activeTab === "settle" && <UsolNSettleScreen/>}
+        {/* R-A1: 옛 usol_settle + engineer_settle → 단일 settle 탭 (UsolNSettleScreen 내부에서 ① + ② 통합)
+            2026-06-01 B3: adminId = 로그인 운영자 users.id — 세금계산서 확인 / 기사별 게이트 지급 actor. */}
+        {activeTab === "settle" && <UsolNSettleScreen adminId={currentUser?.id || null}/>}
       </div>
     </div>
   );
