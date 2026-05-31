@@ -551,6 +551,7 @@ function SettleBucketRow({ color = "#9CA3AF", icon: Icon = Circle, label, count 
       alignItems: "center",
       padding: "8px 0",
       gap: 10,
+      borderTop: "0.5px solid rgba(255,255,255,0.08)",  // 2026-06-01 (Step 7-2): 행 측측 측측 측측
     }}>
       <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
         <Icon size={18} color={color} strokeWidth={2.2} style={{ flexShrink: 0 }}/>
