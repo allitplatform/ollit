@@ -54,29 +54,46 @@ export async function fetchUsolRemitHistory({ principalCode = "usol_n", monthOff
   const { startISO, endISO } = thisMonthKstRangeUtc(monthOffset);
 
   // 3) tasks + payments + task_items + assignee embed
-  const { data: rows, error } = await supabase
-    .from("tasks")
-    .select(`
-      id, task_no, customer_name, extra_fee, completed_at, assigned_engineer_id,
-      payments ( usol_remitted_at, principal_amount, track ),
-      task_items ( work_types ( name, service_types ( code ) ) ),
-      assignee:users!tasks_assigned_engineer_id_fkey ( id, code, name )
-    `)
-    .eq("tenant_id", TENANT_ID)
-    .eq("principal_id", principalId)
-    .eq("status", "완료")
-    .gt("extra_fee", 0)
-    .gte("completed_at", startISO)
-    .lt ("completed_at", endISO)
-    .order("completed_at", { ascending: false });
+  //   2026-05-31 — Supabase JS max_rows=1000 cap 측 페이지네이션 loop 측 전체 fetch.
+  //     현재 측 월 필터 측 1000+ 측 측측측측, 측측 안전 마진 0 → 측 패턴 적용 (297f36d / fef655a 동일).
+  //     PAGE_SIZE=1000, MAX_PAGES=50 (≈50,000 row safety cap).
+  //     안정 정렬 측 id ASC secondary key (completed_at ties 측 페이지 측 측측 측측).
+  //     호출처 시그니처 / 응답 schema 측 변경 X.
+  const PAGE_SIZE = 1000;
+  const MAX_PAGES = 50;
+  const rows = [];
 
-  if (error) {
-    console.error("[usolRemitHistoryDb.fetch]", error);
-    return { ok: false, error: error.message, items: [] };
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const offset = page * PAGE_SIZE;
+    const { data, error } = await supabase
+      .from("tasks")
+      .select(`
+        id, task_no, customer_name, extra_fee, completed_at, assigned_engineer_id,
+        payments ( usol_remitted_at, principal_amount, track ),
+        task_items ( work_types ( name, service_types ( code ) ) ),
+        assignee:users!tasks_assigned_engineer_id_fkey ( id, code, name )
+      `)
+      .eq("tenant_id", TENANT_ID)
+      .eq("principal_id", principalId)
+      .eq("status", "완료")
+      .gt("extra_fee", 0)
+      .gte("completed_at", startISO)
+      .lt ("completed_at", endISO)
+      .order("completed_at", { ascending: false })
+      .order("id", { ascending: true })  // 페이지 측 안정 정렬 측 secondary key
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error("[usolRemitHistoryDb.fetch]", error);
+      return { ok: false, error: error.message, items: [] };
+    }
+    if (!data || data.length === 0) break;
+    rows.push(...data);
+    if (data.length < PAGE_SIZE) break;
   }
 
   // 4) cleaning 한정 + 평탄화
-  const items = (rows || [])
+  const items = rows
     .filter(r => hasCleaningItem(r.task_items))
     .map(r => {
       const p = Array.isArray(r.payments) ? r.payments[0] : r.payments;

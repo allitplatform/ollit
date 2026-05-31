@@ -54,32 +54,49 @@ export async function fetchPrincipalSettleItems({ principalCodes = [], monthsBac
   cutoff.setMonth(cutoff.getMonth() - monthsBack);
   cutoff.setHours(0, 0, 0, 0);
 
-  const { data, error } = await supabase
-    .from("task_items")
-    .select(
-      `id, task_id, qty, unit_price, subtotal, description,
-       naver_settled_at, naver_received_at,
-       cash_settled_at, cash_received_at,
-       company_received_at, engineer_settled_at,
-       net_amount, product_order_id, order_type,
-       work_types ( id, name ),
-       appliance_types ( id, name ),
-       tasks!inner ( id, task_no, customer_name, address, district,
-                     principal_id, status, received_at, scheduled_at, completed_at )`
-    )
-    .eq("tasks.tenant_id", TENANT_ID)
-    .in("tasks.principal_id", pids)
-    .gte("tasks.received_at", cutoff.toISOString())
-    .order("naver_settled_at", { ascending: false, nullsFirst: false })
-    .limit(5000);
+  // 2026-05-31 — Supabase JS max_rows=1000 cap 측 페이지네이션 loop 측 전체 fetch.
+  //   증상: .limit(5000) 단일 fetch 측 server 측 1000건만 반환 → PrincipalSettleTab 측
+  //         회사 입금 금액 합산 (line 158, 450, 553 측 companyAmountOf 측 .reduce) 측 누락.
+  //   처방: PAGE_SIZE=1000 측 loop, MAX_PAGES=50 (≈50,000 row safety cap).
+  //   안정 정렬 측 secondary key 측 id (received_at ties 측 페이지 측 측측 측측).
+  //   호출처 시그니처 / 응답 schema 측 변경 X (회귀 0).
+  const PAGE_SIZE = 1000;
+  const MAX_PAGES = 50;
+  const accumulated = [];
 
-  if (error) {
-    console.error("[principalSettleDb.fetch]", error);
-    return { ok: false, error: error.message, items: [] };
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const offset = page * PAGE_SIZE;
+    const { data, error } = await supabase
+      .from("task_items")
+      .select(
+        `id, task_id, qty, unit_price, subtotal, description,
+         naver_settled_at, naver_received_at,
+         cash_settled_at, cash_received_at,
+         company_received_at, engineer_settled_at,
+         net_amount, product_order_id, order_type,
+         work_types ( id, name ),
+         appliance_types ( id, name ),
+         tasks!inner ( id, task_no, customer_name, address, district,
+                       principal_id, status, received_at, scheduled_at, completed_at )`
+      )
+      .eq("tasks.tenant_id", TENANT_ID)
+      .in("tasks.principal_id", pids)
+      .gte("tasks.received_at", cutoff.toISOString())
+      .order("naver_settled_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true })  // 페이지 측 안정 정렬 측 secondary key
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error("[principalSettleDb.fetch]", error);
+      return { ok: false, error: error.message, items: [] };
+    }
+    if (!data || data.length === 0) break;
+    accumulated.push(...data);
+    if (data.length < PAGE_SIZE) break;
   }
 
   // 평탄화 — tasks nested → 항목 측 직접 필드로 복사
-  const flat = (data || []).map(it => {
+  const flat = accumulated.map(it => {
     const t = it.tasks || {};
     return {
       ...it,
