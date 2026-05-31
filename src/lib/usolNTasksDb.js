@@ -464,35 +464,50 @@ export async function fetchUsolNCompletedTaskItems({ monthsBack = 3, engineerUse
   cutoff.setMonth(cutoff.getMonth() - monthsBack);
   cutoff.setHours(0, 0, 0, 0);
 
-  let query = supabase
-    .from("task_items")
-    .select(
-      `id, task_id, product_order_id, order_type, qty, unit_price, subtotal,
-       naver_settled_at, cash_settled_at,
-       naver_received_at, cash_received_at, company_received_at,
-       engineer_settled_at, net_amount,
-       work_types ( id, name ),
-       appliance_types ( id, name ),
-       tasks!inner ( id, task_no, customer_name, principal_id, status,
-                     completed_at, assigned_engineer_id )`
-    )
-    .eq("tasks.principal_id", pid)
-    .eq("tasks.status", "완료")
-    .gte("tasks.completed_at", cutoff.toISOString());
+  // 2026-05-31 — Supabase JS default limit=1000 측 페이지네이션 측 전 row fetch.
+  //   증상 (사장님 측정): 운영 측 완료 task_items 1214건 — engineerUserId 측 호출처
+  //   (UsolNTracking / UsolNEngineerSettlement) 측 ~214건 누락 → 6/15 정산 금액 영향.
+  //   처방: .range(offset, offset+999) loop 측 size<1000 측 break. 안정 정렬 측 id secondary key.
+  //   안전 cap: MAX_PAGES=50 (≈50,000 row) — 무한 loop 차단.
+  const PAGE_SIZE = 1000;
+  const MAX_PAGES = 50;
+  const items = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    let query = supabase
+      .from("task_items")
+      .select(
+        `id, task_id, product_order_id, order_type, qty, unit_price, subtotal,
+         naver_settled_at, cash_settled_at,
+         naver_received_at, cash_received_at, company_received_at,
+         engineer_settled_at, net_amount,
+         work_types ( id, name ),
+         appliance_types ( id, name ),
+         tasks!inner ( id, task_no, customer_name, principal_id, status,
+                       completed_at, assigned_engineer_id )`
+      )
+      .eq("tasks.principal_id", pid)
+      .eq("tasks.status", "완료")
+      .gte("tasks.completed_at", cutoff.toISOString());
 
-  // 2026-05-31 — engineerUserId set 시 DB-level 필터 (1000-row cap 측정 측측 안전망)
-  if (engineerUserId) {
-    query = query.eq("tasks.assigned_engineer_id", engineerUserId);
+    // 2026-05-31 — engineerUserId set 시 DB-level 필터 (1000-row cap 측정 측측 안전망)
+    if (engineerUserId) {
+      query = query.eq("tasks.assigned_engineer_id", engineerUserId);
+    }
+
+    const offset = page * PAGE_SIZE;
+    const { data, error } = await query
+      .order("naver_settled_at", { ascending: false })
+      .order("id", { ascending: true })  // 페이지 측 안정 정렬 측 secondary key
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (error) {
+      console.error("[usolNTasksDb.fetchCompleted]", error);
+      return { ok: false, error: error.message, items: [] };
+    }
+    if (!data || data.length === 0) break;
+    items.push(...data);
+    if (data.length < PAGE_SIZE) break;
   }
-
-  const { data, error } = await query.order("naver_settled_at", { ascending: false });
-
-  if (error) {
-    console.error("[usolNTasksDb.fetchCompleted]", error);
-    return { ok: false, error: error.message, items: [] };
-  }
-
-  const items = data || [];
 
   // users in-memory JOIN — 기사 18~30명, Max rows 1000 무관.
   const engineerIds = [...new Set(
