@@ -2,7 +2,7 @@
 // Hero 카드 = 이번 달 누적 + 전달 받을 돈 (구분선) / 월별 필터 / 일별 그룹
 
 import { useMemo, useState } from "react";
-import { ArrowLeft, CheckCircle2, Clock, Circle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Circle, Wallet } from "lucide-react";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { getSettleRound } from "../utils/usolNSettleRound.js";
@@ -280,8 +280,10 @@ export function UsolNSettlementScreen({
               <div style={{
                 fontSize: 15, color: subLabelColor, fontWeight: 700,
                 letterSpacing: 0.2,
+                display: "flex", alignItems: "center", gap: 6,
               }}>
-                {ymdMonthShort(prevYm)} 정산
+                <Wallet size={16} color="#03C75A" strokeWidth={2.2} style={{ flexShrink: 0 }}/>
+                <span>{ymdMonthShort(prevYm)} 정산</span>
               </div>
               <div style={{
                 fontSize: 11, color: "var(--text-tertiary)", fontWeight: 600,
