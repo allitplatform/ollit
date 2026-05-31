@@ -313,7 +313,7 @@ export function UsolNSettlementScreen({
                   label="미확정"
                   count={prevMonthBuckets.unconfirmedCount}
                   amount={prevMonthBuckets.unconfirmed}
-                  sub="네이버 정산 측측"
+                  sub="네이버 정산 대기"
                 />
               </div>
             </>
