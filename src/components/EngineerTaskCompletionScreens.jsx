@@ -1044,30 +1044,73 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
       ? Math.max(receivedNum - baseAmount, 0)
       : 0;
 
-  // 측 catch 측 catch 측 catch — 측 catch 합계 / 측 catch 합계 측 catch 비례 (= 측 catch 측 catch X 측 catch)
-  //   measurement 측 catch payments.engineer_amount 측 catch 측 catch (현 task) — 측 catch baseAmount/origAmount 측 catch
+  // 옛 비례식 견적 합계 — PartialReceivedSummary 측 변화 표시 측 사용 (유지).
   const origAmount = workItems.reduce((s, wi) => s + (Number(wi.subtotal) || 0), 0);
-  const [earningFull, setEarningFull] = useState(task.engineer_amount || 0);
+
+  // 2026-05-31 — Phase C earning preview 측 RPC override 측 정확 계산 측 교체.
+  //   옛: earningFull (payments.engineer_amount) × (baseAmount / origAmount) 비례 — Phase C 측 부정확
+  //       (refrigerant_rate × 받은 돈 측 정책 측 비례 X, row 측 독립 계산 측이라).
+  //   새: compute_engineer_amount_per_item(p_task_id, p_overrides) RPC (Mig 087) 호출.
+  //       p_overrides 측 actualQtyById + receivedById 측 반영 → DB commit 없이 정확 미리보기.
+  //       300ms 디바운스 측 빠른 타이핑 측 RPC 측 폭주 차단.
+  //       RPC 응답 측 이전 earning 측 유지 (깜빡임 방지).
+  const [earning, setEarning]               = useState(Number(task.engineer_amount) || 0);
   const [earningLoading, setEarningLoading] = useState(false);
+
+  // 디바운스 측 + override 측 변경 감지 측 — JSON.stringify 측 deep equality 측 측정
+  const overrideKey = JSON.stringify({ q: actualQtyById, r: receivedById });
+
   useEffect(() => {
     if (!task.id) return;
     let cancelled = false;
-    setEarningLoading(true);
-    (async () => {
+    const timer = setTimeout(async () => {
+      if (cancelled) return;
+      // 모든 row 측 override 측 build (살아있는 + 취소 모두 포함)
+      const overrides = workItems
+        .filter(wi => wi && wi.id)
+        .map(wi => {
+          const act = Number(actualQtyById[wi.id] ?? wi.qty) || 0;
+          const o = {
+            task_item_id: wi.id,
+            is_canceled:  act === 0,
+            qty:          act,
+          };
+          // received_amount — 빈 값 측 키 자체 omit (undefined 측 안 됨)
+          const raw = receivedById[wi.id];
+          if (raw != null && raw !== "") {
+            const n = parseInt(raw, 10);
+            if (Number.isFinite(n)) o.received_amount = n;
+          }
+          return o;
+        });
+      setEarningLoading(true);
       try {
-        const fresh = await recomputeAndFetchEarning(task.id);
-        if (!cancelled && fresh != null) setEarningFull(fresh);
+        const { data, error } = await supabase.rpc('compute_engineer_amount_per_item', {
+          p_task_id:   task.id,
+          p_overrides: overrides,
+        });
+        if (cancelled) return;
+        if (error) {
+          console.warn('[TaskPartialScreen] compute_engineer_amount_per_item 실패:', error.message);
+          // 깜빡임 방지 측 이전 earning 측 유지 (setEarning 호출 X)
+          return;
+        }
+        const arr = Array.isArray(data) ? data : [];
+        const sum = arr.reduce((s, x) => s + (Number(x?.engineer_amount) || 0), 0);
+        setEarning(sum);
       } catch (e) {
-        console.warn('[TaskPartialScreen] mount 재계산 예외:', e.message);
+        console.warn('[TaskPartialScreen] compute_engineer_amount_per_item 예외:', e.message);
       } finally {
         if (!cancelled) setEarningLoading(false);
       }
-    })();
-    return () => { cancelled = true; };
-  }, [task.id]);
-  const earning = origAmount > 0
-    ? Math.round((Number(earningFull) || 0) * (baseAmount / origAmount))
-    : 0;
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // overrideKey 측 actualQtyById + receivedById 측 변경 감지 측 묶음
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [task.id, overrideKey]);
 
   // 활성화 조건 — 사유 선택 + 항목 1건 이상 살아있음 + 변경 1건 이상
   const anyPositive = workItems.some(wi => (Number(actualQtyById[wi.id] ?? wi.qty) || 0) > 0);
