@@ -249,33 +249,35 @@ export function UsolNToEngineerSection() {
             split={split}
           />
 
-          {/* 기사별 보기 진입 버튼 (회색 톤 — 핑크 X) */}
+          {/* 기사별 보기 — primary 핑크 (R-A3 fix: 주 동작) */}
           <button
             onClick={() => setShowEngineerList(true)}
             style={{
-              width: "100%", marginTop: 10, padding: "12px 14px",
-              background: "var(--bg-elevated, #1F1F1F)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
-              color: "var(--text-primary)",
-              fontSize: 12, fontWeight: 700,
-              fontFamily: "inherit",
+              width: "100%", marginTop: 14, padding: 14,
+              background: C_PINK, border: "none", borderRadius: 10,
+              color: "#fff", fontSize: 13, fontWeight: 800,
               cursor: "pointer",
+              fontFamily: "inherit",
               display: "flex", alignItems: "center", justifyContent: "space-between",
             }}
           >
             <span>기사별 보기 ({byEng.length}명)</span>
-            <span style={{ color: C_GRAY, fontSize: 18, fontWeight: 700 }}>›</span>
+            <span style={{ fontSize: 18, fontWeight: 700, opacity: 0.85 }}>›</span>
           </button>
 
+          {/* 일괄 지급 — secondary 회색 (R-A3 fix: 실수 클릭 방지 + Phase B 측 기사별
+              게이트 지급 측 측측. 큰 ₩ 측측 측측 측 측측 측측 측측). */}
           {split.pendingItems.length > 0 && (
             <button
               onClick={handleBulkSettle}
               disabled={confirming}
               style={{
-                width: "100%", marginTop: 10, padding: 14,
-                background: C_PINK, border: "none", borderRadius: 10,
-                color: "#fff", fontSize: 13, fontWeight: 800,
+                width: "100%", marginTop: 8, padding: "9px 12px",
+                background: "var(--bg-secondary, #1A1A1A)",
+                border: "1px solid var(--border, #2A2A2A)",
+                borderRadius: 8,
+                color: "var(--text-secondary, #9CA3AF)",
+                fontSize: 11, fontWeight: 600,
                 cursor: confirming ? "not-allowed" : "pointer",
                 fontFamily: "inherit",
                 opacity: confirming ? 0.5 : 1,
@@ -283,7 +285,7 @@ export function UsolNToEngineerSection() {
             >
               {confirming
                 ? "처리 중..."
-                : `${selectedMonth} 일괄 지급 (1차 + 2차) — ₩${split.pendingTotal.toLocaleString()}`}
+                : `${selectedMonth} 일괄 지급 (1차+2차) · ${split.pendingItems.length}건`}
             </button>
           )}
         </>
