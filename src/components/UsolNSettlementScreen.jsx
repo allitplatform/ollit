@@ -276,7 +276,7 @@ export function UsolNSettlementScreen({
               marginBottom: 10, gap: 8,
             }}>
               <div style={{
-                fontSize: 13, color: subLabelColor, fontWeight: 800,
+                fontSize: 15, color: subLabelColor, fontWeight: 700,
                 letterSpacing: 0.2,
               }}>
                 {ymdMonthShort(prevYm)} 정산
@@ -299,7 +299,7 @@ export function UsolNSettlementScreen({
               return (
                 <div style={{
                   display: "flex",
-                  width: "100%", height: 7,
+                  width: "100%", height: 8,
                   borderRadius: 4,
                   overflow: "hidden",
                   marginBottom: 12,
@@ -549,12 +549,12 @@ function SettleBucketRow({ color = "#9CA3AF", label, count = 0, amount = 0, sub 
     }}>
       <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{
-          width: 8, height: 8, borderRadius: "50%",
+          width: 9, height: 9, borderRadius: "50%",
           background: color, flexShrink: 0,
         }}/>
         <div style={{ minWidth: 0 }}>
           <div style={{
-            fontSize: 13, color: color, fontWeight: 800,
+            fontSize: 15, color: color, fontWeight: 700,
             letterSpacing: 0.2,
             display: "flex", alignItems: "baseline", gap: 6,
           }}>
@@ -574,10 +574,10 @@ function SettleBucketRow({ color = "#9CA3AF", label, count = 0, amount = 0, sub 
         </div>
       </div>
       <span className="mono" style={{
-        fontSize: 15, fontWeight: 800,
+        fontSize: 19, fontWeight: 700,
         color: color,
         flexShrink: 0,
-        letterSpacing: "-0.3px",
+        letterSpacing: "-0.4px",
       }}>
         ₩{(Number(amount) || 0).toLocaleString("ko-KR")}
       </span>
