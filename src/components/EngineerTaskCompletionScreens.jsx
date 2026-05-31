@@ -1069,12 +1069,27 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
     ? Math.round((Number(earningFull) || 0) * (baseAmount / origAmount))
     : 0;
 
-  // 측 catch 측 catch — 측 catch 측 catch task_item 측 catch qty>0 + 사유 측 catch
+  // 활성화 조건 — 사유 선택 + 항목 1건 이상 살아있음 + 변경 1건 이상
   const anyPositive = workItems.some(wi => (Number(actualQtyById[wi.id] ?? wi.qty) || 0) > 0);
-  const allUnchanged = workItems.every(wi =>
-    (Number(actualQtyById[wi.id] ?? wi.qty) || 0) === (Number(wi.qty) || 0)
+  // 2026-05-31 — Bug 3 fix — Phase C 측 받은 돈 변경 측 활성화 조건 포함 (Option C).
+  //   옛 spec: qty 변경 (allUnchanged 측) 필수 → 받은 돈만 수정 시 disabled.
+  //   새 spec: qty 변경 OR per-item 받은 돈 변경 OR receivedTotal 변경 → 활성화.
+  const itemQtyChanged = workItems.some(wi =>
+    (Number(actualQtyById[wi.id] ?? wi.qty) || 0) !== (Number(wi.qty) || 0)
   );
-  const canSubmit = !!reasonId && anyPositive && !allUnchanged;
+  const itemReceivedChanged = usesPerItemFlow && allMainItems.some(it => {
+    if (it.isCanceled) return false;
+    const act = Number(actualQtyById[it.id] ?? it.qty) || 0;
+    if (act === 0) return false;
+    const v   = parseInt(receivedById[it.id] || "0", 10) || 0;
+    const dbV = Number(it.receivedAmount ?? it.subtotal ?? 0);
+    return v !== dbV;
+  });
+  const receivedTotalChanged = !usesPerItemFlow && usesReceivedTotalFlow && (
+    (parseInt(receivedTotal || "0", 10) || 0) !== Number(task.receivedTotal ?? 0)
+  );
+  const anyChanged = itemQtyChanged || itemReceivedChanged || receivedTotalChanged;
+  const canSubmit = !!reasonId && anyPositive && anyChanged;
 
   // 측 catch 측 catch 자동 측 catch (상품별 주문→실제, 취소 K건)
   function buildAutoMemo() {
