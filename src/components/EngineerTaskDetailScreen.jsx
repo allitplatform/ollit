@@ -8,7 +8,13 @@ import { useRef, useState, useEffect } from "react";
 import { ArrowLeft, Camera, X, Copy } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
-import { changePriceAdapter as apiChangePrice, markVisitOnlyAdapter, setReceivedTotalAdapter as apiSetReceivedTotal } from "../data/tasksDb.js";
+import {
+  changePriceAdapter as apiChangePrice,
+  markVisitOnlyAdapter,
+  setReceivedTotalAdapter as apiSetReceivedTotal,
+  setTaskItemReceivedAmount as apiSetItemReceived,
+  setAllTaskItemReceivedAmounts as apiSetAllItemsReceived,
+} from "../data/tasksDb.js";
 import { isRefrigerant as isRefrigerantWorkType } from "../utils/workTypeKind.js";
 import { supabase } from "../lib/supabase.js";
 import {
@@ -280,6 +286,24 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   const [receivedTotal, setReceivedTotal] = useState(
     task.receivedTotal != null ? String(task.receivedTotal) : ""
   );
+  // 2026-05-31 — Phase C Step 4 — per-item 받은 돈 state.
+  //   메인 2개+ 시 row 측 받은 돈 각자 입력. default = it.receivedAmount 또는 subtotal fallback.
+  //   취소된 메인 row 측 카드 측 렌더 측 (회색 + ✗) — 값 측 0 강제.
+  const [receivedById, setReceivedById] = useState(() => {
+    const init = {};
+    for (const it of (task.workItems || [])) {
+      if (!it || !it.id) continue;
+      if (it.isCanceled) {
+        init[it.id] = "0";
+      } else if (it.receivedAmount != null) {
+        init[it.id] = String(it.receivedAmount);
+      } else {
+        const sub = Number(it.subtotal) || 0;
+        init[it.id] = sub > 0 ? String(sub) : "";
+      }
+    }
+    return init;
+  });
   const [workMemo, setWorkMemo] = useState(task.workMemo || "");
   const [menuOpen, setMenuOpen] = useState(false);
   const [visitOnlyOpen, setVisitOnlyOpen] = useState(false);
@@ -297,11 +321,26 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   const usesReceivedTotalFlow =
     task.principalCode !== 'usol_n' && task.paymentMethod !== 'prepaid';
 
+  // 2026-05-31 — Phase C Step 4 — 메인 row 분기 (per-item 흐름).
+  //   주 (메인) row = order_type 측 '추가선택' 아닌 row + 미취소.
+  //   non-usol_n (가드 외) 측 order_type NULL 측 (== '추가선택' 아님) → 전 row 메인.
+  //   usesPerItemFlow: 메인 2개+ → row 측 받은 돈 각자 입력 (PerItemReceivedCards).
+  //   메인 1개 케이스 → Phase B UX (ReceivedTotalInput) 유지, backend 측 row.receivedAmount write.
+  const allMainItems = (task.workItems || []).filter(it => (it.orderType || it.order_type) !== '추가선택');
+  const mainItems = allMainItems.filter(it => !it.isCanceled);
+  const usesPerItemFlow = mainItems.length >= 2 && usesReceivedTotalFlow;
+  const singleMainItemId = mainItems.length === 1 ? mainItems[0].id : null;
+
   // 정규화된 파싱 값 (네비게이션 spread 측 측 X 측 재사용)
   const parsedExtra    = parseInt(extraFee || "0", 10);
   const parsedReceived = parseInt(receivedTotal || "0", 10);
+  // Phase C — per-item 합산 받은 돈 (sum of non-canceled main items)
+  const sumPerItemReceived = mainItems.reduce((s, it) => {
+    return s + (parseInt(receivedById[it.id] || "0", 10) || 0);
+  }, 0);
   // 신규 흐름의 자동 계산 추가금 (DB 트리거 공식과 동일: GREATEST(received - product, 0))
   const derivedExtra   = Math.max(parsedReceived - (task.estimateTotal || 0), 0);
+  const derivedExtraPerItem = Math.max(sumPerItemReceived - (task.estimateTotal || 0), 0);
 
   // 2026-05-17 시나리오 B — 진행중 화면에서 입력란에 타이핑한 값은 로컬 state만 갱신됨.
   // 완료 분기 화면(완료/부분/출장비) 진입 직전에 DB에 먼저 저장해야
@@ -326,39 +365,105 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     setSubScreen(target);
   }
 
-  // 2026-05-30 — Phase B Step 3 — 신규 흐름 persist.
-  //   received_total 만 write → BEFORE 트리거가 extra_fee 자동 sync,
-  //   AFTER compute_payment_trg 가 정산 재계산 (Migration 083 컬럼 확장).
+  // 2026-05-30 — Phase B Step 3 / 2026-05-31 Phase C Q3-A — 단일 메인 case persist.
+  //   Q3-A: 메인 1개 측 task_items.received_amount 측 write (row write 경로).
+  //   DB 트리거 task_items_a_sync_received_total_trg → tasks.received_total + extra_fee 자동 sync.
+  //   AFTER compute_payment_trg → 정산 재계산 (Migration 085 v17).
+  //   edge: 메인 0개 측 → tasks.received_total 측 직접 write (Phase B fallback).
   async function persistReceivedTotalAndNavigate(target) {
     if (saving) return;
-    const currentDb = Number(task.receivedTotal ?? 0);
-    if (parsedReceived !== currentDb) {
-      setSaving(true);
-      try {
-        const res = await apiSetReceivedTotal(task.id, parsedReceived);
-        if (!res || res.ok === false) {
-          console.warn('[EngineerTaskDetailScreen] receivedTotal 사전 저장 실패:', res?.error);
+    setSaving(true);
+    try {
+      if (singleMainItemId) {
+        // 메인 1개 — row write
+        const mainItem = mainItems[0];
+        const currentDb = Number(mainItem?.receivedAmount ?? mainItem?.subtotal ?? 0);
+        if (parsedReceived !== currentDb) {
+          const res = await apiSetItemReceived(singleMainItemId, parsedReceived);
+          if (!res || res.ok === false) {
+            console.warn('[EngineerTaskDetailScreen] item.receivedAmount 사전 저장 실패:', res?.error);
+          }
         }
-      } catch (e) {
-        console.warn('[EngineerTaskDetailScreen] receivedTotal 사전 저장 예외:', e?.message);
-      } finally {
-        setSaving(false);
+      } else {
+        // 메인 0개 fallback — tasks.received_total 직접 write (Phase B path)
+        const currentDb = Number(task.receivedTotal ?? 0);
+        if (parsedReceived !== currentDb) {
+          const res = await apiSetReceivedTotal(task.id, parsedReceived);
+          if (!res || res.ok === false) {
+            console.warn('[EngineerTaskDetailScreen] receivedTotal fallback 저장 실패:', res?.error);
+          }
+        }
       }
+    } catch (e) {
+      console.warn('[EngineerTaskDetailScreen] persistReceivedTotal 예외:', e?.message);
+    } finally {
+      setSaving(false);
     }
     setSubScreen(target);
   }
 
-  // 흐름에 따라 어느 persist 함수를 쓸지 통합
-  const persistAndNavigate = usesReceivedTotalFlow
-    ? persistReceivedTotalAndNavigate
-    : persistExtraFeeAndNavigate;
+  // 2026-05-31 — Phase C Step 4 — per-item persist (메인 2개+).
+  //   변경된 row 만 모아 setAllTaskItemReceivedAmounts 1회 호출 → 트리거 측 sync + compute_payment.
+  async function persistPerItemReceivedAndNavigate(target) {
+    if (saving) return;
+    const updates = mainItems
+      .map(it => {
+        const value = parseInt(receivedById[it.id] || "0", 10) || 0;
+        const currentDb = Number(it.receivedAmount ?? it.subtotal ?? 0);
+        return { itemId: it.id, receivedAmount: value, changed: value !== currentDb };
+      })
+      .filter(u => u.changed);
 
-  // 완료 분기 화면에 넘길 task override (extraFee 는 화면에서 표시용)
-  //   신규 흐름: receivedTotal + 트리거 공식으로 derived extraFee 둘 다 명시
-  //   옛 흐름: extraFee 만 (기존 동작)
-  const completionTaskOverride = usesReceivedTotalFlow
-    ? { receivedTotal: parsedReceived, extraFee: derivedExtra }
-    : { extraFee: parsedExtra };
+    if (updates.length === 0) {
+      setSubScreen(target);
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await apiSetAllItemsReceived(
+        task.id,
+        updates.map(u => ({ itemId: u.itemId, receivedAmount: u.receivedAmount }))
+      );
+      if (!res || res.ok === false) {
+        console.warn('[EngineerTaskDetailScreen] per-item 받은 돈 일괄 저장 실패:', res?.error);
+      } else if (res.failCount > 0) {
+        console.warn('[EngineerTaskDetailScreen] per-item 부분 실패:', res.failCount, '/', updates.length);
+      }
+    } catch (e) {
+      console.warn('[EngineerTaskDetailScreen] persistPerItem 예외:', e?.message);
+    } finally {
+      setSaving(false);
+    }
+    setSubScreen(target);
+  }
+
+  // 흐름에 따라 어느 persist 함수를 쓸지 통합 — 3-way
+  const persistAndNavigate = usesPerItemFlow
+    ? persistPerItemReceivedAndNavigate
+    : usesReceivedTotalFlow
+      ? persistReceivedTotalAndNavigate
+      : persistExtraFeeAndNavigate;
+
+  // 완료 분기 화면에 넘길 task override
+  //   per-item 흐름: 받은 돈 합 + derived extra + 업데이트된 workItems (각 row receivedAmount)
+  //   단일 신규 흐름: receivedTotal + derived extra
+  //   옛 흐름: extraFee
+  const completionTaskOverride = usesPerItemFlow
+    ? (() => {
+        const updatedWorkItems = (task.workItems || []).map(it => {
+          if (!it || !it.id || it.isCanceled) return it;
+          const v = parseInt(receivedById[it.id] || "0", 10) || 0;
+          return { ...it, receivedAmount: v };
+        });
+        return {
+          workItems:     updatedWorkItems,
+          receivedTotal: sumPerItemReceived,
+          extraFee:      derivedExtraPerItem,
+        };
+      })()
+    : usesReceivedTotalFlow
+      ? { receivedTotal: parsedReceived, extraFee: derivedExtra }
+      : { extraFee: parsedExtra };
 
   if (!task) {
     return (
@@ -682,6 +787,16 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     const cur = parseInt(receivedTotal || "0", 10);
     setReceivedTotal(String(cur + amount));
   }
+  // 2026-05-31 — Phase C Step 4 — per-item 받은 돈 입력 + quick add
+  function setReceivedForItem(itemId, value) {
+    setReceivedById(prev => ({ ...prev, [itemId]: value }));
+  }
+  function addReceivedToItem(itemId, amount) {
+    setReceivedById(prev => ({
+      ...prev,
+      [itemId]: String((parseInt(prev[itemId] || "0", 10) || 0) + amount),
+    }));
+  }
 
   return (
     <div style={{
@@ -738,7 +853,14 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
             onPhotoChange={handlePhotoChange}
             onRemove={handleRemovePhoto}
           />
-          {usesReceivedTotalFlow ? (
+          {usesPerItemFlow ? (
+            <PerItemReceivedCards
+              items={allMainItems}
+              receivedById={receivedById}
+              onItemChange={setReceivedForItem}
+              onAddToItem={addReceivedToItem}
+            />
+          ) : usesReceivedTotalFlow ? (
             <ReceivedTotalInput
               value={receivedTotal}
               onChange={setReceivedTotal}
@@ -2118,6 +2240,216 @@ function ReceivedTotalInput({ value, onChange, onAdd, baseAmount = 0 }) {
                 ₩{receivedNum.toLocaleString("ko-KR")}
               </span>
             </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 2026-05-31 — Phase C Step 4 — 메인 2개+ row 측 받은 돈 각자 입력 (work_type 측 카드).
+//   사용자 spec: 각 메인 카드 (work_type별) + 합계 카드 + 부분 취소 카드 회색 표시.
+//   props:
+//     items          — 메인 row 측 (canceled 포함, 추가선택 제외)
+//     receivedById   — { [itemId]: string }  state
+//     onItemChange   — (itemId, value: string) → state update
+//     onAddToItem    — (itemId, amount: int) → quick add
+function PerItemReceivedCards({ items = [], receivedById = {}, onItemChange, onAddToItem }) {
+  const nonCanceled = items.filter(it => !it.isCanceled);
+  // 합계 (canceled 제외 — 입력란도 0 강제)
+  const sumReceived = nonCanceled.reduce((s, it) => {
+    return s + (parseInt(receivedById[it.id] || "0", 10) || 0);
+  }, 0);
+  // 분해 표시 (예: "세척 7만 + 냉매 18만")
+  const breakdown = nonCanceled.map(it => {
+    const v  = parseInt(receivedById[it.id] || "0", 10) || 0;
+    const wt = getWorkTypeColors(it.workType);
+    return `${wt.name} ${v.toLocaleString("ko-KR")}`;
+  }).join(' + ');
+
+  return (
+    <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
+      <div style={{
+        fontSize: 13, color: "var(--text-secondary)",
+        fontWeight: 700, marginBottom: 10,
+      }}>
+        💰 작업 항목별 받은 돈
+      </div>
+
+      {/* 각 메인 카드 */}
+      {items.map(it => {
+        const colors    = getWorkTypeColors(it.workType);
+        const subtotal  = Number(it.subtotal) || 0;
+        const value     = receivedById[it.id] != null ? receivedById[it.id] : "";
+        const receivedNum = parseInt(value || "0", 10) || 0;
+        const autoExtra = Math.max(receivedNum - subtotal, 0);
+        const isCanceled = !!it.isCanceled;
+        const applianceLabel = it.appliance || colors.name;
+
+        return (
+          <div key={it.id} style={{
+            background: "var(--bg-secondary)",
+            border: `1px solid ${isCanceled ? "var(--border)" : colors.main + '40'}`,
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 10,
+            opacity: isCanceled ? 0.5 : 1,
+            filter: isCanceled ? "grayscale(0.3)" : "none",
+          }}>
+            {/* 헤더 — 아이콘 + name + appliance ×qty + ✗ 취소 */}
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8, marginBottom: 10,
+              flexWrap: "wrap",
+            }}>
+              <span style={{ fontSize: 18, filter: isCanceled ? "grayscale(1)" : "none" }}>{colors.icon}</span>
+              <span style={{
+                fontSize: 13, fontWeight: 800,
+                color: isCanceled ? "#9CA3AF" : colors.main,
+              }}>{colors.name}</span>
+              <span style={{
+                fontSize: 13, fontWeight: 700,
+                color: isCanceled ? "#9CA3AF" : "var(--text-primary)",
+                textDecoration: isCanceled ? "line-through" : "none",
+              }}>
+                {applianceLabel} ×{it.qty || 1}
+              </span>
+              {isCanceled && (
+                <span style={{
+                  fontSize: 10, fontWeight: 800,
+                  padding: "1px 6px", borderRadius: 999,
+                  background: "#FCEBEB", color: "#A32D2D",
+                  whiteSpace: "nowrap", marginLeft: "auto",
+                }}>✗ 취소</span>
+              )}
+            </div>
+
+            {/* 견적 (자동, 회색) */}
+            <div style={{
+              fontSize: 12, color: "var(--text-secondary)", marginBottom: 8,
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              fontWeight: 600,
+            }}>
+              <span>견적 (자동)</span>
+              <span className="mono" style={{ color: "var(--text-primary)", fontWeight: 700 }}>
+                ₩{subtotal.toLocaleString("ko-KR")}
+              </span>
+            </div>
+
+            {isCanceled ? (
+              <div style={{
+                padding: "8px 10px",
+                background: "rgba(156, 163, 175, 0.10)",
+                borderRadius: 8,
+                fontSize: 12, fontWeight: 600,
+                color: "#9CA3AF",
+                textAlign: "center",
+              }}>
+                취소된 항목 — 받은 돈 ₩0
+              </div>
+            ) : (
+              <>
+                {/* 받은 돈 라벨 + 입력 */}
+                <div style={{
+                  fontSize: 11, color: "#D4537E",
+                  fontWeight: 800, marginBottom: 4,
+                  letterSpacing: 0.3,
+                }}>
+                  받은 돈
+                </div>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={value}
+                  placeholder={String(subtotal)}
+                  onChange={(e) => onItemChange && onItemChange(it.id, e.target.value)}
+                  style={{
+                    width: "100%", padding: 10,
+                    background: "var(--card-bg)",
+                    border: `1px solid ${colors.main}`,
+                    borderRadius: 8,
+                    color: "var(--text-primary)",
+                    fontSize: 15, boxSizing: "border-box",
+                    outline: "none", marginBottom: 8,
+                    fontFamily: "inherit",
+                    fontWeight: 700,
+                  }}
+                />
+
+                {/* 빠른 입력 — row 측 받은 돈에 더하기 */}
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: 6,
+                  marginBottom: autoExtra > 0 ? 8 : 0,
+                }}>
+                  {[
+                    { amount: 5000,   label: "+5천"  },
+                    { amount: 10000,  label: "+1만"  },
+                    { amount: 50000,  label: "+5만"  },
+                    { amount: 100000, label: "+10만" },
+                  ].map(b => (
+                    <button
+                      key={b.amount}
+                      onClick={() => onAddToItem && onAddToItem(it.id, b.amount)}
+                      style={{
+                        padding: 6,
+                        background: "var(--card-bg)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 6,
+                        color: colors.main,
+                        fontSize: 11, fontWeight: 700,
+                        cursor: "pointer",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {b.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* 자동 추가금 — 받은 돈 > 견적 시 초록 안내 */}
+                {autoExtra > 0 && (
+                  <div style={{
+                    padding: "6px 10px",
+                    background: "rgba(15, 110, 86, 0.10)",
+                    borderRadius: 6,
+                    fontSize: 12, fontWeight: 700,
+                    color: "#0F6E56",
+                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                  }}>
+                    <span>= 자동 추가금</span>
+                    <span className="mono">₩{autoExtra.toLocaleString("ko-KR")}</span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {/* 합계 카드 — 핑크 강조 */}
+      <div style={{
+        marginTop: 4, padding: "14px 16px",
+        background: "rgba(212, 83, 126, 0.10)",
+        border: "1px solid rgba(212, 83, 126, 0.35)",
+        borderRadius: 12,
+      }}>
+        <div style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          fontSize: 15, fontWeight: 800,
+        }}>
+          <span style={{ color: "#D4537E", display: "flex", alignItems: "center", gap: 6 }}>
+            💰 총 받은 돈
+          </span>
+          <span className="mono" style={{ color: "#D4537E", fontSize: 18, letterSpacing: "-0.3px" }}>
+            ₩{sumReceived.toLocaleString("ko-KR")}
+          </span>
+        </div>
+        {breakdown && (
+          <div style={{
+            fontSize: 11, color: "var(--text-secondary)", marginTop: 6, fontWeight: 600,
+          }}>
+            ({breakdown})
           </div>
         )}
       </div>
