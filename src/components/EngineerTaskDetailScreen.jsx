@@ -561,10 +561,25 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
           } catch (e) {
             console.warn("[partial] task_items UPDATE 실패:", e?.message);
           }
-          // 2026-05-30 — Phase B Step 4 — 신규 흐름 received_total 별도 persist.
-          //   task_items 변경으로 product_price 가 자동 sync 된 후, received_total UPDATE 시
-          //   BEFORE 트리거가 새 product_price 기준으로 extra_fee 자동 재계산.
-          if (usesReceivedTotalFlow && payload.receivedTotal != null) {
+          // 2026-05-31 — Phase C Step 5 — per-item 받은 돈 일괄 persist (메인 2개+).
+          //   task_items 측 qty/cancel UPDATE 후 product_price 자동 sync 됨 → 그 다음 received_amount UPDATE.
+          //   task_items_a_sync_received_total_trg → tasks.received_total + extra_fee 자동 sync.
+          //   compute_payment_trg (v17 Phase C path) → row 측 received_amount 측 정산.
+          if (Array.isArray(payload.itemReceivedUpdates) && payload.itemReceivedUpdates.length > 0) {
+            try {
+              const res = await apiSetAllItemsReceived(task.id, payload.itemReceivedUpdates);
+              if (!res || res.ok === false) {
+                console.warn('[partial] per-item 받은 돈 일괄 UPDATE 실패:', res?.error);
+              } else if (res.failCount > 0) {
+                console.warn('[partial] per-item 부분 실패:', res.failCount, '/', payload.itemReceivedUpdates.length);
+              }
+            } catch (e) {
+              console.warn('[partial] per-item UPDATE 예외:', e?.message);
+            }
+          } else if (usesReceivedTotalFlow && payload.receivedTotal != null) {
+            // Phase B 단일 메인 / fallback — receivedTotal 직접 write (옛 path 유지).
+            //   Phase B Step 4 호환 코드 — 단일 메인 시 받은 돈 측 task 측 직접 write.
+            //   Q3-A 측 row write 도 가능하나 fallback 안전망 측 receivedTotal write 유지.
             const currentDb = Number(task.receivedTotal ?? 0);
             if (Number(payload.receivedTotal) !== currentDb) {
               try {
@@ -578,15 +593,44 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
             }
           }
           // onUpdate override — 부분완료 후 in-memory task 일치화.
-          //   신규 흐름: 새 product_price (= payload.baseAmount), 사용자 받은 돈, derived extraFee.
-          //   옛 흐름:   completionTaskOverride 그대로 (extraFee 진행중 입력값).
-          const partialOverride = usesReceivedTotalFlow && payload.receivedTotal != null
-            ? {
-                receivedTotal: Number(payload.receivedTotal),
-                productPrice:  Number(payload.baseAmount) || 0,
-                extraFee:      Math.max(Number(payload.receivedTotal) - (Number(payload.baseAmount) || 0), 0),
-              }
-            : completionTaskOverride;
+          //   per-item 흐름 (Phase C): workItems 측 각 row receivedAmount + isCanceled 측 업데이트
+          //     receivedTotal = sumPerItemReceived, productPrice = payload.baseAmount, extraFee = derived
+          //   단일 메인 신규 (Phase B): 받은 돈 + productPrice + derived extraFee
+          //   옛 흐름: completionTaskOverride 그대로 (extraFee 진행중 입력값)
+          let partialOverride;
+          if (Array.isArray(payload.itemReceivedUpdates) && payload.itemReceivedUpdates.length > 0) {
+            const updatesById = new Map(payload.itemReceivedUpdates.map(u => [u.itemId, Number(u.receivedAmount) || 0]));
+            const newWorkItems = (task.workItems || []).map(it => {
+              if (!it || !it.id) return it;
+              const canceledNow = (() => {
+                const u = (payload.itemUpdates || []).find(x => x.id === it.id);
+                if (u && u.newQty === 0 && u.newQty !== u.originalQty) return true;
+                return !!it.isCanceled;
+              })();
+              const newReceived = canceledNow ? 0 : (updatesById.has(it.id) ? updatesById.get(it.id) : (it.receivedAmount ?? null));
+              return {
+                ...it,
+                isCanceled: canceledNow,
+                receivedAmount: newReceived,
+              };
+            });
+            const newReceivedTotal = Number(payload.sumPerItemReceived) || 0;
+            const newProductPrice  = Number(payload.baseAmount) || 0;
+            partialOverride = {
+              workItems:     newWorkItems,
+              receivedTotal: newReceivedTotal,
+              productPrice:  newProductPrice,
+              extraFee:      Math.max(newReceivedTotal - newProductPrice, 0),
+            };
+          } else if (usesReceivedTotalFlow && payload.receivedTotal != null) {
+            partialOverride = {
+              receivedTotal: Number(payload.receivedTotal),
+              productPrice:  Number(payload.baseAmount) || 0,
+              extraFee:      Math.max(Number(payload.receivedTotal) - (Number(payload.baseAmount) || 0), 0),
+            };
+          } else {
+            partialOverride = completionTaskOverride;
+          }
           onUpdate && onUpdate(task.id, {
             status: "완료",
             completedAt: getCurrentTime(),
