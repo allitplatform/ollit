@@ -439,13 +439,24 @@ export async function markTaskItemsField(itemIds, fieldName, timestamp = null) {
 }
 
 // 완료된 usol_n task_items 측 — UsolNTracking 주간 입금 이력 + UsolNEngineerSettlement
-// 옵션: monthsBack (기본 3개월)
+// 옵션:
+//   monthsBack (기본 3개월)
+//   engineerUserId (선택) — 측 set 시 DB-level 측 tasks.assigned_engineer_id 필터 추가.
+//                            기사 PWA 본인 정산 화면 측 Supabase 1000 row 캡 측정 측측 안전망.
+//                            UsolNTracking / UsolNEngineerSettlement (운영자 측, 전 기사 필요) 측 미전달.
+//
 // 2026-05-29 — users in-memory JOIN 추가 (fetchUsolNTasksPage 와 동일 패턴).
 //   기사정산 탭 이름 표시 결손 해결 (옛 localStorage engineers 매칭 mismatch 우회).
 //   각 item.tasks 에 assignedEngineer (이름) / assignedEngineerCode / engineerPhone 추가.
 //   기존 필드 (id, task_no, customer_name, principal_id, status, completed_at,
 //   assigned_engineer_id) 전부 보존 — 추가 필드만 (옛 호출처 EngineerApp / UsolNTracking 안전).
-export async function fetchUsolNCompletedTaskItems({ monthsBack = 3 } = {}) {
+//
+// 2026-05-31 — engineerUserId 옵션 추가 (1000-row cap 사고 차단).
+//   증상: 완료 task_items 1214건 측 — Supabase JS default limit=1000 측 잘림.
+//         기사 측 in-memory filter (EngineerApp.jsx:4532) 측 이미 잘린 데이터 측 작동.
+//         → 옛 정산건 (예: 김동효 이현정 — 1174번째) 측 사라짐.
+//   처방: engineerUserId set 시 DB 측 필터 → 그 기사 측 ~80건 측만 fetch → cap 측측 무관.
+export async function fetchUsolNCompletedTaskItems({ monthsBack = 3, engineerUserId } = {}) {
   const pid = await getUsolNPrincipalId();
   if (!pid) return { ok: false, error: "usol_n principal X", items: [] };
 
@@ -453,7 +464,7 @@ export async function fetchUsolNCompletedTaskItems({ monthsBack = 3 } = {}) {
   cutoff.setMonth(cutoff.getMonth() - monthsBack);
   cutoff.setHours(0, 0, 0, 0);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("task_items")
     .select(
       `id, task_id, product_order_id, order_type, qty, unit_price, subtotal,
@@ -467,8 +478,14 @@ export async function fetchUsolNCompletedTaskItems({ monthsBack = 3 } = {}) {
     )
     .eq("tasks.principal_id", pid)
     .eq("tasks.status", "완료")
-    .gte("tasks.completed_at", cutoff.toISOString())
-    .order("naver_settled_at", { ascending: false });
+    .gte("tasks.completed_at", cutoff.toISOString());
+
+  // 2026-05-31 — engineerUserId set 시 DB-level 필터 (1000-row cap 측정 측측 안전망)
+  if (engineerUserId) {
+    query = query.eq("tasks.assigned_engineer_id", engineerUserId);
+  }
+
+  const { data, error } = await query.order("naver_settled_at", { ascending: false });
 
   if (error) {
     console.error("[usolNTasksDb.fetchCompleted]", error);

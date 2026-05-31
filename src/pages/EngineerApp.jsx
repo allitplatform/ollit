@@ -4524,11 +4524,11 @@ export default function EngineerApp({ user, onLogout }) {
       if (!alive || !u?.id) { setUsolNGroups([]); return; }
       const myUserId = u.id;
 
-      // 2) usol_n 완료 task_items
-      const res = await fetchUsolNCompletedTaskItems({ monthsBack: 3 });
+      // 2) usol_n 완료 task_items — 2026-05-31: engineerUserId 측 DB-level 필터 (1000-row cap 사고 차단)
+      const res = await fetchUsolNCompletedTaskItems({ monthsBack: 3, engineerUserId: myUserId });
       if (!alive || !res.ok) { setUsolNGroups([]); return; }
 
-      // 3) 본인 task filter
+      // 3) 본인 task filter (idempotent 안전망 — DB 필터 측 이미 적용됨)
       const mine = (res.items || []).filter(it => it.tasks?.assigned_engineer_id === myUserId);
       if (mine.length === 0) { setUsolNGroups([]); return; }
 
