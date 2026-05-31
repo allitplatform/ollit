@@ -211,7 +211,7 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
       ) : error ? (
         <Empty color="#FF3B5C">⚠️ {error}</Empty>
       ) : filtered.length === 0 ? (
-        <Empty>{search.trim() ? "검색 결과가 없어요" : "배정 측 catch 측 catch 측 X"}</Empty>
+        <Empty>{search.trim() ? "검색 결과가 없어요" : "배정 필요한 작업이 없어요"}</Empty>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           {filtered.map(task => (

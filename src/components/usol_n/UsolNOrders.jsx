@@ -67,7 +67,7 @@ export function UsolNOrders({ onTaskClick, hideList = false }) {
     // 확장자 검증 — .xlsx / .xls / .csv 측 catch 측 catch 측 measurement (alert 측 catch)
     const ext = String(file.name || "").toLowerCase().split(".").pop();
     if (!["xlsx", "xls", "csv"].includes(ext)) {
-      alert(`엑셀/CSV 파일만 측 catch (.xlsx, .xls, .csv). 측 catch: .${ext}`);
+      alert(`엑셀/CSV 파일만 가능합니다 (.xlsx, .xls, .csv). 확장자: .${ext}`);
       return;
     }
     setImportResult(null);

@@ -1142,7 +1142,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
       const ord = Number(wi.qty) || 0;
       const act = Number(actualQtyById[wi.id] ?? wi.qty) || 0;
       if (act < ord) cancelCount += (ord - act);
-      const name = wi.appliance || wi.workType || wi.workItem || "측 catch";
+      const name = wi.appliance || wi.workType || wi.workItem || "항목";
       if (act !== ord) lines.push(`${name} 주문${ord}→실제${act}`);
     }
     const head = lines.length ? `부분완료 — ${lines.join(", ")}` : "부분완료";
@@ -1221,7 +1221,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
       {/* 측 상품별 실 작업 수량 — 단일 메인 / 가드 case 측 옛 counter 리스트 */}
       <div style={{ margin: "0 16px 14px", display: usesPerItemFlow ? "none" : undefined }}>
         <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 10 }}>
-          🔢 측 상품 실 작업 수량
+          🔢 작업 항목별 — 수량
         </div>
         {workItems.length === 0 ? (
           <div style={{
@@ -1236,7 +1236,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
           const ord = Number(wi.qty) || 0;
           const act = Number(actualQtyById[wi.id] ?? wi.qty) || 0;
           const cancelled = act === 0;
-          const name = wi.appliance || wi.workType || wi.workItem || "측 catch";
+          const name = wi.appliance || wi.workType || wi.workItem || "항목";
           const orderTypeLabel = wi.orderType || wi.order_type || "";
           const colors = getWorkTypeColors(wi.workType);
           return (
