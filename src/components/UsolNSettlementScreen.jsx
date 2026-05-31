@@ -2,7 +2,7 @@
 // Hero 카드 = 이번 달 누적 + 전달 받을 돈 (구분선) / 월별 필터 / 일별 그룹
 
 import { useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Circle } from "lucide-react";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { getSettleRound } from "../utils/usolNSettleRound.js";
@@ -319,6 +319,7 @@ export function UsolNSettlementScreen({
               {/* 받음 (1차 + 2차 합) */}
               <SettleBucketRow
                 color="#03C75A"
+                icon={CheckCircle2}
                 label="받음"
                 count={prevMonthBuckets.receivedCount}
                 amount={prevMonthBuckets.received}
@@ -338,6 +339,7 @@ export function UsolNSettlementScreen({
               {/* 예정 — 시안 측측 측측 #EF9F27 */}
               <SettleBucketRow
                 color="#EF9F27"
+                icon={Clock}
                 label="예정"
                 count={prevMonthBuckets.pendingCount}
                 amount={prevMonthBuckets.pending}
@@ -346,6 +348,7 @@ export function UsolNSettlementScreen({
               {/* 미확정 */}
               <SettleBucketRow
                 color="#6B7280"
+                icon={Circle}
                 label="미확정"
                 count={prevMonthBuckets.unconfirmedCount}
                 amount={prevMonthBuckets.unconfirmed}
@@ -540,7 +543,7 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
 //   count: N건 (옆 측측측)
 //   amount: 금액
 //   sub: 측측측 (예: "1차 X · 2차 Y" / "이번 달 15일 입금 예정")
-function SettleBucketRow({ color = "#9CA3AF", label, count = 0, amount = 0, sub = null }) {
+function SettleBucketRow({ color = "#9CA3AF", icon: Icon = Circle, label, count = 0, amount = 0, sub = null }) {
   return (
     <div style={{
       display: "flex",
@@ -550,10 +553,7 @@ function SettleBucketRow({ color = "#9CA3AF", label, count = 0, amount = 0, sub 
       gap: 10,
     }}>
       <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{
-          width: 9, height: 9, borderRadius: "50%",
-          background: color, flexShrink: 0,
-        }}/>
+        <Icon size={18} color={color} strokeWidth={2.2} style={{ flexShrink: 0 }}/>
         <div style={{ minWidth: 0 }}>
           <div style={{
             fontSize: 15, color: color, fontWeight: 700,
