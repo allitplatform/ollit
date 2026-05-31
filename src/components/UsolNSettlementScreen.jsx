@@ -258,67 +258,67 @@ export function UsolNSettlementScreen({
             <span style={{ color: "#03C75A", fontWeight: 700 }}>확정 ₩{thisMonthConfirmed.toLocaleString("ko-KR")}</span> ({confirmedPct}%) · 매월 15일 지급
           </div>
 
-          {/* 2026-06-01 — 이전달 정산 박스 (bucket model 3구간).
-                받음 (1차/2차 분해) / 예정 (확정·미지급) / 미확정 (네이버 미확정). */}
-          {prevMonthCount > 0 && (
-            <>
-              {/* 구분선 */}
-              <div style={{
-                height: 0.5,
-                background: "rgba(3,199,90,0.25)",
-                marginBottom: 14,
-              }}/>
-
-              {/* 헤더 — "N월 정산" (이전달 자동, prevYm 측 측측측) */}
-              <div style={{
-                fontSize: 13, color: subLabelColor, fontWeight: 800,
-                marginBottom: 10,
-                letterSpacing: 0.2,
-              }}>
-                {ymdMonthShort(prevYm)} 정산
-              </div>
-
-              {/* 3구간 (받음 / 예정 / 미확정) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {/* 받음 (1차 + 2차 합) */}
-                <SettleBucketRow
-                  color="#03C75A"
-                  label="받음"
-                  count={prevMonthBuckets.receivedCount}
-                  amount={prevMonthBuckets.received}
-                  sub={
-                    (prevMonthBuckets.received1Count > 0 || prevMonthBuckets.received2Count > 0)
-                      ? [
-                          prevMonthBuckets.received1Count > 0
-                            ? `1차 ${prevMonthBuckets.received1.toLocaleString("ko-KR")}원`
-                            : null,
-                          prevMonthBuckets.received2Count > 0
-                            ? `2차 ${prevMonthBuckets.received2.toLocaleString("ko-KR")}원`
-                            : null,
-                        ].filter(Boolean).join(" · ")
-                      : null
-                  }
-                />
-                {/* 예정 */}
-                <SettleBucketRow
-                  color="#B45309"
-                  label="예정"
-                  count={prevMonthBuckets.pendingCount}
-                  amount={prevMonthBuckets.pending}
-                  sub={`${prevMonthDepositDate || "이번 달 15일"} 입금 예정`}
-                />
-                {/* 미확정 */}
-                <SettleBucketRow
-                  color="#6B7280"
-                  label="미확정"
-                  count={prevMonthBuckets.unconfirmedCount}
-                  amount={prevMonthBuckets.unconfirmed}
-                  sub="네이버 정산 대기"
-                />
-              </div>
-            </>
-          )}
         </div>
+
+        {/* 2026-06-01 (Step 5) — "N월 정산" 측측 카드 (Hero 측측 측측).
+              border 측측 측측 (초록 X), Hero 측측 측측측. */}
+        {prevMonthCount > 0 && (
+          <div style={{
+            background: heroBg,
+            border: "1px solid var(--border)",
+            borderRadius: 16,
+            padding: 16,
+            marginTop: 14,
+          }}>
+            {/* 헤더 — "N월 정산" (이전달 자동, prevYm 측 측측측) */}
+            <div style={{
+              fontSize: 13, color: subLabelColor, fontWeight: 800,
+              marginBottom: 10,
+              letterSpacing: 0.2,
+            }}>
+              {ymdMonthShort(prevYm)} 정산
+            </div>
+
+            {/* 3구간 (받음 / 예정 / 미확정) */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* 받음 (1차 + 2차 합) */}
+              <SettleBucketRow
+                color="#03C75A"
+                label="받음"
+                count={prevMonthBuckets.receivedCount}
+                amount={prevMonthBuckets.received}
+                sub={
+                  (prevMonthBuckets.received1Count > 0 || prevMonthBuckets.received2Count > 0)
+                    ? [
+                        prevMonthBuckets.received1Count > 0
+                          ? `1차 ${prevMonthBuckets.received1.toLocaleString("ko-KR")}원`
+                          : null,
+                        prevMonthBuckets.received2Count > 0
+                          ? `2차 ${prevMonthBuckets.received2.toLocaleString("ko-KR")}원`
+                          : null,
+                      ].filter(Boolean).join(" · ")
+                    : null
+                }
+              />
+              {/* 예정 */}
+              <SettleBucketRow
+                color="#B45309"
+                label="예정"
+                count={prevMonthBuckets.pendingCount}
+                amount={prevMonthBuckets.pending}
+                sub={`${prevMonthDepositDate || "이번 달 15일"} 입금 예정`}
+              />
+              {/* 미확정 */}
+              <SettleBucketRow
+                color="#6B7280"
+                label="미확정"
+                count={prevMonthBuckets.unconfirmedCount}
+                amount={prevMonthBuckets.unconfirmed}
+                sub="네이버 정산 대기"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 월별 필터 */}
