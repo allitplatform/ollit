@@ -39,16 +39,16 @@ export function showUsolNEntry(user) {
 export const showUsolNGroup  = showUsolNEntry;
 export const filterUsolNMenu = (user) => showUsolNEntry(user) ? [USOL_N_ENTRY] : [];
 
-// 2026-05-26 round 2 — 5탭 (사장님 spec — 6 → 5)
-//   - 'assign'         : 배정 측 catch 리스트 (메인)
-//   - 'all'            : 전체 작업 (옛 in_progress — R2-3 측 catch ViewAll 패턴 측 catch 측 catch)
-//   - 'upload'         : 업로드 (옛 orders + csv_match — R2-2 측 catch 토글 측 catch 측 catch)
-//   - 'usol_settle'    : 유솔정산 (옛 tracking — 회사 측 catch 유솔 측 catch 받을 돈)
-//   - 'engineer_settle': 기사정산 (옛 engineer_settlement — 회사 측 catch 기사 측 catch 줄 돈)
+// 2026-06-01 R-A1 — 4탭 (옛 5탭에서 유솔정산 + 기사정산 → 단일 '정산' 으로 통합).
+//   - 'assign' : 배정 작업 리스트 (메인)
+//   - 'all'    : 전체 작업
+//   - 'upload' : 업로드 (접수 + 정산 CSV 토글)
+//   - 'settle' : 정산 — 유솔→회사 주차별 + 회사→기사 월정산 1·2차 (UsolNSettleScreen).
+//     · 접근 권한: 'menu:usol_n_tracking' 단일 perm 사용
+//       (옛 engineer_settlement perm 은 Phase B 에서 통합 검토).
 export const USOL_N_TABS = [
-  { id: "assign",          label: "배정",     perm: "menu:usol_n_orders" },
-  { id: "all",             label: "전체",     perm: "menu:usol_n_in_progress" },
-  { id: "upload",          label: "업로드",   perm: "menu:usol_n_orders" },
-  { id: "usol_settle",     label: "유솔정산", perm: "menu:usol_n_tracking" },
-  { id: "engineer_settle", label: "기사정산", perm: "menu:usol_n_engineer_settlement" },
+  { id: "assign", label: "배정",   perm: "menu:usol_n_orders" },
+  { id: "all",    label: "전체",   perm: "menu:usol_n_in_progress" },
+  { id: "upload", label: "업로드", perm: "menu:usol_n_orders" },
+  { id: "settle", label: "정산",   perm: "menu:usol_n_tracking" },
 ];

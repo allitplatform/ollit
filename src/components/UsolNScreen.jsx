@@ -1,4 +1,5 @@
-// V11-8 — 유솔 N 워크스페이스 (5탭 + 그라데이션 헤더)
+// 2026-06-01 R-A1 — 유솔 N 워크스페이스 4탭 + 그라데이션 헤더 (5탭 → 4탭).
+//   '유솔정산' + '기사정산' → 단일 '정산' 으로 통합 (UsolNSettleScreen).
 // 큰 그라데이션 헤더 (#03C75A → #02A847) + 탭별 우측 핵심 정보
 // 본문: 라이트 = 베이지 / 다크 = bg-secondary (CSS 변수)
 import { useState, useEffect, useMemo } from "react";
@@ -10,10 +11,10 @@ import { USOL_N_TABS } from "../data/menuStructure.js";
 
 import { UsolNAssignList } from "./usol_n/UsolNAssignList.jsx";
 import { UsolNInProgress } from "./usol_n/UsolNInProgress.jsx";
-// 2026-05-26 R2-2 — UsolNUploadToggle (접수/정산 CSV 토글) — UsolNOrders + UsolNCsvMatch 측 catch.
+// UsolNUploadToggle (접수/정산 CSV 토글) — UsolNOrders + UsolNCsvMatch 내부 사용.
 import { UsolNUploadToggle } from "./usol_n/UsolNUploadToggle.jsx";
-import { UsolNTracking } from "./usol_n/UsolNTracking.jsx";
-import { UsolNEngineerSettlement } from "./usol_n/UsolNEngineerSettlement.jsx";
+// 2026-06-01 R-A1 — 정산 탭 통합 screen (UsolNTracking + UsolNEngineerSettlement 내부 사용).
+import { UsolNSettleScreen } from "./usol_n/UsolNSettleScreen.jsx";
 
 const COMPANY_RATE = 0.85;
 
@@ -71,14 +72,13 @@ export function UsolNScreen({ user, initialTab, onBack, onTaskClick }) {
         ))}
       </div>
 
-      {/* 본문 — 2026-05-26 round 2: 5탭 */}
+      {/* 본문 — 2026-06-01 R-A1: 4탭 */}
       <div style={tabContentStyle}>
-        {activeTab === "assign"          && <UsolNAssignList  onTaskClick={onTaskClick} onSeeAll={() => setActiveTab("all")}/>}
-        {activeTab === "all"             && <UsolNInProgress  onTaskClick={onTaskClick}/>}
-        {/* R2-2: upload 탭 = 접수 CSV / 정산 CSV 토글 (UploadToggle 측 catch UsolNOrders + UsolNCsvMatch) */}
-        {activeTab === "upload"          && <UsolNUploadToggle onTaskClick={onTaskClick}/>}
-        {activeTab === "usol_settle"     && <UsolNTracking/>}
-        {activeTab === "engineer_settle" && <UsolNEngineerSettlement/>}
+        {activeTab === "assign" && <UsolNAssignList  onTaskClick={onTaskClick} onSeeAll={() => setActiveTab("all")}/>}
+        {activeTab === "all"    && <UsolNInProgress  onTaskClick={onTaskClick}/>}
+        {activeTab === "upload" && <UsolNUploadToggle onTaskClick={onTaskClick}/>}
+        {/* R-A1: 옛 usol_settle + engineer_settle → 단일 settle 탭 (UsolNSettleScreen 내부에서 ① + ② 통합) */}
+        {activeTab === "settle" && <UsolNSettleScreen/>}
       </div>
     </div>
   );
@@ -151,14 +151,14 @@ function GradientHeader({ info, onBack }) {
   );
 }
 
-// 탭별 헤더 정보 계산 — 2026-05-26 round 2: 5탭
+// 탭별 헤더 정보 계산 — 2026-06-01 R-A1: 4탭
 function calculateHeaderInfo(activeTab) {
   let tasks = [];
   try { tasks = loadTasks().filter(t => t.principalId === "usol_n"); } catch {}
 
   if (activeTab === "assign") {
     return {
-      subtitle:   "배정 측 catch 작업 (미배정·약속대기·일정 협의)",
+      subtitle:   "배정 대기 작업 (미배정·약속대기·일정 협의)",
       rightLabel: "메인",
       rightValue: "배정 리스트",
       rightSub:   null,
@@ -186,24 +186,13 @@ function calculateHeaderInfo(activeTab) {
     };
   }
 
-  if (activeTab === "usol_settle") {
+  if (activeTab === "settle") {
     const monthTotal = calculateMonthTotal(tasks);
     return {
-      subtitle:   "유솔 정산 · 주간",
+      subtitle:   "정산 · 유솔→회사 주차 · 회사→기사 월정산",
       rightLabel: `${new Date().getMonth() + 1}월 누적`,
       rightValue: `₩${monthTotal.toLocaleString()}`,
       rightSub:   "받을 예정 포함",
-    };
-  }
-
-  if (activeTab === "engineer_settle") {
-    const next15th = getNext15thLabel();
-    const pending  = calculatePendingForEngineers(tasks);
-    return {
-      subtitle:   "기사 정산 · 매월 15일",
-      rightLabel: `${next15th} 입금`,
-      rightValue: `₩${pending.toLocaleString()}`,
-      rightSub:   "측 catch",
     };
   }
 
@@ -219,21 +208,6 @@ function calculateMonthTotal(tasks) {
   return tasks
     .filter(t => typeof t.completedAt === "string" && t.completedAt.startsWith(ms))
     .reduce((s, t) => s + Math.floor((t.netAmount || 0) * COMPANY_RATE), 0);
-}
-
-function calculatePendingForEngineers(tasks) {
-  return tasks
-    .filter(t => t.naverSettledAt && !t.engineerSettledAt)
-    .reduce((s, t) => {
-      const earning = t.engineer_amount || Math.floor((t.netAmount || 0) * COMPANY_RATE);
-      return s + earning;
-    }, 0);
-}
-
-function getNext15thLabel() {
-  const now = new Date();
-  const month = now.getDate() > 15 ? now.getMonth() + 2 : now.getMonth() + 1;
-  return `${month}/15`;
 }
 
 // ── 스타일 ───────────────────────────────────
