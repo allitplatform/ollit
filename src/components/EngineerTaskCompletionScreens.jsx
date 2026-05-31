@@ -968,16 +968,16 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
   const usesReceivedTotalFlow =
     task.principalCode !== 'usol_n' && task.paymentMethod !== 'prepaid';
 
-  // 2026-05-31 — Phase C Step 5 — 메인 row 분기 (per-item 흐름)
+  // 2026-05-31 — Phase C Step 5 — 메인 row 분기 (per-item 흐름).
   //   주 (메인) row = order_type 측 '추가선택' 아닌 row.
   //   non-usol_n 측 order_type NULL 측 → 전 row 메인.
-  //   usesPerItemFlow: 비-취소 메인 2개+ → PartialPerItemCards (Step 4 패턴 동일).
+  //   2026-05-31 (재변경) — usesPerItemFlow 기준: 원래 메인 개수 (allMainItems.length) 측.
+  //     옛 spec: nonCanceledMains.length >= 2 — 중간 취소 시 1개 남으면 옛 화면 측 전환.
+  //     새 spec: allMainItems.length >= 2 — 원래 메인 2개+ 측 A화면 (PartialPerItemCards) 유지.
+  //     이유: 사용자 측 카운터 측 1개 취소해도 화면 측 그대로 → 시각 안정 (취소 row 측 회색 + 입력칸 숨김).
+  //   usol_n / prepaid 측 가드 (usesReceivedTotalFlow=false) 측 옛 흐름 그대로 — 본 변경 측 영향 X.
   const allMainItems = workItems.filter(it => (it.orderType || it.order_type) !== '추가선택');
-  const nonCanceledMains = allMainItems.filter(it => {
-    const act = Number(actualQtyById[it.id] ?? it.qty) || 0;
-    return !it.isCanceled && act > 0;
-  });
-  const usesPerItemFlow = nonCanceledMains.length >= 2 && usesReceivedTotalFlow;
+  const usesPerItemFlow = allMainItems.length >= 2 && usesReceivedTotalFlow;
 
   // 받은 돈 default — 진행중에서 입력한 값 (task.receivedTotal) > productPrice (fallback)
   const [receivedTotal, setReceivedTotal] = useState(() => {
