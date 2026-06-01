@@ -381,6 +381,11 @@ export async function fetchTaskItemsByTaskId(taskId) {
 
 // task_items 측 product_order_id IN 매칭 — UsolNCsvMatch 정산 CSV 매칭
 // 응답: { ok, items: [...] } / 각 item = task_items 행 + nested work_types / appliance_types / tasks
+//
+// 2026-06-01 — 배치 chunk (200) 적용:
+//   네이버 정산 CSV 가 3000+ 상품주문번호 보낼 때 단일 .in() 호출 시 URL 길이 한계
+//   "TypeError: Failed to fetch" 발생 → 0건 매칭.
+//   200 chunk × N 호출 → 합산. 호출처(UsolNCsvMatch) 시그니처 그대로.
 export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
   if (!Array.isArray(productOrderIds) || productOrderIds.length === 0) {
     return { ok: true, items: [] };
@@ -388,25 +393,31 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
   const pid = await getUsolNPrincipalId();
   if (!pid) return { ok: false, error: "usol_n principal X", items: [] };
 
-  const { data, error } = await supabase
-    .from("task_items")
-    .select(
-      `id, task_id, product_order_id, order_type, qty, unit_price, subtotal,
-       naver_settled_at, cash_settled_at,
-       naver_received_at, cash_received_at, company_received_at,
-       engineer_settled_at, net_amount,
-       work_types ( id, name ),
-       appliance_types ( id, name ),
-       tasks!inner ( id, task_no, customer_name, principal_id, status, completed_at )`
-    )
-    .in("product_order_id", productOrderIds)
-    .eq("tasks.principal_id", pid);
+  const CHUNK = 200;
+  const accumulated = [];
+  for (let i = 0; i < productOrderIds.length; i += CHUNK) {
+    const chunk = productOrderIds.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("task_items")
+      .select(
+        `id, task_id, product_order_id, order_type, qty, unit_price, subtotal,
+         naver_settled_at, cash_settled_at,
+         naver_received_at, cash_received_at, company_received_at,
+         engineer_settled_at, net_amount,
+         work_types ( id, name ),
+         appliance_types ( id, name ),
+         tasks!inner ( id, task_no, customer_name, principal_id, status, completed_at )`
+      )
+      .in("product_order_id", chunk)
+      .eq("tasks.principal_id", pid);
 
-  if (error) {
-    console.error("[usolNTasksDb.fetchByOrderIds]", error);
-    return { ok: false, error: error.message, items: [] };
+    if (error) {
+      console.error("[usolNTasksDb.fetchByOrderIds] chunk", i, error);
+      return { ok: false, error: error.message, items: [] };
+    }
+    if (data && data.length > 0) accumulated.push(...data);
   }
-  return { ok: true, items: data || [] };
+  return { ok: true, items: accumulated };
 }
 
 // 일괄 UPDATE — 정산 사이클 측 시각 컬럼 (Migration 041 측 신규 컬럼 포함)
@@ -414,6 +425,9 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
 // 응답: { ok, count, timestamp }
 // 참고: company_received_at = MAX(naver_received_at, cash_received_at) DB 측 자동 계산
 //   직접 UPDATE 측 가능 — 옛 호환 spec.
+//
+// 2026-06-01 — 배치 chunk (300) 적용:
+//   대량 매칭/일괄 지급 시 URL 길이 한계 회피 (defensive).
 export async function markTaskItemsField(itemIds, fieldName, timestamp = null) {
   const allowedFields = [
     "naver_settled_at", "cash_settled_at",
@@ -427,15 +441,21 @@ export async function markTaskItemsField(itemIds, fieldName, timestamp = null) {
     return { ok: false, error: "itemIds 측 X" };
   }
   const ts = timestamp || new Date().toISOString();
-  const { error } = await supabase
-    .from("task_items")
-    .update({ [fieldName]: ts })
-    .in("id", itemIds);
-  if (error) {
-    console.error("[usolNTasksDb.markField]", error);
-    return { ok: false, error: error.message };
+  const CHUNK = 300;
+  let okCount = 0;
+  for (let i = 0; i < itemIds.length; i += CHUNK) {
+    const chunk = itemIds.slice(i, i + CHUNK);
+    const { error } = await supabase
+      .from("task_items")
+      .update({ [fieldName]: ts })
+      .in("id", chunk);
+    if (error) {
+      console.error("[usolNTasksDb.markField] chunk", i, error);
+      return { ok: false, error: error.message, count: okCount };
+    }
+    okCount += chunk.length;
   }
-  return { ok: true, count: itemIds.length, timestamp: ts };
+  return { ok: true, count: okCount, timestamp: ts };
 }
 
 // 완료된 usol_n task_items 측 — UsolNTracking 주간 입금 이력 + UsolNEngineerSettlement

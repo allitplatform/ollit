@@ -12,6 +12,9 @@
 
 import { supabase } from "./supabase.js";
 
+// 2026-06-01 — task_id 배치 chunk (URL 길이 / 요청 크기 한계 회피).
+const TASK_ID_CHUNK = 300;
+
 // ============================================
 // 1) 기사 "입금 완료 보고" (회사 송금 — taskIds 일괄)
 // ============================================
@@ -19,17 +22,21 @@ export async function reportEngineerRemit(taskIds) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
     return { ok: false, error: "taskIds 없음" };
   }
-
-  const { error } = await supabase
-    .from("payments")
-    .update({ engineer_remitted_at: new Date().toISOString() })
-    .in("task_id", taskIds);
-
-  if (error) {
-    console.error("[reportEngineerRemit] 실패:", error);
-    return { ok: false, error: error.message };
+  const ts = new Date().toISOString();
+  let okCount = 0;
+  for (let i = 0; i < taskIds.length; i += TASK_ID_CHUNK) {
+    const chunk = taskIds.slice(i, i + TASK_ID_CHUNK);
+    const { error } = await supabase
+      .from("payments")
+      .update({ engineer_remitted_at: ts })
+      .in("task_id", chunk);
+    if (error) {
+      console.error("[reportEngineerRemit] 실패 chunk", i, error);
+      return { ok: false, error: error.message, count: okCount };
+    }
+    okCount += chunk.length;
   }
-  return { ok: true, count: taskIds.length };
+  return { ok: true, count: okCount };
 }
 
 // ============================================
@@ -41,17 +48,21 @@ export async function reportUsolRemit(taskIds) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
     return { ok: false, error: "taskIds 없음" };
   }
-
-  const { error } = await supabase
-    .from("payments")
-    .update({ usol_remitted_at: new Date().toISOString() })
-    .in("task_id", taskIds);
-
-  if (error) {
-    console.error("[reportUsolRemit] 실패:", error);
-    return { ok: false, error: error.message };
+  const ts = new Date().toISOString();
+  let okCount = 0;
+  for (let i = 0; i < taskIds.length; i += TASK_ID_CHUNK) {
+    const chunk = taskIds.slice(i, i + TASK_ID_CHUNK);
+    const { error } = await supabase
+      .from("payments")
+      .update({ usol_remitted_at: ts })
+      .in("task_id", chunk);
+    if (error) {
+      console.error("[reportUsolRemit] 실패 chunk", i, error);
+      return { ok: false, error: error.message, count: okCount };
+    }
+    okCount += chunk.length;
   }
-  return { ok: true, count: taskIds.length };
+  return { ok: true, count: okCount };
 }
 
 // ============================================
@@ -64,20 +75,24 @@ export async function confirmEngineerRemit(taskIds, adminUserId) {
   if (!adminUserId) {
     return { ok: false, error: "adminUserId 없음" };
   }
-
-  const { error } = await supabase
-    .from("payments")
-    .update({
-      engineer_remit_confirmed_at: new Date().toISOString(),
-      engineer_remit_confirmed_by: adminUserId,
-    })
-    .in("task_id", taskIds);
-
-  if (error) {
-    console.error("[confirmEngineerRemit] 박지 X:", error);
-    return { ok: false, error: error.message };
+  const ts = new Date().toISOString();
+  let okCount = 0;
+  for (let i = 0; i < taskIds.length; i += TASK_ID_CHUNK) {
+    const chunk = taskIds.slice(i, i + TASK_ID_CHUNK);
+    const { error } = await supabase
+      .from("payments")
+      .update({
+        engineer_remit_confirmed_at: ts,
+        engineer_remit_confirmed_by: adminUserId,
+      })
+      .in("task_id", chunk);
+    if (error) {
+      console.error("[confirmEngineerRemit] 실패 chunk", i, error);
+      return { ok: false, error: error.message, count: okCount };
+    }
+    okCount += chunk.length;
   }
-  return { ok: true, count: taskIds.length };
+  return { ok: true, count: okCount };
 }
 
 // ============================================
@@ -120,16 +135,17 @@ export async function cancelEngineerRemit(taskIds) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
     return { ok: false, error: "taskIds 없음" };
   }
-
-  const { error } = await supabase
-    .from("payments")
-    .update({ engineer_remitted_at: null })
-    .in("task_id", taskIds)
-    .is("engineer_remit_confirmed_at", null);
-
-  if (error) {
-    console.error("[cancelEngineerRemit] 실패:", error);
-    return { ok: false, error: error.message };
+  for (let i = 0; i < taskIds.length; i += TASK_ID_CHUNK) {
+    const chunk = taskIds.slice(i, i + TASK_ID_CHUNK);
+    const { error } = await supabase
+      .from("payments")
+      .update({ engineer_remitted_at: null })
+      .in("task_id", chunk)
+      .is("engineer_remit_confirmed_at", null);
+    if (error) {
+      console.error("[cancelEngineerRemit] 실패 chunk", i, error);
+      return { ok: false, error: error.message };
+    }
   }
   return { ok: true };
 }
@@ -144,18 +160,21 @@ export async function cancelConfirmRemit(taskIds) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
     return { ok: false, error: "taskIds 없음" };
   }
-
-  const { error } = await supabase
-    .from("payments")
-    .update({
-      engineer_remit_confirmed_at: null,
-      engineer_remit_confirmed_by: null,
-    })
-    .in("task_id", taskIds);
-
-  if (error) {
-    console.error("[cancelConfirmRemit] 실패:", error);
-    return { ok: false, error: error.message };
+  let okCount = 0;
+  for (let i = 0; i < taskIds.length; i += TASK_ID_CHUNK) {
+    const chunk = taskIds.slice(i, i + TASK_ID_CHUNK);
+    const { error } = await supabase
+      .from("payments")
+      .update({
+        engineer_remit_confirmed_at: null,
+        engineer_remit_confirmed_by: null,
+      })
+      .in("task_id", chunk);
+    if (error) {
+      console.error("[cancelConfirmRemit] 실패 chunk", i, error);
+      return { ok: false, error: error.message, count: okCount };
+    }
+    okCount += chunk.length;
   }
-  return { ok: true, count: taskIds.length };
+  return { ok: true, count: okCount };
 }
