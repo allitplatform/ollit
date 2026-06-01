@@ -148,11 +148,11 @@ function getJuneLiveWeeks() {
 
 // ── 메인 컴포넌트 ────────────────────────────────────────────
 export function UsolNToCompanySection() {
-  // 드롭다운 열림 상태 — 6월·5월 기본 펼침, 4월 접힘.
-  const [openGroups, setOpenGroups] = useState({
-    "2026-06": true,
-    "2026-05": true,
-    "2026-04": false,
+  // 드롭다운 열림 상태 — 현재 캘린더 월만 기본 펼침. 헤더 클릭 시 토글.
+  const [openGroups, setOpenGroups] = useState(() => {
+    const d = new Date();
+    const cur = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return { [cur]: true };
   });
 
   // 라이브 네이버 정산 카운트
