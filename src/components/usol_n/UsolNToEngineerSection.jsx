@@ -826,28 +826,19 @@ function EngineerListScreen({
           {search ? "검색 결과 없음" : "해당 월 항목 없음"}
         </SectionEmpty>
       ) : (
-        (() => {
-          // 2026-06-01 S2.5 — 막대 길이 = 총액 / maxTotal (visible 행 기준).
-          const maxTotal = filtered.reduce(
-            (m, r) => Math.max(m, r.firstAmount + r.secondAmount), 0
-          );
-          return (
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {filtered.map(row => (
-                <EngineerRow
-                  key={row.engineerKey}
-                  row={row}
-                  maxTotal={maxTotal}
-                  invoice={row.engineerId ? invoiceMap.get(row.engineerId) || null : null}
-                  invoiceLoading={invoiceLoading}
-                  gateYm={gateYm}
-                  adminId={adminId}
-                  onRefresh={onRefresh}
-                />
-              ))}
-            </div>
-          );
-        })()
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {filtered.map(row => (
+            <EngineerRow
+              key={row.engineerKey}
+              row={row}
+              invoice={row.engineerId ? invoiceMap.get(row.engineerId) || null : null}
+              invoiceLoading={invoiceLoading}
+              gateYm={gateYm}
+              adminId={adminId}
+              onRefresh={onRefresh}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -862,7 +853,7 @@ function EngineerListScreen({
 //   · [확인] 버튼 (발행함·미확인 시) → confirmTaxInvoice.
 //   · [지급] 버튼 (게이트) — confirmed_at 있을 때만 활성. pending 항목만 마킹.
 //   · [확인 취소] secondary (확인됨 시 옆에) → unconfirmTaxInvoice.
-function EngineerRow({ row, maxTotal = 0, invoice, invoiceLoading, gateYm, adminId, onRefresh }) {
+function EngineerRow({ row, invoice, invoiceLoading, gateYm, adminId, onRefresh }) {
   const [busy, setBusy] = useState(false);
 
   // 2026-06-01 — 3단계 (받음/예정/미확정) 미러링.
@@ -965,13 +956,12 @@ function EngineerRow({ row, maxTotal = 0, invoice, invoiceLoading, gateYm, admin
         </span>
       </div>
 
-      {/* 2행 — 가로 막대 (3색: 받음 초록 / 예정 주황 / 미확정 회색) */}
+      {/* 2행 — 가로 막대 (3색: 받음 초록 / 예정 주황 / 미확정 회색) — 항상 100% 채움 */}
       <EngineerBar
         received={received}
         scheduled={scheduled}
         uncertain={uncertain}
         total={total}
-        maxTotal={maxTotal}
       />
 
       {/* 3행 — 받음/예정/미확정 라벨 (작게, 색 dot + 회색 텍스트) */}
@@ -1048,13 +1038,13 @@ function EngineerRow({ row, maxTotal = 0, invoice, invoiceLoading, gateYm, admin
 }
 
 // ── 기사별 가로 막대 (3색 — 기사앱 정산 카드 미러링) ─────────
-// 길이 = total / maxTotal × 100%.
-// 내부: 받음 (초록) + 예정 (주황) + 미확정 (회색) — 기사앱 prev月 정산 카드와 동일 톤.
-function EngineerBar({ received, scheduled, uncertain, total, maxTotal }) {
+// 길이 = 항상 100% (행 간 상대 비교 X). 내부: 받음(초록) / 예정(주황) / 미확정(회색).
+// 기사앱 prev月 정산 카드와 동일 — 측 행 내 자기 total 대비 비율만.
+function EngineerBar({ received, scheduled, uncertain, total }) {
   const trackHeight = 9;
   const trackBg = "rgba(255,255,255,0.05)";
 
-  if (!total || total <= 0 || !maxTotal || maxTotal <= 0) {
+  if (!total || total <= 0) {
     return (
       <div style={{
         width: "100%", height: trackHeight, borderRadius: trackHeight / 2,
@@ -1063,7 +1053,6 @@ function EngineerBar({ received, scheduled, uncertain, total, maxTotal }) {
     );
   }
 
-  const fillPct = Math.max(0, Math.min(100, (total / maxTotal) * 100));
   const rPct = (received  / total) * 100;
   const sPct = (scheduled / total) * 100;
   const uPct = (uncertain / total) * 100;
@@ -1072,16 +1061,11 @@ function EngineerBar({ received, scheduled, uncertain, total, maxTotal }) {
     <div style={{
       width: "100%", height: trackHeight, borderRadius: trackHeight / 2,
       background: trackBg, overflow: "hidden",
+      display: "flex",
     }}>
-      <div style={{
-        width: `${fillPct}%`, height: "100%",
-        display: "flex", overflow: "hidden",
-        borderRadius: trackHeight / 2,
-      }}>
-        {rPct > 0 && <div style={{ width: `${rPct}%`, height: "100%", background: C_BUCKET_RECEIVED  }}/>}
-        {sPct > 0 && <div style={{ width: `${sPct}%`, height: "100%", background: C_BUCKET_SCHEDULED }}/>}
-        {uPct > 0 && <div style={{ width: `${uPct}%`, height: "100%", background: C_BUCKET_UNCERTAIN }}/>}
-      </div>
+      {rPct > 0 && <div style={{ width: `${rPct}%`, height: "100%", background: C_BUCKET_RECEIVED  }}/>}
+      {sPct > 0 && <div style={{ width: `${sPct}%`, height: "100%", background: C_BUCKET_SCHEDULED }}/>}
+      {uPct > 0 && <div style={{ width: `${uPct}%`, height: "100%", background: C_BUCKET_UNCERTAIN }}/>}
     </div>
   );
 }

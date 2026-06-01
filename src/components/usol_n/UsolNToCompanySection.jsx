@@ -19,7 +19,7 @@
 //   기사 PWA / 운영자 ② 섹션 (UsolNToEngineerSection) / 정산 대기 한 줄 / 라우팅.
 //   옛 fetchUsolNCompletedTaskItems + confirmPrincipalRemit 흐름은 6월 hook 활성 시 복귀.
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 const C_PINK_DEEP  = "#D4537E";   // 5월 / 핵심
 const C_PINK_LIGHT = "#F8CDD9";
@@ -60,38 +60,112 @@ function getJuneAutoWeeks() {
 
 // ── 메인 컴포넌트 ────────────────────────────────────────────
 export function UsolNToCompanySection() {
-  const totalFixed = APR_SETTLED_FIXED + MAY_SETTLED_FIXED;
-  const aprPct = totalFixed > 0 ? (APR_SETTLED_FIXED / totalFixed) * 100 : 0;
-  const mayPct = totalFixed > 0 ? (MAY_SETTLED_FIXED / totalFixed) * 100 : 0;
+  // 월 탭 — "apr" | "may", 기본 5월.
+  const [selectedTab, setSelectedTab] = useState("may");
+  const monthAmount = selectedTab === "apr" ? APR_SETTLED_FIXED : MAY_SETTLED_FIXED;
+
+  // 선택 월 작업분만 표시 + 그 달 작업분 0인 주차 숨김 + 최신순 (W22→W14).
+  const visibleWeeks = useMemo(() => {
+    return WEEKLY_DATA_FIXED
+      .filter(w => (selectedTab === "apr" ? w.apr : w.may) > 0)
+      .slice()
+      .sort((a, b) => b.weekKey.localeCompare(a.weekKey));
+  }, [selectedTab]);
 
   const junWeeks = useMemo(() => getJuneAutoWeeks(), []);
 
   return (
     <div>
-      {/* 상단 요약 — 총 받은 돈 + 4월/5월 스택바 */}
-      <TopSummaryCard
-        total={totalFixed}
+      {/* 월 탭 (4월 | 5월) + 그 달 총액 헤더 */}
+      <MonthTabs
+        selected={selectedTab}
+        onSelect={setSelectedTab}
         aprAmount={APR_SETTLED_FIXED}
         mayAmount={MAY_SETTLED_FIXED}
-        aprPct={aprPct}
-        mayPct={mayPct}
       />
 
-      {/* 주차별 카드 — 9 주차 */}
+      {/* 선택 월 총액 헤더 */}
+      <div style={{
+        padding: "12px 4px 14px",
+        display: "flex", alignItems: "baseline", justifyContent: "space-between",
+      }}>
+        <span style={{ fontSize: 11, color: C_GRAY, fontWeight: 600 }}>
+          {selectedTab === "apr" ? "4월" : "5월"} 작업분 — 유솔 → 회사 받은 돈
+        </span>
+        <span style={{
+          fontSize: 22, fontWeight: 800, fontFamily: "inherit",
+          color: selectedTab === "apr" ? C_GRAY : C_PINK_DEEP,
+          lineHeight: 1,
+        }}>
+          ₩{monthAmount.toLocaleString()}
+        </span>
+      </div>
+
+      {/* 주차별 카드 — 그 달 작업분만, 최신순 (W22 위 → W14 아래) */}
       <div style={{
         fontSize: 11, fontWeight: 700, color: C_GRAY,
-        margin: "16px 0 8px", paddingLeft: 2,
+        margin: "4px 0 8px", paddingLeft: 2,
       }}>
-        주차별 입금 (4월·5월 작업 정산 — 시트 기준 고정값)
+        주차별 입금 ({visibleWeeks.length}주)
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {WEEKLY_DATA_FIXED.map(w => (
-          <WeeklyCard key={w.weekKey} week={w}/>
-        ))}
-      </div>
+      {visibleWeeks.length === 0 ? (
+        <div style={{
+          padding: 24, textAlign: "center",
+          color: C_GRAY, fontSize: 11,
+          background: "var(--bg-secondary)",
+          border: "1px dashed var(--border)", borderRadius: 10,
+        }}>
+          이 달 작업분 입금 없음
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {visibleWeeks.map(w => (
+            <WeeklyCard
+              key={w.weekKey}
+              week={w}
+              mode={selectedTab}
+            />
+          ))}
+        </div>
+      )}
 
       {/* 6월+ 자동 hook (백필 후 활성) */}
       <JuneAutoHookCard junWeeks={junWeeks}/>
+    </div>
+  );
+}
+
+// ── 월 탭 (4월 | 5월) ────────────────────────────────────
+function MonthTabs({ selected, onSelect, aprAmount, mayAmount }) {
+  const tabs = [
+    { key: "apr", label: "4월", amount: aprAmount, color: C_GRAY_BAR },
+    { key: "may", label: "5월", amount: mayAmount, color: C_PINK_DEEP },
+  ];
+  return (
+    <div style={{
+      display: "flex", gap: 4,
+      borderBottom: "1px solid var(--border)",
+    }}>
+      {tabs.map(t => {
+        const active = selected === t.key;
+        return (
+          <button
+            key={t.key}
+            onClick={() => onSelect(t.key)}
+            style={{
+              flex: 1, padding: "10px 12px",
+              background: "transparent", border: "none",
+              borderBottom: `2px solid ${active ? t.color : "transparent"}`,
+              color: active ? "var(--text-primary, #FAF8F5)" : C_GRAY,
+              fontSize: 13, fontWeight: active ? 800 : 600,
+              fontFamily: "inherit", cursor: "pointer",
+              marginBottom: -1,
+            }}
+          >
+            {t.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -140,12 +214,10 @@ function TopSummaryCard({ total, aprAmount, mayAmount, aprPct, mayPct }) {
   );
 }
 
-// ── 주차별 카드 ─────────────────────────────────────────────
-function WeeklyCard({ week }) {
-  const total = week.apr + week.may;
-  const aprPct = total > 0 ? (week.apr / total) * 100 : 0;
-  const mayPct = total > 0 ? (week.may / total) * 100 : 0;
-  const isEmpty = total === 0;
+// ── 주차별 카드 (mode = "apr" | "may", 단일 값 표시) ─────────
+function WeeklyCard({ week, mode = "may" }) {
+  const amount = mode === "apr" ? week.apr : week.may;
+  const color  = mode === "apr" ? C_GRAY   : C_PINK_DEEP;
 
   const md = s => s.slice(5).replace("-", "/");
 
@@ -155,11 +227,10 @@ function WeeklyCard({ week }) {
       background: "var(--bg-elevated, #1F1F1F)",
       border: "1px solid var(--border)",
       borderRadius: 10,
-      opacity: isEmpty ? 0.55 : 1,
     }}>
       <div style={{
         display: "flex", alignItems: "baseline", justifyContent: "space-between",
-        marginBottom: isEmpty ? 0 : 8, gap: 8,
+        gap: 8,
       }}>
         <div style={{
           display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap",
@@ -175,40 +246,11 @@ function WeeklyCard({ week }) {
         </div>
         <span style={{
           fontSize: 14, fontFamily: "inherit", fontWeight: 800,
-          color: isEmpty ? C_GRAY : C_PINK_DEEP,
+          color,
         }}>
-          {isEmpty ? "—" : `₩${total.toLocaleString()}`}
+          ₩{amount.toLocaleString()}
         </span>
       </div>
-
-      {!isEmpty && (
-        <>
-          <StackBar aprPct={aprPct} mayPct={mayPct}/>
-          <div style={{
-            marginTop: 6, display: "flex", justifyContent: "space-between",
-            fontSize: 10, color: C_GRAY,
-          }}>
-            <span>
-              <span style={{
-                display: "inline-block", width: 6, height: 6, borderRadius: 1,
-                background: C_GRAY_BAR, marginRight: 5, verticalAlign: "middle",
-              }}/>
-              4월 <span style={{ fontFamily: "inherit", fontWeight: 700, marginLeft: 3 }}>
-                ₩{week.apr.toLocaleString()}
-              </span>
-            </span>
-            <span>
-              <span style={{
-                display: "inline-block", width: 6, height: 6, borderRadius: 1,
-                background: C_PINK_DEEP, marginRight: 5, verticalAlign: "middle",
-              }}/>
-              5월 <span style={{ fontFamily: "inherit", fontWeight: 700, marginLeft: 3 }}>
-                ₩{week.may.toLocaleString()}
-              </span>
-            </span>
-          </div>
-        </>
-      )}
     </div>
   );
 }
