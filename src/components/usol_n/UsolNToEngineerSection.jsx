@@ -50,6 +50,17 @@ const SHOW_BULK_PAY = false;
 const ENGINEER_RATIO_FALLBACK = 0.6;
 const COMPANY_RATE_FALLBACK   = 0.85;
 
+// 2026-06-01 S2 — 회사 실입금 (작업월 기준).
+//   APR/MAY 는 legacy net_amount 가 gross 로 오염 → 시트 기준 고정값.
+//   JUN+ 는 신형식 (net < subtotal × 0.95) 만 net × 0.85 자동 합산.
+//   순이익(월) = 회사 실입금 − 기사 지급 RPC 합산.
+const COMPANY_NET_INCOME_BY_YM = {
+  "2026-04": 35_048_310,
+  "2026-05": 52_319_693,
+};
+const TRUE_NET_RATIO_CUTOFF = 0.95;       // net < subtotal × 0.95 → 신형식 (진짜 net)
+const NAVER_NET_TO_COMPANY_FACTOR = 0.85; // 유솔 15% 차감 → 회사 실입금
+
 // ── 돈 계산 (정책 — 세척 100% / 추가선택 85% / 냉매 제외) ────
 // 2026-06-01 reconcile fix:
 //   1순위 — engByItem (RPC compute_engineer_amount_per_item_batch) 결과 사용.
@@ -109,6 +120,63 @@ function splitByBucket(items, year, month, engByItem) {
   result.pendingItems = [...result.firstItems, ...result.secondItems];
   result.pendingTotal = result.firstTotal + result.secondTotal;
   return result;
+}
+
+// ── 작업월 (gateYm) 기준 회사 실입금 / 기사 지급 합산 ─────────
+// items 전부에서 task.completed_at 이 KST 그 달인 것 필터.
+//   gateYm = 작업월 ("YYYY-MM"). selectedMonth 의 한 달 전 = 지급 대상 작업월.
+function inKstMonth(completedAt, year, month) {
+  if (!completedAt) return false;
+  const t = new Date(completedAt).getTime();
+  if (isNaN(t)) return false;
+  const start = Date.UTC(year, month - 1, 1, -9, 0, 0, 0);  // KST 1일 00:00
+  const end   = Date.UTC(year, month,     1, -9, 0, 0, 0);  // 다음 달 KST 1일 00:00
+  return t >= start && t < end;
+}
+
+// 회사 실입금 (작업월 기준).
+//   APR/MAY = 상수 (legacy gross 오염). JUN+ = 자동 (신형식 net × 0.85).
+function computeCompanyNetIncome(items, gateYm) {
+  if (!gateYm) return { amount: 0, source: "n/a", validation: null };
+  if (COMPANY_NET_INCOME_BY_YM[gateYm] != null) {
+    return { amount: COMPANY_NET_INCOME_BY_YM[gateYm], source: "constant", validation: null };
+  }
+  const [y, m] = gateYm.split("-").map(Number);
+  let sumTrueNet = 0;
+  let countTrue = 0, countGross = 0, countNull = 0, countActive = 0;
+  for (const it of items) {
+    if (it.is_canceled) continue;
+    if (!inKstMonth(it.tasks?.completed_at, y, m)) continue;
+    countActive += 1;
+    const net = Number(it.net_amount);
+    const sub = Number(it.subtotal);
+    if (it.net_amount == null || net === 0) { countNull += 1; continue; }
+    if (sub > 0 && net < sub * TRUE_NET_RATIO_CUTOFF) {
+      sumTrueNet += net;
+      countTrue  += 1;
+    } else {
+      countGross += 1;
+    }
+  }
+  return {
+    amount: Math.round(sumTrueNet * NAVER_NET_TO_COMPANY_FACTOR),
+    source: "auto",
+    validation: { countActive, countTrue, countGross, countNull },
+  };
+}
+
+// 작업월 기준 기사 지급 총액 (RPC 합산).
+//   items 전부에서 task.completed_at KST 가 gateYm 인 것의 engByItem 합.
+function computeEngineerPaidByGateMonth(items, gateYm, engByItem) {
+  if (!gateYm) return 0;
+  const [y, m] = gateYm.split("-").map(Number);
+  let sum = 0;
+  for (const it of items) {
+    if (it.is_canceled) continue;
+    if (!inKstMonth(it.tasks?.completed_at, y, m)) continue;
+    sum += Number(engByItem?.get(it.id)) || 0;
+  }
+  return sum;
 }
 
 // ── 기사별 그룹 ───────────────────────────────────────────
@@ -253,6 +321,17 @@ export function UsolNToEngineerSection({ adminId = null }) {
     return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
   }, [year, month]);
 
+  // 2026-06-01 S2 — 회사 순이익 (작업월 = gateYm 기준).
+  const companyNet = useMemo(
+    () => computeCompanyNetIncome(items, gateYm),
+    [items, gateYm]
+  );
+  const engineerPaidGate = useMemo(
+    () => computeEngineerPaidByGateMonth(items, gateYm, engByItem),
+    [items, gateYm, engByItem]
+  );
+  const profit = companyNet.amount - engineerPaidGate;
+
   function refresh() { setReloadTick(v => v + 1); }
 
   async function handleBulkSettle() {
@@ -314,6 +393,14 @@ export function UsolNToEngineerSection({ adminId = null }) {
             year={year}
             month={month}
             split={split}
+          />
+
+          {/* 회사 순이익 카드 (작업월 = gateYm 기준) */}
+          <CompanyProfitCard
+            gateYm={gateYm}
+            companyNet={companyNet}
+            engineerPaid={engineerPaidGate}
+            profit={profit}
           />
 
           {/* 기사별 보기 — primary 핑크 (R-A3 fix: 주 동작) */}
@@ -486,6 +573,97 @@ function StackBar({ firstPct, secondPct, empty }) {
           background: C_GRAY_BAR, height: "100%",
         }}/>
       )}
+    </div>
+  );
+}
+
+// ── 회사 순이익 카드 (작업월 = gateYm 기준) ─────────────────
+// 회사 실입금 − 기사 지급 = 순이익. (모두 작업월 기준).
+// APR/MAY 는 시트 기준 상수 (legacy net_amount gross 오염). JUN+ 는 자동.
+function CompanyProfitCard({ gateYm, companyNet, engineerPaid, profit }) {
+  if (!gateYm) return null;
+  const isConstant = companyNet.source === "constant";
+  const v = companyNet.validation;
+
+  return (
+    <div style={{
+      padding: "14px 16px", marginTop: 10, marginBottom: 14,
+      background: "var(--bg-elevated, #1F1F1F)",
+      border: "1px solid var(--border)",
+      borderRadius: 12,
+    }}>
+      <div style={{
+        fontSize: 11, color: C_GRAY, fontWeight: 600, marginBottom: 8,
+      }}>
+        회사 순이익 · 작업월 {gateYm}
+      </div>
+
+      <ProfitRow label="회사 실입금" amount={companyNet.amount} sign="+"/>
+      <ProfitRow label="기사 지급"   amount={engineerPaid}     sign="−"/>
+
+      <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }}/>
+
+      <div style={{
+        display: "flex", alignItems: "baseline", justifyContent: "space-between",
+        marginTop: 4,
+      }}>
+        <span style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 700 }}>
+          순이익
+        </span>
+        <span style={{
+          fontSize: 18, fontFamily: "inherit", fontWeight: 800,
+          color: profit >= 0 ? C_GREEN : "#ff4444",
+        }}>
+          ₩{profit.toLocaleString()}
+        </span>
+      </div>
+
+      {/* 출처 안내 */}
+      <div style={{
+        marginTop: 8, fontSize: 9, color: C_GRAY, lineHeight: 1.5,
+      }}>
+        {isConstant ? (
+          <>ⓘ {gateYm} 회사 실입금 = 시트 기준 고정값 (legacy net_amount gross 오염).</>
+        ) : (
+          <>ⓘ {gateYm} 회사 실입금 = 신형식 net × 0.85 자동 합산.</>
+        )}
+      </div>
+
+      {/* 6월+ 검증 — 신형식 / gross 의심 / NULL 카운트 */}
+      {!isConstant && v && (
+        <div style={{
+          marginTop: 8, padding: "8px 10px",
+          background: v.countGross > 0 ? "rgba(245,158,11,0.08)" : "rgba(29,158,117,0.06)",
+          border: `1px solid ${v.countGross > 0 ? C_AMBER : C_GREEN}55`,
+          borderRadius: 6,
+          fontSize: 10, fontWeight: 600,
+          color: v.countGross > 0 ? C_AMBER : C_GREEN,
+        }}>
+          {v.countGross > 0 ? "⚠️" : "✓"} 검증 — 활성 {v.countActive}건 ·
+          신형식 {v.countTrue} / gross 의심 {v.countGross} / NULL {v.countNull}
+          {v.countGross > 0 && (
+            <div style={{ color: C_GRAY, fontWeight: 500, marginTop: 2 }}>
+              gross 의심 (net == subtotal) 은 합산 제외. 데이터 검수 필요.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProfitRow({ label, amount, sign }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "baseline", justifyContent: "space-between",
+      padding: "3px 0", fontSize: 11,
+    }}>
+      <span style={{ color: C_GRAY, fontWeight: 600 }}>{label}</span>
+      <span style={{
+        color: "var(--text-primary)", fontFamily: "inherit", fontWeight: 700,
+      }}>
+        {sign}₩{(Number(amount) || 0).toLocaleString()}
+      </span>
     </div>
   );
 }
