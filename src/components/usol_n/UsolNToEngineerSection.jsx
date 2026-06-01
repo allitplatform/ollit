@@ -42,6 +42,9 @@ const C_GREEN  = "#1D9E75";
 const C_AMBER  = "#F59E0B";
 const C_GRAY   = "#9CA3AF";
 const C_GRAY_BAR = "#3A3A3A";
+// 2026-06-01 S2.5 — 기사별 막대 색 (시안 usoln_company_to_engineer_settlement_redesign).
+const C_PINK_DEEP  = "#D4537E";  // 1차 (진분홍)
+const C_PINK_LIGHT = "#F8CDD9";  // 2차 (연분홍)
 
 // 2026-06-01 B3 — 옛 일괄 지급 버튼 보존 (코드 유지, render 숨김).
 //   결정 🅑 — 기사별 게이트 지급으로 전환. 복구 시 SHOW_BULK_PAY 을 true 로.
@@ -786,34 +789,43 @@ function EngineerListScreen({
           {search ? "검색 결과 없음" : "해당 월 항목 없음"}
         </SectionEmpty>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {filtered.map(row => (
-            <EngineerRow
-              key={row.engineerKey}
-              row={row}
-              invoice={row.engineerId ? invoiceMap.get(row.engineerId) || null : null}
-              invoiceLoading={invoiceLoading}
-              gateYm={gateYm}
-              adminId={adminId}
-              onRefresh={onRefresh}
-            />
-          ))}
-        </div>
+        (() => {
+          // 2026-06-01 S2.5 — 막대 길이 = 총액 / maxTotal (visible 행 기준).
+          const maxTotal = filtered.reduce(
+            (m, r) => Math.max(m, r.firstAmount + r.secondAmount), 0
+          );
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {filtered.map(row => (
+                <EngineerRow
+                  key={row.engineerKey}
+                  row={row}
+                  maxTotal={maxTotal}
+                  invoice={row.engineerId ? invoiceMap.get(row.engineerId) || null : null}
+                  invoiceLoading={invoiceLoading}
+                  gateYm={gateYm}
+                  adminId={adminId}
+                  onRefresh={onRefresh}
+                />
+              ))}
+            </div>
+          );
+        })()
       )}
     </div>
   );
 }
 
-// 색 규칙 (R-A3 fix):
-//   · 합계 — 기본색 (primary), 핑크 X. 한 행 한 큰 숫자.
-//   · 1차 / 2차 — 작은 회색 라벨 + 회색 금액.
-//   · 핑크는 위 요약(미지급 총액 + 1차 바)에만, 목록 행엔 사용 X.
+// 색 규칙 (R-A3 fix + S2.5 시안):
+//   · 합계 — 기본색 (primary), 큰 숫자.
+//   · 막대 (S2.5) — 진분홍 (1차 #D4537E) + 연분홍 (2차 #F8CDD9). 길이 = 총액 / maxTotal.
+//   · 1차 / 2차 텍스트 — 작은 회색 라벨.
 // 2026-06-01 B3:
 //   · 세금계산서 상태 뱃지 (미발행 / 발행함·확인 필요 / 확인 완료).
 //   · [확인] 버튼 (발행함·미확인 시) → confirmTaxInvoice.
 //   · [지급] 버튼 (게이트) — confirmed_at 있을 때만 활성. pending 항목만 마킹.
 //   · [확인 취소] secondary (확인됨 시 옆에) → unconfirmTaxInvoice.
-function EngineerRow({ row, invoice, invoiceLoading, gateYm, adminId, onRefresh }) {
+function EngineerRow({ row, maxTotal = 0, invoice, invoiceLoading, gateYm, adminId, onRefresh }) {
   const [busy, setBusy] = useState(false);
 
   const total = row.firstAmount + row.secondAmount;
@@ -892,7 +904,7 @@ function EngineerRow({ row, invoice, invoiceLoading, gateYm, adminId, onRefresh 
       {/* 1행 — 이름 + 총액 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        marginBottom: 4,
+        marginBottom: 6,
       }}>
         {row.engineer ? (
           <EngineerBadge engineer={row.engineer} size="sm"/>
@@ -909,23 +921,35 @@ function EngineerRow({ row, invoice, invoiceLoading, gateYm, adminId, onRefresh 
         </span>
       </div>
 
-      {/* 2행 — 1차 / 2차 */}
+      {/* 2행 — 가로 막대 (S2.5: 총액=길이, 진분홍 1차 / 연분홍 2차) */}
+      <EngineerBar
+        firstAmount={row.firstAmount}
+        secondAmount={row.secondAmount}
+        total={total}
+        maxTotal={maxTotal}
+      />
+
+      {/* 3행 — 1차 / 2차 라벨 (작게, 회색) */}
       <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4, fontSize: 10,
+        marginTop: 5,
+        display: "flex", justifyContent: "space-between",
+        fontSize: 10, color: C_GRAY,
       }}>
-        <span style={{ color: C_GRAY }}>
-          1차{" "}
+        <span>
           <span style={{
-            color: C_GRAY, fontFamily: "inherit", fontWeight: 700, marginLeft: 4,
-          }}>
+            display: "inline-block", width: 6, height: 6, borderRadius: 1,
+            background: C_PINK_DEEP, marginRight: 5, verticalAlign: "middle",
+          }}/>
+          1차 <span style={{ fontFamily: "inherit", fontWeight: 700 }}>
             ₩{row.firstAmount.toLocaleString()}
           </span>
         </span>
-        <span style={{ color: C_GRAY, textAlign: "right" }}>
-          2차{" "}
+        <span>
           <span style={{
-            color: C_GRAY, fontFamily: "inherit", fontWeight: 700, marginLeft: 4,
-          }}>
+            display: "inline-block", width: 6, height: 6, borderRadius: 1,
+            background: C_PINK_LIGHT, marginRight: 5, verticalAlign: "middle",
+          }}/>
+          2차 <span style={{ fontFamily: "inherit", fontWeight: 700 }}>
             ₩{row.secondAmount.toLocaleString()}
           </span>
         </span>
@@ -985,6 +1009,53 @@ function EngineerRow({ row, invoice, invoiceLoading, gateYm, adminId, onRefresh 
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── 기사별 가로 막대 (S2.5 — 시안) ─────────────────────────
+// 길이 = total / maxTotal × 100%. 내부: 1차 진분홍 + 2차 연분홍.
+// total=0 (전부 done 또는 데이터 없음) → 빈 트랙만 표시.
+function EngineerBar({ firstAmount, secondAmount, total, maxTotal }) {
+  const trackHeight = 9;
+  const trackBg = "rgba(255,255,255,0.05)";
+
+  if (!total || total <= 0 || !maxTotal || maxTotal <= 0) {
+    return (
+      <div style={{
+        width: "100%", height: trackHeight, borderRadius: trackHeight / 2,
+        background: trackBg,
+      }}/>
+    );
+  }
+
+  const fillPct   = Math.max(0, Math.min(100, (total / maxTotal) * 100));
+  const firstPctOfTotal  = (firstAmount  / total) * 100;
+  const secondPctOfTotal = (secondAmount / total) * 100;
+
+  return (
+    <div style={{
+      width: "100%", height: trackHeight, borderRadius: trackHeight / 2,
+      background: trackBg, overflow: "hidden",
+    }}>
+      <div style={{
+        width: `${fillPct}%`, height: "100%",
+        display: "flex", overflow: "hidden",
+        borderRadius: trackHeight / 2,
+      }}>
+        {firstPctOfTotal > 0 && (
+          <div style={{
+            width: `${firstPctOfTotal}%`, height: "100%",
+            background: C_PINK_DEEP,
+          }}/>
+        )}
+        {secondPctOfTotal > 0 && (
+          <div style={{
+            width: `${secondPctOfTotal}%`, height: "100%",
+            background: C_PINK_LIGHT,
+          }}/>
+        )}
+      </div>
     </div>
   );
 }
