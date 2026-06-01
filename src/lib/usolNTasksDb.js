@@ -434,8 +434,12 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
     if (data.length < PAGE_SIZE) break;
   }
 
-  // floor(/10) 키 일치만 반환.
+  // 취소 작업 제외 + floor(/10) 키 일치만 반환.
+  //   2026-06-01 — 취소 task_item 이 완료 task 의 정산을 가로채는 버그 차단.
+  //   같은 floor 키에 후보 여럿이면 client 측 (UsolNCsvMatch) 에서 status='완료' /
+  //   exact match 우선 순위 적용.
   const filtered = all.filter(it => {
+    if (it.tasks?.status === "취소") return false;
     const n = Number(it.product_order_id);
     if (!isFinite(n)) return false;
     return csvKeySet.has(Math.floor(n / 10));

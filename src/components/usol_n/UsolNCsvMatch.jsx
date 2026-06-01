@@ -95,13 +95,29 @@ export function UsolNCsvMatch() {
           return;
         }
 
-        // 2026-06-01 — floor(/10) 키 매칭.
+        // 2026-06-01 — floor(/10) 키 매칭 + 우선순위.
         //   네이버 상품주문번호 10단위 → 끝자리 떼도 행끼리 충돌 X.
         //   저장 측 ±1 오차 (예 ...071 vs CSV ...070) 흡수.
+        //   취소 후보 제외는 lib 측 처리. 같은 floor 키 후보 여럿이면 아래 순위:
+        //     1) CSV 와 product_order_id 정확 일치
+        //     2) tasks.status='완료'
+        //     3) 나머지 (배정/확정/진행중 등 비취소)
+        const csvExactSet = new Set(
+          ourRows.map(r => String(r.productOrderId).trim()).filter(Boolean)
+        );
+        function rankItem(item) {
+          const exact = csvExactSet.has(String(item.product_order_id)) ? 100 : 0;
+          const done  = item.tasks?.status === "완료" ? 10 : 0;
+          return exact + done;
+        }
         const itemByKey = new Map();
         (fetchRes.items || []).forEach(it => {
           const k = poidKey(it.product_order_id);
-          if (k != null) itemByKey.set(k, it);
+          if (k == null) return;
+          const existing = itemByKey.get(k);
+          if (!existing || rankItem(it) > rankItem(existing)) {
+            itemByKey.set(k, it);
+          }
         });
 
         // matched: itemByKey 측 key 일치 / unmatched: 작업DB 측 키 없음
