@@ -57,15 +57,12 @@ const SHOW_BULK_PAY = false;
 const ENGINEER_RATIO_FALLBACK = 0.6;
 const COMPANY_RATE_FALLBACK   = 0.85;
 
-// 2026-06-01 S2 — 회사 실입금 (작업월 기준).
-//   APR/MAY 는 legacy net_amount 가 gross 로 오염 → 시트 기준 고정값.
-//   JUN+ 는 신형식 (net < subtotal × 0.95) 만 net × 0.85 자동 합산.
-//   순이익(월) = 회사 실입금 − 기사 지급 RPC 합산.
-const COMPANY_NET_INCOME_BY_YM = {
-  "2026-04": 35_048_310,
-  "2026-05": 52_319_693,
-};
-const TRUE_NET_RATIO_CUTOFF = 0.95;       // net < subtotal × 0.95 → 신형식 (진짜 net)
+// 2026-06-02 라이브 전환 — 회사 실입금 라이브 (작업월 기준).
+//   2026-06-01 backfill 후 net_amount = 진짜 net (gross 오염 해소).
+//   회사 실입금 = 작업월 KST + naver_settled task_item 들의 sum(net) × 0.85.
+//   2차 (미정산, naver_settled X) 는 회사 실입금 아직 없음 → 순이익 산식 제외.
+//   순이익(월) = 회사 실입금 − 기사 지급 1차 (naver_settled, RPC 합산).
+//   옛 COMPANY_NET_INCOME_BY_YM 상수 / TRUE_NET_RATIO_CUTOFF 제거.
 const NAVER_NET_TO_COMPANY_FACTOR = 0.85; // 유솔 15% 차감 → 회사 실입금
 
 // ── 돈 계산 (정책 — 세척 100% / 추가선택 85% / 냉매 제외) ────
@@ -144,34 +141,28 @@ function inKstMonth(completedAt, year, month) {
   return t >= start && t < end;
 }
 
-// 회사 실입금 (작업월 기준).
-//   APR/MAY = 상수 (legacy gross 오염). JUN+ = 자동 (신형식 net × 0.85).
+// 회사 실입금 (작업월 기준, 라이브).
+//   작업월 KST 안에 완료된 task_item 측, naver_settled_at NOT NULL (정산 확정) 만 합산.
+//   sum(net_amount) × 0.85 = 회사 실입금.
+//   2차 (미정산) 는 회사 실입금 측측 없음 → 제외.
 function computeCompanyNetIncome(items, gateYm) {
   if (!gateYm) return { amount: 0, source: "n/a", validation: null };
-  if (COMPANY_NET_INCOME_BY_YM[gateYm] != null) {
-    return { amount: COMPANY_NET_INCOME_BY_YM[gateYm], source: "constant", validation: null };
-  }
   const [y, m] = gateYm.split("-").map(Number);
-  let sumTrueNet = 0;
-  let countTrue = 0, countGross = 0, countNull = 0, countActive = 0;
+  let sumNet = 0;
+  let countSettled = 0, countUnsettled = 0, countNull = 0;
   for (const it of items) {
     if (it.is_canceled) continue;
     if (!inKstMonth(it.tasks?.completed_at, y, m)) continue;
-    countActive += 1;
+    if (!it.naver_settled_at) { countUnsettled += 1; continue; }
     const net = Number(it.net_amount);
-    const sub = Number(it.subtotal);
     if (it.net_amount == null || net === 0) { countNull += 1; continue; }
-    if (sub > 0 && net < sub * TRUE_NET_RATIO_CUTOFF) {
-      sumTrueNet += net;
-      countTrue  += 1;
-    } else {
-      countGross += 1;
-    }
+    sumNet += net;
+    countSettled += 1;
   }
   return {
-    amount: Math.round(sumTrueNet * NAVER_NET_TO_COMPANY_FACTOR),
-    source: "auto",
-    validation: { countActive, countTrue, countGross, countNull },
+    amount: Math.round(sumNet * NAVER_NET_TO_COMPANY_FACTOR),
+    source: "live",
+    validation: { countSettled, countUnsettled, countNull },
   };
 }
 
@@ -592,7 +583,6 @@ function StackBar({ firstPct, secondPct, empty }) {
 // APR/MAY 는 시트 기준 상수 (legacy net_amount gross 오염). JUN+ 는 자동.
 function CompanyProfitCard({ gateYm, companyNet, split, profit }) {
   if (!gateYm) return null;
-  const isConstant = companyNet.source === "constant";
   const v = companyNet.validation;
   // naverConfirmed = 1차(예정) + done1(이미 지급, naver settled) — 회사 실입금 모집단 일치.
   const engineerPayFirst = split.naverConfirmed || 0;
@@ -636,11 +626,7 @@ function CompanyProfitCard({ gateYm, companyNet, split, profit }) {
       <div style={{
         marginTop: 8, fontSize: 9, color: C_GRAY, lineHeight: 1.5,
       }}>
-        {isConstant ? (
-          <>ⓘ {gateYm} 회사 실입금 = 시트 기준 고정값 (legacy net_amount gross 오염).</>
-        ) : (
-          <>ⓘ {gateYm} 회사 실입금 = 신형식 net × 0.85 자동 합산.</>
-        )}
+        ⓘ {gateYm} 회사 실입금 = 작업월 KST naver_settled task_items 의 sum(net) × 0.85 라이브.
       </div>
 
       {/* 2차 미정산 + 이미 지급 정보 (순이익 계산 제외) */}
@@ -669,23 +655,17 @@ function CompanyProfitCard({ gateYm, companyNet, split, profit }) {
         </div>
       )}
 
-      {/* 6월+ 검증 — 신형식 / gross 의심 / NULL 카운트 */}
-      {!isConstant && v && (
+      {/* 검증 — naver_settled / 미정산 / NULL 카운트 */}
+      {v && (
         <div style={{
           marginTop: 8, padding: "8px 10px",
-          background: v.countGross > 0 ? "rgba(245,158,11,0.08)" : "rgba(29,158,117,0.06)",
-          border: `1px solid ${v.countGross > 0 ? C_AMBER : C_GREEN}55`,
+          background: "rgba(29,158,117,0.06)",
+          border: `1px solid ${C_GREEN}55`,
           borderRadius: 6,
           fontSize: 10, fontWeight: 600,
-          color: v.countGross > 0 ? C_AMBER : C_GREEN,
+          color: C_GREEN,
         }}>
-          {v.countGross > 0 ? "⚠️" : "✓"} 검증 — 활성 {v.countActive}건 ·
-          신형식 {v.countTrue} / gross 의심 {v.countGross} / NULL {v.countNull}
-          {v.countGross > 0 && (
-            <div style={{ color: C_GRAY, fontWeight: 500, marginTop: 2 }}>
-              gross 의심 (net == subtotal) 은 합산 제외. 데이터 검수 필요.
-            </div>
-          )}
+          ✓ 검증 — 정산 확정 {v.countSettled}건 · 미정산 {v.countUnsettled}건 · NULL/0 {v.countNull}건
         </div>
       )}
     </div>
