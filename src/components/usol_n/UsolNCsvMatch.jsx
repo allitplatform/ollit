@@ -17,6 +17,16 @@ import { fetchUsolNTaskItemsByOrderIds, markTaskItemsField } from "../../lib/uso
 // 그 외 (의류건조기, 세탁기 등) — 다른 회사
 const OUR_PRODUCT_KEYWORDS = ["에어컨청소", "에어컨 청소", "피톤치드", "스팀살균", "송풍팬"];
 
+// 2026-06-01 — 네이버 상품주문번호 floor(/10) 키.
+//   네이버 번호는 항상 10단위 → 끝자리 1자리 제거해도 행끼리 충돌 X.
+//   저장된 product_order_id ±1 오차도 같은 키로 매칭.
+function poidKey(id) {
+  if (id == null) return null;
+  const n = Number(String(id).trim());
+  if (!isFinite(n)) return null;
+  return Math.floor(n / 10);
+}
+
 export function UsolNCsvMatch() {
   const [csvData, setCsvData]         = useState(null);
   const [matchResult, setMatchResult] = useState(null);
@@ -85,26 +95,24 @@ export function UsolNCsvMatch() {
           return;
         }
 
-        const matchedOrderIdSet = new Set(
-          (fetchRes.items || []).map(it => it.product_order_id).filter(Boolean)
-        );
-
-        // matched: DB 측 product_order_id 일치
-        // unmatched: 우리 row 중 DB 측 X (작업DB에 X)
-        const matched = ourRows.filter(r => matchedOrderIdSet.has(r.productOrderId));
-        const unmatched = ourRows.filter(r => !matchedOrderIdSet.has(r.productOrderId));
-
-        // matched 측 row + task_item 매핑 (이미 결제완료 측 제외)
-        const itemByOrderId = new Map();
+        // 2026-06-01 — floor(/10) 키 매칭.
+        //   네이버 상품주문번호 10단위 → 끝자리 떼도 행끼리 충돌 X.
+        //   저장 측 ±1 오차 (예 ...071 vs CSV ...070) 흡수.
+        const itemByKey = new Map();
         (fetchRes.items || []).forEach(it => {
-          if (it.product_order_id) itemByOrderId.set(it.product_order_id, it);
+          const k = poidKey(it.product_order_id);
+          if (k != null) itemByKey.set(k, it);
         });
+
+        // matched: itemByKey 측 key 일치 / unmatched: 작업DB 측 키 없음
+        const matched   = ourRows.filter(r => itemByKey.has(poidKey(r.productOrderId)));
+        const unmatched = ourRows.filter(r => !itemByKey.has(poidKey(r.productOrderId)));
 
         // 이미 결제완료 측 분리 (재마킹 방지)
         const matchedFresh    = [];
         const matchedAlready  = [];
         matched.forEach(m => {
-          const item = itemByOrderId.get(m.productOrderId);
+          const item = itemByKey.get(poidKey(m.productOrderId));
           if (item && item.naver_settled_at) matchedAlready.push({ ...m, item });
           else if (item)                     matchedFresh.push({ ...m, item });
         });

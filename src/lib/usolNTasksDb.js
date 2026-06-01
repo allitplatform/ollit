@@ -379,13 +379,14 @@ export async function fetchTaskItemsByTaskId(taskId) {
   return { ok: true, items: data || [] };
 }
 
-// task_items 측 product_order_id IN 매칭 — UsolNCsvMatch 정산 CSV 매칭
+// task_items 측 product_order_id 매칭 — UsolNCsvMatch 정산 CSV 매칭
 // 응답: { ok, items: [...] } / 각 item = task_items 행 + nested work_types / appliance_types / tasks
 //
-// 2026-06-01 — 배치 chunk (200) 적용:
-//   네이버 정산 CSV 가 3000+ 상품주문번호 보낼 때 단일 .in() 호출 시 URL 길이 한계
-//   "TypeError: Failed to fetch" 발생 → 0건 매칭.
-//   200 chunk × N 호출 → 합산. 호출처(UsolNCsvMatch) 시그니처 그대로.
+// 2026-06-01 — floor(/10) 키 매칭:
+//   네이버 상품주문번호는 항상 10단위라 (예 ...070, ...080) 끝자리를 떼도 행끼리 충돌 X.
+//   저장된 product_order_id 가 ±1 오차 (예 ...071) 발생해도 같은 키로 일치.
+//   → 단일 .in() 으로는 정확 일치만 잡혀 미매칭 → 전수 fetch 후 client 측 키 필터.
+//   페이지네이션 (PAGE_SIZE 1000, MAX 50p) 으로 Supabase max_rows 캡 안전.
 export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
   if (!Array.isArray(productOrderIds) || productOrderIds.length === 0) {
     return { ok: true, items: [] };
@@ -393,10 +394,21 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
   const pid = await getUsolNPrincipalId();
   if (!pid) return { ok: false, error: "usol_n principal X", items: [] };
 
-  const CHUNK = 200;
-  const accumulated = [];
-  for (let i = 0; i < productOrderIds.length; i += CHUNK) {
-    const chunk = productOrderIds.slice(i, i + CHUNK);
+  // CSV 키 집합 — floor(/10).
+  const csvKeySet = new Set();
+  for (const id of productOrderIds) {
+    const n = Number(id);
+    if (!isFinite(n)) continue;
+    csvKeySet.add(Math.floor(n / 10));
+  }
+  if (csvKeySet.size === 0) return { ok: true, items: [] };
+
+  // 전체 usol_n task_items (product_order_id NOT NULL) 페이지 fetch.
+  const PAGE_SIZE = 1000;
+  const MAX_PAGES = 50;
+  const all = [];
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const offset = page * PAGE_SIZE;
     const { data, error } = await supabase
       .from("task_items")
       .select(
@@ -408,16 +420,27 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
          appliance_types ( id, name ),
          tasks!inner ( id, task_no, customer_name, principal_id, status, completed_at )`
       )
-      .in("product_order_id", chunk)
-      .eq("tasks.principal_id", pid);
+      .not("product_order_id", "is", null)
+      .eq("tasks.principal_id", pid)
+      .order("id", { ascending: true })
+      .range(offset, offset + PAGE_SIZE - 1);
 
     if (error) {
-      console.error("[usolNTasksDb.fetchByOrderIds] chunk", i, error);
+      console.error("[usolNTasksDb.fetchByOrderIds] page", page, error);
       return { ok: false, error: error.message, items: [] };
     }
-    if (data && data.length > 0) accumulated.push(...data);
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE_SIZE) break;
   }
-  return { ok: true, items: accumulated };
+
+  // floor(/10) 키 일치만 반환.
+  const filtered = all.filter(it => {
+    const n = Number(it.product_order_id);
+    if (!isFinite(n)) return false;
+    return csvKeySet.has(Math.floor(n / 10));
+  });
+  return { ok: true, items: filtered };
 }
 
 // 일괄 UPDATE — 정산 사이클 측 시각 컬럼 (Migration 041 측 신규 컬럼 포함)
