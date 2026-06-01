@@ -43,8 +43,12 @@ const C_AMBER  = "#F59E0B";
 const C_GRAY   = "#9CA3AF";
 const C_GRAY_BAR = "#3A3A3A";
 // 2026-06-01 S2.5 — 기사별 막대 색 (시안 usoln_company_to_engineer_settlement_redesign).
-const C_PINK_DEEP  = "#D4537E";  // 1차 (진분홍)
-const C_PINK_LIGHT = "#F8CDD9";  // 2차 (연분홍)
+const C_PINK_DEEP  = "#D4537E";  // 1차 (진분홍) — 옛 시안 (호환)
+const C_PINK_LIGHT = "#F8CDD9";  // 2차 (연분홍) — 옛 시안 (호환)
+// 2026-06-01 — 기사앱 정산 카드 미러링 (받음/예정/미확정 3단계).
+const C_BUCKET_RECEIVED   = "#03C75A";   // 받음 (engineer_settled, 초록)
+const C_BUCKET_SCHEDULED  = "#EF9F27";   // 예정 (naver_settled 미지급, 주황)
+const C_BUCKET_UNCERTAIN  = "#6B7280";   // 미확정 (미정산, 회색)
 
 // 2026-06-01 B3 — 옛 일괄 지급 버튼 보존 (코드 유지, render 숨김).
 //   결정 🅑 — 기사별 게이트 지급으로 전환. 복구 시 SHOW_BULK_PAY 을 true 로.
@@ -80,48 +84,51 @@ function calcItemEngineerAmount(item, engByItem) {
   return Math.floor(subtotal * COMPANY_RATE_FALLBACK * ENGINEER_RATIO_FALLBACK);
 }
 
-// ── 1·2차 버킷 분류 (Phase A 프론트 계산) ──────────────────────
-// selectedMonth = "YYYY-MM" (KST 기준 표시 월).
-// 반환: "first" | "second" | "done_1" | "done_2" | null (선택 월 시야 외)
-function bucketItem(item, year, month) {
-  const settled = item?.naver_settled_at;
-  if (!settled) return null;
-
-  // KST 그 달 16일 00:00 = UTC (그 달 15일 15:00).
-  // Date.UTC 시간에 -9 전달 → 자동 보정.
-  const cutoff1 = Date.UTC(year, month - 1, 16, -9, 0, 0, 0);
-  const cutoff2 = Date.UTC(year, month, 1, -9, 0, 0, 0); // 다음 달 1일 KST
-
-  const settledMs = new Date(settled).getTime();
-  if (isNaN(settledMs)) return null;
-  if (settledMs >= cutoff2) return null; // 선택 월 시야 외 (다음 달 이후)
-
-  const isPending = !item.engineer_settled_at;
-  if (settledMs < cutoff1) return isPending ? "first" : "done_1";
-  return isPending ? "second" : "done_2";
+// ── 1·2차 버킷 분류 (2026-06-01 — 작업월 + naver 정산 여부 기준) ──
+// 변경: selectedMonth (지급월) 의 naver_settled_at KST 윈도우 X →
+//        gateYm (작업월) 의 task.completed_at KST 필터 + naver_settled_at NULL/NOT NULL.
+//   · 1차 (first)  = 작업월 + naver_settled_at NOT NULL (정산 확정 → 지급 가능)
+//   · 2차 (second) = 작업월 + naver_settled_at NULL     (미정산 예정 → 다음 cycle 지급)
+//   · done_*       = engineer_settled_at NOT NULL (이미 지급)
+//   · null         = 작업월 시야 외 / 취소
+function bucketItem(item, gateYear, gateMonth) {
+  if (item?.is_canceled) return null;
+  if (!inKstMonth(item?.tasks?.completed_at, gateYear, gateMonth)) return null;
+  if (item.engineer_settled_at) {
+    return item.naver_settled_at ? "done_1" : "done_2";
+  }
+  if (item.naver_settled_at) return "first";
+  return "second";
 }
 
 // 집계 — 측 item을 bucketItem 로 분류한 후 합산.
-// 반환: { firstItems, secondItems, doneItems, firstTotal, secondTotal, doneTotal,
-//        pendingTotal, pendingItems }
+// 반환:
+//   firstTotal       = 1차 (naver_settled · 미지급)         = "예정" (주황)
+//   secondTotal      = 2차 (미정산 · 미지급)                 = "미확정" (회색)
+//   done1Total       = naver_settled · 이미 지급             = "받음 1차"
+//   done2Total       = 미정산 · 이미 지급 (드문 케이스)        = "받음 2차"
+//   doneTotal        = done1+done2                          = "받음" (초록)
+//   naverConfirmed   = firstTotal + done1Total              = 회사 실입금이 잡힌 분 (순이익 산식 모집단)
+//   pendingTotal     = firstTotal + secondTotal             = 미지급 합
+//   pendingItems     = 1차+2차 미지급 task_items (지급 게이트 대상)
 function splitByBucket(items, year, month, engByItem) {
   const result = {
-    firstItems: [], secondItems: [], doneItems: [],
-    firstTotal: 0, secondTotal: 0, doneTotal: 0,
+    firstItems: [], secondItems: [], doneItems_1: [], doneItems_2: [],
+    firstTotal: 0, secondTotal: 0, done1Total: 0, done2Total: 0,
   };
   for (const it of items) {
     const k = bucketItem(it, year, month);
     if (!k) continue;
     const amt = calcItemEngineerAmount(it, engByItem);
-    if (k === "first")  { result.firstItems.push(it);  result.firstTotal  += amt; }
-    if (k === "second") { result.secondItems.push(it); result.secondTotal += amt; }
-    if (k === "done_1" || k === "done_2") {
-      result.doneItems.push(it);
-      result.doneTotal += amt;
-    }
+    if (k === "first")  { result.firstItems.push(it);   result.firstTotal  += amt; }
+    if (k === "second") { result.secondItems.push(it);  result.secondTotal += amt; }
+    if (k === "done_1") { result.doneItems_1.push(it);  result.done1Total  += amt; }
+    if (k === "done_2") { result.doneItems_2.push(it);  result.done2Total  += amt; }
   }
-  result.pendingItems = [...result.firstItems, ...result.secondItems];
-  result.pendingTotal = result.firstTotal + result.secondTotal;
+  result.doneTotal      = result.done1Total + result.done2Total;
+  result.naverConfirmed = result.firstTotal + result.done1Total;
+  result.pendingItems   = [...result.firstItems, ...result.secondItems];
+  result.pendingTotal   = result.firstTotal + result.secondTotal;
   return result;
 }
 
@@ -168,22 +175,8 @@ function computeCompanyNetIncome(items, gateYm) {
   };
 }
 
-// 작업월 기준 기사 지급 총액 (RPC 합산).
-//   items 전부에서 task.completed_at KST 가 gateYm 인 것의 engByItem 합.
-function computeEngineerPaidByGateMonth(items, gateYm, engByItem) {
-  if (!gateYm) return 0;
-  const [y, m] = gateYm.split("-").map(Number);
-  let sum = 0;
-  for (const it of items) {
-    if (it.is_canceled) continue;
-    if (!inKstMonth(it.tasks?.completed_at, y, m)) continue;
-    sum += Number(engByItem?.get(it.id)) || 0;
-  }
-  return sum;
-}
-
 // ── 기사별 그룹 ───────────────────────────────────────────
-// 2026-06-01 B3 — pendingItemIds 추가 (기사별 게이트 지급 대상).
+// 2026-06-01 — 받음 (done1+done2) / 예정 (first) / 미확정 (second) 3단계 트래킹.
 function groupItemsByEngineer(items, engineers, year, month, engByItem) {
   const map = {};
   for (const it of items) {
@@ -197,9 +190,11 @@ function groupItemsByEngineer(items, engineers, year, month, engByItem) {
         engineerId:     eid,
         engineer:       engineers.find(e => e.id === eid) || null,
         engineerName:   (it.tasks && it.tasks.assignedEngineer) || null,
-        firstAmount:    0,
-        secondAmount:   0,
-        doneAmount:     0,
+        firstAmount:    0,   // 예정 (naver settled, 미지급)
+        secondAmount:   0,   // 미확정 (미정산)
+        done1Amount:    0,   // 받음 1차 (naver settled · 이미 지급)
+        done2Amount:    0,   // 받음 2차 (미정산 · 이미 지급 — 드묾)
+        doneAmount:     0,   // = done1 + done2 (호환)
         itemCount:      0,
         pendingItemIds: [],   // 1차 + 2차 (미지급) item ids — B3 게이트 지급용
       };
@@ -208,13 +203,16 @@ function groupItemsByEngineer(items, engineers, year, month, engByItem) {
     const amt = calcItemEngineerAmount(it, engByItem);
     if (k === "first")  { slot.firstAmount  += amt; slot.pendingItemIds.push(it.id); }
     if (k === "second") { slot.secondAmount += amt; slot.pendingItemIds.push(it.id); }
-    if (k === "done_1" || k === "done_2") slot.doneAmount += amt;
+    if (k === "done_1") { slot.done1Amount += amt; slot.doneAmount += amt; }
+    if (k === "done_2") { slot.done2Amount += amt; slot.doneAmount += amt; }
     slot.itemCount += 1;
   }
-  // 합계(미지급) 내림차순
-  return Object.values(map).sort(
-    (a, b) => (b.firstAmount + b.secondAmount) - (a.firstAmount + a.secondAmount)
-  );
+  // 합계(total = 받음+예정+미확정) 내림차순
+  return Object.values(map).sort((a, b) => {
+    const at = a.doneAmount + a.firstAmount + a.secondAmount;
+    const bt = b.doneAmount + b.firstAmount + b.secondAmount;
+    return bt - at;
+  });
 }
 
 // ── 월 셀렉터 헬퍼 ────────────────────────────────────────────
@@ -309,31 +307,35 @@ export function UsolNToEngineerSection({ adminId = null }) {
   }, [items]);
 
   const [year, month] = selectedMonth.split("-").map(Number);
-  const split  = useMemo(
-    () => splitByBucket(items, year, month, engByItem),
-    [items, year, month, engByItem]
-  );
-  const byEng  = useMemo(
-    () => groupItemsByEngineer(items, engineers, year, month, engByItem),
-    [items, engineers, year, month, engByItem]
-  );
 
   // 2026-06-01 B3 — 세금계산서 / 게이트 지급 기준 ym = 한 달 전 (지급월 → 작업월).
   const gateYm = useMemo(() => {
     const prevDate = new Date(year, month - 2, 1);
     return `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
   }, [year, month]);
+  const [gateYear, gateMonth] = useMemo(
+    () => gateYm.split("-").map(Number),
+    [gateYm]
+  );
+
+  // 2026-06-01 — bucketItem 가 gateYm 작업월 기준으로 동작 (naver_settled_at NULL/NOT NULL split).
+  const split  = useMemo(
+    () => splitByBucket(items, gateYear, gateMonth, engByItem),
+    [items, gateYear, gateMonth, engByItem]
+  );
+  const byEng  = useMemo(
+    () => groupItemsByEngineer(items, engineers, gateYear, gateMonth, engByItem),
+    [items, engineers, gateYear, gateMonth, engByItem]
+  );
 
   // 2026-06-01 S2 — 회사 순이익 (작업월 = gateYm 기준).
+  //   순이익 = 회사 실입금 − 기사 지급 (1차 모집단만 = naver_settled NOT NULL).
+  //   2차 (미정산) 는 회사 실입금 아직 없음 → 순이익 계산 제외.
   const companyNet = useMemo(
     () => computeCompanyNetIncome(items, gateYm),
     [items, gateYm]
   );
-  const engineerPaidGate = useMemo(
-    () => computeEngineerPaidByGateMonth(items, gateYm, engByItem),
-    [items, gateYm, engByItem]
-  );
-  const profit = companyNet.amount - engineerPaidGate;
+  const profit = companyNet.amount - split.naverConfirmed;
 
   function refresh() { setReloadTick(v => v + 1); }
 
@@ -395,6 +397,7 @@ export function UsolNToEngineerSection({ adminId = null }) {
           <MonthlyStackCard
             year={year}
             month={month}
+            gateYm={gateYm}
             split={split}
           />
 
@@ -402,7 +405,7 @@ export function UsolNToEngineerSection({ adminId = null }) {
           <CompanyProfitCard
             gateYm={gateYm}
             companyNet={companyNet}
-            engineerPaid={engineerPaidGate}
+            split={split}
             profit={profit}
           />
 
@@ -477,7 +480,11 @@ function MonthSelector({ value, onChange }) {
 }
 
 // ── 월정산 카드: 총액 + 스택바 + 1·2차 라벨 ─────────────────
-function MonthlyStackCard({ year, month, split }) {
+//   year/month = 지급월 (selectedMonth, 1차 15일 · 2차 말일 date 라벨용)
+//   gateYm     = 작업월 (title 표시용)
+//   split.firstTotal  = "예정" (naver settled 미지급) — 진분홍 유지 (지급 cycle 의미)
+//   split.secondTotal = "미확정" (미정산) — 회색
+function MonthlyStackCard({ year, month, gateYm, split }) {
   const { firstTotal, secondTotal, doneTotal, pendingTotal } = split;
   const { firstLabel, secondLabel } = getCycleDates(year, month);
 
@@ -495,7 +502,7 @@ function MonthlyStackCard({ year, month, split }) {
       <div style={{
         fontSize: 11, color: C_GRAY, fontWeight: 600, marginBottom: 4,
       }}>
-        {year}년 {month}월 미지급 합계
+        {gateYm || `${year}년 ${month}월`} 작업 미지급 합계
       </div>
       <div style={{
         fontSize: 24, fontWeight: 800, fontFamily: "inherit",
@@ -583,10 +590,14 @@ function StackBar({ firstPct, secondPct, empty }) {
 // ── 회사 순이익 카드 (작업월 = gateYm 기준) ─────────────────
 // 회사 실입금 − 기사 지급 = 순이익. (모두 작업월 기준).
 // APR/MAY 는 시트 기준 상수 (legacy net_amount gross 오염). JUN+ 는 자동.
-function CompanyProfitCard({ gateYm, companyNet, engineerPaid, profit }) {
+function CompanyProfitCard({ gateYm, companyNet, split, profit }) {
   if (!gateYm) return null;
   const isConstant = companyNet.source === "constant";
   const v = companyNet.validation;
+  // naverConfirmed = 1차(예정) + done1(이미 지급, naver settled) — 회사 실입금 모집단 일치.
+  const engineerPayFirst = split.naverConfirmed || 0;
+  const engineerPaySecond = split.secondTotal || 0;
+  const engineerReceived = split.doneTotal || 0;
 
   return (
     <div style={{
@@ -602,7 +613,7 @@ function CompanyProfitCard({ gateYm, companyNet, engineerPaid, profit }) {
       </div>
 
       <ProfitRow label="회사 실입금" amount={companyNet.amount} sign="+"/>
-      <ProfitRow label="기사 지급"   amount={engineerPaid}     sign="−"/>
+      <ProfitRow label="기사 지급 (1차 — naver 정산 확정 모집단)" amount={engineerPayFirst} sign="−"/>
 
       <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }}/>
 
@@ -631,6 +642,32 @@ function CompanyProfitCard({ gateYm, companyNet, engineerPaid, profit }) {
           <>ⓘ {gateYm} 회사 실입금 = 신형식 net × 0.85 자동 합산.</>
         )}
       </div>
+
+      {/* 2차 미정산 + 이미 지급 정보 (순이익 계산 제외) */}
+      {(engineerPaySecond > 0 || engineerReceived > 0) && (
+        <div style={{
+          marginTop: 8, padding: "8px 10px",
+          background: "rgba(156,163,175,0.06)",
+          border: "1px dashed var(--border)",
+          borderRadius: 6,
+          fontSize: 10, color: C_GRAY, lineHeight: 1.6,
+        }}>
+          {engineerPaySecond > 0 && (
+            <div>
+              · 2차 미정산 기사 지급분: <span style={{ fontFamily: "inherit", fontWeight: 700, color: "var(--text-primary)" }}>
+                ₩{engineerPaySecond.toLocaleString()}
+              </span> — 회사 실입금이 아직 없음 → 순이익 계산 제외
+            </div>
+          )}
+          {engineerReceived > 0 && (
+            <div>
+              · 받음 (이미 지급): <span style={{ fontFamily: "inherit", fontWeight: 700, color: C_GREEN }}>
+                ₩{engineerReceived.toLocaleString()}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 6월+ 검증 — 신형식 / gross 의심 / NULL 카운트 */}
       {!isConstant && v && (
@@ -828,8 +865,15 @@ function EngineerListScreen({
 function EngineerRow({ row, maxTotal = 0, invoice, invoiceLoading, gateYm, adminId, onRefresh }) {
   const [busy, setBusy] = useState(false);
 
-  const total = row.firstAmount + row.secondAmount;
-  const isAllDone = total === 0 && row.doneAmount > 0;
+  // 2026-06-01 — 3단계 (받음/예정/미확정) 미러링.
+  //   total = 받음 + 예정 + 미확정 (전체 모집단, 막대 길이용).
+  //   pending = 예정 + 미확정 (미지급, 게이트 지급 대상).
+  const received = row.doneAmount   || 0;   // 받음
+  const scheduled = row.firstAmount || 0;   // 예정 (naver settled, 미지급)
+  const uncertain = row.secondAmount || 0;  // 미확정 (미정산)
+  const total   = received + scheduled + uncertain;
+  const pending = scheduled + uncertain;
+  const isAllDone = pending === 0 && received > 0;
   const isUnassigned = row.engineerKey === "unassigned" || !row.engineerId;
 
   const engineerLabel = row.engineer?.name
@@ -882,8 +926,8 @@ function EngineerRow({ row, maxTotal = 0, invoice, invoiceLoading, gateYm, admin
     if (invStatus !== "confirmed") return;
     if (!confirm(
       `${engineerLabel} 기사에게 ${row.pendingItemIds.length}건 지급 마킹할까요?\n` +
-      `1차 ₩${row.firstAmount.toLocaleString()} + 2차 ₩${row.secondAmount.toLocaleString()}\n` +
-      `= 총 ₩${total.toLocaleString()}`
+      `예정 ₩${scheduled.toLocaleString()} + 미확정 ₩${uncertain.toLocaleString()}\n` +
+      `= 총 ₩${pending.toLocaleString()}`
     )) return;
     setBusy(true);
     const res = await markTaskItemsField(row.pendingItemIds, "engineer_settled_at");
@@ -921,47 +965,37 @@ function EngineerRow({ row, maxTotal = 0, invoice, invoiceLoading, gateYm, admin
         </span>
       </div>
 
-      {/* 2행 — 가로 막대 (S2.5: 총액=길이, 진분홍 1차 / 연분홍 2차) */}
+      {/* 2행 — 가로 막대 (3색: 받음 초록 / 예정 주황 / 미확정 회색) */}
       <EngineerBar
-        firstAmount={row.firstAmount}
-        secondAmount={row.secondAmount}
+        received={received}
+        scheduled={scheduled}
+        uncertain={uncertain}
         total={total}
         maxTotal={maxTotal}
       />
 
-      {/* 3행 — 1차 / 2차 라벨 (작게, 회색) */}
+      {/* 3행 — 받음/예정/미확정 라벨 (작게, 색 dot + 회색 텍스트) */}
       <div style={{
-        marginTop: 5,
-        display: "flex", justifyContent: "space-between",
+        marginTop: 6,
+        display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 4,
         fontSize: 10, color: C_GRAY,
       }}>
-        <span>
-          <span style={{
-            display: "inline-block", width: 6, height: 6, borderRadius: 1,
-            background: C_PINK_DEEP, marginRight: 5, verticalAlign: "middle",
-          }}/>
-          1차 <span style={{ fontFamily: "inherit", fontWeight: 700 }}>
-            ₩{row.firstAmount.toLocaleString()}
-          </span>
-        </span>
-        <span>
-          <span style={{
-            display: "inline-block", width: 6, height: 6, borderRadius: 1,
-            background: C_PINK_LIGHT, marginRight: 5, verticalAlign: "middle",
-          }}/>
-          2차 <span style={{ fontFamily: "inherit", fontWeight: 700 }}>
-            ₩{row.secondAmount.toLocaleString()}
-          </span>
-        </span>
+        <BucketLabel
+          color={C_BUCKET_RECEIVED}
+          label="받음"
+          amount={received}
+        />
+        <BucketLabel
+          color={C_BUCKET_SCHEDULED}
+          label="예정"
+          amount={scheduled}
+        />
+        <BucketLabel
+          color={C_BUCKET_UNCERTAIN}
+          label="미확정"
+          amount={uncertain}
+        />
       </div>
-
-      {row.doneAmount > 0 && (
-        <div style={{
-          fontSize: 9, color: C_GREEN, marginTop: 4, fontWeight: 600,
-        }}>
-          ✓ 이미 지급 ₩{row.doneAmount.toLocaleString()}
-        </div>
-      )}
 
       {/* 3행 — 세금계산서 뱃지 + 액션 */}
       {!isUnassigned && (
@@ -1013,10 +1047,10 @@ function EngineerRow({ row, maxTotal = 0, invoice, invoiceLoading, gateYm, admin
   );
 }
 
-// ── 기사별 가로 막대 (S2.5 — 시안) ─────────────────────────
-// 길이 = total / maxTotal × 100%. 내부: 1차 진분홍 + 2차 연분홍.
-// total=0 (전부 done 또는 데이터 없음) → 빈 트랙만 표시.
-function EngineerBar({ firstAmount, secondAmount, total, maxTotal }) {
+// ── 기사별 가로 막대 (3색 — 기사앱 정산 카드 미러링) ─────────
+// 길이 = total / maxTotal × 100%.
+// 내부: 받음 (초록) + 예정 (주황) + 미확정 (회색) — 기사앱 prev月 정산 카드와 동일 톤.
+function EngineerBar({ received, scheduled, uncertain, total, maxTotal }) {
   const trackHeight = 9;
   const trackBg = "rgba(255,255,255,0.05)";
 
@@ -1029,9 +1063,10 @@ function EngineerBar({ firstAmount, secondAmount, total, maxTotal }) {
     );
   }
 
-  const fillPct   = Math.max(0, Math.min(100, (total / maxTotal) * 100));
-  const firstPctOfTotal  = (firstAmount  / total) * 100;
-  const secondPctOfTotal = (secondAmount / total) * 100;
+  const fillPct = Math.max(0, Math.min(100, (total / maxTotal) * 100));
+  const rPct = (received  / total) * 100;
+  const sPct = (scheduled / total) * 100;
+  const uPct = (uncertain / total) * 100;
 
   return (
     <div style={{
@@ -1043,20 +1078,34 @@ function EngineerBar({ firstAmount, secondAmount, total, maxTotal }) {
         display: "flex", overflow: "hidden",
         borderRadius: trackHeight / 2,
       }}>
-        {firstPctOfTotal > 0 && (
-          <div style={{
-            width: `${firstPctOfTotal}%`, height: "100%",
-            background: C_PINK_DEEP,
-          }}/>
-        )}
-        {secondPctOfTotal > 0 && (
-          <div style={{
-            width: `${secondPctOfTotal}%`, height: "100%",
-            background: C_PINK_LIGHT,
-          }}/>
-        )}
+        {rPct > 0 && <div style={{ width: `${rPct}%`, height: "100%", background: C_BUCKET_RECEIVED  }}/>}
+        {sPct > 0 && <div style={{ width: `${sPct}%`, height: "100%", background: C_BUCKET_SCHEDULED }}/>}
+        {uPct > 0 && <div style={{ width: `${uPct}%`, height: "100%", background: C_BUCKET_UNCERTAIN }}/>}
       </div>
     </div>
+  );
+}
+
+// ── 받음/예정/미확정 라벨 (작은 dot + 텍스트) ────────────────
+function BucketLabel({ color, label, amount }) {
+  const isZero = !amount || amount <= 0;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+      <span style={{
+        width: 6, height: 6, borderRadius: 1, background: color,
+        display: "inline-block", flexShrink: 0,
+        opacity: isZero ? 0.3 : 1,
+      }}/>
+      <span style={{ color: isZero ? "var(--text-tertiary)" : C_GRAY, whiteSpace: "nowrap" }}>
+        {label}{" "}
+        <span style={{
+          fontFamily: "inherit", fontWeight: 700,
+          color: isZero ? "var(--text-tertiary)" : color,
+        }}>
+          ₩{(amount || 0).toLocaleString()}
+        </span>
+      </span>
+    </span>
   );
 }
 
