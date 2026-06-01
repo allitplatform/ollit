@@ -36,7 +36,12 @@ const C_GREEN      = "#1D9E75";
 const APR_SETTLED_FIXED = 35_048_310;
 const MAY_SETTLED_FIXED = 52_319_693;
 
-// 주차별 표값 (월~일 KST, apr/may 작업월 split, deposit = sunday + 1일, payYm = deposit 의 월).
+// 주차별 표값 (정산주 = naver_settled_at 기준 월~일 KST).
+//   monday/sunday  = 정산 기간 (naver_settled_at 이 이 안에 잡힌 task_items).
+//   deposit       = sunday + 1일 = 다음 월요일 (= 유솔이 회사에 입금하는 날).
+//   payYm         = deposit 의 월 (= 정산월 = 회사 입금월).
+//   apr/may       = 그 정산주에 정산된 작업들의 작업월(completed_at) 분포.
+//                   같은 정산주 안에 4월 작업 + 5월 작업이 섞일 수 있음 (예: W18).
 const WEEKLY_DATA_FIXED = [
   { weekKey: "2026-W14", monday: "2026-03-30", sunday: "2026-04-05", deposit: "2026-04-06", payYm: "2026-04", apr:    408_000, may:          0 },
   { weekKey: "2026-W15", monday: "2026-04-06", sunday: "2026-04-12", deposit: "2026-04-13", payYm: "2026-04", apr:    283_605, may:          0 },
@@ -290,11 +295,11 @@ function WeeklyDepositCard({ week, naverCount, countsLoaded }) {
         </span>
       </div>
 
-      {/* 부기 — 작업기간 + 네이버 정산 건수 (라이브) */}
+      {/* 부기 — 정산 기간 + 네이버 정산 건수 (라이브) */}
       <div style={{
         marginTop: 4, fontSize: 10, color: C_GRAY,
       }}>
-        작업 {period}
+        {period} 정산
         {countsLoaded && (
           <span> · 네이버 정산 {(naverCount || 0)}건</span>
         )}
