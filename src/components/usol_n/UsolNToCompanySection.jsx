@@ -20,11 +20,7 @@
 //   · grand total:         ₩87,368,003
 //   · APR + MAY:           ₩35,048,310 + ₩52,319,693 = ₩87,368,003 ✓
 
-import { useMemo, useState, useEffect } from "react";
-import { supabase } from "../../lib/supabase.js";
-
-// usol_n principal id (전 환경 고정).
-const USOL_N_PID = "22222222-2222-2222-2222-222222222006";
+import { useMemo, useState } from "react";
 
 const C_PINK_DEEP  = "#D4537E";   // 5월 / 핵심
 const C_PINK_LIGHT = "#F8CDD9";
@@ -40,18 +36,19 @@ const MAY_SETTLED_FIXED = 52_319_693;
 //   monday/sunday  = 정산 기간 (naver_settled_at 이 이 안에 잡힌 task_items).
 //   deposit       = sunday + 1일 = 다음 월요일 (= 유솔이 회사에 입금하는 날).
 //   payYm         = deposit 의 월 (= 정산월 = 회사 입금월).
-//   apr/may       = 그 정산주에 정산된 작업들의 작업월(completed_at) 분포.
-//                   같은 정산주 안에 4월 작업 + 5월 작업이 섞일 수 있음 (예: W18).
+//   naverCount    = 그 정산주에 정산된 task_items 건수 (시트 기준 고정값, 라이브 X).
+//   weeklyTotal   = 주간 실입금 합계 (현금·현장 포함, apr+may 보다 클 수 있음 — 표 그대로).
+//   apr/may       = weeklyTotal 측 네이버 작업월(completed_at) 분포만 분류한 부분 합.
 const WEEKLY_DATA_FIXED = [
-  { weekKey: "2026-W14", monday: "2026-03-30", sunday: "2026-04-05", deposit: "2026-04-06", payYm: "2026-04", apr:    408_000, may:          0 },
-  { weekKey: "2026-W15", monday: "2026-04-06", sunday: "2026-04-12", deposit: "2026-04-13", payYm: "2026-04", apr:    283_605, may:          0 },
-  { weekKey: "2026-W16", monday: "2026-04-13", sunday: "2026-04-19", deposit: "2026-04-20", payYm: "2026-04", apr:  1_136_492, may:          0 },
-  { weekKey: "2026-W17", monday: "2026-04-20", sunday: "2026-04-26", deposit: "2026-04-27", payYm: "2026-04", apr:  4_879_839, may:          0 },
-  { weekKey: "2026-W18", monday: "2026-04-27", sunday: "2026-05-03", deposit: "2026-05-04", payYm: "2026-05", apr:  6_338_919, may:    328_903 },
-  { weekKey: "2026-W19", monday: "2026-05-04", sunday: "2026-05-10", deposit: "2026-05-11", payYm: "2026-05", apr: 11_531_286, may:  8_186_673 },
-  { weekKey: "2026-W20", monday: "2026-05-11", sunday: "2026-05-17", deposit: "2026-05-18", payYm: "2026-05", apr:  7_014_562, may:  9_651_152 },
-  { weekKey: "2026-W21", monday: "2026-05-18", sunday: "2026-05-24", deposit: "2026-05-25", payYm: "2026-05", apr:  3_194_453, may: 15_146_252 },
-  { weekKey: "2026-W22", monday: "2026-05-25", sunday: "2026-05-31", deposit: "2026-06-01", payYm: "2026-06", apr:    261_154, may: 19_006_713 },
+  { weekKey: "2026-W14", monday: "2026-03-30", sunday: "2026-04-05", deposit: "2026-04-06", payYm: "2026-04", naverCount:   0, weeklyTotal:    408_000, apr:    408_000, may:          0 },
+  { weekKey: "2026-W15", monday: "2026-04-06", sunday: "2026-04-12", deposit: "2026-04-13", payYm: "2026-04", naverCount:   3, weeklyTotal:    283_606, apr:    283_605, may:          0 },
+  { weekKey: "2026-W16", monday: "2026-04-13", sunday: "2026-04-19", deposit: "2026-04-20", payYm: "2026-04", naverCount:  18, weeklyTotal:  1_136_493, apr:  1_136_492, may:          0 },
+  { weekKey: "2026-W17", monday: "2026-04-20", sunday: "2026-04-26", deposit: "2026-04-27", payYm: "2026-04", naverCount:  72, weeklyTotal:  4_879_840, apr:  4_879_839, may:          0 },
+  { weekKey: "2026-W18", monday: "2026-04-27", sunday: "2026-05-03", deposit: "2026-05-04", payYm: "2026-05", naverCount: 100, weeklyTotal:  6_514_822, apr:  6_338_919, may:    328_903 },
+  { weekKey: "2026-W19", monday: "2026-05-04", sunday: "2026-05-10", deposit: "2026-05-11", payYm: "2026-05", naverCount: 302, weeklyTotal: 19_504_515, apr: 11_531_286, may:  8_186_673 },
+  { weekKey: "2026-W20", monday: "2026-05-11", sunday: "2026-05-17", deposit: "2026-05-18", payYm: "2026-05", naverCount: 259, weeklyTotal: 16_958_937, apr:  7_014_562, may:  9_651_152 },
+  { weekKey: "2026-W21", monday: "2026-05-18", sunday: "2026-05-24", deposit: "2026-05-25", payYm: "2026-05", naverCount: 284, weeklyTotal: 18_790_320, apr:  3_194_453, may: 15_146_252 },
+  { weekKey: "2026-W22", monday: "2026-05-25", sunday: "2026-05-31", deposit: "2026-06-01", payYm: "2026-06", naverCount: 281, weeklyTotal: 19_267_868, apr:    261_154, may: 19_006_713 },
 ];
 
 // ── 헬퍼 ────────────────────────────────────────────────────
@@ -71,58 +68,8 @@ function depositLabel(ymd) {
   return `${mdLabel(ymd)}(${dowKor(ymd)}) 입금`;
 }
 
-// KST 기준 (UTC isoString → KST 그 주 월요일 ISO 날짜 — 주 키).
-function mondayKeyOfKst(utcIso) {
-  if (!utcIso) return null;
-  const utc = new Date(utcIso);
-  if (isNaN(utc.getTime())) return null;
-  const kstMs = utc.getTime() + 9 * 3600 * 1000;
-  const kst = new Date(kstMs);
-  const day = kst.getUTCDay();                      // 0=일, 1=월, ...
-  const offset = day === 0 ? -6 : 1 - day;
-  const mondayMs = kstMs + offset * 24 * 3600 * 1000;
-  const md = new Date(mondayMs);
-  const y = md.getUTCFullYear();
-  const m = String(md.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(md.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
-
-// 라이브 네이버 정산 카운트 — task_items WHERE naver_settled_at IS NOT NULL + usol_n.
-// 결과: Map<mondayIso, count>.
-async function fetchNaverSettledCountsByWeek({ startUtc, endUtc }) {
-  const PAGE_SIZE = 1000;
-  const MAX_PAGES = 20;
-  const all = [];
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const offset = page * PAGE_SIZE;
-    const { data, error } = await supabase
-      .from("task_items")
-      .select("id, naver_settled_at, tasks!inner(principal_id)")
-      .eq("tasks.principal_id", USOL_N_PID)
-      .not("naver_settled_at", "is", null)
-      .gte("naver_settled_at", startUtc)
-      .lt("naver_settled_at", endUtc)
-      .order("id", { ascending: true })
-      .range(offset, offset + PAGE_SIZE - 1);
-    if (error) {
-      console.error("[UsolNToCompany.naverCount] page", page, error);
-      return {};
-    }
-    if (!data || data.length === 0) break;
-    all.push(...data);
-    if (data.length < PAGE_SIZE) break;
-  }
-  const counts = {};
-  for (const it of all) {
-    const key = mondayKeyOfKst(it.naver_settled_at);
-    if (!key) continue;
-    counts[key] = (counts[key] || 0) + 1;
-  }
-  return counts;
-}
-
 // 정산월 그룹 (payYm) 으로 그룹핑, 최신순 정렬, 주차도 최신순 (deposit 내림차순).
+//   total = Σ weeklyTotal (주간 실입금 합계, 현금·현장 포함).
 function groupWeeksByPayYm(weeks) {
   const map = new Map();
   for (const w of weeks) {
@@ -132,7 +79,7 @@ function groupWeeksByPayYm(weeks) {
   const groups = [...map.entries()].map(([payYm, list]) => ({
     payYm,
     weeks: list.slice().sort((a, b) => b.deposit.localeCompare(a.deposit)),
-    total: list.reduce((s, w) => s + w.apr + w.may, 0),
+    total: list.reduce((s, w) => s + (w.weeklyTotal || 0), 0),
     count: list.length,
   }));
   groups.sort((a, b) => b.payYm.localeCompare(a.payYm));
@@ -160,23 +107,6 @@ export function UsolNToCompanySection() {
     return { [cur]: true };
   });
 
-  // 라이브 네이버 정산 카운트
-  const [naverCounts, setNaverCounts] = useState({});
-  const [countsLoaded, setCountsLoaded] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    // 4·5월 + 6월초까지 커버 (W14 monday ~ 6/30) — KST 기준 → UTC.
-    const startUtc = "2026-03-29T15:00:00Z";  // KST 2026-03-30 00:00 (W14 monday)
-    const endUtc   = "2026-06-30T15:00:00Z";  // KST 2026-07-01 00:00
-    fetchNaverSettledCountsByWeek({ startUtc, endUtc }).then(c => {
-      if (!alive) return;
-      setNaverCounts(c);
-      setCountsLoaded(true);
-    });
-    return () => { alive = false; };
-  }, []);
-
   const groups = useMemo(() => groupWeeksByPayYm(WEEKLY_DATA_FIXED), []);
   const junLiveWeeks = useMemo(() => getJuneLiveWeeks(), []);
 
@@ -192,8 +122,6 @@ export function UsolNToCompanySection() {
           group={g}
           isOpen={!!openGroups[g.payYm]}
           onToggle={() => toggleGroup(g.payYm)}
-          naverCounts={naverCounts}
-          countsLoaded={countsLoaded}
         />
       ))}
 
@@ -204,7 +132,7 @@ export function UsolNToCompanySection() {
 }
 
 // ── 그룹 아코디언 (월별) ─────────────────────────────────────
-function GroupAccordion({ group, isOpen, onToggle, naverCounts, countsLoaded }) {
+function GroupAccordion({ group, isOpen, onToggle }) {
   const [y, m] = group.payYm.split("-").map(Number);
   const monthLabel = `${y}년 ${m}월`;
 
@@ -252,12 +180,7 @@ function GroupAccordion({ group, isOpen, onToggle, naverCounts, countsLoaded }) 
           display: "flex", flexDirection: "column", gap: 6,
         }}>
           {group.weeks.map(w => (
-            <WeeklyDepositCard
-              key={w.weekKey}
-              week={w}
-              naverCount={naverCounts[w.monday]}
-              countsLoaded={countsLoaded}
-            />
+            <WeeklyDepositCard key={w.weekKey} week={w}/>
           ))}
         </div>
       )}
@@ -265,10 +188,14 @@ function GroupAccordion({ group, isOpen, onToggle, naverCounts, countsLoaded }) 
   );
 }
 
-// ── 주차 입금 카드 (메인 = 입금일 + 총액, 부기 = 작업기간 + 정산건수, 세부 = 4월/5월) ─
-function WeeklyDepositCard({ week, naverCount, countsLoaded }) {
-  const total = week.apr + week.may;
+// ── 주차 입금 카드 ──────────────────────────────────────────
+//   메인  = "M/D(요일) 입금" + weeklyTotal (주간 실입금 합계, 현금·현장 포함)
+//   부기  = "M/D~M/D 정산 · 네이버 N건" (시트 기준 고정값)
+//   세부  = 4월분 (회색) / 5월분 (핑크) — weeklyTotal 측 네이버 작업월 분포
+function WeeklyDepositCard({ week }) {
+  const total = week.weeklyTotal || 0;
   const period = `${mdLabel(week.monday)}~${mdLabel(week.sunday)}`;
+  const naverCount = week.naverCount || 0;
 
   return (
     <div style={{
@@ -277,7 +204,7 @@ function WeeklyDepositCard({ week, naverCount, countsLoaded }) {
       border: "1px solid var(--border)",
       borderRadius: 10,
     }}>
-      {/* 메인 — 입금일 + 총액 */}
+      {/* 메인 — 입금일 + 주간 실입금 합계 */}
       <div style={{
         display: "flex", alignItems: "baseline", justifyContent: "space-between",
         gap: 8,
@@ -295,14 +222,11 @@ function WeeklyDepositCard({ week, naverCount, countsLoaded }) {
         </span>
       </div>
 
-      {/* 부기 — 정산 기간 + 네이버 정산 건수 (라이브) */}
+      {/* 부기 — 정산 기간 + 네이버 정산 건수 (표값) */}
       <div style={{
         marginTop: 4, fontSize: 10, color: C_GRAY,
       }}>
-        {period} 정산
-        {countsLoaded && (
-          <span> · 네이버 정산 {(naverCount || 0)}건</span>
-        )}
+        {period} 정산 · 네이버 정산 {naverCount}건
       </div>
 
       {/* 세부 — 4월분 (회색) / 5월분 (핑크) */}
