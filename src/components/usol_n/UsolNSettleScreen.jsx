@@ -32,7 +32,7 @@ function subtotalOf(item) {
   return Number(item?.subtotal) || 0;
 }
 
-export function UsolNSettleScreen({ adminId = null }) {
+export function UsolNSettleScreen({ adminId = null, onTaskClick = null }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -91,6 +91,8 @@ export function UsolNSettleScreen({ adminId = null }) {
           setPendingStageFilter("all");
           setPendingDateFilter("");
         }}
+        // 2026-06-02 — task_item 줄 클릭 → 부모 task_id 측 작업 상세 navigate (사장님 spec).
+        onItemClick={onTaskClick ? (it) => onTaskClick({ id: it.task_id, customer_name: it.customer_name, status: it.task_status }) : null}
         search={pendingSearch} setSearch={setPendingSearch}
         stageFilter={pendingStageFilter} setStageFilter={setPendingStageFilter}
         dateFilter={pendingDateFilter} setDateFilter={setPendingDateFilter}

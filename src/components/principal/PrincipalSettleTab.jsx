@@ -436,7 +436,7 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
           if (ids.length > 0) return handleUndo(ids);
         }}
         onBack={() => { setSelectedWeekKey(null); setSearch(""); setStageFilter("all"); setDateFilter(""); }}
-        onItemClick={onSelect ? (it) => onSelect({ id: it.task_id, customer: it.customer_name, status: it.task_status }) : null}
+        onItemClick={onSelect ? (it) => onSelect({ id: it.task_id, customer_name: it.customer_name, status: it.task_status }) : null}
         search={search} setSearch={setSearch}
         stageFilter={stageFilter} setStageFilter={setStageFilter}
         dateFilter={dateFilter} setDateFilter={setDateFilter}
