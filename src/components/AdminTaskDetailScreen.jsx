@@ -63,6 +63,10 @@ function getStateInfo(task) {
 }
 
 export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user }) {
+  // ════════════════════════════════════════════════════════════
+  // 모든 hooks 측 측 측 (early return 측 측 측 측 측 — React #310 spec).
+  // 2026-06-02 — early return 측 useTaskMemos 측 측 측 측 측 → hooks 순서 위반 발생 → fix.
+  // ════════════════════════════════════════════════════════════
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
   const [exceptionExpanded, setExceptionExpanded] = useState(false);
@@ -70,9 +74,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   // 2026-06-02 — id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일).
   //   정산 대기 측 partial payload (id/customer_name/status 등) 측 들어오면 측 정보 빈칸 catch.
   //   getTaskByIdDb 측 full row → v14NormalizeTask 측 normalize → setTask.
-  //   김혜영 외 일정 누락 다수 측 측 해결.
-  // 2026-06-02 — 깜빡임 개선 (사장님 spec): partial initial 측 spinner 측 표시, full 측 측 측 catch 측 표시.
-  //   isInitialFull = task_no + address 모두 measure → 즉시 표시 / partial → loading.
+  // 2026-06-02 — 깜빡임 개선: partial initial 측 spinner 측 표시, full 측 측 측 측 표시.
   const isInitialFull = !!(initialTask?.task_no && initialTask?.address);
   const [task, setTask] = useState(initialTask);
   const [loading, setLoading] = useState(!isInitialFull);
@@ -95,6 +97,13 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
     return () => { alive = false; };
   }, [initialTask?.id]);
 
+  // 2026-05-27 — Supabase task_memos hook (realtime 자동 갱신).
+  //   task null 측 safe — task?.id || null params 측 호출 spec (hooks 순서 보장).
+  const { memos } = useTaskMemos(task?.id || null);
+
+  // ════════════════════════════════════════════════════════════
+  // Early returns (모든 hooks 측 측 측).
+  // ════════════════════════════════════════════════════════════
   if (loading) {
     return (
       <div className="fade-in" style={{ background: "var(--bg-primary)", minHeight: "100vh", padding: 16 }}>
@@ -117,8 +126,6 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
     );
   }
 
-  // 2026-05-27 — Supabase task_memos hook (realtime 자동 갱신)
-  const { memos } = useTaskMemos(task.id);
   const isExternal = task.type === "external";
   const showException = !isExternal && task.state !== "done";
 
