@@ -427,6 +427,8 @@ const modalContentStyle = {
   background: "var(--bg-primary, #0A0A0A)",
   minHeight: "100vh",
   width: "100%",
+  // 2026-06-02 — iOS PWA black-translucent 상태바 보호. position:fixed 모달이 Shell 우회 → 자체 처리.
+  paddingTop: "env(safe-area-inset-top)",
 };
 
 export default UsolNToCompanySection;
