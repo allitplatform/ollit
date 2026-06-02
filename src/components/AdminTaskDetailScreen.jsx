@@ -72,28 +72,47 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   const [exceptionExpanded, setExceptionExpanded] = useState(false);
 
   // 2026-06-02 — id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일).
-  //   정산 대기 측 partial payload (id/customer_name/status 등) 측 들어오면 측 정보 빈칸 catch.
-  //   getTaskByIdDb 측 full row → v14NormalizeTask 측 normalize → setTask.
-  // 2026-06-02 — 깜빡임 개선: partial initial 측 spinner 측 표시, full 측 측 측 측 표시.
+  //   정산 대기에서 partial payload (id/customer_name/status 등)가 들어오면 상세 정보가 비기 때문에
+  //   getTaskByIdDb로 full row 조회 → v14NormalizeTask로 정규화 → setTask.
+  // 2026-06-02 — 깜빡임 개선: partial initial은 spinner 노출, full은 즉시 표시.
+  // 2026-06-02 — 무한 스피너 해결: try/catch/finally로 감싸 fetch 실패 시 반드시 setLoading(false).
+  //   실패 시 fetchError 상태로 안내 문구 표시 (영원히 안 멈추는 화면 방지).
   const isInitialFull = !!(initialTask?.task_no && initialTask?.address);
   const [task, setTask] = useState(initialTask);
   const [loading, setLoading] = useState(!isInitialFull);
+  const [fetchError, setFetchError] = useState(null);
   useEffect(() => {
     setTask(initialTask);
     setLoading(!(initialTask?.task_no && initialTask?.address));
+    setFetchError(null);
   }, [initialTask]);
   useEffect(() => {
-    if (!initialTask?.id) return;
+    if (!initialTask?.id) {
+      setLoading(false);
+      return;
+    }
     let alive = true;
-    getTaskByIdDb(initialTask.id)
-      .then(row => {
+    (async () => {
+      try {
+        const row = await getTaskByIdDb(initialTask.id);
         if (!alive) return;
         if (row) {
           const normalized = v14NormalizeTask(row);
-          if (normalized) setTask(normalized);
+          if (normalized) {
+            setTask(normalized);
+            setFetchError(null);
+          } else {
+            setFetchError("작업 정보 형식이 올바르지 않습니다");
+          }
+        } else {
+          setFetchError("작업 정보를 찾을 수 없습니다");
         }
-      })
-      .finally(() => { if (alive) setLoading(false); });
+      } catch (e) {
+        if (alive) setFetchError(e?.message || "작업 정보를 불러오지 못했습니다");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
     return () => { alive = false; };
   }, [initialTask?.id]);
 
@@ -102,32 +121,12 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   const { memos } = useTaskMemos(task?.id || null);
 
   // ════════════════════════════════════════════════════════════
-  // Early returns (모든 hooks 측 측 측).
+  // 2026-06-02 — early return 측 측 → 메인 return 측 ternary (사장님 spec).
+  //   early return 측 measure spec 측 sub-component 측 hooks 측 측 측 측 catch 측 측 measure 측 catch
+  //   → 가장 안전한 spec: hooks 측 측 측 측 측 측 → ternary 측 표시 분기.
   // ════════════════════════════════════════════════════════════
-  if (loading) {
-    return (
-      <div className="fade-in" style={{ background: "var(--bg-primary)", minHeight: "100vh", padding: 16 }}>
-        <button onClick={onBack} style={iconBtnStyle}>←</button>
-        <div style={{ marginTop: 60, textAlign: "center", color: "var(--text-secondary)", fontSize: 12 }}>
-          작업 정보 불러오는 중...
-        </div>
-      </div>
-    );
-  }
-
-  if (!task) {
-    return (
-      <div style={{ padding: 16 }}>
-        <button onClick={onBack} style={iconBtnStyle}>←</button>
-        <div style={{ marginTop: 24, textAlign: "center", color: "var(--text-tertiary)" }}>
-          작업 정보 없음
-        </div>
-      </div>
-    );
-  }
-
-  const isExternal = task.type === "external";
-  const showException = !isExternal && task.state !== "done";
+  const isExternal = task?.type === "external";
+  const showException = task && !isExternal && task.state !== "done";
 
   function handleMenuAction(action, taskArg) {
     if (action === "call") {
@@ -135,7 +134,6 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       if (phone) window.location.href = `tel:${phone}`;
       return;
     }
-    // 2026-05-26 D-5 — 프로 연락 (옛 QuickActions contactEngineer 측 catch — ⋮ 메뉴 측 catch 측 catch)
     if (action === "engineer_call") {
       const phone = taskArg.engineerPhone;
       if (phone) window.location.href = `tel:${phone}`;
@@ -148,8 +146,53 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
     if (action === "cancel")      return setShowCancelDialog(true);
   }
 
+  // 측 단일 return — early return 측 측, ternary 측 분기 (사장님 spec — hooks 순서 측 위반 spec 측 제거).
   return (
     <div className="fade-in" style={{ background: "var(--bg-primary)", minHeight: "100vh" }}>
+      {loading ? (
+        <div style={{ padding: 16 }}>
+          <button onClick={onBack} style={iconBtnStyle}>←</button>
+          <div style={{ marginTop: 60, textAlign: "center", color: "var(--text-secondary)", fontSize: 12 }}>
+            작업 정보 불러오는 중...
+          </div>
+        </div>
+      ) : fetchError && !isInitialFull ? (
+        <div style={{ padding: 16 }}>
+          <button onClick={onBack} style={iconBtnStyle}>←</button>
+          <div style={{ marginTop: 60, textAlign: "center", color: "var(--text-secondary)", fontSize: 13, lineHeight: 1.6 }}>
+            <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
+            <div style={{ fontWeight: 600, color: "var(--text-primary)", marginBottom: 6 }}>
+              정보를 불러오지 못했어요
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 16 }}>
+              {fetchError}
+            </div>
+            <button
+              onClick={onBack}
+              style={{
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border)",
+                color: "var(--text-primary)",
+                padding: "8px 16px",
+                borderRadius: 8,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              목록으로 돌아가기
+            </button>
+          </div>
+        </div>
+      ) : !task ? (
+        <div style={{ padding: 16 }}>
+          <button onClick={onBack} style={iconBtnStyle}>←</button>
+          <div style={{ marginTop: 24, textAlign: "center", color: "var(--text-tertiary)" }}>
+            작업 정보 없음
+          </div>
+        </div>
+      ) : (
+        <>
       <DetailHeader task={task} onBack={onBack} onMenuAction={handleMenuAction}/>
       {/* 카드 1 — 상태 + 작업 종류 측 catch (변경 X) */}
       <MainCard task={task} onStatusChange={onStatusChange}/>
@@ -210,6 +253,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
             onVisitOnly && onVisitOnly(payload);
           }}
         />
+      )}
+        </>
       )}
     </div>
   );

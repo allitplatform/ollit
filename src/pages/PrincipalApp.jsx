@@ -813,27 +813,46 @@ function TaskCard({ t, task, onClick }) {
 function TaskDetail({ t, task: initialTask, onBack }) {
   // 정산 탭에서 진입 시 부분 task — mount 시 full task refetch.
   //   목록 탭은 normalized task라 영향 X (덮어쓰면 동일 내용).
-  // 2026-06-02 — 깜빡임 개선 (사장님 spec): partial initial 측 spinner 측 표시, full 측 측 측 catch 측 표시.
-  //   isInitialFull = task_no + address 모두 measure → 즉시 표시 / partial → loading.
+  // 2026-06-02 — 깜빡임 개선 (사장님 spec): partial initial은 spinner 노출, full은 즉시 표시.
+  //   isInitialFull = task_no + address 모두 있음 → 즉시 표시 / partial → loading.
+  // 2026-06-02 — 무한 스피너 해결: try/catch/finally로 감싸 fetch 실패 시 반드시 setLoading(false).
+  //   실패 시 fetchError 상태로 안내 문구 표시 (영원히 안 멈추는 화면 방지).
   const isInitialFull = !!(initialTask?.task_no && initialTask?.address);
   const [task, setTask] = useState(initialTask);
   const [loading, setLoading] = useState(!isInitialFull);
+  const [fetchError, setFetchError] = useState(null);
   useEffect(() => {
     setTask(initialTask);
     setLoading(!(initialTask?.task_no && initialTask?.address));
+    setFetchError(null);
   }, [initialTask]);
   useEffect(() => {
-    if (!initialTask?.id) return;
+    if (!initialTask?.id) {
+      setLoading(false);
+      return;
+    }
     let alive = true;
-    getTaskByIdDb(initialTask.id)
-      .then(row => {
+    (async () => {
+      try {
+        const row = await getTaskByIdDb(initialTask.id);
         if (!alive) return;
         if (row) {
           const normalized = v14NormalizeTask(row);
-          if (normalized) setTask(normalized);
+          if (normalized) {
+            setTask(normalized);
+            setFetchError(null);
+          } else {
+            setFetchError("작업 정보 형식이 올바르지 않습니다");
+          }
+        } else {
+          setFetchError("작업 정보를 찾을 수 없습니다");
         }
-      })
-      .finally(() => { if (alive) setLoading(false); });
+      } catch (e) {
+        if (alive) setFetchError(e?.message || "작업 정보를 불러오지 못했습니다");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
     return () => { alive = false; };
   }, [initialTask?.id]);
 
@@ -966,7 +985,8 @@ function TaskDetail({ t, task: initialTask, onBack }) {
       ? `희망: ${task.requestedDate} ${task.requestedTime || ""}`
       : null;
 
-  // 2026-06-02 — 깜빡임 개선 (사장님 spec): partial 측 spinner 측 표시.
+  // 2026-06-02 — early return은 모든 hooks 호출 이후이므로 React #310 위반 없음.
+  //   loading + fetchError 분기 모두 hooks 끝난 뒤 안전한 위치에서 처리.
   if (loading) {
     return (
       <div className="fade-in" style={{ padding: "20px" }}>
@@ -977,6 +997,43 @@ function TaskDetail({ t, task: initialTask, onBack }) {
         }}>← 뒤로</button>
         <div style={{ marginTop: 60, textAlign: "center", color: t.textSecondary, fontSize: 12 }}>
           작업 정보 불러오는 중...
+        </div>
+      </div>
+    );
+  }
+  // 2026-06-02 — fetch 실패 + 데이터 부족 시 안내 화면 (빈 화면 / 무한 스피너 방지).
+  if (fetchError && !isInitialFull) {
+    return (
+      <div className="fade-in" style={{ padding: "20px" }}>
+        <button onClick={onBack} className="clickable" style={{
+          background: "transparent", border: "none", color: t.textMuted,
+          fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          padding: "6px 0", marginBottom: 16,
+        }}>← 뒤로</button>
+        <div style={{ marginTop: 60, textAlign: "center", color: t.textSecondary, fontSize: 13, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 28, marginBottom: 12 }}>⚠️</div>
+          <div style={{ fontWeight: 700, color: t.text, marginBottom: 6 }}>
+            정보를 불러오지 못했어요
+          </div>
+          <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 16 }}>
+            {fetchError}
+          </div>
+          <button
+            onClick={onBack}
+            style={{
+              background: t.bgElevated,
+              border: `1px solid ${t.border}`,
+              color: t.text,
+              padding: "8px 16px",
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 600,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            목록으로 돌아가기
+          </button>
         </div>
       </div>
     );
