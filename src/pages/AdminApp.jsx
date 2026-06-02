@@ -1912,6 +1912,11 @@ export default function AdminApp({ user, onLogout }) {
   // 2026-05-17 Round 1 Fix #2 — 메인 "완료" 카드 클릭 시 작업 탭으로 이동 + 필터 (오늘+완료)
   const [liveWorkFilter, setLiveWorkFilter] = useState(null);  // null | 'completed-today'
   const [dashboardActiveTab, setDashboardActiveTab] = useState("overview");  // 외부에서 탭 변경 가능
+  // 2026-06-03 — Option A: SettlementContent 측측 useState lift.
+  //   taskDetail 진입 측 메인 unmount 측 SettlementContent 자체 state(activeTab/expanded) 초기값 reset.
+  //   AdminApp 본체 측측 측측 측 unmount 측측 측측 측측 측측 측측.
+  const [settlementSubTab, setSettlementSubTab] = useState("engineers");  // "engineers" | "principals"
+  const [settlementExpanded, setSettlementExpanded] = useState(() => new Set());
 
   // V14 Week 2 2A — 진짜 시트 작업DB catch (apiTasks)
   const [apiTasks, setApiTasks] = useState([]);
@@ -3567,6 +3572,10 @@ export default function AdminApp({ user, onLogout }) {
       onRefreshTasks={fetchTasks}
       activeTab={dashboardActiveTab}
       setActiveTab={setDashboardActiveTab}
+      settlementSubTab={settlementSubTab}
+      setSettlementSubTab={setSettlementSubTab}
+      settlementExpanded={settlementExpanded}
+      setSettlementExpanded={setSettlementExpanded}
       unreadCount={unreadCount}
       onClickBell={() => setScreen("notifications")}
       onClickAddReception={() => setScreen("newReceptionForm")}
@@ -3658,7 +3667,11 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle }) {
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
+  // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
+  settlementSubTab, setSettlementSubTab,
+  settlementExpanded, setSettlementExpanded,
+}) {
   // V14 — 새 접수 카운트 = dynamicStats.new (status='미배정'/'약속대기' 인 작업)
   const totalNew = dynamicStats?.new ?? 0;
 
@@ -3879,7 +3892,11 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
           <div style={{ padding: "0 16px 16px" }}>
-            <SettlementContent t={t} apiTasks={apiTasks} user={user} onRefreshTasks={onRefreshTasks} onTaskClick={onTaskClick} onClickSettlementHistory={onClickSettlementHistory}/>
+            <SettlementContent t={t} apiTasks={apiTasks} user={user} onRefreshTasks={onRefreshTasks} onTaskClick={onTaskClick} onClickSettlementHistory={onClickSettlementHistory}
+              activeTab={settlementSubTab}
+              setActiveTab={setSettlementSubTab}
+              expanded={settlementExpanded}
+              setExpanded={setSettlementExpanded}/>
           </div>
         )}
       </div>
@@ -5821,9 +5838,22 @@ function SettlementScreen({ t, onBack, onTaskClick, onClickManagePrincipals }) {
 }
 
 // Step 5-3 — 정산 콘텐츠 분리: SettlementScreen (헤더+합계) + 대시보드 정산 탭에서 공유
-function SettlementContent({ t, apiTasks = [], user, onRefreshTasks, onTaskClick, onClickSettlementHistory, containerPadding, tabPadding }) {
-  const [activeTab, setActiveTab] = useState("engineers");  // "engineers" | "principals"
-  const [expanded, setExpanded] = useState(() => new Set());
+function SettlementContent({
+  t, apiTasks = [], user, onRefreshTasks, onTaskClick, onClickSettlementHistory,
+  containerPadding, tabPadding,
+  // 2026-06-03 — Option A state lift (AdminApp 본체 측측 측 detail 진입 측 unmount 측 측측 측측).
+  //   props 측측 측 controlled, 측측 자체 useState fallback (별 호출처 호환).
+  activeTab: activeTabProp,
+  setActiveTab: setActiveTabProp,
+  expanded: expandedProp,
+  setExpanded: setExpandedProp,
+}) {
+  const [_activeTabLocal, _setActiveTabLocal] = useState("engineers");  // "engineers" | "principals"
+  const [_expandedLocal, _setExpandedLocal]   = useState(() => new Set());
+  const activeTab    = activeTabProp !== undefined ? activeTabProp : _activeTabLocal;
+  const setActiveTab = setActiveTabProp || _setActiveTabLocal;
+  const expanded     = expandedProp !== undefined ? expandedProp : _expandedLocal;
+  const setExpanded  = setExpandedProp || _setExpandedLocal;
 
   // 2026-05-22 — 사장님 spec: 확인 완료해도 사라지지 않음, 맨 아래로 정렬.
   //   기준: 트랙 🅐 (isTrackARemittance) AND completedAt(KST) = 오늘.
