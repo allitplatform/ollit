@@ -71,18 +71,40 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   //   정산 대기 측 partial payload (id/customer_name/status 등) 측 들어오면 측 정보 빈칸 catch.
   //   getTaskByIdDb 측 full row → v14NormalizeTask 측 normalize → setTask.
   //   김혜영 외 일정 누락 다수 측 측 해결.
+  // 2026-06-02 — 깜빡임 개선 (사장님 spec): partial initial 측 spinner 측 표시, full 측 측 측 catch 측 표시.
+  //   isInitialFull = task_no + address 모두 measure → 즉시 표시 / partial → loading.
+  const isInitialFull = !!(initialTask?.task_no && initialTask?.address);
   const [task, setTask] = useState(initialTask);
-  useEffect(() => { setTask(initialTask); }, [initialTask]);
+  const [loading, setLoading] = useState(!isInitialFull);
+  useEffect(() => {
+    setTask(initialTask);
+    setLoading(!(initialTask?.task_no && initialTask?.address));
+  }, [initialTask]);
   useEffect(() => {
     if (!initialTask?.id) return;
     let alive = true;
-    getTaskByIdDb(initialTask.id).then(row => {
-      if (!alive || !row) return;
-      const normalized = v14NormalizeTask(row);
-      if (normalized) setTask(normalized);
-    });
+    getTaskByIdDb(initialTask.id)
+      .then(row => {
+        if (!alive) return;
+        if (row) {
+          const normalized = v14NormalizeTask(row);
+          if (normalized) setTask(normalized);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [initialTask?.id]);
+
+  if (loading) {
+    return (
+      <div className="fade-in" style={{ background: "var(--bg-primary)", minHeight: "100vh", padding: 16 }}>
+        <button onClick={onBack} style={iconBtnStyle}>←</button>
+        <div style={{ marginTop: 60, textAlign: "center", color: "var(--text-secondary)", fontSize: 12 }}>
+          작업 정보 불러오는 중...
+        </div>
+      </div>
+    );
+  }
 
   if (!task) {
     return (
@@ -130,8 +152,9 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       <WorkInfoCard task={task} onAssign={onAssign} onScheduleChange={onScheduleChange}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
       <SettlementInfoCard task={task}/>
-      {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출) */}
-      <TaskItemsCard task={task}/>
+      {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출).
+            2026-06-02 — usol_n 측 측 — 정산 사이클 측 대체 (사장님 spec). */}
+      {task.principal !== "usol_n" && <TaskItemsCard task={task}/>}
       {task.principal === "usol_n" && (
         <UsolNSettlementCycleCard
           taskId={task.id}

@@ -813,16 +813,27 @@ function TaskCard({ t, task, onClick }) {
 function TaskDetail({ t, task: initialTask, onBack }) {
   // 정산 탭에서 진입 시 부분 task — mount 시 full task refetch.
   //   목록 탭은 normalized task라 영향 X (덮어쓰면 동일 내용).
+  // 2026-06-02 — 깜빡임 개선 (사장님 spec): partial initial 측 spinner 측 표시, full 측 측 측 catch 측 표시.
+  //   isInitialFull = task_no + address 모두 measure → 즉시 표시 / partial → loading.
+  const isInitialFull = !!(initialTask?.task_no && initialTask?.address);
   const [task, setTask] = useState(initialTask);
-  useEffect(() => { setTask(initialTask); }, [initialTask]);
+  const [loading, setLoading] = useState(!isInitialFull);
+  useEffect(() => {
+    setTask(initialTask);
+    setLoading(!(initialTask?.task_no && initialTask?.address));
+  }, [initialTask]);
   useEffect(() => {
     if (!initialTask?.id) return;
     let alive = true;
-    getTaskByIdDb(initialTask.id).then(row => {
-      if (!alive || !row) return;
-      const normalized = v14NormalizeTask(row);
-      if (normalized) setTask(normalized);
-    });
+    getTaskByIdDb(initialTask.id)
+      .then(row => {
+        if (!alive) return;
+        if (row) {
+          const normalized = v14NormalizeTask(row);
+          if (normalized) setTask(normalized);
+        }
+      })
+      .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [initialTask?.id]);
 
@@ -949,11 +960,27 @@ function TaskDetail({ t, task: initialTask, onBack }) {
   })();
   
   // 일정 표시
-  const scheduledDisplay = task.scheduledDate && task.scheduledTime 
-    ? `${task.scheduledDate} ${task.scheduledTime}` 
-    : task.requestedDate 
+  const scheduledDisplay = task.scheduledDate && task.scheduledTime
+    ? `${task.scheduledDate} ${task.scheduledTime}`
+    : task.requestedDate
       ? `희망: ${task.requestedDate} ${task.requestedTime || ""}`
       : null;
+
+  // 2026-06-02 — 깜빡임 개선 (사장님 spec): partial 측 spinner 측 표시.
+  if (loading) {
+    return (
+      <div className="fade-in" style={{ padding: "20px" }}>
+        <button onClick={onBack} className="clickable" style={{
+          background: "transparent", border: "none", color: t.textMuted,
+          fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+          padding: "6px 0", marginBottom: 16,
+        }}>← 뒤로</button>
+        <div style={{ marginTop: 60, textAlign: "center", color: t.textSecondary, fontSize: 12 }}>
+          작업 정보 불러오는 중...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fade-in" style={{ padding: "20px" }}>
