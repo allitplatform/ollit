@@ -4502,6 +4502,13 @@ export default function EngineerApp({ user, onLogout }) {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   }, []);
 
+  // 2026-06-02 — Option A state lift: UsolNSettlementScreen 측 자체 useState(viewMode/expanded/selectedMonth)
+  //   detail 진입 측 컴포넌트 unmount 측 초기값 reset → 미확정 view + 일별 펼침 + 월 필터 손실.
+  //   부모 측 state 측 측측 → unmount 측 측측 측측 측측 측측.
+  const [usolNViewMode, setUsolNViewMode] = useState("default");          // 'default' | 'unconfirmed'
+  const [usolNExpanded, setUsolNExpanded] = useState(() => new Set());    // 일별 그룹 펼침
+  const [usolNSelectedMonth, setUsolNSelectedMonth] = useState(currentYm); // 월 필터
+
   // 2026-05-24 — 유솔N 정산 (정산 탭) — usolNGroups 측 catch 이번달 합계
   // ※ usolNGroups + currentYm 측 catch 측 catch 측 catch — TDZ 측 catch
   const usolN = useMemo(() => {
@@ -5131,6 +5138,12 @@ export default function EngineerApp({ user, onLogout }) {
               const t = tasks.find(x => x.id === taskId);
               if (t) { setSelectedTaskId(t.id); setScreen("detail"); }
             }}
+            viewMode={usolNViewMode}
+            setViewMode={setUsolNViewMode}
+            expanded={usolNExpanded}
+            setExpanded={setUsolNExpanded}
+            selectedMonth={usolNSelectedMonth}
+            setSelectedMonth={setUsolNSelectedMonth}
           />
         )}
       </div>

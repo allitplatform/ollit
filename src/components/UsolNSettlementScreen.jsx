@@ -68,6 +68,14 @@ export function UsolNSettlementScreen({
   engineerId,                // users.id UUID — Phase B 세금계산서 기준 키
   onBack,
   onTaskClick,
+  // 2026-06-02 — Option A state lift (EngineerApp 본체 보유 측 detail 갔다와도 유지).
+  //   props 측측 측 controlled, 측측 자체 useState fallback (단독 사용 호환).
+  viewMode: viewModeProp,
+  setViewMode: setViewModeProp,
+  expanded: expandedProp,
+  setExpanded: setExpandedProp,
+  selectedMonth: selectedMonthProp,
+  setSelectedMonth: setSelectedMonthProp,
 }) {
   const isDark = useIsDark();
 
@@ -135,10 +143,17 @@ export function UsolNSettlementScreen({
     return Array.from(set).sort().reverse();
   }, [groupsByMonth, currentYm, prevYm]);
 
-  const [selectedMonth, setSelectedMonth] = useState(currentYm || monthOptions[0] || "");
-  const [expanded, setExpanded] = useState(new Set());
-  // 2026-06-02 — 미확정 작업 리스트 view 토글.
-  const [viewMode, setViewMode] = useState("default"); // 'default' | 'unconfirmed'
+  // 2026-06-02 — Option A: props 측측 측 부모 측 controlled, 측측 자체 useState (fallback).
+  //   detail 갔다가 돌아와도 부모(EngineerApp) 측측 props 측측 측측 값 유지.
+  const [_selectedMonthLocal, _setSelectedMonthLocal] = useState(currentYm || monthOptions[0] || "");
+  const [_expandedLocal, _setExpandedLocal] = useState(new Set());
+  const [_viewModeLocal, _setViewModeLocal] = useState("default"); // 'default' | 'unconfirmed'
+  const selectedMonth    = selectedMonthProp !== undefined ? selectedMonthProp : _selectedMonthLocal;
+  const setSelectedMonth = setSelectedMonthProp || _setSelectedMonthLocal;
+  const expanded         = expandedProp !== undefined ? expandedProp : _expandedLocal;
+  const setExpanded      = setExpandedProp || _setExpandedLocal;
+  const viewMode         = viewModeProp !== undefined ? viewModeProp : _viewModeLocal;
+  const setViewMode      = setViewModeProp || _setViewModeLocal;
 
   // 2026-06-02 — 미확정 work 측측 (사장님 spec: 이 기사의 usol_n 완료 작업 중 naver_settled_at NULL).
   //   getWorkStatus(w).kind === 'unconfirmed' → naverSettled falsy AND engineerSettledAt falsy.
