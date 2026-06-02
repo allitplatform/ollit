@@ -825,7 +825,7 @@ function TaskDetail({ t, task: initialTask, onBack }) {
     setTask(initialTask);
     setLoading(!(initialTask?.task_no && initialTask?.address));
     setFetchError(null);
-  }, [initialTask]);
+  }, [initialTask?.id]);
   useEffect(() => {
     if (!initialTask?.id) {
       setLoading(false);

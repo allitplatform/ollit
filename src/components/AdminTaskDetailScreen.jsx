@@ -85,7 +85,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
     setTask(initialTask);
     setLoading(!(initialTask?.task_no && initialTask?.address));
     setFetchError(null);
-  }, [initialTask]);
+  }, [initialTask?.id]);
   useEffect(() => {
     if (!initialTask?.id) {
       setLoading(false);
