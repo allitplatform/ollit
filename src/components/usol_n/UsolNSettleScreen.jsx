@@ -131,7 +131,7 @@ export function UsolNSettleScreen({ adminId = null, onTaskClick = null }) {
         title="① 유솔 → 회사"
         sub="주차별 받을 돈 (실 입금 = net_amount × 0.85)"
       />
-      <UsolNToCompanySection/>
+      <UsolNToCompanySection onTaskClick={onTaskClick}/>
 
       {/* ② 회사 → 기사 · 월정산 (R-A3 — 1·2차 스택바 + 기사별 보기 + 일괄 지급) */}
       <SectionHeader

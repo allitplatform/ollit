@@ -55,7 +55,7 @@ function groupWeeksByPayYm(weeks) {
 }
 
 // ── 메인 컴포넌트 ────────────────────────────────────────────
-export function UsolNToCompanySection() {
+export function UsolNToCompanySection({ onTaskClick = null } = {}) {
   const today = getKstToday();
 
   const [liveWeeks, setLiveWeeks] = useState([]);
@@ -394,6 +394,22 @@ function UsolNAdminWeekDetail({ week, today, onBack }) {
           search={search} setSearch={setSearch}
           stageFilter={stageFilter} setStageFilter={setStageFilter}
           dateFilter={dateFilter} setDateFilter={setDateFilter}
+          // 2026-06-02 — 줄 클릭 측 부모 task 상세 navigate (사장님 spec).
+          //   PrincipalSettleTab.jsx:429 / UsolNSettleScreen.jsx:84 와 동일 payload.
+          //   fetchWeekItemsByMonday 가 task_items.task_id + tasks 평탄화 측 측 measurement.
+          onItemClick={onTaskClick ? (it) => onTaskClick({
+            id:            it.task_id,
+            task_no:       it.task_no,
+            customer_name: it.customer_name,
+            phone:         it.phone,
+            address:       it.address,
+            district:      it.district,
+            scheduled_at:  it.scheduled_at,
+            completed_at:  it.completed_at,
+            received_at:   it.received_at,
+            status:        it.task_status,
+            principal_id:  it.principal_id,
+          }) : null}
         />
       </div>
     </div>
