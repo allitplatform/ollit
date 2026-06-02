@@ -272,3 +272,69 @@ export async function fetchJuneLiveWeeks() {
   }
   return [...weekMap.values()].sort((a, b) => b.monday.localeCompare(a.monday));
 }
+
+// ── 드릴인 — 측 주차 (KST monday~sunday) task_items fetch ─────
+// 사장님 spec: 운영자 ① / PWA 측 주차 클릭 시 그 주 naver_settled task_items 측 DB 조회.
+//   · 시트 주차 (W14~W22) 측에도 동일 spec — fetchJuneLiveWeeks 측 측 측 측 시트 주차 측 catch X 측,
+//     본 함수 측 W14+ 모든 주차 측 catch.
+//   · cancel 필터 (!is_canceled AND status != "취소") 적용.
+//   · naver_settled_at 측 KST monday 00:00 ~ next monday 00:00 측 [start, end) 측.
+//   · 5월 초 측 측 measure 측 측 측 — DB 측 측 측 측 측 측 시트값 < DB 측 측 measure 측 (별개 spec).
+export async function fetchWeekItemsByMonday(mondayYmd) {
+  if (!mondayYmd) return { ok: false, items: [], error: "monday 누락" };
+  const nextMondayYmd = addDaysYmd(mondayYmd, 7);
+  // KST 00:00 = UTC 측 전날 15:00.
+  //   Date.UTC(y, m-1, d, -9) = UTC (y, m-1, d-1, 15:00:00).
+  const [sy, sm, sd] = mondayYmd.split("-").map(Number);
+  const [ey, em, ed] = nextMondayYmd.split("-").map(Number);
+  const startUtc = new Date(Date.UTC(sy, sm - 1, sd, -9, 0, 0)).toISOString();
+  const endUtc   = new Date(Date.UTC(ey, em - 1, ed, -9, 0, 0)).toISOString();
+
+  const PAGE = 1000;
+  const MAX_PAGES = 10;
+  const all = [];
+  for (let p = 0; p < MAX_PAGES; p++) {
+    const { data, error } = await supabase
+      .from("task_items")
+      .select(
+        `id, task_id, naver_settled_at, net_amount, subtotal, is_canceled, product_order_id, order_type,
+         qty, unit_price, description,
+         work_types ( id, name ),
+         appliance_types ( id, name ),
+         tasks!inner ( id, task_no, customer_name, address, district,
+                       principal_id, status, received_at, scheduled_at, completed_at )`
+      )
+      .eq("tasks.principal_id", USOL_N_PID)
+      .not("naver_settled_at", "is", null)
+      .gte("naver_settled_at", startUtc)
+      .lt("naver_settled_at", endUtc)
+      .order("naver_settled_at", { ascending: true })
+      .range(p * PAGE, (p + 1) * PAGE - 1);
+    if (error) {
+      console.error("[usolNWeeklyData.fetchWeekItemsByMonday] page", p, error);
+      return { ok: false, items: [], error: error.message };
+    }
+    if (!data || data.length === 0) break;
+    all.push(...data);
+    if (data.length < PAGE) break;
+  }
+  // cancel 필터.
+  const active = all.filter(it => !it.is_canceled && it.tasks?.status !== "취소");
+  // 평탄화 — PWA SettleItemRow 호환.
+  const flat = active.map(it => {
+    const t = it.tasks || {};
+    return {
+      ...it,
+      customer_name: t.customer_name || "",
+      task_no:       t.task_no || "",
+      address:       t.address || "",
+      district:      t.district || "",
+      principal_id:  t.principal_id,
+      task_status:   t.status,
+      received_at:   t.received_at,
+      scheduled_at:  t.scheduled_at,
+      completed_at:  t.completed_at,
+    };
+  });
+  return { ok: true, items: flat };
+}
