@@ -26,12 +26,25 @@ import {
   undoPrincipalRemit,
 } from "../../lib/principalRemitDb.js";
 import { supabase } from "../../lib/supabase.js";
-// 2026-06-02 — 주차 카드 숫자 source 통일 (운영자 ① 와 일치).
-//   usol_n 측 주차 (W14~W22 시트값 + W23+ 라이브, cancel 필터 포함).
+// 2026-06-02 — 주차 카드 spec 통일 (운영자 ① 와 동일).
+//   usol_n 측 주차 (시트값 W14~W22 + 라이브 W23+, cancel 필터)
+//   + 월별(payYm) 아코디언 + deposit 기준 입금 완료/예정 시각 + 동적 월 분류.
 import {
   USOL_N_PID,
   WEEKLY_DATA_FIXED,
   fetchJuneLiveWeeks,
+  getMonthlyEntriesOf,
+  aggregateMonthlyAmounts,
+  ymLabel,
+  getKstToday,
+  isDepositPast,
+  depositStatusLabel,
+  mdLabel,
+  dowKor,
+  addDaysYmd,
+  C_PINK_DEPOSIT,
+  C_GREEN_DONE,
+  C_GRAY_BAR,
 } from "../../lib/usolNWeeklyData.js";
 // 2026-05-26 — 기사 입금 내역 화면 (usol_n 측 cleaning + extra_fee 15%)
 import { UsolRemitHistoryScreen } from "./UsolRemitHistoryScreen.jsx";
@@ -227,10 +240,12 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
       const src     = usolNSourceByKey.get(key);
 
       // monday/sunday Date — DB 측 우선 (기존 ISO week 계산), 없으면 source string → Date.
-      let monday, sunday, year, week, monthDay;
-      if (dbEntry) {
-        ({ monday, sunday, year, week, monthDay } = dbEntry.wk);
-      } else if (src) {
+      //   depositStr (YMD) = 시각 spec 측 사용 (deposit 기준 입금 완료/예정 판단).
+      let monday, sunday, year, week, monthDay, depositStr, mondayStr, sundayStr;
+      if (src) {
+        mondayStr  = src.monday;
+        sundayStr  = src.sunday;
+        depositStr = src.deposit;
         const [my, mm, md] = src.monday.split("-").map(Number);
         const [sy, sm, sd] = src.sunday.split("-").map(Number);
         monday = new Date(my, mm - 1, md);
@@ -239,6 +254,11 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
         year = Number(yy);
         week = Number(ww);
         monthDay = `${monday.getMonth() + 1}/${monday.getDate()}~${sunday.getMonth() + 1}/${sunday.getDate()}`;
+      } else if (dbEntry) {
+        ({ monday, sunday, year, week, monthDay } = dbEntry.wk);
+        mondayStr  = toIsoDate(monday);
+        sundayStr  = toIsoDate(sunday);
+        depositStr = addDaysYmd(sundayStr, 1);
       }
 
       const dbItems   = dbEntry ? dbEntry.items : [];
@@ -259,10 +279,32 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
       displayNaverCount  += otherDb.length;
       displayWeeklyTotal += otherDb.reduce((s, it) => s + companyAmountOf(it), 0);
 
+      // 동적 월 분류 — usol_n source (시트/라이브) 측 monthlyAmounts + 비-usol_n items 측 aggregate.
+      //   usol_n src 측 measurement 측 (src.monthlyAmounts) → usol_n 부분.
+      //   src 측 measurement 측 = usolNDb 측 aggregate (fallback).
+      //   otherDb 측 = aggregateMonthlyAmounts (completed_at KST 우선, NULL → task_no fallback).
+      const monthlyAmounts = new Map();
+      if (src && src.monthlyAmounts instanceof Map) {
+        for (const [ym, amt] of src.monthlyAmounts) {
+          if (amt > 0) monthlyAmounts.set(ym, (monthlyAmounts.get(ym) || 0) + amt);
+        }
+      } else if (!src) {
+        const usolNMap = aggregateMonthlyAmounts(usolNDb);
+        for (const [ym, amt] of usolNMap) {
+          if (amt > 0) monthlyAmounts.set(ym, (monthlyAmounts.get(ym) || 0) + amt);
+        }
+      }
+      const otherMap = aggregateMonthlyAmounts(otherDb);
+      for (const [ym, amt] of otherMap) {
+        if (amt > 0) monthlyAmounts.set(ym, (monthlyAmounts.get(ym) || 0) + amt);
+      }
+
       list.push({
         key, year, week, monday, sunday, monthDay,
+        mondayStr, sundayStr, depositStr,
         displayNaverCount,
         displayWeeklyTotal,
+        monthlyAmounts,
         items: dbItems,  // 드릴인 측 (cancel 필터 적용된 DB items)
       });
     }
@@ -272,6 +314,44 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
     }
     return list;
   }, [items, liveWeeks, isUsolNIncluded]);
+
+  // 2026-06-02 — payYm 그룹 아코디언 (운영자 ① 와 통일).
+  //   · pending bucket 측 별도 (기존 SummarySection 측 클릭 spec 유지).
+  //   · 그룹 헤더 = 전부 deposit 과거(완료) → 초록 / 예정 섞이면 핑크.
+  //   · 입금 예정 있는 payYm 만 기본 펼침.
+  const today = getKstToday();
+  const groups = useMemo(() => {
+    const nonPending = weeks.filter(w => w.key !== "pending");
+    const pendingBucket = weeks.find(w => w.key === "pending");
+    const map = new Map();
+    for (const w of nonPending) {
+      if (!w.depositStr) continue;
+      const payYm = w.depositStr.slice(0, 7);
+      if (!map.has(payYm)) map.set(payYm, []);
+      map.get(payYm).push(w);
+    }
+    const list = [...map.entries()].map(([payYm, ws]) => ({
+      payYm,
+      weeks: ws.sort((a, b) => b.depositStr.localeCompare(a.depositStr)),
+      total: ws.reduce((s, w) => s + (w.displayWeeklyTotal || 0), 0),
+      count: ws.length,
+      allDone: ws.every(w => isDepositPast(w.depositStr, today)),
+      hasExpected: ws.some(w => !isDepositPast(w.depositStr, today)),
+    }));
+    list.sort((a, b) => b.payYm.localeCompare(a.payYm));
+    return { groups: list, pendingBucket };
+  }, [weeks, today]);
+
+  const [openGroups, setOpenGroups] = useState({});
+  useEffect(() => {
+    setOpenGroups(prev => {
+      const next = { ...prev };
+      for (const g of groups.groups) {
+        if (!(g.payYm in next)) next[g.payYm] = g.hasExpected;
+      }
+      return next;
+    });
+  }, [groups.groups]);
 
   // 입금 보고 lookup — (principal_id, week_start) → remit row
   const remitMap = useMemo(() => {
@@ -421,27 +501,24 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
         주차별 정산
       </div>
 
-      {/* 2026-05-26 — pending(정산 대기) 묶음은 위쪽 SummarySection 으로 통합.
-            데이터(weeks)에서는 보존(드릴인 진입 측 catch 측 catch), 리스트 표시에서만 제외. */}
-      {(() => {
-        const visibleWeeks = weeks.filter(wk => wk.key !== "pending");
-        if (visibleWeeks.length === 0) {
-          return <EmptyBox>정산 항목이 없습니다</EmptyBox>;
-        }
-        return (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {visibleWeeks.map(wk => (
-              <WeekCard
-                key={wk.key}
-                week={wk}
-                remitMap={wk.monday ? getRemitMapForWeek(toIsoDate(wk.monday)) : new Map()}
-                isThisWeek={wk.monday && toIsoDate(wk.monday) === thisWeekMondayKey}
-                onClick={() => setSelectedWeekKey(wk.key)}
-              />
-            ))}
-          </div>
-        );
-      })()}
+      {/* 2026-06-02 — 월별(payYm) 아코디언 (운영자 ① 통일).
+            pending 묶음 = SummarySection 측 클릭 spec (드릴인 진입). */}
+      {groups.groups.length === 0 ? (
+        <EmptyBox>정산 항목이 없습니다</EmptyBox>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {groups.groups.map(g => (
+            <PrincipalGroupAccordion
+              key={g.payYm}
+              group={g}
+              today={today}
+              isOpen={!!openGroups[g.payYm]}
+              onToggle={() => setOpenGroups(o => ({ ...o, [g.payYm]: !o[g.payYm] }))}
+              onWeekClick={(wk) => setSelectedWeekKey(wk.key)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -532,87 +609,153 @@ function StepRow({ label, value, green, hasLineBelow }) {
   );
 }
 
-function WeekCard({ week, remitMap, isThisWeek, onClick }) {
-  const isPending = week.key === "pending";
-  // 2026-06-02 — 카드 메인 = 운영자 ① 와 통일 source.
-  //   pending 측은 DB items 직접 (cancel 필터 적용된 것).
-  //   기타 주차 = week.displayWeeklyTotal / week.displayNaverCount (시트/라이브 + usol_h DB 합산).
-  const pendingSum = isPending ? week.items.reduce((s, it) => s + companyAmountOf(it), 0) : 0;
+// 2026-06-02 — 월별(payYm) 아코디언 + 주차 카드 (deposit 기준 시각 + 동적 월 칸).
+//   운영자 ① (UsolNToCompanySection) 와 동일 spec (공유 모듈 헬퍼).
+function PrincipalGroupAccordion({ group, today, isOpen, onToggle, onWeekClick }) {
+  const [y, m] = group.payYm.split("-").map(Number);
+  const monthLabel = `${y}년 ${m}월`;
+  const headerColor = group.allDone ? C_GREEN_DONE : C_PINK_DEPOSIT;
 
-  if (isPending) {
-    return (
-      <div onClick={onClick} style={{
-        background: "var(--bg-elevated, #1F1F1F)",
-        border: "1px dashed var(--border, #2A2A2A)",
-        borderRadius: 10, padding: "12px 14px", cursor: "pointer",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary, #FAF8F5)" }}>정산 대기</span>
-          <span style={{ fontSize: 11, color: C_GRAY }}>{week.items.length}건</span>
+  return (
+    <div style={{
+      background: "var(--bg-elevated, #1F1F1F)",
+      border: "1px solid var(--border, #2A2A2A)",
+      borderRadius: 12,
+      overflow: "hidden",
+    }}>
+      <button
+        onClick={onToggle}
+        style={{
+          width: "100%", padding: "12px 14px",
+          background: "transparent", border: "none",
+          color: "var(--text-primary, #FAF8F5)",
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 10,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span style={{
+            fontSize: 11, color: C_GRAY, fontWeight: 700, width: 12, display: "inline-block",
+            transition: "transform 0.15s",
+            transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
+          }}>▶</span>
+          <span style={{ fontSize: 14, fontWeight: 800 }}>{monthLabel}</span>
+          <span style={{ fontSize: 11, color: C_GRAY }}>{group.count}주</span>
+          {group.allDone && <Check size={13} strokeWidth={3} style={{ color: C_GREEN_DONE }}/>}
         </div>
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: C_AMBER }}>대기</span>
-          <span style={{ fontSize: 15, fontWeight: 800, color: C_MAGENTA, fontFamily: "inherit" }}>
-            ₩{pendingSum.toLocaleString()}
-          </span>
+        <span style={{
+          fontSize: 16, fontFamily: "inherit", fontWeight: 800,
+          color: headerColor, lineHeight: 1,
+        }}>
+          ₩{group.total.toLocaleString()}
+        </span>
+      </button>
+      {isOpen && (
+        <div style={{
+          padding: "0 10px 10px",
+          display: "flex", flexDirection: "column", gap: 6,
+        }}>
+          {group.weeks.map(wk => (
+            <PrincipalWeekCard
+              key={wk.key}
+              week={wk}
+              today={today}
+              onClick={() => onWeekClick(wk)}
+            />
+          ))}
         </div>
-      </div>
-    );
-  }
+      )}
+    </div>
+  );
+}
 
+function PrincipalWeekCard({ week, today, onClick }) {
+  const isPast = isDepositPast(week.depositStr, today);
+  const total = week.displayWeeklyTotal || 0;
+  const count = week.displayNaverCount || 0;
   const weekLabel = getKoreanWeekLabel(week.monday, week.sunday);
   const dateRange = `${formatMD(week.monday)} ~ ${formatMD(week.sunday)}`;
-  const status    = getWeekRemitStatus(week.items, remitMap);
-  const displayCount  = week.displayNaverCount ?? week.items.length;
-  const displayAmount = week.displayWeeklyTotal ?? week.items.reduce((s, it) => s + companyAmountOf(it), 0);
-
-  let statusElem;
-  if (status.kind === "done") {
-    const lastConfirm = status.remits.map(r => r.confirmed_at).filter(Boolean).sort().pop();
-    const d = new Date(lastConfirm);
-    statusElem = (
-      <span style={{ fontSize: 11, fontWeight: 700, color: C_GREEN, display: "inline-flex", alignItems: "center", gap: 3, whiteSpace: "nowrap" }}>
-        <Check size={12} strokeWidth={3}/>입금완료 {formatMD(d)}
-      </span>
-    );
-  } else if (status.kind === "reported") {
-    statusElem = (
-      <span style={{ fontSize: 11, fontWeight: 700, color: C_AMBER, whiteSpace: "nowrap" }}>
-        입금 확인 중
-      </span>
-    );
-  } else {
-    const expected = getNextMonday(week.sunday);
-    statusElem = (
-      <span style={{ fontSize: 11, fontWeight: 700, color: C_BLUE, whiteSpace: "nowrap" }}>
-        {formatMDWithDow(expected)} 입금 예정
-      </span>
-    );
-  }
+  const statusText = depositStatusLabel(week.depositStr, today);
+  const monthlyEntries = getMonthlyEntriesOf(week);
+  const amountColor = isPast ? C_GREEN_DONE : C_PINK_DEPOSIT;
 
   return (
     <div onClick={onClick} style={{
-      background: "var(--bg-elevated, #1F1F1F)",
-      border: `1px solid ${isThisWeek ? C_MAGENTA : "var(--border, #2A2A2A)"}`,
+      background: "var(--bg-secondary, #1A1A1A)",
+      border: isPast ? "1px solid var(--border, #2A2A2A)" : `2px solid ${C_PINK_DEPOSIT}`,
       borderRadius: 10,
       padding: "12px 14px",
       cursor: "pointer",
-      boxShadow: isThisWeek ? `0 0 0 1px ${C_MAGENTA}55` : "none",
     }}>
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 8 }}>
+      {/* 헤더 — 주 라벨 + 정산 건수 */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 6 }}>
         <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary, #FAF8F5)" }}>{weekLabel}</span>
           <span style={{ fontSize: 11, color: C_GRAY }}>{dateRange}</span>
         </div>
-        <span style={{ fontSize: 11, color: C_GRAY, whiteSpace: "nowrap" }}>네이버 정산 {displayCount}건</span>
+        <span style={{ fontSize: 11, color: C_GRAY, whiteSpace: "nowrap" }}>네이버 정산 {count}건</span>
       </div>
+      {/* 메인 — 시각 + 금액 */}
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
-        {statusElem}
-        <span style={{ fontSize: 17, fontWeight: 800, color: C_MAGENTA, fontFamily: "inherit", lineHeight: 1 }}>
-          ₩{displayAmount.toLocaleString()}
+        <span style={{
+          fontSize: 12, fontWeight: 700, color: amountColor,
+          display: "inline-flex", alignItems: "center", gap: 4,
+          whiteSpace: "nowrap",
+        }}>
+          {isPast && <Check size={12} strokeWidth={3}/>}
+          {statusText}
+        </span>
+        <span style={{
+          fontSize: 17, fontWeight: 800, color: amountColor,
+          fontFamily: "inherit", lineHeight: 1,
+        }}>
+          ₩{total.toLocaleString()}
         </span>
       </div>
+      {/* 동적 월 칸 (양수만, 최신=핑크/이전=회색) */}
+      {monthlyEntries.length > 0 && (
+        <div style={{
+          marginTop: 8, paddingTop: 8,
+          borderTop: "1px dashed var(--border)",
+          display: "grid",
+          gridTemplateColumns: `repeat(${monthlyEntries.length}, 1fr)`,
+          gap: 8, fontSize: 11,
+        }}>
+          {monthlyEntries.map(({ ym, amount }, idx) => {
+            const isLatest = idx === monthlyEntries.length - 1;
+            return (
+              <MonthSplitItem
+                key={ym}
+                dotColor={isLatest ? C_PINK_DEPOSIT : C_GRAY_BAR}
+                label={ymLabel(ym)}
+                amount={amount}
+                highlight={isLatest}
+              />
+            );
+          })}
+        </div>
+      )}
     </div>
+  );
+}
+
+function MonthSplitItem({ dotColor, label, amount, highlight }) {
+  return (
+    <span style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+      <span style={{
+        width: 6, height: 6, borderRadius: 1,
+        background: dotColor, display: "inline-block", flexShrink: 0,
+      }}/>
+      <span style={{ color: C_GRAY, fontSize: 10 }}>{label}</span>
+      <span style={{
+        fontFamily: "inherit", fontWeight: 700,
+        color: highlight ? C_PINK_DEPOSIT : C_GRAY,
+        fontSize: 11,
+      }}>
+        ₩{(amount || 0).toLocaleString()}
+      </span>
+    </span>
   );
 }
 

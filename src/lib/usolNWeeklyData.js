@@ -1,21 +1,18 @@
 // 2026-06-02 — 유솔N 주차별 정산 공유 모듈 (운영자 ① + 유솔 원청 PWA 통일 source).
 //
-// 사장님 spec (Phase 5 / 6/8 입금주 118 vs 119 진단 OK 후):
-//   · 운영자 ① (UsolNToCompanySection)  과  유솔 원청 PWA (PrincipalSettleTab) 의
-//     주차별 정산 금액·건수 source 를 한 곳에서 관리해 항상 일치시킨다.
+// 사장님 spec:
+//   · 운영자 ① (UsolNToCompanySection) + 유솔 원청 PWA (PrincipalSettleTab) 의
+//     주차별 정산 금액·건수·표시 형식을 한 곳에서 관리해 항상 일치.
 //   · 5월 (~ 6/1 입금 W22)              = WEEKLY_DATA_FIXED 시트 고정값
-//   · 6/8 입금주 (W23) 이후              = fetchJuneLiveWeeks 라이브 (cancel 필터 포함)
-//   · 라이브 측 cancel 필터: !is_canceled  AND  tasks.status != "취소"
-//   · 6/8 입금주 1건 차이 (전상욱 YS-260518-102, task_item.is_canceled=true, net=0) → 제외 후 118건.
+//   · 6/8 입금주 (W23) 이후              = fetchJuneLiveWeeks 라이브 (cancel 필터 + 동적 월 분류)
+//   · cancel 필터: !is_canceled  AND  tasks.status != "취소"
+//   · 작업월 동적 분류: completed_at KST 우선, NULL 측은 task_no(YYMMDD) fallback.
+//   · 카드 메인 시각 = deposit(입금일) ≤ 오늘 KST 측 입금 완료, 그 외 입금 예정.
+//   · 월 칸: 0인 달 숨김, 양수 달만 동적 칸 (4월분 / 5월분 / 6월분 / ...).
 //
 // 사용처:
 //   · src/components/usol_n/UsolNToCompanySection.jsx (운영자 ①)
 //   · src/components/principal/PrincipalSettleTab.jsx (유솔 원청 PWA)
-//
-// 영향 범위:
-//   · 다른 6 원청 영향 0 (USOL_N_PID 한정 fetch / 표시).
-//   · 유솔 PWA 표시 구조 (주차 나열 / 입금 예정·완료 / [입금했습니다] 버튼) 그대로.
-//     숫자 source 만 통일.
 import { supabase } from "./supabase.js";
 
 // ── 상수 ────────────────────────────────────────────────────
@@ -25,15 +22,21 @@ export const NAVER_NET_TO_COMPANY_FACTOR = 0.85;
 //   UTC = KST 6/1 00:00 = 2026-05-31T15:00:00Z.
 export const JUN_LIVE_START_UTC = "2026-05-31T15:00:00Z";
 
+// 색상 토큰 (운영자 ① + PWA 공유)
+export const C_PINK_DEPOSIT = "#D4537E";   // 입금 예정 / 핵심
+export const C_GREEN_DONE   = "#1D9E75";   // 입금 완료
+export const C_GRAY_MUTED   = "#9CA3AF";
+export const C_GRAY_BAR     = "#3A3A3A";
+
 // ── 주차별 시트값 (W14 ~ W22) ──────────────────────────────
-// 정산주 = naver_settled_at 기준 월~일 KST.
-//   monday/sunday  = 정산 기간.
-//   deposit       = sunday + 1일 = 다음 월요일 (유솔이 회사에 입금하는 날).
-//   payYm         = deposit 의 월 (회사 입금월).
-//   naverCount    = 그 정산주에 정산된 task_items 건수 (시트 고정값).
-//   weeklyTotal   = 주간 실입금 합계 (현금·현장 포함, apr+may 보다 클 수 있음).
-//   apr/may       = weeklyTotal 측 네이버 작업월(completed_at) 분포만 분류한 부분 합.
-export const WEEKLY_DATA_FIXED = [
+//   monday/sunday  = 정산 기간 (naver_settled_at KST 월~일).
+//   deposit       = sunday + 1일 (유솔이 회사에 입금하는 날).
+//   payYm         = deposit 의 월 (= 회사 입금월).
+//   naverCount    = 그 정산주 정산된 task_items 건수 (시트 고정값).
+//   weeklyTotal   = 주간 실입금 합계.
+//   apr/may       = weeklyTotal 측 네이버 작업월(completed_at) 분포 부분 합 (시트값).
+//   monthlyAmounts: Map<"YYYY-MM", number> = 동적 월 분류 spec (0 인 달 자동 제외).
+const _WEEKLY_DATA_RAW = [
   { weekKey: "2026-W14", monday: "2026-03-30", sunday: "2026-04-05", deposit: "2026-04-06", payYm: "2026-04", naverCount:   0, weeklyTotal:    408_000, apr:    408_000, may:          0 },
   { weekKey: "2026-W15", monday: "2026-04-06", sunday: "2026-04-12", deposit: "2026-04-13", payYm: "2026-04", naverCount:   3, weeklyTotal:    283_606, apr:    283_605, may:          0 },
   { weekKey: "2026-W16", monday: "2026-04-13", sunday: "2026-04-19", deposit: "2026-04-20", payYm: "2026-04", naverCount:  18, weeklyTotal:  1_136_493, apr:  1_136_492, may:          0 },
@@ -45,7 +48,15 @@ export const WEEKLY_DATA_FIXED = [
   { weekKey: "2026-W22", monday: "2026-05-25", sunday: "2026-05-31", deposit: "2026-06-01", payYm: "2026-06", naverCount: 281, weeklyTotal: 19_267_868, apr:    261_154, may: 19_006_713 },
 ];
 
-// ── KST 헬퍼 (string ymd) ────────────────────────────────
+// 각 entry 측 monthlyAmounts Map 채움 (apr / may 양수만).
+export const WEEKLY_DATA_FIXED = _WEEKLY_DATA_RAW.map(w => {
+  const monthlyAmounts = new Map();
+  if ((w.apr || 0) > 0) monthlyAmounts.set("2026-04", w.apr);
+  if ((w.may || 0) > 0) monthlyAmounts.set("2026-05", w.may);
+  return { ...w, monthlyAmounts };
+});
+
+// ── KST 헬퍼 ──────────────────────────────────────────────
 export function kstYmd(utcIso) {
   if (!utcIso) return null;
   const utc = new Date(utcIso);
@@ -71,24 +82,111 @@ export function addDaysYmd(ymd, days) {
   dt.setUTCDate(dt.getUTCDate() + days);
   return dt.toISOString().slice(0, 10);
 }
-
-// ── ISO 8601 주차 키 ("2026-W14") ────────────────────────
-//   ymd ("YYYY-MM-DD") → "YYYY-Www" 측 ISO week. PWA computeIsoWeek 측 형식 일치.
 export function isoWeekKeyFromYmd(ymd) {
   if (!ymd) return null;
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
   const day = dt.getUTCDay() || 7;
-  dt.setUTCDate(dt.getUTCDate() + 4 - day);          // 그 주의 목요일
+  dt.setUTCDate(dt.getUTCDate() + 4 - day);
   const yearStart = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
   const week = Math.ceil(((dt - yearStart) / 86400000 + 1) / 7);
   return `${dt.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
-// ── 6/8+ 라이브 (deposit >= 6/8) ─────────────────────────
+// 오늘 KST YMD
+export function getKstToday() {
+  const now = new Date();
+  return new Date(now.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+// deposit (YMD) ≤ today (KST) → 입금 완료(과거).
+export function isDepositPast(depositYmd, todayYmd) {
+  if (!depositYmd) return false;
+  return depositYmd <= (todayYmd || getKstToday());
+}
+
+// ── 작업월 동적 분류 ──────────────────────────────────────
+// task_no "YS-260518-102" → "2026-05" (YYMMDD → 20YY-MM).
+export function ymFromTaskNo(taskNo) {
+  if (!taskNo) return null;
+  const m = String(taskNo).match(/-(\d{6})-/);
+  if (!m) return null;
+  return `20${m[1].slice(0, 2)}-${m[1].slice(2, 4)}`;
+}
+
+// item 작업월: completed_at KST 우선, NULL 측은 task_no fallback.
+export function workYmOfItem(item) {
+  if (!item) return null;
+  const ym = kstYm(item.completed_at);
+  if (ym) return ym;
+  return ymFromTaskNo(item.task_no);
+}
+
+// items 동적 월 분류 → Map<"YYYY-MM", number> (양수 net 만 합산 × factor).
+export function aggregateMonthlyAmounts(items, factor = NAVER_NET_TO_COMPANY_FACTOR) {
+  const map = new Map();
+  for (const it of items || []) {
+    const ym = workYmOfItem(it);
+    if (!ym) continue;
+    const net = Number(it.net_amount) || 0;
+    if (net <= 0) continue;
+    const amount = Math.round(net * factor);
+    map.set(ym, (map.get(ym) || 0) + amount);
+  }
+  return map;
+}
+
+// week → 동적 월 entries (양수만, 오래된 → 최신).
+//   week.monthlyAmounts (Map) 우선. 없으면 apr/may/jun 호환 fallback.
+export function getMonthlyEntriesOf(week) {
+  let map;
+  if (week?.monthlyAmounts instanceof Map) {
+    map = week.monthlyAmounts;
+  } else if (week?.monthlyAmounts && typeof week.monthlyAmounts === "object") {
+    map = new Map(Object.entries(week.monthlyAmounts));
+  } else {
+    map = new Map();
+    if ((week?.apr || 0) > 0) map.set("2026-04", week.apr);
+    if ((week?.may || 0) > 0) map.set("2026-05", week.may);
+    if ((week?.jun || 0) > 0) map.set("2026-06", week.jun);
+  }
+  const entries = [...map.entries()].filter(([, amt]) => amt > 0);
+  entries.sort((a, b) => a[0].localeCompare(b[0]));
+  return entries.map(([ym, amount]) => ({ ym, amount }));
+}
+
+// ym → "5월분" (단일 연도 가정 — 다년도 측 catch 측 필요시 spec 측 확장).
+export function ymLabel(ym) {
+  if (!ym) return "";
+  const [, m] = ym.split("-");
+  return `${Number(m)}월분`;
+}
+
+// ── 날짜 표시 헬퍼 ────────────────────────────────────────
+const _DOW = ["일", "월", "화", "수", "목", "금", "토"];
+export function dowKor(ymd) {
+  if (!ymd) return "";
+  const [y, m, d] = ymd.split("-").map(Number);
+  return _DOW[new Date(y, m - 1, d).getDay()];
+}
+export function mdLabel(ymd) {
+  if (!ymd) return "";
+  const [, mm, dd] = ymd.split("-");
+  return `${Number(mm)}/${Number(dd)}`;
+}
+
+// 카드 메인 시각 라벨 — "M/D 입금 완료" or "M/D(요일) 입금 예정"
+export function depositStatusLabel(depositYmd, todayYmd) {
+  if (!depositYmd) return "";
+  return isDepositPast(depositYmd, todayYmd)
+    ? `${mdLabel(depositYmd)} 입금 완료`
+    : `${mdLabel(depositYmd)}(${dowKor(depositYmd)}) 입금 예정`;
+}
+
+// ── 6/8+ 라이브 fetch ────────────────────────────────────
 // 우리 naver_settled task_items WHERE monday >= 2026-06-01 (= deposit >= 6/8).
 //   W22 (deposit 6/1) 까지는 WEEKLY_DATA_FIXED. 6/8 입금주(W23) 부터 라이브.
-//   sum(net) × 0.85 = weeklyTotal. 작업월(completed_at KST) 분포 = apr/may/jun split.
+//   sum(net) × 0.85 = weeklyTotal. monthlyAmounts = 작업월 동적 분류.
 //   cancel 필터: !is_canceled AND tasks.status != "취소".
 export async function fetchJuneLiveWeeks() {
   const PAGE = 1000;
@@ -119,7 +217,7 @@ export async function fetchJuneLiveWeeks() {
     all.push(...data);
     if (data.length < PAGE) break;
   }
-  // 정산건 = task_item 비취소 + task 비취소
+  // cancel 필터.
   const active = all.filter(it => !it.is_canceled && it.tasks?.status !== "취소");
 
   // KST 월요일 키로 그룹.
@@ -137,15 +235,14 @@ export async function fetchJuneLiveWeeks() {
         monday, sunday, deposit, payYm: deposit.slice(0, 7),
         naverCount: 0,
         sumNet: 0,
-        apr: 0, may: 0, jun: 0,
+        monthlyAmounts: new Map(),
         items: [],
       });
     }
     const wk = weekMap.get(monday);
     const net = Number(it.net_amount) || 0;
-    // 평탄화 — tasks nested → item 직접 필드로 복사 (PWA SettleItemRow 측 호환).
     const t = it.tasks || {};
-    wk.items.push({
+    const flatItem = {
       ...it,
       customer_name: t.customer_name || "",
       task_no:       t.task_no || "",
@@ -156,14 +253,19 @@ export async function fetchJuneLiveWeeks() {
       received_at:   t.received_at,
       scheduled_at:  t.scheduled_at,
       completed_at:  t.completed_at,
-    });
+    };
+    wk.items.push(flatItem);
     wk.naverCount += 1;
     wk.sumNet += net;
-    const x085 = Math.round(net * NAVER_NET_TO_COMPANY_FACTOR);
-    const cm = kstYm(it.tasks?.completed_at);
-    if (cm === "2026-04") wk.apr += x085;
-    else if (cm === "2026-05") wk.may += x085;
-    else if (cm === "2026-06") wk.jun += x085;
+
+    // 동적 월 분류 (completed_at KST 우선, NULL → task_no fallback).
+    if (net > 0) {
+      const ym = workYmOfItem(flatItem);
+      if (ym) {
+        const amount = Math.round(net * NAVER_NET_TO_COMPANY_FACTOR);
+        wk.monthlyAmounts.set(ym, (wk.monthlyAmounts.get(ym) || 0) + amount);
+      }
+    }
   }
   for (const wk of weekMap.values()) {
     wk.weeklyTotal = Math.round(wk.sumNet * NAVER_NET_TO_COMPANY_FACTOR);
