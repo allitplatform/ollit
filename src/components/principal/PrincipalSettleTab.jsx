@@ -170,15 +170,16 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   //   기존: task.status='취소' 만 제외 → 정산완료 907 측 inflate 1건 (전상욱 task_item.is_canceled=true).
   //   통일: is_canceled !== true AND task.status !== '취소' 둘 다 제외 → 정합값.
   //   영향 (1,861 fetched 기준): received 1724→1698, beforeWork 415→411, doneWork 1303→1281, settled 907→906, pending 406→385.
+  // 2026-06-02 — pendingAmount 측 task_item 측 subtotal 합 (사장님 spec).
+  //   기존: Σ(net × 0.85) → net NULL 측 0 measure (진기선 등 0 표시).
+  //   새:   Σ subtotal     → net NULL 측 측 측 subtotal 측 measure (TaskDetail 정산금액 측 동일 source).
   const summary = useMemo(() => {
     const live = items.filter(it => it.task_status !== "취소" && it.is_canceled !== true);
     const before = live.filter(it => ["배정", "확정"].includes(it.task_status));
     const done = live.filter(it => it.task_status === "완료");
     const settled = live.filter(it => it.naver_settled_at);
     const pendingSettle = done.filter(it => !it.naver_settled_at);
-    // 2026-05-26 — 회사→유솔 실 입금액(=ROUND(net_amount × 0.85))으로 통일.
-    //   기존 Σsubtotal 은 네이버 수수료/마진 차감 전 그로스라 주차별 카드와 불일치 → 시정.
-    const pendingAmount = pendingSettle.reduce((s, it) => s + companyAmountOf(it), 0);
+    const pendingAmount = pendingSettle.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
     return {
       received: live.length, beforeWork: before.length, doneWork: done.length,
       settled: settled.length, pendingCount: pendingSettle.length, pendingAmount,

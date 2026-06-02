@@ -105,11 +105,13 @@ export function WeekSettleDetail({
     return [...set].sort();
   }, [baseItems]);
 
-  // sumNet × 0.85 round (운영자 ① 카드 메인 measure 일치).
-  const sumNet = filtered.reduce((s, it) => s + (Number(it.net_amount) || 0), 0);
-  const sumSubtotal = Math.round(sumNet * NAVER_NET_TO_COMPANY_FACTOR);
-
   const isPending = week?.key === "pending";
+  // 2026-06-02 — 합계 source (사장님 spec):
+  //   pending  → Σ subtotal (task_item 측 정산예정금액 일관)
+  //   기타 주차 → sumNet × 0.85 round (운영자 ① 카드 메인 일치).
+  const sumSubtotal = isPending
+    ? filtered.reduce((s, it) => s + (Number(it.subtotal) || 0), 0)
+    : Math.round(filtered.reduce((s, it) => s + (Number(it.net_amount) || 0), 0) * NAVER_NET_TO_COMPANY_FACTOR);
   const headerLabel = isPending
     ? "정산 대기"
     : `${koreanWeekLabel(week)}  네이버 정산 ${dateRangeLabel(week)}`;
@@ -341,13 +343,15 @@ function RemitAction({ actionMode, status, submitting, onReport, onUndo, onConfi
 }
 
 // ── SettleItemRow (KST 변환) ─────────────────────────────
+// 2026-06-02 — 줄 금액 = subtotal (사장님 spec, TaskDetail 정산금액 측 동일 source).
+//   기존 net × 0.85 → net NULL 측 0 측 catch (진기선 등 0 측 표시).
+//   새: subtotal → 모든 줄 측 측 표시. settled 측 측 = net ≈ subtotal 측 일치 (1107/1170건).
 function SettleItemRow({ item, onClick }) {
   const stageKey = getSettleStageKey(item);
   const stage = SETTLE_STAGES.find(s => s.key === stageKey) || SETTLE_STAGES[0];
   const label = getItemLabel(item);
   const qty = item.qty || 1;
-  const net = Number(item.net_amount) || 0;
-  const companyAmt = Math.round(net * NAVER_NET_TO_COMPANY_FACTOR);
+  const subtotal = Number(item.subtotal) || 0;
   const naverYmd = kstYmd(item.naver_settled_at);
   const naverDate = naverYmd ? naverYmd.slice(5).replace("-", "/") : "";
   const orderId = item.product_order_id || "";
@@ -381,7 +385,7 @@ function SettleItemRow({ item, onClick }) {
         <span style={{
           flexShrink: 0, fontSize: 12, fontWeight: 700,
           color: C_MAGENTA, fontFamily: "inherit",
-        }}>₩{companyAmt.toLocaleString()}</span>
+        }}>₩{subtotal.toLocaleString()}</span>
       </div>
       {orderId && (
         <div className="mono" style={{
