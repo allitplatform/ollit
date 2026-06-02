@@ -3,9 +3,22 @@
 // [verify-2026-05-04] dist에 fontSize:64,fontWeight:700 적용 확정
 
 import { useState, useMemo } from "react";
+import { Clock, CheckCircle2, AlertTriangle } from "lucide-react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { loadCompanyAccount } from "../data/companyAccount.js";
 import { isCompletedStatus } from "../utils/taskStatus.js";
+
+// 2026-06-03 — 회사 송금 4상태 (운영자 PWA RemitStatusBadge 와 동일 spec).
+//   pending   = 기사 보고 전 (미입금)
+//   reported  = 기사 보고 후, 운영자 확인 대기
+//   confirmed = 운영자 확인 완료
+//   overdue   = 마감 지남 + 미보고
+const REMIT_STATUS_MAP = {
+  pending:   { Icon: null,          label: "미입금",   color: "var(--text-secondary, #888)", bg: "var(--bg-tertiary, rgba(255,255,255,0.04))", border: "var(--border, rgba(255,255,255,0.10))" },
+  reported:  { Icon: Clock,         label: "확인 대기", color: "#FF8A3D",                     bg: "rgba(255,138,61,0.10)",                     border: "rgba(255,138,61,0.30)" },
+  confirmed: { Icon: CheckCircle2,  label: "입금 완료", color: "#03C75A",                     bg: "rgba(3,199,90,0.10)",                       border: "rgba(3,199,90,0.30)" },
+  overdue:   { Icon: AlertTriangle, label: "연체",     color: "#EF4444",                     bg: "rgba(239,68,68,0.10)",                      border: "rgba(239,68,68,0.30)" },
+};
 
 function getEarning(t) {
   return t.engineer_amount || 0;
@@ -64,7 +77,9 @@ export function EngineerSettleTab({
   onConfirmUsolRemit,             // 입금 완료 보고 콜백 — reportUsolRemit 호출
   companyAccount,
   toCompany,
-  isPaymentSent = false,
+  // 2026-06-03 — 4상태 (pending/reported/confirmed/overdue). 부모(EngineerApp) 측 payments[today].status 측측 측측.
+  //   옛 isPaymentSent (boolean) 측측 → remitStatus 측측. 호출처 EngineerApp 측측 measure (별도 호출처 없음).
+  remitStatus = "pending",
   onClickToday,
   onClickUsolN,
   onClickPaymentHistory,
@@ -90,6 +105,14 @@ export function EngineerSettleTab({
   const toCompanyRevenue = toCompanySource.reduce((s, t) => s + getRevenue(t), 0);
   const toCompanyEarning = toCompanySource.reduce((s, t) => s + getEarning(t), 0);
   const toCompanyFinal   = toCompany != null ? toCompany : Math.max(0, toCompanyRevenue - toCompanyEarning);
+
+  // 2026-06-03 — 4상태 cfg + 보고 버튼 활성 측측 (사장님 spec).
+  //   pending / overdue → 보고 버튼 활성. reported / confirmed → 비활성.
+  //   reported "확인 대기"  → 다시 보고 못 하게 막아야 측측.
+  //   confirmed "입금 완료" → 측측 측측.
+  const remitCfg = REMIT_STATUS_MAP[remitStatus] || REMIT_STATUS_MAP.pending;
+  const RemitIcon = remitCfg.Icon;
+  const isReportButtonActive = remitStatus === "pending" || remitStatus === "overdue";
 
   // Step 5-8 F-6 — 회사 계좌 = 시트 양방향 sync (loadCompanyAccount)
   // companyAccount prop이 있으면 우선 / 없으면 시트 데이터 fallback / 없으면 기본값
@@ -204,13 +227,17 @@ export function EngineerSettleTab({
               <span style={{ fontSize: 16 }}>📥</span> 회사 송금
             </div>
             <span style={{
+              display: "inline-flex", alignItems: "center", gap: 4,
               fontSize: 12, fontWeight: 700,
-              color: isPaymentSent ? "#03C75A" : "var(--transfer-pill-text)",
+              color: remitCfg.color,
               padding: "4px 11px",
-              background: isPaymentSent ? "rgba(3,199,90,0.10)" : "var(--transfer-pill-bg)",
+              background: remitCfg.bg,
+              border: `1px solid ${remitCfg.border}`,
               borderRadius: 999,
+              whiteSpace: "nowrap",
             }}>
-              {isPaymentSent ? "입금 완료" : "미입금"}
+              {RemitIcon && <RemitIcon size={12} aria-hidden="true"/>}
+              {remitCfg.label}
             </span>
           </div>
 
@@ -276,21 +303,32 @@ export function EngineerSettleTab({
             </button>
           </div>
 
-          {/* 입금 완료 보고 — 주황 풀 16/700 */}
+          {/* 입금 완료 보고 — 2026-06-03 4상태 분기.
+                pending  → 주황 활성 "입금 완료 보고"
+                overdue  → 빨강 활성 "입금 완료 보고" (연체 강조)
+                reported → 회색 비활성 "✓ 보고 완료 — 확인 대기"
+                confirmed → 회색 비활성 "✓ 입금 완료" */}
           <button
-            onClick={(e) => { e.stopPropagation(); onConfirmPaymentSent && onConfirmPaymentSent(); }}
-            disabled={isPaymentSent}
+            onClick={(e) => { e.stopPropagation(); if (isReportButtonActive) onConfirmPaymentSent && onConfirmPaymentSent(); }}
+            disabled={!isReportButtonActive}
             style={{
               width: "100%", padding: 16,
-              background: isPaymentSent ? "var(--bg-tertiary)" : "#FF8A3D",
+              background: remitStatus === "overdue"
+                ? "#EF4444"
+                : remitStatus === "pending"
+                  ? "#FF8A3D"
+                  : "var(--bg-tertiary)",
               border: "none", borderRadius: 13,
-              color: isPaymentSent ? "var(--text-secondary)" : "#fff",
+              color: isReportButtonActive ? "#fff" : "var(--text-secondary)",
               fontSize: 16, fontWeight: 700,
-              cursor: isPaymentSent ? "default" : "pointer",
+              cursor: isReportButtonActive ? "pointer" : "default",
               fontFamily: "inherit",
             }}
           >
-            {isPaymentSent ? "✓ 입금 완료" : "입금 완료 보고"}
+            {remitStatus === "confirmed" ? "✓ 입금 완료"
+              : remitStatus === "reported" ? "✓ 보고 완료 — 확인 대기"
+              : remitStatus === "overdue" ? "입금 완료 보고 (연체)"
+              : "입금 완료 보고"}
           </button>
         </div>
 

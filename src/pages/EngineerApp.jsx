@@ -4895,6 +4895,12 @@ export default function EngineerApp({ user, onLogout }) {
               }
             }}
             companyAccount={companyAccount}
+            /* 2026-06-03 — 회사 송금 카드 4상태 (payments[].status 측 measure / 내역 화면과 동일 source).
+                pending  → 미입금        + 보고 버튼 활성
+                reported → 확인 대기      + 보고 버튼 비활성
+                confirmed → 입금 완료     + 보고 버튼 비활성
+                overdue  → 연체           + 보고 버튼 활성 */
+            remitStatus={(payments.find(p => p.date === todayYmd())?.status) || "pending"}
             onClickToday={() => setScreen("settlementDetail")}
             onClickUsolN={() => setScreen("usolNSettlement")}
             onClickPaymentHistory={() => setScreen("paymentHistory")}
