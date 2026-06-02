@@ -173,12 +173,14 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   // 2026-06-02 — pendingAmount 측 task_item 측 subtotal 합 (사장님 spec).
   //   기존: Σ(net × 0.85) → net NULL 측 0 measure (진기선 등 0 표시).
   //   새:   Σ subtotal     → net NULL 측 측 측 subtotal 측 measure (TaskDetail 정산금액 측 동일 source).
+  // 2026-06-02 — pending 측 추가 필터: subtotal > 0 (부분취소 0원 제외).
+  //   신동욱 벽걸이×2 부분취소 (subtotal=0) 측 측 정산 대기 측 측 측 측 X.
   const summary = useMemo(() => {
     const live = items.filter(it => it.task_status !== "취소" && it.is_canceled !== true);
     const before = live.filter(it => ["배정", "확정"].includes(it.task_status));
     const done = live.filter(it => it.task_status === "완료");
     const settled = live.filter(it => it.naver_settled_at);
-    const pendingSettle = done.filter(it => !it.naver_settled_at);
+    const pendingSettle = done.filter(it => !it.naver_settled_at && Number(it.subtotal) > 0);
     const pendingAmount = pendingSettle.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
     return {
       received: live.length, beforeWork: before.length, doneWork: done.length,
@@ -204,7 +206,8 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
       if (it.task_status === "취소") continue;
       const wk = getNaverSettleWeek(it);
       if (!wk) {
-        if (it.task_status === "완료") pending.push(it);
+        // 2026-06-02 — pending bucket 측 subtotal > 0 (부분취소 0원 제외).
+        if (it.task_status === "완료" && Number(it.subtotal) > 0) pending.push(it);
         continue;
       }
       if (!itemsByKey.has(wk.key)) itemsByKey.set(wk.key, { wk, items: [] });

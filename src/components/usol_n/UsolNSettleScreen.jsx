@@ -16,9 +16,10 @@
 // 옛 UsolNTracking / UsolNEngineerSettlement 파일은 D10 — 참고용 보존 (라우팅 X).
 import { useState, useEffect, useMemo } from "react";
 import { fetchPrincipalSettleItems } from "../../lib/principalSettleDb.js";
-import { kstYmd } from "../../lib/usolNWeeklyData.js";
 import { UsolNToCompanySection } from "./UsolNToCompanySection.jsx";
 import { UsolNToEngineerSection } from "./UsolNToEngineerSection.jsx";
+// 2026-06-02 — 정산 대기 측 측 별도 화면 — 유솔 PWA 측 동일 (WeekSettleDetail 공유).
+import { WeekSettleDetail } from "../principal/WeekSettleDetail.jsx";
 
 const C_MAGENTA = "#FF1B8D";
 const C_AMBER   = "#E6A33A";
@@ -36,6 +37,10 @@ export function UsolNSettleScreen({ adminId = null }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [showPendingList, setShowPendingList] = useState(false);
+  // 2026-06-02 — 정산 대기 별도 화면 측 검색·필터 state (유솔 PWA 측 동일).
+  const [pendingSearch, setPendingSearch] = useState("");
+  const [pendingStageFilter, setPendingStageFilter] = useState("all");
+  const [pendingDateFilter, setPendingDateFilter] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -51,11 +56,13 @@ export function UsolNSettleScreen({ adminId = null }) {
   }, []);
 
   // 정산 대기 집합 = task_status "완료" AND naver_settled_at NULL.
-  //   PrincipalSettleTab line 152-155 와 동일 spec.
+  //   2026-06-02 — cancel-strict + subtotal > 0 추가 (사장님 spec, PrincipalSettleTab 측 일치).
+  //     · is_canceled=true 또는 subtotal=0 (부분취소) 제외.
+  //     · 신동욱 벽걸이×2 (subtotal=0) 측 측 측 측 측.
   const pending = useMemo(() => {
-    const live = items.filter(it => it.task_status !== "취소");
+    const live = items.filter(it => it.task_status !== "취소" && it.is_canceled !== true);
     const done = live.filter(it => it.task_status === "완료");
-    return done.filter(it => !it.naver_settled_at);
+    return done.filter(it => !it.naver_settled_at && Number(it.subtotal) > 0);
   }, [items]);
 
   const pendingAmount = useMemo(
@@ -63,19 +70,42 @@ export function UsolNSettleScreen({ adminId = null }) {
     [pending]
   );
 
+  // 2026-06-02 — 정산 대기 별도 리스트 화면 (사장님 spec — 유솔 PWA 측 동일).
+  //   WeekSettleDetail 측 measure 측 — actionMode 측 X / remitStatus 측 X (RemitAction 측 measure 측 X).
+  //   검색창 + 필터칩(전체/대기/네이버결제완료/회사입금완료) + task_item 단위 리스트.
+  if (showPendingList) {
+    const pendingWeek = {
+      key: "pending",
+      items: pending,
+      displayNaverCount: pending.length,
+      displayWeeklyTotal: pendingAmount,
+    };
+    return (
+      <WeekSettleDetail
+        week={pendingWeek}
+        actionMode={null}
+        remitStatus={null}
+        onBack={() => {
+          setShowPendingList(false);
+          setPendingSearch("");
+          setPendingStageFilter("all");
+          setPendingDateFilter("");
+        }}
+        search={pendingSearch} setSearch={setPendingSearch}
+        stageFilter={pendingStageFilter} setStageFilter={setPendingStageFilter}
+        dateFilter={pendingDateFilter} setDateFilter={setPendingDateFilter}
+      />
+    );
+  }
+
   return (
     <div>
       <PendingRow
         count={pending.length}
         amount={pendingAmount}
         loading={loading}
-        expanded={showPendingList}
-        onToggle={() => setShowPendingList(v => !v)}
+        onOpen={() => setShowPendingList(true)}
       />
-
-      {showPendingList && pending.length > 0 && (
-        <PendingDetailList items={pending}/>
-      )}
 
       {error && (
         <div style={errorBoxStyle}>⚠️ {error}</div>
@@ -98,7 +128,7 @@ export function UsolNSettleScreen({ adminId = null }) {
   );
 }
 
-function PendingRow({ count, amount, loading, expanded, onToggle }) {
+function PendingRow({ count, amount, loading, onOpen }) {
   if (loading) {
     return (
       <div style={pendingRowLoadingStyle}>
@@ -115,7 +145,7 @@ function PendingRow({ count, amount, loading, expanded, onToggle }) {
   }
   return (
     <button
-      onClick={onToggle}
+      onClick={onOpen}
       style={{
         width: "100%",
         padding: "12px 14px",
@@ -141,84 +171,12 @@ function PendingRow({ count, amount, loading, expanded, onToggle }) {
           작업 완료 · 네이버 정산 전 (유솔앱과 동일 기준)
         </div>
       </div>
-      <span style={{ color: C_GRAY, fontSize: 16, fontWeight: 700 }}>
-        {expanded ? "▾" : "›"}
-      </span>
+      <span style={{ color: C_GRAY, fontSize: 16, fontWeight: 700 }}>›</span>
     </button>
   );
 }
 
-// 정산 대기 상세 — task_item 단위 (사장님 spec 2026-06-02).
-//   각 줄 = 상품주문번호 1개 = task_item 1개.
-//   금액 = subtotal (정산예정금액, TaskDetail 측 동일 source). net NULL 측 측 측 표시.
-//   줄 형식: 고객명 (서비스종류) · 지역 · 정산일 / 정산예정금액 / 상품주문번호.
-//   pending bucket 측 = naver_settled_at NULL → 정산일 측 표시 X.
-function PendingDetailList({ items }) {
-  const sorted = [...items].sort((a, b) => {
-    const aT = a.completed_at || "";
-    const bT = b.completed_at || "";
-    return bT.localeCompare(aT);
-  });
-  const SHOW = 30;
-  return (
-    <div style={{
-      padding: "10px 12px", marginBottom: 14,
-      background: "var(--bg-secondary)",
-      border: "1px solid var(--border)",
-      borderRadius: 10,
-    }}>
-      <div style={{ fontSize: 10, color: C_GRAY, marginBottom: 8, fontWeight: 600 }}>
-        정산 대기 상세 — 작업완료 일자 내림차순 (상위 {Math.min(SHOW, sorted.length)}건)
-      </div>
-      {sorted.slice(0, SHOW).map(it => {
-        const label = it.appliance_types?.name || it.work_types?.name || it.description || it.order_type || "—";
-        const qty = it.qty || 1;
-        const district = it.district || "";
-        const naverYmd = kstYmd(it.naver_settled_at);
-        const naverDate = naverYmd ? naverYmd.slice(5).replace("-", "/") : "";
-        const orderId = it.product_order_id || "";
-        return (
-          <div key={it.id} style={{
-            padding: "7px 0",
-            borderBottom: "1px solid var(--border)",
-            display: "flex", flexDirection: "column", gap: 3,
-          }}>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <span style={{
-                flexShrink: 0, fontSize: 12, fontWeight: 600,
-                color: "var(--text-primary)",
-              }}>{it.customer_name || "—"}</span>
-              <span style={{
-                flex: 1, minWidth: 0, fontSize: 11, color: C_GRAY,
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-              }}>
-                ({label}{qty > 1 ? `×${qty}` : ""})
-                {district && ` · ${district}`}
-                {naverDate && <> · <span style={{ color: "#BA7517", fontWeight: 600 }}>{naverDate}</span></>}
-              </span>
-              <span style={{
-                flexShrink: 0, fontSize: 12, fontWeight: 700,
-                color: C_MAGENTA, fontFamily: "inherit",
-              }}>₩{subtotalOf(it).toLocaleString()}</span>
-            </div>
-            {orderId && (
-              <div className="mono" style={{
-                fontSize: 10, color: "#666", letterSpacing: 0.2,
-              }}>{orderId}</div>
-            )}
-          </div>
-        );
-      })}
-      {sorted.length > SHOW && (
-        <div style={{
-          fontSize: 10, color: C_GRAY, marginTop: 8, textAlign: "center",
-        }}>
-          … 나머지 {sorted.length - SHOW}건 (Phase B 에서 검색·필터 도입)
-        </div>
-      )}
-    </div>
-  );
-}
+// 2026-06-02 — PendingDetailList 측 제거. 정산 대기 측 별도 화면 = WeekSettleDetail 공유 (사장님 spec).
 
 function SectionHeader({ title, sub }) {
   return (
