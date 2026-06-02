@@ -32,7 +32,9 @@ import { useRealtimeTable } from "../hooks/useRealtimeSubscription.js";
 import { calcTotalDuration } from "../utils/dateLabel.js";
 // 2026-05-31 — Phase C Step 6 — per-item received_amount UI 측
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
-import { setTaskItemReceivedAmount as apiSetItemReceived } from "../data/tasksDb.js";
+import { setTaskItemReceivedAmount as apiSetItemReceived, getTaskByIdDb } from "../data/tasksDb.js";
+// 2026-06-02 — 정산 대기 측 partial payload 측 측 → id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일 spec).
+import { v14NormalizeTask } from "../utils/v14Task.js";
 
 // state → 알약 라벨/색
 const STATE_MAP = {
@@ -60,10 +62,27 @@ function getStateInfo(task) {
   return STATE_MAP[task.state] || { label: task.status || "예정", color: "var(--text-primary)" };
 }
 
-export function AdminTaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user }) {
+export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user }) {
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
   const [exceptionExpanded, setExceptionExpanded] = useState(false);
+
+  // 2026-06-02 — id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일).
+  //   정산 대기 측 partial payload (id/customer_name/status 등) 측 들어오면 측 정보 빈칸 catch.
+  //   getTaskByIdDb 측 full row → v14NormalizeTask 측 normalize → setTask.
+  //   김혜영 외 일정 누락 다수 측 측 해결.
+  const [task, setTask] = useState(initialTask);
+  useEffect(() => { setTask(initialTask); }, [initialTask]);
+  useEffect(() => {
+    if (!initialTask?.id) return;
+    let alive = true;
+    getTaskByIdDb(initialTask.id).then(row => {
+      if (!alive || !row) return;
+      const normalized = v14NormalizeTask(row);
+      if (normalized) setTask(normalized);
+    });
+    return () => { alive = false; };
+  }, [initialTask?.id]);
 
   if (!task) {
     return (
