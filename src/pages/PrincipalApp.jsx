@@ -1234,24 +1234,21 @@ function SettleDetailBox({ t, items, remitMap, principalId, loading, error }) {
   }
   if (!items || items.length === 0) return null;
 
-  // 2026-05-24 — 옵션 C spec:
-  //   고객 결제 합계 = SUM(customer_paid_amount)  ← 고객 실결제액 (NULL이면 0)
-  //   정산예정 합계  = SUM(subtotal)              ← 네이버 수수료 차감 후
-  //   네이버 정산금액 = SUM(net_amount, NULL 제외) ← 정산 CSV 측 catch UPDATE
+  // 2026-06-02 — 헤더 메인 = 정산금액 (= SUM(subtotal) = 정산예정 합계). 사장님 spec.
+  //   기존 SUM(net_amount, NULL 제외) 측 catch — net NULL task_item 측 측 0 측 catch
+  //     (예: 진기선 YS-260520-014 → 0, 송은정 YS-260518-029 → 261,213 측 측 정산 측 측 측).
+  //   새 spec: subtotal 측 measure (net NULL 측 측 측 계산) → 진기선 103,787 / 송은정 261,214.
+  //   수수료 분해도 sumSettle 기준.
+  //   "정산예정 합계" 별도 라인 제거 (= 헤더 메인 = 정산금액 = sumSettle 측 측 measure 측).
+  //   task_item 슬라이더(getItemStageKey: naver_settled_at NULL → "정산대기") 측 그대로 — 측 측 spec 측.
   let sumCustomerPaid = 0;
   let sumSettle = 0;
-  let sumNaver = 0, sumUsol = 0, sumAllday = 0;
   for (const it of items) {
     sumCustomerPaid += Number(it.customer_paid_amount) || 0;
     sumSettle       += Number(it.subtotal) || 0;
-    const n = it.net_amount;
-    if (n != null) {
-      const usol = Math.round(n * 0.15);
-      sumNaver  += n;
-      sumUsol   += usol;
-      sumAllday += n - usol;
-    }
   }
+  const sumUsol   = Math.round(sumSettle * 0.15);
+  const sumAllday = sumSettle - sumUsol;
 
   return (
     <div style={settleBoxStyle(t)}>
@@ -1260,9 +1257,8 @@ function SettleDetailBox({ t, items, remitMap, principalId, loading, error }) {
       {/* (a) 작업 전체 금액 */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <SumLine label="고객 결제 합계" value={sumCustomerPaid} t={t} size="sm"/>
-        <SumLine label="정산예정 합계"  value={sumSettle}       t={t} size="sm"/>
         <Divider t={t}/>
-        <SumLine label="네이버 정산금액" value={sumNaver} t={t} size="lg"/>
+        <SumLine label="정산금액" value={sumSettle} t={t} size="lg"/>
         <SumLine label="└ 유솔 수수료 (15%)"      value={sumUsol}   color="#FF4D9E" indent t={t}/>
         <SumLine label="└ 올데이케어 수수료 (85%)" value={sumAllday} color="#5DCAA5" indent t={t}/>
       </div>
