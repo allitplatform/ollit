@@ -26,6 +26,13 @@ import {
   undoPrincipalRemit,
 } from "../../lib/principalRemitDb.js";
 import { supabase } from "../../lib/supabase.js";
+// 2026-06-02 — 주차 카드 숫자 source 통일 (운영자 ① 와 일치).
+//   usol_n 측 주차 (W14~W22 시트값 + W23+ 라이브, cancel 필터 포함).
+import {
+  USOL_N_PID,
+  WEEKLY_DATA_FIXED,
+  fetchJuneLiveWeeks,
+} from "../../lib/usolNWeeklyData.js";
 // 2026-05-26 — 기사 입금 내역 화면 (usol_n 측 cleaning + extra_fee 15%)
 import { UsolRemitHistoryScreen } from "./UsolRemitHistoryScreen.jsx";
 
@@ -127,6 +134,11 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   // 2026-05-26 — 기사 입금 내역 화면 진입 state (usol_n principal 만 노출)
   const [showUsolHistory, setShowUsolHistory] = useState(false);
 
+  // 2026-06-02 — usol_n 주차 카드 source 통일.
+  //   usol_n 포함 시 fetchJuneLiveWeeks (W23+) 라이브 결과 사용.
+  const isUsolNIncluded = Array.isArray(principalCodes) && principalCodes.includes("usol_n");
+  const [liveWeeks, setLiveWeeks] = useState([]);
+
   const refresh = useCallback(() => setReloadTick(v => v + 1), []);
 
   useEffect(() => {
@@ -146,6 +158,16 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
     return () => { alive = false; };
   }, [principalCodes, reloadTick]);
 
+  // usol_n 라이브 fetch (W23+ — 6/8 입금주 이후)
+  useEffect(() => {
+    if (!isUsolNIncluded) { setLiveWeeks([]); return; }
+    let alive = true;
+    fetchJuneLiveWeeks()
+      .then(ws => { if (alive) setLiveWeeks(ws); })
+      .catch(err => { console.error("[PrincipalSettleTab.junLive]", err); });
+    return () => { alive = false; };
+  }, [isUsolNIncluded, reloadTick]);
+
   // 전체 현황 수치
   const summary = useMemo(() => {
     const live = items.filter(it => it.task_status !== "취소");
@@ -162,28 +184,94 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
     };
   }, [items]);
 
-  // 주차 묶음 (사장님 결정 — 정산 대기 정의 통일)
-  //   pending 묶음 = 전체 현황 summary.pendingCount와 같은 집합
-  //     = task.status='완료' AND naver_settled_at NULL
-  //   미완료(배정/확정/진행중/미배정) + 취소 task_item은 정산 탭에 안 나타남.
+  // 2026-06-02 — 주차 묶음. 사장님 spec (운영자 ① 와 통일):
+  //   · cancel 필터: task_item.is_canceled=true / task.status='취소' 둘 다 제외.
+  //   · usol_n 주차 카드 메인 표시값 (naverCount / weeklyTotal):
+  //       - W14~W22 (~6/1 입금): WEEKLY_DATA_FIXED 시트값
+  //       - W23+ (6/8 입금~):    fetchJuneLiveWeeks 라이브 (sum(net) × 0.85)
+  //   · usol_h 등 다른 원청: DB items 측 ISO 주 그룹 (기존 로직).
+  //   · 드릴인 items = DB items (cancel 필터 적용된 것 — 표시 구조 유지).
+  //   · pending 묶음 = task.status='완료' AND naver_settled_at NULL.
   const weeks = useMemo(() => {
-    const map = new Map();
+    // 1. DB items → cancel 필터 + ISO 주 그룹 (드릴인 측 items 출처)
+    const itemsByKey = new Map();
     const pending = [];
     for (const it of items) {
+      // 운영자 ① 와 일치 — task_item 취소 / task 취소 둘 다 제외.
+      if (it.is_canceled === true) continue;
+      if (it.task_status === "취소") continue;
       const wk = getNaverSettleWeek(it);
       if (!wk) {
         if (it.task_status === "완료") pending.push(it);
         continue;
       }
-      if (!map.has(wk.key)) map.set(wk.key, { ...wk, items: [] });
-      map.get(wk.key).items.push(it);
+      if (!itemsByKey.has(wk.key)) itemsByKey.set(wk.key, { wk, items: [] });
+      itemsByKey.get(wk.key).items.push(it);
     }
-    const list = [...map.values()].sort((a, b) => b.key.localeCompare(a.key));
+
+    // 2. usol_n 측 source map (시트 + 라이브) — isoKey 기준
+    const usolNSourceByKey = new Map();
+    if (isUsolNIncluded) {
+      for (const src of WEEKLY_DATA_FIXED) usolNSourceByKey.set(src.weekKey, src);
+      for (const src of liveWeeks)         usolNSourceByKey.set(src.weekKey, src);
+    }
+
+    // 3. 합집합 ISO key 순회 — 카드 메인 = (usol_n source 측 + usol_h DB) 합산
+    const allKeys = new Set([
+      ...itemsByKey.keys(),
+      ...usolNSourceByKey.keys(),
+    ]);
+    const list = [];
+    for (const key of allKeys) {
+      const dbEntry = itemsByKey.get(key);
+      const src     = usolNSourceByKey.get(key);
+
+      // monday/sunday Date — DB 측 우선 (기존 ISO week 계산), 없으면 source string → Date.
+      let monday, sunday, year, week, monthDay;
+      if (dbEntry) {
+        ({ monday, sunday, year, week, monthDay } = dbEntry.wk);
+      } else if (src) {
+        const [my, mm, md] = src.monday.split("-").map(Number);
+        const [sy, sm, sd] = src.sunday.split("-").map(Number);
+        monday = new Date(my, mm - 1, md);
+        sunday = new Date(sy, sm - 1, sd);
+        const [yy, ww] = key.split("-W");
+        year = Number(yy);
+        week = Number(ww);
+        monthDay = `${monday.getMonth() + 1}/${monday.getDate()}~${sunday.getMonth() + 1}/${sunday.getDate()}`;
+      }
+
+      const dbItems   = dbEntry ? dbEntry.items : [];
+      // usol_n / 비-usol_n 분리.
+      const usolNDb   = dbItems.filter(it => it.principal_id === USOL_N_PID);
+      const otherDb   = dbItems.filter(it => it.principal_id !== USOL_N_PID);
+
+      // 카드 메인 — usol_n 측 source 우선, 없으면 DB items / 비-usol_n 측 DB items 합산.
+      let displayNaverCount  = 0;
+      let displayWeeklyTotal = 0;
+      if (src) {
+        displayNaverCount  += src.naverCount;
+        displayWeeklyTotal += src.weeklyTotal;
+      } else {
+        displayNaverCount  += usolNDb.length;
+        displayWeeklyTotal += usolNDb.reduce((s, it) => s + companyAmountOf(it), 0);
+      }
+      displayNaverCount  += otherDb.length;
+      displayWeeklyTotal += otherDb.reduce((s, it) => s + companyAmountOf(it), 0);
+
+      list.push({
+        key, year, week, monday, sunday, monthDay,
+        displayNaverCount,
+        displayWeeklyTotal,
+        items: dbItems,  // 드릴인 측 (cancel 필터 적용된 DB items)
+      });
+    }
+    list.sort((a, b) => b.key.localeCompare(a.key));
     if (pending.length > 0) {
       list.push({ key: "pending", year: null, week: null, monday: null, sunday: null, items: pending });
     }
     return list;
-  }, [items]);
+  }, [items, liveWeeks, isUsolNIncluded]);
 
   // 입금 보고 lookup — (principal_id, week_start) → remit row
   const remitMap = useMemo(() => {
@@ -446,8 +534,10 @@ function StepRow({ label, value, green, hasLineBelow }) {
 
 function WeekCard({ week, remitMap, isThisWeek, onClick }) {
   const isPending = week.key === "pending";
-  // 회사 입금액 = Σ ROUND(net_amount × 0.85)
-  const sumSubtotal = week.items.reduce((s, it) => s + companyAmountOf(it), 0);
+  // 2026-06-02 — 카드 메인 = 운영자 ① 와 통일 source.
+  //   pending 측은 DB items 직접 (cancel 필터 적용된 것).
+  //   기타 주차 = week.displayWeeklyTotal / week.displayNaverCount (시트/라이브 + usol_h DB 합산).
+  const pendingSum = isPending ? week.items.reduce((s, it) => s + companyAmountOf(it), 0) : 0;
 
   if (isPending) {
     return (
@@ -463,7 +553,7 @@ function WeekCard({ week, remitMap, isThisWeek, onClick }) {
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: C_AMBER }}>대기</span>
           <span style={{ fontSize: 15, fontWeight: 800, color: C_MAGENTA, fontFamily: "inherit" }}>
-            ₩{sumSubtotal.toLocaleString()}
+            ₩{pendingSum.toLocaleString()}
           </span>
         </div>
       </div>
@@ -473,6 +563,8 @@ function WeekCard({ week, remitMap, isThisWeek, onClick }) {
   const weekLabel = getKoreanWeekLabel(week.monday, week.sunday);
   const dateRange = `${formatMD(week.monday)} ~ ${formatMD(week.sunday)}`;
   const status    = getWeekRemitStatus(week.items, remitMap);
+  const displayCount  = week.displayNaverCount ?? week.items.length;
+  const displayAmount = week.displayWeeklyTotal ?? week.items.reduce((s, it) => s + companyAmountOf(it), 0);
 
   let statusElem;
   if (status.kind === "done") {
@@ -512,12 +604,12 @@ function WeekCard({ week, remitMap, isThisWeek, onClick }) {
           <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary, #FAF8F5)" }}>{weekLabel}</span>
           <span style={{ fontSize: 11, color: C_GRAY }}>{dateRange}</span>
         </div>
-        <span style={{ fontSize: 11, color: C_GRAY, whiteSpace: "nowrap" }}>네이버 정산 {week.items.length}건</span>
+        <span style={{ fontSize: 11, color: C_GRAY, whiteSpace: "nowrap" }}>네이버 정산 {displayCount}건</span>
       </div>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
         {statusElem}
         <span style={{ fontSize: 17, fontWeight: 800, color: C_MAGENTA, fontFamily: "inherit", lineHeight: 1 }}>
-          ₩{sumSubtotal.toLocaleString()}
+          ₩{displayAmount.toLocaleString()}
         </span>
       </div>
     </div>
