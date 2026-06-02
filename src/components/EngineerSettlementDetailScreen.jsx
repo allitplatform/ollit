@@ -25,6 +25,16 @@ function getCommission(t) {
   return Math.max(0, getRevenue(t) - getEarning(t));
 }
 
+// 2026-06-02 — 유솔N / 네이버 결제 작업 판별.
+//   기사가 현장 수금 안 함 → 수수료(회사 마진) 노출 의미 X / 정책상 비공개.
+//   현금/카드 등은 그대로 노출 (입금액 참고용).
+function isUsolN(t) {
+  return (
+    String(t?.principalCode || t?.principal_code || "").toLowerCase() === "usol_n"
+    || t?.paymentMethod === "naver_pay"
+  );
+}
+
 export function EngineerSettlementDetailScreen({
   todayTasks = [],
   onBack,
@@ -35,7 +45,11 @@ export function EngineerSettlementDetailScreen({
 
   const todayEarning   = completed.reduce((s, t) => s + getEarning(t), 0);
   const todayRevenue   = completed.reduce((s, t) => s + getRevenue(t), 0);
-  const todayFee       = todayRevenue - todayEarning;
+  // 2026-06-02 — 헤더 "오늘 수수료" 박스: 비-usol_n 작업만 합산 (네이버 결제 건은 제외).
+  //   유솔N 작업의 수수료(회사 마진)는 기사에게 비공개. usol_n만 있는 날 → ₩0 표시.
+  const todayFee = completed
+    .filter(t => !isUsolN(t))
+    .reduce((s, t) => s + getCommission(t), 0);
   const totalCount     = todayTasks.length;
   const completedCount = completed.length;
 
@@ -180,6 +194,8 @@ function WorkSettlementCard({ work, onClick }) {
   const estEarning  = earning;
   const showRevenue = revenue;
   const ratePct     = estRevenue > 0 ? Math.round((estFee / estRevenue) * 100) : 0;
+  // 2026-06-02 — 유솔N / 네이버 결제 작업 측 "수수료" 라인 숨김 (회사 마진 비공개).
+  const hideFeeLine = isUsolN(work);
 
   const time    = formatTimeOnly(work.completedAt || work.scheduledTime || work.time) || "";
   const endTime = formatTimeOnly(work.endTime) || work.endTime || "";
@@ -302,32 +318,35 @@ function WorkSettlementCard({ work, onClick }) {
             ₩{(estEarning || 0).toLocaleString("ko-KR")}
           </span>
         </div>
-        {/* 구분선 (옅은 회색) */}
-        <div style={{
-          height: 1,
-          background: "var(--border-subtle, #F0EBE3)",
-          marginBottom: 6,
-        }}/>
-        {/* 수수료 (작게 / 12px / 회색) */}
-        <div style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-        }}>
-          <span style={{
-            fontSize: 11, color: "var(--text-tertiary, #999)",
-            fontWeight: 600,
-          }}>
-            수수료
-          </span>
-          <span style={{
-            fontSize: 12, fontWeight: 700,
-            color: "var(--text-tertiary, #999)",
-            fontFamily: "inherit",
-          }}>
-            ₩{(estFee || 0).toLocaleString("ko-KR")}
-          </span>
-        </div>
+        {/* 구분선 + 수수료 라인 — 2026-06-02: 유솔N / 네이버 결제 건은 숨김 (회사 마진 비공개) */}
+        {!hideFeeLine && (
+          <>
+            <div style={{
+              height: 1,
+              background: "var(--border-subtle, #F0EBE3)",
+              marginBottom: 6,
+            }}/>
+            <div style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}>
+              <span style={{
+                fontSize: 11, color: "var(--text-tertiary, #999)",
+                fontWeight: 600,
+              }}>
+                수수료
+              </span>
+              <span style={{
+                fontSize: 12, fontWeight: 700,
+                color: "var(--text-tertiary, #999)",
+                fontFamily: "inherit",
+              }}>
+                ₩{(estFee || 0).toLocaleString("ko-KR")}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
