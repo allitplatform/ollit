@@ -19,8 +19,14 @@ export const CATEGORY_ID_AIRCON = "33333333-3333-3333-3333-333333333001";
 // 2026-05-19 Phase 5 Step 0.C-16 — task_items + work_types + appliance_types 측 inline JOIN
 //   사장님 catch: 박소영 측 work_type 표시 X — category_data.workItems 측 NULL + task_items 측 별도 데이터.
 //   task_items 측 name 측 fetch → rowToTask 측 workItems fallback 매핑 spec.
+// 2026-06-02 — assigned_engineer / principal_rel JOIN 추가.
+//   tasks.assigned_engineer_id → users(name, code) — 두 FK(recommended+assigned) 측 column 기반 disambiguation 필요.
+//   tasks.principal_id → principals(code, name) — principal_code 컬럼 X (Migration 083 확인) → JOIN 필수.
+//   rowToTask 측 engineer / assignedEngineer / principalCode 매핑 채움 (principal 필드는 안전상 X).
 const PAYMENT_SELECT = `
   *,
+  assigned_engineer:users!assigned_engineer_id ( name, code ),
+  principal_rel:principals!principal_id ( code, name ),
   payment:payments(
     calc_method,
     policy_key,
@@ -111,6 +117,15 @@ export function rowToTask(row) {
     assignedEngineerId:    row.assigned_engineer_id,
     engineerId:            row.assigned_engineer_id,
     assignmentType:        row.assignment_type,
+    // 2026-06-02 — users JOIN 측 기사 이름/코드 (v14NormalizeTask 측 t.engineer / t.assignedEngineer 슬롯 통과).
+    //   옛 흐름: rowToTask 측 이름 매핑 X → AdminTaskDetailScreen 측 항상 "미배정" 표시.
+    engineer:              row.assigned_engineer?.name || null,
+    assignedEngineer:      row.assigned_engineer?.name || "",
+    engineerCode:          row.assigned_engineer?.code || null,
+    // 2026-06-02 — principals JOIN 측 원청 코드 (v14NormalizeTask 측 t.principalCode 슬롯 통과).
+    //   옛 흐름: principalCode 빈 문자열 → AdminTaskDetailScreen usol_n 분기 측 측 catch X.
+    //   principal 필드는 건드리지 않음 (다른 화면 측 이름 측 사용 가능 — 회귀 위험).
+    principalCode:         row.principal_rel?.code || "",
 
     // 일정
     requestedDate: row.requested_date,

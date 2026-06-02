@@ -204,8 +204,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       <SettlementInfoCard task={task}/>
       {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출).
             2026-06-02 — usol_n 측 측 — 정산 사이클 측 대체 (사장님 spec). */}
-      {task.principal !== "usol_n" && <TaskItemsCard task={task}/>}
-      {task.principal === "usol_n" && (
+      {task.principalCode !== "usol_n" && <TaskItemsCard task={task}/>}
+      {task.principalCode === "usol_n" && (
         <UsolNSettlementCycleCard
           taskId={task.id}
           paymentMethod={task.paymentMethod || task.payment_method || null}
