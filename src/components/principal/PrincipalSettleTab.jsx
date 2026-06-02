@@ -31,6 +31,7 @@ import { supabase } from "../../lib/supabase.js";
 //   + 월별(payYm) 아코디언 + deposit 기준 입금 완료/예정 시각 + 동적 월 분류.
 import {
   USOL_N_PID,
+  NAVER_NET_TO_COMPANY_FACTOR,
   WEEKLY_DATA_FIXED,
   fetchJuneLiveWeeks,
   getMonthlyEntriesOf,
@@ -41,6 +42,7 @@ import {
   depositStatusLabel,
   mdLabel,
   dowKor,
+  kstYmd,
   addDaysYmd,
   C_PINK_DEPOSIT,
   C_GREEN_DONE,
@@ -182,8 +184,12 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   }, [isUsolNIncluded, reloadTick]);
 
   // 전체 현황 수치
+  // 2026-06-02 — cancel 필터 통일 (운영자 ① / 주차별 정산 측과 동일).
+  //   기존: task.status='취소' 만 제외 → 정산완료 907 측 inflate 1건 (전상욱 task_item.is_canceled=true).
+  //   통일: is_canceled !== true AND task.status !== '취소' 둘 다 제외 → 정합값.
+  //   영향 (1,861 fetched 기준): received 1724→1698, beforeWork 415→411, doneWork 1303→1281, settled 907→906, pending 406→385.
   const summary = useMemo(() => {
-    const live = items.filter(it => it.task_status !== "취소");
+    const live = items.filter(it => it.task_status !== "취소" && it.is_canceled !== true);
     const before = live.filter(it => ["배정", "확정"].includes(it.task_status));
     const done = live.filter(it => it.task_status === "완료");
     const settled = live.filter(it => it.naver_settled_at);
@@ -675,7 +681,10 @@ function PrincipalWeekCard({ week, today, onClick }) {
   const total = week.displayWeeklyTotal || 0;
   const count = week.displayNaverCount || 0;
   const weekLabel = getKoreanWeekLabel(week.monday, week.sunday);
-  const dateRange = `${formatMD(week.monday)} ~ ${formatMD(week.sunday)}`;
+  // 2026-06-02 — string-based 측 (KST 측 timezone-safe). week.mondayStr / sundayStr 측 fallback Date.
+  const dateRange = week.mondayStr && week.sundayStr
+    ? `${mdLabel(week.mondayStr)} ~ ${mdLabel(week.sundayStr)}`
+    : `${formatMD(week.monday)} ~ ${formatMD(week.sunday)}`;
   const statusText = depositStatusLabel(week.depositStr, today);
   const monthlyEntries = getMonthlyEntriesOf(week);
   const amountColor = isPast ? C_GREEN_DONE : C_PINK_DEPOSIT;
@@ -763,9 +772,13 @@ function WeekDetailView({ week, weekRemits, onBack, onReport, onUndo, onSelect, 
   const [submitting, setSubmitting] = useState(false);
 
   const filtered = useMemo(() => {
-    let list = week.items;
+    // 2026-06-02 — week.items 측 weeks useMemo 측 cancel 필터 측 적용 측 (line 211-215).
+    //   safety 측 측 측 — 측 cancel 측 측 측 측 측 redundant 측 측 측 측 spec.
+    let list = week.items.filter(it => it.is_canceled !== true && it.task_status !== "취소");
     if (stageFilter !== "all") list = list.filter(it => getSettleStageKey(it) === stageFilter);
-    if (dateFilter) list = list.filter(it => (it.naver_settled_at || "").slice(0, 10) === dateFilter);
+    // 2026-06-02 — UTC slice(0,10) → kstYmd 변환 (KST 측 기준).
+    //   예) 2026-05-31T15:00:00Z = KST 2026-06-01 — UTC 측 5/31, KST 측 6/1.
+    if (dateFilter) list = list.filter(it => kstYmd(it.naver_settled_at) === dateFilter);
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(it => {
@@ -781,15 +794,27 @@ function WeekDetailView({ week, weekRemits, onBack, onReport, onUndo, onSelect, 
 
   const dateOptions = useMemo(() => {
     const set = new Set();
-    for (const it of week.items) if (it.naver_settled_at) set.add(it.naver_settled_at.slice(0, 10));
+    // 2026-06-02 — KST 변환 (UTC slice(0,10) 측 측 측 측 측 catch).
+    for (const it of week.items) {
+      const ymd = kstYmd(it.naver_settled_at);
+      if (ymd) set.add(ymd);
+    }
     return [...set].sort();
   }, [week.items]);
 
-  const sumSubtotal = filtered.reduce((s, it) => s + companyAmountOf(it), 0);
+  // 2026-06-02 — sumSubtotal 측 카드 메인 (운영자 ① / weeklyTotal) 측 일치.
+  //   기존: 측 item별 round(net × 0.85) 합 — 측 item별 round 측 누적 측 sum 측 3원 inflate.
+  //   통일: sumNet × 0.85 후 round (운영자 ① fetchJuneLiveWeeks 측 weeklyTotal 측 동일).
+  const sumNet = filtered.reduce((s, it) => s + (Number(it.net_amount) || 0), 0);
+  const sumSubtotal = Math.round(sumNet * NAVER_NET_TO_COMPANY_FACTOR);
   const isPending = week.key === "pending";
   const headerLabel = isPending
     ? "정산 대기"
-    : `${getKoreanWeekLabel(week.monday, week.sunday)}  네이버 정산 ${formatMD(week.monday)}~${formatMD(week.sunday)}`;
+    : `${getKoreanWeekLabel(week.monday, week.sunday)}  네이버 정산 ${
+        week.mondayStr && week.sundayStr
+          ? `${mdLabel(week.mondayStr)}~${mdLabel(week.sundayStr)}`
+          : `${formatMD(week.monday)}~${formatMD(week.sunday)}`
+      }`;
 
   // 보고 버튼 상태 — 해당 주차에 remit row가 모두 있는지(=보고됨), confirmed 측 측
   const status = !isPending ? getWeekRemitStatus(week.items, weekRemits) : { kind: "expected", remits: [] };
@@ -902,7 +927,8 @@ function WeekDetailView({ week, weekRemits, onBack, onReport, onUndo, onSelect, 
 function RemitAction({ status, canReport, canUndo, isDone, submitting, onReport, onUndo }) {
   if (isDone) {
     const lastConfirm = status.remits.map(r => r.confirmed_at).filter(Boolean).sort().pop();
-    const d = lastConfirm ? new Date(lastConfirm) : null;
+    // 2026-06-02 — KST 변환 (UTC Date 측 local time 측 측 측 catch 측).
+    const ymd = kstYmd(lastConfirm);
     return (
       <div style={{
         marginBottom: 12, padding: "10px 12px",
@@ -913,14 +939,15 @@ function RemitAction({ status, canReport, canUndo, isDone, submitting, onReport,
       }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: C_GREEN, display: "inline-flex", alignItems: "center", gap: 4 }}>
           <Check size={14} strokeWidth={3}/>회사 입금 확인 완료
-          {d && <span style={{ color: C_GRAY, fontWeight: 500, marginLeft: 4 }}>{formatMD(d)}</span>}
+          {ymd && <span style={{ color: C_GRAY, fontWeight: 500, marginLeft: 4 }}>{mdLabel(ymd)}</span>}
         </span>
       </div>
     );
   }
   if (canUndo) {
     const lastReport = status.remits.map(r => r.remitted_at).filter(Boolean).sort().pop();
-    const d = lastReport ? new Date(lastReport) : null;
+    // 2026-06-02 — KST 변환.
+    const ymd = kstYmd(lastReport);
     return (
       <div style={{
         marginBottom: 12, padding: "10px 12px",
@@ -931,7 +958,7 @@ function RemitAction({ status, canReport, canUndo, isDone, submitting, onReport,
       }}>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: C_AMBER }}>입금 보고 완료 · 회사 확인 대기</div>
-          {d && <div style={{ fontSize: 10, color: C_GRAY, marginTop: 2 }}>보고 시각 {formatMD(d)}</div>}
+          {ymd && <div style={{ fontSize: 10, color: C_GRAY, marginTop: 2 }}>보고 시각 {mdLabel(ymd)}</div>}
         </div>
         <button onClick={onUndo} disabled={submitting} style={{
           background: "transparent", border: `1px solid ${C_AMBER}`, color: C_AMBER,
@@ -962,7 +989,11 @@ function SettleItemRow({ item, onClick }) {
   const label = getItemLabel(item);
   const qty = item.qty || 1;
   const companyAmt = companyAmountOf(item);
-  const naverDate = item.naver_settled_at ? item.naver_settled_at.slice(5, 10).replace("-", "/") : "";
+  // 2026-06-02 — UTC slice 측 KST 변환 (예: UTC 2026-05-31T15:00:00 = KST 2026-06-01).
+  //   기존: naver_settled_at.slice(5, 10).replace("-", "/") = "05/31" (UTC).
+  //   통일: kstYmd 변환 후 MM/DD = "06/01" (KST).
+  const naverYmd = kstYmd(item.naver_settled_at);
+  const naverDate = naverYmd ? naverYmd.slice(5).replace("-", "/") : "";
   const orderId = item.product_order_id || "";
 
   return (
