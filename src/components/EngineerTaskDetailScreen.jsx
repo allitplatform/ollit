@@ -2761,6 +2761,14 @@ function SettlementInfo({ task }) {
   // V14 v6 — 사장님 spec: 수수료 = 판매가 - 기사 수익 (실제 회사 송금 금액 / % 표시 X)
   const commission = Math.max(0, total - engineerNet);
 
+  // 2026-06-02 — 네이버 결제(현장 수금 없음) 작업 측 breakdown 숨김.
+  //   기사가 수금/송금 안 하니 작업금액/추가금/합계/수수료 측 의미 X — "프로 수익"만 노출.
+  //   판별: 원청=usol_n OR paymentMethod='naver_pay' (둘 중 하나면 네이버 결제 흐름).
+  //   현금/카드 등 현장 수금 작업은 기존 전체 표시 유지.
+  const hideBreakdown =
+    String(task.principalCode || task.principal_code || "").toLowerCase() === "usol_n"
+    || task.paymentMethod === "naver_pay";
+
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
@@ -2773,29 +2781,41 @@ function SettlementInfo({ task }) {
         background: "var(--bg-secondary)",
         borderRadius: 8, padding: 12,
       }}>
-        <SettlementRow label="작업 금액" value={`₩${workAmount.toLocaleString("ko-KR")}`}/>
-        {task.extraFee > 0 && (
-          <SettlementRow label="현장 추가금" value={`₩${task.extraFee.toLocaleString("ko-KR")}`}/>
+        {!hideBreakdown && (
+          <>
+            <SettlementRow label="작업 금액" value={`₩${workAmount.toLocaleString("ko-KR")}`}/>
+            {task.extraFee > 0 && (
+              <SettlementRow label="현장 추가금" value={`₩${task.extraFee.toLocaleString("ko-KR")}`}/>
+            )}
+            <div style={{
+              borderTop: "1px solid var(--border)",
+              margin: "6px 0", paddingTop: 6,
+              display: "flex", justifyContent: "space-between",
+            }}>
+              <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 700 }}>합계</span>
+              <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "inherit", color: "var(--text-primary)" }}>
+                ₩{total.toLocaleString("ko-KR")}
+              </span>
+            </div>
+            <SettlementRow
+              label="수수료"
+              value={`- ₩${commission.toLocaleString("ko-KR")}`}
+              valueColor="var(--text-secondary)"
+            />
+          </>
         )}
-        <div style={{
-          borderTop: "1px solid var(--border)",
-          margin: "6px 0", paddingTop: 6,
-          display: "flex", justifyContent: "space-between",
-        }}>
-          <span style={{ fontSize: 11, color: "var(--text-primary)", fontWeight: 700 }}>합계</span>
-          <span style={{ fontSize: 14, fontWeight: 700, fontFamily: "inherit", color: "var(--text-primary)" }}>
-            ₩{total.toLocaleString("ko-KR")}
-          </span>
-        </div>
-        <SettlementRow
-          label="수수료"
-          value={`- ₩${commission.toLocaleString("ko-KR")}`}
-          valueColor="var(--text-secondary)"
-        />
+        {hideBreakdown && (
+          <div style={{
+            fontSize: 10, color: "var(--text-secondary)",
+            fontWeight: 600, marginBottom: 8, lineHeight: 1.5,
+          }}>
+            네이버 결제 · 회사에서 정산
+          </div>
+        )}
         <div style={{
           background: "rgba(255,27,141,0.10)",
           border: "1px solid rgba(255,27,141,0.3)",
-          borderRadius: 6, padding: "8px 10px", marginTop: 8,
+          borderRadius: 6, padding: "8px 10px", marginTop: hideBreakdown ? 0 : 8,
           display: "flex", justifyContent: "space-between",
           alignItems: "center",
         }}>
