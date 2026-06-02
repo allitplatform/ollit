@@ -129,6 +129,7 @@ export function UsolNToCompanySection({ onTaskClick = null } = {}) {
           week={selectedWeek}
           today={today}
           onBack={() => setSelectedWeek(null)}
+          onTaskClick={onTaskClick}
         />
       )}
     </div>
@@ -302,7 +303,7 @@ function SplitItem({ dotColor, label, amount, muted, highlight }) {
 //   · cancel 필터 (is_canceled / status='취소' 둘 다 제외) — fetchWeekItemsByMonday 측 measure 측.
 //   · 액션: [입금 확인] (confirmPrincipalRemit) / 유솔 보고 대기 = 비활성.
 //   · 화면·버튼 spec — 완료 기준 / deposit 표시 측 충돌 spec 측 다음 단계.
-function UsolNAdminWeekDetail({ week, today, onBack }) {
+function UsolNAdminWeekDetail({ week, today, onBack, onTaskClick }) {
   const [items, setItems] = useState([]);
   const [remits, setRemits] = useState([]);
   const [loading, setLoading] = useState(true);
