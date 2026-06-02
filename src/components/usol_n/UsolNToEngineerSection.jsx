@@ -115,20 +115,27 @@ function splitByBucket(items, year, month, engByItem) {
   const result = {
     firstItems: [], secondItems: [], doneItems_1: [], doneItems_2: [],
     firstTotal: 0, secondTotal: 0, done1Total: 0, done2Total: 0,
+    // 2026-06-02 — 회사 순이익 실시간 계산용. 작업월 버킷(first+second+done) 전체 Σsubtotal.
+    //   배분액 = subtotalAll × NAVER_NET_TO_COMPANY_FACTOR (0.85). 모집단 = 기사지급 전체와 동일.
+    subtotalAll: 0,
   };
   for (const it of items) {
     const k = bucketItem(it, year, month);
     if (!k) continue;
     const amt = calcItemEngineerAmount(it, engByItem);
+    const sub = Number(it.subtotal) || 0;
     if (k === "first")  { result.firstItems.push(it);   result.firstTotal  += amt; }
     if (k === "second") { result.secondItems.push(it);  result.secondTotal += amt; }
     if (k === "done_1") { result.doneItems_1.push(it);  result.done1Total  += amt; }
     if (k === "done_2") { result.doneItems_2.push(it);  result.done2Total  += amt; }
+    result.subtotalAll += sub;
   }
   result.doneTotal      = result.done1Total + result.done2Total;
   result.naverConfirmed = result.firstTotal + result.done1Total;
   result.pendingItems   = [...result.firstItems, ...result.secondItems];
   result.pendingTotal   = result.firstTotal + result.secondTotal;
+  // 2026-06-02 — 전체 기사지급 = first + second + done (1차+2차+이미 지급).
+  result.engineerPayAll = result.firstTotal + result.secondTotal + result.doneTotal;
   return result;
 }
 
@@ -328,14 +335,16 @@ export function UsolNToEngineerSection({ adminId = null }) {
     [items, engineers, gateYear, gateMonth, engByItem]
   );
 
-  // 2026-06-01 S2 — 회사 순이익 (작업월 = gateYm 기준).
-  //   순이익 = 회사 실입금 − 기사 지급 (1차 모집단만 = naver_settled NOT NULL).
-  //   2차 (미정산) 는 회사 실입금 아직 없음 → 순이익 계산 제외.
-  const companyNet = useMemo(
-    () => computeCompanyNetIncome(items, gateYm),
-    [items, gateYm]
+  // 2026-06-02 — 회사 순이익 = 실시간 전체 기준 마진 (사장님 spec).
+  //   배분액 = (작업월 버킷 first+second+done 측 Σsubtotal) × 0.85
+  //   기사지급 전체 = firstTotal + secondTotal + doneTotal (동일 모집단)
+  //   profit = 배분액 − 기사지급 전체
+  //   companyNet (시트 고정값) / naverConfirmed (1차만) 분기는 폐기.
+  const companyShare = useMemo(
+    () => Math.round((split.subtotalAll || 0) * NAVER_NET_TO_COMPANY_FACTOR),
+    [split.subtotalAll]
   );
-  const profit = companyNet.amount - split.naverConfirmed;
+  const profit = companyShare - split.engineerPayAll;
 
   function refresh() { setReloadTick(v => v + 1); }
 
@@ -401,10 +410,11 @@ export function UsolNToEngineerSection({ adminId = null }) {
             split={split}
           />
 
-          {/* 회사 순이익 카드 (작업월 = gateYm 기준) */}
+          {/* 회사 순이익 카드 (작업월 = gateYm 기준).
+              2026-06-02 — 실시간 전체 기준 마진. 배분액=Σsubtotal×0.85, 기사지급=전체. */}
           <CompanyProfitCard
             gateYm={gateYm}
-            companyNet={companyNet}
+            companyShare={companyShare}
             split={split}
             profit={profit}
           />
@@ -588,16 +598,14 @@ function StackBar({ firstPct, secondPct, empty }) {
 }
 
 // ── 회사 순이익 카드 (작업월 = gateYm 기준) ─────────────────
-// 회사 실입금 − 기사 지급 = 순이익. (모두 작업월 기준).
-// APR/MAY 는 시트 기준 상수 (legacy net_amount gross 오염). JUN+ 는 자동.
-function CompanyProfitCard({ gateYm, companyNet, split, profit }) {
+// 2026-06-02 — 실시간 전체 기준 마진 (사장님 spec).
+//   배분액 = 작업월 버킷(first+second+done) Σsubtotal × 0.85
+//   기사지급 전체 = firstTotal + secondTotal + doneTotal (동일 모집단)
+//   순이익 = 배분액 − 기사지급 전체
+//   옛 spec(회사 실입금 시트 고정값 vs naverConfirmed 1차만) 폐기.
+function CompanyProfitCard({ gateYm, companyShare, split, profit }) {
   if (!gateYm) return null;
-  const isConstant = companyNet.source === "constant";
-  const v = companyNet.validation;
-  // naverConfirmed = 1차(예정) + done1(이미 지급, naver settled) — 회사 실입금 모집단 일치.
-  const engineerPayFirst = split.naverConfirmed || 0;
-  const engineerPaySecond = split.secondTotal || 0;
-  const engineerReceived = split.doneTotal || 0;
+  const engineerPayAll = split.engineerPayAll || 0;
 
   return (
     <div style={{
@@ -612,8 +620,8 @@ function CompanyProfitCard({ gateYm, companyNet, split, profit }) {
         회사 순이익 · 작업월 {gateYm}
       </div>
 
-      <ProfitRow label="회사 실입금" amount={companyNet.amount} sign="+"/>
-      <ProfitRow label="기사 지급 (1차 — naver 정산 확정 모집단)" amount={engineerPayFirst} sign="−"/>
+      <ProfitRow label="회사 배분액 (정산예정 × 0.85)" amount={companyShare} sign="+"/>
+      <ProfitRow label="기사 지급 (전체)" amount={engineerPayAll} sign="−"/>
 
       <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }}/>
 
@@ -636,58 +644,8 @@ function CompanyProfitCard({ gateYm, companyNet, split, profit }) {
       <div style={{
         marginTop: 8, fontSize: 9, color: C_GRAY, lineHeight: 1.5,
       }}>
-        {isConstant ? (
-          <>ⓘ {gateYm} 회사 실입금 = 시트 기준 고정값 (legacy net_amount gross 오염).</>
-        ) : (
-          <>ⓘ {gateYm} 회사 실입금 = 신형식 net × 0.85 자동 합산.</>
-        )}
+        ⓘ 회사 배분액 = 정산예정(subtotal) × 0.85. 기사지급은 1·2·done 전체 모집단.
       </div>
-
-      {/* 2차 미정산 + 이미 지급 정보 (순이익 계산 제외) */}
-      {(engineerPaySecond > 0 || engineerReceived > 0) && (
-        <div style={{
-          marginTop: 8, padding: "8px 10px",
-          background: "rgba(156,163,175,0.06)",
-          border: "1px dashed var(--border)",
-          borderRadius: 6,
-          fontSize: 10, color: C_GRAY, lineHeight: 1.6,
-        }}>
-          {engineerPaySecond > 0 && (
-            <div>
-              · 2차 미정산 기사 지급분: <span style={{ fontFamily: "inherit", fontWeight: 700, color: "var(--text-primary)" }}>
-                ₩{engineerPaySecond.toLocaleString()}
-              </span> — 회사 실입금이 아직 없음 → 순이익 계산 제외
-            </div>
-          )}
-          {engineerReceived > 0 && (
-            <div>
-              · 받음 (이미 지급): <span style={{ fontFamily: "inherit", fontWeight: 700, color: C_GREEN }}>
-                ₩{engineerReceived.toLocaleString()}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 6월+ 검증 — 신형식 / gross 의심 / NULL 카운트 */}
-      {!isConstant && v && (
-        <div style={{
-          marginTop: 8, padding: "8px 10px",
-          background: v.countGross > 0 ? "rgba(245,158,11,0.08)" : "rgba(29,158,117,0.06)",
-          border: `1px solid ${v.countGross > 0 ? C_AMBER : C_GREEN}55`,
-          borderRadius: 6,
-          fontSize: 10, fontWeight: 600,
-          color: v.countGross > 0 ? C_AMBER : C_GREEN,
-        }}>
-          {v.countGross > 0 ? "⚠️" : "✓"} 검증 — 활성 {v.countActive}건 ·
-          신형식 {v.countTrue} / gross 의심 {v.countGross} / NULL {v.countNull}
-          {v.countGross > 0 && (
-            <div style={{ color: C_GRAY, fontWeight: 500, marginTop: 2 }}>
-              gross 의심 (net == subtotal) 은 합산 제외. 데이터 검수 필요.
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
