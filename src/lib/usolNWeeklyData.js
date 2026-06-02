@@ -201,7 +201,7 @@ export async function fetchJuneLiveWeeks() {
          qty, unit_price, description,
          work_types ( id, name ),
          appliance_types ( id, name ),
-         tasks!inner ( id, task_no, customer_name, address, district,
+         tasks!inner ( id, task_no, customer_name, phone, address, district,
                        principal_id, status, received_at, scheduled_at, completed_at )`
       )
       .eq("tasks.principal_id", USOL_N_PID)
@@ -246,6 +246,7 @@ export async function fetchJuneLiveWeeks() {
       ...it,
       customer_name: t.customer_name || "",
       task_no:       t.task_no || "",
+      phone:         t.phone || "",
       address:       t.address || "",
       district:      t.district || "",
       principal_id:  t.principal_id,
@@ -301,7 +302,7 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
          qty, unit_price, description,
          work_types ( id, name ),
          appliance_types ( id, name ),
-         tasks!inner ( id, task_no, customer_name, address, district,
+         tasks!inner ( id, task_no, customer_name, phone, address, district,
                        principal_id, status, received_at, scheduled_at, completed_at )`
       )
       .eq("tasks.principal_id", USOL_N_PID)
@@ -327,6 +328,7 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
       ...it,
       customer_name: t.customer_name || "",
       task_no:       t.task_no || "",
+      phone:         t.phone || "",
       address:       t.address || "",
       district:      t.district || "",
       principal_id:  t.principal_id,

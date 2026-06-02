@@ -436,7 +436,22 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
           if (ids.length > 0) return handleUndo(ids);
         }}
         onBack={() => { setSelectedWeekKey(null); setSearch(""); setStageFilter("all"); setDateFilter(""); }}
-        onItemClick={onSelect ? (it) => onSelect({ id: it.task_id, customer_name: it.customer_name, status: it.task_status }) : null}
+        // 2026-06-02 — payload 측 정보 전달 (사장님 spec — 김혜영 측 측 측 빈칸 측 catch).
+        //   AdminTaskDetailScreen 측 full re-fetch 측 X → payload 측 측 정보 측 measure.
+        //   id 측 partial 측 측 measure 측 X — task_no/phone/address/scheduled_at 등 측 측 전달 spec.
+        onItemClick={onSelect ? (it) => onSelect({
+          id:            it.task_id,
+          task_no:       it.task_no,
+          customer_name: it.customer_name,
+          phone:         it.phone,
+          address:       it.address,
+          district:      it.district,
+          scheduled_at:  it.scheduled_at,
+          completed_at:  it.completed_at,
+          received_at:   it.received_at,
+          status:        it.task_status,
+          principal_id:  it.principal_id,
+        }) : null}
         search={search} setSearch={setSearch}
         stageFilter={stageFilter} setStageFilter={setStageFilter}
         dateFilter={dateFilter} setDateFilter={setDateFilter}

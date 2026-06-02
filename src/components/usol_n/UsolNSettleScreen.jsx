@@ -92,7 +92,20 @@ export function UsolNSettleScreen({ adminId = null, onTaskClick = null }) {
           setPendingDateFilter("");
         }}
         // 2026-06-02 — task_item 줄 클릭 → 부모 task_id 측 작업 상세 navigate (사장님 spec).
-        onItemClick={onTaskClick ? (it) => onTaskClick({ id: it.task_id, customer_name: it.customer_name, status: it.task_status }) : null}
+        //   payload 측 정보 전달 — AdminTaskDetailScreen 측 full re-fetch X 측 → 측 정보 측 measure.
+        onItemClick={onTaskClick ? (it) => onTaskClick({
+          id:            it.task_id,
+          task_no:       it.task_no,
+          customer_name: it.customer_name,
+          phone:         it.phone,
+          address:       it.address,
+          district:      it.district,
+          scheduled_at:  it.scheduled_at,
+          completed_at:  it.completed_at,
+          received_at:   it.received_at,
+          status:        it.task_status,
+          principal_id:  it.principal_id,
+        }) : null}
         search={pendingSearch} setSearch={setPendingSearch}
         stageFilter={pendingStageFilter} setStageFilter={setPendingStageFilter}
         dateFilter={pendingDateFilter} setDateFilter={setPendingDateFilter}
