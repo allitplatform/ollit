@@ -227,12 +227,17 @@ function getCurrentMonthKey() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
+// 2026-06-02 — 2026-06 이전 (1~5월) 옵션 제외. 운영 시작 측 측측 측측 측 측측.
+//   "2026-06"(이번달)은 i=0 측 measurement — 작업월=2026-05 카드가 측측 측측측.
+//   미래 measurement는 now.getMonth() - i 패턴 측 measurement measure measure.
+const MONTH_CUTOFF = "2026-06";
 function getRecentMonths() {
   const out = [];
   const now = new Date();
   for (let i = 0; i < 6; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    if (value < MONTH_CUTOFF) continue;
     out.push({
       value,
       label: `${d.getFullYear()}년 ${d.getMonth() + 1}월${i === 0 ? " (이번달)" : ""}`,
@@ -640,12 +645,6 @@ function CompanyProfitCard({ gateYm, companyShare, split, profit }) {
         </span>
       </div>
 
-      {/* 출처 안내 */}
-      <div style={{
-        marginTop: 8, fontSize: 9, color: C_GRAY, lineHeight: 1.5,
-      }}>
-        ⓘ 회사 배분액 = 정산예정(subtotal) × 0.85. 기사지급은 1·2·done 전체 모집단.
-      </div>
     </div>
   );
 }
