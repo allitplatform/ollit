@@ -137,6 +137,25 @@ export function UsolNSettlementScreen({
 
   const [selectedMonth, setSelectedMonth] = useState(currentYm || monthOptions[0] || "");
   const [expanded, setExpanded] = useState(new Set());
+  // 2026-06-02 — 미확정 작업 리스트 view 토글.
+  const [viewMode, setViewMode] = useState("default"); // 'default' | 'unconfirmed'
+
+  // 2026-06-02 — 미확정 work 측측 (사장님 spec: 이 기사의 usol_n 완료 작업 중 naver_settled_at NULL).
+  //   getWorkStatus(w).kind === 'unconfirmed' → naverSettled falsy AND engineerSettledAt falsy.
+  //   최신 작업월 측측, 측측 측측 측측.
+  const unconfirmedWorks = useMemo(() => {
+    const sortedGroups = (groups || []).slice().sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+    const list = [];
+    for (const g of sortedGroups) {
+      for (const w of (g.works || [])) {
+        if (getWorkStatus(w).kind === "unconfirmed") {
+          list.push({ ...w, _groupDate: g.date });
+        }
+      }
+    }
+    return list;
+  }, [groups]);
+  const unconfirmedTotal = unconfirmedWorks.reduce((s, w) => s + (Number(w.feeAmount) || 0), 0);
 
   function toggleExpand(date) {
     setExpanded(prev => {
@@ -159,6 +178,104 @@ export function UsolNSettlementScreen({
   const labelColor = isDark ? "#5DE099" : "#03C75A";
   const subLabelColor = isDark ? "#5DE099" : "#038147";
   const fineColor  = isDark ? "#9AA3AB" : "#555";
+
+  // 2026-06-02 — 미확정 작업 리스트 view (사장님 spec).
+  //   "미확정 N건" 행 클릭 측 진입. UsolNWorkItemRow 측측 / 상단 안내 배너.
+  //   본인 수익(+금액)만 노출 (수수료/회사 마진 비공개).
+  if (viewMode === "unconfirmed") {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: "var(--bg-primary)",
+        color: "var(--text-primary)",
+        paddingBottom: 24,
+        fontFamily: "'Pretendard', -apple-system, sans-serif",
+      }}>
+        {/* 헤더 */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "14px 16px",
+          borderBottom: "1px solid var(--border)",
+          background: "var(--bg-secondary)",
+          position: "sticky", top: 0, zIndex: 10,
+        }}>
+          <button onClick={() => setViewMode("default")} style={{
+            background: "transparent", border: "none", padding: 4,
+            cursor: "pointer", color: "var(--text-primary)",
+            display: "flex", alignItems: "center",
+          }}>
+            <ArrowLeft size={20}/>
+          </button>
+          <div style={{ flex: 1, fontSize: 17, fontWeight: 700 }}>
+            미확정 {unconfirmedWorks.length}건
+          </div>
+          <div style={{ width: 28 }}/>
+        </div>
+
+        {/* 안내 배너 */}
+        <div style={{ padding: "14px 12px 10px" }}>
+          <div style={{
+            background: "rgba(156,163,175,0.10)",
+            border: "1px solid rgba(156,163,175,0.30)",
+            borderRadius: 12,
+            padding: "12px 14px",
+            color: "var(--text-primary)",
+            fontSize: 12, lineHeight: 1.6, fontWeight: 500,
+          }}>
+            네이버가 아직 정산하지 않은 작업이에요.<br/>
+            정산되면 <span style={{ color: "#B45309", fontWeight: 700 }}>예정</span>으로 넘어가 매월 15일에 입금됩니다.
+          </div>
+        </div>
+
+        {/* 미확정 작업 리스트 */}
+        <div style={{ padding: "0 16px 24px" }}>
+          {unconfirmedWorks.length === 0 ? (
+            <div style={{
+              padding: 28, textAlign: "center",
+              color: "var(--text-tertiary)", fontSize: 14,
+              background: "var(--bg-secondary)", borderRadius: 14,
+            }}>
+              미확정 작업이 없어요.
+            </div>
+          ) : (
+            <div style={{
+              background: "var(--card-bg)",
+              border: "1px solid var(--border)",
+              borderRadius: 14,
+              padding: "4px 14px",
+            }}>
+              {unconfirmedWorks.map((w, idx, arr) => (
+                <UsolNWorkItemRow
+                  key={w.itemId || w.id || idx}
+                  w={w}
+                  onClick={onTaskClick}
+                  showBorder={idx < arr.length - 1}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* 합계 한 줄 (본인 수익만) */}
+          {unconfirmedWorks.length > 0 && (
+            <div style={{
+              marginTop: 10,
+              padding: "10px 14px",
+              display: "flex", justifyContent: "space-between", alignItems: "center",
+              background: "var(--bg-secondary)",
+              borderRadius: 10,
+              fontSize: 13, fontWeight: 700,
+              color: "var(--text-primary)",
+            }}>
+              <span>합계 ({unconfirmedWorks.length}건)</span>
+              <span style={{ color: "#03C75A" }}>
+                +{unconfirmedTotal.toLocaleString("ko-KR")}원
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{
@@ -350,7 +467,7 @@ export function UsolNSettlementScreen({
                 amount={prevMonthBuckets.pending}
                 sub={`${prevMonthDepositDate || "이번 달 15일"} 입금 예정`}
               />
-              {/* 미확정 */}
+              {/* 미확정 — 2026-06-02 클릭 → 미확정 작업 리스트 화면 */}
               <SettleBucketRow
                 color="#6B7280"
                 icon={Circle}
@@ -358,6 +475,7 @@ export function UsolNSettlementScreen({
                 count={prevMonthBuckets.unconfirmedCount}
                 amount={prevMonthBuckets.unconfirmed}
                 sub="네이버 정산 대기"
+                onClick={unconfirmedWorks.length > 0 ? () => setViewMode("unconfirmed") : null}
               />
             </div>
 
@@ -492,64 +610,69 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
           padding: "8px 14px 14px 22px",
           background: expandedBg,
         }}>
-          {(data.works || []).map((w, idx, arr) => {
-            const colors = getWorkTypeColors(w.workType);
-            // 2026-05-24 — work = task_item 단위 — key는 itemId(task_item_id)로
-            //   (같은 task의 item 측 catch task_id가 동일 → key 측 catch 측 catch React 측 catch)
-            return (
-              <div key={w.itemId || w.id || idx}
-                onClick={() => onTaskClick && w.id && onTaskClick(w.id)}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "8px 0",
-                  borderBottom: idx < arr.length - 1 ? "0.5px solid var(--border)" : "none",
-                  cursor: w.id ? "pointer" : "default",
-                  gap: 8,
-                }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
-                  <span style={{
-                    fontSize: 12, color: colors.main, fontWeight: 700,
-                    flexShrink: 0, whiteSpace: "nowrap",
-                  }}>
-                    {colors.icon} {colors.name}
-                  </span>
-                  <span style={{
-                    fontSize: 13, color: "var(--text-primary)", fontWeight: 600,
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }}>
-                    {w.customerName || w.customer || "—"}
-                    {w.workItem ? ` · ${w.workItem}` : ""}
-                    {w.quantity ? ` ×${w.quantity}` : ""}
-                  </span>
-                  {/* 2026-06-01 — bucket model 측측 측측 배지 (받음 1차/2차 / 예정 / 미확정) */}
-                  {(() => {
-                    const status = getWorkStatus(w);
-                    return (
-                      <span style={{
-                        fontSize: 10, fontWeight: 800,
-                        color: status.color,
-                        background: status.bg,
-                        padding: "2px 7px",
-                        borderRadius: 999,
-                        whiteSpace: "nowrap", flexShrink: 0,
-                        letterSpacing: 0.2,
-                      }}>{status.label}</span>
-                    );
-                  })()}
-                </div>
-                <span style={{
-                  fontSize: 13, color: "#03C75A", fontWeight: 700,
-                  flexShrink: 0,
-                }}>
-                  +{(w.feeAmount || 0).toLocaleString("ko-KR")}원
-                </span>
-              </div>
-            );
-          })}
+          {(data.works || []).map((w, idx, arr) => (
+            <UsolNWorkItemRow
+              key={w.itemId || w.id || idx}
+              w={w}
+              onClick={onTaskClick}
+              showBorder={idx < arr.length - 1}
+            />
+          ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// 2026-06-02 — 작업 단위 행 (UsolNDailyGroupCard 측 미확정 리스트 측측 공통 사용).
+//   icon + 작업유형명 + 고객명 · 작업항목 ×수량 + 상태 pill (받음/예정/미확정) + +금액.
+//   클릭 → onClick(w.id) (작업 상세 navigate).
+function UsolNWorkItemRow({ w, onClick, showBorder = true }) {
+  const colors = getWorkTypeColors(w.workType);
+  const status = getWorkStatus(w);
+  return (
+    <div
+      onClick={() => onClick && w.id && onClick(w.id)}
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "8px 0",
+        borderBottom: showBorder ? "0.5px solid var(--border)" : "none",
+        cursor: w.id ? "pointer" : "default",
+        gap: 8,
+      }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, flex: 1 }}>
+        <span style={{
+          fontSize: 12, color: colors.main, fontWeight: 700,
+          flexShrink: 0, whiteSpace: "nowrap",
+        }}>
+          {colors.icon} {colors.name}
+        </span>
+        <span style={{
+          fontSize: 13, color: "var(--text-primary)", fontWeight: 600,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>
+          {w.customerName || w.customer || "—"}
+          {w.workItem ? ` · ${w.workItem}` : ""}
+          {w.quantity ? ` ×${w.quantity}` : ""}
+        </span>
+        <span style={{
+          fontSize: 10, fontWeight: 800,
+          color: status.color,
+          background: status.bg,
+          padding: "2px 7px",
+          borderRadius: 999,
+          whiteSpace: "nowrap", flexShrink: 0,
+          letterSpacing: 0.2,
+        }}>{status.label}</span>
+      </div>
+      <span style={{
+        fontSize: 13, color: "#03C75A", fontWeight: 700,
+        flexShrink: 0,
+      }}>
+        +{(w.feeAmount || 0).toLocaleString("ko-KR")}원
+      </span>
     </div>
   );
 }
@@ -560,15 +683,20 @@ function UsolNDailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }
 //   count: N건 (옆 측측측)
 //   amount: 금액
 //   sub: 측측측 (예: "1차 X · 2차 Y" / "이번 달 15일 입금 예정")
-function SettleBucketRow({ color = "#9CA3AF", icon: Icon = Circle, label, count = 0, amount = 0, sub = null }) {
+//   2026-06-02 — onClick 옵션 추가 (미확정 행 측 측측 측측측 측측).
+function SettleBucketRow({ color = "#9CA3AF", icon: Icon = Circle, label, count = 0, amount = 0, sub = null, onClick = null }) {
+  const clickable = typeof onClick === "function";
   return (
-    <div style={{
+    <div
+      onClick={clickable ? onClick : undefined}
+      style={{
       display: "flex",
       justifyContent: "space-between",
       alignItems: "center",
       padding: "11px 0",
       gap: 10,
       borderTop: "0.5px solid rgba(255,255,255,0.08)",  // 2026-06-01 (Step 7-2): 행 측측 측측 측측
+      cursor: clickable ? "pointer" : "default",
     }}>
       <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 8 }}>
         <Icon size={18} color={color} strokeWidth={2.2} style={{ flexShrink: 0 }}/>
