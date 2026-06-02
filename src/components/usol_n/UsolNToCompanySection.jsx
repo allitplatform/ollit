@@ -12,9 +12,9 @@
 //
 // 통일: 유솔 원청 PWA (PrincipalSettleTab) 와 동일 spec.
 import { useMemo, useState, useEffect } from "react";
-import { Check, X } from "lucide-react";
+import { Check } from "lucide-react";
 import {
-  NAVER_NET_TO_COMPANY_FACTOR,
+  USOL_N_PID,
   WEEKLY_DATA_FIXED,
   fetchJuneLiveWeeks,
   fetchWeekItemsByMonday,
@@ -24,12 +24,14 @@ import {
   isDepositPast,
   depositStatusLabel,
   mdLabel,
-  kstYmd,
   C_PINK_DEPOSIT,
   C_GREEN_DONE,
   C_GRAY_MUTED,
   C_GRAY_BAR,
 } from "../../lib/usolNWeeklyData.js";
+// 2026-06-02 — 공유 드릴인 컴포넌트 + admin remit RPC.
+import { WeekSettleDetail, getWeekRemitStatus } from "../principal/WeekSettleDetail.jsx";
+import { fetchPrincipalRemitsForAdmin, confirmPrincipalRemit } from "../../lib/principalRemitDb.js";
 
 const C_PINK_DEEP = C_PINK_DEPOSIT;
 const C_GREEN     = C_GREEN_DONE;
@@ -123,10 +125,10 @@ export function UsolNToCompanySection() {
         </div>
       )}
       {selectedWeek && (
-        <WeekDetailModal
+        <UsolNAdminWeekDetail
           week={selectedWeek}
           today={today}
-          onClose={() => setSelectedWeek(null)}
+          onBack={() => setSelectedWeek(null)}
         />
       )}
     </div>
@@ -293,204 +295,121 @@ function SplitItem({ dotColor, label, amount, muted, highlight }) {
   );
 }
 
-// ── 드릴인 모달 ────────────────────────────────────────────
-// 사장님 spec:
-//   · 주차 카드 클릭 → 그 주 naver_settled task_items DB 조회 → 모달 리스트 표시.
-//   · 시트 주차 (W14~W22) 측도 동작 — 측 측 측 측 catch (DB 측 측 측 측 측 측 측 측 측 catch).
-//   · cancel 필터 적용 (118건 기준 / sumNet × 0.85 round 측 카드 메인 일치).
-//   · 5월 초 측 DB 측 measure 측 측 measure 측 측 < 헤더 — 별개 spec / 카드 측 시트값 그대로.
-//   · ItemRow 날짜 KST 변환 (UTC slice 측 측 측 catch — 5/31→6/1 측 catch).
-function WeekDetailModal({ week, today, onClose }) {
+// ── 드릴인 wrapper (admin mode) ───────────────────────────
+// 사장님 spec (2026-06-02):
+//   · 주차 카드 클릭 → 그 주 naver_settled KST 기간 DB task_items 조회 → 공유 컴포넌트 (WeekSettleDetail).
+//   · 시트 주차 (W14~W22) 측도 동작 — 측 측 측 측 catch (DB 측 측 측 측 측 측 측 측 측 catch — 별개 spec).
+//   · cancel 필터 (is_canceled / status='취소' 둘 다 제외) — fetchWeekItemsByMonday 측 measure 측.
+//   · 액션: [입금 확인] (confirmPrincipalRemit) / 유솔 보고 대기 = 비활성.
+//   · 화면·버튼 spec — 완료 기준 / deposit 표시 측 충돌 spec 측 다음 단계.
+function UsolNAdminWeekDetail({ week, today, onBack }) {
   const [items, setItems] = useState([]);
+  const [remits, setRemits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [reloadTick, setReloadTick] = useState(0);
+
+  // 검색·필터 state
+  const [search, setSearch] = useState("");
+  const [stageFilter, setStageFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
 
   useEffect(() => {
     let alive = true;
     setLoading(true);
     setError("");
-    fetchWeekItemsByMonday(week.monday)
-      .then(res => {
-        if (!alive) return;
-        if (!res.ok) {
-          setError(res.error || "조회 실패");
-          setItems([]);
-        } else {
-          setItems(res.items);
-        }
-      })
-      .finally(() => { if (alive) setLoading(false); });
+    Promise.all([
+      fetchWeekItemsByMonday(week.monday),
+      fetchPrincipalRemitsForAdmin({ principalCodes: ["usol_n"], monthsBack: 3 }),
+    ]).then(([itemsRes, remitsRes]) => {
+      if (!alive) return;
+      if (!itemsRes.ok) setError(itemsRes.error || "조회 실패");
+      else setItems(itemsRes.items);
+      if (remitsRes.ok) setRemits(remitsRes.remits || []);
+    }).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [week.monday]);
+  }, [week.monday, reloadTick]);
 
-  // sumNet × 0.85 round (운영자 ① weeklyTotal 측 동일 measure).
-  const sumNet = items.reduce((s, it) => s + (Number(it.net_amount) || 0), 0);
-  const sumSubtotal = Math.round(sumNet * NAVER_NET_TO_COMPANY_FACTOR);
+  // 측 주차 remit (week_start === week.monday).
+  const weekRemits = useMemo(() => {
+    const m = new Map();
+    for (const r of remits) {
+      if (r.week_start === week.monday) m.set(r.principal_id, r);
+    }
+    return m;
+  }, [remits, week.monday]);
 
-  const isPast = isDepositPast(week.deposit, today);
-  const statusText = depositStatusLabel(week.deposit, today);
-  const accentColor = isPast ? C_GREEN_DONE : C_PINK_DEPOSIT;
+  // remitStatus — items 측 측 측 직접 remit 측 catch.
+  const remitStatus = useMemo(() => {
+    if (items.length > 0) {
+      return getWeekRemitStatus(items, weekRemits);
+    }
+    const remit = weekRemits.get(USOL_N_PID);
+    if (!remit) return { kind: "expected", remits: [] };
+    if (remit.confirmed_at) return { kind: "done", remits: [remit] };
+    if (remit.remitted_at)  return { kind: "reported", remits: [remit] };
+    return { kind: "expected", remits: [remit] };
+  }, [items, weekRemits]);
 
-  const cardNaverCount = week.naverCount || 0;
-  const cardTotal = week.weeklyTotal || 0;
-  const dbCount = items.length;
-  const showDriftNote = !loading && cardNaverCount > 0 && dbCount !== cardNaverCount;
+  async function handleConfirm() {
+    const remitId = remitStatus.remits[0]?.id;
+    if (!remitId) {
+      alert("확인 측 remit row 측 없음");
+      return;
+    }
+    const res = await confirmPrincipalRemit({ remitId });
+    if (!res.ok) {
+      alert("확인 실패: " + (res.error || "알 수 없는 오류"));
+      return;
+    }
+    setReloadTick(v => v + 1);
+  }
+
+  // week → WeekSettleDetail spec 측 Date 측 + items 측.
+  const wkForView = useMemo(() => {
+    const [my, mm, md] = week.monday.split("-").map(Number);
+    const [sy, sm, sd] = week.sunday.split("-").map(Number);
+    return {
+      ...week,
+      key: week.weekKey,
+      monday: new Date(my, mm - 1, md),
+      sunday: new Date(sy, sm - 1, sd),
+      mondayStr: week.monday,
+      sundayStr: week.sunday,
+      items,
+    };
+  }, [week, items]);
 
   return (
-    <div style={modalOverlayStyle} onClick={onClose}>
+    <div style={modalOverlayStyle} onClick={onBack}>
       <div style={modalContentStyle} onClick={(e) => e.stopPropagation()}>
-        {/* 헤더 */}
-        <div style={{
-          display: "flex", alignItems: "flex-start", justifyContent: "space-between",
-          marginBottom: 12, gap: 10,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{
-              fontSize: 14, fontWeight: 800,
-              color: "var(--text-primary, #FAF8F5)",
-              display: "inline-flex", alignItems: "center", gap: 6,
-            }}>
-              {isPast && <Check size={14} strokeWidth={3} style={{ color: C_GREEN_DONE }}/>}
-              {mdLabel(week.monday)}~{mdLabel(week.sunday)} 정산 상세
-            </div>
-            <div style={{ fontSize: 10, color: C_GRAY, marginTop: 3, lineHeight: 1.5 }}>
-              {statusText} · 카드 메인 {cardNaverCount}건 / ₩{cardTotal.toLocaleString()}
-            </div>
-          </div>
-          <button onClick={onClose} style={closeButtonStyle} aria-label="닫기">
-            <X size={16}/>
-          </button>
-        </div>
-
-        {/* DB 조회 결과 헤더 */}
-        <div style={{
-          padding: "10px 12px", marginBottom: 10,
-          background: `${accentColor}1A`,
-          border: `1px solid ${accentColor}55`,
-          borderRadius: 10,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-        }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: accentColor }}>
-            DB 조회 {loading ? "..." : `${dbCount}건`}
-          </span>
-          <span style={{ fontSize: 13, fontWeight: 800, color: accentColor, fontFamily: "inherit" }}>
-            ₩{sumSubtotal.toLocaleString()}
-          </span>
-        </div>
-
-        {/* 시트값 ≠ DB 안내 (5월 초 측 catch) */}
-        {showDriftNote && (
-          <div style={{
-            padding: "8px 10px", marginBottom: 10,
-            background: "rgba(255,255,255,0.02)",
-            border: "1px dashed var(--border)",
-            borderRadius: 8,
-            fontSize: 10, color: C_GRAY, lineHeight: 1.5,
-          }}>
-            ⓘ 카드 (시트값) {cardNaverCount}건 vs DB {dbCount}건 — DB 측 측 측 measure 측 measure 측 측 catch.
-            카드 메인 측 시트값 그대로 표시.
-          </div>
-        )}
-
-        {/* 리스트 */}
-        {loading ? (
-          <div style={emptyMsgStyle}>불러오는 중...</div>
-        ) : error ? (
-          <div style={{ ...emptyMsgStyle, color: "#EF4444" }}>⚠️ {error}</div>
-        ) : items.length === 0 ? (
-          <div style={emptyMsgStyle}>해당 주차 측 DB 측 정산 항목 없음</div>
-        ) : (
-          <div style={{ maxHeight: 380, overflowY: "auto" }}>
-            {items.map(it => <DetailItemRow key={it.id} item={it}/>)}
-          </div>
-        )}
+        <WeekSettleDetail
+          week={wkForView}
+          loading={loading}
+          error={error}
+          actionMode="admin"
+          remitStatus={remitStatus}
+          onConfirm={handleConfirm}
+          onBack={onBack}
+          search={search} setSearch={setSearch}
+          stageFilter={stageFilter} setStageFilter={setStageFilter}
+          dateFilter={dateFilter} setDateFilter={setDateFilter}
+        />
       </div>
-    </div>
-  );
-}
-
-function DetailItemRow({ item }) {
-  // 2026-06-02 — KST 변환 (UTC slice 측 측 측 catch — 5/31→6/1).
-  const naverYmd = kstYmd(item.naver_settled_at);
-  const naverDate = naverYmd ? naverYmd.slice(5).replace("-", "/") : "";
-  const label = item.appliance_types?.name || item.work_types?.name || item.description || item.order_type || "—";
-  const qty = item.qty || 1;
-  const net = Number(item.net_amount) || 0;
-  const companyAmt = Math.round(net * NAVER_NET_TO_COMPANY_FACTOR);
-  const orderId = item.product_order_id || "";
-
-  return (
-    <div style={{
-      padding: "8px 10px", marginBottom: 4,
-      background: "var(--bg-secondary, #1A1A1A)",
-      border: "1px solid var(--border, #2A2A2A)",
-      borderRadius: 6,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{
-          flexShrink: 0,
-          fontSize: 12, fontWeight: 600,
-          color: "var(--text-primary, #FAF8F5)",
-          maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>{item.customer_name || "—"}</span>
-        <span style={{
-          flex: 1, minWidth: 0,
-          fontSize: 11, color: C_GRAY,
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }}>
-          ({label}{qty > 1 ? `×${qty}` : ""})
-          {naverDate && <> · <span style={{ color: "#BA7517", fontWeight: 600 }}>{naverDate}</span></>}
-        </span>
-        <span style={{
-          flexShrink: 0,
-          fontSize: 12, fontWeight: 700,
-          color: C_PINK_DEPOSIT, fontFamily: "inherit",
-        }}>₩{companyAmt.toLocaleString()}</span>
-      </div>
-      {orderId && (
-        <div className="mono" style={{
-          fontSize: 10, color: "#666",
-          marginTop: 2, paddingLeft: 0, letterSpacing: 0.2,
-        }}>
-          {orderId} · {item.task_no}
-        </div>
-      )}
     </div>
   );
 }
 
 const modalOverlayStyle = {
   position: "fixed", inset: 0,
-  background: "rgba(0,0,0,0.75)",
+  background: "rgba(0,0,0,0.85)",
   zIndex: 9999,
-  display: "flex", alignItems: "center", justifyContent: "center",
-  padding: 16,
-};
-const modalContentStyle = {
-  background: "var(--bg-elevated, #1F1F1F)",
-  border: "1px solid var(--border)",
-  borderRadius: 14,
-  padding: 16,
-  width: "100%", maxWidth: 480,
-  maxHeight: "85vh",
   overflowY: "auto",
 };
-const closeButtonStyle = {
-  background: "transparent",
-  border: "1px solid var(--border)",
-  borderRadius: 8,
-  width: 28, height: 28,
-  cursor: "pointer",
-  color: "var(--text-secondary)",
-  display: "flex", alignItems: "center", justifyContent: "center",
-  flexShrink: 0,
-  fontFamily: "inherit",
-};
-const emptyMsgStyle = {
-  padding: "20px 12px",
-  textAlign: "center",
-  color: "#9CA3AF",
-  fontSize: 11,
+const modalContentStyle = {
+  background: "var(--bg-primary, #0A0A0A)",
+  minHeight: "100vh",
+  width: "100%",
 };
 
 export default UsolNToCompanySection;

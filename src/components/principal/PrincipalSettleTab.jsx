@@ -50,6 +50,8 @@ import {
 } from "../../lib/usolNWeeklyData.js";
 // 2026-05-26 — 기사 입금 내역 화면 (usol_n 측 cleaning + extra_fee 15%)
 import { UsolRemitHistoryScreen } from "./UsolRemitHistoryScreen.jsx";
+// 2026-06-02 — 공유 드릴인 컴포넌트 (운영자 ① / PWA 공유).
+import { WeekSettleDetail, getWeekRemitStatus } from "./WeekSettleDetail.jsx";
 
 // 색 토큰 — 시안 확정
 const C_MAGENTA = "#FF4D9E";
@@ -113,27 +115,7 @@ function formatMDWithDow(d) {
   return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
 
-// 주차 입금 상태 — 신규 워크플로 (principal_weekly_remittances)
-// 항목 측 principal_id별 remitMap에 row가 있는지 확인
-function getWeekRemitStatus(items, remitMap) {
-  // 항목 측 principal_id 측 — 같은 주차에 여러 principal 측 측 측 catch
-  const principalIds = [...new Set(items.map(it => it.principal_id).filter(Boolean))];
-  if (principalIds.length === 0) return { kind: "expected", remits: [] };
-
-  const remits = principalIds.map(pid => remitMap.get(pid));
-  const anyExist = remits.some(r => r);
-  if (!anyExist) return { kind: "expected", remits: [] };
-
-  const allConfirmed = remits.every(r => r && r.confirmed_at);
-  if (allConfirmed) return { kind: "done", remits };
-
-  const allReported = remits.every(r => r && r.remitted_at);
-  if (allReported) return { kind: "reported", remits };
-
-  // 일부만 보고된 (혼합) 경우 — "확인 중"으로 표시
-  return { kind: "reported", remits: remits.filter(Boolean) };
-}
-
+// 2026-06-02 — getWeekRemitStatus 측 ./WeekSettleDetail.jsx 측 import (공유).
 export function PrincipalSettleTab({ principalCodes, onSelect }) {
   const [items, setItems] = useState([]);
   const [remits, setRemits] = useState([]);
@@ -432,19 +414,25 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   if (loading) return <div style={{ padding: "40px 20px", textAlign: "center", color: C_GRAY, fontSize: 12 }}>불러오는 중...</div>;
   if (error)   return <div style={{ padding: "40px 20px", textAlign: "center", color: "#EF4444", fontSize: 12 }}>⚠️ {error}</div>;
 
-  // 드릴인 뷰
+  // 드릴인 뷰 — 2026-06-02 공유 컴포넌트 WeekSettleDetail (principal mode).
   if (selectedWeekKey) {
     const wk = weeks.find(w => w.key === selectedWeekKey);
     if (!wk) { setSelectedWeekKey(null); return null; }
     const weekRemits = wk.monday ? getRemitMapForWeek(toIsoDate(wk.monday)) : new Map();
+    const isPending = wk.key === "pending";
+    const remitStatus = isPending ? null : getWeekRemitStatus(wk.items, weekRemits);
     return (
-      <WeekDetailView
+      <WeekSettleDetail
         week={wk}
-        weekRemits={weekRemits}
-        onBack={() => { setSelectedWeekKey(null); setSearch(""); setStageFilter("all"); setDateFilter(""); }}
+        actionMode="principal"
+        remitStatus={remitStatus}
         onReport={() => handleReport(wk)}
-        onUndo={(ids) => handleUndo(ids)}
-        onSelect={onSelect}
+        onUndo={() => {
+          const ids = (remitStatus?.remits || []).map(r => r.id).filter(Boolean);
+          if (ids.length > 0) return handleUndo(ids);
+        }}
+        onBack={() => { setSelectedWeekKey(null); setSearch(""); setStageFilter("all"); setDateFilter(""); }}
+        onItemClick={onSelect ? (it) => onSelect({ id: it.task_id, customer: it.customer_name, status: it.task_status }) : null}
         search={search} setSearch={setSearch}
         stageFilter={stageFilter} setStageFilter={setStageFilter}
         dateFilter={dateFilter} setDateFilter={setDateFilter}
@@ -768,299 +756,6 @@ function MonthSplitItem({ dotColor, label, amount, highlight }) {
   );
 }
 
-function WeekDetailView({ week, weekRemits, onBack, onReport, onUndo, onSelect, search, setSearch, stageFilter, setStageFilter, dateFilter, setDateFilter }) {
-  const [submitting, setSubmitting] = useState(false);
-
-  const filtered = useMemo(() => {
-    // 2026-06-02 — week.items 측 weeks useMemo 측 cancel 필터 측 적용 측 (line 211-215).
-    //   safety 측 측 측 — 측 cancel 측 측 측 측 측 redundant 측 측 측 측 spec.
-    let list = week.items.filter(it => it.is_canceled !== true && it.task_status !== "취소");
-    if (stageFilter !== "all") list = list.filter(it => getSettleStageKey(it) === stageFilter);
-    // 2026-06-02 — UTC slice(0,10) → kstYmd 변환 (KST 측 기준).
-    //   예) 2026-05-31T15:00:00Z = KST 2026-06-01 — UTC 측 5/31, KST 측 6/1.
-    if (dateFilter) list = list.filter(it => kstYmd(it.naver_settled_at) === dateFilter);
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      list = list.filter(it => {
-        const cust = String(it.customer_name || "").toLowerCase();
-        const addr = String(it.address || "").toLowerCase();
-        const tno  = String(it.task_no || "").toLowerCase();
-        const poid = String(it.product_order_id || "").toLowerCase();
-        return cust.includes(q) || addr.includes(q) || tno.includes(q) || poid.includes(q);
-      });
-    }
-    return list;
-  }, [week.items, stageFilter, dateFilter, search]);
-
-  const dateOptions = useMemo(() => {
-    const set = new Set();
-    // 2026-06-02 — KST 변환 (UTC slice(0,10) 측 측 측 측 측 catch).
-    for (const it of week.items) {
-      const ymd = kstYmd(it.naver_settled_at);
-      if (ymd) set.add(ymd);
-    }
-    return [...set].sort();
-  }, [week.items]);
-
-  // 2026-06-02 — sumSubtotal 측 카드 메인 (운영자 ① / weeklyTotal) 측 일치.
-  //   기존: 측 item별 round(net × 0.85) 합 — 측 item별 round 측 누적 측 sum 측 3원 inflate.
-  //   통일: sumNet × 0.85 후 round (운영자 ① fetchJuneLiveWeeks 측 weeklyTotal 측 동일).
-  const sumNet = filtered.reduce((s, it) => s + (Number(it.net_amount) || 0), 0);
-  const sumSubtotal = Math.round(sumNet * NAVER_NET_TO_COMPANY_FACTOR);
-  const isPending = week.key === "pending";
-  const headerLabel = isPending
-    ? "정산 대기"
-    : `${getKoreanWeekLabel(week.monday, week.sunday)}  네이버 정산 ${
-        week.mondayStr && week.sundayStr
-          ? `${mdLabel(week.mondayStr)}~${mdLabel(week.sundayStr)}`
-          : `${formatMD(week.monday)}~${formatMD(week.sunday)}`
-      }`;
-
-  // 보고 버튼 상태 — 해당 주차에 remit row가 모두 있는지(=보고됨), confirmed 측 측
-  const status = !isPending ? getWeekRemitStatus(week.items, weekRemits) : { kind: "expected", remits: [] };
-  const canReport = !isPending && status.kind === "expected";
-  const canUndo   = !isPending && status.kind === "reported";
-  const isDone    = status.kind === "done";
-
-  async function doReport() {
-    if (!confirm(`이번 주차(₩${sumSubtotal.toLocaleString()})에 입금했습니까?`)) return;
-    setSubmitting(true);
-    await onReport();
-    setSubmitting(false);
-  }
-  async function doUndo() {
-    if (!confirm("보고를 취소하시겠습니까?")) return;
-    const ids = status.remits.map(r => r.id).filter(Boolean);
-    if (ids.length === 0) return;
-    setSubmitting(true);
-    await onUndo(ids);
-    setSubmitting(false);
-  }
-
-  return (
-    <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <button onClick={onBack} style={{
-          background: "var(--bg-secondary, #1A1A1A)",
-          border: "1px solid var(--border, #2A2A2A)",
-          borderRadius: 8, padding: "6px 8px",
-          color: "var(--text-primary, #FAF8F5)",
-          cursor: "pointer", display: "flex", alignItems: "center", gap: 2,
-          fontFamily: "inherit", fontSize: 11, fontWeight: 600,
-        }}>
-          <ChevronLeft size={14}/>
-        </button>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary, #FAF8F5)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {headerLabel}
-          </div>
-          <div style={{ fontSize: 10, color: C_GRAY, marginTop: 2 }}>
-            {filtered.length}건 · <span style={{ color: C_MAGENTA, fontWeight: 700 }}>₩{sumSubtotal.toLocaleString()}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 입금 워크플로 버튼 */}
-      {!isPending && (
-        <RemitAction status={status} canReport={canReport} canUndo={canUndo} isDone={isDone}
-          submitting={submitting} onReport={doReport} onUndo={doUndo}/>
-      )}
-
-      <div style={{ position: "relative", marginBottom: 8 }}>
-        <Search size={14} style={{
-          position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
-          color: C_GRAY, pointerEvents: "none",
-        }}/>
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="고객명 / 주소 / 작업번호 / 상품주문번호"
-          style={{
-            width: "100%", padding: "9px 12px 9px 32px",
-            background: "var(--bg-secondary, #1A1A1A)",
-            border: "1px solid var(--border, #2A2A2A)",
-            borderRadius: 10,
-            color: "var(--text-primary, #FAF8F5)",
-            fontSize: 12, fontWeight: 600,
-            fontFamily: "inherit", outline: "none",
-          }}
-        />
-      </div>
-
-      {!isPending && dateOptions.length > 1 && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
-          <FilterChip active={dateFilter === ""} onClick={() => setDateFilter("")}>전체 날짜</FilterChip>
-          {dateOptions.map(d => {
-            const md = d.slice(5).replace("-", "/");
-            return <FilterChip key={d} active={dateFilter === d} onClick={() => setDateFilter(d)}>{md}</FilterChip>;
-          })}
-        </div>
-      )}
-
-      <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
-        <FilterChip active={stageFilter === "all"} onClick={() => setStageFilter("all")}>전체</FilterChip>
-        {SETTLE_STAGES.map(s => (
-          <FilterChip key={s.key} active={stageFilter === s.key} onClick={() => setStageFilter(s.key)}>
-            {s.dot} {s.label}
-          </FilterChip>
-        ))}
-      </div>
-
-      {filtered.length === 0 ? (
-        <EmptyBox>해당 항목이 없습니다</EmptyBox>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          {filtered.map(it => (
-            <SettleItemRow
-              key={it.id}
-              item={it}
-              onClick={onSelect ? () => onSelect({ id: it.task_id, customer: it.customer_name, status: it.task_status }) : null}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function RemitAction({ status, canReport, canUndo, isDone, submitting, onReport, onUndo }) {
-  if (isDone) {
-    const lastConfirm = status.remits.map(r => r.confirmed_at).filter(Boolean).sort().pop();
-    // 2026-06-02 — KST 변환 (UTC Date 측 local time 측 측 측 catch 측).
-    const ymd = kstYmd(lastConfirm);
-    return (
-      <div style={{
-        marginBottom: 12, padding: "10px 12px",
-        background: "rgba(93,202,165,0.10)",
-        border: `1px solid ${C_GREEN}55`,
-        borderRadius: 10,
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-      }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: C_GREEN, display: "inline-flex", alignItems: "center", gap: 4 }}>
-          <Check size={14} strokeWidth={3}/>회사 입금 확인 완료
-          {ymd && <span style={{ color: C_GRAY, fontWeight: 500, marginLeft: 4 }}>{mdLabel(ymd)}</span>}
-        </span>
-      </div>
-    );
-  }
-  if (canUndo) {
-    const lastReport = status.remits.map(r => r.remitted_at).filter(Boolean).sort().pop();
-    // 2026-06-02 — KST 변환.
-    const ymd = kstYmd(lastReport);
-    return (
-      <div style={{
-        marginBottom: 12, padding: "10px 12px",
-        background: "rgba(230,163,58,0.08)",
-        border: `1px solid ${C_AMBER}55`,
-        borderRadius: 10,
-        display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
-      }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C_AMBER }}>입금 보고 완료 · 회사 확인 대기</div>
-          {ymd && <div style={{ fontSize: 10, color: C_GRAY, marginTop: 2 }}>보고 시각 {mdLabel(ymd)}</div>}
-        </div>
-        <button onClick={onUndo} disabled={submitting} style={{
-          background: "transparent", border: `1px solid ${C_AMBER}`, color: C_AMBER,
-          padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 700,
-          cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit",
-          opacity: submitting ? 0.5 : 1, whiteSpace: "nowrap",
-        }}>보고 취소</button>
-      </div>
-    );
-  }
-  if (canReport) {
-    return (
-      <button onClick={onReport} disabled={submitting} style={{
-        width: "100%", marginBottom: 12, padding: 12,
-        background: C_MAGENTA, border: "none", borderRadius: 10,
-        color: "#fff", fontSize: 13, fontWeight: 700,
-        cursor: submitting ? "not-allowed" : "pointer", fontFamily: "inherit",
-        opacity: submitting ? 0.5 : 1,
-      }}>{submitting ? "보고 중..." : "💸 입금했습니다"}</button>
-    );
-  }
-  return null;
-}
-
-function SettleItemRow({ item, onClick }) {
-  const stageKey = getSettleStageKey(item);
-  const stage = SETTLE_STAGES.find(s => s.key === stageKey) || SETTLE_STAGES[0];
-  const label = getItemLabel(item);
-  const qty = item.qty || 1;
-  const companyAmt = companyAmountOf(item);
-  // 2026-06-02 — UTC slice 측 KST 변환 (예: UTC 2026-05-31T15:00:00 = KST 2026-06-01).
-  //   기존: naver_settled_at.slice(5, 10).replace("-", "/") = "05/31" (UTC).
-  //   통일: kstYmd 변환 후 MM/DD = "06/01" (KST).
-  const naverYmd = kstYmd(item.naver_settled_at);
-  const naverDate = naverYmd ? naverYmd.slice(5).replace("-", "/") : "";
-  const orderId = item.product_order_id || "";
-
-  return (
-    <div
-      onClick={onClick || undefined}
-      style={{
-        background: "var(--bg-elevated, #1F1F1F)",
-        border: "1px solid var(--border, #2A2A2A)",
-        borderLeft: `3px solid ${stage.color}`,
-        borderRadius: 8,
-        padding: "8px 10px",
-        display: "flex", flexDirection: "column", gap: 4,
-        minHeight: 38,
-        cursor: onClick ? "pointer" : "default",
-      }}
-    >
-      {/* 1줄 — 단계 + 고객명 + 정보 + 금액 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ flexShrink: 0, fontSize: 14 }}>{stage.dot}</div>
-        <span style={{
-          flexShrink: 0,
-          fontSize: 12, fontWeight: 500,
-          color: "var(--text-primary, #FAF8F5)",
-          maxWidth: 80,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>{item.customer_name || "—"}</span>
-        <span style={{
-          flex: 1, minWidth: 0,
-          fontSize: 11, fontWeight: 400, color: "#888",
-          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        }}>
-          ({label}{qty > 1 ? `×${qty}` : ""})
-          {item.district ? ` · ${item.district}` : ""}
-          {naverDate && (<>{" · "}<span style={{ color: "#BA7517", fontWeight: 600 }}>{naverDate}</span></>)}
-        </span>
-        <span style={{
-          flexShrink: 0,
-          fontSize: 12, fontWeight: 700,
-          color: C_MAGENTA, fontFamily: "inherit",
-        }}>₩{companyAmt.toLocaleString()}</span>
-      </div>
-      {/* 2줄 — 상품주문번호 (mono, 작게) */}
-      {orderId && (
-        <div className="mono" style={{
-          fontSize: 10, color: "#666", paddingLeft: 22,
-          letterSpacing: 0.2,
-        }}>
-          {orderId}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FilterChip({ children, active, onClick }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: "6px 10px",
-      background: active ? C_MAGENTA : "var(--bg-secondary, #1A1A1A)",
-      color: active ? "#fff" : "var(--text-secondary, #B5B0A8)",
-      border: `1px solid ${active ? C_MAGENTA : "var(--border, #2A2A2A)"}`,
-      borderRadius: 100,
-      fontSize: 11, fontWeight: 700,
-      cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
-    }}>{children}</button>
-  );
-}
 
 function EmptyBox({ children }) {
   return (
