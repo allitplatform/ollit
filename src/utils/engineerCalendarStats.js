@@ -26,6 +26,23 @@ function taskMatchesEngineer(task, engineer) {
   return false;
 }
 
+// 2026-06-03 Phase B — 측측 task → 측측 기사 찾기 (apiEngineers 측측).
+//   apiTasks 측 측측 측측 (id 측측 name) 측측 측측 측측 측측 측측 측측 측측 측측.
+export function findEngineerForTask(task, apiEngineers = []) {
+  if (!task) return null;
+  const taskEngId = task.assignedEngineerId || task.assigned_engineer_id || task.engineerId;
+  if (taskEngId) {
+    const byId = apiEngineers.find(e => e.id === taskEngId);
+    if (byId) return byId;
+  }
+  const taskEngName = task.assignedEngineer || task.engineer || "";
+  if (taskEngName) {
+    const byName = apiEngineers.find(e => e.name === taskEngName);
+    if (byName) return byName;
+  }
+  return null;
+}
+
 // 측측 측측 측측 task → { 'YYYY-MM-DD': [task, ...] } 측측 측측.
 //   filter: 기사 측측 + scheduled_at 측측 + 측측 측측 측측.
 export function bucketTasksByDate(apiTasks, engineer, year, month) {
