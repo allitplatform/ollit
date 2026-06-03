@@ -37,8 +37,39 @@ import { partnerFullCancel, partnerPartialCancelItem } from "../lib/cancelRpc.js
 import { FullCancelDialog, PartialCancelDialog } from "../components/CancelDialogs.jsx";
 import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
 import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
+import { supabase } from "../lib/supabase.js";
 
 const NOW = "10:00";
+
+// 2026-06-03 — KA / 크리크린 원청 PWA 분기 메타.
+//   유솔(usol_h / usol_n)은 이 객체에 없음 — 기존 UsolNOrders + 수동 입력 흐름 그대로.
+//   KA / crikrin은 냉매충전 단일 + 가격표 자동 채움 + 색상 분리.
+const PARTNER_PWA_CONFIG = {
+  KA: {
+    label:         "에어컨프로 (KA) · 직접 입력",
+    accentColor:   "#06B6D4",
+    workTypes:     ["냉매충전"],
+    appliancePool: { "냉매충전": ["벽걸이", "스탠드", "4way", "투인원", "1way"] },
+  },
+  crikrin: {
+    label:         "크리크린 · 직접 입력",
+    accentColor:   "#7F77DD",
+    workTypes:     ["냉매충전"],
+    appliancePool: { "냉매충전": ["벽걸이", "스탠드", "4way", "투인원", "1way"] },
+  },
+};
+
+// user.principals에서 KA / crikrin 우선순위로 partner 결정.
+//   유솔 통합계정(usol_h+usol_n)이면 null 반환 → 기존 유솔 흐름 유지.
+function _resolvePartnerCode(user) {
+  const codes = Array.isArray(user?.principals)
+    ? user.principals.map(p => p?.code).filter(Boolean)
+    : [];
+  for (const c of codes) {
+    if (PARTNER_PWA_CONFIG[c]) return c;
+  }
+  return null;
+}
 
 // V14 Phase 4-F-1 — 헤더 양식 통일 (AdminApp 패턴 / 페이지 진입 시점 동적 날짜)
 const TODAY = (() => {
@@ -400,12 +431,40 @@ export default function PrincipalApp({ user, onLogout }) {
   // NewTab 신규 접수용 mock fallback (사장님 spec — addTask만 필요)
   const { addTask } = useTasks();
 
-  // 2026-05-23 — user.principals (Migration 057) 측 측 → 옛 clientName fuzzy 폐기
+  // 2026-05-23 — user.principals (Migration 057) → 옛 clientName fuzzy 폐기
   //   유솔홈케어 통합계정 측 user.principals = [{code:'usol_h',...}, {code:'usol_n',...}]
-  // 2026-05-23 후속 — fetchTasks 측 catch PrincipalListTab 측 측 catch (뷰 A=가벼운 fetch, 뷰 B=전체)
+  // 2026-05-23 후속 — fetchTasks 와 PrincipalListTab 분리 (뷰 A=가벼운 fetch, 뷰 B=전체)
   const principalCodes = Array.isArray(user?.principals)
     ? user.principals.map(p => p?.code).filter(Boolean)
     : [];
+
+  // 2026-06-03 — KA / crikrin 원청 분기 (유솔이면 null)
+  const partnerCode = _resolvePartnerCode(user);
+  const partnerConfig = partnerCode ? PARTNER_PWA_CONFIG[partnerCode] : null;
+  const [quoteRates, setQuoteRates] = useState(null);
+
+  useEffect(() => {
+    if (!partnerCode) {
+      setQuoteRates(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("principals")
+        .select("code, quote_rates")
+        .eq("code", partnerCode)
+        .maybeSingle();
+      if (!alive) return;
+      if (error) {
+        console.warn("[PrincipalApp] quote_rates fetch 실패", error);
+        setQuoteRates({});
+        return;
+      }
+      setQuoteRates(data?.quote_rates || {});
+    })();
+    return () => { alive = false; };
+  }, [partnerCode]);
 
   const reset = () => {
     setTab("list");
@@ -442,7 +501,7 @@ export default function PrincipalApp({ user, onLogout }) {
                 → 뒤로가기 시 직전 화면(view A/B · filter · search · scroll) 그대로 복원 */}
             <div style={{ display: selectedTask ? "none" : "block" }}>
               {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
-              {tab === "upload" && <UploadTab t={t} user={user} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)}/>}
+              {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)}/>}
               {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
               {tab === "info"   && <InfoTab t={t} user={user} onLogout={onLogout}/>}
             </div>
@@ -516,14 +575,34 @@ function BottomNav({ t, tab, onChange }) {
   );
 }
 
-// 업로드 탭 — 토글 2개 (접수 / 정산) + "새 접수 등록" 진입.
-//   접수 → <UsolNOrders hideList/> + 새 접수 버튼
-//   정산 → <UsolNCsvMatch/>
-function UploadTab({ t, user, onTaskClick, onSubmit }) {
-  const [sub, setSub] = useState("receive");   // 'receive' | 'settle'
+// 업로드 탭 — 원청별 분기.
+//   유솔(partnerCode=null) → CSV 토글 2개 + UsolNOrders + 유솔H 직접 입력 (기존 흐름)
+//   KA / crikrin (partnerConfig 존재) → CSV 없음. 단가표 자동 채움 직접 입력만.
+function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClick, onSubmit }) {
+  const [sub, setSub] = useState("receive");   // 'receive' | 'settle'  (유솔만 사용)
   const [showNewForm, setShowNewForm] = useState(false);
 
+  // KA / crikrin 모드 — 단가표 fetch 끝나야 폼 진입
+  const isPartnerMode = !!partnerConfig;
+
   if (showNewForm) {
+    // KA / crikrin: 가격표 + 라벨 + 색상 전달
+    if (isPartnerMode) {
+      return (
+        <NewReceptionScreenLite
+          t={t}
+          onBack={() => setShowNewForm(false)}
+          onSubmit={(task) => { setShowNewForm(false); onSubmit?.(task); }}
+          principalCode={partnerCode}
+          principalLabel={partnerConfig.label}
+          workTypes={partnerConfig.workTypes}
+          appliancePool={partnerConfig.appliancePool}
+          quoteRates={quoteRates}
+          accentColor={partnerConfig.accentColor}
+        />
+      );
+    }
+    // 유솔H — 기존 default props (가격표 없음, 사용자 직접 입력)
     return (
       <NewReceptionScreenLite
         t={t}
@@ -533,6 +612,38 @@ function UploadTab({ t, user, onTaskClick, onSubmit }) {
     );
   }
 
+  // KA / crikrin 모드 — CSV 토글 숨김, 직접 입력 버튼만
+  if (isPartnerMode) {
+    const accent = partnerConfig.accentColor;
+    const ready = quoteRates !== null;
+    return (
+      <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
+        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>📤 새 접수</div>
+        <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginBottom: 12 }}>
+          {partnerConfig.label}
+        </div>
+        <button
+          onClick={() => setShowNewForm(true)}
+          disabled={!ready}
+          style={{
+            width: "100%", padding: "14px 16px",
+            background: ready ? "transparent" : t.bgInset,
+            border: `1px solid ${ready ? accent : t.border}`,
+            borderRadius: 10,
+            color: ready ? accent : t.textMuted,
+            fontSize: 13, fontWeight: 700,
+            fontFamily: "inherit",
+            cursor: ready ? "pointer" : "not-allowed",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          }}
+        >
+          <Plus size={14}/><span>{ready ? "새 접수 등록" : "단가표 불러오는 중..."}</span>
+        </button>
+      </div>
+    );
+  }
+
+  // 유솔 모드 — 기존 흐름 그대로
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
       <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>📤 업로드</div>
