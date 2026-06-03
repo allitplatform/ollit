@@ -10,6 +10,8 @@ import { detectServiceType } from "../data/serviceTypes.js";
 import { TaskCardMenu } from "./TaskCardMenu.jsx";
 import { formatTimeOnly, formatDateTimeKST } from "../utils/dateLabel.js";
 import { VisitOnlyDialog } from "./VisitOnlyDialog.jsx";
+// 2026-06-03 — 품목별 취소 (PrincipalApp 측측 측측). admin_partial_cancel_item RPC 측측.
+import { PartialCancelDialog } from "./CancelDialogs.jsx";
 // 2026-05-27 Phase 2 — localStorage memos.js → Supabase task_memos
 import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
 // Phase 5 Step 0.C-1 — 유솔N 정산 사이클 카드 (조건 분기 / 다른 원청 영향 0)
@@ -62,13 +64,15 @@ function getStateInfo(task) {
   return STATE_MAP[task.state] || { label: task.status || "예정", color: "var(--text-primary)" };
 }
 
-export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user }) {
+export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onPartialCancel, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user }) {
   // ════════════════════════════════════════════════════════════
   // 모든 hooks 측 측 측 (early return 측 측 측 측 측 — React #310 spec).
   // 2026-06-02 — early return 측 useTaskMemos 측 측 측 측 측 → hooks 순서 위반 발생 → fix.
   // ════════════════════════════════════════════════════════════
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
+  // 2026-06-03 — 품목별 취소 다이얼로그 (PartialCancelDialog).
+  const [showPartialCancelDialog, setShowPartialCancelDialog] = useState(false);
   const [exceptionExpanded, setExceptionExpanded] = useState(false);
 
   // 2026-06-02 — id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일).
@@ -239,6 +243,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           onToggle={() => setExceptionExpanded(!exceptionExpanded)}
           onVisitOnly={() => setShowVisitOnlyDialog(true)}
           onCancel={() => setShowCancelDialog(true)}
+          onPartialCancel={() => setShowPartialCancelDialog(true)}
         />
       )}
 
@@ -260,6 +265,17 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           onConfirm={(payload) => {
             setShowVisitOnlyDialog(false);
             onVisitOnly && onVisitOnly(payload);
+          }}
+        />
+      )}
+      {/* 2026-06-03 — 품목별(부분) 취소 다이얼로그 (PrincipalApp 측측 측측). */}
+      {showPartialCancelDialog && (
+        <PartialCancelDialog
+          task={task}
+          onClose={() => setShowPartialCancelDialog(false)}
+          onConfirm={async (itemIds, reason) => {
+            setShowPartialCancelDialog(false);
+            if (onPartialCancel) await onPartialCancel(itemIds, reason);
           }}
         />
       )}
@@ -1654,7 +1670,8 @@ function CompletionNotice({ task }) {
 
 // ──────────────── 7. ExceptionActions (접힘) ────────────────
 // 2026-05-26 D-5 — 톤 정돈 (글자/여백). 핸들러 측 catch — onVisitOnly / onCancel 측 catch.
-function ExceptionActions({ expanded, onToggle, onVisitOnly, onCancel }) {
+// 2026-06-03 — 품목별(부분) 취소 측측 추가 (onPartialCancel).
+function ExceptionActions({ expanded, onToggle, onVisitOnly, onCancel, onPartialCancel }) {
   return (
     <div style={{ padding: "0 20px 24px" }}>
       <div style={{
@@ -1683,8 +1700,16 @@ function ExceptionActions({ expanded, onToggle, onVisitOnly, onCancel }) {
             label="🚗 출장비만 정산 (작업 못함)"
             onClick={onVisitOnly}
           />
+          {/* 2026-06-03 — 품목별 취소 (PrincipalApp 측측 측측 / admin_partial_cancel_item RPC). */}
+          {onPartialCancel && (
+            <ExceptionButton
+              label="◐ 품목별 취소"
+              onClick={onPartialCancel}
+              color="#F59E0B"
+            />
+          )}
           <ExceptionButton
-            label="⛔ 작업 취소"
+            label="⛔ 작업 전체 취소"
             onClick={onCancel}
             color="#FF3D5A"
           />
