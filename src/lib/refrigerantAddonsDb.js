@@ -57,3 +57,68 @@ export async function fetchUnprocessedRefriAddons() {
 
   return { ok: true, items };
 }
+
+// 2026-06-03 — Phase 2b-1: 분배 측측 (read-only RPC).
+//   Migration 088 측측 preview_refrigerant_split 호출.
+//   사장님 측측 SQL 측측 측측 측측 (PGRST202 측측) → graceful: ok=false 측측 (크래시 X).
+//
+// 한글 기종 → appliance_types.code 매핑 (Phase 1 측측 저장 측측 한글).
+const APPLIANCE_KR_TO_CODE = {
+  "벽걸이":   "wall",
+  "스탠드":   "stand",
+  "1way":     "1way",
+  "4way":     "4way",
+  "투인원":   "2in1",
+  "2way":     "2way",
+  "원형":     "round",
+  "시스템멀티": "multi",
+};
+
+export function applianceCodeFromKr(kr) {
+  if (!kr) return null;
+  return APPLIANCE_KR_TO_CODE[String(kr).trim()] || null;
+}
+
+// 분배 측측 RPC.
+//   principalCode  — 라우팅된 원청 (사용자 측측 usol_n→usol_h).
+//   applianceKr    — refrigerant_addon.appliance (한글).
+//   amount         — refrigerant_addon.amount.
+//   engineerId     — 배정 기사 UUID (NULL 측측 rate=50 fallback).
+// 반환: { ok, engineer, principal, company, total, calc_method, refrigerant_rate } 또는 { ok:false, error }.
+export async function previewRefrigerantSplit({ principalCode, applianceKr, amount, engineerId }) {
+  if (!principalCode || !applianceKr || !amount || amount <= 0) {
+    return { ok: false, error: "invalid_args" };
+  }
+  const applianceCode = applianceCodeFromKr(applianceKr);
+  if (!applianceCode) {
+    return { ok: false, error: "appliance_map_missing" };
+  }
+  try {
+    const { data, error } = await supabase.rpc("preview_refrigerant_split", {
+      p_principal_code: principalCode,
+      p_appliance_code: applianceCode,
+      p_amount:         Number(amount),
+      p_engineer_id:    engineerId || null,
+    });
+    if (error) {
+      // PGRST202 = function not found 등. graceful fallback.
+      console.warn("[refrigerantAddonsDb.previewSplit] RPC error:", error.message);
+      return { ok: false, error: error.message || "rpc_error" };
+    }
+    if (!data || data.ok === false) {
+      return { ok: false, error: data?.error || "preview_failed" };
+    }
+    return {
+      ok:               true,
+      engineer:         Number(data.engineer) || 0,
+      principal:        Number(data.principal) || 0,
+      company:          Number(data.company) || 0,
+      total:            Number(data.total) || 0,
+      calc_method:      data.calc_method || null,
+      refrigerant_rate: Number(data.refrigerant_rate) || 0,
+    };
+  } catch (e) {
+    console.warn("[refrigerantAddonsDb.previewSplit] 측측:", e?.message);
+    return { ok: false, error: e?.message || "exception" };
+  }
+}

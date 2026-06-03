@@ -9,7 +9,7 @@
 //   [냉매 작업 만들기] 측측 측측 자리 — 측측 측측 (2b 측측 측측).
 import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { fetchUnprocessedRefriAddons } from "../../lib/refrigerantAddonsDb.js";
+import { fetchUnprocessedRefriAddons, previewRefrigerantSplit } from "../../lib/refrigerantAddonsDb.js";
 
 function fmtKstDate(iso) {
   if (!iso) return "—";
@@ -139,6 +139,32 @@ export function RefrigerantAddonListScreen({ t, onBack, onTaskClick }) {
 
 function RefriCard({ t, item, onClickTask }) {
   const isUsolN = item.principal_code === "usol_n";
+  // 2026-06-03 — Phase 2b-1: 분배 미리보기 RPC.
+  //   라우팅 측 원청(routed_principal_code) 측측 호출. RPC 실패/함수 측측 측측 측측 측측 (—).
+  //   카드 mount 측 1회 측측.
+  const [preview, setPreview] = useState(null);
+  const [previewState, setPreviewState] = useState("loading"); // 'loading' | 'ok' | 'fail'
+  useEffect(() => {
+    let alive = true;
+    setPreviewState("loading");
+    previewRefrigerantSplit({
+      principalCode: item.routed_principal_code,
+      applianceKr:   item.addon_appliance,
+      amount:        item.addon_amount,
+      engineerId:    item.engineer_id,
+    }).then(res => {
+      if (!alive) return;
+      if (res.ok) {
+        setPreview(res);
+        setPreviewState("ok");
+      } else {
+        setPreview(null);
+        setPreviewState("fail");
+      }
+    });
+    return () => { alive = false; };
+  }, [item.routed_principal_code, item.addon_appliance, item.addon_amount, item.engineer_id]);
+
   return (
     <div style={{
       background: t.bgElevated || t.bg,
@@ -196,6 +222,9 @@ function RefriCard({ t, item, onClickTask }) {
         }
       </div>
 
+      {/* 2026-06-03 — Phase 2b-1: 분배 측측 (read-only preview_refrigerant_split RPC). */}
+      <SplitPreview t={t} state={previewState} preview={preview}/>
+
       {/* 원본 task 정보 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
@@ -237,6 +266,78 @@ function RefriCard({ t, item, onClickTask }) {
       >
         🛠️ 냉매 작업 만들기 (측측 측측)
       </button>
+    </div>
+  );
+}
+
+// 2026-06-03 — Phase 2b-1: 분배 측측 측측.
+//   ok 측측 측측 "기사 ₩X / 회사 ₩Y / 원청 ₩Z" + refrigerant_rate 표시.
+//   loading 측측 측측 / fail 측측 측측 측측 측측 "—" 표시 (= 측측 측측 측측 측측).
+function SplitPreview({ t, state, preview }) {
+  if (state === "loading") {
+    return (
+      <div style={previewBoxStyle(t)}>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>분배 측측</span>
+        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginLeft: 8 }}>측측 중...</span>
+      </div>
+    );
+  }
+  if (state === "fail" || !preview) {
+    return (
+      <div style={previewBoxStyle(t)}>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>분배 측측</span>
+        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginLeft: 8 }}>
+          — (측측 측측: 사장님 측측 SQL 측측 측측)
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div style={previewBoxStyle(t)}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 6, gap: 8,
+      }}>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>
+          분배 측측
+        </span>
+        <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 600 }}>
+          {preview.calc_method || "—"} · 기사 rate {preview.refrigerant_rate}%
+        </span>
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <SplitPill t={t} label="기사" amount={preview.engineer} color="#03C75A"/>
+        <SplitPill t={t} label="회사" amount={preview.company}  color={t.accent}/>
+        <SplitPill t={t} label="원청" amount={preview.principal} color="#FFB800"/>
+      </div>
+    </div>
+  );
+}
+
+function previewBoxStyle(t) {
+  return {
+    background: t.bgInset || "rgba(255,255,255,0.03)",
+    border: `1px solid ${t.border}`,
+    borderRadius: 8,
+    padding: "8px 10px",
+    marginBottom: 8,
+  };
+}
+
+function SplitPill({ t, label, amount, color }) {
+  return (
+    <div style={{
+      flex: 1,
+      background: t.bg || "transparent",
+      border: `1px solid ${t.border}`,
+      borderRadius: 6,
+      padding: "6px 8px",
+      textAlign: "center",
+    }}>
+      <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 2 }}>{label}</div>
+      <div className="mono" style={{ fontSize: 12, fontWeight: 800, color }}>
+        ₩{(Number(amount) || 0).toLocaleString("ko-KR")}
+      </div>
     </div>
   );
 }
