@@ -108,7 +108,7 @@ export async function createRefrigerantTaskFromAddon(sourceTaskId) {
       consent_copied: !!data.consent_copied,
     };
   } catch (e) {
-    console.warn("[refrigerantAddonsDb.create] 측측:", e?.message);
+    console.warn("[refrigerantAddonsDb.create] 예외:", e?.message);
     return { ok: false, error: e?.message || "exception" };
   }
 }
@@ -152,7 +152,7 @@ export async function previewRefrigerantSplit({ principalCode, applianceKr, amou
       refrigerant_rate: Number(data.refrigerant_rate) || 0,
     };
   } catch (e) {
-    console.warn("[refrigerantAddonsDb.previewSplit] 측측:", e?.message);
+    console.warn("[refrigerantAddonsDb.previewSplit] 예외:", e?.message);
     return { ok: false, error: e?.message || "exception" };
   }
 }

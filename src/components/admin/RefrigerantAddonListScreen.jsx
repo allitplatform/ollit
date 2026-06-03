@@ -43,7 +43,7 @@ export function RefrigerantAddonListScreen({ t, onBack, onTaskClick }) {
       .then(res => {
         if (!alive) return;
         if (!res.ok) {
-          setError(res.error || "측측 실패");
+          setError(res.error || "조회 실패");
           setItems([]);
         } else {
           setItems(res.items || []);
@@ -120,7 +120,7 @@ export function RefrigerantAddonListScreen({ t, onBack, onTaskClick }) {
       {/* 목록 */}
       <div style={{ padding: "8px 16px" }}>
         {loading ? (
-          <EmptyBox t={t}>측측 중...</EmptyBox>
+          <EmptyBox t={t}>불러오는 중...</EmptyBox>
         ) : error ? (
           <EmptyBox t={t}><span style={{ color: t.danger || "#EF4444" }}>⚠️ {error}</span></EmptyBox>
         ) : items.length === 0 ? (
@@ -161,10 +161,10 @@ function RefriCard({ t, item, onClickTask, onProcessed }) {
     }
     const fmt = (n) => `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
     const principalLabel = item.routed_principal_name || item.routed_principal_code || "—";
-    const msg = `[${item.task_no}-R] 측측\n` +
+    const msg = `[${item.task_no}-R] 냉매 작업 생성\n` +
                 `원청: ${principalLabel}\n` +
                 `기사 ${fmt(preview.engineer)} / 회사 ${fmt(preview.company)} / 원청 ${fmt(preview.principal)}\n\n` +
-                `위 측측 측측 측측+완료. 진행할까요?`;
+                `위 내용으로 냉매 작업 생성 + 완료 처리합니다. 진행할까요?`;
     if (!window.confirm(msg)) return;
     setBusy(true);
     const res = await createRefrigerantTaskFromAddon(item.id);
@@ -173,8 +173,8 @@ function RefriCard({ t, item, onClickTask, onProcessed }) {
       alert(`생성 실패: ${res.error || "알 수 없는 오류"}`);
       return;
     }
-    alert(`✓ ${res.task_no} 측측\n기사 ${fmt(res.engineer)} / 회사 ${fmt(res.company)} / 원청 ${fmt(res.principal)} / 트랙 ${res.track}` +
-          (res.consent_copied ? "\n동의서 복사 측측" : ""));
+    alert(`✓ ${res.task_no} 생성됨\n기사 ${fmt(res.engineer)} / 회사 ${fmt(res.company)} / 원청 ${fmt(res.principal)} / 트랙 ${res.track}` +
+          (res.consent_copied ? "\n동의서 복사 완료" : ""));
     onProcessed && onProcessed();
   }
   useEffect(() => {
@@ -250,8 +250,8 @@ function RefriCard({ t, item, onClickTask, onProcessed }) {
         marginBottom: 8,
       }}>
         {isUsolN
-          ? <>측측: <b style={{ color: "#03C75A" }}>유솔홈케어 H</b>로 생성 (usol_n 세척 → usol_h 측측)</>
-          : <>측측: <b style={{ color: t.text }}>{item.principal_name || item.principal_code || "—"}</b> 그대로</>
+          ? <>소속: <b style={{ color: "#03C75A" }}>유솔홈케어 H</b>로 생성 (usol_n 세척 → usol_h 자동)</>
+          : <>소속: <b style={{ color: t.text }}>{item.principal_name || item.principal_code || "—"}</b> 그대로</>
         }
       </div>
 
@@ -285,7 +285,7 @@ function RefriCard({ t, item, onClickTask, onProcessed }) {
         type="button"
         onClick={handleCreate}
         disabled={busy || previewState !== "ok"}
-        title={previewState !== "ok" ? "분배 미리보기 준비 측 측측 측측 측측" : "냉매 task 측측 + 완료"}
+        title={previewState !== "ok" ? "분배 미리보기 준비 후 다시 시도해 주세요" : "냉매 작업 생성 + 완료"}
         style={{
           width: "100%", marginTop: 10,
           padding: "10px 12px",
@@ -300,7 +300,7 @@ function RefriCard({ t, item, onClickTask, onProcessed }) {
           fontFamily: "inherit",
         }}
       >
-        {busy ? "측측 중..." : "🛠️ 냉매 작업 만들기"}
+        {busy ? "생성 중..." : "🛠️ 냉매 작업 만들기"}
       </button>
     </div>
   );
@@ -313,17 +313,17 @@ function SplitPreview({ t, state, preview }) {
   if (state === "loading") {
     return (
       <div style={previewBoxStyle(t)}>
-        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>분배 측측</span>
-        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginLeft: 8 }}>측측 중...</span>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>분배 미리보기</span>
+        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginLeft: 8 }}>불러오는 중...</span>
       </div>
     );
   }
   if (state === "fail" || !preview) {
     return (
       <div style={previewBoxStyle(t)}>
-        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>분배 측측</span>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>분배 미리보기</span>
         <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginLeft: 8 }}>
-          — (측측 측측: 사장님 측측 SQL 측측 측측)
+          — (불러오기 실패: SQL 설치 필요)
         </span>
       </div>
     );
@@ -335,7 +335,7 @@ function SplitPreview({ t, state, preview }) {
         marginBottom: 6, gap: 8,
       }}>
         <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>
-          분배 측측
+          분배 미리보기
         </span>
         <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 600 }}>
           {preview.calc_method || "—"} · 기사 rate {preview.refrigerant_rate}%

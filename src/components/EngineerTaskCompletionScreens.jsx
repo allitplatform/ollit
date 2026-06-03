@@ -1059,7 +1059,7 @@ function RefrigerantAddonCard({ hasAddon, setHasAddon, appliance, setAppliance, 
               />
             </div>
             <div style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", lineHeight: 1.5 }}>
-              ℹ️ 완료 처리 측 별도 냉매 작업(현금/일정산)으로 측측측. 측측 세척 정산엔 영향 없음.
+              ℹ️ 완료 처리 시 별도 냉매 작업(현금/일정산)으로 생성됩니다. 기존 세척 정산엔 영향 없음.
             </div>
           </div>
         )}
