@@ -127,6 +127,8 @@ import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddon
 import { RevenueOverviewBlock } from "../components/admin/RevenueOverviewBlock.jsx";
 // 2026-06-03 — 매출 자세히 화면 (2차).
 import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
+// 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점).
+import { EngineerCalendarScreen } from "../components/admin/EngineerCalendarScreen.jsx";
 // 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
 import { fetchUnprocessedRefriAddons, rollbackRefrigerantAddonSource } from "../lib/refrigerantAddonsDb.js";
 import {
@@ -3279,6 +3281,18 @@ export default function AdminApp({ user, onLogout }) {
       />
     </Shell>;
   }
+  // 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점, 기사 검색).
+  if (screen === "engineerCalendar") {
+    return <Shell t={t} toasts={toasts}>
+      <EngineerCalendarScreen
+        t={t}
+        apiTasks={apiTasks}
+        apiEngineers={apiEngineers}
+        onBack={goBack}
+        onTaskClick={(task) => goTaskDetail({ id: task.id, task_no: task.task_no, customer_name: task.customer }, "engineerCalendar")}
+      />
+    </Shell>;
+  }
   // 2026-06-03 — Phase 2a: 냉매 미처리 목록 (read-only, 측측 0).
   if (screen === "refrigerantAddonList") {
     return <Shell t={t} toasts={toasts}>
@@ -3658,6 +3672,7 @@ export default function AdminApp({ user, onLogout }) {
       onClickInProgress={() => setScreen("inProgressList")}
       onClickReassign={() => setScreen("reassignList")}
       onClickRefriAddon={() => setScreen("refrigerantAddonList")}
+      onClickEngineerCalendar={() => setScreen("engineerCalendar")}
       refrigerantAddonCount={refrigerantAddonCount}
       onClickRevenueDetail={() => setScreen("revenueDetail")}
       onClickSettlement={() => setScreen("settlement")}
@@ -3743,7 +3758,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -3986,7 +4001,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onClickEngineerCalendar={onClickEngineerCalendar}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -4006,7 +4021,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
-function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks }) {
+function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onClickEngineerCalendar }) {
   return (
     <div style={{ padding: "0 16px 16px" }}>
       {/* 2026-05-26 — 유솔N 진입 카드 ("미배정 N건")
@@ -4103,6 +4118,43 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
           </button>
         );
       })()}
+
+      {/* 2026-06-03 — 기사별 달력 진입 (Phase A: 월 격자 + 일정 점). */}
+      {onClickEngineerCalendar && (
+        <button
+          onClick={onClickEngineerCalendar}
+          style={{
+            width: "100%",
+            padding: "12px 14px",
+            background: "var(--bg-elevated)",
+            border: "0.5px solid var(--border)",
+            borderRadius: 10,
+            marginBottom: 14,
+            cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 12,
+            fontFamily: "inherit",
+            textAlign: "left",
+          }}
+        >
+          <span style={{
+            width: 38, height: 38, flexShrink: 0,
+            background: "var(--accent-bg)",
+            borderRadius: 9,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <Calendar size={20} style={{ color: "var(--accent)" }}/>
+          </span>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+              기사별 달력
+            </span>
+            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+              월 격자 · 일정 한눈에
+            </span>
+          </div>
+          <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
+        </button>
+      )}
 
       {/* + 새 접수 등록 (Step 5-1d: placeholder → 실제 폼 연결, FAB 제거) */}
       <button onClick={onClickAddReception} style={{
