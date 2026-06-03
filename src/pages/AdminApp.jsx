@@ -2677,6 +2677,15 @@ export default function AdminApp({ user, onLogout }) {
           // 2026-05-25 Round 2 — 운영자 부분취소 (item별 admin_partial_cancel_item RPC 순차 호출).
           const tk = selectedTaskDetail;
           if (!tk?.id || !Array.isArray(itemIds) || itemIds.length === 0) return;
+          // 2026-06-03 — 송금 측측 작업 측측 측측 confirm (= 전체 취소 측측 동일 패턴).
+          //   품목 취소 측 task_items.is_canceled=true → 트리거 측측 payments 재계산되지만
+          //   engineerRemittedAt / confirmedAt 측측 측측 그대로 → 측측 측측 측측 측측.
+          if (tk.engineerRemittedAt || tk.engineerRemitConfirmedAt) {
+            const ok2 = window.confirm(
+              "이미 송금된 작업입니다.\n품목 취소 시 수동 환불 필요.\n진행할까요?"
+            );
+            if (!ok2) return;
+          }
           let ok = 0, fail = 0;
           for (const itemId of itemIds) {
             const res = await adminPartialCancelItem(itemId, reason);
