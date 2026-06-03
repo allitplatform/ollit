@@ -22,22 +22,45 @@ const COLOR_CLEANING    = "#3B82F6"; // 측측 측측
 const COLOR_REFRIGERANT = "#FFB800"; // 측측 측측
 const COLOR_OTHER       = "#9CA3AF"; // 측측 회색
 
-export function EngineerCalendarScreen({ t, apiTasks = [], apiEngineers = [], onBack, onTaskClick }) {
+export function EngineerCalendarScreen({
+  t, apiTasks = [], apiEngineers = [], onBack, onTaskClick,
+  // 2026-06-03 — 상태 lift (AdminApp 측측 측측 → 측측 측측 → 측측 측측 측측 같은 측측 측측).
+  //   값이 null 측측 = 측측 측측 (= 측측 측측 측측 측측 → 측측 + 측측 측측 측측측).
+  engineerId, setEngineerId,
+  year, setYear,
+  month, setMonth,
+  selectedYmd, setSelectedYmd,
+}) {
   // 측측 측측 측측 측측 default.
   const todayKst = todayYmd();
   const [y0, m0] = todayKst.split("-").map(Number);
 
-  // 기사 측측 (id) + 검색.
-  const [engineerId, setEngineerId] = useState(apiEngineers[0]?.id || null);
+  // 2026-06-03 — 측측 측측 측측측 (= AdminApp 측측 측측 null 측측 첫 진입 측측).
+  //   measure 기사 / 측측 측측 측측측 → 측측 측측 측측 측측.
+  //   apiEngineers 측측 측측 측측 (fetch 측측) → useEffect 측측 측측.
+  useEffect(() => {
+    if (engineerId == null && apiEngineers.length > 0) {
+      setEngineerId(apiEngineers[0].id);
+    }
+    if (year == null)        setYear(y0);
+    if (month == null)       setMonth(m0);
+    if (selectedYmd == null) setSelectedYmd(todayKst);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiEngineers, engineerId, year, month, selectedYmd]);
+
+  // 검색 (기사).
   const [engQuery, setEngQuery] = useState("");
   const [engPickerOpen, setEngPickerOpen] = useState(false);
 
-  // 월 측측.
-  const [year, setYear]   = useState(y0);
-  const [month, setMonth] = useState(m0);
-
-  // 측측 측측 측측 (default = 측측).
-  const [selectedYmd, setSelectedYmd] = useState(todayKst);
+  // 측측 측측 → 기사 측측 = 측측 측측측 (= 사장님 측측: "기사 측측 시 측측 측측").
+  function pickEngineer(newId) {
+    setEngineerId(newId);
+    setYear(y0);
+    setMonth(m0);
+    setSelectedYmd(todayKst);
+    setEngPickerOpen(false);
+    setEngQuery("");
+  }
 
   // 2026-06-03 Phase B — 측측측 검색 (전체 측측, 측측 측측).
   const [custQuery, setCustQuery] = useState("");
@@ -46,6 +69,11 @@ export function EngineerCalendarScreen({ t, apiTasks = [], apiEngineers = [], on
     const id = setTimeout(() => setDebouncedQuery(custQuery.trim()), DEBOUNCE_MS);
     return () => clearTimeout(id);
   }, [custQuery]);
+
+  // useEffect 측측 측측 측측 측측 측측 측측 측측 (= 첫 render 측측 측측 측측 X).
+  const safeYear        = year        ?? y0;
+  const safeMonth       = month       ?? m0;
+  const safeSelectedYmd = selectedYmd ?? todayKst;
 
   const engineer = useMemo(
     () => apiEngineers.find(e => e.id === engineerId) || null,
@@ -58,12 +86,12 @@ export function EngineerCalendarScreen({ t, apiTasks = [], apiEngineers = [], on
     return apiEngineers.filter(e => (e.name || "").toLowerCase().includes(q));
   }, [apiEngineers, engQuery]);
 
-  const monthGrid = useMemo(() => getMonthGrid(year, month), [year, month]);
+  const monthGrid = useMemo(() => getMonthGrid(safeYear, safeMonth), [safeYear, safeMonth]);
 
   // 측측: 측측 측측 측측 dict (YMD → task[]).
   const tasksByDate = useMemo(
-    () => bucketTasksByDate(apiTasks, engineer, year, month),
-    [apiTasks, engineer, year, month]
+    () => bucketTasksByDate(apiTasks, engineer, safeYear, safeMonth),
+    [apiTasks, engineer, safeYear, safeMonth]
   );
 
   // 측측 measure 측측.
@@ -82,14 +110,14 @@ export function EngineerCalendarScreen({ t, apiTasks = [], apiEngineers = [], on
 
   // 측측 측측 task[] (시간 정렬).
   const dayTasks = useMemo(() => {
-    const arr = (tasksByDate[selectedYmd] || []).slice();
+    const arr = (tasksByDate[safeSelectedYmd] || []).slice();
     arr.sort((a, b) => {
       const sa = a.scheduledAt || a.scheduled_at || "";
       const sb = b.scheduledAt || b.scheduled_at || "";
       return sa.localeCompare(sb);
     });
     return arr;
-  }, [tasksByDate, selectedYmd]);
+  }, [tasksByDate, safeSelectedYmd]);
 
   // 2026-06-03 Phase B — 측측측 검색 측측 (전체 apiTasks, 클라 측측).
   //   취소 측측, 측측측 측측측 측측 (= 측측측 측측 측측 측측 측측 측측 측측 측측 X).
@@ -132,12 +160,12 @@ export function EngineerCalendarScreen({ t, apiTasks = [], apiEngineers = [], on
   }
 
   function prevMonth() {
-    if (month === 1) { setYear(year - 1); setMonth(12); }
-    else             { setMonth(month - 1); }
+    if (safeMonth === 1) { setYear(safeYear - 1); setMonth(12); }
+    else                 { setMonth(safeMonth - 1); }
   }
   function nextMonth() {
-    if (month === 12) { setYear(year + 1); setMonth(1); }
-    else              { setMonth(month + 1); }
+    if (safeMonth === 12) { setYear(safeYear + 1); setMonth(1); }
+    else                  { setMonth(safeMonth + 1); }
   }
   function goToday() {
     const [yy, mm] = todayKst.split("-").map(Number);
@@ -378,7 +406,7 @@ export function EngineerCalendarScreen({ t, apiTasks = [], apiEngineers = [], on
               ) : filteredEngineers.map(e => (
                 <button
                   key={e.id}
-                  onClick={() => { setEngineerId(e.id); setEngPickerOpen(false); setEngQuery(""); }}
+                  onClick={() => pickEngineer(e.id)}
                   style={{
                     width: "100%",
                     display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -419,7 +447,7 @@ export function EngineerCalendarScreen({ t, apiTasks = [], apiEngineers = [], on
             fontSize: 15, fontWeight: 800, color: t.text,
             minWidth: 110, textAlign: "center",
           }}>
-            {year}년 {month}월
+            {safeYear}년 {safeMonth}월
           </div>
           <button onClick={nextMonth} style={navBtnStyle(t)} aria-label="다음 달">
             <ChevronRight size={18}/>
@@ -458,7 +486,7 @@ export function EngineerCalendarScreen({ t, apiTasks = [], apiEngineers = [], on
             }
             const tasks = tasksByDate[cell.ymd] || [];
             const isToday    = cell.ymd === todayKst;
-            const isSelected = cell.ymd === selectedYmd;
+            const isSelected = cell.ymd === safeSelectedYmd;
             const dow = idx % 7;
             const dayColor = dow === 0 ? "#EF4444" : dow === 6 ? "#3B82F6" : t.text;
             const cls = classifyByService(tasks);
@@ -502,7 +530,7 @@ export function EngineerCalendarScreen({ t, apiTasks = [], apiEngineers = [], on
           marginBottom: 8,
         }}>
           <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>
-            {fmtDayLabel(selectedYmd)}
+            {fmtDayLabel(safeSelectedYmd)}
           </span>
           <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
             {dayTasks.length}건

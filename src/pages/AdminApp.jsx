@@ -1937,6 +1937,13 @@ export default function AdminApp({ user, onLogout }) {
   //   refrigerantAddonList screen 측측 fetch 측 측측 정합 보장.
   const [refrigerantAddonCount, setRefrigerantAddonCount] = useState(0);
 
+  // 2026-06-03 — 기사별 달력 측측 lift (= 측측 측측 → 측측 측측 → 측측 측측 측측 같은 측측 측측 측측 측측).
+  //   null = 측측 측측 측측 (= 측측 측측 측측 측측 측 측측 측측 측측 측측 측측측).
+  const [calEngineerId,    setCalEngineerId]    = useState(null);
+  const [calYear,          setCalYear]          = useState(null);
+  const [calMonth,         setCalMonth]         = useState(null);
+  const [calSelectedYmd,   setCalSelectedYmd]   = useState(null);
+
   // V14 Week 2 2A — 진짜 시트 작업DB catch (apiTasks)
   const [apiTasks, setApiTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
@@ -3282,6 +3289,7 @@ export default function AdminApp({ user, onLogout }) {
     </Shell>;
   }
   // 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점, 기사 검색).
+  //   상태 lift (AdminApp 측측): 측측 측측 → 측측 측측 → 측측 측측 같은 기사/월/측측 측측 측측.
   if (screen === "engineerCalendar") {
     return <Shell t={t} toasts={toasts}>
       <EngineerCalendarScreen
@@ -3290,6 +3298,14 @@ export default function AdminApp({ user, onLogout }) {
         apiEngineers={apiEngineers}
         onBack={goBack}
         onTaskClick={(task) => goTaskDetail({ id: task.id, task_no: task.task_no, customer_name: task.customer }, "engineerCalendar")}
+        engineerId={calEngineerId}
+        year={calYear}
+        month={calMonth}
+        selectedYmd={calSelectedYmd}
+        setEngineerId={setCalEngineerId}
+        setYear={setCalYear}
+        setMonth={setCalMonth}
+        setSelectedYmd={setCalSelectedYmd}
       />
     </Shell>;
   }
