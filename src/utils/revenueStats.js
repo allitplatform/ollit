@@ -1,0 +1,91 @@
+// 2026-06-03 — 매출 통계 helper (대시보드 "매출 현황" 블록 측측).
+//   드리프트 측측 측측 dataset 측측 — computeDashboardStats 측측 측측 측측:
+//     · isTrackARemittance(t) — 트랙 A + 완료/visit_only (= 유솔N 세척/추가선택 측측 측측)
+//     · toKstYmd(completed) 측측 KST 측측 측측
+//     · total = task.totalAmount (GENERATED = product_price + extra_fee + travel_fee)
+//     · margin = owner_amount / engineer = engineer_amount / principal = principal_amount
+//   compute_payment v16 측측 engineer + principal + owner = totalAmount 측측 보장.
+//
+// 종류별 (cleaning/refrigerant):
+//   task.workItems 측 본작업(orderType='본작업') 측측 측측 serviceCode 측측 task-level 측측.
+//   단일 service task 측측 (= 측측 측측측 측측) — 측측 측측 측측.
+
+import { toKstYmd } from "./dateLabel.js";
+import { isTrackARemittance } from "./remitFilter.js";
+import { canSeeField } from "../data/permissions.js";
+
+const EMPTY = {
+  total: 0, engineer: 0, principal: 0, owner: 0,
+  byService: { cleaning: 0, refrigerant: 0, other: 0 },
+  count: 0,
+};
+
+// task 측측 측측 service code (= 측측 본작업 또는 첫 측측 측측).
+function pickServiceCode(task) {
+  const items = Array.isArray(task.workItems) ? task.workItems : [];
+  if (items.length === 0) return null;
+  const main = items.find(it => (it.orderType || it.order_type) === "본작업") || items[0];
+  return main?.serviceCode || main?.service_code || null;
+}
+
+// 핵심 helper — 측측 측측측 측측 (startYmd ~ endYmd, KST). startYmd <= endYmd 측측.
+//   apiTasks 측측 측측 측측 — computeDashboardStats 측측 측측 일치.
+export function computeRevenueByYmRange(apiTasks, startYmd, endYmd, user) {
+  if (!canSeeField(user, "task.total_amount")) return { ...EMPTY };
+  if (!startYmd || !endYmd) return { ...EMPTY };
+
+  const list = (apiTasks || []).filter(t => {
+    if (!isTrackARemittance(t)) return false;
+    const completed = t.completedAt || t.completed_at || t.completedDate || t.완료시간 || t.completedTime;
+    if (!completed) return false;
+    const ymd = toKstYmd(completed);
+    if (!ymd) return false;
+    return ymd >= startYmd && ymd <= endYmd;
+  });
+
+  let total = 0, engineer = 0, principal = 0, owner = 0;
+  let cleaning = 0, refrigerant = 0, other = 0;
+  for (const t of list) {
+    const amt = Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
+    total     += amt;
+    engineer  += Number(t.engineer_amount || 0);
+    principal += Number(t.principal_amount || 0);
+    owner     += Number(t.owner_amount || 0);
+
+    const code = pickServiceCode(t);
+    if (code === "cleaning")          cleaning    += amt;
+    else if (code === "refrigerant")  refrigerant += amt;
+    else                              other       += amt;
+  }
+
+  return {
+    total, engineer, principal, owner,
+    byService: { cleaning, refrigerant, other },
+    count: list.length,
+  };
+}
+
+// "YYYY-MM-DD" → 같은 day 측측 측측측 동일일 (= 측측 측측 측측 측측 last day 측측 clamp).
+//   예: 3/31 → 2월 28일 (또는 29일, 윤년).
+export function getPrevMonthSameDay(todayYmdStr) {
+  const [y, m, d] = todayYmdStr.split("-").map(Number);
+  const prevY = m === 1 ? y - 1 : y;
+  const prevM = m === 1 ? 12 : m - 1;
+  // JS Date(year, month, 0) = previous month's last day. month는 1-based로 들어와 그대로 사용 측측 = 측측 측측 last day.
+  const prevLastDay = new Date(prevY, prevM, 0).getDate();
+  const useD = Math.min(d, prevLastDay);
+  return `${prevY}-${String(prevM).padStart(2, "0")}-${String(useD).padStart(2, "0")}`;
+}
+
+// "YYYY-MM-DD" → 그 달 1일 (KST).
+export function getMonthStart(ymdStr) {
+  return ymdStr.slice(0, 7) + "-01";
+}
+
+// "YYYY-MM-DD" → 지난달 1일 (KST).
+export function getPrevMonthStart(todayYmdStr) {
+  const [y, m] = todayYmdStr.split("-").map(Number);
+  const prevY = m === 1 ? y - 1 : y;
+  const prevM = m === 1 ? 12 : m - 1;
+  return `${prevY}-${String(prevM).padStart(2, "0")}-01`;
+}

@@ -123,6 +123,8 @@ import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
 import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
+// 2026-06-03 — 대시보드 "매출 현황" 블록.
+import { RevenueOverviewBlock } from "../components/admin/RevenueOverviewBlock.jsx";
 // 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
 import { fetchUnprocessedRefriAddons, rollbackRefrigerantAddonSource } from "../lib/refrigerantAddonsDb.js";
 import {
@@ -3884,6 +3886,9 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>👷</span>} label="프로 정산"          value={dynamicStats?.revenue?.engineer  ?? TODAY_STATS.engineerNet}  color={t.text}/>
           <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>🤝</span>} label="원청 수수료"        value={dynamicStats?.revenue?.principal ?? TODAY_STATS.principalFee} color={t.text}/>
         </div>
+
+        {/* 2026-06-03 — 매출 현황 블록 (시안 그대로 / 드리프트 0). */}
+        <RevenueOverviewBlock t={t} apiTasks={apiTasks} user={user}/>
 
         {/* V14 큰 흐름 — 취소 요청 알림 (status='취소요청' 인 작업) */}
         {(apiTasks || []).filter(t => (t.status || t.상태) === '취소요청').map(task => (
