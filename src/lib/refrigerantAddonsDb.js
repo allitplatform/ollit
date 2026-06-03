@@ -79,6 +79,40 @@ export function applianceCodeFromKr(kr) {
   return APPLIANCE_KR_TO_CODE[String(kr).trim()] || null;
 }
 
+// 2026-06-03 — Phase 2b-2: 측측 측측 RPC.
+//   Migration 089 측측 create_refrigerant_task_from_addon 측측.
+//   사장님 측측 SQL 측측 측측 측측 (PGRST202) 측측 graceful: { ok:false, error }.
+//   측측 측측 측측 측측 측측 (멱등 가드 측측 트랜잭션 측측 측측 측측 measure 측측).
+export async function createRefrigerantTaskFromAddon(sourceTaskId) {
+  if (!sourceTaskId) return { ok: false, error: "missing_source_task_id" };
+  try {
+    const { data, error } = await supabase.rpc("create_refrigerant_task_from_addon", {
+      p_source_task_id: sourceTaskId,
+    });
+    if (error) {
+      console.warn("[refrigerantAddonsDb.create] RPC error:", error.message);
+      return { ok: false, error: error.message || "rpc_error" };
+    }
+    if (!data || data.ok === false) {
+      return { ok: false, error: data?.error || "create_failed" };
+    }
+    return {
+      ok:             true,
+      new_task_id:    data.new_task_id,
+      task_no:        data.task_no,
+      principal_code: data.principal_code,
+      engineer:       Number(data.engineer) || 0,
+      principal:      Number(data.principal) || 0,
+      company:        Number(data.company) || 0,
+      track:          data.track || "A",
+      consent_copied: !!data.consent_copied,
+    };
+  } catch (e) {
+    console.warn("[refrigerantAddonsDb.create] 측측:", e?.message);
+    return { ok: false, error: e?.message || "exception" };
+  }
+}
+
 // 분배 측측 RPC.
 //   principalCode  — 라우팅된 원청 (사용자 측측 usol_n→usol_h).
 //   applianceKr    — refrigerant_addon.appliance (한글).

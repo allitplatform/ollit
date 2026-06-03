@@ -9,7 +9,7 @@
 //   [냉매 작업 만들기] 측측 측측 자리 — 측측 측측 (2b 측측 측측).
 import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { fetchUnprocessedRefriAddons, previewRefrigerantSplit } from "../../lib/refrigerantAddonsDb.js";
+import { fetchUnprocessedRefriAddons, previewRefrigerantSplit, createRefrigerantTaskFromAddon } from "../../lib/refrigerantAddonsDb.js";
 
 function fmtKstDate(iso) {
   if (!iso) return "—";
@@ -128,7 +128,13 @@ export function RefrigerantAddonListScreen({ t, onBack, onTaskClick }) {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {items.map(it => (
-              <RefriCard key={it.id} t={t} item={it} onClickTask={() => onTaskClick && onTaskClick(it)}/>
+              <RefriCard
+                key={it.id}
+                t={t}
+                item={it}
+                onClickTask={() => onTaskClick && onTaskClick(it)}
+                onProcessed={() => setReloadTick(v => v + 1)}
+              />
             ))}
           </div>
         )}
@@ -137,13 +143,40 @@ export function RefrigerantAddonListScreen({ t, onBack, onTaskClick }) {
   );
 }
 
-function RefriCard({ t, item, onClickTask }) {
+function RefriCard({ t, item, onClickTask, onProcessed }) {
   const isUsolN = item.principal_code === "usol_n";
   // 2026-06-03 — Phase 2b-1: 분배 미리보기 RPC.
   //   라우팅 측 원청(routed_principal_code) 측측 호출. RPC 실패/함수 측측 측측 측측 측측 (—).
   //   카드 mount 측 1회 측측.
   const [preview, setPreview] = useState(null);
   const [previewState, setPreviewState] = useState("loading"); // 'loading' | 'ok' | 'fail'
+  // 2026-06-03 — Phase 2b-2: [냉매 작업 만들기] busy state (per-card).
+  const [busy, setBusy] = useState(false);
+
+  async function handleCreate() {
+    if (busy) return;
+    if (!preview || previewState !== "ok") {
+      alert("분배 미리보기가 준비되지 않아 생성할 수 없어요. 새로고침 후 다시 시도해 주세요.");
+      return;
+    }
+    const fmt = (n) => `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
+    const principalLabel = item.routed_principal_name || item.routed_principal_code || "—";
+    const msg = `[${item.task_no}-R] 측측\n` +
+                `원청: ${principalLabel}\n` +
+                `기사 ${fmt(preview.engineer)} / 회사 ${fmt(preview.company)} / 원청 ${fmt(preview.principal)}\n\n` +
+                `위 측측 측측 측측+완료. 진행할까요?`;
+    if (!window.confirm(msg)) return;
+    setBusy(true);
+    const res = await createRefrigerantTaskFromAddon(item.id);
+    setBusy(false);
+    if (!res.ok) {
+      alert(`생성 실패: ${res.error || "알 수 없는 오류"}`);
+      return;
+    }
+    alert(`✓ ${res.task_no} 측측\n기사 ${fmt(res.engineer)} / 회사 ${fmt(res.company)} / 원청 ${fmt(res.principal)} / 트랙 ${res.track}` +
+          (res.consent_copied ? "\n동의서 복사 측측" : ""));
+    onProcessed && onProcessed();
+  }
   useEffect(() => {
     let alive = true;
     setPreviewState("loading");
@@ -247,24 +280,27 @@ function RefriCard({ t, item, onClickTask }) {
         <span className="mono">완료 {fmtKstDate(item.completed_at)}</span>
       </div>
 
-      {/* Phase 2b 측측 측측 — 측측 측측 */}
+      {/* 2026-06-03 — Phase 2b-2: 측측 측측 활성화 (RPC 측측 트랜잭션). */}
       <button
         type="button"
-        disabled
-        title="Phase 2b 측측 측측 — 측 측측 측측측 측측 측측"
+        onClick={handleCreate}
+        disabled={busy || previewState !== "ok"}
+        title={previewState !== "ok" ? "분배 미리보기 준비 측 측측 측측 측측" : "냉매 task 측측 + 완료"}
         style={{
           width: "100%", marginTop: 10,
           padding: "10px 12px",
-          background: t.bgInset || "rgba(255,255,255,0.04)",
-          border: `1px solid ${t.border}`,
+          background: busy
+            ? (t.bgInset || "rgba(255,255,255,0.04)")
+            : (previewState === "ok" ? "#FFB800" : (t.bgInset || "rgba(255,255,255,0.04)")),
+          border: `1px solid ${previewState === "ok" && !busy ? "#FFB800" : t.border}`,
           borderRadius: 10,
-          color: t.textMuted,
-          fontSize: 12, fontWeight: 700,
-          cursor: "not-allowed",
+          color: busy || previewState !== "ok" ? t.textMuted : "#1A1A1A",
+          fontSize: 12, fontWeight: 800,
+          cursor: busy || previewState !== "ok" ? "not-allowed" : "pointer",
           fontFamily: "inherit",
         }}
       >
-        🛠️ 냉매 작업 만들기 (측측 측측)
+        {busy ? "측측 중..." : "🛠️ 냉매 작업 만들기"}
       </button>
     </div>
   );
