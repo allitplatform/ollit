@@ -124,7 +124,7 @@ import SettlementHistoryContent from "../components/admin/SettlementHistoryConte
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 // 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
-import { fetchUnprocessedRefriAddons } from "../lib/refrigerantAddonsDb.js";
+import { fetchUnprocessedRefriAddons, rollbackRefrigerantAddonSource } from "../lib/refrigerantAddonsDb.js";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -2622,12 +2622,28 @@ export default function AdminApp({ user, onLogout }) {
             addToast({ type: "completed", title: "취소 실패", message: "작업 정보 없음" });
             return;
           }
+          // 2026-06-03 — 송금 측측 작업 측측 측측 confirm (사장님 spec A-2).
+          //   이미 기사→회사 송금 측측 (engineerRemittedAt) 또는 운영자 측측 측측
+          //   (engineerRemitConfirmedAt) 측측 작업 측측 측측 측측 측측 측측 측측 측측.
+          if (tk.engineerRemittedAt || tk.engineerRemitConfirmedAt) {
+            const ok = window.confirm(
+              "이미 송금된 작업이에요.\n취소하면 송금 환불을 따로 처리해야 합니다.\n계속할까요?"
+            );
+            if (!ok) return;
+          }
           const reason = `${reasonId}${memo ? " · " + memo : ""}`;
           try {
             const res = await adminFullCancel(tk.id, reason);
             if (!res || res.ok === false) {
               addToast({ type: "completed", title: "취소 실패", message: (res && res.error) || "알 수 없는 오류" });
               return;
+            }
+            // 2026-06-03 — Phase 2c-1: -R task 측측 측 측측 측측 측측측 복귀 (사장님 spec B).
+            //   graceful — -R 측측 측측 X 측측 source_found=false 측측. UI 영향 0.
+            //   사장님 측측 Migration 091 SQL 측측 측측 측측 측측 측측 (rpc_error) — 측측 측측 측측.
+            const rb = await rollbackRefrigerantAddonSource(tk.id);
+            if (rb.ok && rb.source_found) {
+              addToast({ type: "completed", title: "원본 작업 복귀", message: "미처리 목록으로 복귀했어요" });
             }
             // Optimistic Update — 화면 측 즉시 반영
             setApiTasks(prev => prev.map(t =>

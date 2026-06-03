@@ -79,7 +79,36 @@ export function applianceCodeFromKr(kr) {
   return APPLIANCE_KR_TO_CODE[String(kr).trim()] || null;
 }
 
-// 2026-06-03 — Phase 2b-2: 측측 측측 RPC.
+// 2026-06-03 — Phase 2c-1: -R task 취소 시 원본 refrigerant_addon.processed 롤백.
+//   Migration 091 측측 rollback_refrigerant_addon_source 호출.
+//   사용처: AdminApp onCancelTask 측측 adminFullCancel 성공 직후 unconditional 호출.
+//   -R 측측 측측 measure 측측 source_found=false 측측 — graceful (UI 영향 0).
+//   사장님 측측 SQL 측측 측측 측측 (PGRST202) 측측 graceful: { ok:false, error }.
+export async function rollbackRefrigerantAddonSource(canceledTaskId) {
+  if (!canceledTaskId) return { ok: false, error: "missing_canceled_task_id" };
+  try {
+    const { data, error } = await supabase.rpc("rollback_refrigerant_addon_source", {
+      p_canceled_task_id: canceledTaskId,
+    });
+    if (error) {
+      console.warn("[refrigerantAddonsDb.rollback] RPC error:", error.message);
+      return { ok: false, error: error.message || "rpc_error" };
+    }
+    if (!data || data.ok === false) {
+      return { ok: false, error: data?.error || "rollback_failed" };
+    }
+    return {
+      ok:             true,
+      source_found:   !!data.source_found,
+      source_task_id: data.source_task_id || null,
+    };
+  } catch (e) {
+    console.warn("[refrigerantAddonsDb.rollback] 예외:", e?.message);
+    return { ok: false, error: e?.message || "exception" };
+  }
+}
+
+// 2026-06-03 — Phase 2b-2: 냉매 작업 생성 RPC.
 //   Migration 089 측측 create_refrigerant_task_from_addon 측측.
 //   사장님 측측 SQL 측측 측측 측측 (PGRST202) 측측 graceful: { ok:false, error }.
 //   측측 측측 측측 측측 측측 (멱등 가드 측측 트랜잭션 측측 측측 측측 measure 측측).

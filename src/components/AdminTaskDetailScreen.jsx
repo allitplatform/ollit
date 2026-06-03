@@ -126,7 +126,11 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   //   → 가장 안전한 spec: hooks 측 측 측 측 측 측 → ternary 측 표시 분기.
   // ════════════════════════════════════════════════════════════
   const isExternal = task?.type === "external";
-  const showException = task && !isExternal && task.state !== "done";
+  // 2026-06-03 — 완료 작업 측측 ExceptionActions 노출 (사장님 spec).
+  //   기존 `state !== "done"` 가드 제거 — adminFullCancel RPC가 완료 작업도 정상 처리 측측
+  //   (v_was_completed 측측 측측 + 트리거 측측 payments 자동 0/0/0).
+  //   외근(type='external')은 측측측 측측.
+  const showException = !!task && !isExternal;
 
   function handleMenuAction(action, taskArg) {
     if (action === "call") {
