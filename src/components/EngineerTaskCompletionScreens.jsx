@@ -880,6 +880,20 @@ function MainAction({ label, color, onClick, disabled }) {
 // ═══════════════════════════════════════════════════════
 export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   const [memo, setMemo] = useState("");
+  // 2026-06-03 — Phase 1: 세척+냉매충전 2-task. 현장에서 냉매충전(현금) 측측 측측 측측.
+  //   ⚠️ "냉매충전"(메인 본작업, 현금, track A 일정산) — usol_n "냉매점검"(추가선택, 네이버 월정산) 아님.
+  //   원청 무관 (모든 원청 세척 작업 측측 노출). 측측 측측 냉매 작업(전 workItems serviceCode='refrigerant') 측측 측측.
+  //   저장 측측: category_data.refrigerant_addon = { appliance, amount, processed:false }.
+  //   ⚠️ task_item/extra_fee 측측 측측 측측 X — Phase 2 측측 측측 usol_h 측측 측측측 측측.
+  const refriItems = Array.isArray(task.workItems) ? task.workItems : [];
+  const isPureRefrigerant = refriItems.length > 0
+    && refriItems.every(wi => wi.serviceCode === 'refrigerant');
+  const showRefriAddonToggle = !isPureRefrigerant;
+  const [hasRefriAddon, setHasRefriAddon] = useState(false);
+  const [refriAppliance, setRefriAppliance] = useState("벽걸이");
+  const [refriAmount, setRefriAmount] = useState("");
+  const REFRI_APPLIANCE_OPTIONS = ["벽걸이", "스탠드", "투인원", "4way", "1way"];
+
   const baseAmount = task.estimateTotal || 0;
   const extraFee   = task.extraFee || 0;
   // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec (compute_payment v7)
@@ -920,11 +934,23 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   const commission = Math.max(0, total - earning); // 회사+원청 송금액 (= 수수료 합)
 
   function handleConfirm() {
+    // 2026-06-03 — Phase 1 검증: "예" 측측 금액 0/빈 측측 측측 X.
+    if (hasRefriAddon) {
+      const n = Number(refriAmount);
+      if (!refriAmount || !Number.isFinite(n) || n <= 0) {
+        alert("냉매충전 받은 금액을 입력해주세요.");
+        return;
+      }
+    }
     onConfirm && onConfirm({
       type: "complete",
       memo,
       total, commission, earning,
       photos: photos.length,
+      // 2026-06-03 — 측측 측측 X 측측 null. 부모 측측 measure 측측 category_data.refrigerant_addon 측측.
+      refrigerantAddon: hasRefriAddon
+        ? { appliance: refriAppliance, amount: Number(refriAmount) }
+        : null,
     });
   }
 
@@ -936,10 +962,124 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
       <AmountSummaryCard baseAmount={baseAmount} extraFee={extraFee} accentColor="#FF1B8D"/>
       {/* V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X) */}
       <EarningOnlyCard amount={earning} color="#FF1B8D" loading={earningLoading}/>
+      {/* 2026-06-03 — Phase 1: 세척+냉매충전 2-task 토글 (모든 원청 측측 / 측측 냉매 작업 측측). */}
+      {showRefriAddonToggle && (
+        <RefrigerantAddonCard
+          hasAddon={hasRefriAddon}
+          setHasAddon={setHasRefriAddon}
+          appliance={refriAppliance}
+          setAppliance={setRefriAppliance}
+          amount={refriAmount}
+          setAmount={setRefriAmount}
+          applianceOptions={REFRI_APPLIANCE_OPTIONS}
+        />
+      )}
       <MemoBox label="📝 마무리 메모 (선택)" value={memo} onChange={setMemo}/>
       <MainAction label="✓ 완료 처리" color="#FF1B8D" onClick={handleConfirm}/>
     </Container>
   );
+}
+
+// 2026-06-03 — Phase 1: 세척+냉매충전 2-task 입력 카드.
+//   "냉매충전도 하셨나요?" 토글 — 측측 "아니오"(접힘).
+//   "예" → 펼침: 기종 드롭다운 + 받은 현금 input. 검증은 부모(handleConfirm).
+function RefrigerantAddonCard({ hasAddon, setHasAddon, appliance, setAppliance, amount, setAmount, applianceOptions }) {
+  return (
+    <div style={{ margin: "0 16px 14px" }}>
+      <div style={{
+        background: "var(--card-bg)",
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        padding: 14,
+      }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>
+            ⚡ 냉매충전도 하셨나요?
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              onClick={() => setHasAddon(false)}
+              style={pillStyle(!hasAddon, "#FF1B8D")}
+            >아니오</button>
+            <button
+              type="button"
+              onClick={() => setHasAddon(true)}
+              style={pillStyle(hasAddon, "#FFB800")}
+            >예</button>
+          </div>
+        </div>
+
+        {hasAddon && (
+          <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
+                기종
+              </div>
+              <select
+                value={appliance}
+                onChange={(e) => setAppliance(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 12px",
+                  background: "var(--input-bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  color: "var(--text-primary)",
+                  fontSize: 14, fontWeight: 700,
+                  fontFamily: "inherit",
+                  outline: "none",
+                }}
+              >
+                {applianceOptions.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
+                받은 현금
+              </div>
+              <input
+                type="number"
+                inputMode="numeric"
+                placeholder="현금 받은 금액 (원)"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                style={{
+                  width: "100%", padding: "10px 12px",
+                  background: "var(--input-bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 10,
+                  color: "var(--text-primary)",
+                  fontSize: 14, fontWeight: 700,
+                  fontFamily: "inherit",
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+            <div style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", lineHeight: 1.5 }}>
+              ℹ️ 완료 처리 측 별도 냉매 작업(현금/일정산)으로 측측측. 측측 세척 정산엔 영향 없음.
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function pillStyle(active, activeColor) {
+  return {
+    padding: "6px 14px",
+    background: active ? activeColor : "var(--bg-tertiary, rgba(255,255,255,0.04))",
+    border: `1px solid ${active ? activeColor : "var(--border)"}`,
+    borderRadius: 999,
+    color: active ? "#fff" : "var(--text-secondary)",
+    fontSize: 12, fontWeight: 700,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    minWidth: 56,
+  };
 }
 
 // ═══════════════════════════════════════════════════════

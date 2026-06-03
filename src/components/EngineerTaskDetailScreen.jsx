@@ -510,13 +510,28 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         photos={photos}
         onBack={() => setSubScreen(null)}
         onConfirm={(payload) => {
-          onUpdate && onUpdate(task.id, {
+          // 2026-06-03 — Phase 1: 세척+냉매충전 2-task. payload.refrigerantAddon 측측 측측
+          //   category_data.refrigerant_addon = { appliance, amount, processed:false } 머지.
+          //   기존 keys (consent / reassignRequest / cancel*) 측측. task_item/extra_fee 측측 X.
+          //   Phase 2 (운영자) 측측: 측측 세척 task 측 원청 측 보고 라우팅 — usol_n→usol_h / 측측→original.
+          const updates = {
             status: "완료",
             completedAt: getCurrentTime(),
             photos: photos.map(p => ({ url: p.url, step: p.step })),
             ...completionTaskOverride,
             workMemo: workMemo + (payload.memo ? "\n[마무리] " + payload.memo : ""),
-          });
+          };
+          if (payload.refrigerantAddon) {
+            updates.categoryData = {
+              ...(task.categoryData || {}),
+              refrigerant_addon: {
+                appliance: payload.refrigerantAddon.appliance,
+                amount: payload.refrigerantAddon.amount,
+                processed: false,
+              },
+            };
+          }
+          onUpdate && onUpdate(task.id, updates);
           setSubScreen(null);
           onBack && onBack();
         }}
