@@ -79,6 +79,46 @@ export function applianceCodeFromKr(kr) {
   return APPLIANCE_KR_TO_CODE[String(kr).trim()] || null;
 }
 
+// 2026-06-03 — Phase 2c: refrigerant_addon 수정/취소 (생성 측 단계).
+//   Migration 090 측측 modify_refrigerant_addon 호출.
+//   action='edit'   → amount/appliance 갱신 (processed=false 유지).
+//   action='cancel' → cancelled=true + cancelledAt + processed=true.
+//   사장님 측측 SQL 측측 측측 측측 (PGRST202) → graceful: { ok:false, error }.
+//   already_processed (= 측측 생성됨) 가드 측측 측측.
+export async function modifyRefrigerantAddon({ sourceTaskId, action, amount, appliance }) {
+  if (!sourceTaskId) return { ok: false, error: "missing_source_task_id" };
+  if (action !== "edit" && action !== "cancel") {
+    return { ok: false, error: "invalid_action" };
+  }
+  if (action === "edit") {
+    if (!amount || Number(amount) <= 0) return { ok: false, error: "invalid_amount" };
+    if (!appliance) return { ok: false, error: "invalid_appliance" };
+  }
+  try {
+    const { data, error } = await supabase.rpc("modify_refrigerant_addon", {
+      p_source_task_id: sourceTaskId,
+      p_action:         action,
+      p_amount:         action === "edit" ? Number(amount) : null,
+      p_appliance:      action === "edit" ? appliance : null,
+    });
+    if (error) {
+      console.warn("[refrigerantAddonsDb.modify] RPC error:", error.message);
+      return { ok: false, error: error.message || "rpc_error" };
+    }
+    if (!data || data.ok === false) {
+      return { ok: false, error: data?.error || "modify_failed" };
+    }
+    return {
+      ok:     true,
+      action: data.action,
+      addon:  data.addon || null,
+    };
+  } catch (e) {
+    console.warn("[refrigerantAddonsDb.modify] 예외:", e?.message);
+    return { ok: false, error: e?.message || "exception" };
+  }
+}
+
 // 2026-06-03 — Phase 2c-1: -R task 취소 시 원본 refrigerant_addon.processed 롤백.
 //   Migration 091 측측 rollback_refrigerant_addon_source 호출.
 //   사용처: AdminApp onCancelTask 측측 adminFullCancel 성공 직후 unconditional 호출.

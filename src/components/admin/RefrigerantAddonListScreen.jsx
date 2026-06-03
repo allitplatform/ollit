@@ -9,7 +9,9 @@
 //   [냉매 작업 만들기] 측측 측측 자리 — 측측 측측 (2b 측측 측측).
 import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { fetchUnprocessedRefriAddons, previewRefrigerantSplit, createRefrigerantTaskFromAddon } from "../../lib/refrigerantAddonsDb.js";
+import { fetchUnprocessedRefriAddons, previewRefrigerantSplit, createRefrigerantTaskFromAddon, modifyRefrigerantAddon } from "../../lib/refrigerantAddonsDb.js";
+
+const APPLIANCE_OPTIONS = ["벽걸이", "스탠드", "투인원", "4way", "1way"];
 
 function fmtKstDate(iso) {
   if (!iso) return "—";
@@ -152,6 +154,60 @@ function RefriCard({ t, item, onClickTask, onProcessed }) {
   const [previewState, setPreviewState] = useState("loading"); // 'loading' | 'ok' | 'fail'
   // 2026-06-03 — Phase 2b-2: [냉매 작업 만들기] busy state (per-card).
   const [busy, setBusy] = useState(false);
+  // 2026-06-03 — Phase 2c: 수정 인라인 펼침 + 입력 state.
+  const [editing, setEditing]       = useState(false);
+  const [editAmount, setEditAmount] = useState(String(item.addon_amount || ""));
+  const [editAppl, setEditAppl]     = useState(item.addon_appliance || "벽걸이");
+  const [editBusy, setEditBusy]     = useState(false);
+
+  async function handleEditSave() {
+    if (editBusy) return;
+    const n = Number(editAmount);
+    if (!editAmount || !Number.isFinite(n) || n <= 0) {
+      alert("금액을 올바르게 입력해 주세요.");
+      return;
+    }
+    if (!APPLIANCE_OPTIONS.includes(editAppl)) {
+      alert("기종을 선택해 주세요.");
+      return;
+    }
+    setEditBusy(true);
+    const res = await modifyRefrigerantAddon({
+      sourceTaskId: item.id, action: "edit", amount: n, appliance: editAppl,
+    });
+    setEditBusy(false);
+    if (!res.ok) {
+      alert(`수정 실패: ${res.error || "알 수 없는 오류"}`);
+      return;
+    }
+    setEditing(false);
+    onProcessed && onProcessed();   // 목록 refetch → 분배 미리보기 자동 재계산
+  }
+
+  function handleEditCancel() {
+    if (editBusy) return;
+    setEditing(false);
+    setEditAmount(String(item.addon_amount || ""));
+    setEditAppl(item.addon_appliance || "벽걸이");
+  }
+
+  async function handleDiscard() {
+    if (busy || editBusy) return;
+    if (!window.confirm(
+      `이 냉매충전 항목을 취소(버림)할까요?\n` +
+      `[${item.task_no}] · ${item.addon_appliance} · ₩${(Number(item.addon_amount)||0).toLocaleString("ko-KR")}\n\n` +
+      `취소하면 미처리 목록에서 빠지고 작업도 생성되지 않습니다.\n` +
+      `(기록은 남아 회계 추적에 사용됩니다.)`
+    )) return;
+    const res = await modifyRefrigerantAddon({
+      sourceTaskId: item.id, action: "cancel",
+    });
+    if (!res.ok) {
+      alert(`취소 실패: ${res.error || "알 수 없는 오류"}`);
+      return;
+    }
+    onProcessed && onProcessed();
+  }
 
   async function handleCreate() {
     if (busy) return;
@@ -279,6 +335,108 @@ function RefriCard({ t, item, onClickTask, onProcessed }) {
         </button>
         <span className="mono">완료 {fmtKstDate(item.completed_at)}</span>
       </div>
+
+      {/* 2026-06-03 — Phase 2c: 인라인 [수정] 펼침 (기종 + 금액 + 저장/취소). */}
+      {editing && (
+        <div style={{
+          background: t.bgInset || "rgba(255,255,255,0.03)",
+          border: `1px solid ${t.border}`,
+          borderRadius: 8,
+          padding: 10,
+          marginBottom: 8,
+        }}>
+          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 4 }}>기종</div>
+              <select
+                value={editAppl}
+                onChange={(e) => setEditAppl(e.target.value)}
+                disabled={editBusy}
+                style={{
+                  width: "100%", padding: "7px 10px",
+                  background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6,
+                  color: t.text, fontSize: 12, fontFamily: "inherit", outline: "none",
+                }}
+              >
+                {APPLIANCE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 4 }}>받은 현금</div>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={editAmount}
+                onChange={(e) => setEditAmount(e.target.value)}
+                disabled={editBusy}
+                placeholder="금액 (원)"
+                style={{
+                  width: "100%", padding: "7px 10px",
+                  background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6,
+                  color: t.text, fontSize: 12, fontFamily: "inherit", outline: "none",
+                  boxSizing: "border-box",
+                }}
+              />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button
+              type="button"
+              onClick={handleEditCancel}
+              disabled={editBusy}
+              style={{
+                flex: 1, padding: "8px 10px",
+                background: "transparent",
+                border: `1px solid ${t.border}`, borderRadius: 8,
+                color: t.textSecondary, fontSize: 12, fontWeight: 700,
+                cursor: editBusy ? "default" : "pointer", fontFamily: "inherit",
+              }}
+            >취소</button>
+            <button
+              type="button"
+              onClick={handleEditSave}
+              disabled={editBusy}
+              style={{
+                flex: 1, padding: "8px 10px",
+                background: editBusy ? (t.bgInset || "rgba(255,255,255,0.04)") : "#03C75A",
+                border: `1px solid ${editBusy ? t.border : "#03C75A"}`, borderRadius: 8,
+                color: editBusy ? t.textMuted : "#fff", fontSize: 12, fontWeight: 800,
+                cursor: editBusy ? "not-allowed" : "pointer", fontFamily: "inherit",
+              }}
+            >{editBusy ? "저장 중..." : "저장"}</button>
+          </div>
+        </div>
+      )}
+
+      {/* 2026-06-03 — Phase 2c: 수정/취소 (인라인 펼침 토글) */}
+      {!editing && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            disabled={busy}
+            style={{
+              flex: 1, padding: "7px 10px",
+              background: "transparent",
+              border: `1px solid ${t.border}`, borderRadius: 8,
+              color: t.textSecondary, fontSize: 11, fontWeight: 700,
+              cursor: busy ? "default" : "pointer", fontFamily: "inherit",
+            }}
+          >✏️ 수정</button>
+          <button
+            type="button"
+            onClick={handleDiscard}
+            disabled={busy}
+            style={{
+              flex: 1, padding: "7px 10px",
+              background: "transparent",
+              border: `1px solid ${t.border}`, borderRadius: 8,
+              color: t.textSecondary, fontSize: 11, fontWeight: 700,
+              cursor: busy ? "default" : "pointer", fontFamily: "inherit",
+            }}
+          >✕ 버림</button>
+        </div>
+      )}
 
       {/* 2026-06-03 — Phase 2b-2: 측측 측측 활성화 (RPC 측측 트랜잭션). */}
       <button
