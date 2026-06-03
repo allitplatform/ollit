@@ -123,6 +123,8 @@ import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
 import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
+// 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
+import { fetchUnprocessedRefriAddons } from "../lib/refrigerantAddonsDb.js";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -1096,6 +1098,11 @@ function _v14NormalizeTask(t) {
     engineerRemitConfirmedAt: t.engineerRemitConfirmedAt || t.engineer_remit_confirmed_at || null,
     // 2026-05-25 Migration 077 — 유솔 입금 흐름 (3곳 매핑 트랩)
     usolRemittedAt:           t.usolRemittedAt           ?? t.usol_remitted_at            ?? null,
+    // 2026-06-03 — categoryData 측측 측측 측측 (3곳 매핑 footgun #3 측측 측측).
+    //   측측 측측 keys (consent/reassignRequest/cancel* 등) 측측 평탄화 측측 categoryData 측 측측 X →
+    //   `task.categoryData.refrigerant_addon` 측측 측측 측측 측측 측측 측측 → 대시보드 count=0.
+    //   이제 categoryData 측측 측측 측 미래 측측 측측측 측측 측측 측측.
+    categoryData: t.categoryData || {},
     // 2026-05-22 — 냉매 동의서 (3곳 매핑 트랩)
     consent: t.consent || t.categoryData?.consent || null,
     // 2026-05-22 — 재배정 요청 (3곳 매핑 트랩)
@@ -1919,11 +1926,25 @@ export default function AdminApp({ user, onLogout }) {
   //   AdminApp 본체 측측 측측 측 unmount 측측 측측 측측 측측 측측.
   const [settlementSubTab, setSettlementSubTab] = useState("engineers");  // "engineers" | "principals"
   const [settlementExpanded, setSettlementExpanded] = useState(() => new Set());
+  // 2026-06-03 — Phase 2a fix: 대시보드 측측 카운트 측측 별도 fetch (목록과 동일 source).
+  //   apiTasks 측측 측측 측측 → categoryData 평탄화 footgun 측측 (3곳 매핑 #3 측측 측측 측측).
+  //   refrigerantAddonList screen 측측 fetch 측 측측 정합 보장.
+  const [refrigerantAddonCount, setRefrigerantAddonCount] = useState(0);
 
   // V14 Week 2 2A — 진짜 시트 작업DB catch (apiTasks)
   const [apiTasks, setApiTasks] = useState([]);
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
+
+  // 2026-06-03 — Phase 2a fix: 냉매 미처리 카운트 측측 fetch (apiTasks.length 측측 측측).
+  //   새 task 측측 측측 측측 (length 측측) trigger. polling 측측 length 측측 X 측측 trigger X.
+  useEffect(() => {
+    let alive = true;
+    fetchUnprocessedRefriAddons().then(res => {
+      if (alive && res.ok) setRefrigerantAddonCount(res.items.length);
+    });
+    return () => { alive = false; };
+  }, [apiTasks.length]);
 
   // V14 Step 3 Fix 1 — 시트 설정_기사 catch (apiEngineers / 연락처 lookup 박기)
   const [apiEngineers, setApiEngineers] = useState([]);
@@ -3597,6 +3618,7 @@ export default function AdminApp({ user, onLogout }) {
       onClickInProgress={() => setScreen("inProgressList")}
       onClickReassign={() => setScreen("reassignList")}
       onClickRefriAddon={() => setScreen("refrigerantAddonList")}
+      refrigerantAddonCount={refrigerantAddonCount}
       onClickSettlement={() => setScreen("settlement")}
       onClickManage={() => setScreen("engineerList")}
       onClickManagePrincipals={() => setScreen("principalList")}
@@ -3680,7 +3702,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -3696,15 +3718,10 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
   );
   const reassignCount = reassignTasks.length;
 
-  // 2026-06-03 — Phase 2a: 냉매 미처리 카운트 (apiTasks 측 category_data.refrigerant_addon.processed===false).
-  //   측측 측측 = apiTasks 측측 (rowToTask 측측 categoryData 평탄화). 측측 fetch X.
-  //   취소 task 측측 — 측측 측측 measure 측측.
-  const refrigerantAddonCount = (apiTasks || []).reduce((n, t) => {
-    if (t?.status === "취소") return n;
-    const a = t?.categoryData?.refrigerant_addon;
-    if (a && a.processed === false) return n + 1;
-    return n;
-  }, 0);
+  // 2026-06-03 — Phase 2a fix: 냉매 미처리 카운트 측측 부모(AdminApp) 측측 별도 fetch 측측 측측
+  //   (목록과 동일 source = fetchUnprocessedRefriAddons). _v14NormalizeTask categoryData 평탄화
+  //   footgun (3곳 매핑 #3) 측측 우회 + 목록 화면과 100% 정합.
+  const refrigerantAddonCount = Number(refrigerantAddonCountProp) || 0;
 
   return (
     <div className="fade-in">
