@@ -61,20 +61,34 @@ async function _getPrefixByName(principalName) {
   return { prefix: data.prefix || "?-", code: data.code };
 }
 
-// 같은 prefix + 같은 YYMMDD 작업 수 catch
-async function _countTasksForToday(prefix, yymmdd) {
-  // task_no LIKE 'A-260514-%' 등
+// 2026-06-03 — COUNT → MAX 측측.
+//   옛 COUNT+1 spec 측측 측측 측측 측측 측측 측측 측 COUNT < MAX → 측측 측측 측측 측측 → unique violation.
+//   MAX+1 측측 측측 측측 측측측 측측측 측측 측측 측측 측측.
+//   ⚠️ task_no 측측 측측: 'A-260603-003' 또는 'A-260603-003-R' (Migration 089 측측 task).
+//     suffix 측측 측측 측측 측측 측측 — '003-R' 측측 '003' 측측 측측 (= 측측 측측 추가 X).
+async function _maxSeqForToday(prefix, yymmdd) {
   const pattern = `${prefix}${yymmdd}-%`;
-  const { count, error } = await supabase
+  const { data, error } = await supabase
     .from("tasks")
-    .select("id", { count: "exact", head: true })
+    .select("task_no")
     .eq("tenant_id", TENANT_ID)
     .like("task_no", pattern);
   if (error) {
-    console.warn(`[taskNoGenerator] count 실패 (pattern=${pattern})`, error);
+    console.warn(`[taskNoGenerator] max lookup 실패 (pattern=${pattern})`, error);
     return 0;
   }
-  return count || 0;
+  const head = `${prefix}${yymmdd}-`;
+  let max = 0;
+  for (const row of (data || [])) {
+    const tn = String(row.task_no || "");
+    if (!tn.startsWith(head)) continue;
+    const after = tn.slice(head.length); // "003" 또는 "003-R"
+    const m = after.match(/^(\d+)/);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    if (Number.isFinite(n) && n > max) max = n;
+  }
+  return max;
 }
 
 // ============================================================
@@ -82,7 +96,8 @@ async function _countTasksForToday(prefix, yymmdd) {
 // ============================================================
 // 입력: { principalCode?: string, principalName?: string }
 // 응답: { ok: true, taskNo, prefix, principalCode } | { ok: false, error }
-export async function generateTaskNo({ principalCode, principalName } = {}) {
+// 입력 측측 — offset: 측측 시 직전 측측 측측 측측 측측 (createTaskAdapter 측측 unique violation 측측 +1).
+export async function generateTaskNo({ principalCode, principalName, offset = 0 } = {}) {
   let prefix;
   let resolvedCode = principalCode || null;
 
@@ -97,8 +112,9 @@ export async function generateTaskNo({ principalCode, principalName } = {}) {
   }
 
   const yymmdd = todayYymmdd();
-  const count = await _countTasksForToday(prefix, yymmdd);
-  const seq = String(count + 1).padStart(3, "0");
+  // 2026-06-03 — MAX+1 측측. offset 측측 측측 측측 측측 +N (재시도 측).
+  const max = await _maxSeqForToday(prefix, yymmdd);
+  const seq = String(max + 1 + offset).padStart(3, "0");
   const taskNo = `${prefix}${yymmdd}-${seq}`;
 
   return { ok: true, taskNo, prefix, principalCode: resolvedCode };
@@ -120,9 +136,10 @@ export async function generateTaskNosBulk(principalCode, count) {
   if (prefix === "?-") return { ok: false, error: `prefix lookup 실패 (code=${principalCode})` };
 
   const yymmdd = todayYymmdd();
-  const existingCount = await _countTasksForToday(prefix, yymmdd);
+  // 2026-06-03 — COUNT → MAX 측측 (= 측측 측측 측측측 측측 측측).
+  const max = await _maxSeqForToday(prefix, yymmdd);
   const taskNos = Array.from({ length: count }, (_, i) =>
-    `${prefix}${yymmdd}-${String(existingCount + 1 + i).padStart(3, "0")}`
+    `${prefix}${yymmdd}-${String(max + 1 + i).padStart(3, "0")}`
   );
 
   return { ok: true, taskNos, prefix, yymmdd };

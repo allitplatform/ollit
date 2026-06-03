@@ -765,13 +765,6 @@ export async function createTaskAdapter(taskData) {
       return { ok: false, error: `원청 매핑 실패: ${taskData.principal || taskData.principalCode}` };
     }
 
-    // [2] 작업번호 자동 생성
-    const tnRes = await generateTaskNo({ principalCode });
-    if (!tnRes.ok) {
-      return { ok: false, error: `작업번호 생성 실패: ${tnRes.error}` };
-    }
-    const taskNo = tnRes.taskNo;
-
     // [3] scheduled_at ISO 조합 (호출처가 scheduledDate + scheduledTime 별도 전달 경우)
     let scheduledAtIso = taskData.scheduledAt || null;
     if (!scheduledAtIso && taskData.scheduledDate && taskData.scheduledTime) {
@@ -789,30 +782,46 @@ export async function createTaskAdapter(taskData) {
       ...(taskData.scheduleType ? { scheduleType: taskData.scheduleType } : {}),
     };
 
-    // [5] tasks row INSERT
-    const taskRow = {
-      taskNo,
-      principalId,
-      customer:      taskData.customer  || "",
-      phone:         taskData.phone     || "",
-      address:       taskData.address   || "",
-      region:        taskData.region    || taskData.district || "",
-      // 2026-05-27 — Migration 077: 결제 방식 (선택 안 함 = null)
-      paymentMethod: taskData.paymentMethod || null,
-      requestNote:   taskData.memo      || taskData.request || taskData.requestNote || "",
-      status:        taskData.status    || "미배정",
-      productPrice:  Number(taskData.estimateTotal || taskData.quote || taskData.productPrice || 0),
-      extraFee:      Number(taskData.extraFee  || 0),
-      travelFee:     Number(taskData.travelFee || 0),
-      requestedDate: taskData.scheduledDate || taskData.requestedDate || null,
-      requestedTime: taskData.scheduledTime || taskData.requestedTime || null,
-      scheduledAt:   scheduledAtIso,
-      categoryData,
-    };
-
-    const res = await createTaskDb(taskRow);
-    if (!res.ok) {
-      return { ok: false, error: res.error };
+    // [5] tasks row INSERT — 2026-06-03 unique violation 측측 측측 측측 (최대 5측측).
+    //   동시 접수 race condition + MAX lookup 측측 측측 측측 측측 측측.
+    let res = null;
+    let lastTaskNo = null;
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const tnRes = await generateTaskNo({ principalCode, offset: attempt });
+      if (!tnRes.ok) {
+        return { ok: false, error: `작업번호 생성 실패: ${tnRes.error}` };
+      }
+      lastTaskNo = tnRes.taskNo;
+      const taskRow = {
+        taskNo:        lastTaskNo,
+        principalId,
+        customer:      taskData.customer  || "",
+        phone:         taskData.phone     || "",
+        address:       taskData.address   || "",
+        region:        taskData.region    || taskData.district || "",
+        paymentMethod: taskData.paymentMethod || null,
+        requestNote:   taskData.memo      || taskData.request || taskData.requestNote || "",
+        status:        taskData.status    || "미배정",
+        productPrice:  Number(taskData.estimateTotal || taskData.quote || taskData.productPrice || 0),
+        extraFee:      Number(taskData.extraFee  || 0),
+        travelFee:     Number(taskData.travelFee || 0),
+        requestedDate: taskData.scheduledDate || taskData.requestedDate || null,
+        requestedTime: taskData.scheduledTime || taskData.requestedTime || null,
+        scheduledAt:   scheduledAtIso,
+        categoryData,
+      };
+      res = await createTaskDb(taskRow);
+      if (res.ok) break;
+      // unique violation 측측 측측 측측 측측 측측 (offset +1 측측 → MAX+1+offset).
+      const msg = String(res.error || "");
+      const isUnique = msg.includes("duplicate key")
+                    || msg.includes("23505")
+                    || msg.includes("tasks_tenant_id_task_no_key");
+      if (!isUnique) break;
+      console.warn(`[createTaskAdapter] task_no 충돌 (${lastTaskNo}) — 재시도 ${attempt + 1}/5`);
+    }
+    if (!res || !res.ok) {
+      return { ok: false, error: (res && res.error) || `작업번호 충돌 — 측측 측측 (last=${lastTaskNo})` };
     }
 
     return {
