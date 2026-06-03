@@ -3874,20 +3874,9 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           </div>
         )}
 
-        {/* 3. 돈 흐름 — 회사 마진만 핫핑크 (사장님 KPI) / 나머지 무채색 */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-          <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>💰</span>} label="오늘 매출"     value={dynamicStats?.revenue?.total    ?? TODAY_STATS.revenue}      color={t.text}/>
-          {dynamicStats?.revenue?.margin !== undefined && (
-            <MoneyBox t={t} icon={<TrendingUp size={12}/>} label="회사 마진"     value={dynamicStats.revenue.margin}                                color={t.accent}/>
-          )}
-          {dynamicStats?.revenue?.margin === undefined && (
-            <MoneyBox t={t} icon={<TrendingUp size={12}/>} label="회사 마진"     value={TODAY_STATS.myMargin}                                       color={t.accent}/>
-          )}
-          <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>👷</span>} label="프로 정산"          value={dynamicStats?.revenue?.engineer  ?? TODAY_STATS.engineerNet}  color={t.text}/>
-          <MoneyBox t={t} icon={<span style={{ fontSize: 12 }}>🤝</span>} label="원청 수수료"        value={dynamicStats?.revenue?.principal ?? TODAY_STATS.principalFee} color={t.text}/>
-        </div>
-
-        {/* 2026-06-03 — 매출 현황 블록 (시안 그대로 / 드리프트 0). */}
+        {/* 2026-06-03 — 측측 4박스(오늘 매출/회사 마진/프로 정산/원청 수수료) 측측 →
+              RevenueOverviewBlock 측측 측측 (= 같은 dataset + 토글 + 구성 + 종류별 측측 측측 측측).
+              dynamicStats.revenue 측측 측측 (= dashboardStats.js 측측 측측 측측 측측 측측 X). */}
         <RevenueOverviewBlock t={t} apiTasks={apiTasks} user={user}/>
 
         {/* V14 큰 흐름 — 취소 요청 알림 (status='취소요청' 인 작업) */}
