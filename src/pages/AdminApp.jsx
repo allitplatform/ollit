@@ -125,6 +125,8 @@ import SettlementHistoryContent from "../components/admin/SettlementHistoryConte
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 // 2026-06-03 — 대시보드 "매출 현황" 블록.
 import { RevenueOverviewBlock } from "../components/admin/RevenueOverviewBlock.jsx";
+// 2026-06-03 — 매출 자세히 화면 (2차).
+import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
 // 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
 import { fetchUnprocessedRefriAddons, rollbackRefrigerantAddonSource } from "../lib/refrigerantAddonsDb.js";
 import {
@@ -3266,6 +3268,17 @@ export default function AdminApp({ user, onLogout }) {
       />
     </Shell>;
   }
+  // 2026-06-03 — 매출 자세히 화면 (월 측측 + 4요약 + 원청별 + 기사별).
+  if (screen === "revenueDetail") {
+    return <Shell t={t} toasts={toasts}>
+      <RevenueDetailScreen
+        t={t}
+        apiTasks={apiTasks}
+        user={user}
+        onBack={goBack}
+      />
+    </Shell>;
+  }
   // 2026-06-03 — Phase 2a: 냉매 미처리 목록 (read-only, 측측 0).
   if (screen === "refrigerantAddonList") {
     return <Shell t={t} toasts={toasts}>
@@ -3646,6 +3659,7 @@ export default function AdminApp({ user, onLogout }) {
       onClickReassign={() => setScreen("reassignList")}
       onClickRefriAddon={() => setScreen("refrigerantAddonList")}
       refrigerantAddonCount={refrigerantAddonCount}
+      onClickRevenueDetail={() => setScreen("revenueDetail")}
       onClickSettlement={() => setScreen("settlement")}
       onClickManage={() => setScreen("engineerList")}
       onClickManagePrincipals={() => setScreen("principalList")}
@@ -3729,7 +3743,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -3877,7 +3891,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
         {/* 2026-06-03 — 측측 4박스(오늘 매출/회사 마진/프로 정산/원청 수수료) 측측 →
               RevenueOverviewBlock 측측 측측 (= 같은 dataset + 토글 + 구성 + 종류별 측측 측측 측측).
               dynamicStats.revenue 측측 측측 (= dashboardStats.js 측측 측측 측측 측측 측측 X). */}
-        <RevenueOverviewBlock t={t} apiTasks={apiTasks} user={user}/>
+        <RevenueOverviewBlock t={t} apiTasks={apiTasks} user={user} onDetailClick={onClickRevenueDetail}/>
 
         {/* V14 큰 흐름 — 취소 요청 알림 (status='취소요청' 인 작업) */}
         {(apiTasks || []).filter(t => (t.status || t.상태) === '취소요청').map(task => (

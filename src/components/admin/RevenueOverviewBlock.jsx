@@ -14,7 +14,7 @@ import {
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 function fmtPct(n, digits = 1) { return `${n.toFixed(digits)}%`; }
 
-export function RevenueOverviewBlock({ t, apiTasks = [], user }) {
+export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick }) {
   const [period, setPeriod] = useState("today"); // 'today' | 'month'
 
   const { current, previous, periodLabel } = useMemo(() => {
@@ -152,6 +152,27 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user }) {
           <ServiceBar t={t} label="기타" icon="•" amount={current.byService.other} pct={otherPct} color={t.textMuted}/>
         )}
       </div>
+
+      {/* 2026-06-03 — 측측 측측 (= 매출 자세히 screen). onDetailClick 측측 측측 측측 측측 측측 X. */}
+      {typeof onDetailClick === "function" && (
+        <button
+          type="button"
+          onClick={onDetailClick}
+          style={{
+            width: "100%", marginTop: 12,
+            padding: "9px 12px",
+            background: "transparent",
+            border: `1px solid ${t.border}`,
+            borderRadius: 8,
+            color: t.textSecondary,
+            fontSize: 12, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+          }}
+        >
+          원청별 · 기사별 자세히 →
+        </button>
+      )}
     </div>
   );
 }

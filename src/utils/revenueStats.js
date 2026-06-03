@@ -89,3 +89,67 @@ export function getPrevMonthStart(todayYmdStr) {
   const prevM = m === 1 ? 12 : m - 1;
   return `${prevY}-${String(prevM).padStart(2, "0")}-01`;
 }
+
+// (year, month) → 그 달 측측 측측 (YYYY-MM-DD).
+export function getMonthRange(year, month) {
+  const mm = String(month).padStart(2, "0");
+  const start = `${year}-${mm}-01`;
+  const lastDay = new Date(year, month, 0).getDate(); // JS month 1-based → last day of prev = current month last day
+  const end = `${year}-${mm}-${String(lastDay).padStart(2, "0")}`;
+  return { start, end };
+}
+
+// 측측 dataset filter (computeRevenueByYmRange 측측 측측 측측 — 측측 측측 측측 측측).
+function _filterTrackADoneInRange(apiTasks, startYmd, endYmd) {
+  return (apiTasks || []).filter(t => {
+    if (!isTrackARemittance(t)) return false;
+    const completed = t.completedAt || t.completed_at || t.completedDate || t.완료시간 || t.completedTime;
+    if (!completed) return false;
+    const ymd = toKstYmd(completed);
+    if (!ymd) return false;
+    return ymd >= startYmd && ymd <= endYmd;
+  });
+}
+
+// 원청별 측측 — 측측 dataset 측측 principal_code 측측 측측 측측.
+//   측측 측측: principal_code 측측 측측 매출 측측측 정렬.
+//   측측 측측: code / name / count / total / owner.
+export function computeRevenueByPrincipal(apiTasks, startYmd, endYmd, user) {
+  if (!canSeeField(user, "task.total_amount")) return [];
+  const list = _filterTrackADoneInRange(apiTasks, startYmd, endYmd);
+  const map = new Map();
+  for (const t of list) {
+    const code = String(t.principalCode || t.principal_code || "").trim();
+    const name = String(t.principal || t.client || t.principalName || "").trim();
+    const key = code || `(${name || "측측"})`;
+    if (!map.has(key)) {
+      map.set(key, { code, name: name || code || "(측측)", count: 0, total: 0, owner: 0 });
+    }
+    const row = map.get(key);
+    row.count += 1;
+    row.total += Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
+    row.owner += Number(t.owner_amount || 0);
+  }
+  return [...map.values()].sort((a, b) => b.total - a.total);
+}
+
+// 기사별 측측 — 측측 dataset 측측 assigned_engineer 측측 측측 측측.
+//   측측 측측: engineer (engineer_amount) 측측측 정렬.
+//   측측 측측: id / name / count / engineer.
+export function computeRevenueByEngineer(apiTasks, startYmd, endYmd, user) {
+  if (!canSeeField(user, "task.total_amount")) return [];
+  const list = _filterTrackADoneInRange(apiTasks, startYmd, endYmd);
+  const map = new Map();
+  for (const t of list) {
+    const id   = t.assignedEngineerId || t.assigned_engineer_id || t.engineerId || null;
+    const name = String(t.assignedEngineer || t.engineer || "").trim();
+    const key = id || name || "(미배정)";
+    if (!map.has(key)) {
+      map.set(key, { id, name: name || "(미배정)", count: 0, engineer: 0 });
+    }
+    const row = map.get(key);
+    row.count    += 1;
+    row.engineer += Number(t.engineer_amount || 0);
+  }
+  return [...map.values()].sort((a, b) => b.engineer - a.engineer);
+}
