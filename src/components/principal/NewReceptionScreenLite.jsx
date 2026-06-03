@@ -237,17 +237,22 @@ export function NewReceptionScreenLite({
         });
         if (r.isKa1waySplit) {
           // 첫대 1대 + 추가 (qty-1)대 — 두 row로 분리
+          // orderType: '첫대' / '추가' — Mig 093 sync v4가 task_items.order_type에 옮김.
+          //   Mig 094 compute_payment v18이 이 값을 calculate_commission p_qty_condition으로 전달.
+          //   → KA refrigerant 1way 정책(qty_condition='첫대'/'추가' 시드) 정확 매칭.
           workItemsToSave.push({
             workType:  it.workType,
             appliance: it.appliance,
             qty:       1,
             quote:     r.firstPrice,
+            orderType: '첫대',
           });
           workItemsToSave.push({
             workType:  it.workType,
             appliance: it.appliance,
             qty:       Math.max(1, it.qty - 1),
             quote:     r.extraPrice,
+            orderType: '추가',
           });
         } else {
           const unit = Number(it.unitPrice) > 0 ? Number(it.unitPrice) : r.unitPrice;
