@@ -4332,6 +4332,11 @@ export default function EngineerApp({ user, onLogout }) {
 
   // 2026-05-22 — engineerProfile 측 DB 값 우선 (옛 mock 하드코딩 폴백만 유지)
   const engineerProfile = {
+    // 2026-06-03 — 푸시 식별자 측측 (= EngineerMeTab resolveEngineerIds 측측 eng.user_id / eng.code 측측).
+    //   login RPC 응답 측 user_id (UUID) + code (예 E022) 측 측측 측측 → engineerProfileMerged → eng 측측 측측측.
+    //   캐시 측측 측측 (REGISTERED_USERS / loadSheetEngineers) → 신규 기사도 측측 등록 가능.
+    user_id: user?.user_id || "",
+    code:    user?.code    || "",
     name: user?.name || "프로",
     phone: user?.phone || "",
     companyName: "올데이케어",
