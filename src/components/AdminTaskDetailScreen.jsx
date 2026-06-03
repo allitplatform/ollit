@@ -148,7 +148,12 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
 
   // 측 단일 return — early return 측 측, ternary 측 분기 (사장님 spec — hooks 순서 측 위반 spec 측 제거).
   return (
-    <div className="fade-in" style={{ background: "var(--bg-primary)", minHeight: "100vh" }}>
+    <div className="fade-in" style={{
+      background: "var(--bg-primary)",
+      minHeight: "100vh",
+      // 2026-06-03 — 측측 ExceptionActions 측측 측측 측측 (iOS PWA safe-area + Shell paddingBottom 측측 측측 부족 측).
+      paddingBottom: "calc(60px + env(safe-area-inset-bottom))",
+    }}>
       {loading ? (
         <div style={{ padding: 16 }}>
           <button onClick={onBack} style={iconBtnStyle}>←</button>
