@@ -307,7 +307,12 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   const [workMemo, setWorkMemo] = useState(task.workMemo || "");
   const [menuOpen, setMenuOpen] = useState(false);
   const [visitOnlyOpen, setVisitOnlyOpen] = useState(false);
-  const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule"
+  const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule" / "complete" / "refriAddonConsent" 등
+  // 2026-06-03 — Phase 1 보강: 세척+냉매충전 동의서 측측.
+  //   [완료 처리] 측 "예" 측측 측 RefrigerantConsentScreen 측측 측측 측측 측측. 동의 완료 측측 측측 측측.
+  //   취소/뒤로 측측 완료 화면 측측 — 측측 측측 측측 (= 측측 측측 측측).
+  const [pendingRefriAddon, setPendingRefriAddon] = useState(null);  // { appliance, amount }
+  const [pendingMemo, setPendingMemo] = useState("");
   // 2026-05-25 — '일정 변경 · 취소' 카드 접힘/펼침. 기본 접힘 (기사 실수 방지 spec).
   const [actionsOpen, setActionsOpen] = useState(false);
   const [saving, setSaving] = useState(false); // 2026-05-17 — 완료 분기 진입 직전 extraFee 사전 저장 표시
@@ -510,10 +515,18 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         photos={photos}
         onBack={() => setSubScreen(null)}
         onConfirm={(payload) => {
-          // 2026-06-03 — Phase 1: 세척+냉매충전 2-task. payload.refrigerantAddon 측측 측측
-          //   category_data.refrigerant_addon = { appliance, amount, processed:false } 머지.
-          //   기존 keys (consent / reassignRequest / cancel*) 측측. task_item/extra_fee 측측 X.
-          //   Phase 2 (운영자) 측측: 측측 세척 task 측 원청 측 보고 라우팅 — usol_n→usol_h / 측측→original.
+          // 2026-06-03 — Phase 1 보강: 냉매충전 "예" → 동의서 화면 측측 측측 측측 (측측 측측 측측 X).
+          //   "아니오" → 측측 측측 측측 (기존 동작).
+          if (payload.refrigerantAddon) {
+            setPendingRefriAddon({
+              appliance: payload.refrigerantAddon.appliance,
+              amount: payload.refrigerantAddon.amount,
+            });
+            setPendingMemo(payload.memo || "");
+            setSubScreen("refriAddonConsent");
+            return;
+          }
+          // 측측 측측 측측 — 측측 측측.
           const updates = {
             status: "완료",
             completedAt: getCurrentTime(),
@@ -521,19 +534,74 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
             ...completionTaskOverride,
             workMemo: workMemo + (payload.memo ? "\n[마무리] " + payload.memo : ""),
           };
-          if (payload.refrigerantAddon) {
-            updates.categoryData = {
-              ...(task.categoryData || {}),
-              refrigerant_addon: {
-                appliance: payload.refrigerantAddon.appliance,
-                amount: payload.refrigerantAddon.amount,
-                processed: false,
-              },
-            };
-          }
           onUpdate && onUpdate(task.id, updates);
           setSubScreen(null);
           onBack && onBack();
+        }}
+      />
+    );
+  }
+
+  // 2026-06-03 — Phase 1 보강: 냉매충전 동의서 화면 (세척+냉매 2-task add-on 측측).
+  //   기존 RefrigerantConsentScreen 측측 재사용 (skipAutoSave + rejectMode="cancel" 측측).
+  //   동의 완료 측측: ❶ uploadPhoto(task.id, blob, "refri_addon_consent_sign")
+  //                    ❷ refrigerant_addon 측측 머지 측측 onUpdate (= 측측 측측 측측).
+  //   취소/뒤로 측측: 완료 화면 복귀 (출장비만 X, 냉매충전 미저장).
+  if (subScreen === "refriAddonConsent") {
+    return (
+      <RefrigerantConsentScreen
+        task={task}
+        skipAutoSave={true}
+        rejectMode="cancel"
+        onBack={() => {
+          setPendingRefriAddon(null);
+          setPendingMemo("");
+          setSubScreen("complete");
+        }}
+        onComplete={async ({ customerName, signatureBlob }) => {
+          try {
+            // 1) 측측 PNG → photos 측측 (step="refri_addon_consent_sign", 세척 사진과 분리).
+            const up = await uploadPhoto(task.id, signatureBlob, "refri_addon_consent_sign");
+            if (!up?.ok || !up?.url) {
+              alert(`서명 업로드 실패: ${up?.error || "unknown"}`);
+              return;
+            }
+            // 2) refrigerant_addon 측측 측측 측측 + 측측 (기존 keys 측측).
+            const updates = {
+              status: "완료",
+              completedAt: getCurrentTime(),
+              photos: photos.map(p => ({ url: p.url, step: p.step })),
+              ...completionTaskOverride,
+              workMemo: workMemo + (pendingMemo ? "\n[마무리] " + pendingMemo : ""),
+              categoryData: {
+                ...(task.categoryData || {}),
+                refrigerant_addon: {
+                  appliance: pendingRefriAddon?.appliance || "",
+                  amount: pendingRefriAddon?.amount || 0,
+                  consent: {
+                    customerName,
+                    signatureUrl: up.url,
+                    signedAt: new Date().toISOString(),
+                  },
+                  processed: false,
+                },
+              },
+            };
+            onUpdate && onUpdate(task.id, updates);
+            setPendingRefriAddon(null);
+            setPendingMemo("");
+            setSubScreen(null);
+            onBack && onBack();
+          } catch (e) {
+            console.error("[refriAddonConsent.onComplete]", e);
+            alert(`처리 실패: ${e?.message || e}`);
+          }
+        }}
+        onReject={() => {
+          // rejectMode="cancel" — 측측/뒤로 (출장비만 X / 냉매충전 미저장).
+          setPendingRefriAddon(null);
+          setPendingMemo("");
+          setSubScreen("complete");
         }}
       />
     );

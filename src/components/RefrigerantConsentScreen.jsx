@@ -21,7 +21,10 @@ import { ArrowLeft, RotateCcw, Check, X } from "lucide-react";
 import { uploadPhoto } from "../lib/photosDb.js";
 import { saveConsentAdapter } from "../data/tasksDb.js";
 
-export default function RefrigerantConsentScreen({ task, onBack, onComplete, onReject }) {
+// 2026-06-03 — Phase 1 보강: add-on(세척+냉매충전 2-task) 컨텍스트 측측 prop 2개 추가.
+//   skipAutoSave=true → 측측 측측 measure 측측 (부모 측측). onComplete 측측 signatureBlob 측측.
+//   rejectMode="cancel" → 거부 버튼 = "측측 — 측측" (출장비만 X). 기본/일반 냉매 동작 측측.
+export default function RefrigerantConsentScreen({ task, onBack, onComplete, onReject, skipAutoSave = false, rejectMode = "visit_only" }) {
   const [customerName, setCustomerName] = useState("");
   const [hasStroke, setHasStroke]       = useState(false);
   const [submitting, setSubmitting]     = useState(false);
@@ -126,6 +129,14 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
       }
       const file = new File([blob], `consent_${task.id}.png`, { type: "image/png" });
 
+      // 2026-06-03 — skipAutoSave 분기: 측측 측측 measure 측측, 측측 측측 측측 측측 (Phase 1 add-on 측측).
+      if (skipAutoSave) {
+        if (typeof onComplete === "function") {
+          onComplete({ customerName: name, signatureBlob: file });
+        }
+        return;
+      }
+
       // 2) photos 업로드 (step="consent_sign")
       const up = await uploadPhoto(task.id, file, "consent_sign");
       if (!up?.ok || !up?.url) {
@@ -160,6 +171,11 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
   }
 
   function handleReject() {
+    // 2026-06-03 — rejectMode 분기: "cancel" = 측측 측측 측측, "visit_only" = 측측 측측 (기존).
+    if (rejectMode === "cancel") {
+      if (typeof onReject === "function") onReject();
+      return;
+    }
     const ok = window.confirm(
       "고객이 동의를 거부했나요?\n\n" +
       "[확인]을 누르면 출장비 처리 화면으로 이동합니다.\n" +
@@ -345,7 +361,7 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
           }}
         >
           <X size={13}/>
-          동의 거부 — 출장비만
+          {rejectMode === "cancel" ? "취소 — 뒤로" : "동의 거부 — 출장비만"}
         </button>
       </div>
     </div>
