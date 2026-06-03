@@ -121,6 +121,8 @@ import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd
 import { isTrackARemittance, isPendingRemit } from "../utils/remitFilter.js";
 import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
 import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
+// 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
+import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -3216,6 +3218,16 @@ export default function AdminApp({ user, onLogout }) {
       />
     </Shell>;
   }
+  // 2026-06-03 — Phase 2a: 냉매 미처리 목록 (read-only, 측측 0).
+  if (screen === "refrigerantAddonList") {
+    return <Shell t={t} toasts={toasts}>
+      <RefrigerantAddonListScreen
+        t={t}
+        onBack={goBack}
+        onTaskClick={(item) => goTaskDetail({ id: item.id, task_no: item.task_no, customer_name: item.customer_name }, "refrigerantAddonList")}
+      />
+    </Shell>;
+  }
   // 2026-05-22 — 입금 내역 (회사 송금 통장 내역, 조회 전용)
   if (screen === "settlementHistory") {
     return <Shell t={t} toasts={toasts}>
@@ -3584,6 +3596,7 @@ export default function AdminApp({ user, onLogout }) {
       onClickLiveWork={(filter) => { setLiveWorkFilter(filter || null); setScreen("liveWork"); }}
       onClickInProgress={() => setScreen("inProgressList")}
       onClickReassign={() => setScreen("reassignList")}
+      onClickRefriAddon={() => setScreen("refrigerantAddonList")}
       onClickSettlement={() => setScreen("settlement")}
       onClickManage={() => setScreen("engineerList")}
       onClickManagePrincipals={() => setScreen("principalList")}
@@ -3667,7 +3680,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -3682,6 +3695,16 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
     t?.reassignRequest?.requestedAt && t.status !== "취소"
   );
   const reassignCount = reassignTasks.length;
+
+  // 2026-06-03 — Phase 2a: 냉매 미처리 카운트 (apiTasks 측 category_data.refrigerant_addon.processed===false).
+  //   측측 측측 = apiTasks 측측 (rowToTask 측측 categoryData 평탄화). 측측 fetch X.
+  //   취소 task 측측 — 측측 측측 measure 측측.
+  const refrigerantAddonCount = (apiTasks || []).reduce((n, t) => {
+    if (t?.status === "취소") return n;
+    const a = t?.categoryData?.refrigerant_addon;
+    if (a && a.processed === false) return n + 1;
+    return n;
+  }, 0);
 
   return (
     <div className="fade-in">
@@ -3754,6 +3777,32 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
           <StatBox t={t} label="진행중"   value={dynamicStats?.inProgress ?? TODAY_STATS.inProgress}  color={t.accent}  onClick={onClickInProgress}/>
           <StatBox t={t} label="완료"     value={dynamicStats?.completed  ?? TODAY_STATS.completed}   color={t.success} onClick={() => onClickLiveWork("completed-today")}/>
         </div>
+
+        {/* 2026-06-03 — Phase 2a: 냉매 미처리 알림 줄 (Phase 1 측측 기사 PWA 측측 입력 측 측). */}
+        {refrigerantAddonCount > 0 && (
+          <div
+            onClick={onClickRefriAddon}
+            className="clickable"
+            style={{
+              marginBottom: 14,
+              padding: "10px 12px",
+              background: "rgba(255,184,0,0.10)",
+              border: "1px solid rgba(255,184,0,0.40)",
+              borderRadius: 10,
+              display: "flex", alignItems: "center", gap: 8,
+              cursor: typeof onClickRefriAddon === "function" ? "pointer" : "default",
+            }}
+          >
+            <span style={{ fontSize: 14 }}>⚡</span>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#B07E00" }}>
+              냉매 미처리 {refrigerantAddonCount}건
+            </span>
+            <span style={{ fontSize: 11, color: t.textSecondary, marginLeft: "auto" }}>
+              목록 보기
+            </span>
+            <span style={{ fontSize: 14, color: "#B07E00", fontWeight: 700, flexShrink: 0 }}>›</span>
+          </div>
+        )}
 
         {/* 2026-05-26 — 기사 재배정 요청 알림 줄 (1건 이상 측 catch 노출 / 클릭 측 catch 측 catch 측 진입) */}
         {reassignCount > 0 && (
