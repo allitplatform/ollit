@@ -4559,7 +4559,10 @@ export default function EngineerApp({ user, onLogout }) {
         byDate.get(date).push({
           id: it.tasks.id,                       // task_id — onClick 측 catch
           itemId: it.id,                         // task_item_id — works.map key 측 catch
-          workType: "세척",
+          // 2026-06-03 — work_types.name 측측 사용 (fetchUsolNCompletedTaskItems SELECT 측측 측측).
+          //   getWorkTypeColors 측측 includes 측측 측 "세척"→❄세척, "냉매충전"→⚡냉매 자동 매핑.
+          //   추가선택 측측 work_types.name 측측 측측 측측 측측 측측 측측 측측 측측 측측 측측 (🔧기타).
+          workType: it.work_types?.name || "세척",
           customerName: it.tasks.customer_name,
           workItem: getItemChipLabel(it),
           quantity: it.qty || 1,
