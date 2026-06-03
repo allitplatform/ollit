@@ -1,4 +1,10 @@
 import { useState, useEffect } from "react";
+// 2026-06-03 — Principal 측측 측측 측측 측측 측측 측측: 글로벌 CSS 측 측측 (--text-primary 측).
+//   원인: Principal 측측 측측 측측 `useState("dark")` 측측측 (= 측측 측측 X) 측측 글로벌 CSS 측측
+//        App.jsx 측 loadTheme() 측측 측측측 측측 측측 (= 측측측 측측 측측 측측 측측 측측 측측 X).
+//        측측측 측측 측측 측측 측측 → --text-primary = #1A1A1A → Principal 측측 (#1A1512) 측 측측 측측.
+//   측측: 측측측 측측 측 applyThemeVars("dark") 측측 측측 측측 (= Admin/Engineer 측측 측측 동일 측측).
+import { applyTheme as applyThemeVars } from "../styles/themes.js";
 import {
   loadTasksForRole as getTasks,
   createTaskAdapter as createTask,
@@ -384,6 +390,12 @@ export default function PrincipalApp({ user, onLogout }) {
   const [submittedTask, setSubmittedTask] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const t = THEMES[mode];
+
+  // 2026-06-03 — 글로벌 CSS 측 측측 (Principal 측측 측측 측측 dark 측측).
+  //   측측: --text-primary 측측 LIGHT 측측 측측 측측 측측 측측 측측 측 측측 측 측측 측 측측.
+  useEffect(() => {
+    applyThemeVars(mode);
+  }, [mode]);
 
   // NewTab 신규 접수용 mock fallback (사장님 spec — addTask만 필요)
   const { addTask } = useTasks();
