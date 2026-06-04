@@ -17,6 +17,57 @@ import {
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 
+// ============================================================
+// 2026-06-04 — 원청 PWA 내정보 측 계좌 fetch + update 어댑터
+// ============================================================
+
+// 소유 원청 계좌 정보 fetch — user.principals[].id 배열 입력.
+//   응답: { ok: true, accounts: [{ id, code, name, bank_name, account_number, account_holder }] }
+//        | { ok: false, error }
+export async function fetchPrincipalAccounts(principalIds) {
+  if (!Array.isArray(principalIds) || principalIds.length === 0) {
+    return { ok: true, accounts: [] };
+  }
+  const { data, error } = await supabase
+    .from("principals")
+    .select("id, code, name, bank_name, account_number, account_holder")
+    .in("id", principalIds);
+  if (error) {
+    console.error("[principalsDb.fetchPrincipalAccounts]", error);
+    return { ok: false, error: error.message, accounts: [] };
+  }
+  return { ok: true, accounts: data || [] };
+}
+
+// 본인 원청 계좌 변경 — Mig 096 update_principal_account RPC 호출.
+//   인자: { principalId, bankName, accountNumber, accountHolder, actor }
+//   응답: { ok: true, principal: { id, code, name, bank_name, account_number, account_holder } }
+//        | { ok: false, error }
+export async function updatePrincipalAccount({
+  principalId,
+  bankName,
+  accountNumber,
+  accountHolder,
+  actor,
+} = {}) {
+  if (!principalId) return { ok: false, error: "principalId 필수" };
+  if (!actor)       return { ok: false, error: "actor (user_id) 필수" };
+
+  const { data, error } = await supabase.rpc("update_principal_account", {
+    p_principal_id:   principalId,
+    p_bank_name:      bankName      || "",
+    p_account_number: accountNumber || "",
+    p_account_holder: accountHolder || "",
+    p_actor:          actor,
+  });
+
+  if (error) {
+    console.error("[principalsDb.updatePrincipalAccount]", error);
+    return { ok: false, error: error.message || "RPC 호출 실패" };
+  }
+  return data || { ok: false, error: "빈 응답" };
+}
+
 // DB type ('direct' / 'external') ↔ 시트 type ('직영' / '위탁')
 function dbTypeToSheetType(dbType) {
   return dbType === "direct" ? "직영" : "위탁";

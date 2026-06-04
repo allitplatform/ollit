@@ -38,6 +38,7 @@ import { getPartialReasonLabel } from "../components/EngineerTaskCompletionScree
 import { partnerFullCancel, partnerPartialCancelItem } from "../lib/cancelRpc.js";
 import { FullCancelDialog, PartialCancelDialog } from "../components/CancelDialogs.jsx";
 import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
+import { fetchPrincipalAccounts, updatePrincipalAccount } from "../lib/principalsDb.js";
 import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
 import { supabase } from "../lib/supabase.js";
 
@@ -2276,6 +2277,45 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
   const [fontSize, setFontSize] = useState(() => loadFontSize());
   useEffect(() => { applyFontSize(fontSize); }, [fontSize]);
 
+  // 2026-06-04 — 본인 원청 계좌 fetch (Mig 096 update_principal_account 짝).
+  //   user.principals[].id 배열 (sign_in_with_phone Mig 057 응답) 기반.
+  const [accounts, setAccounts] = useState([]);     // [{ id, code, name, bank_name, account_number, account_holder }]
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [accountToast, setAccountToast] = useState(null);
+
+  const reloadAccounts = async () => {
+    const ids = Array.isArray(user?.principals)
+      ? user.principals.map(p => p?.id).filter(Boolean)
+      : [];
+    if (ids.length === 0) { setAccounts([]); return; }
+    setAccountsLoading(true);
+    const res = await fetchPrincipalAccounts(ids);
+    if (res.ok) setAccounts(res.accounts);
+    setAccountsLoading(false);
+  };
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const ids = Array.isArray(user?.principals)
+        ? user.principals.map(p => p?.id).filter(Boolean)
+        : [];
+      if (ids.length === 0) { setAccounts([]); return; }
+      setAccountsLoading(true);
+      const res = await fetchPrincipalAccounts(ids);
+      if (!alive) return;
+      if (res.ok) setAccounts(res.accounts);
+      setAccountsLoading(false);
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id]);
+
+  function showAccountToast(msg) {
+    setAccountToast(msg);
+    setTimeout(() => setAccountToast(null), 2400);
+  }
+
   return (
     <div className="fade-in" style={{ padding: "20px" }}>
       <div style={{ marginBottom: 16 }}>
@@ -2307,6 +2347,33 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
           {userPhone && <Row t={t} label="연락처" value={userPhone} mono/>}
         </div>
       </div>
+
+      {/* 2026-06-04 — 계좌 카드 (소유 원청별, Mig 096 update_principal_account 짝) */}
+      {accountsLoading && accounts.length === 0 ? (
+        <div style={{
+          background: t.bgElevated, borderRadius: 14, padding: "16px 18px", marginBottom: 16,
+          fontSize: 12, color: t.textMuted, textAlign: "center",
+        }}>계좌 정보 불러오는 중...</div>
+      ) : accounts.length > 0 ? (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, marginBottom: 8, paddingLeft: 4 }}>
+            입금 계좌
+          </div>
+          {accounts.map(acc => (
+            <AccountCard
+              key={acc.id}
+              t={t}
+              account={acc}
+              userId={user?.user_id || user?.id}
+              onUpdated={async () => {
+                await reloadAccounts();
+                showAccountToast("계좌가 업데이트되었습니다");
+              }}
+              onError={(msg) => showAccountToast(`⚠️ ${msg}`)}
+            />
+          ))}
+        </div>
+      ) : null}
 
       {/* 2026-06-04 — 설정 카드: 다크/라이트 + 폰트 크기 */}
       <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px 18px", marginBottom: 16 }}>
@@ -2391,6 +2458,214 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
       >
         <LogOut size={16}/> 로그아웃
       </button>
+
+      {/* 계좌 변경 토스트 */}
+      {accountToast && (
+        <div style={{
+          position: "fixed", bottom: 100, left: "50%", transform: "translateX(-50%)",
+          background: t.bgElevated, color: t.text,
+          border: `1px solid ${t.border}`, borderRadius: 10,
+          padding: "10px 16px", fontSize: 12, fontWeight: 700,
+          zIndex: 2000, boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+          fontFamily: "inherit",
+        }}>{accountToast}</div>
+      )}
+    </div>
+  );
+}
+
+// 2026-06-04 — 원청 계좌 카드 (InfoTab 측).
+//   1) 현재 은행/번호/예금주 표시 + "수정" 버튼.
+//   2) 수정 모드: 입력 폼 (3개 필드 모두 필수, 형식 검증 없음).
+//   3) "저장" → 확인 다이얼로그 (변경 내용 표시) → 확인 시 RPC 호출 → onUpdated 콜백.
+function AccountCard({ t, account, userId, onUpdated, onError }) {
+  const [editing, setEditing]   = useState(false);
+  const [bankName, setBankName] = useState(account?.bank_name      || "");
+  const [accNum,   setAccNum]   = useState(account?.account_number || "");
+  const [holder,   setHolder]   = useState(account?.account_holder || "");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [submitting, setSubmitting]   = useState(false);
+
+  useEffect(() => {
+    if (!editing) {
+      setBankName(account?.bank_name      || "");
+      setAccNum(  account?.account_number || "");
+      setHolder(  account?.account_holder || "");
+    }
+  }, [account, editing]);
+
+  const hasAllFields =
+    bankName.trim() !== "" &&
+    accNum.trim()   !== "" &&
+    holder.trim()   !== "";
+
+  function handleSaveClick() {
+    if (!hasAllFields) {
+      onError?.("은행 / 번호 / 예금주 모두 입력해주세요");
+      return;
+    }
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirm() {
+    if (!userId) {
+      onError?.("로그인 정보가 없습니다");
+      setConfirmOpen(false);
+      return;
+    }
+    setSubmitting(true);
+    const res = await updatePrincipalAccount({
+      principalId:   account.id,
+      bankName:      bankName.trim(),
+      accountNumber: accNum.trim(),
+      accountHolder: holder.trim(),
+      actor:         userId,
+    });
+    setSubmitting(false);
+    setConfirmOpen(false);
+    if (res?.ok) {
+      setEditing(false);
+      onUpdated?.();
+    } else {
+      onError?.(res?.error || "변경 실패");
+    }
+  }
+
+  const inputStyle = {
+    width: "100%", padding: "10px 12px",
+    background: t.bgInset, border: `1px solid ${t.border}`,
+    borderRadius: 8, fontSize: 13, color: t.text,
+    fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+  };
+
+  return (
+    <div style={{
+      background: t.bgElevated, borderRadius: 14, padding: "16px 18px", marginBottom: 10,
+      border: `1px solid ${t.border}`,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>
+          {account?.name || "원청"}
+        </div>
+        {!editing && (
+          <button
+            onClick={() => setEditing(true)}
+            style={{
+              padding: "6px 12px",
+              background: "transparent",
+              border: `1px solid ${t.border}`,
+              color: t.textSecondary, borderRadius: 8,
+              fontSize: 11, fontWeight: 700, fontFamily: "inherit",
+              cursor: "pointer",
+            }}
+          >수정</button>
+        )}
+      </div>
+
+      {!editing ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <Row t={t} label="은행" value={account?.bank_name || "—"}/>
+          <Row t={t} label="계좌번호" value={account?.account_number || "—"} mono/>
+          <Row t={t} label="예금주" value={account?.account_holder || "—"}/>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 4 }}>은행</div>
+            <input value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="예: 카카오뱅크" style={inputStyle}/>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 4 }}>계좌번호</div>
+            <input value={accNum} onChange={(e) => setAccNum(e.target.value)} placeholder="0000-00-0000000" style={inputStyle}/>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 4 }}>예금주</div>
+            <input value={holder} onChange={(e) => setHolder(e.target.value)} placeholder="예: 홍길동" style={inputStyle}/>
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
+            <button
+              onClick={() => setEditing(false)}
+              style={{
+                flex: 1, padding: "10px",
+                background: "transparent", border: `1px solid ${t.border}`,
+                color: t.textSecondary, borderRadius: 8,
+                fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+                cursor: "pointer",
+              }}
+            >취소</button>
+            <button
+              onClick={handleSaveClick}
+              disabled={!hasAllFields}
+              style={{
+                flex: 1, padding: "10px",
+                background: hasAllFields ? "#FF4D9E" : t.bgInset,
+                color: hasAllFields ? "#fff" : t.textMuted,
+                border: "none", borderRadius: 8,
+                fontSize: 12, fontWeight: 800, fontFamily: "inherit",
+                cursor: hasAllFields ? "pointer" : "not-allowed",
+              }}
+            >저장</button>
+          </div>
+        </div>
+      )}
+
+      {confirmOpen && (
+        <div style={{
+          position: "fixed", inset: 0,
+          background: "rgba(0,0,0,0.55)",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          padding: 20, zIndex: 1500,
+        }}>
+          <div style={{
+            width: "100%", maxWidth: 380,
+            background: t.bgElevated, borderRadius: 14,
+            border: `1px solid ${t.border}`,
+            padding: "20px",
+          }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: t.text, marginBottom: 12 }}>
+              계좌 변경 확인
+            </div>
+            <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 14, lineHeight: 1.5 }}>
+              아래 정보로 변경합니다. 진행하시겠습니까?
+            </div>
+            <div style={{
+              background: t.bgInset, border: `1px solid ${t.border}`,
+              borderRadius: 8, padding: "12px 14px",
+              display: "flex", flexDirection: "column", gap: 6,
+              marginBottom: 16,
+            }}>
+              <Row t={t} label="은행" value={bankName.trim()}/>
+              <Row t={t} label="계좌번호" value={accNum.trim()} mono/>
+              <Row t={t} label="예금주" value={holder.trim()}/>
+            </div>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button
+                onClick={() => setConfirmOpen(false)}
+                disabled={submitting}
+                style={{
+                  flex: 1, padding: "10px",
+                  background: "transparent", border: `1px solid ${t.border}`,
+                  color: t.textSecondary, borderRadius: 8,
+                  fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+                  cursor: submitting ? "not-allowed" : "pointer",
+                }}
+              >취소</button>
+              <button
+                onClick={handleConfirm}
+                disabled={submitting}
+                style={{
+                  flex: 1, padding: "10px",
+                  background: submitting ? t.bgInset : "#FF4D9E",
+                  color: submitting ? t.textMuted : "#fff",
+                  border: "none", borderRadius: 8,
+                  fontSize: 12, fontWeight: 800, fontFamily: "inherit",
+                  cursor: submitting ? "not-allowed" : "pointer",
+                }}
+              >{submitting ? "저장 중..." : "확인"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
