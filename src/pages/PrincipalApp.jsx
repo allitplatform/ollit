@@ -527,7 +527,7 @@ export default function PrincipalApp({ user, onLogout }) {
               {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
               {tab === "info"   && <InfoTab t={t} user={user} onLogout={onLogout}/>}
             </div>
-            {selectedTask && <TaskDetail t={t} task={selectedTask} onBack={() => setSelectedTask(null)}/>}
+            {selectedTask && <TaskDetail t={t} task={selectedTask} user={user} onBack={() => setSelectedTask(null)}/>}
           </>
         )}
 
@@ -955,7 +955,10 @@ function TaskCard({ t, task, onClick }) {
   );
 }
 
-function TaskDetail({ t, task: initialTask, onBack }) {
+function TaskDetail({ t, task: initialTask, user, onBack }) {
+  // 2026-06-04 — 정산 박스 라벨 측 원청 표시명 — 헤더 인사말과 동일 값 사용.
+  //   cleanGreetingName(user.name || getPrincipalLabel(user)) → "에어컨프로" 등.
+  const principalLabel = cleanGreetingName(user?.name || getPrincipalLabel(user), "원청");
   // 정산 탭에서 진입 시 부분 task — mount 시 full task refetch.
   //   목록 탭은 normalized task라 영향 X (덮어쓰면 동일 내용).
   // 2026-06-02 — 깜빡임 개선 (사장님 spec): partial initial은 spinner 노출, full은 즉시 표시.
@@ -1226,6 +1229,7 @@ function TaskDetail({ t, task: initialTask, onBack }) {
       <SettleDetailBox
         t={t}
         task={task}
+        principalLabel={principalLabel}
         items={settleItems}
         remitMap={remitMap}
         principalId={task.principalId}
@@ -1445,13 +1449,13 @@ function StageProgress({ stage }) {
   );
 }
 
-function SettleDetailBox({ t, task, items, remitMap, principalId, loading, error }) {
+function SettleDetailBox({ t, task, principalLabel, items, remitMap, principalId, loading, error }) {
   // 2026-06-04 Phase 2-A — task 기반 분기.
   //   유솔 흐름 (usol_h/usol_n) → 기존 본문 그대로 (네이버/15%/3단계).
   //   단순 흐름 (KA/crikrin 등) → SettleDetailBoxSimple (DB principal_amount 직접).
   //   task 미전달 시 (Step 3 전 호출처) 안전망 — 유솔 본문 fallback (회귀 0).
   if (task && !isUsolFlow(task)) {
-    return <SettleDetailBoxSimple t={t} task={task} items={items} loading={loading} error={error}/>;
+    return <SettleDetailBoxSimple t={t} task={task} principalLabel={principalLabel} items={items} loading={loading} error={error}/>;
   }
 
   if (loading) {
@@ -1844,7 +1848,7 @@ function SimpleStageProgress({ task, accentColor }) {
   );
 }
 
-function SettleDetailBoxSimple({ t, task, items, loading, error }) {
+function SettleDetailBoxSimple({ t, task, principalLabel, items, loading, error }) {
   if (loading) {
     return (
       <div style={settleBoxStyle(t)}>
@@ -1879,12 +1883,13 @@ function SettleDetailBoxSimple({ t, task, items, loading, error }) {
     ? Math.round((principalAmount / totalAmount) * 100)
     : 0;
 
-  // 2026-06-04 — 라벨 측 원청 표시명 사용. task.principal 측 "에어컨프로 (KA)" 같이 괄호 코드 측
-  //   포함된 케이스 → 괄호 영역 제거 후 짧은 이름 (예: "에어컨프로"). 그 외 원청 측 그대로.
-  const principalDisplayName = ((task?.principal || "").replace(/\s*\([^)]*\)\s*/g, "").trim()) || "원청";
+  // 2026-06-04 — 라벨 측 원청 표시명 — 헤더 인사말과 동일 값(principalLabel prop).
+  //   TaskDetail 측 cleanGreetingName(user.name || getPrincipalLabel(user)) 결과 전달.
+  //   prop 누락 시 fallback "원청".
+  const labelName = principalLabel || "원청";
   const feeLabel = feePct > 0
-    ? `${principalDisplayName} 수수료 (${feePct}%)`
-    : `${principalDisplayName} 수수료`;
+    ? `${labelName} 수수료 (${feePct}%)`
+    : `${labelName} 수수료`;
 
   // 2026-06-04 — 상세 정산 박스 색상 통일 (#FF4D9E 핑크 고정).
   //   PARTNER_PWA_CONFIG.accentColor 는 폼/업로드 탭 측 그대로 유지, 상세 박스만 핑크.
@@ -1894,9 +1899,9 @@ function SettleDetailBoxSimple({ t, task, items, loading, error }) {
     <div style={settleBoxStyle(t)}>
       <SettleBoxHeader t={t}/>
 
-      {/* 정산 합계 — 정산 금액 + 원청 수수료 */}
+      {/* 정산 합계 — 견적금액 + 원청 수수료 */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <SumLine label="정산 금액" value={totalAmount} t={t} size="lg"/>
+        <SumLine label="견적금액" value={totalAmount} t={t} size="lg"/>
         <SumLine label={feeLabel} value={principalAmount} color={FEE_COLOR} indent t={t}/>
       </div>
 
