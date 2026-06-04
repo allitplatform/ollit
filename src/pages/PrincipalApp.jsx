@@ -1781,7 +1781,7 @@ function getSimpleStageKey(task) {
   return 'assigned';  // 배정 / 약속대기 / 그 외
 }
 
-function SimpleStageProgress({ task, accentColor }) {
+function SimpleStageProgress({ task, accentColor, t }) {
   const stageKey = getSimpleStageKey(task);
   if (stageKey === null) return null;  // 취소 계열 — 호출처 숨김
 
@@ -1797,13 +1797,22 @@ function SimpleStageProgress({ task, accentColor }) {
   const progressPct = currentIdx < 0 ? 0 : (safeIdx / (N - 1)) * lineSpan;
   const currentColor = currentIdx >= 0 ? accentColor : '#9CA3AF';
 
+  // 2026-06-04 — 라이트/다크 분기. t.isLight 기준.
+  //   다크 측 옛 색상 그대로 유지 (회귀 0): 배경라인 #3A3A3A / dot 비활성 #1F1F1F / 라벨 #666.
+  //   라이트 측 옅은 회색 매칭.
+  const isLight        = !!(t && t.isLight);
+  const trackBg        = isLight ? "#E5E5E5" : "#3A3A3A";
+  const dotEmptyBg     = isLight ? "#FFFFFF" : "#1F1F1F";
+  const dotEmptyBorder = isLight ? "#D4D4D4" : "#3A3A3A";
+  const labelEmptyClr  = isLight ? "#A3A3A3" : "#666";
+
   return (
     <div style={{ position: "relative", marginTop: 8, marginBottom: 10 }}>
       {/* 배경 라인 */}
       <div style={{
         position: "absolute", top: 6,
         left: sideOffset, right: sideOffset,
-        height: 2, background: "#3A3A3A",
+        height: 2, background: trackBg,
         zIndex: 0,
       }}/>
       {/* 진행 라인 */}
@@ -1833,15 +1842,15 @@ function SimpleStageProgress({ task, accentColor }) {
               }}>
                 <div style={{
                   width: dotSize, height: dotSize, borderRadius: "50%",
-                  background: filled ? accentColor : "#1F1F1F",
-                  border: `2px solid ${filled ? accentColor : "#3A3A3A"}`,
+                  background: filled ? accentColor : dotEmptyBg,
+                  border: `2px solid ${filled ? accentColor : dotEmptyBorder}`,
                   boxSizing: "border-box",
                   transition: "all 0.2s",
                 }}/>
               </div>
               <div style={{
                 fontSize: 9, fontWeight: isCurrent ? 700 : 500,
-                color: filled ? accentColor : "#666",
+                color: filled ? accentColor : labelEmptyClr,
                 whiteSpace: "nowrap",
               }}>{s.label}</div>
             </div>
@@ -1910,7 +1919,7 @@ function SettleDetailBoxSimple({ t, task, principalLabel, items, loading, error 
       </div>
 
       {/* 진행바 — 3단계 (배정 → 확정 → 완료). 취소 계열 task 측 null 반환 → 자동 숨김. */}
-      <SimpleStageProgress task={task} accentColor={FEE_COLOR}/>
+      <SimpleStageProgress task={task} accentColor={FEE_COLOR} t={t}/>
 
       <div style={{ height: 1, background: t.border, margin: "16px 0" }}/>
 

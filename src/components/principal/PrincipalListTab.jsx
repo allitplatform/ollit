@@ -215,8 +215,8 @@ function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSel
           onFocus={(e) => e.currentTarget.blur()}
           style={{
             width: "100%", padding: "10px 12px 10px 32px",
-            background: "#161619",
-            border: "1px solid #29292F",
+            background: "var(--bg-secondary, #161619)",
+            border: "1px solid var(--border, #29292F)",
             borderRadius: 10,
             color: "var(--text-primary, #FAF8F5)",
             fontSize: 12, fontWeight: 600,

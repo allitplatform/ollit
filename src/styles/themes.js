@@ -9,6 +9,9 @@ export const DARK_THEME = {
   "--bg-tertiary":      "#2A2420",
   "--bg-quaternary":    "#322A24",
   "--bg-inset":         "#0F0B0A",
+  // 2026-06-04 — 카드 elevated 배경 (옛 fallback #1F1F1F 와 동일 → 다크 회귀 0).
+  //   다수 컴포넌트 측 var(--bg-elevated, #1F1F1F) 사용 중. 라이트 모드 측 #FFFFFF 매칭 위해 정식 정의.
+  "--bg-elevated":      "#1F1F1F",
   "--text-primary":     "#FAF8F5",
   "--text-secondary":   "#B0B0B0",
   "--text-tertiary":    "#888",
@@ -119,6 +122,8 @@ export const LIGHT_THEME = {
   "--bg-tertiary":      "#FFFFFF",
   "--bg-quaternary":    "#F0F0F0",
   "--bg-inset":         "#F5F5F5",
+  // 2026-06-04 — 카드 elevated (라이트). 다크 #1F1F1F 와 대응.
+  "--bg-elevated":      "#FFFFFF",
   "--text-primary":     "#1A1A1A",
   "--text-secondary":   "#666666",
   "--text-tertiary":    "#888",
