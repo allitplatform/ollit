@@ -1732,6 +1732,7 @@ function ItemAmounts({ t, item }) {
 //                   fallback: items 측 subtotal 합 (취소 제외).
 //     · 원청 수수료 (N%) = task.principal_amount (DB compute_payment 결과 직접 사용).
 //                          N% = principal_amount / totalAmount × 100 동적 계산 (하드코딩 금지).
+//     · 진행바 (3단계: 배정 → 확정 → 완료) — accentColor 사용 (KA 청록 / crikrin 보라).
 //
 //   숨김 (유솔 본문 대비):
 //     · 고객 결제 합계 / 기사몫 / 회사몫 / 올데이케어 / 네이버 정산 / 트랙B 3단계 진행바
@@ -1739,6 +1740,97 @@ function ItemAmounts({ t, item }) {
 //
 //   호출처: SettleDetailBox 측 isUsolFlow(task)=false 분기.
 // ════════════════════════════════════════════════════════════
+
+// 단순 흐름 진행바 — task.status / scheduledAt 기반 3단계 판정.
+//   null 반환 → 호출처 측 진행바 숨김 (취소 / 취소요청).
+//   '미배정' → 모두 비활성 (currentIdx=-1). 진행바 표시되지만 dot/라인 회색.
+const SIMPLE_STAGE_DEFS = [
+  { key: 'assigned',  label: '배정' },
+  { key: 'scheduled', label: '확정' },
+  { key: 'done',      label: '완료' },
+];
+
+function getSimpleStageKey(task) {
+  const status = task?.status || '';
+  if (status === '취소' || status === '취소요청') return null;        // 진행바 숨김
+  if (status === '완료' || status === 'visit_only') return 'done';
+  if (status === '확정' || status === '진행중')   return 'scheduled';
+  if (task?.scheduledAt)                          return 'scheduled'; // 일정 있으면 확정 단계
+  if (status === '미배정')                        return 'none';      // 진행바 표시 + 모두 비활성
+  return 'assigned';  // 배정 / 약속대기 / 그 외
+}
+
+function SimpleStageProgress({ task, accentColor }) {
+  const stageKey = getSimpleStageKey(task);
+  if (stageKey === null) return null;  // 취소 계열 — 호출처 숨김
+
+  const stages = SIMPLE_STAGE_DEFS;
+  // stageKey='none' (미배정) → currentIdx=-1 → 모두 비활성.
+  const currentIdx = stageKey === 'none'
+    ? -1
+    : stages.findIndex(s => s.key === stageKey);
+  const N = stages.length;
+  const sideOffset = `${100 / (2 * N)}%`;
+  const lineSpan   = 100 - (100 / N);
+  const safeIdx    = currentIdx < 0 ? 0 : currentIdx;
+  const progressPct = currentIdx < 0 ? 0 : (safeIdx / (N - 1)) * lineSpan;
+  const currentColor = currentIdx >= 0 ? accentColor : '#9CA3AF';
+
+  return (
+    <div style={{ position: "relative", marginTop: 8, marginBottom: 10 }}>
+      {/* 배경 라인 */}
+      <div style={{
+        position: "absolute", top: 6,
+        left: sideOffset, right: sideOffset,
+        height: 2, background: "#3A3A3A",
+        zIndex: 0,
+      }}/>
+      {/* 진행 라인 */}
+      <div style={{
+        position: "absolute", top: 6,
+        left: sideOffset,
+        width: `${progressPct}%`, height: 2,
+        background: currentColor,
+        zIndex: 1,
+        transition: "width 0.3s",
+      }}/>
+      {/* 단계 dot + 라벨 */}
+      <div style={{ position: "relative", display: "flex", gap: 4, zIndex: 2 }}>
+        {stages.map((s, idx) => {
+          const isPast    = currentIdx >= 0 && idx < currentIdx;
+          const isCurrent = currentIdx >= 0 && idx === currentIdx;
+          const filled    = isPast || isCurrent;
+          const dotSize   = isCurrent ? 12 : 8;
+          return (
+            <div key={s.key} style={{
+              flex: 1,
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            }}>
+              <div style={{
+                width: 14, height: 14,
+                display: "flex", alignItems: "center", justifyContent: "center",
+              }}>
+                <div style={{
+                  width: dotSize, height: dotSize, borderRadius: "50%",
+                  background: filled ? accentColor : "#1F1F1F",
+                  border: `2px solid ${filled ? accentColor : "#3A3A3A"}`,
+                  boxSizing: "border-box",
+                  transition: "all 0.2s",
+                }}/>
+              </div>
+              <div style={{
+                fontSize: 9, fontWeight: isCurrent ? 700 : 500,
+                color: filled ? accentColor : "#666",
+                whiteSpace: "nowrap",
+              }}>{s.label}</div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function SettleDetailBoxSimple({ t, task, items, loading, error }) {
   if (loading) {
     return (
@@ -1775,6 +1867,10 @@ function SettleDetailBoxSimple({ t, task, items, loading, error }) {
     : 0;
   const feeLabel = feePct > 0 ? `원청 수수료 (${feePct}%)` : "원청 수수료";
 
+  // 진행바 색상 — task.principalCode → PARTNER_PWA_CONFIG.accentColor.
+  //   KA 청록(#06B6D4) / crikrin 보라(#7F77DD) / 그 외 fallback 핑크(#FF4D9E).
+  const accentColor = (PARTNER_PWA_CONFIG[task?.principalCode] || {}).accentColor || "#FF4D9E";
+
   return (
     <div style={settleBoxStyle(t)}>
       <SettleBoxHeader t={t}/>
@@ -1782,8 +1878,11 @@ function SettleDetailBoxSimple({ t, task, items, loading, error }) {
       {/* 정산 합계 — 정산 금액 + 원청 수수료 */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <SumLine label="정산 금액" value={totalAmount} t={t} size="lg"/>
-        <SumLine label={feeLabel} value={principalAmount} color="#FF4D9E" indent t={t}/>
+        <SumLine label={feeLabel} value={principalAmount} color={accentColor} indent t={t}/>
       </div>
+
+      {/* 진행바 — 3단계 (배정 → 확정 → 완료). 취소 계열 task 측 null 반환 → 자동 숨김. */}
+      <SimpleStageProgress task={task} accentColor={accentColor}/>
 
       <div style={{ height: 1, background: t.border, margin: "16px 0" }}/>
 
