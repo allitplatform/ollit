@@ -71,6 +71,15 @@ function _resolvePartnerCode(user) {
   return null;
 }
 
+// 2026-06-04 Phase 2-A — 작업 상세 정산 박스 분기 키.
+//   true  → 유솔 흐름 (네이버 정산 + 트랙B 3단계 + 15%/85% 분해). 기존 SettleDetailBox 본문 유지.
+//   false → 단순 흐름 (KA / crikrin 등). SettleDetailBoxSimple 본문 — DB principal_amount 직접 사용.
+//   분기 키 = task.principalCode (트랙 'A'/'B' 보다 명시적 — usol_n 냉매도 트랙 'A'지만 유솔 흐름 유지).
+function isUsolFlow(task) {
+  const code = task?.principalCode || "";
+  return code === "usol_h" || code === "usol_n";
+}
+
 // V14 Phase 4-F-1 — 헤더 양식 통일 (AdminApp 패턴 / 페이지 진입 시점 동적 날짜)
 const TODAY = (() => {
   const d = new Date();
@@ -1203,6 +1212,7 @@ function TaskDetail({ t, task: initialTask, onBack }) {
       {/* 📊 정산 — 작업 전체 합계 + 상품주문별 진행바 */}
       <SettleDetailBox
         t={t}
+        task={task}
         items={settleItems}
         remitMap={remitMap}
         principalId={task.principalId}
@@ -1422,7 +1432,15 @@ function StageProgress({ stage }) {
   );
 }
 
-function SettleDetailBox({ t, items, remitMap, principalId, loading, error }) {
+function SettleDetailBox({ t, task, items, remitMap, principalId, loading, error }) {
+  // 2026-06-04 Phase 2-A — task 기반 분기.
+  //   유솔 흐름 (usol_h/usol_n) → 기존 본문 그대로 (네이버/15%/3단계).
+  //   단순 흐름 (KA/crikrin 등) → SettleDetailBoxSimple (DB principal_amount 직접).
+  //   task 미전달 시 (Step 3 전 호출처) 안전망 — 유솔 본문 fallback (회귀 0).
+  if (task && !isUsolFlow(task)) {
+    return <SettleDetailBoxSimple t={t} task={task} items={items} loading={loading} error={error}/>;
+  }
+
   if (loading) {
     return (
       <div style={settleBoxStyle(t)}>
@@ -1702,6 +1720,203 @@ function ItemAmounts({ t, item }) {
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════
+// 2026-06-04 Phase 2-A — 단순 흐름 정산 박스 (KA / crikrin 등 비-유솔 원청).
+//
+//   표시:
+//     · 정산 금액 = task.totalAmount (= product + extra + travel, DB GENERATED).
+//                   fallback: items 측 subtotal 합 (취소 제외).
+//     · 원청 수수료 (N%) = task.principal_amount (DB compute_payment 결과 직접 사용).
+//                          N% = principal_amount / totalAmount × 100 동적 계산 (하드코딩 금지).
+//
+//   숨김 (유솔 본문 대비):
+//     · 고객 결제 합계 / 기사몫 / 회사몫 / 올데이케어 / 네이버 정산 / 트랙B 3단계 진행바
+//     · product_order_id (네이버 발주번호)
+//
+//   호출처: SettleDetailBox 측 isUsolFlow(task)=false 분기.
+// ════════════════════════════════════════════════════════════
+function SettleDetailBoxSimple({ t, task, items, loading, error }) {
+  if (loading) {
+    return (
+      <div style={settleBoxStyle(t)}>
+        <SettleBoxHeader t={t}/>
+        <div style={{ padding: "20px 0", textAlign: "center", color: t.textMuted, fontSize: 12 }}>불러오는 중...</div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div style={settleBoxStyle(t)}>
+        <SettleBoxHeader t={t}/>
+        <div style={{ padding: "20px 0", textAlign: "center", color: "#EF4444", fontSize: 11 }}>⚠️ {error}</div>
+      </div>
+    );
+  }
+  if (!items || items.length === 0) return null;
+
+  // 정산 금액 = task-level 견적 총액 (compute_payment 측 동일 기준).
+  //   task.totalAmount (DB GENERATED: product + extra + travel) 우선 / fallback: items subtotal 합.
+  const totalAmount = Number(task?.totalAmount) > 0
+    ? Number(task.totalAmount)
+    : items.reduce((s, it) => s + (it.is_canceled ? 0 : (Number(it.subtotal) || 0)), 0);
+
+  // 원청 수수료 = DB principal_amount (compute_payment 계산 결과 직접).
+  //   미계산 task (payments 없음, 또는 status='미배정' 측 trigger 호출 결과 0) 측 0 표시.
+  const principalAmount = Number(task?.principal_amount) || 0;
+
+  // N% = principal_amount / totalAmount × 100 — 동적 계산. 하드코딩 % 사용 금지.
+  //   totalAmount 0 또는 principal_amount 0 측 라벨 측 % 생략 (= "원청 수수료" 만).
+  const feePct = totalAmount > 0 && principalAmount > 0
+    ? Math.round((principalAmount / totalAmount) * 100)
+    : 0;
+  const feeLabel = feePct > 0 ? `원청 수수료 (${feePct}%)` : "원청 수수료";
+
+  return (
+    <div style={settleBoxStyle(t)}>
+      <SettleBoxHeader t={t}/>
+
+      {/* 정산 합계 — 정산 금액 + 원청 수수료 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <SumLine label="정산 금액" value={totalAmount} t={t} size="lg"/>
+        <SumLine label={feeLabel} value={principalAmount} color="#FF4D9E" indent t={t}/>
+      </div>
+
+      <div style={{ height: 1, background: t.border, margin: "16px 0" }}/>
+
+      {/* 상품주문별 — 라벨 + 단가만 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        {items.map(item => (
+          <ItemProgressSimple key={item.id} t={t} item={item}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 2026-06-04 Phase 2-A — 단순 흐름 상품주문 카드 (KA / crikrin 등).
+//   숨김: product_order_id / ItemAmounts 3종 / StageProgress 3단계.
+//   취소 row + 방문비 row 분기는 ItemProgress 측 동일 디자인 재사용.
+//   일반 row = 라벨 (workType · appliance · qty대) + 단가 행 (₩단가 × N대 = ₩소계).
+function ItemProgressSimple({ t, item }) {
+  // 취소 분기 — ItemProgress 측 동일 (Migration 070).
+  if (item?.is_canceled === true) {
+    const workType  = item.work_types?.name || "";
+    const appliance = item.appliance_types?.name || "";
+    const qty       = item.qty || 1;
+    const labelParts = [];
+    if (workType) labelParts.push(workType);
+    if (appliance && !(workType && workType.includes(appliance))) labelParts.push(appliance);
+    labelParts.push(`${qty}대`);
+    const itemLabel = labelParts.length > 1 ? labelParts.join(" · ") : (item.description || "—");
+    const reasonLabel = getPartialReasonLabel(item.canceled_reason);
+    return (
+      <div style={{ opacity: 0.55 }}>
+        <div style={{
+          fontSize: 13, fontWeight: 700,
+          color: t.textMuted || "#9CA3AF",
+          marginBottom: 6,
+          display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+        }}>
+          <span style={{ textDecoration: "line-through" }}>{itemLabel}</span>
+          <span style={{
+            fontSize: 10, fontWeight: 700,
+            color: "#9CA3AF",
+            background: "rgba(156, 163, 175, 0.18)",
+            padding: "2px 7px",
+            borderRadius: 6,
+          }}>✗ 취소</span>
+        </div>
+        <div style={{
+          padding: "10px 12px",
+          background: t.bgInset || "#161619",
+          border: `1px solid ${t.border || "#2A2A2A"}`,
+          borderRadius: 8,
+          display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8,
+          fontSize: 12, fontWeight: 600,
+          color: t.textMuted || "#9CA3AF",
+        }}>
+          {reasonLabel && (
+            <>
+              <span>사유: {reasonLabel}</span>
+              <span style={{ color: t.textMuted }}>·</span>
+            </>
+          )}
+          <span>
+            <span className="mono" style={{ fontWeight: 800 }}>₩0</span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // 방문비 분기 — ItemProgress 측 동일 (work_types.code='visit').
+  if (item?.work_types?.code === "visit") {
+    const visitAmount = Number(item.subtotal) || Number(item.unit_price) * Number(item.qty || 1) || 0;
+    const visitLabel  = item.work_types?.name || "출장비";
+    return (
+      <div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 6 }}>
+          {visitLabel}
+        </div>
+        <div style={{
+          padding: "10px 12px",
+          background: t.bgInset || "#161619",
+          border: `1px solid ${t.border || "#2A2A2A"}`,
+          borderRadius: 8,
+          display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8,
+          fontSize: 12, fontWeight: 600, color: t.text,
+        }}>
+          <span style={{ color: "#5DCAA5", fontWeight: 800 }}>✓</span>
+          <span>현장 현금정산 완료</span>
+          <span style={{ color: t.textMuted }}>·</span>
+          <span>
+            기사{" "}
+            <span className="mono" style={{ fontWeight: 800 }}>
+              ₩{visitAmount.toLocaleString()}
+            </span>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // 일반 row — 라벨 + 단가만 (네이버/진행바/상품주문번호 모두 숨김).
+  const workType  = item.work_types?.name || "";
+  const appliance = item.appliance_types?.name || "";
+  const qty       = item.qty || 1;
+  const labelParts = [];
+  if (workType) labelParts.push(workType);
+  if (appliance && !(workType && workType.includes(appliance))) labelParts.push(appliance);
+  labelParts.push(`${qty}대`);
+  const itemLabel = labelParts.length > 1 ? labelParts.join(" · ") : (item.description || "—");
+
+  const unitPrice = Number(item.unit_price) || 0;
+  const subtotal  = Number(item.subtotal) || (unitPrice * qty);
+
+  return (
+    <div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 6 }}>
+        {itemLabel}
+      </div>
+      <div style={{
+        padding: "10px 12px",
+        background: t.bgInset || "#161619",
+        border: `1px solid ${t.border || "#2A2A2A"}`,
+        borderRadius: 8,
+        display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8,
+        fontSize: 12, fontWeight: 600, color: t.text,
+      }}>
+        <span style={{ color: t.textMuted }}>
+          ₩{unitPrice.toLocaleString()} × {qty}대
+        </span>
+        <span className="mono" style={{ fontWeight: 800, color: t.text }}>
+          ₩{subtotal.toLocaleString()}
+        </span>
+      </div>
     </div>
   );
 }
