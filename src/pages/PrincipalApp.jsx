@@ -7,6 +7,16 @@ import { useState, useEffect } from "react";
 import { applyTheme as applyThemeVars, loadTheme } from "../styles/themes.js";
 // 2026-06-04 — 폰트 크기 공용 헬퍼 (EngineerMeTab과 공유).
 import { loadFontSize, applyFontSize, FONT_SIZE_OPTIONS } from "../utils/fontSize.js";
+// 2026-06-04 — 푸시 알림 헬퍼 (EngineerMeTab 패턴 — partner role 호출).
+import {
+  subscribePushWithSync,
+  unsubscribePushWithSync,
+  isPushSupported,
+  isStandalone,
+  isIOS,
+  getPermissionState,
+  getCurrentSubscription,
+} from "../utils/pushNotification.js";
 import {
   loadTasksForRole as getTasks,
   createTaskAdapter as createTask,
@@ -2277,6 +2287,80 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
   const [fontSize, setFontSize] = useState(() => loadFontSize());
   useEffect(() => { applyFontSize(fontSize); }, [fontSize]);
 
+  // 2026-06-04 — 푸시 알림 토글 (Mig 097 partner 분기 짝).
+  //   localStorage 'ollit_push' (EngineerMeTab 공유 키) 우선, 마운트 시 실제 구독 상태 동기화.
+  const [push, setPush] = useState(() => {
+    try {
+      const v = localStorage.getItem("ollit_push");
+      if (v === "false") return false;
+    } catch (e) { /* ignore */ }
+    return true;
+  });
+  const [pushToast, setPushToast] = useState(null);
+
+  function showPushToast(msg) {
+    setPushToast(msg);
+    setTimeout(() => setPushToast(null), 2400);
+  }
+
+  useEffect(() => {
+    if (!isPushSupported()) return;
+    let cancelled = false;
+    getCurrentSubscription().then(sub => {
+      if (cancelled) return;
+      const granted = getPermissionState() === "granted";
+      const next = !!(sub && granted);
+      setPush(next);
+      try { localStorage.setItem("ollit_push", String(next)); } catch (e) { /* ignore */ }
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  async function handlePushToggle(value) {
+    if (value) {
+      if (!isPushSupported()) {
+        showPushToast("⚠️ 이 브라우저는 푸시 알림을 지원하지 않습니다");
+        return;
+      }
+      if (isIOS() && !isStandalone()) {
+        showPushToast("⚠️ 홈 화면에 추가한 후 다시 시도해주세요");
+        return;
+      }
+      const userId = user?.user_id || user?.id || "";
+      if (!userId) {
+        showPushToast("⚠️ 로그인 정보가 없습니다");
+        return;
+      }
+      const res = await subscribePushWithSync({
+        userId,
+        engineerId: "",
+        role:       "partner",
+      });
+      if (res.ok) {
+        setPush(true);
+        try { localStorage.setItem("ollit_push", "true"); } catch (e) { /* ignore */ }
+        showPushToast("✓ 푸시 알림이 활성화되었습니다");
+      } else if (res.reason === "denied") {
+        showPushToast("⚠️ 알림 권한이 거부되었습니다 (휴대폰 설정에서 변경)");
+      } else if (res.reason === "no_vapid") {
+        showPushToast("⚠️ 푸시 키가 설정되지 않았습니다");
+      } else if (res.reason === "sync_failed") {
+        setPush(true);
+        try { localStorage.setItem("ollit_push", "true"); } catch (e) { /* ignore */ }
+        showPushToast("✓ 활성화됨 (서버 sync 보류)");
+      } else {
+        showPushToast(`⚠️ ${res.error || "활성화 실패"}`);
+      }
+    } else {
+      const userId = user?.user_id || user?.id || "";
+      const res = await unsubscribePushWithSync({ userId, engineerId: "" });
+      setPush(false);
+      try { localStorage.setItem("ollit_push", "false"); } catch (e) { /* ignore */ }
+      if (res.ok) showPushToast("✓ 푸시 알림이 비활성화되었습니다");
+      else        showPushToast(`⚠️ ${res.error || "비활성화 실패"}`);
+    }
+  }
+
   // 2026-06-04 — 본인 원청 계좌 fetch (Mig 096 update_principal_account 짝).
   //   user.principals[].id 배열 (sign_in_with_phone Mig 057 응답) 기반.
   const [accounts, setAccounts] = useState([]);     // [{ id, code, name, bank_name, account_number, account_holder }]
@@ -2413,6 +2497,38 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
           </button>
         </div>
 
+        {/* 푸시 알림 토글 */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${t.border}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 16 }}>{push ? "🔔" : "🔕"}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>
+              푸시 알림
+            </span>
+          </div>
+          <button
+            onClick={() => handlePushToggle(!push)}
+            style={{
+              width: 46, height: 26, borderRadius: 13,
+              background: push ? "#FF4D9E" : t.border,
+              border: "none", padding: 0, cursor: "pointer",
+              position: "relative",
+              transition: "background 0.2s",
+            }}
+            aria-label="푸시 토글"
+          >
+            <div style={{
+              position: "absolute", top: 3, left: push ? 23 : 3,
+              width: 20, height: 20, borderRadius: "50%",
+              background: "#fff",
+              transition: "left 0.2s",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+            }}/>
+          </button>
+        </div>
+
         {/* 폰트 크기 선택 */}
         <div>
           <div style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, marginBottom: 8 }}>
@@ -2469,6 +2585,18 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
           zIndex: 2000, boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
           fontFamily: "inherit",
         }}>{accountToast}</div>
+      )}
+
+      {/* 푸시 토글 토스트 */}
+      {pushToast && (
+        <div style={{
+          position: "fixed", bottom: 140, left: "50%", transform: "translateX(-50%)",
+          background: t.bgElevated, color: t.text,
+          border: `1px solid ${t.border}`, borderRadius: 10,
+          padding: "10px 16px", fontSize: 12, fontWeight: 700,
+          zIndex: 2000, boxShadow: "0 4px 12px rgba(0,0,0,0.25)",
+          fontFamily: "inherit",
+        }}>{pushToast}</div>
       )}
     </div>
   );
