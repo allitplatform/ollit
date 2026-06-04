@@ -15,30 +15,15 @@ import {
   getPermissionState,
   getCurrentSubscription,
 } from "../utils/pushNotification.js";
+// 2026-06-04 — 폰트 크기 공용 헬퍼 (src/utils/fontSize.js 추출). PrincipalApp InfoTab 도 동일 헬퍼 사용.
+import { loadFontSize, applyFontSize } from "../utils/fontSize.js";
 import { REGISTERED_USERS } from "../shared/users.js";
 import { loadEngineers as loadSheetEngineers } from "../data/engineers.js";
 
 const APP_VERSION = "v1.0 · Phase 1A";
 
-// V14 — 카카오 채널 URL (사장님 채널 받으면 박는다)
+// V14 — 카카오 채널 URL (사장님 채널 받으면 적용)
 const KAKAO_CHANNEL_URL = ""; // ⚠️ 사장님 카톡 채널/오픈채팅 URL
-
-function loadFontSize() {
-  try {
-    const v = localStorage.getItem("ollit_font_size");
-    if (v === "small" || v === "medium" || v === "large") return v;
-  } catch (e) {}
-  return "medium";
-}
-
-// V14 — body에 zoom CSS 변수가 적용되도록 data-font-size 속성만 박는다
-// (인라인 px가 많은 코드에서도 즉시 비례 변경. CSS는 src/index.css 참고)
-function applyFontSize(size) {
-  if (typeof document !== "undefined") {
-    document.documentElement.setAttribute("data-font-size", size);
-  }
-  try { localStorage.setItem("ollit_font_size", size); } catch (e) {}
-}
 
 function loadPush() {
   try {

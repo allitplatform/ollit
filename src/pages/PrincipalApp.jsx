@@ -4,7 +4,9 @@ import { useState, useEffect } from "react";
 //        App.jsx 측 loadTheme() 측측 측측측 측측 측측 (= 측측측 측측 측측 측측 측측 측측 측측 X).
 //        측측측 측측 측측 측측 측측 → --text-primary = #1A1A1A → Principal 측측 (#1A1512) 측 측측 측측.
 //   측측: 측측측 측측 측 applyThemeVars("dark") 측측 측측 측측 (= Admin/Engineer 측측 측측 동일 측측).
-import { applyTheme as applyThemeVars } from "../styles/themes.js";
+import { applyTheme as applyThemeVars, loadTheme } from "../styles/themes.js";
+// 2026-06-04 — 폰트 크기 공용 헬퍼 (EngineerMeTab과 공유).
+import { loadFontSize, applyFontSize, FONT_SIZE_OPTIONS } from "../utils/fontSize.js";
 import {
   loadTasksForRole as getTasks,
   createTaskAdapter as createTask,
@@ -437,7 +439,9 @@ function parseKakao(text) {
 }
 
 export default function PrincipalApp({ user, onLogout }) {
-  const [mode, setMode] = useState("dark");
+  // 2026-06-04 — localStorage 측 ollit_theme 측 우선 사용. 옛 'dark' 하드코딩 폐기.
+  //   InfoTab 토글로 변경 시 즉시 applyThemeVars 발화 (mode useEffect 의존).
+  const [mode, setMode] = useState(() => loadTheme());
   const [tab, setTab] = useState("list");
   const [submitted, setSubmitted] = useState(false);
   const [submittedTask, setSubmittedTask] = useState(null);
@@ -525,7 +529,7 @@ export default function PrincipalApp({ user, onLogout }) {
               {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
               {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)}/>}
               {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
-              {tab === "info"   && <InfoTab t={t} user={user} onLogout={onLogout}/>}
+              {tab === "info"   && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
             </div>
             {selectedTask && <TaskDetail t={t} task={selectedTask} user={user} onBack={() => setSelectedTask(null)}/>}
           </>
@@ -2243,7 +2247,7 @@ function SettleTab({ t, tasks }) {
   );
 }
 
-function InfoTab({ t, user, onLogout }) {
+function InfoTab({ t, user, mode, setMode, onLogout }) {
   const principalLabel = getPrincipalLabel(user) || "원청";
   const userName       = user?.name || `${principalLabel} 대표`;
   const userPhone      = user?.phone || "";
@@ -2251,6 +2255,18 @@ function InfoTab({ t, user, onLogout }) {
   const handleLogout = () => {
     if (window.confirm("로그아웃 하시겠습니까?")) onLogout?.();
   };
+
+  // 2026-06-04 — 다크/라이트 토글. setMode 호출 → PrincipalApp useEffect 측 applyThemeVars 발화.
+  //   사장님 spec 이진 토글 (light/dark). 'auto'는 옛 themes.js 측 지원이나 UI에선 제외.
+  const darkOn = mode !== "light";
+  const handleDarkToggle = (value) => {
+    if (typeof setMode === "function") setMode(value ? "dark" : "light");
+  };
+
+  // 2026-06-04 — 폰트 크기. utils/fontSize.js 공용 헬퍼 (EngineerMeTab 공유).
+  const [fontSize, setFontSize] = useState(() => loadFontSize());
+  useEffect(() => { applyFontSize(fontSize); }, [fontSize]);
+
   return (
     <div className="fade-in" style={{ padding: "20px" }}>
       <div style={{ marginBottom: 16 }}>
@@ -2280,6 +2296,76 @@ function InfoTab({ t, user, onLogout }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
           {userCode && <Row t={t} label="계정 코드" value={userCode} mono/>}
           {userPhone && <Row t={t} label="연락처" value={userPhone} mono/>}
+        </div>
+      </div>
+
+      {/* 2026-06-04 — 설정 카드: 다크/라이트 + 폰트 크기 */}
+      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px 18px", marginBottom: 16 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, marginBottom: 12 }}>
+          설정
+        </div>
+
+        {/* 다크/라이트 토글 */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${t.border}`,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 16 }}>{darkOn ? "🌙" : "☀️"}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>
+              {darkOn ? "다크 모드" : "라이트 모드"}
+            </span>
+          </div>
+          <button
+            onClick={() => handleDarkToggle(!darkOn)}
+            style={{
+              width: 46, height: 26, borderRadius: 13,
+              background: darkOn ? "#FF4D9E" : t.border,
+              border: "none", padding: 0, cursor: "pointer",
+              position: "relative",
+              transition: "background 0.2s",
+            }}
+            aria-label="테마 토글"
+          >
+            <div style={{
+              position: "absolute", top: 3, left: darkOn ? 23 : 3,
+              width: 20, height: 20, borderRadius: "50%",
+              background: "#fff",
+              transition: "left 0.2s",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+            }}/>
+          </button>
+        </div>
+
+        {/* 폰트 크기 선택 */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, marginBottom: 8 }}>
+            글자 크기
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            {FONT_SIZE_OPTIONS.map(size => {
+              const labelMap = { small: "작게", medium: "보통", large: "크게" };
+              const active = fontSize === size;
+              return (
+                <button
+                  key={size}
+                  onClick={() => setFontSize(size)}
+                  style={{
+                    flex: 1, padding: "10px 8px",
+                    background: active ? "#FF4D9E" : t.bgInset,
+                    color: active ? "#fff" : t.textSecondary,
+                    border: active ? "1px solid #FF4D9E" : `1px solid ${t.border}`,
+                    borderRadius: 10,
+                    fontSize: size === "small" ? 11 : size === "large" ? 15 : 13,
+                    fontWeight: active ? 800 : 600,
+                    fontFamily: "inherit",
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
+                >{labelMap[size]}</button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
