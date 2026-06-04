@@ -103,6 +103,19 @@ function josa(word, withFinal, withoutFinal) {
 const PRINCIPAL_COLOR = "#FF4D9E";
 const PRINCIPAL_BG    = "rgba(255,77,158,0.10)";
 
+// 2026-06-04 — 인사말 표시명 정리.
+//   user.name 측 "에어컨프로 사장님" 같이 들어오면 "사장님"/"사장" 트레일링 제거 + 중복 "님" 제거.
+//   → 출력 헤더: "안녕하세요, {정리된 이름} 님" 형태로 사용.
+function cleanGreetingName(rawName, fallback) {
+  if (!rawName) return fallback;
+  let s = String(rawName).trim();
+  // 트레일링 "사장" / "사장님" 제거 (예: "에어컨프로 사장님" → "에어컨프로").
+  s = s.replace(/\s*사장님?\s*$/, "").trim();
+  // 트레일링 "님" 단독 제거 (중복 회피).
+  s = s.replace(/\s*님\s*$/, "").trim();
+  return s || fallback;
+}
+
 // user.principals → 표시용 원청 라벨 (공통 접두사 추출).
 //   ["유솔홈케어 H", "유솔홈케어 N"]  → "유솔홈케어"
 //   ["올데이케어"]                   → "올데이케어"
@@ -534,7 +547,7 @@ function Header({ t, user }) {
           {TODAY} · {NOW}
         </div>
         <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-          안녕하세요, <span style={{ color: t.accent }}>{user?.name || getPrincipalLabel(user) || "원청"}</span>님
+          안녕하세요, <span style={{ color: t.accent }}>{cleanGreetingName(user?.name || getPrincipalLabel(user), "원청")}</span> 님
         </div>
       </div>
     </div>
@@ -1861,15 +1874,21 @@ function SettleDetailBoxSimple({ t, task, items, loading, error }) {
   const principalAmount = Number(task?.principal_amount) || 0;
 
   // N% = principal_amount / totalAmount × 100 — 동적 계산. 하드코딩 % 사용 금지.
-  //   totalAmount 0 또는 principal_amount 0 측 라벨 측 % 생략 (= "원청 수수료" 만).
+  //   totalAmount 0 또는 principal_amount 0 측 라벨 측 % 생략 (= "{원청명} 수수료" 만).
   const feePct = totalAmount > 0 && principalAmount > 0
     ? Math.round((principalAmount / totalAmount) * 100)
     : 0;
-  const feeLabel = feePct > 0 ? `원청 수수료 (${feePct}%)` : "원청 수수료";
 
-  // 진행바 색상 — task.principalCode → PARTNER_PWA_CONFIG.accentColor.
-  //   KA 청록(#06B6D4) / crikrin 보라(#7F77DD) / 그 외 fallback 핑크(#FF4D9E).
-  const accentColor = (PARTNER_PWA_CONFIG[task?.principalCode] || {}).accentColor || "#FF4D9E";
+  // 2026-06-04 — 라벨 측 원청 표시명 사용. task.principal 측 "에어컨프로 (KA)" 같이 괄호 코드 측
+  //   포함된 케이스 → 괄호 영역 제거 후 짧은 이름 (예: "에어컨프로"). 그 외 원청 측 그대로.
+  const principalDisplayName = ((task?.principal || "").replace(/\s*\([^)]*\)\s*/g, "").trim()) || "원청";
+  const feeLabel = feePct > 0
+    ? `${principalDisplayName} 수수료 (${feePct}%)`
+    : `${principalDisplayName} 수수료`;
+
+  // 2026-06-04 — 상세 정산 박스 색상 통일 (#FF4D9E 핑크 고정).
+  //   PARTNER_PWA_CONFIG.accentColor 는 폼/업로드 탭 측 그대로 유지, 상세 박스만 핑크.
+  const FEE_COLOR = "#FF4D9E";
 
   return (
     <div style={settleBoxStyle(t)}>
@@ -1878,11 +1897,11 @@ function SettleDetailBoxSimple({ t, task, items, loading, error }) {
       {/* 정산 합계 — 정산 금액 + 원청 수수료 */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <SumLine label="정산 금액" value={totalAmount} t={t} size="lg"/>
-        <SumLine label={feeLabel} value={principalAmount} color={accentColor} indent t={t}/>
+        <SumLine label={feeLabel} value={principalAmount} color={FEE_COLOR} indent t={t}/>
       </div>
 
       {/* 진행바 — 3단계 (배정 → 확정 → 완료). 취소 계열 task 측 null 반환 → 자동 숨김. */}
-      <SimpleStageProgress task={task} accentColor={accentColor}/>
+      <SimpleStageProgress task={task} accentColor={FEE_COLOR}/>
 
       <div style={{ height: 1, background: t.border, margin: "16px 0" }}/>
 
