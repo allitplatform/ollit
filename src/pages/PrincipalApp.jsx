@@ -547,7 +547,7 @@ export default function PrincipalApp({ user, onLogout }) {
         )}
 
         {!selectedTask && !submittedTask && (
-          <BottomNav t={t} tab={tab} onChange={setTab}/>
+          <BottomNav t={t} tab={tab} onChange={setTab} isPartnerMode={!!partnerConfig}/>
         )}
       </div>
     </div>
@@ -569,10 +569,14 @@ function Header({ t, user }) {
   );
 }
 
-function BottomNav({ t, tab, onChange }) {
+// 2026-06-06 — upload 탭 라벨 원청별 분기.
+//   isPartnerMode (KA/crikrin) → "접수" (NewReceptionScreenLite 직접 입력 단일 경로)
+//   유솔(usol_h/usol_n)         → "업로드" (CSV/네이버 시트 업로드 + 수동 입력 혼합 흐름)
+//   Plus 아이콘은 신규 생성 의미로 양쪽 공통 유지.
+function BottomNav({ t, tab, onChange, isPartnerMode }) {
   const tabs = [
     { id: "list",   icon: ClipboardList, label: "내 작업" },
-    { id: "upload", icon: Plus,          label: "업로드" },
+    { id: "upload", icon: Plus,          label: isPartnerMode ? "접수" : "업로드" },
     { id: "settle", icon: Wallet,        label: "정산" },
     { id: "info",   icon: User,          label: "내 정보" },
   ];
