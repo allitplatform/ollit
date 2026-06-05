@@ -215,6 +215,38 @@ function extractItemLeftover(line) {
 }
 
 // ─── 주소 / 희망일 / 이름 휴리스틱 ─────────────────────────
+// 2026-06-06 — 주소에서 짧은 지역명 추출 (고객 자동명 생성용).
+//   우선순위: 구 > 시 > 군. 'lazy' 매칭(`\S+?`) — 첫 시/구/군 prefix 까지만.
+//   특별시/광역시/특별자치시 단독은 제외 — 시 fallback 시 다음 시 찾음.
+//   길이 캡 6자 (초과 시 끝 6자만).
+//   예:
+//     '서울시 관악구 인헌21길6' → '관악구'  (구 path, 공백 토큰 안에서 매칭)
+//     '부천시원미로17번지17'    → '부천시'  (시 path, lazy)
+//     '경기 부천시 원미구 상동' → '원미구'  (구 path)
+//     '서울특별시 강남동'       → ''         (구·시(특별)·군 전부 fail)
+export function extractRegion(address) {
+  if (!address) return "";
+  const a = String(address);
+  const cap = (w) => w.length > 6 ? w.slice(-6) : w;
+
+  // 1) 구 우선 — leftmost lazy match. \S+ 는 공백 못 넘으므로 자연스레 토큰 안에서만 매칭.
+  let m = a.match(/\S+?구/);
+  if (m) return cap(m[0]);
+
+  // 2) 시 (특별시/광역시/특별자치시 제외 — 시 단독은 다음 매칭 시도).
+  for (const m2 of a.matchAll(/\S+?시/g)) {
+    const w = m2[0];
+    if (/(특별시|광역시|특별자치시)$/.test(w)) continue;
+    return cap(w);
+  }
+
+  // 3) 군
+  m = a.match(/\S+?군/);
+  if (m) return cap(m[0]);
+
+  return "";
+}
+
 function looksLikeAddress(line) {
   if (!line) return false;
   return /[가-힣]+(시|구|동|로|길)(\s|$|[^가-힣])/.test(line)

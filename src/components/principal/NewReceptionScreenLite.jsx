@@ -28,7 +28,8 @@ import { ArrowLeft, Send, Plus, X } from "lucide-react";
 import { createTaskAdapter as createTask } from "../../data/tasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../../data/paymentMethods.js";
 // 2026-06-06 — KA/crikrin 붙여넣기 prefill (선택 기능). 유솔은 미사용.
-import { APPLIANCE_CODE_TO_LABEL } from "../../utils/partnerPasteParser.js";
+//   extractRegion — 주소에서 짧은 지역명 (구>시>군, 캡 6자) 추출. 고객 자동명 + task.region 둘 다 사용.
+import { APPLIANCE_CODE_TO_LABEL, extractRegion } from "../../utils/partnerPasteParser.js";
 
 // 유솔H 기본 — 작업 종류 / 기종 풀
 const DEFAULT_WORK_TYPES = ["세척", "냉매충전", "출장비"];
@@ -45,16 +46,21 @@ const WORK_TYPE_TO_SERVICE = {
   "출장비":   "visit_fee",
 };
 
-// 2026-05-26 — 고객 자동 생성. region("성북구") 그대로 + 전화 끝 4자리 → "성북구4696".
-//   옛: /([가-힣]+?)(?:구|시|동|군)/ 게으른 매칭이 "서울특별시"에서 "서울특별"만 잡는 사고.
-//   신: 호출처에서 '구' 우선 추출(아래 region 변수)하므로 정규식 불필요.
+// 2026-05-26 → 2026-06-06 정정 — 고객 자동 생성. region(구>시>군) + 전화 끝 4자리.
+//   결과 포맷: "{지역} {끝4}" 공백 구분. 예 "관악구 2283".
+//   사고 이력:
+//     · 옛: address.split(' ')[0] fallback → '부천시원미로17번지17' 같이 공백 없는 KA 주소가
+//       전체 들어가 '부천시원미로17번지172283' 같은 긴 고객명 사고.
+//   정정:
+//     · region 못 찾으면 fallback 제거 — 끝4 만 사용 ('고객2283').
+//     · 구분자 공백 — 가독성 (이전 '' 직결).
 function autoGenerateCustomer(form, region) {
   if (form.customer && form.customer.trim()) return form.customer.trim();
   const digits = (form.phone || "").replace(/\D/g, "");
   const last4  = digits.length >= 4 ? digits.slice(-4) : "";
-  const regionShort = region || (form.address || "").trim().split(/\s+/)[0] || "";
-  if (regionShort && last4) return `${regionShort}${last4}`;
-  if (regionShort)          return `${regionShort}고객`;
+  const regionShort = (region || "").trim();
+  if (regionShort && last4) return `${regionShort} ${last4}`;
+  if (regionShort)          return `${regionShort} 고객`;
   if (last4)                return `고객${last4}`;
   return "고객 미정";
 }
@@ -207,19 +213,10 @@ export function NewReceptionScreenLite({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parseToken]);
 
-  // 2026-05-26 — 지역(region) 추출. 도로명 "서울특별시 성북구 ..." → "성북구".
-  //   '구' 우선 → '시'/'군' (광역시·특별시·특별자치시·도 제외) → 첫 토큰 fallback.
-  const region = (() => {
-    const tokens = (form.address || "").trim().split(/\s+/);
-    const gu = tokens.find(tok => /^[가-힣]+구$/.test(tok));
-    if (gu) return gu;
-    const siGun = tokens.find(tok =>
-      /^[가-힣]+(시|군)$/.test(tok) &&
-      !/(특별시|광역시|특별자치시|특별자치도)$/.test(tok)
-    );
-    if (siGun) return siGun;
-    return tokens[0] || "";
-  })();
+  // 2026-06-06 — 지역(region) 추출 — extractRegion 사용 (구 > 시 > 군, 캡 6자, 특별/광역시 제외).
+  //   옛 token-기반 매칭은 공백 없는 KA 주소 ('부천시원미로...') 에서 fallback=전체주소 사고.
+  //   새 헬퍼는 lazy regex `\S+?(구|시|군)` 로 토큰 안에서도 첫 prefix 만 추출.
+  const region = extractRegion(form.address);
 
   // editItem 변경 시 단가 자동 채움 (사용자가 가격 수정 안 한 경우만)
   function syncEditItemPrice(next) {

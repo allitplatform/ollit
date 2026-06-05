@@ -5,7 +5,7 @@
 //
 // 실행: node scripts/test-partner-paste-parser.mjs
 
-import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL, extractPhone } from "../src/utils/partnerPasteParser.js";
+import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL, extractPhone, extractRegion } from "../src/utils/partnerPasteParser.js";
 
 function out(label, text, principalCode) {
   console.log("\n══════════════════════════════════════════════════════════");
@@ -216,3 +216,53 @@ unitNoPhone("    '2층'",                 "2층");
 unitNoPhone("    '101동 1001호'",        "101동 1001호");
 unitNoPhone("    날짜 '20240228'",       "20240228");
 unitNoPhone("    임베드 '202401012345'",  "주문번호: 202401012345");
+
+console.log("\n──── 지역(region) 추출 ────");
+function unitRegion(label, address, expected) {
+  const got = extractRegion(address);
+  const pass = got === expected;
+  const flag = pass ? "✓" : "✗";
+  console.log(`${flag} ${label}: addr=${JSON.stringify(address)} got=${JSON.stringify(got)}`);
+  if (!pass) console.log(`    want: ${JSON.stringify(expected)}`);
+}
+unitRegion("17. 공백 있는 시-구",      "서울시 관악구 인헌21길6",     "관악구");
+unitRegion("    공백 없는 시 (구 X)", "부천시원미로17번지17",         "부천시");
+unitRegion("    특별시 + 구",          "서울특별시 강남구 역삼동",     "강남구");
+unitRegion("    특별시만 → ''",        "서울특별시 강남동",            "");
+unitRegion("    경기 시-구",            "경기 부천시 원미구 상동",     "원미구");
+unitRegion("    구 없음, 시만",         "관악구서림3길19",              "관악구");
+unitRegion("    빈 주소",               "",                              "");
+unitRegion("    번지만",                "17번지 17",                     "");
+
+console.log("\n──── 고객 자동명 생성 (NewReceptionScreenLite autoGenerateCustomer 시뮬) ────");
+function autoGenCustomer(form, region) {
+  if (form.customer && form.customer.trim()) return form.customer.trim();
+  const digits = (form.phone || "").replace(/\D/g, "");
+  const last4  = digits.length >= 4 ? digits.slice(-4) : "";
+  const regionShort = (region || "").trim();
+  if (regionShort && last4) return `${regionShort} ${last4}`;
+  if (regionShort)          return `${regionShort} 고객`;
+  if (last4)                return `고객${last4}`;
+  return "고객 미정";
+}
+function unitCustomer(label, address, phone, expected) {
+  const region = extractRegion(address);
+  const got = autoGenCustomer({ phone, address }, region);
+  const pass = got === expected;
+  const flag = pass ? "✓" : "✗";
+  console.log(`${flag} ${label}`);
+  console.log(`    addr=${JSON.stringify(address)} phone=${JSON.stringify(phone)} → got=${JSON.stringify(got)}`);
+  if (!pass) console.log(`    want: ${JSON.stringify(expected)}`);
+}
+unitCustomer("18. 버그 케이스 '부천시원미로17번지17'",
+  "부천시원미로17번지17", "010-1234-2283",
+  "부천시 2283");
+unitCustomer("    공백 있는 시-구",
+  "서울시 관악구 인헌21길6", "010-3045-9453",
+  "관악구 9453");
+unitCustomer("    지역 없음 + 폰만",
+  "17번지 17", "010-1234-5678",
+  "고객5678");
+unitCustomer("    지역 있고 폰 없음",
+  "강남구", "",
+  "강남구 고객");
