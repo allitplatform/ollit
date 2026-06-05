@@ -59,16 +59,16 @@ const NOW = "10:00";
 // 2026-06-03 — KA / 크리크린 원청 PWA 분기 메타.
 //   유솔(usol_h / usol_n)은 이 객체에 없음 — 기존 UsolNOrders + 수동 입력 흐름 그대로.
 //   KA / crikrin은 냉매충전 단일 + 가격표 자동 채움 + 색상 분리.
+// 2026-06-06 — 색 통일: 원청별 accent(KA 청록/crikrin 보라) 제거 → 앱 핑크.
+//   accentColor 필드 자체 제거. UploadTab 측 t.accent (테마 핑크) 전달.
 const PARTNER_PWA_CONFIG = {
   KA: {
     label:         "에어컨프로 (KA) · 직접 입력",
-    accentColor:   "#06B6D4",
     workTypes:     ["냉매충전"],
     appliancePool: { "냉매충전": ["벽걸이", "스탠드", "4way", "투인원", "1way"] },
   },
   crikrin: {
     label:         "크리크린 · 직접 입력",
-    accentColor:   "#7F77DD",
     workTypes:     ["냉매충전"],
     appliancePool: { "냉매충전": ["벽걸이", "스탠드", "4way", "투인원", "1way"] },
   },
@@ -670,7 +670,7 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
         workTypes={partnerConfig.workTypes}
         appliancePool={partnerConfig.appliancePool}
         quoteRates={quoteRates}
-        accentColor={partnerConfig.accentColor}
+        accentColor={t.accent}
         pasteText={pasteText}
         onPasteTextChange={setPasteText}
         parsedRecords={parsedRecords}
