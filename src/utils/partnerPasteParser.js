@@ -1,0 +1,519 @@
+// 원청 (KA / crikrin) 붙여넣기 메시지 파서.
+//
+// 사용:
+//   import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL } from "src/utils/partnerPasteParser";
+//   const records = parsePartnerPaste(text, "KA" | "crikrin");
+//
+// 출력 (배열):
+//   {
+//     customerName: "",              // KA = "" 기본 / crikrin = 추출값
+//     phone:        "010-1234-5678", // null = 못 찾음
+//     address:      "서울 강남구 ...", // 빈 문자열 가능
+//     items: [{ appliance, qty, price? }],  // appliance = 코드 (wall/stand/1way/2in1/4way) 또는 null = 불명
+//     desiredText:  "4/23 오후",     // null 가능
+//     memo:         "현장결제",      // null 가능
+//     workType:     "냉매충전",
+//   }
+//
+// KA: 빈 줄로 건 분리 → 여러 record 가능.
+// crikrin: 라벨형 or 휴리스틱 → 단일 record (빈 줄 있어도 분리 X).
+//
+// ⚠️ 절대 자동 제출 X. 폼 prefill 후 사람이 검토·수정·제출.
+
+// ─── 전화 정규식 (.- 공백 separator 모두 허용) ───────────────
+const PHONE_PATTERNS = [
+  /\+?82[-.\s]?(?:0)?(10)[-.\s]?(\d{3,4})[-.\s]?(\d{4})/,   // +82 10-...
+  /(01[016789])[-.\s]?(\d{3,4})[-.\s]?(\d{4})/,              // 010-... / 010 ... / 010.xxxx.xxxx
+  /(01[016789])(\d{7,8})/,                                    // 01094294445
+];
+
+// 전체 패턴 (leftover 제거용)
+const PHONE_STRIP_RE = /\+?82[-.\s]?(?:0)?10[-.\s]?\d{3,4}[-.\s]?\d{4}|01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}|01[016789]\d{7,8}/g;
+
+function fmtPhone(digits) {
+  const d = String(digits || "").replace(/\D/g, "");
+  if (d.length === 11) return `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;
+  if (d.length === 10) return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+  return d;
+}
+
+export function extractPhone(text) {
+  if (!text) return null;
+  let m = text.match(PHONE_PATTERNS[0]);
+  if (m) return fmtPhone("0" + m[1] + m[2] + m[3]);
+  m = text.match(PHONE_PATTERNS[1]);
+  if (m) return fmtPhone(m[1] + m[2] + m[3]);
+  m = text.match(PHONE_PATTERNS[2]);
+  if (m) return fmtPhone(m[1] + m[2]);
+  return null;
+}
+
+function hasPhone(line) {
+  return PHONE_PATTERNS.some(re => re.test(line));
+}
+
+// ─── 기종 매핑 ────────────────────────────────────────────────
+//   코드 (wall/stand/1way/2in1/4way) — 폼 표시 라벨은 APPLIANCE_CODE_TO_LABEL 로 변환.
+//   우선순위: 더 구체 패턴 먼저 (4way/투인원 → 벽걸이/스탠드 보다 위).
+const APPLIANCE_PATTERNS = [
+  { re: /4\s*way|4웨이|포웨이|사way/i,                code: "4way" },
+  { re: /원\s*웨이|1\s*way|1\s*웨이|천\s*장\s*형/i,    code: "1way" },
+  { re: /투\s*인\s*원|2\s*in\s*1|투인일/i,             code: "2in1" },
+  { re: /스\s*탠\s*드/,                                code: "stand" },
+  { re: /벽\s*걸\s*이/,                                code: "wall" },
+];
+
+// 전체 stripping용
+const APPLIANCE_STRIP_RES = APPLIANCE_PATTERNS.map(ap => new RegExp(ap.re.source, "gi"));
+
+// 코드 → 폼 appliancePool 라벨. PARTNER_PWA_CONFIG.appliancePool 키와 일치.
+export const APPLIANCE_CODE_TO_LABEL = {
+  wall:   "벽걸이",
+  stand:  "스탠드",
+  "1way": "1way",
+  "2in1": "투인원",
+  "4way": "4way",
+};
+
+function detectAppliance(line) {
+  for (const ap of APPLIANCE_PATTERNS) {
+    if (ap.re.test(line)) return ap.code;
+  }
+  return null;
+}
+
+// ─── 수량 ──────────────────────────────────────────────────
+function extractQty(line) {
+  const m = String(line || "").match(/(\d+)\s*대/);
+  if (m) return Math.max(1, parseInt(m[1], 10));
+  return 1;
+}
+
+// ─── 가격 (KA 기종 줄) ─────────────────────────────────────
+function extractPrice(line) {
+  if (!line) return null;
+  let s = String(line).replace(/가\s*\.?\s*충/g, " ").trim();
+  if (!/\d/.test(s)) return null;
+
+  // (1) 천단위 separator: 70.000 / 80,000 / 1,500,000
+  const sep = s.match(/(\d{1,3}(?:[.,]\d{3})+)/);
+  if (sep) {
+    const n = parseInt(sep[1].replace(/[.,]/g, ""), 10);
+    if (n > 0) return n;
+  }
+  // (2) 만 표기
+  const manM = s.match(/(\d+)\s*만(?:원)?/);
+  if (manM) {
+    const n = parseInt(manM[1], 10) * 10000;
+    if (n > 0) return n;
+  }
+  // (3) 원 명시
+  const wonM = s.match(/(\d{4,})\s*원/);
+  if (wonM) {
+    const n = parseInt(wonM[1], 10);
+    if (n > 0) return n;
+  }
+  // (4) plain 5자리 이상 숫자 (단위 없음)
+  const plainM = s.match(/\b(\d{5,})\b/);
+  if (plainM) {
+    const n = parseInt(plainM[1], 10);
+    if (n > 0) return n;
+  }
+  return null;
+}
+
+// 가격 stripping (leftover 추출용)
+function stripPriceTokens(s) {
+  let t = String(s || "");
+  t = t.replace(/\d{1,3}(?:[.,]\d{3})+/g, " ");
+  t = t.replace(/\d+\s*만(?:원)?/g, " ");
+  t = t.replace(/\d{4,}\s*원/g, " ");
+  return t;
+}
+
+// ─── KA 아이템 줄 leftover (기종+가격+가.충+qty 제외 나머지 텍스트) ─────
+//   예: "원웨이 물떨어짐 150.000" → "물떨어짐"
+function extractItemLeftover(line) {
+  let s = String(line || "");
+  s = s.replace(/가\s*\.?\s*충/g, " ");
+  for (const re of APPLIANCE_STRIP_RES) {
+    s = s.replace(re, " ");
+  }
+  s = stripPriceTokens(s);
+  s = s.replace(/\d+\s*대/g, " ");
+  s = s.replace(/[.,]+/g, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+// ─── 주소 / 희망일 / 이름 휴리스틱 ─────────────────────────
+function looksLikeAddress(line) {
+  if (!line) return false;
+  return /[가-힣]+(시|구|동|로|길)(\s|$|[^가-힣])/.test(line)
+      || /\d+\s*번지/.test(line)
+      || /\d+\s*[층호]/.test(line)
+      || /\d+동\s*\d+호/.test(line)
+      || /아파트|빌라|타워|단지|상가|오피스텔/.test(line);
+}
+
+function looksLikeDesired(line) {
+  if (!line) return false;
+  return /\d+\s*[\/\.월]\s*\d+/.test(line)        // 4/23, 4.23, 4월 23
+      || /\d+\s*일/.test(line)                    // 23일
+      || /(금일|오늘|내일|모레|글피)/.test(line)
+      || /(월|화|수|목|금|토|일)요일/.test(line)
+      || /(오전|오후|아침|점심|저녁|밤)/.test(line)
+      || /\d+\s*시(\s*\d+\s*분)?/.test(line);
+}
+
+function looksLikeName(line) {
+  if (!line) return false;
+  if (/\d/.test(line)) return false;
+  if (detectAppliance(line)) return false;
+  if (line.length > 8) return false;
+  return /^[가-힣]{2,5}$/.test(line);
+}
+
+// 희망일 토큰 stripping (memo leftover 추출용)
+function stripDesiredTokens(s) {
+  let t = String(s || "");
+  t = t.replace(/\d+\s*[\/\.월]\s*\d+/g, " ");
+  t = t.replace(/\d+\s*일/g, " ");
+  t = t.replace(/(금일|오늘|내일|모레|글피)/g, " ");
+  t = t.replace(/(월|화|수|목|금|토|일)요일/g, " ");
+  t = t.replace(/(오전|오후|아침|점심|저녁|밤)/g, " ");
+  t = t.replace(/\d+\s*시(\s*\d+\s*분)?/g, " ");
+  return t;
+}
+
+// ═══════════════════════════════════════════════════════════
+// KA — 빈 줄로 건 분리, 건마다 주소+기종줄(1+)+폰+메모
+// ═══════════════════════════════════════════════════════════
+function parseKaSection(section) {
+  const lines = section.split(/\n/).map(l => l.trim()).filter(Boolean);
+
+  const items = [];
+  const itemLeftovers = [];   // 아이템 줄에서 떼어낸 부가 텍스트 (예: "물떨어짐")
+  const roles = [];
+  let phone = null;
+  let phoneIdx = -1;
+  let firstItemIdx = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (phone === null && hasPhone(line)) {
+      phone = extractPhone(line);
+      phoneIdx = i;
+      roles.push('phone');
+      continue;
+    }
+    const ap = detectAppliance(line);
+    const price = extractPrice(line);
+    if (ap && price !== null) {
+      items.push({ appliance: ap, qty: extractQty(line), price });
+      const lo = extractItemLeftover(line);
+      if (lo) itemLeftovers.push(lo);
+      if (firstItemIdx === -1) firstItemIdx = i;
+      roles.push('item');
+      continue;
+    }
+    if (ap && price === null) {
+      items.push({ appliance: ap, qty: extractQty(line), price: null, _needsPriceFromNext: true });
+      const lo = extractItemLeftover(line);
+      if (lo) itemLeftovers.push(lo);
+      if (firstItemIdx === -1) firstItemIdx = i;
+      roles.push('item');
+      continue;
+    }
+    roles.push('other');
+  }
+
+  // 2번째 패스 — _needsPriceFromNext 아이템의 다음 'other' 줄(=가격만) 흡수
+  for (let i = 0; i < items.length; i++) {
+    if (!items[i]._needsPriceFromNext) continue;
+    let itemRoleIdx = -1, count = 0;
+    for (let j = 0; j < roles.length; j++) {
+      if (roles[j] === 'item') {
+        if (count === i) { itemRoleIdx = j; break; }
+        count += 1;
+      }
+    }
+    if (itemRoleIdx === -1) continue;
+    for (let j = itemRoleIdx + 1; j < lines.length; j++) {
+      if (roles[j] !== 'other') break;
+      const p = extractPrice(lines[j]);
+      if (p !== null) {
+        items[i].price = p;
+        roles[j] = 'price_used';
+        break;
+      }
+    }
+    delete items[i]._needsPriceFromNext;
+  }
+
+  // 주소
+  const upTo = firstItemIdx === -1 ? lines.length : firstItemIdx;
+  const addressLines = [];
+  for (let i = 0; i < upTo; i++) {
+    if (roles[i] === 'other') addressLines.push(lines[i]);
+  }
+
+  // tail = phone 줄 뒤 'other' 줄들 + 아이템 leftover
+  const afterIdx = phoneIdx !== -1
+    ? phoneIdx + 1
+    : (firstItemIdx === -1 ? lines.length : (() => {
+        let last = firstItemIdx;
+        for (let i = 0; i < roles.length; i++) if (roles[i] === 'item' || roles[i] === 'price_used') last = i;
+        return last + 1;
+      })());
+  const tailLines = [];
+  for (let i = afterIdx; i < lines.length; i++) {
+    if (roles[i] === 'other') tailLines.push(lines[i]);
+  }
+
+  const desiredText = tailLines.find(looksLikeDesired) || null;
+  const memoBits = tailLines.filter(l => l !== desiredText).concat(itemLeftovers);
+  const memo = memoBits.length > 0 ? memoBits.join(' ').trim() || null : null;
+
+  return {
+    customerName: "",
+    phone,
+    address:      addressLines.join(' ').trim(),
+    items,
+    desiredText,
+    memo,
+    workType:     "냉매충전",
+  };
+}
+
+function parseKa(text) {
+  const sections = text.split(/\n\s*\n+/).map(s => s.trim()).filter(Boolean);
+  return sections.map(parseKaSection);
+}
+
+// ═══════════════════════════════════════════════════════════
+// crikrin
+// ═══════════════════════════════════════════════════════════
+
+const CRIKRIN_LABELS = {
+  customer:  /^(?:성함|이름|고객명?)\s*[:：]\s*(.+)$/,
+  address:   /^(?:주소|위치)\s*[:：]\s*(.+)$/,
+  phone:     /^(?:연락처|전화(?:번호)?|번호|폰)\s*[:：]\s*(.+)$/,
+  appliance: /^(?:가전\s*종류[^:：]*|품목|작업\s*종류)\s*[:：]\s*(.+)$/,
+  desired:   /^(?:희망\s*날짜[^:：]*|희망\s*일정|희망일?|일정)\s*[:：]\s*(.*)$/,
+  memo:      /^(?:비고|메모|특이사항|요청사항?)\s*[:：]\s*(.+)$/,
+};
+
+function isCrikrinLabeled(text) {
+  let hits = 0;
+  const lines = text.split(/\n/);
+  for (const line of lines) {
+    if (CRIKRIN_LABELS.customer.test(line)) hits += 1;
+    if (CRIKRIN_LABELS.phone.test(line))    hits += 1;
+    if (CRIKRIN_LABELS.address.test(line))  hits += 1;
+    if (hits >= 2) return true;
+  }
+  return false;
+}
+
+// "김수진 / 냉매충전" → "김수진" (slash 뒤가 workType 키워드면 떼어냄)
+function cleanCustomerName(raw) {
+  if (!raw) return "";
+  const s = String(raw).trim();
+  const parts = s.split(/\s*\/\s*/);
+  if (parts.length >= 2 && /^(냉매충전|세척|에어컨|점검|수리)/.test(parts[1])) {
+    return parts[0].trim();
+  }
+  return s;
+}
+
+function parseCrikrinLabeled(text) {
+  const lines = text.split(/\n/).map(l => l.trim());
+  let customer = "", address = "", phoneRaw = "", applianceRaw = "", desiredRaw = "";
+  let memoBits = [];
+  let inDesired = false;
+  let desiredMulti = "";
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line) { inDesired = false; continue; }
+    let m;
+    m = line.match(CRIKRIN_LABELS.customer);  if (m) { customer = m[1].trim();  inDesired = false; continue; }
+    m = line.match(CRIKRIN_LABELS.address);   if (m) { address  = m[1].trim();  inDesired = false; continue; }
+    m = line.match(CRIKRIN_LABELS.phone);     if (m) { phoneRaw = m[1].trim();  inDesired = false; continue; }
+    m = line.match(CRIKRIN_LABELS.appliance); if (m) { applianceRaw = m[1].trim(); inDesired = false; continue; }
+    m = line.match(CRIKRIN_LABELS.desired);   if (m) {
+      desiredRaw = m[1].trim();
+      inDesired  = !desiredRaw;
+      continue;
+    }
+    m = line.match(CRIKRIN_LABELS.memo);      if (m) { memoBits.push(m[1].trim()); inDesired = false; continue; }
+    // 라벨 없는 줄
+    if (inDesired) {
+      desiredMulti = (desiredMulti ? desiredMulti + " " : "") + line;
+    } else {
+      // 정체불명 줄 — memo 로 흡수 (예: 김수진 끝의 "오후")
+      memoBits.push(line);
+    }
+  }
+
+  const desiredText = (desiredRaw || desiredMulti || "").trim() || null;
+  const phone = extractPhone(phoneRaw) || (phoneRaw ? phoneRaw : null);
+
+  const items = [];
+  if (applianceRaw) {
+    const ap = detectAppliance(applianceRaw);
+    items.push({ appliance: ap, qty: extractQty(applianceRaw) });
+  }
+
+  const memo = memoBits.length > 0 ? memoBits.join(' ').trim() || null : null;
+
+  return {
+    customerName: cleanCustomerName(customer),
+    phone,
+    address,
+    items,
+    desiredText,
+    memo,
+    workType: "냉매충전",
+  };
+}
+
+// 다른 필드 (phone/appliance/qty/workType 키워드) 제거 후 남은 텍스트 — desired-shared 라인 추출용
+function stripNonDesiredTokens(line) {
+  let s = String(line);
+  s = s.replace(PHONE_STRIP_RE, " ");
+  for (const re of APPLIANCE_STRIP_RES) s = s.replace(re, " ");
+  s = s.replace(/\d+\s*대/g, " ");
+  s = s.replace(/냉매\s*충전|냉매충전/g, " ");
+  s = s.replace(/가\s*\.?\s*충/g, " ");
+  s = s.replace(/[.,]+/g, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+// 휴리스틱 — 라인별 multi-field 허용 (phone+appliance+desired 한 줄 가능)
+function parseCrikrinHeuristic(text) {
+  const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const fieldsPerLine = lines.map(() => new Set());
+
+  let phone = null, appliance = null, qty = 1, address = "", customerName = "", desiredText = null;
+  let desiredLineIdx = -1;
+
+  // (1) phone — 첫 매칭
+  for (let i = 0; i < lines.length; i++) {
+    if (!phone && hasPhone(lines[i])) {
+      phone = extractPhone(lines[i]);
+      fieldsPerLine[i].add('phone');
+    }
+  }
+  // (2) appliance — 첫 매칭 (phone 줄 공유 허용)
+  for (let i = 0; i < lines.length; i++) {
+    if (!appliance) {
+      const ap = detectAppliance(lines[i]);
+      if (ap) {
+        appliance = ap;
+        qty = extractQty(lines[i]);
+        fieldsPerLine[i].add('appliance');
+      }
+    }
+  }
+  // (3) desired — 첫 매칭 (공유 허용). 라인 idx 기록 후 sharing 여부 따라 토큰만/전체 사용.
+  for (let i = 0; i < lines.length; i++) {
+    if (desiredLineIdx === -1 && looksLikeDesired(lines[i])) {
+      desiredLineIdx = i;
+      fieldsPerLine[i].add('desired');
+    }
+  }
+  // (4) address — 다른 필드 없는 줄 + 연속 흡수
+  let addressIdx = -1;
+  for (let i = 0; i < lines.length; i++) {
+    if (fieldsPerLine[i].size === 0 && looksLikeAddress(lines[i])) {
+      addressIdx = i;
+      break;
+    }
+  }
+  if (addressIdx !== -1) {
+    const addrBits = [lines[addressIdx]];
+    fieldsPerLine[addressIdx].add('address');
+    for (let i = addressIdx + 1; i < lines.length; i++) {
+      if (fieldsPerLine[i].size > 0) break;
+      if (looksLikeAddress(lines[i])) {
+        addrBits.push(lines[i]);
+        fieldsPerLine[i].add('address');
+      } else {
+        break;
+      }
+    }
+    address = addrBits.join(' ').trim();
+  }
+  // (5) name — 다른 필드 없는 줄
+  for (let i = 0; i < lines.length; i++) {
+    if (fieldsPerLine[i].size === 0 && looksLikeName(lines[i])) {
+      customerName = lines[i];
+      fieldsPerLine[i].add('name');
+      break;
+    }
+  }
+
+  // (5b) desiredText 결정 — desired 라인이 다른 필드와 공유면 토큰만 추출, 단독이면 라인 전체.
+  if (desiredLineIdx !== -1) {
+    const f = fieldsPerLine[desiredLineIdx];
+    if (f.size > 1) {
+      const stripped = stripNonDesiredTokens(lines[desiredLineIdx]);
+      desiredText = stripped || lines[desiredLineIdx];
+    } else {
+      desiredText = lines[desiredLineIdx];
+    }
+  }
+
+  // (6) memo — 미사용 줄 전체 + phone 줄 leftover (괄호 등)
+  const memoBits = [];
+  for (let i = 0; i < lines.length; i++) {
+    const f = fieldsPerLine[i];
+    if (f.size === 0) {
+      memoBits.push(lines[i]);
+      continue;
+    }
+    if (f.has('phone')) {
+      let l = lines[i].replace(PHONE_STRIP_RE, " ");
+      if (f.has('appliance')) {
+        for (const re of APPLIANCE_STRIP_RES) l = l.replace(re, " ");
+        l = l.replace(/\d+\s*대/g, " ");
+      }
+      if (f.has('desired')) {
+        l = stripDesiredTokens(l);
+      }
+      // 알려진 workType 키워드 제거
+      l = l.replace(/냉매\s*충전|냉매충전/g, " ");
+      l = l.replace(/\s+/g, " ").trim();
+      l = l.replace(/^[\s.,!?~()]+|[\s.,!?~()]+$/g, "").trim();
+      if (l && l.length > 1) memoBits.push(l);
+    }
+  }
+  const memo = memoBits.length > 0 ? memoBits.join(' ').trim() || null : null;
+
+  return {
+    customerName,
+    phone,
+    address,
+    items: appliance ? [{ appliance, qty }] : [],
+    desiredText,
+    memo,
+    workType: "냉매충전",
+  };
+}
+
+function parseCrikrin(text) {
+  if (isCrikrinLabeled(text)) return [parseCrikrinLabeled(text)];
+  return [parseCrikrinHeuristic(text)];
+}
+
+// ═══════════════════════════════════════════════════════════
+export function parsePartnerPaste(text, principalCode) {
+  if (!text || !String(text).trim()) return [];
+  const code = String(principalCode || "").toLowerCase();
+  if (code === "ka")      return parseKa(text);
+  if (code === "crikrin") return parseCrikrin(text);
+  return [];
+}
