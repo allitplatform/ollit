@@ -540,7 +540,7 @@ export default function PrincipalApp({ user, onLogout }) {
                 → 뒤로가기 시 직전 화면(view A/B · filter · search · scroll) 그대로 복원 */}
             <div style={{ display: selectedTask ? "none" : "block" }}>
               {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
-              {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)}/>}
+              {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
               {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
               {tab === "info"   && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
             </div>
@@ -619,11 +619,11 @@ function BottomNav({ t, tab, onChange, isPartnerMode }) {
 }
 
 // 업로드 탭 — 원청별 분기.
-//   유솔(partnerCode=null) → CSV 토글 2개 + UsolNOrders + 유솔H 직접 입력 (기존 흐름)
-//   KA / crikrin (partnerConfig 존재) → CSV 없음. 단가표 자동 채움 직접 입력만.
-function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClick, onSubmit }) {
+//   유솔(partnerCode=null) → CSV 토글 2개 + UsolNOrders + 유솔H 직접 입력 (기존 흐름, 런처 → 폼)
+//   KA / crikrin (partnerConfig 존재) → 2026-06-06 탭 진입 시 폼 직행 (런처 한 단계 제거).
+function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClick, onSubmit, onBackToList }) {
   const [sub, setSub] = useState("receive");   // 'receive' | 'settle'  (유솔만 사용)
-  const [showNewForm, setShowNewForm] = useState(false);
+  const [showNewForm, setShowNewForm] = useState(false);   // 유솔H 만 사용 (KA/crikrin 은 직행)
 
   // KA / crikrin 모드 — 단가표 fetch 끝나야 폼 진입
   const isPartnerMode = !!partnerConfig;
@@ -646,67 +646,49 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
     setParseToken(n => n + 1);
   }
 
-  if (showNewForm) {
-    // KA / crikrin: 가격표 + 라벨 + 색상 + 붙여넣기 prefill props 전달
-    if (isPartnerMode) {
+  // 2026-06-06 — KA / crikrin: 탭 진입 시 폼 직행. 옛 런처(헤더+버튼) 한 단계 제거.
+  //   onBack = list 탭 전환 (자연스러운 "뒤로"). 제출 후엔 parent submittedTask → success 화면 → list.
+  //   단가표 로딩 중엔 폼 대신 안내 메시지 (KA 1way 분할 등 quote_rates 필수).
+  if (isPartnerMode) {
+    if (quoteRates === null) {
       return (
-        <NewReceptionScreenLite
-          t={t}
-          onBack={() => setShowNewForm(false)}
-          onSubmit={(task) => { setShowNewForm(false); onSubmit?.(task); }}
-          principalCode={partnerCode}
-          principalLabel={partnerConfig.label}
-          workTypes={partnerConfig.workTypes}
-          appliancePool={partnerConfig.appliancePool}
-          quoteRates={quoteRates}
-          accentColor={partnerConfig.accentColor}
-          pasteText={pasteText}
-          onPasteTextChange={setPasteText}
-          parsedRecords={parsedRecords}
-          parseToken={parseToken}
-          onParse={handleParse}
-          onConsumeRecord={handleConsumeRecord}
-        />
+        <div className="fade-in" style={{
+          padding: "60px 14px", textAlign: "center",
+          color: t.textMuted, fontSize: 13, fontWeight: 600,
+        }}>
+          단가표 불러오는 중...
+        </div>
       );
     }
-    // 유솔H — 기존 default props (가격표 없음, 붙여넣기 파서 미사용)
+    return (
+      <NewReceptionScreenLite
+        t={t}
+        onBack={onBackToList || (() => {})}
+        onSubmit={(task) => onSubmit?.(task)}
+        principalCode={partnerCode}
+        principalLabel={partnerConfig.label}
+        workTypes={partnerConfig.workTypes}
+        appliancePool={partnerConfig.appliancePool}
+        quoteRates={quoteRates}
+        accentColor={partnerConfig.accentColor}
+        pasteText={pasteText}
+        onPasteTextChange={setPasteText}
+        parsedRecords={parsedRecords}
+        parseToken={parseToken}
+        onParse={handleParse}
+        onConsumeRecord={handleConsumeRecord}
+      />
+    );
+  }
+
+  // 유솔H — 옛 런처 + showNewForm 흐름 유지 (CSV 토글 사용 시나리오 보존).
+  if (showNewForm) {
     return (
       <NewReceptionScreenLite
         t={t}
         onBack={() => setShowNewForm(false)}
         onSubmit={(task) => { setShowNewForm(false); onSubmit?.(task); }}
       />
-    );
-  }
-
-  // KA / crikrin 모드 — CSV 토글 숨김, 직접 입력 버튼만
-  if (isPartnerMode) {
-    const accent = partnerConfig.accentColor;
-    const ready = quoteRates !== null;
-    return (
-      <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
-        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>📤 새 접수</div>
-        <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginBottom: 12 }}>
-          {partnerConfig.label}
-        </div>
-        <button
-          onClick={() => setShowNewForm(true)}
-          disabled={!ready}
-          style={{
-            width: "100%", padding: "14px 16px",
-            background: ready ? "transparent" : t.bgInset,
-            border: `1px solid ${ready ? accent : t.border}`,
-            borderRadius: 10,
-            color: ready ? accent : t.textMuted,
-            fontSize: 13, fontWeight: 700,
-            fontFamily: "inherit",
-            cursor: ready ? "pointer" : "not-allowed",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          }}
-        >
-          <Plus size={14}/><span>{ready ? "새 접수 등록" : "단가표 불러오는 중..."}</span>
-        </button>
-      </div>
     );
   }
 
