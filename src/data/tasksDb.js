@@ -287,7 +287,10 @@ export function taskToRow(task, partial = false) {
   if (task.address  !== undefined) row.address       = task.address;
   if (task.region   !== undefined) row.district      = task.region;
 
-  // 요청 (채널 컬럼은 코드 측 write 안 함 — usol_n bulk insert 직접 INSERT로만 들어감)
+  // 2026-06-05 — channel write 활성화 (Mig 098 가드용).
+  //   원청앱 NewReceptionScreenLite 측 '원청앱' 전달 / 운영자 폼 측 undefined (= 미설정) / bulk 측 직접 INSERT 별도.
+  //   옛 주석 "코드 측 write 안 함"은 폐기 — 신규 spec.
+  if (task.channel !== undefined) row.channel = task.channel;
   // 2026-05-27 — Migration 077: 결제 방식 write
   if (task.paymentMethod !== undefined) row.payment_method = task.paymentMethod;
   if (task.requestNote !== undefined) row.request_note = task.requestNote;
@@ -809,6 +812,8 @@ export async function createTaskAdapter(taskData) {
         requestedTime: taskData.scheduledTime || taskData.requestedTime || null,
         scheduledAt:   scheduledAtIso,
         categoryData,
+        // 2026-06-05 — Mig 098 가드용. 원청앱 접수 측 '원청앱' / 운영자 측 NULL / bulk 측 별도 채널값.
+        channel:       taskData.channel || null,
       };
       res = await createTaskDb(taskRow);
       if (res.ok) break;

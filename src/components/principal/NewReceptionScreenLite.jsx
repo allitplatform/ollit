@@ -289,6 +289,8 @@ export function NewReceptionScreenLite({
     try {
       const taskData = {
         principalCode,
+        // 2026-06-05 — Mig 098 가드용. 원청앱 접수 식별자. 운영자/bulk와 분리.
+        channel:       "원청앱",
         // 2026-05-27 Migration 077 — 결제 방식 (선택 안 함 → null)
         paymentMethod: form.paymentMethod || null,
         customer:      finalCustomer,
