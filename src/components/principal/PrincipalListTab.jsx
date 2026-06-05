@@ -37,7 +37,16 @@ function getMainItem(task) {
 function getServiceKind(task) {
   // 2026-05-25 — 출장비 전용(visit_only) 분기를 main/addon 판정보다 먼저.
   if (task && task.status === "visit_only") return "visit";
-  return getMainItem(task) ? "main" : "addon";
+  // 2026-06-06 — 본작업 workType 보고 분기. 옛 'main' 단일값은 모두 ❄️ CLEAN_COLOR(파랑)
+  //   로 떨어져 KA/crikrin 냉매충전이 세척 아이콘으로 보이는 사고.
+  const main = getMainItem(task);
+  if (main) {
+    const wt = String(main.workType || main.work_type || "").trim();
+    if (wt === "냉매충전") return "refrigerant";
+    if (wt === "세척" || wt === "에어컨세척") return "clean";
+    return "clean";  // 미상 → 옛 호환 (유솔H 패턴, 본작업=세척)
+  }
+  return "addon";
 }
 
 function formatTime(task) {
@@ -75,9 +84,11 @@ function ChannelBadge({ task }) {
   );
 }
 function ServiceIcon({ kind, size = 14 }) {
-  if (kind === "visit") return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
-  if (kind === "addon") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
-  return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
+  if (kind === "visit")       return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
+  if (kind === "addon")       return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
+  if (kind === "refrigerant") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>❄️</span>;
+  // clean (세척, 옛 main 호환)
+  return <span style={{ fontSize: size, color: CLEAN_COLOR }}>💧</span>;
 }
 
 export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
