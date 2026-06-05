@@ -42,6 +42,8 @@ import { PrincipalSettleTab } from "../components/principal/PrincipalSettleTab.j
 import { UsolNOrders } from "../components/usol_n/UsolNOrders.jsx";
 import { UsolNCsvMatch } from "../components/usol_n/UsolNCsvMatch.jsx";
 import { NewReceptionScreenLite } from "../components/principal/NewReceptionScreenLite.jsx";
+// 2026-06-06 — KA/crikrin 메시지 붙여넣기 파서 (UploadTab 측 호출).
+import { parsePartnerPaste } from "../utils/partnerPasteParser.js";
 import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
 import { getPartialReasonLabel } from "../components/EngineerTaskCompletionScreens.jsx";
 // Round 2 — 원청 취소 RPC + 공유 다이얼로그
@@ -626,8 +628,26 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
   // KA / crikrin 모드 — 단가표 fetch 끝나야 폼 진입
   const isPartnerMode = !!partnerConfig;
 
+  // 2026-06-06 — 붙여넣기 prefill 상태 (KA/crikrin 전용).
+  //   폼 unmount(제출 후 닫힘) 후에도 보존돼야 함 → UploadTab 측 보관.
+  //   parseToken : 파싱 호출 1회당 증가 → 폼 useEffect 가 fresh-parse 감지에 사용.
+  const [pasteText, setPasteText]           = useState("");
+  const [parsedRecords, setParsedRecords]   = useState([]);
+  const [parseToken, setParseToken]         = useState(0);
+
+  function handleParse(text) {
+    const recs = parsePartnerPaste(text, partnerCode);
+    setParsedRecords(recs);
+    setParseToken(n => n + 1);
+  }
+  function handleConsumeRecord(idx) {
+    setParsedRecords(prev => prev.filter((_, i) => i !== idx));
+    // 남은 record 가 1개면 폼 재진입 시 자동 prefill 되게 token 갱신.
+    setParseToken(n => n + 1);
+  }
+
   if (showNewForm) {
-    // KA / crikrin: 가격표 + 라벨 + 색상 전달
+    // KA / crikrin: 가격표 + 라벨 + 색상 + 붙여넣기 prefill props 전달
     if (isPartnerMode) {
       return (
         <NewReceptionScreenLite
@@ -640,10 +660,16 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
           appliancePool={partnerConfig.appliancePool}
           quoteRates={quoteRates}
           accentColor={partnerConfig.accentColor}
+          pasteText={pasteText}
+          onPasteTextChange={setPasteText}
+          parsedRecords={parsedRecords}
+          parseToken={parseToken}
+          onParse={handleParse}
+          onConsumeRecord={handleConsumeRecord}
         />
       );
     }
-    // 유솔H — 기존 default props (가격표 없음, 사용자 직접 입력)
+    // 유솔H — 기존 default props (가격표 없음, 붙여넣기 파서 미사용)
     return (
       <NewReceptionScreenLite
         t={t}

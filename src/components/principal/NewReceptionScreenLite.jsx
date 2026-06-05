@@ -23,10 +23,12 @@
 //   → tasks INSERT (category_data.workItems 포함)
 //   → trigger sync_category_data_to_task_items (Mig 017)로 task_items 자동 생성
 //   → 작업 상세 ItemProgress 진입 가능.
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { ArrowLeft, Send, Plus, X } from "lucide-react";
 import { createTaskAdapter as createTask } from "../../data/tasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../../data/paymentMethods.js";
+// 2026-06-06 — KA/crikrin 붙여넣기 prefill (선택 기능). 유솔은 미사용.
+import { APPLIANCE_CODE_TO_LABEL } from "../../utils/partnerPasteParser.js";
 
 // 유솔H 기본 — 작업 종류 / 기종 풀
 const DEFAULT_WORK_TYPES = ["세척", "냉매충전", "출장비"];
@@ -95,6 +97,18 @@ export function NewReceptionScreenLite({
   // eslint-disable-next-line no-unused-vars
   useRpc           = false,
   accentColor      = "#FF4D9E",
+  // 2026-06-06 — 붙여넣기 prefill (KA/crikrin 만 사용). 모두 optional.
+  //   pasteText / onPasteTextChange : 텍스트에리어 controlled value (parent state).
+  //   parsedRecords                  : parsePartnerPaste 결과 배열. 1건이면 자동 prefill.
+  //   parseToken                     : 새 parse 호출 시마다 parent가 증가. useEffect 트리거.
+  //   onParse(text)                  : '파싱' 버튼 클릭 → parent가 parsePartnerPaste 실행.
+  //   onConsumeRecord(idx)           : 제출 성공 시 호출 → parent가 해당 record 제거.
+  pasteText        = "",
+  onPasteTextChange,
+  parsedRecords,
+  parseToken,
+  onParse,
+  onConsumeRecord,
 }) {
   const [form, setForm] = useState({
     customer: "", phone: "", address: "",
@@ -113,13 +127,82 @@ export function NewReceptionScreenLite({
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
+  // 2026-06-06 — 붙여넣기 prefill 로컬 상태
+  //   activeRecordIdx : 사용자가 [채우기] 클릭한(또는 자동 prefill 된) record idx — 제출 성공 시 consume 호출에 사용.
+  //   lastAppliedTokenRef : 같은 parsedRecords 에 대해 useEffect 자동 prefill 중복 방지.
+  const [activeRecordIdx, setActiveRecordIdx] = useState(null);
+  const lastAppliedTokenRef = useRef(null);
+
   // quoteRates 모드: 가격표 사용 가능 여부
   const hasRates = !!quoteRates;
+  // 붙여넣기 UI 노출 여부 — parser 지원 원청만 (KA / crikrin).
+  const pasteSupported = principalCode === "KA" || principalCode === "crikrin";
 
   function update(key, value) {
     setForm(prev => ({ ...prev, [key]: value }));
     if (errors[key]) setErrors(prev => ({ ...prev, [key]: null }));
   }
+
+  // 2026-06-06 — 파싱된 record 1건을 폼에 채움 (사람 검토용. 절대 자동 제출 X).
+  //   appliance=null (위니아 등 기종 불명) → "" 전달 → 폼 드롭다운 미선택 상태.
+  //   desiredText/memo 는 합쳐서 메모란에. requestDate(YYYY-MM-DD) 자동 채움 X — 사람이 일정 잡기.
+  //   견적가:
+  //     · KA (parser 가 price 추출) → message 가격 그대로 unitPrice 사용.
+  //     · crikrin (parser price=null) → quoteRates 에서 자동 lookup. appliance 미정이면 0.
+  //     · KA 1way + qty≥2 분할 케이스는 폼 submit 측 isKa1waySplit 분기가 quote_rates 강제 사용
+  //       (해당 시 unitPrice 는 표시용 — 분할 라벨로 덮어쓰여 안 보임).
+  function applyRecord(record, idx) {
+    if (!record) return;
+    const memoParts = [];
+    if (record.desiredText) memoParts.push(`희망: ${record.desiredText}`);
+    if (record.memo)        memoParts.push(record.memo);
+    setForm(prev => ({
+      ...prev,
+      customer: record.customerName || "",
+      phone:    record.phone || "",
+      address:  record.address || "",
+      memo:     memoParts.join(" / "),
+    }));
+    const targetWorkType = record.workType || workTypes[0] || "냉매충전";
+    const newItems = (record.items || []).map(it => {
+      const applianceLabel = it.appliance ? (APPLIANCE_CODE_TO_LABEL[it.appliance] || "") : "";
+      let unitPrice = it.price != null ? it.price : 0;
+      // crikrin (메시지 가격 없음) → quote_rates 자동 채움. appliance 빈값(위니아 등) 이면 0 유지.
+      if (it.price == null && quoteRates && applianceLabel) {
+        const r = lookupRate({
+          principalCode,
+          quoteRates,
+          workType:  targetWorkType,
+          appliance: applianceLabel,
+          qty:       it.qty || 1,
+        });
+        unitPrice = r.unitPrice || 0;
+      }
+      return {
+        workType:  targetWorkType,
+        appliance: applianceLabel,
+        qty:       it.qty || 1,
+        unitPrice,
+      };
+    });
+    setWorkItems(newItems);
+    setActiveRecordIdx(idx);
+    setErrors({});
+  }
+
+  // 1건만 감지된 새 parsedRecords → 자동 prefill (parseToken 1회당 1회).
+  useEffect(() => {
+    if (parseToken == null) return;
+    if (lastAppliedTokenRef.current === parseToken) return;
+    if (Array.isArray(parsedRecords) && parsedRecords.length === 1) {
+      applyRecord(parsedRecords[0], 0);
+      lastAppliedTokenRef.current = parseToken;
+    } else {
+      // 다건 또는 빈 결과 — token 만 기록 (재시도 방지).
+      lastAppliedTokenRef.current = parseToken;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parseToken]);
 
   // 2026-05-26 — 지역(region) 추출. 도로명 "서울특별시 성북구 ..." → "성북구".
   //   '구' 우선 → '시'/'군' (광역시·특별시·특별자치시·도 제외) → 첫 토큰 fallback.
@@ -315,6 +398,11 @@ export function NewReceptionScreenLite({
         setSubmitting(false);
         return;
       }
+      // 2026-06-06 — 붙여넣기 prefill 로 채워진 record 가 있었으면 parent 에 알려 리스트에서 제거.
+      //   onSubmit 보다 먼저 호출 — onSubmit 이 폼 unmount 트리거 (showNewForm=false) 하므로.
+      if (activeRecordIdx !== null && onConsumeRecord) {
+        onConsumeRecord(activeRecordIdx);
+      }
       onSubmit?.({
         id: res.taskId, taskNo: res.task_no,
         customer: finalCustomer, phone: form.phone, address: form.address,
@@ -354,6 +442,128 @@ export function NewReceptionScreenLite({
           </div>
         </div>
       </div>
+
+      {/* 2026-06-06 — KA/crikrin 만 노출. 카톡/문자 통째 붙여넣기 → 파싱 → 폼 prefill.
+          ⚠️ 자동 제출 없음 — 사람이 검토·수정 후 제출 버튼 직접 클릭. */}
+      {pasteSupported && (
+        <div style={{
+          margin: "12px 16px 0",
+          padding: 12,
+          background: t.bgInset,
+          border: `1px dashed ${t.border}`,
+          borderRadius: 10,
+        }}>
+          <div style={{
+            fontSize: 12, fontWeight: 700, color: t.text,
+            marginBottom: 6,
+          }}>
+            📋 메시지 붙여넣기 (선택)
+          </div>
+          <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
+            {principalCode === "KA"
+              ? "카톡/문자 통째 붙여넣기 — 빈 줄로 여러 건 자동 분리. 1건이면 자동 채움, 여러 건이면 [채우기] 클릭."
+              : "메시지 1건 붙여넣기 → [파싱] → 자동으로 폼에 채움. 검토 후 제출."}
+          </div>
+          <textarea
+            value={pasteText || ""}
+            onChange={(e) => onPasteTextChange?.(e.target.value)}
+            placeholder="여기에 붙여넣기"
+            rows={6}
+            style={{
+              width: "100%",
+              background: t.bg,
+              border: `1px solid ${t.border}`,
+              borderRadius: 8,
+              padding: "8px 10px",
+              color: t.text,
+              fontSize: 12,
+              fontFamily: "inherit",
+              outline: "none",
+              boxSizing: "border-box",
+              resize: "vertical",
+            }}
+          />
+          <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+            <button
+              onClick={() => onParse?.(pasteText || "")}
+              disabled={!pasteText || !pasteText.trim()}
+              style={{
+                padding: "7px 14px",
+                background: accentColor,
+                border: "none",
+                borderRadius: 8,
+                color: "#fff",
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: pasteText && pasteText.trim() ? "pointer" : "not-allowed",
+                opacity: pasteText && pasteText.trim() ? 1 : 0.5,
+                fontFamily: "inherit",
+              }}
+            >파싱</button>
+            {Array.isArray(parsedRecords) && parsedRecords.length > 0 && (
+              <span style={{ fontSize: 10, color: t.textMuted }}>
+                {parsedRecords.length}건 감지
+              </span>
+            )}
+          </div>
+
+          {/* 파싱 결과 — 다건이면 리스트, 1건이면 안내만 (자동 채움). */}
+          {Array.isArray(parsedRecords) && parsedRecords.length === 1 && (
+            <div style={{ marginTop: 10, fontSize: 10, color: t.textMuted }}>
+              ✓ 폼에 자동 채워졌습니다. 검토·수정 후 제출 버튼 클릭하세요.
+            </div>
+          )}
+          {Array.isArray(parsedRecords) && parsedRecords.length > 1 && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginBottom: 6 }}>
+                건별로 [채우기] → 검토·제출 → 자동으로 다음 건 차례.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {parsedRecords.map((r, idx) => {
+                  const itemsSummary = (r.items || []).map(it => {
+                    const lab = it.appliance ? (APPLIANCE_CODE_TO_LABEL[it.appliance] || it.appliance) : "(기종?)";
+                    return `${lab}×${it.qty}${it.price != null ? ` ₩${it.price.toLocaleString()}` : ""}`;
+                  }).join(" / ");
+                  const isActive = activeRecordIdx === idx;
+                  return (
+                    <div key={idx} style={{
+                      display: "flex", alignItems: "center", gap: 8,
+                      padding: "8px 10px",
+                      background: isActive ? `${accentColor}22` : t.bg,
+                      border: `1px solid ${isActive ? accentColor : t.border}`,
+                      borderRadius: 8,
+                    }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 11, color: t.text, fontWeight: 600 }}>
+                          [{idx + 1}] {r.address || "(주소없음)"}
+                        </div>
+                        <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>
+                          {r.phone || "폰없음"} · {itemsSummary || "(품목없음)"}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => applyRecord(r, idx)}
+                        style={{
+                          padding: "6px 10px",
+                          background: isActive ? accentColor : "transparent",
+                          border: `1px solid ${accentColor}`,
+                          borderRadius: 6,
+                          color: isActive ? "#fff" : accentColor,
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          flexShrink: 0,
+                          fontFamily: "inherit",
+                        }}
+                      >{isActive ? "채움" : "채우기"}</button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{ padding: "16px" }}>
         {/* 연락처 */}
