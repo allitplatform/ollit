@@ -476,11 +476,15 @@ export function NewReceptionScreenLite({
     }
   }
 
+  // 2026-06-06 — 입력 박스 크기 통일 키움 (어르신 가독성).
+  //   옛 padding 10/12 + fontSize 13 → padding 12/14 + fontSize 14.
+  //   모든 input/textarea 가 inputStyle 스프레드로 받으므로 한 곳 수정으로 전체 통일.
+  //   견적 박스도 같은 크기 (특별히 크게 X).
   const inputStyle = (hasError) => ({
-    width: "100%", padding: "10px 12px",
+    width: "100%", padding: "12px 14px",
     background: t.bgInset,
     border: `1px solid ${hasError ? t.danger : t.border}`,
-    borderRadius: 8, fontSize: 13, color: t.text,
+    borderRadius: 8, fontSize: 14, color: t.text,
     fontFamily: "inherit", outline: "none", boxSizing: "border-box",
   });
 
@@ -769,7 +773,8 @@ export function NewReceptionScreenLite({
             )}
           </FormSection>
 
-          {/* (5) 견적 금액 — 같은 크기 input. 작업항목 합계 자동 sync, 직접 편집 가능. */}
+          {/* (5) 견적 금액 — 같은 크기 input. 작업항목 합계 자동 sync, 직접 편집 가능.
+              숫자색만 핑크(accentColor) 강조 — 박스 크기는 다른 입력과 동일. */}
           <FormSection t={t} accent={accentColor} icon="💰" label="견적 금액" required error={errors.estimateTotal}>
             <input type="number" min="0"
               value={form.estimateTotal || ""}
@@ -779,7 +784,7 @@ export function NewReceptionScreenLite({
                 update("estimateTotal", parseInt(e.target.value) || 0);
               }}
               placeholder="0"
-              style={inputStyle(!!errors.estimateTotal)}/>
+              style={{ ...inputStyle(!!errors.estimateTotal), color: accentColor, fontWeight: 800 }}/>
             <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6 }}>
               {estimateTouched
                 ? "직접 입력값 유지 중 (작업 항목 변경 시 자동 갱신 안 됨)."
