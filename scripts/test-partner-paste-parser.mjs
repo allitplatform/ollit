@@ -188,9 +188,31 @@ function unitPhone(label, line, expected) {
   if (!pass) console.log(`    want: ${JSON.stringify(expected)}`);
 }
 
-console.log("\n──── 폰 ────");
+console.log("\n──── 폰 (휴대폰 010) ────");
 unitPhone("14. '010 53648000'",      "010 53648000",      "010-5364-8000");
 unitPhone("    '01094471547'",       "01094471547",       "010-9447-1547");
 unitPhone("    '010-5111-3573.'",    "010-5111-3573.",    "010-5111-3573");
 unitPhone("    '010.9100.0906'",     "010.9100.0906",     "010-9100-0906");
 unitPhone("    +82 10-1234-5678",    "+82 10-1234-5678",  "010-1234-5678");
+
+console.log("\n──── 폰 (일반전화) ────");
+unitPhone("15. '029216483' (서울 9)",   "029216483",      "02-921-6483");
+unitPhone("    '02 921 6483' (서울)",   "02 921 6483",    "02-921-6483");
+unitPhone("    '0212345678' (서울 10)", "0212345678",     "02-1234-5678");
+unitPhone("    '0319216483' (지역 10)", "0319216483",     "031-921-6483");
+unitPhone("    '031-921-6483'",         "031-921-6483",   "031-921-6483");
+unitPhone("    '070-1234-5678'",        "070-1234-5678",  "070-1234-5678");
+
+console.log("\n──── 폰 오인 차단 (null이어야 함) ────");
+function unitNoPhone(label, line) {
+  const got = extractPhone(line);
+  const pass = got === null;
+  const flag = pass ? "✓" : "✗";
+  console.log(`${flag} ${label}: input=${JSON.stringify(line)} got=${JSON.stringify(got)}${pass ? "" : "  (null 기대)"}`);
+}
+unitNoPhone("16. 주소번지 '123-45'",     "강남구 역삼동 123-45");
+unitNoPhone("    가격 '70.000원'",       "70.000원");
+unitNoPhone("    '2층'",                 "2층");
+unitNoPhone("    '101동 1001호'",        "101동 1001호");
+unitNoPhone("    날짜 '20240228'",       "20240228");
+unitNoPhone("    임베드 '202401012345'",  "주문번호: 202401012345");

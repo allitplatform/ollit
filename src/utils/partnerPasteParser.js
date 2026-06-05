@@ -20,36 +20,56 @@
 //
 // ⚠️ 절대 자동 제출 X. 폼 prefill 후 사람이 검토·수정·제출.
 
-// ─── 전화 정규식 (.- 공백 separator 모두 허용) ───────────────
-const PHONE_PATTERNS = [
-  /\+?82[-.\s]?(?:0)?(10)[-.\s]?(\d{3,4})[-.\s]?(\d{4})/,   // +82 10-...
-  /(01[016789])[-.\s]?(\d{3,4})[-.\s]?(\d{4})/,              // 010-... / 010 ... / 010.xxxx.xxxx
-  /(01[016789])(\d{7,8})/,                                    // 01094294445
-];
-
-// 전체 패턴 (leftover 제거용)
-const PHONE_STRIP_RE = /\+?82[-.\s]?(?:0)?10[-.\s]?\d{3,4}[-.\s]?\d{4}|01[016789][-.\s]?\d{3,4}[-.\s]?\d{4}|01[016789]\d{7,8}/g;
+// ─── 전화 정규식 — 휴대폰 + 일반전화(지역번호) ─────────────────
+//   2026-06-06 — '029216483' 같은 일반전화 인식 추가.
+//   인식 spec: 0 시작 + 디지트(구분자 무시) 9~11자리:
+//     · 010~019 (휴대폰) — 10 or 11
+//     · 02 (서울)        — 9 or 10
+//     · 0XX (3자리 지역)  — 10 or 11 (031~064 / 070 인터넷 / 050X 등)
+//     · +82 변환 시 leading 0 복원.
+//   ⚠️ 주소 번지·가격·'2층'·'70.000' 같은 짧은 숫자 또는 0으로 시작 안 하는 숫자는 매칭 X.
+//   ⚠️ (?<!\d) lookbehind — '20240228' 같은 디지트 임베드 false-positive 차단.
+const PHONE_CANDIDATE_RE      = /\+?82[-.\s]?(?:0)?10(?:[-.\s]?\d){7,9}|(?<!\d)0\d(?:[-.\s]?\d){7,9}/g;
+const PHONE_CANDIDATE_TEST_RE = /\+?82[-.\s]?(?:0)?10(?:[-.\s]?\d){7,9}|(?<!\d)0\d(?:[-.\s]?\d){7,9}/;
+const PHONE_STRIP_RE          = /\+?82[-.\s]?(?:0)?10(?:[-.\s]?\d){7,9}|(?<!\d)0\d(?:[-.\s]?\d){7,9}/g;
 
 function fmtPhone(digits) {
   const d = String(digits || "").replace(/\D/g, "");
-  if (d.length === 11) return `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;
-  if (d.length === 10) return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
+  // 휴대폰 (010~019) — 10 or 11
+  if (/^01[016789]/.test(d) && (d.length === 10 || d.length === 11)) {
+    const mid = d.length === 11 ? 4 : 3;
+    return `${d.slice(0,3)}-${d.slice(3, 3+mid)}-${d.slice(3+mid)}`;
+  }
+  // 서울 02 — 9 or 10
+  if (d.startsWith("02") && (d.length === 9 || d.length === 10)) {
+    const mid = d.length === 10 ? 4 : 3;
+    return `02-${d.slice(2, 2+mid)}-${d.slice(2+mid)}`;
+  }
+  // 0XX 3자리 지역 (031~064 / 070 / 050X 등) — 10 or 11
+  if (/^0\d{2}/.test(d) && (d.length === 10 || d.length === 11)) {
+    const mid = d.length === 11 ? 4 : 3;
+    return `${d.slice(0,3)}-${d.slice(3, 3+mid)}-${d.slice(3+mid)}`;
+  }
   return d;
 }
 
 export function extractPhone(text) {
   if (!text) return null;
-  let m = text.match(PHONE_PATTERNS[0]);
-  if (m) return fmtPhone("0" + m[1] + m[2] + m[3]);
-  m = text.match(PHONE_PATTERNS[1]);
-  if (m) return fmtPhone(m[1] + m[2] + m[3]);
-  m = text.match(PHONE_PATTERNS[2]);
-  if (m) return fmtPhone(m[1] + m[2]);
+  const s = String(text);
+  for (const m of s.matchAll(PHONE_CANDIDATE_RE)) {
+    let raw = m[0];
+    // +82 → 0 (leading 0 복원)
+    raw = raw.replace(/^\+?82[-.\s]?/, "0");
+    const digits = raw.replace(/\D/g, "");
+    if (digits.length < 9 || digits.length > 11) continue;
+    if (digits[0] !== '0') continue;
+    return fmtPhone(digits);
+  }
   return null;
 }
 
 function hasPhone(line) {
-  return PHONE_PATTERNS.some(re => re.test(line));
+  return PHONE_CANDIDATE_TEST_RE.test(String(line || ""));
 }
 
 // ─── 기종 매핑 ────────────────────────────────────────────────
