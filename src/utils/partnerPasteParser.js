@@ -85,8 +85,17 @@ const SHORTHAND_PATTERNS = [
 const APPLIANCE_STRIP_RES = APPLIANCE_PATTERNS.map(ap => new RegExp(ap.re.source, "gi"));
 const SHORTHAND_STRIP_RES = SHORTHAND_PATTERNS.map(ap => new RegExp(ap.re.source, "g"));
 
+// 2026-06-06 — 가충 마커 확장 패턴.
+//   가스충전 / 가충 / 가.충 / 가 충 / 가.충. / .가.충 / 스 떼면 가스 / 충전 등 변형 전부.
+//   기종에 붙은 '스탠드가.충' / '벽걸이가.충70.000' 도 분리.
+const REFRIG_MARKER_TEST_RE  = /가\s*[.\s]*스?[.\s]*충(?:\s*전)?/;
+const REFRIG_MARKER_STRIP_RE = /가\s*[.\s]*스?[.\s]*충(?:\s*전)?/g;
+
 function hasRefrigerantKeyword(line) {
-  return /가\s*\.?\s*충|충\s*전/.test(String(line || ""));
+  return REFRIG_MARKER_TEST_RE.test(String(line || ""));
+}
+function stripRefrigMarker(s) {
+  return String(s || "").replace(REFRIG_MARKER_STRIP_RE, " ");
 }
 function hasPriceToken(line) {
   const s = String(line || "").replace(/가\s*\.?\s*충/g, " ");
@@ -130,11 +139,12 @@ function extractQty(line) {
 // ─── 가격 (KA 기종 줄) ─────────────────────────────────────
 function extractPrice(line) {
   if (!line) return null;
-  let s = String(line).replace(/가\s*\.?\s*충/g, " ").trim();
+  let s = stripRefrigMarker(line).trim();
   if (!/\d/.test(s)) return null;
 
-  // (1) 천단위 separator: 70.000 / 80,000 / 1,500,000
-  const sep = s.match(/(\d{1,3}(?:[.,]\d{3})+)/);
+  // (1) 천단위 separator: 70.000 / 80,000 / 1,500,000.
+  //     (?!\d) — '70.0000' 같은 비정상 (3+ 뒷자릿수) 거부 → null.
+  const sep = s.match(/(\d{1,3}(?:[.,]\d{3})+)(?!\d)/);
   if (sep) {
     const n = parseInt(sep[1].replace(/[.,]/g, ""), 10);
     if (n > 0) return n;
@@ -172,13 +182,13 @@ function stripPriceTokens(s) {
 // ─── KA 아이템 줄 leftover (기종+가격+가.충+qty 제외 나머지 텍스트) ─────
 //   예: "원웨이 물떨어짐 150.000" → "물떨어짐"
 function extractItemLeftover(line) {
-  let s = String(line || "");
-  s = s.replace(/가\s*\.?\s*충/g, " ");
+  let s = stripRefrigMarker(line);
   for (const re of APPLIANCE_STRIP_RES) s = s.replace(re, " ");
   // 약어도 strip — item 줄이라 안전 (가.충/가격 검증된 줄에서만 호출).
   for (const re of SHORTHAND_STRIP_RES) s = s.replace(re, " ");
   s = stripPriceTokens(s);
   s = s.replace(/\d+\s*대/g, " ");
+  s = s.replace(/씩/g, " ");
   s = s.replace(/[.,]+/g, " ");
   s = s.replace(/\s+/g, " ").trim();
   return s;
@@ -434,7 +444,7 @@ function stripNonDesiredTokens(line) {
   for (const re of APPLIANCE_STRIP_RES) s = s.replace(re, " ");
   s = s.replace(/\d+\s*대/g, " ");
   s = s.replace(/냉매\s*충전|냉매충전/g, " ");
-  s = s.replace(/가\s*\.?\s*충/g, " ");
+  s = stripRefrigMarker(s);
   s = s.replace(/[.,]+/g, " ");
   s = s.replace(/\s+/g, " ").trim();
   return s;

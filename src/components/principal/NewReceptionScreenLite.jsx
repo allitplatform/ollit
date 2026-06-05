@@ -167,8 +167,11 @@ export function NewReceptionScreenLite({
     const newItems = (record.items || []).map(it => {
       const applianceLabel = it.appliance ? (APPLIANCE_CODE_TO_LABEL[it.appliance] || "") : "";
       let unitPrice = it.price != null ? it.price : 0;
-      // crikrin (메시지 가격 없음) → quote_rates 자동 채움. appliance 빈값(위니아 등) 이면 0 유지.
-      if (it.price == null && quoteRates && applianceLabel) {
+      // 가격 미기재 시 분기:
+      //   · crikrin — 메시지에 가격 없는 게 표준 → quote_rates 자동 lookup.
+      //   · KA      — 가격 누락 = 메시지 오류/비정상 ('70.0000' / '안시원함' 등) → 0 유지.
+      //               사장님이 폼에서 직접 단가 입력. (autoTotal 측 form fallback 은 그대로 동작.)
+      if (it.price == null && principalCode === "crikrin" && quoteRates && applianceLabel) {
         const r = lookupRate({
           principalCode,
           quoteRates,

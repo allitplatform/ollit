@@ -5,7 +5,7 @@
 //
 // 실행: node scripts/test-partner-paste-parser.mjs
 
-import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL } from "../src/utils/partnerPasteParser.js";
+import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL, extractPhone } from "../src/utils/partnerPasteParser.js";
 
 function out(label, text, principalCode) {
   console.log("\n══════════════════════════════════════════════════════════");
@@ -102,3 +102,95 @@ out("CR-5 전지수 (라벨, 위니아=기종 불명)", `성함:전지수
 연락처: 010.9100.0906
 가전 종류 및 갯수: 위니아 1대
 희망 날짜 및 시간대 (오전/오후): 5.23 토 오전`, "crikrin");
+
+// ═══════════ KA 단위 테스트 (item 줄만 / KA single-line 파싱) ════════════════════════
+
+function unitItem(label, line, expected) {
+  const recs = parsePartnerPaste(line, "KA");
+  const rec  = recs[0] || {};
+  const item = (rec.items || [])[0] || {};
+  const got = {
+    appliance: item.appliance ?? null,
+    qty:       item.qty ?? null,
+    price:     item.price ?? null,
+    memo:      rec.memo ?? null,
+  };
+  const pass = JSON.stringify(got) === JSON.stringify(expected);
+  const flag = pass ? "✓" : "✗";
+  console.log(`${flag} ${label}`);
+  console.log(`    input: ${JSON.stringify(line)}`);
+  console.log(`    got:   ${JSON.stringify(got)}`);
+  if (!pass) console.log(`    want:  ${JSON.stringify(expected)}`);
+}
+
+console.log("\n══════════════════════════════════════════════════════════");
+console.log("KA 단위 케이스 (사장님 spec)");
+console.log("══════════════════════════════════════════════════════════");
+
+unitItem("1. 벽걸이 가스충전 70.000",
+  "벽걸이 가스충전 70.000",
+  { appliance: "wall", qty: 1, price: 70000, memo: null });
+
+unitItem("2. 벽걸이 가충. 70.000",
+  "벽걸이 가충. 70.000",
+  { appliance: "wall", qty: 1, price: 70000, memo: null });
+
+unitItem("3. 스탠드가.충 80.000",
+  "스탠드가.충 80.000",
+  { appliance: "stand", qty: 1, price: 80000, memo: null });
+
+unitItem("4. 원웨이 가.충100.000",
+  "원웨이 가.충100.000",
+  { appliance: "1way", qty: 1, price: 100000, memo: null });
+
+unitItem("5. 벽걸이 .가.충 70.000",
+  "벽걸이 .가.충 70.000",
+  { appliance: "wall", qty: 1, price: 70000, memo: null });
+
+unitItem("6. 벽걸이.가.충 .70.000",
+  "벽걸이.가.충 .70.000",
+  { appliance: "wall", qty: 1, price: 70000, memo: null });
+
+unitItem("7. 스탠드. 가.충 3대 80.000씩",
+  "스탠드. 가.충 3대 80.000씩",
+  { appliance: "stand", qty: 3, price: 80000, memo: null });
+
+unitItem("8. 벽걸이 가.충  2대 70.000씩",
+  "벽걸이 가.충  2대 70.000씩",
+  { appliance: "wall", qty: 2, price: 70000, memo: null });
+
+unitItem("9. 포웨이 가.충 150.000",
+  "포웨이 가.충 150.000",
+  { appliance: "4way", qty: 1, price: 150000, memo: null });
+
+unitItem("10. 투인원가.충. 100.000",
+  "투인원가.충. 100.000",
+  { appliance: "2in1", qty: 1, price: 100000, memo: null });
+
+unitItem("11. 벽.가.충 70.000",
+  "벽.가.충 70.000",
+  { appliance: "wall", qty: 1, price: 70000, memo: null });
+
+unitItem("12. 스탠드물호수교환 80.000 + memo '물호수교환'",
+  "스탠드물호수교환 80.000",
+  { appliance: "stand", qty: 1, price: 80000, memo: "물호수교환" });
+
+unitItem("13. 스탠드 안시원함 (가격 없음 → price:null)",
+  "스탠드 안시원함",
+  { appliance: "stand", qty: 1, price: null, memo: "안시원함" });
+
+// 폰 단위
+function unitPhone(label, line, expected) {
+  const got = extractPhone(line);
+  const pass = got === expected;
+  const flag = pass ? "✓" : "✗";
+  console.log(`${flag} ${label}: input=${JSON.stringify(line)} got=${JSON.stringify(got)}`);
+  if (!pass) console.log(`    want: ${JSON.stringify(expected)}`);
+}
+
+console.log("\n──── 폰 ────");
+unitPhone("14. '010 53648000'",      "010 53648000",      "010-5364-8000");
+unitPhone("    '01094471547'",       "01094471547",       "010-9447-1547");
+unitPhone("    '010-5111-3573.'",    "010-5111-3573.",    "010-5111-3573");
+unitPhone("    '010.9100.0906'",     "010.9100.0906",     "010-9100-0906");
+unitPhone("    +82 10-1234-5678",    "+82 10-1234-5678",  "010-1234-5678");
