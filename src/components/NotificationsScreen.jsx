@@ -80,7 +80,11 @@ export function NotificationsScreen({ user, onBack }) {
         if (!isPushSupported()) { showPushToast("⚠️ 이 브라우저는 푸시 알림을 지원하지 않습니다"); return; }
         if (isIOS() && !isStandalone()) { showPushToast("⚠️ 홈 화면에 추가한 후 다시 시도해주세요"); return; }
         const res = await subscribePushWithSync({
-          userId: currentUser?.userId || currentUser?.id || "",
+          // 2026-06-06 — sign_in_with_phone (Mig 057) 응답 측 user_id (snake_case) 우선.
+          //   옛 userId / id fallback 유지 — 다른 로그인 경로 호환.
+          //   SettingsScreen 30c0fba 와 동일 패턴 — 본 화면 누락 정정.
+          //   옛: userId가 buildAppUser code ('A004') 로 전달 → API UUID 검증 실패 → 400 → admin 구독 0건 사고.
+          userId: currentUser?.user_id || currentUser?.userId || currentUser?.id || "",
           role:   currentUser?.role   || "admin",
         });
         if (res.ok) {
@@ -98,7 +102,8 @@ export function NotificationsScreen({ user, onBack }) {
         }
       } else {
         const res = await unsubscribePushWithSync({
-          userId: currentUser?.userId || currentUser?.id || "",
+          // 2026-06-06 — user_id 우선 (subscribe 라인 측 동일 매핑).
+          userId: currentUser?.user_id || currentUser?.userId || currentUser?.id || "",
         });
         setPushOn(false);
         if (res.ok) showPushToast("✓ 푸시 알림이 비활성화되었습니다");
