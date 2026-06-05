@@ -63,6 +63,14 @@ const APPLIANCE_PATTERNS = [
   { re: /벽\s*걸\s*이/,                                code: "wall" },
 ];
 
+// 2026-06-06 — 브랜드명 → 기종 추정 (fallback 전용).
+//   명시적 기종 키워드 (위 APPLIANCE_PATTERNS) 가 없을 때만 적용.
+//   위니아 = 대부분 벽걸이 (사장님 운영 spec). 다른 브랜드 (삼성/LG/캐리어 등) 는
+//   기종이 다양해 추정 X — 빈 라벨 유지 → 폼 측 사람이 직접 선택.
+const BRAND_FALLBACK_PATTERNS = [
+  { re: /위\s*니\s*아/, code: "wall" },
+];
+
 // 전체 stripping용
 const APPLIANCE_STRIP_RES = APPLIANCE_PATTERNS.map(ap => new RegExp(ap.re.source, "gi"));
 
@@ -76,7 +84,12 @@ export const APPLIANCE_CODE_TO_LABEL = {
 };
 
 function detectAppliance(line) {
+  // 1) 명시적 기종 키워드 우선.
   for (const ap of APPLIANCE_PATTERNS) {
+    if (ap.re.test(line)) return ap.code;
+  }
+  // 2) 브랜드 추정 fallback — 명시적 기종 없을 때만.
+  for (const ap of BRAND_FALLBACK_PATTERNS) {
     if (ap.re.test(line)) return ap.code;
   }
   return null;
