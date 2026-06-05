@@ -270,6 +270,12 @@ export function v14NormalizeTask(t) {
     cancelPreviousStatus:     t.cancelPreviousStatus     ?? t.categoryData?.previousStatus           ?? null,
     cancelWasCompleted:       t.cancelWasCompleted       ?? t.categoryData?.wasCompleted             ?? null,
 
+    // 2026-06-05 — categoryData 원본 객체 보존 (3곳 매핑 트랩 중 본 함수 누락 정정).
+    //   rowToTask / AdminApp._v14NormalizeTask 측 원본 보존하나 본 함수만 평탄화 키만 두고 원본 누락 →
+    //   EngineerApp 기사 일정변경 / EngineerTaskDetailScreen 완료 처리 측 spread 머지 시
+    //   undefined → 빈 {} → workItems 손실 → sync 트리거 측 task_items 전체 삭제 (2026-06-05 사고 원인).
+    categoryData: t.categoryData || {},
+
     _api: true,
   };
 }
