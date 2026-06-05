@@ -71,8 +71,27 @@ const BRAND_FALLBACK_PATTERNS = [
   { re: /위\s*니\s*아/, code: "wall" },
 ];
 
-// 전체 stripping용
+// 2026-06-06 — KA 약어 패턴 (벽/스/천/투). 단어 경계 (앞: 시작 or .·, 뒤: 끝 or .·).
+//   ⚠️ 오탐 방지: detectAppliance 에서 가.충/충전 키워드 또는 가격 토큰 있을 때만 시도.
+//   '천' 은 '천장' 까지 허용 (천장형 명시 패턴과 별도, '천장 가.충' 같이 짧게 쓴 경우).
+const SHORTHAND_PATTERNS = [
+  { re: /(?:^|[\s.,])벽(?=[\s.,]|$)/,    code: "wall"  },
+  { re: /(?:^|[\s.,])스(?=[\s.,]|$)/,    code: "stand" },
+  { re: /(?:^|[\s.,])천(?=[\s.,]|장|$)/, code: "1way"  },
+  { re: /(?:^|[\s.,])투(?=[\s.,]|$)/,    code: "2in1"  },
+];
+
+// 전체 stripping용 (명시 + 약어). 명시는 case-insensitive, 약어는 한글이라 일반.
 const APPLIANCE_STRIP_RES = APPLIANCE_PATTERNS.map(ap => new RegExp(ap.re.source, "gi"));
+const SHORTHAND_STRIP_RES = SHORTHAND_PATTERNS.map(ap => new RegExp(ap.re.source, "g"));
+
+function hasRefrigerantKeyword(line) {
+  return /가\s*\.?\s*충|충\s*전/.test(String(line || ""));
+}
+function hasPriceToken(line) {
+  const s = String(line || "").replace(/가\s*\.?\s*충/g, " ");
+  return /\d{1,3}(?:[.,]\d{3})+|\d+\s*만(?:원)?|\d{4,}\s*원|\b\d{5,}\b/.test(s);
+}
 
 // 코드 → 폼 appliancePool 라벨. PARTNER_PWA_CONFIG.appliancePool 키와 일치.
 export const APPLIANCE_CODE_TO_LABEL = {
@@ -91,6 +110,12 @@ function detectAppliance(line) {
   // 2) 브랜드 추정 fallback — 명시적 기종 없을 때만.
   for (const ap of BRAND_FALLBACK_PATTERNS) {
     if (ap.re.test(line)) return ap.code;
+  }
+  // 3) KA 약어 — 가.충/충전 키워드 또는 가격 토큰 있을 때만 (오탐 방지).
+  if (hasRefrigerantKeyword(line) || hasPriceToken(line)) {
+    for (const ap of SHORTHAND_PATTERNS) {
+      if (ap.re.test(line)) return ap.code;
+    }
   }
   return null;
 }
@@ -149,9 +174,9 @@ function stripPriceTokens(s) {
 function extractItemLeftover(line) {
   let s = String(line || "");
   s = s.replace(/가\s*\.?\s*충/g, " ");
-  for (const re of APPLIANCE_STRIP_RES) {
-    s = s.replace(re, " ");
-  }
+  for (const re of APPLIANCE_STRIP_RES) s = s.replace(re, " ");
+  // 약어도 strip — item 줄이라 안전 (가.충/가격 검증된 줄에서만 호출).
+  for (const re of SHORTHAND_STRIP_RES) s = s.replace(re, " ");
   s = stripPriceTokens(s);
   s = s.replace(/\d+\s*대/g, " ");
   s = s.replace(/[.,]+/g, " ");
@@ -232,6 +257,16 @@ function parseKaSection(section) {
     }
     if (ap && price === null) {
       items.push({ appliance: ap, qty: extractQty(line), price: null, _needsPriceFromNext: true });
+      const lo = extractItemLeftover(line);
+      if (lo) itemLeftovers.push(lo);
+      if (firstItemIdx === -1) firstItemIdx = i;
+      roles.push('item');
+      continue;
+    }
+    // 2026-06-06 안전망 — 기종 못 찾음 + 가격 + 가.충/충전 키워드 → item 처리 (appliance:null, 사람 수동 선택).
+    //   주소로 새는 사고 방지 (예: "익숙치 않은 기종 약어 가.충 70.000").
+    if (!ap && price !== null && hasRefrigerantKeyword(line)) {
+      items.push({ appliance: null, qty: extractQty(line), price });
       const lo = extractItemLeftover(line);
       if (lo) itemLeftovers.push(lo);
       if (firstItemIdx === -1) firstItemIdx = i;
