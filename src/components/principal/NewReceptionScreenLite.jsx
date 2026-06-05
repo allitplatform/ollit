@@ -492,7 +492,6 @@ export function NewReceptionScreenLite({
   if (pasteSupported) {
     const hasPasteResults = Array.isArray(parsedRecords) && parsedRecords.length > 0;
     const showPaste = pasteOpen || hasPasteResults;   // 결과 있으면 자동 열림 (사용자 검토)
-    const hasSpecificScheduleUi = (scheduleMode === "input" || scheduleMode === "today" || scheduleMode === "tomorrow");
     return (
       <div className="fade-in">
         {/* 헤더 */}
@@ -629,19 +628,19 @@ export function NewReceptionScreenLite({
           )}
 
           {/* (2) 연락처 */}
-          <FormSection t={t} accent={accentColor} icon="📞" label="연락처" required requiredBadge error={errors.phone}>
+          <FormSection t={t} accent={accentColor} icon="📞" label="연락처" required error={errors.phone}>
             <input type="tel" value={form.phone} onChange={(e) => update("phone", e.target.value)}
               placeholder="010-0000-0000" style={inputStyle(!!errors.phone)}/>
           </FormSection>
 
           {/* (3) 주소 */}
-          <FormSection t={t} accent={accentColor} icon="📍" label="주소" required requiredBadge error={errors.address}>
+          <FormSection t={t} accent={accentColor} icon="📍" label="주소" required error={errors.address}>
             <input type="text" value={form.address} onChange={(e) => update("address", e.target.value)}
               placeholder="강남구 역삼동 123-45" style={inputStyle(!!errors.address)}/>
           </FormSection>
 
           {/* (4) 작업 항목 */}
-          <FormSection t={t} accent={accentColor} icon="🔧" label="작업 항목" required requiredBadge error={errors.workItems}>
+          <FormSection t={t} accent={accentColor} icon="🔧" label="작업 항목" required error={errors.workItems}>
             {workItems.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
                 {workItems.map((it, idx) => {
@@ -771,7 +770,7 @@ export function NewReceptionScreenLite({
           </FormSection>
 
           {/* (5) 견적 금액 — 같은 크기 input. 작업항목 합계 자동 sync, 직접 편집 가능. */}
-          <FormSection t={t} accent={accentColor} icon="💰" label="견적 금액" required requiredBadge error={errors.estimateTotal}>
+          <FormSection t={t} accent={accentColor} icon="💰" label="견적 금액" required error={errors.estimateTotal}>
             <input type="number" min="0"
               value={form.estimateTotal || ""}
               onChange={(e) => {
@@ -788,16 +787,35 @@ export function NewReceptionScreenLite({
             </div>
           </FormSection>
 
-          {/* (6) 희망 일정 — 4 버튼 [오늘][내일][일정 미정][직접 입력] */}
+          {/* (6) 희망 일정 — 4 chip.
+              · 오늘/내일 → 날짜만 자동 (시간 안 물어봄). chip 활성 + 안내 텍스트만.
+              · 일정 미정 → 빈값 (TBD). 안내 텍스트만.
+              · 직접 입력 → 이 모드만 date + time input 노출.
+          */}
           <FormSection t={t} accent={accentColor} icon="📅" label="희망 일정">
-            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: hasSpecificScheduleUi ? 8 : 0 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               <FormChip t={t} accent={accentColor} active={scheduleMode === "today"}    onClick={setScheduleToday}>오늘</FormChip>
               <FormChip t={t} accent={accentColor} active={scheduleMode === "tomorrow"} onClick={setScheduleTomorrow}>내일</FormChip>
               <FormChip t={t} accent={accentColor} active={scheduleMode === "tbd"}      onClick={setScheduleTbd}>일정 미정</FormChip>
               <FormChip t={t} accent={accentColor} active={scheduleMode === "input"}    onClick={setScheduleInput}>직접 입력</FormChip>
             </div>
-            {hasSpecificScheduleUi && (
-              <div style={{ display: "flex", gap: 6 }}>
+            {scheduleMode === "today" && (
+              <div style={{ marginTop: 8, fontSize: 11, color: t.textMuted }}>
+                오늘 ({form.requestDate}) — 시간 미지정
+              </div>
+            )}
+            {scheduleMode === "tomorrow" && (
+              <div style={{ marginTop: 8, fontSize: 11, color: t.textMuted }}>
+                내일 ({form.requestDate}) — 시간 미지정
+              </div>
+            )}
+            {scheduleMode === "tbd" && (
+              <div style={{ marginTop: 8, fontSize: 11, color: t.textMuted }}>
+                일정 미정 — 추후 협의
+              </div>
+            )}
+            {scheduleMode === "input" && (
+              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
                 <input type="date" value={form.requestDate}
                   onChange={(e) => update("requestDate", e.target.value)}
                   style={{ ...inputStyle(false), flex: 1 }}/>
@@ -1330,29 +1348,22 @@ export function NewReceptionScreenLite({
 // ════════════════════════════════════════════════════════════
 // Helpers — AdminApp NewReceptionFormScreen 패턴 그대로 (의존성 없이 같이 정의)
 // ════════════════════════════════════════════════════════════
-function FormSection({ t, accent = "#FF4D9E", icon, label, required, requiredBadge, error, children }) {
+function FormSection({ t, accent = "#FF4D9E", icon, label, required, error, children }) {
+  // 2026-06-06 — 필수 표시: 텍스트 배지/별표 제거 → 박스 테두리 색으로 통일.
+  //   error 우선 (빨강) > required (핑크) > 회색.
+  //   requiredBadge prop 도 제거 — partnerMode/유솔H 양쪽 모두 박스 테두리 통일.
+  //   유솔H 측 옛 별표 (*) 표시도 박스 테두리 핑크로 일관성 통일 (시각 정리).
+  const borderColor = error ? t.danger : (required ? accent : t.border);
   return (
     <div style={{
       marginBottom: 12,
       background: t.bgElevated,
-      border: `1px solid ${error ? t.danger : t.border}`,
+      border: `1px solid ${borderColor}`,
       borderRadius: 10, padding: "12px 14px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
         <span style={{ fontSize: 13 }}>{icon}</span>
         <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{label}</span>
-        {required && (
-          requiredBadge ? (
-            <span style={{
-              fontSize: 9, fontWeight: 800, color: "#fff",
-              background: accent,
-              padding: "2px 6px", borderRadius: 4,
-              letterSpacing: 0.3,
-            }}>필수</span>
-          ) : (
-            <span style={{ fontSize: 11, color: accent, fontWeight: 800 }}>*</span>
-          )
-        )}
         {error && <span style={{ marginLeft: "auto", fontSize: 10, color: t.danger, fontWeight: 700 }}>{error}</span>}
       </div>
       {children}
