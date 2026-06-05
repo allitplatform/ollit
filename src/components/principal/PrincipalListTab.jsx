@@ -83,12 +83,16 @@ function ChannelBadge({ task }) {
     }}>N</span>
   );
 }
+// 2026-06-06 — AdminApp WORK_TYPE_ICONS 매핑과 동일하게 정렬.
+//   세척 → ❄️ (Snowflake) / 냉매충전 → ⚡ (Zap) / addon → ⚡ / visit → 🚗.
+//   직전 수정 (clean=💧, refrigerant=❄️) 거꾸로 매핑 → 사장님 flag 받고 원위치.
+//   색은 Principal 의미 부여 (파랑/주황/회색) 유지 — Admin 회색 통일과 다르지만 아이콘만 일치.
 function ServiceIcon({ kind, size = 14 }) {
   if (kind === "visit")       return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
   if (kind === "addon")       return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
-  if (kind === "refrigerant") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>❄️</span>;
-  // clean (세척, 옛 main 호환)
-  return <span style={{ fontSize: size, color: CLEAN_COLOR }}>💧</span>;
+  if (kind === "refrigerant") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
+  // clean (세척, 옛 유솔H 본작업 패턴)
+  return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
 }
 
 export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
