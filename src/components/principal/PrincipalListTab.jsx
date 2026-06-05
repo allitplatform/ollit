@@ -37,14 +37,21 @@ function getMainItem(task) {
 function getServiceKind(task) {
   // 2026-05-25 — 출장비 전용(visit_only) 분기를 main/addon 판정보다 먼저.
   if (task && task.status === "visit_only") return "visit";
-  // 2026-06-06 — 본작업 workType 보고 분기. 옛 'main' 단일값은 모두 ❄️ CLEAN_COLOR(파랑)
-  //   로 떨어져 KA/crikrin 냉매충전이 세척 아이콘으로 보이는 사고.
+  // 2026-06-06 — service code 기준 분기 (정확). workType 텍스트는 fallback.
+  //   사고 이력: rowToTask 측 workItems[].workType 은 work_types.name 측 매핑돼
+  //   '냉매_스탠드' / '세척_벽걸이' 같은 기종별 세분 이름. 사람 라벨('냉매충전')
+  //   비교가 fail → 모두 'clean'로 떨어져 ❄️. (안현생 case).
+  //   → serviceCode (work_types.service_types.code, rowToTask line 196 매핑) 1순위.
   const main = getMainItem(task);
   if (main) {
-    const wt = String(main.workType || main.work_type || "").trim();
-    if (wt === "냉매충전") return "refrigerant";
-    if (wt === "세척" || wt === "에어컨세척") return "clean";
-    return "clean";  // 미상 → 옛 호환 (유솔H 패턴, 본작업=세척)
+    const svc = String(main.serviceCode || main.service_code || "").toLowerCase();
+    if (svc === "refrigerant") return "refrigerant";
+    if (svc === "cleaning")    return "clean";
+    // 옛 category_data.workItems 측 serviceCode 없는 경우 — workType 텍스트 패턴 fallback.
+    const wt = String(main.workType || main.work_type || "");
+    if (/냉매|가스|충전/.test(wt)) return "refrigerant";
+    if (/세척|cleaning|clean/i.test(wt)) return "clean";
+    return "clean";   // 최종 fallback (유솔H 본작업=세척 패턴 호환)
   }
   return "addon";
 }
