@@ -44,6 +44,8 @@ import { UsolNCsvMatch } from "../components/usol_n/UsolNCsvMatch.jsx";
 import { NewReceptionScreenLite } from "../components/principal/NewReceptionScreenLite.jsx";
 // 2026-06-06 — KA/crikrin 메시지 붙여넣기 파서 (UploadTab 측 호출).
 import { parsePartnerPaste } from "../utils/partnerPasteParser.js";
+// 2026-06-06 — 작업 기본 정보 편집 (5 필드만, RPC update_task_basic Mig 099).
+import { TaskBasicEditScreen } from "../components/TaskBasicEditScreen.jsx";
 import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
 import { getPartialReasonLabel } from "../components/EngineerTaskCompletionScreens.jsx";
 // Round 2 — 원청 취소 RPC + 공유 다이얼로그
@@ -1120,6 +1122,16 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
     }
   }
 
+  // 2026-06-06 — 작업 기본 정보 편집 (5 필드) 모드 토글.
+  const [editing, setEditing] = useState(false);
+  async function refetchTask() {
+    if (!task?.id) return;
+    const row = await getTaskByIdDb(task.id);
+    if (!row) return;
+    const normalized = v14NormalizeTask(row);
+    if (normalized) setTask(normalized);
+  }
+
   // 상품주문별 정산 — task_items + remit 별도 fetch (mount 시)
   const [settleItems, setSettleItems] = useState([]);
   const [settleRemits, setSettleRemits] = useState([]);
@@ -1214,6 +1226,20 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
     );
   }
 
+  // 2026-06-06 — 편집 모드 (5 필드 — update_task_basic RPC).
+  if (editing) {
+    return (
+      <TaskBasicEditScreen
+        t={t}
+        task={task}
+        actorUserId={user?.user_id || user?.userId || user?.id}
+        accentColor={t.accent}
+        onClose={() => setEditing(false)}
+        onSaved={async () => { await refetchTask(); setEditing(false); }}
+      />
+    );
+  }
+
   return (
     <div className="fade-in" style={{ padding: "20px" }}>
       <button onClick={onBack} className="clickable" style={{
@@ -1237,6 +1263,17 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
         }}>
           {statusLabel}
         </span>
+        {/* 2026-06-06 — 수정 버튼 (5 필드: 연락처/주소/고객명/희망일정/요청사항) */}
+        <button onClick={() => setEditing(true)} style={{
+          marginLeft: "auto",
+          padding: "5px 12px",
+          background: "transparent",
+          border: `1px solid ${t.accent}`,
+          borderRadius: 8,
+          color: t.accent,
+          fontSize: 11, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>수정</button>
       </div>
 
       <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>

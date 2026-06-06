@@ -5,6 +5,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
+// 2026-06-06 — 기본 정보 편집 (5 필드 — update_task_basic RPC, Mig 099).
+import { TaskBasicEditScreen } from "./TaskBasicEditScreen.jsx";
 import { Chip } from "./Chip.jsx";
 import { detectServiceType } from "../data/serviceTypes.js";
 import { TaskCardMenu } from "./TaskCardMenu.jsx";
@@ -74,6 +76,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   // 2026-06-03 — 품목별 취소 다이얼로그 (PartialCancelDialog).
   const [showPartialCancelDialog, setShowPartialCancelDialog] = useState(false);
   const [exceptionExpanded, setExceptionExpanded] = useState(false);
+  // 2026-06-06 — 기본 정보 편집 모드 (5 필드 — update_task_basic RPC).
+  const [editingBasic, setEditingBasic] = useState(false);
 
   // 2026-06-02 — id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일).
   //   정산 대기에서 partial payload (id/customer_name/status 등)가 들어오면 상세 정보가 비기 때문에
@@ -129,6 +133,15 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   //   early return 측 measure spec 측 sub-component 측 hooks 측 측 측 측 catch 측 측 measure 측 catch
   //   → 가장 안전한 spec: hooks 측 측 측 측 측 측 → ternary 측 표시 분기.
   // ════════════════════════════════════════════════════════════
+  // 2026-06-06 — 기본 정보 편집 후 task 재조회 (update_task_basic RPC 호출 끝 호출용).
+  async function refetchTaskBasic() {
+    if (!task?.id) return;
+    const row = await getTaskByIdDb(task.id);
+    if (!row) return;
+    const normalized = v14NormalizeTask(row);
+    if (normalized) setTask(normalized);
+  }
+
   const isExternal = task?.type === "external";
   // 2026-06-03 — 완료 작업 측측 ExceptionActions 노출 (사장님 spec).
   //   기존 `state !== "done"` 가드 제거 — adminFullCancel RPC가 완료 작업도 정상 처리 측측
@@ -152,6 +165,20 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
     if (action === "edit")        return onEdit && onEdit();
     if (action === "visit_only")  return setShowVisitOnlyDialog(true);
     if (action === "cancel")      return setShowCancelDialog(true);
+  }
+
+  // 2026-06-06 — 기본 정보 편집 모드 (모든 hooks 다 호출된 다음 위치라 안전).
+  if (editingBasic && task) {
+    return (
+      <TaskBasicEditScreen
+        t={t}
+        task={task}
+        actorUserId={user?.user_id || user?.userId || user?.id}
+        accentColor={t?.accent || "#FF1B8D"}
+        onClose={() => setEditingBasic(false)}
+        onSaved={async () => { await refetchTaskBasic(); setEditingBasic(false); }}
+      />
+    );
   }
 
   // 측 단일 return — early return 측 측, ternary 측 분기 (사장님 spec — hooks 순서 측 위반 spec 측 제거).
@@ -207,6 +234,19 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       ) : (
         <>
       <DetailHeader task={task} onBack={onBack} onMenuAction={handleMenuAction}/>
+      {/* 2026-06-06 — 기본 정보 수정 버튼 (5 필드: 연락처/주소/고객명/희망일정/요청사항).
+          정산/배정/상태 등은 별도 RPC 통해서만 — 본 버튼은 update_task_basic (Mig 099) 호출. */}
+      <div style={{ padding: "12px 20px 0", display: "flex", justifyContent: "flex-end" }}>
+        <button onClick={() => setEditingBasic(true)} style={{
+          padding: "6px 14px",
+          background: "transparent",
+          border: `1px solid ${t?.accent || "#FF1B8D"}`,
+          borderRadius: 8,
+          color: t?.accent || "#FF1B8D",
+          fontSize: 12, fontWeight: 700,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>수정</button>
+      </div>
       {/* 카드 1 — 상태 + 작업 종류 측 catch (변경 X) */}
       <MainCard task={task} onStatusChange={onStatusChange}/>
       {/* 카드 2 — 2026-05-26 D-2: 작업 정보 통합 (연락처/주소/일정 + 배정 프로 + 측 측 측 측)
