@@ -90,66 +90,93 @@ function StatusBadge({ status }) {
   );
 }
 
-// 측 측 — refrigerant=⚡ / cleaning=❄️ — PrincipalListTab.getServiceKind 패턴 측 측.
-function ServiceMark({ task }) {
-  const items = Array.isArray(task.task_items) ? task.task_items : [];
-  const code = items[0]?.work_types?.service_types?.code || "";
-  const wt = String(items[0]?.work_types?.name || "");
-  const isRefrig = code === "refrigerant" || wt.includes("냉매");
-  return <span style={{ fontSize: 12 }}>{isRefrig ? "⚡" : "❄️"}</span>;
-}
+// PrincipalListTab 측 측측 색 토큰 (라이트/다크 측측 측측).
+const CLEAN_COLOR       = "#378ADD";
+const REFRIGERANT_COLOR = "#EF9F27";
+const VISIT_COLOR       = "#9CA3AF";
 
 function getMainItem(task) {
   const items = Array.isArray(task.task_items) ? task.task_items : [];
   return items.find(it => it.order_type === "본작업") || items[0] || null;
 }
 
-// 측 측 행 — 1줄 컴팩트
+// PrincipalListTab.getServiceKind 측 (nested task_items shape 측 측측).
+function getKind(task) {
+  if (task?.status === "visit_only") return "visit";
+  const main = getMainItem(task);
+  if (!main) return "clean";
+  const svc = String(main.work_types?.service_types?.code || "").toLowerCase();
+  if (svc === "refrigerant") return "refrigerant";
+  if (svc === "cleaning")    return "clean";
+  const wt = String(main.work_types?.name || "");
+  if (/냉매|가스|충전/.test(wt)) return "refrigerant";
+  if (/세척|cleaning|clean/i.test(wt)) return "clean";
+  return "clean";
+}
+
+function ServiceIcon({ kind, size = 14 }) {
+  if (kind === "visit")       return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
+  if (kind === "refrigerant") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
+  return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
+}
+
+// 일정 행 — PrincipalListTab.TaskRow 동일 형식 + 시간(앞) + 상태배지(뒤).
+//   [HH:MM] [Icon] 고객명  (기종×수량) · 지역  [상태]
 function ScheduleRow({ task, onClick }) {
   const time = task.scheduled_at ? toKstHm(task.scheduled_at) : "미정";
+  const kind = getKind(task);
   const main = getMainItem(task);
   const appliance = main?.appliance_types?.name || "";
   const qty = main?.qty || 1;
   const items = Array.isArray(task.task_items) ? task.task_items : [];
   const otherCount = Math.max(0, items.length - 1);
   const applianceText = appliance
-    ? `${appliance}${qty > 1 ? `×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""}`
+    ? `(${appliance}${qty > 1 ? `×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""})`
     : "";
+  // "키워드" = region (district) — PrincipalListTab TaskRow 와 동일 소스.
+  const region = task.district || "";
+  const middleText = [applianceText, region].filter(Boolean).join(" · ");
 
-  // 2026-06-06 — 취소 행 측 측측 (사장님 spec — 측 측 측 측 측 표시 + 측 측 측 측).
   const isCancelled = task.status === "취소";
 
   return (
     <div
       onClick={onClick}
       style={{
-        display: "flex", alignItems: "center", gap: 8,
-        padding: "8px 10px",
         background: "var(--bg-elevated, #1F1F1F)",
         border: "1px solid var(--border, #2A2A2A)",
         borderRadius: 8,
+        padding: "8px 10px",
+        display: "flex", alignItems: "center", gap: 8,
+        minHeight: 38,
         cursor: onClick ? "pointer" : "default",
-        minHeight: 40,
         opacity: isCancelled ? 0.45 : 1,
       }}
     >
+      {/* 시간 */}
       <span className="mono" style={{
         fontSize: 11, fontWeight: 800,
         color: time === "미정" ? "var(--text-secondary)" : "var(--text-primary)",
-        width: 40, flexShrink: 0, textAlign: "left",
+        width: 38, flexShrink: 0, textAlign: "left",
       }}>{time}</span>
-      <ServiceMark task={task}/>
+      {/* 아이콘 (PrincipalListTab 동일 컴포넌트) */}
+      <div style={{ flexShrink: 0, width: 14, textAlign: "center" }}>
+        <ServiceIcon kind={kind}/>
+      </div>
+      {/* 고객명 (primary) */}
       <span style={{
-        fontSize: 12, fontWeight: 600, color: "var(--text-primary)",
-        maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        flexShrink: 0, fontSize: 12, fontWeight: 500,
+        color: "var(--text-primary)",
+        maxWidth: 90,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>{task.customer_name || "—"}</span>
-      {applianceText && (
-        <span style={{
-          fontSize: 11, color: "var(--text-secondary)",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>{applianceText}</span>
-      )}
-      <span style={{ flex: 1 }}/>
+      {/* 가운데 muted: (기종×수량) · region — PrincipalListTab.TaskRow 동일 */}
+      <span style={{
+        flex: 1, minWidth: 0,
+        fontSize: 11, fontWeight: 400, color: "var(--text-secondary)",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+      }}>{middleText}</span>
+      {/* 상태배지 */}
       <StatusBadge status={task.status}/>
     </div>
   );
