@@ -225,11 +225,11 @@ function unitRegion(label, address, expected) {
   console.log(`${flag} ${label}: addr=${JSON.stringify(address)} got=${JSON.stringify(got)}`);
   if (!pass) console.log(`    want: ${JSON.stringify(expected)}`);
 }
-unitRegion("17. 공백 있는 시-구",      "서울시 관악구 인헌21길6",     "관악구");
+unitRegion("17. 공백 있는 시-구",      "서울시 관악구 인헌21길6",     "관악구");   // 사전 매칭 X (서울+공백+관악) → fallback lazy
 unitRegion("    공백 없는 시 (구 X)", "부천시원미로17번지17",         "부천시");
 unitRegion("    특별시 + 구",          "서울특별시 강남구 역삼동",     "강남구");
-unitRegion("    특별시만 → ''",        "서울특별시 강남동",            "");
-unitRegion("    경기 시-구",            "경기 부천시 원미구 상동",     "원미구");
+unitRegion("    특별시만 + 동",        "서울특별시 강남동",            "강남");    // v3: '강남구' stem '강남' 매칭
+unitRegion("    경기 시-구",            "경기 부천시 원미구 상동",     "원미구");  // '경기'(도 없음) strip X → 사전 X → fallback lazy '원미구'
 unitRegion("    구 없음, 시만",         "관악구서림3길19",              "관악구");
 unitRegion("    빈 주소",               "",                              "");
 unitRegion("    번지만",                "17번지 17",                     "");
@@ -248,9 +248,20 @@ unitRegion("    인천광역시 부평구",      "인천광역시 부평구",   
 unitRegion("    광주광역시 광산구",      "광주광역시 광산구 송정동",         "광산구");
 unitRegion("    광주 광산구 (단독)",     "광주 광산구 송정동",              "광산구");
 unitRegion("    경기도 광주시",          "경기도 광주시 어딘가",            "광주시");
-unitRegion("    종로39길54 (구 X)",      "종로39길54",                      "");
-unitRegion("    충청남도 천안시 동남구", "충청남도 천안시 동남구",          "동남구");   // 구 우선
+unitRegion("    종로39길54 (사전 stem)", "종로39길54",                      "종로");  // v3: '종로구' stem '종로' 매칭
+unitRegion("    충청남도 천안시 동남구", "충청남도 천안시 동남구",          "천안시");   // v3: startsWith '천안시' 우선
 unitRegion("    제주특별자치도 제주시",  "제주특별자치도 제주시 노형동",     "제주시");
+
+// v3 — 사전 기반 매칭 (시/군/구 글자 없는 붙어쓰기 주소)
+console.log("\n──── 지역 v3 — 사전 stem + 동 시드 ────");
+unitRegion("    남양주 퇴계원 (붙)",     "남양주퇴계원대림하이츠3동",       "남양주");
+unitRegion("    목동 현대 (붙)",         "목동현대월드타워...",              "목동");
+unitRegion("    합정 동 (붙)",           "합정역5번출구",                    "합정");
+unitRegion("    수원시 권선구 권선동",   "수원시 권선구 권선동",            "수원시");   // v3: startsWith '수원시' 우선
+unitRegion("    가평 (시/군 접미 X)",    "가평면소재지123",                  "가평");
+unitRegion("    사전 X → fallback",      "신람로36길23-7. 302호",            "");
+unitRegion("    옛 회귀 — 마포구합정동",  "서울특별시마포구합정동12-3",       "마포구");
+unitRegion("    옛 회귀 — 경기도남양주시","경기도남양주시평내동123-4",         "남양주시");
 
 console.log("\n──── 고객 자동명 생성 (NewReceptionScreenLite autoGenerateCustomer 시뮬) ────");
 function autoGenCustomer(form, region) {
