@@ -521,14 +521,41 @@ function parseKa(text) {
 // crikrin
 // ═══════════════════════════════════════════════════════════
 
+// 2026-06-06 — 라벨 SEP: 콜론(:/：) 옵션 + 공백 1+ 모두 매칭 ('이름 최규선' OK).
+//   서비스종류/서비스 (크리크린 사장님 오타 패턴) 도 appliance 라벨로 인식 — 단 값은
+//   참고 (크리크린 측 workType 측 냉매충전 고정. 라벨 줄을 memo 로 새는 사고 차단).
+const _SEP = "\\s*[:：]?\\s+";
 const CRIKRIN_LABELS = {
-  customer:  /^(?:성함|이름|고객명?)\s*[:：]\s*(.+)$/,
-  address:   /^(?:주소|위치)\s*[:：]\s*(.+)$/,
-  phone:     /^(?:연락처|전화(?:번호)?|번호|폰)\s*[:：]\s*(.+)$/,
-  appliance: /^(?:가전\s*종류[^:：]*|품목|작업\s*종류)\s*[:：]\s*(.+)$/,
-  desired:   /^(?:희망\s*날짜[^:：]*|희망\s*일정|희망일?|일정)\s*[:：]\s*(.*)$/,
-  memo:      /^(?:비고|메모|특이사항|요청사항?)\s*[:：]\s*(.+)$/,
+  customer:  new RegExp(`^(?:성함|이름|고객명?)${_SEP}(.+)$`),
+  address:   new RegExp(`^(?:주소|위치)${_SEP}(.+)$`),
+  phone:     new RegExp(`^(?:연락처|전화(?:번호)?|번호|폰)${_SEP}(.+)$`),
+  appliance: new RegExp(`^(?:가전\\s*종류[^:：\\s]*|가전|품목|작업\\s*종류|서비스\\s*종류|서비스)${_SEP}(.+)$`),
+  desired:   new RegExp(`^(?:희망\\s*날짜[^:：\\s]*|희망\\s*일정|희망일?|일정)${_SEP}(.*)$`),
+  memo:      new RegExp(`^(?:비고|메모|특이사항|요청사항?)${_SEP}(.+)$`),
 };
+
+// 2026-06-06 — 한 줄에 여러 가전: "스탠드에어컨 1대 벽걸이에어컨 1대" → 2 items.
+//   각 매칭: <기종 키워드> [에어컨/에어콘] [N대]. 'N대' 측 측 측 qty=1.
+const _ITEM_SCAN_RE = /(4\s*way|4웨이|포웨이|원\s*웨이|1\s*way|1\s*웨이|천\s*장\s*형|투\s*인\s*원|2\s*in\s*1|스\s*탠\s*드|벽\s*걸\s*이|위\s*니\s*아)\s*에?어?컨?\s*(?:(\d+)\s*대)?/gi;
+function extractItemsFromLine(line) {
+  if (!line) return [];
+  const items = [];
+  const re = new RegExp(_ITEM_SCAN_RE.source, "gi");
+  let m;
+  while ((m = re.exec(line)) !== null) {
+    const kw = m[1];
+    const qty = m[2] ? Math.max(1, parseInt(m[2], 10)) : 1;
+    let code = null;
+    if (/4\s*way|4웨이|포웨이/i.test(kw))             code = "4way";
+    else if (/원\s*웨이|1\s*way|1\s*웨이|천\s*장\s*형/i.test(kw)) code = "1way";
+    else if (/투\s*인\s*원|2\s*in\s*1/i.test(kw))      code = "2in1";
+    else if (/스\s*탠\s*드/.test(kw))                  code = "stand";
+    else if (/벽\s*걸\s*이/.test(kw))                  code = "wall";
+    else if (/위\s*니\s*아/.test(kw))                  code = "wall";   // 브랜드 fallback (사전 매핑)
+    if (code) items.push({ appliance: code, qty });
+  }
+  return items;
+}
 
 function isCrikrinLabeled(text) {
   let hits = 0;
@@ -555,8 +582,9 @@ function cleanCustomerName(raw) {
 
 function parseCrikrinLabeled(text) {
   const lines = text.split(/\n/).map(l => l.trim());
-  let customer = "", address = "", phoneRaw = "", applianceRaw = "", desiredRaw = "";
+  let customer = "", address = "", phoneRaw = "", desiredRaw = "";
   let memoBits = [];
+  let multiItems = [];     // 한 줄에 여러 가전 가능 (스탠드+벽걸이 등)
   let inDesired = false;
   let desiredMulti = "";
 
@@ -567,7 +595,19 @@ function parseCrikrinLabeled(text) {
     m = line.match(CRIKRIN_LABELS.customer);  if (m) { customer = m[1].trim();  inDesired = false; continue; }
     m = line.match(CRIKRIN_LABELS.address);   if (m) { address  = m[1].trim();  inDesired = false; continue; }
     m = line.match(CRIKRIN_LABELS.phone);     if (m) { phoneRaw = m[1].trim();  inDesired = false; continue; }
-    m = line.match(CRIKRIN_LABELS.appliance); if (m) { applianceRaw = m[1].trim(); inDesired = false; continue; }
+    m = line.match(CRIKRIN_LABELS.appliance); if (m) {
+      // 라벨이 가전/서비스/품목 등 — 값에서 multi-item 스캔.
+      //   ⚠️ 크리크린 측 workType 측 냉매충전 고정 (사장님 spec). 서비스 라벨 값 무시.
+      const raw = m[1].trim();
+      const items = extractItemsFromLine(raw);
+      if (items.length > 0) multiItems.push(...items);
+      else {
+        const ap = detectAppliance(raw);
+        if (ap) multiItems.push({ appliance: ap, qty: extractQty(raw) });
+        // appliance 가 매칭 안 됨 (예: '에어컨 청소') — 측 items 측 X. 라벨 줄 measure 측 memo 측 X.
+      }
+      inDesired = false; continue;
+    }
     m = line.match(CRIKRIN_LABELS.desired);   if (m) {
       desiredRaw = m[1].trim();
       inDesired  = !desiredRaw;
@@ -577,31 +617,30 @@ function parseCrikrinLabeled(text) {
     // 라벨 없는 줄
     if (inDesired) {
       desiredMulti = (desiredMulti ? desiredMulti + " " : "") + line;
-    } else {
-      // 정체불명 줄 — memo 로 흡수 (예: 김수진 끝의 "오후")
-      memoBits.push(line);
+      continue;
     }
+    // 라벨 측 측, multi-item 스캔 ("스탠드에어컨 1대 벽걸이에어컨 1대" 같이 가전 측 측 줄).
+    const items = extractItemsFromLine(line);
+    if (items.length > 0) {
+      multiItems.push(...items);
+      continue;
+    }
+    // 정체불명 줄 → memo
+    memoBits.push(line);
   }
 
   const desiredText = (desiredRaw || desiredMulti || "").trim() || null;
   const phone = extractPhone(phoneRaw) || (phoneRaw ? phoneRaw : null);
-
-  const items = [];
-  if (applianceRaw) {
-    const ap = detectAppliance(applianceRaw);
-    items.push({ appliance: ap, qty: extractQty(applianceRaw) });
-  }
-
   const memo = memoBits.length > 0 ? memoBits.join(' ').trim() || null : null;
 
   return {
     customerName: cleanCustomerName(customer),
     phone,
     address,
-    items,
+    items: multiItems,
     desiredText,
     memo,
-    workType: "냉매충전",
+    workType: "냉매충전",   // crikrin 측 고정 (서비스 라벨 값 무시)
   };
 }
 
