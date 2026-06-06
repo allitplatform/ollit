@@ -7,10 +7,13 @@ import { useState, useEffect, useMemo } from "react";
 import { Search, ChevronDown, ChevronRight } from "lucide-react";
 import {
   fetchAllPrincipalTasks,
+  fetchAllPrincipalCounts,
   PRINCIPAL_CHIP_ORDER,
 } from "../lib/allPrincipalTasksDb.js";
 import { TaskRowOperator } from "./usol_n/UsolNAssignList.jsx";
 import { useRealtimeTasks, useRealtimeTable } from "../hooks/useRealtimeSubscription.js";
+// 2026-06-06 — 카운트 박스 공용 컴포넌트 (운영자 + 원청 동일).
+import { CountBoxes } from "./CountBoxes.jsx";
 
 // 한 번에 fetch — UsolN '전체' 탭과 동일 정책. 6원청 합쳐도 ~수천 건 한도 내.
 const ALL_LIMIT = 2000;
@@ -38,6 +41,10 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
   const [principalCode, setPrincipalCode] = useState(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchTerm,  setSearchTerm]  = useState("");
+  // 2026-06-06 — 상단 카운트 박스 quickFilter ('todayCreated'|'todayCompleted'|'confirmed'|null).
+  //   활성 시 statusId 칩 무시. 같은 박스 재탭 시 해제.
+  const [quickFilter, setQuickFilter] = useState(null);
+  const [counts, setCounts] = useState({ todayCreated: 0, todayCompleted: 0, confirmed: 0 });
 
   const [allTasks, setAllTasks] = useState([]);
   const [loading, setLoading]   = useState(false);
@@ -64,7 +71,9 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
     setLoading(true);
     setFetchError("");
     fetchAllPrincipalTasks({
-      statusIn:   ALL_STATUSES,
+      // quickFilter 활성 시 statusIn 측 X (RPC 측 우선) — 측 측 측 X 측 측 측.
+      statusIn:   quickFilter ? null : ALL_STATUSES,
+      quickFilter,
       searchTerm: "",
       limit:      ALL_LIMIT,
       offset:     0,
@@ -79,6 +88,15 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
         }
       })
       .finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [reloadTick, quickFilter]);
+
+  // 2026-06-06 — 상단 카운트 박스 (DB count:exact 3개) — reloadTick 시도 동기 갱신.
+  useEffect(() => {
+    let alive = true;
+    fetchAllPrincipalCounts().then(res => {
+      if (alive && res.ok) setCounts(res.counts);
+    });
     return () => { alive = false; };
   }, [reloadTick]);
 
@@ -177,6 +195,26 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
       <Header onBack={onBack} count={displayedTasks.length}/>
 
       <div style={bodyStyle}>
+        {/* 2026-06-06 — 상단 카운트 박스 3개 (오늘 접수 / 완료 / 대기).
+            클릭 → quickFilter 적용 / 같은 박스 재클릭 또는 '필터 해제' → 해제. */}
+        <CountBoxes
+          counts={counts}
+          selected={quickFilter}
+          onSelect={(key) => setQuickFilter(prev => prev === key ? null : key)}
+        />
+
+        {quickFilter && (
+          <button onClick={() => setQuickFilter(null)} style={{
+            marginBottom: 10, padding: "6px 12px",
+            background: "transparent",
+            border: "1px solid var(--border, #2A2A2A)",
+            borderRadius: 8,
+            color: "var(--text-secondary)",
+            fontSize: 11, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>✕ 필터 해제</button>
+        )}
+
         {/* 검색 */}
         <div style={{ position: "relative", marginBottom: 10 }}>
           <Search size={14} style={{

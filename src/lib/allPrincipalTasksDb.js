@@ -10,6 +10,21 @@ import { supabase } from "./supabase.js";
 
 const USOL_N_PRINCIPAL_CODE = "usol_n";
 
+// KST 오늘 UTC 범위 — { startISO, endISO } (KST 00:00 ~ 다음날 00:00 KST = UTC ISO).
+//   .slice(0,10) / startsWith 같은 UTC 문자열 비교 금지 (사장님 spec).
+//   Asia/Seoul 명시 + Date 측 +09:00 offset 측 측 정확.
+function kstTodayRangeUtc() {
+  const now = new Date();
+  const ymd = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+  const start = new Date(`${ymd}T00:00:00+09:00`);
+  const end   = new Date(start.getTime());
+  end.setDate(end.getDate() + 1);
+  return { startISO: start.toISOString(), endISO: end.toISOString() };
+}
+
 let _principalCache = null; // { byId: Map, byCode: Map, otherIds: string[] }
 
 // principals 1회 lookup + usol_n 제외한 6개 ID 캐시
@@ -48,13 +63,22 @@ export async function fetchAllPrincipalTasks({
   searchTerm = "",
   limit      = 1000,
   offset     = 0,
+  quickFilter = null,        // 2026-06-06 — 'todayCreated' | 'todayCompleted' | 'confirmed' | null
+  principalCodes = null,     // 2026-06-06 — null = 6원청 default (운영자) / ['KA'] = 원청 측 자기 task 만
 } = {}) {
   const cache = await getPrincipalCache();
   if (!cache) {
     return { ok: false, error: "principals 캐시 실패", tasks: [], total: 0, principals: null };
   }
-  const { otherIds, byId } = cache;
-  if (otherIds.length === 0) {
+  const { byCode, otherIds, byId } = cache;
+  // principalCodes 측 측 → 측 측 측 측 측. 측 → 6원청 default.
+  let pids;
+  if (Array.isArray(principalCodes) && principalCodes.length > 0) {
+    pids = principalCodes.map(code => byCode.get(code)?.id).filter(Boolean);
+  } else {
+    pids = otherIds;
+  }
+  if (pids.length === 0) {
     return { ok: true, tasks: [], total: 0, principals: cache };
   }
 
@@ -93,12 +117,25 @@ export async function fetchAllPrincipalTasks({
          )`,
         { count: page === 0 ? "exact" : "estimated" }
       )
-      .in("principal_id", otherIds)
+      .in("principal_id", pids)
       .order("received_at", { ascending: false })
       .order("id", { ascending: true })  // 페이지 측 안정 정렬 측 secondary key
       .range(pageOffset, pageOffset + thisPageSize - 1);
 
-    if (Array.isArray(statusIn) && statusIn.length > 0) {
+    // 2026-06-06 — quickFilter: AllTasksScreen 상단 카운트 박스 3개 측 측. statusIn 보다 우선.
+    //   · todayCreated   : created_at KST 오늘 (status 무관)
+    //   · todayCompleted : status='완료' AND completed_at KST 오늘
+    //   · confirmed      : status='확정' (날짜 무관)
+    if (quickFilter === "todayCreated") {
+      const { startISO, endISO } = kstTodayRangeUtc();
+      q = q.gte("created_at", startISO).lt("created_at", endISO);
+    } else if (quickFilter === "todayCompleted") {
+      const { startISO, endISO } = kstTodayRangeUtc();
+      q = q.eq("status", "완료")
+           .gte("completed_at", startISO).lt("completed_at", endISO);
+    } else if (quickFilter === "confirmed") {
+      q = q.eq("status", "확정");
+    } else if (Array.isArray(statusIn) && statusIn.length > 0) {
       q = q.in("status", statusIn);
     }
 
@@ -152,6 +189,64 @@ export async function fetchAllPrincipalTasks({
   });
 
   return { ok: true, tasks: enriched, total: totalCount, principals: cache };
+}
+
+// 2026-06-06 — 상단 카운트 박스 3개 측 DB count:exact head fetch.
+//   호출처:
+//     · AllTasksScreen (운영자)  — principalCodes 측 measure → 6원청 (usol_n 제외) 전부.
+//     · PrincipalListTab (원청) — principalCodes 측 ['KA'] 또는 ['crikrin'] 측 측.
+//   클라 fetch-all 후 reduce 금지 (1000행 캡).
+//   응답: { ok, counts: { todayCreated, todayCompleted, confirmed } }
+export async function fetchAllPrincipalCounts({ principalCodes = null } = {}) {
+  const cache = await getPrincipalCache();
+  if (!cache) {
+    return { ok: false, error: "principals 캐시 실패", counts: { todayCreated: 0, todayCompleted: 0, confirmed: 0 } };
+  }
+  // principalCodes 측 measure → 6원청 (usol_n 제외, 운영자 default).
+  //   측 → 측 code 측 측 id 측 매핑 (KA/crikrin 등).
+  let pids;
+  if (Array.isArray(principalCodes) && principalCodes.length > 0) {
+    pids = principalCodes
+      .map(code => cache.byCode.get(code)?.id)
+      .filter(Boolean);
+  } else {
+    pids = cache.otherIds;   // 운영자 default
+  }
+  if (pids.length === 0) {
+    return { ok: false, error: "principal id 매핑 실패", counts: { todayCreated: 0, todayCompleted: 0, confirmed: 0 } };
+  }
+
+  const { startISO, endISO } = kstTodayRangeUtc();
+
+  const [c1, c2, c3] = await Promise.all([
+    supabase.from("tasks")
+      .select("id", { count: "exact", head: true })
+      .in("principal_id", pids)
+      .gte("created_at", startISO).lt("created_at", endISO),
+    supabase.from("tasks")
+      .select("id", { count: "exact", head: true })
+      .in("principal_id", pids)
+      .eq("status", "완료")
+      .gte("completed_at", startISO).lt("completed_at", endISO),
+    supabase.from("tasks")
+      .select("id", { count: "exact", head: true })
+      .in("principal_id", pids)
+      .eq("status", "확정"),
+  ]);
+
+  if (c1.error || c2.error || c3.error) {
+    console.error("[allPrincipalTasksDb.counts]", c1.error || c2.error || c3.error);
+    return { ok: false, error: "count 조회 실패", counts: { todayCreated: 0, todayCompleted: 0, confirmed: 0 } };
+  }
+
+  return {
+    ok: true,
+    counts: {
+      todayCreated:   c1.count || 0,
+      todayCompleted: c2.count || 0,
+      confirmed:      c3.count || 0,
+    },
+  };
 }
 
 // 6원청 코드 목록 (UI 칩 표시 / 기본 정렬용)

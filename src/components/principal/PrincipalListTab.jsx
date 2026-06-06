@@ -15,6 +15,9 @@ import {
   fetchPrincipalStatusCounts,
 } from "../../lib/principalDashboardDb.js";
 import { getStatusBadge, getStatusLabel } from "../../utils/principalStatusBadge.js";
+// 2026-06-06 — 카운트 박스 공용 + DB count/필터 (KA/crikrin 측만).
+import { CountBoxes } from "../CountBoxes.jsx";
+import { fetchAllPrincipalCounts, fetchAllPrincipalTasks } from "../../lib/allPrincipalTasksDb.js";
 
 const N_BADGE_COLOR     = "#2E9E54";
 const CLEAN_COLOR       = "#378ADD";
@@ -102,13 +105,21 @@ function ServiceIcon({ kind, size = 14 }) {
   return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
 }
 
-export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
+export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelect }) {
   const [view, setView] = useState("today");   // 'today' | 'all'
   const [autoFocusSearchOnAll, setAutoFocusSearchOnAll] = useState(false);
   const goToAll = useCallback((focusSearch = false) => {
     setAutoFocusSearchOnAll(focusSearch);
     setView("all");
   }, []);
+
+  // 2026-06-06 — KA/crikrin (isPartner) 측 카운트 박스 + quickFilter (운영자 spec 통일).
+  //   usol_n/usol_h 측 측 측 측 측 측 측 측 측 측 측 측 측 측.
+  const isPartner = !!partnerCode;
+  const [partnerCounts, setPartnerCounts] = useState({ todayCreated: 0, todayCompleted: 0, confirmed: 0 });
+  const [quickFilter, setQuickFilter] = useState(null);   // 'todayCreated' | 'todayCompleted' | 'confirmed' | null
+  const [qfTasks, setQfTasks] = useState([]);
+  const [qfLoading, setQfLoading] = useState(false);
 
   // 뷰 A — 오늘 작업 + 카운트
   const [todayTasks, setTodayTasks]   = useState([]);
@@ -172,6 +183,54 @@ export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
     else { setAllLoaded(false); refetchB(); }
   });
 
+  // 2026-06-06 — KA/crikrin: 카운트 박스 fetch (DB count:exact 3개, 자기 principalCode 측 측).
+  useEffect(() => {
+    if (!isPartner) return;
+    let alive = true;
+    fetchAllPrincipalCounts({ principalCodes: [partnerCode] })
+      .then(res => { if (alive && res.ok) setPartnerCounts(res.counts); });
+    return () => { alive = false; };
+  }, [isPartner, partnerCode]);
+
+  // 2026-06-06 — quickFilter 활성 시 DB 측 측 측 측 fetch (필터 적용된 list).
+  useEffect(() => {
+    if (!isPartner || !quickFilter) { setQfTasks([]); return; }
+    let alive = true;
+    setQfLoading(true);
+    fetchAllPrincipalTasks({
+      principalCodes: [partnerCode],
+      quickFilter,
+      limit: 1000,
+    }).then(res => {
+      if (!alive) return;
+      if (res.ok) setQfTasks(res.tasks);
+    }).finally(() => { if (alive) setQfLoading(false); });
+    return () => { alive = false; };
+  }, [isPartner, partnerCode, quickFilter]);
+
+  // isPartner + quickFilter 활성 시 → 필터 결과 뷰 (옛 today/all 측 측 측 측 measure).
+  if (isPartner && quickFilter) {
+    return (
+      <ViewQuickFilter
+        t={t}
+        partnerCounts={partnerCounts}
+        quickFilter={quickFilter}
+        onQuickFilter={(k) => setQuickFilter(prev => prev === k ? null : k)}
+        onClearFilter={() => setQuickFilter(null)}
+        tasks={qfTasks}
+        loading={qfLoading}
+        onSelect={onSelect}
+      />
+    );
+  }
+
+  // 2026-06-06 — 카운트 박스 prop 측 isPartner 측 측 측 측 측 (usol 측 X).
+  const countBoxesProps = isPartner ? {
+    counts: partnerCounts,
+    selected: quickFilter,
+    onSelect: (k) => setQuickFilter(prev => prev === k ? null : k),
+  } : null;
+
   if (view === "all") {
     return (
       <ViewAll
@@ -180,6 +239,7 @@ export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
         autoFocusSearch={autoFocusSearchOnAll}
         onBack={() => { setAutoFocusSearchOnAll(false); setView("today"); }}
         onSelect={onSelect}
+        countBoxesProps={countBoxesProps}
       />
     );
   }
@@ -191,14 +251,61 @@ export function PrincipalListTab({ t, user, principalCodes, onSelect }) {
       onSeeAll={() => goToAll(false)}
       onSearchClick={() => goToAll(true)}
       onSelect={onSelect}
+      countBoxesProps={countBoxesProps}
     />
+  );
+}
+
+// 2026-06-06 — KA/crikrin 카운트 박스 필터 결과 뷰.
+function ViewQuickFilter({ t, partnerCounts, quickFilter, onQuickFilter, onClearFilter, tasks, loading, onSelect }) {
+  const sorted = useMemo(() => {
+    const arr = [...(tasks || [])];
+    arr.sort((a, b) => {
+      const ra = a.received_at || "";
+      const rb = b.received_at || "";
+      return String(rb).localeCompare(String(ra));
+    });
+    return arr;
+  }, [tasks]);
+  return (
+    <div style={{ padding: 16, paddingBottom: 80 }}>
+      <CountBoxes counts={partnerCounts} selected={quickFilter} onSelect={onQuickFilter}/>
+      <button onClick={onClearFilter} style={{
+        marginBottom: 10, padding: "6px 12px",
+        background: "transparent",
+        border: "1px solid var(--border, #2A2A2A)",
+        borderRadius: 8,
+        color: "var(--text-secondary)",
+        fontSize: 11, fontWeight: 700,
+        cursor: "pointer", fontFamily: "inherit",
+      }}>✕ 필터 해제</button>
+      {loading && <div style={{ padding: 24, textAlign: "center", color: "var(--text-secondary)", fontSize: 12 }}>불러오는 중...</div>}
+      {!loading && sorted.length === 0 && (
+        <div style={{ padding: 24, textAlign: "center", color: "var(--text-secondary)", fontSize: 12 }}>
+          해당하는 작업이 없습니다
+        </div>
+      )}
+      {!loading && sorted.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {sorted.map(task => {
+            const adapted = v14NormalizeTask({
+              ...task,
+              customer: task.customer_name || task.customer,
+              region:   task.district || task.region,
+              principal: task.principalCode || task.principal_code || "",
+            });
+            return adapted ? <TaskRow key={adapted.id} task={adapted} onClick={() => onSelect(adapted)}/> : null;
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
 // ════════════════════════════════════════════════════════════
 // 뷰 A — 첫 화면
 // ════════════════════════════════════════════════════════════
-function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSelect }) {
+function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSelect, countBoxesProps }) {
   // 2026-05-25 — 취소 항목 맨 아래로. 그 외는 scheduled_at asc (fetchPrincipalTodayTasks 정렬 유지).
   const sortedToday = useMemo(() => {
     return [...todayTasks].sort((a, b) => {
@@ -212,6 +319,9 @@ function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSel
   }, [todayTasks]);
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
+      {/* 2026-06-06 — isPartner (KA/crikrin) 측 측 상단 카운트 박스 */}
+      {countBoxesProps && <CountBoxes {...countBoxesProps}/>}
+
       {/* 한 줄 통계 */}
       <div style={{
         fontSize: 12, color: "#B5B0A8", fontWeight: 600,
@@ -312,7 +422,7 @@ function EmptyToday({ onSeeAll }) {
 // ════════════════════════════════════════════════════════════
 // 뷰 B — 전체 목록 (옛 PrincipalListTab 동작)
 // ════════════════════════════════════════════════════════════
-function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect }) {
+function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect, countBoxesProps }) {
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const searchRef = useRef(null);
@@ -368,6 +478,9 @@ function ViewAll({ tasks, loading, autoFocusSearch, onBack, onSelect }) {
 
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
+      {/* 2026-06-06 — isPartner (KA/crikrin) 측 상단 카운트 박스 */}
+      {countBoxesProps && <CountBoxes {...countBoxesProps}/>}
+
       {/* 헤더 — 뒤로 */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
         <button onClick={onBack} style={{

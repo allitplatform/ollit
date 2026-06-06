@@ -543,7 +543,7 @@ export default function PrincipalApp({ user, onLogout }) {
             {/* 2026-05-25 — 작업 상세 떠있을 때도 리스트/탭 mount 유지 (display:none)
                 → 뒤로가기 시 직전 화면(view A/B · filter · search · scroll) 그대로 복원 */}
             <div style={{ display: selectedTask ? "none" : "block" }}>
-              {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
+              {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} partnerCode={partnerCode} onSelect={setSelectedTask}/>}
               {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
               {/* 2026-06-06 — KA/crikrin (partnerCode 존재) 측 PartnerDailySettleTab (일정산).
                   usol_n/usol_h 측 기존 PrincipalSettleTab 그대로 (네이버 주차 정산 흐름 무수정). */}
