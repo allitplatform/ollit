@@ -11,11 +11,15 @@ import {
 } from "../../lib/partnerDailySettleDb.js";
 import { DateGroup, formatKrw } from "./UsolRemitHistoryScreen.jsx";
 
-// 색 토큰 (PrincipalSettleTab 측 동일)
-const C_MAGENTA = "#FF4D9E";
-const C_GREEN   = "#1D9E75";
-const C_AMBER   = "#FACC15";
-const C_GRAY    = "#9CA3AF";
+// 색 토큰 — 사장님 시안값.
+const C_BANNER_PINK    = "#FF1B8D";              // 핑크 배너 background
+const C_BANNER_LABEL   = "rgba(255,255,255,0.9)"; // 배너 라벨/카운트 — 거의 흰색 (위계는 크기 12/30 으로)
+const C_BANNER_BADGE_T = "#B5651D";              // 배너 대기 배지 글자 (흰 배경 위 brown)
+const C_MAGENTA        = "#FF4DA6";              // 일별 카드 금액 핑크
+const C_GREEN_DONE     = "#34D399";              // 다크 카드 완료 배지
+const C_AMBER          = "#FBBF24";              // 다크 카드 대기 배지 글자
+const C_AMBER_BG       = "rgba(251,191,36,0.14)";// 다크 카드 대기 배지 배경 (반투명)
+const C_GRAY           = "#9CA3AF";
 
 // adminMode=true 측 운영자 토글 버튼 노출 (mark/undo RPC). actorUserId 측 currentUser.user_id (UUID).
 export function PartnerDailySettleTab({ t, user, principalCodes, adminMode = false, actorUserId }) {
@@ -170,54 +174,65 @@ export function PartnerDailySettleTab({ t, user, principalCodes, adminMode = fal
 // ─── sub-components ────────────────────────────────────────────
 
 function TodayBanner({ date, total, done, completedCount, cancelCount }) {
+  // 2026-06-06 시안값:
+  //   배너 bg #FF1B8D, radius 14, padding 16, 가운데 정렬
+  //   라벨 12px #FFD7E9 / 금액 30px weight 500 #fff (margin 4 0 8)
+  //   배지+카운트 한 줄, inline-flex gap 8
+  //     · 대기 배지(흰 배경) bg #fff color #B5651D 11px padding 2/9 radius 7 시계 아이콘 gap 4
+  //     · "완료N·취소N" 11px #FFD7E9
   const dateLabel = formatTodayDate(date);
-  const badge = done
-    ? { label: "입금완료", color: C_GREEN, bg: "rgba(29,158,117,0.18)", icon: <CheckCircle2 size={11}/> }
-    : { label: "대기",    color: C_AMBER, bg: "rgba(250,204,21,0.20)",  icon: <Clock size={11}/> };
   return (
     <div style={{
-      background: `linear-gradient(135deg, ${C_MAGENTA} 0%, #FF1B8D 100%)`,
+      background: C_BANNER_PINK,
       borderRadius: 14,
-      padding: "16px 18px",
+      padding: 16,
       color: "#fff",
-      boxShadow: "0 4px 12px rgba(255, 27, 141, 0.18)",
+      textAlign: "center",
     }}>
-      <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85, marginBottom: 6 }}>
+      <div style={{ fontSize: 12, color: C_BANNER_LABEL }}>
         오늘 받을 수수료 · {dateLabel}
       </div>
+      <div className="mono" style={{
+        fontSize: 30, fontWeight: 500,
+        color: "#fff",
+        margin: "4px 0 8px",
+        letterSpacing: "-0.5px",
+        textDecoration: done ? "line-through" : "none",
+        opacity: done ? 0.85 : 1,
+        lineHeight: 1.1,
+      }}>{formatKrw(total)}</div>
       <div style={{
-        display: "flex", alignItems: "baseline", justifyContent: "space-between",
-        marginBottom: 8,
+        display: "inline-flex", alignItems: "center", gap: 8,
       }}>
-        <span className="mono" style={{
-          fontSize: 28, fontWeight: 800,
-          letterSpacing: "-0.5px",
-          textDecoration: done ? "line-through" : "none",
-          opacity: done ? 0.75 : 1,
-        }}>{formatKrw(total)}</span>
         <span style={{
           display: "inline-flex", alignItems: "center", gap: 4,
+          background: "#fff",
+          color: C_BANNER_BADGE_T,
           fontSize: 11, fontWeight: 700,
-          color: "#fff",
-          background: badge.bg,
-          padding: "5px 12px",
-          borderRadius: 999,
-        }}>{badge.icon}{badge.label}</span>
-      </div>
-      <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.85 }}>
-        완료 {completedCount} · 취소 {cancelCount}
+          padding: "2px 9px",
+          borderRadius: 7,
+        }}>
+          {done ? <CheckCircle2 size={11}/> : <Clock size={11}/>}
+          {done ? "입금완료" : "대기"}
+        </span>
+        <span style={{ fontSize: 11, color: C_BANNER_LABEL, fontWeight: 600 }}>
+          완료 {completedCount} · 취소 {cancelCount}
+        </span>
       </div>
     </div>
   );
 }
 
 function StateBadge({ done }) {
+  // 다크 카드 안 배지 — 배너 흰 배지와 구분 (배경 다크).
+  //   입금완료 : 솔리드 #34D399 (시안)
+  //   대기      : 반투명 노랑 #FBBF24 + bg rgba(...0.14) (시안)
   if (done) {
     return (
       <span style={{
         display: "inline-flex", alignItems: "center", gap: 3,
         fontSize: 9, fontWeight: 800, color: "#fff",
-        background: C_GREEN,
+        background: C_GREEN_DONE,
         padding: "2px 6px", borderRadius: 4,
       }}>
         <CheckCircle2 size={9}/>완료
@@ -227,8 +242,8 @@ function StateBadge({ done }) {
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 3,
-      fontSize: 9, fontWeight: 800, color: "#1a1a1a",
-      background: C_AMBER,
+      fontSize: 9, fontWeight: 800, color: C_AMBER,
+      background: C_AMBER_BG,
       padding: "2px 6px", borderRadius: 4,
     }}>
       <Clock size={9}/>대기
@@ -293,7 +308,7 @@ function AdminToggle({ done, busy, onMark, onUndo }) {
       ) : (
         <button onClick={onMark} disabled={busy} style={{
           padding: "6px 14px",
-          background: C_GREEN,
+          background: C_GREEN_DONE,
           border: "none",
           borderRadius: 8,
           color: "#fff",
