@@ -13,7 +13,6 @@ import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen.jsx";
 import { addNotification as addNotificationToStore } from "./utils/notificationStore.js";
 import { switchActiveRole } from "./lib/roles.js";
-import { RoleSwitcher } from "./components/RoleSwitcher.jsx";
 
 // Phase 2 — 자동 로그인 (localStorage)
 // auth.js 측 LS_KEY = "allit.user" 박은 영역 박은 영역 (signInWithPhone 측 박은 영역 박은 영역 박은 영역)
@@ -150,7 +149,7 @@ export default function App() {
     }
     switch (currentUser.role) {
       case "engineer":
-        return <EngineerApp user={currentUser} onLogout={handleLogout} />;
+        return <EngineerApp user={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />;
       case "happycall":
         return <HappycallApp user={currentUser} onLogout={handleLogout} />;
       case "admin":
@@ -165,12 +164,7 @@ export default function App() {
   return (
     <TasksProvider>
       {renderScreen()}
-      {/* 2026-06-06 — engineer+admin 측 측측 토글.
-          admin 측측 측측 AdminApp 헤더 inline (잘림 방지) → 측측측 측측 X.
-          engineer / 측측 측측 측측 측측측 측측 top-right 작은 pill. */}
-      {currentUser && currentUser.role !== "admin" && (
-        <RoleSwitcher user={currentUser} onSwitch={handleSwitchRole} floating/>
-      )}
+      {/* 2026-06-06 — RoleSwitcher 측 측측 각 앱 헤더 inline 측측 측측. floating 모드 X. */}
       {/* PWA 자동 안내 모달 — 1.5초 후 / standalone X / 24시간 dismiss / 카톡 외 인앱 catch */}
       <PWAInstallPrompt/>
     </TasksProvider>

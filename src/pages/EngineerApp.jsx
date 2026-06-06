@@ -10,6 +10,7 @@ import {
   changePriceAdapter as apiChangePrice,
 } from "../data/tasksDb.js";
 import { uploadPhoto } from "../lib/photosDb.js";
+import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
 import { supabase } from "../lib/supabase.js";
 // 2026-05-24 — 기사 PWA 유솔N 정산 화면 데이터 측 catch (Migration 067 RPC batch 측 catch)
 import { fetchUsolNCompletedTaskItems, getItemChipLabel } from "../lib/usolNTasksDb.js";
@@ -963,7 +964,7 @@ function StatusPill({ status }) {
 // 4. 새 배정 박스 (조건부)
 // 5. 다음 일정 (시간순)
 function MainScreen({
-  t, tasks, user,
+  t, tasks, user, onSwitchRole,
   onTaskClick,
   onClickAcceptanceList,
   onClickNewAssignmentList,
@@ -1095,20 +1096,24 @@ function MainScreen({
               {nowLabel.time}
             </div>
           </div>
-          <span style={{
-            fontSize: 10, color: "var(--text-primary)", fontWeight: 600,
-            display: "inline-flex", alignItems: "center",
-            background: "rgba(255,27,141,0.10)",
-            padding: "4px 8px", borderRadius: 12,
-            border: "1px solid rgba(255,27,141,0.3)",
-          }}>
-            <span className="pulse-subtle" style={{
-              display: "inline-block", width: 6, height: 6,
-              borderRadius: "50%", background: "#FF1B8D",
-              marginRight: 4,
-            }}/>
-            실시간
-          </span>
+          {/* 2026-06-06 — 역할 토글 + 실시간 배지 한 측 (겹침 방지) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            {onSwitchRole && <RoleSwitcher user={user} onSwitch={onSwitchRole}/>}
+            <span style={{
+              fontSize: 10, color: "var(--text-primary)", fontWeight: 600,
+              display: "inline-flex", alignItems: "center",
+              background: "rgba(255,27,141,0.10)",
+              padding: "4px 8px", borderRadius: 12,
+              border: "1px solid rgba(255,27,141,0.3)",
+            }}>
+              <span className="pulse-subtle" style={{
+                display: "inline-block", width: 6, height: 6,
+                borderRadius: "50%", background: "#FF1B8D",
+                marginRight: 4,
+              }}/>
+              실시간
+            </span>
+          </div>
         </div>
         <div style={{
           fontSize: 20, fontWeight: 800,
@@ -3687,7 +3692,7 @@ function extractTimeHint(hint) {
   return "";
 }
 
-export default function EngineerApp({ user, onLogout }) {
+export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   // V13-1-fix — localStorage 모드 로드 + CSS 변수 적용
   const [mode, setMode] = useState(() => loadThemeSaved());
   // 2026-05-25 — 유솔 입금 카드: usol_n principal 계좌 정보 (마운트 1회 fetch).
@@ -4854,6 +4859,7 @@ export default function EngineerApp({ user, onLogout }) {
               t={t}
               tasks={tasks}
               user={user}
+              onSwitchRole={onSwitchRole}
               onTaskClick={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
               onClickAcceptanceList={() => setScreen("acceptanceList")}
               onClickNewAssignmentList={() => setScreen("newAssignmentList")}

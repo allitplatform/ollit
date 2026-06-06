@@ -3805,12 +3805,10 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
     <div className="fade-in">
       {/* 상단 헤더 — 올잇 마크 + 메타 + 역할 토글 + 테마 토글 + 로그아웃 */}
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${t.border}`, padding: "10px 12px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <OllitMark size={20} color={t.accent}/>
-          <span style={{ fontSize: 14, fontWeight: 700, color: t.text, letterSpacing: -0.2, flexShrink: 0 }}>올잇</span>
-          {/* 2026-06-06 — 부제는 좁은 화면(<420px) 측측: 토글 자리 확보 */}
-          <span className="brand-subtitle" style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>· 현장과 사람을 잇는</span>
-          {/* 2026-06-06 — 역할 전환 토글 (engineer+admin 측 측측). 단일 role 측 null 반환 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* 2026-06-06 — 로고 아이콘만 (워드마크 "올잇" / 부제 측측 — 토글 자리 확보) */}
+          <OllitMark size={22} color={t.accent}/>
+          {/* 역할 전환 토글 (engineer+admin 측 측측). 단일 role 측 null 반환 */}
           {onSwitchRole && <RoleSwitcher user={user} onSwitch={onSwitchRole}/>}
           <div style={{ flex: 1 }}/>
           {Object.entries(THEMES).map(([key, theme]) => {
