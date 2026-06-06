@@ -67,6 +67,22 @@ function safeParse(text) {
   try { return JSON.parse(text); } catch (e) { return null; }
 }
 
+// 2026-06-06 — push title → 6 kind 매핑 (Mig 101 user_notification_preferences 게이트용).
+//   트리거 SQL 미수정 — title 패턴 기반 추론. payload 측 'kind' 명시 측 우선.
+//   매핑 측 없는 title (예: 작업 시작 ▶️, 기사 수락 🙋, 취소 요청 🚨, 냉매 수락 마감 등) 측
+//   null 반환 → 게이트 통과 (현행 동작 유지).
+function inferKindFromTitle(title) {
+  if (!title) return null;
+  const t = String(title);
+  if (t.includes("새 접수") || t.includes("신규 냉매"))                      return "newOrder";
+  if (t.includes("작업 배정") || t.includes("재배정") || t.includes("냉매 작업 배정")) return "assignment";
+  if (t.includes("일정 확정") || t.includes("일정 변경"))                    return "scheduleChange";
+  if (t.includes("작업 완료") || t.includes("완료되었습니다"))               return "taskComplete";
+  if (t.includes("작업 취소"))                                              return "partialEtc";
+  if (t.includes("입금"))                                                    return "settleComplete";
+  return null;
+}
+
 export default async function handler(req, res) {
   setCors(res);
   if (req.method === "OPTIONS") return res.status(204).end();
@@ -98,11 +114,14 @@ export default async function handler(req, res) {
   // 2026-05-22 P1 — taskId destructure 추가 (SW saveToIndexedDB dedup 정상화).
   // trigger(015b) 측 payload에 'taskId' 들어있으나 이전엔 여기서 빠뜨려 SW data.taskId=null.
   // → 같은 title + 5초 이내 알림이 인앱 dedup 으로 묶임. 연쇄 알림 첫 1건만 보임.
-  const { targetType, targetId, title, body: msgBody, url, tag, icon, badge, requireInteraction, taskId } = body;
+  // 2026-06-06 — kind 추가 (Mig 101 user_notification_preferences 게이트). payload 측 명시 측 사용,
+  //   미지정 측 inferKindFromTitle 측 fallback. 트리거 SQL 수정 없이 동작.
+  const { targetType, targetId, title, body: msgBody, url, tag, icon, badge, requireInteraction, taskId, kind: kindParam } = body;
 
   if (!targetType || !title) {
     return res.status(400).json({ ok: false, error: "targetType + title 필수" });
   }
+  const kind = kindParam || inferKindFromTitle(title);
 
   // 1) Supabase push_subscriptions 조회 — targetType 분기
   //    engineer / user + targetId 가 code (E0xx 등) → users.code 매칭
@@ -146,6 +165,33 @@ export default async function handler(req, res) {
       }
     } else {
       return res.status(400).json({ ok: false, error: "targetType + targetId 조합 불완전" });
+    }
+
+    // 2026-06-06 — Mig 101 kind 게이트. targetUserIds 측 enabled=false 인 user 제외.
+    //   row 없음 = 켜짐 (default ON). false 행만 명시적으로 차단.
+    //   kind 매핑 측 없으면 (inferKindFromTitle = null) 게이트 측 — 현행 유지.
+    if (kind && targetUserIds.length > 0) {
+      const { data: prefRows, error: prefErr } = await supabase
+        .from("user_notification_preferences")
+        .select("user_id, enabled")
+        .in("user_id", targetUserIds)
+        .eq("kind", kind);
+      if (prefErr) {
+        console.warn("[push send:pref lookup]", prefErr.message);
+        // pref 조회 실패 측 차단 안 함 — 안전 측 발송 측 (default ON 약속).
+      } else {
+        const disabledIds = new Set(
+          (prefRows || []).filter(r => r.enabled === false).map(r => r.user_id)
+        );
+        if (disabledIds.size > 0) {
+          const before = targetUserIds.length;
+          targetUserIds = targetUserIds.filter(uid => !disabledIds.has(uid));
+          console.log(`[push send] kind=${kind} pref gate: ${before} → ${targetUserIds.length} (skipped ${disabledIds.size})`);
+        }
+      }
+      if (targetUserIds.length === 0) {
+        return res.status(200).json({ ok: true, sent: 0, failed: 0, expired: 0, total: 0, note: `kind=${kind} 전원 off` });
+      }
     }
 
     // push_subscriptions 조회

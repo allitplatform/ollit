@@ -1,6 +1,7 @@
 // Step 8+9 V3 — 알림 (시스템 + PWA 푸시)
 // 인앱 알림 (배지 등) / 외부 메신저 X / 자체 운영
-// Step 6-2 — 푸시 알림 hook 박힘 (Phase 1B)
+// 2026-06-06 — 6 kind 토글 DB 연동 (Mig 101 user_notification_preferences).
+//   row 없음 = 켜짐. UPSERT 측 set_notification_pref RPC.
 import { useState, useEffect } from "react";
 import {
   subscribePushWithSync,
@@ -12,46 +13,78 @@ import {
   getCurrentSubscription,
 } from "../utils/pushNotification.js";
 import { getCurrentUser } from "../data/users.js";
+import { fetchNotiPrefs, setNotiPref, NOTI_KINDS } from "../lib/notiPrefsDb.js";
 
-const STORAGE_KEY = "ollit_notification_settings_v1";
+// 채널 설정 (인앱/이메일) 은 여전히 localStorage. 6 kind 는 DB.
+const CHANNEL_KEY = "ollit_notification_channels_v1";
+const DEFAULT_CHANNELS = { inApp: true, email: false };
 
-const DEFAULT_SETTINGS = {
-  inApp:    true,
-  webPush:  false,
-  email:    false,
-  newOrder:        true,
-  assignment:      true,
-  scheduleChange:  true,
-  taskComplete:    true,
-  taskCancel:      true,
-  settlement:      false,
-};
-
-function loadSettings() {
+function loadChannels() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+    const raw = localStorage.getItem(CHANNEL_KEY);
+    if (raw) return { ...DEFAULT_CHANNELS, ...JSON.parse(raw) };
   } catch (e) { console.error(e); }
-  return DEFAULT_SETTINGS;
+  return DEFAULT_CHANNELS;
+}
+function saveChannels(s) {
+  try { localStorage.setItem(CHANNEL_KEY, JSON.stringify(s)); }
+  catch (e) { console.error(e); }
 }
 
-function saveSettings(s) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
-  } catch (e) { console.error(e); }
-}
+// 6 kind 기본값 — DB row 없을 때 ON.
+const DEFAULT_KIND_PREFS = NOTI_KINDS.reduce((acc, k) => { acc[k] = true; return acc; }, {});
 
 export function NotificationsScreen({ user, onBack }) {
-  const [settings, setSettings] = useState(() => loadSettings());
+  const [channels, setChannels] = useState(() => loadChannels());
+  const [kindPrefs, setKindPrefs] = useState(DEFAULT_KIND_PREFS);
+  const [kindLoading, setKindLoading] = useState(true);
+  const [kindSavingKey, setKindSavingKey] = useState(null);
 
-  function toggle(key) {
-    const next = { ...settings, [key]: !settings[key] };
-    setSettings(next);
-    saveSettings(next);
+  // Step 6-2 — 푸시 알림 hook
+  const currentUser = getCurrentUser(user);
+  const userUuid = currentUser?.user_id || currentUser?.userId || currentUser?.id || "";
+
+  // 마운트 시 본인 prefs 로드
+  useEffect(() => {
+    if (!userUuid) { setKindLoading(false); return; }
+    let alive = true;
+    fetchNotiPrefs(userUuid).then(res => {
+      if (!alive) return;
+      if (res.ok) setKindPrefs(res.prefs);
+      setKindLoading(false);
+    });
+    return () => { alive = false; };
+  }, [userUuid]);
+
+  function toggleChannel(key) {
+    const next = { ...channels, [key]: !channels[key] };
+    setChannels(next);
+    saveChannels(next);
   }
 
-  // Step 6-2 — 푸시 알림 hook 박힘
-  const currentUser = getCurrentUser(user);
+  async function toggleKind(kind) {
+    if (kindSavingKey) return;
+    if (!userUuid) {
+      showPushToast("⚠️ 로그인 정보가 없어 저장할 수 없습니다");
+      return;
+    }
+    const nextEnabled = !kindPrefs[kind];
+    setKindSavingKey(kind);
+    // 옵티미스틱
+    setKindPrefs(prev => ({ ...prev, [kind]: nextEnabled }));
+    const res = await setNotiPref({
+      userId:  userUuid,
+      kind,
+      enabled: nextEnabled,
+      actorId: userUuid,
+    });
+    if (!res.ok) {
+      // 롤백
+      setKindPrefs(prev => ({ ...prev, [kind]: !nextEnabled }));
+      showPushToast(`⚠️ 저장 실패: ${res.error || "알 수 없는 오류"}`);
+    }
+    setKindSavingKey(null);
+  }
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushToast, setPushToast] = useState(null);
@@ -136,12 +169,12 @@ export function NotificationsScreen({ user, onBack }) {
           status="✓ 활성"
           statusColor="#00875A"
           desc="앱 안에서 빨간 점으로 표시"
-          enabled={settings.inApp}
-          onToggle={() => toggle("inApp")}
+          enabled={channels.inApp}
+          onToggle={() => toggleChannel("inApp")}
           interactive={true}
         />
 
-        {/* Step 6-2 — 푸시 알림 (PWA) hook 박힘 */}
+        {/* Step 6-2 — 푸시 알림 (PWA) hook */}
         <ChannelCard
           icon="📲" name="푸시 알림 (PWA)"
           status={pushBusy ? "처리 중.." : (pushOn ? "✓ 활성화됨" : "꺼짐 — 켜려면 클릭")}
@@ -160,17 +193,20 @@ export function NotificationsScreen({ user, onBack }) {
           interactive={false}
         />
 
-        {/* 종류 */}
-        <SectionLabel>알림 종류</SectionLabel>
-        <ToggleRow label="새 접수 알림"           checked={settings.newOrder}        onToggle={() => toggle("newOrder")}/>
-        <ToggleRow label="배정 알림"              checked={settings.assignment}      onToggle={() => toggle("assignment")}/>
-        <ToggleRow label="일정 변경 알림"         checked={settings.scheduleChange}  onToggle={() => toggle("scheduleChange")}/>
-        <ToggleRow label="작업 완료 알림"         checked={settings.taskComplete}    onToggle={() => toggle("taskComplete")}/>
-        <ToggleRow label="부분완료/출장비만/취소 알림" checked={settings.taskCancel} onToggle={() => toggle("taskCancel")}/>
-        <ToggleRow label="정산 완료 알림"         checked={settings.settlement}      onToggle={() => toggle("settlement")}/>
+        {/* 종류 — 2026-06-06 DB 연동 (Mig 101) */}
+        <SectionLabel>
+          알림 종류
+          {kindLoading ? <span style={{ marginLeft: 8, fontWeight: 400, color: "#9CA3AF" }}>(불러오는 중...)</span> : null}
+        </SectionLabel>
+        <ToggleRow label="새 접수 알림"               checked={kindPrefs.newOrder}       onToggle={() => toggleKind("newOrder")}       disabled={kindLoading}/>
+        <ToggleRow label="배정 알림"                  checked={kindPrefs.assignment}     onToggle={() => toggleKind("assignment")}     disabled={kindLoading}/>
+        <ToggleRow label="일정 변경 알림"             checked={kindPrefs.scheduleChange} onToggle={() => toggleKind("scheduleChange")} disabled={kindLoading}/>
+        <ToggleRow label="작업 완료 알림"             checked={kindPrefs.taskComplete}   onToggle={() => toggleKind("taskComplete")}   disabled={kindLoading}/>
+        <ToggleRow label="부분완료/출장비만/취소 알림" checked={kindPrefs.partialEtc}     onToggle={() => toggleKind("partialEtc")}     disabled={kindLoading}/>
+        <ToggleRow label="정산 완료 알림"             checked={kindPrefs.settleComplete} onToggle={() => toggleKind("settleComplete")} disabled={kindLoading}/>
       </div>
 
-      {/* Step 6-2 — 푸시 토스트 박힘 */}
+      {/* Step 6-2 — 푸시 토스트 */}
       {pushToast && (
         <div style={{
           position: "fixed", left: "50%", bottom: 80,
@@ -236,19 +272,20 @@ function Toggle({ enabled, disabled }) {
   );
 }
 
-function ToggleRow({ label, checked, onToggle }) {
+function ToggleRow({ label, checked, onToggle, disabled }) {
   return (
     <div
-      onClick={onToggle}
+      onClick={disabled ? undefined : onToggle}
       style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         padding: "12px 14px", marginBottom: 6,
         background: "var(--bg-secondary)", border: "1px solid var(--border)",
-        borderRadius: 8, cursor: "pointer",
+        borderRadius: 8, cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.55 : 1,
       }}
     >
       <span style={{ fontSize: 12, color: "var(--text-primary)" }}>{label}</span>
-      <Toggle enabled={checked}/>
+      <Toggle enabled={checked} disabled={disabled}/>
     </div>
   );
 }
