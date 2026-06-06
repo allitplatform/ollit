@@ -24,7 +24,7 @@
 //   → trigger sync_category_data_to_task_items (Mig 017)로 task_items 자동 생성
 //   → 작업 상세 ItemProgress 진입 가능.
 import { useState, useMemo, useEffect, useRef } from "react";
-import { ArrowLeft, Send, Plus, X } from "lucide-react";
+import { ArrowLeft, Send, Plus, X, ClipboardPaste } from "lucide-react";
 import { createTaskAdapter as createTask } from "../../data/tasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../../data/paymentMethods.js";
 // 2026-06-06 — KA/crikrin 붙여넣기 prefill (선택 기능). 유솔은 미사용.
@@ -338,6 +338,8 @@ export function NewReceptionScreenLite({
       // partnerMode: 견적금액 input 직접 입력. autoTotal fallback.
       const total = form.estimateTotal > 0 ? form.estimateTotal : autoTotal;
       if (total <= 0) errs.estimateTotal = "견적 입력";
+      // 희망 일정 필수 — 4개 chip 중 1개도 선택 안 하면 차단. tbd 도 valid.
+      if (scheduleMode == null) errs.schedule = "희망 일정 선택";
     } else {
       if (!hasRates && !priceTBD && (!form.estimateTotal || form.estimateTotal <= 0)) {
         errs.estimateTotal = "견적 입력";
@@ -518,23 +520,53 @@ export function NewReceptionScreenLite({
         </div>
 
         <div style={{ padding: "12px 14px" }}>
-          {/* (1) 붙여넣기 — 접이식 (기본 닫힘). 결과 있으면 자동 펼침. */}
-          <CollapsibleHeader
-            t={t}
-            open={showPaste}
-            onToggle={() => setPasteOpen(o => !o)}
-            icon="📋"
-            title="메시지 붙여넣기"
-            hint="카톡·문자 받았으면 여기 붙여넣기 · 전화면 아래 직접 입력"
-          />
-          {showPaste && (
+          {/* (1) 붙여넣기 — 옵션 C: 2px dashed 핑크 박스. 기본 닫힘. 결과 있으면 자동 펼침.
+              접힘: 가운데 정렬 클립보드 + 안내. 클릭하면 그 자리에 textarea 펼침.
+              펼침: 같은 점선 박스 안에 textarea (점선 핑크) + 파싱 + records.
+          */}
+          {!showPaste ? (
+            // 접힘: 옅은 회색 1px 박스. 핑크 클립보드 아이콘 + 핑크 텍스트, 가운데 정렬.
+            <div
+              onClick={() => setPasteOpen(true)}
+              style={{
+                border: `1px solid ${t.border}`,
+                borderRadius: 10,
+                padding: "12px 14px",
+                marginBottom: 12,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                cursor: "pointer",
+                userSelect: "none",
+                background: "transparent",
+                color: accentColor,
+                fontSize: 13, fontWeight: 700,
+              }}
+            >
+              <ClipboardPaste size={16} style={{ color: accentColor }}/>
+              <span>카톡·문자 붙여넣기</span>
+            </div>
+          ) : (
+            // 펼침: 같은 회색 1px 박스. 헤더 (아이콘 + 텍스트, 가운데, 클릭 시 접힘). textarea 회색.
             <div style={{
-              padding: 12,
-              background: t.bgInset,
               border: `1px solid ${t.border}`,
               borderRadius: 10,
+              padding: 14,
               marginBottom: 12,
+              background: "transparent",
             }}>
+              <div
+                onClick={() => setPasteOpen(false)}
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                  marginBottom: 10,
+                  cursor: "pointer",
+                  userSelect: "none",
+                  color: accentColor,
+                  fontSize: 13, fontWeight: 700,
+                }}
+              >
+                <ClipboardPaste size={14} style={{ color: accentColor }}/>
+                <span>카톡·문자 붙여넣기</span>
+              </div>
               <textarea
                 value={pasteText || ""}
                 onChange={(e) => onPasteTextChange?.(e.target.value)}
@@ -542,12 +574,12 @@ export function NewReceptionScreenLite({
                 rows={6}
                 style={{
                   width: "100%",
-                  background: t.bg,
+                  background: t.bgInset,
                   border: `1px solid ${t.border}`,
                   borderRadius: 8,
-                  padding: "8px 10px",
+                  padding: "10px 12px",
                   color: t.text,
-                  fontSize: 12,
+                  fontSize: 13,
                   fontFamily: "inherit",
                   outline: "none",
                   boxSizing: "border-box",
@@ -794,10 +826,11 @@ export function NewReceptionScreenLite({
 
           {/* (6) 희망 일정 — 4 chip.
               · 오늘/내일 → 날짜만 자동 (시간 안 물어봄). chip 활성 + 안내 텍스트만.
-              · 일정 미정 → 빈값 (TBD). 안내 텍스트만.
+              · 일정 미정 → 빈값 (TBD). 안내 텍스트만 — 필수 충족으로 인정.
               · 직접 입력 → 이 모드만 date + time input 노출.
+              ⚠️ 필수 — 4개 중 1개도 선택 안 하면 제출 차단 (handleSubmit 측 검증).
           */}
-          <FormSection t={t} accent={accentColor} icon="📅" label="희망 일정">
+          <FormSection t={t} accent={accentColor} icon="📅" label="희망 일정 (필수)" required error={errors.schedule}>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               <FormChip t={t} accent={accentColor} active={scheduleMode === "today"}    onClick={setScheduleToday}>오늘</FormChip>
               <FormChip t={t} accent={accentColor} active={scheduleMode === "tomorrow"} onClick={setScheduleTomorrow}>내일</FormChip>
@@ -1356,14 +1389,14 @@ export function NewReceptionScreenLite({
 function FormSection({ t, accent = "#FF4D9E", icon, label, required, error, children }) {
   // 2026-06-06 — 필수 표시: 텍스트 배지/별표 제거 → 박스 테두리 색으로 통일.
   //   error 우선 (빨강) > required (핑크) > 회색.
-  //   requiredBadge prop 도 제거 — partnerMode/유솔H 양쪽 모두 박스 테두리 통일.
-  //   유솔H 측 옛 별표 (*) 표시도 박스 테두리 핑크로 일관성 통일 (시각 정리).
+  //   필수/에러 시 테두리 두께 2px (선택 1px) — 사장님 spec "조금만" 두껍게.
   const borderColor = error ? t.danger : (required ? accent : t.border);
+  const borderWidth = (error || required) ? 2 : 1;
   return (
     <div style={{
       marginBottom: 12,
       background: t.bgElevated,
-      border: `1px solid ${borderColor}`,
+      border: `${borderWidth}px solid ${borderColor}`,
       borderRadius: 10, padding: "12px 14px",
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
