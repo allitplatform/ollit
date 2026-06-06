@@ -971,11 +971,13 @@ function _v14NormalizeTask(t) {
   const memo      = t.memo || t.note || t.비고 || "";
   // V14 Step 3.1 Fix A — estimate 키 광범위 catch (backend 박힌 키 정확 박지 X)
   // 옛 Step 3에서 박은 키 (productPrice/상품금액) catch X → 더 많은 키 박기 + console catch
+  // 2026-06-06 — productPrice 측 0측 measure 측측측 측측 0 → falsy 측측 totalAmount 측 fallback 측측 측 측측 측측 2측 측측.
+  //   ?? (nullish) 측측 (null/undefined 측측 fallback) 측 측측 0 측측 측측측 측측.
   const estimate  = Number(
-    t.estimateTotal || t.quote || t.totalAmount || t.견적금액 || t.견적합계 ||
-    t.productPrice || t.상품금액 || t.estimateAmount || t.amount ||
-    t.totalPrice || t.salePrice || t.판매가 || t.견적 ||
-    t.AC || t['AC'] || t.ac || 0
+    t.estimateTotal ?? t.quote ?? t.totalAmount ?? t.견적금액 ?? t.견적합계 ??
+    t.productPrice ?? t.상품금액 ?? t.estimateAmount ?? t.amount ??
+    t.totalPrice ?? t.salePrice ?? t.판매가 ?? t.견적 ??
+    t.AC ?? t['AC'] ?? t.ac ?? 0
   );
   const settlement = t.settlementStatus || t.정산상태 || "";
   const schedule  = t.schedule || [reqDate, reqTime].filter(Boolean).join(" ") || "협의";

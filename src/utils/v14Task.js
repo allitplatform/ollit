@@ -62,7 +62,10 @@ export function v14NormalizeTask(t) {
   const reqDate   = t.requestedDate || t.scheduledDate || t.희망일자 || t.예약일 || "";
   const reqTime   = t.requestedTime || t.scheduledTime || t.희망시간 || t.예약시간 || "";
   const memo      = t.memo || t.note || t.작업메모 || t.비고 || "";
-  const estimate  = Number(t.estimateTotal || t.quote || t.totalAmount || t.견적합계 || t.견적금액 || 0);
+  // 2026-06-06 — productPrice 측 0측 measure 측측측 측측 0 → falsy 측측 totalAmount fallback 측측측 측측 측 측측 측측 측측 2측 측측.
+  //   ?? 측측 (null/undefined 측측 fallback) 측 측측 0 측 측측 측측측 측측.
+  //   영향: SettlementInfoCard 측 baseAmount=0 + extraFee=N → 합계 N (정상).
+  const estimate  = Number(t.estimateTotal ?? t.quote ?? t.totalAmount ?? t.견적합계 ?? t.견적금액 ?? 0);
   const settlement = t.settlementStatus || t.정산상태 || "";
 
   // 2026-05-10 — 정산 필드 (Hybrid 구조)
