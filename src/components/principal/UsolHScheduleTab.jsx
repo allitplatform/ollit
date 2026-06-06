@@ -16,6 +16,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
+import { getStatusBadge, getStatusLabel } from "../../utils/principalStatusBadge.js";
 
 const ACCENT = "#FF1B8D";
 
@@ -77,26 +78,15 @@ function presetToRange(preset) {
   return { start: todayYmd, end: todayYmd };
 }
 
-// 상태 배지 — 운영자 PWA 패턴 재사용 (간략판)
+// 상태 배지 — PrincipalListTab 측 측 (테마 측 측 토큰).
 function StatusBadge({ status }) {
-  const map = {
-    "미배정":   { bg: "rgba(255,255,255,0.06)", color: "#9CA3AF" },
-    "배정":     { bg: "rgba(91,163,240,0.18)",  color: "#5BA3F0" },
-    "약속대기": { bg: "rgba(251,191,36,0.16)",  color: "#FBBF24" },
-    "확정":     { bg: "rgba(251,191,36,0.18)",  color: "#FBBF24" },
-    "진행중":   { bg: "rgba(255,27,141,0.18)",  color: ACCENT  },
-    "완료":     { bg: "rgba(52,211,153,0.18)",  color: "#34D399" },
-    "취소":     { bg: "rgba(255,255,255,0.06)", color: "#6B7280" },
-    "visit_only": { bg: "rgba(255,255,255,0.06)", color: "#9CA3AF" },
-  };
-  const cfg = map[status] || { bg: "rgba(255,255,255,0.06)", color: "#9CA3AF" };
-  const label = status === "visit_only" ? "출장비" : (status || "—");
+  const cfg = getStatusBadge(status);
   return (
     <span style={{
       fontSize: 10, fontWeight: 700,
       color: cfg.color, background: cfg.bg,
       padding: "2px 7px", borderRadius: 8, whiteSpace: "nowrap", flexShrink: 0,
-    }}>{label}</span>
+    }}>{getStatusLabel(status)}</span>
   );
 }
 
@@ -104,11 +94,9 @@ function StatusBadge({ status }) {
 function ServiceMark({ task }) {
   const items = Array.isArray(task.task_items) ? task.task_items : [];
   const code = items[0]?.work_types?.service_types?.code || "";
-  if (code === "refrigerant") return <span style={{ fontSize: 12, color: "#FBBF24" }}>⚡</span>;
-  // fallback by work_type 이름
   const wt = String(items[0]?.work_types?.name || "");
-  if (wt.includes("냉매")) return <span style={{ fontSize: 12, color: "#FBBF24" }}>⚡</span>;
-  return <span style={{ fontSize: 12, color: "#5BA3F0" }}>❄️</span>;
+  const isRefrig = code === "refrigerant" || wt.includes("냉매");
+  return <span style={{ fontSize: 12 }}>{isRefrig ? "⚡" : "❄️"}</span>;
 }
 
 function getMainItem(task) {
@@ -147,17 +135,17 @@ function ScheduleRow({ task, onClick }) {
     >
       <span className="mono" style={{
         fontSize: 11, fontWeight: 800,
-        color: time === "미정" ? "#6B7280" : "#FAF8F5",
+        color: time === "미정" ? "var(--text-secondary)" : "var(--text-primary)",
         width: 40, flexShrink: 0, textAlign: "left",
       }}>{time}</span>
       <ServiceMark task={task}/>
       <span style={{
-        fontSize: 12, fontWeight: 600, color: "#FAF8F5",
+        fontSize: 12, fontWeight: 600, color: "var(--text-primary)",
         maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>{task.customer_name || "—"}</span>
       {applianceText && (
         <span style={{
-          fontSize: 11, color: "#888",
+          fontSize: 11, color: "var(--text-secondary)",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>{applianceText}</span>
       )}
@@ -343,7 +331,7 @@ export function UsolHScheduleTab({ principalCodes = [], onSelect }) {
         border: "1px solid var(--border, #2A2A2A)",
         borderRadius: 10,
       }}>
-        <span className="mono" style={{ fontSize: 12, color: "#FAF8F5", fontWeight: 700 }}>
+        <span className="mono" style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 700 }}>
           {fmtRangeShort(range.start, range.end)}
         </span>
         <span style={{ flex: 1 }}/>
@@ -405,11 +393,11 @@ export function UsolHScheduleTab({ principalCodes = [], onSelect }) {
             display: "flex", alignItems: "center", gap: 8,
             marginBottom: 6, padding: "0 2px",
           }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: "#FAF8F5" }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
               {ymd === "__NULL__" ? "일정미정" : fmtDateHeader(ymd)}
             </span>
             <span style={{ flex: 1 }}/>
-            <span className="mono" style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary, #B5B0A8)" }}>
+            <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>
               {arr.length}건
             </span>
           </div>
@@ -437,12 +425,12 @@ function fmtRangeShort(s, e) {
 }
 
 const dateInputStyle = {
-  background: "var(--bg-elevated, #1F1F1F)",
-  border: "1px solid var(--border, #2A2A2A)",
-  color: "var(--text-primary, #FAF8F5)",
+  background: "var(--bg-elevated)",
+  border: "1px solid var(--border)",
+  color: "var(--text-primary)",
   padding: "6px 8px", borderRadius: 8,
   fontSize: 12, fontFamily: "inherit",
-  colorScheme: "dark",
+  // colorScheme — html.colorScheme (themes.js 측 측측) 측 측측 자동, 강제 X.
 };
 
 export default UsolHScheduleTab;
