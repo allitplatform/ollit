@@ -755,11 +755,9 @@ export function NewReceptionScreenLite({
                   </div>
                 )}
                 {editItem.appliance && (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>수량</span>
-                    <input type="number" min="1" value={editItem.qty}
-                      onChange={(e) => setEditField({ qty: parseInt(e.target.value) || 1 })}
-                      style={{ ...inputStyle(false), width: 80 }}/>
+                    <QtyStepper value={editItem.qty || 1} onChange={(n) => setEditField({ qty: n })}/>
                     <span style={{ fontSize: 11, color: t.textMuted }}>대</span>
                   </div>
                 )}
@@ -1195,13 +1193,9 @@ export function NewReceptionScreenLite({
                 </div>
               )}
               {editItem.appliance && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>수량</span>
-                  <input
-                    type="number" min="1" value={editItem.qty}
-                    onChange={(e) => setEditField({ qty: parseInt(e.target.value) || 1 })}
-                    style={{ ...inputStyle(false), width: 80 }}
-                  />
+                  <QtyStepper value={editItem.qty || 1} onChange={(n) => setEditField({ qty: n })}/>
                   <span style={{ fontSize: 11, color: t.textMuted }}>대</span>
                 </div>
               )}
@@ -1428,6 +1422,99 @@ function CollapsibleHeader({ t, open, onToggle, icon, title, hint }) {
         {hint && <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>{hint}</div>}
       </div>
       <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>{open ? "▲" : "▼"}</span>
+    </div>
+  );
+}
+
+// 2026-06-06 — 모바일용 수량 스테퍼.
+//   [−] N [+]  / − = #2C2C2E / + = #FF1B8D / 숫자 흰색 / 40×40 라운드.
+//   가운데 숫자 탭 → inline number input 측 측 (select-all, blur/Enter 측 측 측 복귀).
+//   min=1 (− 1 측 비활성), max=99 (대량 현장 대응 — 99 측 + 비활성).
+function QtyStepper({ value, onChange, min = 1, max = 99 }) {
+  const safeValue = Math.max(min, Math.min(max, Number(value) || min));
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(String(safeValue));
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [editing]);
+
+  const commit = (raw) => {
+    const n = parseInt(raw, 10);
+    const clamped = Math.max(min, Math.min(max, isNaN(n) ? min : n));
+    onChange(clamped);
+    setDraft(String(clamped));
+    setEditing(false);
+  };
+
+  const dec = () => { if (safeValue > min) onChange(safeValue - 1); };
+  const inc = () => { if (safeValue < max) onChange(safeValue + 1); };
+
+  const btnBase = {
+    width: 40, height: 40, borderRadius: 999,
+    border: "none", cursor: "pointer", fontFamily: "inherit",
+    fontSize: 20, fontWeight: 700, color: "#fff",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    flexShrink: 0,
+  };
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <button type="button" onClick={dec} disabled={safeValue <= min}
+        style={{
+          ...btnBase,
+          background: "#2C2C2E",
+          opacity: safeValue <= min ? 0.4 : 1,
+          cursor: safeValue <= min ? "not-allowed" : "pointer",
+        }}
+        aria-label="감소"
+      >−</button>
+      {editing ? (
+        <input
+          ref={inputRef}
+          type="number" inputMode="numeric" pattern="[0-9]*"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => commit(draft)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") { e.preventDefault(); commit(draft); }
+            if (e.key === "Escape") { setDraft(String(safeValue)); setEditing(false); }
+          }}
+          style={{
+            width: 56, height: 40, minWidth: 56,
+            textAlign: "center", fontSize: 18, fontWeight: 800,
+            color: "#fff", background: "#1C1C1E",
+            border: "1px solid #FF1B8D", borderRadius: 8,
+            outline: "none", fontFamily: "inherit",
+            MozAppearance: "textfield",
+          }}
+        />
+      ) : (
+        <button type="button"
+          onClick={() => { setDraft(String(safeValue)); setEditing(true); }}
+          style={{
+            minWidth: 40, height: 40, padding: "0 8px",
+            background: "transparent", border: "none",
+            fontSize: 18, fontWeight: 800, color: "#fff",
+            cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+          aria-label="수량 직접 입력"
+        >{safeValue}</button>
+      )}
+      <button type="button" onClick={inc} disabled={safeValue >= max}
+        style={{
+          ...btnBase,
+          background: "#FF1B8D",
+          opacity: safeValue >= max ? 0.4 : 1,
+          cursor: safeValue >= max ? "not-allowed" : "pointer",
+        }}
+        aria-label="증가"
+      >+</button>
     </div>
   );
 }
