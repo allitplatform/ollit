@@ -19,7 +19,7 @@ const C_PENDING = "#FF3B5C";
 const C_DONE    = "#1D9E75";
 const C_GRAY    = "#9CA3AF";
 
-function formatKrw(n) {
+export function formatKrw(n) {
   return `₩${Number(n || 0).toLocaleString("ko-KR")}`;
 }
 
@@ -127,11 +127,21 @@ export function UsolRemitHistoryScreen({ onBack }) {
           {dateGroups.map(dg => (
             <DateGroup
               key={dg.ymd}
-              dateGroup={dg}
+              ymd={dg.ymd}
               isToday={dg.ymd === todayYmd}
               isOpen={!!openDates[dg.ymd]}
               onToggle={() => toggleDate(dg.ymd)}
-            />
+              count={dg.count}
+              total={dg.total15Pct}
+            >
+              {/* 옛 usol: 기사별 카드 — 내부 children 으로 주입 (회귀 0). */}
+              {dg.engineerGroups.map(g => (
+                <EngineerGroupCard
+                  key={g.engineerId || g.engineerCode || g.engineerName}
+                  group={g}
+                />
+              ))}
+            </DateGroup>
           ))}
         </div>
       )}
@@ -149,8 +159,18 @@ function formatDateHeader(ymd, isToday) {
   return isToday ? `오늘 · ${label}` : label;
 }
 
-function DateGroup({ dateGroup, isToday, isOpen, onToggle }) {
-  const { ymd, count, total15Pct, engineerGroups } = dateGroup;
+// 2026-06-06 — 일반화 (옛 dateGroup prop 측 ymd/count/total 분리, children 으로 펼침 내부 주입).
+//   재사용: PartnerDailySettleTab (KA/crikrin 일정산) — 같은 다크 카드 + 토글 디자인.
+//   회귀: UsolRemitHistoryScreen 호출처는 위 측 dg 객체 펼쳐 prop 전달 (children = 기사별 카드).
+//   ※ 옵션 prop: total 측 잘림(strikethrough), leftBadge (입금완료/대기 배지) — 일정산용.
+export function DateGroup({
+  ymd, isToday, isOpen, onToggle,
+  count, total,
+  totalStrike = false,
+  totalColor,
+  leftBadge,
+  children,
+}) {
   return (
     <div style={{
       background: "var(--bg-elevated, #1F1F1F)",
@@ -171,6 +191,11 @@ function DateGroup({ dateGroup, isToday, isOpen, onToggle }) {
           textAlign: "left",
         }}
       >
+        {leftBadge && (
+          <span style={{ display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+            {leftBadge}
+          </span>
+        )}
         <span style={{
           fontSize: 13, fontWeight: 800,
           color: isToday ? "#FF4D9E" : "var(--text-primary, #FAF8F5)",
@@ -184,10 +209,11 @@ function DateGroup({ dateGroup, isToday, isOpen, onToggle }) {
         <span className="mono" style={{
           marginLeft: "auto",
           fontSize: 13, fontWeight: 800,
-          color: "var(--text-primary, #FAF8F5)",
+          color: totalColor || "var(--text-primary, #FAF8F5)",
           letterSpacing: "-0.2px",
+          textDecoration: totalStrike ? "line-through" : "none",
         }}>
-          {formatKrw(total15Pct)}
+          {formatKrw(total)}
         </span>
         <span style={{
           fontSize: 13, color: C_GRAY,
@@ -197,7 +223,7 @@ function DateGroup({ dateGroup, isToday, isOpen, onToggle }) {
         }}>▾</span>
       </button>
 
-      {/* 펼침 — 기사별 그룹 카드 */}
+      {/* 펼침 — children (옛: 기사별 카드 / 일정산: 작업별 줄) */}
       {isOpen && (
         <div style={{
           padding: "0 12px 12px",
@@ -205,19 +231,14 @@ function DateGroup({ dateGroup, isToday, isOpen, onToggle }) {
           borderTop: "1px solid var(--border, #2A2A2A)",
           paddingTop: 12,
         }}>
-          {engineerGroups.map(g => (
-            <EngineerGroupCard
-              key={g.engineerId || g.engineerCode || g.engineerName}
-              group={g}
-            />
-          ))}
+          {children}
         </div>
       )}
     </div>
   );
 }
 
-function SummaryCard({ label, amount, color }) {
+export function SummaryCard({ label, amount, color }) {
   return (
     <div style={{
       background: "var(--bg-elevated, #1F1F1F)",

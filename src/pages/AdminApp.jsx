@@ -3332,7 +3332,7 @@ export default function AdminApp({ user, onLogout }) {
   }
   if (screen === "principal_settlement") {
     return <Shell t={t} toasts={toasts}>
-      <PrincipalSettlementScreen onBack={goBack}/>
+      <PrincipalSettlementScreen onBack={goBack} user={user}/>
     </Shell>;
   }
   // Step 6 — 기사 관리 (리스트 + 편집/추가)

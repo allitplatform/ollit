@@ -39,6 +39,8 @@ import { formatTimeOnly } from "../utils/dateLabel.js";
 // 2026-05-23 — 유솔홈케어 통합 포털 1라운드: "작업 현황" 탭 측 컴포넌트
 import { PrincipalListTab } from "../components/principal/PrincipalListTab.jsx";
 import { PrincipalSettleTab } from "../components/principal/PrincipalSettleTab.jsx";
+// 2026-06-06 — KA/crikrin 일정산 화면 (PartnerDailySettleTab). usol_n/usol_h 측 기존 PrincipalSettleTab 그대로.
+import { PartnerDailySettleTab } from "../components/principal/PartnerDailySettleTab.jsx";
 import { UsolNOrders } from "../components/usol_n/UsolNOrders.jsx";
 import { UsolNCsvMatch } from "../components/usol_n/UsolNCsvMatch.jsx";
 import { NewReceptionScreenLite } from "../components/principal/NewReceptionScreenLite.jsx";
@@ -543,7 +545,13 @@ export default function PrincipalApp({ user, onLogout }) {
             <div style={{ display: selectedTask ? "none" : "block" }}>
               {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} onSelect={setSelectedTask}/>}
               {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
-              {tab === "settle" && <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
+              {/* 2026-06-06 — KA/crikrin (partnerCode 존재) 측 PartnerDailySettleTab (일정산).
+                  usol_n/usol_h 측 기존 PrincipalSettleTab 그대로 (네이버 주차 정산 흐름 무수정). */}
+              {tab === "settle" && (
+                partnerCode
+                  ? <PartnerDailySettleTab t={t} user={user} principalCodes={principalCodes}/>
+                  : <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>
+              )}
               {tab === "info"   && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
             </div>
             {selectedTask && <TaskDetail t={t} task={selectedTask} user={user} onBack={() => setSelectedTask(null)}/>}

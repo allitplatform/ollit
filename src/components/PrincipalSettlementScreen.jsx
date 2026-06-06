@@ -6,6 +6,8 @@ import { useState, useMemo } from "react";
 import { loadTasks } from "../data/tasks.js";
 import { loadPrincipals } from "../data/principals.js";
 import { PrincipalDetailScreen } from "./PrincipalDetailScreen.jsx";
+// 2026-06-06 — KA/crikrin 일정산 (Mig 100, principal_daily_remittances). 운영자 토글 (mark/undo RPC).
+import { PartnerDailySettleTab } from "./principal/PartnerDailySettleTab.jsx";
 
 const SETTLEMENT_POLICIES = {
   allday:     { label: "직영",     formula: "회사 = 총 - 단가 / 원청 0" },
@@ -17,10 +19,12 @@ const SETTLEMENT_POLICIES = {
 
 const FIVE_PRINCIPAL_IDS = ["allday", "aircon_pro", "yongin", "usol_h", "crikrin"];
 
-export function PrincipalSettlementScreen({ onBack }) {
+export function PrincipalSettlementScreen({ onBack, user }) {
   // ── hooks (모두 최상단) ──────────────────────
   const [selectedDate, setSelectedDate]           = useState(new Date());
   const [selectedPrincipal, setSelectedPrincipal] = useState(null);
+  // 2026-06-06 — 상단 탭: 'date' (옛 일자별) / 'daily' (KA/crikrin 일정산, Mig 100).
+  const [topTab, setTopTab] = useState("date");
 
   const principals = useMemo(() => {
     try { return loadPrincipals(); } catch { return []; }
@@ -83,49 +87,87 @@ export function PrincipalSettlementScreen({ onBack }) {
         </div>
       </div>
 
-      <div style={{ padding: 16, paddingBottom: 80 }}>
-        {/* 날짜 네비게이션 */}
-        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 14 }}>
-          <input
-            type="date"
-            value={formatDateInput(selectedDate)}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v) setSelectedDate(new Date(v));
-            }}
-            style={dateInputStyle}
-          />
-          <button onClick={() => setSelectedDate(addDays(selectedDate, -1))} style={navButtonStyle} aria-label="이전">◀</button>
-          <button onClick={() => setSelectedDate(addDays(selectedDate,  1))} style={navButtonStyle} aria-label="다음">▶</button>
-          <button onClick={() => setSelectedDate(new Date())} style={todayButtonStyle}>오늘</button>
-        </div>
-
-        {/* 일간 요약 */}
-        <DailySummaryCard summary={summary} dateLabel={formatDateLabel(selectedDate)}/>
-
-        {/* 원청별 카드 */}
-        <div style={{
-          fontSize: 11, color: "var(--text-secondary)",
-          marginBottom: 6, marginTop: 14,
-        }}>
-          원청별 (클릭하면 상세)
-        </div>
-
-        {fivePrincipals.length === 0 ? (
-          <Empty>등록된 5원청이 없습니다</Empty>
-        ) : (
-          fivePrincipals.map(principal => (
-            <PrincipalCard
-              key={principal.id}
-              principal={principal}
-              data={dailyData[principal.id]}
-              policy={SETTLEMENT_POLICIES[principal.id]}
-              onClick={() => setSelectedPrincipal(principal)}
-            />
-          ))
-        )}
+      {/* 2026-06-06 — 상단 탭 — [일자별 (옛)] / [일정산 (KA·crikrin)] */}
+      <div style={{
+        display: "flex", gap: 6, padding: "10px 16px 0",
+        borderBottom: "1px solid var(--border)",
+      }}>
+        <TopTabBtn active={topTab === "date"}  onClick={() => setTopTab("date")}>일자별 (5원청)</TopTabBtn>
+        <TopTabBtn active={topTab === "daily"} onClick={() => setTopTab("daily")}>일정산 (KA·크리크린)</TopTabBtn>
       </div>
+
+      {topTab === "date" && (
+        <div style={{ padding: 16, paddingBottom: 80 }}>
+          {/* 날짜 네비게이션 */}
+          <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 14 }}>
+            <input
+              type="date"
+              value={formatDateInput(selectedDate)}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v) setSelectedDate(new Date(v));
+              }}
+              style={dateInputStyle}
+            />
+            <button onClick={() => setSelectedDate(addDays(selectedDate, -1))} style={navButtonStyle} aria-label="이전">◀</button>
+            <button onClick={() => setSelectedDate(addDays(selectedDate,  1))} style={navButtonStyle} aria-label="다음">▶</button>
+            <button onClick={() => setSelectedDate(new Date())} style={todayButtonStyle}>오늘</button>
+          </div>
+
+          {/* 일간 요약 */}
+          <DailySummaryCard summary={summary} dateLabel={formatDateLabel(selectedDate)}/>
+
+          {/* 원청별 카드 */}
+          <div style={{
+            fontSize: 11, color: "var(--text-secondary)",
+            marginBottom: 6, marginTop: 14,
+          }}>
+            원청별 (클릭하면 상세)
+          </div>
+
+          {fivePrincipals.length === 0 ? (
+            <Empty>등록된 5원청이 없습니다</Empty>
+          ) : (
+            fivePrincipals.map(principal => (
+              <PrincipalCard
+                key={principal.id}
+                principal={principal}
+                data={dailyData[principal.id]}
+                policy={SETTLEMENT_POLICIES[principal.id]}
+                onClick={() => setSelectedPrincipal(principal)}
+              />
+            ))
+          )}
+        </div>
+      )}
+
+      {topTab === "daily" && (
+        // KA + crikrin 둘 다 한 화면 — 일별 카드 모두 표시. 운영자 토글 활성.
+        // PartnerDailySettleTab 자체가 다크 테마 카드라 padding 0.
+        <PartnerDailySettleTab
+          principalCodes={["KA", "crikrin"]}
+          adminMode={true}
+          actorUserId={user?.user_id || user?.userId || user?.id}
+          user={user}
+        />
+      )}
     </div>
+  );
+}
+
+// 2026-06-06 — 상단 탭 버튼
+function TopTabBtn({ active, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "8px 14px",
+      background: "transparent",
+      border: "none",
+      borderBottom: active ? `2px solid #FF1B8D` : `2px solid transparent`,
+      color: active ? "#FF1B8D" : "var(--text-secondary)",
+      fontSize: 12, fontWeight: 800,
+      cursor: "pointer", fontFamily: "inherit",
+      marginBottom: -1,
+    }}>{children}</button>
   );
 }
 
