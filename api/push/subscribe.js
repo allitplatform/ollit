@@ -125,6 +125,27 @@ export default async function handler(req, res) {
     "auth len:", auth.length,
   );
 
+  const userAgent = req.headers["user-agent"] || "";
+
+  // 2026-06-06 (Fix C-②) — 같은 user_id + 같은 UA 측 측 endpoint 측 측 DELETE.
+  //   왜: Service Worker 측 측 측 측 측 endpoint 측 측 측 측 측 (브라우저 측 측 측 측 측 측 측 측).
+  //   같은 측 측 측 측 측 측 측 측 측 측 endpoint 1개만 측. 측 측 (측 UA) 측 측 측.
+  //   이연신(E034) 13건 사례 측 측 — 측 안드로이드 측 측 13개 endpoint 측 측.
+  if (userAgent) {
+    const { error: dedupErr, count: dedupCount } = await supabase
+      .from("push_subscriptions")
+      .delete({ count: "exact" })
+      .eq("user_id", userUuid)
+      .eq("ua", userAgent)
+      .neq("endpoint", endpoint);
+    if (dedupErr) {
+      console.warn("[push/subscribe:dedup]", dedupErr.message);
+      // 측 측 측 — UPSERT 측 측.
+    } else if (dedupCount && dedupCount > 0) {
+      console.log("[push/subscribe] dedup deleted:", dedupCount, "stale endpoints for user", userUuid.slice(0,8));
+    }
+  }
+
   // push_subscriptions UPSERT (endpoint UNIQUE)
   //   기존 endpoint row 있으면 user_id / p256dh / auth / role / ua / last_used_at 갱신.
   //   created_at 은 INSERT 시 DB default, UPDATE 시 무변경.
@@ -134,7 +155,7 @@ export default async function handler(req, res) {
     p256dh,
     auth,
     role:         role || "",
-    ua:           req.headers["user-agent"] || "",
+    ua:           userAgent,
     last_used_at: new Date().toISOString(),
   };
 
