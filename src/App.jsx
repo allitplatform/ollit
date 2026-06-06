@@ -12,6 +12,8 @@ import { KakaoBypassScreen } from "./components/KakaoBypassScreen.jsx";
 import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen.jsx";
 import { addNotification as addNotificationToStore } from "./utils/notificationStore.js";
+import { switchActiveRole } from "./lib/roles.js";
+import { RoleSwitcher } from "./components/RoleSwitcher.jsx";
 
 // Phase 2 — 자동 로그인 (localStorage)
 // auth.js 측 LS_KEY = "allit.user" 박은 영역 박은 영역 (signInWithPhone 측 박은 영역 박은 영역 박은 영역)
@@ -124,6 +126,18 @@ export default function App() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedUser)); } catch {}
   };
 
+  // 2026-06-06 — 다중 role (engineer+admin) 사용자 역할 전환 핸들러.
+  //   currentUser.role 만 swap → App.jsx renderScreen switch 측 다른 앱 측 측.
+  //   side-effect: EngineerApp/AdminApp 측 unmount→mount → Realtime 구독 자동 재구독.
+  //   push 구독은 그대로 — kind 게이트 (Mig 101) 만 적용되므로 영향 없음.
+  const handleSwitchRole = (newDbRole) => {
+    if (!currentUser) return;
+    if (currentUser.dbRole === newDbRole) return;
+    const updated = switchActiveRole(currentUser, newDbRole);
+    setCurrentUser(updated);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(updated)); } catch {}
+  };
+
   // 화면 분기 (TasksProvider 안쪽에서 결정)
   const renderScreen = () => {
     if (!currentUser) {
@@ -151,6 +165,8 @@ export default function App() {
   return (
     <TasksProvider>
       {renderScreen()}
+      {/* 2026-06-06 — engineer+admin 둘 다 가진 user 측 헤더 토글. 단일 role 측 null 반환. */}
+      {currentUser && <RoleSwitcher user={currentUser} onSwitch={handleSwitchRole}/>}
       {/* PWA 자동 안내 모달 — 1.5초 후 / standalone X / 24시간 dismiss / 카톡 외 인앱 catch */}
       <PWAInstallPrompt/>
     </TasksProvider>

@@ -7,15 +7,7 @@ import { OllitMark } from "./OllitMark.jsx";
 // 2026-05-20 Phase 5 Step 0.D-A2 — REGISTERED_USERS 측 import 제거 (빠른 로그인 section 완전 제거)
 // (REGISTERED_USERS 측 EngineerMeTab.jsx 측 별도 사용 — shared/users.js 측 정의 유지)
 import { signInWithPhone } from "../lib/auth.js";
-
-// DB role → app role 매핑 (App.jsx switch 박은 영역 박은 영역)
-const DB_TO_APP_ROLE = {
-  owner:    "admin",
-  admin:    "admin",
-  engineer: "engineer",
-  operator: "happycall",
-  partner:  "principal",
-};
+import { DB_TO_APP_ROLE, buildAppUser as buildAppUserShared } from "../lib/roles.js";
 
 const SHORT_ROLE = {
   engineer:  "프로",
@@ -69,22 +61,8 @@ export function LoginScreen({ onLogin }) {
   // V14 Phase 4-C — 폰번호 정규화: 숫자만 + 11자리 max
   const normalizePhone = (val) => String(val || "").replace(/\D/g, "").slice(0, 11);
 
-  // RPC 응답 user → app user 정규화 (role / userId 호환)
-  const buildAppUser = (rpcUser, dbRole) => {
-    const appRole = DB_TO_APP_ROLE[dbRole] || dbRole;
-    return {
-      ...rpcUser,
-      userId: rpcUser.code || rpcUser.user_id,    // 옛 컴포넌트 호환 (userId 박은 영역 박은 영역)
-      role: appRole,                              // App.jsx switch 박은 영역
-      dbRole,                                     // 디버깅용 (원본 DB role)
-      name: rpcUser.name,
-      phone: rpcUser.phone,
-      engineerId: rpcUser.code && String(rpcUser.code).startsWith("E") ? rpcUser.code : undefined,
-      // 2026-05-23 — partner role 측 사용자 측 측 principal 목록 측 (Migration 057 측)
-      //   PrincipalApp 측 user.principals 측 catch 측 (예: 유솔홈케어 통합계정 = usol_h + usol_n)
-      principals: Array.isArray(rpcUser.principals) ? rpcUser.principals : [],
-    };
-  };
+  // RPC 응답 user → app user 정규화 (lib/roles.js 공용 — App.jsx 와 같은 로직).
+  const buildAppUser = (rpcUser, dbRole) => buildAppUserShared(rpcUser, dbRole);
 
   const handleLogin = async () => {
     setError("");
@@ -116,12 +94,12 @@ export function LoginScreen({ onLogin }) {
         setError("역할이 설정되지 않았습니다 (관리자 문의)");
         return;
       }
-      if (roles.length === 1) {
-        onLogin(buildAppUser(res, roles[0]), false);
-        return;
-      }
-      // 여러 role (예: E022 = admin + engineer) → 선택 모달
-      setRoleSelect({ open: true, user: res });
+      // 2026-06-06 — 다중 role 사용자도 primary (roles[0]) 측 즉시 로그인.
+      //   sign_in_with_phone (Mig 057) 측 user_roles.is_primary DESC 정렬 측 반환.
+      //   → roles[0] = primary. 조동욱·구현서 측 'engineer' 측 primary 측 프로 측 측 진입.
+      //   다른 role 측 측 측 측 RoleSwitcher (헤더 토글) 측 측 측 — 측 로그인 불필요.
+      //   roles[] 전체 측 buildAppUser ...rpcUser spread 측 저장 → App.jsx handleSwitchRole 측 사용.
+      onLogin(buildAppUser(res, roles[0]), false);
     } catch (e) {
       setError(e?.message || "로그인 실패 (네트워크)");
     } finally {
