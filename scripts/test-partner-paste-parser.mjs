@@ -234,6 +234,24 @@ unitRegion("    구 없음, 시만",         "관악구서림3길19",           
 unitRegion("    빈 주소",               "",                              "");
 unitRegion("    번지만",                "17번지 17",                     "");
 
+// v2 보강 — 광역시·도 접두 strip + 붙어쓰기.
+console.log("\n──── 지역 v2 — 광역시·도 접두 strip + 붙어쓰기 ────");
+unitRegion("    서울특별시 마포구 ...",  "서울특별시 마포구 합정동 12-3",  "마포구");
+unitRegion("    서울특별시마포구 (붙)",  "서울특별시마포구합정동12-3",     "마포구");
+unitRegion("    경기도 남양주시",        "경기도 남양주시 평내동 123-4",   "남양주시");
+unitRegion("    경기도남양주시 (붙)",    "경기도남양주시평내동123-4",      "남양주시");
+unitRegion("    경기도 가평군",          "경기도 가평군 청평면",            "가평군");
+unitRegion("    경기도가평군 (붙)",      "경기도가평군청평면",              "가평군");
+unitRegion("    인천 부평구",            "인천 부평구 부평동 1",            "부평구");
+unitRegion("    인천부평구 (붙)",        "인천부평구 부평동",               "부평구");
+unitRegion("    인천광역시 부평구",      "인천광역시 부평구",                "부평구");
+unitRegion("    광주광역시 광산구",      "광주광역시 광산구 송정동",         "광산구");
+unitRegion("    광주 광산구 (단독)",     "광주 광산구 송정동",              "광산구");
+unitRegion("    경기도 광주시",          "경기도 광주시 어딘가",            "광주시");
+unitRegion("    종로39길54 (구 X)",      "종로39길54",                      "");
+unitRegion("    충청남도 천안시 동남구", "충청남도 천안시 동남구",          "동남구");   // 구 우선
+unitRegion("    제주특별자치도 제주시",  "제주특별자치도 제주시 노형동",     "제주시");
+
 console.log("\n──── 고객 자동명 생성 (NewReceptionScreenLite autoGenerateCustomer 시뮬) ────");
 function autoGenCustomer(form, region) {
   if (form.customer && form.customer.trim()) return form.customer.trim();
