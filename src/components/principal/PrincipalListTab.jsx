@@ -288,11 +288,23 @@ function ViewQuickFilter({ t, partnerCounts, quickFilter, onQuickFilter, onClear
       {!loading && sorted.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {sorted.map(task => {
+            // 2026-06-06 — fetchAllPrincipalTasks 측 task_items (nested appliance_types/work_types) 측 반환.
+            //   v14NormalizeTask 측 t.task_items 측 X (workItems / summaryItems / workType 측만).
+            //   → task_items 측 workItems shape 측 측 measure normalize 측.
+            //   누락 시 appliance 빈 값 → TaskRow 측 "(—)" 회귀.
+            const workItems = (Array.isArray(task.task_items) ? task.task_items : []).map(it => ({
+              workType:    it.work_types?.name || it.workType || "",
+              appliance:   it.appliance_types?.name || it.appliance || "",
+              qty:         it.qty || 1,
+              serviceCode: it.work_types?.service_types?.code || it.service_code || null,
+              orderType:   it.order_type || it.orderType || null,
+            }));
             const adapted = v14NormalizeTask({
               ...task,
               customer: task.customer_name || task.customer,
               region:   task.district || task.region,
               principal: task.principalCode || task.principal_code || "",
+              workItems,
             });
             return adapted ? <TaskRow key={adapted.id} task={adapted} onClick={() => onSelect(adapted)}/> : null;
           })}
@@ -570,13 +582,24 @@ function TaskRow({ task, onClick }) {
   const status = getStatusBadge(task.status);
   const time = formatTime(task);
   const date = formatDate(task);
-  const items = Array.isArray(task.workItems) ? task.workItems : [];
+  // 2026-06-06 — 두 종류 fetch shape 모두 측측:
+  //   · loadTasksForRole → rowToTask: workItems[] + flat appliance
+  //   · fetchAllPrincipalTasks (카운트박스): task_items[] + nested appliance_types.name
+  const items = Array.isArray(task.workItems) && task.workItems.length > 0
+    ? task.workItems
+    : (Array.isArray(task.task_items) ? task.task_items : []);
   const mainItem = getMainItem(task);
   const displayItem = mainItem || items[0] || {};
-  const appliance = displayItem.appliance || task.appliance || "";
+  const appliance = displayItem.appliance
+    || displayItem.appliance_types?.name
+    || task.appliance
+    || "";
   const qty = displayItem.qty || task.qty || 1;
   const otherCount = Math.max(0, items.length - 1);
-  const applianceText = `(${appliance || "—"}${qty > 1 ? `×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""})`;
+  // 2026-06-06 — appliance 빈 값일 때 "(—)" / 빈 괄호 측, 괄호째 생략.
+  const applianceText = appliance
+    ? `(${appliance}${qty > 1 ? `×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""})`
+    : "";
   const timeStr = [date, time !== "—" ? time : ""].filter(Boolean).join(" ");
 
   const isCancelled = task.status === "취소";
@@ -606,9 +629,8 @@ function TaskRow({ task, onClick }) {
         fontSize: 11, fontWeight: 400, color: "#888",
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>
-        {applianceText}
-        {task.region ? ` · ${task.region}` : ""}
-        {timeStr && (<>{" · "}<span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span></>)}
+        {[applianceText, task.region].filter(Boolean).join(" · ")}
+        {timeStr && (<>{(applianceText || task.region) ? " · " : ""}<span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span></>)}
       </span>
       {task.assignedEngineer && (
         <span style={{

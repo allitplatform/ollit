@@ -240,13 +240,20 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
   const appliance = mainItem?.appliance_types?.name || mainItem?.appliance || "";
   const qty = mainItem?.qty || 1;
   const otherCount = Math.max(0, items.length - 1);
-  const applianceText = `(${appliance || "—"}${qty > 1 ? `×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""})`;
+  // 2026-06-06 — appliance 빈 값일 때 "(—)" 측 빈 괄호 측 측 측, 괄호째 생략.
+  //   사장님 spec — KA/crikrin 등 원청 작업 측 appliance 비어있는 경우 다수.
+  const applianceText = appliance
+    ? `(${appliance}${qty > 1 ? `×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""})`
+    : "";
 
   // 지역 — district 또는 address 측 catch 측 catch
   const region = task.district || String(task.address || "").split(/\s+/)[0] || "";
 
   // 시간 — scheduled_at 측 catch
   const timeStr = task.scheduled_at ? formatYmdHm(task.scheduled_at) : "";
+
+  // 2026-06-06 — applianceText / region 빈 값일 때 leading " · " 측 측 측 측 측.
+  const beforeTime = [applianceText, region].filter(Boolean).join(" · ");
 
   // 측 catch 측 catch
   const cat = task.category_data || {};
@@ -319,9 +326,8 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
         fontSize: 11, color: "var(--text-secondary)",
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>
-        {applianceText}
-        {region ? ` · ${region}` : ""}
-        {timeStr && (<>{" · "}<span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span></>)}
+        {beforeTime}
+        {timeStr && (<>{beforeTime ? " · " : ""}<span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span></>)}
       </span>
 
       {/* 측 catch 측 catch — 재배정 요청 (핑크 = --accent).
