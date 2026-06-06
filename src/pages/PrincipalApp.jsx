@@ -41,6 +41,8 @@ import { PrincipalListTab } from "../components/principal/PrincipalListTab.jsx";
 import { PrincipalSettleTab } from "../components/principal/PrincipalSettleTab.jsx";
 // 2026-06-06 — KA/crikrin 일정산 화면 (PartnerDailySettleTab). usol_n/usol_h 측 기존 PrincipalSettleTab 그대로.
 import { PartnerDailySettleTab } from "../components/principal/PartnerDailySettleTab.jsx";
+// 2026-06-06 — usol_h 전용 일정 탭 (날짜/기간 기반 작업 목록). 측 측 측 측 다른 원청 확장 가능 구조.
+import { UsolHScheduleTab } from "../components/principal/UsolHScheduleTab.jsx";
 import { UsolNOrders } from "../components/usol_n/UsolNOrders.jsx";
 import { UsolNCsvMatch } from "../components/usol_n/UsolNCsvMatch.jsx";
 import { NewReceptionScreenLite } from "../components/principal/NewReceptionScreenLite.jsx";
@@ -544,6 +546,7 @@ export default function PrincipalApp({ user, onLogout }) {
                 → 뒤로가기 시 직전 화면(view A/B · filter · search · scroll) 그대로 복원 */}
             <div style={{ display: selectedTask ? "none" : "block" }}>
               {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} partnerCode={partnerCode} onSelect={setSelectedTask}/>}
+              {tab === "schedule" && <UsolHScheduleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
               {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
               {/* 2026-06-06 — KA/crikrin (partnerCode 존재) 측 PartnerDailySettleTab (일정산).
                   usol_n/usol_h 측 기존 PrincipalSettleTab 그대로 (네이버 주차 정산 흐름 무수정). */}
@@ -559,7 +562,7 @@ export default function PrincipalApp({ user, onLogout }) {
         )}
 
         {!selectedTask && !submittedTask && (
-          <BottomNav t={t} tab={tab} onChange={setTab} isPartnerMode={!!partnerConfig}/>
+          <BottomNav t={t} tab={tab} onChange={setTab} isPartnerMode={!!partnerConfig} hasSchedule={principalCodes.some(c => c === "usol_h" || c === "usol_n")}/>
         )}
       </div>
     </div>
@@ -585,9 +588,11 @@ function Header({ t, user }) {
 //   isPartnerMode (KA/crikrin) → "접수" (NewReceptionScreenLite 직접 입력 단일 경로)
 //   유솔(usol_h/usol_n)         → "업로드" (CSV/네이버 시트 업로드 + 수동 입력 혼합 흐름)
 //   Plus 아이콘은 신규 생성 의미로 양쪽 공통 유지.
-function BottomNav({ t, tab, onChange, isPartnerMode }) {
+function BottomNav({ t, tab, onChange, isPartnerMode, hasSchedule }) {
+  // 2026-06-06 — usol_h 측 "일정" 탭 (Calendar). 측 측 측 측 측 — 측 측 측 측 측 측 측 측.
   const tabs = [
     { id: "list",   icon: ClipboardList, label: "내 작업" },
+    ...(hasSchedule ? [{ id: "schedule", icon: Calendar, label: "일정" }] : []),
     { id: "upload", icon: Plus,          label: isPartnerMode ? "접수" : "업로드" },
     { id: "settle", icon: Wallet,        label: "정산" },
     { id: "info",   icon: User,          label: "내 정보" },
