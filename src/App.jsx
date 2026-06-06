@@ -154,7 +154,7 @@ export default function App() {
       case "happycall":
         return <HappycallApp user={currentUser} onLogout={handleLogout} />;
       case "admin":
-        return <AdminApp user={currentUser} onLogout={handleLogout} />;
+        return <AdminApp user={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />;
       case "principal":
         return <PrincipalApp user={currentUser} onLogout={handleLogout} />;
       default:
@@ -165,8 +165,12 @@ export default function App() {
   return (
     <TasksProvider>
       {renderScreen()}
-      {/* 2026-06-06 — engineer+admin 둘 다 가진 user 측 헤더 토글. 단일 role 측 null 반환. */}
-      {currentUser && <RoleSwitcher user={currentUser} onSwitch={handleSwitchRole}/>}
+      {/* 2026-06-06 — engineer+admin 측 측측 토글.
+          admin 측측 측측 AdminApp 헤더 inline (잘림 방지) → 측측측 측측 X.
+          engineer / 측측 측측 측측 측측측 측측 top-right 작은 pill. */}
+      {currentUser && currentUser.role !== "admin" && (
+        <RoleSwitcher user={currentUser} onSwitch={handleSwitchRole} floating/>
+      )}
       {/* PWA 자동 안내 모달 — 1.5초 후 / standalone X / 24시간 dismiss / 카톡 외 인앱 catch */}
       <PWAInstallPrompt/>
     </TasksProvider>

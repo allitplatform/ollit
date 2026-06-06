@@ -14,6 +14,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { OllitMark } from "../components/OllitMark.jsx";
+import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
 import { EngineerBadge } from "../components/EngineerBadge.jsx";
 import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
 // 2026-05-19 Phase 5 Step 0.C-4 — 변경 이력 audit log (Migration 039)
@@ -1792,6 +1793,10 @@ const FontStyle = (
     .mono { font-family: inherit; }
     .clickable { cursor: pointer; transition: all 0.15s; }
     .clickable:active { opacity: 0.7; transform: scale(0.98); }
+    /* 2026-06-06 — 측측 화면: 헤더 부제 측측 (역할 토글 자리 확보) */
+    @media (max-width: 420px) {
+      .brand-subtitle { display: none; }
+    }
   `}</style>
 );
 
@@ -1823,7 +1828,7 @@ function Shell({ t, toasts, children }) {
 // 메인 export — 화면 분기 (모달 state)
 // ============================================
 
-export default function AdminApp({ user, onLogout }) {
+export default function AdminApp({ user, onLogout, onSwitchRole }) {
   const [mode, setMode] = useState(() => loadThemeSaved());
   // 테마 변경 시 CSS 변수 + body 배경 + localStorage 저장
   useEffect(() => {
@@ -3669,6 +3674,7 @@ export default function AdminApp({ user, onLogout }) {
       t={t} mode={mode} setMode={setMode}
       onLogout={onLogout}
       user={user}
+      onSwitchRole={onSwitchRole}
       dynamicStats={dynamicStats}
       apiTasks={apiTasks}
       apiEngineers={apiEngineers}
@@ -3774,7 +3780,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onEngineerClick, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -3797,12 +3803,15 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, dynamicStats, apiTa
 
   return (
     <div className="fade-in">
-      {/* 상단 헤더 — 올잇 마크 + 메타 + 테마 토글 + 로그아웃 */}
+      {/* 상단 헤더 — 올잇 마크 + 메타 + 역할 토글 + 테마 토글 + 로그아웃 */}
       <div style={{ position: "sticky", top: 0, zIndex: 200, background: "var(--bg-primary)", backdropFilter: "blur(20px)", borderBottom: `1px solid ${t.border}`, padding: "10px 12px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <OllitMark size={20} color={t.accent}/>
-          <span style={{ fontSize: 14, fontWeight: 700, color: t.text, letterSpacing: -0.2 }}>올잇</span>
-          <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>· 현장과 사람을 잇는</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: t.text, letterSpacing: -0.2, flexShrink: 0 }}>올잇</span>
+          {/* 2026-06-06 — 부제는 좁은 화면(<420px) 측측: 토글 자리 확보 */}
+          <span className="brand-subtitle" style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>· 현장과 사람을 잇는</span>
+          {/* 2026-06-06 — 역할 전환 토글 (engineer+admin 측 측측). 단일 role 측 null 반환 */}
+          {onSwitchRole && <RoleSwitcher user={user} onSwitch={onSwitchRole}/>}
           <div style={{ flex: 1 }}/>
           {Object.entries(THEMES).map(([key, theme]) => {
             const Icon = theme.icon;
