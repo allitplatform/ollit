@@ -105,6 +105,7 @@ import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
 import { reportEngineerRemit, reportUsolRemit } from "../lib/paymentsDb.js";
 // Round 3 — Migration 076 RPC (anon 키 + p_actor 패턴, 옛 requestCancelAdapter 경로 우회)
 import { requestEngineerCancel } from "../lib/engineerTaskRpc.js";
+import { getOpsPhone } from "../lib/tenantSettingsDb.js";
 import { UsolNSettlementScreen } from "../components/UsolNSettlementScreen.jsx";
 import { ConfirmModal } from "../components/ConfirmModal.jsx";
 // V13-FINAL2-fix1 신규 화면
@@ -3695,6 +3696,18 @@ function extractTimeHint(hint) {
 export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   // V13-1-fix — localStorage 모드 로드 + CSS 변수 적용
   const [mode, setMode] = useState(() => loadThemeSaved());
+  // 2026-06-07 — tenants.ops_phone 마운트 1회 로드 (운영팀 전화 버튼).
+  //   값 없으면 null → EngineerMeTab 측 버튼 숨김 (더미 번호 클릭 방지).
+  const [opsPhone, setOpsPhone] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    getOpsPhone().then(res => {
+      if (!alive) return;
+      if (res.ok && res.phone) setOpsPhone(res.phone);
+    });
+    return () => { alive = false; };
+  }, []);
+
   // 2026-05-25 — 유솔 입금 카드: usol_n principal 계좌 정보 (마운트 1회 fetch).
   const [usolAccount, setUsolAccount] = useState(null);
   useEffect(() => {
@@ -4687,7 +4700,15 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
     setOffDayModalOpen(false);
     showToast(payload?.type === "hourly" ? "시간 휴무가 추가됐습니다." : "휴무가 추가됐습니다.");
   }
-  function handleCallOps() { window.location.href = "tel:01012345678"; }
+  // 2026-06-07 — tenants.ops_phone 사용. 숫자만 추출, 값 없으면 호출 안 함.
+  //   ★ 더미("01012345678") 하드코딩 폐기. opsPhone null 이면 EngineerMeTab 측
+  //     onContactOps={null} 받아 버튼 자체 숨김 (=호출 함수 자체가 미연결).
+  function handleCallOps() {
+    if (!opsPhone) return;
+    const digits = String(opsPhone).replace(/[^0-9]/g, "");
+    if (!digits) return;
+    window.location.href = `tel:${digits}`;
+  }
   function handleChatOps() { alert("운영팀 채팅"); }
   // Step 5-8 F-5 + hotfix — 시트 양방향 sync (시트 H/I 컬럼 + saveEngineerWithSync)
   // 옛 동작 보존: setSavedAccount + resetTo (UI 즉시) / 시트 sync는 best-effort
@@ -4982,7 +5003,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             engineer={engineerProfileMerged}
             theme={mode}
             onChangeTheme={(value) => setMode(value)}
-            onContactOps={handleCallOps}
+            onContactOps={opsPhone ? handleCallOps : null}
             onChangeAccount={() => setScreen("accountEdit")}
             onRegions={() => setScreen("regionChange")}
             onLogout={onLogout}

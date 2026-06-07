@@ -315,20 +315,22 @@ export function EngineerMeTab({
           }}>
             💬 운영팀 문의
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-            <button onClick={onContactOps} style={{
-              background: "#34C759",
-              color: "#fff",
-              border: "none",
-              padding: 14,
-              borderRadius: 12,
-              fontSize: 14, fontWeight: 700,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            }}>
-              📞 전화
-            </button>
+          <div style={{ display: "grid", gridTemplateColumns: onContactOps ? "1fr 1fr" : "1fr", gap: 8 }}>
+            {onContactOps && (
+              <button onClick={onContactOps} style={{
+                background: "#34C759",
+                color: "#fff",
+                border: "none",
+                padding: 14,
+                borderRadius: 12,
+                fontSize: 14, fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+              }}>
+                📞 전화
+              </button>
+            )}
             <button onClick={handleKakao} style={{
               background: "#FEE500",
               border: "none",

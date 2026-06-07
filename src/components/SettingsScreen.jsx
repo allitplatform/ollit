@@ -20,6 +20,7 @@ import {
   getPermissionState,
   getCurrentSubscription,
 } from "../utils/pushNotification.js";
+import { getOpsPhone, setOpsPhone } from "../lib/tenantSettingsDb.js";
 
 // V14 Step 4.3 — AdminApp 전용 글자 크기 (EngineerApp 옛 키 'ollit_font_size' 박지 X)
 // 새 키: 'ollit_admin_font_size'
@@ -87,6 +88,41 @@ export function SettingsScreen({
   function showPushToast(msg) {
     setPushToast(msg);
     setTimeout(() => setPushToast(null), 2800);
+  }
+
+  // 2026-06-07 — 운영팀 전화번호 (tenants.ops_phone, Mig 104).
+  //   기사 PWA "📞 전화" 버튼이 이 값으로 tel: 링크 구성. 빈 값이면 버튼 숨김.
+  const [opsPhoneInput, setOpsPhoneInput]   = useState("");
+  const [opsPhoneSaved, setOpsPhoneSaved]   = useState("");
+  const [opsPhoneBusy,  setOpsPhoneBusy]    = useState(false);
+  const [opsPhoneMsg,   setOpsPhoneMsg]     = useState(null);
+  useEffect(() => {
+    let alive = true;
+    getOpsPhone().then(res => {
+      if (!alive) return;
+      const p = res.phone || "";
+      setOpsPhoneInput(p);
+      setOpsPhoneSaved(p);
+    });
+    return () => { alive = false; };
+  }, []);
+  async function handleSaveOpsPhone() {
+    if (opsPhoneBusy) return;
+    setOpsPhoneBusy(true);
+    setOpsPhoneMsg(null);
+    try {
+      const res = await setOpsPhone(opsPhoneInput);
+      if (!res.ok) {
+        setOpsPhoneMsg({ type: "error", text: res.error || "저장 실패" });
+      } else {
+        const next = res.phone || "";
+        setOpsPhoneSaved(next);
+        setOpsPhoneMsg({ type: "ok", text: next ? "✓ 저장됨" : "✓ 번호가 비워졌어요 (기사 앱 버튼 숨김)" });
+        setTimeout(() => setOpsPhoneMsg(null), 2500);
+      }
+    } finally {
+      setOpsPhoneBusy(false);
+    }
   }
 
   async function handlePushToggle() {
@@ -232,6 +268,63 @@ export function SettingsScreen({
               sub={item.sub}
               onClick={item.onClick}
             />)}
+            {/* 2026-06-07 — 운영팀 전화번호 (Mig 104). 권한자(menu.users)만 표시. */}
+            {hasPermission(currentUser, "menu.users") && (
+              <div style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: "12px 14px",
+                marginTop: 8,
+              }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 6 }}>
+                  📞 운영팀 전화번호
+                </div>
+                <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 8, lineHeight: 1.5 }}>
+                  기사 앱 "내 정보 → 📞 전화" 버튼이 거는 번호. 비우면 버튼 자체가 숨겨져요.
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    type="tel"
+                    value={opsPhoneInput}
+                    onChange={(e) => setOpsPhoneInput(e.target.value)}
+                    placeholder="예: 010-1234-5678"
+                    style={{
+                      flex: 1,
+                      padding: "8px 10px",
+                      fontSize: 13,
+                      border: "1px solid var(--border)",
+                      borderRadius: 8,
+                      background: "var(--bg-secondary)",
+                      color: "var(--text-primary)",
+                      fontFamily: "inherit",
+                      outline: "none",
+                    }}
+                  />
+                  <button
+                    onClick={handleSaveOpsPhone}
+                    disabled={opsPhoneBusy || opsPhoneInput === opsPhoneSaved}
+                    style={{
+                      padding: "8px 14px",
+                      fontSize: 12, fontWeight: 700,
+                      border: "none", borderRadius: 8,
+                      background: opsPhoneBusy || opsPhoneInput === opsPhoneSaved ? "var(--bg-secondary)" : "#FF1B8D",
+                      color: opsPhoneBusy || opsPhoneInput === opsPhoneSaved ? "var(--text-secondary)" : "#fff",
+                      cursor: opsPhoneBusy || opsPhoneInput === opsPhoneSaved ? "default" : "pointer",
+                      fontFamily: "inherit",
+                    }}>
+                    {opsPhoneBusy ? "저장 중..." : "저장"}
+                  </button>
+                </div>
+                {opsPhoneMsg && (
+                  <div style={{
+                    marginTop: 6, fontSize: 11,
+                    color: opsPhoneMsg.type === "ok" ? "#059669" : "#DC2626",
+                    fontWeight: 600,
+                  }}>{opsPhoneMsg.text}</div>
+                )}
+              </div>
+            )}
           </Section>
         )}
 
