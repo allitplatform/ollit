@@ -266,7 +266,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         />
       )}
       {/* 카드 5 — 작업 시간 · 이력 통합 */}
-      <WorkTimeHistoryCard task={task}/>
+      <WorkTimeHistoryCard task={task} onTaskRefresh={refetchTaskBasic}/>
       {/* 카드 6 — 요청사항 · 메모 */}
       <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
       {/* 2026-05-29 v2 (D6) — CancelInfoCard 폐기. 변경 이력 카드 측 cancel 이벤트 빨강 강조로 대체. */}
@@ -861,7 +861,7 @@ function TaskItemsCard({ task }) {
 
 // ──────────────── 카드 5 — WorkTimeHistoryCard (Phase 5 Step 0.C-4) ────────────────
 // 작업 시간 (startedAt~completedAt + duration) + 진행 5단계 TimestampHistory + 변경 이력 TaskChangesSection
-function WorkTimeHistoryCard({ task }) {
+function WorkTimeHistoryCard({ task, onTaskRefresh }) {
   if (task.type === "external") return null;
 
   const startedAt   = task.startedAt;
@@ -905,7 +905,7 @@ function WorkTimeHistoryCard({ task }) {
 
         {/* 2026-06-07 — 취소 정보 입력 카드 (status='취소' 일 때만 표시, 변경 이력 위) */}
         {task.status === "취소" && (
-          <CancelInfoCard task={task} onSaved={refetchTaskBasic}/>
+          <CancelInfoCard task={task} onSaved={onTaskRefresh}/>
         )}
 
         {/* 변경 이력 (task_changes) — 2026-05-29 v2: task 객체 전달 (synthetic cancel row 옛 작업 fallback) */}
