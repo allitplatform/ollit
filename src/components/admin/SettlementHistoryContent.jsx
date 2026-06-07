@@ -1,22 +1,30 @@
 // ============================================
 // SettlementHistoryContent — 운영자 "입금 내역" 화면
 // 2026-05-22 — 회사 송금 통장 내역 (조회 전용)
+// 2026-06-07 — 미입금/연체 표시 추가 (사장님 spec): outstanding 가시성 갭 보완.
 //
 // 구조: 날짜 그룹 > 기사 묶음(접기/펼치기) > 세부 작업 행 (3단)
 //
 // 기준 dataset:
-//   · 트랙 🅐 (isTrackARemittance) 작업 중 engineerRemittedAt 또는 engineerRemitConfirmedAt 이 존재
-//   · 날짜 기준: engineerRemitConfirmedAt 우선 → 없으면 engineerRemittedAt (둘 다 KST yyyy-mm-dd)
+//   · 트랙 🅐 (isTrackARemittance) 완료 작업 전부 (remit date 없어도 포함).
+//   · 날짜 기준:
+//       (a) 정산건 (remit/confirm 있음): engineerRemitConfirmedAt → engineerRemittedAt
+//       (b) 미정산: completedAt KST (toKstYmd)
 //
 // 행당 금액: 송금액 = totalAmount - engineer_amount
 //   · totalAmount = product_price + extra_fee + travel_fee (DB GENERATED)
 //   · engineer_amount = compute_payment v14 가 계산한 기사 몫
 //   · 회사가 보유/원청에 송금하는 합계 = principal_amount + owner_amount = totalAmount - engineer_amount
 //
-// 기사 묶음 통합 상태 (메인 탭 computeGroupStatus 패턴, 3상태):
-//   · confirmed = 모든 작업 운영자 확인 완료
-//   · reported  = 모든 작업 기사 입금 보고 완료 (확인 대기)
-//   · pending   = 그 외 (미입금 포함)
+// 상태 — 4종 (사장님 spec 2026-06-07):
+//   · confirmed (입금 완료) = engineer_remit_confirmed_at 있음 — 초록
+//   · reported (확인 대기)  = engineer_remitted_at 있고 confirmed 없음 — 파랑
+//   · overdue (연체)        = 둘 다 NULL & 현재 > 완료일 23:00 KST — 빨강
+//   · pending (미입금)      = 둘 다 NULL & 마감 전 — 회색
+//
+// 합계 분리 (사장님 spec):
+//   · 송금액 (상단)       = confirmed + reported 만 합산
+//   · 미입금 N건 ₩Z (별도) = pending + overdue 만 합산
 //
 // 검색: 기사명 + 고객명 + 작업번호 부분 일치 (소문자 비교)
 //
@@ -29,28 +37,45 @@ import { isTrackARemittance } from "../../utils/remitFilter.js";
 import { toKstYmd } from "../../utils/dateLabel.js";
 
 // ──────────────────────────────────────────────
-// 헬퍼: 행 날짜(confirmed 우선, 없으면 reported)
+// 헬퍼: 행 날짜
+//   (a) 정산건 = confirmed > reported
+//   (b) 미정산 = completedAt (KST 그룹/정렬 기준)
 // ──────────────────────────────────────────────
 function pickRowDate(task) {
   return task.engineerRemitConfirmedAt
       || task.engineer_remit_confirmed_at
       || task.engineerRemittedAt
       || task.engineer_remitted_at
+      || task.completedAt
+      || task.completed_at
       || null;
 }
 
-// 상태 (단일 task 기준).
+// 미정산 마감 시각 (완료일 23:00 KST). NULL → null.
+function unpaidDeadline(task) {
+  const completedKst = toKstYmd(task.completedAt || task.completed_at);
+  if (!completedKst) return null;
+  return new Date(`${completedKst}T23:00:00+09:00`);
+}
+
+// 상태 (단일 task 기준) — 4종.
+//   confirmed (입금 완료) / reported (확인 대기) / overdue (연체) / pending (미입금)
 function pickRowStatus(task) {
   if (task.engineerRemitConfirmedAt || task.engineer_remit_confirmed_at) return "confirmed";
   if (task.engineerRemittedAt       || task.engineer_remitted_at)       return "reported";
+  const dl = unpaidDeadline(task);
+  if (dl && new Date() > dl) return "overdue";
   return "pending";
 }
 
-// 묶음 통합 상태 (메인 탭 computeGroupStatus 와 동일 패턴, 3상태).
+// 묶음 통합 상태 — 4종.
+//   모두 confirmed → confirmed / 모두 reported → reported /
+//   1건 이상 overdue → overdue / 그 외 → pending
 function computeSubGroupStatus(tasks) {
   if (!Array.isArray(tasks) || tasks.length === 0) return "pending";
   if (tasks.every(t => t.engineerRemitConfirmedAt || t.engineer_remit_confirmed_at)) return "confirmed";
   if (tasks.every(t => t.engineerRemittedAt       || t.engineer_remitted_at))       return "reported";
+  if (tasks.some(t  => pickRowStatus(t) === "overdue")) return "overdue";
   return "pending";
 }
 
@@ -93,10 +118,12 @@ function dateLabel(ymd) {
 // 상태 배지 — 테마 토큰 (라이트/다크 대응)
 // ──────────────────────────────────────────────
 function StatusBadge({ status, t }) {
+  // 2026-06-07 — 4종으로 확장 (overdue 추가). 라이트/다크 테마 토큰 그대로.
   const MAP = {
-    pending:   { Icon: AlertTriangle, fg: t.textMuted, bg: t.bgInset,   bd: t.borderStrong,  label: "미입금" },
-    reported:  { Icon: Clock,         fg: t.info,      bg: t.infoBg,    bd: `${t.info}33`,   label: "확인 대기" },
-    confirmed: { Icon: CheckCircle2,  fg: t.success,   bg: t.successBg, bd: t.successBorder, label: "입금 완료" },
+    pending:   { Icon: AlertTriangle, fg: t.textMuted, bg: t.bgInset,    bd: t.borderStrong,  label: "미입금" },
+    overdue:   { Icon: AlertTriangle, fg: t.danger,    bg: t.dangerBg,   bd: t.dangerBorder,  label: "연체" },
+    reported:  { Icon: Clock,         fg: t.info,      bg: t.infoBg,     bd: `${t.info}33`,   label: "확인 대기" },
+    confirmed: { Icon: CheckCircle2,  fg: t.success,   bg: t.successBg,  bd: t.successBorder, label: "입금 완료" },
   };
   const cfg = MAP[status] || MAP.pending;
   const Icon = cfg.Icon;
@@ -123,7 +150,8 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
   const [searchQuery, setSearchQuery] = useState("");
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
 
-  // base: 트랙 🅐 + (보고 OR 확인) 이력 있는 task
+  // base: 트랙 🅐 완료건 전부 (remit date 없는 미정산도 포함 — 2026-06-07 사장님 spec).
+  //   날짜 정렬/그룹은 pickRowDate (정산건=remit/confirm, 미정산=completedAt).
   const base = useMemo(() => {
     return (apiTasks || []).filter(task => {
       if (!isTrackARemittance(task)) return false;
@@ -141,9 +169,15 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
     });
   }, [base, monthFilter]);
 
-  // 상태 필터 적용
+  // 상태 필터 적용 — "unpaid" 칩은 pending + overdue 둘 다 포함 (2026-06-07).
   const statusFiltered = useMemo(() => {
     if (statusFilter === "all") return monthFiltered;
+    if (statusFilter === "unpaid") {
+      return monthFiltered.filter(task => {
+        const s = pickRowStatus(task);
+        return s === "pending" || s === "overdue";
+      });
+    }
     return monthFiltered.filter(task => pickRowStatus(task) === statusFilter);
   }, [monthFiltered, statusFilter]);
 
@@ -184,15 +218,26 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
       ]);
   }, [filtered]);
 
-  // 합계 (필터된 범위)
+  // 합계 분리 (2026-06-07 사장님 spec):
+  //   · totalRemit  = confirmed + reported (실제 입금)
+  //   · unpaidAmount = pending + overdue (미입금 — 받은 돈 X)
   const summary = useMemo(() => {
     let count = 0;
     let totalRemit = 0;
+    let unpaidCount = 0;
+    let unpaidAmount = 0;
     for (const task of filtered) {
       count++;
-      totalRemit += calcRemitAmount(task);
+      const amt = calcRemitAmount(task);
+      const s = pickRowStatus(task);
+      if (s === "pending" || s === "overdue") {
+        unpaidCount++;
+        unpaidAmount += amt;
+      } else {
+        totalRemit += amt;
+      }
     }
-    return { count, totalRemit };
+    return { count, totalRemit, unpaidCount, unpaidAmount };
   }, [filtered]);
 
   const hasSearch = searchQuery.trim().length > 0;
@@ -270,6 +315,7 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
         <div style={{ width: 1, background: t.border, margin: "0 4px" }}/>
         {[
           { k: "all",       lbl: "전체" },
+          { k: "unpaid",    lbl: "미입금" },
           { k: "reported",  lbl: "확인 대기" },
           { k: "confirmed", lbl: "입금 완료" },
         ].map(opt => {
@@ -303,6 +349,14 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
               <span style={{ color: t.textDim, margin: "0 6px" }}>·</span>
               송금액 <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(summary.totalRemit)}</span>
             </div>
+            {/* 2026-06-07 — 미입금 별도 라인 (송금액 합계에 섞지 X) */}
+            {summary.unpaidCount > 0 && (
+              <div style={{ fontSize: 11, color: t.danger, marginTop: 2, fontWeight: 600 }}>
+                미입금 <span className="mono" style={{ fontWeight: 800 }}>{summary.unpaidCount}</span>건
+                <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
+                <span className="mono" style={{ fontWeight: 800 }}>{fmtKRW(summary.unpaidAmount)}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -345,7 +399,14 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
 function DateSection({ t, ymd, engineerGroups, fmtKRW, onTaskClick, defaultSubOpen }) {
   const [open, setOpen] = useState(true);
   const allTasks = engineerGroups.flatMap(([, tasks]) => tasks);
-  const sectionTotal = allTasks.reduce((s, task) => s + calcRemitAmount(task), 0);
+  // 2026-06-07 — 송금액 = confirmed/reported만. 미입금은 별도.
+  let sectionRemit = 0, sectionUnpaid = 0, sectionUnpaidCount = 0;
+  for (const task of allTasks) {
+    const amt = calcRemitAmount(task);
+    const s = pickRowStatus(task);
+    if (s === "pending" || s === "overdue") { sectionUnpaid += amt; sectionUnpaidCount++; }
+    else                                     { sectionRemit  += amt; }
+  }
 
   return (
     <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
@@ -362,10 +423,17 @@ function DateSection({ t, ymd, engineerGroups, fmtKRW, onTaskClick, defaultSubOp
             {dateLabel(ymd)}
           </div>
           <div style={{ flex: 1 }}/>
-          <div style={{ fontSize: 11, color: t.textSecondary }}>
-            <span className="mono" style={{ fontWeight: 700, color: t.text }}>{allTasks.length}</span>건
-            <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
-            <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(sectionTotal)}</span>
+          <div style={{ fontSize: 11, color: t.textSecondary, textAlign: "right" }}>
+            <div>
+              <span className="mono" style={{ fontWeight: 700, color: t.text }}>{allTasks.length}</span>건
+              <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
+              <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(sectionRemit)}</span>
+            </div>
+            {sectionUnpaidCount > 0 && (
+              <div style={{ fontSize: 10, color: t.danger, fontWeight: 600, marginTop: 1 }}>
+                미입금 <span className="mono">{sectionUnpaidCount}</span>건 · <span className="mono">{fmtKRW(sectionUnpaid)}</span>
+              </div>
+            )}
           </div>
           {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
         </div>
@@ -395,7 +463,14 @@ function DateSection({ t, ymd, engineerGroups, fmtKRW, onTaskClick, defaultSubOp
 // ──────────────────────────────────────────────
 function EngineerSubGroup({ t, engineer, tasks, fmtKRW, onTaskClick, defaultOpen }) {
   const [open, setOpen] = useState(!!defaultOpen);
-  const subTotal = tasks.reduce((s, task) => s + calcRemitAmount(task), 0);
+  // 2026-06-07 — 송금액 합계 = confirmed/reported만. 미입금 별도.
+  let subRemit = 0, subUnpaid = 0, subUnpaidCount = 0;
+  for (const task of tasks) {
+    const amt = calcRemitAmount(task);
+    const s = pickRowStatus(task);
+    if (s === "pending" || s === "overdue") { subUnpaid += amt; subUnpaidCount++; }
+    else                                     { subRemit  += amt; }
+  }
   const subStatus = computeSubGroupStatus(tasks);
 
   return (
@@ -415,9 +490,16 @@ function EngineerSubGroup({ t, engineer, tasks, fmtKRW, onTaskClick, defaultOpen
             <span className="mono" style={{ fontWeight: 700, color: t.text }}>{tasks.length}</span>건
           </span>
           <div style={{ flex: 1 }}/>
-          <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>
-            {fmtKRW(subTotal)}
-          </span>
+          <div style={{ textAlign: "right" }}>
+            <div className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>
+              {fmtKRW(subRemit)}
+            </div>
+            {subUnpaidCount > 0 && (
+              <div style={{ fontSize: 10, color: t.danger, fontWeight: 600, whiteSpace: "nowrap" }}>
+                미입금 {fmtKRW(subUnpaid)}
+              </div>
+            )}
+          </div>
           {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
         </div>
       </button>
@@ -447,16 +529,25 @@ function TaskRow({ t, task, fmtKRW, onClick }) {
   const amount = calcRemitAmount(task);
   const customer = task.customer || "—";
   const taskNo = task.taskNo || task.taskCode || "";
+  // 2026-06-07 — 행별 상태 + 미입금 측측 측측 (연체 측측 측측 측측 측측 색).
+  const status = pickRowStatus(task);
+  const isUnpaid = status === "pending" || status === "overdue";
+  const isOverdue = status === "overdue";
+  const amountColor = isUnpaid ? t.danger : t.accent;
 
   return (
     <div
       onClick={onClick}
       className="clickable"
       style={{
-        padding: "7px 10px", background: t.bgElevated, borderRadius: 6,
+        padding: "7px 10px",
+        background: t.bgElevated,
+        borderRadius: 6,
+        border: isOverdue ? `1px solid ${t.dangerBorder}` : "1px solid transparent",
         display: "flex", alignItems: "center", gap: 8, cursor: "pointer",
       }}
     >
+      <StatusBadge status={status} t={t}/>
       <span style={{ fontSize: 12, fontWeight: 700, color: t.text, whiteSpace: "nowrap" }}>{customer}</span>
       <span style={{ fontSize: 11, color: t.textMuted, whiteSpace: "nowrap" }}>
         ({itemSummary})
@@ -467,7 +558,7 @@ function TaskRow({ t, task, fmtKRW, onClick }) {
         </span>
       )}
       <div style={{ flex: 1 }}/>
-      <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>
+      <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: amountColor, whiteSpace: "nowrap" }}>
         {fmtKRW(amount)}
       </span>
     </div>
