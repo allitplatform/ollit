@@ -24,6 +24,7 @@ import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
 import { getUserById } from "../data/users.js";
 // 2026-05-29 v2 — 이름 위주 표시 (D2) + 한국어 사유/원청 라벨
 import { getCancelReasonLabel, getCancelActorLabel } from "../data/cancelReasons.js";
+import { setTaskCancelInfo } from "../lib/cancelRpc.js";
 // Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
 import { listPhotosByTask } from "../lib/photosDb.js";
 // Phase 5 Step 0.C-3-c — 상태 변경 이력 (status_history 테이블) — 0.C-4 측 task_changes 통합으로 사용 제거
@@ -902,6 +903,11 @@ function WorkTimeHistoryCard({ task }) {
           <TimestampRows task={task}/>
         </div>
 
+        {/* 2026-06-07 — 취소 정보 입력 카드 (status='취소' 일 때만 표시, 변경 이력 위) */}
+        {task.status === "취소" && (
+          <CancelInfoCard task={task} onSaved={refetchTaskBasic}/>
+        )}
+
         {/* 변경 이력 (task_changes) — 2026-05-29 v2: task 객체 전달 (synthetic cancel row 옛 작업 fallback) */}
         <TaskChangesSection task={task}/>
       </div>
@@ -938,6 +944,135 @@ function D4TimeRow({ label, value }) {
       <span className="mono" style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 600 }}>
         {value || "—"}
       </span>
+    </div>
+  );
+}
+
+// 2026-06-07 — 취소 정보 입력 카드 (Mig 098 set_task_cancel_info RPC).
+//   status='취소' 일 때만 표시. 취소자 4종 선택 + 사유 입력 + 저장.
+//   기존 cancelActor/cancelReason prefill. 저장 → 부모가 task 재조회.
+function CancelInfoCard({ task, onSaved }) {
+  const cat = task?.categoryData || {};
+  const [actorKind, setActorKind] = useState(task?.cancelActor || cat.cancelActor || "");
+  const [reason, setReason] = useState(task?.cancelReason || cat.cancelReason || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  // task 변경 시 prefill 갱신 (재조회 후 server state 반영).
+  useEffect(() => {
+    setActorKind(task?.cancelActor || task?.categoryData?.cancelActor || "");
+    setReason(task?.cancelReason || task?.categoryData?.cancelReason || "");
+    setError("");
+  }, [task?.id, task?.cancelActor, task?.cancelReason]);
+
+  async function handleSave() {
+    setError("");
+    if (!actorKind) { setError("취소자를 선택해주세요"); return; }
+    if (!String(reason).trim()) { setError("사유를 입력해주세요"); return; }
+    setSaving(true);
+    try {
+      const res = await setTaskCancelInfo({ taskId: task.id, actorKind, reason });
+      if (!res || res.ok === false) {
+        const raw = String((res && res.error) || "").toLowerCase();
+        if (raw.includes("could not find") || raw.includes("does not exist") || raw.includes("pgrst202") || raw.includes("function") && raw.includes("not exist")) {
+          setError("RPC 미배포 — 사장님 SQL 실행 필요 (Migration 098)");
+        } else {
+          setError((res && res.error) || "저장 실패");
+        }
+        return;
+      }
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1500);
+      onSaved && onSaved();
+    } catch (e) {
+      setError(e?.message || "저장 중 오류");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const KIND_OPTIONS = [
+    { v: "operator", label: "운영자" },
+    { v: "partner",  label: "유솔/원청" },
+    { v: "engineer", label: "기사" },
+    { v: "customer", label: "고객" },
+  ];
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
+        📝 취소 정보
+      </div>
+      <div style={{
+        padding: 10,
+        background: "rgba(220,38,38,0.06)",
+        border: "1px solid rgba(220,38,38,0.18)",
+        borderRadius: 8,
+        display: "flex", flexDirection: "column", gap: 8,
+      }}>
+        <div>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+            취소자
+          </div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+            {KIND_OPTIONS.map(opt => (
+              <button
+                key={opt.v}
+                type="button"
+                onClick={() => setActorKind(opt.v)}
+                style={{
+                  flex: 1, minWidth: 60,
+                  padding: "6px 8px",
+                  fontSize: 12, fontWeight: 700,
+                  border: actorKind === opt.v ? "2px solid #DC2626" : "1px solid var(--border)",
+                  background: actorKind === opt.v ? "rgba(220,38,38,0.12)" : "var(--bg-elevated)",
+                  color: actorKind === opt.v ? "#DC2626" : "var(--text-primary)",
+                  borderRadius: 6, cursor: "pointer",
+                }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+            사유
+          </div>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            placeholder="예: 고객 일정 변경 / 기사 사정 / 차량 사고 등"
+            style={{
+              width: "100%", boxSizing: "border-box",
+              minHeight: 50, padding: 8, fontSize: 12,
+              border: "1px solid var(--border)", borderRadius: 6,
+              background: "var(--bg-elevated)", color: "var(--text-primary)",
+              resize: "vertical", fontFamily: "inherit",
+            }}
+          />
+        </div>
+        {error && (
+          <div style={{ fontSize: 11, color: "#DC2626", fontWeight: 600 }}>⚠️ {error}</div>
+        )}
+        {savedFlash && (
+          <div style={{ fontSize: 11, color: "#059669", fontWeight: 600 }}>✓ 저장됨</div>
+        )}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          style={{
+            padding: "8px 12px",
+            fontSize: 12, fontWeight: 700,
+            border: "none", borderRadius: 6,
+            background: saving ? "var(--bg-secondary)" : "#DC2626",
+            color: saving ? "var(--text-secondary)" : "white",
+            cursor: saving ? "default" : "pointer",
+          }}>
+          {saving ? "저장 중..." : "💾 저장"}
+        </button>
+      </div>
     </div>
   );
 }

@@ -54,6 +54,7 @@ export function getCancelReasonShort(rawReason, maxLen = 12) {
 //   partner: 이름 / 없으면 원청 한국 라벨 / 둘 다 없으면 "—"
 //   operator: 이름 / 없으면 "운영자"
 //   engineer: 이름 / 없으면 "기사"
+//   customer: "고객" (2026-06-07 — Mig 098 4번째 옵션)
 //   그 외: 이름 / 없으면 "—"
 export function getCancelActorLabel({ actor, name, principalCode }) {
   if (actor === "partner") {
@@ -64,6 +65,9 @@ export function getCancelActorLabel({ actor, name, principalCode }) {
   }
   if (actor === "engineer") {
     return name || "기사";
+  }
+  if (actor === "customer") {
+    return "고객";
   }
   return name || "—";
 }

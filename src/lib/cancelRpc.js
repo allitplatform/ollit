@@ -88,6 +88,25 @@ export async function adminPartialCancelItem(itemId, reason) {
   return normalize(r);
 }
 
+// 2026-06-07 — 취소 정보 (cancelActor/cancelReason) 운영자 직접 입력·수정 (Mig 098).
+//   actorKind ∈ 'operator' | 'partner' | 'engineer' | 'customer'
+export async function setTaskCancelInfo({ taskId, actorKind, reason, actor }) {
+  const actorId = actor || currentUserId();
+  if (!actorId) return { ok: false, error: "로그인 필요" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  if (!actorKind || !["operator","partner","engineer","customer"].includes(actorKind)) {
+    return { ok: false, error: "actorKind 는 operator/partner/engineer/customer 중 하나" };
+  }
+  if (!reason || !String(reason).trim()) return { ok: false, error: "사유 없음" };
+  const r = await supabase.rpc("set_task_cancel_info", {
+    p_task_id:    taskId,
+    p_actor_kind: actorKind,
+    p_reason:     String(reason).trim(),
+    p_actor:      actorId,
+  });
+  return normalize(r);
+}
+
 // 운영자 수고비 토글 — 취소된 task 에만. kind: 'visit_fee' | 'none'.
 export async function adminSetCancelCompensation(taskId, kind) {
   const actorId = currentUserId();
