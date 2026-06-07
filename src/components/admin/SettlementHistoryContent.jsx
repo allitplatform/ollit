@@ -154,21 +154,22 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
   const [searchQuery, setSearchQuery] = useState("");
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
 
-  // base: 송금/측측 측측 (출장비 측측) 완료건 전부 (remit date 없는 미정산도 포함 — 2026-06-07 사장님 spec).
-  //   날짜 정렬/그룹은 pickRowDate (정산건=remit/confirm, 미정산=completedAt).
+  // base: 송금/측측 측측 (출장비 측측) 완료건 전부.
+  //   2026-06-07 사장님 spec — 그룹/필터 키는 '측측일자(completedAt KST)' 측측.
+  //   측측 측측 측측 측측 (예: 측측 일괄 처리) → 측 작업의 측측일자측 측측 표시.
   const base = useMemo(() => {
     return (apiTasks || []).filter(task => {
       if (!isRemittanceTarget(task)) return false;
-      return !!pickRowDate(task);
+      return !!(task.completedAt || task.completed_at);
     });
   }, [apiTasks]);
 
-  // 월 필터 적용
+  // 월 필터 적용 — 측측일자 측측 (작업일자).
   const monthFiltered = useMemo(() => {
     if (monthFilter === "all") return base;
     const target = monthFilter === "this" ? nowKstYm() : prevKstYm();
     return base.filter(task => {
-      const ym = (toKstYmd(pickRowDate(task)) || "").slice(0, 7);
+      const ym = (toKstYmd(task.completedAt || task.completed_at) || "").slice(0, 7);
       return ym === target;
     });
   }, [base, monthFilter]);
@@ -201,11 +202,13 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
     });
   }, [statusFiltered, searchQuery]);
 
-  // 날짜별 그룹 (내림차순) — 각 날짜 안에서 기사별 sub-group
+  // 날짜별 그룹 (내림차순) — 각 날짜 안에서 기사별 sub-group.
+  //   2026-06-07 사장님 spec — 그룹 키 측 측측일자(completedAt KST) 측측.
+  //   측측 측측 측측 측측 (예: 측측 일괄 처리) → 측측측 측 작업 측측 측측 측측 측측.
   const dateGroups = useMemo(() => {
     const dateMap = new Map();
     for (const task of filtered) {
-      const ymd = toKstYmd(pickRowDate(task));
+      const ymd = toKstYmd(task.completedAt || task.completed_at);
       if (!ymd) continue;
       if (!dateMap.has(ymd)) dateMap.set(ymd, new Map());
       const engMap = dateMap.get(ymd);
