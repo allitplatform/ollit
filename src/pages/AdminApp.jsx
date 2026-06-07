@@ -120,6 +120,8 @@ import { supabase } from "../lib/supabase.js";
 const _pushedTaskIds = new Set();
 import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { isRemittanceTarget, isPendingRemit } from "../utils/remitFilter.js";
+// 2026-06-07 — KA/crikrin 측측 측측 측측 측측 (정산 탭 측측 측측측).
+import { markPartnerDailyRemit, undoPartnerDailyRemit, describeDailyRemitError, ymdKstToday } from "../lib/partnerDailySettleDb.js";
 import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
 import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
@@ -5973,6 +5975,9 @@ function groupDoneByPrincipal(tasks) {
     if (!map[key]) {
       map[key] = {
         principal: key,
+        // 2026-06-07 — KA/crikrin 측측 측측 측측 측측측 측측 code/id 측측.
+        principalCode: task.principalCode || task.principal_code || "",
+        principalId:   task.principalId   || task.principal_id   || null,
         color: PRINCIPAL_COLORS[key] || "#888780",
         tasks: [],
         total: 0,
@@ -6046,6 +6051,34 @@ function SettlementContent({
     : getTodayDoneTasks();
   const engineerGroups = sortGroupsConfirmedLast(groupDoneByEngineer(doneTasks));
   const principalGroups = groupDoneByPrincipal(doneTasks);
+
+  // 2026-06-07 — KA/crikrin 측측 측측 측측 (principal_daily_remittances) 측측.
+  //   카드 측측 측측 측측 측측 측측 측측 측측 (1측 fetch + 측측측 prop 측 측측 측측 측측).
+  //   actor = currentUser.user_id (UUID).
+  const todayKst = ymdKstToday();
+  const [remitMap, setRemitMap] = useState(new Map());
+  const [reloadTick, setReloadTick] = useState(0);
+  const targetPrincipalIds = useMemo(() => {
+    return principalGroups
+      .filter(g => g.principalCode === "KA" || g.principalCode === "crikrin")
+      .map(g => g.principalId)
+      .filter(Boolean);
+  }, [principalGroups]);
+  useEffect(() => {
+    if (targetPrincipalIds.length === 0) { setRemitMap(new Map()); return; }
+    let alive = true;
+    (async () => {
+      const { data } = await supabase.from("principal_daily_remittances")
+        .select("principal_id, settle_date, remitted_amount, remitted_at, remitted_by")
+        .in("principal_id", targetPrincipalIds)
+        .eq("settle_date", todayKst);
+      if (!alive) return;
+      const m = new Map();
+      for (const r of (data || [])) m.set(r.principal_id, r);
+      setRemitMap(m);
+    })();
+    return () => { alive = false; };
+  }, [targetPrincipalIds.join(","), todayKst, reloadTick]);
 
   function toggle(key) {
     setExpanded((prev) => {
@@ -6131,6 +6164,10 @@ function SettlementContent({
                 open={expanded.has(key)}
                 onToggle={() => toggle(key)}
                 onTaskClick={onTaskClick}
+                user={user}
+                settleDate={todayKst}
+                remitRow={remitMap.get(g.principalId) || null}
+                onRefresh={() => setReloadTick(n => n + 1)}
               />
             );
           })}
@@ -6377,8 +6414,35 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
   );
 }
 
-function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick }) {
+function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick, user, settleDate, remitRow, onRefresh }) {
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
+  // 2026-06-07 — KA/crikrin 측측 측측 측측 (기존 RPC Mig 100). 측측 측측 측측 측측측.
+  const isPartnerRemit = group.principalCode === "KA" || group.principalCode === "crikrin";
+  const remitDone = !!remitRow;
+  const showButton = isPartnerRemit && (group.total || 0) > 0 && !!group.principalId;
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const actor = user?.user_id || user?.userId || user?.id;
+
+  async function handleMark(e) {
+    e.stopPropagation();
+    if (busy || !actor) return;
+    setBusy(true); setErr("");
+    const res = await markPartnerDailyRemit({ principalId: group.principalId, settleDate, amount: group.total, actor });
+    setBusy(false);
+    if (!res?.ok) { setErr(describeDailyRemitError(res?.error) || "처리 실패"); return; }
+    onRefresh && onRefresh();
+  }
+  async function handleUndo(e) {
+    e.stopPropagation();
+    if (busy || !actor) return;
+    if (!window.confirm(`${group.principal} 지급 완료 표시를 취소하시겠습니까?`)) return;
+    setBusy(true); setErr("");
+    const res = await undoPartnerDailyRemit({ principalId: group.principalId, settleDate, actor });
+    setBusy(false);
+    if (!res?.ok) { setErr(describeDailyRemitError(res?.error) || "취소 실패"); return; }
+    onRefresh && onRefresh();
+  }
 
   return (
     <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
@@ -6394,8 +6458,68 @@ function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick }) {
           <span style={{ fontSize: 13 }}>🏢</span>
           <PrincipalLabel name={group.principal}/>
           <div style={{ flex: 1 }}/>
+          {/* 2026-06-07 — KA/crikrin 측측 측측 측측 측측 (프로 그룹 측측 측측측 측측측 측측) */}
+          {showButton && (
+            remitDone ? (
+              <button
+                type="button"
+                aria-label="지급 취소"
+                title={busy ? "처리 중..." : "지급 취소"}
+                onClick={handleUndo}
+                style={{
+                  background: "transparent",
+                  border: `1px solid ${t.border}`,
+                  color: t.textMuted,
+                  padding: "2px 7px",
+                  borderRadius: 8,
+                  cursor: busy ? "wait" : "pointer",
+                  opacity: busy ? 0.6 : 1,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  fontFamily: "inherit",
+                }}
+              >
+                <RotateCcw size={10}/>
+              </button>
+            ) : (
+              <span
+                role="button"
+                tabIndex={0}
+                onClick={handleMark}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleMark(e); }}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  padding: "3px 8px", borderRadius: 8,
+                  background: busy ? t.bgInset : "#0F6E56",
+                  color: busy ? t.textMuted : "#9FE1CB",
+                  fontSize: 10, fontWeight: 700,
+                  cursor: busy ? "wait" : "pointer",
+                  opacity: busy ? 0.6 : 1,
+                  whiteSpace: "nowrap",
+                  userSelect: "none",
+                }}
+              >
+                <CheckCircle2 size={10}/>
+                {busy ? "처리 중..." : "✓ 지급완료 표시"}
+              </span>
+            )
+          )}
+          {/* 상태 배지: 입금 완료 시 초록 / 대기 시 앰버 */}
+          {showButton && (
+            <span style={{
+              display: "inline-flex", alignItems: "center",
+              padding: "2px 7px", borderRadius: 8,
+              background: remitDone ? t.successBg : t.warningBg,
+              color: remitDone ? t.success : t.warning,
+              border: `1px solid ${remitDone ? t.successBorder : t.warningBorder}`,
+              fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+            }}>{remitDone ? "입금 완료" : "대기"}</span>
+          )}
           {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
         </div>
+        {err && (
+          <div style={{ fontSize: 10, color: t.danger, marginTop: 2 }}>⚠️ {err}</div>
+        )}
         <div style={{ fontSize: 11, color: t.textSecondary }}>
           완료 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{group.tasks.length}</span>건
           <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
