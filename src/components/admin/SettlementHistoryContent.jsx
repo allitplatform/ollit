@@ -427,10 +427,10 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
 }
 
 // ──────────────────────────────────────────────
-// 날짜 섹션 — 기본 펼침, 안에 기사 묶음들
+// 날짜 섹션 — 측측값: 오늘(KST)측 측측, 측측 측측측 측측 (사장님 spec 2026-06-07).
 // ──────────────────────────────────────────────
 function DateSection({ t, ymd, engineerGroups, fmtKRW, onTaskClick, defaultSubOpen }) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(() => ymd === toKstYmd(new Date()));
   const allTasks = engineerGroups.flatMap(([, tasks]) => tasks);
   // 2026-06-07 — 송금액 = confirmed/reported만. 미입금은 별도.
   let sectionRemit = 0, sectionUnpaid = 0, sectionUnpaidCount = 0;
@@ -815,31 +815,45 @@ function PrincipalPaymentHistory({ t, fmtKRW }) {
 }
 
 function PrincipalDateGroup({ t, ymd, rows, fmtKRW }) {
+  // 2026-06-07 — 측측값: 오늘(KST)측 측측, 측측 측측측 측측 (사장님 spec).
+  const [open, setOpen] = useState(() => ymd === toKstYmd(new Date()));
   const sectionPaid    = rows.filter(r => r.remitDone).reduce((s, r) => s + (r.remittedAmount ?? r.total), 0);
   const sectionPending = rows.filter(r => !r.remitDone).reduce((s, r) => s + r.total, 0);
   return (
     <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
-      <div style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid ${t.border}` }}>
-        <div style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{dateLabel(ymd)}</div>
-        <div style={{ flex: 1 }}/>
-        <div style={{ textAlign: "right", fontSize: 11 }}>
-          <div>
-            <span className="mono" style={{ fontWeight: 700, color: t.text }}>{rows.length}</span>건
-            <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
-            <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(sectionPaid)}</span>
-          </div>
-          {sectionPending > 0 && (
-            <div style={{ fontSize: 10, color: t.warning, fontWeight: 600, marginTop: 1 }}>
-              미지급 <span className="mono">{fmtKRW(sectionPending)}</span>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: "100%", padding: "10px 12px",
+          background: "transparent", border: "none", cursor: "pointer",
+          color: t.text, fontFamily: "inherit", textAlign: "left",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{dateLabel(ymd)}</div>
+          <div style={{ flex: 1 }}/>
+          <div style={{ textAlign: "right", fontSize: 11 }}>
+            <div>
+              <span className="mono" style={{ fontWeight: 700, color: t.text }}>{rows.length}</span>건
+              <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
+              <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(sectionPaid)}</span>
             </div>
-          )}
+            {sectionPending > 0 && (
+              <div style={{ fontSize: 10, color: t.warning, fontWeight: 600, marginTop: 1 }}>
+                미지급 <span className="mono">{fmtKRW(sectionPending)}</span>
+              </div>
+            )}
+          </div>
+          {open ? <ChevronUp size={14} style={{ color: t.textMuted }}/> : <ChevronDown size={14} style={{ color: t.textMuted }}/>}
         </div>
-      </div>
-      <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
-        {rows.map(r => (
-          <PrincipalRow key={r.principalId} t={t} row={r} fmtKRW={fmtKRW}/>
-        ))}
-      </div>
+      </button>
+      {open && (
+        <div style={{ borderTop: `1px solid ${t.border}`, padding: "6px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
+          {rows.map(r => (
+            <PrincipalRow key={r.principalId} t={t} row={r} fmtKRW={fmtKRW}/>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
