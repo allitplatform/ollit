@@ -266,6 +266,9 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
   // 2026-05-29 — 취소 row 사유/취소자/시각 한 줄. status='취소' 일 때만 표시.
   //   평탄화 키 우선 (rowToTask + v14NormalizeTask + _v14NormalizeTask), category_data fallback.
   //   옛 데이터 (cancel 정보 없음) → "정보 없음 + updated_at" fallback (사장님 D3-c).
+  // 2026-06-07 — 시트 sync 취소 (cancelActor 없음) → 배정 기사 이름 fallback.
+  //   usol_n 기사는 시트에서 취소 입력 → sync 스크립트가 category_data 안 채움.
+  //   actor/actorUid 둘 다 없을 때만 적용. 라벨 = "기사 ○○○" (시트 측 사유 누락 명시).
   const isCancelled = task.status === "취소";
   const cancelInfo = (() => {
     if (!isCancelled) return null;
@@ -279,7 +282,16 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
     const name = u?.name || null;
 
     // 2026-05-29 v2 — 이름 위주 (D2): 역할 라벨 제거. 이름 우선, 없으면 원청 한국 라벨 / fallback.
-    const actorLabel = (actor || name) ? getCancelActorLabel({ actor, name, principalCode }) : null;
+    let actorLabel = (actor || name) ? getCancelActorLabel({ actor, name, principalCode }) : null;
+
+    // 2026-06-07 — actor 없을 때 배정 기사 fallback (덮어쓰기 X).
+    if (!actorLabel) {
+      const engUid  = task.assignedEngineerId || task.assigned_engineer_id || null;
+      const engUser = engUid ? getUserById(engUid) : null;
+      const engName = engUser?.name || task.assignedEngineer || task.assigned_engineer || null;
+      if (engName) actorLabel = `기사 ${engName}`;
+    }
+
     const atShort = at ? formatYmdHm(at) : "";
 
     if (!reason && !actorLabel) {

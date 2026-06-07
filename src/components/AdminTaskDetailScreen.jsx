@@ -975,6 +975,7 @@ function TaskChangesSection({ task }) {
   }, [taskId, reloadTick]);
 
   // 2026-05-29 v2 (D6) — synthetic cancel row: 옛 작업 (task_changes 측 cancel 없음) fallback.
+  // 2026-06-07 — actor 없을 때 배정 기사 이름 fallback (usol_n 시트 sync 취소 대응).
   const displayChanges = useMemo(() => {
     if (!task || task.status !== "취소") return changes;
     const hasCancelChange = changes.some(c => c.change_type === "cancel");
@@ -986,9 +987,21 @@ function TaskChangesSection({ task }) {
     const actorUid     = task.cancelActorUserId        || cat.cancelActorUserId        || null;
     const principalCode = task.cancelActorPrincipalCode || cat.cancelActorPrincipalCode || null;
     const at           = task.cancelAt                 || cat.cancelAt                 || task.updatedAt || null;
-    if (!reason && !actor && !at) return changes;
-    const u = actorUid ? getUserById(actorUid) : null;
-    const actorName = getCancelActorLabel({ actor, name: u?.name || null, principalCode });
+
+    // 2026-06-07 — actor 없으면 배정 기사로 fallback (덮어쓰기 X).
+    let actorName;
+    if (actor || actorUid) {
+      const u = actorUid ? getUserById(actorUid) : null;
+      actorName = getCancelActorLabel({ actor, name: u?.name || null, principalCode });
+    } else {
+      const engUid  = task.assignedEngineerId || task.engineerId || null;
+      const engUser = engUid ? getUserById(engUid) : null;
+      const engName = engUser?.name || task.engineer || null;
+      actorName = engName ? `기사 ${engName}` : getCancelActorLabel({ actor, name: null, principalCode });
+    }
+
+    if (!reason && !actor && !actorUid && !at && actorName === "—") return changes;
+
     const synthetic = {
       id:              "_synthetic_cancel",
       change_type:     "cancel",
