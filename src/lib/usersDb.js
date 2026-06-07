@@ -14,6 +14,7 @@
 //   · 나머지 동일 (owner / admin / engineer)
 
 import { supabase } from "./supabase.js";
+import { currentUserId } from "./cancelRpc.js";
 import { PRINCIPAL_CODE_TO_ID } from "./commissionPoliciesDb.js";
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
@@ -26,6 +27,21 @@ const DB_ROLE_TO_PWA = {
   operator: "happycall",
   partner:  "principal",
 };
+
+// 2026-06-07 — PWA → DB 역매핑 (admin_set_user_roles 호출 시 사용)
+const PWA_ROLE_TO_DB = {
+  owner:     "owner",
+  admin:     "admin",
+  engineer:  "engineer",
+  happycall: "operator",
+  principal: "partner",
+};
+
+// 2026-06-07 — RPC 미배포 에러 패턴 (Mig 098/102/103 동일)
+function _isRpcMissingError(msg) {
+  const s = String(msg || "").toLowerCase();
+  return s.includes("could not find") || s.includes("does not exist") || s.includes("pgrst202");
+}
 
 // 단일 표시 role 우선순위 (앞이 높음)
 const ROLE_PRIORITY = ["owner", "admin", "happycall", "principal", "engineer"];
@@ -116,4 +132,120 @@ export async function listUsersFromDb() {
   });
 
   return { ok: true, users: result };
+}
+
+// ============================================================
+// 2026-06-07 — Migration 103 RPC 호출 헬퍼 3종
+// ============================================================
+
+// ① 계정 수정 / 신규 / 활성 토글
+//   payload 예: { name, phone, email, region, is_active, default_role:'operator' }
+//   code 있으면 UPDATE, 없으면 INSERT (default_role 기준 prefix 자동 부여).
+export async function upsertUserToDb({ code, patch }) {
+  const actor = currentUserId();
+  if (!actor) return { ok: false, error: "로그인 필요 (actor 없음)" };
+  if (!patch || typeof patch !== "object") {
+    return { ok: false, error: "patch 누락" };
+  }
+
+  const { data, error } = await supabase.rpc("admin_upsert_user", {
+    p_code:  code || null,
+    p_patch: patch,
+    p_actor: actor,
+  });
+
+  if (error) {
+    console.error("[usersDb.upsert:rpc]", error);
+    if (_isRpcMissingError(error.message)) {
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 103)" };
+    }
+    return { ok: false, error: error.message || "RPC 호출 실패" };
+  }
+  if (data && data.ok === false) {
+    return { ok: false, error: data.error || "저장 실패" };
+  }
+  if (data && data.action === "update" && (data.rows_affected ?? 0) === 0) {
+    return { ok: false, error: "0행 매칭 — 저장 실패 (권한/조건 재확인)" };
+  }
+  return {
+    ok: true,
+    action: data?.action || "update",
+    userId: data?.user_id,
+    code:   data?.code,
+  };
+}
+
+// ② 역할 SET 변경 (PWA role 배열 → DB role 변환 후 호출)
+//   pwaRoles 예: ["admin","engineer"] / ["happycall"]
+export async function setUserRolesToDb({ userId, pwaRoles }) {
+  const actor = currentUserId();
+  if (!actor) return { ok: false, error: "로그인 필요 (actor 없음)" };
+  if (!userId) return { ok: false, error: "userId 누락" };
+  if (!Array.isArray(pwaRoles) || pwaRoles.length === 0) {
+    return { ok: false, error: "roles 비어있음 — 최소 1개 필요" };
+  }
+
+  // PWA → DB role 변환 (happycall → operator, principal → partner)
+  const dbRoles = [];
+  for (const r of pwaRoles) {
+    const dbRole = PWA_ROLE_TO_DB[r];
+    if (!dbRole) return { ok: false, error: `알 수 없는 role: ${r}` };
+    if (dbRole === "partner") {
+      return { ok: false, error: "원청(partner) 역할은 별도 처리 (principal_id 필요)" };
+    }
+    if (!dbRoles.includes(dbRole)) dbRoles.push(dbRole);
+  }
+
+  const { data, error } = await supabase.rpc("admin_set_user_roles", {
+    p_user_id: userId,
+    p_roles:   dbRoles,
+    p_actor:   actor,
+  });
+
+  if (error) {
+    console.error("[usersDb.setRoles:rpc]", error);
+    if (_isRpcMissingError(error.message)) {
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 103)" };
+    }
+    return { ok: false, error: error.message || "RPC 호출 실패" };
+  }
+  if (data && data.ok === false) {
+    return { ok: false, error: data.error || "역할 변경 실패" };
+  }
+  return {
+    ok: true,
+    rolesSet:     data?.roles_set     ?? 0,
+    rolesRemoved: data?.roles_removed ?? 0,
+  };
+}
+
+// ③ 운영자 비번 리셋
+export async function resetUserPasswordToDb({ userId, newPassword }) {
+  const actor = currentUserId();
+  if (!actor) return { ok: false, error: "로그인 필요 (actor 없음)" };
+  if (!userId) return { ok: false, error: "userId 누락" };
+  if (!newPassword || String(newPassword).length < 4) {
+    return { ok: false, error: "비밀번호는 4자 이상" };
+  }
+
+  const { data, error } = await supabase.rpc("admin_reset_user_password", {
+    p_user_id:      userId,
+    p_new_password: String(newPassword),
+    p_actor:        actor,
+  });
+
+  if (error) {
+    console.error("[usersDb.resetPassword:rpc]", error);
+    if (_isRpcMissingError(error.message)) {
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 103)" };
+    }
+    return { ok: false, error: error.message || "RPC 호출 실패" };
+  }
+  if (data && data.ok === false) {
+    return { ok: false, error: data.error || "비번 리셋 실패" };
+  }
+  if ((data?.rows_affected ?? 0) === 0) {
+    return { ok: false, error: "0행 매칭 — 비번 리셋 실패" };
+  }
+  return { ok: true, mustChangePassword: true };
 }

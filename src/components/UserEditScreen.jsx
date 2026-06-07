@@ -1,52 +1,136 @@
 // Step 9 — 사용자 편집 / 추가 (V4 명확화: 드롭다운 + 권한 안내)
+// 2026-06-07 — Migration 103 RPC 연동 (DB 직접 저장).
 import { useState } from "react";
 import {
   loadUsers, saveUsers, generateUserId, ROLES, PERMISSIONS,
 } from "../data/users.js";
 import { loadPrincipals } from "../data/principals.js";
 import { loadEngineers, CAREER_LEVELS } from "../data/engineers.js";
+import {
+  upsertUserToDb, setUserRolesToDb, resetUserPasswordToDb,
+} from "../lib/usersDb.js";
+
+// PWA role → DB default_role (admin_upsert_user 신규 INSERT 시)
+const PWA_ROLE_TO_DEFAULT = {
+  owner:     "owner",
+  admin:     "admin",
+  engineer:  "engineer",
+  happycall: "operator",
+  principal: "operator",   // principal 신규는 본 화면 범위 밖 — 안전 fallback
+};
 
 export function UserEditScreen({ user, isNew, onSaved, onBack }) {
   const [data, setData] = useState({ ...user });
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [originalRole] = useState(user?.role || "");
 
   function updateField(field, value) {
     setData(d => ({ ...d, [field]: value }));
   }
 
-  function handleSave() {
+  async function handleSave() {
     setError("");
     const name = (data.name || "").trim();
-    const loginId = (data.loginId || "").trim();
-    if (!name)    { setError("이름을 입력해주세요"); return; }
-    if (!loginId) { setError("로그인 ID를 입력해주세요"); return; }
-    if (!/^[a-z][a-z0-9._]*$/i.test(loginId)) {
-      setError("로그인 ID는 영문/숫자/마침표만 사용 (영문 시작)");
-      return;
-    }
+    if (!name) { setError("이름을 입력해주세요"); return; }
+    const phone = (data.phone || "").trim();
+    if (!phone) { setError("전화번호를 입력해주세요 (= 로그인 아이디)"); return; }
 
-    const list = loadUsers();
-    if (isNew && list.some(u => u.loginId === loginId)) {
-      setError(`"${loginId}"는 이미 사용 중입니다`);
-      return;
-    }
+    setBusy(true);
+    try {
+      // [1] users 행 upsert
+      const patch = {
+        name,
+        phone,
+        is_active: !!data.active,
+      };
+      if (data.email)  patch.email  = String(data.email);
+      if (data.region) patch.region = String(data.region);
+      if (isNew) {
+        patch.default_role = PWA_ROLE_TO_DEFAULT[data.role] || "operator";
+      }
 
-    let saved = { ...data, name, loginId };
-    if (isNew) {
-      saved.id = generateUserId(loginId);
-      saveUsers([saved, ...list]);
-    } else {
-      saveUsers(list.map(u => u.id === saved.id ? saved : u));
+      const up = await upsertUserToDb({
+        code: isNew ? null : (data.id || data.userId || null),
+        patch,
+      });
+      if (!up.ok) { setError(up.error || "저장 실패"); setBusy(false); return; }
+      const userIdForRoles = up.userId;   // DB UUID — set_user_roles 에서 사용
+      const savedCode      = up.code || data.id;
+
+      // [2] 역할 변경 — 기존 != 새 역할이면 set_user_roles 호출 (DB UUID 필요)
+      //     신규(isNew)는 admin_upsert_user 가 이미 default_role 1개 INSERT 함 → skip.
+      if (!isNew && data.role && data.role !== originalRole) {
+        if (!userIdForRoles) {
+          setError("역할 변경 실패: 사용자 UUID 미수신");
+          setBusy(false);
+          return;
+        }
+        const rr = await setUserRolesToDb({
+          userId:   userIdForRoles,
+          pwaRoles: [data.role],
+        });
+        if (!rr.ok) { setError(rr.error || "역할 변경 실패"); setBusy(false); return; }
+      }
+
+      // [3] 비번 입력됐으면 리셋
+      if (data.password && String(data.password).length > 0) {
+        if (!userIdForRoles) {
+          setError("비번 리셋 실패: 사용자 UUID 미수신");
+          setBusy(false);
+          return;
+        }
+        if (String(data.password).length < 4) {
+          setError("비밀번호는 4자 이상");
+          setBusy(false);
+          return;
+        }
+        const rp = await resetUserPasswordToDb({
+          userId:      userIdForRoles,
+          newPassword: data.password,
+        });
+        if (!rp.ok) { setError(rp.error || "비번 리셋 실패"); setBusy(false); return; }
+      }
+
+      // [4] localStorage 캐시 즉시 갱신 (UI 즉시 반영)
+      const list = loadUsers();
+      const saved = { ...data, name, phone, id: savedCode || data.id };
+      if (isNew) {
+        if (!saved.id) saved.id = generateUserId(savedCode || "user");
+        saveUsers([saved, ...list]);
+      } else {
+        saveUsers(list.map(u => u.id === saved.id ? saved : u));
+      }
+      setBusy(false);
+      onSaved && onSaved(saved);
+    } catch (e) {
+      console.error("[UserEditScreen.handleSave]", e);
+      setError(e?.message || "저장 중 오류");
+      setBusy(false);
     }
-    onSaved && onSaved(saved);
   }
 
-  function handleDelete() {
+  // 2026-06-07 — "삭제" → "비활성" (is_active=false). 행 보존, FK 안전.
+  async function handleDelete() {
     if (isNew) return;
-    if (!window.confirm(`"${data.name}" 사용자를 삭제할까요?\n\n복구 불가합니다.`)) return;
-    const list = loadUsers();
-    saveUsers(list.filter(u => u.id !== data.id));
-    onSaved && onSaved(null);
+    if (!window.confirm(`"${data.name}" 을(를) 비활성으로 끄시겠어요?\n\n로그인 불가 상태가 됩니다 (행은 보존).`)) return;
+    setBusy(true);
+    try {
+      const up = await upsertUserToDb({
+        code:  data.id || data.userId,
+        patch: { is_active: false },
+      });
+      if (!up.ok) { setError(up.error || "비활성 실패"); setBusy(false); return; }
+      // 캐시 반영
+      const list = loadUsers();
+      saveUsers(list.map(u => u.id === data.id ? { ...u, active: false } : u));
+      setBusy(false);
+      onSaved && onSaved({ ...data, active: false });
+    } catch (e) {
+      console.error("[UserEditScreen.handleDelete]", e);
+      setError(e?.message || "비활성 중 오류");
+      setBusy(false);
+    }
   }
 
   // 선택 역할의 권한 미리보기
@@ -60,7 +144,7 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
         <button onClick={onBack} style={backBtnStyle}>←</button>
         <div style={titleStyle}>{isNew ? "사용자 추가" : "사용자 편집"}</div>
         {!isNew && (
-          <button onClick={handleDelete} style={dangerBtnStyle}>삭제</button>
+          <button onClick={handleDelete} disabled={busy} style={dangerBtnStyle}>끄기(비활성)</button>
         )}
       </div>
 
@@ -74,22 +158,30 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
           />
         </Field>
 
-        <Field label="로그인 ID (영문/숫자)">
+        <Field label="전화번호 (= 로그인 아이디)">
           <input
-            type="text" placeholder="예: kim.jihye"
-            value={data.loginId || ""}
-            onChange={(e) => updateField("loginId", e.target.value)}
+            type="tel" placeholder="예: 010-1234-5678"
+            value={data.phone || ""}
+            onChange={(e) => updateField("phone", e.target.value)}
             style={{ ...inputStyle, fontFamily: "inherit" }}
           />
+          <InfoBox color="#FFB020">
+            ⚠️ 전화번호 = 로그인 아이디입니다. 바꾸면 새 번호로만 로그인할 수 있어요.
+          </InfoBox>
         </Field>
 
         <Field label="비밀번호">
           <input
-            type="text" placeholder={isNew ? "초기 비밀번호" : "변경하지 않으려면 비워두세요"}
+            type="text" placeholder={isNew ? "비워두면 휴대폰 끝 4자리로 자동 설정" : "변경하지 않으려면 비워두세요"}
             value={data.password || ""}
             onChange={(e) => updateField("password", e.target.value)}
             style={inputStyle}
           />
+          {!isNew && (
+            <InfoBox color="#FFB020">
+              운영자 리셋입니다. 사용자는 다음 로그인 시 본인 비번을 다시 설정해야 해요.
+            </InfoBox>
+          )}
         </Field>
 
         <Field label="역할">
@@ -186,8 +278,10 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
         )}
 
         <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
-          <button onClick={onBack} style={cancelBtnStyle}>취소</button>
-          <button onClick={handleSave} style={saveBtnStyle}>저장</button>
+          <button onClick={onBack} disabled={busy} style={cancelBtnStyle}>취소</button>
+          <button onClick={handleSave} disabled={busy} style={{ ...saveBtnStyle, opacity: busy ? 0.6 : 1 }}>
+            {busy ? "저장 중..." : "저장"}
+          </button>
         </div>
       </div>
     </div>
