@@ -25,6 +25,13 @@
 // 외부 호출처 (data/engineers.js, AdminApp.jsx)는 import만 변경 / 응답 형태 유지.
 
 import { supabase } from "./supabase.js";
+import { currentUserId } from "./cancelRpc.js";
+
+// 2026-06-07 — RPC 미배포 에러 패턴 (Mig 098/102 동일).
+function _isRpcMissingError(msg) {
+  const s = String(msg || "").toLowerCase();
+  return s.includes("could not find") || s.includes("does not exist") || s.includes("pgrst202");
+}
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -182,9 +189,10 @@ export async function listEngineerSkillsFromDb() {
 }
 
 // ============================================================
-// 변경 (UPSERT) — epp 행 upsert + ez 전체 교체
-// payload: { engineerId, principal, workType, zones, grade, appliances?, note? }
-// 응답: { ok, action: 'create'|'update' } | { ok: false, error }
+// 변경 (UPSERT) — Migration 102 admin_save_engineer_skill RPC 호출
+// 2026-06-07 — RLS silent fail 회피. SECURITY DEFINER + _caller_is_admin(p_actor).
+//   payload: { engineerId, principal, workType, zones, grade, appliances?, note? }
+//   응답: { ok, action: 'upsert' } | { ok: false, error }
 // ============================================================
 export async function upsertEngineerSkillToDb(payload) {
   if (!payload || !payload.engineerId || !payload.workType) {
@@ -197,55 +205,17 @@ export async function upsertEngineerSkillToDb(payload) {
   const userId = u.userId;
 
   // [2] 변환
-  const principalCode = principalTextToCode(payload.principal);
-  const serviceCode   = workTypeToServiceCode(payload.workType);
-  const level         = gradeToLevel(payload.grade);
+  const serviceCode = workTypeToServiceCode(payload.workType);
+  const level       = gradeToLevel(payload.grade);
 
   if (!serviceCode) {
     return { ok: false, error: `workType 변환 실패: ${payload.workType}` };
   }
   if (level === null) {
-    // "안 함" 등 — 호출처에서 deleteEngineerSkillWithSync 사용해야 함
     return { ok: false, error: `grade가 main/sub가 아님: ${payload.grade} (삭제 경로 사용 필요)` };
   }
 
-  // 2026-05-29 — 원청별 칸 제거, principal_code=NULL 1개로 통합 (사장님 spec).
-  //   옛: 3중 키 (user_id, principal_code, service_code) SELECT → UPDATE / INSERT.
-  //        같은 user 의 다른 principal_code (NULL + 원청별) row 가 별개로 잔존.
-  //   새: 같은 (user_id, service_code) 의 기존 모든 row DELETE → NULL row 1개 INSERT.
-  //        다중 row 재발 방지 + 폼 spec (원청 무관 1줄) 정합.
-  //   호출처 EngineerEditScreen syncSkill 항상 principal:"(전체)" 전달 — principalCode=null 유지.
-
-  // [3a] 같은 (user_id, service_code) 의 모든 기존 row 삭제 — NULL + 원청별 동시 정리
-  const { error: delPrevErr } = await supabase
-    .from("engineer_principal_permissions")
-    .delete()
-    .eq("user_id", userId)
-    .eq("service_code", serviceCode);
-  if (delPrevErr) {
-    console.error("[engineerSkillsDb.upsert:cleanup]", delPrevErr);
-    return { ok: false, error: delPrevErr.message };
-  }
-
-  // [3b] principal_code=NULL row 1개 INSERT — "(전체)" 권한
-  const { error: insErr } = await supabase
-    .from("engineer_principal_permissions")
-    .insert({
-      user_id:        userId,
-      principal_code: principalCode,   // "(전체)" → null (호출처 spec)
-      service_code:   serviceCode,
-      level,
-      active:         true,
-    });
-  if (insErr) {
-    console.error("[engineerSkillsDb.upsert:insert]", insErr);
-    return { ok: false, error: insErr.message };
-  }
-  const action = "upsert";
-
-  // [4] zones 전체 교체 (D7 결정)
-  //   · user_id 측 모든 ez DELETE → 새 zones INSERT
-  //   · payload.zones는 콤마 string ("강남구, 서초구") 또는 배열
+  // zones 정규화 (string "강남구, 서초구" 또는 배열) → text[] for RPC
   const zonesRaw = payload.zones;
   let zonesList = [];
   if (Array.isArray(zonesRaw)) {
@@ -254,33 +224,28 @@ export async function upsertEngineerSkillToDb(payload) {
     zonesList = zonesRaw.split(",").map(z => z.trim()).filter(Boolean);
   }
 
-  // 삭제 (user_id 측 모든 행)
-  const { error: delEzErr } = await supabase
-    .from("engineer_zones")
-    .delete()
-    .eq("user_id", userId);
-  if (delEzErr) {
-    console.error("[engineerSkillsDb.upsert:zones-delete]", delEzErr);
-    return { ok: false, error: `zones 갱신 실패: ${delEzErr.message}` };
-  }
+  const actor = currentUserId();
+  if (!actor) return { ok: false, error: "로그인 필요 (actor 없음)" };
 
-  // INSERT (새 zones 있을 때만)
-  if (zonesList.length > 0) {
-    const rows = zonesList.map(d => ({
-      user_id:  userId,
-      district: d,
-      active:   true,
-    }));
-    const { error: insEzErr } = await supabase
-      .from("engineer_zones")
-      .insert(rows);
-    if (insEzErr) {
-      console.error("[engineerSkillsDb.upsert:zones-insert]", insEzErr);
-      return { ok: false, error: `zones 추가 실패: ${insEzErr.message}` };
+  const { data, error } = await supabase.rpc("admin_save_engineer_skill", {
+    p_user_id:      userId,
+    p_service_code: serviceCode,
+    p_level:        level,
+    p_zones:        zonesList,
+    p_actor:        actor,
+  });
+
+  if (error) {
+    console.error("[engineerSkillsDb.upsert:rpc]", error);
+    if (_isRpcMissingError(error.message)) {
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 102)" };
     }
+    return { ok: false, error: error.message || "RPC 호출 실패" };
   }
-
-  return { ok: true, action };
+  if (data && data.ok === false) {
+    return { ok: false, error: data.error || "저장 실패" };
+  }
+  return { ok: true, action: data?.action || "upsert" };
 }
 
 // ============================================================
@@ -300,25 +265,29 @@ export async function deleteEngineerSkillFromDb(payload) {
   if (!u.ok) return { ok: false, error: u.error };
   const userId = u.userId;
 
-  const principalCode = principalTextToCode(payload.principal);
-  const serviceCode   = workTypeToServiceCode(payload.workType);
-
+  const serviceCode = workTypeToServiceCode(payload.workType);
   if (!serviceCode) {
     return { ok: false, error: `workType 변환 실패: ${payload.workType}` };
   }
 
-  // 2026-05-29 — principal_code 가드 제거 (사장님 spec, NULL 통합).
-  //   옛: WHERE principal_code IS NULL 만 DELETE → 원청별 row (allday/KA 등) 잔존.
-  //   새: WHERE user_id + service_code 만 매칭 → 모든 칸 (NULL + 원청별) DELETE.
-  //   호출처 (EngineerEditScreen syncSkill) 가 principal:"(전체)" 1줄만 다루는 정합.
-  const { error } = await supabase
-    .from("engineer_principal_permissions")
-    .delete()
-    .eq("user_id", userId)
-    .eq("service_code", serviceCode);
+  // 2026-06-07 — Migration 102 admin_delete_engineer_skill RPC.
+  const actor = currentUserId();
+  if (!actor) return { ok: false, error: "로그인 필요 (actor 없음)" };
+
+  const { data, error } = await supabase.rpc("admin_delete_engineer_skill", {
+    p_user_id:      userId,
+    p_service_code: serviceCode,
+    p_actor:        actor,
+  });
   if (error) {
-    console.error("[engineerSkillsDb.delete]", error);
-    return { ok: false, error: error.message };
+    console.error("[engineerSkillsDb.delete:rpc]", error);
+    if (_isRpcMissingError(error.message)) {
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 102)" };
+    }
+    return { ok: false, error: error.message || "RPC 호출 실패" };
+  }
+  if (data && data.ok === false) {
+    return { ok: false, error: data.error || "삭제 실패" };
   }
   return { ok: true };
 }

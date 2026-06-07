@@ -15,8 +15,35 @@
 //   · _findInPoliciesCache 측 시트 호환 shape (Phase 3-1) 그대로 활용 (D3 = B)
 
 import { supabase } from "./supabase.js";
+import { currentUserId } from "./cancelRpc.js";
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
+
+// 2026-06-07 — RPC 미배포 에러 패턴 (Mig 098 동일).
+function _isRpcMissingError(msg) {
+  const s = String(msg || "").toLowerCase();
+  return s.includes("could not find") || s.includes("does not exist") || s.includes("pgrst202");
+}
+
+// 2026-06-07 — engineer 객체 → admin_upsert_engineer 의 p_patch jsonb.
+function _toUpsertPatch(eng) {
+  const patch = {};
+  if (eng.name  != null) patch.name  = String(eng.name);
+  if (eng.phone != null) patch.phone = String(eng.phone);
+  if (eng.email != null) patch.email = String(eng.email);
+  if (eng.bankName       != null) patch.bank_name      = String(eng.bankName);
+  if (eng.accountNumber  != null) patch.bank_account   = String(eng.accountNumber);
+  if (eng.accountHolder  != null) patch.account_holder = String(eng.accountHolder);
+  if (eng.region != null) patch.region = String(eng.region);
+  if (typeof eng.active === "boolean") patch.is_active = eng.active;
+  else if (eng.status) patch.is_active = (eng.status === "active");
+  const rateRaw = eng.cm_refrigerant_rate;
+  if (rateRaw != null && rateRaw !== "") {
+    const n = typeof rateRaw === "number" ? rateRaw : Number(rateRaw);
+    if (Number.isFinite(n) && n > 0) patch.refrigerant_rate = n;
+  }
+  return patch;
+}
 
 // status 양방향
 function statusToDbActive(status) {
@@ -165,83 +192,55 @@ async function ensureEngineerRole(userId) {
   return { ok: true, skipped: false };
 }
 
-// upsert — code 기준 존재 여부 catch 후 update 또는 insert
-// 응답: { ok, action: 'create'|'update', engineerId } | { ok: false, error }
+// 2026-06-07 — Migration 102 admin_upsert_engineer RPC 호출로 전환.
+//   배경: anon UPDATE on users 가 RLS(`users_self_update id=auth.uid()`) 측 0행 silent fail.
+//   해결: SECURITY DEFINER RPC + _caller_is_admin(p_actor) 검증.
+//   응답: { ok, action: 'create'|'update', engineerId } | { ok: false, error }
 export async function upsertEngineerToDb(eng) {
   if (!eng) return { ok: false, error: "eng 없음" };
-  const row = syncPayloadToRow(eng);
 
-  // 2026-05-28 — code 비어있으면 Supabase next_engineer_code() RPC 자동 부여 (안전망).
-  //   1순위 호출 = EngineerEditScreen handleSave (UX 즉시 응답).
-  //   여기 fallback = 다른 진입 경로 (시트 import / 옛 흐름) 가 code 빼먹어도 보호.
-  //   RPC 실패 시 옛 generateId fallback X — 비정상 "이름_랜덤" code 재발 차단 (사장님 spec).
-  if (!row.code) {
+  // code 보장 — 비어있으면 next_engineer_code() RPC 호출 (옛 안전망 그대로).
+  let code = eng.engineerId || eng.id || "";
+  if (!code) {
     const { data: nextCode, error: rpcErr } = await supabase.rpc("next_engineer_code");
     if (rpcErr || !nextCode) {
       console.error("[engineersDb.upsert:next_engineer_code]", rpcErr);
-      return { ok: false, error: `next_engineer_code RPC 실패: ${rpcErr?.message || "응답 없음"}` };
+      return { ok: false, error: `기사 번호 부여 실패: ${rpcErr?.message || "응답 없음"}` };
     }
-    row.code = nextCode;
+    code = nextCode;
   }
 
-  // code 기준 존재 여부
-  const { data: existing, error: selErr } = await supabase
-    .from("users")
-    .select("id, code")
-    .eq("tenant_id", TENANT_ID)
-    .eq("code", row.code)
-    .maybeSingle();
-
-  if (selErr) {
-    console.error("[engineersDb.upsert:select]", selErr);
-    return { ok: false, error: selErr.message };
+  const actor = currentUserId();
+  if (!actor) {
+    return { ok: false, error: "로그인 필요 (actor 없음)" };
   }
 
-  if (existing) {
-    // update — id / tenant_id / code 불변
-    const updateRow = { ...row };
-    delete updateRow.tenant_id;
-    delete updateRow.code;
-    const { error: updErr } = await supabase
-      .from("users")
-      .update(updateRow)
-      .eq("id", existing.id);
-    if (updErr) {
-      console.error("[engineersDb.upsert:update]", updErr);
-      return { ok: false, error: updErr.message };
+  const patch = _toUpsertPatch(eng);
+  const { data, error } = await supabase.rpc("admin_upsert_engineer", {
+    p_code:  code,
+    p_patch: patch,
+    p_actor: actor,
+  });
+
+  if (error) {
+    console.error("[engineersDb.upsert:rpc]", error);
+    if (_isRpcMissingError(error.message)) {
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 102)" };
     }
-    // 2026-05-27 — 역할 자동 복구 안전망 (멱등).
-    //   배경: 옛 INSERT 시점에 user_roles upsert 가 실패해 권한 누락된 ghost user 가 있을 때
-    //         운영자가 다시 저장하면 이 update 경로로 와서 자동 복구.
-    //   ensureEngineerRole: SELECT 먼저 → 있으면 skip / 없으면 INSERT (partial index 우회).
-    const roleRes = await ensureEngineerRole(existing.id);
-    if (!roleRes.ok) {
-      console.error("[engineersDb.upsert:update:role]", roleRes.error);
-      return { ok: false, error: `사용자 update OK / 역할 부여 실패: ${roleRes.error}` };
-    }
-    return { ok: true, action: "update", engineerId: row.code };
+    return { ok: false, error: error.message || "RPC 호출 실패" };
   }
-
-  // insert — 새 user + engineer 역할 같이 추가
-  const { data: inserted, error: insErr } = await supabase
-    .from("users")
-    .insert(row)
-    .select("id, code")
-    .single();
-
-  if (insErr) {
-    console.error("[engineersDb.upsert:insert]", insErr);
-    return { ok: false, error: insErr.message };
+  if (data && data.ok === false) {
+    return { ok: false, error: data.error || "저장 실패" };
   }
-
-  // engineer 역할 추가 — partial index 우회 (SELECT → 없으면 INSERT)
-  const roleRes = await ensureEngineerRole(inserted.id);
-  if (!roleRes.ok) {
-    console.error("[engineersDb.upsert:role]", roleRes.error);
-    return { ok: false, error: `사용자 생성 OK / 역할 부여 실패: ${roleRes.error}` };
+  // rows_affected 0 감지 — silent fail 방지
+  if (data && data.action === "update" && (data.rows_affected ?? 0) === 0) {
+    return { ok: false, error: "0행 매칭 — 저장 실패 (권한/조건 재확인)" };
   }
-
-  return { ok: true, action: "create", engineerId: row.code };
+  return {
+    ok: true,
+    action: data?.action || "update",
+    engineerId: data?.code || code,
+  };
 }
 
 // 삭제 — code 기준 hard DELETE (user_roles 측 ON DELETE CASCADE)

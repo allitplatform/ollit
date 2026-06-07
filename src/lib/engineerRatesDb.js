@@ -108,18 +108,23 @@ export async function upsertEngineerRateToDb(payload) {
   }
 
   if (existing) {
-    // UPDATE
-    const { error: updErr } = await supabase
+    // UPDATE — 2026-06-07 .select("id")로 0행 감지 (RLS silent fail 방지망)
+    const { data: updated, error: updErr } = await supabase
       .from("engineer_rates")
       .update({
         rate,
         note,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", existing.id);
+      .eq("id", existing.id)
+      .select("id");
     if (updErr) {
       console.error("[engineerRatesDb.upsert:update]", updErr);
       return { ok: false, error: updErr.message };
+    }
+    if (!Array.isArray(updated) || updated.length === 0) {
+      console.error("[engineerRatesDb.upsert:update] 0행 — RLS 또는 조건 매칭 실패");
+      return { ok: false, error: "0행 매칭 — 저장 실패 (권한/조건 재확인)" };
     }
     return { ok: true, action: "update" };
   }
