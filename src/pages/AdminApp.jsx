@@ -119,7 +119,7 @@ import { supabase } from "../lib/supabase.js";
 //                새로고침 시 Set 초기화 — DB 사전 조회 가드 (line 7424) 가 보호.
 const _pushedTaskIds = new Set();
 import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd } from "../utils/dateLabel.js";
-import { isTrackARemittance, isPendingRemit } from "../utils/remitFilter.js";
+import { isRemittanceTarget, isPendingRemit } from "../utils/remitFilter.js";
 import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
 import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
@@ -6032,13 +6032,13 @@ function SettlementContent({
   const setExpanded  = setExpandedProp || _setExpandedLocal;
 
   // 2026-05-22 — 사장님 spec: 확인 완료해도 사라지지 않음, 맨 아래로 정렬.
-  //   기준: 트랙 🅐 (isTrackARemittance) AND completedAt(KST) = 오늘.
+  //   기준: 트랙 🅐 + 출장비 측측 AND completedAt(KST) = 오늘.
   //   미확인(pending/reported/overdue) → 위, 확인 완료(confirmed) → 아래.
-  // 2026-05-17 Round 2 Fix #13 — 메인 매출과 동일 dataset (트랙 🅐 + 오늘 완료).
+  // 2026-06-07 — 송금/정산 측측 측측 isRemittanceTarget 측 측측 (visit_only 측측).
   const todayStr = todayYmd();
   const doneTasks = (apiTasks && apiTasks.length > 0)
     ? apiTasks.filter(t => {
-        if (!isTrackARemittance(t)) return false;
+        if (!isRemittanceTarget(t)) return false;
         const completed = t.completedAt || t.completed_at;
         if (!completed) return false;
         return toKstYmd(completed) === todayStr;

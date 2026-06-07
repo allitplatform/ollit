@@ -33,7 +33,7 @@
 
 import { useMemo, useState } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Wallet, Clock, CheckCircle2, AlertTriangle, Search, X } from "lucide-react";
-import { isTrackARemittance } from "../../utils/remitFilter.js";
+import { isRemittanceTarget } from "../../utils/remitFilter.js";
 import { toKstYmd } from "../../utils/dateLabel.js";
 
 // ──────────────────────────────────────────────
@@ -150,11 +150,11 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
   const [searchQuery, setSearchQuery] = useState("");
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
 
-  // base: 트랙 🅐 완료건 전부 (remit date 없는 미정산도 포함 — 2026-06-07 사장님 spec).
+  // base: 송금/측측 측측 (출장비 측측) 완료건 전부 (remit date 없는 미정산도 포함 — 2026-06-07 사장님 spec).
   //   날짜 정렬/그룹은 pickRowDate (정산건=remit/confirm, 미정산=completedAt).
   const base = useMemo(() => {
     return (apiTasks || []).filter(task => {
-      if (!isTrackARemittance(task)) return false;
+      if (!isRemittanceTarget(task)) return false;
       return !!pickRowDate(task);
     });
   }, [apiTasks]);

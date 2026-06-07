@@ -17,7 +17,7 @@ import { fetchUsolNCompletedTaskItems, getItemChipLabel } from "../lib/usolNTask
 // Phase 3-5 — 휴무는 DB 측 (offDaysDb.js) 어댑터 사용. 시그니처 동일.
 import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
-import { isTrackARemittance, isTrackC } from "../utils/remitFilter.js";
+import { isTrackARemittance, isRemittanceTarget, isTrackC } from "../utils/remitFilter.js";
 import { isCompletedStatus } from "../utils/taskStatus.js";
 import { isCleaning, isRefrigerant } from "../utils/workTypeKind.js";
 import { ENABLE_MOCK } from "../config/env.js";
@@ -4275,9 +4275,9 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
     const kstYmd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     return kstYmd === todayStr;
   });
-  // 2026-05-18 Fix #30 D — 회사 송금용 (트랙 🅐만, isTrackARemittance 통과)
-  // EngineerSettleTab.toCompany 합계가 트랙 🅑(usol_n 세척 등) 제외하도록 분리.
-  const todayTrackATasks = todayCompletedTasks.filter(isTrackARemittance);
+  // 2026-05-18 Fix #30 D — 회사 송금용 (트랙 🅐만)
+  // 2026-06-07 — isRemittanceTarget 측 측측 (visit_only 출장비 측측).
+  const todayTrackATasks = todayCompletedTasks.filter(isRemittanceTarget);
 
   // 2026-05-19 Fix #30 🅒 — 유솔 송금 대상 (트랙 🅒, 현장 추가건 있는 cleaning).
   // 2026-05-25 — 금액 정정: SUM(principal_amount) 측 본작업 유솔 몫이 섞임 → 현장추가금 15%만.
@@ -4439,7 +4439,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   // 운영자 PWA SettlementContent와 동일 규칙으로 정합.
   // 2026-05-18 Fix #29 — 분류는 payments.track 컬럼(compute_payment v10 자동 결정).
   // usol_n + non-refrigerant → 'B' 제외, 그 외 → 'A' 포함.
-  const allPendingNonUsolN = tasks.filter(isTrackARemittance);
+  // 2026-06-07 — isRemittanceTarget 측 측측 (visit_only 출장비 측측).
+  const allPendingNonUsolN = tasks.filter(isRemittanceTarget);
 
   // completedAt 기준 일자별 그룹화
   const groupedByDate = {};

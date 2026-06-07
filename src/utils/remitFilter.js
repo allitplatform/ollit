@@ -46,9 +46,8 @@ import { isCompletedStatus } from "./taskStatus.js";
  */
 export function isTrackARemittance(task) {
   if (!task) return false;
-  // 2026-05-23 — visit_only 측 "완료 계열" 포함 (출장비도 트랙 'A' 측 회사 송금 대상).
-  //   visit_only 측 owner=0/principal=0 측 → 합계 산식 (total - engineer) 측 자동 0.
-  //   목록 측 표시되지만 실제 송금 금액 측 0 추가.
+  // 2026-05-23 — visit_only 측 "완료 계열" 포함 (매출/기사수익 측측 측측).
+  //   visit_only 측 출장비 측측 기사 100% → owner=0/principal=0. 매출 측측 측 측측 측측 측측.
   if (!isCompletedStatus(task.status)) return false;
 
   // task.track 우선, snake/camel 백업, 최종 fallback 'A' (정규화 매핑 누락 시 안전망).
@@ -56,9 +55,18 @@ export function isTrackARemittance(task) {
   return track === "A";
 }
 
+// 2026-06-07 — 송금/정산 측측 측측 (사장님 spec).
+//   isTrackARemittance 측 visit_only 측측. 매출 측측 측측 측측 — 송금/입금/측측 측측측만 측측 측측.
+//   호출처: EngineerApp.todayTrackATasks / 입금 측측측 / AdminApp 정산 / SettlementHistoryContent.
+export function isRemittanceTarget(task) {
+  if (!isTrackARemittance(task)) return false;
+  // 출장비측측 측 회사 측 측측 측측 측측 X (사장님 측측).
+  return task.status !== "visit_only";
+}
+
 // 필요 시 호출처에서 합성: 미정산만 보고 싶을 때.
 export function isPendingRemit(task) {
-  if (!isTrackARemittance(task)) return false;
+  if (!isRemittanceTarget(task)) return false;
   const confirmedAt = task.engineerRemitConfirmedAt
                    || task.engineer_remit_confirmed_at;
   return !confirmedAt;
