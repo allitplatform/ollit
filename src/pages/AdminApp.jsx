@@ -44,7 +44,7 @@ import { AllTasksScreen } from "../components/AllTasksScreen.jsx";
 import { RawOrdersArchiveScreen } from "../components/admin/RawOrdersArchiveScreen.jsx";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../data/paymentMethods.js";
-import { isRefrigerant } from "../utils/workTypeKind.js";
+import { isRefrigerant, getServiceKind } from "../utils/workTypeKind.js";
 import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
 import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
@@ -4937,6 +4937,21 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
 function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
   const isAssigned = task.assignmentStatus === "assigned";
 
+  // 2026-06-06 — 서비스 유형 아이콘 (serviceCode 기준, cleaning/refrigerant만)
+  const serviceKinds = (() => {
+    const set = new Set();
+    if (Array.isArray(task.workItems) && task.workItems.length > 0) {
+      for (const it of task.workItems) {
+        const k = getServiceKind(it);
+        if (k === "cleaning" || k === "refrigerant") set.add(k);
+      }
+    } else {
+      const k = getServiceKind(task);
+      if (k === "cleaning" || k === "refrigerant") set.add(k);
+    }
+    return set;
+  })();
+
   return (
     <div
       onClick={() => onClick && onClick(task)}
@@ -4945,12 +4960,18 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         borderRadius: 12, padding: "12px 14px", marginBottom: 8,
         cursor: onClick ? "pointer" : "default",
       }}>
-      {/* 헤더: 원청 라벨 + 고객명 + 재배정 요청 배지 */}
+      {/* 헤더: 원청 라벨 + 서비스 아이콘 + 주소키워드 + 재배정 요청 배지 */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
           <PrincipalLabel name={task.principal}/>
+          {serviceKinds.has("cleaning") && (
+            <Snowflake size={13} style={{ color: "#378ADD", flexShrink: 0 }} aria-label="세척"/>
+          )}
+          {serviceKinds.has("refrigerant") && (
+            <Zap size={13} style={{ color: "#EF9F27", flexShrink: 0 }} aria-label="냉매충전"/>
+          )}
           <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
-          {task.hasRefrigerant && task.workType !== "냉매충전" && (
+          {task.hasRefrigerant && task.workType !== "냉매충전" && !serviceKinds.has("refrigerant") && (
             <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
           )}
           {/* 2026-05-26 — 기사 재배정 요청 배지 (category_data.reassignRequest 있을 때만) */}
