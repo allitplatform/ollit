@@ -579,30 +579,33 @@ export function NewReceptionScreenLite({
                   borderRadius: 8,
                   padding: "10px 12px",
                   color: t.text,
-                  fontSize: 13,
+                  fontSize: 17,
+                  minHeight: 160,
                   fontFamily: "inherit",
                   outline: "none",
                   boxSizing: "border-box",
                   resize: "vertical",
                 }}
               />
-              <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8, alignItems: "stretch" }}>
                 <button
                   onClick={() => onParse?.(pasteText || "")}
                   disabled={!pasteText || !pasteText.trim()}
                   style={{
-                    padding: "7px 14px",
+                    width: "100%",
+                    height: 52,
+                    padding: "0 14px",
                     background: accentColor,
                     border: "none",
                     borderRadius: 8,
                     color: "#fff",
-                    fontSize: 12,
+                    fontSize: 18,
                     fontWeight: 700,
                     cursor: pasteText && pasteText.trim() ? "pointer" : "not-allowed",
                     opacity: pasteText && pasteText.trim() ? 1 : 0.5,
                     fontFamily: "inherit",
                   }}
-                >파싱</button>
+                >[선택한 단어]</button>
                 {hasPasteResults && (
                   <span style={{ fontSize: 10, color: t.textMuted }}>
                     {parsedRecords.length}건 감지
@@ -984,32 +987,35 @@ export function NewReceptionScreenLite({
               background: t.bg,
               border: `1px solid ${t.border}`,
               borderRadius: 8,
-              padding: "8px 10px",
+              padding: "10px 12px",
               color: t.text,
-              fontSize: 12,
+              fontSize: 17,
+              minHeight: 160,
               fontFamily: "inherit",
               outline: "none",
               boxSizing: "border-box",
               resize: "vertical",
             }}
           />
-          <div style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8, alignItems: "stretch" }}>
             <button
               onClick={() => onParse?.(pasteText || "")}
               disabled={!pasteText || !pasteText.trim()}
               style={{
-                padding: "7px 14px",
+                width: "100%",
+                height: 52,
+                padding: "0 14px",
                 background: accentColor,
                 border: "none",
                 borderRadius: 8,
                 color: "#fff",
-                fontSize: 12,
+                fontSize: 18,
                 fontWeight: 700,
                 cursor: pasteText && pasteText.trim() ? "pointer" : "not-allowed",
                 opacity: pasteText && pasteText.trim() ? 1 : 0.5,
                 fontFamily: "inherit",
               }}
-            >파싱</button>
+            >[선택한 단어]</button>
             {Array.isArray(parsedRecords) && parsedRecords.length > 0 && (
               <span style={{ fontSize: 10, color: t.textMuted }}>
                 {parsedRecords.length}건 감지
