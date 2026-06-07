@@ -29,7 +29,7 @@ import {
   ClipboardList, Wallet, Building2, ChevronRight, AlertCircle,
   CheckCircle2, Clock, User, Phone, MapPin, Calendar, Snowflake,
   Hash, Edit3, Camera, FileText, Sparkles, Search, Filter, DollarSign,
-  LogOut, Bell,
+  LogOut, Bell, ClipboardCheck, CalendarClock, XCircle,
 } from "lucide-react";
 import { useTasks } from "../shared/TasksContext.jsx";
 import { filterTasksForPrincipal } from "../shared/tasks.js";
@@ -52,6 +52,7 @@ import {
   markAllAsRead as markAllStoredAsRead,
   markAsRead as markStoredAsRead,
 } from "../utils/notificationStore.js";
+import { fetchNotiPrefs, setNotiPref, PARTNER_NOTI_KINDS } from "../lib/notiPrefsDb.js";
 // 2026-06-06 — KA/crikrin 메시지 붙여넣기 파서 (UploadTab 측 호출).
 import { parsePartnerPaste } from "../utils/partnerPasteParser.js";
 // 2026-06-06 — 작업 기본 정보 편집 (5 필드만, RPC update_task_basic Mig 099).
@@ -2476,6 +2477,46 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
   const [fontSize, setFontSize] = useState(() => loadFontSize());
   useEffect(() => { applyFontSize(fontSize); }, [fontSize]);
 
+  // 2026-06-08 — partner 5종 kind 토글 (Mig 108 + 106/107 짝).
+  //   user_notification_preferences 본인 prefs 로드. row 없음 = ON (default).
+  const userUuidForPrefs = user?.user_id || user?.userId || user?.id || "";
+  const [kindPrefs, setKindPrefs] = useState(() => {
+    const init = {}; for (const k of PARTNER_NOTI_KINDS) init[k] = true; return init;
+  });
+  const [kindLoading, setKindLoading] = useState(true);
+  useEffect(() => {
+    if (!userUuidForPrefs) { setKindLoading(false); return; }
+    let cancelled = false;
+    fetchNotiPrefs(userUuidForPrefs).then(res => {
+      if (cancelled) return;
+      if (res.ok) {
+        // PARTNER_NOTI_KINDS 만 추출 (운영자 kind 는 무시)
+        const next = {};
+        for (const k of PARTNER_NOTI_KINDS) next[k] = res.prefs[k] !== false;
+        setKindPrefs(next);
+      }
+      setKindLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [userUuidForPrefs]);
+
+  async function toggleKind(kind) {
+    if (kindLoading || !userUuidForPrefs) return;
+    const next = !kindPrefs[kind];
+    setKindPrefs(prev => ({ ...prev, [kind]: next }));   // optimistic
+    const res = await setNotiPref({
+      userId:  userUuidForPrefs,
+      kind,
+      enabled: next,
+      actorId: userUuidForPrefs,
+    });
+    if (!res.ok) {
+      // rollback
+      setKindPrefs(prev => ({ ...prev, [kind]: !next }));
+      showPushToast(`⚠️ ${res.error || "토글 실패"}`);
+    }
+  }
+
   // 2026-06-04 — 푸시 알림 토글 (Mig 097 partner 분기 짝).
   //   localStorage 'ollit_push' (EngineerMeTab 공유 키) 우선, 마운트 시 실제 구독 상태 동기화.
   const [push, setPush] = useState(() => {
@@ -2689,7 +2730,8 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
         {/* 푸시 알림 토글 */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "space-between",
-          paddingBottom: 14, marginBottom: 14, borderBottom: `1px solid ${t.border}`,
+          paddingBottom: 14, marginBottom: 14,
+          borderBottom: push ? "none" : `1px solid ${t.border}`,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 16 }}>{push ? "🔔" : "🔕"}</span>
@@ -2717,6 +2759,58 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
             }}/>
           </button>
         </div>
+
+        {/* 2026-06-08 — 원청 5종 kind 토글 (푸시 ON 일 때만 표시). Mig 108 짝. */}
+        {push && (
+          <div style={{
+            paddingLeft: 26, paddingBottom: 14, marginBottom: 14,
+            borderBottom: `1px solid ${t.border}`,
+            display: "flex", flexDirection: "column", gap: 8,
+          }}>
+            {[
+              { kind: "partnerAssign",   icon: ClipboardCheck, label: "작업 배정 알림" },
+              { kind: "partnerSchedule", icon: CalendarClock,  label: "일정 확정 알림" },
+              { kind: "partnerComplete", icon: CheckCircle2,   label: "작업 완료 알림" },
+              { kind: "partnerCancel",   icon: XCircle,        label: "작업 취소 알림" },
+              { kind: "partnerSettle",   icon: Wallet,         label: "정산 완료 알림" },
+            ].map(opt => {
+              const Icon = opt.icon;
+              const on = kindPrefs[opt.kind] !== false;
+              return (
+                <div key={opt.kind} style={{
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  opacity: kindLoading ? 0.55 : 1,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Icon size={14} style={{ color: t.textMuted, flexShrink: 0 }}/>
+                    <span style={{ fontSize: 12, color: t.text }}>{opt.label}</span>
+                  </div>
+                  <button
+                    onClick={() => toggleKind(opt.kind)}
+                    disabled={kindLoading}
+                    style={{
+                      width: 38, height: 22, borderRadius: 11,
+                      background: on ? "#FF4D9E" : t.border,
+                      border: "none", padding: 0,
+                      cursor: kindLoading ? "default" : "pointer",
+                      position: "relative",
+                      transition: "background 0.2s",
+                    }}
+                    aria-label={`${opt.label} 토글`}
+                  >
+                    <div style={{
+                      position: "absolute", top: 3, left: on ? 19 : 3,
+                      width: 16, height: 16, borderRadius: "50%",
+                      background: "#fff",
+                      transition: "left 0.2s",
+                      boxShadow: "0 1px 2px rgba(0,0,0,0.3)",
+                    }}/>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* 폰트 크기 선택 */}
         <div>
