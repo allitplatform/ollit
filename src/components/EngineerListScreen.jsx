@@ -1,9 +1,14 @@
 // Step 6 — 기사 관리 리스트 화면
 // 사장님 catch: 코드 수정 0번 / 화면에서 직접 추가/삭제
-import { useState, useMemo } from "react";
+// 2026-06-08 — 기능 라벨 출처를 DB epp(engineer_principal_permissions)로 전환.
+//   옛 출처 = SEED workTypes (하드코딩 12명) → 사이트 데이터 클리어 시 SEED 12명 노출 사고.
+//   새 출처 = listEngineerSkillsFromDb (DB epp + zones JOIN).
+//   캐시 비어도 SEED 폴백 안 함 — DB 응답 전엔 "—" 표시.
+import { useState, useMemo, useEffect } from "react";
 import {
   loadEngineers, CAREER_LEVELS, STATUS_OPTIONS,
 } from "../data/engineers.js";
+import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { EngineerBadge } from "./EngineerBadge.jsx";
 
 export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
@@ -12,23 +17,59 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
 
+  // 2026-06-08 — DB epp 직접 fetch (매 mount). engineerId(=users.code) → skills 배열.
+  //   응답 전엔 null → summarize "—" 표시 (SEED 폴백 차단).
+  const [skillsMap, setSkillsMap] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    listEngineerSkillsFromDb().then(res => {
+      if (cancelled) return;
+      const map = new Map();
+      const list = (res && res.ok && Array.isArray(res.skills)) ? res.skills : [];
+      for (const s of list) {
+        const eid = String(s.engineerId || "").trim();
+        if (!eid) continue;
+        if (!map.has(eid)) map.set(eid, []);
+        map.get(eid).push(s);
+      }
+      setSkillsMap(map);
+    }).catch(() => { if (!cancelled) setSkillsMap(new Map()); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // 2026-06-08 — 필터/검색도 DB skills 기준.
+  //   DB skill 의 workType 한국어 ("세척"/"냉매충전") 으로 매칭.
+  function _hasSkillDb(e, workTypeKr) {
+    if (!skillsMap) return false;
+    const list = skillsMap.get(String(e.id || "").trim()) || [];
+    return list.some(s => {
+      const grade = String(s.grade || "").trim();
+      const wt    = String(s.workType || "").trim();
+      return wt === workTypeKr && (grade === "메인" || grade === "백업");
+    });
+  }
   const filtered = useMemo(() => {
     return engineers.filter(e => {
-      // 검색 (이름 OR 지역)
+      // 검색 (이름 OR 지역) — 지역은 DB zones 우선, fallback SEED
       if (search) {
-        const inName = e.name.includes(search);
-        const inZones = Object.values(e.workTypes)
-          .flatMap(w => w.zones || [])
-          .some(z => z.includes(search));
+        const inName = e.name && e.name.includes(search);
+        const dbList = skillsMap ? (skillsMap.get(String(e.id||"").trim()) || []) : [];
+        const dbZones = dbList.flatMap(s => {
+          const z = s.zones;
+          if (Array.isArray(s.zonesArray)) return s.zonesArray;
+          if (typeof z === "string") return z.split(",").map(x => x.trim()).filter(Boolean);
+          return [];
+        });
+        const inZones = dbZones.some(z => z.includes(search));
         if (!inName && !inZones) return false;
       }
-      // 필터
-      if (filter === "cleaning"    && e.workTypes.cleaning.role === "none")    return false;
-      if (filter === "refrigerant" && e.workTypes.refrigerant.role === "none") return false;
+      // 기능 필터 — DB 기준. skillsMap 로딩 전엔 통과 (= 카운트 0 깜빡임 회피).
+      if (filter === "cleaning"    && skillsMap && !_hasSkillDb(e, "세척"))    return false;
+      if (filter === "refrigerant" && skillsMap && !_hasSkillDb(e, "냉매충전")) return false;
       if (filter === "rookie"      && e.careerLevel !== "rookie")              return false;
       return true;
     });
-  }, [engineers, search, filter]);
+  }, [engineers, search, filter, skillsMap]);
 
   const counts = useMemo(() => ({
     active: engineers.filter(e => e.status === "active").length,
@@ -87,7 +128,12 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
       {/* 리스트 */}
       <div style={{ padding: "0 16px 24px" }}>
         {filtered.map(e => (
-          <EngineerRow key={e.id} engineer={e} onClick={() => onEdit(e)}/>
+          <EngineerRow
+            key={e.id}
+            engineer={e}
+            skills={skillsMap ? (skillsMap.get(String(e.id||"").trim()) || []) : null}
+            onClick={() => onEdit(e)}
+          />
         ))}
         {filtered.length === 0 && (
           <div style={{ textAlign: "center", padding: 40, color: "var(--text-secondary)" }}>
@@ -99,30 +145,37 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
   );
 }
 
-function EngineerRow({ engineer: e, onClick }) {
+function EngineerRow({ engineer: e, skills, onClick }) {
   const level = CAREER_LEVELS[e.careerLevel] || CAREER_LEVELS.career;
   const status = STATUS_OPTIONS[e.status] || STATUS_OPTIONS.active;
 
-  // 작업별 요약: "세척 메인 3" / "냉매 백업 2" / 기종 전문 시 기종 기반
-  const summarize = (workType, label) => {
-    const w = e.workTypes[workType];
-    if (!w || w.role === "none") return null;
-    const roleText = w.role === "main" ? "메인" : "백업";
-    if (w.zones.length > 0) return `${label} ${roleText} ${w.zones.length}`;
-    if (w.appliances.length > 0) return `${label} ${roleText} (${w.appliances.join("·")})`;
-    return `${label} ${roleText}`;
-  };
-  const parts = [
-    summarize("cleaning",    "세척"),
-    summarize("refrigerant", "냉매"),
-  ].filter(Boolean);
-  const summary = parts.join(" / ") || "작업 미설정";
+  // 2026-06-08 — DB epp 기준 요약. skills=null (로딩 중) → "—" / [] (DB 없음) → "작업 미설정".
+  function _summarizeDb(workTypeKr, label) {
+    if (!skills) return null;
+    const s = skills.find(x => String(x.workType||"").trim() === workTypeKr);
+    if (!s) return null;
+    const grade = String(s.grade || "").trim();
+    if (grade !== "메인" && grade !== "백업") return null;
+    const zonesArr = Array.isArray(s.zonesArray) ? s.zonesArray
+      : (typeof s.zones === "string" ? s.zones.split(",").map(z=>z.trim()).filter(Boolean) : []);
+    const n = zonesArr.length;
+    return n > 0 ? `${label} ${grade} ${n}` : `${label} ${grade}`;
+  }
+  let summary;
+  if (skills === null) {
+    summary = "—";
+  } else {
+    const parts = [_summarizeDb("세척", "세척"), _summarizeDb("냉매충전", "냉매")].filter(Boolean);
+    summary = parts.join(" / ") || "작업 미설정";
+  }
 
-  // EngineerBadge — main/backup 표시 (cleaning role 우선)
-  const role = (e.workTypes?.cleaning?.role === "main" || e.workTypes?.refrigerant?.role === "main")
-    ? "main"
-    : (e.workTypes?.cleaning?.role === "backup" || e.workTypes?.refrigerant?.role === "backup")
-    ? "backup" : null;
+  // EngineerBadge — main/backup 표시 (DB skills 기준, main 우선)
+  let role = null;
+  if (skills && skills.length > 0) {
+    const hasMain   = skills.some(s => String(s.grade||"").trim() === "메인");
+    const hasBackup = skills.some(s => String(s.grade||"").trim() === "백업");
+    role = hasMain ? "main" : (hasBackup ? "backup" : null);
+  }
 
   return (
     <div onClick={onClick} style={rowStyle}>
