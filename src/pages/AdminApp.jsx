@@ -7803,8 +7803,9 @@ function AutoAssignScreen({ t, task, apiEngineers = [], onBack, onComplete, onFa
         } else {
           allCandidates = [...main, ...sub, ...capable];
         }
-        // 2026-05-21 — 발송 대상 4 → 10명 (사장님 spec)
-        const broadcast = allCandidates.slice(0, task.pushCount || 10);
+        // 2026-06-08 — 사장님 spec: 추천 전원 (cap 제거). 옛 slice(0,10) 폐기.
+        //   recommendEngineersFromDb 측 이미 활성 + 메인/백업 + 지역 필터 적용 — 전원이 적격.
+        const broadcast = allCandidates;
         console.log('[V14 AutoAssign] candidates:', broadcast.length, '명');
         setCandidates(broadcast);
 

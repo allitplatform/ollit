@@ -2,10 +2,15 @@
 // V11-5 시드 구조 유지: engineer.workTypes.cleaning.zones[지역명] / role "main"|"sub"
 // 정렬: 지역 매칭 등급(main > sub > possible > none) → 같은 등급 내 점수순
 // tier: best (메인+70+) / good (메인 또는 60+) / possible (40+) / fallback (그 외)
+//
+// 2026-06-08 — recommendEngineersFromDb 추가 (DB 최신, async, 단순 메인/백업 필터).
+//   AutoAssignScreen (= push_candidates 발사) 측만 새 함수로 전환.
+//   옛 recommendEngineers (sync, 점수, localStorage) 는 AllEngineersModal 호환용 보존.
 import { loadEngineers } from "../data/engineers.js";
 import { loadTasks } from "../data/tasks.js";
 import { loadRegions } from "../data/regions.js";
 import { isRefrigerant } from "./workTypeKind.js";
+import { supabase } from "../lib/supabase.js";
 
 const RECOMMEND_THRESHOLD = 50; // isRecommended 기준
 
@@ -235,29 +240,116 @@ export const RECOMMEND_INFO = {
 
 // ============================================================
 // Phase 3-10 — 시트 getRecommendedEngineers 대체 어댑터
-// 시그니처: (workType, principal, region) — 옛 GAS 호출과 동일
-// 응답: { ok: true, main, sub, capable } — main/sub/capable은 engineer 객체 배열
 // ============================================================
-// regionMatch 분류:
-//   · "main"     → main 그룹 (지역 메인)
-//   · "sub"      → sub 그룹 (지역 백업)
-//   · "possible" → capable 그룹 (인접 지역)
-//   · "none"     → 제외
-//
-// 평탄화: { engineer, score, tier, reasons, ... } → engineer 객체 그대로
-//        (AdminApp.jsx 호출처가 eng.name / eng.id 등 직접 접근)
-// 비동기 시그니처 (async) 유지 — 호출처 await 호환.
+// 2026-06-08 — 점수 폐기. recommendEngineersFromDb (DB 최신) 호출.
+//   · 활성 기사만 (users.is_active=true)
+//   · serviceCode (cleaning/refrigerant) 메인/백업 보유 (epp.level IN ('main','sub'))
+//   · 지역: zones 비면 전국 통과 / zones 있으면 task.region in zones (또는 zones에 "전국")
+//   · 점수/threshold/top-N/capable 제거. 메인 먼저, 그 다음 백업. 전원.
+// 응답: { ok, main, sub, capable: [] } — capable 호환용 빈 배열 (호출처 변경 X).
 export async function recommendEngineersGroupedAdapter(workType, principal, region) {
-  const task = {
-    workType: workType || "",
+  const list = await recommendEngineersFromDb({
+    workType:  workType  || "",
     principal: principal || "",
-    region: region || "",
-  };
-  const scored = recommendEngineers(task, { limit: 999 });
+    region:    region    || "",
+  });
+  const main = list.filter(e => e.level === "main");
+  const sub  = list.filter(e => e.level === "sub");
+  return { ok: true, main, sub, capable: [] };
+}
 
-  const main    = scored.filter(s => s.regionMatch === "main").map(s => s.engineer);
-  const sub     = scored.filter(s => s.regionMatch === "sub").map(s => s.engineer);
-  const capable = scored.filter(s => s.regionMatch === "possible").map(s => s.engineer);
+// ============================================================
+// 2026-06-08 — DB 직접 추천 (캐시 의존 0, 매번 fresh).
+//   타임라인:
+//     [1] epp + users JOIN — service_code + level IN ('main','sub') + active=true
+//     [2] engineer_zones — user_id IN (...)
+//     [3] 지역 필터 + 정렬 (main 먼저)
+//   region 매칭: tasks.district / engineer_zones.district 같은 형식 (구/시) — exact + "전국" 확장.
+// ============================================================
 
-  return { ok: true, main, sub, capable };
+// task → serviceCode (텍스트 LIKE 폐기, serviceCode 1순위)
+function _pickServiceCode(task) {
+  const items = Array.isArray(task?.workItems) ? task.workItems : [];
+  for (const it of items) {
+    const c = String(it?.serviceCode || it?.service_code || "").toLowerCase();
+    if (c === "cleaning" || c === "refrigerant") return c;
+  }
+  return isRefrigerant(task) ? "refrigerant" : "cleaning";
+}
+
+export async function recommendEngineersFromDb(task) {
+  const region  = String(task?.region || "").trim();
+  const svcCode = _pickServiceCode(task);
+
+  // [1] epp + users JOIN (활성 기사 + 해당 serviceCode 메인/백업)
+  const { data: eppRows, error: eppErr } = await supabase
+    .from("engineer_principal_permissions")
+    .select(`
+      user_id, level,
+      users!engineer_principal_permissions_user_id_fkey (
+        id, code, name, phone, is_active
+      )
+    `)
+    .eq("service_code", svcCode)
+    .in("level", ["main", "sub"])
+    .eq("active", true);
+  if (eppErr) {
+    console.error("[recommendEngineersFromDb:epp]", eppErr);
+    return [];
+  }
+
+  // user 활성 + duplicate (= 같은 user 의 NULL + 원청별 row) 정리:
+  //   사장님 spec — 한 user 당 1 row (level 우선 main > sub).
+  const byUserId = new Map();
+  for (const r of eppRows || []) {
+    if (!r.users || r.users.is_active !== true) continue;
+    const prev = byUserId.get(r.user_id);
+    if (!prev || (r.level === "main" && prev.level !== "main")) {
+      byUserId.set(r.user_id, {
+        id:     r.users.code,    // "E0xx" — push_candidates 호환 키
+        userId: r.users.id,      // UUID — zones 조회 키
+        name:   r.users.name,
+        phone:  r.users.phone,
+        level:  r.level,
+      });
+    }
+  }
+  const candidates = Array.from(byUserId.values());
+  if (candidates.length === 0) return [];
+
+  // [2] zones 조회 (활성 후보 user 만)
+  const userIds = candidates.map(c => c.userId);
+  const { data: ezRows, error: ezErr } = await supabase
+    .from("engineer_zones")
+    .select("user_id, district")
+    .in("user_id", userIds)
+    .eq("active", true);
+  if (ezErr) {
+    console.error("[recommendEngineersFromDb:zones]", ezErr);
+    return [];
+  }
+  const zonesByUser = new Map();
+  for (const z of ezRows || []) {
+    if (!zonesByUser.has(z.user_id)) zonesByUser.set(z.user_id, []);
+    zonesByUser.get(z.user_id).push(String(z.district || "").trim());
+  }
+
+  // [3] 지역 필터: zones 비면 전 지역 통과 / "전국" 포함 통과 / region in zones
+  const filtered = candidates.filter(c => {
+    const zones = zonesByUser.get(c.userId) || [];
+    if (zones.length === 0) return true;
+    if (zones.includes("전국")) return true;
+    if (!region) return true;
+    return zones.includes(region);
+  });
+
+  // [4] 정렬: main 먼저, 같은 등급 내 이름순
+  filtered.sort((a, b) => {
+    const ap = a.level === "main" ? 0 : 1;
+    const bp = b.level === "main" ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    return (a.name || "").localeCompare(b.name || "", "ko");
+  });
+
+  return filtered;
 }
