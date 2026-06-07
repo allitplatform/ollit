@@ -1,7 +1,19 @@
-// Phase 1-B 2-E ─ PWA 푸시 알림 Service Worker (통째 교체)
+// Phase 1-B 2-E ─ PWA 푸시 알림 Service Worker
 // public/service-worker.js
+//
+// 2026-06-08 — 캐시 자동 업데이트 추가 (조용히 모드, 사장님 spec 🅑).
+//   · CACHE 버전 업: ollit-push-v1 → ollit-v2 (activate 시 옛 캐시 삭제됨)
+//   · fetch 핸들러 신규 추가:
+//       - GET + 같은 origin 만
+//       - /api/* + 외부 origin (supabase 등) bypass
+//       - HTML/navigation = network-first + {cache:'reload'} (HTTP 캐시 우회)
+//                           실패 시 캐시 → '/' fallback
+//       - 해시 자산 /assets/...-[hash].* = cache-first (불변)
+//       - 그 외 = 그냥 네트워크 (캐시 X)
+//   · ★ controllerchange auto-reload 안 함 — 다음에 앱 열 때 자동 적용 (= 조용히).
+//   · ★ push / notificationclick / notificationclose / IndexedDB = 한 글자도 변경 X.
 
-const CACHE = "ollit-push-v1";
+const CACHE = "ollit-v2";
 
 // 2026-05-10 — IndexedDB 직접 저장 (iOS 백그라운드 push 측 catch)
 // broadcast 의존 X / SW 자체에서 박음 (PWA 비활성 상태에서 받은 push도 catch)
@@ -93,6 +105,80 @@ self.addEventListener("activate", (e) => {
   })());
 });
 
+// ─────────────────────────────────────────────────────────────
+// 2026-06-08 — fetch 핸들러 (조용히 캐시 자동 업데이트)
+// 푸시 핸들러는 무관 — 본 핸들러는 GET 페이지/자산만 처리.
+// ─────────────────────────────────────────────────────────────
+const HASHED_ASSET_RE = /\/assets\/[^\/]+-[A-Za-z0-9_-]{8,}\.(?:js|css|woff2?|png|jpg|jpeg|svg|webp|ico)$/i;
+const NAVIGATION_FALLBACK = "/";
+
+self.addEventListener("fetch", (e) => {
+  const req = e.request;
+
+  // GET 외 (POST/PUT/DELETE) — bypass
+  if (req.method !== "GET") return;
+
+  let url;
+  try { url = new URL(req.url); } catch { return; }
+
+  // 다른 origin (supabase / web-push 등) — bypass
+  if (url.origin !== self.location.origin) return;
+
+  // /api/* — 항상 네트워크 (SW 안 거침)
+  if (url.pathname.startsWith("/api/")) return;
+
+  // (a) navigation / HTML → network-first + {cache:'reload'}
+  //   HTTP 캐시까지 우회 → 새 배포 즉시 반영.
+  const acceptsHtml = (req.headers.get("accept") || "").includes("text/html");
+  if (req.mode === "navigate" || acceptsHtml) {
+    e.respondWith((async () => {
+      try {
+        // {cache:'reload'} 가드 — Request 생성자가 안 받는 환경(iOS 일부) 대비 try/catch.
+        let netReq = req;
+        try {
+          netReq = new Request(req, { cache: "reload" });
+        } catch {}
+        const res = await fetch(netReq);
+        try {
+          const cache = await caches.open(CACHE);
+          cache.put(req, res.clone()).catch(() => {});
+        } catch {}
+        return res;
+      } catch {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        const fallback = await caches.match(NAVIGATION_FALLBACK);
+        if (fallback) return fallback;
+        return new Response("offline", { status: 503, headers: { "Content-Type": "text/plain" } });
+      }
+    })());
+    return;
+  }
+
+  // (b) 해시된 자산 → cache-first (불변)
+  if (HASHED_ASSET_RE.test(url.pathname)) {
+    e.respondWith((async () => {
+      try {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        const res = await fetch(req);
+        try {
+          const cache = await caches.open(CACHE);
+          cache.put(req, res.clone()).catch(() => {});
+        } catch {}
+        return res;
+      } catch {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        throw new Error("asset fetch failed");
+      }
+    })());
+    return;
+  }
+
+  // (c) 그 외 (manifest, icon, 옛 파일 등) — 그냥 네트워크 (SW 캐시 안 함)
+});
+
 // 푸시 수신 → 시스템 알림 + 앱 클라이언트 broadcast
 self.addEventListener("push", (e) => {
   let data = { title: "올잇", body: "새 알림", url: "/" };
@@ -117,16 +203,16 @@ self.addEventListener("push", (e) => {
 
   // 1. OS 알림
   const showNotiPromise = self.registration.showNotification(data.title || "올잇", options);
-  
+
   // 2. 앱 클라이언트 broadcast (실시간 새로고침용)
-  const broadcastPromise = self.clients.matchAll({ 
-    type: 'window', 
-    includeUncontrolled: true 
+  const broadcastPromise = self.clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true
   }).then(clients => {
     clients.forEach(client => {
-      client.postMessage({ 
-        type: 'PUSH_RECEIVED', 
-        data: data 
+      client.postMessage({
+        type: 'PUSH_RECEIVED',
+        data: data
       });
     });
   }).catch(() => {});
