@@ -4,6 +4,10 @@
 //   row 없음 = 켜짐. UPSERT 측 set_notification_pref RPC.
 import { useState, useEffect } from "react";
 import {
+  Inbox, UserCheck, CalendarClock, CheckCircle2, XCircle, Wallet,
+  PlayCircle, ThumbsUp, AlertTriangle,
+} from "lucide-react";
+import {
   subscribePushWithSync,
   unsubscribePushWithSync,
   isPushSupported,
@@ -198,18 +202,17 @@ export function NotificationsScreen({ user, onBack }) {
           알림 종류
           {kindLoading ? <span style={{ marginLeft: 8, fontWeight: 400, color: "#9CA3AF" }}>(불러오는 중...)</span> : null}
         </SectionLabel>
-        <ToggleRow label="새 접수 알림"               checked={kindPrefs.newOrder}       onToggle={() => toggleKind("newOrder")}       disabled={kindLoading}/>
-        <ToggleRow label="배정 알림"                  checked={kindPrefs.assignment}     onToggle={() => toggleKind("assignment")}     disabled={kindLoading}/>
-        <ToggleRow label="일정 변경 알림"             checked={kindPrefs.scheduleChange} onToggle={() => toggleKind("scheduleChange")} disabled={kindLoading}/>
-        <ToggleRow label="작업 완료 알림"             checked={kindPrefs.taskComplete}   onToggle={() => toggleKind("taskComplete")}   disabled={kindLoading}/>
-        {/* 2026-06-07 — 라벨 정정 ("부분완료/출장비만/취소" → "취소 알림"). 실제 매칭이 "작업 취소"만이라 정확화. */}
-        <ToggleRow label="취소 알림"                  checked={kindPrefs.partialEtc}     onToggle={() => toggleKind("partialEtc")}     disabled={kindLoading}/>
-        <ToggleRow label="정산 완료 알림"             checked={kindPrefs.settleComplete} onToggle={() => toggleKind("settleComplete")} disabled={kindLoading}/>
-        {/* 2026-06-07 — 신규 4종 (트리거 title 그대로 매칭) */}
-        <ToggleRow label="작업 시작 알림"             checked={kindPrefs.taskStart}      onToggle={() => toggleKind("taskStart")}      disabled={kindLoading}/>
-        <ToggleRow label="기사 수락 알림"             checked={kindPrefs.engineerAccept} onToggle={() => toggleKind("engineerAccept")} disabled={kindLoading}/>
-        <ToggleRow label="취소 요청 알림"             checked={kindPrefs.cancelRequest}  onToggle={() => toggleKind("cancelRequest")}  disabled={kindLoading}/>
-        <ToggleRow label="냉매 수락 마감 알림"        checked={kindPrefs.refrigClosed}   onToggle={() => toggleKind("refrigClosed")}   disabled={kindLoading}/>
+        {/* 2026-06-07 — 아이콘 추가 + "냉매 수락 마감" 제거 (운영자 미수신, 기사용). */}
+        <ToggleRow icon={Inbox}          label="새 접수 알림"      checked={kindPrefs.newOrder}       onToggle={() => toggleKind("newOrder")}       disabled={kindLoading}/>
+        <ToggleRow icon={UserCheck}      label="배정 알림"         checked={kindPrefs.assignment}     onToggle={() => toggleKind("assignment")}     disabled={kindLoading}/>
+        <ToggleRow icon={CalendarClock}  label="일정 변경 알림"    checked={kindPrefs.scheduleChange} onToggle={() => toggleKind("scheduleChange")} disabled={kindLoading}/>
+        <ToggleRow icon={CheckCircle2}   label="작업 완료 알림"    checked={kindPrefs.taskComplete}   onToggle={() => toggleKind("taskComplete")}   disabled={kindLoading}/>
+        {/* 라벨 정정 ("부분완료/출장비만/취소" → "취소 알림"). 실제 매칭이 "작업 취소"만. */}
+        <ToggleRow icon={XCircle}        label="취소 알림"         checked={kindPrefs.partialEtc}     onToggle={() => toggleKind("partialEtc")}     disabled={kindLoading}/>
+        <ToggleRow icon={Wallet}         label="정산 완료 알림"    checked={kindPrefs.settleComplete} onToggle={() => toggleKind("settleComplete")} disabled={kindLoading}/>
+        <ToggleRow icon={PlayCircle}     label="작업 시작 알림"    checked={kindPrefs.taskStart}      onToggle={() => toggleKind("taskStart")}      disabled={kindLoading}/>
+        <ToggleRow icon={ThumbsUp}       label="기사 수락 알림"    checked={kindPrefs.engineerAccept} onToggle={() => toggleKind("engineerAccept")} disabled={kindLoading}/>
+        <ToggleRow icon={AlertTriangle}  label="취소 요청 알림"    checked={kindPrefs.cancelRequest}  onToggle={() => toggleKind("cancelRequest")}  disabled={kindLoading}/>
       </div>
 
       {/* Step 6-2 — 푸시 토스트 */}
@@ -278,7 +281,7 @@ function Toggle({ enabled, disabled }) {
   );
 }
 
-function ToggleRow({ label, checked, onToggle, disabled }) {
+function ToggleRow({ icon: Icon, label, checked, onToggle, disabled }) {
   return (
     <div
       onClick={disabled ? undefined : onToggle}
@@ -290,7 +293,10 @@ function ToggleRow({ label, checked, onToggle, disabled }) {
         opacity: disabled ? 0.55 : 1,
       }}
     >
-      <span style={{ fontSize: 12, color: "var(--text-primary)" }}>{label}</span>
+      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-primary)" }}>
+        {Icon && <Icon size={14} style={{ color: "var(--text-secondary)", flexShrink: 0 }} aria-hidden="true"/>}
+        {label}
+      </span>
       <Toggle enabled={checked} disabled={disabled}/>
     </div>
   );
