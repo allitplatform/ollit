@@ -605,7 +605,7 @@ export function NewReceptionScreenLite({
                     opacity: pasteText && pasteText.trim() ? 1 : 0.5,
                     fontFamily: "inherit",
                   }}
-                >[선택한 단어]</button>
+                >자동채우기</button>
                 {hasPasteResults && (
                   <span style={{ fontSize: 10, color: t.textMuted }}>
                     {parsedRecords.length}건 감지
@@ -1015,7 +1015,7 @@ export function NewReceptionScreenLite({
                 opacity: pasteText && pasteText.trim() ? 1 : 0.5,
                 fontFamily: "inherit",
               }}
-            >[선택한 단어]</button>
+            >자동채우기</button>
             {Array.isArray(parsedRecords) && parsedRecords.length > 0 && (
               <span style={{ fontSize: 10, color: t.textMuted }}>
                 {parsedRecords.length}건 감지
