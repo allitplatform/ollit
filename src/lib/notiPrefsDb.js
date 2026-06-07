@@ -18,6 +18,7 @@
 import { supabase } from "./supabase.js";
 
 export const NOTI_KINDS = [
+  // 운영자 / 기사 (10종)
   "newOrder",
   "assignment",
   "scheduleChange",
@@ -29,6 +30,26 @@ export const NOTI_KINDS = [
   "engineerAccept",
   "cancelRequest",
   "refrigClosed",
+  // 2026-06-08 원청 5종 (Mig 108 whitelist)
+  "partnerAssign",
+  "partnerSchedule",
+  "partnerComplete",
+  "partnerCancel",
+  "partnerSettle",
+];
+
+// 2026-06-08 — 역할별 노출 kind (NotificationsScreen 토글 분기용).
+export const PARTNER_NOTI_KINDS = [
+  "partnerAssign",
+  "partnerSchedule",
+  "partnerComplete",
+  "partnerCancel",
+  "partnerSettle",
+];
+export const STAFF_NOTI_KINDS = [
+  "newOrder","assignment","scheduleChange","taskComplete",
+  "partialEtc","settleComplete",
+  "taskStart","engineerAccept","cancelRequest",
 ];
 
 // 본인 prefs 전체 조회 → { newOrder: true, assignment: false, ... }

@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import {
   Inbox, UserCheck, CalendarClock, CheckCircle2, XCircle, Wallet,
-  PlayCircle, ThumbsUp, AlertTriangle,
+  PlayCircle, ThumbsUp, AlertTriangle, ClipboardCheck,
 } from "lucide-react";
 import {
   subscribePushWithSync,
@@ -202,17 +202,29 @@ export function NotificationsScreen({ user, onBack }) {
           알림 종류
           {kindLoading ? <span style={{ marginLeft: 8, fontWeight: 400, color: "#9CA3AF" }}>(불러오는 중...)</span> : null}
         </SectionLabel>
-        {/* 2026-06-07 — 아이콘 추가 + "냉매 수락 마감" 제거 (운영자 미수신, 기사용). */}
-        <ToggleRow icon={Inbox}          label="새 접수 알림"      checked={kindPrefs.newOrder}       onToggle={() => toggleKind("newOrder")}       disabled={kindLoading}/>
-        <ToggleRow icon={UserCheck}      label="배정 알림"         checked={kindPrefs.assignment}     onToggle={() => toggleKind("assignment")}     disabled={kindLoading}/>
-        <ToggleRow icon={CalendarClock}  label="일정 변경 알림"    checked={kindPrefs.scheduleChange} onToggle={() => toggleKind("scheduleChange")} disabled={kindLoading}/>
-        <ToggleRow icon={CheckCircle2}   label="작업 완료 알림"    checked={kindPrefs.taskComplete}   onToggle={() => toggleKind("taskComplete")}   disabled={kindLoading}/>
-        {/* 라벨 정정 ("부분완료/출장비만/취소" → "취소 알림"). 실제 매칭이 "작업 취소"만. */}
-        <ToggleRow icon={XCircle}        label="취소 알림"         checked={kindPrefs.partialEtc}     onToggle={() => toggleKind("partialEtc")}     disabled={kindLoading}/>
-        <ToggleRow icon={Wallet}         label="정산 완료 알림"    checked={kindPrefs.settleComplete} onToggle={() => toggleKind("settleComplete")} disabled={kindLoading}/>
-        <ToggleRow icon={PlayCircle}     label="작업 시작 알림"    checked={kindPrefs.taskStart}      onToggle={() => toggleKind("taskStart")}      disabled={kindLoading}/>
-        <ToggleRow icon={ThumbsUp}       label="기사 수락 알림"    checked={kindPrefs.engineerAccept} onToggle={() => toggleKind("engineerAccept")} disabled={kindLoading}/>
-        <ToggleRow icon={AlertTriangle}  label="취소 요청 알림"    checked={kindPrefs.cancelRequest}  onToggle={() => toggleKind("cancelRequest")}  disabled={kindLoading}/>
+        {/* 2026-06-08 — role 분기: 원청(partner) = 5종 / 그 외(운영자/관리자) = 9종 */}
+        {currentUser?.role === "partner" || currentUser?.role === "principal" ? (
+          <>
+            <ToggleRow icon={ClipboardCheck} label="작업 배정 알림"  checked={kindPrefs.partnerAssign}    onToggle={() => toggleKind("partnerAssign")}    disabled={kindLoading}/>
+            <ToggleRow icon={CalendarClock}  label="일정 확정 알림"  checked={kindPrefs.partnerSchedule}  onToggle={() => toggleKind("partnerSchedule")}  disabled={kindLoading}/>
+            <ToggleRow icon={CheckCircle2}   label="작업 완료 알림"  checked={kindPrefs.partnerComplete}  onToggle={() => toggleKind("partnerComplete")}  disabled={kindLoading}/>
+            <ToggleRow icon={XCircle}        label="작업 취소 알림"  checked={kindPrefs.partnerCancel}    onToggle={() => toggleKind("partnerCancel")}    disabled={kindLoading}/>
+            <ToggleRow icon={Wallet}         label="정산 완료 알림"  checked={kindPrefs.partnerSettle}    onToggle={() => toggleKind("partnerSettle")}    disabled={kindLoading}/>
+          </>
+        ) : (
+          <>
+            {/* 운영자/관리자 9종 — "냉매 수락 마감" 제외 (기사용) */}
+            <ToggleRow icon={Inbox}          label="새 접수 알림"      checked={kindPrefs.newOrder}       onToggle={() => toggleKind("newOrder")}       disabled={kindLoading}/>
+            <ToggleRow icon={UserCheck}      label="배정 알림"         checked={kindPrefs.assignment}     onToggle={() => toggleKind("assignment")}     disabled={kindLoading}/>
+            <ToggleRow icon={CalendarClock}  label="일정 변경 알림"    checked={kindPrefs.scheduleChange} onToggle={() => toggleKind("scheduleChange")} disabled={kindLoading}/>
+            <ToggleRow icon={CheckCircle2}   label="작업 완료 알림"    checked={kindPrefs.taskComplete}   onToggle={() => toggleKind("taskComplete")}   disabled={kindLoading}/>
+            <ToggleRow icon={XCircle}        label="취소 알림"         checked={kindPrefs.partialEtc}     onToggle={() => toggleKind("partialEtc")}     disabled={kindLoading}/>
+            <ToggleRow icon={Wallet}         label="정산 완료 알림"    checked={kindPrefs.settleComplete} onToggle={() => toggleKind("settleComplete")} disabled={kindLoading}/>
+            <ToggleRow icon={PlayCircle}     label="작업 시작 알림"    checked={kindPrefs.taskStart}      onToggle={() => toggleKind("taskStart")}      disabled={kindLoading}/>
+            <ToggleRow icon={ThumbsUp}       label="기사 수락 알림"    checked={kindPrefs.engineerAccept} onToggle={() => toggleKind("engineerAccept")} disabled={kindLoading}/>
+            <ToggleRow icon={AlertTriangle}  label="취소 요청 알림"    checked={kindPrefs.cancelRequest}  onToggle={() => toggleKind("cancelRequest")}  disabled={kindLoading}/>
+          </>
+        )}
       </div>
 
       {/* Step 6-2 — 푸시 토스트 */}

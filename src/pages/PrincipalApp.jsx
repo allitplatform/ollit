@@ -29,7 +29,7 @@ import {
   ClipboardList, Wallet, Building2, ChevronRight, AlertCircle,
   CheckCircle2, Clock, User, Phone, MapPin, Calendar, Snowflake,
   Hash, Edit3, Camera, FileText, Sparkles, Search, Filter, DollarSign,
-  LogOut
+  LogOut, Bell,
 } from "lucide-react";
 import { useTasks } from "../shared/TasksContext.jsx";
 import { filterTasksForPrincipal } from "../shared/tasks.js";
@@ -46,6 +46,12 @@ import { UsolHScheduleTab } from "../components/principal/UsolHScheduleTab.jsx";
 import { UsolNOrders } from "../components/usol_n/UsolNOrders.jsx";
 import { UsolNCsvMatch } from "../components/usol_n/UsolNCsvMatch.jsx";
 import { NewReceptionScreenLite } from "../components/principal/NewReceptionScreenLite.jsx";
+import { NotiScreen } from "../components/notifications/NotiScreen.jsx";
+import {
+  listNotifications as listStoredNotifications,
+  markAllAsRead as markAllStoredAsRead,
+  markAsRead as markStoredAsRead,
+} from "../utils/notificationStore.js";
 // 2026-06-06 — KA/crikrin 메시지 붙여넣기 파서 (UploadTab 측 호출).
 import { parsePartnerPaste } from "../utils/partnerPasteParser.js";
 // 2026-06-06 — 작업 기본 정보 편집 (5 필드만, RPC update_task_basic Mig 099).
@@ -470,6 +476,42 @@ export default function PrincipalApp({ user, onLogout }) {
   const [selectedTask, setSelectedTask] = useState(null);
   const t = THEMES[mode];
 
+  // 2026-06-08 — 인앱 알림 (IndexedDB notificationStore — 기사/운영자와 동일 저장소).
+  const [notifications, setNotifications] = useState([]);
+  useEffect(() => {
+    let cancelled = false;
+    async function reload() {
+      const stored = await listStoredNotifications();
+      if (cancelled) return;
+      setNotifications((stored || []).map(s => ({
+        id: s.id,
+        type: "partner_message",   // 우선 fallback. NotiCard 측 pickIconFromTitle(title) 측 아이콘 선택.
+        read: !!s.read,
+        urgent: false,
+        createdAt: new Date(s.timestamp || Date.now()),
+        title: s.title || "",
+        subtitle: s.body || "",
+        relatedId: s.taskId || null,
+        targetScreen: s.url || null,
+      })));
+    }
+    reload();
+    const handler = () => reload();
+    window.addEventListener("notification:added", handler);
+    return () => { cancelled = true; window.removeEventListener("notification:added", handler); };
+  }, []);
+  async function handleMarkAllRead() {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    await markAllStoredAsRead();
+  }
+  function handleNotiClick(noti) {
+    if (typeof noti.id === "number") markStoredAsRead(noti.id).catch(() => {});
+    setNotifications(prev => prev.map(n => n.id === noti.id ? { ...n, read: true } : n));
+    if (!noti.relatedId) return;
+    // 원청 PWA 측 작업 측측측 selectedTask 측 측 — id 매칭 후 (= 측측 작업) 측측, 측측 측측 X.
+    // 측측 작업 (완료/취소/측측 측측) 측 측측 측측측 — 안 측측측 measure (= 측측).
+  }
+
   // 2026-06-03 — 글로벌 CSS 측 측측 (Principal 측측 측측 측측 dark 측측).
   //   측측: --text-primary 측측 LIGHT 측측 측측 측측 측측 측측 측측 측 측측 측 측측 측 측측.
   useEffect(() => {
@@ -559,13 +601,27 @@ export default function PrincipalApp({ user, onLogout }) {
                   : <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>
               )}
               {tab === "info"   && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
+              {/* 2026-06-08 — 원청 인앱 알림 탭 */}
+              {tab === "noti"   && (
+                <NotiScreen
+                  notifications={notifications}
+                  onMarkAllRead={handleMarkAllRead}
+                  onCardClick={handleNotiClick}
+                  title="🔔 알림"
+                />
+              )}
             </div>
             {selectedTask && <TaskDetail t={t} task={selectedTask} user={user} onBack={() => setSelectedTask(null)}/>}
           </>
         )}
 
         {!selectedTask && !submittedTask && (
-          <BottomNav t={t} tab={tab} onChange={setTab} isPartnerMode={!!partnerConfig} hasSchedule={principalCodes.some(c => c === "usol_h" || c === "usol_n")}/>
+          <BottomNav
+            t={t} tab={tab} onChange={setTab}
+            isPartnerMode={!!partnerConfig}
+            hasSchedule={principalCodes.some(c => c === "usol_h" || c === "usol_n")}
+            unreadCount={notifications.filter(n => !n.read).length}
+          />
         )}
       </div>
     </div>
@@ -591,13 +647,15 @@ function Header({ t, user }) {
 //   isPartnerMode (KA/crikrin) → "접수" (NewReceptionScreenLite 직접 입력 단일 경로)
 //   유솔(usol_h/usol_n)         → "업로드" (CSV/네이버 시트 업로드 + 수동 입력 혼합 흐름)
 //   Plus 아이콘은 신규 생성 의미로 양쪽 공통 유지.
-function BottomNav({ t, tab, onChange, isPartnerMode, hasSchedule }) {
-  // 2026-06-06 — usol_h 측 "일정" 탭 (Calendar). 측 측 측 측 측 — 측 측 측 측 측 측 측 측.
+function BottomNav({ t, tab, onChange, isPartnerMode, hasSchedule, unreadCount = 0 }) {
+  // 2026-06-06 — usol_h 측 "일정" 탭 (Calendar).
+  // 2026-06-08 — 원청 인앱 알림 탭 추가 (info 앞).
   const tabs = [
     { id: "list",   icon: ClipboardList, label: "내 작업" },
     ...(hasSchedule ? [{ id: "schedule", icon: Calendar, label: "일정" }] : []),
     { id: "upload", icon: Plus,          label: isPartnerMode ? "접수" : "업로드" },
     { id: "settle", icon: Wallet,        label: "정산" },
+    { id: "noti",   icon: Bell,          label: "알림", badge: unreadCount },
     { id: "info",   icon: User,          label: "내 정보" },
   ];
   return (
@@ -625,8 +683,18 @@ function BottomNav({ t, tab, onChange, isPartnerMode, hasSchedule }) {
               background: isPlus ? (active ? t.accent : t.accentBg) : "transparent",
               color: isPlus ? (active ? "white" : t.accent) : (active ? t.accent : t.textMuted),
               display: "flex", alignItems: "center", justifyContent: "center",
+              position: "relative",
             }}>
               <Icon size={isPlus ? 18 : 18}/>
+              {b.badge > 0 && (
+                <span style={{
+                  position: "absolute", top: -4, right: -8,
+                  minWidth: 16, height: 16, padding: "0 4px",
+                  background: "#FF1B8D", color: "#fff",
+                  borderRadius: 8, fontSize: 10, fontWeight: 700,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>{b.badge > 99 ? "99+" : b.badge}</span>
+              )}
             </div>
             <span style={{ fontSize: 10, fontWeight: 700 }}>{b.label}</span>
           </button>
