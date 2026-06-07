@@ -46,7 +46,9 @@ BEGIN
     ));
 END $$;
 
--- [2] set_notification_pref RPC 본문 갱신 (whitelist 확장)
+-- [2] set_notification_pref RPC 본문 갱신 (whitelist 확장 + tenant_id 유지)
+--   ⚠️ 회귀 방지: Mig 105b 에서 추가된 tenant_id INSERT 컬럼 반드시 유지.
+--      옛 회귀 사고 (108 초안에서 tenant_id 누락) 재발 차단.
 CREATE OR REPLACE FUNCTION set_notification_pref(
   p_user_id uuid,
   p_kind    text,
@@ -57,6 +59,8 @@ RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  v_tenant uuid;
 BEGIN
   IF p_user_id IS NULL THEN
     RETURN jsonb_build_object('ok', false, 'error', 'user_id 누락');
@@ -73,8 +77,14 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'kind 미지원');
   END IF;
 
-  INSERT INTO user_notification_preferences (user_id, kind, enabled, updated_at)
-  VALUES (p_user_id, p_kind, p_enabled, now())
+  -- tenant_id 조회 (users.tenant_id, NULL 이면 Phase 1 단일 tenant 기본값)
+  SELECT tenant_id INTO v_tenant FROM users WHERE id = p_user_id;
+  IF v_tenant IS NULL THEN
+    v_tenant := '11111111-1111-1111-1111-111111111111'::uuid;
+  END IF;
+
+  INSERT INTO user_notification_preferences (tenant_id, user_id, kind, enabled, updated_at)
+  VALUES (v_tenant, p_user_id, p_kind, p_enabled, now())
   ON CONFLICT (user_id, kind)
   DO UPDATE SET enabled = EXCLUDED.enabled, updated_at = now();
 
