@@ -1,12 +1,17 @@
 // 2026-06-06 — 사용자별 알림 종류 on/off (Mig 101 user_notification_preferences)
+// 2026-06-07 — 4 kind 추가 (taskStart / engineerAccept / cancelRequest / refrigClosed)
 //
-// 6 kind:
+// 10 kind:
 //   newOrder        — 새 접수
 //   assignment      — 배정
-//   scheduleChange  — 일정 변경
+//   scheduleChange  — 일정 변경/확정
 //   taskComplete    — 작업 완료
-//   partialEtc      — 부분완료/출장비/취소
+//   partialEtc      — 취소 (옛 라벨 "부분완료/출장비만/취소" → "취소 알림"으로 변경, 실제 매칭이 "작업 취소"만이라)
 //   settleComplete  — 정산 완료
+//   taskStart       — 작업 시작 ★ 2026-06-07 추가
+//   engineerAccept  — 기사 수락 ★ 2026-06-07 추가
+//   cancelRequest   — 취소 요청 ★ 2026-06-07 추가
+//   refrigClosed    — 냉매 수락 마감 ★ 2026-06-07 추가
 //
 // 약속: row 없음 = 켜짐 (default ON). false 명시 저장만 발송 측에서 의미 있음.
 
@@ -19,6 +24,11 @@ export const NOTI_KINDS = [
   "taskComplete",
   "partialEtc",
   "settleComplete",
+  // 2026-06-07 신규 4종
+  "taskStart",
+  "engineerAccept",
+  "cancelRequest",
+  "refrigClosed",
 ];
 
 // 본인 prefs 전체 조회 → { newOrder: true, assignment: false, ... }

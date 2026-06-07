@@ -67,10 +67,10 @@ function safeParse(text) {
   try { return JSON.parse(text); } catch (e) { return null; }
 }
 
-// 2026-06-06 — push title → 6 kind 매핑 (Mig 101 user_notification_preferences 게이트용).
+// 2026-06-06 — push title → kind 매핑 (Mig 101 user_notification_preferences 게이트용).
 //   트리거 SQL 미수정 — title 패턴 기반 추론. payload 측 'kind' 명시 측 우선.
-//   매핑 측 없는 title (예: 작업 시작 ▶️, 기사 수락 🙋, 취소 요청 🚨, 냉매 수락 마감 등) 측
-//   null 반환 → 게이트 통과 (현행 동작 유지).
+// 2026-06-07 — 4 kind 추가 (작업 시작/기사 수락/취소 요청/냉매 수락 마감).
+//   원래 매핑 안 됐던 title 들 — 토글로 끌 수 있게 함. 매핑 안 되면 null → 게이트 통과 (현행 유지).
 function inferKindFromTitle(title) {
   if (!title) return null;
   const t = String(title);
@@ -80,6 +80,11 @@ function inferKindFromTitle(title) {
   if (t.includes("작업 완료") || t.includes("완료되었습니다"))               return "taskComplete";
   if (t.includes("작업 취소"))                                              return "partialEtc";
   if (t.includes("입금"))                                                    return "settleComplete";
+  // 2026-06-07 신규 4종 — 트리거 title 그대로 매칭
+  if (t.includes("작업 시작"))                                              return "taskStart";
+  if (t.includes("기사 수락"))                                              return "engineerAccept";
+  if (t.includes("취소 요청"))                                              return "cancelRequest";
+  if (t.includes("냉매 수락 마감"))                                         return "refrigClosed";
   return null;
 }
 

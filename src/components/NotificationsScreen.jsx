@@ -202,8 +202,14 @@ export function NotificationsScreen({ user, onBack }) {
         <ToggleRow label="배정 알림"                  checked={kindPrefs.assignment}     onToggle={() => toggleKind("assignment")}     disabled={kindLoading}/>
         <ToggleRow label="일정 변경 알림"             checked={kindPrefs.scheduleChange} onToggle={() => toggleKind("scheduleChange")} disabled={kindLoading}/>
         <ToggleRow label="작업 완료 알림"             checked={kindPrefs.taskComplete}   onToggle={() => toggleKind("taskComplete")}   disabled={kindLoading}/>
-        <ToggleRow label="부분완료/출장비만/취소 알림" checked={kindPrefs.partialEtc}     onToggle={() => toggleKind("partialEtc")}     disabled={kindLoading}/>
+        {/* 2026-06-07 — 라벨 정정 ("부분완료/출장비만/취소" → "취소 알림"). 실제 매칭이 "작업 취소"만이라 정확화. */}
+        <ToggleRow label="취소 알림"                  checked={kindPrefs.partialEtc}     onToggle={() => toggleKind("partialEtc")}     disabled={kindLoading}/>
         <ToggleRow label="정산 완료 알림"             checked={kindPrefs.settleComplete} onToggle={() => toggleKind("settleComplete")} disabled={kindLoading}/>
+        {/* 2026-06-07 — 신규 4종 (트리거 title 그대로 매칭) */}
+        <ToggleRow label="작업 시작 알림"             checked={kindPrefs.taskStart}      onToggle={() => toggleKind("taskStart")}      disabled={kindLoading}/>
+        <ToggleRow label="기사 수락 알림"             checked={kindPrefs.engineerAccept} onToggle={() => toggleKind("engineerAccept")} disabled={kindLoading}/>
+        <ToggleRow label="취소 요청 알림"             checked={kindPrefs.cancelRequest}  onToggle={() => toggleKind("cancelRequest")}  disabled={kindLoading}/>
+        <ToggleRow label="냉매 수락 마감 알림"        checked={kindPrefs.refrigClosed}   onToggle={() => toggleKind("refrigClosed")}   disabled={kindLoading}/>
       </div>
 
       {/* Step 6-2 — 푸시 토스트 */}
