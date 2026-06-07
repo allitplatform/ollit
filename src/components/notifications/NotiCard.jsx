@@ -1,8 +1,8 @@
 // V14 알림 카드 (사장님 spec)
-// 안 읽음 = 컬러 박스 + 좌측 4px 바 + 우측 상단 점
-// 읽음    = 흰 카드 + 회색 좌측 바 + opacity 0.75
+// 2026-06-08 — 중립 회색 박스 + 색은 아이콘만 + 우측 시간/날짜 2단 + 안 읽음 점·투명도.
+// 안 읽음 = opacity 1 + 시간 옆 점
+// 읽음    = opacity 0.6
 // 본문은 아이콘 박스 자리만큼 들여쓰기 (paddingLeft 46)
-// 2026-06-08 — 종류별 아이콘 (lucide 20px) + 받은 시각 (KST "M/D HH:mm").
 
 import { useEffect, useState } from "react";
 import {
@@ -28,30 +28,34 @@ function pickIconFromTitle(title) {
   return ICON_FALLBACK;
 }
 
-// KST 변환 — "M/D HH:mm" (예: "6/7 14:30")
-function formatKstShort(createdAt) {
-  if (!createdAt) return "";
+// 2026-06-08 — 제목 앞 이모지 제거. Unicode 이모지 + 변형 셀렉터 + 좌우 공백.
+function stripLeadingEmoji(title) {
+  if (!title) return "";
+  return String(title)
+    .replace(/^([\p{Emoji_Presentation}\p{Extended_Pictographic}️‍]+\s*)+/u, "")
+    .trim();
+}
+
+// KST 시간(HH:mm) + 날짜(M/D) 분리 — 우측 2단 표시.
+function formatKstParts(createdAt) {
+  if (!createdAt) return { time: "", date: "" };
   const d = createdAt instanceof Date ? createdAt : new Date(createdAt);
-  if (isNaN(d.getTime())) return "";
+  if (isNaN(d.getTime())) return { time: "", date: "" };
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
     month: "numeric", day: "numeric",
     hour: "2-digit", minute: "2-digit", hour12: false,
   }).formatToParts(d);
   const get = (k) => parts.find(p => p.type === k)?.value || "";
-  const M = get("month"), D = get("day"), H = get("hour"), m = get("minute");
-  return `${M}/${D} ${H}:${m}`;
+  return {
+    time: `${get("hour")}:${get("minute")}`,
+    date: `${get("month")}/${get("day")}`,
+  };
 }
 
 function detectDark() {
   if (typeof document === "undefined") return false;
   return document.documentElement.dataset.theme === "dark";
-}
-
-function pickThemed(value, isDark) {
-  if (value == null) return "transparent";
-  if (typeof value === "string") return value;
-  return isDark ? value.dark : value.light;
 }
 
 export function NotiCard({ noti, onClick }) {
@@ -69,30 +73,20 @@ export function NotiCard({ noti, onClick }) {
 
   const isUnread = !noti.read;
 
-  // 안 읽음 = 컬러 박스 / 읽음 = 흰 카드 (라이트) 또는 #1C1C1E (다크)
-  const cardBg = isUnread
-    ? pickThemed(cat.cardBg, isDark)
-    : (isDark ? "#1C1C1E" : "#FFFFFF");
+  // 2026-06-08 — 중립 회색 박스 (cat.cardBg 색조 제거). 라이트=#FAFAFA, 다크=#1C1C1E.
+  const cardBg     = isDark ? "#1C1C1E" : "#FAFAFA";
+  const cardBorder = isDark ? "#2A2A2A" : "#EFE9E0";
+  const iconBoxBg  = isDark ? "#252528" : "#F0EDE7";   // 중립 회색 박스
+  const iconColor  = cat.color || (isDark ? "#9CA3AF" : "#6B7280");
 
-  // 2026-06-08 — 좌측 색 띠 제거 (아이콘에 색 있어서 중복). barColor 사용 안 함.
-
-  const cardBorder = isUnread
-    ? pickThemed(cat.cardBorder, isDark)
-    : (isDark ? "#2A2A2A" : "#EFE9E0");
-
-  const iconBoxBg = pickThemed(cat.iconBoxBg, isDark);
-
-  const titleColor = isUnread
-    ? (isDark ? "#FAF8F5" : "#1A1A1A")
-    : (isDark ? "#C8C8C8" : "#555");
-
-  const bodyColor = isUnread
-    ? (isDark ? "#FAF8F5" : "#1A1A1A")
-    : (isDark ? "#C8C8C8" : "#555");
-
-  const timeColor = noti.urgent
+  const titleColor = isDark ? "#FAF8F5" : "#1A1A1A";
+  const bodyColor  = isDark ? "#FAF8F5" : "#1A1A1A";
+  const timeColor  = noti.urgent
     ? (isDark ? "#FFD66B" : "#B07E00")
     : (isDark ? "#999" : "#6E6E6E");
+
+  const cleanTitle = stripLeadingEmoji(noti.title);
+  const { time, date } = formatKstParts(noti.createdAt);
 
   return (
     <div onClick={onClick} style={{
@@ -104,24 +98,11 @@ export function NotiCard({ noti, onClick }) {
       overflow: "hidden",
       margin: "0 16px 8px",
       cursor: "pointer",
-      opacity: isUnread ? 1 : 0.75,
+      opacity: isUnread ? 1 : 0.6,
       fontFamily: "inherit",
     }}>
-      {/* 2026-06-08 — 좌측 색 띠 제거 (아이콘 색과 중복). 색은 아이콘 + 배경만. */}
-
-      {/* 안 읽음 점 (우측 상단) */}
-      {isUnread && (
-        <div style={{
-          position: "absolute",
-          right: 14, top: 16,
-          width: 8, height: 8,
-          borderRadius: "50%",
-          background: cat.barColor,
-        }}/>
-      )}
-
-      {/* 헤더: 아이콘 박스 + 제목 + 시간 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6, paddingRight: isUnread ? 22 : 0 }}>
+      {/* 헤더: 아이콘 박스 + 제목 (왼쪽) + 시간/날짜 2단 (오른쪽) */}
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 6 }}>
         <div style={{
           width: 36, height: 36,
           borderRadius: 10,
@@ -130,7 +111,7 @@ export function NotiCard({ noti, onClick }) {
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
-          color: cat.color,
+          color: iconColor,
         }}>
           {(() => {
             const Icon = pickIconFromTitle(noti.title);
@@ -146,17 +127,36 @@ export function NotiCard({ noti, onClick }) {
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
           }}>
-            {noti.title}
+            {cleanTitle}
           </div>
-          <div style={{
-            fontSize: 12,
-            color: timeColor,
-            fontWeight: noti.urgent ? 700 : 600,
-            marginTop: 1,
-          }}>
-            {formatKstShort(noti.createdAt) || noti.timeAgo || ""}
-            {noti.urgent ? " · 응답 필요" : ""}
+          {noti.urgent && (
+            <div style={{ fontSize: 11, color: timeColor, fontWeight: 700, marginTop: 1 }}>
+              응답 필요
+            </div>
+          )}
+        </div>
+        {/* 우측 시각 2단 — 시간(위) / 날짜(아래). 안 읽음 점은 시간 옆. */}
+        <div style={{
+          display: "flex", flexDirection: "column", alignItems: "flex-end",
+          flexShrink: 0, gap: 2,
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            {isUnread && (
+              <div style={{
+                width: 7, height: 7, borderRadius: "50%",
+                background: cat.barColor || "#FF1B8D",
+                flexShrink: 0,
+              }} aria-label="안 읽음"/>
+            )}
+            <span style={{ fontSize: 12, color: timeColor, fontWeight: 700 }}>
+              {time}
+            </span>
           </div>
+          {date && (
+            <span style={{ fontSize: 10, color: timeColor, fontWeight: 500 }}>
+              {date}
+            </span>
+          )}
         </div>
       </div>
 
