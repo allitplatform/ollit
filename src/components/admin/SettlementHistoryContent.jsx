@@ -31,10 +31,12 @@
 // 조회 전용. 확인/취소 버튼 없음 — 메인 정산 탭에서만 처리.
 // ============================================
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Wallet, Clock, CheckCircle2, AlertTriangle, Search, X } from "lucide-react";
 import { isRemittanceTarget } from "../../utils/remitFilter.js";
 import { toKstYmd } from "../../utils/dateLabel.js";
+// 2026-06-07 — 원청 지급 측측 측측 데이터 fetch (KA/crikrin, Mig 100 principal_daily_remittances)
+import { supabase } from "../../lib/supabase.js";
 
 // ──────────────────────────────────────────────
 // 헬퍼: 행 날짜
@@ -145,6 +147,8 @@ function StatusBadge({ status, t }) {
 // 본체
 // ──────────────────────────────────────────────
 export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onTaskClick }) {
+  // 2026-06-07 — 상단 측측 측측: [기사 송금] (현행) / [원청 지급] (KA/crikrin 측측).
+  const [topTab, setTopTab] = useState("engineer");  // 'engineer' | 'principal'
   const [monthFilter, setMonthFilter] = useState("this"); // this | last | all
   const [statusFilter, setStatusFilter] = useState("all"); // all | reported | confirmed
   const [searchQuery, setSearchQuery] = useState("");
@@ -257,6 +261,33 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
         </div>
       </div>
 
+      {/* 2026-06-07 — 상단 측측 측측: [기사 송금] / [원청 지급] */}
+      <div style={{ padding: "12px 16px 0", display: "flex", gap: 6 }}>
+        {[
+          { k: "engineer",  lbl: "👷 기사 송금" },
+          { k: "principal", lbl: "🏢 원청 지급" },
+        ].map(opt => {
+          const active = topTab === opt.k;
+          return (
+            <button key={opt.k} onClick={() => setTopTab(opt.k)} style={{
+              flex: 1, padding: "9px 8px",
+              background: active ? t.bgElevated : "transparent",
+              border: active ? `1.5px solid ${t.accent}` : `1px solid ${t.border}`,
+              borderRadius: 9, fontSize: 12, fontWeight: 700,
+              color: active ? t.text : t.textMuted,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>{opt.lbl}</button>
+          );
+        })}
+      </div>
+
+      {/* 원청 지급 측 측측 측측측 */}
+      {topTab === "principal" && (
+        <PrincipalPaymentHistory t={t} fmtKRW={fmtKRW}/>
+      )}
+
+      {topTab === "engineer" && (
+      <>
       {/* 검색 바 */}
       <div style={{ padding: "12px 16px 0" }}>
         <div style={{
@@ -389,6 +420,8 @@ export default function SettlementHistoryContent({ t, apiTasks = [], onBack, onT
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -557,6 +590,286 @@ function TaskRow({ t, task, fmtKRW, onClick }) {
           · {taskNo}
         </span>
       )}
+      <div style={{ flex: 1 }}/>
+      <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: amountColor, whiteSpace: "nowrap" }}>
+        {fmtKRW(amount)}
+      </span>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 2026-06-07 — 원청 지급 측측측 (KA / crikrin 측)
+//   · Track A 완료 (출장비 측측) + completed_at 측측측 KST + principal_code IN ('KA','crikrin')
+//   · (날짜, 측측) 측측 principal_amount 합 = 그날 그 측측 정산금
+//   · principal_daily_remittances: (principal_id, settle_date) 측 측측 → 지급완료 + remitted_amount
+//   · 측측 측측: 정산금 > 0 측만 측측. remit row 측 → 지급완료, 측 → 측측.
+//   · 1000행 캡 측측: DB 측측 `.in("principal_code", [...]).gte/lt completed_at` 측측 측측.
+// ──────────────────────────────────────────────
+const TARGET_PRINCIPAL_CODES = ["KA", "crikrin"];
+
+function PrincipalPaymentHistory({ t, fmtKRW }) {
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+  const [tasks, setTasks] = useState([]);
+  const [remits, setRemits] = useState([]);
+  const [principals, setPrincipals] = useState([]);
+
+  // 측측측 KST 측측 (1측 ~ 측 측측)
+  const monthRange = useMemo(() => {
+    const today = new Date();
+    const ym = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul", year: "numeric", month: "2-digit",
+    }).format(today);
+    const [y, m] = ym.split("-").map(Number);
+    const startKst = `${ym}-01`;
+    // 다측 측 1측 측측 측측측 측측 = 측측측 측측측
+    const nextM = m === 12 ? 1 : m + 1;
+    const nextY = m === 12 ? y + 1 : y;
+    const startUtc = new Date(`${startKst}T00:00:00+09:00`).toISOString();
+    const endUtc   = new Date(`${nextY}-${String(nextM).padStart(2,"0")}-01T00:00:00+09:00`).toISOString();
+    return { ym, startKst, startUtc, endUtc };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true); setErr("");
+    (async () => {
+      // 1) principals (KA/crikrin) id 측측
+      const { data: pData, error: pErr } = await supabase
+        .from("principals").select("id, code, name").in("code", TARGET_PRINCIPAL_CODES);
+      if (pErr || !pData || pData.length === 0) {
+        if (alive) { setErr(pErr?.message || "원청 정보 조회 실패"); setLoading(false); }
+        return;
+      }
+      const pids = pData.map(p => p.id);
+
+      // 2) Track A 완료 측측 (출장비 측측) measure 측측 + principal_id IN + completed_at 측측측
+      //    1000행 캡 측측 페이지측측측측. 한 측측 측측 수십 ~ 수백건 측측 → MAX_PAGES=10 측측.
+      const PAGE = 1000;
+      let rows = [];
+      for (let page = 0; page < 10; page++) {
+        const off = page * PAGE;
+        const { data, error } = await supabase
+          .from("tasks")
+          .select(`id, task_no, customer_name, status, completed_at, principal_id, principals:principal_id(code, name),
+                   payments(principal_amount, track)`)
+          .in("principal_id", pids)
+          .gte("completed_at", monthRange.startUtc)
+          .lt("completed_at",  monthRange.endUtc)
+          .neq("status", "취소")
+          .order("completed_at", { ascending: false })
+          .range(off, off + PAGE - 1);
+        if (error) {
+          if (alive) { setErr(error.message); setLoading(false); }
+          return;
+        }
+        if (!data || data.length === 0) break;
+        rows = rows.concat(data);
+        if (data.length < PAGE) break;
+      }
+      // Track A + visit_only 측측 (isRemittanceTarget 동측 측측)
+      const filtered = rows.filter(r => {
+        if (r.status === "visit_only") return false;
+        const p = Array.isArray(r.payments) ? r.payments[0] : r.payments;
+        const track = p?.track || "A";
+        return track === "A";
+      });
+
+      // 3) principal_daily_remittances 측측 (측측측, principal_id IN)
+      const { data: remitData } = await supabase
+        .from("principal_daily_remittances")
+        .select("principal_id, settle_date, remitted_amount, remitted_at, remitted_by, note")
+        .in("principal_id", pids)
+        .gte("settle_date", monthRange.startKst);
+
+      if (!alive) return;
+      setPrincipals(pData);
+      setTasks(filtered);
+      setRemits(remitData || []);
+      setLoading(false);
+    })().catch(e => { if (alive) { setErr(e?.message || "에러"); setLoading(false); } });
+    return () => { alive = false; };
+  }, [monthRange.startUtc, monthRange.endUtc, monthRange.startKst]);
+
+  // (날짜, 측측) 측측 정산금 합
+  const dailyMap = useMemo(() => {
+    // Map<ymd, Map<principal_id, { count, total }>>
+    const m = new Map();
+    for (const r of tasks) {
+      const ymd = toKstYmd(r.completed_at);
+      if (!ymd) continue;
+      if (!m.has(ymd)) m.set(ymd, new Map());
+      const pm = m.get(ymd);
+      if (!pm.has(r.principal_id)) pm.set(r.principal_id, { count: 0, total: 0 });
+      const cell = pm.get(r.principal_id);
+      cell.count += 1;
+      const p = Array.isArray(r.payments) ? r.payments[0] : r.payments;
+      cell.total += Number(p?.principal_amount) || 0;
+    }
+    return m;
+  }, [tasks]);
+
+  const remitMap = useMemo(() => {
+    const m = new Map();
+    for (const r of remits) m.set(`${r.principal_id}|${r.settle_date}`, r);
+    return m;
+  }, [remits]);
+
+  // 측측측 (지급완료 측측 측 + 측측 측측 측측)
+  const summary = useMemo(() => {
+    let paidTotal = 0, paidCount = 0;
+    let pendingTotal = 0, pendingCount = 0;
+    for (const [ymd, pm] of dailyMap.entries()) {
+      for (const [pid, cell] of pm.entries()) {
+        if (cell.total <= 0) continue;
+        const remit = remitMap.get(`${pid}|${ymd}`);
+        if (remit) {
+          paidTotal += Number(remit.remitted_amount) || cell.total;
+          paidCount += 1;
+        } else {
+          pendingTotal += cell.total;
+          pendingCount += 1;
+        }
+      }
+    }
+    return { paidTotal, paidCount, pendingTotal, pendingCount };
+  }, [dailyMap, remitMap]);
+
+  // 측측 측측 측측측 측측 (date desc)
+  const dateRows = useMemo(() => {
+    const entries = [...dailyMap.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+    return entries.map(([ymd, pm]) => {
+      const rowsForDate = [];
+      for (const p of principals) {
+        const cell = pm.get(p.id);
+        if (!cell || cell.total <= 0) continue;
+        const remit = remitMap.get(`${p.id}|${ymd}`);
+        rowsForDate.push({
+          principalId: p.id, code: p.code, name: p.name,
+          count: cell.count, total: cell.total,
+          remitDone: !!remit,
+          remittedAmount: remit ? Number(remit.remitted_amount) : null,
+        });
+      }
+      return { ymd, rows: rowsForDate };
+    }).filter(g => g.rows.length > 0);
+  }, [dailyMap, remitMap, principals]);
+
+  return (
+    <div>
+      {/* 측측 카드 */}
+      <div style={{ padding: "0 16px 12px", paddingTop: 12 }}>
+        <div style={{
+          background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10,
+          padding: "12px 14px", display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <Wallet size={18} style={{ color: t.accent }}/>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4, marginBottom: 2 }}>
+              이번 달 합계
+            </div>
+            <div style={{ fontSize: 11, color: t.textSecondary }}>
+              지급 완료 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{summary.paidCount}</span>건
+              <span style={{ color: t.textDim, margin: "0 6px" }}>·</span>
+              <span className="mono" style={{ fontWeight: 800, color: t.success }}>{fmtKRW(summary.paidTotal)}</span>
+            </div>
+            {summary.pendingCount > 0 && (
+              <div style={{ fontSize: 11, color: t.warning, marginTop: 2, fontWeight: 600 }}>
+                미지급 <span className="mono" style={{ fontWeight: 800 }}>{summary.pendingCount}</span>건
+                <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
+                <span className="mono" style={{ fontWeight: 800 }}>{fmtKRW(summary.pendingTotal)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* 측측 측측 */}
+      <div style={{ padding: "0 16px 24px" }}>
+        {loading ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+            불러오는 중...
+          </div>
+        ) : err ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: t.danger, fontSize: 12 }}>
+            ⚠️ {err}
+          </div>
+        ) : dateRows.length === 0 ? (
+          <div style={{ padding: "60px 20px", textAlign: "center" }}>
+            <Wallet size={48} style={{ color: t.textMuted, opacity: 0.5, margin: "0 auto 16px" }}/>
+            <div style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 8 }}>
+              이번 달 지급 내역이 없습니다
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {dateRows.map(g => (
+              <PrincipalDateGroup key={g.ymd} t={t} ymd={g.ymd} rows={g.rows} fmtKRW={fmtKRW}/>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PrincipalDateGroup({ t, ymd, rows, fmtKRW }) {
+  const sectionPaid    = rows.filter(r => r.remitDone).reduce((s, r) => s + (r.remittedAmount ?? r.total), 0);
+  const sectionPending = rows.filter(r => !r.remitDone).reduce((s, r) => s + r.total, 0);
+  return (
+    <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ padding: "10px 12px", display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid ${t.border}` }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{dateLabel(ymd)}</div>
+        <div style={{ flex: 1 }}/>
+        <div style={{ textAlign: "right", fontSize: 11 }}>
+          <div>
+            <span className="mono" style={{ fontWeight: 700, color: t.text }}>{rows.length}</span>건
+            <span style={{ color: t.textDim, margin: "0 5px" }}>·</span>
+            <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(sectionPaid)}</span>
+          </div>
+          {sectionPending > 0 && (
+            <div style={{ fontSize: 10, color: t.warning, fontWeight: 600, marginTop: 1 }}>
+              미지급 <span className="mono">{fmtKRW(sectionPending)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+      <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 6 }}>
+        {rows.map(r => (
+          <PrincipalRow key={r.principalId} t={t} row={r} fmtKRW={fmtKRW}/>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PrincipalRow({ t, row, fmtKRW }) {
+  const amount = row.remitDone ? (row.remittedAmount ?? row.total) : row.total;
+  const amountColor = row.remitDone ? t.accent : t.warning;
+  return (
+    <div style={{
+      padding: "7px 10px",
+      background: t.bgInset,
+      borderRadius: 8,
+      display: "flex", alignItems: "center", gap: 8,
+    }}>
+      {/* 측측 측측 (입금 측측 / 측측) */}
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 3,
+        padding: "2px 7px", borderRadius: 8,
+        background: row.remitDone ? t.successBg : t.warningBg,
+        color: row.remitDone ? t.success : t.warning,
+        border: `1px solid ${row.remitDone ? t.successBorder : t.warningBorder}`,
+        fontSize: 10, fontWeight: 700, whiteSpace: "nowrap",
+      }}>
+        {row.remitDone ? <CheckCircle2 size={10}/> : <Clock size={10}/>}
+        {row.remitDone ? "지급 완료" : "대기"}
+      </span>
+      <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{row.name}</span>
+      <span style={{ fontSize: 11, color: t.textSecondary }}>
+        완료 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{row.count}</span>건
+      </span>
       <div style={{ flex: 1 }}/>
       <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: amountColor, whiteSpace: "nowrap" }}>
         {fmtKRW(amount)}
