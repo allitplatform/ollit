@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import {
   Inbox, ClipboardCheck, Lock, CalendarClock, XCircle,
-  RefreshCw, CheckCircle2, Bell,
+  RefreshCw, CheckCircle2, Bell, PlayCircle, ThumbsUp,
 } from "lucide-react";
 import { NOTI_CATEGORIES } from "./notiCategories.js";
 
@@ -21,6 +21,8 @@ function pickIconFromTitle(title) {
   if (s.includes("재배정"))                                       return RefreshCw;
   if (s.includes("수락 마감"))                                    return Lock;
   if (s.includes("일정 변경") || s.includes("일정 확정"))         return CalendarClock;
+  if (s.includes("작업 시작"))                                    return PlayCircle;
+  if (s.includes("기사 수락"))                                    return ThumbsUp;
   if (s.includes("작업 취소") || s.includes("취소되었습니다"))    return XCircle;
   if (s.includes("입금"))                                          return CheckCircle2;
   return ICON_FALLBACK;
@@ -72,9 +74,7 @@ export function NotiCard({ noti, onClick }) {
     ? pickThemed(cat.cardBg, isDark)
     : (isDark ? "#1C1C1E" : "#FFFFFF");
 
-  const barColor = isUnread
-    ? cat.barColor
-    : (isDark ? "#555" : "#B0A99E");
+  // 2026-06-08 — 좌측 색 띠 제거 (아이콘에 색 있어서 중복). barColor 사용 안 함.
 
   const cardBorder = isUnread
     ? pickThemed(cat.cardBorder, isDark)
@@ -99,7 +99,7 @@ export function NotiCard({ noti, onClick }) {
       background: cardBg,
       border: `1px solid ${cardBorder}`,
       borderRadius: 14,
-      padding: "14px 14px 14px 18px",
+      padding: "14px 14px",
       position: "relative",
       overflow: "hidden",
       margin: "0 16px 8px",
@@ -107,13 +107,7 @@ export function NotiCard({ noti, onClick }) {
       opacity: isUnread ? 1 : 0.75,
       fontFamily: "inherit",
     }}>
-      {/* 좌측 4px 바 */}
-      <div style={{
-        position: "absolute",
-        left: 0, top: 0, bottom: 0,
-        width: 4,
-        background: barColor,
-      }}/>
+      {/* 2026-06-08 — 좌측 색 띠 제거 (아이콘 색과 중복). 색은 아이콘 + 배경만. */}
 
       {/* 안 읽음 점 (우측 상단) */}
       {isUnread && (
