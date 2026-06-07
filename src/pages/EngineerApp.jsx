@@ -4431,9 +4431,12 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
         setScreen("detail");
         return;
       }
+      // 2026-06-08 — 작업 없음(완료/취소/타기사) — 토스트 안내, 알림 탭 유지.
+      showToast("이미 끝난 작업이거나 더는 볼 수 없는 작업이에요");
+      return;
     }
 
-    // fallback (relatedId 매칭 X 또는 type 미정)
+    // fallback (relatedId 미지정 — 일반 안내성 알림)
     if (noti.targetScreen) setScreen(noti.targetScreen);
   }
 

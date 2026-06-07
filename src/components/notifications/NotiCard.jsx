@@ -2,9 +2,44 @@
 // 안 읽음 = 컬러 박스 + 좌측 4px 바 + 우측 상단 점
 // 읽음    = 흰 카드 + 회색 좌측 바 + opacity 0.75
 // 본문은 아이콘 박스 자리만큼 들여쓰기 (paddingLeft 46)
+// 2026-06-08 — 종류별 아이콘 (lucide 20px) + 받은 시각 (KST "M/D HH:mm").
 
 import { useEffect, useState } from "react";
+import {
+  Inbox, ClipboardCheck, Lock, CalendarClock, XCircle,
+  RefreshCw, CheckCircle2, Bell,
+} from "lucide-react";
 import { NOTI_CATEGORIES } from "./notiCategories.js";
+
+// 사장님 spec — title → lucide 아이콘. send.js inferKindFromTitle 동일 패턴.
+const ICON_FALLBACK = Bell;
+function pickIconFromTitle(title) {
+  if (!title) return ICON_FALLBACK;
+  const s = String(title);
+  if (s.includes("새 접수") || s.includes("신규 냉매"))          return Inbox;
+  if (s.includes("작업 배정") || s.includes("냉매 작업 배정"))   return ClipboardCheck;
+  if (s.includes("재배정"))                                       return RefreshCw;
+  if (s.includes("수락 마감"))                                    return Lock;
+  if (s.includes("일정 변경") || s.includes("일정 확정"))         return CalendarClock;
+  if (s.includes("작업 취소") || s.includes("취소되었습니다"))    return XCircle;
+  if (s.includes("입금"))                                          return CheckCircle2;
+  return ICON_FALLBACK;
+}
+
+// KST 변환 — "M/D HH:mm" (예: "6/7 14:30")
+function formatKstShort(createdAt) {
+  if (!createdAt) return "";
+  const d = createdAt instanceof Date ? createdAt : new Date(createdAt);
+  if (isNaN(d.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    month: "numeric", day: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(d);
+  const get = (k) => parts.find(p => p.type === k)?.value || "";
+  const M = get("month"), D = get("day"), H = get("hour"), m = get("minute");
+  return `${M}/${D} ${H}:${m}`;
+}
 
 function detectDark() {
   if (typeof document === "undefined") return false;
@@ -101,8 +136,12 @@ export function NotiCard({ noti, onClick }) {
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
+          color: cat.color,
         }}>
-          <span style={{ fontSize: 16 }}>{cat.icon}</span>
+          {(() => {
+            const Icon = pickIconFromTitle(noti.title);
+            return <Icon size={20} aria-hidden="true"/>;
+          })()}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
@@ -121,7 +160,7 @@ export function NotiCard({ noti, onClick }) {
             fontWeight: noti.urgent ? 700 : 600,
             marginTop: 1,
           }}>
-            {noti.timeAgo || ""}
+            {formatKstShort(noti.createdAt) || noti.timeAgo || ""}
             {noti.urgent ? " · 응답 필요" : ""}
           </div>
         </div>
