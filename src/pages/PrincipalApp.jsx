@@ -52,6 +52,9 @@ import { parsePartnerPaste } from "../utils/partnerPasteParser.js";
 import { TaskBasicEditScreen } from "../components/TaskBasicEditScreen.jsx";
 import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
 import { getPartialReasonLabel } from "../components/EngineerTaskCompletionScreens.jsx";
+import { getCancelActorLabel, getCancelReasonLabel } from "../data/cancelReasons.js";
+import { getUserById } from "../data/users.js";
+import { formatDateTimeKST } from "../utils/dateLabel.js";
 // Round 2 — 원청 취소 RPC + 공유 다이얼로그
 import { partnerFullCancel, partnerPartialCancelItem } from "../lib/cancelRpc.js";
 import { FullCancelDialog, PartialCancelDialog } from "../components/CancelDialogs.jsx";
@@ -1370,6 +1373,62 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
           }}>{memoSaving ? "저장 중..." : "메모 저장"}</button>
         )}
       </div>
+
+      {/* 2026-06-07 — 취소 정보 (status='취소' 일 때만, 읽기 전용 — 입력은 운영자만) */}
+      {task.status === "취소" && (() => {
+        const cat = task.categoryData || {};
+        const reason       = task.cancelReason             || cat.cancelReason             || null;
+        const actor        = task.cancelActor              || cat.cancelActor              || null;
+        const actorUid     = task.cancelActorUserId        || cat.cancelActorUserId        || null;
+        const principalCode = task.cancelActorPrincipalCode || cat.cancelActorPrincipalCode || null;
+        const at           = task.cancelAt                 || cat.cancelAt                 || task.updatedAt || null;
+
+        const u = actorUid ? getUserById(actorUid) : null;
+        const name = u?.name || null;
+        let actorLabel = (actor || name) ? getCancelActorLabel({ actor, name, principalCode }) : null;
+
+        // actor 없으면 배정 기사 fallback (UsolNAssignList 동일 패턴).
+        if (!actorLabel) {
+          const engUid  = task.assignedEngineerId || task.assigned_engineer_id || null;
+          const engUser = engUid ? getUserById(engUid) : null;
+          const engName = engUser?.name || task.assignedEngineer || task.assigned_engineer || null;
+          if (engName) actorLabel = `기사 ${engName}`;
+        }
+
+        const reasonLabel = reason ? (getCancelReasonLabel(reason) || reason) : null;
+        const atLabel = at ? formatDateTimeKST(at) : null;
+
+        return (
+          <div style={{
+            background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12,
+            border: "1px solid rgba(220,38,38,0.25)",
+          }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: "#FF3D5A", letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
+              ⛔ 취소 정보
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, flexShrink: 0 }}>취소자</span>
+                <span style={{ fontSize: 13, color: t.textPrimary, fontWeight: 700, textAlign: "right" }}>
+                  {actorLabel || "—"}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
+                <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, flexShrink: 0 }}>사유</span>
+                <span style={{ fontSize: 13, color: t.textSecondary, textAlign: "right", lineHeight: 1.5, flex: 1 }}>
+                  {reasonLabel || "—"}
+                </span>
+              </div>
+              {atLabel && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, flexShrink: 0 }}>취소 시각</span>
+                  <span className="mono" style={{ fontSize: 12, color: t.textSecondary }}>{atLabel}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 2026-05-25 Round 2 — 원청 취소 액션 박스 (status='취소' 인 task 는 미표시) */}
       {task.status !== "취소" && (
