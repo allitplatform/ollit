@@ -26,15 +26,24 @@ function _isRpcMissingError(msg) {
 }
 
 // 2026-06-07 — engineer 객체 → admin_upsert_engineer 의 p_patch jsonb.
+// 2026-06-07 v2 — 빈 문자열 필드는 patch 제외 (email/region/bank_account/holder 등
+//   unique 제약 컬럼이 ""로 전송되면 idx_users_tenant_email 충돌). RPC도 NULLIF
+//   방어하지만 클라 단계에서 차단 = 1차 가드.
 function _toUpsertPatch(eng) {
   const patch = {};
-  if (eng.name  != null) patch.name  = String(eng.name);
-  if (eng.phone != null) patch.phone = String(eng.phone);
-  if (eng.email != null) patch.email = String(eng.email);
-  if (eng.bankName       != null) patch.bank_name      = String(eng.bankName);
-  if (eng.accountNumber  != null) patch.bank_account   = String(eng.accountNumber);
-  if (eng.accountHolder  != null) patch.account_holder = String(eng.accountHolder);
-  if (eng.region != null) patch.region = String(eng.region);
+  const setStr = (key, value) => {
+    if (value == null) return;
+    const s = String(value);
+    if (s === "") return;
+    patch[key] = s;
+  };
+  setStr("name",           eng.name);
+  setStr("phone",          eng.phone);
+  setStr("email",          eng.email);
+  setStr("bank_name",      eng.bankName);
+  setStr("bank_account",   eng.accountNumber);
+  setStr("account_holder", eng.accountHolder);
+  setStr("region",         eng.region);
   if (typeof eng.active === "boolean") patch.is_active = eng.active;
   else if (eng.status) patch.is_active = (eng.status === "active");
   const rateRaw = eng.cm_refrigerant_rate;

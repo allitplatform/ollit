@@ -85,13 +85,14 @@ BEGIN
   IF v_user_id IS NOT NULL THEN
     -- ─── UPDATE 경로 ─────────────────────────────────────────────
     -- 화이트리스트 키만 변경. patch에 키 없으면 기존 값 보존.
+    -- 2026-06-07 — email 등 unique 컬럼 빈 문자열 충돌 방지: NULLIF("",  '') → NULL.
     UPDATE users SET
       name              = COALESCE(p_patch->>'name',              name),
       phone             = COALESCE(p_patch->>'phone',             phone),
-      email             = COALESCE(p_patch->>'email',             email),
+      email             = NULLIF(COALESCE(p_patch->>'email',      email), ''),
       is_active         = COALESCE((p_patch->>'is_active')::boolean, is_active),
-      bank_account      = COALESCE(p_patch->>'bank_account',      bank_account),
-      region            = COALESCE(p_patch->>'region',            region)
+      bank_account      = NULLIF(COALESCE(p_patch->>'bank_account', bank_account), ''),
+      region            = NULLIF(COALESCE(p_patch->>'region',     region), '')
     WHERE id = v_user_id;
     GET DIAGNOSTICS v_rows = ROW_COUNT;
 
