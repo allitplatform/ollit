@@ -6073,15 +6073,17 @@ function SettlementContent({
   const engineerGroups = sortGroupsConfirmedLast(groupDoneByEngineer(doneTasks));
   const principalGroups = groupDoneByPrincipal(doneTasks);
 
-  // 2026-06-07 — KA/crikrin 측측 측측 측측 (principal_daily_remittances) 측측.
-  //   카드 측측 측측 측측 측측 측측 측측 측측 (1측 fetch + 측측측 prop 측 측측 측측 측측).
+  // 2026-06-07 — 일별 입금 표시 (principal_daily_remittances) 조회.
+  //   카드 헤더 상태(완료/대기) 표시용 (1회 fetch + 카드별 prop 으로 상태 전달).
   //   actor = currentUser.user_id (UUID).
+  // 2026-06-07 v2 — 화이트리스트(KA/crikrin) → 일반 조건: usol_n 만 제외 (주간).
+  //   카드 측 isPartnerRemit 와 동일 조건 — KA/crikrin/KB/yongin/usol_h 등 포함.
   const todayKst = ymdKstToday();
   const [remitMap, setRemitMap] = useState(new Map());
   const [reloadTick, setReloadTick] = useState(0);
   const targetPrincipalIds = useMemo(() => {
     return principalGroups
-      .filter(g => g.principalCode === "KA" || g.principalCode === "crikrin")
+      .filter(g => !!g.principalCode && g.principalCode !== "usol_n")
       .map(g => g.principalId)
       .filter(Boolean);
   }, [principalGroups]);
@@ -6437,8 +6439,11 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
 
 function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick, user, settleDate, remitRow, onRefresh }) {
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
-  // 2026-06-07 — KA/crikrin 측측 측측 측측 (기존 RPC Mig 100). 측측 측측 측측 측측측.
-  const isPartnerRemit = group.principalCode === "KA" || group.principalCode === "crikrin";
+  // 2026-06-07 — 일별 입금 표시 (기존 RPC Mig 100).
+  // 2026-06-07 v2 — 화이트리스트(KA/crikrin) → 일반 조건: usol_n 만 제외 (= 주간 정산).
+  //   KA/crikrin/KB/yongin/usol_h 등 일별 정산 원청 자동 포함.
+  //   0원 직영(allday) 은 group.total === 0 가드로 자동 제외.
+  const isPartnerRemit = !!group.principalCode && group.principalCode !== "usol_n";
   const remitDone = !!remitRow;
   const showButton = isPartnerRemit && (group.total || 0) > 0 && !!group.principalId;
   const [busy, setBusy] = useState(false);
