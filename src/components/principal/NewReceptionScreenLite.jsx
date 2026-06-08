@@ -40,7 +40,8 @@ const DEFAULT_APPLIANCE_POOL = {
 };
 
 // 작업 종류 한글 → quote_rates jsonb의 service_code 키 매핑
-const WORK_TYPE_TO_SERVICE = {
+// 2026-06-08 — export 추가 (AdminApp 접수 폼 측 동일 매핑 재사용)
+export const WORK_TYPE_TO_SERVICE = {
   "세척":     "cleaning",
   "냉매충전": "refrigerant",
   "출장비":   "visit_fee",
@@ -68,7 +69,8 @@ function autoGenerateCustomer(form, region) {
 // 기종 + 작업종류 + 수량 → 단가 lookup (quoteRates 기반)
 //   반환: { unitPrice, isKa1waySplit, firstPrice, extraPrice }
 //   KA 1way + qty≥2 분할 정보 같이 반환 (저장 시 사용)
-function lookupRate({ principalCode, quoteRates, workType, appliance, qty }) {
+// 2026-06-08 — export 추가 (AdminApp 접수 폼 측 동일 lookup 재사용 — 1 source of truth)
+export function lookupRate({ principalCode, quoteRates, workType, appliance, qty }) {
   if (!quoteRates) return { unitPrice: 0, isKa1waySplit: false };
   const serviceCode = WORK_TYPE_TO_SERVICE[workType];
   if (!serviceCode) return { unitPrice: 0, isKa1waySplit: false };

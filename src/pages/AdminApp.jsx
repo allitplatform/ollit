@@ -110,6 +110,9 @@ import { useRealtime } from "../hooks/useRealtime.js";
 import { useRealtimeTasks } from "../hooks/useRealtimeSubscription.js";
 // Phase 4 후속 — push_candidates 박음 (AutoAssignScreen 측)
 import { supabase } from "../lib/supabase.js";
+// 2026-06-08 — KA/crikrin 접수 측 견적금액 자동 채움 (principals.quote_rates 측 측 측 측 측 측)
+//   PrincipalApp 측 동일 로직 재사용 = 1 source of truth.
+import { lookupRate, WORK_TYPE_TO_SERVICE } from "../components/principal/NewReceptionScreenLite.jsx";
 
 // 2026-05-29 — 자동 배정 push_candidates 중복 UPDATE 차단 (race / StrictMode 더블 mount).
 //   옛 (2026-05-14) 분석: useEffect 함수 시작점 가드라 2차 mount 의 setCandidates 까지
@@ -250,6 +253,19 @@ const WORK_TYPES_CONFIG = {
 const KA_PRINCIPAL_NAME       = "에어컨프로 (KA)";
 const KA_1WAY_FIRST_PRICE     = 90000;
 const KA_1WAY_ADDITIONAL_PRICE = 70000;
+
+// 2026-06-08 — 원청 라벨(=form.principal value) → DB principals.code 매핑
+//   접수 폼 측 quote_rates fetch 측 사용. KA 1way 통합 자동 견적 effect 측 측 측 측.
+//   PrincipalApp 측 partnerCode 측 측 측 (= DB code) — 측 측 측 source.
+const PRINCIPAL_NAME_TO_CODE = {
+  "올데이케어":      "allday",
+  "에어컨프로 (KA)": "KA",
+  "쿨가이 (KB)":     "KB",
+  "용인컴퍼니":      "yongin",
+  "유솔홈케어 H":    "usol_h",
+  "유솔홈케어 N":    "usol_n",
+  "크리크린":        "crikrin",
+};
 
 // KA + 냉매충전 + 1way qty 합계 → 자동 견적
 // 첫 대 90,000 + 추가 (qty-1) × 70,000
@@ -8631,6 +8647,12 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
   // Step 2-B-2 — KA 1way 자동 견적 계산 — 사용자가 견적을 직접 입력하면 자동 X
   const [estimateTouched, setEstimateTouched] = useState(false);
 
+  // 2026-06-08 — 자동 견적 (quote_rates 측 측 측 측) — 원청별 가격표 + 측 측 표시값
+  //   quoteRates : 측 원청 principals.quote_rates jsonb (null = 측 측 측 / {} = 빈 가격표)
+  //   autoEstimateValue : 측 effect 측 측 측 측 측 측 측 측 측 측 측 측 측 측 측 측 측 측 (3)(b) "자동 견적 ₩X" 표시용
+  const [quoteRates, setQuoteRates] = useState(null);
+  const [autoEstimateValue, setAutoEstimateValue] = useState(null);
+
   // 2026-05-21 Migration 047 — 견적금액 미정 토글 (사장님 spec)
   //   현장 측 금액 확정 측 작업 (usol_n 냉매 / allday 일부 측) 측 spec
   //   체크 측: estimateTotal=0 + input disabled + product_price=0 측 저장
@@ -8774,17 +8796,96 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
     setPriceConfirm(null);
   }
 
-  // Step 2-B-2 — KA + 냉매충전 + "1way" 항목 감지 시 견적 자동 계산
-  // 첫 대 90,000 + 추가 (qty-1) × 70,000. 사용자가 견적을 직접 박은 후엔 X
+  // ────────────────────────────────────────────────────────────────────
+  // 2026-06-08 — 자동 견적 (quote_rates 측 측 측) — 통합 effect
+  //   기존 Step 2-B-2 (KA 1way 측 측 측 측) 측 본 effect 측 흡수.
+  //     KA 1way 산식 일치 확인 완료:
+  //       옛 calcKaOnewayEstimate: 90000 + (qty-1) × 70000
+  //       새 lookupRate (KA/refrigerant/1way): isKa1waySplit=true, firstPrice=90k, extraPrice=70k
+  //         → 측 effect 측 측 측 측 측: 90000 + (qty-1) × 70000 ✓ 동일
+  //   적용 측 측:
+  //     · form.principal 측 PRINCIPAL_NAME_TO_CODE 매핑 가능
+  //     · quoteRates 측 측 측 측 (DB principals.quote_rates jsonb)
+  //     · estimateTouched=false (운영자 측 견적 직접 수정 측 측)
+  //   결정 (사장님 측 측 2026-06-08):
+  //     (1) P2 통합 — KA 1way + crikrin + 미래 측 측 측 단일 effect 측 처리.
+  //     (2) handleAutoFill 측 카톡 견적 측 측 측 측 (estimateTouched=true) — 측 effect 측 측 측.
+  //     (3) (b) "자동 견적 ₩X" 측 폼 측 측 측 표시 (input 측 측).
+  //     (4) (a) 측 measure measure measure 측 측 0 — 측 측 measure 측 측 측 측.
+  //     (5) form 직접 set — input value 측 form.estimateTotal 측 측 → 측 측 측 측.
+  // ────────────────────────────────────────────────────────────────────
+
+  // [1] quote_rates fetch — form.principal 측 측 측 측 측
   useEffect(() => {
-    if (form.principal !== KA_PRINCIPAL_NAME) return;
+    const code = PRINCIPAL_NAME_TO_CODE[form.principal];
+    if (!code) {
+      setQuoteRates(null);
+      return;
+    }
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("principals")
+        .select("code, quote_rates")
+        .eq("code", code)
+        .maybeSingle();
+      if (!alive) return;
+      if (error) {
+        console.warn("[AdminApp/NewSubmission] quote_rates fetch 실패", error);
+        setQuoteRates(null);
+        return;
+      }
+      setQuoteRates(data?.quote_rates || null);
+    })();
+    return () => { alive = false; };
+  }, [form.principal]);
+
+  // [2] 자동 견적 계산 — workItems / quoteRates / principal / estimateTouched 측 측
+  useEffect(() => {
     if (estimateTouched) return;
-    const autoEstimate = calcKaOnewayEstimate(workItems);
-    if (autoEstimate == null) return;
-    setForm(prev =>
-      prev.estimateTotal === autoEstimate ? prev : { ...prev, estimateTotal: autoEstimate }
-    );
-  }, [form.principal, workItems, estimateTouched]);
+    if (priceTBD) return;                       // 견적 미정 토글 측 측 측 X
+    const code = PRINCIPAL_NAME_TO_CODE[form.principal];
+    if (!code) { setAutoEstimateValue(null); return; }
+    if (!quoteRates || Object.keys(quoteRates).length === 0) {
+      setAutoEstimateValue(null);
+      return;
+    }
+    if (!Array.isArray(workItems) || workItems.length === 0) {
+      setAutoEstimateValue(null);
+      return;
+    }
+
+    let total = 0;
+    let everyItemHasRate = true;
+    for (const it of workItems) {
+      const r = lookupRate({
+        principalCode: code,
+        quoteRates,
+        workType: it.workType,
+        appliance: it.appliance,
+        qty: it.qty,
+      });
+      if (!r || r.unitPrice === 0) {
+        everyItemHasRate = false;
+        break;
+      }
+      if (r.isKa1waySplit) {
+        // KA 1way qty>=2: 첫대 1 × firstPrice + (qty-1) × extraPrice
+        total += r.firstPrice + Math.max(0, (it.qty || 1) - 1) * r.extraPrice;
+      } else {
+        total += r.unitPrice * (it.qty || 1);
+      }
+    }
+
+    if (!everyItemHasRate || total <= 0) {
+      // 측 measure measure measure 측 측 (= (4)(a) — form.estimateTotal 측 set X. 운영자 측 직접 입력)
+      setAutoEstimateValue(null);
+      return;
+    }
+
+    setAutoEstimateValue(total);
+    setForm(prev => prev.estimateTotal === total ? prev : { ...prev, estimateTotal: total });
+  }, [form.principal, workItems, quoteRates, estimateTouched, priceTBD]);
 
   // workItems 조작 (V14 헌법 — 모든 작업유형 기종/케이스 필수)
   function addWorkItem() {
@@ -9307,6 +9408,16 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
               fontSize: 12, fontWeight: 700, pointerEvents: "none",
             }}>원</span>
           </div>
+          {/* 2026-06-08 — 자동 견적 표시 (quote_rates 측 측 측 측 측 측 측 측 measure measure 측 측 측) */}
+          {!priceTBD && autoEstimateValue != null && !estimateTouched && (
+            <div style={{
+              marginTop: 6, fontSize: 11, color: t.textMuted, fontWeight: 600,
+              display: "flex", alignItems: "center", gap: 6,
+            }}>
+              <span style={{ color: t.accent }}>⚡</span>
+              <span>자동 견적: ₩{autoEstimateValue.toLocaleString()} · 수정 가능</span>
+            </div>
+          )}
           {/* 현재 값 강조 표시 */}
           {!priceTBD && form.estimateTotal > 0 && (
             <div style={{ marginTop: 8, fontSize: 11, color: t.textMuted, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
