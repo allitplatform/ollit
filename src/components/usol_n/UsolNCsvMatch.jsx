@@ -265,7 +265,11 @@ export function UsolNCsvMatch() {
   if (!csvData) {
     return (
       <div>
-        <UploadDropZone fileInputRef={fileInputRef} onFileSelect={handleFileSelect}/>
+        <UploadDropZone
+          fileInputRef={fileInputRef}
+          onFileSelect={handleFileSelect}
+          onFile={(file) => handleFileSelect({ target: { files: [file] } })}
+        />
         {confirmedInfo && (
           <div style={confirmedBoxStyle}>
             ✓ 직전 결제완료 확정: {confirmedInfo.count}건
@@ -318,24 +322,61 @@ export function UsolNCsvMatch() {
   );
 }
 
-function UploadDropZone({ fileInputRef, onFileSelect }) {
+function UploadDropZone({ fileInputRef, onFileSelect, onFile }) {
+  // 2026-06-08 — 드래그 앤 드롭 (UsolNOrders 패턴 정합 / 핑크 톤 유지)
+  //   사장님 spec — 라벨에 "정산 CSV" 명시해 엉뚱한 탭 드롭 사고 방지.
+  const [isDragging, setIsDragging] = useState(false);
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragging) setIsDragging(true);
+  }
+  function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer?.files?.[0];
+    if (file && typeof onFile === "function") onFile(file);
+  }
+
+  const activeStyle = isDragging
+    ? {
+        background: "rgba(255,27,141,0.16)",
+        border: "3px dashed #FF1B8D",
+        transform: "scale(1.01)",
+      }
+    : {
+        background: "rgba(255,27,141,0.06)",
+        border: "2px dashed rgba(255,27,141,0.4)",
+      };
+
   return (
     <div
       onClick={() => fileInputRef.current?.click()}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       style={{
         padding: 30,
-        background: "rgba(255,27,141,0.06)",
-        border: "2px dashed rgba(255,27,141,0.4)",
         borderRadius: 12, textAlign: "center",
         cursor: "pointer", marginBottom: 16,
+        transition: "background 0.12s, border 0.12s, transform 0.12s",
+        ...activeStyle,
       }}
     >
-      <div style={{ fontSize: 32, marginBottom: 8 }}>📥</div>
+      <div style={{ fontSize: 32, marginBottom: 8 }}>{isDragging ? "📂" : "📥"}</div>
       <div style={{ fontSize: 14, color: "#FF1B8D", fontWeight: 700 }}>
-        정산 CSV 업로드
+        {isDragging ? "여기에 놓으세요 — 정산 CSV" : "정산 CSV 업로드"}
       </div>
       <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4 }}>
-        유솔이 매일 보내주는 정산 엑셀 선택
+        유솔이 매일 보내주는 정산 엑셀 — 클릭 또는 끌어다 놓기
       </div>
       <input
         type="file"

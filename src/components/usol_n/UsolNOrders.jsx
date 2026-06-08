@@ -339,7 +339,7 @@ function UploadBox({ fileInputRef, onFileSelect, onFile, pendingCount, importing
     >
       <div style={{ fontSize: 24, marginBottom: 8 }}>{isDragging ? "📂" : "📤"}</div>
       <div style={{ fontSize: 13, color: "var(--accent)", fontWeight: 600 }}>
-        {isDragging ? "여기에 놓으세요" : "접수 CSV 업로드"}
+        {isDragging ? "여기에 놓으세요 — 접수 CSV" : "접수 CSV 업로드"}
       </div>
       <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 4 }}>
         네이버 발주 엑셀 파일을 선택하거나 끌어다 놓으세요
