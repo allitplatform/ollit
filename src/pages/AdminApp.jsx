@@ -1047,7 +1047,9 @@ function _v14NormalizeTask(t) {
     // 2026-05-21 Phase 5 Step 0.G-6-A — principalCode 매핑 복구 ("3곳 매핑 트랩")
     //   카운트 통일 spec — _isUsolNMainRefrigerant 측 t.principalCode 측 필요
     //   공유 v14Task.js + tasksDb.rowToTask 측 동일 매핑 적용
+    // 2026-06-08 — principalId 매핑 추가 (SettlementPrincipalCard 지급완료 버튼 노출 차단 해결)
     principal, principalCode: t.principalCode || t.principal_code || "",
+    principalId: t.principalId || t.principal_id || null,
     // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean (유솔N 본작업 + 냉매)
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
     paymentMethod,
