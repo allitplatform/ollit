@@ -2081,20 +2081,26 @@ function SettleDetailBoxSimple({ t, task, principalLabel, items, loading, error 
   }
   if (!items || items.length === 0) return null;
 
-  // 정산 금액 = task-level 견적 총액 (compute_payment 측 동일 기준).
-  //   task.totalAmount (DB GENERATED: product + extra + travel) 우선 / fallback: items subtotal 합.
-  const totalAmount = Number(task?.totalAmount) > 0
-    ? Number(task.totalAmount)
-    : items.reduce((s, it) => s + (it.is_canceled ? 0 : (Number(it.subtotal) || 0)), 0);
+  // 2026-06-08 — KA / crikrin 한정: 외부 노출용으로 견적금액(product_price) 단일 표시.
+  //   사장님 spec — extra_fee / travel_fee 합산 노출 금지. % 분모도 견적금액 기준 (35% / 20% 정합).
+  //   그 외 비-유솔 원청 (allday / KB / yongin 등) 은 옛 totalAmount (product+extra+travel) 그대로 — 회귀 0.
+  const code = task?.principalCode || "";
+  const isStrictPartner = code === "KA" || code === "crikrin";
+
+  const displayAmount = isStrictPartner
+    ? Number(task?.productPrice ?? task?.product_price ?? 0)
+    : (Number(task?.totalAmount) > 0
+        ? Number(task.totalAmount)
+        : items.reduce((s, it) => s + (it.is_canceled ? 0 : (Number(it.subtotal) || 0)), 0));
 
   // 원청 수수료 = DB principal_amount (compute_payment 계산 결과 직접).
   //   미계산 task (payments 없음, 또는 status='미배정' 측 trigger 호출 결과 0) 측 0 표시.
   const principalAmount = Number(task?.principal_amount) || 0;
 
-  // N% = principal_amount / totalAmount × 100 — 동적 계산. 하드코딩 % 사용 금지.
-  //   totalAmount 0 또는 principal_amount 0 측 라벨 측 % 생략 (= "{원청명} 수수료" 만).
-  const feePct = totalAmount > 0 && principalAmount > 0
-    ? Math.round((principalAmount / totalAmount) * 100)
+  // N% = principal_amount / displayAmount × 100 — 동적 계산. 하드코딩 % 사용 금지.
+  //   displayAmount 0 또는 principal_amount 0 측 라벨 측 % 생략 (= "{원청명} 수수료" 만).
+  const feePct = displayAmount > 0 && principalAmount > 0
+    ? Math.round((principalAmount / displayAmount) * 100)
     : 0;
 
   // 2026-06-04 — 라벨 측 원청 표시명 — 헤더 인사말과 동일 값(principalLabel prop).
@@ -2115,7 +2121,7 @@ function SettleDetailBoxSimple({ t, task, principalLabel, items, loading, error 
 
       {/* 정산 합계 — 견적금액 + 원청 수수료 */}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <SumLine label="견적금액" value={totalAmount} t={t} size="lg"/>
+        <SumLine label="견적금액" value={displayAmount} t={t} size="lg"/>
         <SumLine label={feeLabel} value={principalAmount} color={FEE_COLOR} indent t={t}/>
       </div>
 
