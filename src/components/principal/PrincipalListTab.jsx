@@ -122,7 +122,16 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
 
   // 2026-06-06 — KA/crikrin (isPartner) 측 카운트 박스 + quickFilter (운영자 spec 통일).
   //   usol_n/usol_h 측 측 측 측 측 측 측 측 측 측 측 측 측 측.
+  // 2026-06-09 — 유솔H 측 KA 와 동일 헤더 spec (사장님 [B]):
+  //   isUsolH 측 단일 코드 ["usol_h"] (통합계정 측 selectedUsolCode='usol_h' 또는 단일 계정).
+  //   showPartnerHeader = isPartner || isUsolH — fetch / countBoxes / quickFilter 측 동일 동작.
+  //   유솔N 측 X (네이버 월정산 본문 측 옛 그대로).
   const isPartner = !!partnerCode;
+  const isUsolH = Array.isArray(principalCodes)
+    && principalCodes.length === 1
+    && principalCodes[0] === "usol_h";
+  const showPartnerHeader = isPartner || isUsolH;
+  const headerPrincipalCode = isPartner ? partnerCode : (isUsolH ? "usol_h" : null);
   const [partnerCounts, setPartnerCounts] = useState({ todayCreated: 0, todayCompleted: 0, confirmed: 0 });
   const [quickFilter, setQuickFilter] = useState(null);   // 'todayCreated' | 'todayCompleted' | 'confirmed' | null
   const [qfTasks, setQfTasks] = useState([]);
@@ -195,21 +204,23 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
   });
 
   // 2026-06-06 — KA/crikrin: 카운트 박스 fetch (DB count:exact 3개, 자기 principalCode 측 측).
+  // 2026-06-09 — 유솔H 측 동일 fetch (showPartnerHeader 측).
   useEffect(() => {
-    if (!isPartner) return;
+    if (!showPartnerHeader || !headerPrincipalCode) return;
     let alive = true;
-    fetchAllPrincipalCounts({ principalCodes: [partnerCode] })
+    fetchAllPrincipalCounts({ principalCodes: [headerPrincipalCode] })
       .then(res => { if (alive && res.ok) setPartnerCounts(res.counts); });
     return () => { alive = false; };
-  }, [isPartner, partnerCode]);
+  }, [showPartnerHeader, headerPrincipalCode]);
 
   // 2026-06-06 — quickFilter 활성 시 DB 측 측 측 측 fetch (필터 적용된 list).
+  // 2026-06-09 — 유솔H 측 동일 동작 (showPartnerHeader 측).
   useEffect(() => {
-    if (!isPartner || !quickFilter) { setQfTasks([]); return; }
+    if (!showPartnerHeader || !headerPrincipalCode || !quickFilter) { setQfTasks([]); return; }
     let alive = true;
     setQfLoading(true);
     fetchAllPrincipalTasks({
-      principalCodes: [partnerCode],
+      principalCodes: [headerPrincipalCode],
       quickFilter,
       limit: 1000,
     }).then(res => {
@@ -217,10 +228,10 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
       if (res.ok) setQfTasks(res.tasks);
     }).finally(() => { if (alive) setQfLoading(false); });
     return () => { alive = false; };
-  }, [isPartner, partnerCode, quickFilter]);
+  }, [showPartnerHeader, headerPrincipalCode, quickFilter]);
 
-  // isPartner + quickFilter 활성 시 → 필터 결과 뷰 (옛 today/all 측 측 측 측 measure).
-  if (isPartner && quickFilter) {
+  // showPartnerHeader + quickFilter 활성 시 → 필터 결과 뷰 (옛 today/all 측 측 측 측 measure).
+  if (showPartnerHeader && quickFilter) {
     return (
       <ViewQuickFilter
         t={t}
@@ -236,7 +247,8 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
   }
 
   // 2026-06-06 — 카운트 박스 prop 측 isPartner 측 측 측 측 측 (usol 측 X).
-  const countBoxesProps = isPartner ? {
+  // 2026-06-09 — 유솔H 측에서도 동일 노출 (showPartnerHeader). 유솔N 측 X (네이버 본문 측).
+  const countBoxesProps = showPartnerHeader ? {
     counts: partnerCounts,
     selected: quickFilter,
     onSelect: (k) => setQuickFilter(prev => prev === k ? null : k),
