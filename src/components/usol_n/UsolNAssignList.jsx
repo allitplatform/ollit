@@ -22,6 +22,9 @@ import { statusLabel } from "../../utils/taskStatus.js";
 import { getUserById } from "../../data/users.js";
 // 2026-05-29 v2 — 이름 위주 표시 (D2) + 한국어 사유/원청 라벨
 import { getCancelReasonShort, getCancelActorLabel } from "../../data/cancelReasons.js";
+// 2026-06-09 — 출장비 (visit_fee) 공용 판별 / 배지.
+import { isAllItemsVisit, hasAnyVisitItem } from "../../utils/visitFeeDetect.js";
+import { VisitBadge } from "../common/VisitBadge.jsx";
 
 const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
@@ -44,9 +47,10 @@ function getMainItem(task) {
 }
 
 function getServiceKind(task) {
-  // 2026-05-27 — 출장비 전용(visit_only) 분기. ServiceIcon "visit"→🚗 와 연결.
-  //   원청 PWA PrincipalListTab.jsx 패턴 그대로.
-  if (task?.status === "visit_only") return "visit";
+  // 2026-06-09 — visit 판별 공용 모듈 사용 (utils/visitFeeDetect).
+  //   pure visit (status='visit_only' 또는 활성 items 전부 visit) → 'visit'.
+  //   혼합 task 는 main item 기준 분기 + TaskRowOperator 측 별도 VisitBadge 표시.
+  if (isAllItemsVisit(task)) return "visit";
   const main = getMainItem(task);
   if (!main) return "addon";
   const code = main?.work_types?.service_types?.code || main?.serviceCode || "";
@@ -236,6 +240,9 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
   const status = getStatusBadge(task.status);
   const mainItem = getMainItem(task);
   const items = Array.isArray(task.task_items) ? task.task_items : [];
+  // 2026-06-09 — 혼합 task (visit + 세척/냉매) 측 visit 배지 별도 표시.
+  //   pure visit (kind='visit') 는 메인 아이콘 자체가 🚗 — 중복 표시 X.
+  const showVisitBadge = kind !== "visit" && hasAnyVisitItem(task);
 
   const appliance = mainItem?.appliance_types?.name || mainItem?.appliance || "";
   const qty = mainItem?.qty || 1;
@@ -332,6 +339,7 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
         maxWidth: 80,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>{task.customer_name || "—"}</span>
+      {showVisitBadge && <VisitBadge/>}
 
       <span style={{
         flex: 1, minWidth: 0,

@@ -15,6 +15,9 @@ import {
   fetchPrincipalStatusCounts,
 } from "../../lib/principalDashboardDb.js";
 import { getStatusBadge, getStatusLabel } from "../../utils/principalStatusBadge.js";
+// 2026-06-09 — 출장비 (visit_fee) 공용 판별 / 배지.
+import { isAllItemsVisit, hasAnyVisitItem } from "../../utils/visitFeeDetect.js";
+import { VisitBadge } from "../common/VisitBadge.jsx";
 // 2026-06-06 — 카운트 박스 공용 + DB count/필터 (KA/crikrin 측만).
 import { CountBoxes } from "../CountBoxes.jsx";
 import { fetchAllPrincipalCounts, fetchAllPrincipalTasks } from "../../lib/allPrincipalTasksDb.js";
@@ -38,8 +41,10 @@ function getMainItem(task) {
   return main || null;
 }
 function getServiceKind(task) {
-  // 2026-05-25 — 출장비 전용(visit_only) 분기를 main/addon 판정보다 먼저.
-  if (task && task.status === "visit_only") return "visit";
+  // 2026-06-09 — visit 판별 공용 모듈 사용. (옛 인라인 task.status==='visit_only' 분기 → isAllItemsVisit)
+  //   pure visit (status='visit_only' 또는 활성 items 전부 visit) → 'visit'.
+  //   혼합 task (visit + 세척/냉매) 는 visit 가 아닌 main item 기준 분기 (혼합 시 VisitBadge 별도 표시).
+  if (isAllItemsVisit(task)) return "visit";
   // 2026-06-06 — service code 기준 분기 (정확). workType 텍스트는 fallback.
   //   사고 이력: rowToTask 측 workItems[].workType 은 work_types.name 측 매핑돼
   //   '냉매_스탠드' / '세척_벽걸이' 같은 기종별 세분 이름. 사람 라벨('냉매충전')
@@ -582,6 +587,9 @@ function TaskRow({ task, onClick }) {
   const status = getStatusBadge(task.status);
   const time = formatTime(task);
   const date = formatDate(task);
+  // 2026-06-09 — 혼합 task (visit + 세척/냉매) 측 visit 배지 별도 표시.
+  //   pure visit (kind='visit') 는 메인 아이콘 자체가 🚗 — 중복 표시 X.
+  const showVisitBadge = kind !== "visit" && hasAnyVisitItem(task);
   // 2026-06-06 — 두 종류 fetch shape 모두 측측:
   //   · loadTasksForRole → rowToTask: workItems[] + flat appliance
   //   · fetchAllPrincipalTasks (카운트박스): task_items[] + nested appliance_types.name
@@ -624,6 +632,7 @@ function TaskRow({ task, onClick }) {
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>{task.customer || "—"}</span>
       <ChannelBadge task={task}/>
+      {showVisitBadge && <VisitBadge/>}
       <span style={{
         flex: 1, minWidth: 0,
         fontSize: 11, fontWeight: 400, color: "#888",

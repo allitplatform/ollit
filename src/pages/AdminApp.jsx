@@ -91,6 +91,9 @@ import {
   adminSetCancelCompensation,
 } from "../lib/cancelRpc.js";
 import { PartialCancelDialog } from "../components/CancelDialogs.jsx";
+// 2026-06-09 — 출장비 (visit_fee) 공용 판별 / 배지.
+import { isAllItemsVisit, hasAnyVisitItem } from "../utils/visitFeeDetect.js";
+import { VisitIcon, VisitBadge } from "../components/common/VisitBadge.jsx";
 import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { recommendEngineersGroupedAdapter } from "../utils/engineerRecommendation.js";
@@ -6834,6 +6837,11 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
   const isRef = isRefrigerant(task);
   const WorkIcon = isRef ? Zap : Snowflake;
   const workColor = isRef ? "#EF9F27" : t.info;
+  // 2026-06-09 — visit (출장비) 표시.
+  //   pure visit (status='visit_only' 또는 활성 items 전부 visit) → 🚗 메인 아이콘.
+  //   혼합 task (visit + 세척/냉매) → 메인 아이콘 그대로 + VisitBadge.
+  const isPureVisit = isAllItemsVisit(task);
+  const showVisitBadge = !isPureVisit && hasAnyVisitItem(task);
 
   // 정보 텍스트: "(모델×수량) · 지역 · 시간"
   //   2026-05-21 Phase 5 Step 0.H-3 — 작업 예정 시간 표시 (정렬 결과 catch 측 spec)
@@ -6868,9 +6876,11 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
         display: "flex", alignItems: "center", gap: 8,
         minHeight: 38,
       }}>
-        {/* workType 아이콘 */}
+        {/* workType 아이콘 — pure visit 시 🚗, else 세척/냉매 lucide */}
         {!isExternal && (
-          <WorkIcon size={13} style={{ color: workColor, flexShrink: 0 }}/>
+          isPureVisit
+            ? <VisitIcon size={13}/>
+            : <WorkIcon size={13} style={{ color: workColor, flexShrink: 0 }}/>
         )}
         {/* 고객명 */}
         <span style={{
@@ -6879,6 +6889,8 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           maxWidth: 90,
         }}>{titleText}</span>
+        {/* 2026-06-09 — 혼합 task visit 배지 (pure visit 는 메인 아이콘이 🚗 이므로 중복 X) */}
+        {showVisitBadge && <VisitBadge/>}
         {/* (모델×수량) · 지역 */}
         <span style={{
           fontSize: 11, fontWeight: 400, color: "#888",
