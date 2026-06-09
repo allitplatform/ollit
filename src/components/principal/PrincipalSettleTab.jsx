@@ -176,12 +176,22 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   //   새:   Σ subtotal     → net NULL 측 측 측 subtotal 측 measure (TaskDetail 정산금액 측 동일 source).
   // 2026-06-02 — pending 측 추가 필터: subtotal > 0 (부분취소 0원 제외).
   //   신동욱 벽걸이×2 부분취소 (subtotal=0) 측 측 정산 대기 측 측 측 측 X.
+  // 2026-06-09 — pending 모집단 usol_n 전용 스코프 (사장님 spec).
+  //   근거: usol_h 는 네이버 정산 개념 자체가 없음 (naver_settled 0건).
+  //   → usol_h 완료 task_items 가 naver_settled_at NULL 로 영원히 pending 에 끼어 카운트 오류.
+  //   처방: principal_id === USOL_N_PID 필터. usol_h-only 로그인 시 정산 대기 = 0건 (정합).
+  //   영향: 통합계정 (usol_h + usol_n) 정산 대기 카운트 운영자 (UsolNSettleScreen) 와 일치.
+  //   다른 합계 (received / beforeWork / doneWork / settled) 는 전 principal 합산 유지 — 옛 동작.
   const summary = useMemo(() => {
     const live = items.filter(it => it.task_status !== "취소" && it.is_canceled !== true);
     const before = live.filter(it => ["배정", "확정"].includes(it.task_status));
     const done = live.filter(it => it.task_status === "완료");
     const settled = live.filter(it => it.naver_settled_at);
-    const pendingSettle = done.filter(it => !it.naver_settled_at && Number(it.subtotal) > 0);
+    const pendingSettle = done.filter(
+      it => it.principal_id === USOL_N_PID
+         && !it.naver_settled_at
+         && Number(it.subtotal) > 0
+    );
     const pendingAmount = pendingSettle.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
     return {
       received: live.length, beforeWork: before.length, doneWork: done.length,
@@ -208,7 +218,13 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
       const wk = getNaverSettleWeek(it);
       if (!wk) {
         // 2026-06-02 — pending bucket 측 subtotal > 0 (부분취소 0원 제외).
-        if (it.task_status === "완료" && Number(it.subtotal) > 0) pending.push(it);
+        // 2026-06-09 — usol_n 전용 스코프 (summary.pendingSettle 와 동일 근거).
+        //   usol_h 는 네이버 정산 X — pending 모집단에서 제외.
+        if (it.principal_id === USOL_N_PID
+            && it.task_status === "완료"
+            && Number(it.subtotal) > 0) {
+          pending.push(it);
+        }
         continue;
       }
       if (!itemsByKey.has(wk.key)) itemsByKey.set(wk.key, { wk, items: [] });
