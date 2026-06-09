@@ -57,6 +57,8 @@ import { fetchNotiPrefs, setNotiPref, PARTNER_NOTI_KINDS } from "../lib/notiPref
 import { parsePartnerPaste } from "../utils/partnerPasteParser.js";
 // 2026-06-06 — 작업 기본 정보 편집 (5 필드만, RPC update_task_basic Mig 099).
 import { TaskBasicEditScreen } from "../components/TaskBasicEditScreen.jsx";
+// 2026-06-09 — 정산 표시 분기 (visit / refrigerant × usol_h).
+import { isAllItemsVisit, isAllItemsRefrigerant, VISIT_ICON_EMOJI } from "../utils/visitFeeDetect.js";
 import { fetchTaskItemsForDetail, getNaverSettleWeek } from "../lib/principalSettleDb.js";
 import { getPartialReasonLabel } from "../components/EngineerTaskCompletionScreens.jsx";
 import { getCancelActorLabel, getCancelReasonLabel } from "../data/cancelReasons.js";
@@ -1675,6 +1677,63 @@ function StageProgress({ stage }) {
   );
 }
 
+// 2026-06-09 — 출장비 task 정산 박스 (모든 원청 공용).
+//   spec: 수수료 배분 블록 (sumUsol 15% / sumAllday 85%) 표시 X. 기사 100% / 30,000 만.
+//   원인: 옛 유솔 본문은 sumSettle × 0.15 무조건 적용 → visit 30k → 4,500/25,500 모순 노출.
+function SettleDetailBoxVisit({ t }) {
+  return (
+    <div style={settleBoxStyle(t)}>
+      <SettleBoxHeader t={t}/>
+      <div style={{
+        padding: "18px 4px 6px",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+      }}>
+        <span style={{
+          fontSize: 11, color: t.textMuted, fontWeight: 700, letterSpacing: 0.5,
+        }}>
+          {VISIT_ICON_EMOJI} 출장비 · 기사 100%
+        </span>
+        <span className="mono" style={{
+          fontSize: 22, fontWeight: 800, color: t.text, letterSpacing: "-0.5px",
+        }}>
+          ₩30,000
+        </span>
+        <span style={{
+          fontSize: 10, color: t.textMuted, fontWeight: 600,
+        }}>
+          (출장비만 — 작업 미실시)
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// 2026-06-09 — usol_h 측 refrigerant only task 정산 박스 (PrincipalApp 한정).
+//   spec: 정산금액 / 수수료배분 / 네이버 진행바 / 정산예정금액 전부 숨김. "완료" 안내만.
+//   AdminApp 운영자 화면 — 본 분기 적용 X (사장님 spec — 운영자는 정산 표시 유지).
+function SettleDetailBoxUsolHRefrigerant({ t }) {
+  return (
+    <div style={settleBoxStyle(t)}>
+      <SettleBoxHeader t={t}/>
+      <div style={{
+        padding: "16px 4px 4px",
+        display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+      }}>
+        <span style={{
+          fontSize: 14, fontWeight: 800, color: t.success || "#1D9E75",
+        }}>
+          ✓ 완료
+        </span>
+        <span style={{
+          fontSize: 10, color: t.textMuted, fontWeight: 600,
+        }}>
+          (냉매 작업 — 별도 정산)
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function SettleDetailBox({ t, task, principalLabel, items, remitMap, principalId, loading, error }) {
   // 2026-06-04 Phase 2-A — task 기반 분기.
   //   유솔 흐름 (usol_h/usol_n) → 기존 본문 그대로 (네이버/15%/3단계).
@@ -1682,6 +1741,20 @@ function SettleDetailBox({ t, task, principalLabel, items, remitMap, principalId
   //   task 미전달 시 (Step 3 전 호출처) 안전망 — 유솔 본문 fallback (회귀 0).
   if (task && !isUsolFlow(task)) {
     return <SettleDetailBoxSimple t={t} task={task} principalLabel={principalLabel} items={items} loading={loading} error={error}/>;
+  }
+  // 2026-06-09 — 출장비 task (모든 원청 공용) — 수수료 배분 블록 숨김, "기사 100% / 30,000" 만.
+  //   증상: usol_h/usol_n 측 출장비 표시 시 sumUsol(4,500) + sumAllday(25,500) + 기사 30,000 모순 노출.
+  //   처방: SettleDetailBoxVisit 단순 박스.
+  if (task && isAllItemsVisit(task)) {
+    return <SettleDetailBoxVisit t={t}/>;
+  }
+  // 2026-06-09 — usol_h 측 refrigerant only task — 정산 정보 전부 숨김, "완료" 안내만.
+  //   증상: usol_h 냉매(조혜선) 측 네이버 진행바 노출 (usol_n 전용 표시인데 usol_h 측 새어 들어옴).
+  //   처방: SettleDetailBoxUsolHRefrigerant — 정산금액 / 수수료배분 / 네이버 진행바 / 정산예정금액 전부 숨김.
+  //   usol_n 냉매는 그대로 (월정산 추적 — 네이버 진행바 + 정산예정금액 유지).
+  //   AdminApp 운영자 화면은 본 분기 적용 X (별도 컴포넌트).
+  if (task && task.principalCode === "usol_h" && isAllItemsRefrigerant(task)) {
+    return <SettleDetailBoxUsolHRefrigerant t={t}/>;
   }
 
   if (loading) {

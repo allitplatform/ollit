@@ -86,3 +86,39 @@ export function isAllItemsVisit(task) {
   if (active.length === 0) return false;
   return active.every(it => isVisitItem(it));
 }
+
+// 2026-06-09 — refrigerant 판별 (visit 와 동일 패턴).
+//   PrincipalApp 측 usol_h refrigerant task 의 정산 정보 숨김 분기에 사용.
+
+// item 단위 — task_items[i] / workItems[i] 가 refrigerant?
+export function isRefrigerantItem(item) {
+  if (!item) return false;
+  const svcCode = String(
+    item.serviceCode
+    || item.service_code
+    || item.work_types?.service_types?.code
+    || ""
+  ).toLowerCase();
+  if (svcCode === "refrigerant") return true;
+  // 텍스트 fallback — work_types.name 측 '냉매' 포함
+  const wtName = String(
+    item.workType
+    || item.work_type
+    || item.work_types?.name
+    || ""
+  );
+  if (/냉매|가스|충전/.test(wtName)) return true;
+  return false;
+}
+
+// task 단위 — 활성 items 가 전부 refrigerant 인지 (visit 와 동일 spec).
+//   혼합 (refrigerant + cleaning + addon 등) 는 false. 순수 refrigerant only 만 true.
+export function isAllItemsRefrigerant(task) {
+  if (!task) return false;
+  const items = Array.isArray(task.workItems)  ? task.workItems
+              : Array.isArray(task.task_items) ? task.task_items
+              : [];
+  const active = items.filter(it => it?.is_canceled !== true);
+  if (active.length === 0) return false;
+  return active.every(it => isRefrigerantItem(it));
+}
