@@ -54,8 +54,6 @@ const C_BUCKET_UNCERTAIN  = "#6B7280";   // 미확정 (미정산, 회색)
 //   결정 🅑 — 기사별 게이트 지급으로 전환. 복구 시 SHOW_BULK_PAY 을 true 로.
 const SHOW_BULK_PAY = false;
 
-const ENGINEER_RATIO_FALLBACK = 0.6;
-const COMPANY_RATE_FALLBACK   = 0.85;
 
 // 2026-06-01 S2 — 회사 실입금 (작업월 기준).
 //   APR/MAY 는 legacy net_amount 가 gross 로 오염 → 시트 기준 고정값.
@@ -69,19 +67,17 @@ const TRUE_NET_RATIO_CUTOFF = 0.95;       // net < subtotal × 0.95 → 신형�
 const NAVER_NET_TO_COMPANY_FACTOR = 0.85; // 유솔 15% 차감 → 회사 실입금
 
 // ── 돈 계산 (정책 — 세척 100% / 추가선택 85% / 냉매 제외) ────
-// 2026-06-01 reconcile fix:
-//   1순위 — engByItem (RPC compute_engineer_amount_per_item_batch) 결과 사용.
-//     기사앱 EngineerApp.jsx 측 같은 RPC → 양쪽 금액 정합.
-//   2순위 — RPC 미반환 시 fallback (legacy 추정 수식). 운영 데이터에선 거의 안 탐.
+// 2026-06-09 — engByItem 원천 변경: payments.engineer_amount task-level 분배.
+//   옛: compute_engineer_amount_per_item_batch RPC (per-item). 누락/실패 시 폴백 = net_amount → gross stamp 사고 (94.5M ≈ subtotal 합).
+//   신: payments.engineer_amount (task-level) × (item.subtotal / Σtask 활성 item.subtotal) — 정합.
+//   순이익 카드 (companyShare) 와 동일 모집단 + 동일 원천 (paymentByTaskId).
+// 폴백: payments 누락 (compute_payment 미실행) → 0. net_amount 폴백 폐기 — 사고 재발 차단.
 function calcItemEngineerAmount(item, engByItem) {
   if (item == null) return 0;
   if (engByItem && engByItem.has(item.id)) {
     return Number(engByItem.get(item.id)) || 0;
   }
-  // fallback (RPC 결과 없을 때만 — 정확도 낮음)
-  if (item.net_amount != null) return item.net_amount;
-  const subtotal = item.subtotal || 0;
-  return Math.floor(subtotal * COMPANY_RATE_FALLBACK * ENGINEER_RATIO_FALLBACK);
+  return 0;
 }
 
 // ── 1·2차 버킷 분류 (2026-06-01 — 작업월 + naver 정산 여부 기준) ──
@@ -297,32 +293,6 @@ export function UsolNToEngineerSection({ adminId = null }) {
     return () => { alive = false; };
   }, [reloadTick]);
 
-  // 2026-06-01 reconcile fix — RPC 측 item별 engineer_amount 측측 (정책 측측).
-  //   기사앱 EngineerApp.jsx line 4544 와 동일 호출 — 같은 RPC = 같은 금액.
-  const [engByItem, setEngByItem] = useState(new Map());
-
-  useEffect(() => {
-    if (!items || items.length === 0) { setEngByItem(new Map()); return; }
-    let alive = true;
-    const taskIds = [...new Set(items.map(it => it.tasks?.id).filter(Boolean))];
-    if (taskIds.length === 0) { setEngByItem(new Map()); return; }
-    (async () => {
-      const { data, error } = await supabase
-        .rpc("compute_engineer_amount_per_item_batch", { p_task_ids: taskIds });
-      if (!alive) return;
-      if (error) {
-        console.error("[UsolNToEngineerSection.engRpc]", error);
-        return;
-      }
-      if (Array.isArray(data)) {
-        setEngByItem(new Map(
-          data.map(r => [r.task_item_id, Number(r.engineer_amount) || 0])
-        ));
-      }
-    })();
-    return () => { alive = false; };
-  }, [items]);
-
   // 2026-06-09 — 정책 기반 회사 몫 (payments.owner_amount) fetch.
   //   compute_payment v19 (Mig 096) 가 usol_n 트랙 🅑 정책 반영 후 INSERT.
   //     v_total_owner = subtotal + extra + travel − engineer − principal (GREATEST 0 가드)
@@ -358,6 +328,44 @@ export function UsolNToEngineerSection({ adminId = null }) {
     })();
     return () => { alive = false; };
   }, [items]);
+
+  // 2026-06-09 — engByItem 을 payments.engineer_amount 분배로 유도.
+  //   task-level engineer_amount → 활성 item.subtotal 비율 분배.
+  //   분배 폴백 (Σsubtotal = 0) → 활성 item 수 균등 분배.
+  //   payments 누락 task → 그 task 의 item 들 미수록 (calcItemEngineerAmount 측 0 반환).
+  //   순이익 카드 (companyShare = Σpayments.engineer + prin + own) 와 모집단·원천 정합.
+  const engByItem = useMemo(() => {
+    if (!items.length || paymentByTaskId.size === 0) return new Map();
+    const itemsByTaskId = new Map();
+    for (const it of items) {
+      if (it.is_canceled) continue;
+      const tid = it.tasks?.id;
+      if (!tid) continue;
+      if (!itemsByTaskId.has(tid)) itemsByTaskId.set(tid, []);
+      itemsByTaskId.get(tid).push(it);
+    }
+    const result = new Map();
+    for (const [tid, taskItems] of itemsByTaskId.entries()) {
+      const payment = paymentByTaskId.get(tid);
+      if (!payment) continue;
+      const engineerAmount = Number(payment.engineer_amount) || 0;
+      if (engineerAmount === 0) {
+        for (const it of taskItems) result.set(it.id, 0);
+        continue;
+      }
+      const totalSubtotal = taskItems.reduce((s, x) => s + (Number(x.subtotal) || 0), 0);
+      if (totalSubtotal === 0) {
+        const per = Math.round(engineerAmount / taskItems.length);
+        for (const it of taskItems) result.set(it.id, per);
+        continue;
+      }
+      for (const it of taskItems) {
+        const sub = Number(it.subtotal) || 0;
+        result.set(it.id, Math.round(engineerAmount * (sub / totalSubtotal)));
+      }
+    }
+    return result;
+  }, [items, paymentByTaskId]);
 
   const [year, month] = selectedMonth.split("-").map(Number);
 
