@@ -106,11 +106,15 @@ function _resolvePartnerCode(user) {
 
 // 2026-06-04 Phase 2-A — 작업 상세 정산 박스 분기 키.
 //   true  → 유솔 흐름 (네이버 정산 + 트랙B 3단계 + 15%/85% 분해). 기존 SettleDetailBox 본문 유지.
-//   false → 단순 흐름 (KA / crikrin 등). SettleDetailBoxSimple 본문 — DB principal_amount 직접 사용.
-//   분기 키 = task.principalCode (트랙 'A'/'B' 보다 명시적 — usol_n 냉매도 트랙 'A'지만 유솔 흐름 유지).
+//   false → 단순 흐름 (allday / KA / crikrin / usol_h 등). SettleDetailBoxSimple — DB principal_amount 직접 사용.
+//   분기 키 = task.principalCode.
+// 2026-06-09 — 유솔H 측 일반 원청 UI 전환 (사장님 spec 갱신).
+//   네이버 월정산 특수 UI = usol_n 전용. usol_h 측 일반 일일정산 UI (allday/KA 등과 동일).
+//   효과: usol_h 냉매 네이버바 / 출장비 배분 사고 자동 해결 (특수 UI 미진입).
+//   유솔H 정책: 세척만 정산 / 냉매 "완료" 만 / 출장비 기사 100% (모든 원청 공용 분기 측 처리).
 function isUsolFlow(task) {
   const code = task?.principalCode || "";
-  return code === "usol_h" || code === "usol_n";
+  return code === "usol_n";
 }
 
 // V14 Phase 4-F-1 — 헤더 양식 통일 (AdminApp 패턴 / 페이지 진입 시점 동적 날짜)
@@ -1804,27 +1808,28 @@ function SettleDetailBoxUsolHRefrigerant({ t }) {
 }
 
 function SettleDetailBox({ t, task, principalLabel, items, remitMap, principalId, loading, error }) {
-  // 2026-06-04 Phase 2-A — task 기반 분기.
-  //   유솔 흐름 (usol_h/usol_n) → 기존 본문 그대로 (네이버/15%/3단계).
-  //   단순 흐름 (KA/crikrin 등) → SettleDetailBoxSimple (DB principal_amount 직접).
-  //   task 미전달 시 (Step 3 전 호출처) 안전망 — 유솔 본문 fallback (회귀 0).
-  if (task && !isUsolFlow(task)) {
-    return <SettleDetailBoxSimple t={t} task={task} principalLabel={principalLabel} items={items} loading={loading} error={error}/>;
-  }
-  // 2026-06-09 — 출장비 task (모든 원청 공용) — 수수료 배분 블록 숨김, "기사 100% / 30,000" 만.
-  //   증상: usol_h/usol_n 측 출장비 표시 시 sumUsol(4,500) + sumAllday(25,500) + 기사 30,000 모순 노출.
-  //   처방: SettleDetailBoxVisit 단순 박스.
+  // 2026-06-09 — 분기 순서 (사장님 spec 갱신):
+  //   (1) 출장비 task → SettleDetailBoxVisit (모든 원청 공용 — 기사 100% / 30,000)
+  //   (2) usol_h refrigerant task → SettleDetailBoxUsolHRefrigerant ("완료" 만, 냉매 정산 제외)
+  //   (3) !isUsolFlow(task) → SettleDetailBoxSimple (allday / KA / crikrin / usol_h 세척 — 견적금액 + 원청 수수료)
+  //   (4) usol_n (=isUsolFlow) → 유솔 본문 (네이버 월정산 + 15%/85% 분해 — usol_n 전용)
+  //   task 미전달 시 (Step 3 전 호출처) 안전망 — usol_n 본문 fallback (회귀 0).
+
+  // (1) 출장비 task — 모든 원청 공용. 수수료 배분 숨김, "기사 100% / 30,000" 만.
   if (task && isAllItemsVisit(task)) {
     return <SettleDetailBoxVisit t={t}/>;
   }
-  // 2026-06-09 — usol_h 측 refrigerant only task — 정산 정보 전부 숨김, "완료" 안내만.
-  //   증상: usol_h 냉매(조혜선) 측 네이버 진행바 노출 (usol_n 전용 표시인데 usol_h 측 새어 들어옴).
-  //   처방: SettleDetailBoxUsolHRefrigerant — 정산금액 / 수수료배분 / 네이버 진행바 / 정산예정금액 전부 숨김.
-  //   usol_n 냉매는 그대로 (월정산 추적 — 네이버 진행바 + 정산예정금액 유지).
-  //   AdminApp 운영자 화면은 본 분기 적용 X (별도 컴포넌트).
+  // (2) usol_h 측 refrigerant only task — 정산 정보 전부 숨김, "완료" 안내만.
+  //   유솔H 정책: 냉매 정산 제외. AdminApp 운영자 화면은 본 분기 적용 X (사장님 spec — 운영자는 정산 표시 유지).
   if (task && task.principalCode === "usol_h" && isAllItemsRefrigerant(task)) {
     return <SettleDetailBoxUsolHRefrigerant t={t}/>;
   }
+  // (3) 단순 흐름 — allday / KA / crikrin / usol_h 세척 등. 견적금액 + 원청 수수료 + 3단계 진행바.
+  //   2026-06-09 — usol_h 측 isUsolFlow 측 false 측 → 본 분기 자동 진입 (옛 유솔 본문 미진입).
+  if (task && !isUsolFlow(task)) {
+    return <SettleDetailBoxSimple t={t} task={task} principalLabel={principalLabel} items={items} loading={loading} error={error}/>;
+  }
+  // (4) 유솔 본문 — usol_n 전용 (네이버 월정산 + 정산예정금액 + 15%/85% 분해).
 
   if (loading) {
     return (
