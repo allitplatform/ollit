@@ -93,6 +93,7 @@ export function lookupRate({ principalCode, quoteRates, workType, appliance, qty
 
 export function NewReceptionScreenLite({
   t,
+  user = null,        // 2026-06-09 — actor 추적 (audit log)
   onBack,
   onSubmit,
   // 일반화 props
@@ -458,7 +459,11 @@ export function NewReceptionScreenLite({
         status:        "미배정",
         scheduleType,
       };
-      const res = await createTask(taskData);
+      const res = await createTask(taskData, {
+        changedBy:     user?.id || user?.user_id || null,
+        changedByName: user?.name || null,
+        changedByRole: "원청",
+      });
       if (!res.ok) {
         setSubmitError(res.error || "등록 실패");
         setSubmitting(false);

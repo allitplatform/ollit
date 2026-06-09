@@ -745,15 +745,19 @@ async function _resolvePrincipalCode(principalName) {
 //   { principal, channel, customer, phone, address, region,
 //     workType, appliance, qty, workItems, quote, estimateTotal,
 //     scheduledDate, scheduledTime, memo, status, ... }
+// 입력 actor (선택, 2026-06-09): { changedBy, changedByName, changedByRole }
+//   생성 후 task_changes 에 'create' 이벤트 자동 INSERT.
+//   actor 미전달 시 role='시스템' (외부 시트 동기화 / 시드 등).
 //
 // 처리:
 //   1) principal 이름 → principal_id (UUID) 변환
 //   2) 작업번호 자동 생성 (generateTaskNo)
 //   3) tasks 측 INSERT (category_data jsonb에 workItems 포함)
+//   4) 성공 시 insertTaskChange({ changeType: 'create', ... }) — 2026-06-09
 //
 // 응답: { ok: true, taskId, task_no, task } | { ok: false, error, timeout? }
 // 호환: 호출처 res.ok / res.taskId / res.task_no 사용
-export async function createTaskAdapter(taskData) {
+export async function createTaskAdapter(taskData, actor = null) {
   if (!taskData) return { ok: false, error: "taskData 없음" };
 
   try {
@@ -827,6 +831,30 @@ export async function createTaskAdapter(taskData) {
     }
     if (!res || !res.ok) {
       return { ok: false, error: (res && res.error) || `작업번호 충돌 — 측측 측측 (last=${lastTaskNo})` };
+    }
+
+    // 2026-06-09 — 'create' 이벤트 audit log (Mig 098).
+    //   실패해도 생성 자체는 성공으로 처리 (best-effort logging).
+    //   actor 미전달 → role='시스템' (외부 시트 동기화 등 사용자 컨텍스트 없는 경로).
+    try {
+      const { insertTaskChange } = await import("../lib/taskChangesDb.js");
+      await insertTaskChange({
+        taskId:        res.data?.id,
+        changeType:    "create",
+        after:         {
+          task_no:   res.data?.taskCode,
+          customer:  taskData.customer || null,
+          phone:     taskData.phone || null,
+          status:    taskData.status || "미배정",
+          principal: taskData.principal || null,
+          channel:   taskData.channel || null,
+        },
+        changedBy:     actor?.changedBy ?? null,
+        changedByName: actor?.changedByName ?? null,
+        changedByRole: actor?.changedByRole ?? "시스템",
+      });
+    } catch (logErr) {
+      console.error("[tasksDb.createTaskAdapter:create-log] best-effort fail", logErr);
     }
 
     return {

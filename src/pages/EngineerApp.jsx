@@ -4129,6 +4129,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
         note:          addReason || null,
         changedBy:     user?.id || null,
         changedByName: user?.name || null,
+        changedByRole: "기사",
       });
       setPriceChangeTask(null);
       setAddAmount(0);

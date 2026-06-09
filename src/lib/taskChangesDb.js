@@ -10,13 +10,14 @@ import { supabase } from "./supabase.js";
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 
 // 특정 task 측 변경 이력 — 최신순
+// 2026-06-09 — changed_by_role 추가 (Mig 098).
 // 응답: { ok, changes: [...] }
 export async function listTaskChanges(taskId) {
   if (!taskId) return { ok: false, error: "taskId X", changes: [] };
   const { data, error } = await supabase
     .from("task_changes")
     .select(
-      "id, task_id, change_type, before_data, after_data, note, changed_by, changed_by_name, changed_at"
+      "id, task_id, change_type, before_data, after_data, note, changed_by, changed_by_name, changed_by_role, changed_at"
     )
     .eq("task_id", taskId)
     .order("changed_at", { ascending: false });
@@ -30,17 +31,18 @@ export async function listTaskChanges(taskId) {
 // 변경 이력 INSERT
 // 입력:
 //   taskId          (uuid)
-//   changeType      ('schedule' / 'engineer' / 'items' / 'extra_fee' / 'cancel' / 'visit_only' / 'status')
+//   changeType      ('schedule' / 'engineer' / 'items' / 'extra_fee' / 'cancel' / 'visit_only' / 'status' / 'create')
 //   before / after  (jsonb / 임의 객체)
 //   note            (text / 운영자 사유)
 //   changedBy       (uuid / null 가능)
 //   changedByName   (text / 변경 시점 이름 snapshot)
+//   changedByRole   (text / 운영자·원청·기사·시스템) — 2026-06-09 추가
 // 응답: { ok, id }
 export async function insertTaskChange({
   taskId, changeType,
   before = null, after = null,
   note = null,
-  changedBy = null, changedByName = null,
+  changedBy = null, changedByName = null, changedByRole = null,
 }) {
   if (!taskId)     return { ok: false, error: "taskId X" };
   if (!changeType) return { ok: false, error: "changeType X" };
@@ -56,6 +58,7 @@ export async function insertTaskChange({
       note:            note,
       changed_by:      changedBy,
       changed_by_name: changedByName,
+      changed_by_role: changedByRole,
     })
     .select("id")
     .single();

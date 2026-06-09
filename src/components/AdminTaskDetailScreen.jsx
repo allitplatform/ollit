@@ -1178,6 +1178,8 @@ const CHANGE_TYPE_ICON = {
   cancel:     "❌",
   visit_only: "🚗",
   status:     "🔄",
+  // 2026-06-09 — Mig 098 추가
+  create:     "✨",
 };
 const CHANGE_TYPE_LABEL = {
   schedule:   "일정 변경",
@@ -1187,12 +1189,24 @@ const CHANGE_TYPE_LABEL = {
   cancel:     "작업 취소",
   visit_only: "출장비만",
   status:     "상태 변경",
+  // 2026-06-09 — Mig 098 추가
+  create:     "접수 (생성)",
 };
 
 function ChangeEntry({ entry }) {
   const icon  = CHANGE_TYPE_ICON[entry.change_type]  || "•";
   const label = CHANGE_TYPE_LABEL[entry.change_type] || entry.change_type;
-  const who   = entry.changed_by_name || "—";
+  // 2026-06-09 — actor 표시 "{역할} {이름}".
+  //   role + name 둘 다 있음 → "운영자 최수연"
+  //   role 만 → "운영자"   (옛 행 — name snapshot 누락)
+  //   name 만 → "최수연"   (옛 행 — role 컬럼 NULL, Mig 098 이전)
+  //   둘 다 없음 → "시스템" (anon trigger / 외부 시트 / 시드 등)
+  const role = entry.changed_by_role || "";
+  const name = entry.changed_by_name || "";
+  const who  = role && name ? `${role} ${name}`
+             : role         ? role
+             : name         ? name
+             : "시스템";
   // 2026-05-29 v2 — cancel 이벤트 note 한국어 매핑 (reasonId → CANCEL_REASONS 라벨)
   const isCancel = entry.change_type === "cancel";
   const noteDisplay = isCancel

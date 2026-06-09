@@ -750,6 +750,7 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
     return (
       <NewReceptionScreenLite
         t={t}
+        user={user}
         onBack={onBackToList || (() => {})}
         onSubmit={(task) => onSubmit?.(task)}
         principalCode={partnerCode}
@@ -773,6 +774,7 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
     return (
       <NewReceptionScreenLite
         t={t}
+        user={user}
         onBack={() => setShowNewForm(false)}
         onSubmit={(task) => { setShowNewForm(false); onSubmit?.(task); }}
       />
@@ -1148,10 +1150,29 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
     if (!task?.id || memoSaving) return;
     setMemoSaving(true);
     try {
+      const prevMemo = task?.workMemo || "";
       const res = await updateTaskAdapter(task.id, { workMemo: memo });
       if (res && res.ok === false) throw new Error(res.error || "저장 실패");
       setTask(prev => ({ ...prev, workMemo: memo }));
       setMemoSavedTick(v => v + 1);
+      // 2026-06-09 — 변경 이력 audit log (best-effort).
+      //   change_type 'items' = task 내용 변경 (workMemo 도 task 본문 필드라 묶음).
+      //   별도 'memo' enum 필요 시 Mig 099 + 본 호출 change_type 만 교체.
+      try {
+        const { insertTaskChange } = await import("../lib/taskChangesDb.js");
+        await insertTaskChange({
+          taskId:        task.id,
+          changeType:    "items",
+          before:        { workMemo: prevMemo },
+          after:         { workMemo: memo },
+          note:          "원청 공유 메모 변경",
+          changedBy:     user?.id || user?.user_id || null,
+          changedByName: user?.name || null,
+          changedByRole: "원청",
+        });
+      } catch (logErr) {
+        console.error("[PrincipalApp.saveMemo:audit] best-effort fail", logErr);
+      }
     } catch (e) {
       alert("메모 저장 실패: " + (e.message || ""));
     } finally {

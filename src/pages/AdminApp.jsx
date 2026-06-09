@@ -2523,6 +2523,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     return <Shell t={t} toasts={toasts}>
       <NewReceptionFormScreen
         t={t}
+        user={user}
         onBack={goBack}
         onSubmit={(form) => {
           addReception(form);
@@ -2708,6 +2709,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               note:          reason,
               changedBy:     user?.user_id || user?.id || null,
               changedByName: user?.name || null,
+              changedByRole: "운영자",
             });
             goBackFromStack();
           } catch (e) {
@@ -2780,6 +2782,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
             note:          payload?.reasonLabel || null,
             changedBy:     user?.user_id || user?.id || null,
             changedByName: user?.name || null,
+            changedByRole: "운영자",
           });
           goBackFromStack();
         }}
@@ -2881,6 +2884,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               note:          null,
               changedBy:     user?.user_id || user?.id || null,
               changedByName: user?.name || null,
+              changedByRole: "운영자",
             });
           } catch (e) {
             console.error('[V14 2B-2] 일정 에러:', e);
@@ -2920,6 +2924,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               note:          null,
               changedBy:     user?.user_id || user?.id || null,
               changedByName: user?.name || null,
+              changedByRole: "운영자",
             });
           } catch (e) {
             console.error('[V14 2B-2] 상태 에러:', e);
@@ -3077,6 +3082,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
                 note:          assignReason || null,
                 changedBy:     user?.user_id || user?.id || null,
                 changedByName: user?.name || null,
+                changedByRole: "운영자",
               });
               // 2026-05-26 fix: setScreen push → replaceScreen 변경
               //   기존: screenStack=[..., reassignList, taskDetail, recommend] 측 catch
@@ -3176,6 +3182,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               note:          null,  // 신규 배정은 사유 X
               changedBy:     user?.user_id || user?.id || null,
               changedByName: user?.name || null,
+              changedByRole: "운영자",
             });
 
             // [1-3] fetchTasks() 호출 X — Optimistic만 적용 (5~7초 lag 방지)
@@ -8615,7 +8622,7 @@ function FeePreviewCell({ t, label, value, color }) {
   );
 }
 
-function NewReceptionFormScreen({ t, onBack, onSubmit }) {
+function NewReceptionFormScreen({ t, user, onBack, onSubmit }) {
   const [form, setForm] = useState({
     principal: "",
     paymentMethod: "",   // 2026-05-27 Migration 077 — 결제 방식 (선택 사항)
@@ -9025,7 +9032,11 @@ function NewReceptionFormScreen({ t, onBack, onSubmit }) {
         // 약속대기는 냉매충전 + 자동 추천 흐름에서만 박음 (별도 화면 / 여기 X)
         status:        "미배정",
       };
-      const res = await apiCreateTask(taskData);
+      const res = await apiCreateTask(taskData, {
+        changedBy:     user?.user_id || user?.id || null,
+        changedByName: user?.name || null,
+        changedByRole: "운영자",
+      });
       if (!res.ok) {
         // 2026-05-10 hotfix — timeout 시 "시트에 박혔을 수 있음" 안내 (재클릭 → 중복 방지)
         if (res.timeout) {
