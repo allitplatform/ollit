@@ -534,6 +534,9 @@ export async function markTaskItemsNaverSettledAndNet(items) {
   // 2) per-item UPDATE (chunk 단위 batch 가능성 X — 행마다 net 값 다름)
   let naverCount = 0, netCount = 0, protectedCount = 0, errorCount = 0;
   const errors = [];
+  // 2026-06-09 — 진단: 항목별 결정 trace (net_amount 미반영 사고 추적용)
+  const decisionTrace = [];
+  let traceFullCnt = 0;
   for (const item of items) {
     const cur = existing.get(item.id);
     if (!cur) {
@@ -545,10 +548,32 @@ export async function markTaskItemsNaverSettledAndNet(items) {
     if (item.naverSettledAt) patch.naver_settled_at = item.naverSettledAt;
 
     const isProtected = !!cur.engineer_settled_at || cur.net_amount != null;
+    const csvNetNull  = item.netAmount == null;
     if (item.netAmount != null && !isProtected) {
       patch.net_amount = item.netAmount;
     } else if (isProtected) {
       protectedCount += 1;
+    }
+
+    // 진단 trace — 첫 30건 console.table 용
+    if (decisionTrace.length < 30) {
+      decisionTrace.push({
+        id: item.id,
+        csv_net: item.netAmount,
+        db_net: cur.net_amount,
+        db_eng_settled: cur.engineer_settled_at,
+        protected: isProtected,
+        csv_net_null: csvNetNull,
+        will_stamp_naver: !!patch.naver_settled_at,
+        will_stamp_net: patch.net_amount != null,
+        reason_no_net:
+          csvNetNull       ? "csv_null" :
+          cur.engineer_settled_at ? "protected_eng_settled" :
+          cur.net_amount != null  ? "protected_db_net_exists" :
+          null,
+      });
+    } else {
+      traceFullCnt += 1;
     }
 
     if (Object.keys(patch).length === 0) continue;
@@ -570,6 +595,20 @@ export async function markTaskItemsNaverSettledAndNet(items) {
     if (patch.naver_settled_at) naverCount += 1;
     if (patch.net_amount != null) netCount += 1;
   }
+
+  // 2026-06-09 — 진단 출력
+  console.group("[usolNTasksDb.markNaverSettledAndNet] 진단");
+  console.log("총 items:",        items.length);
+  console.log("naver stamp:",     naverCount);
+  console.log("net stamp:",       netCount);
+  console.log("protected (net skip):", protectedCount);
+  console.log("errors:",          errorCount);
+  console.log("trace 30건 표 (csv_net / db_net / db_eng_settled / protected / will_stamp_net / reason):");
+  console.table(decisionTrace);
+  if (traceFullCnt > 0) {
+    console.log(`(추가 ${traceFullCnt}건 trace 생략)`);
+  }
+  console.groupEnd();
 
   return {
     ok: errorCount === 0,

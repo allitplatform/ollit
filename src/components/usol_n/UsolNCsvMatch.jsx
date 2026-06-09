@@ -169,15 +169,16 @@ export function UsolNCsvMatch() {
     reader.readAsArrayBuffer(file);
   }
 
-  // 2026-06-09 — 정산예정금액 → int 또는 null.
-  //   빈 칸 / 비숫자 → null (NULL 보존, 0 으로 적지 않음 — 누락 가시성 확보).
+  // 2026-06-09 — 정산예정금액 → 양의 정수 또는 null.
+  //   사고: xlsx 측 dtype=int 로 정산예정금액 / 상품주문번호 반환 케이스.
+  //         옛 typeof number 분기는 정상이지만 다른 경로 (NaN / 잡음 / 음수)
+  //         흡수가 약해 23/30 가 NULL 반환 → net 미스탬프.
+  //   처방: 통합 처리 — 모든 입력 String 캐스팅 → 디짓·점·마이너스만 → Number().
+  //         양수만 유효 (0/음수/NaN/빈칸 → null. 의미 없는 stamp 차단).
   function parseNetAmount(v) {
-    if (v == null || v === "") return null;
-    if (typeof v === "number") return isFinite(v) ? Math.trunc(v) : null;
-    const s = String(v).replace(/[^\d.\-]/g, "");
-    if (s === "" || s === "-" || s === ".") return null;
-    const n = parseInt(s, 10);
-    return isNaN(n) ? null : n;
+    const s = String(v ?? "").replace(/[^0-9.-]/g, "");
+    const n = Number(s);
+    return Number.isFinite(n) && n > 0 ? n : null;
   }
 
   async function handleConfirmMatching() {
@@ -203,6 +204,8 @@ export function UsolNCsvMatch() {
     const items   = [];
     const skipped = [];   // {orderId, reason}
     let netNullCnt = 0;   // 정산예정금액 누락/비숫자
+    // 2026-06-09 — 진단: net_amount 미반영 사고 추적용. row별 raw → parsed 기록.
+    const netDiagSample = [];   // 첫 5건 trace (raw + parsed)
 
     for (const m of matchResult.matched) {
       const rawDate = m.row?.[SETTLED_DATE_COL];
@@ -218,8 +221,18 @@ export function UsolNCsvMatch() {
         });
         continue;
       }
-      const net = parseNetAmount(m.row?.[NET_COL]);
+      const rawNet = m.row?.[NET_COL];
+      const net = parseNetAmount(rawNet);
       if (net == null) netNullCnt += 1;
+      if (netDiagSample.length < 5) {
+        netDiagSample.push({
+          orderId: m.productOrderId,
+          itemId: m.item.id,
+          raw: rawNet,
+          rawType: typeof rawNet,
+          parsed: net,
+        });
+      }
       items.push({
         id: m.item.id,
         naverSettledAt: isoTs,
@@ -233,6 +246,18 @@ export function UsolNCsvMatch() {
     if (netNullCnt > 0) {
       console.warn(`[UsolNCsvMatch] 정산예정금액 누락/비숫자 ${netNullCnt}건 — net_amount NULL 보존`);
     }
+    // 2026-06-09 — 진단 출력: items 전체 + sample
+    console.group("[UsolNCsvMatch.handleConfirmMatching] 진단");
+    console.log("matched 총건:",   matchResult.matched.length);
+    console.log("items pushed:",   items.length);
+    console.log("netNullCnt:",     netNullCnt);
+    console.log("skippedCnt:",     skipped.length);
+    console.log("정산예정금액 컬럼 키 존재:", matchResult.matched[0]?.row && (NET_COL in matchResult.matched[0].row));
+    if (netDiagSample.length > 0) {
+      console.log("netDiagSample (첫 5건 raw → parsed):");
+      console.table(netDiagSample);
+    }
+    console.groupEnd();
 
     if (items.length === 0) {
       setConfirming(false);
