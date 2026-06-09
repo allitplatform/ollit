@@ -306,7 +306,6 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   });
   const [workMemo, setWorkMemo] = useState(task.workMemo || "");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [visitOnlyOpen, setVisitOnlyOpen] = useState(false);
   const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule" / "complete" / "refriAddonConsent" 등
   // 2026-06-03 — Phase 1 보강: 세척+냉매충전 동의서 측측.
   //   [완료 처리] 측 "예" 측측 측 RefrigerantConsentScreen 측측 측측 측측 측측. 동의 완료 측측 측측 측측.
@@ -845,16 +844,9 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     onBack && onBack();
   }
 
-  function handleVisitOnly(reasonId) {
-    onUpdate && onUpdate(task.id, {
-      status: "visit_only",
-      visitOnlyReason: reasonId,
-      completedAt: getCurrentTime(),
-      extraFee: 30000,
-    });
-    setVisitOnlyOpen(false);
-    onBack && onBack();
-  }
+  // 2026-06-09 — 옛 handleVisitOnly / VisitOnlyDialog 흐름 제거 (dead code, 사고 원인).
+  //   visit_only 처리는 subScreen='visitOnly' → TaskVisitOnlyScreen → markVisitOnlyAdapter (RPC) 만 사용.
+  //   옛 흐름 잔존 시 extra_fee=30000 직접 stamp → tasks.extra_fee + tasks.travel_fee 이중 stamp 사고 재발.
 
   // 2026-05-25 Round 3 — 옛 onUpdate(updateTaskAdapter) 경로는 RLS 측 0행 → 화면 되돌아감.
   //   reschedule_engineer_task RPC (Migration 076) 로 직접 호출. KST 기준 ISO 조합.
@@ -1327,14 +1319,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         );
       })()}
 
-      {/* 출장비만 다이얼로그 */}
-      {visitOnlyOpen && (
-        <VisitOnlyDialog
-          task={task}
-          onClose={() => setVisitOnlyOpen(false)}
-          onConfirm={handleVisitOnly}
-        />
-      )}
+      {/* 2026-06-09 — 옛 VisitOnlyDialog 제거 (dead code).
+            visit_only 흐름은 subScreen='visitOnly' → TaskVisitOnlyScreen → mark_visit_only RPC. */}
     </div>
   );
 }
@@ -2992,125 +2978,6 @@ function MenuDivider() {
   return <div style={{ height: 1, background: "var(--border)", margin: "4px 8px" }}/>;
 }
 
-// ──────────────── 출장비만 다이얼로그 ────────────────
-function VisitOnlyDialog({ task, onClose, onConfirm }) {
-  const [reason, setReason] = useState(null);
-
-  const reasons = [
-    { id: "wrong_type", icon: "🔧", label: "작업 종류 다름", sub: "요청과 다른 작업" },
-    { id: "no_access",  icon: "🚫", label: "진입 불가",     sub: "전기 X / 사다리 X" },
-    { id: "absent",     icon: "👤", label: "고객 부재",     sub: "통화 X / 만남 X" },
-    { id: "other",      icon: "💬", label: "기타",          sub: "메모 작성" },
-  ];
-
-  return (
-    <div onClick={onClose} style={{
-      position: "fixed", inset: 0,
-      background: "rgba(0,0,0,0.6)",
-      zIndex: 1000,
-      display: "flex", alignItems: "flex-end",
-    }}>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        width: "100%",
-        background: "var(--bg-primary)",
-        borderTopLeftRadius: 16, borderTopRightRadius: 16,
-        maxHeight: "85vh", overflowY: "auto",
-      }}>
-        <div style={{
-          padding: "14px 16px",
-          background: "var(--bg-secondary)",
-          borderBottom: "1px solid var(--border)",
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ fontSize: 14 }}>⚠️</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
-              작업 불가 처리
-            </span>
-          </div>
-          <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 4 }}>
-            사유 선택 / 출장비만 정산
-          </div>
-        </div>
-
-        <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-          {reasons.map(r => (
-            <button
-              key={r.id}
-              onClick={() => setReason(r.id)}
-              style={{
-                padding: 12,
-                background: reason === r.id ? "rgba(255,143,0,0.10)" : "var(--bg-secondary)",
-                border: reason === r.id ? "1px solid #FF8F00" : "1px solid var(--border)",
-                borderRadius: 8,
-                color: "var(--text-primary)",
-                textAlign: "left", cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              <div style={{ fontWeight: 700, fontSize: 11, marginBottom: 2 }}>
-                {r.icon} {r.label}
-              </div>
-              <div style={{ fontSize: 9, color: "var(--text-secondary)" }}>
-                {r.sub}
-              </div>
-            </button>
-          ))}
-        </div>
-
-        <div style={{ padding: "0 16px 14px" }}>
-          <div style={{
-            background: "rgba(255,27,141,0.10)",
-            border: "1px solid rgba(255,27,141,0.3)",
-            borderRadius: 8, padding: 10,
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
-              <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>출장비</span>
-              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
-                ₩30,000
-              </span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between", padding: "3px 0" }}>
-              <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>프로 수익</span>
-              <span style={{ fontSize: 12, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
-                ₩30,000 (100%)
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ padding: "0 16px 16px" }}>
-          <div style={{ display: "flex", gap: 6 }}>
-            <button onClick={onClose} style={{
-              flex: 1, padding: 10,
-              background: "transparent",
-              border: "1px solid var(--text-secondary)",
-              borderRadius: 8,
-              color: "var(--text-secondary)",
-              fontSize: 11, cursor: "pointer", fontFamily: "inherit",
-            }}>
-              뒤로
-            </button>
-            <button
-              onClick={() => onConfirm && onConfirm(reason)}
-              disabled={!reason}
-              style={{
-                flex: 2, padding: 10,
-                background: "#FF8F00", border: "none",
-                borderRadius: 8, color: "#fff",
-                fontSize: 11, fontWeight: 700,
-                cursor: reason ? "pointer" : "not-allowed",
-                fontFamily: "inherit",
-                opacity: reason ? 1 : 0.4,
-              }}
-            >
-              출장비만 정산
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ──────────────── CancelScreen (부분 취소) ────────────────
 function CancelScreen({ task, itemEngineerAmounts = {}, onBack, onConfirm }) {
