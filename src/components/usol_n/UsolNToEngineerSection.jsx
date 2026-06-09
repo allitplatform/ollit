@@ -203,13 +203,18 @@ function groupItemsByEngineer(items, engineers, year, month, engByItem) {
         done2Amount:    0,   // 받음 2차 (미정산 · 이미 지급 — 드묾)
         doneAmount:     0,   // = done1 + done2 (호환)
         itemCount:      0,
-        pendingItemIds: [],   // 1차 + 2차 (미지급) item ids — B3 게이트 지급용
+        // 2026-06-09 — 지급 대상 = 예정(first) 만. 미확정(second) 제외.
+        //   사장님 정책: naver_settled 항목만 기사 지급 (1차/2차 게이트 모두).
+        //   미확정(naver_settled NULL) = 회사가 네이버에서 아직 안 받음 → 절대 지급 X.
+        //   미확정은 다음 사이클에 naver 정산되면 예정으로 올라와 그때 자동 지급 대상.
+        payableItemIds: [],   // 예정(first) item ids — engineer_settled 마킹 대상
+        secondItemIds:  [],   // 미확정(second) item ids — 표시·진단용, 지급 X
       };
     }
     const slot = map[key];
     const amt = calcItemEngineerAmount(it, engByItem);
-    if (k === "first")  { slot.firstAmount  += amt; slot.pendingItemIds.push(it.id); }
-    if (k === "second") { slot.secondAmount += amt; slot.pendingItemIds.push(it.id); }
+    if (k === "first")  { slot.firstAmount  += amt; slot.payableItemIds.push(it.id); }
+    if (k === "second") { slot.secondAmount += amt; slot.secondItemIds.push(it.id); }
     if (k === "done_1") { slot.done1Amount += amt; slot.doneAmount += amt; }
     if (k === "done_2") { slot.done2Amount += amt; slot.doneAmount += amt; }
     slot.itemCount += 1;
@@ -420,15 +425,20 @@ export function UsolNToEngineerSection({ adminId = null }) {
   function refresh() { setReloadTick(v => v + 1); }
 
   async function handleBulkSettle() {
-    if (split.pendingItems.length === 0 || confirming) return;
+    // 2026-06-09 — 예정(first, naver_settled) 만 일괄 지급. 미확정(second) 제외.
+    //   사장님 정책: 회사가 네이버에서 받은 분만 기사에 지급. 미확정은 다음 사이클.
+    if (split.firstItems.length === 0 || confirming) return;
+    const uncertainNote = split.secondTotal > 0
+      ? `\n(미확정 ${split.secondItems.length}건 ₩${split.secondTotal.toLocaleString()} 은 네이버 정산 후 다음 사이클)`
+      : "";
     if (!confirm(
-      `${selectedMonth} 미지급 ${split.pendingItems.length}개 항목 일괄 지급?\n` +
-      `1차 ₩${split.firstTotal.toLocaleString()} + 2차 ₩${split.secondTotal.toLocaleString()}\n` +
-      `= 총 ₩${split.pendingTotal.toLocaleString()}`
+      `${selectedMonth} 예정(naver 정산 완료) ${split.firstItems.length}건 ` +
+      `₩${split.firstTotal.toLocaleString()} 일괄 지급?` +
+      uncertainNote
     )) return;
     setConfirming(true);
     const res = await markTaskItemsField(
-      split.pendingItems.map(it => it.id),
+      split.firstItems.map(it => it.id),
       "engineer_settled_at"
     );
     setConfirming(false);
@@ -509,8 +519,9 @@ export function UsolNToEngineerSection({ adminId = null }) {
           </button>
 
           {/* 일괄 지급 — Phase B (B3): 기사별 게이트 지급으로 전환. 평소 숨김.
-              SHOW_BULK_PAY=true 로 바꾸면 복구. handleBulkSettle / RPC 호출 그대로 유지. */}
-          {SHOW_BULK_PAY && split.pendingItems.length > 0 && (
+              SHOW_BULK_PAY=true 로 바꾸면 복구.
+              2026-06-09 — 예정(first, naver_settled) 만 일괄 지급. 미확정 제외. */}
+          {SHOW_BULK_PAY && split.firstItems.length > 0 && (
             <button
               onClick={handleBulkSettle}
               disabled={confirming}
@@ -528,7 +539,7 @@ export function UsolNToEngineerSection({ adminId = null }) {
             >
               {confirming
                 ? "처리 중..."
-                : `${selectedMonth} 일괄 지급 (1차+2차) · ${split.pendingItems.length}건`}
+                : `${selectedMonth} 일괄 지급 (예정 ${split.firstItems.length}건)`}
             </button>
           )}
         </>
@@ -948,21 +959,25 @@ function EngineerRow({ row, invoice, invoiceLoading, gateYm, adminId, onRefresh 
 
   async function handleSettle() {
     if (busy) return;
-    if (row.pendingItemIds.length === 0) return;
+    if (row.payableItemIds.length === 0) return;
     if (invStatus !== "confirmed") return;
+    // 2026-06-09 — 예정(naver_settled) 만 지급. 미확정은 네이버 정산 후 다음 사이클 자동 처리.
+    const uncertainNote = uncertain > 0
+      ? `\n(미확정 ₩${uncertain.toLocaleString()} 은 네이버 정산 후 다음 사이클에 지급)`
+      : "";
     if (!confirm(
-      `${engineerLabel} 기사에게 ${row.pendingItemIds.length}건 지급 마킹할까요?\n` +
-      `예정 ₩${scheduled.toLocaleString()} + 미확정 ₩${uncertain.toLocaleString()}\n` +
-      `= 총 ₩${pending.toLocaleString()}`
+      `${engineerLabel} 기사에게 예정 ${row.payableItemIds.length}건 ` +
+      `₩${scheduled.toLocaleString()} 지급 마킹할까요?` +
+      uncertainNote
     )) return;
     setBusy(true);
-    const res = await markTaskItemsField(row.pendingItemIds, "engineer_settled_at");
+    const res = await markTaskItemsField(row.payableItemIds, "engineer_settled_at");
     setBusy(false);
     if (!res.ok) { alert("지급 마킹 실패: " + res.error); return; }
     onRefresh && onRefresh();
   }
 
-  const canSettle = invStatus === "confirmed" && row.pendingItemIds.length > 0;
+  const canSettle = invStatus === "confirmed" && row.payableItemIds.length > 0;
 
   return (
     <div style={{
@@ -1058,12 +1073,12 @@ function EngineerRow({ row, invoice, invoiceLoading, gateYm, adminId, onRefresh 
               title={
                 !canSettle && invStatus !== "confirmed"
                   ? "세금계산서 확인 먼저"
-                  : (row.pendingItemIds.length === 0 ? "지급 대상 없음" : "")
+                  : (row.payableItemIds.length === 0 ? "지급 대상 없음 (예정 0건)" : "")
               }
             >
-              {row.pendingItemIds.length === 0
+              {row.payableItemIds.length === 0
                 ? "지급 대상 없음"
-                : `지급 (${row.pendingItemIds.length}건)`}
+                : `지급 (예정 ${row.payableItemIds.length}건)`}
             </SmallBtn>
           </div>
         </div>
