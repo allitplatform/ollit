@@ -531,6 +531,19 @@ export default function PrincipalApp({ user, onLogout }) {
     ? user.principals.map(p => p?.code).filter(Boolean)
     : [];
 
+  // 2026-06-09 — 유솔 통합계정 탭 분리 (유솔H / 유솔N).
+  //   조건: user.principals 측 usol_h + usol_n 둘 다 있음 (통합계정).
+  //   단일 계정 (usol_h만 또는 usol_n만) 측 탭 미표시 — selectedUsolCode 측 첫 코드 자동.
+  //   list / settle 양쪽 탭 측 동일 selectedUsolCode 적용 (일관성).
+  const isUsolUnified = principalCodes.includes("usol_h") && principalCodes.includes("usol_n");
+  const [selectedUsolCode, setSelectedUsolCode] = useState(
+    isUsolUnified ? "usol_h" : (principalCodes[0] || null)
+  );
+  // 통합계정 측 selectedUsolCode 측만 effective. 단일 계정 측 principalCodes 그대로.
+  const effectiveCodes = isUsolUnified && selectedUsolCode
+    ? [selectedUsolCode]
+    : principalCodes;
+
   // 2026-06-03 — KA / crikrin 원청 분기 (유솔이면 null)
   const partnerCode = _resolvePartnerCode(user);
   const partnerConfig = partnerCode ? PARTNER_PWA_CONFIG[partnerCode] : null;
@@ -593,15 +606,23 @@ export default function PrincipalApp({ user, onLogout }) {
             {/* 2026-05-25 — 작업 상세 떠있을 때도 리스트/탭 mount 유지 (display:none)
                 → 뒤로가기 시 직전 화면(view A/B · filter · search · scroll) 그대로 복원 */}
             <div style={{ display: selectedTask ? "none" : "block" }}>
-              {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={principalCodes} partnerCode={partnerCode} onSelect={setSelectedTask}/>}
-              {tab === "schedule" && <UsolHScheduleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>}
+              {/* 2026-06-09 — 유솔 통합계정 (usol_h + usol_n) 측 list / settle 진입 시 sticky 탭. */}
+              {isUsolUnified && !partnerCode && (tab === "list" || tab === "settle") && (
+                <UsolTabSwitcher
+                  t={t}
+                  value={selectedUsolCode}
+                  onChange={setSelectedUsolCode}
+                />
+              )}
+              {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={effectiveCodes} partnerCode={partnerCode} onSelect={setSelectedTask}/>}
+              {tab === "schedule" && <UsolHScheduleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>}
               {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
               {/* 2026-06-06 — KA/crikrin (partnerCode 존재) 측 PartnerDailySettleTab (일정산).
                   usol_n/usol_h 측 기존 PrincipalSettleTab 그대로 (네이버 주차 정산 흐름 무수정). */}
               {tab === "settle" && (
                 partnerCode
-                  ? <PartnerDailySettleTab t={t} user={user} principalCodes={principalCodes}/>
-                  : <PrincipalSettleTab principalCodes={principalCodes} onSelect={setSelectedTask}/>
+                  ? <PartnerDailySettleTab t={t} user={user} principalCodes={effectiveCodes}/>
+                  : <PrincipalSettleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>
               )}
               {tab === "info"   && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
               {/* 2026-06-08 — 원청 인앱 알림 탭 */}
@@ -627,6 +648,53 @@ export default function PrincipalApp({ user, onLogout }) {
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// 2026-06-09 — 유솔H / 유솔N 탭 전환기 (통합계정 측만 노출).
+//   sticky 상단. value/onChange 측 부모 (PrincipalApp) 측 selectedUsolCode 측.
+//   list / settle 진입 측 같은 컨트롤 — 한 번 선택하면 양쪽 화면 일관.
+function UsolTabSwitcher({ t, value, onChange }) {
+  const tabs = [
+    { code: "usol_h", label: "유솔H" },
+    { code: "usol_n", label: "유솔N" },
+  ];
+  return (
+    <div style={{
+      position: "sticky",
+      top: 0,
+      zIndex: 5,
+      background: t.bg,
+      padding: "8px 14px 6px",
+      display: "flex",
+      gap: 6,
+    }}>
+      {tabs.map(tab => {
+        const active = value === tab.code;
+        return (
+          <button
+            key={tab.code}
+            type="button"
+            onClick={() => onChange(tab.code)}
+            style={{
+              flex: 1,
+              padding: "9px 12px",
+              background: active ? (t.accent || "#FF1B8D") : "transparent",
+              border: `1px solid ${active ? (t.accent || "#FF1B8D") : (t.border || "#2A2A2A")}`,
+              borderRadius: 999,
+              color: active ? "#fff" : (t.textSecondary || "#9CA3AF"),
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.15s",
+            }}
+          >
+            {tab.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
