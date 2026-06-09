@@ -1,16 +1,18 @@
 // Phase 5 Step 0.C-1 — 유솔N · 정산 CSV 매칭 (DB 전환)
-// 2026-05-19 / 2026-06-01 bugfix
+// 2026-05-19 / 2026-06-01 bugfix / 2026-06-09 net_amount 동시 반영
 // 흐름:
 //   1) CSV (네이버 정산 시트) 업로드 → XLSX parse
-//   2) row["상품주문번호"] 추출 → Supabase task_items.product_order_id IN 매칭
-//   3) 분류 (matched / otherCompany / unmatched)
-//   4) "결제완료 확정" 버튼 → matched 행의 row["정산완료일"] 기준
-//      naver_settled_at UPDATE (정산일 그룹별 markTaskItemsField 호출).
-//      정산완료일 누락 행 = skip + 콘솔 경고.
+//   2) 정산상태 "취소" 포함 row 는 사전 제외 (2026-06-09 — 백필 스크립트와 일관).
+//   3) row["상품주문번호"] 추출 → Supabase task_items.product_order_id IN 매칭
+//   4) 분류 (matched / otherCompany / unmatched)
+//   5) "결제완료 확정" 버튼 → matched 행의 row["정산완료일"] + row["정산예정금액"] 기준
+//      markTaskItemsNaverSettledAndNet 호출. naver_settled_at + net_amount 동시 UPDATE.
+//      정산완료일 누락 = skip + 콘솔 경고. 정산예정금액 누락/비숫자 = net 만 생략(NULL 보존).
+//      보호 (engineer_settled_at NOT NULL 또는 net_amount 이미 값) → net 덮어쓰기 X.
 // 옛 흐름 (localStorage + autoMatchSettlementCsv) 폐기.
 import { useState, useRef } from "react";
 import * as XLSX from "xlsx";
-import { fetchUsolNTaskItemsByOrderIds, markTaskItemsField } from "../../lib/usolNTasksDb.js";
+import { fetchUsolNTaskItemsByOrderIds, markTaskItemsNaverSettledAndNet } from "../../lib/usolNTasksDb.js";
 
 // 우리 작업 분류 키워드 (상품명 측)
 // "에어컨청소" / "에어컨 청소" — 우리 본작업
@@ -19,14 +21,16 @@ import { fetchUsolNTaskItemsByOrderIds, markTaskItemsField } from "../../lib/uso
 // 2026-06-08 — "냉매" 추가 (냉매점검/냉매충전 row 가 "다른 회사" 로 잘못 분류되던 사고 정정)
 const OUR_PRODUCT_KEYWORDS = ["에어컨청소", "에어컨 청소", "피톤치드", "스팀살균", "송풍팬", "냉매"];
 
-// 2026-06-01 — 네이버 상품주문번호 floor(/10) 키.
-//   네이버 번호는 항상 10단위 → 끝자리 1자리 제거해도 행끼리 충돌 X.
-//   저장된 product_order_id ±1 오차도 같은 키로 매칭.
+// 2026-06-09 — 첫 15자리 문자열 키 (LEFT(digits, 15)).
+//   사고: 네이버 원본은 16번째 자리 항상 '1' 인데 DB 저장 시 16번째 자리가 '0' 으로 잘림.
+//          16자리 풀매칭/숫자 변환은 양쪽 마지막 자리 차이로 미스 매칭.
+//   해법: 양쪽 모두 비숫자 제거 후 첫 15자만 비교. 16번째 자리는 정보 없음(항상 1) → 충돌 X.
+//   부수효과: Number 변환 정밀도 한계 (MAX_SAFE_INTEGER ≈ 9.007e15) 우회.
 function poidKey(id) {
   if (id == null) return null;
-  const n = Number(String(id).trim());
-  if (!isFinite(n)) return null;
-  return Math.floor(n / 10);
+  const digits = String(id).replace(/\D/g, "");
+  if (digits.length < 15) return null;
+  return digits.slice(0, 15);
 }
 
 export function UsolNCsvMatch() {
@@ -63,20 +67,36 @@ export function UsolNCsvMatch() {
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows  = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-        const totalAmount = rows.reduce((s, r) => s + toInt(r["정산예정금액"]), 0);
+        // 2026-06-09 — 정산상태 "취소" 포함 row 사전 제외.
+        //   대상: "취소", "정산후 취소" 등. 환불 정산은 is_canceled 트리거(Mig 070) 영역.
+        //   정산 CSV 가 net_amount / naver_settled_at 을 건드릴 일 X.
+        //   백필 스크립트(scripts/backfill-naver-net.cjs:96-97) 와 동일 정책.
+        const activeRows = [];
+        let canceledCsvCnt = 0;
+        rows.forEach(row => {
+          const status = String(row["정산상태"] || "");
+          if (status.includes("취소")) { canceledCsvCnt += 1; return; }
+          activeRows.push(row);
+        });
+        if (canceledCsvCnt > 0) {
+          console.warn(`[UsolNCsvMatch] 정산상태 '취소' 포함 ${canceledCsvCnt}건 — 사전 제외 (UPDATE 대상 아님)`);
+        }
+
+        const totalAmount = activeRows.reduce((s, r) => s + toInt(r["정산예정금액"]), 0);
 
         setCsvData({
           fileName:   file.name,
           uploadedAt: new Date().toISOString(),
-          rows,
-          totalCount:  rows.length,
+          rows: activeRows,
+          totalCount:  activeRows.length,
           totalAmount,
+          canceledCsvCnt,
         });
 
         // 1차 분류 — 상품명 측 우리/다른 회사 (productOrderId 측 X 영역도 포함)
         const ourRows   = [];
         const otherRows = [];
-        rows.forEach(row => {
+        activeRows.forEach(row => {
           const productOrderId = String(row["상품주문번호"] || "").trim();
           const productName    = String(row["상품명"] || "");
           if (isOurProduct(productName)) {
@@ -149,16 +169,26 @@ export function UsolNCsvMatch() {
     reader.readAsArrayBuffer(file);
   }
 
+  // 2026-06-09 — 정산예정금액 → int 또는 null.
+  //   빈 칸 / 비숫자 → null (NULL 보존, 0 으로 적지 않음 — 누락 가시성 확보).
+  function parseNetAmount(v) {
+    if (v == null || v === "") return null;
+    if (typeof v === "number") return isFinite(v) ? Math.trunc(v) : null;
+    const s = String(v).replace(/[^\d.\-]/g, "");
+    if (s === "" || s === "-" || s === ".") return null;
+    const n = parseInt(s, 10);
+    return isNaN(n) ? null : n;
+  }
+
   async function handleConfirmMatching() {
     if (!matchResult?.matched?.length) return;
     setConfirming(true);
     setError("");
 
-    // 2026-06-01 bugfix:
-    //   옛 호출은 timestamp 인자 누락 → markTaskItemsField 기본값 NOW() 폴백.
-    //   결과: CSV 업로드한 날짜로 매일 일괄 stamp되는 버그.
-    //   교정: CSV "정산완료일" 컬럼 → 정산일 그룹별 markTaskItemsField 호출.
-    //   timestamp arg 명시 전달.
+    // 2026-06-09 — naver_settled_at + net_amount 동시 stamp.
+    //   옛 흐름: 정산완료일 그룹별 markTaskItemsField(단일 필드, naver 만).
+    //   현재: items 배열 빌드 → markTaskItemsNaverSettledAndNet (두 필드, 보호 포함).
+    //   보호 (engineer_settled_at NOT NULL 또는 net_amount 이미 값) 는 lib 측 처리.
 
     // 1회용 디버그 — 첫 row 컬럼 구조 콘솔 출력 (확인 후 제거 가능)
     if (matchResult.matched[0]?.row) {
@@ -169,8 +199,10 @@ export function UsolNCsvMatch() {
     }
 
     const SETTLED_DATE_COL = "정산완료일";
-    const groups  = new Map();   // isoTs → [itemIds]
-    const skipped = [];          // {orderId, reason}
+    const NET_COL          = "정산예정금액";
+    const items   = [];
+    const skipped = [];   // {orderId, reason}
+    let netNullCnt = 0;   // 정산예정금액 누락/비숫자
 
     for (const m of matchResult.matched) {
       const rawDate = m.row?.[SETTLED_DATE_COL];
@@ -186,15 +218,23 @@ export function UsolNCsvMatch() {
         });
         continue;
       }
-      if (!groups.has(isoTs)) groups.set(isoTs, []);
-      groups.get(isoTs).push(m.item.id);
+      const net = parseNetAmount(m.row?.[NET_COL]);
+      if (net == null) netNullCnt += 1;
+      items.push({
+        id: m.item.id,
+        naverSettledAt: isoTs,
+        netAmount: net,
+      });
     }
 
     if (skipped.length > 0) {
       console.warn("[UsolNCsvMatch] 정산완료일 누락/오류 건:", skipped);
     }
+    if (netNullCnt > 0) {
+      console.warn(`[UsolNCsvMatch] 정산예정금액 누락/비숫자 ${netNullCnt}건 — net_amount NULL 보존`);
+    }
 
-    if (groups.size === 0) {
+    if (items.length === 0) {
       setConfirming(false);
       setError(
         `전체 ${matchResult.matched.length}건 모두 정산완료일 누락/오류 — 확정 불가.`
@@ -202,28 +242,25 @@ export function UsolNCsvMatch() {
       return;
     }
 
-    // 정산일 그룹별로 markTaskItemsField 호출 (timestamp arg 명시 전달)
-    let totalOk = 0;
-    let lastTimestamp = null;
-    for (const [isoTs, itemIds] of groups.entries()) {
-      const res = await markTaskItemsField(itemIds, "naver_settled_at", isoTs);
-      if (!res.ok) {
-        setConfirming(false);
-        setError(
-          `${isoTs.slice(0, 10)} 그룹 (${itemIds.length}건) 실패: ${res.error || "unknown"}`
-        );
-        return;
-      }
-      totalOk += res.count;
-      lastTimestamp = res.timestamp;
+    const res = await markTaskItemsNaverSettledAndNet(items);
+    if (!res.ok) {
+      setConfirming(false);
+      setError(
+        res.error
+          ? `확정 실패: ${res.error}`
+          : `확정 실패: 오류 ${res.errorCount}건 (콘솔 확인)`
+      );
+      return;
     }
     setConfirming(false);
 
     setConfirmedInfo({
-      count:       totalOk,
-      timestamp:   lastTimestamp,
-      dateGroups:  groups.size,
-      skippedCnt:  skipped.length,
+      count:           res.naverCount,
+      netCount:        res.netCount,
+      protectedCount:  res.protectedCount,
+      timestamp:       new Date().toISOString(),
+      skippedCnt:      skipped.length,
+      netNullCnt,
     });
     setCsvData(null);
     setMatchResult(null);
@@ -273,10 +310,20 @@ export function UsolNCsvMatch() {
         {confirmedInfo && (
           <div style={confirmedBoxStyle}>
             ✓ 직전 결제완료 확정: {confirmedInfo.count}건
-            {confirmedInfo.dateGroups != null && (
+            {confirmedInfo.netCount != null && (
               <span style={{ marginLeft: 4 }}>
-                ({confirmedInfo.dateGroups}개 정산일 그룹)
+                · net 반영 {confirmedInfo.netCount}건
               </span>
+            )}
+            {confirmedInfo.protectedCount > 0 && (
+              <div style={{ color: "var(--text-secondary)", fontSize: 11, marginTop: 4 }}>
+                🛡 net 보호 {confirmedInfo.protectedCount}건 (기지급 또는 기존 net 보존)
+              </div>
+            )}
+            {confirmedInfo.netNullCnt > 0 && (
+              <div style={{ color: "#F59E0B", fontSize: 11, marginTop: 4 }}>
+                ⚠️ 정산예정금액 누락 {confirmedInfo.netNullCnt}건 — net_amount NULL (콘솔 확인)
+              </div>
             )}
             {confirmedInfo.skippedCnt > 0 && (
               <div style={{ color: "#F59E0B", fontSize: 11, marginTop: 4 }}>

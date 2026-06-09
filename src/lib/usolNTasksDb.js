@@ -382,9 +382,11 @@ export async function fetchTaskItemsByTaskId(taskId) {
 // task_items 측 product_order_id 매칭 — UsolNCsvMatch 정산 CSV 매칭
 // 응답: { ok, items: [...] } / 각 item = task_items 행 + nested work_types / appliance_types / tasks
 //
-// 2026-06-01 — floor(/10) 키 매칭:
-//   네이버 상품주문번호는 항상 10단위라 (예 ...070, ...080) 끝자리를 떼도 행끼리 충돌 X.
-//   저장된 product_order_id 가 ±1 오차 (예 ...071) 발생해도 같은 키로 일치.
+// 2026-06-09 — 첫 15자리 문자열 키 매칭 (LEFT(digits, 15)).
+//   사고: 네이버 원본 끝자리(16번째) 항상 '1' — DB 저장 시 '0' 으로 잘림.
+//          16자리 풀매칭 / 숫자 변환 양쪽 모두 마지막 자리 차이로 미스 매칭.
+//   해법: 디짓 정규화 후 첫 15자만 비교. 16번째 자리는 정보 없음(항상 1) → 충돌 X.
+//   부수효과: Number 변환 정밀도 한계 (MAX_SAFE_INTEGER ≈ 9.007e15) 우회.
 //   → 단일 .in() 으로는 정확 일치만 잡혀 미매칭 → 전수 fetch 후 client 측 키 필터.
 //   페이지네이션 (PAGE_SIZE 1000, MAX 50p) 으로 Supabase max_rows 캡 안전.
 export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
@@ -394,12 +396,13 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
   const pid = await getUsolNPrincipalId();
   if (!pid) return { ok: false, error: "usol_n principal X", items: [] };
 
-  // CSV 키 집합 — floor(/10).
+  // CSV 키 집합 — 디짓 정규화 후 첫 15자.
   const csvKeySet = new Set();
   for (const id of productOrderIds) {
-    const n = Number(id);
-    if (!isFinite(n)) continue;
-    csvKeySet.add(Math.floor(n / 10));
+    if (id == null) continue;
+    const digits = String(id).replace(/\D/g, "");
+    if (digits.length < 15) continue;
+    csvKeySet.add(digits.slice(0, 15));
   }
   if (csvKeySet.size === 0) return { ok: true, items: [] };
 
@@ -434,15 +437,16 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
     if (data.length < PAGE_SIZE) break;
   }
 
-  // 취소 작업 제외 + floor(/10) 키 일치만 반환.
+  // 취소 작업 제외 + 첫 15자 키 일치만 반환.
   //   2026-06-01 — 취소 task_item 이 완료 task 의 정산을 가로채는 버그 차단.
-  //   같은 floor 키에 후보 여럿이면 client 측 (UsolNCsvMatch) 에서 status='완료' /
+  //   같은 15자 키에 후보 여럿이면 client 측 (UsolNCsvMatch) 에서 status='완료' /
   //   exact match 우선 순위 적용.
   const filtered = all.filter(it => {
     if (it.tasks?.status === "취소") return false;
-    const n = Number(it.product_order_id);
-    if (!isFinite(n)) return false;
-    return csvKeySet.has(Math.floor(n / 10));
+    if (it.product_order_id == null) return false;
+    const digits = String(it.product_order_id).replace(/\D/g, "");
+    if (digits.length < 15) return false;
+    return csvKeySet.has(digits.slice(0, 15));
   });
   return { ok: true, items: filtered };
 }
@@ -483,6 +487,94 @@ export async function markTaskItemsField(itemIds, fieldName, timestamp = null) {
     okCount += chunk.length;
   }
   return { ok: true, count: okCount, timestamp: ts };
+}
+
+// 2026-06-09 — 정산 CSV 매칭 확정 시 naver_settled_at + net_amount 동시 UPDATE.
+// 동기:
+//   markTaskItemsField (단일 필드) 한계 → CSV "정산예정금액" 미반영.
+//   결과: 주차 카드 SUM(net_amount)*0.85 합계 누락 (6/8 카드 사고).
+//   본 함수 도입 후 업로드 한 번이면 naver 와 net 둘 다 반영.
+// 보호 (양쪽 OR — 먼저 들어온 값이 이긴다):
+//   · engineer_settled_at NOT NULL → net_amount 보존 (기지급분 금액 사수)
+//   · net_amount 이미 값 있음    → net_amount 보존 (수동 입력 / 백필 결과 사수)
+//   보호되어도 naver_settled_at 은 그대로 stamp (matchedAlready 사전 분리되어
+//   실제 경로엔 신규 row 만 옴 — 방어적 동작).
+// netAmount null 인 row → net_amount 컬럼 자체를 patch 에서 생략 (NULL 보존).
+//   0 으로 적지 않는다 — 누락 가시성 확보용.
+// 입력: items: [{ id, naverSettledAt (ISO), netAmount (int|null) }]
+// 반환: { ok, naverCount, netCount, protectedCount, errorCount, errors }
+export async function markTaskItemsNaverSettledAndNet(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return { ok: false, error: "items 없음", naverCount: 0, netCount: 0, protectedCount: 0, errorCount: 0, errors: [] };
+  }
+  const ids = items.map(i => i?.id).filter(Boolean);
+  if (ids.length === 0) {
+    return { ok: false, error: "id 없음", naverCount: 0, netCount: 0, protectedCount: 0, errorCount: 0, errors: [] };
+  }
+
+  // 1) 보호 상태 사전 조회 (id → engineer_settled_at, net_amount)
+  const CHUNK = 300;
+  const existing = new Map();
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const chunk = ids.slice(i, i + CHUNK);
+    const { data, error } = await supabase
+      .from("task_items")
+      .select("id, engineer_settled_at, net_amount")
+      .in("id", chunk);
+    if (error) {
+      console.error("[usolNTasksDb.markNaverSettledAndNet.fetch] chunk", i, error);
+      return { ok: false, error: error.message, naverCount: 0, netCount: 0, protectedCount: 0, errorCount: 0, errors: [] };
+    }
+    (data || []).forEach(r => existing.set(r.id, {
+      engineer_settled_at: r.engineer_settled_at,
+      net_amount: r.net_amount,
+    }));
+  }
+
+  // 2) per-item UPDATE (chunk 단위 batch 가능성 X — 행마다 net 값 다름)
+  let naverCount = 0, netCount = 0, protectedCount = 0, errorCount = 0;
+  const errors = [];
+  for (const item of items) {
+    const cur = existing.get(item.id);
+    if (!cur) {
+      errorCount += 1;
+      errors.push({ id: item.id, reason: "DB row 조회 실패" });
+      continue;
+    }
+    const patch = {};
+    if (item.naverSettledAt) patch.naver_settled_at = item.naverSettledAt;
+
+    const isProtected = !!cur.engineer_settled_at || cur.net_amount != null;
+    if (item.netAmount != null && !isProtected) {
+      patch.net_amount = item.netAmount;
+    } else if (isProtected) {
+      protectedCount += 1;
+    }
+
+    if (Object.keys(patch).length === 0) continue;
+
+    const { error } = await supabase
+      .from("task_items")
+      .update(patch)
+      .eq("id", item.id);
+    if (error) {
+      errorCount += 1;
+      errors.push({ id: item.id, reason: error.message });
+      console.error("[usolNTasksDb.markNaverSettledAndNet] id=", item.id, error.message);
+      if (errorCount > 10) {
+        console.error("[usolNTasksDb.markNaverSettledAndNet] 누적 오류 10건 — 중단");
+        break;
+      }
+      continue;
+    }
+    if (patch.naver_settled_at) naverCount += 1;
+    if (patch.net_amount != null) netCount += 1;
+  }
+
+  return {
+    ok: errorCount === 0,
+    naverCount, netCount, protectedCount, errorCount, errors,
+  };
 }
 
 // 완료된 usol_n task_items 측 — UsolNTracking 주간 입금 이력 + UsolNEngineerSettlement
