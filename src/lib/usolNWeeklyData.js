@@ -22,6 +22,18 @@ export const NAVER_NET_TO_COMPANY_FACTOR = 0.85;
 //   UTC = KST 6/1 00:00 = 2026-05-31T15:00:00Z.
 export const JUN_LIVE_START_UTC = "2026-05-31T15:00:00Z";
 
+// 2026-06-09 — 실제 remit 상태(principal_weekly_remittances) 기반 라벨 적용 시작 deposit YMD.
+//   < 6/8: 옛 동작 그대로 (deposit ≤ 오늘 → "M/D 입금 완료"). 과거 주 시각 라벨 유지.
+//   ≥ 6/8: remit_status 기반 4-state 라벨 (confirmed=완료 / reported=보고대기 /
+//          기록없음+미래=예정 / 기록없음+지남=미확인).
+export const LIVE_REMIT_CUTOFF_YMD = "2026-06-08";
+
+// deposit ≥ cutoff → 실제 remit 상태 기반 표시 대상 주차.
+export function isLiveRemitWeek(depositYmd) {
+  if (!depositYmd) return false;
+  return depositYmd >= LIVE_REMIT_CUTOFF_YMD;
+}
+
 // 색상 토큰 (운영자 ① + PWA 공유)
 export const C_PINK_DEPOSIT = "#D4537E";   // 입금 예정 / 핵심
 export const C_GREEN_DONE   = "#1D9E75";   // 입금 완료
@@ -175,12 +187,46 @@ export function mdLabel(ymd) {
   return `${Number(mm)}/${Number(dd)}`;
 }
 
-// 카드 메인 시각 라벨 — "M/D 입금 완료" or "M/D(요일) 입금 예정"
-export function depositStatusLabel(depositYmd, todayYmd) {
+// 카드 메인 시각 라벨.
+// 2026-06-09 — 컷오프 기반 분기 (LIVE_REMIT_CUTOFF_YMD = 2026-06-08).
+//   · deposit < 컷오프 (W22 이전): 옛 동작 그대로 — deposit ≤ 오늘 → "M/D 입금 완료" / 미래 → "M/D(요일) 입금 예정".
+//     과거 주 (4월·5월) 의 "M/D 입금 완료" 라벨 유지.
+//   · deposit ≥ 컷오프 (W23+): remitStatus.kind 기반 4-state.
+//       - "done"     (confirmed_at 있음)        → "M/D 입금 완료"  ✅ (유일한 완료)
+//       - "reported" (remitted_at 있고 confirm 없음) → "M/D 입금 보고 (확인 대기)"
+//       - "expected" + 미래                     → "M/D(요일) 입금 예정"
+//       - "expected" + 지남                     → "M/D 입금일 지남 (미확인)"  ← 옛 가짜 완료 자리
+//   · remitStatus 미전달(컷오프 이상이지만 부모가 안 넘김) → expected 로 폴백.
+export function depositStatusLabel(depositYmd, todayYmd, remitStatus = null) {
   if (!depositYmd) return "";
+  const md = mdLabel(depositYmd);
+  // 옛 흐름 — 컷오프 이전 주차 (시각 그대로 유지).
+  if (!isLiveRemitWeek(depositYmd)) {
+    return isDepositPast(depositYmd, todayYmd)
+      ? `${md} 입금 완료`
+      : `${md}(${dowKor(depositYmd)}) 입금 예정`;
+  }
+  // 신규 흐름 — 컷오프 이상 주차.
+  const kind = remitStatus?.kind || "expected";
+  if (kind === "done")     return `${md} 입금 완료`;
+  if (kind === "reported") return `${md} 입금 보고 (확인 대기)`;
+  // expected: 미래 vs 지남.
   return isDepositPast(depositYmd, todayYmd)
-    ? `${mdLabel(depositYmd)} 입금 완료`
-    : `${mdLabel(depositYmd)}(${dowKor(depositYmd)}) 입금 예정`;
+    ? `${md} 입금일 지남 (미확인)`
+    : `${md}(${dowKor(depositYmd)}) 입금 예정`;
+}
+
+// 시각적 "완료" (초록 + 체크 + 1px border) 판정.
+// 2026-06-09 — 컷오프 기반 분기.
+//   · deposit < 컷오프: 옛 isDepositPast 그대로 (deposit ≤ 오늘 → 완료).
+//   · deposit ≥ 컷오프: remitStatus.kind === "done" 만 완료. reported / expected 둘 다 미완료.
+//     (입금일 지남 + 미확인 = 가짜 완료 사라짐 — 사장님 spec.)
+export function isDepositDone(depositYmd, todayYmd, remitStatus = null) {
+  if (!depositYmd) return false;
+  if (!isLiveRemitWeek(depositYmd)) {
+    return isDepositPast(depositYmd, todayYmd);
+  }
+  return remitStatus?.kind === "done";
 }
 
 // ── 6/8+ 라이브 fetch ────────────────────────────────────

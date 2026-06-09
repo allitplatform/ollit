@@ -38,7 +38,8 @@ import {
   aggregateMonthlyAmounts,
   ymLabel,
   getKstToday,
-  isDepositPast,
+  isDepositDone,
+  isLiveRemitWeek,
   depositStatusLabel,
   mdLabel,
   dowKor,
@@ -309,30 +310,51 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
 
   // 2026-06-02 — payYm 그룹 아코디언 (운영자 ① 와 통일).
   //   · pending bucket 측 별도 (기존 SummarySection 측 클릭 spec 유지).
-  //   · 그룹 헤더 = 전부 deposit 과거(완료) → 초록 / 예정 섞이면 핑크.
-  //   · 입금 예정 있는 payYm 만 기본 펼침.
+  //   · 그룹 헤더 = 전부 입금 완료 → 초록 / 예정·미확인·보고대기 섞이면 핑크.
+  //   · 입금 미완료(예정·미확인·보고대기) 있는 payYm 만 기본 펼침.
+  // 2026-06-09 — isDepositDone(deposit, today, remitStatus) 로 전환.
+  //   < 6/8 주차: 옛 isDepositPast (4월·5월 완료 라벨 유지).
+  //   ≥ 6/8 주차: remitStatus.kind === 'done' 만 완료.
   const today = getKstToday();
   const groups = useMemo(() => {
     const nonPending = weeks.filter(w => w.key !== "pending");
     const pendingBucket = weeks.find(w => w.key === "pending");
+
+    // 컷오프 이상 주차의 remitStatus 사전 계산 (remits 배열 활용).
+    function remitStatusOf(w) {
+      if (!isLiveRemitWeek(w.depositStr)) return null;
+      const sub = new Map();
+      for (const r of remits) {
+        if (r?.week_start === w.mondayStr) sub.set(r.principal_id, r);
+      }
+      if (w.items && w.items.length > 0 && sub.size > 0) {
+        return getWeekRemitStatus(w.items, sub);
+      }
+      const remit = sub.get(USOL_N_PID);
+      if (!remit) return { kind: "expected", remits: [] };
+      if (remit.confirmed_at) return { kind: "done", remits: [remit] };
+      if (remit.remitted_at)  return { kind: "reported", remits: [remit] };
+      return { kind: "expected", remits: [remit] };
+    }
+
     const map = new Map();
     for (const w of nonPending) {
       if (!w.depositStr) continue;
       const payYm = w.depositStr.slice(0, 7);
       if (!map.has(payYm)) map.set(payYm, []);
-      map.get(payYm).push(w);
+      map.get(payYm).push({ ...w, remitStatus: remitStatusOf(w) });
     }
     const list = [...map.entries()].map(([payYm, ws]) => ({
       payYm,
       weeks: ws.sort((a, b) => b.depositStr.localeCompare(a.depositStr)),
       total: ws.reduce((s, w) => s + (w.displayWeeklyTotal || 0), 0),
       count: ws.length,
-      allDone: ws.every(w => isDepositPast(w.depositStr, today)),
-      hasExpected: ws.some(w => !isDepositPast(w.depositStr, today)),
+      allDone: ws.every(w => isDepositDone(w.depositStr, today, w.remitStatus)),
+      hasExpected: ws.some(w => !isDepositDone(w.depositStr, today, w.remitStatus)),
     }));
     list.sort((a, b) => b.payYm.localeCompare(a.payYm));
     return { groups: list, pendingBucket };
-  }, [weeks, today]);
+  }, [weeks, today, remits]);
 
   const [openGroups, setOpenGroups] = useState({});
   useEffect(() => {
@@ -683,8 +705,11 @@ function PrincipalGroupAccordion({ group, today, isOpen, onToggle, onWeekClick }
   );
 }
 
+// 2026-06-09 — week.remitStatus 는 groups useMemo 에서 사전 계산되어 전달.
+//   isDepositDone / depositStatusLabel 에 그대로 위임 (컷오프 분기 내장).
 function PrincipalWeekCard({ week, today, onClick }) {
-  const isPast = isDepositPast(week.depositStr, today);
+  const remitStatus = week.remitStatus || null;
+  const isDone = isDepositDone(week.depositStr, today, remitStatus);
   const total = week.displayWeeklyTotal || 0;
   const count = week.displayNaverCount || 0;
   const weekLabel = getKoreanWeekLabel(week.monday, week.sunday);
@@ -692,14 +717,14 @@ function PrincipalWeekCard({ week, today, onClick }) {
   const dateRange = week.mondayStr && week.sundayStr
     ? `${mdLabel(week.mondayStr)} ~ ${mdLabel(week.sundayStr)}`
     : `${formatMD(week.monday)} ~ ${formatMD(week.sunday)}`;
-  const statusText = depositStatusLabel(week.depositStr, today);
+  const statusText = depositStatusLabel(week.depositStr, today, remitStatus);
   const monthlyEntries = getMonthlyEntriesOf(week);
-  const amountColor = isPast ? C_GREEN_DONE : C_PINK_DEPOSIT;
+  const amountColor = isDone ? C_GREEN_DONE : C_PINK_DEPOSIT;
 
   return (
     <div onClick={onClick} style={{
       background: "var(--bg-secondary, #1A1A1A)",
-      border: isPast ? "1px solid var(--border, #2A2A2A)" : `2px solid ${C_PINK_DEPOSIT}`,
+      border: isDone ? "1px solid var(--border, #2A2A2A)" : `2px solid ${C_PINK_DEPOSIT}`,
       borderRadius: 10,
       padding: "12px 14px",
       cursor: "pointer",
@@ -719,7 +744,7 @@ function PrincipalWeekCard({ week, today, onClick }) {
           display: "inline-flex", alignItems: "center", gap: 4,
           whiteSpace: "nowrap",
         }}>
-          {isPast && <Check size={12} strokeWidth={3}/>}
+          {isDone && <Check size={12} strokeWidth={3}/>}
           {statusText}
         </span>
         <span style={{

@@ -21,7 +21,8 @@ import {
   getMonthlyEntriesOf,
   ymLabel,
   getKstToday,
-  isDepositPast,
+  isDepositDone,
+  isLiveRemitWeek,
   depositStatusLabel,
   mdLabel,
   C_PINK_DEPOSIT,
@@ -60,37 +61,76 @@ export function UsolNToCompanySection({ onTaskClick = null } = {}) {
 
   const [liveWeeks, setLiveWeeks] = useState([]);
   const [liveLoading, setLiveLoading] = useState(true);
+  // 2026-06-09 — 컷오프(6/8) 이상 주차 시각 라벨을 실제 remit 상태로 결정.
+  //   usol_n principal 의 principal_weekly_remittances 행 전체를 monday 키로 lookup.
+  const [adminRemits, setAdminRemits] = useState([]);
 
   useEffect(() => {
     let alive = true;
     setLiveLoading(true);
-    fetchJuneLiveWeeks()
-      .then(ws => { if (alive) { setLiveWeeks(ws); setLiveLoading(false); } })
+    Promise.all([
+      fetchJuneLiveWeeks(),
+      fetchPrincipalRemitsForAdmin({ principalCodes: ["usol_n"], monthsBack: 3 }),
+    ])
+      .then(([ws, remitRes]) => {
+        if (!alive) return;
+        setLiveWeeks(ws);
+        setAdminRemits(remitRes?.ok ? (remitRes.remits || []) : []);
+        setLiveLoading(false);
+      })
       .catch(err => {
-        console.error("[UsolNToCompany.junLive]", err);
+        console.error("[UsolNToCompany.load]", err);
         if (alive) setLiveLoading(false);
       });
     return () => { alive = false; };
   }, []);
+
+  // monday(YMD) → Map<principal_id, remit>
+  const remitMapByMonday = useMemo(() => {
+    const m = new Map();
+    for (const r of adminRemits) {
+      if (!r?.week_start) continue;
+      if (!m.has(r.week_start)) m.set(r.week_start, new Map());
+      m.get(r.week_start).set(r.principal_id, r);
+    }
+    return m;
+  }, [adminRemits]);
+
+  // week → { kind, remits }. 컷오프 이전 또는 데이터 없음 → null (라벨에서 옛 동작 폴백).
+  function getRemitStatusFor(week) {
+    if (!isLiveRemitWeek(week.deposit)) return null;
+    const subMap = remitMapByMonday.get(week.monday);
+    if (subMap && subMap.size > 0 && week.items && week.items.length > 0) {
+      return getWeekRemitStatus(week.items, subMap);
+    }
+    // items 없음(시트 주차) 또는 remit map 비어있음 → USOL_N_PID 직접 lookup.
+    const remit = subMap?.get(USOL_N_PID);
+    if (!remit) return { kind: "expected", remits: [] };
+    if (remit.confirmed_at) return { kind: "done", remits: [remit] };
+    if (remit.remitted_at)  return { kind: "reported", remits: [remit] };
+    return { kind: "expected", remits: [remit] };
+  }
 
   const groups = useMemo(
     () => groupWeeksByPayYm([...WEEKLY_DATA_FIXED, ...liveWeeks]),
     [liveWeeks]
   );
 
-  // 입금 예정 (deposit > today) 있는 payYm 만 기본 펼침.
+  // 입금 예정/미확인 (= !isDepositDone) 있는 payYm 만 기본 펼침.
   const [openGroups, setOpenGroups] = useState({});
   useEffect(() => {
     setOpenGroups(prev => {
       const next = { ...prev };
       for (const g of groups) {
         if (!(g.payYm in next)) {
-          next[g.payYm] = g.weeks.some(w => !isDepositPast(w.deposit, today));
+          next[g.payYm] = g.weeks.some(w => !isDepositDone(w.deposit, today, getRemitStatusFor(w)));
         }
       }
       return next;
     });
-  }, [groups, today]);
+    // getRemitStatusFor 는 remitMapByMonday 에 dep — adminRemits 변경 시 재실행.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groups, today, remitMapByMonday]);
 
   function toggleGroup(payYm) {
     setOpenGroups(o => ({ ...o, [payYm]: !o[payYm] }));
@@ -111,6 +151,7 @@ export function UsolNToCompanySection({ onTaskClick = null } = {}) {
           isOpen={!!openGroups[g.payYm]}
           onToggle={() => toggleGroup(g.payYm)}
           onWeekClick={(w) => setSelectedWeek(w)}
+          getRemitStatusFor={getRemitStatusFor}
         />
       ))}
       {liveLoading && (
@@ -137,10 +178,12 @@ export function UsolNToCompanySection({ onTaskClick = null } = {}) {
 }
 
 // ── 그룹 아코디언 (월별) ─────────────────────────────────────
-function GroupAccordion({ group, today, isOpen, onToggle, onWeekClick }) {
+function GroupAccordion({ group, today, isOpen, onToggle, onWeekClick, getRemitStatusFor }) {
   const [y, m] = group.payYm.split("-").map(Number);
   const monthLabel = `${y}년 ${m}월`;
-  const allDone = group.weeks.every(w => isDepositPast(w.deposit, today));
+  // 2026-06-09 — 컷오프(6/8) 이상 주차는 remit confirmed_at 있어야 완료.
+  //   < 6/8 주차는 옛 isDepositPast 그대로 (4월·5월 완료 라벨 유지).
+  const allDone = group.weeks.every(w => isDepositDone(w.deposit, today, getRemitStatusFor?.(w)));
   const headerColor = allDone ? C_GREEN_DONE : C_PINK_DEPOSIT;
 
   return (
@@ -193,6 +236,7 @@ function GroupAccordion({ group, today, isOpen, onToggle, onWeekClick }) {
               week={w}
               today={today}
               onClick={onWeekClick ? () => onWeekClick(w) : null}
+              remitStatus={getRemitStatusFor?.(w)}
             />
           ))}
         </div>
@@ -202,23 +246,25 @@ function GroupAccordion({ group, today, isOpen, onToggle, onWeekClick }) {
 }
 
 // ── 주차 입금 카드 ──────────────────────────────────────────
-//   메인 = "M/D 입금 완료" (초록 + 체크) or "M/D(요일) 입금 예정" (핑크 + 2px 테두리)
+//   메인 = depositStatusLabel(deposit, today, remitStatus) — 컷오프(6/8) 기반 4-state.
 //   부기 = 정산 기간 + 네이버 정산 N건
 //   세부 = 동적 월 칸 (양수 달만, 최신=핑크/이전=회색)
-function WeeklyDepositCard({ week, today, onClick }) {
+// 2026-06-09 — 컷오프 이상 주차: isDepositDone = remitStatus.kind==='done' 만 true.
+//   '입금일 지남(미확인)' / '입금 보고(확인 대기)' 는 미완료 — 핑크 2px 테두리 유지.
+function WeeklyDepositCard({ week, today, onClick, remitStatus = null }) {
   const total = week.weeklyTotal || 0;
   const period = `${mdLabel(week.monday)}~${mdLabel(week.sunday)}`;
   const naverCount = week.naverCount || 0;
-  const isPast = isDepositPast(week.deposit, today);
-  const statusText = depositStatusLabel(week.deposit, today);
-  const amountColor = isPast ? C_GREEN_DONE : C_PINK_DEPOSIT;
+  const isDone = isDepositDone(week.deposit, today, remitStatus);
+  const statusText = depositStatusLabel(week.deposit, today, remitStatus);
+  const amountColor = isDone ? C_GREEN_DONE : C_PINK_DEPOSIT;
   const monthlyEntries = getMonthlyEntriesOf(week);
 
   return (
     <div onClick={onClick || undefined} style={{
       padding: "11px 14px",
       background: "var(--bg-secondary, #1A1A1A)",
-      border: isPast ? "1px solid var(--border)" : `2px solid ${C_PINK_DEPOSIT}`,
+      border: isDone ? "1px solid var(--border)" : `2px solid ${C_PINK_DEPOSIT}`,
       borderRadius: 10,
       cursor: onClick ? "pointer" : "default",
     }}>
@@ -231,7 +277,7 @@ function WeeklyDepositCard({ week, today, onClick }) {
           fontSize: 13, fontWeight: 700, color: "var(--text-primary, #FAF8F5)",
           display: "inline-flex", alignItems: "center", gap: 4,
         }}>
-          {isPast && <Check size={12} strokeWidth={3} style={{ color: C_GREEN_DONE }}/>}
+          {isDone && <Check size={12} strokeWidth={3} style={{ color: C_GREEN_DONE }}/>}
           {statusText}
         </span>
         <span style={{
