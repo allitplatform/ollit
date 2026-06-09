@@ -6651,7 +6651,9 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
         if (toKstYmd(scheduled) !== todayStr) return false;
         if (toKstYmd(completed) !== todayStr) return false;
         const st = String(s.status || s.상태 || "").trim();
-        return st === "완료" || st === "정산완료";
+        // 2026-06-09 — TASK_FILTERS.completed 와 정합 (visit_only 포함).
+        //   51cf3ef 측 TASK_FILTERS 만 정정 — 본 인라인 필터 누락 → 카운트는 보이고 카드는 안 보이는 사고.
+        return st === "완료" || st === "정산완료" || st === "visit_only";
       })
     : dataSource.filter((s) => {
         const scheduled = s.scheduledDate
