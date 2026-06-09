@@ -13,13 +13,32 @@
 //   · PrincipalSettleTab.WeekDetailView (principal mode)
 //   · UsolNToCompanySection 측 admin wrapper (admin mode, fullscreen)
 import { useMemo, useState } from "react";
-import { Search, ChevronLeft, Check } from "lucide-react";
+import { Search, ChevronLeft, Check, Download } from "lucide-react";
 import {
+  USOL_N_PID,
   NAVER_NET_TO_COMPANY_FACTOR,
   kstYmd,
   mdLabel,
   C_GREEN_DONE,
 } from "../../lib/usolNWeeklyData.js";
+
+// 2026-06-09 — usol_n 주정산 엑셀 다운로드 헬퍼.
+//   sunday 가 속한 달 기준 N월 N주차 라벨 (PrincipalSettleTab getKoreanWeekLabel 과 동일 산식).
+function getKoreanWeekLabelStr(mondayYmd, sundayYmd) {
+  if (!mondayYmd || !sundayYmd) return "주차";
+  const [sy, sm, sd] = sundayYmd.split("-").map(Number);
+  const sun = new Date(sy, sm - 1, sd);
+  const year = sun.getFullYear();
+  const month = sun.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const firstDayDow = firstDay.getDay() || 7;
+  const firstMonday = new Date(firstDay);
+  firstMonday.setDate(firstDay.getDate() - (firstDayDow - 1));
+  const [my, mm, md] = mondayYmd.split("-").map(Number);
+  const mon = new Date(my, mm - 1, md);
+  const diff = Math.round((mon.getTime() - firstMonday.getTime()) / (7 * 24 * 60 * 60 * 1000));
+  return `${month + 1}월 ${diff + 1}주차`;
+}
 import {
   getSettleStageKey,
   getItemLabel,
@@ -116,6 +135,59 @@ export function WeekSettleDetail({
     ? "정산 대기"
     : `${koreanWeekLabel(week)}  네이버 정산 ${dateRangeLabel(week)}`;
 
+  // 2026-06-09 — 유솔 PWA 주정산 엑셀 다운로드.
+  //   대상: 그 주차의 usol_n 정산건 (principal_id === USOL_N_PID && naver_settled_at 있음).
+  //   pending 버킷 / 비-usol_n 주차 / 다운로드 대상 0 건 → 버튼 미노출.
+  //   xlsx 동적 import — 초기 번들 영향 0.
+  const downloadableItems = useMemo(() => {
+    return baseItems.filter(it => it.principal_id === USOL_N_PID && it.naver_settled_at);
+  }, [baseItems]);
+  const canDownload = !isPending && downloadableItems.length > 0;
+  const [downloading, setDownloading] = useState(false);
+
+  async function downloadWeekExcel() {
+    if (downloading || !canDownload) return;
+    setDownloading(true);
+    try {
+      const XLSX = await import("xlsx");
+      const label = getKoreanWeekLabelStr(week?.mondayStr, week?.sundayStr);
+      const range = week?.mondayStr && week?.sundayStr
+        ? `${mdLabel(week.mondayStr)}~${mdLabel(week.sundayStr)}`
+        : "";
+      const detail = downloadableItems.map(it => {
+        const base = Number(it.net_amount) || 0;
+        return {
+          "정산완료일":     kstYmd(it.naver_settled_at) || "",
+          "상품주문번호":   String(it.product_order_id ?? ""),
+          "구매자명":       it.customer_name || "",
+          "서비스종류":     it.work_types?.name || "",
+          "배정기사":       it.assigned_engineer_name || "",
+          "정산원금":       base,
+          "유솔수수료(15%)": Math.round(base * 0.15),
+          "실입금(85%)":    Math.round(base * NAVER_NET_TO_COMPANY_FACTOR),
+        };
+      });
+      const tot = detail.reduce((s, d) => s + d["정산원금"], 0);
+      const summary = [{
+        "정산주차":       label,
+        "기간":           range,
+        "네이버 건수":    detail.length,
+        "정산원금":       tot,
+        "유솔수수료(15%)": Math.round(tot * 0.15),
+        "실입금(85%)":    Math.round(tot * NAVER_NET_TO_COMPANY_FACTOR),
+      }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "요약");
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detail), "건별 상세");
+      XLSX.writeFile(wb, `유솔N_주정산_${label}.xlsx`);
+    } catch (err) {
+      console.error("[WeekSettleDetail.downloadWeekExcel]", err);
+      alert("엑셀 다운로드 실패: " + (err?.message || "알 수 없는 오류"));
+    } finally {
+      setDownloading(false);
+    }
+  }
+
   // 액션 wrapper — confirm + submitting state 측 측.
   async function doReport() {
     if (typeof onReport !== "function") return;
@@ -155,6 +227,30 @@ export function WeekSettleDetail({
             {loading ? "..." : `${filtered.length}건`} · <span style={{ color: C_MAGENTA, fontWeight: 700 }}>₩{sumSubtotal.toLocaleString()}</span>
           </div>
         </div>
+        {/* 2026-06-09 — 유솔 주정산 엑셀 다운로드 (usol_n 정산건 있을 때만) */}
+        {canDownload && (
+          <button
+            onClick={downloadWeekExcel}
+            disabled={downloading}
+            aria-label="엑셀 다운로드"
+            style={{
+              flexShrink: 0,
+              padding: "6px 10px",
+              background: "var(--bg-secondary, #1A1A1A)",
+              border: `1px solid ${C_GREEN}`,
+              borderRadius: 8,
+              color: C_GREEN,
+              fontSize: 11, fontWeight: 700,
+              fontFamily: "inherit",
+              cursor: downloading ? "not-allowed" : "pointer",
+              opacity: downloading ? 0.5 : 1,
+              display: "inline-flex", alignItems: "center", gap: 4,
+            }}
+          >
+            <Download size={12} strokeWidth={2.5}/>
+            {downloading ? "..." : "엑셀"}
+          </button>
+        )}
       </div>
 
       {/* RemitAction — actionMode 분기 */}

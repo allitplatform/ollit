@@ -77,7 +77,8 @@ export async function fetchPrincipalSettleItems({ principalCodes = [], monthsBac
          work_types ( id, name ),
          appliance_types ( id, name ),
          tasks!inner ( id, task_no, customer_name, phone, address, district,
-                       principal_id, status, received_at, scheduled_at, completed_at )`
+                       principal_id, status, received_at, scheduled_at, completed_at,
+                       assigned_engineer_id )`
       )
       .eq("tasks.tenant_id", TENANT_ID)
       .in("tasks.principal_id", pids)
@@ -95,9 +96,29 @@ export async function fetchPrincipalSettleItems({ principalCodes = [], monthsBac
     if (data.length < PAGE_SIZE) break;
   }
 
+  // 2026-06-09 — 배정기사 이름 in-memory JOIN (유솔 PWA 주정산 엑셀 다운로드용).
+  //   기존 호출처 (PrincipalSettleTab / UsolNSettleScreen) 영향 0 — 추가 필드만.
+  const engineerIds = [...new Set(
+    accumulated.map(it => it.tasks?.assigned_engineer_id).filter(Boolean)
+  )];
+  let userMap = new Map();
+  if (engineerIds.length > 0) {
+    const { data: users, error: uErr } = await supabase
+      .from("users")
+      .select("id, name")
+      .in("id", engineerIds);
+    if (uErr) {
+      console.error("[principalSettleDb.fetch:users]", uErr);
+      // users lookup 실패 시 빈 Map — 평탄화 측 assigned_engineer_name = "" 으로 진행.
+    } else {
+      userMap = new Map((users || []).map(u => [u.id, u]));
+    }
+  }
+
   // 평탄화 — tasks nested → 항목 측 직접 필드로 복사
   const flat = accumulated.map(it => {
     const t = it.tasks || {};
+    const engUser = t.assigned_engineer_id ? userMap.get(t.assigned_engineer_id) : null;
     return {
       ...it,
       customer_name: t.customer_name || "",
@@ -110,6 +131,8 @@ export async function fetchPrincipalSettleItems({ principalCodes = [], monthsBac
       received_at:   t.received_at,
       scheduled_at:  t.scheduled_at,
       completed_at:  t.completed_at,
+      assigned_engineer_id:   t.assigned_engineer_id || null,
+      assigned_engineer_name: engUser?.name || "",
     };
   });
 
