@@ -318,6 +318,42 @@ export function UsolNToEngineerSection({ adminId = null }) {
     return () => { alive = false; };
   }, [items]);
 
+  // 2026-06-09 — 정책 기반 회사 몫 (payments.owner_amount) fetch.
+  //   compute_payment v19 (Mig 096) 가 usol_n 트랙 🅑 정책 반영 후 INSERT.
+  //     v_total_owner = subtotal + extra + travel − engineer − principal (GREATEST 0 가드)
+  //   화면 폴백 산식 (subtotal × 0.85) 가 트랙 🅐 가정 → 5월 가짜 마이너스 사고.
+  //   payments JOIN 대신 별도 fetch (공유 lib 무손상). chunk 300 (URL 한계 안전).
+  const [paymentByTaskId, setPaymentByTaskId] = useState(new Map());
+
+  useEffect(() => {
+    if (!items || items.length === 0) { setPaymentByTaskId(new Map()); return; }
+    const taskIds = [...new Set(items.map(it => it.tasks?.id).filter(Boolean))];
+    if (taskIds.length === 0) { setPaymentByTaskId(new Map()); return; }
+    let alive = true;
+    (async () => {
+      const CHUNK = 300;
+      const all = [];
+      for (let i = 0; i < taskIds.length; i += CHUNK) {
+        const chunk = taskIds.slice(i, i + CHUNK);
+        const { data, error } = await supabase
+          .from("payments")
+          .select("task_id, engineer_amount, principal_amount, owner_amount, track")
+          .in("task_id", chunk);
+        if (!alive) return;
+        if (error) {
+          console.error("[UsolNToEngineerSection.paymentsFetch] chunk", i, error);
+          return;
+        }
+        all.push(...(data || []));
+      }
+      if (!alive) return;
+      const m = new Map();
+      for (const p of all) m.set(p.task_id, p);
+      setPaymentByTaskId(m);
+    })();
+    return () => { alive = false; };
+  }, [items]);
+
   const [year, month] = selectedMonth.split("-").map(Number);
 
   // 2026-06-01 B3 — 세금계산서 / 게이트 지급 기준 ym = 한 달 전 (지급월 → 작업월).
@@ -340,16 +376,46 @@ export function UsolNToEngineerSection({ adminId = null }) {
     [items, engineers, gateYear, gateMonth, engByItem]
   );
 
-  // 2026-06-02 — 회사 순이익 = 실시간 전체 기준 마진 (사장님 spec).
-  //   배분액 = (작업월 버킷 first+second+done 측 Σsubtotal) × 0.85
-  //   기사지급 전체 = firstTotal + secondTotal + doneTotal (동일 모집단)
-  //   profit = 배분액 − 기사지급 전체
-  //   companyNet (시트 고정값) / naverConfirmed (1차만) 분기는 폐기.
-  const companyShare = useMemo(
-    () => Math.round((split.subtotalAll || 0) * NAVER_NET_TO_COMPANY_FACTOR),
-    [split.subtotalAll]
-  );
-  const profit = companyShare - split.engineerPayAll;
+  // 2026-06-09 — 회사 순이익 = 정책 기반 마진 (payments 합산).
+  //   옛 산식 (subtotalAll × 0.85) = 트랙 🅐 가정 → usol_n 트랙 🅑 (세척 100% 기사) 가짜 마이너스 사고.
+  //   교체: 작업월 버킷 통과한 unique task_id 의 payments 합산 — compute_payment v19 정책 반영값.
+  //   회사 배분  = Σ(engineer + principal + owner)  = 회사로 들어오는 총수입 (= subtotal+extra+travel)
+  //   기사+원청 지급 = Σ(engineer + principal)
+  //   회사 순익  = Σowner_amount                      (= GREATEST(0) 가드 적용된 정책 마진)
+  //   profit = companyShare − companyOutToEngPrin = Σowner.
+  //   사장님 확인 (2026-06-09 5월): Σowner=18,902,363 / Σeng=63,157,513 / missing=0.
+  // MonthlyStackCard / 기사별 보기는 per-item RPC (engByItem) 그대로 — per-bucket 분해 필요.
+  const paymentsAgg = useMemo(() => {
+    const allItems = [
+      ...split.firstItems,
+      ...split.secondItems,
+      ...split.doneItems_1,
+      ...split.doneItems_2,
+    ];
+    const taskIds = new Set();
+    for (const it of allItems) {
+      const tid = it.tasks?.id || it.task_id;
+      if (tid) taskIds.add(tid);
+    }
+    let engSum = 0, prinSum = 0, ownerSum = 0, matched = 0, missing = 0;
+    for (const tid of taskIds) {
+      const p = paymentByTaskId.get(tid);
+      if (!p) { missing += 1; continue; }
+      engSum   += Number(p.engineer_amount)  || 0;
+      prinSum  += Number(p.principal_amount) || 0;
+      ownerSum += Number(p.owner_amount)     || 0;
+      matched += 1;
+    }
+    return {
+      engSum, prinSum, ownerSum,
+      taskCount: taskIds.size,
+      matched, missing,
+    };
+  }, [split, paymentByTaskId]);
+
+  const companyShare         = paymentsAgg.engSum + paymentsAgg.prinSum + paymentsAgg.ownerSum;
+  const companyOutToEngPrin  = paymentsAgg.engSum + paymentsAgg.prinSum;
+  const profit               = paymentsAgg.ownerSum;
 
   function refresh() { setReloadTick(v => v + 1); }
 
@@ -416,11 +482,13 @@ export function UsolNToEngineerSection({ adminId = null }) {
           />
 
           {/* 회사 순이익 카드 (작업월 = gateYm 기준).
-              2026-06-02 — 실시간 전체 기준 마진. 배분액=Σsubtotal×0.85, 기사지급=전체. */}
+              2026-06-09 — 정책 기반 마진 (payments 합산). 트랙 🅑 정합.
+              배분=Σ(eng+prin+own), 기사+원청 지급=Σ(eng+prin), 순익=Σowner. */}
           <CompanyProfitCard
             gateYm={gateYm}
             companyShare={companyShare}
-            split={split}
+            companyOutToEngPrin={companyOutToEngPrin}
+            paymentsAgg={paymentsAgg}
             profit={profit}
           />
 
@@ -603,14 +671,17 @@ function StackBar({ firstPct, secondPct, empty }) {
 }
 
 // ── 회사 순이익 카드 (작업월 = gateYm 기준) ─────────────────
-// 2026-06-02 — 실시간 전체 기준 마진 (사장님 spec).
-//   배분액 = 작업월 버킷(first+second+done) Σsubtotal × 0.85
-//   기사지급 전체 = firstTotal + secondTotal + doneTotal (동일 모집단)
-//   순이익 = 배분액 − 기사지급 전체
-//   옛 spec(회사 실입금 시트 고정값 vs naverConfirmed 1차만) 폐기.
-function CompanyProfitCard({ gateYm, companyShare, split, profit }) {
+// 2026-06-09 — 정책 기반 마진 (payments 합산).
+//   원천: payments.owner_amount / engineer_amount / principal_amount (compute_payment v19, Mig 096).
+//     v_total_owner = subtotal + extra + travel − engineer − principal (GREATEST 0 가드)
+//     트랙 🅑 (세척 100% 기사 / 추가선택 / cleaning_extra 0.85·0.15) 정책 반영 완료.
+//   배분 = Σ(engineer + principal + owner) = 회사 총수입 (= subtotal + extra + travel)
+//   기사+원청 지급 = Σ(engineer + principal)
+//   회사 순익 = Σowner_amount
+//   missing payments (compute 미실행 task) → 콘솔 경고 + 카드 하단 표시. 운영에서 0건 (5월 사장님 확인).
+function CompanyProfitCard({ gateYm, companyShare, companyOutToEngPrin, paymentsAgg, profit }) {
   if (!gateYm) return null;
-  const engineerPayAll = split.engineerPayAll || 0;
+  const missing = paymentsAgg?.missing || 0;
 
   return (
     <div style={{
@@ -625,8 +696,8 @@ function CompanyProfitCard({ gateYm, companyShare, split, profit }) {
         회사 순이익 · 작업월 {gateYm}
       </div>
 
-      <ProfitRow label="회사 배분액 (정산예정 × 0.85)" amount={companyShare} sign="+"/>
-      <ProfitRow label="기사 지급 (전체)" amount={engineerPayAll} sign="−"/>
+      <ProfitRow label="회사 배분 (정책 적용)" amount={companyShare} sign="+"/>
+      <ProfitRow label="기사+원청 지급" amount={companyOutToEngPrin} sign="−"/>
 
       <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }}/>
 
@@ -645,6 +716,13 @@ function CompanyProfitCard({ gateYm, companyShare, split, profit }) {
         </span>
       </div>
 
+      {missing > 0 && (
+        <div style={{
+          marginTop: 8, fontSize: 10, color: C_AMBER, fontWeight: 600,
+        }}>
+          ⚠️ payments 누락 {missing}건 — 합산 제외 (compute_payment 재실행 필요)
+        </div>
+      )}
     </div>
   );
 }
