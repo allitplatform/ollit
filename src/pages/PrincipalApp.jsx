@@ -535,9 +535,10 @@ export default function PrincipalApp({ user, onLogout }) {
   //   조건: user.principals 측 usol_h + usol_n 둘 다 있음 (통합계정).
   //   단일 계정 (usol_h만 또는 usol_n만) 측 탭 미표시 — selectedUsolCode 측 첫 코드 자동.
   //   list / settle 양쪽 탭 측 동일 selectedUsolCode 적용 (일관성).
+  //   기본 탭 = 유솔N (활성 작업 65건 / 총 1,340건 — usol_h 15건 측 측 의미 큼).
   const isUsolUnified = principalCodes.includes("usol_h") && principalCodes.includes("usol_n");
   const [selectedUsolCode, setSelectedUsolCode] = useState(
-    isUsolUnified ? "usol_h" : (principalCodes[0] || null)
+    isUsolUnified ? "usol_n" : (principalCodes[0] || null)
   );
   // 통합계정 측 selectedUsolCode 측만 effective. 단일 계정 측 principalCodes 그대로.
   const effectiveCodes = isUsolUnified && selectedUsolCode

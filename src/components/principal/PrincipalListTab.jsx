@@ -159,11 +159,15 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
     if (!Array.isArray(principalCodes) || principalCodes.length === 0) return;
     setLoadingB(true);
     try {
-      const res = await getTasks("principal", user?.id || "principal", null);
+      // 2026-06-09 — 서버 사이드 principal 필터 (옛엔 null → tenant 전체 fetch 후 클라 분리).
+      //   통합계정 [유솔H][유솔N] 탭 측 selectedUsolCode 기반 effectiveCodes 측 PrincipalApp 측 전달.
+      //   usol_h 15건 / usol_n 1,340건 — 다른 원청 불러올 필요 X.
+      const res = await getTasks("principal", user?.id || "principal", principalCodes);
       if (res && res.ok !== false) {
         const { list } = v14FindTaskList(res);
         if (Array.isArray(list)) {
           const normalized = list.map(v14NormalizeTask).filter(Boolean);
+          // 서버 측 이미 필터됨 — filterTasksForPrincipal 측 redundant 측 안전망 (회귀 0).
           const filtered = filterTasksForPrincipal(normalized, principalCodes);
           setAllTasks(filtered);
           setAllLoaded(true);

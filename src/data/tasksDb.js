@@ -596,15 +596,51 @@ export async function loadTasksForRole(role, userId, principalCode) {
     //   .limit(5000) 지정해도 PostgREST가 1000건에서 응답 잘림 → AdminApp 1,283/1,345 같은 불일치 원인.
     //   .range() 페이지 루프 (1000건 단위)로 전체 fetch.
     //   안전상 상한 10000건 (Phase 1 MVP 운영 규모 충분 + 무한 루프 방지).
+    // 2026-06-09 — principalCode 인자 서버 사이드 필터 활용 (옛엔 무시).
+    //   null/undefined → 옛 동작 (전체 tenant tasks fetch — AdminApp/Engineer/Happycall).
+    //   string         → 단일 원청 — principals 측 id lookup → .eq("principal_id", pid).
+    //   array          → 다중 원청 — principals 측 ids lookup → .in("principal_id", pids).
+    //   호출처: PrincipalListTab 측 통합계정 [유솔H][유솔N] 탭 분리 측 서버 필터.
+    //   효과: usol_h 측 15건 / usol_n 측 1,340건 — 옛엔 tenant 전체 fetch 후 클라 분리.
+    //   안전: principalCodes 매핑 실패 시 빈 배열 반환 (전체 fetch 측 안 함).
+    let principalIdFilter = null;   // null | string (uuid) | string[] (uuid[])
+    if (principalCode != null) {
+      const codes = Array.isArray(principalCode)
+        ? principalCode.filter(Boolean)
+        : [principalCode].filter(Boolean);
+      if (codes.length > 0) {
+        const { data: prRows, error: prErr } = await supabase
+          .from("principals")
+          .select("id, code")
+          .in("code", codes);
+        if (prErr) {
+          console.error("[tasksDb.loadTasksForRole:principalCode lookup]", prErr);
+          return { ok: false, error: prErr.message, tasks: [] };
+        }
+        const pids = (prRows || []).map(p => p.id);
+        if (pids.length === 0) {
+          // 매핑 실패 — 빈 결과 (옛 측 전체 fetch 측 비효율 대신 안전 측 0건).
+          return { ok: true, tasks: [] };
+        }
+        principalIdFilter = pids.length === 1 ? pids[0] : pids;
+      }
+    }
+
     const PAGE = 1000;
     const HARD_CAP = 10000;
     let rows = [];
     let from = 0;
     while (from < HARD_CAP) {
-      const { data: page, error } = await supabase
+      let q = supabase
         .from("tasks")
         .select(PAYMENT_SELECT)
-        .eq("tenant_id", TENANT_ID)
+        .eq("tenant_id", TENANT_ID);
+      if (Array.isArray(principalIdFilter)) {
+        q = q.in("principal_id", principalIdFilter);
+      } else if (typeof principalIdFilter === "string") {
+        q = q.eq("principal_id", principalIdFilter);
+      }
+      const { data: page, error } = await q
         .order("received_at", { ascending: false })
         .range(from, from + PAGE - 1);
       if (error) {
