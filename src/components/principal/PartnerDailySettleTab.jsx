@@ -10,6 +10,8 @@ import {
   markPartnerDailyRemit, undoPartnerDailyRemit, describeDailyRemitError,
 } from "../../lib/partnerDailySettleDb.js";
 import { DateGroup, formatKrw } from "./UsolRemitHistoryScreen.jsx";
+// 2026-06-09 — visit_only 측 "출장비만" 배지 (공용, 작업 화면과 동일).
+import { VisitBadge } from "../common/VisitBadge.jsx";
 
 // 색 토큰 — 사장님 시안값.
 const C_BANNER_PINK    = "#FF1B8D";              // 핑크 배너 background
@@ -254,7 +256,8 @@ function StateBadge({ done }) {
 }
 
 function TaskRow({ task, onTaskClick = null }) {
-  const isCanceled = task.isCanceled;
+  const isCanceled  = task.isCanceled;
+  const isVisitOnly = task.isVisitOnly;
   const clickable = typeof onTaskClick === "function";
   // 2026-06-09 — onTaskClick 측 task payload 측 전달 — TaskDetail 측 진입.
   //   shape: TaskRow 측 task object (task_id / task_no / customer / status / principal_amount 등).
@@ -291,8 +294,11 @@ function TaskRow({ task, onTaskClick = null }) {
           </span>
         )}
       </div>
+      {/* 2026-06-09 — 표시 우선순위: 취소 > 출장비만 > 금액. visit_only 측 "출장비만" 배지 (작업 화면과 정합). */}
       {isCanceled ? (
         <span style={{ fontSize: 11, fontWeight: 700, color: C_GRAY, flexShrink: 0 }}>취소</span>
+      ) : isVisitOnly ? (
+        <VisitBadge size={10}/>
       ) : (
         <span className="mono" style={{
           fontSize: 13, fontWeight: 800, color: C_MAGENTA, flexShrink: 0,

@@ -106,11 +106,17 @@ export async function fetchPartnerDailySettle({ principalCodes = [], monthsBack 
     const g = dayMap.get(key);
     const payment = Array.isArray(row.payment) ? row.payment[0] : row.payment;
     const principalAmount = Number(payment?.principal_amount) || 0;
-    const isCanceled = (row.status === "취소" || row.status === "visit_only");
+    // 2026-06-09 — visit_only 측 취소 측 분리 (운영자 완료탭 spec 정합, 51cf3ef 측).
+    //   옛: isCanceled = (취소 또는 visit_only) → 출장비 측 "취소" 카운트 측 잡힘 (사고).
+    //   신: isCanceled = 취소 만. isVisitOnly = visit_only. 둘 다 별도 flag.
+    //   카운트: visit_only 측 completedCount 측 합산 (출장비도 완료 종류).
+    //   amount: visit_only 측 principal_amount = 0 (Mig 054 — 출장비 = 기사 100%) 측 합산 효과 0.
+    const isCanceled  = row.status === "취소";
+    const isVisitOnly = row.status === "visit_only";
     g.count += 1;
     if (isCanceled) g.cancelCount += 1;
-    else g.completedCount += 1;
-    g.total += isCanceled ? 0 : principalAmount;
+    else g.completedCount += 1;   // visit_only 측 포함
+    g.total += isCanceled ? 0 : principalAmount;  // visit_only principal=0 측 합산 0
     // 작업 줄 요약
     const items = row.task_items || [];
     const summary = items.length > 0
@@ -124,6 +130,7 @@ export async function fetchPartnerDailySettle({ principalCodes = [], monthsBack 
       principal_amount: principalAmount,
       status: row.status,
       isCanceled,
+      isVisitOnly,
     });
   }
   const days = [...dayMap.values()].sort((a, b) => b.ymd.localeCompare(a.ymd));
