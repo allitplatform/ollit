@@ -623,12 +623,17 @@ export default function PrincipalApp({ user, onLogout }) {
               {tab === "schedule" && <UsolHScheduleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>}
               {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
               {/* 2026-06-06 — KA/crikrin (partnerCode 존재) 측 PartnerDailySettleTab (일정산).
-                  usol_n/usol_h 측 기존 PrincipalSettleTab 그대로 (네이버 주차 정산 흐름 무수정). */}
-              {tab === "settle" && (
-                partnerCode
-                  ? <PartnerDailySettleTab t={t} user={user} principalCodes={effectiveCodes}/>
-                  : <PrincipalSettleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>
-              )}
+                  2026-06-09 — 유솔H 측 PartnerDailySettleTab 재사용 (사장님 spec 갱신):
+                    유솔H 정산 = 일반 일일정산 UI (allday/KA 와 동일 — 헤더 / N월 누적 / 일별 묶음).
+                    유솔N 만 옛 PrincipalSettleTab (네이버 월정산 특수 UI).
+                  분기 키 = effectiveCodes 측 usol_n 단일 여부. 통합계정 측 selectedUsolCode 측 결정. */}
+              {tab === "settle" && (() => {
+                const isUsolNOnly = effectiveCodes.length === 1 && effectiveCodes[0] === "usol_n";
+                if (isUsolNOnly) {
+                  return <PrincipalSettleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>;
+                }
+                return <PartnerDailySettleTab t={t} user={user} principalCodes={effectiveCodes} onTaskClick={setSelectedTask}/>;
+              })()}
               {tab === "info"   && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
               {/* 2026-06-08 — 원청 인앱 알림 탭 */}
               {tab === "noti"   && (

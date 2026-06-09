@@ -22,7 +22,9 @@ const C_AMBER_BG       = "rgba(251,191,36,0.14)";// 다크 카드 대기 배지 
 const C_GRAY           = "#9CA3AF";
 
 // adminMode=true 측 운영자 토글 버튼 노출 (mark/undo RPC). actorUserId 측 currentUser.user_id (UUID).
-export function PartnerDailySettleTab({ t, user, principalCodes, adminMode = false, actorUserId }) {
+// 2026-06-09 — onTaskClick 추가: 목록 클릭 측 상세 진입 흐름 (유솔H 측 SettleDetailBoxSimple 측).
+//   미지정 측 옛 동작 (TaskRow 측 클릭 X). KA/crikrin 측 옛 호출 측 무손상.
+export function PartnerDailySettleTab({ t, user, principalCodes, adminMode = false, actorUserId, onTaskClick = null }) {
   const [loading, setLoading] = useState(true);
   const [days, setDays]       = useState([]);
   const [remits, setRemits]   = useState([]);
@@ -154,7 +156,7 @@ export function PartnerDailySettleTab({ t, user, principalCodes, adminMode = fal
                 totalColor={C_MAGENTA}
                 leftBadge={<StateBadge done={done}/>}
               >
-                {d.tasks.map(task => <TaskRow key={task.task_id} task={task}/>)}
+                {d.tasks.map(task => <TaskRow key={task.task_id} task={task} onTaskClick={onTaskClick}/>)}
                 {adminMode && (
                   <AdminToggle
                     done={done} busy={busy}
@@ -251,14 +253,30 @@ function StateBadge({ done }) {
   );
 }
 
-function TaskRow({ task }) {
+function TaskRow({ task, onTaskClick = null }) {
   const isCanceled = task.isCanceled;
+  const clickable = typeof onTaskClick === "function";
+  // 2026-06-09 — onTaskClick 측 task payload 측 전달 — TaskDetail 측 진입.
+  //   shape: TaskRow 측 task object (task_id / task_no / customer / status / principal_amount 등).
+  //   부모 PrincipalApp 측 setSelectedTask 측 id 필드 측 매핑.
+  const handleClick = clickable ? () => onTaskClick({
+    id:           task.task_id,
+    taskId:       task.task_id,
+    taskCode:     task.task_no,
+    taskNo:       task.task_no,
+    customer:     task.customer,
+    status:       task.status,
+  }) : undefined;
   return (
-    <div style={{
+    <div
+      onClick={handleClick}
+      className={clickable ? "clickable" : undefined}
+      style={{
       display: "flex", alignItems: "center", gap: 8,
       padding: "6px 4px",
       fontSize: 12,
       opacity: isCanceled ? 0.55 : 1,
+      cursor: clickable ? "pointer" : "default",
     }}>
       <span style={{ fontSize: 13, color: "#FFA94D", flexShrink: 0 }}>⚡</span>
       <div style={{ flex: 1, minWidth: 0 }}>
