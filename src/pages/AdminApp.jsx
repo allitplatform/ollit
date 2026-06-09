@@ -94,6 +94,8 @@ import { PartialCancelDialog } from "../components/CancelDialogs.jsx";
 // 2026-06-09 — 출장비 (visit_fee) 공용 판별 / 배지.
 import { isAllItemsVisit, hasAnyVisitItem } from "../utils/visitFeeDetect.js";
 import { VisitIcon, VisitBadge } from "../components/common/VisitBadge.jsx";
+// 2026-06-09 — 주소 잘림 사고 차단 (구/군/시 키워드 추출).
+import { regionOrDistrictFromAddress } from "../utils/districtKeyword.js";
 import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { recommendEngineersGroupedAdapter } from "../utils/engineerRecommendation.js";
@@ -6847,9 +6849,14 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
   //   2026-05-21 Phase 5 Step 0.H-3 — 작업 예정 시간 표시 (정렬 결과 catch 측 spec)
   const infoBits = [];
   if (!isExternal) {
-    infoBits.push(`(${task.appliance || "—"}×${task.qty || 1})`);
+    // 2026-06-09 — visit_only / 출장비만 항목 측 appliance 비어 "(—×1)" 노이즈 → 생략.
+    if (task.appliance) {
+      infoBits.push(`(${task.appliance}×${task.qty || 1})`);
+    }
   }
-  if (task.region) infoBits.push(task.region);
+  // 2026-06-09 — region 비면 address 측 구/군/시 키워드 추출 (출장비 행 잘림 사고 차단).
+  const regionLabel = regionOrDistrictFromAddress(task.region, task.address);
+  if (regionLabel) infoBits.push(regionLabel);
   const timeText = formatTimeOnly(task.scheduledAt || task.scheduled_at);
   if (timeText) infoBits.push(timeText);
   const infoText = infoBits.join(" · ");

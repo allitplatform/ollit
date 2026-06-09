@@ -18,6 +18,8 @@ import { getStatusBadge, getStatusLabel } from "../../utils/principalStatusBadge
 // 2026-06-09 — 출장비 (visit_fee) 공용 판별 / 배지.
 import { isAllItemsVisit, hasAnyVisitItem } from "../../utils/visitFeeDetect.js";
 import { VisitBadge } from "../common/VisitBadge.jsx";
+// 2026-06-09 — 주소 잘림 사고 차단 (구/군/시 키워드 추출).
+import { regionOrDistrictFromAddress } from "../../utils/districtKeyword.js";
 // 2026-06-06 — 카운트 박스 공용 + DB count/필터 (KA/crikrin 측만).
 import { CountBoxes } from "../CountBoxes.jsx";
 import { fetchAllPrincipalCounts, fetchAllPrincipalTasks } from "../../lib/allPrincipalTasksDb.js";
@@ -638,8 +640,16 @@ function TaskRow({ task, onClick }) {
         fontSize: 11, fontWeight: 400, color: "#888",
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>
-        {[applianceText, task.region].filter(Boolean).join(" · ")}
-        {timeStr && (<>{(applianceText || task.region) ? " · " : ""}<span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span></>)}
+        {(() => {
+          // 2026-06-09 — region 비면 address 측 구/군/시 키워드 추출 (출장비 행 잘림 사고 차단).
+          const regionLabel = regionOrDistrictFromAddress(task.region, task.address);
+          return (
+            <>
+              {[applianceText, regionLabel].filter(Boolean).join(" · ")}
+              {timeStr && (<>{(applianceText || regionLabel) ? " · " : ""}<span style={{ color: DATE_TIME_COLOR, fontWeight: 600 }}>{timeStr}</span></>)}
+            </>
+          );
+        })()}
       </span>
       {task.assignedEngineer && (
         <span style={{

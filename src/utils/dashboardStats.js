@@ -85,7 +85,11 @@ export const TASK_FILTERS = {
   assigned:     (t) => _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "배정"),
   confirmed:    (t) => _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "확정"),
   inProgress:   (t) => _isScheduledTodayModule(t) && _v14HasStatusEffective(t, "작업중", "진행중"),
-  completed:    (t) => _isScheduledTodayModule(t) && _isCompletedTodayModule(t) && _v14HasStatusEffective(t, "완료", "정산완료"),
+  // 2026-06-09 — 완료 필터에 'visit_only' 포함 (출장비만 처리도 완료 탭에 노출).
+  //   mark_visit_only RPC (Mig 054) 가 completed_at=NOW() 채움 → _isCompletedTodayModule 통과.
+  //   scheduled_at 그대로 보존 → 같은 날 처리하면 _isScheduledTodayModule 도 통과.
+  //   카드/카운트 양쪽 적용. 옛엔 완료 탭에 안 잡혀 사장님 flag.
+  completed:    (t) => _isScheduledTodayModule(t) && _isCompletedTodayModule(t) && _v14HasStatusEffective(t, "완료", "정산완료", "visit_only"),
 };
 
 // V14 메인 통계 계산 (apiTasks 진짜 시트 데이터 사용 / 시뮬 mock 폐기)
