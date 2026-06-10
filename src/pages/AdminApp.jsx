@@ -3339,7 +3339,20 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         apiTasks={apiTasks}
         apiEngineers={apiEngineers}
         onBack={goBack}
-        onTaskClick={(task) => goTaskDetail({ id: task.id, task_no: task.task_no, customer_name: task.customer }, "engineerCalendar")}
+        onTaskClick={async (task) => {
+          // 정규화된 apiTasks 원소를 그대로 넘김 (옛 stub 축소 패턴 제거 — 상세화면 빈 데이터 사고 차단).
+          // 안전망: apiTasks 재검색 → 없으면 DB 단건 폴백.
+          const id = task?.id || task?.taskCode || task?.task_no;
+          if (!id) return;
+          let resolved = apiTasks.find(t => t.id === id || t.taskCode === id) || null;
+          if (!resolved) {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+            const row = isUuid ? await getTaskByIdDb(id) : await getTaskByTaskNoDb(id);
+            if (row) resolved = _v14NormalizeTask(row);
+          }
+          if (!resolved) return;
+          goTaskDetail(resolved, "engineerCalendar");
+        }}
         engineerId={calEngineerId}
         year={calYear}
         month={calMonth}
