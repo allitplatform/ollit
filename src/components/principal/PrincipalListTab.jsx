@@ -728,6 +728,10 @@ const loadingBoxStyle = {
   color: "#9CA3AF", fontSize: 12,
 };
 
+// 2026-06-10 4차 — PC 표 컬럼 폭 (div + CSS Grid). 합 100, fr 단위로 부모 폭 비례 분배.
+//   사장님 진단: <table>이 부모 max-width를 깨는 케이스 → div+grid로 회피.
+const PC_GRID_COLS = "19fr 26fr 14fr 11fr 16fr 14fr";
+
 // 2026-06-10 — PC (1024px 이상) 통합 테이블 — 뷰 A/B/quickFilter 한 화면 흡수.
 //   상단: 한 줄 통계 + 필터 토글(오늘/전체) + 검색.
 //   본문: sticky 헤더 테이블 (고객 / 기종·수량 / 지역 / 시간 / 기사 / 상태).
@@ -895,64 +899,45 @@ function ViewPcTable({
         border: `1px solid ${t.border}`,
         overflow: "auto",
       }}>
-        <table style={{
-          width: "100%",
-          // 2026-06-10 3차 — 부모 wrapper maxWidth 무효화 케이스에 대비한 최후 cap.
-          //   부모가 안 cap돼도 table 자체 1280으로 cap → 사장님 진단 #2 직접 차단.
-          maxWidth: 1280,
-          borderCollapse: "collapse",
-          fontSize: 12,
-          tableLayout: "fixed",
-        }}>
-          {/* 2026-06-10 — 컬럼 폭 차등: 시간/상태 좁게, 고객/기종/지역 적정. */}
-          <colgroup>
-            <col style={{ width: "19%" }}/>{/* 고객     */}
-            <col style={{ width: "26%" }}/>{/* 기종·수량 */}
-            <col style={{ width: "14%" }}/>{/* 지역     */}
-            <col style={{ width: "11%" }}/>{/* 시간     */}
-            <col style={{ width: "16%" }}/>{/* 기사     */}
-            <col style={{ width: "14%" }}/>{/* 상태     */}
-          </colgroup>
-          <thead style={{
+        {/* 2026-06-10 4차 — <table> 폐기 → div + CSS Grid. */}
+        {/*   사장님 진단: <table>이 부모 max-width 깨는 케이스 확정. div는 표준 block 동작이라 */}
+        {/*   부모 wrapper 1280 cap이 그대로 적용됨. 컬럼 폭은 PC_GRID_COLS fr 비례 분배. */}
+        <div style={{ width: "100%", fontSize: 12 }}>
+          {/* 헤더 행 — sticky */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: PC_GRID_COLS,
             position: "sticky",
             top: 0,
             background: t.bgElevated,
             zIndex: 2,
+            borderBottom: `1px solid ${t.border}`,
           }}>
-            <tr>
-              {["고객", "기종·수량", "지역", "시간", "기사", "상태"].map(label => (
-                <th key={label} style={{
-                  padding: "10px 14px",
-                  textAlign: "left",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  color: t.textMuted,
-                  borderBottom: `1px solid ${t.border}`,
-                  letterSpacing: 0.4,
-                  textTransform: "uppercase",
-                }}>{label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sourceLoading && filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={pcEmptyCellStyle(t)}>불러오는 중...</td>
-              </tr>
-            ) : filtered.length === 0 ? (
-              <tr>
-                <td colSpan={6} style={pcEmptyCellStyle(t)}>표시할 작업 없음</td>
-              </tr>
-            ) : filtered.map((task, idx) => (
-              <PcTableRow
-                key={task.id || task.taskNo || idx}
-                t={t}
-                task={task}
-                onClick={() => onSelect?.(task)}
-              />
+            {["고객", "기종·수량", "지역", "시간", "기사", "상태"].map(label => (
+              <div key={label} style={{
+                padding: "10px 14px",
+                fontSize: 10,
+                fontWeight: 700,
+                color: t.textMuted,
+                letterSpacing: 0.4,
+                textTransform: "uppercase",
+              }}>{label}</div>
             ))}
-          </tbody>
-        </table>
+          </div>
+          {/* 본문 행들 */}
+          {sourceLoading && filtered.length === 0 ? (
+            <div style={pcEmptyCellStyle(t)}>불러오는 중...</div>
+          ) : filtered.length === 0 ? (
+            <div style={pcEmptyCellStyle(t)}>표시할 작업 없음</div>
+          ) : filtered.map((task, idx) => (
+            <PcTableRow
+              key={task.id || task.taskNo || idx}
+              t={t}
+              task={task}
+              onClick={() => onSelect?.(task)}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1002,30 +987,34 @@ function PcTableRow({ t, task, onClick }) {
   const engineer = task.assignedEngineer || task.engineer || "미배정";
   const statusLabel = getStatusLabel(task.status) || task.status || "—";
   const statusBadge = getStatusBadge(task.status);
+  // 2026-06-10 4차 — <tr>/<td> 폐기 → div + grid 셀.
   return (
-    <tr
+    <div
       onClick={onClick}
       className="clickable"
       style={{
+        display: "grid",
+        gridTemplateColumns: PC_GRID_COLS,
         cursor: "pointer",
         borderBottom: `1px solid ${t.border}`,
       }}
     >
-      <td style={pcTdStyle(t, { fontWeight: 700, color: t.text })}>{task.customer || task.customerName || "—"}</td>
-      <td style={pcTdStyle(t)}>{itemSummary}</td>
-      <td style={pcTdStyle(t)}>{region}</td>
-      <td style={pcTdStyle(t)} className="mono">{time}</td>
-      <td style={pcTdStyle(t)}>{engineer}</td>
-      <td style={pcTdStyle(t)}>
+      <div style={pcTdStyle(t, { fontWeight: 700, color: t.text })}>{task.customer || task.customerName || "—"}</div>
+      <div style={pcTdStyle(t)}>{itemSummary}</div>
+      <div style={pcTdStyle(t)}>{region}</div>
+      <div style={pcTdStyle(t)} className="mono">{time}</div>
+      <div style={pcTdStyle(t)}>{engineer}</div>
+      <div style={pcTdStyle(t)}>
         <span style={{
+          display: "inline-block",
           fontSize: 10, fontWeight: 700,
           padding: "3px 9px",
           borderRadius: 999,
           background: statusBadge?.bg || t.bgInset || "rgba(255,255,255,0.08)",
           color: statusBadge?.color || t.textSecondary,
         }}>{statusLabel}</span>
-      </td>
-    </tr>
+      </div>
+    </div>
   );
 }
 
