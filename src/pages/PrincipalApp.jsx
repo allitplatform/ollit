@@ -613,7 +613,7 @@ export default function PrincipalApp({ user, onLogout }) {
           <SubmittedScreen t={t} task={submittedTask} onContinue={() => { setSubmittedTask(null); setTab("list"); }}/>
         ) : (
           <>
-            {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={effectiveCodes} partnerCode={partnerCode} onSelect={setSelectedTask}/>}
+            {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={effectiveCodes} partnerCode={partnerCode} onSelect={setSelectedTask} selectedTaskId={selectedTask?.id}/>}
             {tab === "schedule" && <UsolHScheduleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>}
             {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
             {tab === "settle" && (() => {

@@ -114,7 +114,7 @@ function ServiceIcon({ kind, size = 14 }) {
   return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
 }
 
-export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelect }) {
+export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelect, selectedTaskId }) {
   // 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 통합 테이블 (뷰 A/B/quickFilter 한 화면 흡수).
   const isPc = useIsPc();
   const [view, setView] = useState("today");   // 'today' | 'all'
@@ -254,6 +254,7 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
         qfTasks={qfTasks}
         qfLoading={qfLoading}
         onSelect={onSelect}
+        selectedTaskId={selectedTaskId}
       />
     );
   }
@@ -731,6 +732,16 @@ const loadingBoxStyle = {
 // 2026-06-10 4차 — PC 표 컬럼 폭 (div + CSS Grid). 합 100, fr 단위로 부모 폭 비례 분배.
 //   사장님 진단: <table>이 부모 max-width를 깨는 케이스 → div+grid로 회피.
 const PC_GRID_COLS = "19fr 26fr 14fr 11fr 16fr 14fr";
+// 2026-06-10 8차 — 컬럼별 정렬 매핑.
+//   사장님 spec: 고객·기종·지역·기사 = 왼쪽 / 시간·상태 = 가운데.
+const PC_HEADER_COLS = [
+  { label: "고객",      align: "left"   },
+  { label: "기종·수량", align: "left"   },
+  { label: "지역",      align: "left"   },
+  { label: "시간",      align: "center" },
+  { label: "기사",      align: "left"   },
+  { label: "상태",      align: "center" },
+];
 
 // 2026-06-10 — PC (1024px 이상) 통합 테이블 — 뷰 A/B/quickFilter 한 화면 흡수.
 //   상단: 한 줄 통계 + 필터 토글(오늘/전체) + 검색.
@@ -747,6 +758,7 @@ function ViewPcTable({
   quickFilter, setQuickFilter,
   qfTasks, qfLoading,
   onSelect,
+  selectedTaskId,
 }) {
   const [search, setSearch] = useState("");
 
@@ -912,16 +924,16 @@ function ViewPcTable({
             zIndex: 2,
             borderBottom: `1px solid ${t.border}`,
           }}>
-            {["고객", "기종·수량", "지역", "시간", "기사", "상태"].map(label => (
-              <div key={label} style={{
-                padding: "16px 16px",
+            {PC_HEADER_COLS.map(col => (
+              <div key={col.label} style={{
+                padding: "12px 16px",
                 fontSize: 14,
                 fontWeight: 700,
                 color: t.textMuted,
                 letterSpacing: 0.4,
                 textTransform: "uppercase",
-                textAlign: "center",
-              }}>{label}</div>
+                textAlign: col.align,
+              }}>{col.label}</div>
             ))}
           </div>
           {/* 본문 행들 */}
@@ -934,6 +946,7 @@ function ViewPcTable({
               key={task.id || task.taskNo || idx}
               t={t}
               task={task}
+              isSelected={!!selectedTaskId && task.id === selectedTaskId}
               onClick={() => onSelect?.(task)}
             />
           ))}
@@ -962,7 +975,7 @@ function pcEmptyCellStyle(t) {
   };
 }
 
-function PcTableRow({ t, task, onClick }) {
+function PcTableRow({ t, task, isSelected, onClick }) {
   const items = Array.isArray(task.workItems) && task.workItems.length > 0
     ? task.workItems
     : (Array.isArray(task.task_items) ? task.task_items : []);
@@ -988,6 +1001,7 @@ function PcTableRow({ t, task, onClick }) {
   const statusLabel = getStatusLabel(task.status) || task.status || "—";
   const statusBadge = getStatusBadge(task.status);
   // 2026-06-10 4차 — <tr>/<td> 폐기 → div + grid 셀.
+  // 2026-06-10 8차 — 셀별 textAlign 혼합 + 선택행 강조(다크+핑크 8% alpha).
   return (
     <div
       onClick={onClick}
@@ -997,14 +1011,15 @@ function PcTableRow({ t, task, onClick }) {
         gridTemplateColumns: PC_GRID_COLS,
         cursor: "pointer",
         borderBottom: `1px solid ${t.border}`,
+        background: isSelected ? "rgba(255, 77, 158, 0.10)" : "transparent",
       }}
     >
-      <div style={pcTdStyle(t, { fontWeight: 700, color: t.text })}>{task.customer || task.customerName || "—"}</div>
-      <div style={pcTdStyle(t)}>{itemSummary}</div>
-      <div style={pcTdStyle(t)}>{region}</div>
-      <div style={pcTdStyle(t)} className="mono">{time}</div>
-      <div style={pcTdStyle(t)}>{engineer}</div>
-      <div style={pcTdStyle(t)}>
+      <div style={pcTdStyle(t, { fontWeight: 700, color: t.text, textAlign: "left" })}>{task.customer || task.customerName || "—"}</div>
+      <div style={pcTdStyle(t, { textAlign: "left" })}>{itemSummary}</div>
+      <div style={pcTdStyle(t, { textAlign: "left" })}>{region}</div>
+      <div style={pcTdStyle(t, { textAlign: "center" })} className="mono">{time}</div>
+      <div style={pcTdStyle(t, { textAlign: "left" })}>{engineer}</div>
+      <div style={pcTdStyle(t, { textAlign: "center" })}>
         <span style={{
           display: "inline-block",
           fontSize: 14, fontWeight: 700,
@@ -1020,9 +1035,10 @@ function PcTableRow({ t, task, onClick }) {
 
 function pcTdStyle(t, extra) {
   return {
-    padding: "18px 16px",
+    // 2026-06-10 8차 — 행 높이 축소(18→11) + 강제 center 제거.
+    //   호출처에서 셀별 textAlign override.
+    padding: "11px 16px",
     color: t.textSecondary,
-    textAlign: "center",
     ...extra,
   };
 }
