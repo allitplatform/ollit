@@ -780,11 +780,10 @@ function ViewPcTable({
 
   return (
     <div style={{
-      // 2026-06-10 6차 — 5차에서 폐기했던 max-width 1280 + 가운데 정렬 복원.
-      //   사장님 재방향: 가운데 정렬 유지 + 폰트/패딩 확대 조합.
-      //   폰트/패딩은 5차 값(본문 15, 셀 padding 15/16, 헤더 12/14·16) 유지.
-      maxWidth: 1280,
-      margin: "0 auto",
+      // 2026-06-10 7차 — 가운데 정렬 = 박스가 아닌 "셀 안 텍스트" 라는 사장님 재정의.
+      //   wrapper는 다시 full-width (maxWidth/margin auto 폐기). 텍스트 가운데는
+      //   각 셀(헤더+데이터) 에 textAlign: center 추가로 처리.
+      //   폰트도 추가 확대 — 본문 15→17, 헤더 12→14, 상태 12→14.
       width: "100%",
       padding: "20px 24px 24px",
       minHeight: "100vh",
@@ -902,7 +901,7 @@ function ViewPcTable({
         {/* 2026-06-10 4차 — <table> 폐기 → div + CSS Grid. */}
         {/*   사장님 진단: <table>이 부모 max-width 깨는 케이스 확정. div는 표준 block 동작이라 */}
         {/*   부모 wrapper 1280 cap이 그대로 적용됨. 컬럼 폭은 PC_GRID_COLS fr 비례 분배. */}
-        <div style={{ width: "100%", fontSize: 15 }}>
+        <div style={{ width: "100%", fontSize: 17 }}>
           {/* 헤더 행 — sticky */}
           <div style={{
             display: "grid",
@@ -915,12 +914,13 @@ function ViewPcTable({
           }}>
             {["고객", "기종·수량", "지역", "시간", "기사", "상태"].map(label => (
               <div key={label} style={{
-                padding: "14px 16px",
-                fontSize: 12,
+                padding: "16px 16px",
+                fontSize: 14,
                 fontWeight: 700,
                 color: t.textMuted,
                 letterSpacing: 0.4,
                 textTransform: "uppercase",
+                textAlign: "center",
               }}>{label}</div>
             ))}
           </div>
@@ -955,10 +955,10 @@ function StatInline({ t, label, value, accent, muted }) {
 
 function pcEmptyCellStyle(t) {
   return {
-    padding: "48px 16px",
+    padding: "56px 16px",
     textAlign: "center",
     color: t.textMuted,
-    fontSize: 14,
+    fontSize: 15,
   };
 }
 
@@ -1007,8 +1007,8 @@ function PcTableRow({ t, task, onClick }) {
       <div style={pcTdStyle(t)}>
         <span style={{
           display: "inline-block",
-          fontSize: 12, fontWeight: 700,
-          padding: "4px 11px",
+          fontSize: 14, fontWeight: 700,
+          padding: "5px 13px",
           borderRadius: 999,
           background: statusBadge?.bg || t.bgInset || "rgba(255,255,255,0.08)",
           color: statusBadge?.color || t.textSecondary,
@@ -1020,8 +1020,9 @@ function PcTableRow({ t, task, onClick }) {
 
 function pcTdStyle(t, extra) {
   return {
-    padding: "15px 16px",
+    padding: "18px 16px",
     color: t.textSecondary,
+    textAlign: "center",
     ...extra,
   };
 }
