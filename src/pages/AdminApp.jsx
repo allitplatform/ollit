@@ -2463,6 +2463,16 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 화면 진입 헬퍼 — 두 시각 분리 (작업 상세 / 기사 오늘)
   const goTaskDetail   = (task, from) => { setSelectedTaskDetail(task); setPrevScreen(from); setScreen("taskDetail"); };
   const goEngineerDay  = (eng,  from) => { setSelectedEngineer(eng);    setPrevScreen(from); setScreen("engineerDay"); };
+  // 경량(목록용) 작업 객체로부터 DB 풀 데이터 fetch → 정규화 → 상세 진입.
+  // fetch 실패 시 경량 그대로 진입 (사용자 클릭 차단 회피, 빈 필드 일부는 감수).
+  const openTaskDetailFromLight = async (lightTask, from) => {
+    const id = lightTask?.id || lightTask?.taskCode || lightTask?.task_no;
+    if (!id) { goTaskDetail(lightTask, from); return; }
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+    const row = isUuid ? await getTaskByIdDb(id) : await getTaskByTaskNoDb(id);
+    if (row) goTaskDetail(_v14NormalizeTask(row), from);
+    else     goTaskDetail(lightTask, from);
+  };
   const goBackFromStack = () => { setPrevScreen(null); goBack(); };
 
   // 2026-05-22 — Shell + FontStyle 측 모듈 레벨 함수로 추출 (위 정의 참조).
@@ -3339,20 +3349,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         apiTasks={apiTasks}
         apiEngineers={apiEngineers}
         onBack={goBack}
-        onTaskClick={async (task) => {
-          // 정규화된 apiTasks 원소를 그대로 넘김 (옛 stub 축소 패턴 제거 — 상세화면 빈 데이터 사고 차단).
-          // 안전망: apiTasks 재검색 → 없으면 DB 단건 폴백.
-          const id = task?.id || task?.taskCode || task?.task_no;
-          if (!id) return;
-          let resolved = apiTasks.find(t => t.id === id || t.taskCode === id) || null;
-          if (!resolved) {
-            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
-            const row = isUuid ? await getTaskByIdDb(id) : await getTaskByTaskNoDb(id);
-            if (row) resolved = _v14NormalizeTask(row);
-          }
-          if (!resolved) return;
-          goTaskDetail(resolved, "engineerCalendar");
-        }}
+        onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendar")}
         engineerId={calEngineerId}
         year={calYear}
         month={calMonth}
@@ -3370,7 +3367,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <RefrigerantAddonListScreen
         t={t}
         onBack={goBack}
-        onTaskClick={(item) => goTaskDetail({ id: item.id, task_no: item.task_no, customer_name: item.customer_name }, "refrigerantAddonList")}
+        onTaskClick={(item) => openTaskDetailFromLight(item, "refrigerantAddonList")}
       />
     </Shell>;
   }
