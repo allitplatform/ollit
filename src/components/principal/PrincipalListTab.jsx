@@ -781,6 +781,9 @@ function ViewPcTable({
       display: "flex",
       flexDirection: "column",
       background: t.bg,
+      // 2026-06-10 — 1920px에서 6컬럼 균등 분산이 휑함. 좌측 정렬 + 우측 여백 허용.
+      maxWidth: 1280,
+      width: "100%",
     }}>
       {/* 상단 한 줄 — 통계 + 필터 토글 + 검색 */}
       <div style={{
@@ -888,7 +891,16 @@ function ViewPcTable({
         border: `1px solid ${t.border}`,
         overflow: "auto",
       }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed" }}>
+          {/* 2026-06-10 — 컬럼 폭 차등: 시간/상태 좁게, 고객/기종/지역 적정. */}
+          <colgroup>
+            <col style={{ width: "19%" }}/>{/* 고객     */}
+            <col style={{ width: "26%" }}/>{/* 기종·수량 */}
+            <col style={{ width: "14%" }}/>{/* 지역     */}
+            <col style={{ width: "11%" }}/>{/* 시간     */}
+            <col style={{ width: "16%" }}/>{/* 기사     */}
+            <col style={{ width: "14%" }}/>{/* 상태     */}
+          </colgroup>
           <thead style={{
             position: "sticky",
             top: 0,
@@ -963,7 +975,9 @@ function PcTableRow({ t, task, onClick }) {
     : "—";
   const totalQty = items.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
   const itemSummary = totalQty > 1 ? `${appliance} ×${totalQty}` : appliance;
-  const region = regionOrDistrictFromAddress(task.address || task.customerAddress || "") || task.region || "—";
+  // 2026-06-10 — 모바일 TaskRow(line 689)와 동일 호출 — task.region 우선, 빈 값이면 address 키워드 추출.
+  //   address 단일 인자로 호출하면 "서울특별시"가 먼저 매치돼 시/도까지만 나옴.
+  const region = regionOrDistrictFromAddress(task.region, task.address || task.customerAddress) || "—";
   const time = formatTime(task);
   const engineer = task.assignedEngineer || task.engineer || "미배정";
   const statusLabel = getStatusLabel(task.status) || task.status || "—";
