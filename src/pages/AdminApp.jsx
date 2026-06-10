@@ -2658,7 +2658,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         t={t}
         engineer={selectedEngineer}
         onBack={goBackFromStack}
-        onTaskClick={(task) => goTaskDetail(task, "engineerDay")}
+        onTaskClick={(task) => openTaskDetailFromLight(task, "engineerDay")}
       />
     </Shell>;
   }
