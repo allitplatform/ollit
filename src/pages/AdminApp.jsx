@@ -83,6 +83,8 @@ import {
   approveCancelAdapter as apiApproveCancel,
   rejectCancelAdapter as apiRejectCancel,
   assignEngineerAdapter as apiAssignEngineer,
+  getTaskByIdDb,
+  getTaskByTaskNoDb,
 } from "../data/tasksDb.js";
 // Round 2 — 취소 RPC (옛 어댑터와 분리)
 import {
@@ -2611,21 +2613,20 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onBack={goBack}
         onMarkRead={markNotiRead}
         onMarkAllRead={markAllRead}
-        onClickItem={(noti) => {
-          markNotiRead(noti.id);
-          // 알림에 박힌 taskId로 시드 검색 후 작업 상세 진입
-          const findTask = (id) => {
-            if (!id) return null;
-            return TASKS_TODAY.find(t => t.id === id || t.taskCode === id)
-              || ASSIGNED_TASKS.find(t => t.id === id || t.taskCode === id)
-              || null;
-          };
-          const task = findTask(noti.taskId);
-          if (task) {
-            goTaskDetail(task, "notifications");
-          } else {
-            addToast({ type: "assignment", title: "작업 정보 없음", message: "원본 작업을 찾을 수 없습니다" });
+        onClickItem={async (noti) => {
+          // 알림 taskId로 전체 작업 검색 (완료/취소 무관 진입)
+          //   (a) 메모리 apiTasks 우선  (b) 없으면 DB 단건 폴백
+          const id = noti.taskId;
+          if (!id) return;
+          let task = apiTasks.find(t => t.id === id || t.taskCode === id) || null;
+          if (!task) {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+            const row = isUuid ? await getTaskByIdDb(id) : await getTaskByTaskNoDb(id);
+            if (row) task = _v14NormalizeTask(row);
           }
+          if (!task) return;
+          markNotiRead(noti.id);
+          goTaskDetail(task, "notifications");
         }}
       />
     </Shell>;
