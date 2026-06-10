@@ -23,6 +23,8 @@ import { regionOrDistrictFromAddress } from "../../utils/districtKeyword.js";
 // 2026-06-06 — 카운트 박스 공용 + DB count/필터 (KA/crikrin 측만).
 import { CountBoxes } from "../CountBoxes.jsx";
 import { fetchAllPrincipalCounts, fetchAllPrincipalTasks } from "../../lib/allPrincipalTasksDb.js";
+// 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 통합 테이블.
+import { useIsPc } from "../../utils/useIsPc.js";
 
 const N_BADGE_COLOR     = "#2E9E54";
 const CLEAN_COLOR       = "#378ADD";
@@ -113,6 +115,8 @@ function ServiceIcon({ kind, size = 14 }) {
 }
 
 export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelect }) {
+  // 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 통합 테이블 (뷰 A/B/quickFilter 한 화면 흡수).
+  const isPc = useIsPc();
   const [view, setView] = useState("today");   // 'today' | 'all'
   const [autoFocusSearchOnAll, setAutoFocusSearchOnAll] = useState(false);
   const goToAll = useCallback((focusSearch = false) => {
@@ -229,6 +233,30 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
     }).finally(() => { if (alive) setQfLoading(false); });
     return () => { alive = false; };
   }, [showPartnerHeader, headerPrincipalCode, quickFilter]);
+
+  // 2026-06-10 — PC (1024px 이상): 뷰 A/B/quickFilter 한 화면(ViewPcTable)으로 흡수.
+  //   fetch 분리는 유지 — view='today' 측 가벼운 refetchA, 'all' 측 refetchB, quickFilter 측 qf fetch.
+  if (isPc) {
+    return (
+      <ViewPcTable
+        t={t}
+        view={view}
+        setView={setView}
+        todayTasks={todayTasks}
+        allTasks={allTasks}
+        loadingA={loadingA}
+        loadingB={loadingB}
+        counts={counts}
+        partnerCounts={partnerCounts}
+        showPartnerHeader={showPartnerHeader}
+        quickFilter={quickFilter}
+        setQuickFilter={setQuickFilter}
+        qfTasks={qfTasks}
+        qfLoading={qfLoading}
+        onSelect={onSelect}
+      />
+    );
+  }
 
   // showPartnerHeader + quickFilter 활성 시 → 필터 결과 뷰 (옛 today/all 측 측 측 측 measure).
   if (showPartnerHeader && quickFilter) {
@@ -699,5 +727,280 @@ const loadingBoxStyle = {
   padding: "40px 20px", textAlign: "center",
   color: "#9CA3AF", fontSize: 12,
 };
+
+// 2026-06-10 — PC (1024px 이상) 통합 테이블 — 뷰 A/B/quickFilter 한 화면 흡수.
+//   상단: 한 줄 통계 + 필터 토글(오늘/전체) + 검색.
+//   본문: sticky 헤더 테이블 (고객 / 기종·수량 / 지역 / 시간 / 기사 / 상태).
+//   행 클릭 → onSelect(task) → PcShell 우측 패널에 상세 표시.
+//   fetch 분리 유지: 'today' = 가벼운 refetchA / 'all' = refetchB (사장님 spec 보강).
+function ViewPcTable({
+  t,
+  view, setView,
+  todayTasks, allTasks,
+  loadingA, loadingB,
+  counts, partnerCounts,
+  showPartnerHeader,
+  quickFilter, setQuickFilter,
+  qfTasks, qfLoading,
+  onSelect,
+}) {
+  const [search, setSearch] = useState("");
+
+  // 표시 데이터 선택.
+  let sourceTasks, sourceLoading;
+  if (quickFilter) {
+    sourceTasks   = qfTasks;
+    sourceLoading = qfLoading;
+  } else if (view === "all") {
+    sourceTasks   = allTasks;
+    sourceLoading = loadingB;
+  } else {
+    sourceTasks   = todayTasks;
+    sourceLoading = loadingA;
+  }
+
+  // 클라 검색 — 현재 표시 데이터에서.
+  const q = search.trim().toLowerCase();
+  const filtered = useMemo(() => {
+    if (!q) return sourceTasks || [];
+    return (sourceTasks || []).filter(task => {
+      const text = [
+        task.customer, task.customerName,
+        task.region, task.address, task.customerAddress,
+        task.assignedEngineer, task.engineer,
+        task.taskCode, task.task_no,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return text.includes(q);
+    });
+  }, [sourceTasks, q]);
+
+  return (
+    <div style={{
+      padding: "20px 24px 24px",
+      minHeight: "100vh",
+      display: "flex",
+      flexDirection: "column",
+      background: t.bg,
+    }}>
+      {/* 상단 한 줄 — 통계 + 필터 토글 + 검색 */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        marginBottom: 14,
+        flexWrap: "wrap",
+      }}>
+        {showPartnerHeader ? (
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <CountBoxes
+              counts={partnerCounts}
+              selected={quickFilter}
+              onSelect={(k) => setQuickFilter(prev => prev === k ? null : k)}
+            />
+          </div>
+        ) : (
+          <div style={{
+            display: "flex",
+            gap: 22,
+            padding: "10px 16px",
+            background: t.bgElevated,
+            border: `1px solid ${t.border}`,
+            borderRadius: 8,
+          }}>
+            <StatInline t={t} label="전체"   value={counts.total}/>
+            <StatInline t={t} label="진행중" value={counts.inProgress} accent/>
+            <StatInline t={t} label="완료"   value={counts.completed}  muted/>
+          </div>
+        )}
+
+        {/* 필터 토글 — quickFilter 미활성 때만. */}
+        {!quickFilter && (
+          <div style={{
+            display: "flex",
+            gap: 4,
+            padding: 3,
+            background: t.bgElevated,
+            border: `1px solid ${t.border}`,
+            borderRadius: 8,
+          }}>
+            {[
+              { key: "today", label: "오늘" },
+              { key: "all",   label: "전체" },
+            ].map(b => {
+              const active = view === b.key;
+              return (
+                <button
+                  key={b.key}
+                  type="button"
+                  onClick={() => setView(b.key)}
+                  style={{
+                    padding: "6px 14px",
+                    background: active ? t.accent : "transparent",
+                    color: active ? "#fff" : t.textSecondary,
+                    border: "none",
+                    borderRadius: 6,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    fontFamily: "inherit",
+                  }}
+                >{b.label}</button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* 검색 */}
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "7px 12px",
+          background: t.bgElevated,
+          border: `1px solid ${t.border}`,
+          borderRadius: 8,
+          minWidth: 240,
+        }}>
+          <Search size={14} color={t.textMuted}/>
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="고객·지역·기사 검색"
+            style={{
+              flex: 1,
+              background: "transparent",
+              border: "none",
+              outline: "none",
+              color: t.text,
+              fontSize: 12,
+              fontFamily: "inherit",
+            }}
+          />
+        </div>
+      </div>
+
+      {/* 테이블 */}
+      <div style={{
+        flex: 1,
+        background: t.bgElevated,
+        borderRadius: 10,
+        border: `1px solid ${t.border}`,
+        overflow: "auto",
+      }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+          <thead style={{
+            position: "sticky",
+            top: 0,
+            background: t.bgElevated,
+            zIndex: 2,
+          }}>
+            <tr>
+              {["고객", "기종·수량", "지역", "시간", "기사", "상태"].map(label => (
+                <th key={label} style={{
+                  padding: "10px 14px",
+                  textAlign: "left",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: t.textMuted,
+                  borderBottom: `1px solid ${t.border}`,
+                  letterSpacing: 0.4,
+                  textTransform: "uppercase",
+                }}>{label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sourceLoading && filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={pcEmptyCellStyle(t)}>불러오는 중...</td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} style={pcEmptyCellStyle(t)}>표시할 작업 없음</td>
+              </tr>
+            ) : filtered.map((task, idx) => (
+              <PcTableRow
+                key={task.id || task.taskNo || idx}
+                t={t}
+                task={task}
+                onClick={() => onSelect?.(task)}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function StatInline({ t, label, value, accent, muted }) {
+  const color = accent ? t.accent : muted ? t.textMuted : t.text;
+  return (
+    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+      <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>{label}</span>
+      <span className="mono" style={{ fontSize: 16, fontWeight: 800, color }}>{value ?? 0}</span>
+    </div>
+  );
+}
+
+function pcEmptyCellStyle(t) {
+  return {
+    padding: "40px 16px",
+    textAlign: "center",
+    color: t.textMuted,
+    fontSize: 12,
+  };
+}
+
+function PcTableRow({ t, task, onClick }) {
+  const items = Array.isArray(task.workItems) && task.workItems.length > 0
+    ? task.workItems
+    : (Array.isArray(task.task_items) ? task.task_items : []);
+  const mainItem = getMainItem(task) || items[0] || null;
+  const appliance = mainItem
+    ? (mainItem.appliance || mainItem.appliance_types?.name || mainItem.workType || "—")
+    : "—";
+  const totalQty = items.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+  const itemSummary = totalQty > 1 ? `${appliance} ×${totalQty}` : appliance;
+  const region = regionOrDistrictFromAddress(task.address || task.customerAddress || "") || task.region || "—";
+  const time = formatTime(task);
+  const engineer = task.assignedEngineer || task.engineer || "미배정";
+  const statusLabel = getStatusLabel(task.status) || task.status || "—";
+  const statusBadge = getStatusBadge(task.status);
+  return (
+    <tr
+      onClick={onClick}
+      className="clickable"
+      style={{
+        cursor: "pointer",
+        borderBottom: `1px solid ${t.border}`,
+      }}
+    >
+      <td style={pcTdStyle(t, { fontWeight: 700, color: t.text })}>{task.customer || task.customerName || "—"}</td>
+      <td style={pcTdStyle(t)}>{itemSummary}</td>
+      <td style={pcTdStyle(t)}>{region}</td>
+      <td style={pcTdStyle(t)} className="mono">{time}</td>
+      <td style={pcTdStyle(t)}>{engineer}</td>
+      <td style={pcTdStyle(t)}>
+        <span style={{
+          fontSize: 10, fontWeight: 700,
+          padding: "3px 9px",
+          borderRadius: 999,
+          background: statusBadge?.bg || t.bgInset || "rgba(255,255,255,0.08)",
+          color: statusBadge?.color || t.textSecondary,
+        }}>{statusLabel}</span>
+      </td>
+    </tr>
+  );
+}
+
+function pcTdStyle(t, extra) {
+  return {
+    padding: "11px 14px",
+    color: t.textSecondary,
+    ...extra,
+  };
+}
 
 export default PrincipalListTab;

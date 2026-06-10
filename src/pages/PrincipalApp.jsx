@@ -71,8 +71,12 @@ import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
 import { fetchPrincipalAccounts, updatePrincipalAccount } from "../lib/principalsDb.js";
 import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
 import { supabase } from "../lib/supabase.js";
+// 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 셸 분기.
+import { useIsPc } from "../utils/useIsPc.js";
 
 const NOW = "10:00";
+const PC_SIDEBAR_W   = 240;
+const PC_DETAIL_W    = 420;
 
 // 2026-06-03 — KA / 크리크린 원청 PWA 분기 메타.
 //   유솔(usol_h / usol_n)은 이 객체에 없음 — 기존 UsolNOrders + 수동 입력 흐름 그대로.
@@ -482,6 +486,8 @@ export default function PrincipalApp({ user, onLogout }) {
   const [submittedTask, setSubmittedTask] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const t = THEMES[mode];
+  // 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 셸 (좌측 사이드바 + 메인 + 우측 상세 패널).
+  const isPc = useIsPc();
 
   // 2026-06-08 — 인앱 알림 (IndexedDB notificationStore — 기사/운영자와 동일 저장소).
   const [notifications, setNotifications] = useState([]);
@@ -584,6 +590,54 @@ export default function PrincipalApp({ user, onLogout }) {
     setSelectedTask(null);
   };
 
+  // 2026-06-10 — PC 셸 분기 (1024px 이상). 모바일 셸은 아래 기존 그대로.
+  if (isPc) {
+    return (
+      <PcShell
+        t={t}
+        user={user}
+        tab={tab}
+        setTab={setTab}
+        isPartnerMode={!!partnerConfig}
+        hasSchedule={principalCodes.some(c => c === "usol_h" || c === "usol_n")}
+        unreadCount={notifications.filter(n => !n.read).length}
+        isUsolUnified={isUsolUnified}
+        partnerCode={partnerCode}
+        selectedUsolCode={selectedUsolCode}
+        setSelectedUsolCode={setSelectedUsolCode}
+        selectedTask={selectedTask}
+        onCloseDetail={() => setSelectedTask(null)}
+        onLogout={onLogout}
+      >
+        {submittedTask ? (
+          <SubmittedScreen t={t} task={submittedTask} onContinue={() => { setSubmittedTask(null); setTab("list"); }}/>
+        ) : (
+          <>
+            {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={effectiveCodes} partnerCode={partnerCode} onSelect={setSelectedTask}/>}
+            {tab === "schedule" && <UsolHScheduleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>}
+            {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
+            {tab === "settle" && (() => {
+              const isUsolNOnly = effectiveCodes.length === 1 && effectiveCodes[0] === "usol_n";
+              if (isUsolNOnly) {
+                return <PrincipalSettleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>;
+              }
+              return <PartnerDailySettleTab t={t} user={user} principalCodes={effectiveCodes} onTaskClick={setSelectedTask}/>;
+            })()}
+            {tab === "info"   && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
+            {tab === "noti"   && (
+              <NotiScreen
+                notifications={notifications}
+                onMarkAllRead={handleMarkAllRead}
+                onCardClick={handleNotiClick}
+                title="🔔 알림"
+              />
+            )}
+          </>
+        )}
+      </PcShell>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#0A0A0A", paddingTop: "env(safe-area-inset-top, 12px)" }}>
       {/* Step 5-6 UX hotfix — paddingTop env(safe-area-inset-top, 12px) — 휴대폰 status bar 영역 보호 */}
@@ -659,6 +713,191 @@ export default function PrincipalApp({ user, onLogout }) {
         )}
       </div>
     </div>
+  );
+}
+
+// 2026-06-10 — PC 셸 (1024px 이상). 좌측 사이드바 + 메인 + 우측 상세 패널.
+//   원칙: 데이터·로직 컴포넌트 한 벌 공유, 배치만 분기. 기존 테마 토큰 그대로 사용.
+function PcShell({
+  t, user, tab, setTab,
+  isPartnerMode, hasSchedule, unreadCount,
+  isUsolUnified, partnerCode, selectedUsolCode, setSelectedUsolCode,
+  selectedTask, onCloseDetail, onLogout,
+  children,
+}) {
+  return (
+    <div style={{
+      display: "flex",
+      minHeight: "100vh",
+      background: t.bg,
+      color: t.text,
+      fontFamily: "'Pretendard', sans-serif",
+    }}>
+      <PcSidebar
+        t={t} user={user}
+        tab={tab} setTab={setTab}
+        isPartnerMode={isPartnerMode}
+        hasSchedule={hasSchedule}
+        unreadCount={unreadCount}
+        isUsolUnified={isUsolUnified}
+        partnerCode={partnerCode}
+        selectedUsolCode={selectedUsolCode}
+        setSelectedUsolCode={setSelectedUsolCode}
+        onLogout={onLogout}
+      />
+      <main style={{
+        flex: 1,
+        minWidth: 0,
+        overflow: "auto",
+        background: t.bg,
+        height: "100vh",
+      }}>
+        {children}
+      </main>
+      {selectedTask && (
+        <aside style={{
+          width: PC_DETAIL_W,
+          flexShrink: 0,
+          borderLeft: `1px solid ${t.border}`,
+          overflow: "auto",
+          background: t.bg,
+          position: "relative",
+          height: "100vh",
+        }}>
+          <button
+            onClick={onCloseDetail}
+            aria-label="상세 닫기"
+            style={{
+              position: "absolute",
+              top: 12, right: 14,
+              background: "transparent",
+              border: "none",
+              color: t.textMuted,
+              fontSize: 22,
+              fontWeight: 700,
+              cursor: "pointer",
+              padding: 4,
+              lineHeight: 1,
+              zIndex: 5,
+            }}
+          >×</button>
+          <TaskDetail t={t} task={selectedTask} user={user} onBack={onCloseDetail}/>
+        </aside>
+      )}
+    </div>
+  );
+}
+
+function PcSidebar({
+  t, user, tab, setTab,
+  isPartnerMode, hasSchedule, unreadCount,
+  isUsolUnified, partnerCode, selectedUsolCode, setSelectedUsolCode,
+  onLogout,
+}) {
+  const tabs = [
+    { id: "list",   icon: ClipboardList, label: "내 작업" },
+    ...(hasSchedule ? [{ id: "schedule", icon: Calendar, label: "일정" }] : []),
+    { id: "upload", icon: Plus,          label: isPartnerMode ? "접수" : "업로드" },
+    { id: "settle", icon: Wallet,        label: "정산" },
+    { id: "noti",   icon: Bell,          label: "알림", badge: unreadCount },
+    { id: "info",   icon: User,          label: "내 정보" },
+  ];
+  const principalName = cleanGreetingName(user?.name || getPrincipalLabel(user), "원청");
+  return (
+    <aside style={{
+      width: PC_SIDEBAR_W,
+      flexShrink: 0,
+      background: t.bgElevated,
+      borderRight: `1px solid ${t.border}`,
+      display: "flex",
+      flexDirection: "column",
+      position: "sticky",
+      top: 0,
+      height: "100vh",
+      overflowY: "auto",
+    }}>
+      {/* 상단 — 원청 식별 */}
+      <div style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${t.border}` }}>
+        <div className="mono" style={{ fontSize: 9, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>
+          원청
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: t.text, lineHeight: 1.3, wordBreak: "keep-all" }}>
+          {principalName}
+        </div>
+      </div>
+      {/* 유솔 H/N 토글 (통합계정 전용) */}
+      {isUsolUnified && !partnerCode && (
+        <div style={{ padding: "10px 12px", borderBottom: `1px solid ${t.border}` }}>
+          <UsolTabSwitcher t={t} value={selectedUsolCode} onChange={setSelectedUsolCode}/>
+        </div>
+      )}
+      {/* 6탭 세로 메뉴 */}
+      <nav style={{ flex: 1, padding: "10px 8px" }}>
+        {tabs.map(b => {
+          const Icon = b.icon;
+          const active = tab === b.id;
+          return (
+            <button
+              key={b.id}
+              onClick={() => setTab(b.id)}
+              className="tab-btn"
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                padding: "11px 14px",
+                background: active ? (t.accentBg || "rgba(255,27,141,0.10)") : "transparent",
+                border: "none",
+                borderRadius: 8,
+                color: active ? t.accent : t.textSecondary,
+                fontSize: 13,
+                fontWeight: active ? 800 : 600,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                marginBottom: 2,
+                textAlign: "left",
+              }}
+            >
+              <Icon size={18}/>
+              <span style={{ flex: 1 }}>{b.label}</span>
+              {b.badge > 0 && (
+                <span style={{
+                  minWidth: 18, height: 18, padding: "0 5px",
+                  background: "#FF1B8D", color: "#fff",
+                  borderRadius: 9, fontSize: 10, fontWeight: 700,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}>{b.badge > 99 ? "99+" : b.badge}</span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+      {/* 하단 — 로그아웃 */}
+      <div style={{ padding: "10px 14px 18px", borderTop: `1px solid ${t.border}` }}>
+        <button
+          onClick={onLogout}
+          style={{
+            width: "100%",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 12px",
+            background: "transparent",
+            border: `1px solid ${t.border}`,
+            borderRadius: 8,
+            color: t.textMuted,
+            fontSize: 12,
+            fontWeight: 700,
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          <LogOut size={14}/>
+          <span>로그아웃</span>
+        </button>
+      </div>
+    </aside>
   );
 }
 
