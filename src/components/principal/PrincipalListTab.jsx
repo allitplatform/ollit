@@ -776,15 +776,23 @@ function ViewPcTable({
 
   return (
     <div style={{
-      padding: "20px 24px 24px",
+      // 2026-06-10 — outer: full-width 배경 컨테이너 (메인 영역 전체 채움).
       minHeight: "100vh",
-      display: "flex",
-      flexDirection: "column",
       background: t.bg,
-      // 2026-06-10 — 1920px에서 6컬럼 균등 분산이 휑함. 좌측 정렬 + 우측 여백 허용.
-      maxWidth: 1280,
-      width: "100%",
+      display: "flex",
+      justifyContent: "center",
     }}>
+      <div style={{
+        // 2026-06-10 — inner wrapper: maxWidth + margin auto 가운데 정렬 (휑함 해소).
+        width: "100%",
+        maxWidth: 1280,
+        margin: "0 auto",
+        padding: "20px 24px 24px",
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minWidth: 0,
+      }}>
       {/* 상단 한 줄 — 통계 + 필터 토글 + 검색 */}
       <div style={{
         display: "flex",
@@ -942,6 +950,7 @@ function ViewPcTable({
           </tbody>
         </table>
       </div>
+      </div>
     </div>
   );
 }
@@ -969,12 +978,20 @@ function PcTableRow({ t, task, onClick }) {
   const items = Array.isArray(task.workItems) && task.workItems.length > 0
     ? task.workItems
     : (Array.isArray(task.task_items) ? task.task_items : []);
-  const mainItem = getMainItem(task) || items[0] || null;
-  const appliance = mainItem
-    ? (mainItem.appliance || mainItem.appliance_types?.name || mainItem.workType || "—")
+  // 2026-06-10 — 모바일 TaskRow(line 645-656)와 동일 로직.
+  //   사고: 옛 코드는 items 전체 qty 합산 → "세척_스탠드 1 + 냉매점검 1" → "스탠드 ×2" 잘못 표시.
+  //   수정: 대표 item만 qty 표시, 나머지 건수는 +N.
+  const mainItem = getMainItem(task);
+  const displayItem = mainItem || items[0] || {};
+  const appliance = displayItem.appliance
+    || displayItem.appliance_types?.name
+    || task.appliance
+    || "";
+  const qty = displayItem.qty || task.qty || 1;
+  const otherCount = Math.max(0, items.length - 1);
+  const itemSummary = appliance
+    ? `${appliance}${qty > 1 ? ` ×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""}`
     : "—";
-  const totalQty = items.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
-  const itemSummary = totalQty > 1 ? `${appliance} ×${totalQty}` : appliance;
   // 2026-06-10 — 모바일 TaskRow(line 689)와 동일 호출 — task.region 우선, 빈 값이면 address 키워드 추출.
   //   address 단일 인자로 호출하면 "서울특별시"가 먼저 매치돼 시/도까지만 나옴.
   const region = regionOrDistrictFromAddress(task.region, task.address || task.customerAddress) || "—";
