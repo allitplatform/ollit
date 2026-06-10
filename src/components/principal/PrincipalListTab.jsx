@@ -731,7 +731,11 @@ const loadingBoxStyle = {
 
 // 2026-06-10 4차 — PC 표 컬럼 폭 (div + CSS Grid). 합 100, fr 단위로 부모 폭 비례 분배.
 //   사장님 진단: <table>이 부모 max-width를 깨는 케이스 → div+grid로 회피.
-const PC_GRID_COLS = "19fr 26fr 14fr 11fr 16fr 14fr";
+// 2026-06-11 9차 — minmax(0, Xfr) 로 변경. 기본 fr 단위는 min-content 보장 때문에
+//   긴 영문 이름(ZHANGHUIYING 등)이 들어간 행에서 컬럼 폭이 늘어나 다른 행과
+//   정렬·폭이 어긋남. minmax(0, Xfr) 로 하한을 0으로 강제 → 내용 길이와 무관하게
+//   fr 비율 고정. 텍스트는 셀의 ellipsis 로 잘림.
+const PC_GRID_COLS = "minmax(0, 19fr) minmax(0, 26fr) minmax(0, 14fr) minmax(0, 11fr) minmax(0, 16fr) minmax(0, 14fr)";
 // 2026-06-10 8차 — 컬럼별 정렬 매핑.
 //   사장님 spec: 고객·기종·지역·기사 = 왼쪽 / 시간·상태 = 가운데.
 const PC_HEADER_COLS = [
@@ -918,6 +922,7 @@ function ViewPcTable({
           <div style={{
             display: "grid",
             gridTemplateColumns: PC_GRID_COLS,
+            alignItems: "center",
             position: "sticky",
             top: 0,
             background: t.bgElevated,
@@ -933,6 +938,10 @@ function ViewPcTable({
                 letterSpacing: 0.4,
                 textTransform: "uppercase",
                 textAlign: col.align,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}>{col.label}</div>
             ))}
           </div>
@@ -1002,6 +1011,7 @@ function PcTableRow({ t, task, isSelected, onClick }) {
   const statusBadge = getStatusBadge(task.status);
   // 2026-06-10 4차 — <tr>/<td> 폐기 → div + grid 셀.
   // 2026-06-10 8차 — 셀별 textAlign 혼합 + 선택행 강조(다크+핑크 8% alpha).
+  // 2026-06-11 9차 — alignItems: center 로 텍스트 셀 / status 배지 셀 vertical 정렬 통일.
   return (
     <div
       onClick={onClick}
@@ -1009,6 +1019,7 @@ function PcTableRow({ t, task, isSelected, onClick }) {
       style={{
         display: "grid",
         gridTemplateColumns: PC_GRID_COLS,
+        alignItems: "center",
         cursor: "pointer",
         borderBottom: `1px solid ${t.border}`,
         background: isSelected ? "rgba(255, 77, 158, 0.10)" : "transparent",
@@ -1037,8 +1048,17 @@ function pcTdStyle(t, extra) {
   return {
     // 2026-06-10 8차 — 행 높이 축소(18→11) + 강제 center 제거.
     //   호출처에서 셀별 textAlign override.
+    // 2026-06-11 9차 — 모든 셀에 minWidth:0 + nowrap + ellipsis.
+    //   긴 텍스트가 셀 폭 늘리는 사고 차단 → 모든 행 동일 높이/정렬.
+    //   전체값은 우측 상세 패널에서 확인.
+    //   주의: textOverflow ellipsis 는 block container + 텍스트 노드에서 작동.
+    //   display:flex 두면 자식 텍스트 ellipsis 안 됨 → block 유지.
     padding: "11px 16px",
     color: t.textSecondary,
+    minWidth: 0,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
     ...extra,
   };
 }
