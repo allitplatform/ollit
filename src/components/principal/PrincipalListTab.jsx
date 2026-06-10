@@ -776,23 +776,19 @@ function ViewPcTable({
 
   return (
     <div style={{
-      // 2026-06-10 — outer: full-width 배경 컨테이너 (메인 영역 전체 채움).
+      // 2026-06-10 3차 — outer/inner 분할 + flex:1 폐기. 표준 block + margin: 0 auto 회귀.
+      //   1·2차 미적용 원인 추정: outer(display:flex) 안 inner(flex:1 = flex-basis:0% + grow:1)가
+      //   maxWidth 무력화. flex 의존 제거하고 표준 block 가운데 정렬로 우회.
+      //   boxSizing: border-box — padding 포함 cap 보장.
+      maxWidth: 1280,
+      margin: "0 auto",
+      padding: "20px 24px 24px",
       minHeight: "100vh",
       background: t.bg,
       display: "flex",
-      justifyContent: "center",
+      flexDirection: "column",
+      boxSizing: "border-box",
     }}>
-      <div style={{
-        // 2026-06-10 — inner wrapper: maxWidth + margin auto 가운데 정렬 (휑함 해소).
-        width: "100%",
-        maxWidth: 1280,
-        margin: "0 auto",
-        padding: "20px 24px 24px",
-        display: "flex",
-        flexDirection: "column",
-        flex: 1,
-        minWidth: 0,
-      }}>
       {/* 상단 한 줄 — 통계 + 필터 토글 + 검색 */}
       <div style={{
         display: "flex",
@@ -899,7 +895,15 @@ function ViewPcTable({
         border: `1px solid ${t.border}`,
         overflow: "auto",
       }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, tableLayout: "fixed" }}>
+        <table style={{
+          width: "100%",
+          // 2026-06-10 3차 — 부모 wrapper maxWidth 무효화 케이스에 대비한 최후 cap.
+          //   부모가 안 cap돼도 table 자체 1280으로 cap → 사장님 진단 #2 직접 차단.
+          maxWidth: 1280,
+          borderCollapse: "collapse",
+          fontSize: 12,
+          tableLayout: "fixed",
+        }}>
           {/* 2026-06-10 — 컬럼 폭 차등: 시간/상태 좁게, 고객/기종/지역 적정. */}
           <colgroup>
             <col style={{ width: "19%" }}/>{/* 고객     */}
@@ -949,7 +953,6 @@ function ViewPcTable({
             ))}
           </tbody>
         </table>
-      </div>
       </div>
     </div>
   );
