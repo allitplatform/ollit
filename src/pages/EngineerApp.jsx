@@ -4415,7 +4415,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
 
     // V14 v7 — 사장님 spec: 알림 type별 라우팅
     // team_message = 라우팅 X (단순 안내)
-    if (noti.type === "team_message") return;
+    // 2026-06-11 — 단, relatedId(taskId) 있으면 어댑터 type 매칭 누락 보정 — 아래 작업 상세 폴백으로 진행.
+    if (noti.type === "team_message" && !noti.relatedId) return;
 
     if (noti.type === "new_assignment")     return setScreen("newAssignmentList");
     if (noti.type === "acceptance_pending") return setScreen("acceptanceList");

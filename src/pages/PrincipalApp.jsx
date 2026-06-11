@@ -517,12 +517,19 @@ export default function PrincipalApp({ user, onLogout }) {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     await markAllStoredAsRead();
   }
-  function handleNotiClick(noti) {
+  async function handleNotiClick(noti) {
     if (typeof noti.id === "number") markStoredAsRead(noti.id).catch(() => {});
     setNotifications(prev => prev.map(n => n.id === noti.id ? { ...n, read: true } : n));
     if (!noti.relatedId) return;
-    // 원청 PWA 측 작업 측측측 selectedTask 측 측 — id 매칭 후 (= 측측 작업) 측측, 측측 측측 X.
-    // 측측 작업 (완료/취소/측측 측측) 측 측측 측측측 — 안 측측측 measure (= 측측).
+    // 2026-06-11 — relatedId(taskId) → DB 단건 조회 후 작업 상세 진입 (AdminApp 동일 패턴).
+    //   메모리 캐시가 없는 원청 시점이라도 완료/취소 무관 접근 가능.
+    try {
+      const row = await getTaskByIdDb(noti.relatedId);
+      if (!row) return;
+      setSelectedTask(v14NormalizeTask(row));
+    } catch (e) {
+      console.warn("[notiClick] task 조회 실패:", e);
+    }
   }
 
   // 2026-06-03 — 글로벌 CSS 측 측측 (Principal 측측 측측 측측 dark 측측).

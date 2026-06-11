@@ -2624,9 +2624,20 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onMarkRead={markNotiRead}
         onMarkAllRead={markAllRead}
         onClickItem={async (noti) => {
+          // ⏱ 2026-06-11 진단 1회용 — taskId / relatedId 실측. 확인 후 제거.
+          try {
+            alert(JSON.stringify({
+              id: noti.id,
+              taskId: noti.taskId ?? null,
+              relatedId: noti.relatedId ?? null,
+              title: noti.title,
+              keys: Object.keys(noti),
+            }, null, 2));
+          } catch (e) {}
           // 알림 taskId로 전체 작업 검색 (완료/취소 무관 진입)
           //   (a) 메모리 apiTasks 우선  (b) 없으면 DB 단건 폴백
-          const id = noti.taskId;
+          // 2026-06-11 — 어댑터 adaptStoredAdminNoti 는 relatedId 만 노출. taskId 둘 다 허용.
+          const id = noti.taskId || noti.relatedId;
           if (!id) return;
           let task = apiTasks.find(t => t.id === id || t.taskCode === id) || null;
           if (!task) {
