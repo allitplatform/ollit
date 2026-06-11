@@ -13,6 +13,8 @@
 import { useState, useRef } from "react";
 import * as XLSX from "xlsx";
 import { fetchUsolNTaskItemsByOrderIds, markTaskItemsNaverSettledAndNet } from "../../lib/usolNTasksDb.js";
+// 2026-06-11 — 폰트 표준 토큰 (내 작업 / 정산 / 업로드 동일 참조).
+import { TEXT } from "../../styles/textTokens.js";
 
 // 우리 작업 분류 키워드 (상품명 측)
 // "에어컨청소" / "에어컨 청소" — 우리 본작업
@@ -475,10 +477,10 @@ function UploadDropZone({ fileInputRef, onFileSelect, onFile }) {
       }}
     >
       <div style={{ fontSize: 32, marginBottom: 8 }}>{isDragging ? "📂" : "📥"}</div>
-      <div style={{ fontSize: 14, color: "#FF1B8D", fontWeight: 700 }}>
+      <div style={{ fontSize: TEXT.HEADER, color: "#FF1B8D", fontWeight: 700 }}>
         {isDragging ? "여기에 놓으세요 — 정산 CSV" : "정산 CSV 업로드"}
       </div>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4 }}>
+      <div style={{ fontSize: TEXT.META, color: "var(--text-secondary)", marginTop: 4 }}>
         유솔이 매일 보내주는 정산 엑셀 — 클릭 또는 끌어다 놓기
       </div>
       <input
@@ -502,20 +504,20 @@ function CsvInfoCard({ csvData, onReset }) {
       display: "flex", alignItems: "center", justifyContent: "space-between",
     }}>
       <div>
-        <div style={{ fontSize: 10, color: "#FF1B8D", fontWeight: 700, marginBottom: 4 }}>
+        <div style={{ fontSize: TEXT.LABEL, color: "#FF1B8D", fontWeight: 700, marginBottom: 4 }}>
           📥 분석 중인 CSV
         </div>
-        <div style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 600 }}>
+        <div style={{ fontSize: TEXT.BODY, color: "var(--text-primary)", fontWeight: 600 }}>
           {csvData.fileName}
         </div>
-        <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 2 }}>
+        <div style={{ fontSize: TEXT.META, color: "var(--text-secondary)", marginTop: 2 }}>
           총 {csvData.totalCount}건 · ₩{csvData.totalAmount.toLocaleString()}
         </div>
       </div>
       <button onClick={onReset} style={{
-        padding: "6px 12px", background: "transparent",
-        border: "1px solid var(--border)", borderRadius: 4,
-        color: "var(--text-secondary)", fontSize: 10, cursor: "pointer",
+        padding: "7px 14px", background: "transparent",
+        border: "1px solid var(--border)", borderRadius: 6,
+        color: "var(--text-secondary)", fontSize: TEXT.META, cursor: "pointer",
         fontFamily: "inherit",
       }}>취소</button>
     </div>
@@ -583,16 +585,16 @@ function ResultBox({ icon, label, count, rightExtra, color, accent, muted }) {
       opacity: muted ? 0.7 : 1,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: 11 }}>{icon}</span>
+        <span style={{ fontSize: TEXT.STATUS }}>{icon}</span>
         <span style={{
-          fontSize: 11,
+          fontSize: TEXT.STATUS,
           color: muted ? "var(--text-secondary)" : color,
           fontWeight: muted ? 500 : 700,
         }}>
           {label}
         </span>
         <span style={{
-          fontSize: 12,
+          fontSize: TEXT.BODY,
           color: muted ? "var(--text-secondary)" : color,
           fontWeight: 700, marginLeft: 4,
         }}>
@@ -601,7 +603,7 @@ function ResultBox({ icon, label, count, rightExtra, color, accent, muted }) {
       </div>
       {rightExtra && (
         <span style={{
-          fontSize: 10,
+          fontSize: TEXT.META,
           color: muted ? "var(--text-tertiary, var(--text-secondary))" : color,
           fontFamily: "inherit",
           fontWeight: muted ? 500 : 700,
@@ -616,7 +618,7 @@ function ResultBox({ icon, label, count, rightExtra, color, accent, muted }) {
 function MatchedItemsPreview({ items }) {
   return (
     <div style={{ marginTop: 14 }}>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 6 }}>
+      <div style={{ fontSize: TEXT.HEADER, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 8 }}>
         매칭 항목 (상위 5)
       </div>
       {items.slice(0, 5).map((m, idx) => {
@@ -673,14 +675,14 @@ function MatchedItemsPreview({ items }) {
 function UnmatchedItemsList({ items }) {
   return (
     <div style={{ marginTop: 14 }}>
-      <div style={{ fontSize: 11, color: "#F59E0B", fontWeight: 600, marginBottom: 6 }}>
+      <div style={{ fontSize: TEXT.HEADER, color: "#F59E0B", fontWeight: 700, marginBottom: 8 }}>
         ⚠️ 미매칭 항목 ({items.length})
       </div>
       <div style={{
         background: "rgba(245,158,11,0.04)",
         border: "1px dashed rgba(245,158,11,0.3)",
-        borderRadius: 8, padding: 10,
-        fontSize: 10, color: "var(--text-secondary)", lineHeight: 1.7,
+        borderRadius: 8, padding: 12,
+        fontSize: TEXT.META, color: "var(--text-secondary)", lineHeight: 1.7,
       }}>
         우리 거 같은데 작업DB에 없는 항목입니다.<br/>
         새 접수 탭에서 접수 CSV를 먼저 업로드하면 해결됩니다.
@@ -693,7 +695,7 @@ function Empty({ children }) {
   return (
     <div style={{
       padding: 40, textAlign: "center",
-      color: "var(--text-secondary)", fontSize: 12,
+      color: "var(--text-secondary)", fontSize: TEXT.META,
       background: "var(--bg-secondary)",
       border: "1px dashed var(--border)",
       borderRadius: 10,
@@ -702,10 +704,10 @@ function Empty({ children }) {
 }
 
 const confirmButtonStyle = {
-  width: "100%", marginTop: 16, padding: 14,
+  width: "100%", marginTop: 16, padding: 16,
   background: "var(--accent)",
   border: "none", borderRadius: 10,
-  color: "#fff", fontSize: 13, fontWeight: 700,
+  color: "#fff", fontSize: TEXT.BODY, fontWeight: 700,
   fontFamily: "inherit",
   transition: "transform 0.1s, box-shadow 0.1s",
 };
@@ -715,7 +717,7 @@ const confirmedBoxStyle = {
   background: "rgba(29,158,117,0.10)",
   border: "1px solid rgba(29,158,117,0.4)",
   borderRadius: 8, marginBottom: 12,
-  color: "#1D9E75", fontSize: 12, fontWeight: 600,
+  color: "#1D9E75", fontSize: TEXT.META, fontWeight: 600,
   textAlign: "center",
 };
 
@@ -724,7 +726,7 @@ const errorBoxStyle = {
   background: "rgba(255,68,68,0.08)",
   border: "1px solid rgba(255,68,68,0.3)",
   borderRadius: 8, marginBottom: 12,
-  color: "#ff4444", fontSize: 11, fontWeight: 600,
+  color: "#ff4444", fontSize: TEXT.META, fontWeight: 600,
 };
 
 export default UsolNCsvMatch;

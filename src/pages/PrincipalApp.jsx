@@ -1282,46 +1282,40 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
       }}>
       <div style={{ fontSize: isPcUpload ? 22 : 18, fontWeight: 800, marginBottom: 14 }}>📤 업로드</div>
 
-      {/* 2026-06-11 — PC 측 풀폭 "새 접수 등록" 카드 (헤더 다음 맨 위). 모바일 측 미노출 (옛 좌측 카드 그대로). */}
+      {/* 2026-06-11 — PC 측 풀폭 "+ 새 접수 등록" 버튼 (헤더 다음 맨 위). 모바일 측 미노출 (옛 좌측 카드 사용). */}
       {isPcUpload && (
-        <div style={{
-          marginBottom: 18,
-          padding: "16px 18px",
-          background: t.bgElevated,
-          border: `1px solid ${t.border}`,
-          borderRadius: 12,
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-        }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: TEXT.META, color: t.textMuted, fontWeight: 700, marginBottom: 4 }}>
-              직접 입력 (유솔홈케어 H)
-            </div>
-            <div style={{ fontSize: TEXT.META, color: t.textSecondary, fontWeight: 500 }}>
-              CSV 업로드와 별개 — 한 건씩 직접 등록.
-            </div>
-          </div>
-          <button
-            onClick={() => setShowNewForm(true)}
-            style={{
-              padding: "14px 22px",
-              background: "#FF4D9E",
-              border: "none",
-              borderRadius: 10,
-              color: "#fff",
-              fontSize: TEXT.BODY, fontWeight: 800,
-              fontFamily: "inherit",
-              cursor: "pointer",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              flexShrink: 0,
-            }}
-          >
-            <Plus size={18}/><span>새 접수 등록</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setShowNewForm(true)}
+          aria-label="직접 입력 (유솔홈케어 H) 새 접수 등록"
+          style={{
+            width: "100%",
+            marginBottom: 18,
+            padding: "18px 24px",
+            background: "transparent",
+            border: `2px solid #FF4D9E`,
+            borderRadius: 12,
+            color: "#FF4D9E",
+            fontSize: TEXT.BODY,
+            fontWeight: 800,
+            fontFamily: "inherit",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 10,
+          }}
+        >
+          <Plus size={22}/>
+          <span>새 접수 등록</span>
+          <span style={{
+            fontSize: TEXT.META,
+            fontWeight: 600,
+            color: t.textMuted,
+            marginLeft: 4,
+          }}>
+            · 직접 입력 (유솔홈케어 H)
+          </span>
+        </button>
       )}
 
       {/* 토글 — 접수 / 정산 */}
@@ -1377,12 +1371,12 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
 function UploadToggleBtn({ active, onClick, t, children }) {
   return (
     <button onClick={onClick} style={{
-      flex: 1, padding: "10px 12px",
+      flex: 1, padding: "12px 14px",
       background: active ? "#FF4D9E" : t.bgInset,
       color: active ? "#fff" : t.text,
       border: `1px solid ${active ? "#FF4D9E" : t.border}`,
       borderRadius: 10,
-      fontSize: 12, fontWeight: 700,
+      fontSize: TEXT.BODY, fontWeight: 700,
       fontFamily: "inherit",
       cursor: "pointer",
     }}>{children}</button>

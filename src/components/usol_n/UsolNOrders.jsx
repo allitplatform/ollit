@@ -12,6 +12,8 @@ import { fetchUsolNTasks, getTaskSettlementColor, getItemSettlementColor, getIte
 import { formatYmdHm } from "../../utils/dateLabel.js";
 // Phase 5 Step 0.C-9 — realtime subscription (tasks + task_items 변경 시 자동 refetch)
 import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
+// 2026-06-11 — 폰트 표준 토큰 (내 작업 / 정산 / 입금내역 동일 참조).
+import { TEXT } from "../../styles/textTokens.js";
 
 const PAGE_SIZE = 50;
 
@@ -224,18 +226,18 @@ function TaskRow({ task, onClick }) {
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+          <span style={{ fontSize: TEXT.BODY, fontWeight: 700, color: "var(--text-primary)" }}>
             {task.customer_name || "—"}
           </span>
           <span style={taskNoStyle}>{task.task_no || ""}</span>
         </div>
-        <span style={{ fontSize: 13, color: "var(--accent)", fontWeight: 700, fontFamily: "inherit" }}>
+        <span style={{ fontSize: TEXT.BODY, color: "var(--accent)", fontWeight: 700, fontFamily: "inherit" }}>
           ₩{(task.total_amount || 0).toLocaleString()}
         </span>
       </div>
 
       {task.address && (
-        <div style={{ fontSize: 10, color: "var(--text-secondary)", marginBottom: 4 }}>
+        <div style={{ fontSize: TEXT.META, color: "var(--text-secondary)", marginBottom: 4 }}>
           {String(task.address).split("(")[0].trim()}
         </div>
       )}
@@ -247,13 +249,13 @@ function TaskRow({ task, onClick }) {
             return (
               <span key={item.id} style={{
                 display: "inline-flex", alignItems: "center", gap: 3,
-                fontSize: 9,
+                fontSize: TEXT.LABEL,
                 color: "var(--text-primary)",
                 background: "var(--bg-secondary)",
                 border: `1px solid ${c.color}`,
-                padding: "2px 5px", borderRadius: 4, fontWeight: 600,
+                padding: "2px 6px", borderRadius: 4, fontWeight: 600,
               }}>
-                <span style={{ fontSize: 9 }}>{c.dot}</span>
+                <span style={{ fontSize: TEXT.LABEL }}>{c.dot}</span>
                 <span>{getItemChipLabel(item)} ×{item.qty || 1}</span>
               </span>
             );
@@ -262,7 +264,7 @@ function TaskRow({ task, onClick }) {
       )}
 
       {task.received_at && (
-        <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 4 }}>
+        <div style={{ fontSize: TEXT.LABEL, color: "var(--text-tertiary, var(--text-secondary))", marginTop: 4 }}>
           {formatYmdHm(task.received_at)} 접수 · {task.phone || "—"}
         </div>
       )}
@@ -404,15 +406,15 @@ function ImportResultBanner({ result, onDismiss }) {
       borderRadius: 10, marginBottom: 16,
     }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: lineColor }}>
+        <div style={{ fontSize: TEXT.BODY, fontWeight: 700, color: lineColor }}>
           {hasError ? "⚠️ 일괄 등록 — 일부 실패" : "✅ 일괄 등록 완료"}
         </div>
         <button onClick={onDismiss} style={{
           background: "transparent", border: "none", color: "var(--text-secondary)",
-          fontSize: 11, cursor: "pointer", fontFamily: "inherit",
+          fontSize: TEXT.META, cursor: "pointer", fontFamily: "inherit",
         }}>닫기 ✕</button>
       </div>
-      <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.6 }}>
+      <div style={{ fontSize: TEXT.META, color: "var(--text-primary)", lineHeight: 1.6 }}>
         {topLevelError && <div style={{ color: "#EF4444", marginBottom: 4 }}>오류: {topLevelError}</div>}
         <div>· 등록: <b>{inserted}</b>건</div>
         <div>· 중복 제외: <b>{skipped}</b>건</div>
@@ -421,7 +423,7 @@ function ImportResultBanner({ result, onDismiss }) {
           <div style={{ color: "#EF4444", marginTop: 4 }}>
             · 실패: <b>{errorCount}</b>건
             {firstError && (
-              <div style={{ fontSize: 11, marginTop: 2, paddingLeft: 8, color: "var(--text-secondary)" }}>
+              <div style={{ fontSize: TEXT.META, marginTop: 2, paddingLeft: 8, color: "var(--text-secondary)" }}>
                 첫 에러: {firstError.error || "알 수 없음"}
                 {firstError.code ? ` (${firstError.code})` : ""}
                 {firstError.details ? ` — ${firstError.details}` : ""}
@@ -438,7 +440,7 @@ function Empty({ children }) {
   return (
     <div style={{
       padding: 40, textAlign: "center",
-      color: "var(--text-secondary)", fontSize: 12,
+      color: "var(--text-secondary)", fontSize: TEXT.META,
       background: "var(--bg-secondary)",
       border: "1px dashed var(--border)",
       borderRadius: 10,
@@ -447,14 +449,15 @@ function Empty({ children }) {
 }
 
 const sectionTitleStyle = {
-  fontSize: 11, color: "var(--text-secondary)",
-  marginBottom: 8, paddingLeft: 4, marginTop: 16,
+  fontSize: TEXT.HEADER, color: "var(--text-secondary)",
+  fontWeight: 700,
+  marginBottom: 10, paddingLeft: 4, marginTop: 16,
 };
 
 const taskNoStyle = {
-  fontSize: 9, color: "var(--text-secondary)",
+  fontSize: TEXT.LABEL, color: "var(--text-secondary)",
   background: "var(--bg-inset, var(--bg-secondary))",
-  padding: "1px 5px", borderRadius: 3,
+  padding: "2px 7px", borderRadius: 4,
   fontFamily: "inherit",
 };
 
