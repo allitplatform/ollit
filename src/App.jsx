@@ -11,7 +11,10 @@ import { PWAInstallPrompt } from "./components/PWAInstallPrompt.jsx";
 import { KakaoBypassScreen } from "./components/KakaoBypassScreen.jsx";
 import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen.jsx";
-import { addNotification as addNotificationToStore } from "./utils/notificationStore.js";
+import {
+  addNotification as addNotificationToStore,
+  clearAll as clearAllStoredNotifications,
+} from "./utils/notificationStore.js";
 import { switchActiveRole } from "./lib/roles.js";
 
 // Phase 2 — 자동 로그인 (localStorage)
@@ -113,10 +116,14 @@ export default function App() {
     }
   };
 
-  // 로그아웃 콜백 — localStorage 제거
+  // 로그아웃 콜백 — localStorage 제거 + 인앱 알림(IndexedDB) 비움
+  // 2026-06-11 — 계정 격리 최소안 (A). 발송/저장 측 recipientUserId 미도입 상태라
+  //   같은 기기에 다른 계정으로 다시 로그인하면 옛 사용자 알림이 그대로 보이는 문제 해소.
+  //   clearAll 실패해도 로그아웃 자체는 진행 (사일런트).
   const handleLogout = () => {
     setCurrentUser(null);
     try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    clearAllStoredNotifications().catch(() => {});
   };
 
   // Phase 2 — 강제 비번 변경 완료 콜백 (must_change_password=false 박음)

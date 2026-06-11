@@ -33,7 +33,6 @@ import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
   markAllAsRead as markAllStoredAsRead,
-  clearAll as clearAllStored,
 } from "../utils/notificationStore.js";
 
 // IndexedDB 측 알림 → NotiScreen props 형식 어댑트
