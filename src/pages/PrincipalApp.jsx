@@ -1397,10 +1397,11 @@ function SubmittedScreen({ t, task, onContinue }) {
 }
 
 function Row({ t, label, value, mono }) {
+  // 2026-06-11 — 상세 패널 측 정산 라벨/값 +2 (사장님 spec).
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-      <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, flexShrink: 0 }}>{label}</span>
-      <span className={mono ? "mono" : ""} style={{ fontSize: 12, fontWeight: 700, textAlign: "right" }}>{value}</span>
+      <span style={{ fontSize: 13, color: t.textMuted, fontWeight: 600, flexShrink: 0 }}>{label}</span>
+      <span className={mono ? "mono" : ""} style={{ fontSize: 14, fontWeight: 700, textAlign: "right" }}>{value}</span>
     </div>
   );
 }
@@ -1861,7 +1862,7 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
       </div>
 
       <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, marginBottom: 12 }}>
+        <div style={{ fontSize: 14, fontWeight: 700, color: t.textMuted, marginBottom: 12 }}>
           작업 정보
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1887,7 +1888,7 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
 
       {photos.length > 0 && (
         <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: t.textMuted, marginBottom: 12 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: t.textMuted, marginBottom: 12 }}>
             완료 사진 ({photos.length})
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
@@ -1906,9 +1907,9 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
       {/* 작업 메모 — work_memo 공유 (운영자·원청·기사 모두 보고 수정) */}
       <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: t.textMuted }}>작업 메모</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: t.textMuted }}>작업 메모</span>
           {memoSavedTick > 0 && !memoDirty && !memoSaving && (
-            <span style={{ fontSize: 10, color: "#5DCAA5", fontWeight: 700 }}>✓ 저장됨</span>
+            <span style={{ fontSize: 11, color: "#5DCAA5", fontWeight: 700 }}>✓ 저장됨</span>
           )}
         </div>
         <textarea
@@ -1922,7 +1923,7 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
             border: `1px solid ${t.border}`,
             borderRadius: 8,
             color: t.text,
-            fontSize: 13, fontWeight: 500,
+            fontSize: 14, fontWeight: 500,
             fontFamily: "inherit", outline: "none",
             resize: "vertical",
             lineHeight: 1.5,
@@ -2838,14 +2839,16 @@ function ItemProgressSimple({ t, item }) {
 // 작업 정보 박스의 라벨 row — 아이콘 X, 라벨(고정폭 78px, 회색 12px) + 값(13~14px)
 //   highlight=true → 일정 등 강조 row (노란색 14px 800)
 function LabelRow({ t, label, value, mono, wrap, color, highlight }) {
+  // 2026-06-11 — 상세 패널 폰트 +2 (사장님 spec "본문 표준 17 정합, 위계 유지").
+  //   label 12 → 14 / value 13 → 15 (highlight 14 → 16). 라벨 폭 78 → 84 (가독성).
   const valueColor  = color || (highlight ? "#FACC15" : t.text);
-  const valueSize   = highlight ? 14 : 13;
+  const valueSize   = highlight ? 16 : 15;
   const valueWeight = highlight ? 800 : 600;
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
       <span style={{
-        flexShrink: 0, width: 78,
-        fontSize: 12, color: t.textMuted, fontWeight: 500,
+        flexShrink: 0, width: 84,
+        fontSize: 14, color: t.textMuted, fontWeight: 500,
         lineHeight: 1.5,
       }}>{label}</span>
       <span className={mono ? "mono" : ""} style={{

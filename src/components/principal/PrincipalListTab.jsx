@@ -857,12 +857,15 @@ const loadingBoxStyle = {
 //   긴 영문 이름(ZHANGHUIYING 등)이 들어간 행에서 컬럼 폭이 늘어나 다른 행과
 //   정렬·폭이 어긋남. minmax(0, Xfr) 로 하한을 0으로 강제 → 내용 길이와 무관하게
 //   fr 비율 고정. 텍스트는 셀의 ellipsis 로 잘림.
-// 2026-06-11 — 기종·수량 셀에 작업종류 태그 인라인 → 26fr → 32fr 확대.
-//   고객·지역·기사·시간·상태 미세 축소로 100 합산 유지.
-const PC_GRID_COLS = "minmax(0, 18fr) minmax(0, 32fr) minmax(0, 13fr) minmax(0, 10fr) minmax(0, 14fr) minmax(0, 13fr)";
-// 2026-06-11 — 넓은 PC (1280+) 측 지역 = 도로명 전체 주소. 지역 칸 13→18 확대.
-//   고객·기종·기사·상태 살짝 축소로 100 합산 유지.
-const PC_GRID_COLS_WIDE = "minmax(0, 16fr) minmax(0, 30fr) minmax(0, 18fr) minmax(0, 10fr) minmax(0, 13fr) minmax(0, 13fr)";
+// 2026-06-11 컬럼 간격 균형 재조정:
+//   옛 기종 32fr 측 짧은 텍스트 옆에 빈 공간 사고 (지역 13fr 측 시각 격차).
+//   새 — 기종 32→26 / 지역 13→15 / 시간 10→11 / 기사 14→15 / 상태 13→15.
+//   고객 18 그대로. 합 100 유지.
+const PC_GRID_COLS = "minmax(0, 18fr) minmax(0, 26fr) minmax(0, 15fr) minmax(0, 11fr) minmax(0, 15fr) minmax(0, 15fr)";
+// 넓은 PC (1280+) — 지역 = 도로명 전체 주소.
+//   옛 기종 30fr / 지역 18fr 사고: 같은 빈 공간 격차.
+//   새 — 기종 30→24 / 지역 18→22 (도로명 충분). 고객 16→15 / 기사 13→14 / 상태 13→15.
+const PC_GRID_COLS_WIDE = "minmax(0, 15fr) minmax(0, 24fr) minmax(0, 22fr) minmax(0, 10fr) minmax(0, 14fr) minmax(0, 15fr)";
 // 2026-06-10 8차 — 컬럼별 정렬 매핑.
 //   사장님 spec: 고객·기종·지역·기사 = 왼쪽 / 시간·상태 = 가운데.
 const PC_HEADER_COLS = [
