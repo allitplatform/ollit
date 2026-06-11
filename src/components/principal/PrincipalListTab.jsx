@@ -27,6 +27,8 @@ import { CountBoxes } from "../CountBoxes.jsx";
 import { fetchAllPrincipalCounts, fetchAllPrincipalTasks } from "../../lib/allPrincipalTasksDb.js";
 // 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 통합 테이블.
 import { useIsPc } from "../../utils/useIsPc.js";
+// 2026-06-11 — 넓은 PC (1280+) 측 지역 컬럼 = 전체 주소 분기.
+import { useIsWide } from "../../utils/useIsWide.js";
 // 2026-06-11 — ServiceTag 다크/라이트 분기.
 import { useIsDark } from "../../hooks/useIsDark.js";
 // 2026-06-11 — 공통 검색바 (헤더 풀폭, 재사용).
@@ -858,6 +860,9 @@ const loadingBoxStyle = {
 // 2026-06-11 — 기종·수량 셀에 작업종류 태그 인라인 → 26fr → 32fr 확대.
 //   고객·지역·기사·시간·상태 미세 축소로 100 합산 유지.
 const PC_GRID_COLS = "minmax(0, 18fr) minmax(0, 32fr) minmax(0, 13fr) minmax(0, 10fr) minmax(0, 14fr) minmax(0, 13fr)";
+// 2026-06-11 — 넓은 PC (1280+) 측 지역 = 도로명 전체 주소. 지역 칸 13→18 확대.
+//   고객·기종·기사·상태 살짝 축소로 100 합산 유지.
+const PC_GRID_COLS_WIDE = "minmax(0, 16fr) minmax(0, 30fr) minmax(0, 18fr) minmax(0, 10fr) minmax(0, 13fr) minmax(0, 13fr)";
 // 2026-06-10 8차 — 컬럼별 정렬 매핑.
 //   사장님 spec: 고객·기종·지역·기사 = 왼쪽 / 시간·상태 = 가운데.
 const PC_HEADER_COLS = [
@@ -891,6 +896,11 @@ function ViewPcTable({
   activeOnly, setActiveOnly,
   searchInput, setSearchInput,
 }) {
+  // 2026-06-11 — 넓은 PC (1280+) 측 지역 컬럼 = 전체 주소 (도로명·번지).
+  //   좁은 PC (1024~1279) 측 옛 district (구/동). 모바일 무영향.
+  const isWide = useIsWide();
+  const gridCols = isWide ? PC_GRID_COLS_WIDE : PC_GRID_COLS;
+
   // 표시 데이터 선택. view='all' 측 서버 페이지네이션 (pcTasks). 클라 filter 폐기.
   let sourceTasks, sourceLoading, isServerPaged = false;
   if (quickFilter) {
@@ -1042,10 +1052,10 @@ function ViewPcTable({
         {/*   사장님 진단: <table>이 부모 max-width 깨는 케이스 확정. div는 표준 block 동작이라 */}
         {/*   부모 wrapper 1280 cap이 그대로 적용됨. 컬럼 폭은 PC_GRID_COLS fr 비례 분배. */}
         <div style={{ width: "100%", fontSize: 17 }}>
-          {/* 헤더 행 — sticky */}
+          {/* 헤더 행 — sticky. gridCols 측 isWide 분기. */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: PC_GRID_COLS,
+            gridTemplateColumns: gridCols,
             alignItems: "center",
             position: "sticky",
             top: 0,
@@ -1085,6 +1095,8 @@ function ViewPcTable({
                   task={task}
                   isSelected={!!selectedTaskId && task.id === selectedTaskId}
                   onClick={() => onSelect?.(task)}
+                  isWide={isWide}
+                  gridCols={gridCols}
                 />
               ))}
               {/* 더 보기 + 총 건수 (서버 페이지네이션 측만 표시). */}
@@ -1151,7 +1163,7 @@ function pcEmptyCellStyle(t) {
   };
 }
 
-function PcTableRow({ t, task, isSelected, onClick }) {
+function PcTableRow({ t, task, isSelected, onClick, isWide = false, gridCols = PC_GRID_COLS }) {
   const items = Array.isArray(task.workItems) && task.workItems.length > 0
     ? task.workItems
     : (Array.isArray(task.task_items) ? task.task_items : []);
@@ -1171,9 +1183,13 @@ function PcTableRow({ t, task, isSelected, onClick }) {
     : "—";
   // 2026-06-11 — 작업종류 태그 (기종 셀 인라인). 우선순위: refrigerant > clean > addon > visit.
   const serviceKind = getServiceKind(task);
-  // 2026-06-10 — 모바일 TaskRow(line 689)와 동일 호출 — task.region 우선, 빈 값이면 address 키워드 추출.
-  //   address 단일 인자로 호출하면 "서울특별시"가 먼저 매치돼 시/도까지만 나옴.
-  const region = regionOrDistrictFromAddress(task.region, task.address || task.customerAddress) || "—";
+  // 2026-06-11 — 지역 컬럼 표시 분기:
+  //   isWide (≥1280) → task.address 도로명·번지 전체 (NULL 측 district 폴백).
+  //   좁은 PC          → 옛 동작 (regionOrDistrictFromAddress 측 구/동).
+  //   셀 ellipsis 그대로 (pcTdStyle 측 overflow hidden + textOverflow ellipsis).
+  const fullAddress = task.address || task.customerAddress || "";
+  const districtOnly = regionOrDistrictFromAddress(task.region, task.address || task.customerAddress) || "—";
+  const regionCell = isWide ? (fullAddress || districtOnly) : districtOnly;
   const time = formatTime(task);
   const engineer = task.assignedEngineer || task.engineer || "미배정";
   const statusLabel = getStatusLabel(task.status) || task.status || "—";
@@ -1187,7 +1203,7 @@ function PcTableRow({ t, task, isSelected, onClick }) {
       className="clickable"
       style={{
         display: "grid",
-        gridTemplateColumns: PC_GRID_COLS,
+        gridTemplateColumns: gridCols,
         alignItems: "center",
         cursor: "pointer",
         borderBottom: `1px solid ${t.border}`,
@@ -1199,7 +1215,10 @@ function PcTableRow({ t, task, isSelected, onClick }) {
         <ServiceTag kind={serviceKind}/>
         <span>{itemSummary}</span>
       </div>
-      <div style={pcTdStyle(t, { textAlign: "left" })}>{region}</div>
+      <div
+        style={pcTdStyle(t, { textAlign: "left" })}
+        title={isWide ? fullAddress : undefined}
+      >{regionCell}</div>
       <div style={pcTdStyle(t, { textAlign: "center" })} className="mono">{time}</div>
       <div style={pcTdStyle(t, { textAlign: "left" })}>{engineer}</div>
       <div style={pcTdStyle(t, { textAlign: "center" })}>
