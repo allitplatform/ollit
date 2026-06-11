@@ -2624,30 +2624,47 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onMarkRead={markNotiRead}
         onMarkAllRead={markAllRead}
         onClickItem={async (noti) => {
-          // ⏱ 2026-06-11 진단 1회용 — taskId / relatedId 실측. 확인 후 제거.
+          // ⏱ 2026-06-11 진단 2회용 — 단계별 로그 누적 후 단일 alert. 확인 후 제거.
+          const stages = [];
+          const log = (k, v) => stages.push(`${k}: ${v}`);
+          const show = () => { try { alert(stages.join("\n")); } catch (e) {} };
           try {
-            alert(JSON.stringify({
-              id: noti.id,
-              taskId: noti.taskId ?? null,
-              relatedId: noti.relatedId ?? null,
-              title: noti.title,
-              keys: Object.keys(noti),
-            }, null, 2));
-          } catch (e) {}
-          // 알림 taskId로 전체 작업 검색 (완료/취소 무관 진입)
-          //   (a) 메모리 apiTasks 우선  (b) 없으면 DB 단건 폴백
-          // 2026-06-11 — 어댑터 adaptStoredAdminNoti 는 relatedId 만 노출. taskId 둘 다 허용.
-          const id = noti.taskId || noti.relatedId;
-          if (!id) return;
-          let task = apiTasks.find(t => t.id === id || t.taskCode === id) || null;
-          if (!task) {
-            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
-            const row = isUuid ? await getTaskByIdDb(id) : await getTaskByTaskNoDb(id);
-            if (row) task = _v14NormalizeTask(row);
+            const id = noti.taskId || noti.relatedId;
+            log("1.id", id ?? "null");
+            log("1b.title", String(noti.title || "").slice(0, 30));
+            if (!id) { show(); return; }
+
+            let task = apiTasks.find(t => t.id === id || t.taskCode === id) || null;
+            log("2.apiTasks.find", task ? `HIT (apiTasks.length=${apiTasks.length})` : `MISS (apiTasks.length=${apiTasks.length})`);
+
+            if (!task) {
+              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+              log("3.isUuid", String(isUuid));
+              try {
+                const row = isUuid ? await getTaskByIdDb(id) : await getTaskByTaskNoDb(id);
+                log("4.DB row", row ? `HIT (rowId=${row.id || row.taskCode || "?"})` : "NULL");
+                if (row) {
+                  try {
+                    task = _v14NormalizeTask(row);
+                    log("5.normalize", task ? `OK (taskId=${task.id || "?"})` : "NULL");
+                  } catch (e) {
+                    log("5.normalize ERROR", String(e?.message || e));
+                  }
+                }
+              } catch (e) {
+                log("4.DB ERROR", String(e?.message || e));
+              }
+            }
+
+            if (!task) { show(); return; }
+            log("6.goTaskDetail", "calling");
+            show();
+            markNotiRead(noti.id);
+            goTaskDetail(task, "notifications");
+          } catch (e) {
+            log("EXCEPTION", String(e?.message || e));
+            show();
           }
-          if (!task) return;
-          markNotiRead(noti.id);
-          goTaskDetail(task, "notifications");
         }}
       />
     </Shell>;
