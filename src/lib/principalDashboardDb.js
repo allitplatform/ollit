@@ -114,15 +114,15 @@ export async function fetchPrincipalTodayTasks({ principalCodes = [] } = {}) {
   return { ok: true, tasks };
 }
 
-// 통계 카운트 — DB 측 count:exact head 3개 Promise.all (1 RTT).
+// 통계 카운트 — DB 측 count:exact head 4개 Promise.all (1 RTT).
 //   사장님 spec (2026-06-11 SQL 실측 정합):
-//     전체     = 모든 status (취소 / visit_only / 취소요청 전부 포함). 무필터.
+//     전체     = 모든 status (무필터).
 //     활성     = 배정 + 확정 + 진행중 (미배정 제외 — 원청 시각 "지금 처리할 일감").
-//     완료     = status='완료' 단독 (visit_only 제외 — visit_only 측 출장만 별도 분류).
-//   응답 키 = { total, inProgress, completed } — 호환 위해 옛 키 유지.
-//             UI 라벨은 ViewPcTable 측 "전체 / 활성 / 완료" 로 표시.
+//     완료     = status='완료' 단독 (visit_only 분리).
+//     취소     = 취소 + 취소요청 + visit_only (현장취소 + 출장만 = 취소 계열 합).
+//   합 검증: 활성 + 완료 + 취소 + 미배정 = 전체.
+//   응답 키 = { total, inProgress, completed, canceled } — 호환 위해 옛 키 유지.
 //   2026-06-11 — 옛 .range() 페이지 루프 + 클라 group 폐기. row 본문 0 fetch.
-//     fetchAllPrincipalCounts 측 동일 패턴 재사용. max_rows cap 무관.
 export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
   if (!Array.isArray(principalCodes) || principalCodes.length === 0) {
     return { ok: false, error: "principalCodes X", counts: null };
@@ -130,7 +130,7 @@ export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
   const pids = await resolvePids(principalCodes);
   if (pids.length === 0) return { ok: false, error: "principal_id X", counts: null };
 
-  const [cTotal, cActive, cDone] = await Promise.all([
+  const [cTotal, cActive, cDone, cCanceled] = await Promise.all([
     // 전체 = 모든 status 합 (filter 없음).
     supabase.from("tasks")
       .select("id", { count: "exact", head: true })
@@ -148,20 +148,27 @@ export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
       .eq("tenant_id", TENANT_ID)
       .in("principal_id", pids)
       .eq("status", "완료"),
+    // 취소 = 취소 + 취소요청 + visit_only (현장취소+출장만 합산).
+    supabase.from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", TENANT_ID)
+      .in("principal_id", pids)
+      .in("status", ["취소", "취소요청", "visit_only"]),
   ]);
 
-  if (cTotal.error || cActive.error || cDone.error) {
+  if (cTotal.error || cActive.error || cDone.error || cCanceled.error) {
     console.error("[principalDashboardDb.counts]",
-      cTotal.error || cActive.error || cDone.error);
+      cTotal.error || cActive.error || cDone.error || cCanceled.error);
     return { ok: false, error: "count 조회 실패", counts: null };
   }
 
   return {
     ok: true,
     counts: {
-      total:      cTotal.count  || 0,
-      inProgress: cActive.count || 0,   // 호환 키 — UI 라벨은 "활성".
-      completed:  cDone.count   || 0,
+      total:      cTotal.count    || 0,
+      inProgress: cActive.count   || 0,   // 호환 키 — UI 라벨 "활성".
+      completed:  cDone.count     || 0,
+      canceled:   cCanceled.count || 0,
     },
   };
 }

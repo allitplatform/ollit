@@ -153,7 +153,7 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
 
   // 뷰 A — 오늘 작업 + 카운트
   const [todayTasks, setTodayTasks]   = useState([]);
-  const [counts, setCounts]           = useState({ total: 0, inProgress: 0, completed: 0 });
+  const [counts, setCounts]           = useState({ total: 0, inProgress: 0, completed: 0, canceled: 0 });
   const [loadingA, setLoadingA]       = useState(true);
 
   // 뷰 B — 전체 작업
@@ -239,7 +239,7 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
     const todayTasksNext = todayRes.tasks || [];
     const countsNext = countsRes.ok
       ? countsRes.counts
-      : { total: 0, inProgress: 0, completed: 0 };
+      : { total: 0, inProgress: 0, completed: 0, canceled: 0 };
     cacheA.current.set(cacheKey, {
       data: { todayTasks: todayTasksNext, counts: countsNext },
       ts: Date.now(),
@@ -495,7 +495,7 @@ function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSel
         fontSize: 12, color: "#B5B0A8", fontWeight: 600,
         marginBottom: 12, letterSpacing: 0.2,
       }}>
-        전체 <Stat n={counts.total}/> · 활성 <Stat n={counts.inProgress}/> · 완료 <Stat n={counts.completed}/>
+        전체 <Stat n={counts.total}/> · 활성 <Stat n={counts.inProgress}/> · 완료 <Stat n={counts.completed}/> · 취소 <Stat n={counts.canceled} danger/>
       </div>
 
       {/* 검색창 (탭 → 뷰 B + autoFocus). 직접 입력 X. */}
@@ -554,9 +554,13 @@ function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSel
   );
 }
 
-function Stat({ n }) {
+function Stat({ n, danger }) {
+  // 2026-06-11 — danger = 취소 라벨 측 빨강 연한 톤 (principalStatusBadge 정합).
   return (
-    <span style={{ color: "var(--text-primary, #FAF8F5)", fontWeight: 800 }}>
+    <span style={{
+      color: danger ? "#EF4444" : "var(--text-primary, #FAF8F5)",
+      fontWeight: 800,
+    }}>
       {(n || 0).toLocaleString()}
     </span>
   );
@@ -931,6 +935,7 @@ function ViewPcTable({
             <StatInline t={t} label="전체" value={counts.total}/>
             <StatInline t={t} label="활성" value={counts.inProgress} accent/>
             <StatInline t={t} label="완료" value={counts.completed}  muted/>
+            <StatInline t={t} label="취소" value={counts.canceled}   danger/>
           </div>
         )}
 
@@ -1127,8 +1132,9 @@ function ViewPcTable({
   );
 }
 
-function StatInline({ t, label, value, accent, muted }) {
-  const color = accent ? t.accent : muted ? t.textMuted : t.text;
+function StatInline({ t, label, value, accent, muted, danger }) {
+  // 2026-06-11 — danger = 빨강 연한 톤 (취소 라벨 측). principalStatusBadge 취소 색과 정합.
+  const color = danger ? "#EF4444" : accent ? t.accent : muted ? t.textMuted : t.text;
   return (
     <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
       <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>{label}</span>
