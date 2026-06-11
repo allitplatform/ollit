@@ -13,6 +13,7 @@ import { useRealtimeTasks } from "../../hooks/useRealtimeSubscription.js";
 import {
   fetchPrincipalTodayTasks,
   fetchPrincipalStatusCounts,
+  fetchPrincipalListPaged,
 } from "../../lib/principalDashboardDb.js";
 import { getStatusBadge, getStatusLabel } from "../../utils/principalStatusBadge.js";
 // 2026-06-09 — 출장비 (visit_fee) 공용 판별 / 배지.
@@ -165,6 +166,55 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
   const cacheA = useRef(new Map());
   const cachePartner = useRef(new Map());
 
+  // 2026-06-11 — PC 전용 서버 페이지네이션 (1000행 캡 회피 + DB ORDER BY).
+  //   PC view='all' 진입 시 fetchPrincipalListPaged 100건 단위 fetch + 더 보기.
+  //   activeOnly = true (default) → status IN ('배정','확정','진행중') = 활성만.
+  //   검색 = 서버 ilike (customer_name/district/address/task_no). 디바운스 300ms.
+  //   모바일 뷰는 옛 refetchB 유지 (회귀 0).
+  const PC_PAGE_SIZE = 100;
+  const [pcTasks,    setPcTasks]    = useState([]);
+  const [pcTotal,    setPcTotal]    = useState(0);
+  const [pcOffset,   setPcOffset]   = useState(0);
+  const [pcHasMore,  setPcHasMore]  = useState(false);
+  const [pcLoading,  setPcLoading]  = useState(false);
+  const [activeOnly, setActiveOnly] = useState(true);
+  const [pcSearchInput, setPcSearchInput] = useState("");
+  const [pcSearch,      setPcSearch]      = useState("");
+  // 검색 디바운스 300ms.
+  useEffect(() => {
+    const t = setTimeout(() => setPcSearch(pcSearchInput), 300);
+    return () => clearTimeout(t);
+  }, [pcSearchInput]);
+
+  // PC 페이지 fetch. reset=true 측 첫 페이지부터 / false 측 append.
+  const fetchPcPage = useCallback(async ({ reset = false, currentOffset = 0 } = {}) => {
+    if (!Array.isArray(principalCodes) || principalCodes.length === 0) return;
+    setPcLoading(true);
+    // 검색어 있으면 자동으로 전체 status (activeOnly false 효과) — 사장님 spec.
+    const effectiveActiveOnly = activeOnly && !pcSearch.trim();
+    const res = await fetchPrincipalListPaged({
+      principalCodes,
+      activeOnly: effectiveActiveOnly,
+      search: pcSearch,
+      pageSize: PC_PAGE_SIZE,
+      offset: currentOffset,
+    });
+    if (res.ok) {
+      setPcTasks(prev => reset ? res.tasks : [...prev, ...res.tasks]);
+      setPcTotal(res.total);
+      setPcOffset(currentOffset + res.tasks.length);
+      setPcHasMore(res.hasMore);
+    }
+    setPcLoading(false);
+  }, [principalCodes, activeOnly, pcSearch]);
+
+  // activeOnly / pcSearch / principalCodes 변경 시 첫 페이지 reset.
+  useEffect(() => {
+    if (!isPc) return;
+    fetchPcPage({ reset: true, currentOffset: 0 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeOnly, pcSearch, JSON.stringify(principalCodes), isPc]);
+
   // 뷰 A fetch — 캐시 우선, force=true 시 재fetch.
   const refetchA = useCallback(async ({ force = false } = {}) => {
     if (!Array.isArray(principalCodes) || principalCodes.length === 0) {
@@ -214,19 +264,6 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
           const normalized = list.map(v14NormalizeTask).filter(Boolean);
           // 서버 측 이미 필터됨 — filterTasksForPrincipal 측 redundant 측 안전망 (회귀 0).
           const filtered = filterTasksForPrincipal(normalized, principalCodes);
-          // ⏱ 2026-06-11 1회용 진단 — Supabase 1000행 캡 / status 분포 실측. 확인 후 제거.
-          try {
-            const statusDist = filtered.reduce((m, t) => {
-              const s = t.status || "(null)";
-              m[s] = (m[s] || 0) + 1;
-              return m;
-            }, {});
-            console.log("[diag-refetchB] principalCodes=", principalCodes,
-              "| raw list.length=", list.length,
-              "| normalized=", normalized.length,
-              "| filtered=", filtered.length,
-              "| statusDist=", statusDist);
-          } catch (e) {}
           setAllTasks(filtered);
           setAllLoaded(true);
         }
@@ -301,9 +338,7 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
         view={view}
         setView={setView}
         todayTasks={todayTasks}
-        allTasks={allTasks}
         loadingA={loadingA}
-        loadingB={loadingB}
         counts={counts}
         partnerCounts={partnerCounts}
         showPartnerHeader={showPartnerHeader}
@@ -313,6 +348,17 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
         qfLoading={qfLoading}
         onSelect={onSelect}
         selectedTaskId={selectedTaskId}
+        // 2026-06-11 — PC 서버 페이지네이션 (view='all').
+        pcTasks={pcTasks}
+        pcTotal={pcTotal}
+        pcLoading={pcLoading}
+        pcHasMore={pcHasMore}
+        pcOffset={pcOffset}
+        onLoadMore={() => fetchPcPage({ reset: false, currentOffset: pcOffset })}
+        activeOnly={activeOnly}
+        setActiveOnly={setActiveOnly}
+        searchInput={pcSearchInput}
+        setSearchInput={setPcSearchInput}
       />
     );
   }
@@ -815,44 +861,33 @@ const PC_HEADER_COLS = [
 function ViewPcTable({
   t,
   view, setView,
-  todayTasks, allTasks,
-  loadingA, loadingB,
+  todayTasks,
+  loadingA,
   counts, partnerCounts,
   showPartnerHeader,
   quickFilter, setQuickFilter,
   qfTasks, qfLoading,
   onSelect,
   selectedTaskId,
+  // 2026-06-11 — PC 서버 페이지네이션 (view='all').
+  pcTasks, pcTotal, pcLoading, pcHasMore, pcOffset,
+  onLoadMore,
+  activeOnly, setActiveOnly,
+  searchInput, setSearchInput,
 }) {
-  const [search, setSearch] = useState("");
-
-  // 표시 데이터 선택.
-  let sourceTasks, sourceLoading;
+  // 표시 데이터 선택. view='all' 측 서버 페이지네이션 (pcTasks). 클라 filter 폐기.
+  let sourceTasks, sourceLoading, isServerPaged = false;
   if (quickFilter) {
     sourceTasks   = qfTasks;
     sourceLoading = qfLoading;
   } else if (view === "all") {
-    sourceTasks   = allTasks;
-    sourceLoading = loadingB;
+    sourceTasks   = pcTasks;
+    sourceLoading = pcLoading;
+    isServerPaged = true;
   } else {
     sourceTasks   = todayTasks;
     sourceLoading = loadingA;
   }
-
-  // 클라 검색 — 현재 표시 데이터에서.
-  const q = search.trim().toLowerCase();
-  const filtered = useMemo(() => {
-    if (!q) return sourceTasks || [];
-    return (sourceTasks || []).filter(task => {
-      const text = [
-        task.customer, task.customerName,
-        task.region, task.address, task.customerAddress,
-        task.assignedEngineer, task.engineer,
-        task.taskCode, task.task_no,
-      ].filter(Boolean).join(" ").toLowerCase();
-      return text.includes(q);
-    });
-  }, [sourceTasks, q]);
 
   return (
     <div style={{
@@ -936,7 +971,32 @@ function ViewPcTable({
           </div>
         )}
 
-        {/* 검색 */}
+        {/* 2026-06-11 — view='all' 전용 "활성만" 토글 (default on).
+            검색 입력 시 자동으로 전체 status 측 fetch (effectiveActiveOnly=false). */}
+        {view === "all" && !quickFilter && (
+          <button
+            type="button"
+            onClick={() => setActiveOnly?.(v => !v)}
+            disabled={!!searchInput?.trim()}
+            style={{
+              padding: "7px 13px",
+              background: activeOnly && !searchInput?.trim() ? t.accent : t.bgElevated,
+              color:      activeOnly && !searchInput?.trim() ? "#fff"   : t.textSecondary,
+              border: `1px solid ${t.border}`,
+              borderRadius: 8,
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: searchInput?.trim() ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              opacity: searchInput?.trim() ? 0.5 : 1,
+            }}
+            title={searchInput?.trim() ? "검색 시 전체 status" : "활성만 / 전체 토글"}
+          >
+            {activeOnly && !searchInput?.trim() ? "활성만" : "전체 status"}
+          </button>
+        )}
+
+        {/* 검색 — view='all' 측 서버 ilike. 그 외 측 옛 동작 (today 측 클라 측 검색 X 측 미지원). */}
         <div style={{
           display: "flex",
           alignItems: "center",
@@ -950,9 +1010,9 @@ function ViewPcTable({
           <Search size={14} color={t.textMuted}/>
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="고객·지역·기사 검색"
+            value={searchInput || ""}
+            onChange={(e) => setSearchInput?.(e.target.value)}
+            placeholder="고객·지역·주소·작업번호 검색"
             style={{
               flex: 1,
               background: "transparent",
@@ -1007,20 +1067,60 @@ function ViewPcTable({
               }}>{col.label}</div>
             ))}
           </div>
-          {/* 본문 행들 */}
-          {sourceLoading && filtered.length === 0 ? (
+          {/* 본문 행들 — 서버 페이지네이션 (view='all') 측 sourceTasks 그대로 사용. 클라 filter X. */}
+          {sourceLoading && (sourceTasks?.length || 0) === 0 ? (
             <div style={pcEmptyCellStyle(t)}>불러오는 중...</div>
-          ) : filtered.length === 0 ? (
+          ) : (sourceTasks?.length || 0) === 0 ? (
             <div style={pcEmptyCellStyle(t)}>표시할 작업 없음</div>
-          ) : filtered.map((task, idx) => (
-            <PcTableRow
-              key={task.id || task.taskNo || idx}
-              t={t}
-              task={task}
-              isSelected={!!selectedTaskId && task.id === selectedTaskId}
-              onClick={() => onSelect?.(task)}
-            />
-          ))}
+          ) : (
+            <>
+              {sourceTasks.map((task, idx) => (
+                <PcTableRow
+                  key={task.id || task.taskNo || idx}
+                  t={t}
+                  task={task}
+                  isSelected={!!selectedTaskId && task.id === selectedTaskId}
+                  onClick={() => onSelect?.(task)}
+                />
+              ))}
+              {/* 더 보기 + 총 건수 (서버 페이지네이션 측만 표시). */}
+              {isServerPaged && (
+                <div style={{
+                  padding: "16px 20px",
+                  textAlign: "center",
+                  borderTop: `1px solid ${t.border}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 14,
+                  flexWrap: "wrap",
+                }}>
+                  <span style={{ fontSize: 13, color: t.textMuted, fontWeight: 600 }}>
+                    {sourceTasks.length} / {pcTotal} 건
+                  </span>
+                  {pcHasMore && (
+                    <button
+                      type="button"
+                      onClick={onLoadMore}
+                      disabled={pcLoading}
+                      style={{
+                        padding: "8px 18px",
+                        background: t.accent,
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 8,
+                        fontSize: 13,
+                        fontWeight: 700,
+                        cursor: pcLoading ? "wait" : "pointer",
+                        opacity: pcLoading ? 0.6 : 1,
+                        fontFamily: "inherit",
+                      }}
+                    >{pcLoading ? "불러오는 중..." : "더 보기"}</button>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
     </div>
