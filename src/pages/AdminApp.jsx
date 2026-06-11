@@ -1985,6 +1985,15 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
 
+  // ⏱ 2026-06-11 진단 — screen / selectedTaskDetail 상태를 window 에 미러링.
+  //   클릭 핸들러 측 goTaskDetail 직후 setTimeout 측 실제 커밋 결과 확인용. 진단 끝나면 제거.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.__adminScreen = screen;
+    window.__adminSelId = selectedTaskDetail?.id || null;
+    window.__adminStack = Array.isArray(screenStack) ? screenStack.join(">") : "";
+  }, [screen, selectedTaskDetail, screenStack]);
+
   // 2026-06-03 — Phase 2a fix: 냉매 미처리 카운트 측측 fetch (apiTasks.length 측측 측측).
   //   새 task 측측 측측 측측 (length 측측) trigger. polling 측측 length 측측 X 측측 trigger X.
   useEffect(() => {
@@ -2657,10 +2666,20 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
             }
 
             if (!task) { show(); return; }
-            log("6.goTaskDetail", "calling");
-            show();
+            log("6.taskKeys", Object.keys(task).slice(0, 8).join(","));
+            log("6.task.id", String(task.id || "?"));
+            // 진단 — 호출 전 상태
+            log("7.pre screen", String(window.__adminScreen || "?"));
+            log("7.pre stack", String(window.__adminStack || "?"));
             markNotiRead(noti.id);
             goTaskDetail(task, "notifications");
+            // 진단 — 150ms 후 실제 커밋 결과 (= React 가 실제로 화면 전환했는지)
+            setTimeout(() => {
+              log("8.post screen", String(window.__adminScreen || "?"));
+              log("8.post selId", String(window.__adminSelId || "?"));
+              log("8.post stack", String(window.__adminStack || "?"));
+              show();
+            }, 150);
           } catch (e) {
             log("EXCEPTION", String(e?.message || e));
             show();
