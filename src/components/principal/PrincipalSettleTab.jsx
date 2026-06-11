@@ -863,46 +863,57 @@ function ViewPcSettle({
   summary, groups, today, openGroups, setOpenGroups,
   onWeekClick, onPendingClick, hasUsolN,
 }) {
+  // 2026-06-11 — 라벨 축약 ("일정 확정·작업 전" 3줄 깨짐 catch). 의미 그대로, 한 줄 표시.
   const metrics = [
-    { key: "received",   label: "접수",            value: summary.received },
-    { key: "beforeWork", label: "일정 확정·작업 전", value: summary.beforeWork },
-    { key: "doneWork",   label: "작업완료",         value: summary.doneWork },
-    { key: "settled",    label: "정산완료",         value: summary.settled, green: true },
+    { key: "received",   label: "접수",       value: summary.received },
+    { key: "beforeWork", label: "확정·작업전", value: summary.beforeWork },
+    { key: "doneWork",   label: "작업완료",   value: summary.doneWork },
+    { key: "settled",    label: "정산완료",   value: summary.settled, green: true },
   ];
 
   return (
     <div style={{
-      display: "flex",
-      gap: 24,
+      // 2026-06-11 fix — 외부 컨테이너 단순화 (ViewPcTable 톤 정렬):
+      //   width 100%, padding 외부, 내부 flex 분할.
+      //   aside width 420 = PC_DETAIL_W 와 일관 (사장님 spec).
+      //   alignItems: flex-start — aside 가 main height 따라가지 않게.
+      width: "100%",
       padding: "20px 24px 24px",
       minHeight: "100vh",
       boxSizing: "border-box",
+      display: "flex",
+      gap: 24,
+      alignItems: "flex-start",
     }}>
       {/* 메인 — 메트릭 + 정산대기 배너 + 주차별 표 */}
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 18 }}>
-        {/* 메트릭 4 가로 카드 */}
+        {/* 메트릭 4 가로 카드 — minmax(0,1fr) 로 grid item overflow catch */}
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 12,
+          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+          gap: 10,
         }}>
           {metrics.map(m => (
             <div key={m.key} style={{
               background: "var(--bg-elevated, #1F1F1F)",
               border: `1px solid ${m.green ? C_GREEN : "var(--border, #2A2A2A)"}`,
               borderRadius: 12,
-              padding: "16px 18px",
+              padding: "14px 14px",
               display: "flex",
               flexDirection: "column",
               gap: 6,
+              minWidth: 0,
             }}>
               <div style={{
-                fontSize: 14,
+                fontSize: 13,
                 color: C_GRAY,
                 fontWeight: 700,
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
               }}>{m.label}</div>
               <div style={{
-                fontSize: 28,
+                fontSize: 26,
                 fontWeight: 800,
                 color: m.green ? C_GREEN : "var(--text-primary, #FAF8F5)",
                 fontFamily: "inherit",
@@ -997,18 +1008,19 @@ function ViewPcSettle({
         </div>
       </div>
 
-      {/* 우측 패널 — 기사 입금내역 (usol_n 포함 시만 노출. embedded 모드 — 헤더 뒤로가기 X) */}
+      {/* 우측 패널 — 기사 입금내역 (usol_n 포함 시만 노출. embedded 모드 — 헤더 뒤로가기 X).
+          2026-06-11 — width 360 → 420 (PC_DETAIL_W 와 통일. selectedTask 우상세와 동일 폭). */}
       {hasUsolN && (
         <aside style={{
-          width: 360,
+          width: 420,
           flexShrink: 0,
           background: "var(--bg-elevated, #1F1F1F)",
           border: "1px solid var(--border, #2A2A2A)",
           borderRadius: 12,
           padding: "4px 0",
-          alignSelf: "flex-start",
           maxHeight: "calc(100vh - 48px)",
           overflowY: "auto",
+          boxSizing: "border-box",
         }}>
           <UsolRemitHistoryScreen />
         </aside>
