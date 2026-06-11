@@ -649,7 +649,7 @@ export default function PrincipalApp({ user, onLogout }) {
         ) : (
           <>
             {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={effectiveCodes} partnerCode={partnerCode} onSelect={setSelectedTask} selectedTaskId={selectedTask?.id}/>}
-            {tab === "schedule" && <UsolHScheduleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>}
+            {tab === "schedule" && <UsolHScheduleTab t={t} principalCodes={effectiveCodes} onSelect={setSelectedTask}/>}
             {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
             {tab === "settle" && (() => {
               const isUsolNOnly = effectiveCodes.length === 1 && effectiveCodes[0] === "usol_n";
@@ -709,7 +709,7 @@ export default function PrincipalApp({ user, onLogout }) {
                 />
               )}
               {tab === "list"   && <PrincipalListTab t={t} user={user} principalCodes={effectiveCodes} partnerCode={partnerCode} onSelect={setSelectedTask}/>}
-              {tab === "schedule" && <UsolHScheduleTab principalCodes={effectiveCodes} onSelect={setSelectedTask}/>}
+              {tab === "schedule" && <UsolHScheduleTab t={t} principalCodes={effectiveCodes} onSelect={setSelectedTask}/>}
               {tab === "upload" && <UploadTab t={t} user={user} partnerCode={partnerCode} partnerConfig={partnerConfig} quoteRates={quoteRates} onTaskClick={setSelectedTask} onSubmit={(task) => setSubmittedTask(task)} onBackToList={() => setTab("list")}/>}
               {/* 2026-06-06 — KA/crikrin (partnerCode 존재) 측 PartnerDailySettleTab (일정산).
                   2026-06-09 — 유솔H 측 PartnerDailySettleTab 재사용 (사장님 spec 갱신):

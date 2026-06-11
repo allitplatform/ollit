@@ -863,11 +863,12 @@ const loadingBoxStyle = {
 //   기종 "스탠드 ×2 + [태그]" 폭만 남기고 나머지는 지역으로 이전.
 //   좁은: 기종 26→22 / 지역 15→19 (구·동 살짝 넓음).
 //   넓은: 기종 24→20 / 지역 22→26 (도로명 충분 + 짤림 X).
-const PC_GRID_COLS      = "minmax(0, 18fr) minmax(0, 22fr) minmax(0, 19fr) minmax(0, 11fr) minmax(0, 15fr) minmax(0, 15fr)";
-const PC_GRID_COLS_WIDE = "minmax(0, 15fr) minmax(0, 20fr) minmax(0, 26fr) minmax(0, 10fr) minmax(0, 14fr) minmax(0, 15fr)";
+// 2026-06-11 — 일정 탭 측 재사용 위해 export.
+export const PC_GRID_COLS      = "minmax(0, 18fr) minmax(0, 22fr) minmax(0, 19fr) minmax(0, 11fr) minmax(0, 15fr) minmax(0, 15fr)";
+export const PC_GRID_COLS_WIDE = "minmax(0, 15fr) minmax(0, 20fr) minmax(0, 26fr) minmax(0, 10fr) minmax(0, 14fr) minmax(0, 15fr)";
 // 2026-06-10 8차 — 컬럼별 정렬 매핑.
 //   사장님 spec: 고객·기종·지역·기사 = 왼쪽 / 시간·상태 = 가운데.
-const PC_HEADER_COLS = [
+export const PC_HEADER_COLS = [
   { label: "고객",      align: "left"   },
   { label: "기종·수량", align: "left"   },
   { label: "지역",      align: "left"   },
@@ -1163,7 +1164,7 @@ function pcEmptyCellStyle(t) {
   };
 }
 
-function PcTableRow({ t, task, isSelected, onClick, isWide = false, gridCols = PC_GRID_COLS }) {
+export function PcTableRow({ t, task, isSelected, onClick, isWide = false, gridCols = PC_GRID_COLS }) {
   const items = Array.isArray(task.workItems) && task.workItems.length > 0
     ? task.workItems
     : (Array.isArray(task.task_items) ? task.task_items : []);
@@ -1239,7 +1240,7 @@ function PcTableRow({ t, task, isSelected, onClick, isWide = false, gridCols = P
 //   refrigerant(냉매) = warning 주황 / clean(세척) = info 파랑
 //   / addon(추가) = 보라 / visit(출장) = 회색.
 //   여러 종류 섞이면 getServiceKind 가 대표 1개 선택 (refrigerant 우선).
-function ServiceTag({ kind }) {
+export function ServiceTag({ kind }) {
   const isDark = useIsDark();
   const tokens = {
     refrigerant: {

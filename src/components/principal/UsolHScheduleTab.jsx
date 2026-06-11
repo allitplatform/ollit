@@ -14,9 +14,21 @@
 //   PAGE_SIZE=1000 loop fetch. 측 측 측 측 측 측 측 측 (KST 측 측 측 measure 측 측 측 측 측 측 측).
 
 import { useState, useMemo, useEffect } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
 import { getStatusBadge, getStatusLabel } from "../../utils/principalStatusBadge.js";
+// 2026-06-11 — PC 분기 (1024+).
+import { useIsPc } from "../../utils/useIsPc.js";
+import { useIsWide } from "../../utils/useIsWide.js";
+// 2026-06-11 — 내 작업 측 PC 표 헬퍼 재사용.
+import {
+  PcTableRow,
+  PC_GRID_COLS,
+  PC_GRID_COLS_WIDE,
+  PC_HEADER_COLS,
+} from "./PrincipalListTab.jsx";
+// 2026-06-11 — 폰트 표준 토큰.
+import { TEXT } from "../../styles/textTokens.js";
 
 const ACCENT = "#FF1B8D";
 
@@ -196,10 +208,23 @@ function PresetChip({ active, label, onClick }) {
   );
 }
 
-export function UsolHScheduleTab({ principalCodes = [], onSelect }) {
+export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
+  const isPc = useIsPc();
   const today = toKstYmd(new Date());
-  const [preset, setPreset] = useState("today");
+  // 2026-06-11 — PC default: 이번 달 / 모바일 default: 오늘 (옛 동작 유지).
+  const [preset, setPreset] = useState(() => "today");
   const [range, setRange] = useState(() => presetToRange("today"));
+  // PC 진입 시점 1회만 month preset 측 default 적용.
+  useEffect(() => {
+    if (isPc && preset === "today") {
+      const r = presetToRange("month");
+      setPreset("month");
+      setRange(r);
+      setDraftStart(r.start);
+      setDraftEnd(r.end);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPc]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftStart, setDraftStart] = useState(today);
   const [draftEnd, setDraftEnd] = useState(today);
@@ -341,6 +366,27 @@ export function UsolHScheduleTab({ principalCodes = [], onSelect }) {
     );
   }
 
+  // 2026-06-11 — PC 분기. 모바일 옛 흐름은 아래 그대로 (회귀 0).
+  if (isPc) {
+    return (
+      <ViewPcSchedule
+        t={t}
+        preset={preset}
+        pickPreset={pickPreset}
+        range={range}
+        draftStart={draftStart}
+        draftEnd={draftEnd}
+        setDraftStart={setDraftStart}
+        setDraftEnd={setDraftEnd}
+        applyCustomRange={applyCustomRange}
+        tasks={tasks}
+        loading={loading}
+        error={error}
+        onSelect={onSelect}
+      />
+    );
+  }
+
   return (
     <div style={{ padding: 16, paddingBottom: 80 }}>
       {/* 빠른 칩 */}
@@ -459,5 +505,355 @@ const dateInputStyle = {
   fontSize: 12, fontFamily: "inherit",
   // colorScheme — html.colorScheme (themes.js 측 측측) 측 측측 자동, 강제 X.
 };
+
+// ============================================================
+// 2026-06-11 — PC 일정 화면 (사장님 spec — 캘린더 + 기간 표 + selectedTask aside).
+//   레이아웃: 좌측 메인 (캘린더 + 표). 우측 X (selectedTask = PcShell aside).
+//   캘린더 default = 이번 달. 날짜 클릭 → 표 = 그날 작업.
+//   기간 칩/범위 변경 → 표 = 기간 작업.
+// ============================================================
+function ViewPcSchedule({
+  t,
+  preset, pickPreset,
+  range,
+  draftStart, draftEnd, setDraftStart, setDraftEnd,
+  applyCustomRange,
+  tasks, loading, error,
+  onSelect,
+}) {
+  const isWide = useIsWide();
+  const gridCols = isWide ? PC_GRID_COLS_WIDE : PC_GRID_COLS;
+
+  // 캘린더 month (YYYY-MM) — default 이번 달. range 변경 시 시작일의 월 측 자동 동기화.
+  const [calYm, setCalYm] = useState(() => toKstYmd(new Date()).slice(0, 7));
+  useEffect(() => {
+    if (range?.start) setCalYm(range.start.slice(0, 7));
+  }, [range?.start]);
+
+  // 선택된 날짜 (YMD) — null 측 "기간 전체" 표. 클릭 시 그날 표.
+  const [selectedYmd, setSelectedYmd] = useState(null);
+
+  // tasks 측 KST 측 day별 카운트 (캘린더 칸용).
+  const dayCount = useMemo(() => {
+    const m = new Map();
+    for (const r of tasks) {
+      if (!r.scheduled_at) continue;
+      const ymd = toKstYmd(r.scheduled_at);
+      m.set(ymd, (m.get(ymd) || 0) + 1);
+    }
+    return m;
+  }, [tasks]);
+
+  // 표 본문 — selectedYmd 있으면 그날 / 없으면 기간 전체. 날짜순 (scheduled_at asc).
+  const tableTasks = useMemo(() => {
+    const src = selectedYmd
+      ? tasks.filter(r => r.scheduled_at && toKstYmd(r.scheduled_at) === selectedYmd)
+      : tasks.filter(r => r.scheduled_at);
+    return src
+      .map(mapScheduleRowToTask)
+      .sort((a, b) => String(a.scheduledAt || "").localeCompare(String(b.scheduledAt || "")));
+  }, [tasks, selectedYmd]);
+
+  const tableTitle = selectedYmd
+    ? `${selectedYmd} 작업`
+    : `${fmtRangeShort(range.start, range.end)} 작업`;
+
+  return (
+    <div style={{
+      width: "100%",
+      padding: "20px 24px 24px",
+      minHeight: "100vh",
+      boxSizing: "border-box",
+      display: "flex",
+      flexDirection: "column",
+      gap: 16,
+    }}>
+      {/* 상단 — 빠른 칩 + 기간 입력 + 조회 */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+        padding: "10px 14px",
+        background: t.bgElevated,
+        border: `1px solid ${t.border}`,
+        borderRadius: 10,
+      }}>
+        {QUICK_PRESETS.map(p => (
+          <PresetChip key={p.id} active={preset === p.id} label={p.label} onClick={() => {
+            pickPreset(p.id);
+            setSelectedYmd(null);   // 기간 변경 시 날짜 선택 해제 → 기간 표.
+          }}/>
+        ))}
+        <span style={{ flex: 1 }}/>
+        <input type="date" value={draftStart} onChange={(e) => setDraftStart(e.target.value)} style={dateInputStyle}/>
+        <span style={{ fontSize: TEXT.META, color: t.textMuted }}>~</span>
+        <input type="date" value={draftEnd} onChange={(e) => setDraftEnd(e.target.value)} style={dateInputStyle}/>
+        <button type="button" onClick={() => { applyCustomRange(); setSelectedYmd(null); }} style={{
+          padding: "7px 16px",
+          background: t.accent || "#FF1B8D",
+          color: "#fff",
+          border: "none",
+          borderRadius: 8,
+          fontSize: TEXT.META,
+          fontWeight: 800,
+          cursor: "pointer",
+          fontFamily: "inherit",
+        }}>조회</button>
+      </div>
+
+      {error && (
+        <div style={{ padding: 12, color: "#EF4444", fontSize: TEXT.META, textAlign: "center" }}>⚠️ {error}</div>
+      )}
+
+      {/* 캘린더 그리드 */}
+      <ScheduleCalendar
+        t={t}
+        calYm={calYm}
+        setCalYm={setCalYm}
+        dayCount={dayCount}
+        selectedYmd={selectedYmd}
+        onSelectYmd={(ymd) => setSelectedYmd(prev => prev === ymd ? null : ymd)}
+      />
+
+      {/* 표 — 선택 날짜 또는 기간 전체 */}
+      <div>
+        <div style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 10,
+          margin: "4px 4px 10px",
+        }}>
+          <span style={{ fontSize: TEXT.HEADER, fontWeight: 800, color: t.text }}>{tableTitle}</span>
+          <span style={{ fontSize: TEXT.META, fontWeight: 600, color: t.textMuted }}>{tableTasks.length}건</span>
+          {selectedYmd && (
+            <button type="button" onClick={() => setSelectedYmd(null)} style={{
+              marginLeft: "auto",
+              background: "transparent",
+              border: `1px solid ${t.border}`,
+              borderRadius: 8,
+              padding: "5px 12px",
+              color: t.textMuted,
+              fontSize: TEXT.META,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}>날짜 선택 해제</button>
+          )}
+        </div>
+        {loading ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: TEXT.META }}>
+            불러오는 중...
+          </div>
+        ) : tableTasks.length === 0 ? (
+          <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: TEXT.META }}>
+            해당 {selectedYmd ? "날짜" : "기간"}에 작업이 없습니다.
+          </div>
+        ) : (
+          <div style={{
+            background: t.bgElevated,
+            border: `1px solid ${t.border}`,
+            borderRadius: 10,
+            overflow: "hidden",
+          }}>
+            <div style={{ width: "100%", fontSize: TEXT.BODY }}>
+              {/* 헤더 */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: gridCols,
+                alignItems: "center",
+                borderBottom: `1px solid ${t.border}`,
+                background: t.bgElevated,
+              }}>
+                {PC_HEADER_COLS.map(col => (
+                  <div key={col.label} style={{
+                    padding: "13px 16px",
+                    fontSize: TEXT.HEADER,
+                    fontWeight: 700,
+                    color: t.textMuted,
+                    letterSpacing: 0.2,
+                    textAlign: col.align,
+                  }}>{col.label}</div>
+                ))}
+              </div>
+              {/* 본문 — PcTableRow 재사용. */}
+              {tableTasks.map(task => (
+                <PcTableRow
+                  key={task.id}
+                  t={t}
+                  task={task}
+                  isSelected={false}
+                  onClick={() => onSelect?.(task)}
+                  isWide={isWide}
+                  gridCols={gridCols}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 캘린더 그리드 (7×N). 칸 = 날짜 + N건 배지.
+//   오늘 = 핑크 강조. 선택일 = 핑크 배경. 일=빨강 / 토=파랑.
+function ScheduleCalendar({ t, calYm, setCalYm, dayCount, selectedYmd, onSelectYmd }) {
+  const [year, month] = calYm.split("-").map(Number);
+  const firstDay = new Date(year, month - 1, 1);
+  const lastDay  = new Date(year, month, 0);
+  const startDow = firstDay.getDay(); // 0=일 .. 6=토
+  const totalDays = lastDay.getDate();
+  const todayYmd = toKstYmd(new Date());
+
+  // 그리드 cells — 시작 공백 + 1..totalDays + 끝 공백 (7의 배수).
+  const cells = [];
+  for (let i = 0; i < startDow; i++) cells.push(null);
+  for (let d = 1; d <= totalDays; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const prevMonth = () => {
+    const p = new Date(year, month - 2, 1);
+    setCalYm(`${p.getFullYear()}-${String(p.getMonth() + 1).padStart(2, "0")}`);
+  };
+  const nextMonth = () => {
+    const n = new Date(year, month, 1);
+    setCalYm(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`);
+  };
+
+  return (
+    <div style={{
+      background: t.bgElevated,
+      border: `1px solid ${t.border}`,
+      borderRadius: 10,
+      padding: "14px 16px",
+    }}>
+      {/* 월 헤더 + 이전/다음 */}
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 12,
+      }}>
+        <button type="button" onClick={prevMonth} aria-label="이전 달" style={iconBtn(t)}>
+          <ChevronLeft size={18}/>
+        </button>
+        <div style={{ fontSize: TEXT.BODY, fontWeight: 800, color: t.text }}>
+          {year}년 {month}월
+        </div>
+        <button type="button" onClick={nextMonth} aria-label="다음 달" style={iconBtn(t)}>
+          <ChevronRight size={18}/>
+        </button>
+      </div>
+
+      {/* 요일 헤더 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+        {["일", "월", "화", "수", "목", "금", "토"].map((w, i) => (
+          <div key={w} style={{
+            textAlign: "center",
+            padding: "6px 0",
+            fontSize: TEXT.META,
+            fontWeight: 800,
+            letterSpacing: 0.5,
+            color: i === 0 ? "#EF4444" : i === 6 ? "#3B82F6" : t.textMuted,
+          }}>{w}</div>
+        ))}
+      </div>
+
+      {/* 날짜 칸 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+        {cells.map((d, i) => {
+          if (d === null) return <div key={`pad-${i}`} style={{ aspectRatio: "1.6/1" }}/>;
+          const ymd = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          const count = dayCount.get(ymd) || 0;
+          const isToday = ymd === todayYmd;
+          const isSelected = ymd === selectedYmd;
+          const dow = (startDow + d - 1) % 7;
+          const dateColor = dow === 0 ? "#EF4444" : dow === 6 ? "#3B82F6" : t.text;
+          return (
+            <button
+              key={ymd}
+              type="button"
+              onClick={() => onSelectYmd(ymd)}
+              style={{
+                aspectRatio: "1.6/1",
+                background: isSelected ? "rgba(255, 27, 141, 0.14)" : "transparent",
+                border: `1px solid ${isSelected ? "#FF1B8D" : t.border}`,
+                borderRadius: 8,
+                padding: "6px 8px",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                alignItems: "stretch",
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "background 0.15s",
+              }}
+            >
+              <span style={{
+                fontSize: TEXT.META,
+                fontWeight: isToday ? 800 : 700,
+                color: isToday ? "#FF1B8D" : dateColor,
+                textAlign: "left",
+              }}>{d}</span>
+              {count > 0 && (
+                <span style={{
+                  fontSize: TEXT.META,
+                  fontWeight: 700,
+                  color: t.textSecondary,
+                  textAlign: "right",
+                }}>{count}건</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// 일정 fetch row (snake_case) → PcTableRow 가 받는 task shape 매핑.
+//   v14NormalizeTask 미사용 — 일정 SELECT 측 가벼운 컬럼만 받음.
+function mapScheduleRowToTask(row) {
+  return {
+    id: row.id,
+    customer: row.customer_name || "",
+    customerName: row.customer_name || "",
+    task_no: row.task_no || "",
+    taskCode: row.task_no || "",
+    taskNo: row.task_no || "",
+    status: row.status,
+    scheduledAt: row.scheduled_at,
+    region: row.district || "",
+    address: row.address || "",
+    customerAddress: row.address || "",
+    assignedEngineer: "",
+    engineer: "",
+    workItems: (row.task_items || []).map(it => ({
+      id: it.id,
+      workType: it.work_types?.name,
+      serviceCode: it.work_types?.service_types?.code,
+      orderType: it.order_type,
+      appliance: it.appliance_types?.name,
+      qty: it.qty,
+    })),
+  };
+}
+
+// 아이콘 버튼 (이전/다음 달).
+function iconBtn(t) {
+  return {
+    background: "transparent",
+    border: `1px solid ${t.border}`,
+    borderRadius: 8,
+    padding: "6px 8px",
+    color: t.textSecondary,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontFamily: "inherit",
+  };
+}
 
 export default UsolHScheduleTab;
