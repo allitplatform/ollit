@@ -55,6 +55,8 @@ import { UsolRemitHistoryScreen } from "./UsolRemitHistoryScreen.jsx";
 import { WeekSettleDetail, getWeekRemitStatus } from "./WeekSettleDetail.jsx";
 // 2026-06-11 — PC 반응형 (1024px 이상) 분기.
 import { useIsPc } from "../../utils/useIsPc.js";
+// 2026-06-11 — 추이 차트 다크/라이트 분기.
+import { useIsDark } from "../../hooks/useIsDark.js";
 
 // 색 토큰 — 시안 확정
 const C_MAGENTA = "#FF4D9E";
@@ -909,16 +911,18 @@ function ViewPcSettle({
         gap: 24,
         alignItems: "stretch",
       }}>
-        {/* 좌 — 월별 정산 추이 (4/5/6월 막대) */}
+        {/* 좌 — 월별 정산 추이 (가로 막대, 최근 3개월).
+            2026-06-11 — alignSelf: "start" 박스 높이를 콘텐츠만큼만 차지 (옆 칸 stretch 무시). */}
         <div style={{
           background: "var(--bg-elevated, #1F1F1F)",
           border: "1px solid var(--border, #2A2A2A)",
           borderRadius: 12,
-          padding: "18px 20px",
+          padding: "16px 18px",
           display: "flex",
           flexDirection: "column",
-          gap: 14,
+          gap: 12,
           minWidth: 0,
+          alignSelf: "start",
         }}>
           <div style={{ fontSize: 14, color: C_GRAY, fontWeight: 700 }}>
             월별 정산 추이
@@ -1086,56 +1090,88 @@ function PendingBanner({ summary, onClick }) {
   );
 }
 
-// 월별 정산 추이 막대 — CSS 만으로 (SVG 미사용). 보조 정보라 톤 다운.
-//   bars[].amount → max 대비 % 로 막대 높이 산출. min 4% 가시성 확보.
-//   2026-06-11 미세조정 — 막대 폭 80→36 (얇게), 색 진한 그라데이션 → 핑크 opacity 0.45 단색,
-//     차트 height 180→140 (영역 축소). 라벨 폰트 12→11. 주차별 표가 주인공.
+// 월별 정산 추이 — 가로 막대 (다크/라이트 양쪽 대응).
+//   각 행 = [월 라벨 30px] [트랙 바 flex:1] [금액 우측정렬].
+//   당월 (KST 현재 월) 만 포인트 핑크 + 월·금액 라벨 핑크.
+//   지난 달 = 무채색 회색. 트랙은 더 연한 회색.
+//   다크 핑크 #D4537E / 라이트 핑크 #993556.
+//   다크 회색 #3A3A42 / 라이트 회색 #D8D6CC.
+//   bars[].amount → max 대비 % 길이. min 2% 가시성.
 function MonthlyTrendChart({ bars, max }) {
+  const isDark = useIsDark();
+
+  // KST 현재 월 (YYYY-MM) — 하드코딩 없이 동적 판정.
+  const nowKstYm = useMemo(() => {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul",
+      year: "numeric", month: "2-digit",
+    }).formatToParts(new Date());
+    const y = parts.find(p => p.type === "year")?.value;
+    const m = parts.find(p => p.type === "month")?.value;
+    return `${y}-${m}`;
+  }, []);
+
+  const colorPink    = isDark ? "#D4537E" : "#993556";
+  const colorGray    = isDark ? "#3A3A42" : "#D8D6CC";
+  const colorTrack   = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+  const colorTextSec = isDark ? "#9CA3AF" : "#6F6A60";
+
   return (
-    <div style={{
-      display: "flex",
-      alignItems: "flex-end",
-      gap: 28,
-      height: 140,
-      padding: "6px 4px 0",
-    }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       {bars.map(b => {
-        const heightPct = max > 0 && b.amount > 0
-          ? Math.max(4, (b.amount / max) * 100)
+        const isCurrent = b.ym === nowKstYm;
+        const pct = max > 0 && b.amount > 0
+          ? Math.max(2, (b.amount / max) * 100)
           : 0;
+        const accent = isCurrent ? colorPink : colorGray;
+        const labelColor = isCurrent ? colorPink : colorTextSec;
         return (
           <div key={b.ym} style={{
-            flex: 1,
             display: "flex",
-            flexDirection: "column",
             alignItems: "center",
-            justifyContent: "flex-end",
-            gap: 5,
-            minWidth: 0,
-            height: "100%",
+            gap: 12,
           }}>
+            {/* 월 라벨 */}
             <div style={{
-              fontSize: 11,
-              fontWeight: 700,
-              color: "var(--text-secondary, #B5B0A8)",
-              fontFamily: "inherit",
+              width: 30,
+              fontSize: 13,
+              fontWeight: 800,
+              color: labelColor,
+              flexShrink: 0,
               whiteSpace: "nowrap",
             }}>
-              {b.amount > 0 ? `₩${b.amount.toLocaleString()}` : "—"}
-            </div>
-            <div style={{
-              width: "100%",
-              maxWidth: 36,
-              height: `${heightPct}%`,
-              minHeight: heightPct > 0 ? 4 : 0,
-              background: heightPct > 0
-                ? "rgba(255, 77, 158, 0.45)"
-                : "transparent",
-              borderRadius: "4px 4px 0 0",
-              transition: "height 0.3s ease",
-            }}/>
-            <div style={{ fontSize: 12, color: C_GRAY, fontWeight: 700 }}>
               {b.label}
+            </div>
+            {/* 트랙 + 채움 */}
+            <div style={{
+              flex: 1,
+              height: 12,
+              background: colorTrack,
+              borderRadius: 6,
+              overflow: "hidden",
+              minWidth: 0,
+            }}>
+              <div style={{
+                width: `${pct}%`,
+                height: "100%",
+                background: accent,
+                borderRadius: 6,
+                transition: "width 0.3s ease",
+              }}/>
+            </div>
+            {/* 금액 */}
+            <div className="mono" style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: labelColor,
+              fontFamily: "inherit",
+              textAlign: "right",
+              minWidth: 86,
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+              letterSpacing: "-0.2px",
+            }}>
+              {b.amount > 0 ? `₩${b.amount.toLocaleString()}` : "—"}
             </div>
           </div>
         );
