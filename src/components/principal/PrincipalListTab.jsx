@@ -25,6 +25,8 @@ import { CountBoxes } from "../CountBoxes.jsx";
 import { fetchAllPrincipalCounts, fetchAllPrincipalTasks } from "../../lib/allPrincipalTasksDb.js";
 // 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 통합 테이블.
 import { useIsPc } from "../../utils/useIsPc.js";
+// 2026-06-11 — ServiceTag 다크/라이트 분기.
+import { useIsDark } from "../../hooks/useIsDark.js";
 
 const N_BADGE_COLOR     = "#2E9E54";
 const CLEAN_COLOR       = "#378ADD";
@@ -778,7 +780,9 @@ const loadingBoxStyle = {
 //   긴 영문 이름(ZHANGHUIYING 등)이 들어간 행에서 컬럼 폭이 늘어나 다른 행과
 //   정렬·폭이 어긋남. minmax(0, Xfr) 로 하한을 0으로 강제 → 내용 길이와 무관하게
 //   fr 비율 고정. 텍스트는 셀의 ellipsis 로 잘림.
-const PC_GRID_COLS = "minmax(0, 19fr) minmax(0, 26fr) minmax(0, 14fr) minmax(0, 11fr) minmax(0, 16fr) minmax(0, 14fr)";
+// 2026-06-11 — 기종·수량 셀에 작업종류 태그 인라인 → 26fr → 32fr 확대.
+//   고객·지역·기사·시간·상태 미세 축소로 100 합산 유지.
+const PC_GRID_COLS = "minmax(0, 18fr) minmax(0, 32fr) minmax(0, 13fr) minmax(0, 10fr) minmax(0, 14fr) minmax(0, 13fr)";
 // 2026-06-10 8차 — 컬럼별 정렬 매핑.
 //   사장님 spec: 고객·기종·지역·기사 = 왼쪽 / 시간·상태 = 가운데.
 const PC_HEADER_COLS = [
@@ -974,12 +978,14 @@ function ViewPcTable({
           }}>
             {PC_HEADER_COLS.map(col => (
               <div key={col.label} style={{
-                padding: "12px 16px",
-                fontSize: 14,
+                // 2026-06-11 — 헤더·본문 폰트 통일. uppercase / letterSpacing 0.4 폐기.
+                //   본문 17 / 헤더 14 였던 차이 해소 → 둘 다 17.
+                //   한국어 라벨 가독성 위해 letterSpacing 0.2 로 축소.
+                padding: "13px 16px",
+                fontSize: 17,
                 fontWeight: 700,
                 color: t.textMuted,
-                letterSpacing: 0.4,
-                textTransform: "uppercase",
+                letterSpacing: 0.2,
                 textAlign: col.align,
                 minWidth: 0,
                 overflow: "hidden",
@@ -1045,6 +1051,8 @@ function PcTableRow({ t, task, isSelected, onClick }) {
   const itemSummary = appliance
     ? `${appliance}${qty > 1 ? ` ×${qty}` : ""}${otherCount > 0 ? ` +${otherCount}` : ""}`
     : "—";
+  // 2026-06-11 — 작업종류 태그 (기종 셀 인라인). 우선순위: refrigerant > clean > addon > visit.
+  const serviceKind = getServiceKind(task);
   // 2026-06-10 — 모바일 TaskRow(line 689)와 동일 호출 — task.region 우선, 빈 값이면 address 키워드 추출.
   //   address 단일 인자로 호출하면 "서울특별시"가 먼저 매치돼 시/도까지만 나옴.
   const region = regionOrDistrictFromAddress(task.region, task.address || task.customerAddress) || "—";
@@ -1069,7 +1077,10 @@ function PcTableRow({ t, task, isSelected, onClick }) {
       }}
     >
       <div style={pcTdStyle(t, { fontWeight: 700, color: t.text, textAlign: "left" })}>{task.customer || task.customerName || "—"}</div>
-      <div style={pcTdStyle(t, { textAlign: "left" })}>{itemSummary}</div>
+      <div style={pcTdStyle(t, { textAlign: "left" })}>
+        <ServiceTag kind={serviceKind}/>
+        <span>{itemSummary}</span>
+      </div>
       <div style={pcTdStyle(t, { textAlign: "left" })}>{region}</div>
       <div style={pcTdStyle(t, { textAlign: "center" })} className="mono">{time}</div>
       <div style={pcTdStyle(t, { textAlign: "left" })}>{engineer}</div>
@@ -1087,16 +1098,64 @@ function PcTableRow({ t, task, isSelected, onClick }) {
   );
 }
 
+// 2026-06-11 — 작업종류 텍스트 칩 (이모지 X). 다크/라이트 양쪽 대응.
+//   refrigerant(냉매) = warning 주황 / clean(세척) = info 파랑
+//   / addon(추가) = 보라 / visit(출장) = 회색.
+//   여러 종류 섞이면 getServiceKind 가 대표 1개 선택 (refrigerant 우선).
+function ServiceTag({ kind }) {
+  const isDark = useIsDark();
+  const tokens = {
+    refrigerant: {
+      label: "냉매",
+      light: { bg: "rgba(245, 158, 11, 0.14)", color: "#92400E" },
+      dark:  { bg: "rgba(245, 158, 11, 0.22)", color: "#FCD34D" },
+    },
+    clean: {
+      label: "세척",
+      light: { bg: "rgba(59, 130, 246, 0.12)", color: "#1E40AF" },
+      dark:  { bg: "rgba(59, 130, 246, 0.22)", color: "#93C5FD" },
+    },
+    addon: {
+      label: "추가",
+      light: { bg: "rgba(139, 92, 246, 0.12)", color: "#5B21B6" },
+      dark:  { bg: "rgba(139, 92, 246, 0.22)", color: "#C4B5FD" },
+    },
+    visit: {
+      label: "출장",
+      light: { bg: "rgba(107, 114, 128, 0.14)", color: "#374151" },
+      dark:  { bg: "rgba(156, 163, 175, 0.18)", color: "#D1D5DB" },
+    },
+  };
+  const tok = tokens[kind];
+  if (!tok) return null;
+  const c = isDark ? tok.dark : tok.light;
+  return (
+    <span style={{
+      display: "inline-block",
+      padding: "2px 8px",
+      borderRadius: 6,
+      fontSize: 13,
+      fontWeight: 800,
+      background: c.bg,
+      color: c.color,
+      marginRight: 8,
+      letterSpacing: 0.2,
+      verticalAlign: "middle",
+    }}>{tok.label}</span>
+  );
+}
+
 function pcTdStyle(t, extra) {
   return {
     // 2026-06-10 8차 — 행 높이 축소(18→11) + 강제 center 제거.
     //   호출처에서 셀별 textAlign override.
-    // 2026-06-11 9차 — 모든 셀에 minWidth:0 + nowrap + ellipsis.
+    // 2026-06-11 — 헤더 padding 13 와 통일 (헤더·본문 정렬 일관).
+    //   모든 셀에 minWidth:0 + nowrap + ellipsis.
     //   긴 텍스트가 셀 폭 늘리는 사고 차단 → 모든 행 동일 높이/정렬.
     //   전체값은 우측 상세 패널에서 확인.
     //   주의: textOverflow ellipsis 는 block container + 텍스트 노드에서 작동.
     //   display:flex 두면 자식 텍스트 ellipsis 안 됨 → block 유지.
-    padding: "11px 16px",
+    padding: "13px 16px",
     color: t.textSecondary,
     minWidth: 0,
     overflow: "hidden",
