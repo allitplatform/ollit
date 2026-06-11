@@ -253,6 +253,9 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
       const endYmd = `${yy}-${String(mm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
       const { startISO, endISO } = kstRangeToUtc(startYmd, endYmd);
 
+      // 2026-06-11 — SELECT 확장 (사장님 spec — 칸 + 리스트 같은 소스).
+      //   옛 가벼운 (id + scheduled_at) → 옛 본체 fetch SELECT 동일.
+      //   날짜 클릭 시 monthTasks 측 toKstYmd 필터 → 리스트 표시 (칸 건수 = 리스트 건수 일치).
       const PAGE_SIZE = 1000;
       const MAX_PAGES = 5;
       const accumulated = [];
@@ -260,7 +263,14 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
         const from = page * PAGE_SIZE;
         const { data } = await supabase
           .from("tasks")
-          .select("id, scheduled_at")
+          .select(`
+            id, task_no, customer_name, status, scheduled_at, district, address,
+            task_items (
+              id, qty, order_type,
+              work_types ( id, name, service_types ( id, code ) ),
+              appliance_types ( id, name )
+            )
+          `)
           .in("principal_id", usolIds)
           .gte("scheduled_at", startISO)
           .lt("scheduled_at", endISO)
@@ -579,23 +589,20 @@ function ViewPcSchedule({
     return m;
   }, [monthTasks]);
 
-  // 표 본문 — selectedYmd 있으면 그날 (tasks 또는 monthTasks 측 측 분기) / 없으면 기간 전체.
-  //   selectedYmd 측 calYm 안이고 그 날이 range 밖이면 monthTasks 측 measure (캘린더 표시 측만).
-  //   selectedYmd 측 calYm 밖이면 미지원 (현재 캘린더 측 측 X). 일단 단순 — tasks 측 측 측.
+  // 표 본문 — 사장님 spec: 칸 건수와 리스트가 같은 소스.
+  //   selectedYmd 있음 → monthTasks 측 toKstYmd 필터 (칸 = 리스트 건수 일치 보장).
+  //   selectedYmd null (기간 표) → 옛 tasks (기간 fetch 결과) 사용.
   const tableTasks = useMemo(() => {
     if (selectedYmd) {
-      // 우선 tasks 측 측. 매칭 0건이면 monthTasks 측 fallback 측 — 단 monthTasks 측 가벼운 row 측 PcTableRow 측 측 X.
-      // 따라서 fallback 측 X — selectedYmd 측 range 안일 때만 표시. range 밖이면 빈 표.
-      const src = tasks.filter(r => r.scheduled_at && toKstYmd(r.scheduled_at) === selectedYmd);
+      const src = monthTasks.filter(r => r.scheduled_at && toKstYmd(r.scheduled_at) === selectedYmd);
       return src.map(mapScheduleRowToTask)
         .sort((a, b) => String(a.scheduledAt || "").localeCompare(String(b.scheduledAt || "")));
     }
-    // selectedYmd null — 기간 전체.
     return tasks
       .filter(r => r.scheduled_at)
       .map(mapScheduleRowToTask)
       .sort((a, b) => String(a.scheduledAt || "").localeCompare(String(b.scheduledAt || "")));
-  }, [tasks, selectedYmd]);
+  }, [tasks, monthTasks, selectedYmd]);
 
   // 리스트 제목 — selectedYmd 측 "M/D (요일)" / 기간 측 "M/D ~ M/D".
   const tableTitle = selectedYmd
