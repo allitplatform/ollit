@@ -57,6 +57,8 @@ import { WeekSettleDetail, getWeekRemitStatus } from "./WeekSettleDetail.jsx";
 import { useIsPc } from "../../utils/useIsPc.js";
 // 2026-06-11 — 추이 차트 다크/라이트 분기.
 import { useIsDark } from "../../hooks/useIsDark.js";
+// 2026-06-11 — PC 폰트 크기 표준 토큰 (내 작업 ViewPcTable 기준).
+import { TEXT } from "../../styles/textTokens.js";
 
 // 색 토큰 — 시안 확정
 const C_MAGENTA = "#FF4D9E";
@@ -971,14 +973,14 @@ function ViewPcSettle({
               borderRadius: 12,
               overflow: "hidden",
             }}>
-              {/* 헤더 */}
+              {/* 헤더 — TEXT.HEADER 토큰 적용 (내 작업 컬럼 헤더와 통일). */}
               <div style={{
                 display: "grid",
                 gridTemplateColumns: "1.4fr 1fr 1fr",
                 padding: "14px 18px",
                 borderBottom: `1px solid var(--border, #2A2A2A)`,
                 background: "var(--bg-secondary, #1A1A1A)",
-                fontSize: 15,
+                fontSize: TEXT.HEADER,
                 fontWeight: 800,
                 color: C_GRAY,
                 textAlign: "center",
@@ -1036,7 +1038,7 @@ function MetricCard({ label, value, green }) {
       minWidth: 0,
     }}>
       <div style={{
-        fontSize: 14,
+        fontSize: TEXT.META,
         color: C_GRAY,
         fontWeight: 700,
         whiteSpace: "nowrap",
@@ -1044,7 +1046,7 @@ function MetricCard({ label, value, green }) {
         textOverflow: "ellipsis",
       }}>{label}</div>
       <div style={{
-        fontSize: 28,
+        fontSize: TEXT.METRIC,
         fontWeight: 800,
         color: green ? C_GREEN : "var(--text-primary, #FAF8F5)",
         fontFamily: "inherit",
@@ -1203,19 +1205,19 @@ function PcMonthGroup({ group, today, isOpen, onToggle, onWeekClick }) {
         }}
       >
         <div style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ color: C_GRAY, fontSize: 14, fontWeight: 700 }}>
+          <span style={{ color: C_GRAY, fontSize: TEXT.STATUS, fontWeight: 700 }}>
             {isOpen ? "▼" : "▶"}
           </span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: headerColor }}>
+          <span style={{ fontSize: TEXT.BODY, fontWeight: 800, color: headerColor }}>
             {monthLabel}
           </span>
-          <span style={{ fontSize: 14, color: C_GRAY, fontWeight: 600 }}>
+          <span style={{ fontSize: TEXT.STATUS, color: C_GRAY, fontWeight: 600 }}>
             ({group.count}주차)
           </span>
         </div>
         <div>
           <span style={{
-            fontSize: 14, fontWeight: 700,
+            fontSize: TEXT.STATUS, fontWeight: 700,
             color: group.allDone ? C_GREEN_DONE : C_AMBER,
           }}>
             {group.allDone ? "전부 입금완료" : "대기 포함"}
@@ -1223,7 +1225,7 @@ function PcMonthGroup({ group, today, isOpen, onToggle, onWeekClick }) {
         </div>
         <div style={{ textAlign: "right" }}>
           <span style={{
-            fontSize: 18, fontWeight: 800,
+            fontSize: TEXT.BODY, fontWeight: 800,
             color: C_MAGENTA,
             fontFamily: "inherit",
           }}>
@@ -1249,19 +1251,19 @@ function PcMonthGroup({ group, today, isOpen, onToggle, onWeekClick }) {
               alignItems: "center",
               cursor: "pointer",
               borderTop: "1px solid var(--border, #2A2A2A)",
-              fontSize: 16,
+              fontSize: TEXT.BODY,
               textAlign: "center",
             }}
           >
             <div style={{ textAlign: "left", color: "var(--text-primary, #FAF8F5)", fontWeight: 700 }}>
               {`${w.monday?.getMonth() + 1}월 ${w.week ?? "-"}주차`}
-              <span style={{ marginLeft: 8, fontSize: 14, color: C_GRAY, fontWeight: 600 }}>
+              <span style={{ marginLeft: 8, fontSize: TEXT.STATUS, color: C_GRAY, fontWeight: 600 }}>
                 {w.monthDay}
               </span>
             </div>
             <div>
               <span style={{
-                fontSize: 14,
+                fontSize: TEXT.STATUS,
                 fontWeight: 800,
                 color: statusColor,
                 background: done ? "rgba(93,202,165,0.12)" : "rgba(230,163,58,0.14)",
@@ -1273,7 +1275,7 @@ function PcMonthGroup({ group, today, isOpen, onToggle, onWeekClick }) {
             </div>
             <div style={{ textAlign: "right" }}>
               <span style={{
-                fontSize: 16, fontWeight: 700,
+                fontSize: TEXT.BODY, fontWeight: 700,
                 color: "var(--text-primary, #FAF8F5)",
                 fontFamily: "inherit",
               }}>
