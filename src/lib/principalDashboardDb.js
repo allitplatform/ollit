@@ -242,6 +242,115 @@ export async function fetchPrincipalSidebarSummary({ principalCodes = [] } = {})
 }
 
 // ============================================================================
+// 2026-06-11 — 검색 전용 RPC 경로 (Migration 111).
+//   사장님 spec — 4개 OR ILIKE: customer_name / address / users.name / task_items.product_order_id.
+//   PostgREST .or 측 left JOIN nested 측 불가 → search_principal_tasks RPC.
+//   응답 task_id 배열 + total_count → 두 번째 tasks .in("id", ids) full fetch.
+//   .in 측 정렬 풀림 → RPC 측 id 순서대로 클라 재정렬.
+// ============================================================================
+async function fetchByTaskIdsOrdered(ids, principalMap = null, userMap = null) {
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { ok: true, tasks: [] };
+  }
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(TODAY_SELECT)
+    .in("id", ids);
+  if (error) {
+    console.error("[fetchByTaskIdsOrdered]", error);
+    return { ok: false, error: error.message, tasks: [] };
+  }
+
+  // principals / users in-memory JOIN (다른 fetch 패턴 동일).
+  const principalIds = [...new Set((data || []).map(r => r.principal_id).filter(Boolean))];
+  const userIds      = [...new Set((data || []).map(r => r.assigned_engineer_id).filter(Boolean))];
+
+  let pMap = principalMap || new Map();
+  if (!principalMap && principalIds.length > 0) {
+    const { data: pData } = await supabase
+      .from("principals")
+      .select("id, code, name, color, prefix")
+      .in("id", principalIds);
+    pMap = new Map((pData || []).map(p => [p.id, p]));
+  }
+
+  let uMap = userMap || new Map();
+  if (!userMap && userIds.length > 0) {
+    const { data: uData } = await supabase
+      .from("users")
+      .select("id, code, name, phone")
+      .in("id", userIds);
+    uMap = new Map((uData || []).map(u => [u.id, u]));
+  }
+
+  const byId = new Map();
+  for (const row of data || []) {
+    const task = rowToTask(row);
+    if (!task) continue;
+    if (row.principal_id) {
+      const p = pMap.get(row.principal_id);
+      if (p) {
+        task.principal     = p.name || "";
+        task.principalCode = p.code || "";
+      }
+    }
+    if (row.assigned_engineer_id) {
+      const u = uMap.get(row.assigned_engineer_id);
+      if (u) {
+        task.assignedEngineer = u.name || "";
+        task.engineer         = u.name || "";
+      }
+    }
+    const normalized = v14NormalizeTask(task);
+    if (normalized) byId.set(row.id, normalized);
+  }
+
+  // RPC 가 준 id 순서 보존.
+  const ordered = ids.map(id => byId.get(id)).filter(Boolean);
+  return { ok: true, tasks: ordered };
+}
+
+export async function searchPrincipalTasksRpc({
+  principalCodes = [],
+  activeOnly = false,
+  search = "",
+  pageSize = 100,
+  offset = 0,
+} = {}) {
+  if (!Array.isArray(principalCodes) || principalCodes.length === 0) {
+    return { ok: false, error: "principalCodes X", tasks: [], total: 0, hasMore: false };
+  }
+  const pids = await resolvePids(principalCodes);
+  if (pids.length === 0) {
+    return { ok: false, error: "principal_id X", tasks: [], total: 0, hasMore: false };
+  }
+
+  const { data, error } = await supabase.rpc("search_principal_tasks", {
+    p_principal_ids: pids,
+    p_active_only:   !!activeOnly,
+    p_search:        String(search || "").trim(),
+    p_limit:         pageSize,
+    p_offset:        offset,
+  });
+  if (error) {
+    console.error("[searchPrincipalTasksRpc]", error);
+    return { ok: false, error: error.message, tasks: [], total: 0, hasMore: false };
+  }
+
+  const rows  = Array.isArray(data) ? data : [];
+  const ids   = rows.map(r => r.task_id).filter(Boolean);
+  const total = rows[0]?.total_count ? Number(rows[0].total_count) : 0;
+
+  const fetched = await fetchByTaskIdsOrdered(ids);
+  return {
+    ok: fetched.ok,
+    tasks: fetched.tasks,
+    total,
+    hasMore: offset + ids.length < total,
+  };
+}
+
+// ============================================================================
 // 2026-06-11 — PC 내 작업 표 측 서버 페이지네이션 fetch.
 //   원청 PWA "전체" 탭 측 1,342건 fetch 측 Supabase 1000행 캡 임박.
 //   서버 페이지 (range) + DB ORDER BY (status_order, scheduled_at) 측 캡 회피 + 속도.

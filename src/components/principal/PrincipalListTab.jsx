@@ -14,6 +14,7 @@ import {
   fetchPrincipalTodayTasks,
   fetchPrincipalStatusCounts,
   fetchPrincipalListPaged,
+  searchPrincipalTasksRpc,
 } from "../../lib/principalDashboardDb.js";
 import { getStatusBadge, getStatusLabel } from "../../utils/principalStatusBadge.js";
 // 2026-06-09 — 출장비 (visit_fee) 공용 판별 / 배지.
@@ -187,18 +188,27 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
   }, [pcSearchInput]);
 
   // PC 페이지 fetch. reset=true 측 첫 페이지부터 / false 측 append.
+  //   검색어 있으면 RPC 경로 (search_principal_tasks Mig 111) — 4개 OR ILIKE.
+  //   검색어 없으면 옛 PostgREST 경로 (fetchPrincipalListPaged) — status_order 정렬 + range.
   const fetchPcPage = useCallback(async ({ reset = false, currentOffset = 0 } = {}) => {
     if (!Array.isArray(principalCodes) || principalCodes.length === 0) return;
     setPcLoading(true);
-    // 검색어 있으면 자동으로 전체 status (activeOnly false 효과) — 사장님 spec.
-    const effectiveActiveOnly = activeOnly && !pcSearch.trim();
-    const res = await fetchPrincipalListPaged({
-      principalCodes,
-      activeOnly: effectiveActiveOnly,
-      search: pcSearch,
-      pageSize: PC_PAGE_SIZE,
-      offset: currentOffset,
-    });
+    const term = pcSearch.trim();
+    const res = term
+      ? await searchPrincipalTasksRpc({
+          principalCodes,
+          activeOnly: false,  // 검색어 있으면 전체 status — 사장님 spec.
+          search: term,
+          pageSize: PC_PAGE_SIZE,
+          offset: currentOffset,
+        })
+      : await fetchPrincipalListPaged({
+          principalCodes,
+          activeOnly,
+          search: "",
+          pageSize: PC_PAGE_SIZE,
+          offset: currentOffset,
+        });
     if (res.ok) {
       setPcTasks(prev => reset ? res.tasks : [...prev, ...res.tasks]);
       setPcTotal(res.total);
@@ -1017,7 +1027,7 @@ function ViewPcTable({
             type="text"
             value={searchInput || ""}
             onChange={(e) => setSearchInput?.(e.target.value)}
-            placeholder="고객·지역·주소·작업번호 검색"
+            placeholder="고객·기사·주문번호·주소 검색"
             style={{
               flex: 1,
               background: "transparent",
