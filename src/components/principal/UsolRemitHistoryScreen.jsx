@@ -302,7 +302,7 @@ function EngineerGroupCard({ group }) {
         {group.items.map(it => (
           <div key={it.taskId} style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: TEXT.STATUS,
+            fontSize: TEXT.BODY,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
               <span style={{
