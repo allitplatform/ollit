@@ -53,6 +53,8 @@ import {
 import { UsolRemitHistoryScreen } from "./UsolRemitHistoryScreen.jsx";
 // 2026-06-02 — 공유 드릴인 컴포넌트 (운영자 ① / PWA 공유).
 import { WeekSettleDetail, getWeekRemitStatus } from "./WeekSettleDetail.jsx";
+// 2026-06-11 — PC 반응형 (1024px 이상) 분기.
+import { useIsPc } from "../../utils/useIsPc.js";
 
 // 색 토큰 — 시안 확정
 const C_MAGENTA = "#FF4D9E";
@@ -118,6 +120,10 @@ function formatMDWithDow(d) {
 
 // 2026-06-02 — getWeekRemitStatus 측 ./WeekSettleDetail.jsx 측 import (공유).
 export function PrincipalSettleTab({ principalCodes, onSelect }) {
+  // 2026-06-11 — PC 반응형 (1024px+) 분기 (유솔N 전용 시안 확정안).
+  //   레이아웃: 좌(메트릭 4 가로 + 정산대기 배너 + 주차 표) + 우(기사 입금내역 인라인).
+  //   모바일은 무손상 — 데이터 fetch / state 전부 공유.
+  const isPc = useIsPc();
   const [items, setItems] = useState([]);
   const [remits, setRemits] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -509,6 +515,23 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   //   클릭 → setSelectedWeekKey('pending') → WeekDetailView 측 catch 측 catch 426건 상세 진입.
   const hasPendingBucket = weeks.some(w => w.key === "pending");
 
+  // 2026-06-11 — PC 분기 (1024px+, 유솔N 전용 시안). selectedWeekKey/showUsolHistory 분기 후라
+  //   주차 드릴인 / 기사 입금 화면은 기존 모바일 분기로 그대로 진입 (회귀 0).
+  if (isPc) {
+    return (
+      <ViewPcSettle
+        summary={summary}
+        groups={groups.groups}
+        today={today}
+        openGroups={openGroups}
+        setOpenGroups={setOpenGroups}
+        onWeekClick={(wk) => setSelectedWeekKey(wk.key)}
+        onPendingClick={hasPendingBucket ? () => setSelectedWeekKey("pending") : null}
+        hasUsolN={hasUsolN}
+      />
+    );
+  }
+
   // 리스트 뷰
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
@@ -826,6 +849,278 @@ function EmptyBox({ children }) {
       border: "1px solid var(--border, #2A2A2A)",
       borderRadius: 8,
     }}>{children}</div>
+  );
+}
+
+// ============================================================
+// 2026-06-11 — PC 정산 화면 (유솔N 전용 시안 확정안)
+//   ViewPcTable 톤 그대로 (다크 + 핑크, 폰트 17, 셀 가운데, 행 강조).
+//   좌(메트릭 4 가로 + 정산대기 배너 + 주차별 표) + 우(기사 입금내역 인라인).
+//   주차 클릭 = 모바일과 동일 (selectedWeekKey 세팅 → WeekSettleDetail 전체화면 진입).
+//     인라인 펼침은 2차 라운드 (사장님 확인 후).
+// ============================================================
+function ViewPcSettle({
+  summary, groups, today, openGroups, setOpenGroups,
+  onWeekClick, onPendingClick, hasUsolN,
+}) {
+  const metrics = [
+    { key: "received",   label: "접수",            value: summary.received },
+    { key: "beforeWork", label: "일정 확정·작업 전", value: summary.beforeWork },
+    { key: "doneWork",   label: "작업완료",         value: summary.doneWork },
+    { key: "settled",    label: "정산완료",         value: summary.settled, green: true },
+  ];
+
+  return (
+    <div style={{
+      display: "flex",
+      gap: 24,
+      padding: "20px 24px 24px",
+      minHeight: "100vh",
+      boxSizing: "border-box",
+    }}>
+      {/* 메인 — 메트릭 + 정산대기 배너 + 주차별 표 */}
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 18 }}>
+        {/* 메트릭 4 가로 카드 */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: 12,
+        }}>
+          {metrics.map(m => (
+            <div key={m.key} style={{
+              background: "var(--bg-elevated, #1F1F1F)",
+              border: `1px solid ${m.green ? C_GREEN : "var(--border, #2A2A2A)"}`,
+              borderRadius: 12,
+              padding: "16px 18px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}>
+              <div style={{
+                fontSize: 14,
+                color: C_GRAY,
+                fontWeight: 700,
+              }}>{m.label}</div>
+              <div style={{
+                fontSize: 28,
+                fontWeight: 800,
+                color: m.green ? C_GREEN : "var(--text-primary, #FAF8F5)",
+                fontFamily: "inherit",
+                lineHeight: 1.1,
+              }}>{m.value.toLocaleString()}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* 정산대기 배너 — 강조 (모바일 SummarySection 톤 차용 + 가로 확장) */}
+        {summary.pendingCount > 0 && (
+          <div
+            onClick={onPendingClick || undefined}
+            className={onPendingClick ? "clickable" : ""}
+            style={{
+              background: "rgba(230,163,58,0.08)",
+              borderLeft: `4px solid ${C_AMBER}`,
+              border: `1px solid rgba(230,163,58,0.25)`,
+              borderRadius: 10,
+              padding: "16px 20px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              cursor: onPendingClick ? "pointer" : "default",
+            }}
+          >
+            <div>
+              <div style={{ fontSize: 17, fontWeight: 800, color: C_AMBER, marginBottom: 4 }}>
+                정산 대기 {summary.pendingCount}건
+              </div>
+              <div style={{ fontSize: 13, color: C_GRAY }}>
+                작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: 15 }}>
+                  ₩{summary.pendingAmount.toLocaleString()}
+                </span>
+              </div>
+            </div>
+            {onPendingClick && (
+              <span style={{ color: C_GRAY, fontSize: 20, fontWeight: 700 }}>›</span>
+            )}
+          </div>
+        )}
+
+        {/* 주차별 정산 표 — ViewPcTable 톤 (가운데 정렬, 폰트 17, 행 강조) */}
+        <div>
+          <div style={{
+            fontSize: 14,
+            color: C_GRAY,
+            fontWeight: 700,
+            margin: "0 0 10px 4px",
+          }}>
+            주차별 정산
+          </div>
+          {groups.length === 0 ? (
+            <EmptyBox>정산 항목이 없습니다</EmptyBox>
+          ) : (
+            <div style={{
+              background: "var(--bg-elevated, #1F1F1F)",
+              border: "1px solid var(--border, #2A2A2A)",
+              borderRadius: 12,
+              overflow: "hidden",
+            }}>
+              {/* 헤더 */}
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "1.4fr 1fr 1fr",
+                padding: "12px 18px",
+                borderBottom: `1px solid var(--border, #2A2A2A)`,
+                background: "var(--bg-secondary, #1A1A1A)",
+                fontSize: 14,
+                fontWeight: 800,
+                color: C_GRAY,
+                textAlign: "center",
+              }}>
+                <div style={{ textAlign: "left" }}>월·주차</div>
+                <div>상태</div>
+                <div style={{ textAlign: "right" }}>금액</div>
+              </div>
+              {/* 월별 그룹 */}
+              {groups.map(g => (
+                <PcMonthGroup
+                  key={g.payYm}
+                  group={g}
+                  today={today}
+                  isOpen={!!openGroups[g.payYm]}
+                  onToggle={() => setOpenGroups(o => ({ ...o, [g.payYm]: !o[g.payYm] }))}
+                  onWeekClick={onWeekClick}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 우측 패널 — 기사 입금내역 (usol_n 포함 시만 노출. embedded 모드 — 헤더 뒤로가기 X) */}
+      {hasUsolN && (
+        <aside style={{
+          width: 360,
+          flexShrink: 0,
+          background: "var(--bg-elevated, #1F1F1F)",
+          border: "1px solid var(--border, #2A2A2A)",
+          borderRadius: 12,
+          padding: "4px 0",
+          alignSelf: "flex-start",
+          maxHeight: "calc(100vh - 48px)",
+          overflowY: "auto",
+        }}>
+          <UsolRemitHistoryScreen />
+        </aside>
+      )}
+    </div>
+  );
+}
+
+// PC 표용 월별 그룹 row (ViewPcTable 톤 — 행 호버, 가운데 정렬)
+function PcMonthGroup({ group, today, isOpen, onToggle, onWeekClick }) {
+  const [y, m] = group.payYm.split("-").map(Number);
+  const monthLabel = `${y}년 ${m}월`;
+  const headerColor = group.allDone ? C_GREEN_DONE : C_PINK_DEPOSIT;
+
+  return (
+    <div style={{ borderBottom: "1px solid var(--border, #2A2A2A)" }}>
+      {/* 월 헤더 */}
+      <div
+        onClick={onToggle}
+        className="clickable"
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.4fr 1fr 1fr",
+          padding: "14px 18px",
+          alignItems: "center",
+          cursor: "pointer",
+          background: isOpen ? "rgba(255,77,158,0.04)" : "transparent",
+          textAlign: "center",
+        }}
+      >
+        <div style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ color: C_GRAY, fontSize: 13, fontWeight: 700 }}>
+            {isOpen ? "▼" : "▶"}
+          </span>
+          <span style={{ fontSize: 17, fontWeight: 800, color: headerColor }}>
+            {monthLabel}
+          </span>
+          <span style={{ fontSize: 13, color: C_GRAY, fontWeight: 600 }}>
+            ({group.count}주차)
+          </span>
+        </div>
+        <div>
+          <span style={{
+            fontSize: 13, fontWeight: 700,
+            color: group.allDone ? C_GREEN_DONE : C_AMBER,
+          }}>
+            {group.allDone ? "전부 입금완료" : "대기 포함"}
+          </span>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <span style={{
+            fontSize: 17, fontWeight: 800,
+            color: C_MAGENTA,
+            fontFamily: "inherit",
+          }}>
+            ₩{group.total.toLocaleString()}
+          </span>
+        </div>
+      </div>
+      {/* 주차 row 펼침 */}
+      {isOpen && group.weeks.map(w => {
+        const status = w.remitStatus;
+        const done = isDepositDone(w.depositStr, today, status);
+        const statusLabel = depositStatusLabel(w.depositStr, today, status);
+        const statusColor = done ? C_GREEN : C_AMBER;
+        return (
+          <div
+            key={w.key}
+            onClick={() => onWeekClick(w)}
+            className="clickable"
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1.4fr 1fr 1fr",
+              padding: "12px 18px 12px 36px",
+              alignItems: "center",
+              cursor: "pointer",
+              borderTop: "1px solid var(--border, #2A2A2A)",
+              fontSize: 15,
+              textAlign: "center",
+            }}
+          >
+            <div style={{ textAlign: "left", color: "var(--text-primary, #FAF8F5)", fontWeight: 700 }}>
+              {`${w.monday?.getMonth() + 1}월 ${w.week ?? "-"}주차`}
+              <span style={{ marginLeft: 8, fontSize: 13, color: C_GRAY, fontWeight: 600 }}>
+                {w.monthDay}
+              </span>
+            </div>
+            <div>
+              <span style={{
+                fontSize: 13,
+                fontWeight: 800,
+                color: statusColor,
+                background: done ? "rgba(93,202,165,0.12)" : "rgba(230,163,58,0.14)",
+                padding: "4px 10px",
+                borderRadius: 999,
+              }}>
+                {statusLabel}
+              </span>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <span style={{
+                fontSize: 15, fontWeight: 700,
+                color: "var(--text-primary, #FAF8F5)",
+                fontFamily: "inherit",
+              }}>
+                ₩{(w.displayWeeklyTotal || 0).toLocaleString()}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

@@ -88,16 +88,18 @@ export function UsolRemitHistoryScreen({ onBack }) {
 
   return (
     <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
-      {/* 헤더 */}
+      {/* 헤더 — 2026-06-11: PC 우측 패널 인라인 모드에선 onBack 미전달 → 뒤로가기 버튼 숨김. */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-        <button onClick={onBack} style={{
-          background: "var(--bg-secondary, #1A1A1A)",
-          border: "1px solid var(--border, #2A2A2A)",
-          borderRadius: 8, padding: "6px 8px",
-          color: "var(--text-primary, #FAF8F5)",
-          cursor: "pointer", display: "flex", alignItems: "center",
-          fontFamily: "inherit",
-        }}><ArrowLeft size={14}/></button>
+        {onBack && (
+          <button onClick={onBack} style={{
+            background: "var(--bg-secondary, #1A1A1A)",
+            border: "1px solid var(--border, #2A2A2A)",
+            borderRadius: 8, padding: "6px 8px",
+            color: "var(--text-primary, #FAF8F5)",
+            cursor: "pointer", display: "flex", alignItems: "center",
+            fontFamily: "inherit",
+          }}><ArrowLeft size={14}/></button>
+        )}
         <div>
           <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary, #FAF8F5)" }}>
             기사 입금 내역
