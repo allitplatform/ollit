@@ -214,6 +214,19 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
           const normalized = list.map(v14NormalizeTask).filter(Boolean);
           // 서버 측 이미 필터됨 — filterTasksForPrincipal 측 redundant 측 안전망 (회귀 0).
           const filtered = filterTasksForPrincipal(normalized, principalCodes);
+          // ⏱ 2026-06-11 1회용 진단 — Supabase 1000행 캡 / status 분포 실측. 확인 후 제거.
+          try {
+            const statusDist = filtered.reduce((m, t) => {
+              const s = t.status || "(null)";
+              m[s] = (m[s] || 0) + 1;
+              return m;
+            }, {});
+            console.log("[diag-refetchB] principalCodes=", principalCodes,
+              "| raw list.length=", list.length,
+              "| normalized=", normalized.length,
+              "| filtered=", filtered.length,
+              "| statusDist=", statusDist);
+          } catch (e) {}
           setAllTasks(filtered);
           setAllLoaded(true);
         }
