@@ -112,6 +112,7 @@ export function PartnerDailySettleTab({ t, user, principalCodes, adminMode = fal
         done={todayDone}
         completedCount={todayCompletedCount}
         cancelCount={todayCancelCount}
+        isEmpty={todayTotal === 0 && todayDays.length > 0}
       />
 
       {/* (2) M월 누적 */}
@@ -156,7 +157,7 @@ export function PartnerDailySettleTab({ t, user, principalCodes, adminMode = fal
                 total={d.total}
                 totalStrike={done}
                 totalColor={C_MAGENTA}
-                leftBadge={<StateBadge done={done}/>}
+                leftBadge={<StateBadge done={done} isEmpty={d.total === 0}/>}
               >
                 {d.tasks.map(task => <TaskRow key={task.task_id} task={task} onTaskClick={onTaskClick}/>)}
                 {adminMode && (
@@ -177,7 +178,7 @@ export function PartnerDailySettleTab({ t, user, principalCodes, adminMode = fal
 
 // ─── sub-components ────────────────────────────────────────────
 
-function TodayBanner({ date, total, done, completedCount, cancelCount }) {
+function TodayBanner({ date, total, done, completedCount, cancelCount, isEmpty = false }) {
   // 2026-06-06 시안값:
   //   배너 bg #FF1B8D, radius 14, padding 16, 가운데 정렬
   //   라벨 12px #FFD7E9 / 금액 30px weight 500 #fff (margin 4 0 8)
@@ -208,17 +209,30 @@ function TodayBanner({ date, total, done, completedCount, cancelCount }) {
       <div style={{
         display: "inline-flex", alignItems: "center", gap: 8,
       }}>
-        <span style={{
-          display: "inline-flex", alignItems: "center", gap: 4,
-          background: "#fff",
-          color: C_BANNER_BADGE_T,
-          fontSize: 11, fontWeight: 700,
-          padding: "2px 9px",
-          borderRadius: 7,
-        }}>
-          {done ? <CheckCircle2 size={11}/> : <Clock size={11}/>}
-          {done ? "입금완료" : "대기"}
-        </span>
+        {isEmpty ? (
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 4,
+            background: "rgba(255,255,255,0.85)",
+            color: "#6B7280",
+            fontSize: 11, fontWeight: 700,
+            padding: "2px 9px",
+            borderRadius: 7,
+          }}>
+            정산할 내역 없음
+          </span>
+        ) : (
+          <span style={{
+            display: "inline-flex", alignItems: "center", gap: 4,
+            background: "#fff",
+            color: C_BANNER_BADGE_T,
+            fontSize: 11, fontWeight: 700,
+            padding: "2px 9px",
+            borderRadius: 7,
+          }}>
+            {done ? <CheckCircle2 size={11}/> : <Clock size={11}/>}
+            {done ? "입금완료" : "대기"}
+          </span>
+        )}
         <span style={{ fontSize: 11, color: C_BANNER_LABEL, fontWeight: 600 }}>
           완료 {completedCount} · 취소 {cancelCount}
         </span>
@@ -227,10 +241,25 @@ function TodayBanner({ date, total, done, completedCount, cancelCount }) {
   );
 }
 
-function StateBadge({ done }) {
+function StateBadge({ done, isEmpty = false }) {
   // 다크 카드 안 배지 — 배너 흰 배지와 구분 (배경 다크).
   //   입금완료 : 솔리드 #34D399 (시안)
   //   대기      : 반투명 노랑 #FBBF24 + bg rgba(...0.14) (시안)
+  // 2026-06-11 — isEmpty (= total===0) 측 회색 톤 "정산할 내역 없음".
+  //   유솔H 측 원청 몫 0 구조 — 정산 자체 X 측 "대기" 표시 부적합.
+  //   "완료" 라벨 X (완료 = 정산 끝낸 의미 — 사장님 spec).
+  if (isEmpty) {
+    return (
+      <span style={{
+        display: "inline-flex", alignItems: "center", gap: 3,
+        fontSize: 9, fontWeight: 700, color: C_GRAY,
+        background: "rgba(156,163,175,0.14)",
+        padding: "2px 6px", borderRadius: 4,
+      }}>
+        정산할 내역 없음
+      </span>
+    );
+  }
   if (done) {
     return (
       <span style={{
