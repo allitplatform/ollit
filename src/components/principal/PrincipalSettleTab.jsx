@@ -971,10 +971,10 @@ function ViewPcSettle({
               <div style={{
                 display: "grid",
                 gridTemplateColumns: "1.4fr 1fr 1fr",
-                padding: "12px 18px",
+                padding: "14px 18px",
                 borderBottom: `1px solid var(--border, #2A2A2A)`,
                 background: "var(--bg-secondary, #1A1A1A)",
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: 800,
                 color: C_GRAY,
                 textAlign: "center",
@@ -1025,14 +1025,14 @@ function MetricCard({ label, value, green }) {
       background: "var(--bg-secondary, #1A1A1A)",
       border: `1px solid ${green ? C_GREEN : "var(--border, #2A2A2A)"}`,
       borderRadius: 12,
-      padding: "14px 14px",
+      padding: "16px 16px",
       display: "flex",
       flexDirection: "column",
       gap: 6,
       minWidth: 0,
     }}>
       <div style={{
-        fontSize: 13,
+        fontSize: 14,
         color: C_GRAY,
         fontWeight: 700,
         whiteSpace: "nowrap",
@@ -1040,7 +1040,7 @@ function MetricCard({ label, value, green }) {
         textOverflow: "ellipsis",
       }}>{label}</div>
       <div style={{
-        fontSize: 26,
+        fontSize: 28,
         fontWeight: 800,
         color: green ? C_GREEN : "var(--text-primary, #FAF8F5)",
         fontFamily: "inherit",
@@ -1086,16 +1086,18 @@ function PendingBanner({ summary, onClick }) {
   );
 }
 
-// 월별 정산 추이 막대 — CSS 만으로 (SVG 미사용).
-//   bars[].amount → max 대비 % 로 막대 높이 산출. min 2% 가시성 확보.
+// 월별 정산 추이 막대 — CSS 만으로 (SVG 미사용). 보조 정보라 톤 다운.
+//   bars[].amount → max 대비 % 로 막대 높이 산출. min 4% 가시성 확보.
+//   2026-06-11 미세조정 — 막대 폭 80→36 (얇게), 색 진한 그라데이션 → 핑크 opacity 0.45 단색,
+//     차트 height 180→140 (영역 축소). 라벨 폰트 12→11. 주차별 표가 주인공.
 function MonthlyTrendChart({ bars, max }) {
   return (
     <div style={{
       display: "flex",
       alignItems: "flex-end",
-      gap: 22,
-      height: 180,
-      padding: "8px 4px 0",
+      gap: 28,
+      height: 140,
+      padding: "6px 4px 0",
     }}>
       {bars.map(b => {
         const heightPct = max > 0 && b.amount > 0
@@ -1108,14 +1110,14 @@ function MonthlyTrendChart({ bars, max }) {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "flex-end",
-            gap: 6,
+            gap: 5,
             minWidth: 0,
             height: "100%",
           }}>
             <div style={{
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 700,
-              color: "var(--text-primary, #FAF8F5)",
+              color: "var(--text-secondary, #B5B0A8)",
               fontFamily: "inherit",
               whiteSpace: "nowrap",
             }}>
@@ -1123,16 +1125,16 @@ function MonthlyTrendChart({ bars, max }) {
             </div>
             <div style={{
               width: "100%",
-              maxWidth: 80,
+              maxWidth: 36,
               height: `${heightPct}%`,
               minHeight: heightPct > 0 ? 4 : 0,
               background: heightPct > 0
-                ? `linear-gradient(180deg, ${C_MAGENTA} 0%, #C9337A 100%)`
+                ? "rgba(255, 77, 158, 0.45)"
                 : "transparent",
-              borderRadius: "6px 6px 0 0",
+              borderRadius: "4px 4px 0 0",
               transition: "height 0.3s ease",
             }}/>
-            <div style={{ fontSize: 13, color: C_GRAY, fontWeight: 700 }}>
+            <div style={{ fontSize: 12, color: C_GRAY, fontWeight: 700 }}>
               {b.label}
             </div>
           </div>
@@ -1165,19 +1167,19 @@ function PcMonthGroup({ group, today, isOpen, onToggle, onWeekClick }) {
         }}
       >
         <div style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ color: C_GRAY, fontSize: 13, fontWeight: 700 }}>
+          <span style={{ color: C_GRAY, fontSize: 14, fontWeight: 700 }}>
             {isOpen ? "▼" : "▶"}
           </span>
-          <span style={{ fontSize: 17, fontWeight: 800, color: headerColor }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: headerColor }}>
             {monthLabel}
           </span>
-          <span style={{ fontSize: 13, color: C_GRAY, fontWeight: 600 }}>
+          <span style={{ fontSize: 14, color: C_GRAY, fontWeight: 600 }}>
             ({group.count}주차)
           </span>
         </div>
         <div>
           <span style={{
-            fontSize: 13, fontWeight: 700,
+            fontSize: 14, fontWeight: 700,
             color: group.allDone ? C_GREEN_DONE : C_AMBER,
           }}>
             {group.allDone ? "전부 입금완료" : "대기 포함"}
@@ -1185,7 +1187,7 @@ function PcMonthGroup({ group, today, isOpen, onToggle, onWeekClick }) {
         </div>
         <div style={{ textAlign: "right" }}>
           <span style={{
-            fontSize: 17, fontWeight: 800,
+            fontSize: 18, fontWeight: 800,
             color: C_MAGENTA,
             fontFamily: "inherit",
           }}>
@@ -1207,27 +1209,27 @@ function PcMonthGroup({ group, today, isOpen, onToggle, onWeekClick }) {
             style={{
               display: "grid",
               gridTemplateColumns: "1.4fr 1fr 1fr",
-              padding: "12px 18px 12px 36px",
+              padding: "13px 18px 13px 36px",
               alignItems: "center",
               cursor: "pointer",
               borderTop: "1px solid var(--border, #2A2A2A)",
-              fontSize: 15,
+              fontSize: 16,
               textAlign: "center",
             }}
           >
             <div style={{ textAlign: "left", color: "var(--text-primary, #FAF8F5)", fontWeight: 700 }}>
               {`${w.monday?.getMonth() + 1}월 ${w.week ?? "-"}주차`}
-              <span style={{ marginLeft: 8, fontSize: 13, color: C_GRAY, fontWeight: 600 }}>
+              <span style={{ marginLeft: 8, fontSize: 14, color: C_GRAY, fontWeight: 600 }}>
                 {w.monthDay}
               </span>
             </div>
             <div>
               <span style={{
-                fontSize: 13,
+                fontSize: 14,
                 fontWeight: 800,
                 color: statusColor,
                 background: done ? "rgba(93,202,165,0.12)" : "rgba(230,163,58,0.14)",
-                padding: "4px 10px",
+                padding: "5px 11px",
                 borderRadius: 999,
               }}>
                 {statusLabel}
@@ -1235,7 +1237,7 @@ function PcMonthGroup({ group, today, isOpen, onToggle, onWeekClick }) {
             </div>
             <div style={{ textAlign: "right" }}>
               <span style={{
-                fontSize: 15, fontWeight: 700,
+                fontSize: 16, fontWeight: 700,
                 color: "var(--text-primary, #FAF8F5)",
                 fontFamily: "inherit",
               }}>

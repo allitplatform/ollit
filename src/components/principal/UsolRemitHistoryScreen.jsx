@@ -101,10 +101,10 @@ export function UsolRemitHistoryScreen({ onBack }) {
           }}><ArrowLeft size={14}/></button>
         )}
         <div>
-          <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary, #FAF8F5)" }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary, #FAF8F5)" }}>
             기사 입금 내역
           </div>
-          <div style={{ fontSize: 11, color: C_GRAY, marginTop: 2 }}>
+          <div style={{ fontSize: 12, color: C_GRAY, marginTop: 2 }}>
             {monthLabel} · 세척 현장추가금 15%
           </div>
         </div>
@@ -199,18 +199,18 @@ export function DateGroup({
           </span>
         )}
         <span style={{
-          fontSize: 13, fontWeight: 800,
+          fontSize: 14, fontWeight: 800,
           color: isToday ? "#FF4D9E" : "var(--text-primary, #FAF8F5)",
         }}>
           {formatDateHeader(ymd, isToday)}
         </span>
-        <span style={{ color: C_GRAY, fontSize: 11 }}>·</span>
-        <span style={{ fontSize: 11, color: C_GRAY, fontWeight: 600 }}>
+        <span style={{ color: C_GRAY, fontSize: 12 }}>·</span>
+        <span style={{ fontSize: 12, color: C_GRAY, fontWeight: 600 }}>
           {count}건
         </span>
         <span className="mono" style={{
           marginLeft: "auto",
-          fontSize: 13, fontWeight: 800,
+          fontSize: 14, fontWeight: 800,
           color: totalColor || "var(--text-primary, #FAF8F5)",
           letterSpacing: "-0.2px",
           textDecoration: totalStrike ? "line-through" : "none",
@@ -218,7 +218,7 @@ export function DateGroup({
           {formatKrw(total)}
         </span>
         <span style={{
-          fontSize: 13, color: C_GRAY,
+          fontSize: 14, color: C_GRAY,
           transition: "transform 0.15s",
           transform: isOpen ? "rotate(180deg)" : "rotate(0deg)",
           display: "inline-block",
@@ -249,10 +249,10 @@ export function SummaryCard({ label, amount, color }) {
       padding: "14px 14px",
     }}>
       <div style={{
-        fontSize: 11, fontWeight: 700, color: C_GRAY, marginBottom: 6,
+        fontSize: 12, fontWeight: 700, color: C_GRAY, marginBottom: 6,
       }}>{label}</div>
       <div className="mono" style={{
-        fontSize: 20, fontWeight: 800, color,
+        fontSize: 21, fontWeight: 800, color,
         letterSpacing: "-0.3px", lineHeight: 1.1,
       }}>{formatKrw(amount)}</div>
     </div>
@@ -279,13 +279,13 @@ function EngineerGroupCard({ group }) {
         marginBottom: 10,
       }}>
         <div style={{
-          fontSize: 14, fontWeight: 800,
+          fontSize: 15, fontWeight: 800,
           color: "var(--text-primary, #FAF8F5)",
         }}>
           {group.engineerCode ? `${group.engineerCode} ${group.engineerName}` : group.engineerName}
         </div>
         <span style={{
-          fontSize: 11, fontWeight: 700,
+          fontSize: 12, fontWeight: 700,
           color: badgeColor, background: badgeBg,
           padding: "3px 9px",
           borderRadius: 999,
@@ -300,11 +300,11 @@ function EngineerGroupCard({ group }) {
         {group.items.map(it => (
           <div key={it.taskId} style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
-            fontSize: 12,
+            fontSize: 13,
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
               <span style={{
-                fontSize: 10, color: C_GRAY, fontWeight: 700,
+                fontSize: 11, color: C_GRAY, fontWeight: 700,
                 flexShrink: 0,
               }}>{formatMd(it.completedAt)}</span>
               <span className="mono" style={{
@@ -336,10 +336,10 @@ function EngineerGroupCard({ group }) {
         display: "flex", justifyContent: "space-between", alignItems: "baseline",
       }}>
         <span style={{
-          fontSize: 11, color: C_GRAY, fontWeight: 700,
+          fontSize: 12, color: C_GRAY, fontWeight: 700,
         }}>합계 ({group.items.length}건)</span>
         <span className="mono" style={{
-          fontSize: 16, fontWeight: 800,
+          fontSize: 17, fontWeight: 800,
           color: badgeColor,
           letterSpacing: "-0.3px",
         }}>{formatKrw(group.total15Pct)}</span>
