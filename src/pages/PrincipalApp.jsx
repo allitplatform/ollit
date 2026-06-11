@@ -3044,6 +3044,7 @@ function SettleTab({ t, tasks }) {
 }
 
 function InfoTab({ t, user, mode, setMode, onLogout }) {
+  const isPcInfo = useIsPc();
   const principalLabel = getPrincipalLabel(user) || "원청";
   const userName       = user?.name || `${principalLabel} 대표`;
   const userPhone      = user?.phone || "";
@@ -3217,15 +3218,32 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
   }
 
   return (
-    <div className="fade-in" style={{ padding: "20px" }}>
-      <div style={{ marginBottom: 16 }}>
-        <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>👤 내 정보</div>
-        <div style={{ fontSize: 12, color: t.textMuted }}>
+    <div className="fade-in" style={{
+      // 2026-06-11 — PC: 중앙 1단 + max-width 640. 모바일: 옛 padding 20 그대로.
+      padding: isPcInfo ? "32px 24px 80px" : "20px",
+      minHeight: isPcInfo ? "100vh" : undefined,
+      background: isPcInfo ? t.bg : undefined,
+      boxSizing: "border-box",
+    }}>
+      <div style={{
+        maxWidth: isPcInfo ? 640 : "100%",
+        margin: isPcInfo ? "0 auto" : undefined,
+        display: "flex",
+        flexDirection: "column",
+        gap: isPcInfo ? 18 : 0,
+      }}>
+      <div style={{ marginBottom: isPcInfo ? 0 : 16 }}>
+        <div style={{ fontSize: isPcInfo ? 22 : 18, fontWeight: 800, marginBottom: 4 }}>👤 내 정보</div>
+        <div style={{ fontSize: isPcInfo ? 13 : 12, color: t.textMuted }}>
           {userName}님
         </div>
       </div>
 
-      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "20px", marginBottom: 16 }}>
+      <div style={{
+        background: t.bgElevated, borderRadius: 14,
+        padding: isPcInfo ? "24px" : "20px",
+        marginBottom: isPcInfo ? 0 : 16,
+      }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
           <div style={{
             width: 56, height: 56, borderRadius: 16,
@@ -3235,8 +3253,8 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
             <Building2 size={28}/>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>{principalLabel}</div>
-            <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 500 }}>
+            <div style={{ fontSize: isPcInfo ? 18 : 16, fontWeight: 800 }}>{principalLabel}</div>
+            <div style={{ fontSize: isPcInfo ? 13 : 12, color: t.textMuted, fontWeight: 500 }}>
               {userName}님
             </div>
           </div>
@@ -3467,6 +3485,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
           fontFamily: "inherit",
         }}>{pushToast}</div>
       )}
+      </div>
     </div>
   );
 }
