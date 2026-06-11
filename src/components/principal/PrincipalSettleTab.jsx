@@ -853,17 +853,18 @@ function EmptyBox({ children }) {
 }
 
 // ============================================================
-// 2026-06-11 — PC 정산 화면 (유솔N 전용 시안 확정안)
-//   ViewPcTable 톤 그대로 (다크 + 핑크, 폰트 17, 셀 가운데, 행 강조).
-//   좌(메트릭 4 가로 + 정산대기 배너 + 주차별 표) + 우(기사 입금내역 인라인).
-//   주차 클릭 = 모바일과 동일 (selectedWeekKey 세팅 → WeekSettleDetail 전체화면 진입).
-//     인라인 펼침은 2차 라운드 (사장님 확인 후).
+// 2026-06-11 — PC 정산 화면 (유솔N 전용 시안 확정안 — 2차 재구성)
+//   ViewPcTable 톤 그대로 (다크 + 핑크).
+//   상단 2열: 좌 = 월별 정산 추이 막대 / 우 = 메트릭 카드 2x2 + 정산대기 배너.
+//   하단 2열: 좌 = 주차별 정산 표 / 우 = 기사 입금내역.
+//   상시 우측 aside 폐기 — selectedTask 상세 패널 자리 확보.
+//   1024px 좁을 때 grid auto-fit 으로 세로 1열 wrap (반응형 자연 전환).
 // ============================================================
 function ViewPcSettle({
   summary, groups, today, openGroups, setOpenGroups,
   onWeekClick, onPendingClick, hasUsolN,
 }) {
-  // 2026-06-11 — 라벨 축약 ("일정 확정·작업 전" 3줄 깨짐 catch). 의미 그대로, 한 줄 표시.
+  // 라벨 축약 (옛 "일정 확정·작업 전" 줄바꿈 catch).
   const metrics = [
     { key: "received",   label: "접수",       value: summary.received },
     { key: "beforeWork", label: "확정·작업전", value: summary.beforeWork },
@@ -871,94 +872,84 @@ function ViewPcSettle({
     { key: "settled",    label: "정산완료",   value: summary.settled, green: true },
   ];
 
+  // 월별 추이 — groups.payYm 그대로 사용 (신규 fetch 0건. 모바일과 동일 source).
+  //   현재 KST 기준 최근 3개월 (이전 2개월 + 이번 달).
+  //   groups 의 .total = 해당 입금월 합계. 모바일 월별 아코디언 헤더 금액과 정합.
+  const trendBars = useMemo(() => {
+    const now = new Date();
+    const months = [];
+    for (let i = 2; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      months.push({ ym, label: `${d.getMonth() + 1}월` });
+    }
+    const byYm = new Map(groups.map(g => [g.payYm, g]));
+    return months.map(m => ({
+      ym: m.ym,
+      label: m.label,
+      amount: byYm.get(m.ym)?.total || 0,
+    }));
+  }, [groups]);
+  const trendMax = Math.max(1, ...trendBars.map(b => b.amount));
+
   return (
     <div style={{
-      // 2026-06-11 fix — 외부 컨테이너 단순화 (ViewPcTable 톤 정렬):
-      //   width 100%, padding 외부, 내부 flex 분할.
-      //   aside width 420 = PC_DETAIL_W 와 일관 (사장님 spec).
-      //   alignItems: flex-start — aside 가 main height 따라가지 않게.
       width: "100%",
       padding: "20px 24px 24px",
       minHeight: "100vh",
       boxSizing: "border-box",
       display: "flex",
+      flexDirection: "column",
       gap: 24,
-      alignItems: "flex-start",
     }}>
-      {/* 메인 — 메트릭 + 정산대기 배너 + 주차별 표 */}
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 18 }}>
-        {/* 메트릭 4 가로 카드 — minmax(0,1fr) 로 grid item overflow catch */}
+      {/* 상단 row — 추이 차트 + 메트릭/배너. auto-fit minmax(400, 1fr) → 좁으면 세로. */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
+        gap: 24,
+        alignItems: "stretch",
+      }}>
+        {/* 좌 — 월별 정산 추이 (4/5/6월 막대) */}
         <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-          gap: 10,
+          background: "var(--bg-elevated, #1F1F1F)",
+          border: "1px solid var(--border, #2A2A2A)",
+          borderRadius: 12,
+          padding: "18px 20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 14,
+          minWidth: 0,
         }}>
-          {metrics.map(m => (
-            <div key={m.key} style={{
-              background: "var(--bg-elevated, #1F1F1F)",
-              border: `1px solid ${m.green ? C_GREEN : "var(--border, #2A2A2A)"}`,
-              borderRadius: 12,
-              padding: "14px 14px",
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-              minWidth: 0,
-            }}>
-              <div style={{
-                fontSize: 13,
-                color: C_GRAY,
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}>{m.label}</div>
-              <div style={{
-                fontSize: 26,
-                fontWeight: 800,
-                color: m.green ? C_GREEN : "var(--text-primary, #FAF8F5)",
-                fontFamily: "inherit",
-                lineHeight: 1.1,
-              }}>{m.value.toLocaleString()}</div>
-            </div>
-          ))}
+          <div style={{ fontSize: 14, color: C_GRAY, fontWeight: 700 }}>
+            월별 정산 추이
+          </div>
+          <MonthlyTrendChart bars={trendBars} max={trendMax}/>
         </div>
 
-        {/* 정산대기 배너 — 강조 (모바일 SummarySection 톤 차용 + 가로 확장) */}
-        {summary.pendingCount > 0 && (
-          <div
-            onClick={onPendingClick || undefined}
-            className={onPendingClick ? "clickable" : ""}
-            style={{
-              background: "rgba(230,163,58,0.08)",
-              borderLeft: `4px solid ${C_AMBER}`,
-              border: `1px solid rgba(230,163,58,0.25)`,
-              borderRadius: 10,
-              padding: "16px 20px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 12,
-              cursor: onPendingClick ? "pointer" : "default",
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 17, fontWeight: 800, color: C_AMBER, marginBottom: 4 }}>
-                정산 대기 {summary.pendingCount}건
-              </div>
-              <div style={{ fontSize: 13, color: C_GRAY }}>
-                작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: 15 }}>
-                  ₩{summary.pendingAmount.toLocaleString()}
-                </span>
-              </div>
-            </div>
-            {onPendingClick && (
-              <span style={{ color: C_GRAY, fontSize: 20, fontWeight: 700 }}>›</span>
-            )}
+        {/* 우 — 메트릭 2x2 + 정산대기 배너 */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, minWidth: 0 }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+            gap: 10,
+          }}>
+            {metrics.map(m => <MetricCard key={m.key} {...m}/>)}
           </div>
-        )}
+          {summary.pendingCount > 0 && (
+            <PendingBanner summary={summary} onClick={onPendingClick}/>
+          )}
+        </div>
+      </div>
 
-        {/* 주차별 정산 표 — ViewPcTable 톤 (가운데 정렬, 폰트 17, 행 강조) */}
-        <div>
+      {/* 하단 row — 주차별 표 + 기사 입금내역. auto-fit minmax(420, 1fr) → 좁으면 세로. */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
+        gap: 24,
+        alignItems: "flex-start",
+      }}>
+        {/* 좌 — 주차별 정산 표 */}
+        <div style={{ minWidth: 0 }}>
           <div style={{
             fontSize: 14,
             color: C_GRAY,
@@ -1006,25 +997,147 @@ function ViewPcSettle({
             </div>
           )}
         </div>
-      </div>
 
-      {/* 우측 패널 — 기사 입금내역 (usol_n 포함 시만 노출. embedded 모드 — 헤더 뒤로가기 X).
-          2026-06-11 — width 360 → 420 (PC_DETAIL_W 와 통일. selectedTask 우상세와 동일 폭). */}
-      {hasUsolN && (
-        <aside style={{
-          width: 420,
-          flexShrink: 0,
-          background: "var(--bg-elevated, #1F1F1F)",
-          border: "1px solid var(--border, #2A2A2A)",
-          borderRadius: 12,
-          padding: "4px 0",
-          maxHeight: "calc(100vh - 48px)",
-          overflowY: "auto",
-          boxSizing: "border-box",
-        }}>
-          <UsolRemitHistoryScreen />
-        </aside>
+        {/* 우 — 기사 입금내역 (usol_n 포함 시만). 헤더 뒤로가기 X (embedded). */}
+        {hasUsolN && (
+          <div style={{
+            background: "var(--bg-elevated, #1F1F1F)",
+            border: "1px solid var(--border, #2A2A2A)",
+            borderRadius: 12,
+            padding: "4px 0",
+            minWidth: 0,
+            maxHeight: 720,
+            overflowY: "auto",
+            boxSizing: "border-box",
+          }}>
+            <UsolRemitHistoryScreen />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 메트릭 카드 (2x2 grid 측 사용)
+function MetricCard({ label, value, green }) {
+  return (
+    <div style={{
+      background: "var(--bg-secondary, #1A1A1A)",
+      border: `1px solid ${green ? C_GREEN : "var(--border, #2A2A2A)"}`,
+      borderRadius: 12,
+      padding: "14px 14px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 6,
+      minWidth: 0,
+    }}>
+      <div style={{
+        fontSize: 13,
+        color: C_GRAY,
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}>{label}</div>
+      <div style={{
+        fontSize: 26,
+        fontWeight: 800,
+        color: green ? C_GREEN : "var(--text-primary, #FAF8F5)",
+        fontFamily: "inherit",
+        lineHeight: 1.1,
+      }}>{value.toLocaleString()}</div>
+    </div>
+  );
+}
+
+// 정산 대기 배너 (메트릭 카드 아래)
+function PendingBanner({ summary, onClick }) {
+  return (
+    <div
+      onClick={onClick || undefined}
+      className={onClick ? "clickable" : ""}
+      style={{
+        background: "rgba(230,163,58,0.08)",
+        borderLeft: `4px solid ${C_AMBER}`,
+        border: `1px solid rgba(230,163,58,0.25)`,
+        borderRadius: 10,
+        padding: "14px 18px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+        cursor: onClick ? "pointer" : "default",
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: C_AMBER, marginBottom: 4 }}>
+          정산 대기 {summary.pendingCount}건
+        </div>
+        <div style={{ fontSize: 12, color: C_GRAY }}>
+          작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: 14 }}>
+            ₩{summary.pendingAmount.toLocaleString()}
+          </span>
+        </div>
+      </div>
+      {onClick && (
+        <span style={{ color: C_GRAY, fontSize: 18, fontWeight: 700 }}>›</span>
       )}
+    </div>
+  );
+}
+
+// 월별 정산 추이 막대 — CSS 만으로 (SVG 미사용).
+//   bars[].amount → max 대비 % 로 막대 높이 산출. min 2% 가시성 확보.
+function MonthlyTrendChart({ bars, max }) {
+  return (
+    <div style={{
+      display: "flex",
+      alignItems: "flex-end",
+      gap: 22,
+      height: 180,
+      padding: "8px 4px 0",
+    }}>
+      {bars.map(b => {
+        const heightPct = max > 0 && b.amount > 0
+          ? Math.max(4, (b.amount / max) * 100)
+          : 0;
+        return (
+          <div key={b.ym} style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 6,
+            minWidth: 0,
+            height: "100%",
+          }}>
+            <div style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: "var(--text-primary, #FAF8F5)",
+              fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}>
+              {b.amount > 0 ? `₩${b.amount.toLocaleString()}` : "—"}
+            </div>
+            <div style={{
+              width: "100%",
+              maxWidth: 80,
+              height: `${heightPct}%`,
+              minHeight: heightPct > 0 ? 4 : 0,
+              background: heightPct > 0
+                ? `linear-gradient(180deg, ${C_MAGENTA} 0%, #C9337A 100%)`
+                : "transparent",
+              borderRadius: "6px 6px 0 0",
+              transition: "height 0.3s ease",
+            }}/>
+            <div style={{ fontSize: 13, color: C_GRAY, fontWeight: 700 }}>
+              {b.label}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
