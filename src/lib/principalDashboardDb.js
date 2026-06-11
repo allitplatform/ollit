@@ -174,6 +174,74 @@ export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
 }
 
 // ============================================================================
+// 2026-06-11 — PC 사이드바 하단 요약 3개 (DB count:exact head 3개 Promise.all).
+//   오늘접수   = received_at KST 오늘 count (tasks).
+//   오늘작업   = scheduled_at KST 오늘 count (tasks).
+//   정산대기   = task_items 측 subtotal>0 + JOIN tasks.status='완료'
+//                + naver_settled_at NULL + principal_id IN usol_n.
+//                usol_n 한정 (PrincipalSettleTab summary.pendingCount 정의 정합).
+//                principalCodes 측 usol_n 미포함 시 0 반환.
+//   응답: { ok, counts: { todayReceived, todayScheduled, pendingSettle } }.
+// ============================================================================
+export async function fetchPrincipalSidebarSummary({ principalCodes = [] } = {}) {
+  const EMPTY = { todayReceived: 0, todayScheduled: 0, pendingSettle: 0 };
+  if (!Array.isArray(principalCodes) || principalCodes.length === 0) {
+    return { ok: false, counts: EMPTY };
+  }
+  const pids = await resolvePids(principalCodes);
+  if (pids.length === 0) return { ok: false, counts: EMPTY };
+
+  const { startISO, endISO } = todayKstRangeUtc();
+  const isUsolNScope = principalCodes.includes("usol_n");
+
+  // 정산대기 — usol_n 한정. task_items JOIN tasks 측 inner.
+  //   PostgREST 측 .eq("tasks.status", ...) + .in("tasks.principal_id", ...) 측 inner JOIN 필요.
+  //   .is("naver_settled_at", null) → task_items 측 컬럼 (naver_settled_at).
+  //   .gt("subtotal", 0) → 부분취소 0원 제외 (PrincipalSettleTab spec 정합).
+  const pendingQuery = isUsolNScope
+    ? supabase.from("task_items")
+        .select("id, tasks!inner(status, principal_id)", { count: "exact", head: true })
+        .gt("subtotal", 0)
+        .is("naver_settled_at", null)
+        .eq("tasks.status", "완료")
+        .in("tasks.principal_id", pids)
+    : Promise.resolve({ count: 0, error: null });
+
+  const [cReceived, cScheduled, cPending] = await Promise.all([
+    // 오늘접수 = received_at KST 오늘.
+    supabase.from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", TENANT_ID)
+      .in("principal_id", pids)
+      .gte("received_at", startISO)
+      .lt("received_at", endISO),
+    // 오늘작업 = scheduled_at KST 오늘.
+    supabase.from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", TENANT_ID)
+      .in("principal_id", pids)
+      .gte("scheduled_at", startISO)
+      .lt("scheduled_at", endISO),
+    pendingQuery,
+  ]);
+
+  if (cReceived.error || cScheduled.error || cPending.error) {
+    console.error("[principalDashboardDb.sidebar]",
+      cReceived.error || cScheduled.error || cPending.error);
+    return { ok: false, counts: EMPTY };
+  }
+
+  return {
+    ok: true,
+    counts: {
+      todayReceived:  cReceived.count  || 0,
+      todayScheduled: cScheduled.count || 0,
+      pendingSettle:  cPending.count   || 0,
+    },
+  };
+}
+
+// ============================================================================
 // 2026-06-11 — PC 내 작업 표 측 서버 페이지네이션 fetch.
 //   원청 PWA "전체" 탭 측 1,342건 fetch 측 Supabase 1000행 캡 임박.
 //   서버 페이지 (range) + DB ORDER BY (status_order, scheduled_at) 측 캡 회피 + 속도.

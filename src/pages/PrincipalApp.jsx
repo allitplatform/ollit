@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 // 2026-06-03 — Principal 측측 측측 측측 측측 측측 측측: 글로벌 CSS 측 측측 (--text-primary 측).
 //   원인: Principal 측측 측측 측측 `useState("dark")` 측측측 (= 측측 측측 X) 측측 글로벌 CSS 측측
 //        App.jsx 측 loadTheme() 측측 측측측 측측 측측 (= 측측측 측측 측측 측측 측측 측측 측측 X).
@@ -69,6 +69,7 @@ import { partnerFullCancel, partnerPartialCancelItem } from "../lib/cancelRpc.js
 import { FullCancelDialog, PartialCancelDialog } from "../components/CancelDialogs.jsx";
 import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
 import { fetchPrincipalAccounts, updatePrincipalAccount } from "../lib/principalsDb.js";
+import { fetchPrincipalSidebarSummary } from "../lib/principalDashboardDb.js";
 import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
 import { supabase } from "../lib/supabase.js";
 // 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 셸 분기.
@@ -562,6 +563,32 @@ export default function PrincipalApp({ user, onLogout }) {
     ? [selectedUsolCode]
     : principalCodes;
 
+  // 2026-06-11 — PC 사이드바 하단 요약 3개 (오늘접수 / 오늘작업 / 정산대기).
+  //   useRef Map 캐시 (TTL 60s, key = effectiveCodes.join(',')). isPc 측만 fetch.
+  //   tab 전환 / 다른 fetch 와 무관 — 사이드바 mount 1회 + TTL 만료 측만 갱신.
+  const SIDEBAR_CACHE_TTL_MS = 60_000;
+  const [sidebarSummary, setSidebarSummary] = useState({ todayReceived: 0, todayScheduled: 0, pendingSettle: 0 });
+  const sidebarCache = useRef(new Map());
+  useEffect(() => {
+    if (!isPc) return;
+    if (!Array.isArray(effectiveCodes) || effectiveCodes.length === 0) return;
+    const cacheKey = effectiveCodes.join(",");
+    const cached = sidebarCache.current.get(cacheKey);
+    if (cached && Date.now() - cached.ts < SIDEBAR_CACHE_TTL_MS) {
+      setSidebarSummary(cached.data);
+      return;
+    }
+    let alive = true;
+    fetchPrincipalSidebarSummary({ principalCodes: effectiveCodes })
+      .then(res => {
+        if (!alive || !res.ok) return;
+        sidebarCache.current.set(cacheKey, { data: res.counts, ts: Date.now() });
+        setSidebarSummary(res.counts);
+      });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPc, effectiveCodes.join(",")]);
+
   // 2026-06-03 — KA / crikrin 원청 분기 (유솔이면 null)
   const partnerCode = _resolvePartnerCode(user);
   const partnerConfig = partnerCode ? PARTNER_PWA_CONFIG[partnerCode] : null;
@@ -615,6 +642,7 @@ export default function PrincipalApp({ user, onLogout }) {
         selectedTask={selectedTask}
         onCloseDetail={() => setSelectedTask(null)}
         onLogout={onLogout}
+        sidebarSummary={sidebarSummary}
       >
         {submittedTask ? (
           <SubmittedScreen t={t} task={submittedTask} onContinue={() => { setSubmittedTask(null); setTab("list"); }}/>
@@ -730,6 +758,7 @@ function PcShell({
   isPartnerMode, hasSchedule, unreadCount,
   isUsolUnified, partnerCode, selectedUsolCode, setSelectedUsolCode,
   selectedTask, onCloseDetail, onLogout,
+  sidebarSummary,
   children,
 }) {
   return (
@@ -751,6 +780,7 @@ function PcShell({
         selectedUsolCode={selectedUsolCode}
         setSelectedUsolCode={setSelectedUsolCode}
         onLogout={onLogout}
+        sidebarSummary={sidebarSummary}
       />
       <main style={{
         flex: 1,
@@ -795,11 +825,18 @@ function PcShell({
   );
 }
 
+// 2026-06-11 — PC 사이드바 재디자인 (여백형 + 하단 요약).
+//   상단: 원청 라벨 + 작은 세그먼트 (유솔H/N 통합계정 측만).
+//   메뉴: 6개, 세로 가운데 정렬 (flex 1 + justify-center). 글자 14 / 아이콘 19.
+//        활성 = 핑크 배경 (opacity 0.10) + 좌측 3px 핑크 바 + 핑크 텍스트.
+//   하단: 요약 3개 (오늘접수 / 오늘작업 / 정산대기), border-top 위.
+//   맨 아래: 로그아웃.
 function PcSidebar({
   t, user, tab, setTab,
   isPartnerMode, hasSchedule, unreadCount,
   isUsolUnified, partnerCode, selectedUsolCode, setSelectedUsolCode,
   onLogout,
+  sidebarSummary = { todayReceived: 0, todayScheduled: 0, pendingSettle: 0 },
 }) {
   const tabs = [
     { id: "list",   icon: ClipboardList, label: "내 작업" },
@@ -810,6 +847,10 @@ function PcSidebar({
     { id: "info",   icon: User,          label: "내 정보" },
   ];
   const principalName = cleanGreetingName(user?.name || getPrincipalLabel(user), "원청");
+  // usol_n 한정 정산대기 — 외 원청은 라벨 숨김 (요약 2개로 표시).
+  const showPendingSettle = selectedUsolCode === "usol_n"
+    || (!isUsolUnified && Array.isArray(user?.principals) && user.principals.some(p => p?.code === "usol_n"));
+
   return (
     <aside style={{
       width: PC_SIDEBAR_W,
@@ -823,23 +864,32 @@ function PcSidebar({
       height: "100vh",
       overflowY: "auto",
     }}>
-      {/* 상단 — 원청 식별 */}
-      <div style={{ padding: "18px 18px 12px", borderBottom: `1px solid ${t.border}` }}>
-        <div className="mono" style={{ fontSize: 9, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>
-          원청
-        </div>
-        <div style={{ fontSize: 15, fontWeight: 800, color: t.text, lineHeight: 1.3, wordBreak: "keep-all" }}>
-          {principalName}
-        </div>
+      {/* 상단 — 원청 라벨 + 작은 세그먼트 */}
+      <div style={{ padding: "18px 16px 14px", borderBottom: `1px solid ${t.border}` }}>
+        <div className="mono" style={{
+          fontSize: 9, color: t.textMuted, letterSpacing: 2,
+          fontWeight: 600, textTransform: "uppercase", marginBottom: 4,
+        }}>원청</div>
+        <div style={{
+          fontSize: 15, fontWeight: 800, color: t.text,
+          lineHeight: 1.3, wordBreak: "keep-all",
+          marginBottom: isUsolUnified && !partnerCode ? 12 : 0,
+        }}>{principalName}</div>
+        {/* 작은 세그먼트 — 트랙 안 활성만 핑크 채움 (통합계정 전용) */}
+        {isUsolUnified && !partnerCode && (
+          <UsolSegmentToggle t={t} value={selectedUsolCode} onChange={setSelectedUsolCode}/>
+        )}
       </div>
-      {/* 유솔 H/N 토글 (통합계정 전용) */}
-      {isUsolUnified && !partnerCode && (
-        <div style={{ padding: "10px 12px", borderBottom: `1px solid ${t.border}` }}>
-          <UsolTabSwitcher t={t} value={selectedUsolCode} onChange={setSelectedUsolCode}/>
-        </div>
-      )}
-      {/* 6탭 세로 메뉴 */}
-      <nav style={{ flex: 1, padding: "10px 8px" }}>
+
+      {/* 메뉴 — flex 1 + 세로 가운데 정렬 */}
+      <nav style={{
+        flex: 1,
+        padding: "12px 10px",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        gap: 4,
+      }}>
         {tabs.map(b => {
           const Icon = b.icon;
           const active = tab === b.id;
@@ -853,25 +903,25 @@ function PcSidebar({
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
-                padding: "11px 14px",
-                background: active ? (t.accentBg || "rgba(255,27,141,0.10)") : "transparent",
+                padding: "12px 14px",
+                background: active ? "rgba(255,27,141,0.10)" : "transparent",
                 border: "none",
+                borderLeft: `3px solid ${active ? (t.accent || "#FF1B8D") : "transparent"}`,
                 borderRadius: 8,
-                color: active ? t.accent : t.textSecondary,
-                fontSize: 13,
+                color: active ? (t.accent || "#FF1B8D") : t.textSecondary,
+                fontSize: 14,
                 fontWeight: active ? 800 : 600,
                 cursor: "pointer",
                 fontFamily: "inherit",
-                marginBottom: 2,
                 textAlign: "left",
               }}
             >
-              <Icon size={18}/>
+              <Icon size={19}/>
               <span style={{ flex: 1 }}>{b.label}</span>
               {b.badge > 0 && (
                 <span style={{
                   minWidth: 18, height: 18, padding: "0 5px",
-                  background: "#FF1B8D", color: "#fff",
+                  background: t.accent || "#FF1B8D", color: "#fff",
                   borderRadius: 9, fontSize: 10, fontWeight: 700,
                   display: "inline-flex", alignItems: "center", justifyContent: "center",
                 }}>{b.badge > 99 ? "99+" : b.badge}</span>
@@ -880,14 +930,31 @@ function PcSidebar({
           );
         })}
       </nav>
-      {/* 하단 — 로그아웃 */}
-      <div style={{ padding: "10px 14px 18px", borderTop: `1px solid ${t.border}` }}>
+
+      {/* 하단 요약 3개 — border-top 위 한 줄 3등분 */}
+      <div style={{
+        padding: "12px 14px",
+        borderTop: `1px solid ${t.border}`,
+        display: "grid",
+        gridTemplateColumns: showPendingSettle ? "1fr 1fr 1fr" : "1fr 1fr",
+        gap: 4,
+      }}>
+        <SidebarStat t={t} label="오늘접수" value={sidebarSummary.todayReceived}/>
+        <SidebarStat t={t} label="오늘작업" value={sidebarSummary.todayScheduled}/>
+        {showPendingSettle && (
+          <SidebarStat t={t} label="정산대기" value={sidebarSummary.pendingSettle} accent/>
+        )}
+      </div>
+
+      {/* 맨 아래 — 로그아웃 */}
+      <div style={{ padding: "10px 14px 16px", borderTop: `1px solid ${t.border}` }}>
         <button
           onClick={onLogout}
           style={{
             width: "100%",
             display: "flex",
             alignItems: "center",
+            justifyContent: "center",
             gap: 8,
             padding: "10px 12px",
             background: "transparent",
@@ -905,6 +972,74 @@ function PcSidebar({
         </button>
       </div>
     </aside>
+  );
+}
+
+// 작은 세그먼트 토글 — 트랙(연한 배경) 안 활성만 핑크 채움.
+function UsolSegmentToggle({ t, value, onChange }) {
+  const tabs = [
+    { code: "usol_h", label: "유솔H" },
+    { code: "usol_n", label: "유솔N" },
+  ];
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "1fr 1fr",
+      gap: 2,
+      padding: 3,
+      background: t.bgInset || "rgba(0,0,0,0.20)",
+      border: `1px solid ${t.border}`,
+      borderRadius: 8,
+    }}>
+      {tabs.map(tab => {
+        const active = value === tab.code;
+        return (
+          <button
+            key={tab.code}
+            type="button"
+            onClick={() => onChange(tab.code)}
+            style={{
+              padding: "6px 8px",
+              background: active ? (t.accent || "#FF1B8D") : "transparent",
+              border: "none",
+              borderRadius: 6,
+              color: active ? "#fff" : (t.textSecondary || "#9CA3AF"),
+              fontSize: 12,
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+              transition: "all 0.15s",
+            }}
+          >{tab.label}</button>
+        );
+      })}
+    </div>
+  );
+}
+
+// 사이드바 하단 요약 1셀.
+function SidebarStat({ t, label, value, accent }) {
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      gap: 2,
+      padding: "2px 0",
+    }}>
+      <span style={{
+        fontSize: 10,
+        color: t.textMuted,
+        fontWeight: 600,
+        letterSpacing: 0.2,
+      }}>{label}</span>
+      <span className="mono" style={{
+        fontSize: 17,
+        fontWeight: 800,
+        color: accent ? (t.accent || "#FF1B8D") : t.text,
+        lineHeight: 1.1,
+      }}>{Number(value || 0).toLocaleString()}</span>
+    </div>
   );
 }
 
