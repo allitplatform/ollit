@@ -114,6 +114,13 @@ function ServiceIcon({ kind, size = 14 }) {
   return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
 }
 
+// 2026-06-11 — 유솔H ↔ 유솔N 탭 전환 가속용 in-memory 캐시.
+//   key = principalCodes.join(',')  (정렬된 형태로 들어오므로 그대로 사용)
+//   value = { data, ts }
+//   TTL = 60s. Realtime 이벤트 시 전체 invalidate.
+//   두 번째 전환부터 fetch 생략 → 즉시 표시.
+const PRINCIPAL_CACHE_TTL_MS = 60_000;
+
 export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelect, selectedTaskId }) {
   // 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 통합 테이블 (뷰 A/B/quickFilter 한 화면 흡수).
   const isPc = useIsPc();
@@ -151,19 +158,42 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
   const [loadingB, setLoadingB]       = useState(false);
   const [allLoaded, setAllLoaded]     = useState(false);
 
-  // 뷰 A fetch
-  const refetchA = useCallback(async () => {
+  // 2026-06-11 — 탭 전환 캐시 (뷰 A / partnerCounts 각각).
+  //   Realtime 이벤트 또는 TTL 초과 시 invalidate. principalCodes 키별 보관.
+  const cacheA = useRef(new Map());
+  const cachePartner = useRef(new Map());
+
+  // 뷰 A fetch — 캐시 우선, force=true 시 재fetch.
+  const refetchA = useCallback(async ({ force = false } = {}) => {
     if (!Array.isArray(principalCodes) || principalCodes.length === 0) {
       setLoadingA(false);
       return;
+    }
+    const cacheKey = principalCodes.join(",");
+    if (!force) {
+      const cached = cacheA.current.get(cacheKey);
+      if (cached && Date.now() - cached.ts < PRINCIPAL_CACHE_TTL_MS) {
+        setTodayTasks(cached.data.todayTasks);
+        setCounts(cached.data.counts);
+        setLoadingA(false);
+        return;
+      }
     }
     setLoadingA(true);
     const [todayRes, countsRes] = await Promise.all([
       fetchPrincipalTodayTasks({ principalCodes }),
       fetchPrincipalStatusCounts({ principalCodes }),
     ]);
-    setTodayTasks(todayRes.tasks || []);
-    if (countsRes.ok) setCounts(countsRes.counts);
+    const todayTasksNext = todayRes.tasks || [];
+    const countsNext = countsRes.ok
+      ? countsRes.counts
+      : { total: 0, inProgress: 0, completed: 0 };
+    cacheA.current.set(cacheKey, {
+      data: { todayTasks: todayTasksNext, counts: countsNext },
+      ts: Date.now(),
+    });
+    setTodayTasks(todayTasksNext);
+    setCounts(countsNext);
     setLoadingA(false);
   }, [principalCodes]);
 
@@ -201,19 +231,32 @@ export function PrincipalListTab({ t, user, principalCodes, partnerCode, onSelec
     if (view === "all" && !allLoaded) refetchB();
   }, [view, allLoaded, refetchB]);
 
-  // Realtime — 현재 뷰에 맞게 refetch
+  // Realtime — 캐시 전체 invalidate 후 현재 뷰에 맞게 강제 refetch.
   useRealtimeTasks(() => {
-    if (view === "today") refetchA();
+    cacheA.current.clear();
+    cachePartner.current.clear();
+    if (view === "today") refetchA({ force: true });
     else { setAllLoaded(false); refetchB(); }
   });
 
   // 2026-06-06 — KA/crikrin: 카운트 박스 fetch (DB count:exact 3개, 자기 principalCode 측 측).
   // 2026-06-09 — 유솔H 측 동일 fetch (showPartnerHeader 측).
+  // 2026-06-11 — 동일 코드 재진입 시 캐시 hit (TTL 60s) → fetch 생략.
   useEffect(() => {
     if (!showPartnerHeader || !headerPrincipalCode) return;
     let alive = true;
+    const cacheKey = `partner:${headerPrincipalCode}`;
+    const cached = cachePartner.current.get(cacheKey);
+    if (cached && Date.now() - cached.ts < PRINCIPAL_CACHE_TTL_MS) {
+      setPartnerCounts(cached.data);
+      return;
+    }
     fetchAllPrincipalCounts({ principalCodes: [headerPrincipalCode] })
-      .then(res => { if (alive && res.ok) setPartnerCounts(res.counts); });
+      .then(res => {
+        if (!alive || !res.ok) return;
+        cachePartner.current.set(cacheKey, { data: res.counts, ts: Date.now() });
+        setPartnerCounts(res.counts);
+      });
     return () => { alive = false; };
   }, [showPartnerHeader, headerPrincipalCode]);
 

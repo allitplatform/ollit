@@ -114,11 +114,13 @@ export async function fetchPrincipalTodayTasks({ principalCodes = [] } = {}) {
   return { ok: true, tasks };
 }
 
-// 통계 카운트 — status 컬럼만 fetch, client-side group
-//   row 본문 없이 status만 받음 — 가벼운 쿼리.
-//   취소 제외한 카운트 반환.
-//   2026-05-25 — Supabase hosted db.max_rows=1000 cap 대응: .range() 페이지 루프로 전체 fetch.
-//                기존 단일 .select()는 1000건에서 잘려 "976" 같은 잘못된 합계가 노출됨.
+// 통계 카운트 — DB 측 count:exact head 3개 Promise.all (1 RTT).
+//   사장님 spec — 전체 / 진행중 / 완료
+//     전체     = 취소 제외 합        → .neq('status', '취소')
+//     진행중   = 미배정 + 배정 + 확정 + 진행중 → .in('status', [...])
+//     완료     = 완료 + visit_only   → .in('status', [...])
+//   2026-06-11 — 옛 .range() 페이지 루프 + 클라 group 폐기. row 본문 0 fetch.
+//     fetchAllPrincipalCounts 측 동일 패턴 재사용. max_rows cap 무관.
 export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
   if (!Array.isArray(principalCodes) || principalCodes.length === 0) {
     return { ok: false, error: "principalCodes X", counts: null };
@@ -126,41 +128,36 @@ export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
   const pids = await resolvePids(principalCodes);
   if (pids.length === 0) return { ok: false, error: "principal_id X", counts: null };
 
-  // page loop — 1000건 단위로 전체 fetch (PostgREST max_rows 우회)
-  let data = [];
-  let from = 0;
-  while (true) {
-    const { data: page, error } = await supabase
-      .from("tasks")
-      .select("status")
+  const [cTotal, cInProg, cDone] = await Promise.all([
+    supabase.from("tasks")
+      .select("id", { count: "exact", head: true })
       .eq("tenant_id", TENANT_ID)
       .in("principal_id", pids)
-      .range(from, from + 999);
-    if (error) {
-      console.error("[principalDashboardDb.counts]", error);
-      return { ok: false, error: error.message, counts: null };
-    }
-    if (!page || page.length === 0) break;
-    data = data.concat(page);
-    if (page.length < 1000) break;
-    from += 1000;
+      .neq("status", "취소"),
+    supabase.from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", TENANT_ID)
+      .in("principal_id", pids)
+      .in("status", ["미배정", "배정", "확정", "진행중"]),
+    supabase.from("tasks")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", TENANT_ID)
+      .in("principal_id", pids)
+      .in("status", ["완료", "visit_only"]),
+  ]);
+
+  if (cTotal.error || cInProg.error || cDone.error) {
+    console.error("[principalDashboardDb.counts]",
+      cTotal.error || cInProg.error || cDone.error);
+    return { ok: false, error: "count 조회 실패", counts: null };
   }
-
-  const dist = {};
-  for (const r of data) dist[r.status] = (dist[r.status] || 0) + 1;
-
-  // 사장님 spec — 전체 / 진행중 / 완료
-  //   전체     = 취소 제외 합
-  //   진행중   = 미배정 + 배정 + 확정 + 진행중
-  //   완료     = 완료 + visit_only
-  const total      = data.filter(r => r.status !== "취소").length;
-  const inProgress =
-    (dist["미배정"] || 0) + (dist["배정"] || 0) +
-    (dist["확정"] || 0)   + (dist["진행중"] || 0);
-  const completed  = (dist["완료"] || 0) + (dist["visit_only"] || 0);
 
   return {
     ok: true,
-    counts: { total, inProgress, completed, raw: dist },
+    counts: {
+      total:      cTotal.count  || 0,
+      inProgress: cInProg.count || 0,
+      completed:  cDone.count   || 0,
+    },
   };
 }
