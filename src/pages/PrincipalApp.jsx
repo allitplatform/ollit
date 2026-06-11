@@ -518,6 +518,11 @@ export default function PrincipalApp({ user, onLogout }) {
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
     await markAllStoredAsRead();
   }
+  // 2026-06-11 — PC 알림 측 클릭 시 읽음만 (작업 상세 진입 X). 우측 상세 패널 측 표시.
+  function handleMarkNotiRead(noti) {
+    if (typeof noti.id === "number") markStoredAsRead(noti.id).catch(() => {});
+    setNotifications(prev => prev.map(n => n.id === noti.id ? { ...n, read: true } : n));
+  }
   async function handleNotiClick(noti) {
     if (typeof noti.id === "number") markStoredAsRead(noti.id).catch(() => {});
     setNotifications(prev => prev.map(n => n.id === noti.id ? { ...n, read: true } : n));
@@ -664,6 +669,7 @@ export default function PrincipalApp({ user, onLogout }) {
                 notifications={notifications}
                 onMarkAllRead={handleMarkAllRead}
                 onCardClick={handleNotiClick}
+                onMarkRead={handleMarkNotiRead}
                 title="🔔 알림"
               />
             )}
