@@ -926,7 +926,7 @@ function ViewPcSettle({
           minWidth: 0,
           alignSelf: "start",
         }}>
-          <div style={{ fontSize: 14, color: C_GRAY, fontWeight: 700 }}>
+          <div style={{ fontSize: TEXT.HEADER, color: C_GRAY, fontWeight: 700 }}>
             월별 정산 추이
           </div>
           <MonthlyTrendChart bars={trendBars} max={trendMax}/>
@@ -957,7 +957,7 @@ function ViewPcSettle({
         {/* 좌 — 주차별 정산 표 */}
         <div style={{ minWidth: 0 }}>
           <div style={{
-            fontSize: 14,
+            fontSize: TEXT.HEADER,
             color: C_GRAY,
             fontWeight: 700,
             margin: "0 0 10px 4px",
@@ -1004,7 +1004,9 @@ function ViewPcSettle({
           )}
         </div>
 
-        {/* 우 — 기사 입금내역 (usol_n 포함 시만). 헤더 뒤로가기 X (embedded). */}
+        {/* 우 — 기사 입금내역 (usol_n 포함 시만). 헤더 뒤로가기 X (embedded).
+            2026-06-11 — maxHeight/overflowY 폐기. 페이지 스크롤 측 자연 흐름.
+            옛 720 고정 측 하단 잘림 + 내부 스크롤 갇힘 사고. */}
         {hasUsolN && (
           <div style={{
             background: "var(--bg-elevated, #1F1F1F)",
@@ -1012,8 +1014,6 @@ function ViewPcSettle({
             borderRadius: 12,
             padding: "4px 0",
             minWidth: 0,
-            maxHeight: 720,
-            overflowY: "auto",
             boxSizing: "border-box",
           }}>
             <UsolRemitHistoryScreen />
@@ -1135,8 +1135,8 @@ function MonthlyTrendChart({ bars, max }) {
           }}>
             {/* 월 라벨 */}
             <div style={{
-              width: 30,
-              fontSize: 13,
+              width: 32,
+              fontSize: TEXT.META,
               fontWeight: 800,
               color: labelColor,
               flexShrink: 0,
@@ -1163,12 +1163,12 @@ function MonthlyTrendChart({ bars, max }) {
             </div>
             {/* 금액 */}
             <div className="mono" style={{
-              fontSize: 12,
+              fontSize: TEXT.META,
               fontWeight: 700,
               color: labelColor,
               fontFamily: "inherit",
               textAlign: "right",
-              minWidth: 86,
+              minWidth: 90,
               whiteSpace: "nowrap",
               flexShrink: 0,
               letterSpacing: "-0.2px",
