@@ -1282,6 +1282,48 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
       }}>
       <div style={{ fontSize: isPcUpload ? 22 : 18, fontWeight: 800, marginBottom: 14 }}>📤 업로드</div>
 
+      {/* 2026-06-11 — PC 측 풀폭 "새 접수 등록" 카드 (헤더 다음 맨 위). 모바일 측 미노출 (옛 좌측 카드 그대로). */}
+      {isPcUpload && (
+        <div style={{
+          marginBottom: 18,
+          padding: "16px 18px",
+          background: t.bgElevated,
+          border: `1px solid ${t.border}`,
+          borderRadius: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: TEXT.META, color: t.textMuted, fontWeight: 700, marginBottom: 4 }}>
+              직접 입력 (유솔홈케어 H)
+            </div>
+            <div style={{ fontSize: TEXT.META, color: t.textSecondary, fontWeight: 500 }}>
+              CSV 업로드와 별개 — 한 건씩 직접 등록.
+            </div>
+          </div>
+          <button
+            onClick={() => setShowNewForm(true)}
+            style={{
+              padding: "14px 22px",
+              background: "#FF4D9E",
+              border: "none",
+              borderRadius: 10,
+              color: "#fff",
+              fontSize: TEXT.BODY, fontWeight: 800,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              flexShrink: 0,
+            }}
+          >
+            <Plus size={18}/><span>새 접수 등록</span>
+          </button>
+        </div>
+      )}
+
       {/* 토글 — 접수 / 정산 */}
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
         <UploadToggleBtn active={sub === "receive"} onClick={() => setSub("receive")} t={t}>접수 CSV</UploadToggleBtn>
@@ -1296,31 +1338,33 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
             splitView={isPcUpload}
             onTaskClick={onTaskClick}
           />
-          <div style={{
-            marginTop: 18, paddingTop: 14,
-            borderTop: `1px solid ${t.border}`,
-            maxWidth: isPcUpload ? 560 : undefined,   // PC 측 좌측 폭 한정 (전체 폭 X).
-          }}>
-            <div style={{ fontSize: isPcUpload ? TEXT.META : 11, color: t.textMuted, fontWeight: 600, marginBottom: 8 }}>
-              직접 입력 (유솔홈케어 H)
+          {/* 옛 직접 입력 카드 — 모바일 측만 (PC 측 위 풀폭 카드 사용). */}
+          {!isPcUpload && (
+            <div style={{
+              marginTop: 18, paddingTop: 14,
+              borderTop: `1px solid ${t.border}`,
+            }}>
+              <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginBottom: 8 }}>
+                직접 입력 (유솔홈케어 H)
+              </div>
+              <button
+                onClick={() => setShowNewForm(true)}
+                style={{
+                  width: "100%", padding: "14px 16px",
+                  background: "transparent",
+                  border: `1px solid #FF4D9E`,
+                  borderRadius: 10,
+                  color: "#FF4D9E",
+                  fontSize: 13, fontWeight: 700,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <Plus size={14}/><span>새 접수 등록</span>
+              </button>
             </div>
-            <button
-              onClick={() => setShowNewForm(true)}
-              style={{
-                width: "100%", padding: isPcUpload ? "16px 18px" : "14px 16px",
-                background: "transparent",
-                border: `1px solid #FF4D9E`,
-                borderRadius: 10,
-                color: "#FF4D9E",
-                fontSize: isPcUpload ? TEXT.BODY : 13, fontWeight: 700,
-                fontFamily: "inherit",
-                cursor: "pointer",
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-              }}
-            >
-              <Plus size={14}/><span>새 접수 등록</span>
-            </button>
-          </div>
+          )}
         </>
       )}
 
