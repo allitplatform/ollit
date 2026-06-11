@@ -29,6 +29,8 @@ import { fetchAllPrincipalCounts, fetchAllPrincipalTasks } from "../../lib/allPr
 import { useIsPc } from "../../utils/useIsPc.js";
 // 2026-06-11 — ServiceTag 다크/라이트 분기.
 import { useIsDark } from "../../hooks/useIsDark.js";
+// 2026-06-11 — 공통 검색바 (헤더 풀폭, 재사용).
+import { SearchBar } from "../common/SearchBar.jsx";
 
 const N_BADGE_COLOR     = "#2E9E54";
 const CLEAN_COLOR       = "#378ADD";
@@ -917,10 +919,25 @@ function ViewPcTable({
       flexDirection: "column",
       boxSizing: "border-box",
     }}>
-      {/* 상단 한 줄 — 통계 + 필터 토글 + 검색 */}
+      {/* 🅐 2026-06-11 — 헤더 재구성: 검색 풀폭 우선 + 카운트·토글 양끝.
+          1줄차 = SearchBar 풀폭 (공통 컴포넌트 src/components/common/SearchBar.jsx).
+          2줄차 = 좌측 카운트 / 우측 3-way 토글 [오늘 | 활성 | 전체]. */}
+      <div style={{ marginBottom: 14 }}>
+        <SearchBar
+          t={t}
+          value={searchInput}
+          onChange={setSearchInput}
+          placeholder="고객 · 기사 · 주문번호 · 주소 검색"
+          size="lg"
+          onClear={() => setSearchInput?.("")}
+        />
+      </div>
+
+      {/* 2줄차 — 좌 카운트 / 우 토글. space-between. */}
       <div style={{
         display: "flex",
         alignItems: "center",
+        justifyContent: "space-between",
         gap: 16,
         marginBottom: 14,
         flexWrap: "wrap",
@@ -949,96 +966,68 @@ function ViewPcTable({
           </div>
         )}
 
-        {/* 필터 토글 — quickFilter 미활성 때만. */}
-        {!quickFilter && (
-          <div style={{
-            display: "flex",
-            gap: 4,
-            padding: 3,
-            background: t.bgElevated,
-            border: `1px solid ${t.border}`,
-            borderRadius: 8,
-          }}>
-            {[
-              { key: "today", label: "오늘" },
-              { key: "all",   label: "전체" },
-            ].map(b => {
-              const active = view === b.key;
-              return (
-                <button
-                  key={b.key}
-                  type="button"
-                  onClick={() => setView(b.key)}
-                  style={{
-                    padding: "6px 14px",
-                    background: active ? t.accent : "transparent",
-                    color: active ? "#fff" : t.textSecondary,
-                    border: "none",
-                    borderRadius: 6,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    fontFamily: "inherit",
-                  }}
-                >{b.label}</button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* 2026-06-11 — view='all' 전용 "활성만" 토글 (default on).
-            검색 입력 시 자동으로 전체 status 측 fetch (effectiveActiveOnly=false). */}
-        {view === "all" && !quickFilter && (
-          <button
-            type="button"
-            onClick={() => setActiveOnly?.(v => !v)}
-            disabled={!!searchInput?.trim()}
-            style={{
-              padding: "7px 13px",
-              background: activeOnly && !searchInput?.trim() ? t.accent : t.bgElevated,
-              color:      activeOnly && !searchInput?.trim() ? "#fff"   : t.textSecondary,
-              border: `1px solid ${t.border}`,
-              borderRadius: 8,
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: searchInput?.trim() ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
-              opacity: searchInput?.trim() ? 0.5 : 1,
-            }}
-            title={searchInput?.trim() ? "검색 시 전체 status" : "활성만 / 전체 토글"}
-          >
-            {activeOnly && !searchInput?.trim() ? "활성만" : "전체 status"}
-          </button>
-        )}
-
-        {/* 검색 — view='all' 측 서버 ilike. 그 외 측 옛 동작 (today 측 클라 측 검색 X 측 미지원). */}
-        <div style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "7px 12px",
-          background: t.bgElevated,
-          border: `1px solid ${t.border}`,
-          borderRadius: 8,
-          minWidth: 240,
-        }}>
-          <Search size={14} color={t.textMuted}/>
-          <input
-            type="text"
-            value={searchInput || ""}
-            onChange={(e) => setSearchInput?.(e.target.value)}
-            placeholder="고객·기사·주문번호·주소 검색"
-            style={{
-              flex: 1,
-              background: "transparent",
-              border: "none",
-              outline: "none",
-              color: t.text,
-              fontSize: 12,
-              fontFamily: "inherit",
-            }}
-          />
-        </div>
+        {/* 3-way 토글 [오늘 | 활성 | 전체] — quickFilter 미활성 때만.
+            · 오늘 = view='today'
+            · 활성 = view='all' + activeOnly=true
+            · 전체 = view='all' + activeOnly=false
+            검색어 있을 시 자동으로 RPC 측 모든 status (사장님 spec). 토글 disable. */}
+        {!quickFilter && (() => {
+          const term = (searchInput || "").trim();
+          const disabled = !!term;
+          const currentKey =
+            view === "today"      ? "today" :
+            (view === "all" && activeOnly) ? "active" :
+            "all";
+          const options = [
+            { key: "today",  label: "오늘" },
+            { key: "active", label: "활성" },
+            { key: "all",    label: "전체" },
+          ];
+          const onPick = (k) => {
+            if (disabled) return;
+            if (k === "today")  { setView("today"); }
+            if (k === "active") { setView("all"); setActiveOnly?.(true); }
+            if (k === "all")    { setView("all"); setActiveOnly?.(false); }
+          };
+          return (
+            <div
+              role="tablist"
+              style={{
+                display: "flex",
+                gap: 4,
+                padding: 3,
+                background: t.bgElevated,
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                opacity: disabled ? 0.5 : 1,
+              }}
+              title={disabled ? "검색 중엔 전체 status 측 검색됨" : "오늘 / 활성 / 전체 전환"}
+            >
+              {options.map(b => {
+                const active = !disabled && currentKey === b.key;
+                return (
+                  <button
+                    key={b.key}
+                    type="button"
+                    onClick={() => onPick(b.key)}
+                    disabled={disabled}
+                    style={{
+                      padding: "7px 16px",
+                      background: active ? t.accent : "transparent",
+                      color: active ? "#fff" : t.textSecondary,
+                      border: "none",
+                      borderRadius: 6,
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      fontFamily: "inherit",
+                    }}
+                  >{b.label}</button>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* 테이블 */}
