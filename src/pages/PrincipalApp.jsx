@@ -881,14 +881,16 @@ function PcSidebar({
         )}
       </div>
 
-      {/* 메뉴 — flex 1 + 세로 가운데 정렬 */}
+      {/* 메뉴 — 계정 영역 바로 아래부터 시작. flex 1 측 남는 공간 차지하나
+            justifyContent 측 flex-start 유지 — 옛 center 측 큰 화면 텅 빔 catch.
+            하단 요약 + 로그아웃 측 자연스럽게 바닥 (margin-top:auto 효과). */}
       <nav style={{
         flex: 1,
-        padding: "12px 10px",
+        padding: "10px 10px 14px",
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
-        gap: 4,
+        justifyContent: "flex-start",
+        gap: 6,
       }}>
         {tabs.map(b => {
           const Icon = b.icon;
