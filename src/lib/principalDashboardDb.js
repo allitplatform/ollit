@@ -115,10 +115,11 @@ export async function fetchPrincipalTodayTasks({ principalCodes = [] } = {}) {
 }
 
 // 통계 카운트 — DB 측 count:exact head 3개 Promise.all (1 RTT).
-//   사장님 spec — 전체 / 진행중 / 완료
-//     전체     = 취소 제외 합        → .neq('status', '취소')
-//     진행중   = 미배정 + 배정 + 확정 + 진행중 → .in('status', [...])
-//     완료     = 완료 + visit_only   → .in('status', [...])
+//   사장님 spec (2026-06-11 갱신):
+//     전체     = 모든 status (취소 / visit_only / 취소요청 전부 포함).
+//                옛 spec "취소 제외" 폐기 — 헤더 카운트 1207 사고 (실제 1342) catch.
+//     진행중   = 미배정 + 배정 + 확정 + 진행중 → .in('status', [...]).
+//     완료     = 완료 + visit_only            → .in('status', [...]).
 //   2026-06-11 — 옛 .range() 페이지 루프 + 클라 group 폐기. row 본문 0 fetch.
 //     fetchAllPrincipalCounts 측 동일 패턴 재사용. max_rows cap 무관.
 export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
@@ -129,11 +130,11 @@ export async function fetchPrincipalStatusCounts({ principalCodes = [] } = {}) {
   if (pids.length === 0) return { ok: false, error: "principal_id X", counts: null };
 
   const [cTotal, cInProg, cDone] = await Promise.all([
+    // 2026-06-11 — .neq("status", "취소") 제거. 전체 = 모든 status 합.
     supabase.from("tasks")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", TENANT_ID)
-      .in("principal_id", pids)
-      .neq("status", "취소"),
+      .in("principal_id", pids),
     supabase.from("tasks")
       .select("id", { count: "exact", head: true })
       .eq("tenant_id", TENANT_ID)
