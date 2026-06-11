@@ -1985,15 +1985,6 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   const [tasksLoading, setTasksLoading] = useState(false);
   const [tasksError, setTasksError] = useState("");
 
-  // ⏱ 2026-06-11 진단 — screen / selectedTaskDetail 상태를 window 에 미러링.
-  //   클릭 핸들러 측 goTaskDetail 직후 setTimeout 측 실제 커밋 결과 확인용. 진단 끝나면 제거.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    window.__adminScreen = screen;
-    window.__adminSelId = selectedTaskDetail?.id || null;
-    window.__adminStack = Array.isArray(screenStack) ? screenStack.join(">") : "";
-  }, [screen, selectedTaskDetail, screenStack]);
-
   // 2026-06-03 — Phase 2a fix: 냉매 미처리 카운트 측측 fetch (apiTasks.length 측측 측측).
   //   새 task 측측 측측 측측 (length 측측) trigger. polling 측측 length 측측 X 측측 trigger X.
   useEffect(() => {
@@ -2633,57 +2624,24 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onMarkRead={markNotiRead}
         onMarkAllRead={markAllRead}
         onClickItem={async (noti) => {
-          // ⏱ 2026-06-11 진단 2회용 — 단계별 로그 누적 후 단일 alert. 확인 후 제거.
-          const stages = [];
-          const log = (k, v) => stages.push(`${k}: ${v}`);
-          const show = () => { try { alert(stages.join("\n")); } catch (e) {} };
-          try {
-            const id = noti.taskId || noti.relatedId;
-            log("1.id", id ?? "null");
-            log("1b.title", String(noti.title || "").slice(0, 30));
-            if (!id) { show(); return; }
-
-            let task = apiTasks.find(t => t.id === id || t.taskCode === id) || null;
-            log("2.apiTasks.find", task ? `HIT (apiTasks.length=${apiTasks.length})` : `MISS (apiTasks.length=${apiTasks.length})`);
-
-            if (!task) {
-              const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
-              log("3.isUuid", String(isUuid));
-              try {
-                const row = isUuid ? await getTaskByIdDb(id) : await getTaskByTaskNoDb(id);
-                log("4.DB row", row ? `HIT (rowId=${row.id || row.taskCode || "?"})` : "NULL");
-                if (row) {
-                  try {
-                    task = _v14NormalizeTask(row);
-                    log("5.normalize", task ? `OK (taskId=${task.id || "?"})` : "NULL");
-                  } catch (e) {
-                    log("5.normalize ERROR", String(e?.message || e));
-                  }
-                }
-              } catch (e) {
-                log("4.DB ERROR", String(e?.message || e));
-              }
-            }
-
-            if (!task) { show(); return; }
-            log("6.taskKeys", Object.keys(task).slice(0, 8).join(","));
-            log("6.task.id", String(task.id || "?"));
-            // 진단 — 호출 전 상태
-            log("7.pre screen", String(window.__adminScreen || "?"));
-            log("7.pre stack", String(window.__adminStack || "?"));
-            markNotiRead(noti.id);
-            goTaskDetail(task, "notifications");
-            // 진단 — 150ms 후 실제 커밋 결과 (= React 가 실제로 화면 전환했는지)
-            setTimeout(() => {
-              log("8.post screen", String(window.__adminScreen || "?"));
-              log("8.post selId", String(window.__adminSelId || "?"));
-              log("8.post stack", String(window.__adminStack || "?"));
-              show();
-            }, 150);
-          } catch (e) {
-            log("EXCEPTION", String(e?.message || e));
-            show();
+          // 알림 taskId / relatedId 어느 쪽이든 허용 — 어댑터 adaptStoredAdminNoti 는 relatedId 만 노출.
+          const id = noti.taskId || noti.relatedId;
+          if (!id) return;
+          // (a) 메모리 apiTasks 우선  (b) 없으면 DB 단건 폴백 (완료/취소 무관 진입)
+          let task = apiTasks.find(t => t.id === id || t.taskCode === id) || null;
+          if (!task) {
+            const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(id));
+            const row = isUuid ? await getTaskByIdDb(id) : await getTaskByTaskNoDb(id);
+            if (row) task = _v14NormalizeTask(row);
           }
+          if (!task) return;
+          markNotiRead(noti.id);
+          // 2026-06-11 — 상세 진입 직전 알림 스택을 pop. 그러지 않으면 stack 이
+          //   [..., notifications, taskDetail] 형태가 되어, 뒤로가기 시 알림 화면이
+          //   다시 표면화되거나 일부 디바이스에서 가리는 현상 발생.
+          //   결과 스택은 [..., taskDetail] 가 정상.
+          setScreenStack(prev => prev[prev.length - 1] === "notifications" ? prev.slice(0, -1) : prev);
+          goTaskDetail(task, "notifications");
         }}
       />
     </Shell>;
