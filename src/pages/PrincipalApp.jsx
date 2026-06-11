@@ -74,6 +74,8 @@ import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincip
 import { supabase } from "../lib/supabase.js";
 // 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 셸 분기.
 import { useIsPc } from "../utils/useIsPc.js";
+// 2026-06-11 — PC 폰트 표준 토큰 (내 작업 / 정산 / 입금내역 동일 참조).
+import { TEXT } from "../styles/textTokens.js";
 
 const NOW = "10:00";
 const PC_SIDEBAR_W   = 240;
@@ -1403,11 +1405,11 @@ function SubmittedScreen({ t, task, onContinue }) {
 }
 
 function Row({ t, label, value, mono }) {
-  // 2026-06-11 — 상세 패널 측 정산 라벨/값 +2 (사장님 spec).
+  // 2026-06-11 — TEXT 토큰 측 일관 (내 작업 본문 17 정합).
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
-      <span style={{ fontSize: 13, color: t.textMuted, fontWeight: 600, flexShrink: 0 }}>{label}</span>
-      <span className={mono ? "mono" : ""} style={{ fontSize: 14, fontWeight: 700, textAlign: "right" }}>{value}</span>
+      <span style={{ fontSize: TEXT.META, color: t.textMuted, fontWeight: 600, flexShrink: 0 }}>{label}</span>
+      <span className={mono ? "mono" : ""} style={{ fontSize: TEXT.BODY, fontWeight: 700, textAlign: "right" }}>{value}</span>
     </div>
   );
 }
@@ -3231,7 +3233,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
       }}>
       <div style={{ marginBottom: isPcInfo ? 18 : 16 }}>
         <div style={{ fontSize: isPcInfo ? 22 : 18, fontWeight: 800, marginBottom: 4 }}>👤 내 정보</div>
-        <div style={{ fontSize: isPcInfo ? 13 : 12, color: t.textMuted }}>
+        <div style={{ fontSize: isPcInfo ? TEXT.META : 12, color: t.textMuted }}>
           {userName}님
         </div>
       </div>
@@ -3265,8 +3267,8 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
             <Building2 size={28}/>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: isPcInfo ? 18 : 16, fontWeight: 800 }}>{principalLabel}</div>
-            <div style={{ fontSize: isPcInfo ? 13 : 12, color: t.textMuted, fontWeight: 500 }}>
+            <div style={{ fontSize: isPcInfo ? TEXT.BODY : 16, fontWeight: 800 }}>{principalLabel}</div>
+            <div style={{ fontSize: isPcInfo ? TEXT.META : 12, color: t.textMuted, fontWeight: 500 }}>
               {userName}님
             </div>
           </div>
@@ -3286,7 +3288,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
         }}>계좌 정보 불러오는 중...</div>
       ) : accounts.length > 0 ? (
         <div style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, marginBottom: 8, paddingLeft: 4 }}>
+          <div style={{ fontSize: isPcInfo ? TEXT.HEADER : 11, fontWeight: 700, color: t.textMuted, letterSpacing: isPcInfo ? 0 : 0.5, marginBottom: isPcInfo ? 10 : 8, paddingLeft: isPcInfo ? 0 : 4 }}>
             입금 계좌
           </div>
           {accounts.map(acc => (
@@ -3295,6 +3297,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
               t={t}
               account={acc}
               userId={user?.user_id || user?.id}
+              isPcInfo={isPcInfo}
               onUpdated={async () => {
                 await reloadAccounts();
                 showAccountToast("계좌가 업데이트되었습니다");
@@ -3315,8 +3318,8 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
       }}>
 
       {/* 2026-06-04 — 설정 카드: 다크/라이트 + 폰트 크기 */}
-      <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px 18px", marginBottom: 16 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, letterSpacing: 0.5, marginBottom: 12 }}>
+      <div style={{ background: t.bgElevated, borderRadius: 14, padding: isPcInfo ? "20px 22px" : "16px 18px", marginBottom: 16 }}>
+        <div style={{ fontSize: isPcInfo ? TEXT.HEADER : 11, fontWeight: 700, color: t.textMuted, letterSpacing: isPcInfo ? 0 : 0.5, marginBottom: 12 }}>
           설정
         </div>
 
@@ -3327,7 +3330,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 16 }}>{darkOn ? "🌙" : "☀️"}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>
+            <span style={{ fontSize: isPcInfo ? TEXT.BODY : 13, fontWeight: 600, color: t.text }}>
               {darkOn ? "다크 모드" : "라이트 모드"}
             </span>
           </div>
@@ -3360,7 +3363,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 16 }}>{push ? "🔔" : "🔕"}</span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: t.text }}>
+            <span style={{ fontSize: isPcInfo ? TEXT.BODY : 13, fontWeight: 600, color: t.text }}>
               푸시 알림
             </span>
           </div>
@@ -3408,7 +3411,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <Icon size={14} style={{ color: t.textMuted, flexShrink: 0 }}/>
-                    <span style={{ fontSize: 12, color: t.text }}>{opt.label}</span>
+                    <span style={{ fontSize: isPcInfo ? TEXT.STATUS : 12, color: t.text }}>{opt.label}</span>
                   </div>
                   <button
                     onClick={() => toggleKind(opt.kind)}
@@ -3439,7 +3442,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
 
         {/* 폰트 크기 선택 */}
         <div>
-          <div style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, marginBottom: 8 }}>
+          <div style={{ fontSize: isPcInfo ? TEXT.META : 11, fontWeight: 600, color: t.textMuted, marginBottom: 8 }}>
             글자 크기
           </div>
           <div style={{ display: "flex", gap: 6 }}>
@@ -3472,10 +3475,10 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
       <button
         onClick={handleLogout}
         style={{
-          width: "100%", padding: "14px",
+          width: "100%", padding: isPcInfo ? "16px" : "14px",
           background: t.dangerBg, color: t.danger,
           border: `1px solid ${t.danger}40`, borderRadius: 14,
-          fontSize: 13, fontWeight: 700, fontFamily: "inherit",
+          fontSize: isPcInfo ? TEXT.BODY : 13, fontWeight: 700, fontFamily: "inherit",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
           cursor: "pointer",
         }}
@@ -3519,7 +3522,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
 //   1) 현재 은행/번호/예금주 표시 + "수정" 버튼.
 //   2) 수정 모드: 입력 폼 (3개 필드 모두 필수, 형식 검증 없음).
 //   3) "저장" → 확인 다이얼로그 (변경 내용 표시) → 확인 시 RPC 호출 → onUpdated 콜백.
-function AccountCard({ t, account, userId, onUpdated, onError }) {
+function AccountCard({ t, account, userId, onUpdated, onError, isPcInfo = false }) {
   const [editing, setEditing]   = useState(false);
   const [bankName, setBankName] = useState(account?.bank_name      || "");
   const [accNum,   setAccNum]   = useState(account?.account_number || "");
@@ -3581,22 +3584,24 @@ function AccountCard({ t, account, userId, onUpdated, onError }) {
 
   return (
     <div style={{
-      background: t.bgElevated, borderRadius: 14, padding: "16px 18px", marginBottom: 10,
+      background: t.bgElevated, borderRadius: 14,
+      padding: isPcInfo ? "20px 22px" : "16px 18px",
+      marginBottom: 10,
       border: `1px solid ${t.border}`,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>
+        <div style={{ fontSize: isPcInfo ? TEXT.BODY : 13, fontWeight: 800, color: t.text }}>
           {account?.name || "원청"}
         </div>
         {!editing && (
           <button
             onClick={() => setEditing(true)}
             style={{
-              padding: "6px 12px",
+              padding: isPcInfo ? "7px 14px" : "6px 12px",
               background: "transparent",
               border: `1px solid ${t.border}`,
               color: t.textSecondary, borderRadius: 8,
-              fontSize: 11, fontWeight: 700, fontFamily: "inherit",
+              fontSize: isPcInfo ? TEXT.META : 11, fontWeight: 700, fontFamily: "inherit",
               cursor: "pointer",
             }}
           >수정</button>
