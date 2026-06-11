@@ -881,16 +881,15 @@ function PcSidebar({
         )}
       </div>
 
-      {/* 메뉴 — 계정 영역 바로 아래부터 시작. flex 1 측 남는 공간 차지하나
-            justifyContent 측 flex-start 유지 — 옛 center 측 큰 화면 텅 빔 catch.
-            하단 요약 + 로그아웃 측 자연스럽게 바닥 (margin-top:auto 효과). */}
+      {/* 메뉴 — 계정 영역 바로 아래 flex-start. flex 1 측 남는 공간 차지.
+            하단 요약 + 로그아웃 측 margin-top:auto 효과 측 바닥 부착. */}
       <nav style={{
         flex: 1,
         padding: "10px 10px 14px",
         display: "flex",
         flexDirection: "column",
         justifyContent: "flex-start",
-        gap: 6,
+        gap: 8,
       }}>
         {tabs.map(b => {
           const Icon = b.icon;
@@ -905,7 +904,7 @@ function PcSidebar({
                 display: "flex",
                 alignItems: "center",
                 gap: 12,
-                padding: "12px 14px",
+                padding: "13px 14px",
                 background: active ? "rgba(255,27,141,0.10)" : "transparent",
                 border: "none",
                 borderLeft: `3px solid ${active ? (t.accent || "#FF1B8D") : "transparent"}`,
@@ -918,7 +917,7 @@ function PcSidebar({
                 textAlign: "left",
               }}
             >
-              <Icon size={19}/>
+              <Icon size={20}/>
               <span style={{ flex: 1 }}>{b.label}</span>
               {b.badge > 0 && (
                 <span style={{
@@ -933,18 +932,20 @@ function PcSidebar({
         })}
       </nav>
 
-      {/* 하단 요약 3개 — border-top 위 한 줄 3등분 */}
+      {/* 2026-06-11 — 하단 요약 세로 스택 (옛 grid 3등분 측 폐기 — 빈 공간 분산).
+            각 행: 라벨 좌 / 숫자 우 (space-between).
+            정산대기 숫자만 주황 (warn). 유솔H 측 정산대기 행 숨김. */}
       <div style={{
-        padding: "12px 14px",
+        padding: "12px 16px",
         borderTop: `1px solid ${t.border}`,
-        display: "grid",
-        gridTemplateColumns: showPendingSettle ? "1fr 1fr 1fr" : "1fr 1fr",
-        gap: 4,
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
       }}>
-        <SidebarStat t={t} label="오늘접수" value={sidebarSummary.todayReceived}/>
-        <SidebarStat t={t} label="오늘작업" value={sidebarSummary.todayScheduled}/>
+        <SidebarStat t={t} label="오늘 접수" value={sidebarSummary.todayReceived}/>
+        <SidebarStat t={t} label="오늘 작업" value={sidebarSummary.todayScheduled}/>
         {showPendingSettle && (
-          <SidebarStat t={t} label="정산대기" value={sidebarSummary.pendingSettle} accent/>
+          <SidebarStat t={t} label="정산 대기" value={sidebarSummary.pendingSettle} warn/>
         )}
       </div>
 
@@ -977,40 +978,47 @@ function PcSidebar({
   );
 }
 
-// 작은 세그먼트 토글 — 트랙(연한 배경) 안 활성만 핑크 채움.
+// 2026-06-11 — 2단 세로 스택 라디오 토글 (유솔H 위 / 유솔N 아래).
+//   활성 = 핑크 #E0407E 꽉 채움 + 흰 글자.
+//   비활성 = 연한 배경 (t.bgInset) + 회색 글자. 색 대비 강하게 → "둘 다 켜짐" 오해 X.
 function UsolSegmentToggle({ t, value, onChange }) {
   const tabs = [
     { code: "usol_h", label: "유솔H" },
     { code: "usol_n", label: "유솔N" },
   ];
+  const PINK_ACTIVE = "#E0407E";
   return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: 2,
-      padding: 3,
-      background: t.bgInset || "rgba(0,0,0,0.20)",
-      border: `1px solid ${t.border}`,
-      borderRadius: 8,
-    }}>
+    <div
+      role="radiogroup"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        width: "100%",
+      }}
+    >
       {tabs.map(tab => {
         const active = value === tab.code;
         return (
           <button
             key={tab.code}
             type="button"
+            role="radio"
+            aria-checked={active}
             onClick={() => onChange(tab.code)}
             style={{
-              padding: "6px 8px",
-              background: active ? (t.accent || "#FF1B8D") : "transparent",
-              border: "none",
-              borderRadius: 6,
+              width: "100%",
+              padding: "9px 12px",
+              background: active ? PINK_ACTIVE : (t.bgInset || "rgba(0,0,0,0.18)"),
+              border: `1px solid ${active ? PINK_ACTIVE : (t.border || "#2A2A2A")}`,
+              borderRadius: 7,
               color: active ? "#fff" : (t.textSecondary || "#9CA3AF"),
-              fontSize: 12,
-              fontWeight: 700,
+              fontSize: 13,
+              fontWeight: active ? 800 : 700,
               cursor: "pointer",
               fontFamily: "inherit",
               transition: "all 0.15s",
+              textAlign: "center",
             }}
           >{tab.label}</button>
         );
@@ -1019,27 +1027,34 @@ function UsolSegmentToggle({ t, value, onChange }) {
   );
 }
 
-// 사이드바 하단 요약 1셀.
-function SidebarStat({ t, label, value, accent }) {
+// 2026-06-11 — 사이드바 하단 요약 1행 (세로 스택 안 한 줄).
+//   라벨 좌 / 숫자 우 (space-between).
+//   warn = 주황 (정산대기 측). accent = 핑크 (선택). 미지정 측 기본 텍스트 색.
+function SidebarStat({ t, label, value, accent, warn }) {
+  const numColor = warn
+    ? "#F59E0B"
+    : accent
+    ? (t.accent || "#FF1B8D")
+    : t.text;
   return (
     <div style={{
       display: "flex",
-      flexDirection: "column",
-      alignItems: "center",
-      gap: 2,
-      padding: "2px 0",
+      alignItems: "baseline",
+      justifyContent: "space-between",
+      gap: 8,
     }}>
       <span style={{
-        fontSize: 10,
-        color: t.textMuted,
+        fontSize: 12,
+        color: t.textSecondary || t.textMuted,
         fontWeight: 600,
         letterSpacing: 0.2,
       }}>{label}</span>
       <span className="mono" style={{
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: 800,
-        color: accent ? (t.accent || "#FF1B8D") : t.text,
+        color: numColor,
         lineHeight: 1.1,
+        letterSpacing: "-0.2px",
       }}>{Number(value || 0).toLocaleString()}</span>
     </div>
   );
