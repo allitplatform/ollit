@@ -211,20 +211,10 @@ function PresetChip({ active, label, onClick }) {
 export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
   const isPc = useIsPc();
   const today = toKstYmd(new Date());
-  // 2026-06-11 — PC default: 이번 달 / 모바일 default: 오늘 (옛 동작 유지).
-  const [preset, setPreset] = useState(() => "today");
+  // 2026-06-11 — PC / 모바일 default 모두 "오늘" (사장님 spec 갱신).
+  //   캘린더는 이번 달 그리드 — 칸 건수는 별도 monthTasks fetch 사용 (한 달 전체).
+  const [preset, setPreset] = useState("today");
   const [range, setRange] = useState(() => presetToRange("today"));
-  // PC 진입 시점 1회만 month preset 측 default 적용.
-  useEffect(() => {
-    if (isPc && preset === "today") {
-      const r = presetToRange("month");
-      setPreset("month");
-      setRange(r);
-      setDraftStart(r.start);
-      setDraftEnd(r.end);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPc]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [draftStart, setDraftStart] = useState(today);
   const [draftEnd, setDraftEnd] = useState(today);
@@ -233,6 +223,12 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // 2026-06-11 — PC 캘린더 그리드용 별도 fetch (한 달 전체, scheduled_at 칸 카운트 전용).
+  //   calYm = "YYYY-MM" — 캘린더가 보여주는 월. 이전/다음 달 이동 시 재fetch.
+  //   monthTasks = 해당 월의 scheduled_at 만 가진 가벼운 row (id + scheduled_at).
+  const [calYm, setCalYm] = useState(() => toKstYmd(new Date()).slice(0, 7));
+  const [monthTasks, setMonthTasks] = useState([]);
+
   // 2026-06-06 — usol_h OR usol_n 둘 다 사용. 유솔 통합계정 (P003 = usol_h primary + usol_n) 측
   //   principalCodes = ['usol_h', 'usol_n'] 측 측 → IN 측 측 측 측 측 작업 측 측.
   const usolCodes = useMemo(
@@ -240,6 +236,43 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
     [principalCodes]
   );
   const usolActive = usolCodes.length > 0;
+
+  // PC 캘린더 월 fetch — calYm 측 측 KST 한 달 범위.
+  useEffect(() => {
+    if (!isPc || !usolActive) { setMonthTasks([]); return; }
+    let alive = true;
+    (async () => {
+      const { data: pdata } = await supabase
+        .from("principals").select("id, code").in("code", usolCodes);
+      if (!alive || !Array.isArray(pdata) || pdata.length === 0) return;
+      const usolIds = pdata.map(p => p.id);
+
+      const [yy, mm] = calYm.split("-").map(Number);
+      const startYmd = `${yy}-${String(mm).padStart(2, "0")}-01`;
+      const lastDay = new Date(yy, mm, 0).getDate();
+      const endYmd = `${yy}-${String(mm).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+      const { startISO, endISO } = kstRangeToUtc(startYmd, endYmd);
+
+      const PAGE_SIZE = 1000;
+      const MAX_PAGES = 5;
+      const accumulated = [];
+      for (let page = 0; page < MAX_PAGES; page++) {
+        const from = page * PAGE_SIZE;
+        const { data } = await supabase
+          .from("tasks")
+          .select("id, scheduled_at")
+          .in("principal_id", usolIds)
+          .gte("scheduled_at", startISO)
+          .lt("scheduled_at", endISO)
+          .range(from, from + PAGE_SIZE - 1);
+        if (!data || data.length === 0) break;
+        accumulated.push(...data);
+        if (data.length < PAGE_SIZE) break;
+      }
+      if (alive) setMonthTasks(accumulated);
+    })().catch(() => { /* 사일런트 — 캘린더 카운트 미표시. */ });
+    return () => { alive = false; };
+  }, [isPc, usolActive, usolCodes.join(","), calYm]);
 
   // 측 측 측 → range 측 측
   function pickPreset(id) {
@@ -383,6 +416,9 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
         loading={loading}
         error={error}
         onSelect={onSelect}
+        calYm={calYm}
+        setCalYm={setCalYm}
+        monthTasks={monthTasks}
       />
     );
   }
@@ -520,42 +556,50 @@ function ViewPcSchedule({
   applyCustomRange,
   tasks, loading, error,
   onSelect,
+  calYm, setCalYm, monthTasks,
 }) {
   const isWide = useIsWide();
   const gridCols = isWide ? PC_GRID_COLS_WIDE : PC_GRID_COLS;
+  const todayYmd = toKstYmd(new Date());
 
-  // 캘린더 month (YYYY-MM) — default 이번 달. range 변경 시 시작일의 월 측 자동 동기화.
-  const [calYm, setCalYm] = useState(() => toKstYmd(new Date()).slice(0, 7));
-  useEffect(() => {
-    if (range?.start) setCalYm(range.start.slice(0, 7));
-  }, [range?.start]);
+  // 2026-06-11 — 진입 default: 오늘 자동 선택 (사장님 spec).
+  //   기간 칩/범위 변경 시 selectedYmd 측 null → 리스트 = 기간 작업 (제목 "M/D~M/D").
+  //   날짜 클릭 시 selectedYmd 측 그 날 → 리스트 = 그날 작업 (제목 "M/D (요일)").
+  const [selectedYmd, setSelectedYmd] = useState(todayYmd);
 
-  // 선택된 날짜 (YMD) — null 측 "기간 전체" 표. 클릭 시 그날 표.
-  const [selectedYmd, setSelectedYmd] = useState(null);
-
-  // tasks 측 KST 측 day별 카운트 (캘린더 칸용).
+  // 캘린더 칸 카운트 — monthTasks 측 한 달 전체 fetch 결과 측 집계.
+  //   기간 변경과 무관하게 항상 calYm 기준. (옛 사고 — tasks 의존 시 기간이 오늘 1일이면 캘린더 칸 1개만 표시.)
   const dayCount = useMemo(() => {
     const m = new Map();
-    for (const r of tasks) {
+    for (const r of monthTasks) {
       if (!r.scheduled_at) continue;
       const ymd = toKstYmd(r.scheduled_at);
       m.set(ymd, (m.get(ymd) || 0) + 1);
     }
     return m;
-  }, [tasks]);
+  }, [monthTasks]);
 
-  // 표 본문 — selectedYmd 있으면 그날 / 없으면 기간 전체. 날짜순 (scheduled_at asc).
+  // 표 본문 — selectedYmd 있으면 그날 (tasks 또는 monthTasks 측 측 분기) / 없으면 기간 전체.
+  //   selectedYmd 측 calYm 안이고 그 날이 range 밖이면 monthTasks 측 measure (캘린더 표시 측만).
+  //   selectedYmd 측 calYm 밖이면 미지원 (현재 캘린더 측 측 X). 일단 단순 — tasks 측 측 측.
   const tableTasks = useMemo(() => {
-    const src = selectedYmd
-      ? tasks.filter(r => r.scheduled_at && toKstYmd(r.scheduled_at) === selectedYmd)
-      : tasks.filter(r => r.scheduled_at);
-    return src
+    if (selectedYmd) {
+      // 우선 tasks 측 측. 매칭 0건이면 monthTasks 측 fallback 측 — 단 monthTasks 측 가벼운 row 측 PcTableRow 측 측 X.
+      // 따라서 fallback 측 X — selectedYmd 측 range 안일 때만 표시. range 밖이면 빈 표.
+      const src = tasks.filter(r => r.scheduled_at && toKstYmd(r.scheduled_at) === selectedYmd);
+      return src.map(mapScheduleRowToTask)
+        .sort((a, b) => String(a.scheduledAt || "").localeCompare(String(b.scheduledAt || "")));
+    }
+    // selectedYmd null — 기간 전체.
+    return tasks
+      .filter(r => r.scheduled_at)
       .map(mapScheduleRowToTask)
       .sort((a, b) => String(a.scheduledAt || "").localeCompare(String(b.scheduledAt || "")));
   }, [tasks, selectedYmd]);
 
+  // 리스트 제목 — selectedYmd 측 "M/D (요일)" / 기간 측 "M/D ~ M/D".
   const tableTitle = selectedYmd
-    ? `${selectedYmd} 작업`
+    ? fmtDateHeader(selectedYmd)
     : `${fmtRangeShort(range.start, range.end)} 작업`;
 
   return (
@@ -614,6 +658,12 @@ function ViewPcSchedule({
         dayCount={dayCount}
         selectedYmd={selectedYmd}
         onSelectYmd={(ymd) => setSelectedYmd(prev => prev === ymd ? null : ymd)}
+        onGoToday={() => {
+          // 오늘 월로 + 오늘 선택 + 기간도 오늘로.
+          setCalYm(todayYmd.slice(0, 7));
+          setSelectedYmd(todayYmd);
+          if (preset !== "today") pickPreset("today");
+        }}
       />
 
       {/* 표 — 선택 날짜 또는 기간 전체 */}
@@ -698,13 +748,14 @@ function ViewPcSchedule({
 
 // 캘린더 그리드 (7×N). 칸 = 날짜 + N건 배지.
 //   오늘 = 핑크 강조. 선택일 = 핑크 배경. 일=빨강 / 토=파랑.
-function ScheduleCalendar({ t, calYm, setCalYm, dayCount, selectedYmd, onSelectYmd }) {
+function ScheduleCalendar({ t, calYm, setCalYm, dayCount, selectedYmd, onSelectYmd, onGoToday }) {
   const [year, month] = calYm.split("-").map(Number);
   const firstDay = new Date(year, month - 1, 1);
   const lastDay  = new Date(year, month, 0);
   const startDow = firstDay.getDay(); // 0=일 .. 6=토
   const totalDays = lastDay.getDate();
   const todayYmd = toKstYmd(new Date());
+  const todayYm  = todayYmd.slice(0, 7);
 
   // 그리드 cells — 시작 공백 + 1..totalDays + 끝 공백 (7의 배수).
   const cells = [];
@@ -721,6 +772,11 @@ function ScheduleCalendar({ t, calYm, setCalYm, dayCount, selectedYmd, onSelectY
     setCalYm(`${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`);
   };
 
+  // "오늘" 버튼 — 다른 달/날 보다가 오늘로 복귀. 이미 오늘 보고 있으면 disable.
+  const isOnTodayMonth = calYm === todayYm;
+  const isOnTodaySel   = selectedYmd === todayYmd;
+  const todayDisabled  = isOnTodayMonth && isOnTodaySel;
+
   return (
     <div style={{
       background: t.bgElevated,
@@ -728,18 +784,44 @@ function ScheduleCalendar({ t, calYm, setCalYm, dayCount, selectedYmd, onSelectY
       borderRadius: 10,
       padding: "14px 16px",
     }}>
-      {/* 월 헤더 + 이전/다음 */}
+      {/* 월 헤더 + 이전/다음 + 오늘 */}
       <div style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
         marginBottom: 12,
+        gap: 10,
       }}>
         <button type="button" onClick={prevMonth} aria-label="이전 달" style={iconBtn(t)}>
           <ChevronLeft size={18}/>
         </button>
-        <div style={{ fontSize: TEXT.BODY, fontWeight: 800, color: t.text }}>
-          {year}년 {month}월
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          flex: 1,
+          justifyContent: "center",
+        }}>
+          <div style={{ fontSize: TEXT.BODY, fontWeight: 800, color: t.text }}>
+            {year}년 {month}월
+          </div>
+          <button
+            type="button"
+            onClick={onGoToday}
+            disabled={todayDisabled}
+            style={{
+              padding: "5px 12px",
+              background: todayDisabled ? "transparent" : (t.accent || "#FF1B8D"),
+              color: todayDisabled ? t.textMuted : "#fff",
+              border: `1px solid ${todayDisabled ? t.border : (t.accent || "#FF1B8D")}`,
+              borderRadius: 999,
+              fontSize: TEXT.META,
+              fontWeight: 800,
+              cursor: todayDisabled ? "default" : "pointer",
+              opacity: todayDisabled ? 0.5 : 1,
+              fontFamily: "inherit",
+            }}
+          >오늘</button>
         </div>
         <button type="button" onClick={nextMonth} aria-label="다음 달" style={iconBtn(t)}>
           <ChevronRight size={18}/>
