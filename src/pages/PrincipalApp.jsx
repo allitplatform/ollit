@@ -1195,6 +1195,7 @@ function BottomNav({ t, tab, onChange, isPartnerMode, hasSchedule, unreadCount =
 //   유솔(partnerCode=null) → CSV 토글 2개 + UsolNOrders + 유솔H 직접 입력 (기존 흐름, 런처 → 폼)
 //   KA / crikrin (partnerConfig 존재) → 2026-06-06 탭 진입 시 폼 직행 (런처 한 단계 제거).
 function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClick, onSubmit, onBackToList }) {
+  const isPcUpload = useIsPc();
   const [sub, setSub] = useState("receive");   // 'receive' | 'settle'  (유솔만 사용)
   const [showNewForm, setShowNewForm] = useState(false);   // 유솔H 만 사용 (KA/crikrin 은 직행)
 
@@ -1267,10 +1268,19 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
     );
   }
 
-  // 유솔 모드 — 기존 흐름 그대로
+  // 유솔 모드 — 기존 흐름 (PC 측 max-width 1200 중앙 + 자식 splitView).
   return (
-    <div className="fade-in" style={{ padding: "16px 14px 80px" }}>
-      <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 14 }}>📤 업로드</div>
+    <div className="fade-in" style={{
+      padding: isPcUpload ? "32px 24px 80px" : "16px 14px 80px",
+      minHeight: isPcUpload ? "100vh" : undefined,
+      background: isPcUpload ? t.bg : undefined,
+      boxSizing: "border-box",
+    }}>
+      <div style={{
+        maxWidth: isPcUpload ? 1200 : "100%",
+        margin: isPcUpload ? "0 auto" : undefined,
+      }}>
+      <div style={{ fontSize: isPcUpload ? 22 : 18, fontWeight: 800, marginBottom: 14 }}>📤 업로드</div>
 
       {/* 토글 — 접수 / 정산 */}
       <div style={{ display: "flex", gap: 6, marginBottom: 16 }}>
@@ -1280,23 +1290,29 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
 
       {sub === "receive" && (
         <>
-          <UsolNOrders hideList onTaskClick={onTaskClick}/>
+          {/* PC 측 splitView 측 hideList=false (접수 대기 목록 우측 표시). 모바일 측 옛 hideList=true. */}
+          <UsolNOrders
+            hideList={!isPcUpload}
+            splitView={isPcUpload}
+            onTaskClick={onTaskClick}
+          />
           <div style={{
             marginTop: 18, paddingTop: 14,
             borderTop: `1px solid ${t.border}`,
+            maxWidth: isPcUpload ? 560 : undefined,   // PC 측 좌측 폭 한정 (전체 폭 X).
           }}>
-            <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginBottom: 8 }}>
+            <div style={{ fontSize: isPcUpload ? TEXT.META : 11, color: t.textMuted, fontWeight: 600, marginBottom: 8 }}>
               직접 입력 (유솔홈케어 H)
             </div>
             <button
               onClick={() => setShowNewForm(true)}
               style={{
-                width: "100%", padding: "14px 16px",
+                width: "100%", padding: isPcUpload ? "16px 18px" : "14px 16px",
                 background: "transparent",
                 border: `1px solid #FF4D9E`,
                 borderRadius: 10,
                 color: "#FF4D9E",
-                fontSize: 13, fontWeight: 700,
+                fontSize: isPcUpload ? TEXT.BODY : 13, fontWeight: 700,
                 fontFamily: "inherit",
                 cursor: "pointer",
                 display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
@@ -1308,7 +1324,8 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
         </>
       )}
 
-      {sub === "settle" && <UsolNCsvMatch/>}
+      {sub === "settle" && <UsolNCsvMatch splitView={isPcUpload}/>}
+      </div>
     </div>
   );
 }

@@ -16,7 +16,8 @@ import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubsc
 const PAGE_SIZE = 50;
 
 // hideList=true → 업로드 영역만 (PrincipalApp 측 catch 측 catch 측 측 X 측 X 측 X)
-export function UsolNOrders({ onTaskClick, hideList = false }) {
+// 2026-06-11 — splitView=true → PC 2단 (좌: 드롭존 / 우: 결과 배너 + 목록). 디자인만 — 로직 동일.
+export function UsolNOrders({ onTaskClick, hideList = false, splitView = false }) {
   // 2026-05-23 — pendingRows → pendingOrders (parseNaverOrders 측 결과 측 측)
   //   importing / importResult 측 — DB INSERT 진행 측 + 결과 표시 측
   const [pendingOrders, setPendingOrders] = useState([]);
@@ -123,46 +124,73 @@ export function UsolNOrders({ onTaskClick, hideList = false }) {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const uploadArea = (
+    <UploadBox
+      fileInputRef={fileInputRef}
+      onFileSelect={handleFileSelect}
+      onFile={handleFile}
+      pendingCount={pendingOrders.length}
+      importing={importing}
+      onConfirm={handleConfirmImport}
+      onCancel={handleCancel}
+    />
+  );
+
+  const resultBanner = importResult && (
+    <ImportResultBanner result={importResult} onDismiss={() => setImportResult(null)} />
+  );
+
+  const listArea = !hideList && (
+    <>
+      <div style={sectionTitleStyle}>
+        접수 대기{" "}
+        <span style={{ color: "var(--accent)", fontWeight: 700 }}>{total.toLocaleString()}</span>건
+        {totalPages > 1 && (
+          <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
+            · {page + 1} / {totalPages}p
+          </span>
+        )}
+      </div>
+
+      {loading ? (
+        <Empty>불러오는 중...</Empty>
+      ) : fetchError ? (
+        <Empty>⚠️ {fetchError}</Empty>
+      ) : tasks.length === 0 ? (
+        <Empty>대기 중인 새 접수가 없습니다</Empty>
+      ) : (
+        tasks.map(task => <TaskRow key={task.id} task={task} onClick={onTaskClick}/>)
+      )}
+
+      {totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} onChange={setPage}/>
+      )}
+    </>
+  );
+
+  // 2026-06-11 — splitView: PC 2단 (좌: 드롭존 / 우: 결과 배너 + 목록). 로직 동일.
+  if (splitView) {
+    return (
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+        gap: 20,
+        alignItems: "start",
+      }}>
+        <div style={{ minWidth: 0 }}>{uploadArea}</div>
+        <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 14 }}>
+          {resultBanner}
+          {listArea}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <UploadBox
-        fileInputRef={fileInputRef}
-        onFileSelect={handleFileSelect}
-        onFile={handleFile}
-        pendingCount={pendingOrders.length}
-        importing={importing}
-        onConfirm={handleConfirmImport}
-        onCancel={handleCancel}
-      />
-      {importResult && <ImportResultBanner result={importResult} onDismiss={() => setImportResult(null)} />}
-
-      {!hideList && (
-        <>
-          <div style={sectionTitleStyle}>
-            접수 대기{" "}
-            <span style={{ color: "var(--accent)", fontWeight: 700 }}>{total.toLocaleString()}</span>건
-            {totalPages > 1 && (
-              <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
-                · {page + 1} / {totalPages}p
-              </span>
-            )}
-          </div>
-
-          {loading ? (
-            <Empty>불러오는 중...</Empty>
-          ) : fetchError ? (
-            <Empty>⚠️ {fetchError}</Empty>
-          ) : tasks.length === 0 ? (
-            <Empty>대기 중인 새 접수가 없습니다</Empty>
-          ) : (
-            tasks.map(task => <TaskRow key={task.id} task={task} onClick={onTaskClick}/>)
-          )}
-
-          {totalPages > 1 && (
-            <Pagination page={page} totalPages={totalPages} onChange={setPage}/>
-          )}
-        </>
-      )}
+      {uploadArea}
+      {resultBanner}
+      {listArea}
     </div>
   );
 }

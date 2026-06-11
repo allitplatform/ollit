@@ -33,7 +33,9 @@ function poidKey(id) {
   return digits.slice(0, 15);
 }
 
-export function UsolNCsvMatch() {
+// 2026-06-11 — splitView=true → PC 2단 (좌: 드롭존 + CsvInfoCard / 우: 분류 결과 + 확정 버튼).
+//   디자인만 — 파싱·매칭·확정 로직 일체 동일.
+export function UsolNCsvMatch({ splitView = false } = {}) {
   const [csvData, setCsvData]         = useState(null);
   const [matchResult, setMatchResult] = useState(null);
   const [confirming, setConfirming]   = useState(false);
@@ -363,33 +365,62 @@ export function UsolNCsvMatch() {
     );
   }
 
+  const csvInfo = <CsvInfoCard csvData={csvData} onReset={handleReset}/>;
+  const errorBox = error && <div style={errorBoxStyle}>⚠️ {error}</div>;
+  const classification = matchResult && <ClassificationResults result={matchResult}/>;
+  const matchedPreview = matchResult?.matched?.length > 0 && (
+    <MatchedItemsPreview items={matchResult.matched}/>
+  );
+  const unmatchedList = matchResult?.unmatched?.length > 0 && (
+    <UnmatchedItemsList items={matchResult.unmatched}/>
+  );
+  const confirmBtn = (
+    <button
+      onClick={handleConfirmMatching}
+      disabled={!matchResult?.matched?.length || confirming}
+      style={{
+        ...confirmButtonStyle,
+        opacity: (matchResult?.matched?.length && !confirming) ? 1 : 0.5,
+        cursor:  (matchResult?.matched?.length && !confirming) ? "pointer" : "not-allowed",
+      }}
+    >
+      {confirming
+        ? "확정 중..."
+        : `${matchResult?.matched?.length || 0}건 결제완료 확정 (🟡 마킹)`}
+    </button>
+  );
+
+  // 2026-06-11 — splitView: PC 2단 (좌: CsvInfoCard + 확정 버튼 / 우: 분류·매칭·미매칭). 로직 동일.
+  if (splitView) {
+    return (
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+        gap: 20,
+        alignItems: "start",
+      }}>
+        <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+          {csvInfo}
+          {errorBox}
+          {confirmBtn}
+        </div>
+        <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+          {classification}
+          {matchedPreview}
+          {unmatchedList}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <CsvInfoCard csvData={csvData} onReset={handleReset}/>
-      {error && <div style={errorBoxStyle}>⚠️ {error}</div>}
-      {matchResult && <ClassificationResults result={matchResult}/>}
-
-      {matchResult?.matched?.length > 0 && (
-        <MatchedItemsPreview items={matchResult.matched}/>
-      )}
-
-      {matchResult?.unmatched?.length > 0 && (
-        <UnmatchedItemsList items={matchResult.unmatched}/>
-      )}
-
-      <button
-        onClick={handleConfirmMatching}
-        disabled={!matchResult?.matched?.length || confirming}
-        style={{
-          ...confirmButtonStyle,
-          opacity: (matchResult?.matched?.length && !confirming) ? 1 : 0.5,
-          cursor:  (matchResult?.matched?.length && !confirming) ? "pointer" : "not-allowed",
-        }}
-      >
-        {confirming
-          ? "확정 중..."
-          : `${matchResult?.matched?.length || 0}건 결제완료 확정 (🟡 마킹)`}
-      </button>
+      {csvInfo}
+      {errorBox}
+      {classification}
+      {matchedPreview}
+      {unmatchedList}
+      {confirmBtn}
     </div>
   );
 }
