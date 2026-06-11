@@ -495,7 +495,7 @@ function ViewToday({ todayTasks, counts, loading, onSeeAll, onSearchClick, onSel
         fontSize: 12, color: "#B5B0A8", fontWeight: 600,
         marginBottom: 12, letterSpacing: 0.2,
       }}>
-        전체 <Stat n={counts.total}/> · 진행중 <Stat n={counts.inProgress}/> · 완료 <Stat n={counts.completed}/>
+        전체 <Stat n={counts.total}/> · 활성 <Stat n={counts.inProgress}/> · 완료 <Stat n={counts.completed}/>
       </div>
 
       {/* 검색창 (탭 → 뷰 B + autoFocus). 직접 입력 X. */}
@@ -928,9 +928,9 @@ function ViewPcTable({
             border: `1px solid ${t.border}`,
             borderRadius: 8,
           }}>
-            <StatInline t={t} label="전체"   value={counts.total}/>
-            <StatInline t={t} label="진행중" value={counts.inProgress} accent/>
-            <StatInline t={t} label="완료"   value={counts.completed}  muted/>
+            <StatInline t={t} label="전체" value={counts.total}/>
+            <StatInline t={t} label="활성" value={counts.inProgress} accent/>
+            <StatInline t={t} label="완료" value={counts.completed}  muted/>
           </div>
         )}
 
