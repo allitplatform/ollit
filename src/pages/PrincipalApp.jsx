@@ -3226,18 +3226,30 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
       boxSizing: "border-box",
     }}>
       <div style={{
-        maxWidth: isPcInfo ? 640 : "100%",
+        maxWidth: isPcInfo ? 1100 : "100%",
         margin: isPcInfo ? "0 auto" : undefined,
-        display: "flex",
-        flexDirection: "column",
-        gap: isPcInfo ? 18 : 0,
       }}>
-      <div style={{ marginBottom: isPcInfo ? 0 : 16 }}>
+      <div style={{ marginBottom: isPcInfo ? 18 : 16 }}>
         <div style={{ fontSize: isPcInfo ? 22 : 18, fontWeight: 800, marginBottom: 4 }}>👤 내 정보</div>
         <div style={{ fontSize: isPcInfo ? 13 : 12, color: t.textMuted }}>
           {userName}님
         </div>
       </div>
+
+      {/* 2026-06-11 — PC 2단 grid (좌: 계정·계좌 / 우: 설정·로그아웃). 모바일 = block (옛 흐름). */}
+      <div style={{
+        display: isPcInfo ? "grid" : "block",
+        gridTemplateColumns: isPcInfo ? "minmax(0, 1fr) minmax(0, 1fr)" : undefined,
+        gap: isPcInfo ? 16 : 0,
+        alignItems: isPcInfo ? "start" : undefined,
+      }}>
+      {/* 좌 — 계정 + 입금 계좌 */}
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: isPcInfo ? 16 : 0,
+        minWidth: 0,
+      }}>
 
       <div style={{
         background: t.bgElevated, borderRadius: 14,
@@ -3292,6 +3304,15 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
           ))}
         </div>
       ) : null}
+
+      {/* 좌 칸 끝 / 우 칸 시작 — PC 2단 분리. */}
+      </div>
+      <div style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: isPcInfo ? 16 : 0,
+        minWidth: 0,
+      }}>
 
       {/* 2026-06-04 — 설정 카드: 다크/라이트 + 폰트 크기 */}
       <div style={{ background: t.bgElevated, borderRadius: 14, padding: "16px 18px", marginBottom: 16 }}>
@@ -3461,6 +3482,10 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
       >
         <LogOut size={16}/> 로그아웃
       </button>
+
+      {/* 우 칸 끝 + 2단 grid 닫음 */}
+      </div>
+      </div>
 
       {/* 계좌 변경 토스트 */}
       {accountToast && (
