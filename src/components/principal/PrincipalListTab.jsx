@@ -33,6 +33,8 @@ import { useIsWide } from "../../utils/useIsWide.js";
 import { useIsDark } from "../../hooks/useIsDark.js";
 // 2026-06-11 — 공통 검색바 (헤더 풀폭, 재사용).
 import { SearchBar } from "../common/SearchBar.jsx";
+// 2026-06-11 — PC 폰트 표준 토큰 (정산 화면 측 동일 import — 단일 진실의 원천).
+import { TEXT } from "../../styles/textTokens.js";
 
 const N_BADGE_COLOR     = "#2E9E54";
 const CLEAN_COLOR       = "#378ADD";
@@ -1054,7 +1056,7 @@ function ViewPcTable({
         {/* 2026-06-10 4차 — <table> 폐기 → div + CSS Grid. */}
         {/*   사장님 진단: <table>이 부모 max-width 깨는 케이스 확정. div는 표준 block 동작이라 */}
         {/*   부모 wrapper 1280 cap이 그대로 적용됨. 컬럼 폭은 PC_GRID_COLS fr 비례 분배. */}
-        <div style={{ width: "100%", fontSize: 17 }}>
+        <div style={{ width: "100%", fontSize: TEXT.BODY }}>
           {/* 헤더 행 — sticky. gridCols 측 isWide 분기. */}
           <div style={{
             display: "grid",
@@ -1068,11 +1070,9 @@ function ViewPcTable({
           }}>
             {PC_HEADER_COLS.map(col => (
               <div key={col.label} style={{
-                // 2026-06-11 — 헤더·본문 폰트 통일. uppercase / letterSpacing 0.4 폐기.
-                //   본문 17 / 헤더 14 였던 차이 해소 → 둘 다 17.
-                //   한국어 라벨 가독성 위해 letterSpacing 0.2 로 축소.
+                // 헤더·본문 폰트 통일 — TEXT.HEADER 토큰 (정산 화면과 동일 참조).
                 padding: "13px 16px",
-                fontSize: 17,
+                fontSize: TEXT.HEADER,
                 fontWeight: 700,
                 color: t.textMuted,
                 letterSpacing: 0.2,

@@ -1076,11 +1076,11 @@ function PendingBanner({ summary, onClick }) {
       }}
     >
       <div>
-        <div style={{ fontSize: 16, fontWeight: 800, color: C_AMBER, marginBottom: 4 }}>
+        <div style={{ fontSize: TEXT.BODY, fontWeight: 800, color: C_AMBER, marginBottom: 4 }}>
           정산 대기 {summary.pendingCount}건
         </div>
-        <div style={{ fontSize: 12, color: C_GRAY }}>
-          작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: 14 }}>
+        <div style={{ fontSize: TEXT.META, color: C_GRAY }}>
+          작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: TEXT.STATUS }}>
             ₩{summary.pendingAmount.toLocaleString()}
           </span>
         </div>
