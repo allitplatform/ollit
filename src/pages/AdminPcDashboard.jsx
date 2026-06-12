@@ -5,7 +5,9 @@
 //   ⚠️ 배정/정산/접수 로직 안 건드림. dynamicStats / apiTasks 그대로 재사용.
 //   ⚠️ 색 토큰만 사용 (var(--accent) 다크 #FF1B8D / 라이트 #E91860).
 
-import { RevenueOverviewBlock } from "../components/admin/RevenueOverviewBlock.jsx";
+// 2026-06-12 — PC 매출 패널 — 도넛 + 회사 마진 강조 + 세척/냉매 (사장님 spec).
+//   모바일 옛 RevenueOverviewBlock(막대)은 그대로, PC만 새 패널.
+import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
 
 export function AdminPcDashboard({
   t,
@@ -46,7 +48,7 @@ export function AdminPcDashboard({
         gap: 16,
         alignItems: "start",
       }}>
-        <RevenueOverviewBlock
+        <AdminPcRevenuePanel
           t={t}
           apiTasks={apiTasks}
           user={user}

@@ -17,6 +17,12 @@ import { canSeeField } from "../data/permissions.js";
 const EMPTY = {
   total: 0, engineer: 0, principal: 0, owner: 0,
   byService: { cleaning: 0, refrigerant: 0, other: 0 },
+  // 2026-06-12 — 종류별 세부 (PC 매출 패널용). byService(금액만)는 옛 컴포넌트 호환 유지.
+  byServiceDetail: {
+    cleaning:    { total: 0, count: 0, owner: 0 },
+    refrigerant: { total: 0, count: 0, owner: 0 },
+    other:       { total: 0, count: 0, owner: 0 },
+  },
   count: 0,
 };
 
@@ -45,22 +51,41 @@ export function computeRevenueByYmRange(apiTasks, startYmd, endYmd, user) {
 
   let total = 0, engineer = 0, principal = 0, owner = 0;
   let cleaning = 0, refrigerant = 0, other = 0;
+  // 2026-06-12 — 종류별 세부 (count / owner) 누적 — PC 매출 패널용.
+  let cleaningCount = 0, refrigerantCount = 0, otherCount = 0;
+  let cleaningOwner = 0, refrigerantOwner = 0, otherOwner = 0;
   for (const t of list) {
-    const amt = Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
+    const amt   = Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
+    const ownAmt = Number(t.owner_amount || 0);
     total     += amt;
     engineer  += Number(t.engineer_amount || 0);
     principal += Number(t.principal_amount || 0);
-    owner     += Number(t.owner_amount || 0);
+    owner     += ownAmt;
 
     const code = pickServiceCode(t);
-    if (code === "cleaning")          cleaning    += amt;
-    else if (code === "refrigerant")  refrigerant += amt;
-    else                              other       += amt;
+    if (code === "cleaning") {
+      cleaning      += amt;
+      cleaningCount += 1;
+      cleaningOwner += ownAmt;
+    } else if (code === "refrigerant") {
+      refrigerant      += amt;
+      refrigerantCount += 1;
+      refrigerantOwner += ownAmt;
+    } else {
+      other      += amt;
+      otherCount += 1;
+      otherOwner += ownAmt;
+    }
   }
 
   return {
     total, engineer, principal, owner,
     byService: { cleaning, refrigerant, other },
+    byServiceDetail: {
+      cleaning:    { total: cleaning,    count: cleaningCount,    owner: cleaningOwner },
+      refrigerant: { total: refrigerant, count: refrigerantCount, owner: refrigerantOwner },
+      other:       { total: other,       count: otherCount,       owner: otherOwner },
+    },
     count: list.length,
   };
 }
