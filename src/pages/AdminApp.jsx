@@ -3491,14 +3491,14 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점, 기사 검색).
   //   상태 lift (AdminApp 측측): 측측 측측 → 측측 측측 → 측측 측측 같은 기사/월/측측 측측 측측.
   if (screen === "engineerCalendar") {
-    // 2026-06-12 — PC (1024px+) 분기: 한 기사 주간 보기. 모바일은 옛 EngineerCalendarScreen 그대로.
+    // 2026-06-12 — PC (1024px+) 분기: 전체 기사 × 주간 grid. 모바일은 옛 EngineerCalendarScreen 그대로.
+    //   engineerId — 그리드 카드 📅 진입 시 그 기사 행 스크롤 + 강조 (선택).
     if (isPc) {
       return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
         <AdminPcEngineerCalendarScreen
           apiTasks={apiTasks}
           apiEngineers={apiEngineers}
           engineerId={calEngineerId}
-          setEngineerId={setCalEngineerId}
           onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendar")}
         />
       </Shell>;

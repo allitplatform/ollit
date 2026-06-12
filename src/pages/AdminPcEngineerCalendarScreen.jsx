@@ -1,11 +1,14 @@
-// 2026-06-12 — AdminApp PC 한 기사 주간/월간 달력 (Phase A: 주간만, 월간 = 다음 단계).
-//   진입: 사이드바 "기사 달력" 또는 기사 그리드 카드 📅 버튼.
-//   ⚠️ 데이터/로직 0줄 변경 — apiTasks 필터 (assignedEngineerId + 그 주). scheduledAt(KST) 기준.
+// 2026-06-12 — AdminApp PC 기사 주간 일정 (전체 기사 × 주간, 1024px+).
+//   사장님 spec 변경 (2026-06-12) — 한 기사 보기 → 전체 기사 × 주간 한눈에.
+//   레이아웃: 좌 기사명(90px) + 가로 7일 (월~일). 행 = 기사 (작업 많은 순).
+//   각 칸 = 그 기사 그 날 작업 칩 (시간 + 지역, 종류색). 2 초과 시 "외 N".
+//   ⚠️ 데이터/로직 0줄 변경 — apiTasks 필터 (scheduledAt 그 주 + assignedEngineerId groupBy).
 //   ⚠️ 작업 클릭 → onTaskClick (Shell 우 aside 옛 패턴).
+//   ⚠️ 진입: 사이드바 "기사 달력" / 그리드 카드 📅 (그 기사 행 스크롤+강조).
 //   ⚠️ 모바일 옛 EngineerCalendarScreen 별개로 유지 (AdminApp.jsx PC 분기).
 
-import { useState, useMemo, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
 
@@ -17,13 +20,15 @@ const KIND_COLOR_FALLBACK = "#9CA3AF";
 
 const WEEKDAYS_KR = ["월", "화", "수", "목", "금", "토", "일"];
 
+const MAX_CHIPS_PER_CELL = 2;  // 2개 초과 시 "외 N" 요약.
+
 function pad(n) { return String(n).padStart(2, "0"); }
-function ymd(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function ymd(d)  { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function parseYmd(s) {
   const [y, m, d] = (s || "").split("-").map(Number);
   return new Date(y || 2026, (m || 1) - 1, d || 1);
 }
-// 월요일 시작 주 (사장님 spec).
+// 월요일 시작 주.
 function startOfWeekMon(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -38,7 +43,7 @@ function addDays(date, n) {
   return d;
 }
 function formatMd(date) {
-  return `${date.getMonth() + 1}월 ${date.getDate()}일`;
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 function formatHm(iso) {
   if (!iso) return "";
@@ -49,84 +54,107 @@ function formatHm(iso) {
 
 export function AdminPcEngineerCalendarScreen({
   apiTasks = [], apiEngineers = [],
-  engineerId, setEngineerId,
+  // engineerId — 그리드 카드 📅 진입 시 highlight + 스크롤 (선택). setEngineerId 미사용.
+  engineerId,
   onTaskClick,
 }) {
-  // 첫 진입 default — calEngineerId null + apiEngineers 있으면 첫 기사.
-  useEffect(() => {
-    if (engineerId == null && Array.isArray(apiEngineers) && apiEngineers.length > 0) {
-      if (typeof setEngineerId === "function") setEngineerId(apiEngineers[0].id);
-    }
-  }, [apiEngineers, engineerId, setEngineerId]);
-
-  const engineer = useMemo(
-    () => (apiEngineers || []).find(e => e.id === engineerId) || null,
-    [apiEngineers, engineerId]
-  );
-
-  // 주 — 오늘이 속한 주 (월~일) default. ← / → 로 주 이동.
+  // 주 시작일 (월~일 default 오늘 주).
   const todayDate = useMemo(() => parseYmd(todayYmd()), []);
   const [weekStart, setWeekStart] = useState(() => startOfWeekMon(todayDate));
-  const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart]);
+  const weekEnd  = useMemo(() => addDays(weekStart, 6), [weekStart]);
   const weekDays = useMemo(() => {
     const days = [];
     for (let i = 0; i < 7; i++) days.push(addDays(weekStart, i));
     return days;
   }, [weekStart]);
 
-  // 모드 — 주간만 (월간 = Phase B, 토글은 보이되 disabled).
-  const [mode, setMode] = useState("week");
+  const [search, setSearch] = useState("");
 
-  // 그 주 그 기사 작업 — apiTasks filter (scheduledAt KST ymd).
+  // 그 주 작업 — apiTasks filter (scheduledAt KST ymd).
   const weekTasks = useMemo(() => {
-    if (!engineerId) return [];
-    const sYmd = ymd(weekStart);
-    const eYmd = ymd(weekEnd);
+    const s = ymd(weekStart), e = ymd(weekEnd);
     return (apiTasks || []).filter(t => {
       if (!t) return false;
-      const eid = t.assignedEngineerId || t.assigned_engineer_id;
-      if (eid !== engineerId) return false;
       const sched = t.scheduledAt || t.scheduled_at;
       if (!sched) return false;
       const k = toKstYmd(sched);
-      return k >= sYmd && k <= eYmd;
+      return k >= s && k <= e;
     });
-  }, [apiTasks, engineerId, weekStart, weekEnd]);
+  }, [apiTasks, weekStart, weekEnd]);
 
-  const byDate = useMemo(() => {
+  // 기사 → 작업[] 그룹 (미배정 제외 — 기사 행 표).
+  const byEngineer = useMemo(() => {
     const map = new Map();
     for (const t of weekTasks) {
-      const sched = t.scheduledAt || t.scheduled_at;
-      const k = toKstYmd(sched);
-      if (!map.has(k)) map.set(k, []);
-      map.get(k).push(t);
-    }
-    for (const arr of map.values()) {
-      arr.sort((a, b) => {
-        const ai = a.scheduledAt || a.scheduled_at || "";
-        const bi = b.scheduledAt || b.scheduled_at || "";
-        return String(ai).localeCompare(String(bi));
-      });
+      const eid = t.assignedEngineerId || t.assigned_engineer_id;
+      if (!eid) continue;
+      if (!map.has(eid)) map.set(eid, []);
+      map.get(eid).push(t);
     }
     return map;
   }, [weekTasks]);
 
-  // 기사 지역 (workTypes.cleaning.zones + refrigerant.zones unique, 최대 3 + 외N).
-  const engineerZones = useMemo(() => {
-    if (!engineer) return "";
-    const set = new Set();
-    const wt = engineer.workTypes || {};
-    for (const k of ["cleaning", "refrigerant"]) {
-      const arr = (wt[k] && Array.isArray(wt[k].zones)) ? wt[k].zones : [];
-      for (const z of arr) set.add(z);
+  // 행 정렬 — 작업 많은 순. 검색 매칭 시 작업 0 기사도 포함.
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const withTasks = Array.from(byEngineer.entries()).map(([eid, tasks]) => {
+      const eng = (apiEngineers || []).find(e => e.id === eid);
+      return { eid, eng, name: eng?.name || tasks[0]?.assignedEngineer || tasks[0]?.engineer || "(이름 없음)", tasks };
+    });
+    withTasks.sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name));
+
+    if (!q) return withTasks;
+
+    // 검색 — 매칭 기사만. 작업 0 기사도 매칭이면 포함.
+    const taskedIds = new Set(withTasks.map(r => r.eid));
+    const extras = [];
+    for (const eng of apiEngineers || []) {
+      if (!eng || taskedIds.has(eng.id)) continue;
+      const name = (eng.name || "").toLowerCase();
+      if (name.includes(q)) extras.push({ eid: eng.id, eng, name: eng.name || "", tasks: [] });
     }
-    const arr = Array.from(set);
-    if (arr.length === 0) return "";
-    if (arr.length <= 3) return arr.join(" · ");
-    return `${arr.slice(0, 3).join(" · ")} 외 ${arr.length - 3}`;
-  }, [engineer]);
+    const all = [...withTasks, ...extras];
+    return all.filter(r => (r.name || "").toLowerCase().includes(q));
+  }, [byEngineer, apiEngineers, search]);
+
+  // 기사 × 날짜 cell grouping (시간 정렬).
+  const cellsByEngineerDate = useMemo(() => {
+    const m = new Map();
+    for (const t of weekTasks) {
+      const eid = t.assignedEngineerId || t.assigned_engineer_id;
+      if (!eid) continue;
+      const sched = t.scheduledAt || t.scheduled_at;
+      const k = toKstYmd(sched);
+      if (!m.has(eid)) m.set(eid, new Map());
+      const inner = m.get(eid);
+      if (!inner.has(k)) inner.set(k, []);
+      inner.get(k).push(t);
+    }
+    for (const inner of m.values()) {
+      for (const arr of inner.values()) {
+        arr.sort((a, b) => {
+          const ai = a.scheduledAt || a.scheduled_at || "";
+          const bi = b.scheduledAt || b.scheduled_at || "";
+          return String(ai).localeCompare(String(bi));
+        });
+      }
+    }
+    return m;
+  }, [weekTasks]);
+
+  // 그리드 카드 📅 진입 시 — 그 기사 행 스크롤 + 강조.
+  const rowRefs = useRef(new Map());
+  useEffect(() => {
+    if (!engineerId) return;
+    const node = rowRefs.current.get(engineerId);
+    if (node && typeof node.scrollIntoView === "function") {
+      node.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [engineerId]);
 
   const todayY = todayYmd();
+  const totalTasks = weekTasks.length;
+  const isThisWeek = ymd(weekStart) === ymd(startOfWeekMon(todayDate));
 
   return (
     <div style={{
@@ -134,116 +162,179 @@ export function AdminPcEngineerCalendarScreen({
       display: "flex", flexDirection: "column",
       gap: 14,
     }}>
-      {/* 헤더 — 기사명+지역 / 주간·월간 토글 / 기간 네비 */}
+      {/* 헤더 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         gap: 16, flexWrap: "wrap",
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
           <div style={{
-            fontSize: 20, fontWeight: 800,
+            fontSize: 18, fontWeight: 800,
             color: "var(--text-primary)",
             letterSpacing: "-0.4px",
-          }}>
-            {engineer ? engineer.name : "기사 미선택"}
-            <span style={{
-              marginLeft: 10,
-              fontSize: 12, fontWeight: 600,
-              color: "var(--text-secondary)",
-            }}>{weekTasks.length}건 / 주</span>
+          }}>기사 주간 일정</div>
+          <div style={{
+            fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
+          }}>{rows.length}명 · {totalTasks}건</div>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {/* 기사명 검색 */}
+          <div style={{ position: "relative", width: 220 }}>
+            <Search size={14} style={{
+              position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+              color: "var(--text-secondary)", pointerEvents: "none",
+            }}/>
+            <input type="text" value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="기사명 검색"
+              style={{
+                width: "100%", boxSizing: "border-box",
+                padding: "8px 10px 8px 34px",
+                background: "var(--bg-primary)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                color: "var(--text-primary)",
+                fontSize: 12, fontFamily: "inherit",
+                outline: "none",
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
+              onBlur={(e)  => { e.currentTarget.style.borderColor = "var(--border)"; }}
+            />
           </div>
-          {engineerZones && (
-            <div style={{
-              fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
-            }}>{engineerZones}</div>
-          )}
-        </div>
 
-        {/* 주간 / 월간 토글 */}
-        <div style={{
-          display: "flex",
-          background: "var(--bg-elevated)",
-          border: "1px solid var(--border)",
-          borderRadius: 8,
-          padding: 2,
-        }}>
-          <ToggleBtn label="주간" active={mode === "week"}
-            onClick={() => setMode("week")}/>
-          <ToggleBtn label="월간" active={mode === "month"}
-            onClick={() => setMode("month")} disabled title="다음 단계"/>
-        </div>
-
-        {/* 기간 네비 — 주간 모드만 */}
-        {mode === "week" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* 주 네비 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <NavBtn onClick={() => setWeekStart(d => addDays(d, -7))} ariaLabel="이전 주">
               <ChevronLeft size={16}/>
             </NavBtn>
             <button onClick={() => setWeekStart(startOfWeekMon(todayDate))}
               style={{
                 padding: "7px 14px",
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
+                background: isThisWeek ? "var(--accent-bg)" : "var(--bg-elevated)",
+                border: `1px solid ${isThisWeek ? "var(--accent)" : "var(--border)"}`,
                 borderRadius: 7,
-                color: "var(--text-primary)",
+                color: isThisWeek ? "var(--accent)" : "var(--text-primary)",
                 fontSize: 12, fontWeight: 700,
                 cursor: "pointer", fontFamily: "inherit",
                 minWidth: 150, textAlign: "center",
               }}>
-              {formatMd(weekStart)} ~ {formatMd(weekEnd)}
+              {formatMd(weekStart)} ~ {formatMd(weekEnd)}{isThisWeek ? " (이번주)" : ""}
             </button>
             <NavBtn onClick={() => setWeekStart(d => addDays(d, 7))} ariaLabel="다음 주">
               <ChevronRight size={16}/>
             </NavBtn>
           </div>
-        )}
+        </div>
       </div>
 
-      {/* 본문 */}
-      {!engineer ? (
-        <EmptyBox label="기사 미선택"/>
-      ) : mode === "week" ? (
+      {/* 표 — 좌 기사명(90px) + 가로 7일 */}
+      {rows.length === 0 ? (
+        <EmptyBox label={search ? `"${search}" 검색 결과 없음` : "이번 주 작업 없음"}/>
+      ) : (
         <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(7, 1fr)",
-          gap: 8,
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          borderRadius: 12,
+          overflow: "hidden",
         }}>
-          {weekDays.map((d, i) => {
-            const dy = ymd(d);
-            const isToday = dy === todayY;
-            const tasks = byDate.get(dy) || [];
+          {/* 헤더 row — 요일 / 날짜 (오늘 강조) */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "90px repeat(7, 1fr)",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--bg-elevated)",
+            position: "sticky", top: 0, zIndex: 1,
+          }}>
+            <div style={{
+              padding: "10px 12px",
+              fontSize: 11, fontWeight: 700,
+              color: "var(--text-secondary)",
+              letterSpacing: 0.5, textTransform: "uppercase",
+              borderRight: "1px solid var(--border)",
+            }}>기사</div>
+            {weekDays.map((d, i) => {
+              const dy = ymd(d);
+              const isToday = dy === todayY;
+              return (
+                <div key={dy} style={{
+                  padding: "10px 6px",
+                  textAlign: "center",
+                  borderRight: i < 6 ? "1px solid var(--border)" : "none",
+                  background: isToday ? "var(--accent-bg)" : "transparent",
+                  display: "flex", flexDirection: "column", gap: 1,
+                  alignItems: "center",
+                }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700,
+                    color: isToday ? "var(--accent)" : "var(--text-secondary)",
+                  }}>{WEEKDAYS_KR[i]}</span>
+                  <span style={{
+                    fontSize: 13, fontWeight: 800,
+                    color: isToday ? "var(--accent)" : "var(--text-primary)",
+                  }}>{d.getDate()}</span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 기사 행 */}
+          {rows.map((row, ri) => {
+            const isHighlight = engineerId && row.eid === engineerId;
+            const inner = cellsByEngineerDate.get(row.eid);
             return (
-              <DayCell key={dy}
-                date={d}
-                weekday={WEEKDAYS_KR[i]}
-                isToday={isToday}
-                tasks={tasks}
-                onTaskClick={onTaskClick}
-              />
+              <div key={row.eid}
+                ref={(el) => {
+                  if (el) rowRefs.current.set(row.eid, el);
+                  else    rowRefs.current.delete(row.eid);
+                }}
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "90px repeat(7, 1fr)",
+                  borderBottom: ri < rows.length - 1 ? "1px solid var(--border)" : "none",
+                  background: isHighlight ? "var(--accent-bg)" : "transparent",
+                  transition: "background 0.2s",
+                }}>
+                {/* 기사명 셀 */}
+                <div style={{
+                  padding: "8px 12px",
+                  borderRight: "1px solid var(--border)",
+                  fontSize: 12, fontWeight: 700,
+                  color: "var(--text-primary)",
+                  display: "flex", alignItems: "center", gap: 4,
+                  minWidth: 0,
+                }}>
+                  <span style={{
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    flex: 1, minWidth: 0,
+                  }}>{row.name}</span>
+                  {row.tasks.length > 0 && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      color: "var(--text-secondary)",
+                      flexShrink: 0,
+                    }}>{row.tasks.length}</span>
+                  )}
+                </div>
+                {/* 날짜 셀 7개 */}
+                {weekDays.map((d, i) => {
+                  const dy = ymd(d);
+                  const isToday = dy === todayY;
+                  const tasks = inner ? (inner.get(dy) || []) : [];
+                  return (
+                    <Cell key={dy} tasks={tasks}
+                      isToday={isToday}
+                      borderRight={i < 6}
+                      onTaskClick={onTaskClick}
+                    />
+                  );
+                })}
+              </div>
             );
           })}
         </div>
-      ) : (
-        <EmptyBox label="월간 보기 — 다음 단계"/>
       )}
     </div>
-  );
-}
-
-function ToggleBtn({ label, active, onClick, disabled, title }) {
-  return (
-    <button onClick={onClick} disabled={disabled} title={title}
-      style={{
-        padding: "6px 14px",
-        background: active ? "var(--accent)" : "transparent",
-        color: active ? "#fff" : disabled ? "var(--text-tertiary)" : "var(--text-secondary)",
-        border: "none",
-        borderRadius: 6,
-        fontSize: 12, fontWeight: 700,
-        cursor: disabled ? "not-allowed" : "pointer",
-        fontFamily: "inherit",
-        opacity: disabled ? 0.5 : 1,
-      }}>{label}</button>
   );
 }
 
@@ -263,41 +354,28 @@ function NavBtn({ children, onClick, ariaLabel }) {
   );
 }
 
-function DayCell({ date, weekday, isToday, tasks, onTaskClick }) {
-  const dnum = date.getDate();
+function Cell({ tasks, isToday, borderRight, onTaskClick }) {
+  const shown = tasks.slice(0, MAX_CHIPS_PER_CELL);
+  const extra = tasks.length - shown.length;
   return (
     <div style={{
-      background: isToday ? "var(--accent-bg)" : "var(--bg-elevated)",
-      border: `1px solid ${isToday ? "var(--accent)" : "var(--border)"}`,
-      borderRadius: 10,
-      padding: 10,
-      minHeight: 200,
-      display: "flex", flexDirection: "column",
-      gap: 6,
+      padding: 5,
+      borderRight: borderRight ? "1px solid var(--border)" : "none",
+      background: isToday ? "var(--accent-bg)" : "transparent",
+      display: "flex", flexDirection: "column", gap: 3,
+      minHeight: 60,
+      minWidth: 0,
     }}>
-      <div style={{
-        display: "flex", alignItems: "baseline", justifyContent: "space-between",
-      }}>
+      {shown.map(t => (
+        <TaskChip key={t.id || t.taskCode} task={t} onClick={() => onTaskClick?.(t)}/>
+      ))}
+      {extra > 0 && (
         <span style={{
-          fontSize: 11,
-          color: isToday ? "var(--accent)" : "var(--text-secondary)",
-          fontWeight: 700,
-        }}>{weekday}</span>
-        <span style={{
-          fontSize: 16, fontWeight: 800,
-          color: isToday ? "var(--accent)" : "var(--text-primary)",
-        }}>{dnum}</span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1 }}>
-        {tasks.length === 0 ? (
-          <div style={{
-            color: "var(--text-tertiary)",
-            fontSize: 10, marginTop: 4,
-          }}>—</div>
-        ) : tasks.map(t => (
-          <TaskChip key={t.id || t.taskCode} task={t} onClick={() => onTaskClick?.(t)}/>
-        ))}
-      </div>
+          fontSize: 9, fontWeight: 700,
+          color: "var(--text-secondary)",
+          padding: "2px 4px",
+        }}>외 {extra}</span>
+      )}
     </div>
   );
 }
@@ -318,8 +396,8 @@ function TaskChip({ task, onClick }) {
         background: `${color}1F`,
         border: `1px solid ${color}66`,
         borderLeft: `3px solid ${color}`,
-        borderRadius: 5,
-        padding: "4px 7px",
+        borderRadius: 4,
+        padding: "3px 6px",
         fontSize: 10, fontWeight: 700,
         color: "var(--text-primary)",
         cursor: "pointer",
@@ -327,6 +405,7 @@ function TaskChip({ task, onClick }) {
         display: "flex", gap: 4,
         alignItems: "center",
         overflow: "hidden",
+        minWidth: 0,
         textDecoration: isCanceled ? "line-through" : "none",
         opacity: isCanceled ? 0.6 : 1,
       }}>
@@ -334,6 +413,7 @@ function TaskChip({ task, onClick }) {
       <span style={{
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         color: "var(--text-primary)",
+        flex: 1, minWidth: 0,
       }}>{region || customer || "—"}</span>
     </button>
   );
