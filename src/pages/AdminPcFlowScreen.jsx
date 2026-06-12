@@ -43,6 +43,10 @@ const KIND_ICON = {
   cleaning:    "❄",
   refrigerant: "⚡",
 };
+const KIND_ICON_COLOR = {
+  cleaning:    "#0EA5E9",  // 세척 파랑
+  refrigerant: "#FFB800",  // 냉매 노랑 (이모지 자체 색이지만 명시)
+};
 
 function pad(n) { return String(n).padStart(2, "0"); }
 function formatTime(iso) {
@@ -145,6 +149,11 @@ function TaskFlowRow({ task, apiEngineers, onClick }) {
   const status   = task.status || "";
 
   const isCanceled = status === "취소";
+  // 2026-06-12 — 출장비 받은 취소 구분 (옛 onSetCompensation RPC 결과).
+  //   cancelEngineerCompKind === "visit_fee" → 기사 출장 가서 작업 못 함 + 출장비만 받음.
+  //   cancelEngineerCompAmount = 보통 30,000원 (VISIT_FEE.amount).
+  const isVisitFeeCanceled = isCanceled && task.cancelEngineerCompKind === "visit_fee";
+  const visitFeeAmount     = Number(task.cancelEngineerCompAmount || 0);
   const reachedIdx = getReachedIdx(status);
 
   const receivedAt  = formatTime(task.createdAt || task.receivedAt);
@@ -172,11 +181,16 @@ function TaskFlowRow({ task, apiEngineers, onClick }) {
           display: "flex", alignItems: "center", gap: 6,
           fontSize: 13, fontWeight: 800, color: "var(--text-primary)",
         }}>
-          <span style={{ fontSize: 14 }}>{KIND_ICON[kind] || "•"}</span>
+          <span style={{
+            fontSize: 14,
+            color: KIND_ICON_COLOR[kind] || "var(--text-secondary)",
+          }}>{KIND_ICON[kind] || "•"}</span>
           <span style={{
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            textDecoration: isCanceled && !isVisitFeeCanceled ? "line-through" : "none",
+            opacity: isCanceled && !isVisitFeeCanceled ? 0.7 : 1,
           }}>{customer}</span>
-          {isCanceled && (
+          {isCanceled && !isVisitFeeCanceled && (
             <span style={{
               fontSize: 10, fontWeight: 700,
               color: COLOR_CANCELED,
@@ -184,6 +198,17 @@ function TaskFlowRow({ task, apiEngineers, onClick }) {
               border: `1px solid ${COLOR_CANCELED}`,
               borderRadius: 4,
             }}>취소</span>
+          )}
+          {isVisitFeeCanceled && (
+            <span style={{
+              fontSize: 10, fontWeight: 800,
+              color: COLOR_CANCELED,
+              padding: "1px 7px",
+              background: "var(--bg-inset, var(--bg-elevated))",
+              border: `1px solid ${COLOR_CANCELED}`,
+              borderRadius: 4,
+              fontVariantNumeric: "tabular-nums",
+            }}>출장비 ₩{visitFeeAmount.toLocaleString("ko-KR")}</span>
           )}
         </div>
         <span style={{
