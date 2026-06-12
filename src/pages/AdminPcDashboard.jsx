@@ -21,6 +21,8 @@ import { USOL_N_PID } from "../lib/usolNWeeklyData.js";
 // 2026-06-12 — 유솔N 패널 = PC 전용 새 디자인 (순이익 주인공).
 //   계산 helper 만 UsolNToEngineerSection 에서 export 가져옴, UI 새로.
 import { AdminPcUsolNMonthlyPanel } from "./AdminPcUsolNMonthlyPanel.jsx";
+// 2026-06-12 — 작업 검색 (맨 아래 풀폭). 클라이언트 필터 (apiTasks).
+import { AdminPcTaskSearchPanel } from "./AdminPcTaskSearchPanel.jsx";
 import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
 
 function fmtKRW(n) {
@@ -42,6 +44,7 @@ export function AdminPcDashboard({
   onClickReassign,
   onClickUsolN,
   onTaskAssign,
+  onOpenTaskDetail,
 }) {
   // 2026-06-12 — 반응형 — 1280px 이상이면 2단 (매출 좌 / 알림+유솔N 우), 미만이면 1단 세로 stack.
   const isWide = useMinWidth(1280);
@@ -132,18 +135,11 @@ export function AdminPcDashboard({
         apiEngineers={apiEngineers}
       />
 
-      {/* 다음 단계 — 작업 검색 풀폭 */}
-      <div style={{
-        padding: "18px 20px",
-        background: "var(--bg-elevated)",
-        border: "1px dashed var(--border)",
-        borderRadius: 12,
-        color: "var(--text-secondary)",
-        fontSize: 12, fontWeight: 600,
-        textAlign: "center",
-      }}>
-        🔍 다음 단계 — 작업 검색 풀폭 (유솔N 포함, 원청 필터칩, 결과 행 클릭 → 우 aside)
-      </div>
+      {/* 작업 검색 풀폭 — 유솔N 포함 전체 작업. 행 클릭 → onOpenTaskDetail (Chunk 2 우 aside 예정). */}
+      <AdminPcTaskSearchPanel
+        apiTasks={apiTasks}
+        onTaskClick={onOpenTaskDetail}
+      />
     </div>
   );
 }

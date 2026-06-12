@@ -3791,6 +3791,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
             || "manual_with_recommendation";
           setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
         }}
+        onOpenTaskDetail={(task) => openTaskDetailFromLight(task, null)}
       />
     </Shell>;
   }
