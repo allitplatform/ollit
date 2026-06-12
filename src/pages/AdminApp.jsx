@@ -1842,11 +1842,19 @@ function Shell({ t, toasts, children, pcCtx }) {
   const isPc = useIsPc();
 
   if (isPc && pcCtx) {
+    // 2026-06-12 Chunk 2 — PC + 옛 screen=taskDetail 분기 → main = dashboardNode, aside = children.
+    //   옛 line 2716 분기는 children=AdminTaskDetailScreen 으로 진입 → 우 aside 에 표시.
+    //   대시보드는 그대로 보임 (pcCtx.dashboardNode 사용).
+    const isPcTaskDetail = pcCtx.screen === "taskDetail" && !!pcCtx.selectedTaskDetail;
     return (
       <>
         {FontStyle}
-        <AdminPcShell t={t} pcCtx={pcCtx}>
-          {children}
+        <AdminPcShell
+          t={t}
+          pcCtx={pcCtx}
+          asideNode={isPcTaskDetail ? children : null}
+        >
+          {isPcTaskDetail ? pcCtx.dashboardNode : children}
         </AdminPcShell>
         <ToastContainer t={t} toasts={toasts}/>
       </>
@@ -2494,13 +2502,50 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     if (row) goTaskDetail(_v14NormalizeTask(row), from);
     else     goTaskDetail(lightTask, from);
   };
-  const goBackFromStack = () => { setPrevScreen(null); goBack(); };
+  const goBackFromStack = () => {
+    setPrevScreen(null);
+    goBack();
+    // 2026-06-12 Chunk 2 — PC 모드에서 옛 taskDetail aside 닫기.
+    //   옛 line 2716 분기 안 inline handler 의 onBack / onCancelTask / onVisitOnly 끝 goBackFromStack 호출 일관.
+    if (isPc) setSelectedTaskDetail(null);
+  };
 
   // 2026-05-22 — Shell + FontStyle 측 모듈 레벨 함수로 추출 (위 정의 참조).
   // 옛 const 정의 측 매 렌더마다 새 함수 identity → 자식 unmount → 폼 state 소실.
 
   // 2026-06-12 — PC 분기 (1024px+). 본체에서도 isPc 직접 사용 (main default return → AdminPcDashboard 분기).
   const isPc = useIsPc();
+
+  // 2026-06-12 Chunk 2 — PC 대시보드 JSX 한 번만 정의 + 양쪽에서 같은 element 사용 (state 보존).
+  //   1) screen=null main default → Shell children
+  //   2) PC + screen=taskDetail (옛 line 2716 분기) → Shell PC layout main 에 mount (dashboardNode prop).
+  //      옛 분기 children (AdminTaskDetailScreen) = 우 aside 에 mount.
+  //   같은 React element 라 reconcile reuse — 검색 input 등 자체 state 유지.
+  const adminPcDashboardNode = isPc ? (
+    <AdminPcDashboard
+      t={t}
+      apiTasks={apiTasks}
+      apiEngineers={apiEngineers}
+      user={user}
+      dynamicStats={dynamicStats}
+      refrigerantAddonCount={refrigerantAddonCount}
+      onClickRevenueDetail={() => setScreen("revenueDetail")}
+      onClickNewReception={(f) => { setNewReceptionFilter(f || null); setScreen("newReception"); }}
+      onClickAssignedList={(f) => { setAssignedFilter(f); setScreen("assignedList"); }}
+      onClickInProgress={() => setScreen("inProgressList")}
+      onClickLiveWork={(f) => { setLiveWorkFilter(f || null); setScreen("liveWork"); }}
+      onClickReassign={() => setScreen("reassignList")}
+      onClickUsolN={() => setScreen("usol_n")}
+      onTaskAssign={(task) => {
+        setSelectedTask(task);
+        const flow = determineWorkflow(task.workItems)
+          || WORK_TYPES_CONFIG[task.workType]?.workflow
+          || "manual_with_recommendation";
+        setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
+      }}
+      onOpenTaskDetail={(task) => openTaskDetailFromLight(task, null)}
+    />
+  ) : null;
 
   // 2026-06-12 — PC 셸 컨텍스트. 모든 <Shell ... pcCtx={pcCtx}> 호출 38곳에 전달.
   //   Shell 함수가 useIsPc() true 면 AdminPcShell 로 wrap, false 면 옛 모바일 layout 그대로.
@@ -2521,6 +2566,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       todayReceived:  dynamicStats?.new              || 0,
       unassigned:     dynamicStats?.unassignedCount  || 0,
       todayCompleted: dynamicStats?.completed        || 0,
+    },
+    // 2026-06-12 Chunk 2 — 우 aside 활성화. Shell PC 분기에서 screen=taskDetail 일 때 사용.
+    dashboardNode:     adminPcDashboardNode,
+    onCloseTaskDetail: () => {
+      setSelectedTaskDetail(null);
+      // screenStack 안 잔여 "taskDetail" 정리 — 옛 navigation history 청소.
+      setScreenStack(prev => prev.filter(s => s !== "taskDetail"));
     },
   };
 
@@ -3770,29 +3822,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-06-12 — PC (1024px+) 면 AdminPcDashboard 새 펼침형. 모바일은 옛 DashboardScreen 그대로.
   if (isPc) {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <AdminPcDashboard
-        t={t}
-        apiTasks={apiTasks}
-        apiEngineers={apiEngineers}
-        user={user}
-        dynamicStats={dynamicStats}
-        refrigerantAddonCount={refrigerantAddonCount}
-        onClickRevenueDetail={() => setScreen("revenueDetail")}
-        onClickNewReception={(f) => { setNewReceptionFilter(f || null); setScreen("newReception"); }}
-        onClickAssignedList={(f) => { setAssignedFilter(f); setScreen("assignedList"); }}
-        onClickInProgress={() => setScreen("inProgressList")}
-        onClickLiveWork={(f) => { setLiveWorkFilter(f || null); setScreen("liveWork"); }}
-        onClickReassign={() => setScreen("reassignList")}
-        onClickUsolN={() => setScreen("usol_n")}
-        onTaskAssign={(task) => {
-          setSelectedTask(task);
-          const flow = determineWorkflow(task.workItems)
-            || WORK_TYPES_CONFIG[task.workType]?.workflow
-            || "manual_with_recommendation";
-          setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
-        }}
-        onOpenTaskDetail={(task) => openTaskDetailFromLight(task, null)}
-      />
+      {adminPcDashboardNode}
     </Shell>;
   }
   return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
