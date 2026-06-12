@@ -60,6 +60,8 @@ import { AdminPcFlowScreen }     from "./AdminPcFlowScreen.jsx";
 import { AdminPcEngineerGridScreen } from "./AdminPcEngineerGridScreen.jsx";
 // 2026-06-12 — PC 한 기사 주간 달력 (Phase A: 주간만).
 import { AdminPcEngineerCalendarScreen } from "./AdminPcEngineerCalendarScreen.jsx";
+// 2026-06-12 — PC 한 기사 월간 달력.
+import { AdminPcEngineerMonthlyCalendarScreen } from "./AdminPcEngineerMonthlyCalendarScreen.jsx";
 import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
 import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
 import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
@@ -3510,6 +3512,41 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         apiEngineers={apiEngineers}
         onBack={goBack}
         onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendar")}
+        engineerId={calEngineerId}
+        year={calYear}
+        month={calMonth}
+        selectedYmd={calSelectedYmd}
+        setEngineerId={setCalEngineerId}
+        setYear={setCalYear}
+        setMonth={setCalMonth}
+        setSelectedYmd={setCalSelectedYmd}
+      />
+    </Shell>;
+  }
+  // 2026-06-12 — PC 한 기사 월간 달력. 모바일은 옛 EngineerCalendarScreen (월간 그리드) 그대로.
+  if (screen === "engineerCalendarMonth") {
+    if (isPc) {
+      return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+        <AdminPcEngineerMonthlyCalendarScreen
+          apiTasks={apiTasks}
+          apiEngineers={apiEngineers}
+          engineerId={calEngineerId}
+          setEngineerId={setCalEngineerId}
+          year={calYear}
+          setYear={setCalYear}
+          month={calMonth}
+          setMonth={setCalMonth}
+          onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendarMonth")}
+        />
+      </Shell>;
+    }
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <EngineerCalendarScreen
+        t={t}
+        apiTasks={apiTasks}
+        apiEngineers={apiEngineers}
+        onBack={goBack}
+        onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendarMonth")}
         engineerId={calEngineerId}
         year={calYear}
         month={calMonth}

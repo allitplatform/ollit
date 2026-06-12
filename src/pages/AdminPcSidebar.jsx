@@ -63,8 +63,10 @@ const GROUPS = [
     label: "기사",
     icon: Users,
     items: [
-      { id: "engineerList",     label: "기사 목록" },
-      { id: "engineerCalendar", label: "기사 달력" },
+      { id: "engineerList",          label: "기사 목록" },
+      { id: "engineerCalendar",      label: "기사 달력 (주간)" },
+      // 2026-06-12 — 월간 달력 (한 기사 × 한 달).
+      { id: "engineerCalendarMonth", label: "기사 달력 (월간)" },
     ],
   },
   {
