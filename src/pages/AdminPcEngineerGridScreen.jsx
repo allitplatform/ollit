@@ -35,7 +35,7 @@ function summarizeZones(zones, head = 3) {
   return `${arr.slice(0, head).join(" · ")} 외 ${arr.length - head}`;
 }
 
-export function AdminPcEngineerGridScreen({ onEdit, onAdd }) {
+export function AdminPcEngineerGridScreen({ onEdit, onAdd, onCalendar }) {
   const [engineers] = useState(() => loadEngineers());
   const [search, setSearch] = useState("");
   const [skillsMap, setSkillsMap] = useState(null);
@@ -166,6 +166,7 @@ export function AdminPcEngineerGridScreen({ onEdit, onAdd }) {
               hasCleaning={hasSkill(eng.id, "세척")}
               hasRefrigerant={hasSkill(eng.id, "냉매충전")}
               onClick={() => onEdit?.(eng)}
+              onCalendar={onCalendar ? () => onCalendar(eng) : null}
             />
           ))}
         </div>
@@ -205,7 +206,7 @@ function SearchBar({ value, onChange }) {
   );
 }
 
-function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick }) {
+function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick, onCalendar }) {
   const status = engineer.status || "active";
   const meta = STATUS_META[status] || STATUS_META.active;
   const isDimmed = status !== "active";
@@ -217,7 +218,12 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick })
   const phone = engineer.phone || engineer.phoneNumber || "";
 
   return (
-    <button onClick={onClick}
+    // 2026-06-12 — root <div role="button"> (button-in-button 회피 — 우상단 📅 sub-button 안전).
+    <div role="button" tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick?.(); }
+      }}
       style={{
         background: "var(--bg-elevated)",
         border: "1px solid var(--border)",
@@ -231,6 +237,8 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick })
         gap: 7,
         opacity: isDimmed ? 0.55 : 1,
         transition: "border-color 0.1s",
+        outline: "none",
+        userSelect: "none",
       }}
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
@@ -260,17 +268,37 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick })
             flex: 1, minWidth: 0,
           }}>{engineer.name || "—"}</div>
         </div>
-        {/* 상태 — 오른쪽 위 */}
+        {/* 우상단 — 📅 달력 진입 + 상태 */}
         <div style={{
-          display: "flex", alignItems: "center", gap: 4,
-          fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
+          display: "flex", alignItems: "center", gap: 6,
           flexShrink: 0,
         }}>
-          <span style={{
-            width: 6, height: 6, borderRadius: "50%",
-            background: meta.dotColor,
-          }}/>
-          <span>{meta.label}</span>
+          {onCalendar && (
+            <button onClick={(e) => { e.stopPropagation(); onCalendar(); }}
+              title="달력 보기" aria-label="달력 보기"
+              style={{
+                width: 24, height: 24, padding: 0,
+                background: "transparent",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                color: "var(--text-secondary)",
+                cursor: "pointer",
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                fontFamily: "inherit",
+                fontSize: 12,
+                lineHeight: 1,
+              }}>📅</button>
+          )}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 4,
+            fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
+          }}>
+            <span style={{
+              width: 6, height: 6, borderRadius: "50%",
+              background: meta.dotColor,
+            }}/>
+            <span>{meta.label}</span>
+          </div>
         </div>
       </div>
 
@@ -306,7 +334,7 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick })
           }}>스킬 정보 없음</span>
         )}
       </div>
-    </button>
+    </div>
   );
 }
 

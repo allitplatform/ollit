@@ -58,6 +58,8 @@ import { AdminPcDashboard } from "./AdminPcDashboard.jsx";
 import { AdminPcTimelineScreen } from "./AdminPcTimelineScreen.jsx";
 import { AdminPcFlowScreen }     from "./AdminPcFlowScreen.jsx";
 import { AdminPcEngineerGridScreen } from "./AdminPcEngineerGridScreen.jsx";
+// 2026-06-12 — PC 한 기사 주간 달력 (Phase A: 주간만).
+import { AdminPcEngineerCalendarScreen } from "./AdminPcEngineerCalendarScreen.jsx";
 import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
 import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
 import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
@@ -3489,6 +3491,18 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점, 기사 검색).
   //   상태 lift (AdminApp 측측): 측측 측측 → 측측 측측 → 측측 측측 같은 기사/월/측측 측측 측측.
   if (screen === "engineerCalendar") {
+    // 2026-06-12 — PC (1024px+) 분기: 한 기사 주간 보기. 모바일은 옛 EngineerCalendarScreen 그대로.
+    if (isPc) {
+      return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+        <AdminPcEngineerCalendarScreen
+          apiTasks={apiTasks}
+          apiEngineers={apiEngineers}
+          engineerId={calEngineerId}
+          setEngineerId={setCalEngineerId}
+          onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendar")}
+        />
+      </Shell>;
+    }
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <EngineerCalendarScreen
         t={t}
@@ -3548,6 +3562,11 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
             setEditingEngineer(eng);
             setEditingIsNew(false);
             setScreen("engineerEdit");
+          }}
+          onCalendar={(eng) => {
+            // 2026-06-12 — 그리드 카드 📅 진입 — 그 기사 pre-select 후 달력 화면.
+            setCalEngineerId(eng.id);
+            setScreen("engineerCalendar");
           }}
         />
       </Shell>;
