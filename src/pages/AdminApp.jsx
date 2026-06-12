@@ -3773,13 +3773,17 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <AdminPcDashboard
         t={t}
         apiTasks={apiTasks}
+        apiEngineers={apiEngineers}
         user={user}
         dynamicStats={dynamicStats}
+        refrigerantAddonCount={refrigerantAddonCount}
         onClickRevenueDetail={() => setScreen("revenueDetail")}
         onClickNewReception={(f) => { setNewReceptionFilter(f || null); setScreen("newReception"); }}
         onClickAssignedList={(f) => { setAssignedFilter(f); setScreen("assignedList"); }}
         onClickInProgress={() => setScreen("inProgressList")}
         onClickLiveWork={(f) => { setLiveWorkFilter(f || null); setScreen("liveWork"); }}
+        onClickReassign={() => setScreen("reassignList")}
+        onClickUsolN={() => setScreen("usol_n")}
         onTaskAssign={(task) => {
           setSelectedTask(task);
           const flow = determineWorkflow(task.workItems)
