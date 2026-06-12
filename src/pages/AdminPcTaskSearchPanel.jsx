@@ -94,35 +94,41 @@ export function AdminPcTaskSearchPanel({ apiTasks = [], onTaskClick }) {
           </span>
         </div>
 
-        <div style={{ position: "relative" }}>
-          <Search size={16} style={{
-            position: "absolute",
-            left: 14,
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: "var(--text-secondary)",
-            pointerEvents: "none",
-          }}/>
+        {/* 2026-06-12 — 네이버 검색창 스타일: 핑크 2px 테두리 + 입력 큼 + 우측 핑크 검색 박스. */}
+        <div style={{ display: "flex", alignItems: "stretch" }}>
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="고객명 · 주소 · 기사 · 작업번호 · 상품주문번호 (유솔N 네이버 주문)"
             style={{
-              width: "100%",
+              flex: 1,
               boxSizing: "border-box",
-              padding: "12px 14px 12px 40px",
+              padding: "16px 18px",
               background: "var(--bg-primary)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
+              border: "2px solid var(--accent)",
+              borderRight: "none",
+              borderRadius: "12px 0 0 12px",
               color: "var(--text-primary)",
-              fontSize: 13,
+              fontSize: 14,
+              fontWeight: 600,
               fontFamily: "inherit",
               outline: "none",
             }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
-            onBlur={(e)  => { e.currentTarget.style.borderColor = "var(--border)"; }}
           />
+          <div style={{
+            padding: "0 22px",
+            background: "var(--accent)",
+            border: "2px solid var(--accent)",
+            borderRadius: "0 12px 12px 0",
+            color: "#fff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            minWidth: 60,
+          }}>
+            <Search size={22} strokeWidth={2.5}/>
+          </div>
         </div>
       </div>
 
@@ -177,7 +183,7 @@ function ResultTable({ tasks, onTaskClick, truncated, totalCount }) {
       <div style={{
         display: "grid",
         gridTemplateColumns:
-          "minmax(110px, 0.9fr) minmax(110px, 1.1fr) minmax(140px, 1.5fr) minmax(80px, 0.9fr) minmax(90px, 0.9fr) auto auto",
+          "minmax(110px, 0.9fr) minmax(80px, 0.7fr) minmax(200px, 2.4fr) minmax(70px, 0.7fr) minmax(80px, 0.8fr) auto auto",
         rowGap: 2,
         fontVariantNumeric: "tabular-nums",
       }}>

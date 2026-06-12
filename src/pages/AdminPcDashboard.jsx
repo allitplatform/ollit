@@ -129,11 +129,8 @@ export function AdminPcDashboard({
       {/* 메트릭 5개 한줄 */}
       <MetricsRow metrics={metrics}/>
 
-      {/* 기사별 일정 — 풀폭 (유솔N 우 컬럼으로 이동). */}
-      <EngineersPanel
-        apiTasks={apiTasks}
-        apiEngineers={apiEngineers}
-      />
+      {/* 2026-06-12 — 기사별 일정 제거 (사장님 spec: 개요에서 제외).
+            옛 EngineersPanel + EngineerBar 함수 dead code 보존 (복원 시 mount 재추가). */}
 
       {/* 작업 검색 풀폭 — 유솔N 포함 전체 작업. 행 클릭 → onOpenTaskDetail (Chunk 2 우 aside 예정). */}
       <AdminPcTaskSearchPanel
