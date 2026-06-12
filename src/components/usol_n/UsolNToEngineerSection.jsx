@@ -1253,4 +1253,18 @@ const backButtonStyle = {
   flexShrink: 0,
 };
 
+// 2026-06-12 — AdminPcUsolNMonthlyPanel 측 helper export. 옛 함수 본문 0줄 변경.
+//   회사 순이익 / 배분 / 1차 / 미지급 계산 그대로 재사용 (AdminApp PC 개요 패널).
+export {
+  bucketItem,
+  splitByBucket,
+  calcItemEngineerAmount,
+  inKstMonth,
+  computeCompanyNetIncome,
+  COMPANY_NET_INCOME_BY_YM,
+  NAVER_NET_TO_COMPANY_FACTOR,
+  TRUE_NET_RATIO_CUTOFF,
+  getCurrentMonthKey,
+};
+
 export default UsolNToEngineerSection;
