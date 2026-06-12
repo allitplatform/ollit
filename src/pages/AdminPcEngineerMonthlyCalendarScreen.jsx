@@ -209,16 +209,22 @@ export function AdminPcEngineerMonthlyCalendarScreen({
         </div>
       </div>
 
-      {/* 본문 — 월 grid + 선택 날짜 패널 */}
+      {/* 본문 — 2단 grid: 좌(월 grid) / 우(그날 작업 aside) */}
       {!engineer && !engineerId ? (
         <EmptyBox label="기사 미선택"/>
       ) : (
-        <>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) 320px",
+          gap: 14,
+          alignItems: "start",
+        }}>
           <div style={{
             background: "var(--bg-elevated)",
             border: "1px solid var(--border)",
             borderRadius: 12,
             overflow: "hidden",
+            minWidth: 0,
           }}>
             {/* 요일 일~토 (일=빨강 / 토=파랑) */}
             <div style={{
@@ -266,25 +272,13 @@ export function AdminPcEngineerMonthlyCalendarScreen({
             </div>
           </div>
 
-          {/* 선택 날짜 — 그날 작업 자세히 */}
-          {selectedDateTasks.length > 0 ? (
-            <SelectedDayPanel
-              ymd={selectedYmd}
-              tasks={selectedDateTasks}
-              onTaskClick={onTaskClick}
-            />
-          ) : (
-            <div style={{
-              padding: "14px 18px",
-              textAlign: "center",
-              color: "var(--text-secondary)",
-              fontSize: 12, fontWeight: 600,
-              background: "var(--bg-elevated)",
-              border: "1px solid var(--border)",
-              borderRadius: 12,
-            }}>선택 날짜에 작업 없음 — 다른 날짜를 클릭하세요</div>
-          )}
-        </>
+          {/* 우 aside — 그날 작업 리스트. 작업 클릭 → Shell 우 aside 작업 상세 */}
+          <SelectedDayAside
+            ymd={selectedYmd}
+            tasks={selectedDateTasks}
+            onTaskClick={onTaskClick}
+          />
+        </div>
       )}
     </div>
   );
@@ -396,10 +390,10 @@ function TaskChip({ task, onClick }) {
   );
 }
 
-// 2026-06-12 — 콤팩트 + 정보 추가 (시간/종류/고객/지역/주문번호/금액/상태).
-const DAY_ROW_GRID = "50px 22px minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 1fr) 90px 70px";
-
-function SelectedDayPanel({ ymd, tasks, onTaskClick }) {
+// 2026-06-12 — 그날 작업 우 aside (320px sticky). 정보: 시간·종류·고객·지역·상태.
+//   금액·주문번호는 task 필드 신뢰 어려워 제외 (사장님 spec — 돈 숫자 함부로 X).
+//   작업 클릭 → onTaskClick (Shell 우 aside 작업 상세 옛 패턴).
+function SelectedDayAside({ ymd, tasks, onTaskClick }) {
   const [, m, d] = ymd.split("-").map(Number);
   return (
     <div style={{
@@ -407,13 +401,20 @@ function SelectedDayPanel({ ymd, tasks, onTaskClick }) {
       border: "1px solid var(--border)",
       borderRadius: 12,
       padding: "12px 14px",
+      position: "sticky",
+      top: 16,
+      maxHeight: "calc(100vh - 32px)",
+      overflowY: "auto",
+      display: "flex", flexDirection: "column", gap: 10,
+      minWidth: 0,
     }}>
       <div style={{
         display: "flex", alignItems: "baseline", gap: 8,
-        marginBottom: 8,
+        paddingBottom: 8,
+        borderBottom: "1px solid var(--border)",
       }}>
         <div style={{
-          fontSize: 13, fontWeight: 800,
+          fontSize: 14, fontWeight: 800,
           color: "var(--accent)",
           letterSpacing: "-0.3px",
         }}>{m}월 {d}일</div>
@@ -421,56 +422,39 @@ function SelectedDayPanel({ ymd, tasks, onTaskClick }) {
           fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
         }}>{tasks.length}건</div>
       </div>
-      {/* 헤더 row */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: DAY_ROW_GRID,
-        gap: 8,
-        padding: "4px 10px",
-        fontSize: 10, fontWeight: 700,
-        color: "var(--text-tertiary)",
-        letterSpacing: 0.4,
-        marginBottom: 4,
-      }}>
-        <span>시간</span>
-        <span></span>
-        <span>고객</span>
-        <span>지역</span>
-        <span>주문번호</span>
-        <span style={{ textAlign: "right" }}>금액</span>
-        <span>상태</span>
-      </div>
-      {/* 행 */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        {tasks.map(t => (
-          <DayTaskRow key={t.id || t.taskCode} task={t} onClick={() => onTaskClick?.(t)}/>
-        ))}
-      </div>
+      {tasks.length === 0 ? (
+        <div style={{
+          padding: "30px 10px",
+          textAlign: "center",
+          color: "var(--text-secondary)",
+          fontSize: 12, fontWeight: 600,
+        }}>이 날 작업 없음</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {tasks.map(t => (
+            <DayTaskRow key={t.id || t.taskCode} task={t} onClick={() => onTaskClick?.(t)}/>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
+// 시간 · 종류 · 상태 (첫 줄) / 고객 (둘째 줄) / 지역 (셋째 줄). 좁은 aside 에 맞는 세로 카드.
 function DayTaskRow({ task, onClick }) {
   const kind  = getServiceKind(task);
   const color = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
   const time  = formatHm(task.scheduledAt || task.scheduled_at);
   const region   = task.region || task.district || task.지역 || "";
   const customer = task.customer || task.고객명 || "";
-  const orderId  = task.productOrderId || task.product_order_id || task.taskCode
-    || (task.id ? String(task.id).slice(0, 8) : "");
-  // task 객체 안 잠재 금액 필드 — 환경에 따라 다를 수 있어 0 fallback.
-  const amount   = Number(task.totalAmount ?? task.amount ?? task.subtotal ?? 0) || 0;
   const isCanceled = task.status === "취소";
   const kindLabel = kind === "refrigerant" ? "⚡" : kind === "cleaning" ? "❄" : "•";
 
   return (
     <button onClick={onClick}
       style={{
-        display: "grid",
-        gridTemplateColumns: DAY_ROW_GRID,
-        gap: 8,
-        alignItems: "center",
-        padding: "6px 10px",
+        display: "flex", flexDirection: "column", gap: 3,
+        padding: "8px 10px",
         background: "var(--bg-primary)",
         border: "1px solid var(--border)",
         borderLeft: `3px solid ${color}`,
@@ -482,43 +466,38 @@ function DayTaskRow({ task, onClick }) {
         opacity: isCanceled ? 0.6 : 1,
         minWidth: 0,
       }}>
-      <span style={{
-        fontSize: 12, fontWeight: 800, color,
-        fontVariantNumeric: "tabular-nums",
-      }}>{time}</span>
-      <span style={{
-        fontSize: 13, color, lineHeight: 1,
-      }}>{kindLabel}</span>
-      <span style={{
+      {/* 첫 줄 — 시간 + 종류 + 상태 */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 6,
+        minWidth: 0,
+      }}>
+        <span style={{
+          fontSize: 12, fontWeight: 800, color,
+          fontVariantNumeric: "tabular-nums",
+        }}>{time}</span>
+        <span style={{
+          fontSize: 13, color, lineHeight: 1,
+        }}>{kindLabel}</span>
+        <span style={{
+          flex: 1, textAlign: "right",
+          fontSize: 10, fontWeight: 700,
+          color: "var(--text-secondary)",
+        }}>{task.status || "—"}</span>
+      </div>
+      {/* 둘째 줄 — 고객 */}
+      <div style={{
         fontSize: 12, fontWeight: 700,
         color: "var(--text-primary)",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         minWidth: 0,
-      }}>{customer || "—"}</span>
-      <span style={{
+      }}>{customer || "—"}</div>
+      {/* 셋째 줄 — 지역 */}
+      <div style={{
         fontSize: 11, fontWeight: 600,
         color: "var(--text-secondary)",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         minWidth: 0,
-      }}>{region || "—"}</span>
-      <span style={{
-        fontSize: 10, fontWeight: 600,
-        color: "var(--text-tertiary)",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        fontVariantNumeric: "tabular-nums",
-        minWidth: 0,
-      }}>{orderId || "—"}</span>
-      <span style={{
-        fontSize: 11, fontWeight: 700,
-        color: "var(--text-primary)",
-        textAlign: "right",
-        fontVariantNumeric: "tabular-nums",
-      }}>{amount > 0 ? `${amount.toLocaleString("ko-KR")}원` : "—"}</span>
-      <span style={{
-        fontSize: 10, fontWeight: 700,
-        color: "var(--text-secondary)",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>{task.status || "—"}</span>
+      }}>{region || "—"}</div>
     </button>
   );
 }
