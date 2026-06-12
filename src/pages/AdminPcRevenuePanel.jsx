@@ -65,11 +65,11 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
     <div style={{
       background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
-      borderRadius: 12,
-      padding: "16px 18px 16px",
+      borderRadius: 14,
+      padding: "20px 22px",
       display: "flex",
       flexDirection: "column",
-      gap: 18,
+      gap: 20,
     }}>
       {/* 헤더 + 토글 */}
       <div style={{
@@ -101,11 +101,11 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
         </div>
       </div>
 
-      {/* 상단 — 도넛 + 우측 항목 3개 */}
+      {/* 상단 — 도넛(170 고정) + 우측 항목 3개 (minmax(0,1fr) 으로 minWidth 0 확보). */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "auto 1fr",
-        gap: 28,
+        gridTemplateColumns: "auto minmax(0, 1fr)",
+        gap: 22,
         alignItems: "center",
       }}>
         <Donut
@@ -189,7 +189,7 @@ function Donut({ total, engineerPct, principalPct, diffPct, periodLabel, count }
   return (
     <div style={{
       position: "relative",
-      width: 220, height: 220,
+      width: 170, height: 170,
       borderRadius: "50%",
       background: hasData
         ? `conic-gradient(
@@ -205,40 +205,40 @@ function Donut({ total, engineerPct, principalPct, diffPct, periodLabel, count }
         position: "absolute",
         top: "50%", left: "50%",
         transform: "translate(-50%, -50%)",
-        width: 148, height: 148,
+        width: 112, height: 112,
         borderRadius: "50%",
         background: "var(--bg-elevated)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 3,
-        padding: 8,
+        gap: 2,
+        padding: 6,
         boxSizing: "border-box",
         textAlign: "center",
       }}>
         <span style={{
-          fontSize: 10, color: "var(--text-secondary)",
-          fontWeight: 700, letterSpacing: 0.5,
+          fontSize: 9, color: "var(--text-secondary)",
+          fontWeight: 700, letterSpacing: 0.3,
         }}>총 매출 · {periodLabel}</span>
         <span className="mono" style={{
-          fontSize: 16, fontWeight: 800,
+          fontSize: 13, fontWeight: 800,
           color: "var(--text-primary)",
-          letterSpacing: "-0.5px",
+          letterSpacing: "-0.4px",
           fontVariantNumeric: "tabular-nums",
-          lineHeight: 1.15,
+          lineHeight: 1.1,
           wordBreak: "keep-all",
         }}>{fmtKRW(total)}</span>
         <span style={{
-          fontSize: 10, color: "var(--text-secondary)", fontWeight: 600,
+          fontSize: 9, color: "var(--text-secondary)", fontWeight: 600,
         }}>{count}건</span>
         {diffPct !== null && (
           <span style={{
-            fontSize: 10, fontWeight: 700,
+            fontSize: 9, fontWeight: 700,
             color: diffPct >= 0 ? "#10B981" : "#EF4444",
-            marginTop: 2,
+            marginTop: 1,
           }}>
-            {diffPct >= 0 ? "▲" : "▼"} {Math.abs(diffPct).toFixed(1)}% 전월비
+            {diffPct >= 0 ? "▲" : "▼"} {Math.abs(diffPct).toFixed(1)}%
           </span>
         )}
       </div>
@@ -253,9 +253,10 @@ function RevItem({ color, label, amount, muted, big }) {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "auto 1fr auto",
+      gridTemplateColumns: "auto auto minmax(0, 1fr)",
       alignItems: "center",
       gap: 10,
+      minWidth: 0,
     }}>
       <span style={{
         width: 10, height: 10, background: color, borderRadius: 3, flexShrink: 0,

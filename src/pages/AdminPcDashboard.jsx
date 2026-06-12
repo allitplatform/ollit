@@ -56,8 +56,9 @@ export function AdminPcDashboard({
   );
 
   // 메트릭 5개 — 새접수 / 배정 / 확정 / 진행 / 완료. 클릭 → 옛 setScreen.
+  //   색 절제: 새 접수만 핑크 강조 (0 초과 시), 나머지 무채색.
   const metrics = [
-    { id: "new",        label: "새 접수", count: stats.new        || 0, onClick: () => onClickNewReception?.() },
+    { id: "new",        label: "새 접수", count: stats.new        || 0, onClick: () => onClickNewReception?.(),                  highlight: true },
     { id: "assigned",   label: "배정",   count: stats.assigned   || 0, onClick: () => onClickAssignedList?.() },
     { id: "confirmed",  label: "확정",   count: stats.confirmed  || 0, onClick: () => onClickAssignedList?.("confirmed") },
     { id: "inProgress", label: "진행",   count: stats.inProgress || 0, onClick: () => onClickInProgress?.() },
@@ -66,16 +67,16 @@ export function AdminPcDashboard({
 
   return (
     <div style={{
-      padding: "20px 24px 32px",
+      padding: "24px 28px 36px",
       display: "flex",
       flexDirection: "column",
-      gap: 16,
+      gap: 20,
     }}>
       {/* 상단 2단 — 매출 도넛 (좌, 1.4fr) + 우상 3카드 (우, 1fr) */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)",
-        gap: 16,
+        gap: 20,
         alignItems: "start",
       }}>
         <AdminPcRevenuePanel
@@ -84,7 +85,7 @@ export function AdminPcDashboard({
           user={user}
           onDetailClick={onClickRevenueDetail}
         />
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <CompactCard
             icon="📥"
             label="미배정 작업"
@@ -118,7 +119,7 @@ export function AdminPcDashboard({
       <div style={{
         display: "grid",
         gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-        gap: 16,
+        gap: 20,
         alignItems: "start",
       }}>
         <UsolNPanel
@@ -161,14 +162,14 @@ function CompactCard({ icon, label, count, actionLabel, onClick, color }) {
     <button onClick={onClick} style={{
       background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
-      borderRadius: 12,
-      padding: "14px 18px",
+      borderRadius: 14,
+      padding: "18px 22px",
       cursor: "pointer",
       fontFamily: "inherit",
       textAlign: "left",
       display: "grid",
       gridTemplateColumns: "auto 1fr auto",
-      gap: 14,
+      gap: 16,
       alignItems: "center",
       transition: "border-color 0.1s",
     }}
@@ -223,20 +224,20 @@ function MetricsRow({ metrics }) {
     <div style={{
       display: "grid",
       gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-      gap: 12,
+      gap: 16,
     }}>
       {metrics.map(m => (
         <button key={m.id} onClick={m.onClick} style={{
           background: "var(--bg-elevated)",
           border: "1px solid var(--border)",
-          borderRadius: 12,
-          padding: "16px 18px",
+          borderRadius: 14,
+          padding: "20px 22px",
           cursor: "pointer",
           fontFamily: "inherit",
           textAlign: "left",
           display: "flex",
           flexDirection: "column",
-          gap: 6,
+          gap: 8,
           transition: "border-color 0.1s",
         }}
         onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
@@ -250,7 +251,7 @@ function MetricsRow({ metrics }) {
           }}>{m.label}</span>
           <span className="mono" style={{
             fontSize: 30, fontWeight: 800,
-            color: m.count > 0 ? "var(--accent)" : "var(--text-primary)",
+            color: (m.highlight && m.count > 0) ? "var(--accent)" : "var(--text-primary)",
             letterSpacing: "-1px",
             lineHeight: 1,
             fontVariantNumeric: "tabular-nums",
@@ -321,11 +322,11 @@ function UsolNPanel({ apiTasks, user, onClick }) {
     <div style={{
       background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
-      borderRadius: 12,
-      padding: "16px 18px",
+      borderRadius: 14,
+      padding: "20px 22px",
       display: "flex",
       flexDirection: "column",
-      gap: 14,
+      gap: 16,
     }}>
       {/* 헤더 */}
       <div style={{
@@ -392,18 +393,27 @@ function UsolNPanel({ apiTasks, user, onClick }) {
             boxSizing: "border-box",
             textAlign: "center",
           }}>
-            <span style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 700 }}>오늘 매출</span>
-            <span className="mono" style={{
-              fontSize: 11, fontWeight: 800,
-              color: "var(--text-primary)",
-              letterSpacing: "-0.3px",
-              fontVariantNumeric: "tabular-nums",
-              lineHeight: 1.1,
-              wordBreak: "keep-all",
-            }}>{fmtKRW(total)}</span>
-            <span style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 600 }}>
-              {revenue.count}건
-            </span>
+            {hasData ? (
+              <>
+                <span style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 700 }}>오늘 매출</span>
+                <span className="mono" style={{
+                  fontSize: 11, fontWeight: 800,
+                  color: "var(--text-primary)",
+                  letterSpacing: "-0.3px",
+                  fontVariantNumeric: "tabular-nums",
+                  lineHeight: 1.1,
+                  wordBreak: "keep-all",
+                }}>{fmtKRW(total)}</span>
+                <span style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 600 }}>
+                  {revenue.count}건
+                </span>
+              </>
+            ) : (
+              <span style={{
+                fontSize: 10, color: "var(--text-secondary)",
+                fontWeight: 700, letterSpacing: 0.3,
+              }}>오늘 매출 없음</span>
+            )}
           </div>
         </div>
 
@@ -483,11 +493,11 @@ function EngineersPanel({ apiTasks, apiEngineers }) {
     <div style={{
       background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
-      borderRadius: 12,
-      padding: "16px 18px",
+      borderRadius: 14,
+      padding: "20px 22px",
       display: "flex",
       flexDirection: "column",
-      gap: 12,
+      gap: 14,
     }}>
       {/* 헤더 */}
       <div style={{
