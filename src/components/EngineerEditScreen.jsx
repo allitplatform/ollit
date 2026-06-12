@@ -2,8 +2,10 @@
 // 사장님 catch: 직급/상태/작업종류별 역할/지역/기종 직접 컨트롤
 // Step 5-2 — 시트 설정_기사 양방향 sync (saveEngineerWithSync / deleteEngineerWithSync)
 // Step 5-4 — 시트 설정_기사단가 양방향 sync (saveEngineerRateWithSync / deleteEngineerRateWithSync)
-// Step 5-5-C Phase 4-B-2 — 새 역량 폼 코드 완전 제거 (옛 workTypes 폼만 / Phase 4-C 양방향 박을 예정)
+// Step 5-5-C Phase 4-B-2 — 새 역량 폼 코드 완전 제거 (옛 workTypes 폼만 / Phase 4-C 양방향 추가 예정)
 import { useState, useMemo } from "react";
+// 2026-06-12 — PC 2단 레이아웃 (1024px+ / 1280px+ 2단 grid). 모바일 옛 그대로.
+import { useIsPc, useMinWidth } from "../utils/useIsPc.js";
 import {
   saveEngineerWithSync, deleteEngineerWithSync,
   saveEngineerRateWithSync, deleteEngineerRateWithSync,
@@ -279,223 +281,330 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
     }
   }
 
+  // 2026-06-12 — PC 2단 분기. 모바일 옛 그대로.
+  const isPc   = useIsPc();
+  const isWide = useMinWidth(1280);
+
+  // ── 옛 sections inline → 변수 추출. 본체 closure 그대로 접근. ──
+  //   목적: PC 면 2단 grid 재배치. 옛 sub-컴포넌트 (Section/Field/RadioRow/WorkTypeEditor) 그대로 사용.
+  //   ⚠️ 저장/검증/RPC handler 0줄 변경.
+
+  const basicSection = (
+    <Section label="기본 정보">
+      <Field label="이름">
+        <input
+          type="text" placeholder="예: 김동효"
+          value={form.name}
+          onChange={(e) => updateField("name", e.target.value)}
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="전화번호">
+        <input
+          type="text" placeholder="예: 010-9238-0412"
+          value={form.phone || ""}
+          onChange={(e) => updateField("phone", e.target.value)}
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="이메일 (선택)">
+        <input
+          type="email" placeholder="예: kim@example.com"
+          value={form.email || ""}
+          onChange={(e) => updateField("email", e.target.value)}
+          style={inputStyle}
+        />
+      </Field>
+    </Section>
+  );
+
+  const refriRateSection = (
+    <Section label="냉매충전 기사 비율">
+      <RadioRow
+        options={REFRIGERANT_RATE_OPTIONS.map(o => ({ key: o.value, label: o.label }))}
+        value={form.cm_refrigerant_rate ?? 50}
+        onChange={(v) => updateField("cm_refrigerant_rate", v)}
+      />
+      <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6, lineHeight: 1.5 }}>
+        * 냉매충전 시 적용되는 기사 비율. 시트 설정_기사 cm_냉매비율과 양방향 sync.
+      </div>
+    </Section>
+  );
+
+  const careerSection = (
+    <Section label="직급">
+      <RadioRow
+        options={Object.entries(CAREER_LEVELS).map(([k, v]) => ({ key: k, label: v.name, color: v.color }))}
+        value={form.careerLevel}
+        onChange={(v) => updateField("careerLevel", v)}
+      />
+    </Section>
+  );
+
+  const statusSection = (
+    <Section label="상태">
+      <RadioRow
+        options={Object.entries(STATUS_OPTIONS).map(([k, v]) => ({ key: k, label: v.name, color: v.color }))}
+        value={form.status}
+        onChange={(v) => updateField("status", v)}
+      />
+    </Section>
+  );
+
+  const cleaningSection = (
+    <Section label="🧽 세척">
+      <WorkTypeEditor
+        work={form.workTypes.cleaning}
+        onChange={(field, value) => updateWork("cleaning", field, value)}
+        onToggleZone={(z) => updateWork("cleaning", "zones", toggleArrayItem(form.workTypes.cleaning.zones, z))}
+        onToggleAppliance={(a) => updateWork("cleaning", "appliances", toggleArrayItem(form.workTypes.cleaning.appliances, a))}
+      />
+    </Section>
+  );
+
+  const refrigerantSection = (
+    <Section label="냉매충전">
+      <WorkTypeEditor
+        work={form.workTypes.refrigerant}
+        onChange={(field, value) => updateWork("refrigerant", field, value)}
+        onToggleZone={(z) => updateWork("refrigerant", "zones", toggleArrayItem(form.workTypes.refrigerant.zones, z))}
+        onToggleAppliance={(a) => updateWork("refrigerant", "appliances", toggleArrayItem(form.workTypes.refrigerant.appliances, a))}
+      />
+    </Section>
+  );
+
+  const ratesSection = (
+    <Section label="기사단가 (선택)">
+      <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 10, lineHeight: 1.5 }}>
+        * 비워두면 공통 단가 적용. 입력된 행은 우선 적용됨 (시트 설정_기사단가와 양방향 sync).
+      </div>
+      {rates.map((r, idx) => (
+        <div key={idx} style={{
+          display: "flex", flexDirection: "column", gap: 6,
+          padding: "10px 12px", marginBottom: 8,
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border)", borderRadius: 8,
+        }}>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <select value={r.workType || ""} onChange={(e) => updateRateRow(idx, "workType", e.target.value)} style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}>
+              {RATE_WORK_TYPES.map(w => <option key={w} value={w}>{w}</option>)}
+            </select>
+            <select value={r.applianceType || ""} onChange={(e) => updateRateRow(idx, "applianceType", e.target.value)} style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}>
+              {RATE_APPLIANCES.map(a => <option key={a} value={a}>{a}</option>)}
+            </select>
+            <button onClick={() => removeRateRow(idx)} style={{
+              background: "transparent", border: "1px solid var(--border)",
+              color: "#FF3D5A", fontSize: 11, padding: "6px 10px",
+              borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
+            }}>삭제</button>
+          </div>
+          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <input type="number" placeholder="단가" value={r.rate || ""}
+              onChange={(e) => updateRateRow(idx, "rate", parseInt(e.target.value, 10) || 0)}
+              style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}/>
+            <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>원</span>
+            <input type="text" placeholder="비고 (선택)" value={r.note || ""}
+              onChange={(e) => updateRateRow(idx, "note", e.target.value)}
+              style={{ ...inputStyle, flex: 2, padding: "6px 8px", fontSize: 12, fontFamily: "inherit" }}/>
+          </div>
+        </div>
+      ))}
+      <button onClick={addRateRow} style={{
+        width: "100%", padding: 10,
+        background: "transparent", border: "1px dashed var(--border)",
+        borderRadius: 8, color: "var(--text-secondary)",
+        fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
+      }}>+ 단가 행 추가</button>
+    </Section>
+  );
+
+  const accountSection = (
+    <Section label="계좌 정보 (선택)">
+      <Field label="은행">
+        <input
+          type="text" placeholder="예: 카카오뱅크 / KB국민은행 / 토스뱅크"
+          value={form.bankName || ""}
+          onChange={(e) => updateField("bankName", e.target.value)}
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="계좌번호">
+        <input
+          type="text" placeholder="000-000-000000"
+          value={form.accountNumber || ""}
+          onChange={(e) => updateField("accountNumber", e.target.value.replace(/[^0-9-]/g, ""))}
+          style={inputStyle}
+        />
+      </Field>
+      <Field label="예금주">
+        <input
+          type="text" placeholder="기사 본인 이름"
+          value={form.accountHolder || ""}
+          onChange={(e) => updateField("accountHolder", e.target.value)}
+          style={inputStyle}
+        />
+      </Field>
+      <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6, lineHeight: 1.5 }}>
+        * 정산 시 사용. 기사 본인이 내정보 탭에서도 변경 가능합니다.
+      </div>
+    </Section>
+  );
+
+  const memoSection = (
+    <Section label="메모 (선택)">
+      <textarea
+        placeholder="예: 신입 / 벽걸이만 가능"
+        value={form.note || ""}
+        onChange={(e) => updateField("note", e.target.value)}
+        rows={2}
+        style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
+      />
+    </Section>
+  );
+
+  const errorNode = error && (
+    <div style={{
+      margin: "12px 0", padding: "10px 12px",
+      background: "rgba(239, 68, 68, 0.10)",
+      border: "1px solid rgba(239, 68, 68, 0.30)",
+      borderRadius: 8, color: "#FF3D5A",
+      fontSize: 12, textAlign: "center",
+    }}>{error}</div>
+  );
+
+  const toastNode = toast && (
+    <div style={{
+      margin: "12px 0", padding: "10px 12px",
+      background: toast.type === "success"
+        ? "rgba(0, 135, 90, 0.10)"
+        : toast.type === "warn"
+        ? "rgba(245, 158, 11, 0.10)"
+        : "rgba(239, 68, 68, 0.10)",
+      border: `1px solid ${
+        toast.type === "success" ? "rgba(0, 135, 90, 0.30)"
+        : toast.type === "warn"  ? "rgba(245, 158, 11, 0.40)"
+        :                          "rgba(239, 68, 68, 0.30)"
+      }`,
+      borderRadius: 8,
+      color: toast.type === "success" ? "#00875A"
+        : toast.type === "warn"       ? "#B45309"
+        :                               "#FF3D5A",
+      fontSize: 12, lineHeight: 1.5, textAlign: "center",
+    }}>{toast.message}</div>
+  );
+
+  const saveNode = (
+    <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
+      <button onClick={onBack} style={cancelBtnStyle} disabled={busy}>취소</button>
+      <button onClick={handleSave} style={{ ...saveBtnStyle, opacity: busy ? 0.6 : 1 }} disabled={busy}>
+        {busy ? "저장 중..." : "저장"}
+      </button>
+    </div>
+  );
+
+  // PC 분기 — 헤더 우측에 [삭제 + 취소 + 저장] 묶음. 모바일은 옛 그대로 (삭제만).
+  const headerNode = (
+    <div style={headerStyle}>
+      <button onClick={onBack} style={backBtnStyle}>←</button>
+      <div style={titleStyle}>
+        {isNew ? "프로 추가" : "프로 편집"}
+        {isPc && form.name ? (
+          <span style={{ color: "var(--text-secondary)", marginLeft: 8, fontWeight: 400 }}>
+            · {form.name}
+          </span>
+        ) : null}
+      </div>
+      {isPc ? (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          {!isNew && (
+            <button onClick={handleDelete} style={deleteBtnStyle}>삭제</button>
+          )}
+          <button onClick={onBack} disabled={busy}
+            style={{
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border)",
+              color: "var(--text-secondary)",
+              fontSize: 13, fontWeight: 500,
+              padding: "8px 16px", borderRadius: 8,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>취소</button>
+          <button onClick={handleSave} disabled={busy}
+            style={{
+              background: "#FF1B8D", border: "none",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              padding: "8px 18px", borderRadius: 8,
+              cursor: "pointer", fontFamily: "inherit",
+              opacity: busy ? 0.6 : 1,
+            }}>{busy ? "저장 중..." : "저장"}</button>
+        </div>
+      ) : (
+        !isNew && (
+          <button onClick={handleDelete} style={deleteBtnStyle}>삭제</button>
+        )
+      )}
+    </div>
+  );
+
   return (
     <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
+      {headerNode}
 
-      {/* 헤더 */}
-      <div style={headerStyle}>
-        <button onClick={onBack} style={backBtnStyle}>←</button>
-        <div style={titleStyle}>{isNew ? "프로 추가" : "프로 편집"}</div>
-        {!isNew && (
-          <button onClick={handleDelete} style={deleteBtnStyle}>삭제</button>
-        )}
-      </div>
-
-      <div style={{ padding: "16px" }}>
-        {/* 기본 정보 */}
-        <Section label="기본 정보">
-          <Field label="이름">
-            <input
-              type="text" placeholder="예: 김동효"
-              value={form.name}
-              onChange={(e) => updateField("name", e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
-          <Field label="전화번호">
-            <input
-              type="text" placeholder="예: 010-9238-0412"
-              value={form.phone || ""}
-              onChange={(e) => updateField("phone", e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
-          <Field label="이메일 (선택)">
-            <input
-              type="email" placeholder="예: kim@example.com"
-              value={form.email || ""}
-              onChange={(e) => updateField("email", e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
-        </Section>
-
-        {/* 냉매충전 기사 비율 (Step 5-2 / Step 3) */}
-        <Section label="냉매충전 기사 비율">
-          <RadioRow
-            options={REFRIGERANT_RATE_OPTIONS.map(o => ({ key: o.value, label: o.label }))}
-            value={form.cm_refrigerant_rate ?? 50}
-            onChange={(v) => updateField("cm_refrigerant_rate", v)}
-          />
-          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6, lineHeight: 1.5 }}>
-            * 냉매충전 시 적용되는 기사 비율. 시트 설정_기사 cm_냉매비율과 양방향 sync.
-          </div>
-        </Section>
-
-        {/* 직급 */}
-        <Section label="직급">
-          <RadioRow
-            options={Object.entries(CAREER_LEVELS).map(([k, v]) => ({ key: k, label: v.name, color: v.color }))}
-            value={form.careerLevel}
-            onChange={(v) => updateField("careerLevel", v)}
-          />
-        </Section>
-
-        {/* 상태 */}
-        <Section label="상태">
-          <RadioRow
-            options={Object.entries(STATUS_OPTIONS).map(([k, v]) => ({ key: k, label: v.name, color: v.color }))}
-            value={form.status}
-            onChange={(v) => updateField("status", v)}
-          />
-        </Section>
-
-        {/* 작업 종류 (옛 workTypes 폼 — 그대로 유지) */}
-        <Section label="🧽 세척">
-          <WorkTypeEditor
-            work={form.workTypes.cleaning}
-            onChange={(field, value) => updateWork("cleaning", field, value)}
-            onToggleZone={(z) => updateWork("cleaning", "zones", toggleArrayItem(form.workTypes.cleaning.zones, z))}
-            onToggleAppliance={(a) => updateWork("cleaning", "appliances", toggleArrayItem(form.workTypes.cleaning.appliances, a))}
-          />
-        </Section>
-
-        <Section label="냉매충전">
-          <WorkTypeEditor
-            work={form.workTypes.refrigerant}
-            onChange={(field, value) => updateWork("refrigerant", field, value)}
-            onToggleZone={(z) => updateWork("refrigerant", "zones", toggleArrayItem(form.workTypes.refrigerant.zones, z))}
-            onToggleAppliance={(a) => updateWork("refrigerant", "appliances", toggleArrayItem(form.workTypes.refrigerant.appliances, a))}
-          />
-        </Section>
-
-        {/* Step 5-4 — 기사단가 (선택) */}
-        <Section label="기사단가 (선택)">
-          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 10, lineHeight: 1.5 }}>
-            * 비워두면 공통 단가 적용. 박힌 행은 우선 적용됨 (시트 설정_기사단가와 양방향 sync).
-          </div>
-          {rates.map((r, idx) => (
-            <div key={idx} style={{
-              display: "flex", flexDirection: "column", gap: 6,
-              padding: "10px 12px", marginBottom: 8,
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border)", borderRadius: 8,
-            }}>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <select value={r.workType || ""} onChange={(e) => updateRateRow(idx, "workType", e.target.value)} style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}>
-                  {RATE_WORK_TYPES.map(w => <option key={w} value={w}>{w}</option>)}
-                </select>
-                <select value={r.applianceType || ""} onChange={(e) => updateRateRow(idx, "applianceType", e.target.value)} style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}>
-                  {RATE_APPLIANCES.map(a => <option key={a} value={a}>{a}</option>)}
-                </select>
-                <button onClick={() => removeRateRow(idx)} style={{
-                  background: "transparent", border: "1px solid var(--border)",
-                  color: "#FF3D5A", fontSize: 11, padding: "6px 10px",
-                  borderRadius: 6, cursor: "pointer", fontFamily: "inherit",
-                }}>삭제</button>
-              </div>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                <input type="number" placeholder="단가" value={r.rate || ""}
-                  onChange={(e) => updateRateRow(idx, "rate", parseInt(e.target.value, 10) || 0)}
-                  style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}/>
-                <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>원</span>
-                <input type="text" placeholder="비고 (선택)" value={r.note || ""}
-                  onChange={(e) => updateRateRow(idx, "note", e.target.value)}
-                  style={{ ...inputStyle, flex: 2, padding: "6px 8px", fontSize: 12, fontFamily: "inherit" }}/>
-              </div>
+      {isPc ? (
+        // PC 2단 (1280px+ 좌우, 미만은 1단 세로). 카드 + 우단 띠 색. 헤더에 취소/저장 흡수.
+        <div style={{ padding: "20px 24px" }}>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: isWide ? "1fr 1fr" : "1fr",
+            gap: 16,
+            alignItems: "start",
+          }}>
+            {/* 좌단 — 카드 3장: 기본정보 / 직급·상태·냉매비율 통합 / 계좌 */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <PcCard>{basicSection}</PcCard>
+              <PcCard>
+                {careerSection}
+                {statusSection}
+                {refriRateSection}
+              </PcCard>
+              <PcCard>{accountSection}</PcCard>
             </div>
-          ))}
-          <button onClick={addRateRow} style={{
-            width: "100%", padding: 10,
-            background: "transparent", border: "1px dashed var(--border)",
-            borderRadius: 8, color: "var(--text-secondary)",
-            fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit",
-          }}>+ 단가 행 추가</button>
-        </Section>
-
-        {/* Phase 3-6-add — 계좌 정보 (관리자 직접 입력 가능) */}
-        {/* 기사 본인은 EngineerApp 내정보 탭 측 EngineerAccountEditScreen에서도 변경 가능 */}
-        <Section label="계좌 정보 (선택)">
-          <Field label="은행">
-            <input
-              type="text" placeholder="예: 카카오뱅크 / KB국민은행 / 토스뱅크"
-              value={form.bankName || ""}
-              onChange={(e) => updateField("bankName", e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
-          <Field label="계좌번호">
-            <input
-              type="text" placeholder="000-000-000000"
-              value={form.accountNumber || ""}
-              onChange={(e) => updateField("accountNumber", e.target.value.replace(/[^0-9-]/g, ""))}
-              style={inputStyle}
-            />
-          </Field>
-          <Field label="예금주">
-            <input
-              type="text" placeholder="기사 본인 이름"
-              value={form.accountHolder || ""}
-              onChange={(e) => updateField("accountHolder", e.target.value)}
-              style={inputStyle}
-            />
-          </Field>
-          <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6, lineHeight: 1.5 }}>
-            * 정산 시 사용. 기사 본인이 내정보 탭에서도 변경 가능합니다.
+            {/* 우단 — 카드 2장 + 좌측 띠 (세척 파랑 / 냉매 노랑) */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <PcCard stripeColor="#0EA5E9">{cleaningSection}</PcCard>
+              <PcCard stripeColor="#FFB800">{refrigerantSection}</PcCard>
+            </div>
           </div>
-        </Section>
-
-        {/* 메모 */}
-        <Section label="메모 (선택)">
-          <textarea
-            placeholder="예: 신입 / 벽걸이만 가능"
-            value={form.note || ""}
-            onChange={(e) => updateField("note", e.target.value)}
-            rows={2}
-            style={{ ...inputStyle, resize: "vertical", fontFamily: "inherit" }}
-          />
-        </Section>
-
-        {error && (
+          {/* 하단 2단 — 단가 / 메모 */}
           <div style={{
-            margin: "12px 0", padding: "10px 12px",
-            background: "rgba(239, 68, 68, 0.10)",
-            border: "1px solid rgba(239, 68, 68, 0.30)",
-            borderRadius: 8, color: "#FF3D5A",
-            fontSize: 12, textAlign: "center",
-          }}>{error}</div>
-        )}
-
-        {/* Step 5-2 — 토스트 (성공 / 시트 sync 실패) */}
-        {toast && (
-          <div style={{
-            margin: "12px 0", padding: "10px 12px",
-            background: toast.type === "success"
-              ? "rgba(0, 135, 90, 0.10)"
-              : toast.type === "warn"
-              ? "rgba(245, 158, 11, 0.10)"
-              : "rgba(239, 68, 68, 0.10)",
-            border: `1px solid ${
-              toast.type === "success" ? "rgba(0, 135, 90, 0.30)"
-              : toast.type === "warn"  ? "rgba(245, 158, 11, 0.40)"
-              :                          "rgba(239, 68, 68, 0.30)"
-            }`,
-            borderRadius: 8,
-            color: toast.type === "success" ? "#00875A"
-              : toast.type === "warn"       ? "#B45309"
-              :                               "#FF3D5A",
-            fontSize: 12, lineHeight: 1.5, textAlign: "center",
-          }}>{toast.message}</div>
-        )}
-
-        {/* 저장 버튼 */}
-        <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
-          <button onClick={onBack} style={cancelBtnStyle} disabled={busy}>취소</button>
-          <button onClick={handleSave} style={{ ...saveBtnStyle, opacity: busy ? 0.6 : 1 }} disabled={busy}>
-            {busy ? "저장 중..." : "저장"}
-          </button>
+            display: "grid",
+            gridTemplateColumns: isWide ? "1fr 1fr" : "1fr",
+            gap: 16,
+            marginTop: 14,
+          }}>
+            <PcCard>{ratesSection}</PcCard>
+            <PcCard>{memoSection}</PcCard>
+          </div>
+          {errorNode}
+          {toastNode}
+          {/* PC 헤더에 취소/저장 흡수 — 본문 saveNode 없음. */}
         </div>
-      </div>
+      ) : (
+        // 모바일 — 옛 1단 세로 흐름 그대로.
+        <div style={{ padding: "16px" }}>
+          {basicSection}
+          {refriRateSection}
+          {careerSection}
+          {statusSection}
+          {cleaningSection}
+          {refrigerantSection}
+          {ratesSection}
+          {accountSection}
+          {memoSection}
+          {errorNode}
+          {toastNode}
+          {saveNode}
+        </div>
+      )}
     </div>
   );
 }
@@ -628,6 +737,20 @@ function ChipCheck({ label, on, onClick }) {
         userSelect: "none",
       }}
     >{on ? "✓ " : ""}{label}</div>
+  );
+}
+
+// 2026-06-12 — PC 2단 카드 wrapper. stripeColor 주면 좌측 4px 띠.
+function PcCard({ stripeColor, children }) {
+  return (
+    <div style={{
+      background: "var(--bg-elevated)",
+      border: "1px solid var(--border)",
+      borderLeft: stripeColor ? `4px solid ${stripeColor}` : "1px solid var(--border)",
+      borderRadius: 12,
+      padding: 18,
+      boxSizing: "border-box",
+    }}>{children}</div>
   );
 }
 
