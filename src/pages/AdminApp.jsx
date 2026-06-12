@@ -2607,6 +2607,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     dashboardNode:     adminPcDashboardNode,
     // 2026-06-12 — taskDetail 진입 시 main 에 mount (prevScreen 따라 dashboard 또는 timeline 등).
     mainContent:       pcMainContent,
+    // 2026-06-12 — 사이드바 새 작업 만들기 버튼 — 옛 newReception 화면 진입.
+    onClickAddReception: () => setScreen("newReception"),
+    // 2026-06-12 — 사이드바 "냉매 자동배정 대기" — newReception screen + filter="pushing".
+    onClickRefriPending: () => { setNewReceptionFilter("pushing"); setScreen("newReception"); },
     onCloseTaskDetail: () => {
       setSelectedTaskDetail(null);
       // screenStack 안 잔여 "taskDetail" 정리 — 옛 navigation history 청소.

@@ -9,7 +9,7 @@
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, ListChecks, Wallet, Users, Settings,
-  Database, Network, ChevronDown, ChevronRight, Bell, LogOut,
+  Database, Network, ChevronDown, ChevronRight, Bell, LogOut, Plus,
 } from "lucide-react";
 import { OllitMark } from "../components/OllitMark.jsx";
 
@@ -28,15 +28,14 @@ const GROUPS = [
     label: "작업",
     icon: ListChecks,
     items: [
-      // 2026-06-12 — PC 전용. 사이드바 분리 (옛 화면 안 토글 → 렉 해소).
+      // 2026-06-12 — 사장님 spec: 5개로 정리. 상태별 목록은 타임라인/처리흐름이 대체.
+      //   사이드바에서 빠진 화면 (liveWork/newReception/assignedList/inProgressList) 자체는 keep —
+      //   메인 카드 / 알림 / 옛 흐름 등에서 접근 가능.
       { id: "pcTimeline",     label: "타임라인 (시간축)" },
       { id: "pcTimelineFlow", label: "처리 흐름" },
-      { id: "liveWork",       label: "라이브 작업" },
-      { id: "newReception",   label: "새 접수" },
-      { id: "assignedList",   label: "배정 완료" },
-      { id: "inProgressList", label: "진행 중" },
-      { id: "reassignList",   label: "재배정 요청" },
       { id: "allTasks",       label: "전체 작업" },
+      { id: "reassignList",   label: "재배정 요청" },
+      { id: "pcRefriPending", label: "냉매 자동배정 대기" },  // → newReception screen + filter="pushing"
     ],
   },
   {
@@ -98,6 +97,11 @@ const SCREEN_TO_GROUP = (() => {
   for (const g of GROUPS) {
     for (const it of g.items) map[it.id] = g.id;
   }
+  // 2026-06-12 — 사이드바에서 빠진 옛 작업 screen (메인 카드/알림 등으로 진입 시) → 작업 그룹 활성.
+  map.liveWork       = "tasks";
+  map.newReception   = "tasks";
+  map.assignedList   = "tasks";
+  map.inProgressList = "tasks";
   return map;
 })();
 
@@ -121,6 +125,11 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
     setOpenGroup(prev => prev === groupId ? null : groupId);
   }
   function handleItemClick(itemId) {
+    // 2026-06-12 — 특별 항목 (실제 screen 아닌, pcCtx handler 호출).
+    if (itemId === "pcRefriPending") {
+      if (typeof pcCtx?.onClickRefriPending === "function") pcCtx.onClickRefriPending();
+      return;
+    }
     if (typeof setScreen === "function") setScreen(itemId);
   }
 
@@ -171,7 +180,31 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
         </button>
       </div>
 
-      {/* 메뉴 — 7그룹 */}
+      {/* 2026-06-12 — 새 작업 만들기 풀폭 핑크 버튼 (사장님 spec — 맨 위, 항상 보임). */}
+      {typeof pcCtx?.onClickAddReception === "function" && (
+        <button onClick={pcCtx.onClickAddReception}
+          style={{
+            margin: "12px 12px 4px",
+            padding: "12px 14px",
+            background: "var(--accent)",
+            color: "#fff",
+            border: "none",
+            borderRadius: 10,
+            fontSize: 13, fontWeight: 800,
+            cursor: "pointer",
+            fontFamily: "inherit",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            letterSpacing: "-0.2px",
+          }}>
+          <Plus size={16} strokeWidth={2.8}/>
+          <span>새 작업 만들기</span>
+        </button>
+      )}
+
+      {/* 메뉴 — 5그룹 */}
       <nav style={{
         flex: 1,
         padding: "10px 8px 14px",
