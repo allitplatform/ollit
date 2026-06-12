@@ -17,10 +17,10 @@ const TOTAL_HOURS   = END_HOUR - START_HOUR;
 const LANE_HEIGHT   = 52;
 const ENGINEER_COL  = 120;
 
-// 작업 종류 색 (사장님 spec — 더 쨍한 파랑/노랑).
+// 작업 종류 색 (사장님 spec — 사장님 원복: 밝은 톤 X, 원래 톤 유지).
 const KIND_COLOR = {
-  cleaning:    "#38BDF8",  // sky-400 (옛 0EA5E9 cyan-500 보다 밝음)
-  refrigerant: "#FACC15",  // yellow-400 (옛 FFB800 보다 환한 노랑)
+  cleaning:    "#0EA5E9",  // cyan-500
+  refrigerant: "#FFB800",
 };
 const KIND_COLOR_FALLBACK = "#9CA3AF";
 
@@ -302,12 +302,14 @@ function Lane({ lane, onTaskClick }) {
         }}>{lane.tasks.length}</span>
       </div>
 
-      {/* 우측 — 타임라인 (격자 + 막대) */}
+      {/* 우측 — 타임라인 (격자 + 막대).
+            2026-06-12 — 배경 var(--bg-primary) → var(--bg-elevated) 통일.
+            옛 bg-primary 다크 #0A0A0A 가 기사 컬럼 elevated #1F1F1F 보다 어두워 표가 가라앉음. */}
       <div style={{
         position: "relative",
         borderBottom: "1px solid var(--border)",
         minHeight: LANE_HEIGHT,
-        background: "var(--bg-primary)",
+        background: "var(--bg-elevated)",
       }}>
         {/* 시간 격자 — % 위치 */}
         {Array.from({ length: TOTAL_HOURS - 1 }).map((_, i) => (
