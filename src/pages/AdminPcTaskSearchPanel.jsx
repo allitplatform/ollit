@@ -8,22 +8,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { Search } from "lucide-react";
 import { isRefrigerant } from "../utils/workTypeKind.js";
+// 2026-06-12 — 상태 색 공통 매핑 사용 (사장님 spec — 확정 파랑 / 완료 초록 구분).
+import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 
 // 세척 / 냉매 / 기타 종류별 색.
 const COLOR_CLEANING    = "#0EA5E9";
 const COLOR_REFRIGERANT = "#FFB800";
-
-// 상태별 색 (옛 패턴 차용 — 옛 EngineerCalendarTab 등).
-const STATUS_COLOR = {
-  "미배정":   { color: "var(--accent)",       bg: "var(--accent-bg)" },
-  "배정":     { color: "#3B82F6",             bg: "rgba(59,130,246,0.10)" },
-  "약속대기":  { color: "#3B82F6",             bg: "rgba(59,130,246,0.10)" },
-  "확정":     { color: "#10B981",             bg: "rgba(16,185,129,0.10)" },
-  "진행중":   { color: "#F59E0B",             bg: "rgba(245,158,11,0.10)" },
-  "완료":     { color: "#10B981",             bg: "rgba(16,185,129,0.10)" },
-  "취소":     { color: "#EF4444",             bg: "rgba(239,68,68,0.10)" },
-  "visit_only": { color: "#9CA3AF",           bg: "rgba(156,163,175,0.10)" },
-};
 
 // 결과 상한 — 너무 많이 표시하면 dashboard 느려짐.
 const RESULT_LIMIT = 100;
@@ -238,7 +228,7 @@ function ResultRow({ task, onClick }) {
   const status   = task.status || task.상태 || "—";
   const kind     = getWorkKind(task);
 
-  const statusStyle = STATUS_COLOR[status] || { color: "var(--text-secondary)", bg: "transparent" };
+  const statusStyle = getTaskStatusColor(status);
 
   return (
     <>
