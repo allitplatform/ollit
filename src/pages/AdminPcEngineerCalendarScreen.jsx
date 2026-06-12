@@ -22,6 +22,10 @@ const WEEKDAYS_KR = ["월", "화", "수", "목", "금", "토", "일"];
 
 const MAX_CHIPS_PER_CELL = 2;  // 2개 초과 시 "외 N" 요약.
 
+// 2026-06-12 — 미배정 작업 sentinel. 옛 코드는 미배정을 skip 했으나
+//   그 주 작업이 다 미배정이면 "이번 주 작업 없음" 오해 → 행으로 표시 (타임라인과 동일 패턴).
+const UNASSIGNED_KEY = "__unassigned__";
+
 function pad(n) { return String(n).padStart(2, "0"); }
 function ymd(d)  { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function parseYmd(s) {
@@ -82,51 +86,70 @@ export function AdminPcEngineerCalendarScreen({
     });
   }, [apiTasks, weekStart, weekEnd]);
 
-  // 기사 → 작업[] 그룹 (미배정 제외 — 기사 행 표).
+  // 기사 → 작업[] 그룹. 미배정 작업은 UNASSIGNED_KEY 로 묶음 (타임라인 동일).
   const byEngineer = useMemo(() => {
     const map = new Map();
     for (const t of weekTasks) {
       const eid = t.assignedEngineerId || t.assigned_engineer_id;
-      if (!eid) continue;
-      if (!map.has(eid)) map.set(eid, []);
-      map.get(eid).push(t);
+      const key = eid || UNASSIGNED_KEY;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(t);
     }
     return map;
   }, [weekTasks]);
 
-  // 행 정렬 — 작업 많은 순. 검색 매칭 시 작업 0 기사도 포함.
+  // 미배정 카운트 — 헤더 표시.
+  const unassignedCount = (byEngineer.get(UNASSIGNED_KEY) || []).length;
+
+  // 행 정렬 — 작업 많은 순. 미배정 행은 항상 맨 끝. 검색 매칭 시 작업 0 기사도 포함.
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const withTasks = Array.from(byEngineer.entries()).map(([eid, tasks]) => {
+    const assigned = [];
+    let unassignedRow = null;
+    for (const [eid, tasks] of byEngineer.entries()) {
+      if (eid === UNASSIGNED_KEY) {
+        unassignedRow = { eid: UNASSIGNED_KEY, eng: null, name: "(미배정)", tasks, isUnassigned: true };
+        continue;
+      }
       const eng = (apiEngineers || []).find(e => e.id === eid);
-      return { eid, eng, name: eng?.name || tasks[0]?.assignedEngineer || tasks[0]?.engineer || "(이름 없음)", tasks };
-    });
-    withTasks.sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name));
+      assigned.push({
+        eid, eng,
+        name: eng?.name || tasks[0]?.assignedEngineer || tasks[0]?.engineer || "(이름 없음)",
+        tasks,
+        isUnassigned: false,
+      });
+    }
+    assigned.sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name));
 
-    if (!q) return withTasks;
+    const baseRows = unassignedRow ? [...assigned, unassignedRow] : assigned;
+
+    if (!q) return baseRows;
 
     // 검색 — 매칭 기사만. 작업 0 기사도 매칭이면 포함.
-    const taskedIds = new Set(withTasks.map(r => r.eid));
+    const taskedIds = new Set(assigned.map(r => r.eid));
     const extras = [];
     for (const eng of apiEngineers || []) {
       if (!eng || taskedIds.has(eng.id)) continue;
       const name = (eng.name || "").toLowerCase();
-      if (name.includes(q)) extras.push({ eid: eng.id, eng, name: eng.name || "", tasks: [] });
+      if (name.includes(q)) extras.push({ eid: eng.id, eng, name: eng.name || "", tasks: [], isUnassigned: false });
     }
-    const all = [...withTasks, ...extras];
-    return all.filter(r => (r.name || "").toLowerCase().includes(q));
+    // "미배정" 키워드 매칭 시 미배정 행도 표시.
+    const all = [...assigned, ...extras];
+    const filtered = all.filter(r => (r.name || "").toLowerCase().includes(q));
+    if (unassignedRow && "(미배정)".includes(q)) filtered.push(unassignedRow);
+    return filtered;
   }, [byEngineer, apiEngineers, search]);
 
-  // 기사 × 날짜 cell grouping (시간 정렬).
+  // 기사 × 날짜 cell grouping (시간 정렬). 미배정 작업도 UNASSIGNED_KEY 로 묶음.
   const cellsByEngineerDate = useMemo(() => {
     const m = new Map();
     for (const t of weekTasks) {
       const eid = t.assignedEngineerId || t.assigned_engineer_id;
-      if (!eid) continue;
+      const key = eid || UNASSIGNED_KEY;
       const sched = t.scheduledAt || t.scheduled_at;
       const k = toKstYmd(sched);
-      if (!m.has(eid)) m.set(eid, new Map());
-      const inner = m.get(eid);
+      if (!m.has(key)) m.set(key, new Map());
+      const inner = m.get(key);
       if (!inner.has(k)) inner.set(k, []);
       inner.get(k).push(t);
     }
@@ -175,7 +198,14 @@ export function AdminPcEngineerCalendarScreen({
           }}>기사 주간 일정</div>
           <div style={{
             fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
-          }}>{rows.length}명 · {totalTasks}건</div>
+          }}>
+            {rows.length}행 · {totalTasks}건
+            {unassignedCount > 0 && (
+              <span style={{ color: "var(--orange, #F59E0B)", marginLeft: 6, fontWeight: 800 }}>
+                · 미배정 {unassignedCount}
+              </span>
+            )}
+          </div>
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -295,12 +325,13 @@ export function AdminPcEngineerCalendarScreen({
                   background: isHighlight ? "var(--accent-bg)" : "transparent",
                   transition: "background 0.2s",
                 }}>
-                {/* 기사명 셀 */}
+                {/* 기사명 셀 — 미배정 행은 회색 강조 */}
                 <div style={{
                   padding: "8px 12px",
                   borderRight: "1px solid var(--border)",
                   fontSize: 12, fontWeight: 700,
-                  color: "var(--text-primary)",
+                  color: row.isUnassigned ? "var(--orange, #F59E0B)" : "var(--text-primary)",
+                  background: row.isUnassigned ? "rgba(245, 158, 11, 0.06)" : "transparent",
                   display: "flex", alignItems: "center", gap: 4,
                   minWidth: 0,
                 }}>
@@ -311,7 +342,7 @@ export function AdminPcEngineerCalendarScreen({
                   {row.tasks.length > 0 && (
                     <span style={{
                       fontSize: 10, fontWeight: 700,
-                      color: "var(--text-secondary)",
+                      color: row.isUnassigned ? "var(--orange, #F59E0B)" : "var(--text-secondary)",
                       flexShrink: 0,
                     }}>{row.tasks.length}</span>
                   )}
