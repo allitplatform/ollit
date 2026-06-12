@@ -1856,7 +1856,7 @@ function Shell({ t, toasts, children, pcCtx }) {
           pcCtx={pcCtx}
           asideNode={isPcTaskDetail ? children : null}
         >
-          {isPcTaskDetail ? pcCtx.dashboardNode : children}
+          {isPcTaskDetail ? (pcCtx.mainContent || pcCtx.dashboardNode) : children}
         </AdminPcShell>
         <ToastContainer t={t} toasts={toasts}/>
       </>
@@ -2549,6 +2549,29 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     />
   ) : null;
 
+  // 2026-06-12 — PC 작업 타임라인 JSX 변수 캡처 (양쪽 같은 element — state 보존).
+  //   사용처:
+  //     1) screen === "pcTimeline" → Shell children
+  //     2) PC + taskDetail (prevScreen=pcTimeline) → Shell PC layout main 에 mount (mainContent).
+  //   대시보드와 동일 패턴.
+  const adminPcTimelineNode = isPc ? (
+    <AdminPcTimelineScreen
+      apiTasks={apiTasks}
+      apiEngineers={apiEngineers}
+      onTaskClick={(task) => openTaskDetailFromLight(task, "pcTimeline")}
+    />
+  ) : null;
+
+  // 2026-06-12 — PC + taskDetail 진입 시 main 에 mount 할 컴포넌트 결정.
+  //   prevScreen 따라 옛 screen 화면 유지 (사장님 spec — 타임라인에서 클릭 시 타임라인 유지).
+  //   매핑 안 된 screen 은 dashboard fallback.
+  const pcMainContent = (() => {
+    if (!isPc) return null;
+    const sourceScreen = (screen === "taskDetail" && prevScreen) ? prevScreen : screen;
+    if (sourceScreen === "pcTimeline") return adminPcTimelineNode;
+    return adminPcDashboardNode;
+  })();
+
   // 2026-06-12 — PC 셸 컨텍스트. 모든 <Shell ... pcCtx={pcCtx}> 호출 38곳에 전달.
   //   Shell 함수가 useIsPc() true 면 AdminPcShell 로 wrap, false 면 옛 모바일 layout 그대로.
   //   pcCtx 안 키:
@@ -2571,6 +2594,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     },
     // 2026-06-12 Chunk 2 — 우 aside 활성화. Shell PC 분기에서 screen=taskDetail 일 때 사용.
     dashboardNode:     adminPcDashboardNode,
+    // 2026-06-12 — taskDetail 진입 시 main 에 mount (prevScreen 따라 dashboard 또는 timeline 등).
+    mainContent:       pcMainContent,
     onCloseTaskDetail: () => {
       setSelectedTaskDetail(null);
       // screenStack 안 잔여 "taskDetail" 정리 — 옛 navigation history 청소.
@@ -3821,13 +3846,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
 
   // 2026-06-12 — PC 작업 타임라인. PC 전용 (사이드바 "작업 > 타임라인" 항목). 모바일 미진입.
+  //   adminPcTimelineNode 변수로 캡처해 양쪽 (이 분기 + taskDetail Shell layout) 같은 element 사용.
   if (screen === "pcTimeline") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <AdminPcTimelineScreen
-        apiTasks={apiTasks}
-        apiEngineers={apiEngineers}
-        onTaskClick={(task) => openTaskDetailFromLight(task, "pcTimeline")}
-      />
+      {adminPcTimelineNode}
     </Shell>;
   }
 

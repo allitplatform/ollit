@@ -8,15 +8,31 @@
 import { useState, useMemo } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
+// 2026-06-12 — 작업 종류 (세척/냉매) 색 매핑 — 막대 배경. 상태색은 테두리로 보조.
+import { getServiceKind } from "../utils/workTypeKind.js";
 
-// 시간 축 — 07~19시 (13 슬롯).
+// 시간 축 — 07~19시 (13 슬롯). 슬롯 폭 키워 막대 정보 (고객명/지역) 표시.
 const START_HOUR    = 7;
 const END_HOUR      = 20;
 const TOTAL_HOURS   = END_HOUR - START_HOUR;
-const SLOT_WIDTH    = 60;
+const SLOT_WIDTH    = 90;
 const TIMELINE_W    = TOTAL_HOURS * SLOT_WIDTH;
-const LANE_HEIGHT   = 44;
+const LANE_HEIGHT   = 62;
 const ENGINEER_COL  = 130;
+
+// 작업 종류 색 (사장님 spec).
+const KIND_COLOR = {
+  cleaning:    "#0EA5E9",  // 세척 — 파랑
+  refrigerant: "#FFB800",  // 냉매 — 노랑
+};
+const KIND_COLOR_FALLBACK = "#9CA3AF";  // 기타/방문 등
+
+// 종류 라벨 (막대 안 작은 텍스트).
+const KIND_LABEL = {
+  cleaning:    "❄ 세척",
+  refrigerant: "⚡ 냉매",
+  visit:       "🚗 방문",
+};
 
 export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTaskClick }) {
   const [view, setView] = useState("time"); // "time" | "flow"
@@ -156,7 +172,7 @@ function TimeAxisView({ lanes, onTaskClick }) {
       border: "1px solid var(--border)",
       borderRadius: 14,
       overflow: "auto",  // 가로 + 세로 scroll
-      maxHeight: 640,
+      maxHeight: 560,  // 휑함 줄임 (옛 640 → 560)
     }}>
       <div style={{
         display: "grid",
@@ -283,37 +299,58 @@ function TaskBar({ task, onClick }) {
   if (leftPos + width > TIMELINE_W) width = TIMELINE_W - leftPos;
   if (width <= 0) return null;
 
+  // 색: 배경=작업 종류 (세척 파랑 / 냉매 노랑), 테두리=상태 (확정 파랑 / 진행 주황 / 완료 초록).
+  const kind = getServiceKind(task);
+  const kindColor = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
   const statusStyle = getTaskStatusColor(task.status);
+
+  // 완료/취소 시 막대 흐리게 (작업 끝난 표시).
+  const isDone = task.status === "완료" || task.status === "정산완료" || task.status === "visit_only";
+  const opacity = isDone ? 0.55 : 1;
+
   const customer = task.customer || task.고객명 || "—";
-  const workType = task.workType || task.appliance || "";
+  const region   = task.region || task.district || task.지역 || "";
+  const kindLabel = KIND_LABEL[kind] || "";
   const time = `${pad(hours)}:${pad(minutes)}`;
-  const title = `${time} · ${customer}${workType ? " · " + workType : ""} · ${task.status || ""}`;
+  const title = `${time} · ${customer} · ${region} · ${kindLabel || (task.workType || "")} · ${task.status || ""}`;
 
   return (
     <button onClick={onClick} title={title}
       style={{
         position: "absolute",
         left: leftPos + 1,
-        top: 6,
-        height: LANE_HEIGHT - 12,
+        top: 5,
+        height: LANE_HEIGHT - 10,
         width: width - 2,
-        background: statusStyle.bg,
-        border: `1.5px solid ${statusStyle.color}`,
+        background: `${kindColor}33`,         // 종류 색 (≈20% alpha)
+        border: `2px solid ${statusStyle.color}`,
+        borderLeft: `4px solid ${kindColor}`, // 종류 표시 강조 — 좌측 굵은 바
         borderRadius: 6,
-        color: statusStyle.color,
-        fontSize: 10, fontWeight: 700,
+        color: "var(--text-primary)",
         fontFamily: "inherit",
         cursor: "pointer",
-        padding: "0 6px",
-        display: "flex", alignItems: "center", gap: 4,
+        padding: "4px 8px",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "center",
+        gap: 2,
         overflow: "hidden",
         textAlign: "left",
         boxSizing: "border-box",
+        opacity,
       }}>
       <span style={{
-        flex: 1,
+        fontSize: 12, fontWeight: 800,
+        color: "var(--text-primary)",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        lineHeight: 1.1,
       }}>{customer}</span>
+      <span style={{
+        fontSize: 10, fontWeight: 600,
+        color: kindColor,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        lineHeight: 1.1,
+      }}>{time}{region ? " · " + region : ""}{kindLabel ? " · " + kindLabel : ""}</span>
     </button>
   );
 }
