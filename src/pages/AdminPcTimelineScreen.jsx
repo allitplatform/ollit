@@ -5,7 +5,7 @@
 //   ⚠️ 막대 클릭 → 우 aside (Shell PC 분기 main 유지).
 //   ⚠️ 모바일(<1024) 옛 화면 그대로.
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
@@ -17,12 +17,40 @@ const TOTAL_HOURS   = END_HOUR - START_HOUR;
 const LANE_HEIGHT   = 52;
 const ENGINEER_COL  = 120;
 
-// 작업 종류 색 (사장님 spec — 사장님 원복: 밝은 톤 X, 원래 톤 유지).
-const KIND_COLOR = {
-  cleaning:    "#0EA5E9",  // cyan-500
+// 작업 종류 색 — 다크/라이트 분리 (라이트 흰 배경에서도 또렷하게).
+//   다크: 원래 톤 유지 (#0EA5E9 / #FFB800).
+//   라이트: 진한 톤 (sky-600 / yellow-600) — 흰 배경 위 가라앉지 않게.
+const KIND_COLOR_DARK = {
+  cleaning:    "#0EA5E9",   // cyan-500
   refrigerant: "#FFB800",
 };
+const KIND_COLOR_LIGHT = {
+  cleaning:    "#0284C7",   // sky-600 — 흰 배경에 진한 파랑
+  refrigerant: "#CA8A04",   // yellow-600 — 흰 배경에 진한 황색
+};
 const KIND_COLOR_FALLBACK = "#9CA3AF";
+
+// 테마 감지 hook — themes.js applyResolved 가 document.documentElement.dataset.theme 설정.
+//   MutationObserver 로 사용자 theme 변경 시 자동 갱신.
+function useTheme() {
+  const [theme, setTheme] = useState(() =>
+    typeof document !== "undefined"
+      ? (document.documentElement.dataset.theme || "dark")
+      : "dark"
+  );
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const observer = new MutationObserver(() => {
+      setTheme(document.documentElement.dataset.theme || "dark");
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
+    return () => observer.disconnect();
+  }, []);
+  return theme;
+}
 
 export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTaskClick }) {
   const [view, setView] = useState("time");
@@ -31,6 +59,10 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
   const today    = todayYmd();
   const isToday  = selectedDate === today;
+
+  // 2026-06-12 — 테마 분리 (라이트 흰 배경에 옛 cyan-500/amber 가 가라앉음).
+  const theme = useTheme();
+  const kindColorMap = theme === "light" ? KIND_COLOR_LIGHT : KIND_COLOR_DARK;
 
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
@@ -93,7 +125,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       </div>
 
       {view === "time" ? (
-        <TimeAxisView lanes={lanes} onTaskClick={onTaskClick}/>
+        <TimeAxisView lanes={lanes} onTaskClick={onTaskClick} kindColorMap={kindColorMap}/>
       ) : (
         <FlowPlaceholder/>
       )}
@@ -209,7 +241,7 @@ function ViewToggle({ value, onChange }) {
 // 🅐 시간축 — 화면 폭에 맞춤 (1fr + 슬롯 flex:1). 가로 스크롤 없음.
 //   세로도 기사 수만큼만 — maxHeight 없음.
 // ──────────────────────────────────────────────────────────────────
-function TimeAxisView({ lanes, onTaskClick }) {
+function TimeAxisView({ lanes, onTaskClick, kindColorMap }) {
   if (lanes.length === 0) {
     return (
       <div style={{
@@ -272,14 +304,14 @@ function TimeAxisView({ lanes, onTaskClick }) {
 
         {/* 행들 */}
         {lanes.map(lane => (
-          <Lane key={lane.key} lane={lane} onTaskClick={onTaskClick}/>
+          <Lane key={lane.key} lane={lane} onTaskClick={onTaskClick} kindColorMap={kindColorMap}/>
         ))}
       </div>
     </div>
   );
 }
 
-function Lane({ lane, onTaskClick }) {
+function Lane({ lane, onTaskClick, kindColorMap }) {
   return (
     <>
       {/* 좌측 — 기사명 + 건수 */}
@@ -328,6 +360,7 @@ function Lane({ lane, onTaskClick }) {
             key={task.id || task.taskCode}
             task={task}
             onClick={() => onTaskClick?.(task)}
+            kindColorMap={kindColorMap}
           />
         ))}
       </div>
@@ -335,7 +368,7 @@ function Lane({ lane, onTaskClick }) {
   );
 }
 
-function TaskBar({ task, onClick }) {
+function TaskBar({ task, onClick, kindColorMap }) {
   const scheduled = task.scheduledAt || task.scheduled_at;
   if (!scheduled) return null;
   const d = new Date(scheduled);
@@ -357,7 +390,7 @@ function TaskBar({ task, onClick }) {
 
   // 색: 종류 단일 (세척 파랑 / 냉매 노랑). 테두리=종류색 약하게. 좌측 4px 굵은 바.
   const kind = getServiceKind(task);
-  const kindColor = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
+  const kindColor = (kindColorMap && kindColorMap[kind]) || KIND_COLOR_FALLBACK;
 
   // 완료 / visit_only / 정산완료 → 흐림 (작업 끝난 표시).
   const isDone = task.status === "완료" || task.status === "정산완료" || task.status === "visit_only";
