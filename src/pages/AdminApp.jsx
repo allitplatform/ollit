@@ -50,6 +50,9 @@ import { SettlementScreen as SettlementDailyClose } from "../components/Settleme
 import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
 import { startDailyAlertScheduler, stopDailyAlertScheduler } from "../utils/dailyAlertScheduler.js";
 import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../utils/dashboardStats.js";
+// 2026-06-12 — PC 셸 (1024px+). isPc true 일 때 Shell 함수가 AdminPcShell 로 wrap.
+import { useIsPc } from "../utils/useIsPc.js";
+import { AdminPcShell } from "./AdminPcShell.jsx";
 import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
 import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
 import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
@@ -1831,7 +1834,24 @@ const FontStyle = (
   `}</style>
 );
 
-function Shell({ t, toasts, children }) {
+function Shell({ t, toasts, children, pcCtx }) {
+  // 2026-06-12 — PC 분기. pcCtx 받으면 (= AdminApp 본체에서 전달) PC 모드면 AdminPcShell 로 wrap.
+  //   AdminApp.jsx 의 모든 <Shell t toasts pcCtx> 호출 38곳이 PC 모드에서 자동으로 사이드바+메인 구조로 바뀜.
+  //   모바일은 기존 maxWidth 480 가운데 정렬 그대로.
+  const isPc = useIsPc();
+
+  if (isPc && pcCtx) {
+    return (
+      <>
+        {FontStyle}
+        <AdminPcShell t={t} pcCtx={pcCtx}>
+          {children}
+        </AdminPcShell>
+        <ToastContainer t={t} toasts={toasts}/>
+      </>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text }}>
       {FontStyle}
@@ -2478,9 +2498,31 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-05-22 — Shell + FontStyle 측 모듈 레벨 함수로 추출 (위 정의 참조).
   // 옛 const 정의 측 매 렌더마다 새 함수 identity → 자식 unmount → 폼 state 소실.
 
+  // 2026-06-12 — PC 셸 컨텍스트. 모든 <Shell ... pcCtx={pcCtx}> 호출 38곳에 전달.
+  //   Shell 함수가 useIsPc() true 면 AdminPcShell 로 wrap, false 면 옛 모바일 layout 그대로.
+  //   pcCtx 안 키:
+  //     · screen / setScreen — 사이드바 메뉴 클릭 → setScreen(item.id) 으로 옛 라우팅 재사용
+  //     · user / onLogout    — 사이드바 로고/로그아웃
+  //     · selectedTaskDetail — 우 aside (다음 단계 mount)
+  //     · unreadCount        — 알림 종 badge
+  //     · sidebarSummary     — 하단 요약 3개 (오늘 접수 / 미배정 / 오늘 완료)
+  const pcCtx = {
+    user,
+    onLogout,
+    screen,
+    setScreen,
+    selectedTaskDetail,
+    unreadCount,
+    sidebarSummary: {
+      todayReceived:  dynamicStats?.new              || 0,
+      unassigned:     dynamicStats?.unassignedCount  || 0,
+      todayCompleted: dynamicStats?.completed        || 0,
+    },
+  };
+
   // 화면 분기
   if (screen === "newReception") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <NewReceptionScreen
         t={t}
         filter={newReceptionFilter}
@@ -2537,7 +2579,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "newReceptionForm") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <NewReceptionFormScreen
         t={t}
         user={user}
@@ -2580,7 +2622,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "memoAdd" && selectedTask) {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <MemoAddScreen
         task={selectedTask}
         user={user}
@@ -2592,7 +2634,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "taskEdit" && selectedTask) {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <TaskFullEditScreen
         task={selectedTask}
         user={user}
@@ -2608,7 +2650,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "taskHistory" && selectedTask) {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <TaskHistoryScreen
         task={selectedTask}
         onBack={goBack}
@@ -2616,7 +2658,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "notifications") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <NotificationScreen
         t={t}
         notifications={notifications}
@@ -2647,7 +2689,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "liveWork") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <LiveWorkScreen
         t={t}
         onBack={() => { goBack(); setLiveWorkFilter(null); }}
@@ -2658,7 +2700,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "engineerDay" && selectedEngineer) {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <EngineerDayScreen
         t={t}
         engineer={selectedEngineer}
@@ -2668,7 +2710,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "taskDetail" && selectedTaskDetail) {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AdminTaskDetailScreen
         t={t}
         task={selectedTaskDetail ? {
@@ -2978,7 +3020,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "recommend") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <RecommendScreen
         t={t}
         task={selectedTask}
@@ -3224,7 +3266,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "autoAssign") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AutoAssignScreen
         t={t}
         task={selectedTask}
@@ -3291,7 +3333,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "assignedList") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AssignedTasksScreen
         t={t}
         filter={assignedFilter}
@@ -3304,7 +3346,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "inProgressList") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <InProgressListScreen
         t={t}
         onBack={goBack}
@@ -3315,7 +3357,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
   // 2026-05-26 — 기사 재배정 요청 목록 (대시보드 알림 줄 클릭 → 진입)
   if (screen === "reassignList") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <ReassignRequestListScreen
         t={t}
         apiTasks={apiTasks}
@@ -3327,7 +3369,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "settlement") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <SettlementDailyClose
         onBack={goBack}
         onClickPrincipalSettlement={() => setScreen("principal_settlement")}
@@ -3336,7 +3378,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
   // 2026-06-03 — 매출 자세히 화면 (월 측측 + 4요약 + 원청별 + 기사별).
   if (screen === "revenueDetail") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <RevenueDetailScreen
         t={t}
         apiTasks={apiTasks}
@@ -3348,7 +3390,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점, 기사 검색).
   //   상태 lift (AdminApp 측측): 측측 측측 → 측측 측측 → 측측 측측 같은 기사/월/측측 측측 측측.
   if (screen === "engineerCalendar") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <EngineerCalendarScreen
         t={t}
         apiTasks={apiTasks}
@@ -3368,7 +3410,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
   // 2026-06-03 — Phase 2a: 냉매 미처리 목록 (read-only, 측측 0).
   if (screen === "refrigerantAddonList") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <RefrigerantAddonListScreen
         t={t}
         onBack={goBack}
@@ -3378,7 +3420,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
   // 2026-05-22 — 입금 내역 (회사 송금 통장 내역, 조회 전용)
   if (screen === "settlementHistory") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <SettlementHistoryContent
         t={t}
         apiTasks={apiTasks}
@@ -3388,13 +3430,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "principal_settlement") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <PrincipalSettlementScreen onBack={goBack} user={user}/>
     </Shell>;
   }
   // Step 6 — 기사 관리 (리스트 + 편집/추가)
   if (screen === "engineerList") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <EngineerListScreen
         onBack={goBack}
         onAdd={() => {
@@ -3412,7 +3454,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "engineerEdit" && editingEngineer) {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <EngineerEditScreen
         engineer={editingEngineer}
         isNew={editingIsNew}
@@ -3437,7 +3479,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
   // Step 8 — 지역 관리 (리스트 + 편집/추가)
   if (screen === "regionList") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <RegionListScreen
         onBack={goBack}
         onAdd={() => {
@@ -3454,7 +3496,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "regionEdit" && editingRegion) {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <RegionEditScreen
         region={editingRegion}
         isNew={editingRegionIsNew}
@@ -3478,7 +3520,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
   // Step 9 — 통합 설정
   if (screen === "settings") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <SettingsScreen
         user={user}
         themeMode={mode}
@@ -3502,14 +3544,14 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
   // Phase 2 — 수수료정책 관리 (admin/owner/operator)
   if (screen === "commissionPolicy") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <CommissionPolicyManagement user={user} onBack={goBack}/>
     </Shell>;
   }
   // V11-2-fix — 유솔 N 워크스페이스 (단일 라우트, 5탭 컨테이너 내부)
   // 2026-05-19 Phase 5 Step 0.B — onTaskClick prop drilling (Supabase row → v14 정규화 → AdminTaskDetailScreen)
   if (screen === "usol_n") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <UsolNScreen
         user={user}
         onBack={goBack}
@@ -3530,7 +3572,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-05-27 — 운영자 PWA "전체 작업" (6원청, usol_n 제외).
   //   TaskRowOperator 재사용 + AdminTaskDetailScreen 재사용 — 새 상세 X.
   if (screen === "allTasks") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AllTasksScreen
         onBack={goBack}
         onTaskClick={(task) => {
@@ -3549,7 +3591,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
   // 2026-05-29 Phase 1 — 발주 원본 archive (Migration 080). 헤더 📄 버튼으로 진입.
   if (screen === "rawOrdersArchive") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <RawOrdersArchiveScreen
         t={t}
         onBack={goBack}
@@ -3563,7 +3605,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "userList") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <UserListScreen
         onBack={goBack}
         onAdd={() => {
@@ -3580,7 +3622,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "userEdit" && editingUser) {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <UserEditScreen
         user={editingUser}
         isNew={editingUserIsNew}
@@ -3603,19 +3645,19 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "notificationSettings") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
    <NotiSettingsScreen user={user} onBack={goBack}/>
     </Shell>;
   }
   // Step 5-8 F-4 — 회사 계좌 관리 (운영자/관리자만 / PERMISSIONS["menu.company_account"])
   if (screen === "companyAccount") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <CompanyAccountScreen onBack={goBack}/>
     </Shell>;
   }
   // Step 7 — 원청 관리 (리스트 + 편집/추가 + 유솔 N CSV 업로드)
   if (screen === "principalList") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <PrincipalListScreen
         onBack={goBack}
         onAdd={() => {
@@ -3633,14 +3675,14 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "ratesManagement") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <RatesManagementScreen
         onBack={goBack}
       />
     </Shell>;
   }
   if (screen === "naverUpload") {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <NaverUploadScreen
         onBack={goBack}
         onComplete={async (orders) => {
@@ -3696,7 +3738,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "principalEdit" && editingPrincipal) {
-    return <Shell t={t} toasts={toasts}>
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <PrincipalEditScreen
         principal={editingPrincipal}
         isNew={editingPrincipalIsNew}
@@ -3721,7 +3763,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
 
   // 메인 대시보드
-  return <Shell t={t} toasts={toasts}>
+  return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
     <DashboardScreen
       t={t} mode={mode} setMode={setMode}
       onLogout={onLogout}
