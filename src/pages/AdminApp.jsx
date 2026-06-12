@@ -2577,14 +2577,40 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     />
   ) : null;
 
+  // 2026-06-12 — PC 주간 달력 / 월간 달력 — taskDetail 진입 시 main 유지 패턴.
+  const adminPcEngineerCalendarNode = isPc ? (
+    <AdminPcEngineerCalendarScreen
+      apiTasks={apiTasks}
+      apiEngineers={apiEngineers}
+      engineerId={calEngineerId}
+      onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendar")}
+    />
+  ) : null;
+
+  const adminPcEngineerMonthlyCalendarNode = isPc ? (
+    <AdminPcEngineerMonthlyCalendarScreen
+      apiTasks={apiTasks}
+      apiEngineers={apiEngineers}
+      engineerId={calEngineerId}
+      setEngineerId={setCalEngineerId}
+      year={calYear}
+      setYear={setCalYear}
+      month={calMonth}
+      setMonth={setCalMonth}
+      onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendarMonth")}
+    />
+  ) : null;
+
   // 2026-06-12 — PC + taskDetail 진입 시 main 에 mount 할 컴포넌트 결정.
   //   prevScreen 따라 옛 screen 화면 유지 (사장님 spec — 타임라인에서 클릭 시 타임라인 유지).
   //   매핑 안 된 screen 은 dashboard fallback.
   const pcMainContent = (() => {
     if (!isPc) return null;
     const sourceScreen = (screen === "taskDetail" && prevScreen) ? prevScreen : screen;
-    if (sourceScreen === "pcTimeline")     return adminPcTimelineNode;
-    if (sourceScreen === "pcTimelineFlow") return adminPcTimelineFlowNode;
+    if (sourceScreen === "pcTimeline")            return adminPcTimelineNode;
+    if (sourceScreen === "pcTimelineFlow")        return adminPcTimelineFlowNode;
+    if (sourceScreen === "engineerCalendar")      return adminPcEngineerCalendarNode;
+    if (sourceScreen === "engineerCalendarMonth") return adminPcEngineerMonthlyCalendarNode;
     return adminPcDashboardNode;
   })();
 

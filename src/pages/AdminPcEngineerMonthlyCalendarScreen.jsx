@@ -396,6 +396,9 @@ function TaskChip({ task, onClick }) {
   );
 }
 
+// 2026-06-12 — 콤팩트 + 정보 추가 (시간/종류/고객/지역/주문번호/금액/상태).
+const DAY_ROW_GRID = "50px 22px minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 1fr) 90px 70px";
+
 function SelectedDayPanel({ ymd, tasks, onTaskClick }) {
   const [, m, d] = ymd.split("-").map(Number);
   return (
@@ -403,22 +406,42 @@ function SelectedDayPanel({ ymd, tasks, onTaskClick }) {
       background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
       borderRadius: 12,
-      padding: 16,
+      padding: "12px 14px",
     }}>
       <div style={{
-        display: "flex", alignItems: "baseline", gap: 10,
-        marginBottom: 12,
+        display: "flex", alignItems: "baseline", gap: 8,
+        marginBottom: 8,
       }}>
         <div style={{
-          fontSize: 14, fontWeight: 800,
+          fontSize: 13, fontWeight: 800,
           color: "var(--accent)",
           letterSpacing: "-0.3px",
-        }}>{m}월 {d}일 작업</div>
+        }}>{m}월 {d}일</div>
         <div style={{
           fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
         }}>{tasks.length}건</div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* 헤더 row */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: DAY_ROW_GRID,
+        gap: 8,
+        padding: "4px 10px",
+        fontSize: 10, fontWeight: 700,
+        color: "var(--text-tertiary)",
+        letterSpacing: 0.4,
+        marginBottom: 4,
+      }}>
+        <span>시간</span>
+        <span></span>
+        <span>고객</span>
+        <span>지역</span>
+        <span>주문번호</span>
+        <span style={{ textAlign: "right" }}>금액</span>
+        <span>상태</span>
+      </div>
+      {/* 행 */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {tasks.map(t => (
           <DayTaskRow key={t.id || t.taskCode} task={t} onClick={() => onTaskClick?.(t)}/>
         ))}
@@ -433,44 +456,69 @@ function DayTaskRow({ task, onClick }) {
   const time  = formatHm(task.scheduledAt || task.scheduled_at);
   const region   = task.region || task.district || task.지역 || "";
   const customer = task.customer || task.고객명 || "";
+  const orderId  = task.productOrderId || task.product_order_id || task.taskCode
+    || (task.id ? String(task.id).slice(0, 8) : "");
+  // task 객체 안 잠재 금액 필드 — 환경에 따라 다를 수 있어 0 fallback.
+  const amount   = Number(task.totalAmount ?? task.amount ?? task.subtotal ?? 0) || 0;
   const isCanceled = task.status === "취소";
+  const kindLabel = kind === "refrigerant" ? "⚡" : kind === "cleaning" ? "❄" : "•";
 
   return (
     <button onClick={onClick}
       style={{
         display: "grid",
-        gridTemplateColumns: "auto 60px 120px 1fr auto",
-        gap: 12,
+        gridTemplateColumns: DAY_ROW_GRID,
+        gap: 8,
         alignItems: "center",
-        padding: "10px 14px",
+        padding: "6px 10px",
         background: "var(--bg-primary)",
         border: "1px solid var(--border)",
-        borderLeft: `4px solid ${color}`,
-        borderRadius: 8,
+        borderLeft: `3px solid ${color}`,
+        borderRadius: 6,
         textAlign: "left",
         cursor: "pointer",
         fontFamily: "inherit",
         textDecoration: isCanceled ? "line-through" : "none",
-        opacity: isCanceled ? 0.65 : 1,
+        opacity: isCanceled ? 0.6 : 1,
+        minWidth: 0,
       }}>
       <span style={{
-        fontSize: 14, lineHeight: 1, color,
-      }}>{kind === "refrigerant" ? "⚡" : kind === "cleaning" ? "❄" : "•"}</span>
-      <span style={{
-        fontSize: 13, fontWeight: 800, color,
+        fontSize: 12, fontWeight: 800, color,
         fontVariantNumeric: "tabular-nums",
       }}>{time}</span>
       <span style={{
-        fontSize: 12, fontWeight: 700, color: "var(--text-primary)",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>{region || "—"}</span>
+        fontSize: 13, color, lineHeight: 1,
+      }}>{kindLabel}</span>
       <span style={{
-        fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
+        fontSize: 12, fontWeight: 700,
+        color: "var(--text-primary)",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        minWidth: 0,
       }}>{customer || "—"}</span>
       <span style={{
-        fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
-      }}>{task.status || ""}</span>
+        fontSize: 11, fontWeight: 600,
+        color: "var(--text-secondary)",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        minWidth: 0,
+      }}>{region || "—"}</span>
+      <span style={{
+        fontSize: 10, fontWeight: 600,
+        color: "var(--text-tertiary)",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        fontVariantNumeric: "tabular-nums",
+        minWidth: 0,
+      }}>{orderId || "—"}</span>
+      <span style={{
+        fontSize: 11, fontWeight: 700,
+        color: "var(--text-primary)",
+        textAlign: "right",
+        fontVariantNumeric: "tabular-nums",
+      }}>{amount > 0 ? `${amount.toLocaleString("ko-KR")}원` : "—"}</span>
+      <span style={{
+        fontSize: 10, fontWeight: 700,
+        color: "var(--text-secondary)",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>{task.status || "—"}</span>
     </button>
   );
 }
