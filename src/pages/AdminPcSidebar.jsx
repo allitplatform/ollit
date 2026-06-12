@@ -28,6 +28,8 @@ const GROUPS = [
     label: "작업",
     icon: ListChecks,
     items: [
+      // 2026-06-12 — PC 전용 (시간축 + 처리 흐름 탭). 모바일 미노출 (PC 셸 안에서만 mount).
+      { id: "pcTimeline",     label: "타임라인" },
       { id: "liveWork",       label: "라이브 작업" },
       { id: "newReception",   label: "새 접수" },
       { id: "assignedList",   label: "배정 완료" },

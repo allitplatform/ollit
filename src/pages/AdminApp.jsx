@@ -54,6 +54,8 @@ import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../uti
 import { useIsPc } from "../utils/useIsPc.js";
 import { AdminPcShell } from "./AdminPcShell.jsx";
 import { AdminPcDashboard } from "./AdminPcDashboard.jsx";
+// 2026-06-12 — PC 작업 타임라인 (시간축 + 처리 흐름 탭).
+import { AdminPcTimelineScreen } from "./AdminPcTimelineScreen.jsx";
 import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
 import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
 import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
@@ -3814,6 +3816,17 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
           setEditingPrincipalIsNew(false);
           goBack();
         }}
+      />
+    </Shell>;
+  }
+
+  // 2026-06-12 — PC 작업 타임라인. PC 전용 (사이드바 "작업 > 타임라인" 항목). 모바일 미진입.
+  if (screen === "pcTimeline") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AdminPcTimelineScreen
+        apiTasks={apiTasks}
+        apiEngineers={apiEngineers}
+        onTaskClick={(task) => openTaskDetailFromLight(task, "pcTimeline")}
       />
     </Shell>;
   }
