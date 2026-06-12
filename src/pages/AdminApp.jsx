@@ -57,6 +57,7 @@ import { AdminPcDashboard } from "./AdminPcDashboard.jsx";
 // 2026-06-12 — PC 작업 타임라인. 사이드바 분리 (시간축 / 처리 흐름) — 렉 해소.
 import { AdminPcTimelineScreen } from "./AdminPcTimelineScreen.jsx";
 import { AdminPcFlowScreen }     from "./AdminPcFlowScreen.jsx";
+import { AdminPcEngineerGridScreen } from "./AdminPcEngineerGridScreen.jsx";
 import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
 import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
 import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
@@ -3534,6 +3535,23 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
   // Step 6 — 기사 관리 (리스트 + 편집/추가)
   if (screen === "engineerList") {
+    // 2026-06-12 — PC (1024px+) 면 카드 그리드. 모바일은 옛 EngineerListScreen 그대로.
+    if (isPc) {
+      return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+        <AdminPcEngineerGridScreen
+          onAdd={() => {
+            setEditingEngineer(createEmptyEngineer());
+            setEditingIsNew(true);
+            setScreen("engineerEdit");
+          }}
+          onEdit={(eng) => {
+            setEditingEngineer(eng);
+            setEditingIsNew(false);
+            setScreen("engineerEdit");
+          }}
+        />
+      </Shell>;
+    }
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <EngineerListScreen
         onBack={goBack}
