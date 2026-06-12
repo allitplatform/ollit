@@ -71,6 +71,8 @@ import { fetchPrincipalWeeklyRemittances } from "../lib/principalRemitDb.js";
 import { fetchPrincipalAccounts, updatePrincipalAccount } from "../lib/principalsDb.js";
 import { fetchPrincipalSidebarSummary } from "../lib/principalDashboardDb.js";
 import { getStatusBadge as getPrincipalStatusBadge, getStatusLabel as getPrincipalStatusLabel } from "../utils/principalStatusBadge.js";
+// 2026-06-12 — TaskCard 상태 배지 공통 매핑 (옛 4상태 t.success/warning/text/danger 폐기).
+import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { supabase } from "../lib/supabase.js";
 // 2026-06-10 — PC 반응형 1차: 1024px 이상 PC 셸 분기.
 import { useIsPc } from "../utils/useIsPc.js";
@@ -1561,13 +1563,9 @@ function Stat({ t, label, value, color }) {
 }
 
 function TaskCard({ t, task, onClick }) {
-  const statusStyle = {
-    "완료": { color: t.success, bg: t.successBg },
-    "진행중": { color: t.warning, bg: t.warningBg },
-    "확정": { color: t.text, bg: t.bgInset },
-    "미배정": { color: t.danger, bg: t.dangerBg },
-  };
-  const ss = statusStyle[task.status] || { color: t.textMuted, bg: t.bgInset };
+  // 2026-06-12 — 옛 4상태 inline (t.success/warning/text/danger) 폐기 → 공통 utility.
+  //   매핑: 미배정 핑크 / 배정 청록 / 확정 파랑 / 진행중 주황 / 완료 초록 / 취소 회색.
+  const ss = getTaskStatusColor(task.status);
 
   return (
     <div onClick={onClick} className="clickable" style={{

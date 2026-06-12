@@ -18,6 +18,8 @@ import { fetchUsolNTasks, isUsolNActionNeeded } from "../../lib/usolNTasksDb.js"
 import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 import { formatYmdHm } from "../../utils/dateLabel.js";
 import { statusLabel } from "../../utils/taskStatus.js";
+// 2026-06-12 — 상태 색 공통 매핑 (확정 파랑 / 완료 초록 명확 구분).
+import { getTaskStatusColor } from "../../utils/taskStatusColor.js";
 // 2026-05-29 — 취소 row 사유/취소자 표시 (사장님 spec D2-b: users in-memory lookup)
 import { getUserById } from "../../data/users.js";
 // 2026-05-29 v2 — 이름 위주 표시 (D2) + 한국어 사유/원청 라벨
@@ -72,14 +74,10 @@ function ServiceIcon({ kind, size = 14 }) {
 }
 
 function getStatusBadge(status) {
-  // 2026-05-27 — label은 공용 statusLabel() 사용 (visit_only → "출장비만").
-  //   색(bg/color)은 status별 기존 분기 유지. 모르는 status는 회색 fallback.
-  const label = statusLabel(status) || "—";
-  if (status === "미배정")  return { bg: "rgba(255,59,92,0.18)",  color: "#FF3B5C", label };
-  if (status === "배정")    return { bg: "rgba(234,88,12,0.18)",  color: "#EA580C", label };
-  if (status === "약속대기") return { bg: "rgba(255,193,7,0.18)", color: "#FFC107", label };
-  if (status === "확정")    return { bg: "rgba(29,158,117,0.18)", color: "#1D9E75", label };
-  return { bg: "rgba(156,163,175,0.18)", color: "#9CA3AF", label };
+  // 2026-06-12 — 공통 utility (taskStatusColor.js) delegate. 옛 inline switch 폐기.
+  //   label 은 statusLabel() (visit_only → "출장비만"). color/bg 는 새 6색 매핑.
+  const { color, bg } = getTaskStatusColor(status);
+  return { color, bg, label: statusLabel(status) || "—" };
 }
 
 export function UsolNAssignList({ onTaskClick, onSeeAll }) {
