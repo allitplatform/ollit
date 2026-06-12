@@ -5,7 +5,7 @@
 //   ⚠️ 막대 클릭 → 우 aside (Shell PC 분기 main 유지).
 //   ⚠️ 모바일(<1024) 옛 화면 그대로.
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
@@ -17,40 +17,21 @@ const TOTAL_HOURS   = END_HOUR - START_HOUR;
 const LANE_HEIGHT   = 52;
 const ENGINEER_COL  = 120;
 
-// 작업 종류 색 — 다크/라이트 분리 (라이트 흰 배경에서도 또렷하게).
-//   다크: 원래 톤 유지 (#0EA5E9 / #FFB800).
-//   라이트: 진한 톤 (sky-600 / yellow-600) — 흰 배경 위 가라앉지 않게.
-const KIND_COLOR_DARK = {
-  cleaning:    "#0EA5E9",   // cyan-500
+// 작업 종류 색 — 다크/라이트 통일 (사장님 spec — 라이트도 같은 쨍한 색).
+const KIND_COLOR = {
+  cleaning:    "#0EA5E9",  // cyan-500
   refrigerant: "#FFB800",
-};
-const KIND_COLOR_LIGHT = {
-  cleaning:    "#0284C7",   // sky-600 — 흰 배경에 진한 파랑
-  refrigerant: "#CA8A04",   // yellow-600 — 흰 배경에 진한 황색
 };
 const KIND_COLOR_FALLBACK = "#9CA3AF";
 
-// 테마 감지 hook — themes.js applyResolved 가 document.documentElement.dataset.theme 설정.
-//   MutationObserver 로 사용자 theme 변경 시 자동 갱신.
-function useTheme() {
-  const [theme, setTheme] = useState(() =>
-    typeof document !== "undefined"
-      ? (document.documentElement.dataset.theme || "dark")
-      : "dark"
-  );
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    const observer = new MutationObserver(() => {
-      setTheme(document.documentElement.dataset.theme || "dark");
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["data-theme"],
-    });
-    return () => observer.disconnect();
-  }, []);
-  return theme;
-}
+// 막대 위 글자 색 (대비) — 종류별 자동.
+//   파랑 #0EA5E9 → 흰 글자 (대비 충분)
+//   노랑 #FFB800 → 검정 글자 (흰 글자 안 보임)
+const TEXT_ON_KIND = {
+  cleaning:    "#fff",
+  refrigerant: "#1A1A1A",
+};
+const TEXT_ON_KIND_FALLBACK = "#fff";
 
 export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTaskClick }) {
   const [view, setView] = useState("time");
@@ -60,10 +41,6 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
   const today    = todayYmd();
   const isToday  = selectedDate === today;
 
-  // 2026-06-12 — 테마 분리 (라이트 흰 배경에 옛 cyan-500/amber 가 가라앉음).
-  const theme = useTheme();
-  const isLight = theme === "light";
-  const kindColorMap = isLight ? KIND_COLOR_LIGHT : KIND_COLOR_DARK;
 
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
@@ -126,7 +103,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       </div>
 
       {view === "time" ? (
-        <TimeAxisView lanes={lanes} onTaskClick={onTaskClick} kindColorMap={kindColorMap} isLight={isLight}/>
+        <TimeAxisView lanes={lanes} onTaskClick={onTaskClick}/>
       ) : (
         <FlowPlaceholder/>
       )}
@@ -242,7 +219,7 @@ function ViewToggle({ value, onChange }) {
 // 🅐 시간축 — 화면 폭에 맞춤 (1fr + 슬롯 flex:1). 가로 스크롤 없음.
 //   세로도 기사 수만큼만 — maxHeight 없음.
 // ──────────────────────────────────────────────────────────────────
-function TimeAxisView({ lanes, onTaskClick, kindColorMap, isLight }) {
+function TimeAxisView({ lanes, onTaskClick }) {
   if (lanes.length === 0) {
     return (
       <div style={{
@@ -305,14 +282,14 @@ function TimeAxisView({ lanes, onTaskClick, kindColorMap, isLight }) {
 
         {/* 행들 */}
         {lanes.map(lane => (
-          <Lane key={lane.key} lane={lane} onTaskClick={onTaskClick} kindColorMap={kindColorMap} isLight={isLight}/>
+          <Lane key={lane.key} lane={lane} onTaskClick={onTaskClick}/>
         ))}
       </div>
     </div>
   );
 }
 
-function Lane({ lane, onTaskClick, kindColorMap, isLight }) {
+function Lane({ lane, onTaskClick }) {
   return (
     <>
       {/* 좌측 — 기사명 + 건수 */}
@@ -361,8 +338,6 @@ function Lane({ lane, onTaskClick, kindColorMap, isLight }) {
             key={task.id || task.taskCode}
             task={task}
             onClick={() => onTaskClick?.(task)}
-            kindColorMap={kindColorMap}
-            isLight={isLight}
           />
         ))}
       </div>
@@ -370,7 +345,7 @@ function Lane({ lane, onTaskClick, kindColorMap, isLight }) {
   );
 }
 
-function TaskBar({ task, onClick, kindColorMap, isLight }) {
+function TaskBar({ task, onClick }) {
   const scheduled = task.scheduledAt || task.scheduled_at;
   if (!scheduled) return null;
   const d = new Date(scheduled);
@@ -392,7 +367,8 @@ function TaskBar({ task, onClick, kindColorMap, isLight }) {
 
   // 색: 종류 단일 (세척 파랑 / 냉매 노랑). 테두리=종류색 약하게. 좌측 4px 굵은 바.
   const kind = getServiceKind(task);
-  const kindColor = (kindColorMap && kindColorMap[kind]) || KIND_COLOR_FALLBACK;
+  const kindColor = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
+  const textCol   = TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK;
 
   // 완료 / visit_only / 정산완료 → 흐림 (작업 끝난 표시).
   const isDone = task.status === "완료" || task.status === "정산완료" || task.status === "visit_only";
@@ -405,12 +381,8 @@ function TaskBar({ task, onClick, kindColorMap, isLight }) {
   const time = `${pad(hours)}:${pad(minutes)}`;
   const title = `${time} · ${customer}${region ? " · " + region : ""} · ${kind === "refrigerant" ? "냉매" : kind === "cleaning" ? "세척" : ""} · ${task.status || ""}`;
 
-  // 2026-06-12 — 라이트는 solid 종류색 + 흰 글자 (칙칙한 alpha+검정 조합 해소).
-  //   다크는 옛 그대로 (alpha E6 90% + var(--text-primary)).
-  const barBackground = isLight ? kindColor : `${kindColor}E6`;
-  const barTextColor  = isLight ? "#fff" : "var(--text-primary)";
-  const regionOpacity = isLight ? 0.85 : 0.75;
-
+  // 2026-06-12 — 라이트/다크 통일 solid 종류색 + 종류별 글자색 (대비 자동).
+  //   파랑 #0EA5E9 → 흰 글자 / 노랑 #FFB800 → 검정 글자.
   return (
     <button onClick={onClick} title={title}
       style={{
@@ -419,11 +391,11 @@ function TaskBar({ task, onClick, kindColorMap, isLight }) {
         top: 4,
         height: LANE_HEIGHT - 8,
         width: `calc(${widthPct}% - 2px)`,
-        background: barBackground,
-        border: `1px solid ${kindColor}`,         // 종류색 테두리 (얇게)
-        borderLeft: `4px solid ${kindColor}`,     // 좌측 굵은 종류 바
+        background: kindColor,                   // solid (alpha 없음, 라이트/다크 동일)
+        border: `1px solid ${kindColor}`,
+        borderLeft: `4px solid ${kindColor}`,
         borderRadius: 5,
-        color: barTextColor,
+        color: textCol,
         fontFamily: "inherit",
         cursor: "pointer",
         padding: "4px 8px",
@@ -442,15 +414,15 @@ function TaskBar({ task, onClick, kindColorMap, isLight }) {
       }}>
         <span style={{
           fontSize: 11, fontWeight: 800,
-          color: barTextColor,
+          color: textCol,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           lineHeight: 1.1,
         }}>{customer}</span>
         {region && (
           <span style={{
             fontSize: 9, fontWeight: 600,
-            color: barTextColor,
-            opacity: regionOpacity,
+            color: textCol,
+            opacity: 0.8,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             lineHeight: 1.1,
           }}>{region}</span>
