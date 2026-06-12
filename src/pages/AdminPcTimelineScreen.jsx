@@ -17,26 +17,29 @@ const TOTAL_HOURS   = END_HOUR - START_HOUR;
 const LANE_HEIGHT   = 52;
 const ENGINEER_COL  = 120;
 
-// 작업 종류 색 (사장님 spec — 세척 파랑 / 냉매 노랑). 막대 색 단일 (테두리·상태 색 제거).
+// 작업 종류 색 (사장님 spec — 더 쨍한 파랑/노랑).
 const KIND_COLOR = {
-  cleaning:    "#0EA5E9",
-  refrigerant: "#FFB800",
+  cleaning:    "#38BDF8",  // sky-400 (옛 0EA5E9 cyan-500 보다 밝음)
+  refrigerant: "#FACC15",  // yellow-400 (옛 FFB800 보다 환한 노랑)
 };
 const KIND_COLOR_FALLBACK = "#9CA3AF";
 
 export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTaskClick }) {
   const [view, setView] = useState("time");
+  // 2026-06-12 — 날짜 네비 (사장님 spec). 기본 오늘 + ‹ 이전 / 다음 › / 오늘 버튼.
+  const [selectedDate, setSelectedDate] = useState(() => todayYmd());
 
-  const today = todayYmd();
+  const today    = todayYmd();
+  const isToday  = selectedDate === today;
 
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
       if (!t || t.status === "취소") return false;
       const scheduled = t.scheduledAt || t.scheduled_at;
       if (!scheduled) return false;
-      return toKstYmd(scheduled) === today;
+      return toKstYmd(scheduled) === selectedDate;
     });
-  }, [apiTasks, today]);
+  }, [apiTasks, selectedDate]);
 
   const lanes = useMemo(() => {
     const byEng = new Map();
@@ -67,16 +70,22 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     }}>
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 12,
+        gap: 12, flexWrap: "wrap",
       }}>
-        <div style={{
-          fontSize: 18, fontWeight: 800,
-          color: "var(--text-primary)",
-          letterSpacing: "-0.4px",
-        }}>
-          작업 타임라인 · {formatDateKo(today)}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{
+            fontSize: 18, fontWeight: 800,
+            color: "var(--text-primary)",
+            letterSpacing: "-0.4px",
+          }}>작업 타임라인</div>
+          <DateNav
+            selectedDate={selectedDate}
+            onPrev={() => setSelectedDate(d => shiftDate(d, -1))}
+            onNext={() => setSelectedDate(d => shiftDate(d, 1))}
+            onToday={() => setSelectedDate(today)}
+            isToday={isToday}
+          />
           <span style={{
-            marginLeft: 10,
             fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
           }}>{lanes.length}명 · {todayTasks.length}건</span>
         </div>
@@ -92,10 +101,74 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
   );
 }
 
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
 function formatDateKo(ymd) {
   if (!ymd) return "";
-  const [y, m, d] = ymd.split("-");
-  return `${Number(m)}/${Number(d)}`;
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  return `${m}/${d} (${WEEKDAYS[dt.getDay()]})`;
+}
+
+function shiftDate(ymd, delta) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 날짜 네비 — ‹ 이전 / [날짜] / 다음 › + (선택 ≠ 오늘 시) "오늘" 버튼.
+// ──────────────────────────────────────────────────────────────────
+function DateNav({ selectedDate, onPrev, onNext, onToday, isToday }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 2,
+      background: "var(--bg-elevated)",
+      border: "1px solid var(--border)",
+      borderRadius: 999,
+      padding: 3,
+    }}>
+      <NavBtn onClick={onPrev} aria="이전 날짜">‹</NavBtn>
+      <span style={{
+        padding: "4px 10px",
+        fontSize: 13, fontWeight: 700,
+        color: isToday ? "var(--accent)" : "var(--text-primary)",
+        minWidth: 90, textAlign: "center",
+        fontVariantNumeric: "tabular-nums",
+      }}>{formatDateKo(selectedDate)}</span>
+      <NavBtn onClick={onNext} aria="다음 날짜">›</NavBtn>
+      {!isToday && (
+        <button onClick={onToday}
+          style={{
+            marginLeft: 4,
+            padding: "4px 11px",
+            background: "var(--accent)",
+            border: "none",
+            borderRadius: 999,
+            color: "#fff",
+            fontSize: 11, fontWeight: 800,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>오늘</button>
+      )}
+    </div>
+  );
+}
+
+function NavBtn({ onClick, children, aria }) {
+  return (
+    <button onClick={onClick} aria-label={aria}
+      style={{
+        width: 26, height: 26, padding: 0,
+        background: "transparent",
+        border: "none",
+        color: "var(--text-secondary)",
+        fontSize: 18, fontWeight: 700,
+        cursor: "pointer", fontFamily: "inherit",
+        borderRadius: 999,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+      }}>{children}</button>
+  );
 }
 
 function ViewToggle({ value, onChange }) {
@@ -147,7 +220,7 @@ function TimeAxisView({ lanes, onTaskClick }) {
         background: "var(--bg-elevated)",
         border: "1px solid var(--border)",
         borderRadius: 14,
-      }}>오늘 예정 작업 없음</div>
+      }}>예정 작업 없음</div>
     );
   }
 
@@ -303,7 +376,7 @@ function TaskBar({ task, onClick }) {
         top: 4,
         height: LANE_HEIGHT - 8,
         width: `calc(${widthPct}% - 2px)`,
-        background: `${kindColor}CC`,            // 80% alpha — 종류색 선명
+        background: `${kindColor}E6`,            // 90% alpha — 종류색 거의 단색 (밝게)
         border: `1px solid ${kindColor}`,         // 종류색 테두리 (얇게)
         borderLeft: `4px solid ${kindColor}`,     // 좌측 굵은 종류 바
         borderRadius: 5,
