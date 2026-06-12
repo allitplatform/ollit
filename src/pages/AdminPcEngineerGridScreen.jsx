@@ -155,8 +155,8 @@ export function AdminPcEngineerGridScreen({ onEdit, onAdd }) {
       ) : (
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 16,
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: 10,
         }}>
           {filtered.map(eng => (
             <EngineerCard
@@ -221,14 +221,14 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick })
       style={{
         background: "var(--bg-elevated)",
         border: "1px solid var(--border)",
-        borderRadius: 14,
-        padding: "16px 18px",
+        borderRadius: 10,
+        padding: "10px 12px",
         textAlign: "left",
         cursor: "pointer",
         fontFamily: "inherit",
         display: "flex",
         flexDirection: "column",
-        gap: 12,
+        gap: 7,
         opacity: isDimmed ? 0.55 : 1,
         transition: "border-color 0.1s",
       }}
@@ -236,29 +236,29 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick })
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
     >
       {/* 상단 — 아바타 + 이름 + 상태 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{
-          width: 38, height: 38,
+          width: 30, height: 30,
           borderRadius: "50%",
           background: "var(--accent-bg)",
           color: "var(--accent)",
           display: "inline-flex", alignItems: "center", justifyContent: "center",
-          fontSize: 16, fontWeight: 800,
+          fontSize: 13, fontWeight: 800,
           flexShrink: 0,
         }}>{init}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
-            fontSize: 15, fontWeight: 800,
+            fontSize: 13, fontWeight: 800,
             color: "var(--text-primary)",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>{engineer.name || "—"}</div>
           <div style={{
             display: "flex", alignItems: "center", gap: 4,
-            fontSize: 11, fontWeight: 700, color: "var(--text-secondary)",
-            marginTop: 2,
+            fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
+            marginTop: 1,
           }}>
             <span style={{
-              width: 7, height: 7, borderRadius: "50%",
+              width: 6, height: 6, borderRadius: "50%",
               background: meta.dotColor,
             }}/>
             <span>{meta.label}</span>
@@ -281,8 +281,8 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick })
 
       {/* 스킬 칩 — 세척 / 냉매 */}
       <div style={{
-        display: "flex", gap: 6, flexWrap: "wrap",
-        marginTop: 2,
+        display: "flex", gap: 4, flexWrap: "wrap",
+        marginTop: 1,
       }}>
         {hasCleaning && (
           <SkillChip color={COLOR_CLEANING}>❄ 세척</SkillChip>
@@ -305,8 +305,8 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick })
 function Row({ icon, children }) {
   return (
     <div style={{
-      display: "flex", alignItems: "center", gap: 6,
-      fontSize: 12, color: "var(--text-secondary)",
+      display: "flex", alignItems: "center", gap: 5,
+      fontSize: 11, color: "var(--text-secondary)",
       minWidth: 0,
     }}>
       <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center" }}>{icon}</span>
@@ -321,8 +321,8 @@ function Row({ icon, children }) {
 function SkillChip({ color, children }) {
   return (
     <span style={{
-      padding: "3px 9px",
-      fontSize: 11, fontWeight: 800,
+      padding: "2px 7px",
+      fontSize: 10, fontWeight: 800,
       color,
       background: `${color}22`,
       border: `1px solid ${color}55`,
