@@ -86,36 +86,45 @@ export function AdminPcEngineerCalendarScreen({
     });
   }, [apiTasks, weekStart, weekEnd]);
 
-  // 기사 → 작업[] 그룹. 미배정 작업은 UNASSIGNED_KEY 로 묶음 (타임라인 동일).
+  // 2026-06-12 — 타임라인과 동일 키 추출. 옛 데이터 일부는 eid 비고 ename(기사 이름 문자열)만
+  //   있어 옛 주간 코드는 다 미배정으로 빠졌음 (타임라인은 ename fallback 으로 묶음).
+  //   key = eid || ename || UNASSIGNED_KEY. value 는 { key, eid, ename, tasks }.
   const byEngineer = useMemo(() => {
     const map = new Map();
     for (const t of weekTasks) {
-      const eid = t.assignedEngineerId || t.assigned_engineer_id;
-      const key = eid || UNASSIGNED_KEY;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(t);
+      const eid   = t.assignedEngineerId || t.assigned_engineer_id || null;
+      const ename = t.assignedEngineer || t.engineer || "";
+      const key = eid || ename || UNASSIGNED_KEY;
+      if (!map.has(key)) map.set(key, { key, eid, ename, tasks: [] });
+      map.get(key).tasks.push(t);
     }
     return map;
   }, [weekTasks]);
 
   // 미배정 카운트 — 헤더 표시.
-  const unassignedCount = (byEngineer.get(UNASSIGNED_KEY) || []).length;
+  const unassignedCount = (byEngineer.get(UNASSIGNED_KEY)?.tasks || []).length;
 
   // 행 정렬 — 작업 많은 순. 미배정 행은 항상 맨 끝. 검색 매칭 시 작업 0 기사도 포함.
+  //   row.key = 그룹 식별자 (eid 또는 ename). row.eid = 실제 기사 id (없으면 null — ename 묶음).
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const assigned = [];
     let unassignedRow = null;
-    for (const [eid, tasks] of byEngineer.entries()) {
-      if (eid === UNASSIGNED_KEY) {
-        unassignedRow = { eid: UNASSIGNED_KEY, eng: null, name: "(미배정)", tasks, isUnassigned: true };
+    for (const [key, info] of byEngineer.entries()) {
+      if (key === UNASSIGNED_KEY) {
+        unassignedRow = {
+          key, eid: null, eng: null,
+          name: "(미배정)", tasks: info.tasks, isUnassigned: true,
+        };
         continue;
       }
-      const eng = (apiEngineers || []).find(e => e.id === eid);
+      const eng = info.eid ? (apiEngineers || []).find(e => e.id === info.eid) : null;
       assigned.push({
-        eid, eng,
-        name: eng?.name || tasks[0]?.assignedEngineer || tasks[0]?.engineer || "(이름 없음)",
-        tasks,
+        key,
+        eid: info.eid,  // null 가능 (ename 묶음 — 옛 데이터)
+        eng,
+        name: eng?.name || info.ename || "(이름 없음)",
+        tasks: info.tasks,
         isUnassigned: false,
       });
     }
@@ -125,27 +134,30 @@ export function AdminPcEngineerCalendarScreen({
 
     if (!q) return baseRows;
 
-    // 검색 — 매칭 기사만. 작업 0 기사도 매칭이면 포함.
-    const taskedIds = new Set(assigned.map(r => r.eid));
+    // 검색 — 매칭 기사만. 작업 0 기사도 매칭이면 포함 (apiEngineers 안 이름 기준).
+    const taskedKeys = new Set(assigned.map(r => r.key));
     const extras = [];
     for (const eng of apiEngineers || []) {
-      if (!eng || taskedIds.has(eng.id)) continue;
+      if (!eng || taskedKeys.has(eng.id)) continue;
       const name = (eng.name || "").toLowerCase();
-      if (name.includes(q)) extras.push({ eid: eng.id, eng, name: eng.name || "", tasks: [], isUnassigned: false });
+      if (name.includes(q)) extras.push({
+        key: eng.id, eid: eng.id, eng,
+        name: eng.name || "", tasks: [], isUnassigned: false,
+      });
     }
-    // "미배정" 키워드 매칭 시 미배정 행도 표시.
     const all = [...assigned, ...extras];
     const filtered = all.filter(r => (r.name || "").toLowerCase().includes(q));
     if (unassignedRow && "(미배정)".includes(q)) filtered.push(unassignedRow);
     return filtered;
   }, [byEngineer, apiEngineers, search]);
 
-  // 기사 × 날짜 cell grouping (시간 정렬). 미배정 작업도 UNASSIGNED_KEY 로 묶음.
+  // 기사 × 날짜 cell grouping (시간 정렬). 키 추출은 byEngineer 와 동일 (타임라인 fallback 포함).
   const cellsByEngineerDate = useMemo(() => {
     const m = new Map();
     for (const t of weekTasks) {
-      const eid = t.assignedEngineerId || t.assigned_engineer_id;
-      const key = eid || UNASSIGNED_KEY;
+      const eid   = t.assignedEngineerId || t.assigned_engineer_id || null;
+      const ename = t.assignedEngineer || t.engineer || "";
+      const key = eid || ename || UNASSIGNED_KEY;
       const sched = t.scheduledAt || t.scheduled_at;
       const k = toKstYmd(sched);
       if (!m.has(key)) m.set(key, new Map());
@@ -310,13 +322,13 @@ export function AdminPcEngineerCalendarScreen({
 
           {/* 기사 행 */}
           {rows.map((row, ri) => {
-            const isHighlight = engineerId && row.eid === engineerId;
-            const inner = cellsByEngineerDate.get(row.eid);
+            const isHighlight = !!(engineerId && row.eid === engineerId);
+            const inner = cellsByEngineerDate.get(row.key);
             return (
-              <div key={row.eid}
+              <div key={row.key}
                 ref={(el) => {
-                  if (el) rowRefs.current.set(row.eid, el);
-                  else    rowRefs.current.delete(row.eid);
+                  if (el) rowRefs.current.set(row.key, el);
+                  else    rowRefs.current.delete(row.key);
                 }}
                 style={{
                   display: "grid",
