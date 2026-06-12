@@ -62,7 +62,8 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
   // 2026-06-12 — 테마 분리 (라이트 흰 배경에 옛 cyan-500/amber 가 가라앉음).
   const theme = useTheme();
-  const kindColorMap = theme === "light" ? KIND_COLOR_LIGHT : KIND_COLOR_DARK;
+  const isLight = theme === "light";
+  const kindColorMap = isLight ? KIND_COLOR_LIGHT : KIND_COLOR_DARK;
 
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
@@ -125,7 +126,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       </div>
 
       {view === "time" ? (
-        <TimeAxisView lanes={lanes} onTaskClick={onTaskClick} kindColorMap={kindColorMap}/>
+        <TimeAxisView lanes={lanes} onTaskClick={onTaskClick} kindColorMap={kindColorMap} isLight={isLight}/>
       ) : (
         <FlowPlaceholder/>
       )}
@@ -241,7 +242,7 @@ function ViewToggle({ value, onChange }) {
 // 🅐 시간축 — 화면 폭에 맞춤 (1fr + 슬롯 flex:1). 가로 스크롤 없음.
 //   세로도 기사 수만큼만 — maxHeight 없음.
 // ──────────────────────────────────────────────────────────────────
-function TimeAxisView({ lanes, onTaskClick, kindColorMap }) {
+function TimeAxisView({ lanes, onTaskClick, kindColorMap, isLight }) {
   if (lanes.length === 0) {
     return (
       <div style={{
@@ -304,14 +305,14 @@ function TimeAxisView({ lanes, onTaskClick, kindColorMap }) {
 
         {/* 행들 */}
         {lanes.map(lane => (
-          <Lane key={lane.key} lane={lane} onTaskClick={onTaskClick} kindColorMap={kindColorMap}/>
+          <Lane key={lane.key} lane={lane} onTaskClick={onTaskClick} kindColorMap={kindColorMap} isLight={isLight}/>
         ))}
       </div>
     </div>
   );
 }
 
-function Lane({ lane, onTaskClick, kindColorMap }) {
+function Lane({ lane, onTaskClick, kindColorMap, isLight }) {
   return (
     <>
       {/* 좌측 — 기사명 + 건수 */}
@@ -361,6 +362,7 @@ function Lane({ lane, onTaskClick, kindColorMap }) {
             task={task}
             onClick={() => onTaskClick?.(task)}
             kindColorMap={kindColorMap}
+            isLight={isLight}
           />
         ))}
       </div>
@@ -368,7 +370,7 @@ function Lane({ lane, onTaskClick, kindColorMap }) {
   );
 }
 
-function TaskBar({ task, onClick, kindColorMap }) {
+function TaskBar({ task, onClick, kindColorMap, isLight }) {
   const scheduled = task.scheduledAt || task.scheduled_at;
   if (!scheduled) return null;
   const d = new Date(scheduled);
@@ -403,6 +405,12 @@ function TaskBar({ task, onClick, kindColorMap }) {
   const time = `${pad(hours)}:${pad(minutes)}`;
   const title = `${time} · ${customer}${region ? " · " + region : ""} · ${kind === "refrigerant" ? "냉매" : kind === "cleaning" ? "세척" : ""} · ${task.status || ""}`;
 
+  // 2026-06-12 — 라이트는 solid 종류색 + 흰 글자 (칙칙한 alpha+검정 조합 해소).
+  //   다크는 옛 그대로 (alpha E6 90% + var(--text-primary)).
+  const barBackground = isLight ? kindColor : `${kindColor}E6`;
+  const barTextColor  = isLight ? "#fff" : "var(--text-primary)";
+  const regionOpacity = isLight ? 0.85 : 0.75;
+
   return (
     <button onClick={onClick} title={title}
       style={{
@@ -411,11 +419,11 @@ function TaskBar({ task, onClick, kindColorMap }) {
         top: 4,
         height: LANE_HEIGHT - 8,
         width: `calc(${widthPct}% - 2px)`,
-        background: `${kindColor}E6`,            // 90% alpha — 종류색 거의 단색 (밝게)
+        background: barBackground,
         border: `1px solid ${kindColor}`,         // 종류색 테두리 (얇게)
         borderLeft: `4px solid ${kindColor}`,     // 좌측 굵은 종류 바
         borderRadius: 5,
-        color: "var(--text-primary)",
+        color: barTextColor,
         fontFamily: "inherit",
         cursor: "pointer",
         padding: "4px 8px",
@@ -434,15 +442,15 @@ function TaskBar({ task, onClick, kindColorMap }) {
       }}>
         <span style={{
           fontSize: 11, fontWeight: 800,
-          color: "var(--text-primary)",
+          color: barTextColor,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           lineHeight: 1.1,
         }}>{customer}</span>
         {region && (
           <span style={{
             fontSize: 9, fontWeight: 600,
-            color: "var(--text-primary)",
-            opacity: 0.75,
+            color: barTextColor,
+            opacity: regionOpacity,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             lineHeight: 1.1,
           }}>{region}</span>
