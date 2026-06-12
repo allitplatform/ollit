@@ -9,9 +9,13 @@
 //   ⚠️ 색 토큰만 (var(--accent) 다크 #FF1B8D / 라이트 #E91860).
 //   ⚠️ 모바일(<1024) 옛 DashboardScreen 그대로.
 
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { computeRevenueByYmRange } from "../utils/revenueStats.js";
+// 2026-06-12 — 유솔N 정산대기 = 원청 화면 (PrincipalSettleTab) 과 동일 source/필터.
+//   task_items 단위, task_status="완료" + principal_id=USOL_N_PID + naver_settled_at NULL + subtotal>0 + is_canceled!=true.
+import { fetchPrincipalSettleItems } from "../lib/principalSettleDb.js";
+import { USOL_N_PID } from "../lib/usolNWeeklyData.js";
 import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
 
 function fmtKRW(n) {
@@ -279,12 +283,32 @@ function UsolNPanel({ apiTasks, user, onClick }) {
     usolNTasks.filter(x => x.status === "미배정").length,
     [usolNTasks]
   );
-  // 정산대기 = status="완료" + isTrackARemittance가 트랙 🅑 (유솔N 세척/추가선택)인 케이스 등 광범위.
-  //   단순화: status="완료"인 유솔N 작업 = 정산 대기 후보 (옛 화면 패턴 차용).
-  const pendingSettleCount = useMemo(() =>
-    usolNTasks.filter(x => x.status === "완료" || x.status === "정산대기").length,
-    [usolNTasks]
-  );
+  // 정산대기 — 원청 PrincipalSettleTab 와 동일 source/필터 재사용.
+  //   apiTasks 의 status="완료" 단순 카운트 X (= 1136 측 부풀림).
+  //   task_items 단위, principal_id=USOL_N_PID + task_status="완료" + naver_settled_at NULL
+  //   + subtotal>0 + is_canceled!=true. PrincipalSettleTab line 195-204 spec 동일.
+  const [pendingSettleCount, setPendingSettleCount] = useState(null); // null = loading
+  useEffect(() => {
+    let alive = true;
+    fetchPrincipalSettleItems({ principalCodes: ["usol_n"], monthsBack: 3 })
+      .then(res => {
+        if (!alive) return;
+        const items = res?.items || [];
+        const live = items.filter(it => it.task_status !== "취소" && it.is_canceled !== true);
+        const done = live.filter(it => it.task_status === "완료");
+        const pending = done.filter(it =>
+          it.principal_id === USOL_N_PID
+          && !it.naver_settled_at
+          && Number(it.subtotal) > 0
+        );
+        setPendingSettleCount(pending.length);
+      })
+      .catch(err => {
+        console.error("[UsolNPanel.pendingSettle] fetch failed:", err);
+        if (alive) setPendingSettleCount(0);
+      });
+    return () => { alive = false; };
+  }, []);
 
   const total = revenue.total || 0;
   const denom = total > 0 ? total : 1;
@@ -388,7 +412,7 @@ function UsolNPanel({ apiTasks, user, onClick }) {
           fontVariantNumeric: "tabular-nums",
         }}>
           <UsolNStat label="미배정"   value={unassignedCount}    warn={unassignedCount > 0}/>
-          <UsolNStat label="정산 대기" value={pendingSettleCount}/>
+          <UsolNStat label="정산 대기" value={pendingSettleCount === null ? "···" : pendingSettleCount}/>
           <div style={{ borderTop: "1px solid var(--border)", paddingTop: 10 }}>
             <UsolNStat label="회사 마진" value={fmtKRW(revenue.owner || 0)} big/>
           </div>

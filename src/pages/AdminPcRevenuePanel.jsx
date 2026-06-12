@@ -264,6 +264,7 @@ function RevItem({ color, label, amount, muted, big }) {
         fontSize: big ? 13 : 12,
         fontWeight: big ? 800 : 600,
         color: muted ? "var(--text-secondary)" : "var(--text-primary)",
+        whiteSpace: "nowrap",
       }}>{label}</span>
       <span className="mono" style={{
         fontSize: big ? 20 : 13,
