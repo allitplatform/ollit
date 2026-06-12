@@ -14,7 +14,7 @@ import { getServiceKind } from "../utils/workTypeKind.js";
 const START_HOUR    = 7;
 const END_HOUR      = 20;
 const TOTAL_HOURS   = END_HOUR - START_HOUR;
-const LANE_HEIGHT   = 42;
+const LANE_HEIGHT   = 52;
 const ENGINEER_COL  = 120;
 
 // 작업 종류 색 (사장님 spec — 세척 파랑 / 냉매 노랑). 막대 색 단일 (테두리·상태 색 제거).
@@ -303,31 +303,44 @@ function TaskBar({ task, onClick }) {
         top: 4,
         height: LANE_HEIGHT - 8,
         width: `calc(${widthPct}% - 2px)`,
-        background: `${kindColor}55`,           // 약 33% alpha (선명)
-        border: `1px solid ${kindColor}`,        // 종류색 테두리 (얇게)
-        borderLeft: `4px solid ${kindColor}`,    // 좌측 굵은 종류 바
+        background: `${kindColor}CC`,            // 80% alpha — 종류색 선명
+        border: `1px solid ${kindColor}`,         // 종류색 테두리 (얇게)
+        borderLeft: `4px solid ${kindColor}`,     // 좌측 굵은 종류 바
         borderRadius: 5,
         color: "var(--text-primary)",
         fontFamily: "inherit",
         cursor: "pointer",
-        padding: "0 6px",
+        padding: "4px 8px",
         display: "flex",
         alignItems: "center",
+        gap: 6,
         overflow: "hidden",
         textAlign: "left",
         boxSizing: "border-box",
         opacity,
-        // 상태 hint — 막대 우측 점 (작게).
-        // 옛 테두리 상태색 제거 → 탁함 해소.
       }}>
-      <span style={{
-        flex: 1,
-        fontSize: 11, fontWeight: 800,
-        color: "var(--text-primary)",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        lineHeight: 1.1,
-      }}>{customer}</span>
-      {/* 상태 점 — 색만 작게 (테두리 X) */}
+      <div style={{
+        flex: 1, minWidth: 0,
+        display: "flex", flexDirection: "column", justifyContent: "center",
+        gap: 1,
+      }}>
+        <span style={{
+          fontSize: 11, fontWeight: 800,
+          color: "var(--text-primary)",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          lineHeight: 1.1,
+        }}>{customer}</span>
+        {region && (
+          <span style={{
+            fontSize: 9, fontWeight: 600,
+            color: "var(--text-primary)",
+            opacity: 0.75,
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            lineHeight: 1.1,
+          }}>{region}</span>
+        )}
+      </div>
+      {/* 상태 hint — 우측 작은 점 (색만) */}
       <span style={{
         width: 6, height: 6, borderRadius: "50%",
         background: statusStyle.color,
