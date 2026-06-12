@@ -235,34 +235,42 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick })
       onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
     >
-      {/* 상단 — 아바타 + 이름 + 상태 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      {/* 상단 — 좌(아바타+이름) / 우(상태) space-between */}
+      <div style={{
+        display: "flex", alignItems: "center",
+        justifyContent: "space-between", gap: 8,
+      }}>
         <div style={{
-          width: 30, height: 30,
-          borderRadius: "50%",
-          background: "var(--accent-bg)",
-          color: "var(--accent)",
-          display: "inline-flex", alignItems: "center", justifyContent: "center",
-          fontSize: 13, fontWeight: 800,
-          flexShrink: 0,
-        }}>{init}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
+          display: "flex", alignItems: "center", gap: 8,
+          flex: 1, minWidth: 0,
+        }}>
+          <div style={{
+            width: 30, height: 30,
+            borderRadius: "50%",
+            background: "var(--accent-bg)",
+            color: "var(--accent)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            fontSize: 13, fontWeight: 800,
+            flexShrink: 0,
+          }}>{init}</div>
           <div style={{
             fontSize: 13, fontWeight: 800,
             color: "var(--text-primary)",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            flex: 1, minWidth: 0,
           }}>{engineer.name || "—"}</div>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 4,
-            fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
-            marginTop: 1,
-          }}>
-            <span style={{
-              width: 6, height: 6, borderRadius: "50%",
-              background: meta.dotColor,
-            }}/>
-            <span>{meta.label}</span>
-          </div>
+        </div>
+        {/* 상태 — 오른쪽 위 */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 4,
+          fontSize: 10, fontWeight: 700, color: "var(--text-secondary)",
+          flexShrink: 0,
+        }}>
+          <span style={{
+            width: 6, height: 6, borderRadius: "50%",
+            background: meta.dotColor,
+          }}/>
+          <span>{meta.label}</span>
         </div>
       </div>
 
