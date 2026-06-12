@@ -54,8 +54,9 @@ import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../uti
 import { useIsPc } from "../utils/useIsPc.js";
 import { AdminPcShell } from "./AdminPcShell.jsx";
 import { AdminPcDashboard } from "./AdminPcDashboard.jsx";
-// 2026-06-12 — PC 작업 타임라인 (시간축 + 처리 흐름 탭).
+// 2026-06-12 — PC 작업 타임라인. 사이드바 분리 (시간축 / 처리 흐름) — 렉 해소.
 import { AdminPcTimelineScreen } from "./AdminPcTimelineScreen.jsx";
+import { AdminPcFlowScreen }     from "./AdminPcFlowScreen.jsx";
 import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
 import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
 import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
@@ -2562,13 +2563,23 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     />
   ) : null;
 
+  // 2026-06-12 — PC 처리 흐름 (🅑) — 사이드바 별도 항목 pcTimelineFlow.
+  const adminPcTimelineFlowNode = isPc ? (
+    <AdminPcFlowScreen
+      apiTasks={apiTasks}
+      apiEngineers={apiEngineers}
+      onTaskClick={(task) => openTaskDetailFromLight(task, "pcTimelineFlow")}
+    />
+  ) : null;
+
   // 2026-06-12 — PC + taskDetail 진입 시 main 에 mount 할 컴포넌트 결정.
   //   prevScreen 따라 옛 screen 화면 유지 (사장님 spec — 타임라인에서 클릭 시 타임라인 유지).
   //   매핑 안 된 screen 은 dashboard fallback.
   const pcMainContent = (() => {
     if (!isPc) return null;
     const sourceScreen = (screen === "taskDetail" && prevScreen) ? prevScreen : screen;
-    if (sourceScreen === "pcTimeline") return adminPcTimelineNode;
+    if (sourceScreen === "pcTimeline")     return adminPcTimelineNode;
+    if (sourceScreen === "pcTimelineFlow") return adminPcTimelineFlowNode;
     return adminPcDashboardNode;
   })();
 
@@ -3845,11 +3856,16 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
 
-  // 2026-06-12 — PC 작업 타임라인. PC 전용 (사이드바 "작업 > 타임라인" 항목). 모바일 미진입.
-  //   adminPcTimelineNode 변수로 캡처해 양쪽 (이 분기 + taskDetail Shell layout) 같은 element 사용.
+  // 2026-06-12 — PC 작업 타임라인. PC 전용 (사이드바 "작업 > 타임라인 (시간축)" / "처리 흐름").
+  //   변수로 캡처해 양쪽 (이 분기 + taskDetail Shell layout) 같은 element 사용 — state 보존.
   if (screen === "pcTimeline") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       {adminPcTimelineNode}
+    </Shell>;
+  }
+  if (screen === "pcTimelineFlow") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      {adminPcTimelineFlowNode}
     </Shell>;
   }
 
