@@ -11,6 +11,8 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
+// 2026-06-12 — 반응형 (1280px 2단↔1단 자동 전환).
+import { useMinWidth } from "../utils/useIsPc.js";
 import { computeRevenueByYmRange } from "../utils/revenueStats.js";
 // 2026-06-12 — 유솔N 정산대기 = 원청 화면 (PrincipalSettleTab) 과 동일 source/필터.
 //   task_items 단위, task_status="완료" + principal_id=USOL_N_PID + naver_settled_at NULL + subtotal>0 + is_canceled!=true.
@@ -41,6 +43,9 @@ export function AdminPcDashboard({
   onClickUsolN,
   onTaskAssign,
 }) {
+  // 2026-06-12 — 반응형 — 1280px 이상이면 2단 (매출 좌 / 알림+유솔N 우), 미만이면 1단 세로 stack.
+  const isWide = useMinWidth(1280);
+
   const stats = dynamicStats || {};
   const unassignedCount = (stats.newReceptionTasks || []).length;
 
@@ -75,10 +80,10 @@ export function AdminPcDashboard({
       flexDirection: "column",
       gap: 20,
     }}>
-      {/* 상단 2단 — 매출 도넛 (좌, 1.4fr) + 우상 3카드 (우, 1fr) */}
+      {/* 상단 — 매출 + 우 컬럼 (3카드 + 유솔N stack). 1280px+ 2단 / 미만 1단. */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1.4fr) minmax(0, 1fr)",
+        gridTemplateColumns: isWide ? "minmax(0, 1.4fr) minmax(0, 1fr)" : "minmax(0, 1fr)",
         gap: 20,
         alignItems: "start",
       }}>
@@ -112,27 +117,19 @@ export function AdminPcDashboard({
             onClick={onClickReassign}
             color="#FF8A3D"
           />
+          {/* 유솔N 월정산 — 우 컬럼 끝에 stack (빈 공간 채움, 매출 도넛 길이와 균형). */}
+          <AdminPcUsolNMonthlyPanel onClick={onClickUsolN}/>
         </div>
       </div>
 
       {/* 메트릭 5개 한줄 */}
       <MetricsRow metrics={metrics}/>
 
-      {/* 하단 2단 — 유솔N 좌 (1fr) + 기사별 일정 우 (1fr) */}
-      <div style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
-        gap: 20,
-        alignItems: "start",
-      }}>
-        <AdminPcUsolNMonthlyPanel
-          onClick={onClickUsolN}
-        />
-        <EngineersPanel
-          apiTasks={apiTasks}
-          apiEngineers={apiEngineers}
-        />
-      </div>
+      {/* 기사별 일정 — 풀폭 (유솔N 우 컬럼으로 이동). */}
+      <EngineersPanel
+        apiTasks={apiTasks}
+        apiEngineers={apiEngineers}
+      />
 
       {/* 다음 단계 — 작업 검색 풀폭 */}
       <div style={{

@@ -22,3 +22,24 @@ export function useIsPc(threshold = PC_BREAKPOINT_PX) {
   }, [threshold]);
   return isPc;
 }
+
+// 2026-06-12 — 임의 min-width 매칭 헬퍼. useIsPc 와 동일 패턴, threshold 자유.
+//   AdminApp PC 대시보드 반응형 (1280px 2단↔1단 전환) 등에 사용.
+export function useMinWidth(thresholdPx) {
+  const [matches, setMatches] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth >= thresholdPx : false
+  );
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const mql = window.matchMedia(`(min-width: ${thresholdPx}px)`);
+    const handler = (e) => setMatches(e.matches);
+    setMatches(mql.matches);
+    if (mql.addEventListener) mql.addEventListener("change", handler);
+    else mql.addListener(handler);
+    return () => {
+      if (mql.removeEventListener) mql.removeEventListener("change", handler);
+      else mql.removeListener(handler);
+    };
+  }, [thresholdPx]);
+  return matches;
+}
