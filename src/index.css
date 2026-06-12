@@ -51,15 +51,16 @@ button, input, textarea, select {
   50%      { opacity: 0.7; }
 }
 
-/* V11-11 — 색깔 시스템 (핫핑크 + 그레이 4색) */
+/* V11-11 — 색깔 시스템 (핫핑크 + 그레이 4색)
+   2026-06-12 — 라이트 기본값을 #E91860 계열로 분리. 다크 override는 아래 [data-theme="dark"]. */
 :root {
-  --accent-bg:           rgba(255,27,141,0.06);
-  --accent-bg-strong:    rgba(255,27,141,0.12);
-  --accent-border:       rgba(255,27,141,0.30);
-  --accent-border-strong:rgba(255,27,141,0.50);
+  --accent-bg:           rgba(233,24,96,0.06);
+  --accent-bg-strong:    rgba(233,24,96,0.12);
+  --accent-border:       rgba(233,24,96,0.30);
+  --accent-border-strong:rgba(233,24,96,0.50);
   /* V14 — 그라데이션 → 단색 */
-  --accent-gradient:     #FF1B8D;
-  --accent-gradient-soft:rgba(255,27,141,0.10);
+  --accent-gradient:     #E91860;
+  --accent-gradient-soft:rgba(233,24,96,0.10);
   --naver-gradient:      #03C75A;
 }
 [data-theme="dark"] {

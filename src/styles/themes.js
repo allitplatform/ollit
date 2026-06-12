@@ -20,8 +20,8 @@ export const DARK_THEME = {
   "--input-bg":         "#1C1C1E",
   "--input-border":     "#3A3A3A",
 
-  // ── 메인 8색 (V14 / 라이트·다크 동일)
-  "--accent":           "#FF1B8D",   // 핫핑크 — 메인/진행중/CTA
+  // ── 메인 8색 (V14 / 다크 #FF1B8D · 라이트 #E91860 분리 — 2026-06-12)
+  "--accent":           "#FF1B8D",   // 핫핑크 — 메인/진행중/CTA (다크)
   "--accent-bg":        "rgba(255,27,141,0.10)",
   "--accent-soft":      "rgba(255,27,141,0.10)",
   "--naver-green":      "#03C75A",   // 유솔N
@@ -77,8 +77,8 @@ export const DARK_THEME = {
   "--request-text":         "#FFD66B",
   "--request-sub":          "#FFC04D",
   "--time-summary-bg":      "#2D0F1E",
-  "--time-summary-accent":  "#FF4DA6",
-  "--accent-strong":        "#FF4DA6",   // 다크 핫핑크 강조
+  "--time-summary-accent":  "#FF1B8D",
+  "--accent-strong":        "#FF1B8D",   // 다크 핫핑크 강조 (메인과 통일 — 2026-06-12)
   "--cancel-text":          "#FF6B85",
   "--ops-text":             "#9B85FF",
   "--ops-memo-bg":          "#1F1B33",
@@ -86,8 +86,8 @@ export const DARK_THEME = {
   "--ops-memo-body":        "#9B85FF",
   "--extra-fee-bg":         "rgba(255,27,141,0.08)",
   "--extra-fee-border":     "rgba(255,27,141,0.25)",
-  "--extra-fee-header":     "#FF4DA6",
-  "--extra-fee-text":       "#FF4DA6",
+  "--extra-fee-header":     "#FF1B8D",
+  "--extra-fee-text":       "#FF1B8D",
   // V14 정산 상세
   "--completed-pill-bg":    "#052E16",
   "--completed-pill-text":  "#4ADE80",
@@ -100,8 +100,8 @@ export const DARK_THEME = {
   "--label-sub":            "#999",
   "--sub-box-bg":           "#16161A",
   "--sub-box-amount":       "#C8C8C8",
-  "--hero-pink-bg":         "rgba(255,77,166,0.10)",
-  "--hero-pink-border":     "rgba(255,77,166,0.30)",
+  "--hero-pink-bg":         "rgba(255,27,141,0.10)",
+  "--hero-pink-border":     "rgba(255,27,141,0.30)",
   // V14 v3 정산 메인
   "--transfer-pill-bg":     "#4A1525",
   "--transfer-pill-text":   "#FF6B85",
@@ -132,10 +132,10 @@ export const LIGHT_THEME = {
   "--input-bg":         "#FFFFFF",
   "--input-border":     "#E5E0D6",
 
-  // ── 메인 8색 (V14 / 라이트·다크 동일)
-  "--accent":           "#FF1B8D",
-  "--accent-bg":        "rgba(255,27,141,0.06)",
-  "--accent-soft":      "rgba(255,27,141,0.06)",
+  // ── 메인 8색 (V14 / 라이트 #E91860 · 다크 #FF1B8D 분리 — 2026-06-12)
+  "--accent":           "#E91860",
+  "--accent-bg":        "rgba(233,24,96,0.06)",
+  "--accent-soft":      "rgba(233,24,96,0.06)",
   "--naver-green":      "#03C75A",
   "--service-cleaning": "#0EA5E9",
   "--service-refrigerant": "#FFB800",
@@ -164,7 +164,7 @@ export const LIGHT_THEME = {
   // ── 기사 직급 (legacy)
   "--engineer-rookie":  "#999",
   "--engineer-career":  "#666",
-  "--engineer-expert":  "#FF1B8D",
+  "--engineer-expert":  "#E91860",
 
   // ── 유솔N 전용 (라이트) — V14 단색
   "--usol-n-content-bg":      "#FAFAFA",
@@ -189,17 +189,17 @@ export const LIGHT_THEME = {
   "--request-text":         "#7A4F00",
   "--request-sub":          "#997000",
   "--time-summary-bg":      "#FFF5FA",
-  "--time-summary-accent":  "#FF1B8D",
-  "--accent-strong":        "#FF1B8D",
+  "--time-summary-accent":  "#E91860",
+  "--accent-strong":        "#E91860",
   "--cancel-text":          "#FF3B5C",
   "--ops-text":             "#7B61FF",
   "--ops-memo-bg":          "#F0EDFF",
   "--ops-memo-header":      "#4A3AAB",
   "--ops-memo-body":        "#5E4DCB",
-  "--extra-fee-bg":         "rgba(255,27,141,0.05)",
-  "--extra-fee-border":     "rgba(255,27,141,0.25)",
-  "--extra-fee-header":     "#FF1B8D",
-  "--extra-fee-text":       "#FF1B8D",
+  "--extra-fee-bg":         "rgba(233,24,96,0.05)",
+  "--extra-fee-border":     "rgba(233,24,96,0.25)",
+  "--extra-fee-header":     "#E91860",
+  "--extra-fee-text":       "#E91860",
   // V14 정산 상세
   "--completed-pill-bg":    "#DCFCE7",
   "--completed-pill-text":  "#166534",
@@ -212,8 +212,8 @@ export const LIGHT_THEME = {
   "--label-sub":            "#6B6359",
   "--sub-box-bg":           "#F5F2ED",
   "--sub-box-amount":       "#3F3A33",
-  "--hero-pink-bg":         "rgba(255,27,141,0.06)",
-  "--hero-pink-border":     "rgba(255,27,141,0.22)",
+  "--hero-pink-bg":         "rgba(233,24,96,0.06)",
+  "--hero-pink-border":     "rgba(233,24,96,0.22)",
   // V14 v3 정산 메인
   "--transfer-pill-bg":     "#FFE5E8",
   "--transfer-pill-text":   "#FF3B5C",

@@ -144,8 +144,8 @@ function josa(word, withFinal, withoutFinal) {
 }
 
 // 2026-05-23 — PRINCIPAL mock 제거. 색은 마젠타(정산 탭 일관), 라벨은 로그인 user 기반.
-const PRINCIPAL_COLOR = "#FF4D9E";
-const PRINCIPAL_BG    = "rgba(255,77,158,0.10)";
+const PRINCIPAL_COLOR = "var(--accent)";
+const PRINCIPAL_BG    = "var(--accent-bg)";
 
 // 2026-06-04 — 인사말 표시명 정리.
 //   user.name 측 "에어컨프로 사장님" 같이 들어오면 "사장님"/"사장" 트레일링 제거 + 중복 "님" 제거.
@@ -673,6 +673,7 @@ export default function PrincipalApp({ user, onLogout }) {
                 onCardClick={handleNotiClick}
                 onMarkRead={handleMarkNotiRead}
                 title="🔔 알림"
+                compact={!!selectedTask}
               />
             )}
           </>
@@ -987,14 +988,14 @@ function PcSidebar({
 }
 
 // 2026-06-11 — 2단 세로 스택 라디오 토글 (유솔H 위 / 유솔N 아래).
-//   활성 = 핑크 #E0407E 꽉 채움 + 흰 글자.
+//   활성 = 메인 핑크 var(--accent) 꽉 채움 + 흰 글자.
 //   비활성 = 연한 배경 (t.bgInset) + 회색 글자. 색 대비 강하게 → "둘 다 켜짐" 오해 X.
 function UsolSegmentToggle({ t, value, onChange }) {
   const tabs = [
     { code: "usol_h", label: "유솔H" },
     { code: "usol_n", label: "유솔N" },
   ];
-  const PINK_ACTIVE = "#E0407E";
+  const PINK_ACTIVE = "var(--accent)";
   return (
     <div
       role="radiogroup"
@@ -1292,9 +1293,9 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
             marginBottom: 18,
             padding: "18px 24px",
             background: "transparent",
-            border: `2px solid #FF4D9E`,
+            border: "2px solid var(--accent)",
             borderRadius: 12,
-            color: "#FF4D9E",
+            color: "var(--accent)",
             fontSize: TEXT.BODY,
             fontWeight: 800,
             fontFamily: "inherit",
@@ -1346,9 +1347,9 @@ function UploadTab({ t, user, partnerCode, partnerConfig, quoteRates, onTaskClic
                 style={{
                   width: "100%", padding: "14px 16px",
                   background: "transparent",
-                  border: `1px solid #FF4D9E`,
+                  border: "1px solid var(--accent)",
                   borderRadius: 10,
-                  color: "#FF4D9E",
+                  color: "var(--accent)",
                   fontSize: 13, fontWeight: 700,
                   fontFamily: "inherit",
                   cursor: "pointer",
@@ -1372,9 +1373,9 @@ function UploadToggleBtn({ active, onClick, t, children }) {
   return (
     <button onClick={onClick} style={{
       flex: 1, padding: "12px 14px",
-      background: active ? "#FF4D9E" : t.bgInset,
+      background: active ? "var(--accent)" : t.bgInset,
       color: active ? "#fff" : t.text,
-      border: `1px solid ${active ? "#FF4D9E" : t.border}`,
+      border: `1px solid ${active ? "var(--accent)" : t.border}`,
       borderRadius: 10,
       fontSize: TEXT.BODY, fontWeight: 700,
       fontFamily: "inherit",
@@ -1996,7 +1997,7 @@ function TaskDetail({ t, task: initialTask, user, onBack }) {
         {memoDirty && (
           <button onClick={saveMemo} disabled={memoSaving} style={{
             marginTop: 8, padding: "8px 14px",
-            background: "#FF4D9E", color: "#fff",
+            background: "var(--accent)", color: "#fff",
             border: "none", borderRadius: 8,
             fontSize: 12, fontWeight: 700,
             fontFamily: "inherit",
@@ -2341,7 +2342,7 @@ function SettleDetailBox({ t, task, principalLabel, items, remitMap, principalId
         <SumLine label="고객 결제 합계" value={sumCustomerPaid} t={t} size="sm"/>
         <Divider t={t}/>
         <SumLine label="정산금액" value={sumSettle} t={t} size="lg"/>
-        <SumLine label="└ 유솔 수수료 (15%)"      value={sumUsol}   color="#FF4D9E" indent t={t}/>
+        <SumLine label="└ 유솔 수수료 (15%)"      value={sumUsol}   color="var(--accent)" indent t={t}/>
         <SumLine label="└ 올데이케어 수수료 (85%)" value={sumAllday} color="#5DCAA5" indent t={t}/>
       </div>
 
@@ -2746,9 +2747,9 @@ function SettleDetailBoxSimple({ t, task, principalLabel, items, loading, error 
     ? `${labelName} 수수료 (${feePct}%)`
     : `${labelName} 수수료`;
 
-  // 2026-06-04 — 상세 정산 박스 색상 통일 (#FF4D9E 핑크 고정).
-  //   PARTNER_PWA_CONFIG.accentColor 는 폼/업로드 탭 측 그대로 유지, 상세 박스만 핑크.
-  const FEE_COLOR = "#FF4D9E";
+  // 2026-06-04 — 상세 정산 박스 색상 통일 (메인 핑크 var(--accent) 고정).
+  //   2026-06-12 — 토큰화. PARTNER_PWA_CONFIG.accentColor 는 폼/업로드 탭 측 그대로 유지, 상세 박스만 메인 핑크.
+  const FEE_COLOR = "var(--accent)";
 
   return (
     <div style={settleBoxStyle(t)}>
@@ -2993,7 +2994,7 @@ function SettleTab({ t, tasks }) {
 
       <div style={{
         background: PRINCIPAL_BG,
-        border: `1.5px solid ${PRINCIPAL_COLOR}40`,
+        border: "1.5px solid var(--accent-border)",
         borderRadius: 16, padding: "20px", marginBottom: 12
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -3393,7 +3394,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
             onClick={() => handleDarkToggle(!darkOn)}
             style={{
               width: 46, height: 26, borderRadius: 13,
-              background: darkOn ? "#FF4D9E" : t.border,
+              background: darkOn ? "var(--accent)" : t.border,
               border: "none", padding: 0, cursor: "pointer",
               position: "relative",
               transition: "background 0.2s",
@@ -3426,7 +3427,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
             onClick={() => handlePushToggle(!push)}
             style={{
               width: 46, height: 26, borderRadius: 13,
-              background: push ? "#FF4D9E" : t.border,
+              background: push ? "var(--accent)" : t.border,
               border: "none", padding: 0, cursor: "pointer",
               position: "relative",
               transition: "background 0.2s",
@@ -3473,7 +3474,7 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
                     disabled={kindLoading}
                     style={{
                       width: 38, height: 22, borderRadius: 11,
-                      background: on ? "#FF4D9E" : t.border,
+                      background: on ? "var(--accent)" : t.border,
                       border: "none", padding: 0,
                       cursor: kindLoading ? "default" : "pointer",
                       position: "relative",
@@ -3510,9 +3511,9 @@ function InfoTab({ t, user, mode, setMode, onLogout }) {
                   onClick={() => setFontSize(size)}
                   style={{
                     flex: 1, padding: "10px 8px",
-                    background: active ? "#FF4D9E" : t.bgInset,
+                    background: active ? "var(--accent)" : t.bgInset,
                     color: active ? "#fff" : t.textSecondary,
-                    border: active ? "1px solid #FF4D9E" : `1px solid ${t.border}`,
+                    border: active ? "1px solid var(--accent)" : `1px solid ${t.border}`,
                     borderRadius: 10,
                     fontSize: size === "small" ? 11 : size === "large" ? 15 : 13,
                     fontWeight: active ? 800 : 600,
@@ -3699,7 +3700,7 @@ function AccountCard({ t, account, userId, onUpdated, onError, isPcInfo = false 
               disabled={!hasAllFields}
               style={{
                 flex: 1, padding: "10px",
-                background: hasAllFields ? "#FF4D9E" : t.bgInset,
+                background: hasAllFields ? "var(--accent)" : t.bgInset,
                 color: hasAllFields ? "#fff" : t.textMuted,
                 border: "none", borderRadius: 8,
                 fontSize: 12, fontWeight: 800, fontFamily: "inherit",
@@ -3756,7 +3757,7 @@ function AccountCard({ t, account, userId, onUpdated, onError, isPcInfo = false 
                 disabled={submitting}
                 style={{
                   flex: 1, padding: "10px",
-                  background: submitting ? t.bgInset : "#FF4D9E",
+                  background: submitting ? t.bgInset : "var(--accent)",
                   color: submitting ? t.textMuted : "#fff",
                   border: "none", borderRadius: 8,
                   fontSize: 12, fontWeight: 800, fontFamily: "inherit",

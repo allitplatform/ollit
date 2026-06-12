@@ -41,7 +41,7 @@ const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
 const VISIT_COLOR       = "#9CA3AF";
 const DATE_TIME_COLOR   = "#BA7517";
-const MAGENTA           = "#FF4D9E";
+const MAGENTA           = "var(--accent)";
 const MAIN_APPLIANCE_KEYWORDS = ["벽걸이", "스탠드", "1way", "2way", "4way", "투인원", "원형", "시스템멀티"];
 
 function getMainItem(task) {
@@ -1208,7 +1208,7 @@ export function PcTableRow({ t, task, isSelected, onClick, isWide = false, gridC
         alignItems: "center",
         cursor: "pointer",
         borderBottom: `1px solid ${t.border}`,
-        background: isSelected ? "rgba(255, 77, 158, 0.10)" : "transparent",
+        background: isSelected ? "var(--accent-bg)" : "transparent",
       }}
     >
       <div style={pcTdStyle(t, { fontWeight: 700, color: t.text, textAlign: "left" })}>{task.customer || task.customerName || "—"}</div>

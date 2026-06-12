@@ -16,7 +16,10 @@ const TAB_DEFS = [
   { id: "payment",    label: "정산"   },
 ];
 
-export function NotiScreen({ notifications, onMarkAllRead, onCardClick, onMarkRead, title = "🔔 알림" }) {
+// 2026-06-12 — compact: 부모(PcShell)에서 작업상세 aside가 열렸을 때 true.
+//   true일 때 PC 2단 그리드를 1단(좌 리스트만)으로 축소해 작업상세에 공간 양보.
+//   selectedId는 ViewPcNoti 로컬 state라 aside 닫히면 2단 복귀 + 옛 선택 알림 그대로 표시.
+export function NotiScreen({ notifications, onMarkAllRead, onCardClick, onMarkRead, title = "🔔 알림", compact = false }) {
   const isPc = useIsPc();
   const [tab, setTab] = useState("all");
 
@@ -56,6 +59,7 @@ export function NotiScreen({ notifications, onMarkAllRead, onCardClick, onMarkRe
         onMarkAllRead={onMarkAllRead}
         onCardClick={onCardClick}
         onMarkRead={onMarkRead}
+        compact={compact}
       />
     );
   }
@@ -216,6 +220,7 @@ function ViewPcNoti({
   title, notifications,
   unreadCount, counts, tab, setTab, filtered,
   onMarkAllRead, onCardClick, onMarkRead,
+  compact = false,
 }) {
   const [selectedId, setSelectedId] = useState(null);
 
@@ -276,18 +281,18 @@ function ViewPcNoti({
         </div>
       </div>
 
-      {/* 2단 그리드 — 좌 리스트 + 우 상세 */}
+      {/* 2단 그리드 — 좌 리스트 + 우 상세. compact 시 1단 (작업상세 aside에 공간 양보). */}
       <div style={{
         flex: 1,
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1.1fr) minmax(0, 1fr)",
+        gridTemplateColumns: compact ? "1fr" : "minmax(0, 1.1fr) minmax(0, 1fr)",
         gap: 0,
         minHeight: 0,
       }}>
         {/* 좌 — 리스트 (세로 스크롤) */}
         <div style={{
           overflowY: "auto",
-          borderRight: "1px solid var(--border)",
+          borderRight: compact ? "none" : "1px solid var(--border)",
           padding: "12px 0",
         }}>
           {filtered.length === 0 ? (
@@ -317,20 +322,22 @@ function ViewPcNoti({
           )}
         </div>
 
-        {/* 우 — 선택 알림 상세 */}
-        <div style={{
-          overflowY: "auto",
-          padding: "20px 24px",
-        }}>
-          {selectedNoti ? (
-            <PcNotiDetail
-              noti={selectedNoti}
-              onOpenTask={() => onCardClick?.(selectedNoti)}
-            />
-          ) : (
-            <PcNotiPlaceholder/>
-          )}
-        </div>
+        {/* 우 — 선택 알림 상세. compact 시 숨김 (작업상세 aside가 우측 차지). */}
+        {!compact && (
+          <div style={{
+            overflowY: "auto",
+            padding: "20px 24px",
+          }}>
+            {selectedNoti ? (
+              <PcNotiDetail
+                noti={selectedNoti}
+                onOpenTask={() => onCardClick?.(selectedNoti)}
+              />
+            ) : (
+              <PcNotiPlaceholder/>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

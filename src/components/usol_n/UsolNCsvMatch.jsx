@@ -452,13 +452,13 @@ function UploadDropZone({ fileInputRef, onFileSelect, onFile }) {
 
   const activeStyle = isDragging
     ? {
-        background: "rgba(255,27,141,0.16)",
-        border: "3px dashed #FF1B8D",
+        background: "var(--accent-bg-strong)",
+        border: "3px dashed var(--accent)",
         transform: "scale(1.01)",
       }
     : {
-        background: "rgba(255,27,141,0.06)",
-        border: "2px dashed rgba(255,27,141,0.4)",
+        background: "var(--accent-bg)",
+        border: "2px dashed var(--accent-border)",
       };
 
   return (
@@ -477,7 +477,7 @@ function UploadDropZone({ fileInputRef, onFileSelect, onFile }) {
       }}
     >
       <div style={{ fontSize: 32, marginBottom: 8 }}>{isDragging ? "📂" : "📥"}</div>
-      <div style={{ fontSize: TEXT.HEADER, color: "#FF1B8D", fontWeight: 700 }}>
+      <div style={{ fontSize: TEXT.HEADER, color: "var(--accent)", fontWeight: 700 }}>
         {isDragging ? "여기에 놓으세요 — 정산 CSV" : "정산 CSV 업로드"}
       </div>
       <div style={{ fontSize: TEXT.META, color: "var(--text-secondary)", marginTop: 4 }}>
@@ -498,13 +498,13 @@ function CsvInfoCard({ csvData, onReset }) {
   return (
     <div style={{
       padding: 14,
-      background: "rgba(255,27,141,0.10)",
-      border: "1px solid #FF1B8D",
+      background: "var(--accent-bg)",
+      border: "1px solid var(--accent)",
       borderRadius: 10, marginBottom: 14,
       display: "flex", alignItems: "center", justifyContent: "space-between",
     }}>
       <div>
-        <div style={{ fontSize: TEXT.LABEL, color: "#FF1B8D", fontWeight: 700, marginBottom: 4 }}>
+        <div style={{ fontSize: TEXT.LABEL, color: "var(--accent)", fontWeight: 700, marginBottom: 4 }}>
           📥 분석 중인 CSV
         </div>
         <div style={{ fontSize: TEXT.BODY, color: "var(--text-primary)", fontWeight: 600 }}>

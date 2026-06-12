@@ -10,7 +10,7 @@
 //                      넘기면: 기종 선택 시 단가 자동 채움 + 합계 자동 계산.
 //                      안 넘기면(null): 기존 유솔H 동작 — 사용자가 견적 총액 직접 입력.
 //   useRpc           — true면 향후 SECURITY DEFINER RPC 경유. 현재 PWA는 anon 직접 INSERT(false).
-//   accentColor      — 강조 색. default "#FF4D9E" (유솔 마젠타)
+//   accentColor      — 강조 색. default "var(--accent)" (메인 핑크 토큰 — 2026-06-12 통일)
 //
 // KA 1way 자동 분할:
 //   principalCode='KA' + service_code='refrigerant' + appliance='1way' + qty≥2 일 때
@@ -105,7 +105,7 @@ export function NewReceptionScreenLite({
   // useRpc 는 향후 확장 여지 — 현재는 미사용 (anon 직접 INSERT)
   // eslint-disable-next-line no-unused-vars
   useRpc           = false,
-  accentColor      = "#FF4D9E",
+  accentColor      = "var(--accent)",
   // 2026-06-06 — 붙여넣기 prefill (KA/crikrin 만 사용). 모두 optional.
   //   pasteText / onPasteTextChange : 텍스트에리어 controlled value (parent state).
   //   parsedRecords                  : parsePartnerPaste 결과 배열. 1건이면 자동 prefill.
@@ -640,7 +640,7 @@ export function NewReceptionScreenLite({
                         <div key={idx} style={{
                           display: "flex", alignItems: "center", gap: 8,
                           padding: "8px 10px",
-                          background: isActive ? `${accentColor}22` : t.bg,
+                          background: isActive ? "var(--accent-bg-strong)" : t.bg,
                           border: `1px solid ${isActive ? accentColor : t.border}`,
                           borderRadius: 8,
                         }}>
@@ -1052,7 +1052,7 @@ export function NewReceptionScreenLite({
                     <div key={idx} style={{
                       display: "flex", alignItems: "center", gap: 8,
                       padding: "8px 10px",
-                      background: isActive ? `${accentColor}22` : t.bg,
+                      background: isActive ? "var(--accent-bg-strong)" : t.bg,
                       border: `1px solid ${isActive ? accentColor : t.border}`,
                       borderRadius: 8,
                     }}>
@@ -1393,7 +1393,7 @@ export function NewReceptionScreenLite({
 // ════════════════════════════════════════════════════════════
 // Helpers — AdminApp NewReceptionFormScreen 패턴 그대로 (의존성 없이 같이 정의)
 // ════════════════════════════════════════════════════════════
-function FormSection({ t, accent = "#FF4D9E", icon, label, required, error, children }) {
+function FormSection({ t, accent = "var(--accent)", icon, label, required, error, children }) {
   // 2026-06-06 — 필수 표시: 텍스트 배지/별표 제거 → 박스 테두리 색으로 통일.
   //   error 우선 (빨강) > required (핑크) > 회색.
   //   필수/에러 시 테두리 두께 2px (선택 1px) — 사장님 spec "조금만" 두껍게.
@@ -1440,7 +1440,7 @@ function CollapsibleHeader({ t, open, onToggle, icon, title, hint }) {
 }
 
 // 2026-06-06 — 모바일용 수량 스테퍼.
-//   [−] N [+]  / − = #2C2C2E / + = #FF1B8D / 숫자 흰색 / 40×40 라운드.
+//   [−] N [+]  / − = #2C2C2E / + = var(--accent) / 숫자 흰색 / 40×40 라운드.
 //   가운데 숫자 탭 → inline number input 측 측 (select-all, blur/Enter 측 측 측 복귀).
 //   min=1 (− 1 측 비활성), max=99 (대량 현장 대응 — 99 측 + 비활성).
 function QtyStepper({ value, onChange, min = 1, max = 99 }) {
@@ -1501,7 +1501,7 @@ function QtyStepper({ value, onChange, min = 1, max = 99 }) {
             width: 56, height: 40, minWidth: 56,
             textAlign: "center", fontSize: 18, fontWeight: 800,
             color: "#fff", background: "#1C1C1E",
-            border: "1px solid #FF1B8D", borderRadius: 8,
+            border: "1px solid var(--accent)", borderRadius: 8,
             outline: "none", fontFamily: "inherit",
             MozAppearance: "textfield",
           }}
@@ -1522,7 +1522,7 @@ function QtyStepper({ value, onChange, min = 1, max = 99 }) {
       <button type="button" onClick={inc} disabled={safeValue >= max}
         style={{
           ...btnBase,
-          background: "#FF1B8D",
+          background: "var(--accent)",
           opacity: safeValue >= max ? 0.4 : 1,
           cursor: safeValue >= max ? "not-allowed" : "pointer",
         }}
@@ -1532,7 +1532,7 @@ function QtyStepper({ value, onChange, min = 1, max = 99 }) {
   );
 }
 
-function FormChip({ t, accent = "#FF4D9E", active, onClick, children }) {
+function FormChip({ t, accent = "var(--accent)", active, onClick, children }) {
   return (
     <button onClick={onClick} type="button" style={{
       padding: "6px 12px",
