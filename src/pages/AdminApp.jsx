@@ -53,6 +53,7 @@ import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../uti
 // 2026-06-12 — PC 셸 (1024px+). isPc true 일 때 Shell 함수가 AdminPcShell 로 wrap.
 import { useIsPc } from "../utils/useIsPc.js";
 import { AdminPcShell } from "./AdminPcShell.jsx";
+import { AdminPcDashboard } from "./AdminPcDashboard.jsx";
 import { getCurrentUser as getCurrentUserPerm } from "../data/users.js";
 import { EngineerListScreen } from "../components/EngineerListScreen.jsx";
 import { EngineerEditScreen } from "../components/EngineerEditScreen.jsx";
@@ -2498,6 +2499,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-05-22 — Shell + FontStyle 측 모듈 레벨 함수로 추출 (위 정의 참조).
   // 옛 const 정의 측 매 렌더마다 새 함수 identity → 자식 unmount → 폼 state 소실.
 
+  // 2026-06-12 — PC 분기 (1024px+). 본체에서도 isPc 직접 사용 (main default return → AdminPcDashboard 분기).
+  const isPc = useIsPc();
+
   // 2026-06-12 — PC 셸 컨텍스트. 모든 <Shell ... pcCtx={pcCtx}> 호출 38곳에 전달.
   //   Shell 함수가 useIsPc() true 면 AdminPcShell 로 wrap, false 면 옛 모바일 layout 그대로.
   //   pcCtx 안 키:
@@ -3763,6 +3767,29 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   }
 
   // 메인 대시보드
+  // 2026-06-12 — PC (1024px+) 면 AdminPcDashboard 새 펼침형. 모바일은 옛 DashboardScreen 그대로.
+  if (isPc) {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AdminPcDashboard
+        t={t}
+        apiTasks={apiTasks}
+        user={user}
+        dynamicStats={dynamicStats}
+        onClickRevenueDetail={() => setScreen("revenueDetail")}
+        onClickNewReception={(f) => { setNewReceptionFilter(f || null); setScreen("newReception"); }}
+        onClickAssignedList={(f) => { setAssignedFilter(f); setScreen("assignedList"); }}
+        onClickInProgress={() => setScreen("inProgressList")}
+        onClickLiveWork={(f) => { setLiveWorkFilter(f || null); setScreen("liveWork"); }}
+        onTaskAssign={(task) => {
+          setSelectedTask(task);
+          const flow = determineWorkflow(task.workItems)
+            || WORK_TYPES_CONFIG[task.workType]?.workflow
+            || "manual_with_recommendation";
+          setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
+        }}
+      />
+    </Shell>;
+  }
   return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
     <DashboardScreen
       t={t} mode={mode} setMode={setMode}
