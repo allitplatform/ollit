@@ -16,6 +16,9 @@ import { computeRevenueByYmRange } from "../utils/revenueStats.js";
 //   task_items 단위, task_status="완료" + principal_id=USOL_N_PID + naver_settled_at NULL + subtotal>0 + is_canceled!=true.
 import { fetchPrincipalSettleItems } from "../lib/principalSettleDb.js";
 import { USOL_N_PID } from "../lib/usolNWeeklyData.js";
+// 2026-06-12 — 유솔N 패널 교체: 회사→기사 월정산 화면 통째 mount.
+//   데이터/계산 로직 무손상 — UsolNToEngineerSection 자체 fetch (line 282 fetchUsolNCompletedTaskItems).
+import { UsolNToEngineerSection } from "../components/usol_n/UsolNToEngineerSection.jsx";
 import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
 
 function fmtKRW(n) {
@@ -122,8 +125,7 @@ export function AdminPcDashboard({
         gap: 20,
         alignItems: "start",
       }}>
-        <UsolNPanel
-          apiTasks={apiTasks}
+        <UsolNMonthlyPanel
           user={user}
           onClick={onClickUsolN}
         />
@@ -449,6 +451,68 @@ function UsolNStat({ label, value, warn, big }) {
         fontVariantNumeric: "tabular-nums",
         letterSpacing: "-0.3px",
       }}>{value}</span>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// UsolNMonthlyPanel — 회사 → 기사 월정산 (UsolNToEngineerSection 통째 mount).
+//   사장님 spec — Image 2 = 기존 정산 화면. 옛 컴포넌트 self-fetch + 계산 + 렌더 그대로.
+//   ⚠️ adminId — 일괄 지급 audit 용. user.id (또는 userId) 그대로 전달.
+//   ⚠️ overflow + maxHeight 로 dashboard 좌하 칸 안에 표시.
+//   ⚠️ "요약만 (미지급 합계 / 1차·2차 막대 / 순이익)" 추출 시안은 사장님 검수 후 다음 단계.
+// ──────────────────────────────────────────────────────────────────
+function UsolNMonthlyPanel({ user, onClick }) {
+  const adminId = user?.id || user?.userId || null;
+  return (
+    <div style={{
+      background: "var(--bg-elevated)",
+      border: "1px solid var(--border)",
+      borderRadius: 14,
+      padding: "20px 22px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 14,
+    }}>
+      {/* 헤더 */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
+        <div style={{
+          fontSize: 14, fontWeight: 800,
+          color: "var(--text-primary)",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <span style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            width: 24, height: 24, borderRadius: 6,
+            background: "#03C75A", color: "#fff",
+            fontSize: 12, fontWeight: 900, letterSpacing: "-0.5px",
+          }}>N</span>
+          회사 → 기사 월정산
+        </div>
+        {typeof onClick === "function" && (
+          <button onClick={onClick} style={{
+            padding: "5px 12px",
+            background: "transparent",
+            border: "1px solid var(--border)",
+            borderRadius: 999,
+            color: "var(--text-secondary)",
+            fontSize: 11, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>전체 →</button>
+        )}
+      </div>
+
+      {/* 본문 — 옛 UsolNToEngineerSection 그대로 mount (self-fetch + 계산 + 렌더).
+            최대 높이 제한 + scroll 로 dashboard 좌하 칸에 수용. */}
+      <div style={{
+        maxHeight: 640,
+        overflowY: "auto",
+        margin: "0 -6px",
+      }}>
+        <UsolNToEngineerSection adminId={adminId}/>
+      </div>
     </div>
   );
 }

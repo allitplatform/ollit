@@ -101,11 +101,11 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
         </div>
       </div>
 
-      {/* 상단 — 도넛(170 고정) + 우측 항목 3개 (minmax(0,1fr) 으로 minWidth 0 확보). */}
+      {/* 상단 — 도넛(170 고정) + 항목 블록(280 고정 폭, 도넛 옆 붙음) + 빈 우측(1fr). */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "auto minmax(0, 1fr)",
-        gap: 22,
+        gridTemplateColumns: "auto auto minmax(0, 1fr)",
+        gap: 20,
         alignItems: "center",
       }}>
         <Donut
@@ -117,6 +117,7 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
           count={current.count}
         />
         <div style={{
+          width: 280,
           display: "flex",
           flexDirection: "column",
           gap: 12,
@@ -268,7 +269,7 @@ function RevItem({ color, label, amount, muted, big }) {
         whiteSpace: "nowrap",
       }}>{label}</span>
       <span className="mono" style={{
-        fontSize: big ? 20 : 13,
+        fontSize: big ? 16 : 13,
         fontWeight: big ? 800 : 700,
         color: big ? "var(--accent)" : "var(--text-primary)",
         fontVariantNumeric: "tabular-nums",
