@@ -80,12 +80,13 @@ export function AdminPcDashboard({
       flexDirection: "column",
       gap: 20,
     }}>
-      {/* 상단 — 매출 + 우 컬럼 (3카드 + 유솔N stack). 1280px+ 2단 / 미만 1단. */}
+      {/* 상단 — 매출 + 우 컬럼 (3카드 + 유솔N stack). 1280px+ 2단 / 미만 1단.
+            alignItems:stretch — 좌우 칸 높이 같이 (매출 패널이 우 컬럼 길이만큼 늘어남). */}
       <div style={{
         display: "grid",
         gridTemplateColumns: isWide ? "minmax(0, 1.4fr) minmax(0, 1fr)" : "minmax(0, 1fr)",
         gap: 20,
-        alignItems: "start",
+        alignItems: "stretch",
       }}>
         <AdminPcRevenuePanel
           t={t}

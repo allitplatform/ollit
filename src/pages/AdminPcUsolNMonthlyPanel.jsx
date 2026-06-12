@@ -245,7 +245,7 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
               color="#3B82F6"
             />
             <SettleRow
-              label="미지급"
+              label="기사 미지급"
               amount={pendingTotal}
               accent
             />

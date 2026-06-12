@@ -101,11 +101,11 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
         </div>
       </div>
 
-      {/* 상단 — 도넛(170 고정) + 항목 블록(280 고정 폭, 도넛 옆 붙음) + 빈 우측(1fr). */}
+      {/* 상단 — 도넛(170 고정) + 항목 블록(1fr 도넛 옆 남은 폭 전체). 라벨 좌 / 금액 우 양쪽 벌림. */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "auto auto minmax(0, 1fr)",
-        gap: 20,
+        gridTemplateColumns: "auto minmax(0, 1fr)",
+        gap: 24,
         alignItems: "center",
       }}>
         <Donut
@@ -117,7 +117,6 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
           count={current.count}
         />
         <div style={{
-          width: 280,
           display: "flex",
           flexDirection: "column",
           gap: 12,
