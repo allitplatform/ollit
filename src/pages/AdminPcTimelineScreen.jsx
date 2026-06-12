@@ -1,45 +1,34 @@
 // 2026-06-12 — AdminApp PC 작업 타임라인 (1024px+ 전용).
-//   🅐 시간축 (기사별 행 × 시간 격자, 작업 막대) — 이번 단계.
-//   🅑 처리 흐름 — 다음 단계 (placeholder).
-//   ⚠️ 데이터/로직 0줄 변경. apiTasks / apiEngineers / 공통 상태색 매핑 재사용.
-//   ⚠️ 막대 클릭 → onTaskClick → openTaskDetailFromLight → 우 aside (Chunk 2 패턴).
-//   ⚠️ 모바일(<1024) 옛 화면 그대로 — 사이드바 메뉴는 PC 셸에서만 노출.
+//   🅐 시간축 (기사별 행 × 시간 격자) — 화면 폭에 맞춤, 가로 스크롤 없음.
+//   🅑 처리 흐름 — 다음 단계 placeholder.
+//   ⚠️ 데이터/로직 0줄 변경. apiTasks / apiEngineers / 공통 상태색 / 종류색.
+//   ⚠️ 막대 클릭 → 우 aside (Shell PC 분기 main 유지).
+//   ⚠️ 모바일(<1024) 옛 화면 그대로.
 
 import { useState, useMemo } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
-// 2026-06-12 — 작업 종류 (세척/냉매) 색 매핑 — 막대 배경. 상태색은 테두리로 보조.
 import { getServiceKind } from "../utils/workTypeKind.js";
 
-// 시간 축 — 07~19시 (13 슬롯). 슬롯 폭 키워 막대 정보 (고객명/지역) 표시.
+// 시간 축 — 07~19시 (13 슬롯, % 균등 분배).
 const START_HOUR    = 7;
 const END_HOUR      = 20;
 const TOTAL_HOURS   = END_HOUR - START_HOUR;
-const SLOT_WIDTH    = 90;
-const TIMELINE_W    = TOTAL_HOURS * SLOT_WIDTH;
-const LANE_HEIGHT   = 62;
-const ENGINEER_COL  = 130;
+const LANE_HEIGHT   = 42;
+const ENGINEER_COL  = 120;
 
-// 작업 종류 색 (사장님 spec).
+// 작업 종류 색 (사장님 spec — 세척 파랑 / 냉매 노랑). 막대 색 단일 (테두리·상태 색 제거).
 const KIND_COLOR = {
-  cleaning:    "#0EA5E9",  // 세척 — 파랑
-  refrigerant: "#FFB800",  // 냉매 — 노랑
+  cleaning:    "#0EA5E9",
+  refrigerant: "#FFB800",
 };
-const KIND_COLOR_FALLBACK = "#9CA3AF";  // 기타/방문 등
-
-// 종류 라벨 (막대 안 작은 텍스트).
-const KIND_LABEL = {
-  cleaning:    "❄ 세척",
-  refrigerant: "⚡ 냉매",
-  visit:       "🚗 방문",
-};
+const KIND_COLOR_FALLBACK = "#9CA3AF";
 
 export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTaskClick }) {
-  const [view, setView] = useState("time"); // "time" | "flow"
+  const [view, setView] = useState("time");
 
   const today = todayYmd();
 
-  // 오늘 작업 — scheduledAt 기준 + 취소 제외.
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
       if (!t || t.status === "취소") return false;
@@ -49,7 +38,6 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     });
   }, [apiTasks, today]);
 
-  // 기사별 그룹 + 정렬 (작업 수 많은 순, 동률 이름순).
   const lanes = useMemo(() => {
     const byEng = new Map();
     for (const t of todayTasks) {
@@ -72,12 +60,11 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
   return (
     <div style={{
-      padding: "20px 24px 32px",
+      padding: "20px 24px 24px",
       display: "flex",
       flexDirection: "column",
-      gap: 16,
+      gap: 14,
     }}>
-      {/* 헤더 + 탭 토글 */}
       <div style={{
         display: "flex", alignItems: "center", justifyContent: "space-between",
         gap: 12,
@@ -105,9 +92,6 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
   );
 }
 
-// ──────────────────────────────────────────────────────────────────
-// 헤더 — 날짜 표시 + view 토글.
-// ──────────────────────────────────────────────────────────────────
 function formatDateKo(ymd) {
   if (!ymd) return "";
   const [y, m, d] = ymd.split("-");
@@ -149,7 +133,8 @@ function ViewToggle({ value, onChange }) {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// 🅐 시간축 — 기사별 행 × 시간 격자, 막대.
+// 🅐 시간축 — 화면 폭에 맞춤 (1fr + 슬롯 flex:1). 가로 스크롤 없음.
+//   세로도 기사 수만큼만 — maxHeight 없음.
 // ──────────────────────────────────────────────────────────────────
 function TimeAxisView({ lanes, onTaskClick }) {
   if (lanes.length === 0) {
@@ -171,13 +156,11 @@ function TimeAxisView({ lanes, onTaskClick }) {
       background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
       borderRadius: 14,
-      overflow: "auto",  // 가로 + 세로 scroll
-      maxHeight: 560,  // 휑함 줄임 (옛 640 → 560)
+      overflow: "hidden",
     }}>
       <div style={{
         display: "grid",
-        gridTemplateColumns: `${ENGINEER_COL}px ${TIMELINE_W}px`,
-        minWidth: ENGINEER_COL + TIMELINE_W,
+        gridTemplateColumns: `${ENGINEER_COL}px 1fr`,
       }}>
         {/* 헤더 좌 — 기사 라벨 */}
         <div style={{
@@ -185,27 +168,24 @@ function TimeAxisView({ lanes, onTaskClick }) {
           background: "var(--bg-elevated)",
           borderRight: "1px solid var(--border)",
           borderBottom: "1px solid var(--border)",
-          position: "sticky", left: 0, top: 0, zIndex: 4,
           fontSize: 11, fontWeight: 700,
           color: "var(--text-secondary)",
           letterSpacing: 0.5,
           textTransform: "uppercase",
         }}>기사</div>
 
-        {/* 헤더 우 — 시간 슬롯 */}
+        {/* 헤더 우 — 시간 슬롯 (flex:1 균등 분배) */}
         <div style={{
-          position: "sticky", top: 0, zIndex: 3,
-          background: "var(--bg-elevated)",
           borderBottom: "1px solid var(--border)",
           display: "flex",
-          height: 38,
+          height: 34,
         }}>
           {Array.from({ length: TOTAL_HOURS }).map((_, i) => {
             const hour = START_HOUR + i;
             return (
               <div key={hour} style={{
-                width: SLOT_WIDTH,
-                borderRight: "1px solid var(--border)",
+                flex: 1,
+                borderRight: i < TOTAL_HOURS - 1 ? "1px solid var(--border)" : "none",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -229,12 +209,11 @@ function TimeAxisView({ lanes, onTaskClick }) {
 function Lane({ lane, onTaskClick }) {
   return (
     <>
-      {/* 좌측 — 기사명 + 건수 (sticky) */}
+      {/* 좌측 — 기사명 + 건수 */}
       <div style={{
-        padding: "10px 14px",
+        padding: "8px 14px",
         borderRight: "1px solid var(--border)",
         borderBottom: "1px solid var(--border)",
-        position: "sticky", left: 0, zIndex: 1,
         background: "var(--bg-elevated)",
         fontSize: 12, fontWeight: 700, color: "var(--text-primary)",
         display: "flex", alignItems: "center", gap: 6,
@@ -257,11 +236,11 @@ function Lane({ lane, onTaskClick }) {
         minHeight: LANE_HEIGHT,
         background: "var(--bg-primary)",
       }}>
-        {/* 시간 격자 (세로 line) */}
-        {Array.from({ length: TOTAL_HOURS }).map((_, i) => (
+        {/* 시간 격자 — % 위치 */}
+        {Array.from({ length: TOTAL_HOURS - 1 }).map((_, i) => (
           <div key={i} style={{
             position: "absolute",
-            left: i * SLOT_WIDTH,
+            left: `${((i + 1) / TOTAL_HOURS) * 100}%`,
             top: 0, bottom: 0,
             width: 1,
             background: "var(--border)",
@@ -289,68 +268,71 @@ function TaskBar({ task, onClick }) {
   const hours   = d.getHours();
   const minutes = d.getMinutes();
 
-  // 막대 위치/폭 — 시작 시각 기준 1시간 가정 (작업 종료시각 데이터 없음).
-  let leftPos = (hours - START_HOUR) * SLOT_WIDTH + (minutes / 60) * SLOT_WIDTH;
-  let width   = SLOT_WIDTH;
-  if (leftPos < 0) {
-    width += leftPos;
-    leftPos = 0;
-  }
-  if (leftPos + width > TIMELINE_W) width = TIMELINE_W - leftPos;
-  if (width <= 0) return null;
+  // 위치/폭 = % (화면 폭에 비례). 시작 시각 기준 1시간 가정.
+  const hoursOffset = (hours - START_HOUR) + minutes / 60;
+  let leftPct  = (hoursOffset / TOTAL_HOURS) * 100;
+  let widthPct = (1 / TOTAL_HOURS) * 100;
 
-  // 색: 배경=작업 종류 (세척 파랑 / 냉매 노랑), 테두리=상태 (확정 파랑 / 진행 주황 / 완료 초록).
+  if (leftPct < 0) {
+    widthPct += leftPct;
+    leftPct = 0;
+  }
+  if (leftPct + widthPct > 100) widthPct = 100 - leftPct;
+  if (widthPct <= 0) return null;
+
+  // 색: 종류 단일 (세척 파랑 / 냉매 노랑). 테두리=종류색 약하게. 좌측 4px 굵은 바.
   const kind = getServiceKind(task);
   const kindColor = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
-  const statusStyle = getTaskStatusColor(task.status);
 
-  // 완료/취소 시 막대 흐리게 (작업 끝난 표시).
+  // 완료 / visit_only / 정산완료 → 흐림 (작업 끝난 표시).
   const isDone = task.status === "완료" || task.status === "정산완료" || task.status === "visit_only";
-  const opacity = isDone ? 0.55 : 1;
+  const opacity = isDone ? 0.5 : 1;
 
   const customer = task.customer || task.고객명 || "—";
   const region   = task.region || task.district || task.지역 || "";
-  const kindLabel = KIND_LABEL[kind] || "";
+  // tooltip — 상세 정보 (시각·지역·상태 등). 막대 폭 좁아도 호버로 확인.
+  const statusStyle = getTaskStatusColor(task.status);
   const time = `${pad(hours)}:${pad(minutes)}`;
-  const title = `${time} · ${customer} · ${region} · ${kindLabel || (task.workType || "")} · ${task.status || ""}`;
+  const title = `${time} · ${customer}${region ? " · " + region : ""} · ${kind === "refrigerant" ? "냉매" : kind === "cleaning" ? "세척" : ""} · ${task.status || ""}`;
 
   return (
     <button onClick={onClick} title={title}
       style={{
         position: "absolute",
-        left: leftPos + 1,
-        top: 5,
-        height: LANE_HEIGHT - 10,
-        width: width - 2,
-        background: `${kindColor}33`,         // 종류 색 (≈20% alpha)
-        border: `2px solid ${statusStyle.color}`,
-        borderLeft: `4px solid ${kindColor}`, // 종류 표시 강조 — 좌측 굵은 바
-        borderRadius: 6,
+        left:  `calc(${leftPct}% + 1px)`,
+        top: 4,
+        height: LANE_HEIGHT - 8,
+        width: `calc(${widthPct}% - 2px)`,
+        background: `${kindColor}55`,           // 약 33% alpha (선명)
+        border: `1px solid ${kindColor}`,        // 종류색 테두리 (얇게)
+        borderLeft: `4px solid ${kindColor}`,    // 좌측 굵은 종류 바
+        borderRadius: 5,
         color: "var(--text-primary)",
         fontFamily: "inherit",
         cursor: "pointer",
-        padding: "4px 8px",
+        padding: "0 6px",
         display: "flex",
-        flexDirection: "column",
-        justifyContent: "center",
-        gap: 2,
+        alignItems: "center",
         overflow: "hidden",
         textAlign: "left",
         boxSizing: "border-box",
         opacity,
+        // 상태 hint — 막대 우측 점 (작게).
+        // 옛 테두리 상태색 제거 → 탁함 해소.
       }}>
       <span style={{
-        fontSize: 12, fontWeight: 800,
+        flex: 1,
+        fontSize: 11, fontWeight: 800,
         color: "var(--text-primary)",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         lineHeight: 1.1,
       }}>{customer}</span>
+      {/* 상태 점 — 색만 작게 (테두리 X) */}
       <span style={{
-        fontSize: 10, fontWeight: 600,
-        color: kindColor,
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        lineHeight: 1.1,
-      }}>{time}{region ? " · " + region : ""}{kindLabel ? " · " + kindLabel : ""}</span>
+        width: 6, height: 6, borderRadius: "50%",
+        background: statusStyle.color,
+        flexShrink: 0,
+      }}/>
     </button>
   );
 }
