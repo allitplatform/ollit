@@ -3612,11 +3612,14 @@ function AccountCard({ t, account, userId, onUpdated, onError, isPcInfo = false 
       return;
     }
     setSubmitting(true);
+    // 2026-06-13 — Mig 113 RPC v2 phone 인자 추가. 원청 PWA 본인 화면은 phone 편집 X.
+    //   기존 account.phone 그대로 다시 전달 — RPC가 NULL 로 덮어쓰지 않게 보존.
     const res = await updatePrincipalAccount({
       principalId:   account.id,
       bankName:      bankName.trim(),
       accountNumber: accNum.trim(),
       accountHolder: holder.trim(),
+      phone:         account?.phone || "",
       actor:         userId,
     });
     setSubmitting(false);

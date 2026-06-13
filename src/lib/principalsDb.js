@@ -22,7 +22,8 @@ const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 // ============================================================
 
 // 소유 원청 계좌 정보 fetch — user.principals[].id 배열 입력.
-//   응답: { ok: true, accounts: [{ id, code, name, bank_name, account_number, account_holder }] }
+//   2026-06-13 — phone 필드 추가 (Mig 112).
+//   응답: { ok: true, accounts: [{ id, code, name, bank_name, account_number, account_holder, phone }] }
 //        | { ok: false, error }
 export async function fetchPrincipalAccounts(principalIds) {
   if (!Array.isArray(principalIds) || principalIds.length === 0) {
@@ -30,7 +31,7 @@ export async function fetchPrincipalAccounts(principalIds) {
   }
   const { data, error } = await supabase
     .from("principals")
-    .select("id, code, name, bank_name, account_number, account_holder")
+    .select("id, code, name, bank_name, account_number, account_holder, phone")
     .in("id", principalIds);
   if (error) {
     console.error("[principalsDb.fetchPrincipalAccounts]", error);
@@ -39,15 +40,18 @@ export async function fetchPrincipalAccounts(principalIds) {
   return { ok: true, accounts: data || [] };
 }
 
-// 본인 원청 계좌 변경 — Mig 096 update_principal_account RPC 호출.
-//   인자: { principalId, bankName, accountNumber, accountHolder, actor }
-//   응답: { ok: true, principal: { id, code, name, bank_name, account_number, account_holder } }
+// 본인 원청 계좌 변경 — Mig 113 update_principal_account v2 (phone 추가, owner/admin/operator 통과).
+//   인자: { principalId, bankName, accountNumber, accountHolder, phone, actor }
+//   2026-06-13 — phone 인자 추가. PWA가 phone 안 보내면 기존 phone 값을 NULL로 덮어쓰니
+//     호출자는 phone 도 함께 전달해야 함 (편집 UI 없으면 기존 account.phone 그대로 패스).
+//   응답: { ok: true, principal: { id, code, name, bank_name, account_number, account_holder, phone } }
 //        | { ok: false, error }
 export async function updatePrincipalAccount({
   principalId,
   bankName,
   accountNumber,
   accountHolder,
+  phone,
   actor,
 } = {}) {
   if (!principalId) return { ok: false, error: "principalId 필수" };
@@ -58,6 +62,7 @@ export async function updatePrincipalAccount({
     p_bank_name:      bankName      || "",
     p_account_number: accountNumber || "",
     p_account_holder: accountHolder || "",
+    p_phone:          phone         || "",
     p_actor:          actor,
   });
 
@@ -78,11 +83,14 @@ function sheetTypeToDbType(sheetType) {
 
 // DB row → 시트 호환 shape (adaptSheetPrincipalToSeed 측 받아 처리)
 // id는 옛 SEED id (aircon_pro / cool_son ...)로 변환 → SEED 매칭 정상 동작
+// 2026-06-13 — phone(Mig 112) + dbId(원청 계좌 운영자 화면 RPC 호출용 uuid) 추가.
 function rowToSheetShape(row) {
   const oldId = PRINCIPAL_CODE_TO_ID[row.code] || row.code;
   return {
     principalId:    oldId,
     id:             oldId,
+    dbId:           row.id,            // 원래 DB uuid (운영자 화면이 RPC 호출 시 필요)
+    code:           row.code           || "",
     name:           row.name           || "",
     prefix:         row.prefix         || "",
     color:          row.color          || "",
@@ -91,6 +99,7 @@ function rowToSheetShape(row) {
     bankName:       row.bank_name      || "",
     accountNumber:  row.account_number || "",
     accountHolder:  row.account_holder || "",
+    phone:          row.phone          || "",
   };
 }
 
