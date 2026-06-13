@@ -158,9 +158,13 @@ export function computeRevenueByPrincipal(apiTasks, startYmd, endYmd, user) {
   return [...map.values()].sort((a, b) => b.total - a.total);
 }
 
-// 기사별 측측 — 측측 dataset 측측 assigned_engineer 측측 측측 측측.
-//   측측 측측: engineer (engineer_amount) 측측측 정렬.
-//   측측 측측: id / name / count / engineer.
+// 기사별 그룹 — 동일 dataset (isTrackARemittance + completed_at in range) 기준 assigned_engineer 묶음.
+//   기본 정렬: engineer (engineer_amount) 내림차순.
+//   반환 필드: id / name / count / engineer / total / owner.
+//
+// 2026-06-13 — total / owner 추가. 같은 task 의 totalAmount / owner_amount 합산 (새 계산 X).
+//   PC 매출 리포트 기사별 표(매출/회사 마진/비중) 용도. 기존 호출처는 name/count/engineer 만
+//   참조하므로 무영향. 정렬 기준도 그대로 (호출 측에서 필요 시 owner 기준 재정렬).
 export function computeRevenueByEngineer(apiTasks, startYmd, endYmd, user) {
   if (!canSeeField(user, "task.total_amount")) return [];
   const list = _filterTrackADoneInRange(apiTasks, startYmd, endYmd);
@@ -170,11 +174,13 @@ export function computeRevenueByEngineer(apiTasks, startYmd, endYmd, user) {
     const name = String(t.assignedEngineer || t.engineer || "").trim();
     const key = id || name || "(미배정)";
     if (!map.has(key)) {
-      map.set(key, { id, name: name || "(미배정)", count: 0, engineer: 0 });
+      map.set(key, { id, name: name || "(미배정)", count: 0, engineer: 0, total: 0, owner: 0 });
     }
     const row = map.get(key);
     row.count    += 1;
     row.engineer += Number(t.engineer_amount || 0);
+    row.total    += Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
+    row.owner    += Number(t.owner_amount || 0);
   }
   return [...map.values()].sort((a, b) => b.engineer - a.engineer);
 }

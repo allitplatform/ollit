@@ -27,6 +27,7 @@ import { todayYmd } from "../utils/dateLabel.js";
 import {
   computeRevenueByYmRange,
   computeRevenueByPrincipal,
+  computeRevenueByEngineer,
   getMonthRange,
 } from "../utils/revenueStats.js";
 
@@ -92,6 +93,11 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
     () => computeRevenueByPrincipal(apiTasks, selectedYmd, selectedYmd, user),
     [apiTasks, selectedYmd, user]
   );
+  // 하루 기사별 — 회사 마진 내림차순 재정렬
+  const engineersDay = useMemo(() => {
+    const rows = computeRevenueByEngineer(apiTasks, selectedYmd, selectedYmd, user);
+    return [...rows].sort((a, b) => (b.owner || 0) - (a.owner || 0));
+  }, [apiTasks, selectedYmd, user]);
 
   // 월 dataset (= 그 달 1일~말일 범위 호출 — 개요 'month' 토글과 동일 입력)
   const monthRange = useMemo(() => {
@@ -102,6 +108,11 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
     () => computeRevenueByYmRange(apiTasks, monthRange.start, monthRange.end, user),
     [apiTasks, monthRange.start, monthRange.end, user]
   );
+  // 월 기사별 — 회사 마진 내림차순 재정렬
+  const engineersMonth = useMemo(() => {
+    const rows = computeRevenueByEngineer(apiTasks, monthRange.start, monthRange.end, user);
+    return [...rows].sort((a, b) => (b.owner || 0) - (a.owner || 0));
+  }, [apiTasks, monthRange.start, monthRange.end, user]);
 
   // 일별 막대 dataset — 1일~말일 각 일 1회 호출 (같은 함수, 일치 보장)
   const dailySeries = useMemo(() => {
@@ -249,6 +260,7 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
       <div style={{
         background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
         padding: "16px 20px",
+        marginBottom: 14,
       }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: t.text, marginBottom: 12 }}>
           🏢 원청별 분포
@@ -261,6 +273,15 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
           <PrincipalTable t={t} rows={principals} dayTotal={day.total}/>
         )}
       </div>
+
+      {/* 기사별 기여 (하루) */}
+      <EngineerContributionTable
+        t={t}
+        rows={engineersDay}
+        totalDataset={day}
+        emptyText="해당 날짜 기사 기여 없음"
+        title="👷 기사별 기여 (하루)"
+      />
 
       {/* 0건 안내 */}
       {(day.count || 0) === 0 && (
@@ -379,7 +400,168 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
           selectedYmd={selectedYmd}
           onPick={jumpDay}
         />
+
+        {/* 기사별 기여 (월) */}
+        <div style={{ marginTop: 14 }}>
+          <EngineerContributionTable
+            t={t}
+            rows={engineersMonth}
+            totalDataset={month}
+            emptyText="이 달 기사 기여 없음"
+            title="👷 기사별 기여 (이 달)"
+          />
+        </div>
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 기사별 기여 표 (일·월 공용)
+//   · 컬럼: 기사 / 건수 / 매출 / 기사 정산 / 회사 마진 / 비중%
+//   · 회사 마진 내림차순 (호출 측에서 sort)
+//   · 합계 행 = totalDataset (= 4카드와 동일 input·동일 함수 결과) → 자동 일치
+//   · "(미배정)" row 도 그대로 노출 (합계 정합성)
+//   · 비중% = (row.owner / totalDataset.owner) × 100. 총 마진이 0이면 "-" 표시
+// ──────────────────────────────────────────────
+function EngineerContributionTable({ t, rows, totalDataset, emptyText, title }) {
+  const totals = totalDataset || { count: 0, total: 0, engineer: 0, owner: 0 };
+
+  // 합계 행 — rows 합산. totalDataset 과 동일해야 함 (검증용 — UI 표시는 totalDataset 그대로).
+  let sumCount = 0, sumTotal = 0, sumEng = 0, sumOwner = 0;
+  for (const r of rows) {
+    sumCount += Number(r.count) || 0;
+    sumTotal += Number(r.total) || 0;
+    sumEng   += Number(r.engineer) || 0;
+    sumOwner += Number(r.owner) || 0;
+  }
+  // dev 검증: 표 합계 ≠ 4카드 dataset 일 시 콘솔 경고 (운영 영향 없음).
+  if (typeof window !== "undefined" && typeof console !== "undefined") {
+    const mismatch =
+      sumTotal !== Number(totals.total || 0) ||
+      sumEng   !== Number(totals.engineer || 0) ||
+      sumOwner !== Number(totals.owner || 0) ||
+      sumCount !== Number(totals.count || 0);
+    if (mismatch && rows.length > 0) {
+      console.warn(
+        "[EngineerContributionTable] 합계 불일치 — 표 합:", { sumCount, sumTotal, sumEng, sumOwner },
+        " vs 4카드:", { count: totals.count, total: totals.total, engineer: totals.engineer, owner: totals.owner }
+      );
+    }
+  }
+
+  const denomOwner = Number(totals.owner) > 0 ? Number(totals.owner) : 1;
+
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      padding: "16px 20px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>{title}</div>
+        <div style={{ flex: 1 }}/>
+        <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
+          {rows.length}명 · 회사 마진 내림차순
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div style={{ padding: "30px 10px", textAlign: "center", color: t.textMuted, fontSize: 13 }}>
+          {emptyText || "기사 기여 없음"}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {/* 헤더 */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(120px, 1.2fr) 70px minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) 64px",
+            gap: 10, alignItems: "center",
+            padding: "8px 12px",
+            fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4,
+          }}>
+            <span>기사</span>
+            <span style={{ textAlign: "right" }}>건수</span>
+            <span style={{ textAlign: "right" }}>매출</span>
+            <span style={{ textAlign: "right" }}>기사 정산</span>
+            <span style={{ textAlign: "right" }}>회사 마진</span>
+            <span style={{ textAlign: "right" }}>비중</span>
+          </div>
+
+          {/* rows */}
+          {rows.map((r) => {
+            const pct = (Number(r.owner) / denomOwner) * 100;
+            const isUnassigned = r.name === "(미배정)" || (!r.id && !r.name);
+            return (
+              <div key={r.id || r.name || "_"} style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(120px, 1.2fr) 70px minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) 64px",
+                gap: 10, alignItems: "center",
+                padding: "10px 12px",
+                background: t.bgInset, borderRadius: 8,
+                border: `1px solid ${t.border}`,
+                opacity: isUnassigned ? 0.7 : 1,
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>
+                  {r.name || "—"}
+                </span>
+                <span className="mono" style={{
+                  fontSize: 12, textAlign: "right", color: t.text, fontWeight: 700,
+                  fontVariantNumeric: "tabular-nums",
+                }}>{fmtCount(r.count)}</span>
+                <span className="mono" style={{
+                  fontSize: 13, textAlign: "right", color: t.text, fontWeight: 800,
+                  fontVariantNumeric: "tabular-nums",
+                }}>{fmtKRW(r.total)}</span>
+                <span className="mono" style={{
+                  fontSize: 13, textAlign: "right", color: COLOR_ENGINEER, fontWeight: 800,
+                  fontVariantNumeric: "tabular-nums",
+                }}>{fmtKRW(r.engineer)}</span>
+                <span className="mono" style={{
+                  fontSize: 13, textAlign: "right", color: t.accent, fontWeight: 800,
+                  fontVariantNumeric: "tabular-nums",
+                }}>{fmtKRW(r.owner)}</span>
+                <span className="mono" style={{
+                  fontSize: 11, textAlign: "right", color: t.textSecondary, fontWeight: 700,
+                  fontVariantNumeric: "tabular-nums",
+                }}>{Number(totals.owner) > 0 ? `${pct.toFixed(1)}%` : "—"}</span>
+              </div>
+            );
+          })}
+
+          {/* 합계 행 — totalDataset (4카드) 값 그대로. 표 rows 합과 일치해야 함. */}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(120px, 1.2fr) 70px minmax(130px, 1fr) minmax(130px, 1fr) minmax(130px, 1fr) 64px",
+            gap: 10, alignItems: "center",
+            padding: "12px 12px",
+            background: t.bgElevated,
+            border: `1.5px solid ${t.accent}`, borderRadius: 8,
+            marginTop: 4,
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>합계</span>
+            <span className="mono" style={{
+              fontSize: 12, textAlign: "right", color: t.text, fontWeight: 800,
+              fontVariantNumeric: "tabular-nums",
+            }}>{fmtCount(totals.count)}</span>
+            <span className="mono" style={{
+              fontSize: 14, textAlign: "right", color: t.text, fontWeight: 800,
+              fontVariantNumeric: "tabular-nums",
+            }}>{fmtKRW(totals.total)}</span>
+            <span className="mono" style={{
+              fontSize: 14, textAlign: "right", color: COLOR_ENGINEER, fontWeight: 800,
+              fontVariantNumeric: "tabular-nums",
+            }}>{fmtKRW(totals.engineer)}</span>
+            <span className="mono" style={{
+              fontSize: 14, textAlign: "right", color: t.accent, fontWeight: 800,
+              fontVariantNumeric: "tabular-nums",
+            }}>{fmtKRW(totals.owner)}</span>
+            <span className="mono" style={{
+              fontSize: 11, textAlign: "right", color: t.textMuted, fontWeight: 700,
+              fontVariantNumeric: "tabular-nums",
+            }}>100%</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
