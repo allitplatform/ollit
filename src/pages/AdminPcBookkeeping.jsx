@@ -16,6 +16,7 @@ import {
   listExpenses, addExpense, updateExpense, deleteExpense,
   listDistributions, setDistribution,
   getCarryover, setCarryover,
+  getUsolNTrackBMargin,
   EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KO,
 } from "../lib/bookkeepingDb.js";
 import {
@@ -105,7 +106,10 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
     return { byCat, sum };
   }, [rows]);
 
-  // 2026-06-13 — 수입(회사 마진) = revenueStats month.owner (매출 리포트와 동일 입력).
+  // 2026-06-13 — 수입(회사 마진) 분리:
+  //   ① 일정산 (track A) = revenueStats month.owner (매출 리포트 동일)
+  //   ② 유솔N 월정산 (track B) = bookkeeping_get_usoln_track_b_margin RPC (Mig 121 v5)
+  //   ③ 수입 합계 = ① + ② (track A/B 배타라 중복 X)
   const monthRange = useMemo(() => {
     const [y, m] = selectedYm.split("-").map(Number);
     return getMonthRange(y, m);
@@ -114,8 +118,32 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
     () => computeRevenueByYmRange(apiTasks, monthRange.start, monthRange.end, user),
     [apiTasks, monthRange.start, monthRange.end, user]
   );
-  const incomeOwner = Number(revenueStat?.owner) || 0;
-  const netProfit  = incomeOwner - (totals.sum || 0);
+  const incomeTrackA = Number(revenueStat?.owner) || 0;
+
+  // 유솔N track B margin (별도 fetch)
+  const [usolNB, setUsolNB] = useState(0);
+  const [usolNBLoading, setUsolNBLoading] = useState(false);
+  const [usolNBErr, setUsolNBErr] = useState("");
+  useEffect(() => {
+    if (!actor) { setUsolNB(0); return; }
+    let alive = true;
+    setUsolNBLoading(true); setUsolNBErr("");
+    (async () => {
+      const res = await getUsolNTrackBMargin(selectedYm, actor);
+      if (!alive) return;
+      if (!res?.ok) {
+        setUsolNBErr(res?.error || "유솔N 월정산 조회 실패");
+        setUsolNB(0);
+      } else {
+        setUsolNB(Number(res.amount) || 0);
+      }
+      setUsolNBLoading(false);
+    })().catch(e => { if (alive) { setUsolNBErr(e?.message || "에러"); setUsolNBLoading(false); } });
+    return () => { alive = false; };
+  }, [selectedYm, actor]);
+
+  const incomeTotal = incomeTrackA + usolNB;
+  const netProfit   = incomeTotal - (totals.sum || 0);
 
   const isThisMonth = selectedYm === nowKstYm();
 
@@ -302,9 +330,13 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         )}
       </div>
 
-      {/* 손익 카드 */}
+      {/* 손익 카드 — 수입 3줄 분리 (일정산 / 유솔N B / 합계) */}
       <ProfitCard t={t}
-        income={incomeOwner}
+        incomeTrackA={incomeTrackA}
+        usolNB={usolNB}
+        usolNBLoading={usolNBLoading}
+        usolNBErr={usolNBErr}
+        incomeTotal={incomeTotal}
         expense={totals.sum}
         netProfit={netProfit}
       />
@@ -813,9 +845,12 @@ function PreviewLines({ t, rows }) {
 }
 
 // ──────────────────────────────────────────────
-// 손익 카드 — 수입(마진) − 운영비 = 순이익
+// 손익 카드 — 수입 3줄 분리 (일정산 + 유솔N 월정산 + 합계) − 운영비 = 순이익
+//   · 일정산 (track A) — 매출 리포트 owner 와 동일 dataset.
+//   · 유솔N 월정산 (track B) — Mig 121 RPC (track A 와 배타라 중복 X).
+//   · 수입 합계 = 두 항 합. 순이익 = 합계 − 운영비.
 // ──────────────────────────────────────────────
-function ProfitCard({ t, income, expense, netProfit }) {
+function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr, incomeTotal, expense, netProfit }) {
   return (
     <div style={{
       background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
@@ -826,8 +861,20 @@ function ProfitCard({ t, income, expense, netProfit }) {
         📊 손익
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <ProfitRow t={t} label="수입 (회사 마진)" value={income} color="#3B82F6"
+        <ProfitRow t={t} label="수입 — 일정산 (track A)" value={incomeTrackA} color="#3B82F6"
           hint="매출 리포트 '이번달' 회사 마진과 동일 (revenueStats)."/>
+        <ProfitRow t={t}
+          label="수입 — 유솔N 월정산 (track B)"
+          value={usolNB}
+          color="#8B5CF6"
+          hint={usolNBLoading
+            ? "불러오는 중..."
+            : usolNBErr
+              ? `⚠️ ${usolNBErr}`
+              : "유솔N 세척·추가선택 회사 마진 (대시보드 유솔N 월정산 패널과 동일)."}
+        />
+        <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>
+        <ProfitRow t={t} label="수입 합계" value={incomeTotal} color={t.text} mid/>
         <ProfitRow t={t} label="운영비" value={expense} color={t.danger} negative/>
         <div style={{ height: 1, background: t.border, margin: "4px 0" }}/>
         <ProfitRow t={t} label="순이익" value={netProfit} color={t.accent} big highlight/>
@@ -836,7 +883,7 @@ function ProfitCard({ t, income, expense, netProfit }) {
   );
 }
 
-function ProfitRow({ t, label, value, color, hint, negative, big, highlight }) {
+function ProfitRow({ t, label, value, color, hint, negative, big, mid, highlight }) {
   const display = negative && value > 0
     ? `−${fmtKRW(value).replace("₩", "₩")}`
     : fmtKRW(value);
@@ -849,9 +896,9 @@ function ProfitRow({ t, label, value, color, hint, negative, big, highlight }) {
     }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
         <span style={{
-          fontSize: big ? 13 : 12,
-          fontWeight: big ? 800 : 700,
-          color: big ? t.text : t.textSecondary,
+          fontSize: big ? 13 : mid ? 12.5 : 12,
+          fontWeight: big ? 800 : mid ? 800 : 700,
+          color: (big || mid) ? t.text : t.textSecondary,
         }}>{label}</span>
         {hint && (
           <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>{hint}</span>
@@ -859,7 +906,7 @@ function ProfitRow({ t, label, value, color, hint, negative, big, highlight }) {
       </div>
       <div style={{ flex: 1 }}/>
       <span className="mono" style={{
-        fontSize: big ? 22 : 16,
+        fontSize: big ? 22 : mid ? 18 : 16,
         fontWeight: 800, color,
         fontVariantNumeric: "tabular-nums",
         whiteSpace: "nowrap",

@@ -169,3 +169,17 @@ export async function deleteDistribution({ workMonth, repUserId, actor } = {}) {
     p_actor:       actor,
   });
 }
+
+// ============================================================
+// 유솔N 월정산 회사 마진 (Mig 121 RPC v5)
+// ============================================================
+//   가계부 수입에 합산되는 track B 분 — 매출 리포트(track A) 와 배타라 중복 X.
+//   응답: { ok, amount: number } | { ok: false, error }
+export async function getUsolNTrackBMargin(workMonth, actor) {
+  if (!workMonth) return { ok: false, error: "workMonth 필수", amount: 0 };
+  if (!actor)     return { ok: false, error: "actor 필수", amount: 0 };
+  return callRpc("bookkeeping_get_usoln_track_b_margin", {
+    p_work_month: workMonth,
+    p_actor:      actor,
+  }, { amount: 0 });
+}
