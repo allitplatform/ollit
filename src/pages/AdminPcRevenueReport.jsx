@@ -21,12 +21,13 @@
 //
 // 색 톤 — AdminPcRevenuePanel 과 동일.
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Wallet, Calendar } from "lucide-react";
 import { todayYmd } from "../utils/dateLabel.js";
 import {
   computeRevenueByYmRange,
   computeRevenueByPrincipal,
+  getMonthRange,
 } from "../utils/revenueStats.js";
 
 const COLOR_ENGINEER  = "#3B82F6";
@@ -57,12 +58,30 @@ function shiftYmd(ymd, delta) {
   return `${ny}-${nm}-${nd}`;
 }
 
+// "YYYY-MM" ± N개월
+function shiftYm(ym, delta) {
+  if (!ym) return ym;
+  const [y, m] = ym.split("-").map(Number);
+  const total = (y * 12) + (m - 1) + delta;
+  const ny = Math.floor(total / 12);
+  const nm = (total % 12) + 1;
+  return `${ny}-${String(nm).padStart(2, "0")}`;
+}
+
+// 그 달의 일수 (1~28/29/30/31)
+function daysInMonth(year, month) {
+  return new Date(year, month, 0).getDate();
+}
+
 // ──────────────────────────────────────────────
 // 본체
 // ──────────────────────────────────────────────
 export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
   const todayStr = todayYmd();
   const [selectedYmd, setSelectedYmd] = useState(todayStr);
+  const [selectedYm, setSelectedYm]   = useState(todayStr.slice(0, 7));
+
+  const dayTopRef = useRef(null);
 
   // 하루 dataset
   const day = useMemo(
@@ -74,17 +93,54 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
     [apiTasks, selectedYmd, user]
   );
 
+  // 월 dataset (= 그 달 1일~말일 범위 호출 — 개요 'month' 토글과 동일 입력)
+  const monthRange = useMemo(() => {
+    const [y, m] = selectedYm.split("-").map(Number);
+    return getMonthRange(y, m);  // { start, end }
+  }, [selectedYm]);
+  const month = useMemo(
+    () => computeRevenueByYmRange(apiTasks, monthRange.start, monthRange.end, user),
+    [apiTasks, monthRange.start, monthRange.end, user]
+  );
+
+  // 일별 막대 dataset — 1일~말일 각 일 1회 호출 (같은 함수, 일치 보장)
+  const dailySeries = useMemo(() => {
+    const [y, m] = selectedYm.split("-").map(Number);
+    const days = daysInMonth(y, m);
+    const rows = [];
+    for (let d = 1; d <= days; d++) {
+      const ymd = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      const r = computeRevenueByYmRange(apiTasks, ymd, ymd, user);
+      rows.push({ ymd, day: d, total: r.total || 0, count: r.count || 0, owner: r.owner || 0 });
+    }
+    return rows;
+  }, [apiTasks, selectedYm, user]);
+
+  const maxDailyTotal = useMemo(() => {
+    let m = 0;
+    for (const r of dailySeries) if (r.total > m) m = r.total;
+    return m;
+  }, [dailySeries]);
+
   const isToday = selectedYmd === todayStr;
+  const isThisMonth = selectedYm === todayStr.slice(0, 7);
   const dow = dowOf(selectedYmd);
   const sd  = day.byServiceDetail || {
     cleaning:    { total: 0, count: 0, owner: 0 },
     refrigerant: { total: 0, count: 0, owner: 0 },
   };
 
+  function jumpDay(ymd) {
+    setSelectedYmd(ymd);
+    if (dayTopRef.current) {
+      dayTopRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   return (
     <div style={{ padding: "20px 24px 40px", maxWidth: 1400, margin: "0 auto" }}>
       {/* 헤더 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+      <div ref={dayTopRef} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
         <Wallet size={22} style={{ color: t.accent }}/>
         <div>
           <div style={{ fontSize: 20, fontWeight: 800, color: t.text }}>매출 리포트</div>
@@ -217,15 +273,219 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
         </div>
       )}
 
-      {/* 2단계 예고 */}
+      {/* ────── 월 전체 리포트 ────── */}
       <div style={{
-        marginTop: 24, padding: "12px 16px",
-        background: t.bgInset, border: `1px dashed ${t.border}`, borderRadius: 10,
-        fontSize: 11, color: t.textMuted,
+        marginTop: 30, paddingTop: 22,
+        borderTop: `2px solid ${t.border}`,
       }}>
-        🚧 한 달 리포트(월 4카드 + 일별 막대그래프)는 사장님 숫자 검증 후 별도 단계.
+        {/* 월 헤더 + 월 선택 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+          <Wallet size={20} style={{ color: t.accent }}/>
+          <div style={{ fontSize: 17, fontWeight: 800, color: t.text }}>월 전체 리포트</div>
+          <div style={{ flex: 1 }}/>
+          <div style={{ fontSize: 12, color: t.textSecondary }}>
+            완료 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{month.count || 0}</span>건
+          </div>
+        </div>
+
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "12px 14px", marginBottom: 16,
+          background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10,
+        }}>
+          <button onClick={() => setSelectedYm(s => shiftYm(s, -1))}
+            aria-label="이전 달"
+            style={{
+              background: "transparent", border: `1px solid ${t.border}`,
+              borderRadius: 8, padding: "7px 10px",
+              color: t.text, cursor: "pointer", display: "flex",
+              fontFamily: "inherit",
+            }}>
+            <ChevronLeft size={16}/>
+          </button>
+          <div style={{
+            padding: "7px 14px",
+            background: t.bgInset, border: `1.5px solid ${t.accent}`,
+            borderRadius: 8,
+            fontSize: 14, fontWeight: 800, color: t.text,
+            minWidth: 160, textAlign: "center",
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            {selectedYm.slice(0, 4)}년 {Number(selectedYm.slice(5, 7))}월
+          </div>
+          <button onClick={() => setSelectedYm(s => shiftYm(s, +1))}
+            aria-label="다음 달"
+            style={{
+              background: "transparent", border: `1px solid ${t.border}`,
+              borderRadius: 8, padding: "7px 10px",
+              color: t.text, cursor: "pointer", display: "flex",
+              fontFamily: "inherit",
+            }}>
+            <ChevronRight size={16}/>
+          </button>
+          <label style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "7px 12px",
+            background: "transparent", border: `1px solid ${t.border}`,
+            borderRadius: 8,
+            fontSize: 12, fontWeight: 700, color: t.textMuted,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
+            <Calendar size={13}/>
+            <span>월 선택</span>
+            <input type="month" value={selectedYm}
+              onChange={(e) => e.target.value && setSelectedYm(e.target.value)}
+              style={{
+                border: "none", background: "transparent",
+                fontFamily: "inherit", fontSize: 12, color: t.text,
+                padding: 0, width: 0, opacity: 0, position: "absolute",
+              }}/>
+          </label>
+          <button onClick={() => setSelectedYm(todayStr.slice(0, 7))}
+            disabled={isThisMonth}
+            style={{
+              padding: "7px 14px",
+              background: isThisMonth ? "transparent" : t.accentBg,
+              border: `1px solid ${isThisMonth ? t.border : t.accent}`,
+              borderRadius: 8,
+              fontSize: 12, fontWeight: 700,
+              color: isThisMonth ? t.textMuted : t.accent,
+              cursor: isThisMonth ? "default" : "pointer",
+              fontFamily: "inherit",
+              opacity: isThisMonth ? 0.6 : 1,
+            }}>
+            → 이번 달
+          </button>
+          <div style={{ flex: 1 }}/>
+          <div style={{ fontSize: 11, color: t.textDim, fontFamily: "inherit" }}>
+            {monthRange.start} ~ {monthRange.end}
+          </div>
+        </div>
+
+        {/* 월 4카드 */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }}>
+          <BigCard t={t} label="월 총매출"    amount={month.total}     color={t.text}           emphasis="mid"/>
+          <BigCard t={t} label="기사 정산"     amount={month.engineer}  color={COLOR_ENGINEER}    emphasis="mid"/>
+          <BigCard t={t} label="원청 수수료"   amount={month.principal} color={COLOR_PRINCIPAL}   emphasis="mid"/>
+          <BigCard t={t} label="회사 마진"     amount={month.owner}     color={t.accent}          emphasis="big"/>
+        </div>
+
+        {/* 일별 막대그래프 */}
+        <DailyBarChart
+          t={t}
+          series={dailySeries}
+          maxTotal={maxDailyTotal}
+          todayStr={todayStr}
+          selectedYmd={selectedYmd}
+          onPick={jumpDay}
+        />
       </div>
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 일별 매출 추이 막대그래프
+//   · 1일~말일 모두 표시 (0원도 빈 막대)
+//   · 오늘 강조 = 핑크(accent) / 위 하루 리포트 선택일 = 보더 강조
+//   · 클릭 → 하루 리포트로 jump (selectedYmd 변경 + scrollIntoView)
+//   · 호버 툴팁 = native title (날짜·매출·건수)
+// ──────────────────────────────────────────────
+function DailyBarChart({ t, series, maxTotal, todayStr, selectedYmd, onPick }) {
+  const denom = maxTotal > 0 ? maxTotal : 1;
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      padding: "16px 20px",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10, marginBottom: 14,
+      }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>📈 일별 매출 추이</span>
+        <div style={{ flex: 1 }}/>
+        <Legend t={t} swatch={t.textMuted} label="일 매출"/>
+        <Legend t={t} swatch={t.accent}    label="오늘"/>
+      </div>
+
+      {/* 막대 영역 */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${series.length}, minmax(0, 1fr))`,
+        gap: 4,
+        alignItems: "end",
+        height: 180,
+        padding: "0 2px",
+      }}>
+        {series.map(r => {
+          const pct = (r.total / denom) * 100;
+          const isToday = r.ymd === todayStr;
+          const isSelected = r.ymd === selectedYmd;
+          const barColor = isToday ? t.accent : (r.total > 0 ? COLOR_PRINCIPAL : t.border);
+          // 최소 1px 높이 (0원이라도 baseline)
+          const heightPct = r.total > 0 ? Math.max(pct, 2) : 0;
+          return (
+            <button key={r.ymd}
+              type="button"
+              onClick={() => onPick(r.ymd)}
+              title={`${r.ymd} · ${fmtKRW(r.total)} · ${r.count}건`}
+              style={{
+                display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-end",
+                height: "100%",
+                background: "transparent", border: "none",
+                padding: 0, cursor: "pointer", fontFamily: "inherit",
+                minWidth: 0,
+              }}>
+              <div style={{
+                width: "100%",
+                height: `${heightPct}%`,
+                background: barColor,
+                borderRadius: "3px 3px 0 0",
+                boxShadow: isSelected ? `inset 0 0 0 1.5px ${t.text}` : "none",
+                transition: "height 0.25s ease",
+              }}/>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* x축 라벨 — 5의 배수 + 1일·말일 */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: `repeat(${series.length}, minmax(0, 1fr))`,
+        gap: 4,
+        marginTop: 6,
+        padding: "0 2px",
+        fontSize: 10, color: t.textMuted, fontWeight: 600,
+        fontVariantNumeric: "tabular-nums",
+      }}>
+        {series.map((r, i) => {
+          const show = r.day === 1 || r.day === series.length || r.day % 5 === 0;
+          const isToday = r.ymd === todayStr;
+          return (
+            <span key={r.ymd} style={{
+              textAlign: "center",
+              color: isToday ? t.accent : t.textMuted,
+              fontWeight: isToday ? 800 : 600,
+            }}>{show ? r.day : ""}</span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Legend({ t, swatch, label }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      fontSize: 10, color: t.textSecondary, fontWeight: 700,
+    }}>
+      <span style={{
+        width: 10, height: 10, borderRadius: 2, background: swatch,
+        border: `1px solid ${t.border}`,
+      }}/>
+      {label}
+    </span>
   );
 }
 
