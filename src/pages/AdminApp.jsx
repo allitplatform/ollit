@@ -141,7 +141,7 @@ import { lookupRate, WORK_TYPE_TO_SERVICE } from "../components/principal/NewRec
 //                새로고침 시 Set 초기화 — DB 사전 조회 가드 (line 7424) 가 보호.
 const _pushedTaskIds = new Set();
 import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd } from "../utils/dateLabel.js";
-import { isRemittanceTarget, isPendingRemit } from "../utils/remitFilter.js";
+import { isRemittanceTarget, isPendingRemit, isAutoConfirmedRemit } from "../utils/remitFilter.js";
 // 2026-06-07 — KA/crikrin 측측 측측 측측 측측 (정산 탭 측측 측측측).
 import { markPartnerDailyRemit, undoPartnerDailyRemit, describeDailyRemitError, ymdKstToday } from "../lib/partnerDailySettleDb.js";
 import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
@@ -6524,15 +6524,19 @@ function sortGroupsConfirmedLast(groups) {
 //   reported  = 모든 작업 기사 입금 보고 완료 (engineerRemittedAt 채워짐) — 확인 대기
 //   overdue   = 23:00 KST 이후 + 일부 작업 보고 안 됨 (연체)
 //   pending   = 그 외 (미입금)
+// 2026-06-13 — 회사 송금분 0원 (직영 기사 + usol_h 냉매 등) 은 confirmed/reported 동등 취급.
+//   받을 돈이 원래 없으니 미입금/연체로 빠지지 않게.
 function computeGroupStatus(tasks) {
   if (!Array.isArray(tasks) || tasks.length === 0) return "pending";
-  if (tasks.every(t => t.engineerRemitConfirmedAt)) return "confirmed";
-  if (tasks.every(t => t.engineerRemittedAt)) return "reported";
+  const isConfirmedLike = (t) => t.engineerRemitConfirmedAt || isAutoConfirmedRemit(t);
+  const isReportedLike  = (t) => t.engineerRemittedAt       || isAutoConfirmedRemit(t);
+  if (tasks.every(isConfirmedLike)) return "confirmed";
+  if (tasks.every(isReportedLike))  return "reported";
   const kstHourStr = new Date().toLocaleString("en-US", {
     timeZone: "Asia/Seoul", hour: "numeric", hour12: false,
   });
   const kstHour = parseInt(kstHourStr, 10);
-  if (kstHour >= 23 && tasks.some(t => !t.engineerRemittedAt)) return "overdue";
+  if (kstHour >= 23 && tasks.some(t => !t.engineerRemittedAt && !isAutoConfirmedRemit(t))) return "overdue";
   return "pending";
 }
 

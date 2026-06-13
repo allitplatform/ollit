@@ -33,7 +33,7 @@
 
 import { useMemo, useState, useEffect } from "react";
 import { ArrowLeft, ChevronDown, ChevronUp, Wallet, Clock, CheckCircle2, AlertTriangle, Search, X } from "lucide-react";
-import { isRemittanceTarget } from "../../utils/remitFilter.js";
+import { isRemittanceTarget, calcRemitAmount, isAutoConfirmedRemit } from "../../utils/remitFilter.js";
 import { toKstYmd } from "../../utils/dateLabel.js";
 // 2026-06-07 — 원청 지급 측측 측측 데이터 fetch (KA/crikrin, Mig 100 principal_daily_remittances)
 import { supabase } from "../../lib/supabase.js";
@@ -62,9 +62,11 @@ function unpaidDeadline(task) {
 
 // 상태 (단일 task 기준) — 4종.
 //   confirmed (입금 완료) / reported (확인 대기) / overdue (연체) / pending (미입금)
+// 2026-06-13 — 회사 송금분 0원이면 자동 "입금 완료" (직영 기사 + usol_h 냉매 등 정상 0원).
 function pickRowStatus(task) {
   if (task.engineerRemitConfirmedAt || task.engineer_remit_confirmed_at) return "confirmed";
   if (task.engineerRemittedAt       || task.engineer_remitted_at)       return "reported";
+  if (isAutoConfirmedRemit(task)) return "confirmed";
   const dl = unpaidDeadline(task);
   if (dl && new Date() > dl) return "overdue";
   return "pending";
@@ -73,20 +75,20 @@ function pickRowStatus(task) {
 // 묶음 통합 상태 — 4종.
 //   모두 confirmed → confirmed / 모두 reported → reported /
 //   1건 이상 overdue → overdue / 그 외 → pending
+// 2026-06-13 — 0원 송금건은 confirmed 와 동등 취급 (실제 받을 돈 없음).
 function computeSubGroupStatus(tasks) {
   if (!Array.isArray(tasks) || tasks.length === 0) return "pending";
-  if (tasks.every(t => t.engineerRemitConfirmedAt || t.engineer_remit_confirmed_at)) return "confirmed";
-  if (tasks.every(t => t.engineerRemittedAt       || t.engineer_remitted_at))       return "reported";
-  if (tasks.some(t  => pickRowStatus(t) === "overdue")) return "overdue";
+  const isConfirmedLike = (t) =>
+    t.engineerRemitConfirmedAt || t.engineer_remit_confirmed_at || isAutoConfirmedRemit(t);
+  const isReportedLike = (t) =>
+    t.engineerRemittedAt || t.engineer_remitted_at || isAutoConfirmedRemit(t);
+  if (tasks.every(isConfirmedLike)) return "confirmed";
+  if (tasks.every(isReportedLike))  return "reported";
+  if (tasks.some(t => pickRowStatus(t) === "overdue")) return "overdue";
   return "pending";
 }
 
-// 송금액 = totalAmount - engineer_amount (회사 보유 + 원청 송금분)
-function calcRemitAmount(task) {
-  const total = Number(task.totalAmount || task.total_amount || 0);
-  const eng   = Number(task.engineer_amount || 0);
-  return Math.max(0, total - eng);
-}
+// 2026-06-13 — calcRemitAmount 는 utils/remitFilter.js 공용 헬퍼로 이동 (AdminApp.computeGroupStatus 공유).
 
 // ──────────────────────────────────────────────
 // 월 필터 헬퍼

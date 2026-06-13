@@ -72,6 +72,26 @@ export function isPendingRemit(task) {
   return !confirmedAt;
 }
 
+// 2026-06-13 — 회사 송금분 = totalAmount − engineer_amount (= principal + owner).
+//   사장님 spec: 직영 기사(refrigerant_rate=100) + usol_h 냉매 케이스가 대표.
+//   compute_payment v19 분기 결과 회사 송금 0원이 정상 산출.
+//   미입금 집계/배지에서 자동 "입금 완료" 처리해야 0원이 미입금에 안 잡힘.
+//
+// 호출처:
+//   · SettlementHistoryContent.pickRowStatus / computeSubGroupStatus / summary
+//   · AdminApp.computeGroupStatus
+export function calcRemitAmount(task) {
+  if (!task) return 0;
+  const total = Number(task.totalAmount || task.total_amount || 0);
+  const eng   = Number(task.engineer_amount || task.engineerAmount || 0);
+  return Math.max(0, total - eng);
+}
+
+// 0원 송금건 = 자동 "입금 완료" 판정 (DB 안 건드리고 화면 판정만).
+export function isAutoConfirmedRemit(task) {
+  return calcRemitAmount(task) === 0;
+}
+
 /**
  * 트랙 🅒 (유솔 송금 대상) 판별: usol_n 본작업에 현장 추가건이 있는 경우.
  *
