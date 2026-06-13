@@ -148,6 +148,7 @@ import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
 import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
 import AdminPcRemitInbox from "./AdminPcRemitInbox.jsx";
 import AdminPcPrincipalPayout from "./AdminPcPrincipalPayout.jsx";
+import AdminPcRevenueReport from "./AdminPcRevenueReport.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 // 2026-06-03 — 대시보드 "매출 현황" 블록.
@@ -3617,6 +3618,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onBack={goBack}
         onTaskClick={(task) => goTaskDetail(task, null)}
       />
+    </Shell>;
+  }
+  // 2026-06-13 — PC 매출 리포트 (1단계: 하루 리포트만). 월 리포트는 별도 단계.
+  //   금액 계산은 revenueStats 그대로 — 개요 대시보드와 동일 dataset 보장.
+  if (screen === "revenueReport") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AdminPcRevenueReport t={t} apiTasks={apiTasks} user={user}/>
     </Shell>;
   }
   // 2026-06-13 — PC 원청 지급(회사→원청). 모바일은 사이드바 메뉴 X (옛 입금내역의 원청 지급 토글 그대로).

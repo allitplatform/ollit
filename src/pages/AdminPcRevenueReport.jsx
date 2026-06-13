@@ -1,0 +1,360 @@
+// 2026-06-13 — PC "매출 리포트" 화면. 1단계 = 하루 리포트만.
+//
+// 사장님 spec:
+//   · 개요 대시보드(AdminPcRevenuePanel)와 차별점: 날짜·월 자유 선택 (과거 포함).
+//   · 금액 계산은 revenueStats 그대로 재사용 — 개요와 숫자 반드시 일치.
+//   · 1단계 = 하루 리포트만 만들고 사장님 숫자 검증. 그담 월 전체(2단계 별도).
+//
+// 데이터:
+//   · computeRevenueByYmRange(apiTasks, ymd, ymd, user)
+//     → { total, engineer, principal, owner, byService, byServiceDetail, count }
+//   · computeRevenueByPrincipal(apiTasks, ymd, ymd, user)
+//     → [{ code, name, count, total, owner }, ...]
+//   · AdminPcRevenuePanel period='today' = (todayYmd, todayYmd, user) 호출과 동일 입력
+//     → 기본값(오늘) 진입 시 개요와 자동 일치.
+//
+// UI:
+//   · 상단: 날짜 선택 (‹ 화살표 / 가운데 YYYY-MM-DD (요일) / native date input / "오늘" 버튼)
+//   · 4카드: 총매출 / 기사 정산(파랑) / 원청 수수료(주황) / 회사 마진(핑크 ★)
+//   · 종류별 2단: ❄ 세척 / ⚡ 냉매 — 건수·매출·마진
+//   · 원청별 분포: 매출 내림차순 표
+//
+// 색 톤 — AdminPcRevenuePanel 과 동일.
+
+import { useMemo, useState } from "react";
+import { ChevronLeft, ChevronRight, Wallet, Calendar } from "lucide-react";
+import { todayYmd } from "../utils/dateLabel.js";
+import {
+  computeRevenueByYmRange,
+  computeRevenueByPrincipal,
+} from "../utils/revenueStats.js";
+
+const COLOR_ENGINEER  = "#3B82F6";
+const COLOR_PRINCIPAL = "#F59E0B";
+const COLOR_CLEANING  = "#0EA5E9";
+const COLOR_REFRI     = "#FFB800";
+
+const fmtKRW   = (n) => `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
+const fmtCount = (n) => `${Number(n) || 0}건`;
+
+const KO_DOW = ["일", "월", "화", "수", "목", "금", "토"];
+function dowOf(ymd) {
+  if (!ymd) return "";
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  return isNaN(dt.getTime()) ? "" : KO_DOW[dt.getDay()];
+}
+
+// ymd ± 1일
+function shiftYmd(ymd, delta) {
+  if (!ymd) return ymd;
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1, d || 1);
+  dt.setDate(dt.getDate() + delta);
+  const ny = dt.getFullYear();
+  const nm = String(dt.getMonth() + 1).padStart(2, "0");
+  const nd = String(dt.getDate()).padStart(2, "0");
+  return `${ny}-${nm}-${nd}`;
+}
+
+// ──────────────────────────────────────────────
+// 본체
+// ──────────────────────────────────────────────
+export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
+  const todayStr = todayYmd();
+  const [selectedYmd, setSelectedYmd] = useState(todayStr);
+
+  // 하루 dataset
+  const day = useMemo(
+    () => computeRevenueByYmRange(apiTasks, selectedYmd, selectedYmd, user),
+    [apiTasks, selectedYmd, user]
+  );
+  const principals = useMemo(
+    () => computeRevenueByPrincipal(apiTasks, selectedYmd, selectedYmd, user),
+    [apiTasks, selectedYmd, user]
+  );
+
+  const isToday = selectedYmd === todayStr;
+  const dow = dowOf(selectedYmd);
+  const sd  = day.byServiceDetail || {
+    cleaning:    { total: 0, count: 0, owner: 0 },
+    refrigerant: { total: 0, count: 0, owner: 0 },
+  };
+
+  return (
+    <div style={{ padding: "20px 24px 40px", maxWidth: 1400, margin: "0 auto" }}>
+      {/* 헤더 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+        <Wallet size={22} style={{ color: t.accent }}/>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: t.text }}>매출 리포트</div>
+          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
+            날짜 자유 선택 · 개요 대시보드와 동일 dataset (revenueStats)
+          </div>
+        </div>
+      </div>
+
+      {/* 날짜 선택 */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        padding: "12px 14px", marginBottom: 16,
+        background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10,
+      }}>
+        <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4, marginRight: 8 }}>
+          📅 하루 리포트
+        </div>
+        <button onClick={() => setSelectedYmd(s => shiftYmd(s, -1))}
+          aria-label="이전 날짜"
+          style={{
+            background: "transparent", border: `1px solid ${t.border}`,
+            borderRadius: 8, padding: "7px 10px",
+            color: t.text, cursor: "pointer", display: "flex",
+            fontFamily: "inherit",
+          }}>
+          <ChevronLeft size={16}/>
+        </button>
+        <div style={{
+          padding: "7px 14px",
+          background: t.bgInset, border: `1.5px solid ${t.accent}`,
+          borderRadius: 8,
+          fontSize: 14, fontWeight: 800, color: t.text,
+          minWidth: 160, textAlign: "center",
+          fontVariantNumeric: "tabular-nums",
+        }}>
+          {selectedYmd} ({dow})
+        </div>
+        <button onClick={() => setSelectedYmd(s => shiftYmd(s, +1))}
+          aria-label="다음 날짜"
+          style={{
+            background: "transparent", border: `1px solid ${t.border}`,
+            borderRadius: 8, padding: "7px 10px",
+            color: t.text, cursor: "pointer", display: "flex",
+            fontFamily: "inherit",
+          }}>
+          <ChevronRight size={16}/>
+        </button>
+        <label style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "7px 12px",
+          background: "transparent", border: `1px solid ${t.border}`,
+          borderRadius: 8,
+          fontSize: 12, fontWeight: 700, color: t.textMuted,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>
+          <Calendar size={13}/>
+          <span>날짜 선택</span>
+          <input type="date" value={selectedYmd}
+            onChange={(e) => e.target.value && setSelectedYmd(e.target.value)}
+            style={{
+              border: "none", background: "transparent",
+              fontFamily: "inherit", fontSize: 12, color: t.text,
+              padding: 0, width: 0, opacity: 0, position: "absolute",
+            }}/>
+        </label>
+        <button onClick={() => setSelectedYmd(todayStr)}
+          disabled={isToday}
+          style={{
+            padding: "7px 14px",
+            background: isToday ? "transparent" : t.accentBg,
+            border: `1px solid ${isToday ? t.border : t.accent}`,
+            borderRadius: 8,
+            fontSize: 12, fontWeight: 700,
+            color: isToday ? t.textMuted : t.accent,
+            cursor: isToday ? "default" : "pointer",
+            fontFamily: "inherit",
+            opacity: isToday ? 0.6 : 1,
+          }}>
+          → 오늘
+        </button>
+        <div style={{ flex: 1 }}/>
+        <div style={{ fontSize: 12, color: t.textSecondary }}>
+          완료 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{day.count || 0}</span>건
+        </div>
+      </div>
+
+      {/* 4카드 */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }}>
+        <BigCard t={t} label="총 매출" amount={day.total}        color={t.text}           emphasis="mid"/>
+        <BigCard t={t} label="기사 정산" amount={day.engineer}    color={COLOR_ENGINEER}    emphasis="mid"/>
+        <BigCard t={t} label="원청 수수료" amount={day.principal} color={COLOR_PRINCIPAL}   emphasis="mid"/>
+        <BigCard t={t} label="회사 마진" amount={day.owner}        color={t.accent}          emphasis="big"/>
+      </div>
+
+      {/* 종류별 2단 */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
+        marginBottom: 18,
+      }}>
+        <ServiceCard t={t} icon="❄" label="세척" color={COLOR_CLEANING} detail={sd.cleaning}/>
+        <ServiceCard t={t} icon="⚡" label="냉매" color={COLOR_REFRI}    detail={sd.refrigerant}/>
+      </div>
+
+      {/* 원청별 분포 */}
+      <div style={{
+        background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+        padding: "16px 20px",
+      }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: t.text, marginBottom: 12 }}>
+          🏢 원청별 분포
+        </div>
+        {principals.length === 0 ? (
+          <div style={{ padding: "30px 10px", textAlign: "center", color: t.textMuted, fontSize: 13 }}>
+            해당 날짜 원청 매출 없음
+          </div>
+        ) : (
+          <PrincipalTable t={t} rows={principals} dayTotal={day.total}/>
+        )}
+      </div>
+
+      {/* 0건 안내 */}
+      {(day.count || 0) === 0 && (
+        <div style={{
+          marginTop: 14, padding: "16px 20px",
+          background: t.bgInset, border: `1px dashed ${t.border}`, borderRadius: 10,
+          fontSize: 12, color: t.textMuted, textAlign: "center",
+        }}>
+          {selectedYmd} 완료 작업이 없습니다 (트랙 A · isRemittanceTarget 기준).
+        </div>
+      )}
+
+      {/* 2단계 예고 */}
+      <div style={{
+        marginTop: 24, padding: "12px 16px",
+        background: t.bgInset, border: `1px dashed ${t.border}`, borderRadius: 10,
+        fontSize: 11, color: t.textMuted,
+      }}>
+        🚧 한 달 리포트(월 4카드 + 일별 막대그래프)는 사장님 숫자 검증 후 별도 단계.
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 카드 (4개 / emphasis: 'mid' | 'big')
+// ──────────────────────────────────────────────
+function BigCard({ t, label, amount, color, emphasis }) {
+  const big = emphasis === "big";
+  return (
+    <div style={{
+      background: t.bgElevated,
+      border: `${big ? 2 : 1}px solid ${big ? color : t.border}`,
+      borderRadius: 12,
+      padding: big ? "18px 22px" : "16px 20px",
+      display: "flex", flexDirection: "column", gap: 6,
+      boxShadow: big ? `0 0 0 1px ${color}22` : "none",
+    }}>
+      <div style={{
+        fontSize: 11, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4,
+      }}>{label}</div>
+      <div className="mono" style={{
+        fontSize: big ? 22 : 18,
+        fontWeight: 800, color,
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.4px",
+        wordBreak: "keep-all",
+      }}>{fmtKRW(amount)}</div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 종류별 (세척 / 냉매)
+// ──────────────────────────────────────────────
+function ServiceCard({ t, icon, label, color, detail }) {
+  const { total = 0, count = 0, owner = 0 } = detail || {};
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      padding: "16px 20px",
+      display: "flex", flexDirection: "column", gap: 10,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ fontSize: 18 }}>{icon}</span>
+        <span style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{label}</span>
+        <div style={{ flex: 1 }}/>
+        <span className="mono" style={{
+          fontSize: 12, color: t.textSecondary, fontWeight: 700,
+        }}>{fmtCount(count)}</span>
+      </div>
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
+      }}>
+        <LineStat t={t} label="매출" amount={total}  color={color}/>
+        <LineStat t={t} label="마진" amount={owner}  color={t.accent}/>
+      </div>
+    </div>
+  );
+}
+
+function LineStat({ t, label, amount, color }) {
+  return (
+    <div style={{
+      background: t.bgInset, border: `1px solid ${t.border}`,
+      borderRadius: 8, padding: "9px 12px",
+      display: "flex", flexDirection: "column", gap: 3,
+    }}>
+      <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4 }}>{label}</span>
+      <span className="mono" style={{
+        fontSize: 14, fontWeight: 800, color,
+        fontVariantNumeric: "tabular-nums",
+      }}>{fmtKRW(amount)}</span>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 원청별 표
+// ──────────────────────────────────────────────
+function PrincipalTable({ t, rows, dayTotal }) {
+  const denom = dayTotal > 0 ? dayTotal : 1;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(120px, 1.2fr) 70px minmax(140px, 1fr) minmax(140px, 1fr) 64px",
+        gap: 10, alignItems: "center",
+        padding: "8px 12px",
+        fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4,
+      }}>
+        <span>원청</span>
+        <span style={{ textAlign: "right" }}>건수</span>
+        <span style={{ textAlign: "right" }}>매출</span>
+        <span style={{ textAlign: "right" }}>마진</span>
+        <span style={{ textAlign: "right" }}>비중</span>
+      </div>
+      {rows.map((r) => {
+        const pct = (r.total / denom) * 100;
+        return (
+          <div key={r.code || r.name} style={{
+            display: "grid",
+            gridTemplateColumns: "minmax(120px, 1.2fr) 70px minmax(140px, 1fr) minmax(140px, 1fr) 64px",
+            gap: 10, alignItems: "center",
+            padding: "10px 12px",
+            background: t.bgInset, borderRadius: 8,
+            border: `1px solid ${t.border}`,
+          }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>
+              {r.name || r.code || "—"}
+            </span>
+            <span className="mono" style={{
+              fontSize: 12, textAlign: "right", color: t.text, fontWeight: 700,
+              fontVariantNumeric: "tabular-nums",
+            }}>{fmtCount(r.count)}</span>
+            <span className="mono" style={{
+              fontSize: 13, textAlign: "right", color: t.text, fontWeight: 800,
+              fontVariantNumeric: "tabular-nums",
+            }}>{fmtKRW(r.total)}</span>
+            <span className="mono" style={{
+              fontSize: 13, textAlign: "right", color: t.accent, fontWeight: 800,
+              fontVariantNumeric: "tabular-nums",
+            }}>{fmtKRW(r.owner)}</span>
+            <span className="mono" style={{
+              fontSize: 11, textAlign: "right", color: t.textSecondary, fontWeight: 700,
+              fontVariantNumeric: "tabular-nums",
+            }}>{pct.toFixed(1)}%</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

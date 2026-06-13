@@ -55,6 +55,7 @@ const GROUPS = [
       { id: "principal_settlement",  label: "원청 정산" },
       { id: "settlementHistory",     label: "입금 내역 (기사 송금)" },
       { id: "principalPayout",       label: "원청 지급 (회사→원청)" },
+      { id: "revenueReport",         label: "매출 리포트" },
       { id: "revenueDetail",         label: "매출 상세" },
       { id: "refrigerantAddonList",  label: "냉매 addon" },
     ],
