@@ -3656,8 +3656,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
           }}
           onCalendar={(eng) => {
             // 2026-06-12 — 그리드 카드 📅 진입 — 그 기사 pre-select 후 달력 화면.
+            // 2026-06-13 — 사장님 spec: 주간 → 월간 으로 변경 (engineerCalendarMonth).
             setCalEngineerId(eng.id);
-            setScreen("engineerCalendar");
+            setScreen("engineerCalendarMonth");
           }}
         />
       </Shell>;

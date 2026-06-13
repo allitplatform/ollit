@@ -87,11 +87,21 @@ export function AdminPcEngineerGridScreen({ onEdit, onAdd, onCalendar }) {
     if (!search) return engineers;
     const q = search.trim();
     if (!q) return engineers;
+    // 2026-06-13 — 핸드폰 검색 추가 (하이픈 무관).
+    //   숫자만 들어온 검색어는 phone 도 숫자만 추출 후 includes 비교.
+    //   문자 섞이면 옛 방식 (이름/지역) 만.
+    const qDigits = q.replace(/\D/g, "");
     return engineers.filter(e => {
-      const inName = e.name && e.name.includes(q);
-      if (inName) return true;
+      if (e.name && e.name.includes(q)) return true;
       const zones = getEngZones(e.id);
-      return zones.some(z => z.includes(q));
+      if (zones.some(z => z.includes(q))) return true;
+      // 핸드폰 — qDigits 있을 때만 시도
+      if (qDigits) {
+        const phone = String(e.phone || e.phoneNumber || "");
+        const phoneDigits = phone.replace(/\D/g, "");
+        if (phoneDigits && phoneDigits.includes(qDigits)) return true;
+      }
+      return false;
     });
     // skillsMap deps — search 변경 시만 trigger. zones 매핑이 skillsMap 의존 → 추가.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -186,7 +196,7 @@ function SearchBar({ value, onChange }) {
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder="이름 · 지역"
+        placeholder="이름 · 지역 · 핸드폰"
         style={{
           width: "100%",
           boxSizing: "border-box",
@@ -210,8 +220,13 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick, o
   const status = engineer.status || "active";
   const meta = STATUS_META[status] || STATUS_META.active;
   const isDimmed = status !== "active";
-  // 냉매 비율 — refrigerantRate 또는 refrigerant_rate (DB 컬럼).
-  const refriRate = engineer.refrigerantRate ?? engineer.refrigerant_rate ?? null;
+  // 2026-06-13 — 냉매 비율 필드명 정정.
+  //   실제 저장 필드 = cm_refrigerant_rate (편집 화면 EngineerEditScreen.jsx:325, sync payload engineers.js:512).
+  //   옛 코드는 refrigerantRate / refrigerant_rate 만 봐서 항상 null → % 표시 누락.
+  const refriRate = engineer.cm_refrigerant_rate
+                 ?? engineer.refrigerantRate
+                 ?? engineer.refrigerant_rate
+                 ?? null;
   // 이름 첫 글자 (아바타 이니셜).
   const init = initials(engineer.name);
   // 전화
@@ -307,12 +322,16 @@ function EngineerCard({ engineer, zones, hasCleaning, hasRefrigerant, onClick, o
         {phone || <span style={{ color: "var(--text-tertiary, var(--text-secondary))" }}>—</span>}
       </Row>
 
-      {/* 지역 — 한 줄 고정 (앞 3 · 외 N) */}
+      {/* 지역 — 한 줄 고정 (앞 3 · 외 N). 스킬 있고 zones 0개면 "전국" 표시. */}
       <Row icon="📍">
         <span style={{
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           display: "block", flex: 1, minWidth: 0,
-        }}>{summarizeZones(zones, 3)}</span>
+        }}>{
+          (!Array.isArray(zones) || zones.length === 0)
+            ? ((hasCleaning || hasRefrigerant) ? "전국" : "—")
+            : summarizeZones(zones, 3)
+        }</span>
       </Row>
 
       {/* 스킬 칩 — 세척 / 냉매 */}
