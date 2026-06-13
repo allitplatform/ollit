@@ -9,7 +9,7 @@
 import { useState, useEffect } from "react";
 import {
   LayoutDashboard, ListChecks, Wallet, Users, Settings,
-  Database, Network, ChevronDown, ChevronRight, Bell, LogOut, Plus,
+  Building2, Network, ChevronDown, ChevronRight, Bell, LogOut, Plus,
 } from "lucide-react";
 import { OllitMark } from "../components/OllitMark.jsx";
 
@@ -64,22 +64,26 @@ const GROUPS = [
     id: "engineers",
     label: "기사",
     icon: Users,
+    // 2026-06-13 사장님 spec — 지역(regionList) 기준정보에서 이동.
     items: [
       { id: "engineerList",          label: "기사 목록" },
       { id: "engineerCalendar",      label: "기사 달력 (주간)" },
       // 2026-06-12 — 월간 달력 (한 기사 × 한 달).
       { id: "engineerCalendarMonth", label: "기사 달력 (월간)" },
+      { id: "regionList",            label: "지역" },
     ],
   },
+  // 2026-06-13 사장님 spec — 신규 "원청" 카테고리. 기준정보 그룹 해체 후 원청 관련 모두 이쪽.
+  //   원청 계좌(principalAccount) 는 placeholder — AdminApp.jsx 분기에서 안내 화면.
   {
-    id: "master",
-    label: "기준정보",
-    icon: Database,
+    id: "principal",
+    label: "원청",
+    icon: Building2,
     items: [
-      { id: "principalList",     label: "원청" },
-      { id: "regionList",        label: "지역" },
-      { id: "ratesManagement",   label: "단가" },
-      { id: "commissionPolicy",  label: "수수료 정책" },
+      { id: "principalList",      label: "원청 목록" },
+      { id: "principalAccount",   label: "원청 계좌" },
+      { id: "ratesManagement",    label: "원청 단가" },
+      { id: "commissionPolicy",   label: "원청 수수료 정책" },
     ],
   },
   {
@@ -110,6 +114,14 @@ const SCREEN_TO_GROUP = (() => {
   map.settlement            = "settlement";
   map.principal_settlement  = "settlement";
   map.refrigerantAddonList  = "settlement";
+  // 2026-06-13 v2 — 옛 기준정보 그룹 해체. 외부 진입(설정 카드 등)에서도 새 그룹으로 동기화.
+  //   principalList / ratesManagement / commissionPolicy → "principal"
+  //   regionList → "engineers"
+  map.principalList     = "principal";
+  map.principalAccount  = "principal";
+  map.ratesManagement   = "principal";
+  map.commissionPolicy  = "principal";
+  map.regionList        = "engineers";
   return map;
 })();
 

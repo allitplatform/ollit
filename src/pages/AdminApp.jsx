@@ -3901,6 +3901,34 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       />
     </Shell>;
   }
+  // 2026-06-13 — 원청 계좌 placeholder. B단계에서 본 화면 구현 예정.
+  if (screen === "principalAccount") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <div style={{ padding: "60px 24px", maxWidth: 720, margin: "0 auto", textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>🏦</div>
+        <div style={{ fontSize: 22, fontWeight: 800, color: t.text, marginBottom: 10 }}>
+          원청 계좌
+        </div>
+        <div style={{ fontSize: 13, color: t.textMuted, lineHeight: 1.7, marginBottom: 24 }}>
+          B단계 구현 예정 화면입니다.<br/>
+          원청별 계좌 정보(은행 / 예금주 / 계좌번호)를 등록·조회·편집할 수 있게 됩니다.
+        </div>
+        <div style={{
+          padding: "14px 18px",
+          background: t.bgInset, border: `1px dashed ${t.border}`, borderRadius: 10,
+          fontSize: 12, color: t.textSecondary, textAlign: "left",
+          fontFamily: "inherit",
+        }}>
+          <div style={{ fontWeight: 700, marginBottom: 6, color: t.text }}>📋 예정 항목</div>
+          <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
+            <li>원청별 계좌 등록 (은행명·계좌번호·예금주)</li>
+            <li>원청 지급 화면과 연동 (이체 정보 자동 조회)</li>
+            <li>변경 이력 기록</li>
+          </ul>
+        </div>
+      </div>
+    </Shell>;
+  }
   if (screen === "ratesManagement") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <RatesManagementScreen

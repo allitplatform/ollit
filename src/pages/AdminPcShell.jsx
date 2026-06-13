@@ -8,7 +8,7 @@
 import { useMinWidth } from "../utils/useIsPc.js";
 import { AdminPcSidebar } from "./AdminPcSidebar.jsx";
 
-export const PC_SIDEBAR_W = 260;   // AdminApp 그룹 메뉴 (PrincipalApp 240 보다 약간 넓음)
+export const PC_SIDEBAR_W = 240;   // 2026-06-13 사장님 spec — 260 → 240 축소 (우 콘텐츠 +20).
 export const PC_DETAIL_W  = 420;   // PrincipalApp 동일
 
 export function AdminPcShell({ t, pcCtx, asideNode, children }) {
