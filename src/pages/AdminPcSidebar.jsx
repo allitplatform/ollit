@@ -90,6 +90,7 @@ const GROUPS = [
     icon: BookOpen,
     items: [
       { id: "bookkeeping", label: "가계부" },
+      { id: "cashflow",    label: "통장" },
     ],
   },
   {

@@ -151,6 +151,7 @@ import AdminPcPrincipalPayout from "./AdminPcPrincipalPayout.jsx";
 import AdminPcRevenueReport from "./AdminPcRevenueReport.jsx";
 import AdminPcPrincipalAccount from "./AdminPcPrincipalAccount.jsx";
 import AdminPcBookkeeping from "./AdminPcBookkeeping.jsx";
+import AdminPcCashflow from "./AdminPcCashflow.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 // 2026-06-03 — 대시보드 "매출 현황" 블록.
@@ -3630,6 +3631,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   if (screen === "bookkeeping") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AdminPcBookkeeping t={t} user={user} apiTasks={apiTasks}/>
+    </Shell>;
+  }
+  // 2026-06-14 — PC 통장 (현금흐름 수동 + 기준 잔고). Mig 122 RPC 7개.
+  if (screen === "cashflow") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AdminPcCashflow t={t} user={user}/>
     </Shell>;
   }
   // 2026-06-13 — PC 매출 리포트 (1단계: 하루 리포트만). 월 리포트는 별도 단계.
