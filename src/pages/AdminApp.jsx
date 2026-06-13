@@ -147,6 +147,7 @@ import { markPartnerDailyRemit, undoPartnerDailyRemit, describeDailyRemitError, 
 import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
 import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
 import AdminPcRemitInbox from "./AdminPcRemitInbox.jsx";
+import AdminPcPrincipalPayout from "./AdminPcPrincipalPayout.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 // 2026-06-03 — 대시보드 "매출 현황" 블록.
@@ -3616,6 +3617,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onBack={goBack}
         onTaskClick={(task) => goTaskDetail(task, null)}
       />
+    </Shell>;
+  }
+  // 2026-06-13 — PC 원청 지급(회사→원청). 모바일은 사이드바 메뉴 X (옛 입금내역의 원청 지급 토글 그대로).
+  if (screen === "principalPayout") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AdminPcPrincipalPayout t={t} user={user}/>
     </Shell>;
   }
   if (screen === "principal_settlement") {
