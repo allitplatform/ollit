@@ -251,12 +251,13 @@ export default function AdminPcBookkeeping({ t, user }) {
           </div>
         ) : (
           <>
-            {/* 표 헤더 */}
+            {/* 2026-06-13 — 표 헤더. 좁은 PC(1024+)에서 액션 컬럼 잘림 정정.
+                컬럼 합 = 95+90+110+0(1fr)+60 + gap(8*4=32) + padding(14*2=28) = 415px 최소. */}
             <div style={{
               display: "grid",
-              gridTemplateColumns: "110px 120px minmax(120px, 1fr) minmax(180px, 2fr) 100px",
-              gap: 10, alignItems: "center",
-              padding: "10px 18px",
+              gridTemplateColumns: "95px 90px 110px minmax(0, 1fr) 60px",
+              gap: 8, alignItems: "center",
+              padding: "10px 14px",
               fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4,
               borderBottom: `1px solid ${t.border}`,
             }}>
@@ -326,30 +327,37 @@ function navBtnStyle(t) {
 function ExpenseRow({ t, row, onEdit, onDelete }) {
   const dp = ymdToParts(row.expense_date);
   return (
+    // 2026-06-13 — 그리드 컬럼 폭 헤더와 동일 (95+90+110+1fr+60). 좁은 PC 액션 잘림 정정.
     <div style={{
       display: "grid",
-      gridTemplateColumns: "110px 120px minmax(120px, 1fr) minmax(180px, 2fr) 100px",
-      gap: 10, alignItems: "center",
-      padding: "10px 18px",
+      gridTemplateColumns: "95px 90px 110px minmax(0, 1fr) 60px",
+      gap: 8, alignItems: "center",
+      padding: "10px 14px",
       borderTop: `1px solid ${t.border}`,
     }}>
       <span className="mono" style={{
         fontSize: 12, color: t.text, fontVariantNumeric: "tabular-nums",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>
         {row.expense_date}{dp?.dow ? ` (${dp.dow})` : ""}
       </span>
-      <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
+      <span style={{
+        fontSize: 12, fontWeight: 700, color: t.text,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
         {EXPENSE_CATEGORY_KO[row.category] || row.category}
       </span>
       <span className="mono" style={{
         fontSize: 13, fontWeight: 800, color: t.danger,
         textAlign: "right", fontVariantNumeric: "tabular-nums",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>{fmtKRW(row.amount)}</span>
       <span style={{
         fontSize: 12, color: row.memo ? t.textSecondary : t.textDim,
+        minWidth: 0,
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>{row.memo || "—"}</span>
-      <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+      <div style={{ display: "flex", gap: 3, justifyContent: "flex-end" }}>
         <button onClick={onEdit} aria-label="편집" title="편집" style={iconBtnStyle(t)}>
           <Edit3 size={12}/>
         </button>
@@ -364,10 +372,11 @@ function ExpenseRow({ t, row, onEdit, onDelete }) {
 }
 
 function iconBtnStyle(t) {
+  // 2026-06-13 — 좁은 PC 액션 컬럼(60px)에 맞게 padding 축소. 아이콘 12px + padding = 약 26px width.
   return {
-    padding: "6px 8px",
+    padding: "5px 6px",
     background: "transparent", border: `1px solid ${t.border}`,
-    color: t.textSecondary, borderRadius: 7,
+    color: t.textSecondary, borderRadius: 6,
     cursor: "pointer", display: "inline-flex",
     fontFamily: "inherit",
   };
