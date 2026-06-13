@@ -65,10 +65,11 @@ export default function AdminPcBookkeeping({ t, user }) {
   const actor = user?.user_id || user?.userId || user?.id;
 
   useEffect(() => {
+    if (!actor) { setLoading(false); return; }
     let alive = true;
     setLoading(true); setErr("");
     (async () => {
-      const res = await listExpenses(selectedYm);
+      const res = await listExpenses(selectedYm, actor);
       if (!alive) return;
       if (!res?.ok) {
         setErr(res?.error || "조회 실패"); setLoading(false); return;
@@ -77,7 +78,7 @@ export default function AdminPcBookkeeping({ t, user }) {
       setLoading(false);
     })().catch(e => { if (alive) { setErr(e?.message || "에러"); setLoading(false); } });
     return () => { alive = false; };
-  }, [selectedYm, reloadTick]);
+  }, [selectedYm, reloadTick, actor]);
 
   // 카테고리별 합 + 총합
   const totals = useMemo(() => {
@@ -301,7 +302,7 @@ export default function AdminPcBookkeeping({ t, user }) {
         />
       )}
       {dialog?.mode === "delete" && (
-        <DeleteDialog t={t} row={dialog.row}
+        <DeleteDialog t={t} row={dialog.row} actor={actor}
           onClose={() => setDialog(null)}
           onDeleted={() => { setDialog(null); setReloadTick(n => n + 1); }}
         />
@@ -407,7 +408,7 @@ function EditDialog({ t, mode, actor, workMonth, row, defaultDate, onClose, onSa
         });
       } else {
         res = await updateExpense({
-          id: row.id, category, amount, expenseDate: date, memo,
+          id: row.id, category, amount, expenseDate: date, memo, actor,
         });
       }
       if (!res?.ok) {
@@ -486,14 +487,15 @@ function EditDialog({ t, mode, actor, workMonth, row, defaultDate, onClose, onSa
 // ──────────────────────────────────────────────
 // 삭제 확인 다이얼로그
 // ──────────────────────────────────────────────
-function DeleteDialog({ t, row, onClose, onDeleted }) {
+function DeleteDialog({ t, row, actor, onClose, onDeleted }) {
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
 
   async function handleDelete() {
+    if (!actor) { setActionErr("관리자 사용자 ID 없음"); return; }
     setBusy(true);
     try {
-      const res = await deleteExpense(row.id);
+      const res = await deleteExpense(row.id, actor);
       if (!res?.ok) {
         setActionErr(res?.error || "삭제 실패");
       } else {

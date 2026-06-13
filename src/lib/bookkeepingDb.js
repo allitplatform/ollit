@@ -1,23 +1,16 @@
-// 2026-06-13 — 가계부 DB 모듈 (Mig 114 bookkeeping_* 테이블 3개).
+// 2026-06-13 — 가계부 DB 모듈 (Mig 114 테이블 + Mig 115 RPC 9개).
 //
-// 테이블:
-//   · bookkeeping_expenses      — 운영비 (다중 행 / 월)
-//   · bookkeeping_carryover     — 이월   (1 행 / 월, UNIQUE work_month)
-//   · bookkeeping_distributions — 분배   (1 행 / (월, 대표))
+// 아키텍처:
+//   PWA = anon key + sign_in_with_phone (auth.uid()=NULL) → table RLS 차단.
+//   → 모든 호출 SECURITY DEFINER RPC 경유 (p_actor uuid + role 검증).
+//   다른 모듈 패턴(update_principal_account / mark_principal_daily_remit) 동일.
 //
-// 권한: RLS owner/admin/operator 만 통과 (Mig 114 정책). A004 admin role 통과.
-//   직접 supabase.from(...) CRUD — 별도 RPC 없음.
-//
-// tenant_id 모듈 상수 (Phase 1 단일 테넌트, 다른 db 모듈과 동일).
-// created_by = actor (= user.user_id).
-//
-// 응답 형식: { ok, ... } | { ok: false, error }.
+// 호출 측은 actor (= user.user_id) 반드시 전달. 권한: owner / admin / operator.
+// 응답: { ok, ... } | { ok: false, error }.
 
 import { supabase } from "./supabase.js";
 
-const TENANT_ID = "11111111-1111-1111-1111-111111111111";
-
-// 카테고리 enum (Mig 114 CHECK 일치)
+// 카테고리 enum (Mig 115 RPC 안 CHECK 일치)
 export const EXPENSE_CATEGORIES = ["rent", "ad", "tax", "meal", "program", "etc"];
 export const EXPENSE_CATEGORY_KO = {
   rent:    "임대료",
@@ -28,25 +21,30 @@ export const EXPENSE_CATEGORY_KO = {
   etc:     "기타",
 };
 
+// 공통 — RPC 응답 정리. supabase.rpc 응답 { data, error }.
+//   error 면 { ok: false, error: msg }. 없으면 data 그대로 반환.
+async function callRpc(name, args, fallback = {}) {
+  const { data, error } = await supabase.rpc(name, args);
+  if (error) {
+    console.error(`[bookkeepingDb.${name}]`, error);
+    return { ok: false, error: error.message || "RPC 호출 실패", ...fallback };
+  }
+  // RPC 반환 jsonb 가 그대로 data 에 들어옴.
+  return data || { ok: false, error: "빈 응답", ...fallback };
+}
+
 // ============================================================
 // 운영비 (expenses)
 // ============================================================
 
 // workMonth = "YYYY-MM"
-export async function listExpenses(workMonth) {
+export async function listExpenses(workMonth, actor) {
   if (!workMonth) return { ok: false, error: "workMonth 필수", rows: [] };
-  const { data, error } = await supabase
-    .from("bookkeeping_expenses")
-    .select("*")
-    .eq("tenant_id", TENANT_ID)
-    .eq("work_month", workMonth)
-    .order("expense_date", { ascending: false })
-    .order("created_at", { ascending: false });
-  if (error) {
-    console.error("[bookkeepingDb.listExpenses]", error);
-    return { ok: false, error: error.message, rows: [] };
-  }
-  return { ok: true, rows: data || [] };
+  if (!actor)     return { ok: false, error: "actor 필수", rows: [] };
+  return callRpc("bookkeeping_list_expenses", {
+    p_work_month: workMonth,
+    p_actor:      actor,
+  }, { rows: [] });
 }
 
 export async function addExpense({ workMonth, category, amount, expenseDate, memo, actor } = {}) {
@@ -60,85 +58,60 @@ export async function addExpense({ workMonth, category, amount, expenseDate, mem
   if (!Number.isFinite(amt) || amt < 0) {
     return { ok: false, error: "금액은 0 이상 숫자" };
   }
-  if (!actor) return { ok: false, error: "actor (user_id) 필수" };
+  if (!actor) return { ok: false, error: "actor 필수" };
 
-  const row = {
-    tenant_id:    TENANT_ID,
-    work_month:   workMonth,
-    category,
-    amount:       Math.round(amt),
-    expense_date: expenseDate,
-    memo:         memo || null,
-    created_by:   actor,
-  };
-  const { data, error } = await supabase
-    .from("bookkeeping_expenses")
-    .insert(row)
-    .select("id")
-    .maybeSingle();
-  if (error) {
-    console.error("[bookkeepingDb.addExpense]", error);
-    return { ok: false, error: error.message };
-  }
-  return { ok: true, id: data?.id };
+  return callRpc("bookkeeping_add_expense", {
+    p_work_month:   workMonth,
+    p_category:     category,
+    p_amount:       Math.round(amt),
+    p_expense_date: expenseDate,
+    p_memo:         memo || "",
+    p_actor:        actor,
+  });
 }
 
-export async function updateExpense({ id, category, amount, expenseDate, memo } = {}) {
+export async function updateExpense({ id, category, amount, expenseDate, memo, actor } = {}) {
   if (!id) return { ok: false, error: "id 필수" };
-  if (category && !EXPENSE_CATEGORIES.includes(category)) {
-    return { ok: false, error: `잘못된 카테고리: ${category}` };
+  if (!category || !EXPENSE_CATEGORIES.includes(category)) {
+    return { ok: false, error: `카테고리 필수/유효 필요: ${category}` };
   }
-  const patch = { updated_at: new Date().toISOString() };
-  if (category    !== undefined) patch.category = category;
-  if (amount      !== undefined) {
-    const amt = Number(amount);
-    if (!Number.isFinite(amt) || amt < 0) return { ok: false, error: "금액은 0 이상 숫자" };
-    patch.amount = Math.round(amt);
+  const amt = Number(amount);
+  if (!Number.isFinite(amt) || amt < 0) {
+    return { ok: false, error: "금액은 0 이상 숫자" };
   }
-  if (expenseDate !== undefined) patch.expense_date = expenseDate;
-  if (memo        !== undefined) patch.memo = memo || null;
+  if (!expenseDate) return { ok: false, error: "expenseDate 필수" };
+  if (!actor)       return { ok: false, error: "actor 필수" };
 
-  const { error } = await supabase
-    .from("bookkeeping_expenses")
-    .update(patch)
-    .eq("id", id);
-  if (error) {
-    console.error("[bookkeepingDb.updateExpense]", error);
-    return { ok: false, error: error.message };
-  }
-  return { ok: true };
+  return callRpc("bookkeeping_update_expense", {
+    p_id:           id,
+    p_category:     category,
+    p_amount:       Math.round(amt),
+    p_expense_date: expenseDate,
+    p_memo:         memo || "",
+    p_actor:        actor,
+  });
 }
 
-export async function deleteExpense(id) {
-  if (!id) return { ok: false, error: "id 필수" };
-  const { error } = await supabase
-    .from("bookkeeping_expenses")
-    .delete()
-    .eq("id", id);
-  if (error) {
-    console.error("[bookkeepingDb.deleteExpense]", error);
-    return { ok: false, error: error.message };
-  }
-  return { ok: true };
+export async function deleteExpense(id, actor) {
+  if (!id)    return { ok: false, error: "id 필수" };
+  if (!actor) return { ok: false, error: "actor 필수" };
+  return callRpc("bookkeeping_delete_expense", {
+    p_id:    id,
+    p_actor: actor,
+  });
 }
 
 // ============================================================
-// 이월 (carryover) — 월별 1 행, UNIQUE(tenant_id, work_month) upsert
+// 이월 (carryover) — 1 행 / 월, RPC upsert
 // ============================================================
 
-export async function getCarryover(workMonth) {
+export async function getCarryover(workMonth, actor) {
   if (!workMonth) return { ok: false, error: "workMonth 필수", row: null };
-  const { data, error } = await supabase
-    .from("bookkeeping_carryover")
-    .select("*")
-    .eq("tenant_id", TENANT_ID)
-    .eq("work_month", workMonth)
-    .maybeSingle();
-  if (error) {
-    console.error("[bookkeepingDb.getCarryover]", error);
-    return { ok: false, error: error.message, row: null };
-  }
-  return { ok: true, row: data || null };
+  if (!actor)     return { ok: false, error: "actor 필수", row: null };
+  return callRpc("bookkeeping_get_carryover", {
+    p_work_month: workMonth,
+    p_actor:      actor,
+  }, { row: null });
 }
 
 export async function setCarryover({ workMonth, amount, memo, actor } = {}) {
@@ -147,43 +120,25 @@ export async function setCarryover({ workMonth, amount, memo, actor } = {}) {
   if (!Number.isFinite(amt) || amt < 0) return { ok: false, error: "금액은 0 이상 숫자" };
   if (!actor) return { ok: false, error: "actor 필수" };
 
-  const row = {
-    tenant_id:  TENANT_ID,
-    work_month: workMonth,
-    amount:     Math.round(amt),
-    memo:       memo || null,
-    created_by: actor,
-    updated_at: new Date().toISOString(),
-  };
-  const { data, error } = await supabase
-    .from("bookkeeping_carryover")
-    .upsert(row, { onConflict: "tenant_id,work_month" })
-    .select("id")
-    .maybeSingle();
-  if (error) {
-    console.error("[bookkeepingDb.setCarryover]", error);
-    return { ok: false, error: error.message };
-  }
-  return { ok: true, id: data?.id };
+  return callRpc("bookkeeping_set_carryover", {
+    p_work_month: workMonth,
+    p_amount:     Math.round(amt),
+    p_memo:       memo || "",
+    p_actor:      actor,
+  });
 }
 
 // ============================================================
-// 분배 (distributions) — (월, 대표) UNIQUE upsert
+// 분배 (distributions) — (월, 대표) upsert
 // ============================================================
 
-export async function listDistributions(workMonth) {
+export async function listDistributions(workMonth, actor) {
   if (!workMonth) return { ok: false, error: "workMonth 필수", rows: [] };
-  const { data, error } = await supabase
-    .from("bookkeeping_distributions")
-    .select("*")
-    .eq("tenant_id", TENANT_ID)
-    .eq("work_month", workMonth)
-    .order("created_at", { ascending: true });
-  if (error) {
-    console.error("[bookkeepingDb.listDistributions]", error);
-    return { ok: false, error: error.message, rows: [] };
-  }
-  return { ok: true, rows: data || [] };
+  if (!actor)     return { ok: false, error: "actor 필수", rows: [] };
+  return callRpc("bookkeeping_list_distributions", {
+    p_work_month: workMonth,
+    p_actor:      actor,
+  }, { rows: [] });
 }
 
 export async function setDistribution({ workMonth, repUserId, amount, memo, actor } = {}) {
@@ -194,38 +149,21 @@ export async function setDistribution({ workMonth, repUserId, amount, memo, acto
   if (!Number.isFinite(amt) || amt < 0) return { ok: false, error: "금액은 0 이상 숫자" };
   if (!actor) return { ok: false, error: "actor 필수" };
 
-  const row = {
-    tenant_id:              TENANT_ID,
-    work_month:             workMonth,
-    representative_user_id: repUserId,
-    amount:                 Math.round(amt),
-    memo:                   memo || null,
-    created_by:             actor,
-    updated_at:             new Date().toISOString(),
-  };
-  const { data, error } = await supabase
-    .from("bookkeeping_distributions")
-    .upsert(row, { onConflict: "tenant_id,work_month,representative_user_id" })
-    .select("id")
-    .maybeSingle();
-  if (error) {
-    console.error("[bookkeepingDb.setDistribution]", error);
-    return { ok: false, error: error.message };
-  }
-  return { ok: true, id: data?.id };
+  return callRpc("bookkeeping_set_distribution", {
+    p_work_month:  workMonth,
+    p_rep_user_id: repUserId,
+    p_amount:      Math.round(amt),
+    p_memo:        memo || "",
+    p_actor:       actor,
+  });
 }
 
-export async function deleteDistribution({ workMonth, repUserId } = {}) {
+export async function deleteDistribution({ workMonth, repUserId, actor } = {}) {
   if (!workMonth || !repUserId) return { ok: false, error: "workMonth/repUserId 필수" };
-  const { error } = await supabase
-    .from("bookkeeping_distributions")
-    .delete()
-    .eq("tenant_id", TENANT_ID)
-    .eq("work_month", workMonth)
-    .eq("representative_user_id", repUserId);
-  if (error) {
-    console.error("[bookkeepingDb.deleteDistribution]", error);
-    return { ok: false, error: error.message };
-  }
-  return { ok: true };
+  if (!actor)                    return { ok: false, error: "actor 필수" };
+  return callRpc("bookkeeping_delete_distribution", {
+    p_work_month:  workMonth,
+    p_rep_user_id: repUserId,
+    p_actor:       actor,
+  });
 }
