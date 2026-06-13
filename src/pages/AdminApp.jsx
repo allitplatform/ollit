@@ -2627,6 +2627,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   //     · sidebarSummary     — 하단 요약 3개 (오늘 접수 / 미배정 / 오늘 완료)
   const pcCtx = {
     user,
+    // 2026-06-13 — 사이드바 상단 테마 토글에 mode/setMode 노출 (기존 로직 그대로 호출).
+    mode,
+    setMode,
     onLogout,
     screen,
     setScreen,

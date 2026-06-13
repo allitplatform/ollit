@@ -10,8 +10,31 @@ import { useState, useEffect } from "react";
 import {
   LayoutDashboard, ListChecks, Wallet, Users, Settings,
   Building2, Network, ChevronDown, ChevronRight, Bell, LogOut, Plus,
+  Sun, Moon,
 } from "lucide-react";
 import { OllitMark } from "../components/OllitMark.jsx";
+
+// KST 날짜·시간 포맷터 — 한 번만 만들어 재사용 (Intl 객체 매 tick 생성 방지).
+const KO_DOW = ["일", "월", "화", "수", "목", "금", "토"];
+const TIME_FMT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Seoul",
+  hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+});
+const YMD_FMT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Seoul",
+  year: "numeric", month: "2-digit", day: "2-digit",
+});
+// KST 요일 — Date 의 timezone 변환. en-CA 의 weekday 값 (Mon/Tue) 대신 자체 매핑.
+function kstNow() {
+  const now = new Date();
+  const ymd = YMD_FMT.format(now);                  // "YYYY-MM-DD"
+  const time = TIME_FMT.format(now);                // "HH:MM:SS"
+  // KST 요일 — toLocaleDateString weekday short
+  const kstDateStr = now.toLocaleDateString("en-US", { timeZone: "Asia/Seoul" });
+  const kstDate = new Date(kstDateStr);
+  const dow = isNaN(kstDate.getTime()) ? "" : KO_DOW[kstDate.getDay()];
+  return { ymd, time, dow };
+}
 
 // 그룹 정의 — 7그룹. 각 그룹 안 items.id 가 AdminApp.jsx 의 setScreen() 값과 일치해야 함.
 const GROUPS = [
@@ -128,6 +151,8 @@ const SCREEN_TO_GROUP = (() => {
 export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
   const {
     screen, setScreen, onLogout,
+    user,
+    mode, setMode,
     unreadCount = 0,
     sidebarSummary = { todayReceived: 0, unassigned: 0, todayCompleted: 0 },
   } = pcCtx || {};
@@ -140,6 +165,21 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
     const g = SCREEN_TO_GROUP[screen];
     if (g) setOpenGroup(g);
   }, [screen]);
+
+  // 2026-06-13 — KST 실시간 시계 (1초 갱신). 언마운트 시 cleanup.
+  const [clock, setClock] = useState(kstNow);
+  useEffect(() => {
+    const id = setInterval(() => setClock(kstNow()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // 2026-06-13 — 테마 토글. 기존 setMode("dark"↔"light") 그대로 연결.
+  const isDark = mode === "dark";
+  function handleToggleTheme() {
+    if (typeof setMode === "function") setMode(isDark ? "light" : "dark");
+  }
+
+  const userName = (user && (user.name || user.userName)) || "운영자";
 
   function handleGroupClick(groupId) {
     setOpenGroup(prev => prev === groupId ? null : groupId);
@@ -166,38 +206,74 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
       height: "100vh",
       overflowY: "auto",
     }}>
-      {/* 상단 — 로고 + "운영자" 라벨 + 알림 */}
+      {/* 2026-06-13 — 상단 영역 3줄 (사장님 spec):
+          1) 로고 / 테마토글 ☀️🌙 / 🔔 알림
+          2) 사용자 실명 크게
+          3) KST 날짜(요일) + 시간 (1초 갱신) */}
       <div style={{
-        padding: "18px 16px 14px",
+        padding: "16px 14px 14px",
         borderBottom: "1px solid var(--border)",
-        display: "flex", alignItems: "center", justifyContent: "space-between",
+        display: "flex", flexDirection: "column", gap: 8,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <OllitMark size={26}/>
-          <span style={{
-            fontSize: 11, fontWeight: 700,
-            color: "var(--text-secondary)", letterSpacing: 1.5,
-            textTransform: "uppercase",
-          }}>운영자</span>
+        {/* 1줄 — 로고 좌 / 우측 (테마 토글 + 알림) */}
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+        }}>
+          <OllitMark size={24}/>
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <button onClick={handleToggleTheme}
+              aria-label={isDark ? "라이트 모드로" : "다크 모드로"}
+              title={isDark ? "라이트 모드로" : "다크 모드로"}
+              style={{
+                background: "transparent", border: "none",
+                cursor: "pointer", padding: 6, display: "flex",
+                color: "var(--text-secondary)", fontFamily: "inherit",
+              }}>
+              {isDark ? <Sun size={16}/> : <Moon size={16}/>}
+            </button>
+            <button onClick={() => handleItemClick("notifications")} aria-label="알림"
+              style={{
+                position: "relative",
+                background: "transparent", border: "none",
+                cursor: "pointer", padding: 6, display: "flex",
+                color: "var(--text-secondary)",
+              }}>
+              <Bell size={16}/>
+              {unreadCount > 0 && (
+                <span style={{
+                  position: "absolute", top: 0, right: 0,
+                  minWidth: 14, height: 14, padding: "0 4px",
+                  background: "var(--accent)", color: "#fff",
+                  borderRadius: 7, fontSize: 9, fontWeight: 700,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                }}>{unreadCount > 99 ? "99+" : unreadCount}</span>
+              )}
+            </button>
+          </div>
         </div>
-        <button onClick={() => handleItemClick("notifications")} aria-label="알림"
-          style={{
-            position: "relative",
-            background: "transparent", border: "none",
-            cursor: "pointer", padding: 6,
-            color: "var(--text-secondary)",
-          }}>
-          <Bell size={18}/>
-          {unreadCount > 0 && (
-            <span style={{
-              position: "absolute", top: 0, right: 0,
-              minWidth: 14, height: 14, padding: "0 4px",
-              background: "var(--accent)", color: "#fff",
-              borderRadius: 7, fontSize: 9, fontWeight: 700,
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-            }}>{unreadCount > 99 ? "99+" : unreadCount}</span>
-          )}
-        </button>
+
+        {/* 2줄 — 사용자 실명 */}
+        <div style={{
+          fontSize: 17, fontWeight: 800,
+          color: "var(--text-primary)",
+          letterSpacing: "-0.3px",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{userName}</div>
+
+        {/* 3줄 — KST 날짜·요일·시간 (1초 갱신) */}
+        <div style={{
+          display: "flex", alignItems: "baseline", gap: 6,
+          fontSize: 11, color: "var(--text-secondary)",
+          fontVariantNumeric: "tabular-nums",
+        }}>
+          <span className="mono" style={{ fontWeight: 700 }}>
+            {clock.ymd}{clock.dow ? ` (${clock.dow})` : ""}
+          </span>
+          <span className="mono" style={{
+            fontWeight: 800, color: "var(--text-primary)",
+            fontSize: 12,
+          }}>{clock.time}</span>
+        </div>
       </div>
 
       {/* 2026-06-12 — 새 작업 만들기 풀폭 핑크 버튼 (사장님 spec — 맨 위, 항상 보임). */}

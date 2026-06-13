@@ -8,7 +8,7 @@
 import { useMinWidth } from "../utils/useIsPc.js";
 import { AdminPcSidebar } from "./AdminPcSidebar.jsx";
 
-export const PC_SIDEBAR_W = 240;   // 2026-06-13 사장님 spec — 260 → 240 축소 (우 콘텐츠 +20).
+export const PC_SIDEBAR_W = 220;   // 2026-06-13 v2 — 240 → 220 추가 축소 (우 콘텐츠 +20 더).
 export const PC_DETAIL_W  = 420;   // PrincipalApp 동일
 
 export function AdminPcShell({ t, pcCtx, asideNode, children }) {
