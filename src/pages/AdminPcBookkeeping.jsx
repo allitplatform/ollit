@@ -2,7 +2,7 @@
 //
 // 사장님 spec:
 //   · 월 선택(이번달 default) + 운영비 표 + 추가/편집/삭제 (모두 확인 다이얼로그).
-//   · 카테고리 한글 6개 (rent/ad/tax/meal/program/etc).
+//   · 카테고리 한글 6개 (rent/ad/tax/meal/labor/etc — Mig 116).
 //   · 음수 차단. 금액 comma 표시. 날짜 default 오늘 KST.
 //   · 손익·이월·분배는 2-C 단계 (placeholder hint).
 //

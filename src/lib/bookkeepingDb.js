@@ -10,15 +10,17 @@
 
 import { supabase } from "./supabase.js";
 
-// 카테고리 enum (Mig 115 RPC 안 CHECK 일치)
-export const EXPENSE_CATEGORIES = ["rent", "ad", "tax", "meal", "program", "etc"];
+// 카테고리 enum (Mig 116 — program 제거, labor 추가).
+//   순서: 임대료 / 광고비 / 세금 / 식비 / 인건비 / 기타.
+//   DB CHECK + RPC validation 도 동일 (Mig 116).
+export const EXPENSE_CATEGORIES = ["rent", "ad", "tax", "meal", "labor", "etc"];
 export const EXPENSE_CATEGORY_KO = {
-  rent:    "임대료",
-  ad:      "광고비",
-  tax:     "세금",
-  meal:    "식비",
-  program: "프로그램비",
-  etc:     "기타",
+  rent:  "임대료",
+  ad:    "광고비",
+  tax:   "세금",
+  meal:  "식비",
+  labor: "인건비",
+  etc:   "기타",
 };
 
 // 공통 — RPC 응답 정리. supabase.rpc 응답 { data, error }.
