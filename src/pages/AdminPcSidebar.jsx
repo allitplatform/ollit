@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import {
   LayoutDashboard, ListChecks, Wallet, Users, Settings,
   Building2, Network, ChevronDown, ChevronRight, Bell, LogOut, Plus,
-  Sun, Moon,
+  Sun, Moon, BookOpen,
 } from "lucide-react";
 import { OllitMark } from "../components/OllitMark.jsx";
 
@@ -81,7 +81,15 @@ const GROUPS = [
       { id: "principalPayout",       label: "원청 지급 (회사→원청)" },
       { id: "revenueReport",         label: "매출 리포트" },
       { id: "revenueDetail",         label: "매출 상세" },
-      { id: "bookkeeping",           label: "가계부" },
+    ],
+  },
+  // 2026-06-13 — 가계부 별도 그룹 (정산에서 분리). screen id 'bookkeeping' 그대로.
+  {
+    id: "bookkeeping",
+    label: "가계부",
+    icon: BookOpen,
+    items: [
+      { id: "bookkeeping", label: "가계부" },
     ],
   },
   {
