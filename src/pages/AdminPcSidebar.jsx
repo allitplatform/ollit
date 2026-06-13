@@ -50,14 +50,14 @@ const GROUPS = [
     id: "settlement",
     label: "정산",
     icon: Wallet,
+    // 2026-06-13 — 사장님 spec: 정산 그룹 4개로 정리.
+    //   빠진 화면 (settlement/principal_settlement/refrigerantAddonList) 자체는 keep —
+    //   대시보드 카드 / 알림 등에서 접근 가능. SCREEN_TO_GROUP 매핑은 아래에서 "settlement" 그룹으로.
     items: [
-      { id: "settlement",            label: "기사 정산" },
-      { id: "principal_settlement",  label: "원청 정산" },
       { id: "settlementHistory",     label: "입금 내역 (기사 송금)" },
       { id: "principalPayout",       label: "원청 지급 (회사→원청)" },
       { id: "revenueReport",         label: "매출 리포트" },
       { id: "revenueDetail",         label: "매출 상세" },
-      { id: "refrigerantAddonList",  label: "냉매 addon" },
     ],
   },
   {
@@ -106,6 +106,10 @@ const SCREEN_TO_GROUP = (() => {
   map.newReception   = "tasks";
   map.assignedList   = "tasks";
   map.inProgressList = "tasks";
+  // 2026-06-13 — 사이드바에서 빠진 옛 정산 screen → 정산 그룹 활성.
+  map.settlement            = "settlement";
+  map.principal_settlement  = "settlement";
+  map.refrigerantAddonList  = "settlement";
   return map;
 })();
 
