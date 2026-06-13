@@ -146,6 +146,7 @@ import { isRemittanceTarget, isPendingRemit, isAutoConfirmedRemit } from "../uti
 import { markPartnerDailyRemit, undoPartnerDailyRemit, describeDailyRemitError, ymdKstToday } from "../lib/partnerDailySettleDb.js";
 import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
 import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
+import AdminPcRemitInbox from "./AdminPcRemitInbox.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 // 2026-06-03 — 대시보드 "매출 현황" 블록.
@@ -3594,8 +3595,20 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       />
     </Shell>;
   }
-  // 2026-05-22 — 입금 내역 (회사 송금 통장 내역, 조회 전용)
+  // 2026-05-22 — 입금 내역 (회사 송금 통장 내역). 모바일 = 조회 전용, PC = 확인 액션 통합.
+  // 2026-06-13 — PC 분기: AdminPcRemitInbox (입금 확인/확인 취소 일괄 액션 통합).
   if (screen === "settlementHistory") {
+    if (isPc) {
+      return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+        <AdminPcRemitInbox
+          t={t}
+          apiTasks={apiTasks}
+          user={user}
+          onRefreshTasks={fetchTasks}
+          onTaskClick={(task) => goTaskDetail(task, null)}
+        />
+      </Shell>;
+    }
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <SettlementHistoryContent
         t={t}
