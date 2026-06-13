@@ -81,6 +81,7 @@ const GROUPS = [
       { id: "principalPayout",       label: "원청 지급 (회사→원청)" },
       { id: "revenueReport",         label: "매출 리포트" },
       { id: "revenueDetail",         label: "매출 상세" },
+      { id: "bookkeeping",           label: "가계부" },
     ],
   },
   {
