@@ -14,8 +14,21 @@ import {
 } from "lucide-react";
 import {
   listExpenses, addExpense, updateExpense, deleteExpense,
+  listDistributions, setDistribution,
+  getCarryover, setCarryover,
   EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KO,
 } from "../lib/bookkeepingDb.js";
+import {
+  computeRevenueByYmRange,
+  getMonthRange,
+} from "../utils/revenueStats.js";
+
+// 2026-06-13 — 대표 3명 (Phase 1 고정). user_id 는 Mig 114 진단 시 확정.
+const REPRESENTATIVES = [
+  { code: "E022", name: "조동욱", user_id: "77777777-7777-7777-7777-777777770022" },
+  { code: "E002", name: "구현서", user_id: "77777777-7777-7777-7777-77777770002b" },
+  { code: "A003", name: "조동석", user_id: "77777777-7777-7777-7777-aaaaaaaa0003" },
+];
 
 // KST YYYY-MM 헬퍼
 const KO_DOW = ["일", "월", "화", "수", "목", "금", "토"];
@@ -53,7 +66,7 @@ function parseAmount(s) {
 // ──────────────────────────────────────────────
 // 본체
 // ──────────────────────────────────────────────
-export default function AdminPcBookkeeping({ t, user }) {
+export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
   const todayYmd = kstYmd();
   const [selectedYm, setSelectedYm] = useState(nowKstYm());
   const [loading, setLoading] = useState(true);
@@ -91,6 +104,18 @@ export default function AdminPcBookkeeping({ t, user }) {
     }
     return { byCat, sum };
   }, [rows]);
+
+  // 2026-06-13 — 수입(회사 마진) = revenueStats month.owner (매출 리포트와 동일 입력).
+  const monthRange = useMemo(() => {
+    const [y, m] = selectedYm.split("-").map(Number);
+    return getMonthRange(y, m);
+  }, [selectedYm]);
+  const revenueStat = useMemo(
+    () => computeRevenueByYmRange(apiTasks, monthRange.start, monthRange.end, user),
+    [apiTasks, monthRange.start, monthRange.end, user]
+  );
+  const incomeOwner = Number(revenueStat?.owner) || 0;
+  const netProfit  = incomeOwner - (totals.sum || 0);
 
   const isThisMonth = selectedYm === nowKstYm();
 
@@ -277,14 +302,21 @@ export default function AdminPcBookkeeping({ t, user }) {
         )}
       </div>
 
-      {/* 2-C 예고 */}
-      <div style={{
-        padding: "12px 16px",
-        background: t.bgInset, border: `1px dashed ${t.border}`, borderRadius: 10,
-        fontSize: 11, color: t.textMuted,
-      }}>
-        🚧 손익(수입 − 운영비) · 이월 · 대표 분배는 2-C 단계.
-      </div>
+      {/* 손익 카드 */}
+      <ProfitCard t={t}
+        income={incomeOwner}
+        expense={totals.sum}
+        netProfit={netProfit}
+      />
+
+      {/* 나누기 — 분배 + 이월 */}
+      <DivisionCard t={t}
+        workMonth={selectedYm}
+        actor={actor}
+        netProfit={netProfit}
+        onSaved={() => setReloadTick(n => n + 1)}
+        reloadKey={reloadTick}
+      />
 
       {/* 다이얼로그 */}
       {dialog?.mode === "add" && (
@@ -776,6 +808,417 @@ function PreviewLines({ t, rows }) {
           }}>{value || "—"}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 손익 카드 — 수입(마진) − 운영비 = 순이익
+// ──────────────────────────────────────────────
+function ProfitCard({ t, income, expense, netProfit }) {
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      padding: "18px 22px",
+      marginTop: 14,
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: t.text, marginBottom: 14 }}>
+        📊 손익
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <ProfitRow t={t} label="수입 (회사 마진)" value={income} color="#3B82F6"
+          hint="매출 리포트 '이번달' 회사 마진과 동일 (revenueStats)."/>
+        <ProfitRow t={t} label="운영비" value={expense} color={t.danger} negative/>
+        <div style={{ height: 1, background: t.border, margin: "4px 0" }}/>
+        <ProfitRow t={t} label="순이익" value={netProfit} color={t.accent} big highlight/>
+      </div>
+    </div>
+  );
+}
+
+function ProfitRow({ t, label, value, color, hint, negative, big, highlight }) {
+  const display = negative && value > 0
+    ? `−${fmtKRW(value).replace("₩", "₩")}`
+    : fmtKRW(value);
+  return (
+    <div style={{
+      display: "flex", alignItems: "baseline", gap: 12,
+      padding: highlight ? "8px 12px" : "4px 0",
+      background: highlight ? color + "11" : undefined,
+      borderRadius: highlight ? 8 : 0,
+    }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <span style={{
+          fontSize: big ? 13 : 12,
+          fontWeight: big ? 800 : 700,
+          color: big ? t.text : t.textSecondary,
+        }}>{label}</span>
+        {hint && (
+          <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>{hint}</span>
+        )}
+      </div>
+      <div style={{ flex: 1 }}/>
+      <span className="mono" style={{
+        fontSize: big ? 22 : 16,
+        fontWeight: 800, color,
+        fontVariantNumeric: "tabular-nums",
+        whiteSpace: "nowrap",
+      }}>{display}</span>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 나누기 카드 — 분배 3명 입력 + 이월 자동 계산
+//   · DB 저장값 있으면 prefill. setDistribution 3 + setCarryover 1 순차 호출.
+//   · 자동 이월 = 순이익 − 분배 합. 음수면 저장 막음.
+//   · DB carryover 값과 자동 계산값 불일치 시 ⚠️ 표시 (자동 덮어쓰기 X).
+// ──────────────────────────────────────────────
+function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
+  const [loading, setLoading]   = useState(true);
+  const [err, setErr]           = useState("");
+
+  // 분배 입력 state (대표별)
+  const [amounts, setAmounts]   = useState(() => REPRESENTATIVES.map(() => ""));
+  const [memos, setMemos]       = useState(() => REPRESENTATIVES.map(() => ""));
+
+  // DB carryover (저장된 값) + memo
+  const [savedCarry, setSavedCarry] = useState(null); // { amount, memo } | null
+  const [carryMemo, setCarryMemo]   = useState("");
+
+  // 저장 진행 + 다이얼로그
+  const [busy, setBusy] = useState(false);
+  const [actionErr, setActionErr] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  // fetch distributions + carryover
+  useEffect(() => {
+    if (!actor) { setLoading(false); return; }
+    let alive = true;
+    setLoading(true); setErr("");
+    (async () => {
+      const [resD, resC] = await Promise.all([
+        listDistributions(workMonth, actor),
+        getCarryover(workMonth, actor),
+      ]);
+      if (!alive) return;
+      if (!resD?.ok) { setErr(resD?.error || "분배 조회 실패"); setLoading(false); return; }
+      if (!resC?.ok) { setErr(resC?.error || "이월 조회 실패"); setLoading(false); return; }
+
+      // prefill 분배: 대표별 user_id 매칭
+      const newAmts = REPRESENTATIVES.map(rep => {
+        const row = (resD.rows || []).find(d => d.representative_user_id === rep.user_id);
+        return row ? String(Number(row.amount).toLocaleString("ko-KR")) : "";
+      });
+      const newMemos = REPRESENTATIVES.map(rep => {
+        const row = (resD.rows || []).find(d => d.representative_user_id === rep.user_id);
+        return row?.memo || "";
+      });
+      setAmounts(newAmts);
+      setMemos(newMemos);
+
+      // carryover
+      const c = resC.row;
+      if (c) {
+        setSavedCarry({ amount: Number(c.amount) || 0, memo: c.memo || "" });
+        setCarryMemo(c.memo || "");
+      } else {
+        setSavedCarry(null);
+        setCarryMemo("");
+      }
+
+      setLoading(false);
+    })().catch(e => { if (alive) { setErr(e?.message || "에러"); setLoading(false); } });
+    return () => { alive = false; };
+  }, [workMonth, actor, reloadKey]);
+
+  // 계산
+  const distAmts    = amounts.map(parseAmount);
+  const distSum     = distAmts.reduce((s, n) => s + n, 0);
+  const autoCarry   = netProfit - distSum;
+  const overrun     = autoCarry < 0;            // 분배 합 > 순이익 → 음수 이월
+  const sumMatch    = (distSum + Math.max(autoCarry, 0)) === netProfit && !overrun;
+  const dbMismatch  = savedCarry && !overrun && Number(savedCarry.amount) !== autoCarry;
+
+  function handleAmountChange(i, raw) {
+    const next = [...amounts];
+    next[i] = fmtAmountInput(raw);
+    setAmounts(next);
+  }
+  function handleMemoChange(i, v) {
+    const next = [...memos];
+    next[i] = v;
+    setMemos(next);
+  }
+
+  function handleSubmit() {
+    if (!actor) { setActionErr("관리자 사용자 ID 없음"); return; }
+    if (overrun) { setActionErr("분배 합이 순이익을 초과합니다. 마이너스 이월은 저장 불가."); return; }
+    setActionErr("");
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirm() {
+    setBusy(true);
+    try {
+      // 1) 분배 3명 순차 저장
+      for (let i = 0; i < REPRESENTATIVES.length; i++) {
+        const rep = REPRESENTATIVES[i];
+        const res = await setDistribution({
+          workMonth,
+          repUserId: rep.user_id,
+          amount:    distAmts[i],
+          memo:      memos[i],
+          actor,
+        });
+        if (!res?.ok) {
+          setActionErr(`${rep.name} 분배 저장 실패: ${res?.error || "—"}`);
+          setConfirmOpen(false); setBusy(false); return;
+        }
+      }
+      // 2) 이월 저장 (자동 계산값)
+      const resC = await setCarryover({
+        workMonth,
+        amount: autoCarry,
+        memo:   carryMemo,
+        actor,
+      });
+      if (!resC?.ok) {
+        setActionErr(`이월 저장 실패: ${resC?.error || "—"}`);
+        setConfirmOpen(false); setBusy(false); return;
+      }
+      // 성공
+      setConfirmOpen(false);
+      onSaved?.();
+    } catch (e) {
+      setActionErr(e?.message || "예외 발생");
+      setConfirmOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      padding: "18px 22px",
+      marginTop: 14,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>🔀 나누기 — 분배 + 이월</div>
+        <div style={{ flex: 1 }}/>
+        <div style={{ fontSize: 11, color: t.textMuted }}>
+          순이익 <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(netProfit)}</span>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding: "30px 10px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+          불러오는 중...
+        </div>
+      ) : err ? (
+        <div style={{ padding: "30px 10px", textAlign: "center", color: t.danger, fontSize: 12 }}>
+          ⚠️ {err}
+        </div>
+      ) : (
+        <>
+          {/* 대표 3명 입력 */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {REPRESENTATIVES.map((rep, i) => (
+              <RepRow key={rep.code} t={t}
+                rep={rep}
+                amountStr={amounts[i]}
+                memo={memos[i]}
+                onAmount={(v) => handleAmountChange(i, v)}
+                onMemo={(v) => handleMemoChange(i, v)}
+              />
+            ))}
+          </div>
+
+          {/* 분배 소계 */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 10,
+            padding: "10px 12px", marginTop: 10,
+            background: t.bgInset, borderRadius: 8,
+          }}>
+            <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>분배 소계</span>
+            <span className="mono" style={{
+              fontSize: 15, fontWeight: 800, color: t.text,
+              fontVariantNumeric: "tabular-nums",
+            }}>{fmtKRW(distSum)}</span>
+          </div>
+
+          {/* 자동 이월 */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "12px 14px", marginTop: 10,
+            background: overrun ? t.dangerBg : t.bgInset,
+            border: `1.5px solid ${overrun ? t.dangerBorder : t.border}`,
+            borderRadius: 9,
+          }}>
+            <span style={{
+              fontSize: 12, fontWeight: 800,
+              color: overrun ? t.danger : t.text,
+            }}>자동 이월</span>
+            <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>
+              = 순이익 − 분배 소계
+            </span>
+            <div style={{ flex: 1 }}/>
+            <span className="mono" style={{
+              fontSize: 17, fontWeight: 800,
+              color: overrun ? t.danger : t.success,
+              fontVariantNumeric: "tabular-nums",
+            }}>{fmtKRW(autoCarry)}</span>
+          </div>
+
+          {/* DB 불일치 알림 */}
+          {dbMismatch && (
+            <div style={{
+              padding: "8px 12px", marginTop: 8,
+              background: t.warningBg, border: `1px solid ${t.warningBorder}`,
+              borderRadius: 8, fontSize: 11, color: t.warning, fontWeight: 600,
+            }}>
+              ⚠️ DB에 저장된 이월 ({fmtKRW(savedCarry.amount)})과 자동 계산값이 다릅니다 — 저장 시 자동 계산값으로 덮어씁니다.
+            </div>
+          )}
+
+          {/* 이월 메모 */}
+          <div style={{ marginTop: 10 }}>
+            <input type="text" value={carryMemo}
+              onChange={(e) => setCarryMemo(e.target.value)}
+              placeholder="이월 메모 (선택)"
+              style={{
+                ...inputStyle(t, false),
+                fontSize: 12,
+              }}
+            />
+          </div>
+
+          {/* 합계 표시 */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            padding: "10px 14px", marginTop: 12,
+            background: sumMatch ? t.successBg : (overrun ? t.dangerBg : t.bgInset),
+            border: `1px solid ${sumMatch ? t.successBorder : (overrun ? t.dangerBorder : t.border)}`,
+            borderRadius: 8,
+            fontSize: 12, fontWeight: 700,
+            color: sumMatch ? t.success : (overrun ? t.danger : t.textMuted),
+          }}>
+            {sumMatch ? "✓" : "⚠️"} 분배 + 이월 = 순이익
+            <span className="mono" style={{
+              fontWeight: 800,
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              {fmtKRW(distSum)} + {fmtKRW(Math.max(autoCarry, 0))} = {fmtKRW(distSum + Math.max(autoCarry, 0))}
+              {!sumMatch && ` (순이익 ${fmtKRW(netProfit)})`}
+            </span>
+          </div>
+
+          {/* 오류 */}
+          {actionErr && (
+            <div style={{
+              padding: "8px 12px", marginTop: 10,
+              background: t.dangerBg, border: `1px solid ${t.dangerBorder}`,
+              borderRadius: 8, fontSize: 12, color: t.danger, fontWeight: 600,
+            }}>⚠️ {actionErr}</div>
+          )}
+
+          {/* 저장 버튼 */}
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
+            <button onClick={handleSubmit}
+              disabled={busy || overrun}
+              style={{
+                padding: "10px 22px",
+                background: (busy || overrun) ? t.bgInset : t.accent,
+                color: (busy || overrun) ? t.textMuted : "#fff",
+                border: "none", borderRadius: 8,
+                fontSize: 13, fontWeight: 800,
+                cursor: (busy || overrun) ? "not-allowed" : "pointer",
+                fontFamily: "inherit",
+                display: "inline-flex", alignItems: "center", gap: 6,
+                opacity: (busy || overrun) ? 0.6 : 1,
+              }}>
+              💾 분배 + 이월 저장
+            </button>
+          </div>
+        </>
+      )}
+
+      {confirmOpen && (
+        <ConfirmPanel t={t}
+          title="분배 + 이월 저장 확인"
+          body={
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {REPRESENTATIVES.map((rep, i) => (
+                <div key={rep.code} style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                  <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700, minWidth: 76 }}>
+                    {rep.name} ({rep.code})
+                  </span>
+                  <span className="mono" style={{
+                    fontSize: 13, fontWeight: 800, color: t.text,
+                    fontVariantNumeric: "tabular-nums",
+                  }}>{fmtKRW(distAmts[i])}</span>
+                </div>
+              ))}
+              <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700, minWidth: 76 }}>자동 이월</span>
+                <span className="mono" style={{
+                  fontSize: 14, fontWeight: 800, color: t.success,
+                  fontVariantNumeric: "tabular-nums",
+                }}>{fmtKRW(autoCarry)}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+                <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700, minWidth: 76 }}>합계</span>
+                <span className="mono" style={{
+                  fontSize: 14, fontWeight: 800, color: t.accent,
+                  fontVariantNumeric: "tabular-nums",
+                }}>{fmtKRW(distSum + autoCarry)} (순이익)</span>
+              </div>
+            </div>
+          }
+          confirmLabel={busy ? "저장 중..." : "정말 저장"}
+          busy={busy}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={handleConfirm}
+        />
+      )}
+    </div>
+  );
+}
+
+function RepRow({ t, rep, amountStr, memo, onAmount, onMemo }) {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "100px minmax(110px, 1fr) minmax(120px, 1.4fr)",
+      gap: 8, alignItems: "center",
+    }}>
+      <span style={{
+        fontSize: 12, fontWeight: 700, color: t.text,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {rep.name}
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginLeft: 4 }}>{rep.code}</span>
+      </span>
+      <input type="text" value={amountStr}
+        onChange={e => onAmount(e.target.value)}
+        placeholder="₩0"
+        style={{
+          ...inputStyle(t, true),
+          fontSize: 13, textAlign: "right",
+          padding: "8px 10px",
+        }}
+      />
+      <input type="text" value={memo}
+        onChange={e => onMemo(e.target.value)}
+        placeholder="메모 (선택)"
+        style={{
+          ...inputStyle(t, false),
+          fontSize: 12,
+          padding: "8px 10px",
+        }}
+      />
     </div>
   );
 }

@@ -3625,10 +3625,11 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       />
     </Shell>;
   }
-  // 2026-06-13 — PC 가계부 (2-B 단계: 운영비 CRUD 만). 손익/이월/분배는 2-C.
+  // 2026-06-13 — PC 가계부 (2-C: 운영비 CRUD + 손익 + 분배/이월).
+  //   apiTasks prop = 수입(마진) revenueStats 재사용 → 매출 리포트와 숫자 일치.
   if (screen === "bookkeeping") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <AdminPcBookkeeping t={t} user={user}/>
+      <AdminPcBookkeeping t={t} user={user} apiTasks={apiTasks}/>
     </Shell>;
   }
   // 2026-06-13 — PC 매출 리포트 (1단계: 하루 리포트만). 월 리포트는 별도 단계.
