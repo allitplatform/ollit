@@ -17,6 +17,7 @@ import {
   listDistributions, setDistribution,
   getCarryover, setCarryover,
   getUsolNTrackBMargin,
+  getCumulativeCarryover,
   EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KO,
 } from "../lib/bookkeepingDb.js";
 import {
@@ -387,13 +388,13 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         netProfit={netProfit}
       />
 
-      {/* 나누기 — 분배 + 이월 */}
+      {/* 나누기 — 분배 + 이월 (당월 + 누적) */}
       <DivisionCard t={t}
         workMonth={selectedYm}
         actor={actor}
         netProfit={netProfit}
         onSaved={() => setReloadTick(n => n + 1)}
-        reloadKey={reloadTick}
+        reloadKey={reloadTick + oiReloadTick}
       />
 
       {/* 다이얼로그 */}
@@ -1016,24 +1017,42 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
   const [savedCarry, setSavedCarry] = useState(null); // { amount, memo } | null
   const [carryMemo, setCarryMemo]   = useState("");
 
+  // 누적 이월 (Mig 126)
+  const [cumCarry, setCumCarry] = useState({ cumulative_carryover: 0, monthly: [], start_month: "2026-04" });
+  const [cumLoading, setCumLoading] = useState(false);
+  const [cumErr, setCumErr] = useState("");
+  const [monthlyOpen, setMonthlyOpen] = useState(false);
+
   // 저장 진행 + 다이얼로그
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // fetch distributions + carryover
+  // fetch distributions + carryover + 누적
   useEffect(() => {
     if (!actor) { setLoading(false); return; }
     let alive = true;
     setLoading(true); setErr("");
+    setCumLoading(true); setCumErr("");
     (async () => {
-      const [resD, resC] = await Promise.all([
+      const [resD, resC, resCum] = await Promise.all([
         listDistributions(workMonth, actor),
         getCarryover(workMonth, actor),
+        getCumulativeCarryover(workMonth, actor),
       ]);
       if (!alive) return;
-      if (!resD?.ok) { setErr(resD?.error || "분배 조회 실패"); setLoading(false); return; }
-      if (!resC?.ok) { setErr(resC?.error || "이월 조회 실패"); setLoading(false); return; }
+      if (!resD?.ok) { setErr(resD?.error || "분배 조회 실패"); setLoading(false); setCumLoading(false); return; }
+      if (!resC?.ok) { setErr(resC?.error || "이월 조회 실패"); setLoading(false); setCumLoading(false); return; }
+      if (!resCum?.ok) {
+        setCumErr(resCum?.error || "누적 이월 조회 실패");
+      } else {
+        setCumCarry({
+          cumulative_carryover: Number(resCum.cumulative_carryover) || 0,
+          monthly:              Array.isArray(resCum.monthly) ? resCum.monthly : [],
+          start_month:          resCum.start_month || "2026-04",
+        });
+      }
+      setCumLoading(false);
 
       // prefill 분배: 대표별 user_id 매칭
       const newAmts = REPRESENTATIVES.map(rep => {
@@ -1178,7 +1197,7 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
             }}>{fmtKRW(distSum)}</span>
           </div>
 
-          {/* 자동 이월 */}
+          {/* 당월 차이 (= 자동 이월: 순이익 − 분배 소계) */}
           <div style={{
             display: "flex", alignItems: "center", gap: 10,
             padding: "12px 14px", marginTop: 10,
@@ -1189,9 +1208,9 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
             <span style={{
               fontSize: 12, fontWeight: 800,
               color: overrun ? t.danger : t.text,
-            }}>자동 이월</span>
+            }}>당월 차이</span>
             <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>
-              = 순이익 − 분배 소계
+              = 순이익 − 분배 소계 (이번 달만)
             </span>
             <div style={{ flex: 1 }}/>
             <span className="mono" style={{
@@ -1200,6 +1219,16 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
               fontVariantNumeric: "tabular-nums",
             }}>{fmtKRW(autoCarry)}</span>
           </div>
+
+          {/* 누적 이월 (Mig 126) — 시작월부터 그 달까지 누적 */}
+          <CumulativeCarryoverBox t={t}
+            workMonth={workMonth}
+            cumCarry={cumCarry}
+            loading={cumLoading}
+            err={cumErr}
+            monthlyOpen={monthlyOpen}
+            onToggle={() => setMonthlyOpen(o => !o)}
+          />
 
           {/* DB 불일치 알림 */}
           {dbMismatch && (
@@ -1312,6 +1341,154 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
           onCancel={() => setConfirmOpen(false)}
           onConfirm={handleConfirm}
         />
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 누적 이월 카드 (Mig 126)
+//   · 큰 글자, 음수면 빨강 + 부드러운 안내.
+//   · 월별 표 접기/펼치기 toggle.
+// ──────────────────────────────────────────────
+function CumulativeCarryoverBox({ t, workMonth, cumCarry, loading, err, monthlyOpen, onToggle }) {
+  const cum = Number(cumCarry?.cumulative_carryover) || 0;
+  const isNeg = cum < 0;
+  const monthly = cumCarry?.monthly || [];
+  const startMonth = cumCarry?.start_month || "2026-04";
+
+  return (
+    <div style={{
+      marginTop: 10,
+      background: isNeg ? t.dangerBg : t.successBg,
+      border: `2px solid ${isNeg ? t.dangerBorder : t.successBorder}`,
+      borderRadius: 10,
+      overflow: "hidden",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "14px 16px",
+      }}>
+        <span style={{
+          fontSize: 13, fontWeight: 800,
+          color: isNeg ? t.danger : t.success,
+        }}>📦 누적 이월</span>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>
+          {startMonth} ~ {workMonth} 누적
+        </span>
+        <div style={{ flex: 1 }}/>
+        {loading ? (
+          <span style={{ fontSize: 12, color: t.textMuted }}>불러오는 중...</span>
+        ) : err ? (
+          <span style={{ fontSize: 12, color: t.danger }}>⚠️ {err}</span>
+        ) : (
+          <span className="mono" style={{
+            fontSize: 22, fontWeight: 900,
+            color: isNeg ? t.danger : t.success,
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            {isNeg ? "−" : ""}{fmtKRW(Math.abs(cum)).replace("₩", "₩")}
+          </span>
+        )}
+      </div>
+
+      {!loading && !err && isNeg && (
+        <div style={{
+          padding: "0 16px 12px",
+          fontSize: 11, color: t.textSecondary, lineHeight: 1.5,
+        }}>
+          💡 아직 못 채운 금액입니다. 다음 달 수입이 쌓이면 점점 메워집니다.
+        </div>
+      )}
+
+      {/* 월별 표 토글 */}
+      {!loading && !err && monthly.length > 0 && (
+        <>
+          <div style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "10px 16px",
+            background: t.bgInset,
+            borderTop: `1px solid ${isNeg ? t.dangerBorder : t.successBorder}`,
+            cursor: "pointer",
+          }} onClick={onToggle}>
+            <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
+              {monthlyOpen ? "▾ 월별 표 닫기" : "▸ 월별 표 펼치기"}
+            </span>
+            <span style={{ fontSize: 10, color: t.textDim }}>
+              ({monthly.length}개월)
+            </span>
+          </div>
+
+          {monthlyOpen && (
+            <div style={{ padding: "0 16px 14px" }}>
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "70px repeat(7, minmax(0, 1fr))",
+                gap: 6, alignItems: "center",
+                padding: "8px 10px",
+                background: t.bgElevated, border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.3,
+              }}>
+                <span>월</span>
+                <span style={{ textAlign: "right" }}>일정산</span>
+                <span style={{ textAlign: "right" }}>유솔N</span>
+                <span style={{ textAlign: "right" }}>기타</span>
+                <span style={{ textAlign: "right" }}>운영비</span>
+                <span style={{ textAlign: "right" }}>분배</span>
+                <span style={{ textAlign: "right" }}>당월</span>
+                <span style={{ textAlign: "right" }}>누적</span>
+              </div>
+              {monthly.map(m => {
+                const diff = Number(m.monthly_diff) || 0;
+                const cumRow = Number(m.cumulative) || 0;
+                return (
+                  <div key={m.wm} style={{
+                    display: "grid",
+                    gridTemplateColumns: "70px repeat(7, minmax(0, 1fr))",
+                    gap: 6, alignItems: "center",
+                    padding: "8px 10px",
+                    borderTop: `1px solid ${t.border}`,
+                    fontSize: 11,
+                    fontFamily: "ui-monospace, monospace",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>
+                    <span style={{ color: t.text, fontWeight: 700, fontFamily: "inherit" }}>
+                      {m.wm.slice(5)}월
+                    </span>
+                    <span style={{ textAlign: "right", color: (Number(m.track_a) || 0) > 0 ? t.text : t.textDim }}>
+                      {fmtKRW(m.track_a)}
+                    </span>
+                    <span style={{ textAlign: "right", color: (Number(m.usoln) || 0) > 0 ? t.text : t.textDim }}>
+                      {fmtKRW(m.usoln)}
+                    </span>
+                    <span style={{ textAlign: "right", color: (Number(m.other) || 0) > 0 ? t.text : t.textDim }}>
+                      {fmtKRW(m.other)}
+                    </span>
+                    <span style={{ textAlign: "right", color: (Number(m.expense) || 0) > 0 ? t.danger : t.textDim }}>
+                      {(Number(m.expense) || 0) > 0 ? "−" : ""}{fmtKRW(m.expense)}
+                    </span>
+                    <span style={{ textAlign: "right", color: (Number(m.distribution) || 0) > 0 ? t.warning : t.textDim }}>
+                      {(Number(m.distribution) || 0) > 0 ? "−" : ""}{fmtKRW(m.distribution)}
+                    </span>
+                    <span style={{
+                      textAlign: "right", fontWeight: 800,
+                      color: diff < 0 ? t.danger : (diff > 0 ? t.success : t.textDim),
+                    }}>
+                      {diff < 0 ? "−" : ""}{fmtKRW(Math.abs(diff))}
+                    </span>
+                    <span style={{
+                      textAlign: "right", fontWeight: 800,
+                      color: cumRow < 0 ? t.danger : (cumRow > 0 ? t.success : t.textDim),
+                    }}>
+                      {cumRow < 0 ? "−" : ""}{fmtKRW(Math.abs(cumRow))}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

@@ -183,3 +183,22 @@ export async function getUsolNTrackBMargin(workMonth, actor) {
     p_actor:      actor,
   }, { amount: 0 });
 }
+
+// ============================================================
+// 누적 이월 (Mig 126)
+// ============================================================
+//   시작월(2026-04) 부터 work_month 까지 (그 달 포함) 월별 합산.
+//   당월 차이 = (일정산 + 유솔N 전월 + 기타) − 운영비 − 분배.
+//   응답: {
+//     ok, work_month, start_month,
+//     monthly: [{ wm, track_a, usoln, other, expense, distribution, net, monthly_diff, cumulative }],
+//     cumulative_carryover: number
+//   }
+export async function getCumulativeCarryover(workMonth, actor) {
+  if (!workMonth) return { ok: false, error: "workMonth 필수", monthly: [], cumulative_carryover: 0 };
+  if (!actor)     return { ok: false, error: "actor 필수", monthly: [], cumulative_carryover: 0 };
+  return callRpc("bookkeeping_cumulative_carryover", {
+    p_work_month: workMonth,
+    p_actor:      actor,
+  }, { monthly: [], cumulative_carryover: 0 });
+}
