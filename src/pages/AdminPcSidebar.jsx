@@ -81,6 +81,8 @@ const GROUPS = [
       { id: "principalPayout",       label: "원청 지급 (회사→원청)" },
       { id: "revenueReport",         label: "매출 리포트" },
       { id: "revenueDetail",         label: "매출 상세" },
+      // 2026-06-14 — 유솔N 정산 현황판 (Mig 130). 작업월별 4단계 + 마진.
+      { id: "usolnSettleBoard",      label: "유솔N 정산 현황판" },
     ],
   },
   // 2026-06-13 — 가계부 별도 그룹 (정산에서 분리). screen id 'bookkeeping' 그대로.

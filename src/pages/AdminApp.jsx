@@ -153,6 +153,7 @@ import AdminPcPrincipalAccount from "./AdminPcPrincipalAccount.jsx";
 import AdminPcBookkeeping from "./AdminPcBookkeeping.jsx";
 import AdminPcCashflow from "./AdminPcCashflow.jsx";
 import AdminMobileBookkeeping from "./AdminMobileBookkeeping.jsx";
+import AdminPcUsolnSettleBoard from "./AdminPcUsolnSettleBoard.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 // 2026-06-03 — 대시보드 "매출 현황" 블록.
@@ -3646,6 +3647,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   if (screen === "mobileBookkeeping") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AdminMobileBookkeeping t={t} user={user} apiTasks={apiTasks} onBack={goBack}/>
+    </Shell>;
+  }
+  // 2026-06-14 — PC 유솔N 정산 현황판 (Mig 130 RPC). 작업월별 4단계 진행 + 마진.
+  //   기존 task_items 4단계 시스템 재활용. 신규 = engineer_settled_at 일괄 stamp + 집계.
+  if (screen === "usolnSettleBoard") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AdminPcUsolnSettleBoard t={t} user={user}/>
     </Shell>;
   }
   // 2026-06-13 — PC 매출 리포트 (1단계: 하루 리포트만). 월 리포트는 별도 단계.
