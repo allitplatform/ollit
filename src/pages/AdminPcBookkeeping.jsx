@@ -864,14 +864,14 @@ function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr, incomeT
         <ProfitRow t={t} label="수입 — 일정산 (track A)" value={incomeTrackA} color="#3B82F6"
           hint="매출 리포트 '이번달' 회사 마진과 동일 (revenueStats)."/>
         <ProfitRow t={t}
-          label="수입 — 유솔N 월정산 (track B)"
+          label="수입 — 유솔N 월정산 (전월 작업분)"
           value={usolNB}
           color="#8B5CF6"
           hint={usolNBLoading
             ? "불러오는 중..."
             : usolNBErr
               ? `⚠️ ${usolNBErr}`
-              : "유솔N 세척·추가선택 회사 마진 (대시보드 유솔N 월정산 패널과 동일)."}
+              : "유솔N 세척·추가선택 회사 마진 — 전월 작업분(작업 다음 달 정산 반영)."}
         />
         <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>
         <ProfitRow t={t} label="수입 합계" value={incomeTotal} color={t.text} mid/>
