@@ -24,9 +24,11 @@ import {
   listOtherIncome, addOtherIncome, updateOtherIncome, deleteOtherIncome,
   OTHER_INCOME_CATEGORIES, OTHER_INCOME_CATEGORY_KO,
 } from "../lib/bookkeepingOtherIncomeDb.js";
-// 2026-06-14 — 유솔N 보정 UI 제거 (사장님 결정, 데이터만 직접 입력).
-//   백엔드(테이블 Mig 127 / RPC Mig 128 / 누적 RPC v2 Mig 129)는 살림 — Mig 129 가
-//   bookkeeping_usoln_adjustment 합산해서 누적 이월에 반영. 화면 보정 줄/연필/다이얼로그만 제거.
+// 2026-06-14 — 유솔N 수동 보정 (편집 UI 없이 표시·합산만).
+//   보정 데이터는 스크립트로 직접 INSERT. 화면은 자동 + 보정 합쳐서 한 줄로만 표시.
+//   ProfitCard 유솔N 줄 = bookkeeping_get_usoln_adjustment(workMonth).amount 합산.
+//   incomeTotal · 순이익 도 동일하게 반영 → 손익 카드 = 누적 이월 일치.
+import { getUsolnAdjustment } from "../lib/bookkeepingUsolnAdjustmentDb.js";
 import {
   computeRevenueByYmRange,
   getMonthRange,
@@ -151,8 +153,23 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
     return () => { alive = false; };
   }, [selectedYm, actor]);
 
-  // (유솔N 수동 보정은 화면 UI 제거됨 — Mig 129 누적 RPC 가 bookkeeping_usoln_adjustment
-  //  테이블을 직접 합산. ProfitCard 는 자동값만 표시, 누적 이월 = 자동+보정 반영.)
+  // 유솔N 수동 보정 — 표시·합산용 fetch (편집 UI 는 없음, 데이터는 스크립트로 INSERT)
+  const [usolNAdjustment, setUsolNAdjustment] = useState(0);
+  useEffect(() => {
+    if (!actor) { setUsolNAdjustment(0); return; }
+    let alive = true;
+    (async () => {
+      const res = await getUsolnAdjustment(selectedYm, actor);
+      if (!alive) return;
+      if (res?.ok && res.row) {
+        setUsolNAdjustment(Number(res.row.amount) || 0);
+      } else {
+        setUsolNAdjustment(0);
+      }
+    })().catch(() => { if (alive) setUsolNAdjustment(0); });
+    return () => { alive = false; };
+  }, [selectedYm, actor]);
+  const usolNTotal = usolNB + usolNAdjustment;  // 자동 + 보정 (손익 카드 + 누적 이월 일치)
 
   // 기타 수입 (Mig 124/125) — 세스코·개인건 등 수동 입력 합계
   const [otherIncomeRows, setOtherIncomeRows] = useState([]);
@@ -181,7 +198,7 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
     [otherIncomeRows]
   );
 
-  const incomeTotal = incomeTrackA + usolNB + otherIncomeSum;
+  const incomeTotal = incomeTrackA + usolNTotal + otherIncomeSum;
   const netProfit   = incomeTotal - (totals.sum || 0);
 
   const isThisMonth = selectedYm === nowKstYm();
@@ -380,10 +397,12 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         onDelete={(r) => setOiDialog({ mode: "delete", row: r })}
       />
 
-      {/* 손익 카드 — 수입 (일정산 / 유솔N 자동 / 기타 / 합계). 유솔N 보정은 누적에만 반영. */}
+      {/* 손익 카드 — 수입 (일정산 / 유솔N(자동+보정) / 기타 / 합계). 누적 이월과 일치. */}
       <ProfitCard t={t}
         incomeTrackA={incomeTrackA}
-        usolNB={usolNB}
+        usolNB={usolNTotal}
+        usolNBAuto={usolNB}
+        usolNAdjustment={usolNAdjustment}
         usolNBLoading={usolNBLoading}
         usolNBErr={usolNBErr}
         otherIncome={otherIncomeSum}
@@ -929,9 +948,19 @@ function PreviewLines({ t, rows }) {
 //   · 수입 합계 = 세 항 합. 순이익 = 합계 − 운영비.
 //   · 색: 일정산 파랑(#3B82F6) / 유솔N 보라(#8B5CF6) / 기타 청록(#14B8A6).
 // ──────────────────────────────────────────────
-function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr,
+function ProfitCard({ t, incomeTrackA, usolNB, usolNBAuto, usolNAdjustment,
+                       usolNBLoading, usolNBErr,
                        otherIncome, otherIncomeLoading, otherIncomeErr,
                        incomeTotal, expense, netProfit }) {
+  const fmt = n => fmtKRW(n).replace("₩", "₩");
+  const hasAdj = (Number(usolNAdjustment) || 0) !== 0;
+  const usolnHint = usolNBLoading
+    ? "불러오는 중..."
+    : usolNBErr
+      ? `⚠️ ${usolNBErr}`
+      : hasAdj
+        ? `자동 ${fmt(usolNBAuto)} + 수동 보정 ${fmt(usolNAdjustment)} = ${fmt(usolNB)} (전월 작업분 + 보정).`
+        : "유솔N 세척·추가선택 회사 마진 — 전월 작업분(작업 다음 달 정산 반영).";
   return (
     <div style={{
       background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
@@ -948,11 +977,7 @@ function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr,
           label="수입 — 유솔N 월정산 (전월 작업분)"
           value={usolNB}
           color="#8B5CF6"
-          hint={usolNBLoading
-            ? "불러오는 중..."
-            : usolNBErr
-              ? `⚠️ ${usolNBErr}`
-              : "유솔N 세척·추가선택 회사 마진 — 전월 작업분(작업 다음 달 정산 반영). 수동 보정은 누적 이월에만 반영."}
+          hint={usolnHint}
         />
         <ProfitRow t={t}
           label="수입 — 기타 (세스코·개인건 등)"
