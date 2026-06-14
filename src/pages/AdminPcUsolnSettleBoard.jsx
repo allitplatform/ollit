@@ -128,6 +128,15 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
   const adjAmount  = Number(m.adjustment_amount) || 0;
   const adjMemo    = m.adjustment_memo || "";
 
+  // 2026-06-14 — Mig 132 신규 필드 (item 단위 company_received_at 으로 eng/own 분배).
+  const recvEng    = Number(m.received_engineer) || 0;
+  const recvOwn    = Number(m.received_owner)    || 0;
+  const pendEng    = Number(m.pending_engineer)  || 0;
+  const pendOwn    = Number(m.pending_owner)     || 0;
+  const recvTotal  = recvEng + recvOwn;
+  const pendTotal  = pendEng + pendOwn;
+  const compTarget = passTotal - prinTotal;  // 회사가 받을 총액(85%) = 정산금 − 유솔 15%
+
   const noData = itemCnt === 0;
 
   const passRecvPct = pct(passRecv, passTotal);
@@ -196,12 +205,47 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
             gap: 12,
             padding: "16px 18px",
           }}>
-            {/* ① 통과자금 (subtotal) */}
-            <Panel t={t} title="① 통과자금 (유솔→회사)" subtitle="단위: subtotal (item)" color="#F59E0B">
-              <KV t={t} label="받은 거" value={fmtKRW(passRecv)} color={t.success} hint={`${recvCnt}건`}/>
-              <KV t={t} label="받을 거" value={fmtKRW(passPend)} color={t.warning || "#F59E0B"} hint={`${pendCnt}건`}/>
-              <KV t={t} label="총 subtotal" value={fmtKRW(passTotal)} color={t.text} bold/>
-              <ProgressBar t={t} pct={passRecvPct} color={t.success} label={`회사 입금 진행률 ${passRecvPct.toFixed(0)}%`}/>
+            {/* ① 회사 받은/받을 거 분해 (item 단위 company_received_at) — 기사 몫 + 회사 마진 */}
+            <Panel t={t} title="① 회사 받은/받을 거" subtitle="item 단위 분해 (기사 + 마진)" color="#F59E0B">
+              {/* 받은 거 — 입금 완료 */}
+              <div style={{
+                padding: "8px 10px",
+                background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 7,
+                marginBottom: 6,
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: t.success, marginBottom: 4 }}>
+                  ✓ 받은 거 (입금 완료) · {recvCnt}건
+                </div>
+                <KV t={t} label="기사 몫"   value={fmtKRW(recvEng)} color={t.text}/>
+                <KV t={t} label="회사 마진 ★" value={fmtKRW(recvOwn)} color={t.success} bold
+                  hint="회사 통장 들어옴"/>
+                <KV t={t} label="합계" value={fmtKRW(recvTotal)} color={t.text} bold/>
+              </div>
+              {/* 받을 거 — 입금 대기 */}
+              <div style={{
+                padding: "8px 10px",
+                background: (t.warningBg || "rgba(245,158,11,0.06)"),
+                border: `1px solid ${t.warning || "#F59E0B"}`, borderRadius: 7,
+              }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: t.warning || "#F59E0B", marginBottom: 4 }}>
+                  ⏳ 받을 거 (대기) · {pendCnt}건
+                </div>
+                <KV t={t} label="기사 몫"   value={fmtKRW(pendEng)} color={t.text}/>
+                <KV t={t} label="회사 마진" value={fmtKRW(pendOwn)} color={t.warning || "#F59E0B"} bold
+                  hint="아직 안 들어옴"/>
+                <KV t={t} label="합계" value={fmtKRW(pendTotal)} color={t.text} bold/>
+              </div>
+              {/* 진행률 + 회사 85% 목표 */}
+              <ProgressBar t={t} pct={passRecvPct} color={t.success}
+                label={`회사 입금 진행률 ${passRecvPct.toFixed(0)}% (item 단위)`}/>
+              <div style={{
+                marginTop: 6, padding: "6px 8px",
+                background: t.bgElevated, border: `1px dashed ${t.border}`, borderRadius: 6,
+                fontSize: 10, color: t.textMuted, lineHeight: 1.5,
+              }}>
+                회사 받을 총액(85%) = 유솔 정산금({fmtKRW(passTotal)})<br/>
+                − 유솔 15%({fmtKRW(prinTotal)}) = <b style={{ color: t.text }}>{fmtKRW(compTarget)}</b>
+              </div>
             </Panel>
 
             {/* ② 기사 지급 (engineer_amount, task) */}
@@ -262,6 +306,21 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
                 marginTop: 2,
               }}>
                 <KV t={t} label={`회사 마진 ${ownPct.toFixed(1)}% ★`} value={fmtKRW(margin)} color={t.success} bold/>
+                {/* 받은 마진 / 안 받은 마진 분해 (Mig 132 신규) */}
+                {(recvOwn > 0 || pendOwn > 0) && (
+                  <div style={{
+                    marginTop: 4, padding: "6px 8px",
+                    background: t.bgInset, borderRadius: 5,
+                    display: "flex", flexDirection: "column", gap: 2,
+                  }}>
+                    <div style={{ fontSize: 9, color: t.success, fontWeight: 700 }}>
+                      ✓ 받은 마진 : {fmtKRW(recvOwn)}
+                    </div>
+                    <div style={{ fontSize: 9, color: t.warning || "#F59E0B", fontWeight: 700 }}>
+                      ⏳ 안 받은 마진: {fmtKRW(pendOwn)}
+                    </div>
+                  </div>
+                )}
                 {adjAmount !== 0 && (
                   <>
                     <div style={{ height: 1, background: t.border, margin: "4px 0" }}/>
