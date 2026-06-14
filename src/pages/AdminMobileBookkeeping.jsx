@@ -67,6 +67,8 @@ function parseAmount(s) {
 // ────────────────────────────────────────────
 export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack }) {
   const [selectedYm, setSelectedYm] = useState(nowKstYm());
+  // 2026-06-14 — 화면 상단 토글: 'bookkeeping'(손익+누적이월, 읽기전용) | 'cashflow'(통장, 입력 가능)
+  const [view, setView] = useState("bookkeeping");
   const actor = user?.user_id || user?.userId || user?.id;
   const isThisMonth = selectedYm === nowKstYm();
 
@@ -214,7 +216,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
 
   return (
     <div style={{ padding: "12px 14px 24px" }}>
-      {/* 헤더 — 뒤로가기 + 제목 + 읽기전용 */}
+      {/* 헤더 — 뒤로가기 + 제목 + view 별 상태 */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         {onBack && (
           <button onClick={onBack} aria-label="뒤로" style={navBtn(t)}>
@@ -222,9 +224,37 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
           </button>
         )}
         <Wallet size={18} style={{ color: t.accent }}/>
-        <div style={{ fontSize: 16, fontWeight: 800, color: t.text }}>가계부</div>
+        <div style={{ fontSize: 16, fontWeight: 800, color: t.text }}>
+          {view === "bookkeeping" ? "가계부" : "통장"}
+        </div>
         <div style={{ flex: 1 }}/>
-        <span style={{ fontSize: 10, color: t.textMuted }}>읽기 전용</span>
+        <span style={{ fontSize: 10, color: t.textMuted }}>
+          {view === "bookkeeping" ? "읽기 전용" : "입력 가능"}
+        </span>
+      </div>
+
+      {/* 토글 — [가계부] [통장] */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
+        padding: 4, marginBottom: 10,
+        background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 10,
+      }}>
+        {[
+          { key: "bookkeeping", label: "📊 가계부" },
+          { key: "cashflow",    label: "💳 통장" },
+        ].map(seg => {
+          const active = view === seg.key;
+          return (
+            <button key={seg.key} onClick={() => setView(seg.key)} style={{
+              padding: "9px 8px",
+              background: active ? t.bgElevated : "transparent",
+              border: active ? `1.5px solid ${t.accent}` : `1px solid transparent`,
+              borderRadius: 7, fontSize: 12, fontWeight: 800,
+              color: active ? t.text : t.textMuted,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>{seg.label}</button>
+          );
+        })}
       </div>
 
       {/* 월 선택 */}
@@ -260,8 +290,11 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
         </button>
       </div>
 
+      {/* 가계부 view — 손익 + 누적이월 (읽기 전용) */}
+      {view === "bookkeeping" && <>
       {/* 카드 1: 📊 손익 */}
       <Card t={t} title="📊 손익" subtitle="그 달 수입 − 운영비 − 분배">
+
         <Row t={t} label="일정산 (track A)"           value={incomeTrackA} color="#3B82F6"/>
         <Row t={t} label="유솔N 월정산 (자동+보정)"   value={usolNTotal}   color="#8B5CF6"
           hint={usolNAdj !== 0 ? `자동 ${fmtKRW(usolNB)} + 보정 ${fmtSigned(usolNAdj)}` : null}
@@ -320,9 +353,12 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
           월별 표는 PC 가계부에서 확인
         </div>
       </div>
+      </>}
 
+      {/* 통장 view — 입출금 가능 */}
+      {view === "cashflow" && <>
       {/* 카드 3: 💳 통장 — 모바일에서 입력 가능한 유일한 카드 */}
-      <div style={{ marginTop: 12 }}>
+      <div>
         <Card t={t} title="💳 통장" subtitle="입출금 추가/편집 가능 (baseline 은 PC)">
           <div style={{ textAlign: "center", padding: "4px 0 10px" }}>
             {cashflowLoading ? (
@@ -414,7 +450,9 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
         </Card>
       </div>
 
-      {/* 통장 거래 다이얼로그 */}
+      </>}
+
+      {/* 통장 거래 다이얼로그 (view 와 무관하게 cfDialog 열려있으면 표시) */}
       {cfDialog?.mode === "add" && (
         <CashflowDialog t={t} mode="add"
           actor={actor}
@@ -441,7 +479,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
         />
       )}
 
-      {/* 카드 4: ✏️ PC 안내 */}
+      {/* PC 안내 footer — view 별 다른 문구 */}
       <div style={{
         marginTop: 12,
         padding: "10px 12px",
@@ -449,7 +487,9 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
         borderRadius: 10,
         fontSize: 11, color: t.textSecondary, textAlign: "center", lineHeight: 1.5,
       }}>
-        ✏️ 입력/편집은 PC 가계부에서
+        {view === "bookkeeping"
+          ? "✏️ 운영비 · 분배 · 기타 수입 등 입력은 PC 가계부에서"
+          : "✏️ 기준 잔고(baseline) 설정은 PC 통장에서"}
       </div>
     </div>
   );
