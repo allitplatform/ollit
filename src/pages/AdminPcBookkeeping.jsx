@@ -19,7 +19,10 @@ import {
   getUsolNTrackBMargin,
   EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KO,
 } from "../lib/bookkeepingDb.js";
-import { listOtherIncome } from "../lib/bookkeepingOtherIncomeDb.js";
+import {
+  listOtherIncome, addOtherIncome, updateOtherIncome, deleteOtherIncome,
+  OTHER_INCOME_CATEGORIES, OTHER_INCOME_CATEGORY_KO,
+} from "../lib/bookkeepingOtherIncomeDb.js";
 import {
   computeRevenueByYmRange,
   getMonthRange,
@@ -75,7 +78,8 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
   const [err, setErr] = useState("");
   const [rows, setRows] = useState([]);
   const [reloadTick, setReloadTick] = useState(0);
-  const [dialog, setDialog] = useState(null);   // { mode:'add'|'edit'|'delete', row? }
+  const [dialog, setDialog] = useState(null);   // 운영비 다이얼로그 { mode, row? }
+  const [oiDialog, setOiDialog] = useState(null); // 기타 수입 다이얼로그 { mode, row? }
 
   const actor = user?.user_id || user?.userId || user?.id;
 
@@ -147,6 +151,7 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
   const [otherIncomeRows, setOtherIncomeRows] = useState([]);
   const [otherIncomeLoading, setOtherIncomeLoading] = useState(false);
   const [otherIncomeErr, setOtherIncomeErr] = useState("");
+  const [oiReloadTick, setOiReloadTick] = useState(0);
   useEffect(() => {
     if (!actor) { setOtherIncomeRows([]); return; }
     let alive = true;
@@ -163,7 +168,7 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
       setOtherIncomeLoading(false);
     })().catch(e => { if (alive) { setOtherIncomeErr(e?.message || "에러"); setOtherIncomeLoading(false); } });
     return () => { alive = false; };
-  }, [selectedYm, actor]);
+  }, [selectedYm, actor, oiReloadTick]);
   const otherIncomeSum = useMemo(
     () => (otherIncomeRows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0),
     [otherIncomeRows]
@@ -357,7 +362,18 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         )}
       </div>
 
-      {/* 손익 카드 — 수입 3줄 분리 (일정산 / 유솔N B / 합계) */}
+      {/* 기타 수입 섹션 (Mig 124/125) — 세스코·개인건 등 수동 입력 */}
+      <OtherIncomeSection t={t}
+        rows={otherIncomeRows}
+        sum={otherIncomeSum}
+        loading={otherIncomeLoading}
+        err={otherIncomeErr}
+        onAdd={() => setOiDialog({ mode: "add", row: null })}
+        onEdit={(r) => setOiDialog({ mode: "edit", row: r })}
+        onDelete={(r) => setOiDialog({ mode: "delete", row: r })}
+      />
+
+      {/* 손익 카드 — 수입 4줄 (일정산 / 유솔N B / 기타 / 합계) */}
       <ProfitCard t={t}
         incomeTrackA={incomeTrackA}
         usolNB={usolNB}
@@ -400,6 +416,29 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         <DeleteDialog t={t} row={dialog.row} actor={actor}
           onClose={() => setDialog(null)}
           onDeleted={() => { setDialog(null); setReloadTick(n => n + 1); }}
+        />
+      )}
+
+      {/* 기타 수입 다이얼로그 */}
+      {oiDialog?.mode === "add" && (
+        <OtherIncomeEditDialog t={t} mode="add" actor={actor} workMonth={selectedYm}
+          defaultDate={selectedYm === nowKstYm() ? todayYmd : `${selectedYm}-01`}
+          onClose={() => setOiDialog(null)}
+          onSaved={() => { setOiDialog(null); setOiReloadTick(n => n + 1); }}
+        />
+      )}
+      {oiDialog?.mode === "edit" && (
+        <OtherIncomeEditDialog t={t} mode="edit" actor={actor} workMonth={selectedYm}
+          row={oiDialog.row}
+          defaultDate={oiDialog.row.income_date}
+          onClose={() => setOiDialog(null)}
+          onSaved={() => { setOiDialog(null); setOiReloadTick(n => n + 1); }}
+        />
+      )}
+      {oiDialog?.mode === "delete" && (
+        <OtherIncomeDeleteDialog t={t} row={oiDialog.row} actor={actor}
+          onClose={() => setOiDialog(null)}
+          onDeleted={() => { setOiDialog(null); setOiReloadTick(n => n + 1); }}
         />
       )}
     </div>
@@ -1311,5 +1350,351 @@ function RepRow({ t, rep, amountStr, memo, onAmount, onMemo }) {
         }}
       />
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 기타 수입 섹션 — 운영비 섹션 패턴 동일 (수수료 / 개인건 / 기타)
+//   · 카테고리 색: 청록 #14B8A6 (ProfitCard 와 일치)
+//   · 행: 날짜 / 카테고리 / 금액 / 메모 / 액션
+// ──────────────────────────────────────────────
+function OtherIncomeSection({ t, rows, sum, loading, err, onAdd, onEdit, onDelete }) {
+  // 카테고리별 합
+  const byCat = {};
+  for (const r of rows) {
+    byCat[r.category] = (byCat[r.category] || 0) + (Number(r.amount) || 0);
+  }
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      overflow: "hidden", marginBottom: 14,
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "14px 18px",
+        borderBottom: `1px solid ${t.border}`,
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>💰 기타 수입</div>
+        <div style={{ fontSize: 11, color: t.textMuted }}>
+          세스코·개인건 등 수동 입력 (통장과 별개, 손익용)
+        </div>
+        <div style={{ flex: 1 }}/>
+        <div style={{ fontSize: 12, color: t.textSecondary, marginRight: 4 }}>
+          {rows.length}건
+          <span style={{ color: t.textDim, margin: "0 6px" }}>·</span>
+          합계 <span className="mono" style={{ fontWeight: 800, color: "#14B8A6" }}>{fmtKRW(sum)}</span>
+        </div>
+        <button onClick={onAdd} style={{
+          padding: "8px 14px",
+          background: "#14B8A6", color: "#fff",
+          border: "none", borderRadius: 8,
+          fontSize: 12, fontWeight: 800,
+          cursor: "pointer", fontFamily: "inherit",
+          display: "inline-flex", alignItems: "center", gap: 5,
+        }}>
+          <Plus size={13} strokeWidth={2.8}/>
+          수입 추가
+        </button>
+      </div>
+
+      {rows.length > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: 8,
+          padding: "10px 18px",
+          background: t.bgInset,
+          borderBottom: `1px solid ${t.border}`,
+        }}>
+          {OTHER_INCOME_CATEGORIES.map(c => (
+            <div key={c} style={{
+              padding: "8px 10px",
+              background: t.bgElevated, border: `1px solid ${t.border}`,
+              borderRadius: 7,
+              display: "flex", flexDirection: "column", gap: 2,
+            }}>
+              <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.3 }}>
+                {OTHER_INCOME_CATEGORY_KO[c]}
+              </span>
+              <span className="mono" style={{
+                fontSize: 12, fontWeight: 800,
+                color: (byCat[c] || 0) > 0 ? t.text : t.textDim,
+                fontVariantNumeric: "tabular-nums",
+              }}>{fmtKRW(byCat[c] || 0)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: 13 }}>
+          불러오는 중...
+        </div>
+      ) : err ? (
+        <div style={{ padding: "40px 20px", textAlign: "center", color: t.danger, fontSize: 13 }}>
+          ⚠️ {err}
+        </div>
+      ) : rows.length === 0 ? (
+        <div style={{ padding: "40px 20px", textAlign: "center" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 6 }}>
+            이번 달 기타 수입이 없습니다
+          </div>
+          <div style={{ fontSize: 11, color: t.textMuted }}>
+            [+ 수입 추가] 로 세스코 수수료·개인건 등 입력
+          </div>
+        </div>
+      ) : (
+        <>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "95px 90px 110px minmax(0, 1fr) 60px",
+            gap: 8, alignItems: "center",
+            padding: "10px 14px",
+            fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4,
+            borderBottom: `1px solid ${t.border}`,
+          }}>
+            <span>날짜</span>
+            <span>카테고리</span>
+            <span style={{ textAlign: "right" }}>금액</span>
+            <span>메모</span>
+            <span style={{ textAlign: "right" }}>액션</span>
+          </div>
+          {rows.map(r => (
+            <OtherIncomeRow key={r.id} t={t} row={r}
+              onEdit={() => onEdit(r)}
+              onDelete={() => onDelete(r)}
+            />
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function OtherIncomeRow({ t, row, onEdit, onDelete }) {
+  const dp = ymdToParts(row.income_date);
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "95px 90px 110px minmax(0, 1fr) 60px",
+      gap: 8, alignItems: "center",
+      padding: "10px 14px",
+      borderTop: `1px solid ${t.border}`,
+    }}>
+      <span className="mono" style={{
+        fontSize: 12, color: t.text, fontVariantNumeric: "tabular-nums",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {row.income_date}{dp?.dow ? ` (${dp.dow})` : ""}
+      </span>
+      <span style={{
+        fontSize: 12, fontWeight: 700, color: t.text,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {OTHER_INCOME_CATEGORY_KO[row.category] || row.category}
+      </span>
+      <span className="mono" style={{
+        fontSize: 13, fontWeight: 800, color: "#14B8A6",
+        textAlign: "right", fontVariantNumeric: "tabular-nums",
+      }}>
+        {fmtKRW(row.amount)}
+      </span>
+      <span style={{
+        fontSize: 12, color: t.textSecondary,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>
+        {row.memo || "—"}
+      </span>
+      <span style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+        <button onClick={onEdit} title="편집" style={iconBtnStyle(t)}>
+          <Edit3 size={13}/>
+        </button>
+        <button onClick={onDelete} title="삭제" style={{ ...iconBtnStyle(t), color: t.danger }}>
+          <Trash2 size={13}/>
+        </button>
+      </span>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 기타 수입 추가/편집 다이얼로그
+// ──────────────────────────────────────────────
+function OtherIncomeEditDialog({ t, mode, actor, workMonth, row, defaultDate, onClose, onSaved }) {
+  const [category, setCategory]   = useState(row?.category || "commission");
+  const [amountStr, setAmountStr] = useState(row?.amount != null ? Number(row.amount).toLocaleString("ko-KR") : "");
+  const [date, setDate]           = useState(row?.income_date || defaultDate);
+  const [memo, setMemo]           = useState(row?.memo || "");
+  const [busy, setBusy] = useState(false);
+  const [actionErr, setActionErr] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const amount = parseAmount(amountStr);
+  const hasAll = category && amount >= 0 && !!date;
+  const dateMonthOk = date && date.slice(0, 7) === workMonth;
+
+  function handleSubmit() {
+    if (!hasAll) { setActionErr("카테고리·금액·날짜 모두 입력해주세요."); return; }
+    if (!dateMonthOk) { setActionErr(`날짜의 월이 작업월(${workMonth})과 일치해야 합니다.`); return; }
+    setActionErr("");
+    setConfirmOpen(true);
+  }
+
+  async function handleConfirm() {
+    if (!actor) { setActionErr("관리자 사용자 ID 없음"); setConfirmOpen(false); return; }
+    setBusy(true);
+    try {
+      let res;
+      if (mode === "add") {
+        res = await addOtherIncome({
+          workMonth, category, amount, incomeDate: date, memo, actor,
+        });
+      } else {
+        res = await updateOtherIncome({
+          id: row.id, category, amount, incomeDate: date, memo, actor,
+        });
+      }
+      if (!res?.ok) {
+        setActionErr(res?.error || "저장 실패");
+        setConfirmOpen(false);
+      } else {
+        onSaved?.();
+      }
+    } catch (e) {
+      setActionErr(e?.message || "예외 발생");
+      setConfirmOpen(false);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Backdrop onClick={onClose}/>
+      <DialogCard t={t} width={460}>
+        <DialogHeader t={t}
+          title={mode === "add" ? "기타 수입 추가" : "기타 수입 편집"}
+          subtitle={`작업월 ${workMonth.slice(0,4)}년 ${Number(workMonth.slice(5,7))}월 · 날짜는 같은 달 안에서`}
+          onClose={onClose}
+        />
+
+        <FieldSelect t={t} label="카테고리" required value={category} onChange={setCategory}
+          options={OTHER_INCOME_CATEGORIES.map(c => ({ value: c, label: OTHER_INCOME_CATEGORY_KO[c] }))}
+        />
+        <FieldText t={t} label="금액 (₩)" required value={amountStr}
+          onChange={(v) => setAmountStr(fmtAmountInput(v))}
+          placeholder="예: 1,500,000"
+          monospace
+          hint="음수 불가. 0 이상 정수."
+        />
+        <FieldDate t={t} label="날짜" required value={date} onChange={setDate}/>
+        {date && !dateMonthOk && (
+          <div style={{ fontSize: 11, color: t.danger, marginTop: -4 }}>
+            ⚠️ 날짜 월이 {workMonth} 와 다릅니다. 같은 달 안에서 선택해주세요.
+          </div>
+        )}
+        <FieldArea t={t} label="메모" value={memo} onChange={setMemo}
+          placeholder="(선택) 예: 세스코 5월 수수료"
+          rows={2}
+        />
+
+        {actionErr && <ErrorBox t={t}>⚠️ {actionErr}</ErrorBox>}
+
+        <DialogFooter>
+          <BtnGhost t={t} onClick={onClose} disabled={busy}>취소</BtnGhost>
+          <BtnPrimary t={t} onClick={handleSubmit} disabled={busy}>
+            <Save size={13}/>
+            저장
+          </BtnPrimary>
+        </DialogFooter>
+      </DialogCard>
+
+      {confirmOpen && (
+        <ConfirmPanel t={t}
+          title={mode === "add" ? "기타 수입 추가 확인" : "수정 확인"}
+          body={
+            <PreviewLines t={t} rows={[
+              ["카테고리", OTHER_INCOME_CATEGORY_KO[category] || category],
+              ["금액", fmtKRW(amount), "mono"],
+              ["날짜", date, "mono"],
+              ["메모", memo || "(없음)"],
+            ]}/>
+          }
+          confirmLabel={busy ? "저장 중..." : "정말 저장"}
+          busy={busy}
+          onCancel={() => setConfirmOpen(false)}
+          onConfirm={handleConfirm}
+        />
+      )}
+    </>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 기타 수입 삭제 확인
+// ──────────────────────────────────────────────
+function OtherIncomeDeleteDialog({ t, row, actor, onClose, onDeleted }) {
+  const [busy, setBusy] = useState(false);
+  const [actionErr, setActionErr] = useState("");
+
+  async function handleDelete() {
+    if (!actor) { setActionErr("관리자 사용자 ID 없음"); return; }
+    setBusy(true);
+    try {
+      const res = await deleteOtherIncome(row.id, actor);
+      if (!res?.ok) {
+        setActionErr(res?.error || "삭제 실패");
+      } else {
+        onDeleted?.();
+      }
+    } catch (e) {
+      setActionErr(e?.message || "예외 발생");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <Backdrop onClick={busy ? undefined : onClose}/>
+      <DialogCard t={t} width={400} accent="danger">
+        <div style={{ fontSize: 16, fontWeight: 800, color: t.danger, marginBottom: 12 }}>
+          🗑 기타 수입 삭제
+        </div>
+        <div style={{ fontSize: 12, color: t.text, marginBottom: 14, lineHeight: 1.6 }}>
+          이 수입 항목을 정말 삭제하시겠습니까?
+        </div>
+        <div style={{
+          padding: "12px 14px",
+          background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 10,
+          marginBottom: 14,
+        }}>
+          <PreviewLines t={t} rows={[
+            ["카테고리", OTHER_INCOME_CATEGORY_KO[row.category] || row.category],
+            ["금액", fmtKRW(row.amount), "mono"],
+            ["날짜", row.income_date, "mono"],
+            ["메모", row.memo || "(없음)"],
+          ]}/>
+        </div>
+        {actionErr && <ErrorBox t={t}>⚠️ {actionErr}</ErrorBox>}
+        <DialogFooter>
+          <BtnGhost t={t} onClick={onClose} disabled={busy}>되돌리기</BtnGhost>
+          <button onClick={handleDelete} disabled={busy} style={{
+            padding: "10px 18px",
+            background: busy ? t.bgInset : t.danger,
+            color: busy ? t.textMuted : "#fff",
+            border: "none", borderRadius: 8,
+            fontSize: 13, fontWeight: 800,
+            cursor: busy ? "wait" : "pointer",
+            fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", gap: 6,
+            opacity: busy ? 0.6 : 1,
+          }}>
+            <Trash2 size={13}/>
+            {busy ? "삭제 중..." : "정말 삭제"}
+          </button>
+        </DialogFooter>
+      </DialogCard>
+    </>
   );
 }
