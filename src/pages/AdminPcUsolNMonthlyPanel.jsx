@@ -134,8 +134,12 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
   }, [split, paymentByTaskId]);
 
   // 4 표시값
+  // 2026-06-14 — "총 배분" 라벨 오해 정정. 3분할(기사/유솔/회사) 비율 표시용.
   const profit       = paymentsAgg.ownerSum;
-  const companyShare = paymentsAgg.engSum + paymentsAgg.prinSum + paymentsAgg.ownerSum;
+  const allocTotal   = paymentsAgg.engSum + paymentsAgg.prinSum + paymentsAgg.ownerSum;
+  const engPct       = allocTotal > 0 ? (paymentsAgg.engSum   / allocTotal * 100) : 0;
+  const prinPct      = allocTotal > 0 ? (paymentsAgg.prinSum  / allocTotal * 100) : 0;
+  const ownPct       = allocTotal > 0 ? (paymentsAgg.ownerSum / allocTotal * 100) : 0;
   const firstTotal   = split.firstTotal;
   const pendingTotal = split.pendingTotal;
 
@@ -226,23 +230,38 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
             }}>{fmtKRW(profit)}</span>
           </div>
 
-          {/* 구분선 + 3 가로 행 */}
+          {/* 구분선 + 분배 3분할(기사/유솔/회사) + 지급 상태 2행 */}
           <div style={{
             display: "flex", flexDirection: "column",
-            gap: 10,
+            gap: 8,
             borderTop: "1px solid var(--border)",
             paddingTop: 14,
             fontVariantNumeric: "tabular-nums",
           }}>
+            {/* 분배 3분할 (회사가 진짜 먹는 것) */}
             <SettleRow
-              label={`${gateM}월 총 배분`}
-              amount={companyShare}
-              muted
+              label={`기사 몫 ${engPct.toFixed(1)}%`}
+              amount={paymentsAgg.engSum}
+              color="#3B82F6"
             />
+            <SettleRow
+              label={`유솔 몫 ${prinPct.toFixed(1)}%`}
+              amount={paymentsAgg.prinSum}
+              color="#F59E0B"
+            />
+            <SettleRow
+              label={`★ 회사 마진 ${ownPct.toFixed(1)}%`}
+              amount={paymentsAgg.ownerSum}
+              color="#1D9E75"
+            />
+
+            {/* 지급 상태 */}
+            <div style={{ height: 1, background: "var(--border)", margin: "4px 0" }}/>
             <SettleRow
               label="15일 지급 (1차)"
               amount={firstTotal}
               color="#3B82F6"
+              muted
             />
             <SettleRow
               label="기사 미지급"
@@ -257,9 +276,9 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// SettleRow — 색박스(옵션) + 라벨 좌 + 금액 우정렬.
+// SettleRow — 색칩(옵션) + 라벨 좌 + 금액 우정렬.
 //   accent=true 면 핑크 강조 + 좌측 3px 핑크 바 + 큰 폰트.
-//   color 주면 색박스 표시 (15일 지급 파랑 등). muted 면 라벨 회색.
+//   color 주면 색칩 표시 (15일 지급 파랑 등). muted 면 라벨 회색.
 // ──────────────────────────────────────────────────────────────────
 function SettleRow({ label, amount, color, muted, accent }) {
   return (

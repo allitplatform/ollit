@@ -121,6 +121,9 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
   const engTotal   = Number(m.engineer_total) || 0;
   const engPaid    = Number(m.engineer_paid) || 0;
   const engPending = Number(m.engineer_pending) || 0;
+  // 2026-06-14 — Mig 131 신규 필드 (3분할 비율 표시용).
+  const prinTotal  = Number(m.principal_total) || 0;
+  const extraTotal = Number(m.extra_total) || 0;
   const margin     = Number(m.margin) || 0;
   const adjAmount  = Number(m.adjustment_amount) || 0;
   const adjMemo    = m.adjustment_memo || "";
@@ -129,6 +132,12 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
 
   const passRecvPct = pct(passRecv, passTotal);
   const engPaidPct  = pct(engPaid, engTotal);
+
+  // 3분할 비율 (기사/유솔/회사 마진) — 합계는 engineer + principal + owner.
+  const allocTotal = engTotal + prinTotal + margin;
+  const engPct  = pct(engTotal,  allocTotal);
+  const prinPct = pct(prinTotal, allocTotal);
+  const ownPct  = pct(margin,    allocTotal);
 
   return (
     <div style={{
@@ -234,16 +243,34 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
               </div>
             </Panel>
 
-            {/* ③ 회사 마진 (owner_amount + 보정) */}
-            <Panel t={t} title="③ 회사 마진" subtitle="track B owner_amount" color="#8B5CF6">
-              <KV t={t} label="작업 자동 계산" value={fmtKRW(margin)} color="#8B5CF6"/>
-              {adjAmount !== 0 && (
-                <>
-                  <KV t={t} label="보정 (Mig 127)" value={(adjAmount > 0 ? "+" : "") + fmtKRW(adjAmount)} color="#A78BFA"
-                    hint={adjMemo || "수동 보정"}/>
-                  <KV t={t} label="합계" value={fmtKRW(margin + adjAmount)} color={t.accent} bold/>
-                </>
+            {/* ③ 분배 (회사가 진짜 먹는 것) — 기사/유솔/회사 3분할 비율 + 회사 마진 강조 */}
+            <Panel t={t} title="③ 분배 (회사가 진짜 먹는 것)" subtitle="기사 / 유솔 / 회사 비율" color="#8B5CF6">
+              <KV t={t} label="유솔 정산금 (수수료 뺀)" value={fmtKRW(passTotal)} color={t.text}
+                hint="task_items.subtotal 합"/>
+              {extraTotal > 0 && (
+                <KV t={t} label="+ 현장 추가금" value={fmtKRW(extraTotal)} color={t.textMuted}
+                  hint="payments.extra_fee"/>
               )}
+              <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>
+              <KV t={t} label={`기사 몫 ${engPct.toFixed(1)}%`} value={fmtKRW(engTotal)} color="#3B82F6"/>
+              <KV t={t} label={`유솔 몫 ${prinPct.toFixed(1)}%`} value={fmtKRW(prinTotal)} color="#F59E0B"/>
+              <div style={{
+                padding: "8px 10px",
+                background: (t.successBg || "rgba(34,197,94,0.08)"),
+                border: `1.5px solid ${t.success}`,
+                borderRadius: 7,
+                marginTop: 2,
+              }}>
+                <KV t={t} label={`회사 마진 ${ownPct.toFixed(1)}% ★`} value={fmtKRW(margin)} color={t.success} bold/>
+                {adjAmount !== 0 && (
+                  <>
+                    <div style={{ height: 1, background: t.border, margin: "4px 0" }}/>
+                    <KV t={t} label="+ 보정 (Mig 127)" value={(adjAmount > 0 ? "+" : "") + fmtKRW(adjAmount)} color="#A78BFA"
+                      hint={adjMemo || "수동 보정"}/>
+                    <KV t={t} label="회사 합계" value={fmtKRW(margin + adjAmount)} color={t.accent} bold/>
+                  </>
+                )}
+              </div>
             </Panel>
           </div>
         </>

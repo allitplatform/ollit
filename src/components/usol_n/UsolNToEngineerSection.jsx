@@ -312,7 +312,7 @@ export function UsolNToEngineerSection({ adminId = null }) {
         const chunk = taskIds.slice(i, i + CHUNK);
         const { data, error } = await supabase
           .from("payments")
-          .select("task_id, engineer_amount, principal_amount, owner_amount, track")
+          .select("task_id, engineer_amount, principal_amount, owner_amount, extra_fee, product_price, track")
           .in("task_id", chunk);
         if (!alive) return;
         if (error) {
@@ -410,17 +410,19 @@ export function UsolNToEngineerSection({ adminId = null }) {
       const tid = it.tasks?.id || it.task_id;
       if (tid) taskIds.add(tid);
     }
-    let engSum = 0, prinSum = 0, ownerSum = 0, matched = 0, missing = 0;
+    let engSum = 0, prinSum = 0, ownerSum = 0, extraSum = 0, prodSum = 0, matched = 0, missing = 0;
     for (const tid of taskIds) {
       const p = paymentByTaskId.get(tid);
       if (!p) { missing += 1; continue; }
       engSum   += Number(p.engineer_amount)  || 0;
       prinSum  += Number(p.principal_amount) || 0;
       ownerSum += Number(p.owner_amount)     || 0;
+      extraSum += Number(p.extra_fee)        || 0;
+      prodSum  += Number(p.product_price)    || 0;  // = subtotal 합 (post-fee, 유솔 정산금)
       matched += 1;
     }
     return {
-      engSum, prinSum, ownerSum,
+      engSum, prinSum, ownerSum, extraSum, prodSum,
       taskCount: taskIds.size,
       matched, missing,
     };
@@ -499,13 +501,11 @@ export function UsolNToEngineerSection({ adminId = null }) {
             split={split}
           />
 
-          {/* 회사 순이익 카드 (작업월 = gateYm 기준).
-              2026-06-09 — 정책 기반 마진 (payments 합산). 트랙 🅑 정합.
-              배분=Σ(eng+prin+own), 기사+원청 지급=Σ(eng+prin), 순익=Σowner. */}
+          {/* 분배 카드 (작업월 = gateYm 기준).
+              2026-06-14 — "회사 배분" 라벨 오해 정정. 3분할(기사/유솔/회사) 비율 표시.
+              유솔 정산금 = product_price 합 / 현장 추가금 = extra_fee 합 / 회사 마진 ★ 강조. */}
           <CompanyProfitCard
             gateYm={gateYm}
-            companyShare={companyShare}
-            companyOutToEngPrin={companyOutToEngPrin}
             paymentsAgg={paymentsAgg}
             profit={profit}
           />
@@ -690,17 +690,27 @@ function StackBar({ firstPct, secondPct, empty }) {
 }
 
 // ── 회사 순이익 카드 (작업월 = gateYm 기준) ─────────────────
-// 2026-06-09 — 정책 기반 마진 (payments 합산).
-//   원천: payments.owner_amount / engineer_amount / principal_amount (compute_payment v19, Mig 096).
-//     v_total_owner = subtotal + extra + travel − engineer − principal (GREATEST 0 가드)
-//     트랙 🅑 (세척 100% 기사 / 추가선택 / cleaning_extra 0.85·0.15) 정책 반영 완료.
-//   배분 = Σ(engineer + principal + owner) = 회사 총수입 (= subtotal + extra + travel)
-//   기사+원청 지급 = Σ(engineer + principal)
-//   회사 순익 = Σowner_amount
-//   missing payments (compute 미실행 task) → 콘솔 경고 + 카드 하단 표시. 운영에서 0건 (5월 사장님 확인).
-function CompanyProfitCard({ gateYm, companyShare, companyOutToEngPrin, paymentsAgg, profit }) {
+// 2026-06-14 — "회사 배분" 라벨 오해 정정 (사장님 spec).
+//   옛: 회사 배분 = Σ(eng+prin+own) → 회사 몫이 아닌 통과 자금. 라벨 오해 큼.
+//   신: 3분할 구조 — 유솔 정산금(통과 자금) + 현장 추가금 → 기사/유솔/회사 분배 비율 표시.
+//     유솔 정산금 = product_price 합 (= subtotal 합, post-fee, 네이버 수수료 차감 후)
+//     현장 추가금 = extra_fee 합
+//     기사 몫 % / 유솔 몫 % (≈15%) / 회사 마진 % ← 회사가 진짜 먹는 것
+//   원천: payments.{engineer_amount/principal_amount/owner_amount/extra_fee/product_price}
+function CompanyProfitCard({ gateYm, paymentsAgg, profit }) {
   if (!gateYm) return null;
-  const missing = paymentsAgg?.missing || 0;
+  const missing  = paymentsAgg?.missing || 0;
+  const engSum   = Number(paymentsAgg?.engSum)   || 0;
+  const prinSum  = Number(paymentsAgg?.prinSum)  || 0;
+  const ownerSum = Number(paymentsAgg?.ownerSum) || 0;
+  const extraSum = Number(paymentsAgg?.extraSum) || 0;
+  const prodSum  = Number(paymentsAgg?.prodSum)  || 0;
+
+  const allocTotal = engSum + prinSum + ownerSum;  // 분배 대상 (≈ prodSum + extraSum)
+  const pct = (n) => allocTotal > 0 ? (n / allocTotal * 100) : 0;
+  const engPct  = pct(engSum);
+  const prinPct = pct(prinSum);
+  const ownPct  = pct(ownerSum);
 
   return (
     <div style={{
@@ -710,29 +720,49 @@ function CompanyProfitCard({ gateYm, companyShare, companyOutToEngPrin, payments
       borderRadius: 12,
     }}>
       <div style={{
-        fontSize: 11, color: C_GRAY, fontWeight: 600, marginBottom: 8,
+        fontSize: 11, color: C_GRAY, fontWeight: 600, marginBottom: 10,
       }}>
-        회사 순이익 · 작업월 {gateYm}
+        분배 · 작업월 {gateYm}
       </div>
 
-      <ProfitRow label="회사 배분 (정책 적용)" amount={companyShare} sign="+"/>
-      <ProfitRow label="기사+원청 지급" amount={companyOutToEngPrin} sign="−"/>
+      {/* 통과 자금 (분배 대상) */}
+      <SettleLine label="유솔 정산금 (수수료 뺀)" amount={prodSum}/>
+      {extraSum > 0 && (
+        <SettleLine label="+ 현장 추가금" amount={extraSum} muted/>
+      )}
 
       <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }}/>
 
+      {/* 3분할 — 기사/유솔/회사 */}
+      <SettleLine label={`기사 몫 ${engPct.toFixed(1)}%`} amount={engSum} color="#3B82F6"/>
+      <SettleLine label={`유솔 몫 ${prinPct.toFixed(1)}%`} amount={prinSum} color="#F59E0B"/>
+
+      {/* 회사 마진 — 강조 (배경 + 볼드) */}
       <div style={{
-        display: "flex", alignItems: "baseline", justifyContent: "space-between",
-        marginTop: 4,
+        marginTop: 6,
+        padding: "8px 10px",
+        background: "rgba(29,158,117,0.10)",
+        border: `1.5px solid ${C_GREEN}`,
+        borderRadius: 8,
       }}>
-        <span style={{ fontSize: 12, color: "var(--text-primary)", fontWeight: 700 }}>
-          순이익
-        </span>
-        <span style={{
-          fontSize: 18, fontFamily: "inherit", fontWeight: 800,
-          color: profit >= 0 ? C_GREEN : "#ff4444",
+        <div style={{
+          display: "flex", alignItems: "baseline", justifyContent: "space-between",
         }}>
-          ₩{profit.toLocaleString()}
-        </span>
+          <span style={{ fontSize: 12, color: C_GREEN, fontWeight: 800 }}>
+            ★ 회사 마진 {ownPct.toFixed(1)}%
+          </span>
+          <span style={{
+            fontSize: 18, fontFamily: "inherit", fontWeight: 800,
+            color: profit >= 0 ? C_GREEN : "#ff4444",
+          }}>
+            ₩{ownerSum.toLocaleString()}
+          </span>
+        </div>
+        <div style={{
+          marginTop: 2, fontSize: 9, color: "var(--text-secondary)", fontWeight: 500,
+        }}>
+          owner_amount (= 유솔 정산금 + 추가금 − 기사 − 유솔)
+        </div>
       </div>
 
       {missing > 0 && (
@@ -746,17 +776,22 @@ function CompanyProfitCard({ gateYm, companyShare, companyOutToEngPrin, payments
   );
 }
 
-function ProfitRow({ label, amount, sign }) {
+// 분배 한 줄 — 라벨 좌 / 금액 우. color 주면 라벨 색. muted 면 라벨 흐림.
+function SettleLine({ label, amount, color, muted }) {
   return (
     <div style={{
       display: "flex", alignItems: "baseline", justifyContent: "space-between",
       padding: "3px 0", fontSize: 11,
     }}>
-      <span style={{ color: C_GRAY, fontWeight: 600 }}>{label}</span>
       <span style={{
-        color: "var(--text-primary)", fontFamily: "inherit", fontWeight: 700,
+        color: muted ? "var(--text-tertiary, #9CA3AF)" : (color || C_GRAY),
+        fontWeight: 700,
+      }}>{label}</span>
+      <span className="mono" style={{
+        color: "var(--text-primary)", fontFamily: "ui-monospace, monospace", fontWeight: 700,
+        fontVariantNumeric: "tabular-nums",
       }}>
-        {sign}₩{(Number(amount) || 0).toLocaleString()}
+        ₩{(Number(amount) || 0).toLocaleString()}
       </span>
     </div>
   );
