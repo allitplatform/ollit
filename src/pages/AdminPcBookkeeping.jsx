@@ -1445,55 +1445,42 @@ function CumulativeCarryoverBox({ t, workMonth, cumCarry, loading, err, monthlyO
 
           {monthlyOpen && (
             <div style={{ padding: "0 16px 14px" }}>
+              {/* 2026-06-14 — 4컬럼 축소: 월 / 분배 / 당월 차이 / 누적.
+                  세부(일정산/유솔N/기타/운영비)는 손익 카드에서 확인. */}
               <div style={{
                 display: "grid",
-                gridTemplateColumns: "70px repeat(7, minmax(0, 1fr))",
-                gap: 6, alignItems: "center",
-                padding: "8px 10px",
+                gridTemplateColumns: "80px repeat(3, minmax(0, 1fr))",
+                gap: 8, alignItems: "center",
+                padding: "8px 12px",
                 background: t.bgElevated, border: `1px solid ${t.border}`,
                 borderRadius: 8,
-                fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.3,
+                fontSize: 11, color: t.textMuted, fontWeight: 700, letterSpacing: 0.3,
               }}>
                 <span>월</span>
-                <span style={{ textAlign: "right" }}>일정산</span>
-                <span style={{ textAlign: "right" }}>유솔N</span>
-                <span style={{ textAlign: "right" }}>기타</span>
-                <span style={{ textAlign: "right" }}>운영비</span>
                 <span style={{ textAlign: "right" }}>분배</span>
-                <span style={{ textAlign: "right" }}>당월</span>
+                <span style={{ textAlign: "right" }}>당월 차이</span>
                 <span style={{ textAlign: "right" }}>누적</span>
               </div>
               {monthly.map(m => {
-                const diff = Number(m.monthly_diff) || 0;
+                const dist  = Number(m.distribution) || 0;
+                const diff  = Number(m.monthly_diff) || 0;
                 const cumRow = Number(m.cumulative) || 0;
                 return (
                   <div key={m.wm} style={{
                     display: "grid",
-                    gridTemplateColumns: "70px repeat(7, minmax(0, 1fr))",
-                    gap: 6, alignItems: "center",
-                    padding: "8px 10px",
+                    gridTemplateColumns: "80px repeat(3, minmax(0, 1fr))",
+                    gap: 8, alignItems: "center",
+                    padding: "10px 12px",
                     borderTop: `1px solid ${t.border}`,
-                    fontSize: 11,
+                    fontSize: 12,
                     fontFamily: "ui-monospace, monospace",
                     fontVariantNumeric: "tabular-nums",
                   }}>
                     <span style={{ color: t.text, fontWeight: 700, fontFamily: "inherit" }}>
                       {m.wm.slice(5)}월
                     </span>
-                    <span style={{ textAlign: "right", color: (Number(m.track_a) || 0) > 0 ? t.text : t.textDim }}>
-                      {fmtKRW(m.track_a)}
-                    </span>
-                    <span style={{ textAlign: "right", color: (Number(m.usoln) || 0) > 0 ? t.text : t.textDim }}>
-                      {fmtKRW(m.usoln)}
-                    </span>
-                    <span style={{ textAlign: "right", color: (Number(m.other) || 0) > 0 ? t.text : t.textDim }}>
-                      {fmtKRW(m.other)}
-                    </span>
-                    <span style={{ textAlign: "right", color: (Number(m.expense) || 0) > 0 ? t.danger : t.textDim }}>
-                      {(Number(m.expense) || 0) > 0 ? "−" : ""}{fmtKRW(m.expense)}
-                    </span>
-                    <span style={{ textAlign: "right", color: (Number(m.distribution) || 0) > 0 ? t.warning : t.textDim }}>
-                      {(Number(m.distribution) || 0) > 0 ? "−" : ""}{fmtKRW(m.distribution)}
+                    <span style={{ textAlign: "right", color: dist > 0 ? t.warning : t.textDim }}>
+                      {dist > 0 ? "−" : ""}{fmtKRW(dist)}
                     </span>
                     <span style={{
                       textAlign: "right", fontWeight: 800,
@@ -1570,21 +1557,24 @@ function OtherIncomeSection({ t, rows, sum, loading, err, onAdd, onEdit, onDelet
       background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
       overflow: "hidden", marginBottom: 14,
     }}>
+      {/* 2026-06-14 — 0건이면 헤더 한 줄만 (borderBottom 제거). 부제는 0건일 때 "비어있음" 으로 축약. */}
       <div style={{
         display: "flex", alignItems: "center", gap: 12,
         padding: "14px 18px",
-        borderBottom: `1px solid ${t.border}`,
+        borderBottom: rows.length > 0 ? `1px solid ${t.border}` : "none",
       }}>
         <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>💰 기타 수입</div>
         <div style={{ fontSize: 11, color: t.textMuted }}>
-          세스코·개인건 등 수동 입력 (통장과 별개, 손익용)
+          {rows.length === 0 ? "이번 달 비어있음 (세스코·개인건 등)" : "세스코·개인건 등 수동 입력 (통장과 별개, 손익용)"}
         </div>
         <div style={{ flex: 1 }}/>
-        <div style={{ fontSize: 12, color: t.textSecondary, marginRight: 4 }}>
-          {rows.length}건
-          <span style={{ color: t.textDim, margin: "0 6px" }}>·</span>
-          합계 <span className="mono" style={{ fontWeight: 800, color: "#14B8A6" }}>{fmtKRW(sum)}</span>
-        </div>
+        {rows.length > 0 && (
+          <div style={{ fontSize: 12, color: t.textSecondary, marginRight: 4 }}>
+            {rows.length}건
+            <span style={{ color: t.textDim, margin: "0 6px" }}>·</span>
+            합계 <span className="mono" style={{ fontWeight: 800, color: "#14B8A6" }}>{fmtKRW(sum)}</span>
+          </div>
+        )}
         <button onClick={onAdd} style={{
           padding: "8px 14px",
           background: "#14B8A6", color: "#fff",
@@ -1636,14 +1626,8 @@ function OtherIncomeSection({ t, rows, sum, loading, err, onAdd, onEdit, onDelet
           ⚠️ {err}
         </div>
       ) : rows.length === 0 ? (
-        <div style={{ padding: "40px 20px", textAlign: "center" }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: t.text, marginBottom: 6 }}>
-            이번 달 기타 수입이 없습니다
-          </div>
-          <div style={{ fontSize: 11, color: t.textMuted }}>
-            [+ 수입 추가] 로 세스코 수수료·개인건 등 입력
-          </div>
-        </div>
+        // 0건 — 헤더 한 줄만 (별도 빈 상태 div 생략).
+        null
       ) : (
         <>
           <div style={{
