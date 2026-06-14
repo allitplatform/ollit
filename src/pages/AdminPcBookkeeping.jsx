@@ -19,6 +19,7 @@ import {
   getUsolNTrackBMargin,
   EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KO,
 } from "../lib/bookkeepingDb.js";
+import { listOtherIncome } from "../lib/bookkeepingOtherIncomeDb.js";
 import {
   computeRevenueByYmRange,
   getMonthRange,
@@ -142,7 +143,33 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
     return () => { alive = false; };
   }, [selectedYm, actor]);
 
-  const incomeTotal = incomeTrackA + usolNB;
+  // 기타 수입 (Mig 124/125) — 세스코·개인건 등 수동 입력 합계
+  const [otherIncomeRows, setOtherIncomeRows] = useState([]);
+  const [otherIncomeLoading, setOtherIncomeLoading] = useState(false);
+  const [otherIncomeErr, setOtherIncomeErr] = useState("");
+  useEffect(() => {
+    if (!actor) { setOtherIncomeRows([]); return; }
+    let alive = true;
+    setOtherIncomeLoading(true); setOtherIncomeErr("");
+    (async () => {
+      const res = await listOtherIncome(selectedYm, actor);
+      if (!alive) return;
+      if (!res?.ok) {
+        setOtherIncomeErr(res?.error || "기타 수입 조회 실패");
+        setOtherIncomeRows([]);
+      } else {
+        setOtherIncomeRows(res.rows || []);
+      }
+      setOtherIncomeLoading(false);
+    })().catch(e => { if (alive) { setOtherIncomeErr(e?.message || "에러"); setOtherIncomeLoading(false); } });
+    return () => { alive = false; };
+  }, [selectedYm, actor]);
+  const otherIncomeSum = useMemo(
+    () => (otherIncomeRows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0),
+    [otherIncomeRows]
+  );
+
+  const incomeTotal = incomeTrackA + usolNB + otherIncomeSum;
   const netProfit   = incomeTotal - (totals.sum || 0);
 
   const isThisMonth = selectedYm === nowKstYm();
@@ -336,6 +363,9 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         usolNB={usolNB}
         usolNBLoading={usolNBLoading}
         usolNBErr={usolNBErr}
+        otherIncome={otherIncomeSum}
+        otherIncomeLoading={otherIncomeLoading}
+        otherIncomeErr={otherIncomeErr}
         incomeTotal={incomeTotal}
         expense={totals.sum}
         netProfit={netProfit}
@@ -845,12 +875,16 @@ function PreviewLines({ t, rows }) {
 }
 
 // ──────────────────────────────────────────────
-// 손익 카드 — 수입 3줄 분리 (일정산 + 유솔N 월정산 + 합계) − 운영비 = 순이익
+// 손익 카드 — 수입 4줄 분리 (일정산 + 유솔N 월정산 + 기타 + 합계) − 운영비 = 순이익
 //   · 일정산 (track A) — 매출 리포트 owner 와 동일 dataset.
-//   · 유솔N 월정산 (track B) — Mig 121 RPC (track A 와 배타라 중복 X).
-//   · 수입 합계 = 두 항 합. 순이익 = 합계 − 운영비.
+//   · 유솔N 월정산 (track B) — Mig 123 RPC (전월 작업분, track A 와 배타).
+//   · 기타 — Mig 124/125 (세스코 수수료·개인건 등 수동 입력).
+//   · 수입 합계 = 세 항 합. 순이익 = 합계 − 운영비.
+//   · 색: 일정산 파랑(#3B82F6) / 유솔N 보라(#8B5CF6) / 기타 청록(#14B8A6).
 // ──────────────────────────────────────────────
-function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr, incomeTotal, expense, netProfit }) {
+function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr,
+                       otherIncome, otherIncomeLoading, otherIncomeErr,
+                       incomeTotal, expense, netProfit }) {
   return (
     <div style={{
       background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
@@ -872,6 +906,16 @@ function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr, incomeT
             : usolNBErr
               ? `⚠️ ${usolNBErr}`
               : "유솔N 세척·추가선택 회사 마진 — 전월 작업분(작업 다음 달 정산 반영)."}
+        />
+        <ProfitRow t={t}
+          label="수입 — 기타 (세스코·개인건 등)"
+          value={otherIncome}
+          color="#14B8A6"
+          hint={otherIncomeLoading
+            ? "불러오는 중..."
+            : otherIncomeErr
+              ? `⚠️ ${otherIncomeErr}`
+              : "세스코 수수료·개인건 등 수동 입력 (통장 cashflow 와 별개, 손익용)."}
         />
         <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>
         <ProfitRow t={t} label="수입 합계" value={incomeTotal} color={t.text} mid/>
