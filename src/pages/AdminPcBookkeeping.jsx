@@ -24,9 +24,9 @@ import {
   listOtherIncome, addOtherIncome, updateOtherIncome, deleteOtherIncome,
   OTHER_INCOME_CATEGORIES, OTHER_INCOME_CATEGORY_KO,
 } from "../lib/bookkeepingOtherIncomeDb.js";
-import {
-  getUsolnAdjustment, setUsolnAdjustment, deleteUsolnAdjustment,
-} from "../lib/bookkeepingUsolnAdjustmentDb.js";
+// 2026-06-14 — 유솔N 보정 UI 제거 (사장님 결정, 데이터만 직접 입력).
+//   백엔드(테이블 Mig 127 / RPC Mig 128 / 누적 RPC v2 Mig 129)는 살림 — Mig 129 가
+//   bookkeeping_usoln_adjustment 합산해서 누적 이월에 반영. 화면 보정 줄/연필/다이얼로그만 제거.
 import {
   computeRevenueByYmRange,
   getMonthRange,
@@ -71,20 +71,6 @@ function fmtAmountInput(raw) {
 function parseAmount(s) {
   return Number(String(s || "").replace(/\D/g, "")) || 0;
 }
-// 음수 허용 버전 — 선행 "-" 보존, 나머지는 숫자만.
-function fmtAmountInputSigned(raw) {
-  const str = String(raw || "");
-  const neg = str.trim().startsWith("-");
-  const digits = str.replace(/\D/g, "");
-  if (!digits) return neg ? "-" : "";
-  return (neg ? "-" : "") + Number(digits).toLocaleString("ko-KR");
-}
-function parseAmountSigned(s) {
-  const str = String(s || "").trim();
-  const neg = str.startsWith("-");
-  const n = Number(str.replace(/\D/g, "")) || 0;
-  return neg ? -n : n;
-}
 
 // ──────────────────────────────────────────────
 // 본체
@@ -98,7 +84,6 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
   const [reloadTick, setReloadTick] = useState(0);
   const [dialog, setDialog] = useState(null);   // 운영비 다이얼로그 { mode, row? }
   const [oiDialog, setOiDialog] = useState(null); // 기타 수입 다이얼로그 { mode, row? }
-  const [usolnAdjDialog, setUsolnAdjDialog] = useState(null); // 유솔N 보정 다이얼로그 (mode: "edit")
 
   const actor = user?.user_id || user?.userId || user?.id;
 
@@ -166,31 +151,8 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
     return () => { alive = false; };
   }, [selectedYm, actor]);
 
-  // 유솔N 수동 보정 (Mig 127/128) — 음수 허용. 누적 RPC 도 합산해서 반영.
-  const [usolnAdj, setUsolnAdj] = useState(null); // { amount, memo } | null
-  const [usolnAdjLoading, setUsolnAdjLoading] = useState(false);
-  const [usolnAdjErr, setUsolnAdjErr] = useState("");
-  const [usolnAdjReloadTick, setUsolnAdjReloadTick] = useState(0);
-  useEffect(() => {
-    if (!actor) { setUsolnAdj(null); return; }
-    let alive = true;
-    setUsolnAdjLoading(true); setUsolnAdjErr("");
-    (async () => {
-      const res = await getUsolnAdjustment(selectedYm, actor);
-      if (!alive) return;
-      if (!res?.ok) {
-        setUsolnAdjErr(res?.error || "보정 조회 실패");
-        setUsolnAdj(null);
-      } else {
-        const r = res.row;
-        setUsolnAdj(r ? { amount: Number(r.amount) || 0, memo: r.memo || "" } : null);
-      }
-      setUsolnAdjLoading(false);
-    })().catch(e => { if (alive) { setUsolnAdjErr(e?.message || "에러"); setUsolnAdjLoading(false); } });
-    return () => { alive = false; };
-  }, [selectedYm, actor, usolnAdjReloadTick]);
-  const usolnAdjAmount = usolnAdj?.amount || 0;
-  const usolnTotal     = usolNB + usolnAdjAmount;
+  // (유솔N 수동 보정은 화면 UI 제거됨 — Mig 129 누적 RPC 가 bookkeeping_usoln_adjustment
+  //  테이블을 직접 합산. ProfitCard 는 자동값만 표시, 누적 이월 = 자동+보정 반영.)
 
   // 기타 수입 (Mig 124/125) — 세스코·개인건 등 수동 입력 합계
   const [otherIncomeRows, setOtherIncomeRows] = useState([]);
@@ -219,7 +181,7 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
     [otherIncomeRows]
   );
 
-  const incomeTotal = incomeTrackA + usolnTotal + otherIncomeSum;
+  const incomeTotal = incomeTrackA + usolNB + otherIncomeSum;
   const netProfit   = incomeTotal - (totals.sum || 0);
 
   const isThisMonth = selectedYm === nowKstYm();
@@ -418,16 +380,12 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         onDelete={(r) => setOiDialog({ mode: "delete", row: r })}
       />
 
-      {/* 손익 카드 — 수입 (일정산 / 유솔N 자동 / 유솔N 보정 / 기타 / 합계) */}
+      {/* 손익 카드 — 수입 (일정산 / 유솔N 자동 / 기타 / 합계). 유솔N 보정은 누적에만 반영. */}
       <ProfitCard t={t}
         incomeTrackA={incomeTrackA}
         usolNB={usolNB}
         usolNBLoading={usolNBLoading}
         usolNBErr={usolNBErr}
-        usolnAdj={usolnAdj}
-        usolnAdjLoading={usolnAdjLoading}
-        usolnAdjErr={usolnAdjErr}
-        onEditUsolnAdj={() => setUsolnAdjDialog({ mode: "edit" })}
         otherIncome={otherIncomeSum}
         otherIncomeLoading={otherIncomeLoading}
         otherIncomeErr={otherIncomeErr}
@@ -442,7 +400,7 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         actor={actor}
         netProfit={netProfit}
         onSaved={() => setReloadTick(n => n + 1)}
-        reloadKey={reloadTick + oiReloadTick + usolnAdjReloadTick}
+        reloadKey={reloadTick + oiReloadTick}
       />
 
       {/* 다이얼로그 */}
@@ -491,17 +449,6 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         />
       )}
 
-      {/* 유솔N 보정 다이얼로그 */}
-      {usolnAdjDialog?.mode === "edit" && (
-        <UsolnAdjustmentDialog t={t}
-          workMonth={selectedYm}
-          actor={actor}
-          existing={usolnAdj}
-          autoAmount={usolNB}
-          onClose={() => setUsolnAdjDialog(null)}
-          onSaved={() => { setUsolnAdjDialog(null); setUsolnAdjReloadTick(n => n + 1); }}
-        />
-      )}
     </div>
   );
 }
@@ -983,10 +930,8 @@ function PreviewLines({ t, rows }) {
 //   · 색: 일정산 파랑(#3B82F6) / 유솔N 보라(#8B5CF6) / 기타 청록(#14B8A6).
 // ──────────────────────────────────────────────
 function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr,
-                       usolnAdj, usolnAdjLoading, usolnAdjErr, onEditUsolnAdj,
                        otherIncome, otherIncomeLoading, otherIncomeErr,
                        incomeTotal, expense, netProfit }) {
-  const adjAmount = usolnAdj?.amount || 0;
   return (
     <div style={{
       background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
@@ -1000,21 +945,14 @@ function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr,
         <ProfitRow t={t} label="수입 — 일정산 (track A)" value={incomeTrackA} color="#3B82F6"
           hint="매출 리포트 '이번달' 회사 마진과 동일 (revenueStats)."/>
         <ProfitRow t={t}
-          label="수입 — 유솔N 월정산 (자동, 전월 작업분)"
+          label="수입 — 유솔N 월정산 (전월 작업분)"
           value={usolNB}
           color="#8B5CF6"
           hint={usolNBLoading
             ? "불러오는 중..."
             : usolNBErr
               ? `⚠️ ${usolNBErr}`
-              : "유솔N 세척·추가선택 회사 마진 — 전월 작업분(작업 다음 달 정산 반영)."}
-        />
-        <UsolnAdjRow t={t}
-          amount={adjAmount}
-          memo={usolnAdj?.memo || ""}
-          loading={usolnAdjLoading}
-          err={usolnAdjErr}
-          onEdit={onEditUsolnAdj}
+              : "유솔N 세척·추가선택 회사 마진 — 전월 작업분(작업 다음 달 정산 반영). 수동 보정은 누적 이월에만 반영."}
         />
         <ProfitRow t={t}
           label="수입 — 기타 (세스코·개인건 등)"
@@ -1032,57 +970,6 @@ function ProfitCard({ t, incomeTrackA, usolNB, usolNBLoading, usolNBErr,
         <div style={{ height: 1, background: t.border, margin: "4px 0" }}/>
         <ProfitRow t={t} label="순이익" value={netProfit} color={t.accent} big highlight/>
       </div>
-    </div>
-  );
-}
-
-// 유솔N 보정 줄 — ProfitRow 와 비슷하지만 끝에 연필 버튼.
-//   값 0 + 없음: 라벨 + "보정 없음" + [+ 보정] 버튼
-//   값 있음: 부호 포함 표시 (양수 +, 음수 −) + memo 힌트 + [✏️ 편집] 버튼
-function UsolnAdjRow({ t, amount, memo, loading, err, onEdit }) {
-  const hasAdj = amount !== 0 || !!memo;
-  const isNeg  = amount < 0;
-  const display = amount === 0
-    ? "₩0"
-    : (isNeg ? "−" : "+") + fmtKRW(Math.abs(amount)).replace("₩", "₩");
-  return (
-    <div style={{
-      display: "flex", alignItems: "baseline", gap: 12,
-      padding: "4px 0",
-    }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
-          수입 — 유솔N 월정산 (보정, 수동)
-        </span>
-        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>
-          {loading
-            ? "불러오는 중..."
-            : err
-              ? `⚠️ ${err}`
-              : hasAdj
-                ? `메모: ${memo || "(없음)"} · 자동값과 합쳐 누적 이월에 반영`
-                : "데이터 없는 과거 달 보정용. [+ 보정] 으로 직접 입력 (음수 가능)."}
-        </span>
-      </div>
-      <div style={{ flex: 1 }}/>
-      <span className="mono" style={{
-        fontSize: 16, fontWeight: 800,
-        color: amount === 0 ? t.textMuted : (isNeg ? t.danger : "#A78BFA"),
-        fontVariantNumeric: "tabular-nums",
-        whiteSpace: "nowrap",
-      }}>{display}</span>
-      <button onClick={onEdit} title={hasAdj ? "보정 편집" : "보정 추가"}
-        style={{
-          padding: "5px 8px",
-          background: "transparent", border: `1px solid ${t.border}`,
-          borderRadius: 6, fontFamily: "inherit",
-          color: hasAdj ? t.text : "#A78BFA",
-          cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4,
-          fontSize: 11, fontWeight: 700,
-        }}>
-        {hasAdj ? <Edit3 size={12}/> : <Plus size={12} strokeWidth={2.8}/>}
-        {hasAdj ? "편집" : "보정"}
-      </button>
     </div>
   );
 }
@@ -1207,7 +1094,8 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
   const autoCarry   = netProfit - distSum;
   const overrun     = autoCarry < 0;            // 분배 합 > 순이익 → 음수 이월
   const sumMatch    = (distSum + Math.max(autoCarry, 0)) === netProfit && !overrun;
-  const dbMismatch  = savedCarry && !overrun && Number(savedCarry.amount) !== autoCarry;
+  // 2026-06-14 — 옛 bookkeeping_carryover 저장값과 자동 계산 불일치 경고 제거.
+  //   누적 RPC(Mig 129)를 단일 진실로 사용. 옛 carryover 행은 저장은 유지하되 비교 안 함.
 
   function handleAmountChange(i, raw) {
     const next = [...amounts];
@@ -1350,16 +1238,7 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
             onToggle={() => setMonthlyOpen(o => !o)}
           />
 
-          {/* DB 불일치 알림 */}
-          {dbMismatch && (
-            <div style={{
-              padding: "8px 12px", marginTop: 8,
-              background: t.warningBg, border: `1px solid ${t.warningBorder}`,
-              borderRadius: 8, fontSize: 11, color: t.warning, fontWeight: 600,
-            }}>
-              ⚠️ DB에 저장된 이월 ({fmtKRW(savedCarry.amount)})과 자동 계산값이 다릅니다 — 저장 시 자동 계산값으로 덮어씁니다.
-            </div>
-          )}
+          {/* (옛 carryover 불일치 경고 제거 — 누적 RPC Mig 129 단일 진실 사용.) */}
 
           {/* 이월 메모 */}
           <div style={{ marginTop: 10 }}>
@@ -1463,171 +1342,6 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
         />
       )}
     </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// 유솔N 보정 다이얼로그 — set / delete
-//   · 음수 허용. 메모.
-//   · 기존 보정 있으면 prefill + "보정 삭제" 버튼 노출.
-// ──────────────────────────────────────────────
-function UsolnAdjustmentDialog({ t, workMonth, actor, existing, autoAmount, onClose, onSaved }) {
-  const [amountStr, setAmountStr] = useState(
-    existing?.amount != null ? fmtAmountInputSigned(String(existing.amount)) : ""
-  );
-  const [memo, setMemo] = useState(existing?.memo || "");
-  const [busy, setBusy] = useState(false);
-  const [actionErr, setActionErr] = useState("");
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-
-  const amount = parseAmountSigned(amountStr);
-  const total  = (Number(autoAmount) || 0) + amount;
-
-  function handleSubmit() {
-    if (amountStr === "" || amountStr === "-") {
-      setActionErr("금액을 입력해주세요.");
-      return;
-    }
-    setActionErr("");
-    setConfirmOpen(true);
-  }
-
-  async function handleConfirm() {
-    if (!actor) { setActionErr("관리자 사용자 ID 없음"); setConfirmOpen(false); return; }
-    setBusy(true);
-    try {
-      const res = await setUsolnAdjustment({ workMonth, amount, memo, actor });
-      if (!res?.ok) {
-        setActionErr(res?.error || "저장 실패");
-        setConfirmOpen(false);
-      } else {
-        onSaved?.();
-      }
-    } catch (e) {
-      setActionErr(e?.message || "예외 발생");
-      setConfirmOpen(false);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleDelete() {
-    if (!actor) { setActionErr("관리자 사용자 ID 없음"); setDeleteConfirm(false); return; }
-    setBusy(true);
-    try {
-      const res = await deleteUsolnAdjustment(workMonth, actor);
-      if (!res?.ok) {
-        setActionErr(res?.error || "삭제 실패");
-        setDeleteConfirm(false);
-      } else {
-        onSaved?.();
-      }
-    } catch (e) {
-      setActionErr(e?.message || "예외 발생");
-      setDeleteConfirm(false);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <>
-      <Backdrop onClick={onClose}/>
-      <DialogCard t={t} width={460}>
-        <DialogHeader t={t}
-          title={existing ? "유솔N 월정산 보정 편집" : "유솔N 월정산 보정 추가"}
-          subtitle={`작업월 ${workMonth.slice(0,4)}년 ${Number(workMonth.slice(5,7))}월 · 음수 가능`}
-          onClose={onClose}
-        />
-
-        <FieldText t={t} label="보정액 (₩)" required value={amountStr}
-          onChange={(v) => setAmountStr(fmtAmountInputSigned(v))}
-          placeholder="예: 5,223,110 또는 -1,000,000"
-          monospace
-          hint="앞에 '-' 붙이면 차감 보정. 자동값과 합쳐서 표시·누적 반영."
-        />
-
-        <div style={{
-          padding: "10px 12px",
-          background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 8,
-          fontSize: 11, color: t.textSecondary, lineHeight: 1.6,
-        }}>
-          <div>자동 (전월 작업분): <span className="mono" style={{ fontWeight: 700, color: t.text }}>{fmtKRW(autoAmount)}</span></div>
-          <div>보정: <span className="mono" style={{ fontWeight: 700, color: amount < 0 ? t.danger : "#A78BFA" }}>
-            {amount === 0 ? "₩0" : (amount < 0 ? "−" : "+") + fmtKRW(Math.abs(amount)).replace("₩","₩")}
-          </span></div>
-          <div style={{ marginTop: 4, borderTop: `1px solid ${t.border}`, paddingTop: 4 }}>
-            합계: <span className="mono" style={{ fontWeight: 800, color: total < 0 ? t.danger : t.text }}>
-              {total < 0 ? "−" : ""}{fmtKRW(Math.abs(total)).replace("₩","₩")}
-            </span>
-          </div>
-        </div>
-
-        <FieldArea t={t} label="메모" value={memo} onChange={setMemo}
-          placeholder='(선택) 예: "4월 작업분 (앱 가동 전, 손계산)"'
-          rows={2}
-        />
-
-        {actionErr && <ErrorBox t={t}>⚠️ {actionErr}</ErrorBox>}
-
-        <DialogFooter>
-          {existing && (
-            <button onClick={() => setDeleteConfirm(true)} disabled={busy} style={{
-              padding: "10px 14px",
-              background: "transparent", color: t.danger,
-              border: `1px solid ${t.dangerBorder}`, borderRadius: 8,
-              fontSize: 12, fontWeight: 700,
-              cursor: busy ? "wait" : "pointer", fontFamily: "inherit",
-              display: "inline-flex", alignItems: "center", gap: 5,
-            }}>
-              <Trash2 size={12}/>
-              보정 삭제
-            </button>
-          )}
-          <div style={{ flex: 1 }}/>
-          <BtnGhost t={t} onClick={onClose} disabled={busy}>취소</BtnGhost>
-          <BtnPrimary t={t} onClick={handleSubmit} disabled={busy}>
-            <Save size={13}/>
-            저장
-          </BtnPrimary>
-        </DialogFooter>
-      </DialogCard>
-
-      {confirmOpen && (
-        <ConfirmPanel t={t}
-          title="유솔N 보정 저장 확인"
-          body={
-            <PreviewLines t={t} rows={[
-              ["작업월", workMonth],
-              ["자동값", fmtKRW(autoAmount), "mono"],
-              ["보정", (amount < 0 ? "−" : amount > 0 ? "+" : "") + fmtKRW(Math.abs(amount)).replace("₩","₩"), "mono"],
-              ["합계", (total < 0 ? "−" : "") + fmtKRW(Math.abs(total)).replace("₩","₩"), "mono"],
-              ["메모", memo || "(없음)"],
-            ]}/>
-          }
-          confirmLabel={busy ? "저장 중..." : "정말 저장"}
-          busy={busy}
-          onCancel={() => setConfirmOpen(false)}
-          onConfirm={handleConfirm}
-        />
-      )}
-
-      {deleteConfirm && (
-        <ConfirmPanel t={t}
-          title="유솔N 보정 삭제 확인"
-          body={
-            <div style={{ fontSize: 12, color: t.text, lineHeight: 1.6 }}>
-              이 달({workMonth})의 유솔N 보정을 삭제하시겠습니까? 자동값만 남습니다.
-            </div>
-          }
-          confirmLabel={busy ? "삭제 중..." : "정말 삭제"}
-          busy={busy}
-          onCancel={() => setDeleteConfirm(false)}
-          onConfirm={handleDelete}
-        />
-      )}
-    </>
   );
 }
 
