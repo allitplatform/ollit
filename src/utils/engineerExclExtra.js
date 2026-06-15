@@ -27,6 +27,18 @@ export function calcEngineerExclExtraFromPayment(payment) {
   return eng - engineerExtraShare;
 }
 
+// 유솔(원청) 몫 excl_extra — principal_amount 에서 유솔 extra 몫 만큼 제외.
+//   ⚠️ subtotal 엔 extra 가 없는데 principal 에는 들어가 있어, 둘을 빼면 정합 안 맞음.
+//   회사 실수령 = subtotal − principal_excl_extra (= subtotal − (prin − ⌊extra×0.15⌋))
+//   환불(net<0) 시 음수 그대로 — clamp 없음.
+export function calcPrincipalExclExtraFromPayment(payment) {
+  if (!payment) return 0;
+  const prin  = Number(payment.principal_amount) || 0;
+  const extra = Number(payment.extra_fee)        || 0;
+  const usolExtraShare = Math.floor(extra * 0.15);
+  return prin - usolExtraShare;
+}
+
 // task-level engineer_excl_extra → item 단위 분배 (item.subtotal 비율).
 //   item-level 환불은 task 단위 분배 결과의 일부로 전파.
 //   Σtask_sub = 0 인 희귀 케이스 → 균등 분배 폴백.

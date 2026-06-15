@@ -485,11 +485,12 @@ function SettleItemRow({ item, onClick }) {
           {item.district ? ` · ${item.district}` : ""}
           {naverDate && (<>{" · "}<span style={{ color: "#BA7517", fontWeight: 600 }}>{naverDate}</span></>)}
         </span>
-        {/* 회사 실수령 — 메인 금액 (굵게) */}
-        <span className="mono" style={{
-          flexShrink: 0, fontSize: 12, fontWeight: 800,
-          color: C_MAGENTA, fontFamily: "ui-monospace, monospace",
+        {/* 회사 실수령 — 메인 금액 (sans + 진한 핑크 + 16px+) */}
+        <span style={{
+          flexShrink: 0, fontSize: 16, fontWeight: 800,
+          color: "#B8345F",
           fontVariantNumeric: "tabular-nums",
+          letterSpacing: "-0.3px",
         }}>₩{companyRcv.toLocaleString()}</span>
       </div>
       {/* 부제 — 유솔 정산금 (회색, 작은 글자, 우측 정렬) */}

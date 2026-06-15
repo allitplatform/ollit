@@ -269,13 +269,16 @@ export async function fetchJuneLiveWeeks() {
   // cancel 필터.
   const active = all.filter(it => !it.is_canceled && it.tasks?.status !== "취소");
 
-  // 2026-06-15 — 저장된 principal_amount fetch (chunked).
-  //   회사 실수령 = item.subtotal − (task.principal_amount × item.subtotal / Σtask items subtotal)
-  //   = item.subtotal × (1 − task.principal_amount / Σtask items subtotal)
-  //   ⚠️ 정책별로 유솔 몫(principal_amount) 다름 — 저장값 그대로 사용.
+  // 2026-06-15 — 저장된 principal_excl_extra fetch (chunked).
+  //   ⚠️ raw principal 이 아니라 principal_excl_extra 사용:
+  //     subtotal 엔 extra 가 없음 / principal_amount 에는 유솔 extra 몫(15%) 포함
+  //     → 둘을 그대로 빼면 회사 실수령이 과소 계상 (유솔 extra 몫만큼 빠짐).
+  //   회사 실수령 = item.subtotal − round(principal_excl_extra × item.sub / Σtask items sub)
+  //     where principal_excl_extra = principal_amount − FLOOR(extra_fee × 0.15)
+  //   ⚠️ 정책별 (본작업/추가선택/냉매점검) principal 비율 다름 — 저장값 그대로 사용.
   const uniqueTaskIds = [...new Set(active.map(it => it.task_id).filter(Boolean))];
-  const principalByTask = new Map();   // task_id → principal_amount
-  const subSumByTask    = new Map();   // task_id → Σ active item subtotal
+  const principalExclByTask = new Map();   // task_id → principal_excl_extra
+  const subSumByTask        = new Map();   // task_id → Σ active item subtotal
   for (const it of active) {
     if (!it.task_id) continue;
     const v = Number(it.subtotal) || 0;
@@ -287,7 +290,7 @@ export async function fetchJuneLiveWeeks() {
       const ids = uniqueTaskIds.slice(i, i + CHUNK);
       const { data: payRows, error: payErr } = await supabase
         .from("payments")
-        .select("task_id, principal_amount")
+        .select("task_id, principal_amount, extra_fee")
         .eq("track", "B")
         .in("task_id", ids);
       if (payErr) {
@@ -295,18 +298,21 @@ export async function fetchJuneLiveWeeks() {
         continue;
       }
       for (const p of (payRows || [])) {
-        principalByTask.set(p.task_id, Number(p.principal_amount) || 0);
+        const prin  = Number(p.principal_amount) || 0;
+        const extra = Number(p.extra_fee)        || 0;
+        const usolExtraShare = Math.floor(extra * 0.15);
+        principalExclByTask.set(p.task_id, prin - usolExtraShare);
       }
     }
   }
 
-  // item-level 회사 실수령 분배 (저장된 principal_amount × subtotal 비율)
+  // item-level 회사 실수령 분배 (principal_excl_extra × subtotal 비율)
   function itemCompanyReceive(it) {
     const sub = Number(it.subtotal) || 0;
     const taskSub = subSumByTask.get(it.task_id) || 0;
-    const taskPrin = principalByTask.get(it.task_id) || 0;
+    const taskPrinExcl = principalExclByTask.get(it.task_id) || 0;
     if (taskSub <= 0) return sub;
-    const distPrin = Math.round(taskPrin * (sub / taskSub));
+    const distPrin = Math.round(taskPrinExcl * (sub / taskSub));
     return sub - distPrin;
   }
 
@@ -421,12 +427,13 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
   // cancel 필터.
   const active = all.filter(it => !it.is_canceled && it.tasks?.status !== "취소");
 
-  // 2026-06-15 — 저장된 principal_amount 분배해 item-level 회사 실수령 부착.
-  //   사장님 spec: item_company_receive = subtotal − round(task.principal × item.sub / Σtask items sub)
-  //   ⚠️ 정책별 다름 → 저장된 principal_amount 사용 (고정 ×0.85 금지).
+  // 2026-06-15 — principal_excl_extra 분배 (raw principal 대신).
+  //   ⚠️ subtotal 엔 extra 없음 / principal 엔 유솔 extra 몫 포함 → 그냥 빼면 과소 계상.
+  //   principal_excl_extra = principal_amount − FLOOR(extra_fee × 0.15)
+  //   item_company_receive = subtotal − round(principal_excl_extra × item.sub / Σtask items sub)
   const uniqueTaskIds = [...new Set(active.map(it => it.task_id).filter(Boolean))];
-  const principalByTask = new Map();
-  const subSumByTask    = new Map();
+  const principalExclByTask = new Map();
+  const subSumByTask        = new Map();
   for (const it of active) {
     if (!it.task_id) continue;
     const v = Number(it.subtotal) || 0;
@@ -438,7 +445,7 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
       const ids = uniqueTaskIds.slice(i, i + CHUNK);
       const { data: payRows, error: payErr } = await supabase
         .from("payments")
-        .select("task_id, principal_amount")
+        .select("task_id, principal_amount, extra_fee")
         .eq("track", "B")
         .in("task_id", ids);
       if (payErr) {
@@ -446,7 +453,10 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
         continue;
       }
       for (const p of (payRows || [])) {
-        principalByTask.set(p.task_id, Number(p.principal_amount) || 0);
+        const prin  = Number(p.principal_amount) || 0;
+        const extra = Number(p.extra_fee)        || 0;
+        const usolExtraShare = Math.floor(extra * 0.15);
+        principalExclByTask.set(p.task_id, prin - usolExtraShare);
       }
     }
   }
@@ -455,10 +465,10 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
   const flat = active.map(it => {
     const t = it.tasks || {};
     const sub = Number(it.subtotal) || 0;
-    const taskSub  = subSumByTask.get(it.task_id) || 0;
-    const taskPrin = principalByTask.get(it.task_id) || 0;
-    const distPrin = taskSub > 0 ? Math.round(taskPrin * (sub / taskSub)) : 0;
-    const compRcv  = sub - distPrin;
+    const taskSub     = subSumByTask.get(it.task_id) || 0;
+    const taskPrinExcl = principalExclByTask.get(it.task_id) || 0;
+    const distPrin    = taskSub > 0 ? Math.round(taskPrinExcl * (sub / taskSub)) : 0;
+    const compRcv     = sub - distPrin;
     return {
       ...it,
       customer_name: t.customer_name || "",

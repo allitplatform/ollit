@@ -259,7 +259,8 @@ function WeeklyDepositCard({ week, today, onClick, remitStatus = null }) {
   const naverCount = week.naverCount || 0;
   const isDone = isDepositDone(week.deposit, today, remitStatus);
   const statusText = depositStatusLabel(week.deposit, today, remitStatus);
-  const amountColor = isDone ? C_GREEN_DONE : C_PINK_DEPOSIT;
+  // 2026-06-15 — 메인 금액은 진한 핑크/먹색. 옛 C_PINK_DEPOSIT(#D4537E) → #B8345F (진한 로즈).
+  const amountColor = isDone ? C_GREEN_DONE : "#B8345F";
   const monthlyEntries = getMonthlyEntriesOf(week);
 
   return (
@@ -282,10 +283,11 @@ function WeeklyDepositCard({ week, today, onClick, remitStatus = null }) {
           {isDone && <Check size={12} strokeWidth={3} style={{ color: C_GREEN_DONE }}/>}
           {statusText}
         </span>
-        <span className="mono" style={{
-          fontSize: 16, fontFamily: "ui-monospace, monospace", fontWeight: 800,
+        <span style={{
+          fontSize: 18, fontWeight: 800,
           color: amountColor, lineHeight: 1,
           fontVariantNumeric: "tabular-nums",
+          letterSpacing: "-0.3px",
         }}>
           ₩{total.toLocaleString()}
         </span>
