@@ -20,6 +20,8 @@ import { UsolNToCompanySection } from "./UsolNToCompanySection.jsx";
 import { UsolNToEngineerSection } from "./UsolNToEngineerSection.jsx";
 // 2026-06-02 — 정산 대기 측 측 별도 화면 — 유솔 PWA 측 동일 (WeekSettleDetail 공유).
 import { WeekSettleDetail } from "../principal/WeekSettleDetail.jsx";
+// 2026-06-15 — 미정산 회사 실수령(85%) 헬퍼 (현황판 + PrincipalSettleTab + WeekSettleDetail 통일).
+import { sumCompanyReceiveFromItems } from "../../utils/usolnPendingCalc.js";
 
 const C_MAGENTA = "#FF1B8D";
 const C_AMBER   = "#E6A33A";
@@ -65,8 +67,11 @@ export function UsolNSettleScreen({ adminId = null, onTaskClick = null }) {
     return done.filter(it => !it.naver_settled_at && Number(it.subtotal) > 0);
   }, [items]);
 
+  // 2026-06-15 — 회사 실수령(85%) — sumCompanyReceiveFromItems 헬퍼 동일 적용.
+  //   사장님 spec: PrincipalSettleTab.summary.pendingAmount + WeekSettleDetail 상단 합과 통일.
+  //   옛: Σ subtotal (= 유솔 정산금 100%) → 신: Σ task별 (sub − FLOOR(sub×0.15))
   const pendingAmount = useMemo(
-    () => pending.reduce((s, it) => s + subtotalOf(it), 0),
+    () => sumCompanyReceiveFromItems(pending),
     [pending]
   );
 
@@ -183,7 +188,7 @@ function PendingRow({ count, amount, loading, onOpen }) {
           </span>
         </div>
         <div style={{ fontSize: 10, color: C_GRAY }}>
-          작업 완료 · 네이버 정산 전 (유솔앱과 동일 기준)
+          회사 실수령 기준 (85%)
         </div>
       </div>
       <span style={{ color: C_GRAY, fontSize: 16, fontWeight: 700 }}>›</span>
