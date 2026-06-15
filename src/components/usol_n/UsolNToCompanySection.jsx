@@ -247,12 +247,14 @@ function GroupAccordion({ group, today, isOpen, onToggle, onWeekClick, getRemitS
 
 // ── 주차 입금 카드 ──────────────────────────────────────────
 //   메인 = depositStatusLabel(deposit, today, remitStatus) — 컷오프(6/8) 기반 4-state.
+//   금액 = weeklyTotal (= 회사 실수령 = Σ(subtotal − 분배 principal_amount))
+//   부제 (회색, 작은 글) = 유솔 정산금 (weeklySubtotal) — 라이브 주차(W23+)만 표시
 //   부기 = 정산 기간 + 네이버 정산 N건
 //   세부 = 동적 월 칸 (양수 달만, 최신=핑크/이전=회색)
-// 2026-06-09 — 컷오프 이상 주차: isDepositDone = remitStatus.kind==='done' 만 true.
-//   '입금일 지남(미확인)' / '입금 보고(확인 대기)' 는 미완료 — 핑크 2px 테두리 유지.
+// 2026-06-15 — 사장님 spec: 행 금액 = subtotal − principal_amount (저장값, 고정 ×0.85 금지).
 function WeeklyDepositCard({ week, today, onClick, remitStatus = null }) {
   const total = week.weeklyTotal || 0;
+  const subtotal = week.weeklySubtotal || 0;  // 유솔 정산금 (부제용, 라이브 주차만)
   const period = `${mdLabel(week.monday)}~${mdLabel(week.sunday)}`;
   const naverCount = week.naverCount || 0;
   const isDone = isDepositDone(week.deposit, today, remitStatus);
@@ -268,7 +270,7 @@ function WeeklyDepositCard({ week, today, onClick, remitStatus = null }) {
       borderRadius: 10,
       cursor: onClick ? "pointer" : "default",
     }}>
-      {/* 메인 — 시각(좌) + 금액(우) */}
+      {/* 메인 — 시각(좌) + 회사 실수령(우) */}
       <div style={{
         display: "flex", alignItems: "baseline", justifyContent: "space-between",
         gap: 8,
@@ -280,13 +282,24 @@ function WeeklyDepositCard({ week, today, onClick, remitStatus = null }) {
           {isDone && <Check size={12} strokeWidth={3} style={{ color: C_GREEN_DONE }}/>}
           {statusText}
         </span>
-        <span style={{
-          fontSize: 16, fontFamily: "inherit", fontWeight: 800,
+        <span className="mono" style={{
+          fontSize: 16, fontFamily: "ui-monospace, monospace", fontWeight: 800,
           color: amountColor, lineHeight: 1,
+          fontVariantNumeric: "tabular-nums",
         }}>
           ₩{total.toLocaleString()}
         </span>
       </div>
+
+      {/* 부제 — 유솔 정산금 (라이브 주차만, 회색 작은 글) */}
+      {subtotal > 0 && (
+        <div style={{
+          display: "flex", justifyContent: "flex-end", marginTop: 2,
+          fontSize: 9, color: C_GRAY, fontWeight: 500,
+        }}>
+          유솔 정산금 ₩{subtotal.toLocaleString()}
+        </div>
+      )}
 
       {/* 부기 — 정산 기간 + 네이버 정산 건수 */}
       <div style={{ marginTop: 4, fontSize: 10, color: C_GRAY }}>

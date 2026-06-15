@@ -232,7 +232,10 @@ export function isDepositDone(depositYmd, todayYmd, remitStatus = null) {
 // ── 6/8+ 라이브 fetch ────────────────────────────────────
 // 우리 naver_settled task_items WHERE monday >= 2026-06-01 (= deposit >= 6/8).
 //   W22 (deposit 6/1) 까지는 WEEKLY_DATA_FIXED. 6/8 입금주(W23) 부터 라이브.
-//   sum(net) × 0.85 = weeklyTotal. monthlyAmounts = 작업월 동적 분류.
+//   2026-06-15 사장님 spec: weeklyTotal = Σ(subtotal − 분배된 principal_amount)
+//     = 회사 실수령 (저장된 정책별 principal 사용, 고정 ×0.85 금지).
+//   weeklySubtotal = Σ subtotal (= 유솔 정산금, 부제 표기용).
+//   monthlyAmounts = 작업월 동적 분류 (= 회사 실수령 기준).
 //   cancel 필터: !is_canceled AND tasks.status != "취소".
 export async function fetchJuneLiveWeeks() {
   const PAGE = 1000;
@@ -266,6 +269,47 @@ export async function fetchJuneLiveWeeks() {
   // cancel 필터.
   const active = all.filter(it => !it.is_canceled && it.tasks?.status !== "취소");
 
+  // 2026-06-15 — 저장된 principal_amount fetch (chunked).
+  //   회사 실수령 = item.subtotal − (task.principal_amount × item.subtotal / Σtask items subtotal)
+  //   = item.subtotal × (1 − task.principal_amount / Σtask items subtotal)
+  //   ⚠️ 정책별로 유솔 몫(principal_amount) 다름 — 저장값 그대로 사용.
+  const uniqueTaskIds = [...new Set(active.map(it => it.task_id).filter(Boolean))];
+  const principalByTask = new Map();   // task_id → principal_amount
+  const subSumByTask    = new Map();   // task_id → Σ active item subtotal
+  for (const it of active) {
+    if (!it.task_id) continue;
+    const v = Number(it.subtotal) || 0;
+    subSumByTask.set(it.task_id, (subSumByTask.get(it.task_id) || 0) + v);
+  }
+  if (uniqueTaskIds.length > 0) {
+    const CHUNK = 300;
+    for (let i = 0; i < uniqueTaskIds.length; i += CHUNK) {
+      const ids = uniqueTaskIds.slice(i, i + CHUNK);
+      const { data: payRows, error: payErr } = await supabase
+        .from("payments")
+        .select("task_id, principal_amount")
+        .eq("track", "B")
+        .in("task_id", ids);
+      if (payErr) {
+        console.error("[usolNWeeklyData.fetchJuneLiveWeeks payments] chunk", i, payErr);
+        continue;
+      }
+      for (const p of (payRows || [])) {
+        principalByTask.set(p.task_id, Number(p.principal_amount) || 0);
+      }
+    }
+  }
+
+  // item-level 회사 실수령 분배 (저장된 principal_amount × subtotal 비율)
+  function itemCompanyReceive(it) {
+    const sub = Number(it.subtotal) || 0;
+    const taskSub = subSumByTask.get(it.task_id) || 0;
+    const taskPrin = principalByTask.get(it.task_id) || 0;
+    if (taskSub <= 0) return sub;
+    const distPrin = Math.round(taskPrin * (sub / taskSub));
+    return sub - distPrin;
+  }
+
   // KST 월요일 키로 그룹.
   const weekMap = new Map();
   for (const it of active) {
@@ -280,13 +324,17 @@ export async function fetchJuneLiveWeeks() {
         weekKey: isoWeekKeyFromYmd(monday),
         monday, sunday, deposit, payYm: deposit.slice(0, 7),
         naverCount: 0,
-        sumNet: 0,
+        sumNet:        0,
+        sumSubtotal:   0,    // = 유솔 정산금 합
+        sumCompanyRcv: 0,    // = 회사 실수령 합 (subtotal − 분배 principal)
         monthlyAmounts: new Map(),
         items: [],
       });
     }
     const wk = weekMap.get(monday);
     const net = Number(it.net_amount) || 0;
+    const sub = Number(it.subtotal)   || 0;
+    const comp = itemCompanyReceive(it);
     const t = it.tasks || {};
     const flatItem = {
       ...it,
@@ -300,22 +348,27 @@ export async function fetchJuneLiveWeeks() {
       received_at:   t.received_at,
       scheduled_at:  t.scheduled_at,
       completed_at:  t.completed_at,
+      _company_receive: comp,  // item-level 회사 실수령 (drill-in 행 표기용)
     };
     wk.items.push(flatItem);
     wk.naverCount += 1;
-    wk.sumNet += net;
+    wk.sumNet         += net;
+    wk.sumSubtotal    += sub;
+    wk.sumCompanyRcv  += comp;
 
     // 동적 월 분류 (completed_at KST 우선, NULL → task_no fallback).
-    if (net > 0) {
+    //   2026-06-15 — 회사 실수령 기준 (sub − 분배 principal). 옛 net × 0.85 폐기.
+    if (comp > 0) {
       const ym = workYmOfItem(flatItem);
       if (ym) {
-        const amount = Math.round(net * NAVER_NET_TO_COMPANY_FACTOR);
-        wk.monthlyAmounts.set(ym, (wk.monthlyAmounts.get(ym) || 0) + amount);
+        wk.monthlyAmounts.set(ym, (wk.monthlyAmounts.get(ym) || 0) + comp);
       }
     }
   }
   for (const wk of weekMap.values()) {
-    wk.weeklyTotal = Math.round(wk.sumNet * NAVER_NET_TO_COMPANY_FACTOR);
+    // weeklyTotal 의미 변경: 옛 net × 0.85 → 회사 실수령 합 (subtotal − 분배 principal).
+    wk.weeklyTotal    = wk.sumCompanyRcv;
+    wk.weeklySubtotal = wk.sumSubtotal;
   }
   return [...weekMap.values()].sort((a, b) => b.monday.localeCompare(a.monday));
 }
