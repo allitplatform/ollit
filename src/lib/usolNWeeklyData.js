@@ -269,23 +269,19 @@ export async function fetchJuneLiveWeeks() {
   // cancel 필터.
   const active = all.filter(it => !it.is_canceled && it.tasks?.status !== "취소");
 
-  // 2026-06-15 — 저장된 principal_excl_extra fetch (chunked).
-  //   ⚠️ raw principal 이 아니라 principal_excl_extra 사용:
-  //     subtotal 엔 extra 가 없음 / principal_amount 에는 유솔 extra 몫(15%) 포함
-  //     → 둘을 그대로 빼면 회사 실수령이 과소 계상 (유솔 extra 몫만큼 빠짐).
-  //   회사 실수령 = item.subtotal − round(principal_excl_extra × item.sub / Σtask items sub)
-  //     where principal_excl_extra = principal_amount − FLOOR(extra_fee × 0.15)
-  //   ⚠️ 정책별 (본작업/추가선택/냉매점검) principal 비율 다름 — 저장값 그대로 사용.
+  // 2026-06-15 — 단일 산식 (drill-in 과 동일):
+  //   taskSub = Σ task 의 *모든* active items subtotal (날짜 필터 X).
+  //   분배:    distPrin_item = round(principal_excl × item.subtotal / taskSub)
+  //   회사 실수령 = item.subtotal − distPrin_item.
+  //   ⚠️ 옛: subSumByTask 를 fetch 한 active(naver_settled 기준) 만으로 계산 → task 가 여러 주에 걸치면
+  //         taskSub 부분만 잡혀 분배 비율 다름 (drill-in 과 어긋남).
+  //   principal_excl_extra = principal_amount − FLOOR(extra_fee × 0.15).
   const uniqueTaskIds = [...new Set(active.map(it => it.task_id).filter(Boolean))];
   const principalExclByTask = new Map();   // task_id → principal_excl_extra
-  const subSumByTask        = new Map();   // task_id → Σ active item subtotal
-  for (const it of active) {
-    if (!it.task_id) continue;
-    const v = Number(it.subtotal) || 0;
-    subSumByTask.set(it.task_id, (subSumByTask.get(it.task_id) || 0) + v);
-  }
+  const subSumByTask        = new Map();   // task_id → Σ *모든* active item subtotal (full task)
   if (uniqueTaskIds.length > 0) {
     const CHUNK = 300;
+    // payments fetch
     for (let i = 0; i < uniqueTaskIds.length; i += CHUNK) {
       const ids = uniqueTaskIds.slice(i, i + CHUNK);
       const { data: payRows, error: payErr } = await supabase
@@ -302,6 +298,23 @@ export async function fetchJuneLiveWeeks() {
         const extra = Number(p.extra_fee)        || 0;
         const usolExtraShare = Math.floor(extra * 0.15);
         principalExclByTask.set(p.task_id, prin - usolExtraShare);
+      }
+    }
+    // 신규: 그 task 들의 *모든* active items subtotal 합 (날짜 범위 무관 — true taskSub)
+    for (let i = 0; i < uniqueTaskIds.length; i += CHUNK) {
+      const ids = uniqueTaskIds.slice(i, i + CHUNK);
+      const { data: tiRows, error: tiErr } = await supabase
+        .from("task_items")
+        .select("task_id, subtotal, is_canceled")
+        .in("task_id", ids);
+      if (tiErr) {
+        console.error("[usolNWeeklyData.fetchJuneLiveWeeks task_items full]", i, tiErr);
+        continue;
+      }
+      for (const ti of (tiRows || [])) {
+        if (ti.is_canceled) continue;
+        const v = Number(ti.subtotal) || 0;
+        subSumByTask.set(ti.task_id, (subSumByTask.get(ti.task_id) || 0) + v);
       }
     }
   }
@@ -427,20 +440,16 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
   // cancel 필터.
   const active = all.filter(it => !it.is_canceled && it.tasks?.status !== "취소");
 
-  // 2026-06-15 — principal_excl_extra 분배 (raw principal 대신).
-  //   ⚠️ subtotal 엔 extra 없음 / principal 엔 유솔 extra 몫 포함 → 그냥 빼면 과소 계상.
-  //   principal_excl_extra = principal_amount − FLOOR(extra_fee × 0.15)
-  //   item_company_receive = subtotal − round(principal_excl_extra × item.sub / Σtask items sub)
+  // 2026-06-15 — 단일 산식 (fetchJuneLiveWeeks 와 동일):
+  //   taskSub = Σ task 의 *모든* active items subtotal (날짜 필터 X).
+  //   ⚠️ 옛: subSumByTask 를 그 주차 active 만으로 계산 → task 가 여러 주에 걸치면 분배 비율 다름.
+  //         결과: 메인 카드 합 ≠ 세부 합 (예: 6/8~6/14 차이 16,446).
   const uniqueTaskIds = [...new Set(active.map(it => it.task_id).filter(Boolean))];
   const principalExclByTask = new Map();
   const subSumByTask        = new Map();
-  for (const it of active) {
-    if (!it.task_id) continue;
-    const v = Number(it.subtotal) || 0;
-    subSumByTask.set(it.task_id, (subSumByTask.get(it.task_id) || 0) + v);
-  }
   if (uniqueTaskIds.length > 0) {
     const CHUNK = 300;
+    // payments fetch
     for (let i = 0; i < uniqueTaskIds.length; i += CHUNK) {
       const ids = uniqueTaskIds.slice(i, i + CHUNK);
       const { data: payRows, error: payErr } = await supabase
@@ -457,6 +466,23 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
         const extra = Number(p.extra_fee)        || 0;
         const usolExtraShare = Math.floor(extra * 0.15);
         principalExclByTask.set(p.task_id, prin - usolExtraShare);
+      }
+    }
+    // 그 task 들의 *모든* active items subtotal 합 (날짜 범위 무관)
+    for (let i = 0; i < uniqueTaskIds.length; i += CHUNK) {
+      const ids = uniqueTaskIds.slice(i, i + CHUNK);
+      const { data: tiRows, error: tiErr } = await supabase
+        .from("task_items")
+        .select("task_id, subtotal, is_canceled")
+        .in("task_id", ids);
+      if (tiErr) {
+        console.error("[usolNWeeklyData.fetchWeekItemsByMonday task_items full]", i, tiErr);
+        continue;
+      }
+      for (const ti of (tiRows || [])) {
+        if (ti.is_canceled) continue;
+        const v = Number(ti.subtotal) || 0;
+        subSumByTask.set(ti.task_id, (subSumByTask.get(ti.task_id) || 0) + v);
       }
     }
   }
