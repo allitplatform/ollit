@@ -127,17 +127,18 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
   const adjAmount  = Number(m.adjustment_amount)      || 0;
   const adjMemo    = m.adjustment_memo || "";
 
-  // [2] 입금 진행 — Mig 133 v4 4신규 필드 (받음/안받음 × 기사/마진).
-  //   fallback (옛 v3 필드): received_engineer_excl_extra / pending_engineer_excl_extra
-  //                          received_owner / pending_owner.
-  const receivedEng    = m.received_eng    != null ? Number(m.received_eng)
+  // [2] 입금 진행 — Mig 133 v4 신규 4필드 (받음/안받음 × 기사/마진).
+  //   ⚠️ received_owner / pending_owner (옛 v3, raw clamped) 폐기 — 환불 task 음수 반영 안 됨.
+  //   v4 unclamped 필드만 사용. Mig 133 미적용 시 0 (검산으로 식별 가능).
+  //   기사 측은 _excl_extra (v3) 도 동일 산식이라 폴백 허용.
+  const receivedEng    = m.received_eng    != null
+                       ? Number(m.received_eng)
                        : Number(m.received_engineer_excl_extra) || 0;
-  const pendingEng     = m.pending_eng     != null ? Number(m.pending_eng)
+  const pendingEng     = m.pending_eng     != null
+                       ? Number(m.pending_eng)
                        : Number(m.pending_engineer_excl_extra)  || 0;
-  const receivedMargin = m.received_margin != null ? Number(m.received_margin)
-                       : Number(m.received_owner) || 0;
-  const pendingMargin  = m.pending_margin  != null ? Number(m.pending_margin)
-                       : Number(m.pending_owner)  || 0;
+  const receivedMargin = Number(m.received_margin) || 0;  // v4 unclamped, 폴백 없음
+  const pendingMargin  = Number(m.pending_margin)  || 0;  // v4 unclamped, 폴백 없음
 
   // 기사 정산 진행 상태 (engineer_settled_at) — stamp 버튼 활성화 판단용
   const engPaid     = Number(m.engineer_paid)    || 0;
