@@ -125,12 +125,16 @@ export function WeekSettleDetail({
   }, [baseItems]);
 
   const isPending = week?.key === "pending";
-  // 2026-06-02 — 합계 source (사장님 spec):
-  //   pending  → Σ subtotal (task_item 측 정산예정금액 일관)
-  //   기타 주차 → sumNet × 0.85 round (운영자 ① 카드 메인 일치).
-  const sumSubtotal = isPending
-    ? filtered.reduce((s, it) => s + (Number(it.subtotal) || 0), 0)
-    : Math.round(filtered.reduce((s, it) => s + (Number(it.net_amount) || 0), 0) * NAVER_NET_TO_COMPANY_FACTOR);
+  // 2026-06-15 — 상단 합계 = 회사 받을 합 (= Σ _company_receive, item.subtotal − 분배 principal).
+  //   _company_receive 있으면 그걸로, 없으면 subtotal 폴백.
+  //   옛: pending=Σsubtotal / 기타=ΣnetAmount×0.85 → 둘 다 회사 실수령 의미와 안 맞음.
+  //   사장님 spec a248fc9 (저장된 principal_amount 사용, 고정 ×0.85 금지).
+  const sumSubtotal = filtered.reduce((s, it) => {
+    const v = it._company_receive != null
+      ? Number(it._company_receive)
+      : Number(it.subtotal);
+    return s + (Number.isFinite(v) ? v : 0);
+  }, 0);
   const headerLabel = isPending
     ? "정산 대기"
     : `${koreanWeekLabel(week)}  네이버 정산 ${dateRangeLabel(week)}`;
@@ -439,15 +443,18 @@ function RemitAction({ actionMode, status, submitting, onReport, onUndo, onConfi
 }
 
 // ── SettleItemRow (KST 변환) ─────────────────────────────
-// 2026-06-02 — 줄 금액 = subtotal (사장님 spec, TaskDetail 정산금액 측 동일 source).
-//   기존 net × 0.85 → net NULL 측 0 측 catch (진기선 등 0 측 표시).
-//   새: subtotal → 모든 줄 측 측 표시. settled 측 측 = net ≈ subtotal 측 일치 (1107/1170건).
+// 2026-06-15 — 행 금액 = 회사 실수령 (= subtotal − 분배 principal_amount).
+//   유솔 정산금(subtotal) 은 작은 회색 부제로 유지 (사장님 spec a248fc9 동일).
+//   회사 실수령 = item._company_receive (fetchJuneLiveWeeks / fetchWeekItemsByMonday 가 부착).
+//   _company_receive 없으면 subtotal 폴백 (W14-W22 시트 데이터 등).
 function SettleItemRow({ item, onClick }) {
   const stageKey = getSettleStageKey(item);
   const stage = SETTLE_STAGES.find(s => s.key === stageKey) || SETTLE_STAGES[0];
   const label = getItemLabel(item);
   const qty = item.qty || 1;
   const subtotal = Number(item.subtotal) || 0;
+  const hasCompRcv = item._company_receive != null;
+  const companyRcv = hasCompRcv ? (Number(item._company_receive) || 0) : subtotal;
   const naverYmd = kstYmd(item.naver_settled_at);
   const naverDate = naverYmd ? naverYmd.slice(5).replace("-", "/") : "";
   const orderId = item.product_order_id || "";
@@ -478,11 +485,22 @@ function SettleItemRow({ item, onClick }) {
           {item.district ? ` · ${item.district}` : ""}
           {naverDate && (<>{" · "}<span style={{ color: "#BA7517", fontWeight: 600 }}>{naverDate}</span></>)}
         </span>
-        <span style={{
-          flexShrink: 0, fontSize: 12, fontWeight: 700,
-          color: C_MAGENTA, fontFamily: "inherit",
-        }}>₩{subtotal.toLocaleString()}</span>
+        {/* 회사 실수령 — 메인 금액 (굵게) */}
+        <span className="mono" style={{
+          flexShrink: 0, fontSize: 12, fontWeight: 800,
+          color: C_MAGENTA, fontFamily: "ui-monospace, monospace",
+          fontVariantNumeric: "tabular-nums",
+        }}>₩{companyRcv.toLocaleString()}</span>
       </div>
+      {/* 부제 — 유솔 정산금 (회색, 작은 글자, 우측 정렬) */}
+      {hasCompRcv && (
+        <div style={{
+          display: "flex", justifyContent: "flex-end",
+          fontSize: 9, color: "#666", fontWeight: 500, paddingRight: 1,
+        }}>
+          유솔 정산금 ₩{subtotal.toLocaleString()}
+        </div>
+      )}
       {orderId && (
         <div className="mono" style={{
           fontSize: 10, color: "#666", paddingLeft: 22, letterSpacing: 0.2,

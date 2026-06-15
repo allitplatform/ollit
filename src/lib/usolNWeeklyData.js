@@ -420,9 +420,45 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
   }
   // cancel 필터.
   const active = all.filter(it => !it.is_canceled && it.tasks?.status !== "취소");
-  // 평탄화 — PWA SettleItemRow 호환.
+
+  // 2026-06-15 — 저장된 principal_amount 분배해 item-level 회사 실수령 부착.
+  //   사장님 spec: item_company_receive = subtotal − round(task.principal × item.sub / Σtask items sub)
+  //   ⚠️ 정책별 다름 → 저장된 principal_amount 사용 (고정 ×0.85 금지).
+  const uniqueTaskIds = [...new Set(active.map(it => it.task_id).filter(Boolean))];
+  const principalByTask = new Map();
+  const subSumByTask    = new Map();
+  for (const it of active) {
+    if (!it.task_id) continue;
+    const v = Number(it.subtotal) || 0;
+    subSumByTask.set(it.task_id, (subSumByTask.get(it.task_id) || 0) + v);
+  }
+  if (uniqueTaskIds.length > 0) {
+    const CHUNK = 300;
+    for (let i = 0; i < uniqueTaskIds.length; i += CHUNK) {
+      const ids = uniqueTaskIds.slice(i, i + CHUNK);
+      const { data: payRows, error: payErr } = await supabase
+        .from("payments")
+        .select("task_id, principal_amount")
+        .eq("track", "B")
+        .in("task_id", ids);
+      if (payErr) {
+        console.error("[usolNWeeklyData.fetchWeekItemsByMonday payments]", i, payErr);
+        continue;
+      }
+      for (const p of (payRows || [])) {
+        principalByTask.set(p.task_id, Number(p.principal_amount) || 0);
+      }
+    }
+  }
+
+  // 평탄화 — PWA SettleItemRow 호환 + _company_receive 부착.
   const flat = active.map(it => {
     const t = it.tasks || {};
+    const sub = Number(it.subtotal) || 0;
+    const taskSub  = subSumByTask.get(it.task_id) || 0;
+    const taskPrin = principalByTask.get(it.task_id) || 0;
+    const distPrin = taskSub > 0 ? Math.round(taskPrin * (sub / taskSub)) : 0;
+    const compRcv  = sub - distPrin;
     return {
       ...it,
       customer_name: t.customer_name || "",
@@ -435,6 +471,7 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
       received_at:   t.received_at,
       scheduled_at:  t.scheduled_at,
       completed_at:  t.completed_at,
+      _company_receive: compRcv,
     };
   });
   return { ok: true, items: flat };
