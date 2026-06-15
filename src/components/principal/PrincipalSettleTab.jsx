@@ -55,6 +55,8 @@ import { UsolRemitHistoryScreen } from "./UsolRemitHistoryScreen.jsx";
 import { WeekSettleDetail, getWeekRemitStatus } from "./WeekSettleDetail.jsx";
 // 2026-06-11 — PC 반응형 (1024px 이상) 분기.
 import { useIsPc } from "../../utils/useIsPc.js";
+// 2026-06-15 — 미정산 회사 실수령(85%) 헬퍼 (현황판 산식 통일).
+import { sumCompanyReceiveFromItems } from "../../utils/usolnPendingCalc.js";
 // 2026-06-11 — 추이 차트 다크/라이트 분기.
 import { useIsDark } from "../../hooks/useIsDark.js";
 // 2026-06-11 — PC 폰트 크기 표준 토큰 (내 작업 ViewPcTable 기준).
@@ -181,6 +183,9 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
   //   기존: task.status='취소' 만 제외 → 정산완료 907 측 inflate 1건 (전상욱 task_item.is_canceled=true).
   //   통일: is_canceled !== true AND task.status !== '취소' 둘 다 제외 → 정합값.
   //   영향 (1,861 fetched 기준): received 1724→1698, beforeWork 415→411, doneWork 1303→1281, settled 907→906, pending 406→385.
+  // 2026-06-15 — pendingAmount = 회사 실수령(85%) 합 (사장님 spec).
+  //   현황판 "안받음" 미정산분(Mig 133)과 동일 산식: task 단위 FLOOR(sub×0.15) → 분배.
+  //   옛 측 Σ subtotal (= 유솔 정산금 100%) → 신 측 회사받을 85%.
   // 2026-06-02 — pendingAmount 측 task_item 측 subtotal 합 (사장님 spec).
   //   기존: Σ(net × 0.85) → net NULL 측 0 measure (진기선 등 0 표시).
   //   새:   Σ subtotal     → net NULL 측 측 측 subtotal 측 measure (TaskDetail 정산금액 측 동일 source).
@@ -202,7 +207,8 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
          && !it.naver_settled_at
          && Number(it.subtotal) > 0
     );
-    const pendingAmount = pendingSettle.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
+    // 2026-06-15 — 회사 실수령(85%) = Σ task별 (sub − FLOOR(sub × 0.15))
+    const pendingAmount = sumCompanyReceiveFromItems(pendingSettle);
     return {
       received: live.length, beforeWork: before.length, doneWork: done.length,
       settled: settled.length, pendingCount: pendingSettle.length, pendingAmount,
@@ -644,7 +650,7 @@ function SummarySection({ summary, onPendingClick }) {
               정산 대기 {summary.pendingCount}건
             </div>
             <div style={{ fontSize: 12, color: C_GRAY }}>
-              작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: 13 }}>
+              회사 실수령 기준 (85%) · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: 13 }}>
                 ₩{summary.pendingAmount.toLocaleString()}
               </span>
             </div>
@@ -1080,7 +1086,7 @@ function PendingBanner({ summary, onClick }) {
           정산 대기 {summary.pendingCount}건
         </div>
         <div style={{ fontSize: TEXT.META, color: C_GRAY }}>
-          작업 끝났는데 네이버 정산 전 · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: TEXT.STATUS }}>
+          회사 실수령 기준 (85%) · <span style={{ color: C_MAGENTA, fontWeight: 800, fontSize: TEXT.STATUS }}>
             ₩{summary.pendingAmount.toLocaleString()}
           </span>
         </div>

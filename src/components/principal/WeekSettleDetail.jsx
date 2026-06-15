@@ -44,6 +44,8 @@ import {
   getItemLabel,
   SETTLE_STAGES,
 } from "../../lib/principalSettleDb.js";
+// 2026-06-15 — 미정산(pending) 회사 실수령(85%) 헬퍼 (현황판 산식 통일).
+import { calcItemCompanyReceiveDist } from "../../utils/usolnPendingCalc.js";
 
 const C_MAGENTA = "#FF4D9E";
 const C_GREEN   = C_GREEN_DONE;
@@ -111,7 +113,20 @@ export function WeekSettleDetail({
         return cust.includes(q) || addr.includes(q) || tno.includes(q) || poid.includes(q);
       });
     }
-    return list;
+    // 2026-06-15 — _company_receive 없는 items(예: pending 버킷) 에 회사 실수령 부착.
+    //   현황판 안받음 산식과 동일: task 단위 FLOOR(sub × 0.15) 분배.
+    const need = list.filter(it => it._company_receive == null);
+    if (need.length === 0) return list;
+    const taskSubByTask = new Map();
+    for (const it of need) {
+      if (!it?.task_id) continue;
+      const v = Number(it.subtotal) || 0;
+      taskSubByTask.set(it.task_id, (taskSubByTask.get(it.task_id) || 0) + v);
+    }
+    return list.map(it => {
+      if (it._company_receive != null) return it;
+      return { ...it, _company_receive: calcItemCompanyReceiveDist(it, taskSubByTask) };
+    });
   }, [baseItems, stageFilter, dateFilter, search]);
 
   // 날짜 옵션 (KST 변환).
@@ -125,16 +140,10 @@ export function WeekSettleDetail({
   }, [baseItems]);
 
   const isPending = week?.key === "pending";
-  // 2026-06-15 — 상단 합계 = 회사 받을 합 (= Σ _company_receive, item.subtotal − 분배 principal).
-  //   _company_receive 있으면 그걸로, 없으면 subtotal 폴백.
-  //   옛: pending=Σsubtotal / 기타=ΣnetAmount×0.85 → 둘 다 회사 실수령 의미와 안 맞음.
-  //   사장님 spec a248fc9 (저장된 principal_amount 사용, 고정 ×0.85 금지).
-  const sumSubtotal = filtered.reduce((s, it) => {
-    const v = it._company_receive != null
-      ? Number(it._company_receive)
-      : Number(it.subtotal);
-    return s + (Number.isFinite(v) ? v : 0);
-  }, 0);
+  // 2026-06-15 — 상단 합계 = 회사 받을 합 (= Σ _company_receive, 모든 items 부착됨).
+  //   filtered useMemo 가 _company_receive 없으면 헬퍼로 부착해 통일.
+  //   ⚠️ raw subtotal 폐기 — 현황판 안받음 산식과 동일.
+  const sumSubtotal = filtered.reduce((s, it) => s + (Number(it._company_receive) || 0), 0);
   const headerLabel = isPending
     ? "정산 대기"
     : `${koreanWeekLabel(week)}  네이버 정산 ${dateRangeLabel(week)}`;
