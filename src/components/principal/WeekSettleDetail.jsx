@@ -485,10 +485,11 @@ function SettleItemRow({ item, onClick }) {
           {item.district ? ` · ${item.district}` : ""}
           {naverDate && (<>{" · "}<span style={{ color: "#BA7517", fontWeight: 600 }}>{naverDate}</span></>)}
         </span>
-        {/* 회사 실수령 — 메인 금액 (sans + 진한 핑크 + 16px+) */}
+        {/* 회사 실수령 — 메인 금액 (sans + 브랜드 핑크 토큰 + 16px+).
+            ⚠️ C_MAGENTA = FilterChip/상단 합계와 동일 토큰. 임의 hex 금지. */}
         <span style={{
           flexShrink: 0, fontSize: 16, fontWeight: 800,
-          color: "#B8345F",
+          color: C_MAGENTA,
           fontVariantNumeric: "tabular-nums",
           letterSpacing: "-0.3px",
         }}>₩{companyRcv.toLocaleString()}</span>

@@ -259,8 +259,9 @@ function WeeklyDepositCard({ week, today, onClick, remitStatus = null }) {
   const naverCount = week.naverCount || 0;
   const isDone = isDepositDone(week.deposit, today, remitStatus);
   const statusText = depositStatusLabel(week.deposit, today, remitStatus);
-  // 2026-06-15 — 메인 금액은 진한 핑크/먹색. 옛 C_PINK_DEPOSIT(#D4537E) → #B8345F (진한 로즈).
-  const amountColor = isDone ? C_GREEN_DONE : "#B8345F";
+  // 2026-06-15 — 브랜드 핑크 토큰 (C_PINK_DEPOSIT) 사용 — 임의 hex 금지.
+  //   다른 요소(border / dot / header) 와 동일 색상 통일.
+  const amountColor = isDone ? C_GREEN_DONE : C_PINK_DEPOSIT;
   const monthlyEntries = getMonthlyEntriesOf(week);
 
   return (
