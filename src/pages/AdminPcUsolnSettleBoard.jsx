@@ -108,7 +108,7 @@ export default function AdminPcUsolnSettleBoard({ t, user }) {
 }
 
 // ──────────────────────────────────────────────────────────
-// MonthCard — 세로 1단 (자금 분해 → 입금 진행 → footnote)
+// MonthCard — 2단 (분배 워터폴 + 입금 진행) — Mig 133 v4 신규 4필드.
 // ──────────────────────────────────────────────────────────
 function MonthCard({ t, m, onStampClick, onUnstampClick }) {
   const itemCnt    = Number(m.item_count) || 0;
@@ -116,28 +116,38 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
   const recvCnt    = Number(m.received_count) || 0;
   const pendCnt    = Number(m.pending_count) || 0;
 
-  // ⚠️ _excl_extra 필드 강제 (현장추가금 제외분).
+  // [1] 분배 워터폴 — _excl_extra 필드.
   const passTotal  = Number(m.passthrough_total)      || 0;
   const prinExcl   = Number(m.principal_excl_extra)   || 0;
   const engExcl    = Number(m.engineer_excl_extra)    || 0;
-  const margin     = Number(m.margin)                 || 0;
+  // margin_unclamped 우선, 없으면 fallback 계산 (passthrough − engExcl − prinExcl)
+  const marginUnc  = m.margin_unclamped != null
+    ? (Number(m.margin_unclamped) || 0)
+    : (passTotal - engExcl - prinExcl);
   const adjAmount  = Number(m.adjustment_amount)      || 0;
   const adjMemo    = m.adjustment_memo || "";
 
-  const recvEngExcl = Number(m.received_engineer_excl_extra) || 0;
-  const recvOwn     = Number(m.received_owner)               || 0;
-  const pendEngExcl = Number(m.pending_engineer_excl_extra)  || 0;
-  const pendOwn     = Number(m.pending_owner)                || 0;
+  // [2] 입금 진행 — Mig 133 v4 4신규 필드 (받음/안받음 × 기사/마진).
+  //   fallback (옛 v3 필드): received_engineer_excl_extra / pending_engineer_excl_extra
+  //                          received_owner / pending_owner.
+  const receivedEng    = m.received_eng    != null ? Number(m.received_eng)
+                       : Number(m.received_engineer_excl_extra) || 0;
+  const pendingEng     = m.pending_eng     != null ? Number(m.pending_eng)
+                       : Number(m.pending_engineer_excl_extra)  || 0;
+  const receivedMargin = m.received_margin != null ? Number(m.received_margin)
+                       : Number(m.received_owner) || 0;
+  const pendingMargin  = m.pending_margin  != null ? Number(m.pending_margin)
+                       : Number(m.pending_owner)  || 0;
 
   // 기사 정산 진행 상태 (engineer_settled_at) — stamp 버튼 활성화 판단용
   const engPaid     = Number(m.engineer_paid)    || 0;
   const engPending  = Number(m.engineer_pending) || 0;
 
   // 계산
-  const compShare85 = passTotal - prinExcl;             // 회사 받을 돈 85% = 정산금 − 유솔 15%
-  const marginFinal = margin + adjAmount;               // 마진 최종 = 마진 + 보정
-  const recvTotal   = recvEngExcl + recvOwn;
-  const pendTotal   = pendEngExcl + pendOwn;
+  const compShare   = passTotal - prinExcl;             // 회사받을 = 정산금 − 유솔
+  const marginFinal = marginUnc + adjAmount;            // 마진 최종 = 마진 + 보정 (환불 시 음수)
+  const recvTotal   = receivedEng + receivedMargin;     // 받음 합 (= 회사받을 의 받음 부분)
+  const pendTotal   = pendingEng + pendingMargin;       // 안받음 합
 
   const noData = itemCnt === 0;
 
@@ -191,20 +201,25 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
         </div>
       ) : (
         <>
-          {/* 1단 — 자금 분해 흐름 (위→아래) */}
+          {/* [1] 분배 워터폴 — 정산금 → −유솔 → =회사받을 → −기사 → =마진 */}
           <div style={{
             padding: "22px 24px",
             display: "flex", flexDirection: "column", gap: 2,
           }}>
+            <div style={{
+              fontSize: 12, fontWeight: 800, color: t.textMuted,
+              marginBottom: 8, letterSpacing: 0.3,
+            }}>
+              [1] 분배 워터폴
+            </div>
             <FlowRow t={t} label="유솔 정산금"        amount={passTotal}/>
-            <FlowRow t={t} label="− 유솔 몫 15%"      amount={prinExcl} negative
-              hint="유솔이 먼저 떼고 회사로 입금"/>
-            <FlowRow t={t} label="회사가 받을 돈 85%" amount={compShare85} bold sumBorder
-              hint="= 유솔 정산금 − 유솔 15%"/>
-            <FlowRow t={t} label="− 기사 줄 거"       amount={engExcl} negative
-              hint="회사가 기사에게 송금할 돈 (현장추가금 제외)"/>
-            <FlowRow t={t} label="★ 회사 마진"        amount={margin} green bold large sumBorder
-              hint="= 회사 받을 돈 85% − 기사 줄 거"/>
+            <FlowRow t={t} label="− 유솔 몫"          amount={prinExcl} negative
+              hint="유솔이 먼저 떼고 회사로 입금 (정책별 ≈ 15%)"/>
+            <FlowRow t={t} label="회사받을 (= 정산금 − 유솔)" amount={compShare} bold sumBorder/>
+            <FlowRow t={t} label="− 기사 몫"          amount={engExcl} negative
+              hint="회사가 기사에게 송금할 몫 (현장추가금 제외)"/>
+            <FlowRow t={t} label="★ 마진"             amount={marginUnc} green bold large sumBorder
+              hint="= 회사받을 − 기사 (환불 시 음수)"/>
 
             {/* 보정 */}
             {adjAmount !== 0 && (
@@ -215,41 +230,60 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
                   amount={adjAmount}
                   signed muted
                   hint="Mig 127 수동 보정 (4월 작업분 등)"/>
-                <FlowRow t={t} label="회사 마진 최종"  amount={marginFinal} green bold large sumBorder/>
+                <FlowRow t={t} label="마진 최종"      amount={marginFinal} green bold large sumBorder/>
               </>
             )}
           </div>
 
-          {/* 2단 — 입금 진행 (받은 금액 / 받을 금액 카드) */}
+          {/* [2] 입금 진행 — 받음/안받음 × 기사/마진 (2×2) */}
           <div style={{
             padding: "0 24px 22px",
           }}>
             <div style={{
-              fontSize: 13, fontWeight: 800, color: t.text,
-              marginTop: 6, marginBottom: 10,
+              fontSize: 12, fontWeight: 800, color: t.textMuted,
+              marginTop: 6, marginBottom: 8, letterSpacing: 0.3,
               borderTop: `1px solid ${t.border}`,
               paddingTop: 16,
             }}>
-              입금 진행
+              [2] 입금 진행 (유솔 → 회사, company_received_at 기준)
             </div>
 
             <ReceiveBox t={t}
               kind="received"
-              title="받은 금액 (입금 완료)"
+              title="받음 (입금 완료)"
               count={recvCnt}
-              engineer={recvEngExcl}
-              owner={recvOwn}
+              engineer={receivedEng}
+              owner={receivedMargin}
+              ownerLabel="마진"
               total={recvTotal}
             />
             <div style={{ height: 10 }}/>
             <ReceiveBox t={t}
               kind="pending"
-              title="받을 금액 (대기)"
+              title="안받음 (대기)"
               count={pendCnt}
-              engineer={pendEngExcl}
-              owner={pendOwn}
+              engineer={pendingEng}
+              owner={pendingMargin}
+              ownerLabel="마진"
               total={pendTotal}
             />
+
+            {/* 검산 — 받음+안받음 합 = 회사받을 */}
+            <div style={{
+              marginTop: 10, padding: "8px 12px",
+              background: t.bgInset, border: `1px dashed ${t.border}`, borderRadius: 7,
+              display: "flex", justifyContent: "space-between", alignItems: "baseline",
+              fontSize: 11, color: t.textMuted,
+            }}>
+              <span>받음 + 안받음</span>
+              <span style={{
+                fontWeight: 800,
+                color: (recvTotal + pendTotal) === compShare ? t.success : (t.warning || "#F59E0B"),
+                fontVariantNumeric: "tabular-nums",
+              }}>
+                {fmtKRW(recvTotal + pendTotal)} {(recvTotal + pendTotal) === compShare ? "✓" : `≠ ${fmtKRW(compShare)}`}
+              </span>
+            </div>
           </div>
 
           {/* 3단 — 기사 정산 액션 (옵션, stamp 버튼) */}
@@ -326,9 +360,14 @@ function FlowRow({ t, label, amount, negative, green, bold, large, sumBorder, mu
     display = fmtKRW(v);
   }
 
-  const amtColor = negative ? t.danger
+  // 2026-06-15 — 색 규칙 (사장님 spec):
+  //   · 마진 (green) → success
+  //   · 차감 (negative) → danger
+  //   · 그 외 → t.text
+  //   · 음수(환불) → danger 자동
+  const amtColor = v < 0 ? t.danger
+                  : negative ? t.danger
                   : green ? t.success
-                  : bold ? t.text
                   : t.text;
 
   return (
@@ -337,22 +376,25 @@ function FlowRow({ t, label, amount, negative, green, bold, large, sumBorder, mu
       padding: large ? "12px 14px" : "8px 14px",
       borderTop: sumBorder ? `1.5px solid ${t.border}` : "none",
       marginTop: sumBorder ? 2 : 0,
-      background: large && green ? "rgba(29,158,117,0.08)" : "transparent",
+      background: large && green ? (v < 0 ? "rgba(255,68,68,0.08)" : "rgba(29,158,117,0.08)") : "transparent",
       borderRadius: large ? 8 : 0,
     }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
         <span style={{
           fontSize: large ? 14 : (bold ? 13 : 12.5),
           fontWeight: large ? 900 : (bold ? 800 : 600),
-          color: muted ? t.textMuted : (green && large ? t.success : t.text),
+          color: muted ? t.textMuted
+                : (large && green) ? (v < 0 ? t.danger : t.success)
+                : t.text,
           letterSpacing: "-0.2px",
         }}>{label}</span>
         {hint && (
           <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>{hint}</span>
         )}
       </div>
-      <span className="mono" style={{
-        fontSize: large ? 22 : (bold ? 17 : 15),
+      {/* mono 폐기 — sans + tabular-nums 유지 (사장님 spec) */}
+      <span style={{
+        fontSize: large ? 24 : (bold ? 19 : 17),
         fontWeight: large ? 900 : (bold ? 800 : 700),
         color: amtColor,
         fontVariantNumeric: "tabular-nums",
@@ -364,16 +406,17 @@ function FlowRow({ t, label, amount, negative, green, bold, large, sumBorder, mu
 }
 
 // ──────────────────────────────────────────────────────────
-// ReceiveBox — 입금 진행 한 카드 (받은 또는 받을)
-//   3줄: ㄴ 기사 줄 돈 / ㄴ 회사 마진 / 합계 (굵게 + 상단 보더)
+// ReceiveBox — 입금 진행 한 카드 (받음 또는 안받음)
+//   3줄: 기사 (전액) / 마진 (success 초록 강조, 환불 시 음수 빨강) / 합계
 // ──────────────────────────────────────────────────────────
-function ReceiveBox({ t, kind, title, count, engineer, owner, total }) {
+function ReceiveBox({ t, kind, title, count, engineer, owner, ownerLabel = "마진", total }) {
   const isReceived = kind === "received";
   const accent = isReceived ? t.success : (t.warning || "#F59E0B");
   const bg = isReceived
     ? (t.successBg || "rgba(29,158,117,0.06)")
     : (t.warningBg || "rgba(245,158,11,0.06)");
-  const ownerColor = isReceived ? t.success : (t.warning || "#F59E0B");
+  // 마진은 항상 success 색 (사장님 spec). 음수면 danger.
+  const ownerColor = owner < 0 ? t.danger : t.success;
 
   return (
     <div style={{
@@ -387,15 +430,15 @@ function ReceiveBox({ t, kind, title, count, engineer, owner, total }) {
         marginBottom: 8,
       }}>
         <span style={{
-          fontSize: 13, fontWeight: 900, color: accent,
+          fontSize: 14, fontWeight: 900, color: accent, letterSpacing: "-0.2px",
         }}>{isReceived ? "✓" : "⏳"} {title}</span>
         <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
           · {fmtCount(count)}
         </span>
       </div>
 
-      <ReceiveLine t={t} label="ㄴ 기사 줄 돈" amount={engineer} color={t.text}/>
-      <ReceiveLine t={t} label="ㄴ 회사 마진"  amount={owner}    color={ownerColor} bold/>
+      <ReceiveLine t={t} label="기사 몫"   amount={engineer} color={t.text}/>
+      <ReceiveLine t={t} label={ownerLabel} amount={owner}    color={ownerColor} bold/>
 
       <div style={{
         marginTop: 4,
@@ -409,6 +452,8 @@ function ReceiveBox({ t, kind, title, count, engineer, owner, total }) {
 }
 
 function ReceiveLine({ t, label, amount, color, bold, large }) {
+  const v = Number(amount) || 0;
+  const display = v < 0 ? `−${fmtKRW(Math.abs(v))}` : fmtKRW(v);
   return (
     <div style={{
       display: "flex", alignItems: "baseline", gap: 10,
@@ -421,13 +466,14 @@ function ReceiveLine({ t, label, amount, color, bold, large }) {
         color: bold ? t.text : t.textSecondary,
         letterSpacing: "-0.2px",
       }}>{label}</span>
-      <span className="mono" style={{
-        fontSize: large ? 17 : 14,
-        fontWeight: 800, color,
+      <span style={{
+        fontSize: large ? 18 : 16,
+        fontWeight: bold ? 800 : 700,
+        color,
         fontVariantNumeric: "tabular-nums",
         whiteSpace: "nowrap",
         letterSpacing: "-0.3px",
-      }}>{fmtKRW(amount)}</span>
+      }}>{display}</span>
     </div>
   );
 }
