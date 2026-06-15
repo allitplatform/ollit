@@ -4,6 +4,8 @@
 import { useState, useMemo } from "react";
 import { loadTasks, getUsolNStatus } from "../data/tasks.js";
 import { calcEngineerEarning } from "../utils/usolNCommission.js";
+// 2026-06-15 — 유솔N (track B 월정산) 뷰는 _excl_extra 산식 사용 (운영자 f6fbcf1 동일).
+import { calcTaskEngineerExclExtra } from "../utils/engineerExclExtra.js";
 import {
   getNotificationsForEngineer,
   markNotificationAsRead,
@@ -197,9 +199,10 @@ function UsolNView({ tasks }) {
     return result;
   }, [usolNTasks]);
 
+  // 2026-06-15 — track B 월정산 = _excl_extra (현장추가금 기사 몫 제외)
   const totalPending =
-    grouped.pending_settlement.reduce((s, t) => s + (calcEngineerEarning(t) || 0), 0) +
-    grouped.pending_deposit.reduce((s, t)    => s + (calcEngineerEarning(t) || 0), 0);
+    grouped.pending_settlement.reduce((s, t) => s + calcTaskEngineerExclExtra(t), 0) +
+    grouped.pending_deposit.reduce((s, t)    => s + calcTaskEngineerExclExtra(t), 0);
 
   const nextSettlement = getNext15thLabel();
 
@@ -235,7 +238,8 @@ function UsolNView({ tasks }) {
 
 function StatusGroup({ title, subtitle, tasks, color }) {
   if (!tasks || tasks.length === 0) return null;
-  const total = tasks.reduce((s, t) => s + (calcEngineerEarning(t) || 0), 0);
+  // 2026-06-15 — _excl_extra (track B 월정산 뷰)
+  const total = tasks.reduce((s, t) => s + calcTaskEngineerExclExtra(t), 0);
 
   return (
     <div style={{ marginBottom: 14 }}>
@@ -302,6 +306,8 @@ function TaskRow({ task, showDate }) {
 }
 
 function UsolNTaskRow({ task }) {
+  // 2026-06-15 — _excl_extra
+  const earn = calcTaskEngineerExclExtra(task);
   return (
     <div style={{
       padding: 10,
@@ -311,8 +317,12 @@ function UsolNTaskRow({ task }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <span style={{ fontSize: 12, fontWeight: 600 }}>{task.customer || "—"}</span>
-        <span style={{ fontSize: 11, fontFamily: "inherit" }}>
-          ₩{(calcEngineerEarning(task) || 0).toLocaleString()}
+        <span className="mono" style={{
+          fontSize: 11, fontFamily: "ui-monospace, monospace",
+          fontVariantNumeric: "tabular-nums",
+          color: earn < 0 ? "#EF4444" : "var(--text-primary)",
+        }}>
+          {earn < 0 ? "−" : ""}₩{Math.abs(earn).toLocaleString()}
         </span>
       </div>
       <div style={{ fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))" }}>

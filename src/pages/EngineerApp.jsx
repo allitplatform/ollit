@@ -4567,13 +4567,45 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
       const mine = (res.items || []).filter(it => it.tasks?.assigned_engineer_id === myUserId);
       if (mine.length === 0) { setUsolNGroups([]); return; }
 
-      // 4) Migration 067 RPC batch — item별 engineer_amount
+      // 4) 2026-06-15 — _excl_extra 산식 (운영자 f6fbcf1 동일).
+      //   payments 직접 fetch → task-level engineer_excl_extra = engineer_amount − (extra − FLOOR(extra×0.15))
+      //   item.subtotal 비율로 분배. 옛 RPC compute_engineer_amount_per_item_batch 폐기.
       const taskIds = [...new Set(mine.map(it => it.tasks.id))];
-      let engByItem = new Map();
-      const { data: rpcData } = await supabase
-        .rpc("compute_engineer_amount_per_item_batch", { p_task_ids: taskIds });
-      if (Array.isArray(rpcData)) {
-        engByItem = new Map(rpcData.map(r => [r.task_item_id, Number(r.engineer_amount) || 0]));
+      const { data: payRows } = await supabase
+        .from("payments")
+        .select("task_id, engineer_amount, extra_fee")
+        .in("task_id", taskIds);
+      const payByTask = new Map((payRows || []).map(p => [p.task_id, p]));
+
+      // task_id → 그 task 의 활성 items 목록
+      const itemsByTask = new Map();
+      for (const it of mine) {
+        const tid = it.tasks?.id;
+        if (!tid) continue;
+        if (!itemsByTask.has(tid)) itemsByTask.set(tid, []);
+        itemsByTask.get(tid).push(it);
+      }
+
+      // 분배: engineer_excl_extra × (item.subtotal / Σtask 활성 item.subtotal)
+      const engByItem = new Map();
+      for (const [tid, items] of itemsByTask.entries()) {
+        const p = payByTask.get(tid);
+        if (!p) continue;
+        const eng   = Number(p.engineer_amount) || 0;
+        const extra = Number(p.extra_fee)       || 0;
+        const usolExtra     = Math.floor(extra * 0.15);
+        const engineerExtra = extra - usolExtra;
+        const engExcl = eng - engineerExtra;  // 환불 시 음수 가능
+        const subSum  = items.reduce((s, x) => s + (Number(x.subtotal) || 0), 0);
+        if (subSum > 0) {
+          for (const x of items) {
+            const r = (Number(x.subtotal) || 0) / subSum;
+            engByItem.set(x.id, Math.round(engExcl * r));
+          }
+        } else if (items.length > 0) {
+          const per = Math.round(engExcl / items.length);
+          for (const x of items) engByItem.set(x.id, per);
+        }
       }
 
       // 5) item 단위 group (date 기준, KST 변환)
