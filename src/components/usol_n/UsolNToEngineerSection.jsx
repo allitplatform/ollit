@@ -80,6 +80,29 @@ function calcItemEngineerAmount(item, engByItem) {
   return 0;
 }
 
+// 2026-06-15 — 사장님 spec: 기사·유솔 금액에서 현장추가금(extra_fee) 분 제외.
+//   board 의 _excl_extra 로직 동일.
+//   유솔 extra 몫    = FLOOR(extra × 0.15)
+//   기사 extra 몫    = extra − FLOOR(extra × 0.15)
+//   engineer_excl_extra  = engineer_amount  − 기사 extra 몫
+//   principal_excl_extra = principal_amount − 유솔 extra 몫
+//   환불(net<0) 시 음수 그대로 반영 — clamp 없음.
+function calcEngineerExclExtra(payment) {
+  if (!payment) return 0;
+  const eng   = Number(payment.engineer_amount) || 0;
+  const extra = Number(payment.extra_fee)       || 0;
+  const usolExtraShare     = Math.floor(extra * 0.15);
+  const engineerExtraShare = extra - usolExtraShare;
+  return eng - engineerExtraShare;
+}
+function calcPrincipalExclExtra(payment) {
+  if (!payment) return 0;
+  const prin  = Number(payment.principal_amount) || 0;
+  const extra = Number(payment.extra_fee)        || 0;
+  const usolExtraShare = Math.floor(extra * 0.15);
+  return prin - usolExtraShare;
+}
+
 // ── 1·2차 버킷 분류 (2026-06-01 — 작업월 + naver 정산 여부 기준) ──
 // 변경: selectedMonth (지급월) 의 naver_settled_at KST 윈도우 X →
 //        gateYm (작업월) 의 task.completed_at KST 필터 + naver_settled_at NULL/NOT NULL.
@@ -329,11 +352,10 @@ export function UsolNToEngineerSection({ adminId = null }) {
     return () => { alive = false; };
   }, [items]);
 
-  // 2026-06-09 — engByItem 을 payments.engineer_amount 분배로 유도.
-  //   task-level engineer_amount → 활성 item.subtotal 비율 분배.
-  //   분배 폴백 (Σsubtotal = 0) → 활성 item 수 균등 분배.
-  //   payments 누락 task → 그 task 의 item 들 미수록 (calcItemEngineerAmount 측 0 반환).
-  //   순이익 카드 (companyShare = Σpayments.engineer + prin + own) 와 모집단·원천 정합.
+  // 2026-06-09 → 2026-06-15 — engByItem 산식 변경:
+  //   task-level engineer_excl_extra(= engineer_amount − 기사 extra 몫) 를
+  //   활성 item.subtotal 비율로 분배. 현장추가금(extra_fee) 의 기사 몫은 제외.
+  //   board 의 _excl_extra 로직과 동일. 환불(net<0) 시 음수 그대로.
   const engByItem = useMemo(() => {
     if (!items.length || paymentByTaskId.size === 0) return new Map();
     const itemsByTaskId = new Map();
@@ -348,20 +370,20 @@ export function UsolNToEngineerSection({ adminId = null }) {
     for (const [tid, taskItems] of itemsByTaskId.entries()) {
       const payment = paymentByTaskId.get(tid);
       if (!payment) continue;
-      const engineerAmount = Number(payment.engineer_amount) || 0;
-      if (engineerAmount === 0) {
+      const engExcl = calcEngineerExclExtra(payment);   // 환불 시 음수 가능
+      if (engExcl === 0) {
         for (const it of taskItems) result.set(it.id, 0);
         continue;
       }
       const totalSubtotal = taskItems.reduce((s, x) => s + (Number(x.subtotal) || 0), 0);
       if (totalSubtotal === 0) {
-        const per = Math.round(engineerAmount / taskItems.length);
+        const per = Math.round(engExcl / taskItems.length);
         for (const it of taskItems) result.set(it.id, per);
         continue;
       }
       for (const it of taskItems) {
         const sub = Number(it.subtotal) || 0;
-        result.set(it.id, Math.round(engineerAmount * (sub / totalSubtotal)));
+        result.set(it.id, Math.round(engExcl * (sub / totalSubtotal)));
       }
     }
     return result;
@@ -389,15 +411,14 @@ export function UsolNToEngineerSection({ adminId = null }) {
     [items, engineers, gateYear, gateMonth, engByItem]
   );
 
-  // 2026-06-09 — 회사 순이익 = 정책 기반 마진 (payments 합산).
-  //   옛 산식 (subtotalAll × 0.85) = 트랙 🅐 가정 → usol_n 트랙 🅑 (세척 100% 기사) 가짜 마이너스 사고.
-  //   교체: 작업월 버킷 통과한 unique task_id 의 payments 합산 — compute_payment v19 정책 반영값.
-  //   회사 배분  = Σ(engineer + principal + owner)  = 회사로 들어오는 총수입 (= subtotal+extra+travel)
-  //   기사+원청 지급 = Σ(engineer + principal)
-  //   회사 순익  = Σowner_amount                      (= GREATEST(0) 가드 적용된 정책 마진)
-  //   profit = companyShare − companyOutToEngPrin = Σowner.
-  //   사장님 확인 (2026-06-09 5월): Σowner=18,902,363 / Σeng=63,157,513 / missing=0.
-  // MonthlyStackCard / 기사별 보기는 per-item RPC (engByItem) 그대로 — per-bucket 분해 필요.
+  // 2026-06-09 → 2026-06-15 — _excl_extra 산식 (사장님 spec, board 동일).
+  //   engSum  = Σ engineer_excl_extra  (= eng − 기사 extra 몫)
+  //   prinSum = Σ principal_excl_extra (= prin − 유솔 extra 몫)
+  //   ownerSum (clamp) — payments 그대로 (DB GREATEST(0))
+  //   marginUnclamped = Σ product_price − engSum − prinSum (환불 시 음수 가능)
+  //   화면 마진 표시는 marginUnclamped 사용 (clamp 제거).
+  //   prodSum = Σ product_price (= subtotal 합, post-fee, 유솔 정산금).
+  //   extraSum = Σ extra_fee (현장추가금, 회사 무관 — 별도 표기용).
   const paymentsAgg = useMemo(() => {
     const allItems = [
       ...split.firstItems,
@@ -414,23 +435,28 @@ export function UsolNToEngineerSection({ adminId = null }) {
     for (const tid of taskIds) {
       const p = paymentByTaskId.get(tid);
       if (!p) { missing += 1; continue; }
-      engSum   += Number(p.engineer_amount)  || 0;
-      prinSum  += Number(p.principal_amount) || 0;
+      engSum   += calcEngineerExclExtra(p);   // 환불 시 음수 가능
+      prinSum  += calcPrincipalExclExtra(p);  // 환불 시 음수 가능
       ownerSum += Number(p.owner_amount)     || 0;
       extraSum += Number(p.extra_fee)        || 0;
-      prodSum  += Number(p.product_price)    || 0;  // = subtotal 합 (post-fee, 유솔 정산금)
+      prodSum  += Number(p.product_price)    || 0;
       matched += 1;
     }
+    const marginUnclamped = prodSum - engSum - prinSum;  // 환불 시 음수 그대로
     return {
       engSum, prinSum, ownerSum, extraSum, prodSum,
+      marginUnclamped,
       taskCount: taskIds.size,
       matched, missing,
     };
   }, [split, paymentByTaskId]);
 
-  const companyShare         = paymentsAgg.engSum + paymentsAgg.prinSum + paymentsAgg.ownerSum;
-  const companyOutToEngPrin  = paymentsAgg.engSum + paymentsAgg.prinSum;
-  const profit               = paymentsAgg.ownerSum;
+  // 2026-06-15 — _excl_extra 반영 + 마진 unclamped.
+  //   engSum / prinSum 은 이제 excl_extra. companyShare = prodSum (subtotal 합).
+  //   profit = marginUnclamped (환불 시 음수 그대로, board 와 동일).
+  const companyShare         = paymentsAgg.prodSum;                 // 유솔 정산금 (= subtotal 합)
+  const companyOutToEngPrin  = paymentsAgg.engSum + paymentsAgg.prinSum;  // 기사 + 유솔 excl_extra
+  const profit               = paymentsAgg.marginUnclamped;          // 마진 (음수 허용)
 
   function refresh() { setReloadTick(v => v + 1); }
 
@@ -690,27 +716,26 @@ function StackBar({ firstPct, secondPct, empty }) {
 }
 
 // ── 회사 순이익 카드 (작업월 = gateYm 기준) ─────────────────
-// 2026-06-14 — "회사 배분" 라벨 오해 정정 (사장님 spec).
-//   옛: 회사 배분 = Σ(eng+prin+own) → 회사 몫이 아닌 통과 자금. 라벨 오해 큼.
-//   신: 3분할 구조 — 유솔 정산금(통과 자금) + 현장 추가금 → 기사/유솔/회사 분배 비율 표시.
-//     유솔 정산금 = product_price 합 (= subtotal 합, post-fee, 네이버 수수료 차감 후)
-//     현장 추가금 = extra_fee 합
-//     기사 몫 % / 유솔 몫 % (≈15%) / 회사 마진 % ← 회사가 진짜 먹는 것
-//   원천: payments.{engineer_amount/principal_amount/owner_amount/extra_fee/product_price}
+// 2026-06-15 — _excl_extra 산식 + 마진 unclamped (board 와 동일).
+//   유솔 정산금 = prodSum (= subtotal 합)
+//   기사 몫 = engSum (excl_extra) / 유솔 몫 = prinSum (excl_extra)
+//   회사 마진 = marginUnclamped (= prodSum − engSum − prinSum, 환불 시 음수 그대로)
+//   현장 추가금(extra_fee) 은 회사 무관 → 안내 텍스트로만 표기.
 function CompanyProfitCard({ gateYm, paymentsAgg, profit }) {
   if (!gateYm) return null;
   const missing  = paymentsAgg?.missing || 0;
-  const engSum   = Number(paymentsAgg?.engSum)   || 0;
-  const prinSum  = Number(paymentsAgg?.prinSum)  || 0;
-  const ownerSum = Number(paymentsAgg?.ownerSum) || 0;
-  const extraSum = Number(paymentsAgg?.extraSum) || 0;
-  const prodSum  = Number(paymentsAgg?.prodSum)  || 0;
+  const engSum   = Number(paymentsAgg?.engSum)          || 0;  // excl_extra
+  const prinSum  = Number(paymentsAgg?.prinSum)         || 0;  // excl_extra
+  const extraSum = Number(paymentsAgg?.extraSum)        || 0;
+  const prodSum  = Number(paymentsAgg?.prodSum)         || 0;  // 유솔 정산금
+  const marginU  = Number(paymentsAgg?.marginUnclamped) || 0;  // 음수 허용
 
-  const allocTotal = engSum + prinSum + ownerSum;  // 분배 대상 (≈ prodSum + extraSum)
-  const pct = (n) => allocTotal > 0 ? (n / allocTotal * 100) : 0;
+  // 분배 비율 — 유솔 정산금 기준 (= subtotal). engSum + prinSum + marginU = prodSum.
+  const pct = (n) => prodSum > 0 ? (n / prodSum * 100) : 0;
   const engPct  = pct(engSum);
   const prinPct = pct(prinSum);
-  const ownPct  = pct(ownerSum);
+  const ownPct  = pct(marginU);
+  const isNegMargin = marginU < 0;
 
   return (
     <div style={{
@@ -728,40 +753,41 @@ function CompanyProfitCard({ gateYm, paymentsAgg, profit }) {
       {/* 통과 자금 (분배 대상) */}
       <SettleLine label="유솔 정산금 (수수료 뺀)" amount={prodSum}/>
       {extraSum > 0 && (
-        <SettleLine label="+ 현장 추가금" amount={extraSum} muted/>
+        <SettleLine label="+ 현장 추가금 (회사 무관)" amount={extraSum} muted/>
       )}
 
       <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }}/>
 
-      {/* 3분할 — 기사/유솔/회사 */}
+      {/* 3분할 — 기사/유솔/회사 (모두 excl_extra) */}
       <SettleLine label={`기사 몫 ${engPct.toFixed(1)}%`} amount={engSum} color="#3B82F6"/>
       <SettleLine label={`유솔 몫 ${prinPct.toFixed(1)}%`} amount={prinSum} color="#F59E0B"/>
 
-      {/* 회사 마진 — 강조 (배경 + 볼드) */}
+      {/* 회사 마진 — 강조 (배경 + 볼드). 음수면 빨강 배경. */}
       <div style={{
         marginTop: 6,
         padding: "8px 10px",
-        background: "rgba(29,158,117,0.10)",
-        border: `1.5px solid ${C_GREEN}`,
+        background: isNegMargin ? "rgba(255,59,92,0.10)" : "rgba(29,158,117,0.10)",
+        border: `1.5px solid ${isNegMargin ? "#ff4444" : C_GREEN}`,
         borderRadius: 8,
       }}>
         <div style={{
           display: "flex", alignItems: "baseline", justifyContent: "space-between",
         }}>
-          <span style={{ fontSize: 12, color: C_GREEN, fontWeight: 800 }}>
+          <span style={{ fontSize: 12, color: isNegMargin ? "#ff4444" : C_GREEN, fontWeight: 800 }}>
             ★ 회사 마진 {ownPct.toFixed(1)}%
           </span>
-          <span style={{
-            fontSize: 18, fontFamily: "inherit", fontWeight: 800,
-            color: profit >= 0 ? C_GREEN : "#ff4444",
+          <span className="mono" style={{
+            fontSize: 18, fontFamily: "ui-monospace, monospace", fontWeight: 800,
+            color: isNegMargin ? "#ff4444" : C_GREEN,
+            fontVariantNumeric: "tabular-nums",
           }}>
-            ₩{ownerSum.toLocaleString()}
+            {isNegMargin ? "−" : ""}₩{Math.abs(marginU).toLocaleString()}
           </span>
         </div>
         <div style={{
           marginTop: 2, fontSize: 9, color: "var(--text-secondary)", fontWeight: 500,
         }}>
-          owner_amount (= 유솔 정산금 + 추가금 − 기사 − 유솔)
+          = 유솔 정산금 − 기사 몫 − 유솔 몫 (clamp 제거 · 환불 시 음수 그대로)
         </div>
       </div>
 

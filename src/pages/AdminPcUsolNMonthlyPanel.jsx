@@ -14,7 +14,10 @@ import {
 } from "../components/usol_n/UsolNToEngineerSection.jsx";
 
 function fmtKRW(n) {
-  return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
+  // 음수도 그대로 표시 (− 부호 포함)
+  const v = Number(n) || 0;
+  if (v < 0) return `−₩${Math.abs(v).toLocaleString("ko-KR")}`;
+  return `₩${v.toLocaleString("ko-KR")}`;
 }
 
 export function AdminPcUsolNMonthlyPanel({ onClick }) {
@@ -57,7 +60,7 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
         const chunk = taskIds.slice(i, i + CHUNK);
         const { data, error } = await supabase
           .from("payments")
-          .select("task_id, engineer_amount, principal_amount, owner_amount, track")
+          .select("task_id, engineer_amount, principal_amount, owner_amount, extra_fee, product_price, track")
           .in("task_id", chunk);
         if (!alive) return;
         if (error) {
@@ -74,8 +77,9 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
     return () => { alive = false; };
   }, [items]);
 
-  // ── 3) engByItem (payments.engineer_amount task-level → item.subtotal 비율 분배) ──
-  //   옛 컴포넌트 line 337~ 동일.
+  // ── 3) engByItem — 2026-06-15 _excl_extra 적용 (사장님 spec, board 동일).
+  //   engineer_excl_extra = engineer_amount − (extra_fee − FLOOR(extra_fee × 0.15))
+  //   환불(net<0) 시 음수 그대로.
   const engByItem = useMemo(() => {
     if (!items.length || paymentByTaskId.size === 0) return new Map();
     const itemsByTaskId = new Map();
@@ -90,15 +94,19 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
     for (const [tid, taskItems] of itemsByTaskId.entries()) {
       const payment = paymentByTaskId.get(tid);
       if (!payment) continue;
-      const eng = Number(payment.engineer_amount) || 0;
+      const eng   = Number(payment.engineer_amount) || 0;
+      const extra = Number(payment.extra_fee)       || 0;
+      const usolExtra     = Math.floor(extra * 0.15);
+      const engineerExtra = extra - usolExtra;
+      const engExcl       = eng - engineerExtra;  // 환불 시 음수 가능
       const sumSub = taskItems.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
       if (sumSub > 0) {
         for (const it of taskItems) {
           const r = (Number(it.subtotal) || 0) / sumSub;
-          result.set(it.id, Math.round(eng * r));
+          result.set(it.id, Math.round(engExcl * r));
         }
       } else {
-        const per = Math.round(eng / taskItems.length);
+        const per = Math.round(engExcl / taskItems.length);
         for (const it of taskItems) result.set(it.id, per);
       }
     }
@@ -111,7 +119,11 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
     [items, gateY, gateM, engByItem]
   );
 
-  // ── 5) paymentsAgg — 회사 순이익 / 배분 산출 (옛 컴포넌트 line 401~ 동일) ──
+  // ── 5) paymentsAgg — 2026-06-15 _excl_extra + 마진 unclamped (board 동일).
+  //   engSum  = Σ engineer_excl_extra (= eng − 기사 extra 몫)
+  //   prinSum = Σ principal_excl_extra (= prin − 유솔 extra 몫)
+  //   prodSum = Σ product_price (= subtotal 합, 유솔 정산금)
+  //   marginUnclamped = prodSum − engSum − prinSum (환불 시 음수 그대로)
   const paymentsAgg = useMemo(() => {
     const allItems = [
       ...split.firstItems, ...split.secondItems,
@@ -122,24 +134,30 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
       const tid = it.tasks?.id || it.task_id;
       if (tid) tids.add(tid);
     }
-    let engSum = 0, prinSum = 0, ownerSum = 0;
+    let engSum = 0, prinSum = 0, ownerSum = 0, prodSum = 0;
     for (const tid of tids) {
       const p = paymentByTaskId.get(tid);
       if (!p) continue;
-      engSum   += Number(p.engineer_amount)  || 0;
-      prinSum  += Number(p.principal_amount) || 0;
-      ownerSum += Number(p.owner_amount)     || 0;
+      const eng   = Number(p.engineer_amount)  || 0;
+      const prin  = Number(p.principal_amount) || 0;
+      const extra = Number(p.extra_fee)        || 0;
+      const usolExtra     = Math.floor(extra * 0.15);
+      const engineerExtra = extra - usolExtra;
+      engSum   += eng - engineerExtra;           // excl_extra (음수 허용)
+      prinSum  += prin - usolExtra;              // excl_extra (음수 허용)
+      ownerSum += Number(p.owner_amount) || 0;   // clamped (DB)
+      prodSum  += Number(p.product_price) || 0;  // subtotal
     }
-    return { engSum, prinSum, ownerSum };
+    const marginUnclamped = prodSum - engSum - prinSum;
+    return { engSum, prinSum, ownerSum, prodSum, marginUnclamped };
   }, [split, paymentByTaskId]);
 
-  // 4 표시값
-  // 2026-06-14 — "총 배분" 라벨 오해 정정. 3분할(기사/유솔/회사) 비율 표시용.
-  const profit       = paymentsAgg.ownerSum;
-  const allocTotal   = paymentsAgg.engSum + paymentsAgg.prinSum + paymentsAgg.ownerSum;
-  const engPct       = allocTotal > 0 ? (paymentsAgg.engSum   / allocTotal * 100) : 0;
-  const prinPct      = allocTotal > 0 ? (paymentsAgg.prinSum  / allocTotal * 100) : 0;
-  const ownPct       = allocTotal > 0 ? (paymentsAgg.ownerSum / allocTotal * 100) : 0;
+  // 4 표시값 — _excl_extra + 마진 unclamped 반영
+  const profit       = paymentsAgg.marginUnclamped;   // 음수 허용
+  const denom        = paymentsAgg.prodSum > 0 ? paymentsAgg.prodSum : 0;
+  const engPct       = denom > 0 ? (paymentsAgg.engSum         / denom * 100) : 0;
+  const prinPct      = denom > 0 ? (paymentsAgg.prinSum        / denom * 100) : 0;
+  const ownPct       = denom > 0 ? (paymentsAgg.marginUnclamped / denom * 100) : 0;
   const firstTotal   = split.firstTotal;
   const pendingTotal = split.pendingTotal;
 
@@ -223,7 +241,7 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
             }}>회사 순이익</span>
             <span className="mono" style={{
               fontSize: 34, fontWeight: 800,
-              color: "#10B981",
+              color: profit < 0 ? "#ff4444" : "#10B981",
               letterSpacing: "-1px",
               fontVariantNumeric: "tabular-nums",
               lineHeight: 1,
@@ -251,8 +269,8 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
             />
             <SettleRow
               label={`★ 회사 마진 ${ownPct.toFixed(1)}%`}
-              amount={paymentsAgg.ownerSum}
-              color="#1D9E75"
+              amount={paymentsAgg.marginUnclamped}
+              color={paymentsAgg.marginUnclamped < 0 ? "#ff4444" : "#1D9E75"}
             />
 
             {/* 지급 상태 */}
