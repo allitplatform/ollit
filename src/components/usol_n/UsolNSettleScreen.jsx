@@ -20,8 +20,10 @@ import { UsolNToCompanySection } from "./UsolNToCompanySection.jsx";
 import { UsolNToEngineerSection } from "./UsolNToEngineerSection.jsx";
 // 2026-06-02 — 정산 대기 측 측 별도 화면 — 유솔 PWA 측 동일 (WeekSettleDetail 공유).
 import { WeekSettleDetail } from "../principal/WeekSettleDetail.jsx";
-// 2026-06-15 — 미정산 회사 실수령(85%) 헬퍼 (현황판 + PrincipalSettleTab + WeekSettleDetail 통일).
+// 2026-06-15 — 정산 대기 배너 = Mig 134 RPC (현황판과 단일 소스).
+//   sumCompanyReceiveFromItems 폴백 (RPC 실패 시).
 import { sumCompanyReceiveFromItems } from "../../utils/usolnPendingCalc.js";
+import { getUsolnSettleBoardSummary } from "../../lib/usolnSettleBoardDb.js";
 
 const C_MAGENTA = "#FF1B8D";
 const C_AMBER   = "#E6A33A";
@@ -43,6 +45,8 @@ export function UsolNSettleScreen({ adminId = null, onTaskClick = null }) {
   const [pendingSearch, setPendingSearch] = useState("");
   const [pendingStageFilter, setPendingStageFilter] = useState("all");
   const [pendingDateFilter, setPendingDateFilter] = useState("");
+  // 2026-06-15 — Mig 134 RPC naver_pending_* 합산 (배너 단일 소스).
+  const [rpcPending, setRpcPending] = useState({ amount: null, count: null });
 
   useEffect(() => {
     let alive = true;
@@ -57,6 +61,26 @@ export function UsolNSettleScreen({ adminId = null, onTaskClick = null }) {
     return () => { alive = false; };
   }, []);
 
+  // 2026-06-15 — 배너 단일 소스 (Mig 134 RPC naver_pending_*).
+  //   현황판과 동일 RPC. 실패 시 client 폴백 (sumCompanyReceiveFromItems).
+  useEffect(() => {
+    if (!adminId) return;
+    let alive = true;
+    (async () => {
+      const res = await getUsolnSettleBoardSummary(adminId);
+      if (!alive) return;
+      if (!res?.ok) return;
+      const months = res.months || [];
+      const amount = months.reduce(
+        (s, m) => s + (Number(m.naver_pending_eng) || 0) + (Number(m.naver_pending_margin) || 0),
+        0,
+      );
+      const count = months.reduce((s, m) => s + (Number(m.naver_pending_count) || 0), 0);
+      setRpcPending({ amount, count });
+    })().catch(() => {});
+    return () => { alive = false; };
+  }, [adminId]);
+
   // 정산 대기 집합 = task_status "완료" AND naver_settled_at NULL.
   //   2026-06-02 — cancel-strict + subtotal > 0 추가 (사장님 spec, PrincipalSettleTab 측 일치).
   //     · is_canceled=true 또는 subtotal=0 (부분취소) 제외.
@@ -67,13 +91,14 @@ export function UsolNSettleScreen({ adminId = null, onTaskClick = null }) {
     return done.filter(it => !it.naver_settled_at && Number(it.subtotal) > 0);
   }, [items]);
 
-  // 2026-06-15 — 회사 실수령(85%) — sumCompanyReceiveFromItems 헬퍼 동일 적용.
-  //   사장님 spec: PrincipalSettleTab.summary.pendingAmount + WeekSettleDetail 상단 합과 통일.
-  //   옛: Σ subtotal (= 유솔 정산금 100%) → 신: Σ task별 (sub − FLOOR(sub×0.15))
-  const pendingAmount = useMemo(
-    () => sumCompanyReceiveFromItems(pending),
-    [pending]
-  );
+  // 2026-06-15 — 회사 실수령(85%) — Mig 134 RPC naver_pending_* 합산 (단일 소스).
+  //   현황판·배너 동일 RPC 결과. RPC 미적용 시 client 폴백 (FLOOR×0.15 시뮬레이션).
+  //   payments.principal_amount 실제값 사용 → 100% 정확 (FLOOR 시뮬과 ₩1,280 차이 해소).
+  const pendingAmount = useMemo(() => {
+    if (rpcPending.amount != null) return rpcPending.amount;
+    return sumCompanyReceiveFromItems(pending);  // 폴백
+  }, [rpcPending.amount, pending]);
+  const pendingCount = rpcPending.count != null ? rpcPending.count : pending.length;
 
   // 2026-06-02 — 정산 대기 별도 리스트 화면 (사장님 spec — 유솔 PWA 측 동일).
   //   WeekSettleDetail 측 measure 측 — actionMode 측 X / remitStatus 측 X (RemitAction 측 measure 측 X).
@@ -121,7 +146,7 @@ export function UsolNSettleScreen({ adminId = null, onTaskClick = null }) {
   return (
     <div>
       <PendingRow
-        count={pending.length}
+        count={pendingCount}
         amount={pendingAmount}
         loading={loading}
         onOpen={() => setShowPendingList(true)}
