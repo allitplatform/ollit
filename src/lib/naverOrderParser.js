@@ -32,7 +32,19 @@ export function parseNaverOrders(rows) {
     //   기존 totalAmount (= "최종 상품별 총 주문금액" 우선) 호환용으로 유지하되, INSERT 측 명시 분리.
     customerPaid:     findColumn(sample, ["최종 상품별 총 주문금액"]),
     totalAmount:      findColumn(sample, ["최종 상품별 총 주문금액", "정산기준금액", "결제금액"]),
-    settlementAmount: findColumn(sample, ["정산예정금액"]),
+    // 2026-06-16 — settlementAmount: BI "정산예정금액" 전용. BH "매출연동수수료" 오매칭 방지.
+    //   기존 findColumn 부분 매칭이 "매출연동수수료(정산예정금액 기준)" 류 헤더를 잡아 5,112(=수수료 합) 가 들어가던 사고.
+    //   1순위: 정확 일치. 2순위: 부분 일치, 단 "수수료" 포함 헤더는 제외.
+    settlementAmount: (() => {
+      const keys = Object.keys(sample);
+      const exact = keys.find(k => k.trim() === "정산예정금액");
+      if (exact) return exact;
+      const partial = keys.find(k => {
+        const t = k.trim();
+        return t.includes("정산예정금액") && !t.includes("수수료");
+      });
+      return partial || null;
+    })(),
     // 2026-05-23 — 사장님 spec 측 정정:
     //   네이버 원본 엑셀 측 "서비스종류" 컬럼 측 X. order_type/기종 정보 측 "옵션정보" 측 통째로
     //   (예: "서비스 종류: 가정집 에어컨청소 / 구분: 벽걸이").
@@ -116,6 +128,16 @@ export function parseNaverOrders(rows) {
         first_appliance: f.appliances?.[0],
       }, null, 2),
       "| sample row keys:", Object.keys(rows[0] || {}).slice(0, 30));
+    // 2026-06-16 — 정산예정금액 매핑 확인용 (BH 수수료 오매칭 검증).
+    //   첫 행의 settlementAmount 값 + 매칭된 키 이름 + 전체 헤더 출력 → F12 콘솔에서 확인.
+    const firstRow = rows[0] || {};
+    console.warn("[parseNaverOrders settlementAmount 매핑 검증]", {
+      matchedKey:    COL.settlementAmount,
+      firstRowValue: COL.settlementAmount ? firstRow[COL.settlementAmount] : null,
+      customerPaidKey:    COL.customerPaid,
+      customerPaidValue:  COL.customerPaid ? firstRow[COL.customerPaid] : null,
+      allHeaders:    Object.keys(firstRow),
+    });
   }
 
   return { orders, mapping: COL };
