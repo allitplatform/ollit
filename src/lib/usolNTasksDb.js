@@ -998,7 +998,9 @@ export async function bulkInsertUsolNOrders(orders) {
       payment_method: "naver_pay",
       request_note:  `네이버 주문 ${order.orderId}`,
       status:        "미배정",
-      product_price: Number(order.settlementAmount || order.totalAmount || 0),
+      // 2026-06-16 — product_price = "최종 상품별 총 주문금액" 합계 (실 네이버 결제액).
+      //   이전: settlementAmount(정산예정금액=실결제의 ~2.5%) 우선 → 작업금액 사고.
+      product_price: Number(order.totalAmount || 0),
       extra_fee:     0,
       travel_fee:    0,
       external_order_no: String(order.orderId),
@@ -1096,19 +1098,12 @@ export async function bulkInsertUsolNOrders(orders) {
           continue;
         }
 
-        // 2026-05-27 — CSV "정산예정금액" 동적 판정 (이중곱 방지).
-        //   배경: 5/25 시점부터 CSV "정산예정금액"이 행 합계(qty×단가)로 들어옴.
-        //         그 값을 그대로 unit_price에 넣으면 GENERATED subtotal=qty×unit_price 이중곱.
-        //   판정: settlement > (customerPaid / qty) × 1.1 → 합계로 간주 → ÷qty 로 단가 환산.
-        //   회귀: 옛 정상 데이터(평균 비율 0.93)는 settlement ≤ perUnitPaid → 분기 안 탐 → 그대로.
-        //   판정 불가(qty<2 또는 customerPaid 없음) → 보수적으로 settlement 그대로.
+        // 2026-06-16 — unit_price = "최종 상품별 총 주문금액"(=customerPaid) ÷ qty.
+        //   이전: settlement(정산예정금액=실결제의 ~2.5%) 기준 → unit_price 사고.
+        //   "최종 상품별 총 주문금액"은 정의상 행 합계(상품가+옵션가-할인). 동적 판정 분기 제거.
         const _qty         = app.count || 1;
-        const _settlement  = app.settlement || 0;
-        const _perUnitPaid = (app.customerPaid && _qty) ? app.customerPaid / _qty : null;
-        let _unitPrice = _settlement;
-        if (_qty >= 2 && _perUnitPaid && _settlement > _perUnitPaid * 1.1) {
-          _unitPrice = Math.round(_settlement / _qty);
-        }
+        const _customerPaid = app.customerPaid || 0;
+        const _unitPrice   = _qty > 0 ? Math.round(_customerPaid / _qty) : _customerPaid;
 
         itemRows.push({
           task_id: taskId,
