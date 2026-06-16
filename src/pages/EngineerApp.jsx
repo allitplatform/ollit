@@ -86,6 +86,8 @@ import { OllitLoader } from "../components/OllitLoader.jsx";
 import { EngineerNewAssignmentListScreen } from "../components/EngineerNewAssignmentListScreen.jsx";
 import { EngineerAcceptanceListScreen } from "../components/EngineerAcceptanceListScreen.jsx";
 import { EngineerTaskDetailScreen } from "../components/EngineerTaskDetailScreen.jsx";
+// 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트 (NextWorkCard 인라인 제거 + upcomingTasks 적용).
+import { AddressLine } from "../components/common/AddressLine.jsx";
 import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
@@ -645,8 +647,6 @@ function formatMinutesLabel(min) {
 // 모드: 진행 중 (now >= start && now < end) / 다음 작업 (시작 전)
 // 30분 이내 시작 → 핑크 강조 / 진행 중 → 펄스 + 완료 보고 버튼
 function NextWorkCard({ work, now, onClick, onCompleteReport }) {
-  // 2026-05-20 Phase 5 Step 0.F-8 — 주소 복사 토스트 spec
-  const [copyToast, setCopyToast] = useState(null);
   if (!work) return null;
   const startTime = work.scheduledTime || work.time || null;
   const endTime   = work.endTime || null;
@@ -773,65 +773,17 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
         <span>{work.appliance || "—"}{work.qty ? ` ×${work.qty}` : ""}</span>
       </div>
 
-      {/* 2026-05-20 Phase 5 Step 0.F-8 — 주소 2줄 허용 / 0.F-9 — 줄 끝 복사 아이콘 inline */}
-      <div style={{
-        display: "flex", alignItems: "flex-start", gap: 6,
-        marginBottom: 12,
-      }}>
-        <div style={{
-          flex: 1, minWidth: 0,
+      {/* 2026-06-16 — 주소 + 복사 = 공통 AddressLine. 2줄 클램프 + plain 아이콘. */}
+      <AddressLine
+        task={work}
+        variant="plain"
+        lineClamp={2}
+        iconColor="var(--text-info, var(--text-secondary))"
+        baseStyle={{
           fontSize: 13, color: "var(--text-secondary)",
-          fontWeight: 600,
-          display: "-webkit-box",
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: "vertical",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          lineHeight: 1.4,
-        }}>
-          📍 {work.fullAddress || work.address || "—"}
-        </div>
-        <button
-          onClick={async (e) => {
-            e.stopPropagation();
-            const addr = work.fullAddress || work.address || "";
-            if (!addr) return;
-            try {
-              if (navigator?.clipboard?.writeText) {
-                await navigator.clipboard.writeText(addr);
-              } else {
-                const ta = document.createElement("textarea");
-                ta.value = addr;
-                ta.style.position = "fixed"; ta.style.left = "-9999px";
-                document.body.appendChild(ta);
-                ta.focus(); ta.select();
-                document.execCommand("copy");
-                document.body.removeChild(ta);
-              }
-              if (navigator?.vibrate) navigator.vibrate(30);
-              setCopyToast("주소 복사됨");
-              setTimeout(() => setCopyToast(null), 1500);
-            } catch (err) {
-              console.error("[NextWorkCard.copy]", err);
-              setCopyToast("복사 실패");
-              setTimeout(() => setCopyToast(null), 1500);
-            }
-          }}
-          aria-label="주소 복사"
-          style={{
-            flexShrink: 0,
-            background: "transparent", border: "none",
-            padding: 2, cursor: "pointer", lineHeight: 0,
-            color: "var(--text-info, var(--text-secondary))",
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
-          </svg>
-        </button>
-      </div>
+          fontWeight: 600, marginBottom: 12,
+        }}
+      />
 
       {/* 2026-05-20 Phase 5 Step 0.F-9 — 진행 중 = 완료 보고 1버튼 / 그 외 = 길찾기 / 전화 2버튼 (회색 통일) */}
       {isInProgress ? (
@@ -919,19 +871,7 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
         );
       })()}
 
-      {copyToast && (
-        <div style={{
-          position: "absolute", left: "50%", bottom: 14,
-          transform: "translateX(-50%)",
-          background: "rgba(0,0,0,0.85)", color: "#fff",
-          fontSize: 11, fontWeight: 600,
-          padding: "5px 12px", borderRadius: 6,
-          whiteSpace: "nowrap", zIndex: 5,
-          pointerEvents: "none",
-        }}>
-          {copyToast}
-        </div>
-      )}
+      {/* 2026-06-16 — copyToast 는 공통 AddressLine 내부 토스트로 이동. */}
     </div>
   );
 }
@@ -1403,19 +1343,18 @@ function MainScreen({
                         borderRadius: 4, fontWeight: 800,
                       }}>N</span>
                     )}
-                    {/* 2026-05-20 Phase 5 Step 0.F-3 — 주소 측 district 키워드만 (전체 주소 측 = 상세 화면) */}
-                    {/*   region (v14 매핑) 측 = district 우선 / fallback = address 측 구(區) 키워드 추출 */}
-                    {(() => {
-                      const region = task.region
-                        || (task.address && (String(task.address).match(/[가-힣]+(구|시|군)/) || [])[0])
-                        || "";
-                      return region ? (
-                        <span style={{
-                          fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
-                        }}>{region}</span>
-                      ) : null;
-                    })()}
                   </div>
+                  {/* 2026-06-16 — district 표시 → 전체 주소 + 복사 (공통 AddressLine plain). */}
+                  <AddressLine
+                    task={task}
+                    variant="plain"
+                    lineClamp={1}
+                    iconColor="var(--text-secondary)"
+                    baseStyle={{
+                      fontSize: 12, color: "var(--text-secondary)",
+                      fontWeight: 600, marginTop: 4,
+                    }}
+                  />
                   <div style={{
                     fontSize: 13, marginTop: 4,
                     display: "flex", alignItems: "center", gap: 4,

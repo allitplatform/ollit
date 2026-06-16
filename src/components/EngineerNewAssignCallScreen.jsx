@@ -8,6 +8,8 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { DropdownPicker, HOURS, MINUTES, AMPM } from "./DropdownPicker.jsx";
+// 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트.
+import { AddressLine } from "./common/AddressLine.jsx";
 
 function addDays(date, n) {
   const d = new Date(date);
@@ -141,11 +143,15 @@ export function EngineerNewAssignCallScreen({
         }}>
           {task.phone || "—"}
         </div>
-        <div style={{
-          fontSize: 12, color: "var(--text-secondary)", marginBottom: 4,
-        }}>
-          📍 {task.fullAddress || task.address || "—"}
-        </div>
+        {/* 2026-06-16 — 주소 + 복사 (공통 AddressLine plain). */}
+        <AddressLine
+          task={task}
+          variant="plain"
+          iconColor="var(--text-secondary)"
+          baseStyle={{
+            fontSize: 12, color: "var(--text-secondary)", marginBottom: 4,
+          }}
+        />
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 6 }}>
           <ServiceTypeIcon workType={task.workType} size={12} showLabel={true}/>
           <span>

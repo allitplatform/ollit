@@ -5,7 +5,9 @@
 // 한 화면 흐름 (별도 완료보고 화면 X)
 
 import { useRef, useState, useEffect } from "react";
-import { ArrowLeft, Camera, X, Copy } from "lucide-react";
+import { ArrowLeft, Camera, X } from "lucide-react";
+// 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트 (구 내부 정의 → src/components/common/AddressLine.jsx).
+import { AddressLine, buildFullAddress } from "./common/AddressLine.jsx";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
 import {
@@ -68,20 +70,7 @@ function sendSms(phone) {
   if (phone) window.location.href = `sms:${phone}`;
 }
 
-// 2026-05-26 — 길찾기용 주소 합성.
-//   DB tasks.address 컬럼이 풀 주소로 저장됨(시·도부터 동·호수까지).
-//   풀 주소가 있으면 그대로 사용 → 네이버/T맵/카카오 검색 정확.
-//   옛 시드(address="강남구 청담동" + fullAddress="청담로 200,...") 호환을 위해 fallback만 유지.
-function buildFullAddress(task) {
-  if (task.address && String(task.address).trim()) return String(task.address).trim();
-  const region = task.region || "";
-  const detail = task.fullAddress || "";
-  if (!region && !detail) return "";
-  if (!region) return detail;
-  if (!detail) return region;
-  const cityPrefix = region.includes("시") || region.includes("도") ? "" : "서울 ";
-  return `${cityPrefix}${region} ${detail}`.trim();
-}
+// 2026-06-16 — buildFullAddress 는 src/components/common/AddressLine.jsx 로 이동 (공통화).
 
 function openMap(task) {
   const addrRaw = buildFullAddress(task);
@@ -132,82 +121,8 @@ function openKakaoMap(task) {
   }, 1500);
 }
 
-// 2026-05-20 — 주소 복사 (clipboard + 토스트 + 햅틱)
-async function copyAddress(task, onToast) {
-  const addr = buildFullAddress(task);
-  if (!addr) {
-    if (onToast) onToast("주소 없음");
-    return;
-  }
-  try {
-    if (navigator?.clipboard?.writeText) {
-      await navigator.clipboard.writeText(addr);
-    } else {
-      const textarea = document.createElement("textarea");
-      textarea.value = addr;
-      textarea.style.position = "fixed";
-      textarea.style.left = "-9999px";
-      document.body.appendChild(textarea);
-      textarea.focus();
-      textarea.select();
-      document.execCommand("copy");
-      document.body.removeChild(textarea);
-    }
-    if (navigator?.vibrate) navigator.vibrate(30);
-    if (onToast) onToast("주소 복사됨");
-  } catch (err) {
-    console.error("[copyAddress] failed:", err);
-    if (onToast) onToast("복사 실패");
-  }
-}
-
-// 2026-05-20 — 주소 + 복사 아이콘 inline 컴포넌트 (재사용)
-//   주소 표시 영역 측 두 곳 (StatusBlockReady / WorkMainCard) 측 공통 spec
-function AddressLine({ task, baseStyle, iconColor = "var(--label-main)" }) {
-  const [toast, setToast] = useState(null);
-  const addr = task.fullAddress || task.address || "—";
-  const hasAddr = addr && addr !== "—";
-
-  function handleCopy(e) {
-    e.stopPropagation();
-    copyAddress(task, (msg) => {
-      setToast(msg);
-      setTimeout(() => setToast(null), 1500);
-    });
-  }
-
-  return (
-    <div style={{ position: "relative", ...baseStyle, display: "flex", alignItems: "center", gap: 6 }}>
-      <span style={{ flex: 1, minWidth: 0 }}>📍 {addr}</span>
-      {hasAddr && (
-        <button
-          onClick={handleCopy}
-          aria-label="주소 복사"
-          style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 26, height: 26, padding: 0,
-            background: "transparent", border: "1px solid var(--border)",
-            borderRadius: 6, color: iconColor,
-            cursor: "pointer", flexShrink: 0,
-          }}
-        >
-          <Copy size={14}/>
-        </button>
-      )}
-      {toast && (
-        <span style={{
-          position: "absolute", right: 0, top: "100%", marginTop: 4,
-          background: "rgba(0,0,0,0.85)", color: "#fff",
-          fontSize: 11, fontWeight: 600,
-          padding: "4px 10px", borderRadius: 6,
-          whiteSpace: "nowrap", zIndex: 10,
-        }}>
-          {toast}
-        </span>
-      )}
-    </div>
-  );
-}
+// 2026-06-16 — copyAddress / AddressLine 은 src/components/common/AddressLine.jsx 로 이동 (공통화).
+//   기존 사용처(StatusBlockReady / WorkMainCard)는 import 한 AddressLine 그대로 호출.
 
 // 작업 항목 정규화 (INITIAL_TASKS는 단일 workType/appliance만 — items 배열로 변환)
 // V14 v7 — 사장님 catch: name = appliance(기종) 박음 (workType X)

@@ -4,6 +4,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
+// 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트.
+import { AddressLine } from "./common/AddressLine.jsx";
 import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
@@ -302,12 +304,16 @@ export function EngineerNewAssignDetailScreen({
             📞 {task.phone || "—"}
           </div>
 
-          <div style={{
-            fontSize: 14, fontWeight: 600,
-            color: "var(--text-secondary)",
-          }}>
-            📍 {task.fullAddress || task.address || "—"}
-          </div>
+          {/* 2026-06-16 — 주소 + 복사 (공통 AddressLine plain). */}
+          <AddressLine
+            task={task}
+            variant="plain"
+            iconColor="var(--text-secondary)"
+            baseStyle={{
+              fontSize: 14, fontWeight: 600,
+              color: "var(--text-secondary)",
+            }}
+          />
 
           {/* 2026-05-29 — 결제 방식 라벨 (선택값 있을 때만 / NULL 숨김) */}
           {task.paymentMethod && (

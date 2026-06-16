@@ -5,6 +5,8 @@ import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
+// 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트.
+import { AddressLine } from "./common/AddressLine.jsx";
 
 export function EngineerNewAssignmentListScreen({ tasks = [], onBack, onTaskClick }) {
   return (
@@ -148,13 +150,16 @@ function AssignmentCard({ task, onClick }) {
         </span>
       </div>
 
-      {/* 주소 */}
-      <div style={{
-        fontSize: 14, color: "var(--text-secondary)",
-        fontWeight: 600, marginBottom: 6,
-      }}>
-        📍 {task.fullAddress || task.address || task.region || "주소 미정"}
-      </div>
+      {/* 2026-06-16 — 주소 + 복사 (공통 AddressLine plain). */}
+      <AddressLine
+        task={task}
+        variant="plain"
+        iconColor="var(--text-secondary)"
+        baseStyle={{
+          fontSize: 14, color: "var(--text-secondary)",
+          fontWeight: 600, marginBottom: 6,
+        }}
+      />
 
       {/* 전화 (방어 코드 — 없으면 안내 메시지) */}
       {task.phone ? (
