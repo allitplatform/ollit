@@ -17,6 +17,8 @@ import {
   inKstMonth,
   getCurrentMonthKey,
 } from "../components/usol_n/UsolNToEngineerSection.jsx";
+// 2026-06-16 — Mig 135/136 payouts 이력 회차별 집계.
+import { getUsolnPayoutsSummary } from "../lib/usolnPayoutsDb.js";
 
 function fmtKRW(n) {
   // 음수도 그대로 표시 (− 부호 포함)
@@ -39,7 +41,7 @@ function nextMonthKey(ym) {
   return `${ny}-${String(nm).padStart(2, "0")}`;
 }
 
-export function AdminPcUsolNMonthlyPanel({ onClick }) {
+export function AdminPcUsolNMonthlyPanel({ onClick, user }) {
   // 2026-06-16 — gateYm 상태화 (월 선택 가능). 기본 = 현재 월의 전월(=15일 지급 대상).
   const currentMonth = getCurrentMonthKey();
   const defaultGateYm = prevMonthKey(currentMonth);
@@ -172,6 +174,38 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
   const ownPct    = denom > 0 ? (paymentsAgg.marginUnclamped / denom * 100) : 0;
   const firstTotal   = split.firstTotal;
   const pendingTotal = split.pendingTotal;
+
+  // 2026-06-16 — payouts 회차별 집계 (Mig 135 RPC).
+  //   RPC 미적용 시 graceful: payouts=null → 옛 흐름 (지급/미지급 2박스) 로 폴백.
+  const [payouts, setPayouts] = useState(null);
+  useEffect(() => {
+    const actor = user?.user_id || user?.userId || user?.id;
+    if (!actor || !gateYm) { setPayouts(null); return; }
+    let alive = true;
+    getUsolnPayoutsSummary(gateYm, actor).then(res => {
+      if (!alive) return;
+      if (res?.ok) setPayouts(res);
+      else setPayouts(null);
+    }).catch(() => { if (alive) setPayouts(null); });
+    return () => { alive = false; };
+  }, [user, gateYm]);
+
+  // 회차별 / 미지급 산출.
+  //   1차/2차/추가 = payouts.rounds[round].amount (환불 포함 net)
+  //   미지급 = max(0, engSum - total_paid) — engSum 은 _excl_extra 기준 task 총액.
+  const payoutRounds = useMemo(() => {
+    if (!payouts?.rounds) return null;
+    return {
+      first:  Number(payouts.rounds["1차"]?.amount) || 0,
+      second: Number(payouts.rounds["2차"]?.amount) || 0,
+      extra:  Number(payouts.rounds["추가"]?.amount) || 0,
+      totalPaid: Number(payouts.total_paid) || 0,
+    };
+  }, [payouts]);
+  const pendingFromPayouts = useMemo(() => {
+    if (!payoutRounds) return null;
+    return Math.max(0, paymentsAgg.engSum - payoutRounds.totalPaid);
+  }, [payoutRounds, paymentsAgg.engSum]);
 
   // 기사 수 (gate month + 활성).
   const engineerCount = useMemo(() => {
@@ -315,23 +349,28 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
             </div>
           </div>
 
-          {/* 지급 진행 — 1차 지급(15일) / 미지급 잔액 박스 2개 */}
-          <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
-            borderTop: "1px solid var(--border)",
-            paddingTop: 14,
-          }}>
-            <PaymentBox
-              label="1차 지급 · 15일"
-              amount={firstTotal}
-              tone="muted"
-            />
-            <PaymentBox
-              label="미지급 잔액"
-              amount={pendingTotal}
-              tone="accent"
-            />
-          </div>
+          {/* 지급 진행 — Mig 135 payouts 이력 사용 시 회차별 4박스, 미적용 시 옛 2박스 폴백. */}
+          {payoutRounds ? (
+            <div style={{
+              display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8,
+              borderTop: "1px solid var(--border)",
+              paddingTop: 14,
+            }}>
+              <PaymentBox label="1차 · 15일"  amount={payoutRounds.first}  tone="muted"/>
+              <PaymentBox label="2차 · 말일"  amount={payoutRounds.second} tone="muted"/>
+              <PaymentBox label="추가"        amount={payoutRounds.extra}  tone="muted"/>
+              <PaymentBox label="미지급"      amount={pendingFromPayouts ?? pendingTotal} tone="accent"/>
+            </div>
+          ) : (
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
+              borderTop: "1px solid var(--border)",
+              paddingTop: 14,
+            }}>
+              <PaymentBox label="1차 지급 · 15일" amount={firstTotal}   tone="muted"/>
+              <PaymentBox label="미지급 잔액"     amount={pendingTotal} tone="accent"/>
+            </div>
+          )}
         </>
       )}
     </div>

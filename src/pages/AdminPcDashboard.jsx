@@ -134,7 +134,7 @@ export function AdminPcDashboard({
             onClick={onClickRefriAddon}
           />
           {/* 유솔N 월정산 — 우 컬럼 끝에 stack (빈 공간 채움, 매출 도넛 길이와 균형). */}
-          <AdminPcUsolNMonthlyPanel onClick={onClickUsolN}/>
+          <AdminPcUsolNMonthlyPanel user={user} onClick={onClickUsolN}/>
         </div>
       </div>
 
