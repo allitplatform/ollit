@@ -349,17 +349,18 @@ export function AdminPcUsolNMonthlyPanel({ onClick, user }) {
             </div>
           </div>
 
-          {/* 지급 진행 — Mig 135 payouts 이력 사용 시 회차별 4박스, 미적용 시 옛 2박스 폴백. */}
+          {/* 지급 진행 — Mig 135 payouts 이력 사용 시 3박스(1차·15일 / 2차·말일 / 2차 대기),
+                미적용 시 옛 2박스 폴백.
+                2026-06-16 — "추가" 박스 표시 제거 (데이터/RPC 는 그대로). "미지급" → "2차 대기" 라벨. */}
           {payoutRounds ? (
             <div style={{
-              display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8,
+              display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10,
               borderTop: "1px solid var(--border)",
               paddingTop: 14,
             }}>
-              <PaymentBox label="1차 · 15일"  amount={payoutRounds.first}  tone="muted"/>
-              <PaymentBox label="2차 · 말일"  amount={payoutRounds.second} tone="muted"/>
-              <PaymentBox label="추가"        amount={payoutRounds.extra}  tone="muted"/>
-              <PaymentBox label="미지급"      amount={pendingFromPayouts ?? pendingTotal} tone="accent"/>
+              <PaymentBox label="1차 · 15일" amount={payoutRounds.first}  tone="muted"/>
+              <PaymentBox label="2차 · 말일" amount={payoutRounds.second} tone="muted"/>
+              <PaymentBox label="2차 대기"   amount={pendingFromPayouts ?? pendingTotal} tone="accent"/>
             </div>
           ) : (
             <div style={{
@@ -368,7 +369,7 @@ export function AdminPcUsolNMonthlyPanel({ onClick, user }) {
               paddingTop: 14,
             }}>
               <PaymentBox label="1차 지급 · 15일" amount={firstTotal}   tone="muted"/>
-              <PaymentBox label="미지급 잔액"     amount={pendingTotal} tone="accent"/>
+              <PaymentBox label="2차 대기"        amount={pendingTotal} tone="accent"/>
             </div>
           )}
         </>
