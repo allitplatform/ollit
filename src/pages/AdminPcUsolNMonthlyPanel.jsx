@@ -1,10 +1,15 @@
-// 2026-06-12 — AdminApp PC 개요 · 유솔N 월정산 패널 (회사 순이익 주인공).
-//   사장님 spec — 큰 순이익 (초록 34px) + 3 행 (총 배분 / 15일 지급 / 미지급 핑크 강조).
-//   ⚠️ 정산 계산 로직 0줄 변경. UsolNToEngineerSection 의 helper export 그대로 재사용.
-//   ⚠️ 색 토큰만 (var(--accent) 다크 #FF1B8D / 라이트 #E91860). 순이익 초록은 #10B981 도메인색.
-//   ⚠️ 모바일(<1024) 옛 화면 그대로 — 이 패널은 PC 개요 전용.
+// 2026-06-12 — AdminApp PC 개요 · 유솔N 월정산 패널.
+// 2026-06-16 — 재설계 (사장님 spec):
+//   · 헤더: "유솔N 정산" + 월 선택 ◀ YYYY년 MM월 ▶ + 기사별 N명 →
+//   · 회사 마진(큰 숫자 주표시) + 총 정산액의 N%
+//   · 구성 바(가로 3분할) + 3분할 범례 (기사 정산 / 유솔N 수수료 / 회사 마진)
+//   · 지급 진행: 1차 지급(15일) / 미지급 잔액 박스 2개
+// ⚠️ 정산 계산 로직 0줄 변경. UsolNToEngineerSection 의 helper export 그대로 재사용.
+// ⚠️ 색 토큰: 기사 #378ADD / 유솔N #FFB800 / 회사 마진 #1D9E75 (음수 시 #ff4444).
+// ⚠️ 모바일(<1024) 옛 화면 그대로 — 이 패널은 PC 개요 전용.
 
 import { useState, useEffect, useMemo } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { supabase } from "../lib/supabase.js";
 import { fetchUsolNCompletedTaskItems } from "../lib/usolNTasksDb.js";
 import {
@@ -20,23 +25,36 @@ function fmtKRW(n) {
   return `₩${v.toLocaleString("ko-KR")}`;
 }
 
+// "YYYY-MM" → 한 달 전 "YYYY-MM"
+function prevMonthKey(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  const ny = m === 1 ? y - 1 : y;
+  const nm = m === 1 ? 12 : m - 1;
+  return `${ny}-${String(nm).padStart(2, "0")}`;
+}
+function nextMonthKey(ym) {
+  const [y, m] = ym.split("-").map(Number);
+  const ny = m === 12 ? y + 1 : y;
+  const nm = m === 12 ? 1 : m + 1;
+  return `${ny}-${String(nm).padStart(2, "0")}`;
+}
+
 export function AdminPcUsolNMonthlyPanel({ onClick }) {
-  // selectedMonth = 이번 달, gateYm = prev month (지급 대상 작업월).
-  //   옛 컴포넌트와 동일: selectedMonth 2026-06 → gateYm 2026-05.
-  const selectedMonth = getCurrentMonthKey();
-  const [selY, selM] = selectedMonth.split("-").map(Number);
-  const gateY = selM === 1 ? selY - 1 : selY;
-  const gateM = selM === 1 ? 12 : selM - 1;
-  const gateYm = `${gateY}-${String(gateM).padStart(2, "0")}`;
+  // 2026-06-16 — gateYm 상태화 (월 선택 가능). 기본 = 현재 월의 전월(=15일 지급 대상).
+  const currentMonth = getCurrentMonthKey();
+  const defaultGateYm = prevMonthKey(currentMonth);
+  const [gateYm, setGateYm] = useState(defaultGateYm);
+  const [gateY, gateM] = gateYm.split("-").map(Number);
 
   const [items, setItems] = useState([]);
   const [paymentByTaskId, setPaymentByTaskId] = useState(new Map());
   const [loading, setLoading] = useState(true);
 
-  // ── 1) task_items fetch (옛 컴포넌트 line 282 동일) ────────────
+  // 2026-06-16 — monthsBack 을 12 로 (월 선택 범위 확보). 옛: 6.
   useEffect(() => {
     let alive = true;
-    fetchUsolNCompletedTaskItems({ monthsBack: 6 })
+    setLoading(true);
+    fetchUsolNCompletedTaskItems({ monthsBack: 12 })
       .then(res => {
         if (!alive) return;
         if (res?.ok) setItems(res.items || []);
@@ -47,7 +65,7 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
     return () => { alive = false; };
   }, []);
 
-  // ── 2) payments fetch (chunk 300 — 옛 컴포넌트 line 303~ 동일) ──
+  // payments chunk fetch (옛과 동일).
   useEffect(() => {
     if (!items.length) { setPaymentByTaskId(new Map()); return; }
     const taskIds = [...new Set(items.map(it => it.tasks?.id).filter(Boolean))];
@@ -77,9 +95,7 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
     return () => { alive = false; };
   }, [items]);
 
-  // ── 3) engByItem — 2026-06-15 _excl_extra 적용 (사장님 spec, board 동일).
-  //   engineer_excl_extra = engineer_amount − (extra_fee − FLOOR(extra_fee × 0.15))
-  //   환불(net<0) 시 음수 그대로.
+  // engByItem — _excl_extra 적용.
   const engByItem = useMemo(() => {
     if (!items.length || paymentByTaskId.size === 0) return new Map();
     const itemsByTaskId = new Map();
@@ -98,7 +114,7 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
       const extra = Number(payment.extra_fee)       || 0;
       const usolExtra     = Math.floor(extra * 0.15);
       const engineerExtra = extra - usolExtra;
-      const engExcl       = eng - engineerExtra;  // 환불 시 음수 가능
+      const engExcl       = eng - engineerExtra;
       const sumSub = taskItems.reduce((s, it) => s + (Number(it.subtotal) || 0), 0);
       if (sumSub > 0) {
         for (const it of taskItems) {
@@ -113,17 +129,13 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
     return result;
   }, [items, paymentByTaskId]);
 
-  // ── 4) splitByBucket (옛 helper 그대로) ────────────────────────
+  // splitByBucket — gateY/gateM 동적.
   const split = useMemo(() =>
     splitByBucket(items, gateY, gateM, engByItem),
     [items, gateY, gateM, engByItem]
   );
 
-  // ── 5) paymentsAgg — 2026-06-15 _excl_extra + 마진 unclamped (board 동일).
-  //   engSum  = Σ engineer_excl_extra (= eng − 기사 extra 몫)
-  //   prinSum = Σ principal_excl_extra (= prin − 유솔 extra 몫)
-  //   prodSum = Σ product_price (= subtotal 합, 유솔 정산금)
-  //   marginUnclamped = prodSum − engSum − prinSum (환불 시 음수 그대로)
+  // paymentsAgg — _excl_extra + 마진 unclamped.
   const paymentsAgg = useMemo(() => {
     const allItems = [
       ...split.firstItems, ...split.secondItems,
@@ -143,25 +155,25 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
       const extra = Number(p.extra_fee)        || 0;
       const usolExtra     = Math.floor(extra * 0.15);
       const engineerExtra = extra - usolExtra;
-      engSum   += eng - engineerExtra;           // excl_extra (음수 허용)
-      prinSum  += prin - usolExtra;              // excl_extra (음수 허용)
-      ownerSum += Number(p.owner_amount) || 0;   // clamped (DB)
-      prodSum  += Number(p.product_price) || 0;  // subtotal
+      engSum   += eng - engineerExtra;
+      prinSum  += prin - usolExtra;
+      ownerSum += Number(p.owner_amount) || 0;
+      prodSum  += Number(p.product_price) || 0;
     }
     const marginUnclamped = prodSum - engSum - prinSum;
     return { engSum, prinSum, ownerSum, prodSum, marginUnclamped };
   }, [split, paymentByTaskId]);
 
-  // 4 표시값 — _excl_extra + 마진 unclamped 반영
-  const profit       = paymentsAgg.marginUnclamped;   // 음수 허용
-  const denom        = paymentsAgg.prodSum > 0 ? paymentsAgg.prodSum : 0;
-  const engPct       = denom > 0 ? (paymentsAgg.engSum         / denom * 100) : 0;
-  const prinPct      = denom > 0 ? (paymentsAgg.prinSum        / denom * 100) : 0;
-  const ownPct       = denom > 0 ? (paymentsAgg.marginUnclamped / denom * 100) : 0;
+  // 표시값.
+  const profit    = paymentsAgg.marginUnclamped;
+  const denom     = paymentsAgg.prodSum > 0 ? paymentsAgg.prodSum : 0;
+  const engPct    = denom > 0 ? (paymentsAgg.engSum         / denom * 100) : 0;
+  const prinPct   = denom > 0 ? (paymentsAgg.prinSum        / denom * 100) : 0;
+  const ownPct    = denom > 0 ? (paymentsAgg.marginUnclamped / denom * 100) : 0;
   const firstTotal   = split.firstTotal;
   const pendingTotal = split.pendingTotal;
 
-  // 기사 수 (작업월 + active 기사 unique)
+  // 기사 수 (gate month + 활성).
   const engineerCount = useMemo(() => {
     const set = new Set();
     for (const it of items) {
@@ -173,6 +185,14 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
     return set.size;
   }, [items, gateY, gateM]);
 
+  // 월 선택 prev/next 허용 범위 — fetch 한 12개월 내.
+  const canPrev = (() => {
+    const prev = prevMonthKey(gateYm);
+    const [py, pm] = prev.split("-").map(Number);
+    return items.some(it => inKstMonth(it.tasks?.completed_at, py, pm));
+  })();
+  const canNext = gateYm !== currentMonth && nextMonthKey(gateYm) <= currentMonth;
+
   return (
     <div style={{
       background: "var(--bg-elevated)",
@@ -183,28 +203,31 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
       flexDirection: "column",
       gap: 16,
     }}>
-      {/* 헤더 — 라벨 + 기사별 보기 */}
+      {/* 헤더 — 유솔N 정산 + 월 선택 + 기사별 N명 → */}
       <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 10,
+        display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
       }}>
-        <div style={{
-          fontSize: 14, fontWeight: 800,
-          color: "var(--text-primary)",
-          display: "flex", alignItems: "center", gap: 8,
-          minWidth: 0,
-        }}>
-          <span style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            width: 24, height: 24, borderRadius: 6,
-            background: "#03C75A", color: "#fff",
-            fontSize: 12, fontWeight: 900, letterSpacing: "-0.5px",
-            flexShrink: 0,
-          }}>N</span>
-          <span style={{
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>유솔N 월정산 · {gateYm} 작업분</span>
-        </div>
+        <span style={{
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          width: 24, height: 24, borderRadius: 6,
+          background: "#03C75A", color: "#fff",
+          fontSize: 12, fontWeight: 900, letterSpacing: "-0.5px",
+          flexShrink: 0,
+        }}>N</span>
+        <span style={{
+          fontSize: 14, fontWeight: 800, color: "var(--text-primary)",
+        }}>유솔N 정산</span>
+
+        {/* 월 선택 — ◀ YYYY년 MM월 ▶ */}
+        <MonthPicker
+          ym={gateYm}
+          onPrev={canPrev ? () => setGateYm(prevMonthKey(gateYm)) : null}
+          onNext={canNext ? () => setGateYm(nextMonthKey(gateYm)) : null}
+        />
+
+        <div style={{ flex: 1 }}/>
+
+        {/* 기사별 N명 → */}
         {typeof onClick === "function" && (
           <button onClick={onClick} style={{
             padding: "5px 12px",
@@ -214,7 +237,6 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
             color: "var(--text-secondary)",
             fontSize: 11, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
-            flexShrink: 0,
             whiteSpace: "nowrap",
           }}>기사별 ({engineerCount}명) →</button>
         )}
@@ -228,7 +250,7 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
         }}>불러오는 중...</div>
       ) : (
         <>
-          {/* 회사 순이익 — 주인공 (초록 34px) */}
+          {/* 회사 마진 — 주표시 (큰 숫자 + 총 정산액의 N%) */}
           <div style={{
             display: "flex", flexDirection: "column",
             alignItems: "center",
@@ -238,7 +260,7 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
             <span style={{
               fontSize: 11, color: "var(--text-secondary)",
               fontWeight: 700, letterSpacing: 0.3,
-            }}>회사 순이익</span>
+            }}>회사 마진</span>
             <span className="mono" style={{
               fontSize: 34, fontWeight: 800,
               color: profit < 0 ? "#ff4444" : "#10B981",
@@ -246,45 +268,68 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
               fontVariantNumeric: "tabular-nums",
               lineHeight: 1,
             }}>{fmtKRW(profit)}</span>
+            <span style={{
+              fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              총 정산액 {fmtKRW(paymentsAgg.prodSum)} 의 {ownPct.toFixed(1)}%
+            </span>
           </div>
 
-          {/* 구분선 + 분배 3분할(기사/유솔/회사) + 지급 상태 2행 */}
+          {/* 구성 바 (가로 3분할) + 3분할 범례 */}
           <div style={{
             display: "flex", flexDirection: "column",
-            gap: 8,
+            gap: 10,
             borderTop: "1px solid var(--border)",
             paddingTop: 14,
-            fontVariantNumeric: "tabular-nums",
           }}>
-            {/* 분배 3분할 (회사가 진짜 먹는 것) */}
-            <SettleRow
-              label={`기사 몫 ${engPct.toFixed(1)}%`}
-              amount={paymentsAgg.engSum}
-              color="#3B82F6"
+            <CompositionBar
+              engPct={engPct}
+              prinPct={prinPct}
+              ownPct={ownPct}
+              ownNegative={profit < 0}
             />
-            <SettleRow
-              label={`유솔 몫 ${prinPct.toFixed(1)}%`}
-              amount={paymentsAgg.prinSum}
-              color="#F59E0B"
-            />
-            <SettleRow
-              label={`★ 회사 마진 ${ownPct.toFixed(1)}%`}
-              amount={paymentsAgg.marginUnclamped}
-              color={paymentsAgg.marginUnclamped < 0 ? "#ff4444" : "#1D9E75"}
-            />
+            <div style={{
+              display: "flex", flexDirection: "column",
+              gap: 8, fontVariantNumeric: "tabular-nums",
+            }}>
+              <LegendRow
+                color="#378ADD"
+                label="기사 정산"
+                pct={engPct}
+                amount={paymentsAgg.engSum}
+              />
+              <LegendRow
+                color="#FFB800"
+                label="유솔N 수수료"
+                pct={prinPct}
+                amount={paymentsAgg.prinSum}
+              />
+              <LegendRow
+                color={profit < 0 ? "#ff4444" : "#1D9E75"}
+                label="회사 마진"
+                pct={ownPct}
+                amount={paymentsAgg.marginUnclamped}
+                accent
+              />
+            </div>
+          </div>
 
-            {/* 지급 상태 */}
-            <div style={{ height: 1, background: "var(--border)", margin: "4px 0" }}/>
-            <SettleRow
-              label="15일 지급 (1차)"
+          {/* 지급 진행 — 1차 지급(15일) / 미지급 잔액 박스 2개 */}
+          <div style={{
+            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10,
+            borderTop: "1px solid var(--border)",
+            paddingTop: 14,
+          }}>
+            <PaymentBox
+              label="1차 지급 · 15일"
               amount={firstTotal}
-              color="#3B82F6"
-              muted
+              tone="muted"
             />
-            <SettleRow
-              label="기사 미지급"
+            <PaymentBox
+              label="미지급 잔액"
               amount={pendingTotal}
-              accent
+              tone="accent"
             />
           </div>
         </>
@@ -293,39 +338,140 @@ export function AdminPcUsolNMonthlyPanel({ onClick }) {
   );
 }
 
-// ──────────────────────────────────────────────────────────────────
-// SettleRow — 색칩(옵션) + 라벨 좌 + 금액 우정렬.
-//   accent=true 면 핑크 강조 + 좌측 3px 핑크 바 + 큰 폰트.
-//   color 주면 색칩 표시 (15일 지급 파랑 등). muted 면 라벨 회색.
-// ──────────────────────────────────────────────────────────────────
-function SettleRow({ label, amount, color, muted, accent }) {
+// ──────────────────────────────────────────────────────────
+// MonthPicker — ◀ YYYY년 MM월 ▶
+// ──────────────────────────────────────────────────────────
+function MonthPicker({ ym, onPrev, onNext }) {
+  const [y, m] = String(ym).split("-").map(Number);
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "3px 5px",
+      background: "var(--bg-inset, rgba(255,255,255,0.04))",
+      border: "1px solid var(--border)",
+      borderRadius: 999,
+    }}>
+      <button onClick={onPrev} disabled={!onPrev} aria-label="이전 달" style={pickerBtnStyle(!!onPrev)}>
+        <ChevronLeft size={13}/>
+      </button>
+      <span style={{
+        fontSize: 12, fontWeight: 800, color: "var(--text-primary)",
+        padding: "0 8px", letterSpacing: "-0.2px",
+        whiteSpace: "nowrap",
+      }}>{y}년 {m}월</span>
+      <button onClick={onNext} disabled={!onNext} aria-label="다음 달" style={pickerBtnStyle(!!onNext)}>
+        <ChevronRight size={13}/>
+      </button>
+    </div>
+  );
+}
+function pickerBtnStyle(enabled) {
+  return {
+    background: "transparent", border: "none",
+    padding: 4, borderRadius: 999,
+    cursor: enabled ? "pointer" : "not-allowed",
+    color: enabled ? "var(--text-primary)" : "var(--text-secondary)",
+    opacity: enabled ? 1 : 0.4,
+    display: "inline-flex", alignItems: "center", fontFamily: "inherit",
+  };
+}
+
+// ──────────────────────────────────────────────────────────
+// CompositionBar — 가로 3분할 비례 fill. 회사 마진 음수면 표기에서 제외.
+// ──────────────────────────────────────────────────────────
+function CompositionBar({ engPct, prinPct, ownPct, ownNegative }) {
+  // 음수(환불) 케이스: 회사 마진 0으로 클램프, 나머지 비례 표시.
+  const eng  = Math.max(0, engPct);
+  const prin = Math.max(0, prinPct);
+  const own  = ownNegative ? 0 : Math.max(0, ownPct);
+  const sum  = eng + prin + own || 1;
+  const e = (eng  / sum) * 100;
+  const p = (prin / sum) * 100;
+  const o = (own  / sum) * 100;
+  return (
+    <div style={{
+      display: "flex", height: 10, borderRadius: 5,
+      overflow: "hidden",
+      background: "var(--bg-inset, rgba(255,255,255,0.06))",
+    }}>
+      <div style={{ width: `${e}%`, background: "#378ADD" }}/>
+      <div style={{ width: `${p}%`, background: "#FFB800" }}/>
+      <div style={{ width: `${o}%`, background: "#1D9E75" }}/>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// LegendRow — 색칩 + 라벨 + %  / 금액 우정렬.
+//   accent=true → 회사 마진 강조 (큰 폰트 + 좌측 3px 강조 바).
+// ──────────────────────────────────────────────────────────
+function LegendRow({ color, label, pct, amount, accent }) {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "auto auto minmax(0, 1fr)",
+      gridTemplateColumns: "auto auto minmax(0, 1fr) auto",
       alignItems: "center",
       gap: 10,
-      paddingLeft: accent ? 10 : 0,
-      borderLeft: accent ? "3px solid var(--accent)" : "none",
+      paddingLeft: accent ? 8 : 0,
+      borderLeft: accent ? `3px solid ${color}` : "none",
     }}>
       <span style={{
         width: 10, height: 10,
-        background: color || "transparent",
-        borderRadius: 3, flexShrink: 0,
+        background: color, borderRadius: 3, flexShrink: 0,
       }}/>
       <span style={{
         fontSize: 12,
         fontWeight: accent ? 800 : 600,
-        color: muted ? "var(--text-secondary)" : "var(--text-primary)",
+        color: accent ? "var(--text-primary)" : "var(--text-secondary)",
         whiteSpace: "nowrap",
       }}>{label}</span>
       <span className="mono" style={{
+        fontSize: 11,
+        color: "var(--text-secondary)",
+        fontWeight: 700,
+        fontVariantNumeric: "tabular-nums",
+        textAlign: "right",
+        whiteSpace: "nowrap",
+      }}>{(Number(pct) || 0).toFixed(1)}%</span>
+      <span className="mono" style={{
         fontSize: accent ? 16 : 14,
         fontWeight: accent ? 800 : 700,
-        color: accent ? "var(--accent)" : "var(--text-primary)",
+        color: accent ? color : "var(--text-primary)",
         fontVariantNumeric: "tabular-nums",
         letterSpacing: "-0.3px",
         textAlign: "right",
+        whiteSpace: "nowrap",
+      }}>{fmtKRW(amount)}</span>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// PaymentBox — 지급 진행 한 박스.
+//   tone='muted' = 회색 보더, 'accent' = 핑크 보더 + 큰 폰트.
+// ──────────────────────────────────────────────────────────
+function PaymentBox({ label, amount, tone }) {
+  const isAccent = tone === "accent";
+  return (
+    <div style={{
+      background: isAccent ? "var(--accent-bg, rgba(255,27,141,0.06))" : "transparent",
+      border: `1px solid ${isAccent ? "var(--accent)" : "var(--border)"}`,
+      borderRadius: 10,
+      padding: "12px 14px",
+      display: "flex", flexDirection: "column", gap: 4,
+      fontVariantNumeric: "tabular-nums",
+    }}>
+      <span style={{
+        fontSize: 11, fontWeight: 700,
+        color: isAccent ? "var(--accent)" : "var(--text-secondary)",
+        letterSpacing: 0.3,
+      }}>{label}</span>
+      <span className="mono" style={{
+        fontSize: isAccent ? 18 : 16,
+        fontWeight: 800,
+        color: isAccent ? "var(--accent)" : "var(--text-primary)",
+        letterSpacing: "-0.3px",
+        fontVariantNumeric: "tabular-nums",
       }}>{fmtKRW(amount)}</span>
     </div>
   );

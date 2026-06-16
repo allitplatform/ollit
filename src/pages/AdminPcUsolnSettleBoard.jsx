@@ -1,10 +1,11 @@
-// 2026-06-15 — PC 유솔N 정산 현황판 (세로 1단 재빌드).
+// 2026-06-16 — PC 유솔N 정산 (월 선택 + 단어 통일 재설계).
 //
-// 사장님 시안 (확정):
-//   가로 3패널 폐기 → 세로 1단 흐름. 위에서 아래로 자금 분해:
-//     유솔 정산금 → − 유솔 15% → 회사 받을 돈 85% → − 기사 줄 거 → ★ 회사 마진 → 보정 → 최종
-//   그 아래 "입금 진행" 두 카드 (받은 금액 / 받을 금액), 각 카드 = 기사 줄 돈 + 회사 마진 + 합계.
-//   맨 아래 footnote 2줄.
+// 사장님 시안 (재설계):
+//   · 헤더: "유솔N 정산" + 월 선택 ◀ YYYY년 MM월 ▶ + "N tasks · M items".
+//   · [1] 분배 워터폴 (정산금 → − 유솔 수수료 → 회사 받을 → − 기사 정산 → ★ 회사 마진).
+//   · [2] 입금 진행: 받음(초록 테두리) / 안받음(핑크 테두리) — 기사 정산 / 회사 마진 / 합계.
+//   · 단어 통일: 유솔 몫 → 유솔 수수료 / 기사 몫 → 기사 정산 / 마진 → 회사 마진.
+//   · 부연설명: "환불 시 음수"만 유지, 자명 수식(= 정산금 − 유솔 등) 제거.
 //
 // 컬럼 사용 규칙 (사장님 spec):
 //   · _excl_extra 필드만 사용 (engineer_total / principal_total 금지 — 현장추가금 섞임).
@@ -12,11 +13,14 @@
 //
 // 표기 규칙:
 //   · 금액 전액 표기 (M/K 약자 금지). tabular-nums 정렬.
-//   · 음수 빨강 −, 합계 굵게 + 상단 보더, 마진 초록.
+//   · 음수 빨강 −, 합계 굵게 + 상단 보더, 회사 마진 초록 강조.
 //   · CLAUDE.md 금지 어근 자가검사 통과.
+//
+// 월 선택: 현재 클라이언트 캐시(data.months 전체)에서 선택 월만 필터.
+//   향후 옵션 — RPC 에 p_work_month 인자 추가 시 서버 단일월 조회로 전환.
 
-import { useEffect, useState } from "react";
-import { Wallet, RefreshCw, CheckCircle2, RotateCcw, AlertCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Wallet, RefreshCw, CheckCircle2, RotateCcw, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   getUsolnSettleBoardSummary,
   markUsolnEngineerSettledByMonth,
@@ -33,6 +37,8 @@ export default function AdminPcUsolnSettleBoard({ t, user }) {
   const [err, setErr] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
   const [dialog, setDialog] = useState(null); // { mode:'stamp'|'unstamp', wm }
+  // 2026-06-16 — 월 선택 (wm = "YYYY-MM"). 기본 = 최신 데이터가 있는 월.
+  const [selectedWm, setSelectedWm] = useState(null);
 
   useEffect(() => {
     if (!actor) { setLoading(false); return; }
@@ -44,27 +50,57 @@ export default function AdminPcUsolnSettleBoard({ t, user }) {
       if (!res?.ok) {
         setErr(res?.error || "조회 실패");
       } else {
+        const monthsList = res.months || [];
         setData({
-          months:       res.months || [],
+          months:       monthsList,
           start_month:  res.start_month || "2026-04",
         });
+        // 초기 선택: 사용자가 아직 안 골랐으면 데이터가 있는 가장 최근 월. 없으면 가장 마지막 월.
+        if (!selectedWm && monthsList.length > 0) {
+          const withData = [...monthsList].reverse().find(x => Number(x.item_count) > 0);
+          setSelectedWm((withData || monthsList[monthsList.length - 1]).wm);
+        }
       }
       setLoading(false);
     })().catch(e => { if (alive) { setErr(e?.message || "에러"); setLoading(false); } });
     return () => { alive = false; };
   }, [actor, reloadTick]);
 
+  // 선택된 월 정보 + 전/다음 월 가능 여부.
+  const { selectedMonth, prevWm, nextWm } = useMemo(() => {
+    const months = data.months || [];
+    if (months.length === 0 || !selectedWm) return { selectedMonth: null, prevWm: null, nextWm: null };
+    const idx = months.findIndex(x => x.wm === selectedWm);
+    return {
+      selectedMonth: idx >= 0 ? months[idx] : null,
+      prevWm: idx > 0 ? months[idx - 1].wm : null,
+      nextWm: idx >= 0 && idx < months.length - 1 ? months[idx + 1].wm : null,
+    };
+  }, [data.months, selectedWm]);
+
   return (
     <div style={{ padding: "20px 24px 40px", maxWidth: 1200, margin: "0 auto" }}>
-      {/* 헤더 */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
+      {/* 헤더 — 유솔N 정산 + 월 선택 + N tasks · M items */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18, flexWrap: "wrap" }}>
         <Wallet size={22} style={{ color: t.accent }}/>
-        <div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: t.text }}>유솔N 정산 현황판</div>
-          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
-            작업월별 자금 분해 + 입금 진행 (시작 {data.start_month})
+        <div style={{ fontSize: 20, fontWeight: 800, color: t.text }}>유솔N 정산</div>
+
+        {/* 월 선택 — ◀ YYYY년 MM월 ▶ */}
+        {selectedWm && (
+          <MonthPicker t={t}
+            wm={selectedWm}
+            onPrev={prevWm ? () => setSelectedWm(prevWm) : null}
+            onNext={nextWm ? () => setSelectedWm(nextWm) : null}
+          />
+        )}
+
+        {/* N tasks · M items 요약 */}
+        {selectedMonth && Number(selectedMonth.item_count) > 0 && (
+          <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>
+            {fmtCount(selectedMonth.task_count)} tasks · {fmtCount(selectedMonth.item_count)} items
           </div>
-        </div>
+        )}
+
         <div style={{ flex: 1 }}/>
         <button onClick={() => setReloadTick(n => n + 1)} disabled={loading} style={{
           padding: "8px 14px",
@@ -86,14 +122,14 @@ export default function AdminPcUsolnSettleBoard({ t, user }) {
         <div style={{ padding: "60px 20px", textAlign: "center", color: t.danger, fontSize: 13 }}>
           ⚠️ {err}
         </div>
+      ) : selectedMonth ? (
+        <MonthCard t={t} m={selectedMonth}
+          onStampClick={() => setDialog({ mode: "stamp", wm: selectedMonth.wm })}
+          onUnstampClick={() => setDialog({ mode: "unstamp", wm: selectedMonth.wm })}
+        />
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-          {data.months.map(m => (
-            <MonthCard key={m.wm} t={t} m={m}
-              onStampClick={() => setDialog({ mode: "stamp", wm: m.wm })}
-              onUnstampClick={() => setDialog({ mode: "unstamp", wm: m.wm })}
-            />
-          ))}
+        <div style={{ padding: "60px 20px", textAlign: "center", color: t.textMuted, fontSize: 13 }}>
+          데이터 없음
         </div>
       )}
 
@@ -105,6 +141,42 @@ export default function AdminPcUsolnSettleBoard({ t, user }) {
       )}
     </div>
   );
+}
+
+// ──────────────────────────────────────────────────────────
+// MonthPicker — ◀ YYYY년 MM월 ▶
+// ──────────────────────────────────────────────────────────
+function MonthPicker({ t, wm, onPrev, onNext }) {
+  const [y, m] = String(wm).split("-").map(Number);
+  return (
+    <div style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      padding: "4px 6px",
+      background: t.bgInset, border: `1px solid ${t.border}`,
+      borderRadius: 999,
+    }}>
+      <button onClick={onPrev} disabled={!onPrev} aria-label="이전 달" style={pickerBtnStyle(t, !!onPrev)}>
+        <ChevronLeft size={14}/>
+      </button>
+      <span style={{
+        fontSize: 13, fontWeight: 800, color: t.text,
+        padding: "0 10px", letterSpacing: "-0.2px",
+      }}>{y}년 {m}월</span>
+      <button onClick={onNext} disabled={!onNext} aria-label="다음 달" style={pickerBtnStyle(t, !!onNext)}>
+        <ChevronRight size={14}/>
+      </button>
+    </div>
+  );
+}
+function pickerBtnStyle(t, enabled) {
+  return {
+    background: "transparent", border: "none",
+    padding: 4, borderRadius: 999,
+    cursor: enabled ? "pointer" : "not-allowed",
+    color: enabled ? t.text : t.textMuted,
+    opacity: enabled ? 1 : 0.4,
+    display: "inline-flex", alignItems: "center", fontFamily: "inherit",
+  };
 }
 
 // ──────────────────────────────────────────────────────────
@@ -157,23 +229,16 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
       background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 14,
       overflow: "hidden",
     }}>
-      {/* 카드 헤더 */}
-      <div style={{
-        display: "flex", alignItems: "baseline", gap: 14,
-        padding: "16px 22px",
-        borderBottom: `1px solid ${t.border}`,
-      }}>
-        <div style={{ fontSize: 17, fontWeight: 900, color: t.text }}>
-          📅 {m.wm} 작업분
+      {/* 카드 헤더 — 2026-06-16: 상단 헤더에 이미 월/요약 노출 → 카드 헤더 최소화 (구분선만). */}
+      {noData && (
+        <div style={{
+          padding: "16px 22px",
+          borderBottom: `1px solid ${t.border}`,
+          fontSize: 12, color: t.textMuted,
+        }}>
+          데이터 없음 (앱 가동 전)
         </div>
-        {noData ? (
-          <div style={{ fontSize: 12, color: t.textMuted }}>데이터 없음 (앱 가동 전)</div>
-        ) : (
-          <div style={{ fontSize: 12, color: t.textMuted }}>
-            {fmtCount(taskCnt)} tasks · {fmtCount(itemCnt)} items
-          </div>
-        )}
-      </div>
+      )}
 
       {noData ? (
         // 4월 — 데이터 없음 + 보정 안내
@@ -202,7 +267,7 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
         </div>
       ) : (
         <>
-          {/* [1] 분배 워터폴 — 정산금 → −유솔 → =회사받을 → −기사 → =마진 */}
+          {/* [1] 분배 워터폴 — 단어 통일 (유솔 수수료 / 기사 정산 / 회사 마진). */}
           <div style={{
             padding: "22px 24px",
             display: "flex", flexDirection: "column", gap: 2,
@@ -213,14 +278,12 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
             }}>
               [1] 분배 워터폴
             </div>
-            <FlowRow t={t} label="유솔 정산금"        amount={passTotal}/>
-            <FlowRow t={t} label="− 유솔 몫"          amount={prinExcl} negative
-              hint="유솔이 먼저 떼고 회사로 입금 (정책별 ≈ 15%)"/>
-            <FlowRow t={t} label="회사받을 (= 정산금 − 유솔)" amount={compShare} bold sumBorder/>
-            <FlowRow t={t} label="− 기사 몫"          amount={engExcl} negative
-              hint="회사가 기사에게 송금할 몫 (현장추가금 제외)"/>
-            <FlowRow t={t} label="★ 마진"             amount={marginUnc} green bold large sumBorder
-              hint="= 회사받을 − 기사 (환불 시 음수)"/>
+            <FlowRow t={t} label="유솔 정산금"            amount={passTotal}/>
+            <FlowRow t={t} label="− 유솔 수수료 (≈15%)"  amount={prinExcl} negative/>
+            <FlowRow t={t} label="회사 받을"              amount={compShare} bold sumBorder/>
+            <FlowRow t={t} label="− 기사 정산 (현장추가금 제외)" amount={engExcl} negative/>
+            <FlowRow t={t} label="★ 회사 마진"            amount={marginUnc} green bold large sumBorder
+              hint="환불 시 음수"/>
 
             {/* 보정 */}
             {adjAmount !== 0 && (
@@ -229,9 +292,8 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
                 <FlowRow t={t}
                   label={`+ 보정${adjMemo ? ` (${adjMemo})` : ""}`}
                   amount={adjAmount}
-                  signed muted
-                  hint="Mig 127 수동 보정 (4월 작업분 등)"/>
-                <FlowRow t={t} label="마진 최종"      amount={marginFinal} green bold large sumBorder/>
+                  signed muted/>
+                <FlowRow t={t} label="회사 마진 (보정 후)" amount={marginFinal} green bold large sumBorder/>
               </>
             )}
           </div>
@@ -255,7 +317,6 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
               count={recvCnt}
               engineer={receivedEng}
               owner={receivedMargin}
-              ownerLabel="마진"
               total={recvTotal}
             />
             <div style={{ height: 10 }}/>
@@ -265,18 +326,17 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
               count={pendCnt}
               engineer={pendingEng}
               owner={pendingMargin}
-              ownerLabel="마진"
               total={pendTotal}
             />
 
-            {/* 검산 — 받음+안받음 합 = 회사받을 */}
+            {/* 검산 — 받음 + 안받음 = 회사 받을 */}
             <div style={{
               marginTop: 10, padding: "8px 12px",
               background: t.bgInset, border: `1px dashed ${t.border}`, borderRadius: 7,
               display: "flex", justifyContent: "space-between", alignItems: "baseline",
               fontSize: 11, color: t.textMuted,
             }}>
-              <span>받음 + 안받음</span>
+              <span>받음 + 안받음 = 회사 받을</span>
               <span style={{
                 fontWeight: 800,
                 color: (recvTotal + pendTotal) === compShare ? t.success : (t.warning || "#F59E0B"),
@@ -294,9 +354,9 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
               display: "flex", gap: 8, alignItems: "center",
             }}>
               <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
-                기사 정산 (engineer_settled_at):
+                기사 정산 — 완료
                 {" "}<span style={{ color: t.success, fontWeight: 800 }}>{fmtKRW(engPaid)}</span>
-                {" "}/ 대기 <span style={{ color: t.warning || "#F59E0B", fontWeight: 800 }}>{fmtKRW(engPending)}</span>
+                {" "}/ 대기 <span style={{ color: t.accent, fontWeight: 800 }}>{fmtKRW(engPending)}</span>
               </span>
               <div style={{ flex: 1 }}/>
               <button onClick={onStampClick} disabled={engPending === 0} style={{
@@ -328,15 +388,15 @@ function MonthCard({ t, m, onStampClick, onUnstampClick }) {
             </div>
           )}
 
-          {/* 4단 — footnote */}
+          {/* 4단 — footnote (단어 통일) */}
           <div style={{
             padding: "12px 24px 18px",
             borderTop: `1px solid ${t.border}`,
             background: t.bgInset,
             fontSize: 11, color: t.textMuted, lineHeight: 1.7,
           }}>
-            <div>· 현장추가금(extra_total)은 기사 현장 수금·유솔 직접 입금 → 회사 무관, 위 숫자에서 제외 (RPC 가 이미 빼줌).</div>
-            <div>· 받은/받을은 주간 입금 confirm 반영 후 확정.</div>
+            <div>· 현장추가금은 기사 현장 수금 + 유솔 직접 입금 → 회사 무관, 위 숫자에서 제외.</div>
+            <div>· 받음/안받음은 주간 입금 확인 반영 후 확정.</div>
           </div>
         </>
       )}
@@ -407,16 +467,17 @@ function FlowRow({ t, label, amount, negative, green, bold, large, sumBorder, mu
 }
 
 // ──────────────────────────────────────────────────────────
-// ReceiveBox — 입금 진행 한 카드 (받음 또는 안받음)
-//   3줄: 기사 (전액) / 마진 (success 초록 강조, 환불 시 음수 빨강) / 합계
+// ReceiveBox — 입금 진행 한 카드 (받음 또는 안받음).
+//   2026-06-16 사장님 spec: 받음=초록 테두리, 안받음=핑크 테두리(t.accent).
+//   3줄: 기사 정산 / 회사 마진 (초록 강조, 환불 시 음수 빨강) / 합계.
 // ──────────────────────────────────────────────────────────
-function ReceiveBox({ t, kind, title, count, engineer, owner, ownerLabel = "마진", total }) {
+function ReceiveBox({ t, kind, title, count, engineer, owner, total }) {
   const isReceived = kind === "received";
-  const accent = isReceived ? t.success : (t.warning || "#F59E0B");
+  const accent = isReceived ? t.success : t.accent;
   const bg = isReceived
     ? (t.successBg || "rgba(29,158,117,0.06)")
-    : (t.warningBg || "rgba(245,158,11,0.06)");
-  // 마진은 항상 success 색 (사장님 spec). 음수면 danger.
+    : (t.accentBg  || "rgba(255,27,141,0.06)");
+  // 회사 마진은 항상 success 색. 음수(환불)면 danger.
   const ownerColor = owner < 0 ? t.danger : t.success;
 
   return (
@@ -438,8 +499,8 @@ function ReceiveBox({ t, kind, title, count, engineer, owner, ownerLabel = "마�
         </span>
       </div>
 
-      <ReceiveLine t={t} label="기사 몫"   amount={engineer} color={t.text}/>
-      <ReceiveLine t={t} label={ownerLabel} amount={owner}    color={ownerColor} bold/>
+      <ReceiveLine t={t} label="기사 정산" amount={engineer} color={t.text}/>
+      <ReceiveLine t={t} label="회사 마진" amount={owner}    color={ownerColor} bold/>
 
       <div style={{
         marginTop: 4,
