@@ -10,6 +10,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import { fetchUnprocessedRefriAddons, previewRefrigerantSplit, createRefrigerantTaskFromAddon, modifyRefrigerantAddon } from "../../lib/refrigerantAddonsDb.js";
+// 2026-06-16 — PC(1024px+) 진입 시 헤더 백버튼 숨김 (사이드바 메뉴로 이동).
+import { useIsPc } from "../../utils/useIsPc.js";
 
 const APPLIANCE_OPTIONS = ["벽걸이", "스탠드", "투인원", "4way", "1way"];
 
@@ -36,6 +38,8 @@ export function RefrigerantAddonListScreen({ t, onBack, onTaskClick }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
+  // 2026-06-16 — PC에선 사이드바 메뉴 진입이라 백버튼 무의미. 모바일에선 그대로.
+  const isPc = useIsPc();
 
   useEffect(() => {
     let alive = true;
@@ -70,13 +74,15 @@ export function RefrigerantAddonListScreen({ t, onBack, onTaskClick }) {
         background: t.bgElevated,
         position: "sticky", top: 0, zIndex: 10,
       }}>
-        <button onClick={onBack} style={{
-          background: "transparent", border: "none", padding: 4,
-          cursor: "pointer", color: t.text,
-          display: "flex", alignItems: "center",
-        }}>
-          <ArrowLeft size={20}/>
-        </button>
+        {!isPc && (
+          <button onClick={onBack} style={{
+            background: "transparent", border: "none", padding: 4,
+            cursor: "pointer", color: t.text,
+            display: "flex", alignItems: "center",
+          }}>
+            <ArrowLeft size={20}/>
+          </button>
+        )}
         <div style={{ flex: 1, fontSize: 16, fontWeight: 800 }}>
           ⚡ 냉매 미처리
         </div>

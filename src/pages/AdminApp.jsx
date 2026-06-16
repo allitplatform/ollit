@@ -2551,6 +2551,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       onClickInProgress={() => setScreen("inProgressList")}
       onClickLiveWork={(f) => { setLiveWorkFilter(f || null); setScreen("liveWork"); }}
       onClickReassign={() => setScreen("reassignList")}
+      onClickRefriAddon={() => setScreen("refrigerantAddonList")}
       onClickUsolN={() => setScreen("usol_n")}
       onTaskAssign={(task) => {
         setSelectedTask(task);
@@ -2645,6 +2646,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       unassigned:     dynamicStats?.unassignedCount  || 0,
       todayCompleted: dynamicStats?.completed        || 0,
     },
+    // 2026-06-16 — 사이드바 "작업" 그룹의 "냉매 미처리" 항목 라벨 옆 N 배지용.
+    refrigerantAddonCount,
     // 2026-06-12 Chunk 2 — 우 aside 활성화. Shell PC 분기에서 screen=taskDetail 일 때 사용.
     dashboardNode:     adminPcDashboardNode,
     // 2026-06-12 — taskDetail 진입 시 main 에 mount (prevScreen 따라 dashboard 또는 timeline 등).

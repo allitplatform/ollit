@@ -42,6 +42,7 @@ export function AdminPcDashboard({
   onClickInProgress,
   onClickLiveWork,
   onClickReassign,
+  onClickRefriAddon,
   onClickUsolN,
   onTaskAssign,
   onOpenTaskDetail,
@@ -120,6 +121,15 @@ export function AdminPcDashboard({
             actionLabel="처리 →"
             onClick={onClickReassign}
             color="#FF8A3D"
+          />
+          {/* 2026-06-16 — 냉매 미처리 (기사 PWA 세척 완료 시 입력분, [냉매 작업 만들기] 대상).
+                color 생략 → 기본 var(--accent) 핑크 강조. N>0 일 때 값 색·hover 테두리가 핑크로. */}
+          <CompactCard
+            icon="🛠️"
+            label="냉매 미처리"
+            count={refrigerantAddonCount}
+            actionLabel="만들기 →"
+            onClick={onClickRefriAddon}
           />
           {/* 유솔N 월정산 — 우 컬럼 끝에 stack (빈 공간 채움, 매출 도넛 길이와 균형). */}
           <AdminPcUsolNMonthlyPanel onClick={onClickUsolN}/>

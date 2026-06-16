@@ -59,6 +59,9 @@ const GROUPS = [
       { id: "allTasks",       label: "전체 작업" },
       { id: "reassignList",   label: "재배정 요청" },
       { id: "pcRefriPending", label: "냉매 자동배정 대기" },  // → newReception screen + filter="pushing"
+      // 2026-06-16 — 냉매 미처리 (세척 완료 시 입력된 냉매충전, [냉매 작업 만들기] 대상).
+      //   N 배지 표시 — pcCtx.refrigerantAddonCount 사용.
+      { id: "refrigerantAddonList", label: "냉매 미처리" },
     ],
   },
   {
@@ -148,7 +151,8 @@ const SCREEN_TO_GROUP = (() => {
   // 2026-06-13 — 사이드바에서 빠진 옛 정산 screen → 정산 그룹 활성.
   map.settlement            = "settlement";
   map.principal_settlement  = "settlement";
-  map.refrigerantAddonList  = "settlement";
+  // 2026-06-16 — 냉매 미처리는 "작업" 그룹으로 이동 (사이드바 항목 신설).
+  map.refrigerantAddonList  = "tasks";
   // 2026-06-13 v2 — 옛 기준정보 그룹 해체. 외부 진입(설정 카드 등)에서도 새 그룹으로 동기화.
   //   principalList / ratesManagement / commissionPolicy → "principal"
   //   regionList → "engineers"
@@ -167,6 +171,7 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
     mode, setMode,
     unreadCount = 0,
     sidebarSummary = { todayReceived: 0, unassigned: 0, todayCompleted: 0 },
+    refrigerantAddonCount = 0,
   } = pcCtx || {};
 
   const currentGroup = SCREEN_TO_GROUP[screen] || "dashboard";
@@ -353,6 +358,10 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
                 }}>
                   {group.items.map(item => {
                     const active = screen === item.id;
+                    // 2026-06-16 — 항목별 N 배지 (현재: 냉매 미처리만).
+                    const badge = item.id === "refrigerantAddonList" && refrigerantAddonCount > 0
+                      ? refrigerantAddonCount
+                      : null;
                     return (
                       <button key={item.id} onClick={() => handleItemClick(item.id)}
                         style={{
@@ -367,7 +376,21 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
                           fontFamily: "inherit",
                           cursor: "pointer",
                           textAlign: "left",
-                        }}>{item.label}</button>
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                        }}>
+                        <span style={{ flex: 1 }}>{item.label}</span>
+                        {badge != null && (
+                          <span style={{
+                            minWidth: 18, height: 18, padding: "0 6px",
+                            background: "var(--accent)", color: "#fff",
+                            borderRadius: 9, fontSize: 10, fontWeight: 800,
+                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                            fontVariantNumeric: "tabular-nums",
+                          }}>{badge > 99 ? "99+" : badge}</span>
+                        )}
+                      </button>
                     );
                   })}
                 </div>
