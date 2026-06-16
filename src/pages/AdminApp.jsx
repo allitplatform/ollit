@@ -95,6 +95,8 @@ import {
   approveCancelAdapter as apiApproveCancel,
   rejectCancelAdapter as apiRejectCancel,
   assignEngineerAdapter as apiAssignEngineer,
+  // 2026-06-16 — 운영자 visit_only 핸들러에서 RPC 호출용 (옛 흐름: toast만 뜨고 DB 미반영 사고).
+  markVisitOnlyAdapter,
   getTaskByIdDb,
   getTaskByTaskNoDb,
 } from "../data/tasksDb.js";
@@ -2966,7 +2968,29 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
           ));
           addToast({ type: "completed", title: "수고비 변경", message: `${kind === "visit_fee" ? "출장비만" : "없음"} · ₩${amount.toLocaleString("ko-KR")}` });
         }}
-        onVisitOnly={(payload) => {
+        onVisitOnly={async (payload) => {
+          // 2026-06-16 — 옛 흐름은 toast/notification + audit log만 — DB 미반영 사고.
+          //   mark_visit_only RPC 호출 추가 (engineer PWA 흐름과 동일).
+          //   RPC가 한 트랜잭션으로 task_items 재구성 + tasks UPDATE + payments INSERT 처리.
+          const res = await markVisitOnlyAdapter(
+            selectedTaskDetail.id,
+            payload.reasonId,
+            payload.memo,
+          );
+          if (!res?.ok) {
+            addToast({
+              type: "completed",
+              title: "출장비 처리 실패",
+              message: res?.error || "알 수 없는 오류",
+            });
+            return;
+          }
+          // Optimistic UI — 즉시 status 반영 (다음 fetchTasks refetch 시 일관 동기화).
+          setApiTasks(prev => prev.map(t =>
+            t.id === selectedTaskDetail.id
+              ? { ...t, status: "visit_only", completedAt: new Date().toISOString() }
+              : t
+          ));
           addNotification({
             type: "completed",
             title: "🚗 출장비만 정산",
