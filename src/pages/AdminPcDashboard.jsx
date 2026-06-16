@@ -71,7 +71,9 @@ export function AdminPcDashboard({
   //   색 절제: 새 접수만 핑크 강조 (0 초과 시), 나머지 무채색.
   const metrics = [
     { id: "new",        label: "새 접수", count: stats.new        || 0, onClick: () => onClickNewReception?.(),                  highlight: true },
-    { id: "assigned",   label: "배정",   count: stats.assigned   || 0, onClick: () => onClickAssignedList?.() },
+    // 2026-06-16 — "배정" 클릭 시 "assigned" 인자 명시 전달. 인자 X → undefined → AssignedTasksScreen 의 isAssigned 가
+    //   false 로 떨어져 TASK_FILTERS.confirmed 분기로 가던 사고. 모바일(StatBox) 은 이미 "assigned" 넘김.
+    { id: "assigned",   label: "배정",   count: stats.assigned   || 0, onClick: () => onClickAssignedList?.("assigned") },
     { id: "confirmed",  label: "확정",   count: stats.confirmed  || 0, onClick: () => onClickAssignedList?.("confirmed") },
     { id: "inProgress", label: "진행",   count: stats.inProgress || 0, onClick: () => onClickInProgress?.() },
     { id: "completed",  label: "완료",   count: stats.completed  || 0, onClick: () => onClickLiveWork?.("completed-today") },

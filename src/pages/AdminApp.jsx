@@ -2394,6 +2394,18 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     user: getCurrentUserPerm(user),
   }), [extraReceptions, receptionUpdates, user, apiTasks, minuteTick]);
 
+  // 2026-06-16 — PC 사이드바 "오늘 접수" 카운트 (날짜 기준, status 무관).
+  //   기존 sidebarSummary.todayReceived ← dynamicStats.new 는 status='미배정' 필터 →
+  //   배정/확정 완료된 today 접수 17건이 모두 빠져 0 표시 사고.
+  //   여기는 created_at/received_at 의 KST 날짜만 본다 (toKstYmd 정규화).
+  const todayReceivedCount = useMemo(() => {
+    const todayStr = todayYmd();
+    return (apiTasks || []).reduce((cnt, t) => {
+      const b = t.createdAt || t.created_at || t.receivedAt || t.received_at || t.접수일시;
+      return (b && toKstYmd(b) === todayStr) ? cnt + 1 : cnt;
+    }, 0);
+  }, [apiTasks, minuteTick]);
+
   function addToast(toast) {
     const id = Date.now() + Math.random();
     setToasts(prev => [...prev, { ...toast, id }]);
@@ -2644,7 +2656,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     selectedTaskDetail,
     unreadCount,
     sidebarSummary: {
-      todayReceived:  dynamicStats?.new              || 0,
+      // 2026-06-16 — todayReceived 는 status 무관 날짜 기준 (받은 작업 17건 표시).
+      //   dynamicStats.new 는 "현재 미배정" status 기준이라 라벨과 의미 불일치.
+      todayReceived:  todayReceivedCount,
       unassigned:     dynamicStats?.unassignedCount  || 0,
       todayCompleted: dynamicStats?.completed        || 0,
     },
