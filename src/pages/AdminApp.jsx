@@ -3551,6 +3551,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         apiTasks={apiTasks}
         user={user}
         onBack={goBack}
+        onTaskClick={(task) => openTaskDetailFromLight(task, "revenueDetail")}
       />
     </Shell>;
   }

@@ -1,12 +1,18 @@
 // 2026-06-12 — AdminApp PC 매출 패널 (1024px+).
-//   사장님 spec — 도넛(컬러) + 우측 3 항목(회사 마진 ★강조) + 하단 세척/냉매 2단(건수+매출+마진).
-//   ⚠️ 전체 금액 표시 (M·K 줄임 금지), 숫자 우측정렬 tabular-nums.
-//   ⚠️ 데이터: computeRevenueByYmRange 재사용 (byService + byServiceDetail).
-//   ⚠️ 도넛 — conic-gradient. 기사정산 #3B82F6 / 원청수수료 #F59E0B / 회사마진 var(--accent).
-//   ⚠️ 모바일(<1024)은 옛 RevenueOverviewBlock 그대로 (변경 없음).
+// 2026-06-16 재설계 (사장님 spec):
+//   · 도넛 색: 기사 #378ADD / 원청 #EF9F27 / 회사 #D4537E (literal hex)
+//   · 우 범례 재배치: 회사 마진(상단·핑크 강조·주표시) → 구분선 → 기사·원청 (보조)
+//   · 범례 각 항목에 % 표시
+//   · 하단: 세척/냉매/기타 가로 바 (visit_only travel 합 = '기타')
+//   · ≥1280px 폭에선 도넛 190px 로 키움
+//   · 모바일(<1024)은 옛 RevenueOverviewBlock 그대로 (변경 없음).
+//
+// 데이터: computeRevenueByYmRange 재사용 (byServiceDetail.{cleaning,refrigerant,other}).
+//   other 버킷이 이미 visit_only travel 포함 (isTrackARemittance + pickServiceCode 'visit_fee' → other).
 
 import { useState, useMemo } from "react";
 import { todayYmd } from "../utils/dateLabel.js";
+import { useMinWidth } from "../utils/useIsPc.js";
 import {
   computeRevenueByYmRange,
   getPrevMonthSameDay,
@@ -14,10 +20,14 @@ import {
   getPrevMonthStart,
 } from "../utils/revenueStats.js";
 
-// 도넛/항목 색 — 기사·원청은 도메인색(파랑·주황) 그대로, 회사 마진만 토큰.
-const COLOR_ENGINEER  = "#3B82F6";  // 파랑 — 기사 정산
-const COLOR_PRINCIPAL = "#F59E0B";  // 주황 — 원청 수수료
-// 회사 마진 = var(--accent) — 다크 #FF1B8D / 라이트 #E91860
+// 도넛/범례 색 — 사장님 spec (2026-06-16).
+const COLOR_ENGINEER  = "#378ADD";  // 파랑 — 기사 정산
+const COLOR_PRINCIPAL = "#FFB800";  // 노랑 — 원청 수수료
+const COLOR_OWNER     = "#D4537E";  // 핑크 — 회사 마진 (주표시)
+// 종류별 가로 바 색.
+const COLOR_CLEANING    = "#0EA5E9";  // 세척 (옛 ServiceBox 색 유지)
+const COLOR_REFRIGERANT = "#FFB800";  // 냉매
+const COLOR_OTHER       = "#9CA3AF";  // 기타 (회색 — visit_only 등 기타)
 
 function fmtKRW(n) {
   return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
@@ -25,6 +35,9 @@ function fmtKRW(n) {
 
 export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
   const [period, setPeriod] = useState("today"); // 'today' | 'month'
+  // 2026-06-16 — ≥1280px 에선 도넛을 키워서 보기 좋게 (사장님 spec).
+  const isWide = useMinWidth(1280);
+  const donutSize = isWide ? 190 : 170;
 
   const { current, previous, periodLabel } = useMemo(() => {
     const today = todayYmd();
@@ -49,7 +62,7 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
   const denom = total > 0 ? total : 1;
   const engineerPct  = (current.engineer  / denom) * 100;
   const principalPct = (current.principal / denom) * 100;
-  // ownerPct는 conic 마지막 stop (100%)이라 별도 변수 불필요.
+  const ownerPct     = (current.owner     / denom) * 100;
 
   const diffPct = previous.total > 0
     ? ((current.total - previous.total) / previous.total) * 100
@@ -101,7 +114,7 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
         </div>
       </div>
 
-      {/* 상단 — 도넛(170 고정) + 항목 블록(1fr 도넛 옆 남은 폭 전체). 라벨 좌 / 금액 우 양쪽 벌림. */}
+      {/* 상단 — 도넛(170/190 반응형) + 범례 블록(1fr). 회사 마진 주표시 → 구분선 → 기사·원청(보조). */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "auto minmax(0, 1fr)",
@@ -109,6 +122,7 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
         alignItems: "center",
       }}>
         <Donut
+          size={donutSize}
           total={total}
           engineerPct={engineerPct}
           principalPct={principalPct}
@@ -122,43 +136,70 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
           gap: 12,
           fontVariantNumeric: "tabular-nums",
         }}>
+          {/* 회사 마진 (주표시) — 상단·핑크·굵게. */}
           <RevItem
-            color={COLOR_ENGINEER}
-            label="기사 정산"
-            amount={current.engineer}
-            muted
+            color={COLOR_OWNER}
+            label="회사 마진"
+            amount={current.owner}
+            pct={ownerPct}
+            big
           />
-          <RevItem
-            color={COLOR_PRINCIPAL}
-            label="원청 수수료"
-            amount={current.principal}
-            muted
-          />
+          {/* 구분선 — 회사 마진(주표시)와 보조 항목(기사·원청) 분리. */}
           <div style={{
             borderTop: "1px solid var(--border)",
             marginTop: 2,
             paddingTop: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
           }}>
             <RevItem
-              color="var(--accent)"
-              label="회사 마진"
-              amount={current.owner}
-              big
+              color={COLOR_ENGINEER}
+              label="기사 정산"
+              amount={current.engineer}
+              pct={engineerPct}
+              muted
+            />
+            <RevItem
+              color={COLOR_PRINCIPAL}
+              label="원청 수수료"
+              amount={current.principal}
+              pct={principalPct}
+              muted
             />
           </div>
         </div>
       </div>
 
-      {/* 하단 — 세척 / 냉매 2단 */}
+      {/* 하단 — 종류별 가로 바 (세척 / 냉매 / 기타). 기타 = visit_only travel 등. */}
       <div style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 12,
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
         borderTop: "1px solid var(--border)",
         paddingTop: 16,
       }}>
-        <ServiceBox icon="❄" label="세척" color="#0EA5E9" detail={sd.cleaning}/>
-        <ServiceBox icon="⚡" label="냉매" color="#FFB800" detail={sd.refrigerant}/>
+        <ServiceBar
+          icon="❄"
+          label="세척"
+          color={COLOR_CLEANING}
+          detail={sd.cleaning}
+          total={total}
+        />
+        <ServiceBar
+          icon="⚡"
+          label="냉매"
+          color={COLOR_REFRIGERANT}
+          detail={sd.refrigerant}
+          total={total}
+        />
+        <ServiceBar
+          icon="🚗"
+          label="기타"
+          color={COLOR_OTHER}
+          detail={sd.other}
+          total={total}
+        />
       </div>
 
       {/* 자세히 링크 (선택) */}
@@ -181,21 +222,23 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
 // ──────────────────────────────────────────────────────────────────
 // 도넛 — conic-gradient. 중심 hole 에 총 매출 (전체 금액).
 // ──────────────────────────────────────────────────────────────────
-function Donut({ total, engineerPct, principalPct, diffPct, periodLabel, count }) {
+function Donut({ size = 170, total, engineerPct, principalPct, diffPct, periodLabel, count }) {
   const s1 = engineerPct;
   const s2 = engineerPct + principalPct;
   const hasData = total > 0;
+  // 가운데 hole 은 도넛 크기에 비례 (170→112 = 66%).
+  const holeSize = Math.round(size * 0.66);
 
   return (
     <div style={{
       position: "relative",
-      width: 170, height: 170,
+      width: size, height: size,
       borderRadius: "50%",
       background: hasData
         ? `conic-gradient(
             ${COLOR_ENGINEER}  0% ${s1}%,
             ${COLOR_PRINCIPAL} ${s1}% ${s2}%,
-            var(--accent)      ${s2}% 100%
+            ${COLOR_OWNER}     ${s2}% 100%
           )`
         : "var(--bg-inset, #f0f0f0)",
       flexShrink: 0,
@@ -205,7 +248,7 @@ function Donut({ total, engineerPct, principalPct, diffPct, periodLabel, count }
         position: "absolute",
         top: "50%", left: "50%",
         transform: "translate(-50%, -50%)",
-        width: 112, height: 112,
+        width: holeSize, height: holeSize,
         borderRadius: "50%",
         background: "var(--bg-elevated)",
         display: "flex",
@@ -247,13 +290,15 @@ function Donut({ total, engineerPct, principalPct, diffPct, periodLabel, count }
 }
 
 // ──────────────────────────────────────────────────────────────────
-// 우측 항목 — 회사 마진은 big=true 로 강조 (핑크/굵게/크게).
+// 우측 항목 — 색점 + 라벨 + 금액 + % (사장님 spec 2026-06-16).
+//   big=true → 회사 마진 주표시 (핑크·굵게·크게).
+//   pct = 0~100 (총 매출 대비 비중). 표시 소수점 1자리.
 // ──────────────────────────────────────────────────────────────────
-function RevItem({ color, label, amount, muted, big }) {
+function RevItem({ color, label, amount, pct, muted, big }) {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "auto auto minmax(0, 1fr)",
+      gridTemplateColumns: "auto auto minmax(0, 1fr) auto",
       alignItems: "center",
       gap: 10,
       minWidth: 0,
@@ -270,63 +315,75 @@ function RevItem({ color, label, amount, muted, big }) {
       <span className="mono" style={{
         fontSize: big ? 16 : 13,
         fontWeight: big ? 800 : 700,
-        color: big ? "var(--accent)" : "var(--text-primary)",
+        color: big ? color : "var(--text-primary)",
         fontVariantNumeric: "tabular-nums",
         letterSpacing: "-0.3px",
         textAlign: "right",
       }}>{fmtKRW(amount)}</span>
+      <span className="mono" style={{
+        fontSize: big ? 11 : 10,
+        fontWeight: 700,
+        color: muted ? "var(--text-tertiary, var(--text-secondary))" : "var(--text-secondary)",
+        fontVariantNumeric: "tabular-nums",
+        minWidth: 38,
+        textAlign: "right",
+      }}>{(Number(pct) || 0).toFixed(1)}%</span>
     </div>
   );
 }
 
 // ──────────────────────────────────────────────────────────────────
-// 세척 / 냉매 박스 — 건수 + 매출 + 마진(핑크 강조).
+// 종류별 가로 바 — 아이콘 + 라벨 + 금액 + 건수 + 비중 바 (사장님 spec 2026-06-16).
+//   바 width = (detail.total / total) × 100%. total=0 인 경우 0 폭.
+//   세척/냉매/기타 동일 컴포넌트로 통일.
 // ──────────────────────────────────────────────────────────────────
-function ServiceBox({ icon, label, color, detail }) {
-  const { total = 0, count = 0, owner = 0 } = detail || {};
+function ServiceBar({ icon, label, color, detail, total }) {
+  const { total: amount = 0, count = 0 } = detail || {};
+  const pct = total > 0 ? Math.min(100, (amount / total) * 100) : 0;
   return (
     <div style={{
-      padding: "12px 14px",
-      background: "var(--bg-primary)",
-      border: "1px solid var(--border)",
-      borderRadius: 10,
+      display: "flex",
+      flexDirection: "column",
+      gap: 6,
       fontVariantNumeric: "tabular-nums",
     }}>
-      {/* 헤더 — 아이콘 + 라벨 + 건수 */}
+      {/* 헤더 줄 — 아이콘 + 라벨 + 금액(우) + 건수 */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 8, marginBottom: 10,
+        display: "flex", alignItems: "center", gap: 10,
       }}>
         <span style={{
-          width: 26, height: 26, borderRadius: 7,
+          width: 24, height: 24, borderRadius: 6,
           background: `${color}22`,
-          color, fontSize: 14, fontWeight: 800,
+          color, fontSize: 13, fontWeight: 800,
           display: "inline-flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
         }}>{icon}</span>
-        <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>{label}</span>
         <span style={{
+          fontSize: 12, fontWeight: 700, color: "var(--text-primary)",
+          whiteSpace: "nowrap",
+        }}>{label}</span>
+        <span className="mono" style={{
           marginLeft: "auto",
+          fontSize: 13, fontWeight: 800, color: "var(--text-primary)",
+          letterSpacing: "-0.3px",
+          fontVariantNumeric: "tabular-nums",
+        }}>{fmtKRW(amount)}</span>
+        <span style={{
           fontSize: 11, color: "var(--text-secondary)", fontWeight: 700,
+          minWidth: 36, textAlign: "right",
         }}>{count}건</span>
       </div>
-      {/* 매출 */}
+      {/* 비중 바 — 회색 트랙 위 색 fill. */}
       <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6,
+        height: 6, borderRadius: 3,
+        background: "var(--bg-inset, rgba(255,255,255,0.06))",
+        overflow: "hidden",
       }}>
-        <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>매출</span>
-        <span className="mono" style={{
-          fontSize: 13, fontWeight: 700, color: "var(--text-primary)",
-          letterSpacing: "-0.3px", textAlign: "right",
-        }}>{fmtKRW(total)}</span>
-      </div>
-      {/* 마진 — ★ 강조 */}
-      <div style={{
-        display: "flex", justifyContent: "space-between", alignItems: "baseline",
-      }}>
-        <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>마진</span>
-        <span className="mono" style={{
-          fontSize: 15, fontWeight: 800, color: "var(--accent)",
-          letterSpacing: "-0.3px", textAlign: "right",
-        }}>{fmtKRW(owner)}</span>
+        <div style={{
+          width: `${pct}%`, height: "100%",
+          background: color,
+          transition: "width 0.2s ease",
+        }}/>
       </div>
     </div>
   );

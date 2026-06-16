@@ -26,8 +26,9 @@ const EMPTY = {
   count: 0,
 };
 
-// task 측측 측측 service code (= 측측 본작업 또는 첫 측측 측측).
-function pickServiceCode(task) {
+// task 의 대표 service code (= 본작업 또는 첫 item 기준).
+// 2026-06-16 — export 공개: RevenueDetailScreen 작업별 탭의 종류 뱃지(세척/냉매/기타) 분류용.
+export function pickServiceCode(task) {
   const items = Array.isArray(task.workItems) ? task.workItems : [];
   if (items.length === 0) return null;
   const main = items.find(it => (it.orderType || it.order_type) === "본작업") || items[0];
@@ -124,7 +125,7 @@ export function getMonthRange(year, month) {
   return { start, end };
 }
 
-// 측측 dataset filter (computeRevenueByYmRange 측측 측측 측측 — 측측 측측 측측 측측).
+// 공용 dataset filter (computeRevenueByYmRange 와 동일 기준 — 트랙 A + 완료 + KST 범위).
 function _filterTrackADoneInRange(apiTasks, startYmd, endYmd) {
   return (apiTasks || []).filter(t => {
     if (!isTrackARemittance(t)) return false;
@@ -134,6 +135,15 @@ function _filterTrackADoneInRange(apiTasks, startYmd, endYmd) {
     if (!ymd) return false;
     return ymd >= startYmd && ymd <= endYmd;
   });
+}
+
+// 2026-06-16 — RevenueDetailScreen 작업별 탭용 — 같은 필터 결과의 task 리스트 자체를 반환.
+//   기존 컴포넌트(원청별/기사별)와 100% 동일 dataset → 합계 검산 정합 보장.
+//   permission 가드는 호출처에서 (작업별 탭이 task.total_amount 권한 없으면 비노출).
+export function getTasksByYmRange(apiTasks, startYmd, endYmd, user) {
+  if (!canSeeField(user, "task.total_amount")) return [];
+  if (!startYmd || !endYmd) return [];
+  return _filterTrackADoneInRange(apiTasks, startYmd, endYmd);
 }
 
 // 원청별 측측 — 측측 dataset 측측 principal_code 측측 측측 측측.
