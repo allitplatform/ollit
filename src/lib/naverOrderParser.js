@@ -160,7 +160,9 @@ export function parseIntSafe(v) {
 //   이상값 (예: "서울지역" 같은 입력 오류) → null (운영자 확인 필요)
 export function deriveOrderType(serviceTypeValue) {
   if (!serviceTypeValue) return null;
-  const v = String(serviceTypeValue).trim();
+  // 2026-06-16 — 대소문자 무시 비교 (엑셀 "1Way" / "1WAY" / "1way" 모두 인식).
+  //   이전: 대소문자 구분으로 "1Way" 행 누락 → orderType=null → task_item skip.
+  const v = String(serviceTypeValue).trim().toLowerCase();
   // 본작업 catch — "에어컨청소" 포함 (가정집/사무실)
   if (v.includes("에어컨청소")) return "본작업";
   if (v.includes("벽걸이") || v.includes("스탠드") || v.includes("1way") || v.includes("2way") || v.includes("4way")
