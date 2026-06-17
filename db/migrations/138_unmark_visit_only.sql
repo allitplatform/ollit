@@ -41,6 +41,10 @@
 --   · task.status != 'visit_only' 면 reject
 --   · 자동 모드 + 스냅샷 없으면 'no_snapshot' 에러 (manual 입력 안내)
 --   · task_items 0행이면 'no_items' 에러
+--   · work_type 이 appliance 요구 (work_types.appliance_type_id NOT NULL) 이고
+--     입력/스냅샷 item 의 appliance_type_id NULL → 'appliance_required' 에러
+--     (이게 빠지면 compute_payment 의 calculate_commission 정책 조회가 빈
+--     appliance_code 로 깨짐. 수동 모드 부주의 입력 차단)
 --
 -- 복원 흐름 (트리거 순서 주의):
 --   [1] task_items: 현재 visit row 전체 DELETE → 원본/입력 행 INSERT
@@ -150,6 +154,23 @@ BEGIN
     END IF;
     IF v_item->>'unit_price' IS NULL THEN
       RETURN jsonb_build_object('ok', false, 'error', 'item.unit_price required', 'source', v_source);
+    END IF;
+    -- 2026-06-17 — appliance 필수 가드:
+    --   work_type 의 appliance_type_id NOT NULL → task_items.appliance_type_id 도 NOT NULL 필수.
+    --   안 그러면 compute_payment → calculate_commission 정책 조회가 NULL appliance_code 로 깨짐.
+    --   visit/addon 류 (work_types.appliance_type_id NULL) 는 통과.
+    IF EXISTS (
+      SELECT 1 FROM work_types wt
+      WHERE wt.id = (v_item->>'work_type_id')::uuid
+        AND wt.appliance_type_id IS NOT NULL
+    ) AND COALESCE(v_item->>'appliance_type_id', '') = '' THEN
+      RETURN jsonb_build_object(
+        'ok', false,
+        'error', 'appliance_required',
+        'hint', 'work_type 이 기종(appliance)을 요구합니다. appliance_type_id 를 입력하세요.',
+        'work_type_id', v_item->>'work_type_id',
+        'source', v_source
+      );
     END IF;
   END LOOP;
 

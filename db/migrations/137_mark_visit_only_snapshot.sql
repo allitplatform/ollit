@@ -88,7 +88,7 @@ BEGIN
       'is_canceled',       COALESCE(ti.is_canceled, false),
       'product_order_id',  ti.product_order_id
     )
-    ORDER BY ti.created_at NULLS FIRST, ti.id
+    ORDER BY ti.id
   ), '[]'::jsonb)
   INTO v_items_snapshot
   FROM task_items ti
