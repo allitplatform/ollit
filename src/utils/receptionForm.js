@@ -311,6 +311,20 @@ export function parseKaText(text, phoneMatch) {
     for (const kr of APPLIANCE_KR) {
       if (itemLine.includes(kr)) { appliance = kr; break; }
     }
+    // 2026-06-17 — shorthand fallback (partnerPasteParser SHORTHAND_PATTERNS 와 정합).
+    //   "벽.가.충" / ".가.충" 같이 단축 약어 사용 케이스. 단어 경계 (앞: 시작/공백/구두점, 뒤: 끝/공백/구두점).
+    //   FULL label 매칭 실패 시에만 발화 → 기존 케이스 변화 0.
+    if (!appliance) {
+      const SHORTHAND_KA = [
+        { re: /(?:^|[\s.,])벽(?=[\s.,]|$)/,    label: "벽걸이" },
+        { re: /(?:^|[\s.,])스(?=[\s.,]|$)/,    label: "스탠드" },
+        { re: /(?:^|[\s.,])천(?=[\s.,]|장|$)/, label: "1way"   },
+        { re: /(?:^|[\s.,])투(?=[\s.,]|$)/,    label: "투인원" },
+      ];
+      for (const ap of SHORTHAND_KA) {
+        if (ap.re.test(itemLine)) { appliance = ap.label; break; }
+      }
+    }
 
     // 금액 — "가.충" 다음 위치 가격. 전화번호 제외.
     //   "70.000" / "100.000" → 70000 / 100000 (점 천단위 패턴 우선)
