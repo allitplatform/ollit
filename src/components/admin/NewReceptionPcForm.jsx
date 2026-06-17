@@ -30,6 +30,8 @@ import {
 } from "../../utils/receptionForm.js";
 import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScreenLite.jsx";
 import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
+// 2026-06-17 — 실제 DB INSERT (모바일 폼과 동일 어댑터). 이전엔 호출 누락 사고 (in-memory only).
+import { createTaskAdapter as apiCreateTask } from "../../data/tasksDb.js";
 // 2026-06-17 Phase 2 — 원청별 붙여넣기 파서 (KA/crikrin 주문 텍스트).
 import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL, extractRegion } from "../../utils/partnerPasteParser.js";
 
@@ -310,17 +312,55 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit }) {
     try {
       const finalCustomer = autoGenerateCustomer(form, region);
       const splitItems = splitWorkItemsForKa1way(workItems, form.principal);
-      onSubmit && onSubmit({
-        ...form,
-        customer:    finalCustomer,
+      const head = splitItems[0] || { workType: "", appliance: "", qty: 1 };
+      const scheduleType = scheduleMode === "input" ? "input" : "tbd";
+
+      // 2026-06-17 — 실제 DB INSERT (모바일 폼 패턴 그대로). 이전 코드는 onSubmit 만 호출 →
+      //   AdminApp.addReception 이 sync in-memory state 갱신 + UI 알림만 발사 → DB row 0건.
+      //   사고: PC 제출 시 화면엔 등록된 듯 보이나 새로고침 시 작업 소실, 운영자 인지 못함.
+      const taskData = {
+        principal:     form.principal,
+        paymentMethod: form.paymentMethod || null,
+        customer:      finalCustomer,
+        phone:         form.phone,
+        address:       form.address,
         region,
-        workItems:   splitItems,
+        workType:      head.workType,
+        appliance:     head.appliance,
+        qty:           head.qty || 1,
+        workItems:     splitItems,
+        quote:         priceTBD ? 0 : (form.estimateTotal || 0),
         estimateTotal: priceTBD ? 0 : (form.estimateTotal || 0),
-        quote:       priceTBD ? 0 : (form.estimateTotal || 0),
-        workDate:    scheduleMode === "input" ? form.requestDate : "",
+        workDate:      scheduleMode === "input" ? form.requestDate : "",
         scheduledDate: scheduleMode === "input" ? form.requestDate : "",
         scheduledTime: scheduleMode === "input" ? form.requestTime : "",
-        status:      "미배정",
+        memo:          form.memo,
+        status:        "미배정",
+      };
+      const res = await apiCreateTask(taskData, {
+        changedBy:     user?.user_id || user?.id || null,
+        changedByName: user?.name || null,
+        changedByRole: "운영자",
+      });
+      if (!res.ok) {
+        setSubmitError(res.error || "등록 실패 — 다시 시도하세요.");
+        setSubmitting(false);
+        return;
+      }
+      onSubmit && onSubmit({
+        ...form,
+        customer:      finalCustomer,
+        region,
+        workItems:     splitItems,
+        scheduleType,
+        estimateTotal: priceTBD ? 0 : (form.estimateTotal || 0),
+        quote:         priceTBD ? 0 : (form.estimateTotal || 0),
+        workDate:      scheduleMode === "input" ? form.requestDate : "",
+        scheduledDate: scheduleMode === "input" ? form.requestDate : "",
+        scheduledTime: scheduleMode === "input" ? form.requestTime : "",
+        status:        "미배정",
+        taskId:        res.taskId,
+        _v14ApiOk:     true,
       });
     } catch (e) {
       setSubmitError(e.message || "제출 중 오류");
