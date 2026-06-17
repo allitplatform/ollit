@@ -31,17 +31,16 @@ import {
 import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScreenLite.jsx";
 import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
 // 2026-06-17 Phase 2 — 원청별 붙여넣기 파서 (KA/crikrin 주문 텍스트).
-import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL } from "../../utils/partnerPasteParser.js";
+import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL, extractRegion } from "../../utils/partnerPasteParser.js";
 
 // formatPhone 은 receptionForm.js 에서 import (DRY).
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 
-// 주소 → 지역(구/시/군) 자동 추출.
-function extractRegion(address) {
-  if (!address) return "";
-  const m = String(address).match(/[가-힣]+(?:특별시|광역시|특별자치시)?\s*([가-힣]+(?:구|시|군))/);
-  return m?.[1] || "";
-}
+// 2026-06-17 — local extractRegion(buggy regex) 제거 → partnerPasteParser.extractRegion 사용.
+//   사고: "서초구신반포로45길71" → "초구" (앞 글자 잘림). 시/도 prefix 없는 모든 주소 영향.
+//   원인: regex `[가-힣]+...([가-힣]+(?:구|시|군))` outer [가-힣]+ 이 첫 글자 강제 소비.
+//   교체: 사전 기반 (서울 25구 + 전국 시/군/구 + stem + 동 시드, length desc) lookup +
+//          stripProvincePrefix + lazy fallback. NewReceptionScreenLite 운영 검증된 구현.
 
 const PAYMENT_METHODS = [
   { id: "naver_pay", label: "네이버페이" },
