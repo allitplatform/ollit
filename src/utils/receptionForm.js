@@ -250,3 +250,366 @@ export function getAppliancePool(workType, _principalName) {
   if (workType === "냉매충전") return REFRIGERANT_APPLIANCE_POOL;
   return APPLIANCE_POOL[workType] || [];
 }
+
+// ============================================
+// 카톡 텍스트 자동 파싱 (2026-06-17 추출 from AdminApp.jsx)
+//   원본: AdminApp.jsx line 276~677. 모바일 NewReceptionFormScreen + PC NewReceptionPcForm 공유.
+//   parseKakaoText(text) → { matched, unmatched, phone, customer, address,
+//     requestDate, requestTime, principal, estimatedPrice, applianceItems,
+//     detectedWorkTypes, workItems, memo, priceNeedsConfirm, priceRawValue }
+//   parseKaText(text, phoneMatch) → KA 자유 텍스트 (라벨 X / 전화 앵커 / "가.충" 패턴)
+//   formatPhone(raw) → "010-0000-0000" 형식
+// ============================================
+
+// 자동 하이픈 (공용).
+export function formatPhone(raw) {
+  const digits = (raw || "").replace(/\D/g, "").slice(0, 11);
+  if (digits.length < 4) return digits;
+  if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+
+// 2026-05-21 — KA 자유 텍스트 파서 (라벨 X / 전화 앵커 + "가.충" 패턴).
+//   입력 예: "공릉동공릉아파트 603동1505호\n벽걸이 .가.충. 70.000\n01039291303"
+//   출력: parseKakaoText 와 동일 형식 (handleAutoFill 매핑 그대로).
+export function parseKaText(text, phoneMatch) {
+  const result = { matched: [], unmatched: [] };
+
+  // 전화번호 표준화 (formatPhone 사용)
+  let pDigits = phoneMatch[0].replace(/^\+?82\s?-?\s?/, "").replace(/\D/g, "");
+  if (pDigits.startsWith("10") || pDigits.startsWith("11") || pDigits.startsWith("16") || pDigits.startsWith("17") || pDigits.startsWith("18") || pDigits.startsWith("19")) {
+    pDigits = "0" + pDigits;
+  }
+  result.phone = formatPhone(pDigits);
+  result.matched.push("연락처");
+
+  // 전화 기준으로 앞/뒤 분리
+  const phoneIdx = text.indexOf(phoneMatch[0]);
+  const before = text.slice(0, phoneIdx).replace(/\s+$/, "");
+  const after  = text.slice(phoneIdx + phoneMatch[0].length).trim();
+
+  // 줄 단위 split (빈 줄 제거)
+  const lines = before.split(/\n+/).map(s => s.trim()).filter(Boolean);
+
+  // "가.충" / "가 . 충" / "가충" — 종류 라인 마커
+  const gachungRegex = /가\s*\.?\s*충/;
+  const itemLineIdx = lines.findIndex(l => gachungRegex.test(l));
+
+  if (itemLineIdx >= 0) {
+    const itemLine = lines[itemLineIdx];
+    const addressLines = lines.slice(0, itemLineIdx);
+
+    // 주소 = 종류 라인 위 줄들 합침 (1~3줄 가변)
+    if (addressLines.length > 0) {
+      result.address = addressLines.join(" ").replace(/\s+/g, " ").trim();
+      result.matched.push("주소");
+    }
+
+    // 기종 — 1way 등. KA 1way 분할은 splitWorkItemsForKa1way 가 자동 처리.
+    const APPLIANCE_KR = ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원"];
+    let appliance = null;
+    for (const kr of APPLIANCE_KR) {
+      if (itemLine.includes(kr)) { appliance = kr; break; }
+    }
+
+    // 금액 — "가.충" 다음 위치 가격. 전화번호 제외.
+    //   "70.000" / "100.000" → 70000 / 100000 (점 천단위 패턴 우선)
+    //   "70000" 그대로 = 4자리 이상 숫자
+    const priceLine = itemLine.replace(gachungRegex, " ");
+    const dotPriceMatch = priceLine.match(/(\d{1,3}(?:\.\d{3})+)/);
+    const plainPriceMatch = priceLine.match(/(\d{4,})/);
+    if (dotPriceMatch) {
+      result.estimatedPrice = parseInt(dotPriceMatch[1].replace(/\./g, ""), 10);
+      result.matched.push("금액");
+    } else if (plainPriceMatch) {
+      result.estimatedPrice = parseInt(plainPriceMatch[1], 10);
+      result.matched.push("금액");
+    }
+
+    // workItems = 냉매충전 + 기종 + qty=1 default
+    if (appliance) {
+      result.workItems = [{ workType: "냉매충전", appliance, qty: 1 }];
+      result.applianceItems = [{ appliance, qty: 1 }];
+      result.detectedWorkTypes = ["냉매충전"];
+      result.matched.push("기종");
+      result.matched.push("작업 종류 1건");
+    }
+  }
+
+  // 원청 = KA 고정 (패턴 매칭됐으니 자동)
+  result.principal = "에어컨프로 (KA)";
+  result.matched.push("원청(KA)");
+
+  // 메모 = 전화 다음 줄들
+  if (after) {
+    result.memo = after;
+    result.matched.push("메모");
+  }
+
+  return result;
+}
+
+// 일반 카톡 텍스트 파서 — 라벨/자유 텍스트 혼합 처리.
+//   원청, 이름, 연락처, 주소, 작업유형, 기종, 일정, 금액 자동 추출.
+export function parseKakaoText(text) {
+  const result = { matched: [], unmatched: [] };
+  if (!text || !text.trim()) return result;
+
+  // 1. 연락처 (다양한 형식: +82 / 국가코드 / 공백 / 점 / 하이픈)
+  const phoneRegex = /(?:\+?82[\s-]?)?0?1[0-9][\s.-]?\d{3,4}[\s.-]?\d{4}/;
+  const phoneMatch = text.match(phoneRegex);
+
+  // KA 자유 텍스트 패턴 ("가.충" + 전화) → parseKaText 위임
+  if (phoneMatch && /가\s*\.?\s*충/.test(text)) {
+    return parseKaText(text, phoneMatch);
+  }
+  if (phoneMatch) {
+    let p = phoneMatch[0].replace(/^\+?82\s?-?\s?/, "").replace(/\D/g, "");
+    if (p.startsWith("10") || p.startsWith("11") || p.startsWith("16") || p.startsWith("17") || p.startsWith("18") || p.startsWith("19")) {
+      p = "0" + p;
+    }
+    result.phone = formatPhone(p);
+    result.matched.push("연락처");
+  }
+
+  // 2. 금액 (만원 단위 + 원 단위 + 콤마 형식 처리)
+  const priceRegex1 = /(\d+)\s*만\s*원?/;          // "16만원" / "17만"
+  const priceRegex2 = /가격은?\s*(\d{1,3})\b/;     // "가격은 17"
+  const priceRegex3 = /(?:견적|금액|가격)\s*[:：]?\s*(\d{1,3}(?:,\d{3})+|\d{4,})\s*원?/;
+  const priceRegex4 = /(\d{1,3}(?:,\d{3})+)\s*원/;
+  let priceMatch = text.match(priceRegex1);
+  if (priceMatch) {
+    result.estimatedPrice = parseInt(priceMatch[1]) * 10000;
+    result.matched.push("금액");
+  } else if ((priceMatch = text.match(priceRegex3))) {
+    result.estimatedPrice = parseInt(priceMatch[1].replace(/,/g, ""), 10);
+    result.matched.push("금액");
+  } else if ((priceMatch = text.match(priceRegex4))) {
+    result.estimatedPrice = parseInt(priceMatch[1].replace(/,/g, ""), 10);
+    result.matched.push("금액");
+  } else {
+    priceMatch = text.match(priceRegex2);
+    if (priceMatch) {
+      const n = parseInt(priceMatch[1]);
+      result.estimatedPrice = n * 10000;
+      result.priceNeedsConfirm = true;
+      result.priceRawValue = n;
+      result.matched.push("금액 (확인 필요)");
+    }
+  }
+
+  // 3. 주소
+  //   0순위: "주소:" 라벨 (콜론 후 줄 끝까지)
+  const addrColonRegex = /주소\s*[:：]\s*([^\n]+)/;
+  const addrColonMatch = text.match(addrColonRegex);
+  if (addrColonMatch) {
+    result.address = addrColonMatch[1].replace(/[\s,!.?]+$/, "").trim();
+    result.matched.push("주소");
+  } else {
+    //   1순위: 시 키워드 + 그 줄 끝까지
+    const cityRegex = /(서울|경기|인천|부산|대구|광주|대전|울산|세종|제주)[^\n]+/;
+    const cityMatch = text.match(cityRegex);
+    if (cityMatch) {
+      result.address = cityMatch[0].replace(/[\s,!.?]+$/, "").trim();
+      result.matched.push("주소");
+    } else {
+      //   2순위: 동/구/로/길 키워드
+      const kwRegex = /(?:^|[\s:：])([가-힣]{2,}(?:동|구|로|길)[\s\d\-,]*\d+(?:\s*[가-힣]+\d*호?)?)/m;
+      const kwMatch = text.match(kwRegex);
+      if (kwMatch) {
+        result.address = kwMatch[1].replace(/[\s,!.?]+$/, "").trim();
+        result.matched.push("주소");
+      } else {
+        //   3순위: 짧은 구/시 단독
+        const shortRegex = /(?:^|[\s:：])([가-힣]{2,4}(?:구|시))(?:\s|$|[,.!?])/m;
+        const shortMatch = text.match(shortRegex);
+        if (shortMatch) {
+          result.address = shortMatch[1].trim();
+          result.matched.push("주소");
+        }
+      }
+    }
+  }
+
+  // 4. 이름 (콜론 패턴 + 라벨 blacklist)
+  const NAME_LABEL_BLACKLIST = new Set([
+    "원청", "주소", "연락처", "전화", "핸드폰", "휴대폰",
+    "기종", "견적", "금액", "가격", "수량",
+    "작업", "유형", "작업유형",
+    "일정", "시간", "날짜", "희망",
+    "메모", "비고", "요청", "사유",
+    "고객", "성함", "성명", "이름",
+    "확정", "예약", "구분",
+  ]);
+  const nameRegex1 = /(?:이름|고객|성함|성명)\s*[:：]\s*([가-힣]{2,5})/;
+  const nameRegex2 = /^([가-힣]{2,5})\s*[:：]/m;
+  let nameMatch = text.match(nameRegex1);
+  if (!nameMatch) {
+    const m2 = text.match(nameRegex2);
+    if (m2 && !NAME_LABEL_BLACKLIST.has(m2[1])) {
+      nameMatch = m2;
+    }
+  }
+  if (nameMatch) {
+    result.customer = nameMatch[1];
+    result.matched.push("이름");
+  }
+
+  // 5. 원청 (form dropdown value 매칭)
+  const principalMap = {
+    "올데이케어": "올데이케어",
+    "올데이":     "올데이케어",
+    "에어컨프로": "에어컨프로 (KA)",
+    "에어컨 프로": "에어컨프로 (KA)",
+    "KA":         "에어컨프로 (KA)",
+    "쿨가이":     "쿨가이 (KB)",
+    "KB":         "쿨가이 (KB)",
+    "용인컴퍼니": "용인컴퍼니",
+    "용인":       "용인컴퍼니",
+    "유솔홈케어 H": "유솔홈케어 H",
+    "유솔홈케어H":  "유솔홈케어 H",
+    "유솔 H":     "유솔홈케어 H",
+    "유솔홈케어 N": "유솔홈케어 N",
+    "유솔홈케어N":  "유솔홈케어 N",
+    "유솔 N":     "유솔홈케어 N",
+    "유솔":       "유솔홈케어 H",
+    "크리크린":   "크리크린",
+  };
+  const principalColonRegex = /원청\s*[:：\-]\s*([가-힣A-Za-z\s]+?)(?:\n|$|,|\/)/;
+  const principalColonMatch = text.match(principalColonRegex);
+  let principalDetected = null;
+  if (principalColonMatch) {
+    const raw = principalColonMatch[1].trim();
+    for (const [keyword, id] of Object.entries(principalMap).sort((a, b) => b[0].length - a[0].length)) {
+      if (raw.indexOf(keyword) !== -1) {
+        principalDetected = id;
+        break;
+      }
+    }
+    if (principalDetected) {
+      result.principal = principalDetected;
+      result.matched.push("원청");
+    }
+  } else {
+    for (const [keyword, id] of Object.entries(principalMap).sort((a, b) => b[0].length - a[0].length)) {
+      if (text.indexOf(keyword) !== -1) {
+        result.principal = id;
+        result.matched.push("원청");
+        break;
+      }
+    }
+  }
+
+  // 6. 기종 + 수량 (V14 헌법 7 기종 + 옛 호환)
+  const applianceItems = [];
+  const itemRegex = /(벽걸이|1way|스탠드|4way|원형|투인원|시스템멀티|시스템\s?멀티|시스템|천장형|이동식)\s*(?:[×x]\s*)?(\d+)?\s*대?/gi;
+  let itemMatch;
+  while ((itemMatch = itemRegex.exec(text)) !== null) {
+    const appliance = itemMatch[1].replace(/\s+/g, "");
+    if (!applianceItems.some(x => x.appliance === appliance)) {
+      applianceItems.push({ appliance, qty: parseInt(itemMatch[2]) || 1 });
+    }
+  }
+  if (applianceItems.length > 0) {
+    result.applianceItems = applianceItems;
+    result.matched.push(`기종 ${applianceItems.length}건`);
+  }
+
+  // 작업 종류 (키워드 매핑 — 복수 인식)
+  const workTypeMap = {
+    "세척": "세척",
+    "청소": "세척",
+    "냉매": "냉매충전",
+    "가스": "냉매충전",
+    "충전": "냉매충전",
+    "설치": "설치",
+    "누설": "누설",
+    "점검": "점검",
+    "수리": "수리",
+  };
+  const detectedWorkTypes = [];
+  const seenWT = new Set();
+  for (const [keyword, workType] of Object.entries(workTypeMap)) {
+    if (text.includes(keyword) && !seenWT.has(workType)) {
+      detectedWorkTypes.push(workType);
+      seenWT.add(workType);
+    }
+  }
+  if (detectedWorkTypes.length > 0) {
+    result.detectedWorkTypes = detectedWorkTypes;
+    result.matched.push(`작업 종류 ${detectedWorkTypes.length}건`);
+  }
+
+  // workItems 매트릭스 (냉매충전은 기종 X로 별도 분기)
+  result.workItems = [];
+  const aps = applianceItems;
+  const hasRefrigerant = detectedWorkTypes.includes("냉매충전");
+  const otherWTs = detectedWorkTypes.filter(w => w !== "냉매충전");
+
+  // 1) 냉매충전 — 기종 있으면 각 기종별, 없으면 수량만
+  if (hasRefrigerant) {
+    if (aps.length > 0) {
+      for (const a of aps) {
+        result.workItems.push({ workType: "냉매충전", appliance: a.appliance, qty: a.qty });
+      }
+    } else {
+      const refrigerantQtyRegex = /(?:냉매(?:충전|가스)?|가스(?:충전)?|충전)\s*(\d+)\s*대?/;
+      const qtyMatch = text.match(refrigerantQtyRegex);
+      const refrigerantQty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+      result.workItems.push({ workType: "냉매충전", appliance: "", qty: refrigerantQty });
+    }
+  }
+
+  // 2) 나머지 작업 종류 (세척 등) — 기종과 매칭
+  if (otherWTs.length === 1 && aps.length > 0) {
+    if (!hasRefrigerant) {
+      for (const a of aps) result.workItems.push({ workType: otherWTs[0], appliance: a.appliance, qty: a.qty });
+    } else {
+      for (const a of aps) result.workItems.push({ workType: otherWTs[0], appliance: a.appliance, qty: a.qty });
+    }
+  } else if (otherWTs.length > 1 && aps.length === 1) {
+    for (const wt of otherWTs) result.workItems.push({ workType: wt, appliance: aps[0].appliance, qty: aps[0].qty });
+  } else if (otherWTs.length > 1 && aps.length > 1) {
+    for (const a of aps) result.workItems.push({ workType: otherWTs[0], appliance: a.appliance, qty: a.qty });
+    result.workItemsNeedReview = true;
+  } else if (otherWTs.length > 0 && aps.length === 0) {
+    result.matched.push(`${otherWTs.join(", ")} 인식 (기종 직접 선택)`);
+  } else if (otherWTs.length === 0 && aps.length > 0 && !hasRefrigerant) {
+    result.matched.push("기종 인식 (작업 직접 선택)");
+  }
+
+  // 7. 일정 (M월 D일 + H:MM / H시 MM분)
+  const dateTimeRegex = /(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*(?:[^\d]{0,8})?(\d{1,2})\s*[:시]\s*(\d{0,2})/;
+  const dateRegex2 = /(\d{1,2})\s*월\s*(\d{1,2})\s*일/;
+  const timeRegex = /(\d{1,2})\s*시\s*(\d{0,2})\s*분?/;
+
+  const dateTimeMatch = text.match(dateTimeRegex);
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  if (dateTimeMatch) {
+    const mm = String(dateTimeMatch[1]).padStart(2, "0");
+    const dd = String(dateTimeMatch[2]).padStart(2, "0");
+    const h  = String(dateTimeMatch[3]).padStart(2, "0");
+    const min = (dateTimeMatch[4] || "00").padStart(2, "0");
+    result.requestDate = `${yyyy}-${mm}-${dd}`;
+    result.requestTime = `${h}:${min}`;
+    result.matched.push("일정");
+  } else {
+    const altDate = text.match(dateRegex2);
+    if (altDate) {
+      const mm = String(altDate[1]).padStart(2, "0");
+      const dd = String(altDate[2]).padStart(2, "0");
+      result.requestDate = `${yyyy}-${mm}-${dd}`;
+      result.matched.push("일정 (날짜만)");
+    }
+    const timeMatch = text.match(timeRegex);
+    if (timeMatch) {
+      const h = String(timeMatch[1]).padStart(2, "0");
+      const min = (timeMatch[2] || "00").padStart(2, "0");
+      result.requestTime = `${h}:${min}`;
+      if (!result.matched.includes("일정 (날짜만)")) result.matched.push("시간");
+    }
+  }
+
+  return result;
+}

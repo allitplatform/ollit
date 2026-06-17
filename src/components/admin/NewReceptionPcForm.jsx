@@ -25,16 +25,15 @@ import {
   WORK_TYPES,
   splitWorkItemsForKa1way,
   getAppliancePool,
+  // 2026-06-17 Phase 2 — 카톡/KA 파서 (모바일 폼과 공유, Stage 1 확장).
+  parseKakaoText, formatPhone,
 } from "../../utils/receptionForm.js";
 import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScreenLite.jsx";
 import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
+// 2026-06-17 Phase 2 — 원청별 붙여넣기 파서 (KA/crikrin 주문 텍스트).
+import { parsePartnerPaste } from "../../utils/partnerPasteParser.js";
 
-function formatPhone(raw) {
-  const digits = (raw || "").replace(/\D/g, "").slice(0, 11);
-  if (digits.length < 4) return digits;
-  if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
-}
+// formatPhone 은 receptionForm.js 에서 import (DRY).
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 
 // 주소 → 지역(구/시/군) 자동 추출.
@@ -68,6 +67,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit }) {
   const [workItems, setWorkItems] = useState([]);
   const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
   const [pasteText, setPasteText] = useState("");
+  const [parseResult, setParseResult] = useState(null);  // { matched: [], unmatched: [] } | null
 
   const [quoteRates, setQuoteRates] = useState(null);
   const [autoEstimateValue, setAutoEstimateValue] = useState(null);
@@ -167,6 +167,69 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit }) {
     return () => clearTimeout(timer);
   }, [form.principal, form.estimateTotal, workItems]);
 
+  // 2026-06-17 — 자동 채우기: 원청별 파서 우선 시도 → fallback 카톡 파서.
+  //   1) form.principal 이 KA/crikrin 이면 parsePartnerPaste (주문 텍스트 포맷) 먼저 시도
+  //   2) 결과 없으면 parseKakaoText (일반 카톡 텍스트)
+  //   3) result → form state 자동 set + parseResult (matched/unmatched) 표시
+  function handleAutoFill() {
+    if (!pasteText.trim()) return;
+
+    // 1) 원청별 파서 (KA/crikrin 주문 텍스트)
+    const principalCode = PRINCIPAL_NAME_TO_CODE[form.principal];
+    if (principalCode === "KA" || principalCode === "crikrin") {
+      try {
+        const recs = parsePartnerPaste(pasteText, principalCode);
+        if (Array.isArray(recs) && recs.length === 1) {
+          const rec = recs[0];
+          setForm(prev => ({
+            ...prev,
+            customer:  rec.customer  || prev.customer,
+            phone:     rec.phone     || prev.phone,
+            address:   rec.address   || prev.address,
+            estimateTotal: rec.estimateTotal || prev.estimateTotal,
+            memo:      rec.memo      || prev.memo,
+          }));
+          if (Array.isArray(rec.workItems) && rec.workItems.length > 0) {
+            setWorkItems(rec.workItems);
+          }
+          if (rec.estimateTotal) setEstimateTouched(true);
+          setParseResult({ matched: [`원청별 (${principalCode})`, ...(rec._matched || [])], unmatched: [] });
+          return;
+        }
+      } catch (_) { /* fallback 카톡 파서로 */ }
+    }
+
+    // 2) 일반 카톡 파서 (parseKakaoText — KA "가.충" 패턴 자동 위임 포함)
+    const r = parseKakaoText(pasteText);
+    setForm(prev => {
+      const next = { ...prev };
+      if (r.principal)   next.principal = r.principal;
+      if (r.phone)       next.phone = r.phone;
+      if (r.customer)    next.customer = r.customer;
+      if (r.address)     next.address = r.address;
+      if (r.requestDate) next.requestDate = r.requestDate;
+      if (r.requestTime) next.requestTime = r.requestTime;
+      if (r.memo)        next.memo = r.memo;
+      if (r.estimatedPrice && !r.priceNeedsConfirm) {
+        next.estimateTotal = r.estimatedPrice;
+        setEstimateTouched(true);
+      }
+      return next;
+    });
+    if (Array.isArray(r.workItems) && r.workItems.length > 0) {
+      setWorkItems(r.workItems);
+    }
+    if (r.requestDate || r.requestTime) {
+      setScheduleMode("input");
+    }
+
+    // 미인식 계산
+    const allKnown = ["원청", "이름", "연락처", "주소", "작업 종류", "기종", "일정", "금액"];
+    const matchedSet = new Set((r.matched || []).map(m => m.split(" ")[0]));
+    const unmatched = allKnown.filter(k => !matchedSet.has(k));
+    setParseResult({ matched: r.matched || [], unmatched });
+  }
+
   // ── 작업항목 조작 ──
   function addWorkItem() {
     if (!editItem.workType) { setErrors(p => ({ ...p, addItem: "작업유형을 선택하세요." })); return; }
@@ -257,9 +320,15 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit }) {
         </button>
       </div>
 
-      {/* 상단 paste 영역 */}
+      {/* 상단 paste 영역 + 자동 채우기 + 결과 표시 */}
       <div style={{ padding: "16px 24px 8px", maxWidth: 1400, margin: "0 auto" }}>
-        <PasteArea t={t} text={pasteText} onChange={setPasteText}/>
+        <PasteArea t={t}
+          text={pasteText}
+          onChange={setPasteText}
+          onAutoFill={handleAutoFill}
+          parseResult={parseResult}
+          principalCode={PRINCIPAL_NAME_TO_CODE[form.principal] || null}
+        />
       </div>
 
       {/* 좌/우 2단 (≥1280px) 또는 단열 (<1280) */}
@@ -525,7 +594,8 @@ function requiresApplianceFor(workType) {
   return true;  // 모든 작업유형이 기종 필수 (출장비 포함, "(공통)" 자동)
 }
 
-function PasteArea({ t, text, onChange }) {
+function PasteArea({ t, text, onChange, onAutoFill, parseResult, principalCode }) {
+  const hasPartnerParser = principalCode === "KA" || principalCode === "crikrin";
   return (
     <div style={{
       background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
@@ -534,16 +604,43 @@ function PasteArea({ t, text, onChange }) {
       <div style={{
         display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
       }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>📋 카톡/붙여넣기</span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>📋 카톡 / 붙여넣기</span>
         <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
-          (Phase 2 — 자동 파싱 예정. 지금은 참고용)
+          {hasPartnerParser
+            ? `(${principalCode} 주문 텍스트 자동 인식 — 원청별 파서 우선)`
+            : "(고객 카톡 텍스트 → 자동 채우기 클릭 → 폼 자동 채움)"}
         </span>
+        <div style={{ flex: 1 }}/>
+        <button type="button" onClick={onAutoFill} disabled={!text.trim()}
+          style={{
+            padding: "6px 14px",
+            background: text.trim() ? t.accent : t.bgInset,
+            color: text.trim() ? "#fff" : t.textMuted,
+            border: "none", borderRadius: 6,
+            fontSize: 12, fontWeight: 800,
+            cursor: text.trim() ? "pointer" : "not-allowed",
+            fontFamily: "inherit", whiteSpace: "nowrap",
+          }}>
+          ✨ 자동 채우기
+        </button>
+        {text && (
+          <button type="button" onClick={() => onChange("")}
+            style={{
+              padding: "6px 10px",
+              background: "transparent", border: `1px solid ${t.border}`,
+              color: t.textSecondary, borderRadius: 6,
+              fontSize: 11, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>
+            지우기
+          </button>
+        )}
       </div>
       <textarea
         value={text}
         onChange={(e) => onChange(e.target.value)}
-        rows={3}
-        placeholder="고객 카톡 텍스트를 여기에 붙여넣으세요. (Phase 2 에서 자동 파싱 → 폼 자동 채움)"
+        rows={4}
+        placeholder="고객 카톡 텍스트 또는 원청 주문 텍스트를 여기에 붙여넣으세요. (자동 채우기 클릭)"
         style={{
           width: "100%", padding: "8px 10px",
           background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6,
@@ -551,6 +648,24 @@ function PasteArea({ t, text, onChange }) {
           resize: "vertical", boxSizing: "border-box",
         }}
       />
+      {/* parseResult 표시 — matched / unmatched */}
+      {parseResult && (
+        <div style={{
+          marginTop: 8, padding: "8px 10px",
+          background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 6,
+          fontSize: 11, color: t.textSecondary, fontWeight: 600,
+          display: "flex", flexWrap: "wrap", gap: 8,
+        }}>
+          <span style={{ color: t.success || "#10B981", fontWeight: 700 }}>
+            ✓ 인식: {parseResult.matched.length > 0 ? parseResult.matched.join(", ") : "없음"}
+          </span>
+          {parseResult.unmatched.length > 0 && (
+            <span style={{ color: t.textMuted, fontWeight: 700 }}>
+              ⚠ 미인식: {parseResult.unmatched.join(", ")} <span style={{ fontWeight: 500 }}>(직접 입력)</span>
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
