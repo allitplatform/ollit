@@ -31,7 +31,7 @@ import {
 import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScreenLite.jsx";
 import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
 // 2026-06-17 Phase 2 — 원청별 붙여넣기 파서 (KA/crikrin 주문 텍스트).
-import { parsePartnerPaste } from "../../utils/partnerPasteParser.js";
+import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL } from "../../utils/partnerPasteParser.js";
 
 // formatPhone 은 receptionForm.js 에서 import (DRY).
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
@@ -203,10 +203,16 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit }) {
               estimateTotal: computedEstimate > 0 ? computedEstimate : prev.estimateTotal,
             }));
             // items → workItems (shape 변환). appliance null 인 건 (parser 안전망)은 제외.
+            // appliance code (wall/stand/4way/...) → label (벽걸이/스탠드/4way/...) 변환.
+            // 미매핑 코드는 원본 보존 (사용자가 드롭다운에서 수동 선택 가능).
             const wt = rec.workType || "냉매충전";
             const wis = (rec.items || [])
               .filter(it => it.appliance)
-              .map(it => ({ workType: wt, appliance: it.appliance, qty: Math.max(1, Number(it.qty) || 1) }));
+              .map(it => ({
+                workType: wt,
+                appliance: APPLIANCE_CODE_TO_LABEL[it.appliance] || it.appliance,
+                qty: Math.max(1, Number(it.qty) || 1),
+              }));
             if (wis.length > 0) setWorkItems(wis);
             if (computedEstimate > 0) setEstimateTouched(true);
             setParseResult({
