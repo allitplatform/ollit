@@ -45,6 +45,17 @@ import { RawOrdersArchiveScreen } from "../components/admin/RawOrdersArchiveScre
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../data/paymentMethods.js";
 import { isRefrigerant, getServiceKind } from "../utils/workTypeKind.js";
+// 2026-06-17 — 새 접수 폼 공유 헬퍼/상수 (모바일/PC 폼 공유 위해 추출).
+import {
+  PRINCIPALS, PRINCIPAL_COLORS, PRINCIPAL_NAME_TO_CODE,
+  WORK_TYPES_CONFIG, WORK_TYPES,
+  KA_PRINCIPAL_NAME, KA_1WAY_FIRST_PRICE, KA_1WAY_ADDITIONAL_PRICE,
+  APPLIANCE_POOL, REFRIGERANT_APPLIANCE_POOL,
+  calcKaOnewayEstimate, splitWorkItemsForKa1way, mergeKaOneway,
+  sortWorkItemsByPriority, determineMainWorkType, determineWorkflow,
+  hasRefrigerantItem, formatWorkItem, formatWorkItemsAppliance, formatWorkItems,
+  getAppliancePool as getAppliancePoolShared,
+} from "../utils/receptionForm.js";
 import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
 import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
@@ -229,24 +240,8 @@ const _TODAY_STATS_EMPTY = {
 };
 const TODAY_STATS = ENABLE_MOCK ? _TODAY_STATS_MOCK : _TODAY_STATS_EMPTY;
 
-// V14 헌법 v6 — 운영 7개 원청 (api-backend.gs V14_PRINCIPAL_CODES와 동기화 / KA·KB 분리)
-const PRINCIPALS = [
-  { id: "올데이케어",      label: "올데이케어",       color: "#FF1B8D", code: "O"    },
-  { id: "에어컨프로 (KA)", label: "에어컨프로 (KA)",  color: "#06B6D4", code: "A"    },
-  { id: "쿨가이 (KB)",     label: "쿨가이 (KB)",      color: "#0891B2", code: "K"    },
-  { id: "용인컴퍼니",      label: "용인",              color: "#888780", code: "Y"    },
-  { id: "유솔홈케어 H",    label: "유솔홈케어 H",      color: "#10B981", code: "YS"   },
-  { id: "유솔홈케어 N",    label: "유솔홈케어 N",      color: "#03C75A", code: "YS-N" },
-  { id: "크리크린",        label: "크리크린",          color: "#7F77DD", code: "CK"   },
-];
-
-// 원청 라벨 색 — V14 헌법 + 옛 호환 (시뮬 22건 점진 폐기)
-const PRINCIPAL_COLORS = {
-  ...Object.fromEntries(PRINCIPALS.map(p => [p.id, p.color])),
-  // 옛 시뮬 호환 (점진 폐기)
-  "에어컨프로": "#06B6D4",
-  "쿨가이":    "#0891B2",
-};
+// 2026-06-17 — PRINCIPALS / PRINCIPAL_COLORS 는 src/utils/receptionForm.js 로 이동 (import).
+//   기존 정의 제거. 사용처는 동일 이름 import 라 무변경.
 
 // V14 — 회사 수익 계산 (commissionCalc.js로 폐기 통합 / principals.js 정책 그대로)
 // task.principal(원청 이름) → calcTaskEarning → { total, engineer, principal, company }
@@ -262,174 +257,13 @@ function calculateCommission(task) {
   return { total, rate, amount, isConfirmed };
 }
 
-// Step 5-3 — 작업 종류 단일 진실 소스 (편집 친화)
-// enabled: Phase 1 박힌 작업 (세척/냉매충전) / 나머지는 disabled (Phase 2 시안 미정)
-// workflow: manual_with_recommendation = 수동 추천 / auto_first_accept = 자동 첫 응답
-// priority: 메인 = 가장 복잡한 작업 (1=세척 ... 99=냉매충전)
-const WORK_TYPES_CONFIG = {
-  "세척":     { enabled: true,  workflow: "manual_with_recommendation", needsAppliance: true,  priority: 1  },
-  "냉매충전": { enabled: true,  workflow: "auto_first_accept",          needsAppliance: false, priority: 99 },
-  "설치":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 2  },
-  "누설":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 3  },
-  "수리":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 4  },
-  "점검":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
-};
-
-// V14 Step 2-B-2 — KA 1way 차등 단가 (동일 집 추가)
-// UI: 사용자가 "1way" + qty 입력 → 견적 자동 계산
-// 저장: workItems가 "1way 첫 대" / "1way 추가" 두 행으로 분리 (시트 매칭)
-// 표시: 카드/리스트는 두 행을 다시 합쳐 "1way × N"으로 노출
-const KA_PRINCIPAL_NAME       = "에어컨프로 (KA)";
-const KA_1WAY_FIRST_PRICE     = 90000;
-const KA_1WAY_ADDITIONAL_PRICE = 70000;
-
-// 2026-06-08 — 원청 라벨(=form.principal value) → DB principals.code 매핑
-//   접수 폼 측 quote_rates fetch 측 사용. KA 1way 통합 자동 견적 effect 측 측 측 측.
-//   PrincipalApp 측 partnerCode 측 측 측 (= DB code) — 측 측 측 source.
-const PRINCIPAL_NAME_TO_CODE = {
-  "올데이케어":      "allday",
-  "에어컨프로 (KA)": "KA",
-  "쿨가이 (KB)":     "KB",
-  "용인컴퍼니":      "yongin",
-  "유솔홈케어 H":    "usol_h",
-  "유솔홈케어 N":    "usol_n",
-  "크리크린":        "crikrin",
-};
-
-// KA + 냉매충전 + 1way qty 합계 → 자동 견적
-// 첫 대 90,000 + 추가 (qty-1) × 70,000
-function calcKaOnewayEstimate(workItems) {
-  if (!Array.isArray(workItems)) return null;
-  const onewayQtySum = workItems.reduce((sum, w) => {
-    if (w.workType === "냉매충전" && w.appliance === "1way") return sum + (w.qty || 1);
-    return sum;
-  }, 0);
-  if (onewayQtySum <= 0) return null;
-  return KA_1WAY_FIRST_PRICE + Math.max(0, onewayQtySum - 1) * KA_1WAY_ADDITIONAL_PRICE;
-}
-
-// KA 작업 저장 직전 — "1way" + qty=N 항목을 "1way 첫 대" 1 + "1way 추가" (N-1)로 분리
-// KA 외 원청 / 다른 기종 / 1way가 아닌 항목은 그대로
-function splitWorkItemsForKa1way(items, principalName) {
-  if (principalName !== KA_PRINCIPAL_NAME || !Array.isArray(items)) return items;
-  const out = [];
-  for (const item of items) {
-    if (item.workType === "냉매충전" && item.appliance === "1way") {
-      const qty = item.qty || 1;
-      out.push({ ...item, appliance: "1way 첫 대", qty: 1 });
-      if (qty > 1) {
-        out.push({ ...item, appliance: "1way 추가", qty: qty - 1 });
-      }
-    } else {
-      out.push(item);
-    }
-  }
-  return out;
-}
-
-// 카드/리스트 표시용 — 분리 저장된 KA 1way 행을 단일 "1way × N"으로 합쳐 보여줌
-// "1way 첫 대" + "1way 추가" 행이 둘 다 있을 때만 합침. 다른 항목은 그대로
-function mergeKaOneway(items) {
-  if (!Array.isArray(items)) return items;
-  const hasFirst = items.some(w => w.workType === "냉매충전" && w.appliance === "1way 첫 대");
-  if (!hasFirst) return items;
-  const merged = [];
-  let mergedQty = 0;
-  let mergedTemplate = null;
-  for (const item of items) {
-    if (item.workType === "냉매충전" &&
-        (item.appliance === "1way 첫 대" || item.appliance === "1way 추가")) {
-      mergedQty += (item.qty || 1);
-      if (!mergedTemplate) mergedTemplate = item;
-    } else {
-      merged.push(item);
-    }
-  }
-  if (mergedTemplate) {
-    merged.push({ ...mergedTemplate, appliance: "1way", qty: mergedQty });
-  }
-  return merged;
-}
-
-function sortWorkItemsByPriority(workItems) {
-  if (!Array.isArray(workItems)) return [];
-  return [...workItems].sort((a, b) =>
-    (WORK_TYPES_CONFIG[a.workType]?.priority || 100) - (WORK_TYPES_CONFIG[b.workType]?.priority || 100)
-  );
-}
-
-function determineMainWorkType(workItems) {
-  const sorted = sortWorkItemsByPriority(workItems);
-  return sorted[0]?.workType || null;
-}
-
-function determineWorkflow(workItems) {
-  const main = determineMainWorkType(workItems);
-  return WORK_TYPES_CONFIG[main]?.workflow || "manual_with_recommendation";
-}
-
-// 2026-05-26 C-2 — workType 정확일치 → isRefrigerant (item 단위).
-//   사용처: AdminApp.jsx:2327 hasRefrigerant: hasRefrigerantItem(items) — ⚡ 표시용 (UI 측 catch).
-//   금액 측 catch X 측 catch — 안전 측 catch.
-function hasRefrigerantItem(workItems) {
-  return Array.isArray(workItems) && workItems.some(it => isRefrigerant(it));
-}
-
-// Step 5-1e — 단일 작업 항목 포맷 (냉매충전은 기종 X / 가격 동일)
-function formatWorkItem(item) {
-  if (!item) return "";
-  if (item.workType === "냉매충전") {
-    return `냉매충전 ×${item.qty || 1}`;
-  }
-  return `${item.workType} · ${item.appliance || "기종 미정"} ×${item.qty || 1}`;
-}
-
-// V14 2B-1 fix — 작업 항목 = 기종만 (작업유형은 별도 칩/알약 표시)
-// 단일: "벽걸이 ×1" / multi: "벽걸이 ×1, 4way ×1" / 냉매충전: "냉매충전 ×1" (기종 없을 때 fallback)
-// Step 2-B-2 — KA "1way 첫 대" + "1way 추가" 분리 저장 → 표시는 "1way × N" 합쳐서
-function formatWorkItemsAppliance(workItems) {
-  const items = mergeKaOneway(workItems);
-  if (!items || items.length === 0) return "";
-  return items.map(item => {
-    const qty = item.qty || 1;
-    const appliance = item.appliance && String(item.appliance).trim();
-    if (appliance) return `${appliance} ×${qty}`;
-    // 기종이 비어있으면 → workType fallback (예: 옛 냉매충전 단일)
-    return `${item.workType || "—"} ×${qty}`;
-  }).join(", ");
-}
-
-// Step 5-1d — workItems 카드/알림 표시 (작업 종류별 그룹화)
-// 규칙:
-// - 1건            → "세척 · 벽걸이 ×2" / "냉매충전 ×1"
-// - 같은 종류 복수 → "세척 · 벽걸이 ×2 외 1건"
-// - 다른 종류 추가 → "세척 · 벽걸이 ×2 (+ 냉매충전 ×1)"
-// - 혼합           → "세척 · 벽걸이 ×2 (+ 냉매충전 ×1, 점검 ×1)"
-function formatWorkItems(workItems) {
-  // Step 2-B-2 — KA 1way 분리 저장된 항목은 합쳐서 표시
-  const items = mergeKaOneway(workItems);
-  if (!items || items.length === 0) return "";
-  if (items.length === 1) return formatWorkItem(items[0]);
-  // Step 5-1e (통합) — 우선순위 정렬 후 메인 선택
-  const sorted = sortWorkItemsByPriority(items);
-  const main = sorted[0];
-  const mainText = formatWorkItem(main);
-
-  const others = sorted.slice(1);
-  const grouped = {};
-  let sameTypeCount = 0;
-  for (const item of others) {
-    if (item.workType === main.workType) {
-      sameTypeCount += 1;
-    } else {
-      grouped[item.workType] = (grouped[item.workType] || 0) + (item.qty || 1);
-    }
-  }
-  const extraTypes = Object.entries(grouped).map(([wt, qty]) => `${wt} ×${qty}`).join(", ");
-  if (extraTypes && sameTypeCount > 0) return `${mainText} 외 ${sameTypeCount}건 (+ ${extraTypes})`;
-  if (extraTypes)                     return `${mainText} (+ ${extraTypes})`;
-  return `${mainText} 외 ${sameTypeCount}건`;
-}
+// 2026-06-17 — 아래 상수/헬퍼들은 src/utils/receptionForm.js 로 이동 (import).
+//   WORK_TYPES_CONFIG / KA_PRINCIPAL_NAME / KA_1WAY_FIRST_PRICE / KA_1WAY_ADDITIONAL_PRICE
+//   / PRINCIPAL_NAME_TO_CODE / calcKaOnewayEstimate / splitWorkItemsForKa1way
+//   / mergeKaOneway / sortWorkItemsByPriority / determineMainWorkType
+//   / determineWorkflow / hasRefrigerantItem / formatWorkItem
+//   / formatWorkItemsAppliance / formatWorkItems
+//   사용처는 동일 이름 import 라 무변경.
 
 // ============================================
 // Step 5-1a — 카톡 텍스트 자동 파싱
