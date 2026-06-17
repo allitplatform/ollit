@@ -55,7 +55,8 @@ export const WORK_TYPE_TO_SERVICE = {
 //   정정:
 //     · region 못 찾으면 fallback 제거 — 끝4 만 사용 ('고객2283').
 //     · 구분자 공백 — 가독성 (이전 '' 직결).
-function autoGenerateCustomer(form, region) {
+// 2026-06-17 — export 추가 (NewReceptionPcForm 측 동일 자동 생성 재사용).
+export function autoGenerateCustomer(form, region) {
   if (form.customer && form.customer.trim()) return form.customer.trim();
   const digits = (form.phone || "").replace(/\D/g, "");
   const last4  = digits.length >= 4 ? digits.slice(-4) : "";
