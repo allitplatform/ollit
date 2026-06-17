@@ -63,6 +63,8 @@ import { startDailyAlertScheduler, stopDailyAlertScheduler } from "../utils/dail
 import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../utils/dashboardStats.js";
 // 2026-06-12 — PC 셸 (1024px+). isPc true 일 때 Shell 함수가 AdminPcShell 로 wrap.
 import { useIsPc } from "../utils/useIsPc.js";
+// 2026-06-17 — PC 새 접수 폼 (Stage 2). 모바일은 기존 NewReceptionFormScreen 유지.
+import { NewReceptionPcForm } from "../components/admin/NewReceptionPcForm.jsx";
 import { AdminPcShell } from "./AdminPcShell.jsx";
 import { AdminPcDashboard } from "./AdminPcDashboard.jsx";
 // 2026-06-12 — PC 작업 타임라인. 사이드바 분리 (시간축 / 처리 흐름) — 렉 해소.
@@ -2502,8 +2504,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     dashboardNode:     adminPcDashboardNode,
     // 2026-06-12 — taskDetail 진입 시 main 에 mount (prevScreen 따라 dashboard 또는 timeline 등).
     mainContent:       pcMainContent,
-    // 2026-06-12 — 사이드바 새 작업 만들기 버튼 — 옛 newReception 화면 진입.
-    onClickAddReception: () => setScreen("newReception"),
+    // 2026-06-17 — 사이드바 "새 작업 만들기" → newReceptionForm (폼) 직진.
+    //   옛: setScreen("newReception") = 리스트로 잘못 라우팅 사고.
+    //   PC 모드면 분기에서 NewReceptionPcForm 렌더, 모바일은 기존 NewReceptionFormScreen.
+    onClickAddReception: () => setScreen("newReceptionForm"),
     // 2026-06-12 — 사이드바 "냉매 자동배정 대기" — newReception screen + filter="pushing".
     onClickRefriPending: () => { setNewReceptionFilter("pushing"); setScreen("newReception"); },
     onCloseTaskDetail: () => {
@@ -2572,8 +2576,11 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   if (screen === "newReceptionForm") {
+    // 2026-06-17 — PC: 새 PC 전용 폼 (NewReceptionPcForm), 모바일: 옛 NewReceptionFormScreen.
+    //   onSubmit 시그니처 동일 (addReception 호출). 후속 라우팅(autoAssign/newReception) 공유.
+    const FormComp = isPc ? NewReceptionPcForm : NewReceptionFormScreen;
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <NewReceptionFormScreen
+      <FormComp
         t={t}
         user={user}
         onBack={goBack}

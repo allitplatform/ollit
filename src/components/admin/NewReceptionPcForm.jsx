@@ -1,0 +1,725 @@
+// 2026-06-17 — PC 새 접수 폼 (Stage 2).
+//   모바일 NewReceptionFormScreen (AdminApp.jsx) 와 동일한 onSubmit 시그니처.
+//   레이아웃: ≥1280px 2단(좌 기본정보+일정·결제 / 우 작업항목+견적+미리보기) / 1024~1280 단열.
+//
+// 공유 헬퍼: src/utils/receptionForm.js (Stage 1 추출).
+// 공유 lookup: src/components/principal/NewReceptionScreenLite.jsx (lookupRate, WORK_TYPE_TO_SERVICE).
+// 분배 미리보기: src/lib/commissionPoliciesDb.js (calculateCommissionMultiRpc).
+//
+// V1 미포함 (Phase 2 예정):
+//   · 카톡 자동 파싱 (parseKakaoText) — 텍스트 영역만 두고 수동 입력
+//   · 원청별 붙여넣기 파서 (parsePartnerPaste)
+//   · KA 원본 자유 텍스트 파서 (parseKaText)
+//
+// 가드 (모바일과 동일 + Mig 138 appliance_required):
+//   · 원청 미선택 / 연락처·주소 빈값 / 작업항목 0건
+//   · 기종 필수 작업유형(세척/냉매/추가선택/냉매점검)에서 기종 누락
+//   · 수량 ≤ 0 / TBD 아닌데 견적 0
+
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Plus, Trash2, ChevronLeft, ChevronRight, AlertCircle } from "lucide-react";
+import { useMinWidth } from "../../utils/useIsPc.js";
+import { supabase } from "../../lib/supabase.js";
+import {
+  PRINCIPALS, PRINCIPAL_NAME_TO_CODE,
+  WORK_TYPES,
+  splitWorkItemsForKa1way,
+  getAppliancePool,
+} from "../../utils/receptionForm.js";
+import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScreenLite.jsx";
+import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
+
+function formatPhone(raw) {
+  const digits = (raw || "").replace(/\D/g, "").slice(0, 11);
+  if (digits.length < 4) return digits;
+  if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+}
+function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
+
+// 주소 → 지역(구/시/군) 자동 추출.
+function extractRegion(address) {
+  if (!address) return "";
+  const m = String(address).match(/[가-힣]+(?:특별시|광역시|특별자치시)?\s*([가-힣]+(?:구|시|군))/);
+  return m?.[1] || "";
+}
+
+const PAYMENT_METHODS = [
+  { id: "naver_pay", label: "네이버페이" },
+  { id: "cash",      label: "현금" },
+  { id: "card",      label: "카드" },
+  { id: "transfer",  label: "계좌이체" },
+  { id: "prepaid",   label: "선결제" },
+];
+
+export function NewReceptionPcForm({ t, user, onBack, onSubmit }) {
+  const isWide = useMinWidth(1280);
+
+  // ── 폼 상태 ──
+  const [form, setForm] = useState({
+    principal: "", customer: "", phone: "", address: "",
+    paymentMethod: "",
+    requestDate: "", requestTime: "",
+    memo: "", estimateTotal: 0,
+  });
+  const [scheduleMode, setScheduleMode] = useState(null);    // null | 'tbd' | 'input'
+  const [priceTBD, setPriceTBD] = useState(false);
+  const [estimateTouched, setEstimateTouched] = useState(false);
+  const [workItems, setWorkItems] = useState([]);
+  const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
+  const [pasteText, setPasteText] = useState("");
+
+  const [quoteRates, setQuoteRates] = useState(null);
+  const [autoEstimateValue, setAutoEstimateValue] = useState(null);
+
+  const [feePreview, setFeePreview] = useState(null);
+  const [feeLoading, setFeeLoading] = useState(false);
+  const [feeError, setFeeError] = useState("");
+
+  const [errors, setErrors] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+
+  const region = useMemo(() => extractRegion(form.address), [form.address]);
+
+  // ── 원청 변경 시 quote_rates fetch ──
+  useEffect(() => {
+    const code = PRINCIPAL_NAME_TO_CODE[form.principal];
+    if (!code) { setQuoteRates(null); return; }
+    let alive = true;
+    (async () => {
+      const { data, error } = await supabase
+        .from("principals")
+        .select("code, quote_rates")
+        .eq("code", code)
+        .maybeSingle();
+      if (!alive) return;
+      if (error) { setQuoteRates(null); return; }
+      setQuoteRates(data?.quote_rates || null);
+    })();
+    return () => { alive = false; };
+  }, [form.principal]);
+
+  // ── 자동 견적 ──
+  useEffect(() => {
+    if (estimateTouched || priceTBD) return;
+    const code = PRINCIPAL_NAME_TO_CODE[form.principal];
+    if (!code || !quoteRates || workItems.length === 0) {
+      setAutoEstimateValue(null);
+      return;
+    }
+    let total = 0;
+    let everyOk = true;
+    for (const it of workItems) {
+      const r = lookupRate({
+        principalCode: code, quoteRates,
+        workType: it.workType, appliance: it.appliance, qty: it.qty,
+      });
+      if (!r || r.unitPrice === 0) { everyOk = false; break; }
+      if (r.isKa1waySplit) {
+        total += r.firstPrice + Math.max(0, (it.qty || 1) - 1) * r.extraPrice;
+      } else {
+        total += r.unitPrice * (it.qty || 1);
+      }
+    }
+    if (!everyOk || total <= 0) {
+      setAutoEstimateValue(null);
+      return;
+    }
+    setAutoEstimateValue(total);
+    setForm(prev => prev.estimateTotal === total ? prev : { ...prev, estimateTotal: total });
+  }, [form.principal, workItems, quoteRates, estimateTouched, priceTBD]);
+
+  // ── 분배 미리보기 (유솔N 제외, debounce 500ms) ──
+  useEffect(() => {
+    if (!form.principal || workItems.length === 0 || !form.estimateTotal) {
+      setFeePreview(null); setFeeError(""); return;
+    }
+    if (form.principal === "유솔홈케어 N") { setFeePreview(null); return; }
+    if (!workItems.every(i => i.workType && i.appliance)) {
+      setFeePreview(null); return;
+    }
+    setFeeLoading(true); setFeeError("");
+    const timer = setTimeout(async () => {
+      try {
+        const result = await calculateCommissionMultiRpc({
+          principalName: form.principal,
+          workItems,
+          totalEstimate: form.estimateTotal,
+          totalExtra: 0, totalNaverFee: 0,
+        });
+        if (result.skip)        setFeePreview({ skip: true, message: result.message });
+        else if (result.error)  { setFeeError(result.error); setFeePreview(null); }
+        else setFeePreview({
+          ok: true,
+          engineer:  result.engineer_amount,
+          principal: result.principal_amount,
+          company:   result.company_margin,
+          calcMethod: result.calc_method,
+        });
+      } catch (e) {
+        setFeeError(e.message || "분배 계산 실패");
+        setFeePreview(null);
+      } finally {
+        setFeeLoading(false);
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [form.principal, form.estimateTotal, workItems]);
+
+  // ── 작업항목 조작 ──
+  function addWorkItem() {
+    if (!editItem.workType) { setErrors(p => ({ ...p, addItem: "작업유형을 선택하세요." })); return; }
+    if (requiresApplianceFor(editItem.workType) && !editItem.appliance) {
+      setErrors(p => ({ ...p, addItem: "기종을 선택하세요 (필수)." }));
+      return;
+    }
+    if (!editItem.qty || editItem.qty < 1) {
+      setErrors(p => ({ ...p, addItem: "수량은 1 이상이어야 합니다." }));
+      return;
+    }
+    setWorkItems(prev => [...prev, { ...editItem }]);
+    setEditItem({ workType: "", appliance: "", qty: 1 });
+    setErrors(p => ({ ...p, addItem: null }));
+    setEstimateTouched(false);  // 추가 시 자동 견적 재계산 허용
+  }
+  function removeWorkItem(idx) {
+    setWorkItems(prev => prev.filter((_, i) => i !== idx));
+    setEstimateTouched(false);
+  }
+  function updateWorkItem(idx, patch) {
+    setWorkItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it));
+    setEstimateTouched(false);
+  }
+
+  // ── 제출 ──
+  async function handleSubmit() {
+    setSubmitError(""); setErrors({});
+    const errs = {};
+    if (!form.principal) errs.principal = "원청을 선택하세요.";
+    if (!form.phone || form.phone.replace(/\D/g, "").length < 9) errs.phone = "연락처를 입력하세요.";
+    if (!form.address) errs.address = "주소를 입력하세요.";
+    if (workItems.length === 0) errs.workItems = "작업항목을 1개 이상 추가하세요.";
+    for (const it of workItems) {
+      if (requiresApplianceFor(it.workType) && !it.appliance) {
+        errs.workItems = "기종 필수 작업유형의 기종이 비어있습니다.";
+        break;
+      }
+    }
+    if (!priceTBD && (!form.estimateTotal || form.estimateTotal <= 0)) {
+      errs.estimateTotal = "견적금액을 입력하거나 '견적 미정'을 체크하세요.";
+    }
+    if (Object.keys(errs).length > 0) { setErrors(errs); return; }
+
+    setSubmitting(true);
+    try {
+      const finalCustomer = autoGenerateCustomer(form, region);
+      const splitItems = splitWorkItemsForKa1way(workItems, form.principal);
+      onSubmit && onSubmit({
+        ...form,
+        customer:    finalCustomer,
+        region,
+        workItems:   splitItems,
+        estimateTotal: priceTBD ? 0 : (form.estimateTotal || 0),
+        quote:       priceTBD ? 0 : (form.estimateTotal || 0),
+        workDate:    scheduleMode === "input" ? form.requestDate : "",
+        scheduledDate: scheduleMode === "input" ? form.requestDate : "",
+        scheduledTime: scheduleMode === "input" ? form.requestTime : "",
+        status:      "미배정",
+      });
+    } catch (e) {
+      setSubmitError(e.message || "제출 중 오류");
+      setSubmitting(false);
+    }
+  }
+
+  // ──────────────────────────────────────────────────────
+  return (
+    <div style={{
+      minHeight: "100vh", background: t.bg, color: t.text,
+      fontFamily: "'Pretendard', sans-serif",
+      paddingBottom: 60,
+    }}>
+      {/* 헤더 */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 12,
+        padding: "14px 24px", borderBottom: `1px solid ${t.border}`,
+        background: t.bgElevated, position: "sticky", top: 0, zIndex: 10,
+      }}>
+        <button onClick={onBack} style={iconBtnStyle(t)} aria-label="뒤로">
+          <ArrowLeft size={18}/>
+        </button>
+        <span style={{ fontSize: 17, fontWeight: 800, color: t.text }}>새 작업 만들기</span>
+        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>PC 폼</span>
+        <div style={{ flex: 1 }}/>
+        <button onClick={handleSubmit} disabled={submitting} style={primaryBtnStyle(t)}>
+          {submitting ? "저장 중..." : "✓ 작업 만들기"}
+        </button>
+      </div>
+
+      {/* 상단 paste 영역 */}
+      <div style={{ padding: "16px 24px 8px", maxWidth: 1400, margin: "0 auto" }}>
+        <PasteArea t={t} text={pasteText} onChange={setPasteText}/>
+      </div>
+
+      {/* 좌/우 2단 (≥1280px) 또는 단열 (<1280) */}
+      <div style={{
+        padding: "8px 24px",
+        maxWidth: 1400, margin: "0 auto",
+        display: "grid",
+        gridTemplateColumns: isWide ? "minmax(0, 1fr) minmax(0, 1.2fr)" : "minmax(0, 1fr)",
+        gap: 20, alignItems: "start",
+      }}>
+        {/* ─── 좌측 ─── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* 원청 */}
+          <Card t={t} title="원청 *" error={errors.principal}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {PRINCIPALS.map(p => {
+                const active = form.principal === p.id;
+                return (
+                  <button key={p.id} type="button"
+                    onClick={() => setForm(prev => ({ ...prev, principal: p.id }))}
+                    style={{
+                      padding: "8px 14px",
+                      background: active ? p.color : "transparent",
+                      border: `2px solid ${active ? p.color : t.border}`,
+                      borderRadius: 999,
+                      color: active ? "#fff" : t.text,
+                      fontSize: 12, fontWeight: active ? 800 : 600,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}>{p.label}</button>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* 연락처 + 고객명 (2열) */}
+          <Card t={t} title="고객 정보" error={errors.phone || errors.address}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+              <Field t={t} label="연락처 *">
+                <input type="tel" value={form.phone}
+                  onChange={(e) => setForm(p => ({ ...p, phone: formatPhone(e.target.value) }))}
+                  placeholder="010-0000-0000" style={inputStyle(t)}/>
+              </Field>
+              <Field t={t} label="고객명 (선택 — 비면 자동 생성)">
+                <input type="text" value={form.customer}
+                  onChange={(e) => setForm(p => ({ ...p, customer: e.target.value }))}
+                  placeholder={region ? `${region} 고객` : ""} style={inputStyle(t)}/>
+              </Field>
+            </div>
+            <Field t={t} label="주소 *">
+              <input type="text" value={form.address}
+                onChange={(e) => setForm(p => ({ ...p, address: e.target.value }))}
+                placeholder="도로명 주소" style={inputStyle(t)}/>
+            </Field>
+            {region && (
+              <div style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>
+                지역 자동: <span style={{ color: t.text, fontWeight: 700 }}>{region}</span>
+              </div>
+            )}
+          </Card>
+
+          {/* 일정 + 결제 */}
+          <Card t={t} title="일정·결제">
+            <div style={{ marginBottom: 10 }}>
+              <SectionLabel t={t} text="결제 방법"/>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {PAYMENT_METHODS.map(pm => {
+                  const active = form.paymentMethod === pm.id;
+                  return (
+                    <button key={pm.id} type="button"
+                      onClick={() => setForm(p => ({ ...p, paymentMethod: active ? "" : pm.id }))}
+                      style={chipStyle(t, active)}>
+                      {pm.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div>
+              <SectionLabel t={t} text="희망 일정"/>
+              <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                <button type="button" onClick={() => setScheduleMode("tbd")}
+                  style={chipStyle(t, scheduleMode === "tbd")}>일정 미정</button>
+                <button type="button" onClick={() => setScheduleMode("input")}
+                  style={chipStyle(t, scheduleMode === "input")}>지정</button>
+              </div>
+              {scheduleMode === "input" && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <Field t={t} label="희망일">
+                    <input type="date" value={form.requestDate}
+                      onChange={(e) => setForm(p => ({ ...p, requestDate: e.target.value }))}
+                      style={inputStyle(t)}/>
+                  </Field>
+                  <Field t={t} label="희망 시간 (예: 14:00 / 오전)">
+                    <input type="text" value={form.requestTime}
+                      onChange={(e) => setForm(p => ({ ...p, requestTime: e.target.value }))}
+                      placeholder="14:00" style={inputStyle(t)}/>
+                  </Field>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* 요청사항 */}
+          <Card t={t} title="요청사항 (선택)">
+            <textarea value={form.memo}
+              onChange={(e) => setForm(p => ({ ...p, memo: e.target.value.slice(0, 200) }))}
+              rows={3}
+              placeholder="특수 요청 사항 (200자 이내)"
+              style={{ ...inputStyle(t), resize: "vertical", fontFamily: "inherit" }}/>
+            <div style={{ fontSize: 10, color: t.textMuted, textAlign: "right", marginTop: 2 }}>
+              {form.memo.length}/200
+            </div>
+          </Card>
+        </div>
+
+        {/* ─── 우측 ─── */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {/* 작업항목 표 */}
+          <Card t={t} title={`작업항목 * (${workItems.length}건)`} error={errors.workItems}>
+            <WorkItemsTable t={t}
+              items={workItems}
+              onRemove={removeWorkItem}
+              onUpdate={updateWorkItem}
+            />
+            {/* 행 추가 */}
+            <div style={{
+              marginTop: 10, padding: "10px 12px",
+              background: t.bgInset, border: `1px dashed ${t.border}`,
+              borderRadius: 8,
+            }}>
+              <SectionLabel t={t} text="행 추가"/>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto", gap: 6 }}>
+                <select value={editItem.workType}
+                  onChange={(e) => setEditItem({ workType: e.target.value, appliance: "", qty: editItem.qty })}
+                  style={inputStyle(t)}>
+                  <option value="">— 작업유형 —</option>
+                  {WORK_TYPES.map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                </select>
+                <select value={editItem.appliance}
+                  onChange={(e) => setEditItem(prev => ({ ...prev, appliance: e.target.value }))}
+                  disabled={!editItem.workType}
+                  style={{
+                    ...inputStyle(t),
+                    borderColor: requiresApplianceFor(editItem.workType) && !editItem.appliance
+                      ? (t.danger || "#FF3D5A") : t.border,
+                  }}>
+                  <option value="">— 기종{requiresApplianceFor(editItem.workType) ? " 필수" : ""} —</option>
+                  {getAppliancePool(editItem.workType, form.principal).map(a =>
+                    <option key={a} value={a}>{a}</option>
+                  )}
+                </select>
+                <input type="number" min="1" value={editItem.qty}
+                  onChange={(e) => setEditItem(p => ({ ...p, qty: Math.max(1, parseInt(e.target.value || "1", 10)) }))}
+                  style={{ ...inputStyle(t), width: 70 }}/>
+                <button type="button" onClick={addWorkItem} style={addBtnStyle(t)}>
+                  <Plus size={14}/> 추가
+                </button>
+              </div>
+              {errors.addItem && (
+                <div style={{ fontSize: 11, color: t.danger || "#FF3D5A", marginTop: 6 }}>
+                  ⚠️ {errors.addItem}
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* 견적 금액 */}
+          <Card t={t} title="견적금액" error={errors.estimateTotal}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <input type="number" value={form.estimateTotal || ""}
+                onChange={(e) => {
+                  setForm(p => ({ ...p, estimateTotal: Number(e.target.value || 0) }));
+                  setEstimateTouched(true);
+                }}
+                disabled={priceTBD}
+                style={{ ...inputStyle(t), flex: 1, fontSize: 18, fontWeight: 800, opacity: priceTBD ? 0.5 : 1 }}/>
+              <label style={{
+                display: "flex", alignItems: "center", gap: 6,
+                fontSize: 12, color: t.textSecondary, fontWeight: 600,
+                cursor: "pointer",
+              }}>
+                <input type="checkbox" checked={priceTBD}
+                  onChange={(e) => {
+                    setPriceTBD(e.target.checked);
+                    if (e.target.checked) setForm(p => ({ ...p, estimateTotal: 0 }));
+                    setEstimateTouched(false);
+                  }}/>
+                견적 미정
+              </label>
+            </div>
+            {!priceTBD && autoEstimateValue != null && autoEstimateValue !== form.estimateTotal && (
+              <div style={{
+                padding: "6px 10px", background: t.bgInset, border: `1px solid ${t.border}`,
+                borderRadius: 6, fontSize: 11, color: t.textSecondary,
+                display: "flex", justifyContent: "space-between", alignItems: "center",
+              }}>
+                <span>자동 견적 (원청 단가표)</span>
+                <button type="button"
+                  onClick={() => { setForm(p => ({ ...p, estimateTotal: autoEstimateValue })); setEstimateTouched(false); }}
+                  style={{
+                    background: "transparent", border: "none", color: t.accent,
+                    fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+                  }}>
+                  적용 ({fmtKRW(autoEstimateValue)})
+                </button>
+              </div>
+            )}
+          </Card>
+
+          {/* 분배 미리보기 */}
+          {form.principal === "유솔홈케어 N" ? (
+            <Card t={t} title="분배 미리보기">
+              <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>
+                유솔N 은 네이버 정산 (별도 화면 — 미리보기 생략).
+              </div>
+            </Card>
+          ) : feePreview?.ok ? (
+            <Card t={t} title={`분배 미리보기 (${feePreview.calcMethod || "—"})`}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <SplitBox t={t} label="기사 정산"   amount={feePreview.engineer}  color="#378ADD"/>
+                <SplitBox t={t} label="원청 수수료" amount={feePreview.principal} color="#FFB800"/>
+                <SplitBox t={t} label="회사 마진"   amount={feePreview.company}   color="#1D9E75" accent/>
+              </div>
+            </Card>
+          ) : feeLoading ? (
+            <Card t={t} title="분배 미리보기">
+              <div style={{ fontSize: 12, color: t.textMuted }}>계산 중...</div>
+            </Card>
+          ) : feeError ? (
+            <Card t={t} title="분배 미리보기" error={feeError}/>
+          ) : null}
+        </div>
+      </div>
+
+      {/* 하단 에러 / 제출 */}
+      {submitError && (
+        <div style={{
+          maxWidth: 1400, margin: "10px auto 0", padding: "0 24px",
+        }}>
+          <div style={{
+            padding: "10px 12px",
+            background: t.dangerBg || "rgba(255,59,92,0.08)",
+            border: `1px solid ${t.danger || "#FF3D5A"}`,
+            borderRadius: 8, fontSize: 12, color: t.danger || "#FF3D5A",
+            display: "flex", alignItems: "center", gap: 6,
+          }}>
+            <AlertCircle size={14}/> {submitError}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────
+// 보조 컴포넌트
+// ──────────────────────────────────────────────────────────
+
+function requiresApplianceFor(workType) {
+  if (!workType) return false;
+  // 출장비 = "(공통)" 1개 → 사실상 선택 없음 (필수로 잡되 자동 채움)
+  // 세척/냉매/추가선택/냉매점검 = 기종 필수
+  return true;  // 모든 작업유형이 기종 필수 (출장비 포함, "(공통)" 자동)
+}
+
+function PasteArea({ t, text, onChange }) {
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      padding: "12px 14px",
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
+      }}>
+        <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>📋 카톡/붙여넣기</span>
+        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>
+          (Phase 2 — 자동 파싱 예정. 지금은 참고용)
+        </span>
+      </div>
+      <textarea
+        value={text}
+        onChange={(e) => onChange(e.target.value)}
+        rows={3}
+        placeholder="고객 카톡 텍스트를 여기에 붙여넣으세요. (Phase 2 에서 자동 파싱 → 폼 자동 채움)"
+        style={{
+          width: "100%", padding: "8px 10px",
+          background: t.bg, border: `1px solid ${t.border}`, borderRadius: 6,
+          color: t.text, fontSize: 12, fontFamily: "inherit",
+          resize: "vertical", boxSizing: "border-box",
+        }}
+      />
+    </div>
+  );
+}
+
+function Card({ t, title, error, children }) {
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      padding: "14px 16px",
+    }}>
+      <div style={{
+        fontSize: 13, fontWeight: 800, color: t.text,
+        marginBottom: 10,
+      }}>{title}</div>
+      {children}
+      {error && (
+        <div style={{
+          marginTop: 8, padding: "6px 10px",
+          background: t.dangerBg || "rgba(255,59,92,0.08)",
+          border: `1px solid ${t.danger || "#FF3D5A"}`,
+          borderRadius: 6, fontSize: 11, color: t.danger || "#FF3D5A",
+        }}>⚠️ {error}</div>
+      )}
+    </div>
+  );
+}
+
+function Field({ t, label, children }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.3 }}>{label}</span>
+      {children}
+    </div>
+  );
+}
+
+function SectionLabel({ t, text }) {
+  return (
+    <div style={{
+      fontSize: 11, color: t.textMuted, fontWeight: 800, letterSpacing: 0.3,
+      marginBottom: 6,
+    }}>{text}</div>
+  );
+}
+
+function WorkItemsTable({ t, items, onRemove, onUpdate }) {
+  if (items.length === 0) {
+    return (
+      <div style={{
+        padding: "20px 12px", textAlign: "center",
+        color: t.textMuted, fontSize: 12,
+        background: t.bgInset, border: `1px dashed ${t.border}`, borderRadius: 8,
+      }}>
+        작업항목 없음 — 아래에서 추가하세요
+      </div>
+    );
+  }
+  return (
+    <div style={{
+      background: t.bg, border: `1px solid ${t.border}`,
+      borderRadius: 8, overflow: "hidden",
+    }}>
+      <div style={{
+        display: "grid", gridTemplateColumns: "1.2fr 1.2fr auto auto",
+        gap: 8, padding: "8px 12px",
+        background: t.bgInset, borderBottom: `1px solid ${t.border}`,
+        fontSize: 10, color: t.textMuted, fontWeight: 800, letterSpacing: 0.3,
+      }}>
+        <span>작업유형</span><span>기종</span>
+        <span style={{ minWidth: 50, textAlign: "right" }}>수량</span>
+        <span style={{ width: 24 }}></span>
+      </div>
+      {items.map((it, idx) => (
+        <div key={idx} style={{
+          display: "grid", gridTemplateColumns: "1.2fr 1.2fr auto auto",
+          gap: 8, padding: "8px 12px", alignItems: "center",
+          borderTop: idx === 0 ? "none" : `1px solid ${t.border}`,
+          fontSize: 12, color: t.text,
+        }}>
+          <span style={{ fontWeight: 700 }}>{it.workType}</span>
+          <span>{it.appliance || <em style={{ color: t.danger || "#FF3D5A" }}>(기종 누락)</em>}</span>
+          <input type="number" min="1" value={it.qty}
+            onChange={(e) => onUpdate(idx, { qty: Math.max(1, parseInt(e.target.value || "1", 10)) })}
+            style={{
+              ...inputStyle(t), width: 60, padding: "4px 6px",
+              fontSize: 12, textAlign: "right",
+            }}/>
+          <button type="button" onClick={() => onRemove(idx)}
+            style={{
+              background: "transparent", border: "none", padding: 4,
+              cursor: "pointer", color: t.danger || "#FF3D5A",
+              display: "flex", alignItems: "center",
+            }}>
+            <Trash2 size={14}/>
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SplitBox({ t, label, amount, color, accent }) {
+  return (
+    <div style={{
+      padding: "10px 12px",
+      background: accent ? `${color}11` : t.bgInset,
+      border: `1px solid ${accent ? color : t.border}`,
+      borderRadius: 8,
+      display: "flex", flexDirection: "column", gap: 3,
+    }}>
+      <span style={{
+        fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.3,
+      }}>{label}</span>
+      <span className="mono" style={{
+        fontSize: accent ? 17 : 14, fontWeight: 800,
+        color: color,
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.3px",
+      }}>{fmtKRW(amount)}</span>
+    </div>
+  );
+}
+
+// ── 스타일 헬퍼 ──
+function inputStyle(t) {
+  return {
+    padding: "8px 10px",
+    background: t.bg,
+    border: `1px solid ${t.border}`,
+    borderRadius: 6,
+    color: t.text, fontSize: 12, fontFamily: "inherit",
+    outline: "none", boxSizing: "border-box", width: "100%",
+  };
+}
+function chipStyle(t, active) {
+  return {
+    padding: "6px 12px",
+    background: active ? (t.bgInset || "rgba(255,255,255,0.06)") : "transparent",
+    border: `1px solid ${active ? t.text : t.border}`,
+    borderRadius: 999,
+    color: active ? t.text : t.textSecondary,
+    fontSize: 11, fontWeight: 700,
+    cursor: "pointer", fontFamily: "inherit",
+  };
+}
+function iconBtnStyle(t) {
+  return {
+    background: "transparent", border: "none", padding: 4,
+    cursor: "pointer", color: t.text,
+    display: "flex", alignItems: "center",
+  };
+}
+function addBtnStyle(t) {
+  return {
+    background: t.accent, color: "#fff",
+    border: "none", borderRadius: 6,
+    padding: "6px 12px", cursor: "pointer", fontFamily: "inherit",
+    fontSize: 12, fontWeight: 800,
+    display: "inline-flex", alignItems: "center", gap: 4,
+  };
+}
+function primaryBtnStyle(t) {
+  return {
+    padding: "9px 18px",
+    background: t.accent, color: "#fff",
+    border: "none", borderRadius: 8,
+    fontSize: 13, fontWeight: 800,
+    cursor: "pointer", fontFamily: "inherit",
+  };
+}
+
+export default NewReceptionPcForm;
