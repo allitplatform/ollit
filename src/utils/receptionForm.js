@@ -99,7 +99,14 @@ export function calcKaOnewayEstimate(workItems) {
   return KA_1WAY_FIRST_PRICE + Math.max(0, onewayQtySum - 1) * KA_1WAY_ADDITIONAL_PRICE;
 }
 
-// KA 작업 저장 직전 — "1way" + qty=N 항목을 "1way 첫 대" 1 + "1way 추가" (N-1) 로 분리.
+// KA 작업 저장 직전 — "1way" + qty=N 항목을 두 행으로 분리.
+//   2026-06-17 정정 (KA 1way policy_not_found 사고):
+//     · appliance 그대로 "1way" 유지 (옛: "1way 첫 대"/"1way 추가" 라벨로 변경 — sync 트리거가
+//       appliance_types EXACT 매칭 실패 → appliance_type_id NULL → calculate_commission
+//       'policy_not_found').
+//     · orderType '첫대'/'추가' 명시 — Mig 093 sync v4 가 task_items.order_type 에 옮김 →
+//       Mig 094 compute_payment v18 이 p_qty_condition 으로 calculate_commission 매칭.
+//   원청앱 NewReceptionScreenLite (line 388~406) 정상 구현과 동일 패턴.
 //   KA 외 원청 / 다른 기종 / 1way 가 아닌 항목은 그대로.
 export function splitWorkItemsForKa1way(items, principalName) {
   if (principalName !== KA_PRINCIPAL_NAME || !Array.isArray(items)) return items;
@@ -107,9 +114,9 @@ export function splitWorkItemsForKa1way(items, principalName) {
   for (const item of items) {
     if (item.workType === "냉매충전" && item.appliance === "1way") {
       const qty = item.qty || 1;
-      out.push({ ...item, appliance: "1way 첫 대", qty: 1 });
+      out.push({ ...item, appliance: "1way", qty: 1, orderType: "첫대" });
       if (qty > 1) {
-        out.push({ ...item, appliance: "1way 추가", qty: qty - 1 });
+        out.push({ ...item, appliance: "1way", qty: qty - 1, orderType: "추가" });
       }
     } else {
       out.push(item);
@@ -119,17 +126,29 @@ export function splitWorkItemsForKa1way(items, principalName) {
 }
 
 // 카드/리스트 표시용 — 분리 저장된 KA 1way 행을 단일 "1way × N" 으로 합쳐 보여줌.
-//   "1way 첫 대" + "1way 추가" 행이 둘 다 있을 때만 합침. 다른 항목은 그대로.
+//   2026-06-17 정정 — 두 shape 동시 인식:
+//     · 옛 (legacy):  appliance="1way 첫 대" / "1way 추가"  (split fix 이전 저장 데이터)
+//     · 새 (current): appliance="1way" + orderType IN ('첫대','추가') (split fix 이후)
+//   단일 "1way" + orderType 없는 행은 합치지 않음 (그냥 1대 행이므로 표시 그대로).
+//   결과 row 의 appliance 는 항상 "1way" / orderType 제거 (표시용 단일 항목).
+function isKa1waySplitRow(w) {
+  if (!w || w.workType !== "냉매충전") return false;
+  // legacy 라벨 — split fix 이전
+  if (w.appliance === "1way 첫 대" || w.appliance === "1way 추가") return true;
+  // current — appliance="1way" + orderType 마커
+  const ot = w.orderType || w.order_type;
+  if (w.appliance === "1way" && (ot === "첫대" || ot === "추가")) return true;
+  return false;
+}
+
 export function mergeKaOneway(items) {
   if (!Array.isArray(items)) return items;
-  const hasFirst = items.some(w => w.workType === "냉매충전" && w.appliance === "1way 첫 대");
-  if (!hasFirst) return items;
+  if (!items.some(isKa1waySplitRow)) return items;  // split 마커 없으면 그대로
   const merged = [];
   let mergedQty = 0;
   let mergedTemplate = null;
   for (const item of items) {
-    if (item.workType === "냉매충전" &&
-        (item.appliance === "1way 첫 대" || item.appliance === "1way 추가")) {
+    if (isKa1waySplitRow(item)) {
       mergedQty += (item.qty || 1);
       if (!mergedTemplate) mergedTemplate = item;
     } else {
@@ -137,7 +156,9 @@ export function mergeKaOneway(items) {
     }
   }
   if (mergedTemplate) {
-    merged.push({ ...mergedTemplate, appliance: "1way", qty: mergedQty });
+    // 표시용 단일 항목: appliance "1way" + orderType 키 제거.
+    const { orderType: _ot, order_type: _otSnake, ...rest } = mergedTemplate;
+    merged.push({ ...rest, appliance: "1way", qty: mergedQty });
   }
   return merged;
 }
