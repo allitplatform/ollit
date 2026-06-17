@@ -40,6 +40,8 @@ import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { setTaskItemReceivedAmount as apiSetItemReceived, getTaskByIdDb } from "../data/tasksDb.js";
 // 2026-06-02 — 정산 대기 측 partial payload 측 측 → id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일 spec).
 import { v14NormalizeTask } from "../utils/v14Task.js";
+// 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138 unmark_visit_only RPC).
+import { UnmarkVisitOnlyDialog } from "./admin/UnmarkVisitOnlyDialog.jsx";
 
 // state → 알약 라벨/색
 const STATE_MAP = {
@@ -74,6 +76,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   // ════════════════════════════════════════════════════════════
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
+  // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138).
+  const [showUnmarkVisitOnlyDialog, setShowUnmarkVisitOnlyDialog] = useState(false);
   // 2026-06-03 — 품목별 취소 다이얼로그 (PartialCancelDialog).
   const [showPartialCancelDialog, setShowPartialCancelDialog] = useState(false);
   const [exceptionExpanded, setExceptionExpanded] = useState(false);
@@ -278,6 +282,39 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {/* 카드 7 — 작업 사진 */}
       <PhotoSection taskId={task.id} taskType={task.type}/>
       <CompletionNotice task={task}/>
+      {/* 2026-06-17 — visit_only → 정상 작업 되돌리기 (운영자 전용 — RPC 가드 동일). */}
+      {task && task.status === "visit_only" && (
+        <div style={{
+          margin: "0 16px 12px",
+          padding: "12px 14px",
+          background: "var(--accent-bg, rgba(255,27,141,0.06))",
+          border: "1px solid var(--accent)",
+          borderRadius: 10,
+          display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <span style={{ fontSize: 18 }}>🔄</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{
+              fontSize: 13, fontWeight: 800, color: "var(--text-primary)",
+            }}>출장비만으로 처리된 작업</div>
+            <div style={{
+              fontSize: 11, color: "var(--text-secondary)", marginTop: 2, fontWeight: 600,
+            }}>정상 작업으로 되돌릴 수 있습니다 (분배 자동 재계산)</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowUnmarkVisitOnlyDialog(true)}
+            style={{
+              padding: "8px 14px",
+              background: "var(--accent)", color: "#fff",
+              border: "none", borderRadius: 8,
+              fontSize: 12, fontWeight: 800,
+              cursor: "pointer", fontFamily: "inherit",
+              whiteSpace: "nowrap",
+            }}
+          >되돌리기 →</button>
+        </div>
+      )}
       {showException && (
         <ExceptionActions
           expanded={exceptionExpanded}
@@ -306,6 +343,19 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           onConfirm={(payload) => {
             setShowVisitOnlyDialog(false);
             onVisitOnly && onVisitOnly(payload);
+          }}
+        />
+      )}
+      {/* 2026-06-17 — visit_only → 정상 작업 되돌리기 다이얼로그 (Mig 138). */}
+      {showUnmarkVisitOnlyDialog && (
+        <UnmarkVisitOnlyDialog
+          t={t}
+          task={task}
+          actor={user?.user_id || user?.userId || user?.id || null}
+          onClose={() => setShowUnmarkVisitOnlyDialog(false)}
+          onConfirmed={async () => {
+            setShowUnmarkVisitOnlyDialog(false);
+            await refetchTaskBasic();
           }}
         />
       )}
