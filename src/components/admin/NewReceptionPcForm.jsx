@@ -167,10 +167,17 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit }) {
     return () => clearTimeout(timer);
   }, [form.principal, form.estimateTotal, workItems]);
 
-  // 2026-06-17 — 자동 채우기: 원청별 파서 우선 시도 → fallback 카톡 파서.
-  //   1) form.principal 이 KA/crikrin 이면 parsePartnerPaste (주문 텍스트 포맷) 먼저 시도
-  //   2) 결과 없으면 parseKakaoText (일반 카톡 텍스트)
-  //   3) result → form state 자동 set + parseResult (matched/unmatched) 표시
+  // 2026-06-17 — 자동 채우기: 원청별 파서 우선 + parseKakaoText fallback.
+  //   1) form.principal 이 KA/crikrin 이면 parsePartnerPaste 시도
+  //      · 1건 + 의미있는 데이터 (items≥1 또는 phone) 있으면 prefill 후 return
+  //      · 빈약하면 (items=0 + phone=null) fallback 으로 계속 진행
+  //   2) parseKakaoText (일반 카톡 — KA "가.충" 패턴 자동 위임 포함)
+  //
+  // ⚠️ 2026-06-17 정정: parsePartnerPaste 반환 필드명 정합 (1a7e10c 버그):
+  //   · rec.customerName (rec.customer X)
+  //   · rec.items[] {appliance, qty, price} → workItems[] {workType, appliance, qty} 변환
+  //   · estimateTotal 은 items.price 합산 (parsePartnerPaste 가 따로 안 줌)
+  //   · memo = desiredText + memo 합침
   function handleAutoFill() {
     if (!pasteText.trim()) return;
 
@@ -181,20 +188,40 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit }) {
         const recs = parsePartnerPaste(pasteText, principalCode);
         if (Array.isArray(recs) && recs.length === 1) {
           const rec = recs[0];
-          setForm(prev => ({
-            ...prev,
-            customer:  rec.customer  || prev.customer,
-            phone:     rec.phone     || prev.phone,
-            address:   rec.address   || prev.address,
-            estimateTotal: rec.estimateTotal || prev.estimateTotal,
-            memo:      rec.memo      || prev.memo,
-          }));
-          if (Array.isArray(rec.workItems) && rec.workItems.length > 0) {
-            setWorkItems(rec.workItems);
+          const hasMeaningfulData = (Array.isArray(rec.items) && rec.items.length > 0) || !!rec.phone;
+          if (hasMeaningfulData) {
+            const computedEstimate = Array.isArray(rec.items)
+              ? rec.items.reduce((s, it) => s + (Number(it.price) || 0) * (Number(it.qty) || 1), 0)
+              : 0;
+            const memoCombined = [rec.desiredText, rec.memo].filter(Boolean).join(" ").trim();
+            setForm(prev => ({
+              ...prev,
+              customer:      rec.customerName || prev.customer,
+              phone:         rec.phone        || prev.phone,
+              address:       rec.address      || prev.address,
+              memo:          memoCombined     || prev.memo,
+              estimateTotal: computedEstimate > 0 ? computedEstimate : prev.estimateTotal,
+            }));
+            // items → workItems (shape 변환). appliance null 인 건 (parser 안전망)은 제외.
+            const wt = rec.workType || "냉매충전";
+            const wis = (rec.items || [])
+              .filter(it => it.appliance)
+              .map(it => ({ workType: wt, appliance: it.appliance, qty: Math.max(1, Number(it.qty) || 1) }));
+            if (wis.length > 0) setWorkItems(wis);
+            if (computedEstimate > 0) setEstimateTouched(true);
+            setParseResult({
+              matched: [
+                `원청별 (${principalCode})`,
+                ...(wis.length > 0 ? [`기종 ${wis.length}건`] : []),
+                ...(rec.phone ? ["연락처"] : []),
+                ...(rec.address ? ["주소"] : []),
+                ...(computedEstimate > 0 ? ["금액"] : []),
+              ],
+              unmatched: [],
+            });
+            return;
           }
-          if (rec.estimateTotal) setEstimateTouched(true);
-          setParseResult({ matched: [`원청별 (${principalCode})`, ...(rec._matched || [])], unmatched: [] });
-          return;
+          // hasMeaningfulData=false → fallback 카톡 파서로
         }
       } catch (_) { /* fallback 카톡 파서로 */ }
     }
