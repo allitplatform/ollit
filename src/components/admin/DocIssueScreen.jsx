@@ -118,79 +118,163 @@ function LabeledInput({ label, value, onChange, placeholder, mono, type = "text"
   );
 }
 
+// 2026-06-19 — 품목 구조: 대표 라벨(1줄, 총액) + 세부 라벨 배열(들여쓰기, 금액 X).
+//   양식(InvoiceTemplate/ReceiptTemplate)은 이미 subItems 들여쓰기 처리 지원.
+//   본 ItemChip 은 대표 행 + 세부 라벨 inline 편집 UI 제공.
+const subInputStyle = {
+  flex: 1, minWidth: 0,
+  padding: "5px 8px",
+  border: "1px solid var(--border)",
+  borderRadius: 6,
+  background: "var(--bg-primary)",
+  color: "var(--text-secondary)",
+  fontSize: 12, fontFamily: "inherit",
+  outline: "none",
+};
+
 function ItemChip({ item, idx, onChange, onRemove }) {
+  const subItems = Array.isArray(item.subItems) ? item.subItems : [];
+
+  function setSub(subIdx, value) {
+    const next = subItems.slice();
+    next[subIdx] = value;
+    onChange(idx, { ...item, subItems: next });
+  }
+  function addSub() {
+    onChange(idx, { ...item, subItems: subItems.concat([""]) });
+  }
+  function removeSub(subIdx) {
+    const next = subItems.filter((_, i) => i !== subIdx);
+    onChange(idx, { ...item, subItems: next });
+  }
+
   return (
     <div style={{
-      display: "flex", gap: 6, alignItems: "center",
-      padding: "8px 10px",
+      padding: "10px 10px 8px",
       background: "var(--bg-secondary)",
       border: "1px solid var(--border)",
       borderRadius: 10,
-      marginBottom: 6,
+      marginBottom: 8,
     }}>
-      <input
-        value={item.label}
-        onChange={e => onChange(idx, { ...item, label: e.target.value })}
-        placeholder="품목"
-        style={{
-          flex: 2, minWidth: 0,
-          padding: "6px 8px",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          background: "var(--bg-primary)",
-          color: "var(--text-primary)",
-          fontSize: 13, fontFamily: "inherit",
-          outline: "none",
-        }}
-      />
-      <input
-        type="text"
-        inputMode="numeric"
-        value={item.qty ?? 1}
-        onChange={e => onChange(idx, { ...item, qty: Number(e.target.value.replace(/\D/g, "")) || 1 })}
-        style={{
-          width: 56,
-          padding: "6px 8px",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          background: "var(--bg-primary)",
-          color: "var(--text-primary)",
-          fontSize: 13, fontFamily: "monospace",
-          textAlign: "center",
-          outline: "none",
-        }}
-      />
-      <input
-        type="text"
-        inputMode="numeric"
-        value={item.price != null ? Number(item.price).toLocaleString("ko-KR") : ""}
-        onChange={e => {
-          const n = Number(String(e.target.value).replace(/\D/g, "")) || 0;
-          onChange(idx, { ...item, price: n || undefined });
-        }}
-        placeholder="단가"
-        style={{
-          flex: 1, minWidth: 70,
-          padding: "6px 8px",
-          border: "1px solid var(--border)",
-          borderRadius: 6,
-          background: "var(--bg-primary)",
-          color: "var(--text-primary)",
-          fontSize: 13, fontFamily: "monospace",
-          textAlign: "right",
-          outline: "none",
-        }}
-      />
-      <button
-        type="button"
-        onClick={() => onRemove(idx)}
-        aria-label="품목 삭제"
-        style={{
-          background: "transparent", border: "none",
-          color: "#FF3B5C", fontSize: 16,
-          padding: "4px 6px", cursor: "pointer",
-        }}
-      >×</button>
+      {/* 대표 행 — 라벨 / 수량 / 총액 / 삭제 */}
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input
+          value={item.label}
+          onChange={e => onChange(idx, { ...item, label: e.target.value })}
+          placeholder="대표 품목 (예: 에어컨 누설 수리 작업 일체)"
+          style={{
+            flex: 2, minWidth: 0,
+            padding: "6px 8px",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            background: "var(--bg-primary)",
+            color: "var(--text-primary)",
+            fontSize: 13, fontFamily: "inherit",
+            outline: "none",
+          }}
+        />
+        <input
+          type="text"
+          inputMode="numeric"
+          value={item.qty ?? 1}
+          onChange={e => onChange(idx, { ...item, qty: Number(e.target.value.replace(/\D/g, "")) || 1 })}
+          aria-label="수량"
+          style={{
+            width: 50,
+            padding: "6px 8px",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            background: "var(--bg-primary)",
+            color: "var(--text-primary)",
+            fontSize: 13, fontFamily: "monospace",
+            textAlign: "center",
+            outline: "none",
+          }}
+        />
+        <input
+          type="text"
+          inputMode="numeric"
+          value={item.price != null ? Number(item.price).toLocaleString("ko-KR") : ""}
+          onChange={e => {
+            const n = Number(String(e.target.value).replace(/\D/g, "")) || 0;
+            onChange(idx, { ...item, price: n || undefined });
+          }}
+          placeholder="총액"
+          aria-label="총액"
+          style={{
+            flex: 1, minWidth: 90,
+            padding: "6px 8px",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            background: "var(--bg-primary)",
+            color: "var(--text-primary)",
+            fontSize: 13, fontFamily: "monospace",
+            textAlign: "right",
+            outline: "none",
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => onRemove(idx)}
+          aria-label="품목 삭제"
+          style={{
+            background: "transparent", border: "none",
+            color: "#FF3B5C", fontSize: 16,
+            padding: "4px 6px", cursor: "pointer",
+          }}
+        >×</button>
+      </div>
+
+      {/* 세부 라벨 — └ 들여쓰기 (가격 없음) */}
+      {subItems.map((sub, sIdx) => (
+        <div
+          key={sIdx}
+          style={{
+            display: "flex", gap: 6, alignItems: "center",
+            marginTop: 6, paddingLeft: 18,
+          }}
+        >
+          <span style={{
+            color: "var(--text-secondary)", fontSize: 13,
+            width: 14, textAlign: "center",
+          }}>└</span>
+          <input
+            value={sub}
+            onChange={e => setSub(sIdx, e.target.value)}
+            placeholder="세부 항목"
+            style={subInputStyle}
+          />
+          <button
+            type="button"
+            onClick={() => removeSub(sIdx)}
+            aria-label="세부 삭제"
+            style={{
+              background: "transparent", border: "none",
+              color: "#999", fontSize: 14,
+              padding: "2px 6px", cursor: "pointer",
+            }}
+          >×</button>
+        </div>
+      ))}
+
+      {/* 세부 추가 버튼 */}
+      <div style={{ marginTop: 8, paddingLeft: 18 }}>
+        <button
+          type="button"
+          onClick={addSub}
+          style={{
+            padding: "4px 10px",
+            background: "transparent",
+            border: "1px dashed var(--border)",
+            borderRadius: 999,
+            color: "var(--text-secondary)",
+            fontSize: 11,
+            cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          + 세부 항목
+        </button>
+      </div>
     </div>
   );
 }

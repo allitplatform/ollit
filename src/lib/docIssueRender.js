@@ -20,12 +20,34 @@ const CAPTURE_SCALE = 2;
 const A4_W_MM = 210;
 const A4_H_MM = 297;
 
-async function awaitFontsReady() {
-  if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
-    try { await document.fonts.ready; } catch (_) {}
+// 2026-06-19 — 한글 깨짐 정정.
+//   원인: html2canvas 가 웹폰트 로드 완료 전에 캡처 → Pretendard 가 빠지고
+//         시스템 폴백(또는 글리프 없는 폰트)으로 렌더 → 일부 한글이 한자/깨짐.
+//   수정: document.fonts.ready 만으로는 "현재 등록된 폰트의 첫 로드" 만 보장 —
+//         양식이 mount 된 직후 새 weight 요청이 들어가면 미로드 상태로 캡처 가능.
+//         양식에서 실제 사용하는 weight 5종(400/600/700/800 + "Pretendard Variable")
+//         을 fonts.load 로 명시적 강제 로드 + ready 재대기.
+async function ensureFontsLoaded() {
+  if (typeof document === "undefined" || !document.fonts) {
+    return;
   }
+  try {
+    await Promise.all([
+      document.fonts.load("400 14px Pretendard"),
+      document.fonts.load("500 14px Pretendard"),
+      document.fonts.load("600 14px Pretendard"),
+      document.fonts.load("700 14px Pretendard"),
+      document.fonts.load("800 14px Pretendard"),
+      document.fonts.load("400 14px 'Pretendard Variable'"),
+      document.fonts.load("700 14px 'Pretendard Variable'"),
+      document.fonts.load("800 14px 'Pretendard Variable'"),
+    ]);
+    await document.fonts.ready;
+  } catch (_) {}
+  // layout 안정화 — 2 RAF + 80ms 안전 마진.
   await new Promise(r => requestAnimationFrame(() => r()));
   await new Promise(r => requestAnimationFrame(() => r()));
+  await new Promise(r => setTimeout(r, 80));
 }
 
 async function mountTemplateAndCaptureCanvas(Component, props) {
@@ -49,9 +71,10 @@ async function mountTemplateAndCaptureCanvas(Component, props) {
   try {
     root.render(React.createElement(Component, props));
 
-    await new Promise(r => setTimeout(r, 50));
-    await awaitFontsReady();
-    await new Promise(r => setTimeout(r, 30));
+    // mount + 양식 DOM 안정화 1차 대기
+    await new Promise(r => setTimeout(r, 80));
+    // 폰트 강제 로드 (Pretendard weight 5종 + Variable 3종)
+    await ensureFontsLoaded();
 
     const canvas = await html2canvas(host, {
       scale: CAPTURE_SCALE,
