@@ -14,6 +14,7 @@ import { useIsDark } from "../../hooks/useIsDark.js";
 import { supabase } from "../../lib/supabase.js";
 import { getEngineerBusinessInfo } from "../../lib/engineerBusinessInfoDb.js";
 import { parseDocIssuePaste, computeVatBreakdown } from "../../lib/docIssueParser.js";
+import "./DocIssueScreen.css";
 
 // ──────────────────────────────────────────────
 // 모듈 최상위 — 부모 리렌더에 input remount 안 일으키도록 분리.
@@ -89,7 +90,11 @@ function TwoToggle({ value, options, onChange, isDark }) {
   );
 }
 
-function LabeledInput({ label, value, onChange, placeholder, mono, type = "text", inputMode }) {
+function LabeledInput({ label, value, onChange, placeholder, mono, type = "text", inputMode, className }) {
+  // 2026-06-19 — date input 정렬 정정: 일반 text input 과 동일한 minHeight 36 명시.
+  //   date 위젯은 OS 기본 line-height 가 더 커서 같은 padding 이어도 결과 키가 다름 →
+  //   minHeight 로 명시적 일치. CSS 의사요소 (DocIssueScreen.css) 와 함께 작동.
+  const isDate = type === "date";
   return (
     <div style={{ marginBottom: 6 }}>
       <div style={{
@@ -103,8 +108,10 @@ function LabeledInput({ label, value, onChange, placeholder, mono, type = "text"
         value={value ?? ""}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        className={className}
         style={{
           width: "100%",
+          minHeight: 36,
           padding: "8px 10px",
           fontSize: 13,
           fontFamily: mono ? "monospace" : "inherit",
@@ -115,6 +122,8 @@ function LabeledInput({ label, value, onChange, placeholder, mono, type = "text"
           color: "var(--text-primary)",
           outline: "none",
           boxSizing: "border-box",
+          textAlign: "left",
+          lineHeight: isDate ? 1.2 : undefined,
         }}
       />
     </div>
@@ -1000,6 +1009,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
             value={issueDate}
             onChange={setIssueDate}
             type="date"
+            className="doc-date-input"
           />
           {docType === "receipt" && (
             <div style={{

@@ -1,0 +1,53 @@
+/* 2026-06-19 — 발행 화면 date input 정렬 통일.
+   <input type="date"> 는 OS/브라우저 기본 위젯 스타일이 강해서 일반 text input 과
+   높이·내부 패딩·텍스트 정렬·캘린더 아이콘이 어긋남.
+   appearance:none + WebKit/Chromium 의사요소 padding/margin 영점 + 텍스트 좌측 정렬 + iOS Safari
+   text-fill-color 강제로 다른 입력칸과 시각적 일치를 보장. */
+
+.doc-date-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  text-align: left;
+  font-family: inherit;
+  line-height: normal;
+  /* iOS Safari — 색상이 회색으로 보이는 현상 정정 */
+  -webkit-text-fill-color: var(--text-primary);
+  /* Firefox / 기타 — value 가 비어있을 때 placeholder 영역 정렬 */
+  vertical-align: middle;
+}
+
+/* WebKit/Chromium — datetime edit 컨테이너 영점 */
+.doc-date-input::-webkit-datetime-edit {
+  padding: 0;
+  margin: 0;
+  text-align: left;
+}
+.doc-date-input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+  margin: 0;
+}
+.doc-date-input::-webkit-datetime-edit-text,
+.doc-date-input::-webkit-datetime-edit-year-field,
+.doc-date-input::-webkit-datetime-edit-month-field,
+.doc-date-input::-webkit-datetime-edit-day-field {
+  padding: 0;
+}
+
+/* 캘린더 picker 아이콘 — 우측에 작게, 클릭 가능 */
+.doc-date-input::-webkit-calendar-picker-indicator {
+  margin: 0 0 0 auto;
+  padding: 0 2px;
+  cursor: pointer;
+  opacity: 0.55;
+}
+.doc-date-input::-webkit-calendar-picker-indicator:hover {
+  opacity: 0.85;
+}
+
+/* 다크 모드 — 캘린더 아이콘 색상 강제 (브라우저 색 스킴 자동 인식 안 될 때) */
+@media (prefers-color-scheme: dark) {
+  .doc-date-input::-webkit-calendar-picker-indicator {
+    filter: invert(0.85);
+  }
+}
