@@ -40,6 +40,58 @@ function emptyForm() {
   };
 }
 
+// 2026-06-19 — 모듈 최상위 컴포넌트 (이전엔 부모 본문 안에 정의 → 매 렌더마다
+//   새 함수 reference → React가 새 type 으로 인식 → input unmount/remount →
+//   포커스 손실 + 한 글자만 입력되던 버그). 본문 안 정의는 절대 X.
+function Field({ label, labelStyle, children }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={labelStyle}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+const TAX_OPTS = [
+  { v: "간이", label: "간이과세" },
+  { v: "일반", label: "일반과세" },
+];
+
+function TaxToggle({ value, onChange, isDark }) {
+  return (
+    <div style={{ display: "flex", gap: 8 }}>
+      {TAX_OPTS.map(opt => {
+        const on = value === opt.v;
+        return (
+          <button
+            key={opt.v}
+            type="button"
+            onClick={() => onChange(on ? "" : opt.v)}
+            style={{
+              flex: 1,
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: `1px solid ${on ? "#FF1B8D" : (isDark ? "#2A2A2A" : "#EFE9E0")}`,
+              background: on
+                ? (isDark ? "#2D0F1E" : "#FFE5F2")
+                : (isDark ? "#0F0F0F" : "#FFFFFF"),
+              color: on
+                ? (isDark ? "#FF4DA6" : "#FF1B8D")
+                : (isDark ? "#FAF8F5" : "#1A1A1A"),
+              fontSize: 13,
+              fontWeight: on ? 700 : 500,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function rowToForm(row) {
   if (!row) return emptyForm();
   return {
@@ -143,7 +195,12 @@ export function EngineerBusinessInfoCard({
     setInitial(form);
   }
 
-  // ─── 스타일 ──────────────────────────────────────
+  // 2026-06-19 — 입력 포커스 손실 정정.
+  //   이전: Field / TaxToggle 컴포넌트가 본 함수 본문 안에 정의됨 → 매 렌더마다
+  //   새 함수 reference → React가 새 component type 으로 인식 → unmount/remount
+  //   → input 포커스 손실. 컴포넌트 정의를 모듈 최상위 (이 파일 하단) 로 이동.
+  // 인라인 스타일도 매 렌더 새 객체가 만들어지나, JSX prop 변경은 remount 트리거가
+  // 아니라 reconcile 만 하므로 input 포커스 유지에 영향 없음.
   const labelStyle = {
     fontSize: 12,
     fontWeight: 600,
@@ -163,55 +220,6 @@ export function EngineerBusinessInfoCard({
     outline: "none",
     boxSizing: "border-box",
   };
-  const fieldWrap = { marginBottom: 12 };
-
-  function Field({ label, children }) {
-    return (
-      <div style={fieldWrap}>
-        <div style={labelStyle}>{label}</div>
-        {children}
-      </div>
-    );
-  }
-
-  function TaxToggle() {
-    const opts = [
-      { v: "간이", label: "간이과세" },
-      { v: "일반", label: "일반과세" },
-    ];
-    return (
-      <div style={{ display: "flex", gap: 8 }}>
-        {opts.map(opt => {
-          const on = form.tax_type === opt.v;
-          return (
-            <button
-              key={opt.v}
-              type="button"
-              onClick={() => setField("tax_type", on ? "" : opt.v)}
-              style={{
-                flex: 1,
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: `1px solid ${on ? "#FF1B8D" : (isDark ? "#2A2A2A" : "#EFE9E0")}`,
-                background: on
-                  ? (isDark ? "#2D0F1E" : "#FFE5F2")
-                  : (isDark ? "#0F0F0F" : "#FFFFFF"),
-                color: on
-                  ? (isDark ? "#FF4DA6" : "#FF1B8D")
-                  : (isDark ? "#FAF8F5" : "#1A1A1A"),
-                fontSize: 13,
-                fontWeight: on ? 700 : 500,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {opt.label}
-            </button>
-          );
-        })}
-      </div>
-    );
-  }
 
   return (
     <div style={{ ...cardStyle, padding: 18 }}>
@@ -258,7 +266,7 @@ export function EngineerBusinessInfoCard({
 
       {!loading && !error && (
         <>
-          <Field label="상호">
+          <Field label="상호" labelStyle={labelStyle}>
             <input
               type="text"
               value={form.business_name}
@@ -268,7 +276,7 @@ export function EngineerBusinessInfoCard({
             />
           </Field>
 
-          <Field label="대표자명">
+          <Field label="대표자명" labelStyle={labelStyle}>
             <input
               type="text"
               value={form.representative_name}
@@ -278,7 +286,7 @@ export function EngineerBusinessInfoCard({
             />
           </Field>
 
-          <Field label="사업자번호 (000-00-00000)">
+          <Field label="사업자번호 (000-00-00000)" labelStyle={labelStyle}>
             <input
               type="text"
               inputMode="numeric"
@@ -294,7 +302,7 @@ export function EngineerBusinessInfoCard({
             />
           </Field>
 
-          <Field label="사업장 주소">
+          <Field label="사업장 주소" labelStyle={labelStyle}>
             <input
               type="text"
               value={form.business_address}
@@ -304,11 +312,15 @@ export function EngineerBusinessInfoCard({
             />
           </Field>
 
-          <Field label="과세유형">
-            <TaxToggle/>
+          <Field label="과세유형" labelStyle={labelStyle}>
+            <TaxToggle
+              value={form.tax_type}
+              onChange={(v) => setField("tax_type", v)}
+              isDark={isDark}
+            />
           </Field>
 
-          <Field label="은행">
+          <Field label="은행" labelStyle={labelStyle}>
             <input
               type="text"
               value={form.bank_name}
@@ -318,7 +330,7 @@ export function EngineerBusinessInfoCard({
             />
           </Field>
 
-          <Field label="계좌번호">
+          <Field label="계좌번호" labelStyle={labelStyle}>
             <input
               type="text"
               value={form.bank_account}
