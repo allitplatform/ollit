@@ -19,6 +19,7 @@ import {
 import { loadFontSize, applyFontSize } from "../utils/fontSize.js";
 import { REGISTERED_USERS } from "../shared/users.js";
 import { loadEngineers as loadSheetEngineers } from "../data/engineers.js";
+import { EngineerBusinessInfoCard } from "./EngineerBusinessInfoCard.jsx";
 
 const APP_VERSION = "v1.0 · Phase 1A";
 
@@ -349,6 +350,21 @@ export function EngineerMeTab({
             </button>
           </div>
         </div>
+
+        {/* 2026-06-18 Mig 141 — 사업자 정보 카드 (본인 입력, actor = userId) */}
+        {(() => {
+          const selfUserId = eng?.user_id || eng?.userId || "";
+          if (!selfUserId) return null;
+          return (
+            <EngineerBusinessInfoCard
+              userId={selfUserId}
+              actor={selfUserId}
+              isDark={isDark}
+              cardStyle={cardStyle}
+              onToast={showLocalToast}
+            />
+          );
+        })()}
 
         {/* Step 5-8 design 🅓 — 정산 계좌 카드 (정산 탭 회사 송금 카드와 통일 디자인) */}
         <div style={{ ...cardStyle, padding: 18 }}>

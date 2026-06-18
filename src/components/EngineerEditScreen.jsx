@@ -3,7 +3,7 @@
 // Step 5-2 — 시트 설정_기사 양방향 sync (saveEngineerWithSync / deleteEngineerWithSync)
 // Step 5-4 — 시트 설정_기사단가 양방향 sync (saveEngineerRateWithSync / deleteEngineerRateWithSync)
 // Step 5-5-C Phase 4-B-2 — 새 역량 폼 코드 완전 제거 (옛 workTypes 폼만 / Phase 4-C 양방향 추가 예정)
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 // 2026-06-12 — PC 2단 레이아웃 (1024px+ / 1280px+ 2단 grid). 모바일 옛 그대로.
 import { useIsPc, useMinWidth } from "../utils/useIsPc.js";
 import {
@@ -19,6 +19,9 @@ import {
 //   옛: generateId(name) = `${name}_${Date.now().toString(36)}` → "이름_랜덤" 비정상 code.
 //   새: Supabase RPC 가 max(E0xx)+1 반환 → 'E035' 형식 보장. RPC 실패 시 fallback X (사장님 spec).
 import { supabase } from "../lib/supabase.js";
+// 2026-06-18 Mig 141 — 사업자 정보 카드 (운영자 대리 입력 — actor = 운영자 user_id).
+import { EngineerBusinessInfoCard } from "./EngineerBusinessInfoCard.jsx";
+import { useIsDark } from "../hooks/useIsDark.js";
 
 // Step 5-5-C Phase 4-C-2 — 시트 (전체) 행 매핑 헬퍼 (form 초기값 + workTypesOriginal 둘 다 호출)
 function _computeInitialWorkTypes(engineer) {
@@ -72,7 +75,7 @@ const REFRIGERANT_RATE_OPTIONS = [
 const RATE_WORK_TYPES = ["세척", "냉매충전", "냉매점검", "출장비", "추가선택"];
 const RATE_APPLIANCES = ["벽걸이", "스탠드", "1way", "4way", "원형", "투인원", "시스템멀티", "천장형"];
 
-export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
+export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) {
   // Step 5-5-C Phase 4-C-3 — engineer.skills (시트 _기사역량 캐시)에서 (전체) 원청 행 우선
   // Phase 4-C-2 — _computeInitialWorkTypes 헬퍼로 form 초기값 + workTypesOriginal 둘 다 동일 매핑
   const [form, setForm] = useState(() => ({
@@ -86,6 +89,22 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
   const [error, setError]     = useState("");
   const [toast, setToast]     = useState(null);  // { type: 'success'|'warn'|'error', message }
   const [busy, setBusy]       = useState(false);
+  // 2026-06-18 Mig 141 — 사업자 정보 카드용 user_id (UUID). 시트 캐시에는 보통 결손.
+  //   engineer.user_id / engineer.id 우선, 없으면 code → users.id 한 번 조회 후 캐시.
+  const [targetUserId, setTargetUserId] = useState(engineer?.user_id || engineer?.id || null);
+  const isDark = useIsDark();
+  useEffect(() => {
+    if (targetUserId || isNew || !engineer?.code) return;
+    let alive = true;
+    supabase.from("users")
+      .select("id")
+      .eq("code", engineer.code)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (alive && data?.id) setTargetUserId(data.id);
+      });
+    return () => { alive = false; };
+  }, [engineer?.code, isNew, targetUserId]);
 
   // Step 5-4 — 단가 행 state (기존 행 fetch + 변경 추적)
   const [rates, setRates] = useState(() =>
@@ -567,6 +586,22 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
                 {refriRateSection}
               </PcCard>
               <PcCard>{accountSection}</PcCard>
+              {!isNew && targetUserId && actor && (
+                <EngineerBusinessInfoCard
+                  userId={targetUserId}
+                  actor={actor}
+                  isDark={isDark}
+                  cardStyle={{
+                    background: "var(--bg-elevated)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 12,
+                  }}
+                  onToast={(msg) => setToast({
+                    type: msg.startsWith("⚠️") ? "error" : "success",
+                    message: msg,
+                  })}
+                />
+              )}
             </div>
             {/* 우단 — 카드 2장 + 좌측 띠 (세척 파랑 / 냉매 노랑) */}
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -599,6 +634,24 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack }) {
           {refrigerantSection}
           {ratesSection}
           {accountSection}
+          {!isNew && targetUserId && actor && (
+            <div style={{ marginTop: 16 }}>
+              <EngineerBusinessInfoCard
+                userId={targetUserId}
+                actor={actor}
+                isDark={isDark}
+                cardStyle={{
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                }}
+                onToast={(msg) => setToast({
+                  type: msg.startsWith("⚠️") ? "error" : "success",
+                  message: msg,
+                })}
+              />
+            </div>
+          )}
           {memoSection}
           {errorNode}
           {toastNode}

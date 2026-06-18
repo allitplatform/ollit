@@ -3242,6 +3242,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <EngineerEditScreen
         engineer={editingEngineer}
         isNew={editingIsNew}
+        actor={user?.user_id || user?.id || null}
         onBack={() => {
           setEditingEngineer(null);
           setEditingIsNew(false);
