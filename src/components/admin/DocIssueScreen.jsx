@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useIsDark } from "../../hooks/useIsDark.js";
+import { supabase } from "../../lib/supabase.js";
 import { getEngineerBusinessInfo } from "../../lib/engineerBusinessInfoDb.js";
 import { parseDocIssuePaste, computeVatBreakdown } from "../../lib/docIssueParser.js";
 
@@ -263,23 +264,55 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
   const [docType, setDocType] = useState("invoice");
 
   // 발행처 변경 시 사업자 정보 fetch.
+  //
+  // 2026-06-19 정정: apiEngineers 가 시트 캐시 기반이라 보통 user_id(UUID)가 결손.
+  //   이전: 시트 캐시에서 user_id 없으면 즉시 경고 노출 → E022/E002 같은 정상 기사도
+  //         사용자 화면에 "user_id 결손" 경고가 조기 노출 (실제 데이터는 멀쩡, UX만 깨짐).
+  //   현재: 시트 캐시 결손이면 supabase users 테이블에서 code→id 한 번 조회.
+  //         그 조회까지 실패해야 그때 경고 (DB 에도 진짜 없는 기사일 때만).
+  //   같은 패턴: EngineerEditScreen 의 targetUserId useEffect (Mig 141 작업 시 적용).
   useEffect(() => {
     if (!issuerCode || !actor) {
       setIssuerInfo(null);
       setIssuerError("");
       return;
     }
-    const eng = activeEngineers.find(e => (e.engineerId || e.id) === issuerCode);
-    const targetUserId = eng?.user_id || eng?.userUuid || eng?.uuid;
-    if (!targetUserId) {
-      setIssuerInfo(null);
-      setIssuerError("기사 user_id 결손 — 기사 관리에서 사업자 정보 먼저 등록 필요");
-      return;
-    }
     let alive = true;
     setIssuerLoading(true);
     setIssuerError("");
-    getEngineerBusinessInfo(targetUserId, actor).then(res => {
+
+    async function loadIssuer() {
+      const eng = activeEngineers.find(e => (e.engineerId || e.id) === issuerCode);
+      let targetUserId = eng?.user_id || eng?.userUuid || eng?.uuid;
+
+      // 시트 캐시에 user_id 없으면 DB users 에서 code 로 즉석 조회.
+      if (!targetUserId) {
+        const { data, error } = await supabase
+          .from("users")
+          .select("id")
+          .eq("code", issuerCode)
+          .maybeSingle();
+        if (!alive) return;
+        if (error) {
+          setIssuerLoading(false);
+          setIssuerInfo(null);
+          setIssuerError(error.message || "기사 조회 실패");
+          return;
+        }
+        if (data?.id) {
+          targetUserId = data.id;
+        }
+      }
+
+      if (!alive) return;
+      if (!targetUserId) {
+        setIssuerLoading(false);
+        setIssuerInfo(null);
+        setIssuerError("DB 에서 기사를 찾을 수 없습니다 (code 확인 필요)");
+        return;
+      }
+
+      const res = await getEngineerBusinessInfo(targetUserId, actor);
       if (!alive) return;
       setIssuerLoading(false);
       if (!res?.ok) {
@@ -288,7 +321,9 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
         return;
       }
       setIssuerInfo(res.row || null);
-    });
+    }
+
+    loadIssuer();
     return () => { alive = false; };
   }, [issuerCode, actor, activeEngineers]);
 
