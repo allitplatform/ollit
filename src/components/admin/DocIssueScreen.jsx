@@ -11,7 +11,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useIsDark } from "../../hooks/useIsDark.js";
-import { useIsPc } from "../../utils/useIsPc.js";
 import { supabase } from "../../lib/supabase.js";
 import { getEngineerBusinessInfo } from "../../lib/engineerBusinessInfoDb.js";
 import { parseDocIssuePaste, computeVatBreakdown } from "../../lib/docIssueParser.js";
@@ -313,91 +312,68 @@ const VAT_OPTS = [
 const fmtKRW = (n) => `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
 
 // ──────────────────────────────────────────────
-// 액션 버튼 묶음 — PC vs 모바일 우선순위 다름.
-//   PC:   [이미지][PDF][카톡 공유]
-//   모바일: [💬 카톡 공유][🖼 이미지][PDF]  (카톡 강조 + PDF 보조)
+// 액션 버튼 묶음 — 전체폭 세로 스택, 동일 규격 (2026-06-19 정리).
+//   순서: [💬 카톡 공유 (메인)] [🖼 이미지 (아웃라인)] [📄 PDF (아웃라인)]
+//   카톡만 노랑(메인 액션), 이미지/PDF 는 동일 아웃라인. PC·모바일 동일 레이아웃.
 // ──────────────────────────────────────────────
-function DocActionBar({ isPc, issuing, onAction }) {
-  const btnBase = {
-    minHeight: 44,         // 터치 타겟 보장
-    padding: "10px 12px",
-    border: "none",
+function DocActionBar({ issuing, onAction }) {
+  const baseBtn = {
+    width: "100%",
+    minHeight: 48,
+    padding: "12px 16px",
     borderRadius: 10,
     fontSize: 14, fontWeight: 700,
     fontFamily: "inherit",
     cursor: issuing ? "not-allowed" : "pointer",
     opacity: issuing ? 0.6 : 1,
+    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+    boxSizing: "border-box",
   };
-  const ImageBtn = (
-    <button
-      type="button"
-      key="image"
-      onClick={() => onAction("image")}
-      disabled={issuing}
-      style={{
-        ...btnBase,
-        flex: 1,
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
-        color: "var(--text-primary)",
-      }}
-    >
-      {issuing ? "생성 중…" : "🖼 이미지"}
-    </button>
-  );
-  const PdfBtn = (
-    <button
-      type="button"
-      key="pdf"
-      onClick={() => onAction("pdf")}
-      disabled={issuing}
-      style={{
-        ...btnBase,
-        flex: isPc ? 1 : 0.6,
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border)",
-        color: "var(--text-primary)",
-      }}
-    >
-      {issuing ? "생성 중…" : "📄 PDF"}
-    </button>
-  );
-  const KakaoBtn = (
-    <button
-      type="button"
-      key="kakao"
-      onClick={() => onAction("kakao")}
-      disabled={issuing}
-      style={{
-        ...btnBase,
-        flex: isPc ? 1 : 1.6,
-        background: "#FEE500",
-        color: "#391B1B",
-      }}
-    >
-      {issuing ? "생성 중…" : "💬 카톡 공유"}
-    </button>
-  );
+  const outlineBtn = {
+    ...baseBtn,
+    background: "var(--bg-secondary)",
+    border: "1px solid var(--border)",
+    color: "var(--text-primary)",
+  };
+  const kakaoBtn = {
+    ...baseBtn,
+    background: "#FEE500",
+    border: "1px solid #FEE500",
+    color: "#391B1B",
+  };
 
-  if (isPc) {
-    return (
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        {ImageBtn}
-        {PdfBtn}
-        {KakaoBtn}
-      </div>
-    );
-  }
-  // 모바일: 카톡 우선
   return (
-    <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", gap: 6, width: "100%" }}>
-        {KakaoBtn}
-        {ImageBtn}
-      </div>
-      <div style={{ display: "flex", gap: 6, width: "100%" }}>
-        {PdfBtn}
-      </div>
+    <div style={{
+      display: "flex", flexDirection: "column",
+      gap: 8, marginTop: 10,
+    }}>
+      <button
+        type="button"
+        onClick={() => onAction("kakao")}
+        disabled={issuing}
+        style={kakaoBtn}
+      >
+        <span>💬</span>
+        <span>{issuing ? "생성 중…" : "카톡 공유"}</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onAction("image")}
+        disabled={issuing}
+        style={outlineBtn}
+      >
+        <span>🖼</span>
+        <span>{issuing ? "생성 중…" : "이미지"}</span>
+      </button>
+      <button
+        type="button"
+        onClick={() => onAction("pdf")}
+        disabled={issuing}
+        style={outlineBtn}
+      >
+        <span>📄</span>
+        <span>{issuing ? "생성 중…" : "PDF"}</span>
+      </button>
     </div>
   );
 }
@@ -421,7 +397,6 @@ function ymdToKoreanDate(ymd) {
 
 export default function DocIssueScreen({ user, engineers = [], onBack }) {
   const isDark = useIsDark();
-  const isPc   = useIsPc();
   const actor  = user?.user_id || user?.id || null;
 
   // 발행처 (기사) 선택 — 활성 기사만 + code asc.
@@ -1020,46 +995,24 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
               isDark={isDark}
             />
           </div>
-          <div>
+          <LabeledInput
+            label={`${docType === "invoice" ? "거래일자" : "영수일자"} (기본 오늘 · 수동 변경 가능)`}
+            value={issueDate}
+            onChange={setIssueDate}
+            type="date"
+          />
+          {docType === "receipt" && (
             <div style={{
-              fontSize: 11, fontWeight: 600,
+              marginTop: 2, fontSize: 11,
               color: "var(--text-secondary)",
-              marginBottom: 3,
             }}>
-              {docType === "invoice" ? "거래일자" : "영수일자"} (기본 오늘 · 수동 변경 가능)
+              ※ 발행번호(YYMMDD-NNN)는 실제 발행 시점 기준이며, 위 영수일자와는 별개입니다.
             </div>
-            <input
-              type="date"
-              value={issueDate}
-              onChange={(e) => setIssueDate(e.target.value)}
-              style={{
-                width: "100%",
-                minHeight: 44,
-                padding: "8px 10px",
-                fontSize: 13,
-                fontFamily: "inherit",
-                border: "1px solid var(--border)",
-                borderRadius: 8,
-                background: "var(--bg-secondary)",
-                color: "var(--text-primary)",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
-            />
-            {docType === "receipt" && (
-              <div style={{
-                marginTop: 4, fontSize: 11,
-                color: "var(--text-secondary)",
-              }}>
-                ※ 발행번호(YYMMDD-NNN)는 실제 발행 시점 기준이며, 위 영수일자와는 별개입니다.
-              </div>
-            )}
-          </div>
+          )}
         </Section>
 
-        {/* 7) 액션 — 이미지 / PDF / 카톡 공유 (모바일은 이미지·카톡 강조) */}
+        {/* 7) 액션 — 전체폭 세로 스택 (카톡 메인 / 이미지·PDF 아웃라인) */}
         <DocActionBar
-          isPc={isPc}
           issuing={issuing}
           onAction={handleIssue}
         />
