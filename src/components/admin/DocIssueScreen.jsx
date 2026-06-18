@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useIsDark } from "../../hooks/useIsDark.js";
+import { useIsPc } from "../../utils/useIsPc.js";
 import { supabase } from "../../lib/supabase.js";
 import { getEngineerBusinessInfo } from "../../lib/engineerBusinessInfoDb.js";
 import { parseDocIssuePaste, computeVatBreakdown } from "../../lib/docIssueParser.js";
@@ -223,10 +224,114 @@ const VAT_OPTS = [
 const fmtKRW = (n) => `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
 
 // ──────────────────────────────────────────────
+// 액션 버튼 묶음 — PC vs 모바일 우선순위 다름.
+//   PC:   [이미지][PDF][카톡 공유]
+//   모바일: [💬 카톡 공유][🖼 이미지][PDF]  (카톡 강조 + PDF 보조)
+// ──────────────────────────────────────────────
+function DocActionBar({ isPc, issuing, onAction }) {
+  const btnBase = {
+    padding: 14,
+    border: "none",
+    borderRadius: 12,
+    fontSize: 14, fontWeight: 700,
+    fontFamily: "inherit",
+    cursor: issuing ? "not-allowed" : "pointer",
+    opacity: issuing ? 0.6 : 1,
+  };
+  const ImageBtn = (
+    <button
+      type="button"
+      key="image"
+      onClick={() => onAction("image")}
+      disabled={issuing}
+      style={{
+        ...btnBase,
+        flex: 1,
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        color: "var(--text-primary)",
+      }}
+    >
+      {issuing ? "생성 중…" : "🖼 이미지"}
+    </button>
+  );
+  const PdfBtn = (
+    <button
+      type="button"
+      key="pdf"
+      onClick={() => onAction("pdf")}
+      disabled={issuing}
+      style={{
+        ...btnBase,
+        flex: isPc ? 1 : 0.6,
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        color: "var(--text-primary)",
+      }}
+    >
+      {issuing ? "생성 중…" : "📄 PDF"}
+    </button>
+  );
+  const KakaoBtn = (
+    <button
+      type="button"
+      key="kakao"
+      onClick={() => onAction("kakao")}
+      disabled={issuing}
+      style={{
+        ...btnBase,
+        flex: isPc ? 1 : 1.6,
+        background: "#FEE500",
+        color: "#391B1B",
+      }}
+    >
+      {issuing ? "생성 중…" : "💬 카톡 공유"}
+    </button>
+  );
+
+  if (isPc) {
+    return (
+      <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+        {ImageBtn}
+        {PdfBtn}
+        {KakaoBtn}
+      </div>
+    );
+  }
+  // 모바일: 카톡 우선
+  return (
+    <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, width: "100%" }}>
+        {KakaoBtn}
+        {ImageBtn}
+      </div>
+      <div style={{ display: "flex", gap: 8, width: "100%" }}>
+        {PdfBtn}
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
 // 본체
 // ──────────────────────────────────────────────
+function kstTodayYmd() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
+
+function ymdToKoreanDate(ymd) {
+  if (!ymd || typeof ymd !== "string") return "";
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return ymd;
+  return `${m[1]}년 ${m[2]}월 ${m[3]}일`;
+}
+
 export default function DocIssueScreen({ user, engineers = [], onBack }) {
   const isDark = useIsDark();
+  const isPc   = useIsPc();
   const actor  = user?.user_id || user?.id || null;
 
   // 발행처 (기사) 선택 — 활성 기사만 + code asc.
@@ -262,6 +367,11 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
 
   // 문서 종류
   const [docType, setDocType] = useState("invoice");
+
+  // 2026-06-19 — 발행 날짜 (수동 변경 가능, 기본 오늘 KST).
+  //   거래명세서.거래일자 / 영수증.영수일자 에 반영.
+  //   발행번호(YYMMDD-NNN)는 발행 화면이 아닌 generateSerialNo 가 실제 today 기준 — 입력 날짜와 무관.
+  const [issueDate, setIssueDate] = useState(() => kstTodayYmd());
 
   // 발행처 변경 시 사업자 정보 fetch.
   //
@@ -366,15 +476,14 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
   const amountNum = Number(String(amountRaw).replace(/\D/g, "")) || 0;
   const vatBreak  = useMemo(() => computeVatBreakdown(amountNum, vatMode), [amountNum, vatMode]);
 
-  // 2026-06-19 Step 4 — 실제 PDF 생성 + 다운로드 / Web Share files.
+  // 2026-06-19 Step 4 — 실제 PDF·PNG 생성 + 다운로드 / Web Share files.
   //   jspdf + html2canvas + 양식 컴포넌트 모두 dynamic import (lazy chunk).
+  //   canvas 한 번 캡처 후 PDF/PNG 둘 다 변환 가능.
   const [issuing, setIssuing] = useState(false);
 
-  async function buildPdfBlob() {
-    const {
-      renderInvoicePdf, renderReceiptPdf,
-      generateSerialNo,
-    } = await import("../../lib/docIssueRender.js");
+  async function buildCanvas() {
+    const { renderInvoiceCanvas, renderReceiptCanvas, generateSerialNo } =
+      await import("../../lib/docIssueRender.js");
 
     const issuer = issuerInfo || {};
     const recipient = {
@@ -385,20 +494,21 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
       address: recipientAddress,
     };
     const safeItems = items.filter(it => (it.label || "").trim() !== "");
+    const issuedAtKor = ymdToKoreanDate(issueDate);
 
     const common = {
-      issuer,
-      recipient,
+      issuer, recipient,
       items:  safeItems,
       vat:    vatBreak,
       vatMode,
+      issuedAt: issuedAtKor,
     };
 
     if (docType === "invoice") {
-      return { blob: await renderInvoicePdf(common), kind: "거래명세서" };
+      return { canvas: await renderInvoiceCanvas(common), kind: "거래명세서" };
     }
     return {
-      blob: await renderReceiptPdf({
+      canvas: await renderReceiptCanvas({
         ...common,
         hideVat: !showVat,
         serialNo: generateSerialNo(),
@@ -407,54 +517,75 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
     };
   }
 
-  function makeFilename(kind) {
-    const ymd = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Seoul",
-      year: "numeric", month: "2-digit", day: "2-digit",
-    }).format(new Date()).replace(/-/g, "");
-    return `${kind}_${ymd}.pdf`;
+  function makeFilename(kind, ext) {
+    const ymd = (issueDate || kstTodayYmd()).replace(/-/g, "");
+    return `${kind}_${ymd}.${ext}`;
+  }
+
+  function preCheck() {
+    if (!issuerInfo) {
+      if (typeof window !== "undefined") window.alert("발행처(기사) 사업자 정보가 비어 있습니다. 먼저 선택/등록 후 다시 시도해주세요.");
+      return false;
+    }
+    if (items.length === 0 || items.every(it => !(it.label || "").trim())) {
+      if (typeof window !== "undefined") window.alert("품목을 1개 이상 입력해주세요.");
+      return false;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(issueDate || "")) {
+      if (typeof window !== "undefined") window.alert("발행 날짜가 올바르지 않습니다.");
+      return false;
+    }
+    return true;
   }
 
   async function handleIssue(action) {
     if (issuing) return;
-    if (!issuerInfo) {
-      if (typeof window !== "undefined") window.alert("발행처(기사) 사업자 정보가 비어 있습니다. 먼저 선택/등록 후 다시 시도해주세요.");
-      return;
-    }
-    if (items.length === 0 || items.every(it => !(it.label || "").trim())) {
-      if (typeof window !== "undefined") window.alert("품목을 1개 이상 입력해주세요.");
-      return;
-    }
+    if (!preCheck()) return;
+
     setIssuing(true);
     try {
-      const { blob, kind } = await buildPdfBlob();
-      const filename = makeFilename(kind);
+      const { canvas, kind } = await buildCanvas();
+      const {
+        canvasToPdfBlob, canvasToPngBlob,
+        blobToFile, tryShareFiles, downloadOrOpenBlob,
+      } = await import("../../lib/docIssueRender.js");
 
-      const { blobToPdfFile, tryShareFiles, downloadOrOpenBlob } =
-        await import("../../lib/docIssueRender.js");
-
+      if (action === "image") {
+        const png = await canvasToPngBlob(canvas);
+        downloadOrOpenBlob(png, makeFilename(kind, "png"));
+        return;
+      }
+      if (action === "pdf") {
+        const pdf = await canvasToPdfBlob(canvas);
+        downloadOrOpenBlob(pdf, makeFilename(kind, "pdf"));
+        return;
+      }
       if (action === "kakao") {
-        const file = blobToPdfFile(blob, filename);
-        const shared = await tryShareFiles({
-          title: kind,
-          text:  `${kind} (${issuerInfo.business_name || ""})`,
-          file,
-        });
-        if (!shared) {
-          // Web Share files 미지원 — 다운로드/새 탭 fallback.
-          downloadOrOpenBlob(blob, filename);
-          if (typeof window !== "undefined") {
-            window.alert("이 기기는 파일 공유를 지원하지 않습니다.\n다운로드한 PDF를 카톡에 직접 첨부해주세요.");
-          }
+        // 카톡 공유 — PNG 우선 시도 (모바일 첨부 호환성 ↑), 실패 시 PDF, 그래도 실패 시 다운로드.
+        const png = await canvasToPngBlob(canvas);
+        const pngFile = blobToFile(png, makeFilename(kind, "png"), "image/png");
+        const shareTitle = kind;
+        const shareText  = `${kind} (${issuerInfo.business_name || ""})`;
+
+        const sharedPng = await tryShareFiles({ title: shareTitle, text: shareText, file: pngFile });
+        if (sharedPng) return;
+
+        // PNG share 실패 → PDF 재시도.
+        const pdf = await canvasToPdfBlob(canvas);
+        const pdfFile = blobToFile(pdf, makeFilename(kind, "pdf"), "application/pdf");
+        const sharedPdf = await tryShareFiles({ title: shareTitle, text: shareText, file: pdfFile });
+        if (sharedPdf) return;
+
+        // 둘 다 실패 → PNG 다운로드 + 안내.
+        downloadOrOpenBlob(png, makeFilename(kind, "png"));
+        if (typeof window !== "undefined") {
+          window.alert("이 기기는 파일 공유를 지원하지 않습니다.\n다운로드한 이미지를 카톡에 직접 첨부해주세요.");
         }
-      } else {
-        // pdf 액션 — 직접 다운로드.
-        downloadOrOpenBlob(blob, filename);
       }
     } catch (err) {
       console.error("[handleIssue]", err);
       if (typeof window !== "undefined") {
-        window.alert("PDF 생성 중 오류가 발생했습니다. 콘솔 로그를 확인해주세요.");
+        window.alert("문서 생성 중 오류가 발생했습니다. 콘솔 로그를 확인해주세요.");
       }
     } finally {
       setIssuing(false);
@@ -785,61 +916,64 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
           )}
         </Section>
 
-        {/* 6) 문서 종류 */}
-        <Section title="문서 종류" isDark={isDark}>
-          <TwoToggle
-            value={docType}
-            options={DOC_OPTS}
-            onChange={setDocType}
-            isDark={isDark}
-          />
+        {/* 6) 문서 종류 + 발행 날짜 */}
+        <Section title="문서 종류 / 발행 날짜" isDark={isDark}>
+          <div style={{ marginBottom: 10 }}>
+            <TwoToggle
+              value={docType}
+              options={DOC_OPTS}
+              onChange={setDocType}
+              isDark={isDark}
+            />
+          </div>
+          <div>
+            <div style={{
+              fontSize: 11, fontWeight: 600,
+              color: "var(--text-secondary)",
+              marginBottom: 4,
+            }}>
+              {docType === "invoice" ? "거래일자" : "영수일자"} (기본 오늘 · 수동 변경 가능)
+            </div>
+            <input
+              type="date"
+              value={issueDate}
+              onChange={(e) => setIssueDate(e.target.value)}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                fontSize: 14,
+                fontFamily: "inherit",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                background: "var(--bg-secondary)",
+                color: "var(--text-primary)",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+            {docType === "receipt" && (
+              <div style={{
+                marginTop: 6, fontSize: 11,
+                color: "var(--text-secondary)",
+              }}>
+                ※ 발행번호(YYMMDD-NNN)는 실제 발행 시점 기준이며, 위 영수일자와는 별개입니다.
+              </div>
+            )}
+          </div>
         </Section>
 
-        {/* 7) 액션 */}
-        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-          <button
-            type="button"
-            onClick={() => handleIssue("pdf")}
-            disabled={issuing}
-            style={{
-              flex: 1, padding: 14,
-              background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
-              color: "var(--text-primary)",
-              borderRadius: 12,
-              fontSize: 14, fontWeight: 700,
-              cursor: issuing ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
-              opacity: issuing ? 0.6 : 1,
-            }}
-          >
-            {issuing ? "생성 중…" : "📄 PDF 생성"}
-          </button>
-          <button
-            type="button"
-            onClick={() => handleIssue("kakao")}
-            disabled={issuing}
-            style={{
-              flex: 1, padding: 14,
-              background: "#FEE500",
-              border: "none",
-              color: "#391B1B",
-              borderRadius: 12,
-              fontSize: 14, fontWeight: 700,
-              cursor: issuing ? "not-allowed" : "pointer",
-              fontFamily: "inherit",
-              opacity: issuing ? 0.6 : 1,
-            }}
-          >
-            {issuing ? "생성 중…" : "💬 카톡 공유"}
-          </button>
-        </div>
+        {/* 7) 액션 — 이미지 / PDF / 카톡 공유 (모바일은 이미지·카톡 강조) */}
+        <DocActionBar
+          isPc={isPc}
+          issuing={issuing}
+          onAction={handleIssue}
+        />
         <div style={{
           marginTop: 10, fontSize: 11,
           color: "var(--text-secondary)", textAlign: "center",
+          lineHeight: 1.6,
         }}>
-          ※ 카톡 공유는 모바일 PWA에서 시스템 공유 시트로 동작합니다.
-          미지원 기기에서는 PDF가 자동 다운로드됩니다.
+          ※ 카톡 공유는 시스템 공유 시트로 동작합니다 (이미지 우선, 미지원 시 PDF, 그래도 미지원이면 다운로드 폴백).
         </div>
       </div>
     </div>

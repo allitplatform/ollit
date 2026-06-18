@@ -1,26 +1,22 @@
-// 2026-06-19 Step 4 — 거래명세서 / 영수증 PDF 렌더링 + 공유 헬퍼.
+// 2026-06-19 Step 4 — 거래명세서 / 영수증 PDF·PNG 렌더링 + 공유 헬퍼.
+//
+// 2026-06-19 보강:
+//   · canvas 캡처 1번 → PNG (canvas.toBlob) + PDF (jspdf.addImage) 둘 다 출력
+//   · jsPDF 는 PDF 가 실제 필요할 때만 dynamic import (PNG 만 쓰는 경우 미로드)
+//   · 카톡 공유는 부모가 PNG 우선 시도 → 실패 시 PDF → 실패 시 다운로드 폴백
 //
 // 흐름:
 //   1) offscreen container (position:fixed, left:-10000px) 생성
-//   2) React 양식 컴포넌트(react-dom/client createRoot)로 mount
-//   3) 폰트 로드 완료 await (document.fonts.ready)
-//   4) html2canvas scale=2 캡처 → 단일 page jsPDF A4 임베드
-//   5) Blob 반환. 부모는 다운로드 / Web Share 둘 중 호출.
+//   2) React 양식 컴포넌트 mount (createRoot)
+//   3) document.fonts.ready 대기 + 2 RAF 대기 (폰트 안정화)
+//   4) html2canvas scale 2 캡처 → canvas 반환
+//   5) 부모가 canvasToPdfBlob / canvasToPngBlob 호출
 //
-// 라이브러리(jspdf / html2canvas) 와 React 양식은 모두 dynamic import — 발행
-// 화면 진입 시점에 lazy load (vite 자동 chunk 분리).
-//
-// Web Share files 지원:
-//   navigator.canShare({ files: [...] }) 가 true 일 때만 share 시도.
-//   미지원/실패 시 부모는 새 탭 fallback (window.open(blobUrl)).
+// 라이브러리·양식 모두 dynamic import — vite 자동 chunk 분리.
 
-const A4_W_PX = 793;  // 컴포넌트 폭 (96dpi 기준)
-const A4_H_PX = 1122; // 컴포넌트 높이
-
-// html2canvas 캡처 해상도 배수. 2 = 인쇄 충분, 3 = 더 선명(파일 크기 ↑).
+const A4_W_PX = 793;
+const A4_H_PX = 1122;
 const CAPTURE_SCALE = 2;
-
-// jsPDF A4 mm 크기.
 const A4_W_MM = 210;
 const A4_H_MM = 297;
 
@@ -28,20 +24,17 @@ async function awaitFontsReady() {
   if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
     try { await document.fonts.ready; } catch (_) {}
   }
-  // Pretendard / Noto Sans KR 동적 로드 대기 안전망 — 한 프레임 더.
   await new Promise(r => requestAnimationFrame(() => r()));
   await new Promise(r => requestAnimationFrame(() => r()));
 }
 
-async function mountTemplateAndCapture(Component, props) {
-  const [{ default: html2canvas }, { jsPDF }, ReactDOM, React] = await Promise.all([
+async function mountTemplateAndCaptureCanvas(Component, props) {
+  const [{ default: html2canvas }, ReactDOM, React] = await Promise.all([
     import("html2canvas"),
-    import("jspdf"),
     import("react-dom/client"),
     import("react"),
   ]);
 
-  // offscreen container
   const host = document.createElement("div");
   host.style.position = "fixed";
   host.style.left = "-10000px";
@@ -56,7 +49,6 @@ async function mountTemplateAndCapture(Component, props) {
   try {
     root.render(React.createElement(Component, props));
 
-    // 렌더 + 폰트 안정화 대기
     await new Promise(r => setTimeout(r, 50));
     await awaitFontsReady();
     await new Promise(r => setTimeout(r, 30));
@@ -66,16 +58,10 @@ async function mountTemplateAndCapture(Component, props) {
       backgroundColor: "#FFFFFF",
       useCORS: true,
       logging: false,
-      // 한글 텍스트 정렬 안정 — letterRendering 옵션 (구버전 호환).
       letterRendering: true,
     });
 
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const imgData = canvas.toDataURL("image/jpeg", 0.92);
-    pdf.addImage(imgData, "JPEG", 0, 0, A4_W_MM, A4_H_MM, undefined, "FAST");
-
-    const blob = pdf.output("blob");
-    return blob;
+    return canvas;
   } finally {
     try { root.unmount(); } catch (_) {}
     try { document.body.removeChild(host); } catch (_) {}
@@ -83,30 +69,53 @@ async function mountTemplateAndCapture(Component, props) {
 }
 
 // ============================================================
-// 외부 API — 부모는 다음 함수만 호출.
+// 외부 API — 부모가 호출하는 함수들.
 // ============================================================
 
-export async function renderInvoicePdf(props) {
+export async function renderInvoiceCanvas(props) {
   const { default: InvoiceTemplate } = await import("../components/admin/docs/InvoiceTemplate.jsx");
-  return mountTemplateAndCapture(InvoiceTemplate, props);
+  return mountTemplateAndCaptureCanvas(InvoiceTemplate, props);
 }
 
-export async function renderReceiptPdf(props) {
+export async function renderReceiptCanvas(props) {
   const { default: ReceiptTemplate } = await import("../components/admin/docs/ReceiptTemplate.jsx");
-  return mountTemplateAndCapture(ReceiptTemplate, props);
+  return mountTemplateAndCaptureCanvas(ReceiptTemplate, props);
 }
 
-// Blob → File (Web Share API 요구). 파일명 일자 + 일련번호 결합.
-export function blobToPdfFile(blob, filename) {
-  // File 생성자 미지원 환경 폴백 (대부분 안전): Blob 그대로 반환하면 share files 실패 가능.
+// canvas → PDF Blob. jsPDF dynamic import (PDF 필요할 때만).
+export async function canvasToPdfBlob(canvas) {
+  const { jsPDF } = await import("jspdf");
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+  pdf.addImage(dataUrl, "JPEG", 0, 0, A4_W_MM, A4_H_MM, undefined, "FAST");
+  return pdf.output("blob");
+}
+
+// canvas → PNG Blob (벡터 텍스트는 아니지만 카톡 첨부용으로 충분).
+export function canvasToPngBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    try {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("canvas.toBlob 실패"));
+      }, "image/png");
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+// Blob → File (Web Share files API 요구).
+export function blobToFile(blob, filename, mime) {
   try {
-    return new File([blob], filename, { type: "application/pdf" });
+    return new File([blob], filename, { type: mime || blob.type });
   } catch (_) {
     return blob;
   }
 }
 
-// Web Share 시도 + 미지원 시 false 반환 (부모가 fallback).
+// Web Share files 시도. 미지원/실패 시 false (부모 폴백).
+//   AbortError(사용자 취소) 는 true 반환 — 사용자 의도로 닫혔으니 폴백 X.
 export async function tryShareFiles({ title, text, file }) {
   if (typeof navigator === "undefined") return false;
   if (!navigator.share || !navigator.canShare) return false;
@@ -115,21 +124,16 @@ export async function tryShareFiles({ title, text, file }) {
     await navigator.share({ title, text, files: [file] });
     return true;
   } catch (err) {
-    // 사용자가 공유 시트 취소 → AbortError. 그래도 false 반환해 폴백 실행 X.
     if (err && err.name === "AbortError") return true;
     console.error("[docIssueRender.tryShareFiles]", err);
     return false;
   }
 }
 
-// 다운로드 — PWA standalone iOS 는 download attribute 제한 → window.open 폴백.
+// 다운로드 — PWA standalone iOS download attribute 제한 → window.open 폴백.
 export function downloadOrOpenBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   try {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    // standalone iOS 감지 → 새 탭 강제.
     const isIosStandalone =
       typeof window !== "undefined"
       && window.navigator
@@ -137,18 +141,20 @@ export function downloadOrOpenBlob(blob, filename) {
     if (isIosStandalone) {
       window.open(url, "_blank");
     } else {
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
     }
   } finally {
-    // 약간 지연 후 revoke (다운로드 트리거 보장).
     setTimeout(() => URL.revokeObjectURL(url), 30 * 1000);
   }
 }
 
-// 일련번호 자동 생성 — YYMMDD-RRR (랜덤 3자리, 발행 이력 미구현 단계 잠정).
-//   Step 3 (발행 이력) 단계에서 DB 시퀀스로 대체 예정.
+// 일련번호 — YYMMDD-RRR (실제 발행일 KST 기준, 사용자 입력 일자와 무관).
+//   Step 3 (발행 이력) 단계에서 DB 시퀀스로 교체 예정.
 export function generateSerialNo() {
   const d = new Date();
   const fmtPart = new Intl.DateTimeFormat("en-CA", {
