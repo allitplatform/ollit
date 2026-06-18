@@ -20,19 +20,21 @@ import { parseDocIssuePaste, computeVatBreakdown } from "../../lib/docIssueParse
 // 모듈 최상위 — 부모 리렌더에 input remount 안 일으키도록 분리.
 //   (직전 EngineerBusinessInfoCard 포커스 손실 교훈 — 본문 안 정의 금지.)
 // ──────────────────────────────────────────────
+// 2026-06-19 — 컴팩트화 1pass. 카드 패딩 16→12, marginBottom 12→8.
+//   터치 타겟(토글·버튼)은 minHeight 44 별도 보장.
 function Section({ title, hint, isDark, children }) {
   return (
     <div style={{
       background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
-      borderRadius: 12,
-      padding: 16,
-      marginBottom: 12,
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 8,
     }}>
       <div style={{
-        fontSize: 13, fontWeight: 700,
+        fontSize: 12, fontWeight: 700,
         color: "var(--text-primary)",
-        marginBottom: hint ? 4 : 10,
+        marginBottom: hint ? 2 : 7,
         letterSpacing: "-0.1px",
       }}>
         {title}
@@ -41,7 +43,8 @@ function Section({ title, hint, isDark, children }) {
         <div style={{
           fontSize: 11,
           color: "var(--text-secondary)",
-          marginBottom: 10,
+          marginBottom: 7,
+          lineHeight: 1.4,
         }}>
           {hint}
         </div>
@@ -53,7 +56,7 @@ function Section({ title, hint, isDark, children }) {
 
 function TwoToggle({ value, options, onChange, isDark }) {
   return (
-    <div style={{ display: "flex", gap: 8 }}>
+    <div style={{ display: "flex", gap: 6 }}>
       {options.map(opt => {
         const on = value === opt.v;
         return (
@@ -63,8 +66,9 @@ function TwoToggle({ value, options, onChange, isDark }) {
             onClick={() => onChange(opt.v)}
             style={{
               flex: 1,
-              padding: "10px 12px",
-              borderRadius: 10,
+              minHeight: 44,           // 모바일 터치 타겟 보장 (사장님 spec)
+              padding: "9px 10px",
+              borderRadius: 9,
               border: `1px solid ${on ? "#FF1B8D" : "var(--border)"}`,
               background: on
                 ? (isDark ? "#2D0F1E" : "#FFE5F2")
@@ -88,11 +92,11 @@ function TwoToggle({ value, options, onChange, isDark }) {
 
 function LabeledInput({ label, value, onChange, placeholder, mono, type = "text", inputMode }) {
   return (
-    <div style={{ marginBottom: 10 }}>
+    <div style={{ marginBottom: 6 }}>
       <div style={{
         fontSize: 11, fontWeight: 600,
         color: "var(--text-secondary)",
-        marginBottom: 4,
+        marginBottom: 2,
       }}>{label}</div>
       <input
         type={type}
@@ -102,12 +106,12 @@ function LabeledInput({ label, value, onChange, placeholder, mono, type = "text"
         placeholder={placeholder}
         style={{
           width: "100%",
-          padding: "10px 12px",
-          fontSize: 14,
+          padding: "8px 10px",
+          fontSize: 13,
           fontFamily: mono ? "monospace" : "inherit",
           letterSpacing: mono ? 0.4 : 0,
           border: "1px solid var(--border)",
-          borderRadius: 10,
+          borderRadius: 8,
           background: "var(--bg-secondary)",
           color: "var(--text-primary)",
           outline: "none",
@@ -123,7 +127,7 @@ function LabeledInput({ label, value, onChange, placeholder, mono, type = "text"
 //   본 ItemChip 은 대표 행 + 세부 라벨 inline 편집 UI 제공.
 const subInputStyle = {
   flex: 1, minWidth: 0,
-  padding: "5px 8px",
+  padding: "4px 8px",
   border: "1px solid var(--border)",
   borderRadius: 6,
   background: "var(--bg-primary)",
@@ -150,21 +154,21 @@ function ItemChip({ item, idx, onChange, onRemove }) {
 
   return (
     <div style={{
-      padding: "10px 10px 8px",
+      padding: "7px 8px 6px",
       background: "var(--bg-secondary)",
       border: "1px solid var(--border)",
-      borderRadius: 10,
-      marginBottom: 8,
+      borderRadius: 8,
+      marginBottom: 6,
     }}>
       {/* 대표 행 — 라벨 / 수량 / 총액 / 삭제 */}
-      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
         <input
           value={item.label}
           onChange={e => onChange(idx, { ...item, label: e.target.value })}
           placeholder="대표 품목 (예: 에어컨 누설 수리 작업 일체)"
           style={{
             flex: 2, minWidth: 0,
-            padding: "6px 8px",
+            padding: "5px 8px",
             border: "1px solid var(--border)",
             borderRadius: 6,
             background: "var(--bg-primary)",
@@ -180,8 +184,8 @@ function ItemChip({ item, idx, onChange, onRemove }) {
           onChange={e => onChange(idx, { ...item, qty: Number(e.target.value.replace(/\D/g, "")) || 1 })}
           aria-label="수량"
           style={{
-            width: 50,
-            padding: "6px 8px",
+            width: 44,
+            padding: "5px 6px",
             border: "1px solid var(--border)",
             borderRadius: 6,
             background: "var(--bg-primary)",
@@ -202,8 +206,8 @@ function ItemChip({ item, idx, onChange, onRemove }) {
           placeholder="총액"
           aria-label="총액"
           style={{
-            flex: 1, minWidth: 90,
-            padding: "6px 8px",
+            flex: 1, minWidth: 80,
+            padding: "5px 8px",
             border: "1px solid var(--border)",
             borderRadius: 6,
             background: "var(--bg-primary)",
@@ -220,7 +224,8 @@ function ItemChip({ item, idx, onChange, onRemove }) {
           style={{
             background: "transparent", border: "none",
             color: "#FF3B5C", fontSize: 16,
-            padding: "4px 6px", cursor: "pointer",
+            padding: "2px 6px", cursor: "pointer",
+            minHeight: 32,
           }}
         >×</button>
       </div>
@@ -230,13 +235,13 @@ function ItemChip({ item, idx, onChange, onRemove }) {
         <div
           key={sIdx}
           style={{
-            display: "flex", gap: 6, alignItems: "center",
-            marginTop: 6, paddingLeft: 18,
+            display: "flex", gap: 5, alignItems: "center",
+            marginTop: 4, paddingLeft: 16,
           }}
         >
           <span style={{
-            color: "var(--text-secondary)", fontSize: 13,
-            width: 14, textAlign: "center",
+            color: "var(--text-secondary)", fontSize: 12,
+            width: 12, textAlign: "center",
           }}>└</span>
           <input
             value={sub}
@@ -250,20 +255,20 @@ function ItemChip({ item, idx, onChange, onRemove }) {
             aria-label="세부 삭제"
             style={{
               background: "transparent", border: "none",
-              color: "#999", fontSize: 14,
-              padding: "2px 6px", cursor: "pointer",
+              color: "#999", fontSize: 13,
+              padding: "1px 5px", cursor: "pointer",
             }}
           >×</button>
         </div>
       ))}
 
       {/* 세부 추가 버튼 */}
-      <div style={{ marginTop: 8, paddingLeft: 18 }}>
+      <div style={{ marginTop: 6, paddingLeft: 16 }}>
         <button
           type="button"
           onClick={addSub}
           style={{
-            padding: "4px 10px",
+            padding: "3px 9px",
             background: "transparent",
             border: "1px dashed var(--border)",
             borderRadius: 999,
@@ -314,9 +319,10 @@ const fmtKRW = (n) => `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
 // ──────────────────────────────────────────────
 function DocActionBar({ isPc, issuing, onAction }) {
   const btnBase = {
-    padding: 14,
+    minHeight: 44,         // 터치 타겟 보장
+    padding: "10px 12px",
     border: "none",
-    borderRadius: 12,
+    borderRadius: 10,
     fontSize: 14, fontWeight: 700,
     fontFamily: "inherit",
     cursor: issuing ? "not-allowed" : "pointer",
@@ -375,7 +381,7 @@ function DocActionBar({ isPc, issuing, onAction }) {
 
   if (isPc) {
     return (
-      <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
         {ImageBtn}
         {PdfBtn}
         {KakaoBtn}
@@ -384,12 +390,12 @@ function DocActionBar({ isPc, issuing, onAction }) {
   }
   // 모바일: 카톡 우선
   return (
-    <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-      <div style={{ display: "flex", gap: 8, width: "100%" }}>
+    <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 6, width: "100%" }}>
         {KakaoBtn}
         {ImageBtn}
       </div>
-      <div style={{ display: "flex", gap: 8, width: "100%" }}>
+      <div style={{ display: "flex", gap: 6, width: "100%" }}>
         {PdfBtn}
       </div>
     </div>
@@ -685,15 +691,15 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
       minHeight: "100vh",
       color: "var(--text-primary)",
       fontFamily: "-apple-system, 'Pretendard', sans-serif",
-      paddingBottom: 100,
+      paddingBottom: 70,
     }}>
       {/* 헤더 */}
       <div style={{
         position: "sticky", top: 0, zIndex: 5,
         background: "var(--bg-primary)",
         borderBottom: "1px solid var(--border)",
-        padding: "14px 16px",
-        display: "flex", alignItems: "center", gap: 10,
+        padding: "10px 14px",
+        display: "flex", alignItems: "center", gap: 8,
       }}>
         <button
           type="button"
@@ -701,16 +707,17 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
           aria-label="뒤로"
           style={{
             background: "transparent", border: "none",
-            fontSize: 22, padding: 4, cursor: "pointer",
+            fontSize: 20, padding: 2, cursor: "pointer",
             color: "var(--text-primary)",
+            minHeight: 32,
           }}
         >←</button>
-        <div style={{ fontSize: 17, fontWeight: 700, letterSpacing: "-0.2px" }}>
+        <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.2px" }}>
           📄 서류 발행
         </div>
       </div>
 
-      <div style={{ padding: 14, maxWidth: 720, margin: "0 auto" }}>
+      <div style={{ padding: 10, maxWidth: 720, margin: "0 auto" }}>
         {/* 1) 발행처 */}
         <Section
           title="발행처 (기사)"
@@ -722,10 +729,11 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
             onChange={e => setIssuerCode(e.target.value)}
             style={{
               width: "100%",
-              padding: "10px 12px",
-              fontSize: 14, fontFamily: "inherit",
+              minHeight: 44,
+              padding: "8px 10px",
+              fontSize: 13, fontFamily: "inherit",
               border: "1px solid var(--border)",
-              borderRadius: 10,
+              borderRadius: 8,
               background: "var(--bg-secondary)",
               color: "var(--text-primary)",
               outline: "none",
@@ -744,32 +752,32 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
           </select>
 
           {issuerLoading && (
-            <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>
+            <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-secondary)" }}>
               사업자 정보 불러오는 중…
             </div>
           )}
           {issuerError && (
             <div style={{
-              marginTop: 8, fontSize: 12,
+              marginTop: 6, fontSize: 12,
               color: "#FF6B85",
-              padding: "8px 10px",
+              padding: "6px 9px",
               background: "rgba(255,107,133,0.08)",
               border: "1px solid rgba(255,107,133,0.3)",
-              borderRadius: 8,
+              borderRadius: 6,
             }}>
               ⚠️ {issuerError}
             </div>
           )}
           {issuerInfo && !issuerLoading && (
             <div style={{
-              marginTop: 10,
-              padding: 10,
+              marginTop: 7,
+              padding: "7px 9px",
               background: "var(--bg-secondary)",
               border: "1px solid var(--border)",
-              borderRadius: 8,
+              borderRadius: 6,
               fontSize: 12,
               color: "var(--text-secondary)",
-              lineHeight: 1.6,
+              lineHeight: 1.5,
             }}>
               <div><b style={{ color: "var(--text-primary)" }}>{issuerInfo.business_name || "—"}</b>
                 {" · "}{issuerInfo.representative_name || "대표자 미입력"}</div>
@@ -790,18 +798,19 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
             value={pasteText}
             onChange={e => setPasteText(e.target.value)}
             placeholder="여기에 카톡 메시지를 붙여넣으세요"
-            rows={5}
+            rows={4}
             style={{
               width: "100%",
-              padding: 10,
+              padding: 8,
               fontSize: 13, fontFamily: "inherit",
               border: "1px solid var(--border)",
-              borderRadius: 10,
+              borderRadius: 8,
               background: "var(--bg-secondary)",
               color: "var(--text-primary)",
               outline: "none",
               resize: "vertical",
               boxSizing: "border-box",
+              lineHeight: 1.4,
             }}
           />
           <button
@@ -809,11 +818,12 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
             onClick={handleAutoParse}
             disabled={!pasteText.trim()}
             style={{
-              marginTop: 8,
-              padding: "10px 14px",
+              marginTop: 6,
+              minHeight: 44,
+              padding: "8px 12px",
               background: pasteText.trim() ? "#FF1B8D" : "var(--bg-secondary)",
               color: pasteText.trim() ? "#fff" : "var(--text-secondary)",
-              border: "none", borderRadius: 10,
+              border: "none", borderRadius: 8,
               fontSize: 13, fontWeight: 600,
               fontFamily: "inherit",
               cursor: pasteText.trim() ? "pointer" : "not-allowed",
@@ -825,7 +835,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
 
         {/* 3) 받는분 */}
         <Section title="받는분" isDark={isDark}>
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ marginBottom: 7 }}>
             <TwoToggle
               value={recipientType}
               options={RECIPIENT_OPTS}
@@ -887,14 +897,14 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
           hint="아래 프리셋을 눌러 빠르게 추가하거나, 직접 입력하세요."
           isDark={isDark}
         >
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 7 }}>
             {PRESET_ITEMS.map(label => (
               <button
                 key={label}
                 type="button"
                 onClick={() => handleAddPreset(label)}
                 style={{
-                  padding: "6px 10px",
+                  padding: "5px 9px",
                   borderRadius: 999,
                   border: "1px solid var(--border)",
                   background: "var(--bg-secondary)",
@@ -910,7 +920,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
               type="button"
               onClick={handleAddBlank}
               style={{
-                padding: "6px 10px",
+                padding: "5px 9px",
                 borderRadius: 999,
                 border: "1px dashed var(--border)",
                 background: "transparent",
@@ -927,7 +937,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
             <div style={{
               fontSize: 12, fontStyle: "italic",
               color: "var(--text-secondary)",
-              padding: "8px 0",
+              padding: "5px 0",
             }}>
               품목이 없습니다. 위 버튼으로 추가하세요.
             </div>
@@ -950,7 +960,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
           hint="부가세 표기 방식에 따라 공급가·부가세가 자동 계산됩니다."
           isDark={isDark}
         >
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ marginBottom: 7 }}>
             <TwoToggle
               value={vatMode}
               options={VAT_OPTS}
@@ -986,7 +996,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
           {docType === "receipt" && (
             <label style={{
               display: "flex", alignItems: "center", gap: 6,
-              marginTop: 10, fontSize: 12,
+              marginTop: 7, fontSize: 12,
               color: "var(--text-secondary)",
               cursor: "pointer",
             }}>
@@ -1002,7 +1012,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
 
         {/* 6) 문서 종류 + 발행 날짜 */}
         <Section title="문서 종류 / 발행 날짜" isDark={isDark}>
-          <div style={{ marginBottom: 10 }}>
+          <div style={{ marginBottom: 7 }}>
             <TwoToggle
               value={docType}
               options={DOC_OPTS}
@@ -1014,7 +1024,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
             <div style={{
               fontSize: 11, fontWeight: 600,
               color: "var(--text-secondary)",
-              marginBottom: 4,
+              marginBottom: 3,
             }}>
               {docType === "invoice" ? "거래일자" : "영수일자"} (기본 오늘 · 수동 변경 가능)
             </div>
@@ -1024,11 +1034,12 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
               onChange={(e) => setIssueDate(e.target.value)}
               style={{
                 width: "100%",
-                padding: "10px 12px",
-                fontSize: 14,
+                minHeight: 44,
+                padding: "8px 10px",
+                fontSize: 13,
                 fontFamily: "inherit",
                 border: "1px solid var(--border)",
-                borderRadius: 10,
+                borderRadius: 8,
                 background: "var(--bg-secondary)",
                 color: "var(--text-primary)",
                 outline: "none",
@@ -1037,7 +1048,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
             />
             {docType === "receipt" && (
               <div style={{
-                marginTop: 6, fontSize: 11,
+                marginTop: 4, fontSize: 11,
                 color: "var(--text-secondary)",
               }}>
                 ※ 발행번호(YYMMDD-NNN)는 실제 발행 시점 기준이며, 위 영수일자와는 별개입니다.
@@ -1053,9 +1064,9 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
           onAction={handleIssue}
         />
         <div style={{
-          marginTop: 10, fontSize: 11,
+          marginTop: 7, fontSize: 11,
           color: "var(--text-secondary)", textAlign: "center",
-          lineHeight: 1.6,
+          lineHeight: 1.45,
         }}>
           ※ 카톡 공유는 시스템 공유 시트로 동작합니다 (이미지 우선, 미지원 시 PDF, 그래도 미지원이면 다운로드 폴백).
         </div>
