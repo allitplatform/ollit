@@ -12,6 +12,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
     "googleapis": "^172.0.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.2",
     "lucide-react": "^1.11.0",
     "papaparse": "^5.5.3",
     "react": "^19.2.5",

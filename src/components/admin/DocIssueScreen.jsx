@@ -366,19 +366,99 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
   const amountNum = Number(String(amountRaw).replace(/\D/g, "")) || 0;
   const vatBreak  = useMemo(() => computeVatBreakdown(amountNum, vatMode), [amountNum, vatMode]);
 
-  function handleIssue(kind) {
-    // Step 4 에서 실제 PDF / 카톡 공유 구현 예정.
-    const summary = [
-      `[${kind === "pdf" ? "PDF 생성" : "카톡 공유"}] (Step 4 구현 예정)`,
-      `문서: ${docType === "invoice" ? "거래명세서" : "영수증"}`,
-      `발행처: ${issuerInfo?.business_name || "—"} (${issuerCode || "—"})`,
-      `받는분: ${recipientType === "business"
-        ? `${recipientBizName || "—"} / ${recipientBizNo || "—"}`
-        : `${recipientName || "—"}`}`,
-      `품목: ${items.length}건`,
-      `합계: ${fmtKRW(vatBreak.total)}` + (docType === "receipt" && !showVat ? " (부가세 미표기)" : ""),
-    ].join("\n");
-    if (typeof window !== "undefined") window.alert(summary);
+  // 2026-06-19 Step 4 — 실제 PDF 생성 + 다운로드 / Web Share files.
+  //   jspdf + html2canvas + 양식 컴포넌트 모두 dynamic import (lazy chunk).
+  const [issuing, setIssuing] = useState(false);
+
+  async function buildPdfBlob() {
+    const {
+      renderInvoicePdf, renderReceiptPdf,
+      generateSerialNo,
+    } = await import("../../lib/docIssueRender.js");
+
+    const issuer = issuerInfo || {};
+    const recipient = {
+      type:    recipientType,
+      name:    recipientName,
+      bizName: recipientBizName,
+      bizNo:   recipientBizNo,
+      address: recipientAddress,
+    };
+    const safeItems = items.filter(it => (it.label || "").trim() !== "");
+
+    const common = {
+      issuer,
+      recipient,
+      items:  safeItems,
+      vat:    vatBreak,
+      vatMode,
+    };
+
+    if (docType === "invoice") {
+      return { blob: await renderInvoicePdf(common), kind: "거래명세서" };
+    }
+    return {
+      blob: await renderReceiptPdf({
+        ...common,
+        hideVat: !showVat,
+        serialNo: generateSerialNo(),
+      }),
+      kind: "영수증",
+    };
+  }
+
+  function makeFilename(kind) {
+    const ymd = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul",
+      year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date()).replace(/-/g, "");
+    return `${kind}_${ymd}.pdf`;
+  }
+
+  async function handleIssue(action) {
+    if (issuing) return;
+    if (!issuerInfo) {
+      if (typeof window !== "undefined") window.alert("발행처(기사) 사업자 정보가 비어 있습니다. 먼저 선택/등록 후 다시 시도해주세요.");
+      return;
+    }
+    if (items.length === 0 || items.every(it => !(it.label || "").trim())) {
+      if (typeof window !== "undefined") window.alert("품목을 1개 이상 입력해주세요.");
+      return;
+    }
+    setIssuing(true);
+    try {
+      const { blob, kind } = await buildPdfBlob();
+      const filename = makeFilename(kind);
+
+      const { blobToPdfFile, tryShareFiles, downloadOrOpenBlob } =
+        await import("../../lib/docIssueRender.js");
+
+      if (action === "kakao") {
+        const file = blobToPdfFile(blob, filename);
+        const shared = await tryShareFiles({
+          title: kind,
+          text:  `${kind} (${issuerInfo.business_name || ""})`,
+          file,
+        });
+        if (!shared) {
+          // Web Share files 미지원 — 다운로드/새 탭 fallback.
+          downloadOrOpenBlob(blob, filename);
+          if (typeof window !== "undefined") {
+            window.alert("이 기기는 파일 공유를 지원하지 않습니다.\n다운로드한 PDF를 카톡에 직접 첨부해주세요.");
+          }
+        }
+      } else {
+        // pdf 액션 — 직접 다운로드.
+        downloadOrOpenBlob(blob, filename);
+      }
+    } catch (err) {
+      console.error("[handleIssue]", err);
+      if (typeof window !== "undefined") {
+        window.alert("PDF 생성 중 오류가 발생했습니다. 콘솔 로그를 확인해주세요.");
+      }
+    } finally {
+      setIssuing(false);
+    }
   }
 
   // ──────────────────────────────────────────────
@@ -720,6 +800,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
           <button
             type="button"
             onClick={() => handleIssue("pdf")}
+            disabled={issuing}
             style={{
               flex: 1, padding: 14,
               background: "var(--bg-secondary)",
@@ -727,14 +808,17 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
               color: "var(--text-primary)",
               borderRadius: 12,
               fontSize: 14, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
+              cursor: issuing ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              opacity: issuing ? 0.6 : 1,
             }}
           >
-            📄 PDF 생성
+            {issuing ? "생성 중…" : "📄 PDF 생성"}
           </button>
           <button
             type="button"
             onClick={() => handleIssue("kakao")}
+            disabled={issuing}
             style={{
               flex: 1, padding: 14,
               background: "#FEE500",
@@ -742,17 +826,20 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
               color: "#391B1B",
               borderRadius: 12,
               fontSize: 14, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
+              cursor: issuing ? "not-allowed" : "pointer",
+              fontFamily: "inherit",
+              opacity: issuing ? 0.6 : 1,
             }}
           >
-            💬 카톡 공유
+            {issuing ? "생성 중…" : "💬 카톡 공유"}
           </button>
         </div>
         <div style={{
           marginTop: 10, fontSize: 11,
           color: "var(--text-secondary)", textAlign: "center",
         }}>
-          ※ 실제 PDF·공유 출력은 Step 4 단계에서 연결됩니다.
+          ※ 카톡 공유는 모바일 PWA에서 시스템 공유 시트로 동작합니다.
+          미지원 기기에서는 PDF가 자동 다운로드됩니다.
         </div>
       </div>
     </div>
