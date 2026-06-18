@@ -55,6 +55,8 @@ export function EngineerMeTab({
   const [fontSize, setFontSize] = useState(() => loadFontSize());
   // Step 5-8 design 🅓 — 계좌번호 복사 토스트 (정산 탭 패턴)
   const [copyToast, setCopyToast] = useState(null);
+  // 2026-06-19 — 사업자 정보 풀스크린 진입 (헤더 톱니 → setShowBusiness(true))
+  const [showBusiness, setShowBusiness] = useState(false);
 
   useEffect(() => { applyFontSize(fontSize); }, [fontSize]);
 
@@ -244,11 +246,39 @@ export function EngineerMeTab({
       color: "var(--text-primary)",
       fontFamily: "'Pretendard', -apple-system, sans-serif",
     }}>
-      {/* 헤더 */}
-      <div style={{ padding: "18px 20px 14px", borderBottom: "1px solid var(--border)" }}>
+      {/* 헤더 — 우측 톱니 = 사업자 정보 풀스크린 진입 (2026-06-19) */}
+      <div style={{
+        padding: "18px 20px 14px",
+        borderBottom: "1px solid var(--border)",
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+      }}>
         <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.4px" }}>
           👤 내 정보
         </div>
+        {(eng?.user_id || eng?.userId) && (
+          <button
+            type="button"
+            onClick={() => setShowBusiness(true)}
+            aria-label="사업자 정보"
+            style={{
+              background: "transparent",
+              border: "none",
+              padding: 6,
+              cursor: "pointer",
+              color: "var(--text-secondary)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              borderRadius: 8,
+            }}
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" strokeWidth="2"
+              strokeLinecap="round" strokeLinejoin="round"
+              aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        )}
       </div>
 
       <div style={{ padding: 16 }}>
@@ -350,21 +380,6 @@ export function EngineerMeTab({
             </button>
           </div>
         </div>
-
-        {/* 2026-06-18 Mig 141 — 사업자 정보 카드 (본인 입력, actor = userId) */}
-        {(() => {
-          const selfUserId = eng?.user_id || eng?.userId || "";
-          if (!selfUserId) return null;
-          return (
-            <EngineerBusinessInfoCard
-              userId={selfUserId}
-              actor={selfUserId}
-              isDark={isDark}
-              cardStyle={cardStyle}
-              onToast={showLocalToast}
-            />
-          );
-        })()}
 
         {/* Step 5-8 design 🅓 — 정산 계좌 카드 (정산 탭 회사 송금 카드와 통일 디자인) */}
         <div style={{ ...cardStyle, padding: 18 }}>
@@ -530,6 +545,61 @@ export function EngineerMeTab({
           {copyToast}
         </div>
       )}
+
+      {/* 2026-06-19 — 사업자 정보 풀스크린 (헤더 톱니 진입) */}
+      {showBusiness && (() => {
+        const selfUserId = eng?.user_id || eng?.userId || "";
+        if (!selfUserId) return null;
+        return (
+          <div style={{
+            position: "fixed", inset: 0,
+            background: "var(--bg-primary)",
+            zIndex: 1000,
+            overflowY: "auto",
+            color: "var(--text-primary)",
+            fontFamily: "'Pretendard', -apple-system, sans-serif",
+            paddingBottom: "env(safe-area-inset-bottom)",
+          }}>
+            <div style={{
+              position: "sticky", top: 0,
+              background: "var(--bg-primary)",
+              borderBottom: "1px solid var(--border)",
+              padding: "14px 16px",
+              display: "flex", alignItems: "center", gap: 10,
+              zIndex: 1,
+            }}>
+              <button
+                type="button"
+                onClick={() => setShowBusiness(false)}
+                aria-label="뒤로"
+                style={{
+                  background: "transparent", border: "none",
+                  fontSize: 22, padding: 4, cursor: "pointer",
+                  color: "var(--text-primary)",
+                  display: "flex", alignItems: "center",
+                }}
+              >
+                ←
+              </button>
+              <div style={{
+                fontSize: 17, fontWeight: 700,
+                letterSpacing: "-0.2px",
+              }}>
+                🏢 사업자 정보
+              </div>
+            </div>
+            <div style={{ padding: 16 }}>
+              <EngineerBusinessInfoCard
+                userId={selfUserId}
+                actor={selfUserId}
+                isDark={isDark}
+                cardStyle={cardStyle}
+                onToast={showLocalToast}
+              />
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

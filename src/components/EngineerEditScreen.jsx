@@ -585,7 +585,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
                 {statusSection}
                 {refriRateSection}
               </PcCard>
-              <PcCard>{accountSection}</PcCard>
+              {/* 2026-06-19 — 사업자 정보가 정산 계좌 위 (사장님 spec). */}
               {!isNew && targetUserId && actor && (
                 <EngineerBusinessInfoCard
                   userId={targetUserId}
@@ -602,6 +602,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
                   })}
                 />
               )}
+              <PcCard>{accountSection}</PcCard>
             </div>
             {/* 우단 — 카드 2장 + 좌측 띠 (세척 파랑 / 냉매 노랑) */}
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -633,9 +634,9 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
           {cleaningSection}
           {refrigerantSection}
           {ratesSection}
-          {accountSection}
+          {/* 2026-06-19 — 사업자 정보가 정산 계좌 위 (사장님 spec). */}
           {!isNew && targetUserId && actor && (
-            <div style={{ marginTop: 16 }}>
+            <div style={{ marginTop: 16, marginBottom: 8 }}>
               <EngineerBusinessInfoCard
                 userId={targetUserId}
                 actor={actor}
@@ -652,6 +653,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
               />
             </div>
           )}
+          {accountSection}
           {memoSection}
           {errorNode}
           {toastNode}
