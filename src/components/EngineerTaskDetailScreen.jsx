@@ -30,7 +30,7 @@ import { workDateLabel, workDateColor, formatTimeOnly, calcTotalDuration } from 
 import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
 // Round 3 — Migration 076 RPC (anon 키 + p_actor 패턴, 옛 updateTaskAdapter 경로 우회)
-import { rescheduleEngineerTask } from "../lib/engineerTaskRpc.js";
+import { rescheduleEngineerTask, engineerFullCancel } from "../lib/engineerTaskRpc.js";
 // 2026-05-27 Phase 2 — Supabase task_memos (운영자↔기사 양방향)
 import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
 // 2026-05-29 — 결제 방식 라벨 (현장결제/선결제 등 안전 정보 시각화)
@@ -399,8 +399,9 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         task={task}
         itemEngineerAmounts={itemEngineerAmounts}
         onBack={() => setSubScreen(null)}
-        onConfirm={(payload) => {
-          handleCancel(payload);
+        onConfirm={async (payload) => {
+          const ok = await handleCancel(payload);
+          if (ok === false) return;   // 실패 → 모달 유지 (alert 만 표시)
           setSubScreen(null);
           onBack && onBack();
         }}
@@ -792,9 +793,18 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     }
   }
 
-  function handleCancel({ items, reason, memo }) {
+  // 2026-06-19 Mig 142 — 전체 취소 갈래(b) 를 engineer_full_cancel RPC 로 교체.
+  //   이전: onUpdate({status:"취소", ...}) 단순 컬럼 UPDATE → category_data 의
+  //         cancelActor / cancelActorUserId / cancelActorPrincipalCode / cancelAt /
+  //         previousStatus / wasCompleted 6필드 누락 (변경이력 actor 빈 사고).
+  //   현재: engineerFullCancel RPC 호출 → partner/admin 대칭 머지 + task_items cascade.
+  //         RPC 성공 후 onUpdate 그대로 호출 → 부모 Optimistic UI + 시트 sync 보존.
+  //   부분 취소(a) 는 별건 — 추후 engineer_partial_cancel_item RPC 신설 후속 검토.
+  //   반환: true = 성공, false = 실패 (호출자가 모달 close 분기).
+  async function handleCancel({ items, reason, memo }) {
     const allItems = getTaskItems(task, itemEngineerAmounts);
     if (items.length < allItems.length) {
+      // (a) 부분 취소 — 옛 흐름 그대로 (status 무관)
       const remaining = allItems.filter(i => !items.find(c => c.id === i.id));
       onUpdate && onUpdate(task.id, {
         items: remaining,
@@ -802,14 +812,23 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         cancelReason: reason,
         cancelMemo: memo,
       });
-    } else {
-      onUpdate && onUpdate(task.id, {
-        status: "취소",
-        cancelReason: reason,
-        cancelMemo: memo,
-        cancelledAt: getCurrentTime(),
-      });
+      return true;
     }
+    // (b) 전체 취소 — RPC 경유
+    const reasonForRpc = reason || memo || "고객 취소";
+    const res = await engineerFullCancel(task.id, reasonForRpc);
+    if (!res || res.ok === false) {
+      alert(`취소 실패 — ${res?.error || "알 수 없는 오류"}`);
+      return false;
+    }
+    // 부모 Optimistic + 시트 sync (RPC 가 이미 DB 머지했으니 단순 UPDATE 중복은 무해)
+    onUpdate && onUpdate(task.id, {
+      status: "취소",
+      cancelReason: reason,
+      cancelMemo: memo,
+      cancelledAt: getCurrentTime(),
+    });
+    return true;
   }
 
   function addExtra(amount) {
