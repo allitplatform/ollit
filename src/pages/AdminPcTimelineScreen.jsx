@@ -811,10 +811,17 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
     const maxStart = (END_HOUR - 1) * 60 + 30;
     newMin = Math.max(minStart, Math.min(maxStart, newMin));
 
-    // Y: target lane 식별 — elementFromPoint → closest('[data-lane-key]')
+    // 2026-06-19 — target lane 식별: 막대(ghost) 시각적 box 의 center 사용.
+    //   이전: e.clientX/Y (커서) 사용 → 사용자가 막대 가장자리를 잡으면 커서가
+    //   막대 box 밖에 있을 수 있어 시각/판정 불일치 (사장님 보고 사고).
+    //   현재: pointer-events:none 으로 막대 hit-test 제외 + getBoundingClientRect
+    //   로 막대 box center 추출 → 막대가 시각적으로 안착한 lane 정확히 식별.
     let targetLaneKey = sourceLaneKey;
     try {
-      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const barRect = e.currentTarget.getBoundingClientRect();
+      const barCenterX = barRect.left + barRect.width / 2;
+      const barCenterY = barRect.top + barRect.height / 2;
+      const el = document.elementFromPoint(barCenterX, barCenterY);
       if (el) {
         const laneEl2 = el.closest && el.closest("[data-lane-key]");
         if (laneEl2 && laneEl2.dataset && laneEl2.dataset.laneKey) {
@@ -838,12 +845,14 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
     const wasDragging = drag.dragging;
     const movedTime  = drag.currentMinutes !== drag.baseMinutes;
 
-    // 2026-06-19 — pointerup 시점에 target lane 재추출 (stale closure 안전망).
-    //   React state 업데이트 배치로 drag.targetLaneKey 가 마지막 pointermove 결과를
-    //   반영 못한 채 pointerup 발화될 수 있음 → 마우스 위치로 다시 식별.
+    // 2026-06-19 — pointerup 시점에도 막대 box center 로 target lane 재추출.
+    //   pointermove 와 같은 기준 사용 → 시각/판정 일치 보장 + stale closure 안전망.
     let finalTargetLaneKey = drag.targetLaneKey || sourceLaneKey;
     try {
-      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const barRect = e.currentTarget.getBoundingClientRect();
+      const barCenterX = barRect.left + barRect.width / 2;
+      const barCenterY = barRect.top + barRect.height / 2;
+      const el = document.elementFromPoint(barCenterX, barCenterY);
       if (el) {
         const laneEl2 = el.closest && el.closest("[data-lane-key]");
         if (laneEl2 && laneEl2.dataset && laneEl2.dataset.laneKey) {
@@ -931,6 +940,10 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
         transform: drag && drag.dragging ? `translateY(${drag.deltaY}px)` : "none",
         transition: drag ? "none" : "left 0.15s ease, opacity 0.2s ease",
         touchAction: "none",
+        // 2026-06-19 — drag 중 막대 hit-test 제외 → elementFromPoint(barCenter)
+        //   가 막대 자체를 잡지 않고 아래 lane 시간 영역을 잡음.
+        //   pointerCapture 는 별도라 막대 자체는 마우스 이벤트 계속 받음.
+        pointerEvents: drag && drag.dragging ? "none" : "auto",
       }}>
       <div style={{
         flex: 1, minWidth: 0,
