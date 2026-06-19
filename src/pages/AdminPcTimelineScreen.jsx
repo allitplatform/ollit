@@ -4,7 +4,7 @@
 //   ⚠️ 데이터/로직 0줄 변경. apiTasks / apiEngineers / 공통 상태색 / 종류색.
 //   ⚠️ 막대 클릭 → 우 aside (Shell PC 분기 main 유지).
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
@@ -33,6 +33,20 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
   const today    = todayYmd();
   const isToday  = selectedDate === today;
+
+  // 2026-06-19 — 현재 시각 표시선 (KST). 1분마다 갱신, 오늘 + 범위 내일 때만 노출.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const nowH = now.getHours();
+  const nowM = now.getMinutes();
+  const showNowLine = isToday && nowH >= START_HOUR && nowH < END_HOUR;
+  const nowPct = showNowLine
+    ? (((nowH - START_HOUR) + nowM / 60) / TOTAL_HOURS) * 100
+    : 0;
+  const nowLabel = `${pad(nowH)}:${pad(nowM)}`;
 
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
@@ -92,12 +106,18 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
         </div>
       </div>
 
-      <TimeAxisView lanes={lanes} onTaskClick={onTaskClick}/>
+      <TimeAxisView
+        lanes={lanes}
+        onTaskClick={onTaskClick}
+        showNowLine={showNowLine}
+        nowPct={nowPct}
+        nowLabel={nowLabel}
+      />
     </div>
   );
 }
 
-function TimeAxisView({ lanes, onTaskClick }) {
+function TimeAxisView({ lanes, onTaskClick, showNowLine, nowPct, nowLabel }) {
   if (lanes.length === 0) {
     return (
       <div style={{
@@ -118,6 +138,7 @@ function TimeAxisView({ lanes, onTaskClick }) {
       border: "1px solid var(--border)",
       borderRadius: 14,
       overflow: "hidden",
+      position: "relative",   // 2026-06-19 — now line absolute wrapper
     }}>
       <div style={{
         display: "grid",
@@ -160,6 +181,44 @@ function TimeAxisView({ lanes, onTaskClick }) {
           <Lane key={lane.key} lane={lane} onTaskClick={onTaskClick}/>
         ))}
       </div>
+
+      {/* 2026-06-19 — 현재 시각 표시선 (KST). 시간 영역만 덮음 (기사 컬럼 right). */}
+      {showNowLine && (
+        <div style={{
+          position: "absolute",
+          top: 0, bottom: 0,
+          left: `calc(${ENGINEER_COL}px + (100% - ${ENGINEER_COL}px) * ${nowPct / 100})`,
+          width: 0,
+          pointerEvents: "none",
+          zIndex: 5,
+        }}>
+          {/* 세로선 */}
+          <div style={{
+            position: "absolute",
+            top: 34,                 // 시간 헤더(34) 아래부터
+            bottom: 0,
+            left: -1,
+            width: 2,
+            background: "#FF1B8D",
+            boxShadow: "0 0 6px rgba(255, 27, 141, 0.45)",
+          }}/>
+          {/* 상단 라벨 — 시간 헤더 위로 살짝 겹쳐 */}
+          <div style={{
+            position: "absolute",
+            top: 6,
+            left: -22,
+            padding: "2px 6px",
+            background: "#FF1B8D",
+            color: "#fff",
+            fontSize: 10, fontWeight: 800,
+            borderRadius: 4,
+            whiteSpace: "nowrap",
+            fontVariantNumeric: "tabular-nums",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.25)",
+            letterSpacing: "-0.2px",
+          }}>{nowLabel}</div>
+        </div>
+      )}
     </div>
   );
 }
