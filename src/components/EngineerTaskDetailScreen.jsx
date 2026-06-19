@@ -31,6 +31,8 @@ import { useIsDark } from "../hooks/useIsDark.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
 // Round 3 — Migration 076 RPC (anon 키 + p_actor 패턴, 옛 updateTaskAdapter 경로 우회)
 import { rescheduleEngineerTask, engineerFullCancel } from "../lib/engineerTaskRpc.js";
+// 2026-06-19 Step 2b — 기사 본인 영수증 발행 (운영자 DocIssueScreen 의 기사 모드 재사용)
+import DocIssueScreen from "./admin/DocIssueScreen.jsx";
 // 2026-05-27 Phase 2 — Supabase task_memos (운영자↔기사 양방향)
 import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
 // 2026-05-29 — 결제 방식 라벨 (현장결제/선결제 등 안전 정보 시각화)
@@ -221,7 +223,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   });
   const [workMemo, setWorkMemo] = useState(task.workMemo || "");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule" / "complete" / "refriAddonConsent" 등
+  const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule" / "complete" / "refriAddonConsent" / "docIssue" (2026-06-19 Step 2b) 등
   // 2026-06-03 — Phase 1 보강: 세척+냉매충전 동의서 측측.
   //   [완료 처리] 측 "예" 측측 측 RefrigerantConsentScreen 측측 측측 측측 측측. 동의 완료 측측 측측 측측.
   //   취소/뒤로 측측 완료 화면 측측 — 측측 측측 측측 (= 측측 측측 측측).
@@ -405,6 +407,18 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
           setSubScreen(null);
           onBack && onBack();
         }}
+      />
+    );
+  }
+
+  // 2026-06-19 Step 2b — 기사 본인 영수증 발행 (DocIssueScreen 엔지니어 모드)
+  if (subScreen === "docIssue") {
+    return (
+      <DocIssueScreen
+        user={user}
+        engineerMode={true}
+        task={task}
+        onBack={() => setSubScreen(null)}
       />
     );
   }
@@ -938,6 +952,32 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
           <CompletedPhotos task={task}/>
           {task.workMemo && <CompletedMemo memo={task.workMemo}/>}
           <SettlementInfo task={task}/>
+          {/* 2026-06-19 Step 2b — 영수증/거래명세서 발행 (완료 + !usol_n 한정)
+              usol_n 은 네이버 결제라 영수증이 네이버 쪽에서 나감 → 제외. */}
+          {task.status === "완료" && task.principalCode !== "usol_n" && (
+            <div style={{ padding: "0 16px 16px" }}>
+              <button
+                type="button"
+                onClick={() => setSubScreen("docIssue")}
+                style={{
+                  width: "100%",
+                  minHeight: 48,
+                  padding: "12px 16px",
+                  background: "var(--bg-elevated)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                  borderRadius: 10,
+                  fontSize: 14, fontWeight: 700,
+                  fontFamily: "inherit",
+                  cursor: "pointer",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                }}
+              >
+                <span>🧾</span>
+                <span>영수증 발행</span>
+              </button>
+            </div>
+          )}
         </>
       )}
 

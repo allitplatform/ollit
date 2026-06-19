@@ -404,7 +404,18 @@ function ymdToKoreanDate(ymd) {
   return `${m[1]}년 ${m[2]}월 ${m[3]}일`;
 }
 
-export default function DocIssueScreen({ user, engineers = [], onBack }) {
+// 2026-06-19 Step 2b — 기사 본인 영수증 발행 흐름 시 props 확장.
+//   engineerMode=true 일 때:
+//     · 발행처 드롭다운 숨김 (본인 user_id 자동)
+//     · 카톡 텍스트 분석 섹션 숨김
+//     · task 에서 받는분/품목/금액/거래일자 자동 채움 (mount 1회)
+//     · 사업자 미등록 시 안내 + onOpenBusinessSetup 콜백 (선택)
+export default function DocIssueScreen({
+  user, engineers = [], onBack,
+  engineerMode = false,
+  task = null,
+  onOpenBusinessSetup = null,
+}) {
   const isDark = useIsDark();
   const actor  = user?.user_id || user?.id || null;
 
@@ -416,15 +427,16 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
       .sort((a, b) => String(a.engineerId || a.id || "").localeCompare(String(b.engineerId || b.id || "")));
   }, [engineers]);
 
-  const [issuerCode, setIssuerCode] = useState(""); // engineerId (E001 등)
+  // 기사 모드 — 본인 user_id 가 곧 issuerCode 대용 (드롭다운 X, 자동 사업자 정보 로드).
+  const [issuerCode, setIssuerCode] = useState(""); // 운영자 모드 — engineerId (E001 등)
   const [issuerInfo, setIssuerInfo] = useState(null); // get_engineer_business_info row
   const [issuerLoading, setIssuerLoading] = useState(false);
   const [issuerError, setIssuerError] = useState("");
 
-  // 카톡 붙여넣기 텍스트
+  // 카톡 붙여넣기 텍스트 (운영자 모드만 사용)
   const [pasteText, setPasteText] = useState("");
 
-  // 받는분
+  // 받는분 — engineerMode 진입 시 task.customerName / task.address 로 자동 채움 (아래 useEffect).
   const [recipientType, setRecipientType] = useState("individual"); // individual | business
   const [recipientName, setRecipientName] = useState("");
   const [recipientBizName, setRecipientBizName] = useState("");
@@ -436,16 +448,82 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
 
   // 금액 / 부가세
   const [amountRaw, setAmountRaw] = useState(""); // 사용자 입력 그대로 (콤마 포맷)
-  const [vatMode, setVatMode]     = useState("inclusive");
+  const [vatMode, setVatMode]     = useState(engineerMode ? "inclusive" : "inclusive");
   const [showVat, setShowVat]     = useState(true); // 영수증 옵션 — 부가세 미표기
 
-  // 문서 종류
-  const [docType, setDocType] = useState("invoice");
+  // 문서 종류 — 기사 모드 기본 '영수증', 운영자 모드 기본 '거래명세서'
+  const [docType, setDocType] = useState(engineerMode ? "receipt" : "invoice");
 
   // 2026-06-19 — 발행 날짜 (수동 변경 가능, 기본 오늘 KST).
   //   거래명세서.거래일자 / 영수증.영수일자 에 반영.
   //   발행번호(YYMMDD-NNN)는 발행 화면이 아닌 generateSerialNo 가 실제 today 기준 — 입력 날짜와 무관.
-  const [issueDate, setIssueDate] = useState(() => kstTodayYmd());
+  const [issueDate, setIssueDate] = useState(() => {
+    // 기사 모드 — task.completedAt KST YMD 기본값
+    if (engineerMode && task) {
+      const at = task.completedAt || task.completed_at;
+      if (at) {
+        try {
+          return new Intl.DateTimeFormat("en-CA", {
+            timeZone: "Asia/Seoul",
+            year: "numeric", month: "2-digit", day: "2-digit",
+          }).format(new Date(at));
+        } catch (_) {}
+      }
+    }
+    return kstTodayYmd();
+  });
+
+  // 2026-06-19 Step 2b — 기사 모드 진입 시 task → form 자동 채움 (mount 1회).
+  //   사장님 spec: 판매가만 노출 (그 작업 받은 금액). 원청수수료 / 회사몫 / 다른 작업 X.
+  //   품목: task.workItems → "appliance workType" 라벨 + qty (가격은 합계로 따로 표시).
+  useEffect(() => {
+    if (!engineerMode || !task) return;
+    // 받는분 자동 채움 — 기본 '개인' + 고객명/주소
+    setRecipientType("individual");
+    setRecipientName(task.customer || task.customerName || "");
+    setRecipientAddress(task.address || "");
+
+    // 품목 — task.workItems 매핑 (가격은 합계 입력칸에서 따로 관리)
+    const wis = Array.isArray(task.workItems) ? task.workItems : [];
+    const nextItems = wis
+      .filter(wi => !(wi.isCanceled ?? wi.is_canceled))
+      .map(wi => ({
+        label: [wi.appliance, wi.workType].filter(Boolean).join(" ").trim() || "작업 일체",
+        qty: Number(wi.qty || 1),
+        // 사장님 spec — 판매가만 노출 + 합계로 자동. 개별 단가 X (현장 수정 가능).
+      }));
+    setItems(nextItems);
+
+    // 금액 자동 — 상품금액 + 현장추가금 (사장님 spec)
+    const total =
+      Number(task.totalAmount || task.total_amount || 0)
+      || (Number(task.productPrice || task.product_price || 0)
+        + Number(task.extraFee || task.extra_fee || 0)
+        + Number(task.travelFee || task.travel_fee || 0));
+    if (total > 0) {
+      setAmountRaw(total.toLocaleString("ko-KR"));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engineerMode, task?.id]);
+
+  // 2026-06-19 Step 2b — 기사 모드: 본인 사업자 정보 자동 로드 (actor=본인).
+  useEffect(() => {
+    if (!engineerMode || !actor) return;
+    let alive = true;
+    setIssuerLoading(true);
+    setIssuerError("");
+    getEngineerBusinessInfo(actor, actor).then(res => {
+      if (!alive) return;
+      setIssuerLoading(false);
+      if (!res?.ok) {
+        setIssuerInfo(null);
+        setIssuerError(res?.error || "사업자 정보 조회 실패");
+        return;
+      }
+      setIssuerInfo(res.row || null);
+    });
+    return () => { alive = false; };
+  }, [engineerMode, actor]);
 
   // 발행처 변경 시 사업자 정보 fetch.
   //
@@ -702,38 +780,42 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
       </div>
 
       <div style={{ padding: 10, maxWidth: 720, margin: "0 auto" }}>
-        {/* 1) 발행처 */}
+        {/* 1) 발행처 — 기사 모드는 본인 고정, 운영자 모드는 드롭다운 */}
         <Section
-          title="발행처 (기사)"
-          hint="선택하면 등록된 사업자 정보를 자동으로 가져옵니다."
+          title={engineerMode ? "발행처 (내 사업자 정보)" : "발행처 (기사)"}
+          hint={engineerMode
+            ? "본인 사업자 정보가 자동으로 적용됩니다. 변경은 [내 정보 → ⚙ 톱니]에서."
+            : "선택하면 등록된 사업자 정보를 자동으로 가져옵니다."}
           isDark={isDark}
         >
-          <select
-            value={issuerCode}
-            onChange={e => setIssuerCode(e.target.value)}
-            style={{
-              width: "100%",
-              minHeight: 44,
-              padding: "8px 10px",
-              fontSize: 13, fontFamily: "inherit",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              background: "var(--bg-secondary)",
-              color: "var(--text-primary)",
-              outline: "none",
-            }}
-          >
-            <option value="">기사를 선택하세요</option>
-            {activeEngineers.map(e => {
-              const code = e.engineerId || e.id || "";
-              const name = e.name || "";
-              return (
-                <option key={code} value={code}>
-                  {code} · {name}
-                </option>
-              );
-            })}
-          </select>
+          {!engineerMode && (
+            <select
+              value={issuerCode}
+              onChange={e => setIssuerCode(e.target.value)}
+              style={{
+                width: "100%",
+                minHeight: 44,
+                padding: "8px 10px",
+                fontSize: 13, fontFamily: "inherit",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                background: "var(--bg-secondary)",
+                color: "var(--text-primary)",
+                outline: "none",
+              }}
+            >
+              <option value="">기사를 선택하세요</option>
+              {activeEngineers.map(e => {
+                const code = e.engineerId || e.id || "";
+                const name = e.name || "";
+                return (
+                  <option key={code} value={code}>
+                    {code} · {name}
+                  </option>
+                );
+              })}
+            </select>
+          )}
 
           {issuerLoading && (
             <div style={{ marginTop: 6, fontSize: 12, color: "var(--text-secondary)" }}>
@@ -752,7 +834,44 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
               ⚠️ {issuerError}
             </div>
           )}
-          {issuerInfo && !issuerLoading && (
+          {/* 기사 모드 + 사업자 정보 미등록 안내 (business_name 비어있을 때) */}
+          {engineerMode && !issuerLoading && !issuerError && (!issuerInfo || !issuerInfo.business_name) && (
+            <div style={{
+              marginTop: 7,
+              padding: "10px 12px",
+              background: "rgba(255,184,0,0.08)",
+              border: "1px solid rgba(255,184,0,0.4)",
+              borderRadius: 8,
+              fontSize: 12,
+              color: "var(--text-primary)",
+              lineHeight: 1.55,
+            }}>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>⚠️ 사업자 정보가 등록되지 않았습니다</div>
+              <div style={{ color: "var(--text-secondary)", marginBottom: onOpenBusinessSetup ? 8 : 0 }}>
+                영수증 발행에는 사업자 정보가 필요합니다.
+                <br/>[내 정보 → ⚙ 톱니]에서 먼저 등록해주세요.
+              </div>
+              {onOpenBusinessSetup && (
+                <button
+                  type="button"
+                  onClick={onOpenBusinessSetup}
+                  style={{
+                    minHeight: 40,
+                    padding: "8px 14px",
+                    background: "#FF1B8D",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 8,
+                    fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  사업자 정보 등록하러 가기
+                </button>
+              )}
+            </div>
+          )}
+          {issuerInfo && !issuerLoading && (!engineerMode || issuerInfo.business_name) && (
             <div style={{
               marginTop: 7,
               padding: "7px 9px",
@@ -772,7 +891,8 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
           )}
         </Section>
 
-        {/* 2) 카톡 붙여넣기 */}
+        {/* 2) 카톡 붙여넣기 — 운영자 모드 전용 (기사 모드는 task 자동 채움으로 대체) */}
+        {!engineerMode && (
         <Section
           title="카톡 붙여넣기 (자동 분석)"
           hint="주소·품목·금액·부가세표기를 추출합니다. 결과는 아래 칸에서 수정 가능합니다."
@@ -816,6 +936,7 @@ export default function DocIssueScreen({ user, engineers = [], onBack }) {
             🔎 자동 분석
           </button>
         </Section>
+        )}
 
         {/* 3) 받는분 */}
         <Section title="받는분" isDark={isDark}>
