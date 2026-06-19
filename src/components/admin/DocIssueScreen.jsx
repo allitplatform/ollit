@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useIsDark } from "../../hooks/useIsDark.js";
 import { supabase } from "../../lib/supabase.js";
 import { getEngineerBusinessInfo } from "../../lib/engineerBusinessInfoDb.js";
+import { issueDocument } from "../../lib/docIssuesDb.js";
 import { parseDocIssuePaste, computeVatBreakdown } from "../../lib/docIssueParser.js";
 import "./DocIssueScreen.css";
 
@@ -642,8 +643,11 @@ export default function DocIssueScreen({
   //   canvas 한 번 캡처 후 PDF/PNG 둘 다 변환 가능.
   const [issuing, setIssuing] = useState(false);
 
-  async function buildCanvas() {
-    const { renderInvoiceCanvas, renderReceiptCanvas, generateSerialNo } =
+  // 2026-06-19 Step 3-1 — serialNo 는 issue_document RPC 응답(doc_no)에서 받음.
+  //   generateSerialNo() random 폐기. canvas 생성 전 RPC 호출 흐름이라 본
+  //   함수는 docNo 를 인자로 받기만 함.
+  async function buildCanvas(docNo) {
+    const { renderInvoiceCanvas, renderReceiptCanvas } =
       await import("../../lib/docIssueRender.js");
 
     const issuer = issuerInfo || {};
@@ -672,7 +676,7 @@ export default function DocIssueScreen({
       canvas: await renderReceiptCanvas({
         ...common,
         hideVat: !showVat,
-        serialNo: generateSerialNo(),
+        serialNo: docNo,
       }),
       kind: "영수증",
     };
@@ -703,9 +707,54 @@ export default function DocIssueScreen({
     if (issuing) return;
     if (!preCheck()) return;
 
+    // 발행처 user_id 확인 (RPC 호출 + canvas issuer 정보 일치 보장)
+    const issuerUserId = issuerInfo?.user_id;
+    if (!issuerUserId) {
+      if (typeof window !== "undefined") window.alert("발행처 정보가 없습니다. 발행처를 다시 선택해주세요.");
+      return;
+    }
+
     setIssuing(true);
     try {
-      const { canvas, kind } = await buildCanvas();
+      // [1] 발행 이력 + 채번 (Mig 143 issue_document) — canvas 생성 전 수행.
+      //   RPC 가 (issuer_business_no, 발행일 KST) 단위 NNN 채번 + doc_issues INSERT.
+      //   같은 사업자번호 공유 기사(E002·E022)는 통합 카운터.
+      const safeItems = items
+        .filter(it => (it.label || "").trim() !== "")
+        .map(it => ({
+          label: it.label,
+          qty:   Number(it.qty) || 1,
+          price: it.price != null ? Number(it.price) : undefined,
+          subItems: Array.isArray(it.subItems)
+            ? it.subItems.filter(s => (s || "").trim() !== "")
+            : [],
+        }));
+      const issueRes = await issueDocument({
+        actor,
+        issuerUserId,
+        payload: {
+          doc_type:           docType,
+          recipient_type:     recipientType,
+          recipient_name:     recipientName || null,
+          recipient_biz_name: recipientBizName || null,
+          recipient_biz_no:   recipientBizNo || null,
+          recipient_address:  recipientAddress || null,
+          supply:             vatBreak.supply,
+          vat:                vatBreak.vat,
+          amount:             vatBreak.total,
+          items:              safeItems,
+          issue_date:         issueDate || null,
+        },
+        taskId: engineerMode && task?.id ? task.id : null,
+      });
+      if (!issueRes?.ok) {
+        if (typeof window !== "undefined") window.alert(`발행 실패 — ${issueRes?.error || "알 수 없는 오류"}`);
+        return;
+      }
+      const docNo = issueRes.doc_no;
+
+      // [2] canvas (영수증은 doc_no 가 발행번호로 표시됨, 거래명세서는 양식에 발행번호 영역 없음)
+      const { canvas, kind } = await buildCanvas(docNo);
       const {
         canvasToPdfBlob, canvasToPngBlob,
         blobToFile, tryShareFiles, downloadOrOpenBlob,
