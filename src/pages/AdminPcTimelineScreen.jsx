@@ -152,16 +152,32 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
   const lanes = useMemo(() => {
     const byEng = new Map();
     for (const t of todayTasks) {
-      const eid   = t.assignedEngineerId || t.assigned_engineer_id || null;
+      // 2026-06-19 — eid 추출 강화 (4 키 fallback). 정규화 경로마다 키 이름이 달라
+      //   한 두 곳만 보면 일부 task 의 lane.eid 가 null 로 떨어져 cross-lane drop 시
+      //   target.eid 없음 → 거부 분기 진입 (사장님 보고 사고 원인).
+      const eid   = t.assignedEngineerId || t.assigned_engineer_id
+                 || t.engineerId         || t.engineer_id || null;
       const ename = t.assignedEngineer || t.engineer || "";
       const key = eid || ename || "(미배정)";
       if (!byEng.has(key)) byEng.set(key, { key, eid, ename, tasks: [] });
-      byEng.get(key).tasks.push(t);
+      // 첫 task 가 eid 없이 들어왔어도 이후 task 에 eid 있으면 lane.eid 보강.
+      const laneRef = byEng.get(key);
+      if (!laneRef.eid && eid) laneRef.eid = eid;
+      laneRef.tasks.push(t);
     }
     const list = Array.from(byEng.values()).map(lane => {
-      const eng = lane.eid ? (apiEngineers || []).find(e => e.id === lane.eid) : null;
+      // 2026-06-19 — eid 못 잡은 lane 도 apiEngineers 의 이름 매칭으로 보강.
+      //   드래그 재배정 시 target lane.eid 필수 → eid 누락 lane 이 있으면 안 됨.
+      let eng = null;
+      if (lane.eid) {
+        eng = (apiEngineers || []).find(e => e.id === lane.eid);
+      }
+      if (!eng && lane.ename) {
+        eng = (apiEngineers || []).find(e => e.name === lane.ename);
+      }
       return {
         ...lane,
+        eid:  lane.eid || eng?.id || null,
         name: eng?.name || lane.ename || "(미배정)",
       };
     });
@@ -200,8 +216,15 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     let targetSiblings = siblings || [];
     if (isReassign) {
       targetLane = lanes.find(l => l.key === targetLaneKey);
-      if (!targetLane || !targetLane.eid) {
-        // 미배정 등 unknown lane 으로 drop → 거부 + 원위치
+      if (!targetLane) {
+        // lane 자체 매칭 실패 — lanes 상태 stale 또는 데이터 정합 사고
+        showToast("error", "대상 기사 lane 식별 실패 — 새로고침 후 다시 시도");
+        onCancelUI && onCancelUI();
+        return;
+      }
+      if (!targetLane.eid) {
+        // lane 매칭됐으나 engineer_id 추출 실패 — apiEngineers 동기화 시점 사고 가능
+        showToast("error", `'${targetLane.name}' 기사 ID 식별 실패 — 새로고침 후 다시 시도`);
         onCancelUI && onCancelUI();
         return;
       }
@@ -814,7 +837,22 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
     try { e.currentTarget.releasePointerCapture(drag.pointerId); } catch (_) {}
     const wasDragging = drag.dragging;
     const movedTime  = drag.currentMinutes !== drag.baseMinutes;
-    const movedLane  = drag.targetLaneKey && drag.targetLaneKey !== sourceLaneKey;
+
+    // 2026-06-19 — pointerup 시점에 target lane 재추출 (stale closure 안전망).
+    //   React state 업데이트 배치로 drag.targetLaneKey 가 마지막 pointermove 결과를
+    //   반영 못한 채 pointerup 발화될 수 있음 → 마우스 위치로 다시 식별.
+    let finalTargetLaneKey = drag.targetLaneKey || sourceLaneKey;
+    try {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (el) {
+        const laneEl2 = el.closest && el.closest("[data-lane-key]");
+        if (laneEl2 && laneEl2.dataset && laneEl2.dataset.laneKey) {
+          finalTargetLaneKey = laneEl2.dataset.laneKey;
+        }
+      }
+    } catch (_) {}
+    const movedLane = finalTargetLaneKey && finalTargetLaneKey !== sourceLaneKey;
+
     if (wasDragging && (movedTime || movedLane)) {
       const newH = Math.floor(drag.currentMinutes / 60);
       const newM = drag.currentMinutes % 60;
@@ -824,15 +862,15 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
       onDragCommit && onDragCommit({
         task,
         sourceLaneKey,
-        targetLaneKey: drag.targetLaneKey,
+        targetLaneKey: finalTargetLaneKey,
         oldIso: scheduled,
         newIso,
         oldTime: baseTimeStr,
         newTime: `${pad(newH)}:${pad(newM)}`,
         newMinutes: drag.currentMinutes,
         durationMinutes: 60,
-        siblings,                 // source lane 의 siblings (cross-lane 이면 부모가 target 으로 재계산)
-        laneName,                 // source lane name
+        siblings,
+        laneName,
         onAcceptUI: () => setDrag(null),
         onCancelUI: () => setDrag(null),
       });
