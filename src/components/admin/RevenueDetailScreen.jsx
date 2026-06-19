@@ -78,10 +78,13 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
     return { engStartYmd: startYmd, engEndYmd: endYmd };
   }, [engineerPeriod, today, startYmd, endYmd]);
 
-  const byEngineer = useMemo(
-    () => computeRevenueByEngineer(apiTasks, engStartYmd, engEndYmd, user),
-    [apiTasks, engStartYmd, engEndYmd, user]
-  );
+  // 2026-06-19 — owner_amount(회사 마진) 내림차순 (사장님 spec, 메인보드와 통일).
+  //   computeRevenueByEngineer 는 row 에 engineer / owner / total 모두 포함하지만
+  //   기본 정렬이 engineer 내림차순이라 여기서 owner 내림차순으로 재정렬.
+  const byEngineer = useMemo(() => {
+    const raw = computeRevenueByEngineer(apiTasks, engStartYmd, engEndYmd, user);
+    return raw.slice().sort((a, b) => (b.owner || 0) - (a.owner || 0));
+  }, [apiTasks, engStartYmd, engEndYmd, user]);
 
   // 2026-06-16 — 작업별 탭 상태 (period: 오늘 / 이번달 / 종류 필터: 전체/세척/냉매/기타).
   //   기본 '오늘' — 사장님 spec.
@@ -194,7 +197,7 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
             <SectionHeader
               t={t}
               title="기사별"
-              sub={`${byEngineer.length}명 · 정산 내림차순`}
+              sub={`${byEngineer.length}명 · 회사마진 내림차순`}
               right={(
                 <div style={{ display: "flex", gap: 6 }}>
                   {[
@@ -224,12 +227,12 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
             />
             <Table t={t}
               columns={[
-                { key: "name",     label: "기사", align: "left",  width: "minmax(0, 1.4fr)" },
-                { key: "count",    label: "건수", align: "right", width: "minmax(0, 0.7fr)" },
-                { key: "engineer", label: "정산", align: "right", format: fmtKRW, accent: true, width: "minmax(0, 1.9fr)" },
+                { key: "name",  label: "기사",     align: "left",  width: "minmax(0, 1.4fr)" },
+                { key: "count", label: "건수",     align: "right", width: "minmax(0, 0.7fr)" },
+                { key: "owner", label: "회사 마진", align: "right", format: fmtKRW, accent: true, width: "minmax(0, 1.9fr)" },
               ]}
               rows={byEngineer}
-              emptyText={engineerPeriod === "today" ? "오늘 정산 데이터 없음" : "이 달 정산 데이터 없음"}
+              emptyText={engineerPeriod === "today" ? "오늘 회사 마진 데이터 없음" : "이 달 회사 마진 데이터 없음"}
             />
           </>
         )}
