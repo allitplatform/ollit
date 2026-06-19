@@ -180,12 +180,20 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
         {/* 2026-06-16 — 탭 바 (원청별 / 기사별 / 작업별) */}
         <TabBar t={t} tab={tab} setTab={setTab}/>
 
-        {/* 원청별 카드 (2026-06-19 — 사장님 spec: 매출/마진 세로 쌓기로 잘림 해결).
-              1줄: 원청명 + 건수 / 2줄: 매출 ₩... 마진 ₩... (원 단위 전체 표시). */}
+        {/* 원청별 표 (2026-06-19 컬럼 폭: name 1.2 / count 0.7 / total 1.55 / owner 1.55 — 잘림 정정) */}
         {tab === "principal" && (
           <>
             <SectionHeader t={t} title="원청별" sub={`${byPrincipal.length}개 · 매출 내림차순`}/>
-            <PrincipalCardList t={t} rows={byPrincipal} emptyText="이 달 매출 데이터 없음"/>
+            <Table t={t}
+              columns={[
+                { key: "name",  label: "원청", align: "left",  width: "minmax(0, 1.2fr)" },
+                { key: "count", label: "건수", align: "right", width: "minmax(0, 0.7fr)" },
+                { key: "total", label: "매출", align: "right", format: fmtKRW, accent: true, width: "minmax(0, 1.55fr)" },
+                { key: "owner", label: "마진", align: "right", format: fmtKRW,             width: "minmax(0, 1.55fr)" },
+              ]}
+              rows={byPrincipal}
+              emptyText="이 달 매출 데이터 없음"
+            />
           </>
         )}
 
@@ -620,82 +628,6 @@ function SectionHeader({ t, title, sub, right }) {
       <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>{title}</span>
       {sub && <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{sub}</span>}
       {right && <div style={{ marginLeft: "auto" }}>{right}</div>}
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-// 2026-06-19 — 원청별 카드 리스트 (사장님 spec).
-//   1줄: 원청명 + 건수 / 2줄: 매출 + 마진. 원 단위 전체 표시 — 표 컬럼
-//   잘림(예: "₩9,870,0...") 정정. 다른 탭(기사별/작업별) 은 Table 그대로.
-// ──────────────────────────────────────────────────────────────────
-function PrincipalCardList({ t, rows, emptyText }) {
-  if (!rows || rows.length === 0) {
-    return (
-      <div style={{
-        padding: "18px 14px", textAlign: "center",
-        color: t.textMuted, fontSize: 12,
-        background: t.bgElevated, border: `1px solid ${t.border}`,
-        borderRadius: 10, marginBottom: 14,
-      }}>{emptyText}</div>
-    );
-  }
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-      {rows.map((row, idx) => (
-        <div key={(row.code || row.id || row.name || idx) + "_" + idx} style={{
-          background: t.bgElevated,
-          border: `1px solid ${t.border}`,
-          borderRadius: 10,
-          padding: "10px 14px",
-          display: "flex", flexDirection: "column", gap: 6,
-          fontVariantNumeric: "tabular-nums",
-        }}>
-          {/* 1줄 — 원청명 + 건수 */}
-          <div style={{
-            display: "flex", alignItems: "baseline", justifyContent: "space-between",
-          }}>
-            <span style={{
-              fontSize: 13, fontWeight: 800, color: t.text,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              minWidth: 0, flex: 1,
-            }}>{row.name || "—"}</span>
-            <span style={{
-              fontSize: 11, fontWeight: 700, color: t.textSecondary,
-              marginLeft: 8, flexShrink: 0,
-            }}>{row.count || 0}건</span>
-          </div>
-          {/* 2줄 — 매출 + 마진 (좌우 배치, 원 단위 전체 표시) */}
-          <div style={{
-            display: "flex", alignItems: "baseline", justifyContent: "space-between",
-            gap: 10,
-            paddingTop: 5, borderTop: `1px dashed ${t.border}`,
-          }}>
-            <span style={{ display: "flex", alignItems: "baseline", gap: 4, minWidth: 0 }}>
-              <span style={{
-                fontSize: 10, fontWeight: 700, color: t.textMuted,
-                flexShrink: 0,
-              }}>매출</span>
-              <span className="mono" style={{
-                fontSize: 13, fontWeight: 800, color: t.accent,
-                letterSpacing: "-0.3px",
-                whiteSpace: "nowrap",
-              }}>{fmtKRW(row.total || 0)}</span>
-            </span>
-            <span style={{ display: "flex", alignItems: "baseline", gap: 4, minWidth: 0 }}>
-              <span style={{
-                fontSize: 10, fontWeight: 700, color: t.textMuted,
-                flexShrink: 0,
-              }}>마진</span>
-              <span className="mono" style={{
-                fontSize: 13, fontWeight: 800, color: t.text,
-                letterSpacing: "-0.3px",
-                whiteSpace: "nowrap",
-              }}>{fmtKRW(row.owner || 0)}</span>
-            </span>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
