@@ -417,7 +417,10 @@ export default function DocIssueScreen({
   onOpenBusinessSetup = null,
 }) {
   const isDark = useIsDark();
-  const actor  = user?.user_id || user?.id || null;
+  // 2026-06-19 — actor fallback 보강. PWA login 응답 키 user_id(snake) /
+  //   userId(camel) / id 셋 다 시도. camel 누락 시 actor=null → 사업자
+  //   정보 조회 자체가 안 일어나 미등록으로 잘못 보이는 사고 차단.
+  const actor  = user?.user_id || user?.userId || user?.id || null;
 
   // 발행처 (기사) 선택 — 활성 기사만 + code asc.
   const activeEngineers = useMemo(() => {
@@ -533,7 +536,13 @@ export default function DocIssueScreen({
   //   현재: 시트 캐시 결손이면 supabase users 테이블에서 code→id 한 번 조회.
   //         그 조회까지 실패해야 그때 경고 (DB 에도 진짜 없는 기사일 때만).
   //   같은 패턴: EngineerEditScreen 의 targetUserId useEffect (Mig 141 작업 시 적용).
+  //
+  // 2026-06-19 Step 2b 정정: 기사 모드(engineerMode=true) 에선 본 useEffect 가
+  //   issuerCode='' early return 으로 setIssuerInfo(null) 호출 → 위쪽 engineerMode
+  //   useEffect 가 set 한 사업자 정보를 즉시 덮어쓰는 사고. 기사 모드는 전용
+  //   useEffect 가 처리하므로 본 useEffect 는 운영자 모드에서만 동작.
   useEffect(() => {
+    if (engineerMode) return; // 기사 모드 — 위 useEffect 가 본인 user_id 로 직접 처리
     if (!issuerCode || !actor) {
       setIssuerInfo(null);
       setIssuerError("");
@@ -587,7 +596,7 @@ export default function DocIssueScreen({
 
     loadIssuer();
     return () => { alive = false; };
-  }, [issuerCode, actor, activeEngineers]);
+  }, [issuerCode, actor, activeEngineers, engineerMode]);
 
   // 자동 분석 → form 미리 채움 (best-effort).
   function handleAutoParse() {
