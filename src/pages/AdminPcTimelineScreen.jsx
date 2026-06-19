@@ -16,10 +16,14 @@ import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 import { adminRescheduleTask } from "../lib/adminTaskRpc.js";
 
 const START_HOUR    = 7;
-const END_HOUR      = 20;
-const TOTAL_HOURS   = END_HOUR - START_HOUR;
+const END_HOUR      = 24;
+const TOTAL_HOURS   = END_HOUR - START_HOUR;  // 17
 const LANE_HEIGHT   = 52;
 const ENGINEER_COL  = 120;
+// 2026-06-19 — 시간당 고정폭 (사장님 spec). 컨테이너 fit X → 가로 스크롤.
+//   1시간 = 80px → 7~24시 = 17 × 80 = 1360px.
+const HOUR_WIDTH       = 80;
+const TIME_AREA_WIDTH  = HOUR_WIDTH * TOTAL_HOURS; // 1360
 const SNAP_MINUTES  = 30;
 const DRAG_THRESHOLD_PX = 5;
 
@@ -320,12 +324,14 @@ function TimeAxisView({ lanes, onTaskClick, onTaskDragCommit, showNowLine, nowPc
       background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
       borderRadius: 14,
-      overflow: "hidden",
+      overflowX: "auto",         // 2026-06-19 — 가로 스크롤 (사장님 spec)
+      overflowY: "hidden",
       position: "relative",
     }}>
       <div style={{
         display: "grid",
-        gridTemplateColumns: `${ENGINEER_COL}px 1fr`,
+        gridTemplateColumns: `${ENGINEER_COL}px ${TIME_AREA_WIDTH}px`,
+        width: ENGINEER_COL + TIME_AREA_WIDTH,
       }}>
         <div style={{
           padding: "10px 14px",
@@ -336,6 +342,10 @@ function TimeAxisView({ lanes, onTaskClick, onTaskDragCommit, showNowLine, nowPc
           color: "var(--text-secondary)",
           letterSpacing: 0.5,
           textTransform: "uppercase",
+          // 가로 스크롤 시 기사 컬럼 헤더 고정.
+          position: "sticky",
+          left: 0,
+          zIndex: 3,
         }}>기사</div>
 
         <div style={{
@@ -374,7 +384,8 @@ function TimeAxisView({ lanes, onTaskClick, onTaskDragCommit, showNowLine, nowPc
         <div style={{
           position: "absolute",
           top: 0, bottom: 0,
-          left: `calc(${ENGINEER_COL}px + (100% - ${ENGINEER_COL}px) * ${nowPct / 100})`,
+          // 2026-06-19 — 고정 px 폭 기반 (nowPct 폐기, ENGINEER_COL + 시각 비율 × TIME_AREA_WIDTH).
+          left: `${ENGINEER_COL + (nowPct / 100) * TIME_AREA_WIDTH}px`,
           width: 0,
           pointerEvents: "none",
           zIndex: 5,
@@ -421,6 +432,10 @@ function Lane({ lane, onTaskClick, onTaskDragCommit }) {
         fontSize: 12, fontWeight: 700, color: "var(--text-primary)",
         display: "flex", alignItems: "center", gap: 6,
         minHeight: LANE_HEIGHT,
+        // 가로 스크롤 시 각 행의 기사 셀도 고정 (헤더와 동일).
+        position: "sticky",
+        left: 0,
+        zIndex: 2,
       }}>
         <span style={{
           flex: 1, minWidth: 0,
