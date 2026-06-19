@@ -399,12 +399,14 @@ function ServiceBar({ icon, label, color, detail, total }) {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// 2026-06-19 — 오늘/이번달 기사별 정산 섹션.
+// 2026-06-19 — 오늘/이번달 기사별 회사 마진 섹션.
 //   · period 토글(today/month) 연동 — 매출 현황 카드와 같은 기간.
 //   · 데이터: isTrackARemittance + 완료 + KST(toKstYmd) 필터 → assignedEngineer
-//     이름 groupBy → engineer_amount 합산 → 금액 내림차순.
-//   · 표시: 상위 5명 + 가로 막대(max 기준 비율) + 금액. 5명 초과 시 "전체 N명 →"
-//     링크 (onClickEngineerList 전달 시).
+//     이름 groupBy → owner_amount(회사 마진) 합산 → 금액 내림차순.
+//   · 표시: 상위 5명 + 가로 막대(top 1 owner 기준 비율) + 금액. 5명 초과 시
+//     "전체 N명 →" 링크 (onClickEngineerList 전달 시).
+//   · 2026-06-19 (사장님 spec): 집계값을 engineer_amount → owner_amount 로
+//     전환. 회사 입장에서 본 작업당 마진 = 회사가 가진 몫.
 // ──────────────────────────────────────────────────────────────────
 function EngineerSettlementSection({ apiTasks = [], period, periodLabel, onClickAll }) {
   const list = useMemo(() => {
@@ -426,7 +428,8 @@ function EngineerSettlementSection({ apiTasks = [], period, periodLabel, onClick
       const ymd = toKstYmd(completed);                // UTC slice 금지 — KST 자정 경계 정확
       if (!ymd || ymd < curStart || ymd > curEnd) continue;
       const name = task.assignedEngineer || task.engineer || "(미배정)";
-      const amt  = Number(task.engineer_amount || task.engineerAmount || 0);
+      // 2026-06-19 — owner_amount(회사 마진) 합산 (이전 engineer_amount 폐기)
+      const amt  = Number(task.owner_amount || task.ownerAmount || 0);
       if (amt <= 0) continue;
       if (!groups.has(name)) groups.set(name, { name, amount: 0, count: 0 });
       const g = groups.get(name);
@@ -458,7 +461,7 @@ function EngineerSettlementSection({ apiTasks = [], period, periodLabel, onClick
           fontSize: 12, fontWeight: 800,
           color: "var(--text-primary)",
         }}>
-          👷 {periodLabel} 기사별 정산
+          👷 {periodLabel} 기사별 회사 마진
         </div>
         <div style={{
           fontSize: 10, fontWeight: 700,
@@ -500,7 +503,7 @@ function EngineerSettlementSection({ apiTasks = [], period, periodLabel, onClick
               <div style={{
                 width: `${Math.max(0, Math.min(100, pct))}%`,
                 height: "100%",
-                background: "#378ADD",
+                background: COLOR_OWNER, // 회사 마진 색 — 매출 패널 도넛/RevItem 과 일관
                 transition: "width 0.2s ease",
               }}/>
             </div>
