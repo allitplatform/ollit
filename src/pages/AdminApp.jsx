@@ -4874,9 +4874,17 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
 
   // 2026-05-21 Phase 5 Step 0.H — 검색란 추가 (InProgressListScreen 측 동일 spec)
   const q = query.trim().toLowerCase();
-  const all = !q ? baseSource : baseSource.filter((s) => {
+  const filtered = !q ? baseSource : baseSource.filter((s) => {
     const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo].filter(Boolean).join(" ").toLowerCase();
     return fields.includes(q);
+  });
+  // 2026-06-19 — 정렬: 서비스 예정일시(scheduledAt) ASC. 동일 날짜는 시간
+  //   오름차순 자동 적용. null/undefined 는 Infinity 로 맨 뒤 (assigned 일정
+  //   미정 케이스 안전망). KST 표시는 카드 렌더가 그대로 처리.
+  const all = [...filtered].sort((a, b) => {
+    const ta = a?.scheduledAt ? new Date(a.scheduledAt).getTime() : Infinity;
+    const tb = b?.scheduledAt ? new Date(b.scheduledAt).getTime() : Infinity;
+    return ta - tb;
   });
 
   const titleText = isAssigned
