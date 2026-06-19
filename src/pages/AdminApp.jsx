@@ -4923,10 +4923,69 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
           <div style={{ padding: "40px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
             {q ? "검색 결과가 없어요" : "해당 상태의 작업이 없어요"}
           </div>
-        ) : all.map((task) => (
-          <AssignedCard key={task.id || task.taskCode} t={t} task={task} onMemo={onMemo} onEdit={onEdit} onClick={onTaskClick}/>
-        ))}
+        ) : (() => {
+          // 2026-06-19 — 날짜별 그룹 헤더 (scheduledAt KST YMD 기준).
+          //   UTC slice(0,10) 사용 금지 — 새벽 KST 0~9시 작업이 전날 그룹으로 새는 함정.
+          //   toKstYmd 가 local Date 사용 → 브라우저 KST 기준 정확.
+          //   그룹 정렬: 일자 ASC + "__unscheduled__" 맨 뒤.
+          const groups = new Map();
+          for (const task of all) {
+            const ymd = task?.scheduledAt ? toKstYmd(task.scheduledAt) : "";
+            const key = ymd || "__unscheduled__";
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push(task);
+          }
+          const entries = [...groups.entries()].sort(([a], [b]) => {
+            if (a === "__unscheduled__") return 1;
+            if (b === "__unscheduled__") return -1;
+            return a.localeCompare(b);
+          });
+          return entries.map(([key, tasks]) => (
+            <div key={key} style={{ marginBottom: 6 }}>
+              <DateGroupHeader
+                t={t}
+                ymd={key === "__unscheduled__" ? null : key}
+                count={tasks.length}
+              />
+              {tasks.map((task) => (
+                <AssignedCard
+                  key={task.id || task.taskCode}
+                  t={t} task={task}
+                  onMemo={onMemo} onEdit={onEdit} onClick={onTaskClick}
+                />
+              ))}
+            </div>
+          ));
+        })()}
       </div>
+    </div>
+  );
+}
+
+// 2026-06-19 — 일자 그룹 헤더 ("6/19 (금) · N건" 또는 "일정 미정 · N건").
+//   기존 카드 톤에 맞춘 가벼운 디자인 (text-secondary + 작은 폰트 + 좌측 살짝 들여쓰기).
+function DateGroupHeader({ t, ymd, count }) {
+  let label;
+  if (!ymd) {
+    label = "일정 미정";
+  } else {
+    const [, m, d] = ymd.split("-");
+    const dt = new Date(ymd + "T00:00:00");
+    const dow = isNaN(dt.getTime()) ? "" : ["일","월","화","수","목","금","토"][dt.getDay()];
+    label = `${Number(m)}/${Number(d)}${dow ? ` (${dow})` : ""}`;
+  }
+  return (
+    <div style={{
+      padding: "10px 4px 6px",
+      marginTop: 4,
+      fontSize: 11, fontWeight: 700,
+      color: t.textMuted || "var(--text-secondary)",
+      letterSpacing: "-0.1px",
+      display: "flex", alignItems: "center", gap: 6,
+    }}>
+      <span>{label}</span>
+      <span style={{ opacity: 0.6 }}>·</span>
+      <span>{count}건</span>
     </div>
   );
 }
