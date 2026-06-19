@@ -55,28 +55,35 @@ const s = {
   },
   topLabel: {
     background: C_LABEL_BG,
-    padding: "8px 12px",
+    padding: "8px 10px",
     border: `1px solid ${C_BORDER}`,
     fontWeight: 700,
     textAlign: "center",
-    width: 100,
-    letterSpacing: "0.15em",
+    width: 88,
+    letterSpacing: "0.12em",
     color: C_TEXT,
+    whiteSpace: "nowrap",
   },
+  // 2026-06-19 — 영수일자 ("2026년 06월 19일") 가 좁은 셀에서 글자 단위
+  //   줄바꿈("2026/년06/월19/일") 되던 사고 정정. white-space: nowrap +
+  //   word-break: keep-all 로 한 줄 보장. label 폭 100→88 로 줄여 값 셀 확보.
   topVal: {
     border: `1px solid ${C_BORDER}`,
     padding: "8px 12px",
     color: C_TEXT,
+    whiteSpace: "nowrap",
+    wordBreak: "keep-all",
   },
   topValEnd: {
     background: C_LABEL_BG,
-    padding: "8px 12px",
+    padding: "8px 10px",
     border: `1px solid ${C_BORDER}`,
     fontWeight: 700,
     textAlign: "center",
     width: 50,
     letterSpacing: "0.2em",
     color: C_TEXT,
+    whiteSpace: "nowrap",
   },
 
   // ── 영수금액 강조
