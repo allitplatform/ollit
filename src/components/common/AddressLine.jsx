@@ -76,7 +76,16 @@ export function AddressLine({
     });
   }
 
-  const addrStyle = lineClamp >= 2 ? {
+  // 2026-06-19 — lineClamp=0 / "none" → 무제한 줄바꿈(전체 주소 다 보이게).
+  //   사장님 spec: 작업 상세 카드에서 "하남시 덕풍서로45 ..." 끝까지 보이게.
+  //   한국어 단어 단위 줄바꿈 + 긴 토큰 강제 줄바꿈.
+  const addrStyle = (lineClamp === 0 || lineClamp === "none") ? {
+    flex: 1, minWidth: 0,
+    whiteSpace: "normal",
+    wordBreak: "keep-all",
+    overflowWrap: "anywhere",
+    lineHeight: 1.5,
+  } : lineClamp >= 2 ? {
     flex: 1, minWidth: 0,
     display: "-webkit-box",
     WebkitLineClamp: lineClamp,

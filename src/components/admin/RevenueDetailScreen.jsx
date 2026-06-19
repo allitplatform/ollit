@@ -66,15 +66,27 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
     () => computeRevenueByPrincipal(apiTasks, startYmd, endYmd, user),
     [apiTasks, startYmd, endYmd, user]
   );
+  // 2026-06-19 — 기사별 탭 기간 (today=todayYmd~today, month=선택된 월).
+  const { engStartYmd, engEndYmd } = useMemo(() => {
+    if (engineerPeriod === "today") {
+      return { engStartYmd: today, engEndYmd: today };
+    }
+    return { engStartYmd: startYmd, engEndYmd: endYmd };
+  }, [engineerPeriod, today, startYmd, endYmd]);
+
   const byEngineer = useMemo(
-    () => computeRevenueByEngineer(apiTasks, startYmd, endYmd, user),
-    [apiTasks, startYmd, endYmd, user]
+    () => computeRevenueByEngineer(apiTasks, engStartYmd, engEndYmd, user),
+    [apiTasks, engStartYmd, engEndYmd, user]
   );
 
   // 2026-06-16 — 작업별 탭 상태 (period: 오늘 / 이번달 / 종류 필터: 전체/세척/냉매/기타).
   //   기본 '오늘' — 사장님 spec.
   const [taskPeriod, setTaskPeriod] = useState("today"); // 'today' | 'month'
   const [taskKind,   setTaskKind]   = useState("all");   // 'all' | 'cleaning' | 'refrigerant' | 'other'
+
+  // 2026-06-19 — 기사별 탭 기간 토글 (사장님 spec). 작업별 탭과 동일 패턴.
+  //   기본 '오늘'. byEngineer 의존성 변경.
+  const [engineerPeriod, setEngineerPeriod] = useState("today");
 
   // 작업별 탭의 기간 — 오늘 = todayYmd~todayYmd, 이번달 = 선택된 월 범위.
   const { taskStartYmd, taskEndYmd } = useMemo(() => {
@@ -162,22 +174,22 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
           <SummaryBox t={t} icon="🤝" label="원청 수수료"  value={summary.principal}/>
         </div>
         <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginBottom: 14 }}>
-          이 달 측측 측측 측측 {summary.count}건 · 트랙 A 측측 (유솔N 측측/추가선택 제외)
+          이 달 {summary.count}건 · 트랙 A (유솔N·추가선택 제외)
         </div>
 
         {/* 2026-06-16 — 탭 바 (원청별 / 기사별 / 작업별) */}
         <TabBar t={t} tab={tab} setTab={setTab}/>
 
-        {/* 원청별 표 */}
+        {/* 원청별 표 (2026-06-19 컬럼 폭: name 1.2 / count 0.7 / total 1.55 / owner 1.55 — 잘림 정정) */}
         {tab === "principal" && (
           <>
             <SectionHeader t={t} title="원청별" sub={`${byPrincipal.length}개 · 매출 내림차순`}/>
             <Table t={t}
               columns={[
-                { key: "name",  label: "원청", align: "left"  },
-                { key: "count", label: "건수", align: "right" },
-                { key: "total", label: "매출", align: "right", format: fmtKRW, accent: true },
-                { key: "owner", label: "마진", align: "right", format: fmtKRW },
+                { key: "name",  label: "원청", align: "left",  width: "minmax(0, 1.2fr)" },
+                { key: "count", label: "건수", align: "right", width: "minmax(0, 0.7fr)" },
+                { key: "total", label: "매출", align: "right", format: fmtKRW, accent: true, width: "minmax(0, 1.55fr)" },
+                { key: "owner", label: "마진", align: "right", format: fmtKRW,             width: "minmax(0, 1.55fr)" },
               ]}
               rows={byPrincipal}
               emptyText="이 달 매출 데이터 없음"
@@ -185,18 +197,48 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
           </>
         )}
 
-        {/* 기사별 표 */}
+        {/* 기사별 표 — [오늘/이번달] 토글 (2026-06-19) */}
         {tab === "engineer" && (
           <>
-            <SectionHeader t={t} title="기사별" sub={`${byEngineer.length}명 · 정산 내림차순`}/>
+            <SectionHeader
+              t={t}
+              title="기사별"
+              sub={`${byEngineer.length}명 · 정산 내림차순`}
+              right={(
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[
+                    { id: "today", label: "오늘" },
+                    { id: "month", label: "이번 달" },
+                  ].map(opt => {
+                    const on = engineerPeriod === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setEngineerPeriod(opt.id)}
+                        style={{
+                          padding: "4px 10px",
+                          background: on ? t.accent : "transparent",
+                          border: `1px solid ${on ? t.accent : t.border}`,
+                          borderRadius: 999,
+                          color: on ? "#fff" : t.textSecondary,
+                          fontSize: 11, fontWeight: 700,
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >{opt.label}</button>
+                    );
+                  })}
+                </div>
+              )}
+            />
             <Table t={t}
               columns={[
-                { key: "name",     label: "기사", align: "left"  },
-                { key: "count",    label: "건수", align: "right" },
-                { key: "engineer", label: "정산", align: "right", format: fmtKRW, accent: true },
+                { key: "name",     label: "기사", align: "left",  width: "minmax(0, 1.4fr)" },
+                { key: "count",    label: "건수", align: "right", width: "minmax(0, 0.7fr)" },
+                { key: "engineer", label: "정산", align: "right", format: fmtKRW, accent: true, width: "minmax(0, 1.9fr)" },
               ]}
               rows={byEngineer}
-              emptyText="이 달 정산 데이터 없음"
+              emptyText={engineerPeriod === "today" ? "오늘 정산 데이터 없음" : "이 달 정산 데이터 없음"}
             />
           </>
         )}
@@ -458,6 +500,18 @@ function TaskCardList({ t, tasks, onTaskClick }) {
         const kind = kindOfTask(task);
         const total = Number(task.totalAmount || task.총금액 || task.estimateTotal || 0);
         const owner = Number(task.owner_amount || 0);
+        // 2026-06-19 — 종류·수량 요약 (사장님 spec: 원청·기사 줄에 압축 결합).
+        const itemSummary = (() => {
+          const items = Array.isArray(task.workItems) ? task.workItems : [];
+          const live = items.filter(it => !(it.isCanceled ?? it.is_canceled));
+          if (live.length === 0) return "";
+          const first = live[0];
+          const label = first.appliance || first.applianceLabel || first.workType || "";
+          const qty = Number(first.qty) || 1;
+          if (!label) return "";
+          const more = live.length - 1;
+          return more > 0 ? `${label} 외 ${more}` : `${label} ×${qty}`;
+        })();
         return (
           <button
             key={task.id || idx}
@@ -483,9 +537,10 @@ function TaskCardList({ t, tasks, onTaskClick }) {
               }}>{task.customer || task.customerName || "—"}</span>
               <KindBadge kind={kind}/>
             </div>
-            {/* 2줄 — 원청 · 기사 */}
+            {/* 2줄 — 원청 · 기사 · 종류수량 (2026-06-19) */}
             <div style={{ fontSize: 11, color: t.textSecondary, fontWeight: 600 }}>
               {task.principal || task.principalName || "—"} · {task.assignedEngineer || task.engineer || "—"}
+              {itemSummary ? ` · ${itemSummary}` : ""}
             </div>
             {/* 3줄 — 매출 + 회사 마진 (핑크) */}
             <div style={{
@@ -564,14 +619,15 @@ function SummaryBox({ t, icon, label, value, accent }) {
   );
 }
 
-function SectionHeader({ t, title, sub }) {
+function SectionHeader({ t, title, sub, right }) {
   return (
     <div style={{
-      display: "flex", alignItems: "baseline", gap: 8,
+      display: "flex", alignItems: "center", gap: 8,
       marginTop: 10, marginBottom: 6,
     }}>
       <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>{title}</span>
       {sub && <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{sub}</span>}
+      {right && <div style={{ marginLeft: "auto" }}>{right}</div>}
     </div>
   );
 }
@@ -595,7 +651,7 @@ function Table({ t, columns, rows, emptyText }) {
       {/* 측측 */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: columns.map(() => "1fr").join(" "),
+        gridTemplateColumns: columns.map(c => c.width || "minmax(0, 1fr)").join(" "),
         gap: 8,
         padding: "8px 12px",
         borderBottom: `1px solid ${t.border}`,
@@ -612,7 +668,7 @@ function Table({ t, columns, rows, emptyText }) {
       {rows.map((row, idx) => (
         <div key={(row.code || row.id || row.name || idx) + "_" + idx} style={{
           display: "grid",
-          gridTemplateColumns: columns.map(() => "1fr").join(" "),
+          gridTemplateColumns: columns.map(c => c.width || "minmax(0, 1fr)").join(" "),
           gap: 8,
           padding: "9px 12px",
           borderTop: idx === 0 ? "none" : `1px solid ${t.border}`,
