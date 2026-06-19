@@ -2064,6 +2064,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       apiTasks={apiTasks}
       apiEngineers={apiEngineers}
       onTaskClick={(task) => openTaskDetailFromLight(task, "pcTimeline")}
+      onRefresh={() => { try { fetchTasks(); } catch (_) {} }}
     />
   ) : null;
 
