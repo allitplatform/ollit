@@ -14,10 +14,14 @@ const _REASON_BY_ID = new Map(CANCEL_REASONS.map(r => [r.id, r.label]));
 
 // 원청 코드 → 한국 정식 라벨 (사장님 spec, 2026-05-29).
 //   PRINCIPAL_CHIP_ORDER (allPrincipalTasksDb.js) 측 짧은 라벨과 다름 — 표시 정식 이름 별도 사전.
+//
+// 2026-06-19 정정: KA / KB 라벨이 서로 뒤바뀐 채로 들어가 있던 버그 수정.
+//   data/principals.js 진실 소스: KA = 에어컨프로(aircon_pro), KB = 쿨가이(cool_son).
+//   이전 매핑(KA="쿨가이" / KB="KB")은 변경이력 actor 표시에 오류 노출.
 export const PRINCIPAL_LABELS_KR = {
   allday:  "올데이케어",
-  KA:      "쿨가이",
-  KB:      "KB",
+  KA:      "에어컨프로",
+  KB:      "쿨가이",
   yongin:  "용인컴퍼니",
   usol_h:  "유솔홈케어",
   usol_n:  "유솔홈케어(N)",
