@@ -8,7 +8,7 @@
 //   · 잠금: 진행중 / 완료 / 취소 / visit_only / 정산완료.
 //   · 드래그 중 막대 자체 이동 + 새 시각 라벨 미리보기.
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
@@ -48,6 +48,83 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
   const today    = todayYmd();
   const isToday  = selectedDate === today;
+
+  // 2026-06-19 — 검색 + 점프 + 강조 (사장님 spec).
+  //   매칭: 고객명 / 주소 / 연락처 / 작업번호 — 날짜 무관, 완료/취소 포함.
+  //   디바운스 300ms. 결과 클릭 → 해당 날짜로 점프 + 막대 핑크 강조 + 다른 막대
+  //   흐림(opacity 0.3) + 가로 스크롤 가운데로.
+  //   강조 해제: 검색창을 사용자가 비우거나 날짜를 수동(prev/next/today)으로 바꿀 때.
+  const [searchQuery, setSearchQuery]     = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [showResults, setShowResults]     = useState(false);
+  const [highlightTaskId, setHighlightTaskId] = useState(null);
+  const scrollWrapperRef = useRef(null);
+
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
+
+  const searchResults = useMemo(() => {
+    if (!debouncedQuery) return [];
+    const q = debouncedQuery.toLowerCase();
+    const matched = [];
+    for (const t of (apiTasks || [])) {
+      if (!t) continue;
+      const scheduled = t.scheduledAt || t.scheduled_at;
+      if (!scheduled) continue;                  // 일정 없는 작업은 점프 대상 X
+      const fields = [
+        t.customer, t.customerName, t.고객명,
+        t.address, t.fullAddress, t.region,
+        t.phone, t.전화번호,
+        t.task_no, t.taskNo, t.taskCode,
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (fields.includes(q)) matched.push(t);
+    }
+    matched.sort((a, b) => {
+      const aT = new Date(a.scheduledAt || a.scheduled_at).getTime();
+      const bT = new Date(b.scheduledAt || b.scheduled_at).getTime();
+      return aT - bT;
+    });
+    return matched.slice(0, 10);
+  }, [apiTasks, debouncedQuery]);
+
+  // 검색창을 사용자가 직접 비웠을 때(빈 입력으로 onChange) 강조 해제.
+  //   결과 클릭은 검색창 그대로 유지 → 이 effect 안 발화.
+  useEffect(() => {
+    if (searchQuery === "" && highlightTaskId) {
+      setHighlightTaskId(null);
+    }
+  }, [searchQuery, highlightTaskId]);
+
+  // 날짜 nav (prev/next/today) — 강조 해제 + 검색 드롭다운 닫기.
+  const handleManualDate = useCallback((updater) => {
+    setSelectedDate(prev => typeof updater === "function" ? updater(prev) : updater);
+    setHighlightTaskId(null);
+    setShowResults(false);
+  }, []);
+
+  // 검색 결과 클릭 → 그 작업 날짜로 점프 + 강조 + 가로 스크롤.
+  function handleSelectResult(task) {
+    const scheduled = task.scheduledAt || task.scheduled_at;
+    if (!scheduled) return;
+    const ymd = toKstYmd(scheduled);
+    setSelectedDate(ymd);
+    setHighlightTaskId(task.id || task.taskCode);
+    setShowResults(false);
+    // 가로 스크롤 — state 반영 후
+    setTimeout(() => {
+      const dt = new Date(scheduled);
+      const h = dt.getHours();
+      const m = dt.getMinutes();
+      const taskCenterPx = ENGINEER_COL + (h - START_HOUR + m / 60) * HOUR_WIDTH + (HOUR_WIDTH / 2);
+      const wrap = scrollWrapperRef.current;
+      if (wrap) {
+        const target = taskCenterPx - wrap.clientWidth / 2;
+        wrap.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+      }
+    }, 80);
+  }
 
   // 2026-06-19 — 현재 시각 표시선 (KST). 1분마다 갱신, 오늘 + 범위 내일 때만 노출.
   const [now, setNow] = useState(() => new Date());
@@ -214,24 +291,36 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
           }}>타임라인 (시간축)</div>
           <AdminPcDateNav
             selectedDate={selectedDate}
-            onPrev={() => setSelectedDate(d => shiftDate(d, -1))}
-            onNext={() => setSelectedDate(d => shiftDate(d, 1))}
-            onToday={() => setSelectedDate(today)}
+            onPrev={() => handleManualDate(d => shiftDate(d, -1))}
+            onNext={() => handleManualDate(d => shiftDate(d, 1))}
+            onToday={() => handleManualDate(today)}
             isToday={isToday}
           />
           <span style={{
             fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
           }}>{lanes.length}명 · {todayTasks.length}건</span>
         </div>
+
+        {/* 2026-06-19 — 검색창 (헤더 우측) */}
+        <SearchBox
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          results={searchResults}
+          showResults={showResults}
+          setShowResults={setShowResults}
+          onSelect={handleSelectResult}
+        />
       </div>
 
       <TimeAxisView
+        wrapperRef={scrollWrapperRef}
         lanes={lanes}
         onTaskClick={onTaskClick}
         onTaskDragCommit={handleTaskDragCommit}
         showNowLine={showNowLine}
         nowPct={nowPct}
         nowLabel={nowLabel}
+        highlightTaskId={highlightTaskId}
       />
 
       {confirmInfo && (
@@ -363,7 +452,7 @@ function ConfirmDialog({ info, busy, onYes, onNo }) {
   );
 }
 
-function TimeAxisView({ lanes, onTaskClick, onTaskDragCommit, showNowLine, nowPct, nowLabel }) {
+function TimeAxisView({ wrapperRef, lanes, onTaskClick, onTaskDragCommit, showNowLine, nowPct, nowLabel, highlightTaskId }) {
   if (lanes.length === 0) {
     return (
       <div style={{
@@ -379,14 +468,16 @@ function TimeAxisView({ lanes, onTaskClick, onTaskDragCommit, showNowLine, nowPc
   }
 
   return (
-    <div style={{
-      background: "var(--bg-elevated)",
-      border: "1px solid var(--border)",
-      borderRadius: 14,
-      overflowX: "auto",         // 2026-06-19 — 가로 스크롤 (사장님 spec)
-      overflowY: "hidden",
-      position: "relative",
-    }}>
+    <div
+      ref={wrapperRef}
+      style={{
+        background: "var(--bg-elevated)",
+        border: "1px solid var(--border)",
+        borderRadius: 14,
+        overflowX: "auto",         // 2026-06-19 — 가로 스크롤 (사장님 spec)
+        overflowY: "hidden",
+        position: "relative",
+      }}>
       <div style={{
         display: "grid",
         gridTemplateColumns: `${ENGINEER_COL}px ${TIME_AREA_WIDTH}px`,
@@ -435,6 +526,7 @@ function TimeAxisView({ lanes, onTaskClick, onTaskDragCommit, showNowLine, nowPc
             lane={lane}
             onTaskClick={onTaskClick}
             onTaskDragCommit={onTaskDragCommit}
+            highlightTaskId={highlightTaskId}
           />
         ))}
       </div>
@@ -478,7 +570,7 @@ function TimeAxisView({ lanes, onTaskClick, onTaskDragCommit, showNowLine, nowPc
   );
 }
 
-function Lane({ lane, onTaskClick, onTaskDragCommit }) {
+function Lane({ lane, onTaskClick, onTaskDragCommit, highlightTaskId }) {
   // 시간 영역 폭 측정용 ref — 드래그 거리(px → 분) 환산에 사용.
   const laneRef = useRef(null);
   return (
@@ -538,6 +630,7 @@ function Lane({ lane, onTaskClick, onTaskDragCommit }) {
               laneName={lane.name}
               onClick={() => onTaskClick?.(task)}
               onDragCommit={onTaskDragCommit}
+              highlightTaskId={highlightTaskId}
             />
           );
         })}
@@ -546,7 +639,7 @@ function Lane({ lane, onTaskClick, onTaskDragCommit }) {
   );
 }
 
-function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit }) {
+function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit, highlightTaskId }) {
   const scheduled = task.scheduledAt || task.scheduled_at;
   // 좌측에 위치한 hooks (조건부 return 위) — Rules of Hooks.
   const [drag, setDrag] = useState(null);
@@ -585,7 +678,14 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit }) {
   const textCol   = TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK;
 
   const isDone = task.status === "완료" || task.status === "정산완료" || task.status === "visit_only";
-  const baseOpacity = isDone ? 0.5 : 1;
+  // 2026-06-19 — 검색 강조 / 흐림.
+  //   highlight 있고 task.id 일치 → 핑크 강조(외곽 그림자).
+  //   highlight 있고 task.id 불일치 → opacity 0.3 흐림.
+  const tidStr = task.id || task.taskCode;
+  const isHighlightActive = !!highlightTaskId;
+  const isHighlighted    = isHighlightActive && highlightTaskId === tidStr;
+  const isDimmed         = isHighlightActive && !isHighlighted;
+  const baseOpacity = isDimmed ? 0.3 : (isDone ? 0.5 : 1);
   const opacity = drag && drag.dragging ? 0.85 : baseOpacity;
 
   const customer = task.customer || task.고객명 || "—";
@@ -692,8 +792,8 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit }) {
         height: LANE_HEIGHT - 8,
         width: `calc(${widthPct}% - 2px)`,
         background: kindColor,
-        border: `1px solid ${kindColor}`,
-        borderLeft: `4px solid ${kindColor}`,
+        border: isHighlighted ? "2px solid #FF1B8D" : `1px solid ${kindColor}`,
+        borderLeft: isHighlighted ? "4px solid #FF1B8D" : `4px solid ${kindColor}`,
         borderRadius: 5,
         color: textCol,
         fontFamily: "inherit",
@@ -706,9 +806,11 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit }) {
         textAlign: "left",
         boxSizing: "border-box",
         opacity,
-        zIndex: drag && drag.dragging ? 10 : 1,
-        boxShadow: drag && drag.dragging ? "0 4px 12px rgba(0,0,0,0.35)" : "none",
-        transition: drag ? "none" : "left 0.15s ease",
+        zIndex: isHighlighted ? 8 : (drag && drag.dragging ? 10 : 1),
+        boxShadow: isHighlighted
+          ? "0 0 0 3px rgba(255, 27, 141, 0.35), 0 4px 14px rgba(255, 27, 141, 0.45)"
+          : (drag && drag.dragging ? "0 4px 12px rgba(0,0,0,0.35)" : "none"),
+        transition: drag ? "none" : "left 0.15s ease, opacity 0.2s ease",
         touchAction: "none", // 모바일 스크롤과 충돌 방지
       }}>
       <div style={{
@@ -751,6 +853,160 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit }) {
 
 function pad(n) {
   return String(n).padStart(2, "0");
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 2026-06-19 — 검색창 + 드롭다운 (사장님 spec).
+//   매칭: 고객명/주소/연락처/작업번호. 디바운스는 부모.
+//   결과 형식: "M/D(요일) HH:MM · 고객 · 기사"
+//   - 클릭 → 부모 onSelect (날짜 점프 + 강조 + 가로 스크롤).
+//   - blur 시 드롭다운 닫음 (timeout 으로 클릭과 충돌 방지).
+// ──────────────────────────────────────────────────────────────────
+const KO_DOW = ["일", "월", "화", "수", "목", "금", "토"];
+
+function SearchBox({ query, onQueryChange, results, showResults, setShowResults, onSelect }) {
+  return (
+    <div style={{
+      position: "relative",
+      flexShrink: 0,
+      minWidth: 240,
+    }}>
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => {
+          onQueryChange(e.target.value);
+          setShowResults(true);
+        }}
+        onFocus={() => setShowResults(true)}
+        onBlur={() => {
+          // 클릭과 충돌 방지 — blur 즉시 닫으면 onClick 발화 X.
+          setTimeout(() => setShowResults(false), 180);
+        }}
+        placeholder="🔍 고객·주소·연락처·작업번호"
+        style={{
+          width: "100%",
+          minHeight: 36,
+          padding: "8px 12px",
+          fontSize: 12,
+          fontFamily: "inherit",
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          background: "var(--bg-elevated)",
+          color: "var(--text-primary)",
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+      />
+      {showResults && query.trim() !== "" && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 4px)",
+          left: 0,
+          right: 0,
+          background: "var(--bg-elevated)",
+          border: "1px solid var(--border)",
+          borderRadius: 10,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.18)",
+          maxHeight: 360,
+          overflowY: "auto",
+          zIndex: 50,
+        }}>
+          {results.length === 0 ? (
+            <div style={{
+              padding: "12px 14px",
+              fontSize: 12,
+              color: "var(--text-secondary)",
+              textAlign: "center",
+            }}>검색 결과 없음</div>
+          ) : (
+            results.map((task, idx) => (
+              <ResultRow
+                key={task.id || task.taskCode || idx}
+                task={task}
+                onClick={() => onSelect(task)}
+                isLast={idx === results.length - 1}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ResultRow({ task, onClick, isLast }) {
+  const scheduled = task.scheduledAt || task.scheduled_at;
+  const d = scheduled ? new Date(scheduled) : null;
+  const validDate = d && !isNaN(d.getTime());
+  const dateLabel = validDate
+    ? `${d.getMonth() + 1}/${d.getDate()}(${KO_DOW[d.getDay()]})`
+    : "—";
+  const timeLabel = validDate ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "";
+  const customer = task.customer || task.customerName || task.고객명 || "—";
+  const engineer = task.assignedEngineer || task.engineer || "(미배정)";
+  const isCanceled = task.status === "취소";
+  const isDone = task.status === "완료" || task.status === "정산완료" || task.status === "visit_only";
+
+  return (
+    <button
+      type="button"
+      // pointerdown 으로 onClick 보다 먼저 잡아서 input blur 와 충돌 회피
+      onPointerDown={(e) => { e.preventDefault(); onClick(); }}
+      style={{
+        width: "100%",
+        padding: "9px 12px",
+        background: "transparent",
+        border: "none",
+        borderBottom: isLast ? "none" : "1px solid var(--border)",
+        textAlign: "left",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        display: "flex", alignItems: "center", gap: 8,
+        fontSize: 12,
+        color: "var(--text-primary)",
+        opacity: isCanceled ? 0.55 : 1,
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--accent-bg)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+    >
+      <span style={{
+        fontSize: 11, fontWeight: 700,
+        color: "var(--text-secondary)",
+        whiteSpace: "nowrap",
+        minWidth: 64,
+        fontVariantNumeric: "tabular-nums",
+      }}>{dateLabel}</span>
+      <span style={{
+        fontSize: 11, fontWeight: 800,
+        color: "var(--text-primary)",
+        fontVariantNumeric: "tabular-nums",
+        minWidth: 42,
+      }}>{timeLabel}</span>
+      <span style={{ color: "var(--text-secondary)" }}>·</span>
+      <span style={{
+        flex: 1, minWidth: 0,
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        fontWeight: 700,
+      }}>{customer}</span>
+      <span style={{ color: "var(--text-secondary)" }}>·</span>
+      <span style={{
+        whiteSpace: "nowrap",
+        color: "var(--text-secondary)",
+        fontWeight: 600,
+      }}>{engineer}</span>
+      {(isCanceled || isDone) && (
+        <span style={{
+          fontSize: 10, fontWeight: 700,
+          padding: "1px 6px",
+          borderRadius: 4,
+          background: isCanceled ? "rgba(160,160,170,0.15)" : "rgba(61,184,138,0.15)",
+          color: isCanceled ? "#9CA3AF" : "#3DB88A",
+          flexShrink: 0,
+        }}>{isCanceled ? "취소" : "완료"}</span>
+      )}
+    </button>
+  );
 }
 
 export default AdminPcTimelineScreen;
