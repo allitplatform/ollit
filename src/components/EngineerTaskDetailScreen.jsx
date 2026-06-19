@@ -1470,7 +1470,7 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
             📞 {task.phone}
           </div>
         )}
-        <AddressLine task={task} lineClamp={0} baseStyle={{
+        <AddressLine task={task} baseStyle={{
           fontSize: 14, color: "var(--label-main)", fontWeight: 700,
         }}/>
       </div>
@@ -1739,7 +1739,7 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
               📞 {task.phone}
             </div>
           )}
-          <AddressLine task={task} lineClamp={0} baseStyle={{
+          <AddressLine task={task} baseStyle={{
             fontSize: 14, color: "var(--text-secondary)",
             fontWeight: 600, marginBottom: 12,
           }} iconColor="var(--text-secondary)"/>
