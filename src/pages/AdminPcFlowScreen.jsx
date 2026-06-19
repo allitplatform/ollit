@@ -1,9 +1,14 @@
 // 2026-06-12 — AdminApp PC 🅑 처리 흐름 (1024px+ 전용).
 //   작업별 한 줄 + 5단계 점 (접수 → 배정 → 확정 → 진행 → 완료).
-//   처리된 단계까지 초록, 현재 단계 상태색 강조, 안 된 단계 회색.
-//   시각: 접수(createdAt) / 진행(startedAt) / 완료(completedAt) — 배정·확정은 DB 시각 없어 점만.
-//   ⚠️ 데이터/로직 0줄 변경. 행 클릭 → 우 aside (🅐 패턴 재사용).
-//   ⚠️ 사이드바 별도 항목 (pcTimelineFlow). 옛 화면 안 토글 폐기 → 렉 해소.
+//
+// 2026-06-19 개선 (사장님 spec):
+//   1) 5단계 점을 모든 행 고정 위치(균등 5칸 grid)에 배치. 상단 라벨 헤더 1줄 고정.
+//      · 진행 완료 단계: 초록 점 + 선 / 현재 단계: 파랑 점(크게) / 미진행: 회색 점 + 선
+//      · 완료 도달: 초록 점 외곽 링 강조
+//   2) 좌 영역에 작업 종류·수량 추가 — "지역 · 기사 · 벽걸이 ×1" / 여러 개면 "벽걸이 외 2"
+//   3) 레이아웃: [이름·지역·기사·기종수량] [5단계 타임라인] [시각 우측 정렬]
+//
+// 데이터/로직 변경 0줄. 행 클릭 → 우 aside (🅐 패턴 재사용).
 
 import { useState, useMemo, Fragment } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
@@ -11,32 +16,32 @@ import { getServiceKind } from "../utils/workTypeKind.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 
 const STEPS = [
-  { id: "received",  label: "접수", timeField: "createdAt" },
-  { id: "assigned",  label: "배정", timeField: null },
-  { id: "confirmed", label: "확정", timeField: null },
-  { id: "started",   label: "진행", timeField: "startedAt" },
-  { id: "completed", label: "완료", timeField: "completedAt" },
+  { id: "received",  label: "접수" },
+  { id: "assigned",  label: "배정" },
+  { id: "confirmed", label: "확정" },
+  { id: "started",   label: "진행" },
+  { id: "completed", label: "완료" },
 ];
 
-// 도달 단계 index — status 기반 (audit log 시각 없어 단순화).
+// 도달 단계 index — status 기반.
 function getReachedIdx(status) {
   switch (status) {
-    case "미배정":            return 0;
+    case "미배정":      return 0;
     case "배정":
-    case "약속대기":          return 1;
-    case "확정":              return 2;
-    case "진행중":            return 3;
+    case "약속대기":    return 1;
+    case "확정":        return 2;
+    case "진행중":      return 3;
     case "완료":
     case "정산완료":
-    case "visit_only":        return 4;
-    default:                  return -1;  // 취소 / 기타
+    case "visit_only":  return 4;
+    default:            return -1;
   }
 }
 
-// 현재 단계 강조색 (옛 taskStatusColor 매핑 동일).
-const STEP_CURRENT_COLOR = ["#FF6FA8", "#3DC6D0", "#5A95F0", "#E8A23D", "#3DB88A"];
-const COLOR_REACHED  = "#3DB88A";   // 도달 (현재 X) — 초록
-const COLOR_PENDING  = "var(--border-strong)";  // 안 됨 — 회색
+// 색 — 사장님 spec.
+const COLOR_REACHED  = "#3DB88A";              // 도달 — 초록
+const COLOR_CURRENT  = "#3B82F6";              // 현재 — 파랑
+const COLOR_PENDING  = "var(--border-strong)"; // 미진행 — 회색
 const COLOR_CANCELED = "#A0A0AA";
 
 const KIND_ICON = {
@@ -44,9 +49,12 @@ const KIND_ICON = {
   refrigerant: "⚡",
 };
 const KIND_ICON_COLOR = {
-  cleaning:    "#0EA5E9",  // 세척 파랑
-  refrigerant: "#FFB800",  // 냉매 노랑 (이모지 자체 색이지만 명시)
+  cleaning:    "#0EA5E9",
+  refrigerant: "#FFB800",
 };
+
+// 그리드 컬럼 — 헤더와 행이 같은 비율 (5단계 위치 균등).
+const GRID_COLS = "minmax(280px, 1.3fr) minmax(320px, 2fr) minmax(160px, auto)";
 
 function pad(n) { return String(n).padStart(2, "0"); }
 function formatTime(iso) {
@@ -56,13 +64,31 @@ function formatTime(iso) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// 품목 요약 — task.workItems → "벽걸이 ×1" / 여러 개면 "벽걸이 외 N".
+//   취소된 행(is_canceled) 제외. category_data.appliance + qty fallback 지원.
+function getItemSummary(task) {
+  const items = Array.isArray(task.workItems) ? task.workItems : [];
+  const live = items.filter(it => !(it.isCanceled ?? it.is_canceled));
+  if (live.length > 0) {
+    const first = live[0];
+    const label = first.appliance || first.applianceLabel || first.workType || "";
+    const qty   = Number(first.qty) || 1;
+    if (!label) return "";
+    const more = live.length - 1;
+    if (more > 0) return `${label} 외 ${more}`;
+    return `${label} ×${qty}`;
+  }
+  const cd = task.categoryData || task.category_data || {};
+  if (cd.appliance && cd.qty) return `${cd.appliance} ×${cd.qty}`;
+  return "";
+}
+
 export function AdminPcFlowScreen({ apiTasks = [], apiEngineers = [], onTaskClick }) {
   const [selectedDate, setSelectedDate] = useState(() => todayYmd());
 
   const today = todayYmd();
   const isToday = selectedDate === today;
 
-  // 그 날짜 작업 — scheduledAt 기준 (🅐와 동일 filter, 취소 포함).
   const dateTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
       if (!t) return false;
@@ -110,6 +136,7 @@ export function AdminPcFlowScreen({ apiTasks = [], apiEngineers = [], onTaskClic
           borderRadius: 14,
           overflow: "hidden",
         }}>
+          <FlowHeader/>
           {dateTasks.map(task => (
             <TaskFlowRow
               key={task.id || task.taskCode}
@@ -138,20 +165,49 @@ function EmptyBox() {
   );
 }
 
+// ──────────────────────────────────────────────────────────────────
+// 상단 단계 라벨 헤더 — 1줄 고정. 행과 같은 grid 컬럼 사용해
+// 5단계 위치 정확히 일치.
+// ──────────────────────────────────────────────────────────────────
+function FlowHeader() {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: GRID_COLS,
+      gap: 16,
+      padding: "10px 18px",
+      borderBottom: "1px solid var(--border)",
+      background: "var(--bg-secondary, var(--bg-elevated))",
+      fontSize: 10, fontWeight: 700,
+      color: "var(--text-secondary)",
+      letterSpacing: 0.5,
+    }}>
+      <div>작업</div>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(5, 1fr)",
+        textAlign: "center",
+      }}>
+        {STEPS.map(s => (
+          <div key={s.id}>{s.label}</div>
+        ))}
+      </div>
+      <div style={{ textAlign: "right" }}>시각</div>
+    </div>
+  );
+}
+
 function TaskFlowRow({ task, apiEngineers, onClick }) {
   const kind     = getServiceKind(task);
   const customer = task.customer || task.고객명 || "—";
   const region   = task.region || task.district || task.지역 || "";
-  // 기사 이름 — apiEngineers 매칭 시 우선, 아니면 task 필드.
   const engId    = task.assignedEngineerId || task.assigned_engineer_id;
   const engObj   = engId ? (apiEngineers || []).find(e => e.id === engId) : null;
   const engineer = engObj?.name || task.assignedEngineer || task.engineer || "미배정";
   const status   = task.status || "";
+  const itemSummary = getItemSummary(task);
 
   const isCanceled = status === "취소";
-  // 2026-06-12 — 출장비 받은 취소 구분 (옛 onSetCompensation RPC 결과).
-  //   cancelEngineerCompKind === "visit_fee" → 기사 출장 가서 작업 못 함 + 출장비만 받음.
-  //   cancelEngineerCompAmount = 보통 30,000원 (VISIT_FEE.amount).
   const isVisitFeeCanceled = isCanceled && task.cancelEngineerCompKind === "visit_fee";
   const visitFeeAmount     = Number(task.cancelEngineerCompAmount || 0);
   const reachedIdx = getReachedIdx(status);
@@ -164,7 +220,7 @@ function TaskFlowRow({ task, apiEngineers, onClick }) {
     <div onClick={onClick}
       style={{
         display: "grid",
-        gridTemplateColumns: "minmax(220px, 1.2fr) minmax(320px, 2fr) auto",
+        gridTemplateColumns: GRID_COLS,
         gap: 16,
         padding: "14px 18px",
         borderBottom: "1px solid var(--border)",
@@ -215,16 +271,19 @@ function TaskFlowRow({ task, apiEngineers, onClick }) {
           fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
-          {region}{region && engineer ? " · " : ""}{engineer}
+          {region}
+          {region && engineer ? " · " : ""}{engineer}
+          {(region || engineer) && itemSummary ? " · " : ""}{itemSummary}
         </span>
       </div>
 
-      {/* 중 — 5단계 점 */}
+      {/* 중 — 5단계 점 (균등 5칸 grid) */}
       <StepsRow reachedIdx={reachedIdx} isCanceled={isCanceled}/>
 
-      {/* 우 — 시각 (있는 것만) */}
+      {/* 우 — 시각 (우측 정렬 통일) */}
       <div style={{
-        display: "flex", gap: 10,
+        display: "flex", flexDirection: "column", alignItems: "flex-end",
+        gap: 2,
         fontSize: 10, color: "var(--text-secondary)", fontWeight: 600,
         whiteSpace: "nowrap",
         fontVariantNumeric: "tabular-nums",
@@ -243,30 +302,56 @@ function TaskFlowRow({ task, apiEngineers, onClick }) {
   );
 }
 
+// ──────────────────────────────────────────────────────────────────
+// 5단계 — repeat(5, 1fr) 균등 grid. 각 칸에 점 + 좌/우 선.
+//   · 도달(i<reachedIdx): 좌선·우선·점 모두 초록
+//   · 현재(i===reachedIdx, 완료 외): 점 파랑 + 외곽 hover-ring(크게)
+//   · 완료 도달(i===4 && reachedIdx===4): 초록 점 + 초록 외곽 링 강조
+//   · 미진행(i>reachedIdx): 회색
+//   · 취소: 전부 회색
+// ──────────────────────────────────────────────────────────────────
 function StepsRow({ reachedIdx, isCanceled }) {
+  const reachedCompleted = reachedIdx === 4 && !isCanceled;
   return (
     <div style={{
-      display: "flex", alignItems: "flex-start",
-      gap: 0,
+      display: "grid",
+      gridTemplateColumns: "repeat(5, 1fr)",
+      alignItems: "center",
+      height: 24,
+      position: "relative",
     }}>
       {STEPS.map((step, i) => {
-        const reached   = i <= reachedIdx && !isCanceled;
-        const isCurrent = i === reachedIdx && !isCanceled;
-        const color = isCanceled
+        const isReachedPast    = i < reachedIdx && !isCanceled;
+        const isReachedCurrent = i === reachedIdx && !isCanceled;
+        const isCompletedStep  = i === 4 && reachedCompleted;
+
+        // 점 색
+        const dotColor = isCanceled
           ? COLOR_CANCELED
-          : isCurrent ? STEP_CURRENT_COLOR[i]
-          : reached    ? COLOR_REACHED
-          : COLOR_PENDING;
-        const lineColor = isCanceled
-          ? COLOR_CANCELED
-          : (i < reachedIdx) ? COLOR_REACHED
-          : COLOR_PENDING;
+          : isCompletedStep
+            ? COLOR_REACHED                   // 완료 도달 — 초록
+            : isReachedCurrent
+              ? COLOR_CURRENT                 // 현재 단계 — 파랑
+              : isReachedPast
+                ? COLOR_REACHED               // 지난 — 초록
+                : COLOR_PENDING;              // 미진행 — 회색
+
+        // 선 색 — 좌/우 별도 (이전 단계가 도달이면 좌선 초록, 다음 단계가 도달이면 우선 초록)
+        const leftLineReached  = i > 0 && !isCanceled && i <= reachedIdx;
+        const rightLineReached = i < STEPS.length - 1 && !isCanceled && i < reachedIdx;
+
         return (
           <Fragment key={step.id}>
-            <Dot color={color} isCurrent={isCurrent} label={step.label}/>
-            {i < STEPS.length - 1 && (
-              <Line color={lineColor} isCanceled={isCanceled}/>
-            )}
+            <Cell
+              dotColor={dotColor}
+              isCurrent={isReachedCurrent && !isCompletedStep}
+              isCompleted={isCompletedStep}
+              showLeftLine={i > 0}
+              showRightLine={i < STEPS.length - 1}
+              leftLineColor={leftLineReached ? COLOR_REACHED : COLOR_PENDING}
+              rightLineColor={rightLineReached ? COLOR_REACHED : COLOR_PENDING}
+              isCanceled={isCanceled}
+            />
           </Fragment>
         );
       })}
@@ -274,54 +359,73 @@ function StepsRow({ reachedIdx, isCanceled }) {
   );
 }
 
-function Dot({ color, isCurrent, label }) {
-  const inner = isCurrent ? 14 : 10;
-  const ring = isCurrent ? 20 : 0;
+function Cell({ dotColor, isCurrent, isCompleted, showLeftLine, showRightLine,
+                 leftLineColor, rightLineColor, isCanceled }) {
+  const lineOpacity = isCanceled ? 0.4 : 1;
+  const dotSize = isCurrent ? 14 : 10;
   return (
     <div style={{
-      display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
       position: "relative",
-      width: 56,
-      flexShrink: 0,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      height: "100%",
     }}>
+      {/* 좌선 */}
+      {showLeftLine && (
+        <div style={{
+          position: "absolute",
+          left: 0, right: "50%",
+          top: "50%", transform: "translateY(-50%)",
+          height: 2,
+          background: leftLineColor,
+          opacity: lineOpacity,
+        }}/>
+      )}
+      {/* 우선 */}
+      {showRightLine && (
+        <div style={{
+          position: "absolute",
+          left: "50%", right: 0,
+          top: "50%", transform: "translateY(-50%)",
+          height: 2,
+          background: rightLineColor,
+          opacity: lineOpacity,
+        }}/>
+      )}
+      {/* 점 (선 위) */}
       <div style={{
         position: "relative",
-        width: 20, height: 20,
+        width: 22, height: 22,
         display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 1,
       }}>
+        {/* 현재 단계 — hover-ring (반투명 파랑) */}
         {isCurrent && (
           <div style={{
             position: "absolute",
-            width: ring, height: ring,
+            width: 22, height: 22,
             borderRadius: "50%",
-            background: `${color}33`,
+            background: `${dotColor}33`,
+          }}/>
+        )}
+        {/* 완료 도달 — 외곽 링 강조 (초록) */}
+        {isCompleted && (
+          <div style={{
+            position: "absolute",
+            width: 20, height: 20,
+            borderRadius: "50%",
+            border: `2px solid ${dotColor}`,
+            background: "transparent",
           }}/>
         )}
         <div style={{
-          width: inner, height: inner,
+          width: dotSize, height: dotSize,
           borderRadius: "50%",
-          background: color,
+          background: dotColor,
           position: "relative",
           zIndex: 1,
         }}/>
       </div>
-      <span style={{
-        fontSize: 10, color: "var(--text-secondary)", fontWeight: 700,
-      }}>{label}</span>
     </div>
-  );
-}
-
-function Line({ color, isCanceled }) {
-  return (
-    <div style={{
-      flex: 1,
-      height: 2,
-      background: color,
-      opacity: isCanceled ? 0.4 : 1,
-      marginTop: 9,  // 점(20) 중앙 정렬
-      minWidth: 16,
-    }}/>
   );
 }
 
