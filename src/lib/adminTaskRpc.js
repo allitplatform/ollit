@@ -27,3 +27,26 @@ export async function adminRescheduleTask(taskId, scheduledAtIso) {
   });
   return normalizeRpcResp(r);
 }
+
+// 2026-06-19 — 운영자 재배정 (기사 + 일정 동시) — Mig 145 admin_reassign_task.
+//   권한: owner/admin/operator. 잠금 동일 (진행중/완료/취소/visit_only/정산완료).
+//   푸시 자동 발화 (notify_lifecycle_push 시나리오 8):
+//     · NEW 기사 → '🔄 새 작업 배정 (재배정)'
+//     · OLD 기사 → '📅 일정 조정 안내' (Mig 145 spec 정정)
+//     · 운영자  → '🔄 프로 재배정'
+//   응답: { ok:true, task_id, old_engineer_id, new_engineer_id,
+//           old_scheduled_at, new_scheduled_at } | { ok:false, error }
+export async function adminReassignTask(taskId, engineerId, scheduledAtIso) {
+  const actor = currentUserId();
+  if (!actor) return { ok: false, error: "로그인 필요" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  if (!engineerId) return { ok: false, error: "engineerId 없음" };
+  if (!scheduledAtIso) return { ok: false, error: "일정 시각 없음" };
+  const r = await supabase.rpc("admin_reassign_task", {
+    p_task_id:      taskId,
+    p_engineer_id:  engineerId,
+    p_scheduled_at: scheduledAtIso,
+    p_actor:        actor,
+  });
+  return normalizeRpcResp(r);
+}

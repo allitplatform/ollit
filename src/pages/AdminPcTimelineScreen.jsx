@@ -13,7 +13,7 @@ import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
-import { adminRescheduleTask } from "../lib/adminTaskRpc.js";
+import { adminRescheduleTask, adminReassignTask } from "../lib/adminTaskRpc.js";
 
 const START_HOUR    = 7;
 const END_HOUR      = 24;
@@ -181,34 +181,52 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
   }
 
   // TaskBar 가 드래그 종료 시 호출.
-  //   onAcceptUI / onCancelUI 는 TaskBar 내부 drag state 해제 콜백.
-  //
-  // 2026-06-19 — 같은 lane 의 다른 활성 막대(완료/취소/visit_only 제외, 자기 자신 제외)
-  //   와 새 시간 구간(newStart ~ newStart+duration)이 겹치는지 검사.
-  //   겹쳐도 변경은 허용 (사장님 spec). 모달 에 노란 경고 줄만 추가.
+  //   같은 lane → 시간만 변경 (adminRescheduleTask).
+  //   다른 lane → 재배정 (adminReassignTask) — 기사 + 일정 동시.
+  //   겹침 검사: 도착 lane(target) 의 활성 막대 기준 (사장님 spec).
   function handleTaskDragCommit({
-    task, oldIso, newIso, oldTime, newTime,
+    task, sourceLaneKey, targetLaneKey,
+    oldIso, newIso, oldTime, newTime,
     newMinutes, durationMinutes,
     siblings, laneName,
     onAcceptUI, onCancelUI,
   }) {
+    const isReassign = !!(targetLaneKey && sourceLaneKey && targetLaneKey !== sourceLaneKey);
+
+    // 도착 lane 정보 lookup (재배정 시 새 기사 + target siblings 추출)
+    let targetLane = null;
+    let newEngineerId = null;
+    let newEngineerName = laneName;
+    let targetSiblings = siblings || [];
+    if (isReassign) {
+      targetLane = lanes.find(l => l.key === targetLaneKey);
+      if (!targetLane || !targetLane.eid) {
+        // 미배정 등 unknown lane 으로 drop → 거부 + 원위치
+        onCancelUI && onCancelUI();
+        return;
+      }
+      newEngineerId   = targetLane.eid;
+      newEngineerName = targetLane.name;
+      const tid       = task.id || task.taskCode;
+      targetSiblings  = targetLane.tasks.filter(t => (t.id || t.taskCode) !== tid);
+    }
+
+    // 겹침 검사 — target lane 기준 (재배정이면 도착 lane, 시간만이면 source lane)
     const newStart = Number(newMinutes) || 0;
     const dur      = Number(durationMinutes) || 60;
     const newEnd   = newStart + dur;
     const inactive = new Set(["완료", "취소", "visit_only"]);
 
     const conflicts = [];
-    for (const t of (siblings || [])) {
+    for (const t of (targetSiblings || [])) {
       if (inactive.has(t.status)) continue;
       const at = t.scheduledAt || t.scheduled_at;
       if (!at) continue;
-      // 같은 날짜만 (lane 자체가 selectedDate 로 필터됐지만 안전망)
       if (toKstYmd(at) !== selectedDate) continue;
       const dt = new Date(at);
       if (isNaN(dt.getTime())) continue;
       const s = dt.getHours() * 60 + dt.getMinutes();
       const e = s + dur;
-      // overlap: newStart < e && s < newEnd
       if (newStart < e && s < newEnd) {
         conflicts.push({ task: t, start: s });
       }
@@ -220,7 +238,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       const first = conflicts[0];
       const timeStr = `${pad(Math.floor(first.start / 60))}:${pad(first.start % 60)}`;
       conflict = {
-        laneName,
+        laneName: newEngineerName,
         timeStr,
         extra: conflicts.length - 1,
       };
@@ -228,6 +246,10 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
     setConfirmInfo({
       task,
+      isReassign,
+      oldEngineerName: laneName,
+      newEngineerName,
+      newEngineerId,
       oldIso,
       newIso,
       oldTime,
@@ -241,22 +263,29 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
   async function handleConfirmYes() {
     if (!confirmInfo || busy) return;
     setBusy(true);
-    const { task, newIso, newTime, onAcceptUI, onCancelUI } = confirmInfo;
+    const { task, isReassign, newEngineerId, newEngineerName, newIso, newTime, onAcceptUI, onCancelUI } = confirmInfo;
     try {
-      const res = await adminRescheduleTask(task.id, newIso);
+      let res;
+      if (isReassign) {
+        res = await adminReassignTask(task.id, newEngineerId, newIso);
+      } else {
+        res = await adminRescheduleTask(task.id, newIso);
+      }
       if (!res || res.ok === false) {
         showToast("error", `변경 실패 — ${res?.error || "알 수 없는 오류"}`);
         onCancelUI && onCancelUI();
         setConfirmInfo(null);
         return;
       }
-      showToast("success", `${task.customer || "작업"} 일정 변경 완료 (${newTime})`);
+      const msg = isReassign
+        ? `${task.customer || "작업"} 재배정 완료 (${newEngineerName} · ${newTime})`
+        : `${task.customer || "작업"} 일정 변경 완료 (${newTime})`;
+      showToast("success", msg);
       onAcceptUI && onAcceptUI();
       setConfirmInfo(null);
-      // 부모에 새 데이터 fetch 요청 — 콜백 없으면 다음 자연 fetch 시 정합.
       if (typeof onRefresh === "function") onRefresh();
     } catch (err) {
-      console.error("[adminRescheduleTask]", err);
+      console.error("[handleConfirmYes]", err);
       showToast("error", "변경 실패 — 네트워크 오류");
       onCancelUI && onCancelUI();
       setConfirmInfo(null);
@@ -353,6 +382,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
 function ConfirmDialog({ info, busy, onYes, onNo }) {
   const customer = info.task.customer || info.task.고객명 || "작업";
+  const headerLabel = info.isReassign ? "🔄 재배정 확인" : "📅 일정 변경 확인";
   return (
     <div style={{
       position: "fixed",
@@ -369,7 +399,7 @@ function ConfirmDialog({ info, busy, onYes, onNo }) {
         border: "1px solid var(--border)",
         borderRadius: 14,
         padding: "20px 24px",
-        maxWidth: 420,
+        maxWidth: 440,
         width: "100%",
         fontFamily: "inherit",
         boxShadow: "0 12px 48px rgba(0,0,0,0.35)",
@@ -378,13 +408,26 @@ function ConfirmDialog({ info, busy, onYes, onNo }) {
           fontSize: 14, fontWeight: 700,
           color: "var(--text-secondary)",
           marginBottom: 6,
-        }}>📅 일정 변경 확인</div>
+        }}>{headerLabel}</div>
         <div style={{
           fontSize: 16, fontWeight: 800,
           color: "var(--text-primary)",
           marginBottom: 14,
           letterSpacing: "-0.2px",
         }}>{customer}</div>
+        {info.isReassign && (
+          <div style={{
+            fontSize: 14,
+            color: "var(--text-primary)",
+            marginBottom: 8,
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            <span style={{ color: "var(--text-secondary)" }}>{info.oldEngineerName || "기존"}</span>
+            <span style={{ margin: "0 8px", color: "var(--text-secondary)" }}>→</span>
+            <span style={{ color: "#8B5CF6", fontWeight: 800 }}>{info.newEngineerName || "—"}</span>
+            <span style={{ marginLeft: 8, color: "var(--text-secondary)" }}>기사</span>
+          </div>
+        )}
         <div style={{
           fontSize: 14,
           color: "var(--text-primary)",
@@ -600,6 +643,7 @@ function Lane({ lane, onTaskClick, onTaskDragCommit, highlightTaskId }) {
 
       <div
         ref={laneRef}
+        data-lane-key={lane.key}
         style={{
           position: "relative",
           borderBottom: "1px solid var(--border)",
@@ -618,7 +662,8 @@ function Lane({ lane, onTaskClick, onTaskDragCommit, highlightTaskId }) {
         ))}
         {lane.tasks.map(task => {
           // 2026-06-19 — 같은 lane 의 다른 막대들 (자기 자신 제외) 을 TaskBar 에
-          //   전달 → 드래그 commit 시 부모가 겹침 검사에 사용.
+          //   전달 → 드래그 commit 시 부모가 겹침 검사에 사용 (source lane 한정).
+          //   cross-lane 재배정 시 target lane siblings 는 부모가 lanes lookup 으로 추출.
           const tid = task.id || task.taskCode;
           const siblings = lane.tasks.filter(t => (t.id || t.taskCode) !== tid);
           return (
@@ -626,6 +671,7 @@ function Lane({ lane, onTaskClick, onTaskDragCommit, highlightTaskId }) {
               key={tid}
               task={task}
               laneRef={laneRef}
+              sourceLaneKey={lane.key}
               siblings={siblings}
               laneName={lane.name}
               onClick={() => onTaskClick?.(task)}
@@ -639,7 +685,7 @@ function Lane({ lane, onTaskClick, onTaskDragCommit, highlightTaskId }) {
   );
 }
 
-function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit, highlightTaskId }) {
+function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, onDragCommit, highlightTaskId }) {
   const scheduled = task.scheduledAt || task.scheduled_at;
   // 좌측에 위치한 hooks (조건부 return 위) — Rules of Hooks.
   const [drag, setDrag] = useState(null);
@@ -679,14 +725,16 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit, hig
 
   const isDone = task.status === "완료" || task.status === "정산완료" || task.status === "visit_only";
   // 2026-06-19 — 검색 강조 / 흐림.
-  //   highlight 있고 task.id 일치 → 핑크 강조(외곽 그림자).
-  //   highlight 있고 task.id 불일치 → opacity 0.3 흐림.
   const tidStr = task.id || task.taskCode;
   const isHighlightActive = !!highlightTaskId;
   const isHighlighted    = isHighlightActive && highlightTaskId === tidStr;
   const isDimmed         = isHighlightActive && !isHighlighted;
   const baseOpacity = isDimmed ? 0.3 : (isDone ? 0.5 : 1);
   const opacity = drag && drag.dragging ? 0.85 : baseOpacity;
+
+  // 2026-06-19 — cross-lane 드래그 시각 강조 (다른 기사 lane 위에 올라간 상태).
+  const isCrossLaneDrag = drag && drag.dragging && drag.targetLaneKey
+    && drag.targetLaneKey !== sourceLaneKey;
 
   const customer = task.customer || task.고객명 || "—";
   const region   = task.region || task.district || task.지역 || "";
@@ -711,8 +759,11 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit, hig
     setDrag({
       pointerId:  e.pointerId,
       startX:     e.clientX,
+      startY:     e.clientY,
       baseMinutes: baseTotalMin,
       currentMinutes: baseTotalMin,
+      deltaY:     0,
+      targetLaneKey: sourceLaneKey,  // 처음엔 자기 lane
       dragging:   false,
     });
   }
@@ -724,25 +775,47 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit, hig
     const rect = laneEl.getBoundingClientRect();
     if (rect.width <= 0) return;
     const deltaX = e.clientX - drag.startX;
-    const dragging = drag.dragging || Math.abs(deltaX) > DRAG_THRESHOLD_PX;
-    // px → 분
+    const deltaY = e.clientY - drag.startY;
+    const dragging = drag.dragging
+      || Math.abs(deltaX) > DRAG_THRESHOLD_PX
+      || Math.abs(deltaY) > DRAG_THRESHOLD_PX;
+
+    // X: 시간 환산 + 30분 스냅 + 클램프
     const minutesDelta = (deltaX / rect.width) * TOTAL_HOURS * 60;
     let newMin = drag.baseMinutes + minutesDelta;
-    // 30분 스냅
     newMin = Math.round(newMin / SNAP_MINUTES) * SNAP_MINUTES;
-    // 클램프: 시작 시각이 7:00 ~ 19:30 (작업 1시간 가정 — 끝이 20시 이내)
     const minStart = START_HOUR * 60;
-    const maxStart = (END_HOUR - 1) * 60 + 30; // 19:30
+    const maxStart = (END_HOUR - 1) * 60 + 30;
     newMin = Math.max(minStart, Math.min(maxStart, newMin));
-    setDrag(prev => prev ? { ...prev, currentMinutes: newMin, dragging } : null);
+
+    // Y: target lane 식별 — elementFromPoint → closest('[data-lane-key]')
+    let targetLaneKey = sourceLaneKey;
+    try {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (el) {
+        const laneEl2 = el.closest && el.closest("[data-lane-key]");
+        if (laneEl2 && laneEl2.dataset && laneEl2.dataset.laneKey) {
+          targetLaneKey = laneEl2.dataset.laneKey;
+        }
+      }
+    } catch (_) {}
+
+    setDrag(prev => prev ? {
+      ...prev,
+      currentMinutes: newMin,
+      deltaY,
+      targetLaneKey,
+      dragging,
+    } : null);
   }
 
   function handlePointerUp(e) {
     if (!drag) return;
     try { e.currentTarget.releasePointerCapture(drag.pointerId); } catch (_) {}
     const wasDragging = drag.dragging;
-    const moved = drag.currentMinutes !== drag.baseMinutes;
-    if (wasDragging && moved) {
+    const movedTime  = drag.currentMinutes !== drag.baseMinutes;
+    const movedLane  = drag.targetLaneKey && drag.targetLaneKey !== sourceLaneKey;
+    if (wasDragging && (movedTime || movedLane)) {
       const newH = Math.floor(drag.currentMinutes / 60);
       const newM = drag.currentMinutes % 60;
       const newDate = new Date(d);
@@ -750,23 +823,20 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit, hig
       const newIso = newDate.toISOString();
       onDragCommit && onDragCommit({
         task,
+        sourceLaneKey,
+        targetLaneKey: drag.targetLaneKey,
         oldIso: scheduled,
         newIso,
         oldTime: baseTimeStr,
         newTime: `${pad(newH)}:${pad(newM)}`,
         newMinutes: drag.currentMinutes,
-        // 2026-06-19 — duration: 현재 모든 막대 1시간 가정 (= widthPct 1/TOTAL_HOURS).
-        //   추후 작업 길이 가변이면 task.durationMinutes 같은 필드로 대체.
         durationMinutes: 60,
-        siblings,
-        laneName,
-        // 부모가 commit 결과를 알려줌 → drag 해제
+        siblings,                 // source lane 의 siblings (cross-lane 이면 부모가 target 으로 재계산)
+        laneName,                 // source lane name
         onAcceptUI: () => setDrag(null),
         onCancelUI: () => setDrag(null),
       });
-      // drag state 는 부모 콜백 시점까지 유지 — 막대가 새 위치 유지(미리보기 효과).
     } else {
-      // 클릭으로 처리
       setDrag(null);
       onClick && onClick();
     }
@@ -792,8 +862,16 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit, hig
         height: LANE_HEIGHT - 8,
         width: `calc(${widthPct}% - 2px)`,
         background: kindColor,
-        border: isHighlighted ? "2px solid #FF1B8D" : `1px solid ${kindColor}`,
-        borderLeft: isHighlighted ? "4px solid #FF1B8D" : `4px solid ${kindColor}`,
+        border: isCrossLaneDrag
+          ? "2px solid #8B5CF6"           // cross-lane: 보라
+          : isHighlighted
+            ? "2px solid #FF1B8D"
+            : `1px solid ${kindColor}`,
+        borderLeft: isCrossLaneDrag
+          ? "4px solid #8B5CF6"
+          : isHighlighted
+            ? "4px solid #FF1B8D"
+            : `4px solid ${kindColor}`,
         borderRadius: 5,
         color: textCol,
         fontFamily: "inherit",
@@ -806,12 +884,15 @@ function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit, hig
         textAlign: "left",
         boxSizing: "border-box",
         opacity,
-        zIndex: isHighlighted ? 8 : (drag && drag.dragging ? 10 : 1),
-        boxShadow: isHighlighted
-          ? "0 0 0 3px rgba(255, 27, 141, 0.35), 0 4px 14px rgba(255, 27, 141, 0.45)"
-          : (drag && drag.dragging ? "0 4px 12px rgba(0,0,0,0.35)" : "none"),
+        zIndex: drag && drag.dragging ? 50 : (isHighlighted ? 8 : 1),
+        boxShadow: isCrossLaneDrag
+          ? "0 0 0 3px rgba(139, 92, 246, 0.35), 0 6px 18px rgba(0,0,0,0.4)"
+          : isHighlighted
+            ? "0 0 0 3px rgba(255, 27, 141, 0.35), 0 4px 14px rgba(255, 27, 141, 0.45)"
+            : (drag && drag.dragging ? "0 4px 12px rgba(0,0,0,0.35)" : "none"),
+        transform: drag && drag.dragging ? `translateY(${drag.deltaY}px)` : "none",
         transition: drag ? "none" : "left 0.15s ease, opacity 0.2s ease",
-        touchAction: "none", // 모바일 스크롤과 충돌 방지
+        touchAction: "none",
       }}>
       <div style={{
         flex: 1, minWidth: 0,
