@@ -11,7 +11,7 @@
 //   other 버킷이 이미 visit_only travel 포함 (isTrackARemittance + pickServiceCode 'visit_fee' → other).
 
 import { useState, useMemo } from "react";
-import { todayYmd } from "../utils/dateLabel.js";
+import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { useMinWidth } from "../utils/useIsPc.js";
 import {
   computeRevenueByYmRange,
@@ -19,6 +19,7 @@ import {
   getMonthStart,
   getPrevMonthStart,
 } from "../utils/revenueStats.js";
+import { isTrackARemittance } from "../utils/remitFilter.js";
 
 // 도넛/범례 색 — 사장님 spec (2026-06-16).
 const COLOR_ENGINEER  = "#378ADD";  // 파랑 — 기사 정산
@@ -33,7 +34,7 @@ function fmtKRW(n) {
   return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
 }
 
-export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
+export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onClickEngineerList }) {
   const [period, setPeriod] = useState("today"); // 'today' | 'month'
   // 2026-06-16 — ≥1280px 에선 도넛을 키워서 보기 좋게 (사장님 spec).
   const isWide = useMinWidth(1280);
@@ -201,6 +202,14 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick }) {
           total={total}
         />
       </div>
+
+      {/* 2026-06-19 — 오늘/이번달 기사별 정산 (period 토글 연동, KST 기준) */}
+      <EngineerSettlementSection
+        apiTasks={apiTasks}
+        period={period}
+        periodLabel={periodLabel}
+        onClickAll={onClickEngineerList}
+      />
 
       {/* 자세히 링크 (선택) */}
       {typeof onDetailClick === "function" && (
@@ -385,6 +394,138 @@ function ServiceBar({ icon, label, color, detail, total }) {
           transition: "width 0.2s ease",
         }}/>
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 2026-06-19 — 오늘/이번달 기사별 정산 섹션.
+//   · period 토글(today/month) 연동 — 매출 현황 카드와 같은 기간.
+//   · 데이터: isTrackARemittance + 완료 + KST(toKstYmd) 필터 → assignedEngineer
+//     이름 groupBy → engineer_amount 합산 → 금액 내림차순.
+//   · 표시: 상위 5명 + 가로 막대(max 기준 비율) + 금액. 5명 초과 시 "전체 N명 →"
+//     링크 (onClickEngineerList 전달 시).
+// ──────────────────────────────────────────────────────────────────
+function EngineerSettlementSection({ apiTasks = [], period, periodLabel, onClickAll }) {
+  const list = useMemo(() => {
+    const today = todayYmd();
+    let curStart, curEnd;
+    if (period === "today") {
+      curStart = today;
+      curEnd   = today;
+    } else {
+      curStart = getMonthStart(today);
+      curEnd   = today;
+    }
+    const groups = new Map();
+    for (const task of apiTasks || []) {
+      if (!isTrackARemittance(task)) continue;
+      if (task.status === "취소") continue;          // 취소건 제외 (사장님 spec)
+      const completed = task.completedAt || task.completed_at;
+      if (!completed) continue;
+      const ymd = toKstYmd(completed);                // UTC slice 금지 — KST 자정 경계 정확
+      if (!ymd || ymd < curStart || ymd > curEnd) continue;
+      const name = task.assignedEngineer || task.engineer || "(미배정)";
+      const amt  = Number(task.engineer_amount || task.engineerAmount || 0);
+      if (amt <= 0) continue;
+      if (!groups.has(name)) groups.set(name, { name, amount: 0, count: 0 });
+      const g = groups.get(name);
+      g.amount += amt;
+      g.count  += 1;
+    }
+    return [...groups.values()].sort((a, b) => b.amount - a.amount);
+  }, [apiTasks, period]);
+
+  if (list.length === 0) return null;
+
+  const top5     = list.slice(0, 5);
+  const maxAmt   = top5[0]?.amount || 1;
+  const moreCount = Math.max(0, list.length - 5);
+
+  return (
+    <div style={{
+      borderTop: "1px solid var(--border)",
+      paddingTop: 16,
+      display: "flex",
+      flexDirection: "column",
+      gap: 8,
+    }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 4,
+      }}>
+        <div style={{
+          fontSize: 12, fontWeight: 800,
+          color: "var(--text-primary)",
+        }}>
+          👷 {periodLabel} 기사별 정산
+        </div>
+        <div style={{
+          fontSize: 10, fontWeight: 700,
+          color: "var(--text-secondary)",
+        }}>
+          {list.length}명 · 총 {fmtKRW(list.reduce((s, g) => s + g.amount, 0))}
+        </div>
+      </div>
+
+      {top5.map(({ name, amount, count }) => {
+        const pct = (amount / maxAmt) * 100;
+        return (
+          <div key={name} style={{ marginBottom: 2 }}>
+            <div style={{
+              display: "flex", justifyContent: "space-between",
+              marginBottom: 4, fontSize: 11,
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              <span style={{
+                color: "var(--text-primary)", fontWeight: 700,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                maxWidth: "60%",
+              }}>{name}</span>
+              <span className="mono" style={{
+                color: "var(--text-primary)", fontWeight: 700,
+                letterSpacing: "-0.2px",
+              }}>
+                {fmtKRW(amount)}
+                <span style={{
+                  marginLeft: 6, color: "var(--text-secondary)",
+                  fontWeight: 600, fontSize: 10,
+                }}>· {count}건</span>
+              </span>
+            </div>
+            <div style={{
+              height: 5, background: "var(--bg-inset, rgba(255,255,255,0.06))",
+              borderRadius: 3, overflow: "hidden",
+            }}>
+              <div style={{
+                width: `${Math.max(0, Math.min(100, pct))}%`,
+                height: "100%",
+                background: "#378ADD",
+                transition: "width 0.2s ease",
+              }}/>
+            </div>
+          </div>
+        );
+      })}
+
+      {moreCount > 0 && typeof onClickAll === "function" && (
+        <button
+          type="button"
+          onClick={onClickAll}
+          style={{
+            marginTop: 4,
+            padding: "7px 10px",
+            background: "transparent",
+            border: "1px solid var(--border)",
+            borderRadius: 7,
+            color: "var(--text-secondary)",
+            fontSize: 11, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}
+        >
+          전체 {list.length}명 →
+        </button>
+      )}
     </div>
   );
 }

@@ -99,6 +99,7 @@ export function AdminPcDashboard({
           apiTasks={apiTasks}
           user={user}
           onDetailClick={onClickRevenueDetail}
+          onClickEngineerList={onClickRevenueDetail}
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <CompactCard
