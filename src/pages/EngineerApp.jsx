@@ -105,7 +105,7 @@ import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
 import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
 import { reportEngineerRemit, reportUsolRemit } from "../lib/paymentsDb.js";
 // Round 3 — Migration 076 RPC (anon 키 + p_actor 패턴, 옛 requestCancelAdapter 경로 우회)
-import { requestEngineerCancel } from "../lib/engineerTaskRpc.js";
+import { requestEngineerCancel, engineerFullCancel } from "../lib/engineerTaskRpc.js";
 import { getOpsPhone } from "../lib/tenantSettingsDb.js";
 import { UsolNSettlementScreen } from "../components/UsolNSettlementScreen.jsx";
 import { ConfirmModal } from "../components/ConfirmModal.jsx";
@@ -5048,18 +5048,32 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               showToast("일정 불가 — 운영자에게 재배정 요청을 보냈습니다.");
               resetTo("main");
             }}
-            onCustomerCancel={() => {
+            onCustomerCancel={async () => {
               const ok = window.confirm("정말 취소하시겠습니까?");
               if (!ok) return;
               const id = callTaskId || (acceptedCall && acceptedCall.id);
               if (id && tasks.find(x => x.id === id)) {
-                updateTask(id, { status: "취소", cancelReason: "고객 취소" });
+                // 2026-06-19 Mig 142 — RPC 경유 (partner/admin 대칭 category_data 머지).
+                //   옛 updateTask({ status:"취소", cancelReason:"고객 취소" }) 폐기 —
+                //   단순 컬럼 UPDATE 라 cancelActor 등 6필드 누락 사고 이력.
+                const res = await engineerFullCancel(id, "고객 취소");
+                if (!res || res.ok === false) {
+                  showToast(`⚠️ 취소 실패 — ${res?.error || "알 수 없음"}`);
+                  return;
+                }
+                // Optimistic — RPC 성공 후 UI 즉시 반영. 사후 fetchTasks 로 정합.
+                setApiTasks(prev => prev.map(t =>
+                  t.id === id
+                    ? { ...t, status: "취소", state: "canceled", cancelReason: "고객 취소" }
+                    : t
+                ));
               }
               if (id) setExtraAssignments(prev => prev.filter(a => a.id !== id));
               setCallTaskId(null);
               setAcceptedCall(null);
               showToast("고객 취소 처리됐습니다.");
               resetTo("main");
+              fetchTasks();
             }}
             onAskOps={() => alert("운영팀에 문의")}
           />

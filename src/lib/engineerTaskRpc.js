@@ -29,6 +29,29 @@ export async function rescheduleEngineerTask(taskId, scheduledAtIso, reason = nu
   return normalizeRpcResp(r);
 }
 
+// 2026-06-19 — 기사 본인 전체 취소 (Mig 142 engineer_full_cancel RPC).
+//   partner_full_cancel / admin_full_cancel 대칭 — category_data 의 cancelActor /
+//   cancelActorUserId / cancelActorPrincipalCode / cancelReason / cancelAt /
+//   previousStatus / wasCompleted 머지 + task_items cascade +
+//   cancel_engineer_comp_kind='none'.
+//
+// 사용 위치: EngineerApp 의 onCustomerCancel ("고객 취소") 등 기사 본인이 직접
+// 종착시키는 경로. 옛 updateTaskAdapter 직접 호출은 폐기.
+//
+// '취소요청' 상태는 RPC 가 거부 — 운영자 승인 경로(admin_full_cancel) 유지.
+export async function engineerFullCancel(taskId, reason) {
+  const actorId = currentUserId();
+  if (!actorId) return { ok: false, error: "로그인 필요" };
+  if (!taskId)  return { ok: false, error: "taskId 없음" };
+  if (!reason || !String(reason).trim()) return { ok: false, error: "사유 없음" };
+  const r = await supabase.rpc("engineer_full_cancel", {
+    p_task_id: taskId,
+    p_reason:  String(reason).trim(),
+    p_actor:   actorId,
+  });
+  return normalizeRpcResp(r);
+}
+
 // 기사 측 취소 요청 — status='취소요청' 마킹.
 //   category_data 필드명 = 옛 requestCancelAdapter 와 동일 (AdminApp 승인 화면 호환).
 export async function requestEngineerCancel(taskId, reason) {
