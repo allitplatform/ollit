@@ -14,6 +14,7 @@ import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 import { adminRescheduleTask, adminReassignTask } from "../lib/adminTaskRpc.js";
+import { supabase } from "../lib/supabase.js";
 
 const START_HOUR    = 7;
 const END_HOUR      = 24;
@@ -165,9 +166,20 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       if (!laneRef.eid && eid) laneRef.eid = eid;
       laneRef.tasks.push(t);
     }
+    // 2026-06-19 — engineerUserId(UUID) 필드 분리 (사장님 진단 사고 정정).
+    //   apiEngineers 의 e.id 는 시트 code(E001 등) 일 수 있어 lane.eid 에 code 가
+    //   섞임 → RPC p_engineer_id(uuid) 에 그대로 전달되면
+    //   "invalid input syntax for type uuid: 'E002'" 에러.
+    //   해결: engineerUserId 별도 필드에 UUID 만 담음. lane.eid 는 표시/매칭용
+    //   그대로(code 가능). RPC 호출 시 engineerUserId 사용.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    function pickUuid(...candidates) {
+      for (const v of candidates) {
+        if (typeof v === "string" && UUID_RE.test(v)) return v;
+      }
+      return null;
+    }
     const list = Array.from(byEng.values()).map(lane => {
-      // 2026-06-19 — eid 못 잡은 lane 도 apiEngineers 의 이름 매칭으로 보강.
-      //   드래그 재배정 시 target lane.eid 필수 → eid 누락 lane 이 있으면 안 됨.
       let eng = null;
       if (lane.eid) {
         eng = (apiEngineers || []).find(e => e.id === lane.eid);
@@ -175,9 +187,27 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       if (!eng && lane.ename) {
         eng = (apiEngineers || []).find(e => e.name === lane.ename);
       }
+      // task 첫 행의 모든 가능한 UUID 키 + apiEngineers 매칭 결과의 user_id/uuid 등.
+      const firstTask = lane.tasks[0] || {};
+      const engineerUserId = pickUuid(
+        firstTask.assignedEngineerUserId,
+        firstTask.engineerUserId,
+        firstTask.assigned_engineer_user_id,
+        firstTask.assignedEngineerId,
+        firstTask.assigned_engineer_id,
+        firstTask.engineer_id,
+        eng?.user_id,
+        eng?.userId,
+        eng?.uuid,
+        eng?.userUuid,
+        eng?.id,
+        lane.eid,
+      );
       return {
         ...lane,
         eid:  lane.eid || eng?.id || null,
+        engineerUserId,                  // UUID 만 (없으면 null)
+        engineerCode: eng?.code || (UUID_RE.test(lane.eid || "") ? null : lane.eid),
         name: eng?.name || lane.ename || "(미배정)",
       };
     });
@@ -211,27 +241,29 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
     // 도착 lane 정보 lookup (재배정 시 새 기사 + target siblings 추출)
     let targetLane = null;
-    let newEngineerId = null;
-    let newEngineerName = laneName;
-    let targetSiblings = siblings || [];
+    let newEngineerUserId = null;     // ← UUID (RPC 인자)
+    let newEngineerCode   = null;     // ← code (UUID lookup 실패 시 supabase 조회용)
+    let newEngineerName   = laneName;
+    let targetSiblings    = siblings || [];
     if (isReassign) {
       targetLane = lanes.find(l => l.key === targetLaneKey);
       if (!targetLane) {
-        // lane 자체 매칭 실패 — lanes 상태 stale 또는 데이터 정합 사고
         showToast("error", "대상 기사 lane 식별 실패 — 새로고침 후 다시 시도");
         onCancelUI && onCancelUI();
         return;
       }
-      if (!targetLane.eid) {
-        // lane 매칭됐으나 engineer_id 추출 실패 — apiEngineers 동기화 시점 사고 가능
+      // engineerUserId(UUID) 또는 engineerCode 중 하나라도 있으면 진행 (둘 다 없으면 거부).
+      //   handleConfirmYes 가 UUID 없으면 code → supabase users 조회로 채움.
+      if (!targetLane.engineerUserId && !targetLane.engineerCode && !targetLane.eid) {
         showToast("error", `'${targetLane.name}' 기사 ID 식별 실패 — 새로고침 후 다시 시도`);
         onCancelUI && onCancelUI();
         return;
       }
-      newEngineerId   = targetLane.eid;
-      newEngineerName = targetLane.name;
-      const tid       = task.id || task.taskCode;
-      targetSiblings  = targetLane.tasks.filter(t => (t.id || t.taskCode) !== tid);
+      newEngineerUserId = targetLane.engineerUserId || null;
+      newEngineerCode   = targetLane.engineerCode  || (targetLane.eid && !targetLane.engineerUserId ? targetLane.eid : null);
+      newEngineerName   = targetLane.name;
+      const tid         = task.id || task.taskCode;
+      targetSiblings    = targetLane.tasks.filter(t => (t.id || t.taskCode) !== tid);
     }
 
     // 겹침 검사 — target lane 기준 (재배정이면 도착 lane, 시간만이면 source lane)
@@ -272,7 +304,8 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       isReassign,
       oldEngineerName: laneName,
       newEngineerName,
-      newEngineerId,
+      newEngineerUserId,     // UUID 또는 null
+      newEngineerCode,       // code 또는 null
       oldIso,
       newIso,
       oldTime,
@@ -286,11 +319,30 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
   async function handleConfirmYes() {
     if (!confirmInfo || busy) return;
     setBusy(true);
-    const { task, isReassign, newEngineerId, newEngineerName, newIso, newTime, onAcceptUI, onCancelUI } = confirmInfo;
+    const { task, isReassign, newEngineerUserId, newEngineerCode, newEngineerName, newIso, newTime, onAcceptUI, onCancelUI } = confirmInfo;
     try {
       let res;
       if (isReassign) {
-        res = await adminReassignTask(task.id, newEngineerId, newIso);
+        // 2026-06-19 — UUID 우선, 없으면 code → supabase users 조회 fallback.
+        //   apiEngineers 시트 캐시가 user_id(UUID) 없는 경우 안전망.
+        let engineerUuid = newEngineerUserId;
+        if (!engineerUuid && newEngineerCode) {
+          const { data, error } = await supabase
+            .from("users")
+            .select("id")
+            .eq("code", newEngineerCode)
+            .maybeSingle();
+          if (!error && data?.id) {
+            engineerUuid = data.id;
+          }
+        }
+        if (!engineerUuid) {
+          showToast("error", `'${newEngineerName}' 기사 UUID 조회 실패`);
+          onCancelUI && onCancelUI();
+          setConfirmInfo(null);
+          return;
+        }
+        res = await adminReassignTask(task.id, engineerUuid, newIso);
       } else {
         res = await adminRescheduleTask(task.id, newIso);
       }
