@@ -8760,17 +8760,54 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit }) {
     return tokens[0] || "";
   })();
 
-  // 2026-05-26 — 고객 자동 생성. region("성북구") 그대로 + 전화 끝 4자리 → "성북구4696".
-  //   옛: 정규식 /([가-힣]+?)(?:구|시|동|군)/ 게으른 매칭이 "서울특별시"에서 "서울특별"만 잡는 사고.
-  //   신: region 추출을 위에서 정확히 처리하므로 정규식 불필요.
-  function autoGenerateCustomer(form, region) {
+  // 2026-06-19 — 고객 자동 생성 규칙 변경 (사장님 spec).
+  //   이전: region("성북구") 또는 주소 첫 토막 + 전화 뒷4 → "성북구4696".
+  //     문제: 도로명주소면 첫 토막이 "은평구" 같은 시군구 → "은평구갈현로47길2770" 등 너무 김.
+  //   현재: 주소에서 "동/도로명 한 토막"만 + 전화 뒷4 (공백 포함).
+  //     1) 동/읍/면 토큰 우선 ("상암동", "역삼동")
+  //     2) 없으면 도로명 본체 — "○○로NN길" → "○○로" (숫자 세부 떼기)
+  //     3) 그것도 없으면 첫 토큰
+  //   예: "은평구 갈현로47길 3 금강블루빌301호" + ...2770 → "갈현로 2770"
+  //       "상암동 월드컵아파트 ..." + ...2940 → "상암동 2940"
+  //   기존 생성된 이름은 그대로 (정산 이력 연결). 신규 접수부터 적용.
+  function _pickAddressKeyword(rawAddress) {
+    const tokens = String(rawAddress || "").trim().split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return "";
+
+    // 1) 동/읍/면 토큰 우선 (순수 한글 + 끝글자 동/읍/면)
+    for (const tok of tokens) {
+      const m = tok.match(/^([가-힣]+[동읍면])$/);
+      if (m) return m[1];
+    }
+
+    // 2) 도로명 본체 추출 — 숫자 세부 떼기
+    //    "갈현로47길" → "갈현로", "테헤란대로12길" → "테헤란대로",
+    //    "갈현로" / "테헤란로" / "○○대로" / "○○길" 단독은 그대로.
+    for (const tok of tokens) {
+      const m1 = tok.match(/^([가-힣]+(?:대로|로))\d+(?:번)?길?$/);
+      if (m1) return m1[1];
+      const m2 = tok.match(/^([가-힣]+(?:대로|로|길))$/);
+      if (m2) return m2[1];
+    }
+
+    // 3) 토큰 안에 동/읍/면 부분 매칭 (예: "갈현동123" 같은 끝-숫자 케이스)
+    for (const tok of tokens) {
+      const m = tok.match(/^([가-힣]{2,}[동읍면])(?:\d|$)/);
+      if (m) return m[1];
+    }
+
+    // 4) fallback — 첫 토큰 그대로
+    return tokens[0] || "";
+  }
+
+  function autoGenerateCustomer(form /*, region */) {
     if (form.customer && form.customer.trim()) return form.customer.trim();
     const digits = (form.phone || "").replace(/\D/g, "");
     const last4  = digits.length >= 4 ? digits.slice(-4) : "";
-    const regionShort = region || (form.address || "").trim().split(/\s+/)[0] || "";
-    if (regionShort && last4) return `${regionShort}${last4}`;
-    if (regionShort)          return `${regionShort}고객`;
-    if (last4)                return `고객${last4}`;
+    const keyword = _pickAddressKeyword(form.address || "");
+    if (keyword && last4) return `${keyword} ${last4}`;
+    if (keyword)          return `${keyword} 고객`;
+    if (last4)            return `고객 ${last4}`;
     return "고객 미정";
   }
 

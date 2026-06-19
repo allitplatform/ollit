@@ -56,14 +56,49 @@ export const WORK_TYPE_TO_SERVICE = {
 //     · region 못 찾으면 fallback 제거 — 끝4 만 사용 ('고객2283').
 //     · 구분자 공백 — 가독성 (이전 '' 직결).
 // 2026-06-17 — export 추가 (NewReceptionPcForm 측 동일 자동 생성 재사용).
-export function autoGenerateCustomer(form, region) {
+//
+// 2026-06-19 — 사장님 spec: 주소 키워드 짧게.
+//   이전: region("은평구") 그대로 + 전화 뒷4 → "은평구 2770".
+//     문제: region 이 시군구라 도로명주소 사례에서 너무 김. "은평구 갈현로47길 3 ..." 면
+//           "은평구갈현로47길2770" 등 통째 누락 케이스도 있었음.
+//   현재: 주소에서 동/도로명 한 토막만 추출 + 전화 뒷4.
+//     1) 동/읍/면 토큰 ("상암동", "역삼동") 우선
+//     2) 없으면 도로명 본체 ("갈현로47길" → "갈현로")
+//     3) 그것도 없으면 첫 토큰
+//   region 인자는 호환을 위해 그대로 받지만 사용 X (호출처 변경 0).
+//   기존 생성된 이름은 그대로 (정산 이력 연결). 신규 접수부터 적용.
+function _pickAddressKeyword(rawAddress) {
+  const tokens = String(rawAddress || "").trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return "";
+  // 1) 동/읍/면 토큰 우선
+  for (const tok of tokens) {
+    const m = tok.match(/^([가-힣]+[동읍면])$/);
+    if (m) return m[1];
+  }
+  // 2) 도로명 본체 — 숫자 세부 떼기
+  for (const tok of tokens) {
+    const m1 = tok.match(/^([가-힣]+(?:대로|로))\d+(?:번)?길?$/);
+    if (m1) return m1[1];
+    const m2 = tok.match(/^([가-힣]+(?:대로|로|길))$/);
+    if (m2) return m2[1];
+  }
+  // 3) 토큰 안에 동/읍/면 부분 매칭 (끝-숫자 케이스)
+  for (const tok of tokens) {
+    const m = tok.match(/^([가-힣]{2,}[동읍면])(?:\d|$)/);
+    if (m) return m[1];
+  }
+  // 4) fallback — 첫 토큰
+  return tokens[0] || "";
+}
+
+export function autoGenerateCustomer(form /*, region */) {
   if (form.customer && form.customer.trim()) return form.customer.trim();
   const digits = (form.phone || "").replace(/\D/g, "");
   const last4  = digits.length >= 4 ? digits.slice(-4) : "";
-  const regionShort = (region || "").trim();
-  if (regionShort && last4) return `${regionShort} ${last4}`;
-  if (regionShort)          return `${regionShort} 고객`;
-  if (last4)                return `고객${last4}`;
+  const keyword = _pickAddressKeyword(form.address || "");
+  if (keyword && last4) return `${keyword} ${last4}`;
+  if (keyword)          return `${keyword} 고객`;
+  if (last4)            return `고객 ${last4}`;
   return "고객 미정";
 }
 
