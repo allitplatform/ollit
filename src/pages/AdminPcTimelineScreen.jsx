@@ -105,13 +105,57 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
   // TaskBar 가 드래그 종료 시 호출.
   //   onAcceptUI / onCancelUI 는 TaskBar 내부 drag state 해제 콜백.
-  function handleTaskDragCommit({ task, oldIso, newIso, oldTime, newTime, onAcceptUI, onCancelUI }) {
+  //
+  // 2026-06-19 — 같은 lane 의 다른 활성 막대(완료/취소/visit_only 제외, 자기 자신 제외)
+  //   와 새 시간 구간(newStart ~ newStart+duration)이 겹치는지 검사.
+  //   겹쳐도 변경은 허용 (사장님 spec). 모달 에 노란 경고 줄만 추가.
+  function handleTaskDragCommit({
+    task, oldIso, newIso, oldTime, newTime,
+    newMinutes, durationMinutes,
+    siblings, laneName,
+    onAcceptUI, onCancelUI,
+  }) {
+    const newStart = Number(newMinutes) || 0;
+    const dur      = Number(durationMinutes) || 60;
+    const newEnd   = newStart + dur;
+    const inactive = new Set(["완료", "취소", "visit_only"]);
+
+    const conflicts = [];
+    for (const t of (siblings || [])) {
+      if (inactive.has(t.status)) continue;
+      const at = t.scheduledAt || t.scheduled_at;
+      if (!at) continue;
+      // 같은 날짜만 (lane 자체가 selectedDate 로 필터됐지만 안전망)
+      if (toKstYmd(at) !== selectedDate) continue;
+      const dt = new Date(at);
+      if (isNaN(dt.getTime())) continue;
+      const s = dt.getHours() * 60 + dt.getMinutes();
+      const e = s + dur;
+      // overlap: newStart < e && s < newEnd
+      if (newStart < e && s < newEnd) {
+        conflicts.push({ task: t, start: s });
+      }
+    }
+    conflicts.sort((a, b) => a.start - b.start);
+
+    let conflict = null;
+    if (conflicts.length > 0) {
+      const first = conflicts[0];
+      const timeStr = `${pad(Math.floor(first.start / 60))}:${pad(first.start % 60)}`;
+      conflict = {
+        laneName,
+        timeStr,
+        extra: conflicts.length - 1,
+      };
+    }
+
     setConfirmInfo({
       task,
       oldIso,
       newIso,
       oldTime,
       newTime,
+      conflict,
       onAcceptUI,
       onCancelUI,
     });
@@ -255,7 +299,7 @@ function ConfirmDialog({ info, busy, onYes, onNo }) {
         <div style={{
           fontSize: 14,
           color: "var(--text-primary)",
-          marginBottom: 18,
+          marginBottom: info.conflict ? 12 : 18,
           fontVariantNumeric: "tabular-nums",
         }}>
           <span style={{ color: "var(--text-secondary)" }}>{info.oldTime}</span>
@@ -263,6 +307,21 @@ function ConfirmDialog({ info, busy, onYes, onNo }) {
           <span style={{ color: "#FF1B8D", fontWeight: 800 }}>{info.newTime}</span>
           <span style={{ marginLeft: 8, color: "var(--text-secondary)" }}>으로 변경할까요?</span>
         </div>
+        {info.conflict && (
+          <div style={{
+            background: "rgba(255, 184, 0, 0.12)",
+            border: "1px solid rgba(255, 184, 0, 0.55)",
+            color: "#A06400",
+            padding: "8px 12px",
+            borderRadius: 8,
+            fontSize: 12, fontWeight: 700,
+            marginBottom: 16,
+            lineHeight: 1.45,
+          }}>
+            ⚠️ {info.conflict.laneName} {info.conflict.timeStr} 시간대에 이미 작업 있음
+            {info.conflict.extra > 0 && ` 외 ${info.conflict.extra}건`}
+          </div>
+        )}
         <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
           <button
             type="button"
@@ -465,21 +524,29 @@ function Lane({ lane, onTaskClick, onTaskDragCommit }) {
             opacity: 0.5,
           }}/>
         ))}
-        {lane.tasks.map(task => (
-          <TaskBar
-            key={task.id || task.taskCode}
-            task={task}
-            laneRef={laneRef}
-            onClick={() => onTaskClick?.(task)}
-            onDragCommit={onTaskDragCommit}
-          />
-        ))}
+        {lane.tasks.map(task => {
+          // 2026-06-19 — 같은 lane 의 다른 막대들 (자기 자신 제외) 을 TaskBar 에
+          //   전달 → 드래그 commit 시 부모가 겹침 검사에 사용.
+          const tid = task.id || task.taskCode;
+          const siblings = lane.tasks.filter(t => (t.id || t.taskCode) !== tid);
+          return (
+            <TaskBar
+              key={tid}
+              task={task}
+              laneRef={laneRef}
+              siblings={siblings}
+              laneName={lane.name}
+              onClick={() => onTaskClick?.(task)}
+              onDragCommit={onTaskDragCommit}
+            />
+          );
+        })}
       </div>
     </>
   );
 }
 
-function TaskBar({ task, laneRef, onClick, onDragCommit }) {
+function TaskBar({ task, laneRef, siblings, laneName, onClick, onDragCommit }) {
   const scheduled = task.scheduledAt || task.scheduled_at;
   // 좌측에 위치한 hooks (조건부 return 위) — Rules of Hooks.
   const [drag, setDrag] = useState(null);
@@ -587,6 +654,12 @@ function TaskBar({ task, laneRef, onClick, onDragCommit }) {
         newIso,
         oldTime: baseTimeStr,
         newTime: `${pad(newH)}:${pad(newM)}`,
+        newMinutes: drag.currentMinutes,
+        // 2026-06-19 — duration: 현재 모든 막대 1시간 가정 (= widthPct 1/TOTAL_HOURS).
+        //   추후 작업 길이 가변이면 task.durationMinutes 같은 필드로 대체.
+        durationMinutes: 60,
+        siblings,
+        laneName,
         // 부모가 commit 결과를 알려줌 → drag 해제
         onAcceptUI: () => setDrag(null),
         onCancelUI: () => setDrag(null),
