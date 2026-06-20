@@ -10,6 +10,9 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
+
+// 2026-06-20 trace — 모듈 로드 자체 확인 (HMR 미반영 진단).
+console.log('[AdminPcTimelineScreen MODULE LOADED v2026-06-20-trace5]');
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
@@ -45,6 +48,8 @@ const TEXT_ON_KIND = {
 const TEXT_ON_KIND_FALLBACK = "#fff";
 
 export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTaskClick, onRefresh }) {
+  // 2026-06-20 trace — 메인 컴포넌트 렌더 확인.
+  console.log('[AdminPcTimelineScreen RENDER] apiTasks=', apiTasks.length, 'hasOnTaskClick=', !!onTaskClick);
   const [selectedDate, setSelectedDate] = useState(() => todayYmd());
 
   const today    = todayYmd();
@@ -761,6 +766,8 @@ function Lane({ lane, onTaskClick, onTaskDragCommit, highlightTaskId }) {
 }
 
 function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, onDragCommit, highlightTaskId }) {
+  // 2026-06-20 trace — TaskBar 렌더 확인 (조건부 return 위).
+  console.log('[TaskBar RENDER]', task.id || task.taskCode, 'status=', task.status, 'isLocked=', LOCKED_STATUSES.has(task.status), 'hasOnClick=', !!onClick);
   const scheduled = task.scheduledAt || task.scheduled_at;
   // 좌측에 위치한 hooks (조건부 return 위) — Rules of Hooks.
   const [drag, setDrag] = useState(null);
@@ -827,10 +834,17 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   const title = titleParts.join(" · ");
 
   function handlePointerDown(e) {
-    if (isLocked) return;
+    // 2026-06-20 trace — 잠금 막대 클릭 누락 진단 (사장님 보고).
+    console.log('[TaskBar PD]', { taskId: task.id || task.taskCode, status: task.status, isLocked, button: e.button, pointerId: e.pointerId, hasOnClick: !!onClick });
     // 좌클릭만
-    if (e.button !== 0) return;
-    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+    if (e.button !== 0) { console.log('[TaskBar PD] non-left button, return'); return; }
+    let captured = false;
+    try { e.currentTarget.setPointerCapture(e.pointerId); captured = true; } catch (err) {
+      console.log('[TaskBar PD] setPointerCapture FAILED', err);
+    }
+    console.log('[TaskBar PD] captured?', captured);
+    // 2026-06-20 — 잠금 막대도 pointerdown 받음. 이동량 < 임계값이면 pointerup 측 onClick 호출 (작업상세).
+    //   드래그 자체 차단은 handlePointerMove / handlePointerUp 의 locked 분기.
     setDrag({
       pointerId:  e.pointerId,
       startX:     e.clientX,
@@ -840,11 +854,15 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
       deltaY:     0,
       targetLaneKey: sourceLaneKey,  // 처음엔 자기 lane
       dragging:   false,
+      locked:     isLocked,
     });
+    console.log('[TaskBar PD] setDrag called locked=', isLocked);
   }
 
   function handlePointerMove(e) {
     if (!drag) return;
+    // 2026-06-20 — 잠금 막대: 시간/lane 갱신 안 함 (pointerup 측 이동량 검사만).
+    if (drag.locked) return;
     const laneEl = laneRef?.current;
     if (!laneEl) return;
     const rect = laneEl.getBoundingClientRect();
@@ -892,8 +910,22 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   }
 
   function handlePointerUp(e) {
-    if (!drag) return;
+    // 2026-06-20 trace — 잠금 막대 클릭 누락 진단.
+    console.log('[TaskBar PU]', { taskId: task.id || task.taskCode, status: task.status, hasDrag: !!drag, locked: drag?.locked, hasOnClick: !!onClick });
+    if (!drag) { console.log('[TaskBar PU] drag null — return (no onClick)'); return; }
     try { e.currentTarget.releasePointerCapture(drag.pointerId); } catch (_) {}
+    // 2026-06-20 — 잠금 막대 클릭 처리: 이동량 < DRAG_THRESHOLD_PX 이면 onClick (작업상세).
+    //   드래그 가능 막대의 클릭 분기(line 938~941)와 동일 로직 — wasDragging=false + movedTime/Lane=false 일 때 onClick.
+    if (drag.locked) {
+      const deltaX = e.clientX - drag.startX;
+      const deltaY = e.clientY - drag.startY;
+      const moved = Math.abs(deltaX) > DRAG_THRESHOLD_PX
+                 || Math.abs(deltaY) > DRAG_THRESHOLD_PX;
+      console.log('[TaskBar PU locked]', { deltaX, deltaY, moved, willCallOnClick: !moved && !!onClick });
+      setDrag(null);
+      if (!moved) onClick && onClick();
+      return;
+    }
     const wasDragging = drag.dragging;
     const movedTime  = drag.currentMinutes !== drag.baseMinutes;
 
@@ -948,7 +980,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
 
   return (
     <button
-      onClick={(e) => e.preventDefault()}
+      onClick={(e) => { console.log('[TaskBar BTN onClick fired]', task.id || task.taskCode, 'isLocked=', isLocked); e.preventDefault(); }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

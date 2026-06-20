@@ -583,6 +583,11 @@ function _v14NormalizeTask(t) {
     assignedEngineer: assignedEngineerName,
     engineer:         assignedEngineerName || null,
     engineerPhone:    assignedEngineerPhone,  // V14 Step 3 Fix 1 — apiEngineers에서 박힘 (있으면)
+    // 2026-06-20 — UUID 매핑 (3곳 트랩 / 운영자 ID 의존부 복구). rowToTask 측 UUID 들고 있음.
+    assignedEngineerId:    t.assignedEngineerId    || t.assigned_engineer_id    || null,
+    engineerId:            t.engineerId            || t.assigned_engineer_id    || null,
+    engineerCode:          t.engineerCode          || null,
+    recommendedEngineerId: t.recommendedEngineerId || t.recommended_engineer_id || null,
     // Phase 4-2 fix — DB 전환 측 누락 필드 (dashboardStats 카운트 catch)
     createdAt:   t.createdAt   || t.created_at   || t.receivedAt || t.received_at || t.접수일시 || t.B || "",
     receivedAt:  t.receivedAt  || t.received_at  || "",
@@ -6118,17 +6123,28 @@ function SettlementContent({
   //   기준: 트랙 🅐 + 출장비 측측 AND completedAt(KST) = 오늘.
   //   미확인(pending/reported/overdue) → 위, 확인 완료(confirmed) → 아래.
   // 2026-06-07 — 송금/정산 측측 측측 isRemittanceTarget 측 측측 (visit_only 측측).
+  // 2026-06-20 — useMemo 3건 (성능 ②번 / apiTasks ~1500건 매 렌더 reduce 차단).
+  //   deps: apiTasks 새 reference + todayStr 자정 변화 시 재계산. 자정 트리거는 부모 minuteTick 리렌더 의존.
   const todayStr = todayYmd();
-  const doneTasks = (apiTasks && apiTasks.length > 0)
-    ? apiTasks.filter(t => {
+  const doneTasks = useMemo(() => {
+    if (apiTasks && apiTasks.length > 0) {
+      return apiTasks.filter(t => {
         if (!isRemittanceTarget(t)) return false;
         const completed = t.completedAt || t.completed_at;
         if (!completed) return false;
         return toKstYmd(completed) === todayStr;
-      })
-    : getTodayDoneTasks();
-  const engineerGroups = sortGroupsConfirmedLast(groupDoneByEngineer(doneTasks));
-  const principalGroups = groupDoneByPrincipal(doneTasks);
+      });
+    }
+    return getTodayDoneTasks();
+  }, [apiTasks, todayStr]);
+  const engineerGroups = useMemo(
+    () => sortGroupsConfirmedLast(groupDoneByEngineer(doneTasks)),
+    [doneTasks]
+  );
+  const principalGroups = useMemo(
+    () => groupDoneByPrincipal(doneTasks),
+    [doneTasks]
+  );
 
   // 2026-06-07 — 일별 입금 표시 (principal_daily_remittances) 조회.
   //   카드 헤더 상태(완료/대기) 표시용 (1회 fetch + 카드별 prop 으로 상태 전달).

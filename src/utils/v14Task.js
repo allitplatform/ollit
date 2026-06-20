@@ -214,6 +214,11 @@ export function v14NormalizeTask(t) {
     type: "work",
     assignedEngineer: assignedEngineerName,
     engineer: assignedEngineerName || null,
+    // 2026-06-20 — UUID 매핑 (3곳 트랩 / filterTasksForEngineerV14 ID 분기 복구). rowToTask 측 UUID 들고 있음.
+    assignedEngineerId:    t.assignedEngineerId    || t.assigned_engineer_id    || null,
+    engineerId:            t.engineerId            || t.assigned_engineer_id    || null,
+    engineerCode:          t.engineerCode          || null,
+    recommendedEngineerId: t.recommendedEngineerId || t.recommended_engineer_id || null,
     recommendedEngineer,
     startedAt, completedAt,
     // 2026-05-25 — 부분완료 (Migration 068)
