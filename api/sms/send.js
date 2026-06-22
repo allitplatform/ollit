@@ -5,7 +5,7 @@
 //   Supabase Vault + Vercel 환경변수에 동일 값 등록 (Coco 담당).
 //   endpoint 가 공개라 검증 필수 — 외부 호출 차단.
 //
-// 발신번호: 01036264002 (Coco 승인 대기 중 — 승인 전 실발송 X).
+// 발신번호: 01041163991 (Coco 승인 대기 중 — 승인 전 실발송 X). 안내번호: 1866-2003 (문구 표시용).
 //
 // 요청:
 //   POST /api/sms/send
@@ -40,7 +40,7 @@ const ALLOWED_ORIGIN     = process.env.ALLOWED_ORIGIN || "*";
 const SMS_TRIGGER_SECRET = process.env.SMS_TRIGGER_SECRET;
 const SOLAPI_API_KEY     = process.env.SOLAPI_API_KEY;
 const SOLAPI_API_SECRET  = process.env.SOLAPI_API_SECRET;
-const SOLAPI_FROM        = "01036264002";
+const SOLAPI_FROM        = "01041163991";
 
 const SOLAPI_SEND_URL    = "https://api.solapi.com/messages/v4/send-many";
 const SOLAPI_BALANCE_URL = "https://api.solapi.com/cash/v1/balance";
