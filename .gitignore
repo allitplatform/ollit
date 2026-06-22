@@ -67,3 +67,5 @@ backups/
 gcal_credentials*.json
 gcal_token.json
 data/gcal-index.json
+
+.vercel
