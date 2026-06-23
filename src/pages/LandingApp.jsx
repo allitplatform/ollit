@@ -68,12 +68,14 @@ const HERO_HEADLINE_LINES = [
 
 function Hero({ onCtaForm }) {
   return (
-    <section className="ldg-hero" id="01-hero">
-      <div className="ldg-container ldg-hero-grid">
+    <section className="ldg-hero" id="01-hero" style={{ position: "relative", overflow: "hidden" }}>
+      <div className="ldg-hero-heat" aria-hidden="true" />
+      <div className="ldg-container ldg-hero-grid" style={{ position: "relative", zIndex: 1 }}>
         <div>
-          <div className="ldg-hero-badges">
+          <div className="ldg-hero-badges" style={{ position: "relative" }}>
             <span className="ldg-hero-badge urgent">긴급 출동 가능</span>
             <span className="ldg-hero-badge blue">서울·경기 당일 출장</span>
+            <span className="ldg-sweat-drip" aria-hidden="true" />
           </div>
 
           <h1 className="ldg-hero-h1">
@@ -128,12 +130,14 @@ function DiagnosisDial() {
   const [temp, setTemp]   = useState(28);
   const [proof, setProof] = useState(0); // 0/1/2
   const [step, setStep]   = useState(1);
+  const [ripple, setRipple] = useState(0); // standalone cRipple — 21 도달 시 1회
   const tokenRef = useRef(0);
 
   function play() {
     const myToken = ++tokenRef.current;
-    setTemp(28); setProof(0); setStep(1);
+    setTemp(28); setProof(0); setStep(1); setRipple(0);
     const start = performance.now();
+    let rippled = false;
     function frame(now) {
       if (myToken !== tokenRef.current) return;
       const t = now - start;
@@ -147,6 +151,7 @@ function DiagnosisDial() {
         setProof(2); setStep(3); setTemp(Math.round(v * 10) / 10);
       } else {
         setProof(2); setStep(3); setTemp(21);
+        if (!rippled) { rippled = true; setRipple(r => r + 1); }
         return;
       }
       requestAnimationFrame(frame);
@@ -192,6 +197,7 @@ function DiagnosisDial() {
     <div className="ldg-dial" ref={wrapRef}>
       <div className="ldg-dial-head">
         <span className="ldg-dial-cap">
+          <span className="ldg-live-dot" aria-hidden="true" />
           {step === 1 && "증상 확인 중"}
           {step === 2 && "측정 · 충전 진행"}
           {step === 3 && temp <= 21 ? "✓ 시원하게 회복" : (step === 3 && "충전 진행 중")}
@@ -202,7 +208,7 @@ function DiagnosisDial() {
       </div>
 
       <div className="ldg-dial-body">
-        <div className="ldg-dial-gauge">
+        <div className="ldg-dial-gauge" style={{ position: "relative" }}>
           <svg viewBox="0 0 200 200" aria-hidden="true">
             <circle cx="100" cy="100" r="82" fill="none"
                     stroke="#E6EEF6" strokeWidth="11"/>
@@ -213,6 +219,8 @@ function DiagnosisDial() {
                     transform="rotate(135 100 100)"
                     style={{ transition: "stroke 0.3s ease" }}/>
           </svg>
+          {/* standalone cRipple — 21 도달 1회 발화 */}
+          <span key={ripple} className={`ldg-dial-ripple ${ripple > 0 ? "fire" : ""}`} aria-hidden="true" />
           <div className="ldg-dial-gauge-text">
             <div className="ldg-dial-gauge-num" style={{ color }}>
               {Number.isInteger(temp) ? temp : temp.toFixed(1)}
