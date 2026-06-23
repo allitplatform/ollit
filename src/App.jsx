@@ -4,6 +4,20 @@ import EngineerApp from "./pages/EngineerApp.jsx";
 import HappycallApp from "./pages/HappycallApp.jsx";
 import AdminApp from "./pages/AdminApp.jsx";
 import PrincipalApp from "./pages/PrincipalApp.jsx";
+import LandingApp from "./pages/LandingApp.jsx";
+
+// 2026-06-23 — alldaycare 도메인 또는 /landing 경로 시 마케팅 랜딩 진입 (운영 PWA 분기 차단).
+//   현재 도메인 미구매 → localhost 검증 시 ?page=landing 또는 /landing 사용.
+function _isLandingRoute() {
+  if (typeof window === "undefined") return false;
+  const host = (window.location.hostname || "").toLowerCase();
+  const path = window.location.pathname || "";
+  const search = window.location.search || "";
+  if (host.includes("alldaycare")) return true;
+  if (path.startsWith("/landing")) return true;
+  if (search.includes("page=landing")) return true;
+  return false;
+}
 import { TasksProvider } from "./shared/TasksContext.jsx";
 import { SplashScreen } from "./components/SplashScreen.jsx";
 import { applyTheme, loadTheme } from "./styles/themes.js";
@@ -35,6 +49,9 @@ function readStoredUser() {
 // 메인 App: 로그인 상태에 따라 화면 분기
 // TasksProvider를 최상위로 두어 로그인/로그아웃 시에도 task state 유지
 export default function App() {
+  // 2026-06-23 — 마케팅 랜딩 도메인 / 경로 진입 시 LandingApp 만 렌더. 운영 PWA hook 전부 우회.
+  if (_isLandingRoute()) return <LandingApp />;
+
   // V14 — 카톡 인앱 브라우저 감지 (최우선)
   const [kakaoChecked, setKakaoChecked] = useState(false);
   const [showKakaoScreen, setShowKakaoScreen] = useState(false);

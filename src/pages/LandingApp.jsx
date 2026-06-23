@@ -1,0 +1,495 @@
+// 올데이케어 마케팅 랜딩 + 셀프 접수 폼 (2026-06-23).
+//   · 1차 진행: UI / 디자인 / 폼 디자인까지. 백엔드 (inquiries / RPC / 해피콜 인박스) 미연결 — Phase 2.
+//   · 스토리: 공감 → 원인 → 해결 → 증거 → 안심 → 행동. 핸드오프 문서 §2 그대로.
+//   · 도메인: alldaycare.kr(예정) 또는 ?page=landing 경로 시 App.jsx 가 본 컴포넌트 렌더.
+//   · 사진: hero_selected/YS-N-260601-030 → public/landing/photos/before-1.jpg / after-1.jpg.
+//     히어로 사진은 무료 상업용 (Coco 추후 교체) — 현재 placeholder.
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  Phone, ChevronRight, ArrowRight, Wind, Thermometer, Filter, Wrench,
+  ShieldCheck, Calendar, MessageSquare, Sparkles, AlertCircle, CheckCircle2,
+  Clock, MapPin, User
+} from "lucide-react";
+import "../styles/landing.css";
+
+const PHONE_DISPLAY = "1866-2003";
+const PHONE_TEL     = "tel:18662003";
+
+const HEADLINE = "또 여름인데, 작년처럼 안 시원하면?";
+
+export default function LandingApp() {
+  const [toast, setToast] = useState("");
+
+  function showToast(msg) {
+    setToast(msg);
+    setTimeout(() => setToast(""), 2400);
+  }
+
+  function scrollToForm() {
+    const el = document.getElementById("ldg-form");
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  return (
+    <div className="ldg-root">
+      <Hero onCta={scrollToForm} />
+      <Why />
+      <Solution />
+      <Evidence />
+      <Trust />
+      <CtaForm onSubmit={() => showToast("접수 디자인 검증 단계 — 백엔드 미연결")} />
+      <Footer />
+      <StickyBar onCta={scrollToForm} />
+      {toast && <div className="ldg-toast">{toast}</div>}
+    </div>
+  );
+}
+
+// ============================================================
+// Hero — 공감 (헤드라인 + 히어로 사진 + 온도계 모션 + CTA)
+// ============================================================
+function Hero({ onCta }) {
+  return (
+    <section className="ldg-hero">
+      <div className="ldg-container">
+        <div className="ldg-hero-brand">
+          <Sparkles size={14} />
+          올데이케어 · 에어컨 종합 케어
+        </div>
+
+        <h1 className="ldg-hero-headline">
+          {HEADLINE.split("").map((ch, i) => (
+            <span
+              key={i}
+              className="ldg-w"
+              style={{ animationDelay: `${i * 0.05}s` }}
+            >
+              {ch === " " ? " " : ch}
+            </span>
+          ))}
+        </h1>
+
+        <p className="ldg-hero-sub">
+          지금 점검 받으면 늦지 않습니다.<br />
+          서울·경기 전 지역 당일 출장 — 365일 연중무휴.
+        </p>
+
+        <div className="ldg-hero-photo" role="img" aria-label="에어컨 바람 히어로 이미지">
+          <div className="ldg-hero-photo-placeholder">
+            <Wind size={56} strokeWidth={1.5} />
+            <strong style={{ fontSize: 18 }}>시원한 바람, 다시.</strong>
+            <small>히어로 사진 교체 예정 (무료 상업용)</small>
+          </div>
+          <div className="ldg-hero-thermo" aria-hidden="true">
+            <span className="ldg-hero-thermo-bar" />
+            32°C
+          </div>
+        </div>
+
+        <div className="ldg-hero-cta">
+          <button className="ldg-btn ldg-btn-primary" onClick={onCta}>
+            지금 접수하기 <ArrowRight size={16} />
+          </button>
+          <a className="ldg-btn ldg-btn-outline" href={PHONE_TEL}>
+            <Phone size={16} /> {PHONE_DISPLAY}
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Why — 원인
+// ============================================================
+function Why() {
+  const items = [
+    {
+      icon: <Thermometer size={22} />,
+      title: "냉매가 부족",
+      body: "오래 쓴 에어컨은 냉매가 자연 감소합니다. 가스가 적으면 아무리 틀어도 시원해지지 않습니다.",
+    },
+    {
+      icon: <Filter size={22} />,
+      title: "필터·송풍팬이 오염",
+      body: "먼지와 곰팡이가 쌓이면 바람 양이 줄고 냄새가 납니다. 같은 전기로 효율이 30% 떨어지기도 합니다.",
+    },
+    {
+      icon: <Wrench size={22} />,
+      title: "부품이 고장",
+      body: "콘덴서·실외기 팬 등 핵심 부품이 노후되면 일정 시간 후 멈춥니다. 조기 점검이 비용을 줄입니다.",
+    },
+  ];
+
+  return (
+    <section className="ldg-section ldg-why">
+      <div className="ldg-container">
+        <span className="ldg-section-tag">WHY</span>
+        <h2 className="ldg-section-title">왜 시원하지 않을까요?</h2>
+        <p className="ldg-section-lead">
+          시원하지 않은 에어컨에는 보통 세 가지 원인이 있습니다.
+          원인을 알면 해결도 빠릅니다.
+        </p>
+
+        <div className="ldg-why-list">
+          {items.map((it, i) => (
+            <div className="ldg-why-card" key={i}>
+              <div className="ldg-why-card-icon">{it.icon}</div>
+              <div>
+                <h4>{it.title}</h4>
+                <p>{it.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="ldg-gauge">
+          <div className="ldg-gauge-arc" aria-hidden="true" />
+          <div className="ldg-gauge-text">
+            <strong>점검 후 정상 범위로 회복</strong>
+            <span>현장에서 게이지로 가스 잔량을 직접 확인합니다.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Solution — 해결 (냉매충전 / 분해세척 / 수리)
+// ============================================================
+function Solution() {
+  return (
+    <section className="ldg-section">
+      <div className="ldg-container">
+        <span className="ldg-section-tag">SOLUTION</span>
+        <h2 className="ldg-section-title">두 가지 핵심 케어</h2>
+        <p className="ldg-section-lead">
+          가장 많이 필요한 두 가지를 잘 하는 데 집중합니다.
+          상황에 따라 수리도 함께 안내드립니다.
+        </p>
+
+        <div className="ldg-solution-list">
+          <article className="ldg-solution-card main">
+            <span className="badge">CORE</span>
+            <h4>냉매충전</h4>
+            <p>현장에서 게이지로 잔량을 확인하고, 부족한 만큼 정량 충전합니다. 누설이 있으면 위치 찾기까지 같이 진행합니다.</p>
+            <ul className="points">
+              <li>잔량 확인</li>
+              <li>정량 충전</li>
+              <li>누설 점검</li>
+            </ul>
+          </article>
+
+          <article className="ldg-solution-card main">
+            <span className="badge">CORE</span>
+            <h4>분해세척</h4>
+            <p>전면 분해 후 필터·송풍팬·열교환기까지 안쪽 먼지와 곰팡이를 씻어냅니다. 바람 양과 냄새가 즉시 바뀝니다.</p>
+            <ul className="points">
+              <li>전면 분해</li>
+              <li>송풍팬 세척</li>
+              <li>친환경 약품</li>
+            </ul>
+          </article>
+        </div>
+
+        <div className="ldg-solution-mini">
+          <Wrench size={16} />
+          <span>부품 고장 의심 시 — 점검 후 수리 견적까지 함께 안내드립니다.</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Evidence — 증거 (전/후 슬라이더)
+// ============================================================
+function Evidence() {
+  const [pos, setPos] = useState(50);
+
+  return (
+    <section className="ldg-section ldg-evidence">
+      <div className="ldg-container">
+        <span className="ldg-section-tag">EVIDENCE</span>
+        <h2 className="ldg-section-title">말 대신 보여드립니다</h2>
+        <p className="ldg-section-lead">
+          실제 현장 분해세척 전후 비교입니다. 핸들을 좌우로 옮겨보세요.
+        </p>
+
+        <div className="ldg-evidence-slider" style={{ "--ldg-slider-pos": `${pos}%` }}>
+          <div className="ldg-evidence-slider-wrap">
+            <img src="/landing/photos/before-1.jpg" alt="분해세척 전" className="before" />
+            <img src="/landing/photos/after-1.jpg"  alt="분해세척 후" className="after" />
+            <div className="ldg-evidence-slider-handle" aria-hidden="true" />
+            <input
+              type="range" min="0" max="100" value={pos}
+              onChange={(e) => setPos(Number(e.target.value))}
+              aria-label="전/후 슬라이더"
+            />
+          </div>
+          <div className="ldg-evidence-labels">
+            <span className="before-l">BEFORE</span>
+            <span className="after-l">AFTER</span>
+          </div>
+        </div>
+        <p className="ldg-evidence-caption">실제 현장 작업 사진 · 고객 동의 후 사용</p>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Trust — 안심 (통계 + 후기)
+// ============================================================
+function Trust() {
+  const reviews = [
+    {
+      quote: "여름 시작 전에 받았는데, 바람이 차게 나옵니다. 기사님이 게이지로 직접 보여줘서 신뢰가 갔어요.",
+      meta:  "K님 · 강서구 · 냉매충전",
+    },
+    {
+      quote: "10년 된 에어컨인데 분해세척 후 바람 양이 확실히 늘었습니다. 곰팡이 냄새도 사라졌어요.",
+      meta:  "J님 · 분당구 · 분해세척",
+    },
+    {
+      quote: "전화 한 통으로 당일 출장 받았습니다. 시간 약속이 정확해서 좋았어요.",
+      meta:  "L님 · 일산 · 냉매충전",
+    },
+  ];
+
+  return (
+    <section className="ldg-section ldg-trust">
+      <div className="ldg-container">
+        <span className="ldg-section-tag">TRUST</span>
+        <h2 className="ldg-section-title">기록과 후기</h2>
+        <p className="ldg-section-lead">
+          숫자와 실제 사용자 말씀으로 보여드립니다.
+        </p>
+
+        <div className="ldg-trust-stats">
+          <div>
+            <strong>5,000+</strong>
+            <span>누적 작업</span>
+          </div>
+          <div>
+            <strong>30명</strong>
+            <span>전문 기사</span>
+          </div>
+          <div>
+            <strong>365일</strong>
+            <span>연중무휴</span>
+          </div>
+        </div>
+
+        <div className="ldg-trust-reviews">
+          {reviews.map((r, i) => (
+            <div className="ldg-review" key={i}>
+              <p className="ldg-review-quote">“{r.quote}”</p>
+              <div className="ldg-review-meta">{r.meta}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// CtaForm — 행동 (셀프 접수 폼 / UI 만, 백엔드 미연결)
+// ============================================================
+const SERVICES = [
+  { key: "cleaning",    label: "분해세척" },
+  { key: "refrigerant", label: "냉매충전" },
+  { key: "repair",      label: "수리" },
+];
+
+function CtaForm({ onSubmit }) {
+  const [form, setForm] = useState({
+    service:  "cleaning",
+    name:     "",
+    phone:    "",
+    address:  "",
+    model:    "",
+    qty:      "1",
+    wishDate: "",
+    wishTime: "",
+    note:     "",
+    privacy:  false,
+  });
+
+  const canSubmit = useMemo(() => {
+    return form.name.trim() && form.phone.trim() && form.address.trim() && form.privacy;
+  }, [form]);
+
+  function set(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!canSubmit) return;
+    if (typeof onSubmit === "function") onSubmit(form);
+  }
+
+  return (
+    <section className="ldg-section ldg-cta" id="ldg-form">
+      <div className="ldg-container">
+        <span className="ldg-section-tag">ACTION</span>
+        <h2 className="ldg-section-title">접수하기</h2>
+        <p className="ldg-section-lead">
+          폼을 남기면 1866-2003 으로 안내 전화드립니다.
+          영업시간 외 접수는 다음 영업일 오전에 연락드립니다.
+        </p>
+
+        <form className="ldg-cta-form" onSubmit={handleSubmit}>
+          <div className="field">
+            <label>서비스 종류 <span className="req">*</span></label>
+            <div className="ldg-cta-service">
+              {SERVICES.map(s => (
+                <label
+                  key={s.key}
+                  className={form.service === s.key ? "active" : ""}
+                >
+                  <input
+                    type="radio" name="service" value={s.key}
+                    checked={form.service === s.key}
+                    onChange={() => set("service", s.key)}
+                  />
+                  {s.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="row cols2">
+            <div className="field">
+              <label htmlFor="ldg-name"><User size={11} style={{ marginRight: 4, verticalAlign: -1 }} />이름 <span className="req">*</span></label>
+              <input
+                id="ldg-name" type="text" placeholder="홍길동"
+                value={form.name} onChange={(e) => set("name", e.target.value)}
+                required
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="ldg-phone"><Phone size={11} style={{ marginRight: 4, verticalAlign: -1 }} />연락처 <span className="req">*</span></label>
+              <input
+                id="ldg-phone" type="tel" placeholder="010-1234-5678"
+                value={form.phone} onChange={(e) => set("phone", e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="ldg-addr"><MapPin size={11} style={{ marginRight: 4, verticalAlign: -1 }} />주소 <span className="req">*</span></label>
+            <input
+              id="ldg-addr" type="text" placeholder="서울시 강서구 OO로 OO"
+              value={form.address} onChange={(e) => set("address", e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="row cols2">
+            <div className="field">
+              <label htmlFor="ldg-model">기종 (선택)</label>
+              <input
+                id="ldg-model" type="text" placeholder="삼성 / LG / 벽걸이 등"
+                value={form.model} onChange={(e) => set("model", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="ldg-qty">수량</label>
+              <select id="ldg-qty" value={form.qty} onChange={(e) => set("qty", e.target.value)}>
+                {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n}대</option>)}
+                <option value="6+">6대 이상</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="row cols2">
+            <div className="field">
+              <label htmlFor="ldg-date"><Calendar size={11} style={{ marginRight: 4, verticalAlign: -1 }} />희망 날짜</label>
+              <input
+                id="ldg-date" type="date"
+                value={form.wishDate} onChange={(e) => set("wishDate", e.target.value)}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="ldg-time"><Clock size={11} style={{ marginRight: 4, verticalAlign: -1 }} />희망 시간대</label>
+              <select id="ldg-time" value={form.wishTime} onChange={(e) => set("wishTime", e.target.value)}>
+                <option value="">선택 안 함</option>
+                <option value="09-12">오전 (09~12시)</option>
+                <option value="12-15">점심 (12~15시)</option>
+                <option value="15-18">오후 (15~18시)</option>
+                <option value="18-21">저녁 (18~21시)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="ldg-note"><MessageSquare size={11} style={{ marginRight: 4, verticalAlign: -1 }} />요청사항 (선택)</label>
+            <textarea
+              id="ldg-note" rows={3}
+              placeholder="문의 / 증상 / 추가 안내 사항을 자유롭게 적어주세요."
+              value={form.note} onChange={(e) => set("note", e.target.value)}
+            />
+          </div>
+
+          <label className="ldg-cta-privacy">
+            <input
+              type="checkbox"
+              checked={form.privacy}
+              onChange={(e) => set("privacy", e.target.checked)}
+            />
+            <span>
+              개인정보 수집·이용에 동의합니다. (이름 / 연락처 / 주소 — 출장 안내 목적, 관련 법령에 따라 보관 후 파기) <a href="#privacy" onClick={(e) => e.preventDefault()}>전문 보기</a>
+            </span>
+          </label>
+
+          <button className="ldg-cta-submit" type="submit" disabled={!canSubmit}>
+            <CheckCircle2 size={18} style={{ marginRight: 6, verticalAlign: -3 }} />
+            접수 신청
+          </button>
+        </form>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Footer — 사업자 정보 (핸드오프 §8)
+// ============================================================
+function Footer() {
+  return (
+    <footer className="ldg-footer">
+      <div className="ldg-container">
+        <h5>에어컨청소 에어컨가스충전 올데이케어</h5>
+        <dl>
+          <dt>대표자</dt><dd>조동욱, 구현서</dd>
+          <dt>사업자번호</dt><dd>430-07-03167</dd>
+          <dt>주소</dt><dd>경기도 고양시 덕양구 상막3길 5, 1동 805호</dd>
+          <dt>대표전화</dt><dd>{PHONE_DISPLAY}</dd>
+          <dt>서비스 지역</dt><dd>서울·경기 전 지역 당일 출장</dd>
+        </dl>
+        <div className="divider" />
+        <div className="small">© 2026 올데이케어. All rights reserved.</div>
+      </div>
+    </footer>
+  );
+}
+
+// ============================================================
+// Sticky Bar — 하단 고정 (전화 + 접수)
+// ============================================================
+function StickyBar({ onCta }) {
+  return (
+    <nav className="ldg-sticky" aria-label="빠른 행동">
+      <a className="ldg-btn ldg-btn-outline" href={PHONE_TEL}>
+        <Phone size={16} /> 전화 {PHONE_DISPLAY}
+      </a>
+      <button className="ldg-btn ldg-btn-primary" onClick={onCta}>
+        접수하기 <ChevronRight size={16} />
+      </button>
+    </nav>
+  );
+}
