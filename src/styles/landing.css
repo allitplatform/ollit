@@ -292,6 +292,8 @@
   background: #F4F8FC; border: 1px solid #E6EEF6;
   font-size: 12px; font-weight: 700; color: #7B8CA0;
   transition: all 0.35s ease;
+  white-space: nowrap;
+  min-width: 0;
 }
 .ldg-dial-step.active {
   background: #E0EBFF; border-color: #9CC3EC; color: #1C2B3A;
@@ -595,8 +597,12 @@
 
 .ldg-steps-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(4, 1fr);  /* 시안 4열 고정 — 3+1 줄바꿈 차단 */
   gap: 16px;
+}
+.ldg-steps-grid > .ldg-step-card p {
+  word-break: keep-all;        /* 한국어 단어 단위 줄바꿈 */
+  overflow-wrap: break-word;
 }
 .ldg-step-card {
   background: #F7FBFF; border: 1px solid #E6EEF6;
@@ -817,6 +823,46 @@ select.ldg-form-input { cursor: pointer; }
 @media (max-width: 600px) {
   .ldg-sticky { padding: 10px 14px 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
   .ldg-sticky a { padding: 14px 16px; font-size: 15px; }
+}
+
+/* ============================================================
+   모바일 반응형 (≤720px) — PC 무변경, 모바일만 정정
+   ============================================================ */
+@media (max-width: 720px) {
+  /* 1. 헤더 로고 슬로건 가독성 — 더 키움 (시안 42 → 모바일 60) */
+  .ldg-header-logo { height: 60px; max-width: 260px; }
+  .ldg-header { padding: 10px 16px; }
+  .ldg-header-cta { padding: 9px 14px; font-size: 13px; }
+
+  /* 2. 다이얼 하단 3-step 박스 — 글자 세로 쪼개짐 차단 */
+  .ldg-dial-steps { gap: 6px; }
+  .ldg-dial-step { padding: 8px 9px; font-size: 11px; }
+  .ldg-dial-step-num { width: 16px; height: 16px; font-size: 10px; }
+
+  /* 다이얼 wrap — 좁은 화면 2 column 줄바꿈 차단 */
+  .ldg-dial-body2 { grid-template-columns: 1fr; gap: 16px; }
+  .ldg-dial-col { width: 100%; }
+
+  /* 3. 4단계 절차 — 모바일 2×2 고정 (사장님 spec) */
+  .ldg-steps-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .ldg-step-card { padding: 22px 16px 20px; }
+  .ldg-step-card h4 { font-size: 16px; }
+  .ldg-step-card p {
+    font-size: 14px;
+    line-height: 1.55;
+    word-break: keep-all;        /* 한국어 단어 단위 줄바꿈 */
+    overflow-wrap: break-word;
+  }
+
+  /* 보너스 — 모바일에서 hero/section padding 살짝 줄임 */
+  .ldg-hero { padding: 48px 18px 0; }
+  .ldg-section { padding: 64px 18px 72px; }
+  .ldg-trust { padding: 24px 18px 90px; }
+  .ldg-form-section { padding: 72px 18px 64px; }
+  .ldg-solution { padding: 72px 18px 0; }
 }
 
 /* prefers-reduced-motion */
