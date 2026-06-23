@@ -226,7 +226,12 @@ function DiagnosisDial() {
               <span className="ldg-dial-gauge-lbl">°C 냉방</span>
             </div>
           </div>
-          <span className="ldg-dial-cap">틀어도 바람만 · 안 시원해요</span>
+          <span className="ldg-dial-cap">
+            {step === 1 && "틀어도 바람만 · 안 시원해요"}
+            {step === 2 && "진단 중 — 전문 게이지로 측정"}
+            {step === 3 && temp > 21 && "정품 냉매 충전 중…"}
+            {step === 3 && temp <= 21 && "✓ 21°C — 시원하게 회복"}
+          </span>
         </div>
 
         <div className="ldg-proof">
@@ -462,13 +467,7 @@ function Solution() {
 // ============================================================
 // 5. PRICE
 // ============================================================
-const WASH_ROWS = [
-  { name: "벽걸이",                                              orig: 90000,  sale: 60000  },
-  { name: "천장형", aux: " (1WAY)",                              orig: 120000, sale: 90000  },
-  { name: "스탠드",                                              orig: 160000, sale: 110000 },
-  { name: "2 IN 1", aux: " (벽걸이+스탠드)",                     orig: 195000, sale: 160000 },
-  { name: "천장형", aux: " (4WAY)",                              orig: 170000, sale: 140000 },
-];
+// 분해세척 표 제거 (사장님 spec — 견적 상이로 가격 미표시).
 const CHARGE_ROWS = [
   { name: "벽걸이",                          sale: 70000   },
   { name: "스탠드",                          sale: 80000   },
@@ -496,21 +495,16 @@ function Price({ onCtaForm }) {
         </p>
 
         <div className="ldg-price-grid">
-          {/* 분해세척 */}
+          {/* 분해세척 — 가격 표 X, 작업 범위만 + 견적 안내 (사장님 spec) */}
           <div className="ldg-price-card">
-            <h3>에어컨 분해세척</h3>
-            <div className="ldg-price-thead-3">
-              <span />
-              <span className="hd">정상가</span>
-              <span className="hd sale">할인 시작가</span>
-            </div>
-            {WASH_ROWS.map((r, i) => (
-              <div key={i} className="ldg-price-row-3">
-                <span className="name">{r.name}{r.aux && <span className="aux">{r.aux}</span>}</span>
-                <span className="orig">{won(r.orig)}</span>
-                <span className="sale">{won(r.sale, true)}</span>
-              </div>
-            ))}
+            <h3>분해세척</h3>
+            <p className="ldg-wash-scope">필터·송풍팬·열교환기까지 전면 분해세척.</p>
+            <ul className="ldg-wash-list">
+              <li>전면 분해 후 안쪽까지 세척</li>
+              <li>곰팡이·세균까지 제거</li>
+              <li>벽걸이·스탠드·시스템에어컨</li>
+            </ul>
+            <div className="ldg-wash-note">기종·오염도에 따라 견적 상이 — 방문 진단 후 안내드립니다.</div>
             <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); onCtaForm(); }}>지금 분해세척 접수하기 →</a>
           </div>
 
