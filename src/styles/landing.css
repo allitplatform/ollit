@@ -289,16 +289,20 @@
 .ldg-dial-step {
   flex: 1 1 auto;
   display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 9px 12px; border-radius: 10px;
-  background: #F4F8FC; border: 1px solid #E6EEF6;
-  font-size: 12px; font-weight: 700; color: #7B8CA0;
+  padding: 10px 12px; border-radius: 10px;
+  background: #EAF2FB;                   /* 연한 파란 배경 — 비활성도 또렷 */
+  border: 1.5px solid #C7D8EE;           /* 테두리 또렷 */
+  font-size: 12px; font-weight: 700; color: #5A7FA0;
   transition: all 0.35s ease;
   white-space: nowrap;
-  min-width: max-content;       /* 글자 폭 보장 — '측정·충전' 잘림 차단 */
+  min-width: max-content;                /* 글자 폭 보장 */
   flex-shrink: 0;
 }
 .ldg-dial-step.active {
-  background: #E0EBFF; border-color: #9CC3EC; color: #1C2B3A;
+  background: #E0EBFF;                   /* 활성 — 더 진한 파란 */
+  border: 1.5px solid #5B9BD5;
+  color: #1C2B3A;
+  box-shadow: 0 2px 8px rgba(91,155,213,0.15);
 }
 .ldg-dial-step-num {
   width: 18px; height: 18px; border-radius: 50%;
