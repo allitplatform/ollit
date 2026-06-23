@@ -61,8 +61,27 @@
 .ldg-hero-line {
   display: block;
 }
+.ldg-hero-meta {
+  display: flex; flex-wrap: wrap; gap: 12px 18px;
+  font-size: 13px; color: var(--ldg-blue-darker); font-weight: 700;
+  margin-bottom: 18px;
+}
+.ldg-hero-meta span {
+  display: inline-flex; align-items: center; gap: 5px;
+}
 .ldg-hero-gauge-wrap {
   width: 100%;
+}
+.ldg-hero-image {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  border-radius: var(--ldg-radius-lg);
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--ldg-blue-mist) 0%, #FFFFFF 100%);
+  box-shadow: 0 16px 40px rgba(2, 132, 199, 0.2);
+}
+.ldg-hero-image img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
 }
 .ldg-gauge-card {
   background: #FFFFFF;
@@ -245,8 +264,17 @@
   display: flex; align-items: center; justify-content: center;
   color: var(--ldg-blue-dark);
 }
+.ldg-why-card-tag {
+  display: inline-block;
+  font-size: 10px; font-weight: 800;
+  color: var(--ldg-blue-dark);
+  background: var(--ldg-blue-soft);
+  padding: 2px 8px; border-radius: 999px;
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+}
 .ldg-why-card h4 {
-  margin: 0 0 4px; font-size: 15px; font-weight: 800;
+  margin: 0 0 6px; font-size: 15px; font-weight: 800;
   color: var(--ldg-ink);
 }
 .ldg-why-card p {
@@ -366,37 +394,47 @@
   background: linear-gradient(135deg, #FFFFFF 0%, var(--ldg-blue-mist) 100%);
   border: 1px solid var(--ldg-line);
   border-radius: var(--ldg-radius);
-  padding: 18px 18px 16px;
-  display: grid;
-  grid-template-areas:
-    "num icon"
-    "title title"
-    "body body";
-  grid-template-columns: auto 1fr;
-  column-gap: 12px;
-  row-gap: 8px;
-  align-items: center;
+  padding: 16px 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ldg-process-head {
+  display: flex; align-items: center; gap: 10px;
 }
 .ldg-process-num {
-  grid-area: num;
   width: 30px; height: 30px;
   background: var(--ldg-blue);
   color: #FFFFFF; font-weight: 900; font-size: 14px;
   border-radius: 8px;
   display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
 }
 .ldg-process-icon {
-  grid-area: icon;
   color: var(--ldg-blue-dark);
-  justify-self: start;
+}
+.ldg-process-photo {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ldg-line-soft);
+}
+.ldg-process-photo img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+}
+.ldg-process-photo-empty {
+  width: 100%; aspect-ratio: 4 / 3;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #D1FAE5 0%, #A7F3D0 100%);
+  display: flex; align-items: center; justify-content: center;
+  color: #047857;
 }
 .ldg-process-step h4 {
-  grid-area: title;
   margin: 0; font-size: 16px; font-weight: 800;
   color: var(--ldg-ink);
 }
 .ldg-process-step p {
-  grid-area: body;
   margin: 0; font-size: 13px; color: var(--ldg-muted); line-height: 1.6;
 }
 
@@ -425,6 +463,25 @@
 }
 .ldg-whyus-card p {
   margin: 0; font-size: 13px; color: var(--ldg-muted); line-height: 1.6;
+}
+.ldg-whyus-photo {
+  margin-top: 22px;
+  position: relative;
+  border-radius: var(--ldg-radius-lg);
+  overflow: hidden;
+  box-shadow: 0 12px 32px rgba(2, 132, 199, 0.12);
+}
+.ldg-whyus-photo img {
+  width: 100%; display: block;
+  max-height: 360px; object-fit: cover;
+}
+.ldg-whyus-photo-cap {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, transparent 0%, rgba(15,23,42,0.85) 100%);
+  color: #FFFFFF;
+  font-size: 12px; font-weight: 600; line-height: 1.5;
 }
 .ldg-solution-mini {
   margin-top: 14px;
@@ -666,7 +723,8 @@
   .ldg-hero-headline { font-size: 42px; }
   .ldg-section { padding: 64px 0; }
   .ldg-section-title { font-size: 28px; }
-  .ldg-hero-grid { grid-template-columns: 1.15fr 1fr; gap: 36px; }
+  .ldg-hero-grid { grid-template-columns: 1.1fr 0.9fr; gap: 36px; }
+  .ldg-hero-image { aspect-ratio: 3 / 4; }
   .ldg-why-list { grid-template-columns: 1fr 1fr 1fr; }
   .ldg-solution-list { grid-template-columns: 1fr 1fr; }
   .ldg-process-list { grid-template-columns: repeat(4, 1fr); }

@@ -1,14 +1,14 @@
-// 올데이케어 마케팅 랜딩 + 셀프 접수 폼 (2026-06-23).
-//   v2 정정: 히어로 3줄 + 게이지 SVG (진단→해소) / Solution 사진 / 작업 4단계 신규 /
-//            왜 올데이케어 신뢰 섹션 신규 / 폼 placeholder 정정 / 대기업명 X.
+// 올데이케어 마케팅 랜딩 + 셀프 접수 폼 (2026-06-23, v3).
+//   · v3: 실 현장 사진 매핑 + 콘텐츠 확장 (공유.html 스토리텔링).
 //   · 1차: UI + 폼 디자인. 백엔드 (inquiries / RPC / 해피콜 인박스) 미연결 — Phase 2.
 //   · 도메인: alldaycare.kr(예정) 또는 ?page=landing 시 App.jsx 가 본 컴포넌트 렌더.
+//   · 사진: public/landing/photos/ — hero / field-refri / disassemble / gauge-close 등.
 
 import { useMemo, useState } from "react";
 import {
-  Phone, ChevronRight, ArrowRight, Wind, Thermometer, Filter, Wrench,
+  Phone, ChevronRight, ArrowRight, Thermometer, Filter, Wrench,
   ShieldCheck, Calendar, MessageSquare, Sparkles, CheckCircle2,
-  Clock, MapPin, User, Award, PackageCheck, Settings,
+  Clock, MapPin, User, Award, PackageCheck,
   Scissors, Droplets, Sprout, ClipboardCheck
 } from "lucide-react";
 import "../styles/landing.css";
@@ -53,7 +53,7 @@ export default function LandingApp() {
 }
 
 // ============================================================
-// Hero — 좌 헤드라인 3줄 / 우 게이지 SVG (진단→해소)
+// Hero — 좌 헤드라인 3줄 + 게이지 진단 / 우 시원한 바람 사진
 // ============================================================
 function Hero({ onCta }) {
   let charIdx = 0;
@@ -82,9 +82,14 @@ function Hero({ onCta }) {
           </h1>
 
           <p className="ldg-hero-sub">
-            게이지로 직접 확인 → 부족한 만큼 정량 충전 / 분해세척까지.
-            <br />서울·경기 전 지역 당일 출장 — 365일 연중무휴.
+            냉매가 줄어 시원하지 않은 건지, 필터 안쪽이 막힌 건지 — 추측하지 않습니다.
+            <br/>현장에서 <strong>게이지로 직접 확인</strong>해 원인을 짚어내고, 부족한 만큼만 정량 충전 / 분해세척까지 한 번에.
           </p>
+
+          <div className="ldg-hero-meta">
+            <span><MapPin size={13}/> 서울·경기 전 지역 당일 출장</span>
+            <span><Clock size={13}/> 365일 연중무휴</span>
+          </div>
 
           <div className="ldg-hero-cta">
             <button className="ldg-btn ldg-btn-primary" onClick={onCta}>
@@ -94,10 +99,12 @@ function Hero({ onCta }) {
               <Phone size={16} /> {PHONE_DISPLAY}
             </a>
           </div>
+
+          <DiagnosisGauge />
         </div>
 
-        <div className="ldg-hero-gauge-wrap" role="img" aria-label="냉매 진단 게이지 — 부족에서 정상 회복">
-          <DiagnosisGauge />
+        <div className="ldg-hero-image">
+          <img src="/landing/photos/hero.png" alt="시원한 바람이 나오는 에어컨" />
         </div>
       </div>
     </section>
@@ -148,24 +155,27 @@ function DiagnosisGauge() {
 }
 
 // ============================================================
-// Why — 원인
+// Why — 원인 (3가지) — 풍부한 설명
 // ============================================================
 function Why() {
   const items = [
     {
       icon: <Thermometer size={22} />,
-      title: "냉매가 부족",
-      body: "오래 쓴 에어컨은 냉매가 자연 감소합니다. 가스가 적으면 아무리 틀어도 시원해지지 않습니다.",
+      title: "냉매가 부족해서",
+      body: "에어컨은 닫힌 시스템이지만, 미세한 누설로 냉매가 조금씩 빠집니다. 가스가 부족하면 송풍은 되지만 차가워지지 않습니다.",
+      tag:  "가장 흔한 원인",
     },
     {
       icon: <Filter size={22} />,
-      title: "필터·송풍팬이 오염",
-      body: "먼지와 곰팡이가 쌓이면 바람 양이 줄고 냄새가 납니다. 같은 전기로 효율이 30% 떨어지기도 합니다.",
+      title: "필터·송풍팬이 막혀서",
+      body: "필터 / 송풍팬 / 열교환기 안쪽에 먼지와 곰팡이가 쌓이면 바람 양이 줄고 곰팡이 냄새가 납니다. 같은 전기로 효율이 30%까지 떨어집니다.",
+      tag:  "냄새·바람 양 문제",
     },
     {
       icon: <Wrench size={22} />,
-      title: "부품이 고장",
-      body: "콘덴서·실외기 팬 등 핵심 부품이 노후되면 일정 시간 후 멈춥니다. 조기 점검이 비용을 줄입니다.",
+      title: "부품이 고장 났을 때",
+      body: "콘덴서·실외기 팬 등 핵심 부품이 노후되면 작동이 일정 시간 후 멈춥니다. 조기 점검이 큰 비용을 줄입니다.",
+      tag:  "수리 영역",
     },
   ];
 
@@ -184,6 +194,7 @@ function Why() {
             <div className="ldg-why-card" key={i}>
               <div className="ldg-why-card-icon">{it.icon}</div>
               <div>
+                <span className="ldg-why-card-tag">{it.tag}</span>
                 <h4>{it.title}</h4>
                 <p>{it.body}</p>
               </div>
@@ -196,7 +207,7 @@ function Why() {
 }
 
 // ============================================================
-// Solution — 냉매충전 + 분해세척 (실제 사진 + 수리 한 줄 절제)
+// Solution — 냉매충전 + 분해세척 (실제 현장 사진)
 // ============================================================
 function Solution() {
   return (
@@ -212,35 +223,42 @@ function Solution() {
         <div className="ldg-solution-list">
           <article className="ldg-solution-card main">
             <div className="ldg-solution-photo">
-              <div className="ldg-solution-photo-frame ldg-solution-photo-refrig">
-                <div className="ldg-solution-photo-tag">현장 게이지 점검</div>
-              </div>
+              <img src="/landing/photos/field-refri.jpg" alt="실외기 게이지 점검 + 정량 충전 현장" />
+              <div className="ldg-solution-photo-tag">현장 게이지 + 정량 충전</div>
             </div>
             <div className="ldg-solution-body">
               <span className="badge">CORE</span>
               <h4>냉매충전</h4>
-              <p>현장에서 게이지로 잔량을 확인하고, 부족한 만큼 정량 충전합니다. 누설이 있으면 위치 찾기까지 같이 진행합니다.</p>
+              <p>
+                실외기에 게이지 매니폴드를 연결해 잔량을 직접 확인합니다.
+                부족한 만큼만 정량 충전하고, 누설이 의심되면 위치 찾기와 보수까지 같이 진행합니다.
+              </p>
               <ul className="points">
                 <li>잔량 확인</li>
                 <li>정량 충전</li>
                 <li>누설 점검</li>
+                <li>R-22 / R-410A</li>
               </ul>
             </div>
           </article>
 
           <article className="ldg-solution-card main">
             <div className="ldg-solution-photo">
-              <img src="/landing/photos/before-1.jpg" alt="분해세척 전" />
-              <div className="ldg-solution-photo-tag">실제 작업 사진</div>
+              <img src="/landing/photos/disassemble-2.jpg" alt="천장형 에어컨 분해 작업" />
+              <div className="ldg-solution-photo-tag">전면 분해 + 안쪽까지 세척</div>
             </div>
             <div className="ldg-solution-body">
               <span className="badge">CORE</span>
               <h4>분해세척</h4>
-              <p>전면 분해 후 필터·송풍팬·열교환기까지 안쪽 먼지와 곰팡이를 씻어냅니다. 바람 양과 냄새가 즉시 바뀝니다.</p>
+              <p>
+                전면 커버 / 필터 / 송풍팬 / 열교환기까지 분해해 안쪽에 쌓인 먼지와 곰팡이를
+                씻어냅니다. 분해 X 표면 닦기와는 효과가 완전히 다릅니다.
+              </p>
               <ul className="points">
                 <li>전면 분해</li>
                 <li>송풍팬 세척</li>
                 <li>친환경 약품</li>
+                <li>벽걸이 / 스탠드 / 천장형</li>
               </ul>
             </div>
           </article>
@@ -248,7 +266,7 @@ function Solution() {
 
         <div className="ldg-solution-mini">
           <Wrench size={16} />
-          <span>부품 고장 의심 시 — 점검 후 수리 견적까지 함께 안내드립니다.</span>
+          <span>부품 고장이 의심되면 — 점검 후 수리 견적까지 함께 안내드립니다.</span>
         </div>
       </div>
     </section>
@@ -256,14 +274,38 @@ function Solution() {
 }
 
 // ============================================================
-// Process — 작업 4단계 (분해세척)
+// Process — 분해세척 4단계 (사진 포함)
 // ============================================================
 function Process() {
   const steps = [
-    { icon: <Scissors size={20}/>,        title: "분해",     body: "전면 커버 / 필터 / 송풍팬까지 안전하게 분해합니다." },
-    { icon: <Droplets size={20}/>,        title: "고압세척", body: "안쪽 열교환기 / 송풍팬에 쌓인 먼지·곰팡이를 고압수로 씻어냅니다." },
-    { icon: <Sprout size={20}/>,          title: "항균",     body: "세척 후 친환경 항균 코팅으로 곰팡이 재발생을 줄입니다." },
-    { icon: <ClipboardCheck size={20}/>,  title: "점검",     body: "조립 후 바람 양·소음·온도까지 정상 작동을 확인합니다." },
+    {
+      icon: <Scissors size={20}/>,
+      title: "분해",
+      body: "전면 커버 / 필터 / 송풍팬 / 열교환기를 안전하게 분해합니다. 표면 세척과 달리 안쪽까지 손이 닿는 유일한 방법입니다.",
+      photo: "/landing/photos/disassemble-1.jpg",
+      alt: "에어컨 전면 분해 작업",
+    },
+    {
+      icon: <Droplets size={20}/>,
+      title: "고압세척",
+      body: "안쪽 열교환기와 송풍팬에 쌓인 먼지·곰팡이를 고압수로 씻어냅니다. 검은 물이 그대로 나옵니다.",
+      photo: "/landing/photos/before-1.jpg",
+      alt: "고압세척 직전 오염된 열교환기",
+    },
+    {
+      icon: <Sprout size={20}/>,
+      title: "항균",
+      body: "세척 후 친환경 항균 약품을 코팅합니다. 곰팡이 재발 시기를 늦춥니다.",
+      photo: null,
+      alt: "",
+    },
+    {
+      icon: <ClipboardCheck size={20}/>,
+      title: "점검",
+      body: "조립 후 바람 양 / 소음 / 토출 온도 / 누수 여부까지 정상 작동을 확인합니다.",
+      photo: "/landing/photos/gauge-close.jpg",
+      alt: "게이지로 마무리 점검",
+    },
   ];
 
   return (
@@ -273,13 +315,25 @@ function Process() {
         <h2 className="ldg-section-title">분해세척, 이렇게 합니다</h2>
         <p className="ldg-section-lead">
           현장에서 모든 과정을 직접 보여드립니다.
+          작업 중 사진은 원하시면 작업 후에 보내드립니다.
         </p>
 
         <ol className="ldg-process-list">
           {steps.map((s, i) => (
             <li key={i} className="ldg-process-step">
-              <div className="ldg-process-num">{i + 1}</div>
-              <div className="ldg-process-icon">{s.icon}</div>
+              <div className="ldg-process-head">
+                <div className="ldg-process-num">{i + 1}</div>
+                <div className="ldg-process-icon">{s.icon}</div>
+              </div>
+              {s.photo ? (
+                <div className="ldg-process-photo">
+                  <img src={s.photo} alt={s.alt} />
+                </div>
+              ) : (
+                <div className="ldg-process-photo-empty">
+                  <Sprout size={36} strokeWidth={1.5} />
+                </div>
+              )}
               <h4>{s.title}</h4>
               <p>{s.body}</p>
             </li>
@@ -291,24 +345,24 @@ function Process() {
 }
 
 // ============================================================
-// WhyUs — 왜 올데이케어 (경력검증 / 정품자재 / 작업보증)
+// WhyUs — 왜 올데이케어 (3카드, 사진 1장 추가)
 // ============================================================
 function WhyUs() {
   const items = [
     {
       icon: <Award size={24}/>,
       title: "경력 검증된 기사",
-      body: "현장 경험 보유 기사가 직접 출장합니다. 누가 와도 같은 품질을 유지합니다.",
+      body: "현장 경험을 가진 검증된 기사가 직접 출장합니다. 누가 와도 같은 품질을 유지하기 위해 작업 단계를 표준화했습니다.",
     },
     {
       icon: <PackageCheck size={24}/>,
       title: "정품 자재 / 정량 충전",
-      body: "냉매·세척 약품은 정품만 사용합니다. 게이지로 정량을 직접 확인합니다.",
+      body: "냉매(R-22 / R-410A)와 세척 약품은 정품만 사용합니다. 게이지로 정량을 직접 확인해 \"넉넉히\" 가 아닌 \"정확히\" 충전합니다.",
     },
     {
       icon: <ShieldCheck size={24}/>,
       title: "작업 보증",
-      body: "작업 후 일정 기간 내 동일 증상 재발 시 무상 재점검으로 책임집니다.",
+      body: "작업 후 일정 기간 내 동일 증상이 재발하면 무상 재점검으로 책임집니다. 보증 내용은 작업 전 안내드립니다.",
     },
   ];
 
@@ -318,7 +372,7 @@ function WhyUs() {
         <span className="ldg-section-tag">WHY US</span>
         <h2 className="ldg-section-title">왜 올데이케어인가</h2>
         <p className="ldg-section-lead">
-          세 가지로 정리됩니다. 경력 / 정품 / 보증.
+          경력 / 정품 / 보증 — 세 가지로 정리됩니다.
         </p>
 
         <div className="ldg-whyus-list">
@@ -329,6 +383,13 @@ function WhyUs() {
               <p>{it.body}</p>
             </div>
           ))}
+        </div>
+
+        <div className="ldg-whyus-photo">
+          <img src="/landing/photos/field-leak-check.jpg" alt="현장 누설 검사 + 진공 펌프 + 게이지" />
+          <div className="ldg-whyus-photo-cap">
+            현장에서 게이지·진공 펌프·누설 검사기를 모두 가지고 갑니다. 상황에 맞게 사용합니다.
+          </div>
         </div>
       </div>
     </section>
@@ -347,7 +408,8 @@ function Evidence() {
         <span className="ldg-section-tag">EVIDENCE</span>
         <h2 className="ldg-section-title">말 대신 보여드립니다</h2>
         <p className="ldg-section-lead">
-          실제 현장 분해세척 전후 비교입니다. 핸들을 좌우로 옮겨보세요.
+          실제 분해세척 전후 비교입니다. 핸들을 좌우로 옮겨보세요.
+          오염은 외관이 아닌 안쪽 열교환기에 쌓입니다.
         </p>
 
         <div className="ldg-evidence-slider" style={{ "--ldg-slider-pos": `${pos}%` }}>
