@@ -1,22 +1,26 @@
 // 올데이케어 마케팅 랜딩 + 셀프 접수 폼 (2026-06-23).
-//   · 1차 진행: UI / 디자인 / 폼 디자인까지. 백엔드 (inquiries / RPC / 해피콜 인박스) 미연결 — Phase 2.
-//   · 스토리: 공감 → 원인 → 해결 → 증거 → 안심 → 행동. 핸드오프 문서 §2 그대로.
-//   · 도메인: alldaycare.kr(예정) 또는 ?page=landing 경로 시 App.jsx 가 본 컴포넌트 렌더.
-//   · 사진: hero_selected/YS-N-260601-030 → public/landing/photos/before-1.jpg / after-1.jpg.
-//     히어로 사진은 무료 상업용 (Coco 추후 교체) — 현재 placeholder.
+//   v2 정정: 히어로 3줄 + 게이지 SVG (진단→해소) / Solution 사진 / 작업 4단계 신규 /
+//            왜 올데이케어 신뢰 섹션 신규 / 폼 placeholder 정정 / 대기업명 X.
+//   · 1차: UI + 폼 디자인. 백엔드 (inquiries / RPC / 해피콜 인박스) 미연결 — Phase 2.
+//   · 도메인: alldaycare.kr(예정) 또는 ?page=landing 시 App.jsx 가 본 컴포넌트 렌더.
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Phone, ChevronRight, ArrowRight, Wind, Thermometer, Filter, Wrench,
-  ShieldCheck, Calendar, MessageSquare, Sparkles, AlertCircle, CheckCircle2,
-  Clock, MapPin, User
+  ShieldCheck, Calendar, MessageSquare, Sparkles, CheckCircle2,
+  Clock, MapPin, User, Award, PackageCheck, Settings,
+  Scissors, Droplets, Sprout, ClipboardCheck
 } from "lucide-react";
 import "../styles/landing.css";
 
 const PHONE_DISPLAY = "1866-2003";
 const PHONE_TEL     = "tel:18662003";
 
-const HEADLINE = "또 여름인데, 작년처럼 안 시원하면?";
+const HEADLINE_LINES = [
+  "또 여름인데,",
+  "작년처럼 안 시원하면?",
+  "원인부터 정확히.",
+];
 
 export default function LandingApp() {
   const [toast, setToast] = useState("");
@@ -36,6 +40,8 @@ export default function LandingApp() {
       <Hero onCta={scrollToForm} />
       <Why />
       <Solution />
+      <Process />
+      <WhyUs />
       <Evidence />
       <Trust />
       <CtaForm onSubmit={() => showToast("접수 디자인 검증 단계 — 백엔드 미연결")} />
@@ -47,56 +53,97 @@ export default function LandingApp() {
 }
 
 // ============================================================
-// Hero — 공감 (헤드라인 + 히어로 사진 + 온도계 모션 + CTA)
+// Hero — 좌 헤드라인 3줄 / 우 게이지 SVG (진단→해소)
 // ============================================================
 function Hero({ onCta }) {
+  let charIdx = 0;
   return (
     <section className="ldg-hero">
-      <div className="ldg-container">
-        <div className="ldg-hero-brand">
-          <Sparkles size={14} />
-          올데이케어 · 에어컨 종합 케어
+      <div className="ldg-container ldg-hero-grid">
+        <div>
+          <div className="ldg-hero-brand">
+            <Sparkles size={14} />
+            올데이케어 · 에어컨 종합 케어
+          </div>
+
+          <h1 className="ldg-hero-headline">
+            {HEADLINE_LINES.map((line, li) => (
+              <span className="ldg-hero-line" key={li}>
+                {line.split("").map((ch, ci) => {
+                  const delay = (charIdx++) * 0.04;
+                  return (
+                    <span key={ci} className="ldg-w" style={{ animationDelay: `${delay}s` }}>
+                      {ch === " " ? " " : ch}
+                    </span>
+                  );
+                })}
+              </span>
+            ))}
+          </h1>
+
+          <p className="ldg-hero-sub">
+            게이지로 직접 확인 → 부족한 만큼 정량 충전 / 분해세척까지.
+            <br />서울·경기 전 지역 당일 출장 — 365일 연중무휴.
+          </p>
+
+          <div className="ldg-hero-cta">
+            <button className="ldg-btn ldg-btn-primary" onClick={onCta}>
+              지금 접수하기 <ArrowRight size={16} />
+            </button>
+            <a className="ldg-btn ldg-btn-outline" href={PHONE_TEL}>
+              <Phone size={16} /> {PHONE_DISPLAY}
+            </a>
+          </div>
         </div>
 
-        <h1 className="ldg-hero-headline">
-          {HEADLINE.split("").map((ch, i) => (
-            <span
-              key={i}
-              className="ldg-w"
-              style={{ animationDelay: `${i * 0.05}s` }}
-            >
-              {ch === " " ? " " : ch}
-            </span>
-          ))}
-        </h1>
-
-        <p className="ldg-hero-sub">
-          지금 점검 받으면 늦지 않습니다.<br />
-          서울·경기 전 지역 당일 출장 — 365일 연중무휴.
-        </p>
-
-        <div className="ldg-hero-photo" role="img" aria-label="에어컨 바람 히어로 이미지">
-          <div className="ldg-hero-photo-placeholder">
-            <Wind size={56} strokeWidth={1.5} />
-            <strong style={{ fontSize: 18 }}>시원한 바람, 다시.</strong>
-            <small>히어로 사진 교체 예정 (무료 상업용)</small>
-          </div>
-          <div className="ldg-hero-thermo" aria-hidden="true">
-            <span className="ldg-hero-thermo-bar" />
-            32°C
-          </div>
-        </div>
-
-        <div className="ldg-hero-cta">
-          <button className="ldg-btn ldg-btn-primary" onClick={onCta}>
-            지금 접수하기 <ArrowRight size={16} />
-          </button>
-          <a className="ldg-btn ldg-btn-outline" href={PHONE_TEL}>
-            <Phone size={16} /> {PHONE_DISPLAY}
-          </a>
+        <div className="ldg-hero-gauge-wrap" role="img" aria-label="냉매 진단 게이지 — 부족에서 정상 회복">
+          <DiagnosisGauge />
         </div>
       </div>
     </section>
+  );
+}
+
+function DiagnosisGauge() {
+  return (
+    <div className="ldg-gauge-card">
+      <svg viewBox="0 0 220 150" className="ldg-gauge-svg" aria-hidden="true">
+        <defs>
+          <linearGradient id="ldgGaugeBg" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0"   stopColor="#FEE2E2"/>
+            <stop offset="0.5" stopColor="#FEF3C7"/>
+            <stop offset="1"   stopColor="#D1FAE5"/>
+          </linearGradient>
+        </defs>
+        <path d="M 20 125 A 90 90 0 0 1 200 125"
+              stroke="url(#ldgGaugeBg)" strokeWidth="22"
+              fill="none" strokeLinecap="round"/>
+        {[0, 0.25, 0.5, 0.75, 1].map((t, i) => {
+          const a = Math.PI * (1 - t);
+          const x1 = 110 + Math.cos(a) * 72;
+          const y1 = 125 - Math.sin(a) * 72;
+          const x2 = 110 + Math.cos(a) * 86;
+          const y2 = 125 - Math.sin(a) * 86;
+          return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2}
+                       stroke="#94A3B8" strokeWidth="2" strokeLinecap="round"/>;
+        })}
+        <text x="22"  y="143" fontSize="11" fontWeight="700" fill="#DC2626">부족</text>
+        <text x="198" y="143" fontSize="11" fontWeight="700" fill="#10B981" textAnchor="end">정상</text>
+        <g className="ldg-gauge-needle">
+          <line x1="110" y1="125" x2="110" y2="48" stroke="#0F172A" strokeWidth="3.5" strokeLinecap="round"/>
+          <circle cx="110" cy="125" r="7" fill="#0F172A"/>
+          <circle cx="110" cy="125" r="3" fill="#FFFFFF"/>
+        </g>
+      </svg>
+      <div className="ldg-gauge-overlay">
+        <div className="ldg-gauge-status">
+          <span className="bad">냉매 부족</span>
+          <ArrowRight size={14} aria-hidden="true" />
+          <span className="good">정상 회복</span>
+        </div>
+        <p>현장에서 게이지로 직접 확인 → 부족한 만큼 정량 충전</p>
+      </div>
+    </div>
   );
 }
 
@@ -143,21 +190,13 @@ function Why() {
             </div>
           ))}
         </div>
-
-        <div className="ldg-gauge">
-          <div className="ldg-gauge-arc" aria-hidden="true" />
-          <div className="ldg-gauge-text">
-            <strong>점검 후 정상 범위로 회복</strong>
-            <span>현장에서 게이지로 가스 잔량을 직접 확인합니다.</span>
-          </div>
-        </div>
       </div>
     </section>
   );
 }
 
 // ============================================================
-// Solution — 해결 (냉매충전 / 분해세척 / 수리)
+// Solution — 냉매충전 + 분해세척 (실제 사진 + 수리 한 줄 절제)
 // ============================================================
 function Solution() {
   return (
@@ -172,31 +211,124 @@ function Solution() {
 
         <div className="ldg-solution-list">
           <article className="ldg-solution-card main">
-            <span className="badge">CORE</span>
-            <h4>냉매충전</h4>
-            <p>현장에서 게이지로 잔량을 확인하고, 부족한 만큼 정량 충전합니다. 누설이 있으면 위치 찾기까지 같이 진행합니다.</p>
-            <ul className="points">
-              <li>잔량 확인</li>
-              <li>정량 충전</li>
-              <li>누설 점검</li>
-            </ul>
+            <div className="ldg-solution-photo">
+              <div className="ldg-solution-photo-frame ldg-solution-photo-refrig">
+                <div className="ldg-solution-photo-tag">현장 게이지 점검</div>
+              </div>
+            </div>
+            <div className="ldg-solution-body">
+              <span className="badge">CORE</span>
+              <h4>냉매충전</h4>
+              <p>현장에서 게이지로 잔량을 확인하고, 부족한 만큼 정량 충전합니다. 누설이 있으면 위치 찾기까지 같이 진행합니다.</p>
+              <ul className="points">
+                <li>잔량 확인</li>
+                <li>정량 충전</li>
+                <li>누설 점검</li>
+              </ul>
+            </div>
           </article>
 
           <article className="ldg-solution-card main">
-            <span className="badge">CORE</span>
-            <h4>분해세척</h4>
-            <p>전면 분해 후 필터·송풍팬·열교환기까지 안쪽 먼지와 곰팡이를 씻어냅니다. 바람 양과 냄새가 즉시 바뀝니다.</p>
-            <ul className="points">
-              <li>전면 분해</li>
-              <li>송풍팬 세척</li>
-              <li>친환경 약품</li>
-            </ul>
+            <div className="ldg-solution-photo">
+              <img src="/landing/photos/before-1.jpg" alt="분해세척 전" />
+              <div className="ldg-solution-photo-tag">실제 작업 사진</div>
+            </div>
+            <div className="ldg-solution-body">
+              <span className="badge">CORE</span>
+              <h4>분해세척</h4>
+              <p>전면 분해 후 필터·송풍팬·열교환기까지 안쪽 먼지와 곰팡이를 씻어냅니다. 바람 양과 냄새가 즉시 바뀝니다.</p>
+              <ul className="points">
+                <li>전면 분해</li>
+                <li>송풍팬 세척</li>
+                <li>친환경 약품</li>
+              </ul>
+            </div>
           </article>
         </div>
 
         <div className="ldg-solution-mini">
           <Wrench size={16} />
           <span>부품 고장 의심 시 — 점검 후 수리 견적까지 함께 안내드립니다.</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// Process — 작업 4단계 (분해세척)
+// ============================================================
+function Process() {
+  const steps = [
+    { icon: <Scissors size={20}/>,        title: "분해",     body: "전면 커버 / 필터 / 송풍팬까지 안전하게 분해합니다." },
+    { icon: <Droplets size={20}/>,        title: "고압세척", body: "안쪽 열교환기 / 송풍팬에 쌓인 먼지·곰팡이를 고압수로 씻어냅니다." },
+    { icon: <Sprout size={20}/>,          title: "항균",     body: "세척 후 친환경 항균 코팅으로 곰팡이 재발생을 줄입니다." },
+    { icon: <ClipboardCheck size={20}/>,  title: "점검",     body: "조립 후 바람 양·소음·온도까지 정상 작동을 확인합니다." },
+  ];
+
+  return (
+    <section className="ldg-section ldg-process">
+      <div className="ldg-container">
+        <span className="ldg-section-tag">PROCESS</span>
+        <h2 className="ldg-section-title">분해세척, 이렇게 합니다</h2>
+        <p className="ldg-section-lead">
+          현장에서 모든 과정을 직접 보여드립니다.
+        </p>
+
+        <ol className="ldg-process-list">
+          {steps.map((s, i) => (
+            <li key={i} className="ldg-process-step">
+              <div className="ldg-process-num">{i + 1}</div>
+              <div className="ldg-process-icon">{s.icon}</div>
+              <h4>{s.title}</h4>
+              <p>{s.body}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+  );
+}
+
+// ============================================================
+// WhyUs — 왜 올데이케어 (경력검증 / 정품자재 / 작업보증)
+// ============================================================
+function WhyUs() {
+  const items = [
+    {
+      icon: <Award size={24}/>,
+      title: "경력 검증된 기사",
+      body: "현장 경험 보유 기사가 직접 출장합니다. 누가 와도 같은 품질을 유지합니다.",
+    },
+    {
+      icon: <PackageCheck size={24}/>,
+      title: "정품 자재 / 정량 충전",
+      body: "냉매·세척 약품은 정품만 사용합니다. 게이지로 정량을 직접 확인합니다.",
+    },
+    {
+      icon: <ShieldCheck size={24}/>,
+      title: "작업 보증",
+      body: "작업 후 일정 기간 내 동일 증상 재발 시 무상 재점검으로 책임집니다.",
+    },
+  ];
+
+  return (
+    <section className="ldg-section ldg-whyus">
+      <div className="ldg-container">
+        <span className="ldg-section-tag">WHY US</span>
+        <h2 className="ldg-section-title">왜 올데이케어인가</h2>
+        <p className="ldg-section-lead">
+          세 가지로 정리됩니다. 경력 / 정품 / 보증.
+        </p>
+
+        <div className="ldg-whyus-list">
+          {items.map((it, i) => (
+            <div key={i} className="ldg-whyus-card">
+              <div className="ldg-whyus-icon">{it.icon}</div>
+              <h4>{it.title}</h4>
+              <p>{it.body}</p>
+            </div>
+          ))}
         </div>
       </div>
     </section>
@@ -393,7 +525,7 @@ function CtaForm({ onSubmit }) {
             <div className="field">
               <label htmlFor="ldg-model">기종 (선택)</label>
               <input
-                id="ldg-model" type="text" placeholder="삼성 / LG / 벽걸이 등"
+                id="ldg-model" type="text" placeholder="벽걸이 / 스탠드 등"
                 value={form.model} onChange={(e) => set("model", e.target.value)}
               />
             </div>
