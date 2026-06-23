@@ -395,7 +395,7 @@
    4. SOLUTION
    ============================================================ */
 .ldg-solution {
-  background: linear-gradient(180deg, #ffffff 0%, #EEF4FF 240px);
+  background: #ffffff;
   padding: 100px 24px 0;
 }
 .ldg-soln-head {

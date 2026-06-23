@@ -631,14 +631,21 @@ function Evidence() {
           ))}
         </div>
       </div>
+
+      {/* Evidence 끝 다크 wave — 그라데이션 없이 깔끔한 흰→다크 전환 */}
+      <div style={{ marginTop: 80, lineHeight: 0 }}>
+        <svg viewBox="0 0 1440 56" preserveAspectRatio="none"
+             style={{ display: "block", width: "100%", height: 56 }} aria-hidden="true">
+          <path d="M0,28 C360,4 1080,48 1440,22 L1440,56 L0,56 Z" fill="#1C2B3A" />
+        </svg>
+      </div>
     </section>
   );
 }
 
 // ============================================================
-// 7. Bridge
+// 7. (Bridge 그라데이션 제거 — Evidence 끝 dark wave 로 대체)
 // ============================================================
-function Bridge() { return <div className="ldg-bridge" aria-hidden="true" />; }
 
 // ============================================================
 // 8. TRUST — 통계 + 후기
@@ -934,7 +941,6 @@ export default function LandingApp() {
       <Solution />
       <Price onCtaForm={scrollToForm} />
       <Evidence />
-      <Bridge />
       <Trust />
       <CtaForm />
       <Footer />
