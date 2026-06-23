@@ -105,6 +105,14 @@ function Hero({ onCtaForm }) {
 
         <DiagnosisDial />
       </div>
+
+      {/* Hero 끝 wave — 정답 dc.html line 152~156 */}
+      <div style={{ marginTop: 72, lineHeight: 0 }}>
+        <svg viewBox="0 0 1440 56" preserveAspectRatio="none"
+             style={{ display: "block", width: "100%", height: 56 }} aria-hidden="true">
+          <path d="M0,28 C360,4 1080,48 1440,22 L1440,56 L0,56 Z" fill="#ffffff" />
+        </svg>
+      </div>
     </section>
   );
 }
@@ -438,6 +446,14 @@ function Solution() {
           <WrenchIcon />
           <p><strong>수리·설치도 가능합니다</strong> — 방문 진단 후 안내해드립니다.</p>
         </div>
+      </div>
+
+      {/* Solution 끝 wave — 정답 dc.html line 280~283 */}
+      <div style={{ marginTop: 80, lineHeight: 0 }}>
+        <svg viewBox="0 0 1440 56" preserveAspectRatio="none"
+             style={{ display: "block", width: "100%", height: 56 }} aria-hidden="true">
+          <path d="M0,24 C480,52 960,4 1440,32 L1440,56 L0,56 Z" fill="#ffffff" />
+        </svg>
       </div>
     </section>
   );
