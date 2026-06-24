@@ -14,11 +14,15 @@ export const config = {
   matcher: ["/", "/index.html"],
 };
 
+// 2026-06-24 — og:image / og:url 한글 도메인 → punycode 절대 URL 로 변경.
+//   원인: 카톡 이미지 fetcher 가 한글(IDN) URL 을 punycode 변환 못 해 이미지 fetch 실패.
+//         (카카오 디버거에선 정상이나 실제 카톡 메시지에서 이미지만 빈칸)
+//   호환성 위해 og:url 도 punycode 로 통일.
 const ALLDAY_OG = {
   title:       "올데이케어 - 에어컨 분해세척·냉매충전·설치·수리",
   description: "서울·경기 당일 출장. 냉매충전·분해세척·누설수리·설치",
-  image:       "https://올데이케어.kr/og-alldaycare.png",  // 카톡 크롤러는 절대 URL 만 읽음
-  url:         "https://올데이케어.kr",
+  image:       "https://xn--2n1bk06aikal6b92t.kr/og-alldaycare.png",
+  url:         "https://xn--2n1bk06aikal6b92t.kr",
 };
 
 function escapeAttr(s) {
