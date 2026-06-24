@@ -6,7 +6,7 @@
 // 읽기/액션 로직은 src/lib/inquiriesDb.js 측에 분리 (HappycallApp 재사용 대비).
 // 시각 timestamptz UTC → toKstYmd() 필수.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   listInquiries,
   setInquiryStatus,
@@ -15,11 +15,12 @@ import {
 } from "../../lib/inquiriesDb";
 import { toKstYmd } from "../../utils/dateLabel";
 
+// 스팸 칩 제거 (사장님 spec — 거의 안 쓰는 액션이라 메인 줄에서 뺌).
+//   스팸 처리는 카드 우측 ⋯ 메뉴로 이동. 스팸 건은 어떤 칩에서도 안 보임.
 const FILTERS = [
   { key: "all",       label: "전체" },
   { key: "new",       label: "신규" },
   { key: "contacted", label: "통화함" },
-  { key: "spam",      label: "스팸" },
 ];
 
 // timestamptz → "HH:mm" (KST local — Date 객체가 브라우저 로컬 변환)
@@ -47,7 +48,11 @@ export default function AdminInquiriesScreen({ user, onBack, onConvertToForm }) 
     try {
       const status = filter === "all" ? null : filter;
       const rows = await listInquiries(actorId, status);
-      setItems(rows);
+      // 스팸은 어떤 칩에서도 안 보임 — 'all' 일 때 클라 측에서 제외.
+      const visible = filter === "all"
+        ? rows.filter((r) => r.status !== "spam")
+        : rows;
+      setItems(visible);
     } catch (e) {
       setError(e?.message || "불러오기 실패");
     } finally {
@@ -198,7 +203,7 @@ function InquiryRow({ row, busy, onCall, onSpam, onConvert }) {
       <div style={{ background: meta.color }} />
 
       <div style={{ padding: "14px 16px" }}>
-        {/* 상단 — 상태 배지 + 접수시각 */}
+        {/* 상단 — 상태 배지 + 접수시각 + 서비스 + ⋯ 메뉴 */}
         <div style={{
           display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
           marginBottom: 10,
@@ -217,6 +222,9 @@ function InquiryRow({ row, busy, onCall, onSpam, onConvert }) {
             fontSize: 12, fontWeight: 800,
             color: "#1C2B3A", letterSpacing: "-0.2px",
           }}>{serviceLabel(row.service_type)}</span>
+          {!isConverted && !isSpam && (
+            <RowKebab disabled={busy} onSpam={onSpam} />
+          )}
         </div>
 
         {/* 본문 — 이름/연락처/주소 */}
@@ -245,8 +253,8 @@ function InquiryRow({ row, busy, onCall, onSpam, onConvert }) {
           )}
         </div>
 
-        {/* 액션 — converted 는 액션 없음 (이미 작업 생성됨) */}
-        {!isConverted && (
+        {/* 액션 — converted/spam 은 액션 줄 자체 없음. 스팸 처리는 ⋯ 메뉴 측 이동. */}
+        {!isConverted && !isSpam && (
           <div style={{
             display: "flex", gap: 8, marginTop: 14,
             flexWrap: "wrap",
@@ -258,22 +266,80 @@ function InquiryRow({ row, busy, onCall, onSpam, onConvert }) {
               onClick={onCall}
             />
             <ActionBtn
-              label="스팸"
-              color="#6B7280"
-              disabled={busy || isSpam}
-              onClick={onSpam}
-            />
-            <ActionBtn
               label="작업 전환"
               color="#16A34A"
-              disabled={busy || isSpam}
+              disabled={busy}
               onClick={onConvert}
-              title={isSpam ? "스팸은 작업 전환 불가" : "빈 작업으로 전환 (운영자가 보강)"}
+              title="새 접수 폼이 열림 (운영자가 보강)"
             />
           </div>
         )}
       </div>
     </article>
+  );
+}
+
+// 카드 우측 상단 ⋯ 메뉴 — 자주 안 쓰는 액션(스팸 처리) 모음.
+//   외부 클릭 시 자동 닫힘.
+function RowKebab({ disabled, onSpam }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    function onDoc(e) {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    document.addEventListener("touchstart", onDoc);
+    return () => {
+      document.removeEventListener("mousedown", onDoc);
+      document.removeEventListener("touchstart", onDoc);
+    };
+  }, [open]);
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        disabled={disabled}
+        aria-label="더보기"
+        style={{
+          background: "transparent", border: "none",
+          cursor: disabled ? "not-allowed" : "pointer",
+          padding: "2px 6px",
+          color: "#93A2B4",
+          fontSize: 18, fontWeight: 900,
+          lineHeight: 1,
+        }}
+      >⋯</button>
+      {open && (
+        <div role="menu" style={{
+          position: "absolute", right: 0, top: "100%",
+          marginTop: 4,
+          background: "#fff",
+          border: "1px solid #E5EAF1",
+          borderRadius: 8,
+          boxShadow: "0 4px 16px rgba(28,43,58,0.10)",
+          minWidth: 120, zIndex: 10,
+          overflow: "hidden",
+        }}>
+          <button
+            role="menuitem"
+            onClick={() => { setOpen(false); onSpam && onSpam(); }}
+            style={{
+              display: "block", width: "100%",
+              padding: "10px 14px",
+              background: "transparent", border: "none",
+              cursor: "pointer",
+              textAlign: "left",
+              fontSize: 13, fontWeight: 700,
+              color: "#6B7280",
+              letterSpacing: "-0.2px",
+            }}
+          >스팸 처리</button>
+        </div>
+      )}
+    </div>
   );
 }
 
