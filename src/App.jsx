@@ -6,14 +6,19 @@ import AdminApp from "./pages/AdminApp.jsx";
 import PrincipalApp from "./pages/PrincipalApp.jsx";
 import LandingApp from "./pages/LandingApp.jsx";
 
-// 2026-06-23 — alldaycare 도메인 또는 /landing 경로 시 마케팅 랜딩 진입 (운영 PWA 분기 차단).
-//   현재 도메인 미구매 → localhost 검증 시 ?page=landing 또는 /landing 사용.
+// 2026-06-23 — 마케팅 랜딩 도메인 / 경로 진입 시 LandingApp 만 렌더 (운영 PWA 분기 차단).
+//   2026-06-24 — 올데이케어.kr (한글 도메인) 추가:
+//     · punycode 형태: xn--2n1bk06aikal6b92t.kr (브라우저 hostname 일반 값)
+//     · 한글 디코딩 대비: '올데이케어' 도 같이 체크
+//   ollit.vercel.app 등 운영 PWA 호스트는 영향 X (기존 분기 그대로).
 function _isLandingRoute() {
   if (typeof window === "undefined") return false;
   const host = (window.location.hostname || "").toLowerCase();
   const path = window.location.pathname || "";
   const search = window.location.search || "";
   if (host.includes("alldaycare")) return true;
+  if (host.includes("xn--2n1bk06aikal6b92t")) return true;  // 올데이케어.kr punycode
+  if (host.includes("올데이케어")) return true;             // 한글 디코딩 대비
   if (path.startsWith("/landing")) return true;
   if (search.includes("page=landing")) return true;
   return false;
