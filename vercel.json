@@ -1,0 +1,18 @@
+{
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        { "type": "host", "value": "xn--2n1bk06aikal6b92t\\.kr" }
+      ],
+      "destination": "/api/og-rewrite"
+    },
+    {
+      "source": "/index.html",
+      "has": [
+        { "type": "host", "value": "xn--2n1bk06aikal6b92t\\.kr" }
+      ],
+      "destination": "/api/og-rewrite"
+    }
+  ]
+}

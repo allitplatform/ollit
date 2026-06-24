@@ -1043,6 +1043,13 @@ export default function LandingApp() {
     return () => { document.documentElement.style.scrollBehavior = prev; };
   }, []);
 
+  // 2026-06-24 — 랜딩 진입 시 탭 제목 올데이케어용으로 (운영 PWA 화면 떠나면 복원).
+  useEffect(() => {
+    const prevTitle = document.title;
+    document.title = "올데이케어 - 에어컨 분해세척·냉매충전·설치·수리";
+    return () => { document.title = prevTitle; };
+  }, []);
+
   return (
     <div className="ldg-root" id="top">
       <Ticker />
