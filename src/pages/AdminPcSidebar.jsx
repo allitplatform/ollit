@@ -58,8 +58,8 @@ const GROUPS = [
       { id: "pcTimelineFlow", label: "처리 흐름" },
       { id: "allTasks",       label: "전체 작업" },
       { id: "reassignList",   label: "재배정 요청" },
-      { id: "pcRefriPending", label: "냉매 자동배정 대기" },  // → newReception screen + filter="pushing"
-      // 2026-06-24 — 홈페이지 폼 접수함 (inquiries). screen='inquiries' 자동 라우팅.
+      // 2026-06-24 — 옛 "냉매 자동배정 대기" 메뉴 제거 (사장님 spec — 해당 기능 미사용 확정).
+      //   자리 대신 홈페이지 접수함 진입. screen='inquiries' 자동 라우팅.
       { id: "inquiries",      label: "홈페이지 접수함" },
       // 2026-06-16 — 냉매 미처리 (세척 완료 시 입력된 냉매충전, [냉매 작업 만들기] 대상).
       //   N 배지 표시 — pcCtx.refrigerantAddonCount 사용.
@@ -204,11 +204,6 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
     setOpenGroup(prev => prev === groupId ? null : groupId);
   }
   function handleItemClick(itemId) {
-    // 2026-06-12 — 특별 항목 (실제 screen 아닌, pcCtx handler 호출).
-    if (itemId === "pcRefriPending") {
-      if (typeof pcCtx?.onClickRefriPending === "function") pcCtx.onClickRefriPending();
-      return;
-    }
     if (typeof setScreen === "function") setScreen(itemId);
   }
 

@@ -44,6 +44,9 @@ export function AdminPcDashboard({
   onClickReassign,
   onClickRefriAddon,
   onClickUsolN,
+  // 2026-06-24 — 홈페이지 접수함 (옛 "냉매 자동배정 대기" 카드 자리 대체)
+  onClickInquiries,
+  inquiriesNewCount = 0,
   onTaskAssign,
   onOpenTaskDetail,
 }) {
@@ -53,13 +56,9 @@ export function AdminPcDashboard({
   const stats = dynamicStats || {};
   const unassignedCount = (stats.newReceptionTasks || []).length;
 
-  // 우상 3카드 — 미배정 / 냉매 자동배정 대기 / 재배정 요청.
-  //   냉매 자동배정 대기: autoAssignStatus === "pushing" (= 냉매충전 자동배정 미수락).
+  // 2026-06-24 — 우상 3카드: 미배정 / 홈페이지 접수함 / 재배정 요청.
+  //   옛 "냉매 자동배정 대기" 카드는 접수함 카드로 대체 (사장님 spec — 해당 기능 미사용 확정).
   //   재배정 요청: t.reassignRequest?.requestedAt && status !== "취소" (옛 DashboardScreen 로직 동일).
-  const refriPendingCount = useMemo(() =>
-    (apiTasks || []).filter(x => x.autoAssignStatus === "pushing").length,
-    [apiTasks]
-  );
   const reassignCount = useMemo(() =>
     (apiTasks || []).filter(x =>
       x?.reassignRequest?.requestedAt && x.status !== "취소"
@@ -109,13 +108,15 @@ export function AdminPcDashboard({
             actionLabel="전체 →"
             onClick={onClickNewReception}
           />
+          {/* 2026-06-24 — 홈페이지 접수함 (옛 "냉매 자동배정 대기" 카드 자리).
+                신규 N>0 시 빨강 강조 (미배정 카드와 같은 패턴), 0 시 기본 흰 카드. */}
           <CompactCard
-            icon="⚡"
-            label="냉매 자동배정 대기"
-            count={refriPendingCount}
-            actionLabel="배정 →"
-            onClick={onClickNewReception}
-            color="#FFB800"
+            icon="📨"
+            label="홈페이지 접수함"
+            count={inquiriesNewCount}
+            actionLabel={inquiriesNewCount > 0 ? "신규 →" : "열기 →"}
+            onClick={onClickInquiries}
+            color={inquiriesNewCount > 0 ? "#DC2626" : undefined}
           />
           <CompactCard
             icon="🔄"

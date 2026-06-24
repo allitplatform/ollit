@@ -2074,6 +2074,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       onClickReassign={() => setScreen("reassignList")}
       onClickRefriAddon={() => setScreen("refrigerantAddonList")}
       onClickUsolN={() => setScreen("usol_n")}
+      onClickInquiries={() => setScreen("inquiries")}
+      inquiriesNewCount={inquiriesNewCount}
       onTaskAssign={(task) => {
         setSelectedTask(task);
         const flow = determineWorkflow(task.workItems)
@@ -2180,8 +2182,6 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     //   옛: setScreen("newReception") = 리스트로 잘못 라우팅 사고.
     //   PC 모드면 분기에서 NewReceptionPcForm 렌더, 모바일은 기존 NewReceptionFormScreen.
     onClickAddReception: () => { setPendingInquiry(null); setScreen("newReceptionForm"); },
-    // 2026-06-12 — 사이드바 "냉매 자동배정 대기" — newReception screen + filter="pushing".
-    onClickRefriPending: () => { setNewReceptionFilter("pushing"); setScreen("newReception"); },
     onCloseTaskDetail: () => {
       setSelectedTaskDetail(null);
       // screenStack 안 잔여 "taskDetail" 정리 — 옛 navigation history 청소.

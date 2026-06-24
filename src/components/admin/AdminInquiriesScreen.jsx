@@ -289,7 +289,7 @@ function MiniCardRow({ row, busy, onCall, onSpam, onConvert }) {
             </span>
           )}
         </div>
-        {/* 2행 — 연락처 · 지역 · 서비스라벨 */}
+        {/* 2행 — 연락처 · 지역 (서비스 구분은 좌측 ServiceTypeIcon — 텍스트 중복 X) */}
         <div style={{
           fontSize: 12.5, color: "#6A7D94",
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
@@ -300,7 +300,6 @@ function MiniCardRow({ row, busy, onCall, onSpam, onConvert }) {
             <span>연락처 없음</span>
           )}
           {row.address && <> · {shortRegion(row.address)}</>}
-          <> · {serviceLabel(row.service_type)}</>
         </div>
       </div>
 
