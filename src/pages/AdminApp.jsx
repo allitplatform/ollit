@@ -42,9 +42,9 @@ import { UsolNScreen } from "../components/UsolNScreen.jsx";
 import { AllTasksScreen } from "../components/AllTasksScreen.jsx";
 // 2026-05-29 Phase 1 — 발주 원본 archive (Migration 080)
 import { RawOrdersArchiveScreen } from "../components/admin/RawOrdersArchiveScreen.jsx";
-// 2026-06-24 — 홈페이지 접수함 (inquiries) 운영 화면 + 신규 count polling
+// 2026-06-24 — 홈페이지 접수함 (inquiries) 운영 화면 + 신규 count polling + 마킹 RPC
 import AdminInquiriesScreen from "../components/admin/AdminInquiriesScreen.jsx";
-import { listInquiries } from "../lib/inquiriesDb.js";
+import { listInquiries, markInquiryConverted, serviceLabel } from "../lib/inquiriesDb.js";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../data/paymentMethods.js";
 import { isRefrigerant, getServiceKind } from "../utils/workTypeKind.js";
@@ -1505,6 +1505,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   const [refrigerantAddonCount, setRefrigerantAddonCount] = useState(0);
   // 2026-06-24 — 홈페이지 접수함 신규(status='new') 개수 — 사이드바/카드 뱃지용
   const [inquiriesNewCount, setInquiriesNewCount] = useState(0);
+  // 접수함 → "작업 전환" 으로 새 접수 폼에 prefill 주입 중인 inquiry.
+  //   { id, initial } — 폼 등록 성공 후 mark_inquiry_converted 호출용.
+  //   일반 새 접수 흐름에서는 null 유지.
+  const [pendingInquiry, setPendingInquiry] = useState(null);
   useEffect(() => {
     let cancelled = false;
     async function refreshInquiriesCount() {
@@ -2175,7 +2179,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     // 2026-06-17 — 사이드바 "새 작업 만들기" → newReceptionForm (폼) 직진.
     //   옛: setScreen("newReception") = 리스트로 잘못 라우팅 사고.
     //   PC 모드면 분기에서 NewReceptionPcForm 렌더, 모바일은 기존 NewReceptionFormScreen.
-    onClickAddReception: () => setScreen("newReceptionForm"),
+    onClickAddReception: () => { setPendingInquiry(null); setScreen("newReceptionForm"); },
     // 2026-06-12 — 사이드바 "냉매 자동배정 대기" — newReception screen + filter="pushing".
     onClickRefriPending: () => { setNewReceptionFilter("pushing"); setScreen("newReception"); },
     onCloseTaskDetail: () => {
@@ -2246,14 +2250,27 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   if (screen === "newReceptionForm") {
     // 2026-06-17 — PC: 새 PC 전용 폼 (NewReceptionPcForm), 모바일: 옛 NewReceptionFormScreen.
     //   onSubmit 시그니처 동일 (addReception 호출). 후속 라우팅(autoAssign/newReception) 공유.
+    // 2026-06-24 — initial prop 지원 (접수함 → prefill 흐름). pendingInquiry 가 있으면 주입.
     const FormComp = isPc ? NewReceptionPcForm : NewReceptionFormScreen;
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <FormComp
         t={t}
         user={user}
-        onBack={goBack}
+        initial={pendingInquiry?.initial}
+        onBack={() => { setPendingInquiry(null); goBack(); }}
         onSubmit={(form) => {
           addReception(form);
+
+          // 2026-06-24 — 접수함 prefill 진입이면 마킹 (best-effort, 실패해도 작업은 살림).
+          if (form._v14ApiOk && form.taskId && pendingInquiry?.id) {
+            const inquiryIdToMark = pendingInquiry.id;
+            const actor = user?.user_id || user?.id;
+            if (actor) {
+              markInquiryConverted(actor, inquiryIdToMark, form.taskId)
+                .catch((e) => console.warn("[inquiries] mark_inquiry_converted 실패 — 작업은 살림", e));
+            }
+            setPendingInquiry(null);
+          }
 
           // 2026-05-14 진단용 — 자동 AutoAssignScreen 진입 임시 다시 켜기 (디버그 로그 catch 박을 차례)
           // 무한 루프 catch 박힐 영역 catch 박은 후 다시 결정 박을 차례
@@ -3429,30 +3446,27 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   // 2026-06-24 — 홈페이지 접수함(inquiries) 운영 화면
+  //   [작업 전환] → 새 접수 폼을 inquiry 값으로 prefill 해서 열기.
+  //   118(convert_inquiry_to_task) RPC 는 폐기됨 — 호출 X.
+  //   폼 등록 성공 후 mark_inquiry_converted 호출 (아래 newReceptionForm onSubmit 참고).
   if (screen === "inquiries") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AdminInquiriesScreen
         user={user}
         onBack={goBack}
-        onConverted={async (newTaskId) => {
-          // convert 직후 fetchTasks 가 normalized list 반환 — 그 안에서 새 task 찾기.
-          // 못 찾으면(timing) 전체 작업 화면으로 fallback.
-          try {
-            const list = await fetchTasks();
-            const found = Array.isArray(list)
-              ? list.find((x) => x.id === newTaskId)
-              : null;
-            if (found) {
-              goTaskDetail(_v14NormalizeTask(found), "inquiries");
-            } else {
-              alert("작업이 생성됐습니다. 전체 작업에서 확인해 주세요.");
-              setScreen("allTasks");
-            }
-          } catch (e) {
-            console.error("[inquiries] onConverted failed", e);
-            alert("작업 화면 이동 중 오류 — 전체 작업에서 확인해 주세요.");
-            setScreen("allTasks");
-          }
+        onConvertToForm={(inquiryRow) => {
+          setPendingInquiry({
+            id: inquiryRow.id,
+            initial: {
+              principal: "올데이케어",   // PRINCIPALS[0].id 와 정확 일치 (allday)
+              customer:  inquiryRow.name    || "",
+              phone:     inquiryRow.phone   || "",
+              address:   inquiryRow.address || "",
+              workItems: [],               // 전화 확인 후 운영자가 채움
+              memo:      "[홈페이지 접수] 희망 서비스: " + serviceLabel(inquiryRow.service_type),
+            },
+          });
+          setScreen("newReceptionForm");
         }}
       />
     </Shell>;
@@ -3659,7 +3673,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       setSettlementExpanded={setSettlementExpanded}
       unreadCount={unreadCount}
       onClickBell={() => setScreen("notifications")}
-      onClickAddReception={() => setScreen("newReceptionForm")}
+      onClickAddReception={() => { setPendingInquiry(null); setScreen("newReceptionForm"); }}
       onClickNewReception={(filter) => { setNewReceptionFilter(filter || null); setScreen("newReception"); }}
       onClickAssignedList={(filter) => { setAssignedFilter(filter); setScreen("assignedList"); }}
       onClickLiveWork={(filter) => { setLiveWorkFilter(filter || null); setScreen("liveWork"); }}
@@ -8790,17 +8804,20 @@ function FeePreviewCell({ t, label, value, color }) {
   );
 }
 
-function NewReceptionFormScreen({ t, user, onBack, onSubmit }) {
+function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
+  // 2026-06-24 — initial prop 으로 prefill 지원 (접수함 → 작업 전환 흐름).
+  //   없으면 기존 빈 폼 그대로. 있으면 form/workItems 초기값 반영.
+  const init = initial || {};
   const [form, setForm] = useState({
-    principal: "",
-    paymentMethod: "",   // 2026-05-27 Migration 077 — 결제 방식 (선택 사항)
-    customer: "",
-    phone: "",
-    address: "",
-    requestDate: "",
-    requestTime: "",
-    memo: "",
-    estimateTotal: 0,
+    principal:     init.principal     || "",
+    paymentMethod: init.paymentMethod || "",   // 2026-05-27 Migration 077 — 결제 방식 (선택 사항)
+    customer:      init.customer      || "",
+    phone:         init.phone         || "",
+    address:       init.address       || "",
+    requestDate:   init.requestDate   || "",
+    requestTime:   init.requestTime   || "",
+    memo:          init.memo          || "",
+    estimateTotal: init.estimateTotal || 0,
   });
   const [errors, setErrors] = useState({});
 
@@ -8817,8 +8834,8 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit }) {
   const [justFilled, setJustFilled] = useState(new Set());
   const [priceConfirm, setPriceConfirm] = useState(null);
 
-  // Step 5-1b — 복수 작업 항목 + 일정 모드
-  const [workItems, setWorkItems] = useState([]);          // [{ workType, appliance, qty }]
+  // Step 5-1b — 복수 작업 항목 + 일정 모드 (initial.workItems 있으면 반영)
+  const [workItems, setWorkItems] = useState(Array.isArray(init.workItems) ? init.workItems : []);          // [{ workType, appliance, qty }]
   const [showAddItem, setShowAddItem] = useState(false);
   const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
   const [scheduleMode, setScheduleMode] = useState(null);  // null | "tbd" | "input"

@@ -10,7 +10,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   listInquiries,
   setInquiryStatus,
-  convertInquiryToTask,
   serviceLabel,
   statusMeta,
 } from "../../lib/inquiriesDb";
@@ -31,7 +30,8 @@ function toKstHm(value) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-export default function AdminInquiriesScreen({ user, onBack, onConverted }) {
+// onConvertToForm(inquiryRow) — 부모(AdminApp)가 prefill initial 조립 + 새 접수 폼 라우팅 담당
+export default function AdminInquiriesScreen({ user, onBack, onConvertToForm }) {
   const [items, setItems]         = useState([]);
   const [filter, setFilter]       = useState("all");
   const [loading, setLoading]     = useState(false);
@@ -70,31 +70,15 @@ export default function AdminInquiriesScreen({ user, onBack, onConverted }) {
     }
   }
 
-  // 작업 전환 — convert_inquiry_to_task RPC (Migration 118)
-  async function convert(id) {
+  // 작업 전환 — 새 접수 폼을 inquiry 값으로 prefill 해서 열기 (부모 콜백 위임).
+  //   118(convert_inquiry_to_task) RPC 호출 X — 폐기됨.
+  //   인콰이리 row 자체는 새 접수 등록 성공 후 mark_inquiry_converted 로 마킹 (부모 책임).
+  function convert(row) {
     if (busyId) return;
-    const ok = window.confirm("작업으로 전환하면 작업목록에 미배정으로 생깁니다.\n진행하시겠어요?");
+    if (!onConvertToForm) return;
+    const ok = window.confirm("새 접수 폼이 열립니다.\n기종·수량·일정·금액을 보강하여 등록해 주세요.");
     if (!ok) return;
-    setBusyId(id);
-    try {
-      const newTaskId = await convertInquiryToTask(actorId, id);
-      await load();   // 인콰이리 목록 새로고침 — 해당 row status='converted' 반영
-      if (onConverted && newTaskId) {
-        onConverted(newTaskId);
-      }
-    } catch (e) {
-      const msg = String(e?.message || "");
-      if (msg.includes("inquiry_not_convertible")) {
-        alert("이미 처리된 접수입니다.");
-        await load();   // 상태 동기화
-      } else if (msg.includes("not_authorized")) {
-        alert("권한이 없습니다.");
-      } else {
-        alert("전환 실패: " + (msg || e));
-      }
-    } finally {
-      setBusyId(null);
-    }
+    onConvertToForm(row);
   }
 
   const newCount = useMemo(
@@ -188,7 +172,7 @@ export default function AdminInquiriesScreen({ user, onBack, onConverted }) {
               busy={busyId === row.id}
               onCall={() => act(row.id, "contacted")}
               onSpam={() => act(row.id, "spam")}
-              onConvert={() => convert(row.id)}
+              onConvert={() => convert(row)}
             />
           ))}
         </div>

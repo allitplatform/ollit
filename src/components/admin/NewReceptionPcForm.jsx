@@ -52,20 +52,28 @@ const PAYMENT_METHODS = [
   { id: "prepaid",   label: "선결제" },
 ];
 
-export function NewReceptionPcForm({ t, user, onBack, onSubmit }) {
+export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
   const isWide = useMinWidth(1280);
+
+  // 2026-06-24 — initial prop 으로 prefill 지원 (접수함 → 작업 전환 흐름).
+  const init = initial || {};
 
   // ── 폼 상태 ──
   const [form, setForm] = useState({
-    principal: "", customer: "", phone: "", address: "",
-    paymentMethod: "",
-    requestDate: "", requestTime: "",
-    memo: "", estimateTotal: 0,
+    principal:     init.principal     || "",
+    customer:      init.customer      || "",
+    phone:         init.phone         || "",
+    address:       init.address       || "",
+    paymentMethod: init.paymentMethod || "",
+    requestDate:   init.requestDate   || "",
+    requestTime:   init.requestTime   || "",
+    memo:          init.memo          || "",
+    estimateTotal: init.estimateTotal || 0,
   });
   const [scheduleMode, setScheduleMode] = useState(null);    // null | 'tbd' | 'input'
   const [priceTBD, setPriceTBD] = useState(false);
   const [estimateTouched, setEstimateTouched] = useState(false);
-  const [workItems, setWorkItems] = useState([]);
+  const [workItems, setWorkItems] = useState(Array.isArray(init.workItems) ? init.workItems : []);
   const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
   const [pasteText, setPasteText] = useState("");
   const [parseResult, setParseResult] = useState(null);  // { matched: [], unmatched: [] } | null
