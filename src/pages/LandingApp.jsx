@@ -6,10 +6,31 @@
 //   · 단 사장님 별 spec: 가격표 sale 금액 '~' 표기 (확정가 오해 방지).
 
 import { useEffect, useRef, useState } from "react";
+import { supabase } from "../lib/supabase";
 import "../styles/landing.css";
 
 const PHONE_DISPLAY = "1866-2003";
 const PHONE_TEL     = "tel:18662003";
+
+// service_type 한글 라벨 → RPC 코드. 폼 option value 와 키 정확 일치 (사장님 약점 #2).
+const SERVICE_CODE = {
+  '냉매충전':       'refrigerant',
+  '분해세척':       'cleaning',
+  '수리·누설수리':  'repair',
+  '에어컨 설치':    'install',
+  '잘 모르겠어요':  'unknown',
+};
+
+// RPC 영문 RAISE EXCEPTION 코드 → 손님 안내 한글
+function messageFor(e) {
+  const m = String(e?.message || '');
+  if (m.includes('privacy_not_agreed'))   return '개인정보 수집·이용에 동의해 주세요.';
+  if (m.includes('invalid_name'))         return '이름을 확인해 주세요.';
+  if (m.includes('invalid_phone'))        return '연락처를 정확히 입력해 주세요. (숫자 9~11자리)';
+  if (m.includes('invalid_address'))      return '주소(지역)를 입력해 주세요.';
+  if (m.includes('invalid_service_type')) return '서비스 종류를 선택해 주세요.';
+  return '잠시 후 다시 시도해 주세요.';
+}
 
 // ============================================================
 // 0. Ticker — 30s linear infinite
@@ -396,7 +417,7 @@ function Why({ scrollToForm }) {
             </div>
             <h3 className="ldg-why-h3">부품 고장</h3>
             <p className="ldg-why-desc">압축기·팽창밸브 등 핵심 부품 이상은 전문 진단이 필요합니다. 에러 코드·전원 차단은 점검 신호입니다.</p>
-            <a href="#form" className="ldg-why-solve outline" onClick={(e) => onSolveClick(e, "수리")}>방문 진단으로 확인 →</a>
+            <a href="#form" className="ldg-why-solve outline" onClick={(e) => onSolveClick(e, "수리·누설수리")}>방문 진단으로 확인 →</a>
           </article>
         </div>
       </div>
@@ -526,7 +547,7 @@ function Price({ scrollToForm }) {
                 <li>실외기 점검 · 진단</li>
               </ul>
               <div className="ldg-wash-note">방문 진단 후 정확한 견적을 안내드립니다.</div>
-              <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm("수리"); }}>수리·설치 상담하기 →</a>
+              <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm("수리·누설수리"); }}>수리·설치 상담하기 →</a>
             </div>
           </div>
 
@@ -758,15 +779,41 @@ function Trust() {
 // 9. FORM — 폼 본문은 BookingFormBody 로 공유 (히어로 우측 + 맨 아래)
 // ============================================================
 function useBookingForm() {
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted]   = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError]           = useState(null);
   const [form, setForm] = useState({ service: "", name: "", phone: "", address: "", consent: false });
-  function set(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
-  function handleSubmit(e) {
+  function set(k, v) { setForm(prev => ({ ...prev, [k]: v })); setError(null); }
+
+  // 클라 검증 — 제출 버튼 활성 조건 (사장님 약점 #1)
+  const canSubmit =
+    !!form.service &&
+    form.name.trim().length > 0 &&
+    form.phone.trim().length > 0 &&
+    form.address.trim().length > 0 &&
+    form.consent === true;
+
+  async function handleSubmit(e) {
     e.preventDefault();
-    if (!form.consent) { alert("개인정보 수집·이용에 동의해 주세요."); return; }
-    setSubmitted(true);
+    if (submitting || !canSubmit) return;   // 더블서밋 + 비활성 가드
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { error: rpcErr } = await supabase.rpc('create_inquiry', {
+        p_service_type:   SERVICE_CODE[form.service] ?? 'unknown',
+        p_name:           form.name.trim(),
+        p_phone:          form.phone.trim(),
+        p_address:        form.address.trim(),
+        p_agreed_privacy: form.consent === true,
+      });
+      if (rpcErr) throw rpcErr;
+      setSubmitted(true);
+    } catch (e2) {
+      setError(messageFor(e2));
+      setSubmitting(false);   // 실패 시 재시도 가능하게 풀기 (성공은 setSubmitted 로 화면 전환되므로 풀 필요 X)
+    }
   }
-  return { form, set, handleSubmit, submitted };
+  return { form, set, handleSubmit, submitted, submitting, error, canSubmit };
 }
 
 // prefillService 가 바뀌면 폼의 service 필드 자동 동기화 (Price 카드에서 종류 사전 선택)
@@ -776,7 +823,7 @@ function usePrefillSync(set, prefillService) {
   }, [prefillService]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-function BookingFormBody({ form, set, onSubmit, submitted, showTel = true }) {
+function BookingFormBody({ form, set, onSubmit, submitted, submitting, error, canSubmit, showTel = true }) {
   if (submitted) {
     return (
       <div className="ldg-form-done">
@@ -790,43 +837,47 @@ function BookingFormBody({ form, set, onSubmit, submitted, showTel = true }) {
     <form onSubmit={onSubmit} className="ldg-form">
       <div>
         <label className="ldg-form-label">서비스 종류</label>
-        <select value={form.service} onChange={(e) => set("service", e.target.value)} className="ldg-form-input">
+        <select value={form.service} onChange={(e) => set("service", e.target.value)} className="ldg-form-input" disabled={submitting}>
           <option value="">선택해 주세요</option>
           <option value="냉매충전">냉매충전</option>
           <option value="분해세척">분해세척</option>
-          <option value="수리">수리 / 누설수리</option>
-          <option value="설치">에어컨 설치</option>
-          <option value="모르겠음">잘 모르겠어요 (방문 후 진단)</option>
+          <option value="수리·누설수리">수리 / 누설수리</option>
+          <option value="에어컨 설치">에어컨 설치</option>
+          <option value="잘 모르겠어요">잘 모르겠어요 (방문 후 진단)</option>
         </select>
       </div>
 
       <div className="ldg-form-2col">
         <div>
           <label className="ldg-form-label">이름</label>
-          <input type="text" placeholder="홍길동" className="ldg-form-input"
+          <input type="text" placeholder="홍길동" className="ldg-form-input" disabled={submitting}
                  value={form.name} onChange={(e) => set("name", e.target.value)} />
         </div>
         <div>
           <label className="ldg-form-label">연락처</label>
-          <input type="tel" placeholder="010-0000-0000" className="ldg-form-input"
+          <input type="tel" placeholder="010-0000-0000" className="ldg-form-input" disabled={submitting}
                  value={form.phone} onChange={(e) => set("phone", e.target.value)} />
         </div>
       </div>
 
       <div>
         <label className="ldg-form-label">주소 (지역)</label>
-        <input type="text" placeholder="예: 서울 마포구 서교동" className="ldg-form-input"
+        <input type="text" placeholder="예: 서울 마포구 서교동" className="ldg-form-input" disabled={submitting}
                value={form.address} onChange={(e) => set("address", e.target.value)} />
       </div>
 
       <label className="ldg-form-consent">
-        <input type="checkbox" checked={form.consent} onChange={(e) => set("consent", e.target.checked)} />
+        <input type="checkbox" checked={form.consent} onChange={(e) => set("consent", e.target.checked)} disabled={submitting} />
         <span>
           <strong>[필수]</strong> 개인정보 수집·이용에 동의합니다. 수집 항목(이름·연락처·주소)은 출장 접수 목적으로만 사용되며, 관련 법령에 따라 일정 기간 보관 후 파기됩니다.
         </span>
       </label>
 
-      <button type="submit" className="ldg-form-submit">접수하기</button>
+      {error && <p className="ldg-form-error" role="alert">{error}</p>}
+
+      <button type="submit" className="ldg-form-submit" disabled={!canSubmit || submitting}>
+        {submitting ? "접수 중…" : "접수하기"}
+      </button>
 
       {showTel && (
         <p className="ldg-form-tel">전화 접수: <a href={PHONE_TEL}>{PHONE_DISPLAY}</a></p>
@@ -836,13 +887,19 @@ function BookingFormBody({ form, set, onSubmit, submitted, showTel = true }) {
 }
 
 function HeroBookingForm() {
-  const { form, set, handleSubmit, submitted } = useBookingForm();
-  return <BookingFormBody form={form} set={set} onSubmit={handleSubmit} submitted={submitted} showTel={false} />;
+  const bf = useBookingForm();
+  return (
+    <BookingFormBody
+      form={bf.form} set={bf.set} onSubmit={bf.handleSubmit}
+      submitted={bf.submitted} submitting={bf.submitting} error={bf.error} canSubmit={bf.canSubmit}
+      showTel={false}
+    />
+  );
 }
 
 function CtaForm({ prefillService }) {
-  const { form, set, handleSubmit, submitted } = useBookingForm();
-  usePrefillSync(set, prefillService);
+  const bf = useBookingForm();
+  usePrefillSync(bf.set, prefillService);
   return (
     <section className="ldg-section ldg-form-section" id="form">
       <div className="ldg-form-container">
@@ -851,7 +908,10 @@ function CtaForm({ prefillService }) {
           <h2 className="ldg-h2" style={{ fontSize: "clamp(26px, 4.5vw, 44px)" }}>{"시원하지 않으면,\n냉매 점검부터"}</h2>
           <p className="ldg-lead" style={{ marginBottom: 0 }}>서울·경기 전 지역 당일 출장</p>
         </div>
-        <BookingFormBody form={form} set={set} onSubmit={handleSubmit} submitted={submitted} />
+        <BookingFormBody
+          form={bf.form} set={bf.set} onSubmit={bf.handleSubmit}
+          submitted={bf.submitted} submitting={bf.submitting} error={bf.error} canSubmit={bf.canSubmit}
+        />
       </div>
     </section>
   );
