@@ -20,6 +20,7 @@ function _isLandingRoute() {
   if (host.includes("xn--2n1bk06aikal6b92t")) return true;  // 올데이케어.kr punycode
   if (host.includes("올데이케어")) return true;             // 한글 디코딩 대비
   if (path.startsWith("/landing")) return true;
+  if (path.startsWith("/privacy")) return true;             // 2026-06-24 — 개인정보처리방침 페이지
   if (search.includes("page=landing")) return true;
   return false;
 }

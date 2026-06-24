@@ -16,6 +16,7 @@ function _isLandingRoute() {
     host.includes("xn--2n1bk06aikal6b92t") ||  // 올데이케어.kr punycode
     host.includes("올데이케어") ||             // 한글 디코딩 대비
     path.startsWith("/landing") ||
+    path.startsWith("/privacy") ||             // 2026-06-24 — 개인정보처리방침
     search.includes("page=landing")
   );
 }

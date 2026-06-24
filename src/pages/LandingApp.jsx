@@ -7,6 +7,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "../lib/supabase";
+import PrivacyPage from "./PrivacyPage.jsx";
 import "../styles/landing.css";
 
 const PHONE_DISPLAY = "1866-2003";
@@ -869,7 +870,11 @@ function BookingFormBody({ form, set, onSubmit, submitted, submitting, error, ca
       <label className="ldg-form-consent">
         <input type="checkbox" checked={form.consent} onChange={(e) => set("consent", e.target.checked)} disabled={submitting} />
         <span>
-          <strong>[필수]</strong> 개인정보 수집·이용에 동의합니다. 수집 항목(이름·연락처·주소)은 출장 접수 목적으로만 사용되며, 관련 법령에 따라 일정 기간 보관 후 파기됩니다.
+          <strong>[필수]</strong> 개인정보 수집·이용에 동의합니다. 수집 항목(이름·연락처·주소)은 출장 접수 목적으로만 사용되며, 관련 법령에 따라 일정 기간 보관 후 파기됩니다.{" "}
+          <a href="/privacy" target="_blank" rel="noopener noreferrer"
+             style={{ color: "#2563EB", textDecoration: "underline", fontWeight: 700 }}>
+            개인정보처리방침 보기
+          </a>
         </span>
       </label>
 
@@ -931,6 +936,12 @@ function Footer() {
           서울·경기 전 지역 출장 · 냉매충전 · 분해세척 · 누설수리 · 설치
         </p>
         <p className="ldg-footer-tel">대표전화 1866-2003</p>
+        <p style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", marginTop: 14, letterSpacing: "-0.1px" }}>
+          <a href="/privacy" target="_blank" rel="noopener noreferrer"
+             style={{ color: "rgba(255,255,255,0.9)", textDecoration: "underline", fontWeight: 700 }}>
+            개인정보처리방침
+          </a>
+        </p>
         <p className="ldg-footer-copyr">© 2026 올데이케어. All rights reserved.</p>
       </div>
     </footer>
@@ -1030,7 +1041,16 @@ function CalendarIcon() {
 // ============================================================
 // LandingApp root
 // ============================================================
+// 2026-06-24 — /privacy 경로면 처리방침 페이지. 그 외 기존 마케팅 랜딩.
+//   wrapper 로 분리한 이유: hook 호출 전 early return — React hooks 규칙 준수.
 export default function LandingApp() {
+  if (typeof window !== "undefined" && window.location.pathname.startsWith("/privacy")) {
+    return <PrivacyPage />;
+  }
+  return <LandingAppMain />;
+}
+
+function LandingAppMain() {
   const [prefillService, setPrefillService] = useState("");
   function scrollToForm(service) {
     if (service) setPrefillService(service);
