@@ -56,15 +56,15 @@ function Header() {
 }
 
 // ============================================================
-// 2. HERO
+// 2. HERO — 좌: 헤드라인 + 미니 게이지 / 우: 접수 폼 카드
 // ============================================================
-function Hero({ onCtaForm }) {
+function Hero() {
   const windText = "안 시원하면?";
   return (
     <section className="ldg-hero" id="01-hero" style={{ position: "relative", overflow: "hidden" }}>
       <div className="ldg-hero-heat" aria-hidden="true" />
       <div className="ldg-container ldg-hero-grid" style={{ position: "relative", zIndex: 1 }}>
-        <div>
+        <div className="ldg-hero-left">
           <div className="ldg-hero-badges">
             <span className="ldg-hero-badge urgent">긴급 출동 가능</span>
             <span className="ldg-hero-badge blue">서울·경기 당일 출장</span>
@@ -88,12 +88,11 @@ function Hero({ onCtaForm }) {
             당일 처리해드립니다.
           </p>
 
+          <MiniGauge />
+
           <div className="ldg-hero-cta">
             <a className="ldg-cta-main" href={PHONE_TEL}>
               <PhoneIcon size={19} />{PHONE_DISPLAY}
-            </a>
-            <a className="ldg-cta-sub" href="#form" onClick={(e) => { e.preventDefault(); onCtaForm(); }}>
-              지금 바로 접수하기 →
             </a>
           </div>
 
@@ -103,7 +102,14 @@ function Hero({ onCtaForm }) {
           </div>
         </div>
 
-        <DiagnosisDial />
+        <aside className="ldg-hero-form-card">
+          <div className="ldg-hero-form-head">
+            <span className="ldg-hero-form-eyebrow">QUICK BOOKING</span>
+            <h2 className="ldg-hero-form-title">지금 바로 접수하기</h2>
+            <p className="ldg-hero-form-sub">연락처만 남기면 끝 · 당일 연락드립니다</p>
+          </div>
+          <HeroBookingForm />
+        </aside>
       </div>
 
       {/* Hero 끝 wave — 정답 dc.html line 152~156 */}
@@ -118,68 +124,18 @@ function Hero({ onCtaForm }) {
 }
 
 // ============================================================
-// 진단 다이얼 — 28°C→21°C, 색 보간, proof 0/1/2 크로스페이드,
-// proof-0 안에 실시간 고객 문의 채팅 시뮬레이션 (live dot + sweat 아바타 + 타이핑)
+// 미니 게이지 — 21°C 완료 상태 (정적, 등장 시 한 번만 ripple)
 // ============================================================
-const CHAT_TYPE_FULL = "하나도 안 시원해요…\n고객님 문의가 들어왔어요";
-
-function DiagnosisDial() {
-  const [temp, setTemp]   = useState(28);
-  const [proof, setProof] = useState(0);
-  const [step, setStep]   = useState(1);
+function MiniGauge() {
+  const wrapRef = useRef(null);
   const [ripple, setRipple] = useState(0);
-  const [chat, setChat]   = useState("");
-  const tokenRef = useRef(0);
-  const wrapRef  = useRef(null);
-  const autoRef  = useRef(false);
-
-  function play() {
-    const myToken = ++tokenRef.current;
-    setTemp(28); setProof(0); setStep(1); setRipple(0); setChat("");
-    const start = performance.now();
-    let rippled = false;
-
-    // proof-0 채팅 타이핑 (0~1100ms)
-    let chatTimer = null;
-    function typeChat(i) {
-      if (myToken !== tokenRef.current) return;
-      setChat(CHAT_TYPE_FULL.slice(0, i));
-      if (i < CHAT_TYPE_FULL.length) {
-        const ch = CHAT_TYPE_FULL[i];
-        const d = ch === "\n" ? 180 : 38 + Math.random() * 38;
-        chatTimer = setTimeout(() => typeChat(i + 1), d);
-      }
-    }
-    setTimeout(() => typeChat(1), 100);
-
-    function frame(now) {
-      if (myToken !== tokenRef.current) return;
-      const t = now - start;
-      if (t < 1150) {
-        setProof(0); setStep(1); setTemp(28);
-      } else if (t < 2550) {
-        setProof(1); setStep(2); setTemp(28);
-      } else if (t < 4050) {
-        const p = (t - 2550) / 1500;
-        const v = 28 - (28 - 21) * Math.min(1, p);
-        setProof(2); setStep(3); setTemp(Math.round(v * 10) / 10);
-      } else {
-        setProof(2); setStep(3); setTemp(21);
-        if (!rippled) { rippled = true; setRipple(r => r + 1); }
-        return;
-      }
-      requestAnimationFrame(frame);
-    }
-    requestAnimationFrame(frame);
-  }
 
   useEffect(() => {
     if (!wrapRef.current) return;
     const io = new IntersectionObserver((entries) => {
       for (const e of entries) {
-        if (e.isIntersecting && !autoRef.current) {
-          autoRef.current = true;
-          play();
+        if (e.isIntersecting) {
+          setRipple(r => r + 1);
           io.unobserve(e.target);
         }
       }
@@ -188,93 +144,34 @@ function DiagnosisDial() {
     return () => io.disconnect();
   }, []);
 
-  const ratio = Math.max(0, Math.min(1, (28 - temp) / 7));
-  function lerp(a, b, t) { return Math.round(a + (b - a) * t); }
-  const r = lerp(220, 37, ratio);
-  const g = lerp(38, 99, ratio);
-  const b = lerp(38, 235, ratio);
-  const arcColor = `rgb(${r}, ${g}, ${b})`;
-
-  const R = 82;
+  const arcColor = "rgb(37, 99, 235)";
+  const R = 52;
   const C = 2 * Math.PI * R;
-  const arcLen = 90 + (270 - 90) * ratio;
-  const dash = (arcLen / 360) * C;
+  const dash = (270 / 360) * C;
 
   return (
-    <div className="ldg-dial-wrap" ref={wrapRef}>
-      <div className="ldg-dial-head-r">
-        <button className="ldg-dial-replay" onClick={() => { autoRef.current = true; play(); }}>↻ 다시 보기</button>
+    <div className="ldg-mini-gauge" ref={wrapRef}>
+      <div className="ldg-mini-gauge-circle">
+        <span key={ripple} className={`ldg-mini-ripple ${ripple > 0 ? "fire" : ""}`} aria-hidden="true" />
+        <svg width="128" height="128" viewBox="0 0 128 128">
+          <circle cx="64" cy="64" r="52" fill="none" stroke="#DCE8F3" strokeWidth="9" />
+          <circle cx="64" cy="64" r="52" fill="none"
+                  stroke={arcColor} strokeWidth="9"
+                  strokeDasharray={`${dash} ${C}`}
+                  strokeLinecap="round"
+                  transform="rotate(135 64 64)" />
+        </svg>
+        <div className="ldg-mini-gauge-text">
+          <span className="ldg-mini-gauge-num">21</span>
+          <span className="ldg-mini-gauge-lbl">°C 냉방</span>
+        </div>
       </div>
-
-      <div className="ldg-dial-body2">
-        <div className="ldg-dial-col">
-          <div className="ldg-dial-gauge" style={{ position: "relative" }}>
-            <span key={ripple} className={`ldg-dial-ripple ${ripple > 0 ? "fire" : ""}`} aria-hidden="true" />
-            <svg width="200" height="200" viewBox="0 0 200 200">
-              <circle cx="100" cy="100" r="82" fill="none" stroke="#DCE8F3" strokeWidth="11" />
-              <circle cx="100" cy="100" r="82" fill="none"
-                      stroke={arcColor} strokeWidth="11"
-                      strokeDasharray={`${dash} ${C}`}
-                      strokeLinecap="round"
-                      transform="rotate(135 100 100)"
-                      style={{ transition: "stroke 0.3s ease" }} />
-            </svg>
-            <div className="ldg-dial-gauge-text">
-              <span className="ldg-dial-gauge-num">
-                {Number.isInteger(temp) ? temp : temp.toFixed(1)}
-              </span>
-              <span className="ldg-dial-gauge-lbl">°C 냉방</span>
-            </div>
-          </div>
-          <span className="ldg-dial-cap">
-            {step === 1 && "틀어도 바람만 · 안 시원해요"}
-            {step === 2 && "진단 중 — 전문 게이지로 측정"}
-            {step === 3 && temp > 21 && "정품 냉매 충전 중…"}
-            {step === 3 && temp <= 21 && "✓ 21°C — 시원하게 회복"}
-          </span>
-        </div>
-
-        <div className="ldg-proof">
-          {/* proof-0 — 실시간 고객 문의 채팅 시뮬레이션 */}
-          <div className={`ldg-proof-layer ${proof === 0 ? "active" : ""}`}>
-            <div className="ldg-proof0-bg" />
-            <div className="ldg-proof0-live">
-              <span className="ldg-live-dot" />
-              <span>실시간 고객 문의</span>
-            </div>
-            <div className="ldg-proof0-chat">
-              <div className="ldg-proof0-avatar">
-                <span className="ldg-sweat-drip" />
-              </div>
-              <div className="ldg-proof0-bubble">
-                <span style={{ whiteSpace: "pre-line" }}>{chat}</span>
-                <span className="ldg-proof0-caret" />
-              </div>
-            </div>
-          </div>
-          <div className={`ldg-proof-layer ${proof === 1 ? "active" : ""}`}>
-            <img src="/landing/assets/gauge_real.jpg" alt="냉매 게이지로 압력 측정" style={{ objectPosition: "center 28%" }} />
-            <div className="ldg-proof-badge">진단 중</div>
-            <div className="ldg-proof-text-bottom">전문 게이지로 냉매압력을<br/>직접 측정합니다</div>
-          </div>
-          <div className={`ldg-proof-layer ${proof === 2 ? "active" : ""}`}>
-            <img src="/landing/assets/charge_real.png" alt="정품 냉매 충전 · 21도 확인" style={{ objectPosition: "center 42%" }} />
-            <div className="ldg-proof-badge done">충전 완료</div>
-            <div className="ldg-proof-text-bottom">정품 냉매 충전 · 적외선 온도계로<br/>21°C 직접 확인</div>
-          </div>
-        </div>
-
-        <div className="ldg-dial-steps">
-          <div className={`ldg-dial-step ${step >= 1 ? "active" : ""}`}>
-            <span className="ldg-dial-step-num">1</span>증상
-          </div>
-          <div className={`ldg-dial-step ${step >= 2 ? "active" : ""}`} style={{ flex: 1.25 }}>
-            <span className="ldg-dial-step-num">2</span>측정·충전
-          </div>
-          <div className={`ldg-dial-step ${step >= 3 ? "active" : ""}`}>
-            <span className="ldg-dial-step-num">3</span>완료
-          </div>
-        </div>
+      <div className="ldg-mini-gauge-meta">
+        <span className="ldg-mini-gauge-badge">✓ 회복 완료</span>
+        <span className="ldg-mini-gauge-cap">
+          전문 진단 · 정품 냉매 충전으로<br />
+          21°C 시원하게 회복
+        </span>
       </div>
     </div>
   );
@@ -726,9 +623,9 @@ function Trust() {
 }
 
 // ============================================================
-// 9. FORM
+// 9. FORM — 폼 본문은 BookingFormBody 로 공유 (히어로 우측 + 맨 아래)
 // ============================================================
-function CtaForm() {
+function useBookingForm() {
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({ service: "", name: "", phone: "", address: "", consent: false });
   function set(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
@@ -737,6 +634,75 @@ function CtaForm() {
     if (!form.consent) { alert("개인정보 수집·이용에 동의해 주세요."); return; }
     setSubmitted(true);
   }
+  return { form, set, handleSubmit, submitted };
+}
+
+function BookingFormBody({ form, set, onSubmit, submitted, showTel = true }) {
+  if (submitted) {
+    return (
+      <div className="ldg-form-done">
+        <div className="ldg-form-done-ico"><CheckIcon /></div>
+        <h3>접수 완료되었습니다</h3>
+        <p>빠른 시간 내 연락드리겠습니다.<br/>긴급 상담은 <a href={PHONE_TEL}>{PHONE_DISPLAY}</a>으로 전화해 주세요.</p>
+      </div>
+    );
+  }
+  return (
+    <form onSubmit={onSubmit} className="ldg-form">
+      <div>
+        <label className="ldg-form-label">서비스 종류</label>
+        <select value={form.service} onChange={(e) => set("service", e.target.value)} className="ldg-form-input">
+          <option value="">선택해 주세요</option>
+          <option value="냉매충전">냉매충전</option>
+          <option value="분해세척">분해세척</option>
+          <option value="수리">수리 / 누설수리</option>
+          <option value="설치">에어컨 설치</option>
+          <option value="모르겠음">잘 모르겠어요 (방문 후 진단)</option>
+        </select>
+      </div>
+
+      <div className="ldg-form-2col">
+        <div>
+          <label className="ldg-form-label">이름</label>
+          <input type="text" placeholder="홍길동" className="ldg-form-input"
+                 value={form.name} onChange={(e) => set("name", e.target.value)} />
+        </div>
+        <div>
+          <label className="ldg-form-label">연락처</label>
+          <input type="tel" placeholder="010-0000-0000" className="ldg-form-input"
+                 value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+        </div>
+      </div>
+
+      <div>
+        <label className="ldg-form-label">주소 (지역)</label>
+        <input type="text" placeholder="예: 서울 마포구 서교동" className="ldg-form-input"
+               value={form.address} onChange={(e) => set("address", e.target.value)} />
+      </div>
+
+      <label className="ldg-form-consent">
+        <input type="checkbox" checked={form.consent} onChange={(e) => set("consent", e.target.checked)} />
+        <span>
+          <strong>[필수]</strong> 개인정보 수집·이용에 동의합니다. 수집 항목(이름·연락처·주소)은 출장 접수 목적으로만 사용되며, 관련 법령에 따라 일정 기간 보관 후 파기됩니다.
+        </span>
+      </label>
+
+      <button type="submit" className="ldg-form-submit">접수하기</button>
+
+      {showTel && (
+        <p className="ldg-form-tel">전화 접수: <a href={PHONE_TEL}>{PHONE_DISPLAY}</a></p>
+      )}
+    </form>
+  );
+}
+
+function HeroBookingForm() {
+  const { form, set, handleSubmit, submitted } = useBookingForm();
+  return <BookingFormBody form={form} set={set} onSubmit={handleSubmit} submitted={submitted} showTel={false} />;
+}
+
+function CtaForm() {
+  const { form, set, handleSubmit, submitted } = useBookingForm();
   return (
     <section className="ldg-section ldg-form-section" id="form">
       <div className="ldg-form-container">
@@ -745,58 +711,7 @@ function CtaForm() {
           <h2 className="ldg-h2" style={{ fontSize: "clamp(26px, 4.5vw, 44px)" }}>{"시원하지 않으면,\n냉매 점검부터"}</h2>
           <p className="ldg-lead" style={{ marginBottom: 0 }}>서울·경기 전 지역 당일 출장</p>
         </div>
-
-        {!submitted ? (
-          <form onSubmit={handleSubmit} className="ldg-form">
-            <div>
-              <label className="ldg-form-label">서비스 종류</label>
-              <select value={form.service} onChange={(e) => set("service", e.target.value)} className="ldg-form-input">
-                <option value="">선택해 주세요</option>
-                <option value="냉매충전">냉매충전</option>
-                <option value="분해세척">분해세척</option>
-                <option value="수리">수리 / 누설수리</option>
-                <option value="설치">에어컨 설치</option>
-                <option value="모르겠음">잘 모르겠어요 (방문 후 진단)</option>
-              </select>
-            </div>
-
-            <div className="ldg-form-2col">
-              <div>
-                <label className="ldg-form-label">이름</label>
-                <input type="text" placeholder="홍길동" className="ldg-form-input"
-                       value={form.name} onChange={(e) => set("name", e.target.value)} />
-              </div>
-              <div>
-                <label className="ldg-form-label">연락처</label>
-                <input type="tel" placeholder="010-0000-0000" className="ldg-form-input"
-                       value={form.phone} onChange={(e) => set("phone", e.target.value)} />
-              </div>
-            </div>
-
-            <div>
-              <label className="ldg-form-label">주소 (지역)</label>
-              <input type="text" placeholder="예: 서울 마포구 서교동" className="ldg-form-input"
-                     value={form.address} onChange={(e) => set("address", e.target.value)} />
-            </div>
-
-            <label className="ldg-form-consent">
-              <input type="checkbox" checked={form.consent} onChange={(e) => set("consent", e.target.checked)} />
-              <span>
-                <strong>[필수]</strong> 개인정보 수집·이용에 동의합니다. 수집 항목(이름·연락처·주소)은 출장 접수 목적으로만 사용되며, 관련 법령에 따라 일정 기간 보관 후 파기됩니다.
-              </span>
-            </label>
-
-            <button type="submit" className="ldg-form-submit">접수하기</button>
-
-            <p className="ldg-form-tel">전화 접수: <a href={PHONE_TEL}>{PHONE_DISPLAY}</a></p>
-          </form>
-        ) : (
-          <div className="ldg-form-done">
-            <div className="ldg-form-done-ico"><CheckIcon /></div>
-            <h3>접수 완료되었습니다</h3>
-            <p>빠른 시간 내 연락드리겠습니다.<br/>긴급 상담은 <a href={PHONE_TEL}>{PHONE_DISPLAY}</a>으로 전화해 주세요.</p>
-          </div>
-        )}
+        <BookingFormBody form={form} set={set} onSubmit={handleSubmit} submitted={submitted} />
       </div>
     </section>
   );
@@ -930,7 +845,7 @@ export default function LandingApp() {
     <div className="ldg-root" id="top">
       <Ticker />
       <Header />
-      <Hero onCtaForm={scrollToForm} />
+      <Hero />
       <Why />
       <Solution />
       <Price onCtaForm={scrollToForm} />

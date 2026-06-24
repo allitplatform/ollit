@@ -30,10 +30,6 @@
 @keyframes ldgLivePulse   { 0%, 100% { opacity: 1;    transform: scale(1); }
                             50%      { opacity: 0.35; transform: scale(0.75); } }
 @keyframes ldgHeatPulse   { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
-@keyframes ldgSweatDrip   { 0%   { transform: translateY(0)    rotate(35deg); opacity: 0; }
-                            18%  {                                            opacity: 1; }
-                            72%  { transform: translateY(11px) rotate(35deg); opacity: 1; }
-                            100% { transform: translateY(17px) rotate(35deg); opacity: 0; } }
 @keyframes ldgBadgeBlink  { 0%, 100% { opacity: 1; } 50% { opacity: 0.32; } }
 @keyframes ldgCaret       { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 
@@ -157,161 +153,83 @@
   font-size: 13px; color: #6A7D94; letter-spacing: -0.2px;
 }
 
-/* ===== Hero 우측 — 다이얼 ===== */
-.ldg-dial-wrap { position: relative; margin-bottom: 26px; }
-.ldg-dial-head-r {
-  display: flex; align-items: center; justify-content: flex-end; margin-bottom: 16px;
+/* ===== Hero 좌측 — 미니 게이지 (21°C 완료 상태) ===== */
+.ldg-hero-left { display: flex; flex-direction: column; }
+.ldg-mini-gauge {
+  display: flex; align-items: center; gap: 18px;
+  margin: 8px 0 28px;
+  padding: 14px 18px 14px 14px;
+  background: #fff;
+  border: 1.5px solid #DCE8F3;
+  border-radius: 16px;
+  box-shadow: 0 4px 16px rgba(37,99,235,0.07);
+  max-width: 380px;
 }
-.ldg-dial-replay {
-  font-size: 11px; font-weight: 700;
-  color: #2563EB; background: #EEF4FF;
-  border: none; padding: 6px 11px; border-radius: 7px;
-  white-space: nowrap;
-  transition: background 0.15s ease;
+.ldg-mini-gauge-circle {
+  position: relative; width: 128px; height: 128px; flex-shrink: 0;
 }
-.ldg-dial-replay:hover { background: #E0EBFF; }
-.ldg-dial-body2 {
-  display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: center;
-}
-.ldg-dial-col { display: flex; flex-direction: column; align-items: center; gap: 14px; }
-.ldg-dial-gauge { position: relative; width: 200px; height: 200px; }
-.ldg-dial-gauge svg { display: block; position: relative; }
-.ldg-dial-gauge-text {
+.ldg-mini-gauge-circle svg { display: block; position: relative; }
+.ldg-mini-gauge-text {
   position: absolute; inset: 0;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
 }
-.ldg-dial-gauge-num {
-  font-size: 58px; font-weight: 900;
-  color: #1C2B3A; line-height: 0.9; letter-spacing: -2px;
+.ldg-mini-gauge-num {
+  font-size: 40px; font-weight: 900; color: #1C2B3A;
+  line-height: 0.9; letter-spacing: -1.5px;
   font-variant-numeric: tabular-nums;
 }
-.ldg-dial-gauge-lbl {
-  font-size: 12px; color: #93A7BC; margin-top: 5px; letter-spacing: 0.3px;
+.ldg-mini-gauge-lbl {
+  font-size: 10.5px; color: #93A7BC; margin-top: 4px; letter-spacing: 0.3px;
 }
-.ldg-dial-cap {
-  text-align: center; background: #EAF4FF; color: #2563EB;
-  font-size: 12.5px; font-weight: 800;
-  padding: 8px 14px; border-radius: 12px;
-  letter-spacing: -0.3px; line-height: 1.4;
-  max-width: 200px;
-}
-.ldg-dial-ripple {
+.ldg-mini-ripple {
   position: absolute; inset: 0; border-radius: 50%;
   border: 2px solid #7FC0E8; opacity: 0; pointer-events: none;
 }
-.ldg-dial-ripple.fire { animation: ldgCRipple 1.4s ease-out; }
-
-/* proof 영역 */
-.ldg-proof {
-  position: relative; border-radius: 14px; overflow: hidden;
-  height: 300px; box-shadow: 0 10px 26px rgba(37,99,235,0.16);
+.ldg-mini-ripple.fire { animation: ldgCRipple 1.4s ease-out; }
+.ldg-mini-gauge-meta {
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
 }
-.ldg-proof-layer {
-  position: absolute; inset: 0;
-  opacity: 0; transition: opacity 0.5s ease;
-  overflow: hidden;
+.ldg-mini-gauge-badge {
+  display: inline-flex; align-items: center; align-self: flex-start;
+  background: #E6F4EB; color: #146038;
+  font-size: 11.5px; font-weight: 800;
+  padding: 4px 10px; border-radius: 100px;
+  letter-spacing: -0.2px;
 }
-.ldg-proof-layer.active { opacity: 1; }
-.ldg-proof-layer img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ldg-proof-badge {
-  position: absolute; top: 12px; left: 12px;
-  background: rgba(37,99,235,0.94); color: #fff;
-  font-size: 11px; font-weight: 800;
-  padding: 5px 11px; border-radius: 100px;
-}
-.ldg-proof-badge.done { background: rgba(20,96,56,0.94); }
-.ldg-proof-text-bottom {
-  position: absolute; left: 0; right: 0; bottom: 0;
-  padding: 18px 14px 12px;
-  background: linear-gradient(to top, rgba(10,20,36,0.86), transparent);
-  color: #fff; font-size: 12px; font-weight: 600; line-height: 1.45;
+.ldg-mini-gauge-cap {
+  font-size: 13px; font-weight: 700; color: #1C2B3A;
+  line-height: 1.5; letter-spacing: -0.3px;
 }
 
-/* proof-0 — 실시간 채팅 시뮬레이션 */
-.ldg-proof0-bg {
-  position: absolute; inset: 0;
-  background: linear-gradient(160deg, #FBFDFF, #EAF3FC);
-}
-.ldg-proof0-bg::before {
-  content: '';
-  position: absolute; top: 0; left: 0; right: 0; height: 62%;
-  background: radial-gradient(120% 80% at 72% 0%, rgba(91,155,213,0.13), transparent 62%);
-  animation: ldgHeatPulse 3.4s ease-in-out infinite;
-}
-.ldg-proof0-live {
-  position: absolute; top: 14px; left: 16px;
-  display: flex; align-items: center; gap: 7px;
-}
-.ldg-proof0-live > span:last-child {
-  font-size: 11px; font-weight: 700; color: #4A82B8; letter-spacing: 0.5px;
-}
-.ldg-live-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  background: #5B9BD5;
-  animation: ldgLivePulse 1.6s ease-in-out infinite;
-}
-.ldg-proof0-chat {
-  position: absolute; left: 18px; right: 18px; bottom: 18px;
-  display: flex; gap: 10px; align-items: flex-end;
-}
-.ldg-proof0-avatar {
-  width: 38px; height: 38px; border-radius: 50%;
-  background: linear-gradient(150deg, #A9C8E6, #6E96C2);
-  flex-shrink: 0; position: relative;
-  box-shadow: 0 3px 10px rgba(91,124,168,0.3);
-}
-.ldg-sweat-drip {
-  position: absolute; top: 7px; right: 5px;
-  width: 7px; height: 9px;
-  background: #EAF6FF;
-  border-radius: 0 60% 60% 60%;
-  transform: rotate(35deg);
-  animation: ldgSweatDrip 2.4s ease-in-out infinite;
-}
-.ldg-proof0-bubble {
+/* ===== Hero 우측 — 접수 폼 카드 ===== */
+.ldg-hero-form-card {
   background: #fff;
-  border-radius: 4px 16px 16px 16px;
-  padding: 12px 15px;
-  box-shadow: 0 4px 14px rgba(40,72,112,0.12);
-  max-width: 82%; min-height: 26px;
-  font-size: 15px; font-weight: 700;
-  color: #1C2B3A; line-height: 1.5; letter-spacing: -0.3px;
+  border: 1px solid #DCE8F3;
+  border-radius: 20px;
+  padding: 28px 26px 26px;
+  box-shadow: 0 14px 40px rgba(28,43,58,0.10), 0 2px 8px rgba(28,43,58,0.04);
 }
-.ldg-proof0-caret {
+.ldg-hero-form-head {
+  margin-bottom: 20px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid #EEF4FB;
+}
+.ldg-hero-form-eyebrow {
   display: inline-block;
-  width: 2px; height: 14px; background: #2563EB;
-  margin-left: 2px; vertical-align: -2px;
-  animation: ldgBlink 1s step-end infinite;
-}
-
-/* 3-step 진행 표시 */
-.ldg-dial-steps { display: flex; gap: 8px; margin-top: 18px; }
-.ldg-dial-step {
-  flex: 1 1 auto;
-  display: flex; align-items: center; justify-content: center; gap: 8px;
-  padding: 10px 12px; border-radius: 10px;
-  background: #EAF2FB;                   /* 연한 파란 배경 — 비활성도 또렷 */
-  border: 1.5px solid #C7D8EE;           /* 테두리 또렷 */
-  font-size: 12px; font-weight: 700; color: #5A7FA0;
-  transition: all 0.35s ease;
-  white-space: nowrap;
-  min-width: max-content;                /* 글자 폭 보장 */
-  flex-shrink: 0;
-}
-.ldg-dial-step.active {
-  background: #E0EBFF;                   /* 활성 — 더 진한 파란 */
-  border: 1.5px solid #5B9BD5;
-  color: #1C2B3A;
-  box-shadow: 0 2px 8px rgba(91,155,213,0.15);
-}
-.ldg-dial-step-num {
-  width: 18px; height: 18px; border-radius: 50%;
-  background: #C2D2E2; color: #fff;
   font-size: 11px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+  color: #2563EB; letter-spacing: 1.6px;
+  background: #EAF4FF; padding: 4px 10px;
+  border-radius: 100px; margin-bottom: 10px;
 }
-.ldg-dial-step.active .ldg-dial-step-num { background: #2563EB; }
+.ldg-hero-form-title {
+  font-size: 22px; font-weight: 900;
+  color: #1C2B3A; letter-spacing: -0.6px;
+  margin-bottom: 6px;
+}
+.ldg-hero-form-sub {
+  font-size: 13px; color: #6A7D94;
+  letter-spacing: -0.2px;
+}
 
 /* ============================================================
    섹션 공통
@@ -871,14 +789,15 @@ select.ldg-form-input { cursor: pointer; }
   .ldg-header { padding: 10px 16px; }
   .ldg-header-cta { padding: 9px 14px; font-size: 13px; }
 
-  /* 2. 다이얼 하단 3-step 박스 — 글자 세로 쪼개짐 차단 */
-  .ldg-dial-steps { gap: 6px; }
-  .ldg-dial-step { padding: 8px 9px; font-size: 11px; }
-  .ldg-dial-step-num { width: 16px; height: 16px; font-size: 10px; }
+  /* 2. 미니 게이지 — 모바일 살짝 축소 */
+  .ldg-mini-gauge { gap: 14px; padding: 12px 14px 12px 12px; max-width: 100%; }
+  .ldg-mini-gauge-circle { width: 108px; height: 108px; }
+  .ldg-mini-gauge-num { font-size: 34px; }
+  .ldg-mini-gauge-cap { font-size: 12.5px; }
 
-  /* 다이얼 wrap — 좁은 화면 2 column 줄바꿈 차단 */
-  .ldg-dial-body2 { grid-template-columns: 1fr; gap: 16px; }
-  .ldg-dial-col { width: 100%; }
+  /* 히어로 폼 카드 — 모바일 padding 축소 */
+  .ldg-hero-form-card { padding: 22px 18px 20px; border-radius: 16px; }
+  .ldg-hero-form-title { font-size: 20px; }
 
   /* 3. 4단계 절차 — 모바일 2×2 고정 (사장님 spec) */
   .ldg-steps-grid {
@@ -908,8 +827,7 @@ select.ldg-form-input { cursor: pointer; }
   .ldg-hero-h1 .wind-char,
   .ldg-why-blink,
   .ldg-hero-badge.urgent::before,
-  .ldg-live-dot,
-  .ldg-sweat-drip {
+  .ldg-mini-ripple {
     animation: none !important;
   }
 }
