@@ -21,7 +21,7 @@ export const config = {
 const ALLDAY_OG = {
   title:       "올데이케어 - 에어컨 분해세척·냉매충전·설치·수리",
   description: "서울·경기 당일 출장. 냉매충전·분해세척·누설수리·설치",
-  image:       "https://xn--2n1bk06aikal6b92t.kr/og-alldaycare.png",
+  image:       "https://xn--2n1bk06aikal6b92t.kr/og-alldaycare-v2.png",  // 카톡/CDN 캐시 무효화용 파일명 버전
   url:         "https://xn--2n1bk06aikal6b92t.kr",
 };
 
