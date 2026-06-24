@@ -29,6 +29,18 @@ export function toKstYmd(value) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// 2026-06-24 — KST "YYYY-MM-DD HH:mm" (분까지). timestamptz UTC 입력 시 KST 변환 필수.
+//   사용처: 접수함 → 새 접수 폼 전환 시 memo 안 접수일자 (사장님 spec).
+//   날것 .slice 금지 — UTC 자정 측 KST 새벽 시각이 전날 UTC 로 잡혀 어긋남.
+export function toKstYmdHm(value) {
+  if (!value) return "";
+  const d = (value instanceof Date) ? value : new Date(value);
+  if (isNaN(d.getTime())) return "";
+  const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const hm  = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${ymd} ${hm}`;
+}
+
 // 오늘 + days offset (KST local) "YYYY-MM-DD"
 export function dateOffsetYmd(days) {
   const d = new Date();

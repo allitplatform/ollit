@@ -162,7 +162,7 @@ import { lookupRate, WORK_TYPE_TO_SERVICE } from "../components/principal/NewRec
 //                같은 마이크로초 다중 UPDATE 차단 (iOS 알림 같은 tag 덮어쓰기 회피).
 //                새로고침 시 Set 초기화 — DB 사전 조회 가드 (line 7424) 가 보호.
 const _pushedTaskIds = new Set();
-import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd } from "../utils/dateLabel.js";
+import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd, toKstYmdHm } from "../utils/dateLabel.js";
 import { isRemittanceTarget, isPendingRemit, isAutoConfirmedRemit } from "../utils/remitFilter.js";
 // 2026-06-07 — KA/crikrin 측측 측측 측측 측측 (정산 탭 측측 측측측).
 import { markPartnerDailyRemit, undoPartnerDailyRemit, describeDailyRemitError, ymdKstToday } from "../lib/partnerDailySettleDb.js";
@@ -3455,6 +3455,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         user={user}
         onBack={goBack}
         onConvertToForm={(inquiryRow) => {
+          // 접수일자 — created_at(UTC timestamptz) → KST "YYYY-MM-DD HH:mm" (사장님 spec).
+          const at = toKstYmdHm(inquiryRow.created_at);
           setPendingInquiry({
             id: inquiryRow.id,
             initial: {
@@ -3463,7 +3465,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               phone:     inquiryRow.phone   || "",
               address:   inquiryRow.address || "",
               workItems: [],               // 전화 확인 후 운영자가 채움
-              memo:      "[홈페이지 접수] 희망 서비스: " + serviceLabel(inquiryRow.service_type),
+              memo:      `[홈페이지 접수${at ? " " + at : ""}] 희망 서비스: ${serviceLabel(inquiryRow.service_type)}`,
             },
           });
           setScreen("newReceptionForm");
