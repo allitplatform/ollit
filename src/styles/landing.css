@@ -31,6 +31,10 @@
                             50%      { opacity: 0.35; transform: scale(0.75); } }
 @keyframes ldgHeatPulse   { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
 @keyframes ldgBadgeBlink  { 0%, 100% { opacity: 1; } 50% { opacity: 0.32; } }
+@keyframes ldgSweatDrip   { 0%   { transform: translateY(0)    rotate(35deg); opacity: 0; }
+                            18%  {                                            opacity: 1; }
+                            72%  { transform: translateY(11px) rotate(35deg); opacity: 1; }
+                            100% { transform: translateY(17px) rotate(35deg); opacity: 0; } }
 @keyframes ldgCaret       { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
 
 /* ============================================================
@@ -231,6 +235,179 @@
   letter-spacing: -0.2px;
 }
 
+/* ===== 진단 다이얼 — Evidence 섹션 내부 (세척 전/후 슬라이더 아래) ===== */
+.ldg-evi-dial-card {
+  margin-top: 44px;
+  padding: 36px 32px 32px;
+  background: #F7FBFF;
+  border: 1px solid #E0EBFA;
+  border-radius: 20px;
+}
+.ldg-evi-dial-h3 {
+  font-size: 20px; font-weight: 800;
+  color: #1C2B3A; letter-spacing: -0.5px;
+  text-align: center; margin-bottom: 8px;
+}
+.ldg-evi-dial-sub {
+  font-size: 13.5px; color: #6A7D94;
+  letter-spacing: -0.2px;
+  text-align: center; margin-bottom: 28px;
+}
+.ldg-dial-wrap { position: relative; }
+.ldg-dial-head-r {
+  display: flex; align-items: center; justify-content: flex-end; margin-bottom: 16px;
+}
+.ldg-dial-replay {
+  font-size: 11px; font-weight: 700;
+  color: #2563EB; background: #EEF4FF;
+  border: none; padding: 6px 11px; border-radius: 7px;
+  white-space: nowrap;
+  transition: background 0.15s ease;
+}
+.ldg-dial-replay:hover { background: #E0EBFF; }
+.ldg-dial-body2 {
+  display: grid; grid-template-columns: 200px 1fr; gap: 20px; align-items: center;
+}
+.ldg-dial-col { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.ldg-dial-gauge { position: relative; width: 200px; height: 200px; }
+.ldg-dial-gauge svg { display: block; position: relative; }
+.ldg-dial-gauge-text {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.ldg-dial-gauge-num {
+  font-size: 58px; font-weight: 900;
+  color: #1C2B3A; line-height: 0.9; letter-spacing: -2px;
+  font-variant-numeric: tabular-nums;
+}
+.ldg-dial-gauge-lbl {
+  font-size: 12px; color: #93A7BC; margin-top: 5px; letter-spacing: 0.3px;
+}
+.ldg-dial-cap {
+  text-align: center; background: #EAF4FF; color: #2563EB;
+  font-size: 12.5px; font-weight: 800;
+  padding: 8px 14px; border-radius: 12px;
+  letter-spacing: -0.3px; line-height: 1.4;
+  max-width: 200px;
+}
+.ldg-dial-ripple {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 2px solid #7FC0E8; opacity: 0; pointer-events: none;
+}
+.ldg-dial-ripple.fire { animation: ldgCRipple 1.4s ease-out; }
+
+/* proof 영역 */
+.ldg-proof {
+  position: relative; border-radius: 14px; overflow: hidden;
+  height: 300px; box-shadow: 0 10px 26px rgba(37,99,235,0.16);
+}
+.ldg-proof-layer {
+  position: absolute; inset: 0;
+  opacity: 0; transition: opacity 0.5s ease;
+  overflow: hidden;
+}
+.ldg-proof-layer.active { opacity: 1; }
+.ldg-proof-layer img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ldg-proof-badge {
+  position: absolute; top: 12px; left: 12px;
+  background: rgba(37,99,235,0.94); color: #fff;
+  font-size: 11px; font-weight: 800;
+  padding: 5px 11px; border-radius: 100px;
+}
+.ldg-proof-badge.done { background: rgba(20,96,56,0.94); }
+.ldg-proof-text-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: 18px 14px 12px;
+  background: linear-gradient(to top, rgba(10,20,36,0.86), transparent);
+  color: #fff; font-size: 12px; font-weight: 600; line-height: 1.45;
+}
+
+/* proof-0 — 실시간 채팅 시뮬레이션 */
+.ldg-proof0-bg {
+  position: absolute; inset: 0;
+  background: linear-gradient(160deg, #FBFDFF, #EAF3FC);
+}
+.ldg-proof0-bg::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 62%;
+  background: radial-gradient(120% 80% at 72% 0%, rgba(91,155,213,0.13), transparent 62%);
+  animation: ldgHeatPulse 3.4s ease-in-out infinite;
+}
+.ldg-proof0-live {
+  position: absolute; top: 14px; left: 16px;
+  display: flex; align-items: center; gap: 7px;
+}
+.ldg-proof0-live > span:last-child {
+  font-size: 11px; font-weight: 700; color: #4A82B8; letter-spacing: 0.5px;
+}
+.ldg-live-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #5B9BD5;
+  animation: ldgLivePulse 1.6s ease-in-out infinite;
+}
+.ldg-proof0-chat {
+  position: absolute; left: 18px; right: 18px; bottom: 18px;
+  display: flex; gap: 10px; align-items: flex-end;
+}
+.ldg-proof0-avatar {
+  width: 38px; height: 38px; border-radius: 50%;
+  background: linear-gradient(150deg, #A9C8E6, #6E96C2);
+  flex-shrink: 0; position: relative;
+  box-shadow: 0 3px 10px rgba(91,124,168,0.3);
+}
+.ldg-sweat-drip {
+  position: absolute; top: 7px; right: 5px;
+  width: 7px; height: 9px;
+  background: #EAF6FF;
+  border-radius: 0 60% 60% 60%;
+  transform: rotate(35deg);
+  animation: ldgSweatDrip 2.4s ease-in-out infinite;
+}
+.ldg-proof0-bubble {
+  background: #fff;
+  border-radius: 4px 16px 16px 16px;
+  padding: 12px 15px;
+  box-shadow: 0 4px 14px rgba(40,72,112,0.12);
+  max-width: 82%; min-height: 26px;
+  font-size: 15px; font-weight: 700;
+  color: #1C2B3A; line-height: 1.5; letter-spacing: -0.3px;
+}
+.ldg-proof0-caret {
+  display: inline-block;
+  width: 2px; height: 14px; background: #2563EB;
+  margin-left: 2px; vertical-align: -2px;
+  animation: ldgBlink 1s step-end infinite;
+}
+
+/* 3-step 진행 표시 */
+.ldg-dial-steps { display: flex; gap: 8px; margin-top: 18px; }
+.ldg-dial-step {
+  flex: 1 1 auto;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 10px 12px; border-radius: 10px;
+  background: #EAF2FB;
+  border: 1.5px solid #C7D8EE;
+  font-size: 12px; font-weight: 700; color: #5A7FA0;
+  transition: all 0.35s ease;
+  white-space: nowrap;
+  min-width: max-content;
+  flex-shrink: 0;
+}
+.ldg-dial-step.active {
+  background: #E0EBFF;
+  border: 1.5px solid #5B9BD5;
+  color: #1C2B3A;
+  box-shadow: 0 2px 8px rgba(91,155,213,0.15);
+}
+.ldg-dial-step-num {
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #C2D2E2; color: #fff;
+  font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.ldg-dial-step.active .ldg-dial-step-num { background: #2563EB; }
+
 /* ============================================================
    섹션 공통
    ============================================================ */
@@ -390,8 +567,12 @@
    ============================================================ */
 .ldg-price-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
-  gap: 24px; align-items: start;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;   /* 좌측 2카드 합산 ↔ 우측 1카드 자연 흐름 (빈 공간 X) */
+}
+.ldg-price-col-left {
+  display: flex; flex-direction: column; gap: 24px;
 }
 .ldg-price-card {
   background: #fff; border: 1px solid #E6EEF6;
@@ -799,6 +980,15 @@ select.ldg-form-input { cursor: pointer; }
   .ldg-hero-form-card { padding: 22px 18px 20px; border-radius: 16px; }
   .ldg-hero-form-title { font-size: 20px; }
 
+  /* Evidence 내 다이얼 카드 — 모바일 padding 축소 + 다이얼 wrap 1열 */
+  .ldg-evi-dial-card { padding: 26px 18px 22px; border-radius: 16px; }
+  .ldg-evi-dial-h3 { font-size: 18px; }
+  .ldg-dial-body2 { grid-template-columns: 1fr; gap: 16px; }
+  .ldg-dial-col { width: 100%; }
+  .ldg-dial-steps { gap: 6px; }
+  .ldg-dial-step { padding: 8px 9px; font-size: 11px; }
+  .ldg-dial-step-num { width: 16px; height: 16px; font-size: 10px; }
+
   /* 3. 4단계 절차 — 모바일 2×2 고정 (사장님 spec) */
   .ldg-steps-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -819,6 +1009,10 @@ select.ldg-form-input { cursor: pointer; }
   .ldg-trust { padding: 24px 18px 90px; }
   .ldg-form-section { padding: 72px 18px 64px; }
   .ldg-solution { padding: 72px 18px 0; }
+
+  /* PRICE — 모바일 1열 (좌측 col 펼쳐서 분해세척 → 수리·설치 → 냉매충전 순) */
+  .ldg-price-grid { grid-template-columns: 1fr; gap: 18px; }
+  .ldg-price-col-left { gap: 18px; }
 }
 
 /* prefers-reduced-motion */
@@ -827,7 +1021,9 @@ select.ldg-form-input { cursor: pointer; }
   .ldg-hero-h1 .wind-char,
   .ldg-why-blink,
   .ldg-hero-badge.urgent::before,
-  .ldg-mini-ripple {
+  .ldg-mini-ripple,
+  .ldg-live-dot,
+  .ldg-sweat-drip {
     animation: none !important;
   }
 }

@@ -178,6 +178,167 @@ function MiniGauge() {
 }
 
 // ============================================================
+// 진단 다이얼 — 28°C→21°C, 색 보간, proof 0/1/2 크로스페이드,
+// proof-0 안에 실시간 고객 문의 채팅 시뮬레이션 (live dot + sweat 아바타 + 타이핑)
+// Evidence 섹션 안 BeforeAfterSlider 아래에 배치 (2026-06-24)
+// ============================================================
+const CHAT_TYPE_FULL = "하나도 안 시원해요…\n고객님 문의가 들어왔어요";
+
+function DiagnosisDial() {
+  const [temp, setTemp]   = useState(28);
+  const [proof, setProof] = useState(0);
+  const [step, setStep]   = useState(1);
+  const [ripple, setRipple] = useState(0);
+  const [chat, setChat]   = useState("");
+  const tokenRef = useRef(0);
+  const wrapRef  = useRef(null);
+  const autoRef  = useRef(false);
+
+  function play() {
+    const myToken = ++tokenRef.current;
+    setTemp(28); setProof(0); setStep(1); setRipple(0); setChat("");
+    const start = performance.now();
+    let rippled = false;
+
+    function typeChat(i) {
+      if (myToken !== tokenRef.current) return;
+      setChat(CHAT_TYPE_FULL.slice(0, i));
+      if (i < CHAT_TYPE_FULL.length) {
+        const ch = CHAT_TYPE_FULL[i];
+        const d = ch === "\n" ? 180 : 38 + Math.random() * 38;
+        setTimeout(() => typeChat(i + 1), d);
+      }
+    }
+    setTimeout(() => typeChat(1), 100);
+
+    function frame(now) {
+      if (myToken !== tokenRef.current) return;
+      const t = now - start;
+      if (t < 1150) {
+        setProof(0); setStep(1); setTemp(28);
+      } else if (t < 2550) {
+        setProof(1); setStep(2); setTemp(28);
+      } else if (t < 4050) {
+        const p = (t - 2550) / 1500;
+        const v = 28 - (28 - 21) * Math.min(1, p);
+        setProof(2); setStep(3); setTemp(Math.round(v * 10) / 10);
+      } else {
+        setProof(2); setStep(3); setTemp(21);
+        if (!rippled) { rippled = true; setRipple(r => r + 1); }
+        return;
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  }
+
+  useEffect(() => {
+    if (!wrapRef.current) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting && !autoRef.current) {
+          autoRef.current = true;
+          play();
+          io.unobserve(e.target);
+        }
+      }
+    }, { threshold: 0.4 });
+    io.observe(wrapRef.current);
+    return () => io.disconnect();
+  }, []);
+
+  const ratio = Math.max(0, Math.min(1, (28 - temp) / 7));
+  function lerp(a, b, t) { return Math.round(a + (b - a) * t); }
+  const r = lerp(220, 37, ratio);
+  const g = lerp(38, 99, ratio);
+  const b = lerp(38, 235, ratio);
+  const arcColor = `rgb(${r}, ${g}, ${b})`;
+
+  const R = 82;
+  const C = 2 * Math.PI * R;
+  const arcLen = 90 + (270 - 90) * ratio;
+  const dash = (arcLen / 360) * C;
+
+  return (
+    <div className="ldg-dial-wrap" ref={wrapRef}>
+      <div className="ldg-dial-head-r">
+        <button className="ldg-dial-replay" onClick={() => { autoRef.current = true; play(); }}>↻ 다시 보기</button>
+      </div>
+
+      <div className="ldg-dial-body2">
+        <div className="ldg-dial-col">
+          <div className="ldg-dial-gauge" style={{ position: "relative" }}>
+            <span key={ripple} className={`ldg-dial-ripple ${ripple > 0 ? "fire" : ""}`} aria-hidden="true" />
+            <svg width="200" height="200" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="82" fill="none" stroke="#DCE8F3" strokeWidth="11" />
+              <circle cx="100" cy="100" r="82" fill="none"
+                      stroke={arcColor} strokeWidth="11"
+                      strokeDasharray={`${dash} ${C}`}
+                      strokeLinecap="round"
+                      transform="rotate(135 100 100)"
+                      style={{ transition: "stroke 0.3s ease" }} />
+            </svg>
+            <div className="ldg-dial-gauge-text">
+              <span className="ldg-dial-gauge-num">
+                {Number.isInteger(temp) ? temp : temp.toFixed(1)}
+              </span>
+              <span className="ldg-dial-gauge-lbl">°C 냉방</span>
+            </div>
+          </div>
+          <span className="ldg-dial-cap">
+            {step === 1 && "틀어도 바람만 · 안 시원해요"}
+            {step === 2 && "진단 중 — 전문 게이지로 측정"}
+            {step === 3 && temp > 21 && "정품 냉매 충전 중…"}
+            {step === 3 && temp <= 21 && "✓ 21°C — 시원하게 회복"}
+          </span>
+        </div>
+
+        <div className="ldg-proof">
+          <div className={`ldg-proof-layer ${proof === 0 ? "active" : ""}`}>
+            <div className="ldg-proof0-bg" />
+            <div className="ldg-proof0-live">
+              <span className="ldg-live-dot" />
+              <span>실시간 고객 문의</span>
+            </div>
+            <div className="ldg-proof0-chat">
+              <div className="ldg-proof0-avatar">
+                <span className="ldg-sweat-drip" />
+              </div>
+              <div className="ldg-proof0-bubble">
+                <span style={{ whiteSpace: "pre-line" }}>{chat}</span>
+                <span className="ldg-proof0-caret" />
+              </div>
+            </div>
+          </div>
+          <div className={`ldg-proof-layer ${proof === 1 ? "active" : ""}`}>
+            <img src="/landing/assets/gauge_real.jpg" alt="냉매 게이지로 압력 측정" style={{ objectPosition: "center 28%" }} />
+            <div className="ldg-proof-badge">진단 중</div>
+            <div className="ldg-proof-text-bottom">전문 게이지로 냉매압력을<br/>직접 측정합니다</div>
+          </div>
+          <div className={`ldg-proof-layer ${proof === 2 ? "active" : ""}`}>
+            <img src="/landing/assets/charge_real.png" alt="정품 냉매 충전 · 21도 확인" style={{ objectPosition: "center 42%" }} />
+            <div className="ldg-proof-badge done">충전 완료</div>
+            <div className="ldg-proof-text-bottom">정품 냉매 충전 · 적외선 온도계로<br/>21°C 직접 확인</div>
+          </div>
+        </div>
+
+        <div className="ldg-dial-steps">
+          <div className={`ldg-dial-step ${step >= 1 ? "active" : ""}`}>
+            <span className="ldg-dial-step-num">1</span>증상
+          </div>
+          <div className={`ldg-dial-step ${step >= 2 ? "active" : ""}`} style={{ flex: 1.25 }}>
+            <span className="ldg-dial-step-num">2</span>측정·충전
+          </div>
+          <div className={`ldg-dial-step ${step >= 3 ? "active" : ""}`}>
+            <span className="ldg-dial-step-num">3</span>완료
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // 3. WHY — 말풍선 타이핑 + 인라인 배지 + 정답 카드 구조
 // ============================================================
 function useTypewriter(ref, fullText, stagger = 0) {
@@ -379,7 +540,7 @@ function won(n, tilde = false) {
   return n.toLocaleString("ko-KR") + "원" + (tilde ? "~" : "");
 }
 
-function Price({ onCtaForm }) {
+function Price({ scrollToForm }) {
   return (
     <section className="ldg-section" id="03b-price" style={{ background: "#fff", padding: "96px 24px 100px" }}>
       <div className="ldg-container">
@@ -392,17 +553,33 @@ function Price({ onCtaForm }) {
         </p>
 
         <div className="ldg-price-grid">
-          {/* 분해세척 — 가격 표 X, 작업 범위만 + 견적 안내 (사장님 spec) */}
-          <div className="ldg-price-card">
-            <h3>분해세척</h3>
-            <p className="ldg-wash-scope">필터·송풍팬·열교환기까지 전면 분해세척.</p>
-            <ul className="ldg-wash-list">
-              <li>전면 분해 후 안쪽까지 세척</li>
-              <li>곰팡이·세균까지 제거</li>
-              <li>벽걸이·스탠드·시스템에어컨</li>
-            </ul>
-            <div className="ldg-wash-note">기종·오염도에 따라 견적 상이 — 방문 진단 후 안내드립니다.</div>
-            <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); onCtaForm(); }}>지금 분해세척 접수하기 →</a>
+          {/* 좌측 컬럼 — 분해세척 + 수리·설치 세로 (오른쪽 냉매충전 표와 높이 균형) */}
+          <div className="ldg-price-col-left">
+            {/* 분해세척 — 가격 표 X, 작업 범위만 + 견적 안내 (사장님 spec) */}
+            <div className="ldg-price-card">
+              <h3>분해세척</h3>
+              <p className="ldg-wash-scope">필터·송풍팬·열교환기까지 전면 분해세척.</p>
+              <ul className="ldg-wash-list">
+                <li>전면 분해 후 안쪽까지 세척</li>
+                <li>곰팡이·세균까지 제거</li>
+                <li>벽걸이·스탠드·시스템에어컨</li>
+              </ul>
+              <div className="ldg-wash-note">기종·오염도에 따라 견적 상이 — 방문 진단 후 안내드립니다.</div>
+              <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm(); }}>지금 분해세척 접수하기 →</a>
+            </div>
+
+            {/* 수리·설치 — 가격 X, 텍스트만 + 상담 CTA (사장님 spec) */}
+            <div className="ldg-price-card">
+              <h3>수리·설치</h3>
+              <p className="ldg-wash-scope">전문 팀이 수리부터 설치·이전까지.</p>
+              <ul className="ldg-wash-list">
+                <li>누설 수리 · 부품 교체</li>
+                <li>에어컨 설치 · 이전 설치</li>
+                <li>실외기 점검 · 진단</li>
+              </ul>
+              <div className="ldg-wash-note">방문 진단 후 정확한 견적을 안내드립니다.</div>
+              <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm("수리"); }}>수리·설치 상담하기 →</a>
+            </div>
           </div>
 
           {/* 냉매충전 */}
@@ -506,6 +683,12 @@ function Evidence() {
 
         <BeforeAfterSlider />
         <p className="ldg-evi-cap">손잡이를 끌어 세척 전 ↔ 세척 후를 직접 비교 · 열교환기 핀 클로즈업</p>
+
+        <div className="ldg-evi-dial-card">
+          <h3 className="ldg-evi-dial-h3">진단 시퀀스 — 28°C → 21°C 회복</h3>
+          <p className="ldg-evi-dial-sub">증상 접수부터 정품 냉매 충전 · 21°C 회복까지, 실제 작업 흐름입니다</p>
+          <DiagnosisDial />
+        </div>
 
         <div className="ldg-steps-grid" style={{ marginTop: 40 }}>
           {PROCESS_STEPS.map((s, i) => (
@@ -637,6 +820,13 @@ function useBookingForm() {
   return { form, set, handleSubmit, submitted };
 }
 
+// prefillService 가 바뀌면 폼의 service 필드 자동 동기화 (Price 카드에서 종류 사전 선택)
+function usePrefillSync(set, prefillService) {
+  useEffect(() => {
+    if (prefillService) set("service", prefillService);
+  }, [prefillService]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
 function BookingFormBody({ form, set, onSubmit, submitted, showTel = true }) {
   if (submitted) {
     return (
@@ -701,8 +891,9 @@ function HeroBookingForm() {
   return <BookingFormBody form={form} set={set} onSubmit={handleSubmit} submitted={submitted} showTel={false} />;
 }
 
-function CtaForm() {
+function CtaForm({ prefillService }) {
   const { form, set, handleSubmit, submitted } = useBookingForm();
+  usePrefillSync(set, prefillService);
   return (
     <section className="ldg-section ldg-form-section" id="form">
       <div className="ldg-form-container">
@@ -831,7 +1022,9 @@ function CalendarIcon() {
 // LandingApp root
 // ============================================================
 export default function LandingApp() {
-  function scrollToForm() {
+  const [prefillService, setPrefillService] = useState("");
+  function scrollToForm(service) {
+    if (service) setPrefillService(service);
     const el = document.getElementById("form");
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -848,10 +1041,10 @@ export default function LandingApp() {
       <Hero />
       <Why />
       <Solution />
-      <Price onCtaForm={scrollToForm} />
+      <Price scrollToForm={scrollToForm} />
       <Evidence />
       <Trust />
-      <CtaForm />
+      <CtaForm prefillService={prefillService} />
       <Footer />
       <StickyBar onCtaForm={scrollToForm} />
     </div>
