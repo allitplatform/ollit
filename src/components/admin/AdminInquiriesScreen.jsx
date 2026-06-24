@@ -10,6 +10,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   listInquiries,
   setInquiryStatus,
+  convertInquiryToTask,
   serviceLabel,
   statusMeta,
 } from "../../lib/inquiriesDb";
@@ -30,7 +31,7 @@ function toKstHm(value) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-export default function AdminInquiriesScreen({ user, onBack }) {
+export default function AdminInquiriesScreen({ user, onBack, onConverted }) {
   const [items, setItems]         = useState([]);
   const [filter, setFilter]       = useState("all");
   const [loading, setLoading]     = useState(false);
@@ -64,6 +65,33 @@ export default function AdminInquiriesScreen({ user, onBack }) {
       await load();
     } catch (e) {
       alert("처리 실패: " + (e?.message || e));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  // 작업 전환 — convert_inquiry_to_task RPC (Migration 118)
+  async function convert(id) {
+    if (busyId) return;
+    const ok = window.confirm("작업으로 전환하면 작업목록에 미배정으로 생깁니다.\n진행하시겠어요?");
+    if (!ok) return;
+    setBusyId(id);
+    try {
+      const newTaskId = await convertInquiryToTask(actorId, id);
+      await load();   // 인콰이리 목록 새로고침 — 해당 row status='converted' 반영
+      if (onConverted && newTaskId) {
+        onConverted(newTaskId);
+      }
+    } catch (e) {
+      const msg = String(e?.message || "");
+      if (msg.includes("inquiry_not_convertible")) {
+        alert("이미 처리된 접수입니다.");
+        await load();   // 상태 동기화
+      } else if (msg.includes("not_authorized")) {
+        alert("권한이 없습니다.");
+      } else {
+        alert("전환 실패: " + (msg || e));
+      }
     } finally {
       setBusyId(null);
     }
@@ -160,6 +188,7 @@ export default function AdminInquiriesScreen({ user, onBack }) {
               busy={busyId === row.id}
               onCall={() => act(row.id, "contacted")}
               onSpam={() => act(row.id, "spam")}
+              onConvert={() => convert(row.id)}
             />
           ))}
         </div>
@@ -168,9 +197,10 @@ export default function AdminInquiriesScreen({ user, onBack }) {
   );
 }
 
-function InquiryRow({ row, busy, onCall, onSpam }) {
+function InquiryRow({ row, busy, onCall, onSpam, onConvert }) {
   const meta = statusMeta(row.status);
   const isConverted = row.status === "converted";
+  const isSpam      = row.status === "spam";
 
   return (
     <article style={{
@@ -231,7 +261,7 @@ function InquiryRow({ row, busy, onCall, onSpam }) {
           )}
         </div>
 
-        {/* 액션 */}
+        {/* 액션 — converted 는 액션 없음 (이미 작업 생성됨) */}
         {!isConverted && (
           <div style={{
             display: "flex", gap: 8, marginTop: 14,
@@ -246,15 +276,15 @@ function InquiryRow({ row, busy, onCall, onSpam }) {
             <ActionBtn
               label="스팸"
               color="#6B7280"
-              disabled={busy || row.status === "spam"}
+              disabled={busy || isSpam}
               onClick={onSpam}
             />
             <ActionBtn
-              label="작업 전환 (준비중)"
-              color="#B7C3D3"
-              disabled
-              onClick={() => {}}
-              title="이번 범위 X — 별도 RPC 드라이런 후"
+              label="작업 전환"
+              color="#16A34A"
+              disabled={busy || isSpam}
+              onClick={onConvert}
+              title={isSpam ? "스팸은 작업 전환 불가" : "빈 작업으로 전환 (운영자가 보강)"}
             />
           </div>
         )}

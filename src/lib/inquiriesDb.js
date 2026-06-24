@@ -60,3 +60,17 @@ export async function setInquiryStatus(actorId, inquiryId, status) {
   });
   if (error) throw error;
 }
+
+// 인콰이리 → 빈 작업(미배정/금액0) 생성 + inquiry converted 처리. (Migration 118)
+// 'new' / 'contacted' 만 전환 가능. 이미 converted/spam 이면 'inquiry_not_convertible' throw.
+// 반환: 새 task_id (uuid)
+export async function convertInquiryToTask(actorId, inquiryId) {
+  if (!actorId)   throw new Error("actorId required");
+  if (!inquiryId) throw new Error("inquiryId required");
+  const { data, error } = await supabase.rpc("convert_inquiry_to_task", {
+    p_actor:      actorId,
+    p_inquiry_id: inquiryId,
+  });
+  if (error) throw error;
+  return data; // uuid
+}

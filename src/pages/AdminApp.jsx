@@ -1803,10 +1803,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
           response: res,
         });
       }
+      // 2026-06-24 — convert 직후 호출자가 새 task 즉시 찾을 수 있게 normalized 반환
+      return normalized;
     } catch (e) {
       console.error('[V14 2A] fetchTasks 에러:', e);
       setTasksError(e.message || '불러오기 실패');
       setTasksDebug({ phase: 'exception', error: e.message, stack: e.stack });
+      return null;
     } finally {
       if (!isBackground) {
         setTasksLoading(false);
@@ -3428,7 +3431,30 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-06-24 — 홈페이지 접수함(inquiries) 운영 화면
   if (screen === "inquiries") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <AdminInquiriesScreen user={user} onBack={goBack} />
+      <AdminInquiriesScreen
+        user={user}
+        onBack={goBack}
+        onConverted={async (newTaskId) => {
+          // convert 직후 fetchTasks 가 normalized list 반환 — 그 안에서 새 task 찾기.
+          // 못 찾으면(timing) 전체 작업 화면으로 fallback.
+          try {
+            const list = await fetchTasks();
+            const found = Array.isArray(list)
+              ? list.find((x) => x.id === newTaskId)
+              : null;
+            if (found) {
+              goTaskDetail(_v14NormalizeTask(found), "inquiries");
+            } else {
+              alert("작업이 생성됐습니다. 전체 작업에서 확인해 주세요.");
+              setScreen("allTasks");
+            }
+          } catch (e) {
+            console.error("[inquiries] onConverted failed", e);
+            alert("작업 화면 이동 중 오류 — 전체 작업에서 확인해 주세요.");
+            setScreen("allTasks");
+          }
+        }}
+      />
     </Shell>;
   }
   if (screen === "userList") {
