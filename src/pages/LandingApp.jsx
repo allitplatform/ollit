@@ -88,8 +88,6 @@ function Hero() {
             당일 처리해드립니다.
           </p>
 
-          <MiniGauge />
-
           <div className="ldg-hero-cta">
             <a className="ldg-cta-main" href={PHONE_TEL}>
               <PhoneIcon size={19} />{PHONE_DISPLAY}
@@ -120,60 +118,6 @@ function Hero() {
         </svg>
       </div>
     </section>
-  );
-}
-
-// ============================================================
-// 미니 게이지 — 21°C 완료 상태 (정적, 등장 시 한 번만 ripple)
-// ============================================================
-function MiniGauge() {
-  const wrapRef = useRef(null);
-  const [ripple, setRipple] = useState(0);
-
-  useEffect(() => {
-    if (!wrapRef.current) return;
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) {
-        if (e.isIntersecting) {
-          setRipple(r => r + 1);
-          io.unobserve(e.target);
-        }
-      }
-    }, { threshold: 0.4 });
-    io.observe(wrapRef.current);
-    return () => io.disconnect();
-  }, []);
-
-  const arcColor = "rgb(37, 99, 235)";
-  const R = 52;
-  const C = 2 * Math.PI * R;
-  const dash = (270 / 360) * C;
-
-  return (
-    <div className="ldg-mini-gauge" ref={wrapRef}>
-      <div className="ldg-mini-gauge-circle">
-        <span key={ripple} className={`ldg-mini-ripple ${ripple > 0 ? "fire" : ""}`} aria-hidden="true" />
-        <svg width="128" height="128" viewBox="0 0 128 128">
-          <circle cx="64" cy="64" r="52" fill="none" stroke="#DCE8F3" strokeWidth="9" />
-          <circle cx="64" cy="64" r="52" fill="none"
-                  stroke={arcColor} strokeWidth="9"
-                  strokeDasharray={`${dash} ${C}`}
-                  strokeLinecap="round"
-                  transform="rotate(135 64 64)" />
-        </svg>
-        <div className="ldg-mini-gauge-text">
-          <span className="ldg-mini-gauge-num">21</span>
-          <span className="ldg-mini-gauge-lbl">°C 냉방</span>
-        </div>
-      </div>
-      <div className="ldg-mini-gauge-meta">
-        <span className="ldg-mini-gauge-badge">✓ 회복 완료</span>
-        <span className="ldg-mini-gauge-cap">
-          전문 진단 · 정품 냉매 충전으로<br />
-          21°C 시원하게 회복
-        </span>
-      </div>
-    </div>
   );
 }
 

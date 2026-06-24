@@ -86,7 +86,8 @@
 .ldg-hero-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
-  gap: 48px 64px; align-items: center;
+  gap: 48px 64px;
+  align-items: stretch;   /* 좌측 헤드라인 col 이 우측 폼 카드와 같은 키 — 균형 */
 }
 .ldg-hero-heat {
   position: absolute; top: 0; right: 0;
@@ -113,9 +114,9 @@
   background: rgba(91,155,213,0.12); color: #4A82B8; font-weight: 500;
 }
 .ldg-hero-h1 {
-  font-size: clamp(36px, 5.5vw, 62px);
-  font-weight: 900; line-height: 1.13; letter-spacing: -2px;
-  color: #1C2B3A; margin-bottom: 24px;
+  font-size: clamp(44px, 7.2vw, 84px);   /* 게이지 제거 후 헤드라인 강조 — 키움 */
+  font-weight: 900; line-height: 1.12; letter-spacing: -2.5px;
+  color: #1C2B3A; margin-bottom: 28px;
 }
 .ldg-hero-h1 .wind-char {
   display: inline-block;
@@ -157,52 +158,10 @@
   font-size: 13px; color: #6A7D94; letter-spacing: -0.2px;
 }
 
-/* ===== Hero 좌측 — 미니 게이지 (21°C 완료 상태) ===== */
-.ldg-hero-left { display: flex; flex-direction: column; }
-.ldg-mini-gauge {
-  display: flex; align-items: center; gap: 18px;
-  margin: 8px 0 28px;
-  padding: 14px 18px 14px 14px;
-  background: #fff;
-  border: 1.5px solid #DCE8F3;
-  border-radius: 16px;
-  box-shadow: 0 4px 16px rgba(37,99,235,0.07);
-  max-width: 380px;
-}
-.ldg-mini-gauge-circle {
-  position: relative; width: 128px; height: 128px; flex-shrink: 0;
-}
-.ldg-mini-gauge-circle svg { display: block; position: relative; }
-.ldg-mini-gauge-text {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-}
-.ldg-mini-gauge-num {
-  font-size: 40px; font-weight: 900; color: #1C2B3A;
-  line-height: 0.9; letter-spacing: -1.5px;
-  font-variant-numeric: tabular-nums;
-}
-.ldg-mini-gauge-lbl {
-  font-size: 10.5px; color: #93A7BC; margin-top: 4px; letter-spacing: 0.3px;
-}
-.ldg-mini-ripple {
-  position: absolute; inset: 0; border-radius: 50%;
-  border: 2px solid #7FC0E8; opacity: 0; pointer-events: none;
-}
-.ldg-mini-ripple.fire { animation: ldgCRipple 1.4s ease-out; }
-.ldg-mini-gauge-meta {
-  display: flex; flex-direction: column; gap: 6px; min-width: 0;
-}
-.ldg-mini-gauge-badge {
-  display: inline-flex; align-items: center; align-self: flex-start;
-  background: #E6F4EB; color: #146038;
-  font-size: 11.5px; font-weight: 800;
-  padding: 4px 10px; border-radius: 100px;
-  letter-spacing: -0.2px;
-}
-.ldg-mini-gauge-cap {
-  font-size: 13px; font-weight: 700; color: #1C2B3A;
-  line-height: 1.5; letter-spacing: -0.3px;
+/* ===== Hero 좌측 — 헤드라인 강조 (게이지 제거 후 자리 확보) ===== */
+.ldg-hero-left {
+  display: flex; flex-direction: column;
+  justify-content: center;   /* 우측 폼 카드와 세로 균형 */
 }
 
 /* ===== Hero 우측 — 접수 폼 카드 ===== */
@@ -235,23 +194,20 @@
   letter-spacing: -0.2px;
 }
 
-/* ===== 진단 다이얼 — Evidence 섹션 내부 (세척 전/후 슬라이더 아래) ===== */
+/* ===== 진단 다이얼 — Evidence 섹션 내부 (세척 전/후 슬라이더 아래, 박스 없이 콘텐츠만) ===== */
 .ldg-evi-dial-card {
-  margin-top: 44px;
-  padding: 36px 32px 32px;
-  background: #F7FBFF;
-  border: 1px solid #E0EBFA;
-  border-radius: 20px;
+  margin-top: 56px;
+  /* 배경/border/padding 없음 — 답답한 박스 느낌 제거 (사장님 spec) */
 }
 .ldg-evi-dial-h3 {
-  font-size: 20px; font-weight: 800;
+  font-size: 22px; font-weight: 800;
   color: #1C2B3A; letter-spacing: -0.5px;
   text-align: center; margin-bottom: 8px;
 }
 .ldg-evi-dial-sub {
-  font-size: 13.5px; color: #6A7D94;
+  font-size: 14px; color: #6A7D94;
   letter-spacing: -0.2px;
-  text-align: center; margin-bottom: 28px;
+  text-align: center; margin-bottom: 32px;
 }
 .ldg-dial-wrap { position: relative; }
 .ldg-dial-head-r {
@@ -970,15 +926,13 @@ select.ldg-form-input { cursor: pointer; }
   .ldg-header { padding: 10px 16px; }
   .ldg-header-cta { padding: 9px 14px; font-size: 13px; }
 
-  /* 2. 미니 게이지 — 모바일 살짝 축소 */
-  .ldg-mini-gauge { gap: 14px; padding: 12px 14px 12px 12px; max-width: 100%; }
-  .ldg-mini-gauge-circle { width: 108px; height: 108px; }
-  .ldg-mini-gauge-num { font-size: 34px; }
-  .ldg-mini-gauge-cap { font-size: 12.5px; }
-
   /* 히어로 폼 카드 — 모바일 padding 축소 */
   .ldg-hero-form-card { padding: 22px 18px 20px; border-radius: 16px; }
   .ldg-hero-form-title { font-size: 20px; }
+
+  /* 모바일 — 좌측 col 균형용 stretch 풀고 자연 흐름 */
+  .ldg-hero-grid { align-items: start; }
+  .ldg-hero-left { justify-content: flex-start; }
 
   /* Evidence 내 다이얼 카드 — 모바일 padding 축소 + 다이얼 wrap 1열 */
   .ldg-evi-dial-card { padding: 26px 18px 22px; border-radius: 16px; }
@@ -1021,7 +975,6 @@ select.ldg-form-input { cursor: pointer; }
   .ldg-hero-h1 .wind-char,
   .ldg-why-blink,
   .ldg-hero-badge.urgent::before,
-  .ldg-mini-ripple,
   .ldg-live-dot,
   .ldg-sweat-drip {
     animation: none !important;
