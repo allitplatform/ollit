@@ -332,7 +332,11 @@ function WhyBubble({ text, stagger, caretColor, bg, border }) {
   );
 }
 
-function Why() {
+function Why({ scrollToForm }) {
+  function onSolveClick(e, service) {
+    e.preventDefault();
+    scrollToForm(service);
+  }
   return (
     <section className="ldg-section" id="02-cause" style={{ background: "#fff", padding: "88px 24px 104px" }}>
       <div className="ldg-container">
@@ -358,7 +362,7 @@ function Why() {
               <span className="ldg-why-blink">가장 흔한 원인</span>
             </h3>
             <p className="ldg-why-desc">냉매가 줄거나 누설되면 냉방 효과가 급격히 떨어집니다. 정기 점검이 필요합니다.</p>
-            <span className="ldg-why-solve filled">냉매충전으로 해결 →</span>
+            <a href="#form" className="ldg-why-solve filled" onClick={(e) => onSolveClick(e, "냉매충전")}>냉매충전으로 해결 →</a>
           </article>
 
           {/* 카드 2 */}
@@ -375,7 +379,7 @@ function Why() {
             </div>
             <h3 className="ldg-why-h3">필터·송풍팬 오염</h3>
             <p className="ldg-why-desc">먼지와 곰팡이가 쌓이면 바람이 약해지고 냄새가 납니다. 내부 오염이 심한 경우가 많습니다.</p>
-            <span className="ldg-why-solve outline">분해세척으로 해결 →</span>
+            <a href="#form" className="ldg-why-solve outline" onClick={(e) => onSolveClick(e, "분해세척")}>분해세척으로 해결 →</a>
           </article>
 
           {/* 카드 3 */}
@@ -392,7 +396,7 @@ function Why() {
             </div>
             <h3 className="ldg-why-h3">부품 고장</h3>
             <p className="ldg-why-desc">압축기·팽창밸브 등 핵심 부품 이상은 전문 진단이 필요합니다. 에러 코드·전원 차단은 점검 신호입니다.</p>
-            <span className="ldg-why-solve outline">방문 진단으로 확인 →</span>
+            <a href="#form" className="ldg-why-solve outline" onClick={(e) => onSolveClick(e, "수리")}>방문 진단으로 확인 →</a>
           </article>
         </div>
       </div>
@@ -984,7 +988,7 @@ export default function LandingApp() {
       <Ticker />
       <Header />
       <Hero />
-      <Why />
+      <Why scrollToForm={scrollToForm} />
       <Solution />
       <Price scrollToForm={scrollToForm} />
       <Evidence />

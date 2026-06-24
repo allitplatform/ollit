@@ -449,9 +449,13 @@
   font-size: 12px; font-weight: 800;
   padding: 7px 14px; border-radius: 100px;
   letter-spacing: -0.2px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
-.ldg-why-solve.filled  { background: #809df0; color: #fff; }
-.ldg-why-solve.outline { background: #fff; border: 1.5px solid #2563EB; color: #2563EB; padding: 6px 13px; }
+.ldg-why-solve.filled  { background: #809df0; color: #fff !important; }
+.ldg-why-solve.filled:hover  { background: #5E769C; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(94,118,156,0.28); }
+.ldg-why-solve.outline { background: #fff; border: 1.5px solid #2563EB; color: #2563EB !important; padding: 6px 13px; }
+.ldg-why-solve.outline:hover { background: #EEF6FF; transform: translateY(-1px); }
 
 /* ============================================================
    4. SOLUTION
