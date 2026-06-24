@@ -509,7 +509,7 @@ function Price({ scrollToForm }) {
                 <li>벽걸이·스탠드·시스템에어컨</li>
               </ul>
               <div className="ldg-wash-note">기종·오염도에 따라 견적 상이 — 방문 진단 후 안내드립니다.</div>
-              <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm(); }}>지금 분해세척 접수하기 →</a>
+              <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm("분해세척"); }}>지금 분해세척 접수하기 →</a>
             </div>
 
             {/* 수리·설치 — 가격 X, 텍스트만 + 상담 CTA (사장님 spec) */}
@@ -548,6 +548,7 @@ function Price({ scrollToForm }) {
             ))}
             <div className="ldg-price-note">+ 완충 시 30,000원 추가</div>
             <div className="ldg-price-warn">※ 기계 고장·실외기 접근 불가로 인해 충전을 못할 경우 출장비 30,000원이 발생합니다.</div>
+            <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm("냉매충전"); }}>냉매충전 접수하기 →</a>
           </div>
         </div>
 

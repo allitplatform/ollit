@@ -161,7 +161,9 @@
 /* ===== Hero 좌측 — 헤드라인 강조 (게이지 제거 후 자리 확보) ===== */
 .ldg-hero-left {
   display: flex; flex-direction: column;
-  justify-content: center;   /* 우측 폼 카드와 세로 균형 */
+  justify-content: center;   /* 우측 폼 카드와 세로 균형 — 빈 자리 가운데 정렬 */
+  align-self: stretch;        /* grid item stretch 강제 — 우측 폼 카드 키만큼 */
+  padding-block: 8px;         /* 위·아래 살짝 여유 */
 }
 
 /* ===== Hero 우측 — 접수 폼 카드 ===== */
@@ -967,6 +969,14 @@ select.ldg-form-input { cursor: pointer; }
   /* PRICE — 모바일 1열 (좌측 col 펼쳐서 분해세척 → 수리·설치 → 냉매충전 순) */
   .ldg-price-grid { grid-template-columns: 1fr; gap: 18px; }
   .ldg-price-col-left { gap: 18px; }
+
+  /* ★ 모바일 폼 잘림 fix — 히어로 grid·폼 2단 강제 1열 + 입력칸 overflow 방지 */
+  .ldg-hero-grid { grid-template-columns: 1fr; gap: 32px; }
+  .ldg-hero-form-card { max-width: 100%; min-width: 0; }
+  .ldg-form-2col { grid-template-columns: 1fr; gap: 12px; }
+  .ldg-form-input { max-width: 100%; min-width: 0; }
+  .ldg-form-consent { font-size: 12.5px; padding: 14px 14px; }
+  .ldg-form-submit { font-size: 16px; padding: 17px 18px; }
 }
 
 /* prefers-reduced-motion */
