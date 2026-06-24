@@ -163,7 +163,8 @@
   display: flex; flex-direction: column;
   justify-content: center;   /* 우측 폼 카드와 세로 균형 — 빈 자리 가운데 정렬 */
   align-self: stretch;        /* grid item stretch 강제 — 우측 폼 카드 키만큼 */
-  padding-block: 8px;         /* 위·아래 살짝 여유 */
+  padding-block: 36px;        /* 위·아래 넉넉히 — 가운데 정렬이 시각적으로 또렷하게 */
+  gap: 4px;                   /* 자식 element margin 위 미세 보강 */
 }
 
 /* ===== Hero 우측 — 접수 폼 카드 ===== */
