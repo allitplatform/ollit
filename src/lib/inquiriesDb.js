@@ -25,6 +25,18 @@ export function serviceLabel(code) {
   return SERVICE_LABEL[code] || code || "미정";
 }
 
+// service_type 코드 → ServiceTypeIcon 의 workType (startsWith 매칭용).
+//   "분해세척" → "세척" / "수리·누설수리" → "수리" 등으로 짧게 통일.
+//   ⚠️ getServiceKind 의 _kindFromServiceCode 는 cleaning/refrigerant/install/leak 만 매핑 —
+//      repair/unknown 갭 차단용 매핑 (사장님 spec A안).
+export const SERVICE_WORKTYPE = {
+  refrigerant: "냉매충전",
+  cleaning:    "세척",
+  repair:      "수리",
+  install:     "설치",
+  unknown:     "",
+};
+
 // 상태 → 한글 라벨 + 표시 색 (사장님 spec: 신규 빨강 / 통화함 파랑 / 스팸 회색 / 전환됨 초록).
 export const INQUIRY_STATUS = {
   new:       { label: "신규",   color: "#DC2626", bg: "#FDECEC" },

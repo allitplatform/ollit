@@ -3452,8 +3452,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   if (screen === "inquiries") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AdminInquiriesScreen
+        t={t}
         user={user}
         onBack={goBack}
+        onAfterEmbedConvert={() => {
+          // PC 임베드 폼 등록 후 — 메인 작업 list 갱신 (best-effort)
+          fetchTasks().catch(() => {});
+        }}
         onConvertToForm={(inquiryRow) => {
           // 접수일자 — created_at(UTC timestamptz) → KST "YYYY-MM-DD HH:mm" (사장님 spec).
           const at = toKstYmdHm(inquiryRow.created_at);
