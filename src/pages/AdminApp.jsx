@@ -5290,10 +5290,10 @@ function NewReceptionScreen({
       return true;
     }).map(r => receptionUpdates[r.id] ? { ...r, ...receptionUpdates[r.id] } : r);
     // 작업유형별 분류 (메인 항목 기준)
-    // 2026-05-26 fix: 측 catch 측 measurement workType 측 catch ("세척_벽걸이" 측 catch "냉매점검") 측 catch
-    //   measurement 측 catch 측 catch 측 measurement 측 X 측 catch — service_types.code 기반 매칭 측 변경.
-    //   카운트(_isUsolNMainRefrigerant)는 service_types.code 기반 측 catch — 분류 측 catch 통일.
-    //   workItems 측 X 측 catch task 측 catch 옛 호환 측 catch r.workType fallback 유지.
+    // 2026-05-26 fix: 세분화 workType ("세척_벽걸이"/"냉매점검") 정확일치 실패 케이스
+    //   service_types.code 기반 매칭으로 변경 (_isUsolNMainRefrigerant 와 통일).
+    //   workItems 없는 옛 task 는 r.workType fallback 유지.
+    // 2026-06-25 — 누설(leak)/설치(install) 분류 추가. service_types.code 1순위, workType 문자열 2순위.
     function getByType(type) {
       return unique.filter(r => {
         const items = Array.isArray(r.workItems) ? r.workItems : [];
@@ -5307,12 +5307,22 @@ function NewReceptionScreen({
           return main.serviceCode === "refrigerant"
             || /냉매/.test(String(main.workType || ""));
         }
+        if (type === "누설") {
+          return main.serviceCode === "leak"
+            || String(main.workType || "").startsWith("누설");
+        }
+        if (type === "설치") {
+          return main.serviceCode === "install"
+            || String(main.workType || "").startsWith("설치");
+        }
         return determineMainWorkType(r.workItems) === type;
       });
     }
     return {
       세척:    getByType("세척"),
       냉매충전: getByType("냉매충전"),
+      누설:    getByType("누설"),
+      설치:    getByType("설치"),
     };
   };
   const [tasks, setTasks] = useState(computeTasks);
@@ -5335,20 +5345,29 @@ function NewReceptionScreen({
   };
   const cleanings    = filterByQuery(tasks.세척);
   const refrigerants = filterByQuery(tasks.냉매충전);
-  const total = cleanings.length + refrigerants.length;
+  const leaks        = filterByQuery(tasks.누설);
+  const installs     = filterByQuery(tasks.설치);
+  const total = cleanings.length + refrigerants.length + leaks.length + installs.length;
 
   // 헤더 텍스트 + 그룹 표시 분기 (filter prop)
+  // 2026-06-25 — 누설/설치 분류 추가 (StatBox 진입 시 filter=null → 4그룹 전부 표시).
   const showCleanings    = !filter || filter === "세척";
   const showRefrigerants = !filter || filter === "냉매충전";
+  const showLeaks        = !filter || filter === "누설";
+  const showInstalls     = !filter || filter === "설치";
   const headerText =
     filter === "세척"     ? `에어컨 세척 ${cleanings.length}건` :
     filter === "냉매충전" ? `냉매 충전 ${refrigerants.length}건` :
+    filter === "누설"     ? `누설 수리 ${leaks.length}건` :
+    filter === "설치"     ? `설치 ${installs.length}건` :
                              `새 접수 ${total}건`;
 
   const saveTask = (updated) => {
     setTasks(prev => ({
       세척:    prev.세척.map(t => t.id === updated.id ? updated : t),
       냉매충전: prev.냉매충전.map(t => t.id === updated.id ? updated : t),
+      누설:    prev.누설.map(t => t.id === updated.id ? updated : t),
+      설치:    prev.설치.map(t => t.id === updated.id ? updated : t),
     }));
   };
 
@@ -5519,6 +5538,32 @@ function NewReceptionScreen({
                 onEdit={() => setEditingTask(task)}
                 onClickPushing={onClickPushing}
                 onClickAccepted={onClickAccepted}
+                onCardMenuAction={onCardMenuAction}
+              />
+            ))}
+          </ReceptionGroup>
+        )}
+
+        {showLeaks && leaks.length > 0 && (
+          <ReceptionGroup t={t} workType="누설" title="누설 수리" subtitle="신규" subtitleColor={t.textMuted} count={leaks.length}>
+            {leaks.map((task) => (
+              <CleaningCard key={task.id} t={t} task={task}
+                onAssign={() => onAssign(task)}
+                onMemo={() => setMemoTask(task)}
+                onEdit={() => setEditingTask(task)}
+                onCardMenuAction={onCardMenuAction}
+              />
+            ))}
+          </ReceptionGroup>
+        )}
+
+        {showInstalls && installs.length > 0 && (
+          <ReceptionGroup t={t} workType="설치" title="설치" subtitle="신규" subtitleColor={t.textMuted} count={installs.length}>
+            {installs.map((task) => (
+              <CleaningCard key={task.id} t={t} task={task}
+                onAssign={() => onAssign(task)}
+                onMemo={() => setMemoTask(task)}
+                onEdit={() => setEditingTask(task)}
                 onCardMenuAction={onCardMenuAction}
               />
             ))}
