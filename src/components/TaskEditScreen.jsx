@@ -1,11 +1,16 @@
 // Step 11 — 작업 상세 수정 화면
 // 권한별 필드 활성/비활성 + 변경 분량 비교 + 이력 자동 기록
+//
+// 2026-06-25 — 누설/설치 활성화 동기화:
+//   · WORKTYPE_OPTIONS 4종 통일 (세척/냉매충전/누설/설치). 옛 "철거"/"이전설치" workType
+//     데이터는 0건 확인됨 — 신규 모델에선 workType="설치" + appliance="철거"/"이전설치" 등.
+//   · 기종 풀은 getAppliancePool 로 동적 분기 (workType 별 5종/7종 다름).
 import { useState, useMemo } from "react";
 import { canEditField } from "../data/permissions.js";
 import { saveTaskHistory, getFieldLabel } from "../data/taskHistory.js";
+import { getAppliancePool } from "../utils/receptionForm.js";
 
-const APPLIANCE_OPTIONS = ["벽걸이", "스탠드", "투인원", "1way", "4way", "원형", "천장형"];
-const WORKTYPE_OPTIONS  = ["세척", "냉매충전", "철거", "설치", "이전설치"];
+const WORKTYPE_OPTIONS = ["세척", "냉매충전", "누설", "설치"];
 
 export function TaskEditScreen({ task, user, onBack, onSave }) {
   const original = useMemo(() => ({ ...task }), [task]);
@@ -103,9 +108,9 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
                 editable={canEditField(user, "workType")}
               />
               <FieldSelect
-                label="기종"
+                label={data.workType === "설치" ? "종류" : "기종"}
                 value={data.appliance || ""}
-                options={APPLIANCE_OPTIONS}
+                options={getAppliancePool(data.workType, data.principal)}
                 onChange={v => set("appliance", v)}
                 editable={canEditField(user, "appliances")}
               />
@@ -434,7 +439,8 @@ function WorkItemsEditor({ items, onChange, editable }) {
                   onChange={e => update(idx, "appliance", e.target.value)}
                   style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}
                 >
-                  {APPLIANCE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                  <option value="">— {it.workType === "설치" ? "종류" : "기종"} —</option>
+                  {getAppliancePool(it.workType, null).map(opt => <option key={opt} value={opt}>{opt}</option>)}
                 </select>
               )}
               <button onClick={() => bumpQty(idx, -1)} style={qtyBtnStyle}>−</button>

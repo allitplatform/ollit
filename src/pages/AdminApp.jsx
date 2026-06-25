@@ -8863,7 +8863,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   const [priceTBD, setPriceTBD] = useState(false);
 
   // V14 헌법 v6 — 작업유형 5가지 / 기종 7가지
-  const workTypes = ["세척", "냉매충전", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
+  const workTypes = ["세척", "냉매충전", "누설", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
   const appliances = ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"];
   // 작업유형별 기종 풀 (V14 헌법 / 정책 시트와 일치)
   // 냉매충전은 원청별 분기 — getAppliancePool() 사용 (KA만 1way 첫 대 / 1way 추가 분리)
@@ -9525,6 +9525,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
                     {editItem.workType === "추가선택(YS-N)" ? "추가 종류"
                       : editItem.workType === "냉매점검(YS-N)" ? "케이스"
                       : editItem.workType === "출장비" ? "구분"
+                      : editItem.workType === "설치" ? "종류"
                       : "기종"}
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>

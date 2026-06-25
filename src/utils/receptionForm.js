@@ -54,8 +54,8 @@ export const PRINCIPAL_NAME_TO_CODE = {
 export const WORK_TYPES_CONFIG = {
   "세척":     { enabled: true,  workflow: "manual_with_recommendation", needsAppliance: true,  priority: 1  },
   "냉매충전": { enabled: true,  workflow: "auto_first_accept",          needsAppliance: false, priority: 99 },
-  "설치":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 2  },
-  "누설":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 3  },
+  "설치":     { enabled: true,  workflow: "manual_with_recommendation", needsAppliance: true,  priority: 2  },
+  "누설":     { enabled: true,  workflow: "manual_with_recommendation", needsAppliance: true,  priority: 3  },
   "수리":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 4  },
   "점검":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
 };
@@ -70,8 +70,13 @@ export const KA_1WAY_ADDITIONAL_PRICE = 70000;
 
 // 작업유형별 기종 풀 (V14 헌법 / 정책 시트와 일치).
 //   냉매충전은 원청별 분기 — getAppliancePool() 사용 (KA 도 표시는 동일 "1way").
+//   누설: 냉매와 동일 5기종 (정산 정책도 냉매와 동일).
+//   설치: "기종" 슬롯에 종류 5개 (신규설치/이전설치/철거/실외기중고교체/기계중고교체).
+//        sync 트리거가 service_types '설치' + work_types.name LIKE '%종류%'로 매칭 → 정산 75/25.
 export const APPLIANCE_POOL = {
   "세척":           ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"],
+  "누설":           ["벽걸이", "스탠드", "1way", "투인원", "4way"],
+  "설치":           ["신규설치", "이전설치", "철거", "실외기중고교체", "기계중고교체"],
   "출장비":         ["(공통)"],
   "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
   "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
@@ -80,8 +85,9 @@ export const APPLIANCE_POOL = {
 // 냉매충전 기종 풀 (모든 원청 동일 UI 라벨, KA 차등 단가는 자동 처리).
 export const REFRIGERANT_APPLIANCE_POOL = ["벽걸이", "스탠드", "4way", "투인원", "1way"];
 
-// 작업유형 5종 (UI 노출 순서).
-export const WORK_TYPES = ["세척", "냉매충전", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
+// 작업유형 7종 (UI 노출 순서).
+//   2026-06-25 누설/설치 활성화 — 누설은 냉매와 동일 정산, 설치는 75/25.
+export const WORK_TYPES = ["세척", "냉매충전", "누설", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
 
 // ============================================
 // 헬퍼 — KA 1way 분할/합침 / 정렬 / 표시

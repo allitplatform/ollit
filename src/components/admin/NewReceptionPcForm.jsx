@@ -555,7 +555,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
                     borderColor: requiresApplianceFor(editItem.workType) && !editItem.appliance
                       ? (t.danger || "#FF3D5A") : t.border,
                   }}>
-                  <option value="">— 기종{requiresApplianceFor(editItem.workType) ? " 필수" : ""} —</option>
+                  <option value="">— {editItem.workType === "설치" ? "종류" : "기종"}{requiresApplianceFor(editItem.workType) ? " 필수" : ""} —</option>
                   {getAppliancePool(editItem.workType, form.principal).map(a =>
                     <option key={a} value={a}>{a}</option>
                   )}
