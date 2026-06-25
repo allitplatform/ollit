@@ -2067,10 +2067,23 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       dynamicStats={dynamicStats}
       refrigerantAddonCount={refrigerantAddonCount}
       onClickRevenueDetail={() => setScreen("revenueDetail")}
-      onClickNewReception={(f) => { setNewReceptionFilter(f || null); setScreen("newReception"); }}
-      onClickAssignedList={(f) => { setAssignedFilter(f); setScreen("assignedList"); }}
+      onClickNewReception={(f) => {
+        // 2026-06-26 — 호출처가 onClick={fn} 형태로 React event 를 그대로 넘기는 경우 filter 가 SyntheticEvent 가 되어 모든 그룹이 숨겨지던 사고. 문자열만 허용.
+        const filter = (typeof f === "string") ? f : null;
+        setNewReceptionFilter(filter);
+        setScreen("newReception");
+      }}
+      onClickAssignedList={(f) => {
+        const filter = (typeof f === "string") ? f : null;
+        setAssignedFilter(filter);
+        setScreen("assignedList");
+      }}
       onClickInProgress={() => setScreen("inProgressList")}
-      onClickLiveWork={(f) => { setLiveWorkFilter(f || null); setScreen("liveWork"); }}
+      onClickLiveWork={(f) => {
+        const filter = (typeof f === "string") ? f : null;
+        setLiveWorkFilter(filter);
+        setScreen("liveWork");
+      }}
       onClickReassign={() => setScreen("reassignList")}
       onClickRefriAddon={() => setScreen("refrigerantAddonList")}
       onClickUsolN={() => setScreen("usol_n")}

@@ -106,7 +106,7 @@ export function AdminPcDashboard({
             label="미배정 작업"
             count={unassignedCount}
             actionLabel="전체 →"
-            onClick={onClickNewReception}
+            onClick={() => onClickNewReception?.()}
           />
           {/* 2026-06-24 — 홈페이지 접수함 (옛 "냉매 자동배정 대기" 카드 자리).
                 신규 N>0 시 빨강 강조 (미배정 카드와 같은 패턴), 0 시 기본 흰 카드. */}
