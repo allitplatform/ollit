@@ -1,7 +1,17 @@
 // 2026-05-27 — 운영자 PWA "전체 작업" 화면 (6원청, usol_n 제외)
-// 패턴: UsolNInProgress.jsx 그대로 + 원청 칩 추가 + 기사명 검색.
-// 카드: UsolNAssignList.TaskRowOperator 재사용 (principalBadge prop으로 원청 표시).
-// 정렬: 취소 맨 아래 / received_at desc — UsolN 과 일관.
+// 2026-06-26 — 전면 재설계: idle-first (전체 로드 제거) + 서버 검색·칩 필터.
+//   변경 전: 진입 시 6원청 전체 ~349건 fetch → 클라 5필드 .includes() 필터 → 칩도 클라.
+//   변경 후:
+//     · 진입 시 fetch 0 (빈 상태 + 큰 검색창 안내).
+//     · 검색 (debounce 300ms) → fetchAllPrincipalTasks({ searchTerm, engineerIds, limit: 50 }) → 결과만.
+//     · 칩 (원청 / 상태) 클릭 → 그 조건 서버 fetch → 결과만.
+//     · 검색 + 칩 동시 AND.
+//     · 기사명 검색 — apiEngineers 메모리에서 이름 매칭 → engineerIds 변환 → 서버 OR.
+//   장점: 평소 트래픽 0. 검색·필터 명확 의도일 때만 fetch. 데이터 증가에 안전.
+//   주의: limit 50 — 결과 많으면 "검색 좁히세요" 안내. 무한스크롤 X.
+//
+// 카드: UsolNAssignList.TaskRowOperator 재사용 (principalBadge prop).
+// 정렬: 취소 맨 아래 / received_at desc — UsolN 과 일관 ('전체' 칩 + principal 결합 시만 의미).
 
 import { useState, useEffect, useMemo } from "react";
 import { Search, ChevronDown, ChevronRight } from "lucide-react";
@@ -12,14 +22,13 @@ import {
 } from "../lib/allPrincipalTasksDb.js";
 import { TaskRowOperator } from "./usol_n/UsolNAssignList.jsx";
 import { useRealtimeTasks, useRealtimeTable } from "../hooks/useRealtimeSubscription.js";
-// 2026-06-06 — 카운트 박스 공용 컴포넌트 (운영자 + 원청 동일).
 import { CountBoxes } from "./CountBoxes.jsx";
 
-// 한 번에 fetch — UsolN '전체' 탭과 동일 정책. 6원청 합쳐도 ~수천 건 한도 내.
-const ALL_LIMIT = 2000;
+// 결과 한 번에 가져올 최대 행. 초과 시 "좁히세요" 안내.
+const RESULT_LIMIT = 50;
 const ALL_STATUSES = ["미배정", "배정", "약속대기", "확정", "진행중", "완료", "취소", "visit_only"];
 
-// 상태 칩 7개 (UsolN '전체' 탭 spec 그대로)
+// 상태 칩 7개. 카운트는 표시 안 함 (재설계 spec — 라벨만).
 const STATUS_FILTERS = [
   { id: "all",         label: "전체",   match: null },
   { id: "unassigned",  label: "미배정", match: "미배정" },
@@ -36,62 +45,92 @@ const PRINCIPAL_FILTERS = [
   ...PRINCIPAL_CHIP_ORDER,
 ];
 
-export function AllTasksScreen({ onTaskClick, onBack }) {
+export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
   const [statusId, setStatusId] = useState("all");
   const [principalCode, setPrincipalCode] = useState(null);
   const [searchInput, setSearchInput] = useState("");
   const [searchTerm,  setSearchTerm]  = useState("");
-  // 2026-06-06 — 상단 카운트 박스 quickFilter ('todayCreated'|'todayCompleted'|'confirmed'|null).
-  //   활성 시 statusId 칩 무시. 같은 박스 재탭 시 해제.
   const [quickFilter, setQuickFilter] = useState(null);
   const [counts, setCounts] = useState({ todayCreated: 0, todayCompleted: 0, confirmed: 0 });
 
-  const [allTasks, setAllTasks] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [loading, setLoading]   = useState(false);
   const [fetchError, setFetchError] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
-  // 2026-05-27 — '전체' 칩일 때만 완료/취소 접기. 각 섹션 독립 토글, 기본 닫힘.
+  // '전체' 칩 + principal 결합 시 진행/완료/취소 3구간 분리. 기본 닫힘.
   const [completedOpen, setCompletedOpen] = useState(false);
   const [canceledOpen,  setCanceledOpen]  = useState(false);
 
   useRealtimeTasks(() => setReloadTick(v => v + 1));
   useRealtimeTable("task_items", () => setReloadTick(v => v + 1));
 
-  // 검색어 debounce 300ms
+  // 검색어 debounce 300ms — 타이핑 중 매 키스트로크 fetch 방지.
   useEffect(() => {
     const id = setTimeout(() => setSearchTerm(searchInput.trim()), 300);
     return () => clearTimeout(id);
   }, [searchInput]);
 
-  // 한 번에 6원청 전체 fetch — 검색은 클라이언트 필터로 일원화.
-  //   배경: 서버 OR 매칭은 customer/task_no/address/phone 4필드만 지원 → 기사 이름 검색 X.
-  //         → 검색어는 서버에 보내지 X, 전체를 받아 클라이언트에서 5필드 매칭.
+  // 기사명 → id 변환 (apiEngineers 메모리 — 새 DB 객체 0).
+  //   사장님 spec: users 는 이미 메모리에 있으니 그걸 재사용해 id 변환.
+  //   결과 id 배열을 fetchAllPrincipalTasks 의 engineerIds OR 조건으로 전달.
+  const engineerIdsForSearch = useMemo(() => {
+    const kw = searchTerm.toLowerCase();
+    if (!kw) return null;
+    return apiEngineers
+      .filter(e => e && e.name && String(e.name).toLowerCase().includes(kw))
+      .map(e => e.id)
+      .filter(Boolean);
+  }, [searchTerm, apiEngineers]);
+
+  // 어떤 필터라도 활성? 활성 안 됐으면 fetch 0 (빈 상태 유지).
+  //   statusId="all" + principalCode=null + searchTerm="" + quickFilter=null → idle.
+  const hasAnyFilter = (
+    !!searchTerm ||
+    !!principalCode ||
+    statusId !== "all" ||
+    !!quickFilter
+  );
+
+  // 필터 활성 시만 서버 fetch. RESULT_LIMIT 한도 — 초과 시 안내.
   useEffect(() => {
+    if (!hasAnyFilter) {
+      setTasks([]);
+      setFetchError("");
+      return;
+    }
     let alive = true;
     setLoading(true);
     setFetchError("");
-    fetchAllPrincipalTasks({
-      // quickFilter 활성 시 statusIn 측 X (RPC 측 우선) — 측 측 측 X 측 측 측.
-      statusIn:   quickFilter ? null : ALL_STATUSES,
+
+    const params = {
+      limit:  RESULT_LIMIT,
+      offset: 0,
+      searchTerm,
+      engineerIds: engineerIdsForSearch,
       quickFilter,
-      searchTerm: "",
-      limit:      ALL_LIMIT,
-      offset:     0,
-    })
+      principalCodes: principalCode ? [principalCode] : null,
+    };
+    // quickFilter 활성 시 status 무시 (서버에서 status 자체 결정).
+    if (!quickFilter) {
+      const f = STATUS_FILTERS.find(x => x.id === statusId);
+      params.statusIn = (f && f.match) ? [f.match] : ALL_STATUSES;
+    }
+
+    fetchAllPrincipalTasks(params)
       .then(res => {
         if (!alive) return;
         if (!res.ok) {
           setFetchError(res.error || "불러오기 실패");
-          setAllTasks([]);
+          setTasks([]);
         } else {
-          setAllTasks(res.tasks);
+          setTasks(res.tasks || []);
         }
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [reloadTick, quickFilter]);
+  }, [searchTerm, engineerIdsForSearch, principalCode, statusId, quickFilter, reloadTick, hasAnyFilter]);
 
-  // 2026-06-06 — 상단 카운트 박스 (DB count:exact 3개) — reloadTick 시도 동기 갱신.
+  // 상단 카운트 박스 3개 (가벼운 count:exact head — idle 에서도 표시).
   useEffect(() => {
     let alive = true;
     fetchAllPrincipalCounts().then(res => {
@@ -100,103 +139,34 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
     return () => { alive = false; };
   }, [reloadTick]);
 
-  // 클라이언트 검색 필터 — 5개 필드 includes (대소문자 무시):
-  //   customer_name / task_no / address / phone / assignedEngineer
-  // 빈 검색어면 allTasks 그대로.
-  const searchFiltered = useMemo(() => {
-    const kw = searchTerm.trim().toLowerCase();
-    if (!kw) return allTasks;
-    return allTasks.filter(t => {
-      const fields = [
-        t.customer_name,
-        t.task_no,
-        t.address,
-        t.phone,
-        t.assignedEngineer,
-      ];
-      return fields.some(f => f && String(f).toLowerCase().includes(kw));
-    });
-  }, [allTasks, searchTerm]);
-
-  // 칩 카운트 (원청 필터 적용 후 기준 — 상태칩 카운트가 "현재 원청 필터 안에서" 의미)
-  const principalScoped = useMemo(() => {
-    if (!principalCode) return searchFiltered;
-    return searchFiltered.filter(t => t.principalCode === principalCode);
-  }, [searchFiltered, principalCode]);
-
-  const statusCounts = useMemo(() => {
-    const c = { all: principalScoped.length };
-    for (const f of STATUS_FILTERS) {
-      if (f.match) c[f.id] = principalScoped.filter(t => t.status === f.match).length;
-    }
-    return c;
-  }, [principalScoped]);
-
-  // 원청 칩 카운트 — 검색·상태와 무관하게 "전체 원청 분포" 보여주면 한쪽만 fix.
-  // 사장님 spec: 각 칩 옆 건수. 자연스럽게는 "현재 상태 필터 적용 후" 카운트.
-  const statusScoped = useMemo(() => {
-    const f = STATUS_FILTERS.find(x => x.id === statusId) || STATUS_FILTERS[0];
-    if (!f.match) return searchFiltered;
-    return searchFiltered.filter(t => t.status === f.match);
-  }, [searchFiltered, statusId]);
-
-  const principalCounts = useMemo(() => {
-    const c = { _all: statusScoped.length };
-    for (const p of PRINCIPAL_CHIP_ORDER) {
-      c[p.code] = statusScoped.filter(t => t.principalCode === p.code).length;
-    }
-    return c;
-  }, [statusScoped]);
-
-  // 최종 표시 (두 필터 + 정렬)
-  //   · '전체' 칩: 진행(0) → 완료(1) → 취소(2) 순서 + 각 구간 안 received_at desc.
-  //     렌더는 buckets 로 3구간 분리 (완료/취소 접기). displayedTasks 는 카운트/empty 체크용.
-  //   · 다른 칩: 그 status 만 필터, received_at desc 평면.
-  const displayedTasks = useMemo(() => {
-    const f = STATUS_FILTERS.find(x => x.id === statusId) || STATUS_FILTERS[0];
-    let base = searchFiltered;
-    if (principalCode) base = base.filter(t => t.principalCode === principalCode);
-    if (f.match)       base = base.filter(t => t.status === f.match);
-    const rankFn = (s) => s === "취소" ? 2 : s === "완료" ? 1 : 0;
-    return [...base].sort((a, b) => {
-      if (statusId === "all") {
-        const rankA = rankFn(a.status);
-        const rankB = rankFn(b.status);
-        if (rankA !== rankB) return rankA - rankB;
-      }
-      const ra = a.received_at || "";
-      const rb = b.received_at || "";
-      return String(rb).localeCompare(String(ra));
-    });
-  }, [searchFiltered, statusId, principalCode]);
-
-  // '전체' 칩일 때만 3구간 분리. 다른 칩은 null (평면 displayedTasks 사용).
+  // '전체' 상태 칩 + (principal 있거나 quickFilter 있을 때) → 진행/완료/취소 3구간.
+  //   특정 상태 칩 (예: 완료) 일 때는 평면 리스트.
   const buckets = useMemo(() => {
-    if (statusId !== "all") return null;
+    if (statusId !== "all" || quickFilter) return null;
     return {
-      ongoing:   displayedTasks.filter(t => t.status !== "완료" && t.status !== "취소"),
-      completed: displayedTasks.filter(t => t.status === "완료"),
-      canceled:  displayedTasks.filter(t => t.status === "취소"),
+      ongoing:   tasks.filter(t => t.status !== "완료" && t.status !== "취소"),
+      completed: tasks.filter(t => t.status === "완료"),
+      canceled:  tasks.filter(t => t.status === "취소"),
     };
-  }, [displayedTasks, statusId]);
+  }, [tasks, statusId, quickFilter]);
 
   const currentStatus = STATUS_FILTERS.find(f => f.id === statusId) || STATUS_FILTERS[0];
   const currentPrincipal = PRINCIPAL_FILTERS.find(p => p.code === principalCode);
 
-  // 원청 라벨 lookup (TaskRowOperator principalBadge 에 표시)
   const principalLabelByCode = useMemo(() => {
     const m = new Map();
     for (const p of PRINCIPAL_CHIP_ORDER) m.set(p.code, p.label);
     return m;
   }, []);
 
+  const limitReached = tasks.length >= RESULT_LIMIT;
+
   return (
     <div style={containerStyle}>
-      <Header onBack={onBack} count={displayedTasks.length}/>
+      <Header onBack={onBack} count={hasAnyFilter ? tasks.length : null}/>
 
       <div style={bodyStyle}>
-        {/* 2026-06-06 — 상단 카운트 박스 3개 (오늘 접수 / 완료 / 대기).
-            클릭 → quickFilter 적용 / 같은 박스 재클릭 또는 '필터 해제' → 해제. */}
+        {/* 상단 카운트 박스 — quickFilter 진입 (전역 통계). */}
         <CountBoxes
           counts={counts}
           selected={quickFilter}
@@ -215,82 +185,150 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
           }}>✕ 필터 해제</button>
         )}
 
-        {/* 검색 */}
-        <div style={{ position: "relative", marginBottom: 10 }}>
-          <Search size={14} style={{
-            position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
+        {/* ⭐ 큰 검색창 — 주인공. 위로 강조. */}
+        <div style={{ position: "relative", marginBottom: 12 }}>
+          <Search size={18} style={{
+            position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)",
             color: "var(--text-tertiary, var(--text-secondary))", pointerEvents: "none",
           }}/>
           <input
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="고객명 / 작업번호 / 주소 / 전화 / 기사 이름 검색"
+            placeholder="고객명 · 작업번호 · 주소 · 전화 · 기사 이름"
             style={{
-              width: "100%", padding: "10px 12px 10px 32px",
+              width: "100%", padding: "14px 14px 14px 40px",
               background: "var(--bg-secondary)",
-              border: "1px solid var(--border)",
-              borderRadius: 10,
+              border: "1.5px solid var(--border)",
+              borderRadius: 12,
               color: "var(--text-primary)",
-              fontSize: 12, fontWeight: 600,
+              fontSize: 14, fontWeight: 600,
               fontFamily: "inherit",
               boxSizing: "border-box",
               outline: "none",
             }}
           />
+          {searchInput && (
+            <button
+              onClick={() => setSearchInput("")}
+              aria-label="검색 지우기"
+              style={{
+                position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)",
+                background: "transparent", border: "none",
+                color: "var(--text-secondary)",
+                cursor: "pointer", padding: 6,
+                fontSize: 14,
+                fontFamily: "inherit",
+              }}
+            >✕</button>
+          )}
         </div>
 
-        {/* 원청 칩 (전체 + 6개) */}
+        {/* 원청 칩 (전체 + 6개) — 라벨만, 카운트 제거 */}
         <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
           {PRINCIPAL_FILTERS.map(p => {
             const active = principalCode === p.code;
-            const cnt = p.code ? (principalCounts[p.code] || 0) : (principalCounts._all || 0);
             return (
               <button
                 key={p.code || "_all"}
                 onClick={() => setPrincipalCode(p.code)}
                 style={chipStyle(active)}
               >
-                {p.label} {cnt.toLocaleString()}
+                {p.label}
               </button>
             );
           })}
         </div>
 
-        {/* 상태 칩 (전체 + 6개) */}
+        {/* 상태 칩 (전체 + 6개) — 라벨만, 카운트 제거 */}
         <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
           {STATUS_FILTERS.map(filter => {
             const active = statusId === filter.id;
-            const cnt = statusCounts[filter.id] || 0;
             return (
               <button
                 key={filter.id}
                 onClick={() => setStatusId(filter.id)}
                 style={chipStyle(active)}
               >
-                {filter.label} {cnt.toLocaleString()}
+                {filter.label}
               </button>
             );
           })}
         </div>
 
-        <div style={sectionTitleStyle}>
-          {currentPrincipal?.label || "전체"} · {currentStatus.label}{" "}
-          <span style={{ color: "var(--accent)", fontWeight: 700 }}>{displayedTasks.length.toLocaleString()}</span>건
-        </div>
-
-        {loading ? (
-          <Empty>불러오는 중...</Empty>
-        ) : fetchError ? (
-          <Empty>⚠️ {fetchError}</Empty>
-        ) : displayedTasks.length === 0 ? (
-          <Empty>해당 조건의 작업이 없습니다</Empty>
-        ) : buckets ? (
-          // '전체' 칩 — 진행(펼침) + 완료(접기) + 취소(접기)
+        {/* 결과 영역 */}
+        {!hasAnyFilter ? (
+          <IdleHint/>
+        ) : (
           <>
-            {buckets.ongoing.length > 0 && (
+            <div style={sectionTitleStyle}>
+              {currentPrincipal?.label || "전체"} · {currentStatus.label}{" "}
+              <span style={{ color: "var(--accent)", fontWeight: 700 }}>
+                {tasks.length.toLocaleString()}
+              </span>건
+              {limitReached && (
+                <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
+                  (상한 {RESULT_LIMIT} 도달 — 검색을 좁히세요)
+                </span>
+              )}
+            </div>
+
+            {loading ? (
+              <Empty>불러오는 중...</Empty>
+            ) : fetchError ? (
+              <Empty>⚠️ {fetchError}</Empty>
+            ) : tasks.length === 0 ? (
+              <Empty>해당 조건의 작업이 없습니다</Empty>
+            ) : buckets ? (
+              <>
+                {buckets.ongoing.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {buckets.ongoing.map(task => (
+                      <TaskRowOperator
+                        key={task.id}
+                        task={task}
+                        onClick={() => onTaskClick?.(task)}
+                        principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                      />
+                    ))}
+                  </div>
+                )}
+                {buckets.completed.length > 0 && (
+                  <CollapseSection
+                    title={`완료 ${buckets.completed.length.toLocaleString()}건`}
+                    open={completedOpen}
+                    onToggle={() => setCompletedOpen(v => !v)}
+                  >
+                    {buckets.completed.map(task => (
+                      <TaskRowOperator
+                        key={task.id}
+                        task={task}
+                        onClick={() => onTaskClick?.(task)}
+                        principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                      />
+                    ))}
+                  </CollapseSection>
+                )}
+                {buckets.canceled.length > 0 && (
+                  <CollapseSection
+                    title={`취소 ${buckets.canceled.length.toLocaleString()}건`}
+                    open={canceledOpen}
+                    onToggle={() => setCanceledOpen(v => !v)}
+                  >
+                    {buckets.canceled.map(task => (
+                      <TaskRowOperator
+                        key={task.id}
+                        task={task}
+                        onClick={() => onTaskClick?.(task)}
+                        principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                      />
+                    ))}
+                  </CollapseSection>
+                )}
+              </>
+            ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {buckets.ongoing.map(task => (
+                {tasks.map(task => (
                   <TaskRowOperator
                     key={task.id}
                     task={task}
@@ -300,51 +338,7 @@ export function AllTasksScreen({ onTaskClick, onBack }) {
                 ))}
               </div>
             )}
-            {buckets.completed.length > 0 && (
-              <CollapseSection
-                title={`완료 ${buckets.completed.length.toLocaleString()}건`}
-                open={completedOpen}
-                onToggle={() => setCompletedOpen(v => !v)}
-              >
-                {buckets.completed.map(task => (
-                  <TaskRowOperator
-                    key={task.id}
-                    task={task}
-                    onClick={() => onTaskClick?.(task)}
-                    principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
-                  />
-                ))}
-              </CollapseSection>
-            )}
-            {buckets.canceled.length > 0 && (
-              <CollapseSection
-                title={`취소 ${buckets.canceled.length.toLocaleString()}건`}
-                open={canceledOpen}
-                onToggle={() => setCanceledOpen(v => !v)}
-              >
-                {buckets.canceled.map(task => (
-                  <TaskRowOperator
-                    key={task.id}
-                    task={task}
-                    onClick={() => onTaskClick?.(task)}
-                    principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
-                  />
-                ))}
-              </CollapseSection>
-            )}
           </>
-        ) : (
-          // 직접 선택 칩 — 평면 리스트
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {displayedTasks.map(task => (
-              <TaskRowOperator
-                key={task.id}
-                task={task}
-                onClick={() => onTaskClick?.(task)}
-                principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
-              />
-            ))}
-          </div>
         )}
       </div>
     </div>
@@ -381,7 +375,7 @@ function Header({ onBack, count }) {
           fontSize: 10, color: "rgba(255,255,255,0.85)",
           marginBottom: 3, fontWeight: 500,
         }}>
-          6원청 전체 · 검색·필터
+          6원청 · 검색 / 필터
         </div>
         <div style={{
           fontSize: 18, fontWeight: 700, letterSpacing: "-0.3px",
@@ -389,10 +383,12 @@ function Header({ onBack, count }) {
           전체 작업
         </div>
       </div>
-      <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
-        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.75)", fontWeight: 500 }}>표시</div>
-        <div style={{ fontSize: 14, fontWeight: 700 }}>{count.toLocaleString()}건</div>
-      </div>
+      {count != null && (
+        <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 8 }}>
+          <div style={{ fontSize: 9, color: "rgba(255,255,255,0.75)", fontWeight: 500 }}>결과</div>
+          <div style={{ fontSize: 14, fontWeight: 700 }}>{count.toLocaleString()}건</div>
+        </div>
+      )}
     </div>
   );
 }
@@ -409,8 +405,28 @@ function chipStyle(active) {
   };
 }
 
-// 완료/취소 접기 섹션 — '전체' 칩에서만 사용. 헤더 클릭 시 토글.
-//   클릭 영역 넉넉히 (50대 사용자 spec — padding 12px ≈ 44px 높이).
+// 진입 시(필터 0) 큰 안내 — "검색하거나 필터 선택" 유도.
+function IdleHint() {
+  return (
+    <div style={{
+      padding: "50px 20px", textAlign: "center",
+      background: "var(--bg-secondary)",
+      border: "1px dashed var(--border)",
+      borderRadius: 12,
+      color: "var(--text-secondary)",
+    }}>
+      <div style={{ fontSize: 42, marginBottom: 12, opacity: 0.6 }}>🔍</div>
+      <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 6, color: "var(--text-primary)" }}>
+        검색하거나 필터를 선택하세요
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 500, lineHeight: 1.6 }}>
+        고객명 · 작업번호 · 주소 · 전화 · 기사 이름으로 검색<br/>
+        또는 위의 원청 / 상태 칩 클릭
+      </div>
+    </div>
+  );
+}
+
 function CollapseSection({ title, open, onToggle, children }) {
   return (
     <div style={{ marginTop: 14 }}>

@@ -3454,6 +3454,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AllTasksScreen
         onBack={goBack}
+        apiEngineers={apiEngineers}
         onTaskClick={(task) => {
           // task = allPrincipalTasksDb fetched row (snake_case + principalCode)
           // _v14NormalizeTask 측 fallback 위해 별칭 매핑 (usol_n 패턴 그대로)

@@ -65,6 +65,7 @@ export async function fetchAllPrincipalTasks({
   offset     = 0,
   quickFilter = null,        // 2026-06-06 — 'todayCreated' | 'todayCompleted' | 'confirmed' | null
   principalCodes = null,     // 2026-06-06 — null = 6원청 default (운영자) / ['KA'] = 원청 측 자기 task 만
+  engineerIds = null,        // 2026-06-26 — 기사 id 배열. searchTerm 의 4필드 ilike 와 OR. AllTasksScreen 검색 기사명 매칭 (apiEngineers 메모리 변환).
 } = {}) {
   const cache = await getPrincipalCache();
   if (!cache) {
@@ -139,13 +140,29 @@ export async function fetchAllPrincipalTasks({
       q = q.in("status", statusIn);
     }
 
-    // 검색어 — task 본체 4개 필드 or ilike (기사명은 클라이언트 필터)
+    // 검색어 — task 본체 4개 필드 or ilike + (있으면) 기사 id IN 추가 OR.
+    //   기사명은 users join 이라 서버 ilike 직접 불가 → 호출처가 apiEngineers 메모리에서
+    //   이름 매칭 → 그 id 배열을 engineerIds 로 넘김. (assigned_engineer_id IN ...) 가 OR 에 추가됨.
+    //   결과: "김" 검색 시 고객 김 + 기사 김 둘 다 결과에 잡힘.
     const kw = (searchTerm || "").trim();
-    if (kw) {
-      const esc = kw.replace(/[%_]/g, "\\$&");
-      q = q.or(
-        `customer_name.ilike.%${esc}%,task_no.ilike.%${esc}%,address.ilike.%${esc}%,phone.ilike.%${esc}%`
-      );
+    const hasEngineerIds = Array.isArray(engineerIds) && engineerIds.length > 0;
+    if (kw || hasEngineerIds) {
+      const orParts = [];
+      if (kw) {
+        const esc = kw.replace(/[%_]/g, "\\$&");
+        orParts.push(
+          `customer_name.ilike.%${esc}%`,
+          `task_no.ilike.%${esc}%`,
+          `address.ilike.%${esc}%`,
+          `phone.ilike.%${esc}%`,
+        );
+      }
+      if (hasEngineerIds) {
+        orParts.push(`assigned_engineer_id.in.(${engineerIds.join(",")})`);
+      }
+      if (orParts.length > 0) {
+        q = q.or(orParts.join(","));
+      }
     }
 
     const { data, count, error } = await q;
@@ -159,14 +176,15 @@ export async function fetchAllPrincipalTasks({
     if (data.length < thisPageSize) break;  // 마지막 페이지 측 break
   }
 
-  // users in-memory JOIN — 누적된 모든 row 측 (한 번에)
-  const engineerIds = [...new Set(accumulated.map(r => r.assigned_engineer_id).filter(Boolean))];
+  // users in-memory JOIN — 누적된 모든 row 측 (한 번에).
+  //   변수명 assignedEngineerIds — 파라미터 engineerIds (검색 OR 조건) 와 충돌 회피.
+  const assignedEngineerIds = [...new Set(accumulated.map(r => r.assigned_engineer_id).filter(Boolean))];
   let userMap = new Map();
-  if (engineerIds.length > 0) {
+  if (assignedEngineerIds.length > 0) {
     const { data: users } = await supabase
       .from("users")
       .select("id, code, name, phone")
-      .in("id", engineerIds);
+      .in("id", assignedEngineerIds);
     userMap = new Map((users || []).map(u => [u.id, u]));
   }
 
