@@ -72,6 +72,11 @@ function EngineerTaskCore({ t, apiTasks, user, engineerId, startYmd, endYmd, exp
     );
   }
 
+  // 2026-06-26 — 5컬럼 한 행에 안 잘리게 폰트·패딩 축소 + 컬럼 폭 재배분.
+  //   고객명 1.1fr / 날짜 0.55fr (MM-DD 5글자) / 판매가·정산·마진 각 1fr.
+  //   gap 6px (8 → 6) — 숫자 컬럼에 더 너비 양보.
+  const COLS = "minmax(0, 1.1fr) minmax(0, 0.55fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)";
+
   return (
     <div style={{
       background: t.bgElevated, border: `1px solid ${t.border}`,
@@ -81,15 +86,15 @@ function EngineerTaskCore({ t, apiTasks, user, engineerId, startYmd, endYmd, exp
       {/* 헤더 */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.1fr)",
-        gap: 8,
-        padding: "9px 12px",
+        gridTemplateColumns: COLS,
+        gap: 6,
+        padding: "6px 10px",
         borderBottom: `1px solid ${t.border}`,
         background: t.bgInset || "rgba(255,255,255,0.02)",
       }}>
-        <Th t={t} align="left">작업명</Th>
+        <Th t={t} align="left">고객명</Th>
         <Th t={t} align="left">날짜</Th>
-        <Th t={t} align="right">총판매가</Th>
+        <Th t={t} align="right">판매가</Th>
         <Th t={t} align="right">기사 정산</Th>
         <Th t={t} align="right">회사 마진</Th>
       </div>
@@ -98,40 +103,39 @@ function EngineerTaskCore({ t, apiTasks, user, engineerId, startYmd, endYmd, exp
         const total = Number(task.totalAmount || task.총금액 || task.estimateTotal || 0);
         const engineer = Number(task.engineer_amount || 0);
         const owner = Number(task.owner_amount || 0);
-        const taskNo = task.task_no || task.taskNo || "";
         const customer = task.customer || task.customerName || task.customer_name || "—";
-        const ymdKst = toKstYmd(task.completedAt || task.completed_at) || "—";
+        const ymdKst = toKstYmd(task.completedAt || task.completed_at);
+        // MM-DD 만 (YYYY-MM-DD 에서 앞 5자리 제거).
+        const dateLabel = ymdKst ? ymdKst.slice(5) : "—";
         return (
           <div key={task.id || idx} style={{
             display: "grid",
-            gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.1fr)",
-            gap: 8, alignItems: "center",
-            padding: "10px 12px",
+            gridTemplateColumns: COLS,
+            gap: 6, alignItems: "center",
+            padding: "6px 10px",
             borderTop: idx === 0 ? "none" : `1px solid ${t.border}`,
           }}>
             <div style={{
-              fontSize: 12, fontWeight: 700, color: t.text,
+              fontSize: 11, fontWeight: 700, color: t.text,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>
-              <span style={{ color: t.textSecondary, fontWeight: 600, marginRight: 6 }}>
-                {taskNo}
-              </span>
-              {customer}
-            </div>
+            }}>{customer}</div>
             <div style={{
-              fontSize: 11, color: t.textSecondary, fontWeight: 600,
-            }}>{ymdKst}</div>
+              fontSize: 10, color: t.textSecondary, fontWeight: 600,
+            }}>{dateLabel}</div>
             <div className="mono" style={{
-              fontSize: 12, textAlign: "right", color: t.text, fontWeight: 800,
+              fontSize: 11, textAlign: "right", color: t.text, fontWeight: 800,
               letterSpacing: "-0.3px",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}>{fmtKRW(total)}</div>
             <div className="mono" style={{
-              fontSize: 12, textAlign: "right", color: COLOR_ENGINEER, fontWeight: 800,
+              fontSize: 11, textAlign: "right", color: COLOR_ENGINEER, fontWeight: 800,
               letterSpacing: "-0.3px",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}>{fmtKRW(engineer)}</div>
             <div className="mono" style={{
-              fontSize: 12, textAlign: "right", color: t.accent, fontWeight: 800,
+              fontSize: 11, textAlign: "right", color: t.accent, fontWeight: 800,
               letterSpacing: "-0.3px",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}>{fmtKRW(owner)}</div>
           </div>
         );
@@ -139,29 +143,32 @@ function EngineerTaskCore({ t, apiTasks, user, engineerId, startYmd, endYmd, exp
       {/* 합계 행 */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 0.9fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1.1fr)",
-        gap: 8, alignItems: "center",
-        padding: "12px 12px",
+        gridTemplateColumns: COLS,
+        gap: 6, alignItems: "center",
+        padding: "8px 10px",
         borderTop: `1.5px solid ${t.accent}`,
         background: t.bgInset || "rgba(255,255,255,0.04)",
       }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>
+        <div style={{ fontSize: 12, fontWeight: 800, color: t.text }}>
           합계
         </div>
         <div style={{
-          fontSize: 11, color: t.textMuted, fontWeight: 700,
+          fontSize: 10, color: t.textMuted, fontWeight: 700,
         }}>{fmtCount(sums.count)}</div>
         <div className="mono" style={{
-          fontSize: 13, textAlign: "right", color: t.text, fontWeight: 800,
+          fontSize: 12, textAlign: "right", color: t.text, fontWeight: 800,
           letterSpacing: "-0.3px",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>{fmtKRW(sums.total)}</div>
         <div className="mono" style={{
-          fontSize: 13, textAlign: "right", color: COLOR_ENGINEER, fontWeight: 800,
+          fontSize: 12, textAlign: "right", color: COLOR_ENGINEER, fontWeight: 800,
           letterSpacing: "-0.3px",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>{fmtKRW(sums.engineer)}</div>
         <div className="mono" style={{
-          fontSize: 13, textAlign: "right", color: t.accent, fontWeight: 800,
+          fontSize: 12, textAlign: "right", color: t.accent, fontWeight: 800,
           letterSpacing: "-0.3px",
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>{fmtKRW(sums.owner)}</div>
       </div>
     </div>
