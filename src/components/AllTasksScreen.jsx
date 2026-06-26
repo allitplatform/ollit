@@ -61,7 +61,9 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
   const [offset, setOffset]     = useState(0);
   const [fetchError, setFetchError] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
-  // '전체' 칩 + principal 결합 시 진행/완료/취소 3구간 분리. 기본 닫힘.
+  // '전체' 칩 + principal 결합 시 진행/출장비만/완료/취소 4구간 분리. 하단 3개 기본 닫힘.
+  //   2026-06-26 — 출장비만(visit_only) 도 끝난 일이라 완료/취소와 같은 하단 접힘 그룹으로.
+  const [visitOnlyOpen, setVisitOnlyOpen] = useState(false);
   const [completedOpen, setCompletedOpen] = useState(false);
   const [canceledOpen,  setCanceledOpen]  = useState(false);
 
@@ -194,12 +196,16 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
     return () => { alive = false; };
   }, [reloadTick]);
 
-  // '전체' 상태 칩 + (principal 있거나 quickFilter 있을 때) → 진행/완료/취소 3구간.
+  // '전체' 상태 칩 + (principal 있거나 quickFilter 있을 때) → 진행/출장비만/완료/취소 4구간.
   //   특정 상태 칩 (예: 완료) 일 때는 평면 리스트.
+  //   2026-06-26 — visit_only 도 끝난 일이라 ongoing 에서 제외 → 하단 접힘 그룹.
+  //   무한스크롤 호환: 새 페이지가 와도 tasks 가 누적 → 같은 useMemo 가 buckets 재계산 → 자동 합쳐짐.
   const buckets = useMemo(() => {
     if (statusId !== "all" || quickFilter) return null;
+    const isClosed = (s) => s === "완료" || s === "취소" || s === "visit_only";
     return {
-      ongoing:   tasks.filter(t => t.status !== "완료" && t.status !== "취소"),
+      ongoing:   tasks.filter(t => !isClosed(t.status)),
+      visitOnly: tasks.filter(t => t.status === "visit_only"),
       completed: tasks.filter(t => t.status === "완료"),
       canceled:  tasks.filter(t => t.status === "취소"),
     };
@@ -346,6 +352,23 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
                       />
                     ))}
                   </div>
+                )}
+                {buckets.visitOnly.length > 0 && (
+                  <CollapseSection
+                    title={`출장비만 ${buckets.visitOnly.length.toLocaleString()}건`}
+                    open={visitOnlyOpen}
+                    onToggle={() => setVisitOnlyOpen(v => !v)}
+                  >
+                    {buckets.visitOnly.map(task => (
+                      <TaskRowOperator
+                        key={task.id}
+                        task={task}
+                        onClick={() => onTaskClick?.(task)}
+                        principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                        timeStrOverride={task.scheduled_at ? formatMdHm(task.scheduled_at) : ""}
+                      />
+                    ))}
+                  </CollapseSection>
                 )}
                 {buckets.completed.length > 0 && (
                   <CollapseSection
