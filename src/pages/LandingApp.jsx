@@ -931,7 +931,7 @@ function Footer() {
       <div className="ldg-container">
         <img src="/landing/assets/logo_white.png" alt="올데이케어" />
         <p className="ldg-footer-info">
-          대표 조동욱 외 1명 &nbsp;·&nbsp; 사업자등록번호 430-07-03167<br/>
+          대표 조동욱, 구현서 &nbsp;·&nbsp; 사업자등록번호 430-07-03167<br/>
           상호: 에어컨청소 에어컨가스충전 올데이케어 &nbsp;·&nbsp; 경기도 고양시 덕양구 상막3길 5, 1동 805호<br/>
           서울·경기 전 지역 출장 · 냉매충전 · 분해세척 · 누설수리 · 설치
         </p>
