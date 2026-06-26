@@ -4,10 +4,15 @@
 //   동작:
 //     · matcher 로 / 와 /index.html 만 미들웨어 진입 (정적 자산·api 가드).
 //     · host 가 올데이케어.kr (punycode 또는 한글 디코딩) 이면:
-//         원본 index.html fetch → OG/title 메타 치환 → 새 Response 반환.
+//         원본 index.html fetch → OG/title 메타 + favicon link 치환 → 새 Response 반환.
 //     · 그 외 host (ollit.vercel.app 등) → undefined 반환 = pass through (기존 동작).
 //
 //   Vercel routing 에서 Middleware 는 정적 파일/rewrites 보다 먼저 — 정적 우선 문제 해결.
+//
+// 2026-06-26 — favicon 호스트별 분리 추가.
+//   index.html 기본 = 핑크(올잇 PWA — favicon.svg / icon-*.png).
+//   올데이케어 호스트만 여기서 -allday(파란 A) 파일로 link 치환.
+//   파일명 분리(public/favicon-allday.*)로 브라우저 /favicon.ico 직접 fetch 캐시 함정 회피.
 
 export const config = {
   // 정적 자산(/og-alldaycare.png, /assets/*) 및 /api/* 는 자동 제외됨 (path 매칭 X).
@@ -74,6 +79,27 @@ export default async function middleware(request) {
       .replace(
         /<title>[^<]*<\/title>/,
         `<title>${escapeText(ALLDAY_OG.title)}</title>`,
+      )
+      // favicon 치환 — 핑크(올잇 기본) → -allday(파란 A)
+      .replace(
+        /<link rel="icon" type="image\/svg\+xml" href="\/favicon\.svg"[^>]*>/,
+        [
+          `<link rel="icon" type="image/x-icon" href="/favicon-allday.ico">`,
+          `    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-allday-16.png">`,
+          `    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-allday-32.png">`,
+        ].join("\n"),
+      )
+      .replace(
+        /<link rel="icon" type="image\/png" sizes="192x192" href="\/icon-192\.png"[^>]*>/,
+        `<link rel="icon" type="image/png" sizes="192x192" href="/favicon-allday-192.png">`,
+      )
+      .replace(
+        /<link rel="icon" type="image\/png" sizes="512x512" href="\/icon-512\.png"[^>]*>/,
+        `<link rel="icon" type="image/png" sizes="512x512" href="/favicon-allday-512.png">`,
+      )
+      .replace(
+        /<link rel="apple-touch-icon" sizes="180x180" href="\/icon-180\.png"[^>]*>/,
+        `<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon-allday.png">`,
       );
 
     // twitter:card 추가 (기본 index.html 에 없을 경우)
