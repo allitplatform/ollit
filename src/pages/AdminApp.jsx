@@ -3753,6 +3753,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       onClickEngineerCalendar={() => setScreen("engineerCalendar")}
       onClickMobileBookkeeping={() => setScreen("mobileBookkeeping")}
       onClickDocIssue={() => setScreen("docIssue")}
+      onClickAnnouncements={() => setScreen("announcements")}
       refrigerantAddonCount={refrigerantAddonCount}
       onClickRevenueDetail={() => setScreen("revenueDetail")}
       onClickSettlement={() => setScreen("settlement")}
@@ -3841,7 +3842,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, onEngineerClick, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, onEngineerClick, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4085,7 +4086,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -4105,7 +4106,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
-function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickInquiries, inquiriesNewCount = 0 }) {
+function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0 }) {
   return (
     <div style={{ padding: "0 16px 16px" }}>
       {/* 2026-06-24 — 홈페이지 접수함 진입 카드
@@ -4358,6 +4359,44 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
             </span>
             <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
               카톡 붙여넣기 → 거래명세서·영수증 즉석 발행
+            </span>
+          </div>
+          <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
+        </button>
+      )}
+
+      {/* 2026-06-26 — 공지사항 작성/관리 (Mig 147/148/149). PC 사이드바와 동일 화면. */}
+      {onClickAnnouncements && (
+        <button
+          onClick={onClickAnnouncements}
+          style={{
+            width: "100%",
+            padding: "12px 14px",
+            background: "var(--bg-elevated)",
+            border: "0.5px solid var(--border)",
+            borderRadius: 10,
+            marginBottom: 14,
+            cursor: "pointer",
+            display: "flex", alignItems: "center", gap: 12,
+            fontFamily: "inherit",
+            textAlign: "left",
+          }}
+        >
+          <span style={{
+            width: 38, height: 38, flexShrink: 0,
+            background: "var(--accent-bg)",
+            borderRadius: 9,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            fontSize: 18,
+          }}>
+            📢
+          </span>
+          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+            <span style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+              공지사항
+            </span>
+            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+              전체 기사 공지 작성·발행 (푸시 자동)
             </span>
           </div>
           <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
