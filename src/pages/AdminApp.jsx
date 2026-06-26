@@ -2425,10 +2425,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AdminTaskDetailScreen
         t={t}
+        // 2026-06-26 — apiEngineers 직접 전달. AdminTaskDetailScreen 가 getTaskByIdDb 로 task 를
+        //   재 fetch + setTask 하므로 (line 115), 여기서 미리 engineerPhone 폴백을 박아넣어도
+        //   재 fetch 결과로 덮어써짐. AdminTaskDetailScreen 안에서 직접 apiEngineers 로 폴백 계산해야 견고.
+        apiEngineers={apiEngineers}
         task={selectedTaskDetail ? {
           ...selectedTaskDetail,
-          // V14 Step 3 Fix 1 + 2026-06-26 — apiEngineers 에서 연락처 lookup.
-          //   폴백 체인 (3단): 매핑된 값 → UUID 매칭 (신뢰도 ★) → 이름 매칭 (동명이인 약함).
+          // 진입 직후 1회용 폴백 (재 fetch 전 짧은 순간) — 같은 3단 체인. 재 fetch 후엔 무시됨.
           engineerPhone:
             selectedTaskDetail.engineerPhone ||
             getEngineerPhoneById(selectedTaskDetail.assignedEngineerId || selectedTaskDetail.engineerId) ||

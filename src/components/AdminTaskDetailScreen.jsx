@@ -69,7 +69,7 @@ function getStateInfo(task) {
   return STATE_MAP[task.state] || { label: task.status || "예정", color: "var(--text-primary)" };
 }
 
-export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onPartialCancel, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user }) {
+export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onPartialCancel, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user, apiEngineers = [] }) {
   // ════════════════════════════════════════════════════════════
   // 모든 hooks 측 측 측 (early return 측 측 측 측 측 — React #310 spec).
   // 2026-06-02 — early return 측 useTaskMemos 측 측 측 측 측 → hooks 순서 위반 발생 → fix.
@@ -257,7 +257,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {/* 카드 2 — 2026-05-26 D-2: 작업 정보 통합 (연락처/주소/일정 + 배정 프로 + 측 측 측 측)
             옛 QuickActions(3 버튼) + EngineerCard 측 WorkInfoCard 측 catch 합침.
             핸들러 측 catch (onAssign/onEdit/onScheduleChange/callCustomer). */}
-      <WorkInfoCard task={task} onAssign={onAssign} onScheduleChange={onScheduleChange}/>
+      <WorkInfoCard task={task} apiEngineers={apiEngineers} onAssign={onAssign} onScheduleChange={onScheduleChange}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
       <SettlementInfoCard task={task}/>
       {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출).
@@ -496,29 +496,39 @@ function engineerContactBtnStyle(active) {
 // 2026-05-26 D-2 — 작업 정보 카드 (연락처/주소/일정 + 배정 프로 + 고객 통화·일정 변경)
 //   유솔앱 PrincipalApp.jsx:983~ 패턴 측 catch. 핸들러 100% 측 catch (onAssign / onEdit /
 //   onScheduleChange / callCustomer 측 catch — 측 측 측 측 측 측 측 X).
-function WorkInfoCard({ task, onAssign, onScheduleChange }) {
+function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange }) {
   function callCustomer() {
     if (task.phone) window.location.href = `tel:${task.phone}`;
   }
-  // 2026-06-26 — 배정 기사 연락 (tel: / sms:). engineerPhone 은 tasksDb.rowToTask 가 매핑.
-  //   sms body 에 [작업번호 고객명] 머리말 자동 — 기사가 어느 작업인지 바로 식별.
-  //   기존 TaskCardMenu 의 engineer_call (tel:) 와 동일 패턴 + sms 추가.
+  // 2026-06-26 — 배정 기사 연락 (tel: / sms:).
+  //   resolvedEngineerPhone 우선 사용:
+  //     · task.engineerPhone (rowToTask 매핑 — PAYMENT_SELECT embed 에 phone 포함 시 동작)
+  //     · 폴백: apiEngineers 에서 UUID 직접 매칭 (e.userId === assignedEngineerId)
+  //   AdminTaskDetailScreen 이 getTaskByIdDb 로 task 재 fetch + setTask → AdminApp 의
+  //   미리-패치는 덮어써짐 → 이 컴포넌트 안에서 apiEngineers 폴백 직접 계산 필요.
+  const resolvedEngineerPhone = (() => {
+    if (task.engineerPhone) return task.engineerPhone;
+    const id = task.assignedEngineerId || task.engineerId || null;
+    if (!id || !Array.isArray(apiEngineers) || apiEngineers.length === 0) return "";
+    const eng = apiEngineers.find(e => e && e.userId === id);
+    return (eng && (eng.phone || eng.연락처 || eng.전화)) || "";
+  })();
   function callEngineer() {
-    if (task.engineerPhone) window.location.href = `tel:${task.engineerPhone}`;
+    if (resolvedEngineerPhone) window.location.href = `tel:${resolvedEngineerPhone}`;
   }
   function smsEngineer() {
-    if (!task.engineerPhone) return;
+    if (!resolvedEngineerPhone) return;
     const taskNo   = task.taskNo   || task.task_no       || "";
     const customer = task.customer || task.customerName  || task.customer_name || "";
     const prefix = [taskNo, customer].filter(Boolean).join(" ").trim();
     const body = prefix ? `[${prefix}] ` : "";
-    window.location.href = `sms:${task.engineerPhone}?body=${encodeURIComponent(body)}`;
+    window.location.href = `sms:${resolvedEngineerPhone}?body=${encodeURIComponent(body)}`;
   }
   const hasCustomerPhone = !!task.phone;
   const hasEngineer      = !!task.engineer;
-  const hasEngineerPhone = !!task.engineerPhone;
-  // 2026-06-26 — 진단: 기사 배정됐는데 phone 비어 비활성 시 콘솔에 task 키 노출.
-  //   원인 추적용 (apiEngineers 매칭 실패 / users.phone DB NULL 등).
+  const hasEngineerPhone = !!resolvedEngineerPhone;
+  // 2026-06-26 — 진단: 기사 배정됐는데 폴백까지 다 실패해서 phone 0 일 때 콘솔.
+  //   원인 추적용 — apiEngineers 미로딩 / userId 매칭 실패 / DB phone NULL 등.
   if (typeof console !== "undefined" && hasEngineer && !hasEngineerPhone) {
     console.warn("[WorkInfoCard] 기사 배정됨 but engineerPhone 빈 값",
       {
@@ -527,6 +537,8 @@ function WorkInfoCard({ task, onAssign, onScheduleChange }) {
         assignedEngineerId: task.assignedEngineerId,
         engineerId:         task.engineerId,
         engineerPhone:      task.engineerPhone,
+        apiEngineersLen:    apiEngineers.length,
+        matchedFromList:    apiEngineers.find(e => e && e.userId === (task.assignedEngineerId || task.engineerId)) || null,
         taskCode:           task.taskCode || task.taskNo,
       }
     );
