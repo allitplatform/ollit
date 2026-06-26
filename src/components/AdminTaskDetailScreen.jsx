@@ -517,6 +517,20 @@ function WorkInfoCard({ task, onAssign, onScheduleChange }) {
   const hasCustomerPhone = !!task.phone;
   const hasEngineer      = !!task.engineer;
   const hasEngineerPhone = !!task.engineerPhone;
+  // 2026-06-26 — 진단: 기사 배정됐는데 phone 비어 비활성 시 콘솔에 task 키 노출.
+  //   원인 추적용 (apiEngineers 매칭 실패 / users.phone DB NULL 등).
+  if (typeof console !== "undefined" && hasEngineer && !hasEngineerPhone) {
+    console.warn("[WorkInfoCard] 기사 배정됨 but engineerPhone 빈 값",
+      {
+        engineer:           task.engineer,
+        assignedEngineer:   task.assignedEngineer,
+        assignedEngineerId: task.assignedEngineerId,
+        engineerId:         task.engineerId,
+        engineerPhone:      task.engineerPhone,
+        taskCode:           task.taskCode || task.taskNo,
+      }
+    );
+  }
   // 일정 표시
   const scheduledDisplay =
     task.scheduledDate && task.scheduledTime

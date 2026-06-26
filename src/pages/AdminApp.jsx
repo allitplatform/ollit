@@ -1657,6 +1657,15 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     );
     return (eng && (eng.phone || eng.연락처 || eng.전화)) || "";
   };
+  // 2026-06-26 — UUID 기반 lookup. name 매칭이 동명이인/공백/오타에 약함 →
+  //   tasks.assigned_engineer_id (UUID) 와 apiEngineers[].userId (UUID, rowToSheetShape 가 채움)
+  //   직접 비교가 신뢰도 가장 높음. AdminTaskDetailScreen 의 engineerPhone 폴백 체인에서
+  //   name 폴백보다 먼저 호출.
+  const getEngineerPhoneById = (uuid) => {
+    if (!uuid || apiEngineers.length === 0) return "";
+    const eng = apiEngineers.find(e => e.userId === uuid);
+    return (eng && (eng.phone || eng.연락처 || eng.전화)) || "";
+  };
   // V14 2B-3 — 배정 진행/에러 (RecommendScreen 박힘)
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState("");
@@ -2418,8 +2427,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         t={t}
         task={selectedTaskDetail ? {
           ...selectedTaskDetail,
-          // V14 Step 3 Fix 1 — apiEngineers에서 연락처 lookup 박기 (normalize에 박지 X면 박힘)
-          engineerPhone: selectedTaskDetail.engineerPhone || getEngineerPhone(selectedTaskDetail.assignedEngineer || selectedTaskDetail.engineer),
+          // V14 Step 3 Fix 1 + 2026-06-26 — apiEngineers 에서 연락처 lookup.
+          //   폴백 체인 (3단): 매핑된 값 → UUID 매칭 (신뢰도 ★) → 이름 매칭 (동명이인 약함).
+          engineerPhone:
+            selectedTaskDetail.engineerPhone ||
+            getEngineerPhoneById(selectedTaskDetail.assignedEngineerId || selectedTaskDetail.engineerId) ||
+            getEngineerPhone(selectedTaskDetail.assignedEngineer || selectedTaskDetail.engineer),
         } : null}
         onBack={goBackFromStack}
         onCancelTask={async (reasonId, memo) => {
