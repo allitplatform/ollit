@@ -23,9 +23,13 @@ export const CATEGORY_ID_AIRCON = "33333333-3333-3333-3333-333333333001";
 //   tasks.assigned_engineer_id → users(name, code) — 두 FK(recommended+assigned) 측 column 기반 disambiguation 필요.
 //   tasks.principal_id → principals(code, name) — principal_code 컬럼 X (Migration 083 확인) → JOIN 필수.
 //   rowToTask 측 engineer / assignedEngineer / principalCode 매핑 채움 (principal 필드는 안전상 X).
+// 2026-06-26 — phone 추가. 옛 embed = (name, code) 만 → rowToTask 가 engineerPhone 매핑 불가 →
+//   AdminTaskDetailScreen 기사 📞/💬 버튼이 항상 회색 비활성. loadTasksForRole 만 별도 users
+//   fetch 로 line 707 에서 패치했으나, PAYMENT_SELECT 직접 쓰는 5개 다른 fetch 경로는 모두 누락.
+//   phone 한 줄 추가 → rowToTask 가 engineerPhone 매핑 → 모든 fetch 경로 일관.
 const PAYMENT_SELECT = `
   *,
-  assigned_engineer:users!assigned_engineer_id ( name, code ),
+  assigned_engineer:users!assigned_engineer_id ( name, code, phone ),
   principal_rel:principals!principal_id ( code, name ),
   payment:payments(
     calc_method,
@@ -119,9 +123,13 @@ export function rowToTask(row) {
     assignmentType:        row.assignment_type,
     // 2026-06-02 — users JOIN 측 기사 이름/코드 (v14NormalizeTask 측 t.engineer / t.assignedEngineer 슬롯 통과).
     //   옛 흐름: rowToTask 측 이름 매핑 X → AdminTaskDetailScreen 측 항상 "미배정" 표시.
-    engineer:              row.assigned_engineer?.name || null,
-    assignedEngineer:      row.assigned_engineer?.name || "",
-    engineerCode:          row.assigned_engineer?.code || null,
+    // 2026-06-26 — engineerPhone 매핑 추가. PAYMENT_SELECT embed 에 phone 추가됨.
+    //   AdminTaskDetailScreen 기사 📞/💬 활성화. loadTasksForRole 의 별도 user fetch 패치는
+    //   redundant 안전망 (한 곳 실패해도 다른 곳에서 채움).
+    engineer:              row.assigned_engineer?.name  || null,
+    assignedEngineer:      row.assigned_engineer?.name  || "",
+    engineerCode:          row.assigned_engineer?.code  || null,
+    engineerPhone:         row.assigned_engineer?.phone || "",
     // 2026-06-02 — principals JOIN 측 원청 코드 (v14NormalizeTask 측 t.principalCode 슬롯 통과).
     //   옛 흐름: principalCode 빈 문자열 → AdminTaskDetailScreen usol_n 분기 측 측 catch X.
     //   principal 필드는 건드리지 않음 (다른 화면 측 이름 측 사용 가능 — 회귀 위험).
