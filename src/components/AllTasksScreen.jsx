@@ -70,15 +70,16 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
     return () => clearTimeout(id);
   }, [searchInput]);
 
-  // 기사명 → id 변환 (apiEngineers 메모리 — 새 DB 객체 0).
-  //   사장님 spec: users 는 이미 메모리에 있으니 그걸 재사용해 id 변환.
-  //   결과 id 배열을 fetchAllPrincipalTasks 의 engineerIds OR 조건으로 전달.
+  // 기사명 → UUID 변환 (apiEngineers 메모리 — 새 DB 객체 0).
+  //   ⚠️ 반드시 e.userId (DB users.id, UUID) — e.id 는 engineer code (E016) 라서
+  //       assigned_engineer_id (UUID FK) 와 비교 시 400 invalid uuid 에러.
+  //       engineersDb.rowToSheetShape 가 userId 필드를 UUID 로 채워줌 (2026-06-26).
   const engineerIdsForSearch = useMemo(() => {
     const kw = searchTerm.toLowerCase();
     if (!kw) return null;
     return apiEngineers
       .filter(e => e && e.name && String(e.name).toLowerCase().includes(kw))
-      .map(e => e.id)
+      .map(e => e.userId)
       .filter(Boolean);
   }, [searchTerm, apiEngineers]);
 

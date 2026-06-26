@@ -66,8 +66,12 @@ function dbActiveToStatus(isActive) {
 
 // DB row → 시트 호환 shape (loadEngineers + adaptSheetEngineerToSeed 호환)
 // engineerId / id 둘 다 채움 (시트 측 양쪽 키 lookup 패턴)
+// 2026-06-26 — userId 추가: DB users.id (UUID). 기존 id/engineerId 는 code (E016) 라서
+//   tasks.assigned_engineer_id (UUID FK) 와 직접 비교 불가. AllTasksScreen 기사명 검색에서
+//   apiEngineers.filter(...).map(e => e.userId) 로 UUID 배열 산출 → IN OR 조건에 사용.
 function rowToSheetShape(row, allRoles) {
   return {
+    userId:              row.id   || "",   // UUID — DB users.id (FK 비교용)
     engineerId:          row.code || "",
     id:                  row.code || "",
     name:                row.name || "",
