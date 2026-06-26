@@ -146,6 +146,20 @@ export function getTasksByYmRange(apiTasks, startYmd, endYmd, user) {
   return _filterTrackADoneInRange(apiTasks, startYmd, endYmd);
 }
 
+// 2026-06-26 — 특정 기사 + 기간 작업 리스트.
+//   매출 상세(RevenueDetailScreen) 기사별 → 기사 클릭 → 작업 리스트 모달(PC) / 화면 전환(모바일) 용도.
+//   getTasksByYmRange 결과를 engineerId 로 추가 필터 → 같은 _filterTrackADoneInRange 통과.
+//   → 기사별 행(computeRevenueByEngineer)의 owner/engineer/total 합과 이 리스트 합이 100% 일치 보장.
+//   engineerId 가 null/undefined 면 (미배정 그룹 클릭) — assignedEngineerId 가 없는 task 반환.
+export function getTasksByEngineerInRange(apiTasks, startYmd, endYmd, engineerId, user) {
+  const list = getTasksByYmRange(apiTasks, startYmd, endYmd, user);
+  return list.filter(t => {
+    const id = t.assignedEngineerId || t.assigned_engineer_id || t.engineerId || null;
+    if (!engineerId) return !id; // 미배정 그룹
+    return id === engineerId;
+  });
+}
+
 // 원청별 측측 — 측측 dataset 측측 principal_code 측측 측측 측측.
 //   측측 측측: principal_code 측측 측측 매출 측측측 정렬.
 //   측측 측측: code / name / count / total / owner.

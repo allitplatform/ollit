@@ -18,6 +18,7 @@ import {
   getTasksByYmRange,
   pickServiceCode,
 } from "../../utils/revenueStats.js";
+import { EngineerTaskModal } from "./EngineerTaskList.jsx";
 
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 
@@ -34,8 +35,12 @@ function kindOfTask(task) {
   return SERVICE_KIND.other;
 }
 
-export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClick }) {
+// 2026-06-26 — onEngineerClick: 모바일에서 기사 행 클릭 시 부모(AdminApp) 로 올려 화면 전환.
+//   PC 는 같은 화면 안에서 모달(EngineerTaskModal) 로 처리 — onEngineerClick 미호출.
+export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClick, onEngineerClick }) {
   const isPc = useIsPc();
+  // 2026-06-26 — PC 모달 상태. 모바일은 부모로 onEngineerClick 콜백 → 화면 전환.
+  const [selectedEngineer, setSelectedEngineer] = useState(null);
   // 2026-06-16 — 탭 상태 (원청별 / 기사별 / 작업별).
   const [tab, setTab] = useState("principal"); // 'principal' | 'engineer' | 'task'
   // 측측 측측 — default = 측측 KST 측측측.
@@ -233,6 +238,20 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
               ]}
               rows={byEngineer}
               emptyText={engineerPeriod === "today" ? "오늘 회사 마진 데이터 없음" : "이 달 회사 마진 데이터 없음"}
+              onRowClick={(row) => {
+                // 클릭 시점 토글 그대로 이어받기 (engStartYmd/engEndYmd 가 이미 그 값).
+                const payload = {
+                  ...row,
+                  startYmd: engStartYmd,
+                  endYmd: engEndYmd,
+                  periodLabel: engineerPeriod === "today" ? "오늘" : "이번 달",
+                };
+                if (isPc) {
+                  setSelectedEngineer(payload);
+                } else {
+                  onEngineerClick?.(payload);
+                }
+              }}
             />
           </>
         )}
@@ -253,6 +272,20 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
           />
         )}
       </div>
+
+      {/* 2026-06-26 — PC 기사 클릭 모달 (모바일은 부모 화면 전환 사용). */}
+      {isPc && selectedEngineer && (
+        <EngineerTaskModal
+          t={t}
+          apiTasks={apiTasks}
+          user={user}
+          engineer={selectedEngineer}
+          startYmd={selectedEngineer.startYmd}
+          endYmd={selectedEngineer.endYmd}
+          periodLabel={selectedEngineer.periodLabel}
+          onClose={() => setSelectedEngineer(null)}
+        />
+      )}
     </div>
   );
 }
@@ -699,7 +732,8 @@ function PrincipalCardList({ t, rows, emptyText }) {
   );
 }
 
-function Table({ t, columns, rows, emptyText }) {
+// 2026-06-26 — onRowClick 추가. 있으면 행을 button 으로 감싸 클릭 가능 (기사별 탭용).
+function Table({ t, columns, rows, emptyText, onRowClick }) {
   if (!rows || rows.length === 0) {
     return (
       <div style={{
@@ -710,15 +744,15 @@ function Table({ t, columns, rows, emptyText }) {
       }}>{emptyText}</div>
     );
   }
+  const gridCols = columns.map(c => c.width || "minmax(0, 1fr)").join(" ");
   return (
     <div style={{
       background: t.bgElevated, border: `1px solid ${t.border}`,
       borderRadius: 10, overflow: "hidden", marginBottom: 14,
     }}>
-      {/* 측측 */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: columns.map(c => c.width || "minmax(0, 1fr)").join(" "),
+        gridTemplateColumns: gridCols,
         gap: 8,
         padding: "8px 12px",
         borderBottom: `1px solid ${t.border}`,
@@ -731,29 +765,48 @@ function Table({ t, columns, rows, emptyText }) {
           }}>{c.label}</div>
         ))}
       </div>
-      {/* 측측 */}
-      {rows.map((row, idx) => (
-        <div key={(row.code || row.id || row.name || idx) + "_" + idx} style={{
+      {rows.map((row, idx) => {
+        const inner = columns.map(c => {
+          const v = row[c.key];
+          const text = c.format ? c.format(v) : (v ?? "");
+          return (
+            <div key={c.key} className={c.format === fmtKRW ? "mono" : ""} style={{
+              fontSize: 12, fontWeight: 700,
+              color: c.accent ? t.accent : t.text,
+              textAlign: c.align || "left",
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>{text}</div>
+          );
+        });
+        const rowKey = (row.code || row.id || row.name || idx) + "_" + idx;
+        const baseStyle = {
           display: "grid",
-          gridTemplateColumns: columns.map(c => c.width || "minmax(0, 1fr)").join(" "),
+          gridTemplateColumns: gridCols,
           gap: 8,
           padding: "9px 12px",
           borderTop: idx === 0 ? "none" : `1px solid ${t.border}`,
-        }}>
-          {columns.map(c => {
-            const v = row[c.key];
-            const text = c.format ? c.format(v) : (v ?? "");
-            return (
-              <div key={c.key} className={c.format === fmtKRW ? "mono" : ""} style={{
-                fontSize: 12, fontWeight: 700,
-                color: c.accent ? t.accent : t.text,
-                textAlign: c.align || "left",
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              }}>{text}</div>
-            );
-          })}
-        </div>
-      ))}
+          alignItems: "center",
+        };
+        if (onRowClick) {
+          return (
+            <button
+              key={rowKey}
+              type="button"
+              onClick={() => onRowClick(row)}
+              style={{
+                ...baseStyle,
+                width: "100%",
+                background: "transparent", border: "none",
+                cursor: "pointer", fontFamily: "inherit",
+                textAlign: "left",
+              }}
+            >{inner}</button>
+          );
+        }
+        return (
+          <div key={rowKey} style={baseStyle}>{inner}</div>
+        );
+      })}
     </div>
   );
 }

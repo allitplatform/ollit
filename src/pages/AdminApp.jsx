@@ -182,6 +182,8 @@ import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddon
 import { RevenueOverviewBlock } from "../components/admin/RevenueOverviewBlock.jsx";
 // 2026-06-03 — 매출 자세히 화면 (2차).
 import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
+// 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환용).
+import { EngineerTaskListScreen } from "../components/admin/EngineerTaskList.jsx";
 // 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점).
 import { EngineerCalendarScreen } from "../components/admin/EngineerCalendarScreen.jsx";
 // 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
@@ -1433,6 +1435,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // Step 8+9 V2 — Navigation Stack (history-aware goBack)
   const [screenStack, setScreenStack] = useState([]);
   const screen = screenStack.length > 0 ? screenStack[screenStack.length - 1] : null;
+  // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환용 params).
+  //   { id, name, startYmd, endYmd, periodLabel, count, total, engineer, owner }
+  const [engineerTaskParams, setEngineerTaskParams] = useState(null);
   // 호환용 setScreen — push (중복 방지) / null = stack 클리어 (메인)
   const setScreen = (name) => {
     if (name === null) {
@@ -3105,6 +3110,26 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         user={user}
         onBack={goBack}
         onTaskClick={(task) => openTaskDetailFromLight(task, "revenueDetail")}
+        onEngineerClick={(engineer) => {
+          // 2026-06-26 — 모바일 한정. PC 는 RevenueDetailScreen 내부 모달 처리.
+          setEngineerTaskParams(engineer);
+          setScreen("engineerTaskDetail");
+        }}
+      />
+    </Shell>;
+  }
+  // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환).
+  if (screen === "engineerTaskDetail") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <EngineerTaskListScreen
+        t={t}
+        apiTasks={apiTasks}
+        user={user}
+        engineer={engineerTaskParams}
+        startYmd={engineerTaskParams?.startYmd}
+        endYmd={engineerTaskParams?.endYmd}
+        periodLabel={engineerTaskParams?.periodLabel}
+        onBack={goBack}
       />
     </Shell>;
   }
