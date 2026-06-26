@@ -24,7 +24,9 @@ export function countRecentAnnouncements(items, days = 7) {
   }).length;
 }
 
-export function AnnouncementListTab({ onTabChange, unreadCount = 0 }) {
+// 2026-06-26 v2 — 탭 재배치: 공지 탭 폐기 → 내정보 메뉴 안에서 진입.
+//   onBack — 내정보로 복귀 (필수). BottomNav 는 그대로 노출하되 active 없음 (none).
+export function AnnouncementListTab({ onTabChange, onBack, unreadCount = 0 }) {
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
@@ -51,7 +53,7 @@ export function AnnouncementListTab({ onTabChange, unreadCount = 0 }) {
 
   return (
     <div style={containerStyle}>
-      <Header recentN={recentN}/>
+      <Header recentN={recentN} onBack={onBack}/>
       <div style={bodyStyle}>
         {loading ? (
           <Empty>불러오는 중...</Empty>
@@ -72,10 +74,9 @@ export function AnnouncementListTab({ onTabChange, unreadCount = 0 }) {
         )}
       </div>
       <EngineerBottomNav
-        active="announce"
+        active={null}
         onChange={onTabChange}
         unreadCount={unreadCount}
-        announceCount={recentN}
       />
       {selected && (
         <AnnouncementModal
@@ -132,7 +133,7 @@ function AnnouncementCard({ item, onClick }) {
   );
 }
 
-function Header({ recentN }) {
+function Header({ recentN, onBack }) {
   return (
     <div style={{
       padding: "14px 16px",
@@ -141,6 +142,23 @@ function Header({ recentN }) {
       flexShrink: 0,
       display: "flex", alignItems: "center", gap: 10,
     }}>
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="뒤로"
+          style={{
+            background: "rgba(255,255,255,0.18)",
+            border: "none", color: "#fff",
+            cursor: "pointer",
+            padding: "4px 10px",
+            borderRadius: 6,
+            fontSize: 16,
+            fontFamily: "inherit",
+            flexShrink: 0,
+          }}
+        >←</button>
+      )}
       <div style={{ minWidth: 0, flex: 1 }}>
         <div style={{
           fontSize: 10, color: "rgba(255,255,255,0.85)",

@@ -8,6 +8,8 @@ import { ArrowLeft } from "lucide-react";
 // 2026-06-06 — 기본 정보 편집 (5 필드 — update_task_basic RPC, Mig 099).
 import { TaskBasicEditScreen } from "./TaskBasicEditScreen.jsx";
 import { Chip } from "./Chip.jsx";
+// 2026-06-26 — 공지 3단계: 운영자 → 기사 작업 메시지 (옵션 c 서버 저장 + 푸시).
+import { SendTaskMessageModal } from "./admin/SendTaskMessageModal.jsx";
 import { detectServiceType } from "../data/serviceTypes.js";
 import { TaskCardMenu } from "./TaskCardMenu.jsx";
 import { formatTimeOnly, formatDateTimeKST } from "../utils/dateLabel.js";
@@ -69,12 +71,16 @@ function getStateInfo(task) {
   return STATE_MAP[task.state] || { label: task.status || "예정", color: "var(--text-primary)" };
 }
 
-export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onPartialCancel, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user, apiEngineers = [] }) {
+export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onPartialCancel, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user, apiEngineers = [], toast }) {
   // ════════════════════════════════════════════════════════════
   // 모든 hooks 측 측 측 (early return 측 측 측 측 측 — React #310 spec).
   // 2026-06-02 — early return 측 useTaskMemos 측 측 측 측 측 → hooks 순서 위반 발생 → fix.
   // ════════════════════════════════════════════════════════════
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  // 2026-06-26 — 운영자 → 기사 메시지 모달 (옵션 c).
+  const [showMessageModal, setShowMessageModal] = useState(false);
+  const [sendStatus, setSendStatus] = useState("");  // 토스트 — "전송됨" / "전송 실패" 등
+  const actorIdForMessage = user?.user_id || user?.userId || user?.id || null;
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
   // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138).
   const [showUnmarkVisitOnlyDialog, setShowUnmarkVisitOnlyDialog] = useState(false);
@@ -257,7 +263,13 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {/* 카드 2 — 2026-05-26 D-2: 작업 정보 통합 (연락처/주소/일정 + 배정 프로 + 측 측 측 측)
             옛 QuickActions(3 버튼) + EngineerCard 측 WorkInfoCard 측 catch 합침.
             핸들러 측 catch (onAssign/onEdit/onScheduleChange/callCustomer). */}
-      <WorkInfoCard task={task} apiEngineers={apiEngineers} onAssign={onAssign} onScheduleChange={onScheduleChange}/>
+      <WorkInfoCard
+        task={task}
+        apiEngineers={apiEngineers}
+        onAssign={onAssign}
+        onScheduleChange={onScheduleChange}
+        onSendMessage={() => setShowMessageModal(true)}
+      />
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
       <SettlementInfoCard task={task}/>
       {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출).
@@ -335,6 +347,43 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
             onCancelTask && onCancelTask(reasonId, memo);
           }}
         />
+      )}
+
+      {/* 2026-06-26 — 기사 메시지 전송 모달 (옵션 c). */}
+      {showMessageModal && (
+        <SendTaskMessageModal
+          t={{
+            bg: "var(--bg-primary)",
+            text: "var(--text-primary)",
+            textSecondary: "var(--text-secondary)",
+            textMuted: "var(--text-tertiary, var(--text-secondary))",
+            border: "var(--border)",
+            bgElevated: "var(--bg-elevated)",
+            bgSecondary: "var(--bg-secondary)",
+          }}
+          task={task}
+          actorId={actorIdForMessage}
+          onClose={() => setShowMessageModal(false)}
+          onSent={() => {
+            setShowMessageModal(false);
+            setSendStatus("✓ 메시지 전송됨");
+            setTimeout(() => setSendStatus(""), 2400);
+          }}
+        />
+      )}
+
+      {/* 메시지 전송 토스트 */}
+      {sendStatus && (
+        <div style={{
+          position: "fixed", left: "50%", bottom: "calc(60px + env(safe-area-inset-bottom))",
+          transform: "translateX(-50%)",
+          background: "rgba(0, 135, 90, 0.95)", color: "#fff",
+          padding: "10px 16px", borderRadius: 10,
+          fontSize: 13, fontWeight: 700,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          zIndex: 1200,
+          pointerEvents: "none",
+        }}>{sendStatus}</div>
       )}
       {showVisitOnlyDialog && (
         <VisitOnlyDialog
@@ -496,7 +545,7 @@ function engineerContactBtnStyle(active) {
 // 2026-05-26 D-2 — 작업 정보 카드 (연락처/주소/일정 + 배정 프로 + 고객 통화·일정 변경)
 //   유솔앱 PrincipalApp.jsx:983~ 패턴 측 catch. 핸들러 100% 측 catch (onAssign / onEdit /
 //   onScheduleChange / callCustomer 측 catch — 측 측 측 측 측 측 측 X).
-function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange }) {
+function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onSendMessage }) {
   function callCustomer() {
     if (task.phone) window.location.href = `tel:${task.phone}`;
   }
@@ -596,6 +645,15 @@ function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange }) {
               title={hasEngineerPhone ? "문자 (작업번호 자동)" : "기사 연락처 없음"}
               style={engineerContactBtnStyle(hasEngineerPhone)}
             >💬</button>
+            {/* 2026-06-26 — 개별 메시지 (옵션 c 서버 저장 + 푸시). hasEngineer 면 활성. */}
+            <button
+              type="button"
+              onClick={onSendMessage}
+              disabled={!hasEngineer}
+              aria-label="기사에게 메시지 전송"
+              title={hasEngineer ? "메시지 전송 (앱 푸시 + 메시지 탭 저장)" : "기사 미배정"}
+              style={engineerContactBtnStyle(hasEngineer)}
+            >📨</button>
             <button
               onClick={onAssign}
               style={{

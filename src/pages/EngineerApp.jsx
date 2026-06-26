@@ -105,6 +105,8 @@ import { AnnouncementListTab, countRecentAnnouncements } from "../components/Ann
 import { listAnnouncements, getLatestPopupAnnouncement } from "../lib/announcementsDb.js";
 // 2026-06-26 — 공지 2단계: 콜드 스타트 시 is_popup 공지 자동 모달. localStorage "본 것" 추적.
 import { AnnouncementModal } from "../components/AnnouncementModal.jsx";
+// 2026-06-26 — 공지 3단계: 작업별 운영자 → 기사 메시지 (Mig 150).
+import { TaskMessagesTab } from "../components/TaskMessagesTab.jsx";
 import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
 import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
 import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
@@ -3680,8 +3682,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
     if (tabId === "today")        resetTo("main");
     else if (tabId === "settle")  resetTo("settlement");
     else if (tabId === "cal")     { setCalendarInitial(null); resetTo("calendar"); }
-    else if (tabId === "announce") resetTo("announcements");  // 2026-06-26 — 공지 탭
     else if (tabId === "noti")    resetTo("notifications");
+    else if (tabId === "message") resetTo("messages");      // 2026-06-26 v2 — 메시지 탭 (공지 탭 대체)
     else if (tabId === "me")      resetTo("profile");
   };
   // V14 v7 — 내일 일정 보기 = 캘린더 일별 뷰 + 내일 날짜
@@ -5001,11 +5003,26 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
           />
         )}
 
-        {/* 공지사항 탭 (2026-06-26) */}
+        {/* 공지사항 (2026-06-26 v2 — 탭 폐기, 내정보 메뉴 안으로) */}
         {screen === "announcements" && (
           <AnnouncementListTab
             onTabChange={handleTabChange}
+            onBack={() => resetTo("profile")}
             unreadCount={unreadCount}
+          />
+        )}
+
+        {/* 메시지 탭 (2026-06-26 v2 — 공지 탭 자리, 작업별 운영자 메시지) */}
+        {screen === "messages" && (
+          <TaskMessagesTab
+            engineer={engineerProfileMerged}
+            onTabChange={handleTabChange}
+            unreadCount={unreadCount}
+            onClickTask={(taskId) => {
+              if (!taskId) return;
+              setSelectedTaskId(taskId);
+              setScreen("detail");
+            }}
           />
         )}
 
@@ -5031,6 +5048,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             onLogout={onLogout}
             onTabChange={handleTabChange}
             unreadCount={unreadCount}
+            onAnnouncements={() => setScreen("announcements")}
           />
         )}
 

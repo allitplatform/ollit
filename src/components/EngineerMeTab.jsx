@@ -45,6 +45,8 @@ export function EngineerMeTab({
   onLogout,
   onTabChange,
   unreadCount = 0,
+  // 2026-06-26 — 공지 3단계 탭 재배치: 공지 메뉴를 내정보 안으로.
+  onAnnouncements,
 }) {
   const isDark = useIsDark();
   const eng = engineer || {};
@@ -494,6 +496,11 @@ export function EngineerMeTab({
         {/* 정보 카드 */}
         <div style={{ ...cardStyle, padding: "6px 0" }}>
           <SectionHeader isDark={isDark}>정보</SectionHeader>
+          {/* 2026-06-26 — 공지사항 메뉴 (Mig 147, 탭에서 이동). 공지 팝업은 그대로 동작. */}
+          {onAnnouncements && (
+            <SettingRow icon="📢" label="공지사항" isDark={isDark} onClick={onAnnouncements}
+              rightSlot={<Chevron isDark={isDark}/>}/>
+          )}
           <SettingRow icon="📖" label="도움말"   isDark={isDark} onClick={handleHelp}
             rightSlot={<Chevron isDark={isDark}/>}/>
           <SettingRow icon="📜" label="이용 약관" isDark={isDark} onClick={handleTerms}
