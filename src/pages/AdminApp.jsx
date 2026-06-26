@@ -184,6 +184,8 @@ import { RevenueOverviewBlock } from "../components/admin/RevenueOverviewBlock.j
 import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
 // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환용).
 import { EngineerTaskListScreen } from "../components/admin/EngineerTaskList.jsx";
+// 2026-06-26 — 공지사항 관리 (Mig 147/148). 운영자 → 전체 기사 공통 공지 + 푸시.
+import { AnnouncementManageScreen } from "../components/admin/AnnouncementManageScreen.jsx";
 // 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점).
 import { EngineerCalendarScreen } from "../components/admin/EngineerCalendarScreen.jsx";
 // 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
@@ -3132,6 +3134,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
           setScreen("engineerTaskDetail");
         }}
       />
+    </Shell>;
+  }
+  // 2026-06-26 — 공지사항 관리 (운영자) — Mig 147/148.
+  if (screen === "announcements") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AnnouncementManageScreen t={t} user={user} onBack={goBack}/>
     </Shell>;
   }
   // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환).

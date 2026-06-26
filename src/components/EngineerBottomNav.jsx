@@ -1,15 +1,17 @@
-// V13-FINAL2 — 기사 PWA 하단 네비 (5탭)
-// 오늘 / 정산 / 캘린더 / 알림 (배지) / 내 정보
+// V13-FINAL2 — 기사 PWA 하단 네비
+// 2026-06-26 — 6탭 — "공지" 탭 추가 (📢, 알림 옆). Mig 147/148 announcements.
 
 const TABS = [
-  { id: "today",   label: "오늘",     icon: "🏠" },
-  { id: "settle",  label: "정산",     icon: "💰" },
-  { id: "cal",     label: "캘린더",   icon: "📅" },
-  { id: "noti",    label: "알림",     icon: "🔔" },
-  { id: "me",      label: "내 정보",  icon: "👤" },
+  { id: "today",    label: "오늘",     icon: "🏠" },
+  { id: "settle",   label: "정산",     icon: "💰" },
+  { id: "cal",      label: "캘린더",   icon: "📅" },
+  { id: "announce", label: "공지",     icon: "📢" },
+  { id: "noti",     label: "알림",     icon: "🔔" },
+  { id: "me",       label: "내 정보",  icon: "👤" },
 ];
 
-export function EngineerBottomNav({ active, onChange, unreadCount = 0 }) {
+// announceCount = 공지 탭 뱃지 (최근 7일 공지 개수 — 읽음 추적 없는 가벼운 방식).
+export function EngineerBottomNav({ active, onChange, unreadCount = 0, announceCount = 0 }) {
   return (
     <div style={{
       position: "fixed", bottom: 0, left: 0, right: 0,
@@ -48,6 +50,18 @@ export function EngineerBottomNav({ active, onChange, unreadCount = 0 }) {
                   padding: "0 4px",
                 }}>
                   {unreadCount > 99 ? "99+" : unreadCount}
+                </div>
+              )}
+              {tab.id === "announce" && announceCount > 0 && (
+                <div style={{
+                  position: "absolute", top: -4, right: -8,
+                  minWidth: 14, height: 14, borderRadius: 7,
+                  background: "#FF1B8D",
+                  fontSize: 8, fontWeight: 700, color: "#fff",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  padding: "0 4px",
+                }}>
+                  {announceCount > 99 ? "99+" : announceCount}
                 </div>
               )}
             </div>

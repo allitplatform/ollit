@@ -131,6 +131,8 @@ const GROUPS = [
     label: "설정",
     icon: Settings,
     items: [
+      // 2026-06-26 — 공지사항 (Mig 147/148). 운영자 → 전체 기사 공통 공지 + 푸시.
+      { id: "announcements",         label: "📢 공지사항" },
       { id: "userList",              label: "사용자" },
       { id: "companyAccount",        label: "회사 계좌" },
       { id: "notificationSettings",  label: "알림 설정" },

@@ -100,6 +100,9 @@ import { EngineerSettleTab } from "../components/EngineerSettleTab.jsx";
 import { EngineerSettlementDetailScreen } from "../components/EngineerSettlementDetailScreen.jsx";
 import { EngineerCalendarTab } from "../components/EngineerCalendarTab.jsx";
 import { EngineerNotiTab } from "../components/EngineerNotiTab.jsx";
+// 2026-06-26 — 공지사항 탭 (Mig 147/148). 운영자 발행 공지 목록 + 푸시 도착.
+import { AnnouncementListTab, countRecentAnnouncements } from "../components/AnnouncementListTab.jsx";
+import { listAnnouncements } from "../lib/announcementsDb.js";
 import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
 import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
 import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
@@ -3675,6 +3678,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
     if (tabId === "today")        resetTo("main");
     else if (tabId === "settle")  resetTo("settlement");
     else if (tabId === "cal")     { setCalendarInitial(null); resetTo("calendar"); }
+    else if (tabId === "announce") resetTo("announcements");  // 2026-06-26 — 공지 탭
     else if (tabId === "noti")    resetTo("notifications");
     else if (tabId === "me")      resetTo("profile");
   };
@@ -4959,6 +4963,14 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             unreadCount={unreadCount}
             initialDate={calendarInitial?.date}
             initialView={calendarInitial?.view}
+          />
+        )}
+
+        {/* 공지사항 탭 (2026-06-26) */}
+        {screen === "announcements" && (
+          <AnnouncementListTab
+            onTabChange={handleTabChange}
+            unreadCount={unreadCount}
           />
         )}
 
