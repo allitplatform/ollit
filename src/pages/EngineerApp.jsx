@@ -102,7 +102,9 @@ import { EngineerCalendarTab } from "../components/EngineerCalendarTab.jsx";
 import { EngineerNotiTab } from "../components/EngineerNotiTab.jsx";
 // 2026-06-26 — 공지사항 탭 (Mig 147/148). 운영자 발행 공지 목록 + 푸시 도착.
 import { AnnouncementListTab, countRecentAnnouncements } from "../components/AnnouncementListTab.jsx";
-import { listAnnouncements } from "../lib/announcementsDb.js";
+import { listAnnouncements, getLatestPopupAnnouncement } from "../lib/announcementsDb.js";
+// 2026-06-26 — 공지 2단계: 콜드 스타트 시 is_popup 공지 자동 모달. localStorage "본 것" 추적.
+import { AnnouncementModal } from "../components/AnnouncementModal.jsx";
 import { EngineerMeTab } from "../components/EngineerMeTab.jsx";
 import { UsolNCalendarScreen } from "../components/UsolNCalendarScreen.jsx";
 import { PaymentHistoryScreen } from "../components/PaymentHistoryScreen.jsx";
@@ -3692,6 +3694,39 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   };
   const [selectedTaskId, setSelectedTaskId] = useState(null);
 
+  // 2026-06-26 — 공지 2단계: 콜드 스타트 시 is_popup 공지 자동 모달.
+  //   동작:
+  //     · 앱 마운트 시 1회 (deps=[]) — 포그라운드 복귀 X.
+  //     · 최신 is_popup=true 공지 1개 조회 → localStorage seen 키 검사 → 안 본 것이면 모달.
+  //     · 모달 닫으면 localStorage 에 id 기록 → 다음 콜드 스타트 안 뜸.
+  //   localStorage 키: "ollit.announcement.seen.<id>" — 공지 id 별 1 키.
+  const [popupAnnouncement, setPopupAnnouncement] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    getLatestPopupAnnouncement().then(res => {
+      if (!alive) return;
+      if (!res.ok || !res.item) return;
+      const seenKey = `ollit.announcement.seen.${res.item.id}`;
+      try {
+        if (localStorage.getItem(seenKey)) return; // 이미 본 것
+      } catch (e) { /* localStorage 비가용 시 그냥 표시 */ }
+      setPopupAnnouncement(res.item);
+    }).catch(e => console.warn("[EngineerApp.popup]", e));
+    return () => { alive = false; };
+  }, []); // 콜드 스타트 1회만
+
+  function dismissPopup() {
+    if (popupAnnouncement?.id) {
+      try {
+        localStorage.setItem(
+          `ollit.announcement.seen.${popupAnnouncement.id}`,
+          String(Date.now())
+        );
+      } catch (e) { /* 비가용 시 무시 — 다음 콜드에 다시 뜸 */ }
+    }
+    setPopupAnnouncement(null);
+  }
+
   // 2026-05-24 버그2 — task 상세 진입 시 task_items별 기사 몫 (Migration 065 RPC 결과)
   //   { [task_item_id]: engineer_amount } 형식. RPC 실패 시 빈 객체 — 컴포넌트가 분배식 fallback.
   const [itemEngineerAmounts, setItemEngineerAmounts] = useState({});
@@ -5345,6 +5380,14 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             </button>
           </div>
         </V14Modal>
+      )}
+
+      {/* 2026-06-26 — 공지 자동 팝업 (콜드 스타트 + is_popup + localStorage 미확인 시). */}
+      {popupAnnouncement && (
+        <AnnouncementModal
+          announcement={popupAnnouncement}
+          onClose={dismissPopup}
+        />
       )}
     </div>
   );

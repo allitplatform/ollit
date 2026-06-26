@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { listAnnouncements } from "../lib/announcementsDb.js";
 import { toKstYmd } from "../utils/dateLabel.js";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
+import { AnnouncementModal } from "./AnnouncementModal.jsx";
 
 const ACCENT = "#FF1B8D";
 
@@ -27,6 +28,8 @@ export function AnnouncementListTab({ onTabChange, unreadCount = 0 }) {
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+  // 2026-06-26 — 카드 클릭 → 본문 모달. 읽음 추적 X.
+  const [selected, setSelected] = useState(null);
 
   useEffect(() => {
     let alive = true;
@@ -59,7 +62,11 @@ export function AnnouncementListTab({ onTabChange, unreadCount = 0 }) {
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {items.map(item => (
-              <AnnouncementCard key={item.id} item={item}/>
+              <AnnouncementCard
+                key={item.id}
+                item={item}
+                onClick={() => setSelected(item)}
+              />
             ))}
           </div>
         )}
@@ -70,19 +77,33 @@ export function AnnouncementListTab({ onTabChange, unreadCount = 0 }) {
         unreadCount={unreadCount}
         announceCount={recentN}
       />
+      {selected && (
+        <AnnouncementModal
+          announcement={selected}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
 
-function AnnouncementCard({ item }) {
+function AnnouncementCard({ item, onClick }) {
   const dateLabel = toKstYmd(item.published_at || item.created_at) || "—";
   return (
-    <div style={{
-      background: "var(--bg-elevated)",
-      border: `1px solid ${item.is_pinned ? ACCENT : "var(--border)"}`,
-      borderRadius: 10,
-      padding: "12px 14px",
-    }}>
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        background: "var(--bg-elevated)",
+        border: `1px solid ${item.is_pinned ? ACCENT : "var(--border)"}`,
+        borderRadius: 10,
+        padding: "12px 14px",
+        width: "100%",
+        textAlign: "left",
+        cursor: "pointer",
+        fontFamily: "inherit",
+        color: "var(--text-primary)",
+      }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 6,
         marginBottom: 6,
@@ -107,7 +128,7 @@ function AnnouncementCard({ item }) {
         fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))",
         fontWeight: 600,
       }}>{dateLabel}</div>
-    </div>
+    </button>
   );
 }
 

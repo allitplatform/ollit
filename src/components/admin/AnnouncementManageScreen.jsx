@@ -139,6 +139,14 @@ function AnnouncementCard({ t, item, onTogglePin, onDelete }) {
             {item.is_pinned && (
               <span style={{ fontSize: 12 }}>📌</span>
             )}
+            {item.is_popup && (
+              <span style={{
+                fontSize: 9, fontWeight: 800,
+                padding: "2px 6px", borderRadius: 4,
+                background: t.accent, color: "#fff",
+                letterSpacing: 0.3,
+              }}>POPUP</span>
+            )}
             <span style={{
               fontSize: 14, fontWeight: 800, color: t.text,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -185,6 +193,7 @@ function ComposeModal({ t, actorId, onClose, onPublished }) {
   const [title, setTitle]       = useState("");
   const [body, setBody]         = useState("");
   const [isPinned, setIsPinned] = useState(false);
+  const [isPopup, setIsPopup]   = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]       = useState("");
 
@@ -203,6 +212,7 @@ function ComposeModal({ t, actorId, onClose, onPublished }) {
       title:    title.trim(),
       body:     body.trim() || null,
       isPinned,
+      isPopup,
       actorId,
     });
     setSubmitting(false);
@@ -297,6 +307,24 @@ function ComposeModal({ t, actorId, onClose, onPublished }) {
               style={{ width: 16, height: 16, accentColor: t.accent }}
             />
             📌 핀 고정 (목록 상단 표시)
+          </label>
+          <label style={{
+            display: "flex", alignItems: "flex-start", gap: 8,
+            cursor: "pointer",
+            fontSize: 13, color: t.text, fontWeight: 600,
+          }}>
+            <input
+              type="checkbox"
+              checked={isPopup}
+              onChange={(e) => setIsPopup(e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: t.accent, marginTop: 2 }}
+            />
+            <span>
+              💬 팝업으로 띄우기
+              <div style={{ fontSize: 10, color: t.textSecondary, fontWeight: 500, marginTop: 2 }}>
+                기사 앱 진입 시 자동 표시 (한 번 보면 그 기사 폰에서 다시 안 뜸)
+              </div>
+            </span>
           </label>
           {error && (
             <div style={{
