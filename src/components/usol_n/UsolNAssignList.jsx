@@ -235,7 +235,9 @@ export function UsolNAssignList({ onTaskClick, onSeeAll }) {
 // 2026-05-26 R2-3 — export 측 catch (UsolNInProgress 측 catch 측 catch 재사용 — 카드 1곳)
 // 2026-05-27 — principalBadge prop 추가 (옵션). 6원청 "전체 작업" 화면에서 원청 배지 표시용.
 //   UsolN 호출 (미지정) — 기존 동작 유지. 새 화면 호출 — 기사 배지 왼쪽에 회색 pill 노출.
-export function TaskRowOperator({ task, onClick, principalBadge = null }) {
+// 2026-06-26 — timeStrOverride: 호출처가 시각 문자열 직접 지정 (예: AllTasksScreen 의 "MM.DD HH:mm").
+//   미제공 시 기존 동작 (scheduled_at → formatYmdHm "YYYY.MM.DD HH:mm").
+export function TaskRowOperator({ task, onClick, principalBadge = null, timeStrOverride = undefined }) {
   const kind = getServiceKind(task);
   const status = getStatusBadge(task.status);
   const mainItem = getMainItem(task);
@@ -257,8 +259,10 @@ export function TaskRowOperator({ task, onClick, principalBadge = null }) {
   //   2026-06-09 — 옛 split(/\s+/)[0] 폴백은 주소에 공백 없으면 전체 반환 → 카드 한 줄 잘림 사고.
   const region = regionOrDistrictFromAddress(task.district, task.address);
 
-  // 시간 — scheduled_at 측 catch
-  const timeStr = task.scheduled_at ? formatYmdHm(task.scheduled_at) : "";
+  // 시간 — timeStrOverride 우선 (AllTasksScreen "MM.DD HH:mm" 등), 없으면 scheduled_at + formatYmdHm.
+  const timeStr = (timeStrOverride !== undefined)
+    ? (timeStrOverride || "")
+    : (task.scheduled_at ? formatYmdHm(task.scheduled_at) : "");
 
   // 2026-06-06 — applianceText / region 빈 값일 때 leading " · " 측 측 측 측 측.
   const beforeTime = [applianceText, region].filter(Boolean).join(" · ");

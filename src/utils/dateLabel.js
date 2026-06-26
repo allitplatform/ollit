@@ -238,6 +238,21 @@ export function formatYmdHm(value) {
   return `${yyyy}.${mm}.${dd} ${String(hh).padStart(2, "0")}:${String(mi).padStart(2, "0")}`;
 }
 
+// 2026-06-26 — "MM.DD HH:mm" KST 짧은 양식. AllTasksScreen 카드 폭 좁아 연도 생략 spec.
+//   UTC → +9h KST 변환 후 포맷 (날것 slice 금지 — 9시간 어긋남).
+//   00:00 도 그대로 표시 ("MM.DD 00:00") — 좁은 카드에서 자정 분기 불필요.
+export function formatMdHm(value) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (isNaN(d.getTime()) || d.getFullYear() < 1900) return "—";
+  const kst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(kst.getUTCDate()).padStart(2, "0");
+  const hh = String(kst.getUTCHours()).padStart(2, "0");
+  const mi = String(kst.getUTCMinutes()).padStart(2, "0");
+  return `${mm}.${dd} ${hh}:${mi}`;
+}
+
 // 작업 소요 시간 (startedAt ~ completedAt) — 초/분/시간 단위
 // "21초" / "5분" / "1시간 30분"
 export function calcTotalDuration(startedAt, completedAt) {

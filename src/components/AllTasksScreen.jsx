@@ -13,7 +13,7 @@
 // 카드: UsolNAssignList.TaskRowOperator 재사용 (principalBadge prop).
 // 정렬: 취소 맨 아래 / received_at desc — UsolN 과 일관 ('전체' 칩 + principal 결합 시만 의미).
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Search, ChevronDown, ChevronRight } from "lucide-react";
 import {
   fetchAllPrincipalTasks,
@@ -23,9 +23,10 @@ import {
 import { TaskRowOperator } from "./usol_n/UsolNAssignList.jsx";
 import { useRealtimeTasks, useRealtimeTable } from "../hooks/useRealtimeSubscription.js";
 import { CountBoxes } from "./CountBoxes.jsx";
+import { formatMdHm } from "../utils/dateLabel.js";
 
-// 결과 한 번에 가져올 최대 행. 초과 시 "좁히세요" 안내.
-const RESULT_LIMIT = 50;
+// 한 페이지 크기. 무한스크롤로 다음 페이지 자동 로드.
+const PAGE_SIZE = 50;
 const ALL_STATUSES = ["미배정", "배정", "약속대기", "확정", "진행중", "완료", "취소", "visit_only"];
 
 // 상태 칩 7개. 카운트는 표시 안 함 (재설계 spec — 라벨만).
@@ -54,7 +55,10 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
   const [counts, setCounts] = useState({ todayCreated: 0, todayCompleted: 0, confirmed: 0 });
 
   const [tasks, setTasks] = useState([]);
-  const [loading, setLoading]   = useState(false);
+  const [loading, setLoading]   = useState(false);     // 초기/필터변경 fetch
+  const [loadingMore, setLoadingMore] = useState(false); // 무한스크롤 다음 페이지 fetch
+  const [hasMore, setHasMore]   = useState(false);
+  const [offset, setOffset]     = useState(0);
   const [fetchError, setFetchError] = useState("");
   const [reloadTick, setReloadTick] = useState(0);
   // '전체' 칩 + principal 결합 시 진행/완료/취소 3구간 분리. 기본 닫힘.
@@ -63,6 +67,10 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
 
   useRealtimeTasks(() => setReloadTick(v => v + 1));
   useRealtimeTable("task_items", () => setReloadTick(v => v + 1));
+
+  // 무한스크롤 sentinel — 리스트 끝 div ref. body 가 스크롤 컨테이너라 root 명시.
+  const bodyRef = useRef(null);
+  const sentinelRef = useRef(null);
 
   // 검색어 debounce 300ms — 타이핑 중 매 키스트로크 fetch 방지.
   useEffect(() => {
@@ -92,44 +100,90 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
     !!quickFilter
   );
 
-  // 필터 활성 시만 서버 fetch. RESULT_LIMIT 한도 — 초과 시 안내.
+  // 현재 필터 → fetch 파라미터 빌더. 페이지 0 / 무한스크롤 둘 다 같은 빌더 사용.
+  const buildParams = useCallback((offsetArg) => {
+    const params = {
+      limit:  PAGE_SIZE,
+      offset: offsetArg,
+      searchTerm,
+      engineerIds: engineerIdsForSearch,
+      quickFilter,
+      principalCodes: principalCode ? [principalCode] : null,
+    };
+    if (!quickFilter) {
+      const f = STATUS_FILTERS.find(x => x.id === statusId);
+      params.statusIn = (f && f.match) ? [f.match] : ALL_STATUSES;
+    }
+    return params;
+  }, [searchTerm, engineerIdsForSearch, principalCode, statusId, quickFilter]);
+
+  // 필터 변경 (검색·칩·quickFilter) 또는 reloadTick → 페이지 0 리셋 + fetch.
+  //   ⚠️ 검색·칩 변경 = 새 검색 → 기존 tasks 비우고 offset 0 부터 다시.
+  //      안 그러면 다른 조건 결과가 이어붙어 섞임.
   useEffect(() => {
     if (!hasAnyFilter) {
       setTasks([]);
+      setOffset(0);
+      setHasMore(false);
       setFetchError("");
       return;
     }
     let alive = true;
     setLoading(true);
     setFetchError("");
-
-    const params = {
-      limit:  RESULT_LIMIT,
-      offset: 0,
-      searchTerm,
-      engineerIds: engineerIdsForSearch,
-      quickFilter,
-      principalCodes: principalCode ? [principalCode] : null,
-    };
-    // quickFilter 활성 시 status 무시 (서버에서 status 자체 결정).
-    if (!quickFilter) {
-      const f = STATUS_FILTERS.find(x => x.id === statusId);
-      params.statusIn = (f && f.match) ? [f.match] : ALL_STATUSES;
-    }
-
-    fetchAllPrincipalTasks(params)
+    fetchAllPrincipalTasks(buildParams(0))
       .then(res => {
         if (!alive) return;
         if (!res.ok) {
           setFetchError(res.error || "불러오기 실패");
           setTasks([]);
+          setOffset(0);
+          setHasMore(false);
         } else {
-          setTasks(res.tasks || []);
+          const list = res.tasks || [];
+          setTasks(list);
+          setOffset(list.length);
+          setHasMore(list.length >= PAGE_SIZE);
         }
       })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
-  }, [searchTerm, engineerIdsForSearch, principalCode, statusId, quickFilter, reloadTick, hasAnyFilter]);
+  }, [buildParams, reloadTick, hasAnyFilter]);
+
+  // 무한스크롤 다음 페이지 로드. 중복 가드: loading/loadingMore/!hasMore 면 무시.
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || !hasMore || !hasAnyFilter) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetchAllPrincipalTasks(buildParams(offset));
+      if (!res.ok) {
+        setFetchError(res.error || "불러오기 실패");
+        setHasMore(false);
+        return;
+      }
+      const list = res.tasks || [];
+      setTasks(prev => [...prev, ...list]);
+      setOffset(prev => prev + list.length);
+      setHasMore(list.length >= PAGE_SIZE);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loading, loadingMore, hasMore, hasAnyFilter, offset, buildParams]);
+
+  // IntersectionObserver — sentinel 화면 진입 시 loadMore. body 가 스크롤 컨테이너.
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = bodyRef.current;
+    if (!sentinel || !root) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMore();
+      },
+      { root, rootMargin: "200px 0px" }  // 바닥 200px 전에 미리 트리거
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   // 상단 카운트 박스 3개 (가벼운 count:exact head — idle 에서도 표시).
   useEffect(() => {
@@ -160,13 +214,11 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
     return m;
   }, []);
 
-  const limitReached = tasks.length >= RESULT_LIMIT;
-
   return (
     <div style={containerStyle}>
       <Header onBack={onBack} count={hasAnyFilter ? tasks.length : null}/>
 
-      <div style={bodyStyle}>
+      <div style={bodyStyle} ref={bodyRef}>
         {/* 상단 카운트 박스 — quickFilter 진입 (전역 통계). */}
         <CountBoxes
           counts={counts}
@@ -267,9 +319,9 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
               <span style={{ color: "var(--accent)", fontWeight: 700 }}>
                 {tasks.length.toLocaleString()}
               </span>건
-              {limitReached && (
+              {hasMore && (
                 <span style={{ color: "var(--text-tertiary, var(--text-secondary))", marginLeft: 6 }}>
-                  (상한 {RESULT_LIMIT} 도달 — 검색을 좁히세요)
+                  (스크롤하면 더 불러옵니다)
                 </span>
               )}
             </div>
@@ -290,6 +342,7 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
                         task={task}
                         onClick={() => onTaskClick?.(task)}
                         principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                        timeStrOverride={task.scheduled_at ? formatMdHm(task.scheduled_at) : ""}
                       />
                     ))}
                   </div>
@@ -306,6 +359,7 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
                         task={task}
                         onClick={() => onTaskClick?.(task)}
                         principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                        timeStrOverride={task.scheduled_at ? formatMdHm(task.scheduled_at) : ""}
                       />
                     ))}
                   </CollapseSection>
@@ -322,6 +376,7 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
                         task={task}
                         onClick={() => onTaskClick?.(task)}
                         principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                        timeStrOverride={task.scheduled_at ? formatMdHm(task.scheduled_at) : ""}
                       />
                     ))}
                   </CollapseSection>
@@ -335,8 +390,20 @@ export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
                     task={task}
                     onClick={() => onTaskClick?.(task)}
                     principalBadge={principalLabelByCode.get(task.principalCode) || task.principalCode || ""}
+                    timeStrOverride={task.scheduled_at ? formatMdHm(task.scheduled_at) : ""}
                   />
                 ))}
+              </div>
+            )}
+
+            {/* 무한스크롤 sentinel — root=body, 200px 전에 트리거. 결과 있을 때만 노출. */}
+            {tasks.length > 0 && (
+              <div ref={sentinelRef} style={{
+                padding: "16px 0", textAlign: "center",
+                color: "var(--text-tertiary, var(--text-secondary))",
+                fontSize: 11, fontWeight: 600,
+              }}>
+                {loadingMore ? "불러오는 중..." : (hasMore ? " " : "— 끝 —")}
               </div>
             )}
           </>
