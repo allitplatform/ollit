@@ -478,6 +478,21 @@ function MainCard({ task }) {
 }
 
 // ──────────────── 3. QuickActions ────────────────
+// 2026-06-26 — 기사 연락 버튼 (📞/💬) 공통 스타일. phone 없으면 회색 비활성.
+function engineerContactBtnStyle(active) {
+  return {
+    padding: "4px 8px",
+    background: "var(--bg-secondary)",
+    border: "1px solid var(--border)",
+    borderRadius: 6,
+    cursor: active ? "pointer" : "default",
+    opacity: active ? 1 : 0.35,
+    fontSize: 13, fontWeight: 700,
+    fontFamily: "inherit",
+    lineHeight: 1,
+  };
+}
+
 // 2026-05-26 D-2 — 작업 정보 카드 (연락처/주소/일정 + 배정 프로 + 고객 통화·일정 변경)
 //   유솔앱 PrincipalApp.jsx:983~ 패턴 측 catch. 핸들러 100% 측 catch (onAssign / onEdit /
 //   onScheduleChange / callCustomer 측 catch — 측 측 측 측 측 측 측 X).
@@ -485,8 +500,23 @@ function WorkInfoCard({ task, onAssign, onScheduleChange }) {
   function callCustomer() {
     if (task.phone) window.location.href = `tel:${task.phone}`;
   }
+  // 2026-06-26 — 배정 기사 연락 (tel: / sms:). engineerPhone 은 tasksDb.rowToTask 가 매핑.
+  //   sms body 에 [작업번호 고객명] 머리말 자동 — 기사가 어느 작업인지 바로 식별.
+  //   기존 TaskCardMenu 의 engineer_call (tel:) 와 동일 패턴 + sms 추가.
+  function callEngineer() {
+    if (task.engineerPhone) window.location.href = `tel:${task.engineerPhone}`;
+  }
+  function smsEngineer() {
+    if (!task.engineerPhone) return;
+    const taskNo   = task.taskNo   || task.task_no       || "";
+    const customer = task.customer || task.customerName  || task.customer_name || "";
+    const prefix = [taskNo, customer].filter(Boolean).join(" ").trim();
+    const body = prefix ? `[${prefix}] ` : "";
+    window.location.href = `sms:${task.engineerPhone}?body=${encodeURIComponent(body)}`;
+  }
   const hasCustomerPhone = !!task.phone;
   const hasEngineer      = !!task.engineer;
+  const hasEngineerPhone = !!task.engineerPhone;
   // 일정 표시
   const scheduledDisplay =
     task.scheduledDate && task.scheduledTime
@@ -519,10 +549,27 @@ function WorkInfoCard({ task, onAssign, onScheduleChange }) {
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
         }}>
           <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>배정 프로</span>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: hasEngineer ? "var(--text-primary)" : "var(--text-tertiary, var(--text-secondary))" }}>
               {hasEngineer ? task.engineer : "미배정"}
             </span>
+            {/* 2026-06-26 — 기사 전화·문자 (배정 기사 + phone 있을 때만 활성). */}
+            <button
+              type="button"
+              onClick={callEngineer}
+              disabled={!hasEngineerPhone}
+              aria-label="기사에게 전화"
+              title={hasEngineerPhone ? `전화 ${task.engineerPhone}` : "기사 연락처 없음"}
+              style={engineerContactBtnStyle(hasEngineerPhone)}
+            >📞</button>
+            <button
+              type="button"
+              onClick={smsEngineer}
+              disabled={!hasEngineerPhone}
+              aria-label="기사에게 문자"
+              title={hasEngineerPhone ? "문자 (작업번호 자동)" : "기사 연락처 없음"}
+              style={engineerContactBtnStyle(hasEngineerPhone)}
+            >💬</button>
             <button
               onClick={onAssign}
               style={{
