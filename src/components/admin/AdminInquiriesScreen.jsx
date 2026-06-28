@@ -76,9 +76,11 @@ export default function AdminInquiriesScreen({
     try {
       const status = filter === "all" ? null : filter;
       const rows = await listInquiries(actorId, status);
-      // 스팸은 어떤 칩에서도 안 보임 — 'all' 일 때 클라 측에서 제외.
+      // 스팸 + 전환됨은 어떤 칩에서도 안 보임 — 'all' 일 때 클라 측에서 제외.
+      //   2026-06-28 — Mig 152 로 mark_inquiry_converted 가 DELETE 에서 UPDATE 로 변경.
+      //   전환된 행이 inquiries 에 보존되어 통계(전환율/퍼널) 가능. 단 접수함 화면엔 안 보이게.
       const visible = filter === "all"
-        ? rows.filter((r) => r.status !== "spam")
+        ? rows.filter((r) => r.status !== "spam" && r.status !== "converted")
         : rows;
       setItems(visible);
       // 선택된 행이 사라졌으면(전환·스팸·필터 변경) 선택 해제
