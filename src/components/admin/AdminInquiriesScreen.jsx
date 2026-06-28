@@ -22,6 +22,8 @@ import { toKstYmd, toKstYmdHm } from "../../utils/dateLabel.js";
 import { useIsPc } from "../../utils/useIsPc.js";
 import ServiceTypeIcon from "../ServiceTypeIcon.jsx";
 import { NewReceptionPcForm } from "./NewReceptionPcForm.jsx";
+// 2026-06-28 — 통계 헤더 (Mig 151 RPC). 카드 4 + 일별 막대 + 현재상태 분포.
+import { InquiryStatsHeader } from "./InquiryStatsHeader.jsx";
 
 const FILTERS = [
   { key: "all",       label: "전체" },
@@ -142,6 +144,7 @@ export default function AdminInquiriesScreen({
       <AdminInquiriesPc
         t={t}
         user={user}
+        actorId={actorId}
         items={items}
         filter={filter}
         setFilter={setFilter}
@@ -162,6 +165,7 @@ export default function AdminInquiriesScreen({
 
   return (
     <AdminInquiriesMobile
+      actorId={actorId}
       items={items}
       filter={filter}
       setFilter={setFilter}
@@ -182,7 +186,7 @@ export default function AdminInquiriesScreen({
 // 모바일 — C 미니멀 카드
 // ===========================================================
 function AdminInquiriesMobile({
-  items, filter, setFilter, loading, error, busyId, newCount,
+  actorId, items, filter, setFilter, loading, error, busyId, newCount,
   onBack, onCall, onSpam, onConvert, onReload,
 }) {
   return (
@@ -227,6 +231,11 @@ function AdminInquiriesMobile({
       {/* 필터 칩 */}
       <FilterChips filter={filter} setFilter={setFilter} compact />
 
+      {/* 2026-06-28 — 통계 헤더 (Mig 151 RPC) */}
+      <div style={{ padding: "0 14px" }}>
+        <InquiryStatsHeader t={inqStatsT} actorId={actorId}/>
+      </div>
+
       {/* 본문 */}
       <div style={{ padding: "0 14px" }}>
         {error && <ErrorBox text={error} />}
@@ -248,6 +257,19 @@ function AdminInquiriesMobile({
     </div>
   );
 }
+
+// 2026-06-28 — InquiryStatsHeader 용 테마 (모바일 화면 #F4F6FA 배경에 맞춘 색).
+const inqStatsT = {
+  bg:             "#FFFFFF",
+  bgElevated:     "#FFFFFF",
+  bgInset:        "#F4F6FA",
+  bgSecondary:    "#F4F6FA",
+  text:           "#1C2B3A",
+  textSecondary:  "#4A5A70",
+  textMuted:      "#7A8499",
+  border:         "#E5EAF1",
+  accent:         "#FF1B8D",
+};
 
 function MiniCardRow({ row, busy, onCall, onSpam, onConvert }) {
   const isNew  = row.status === "new";
@@ -326,7 +348,7 @@ function MiniCardRow({ row, busy, onCall, onSpam, onConvert }) {
 // PC — 2단 (좌 270 리스트 + 우 상세/폼)
 // ===========================================================
 function AdminInquiriesPc({
-  t, user, items, filter, setFilter, loading, error, busyId, newCount,
+  t, user, actorId, items, filter, setFilter, loading, error, busyId, newCount,
   selectedRow, onSelect, onBack,
   onCall, onSpam, onReload, onPcSubmitDone,
 }) {
@@ -390,6 +412,9 @@ function AdminInquiriesPc({
 
       {/* === 우 패널 === */}
       <main style={{ flex: 1, overflowY: "auto", padding: "16px 24px 40px" }}>
+        {/* 2026-06-28 — 통계 헤더 (Mig 151 RPC) — 항상 노출, 선택 무관 */}
+        <InquiryStatsHeader t={inqStatsT} actorId={actorId}/>
+
         {selectedRow ? (
           <PcDetailPanel
             t={t}
@@ -403,7 +428,7 @@ function AdminInquiriesPc({
           />
         ) : (
           <div style={{
-            marginTop: 80, textAlign: "center", color: "#93A2B4",
+            marginTop: 40, textAlign: "center", color: "#93A2B4",
             fontSize: 14, fontWeight: 600,
           }}>
             좌측에서 접수를 선택하세요.

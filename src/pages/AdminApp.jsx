@@ -1512,6 +1512,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   const [refrigerantAddonCount, setRefrigerantAddonCount] = useState(0);
   // 2026-06-24 — 홈페이지 접수함 신규(status='new') 개수 — 사이드바/카드 뱃지용
   const [inquiriesNewCount, setInquiriesNewCount] = useState(0);
+  // 2026-06-28 — OverviewTab 카드 "오늘 N건" 뱃지용 (Mig 151 get_inquiry_funnel.totals.today).
+  const [inquiriesTodayCount, setInquiriesTodayCount] = useState(0);
   // 접수함 → "작업 전환" 으로 새 접수 폼에 prefill 주입 중인 inquiry.
   //   { id, initial } — 폼 등록 성공 후 mark_inquiry_converted 호출용.
   //   일반 새 접수 흐름에서는 null 유지.
@@ -1525,6 +1527,18 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         if (!cancelled) setInquiriesNewCount(rows.length);
       } catch (_e) {
         // 권한/네트워크 실패 시 카운트 0 유지 — 사이드바 뱃지만 영향
+      }
+      // 2026-06-28 — OverviewTab "오늘 N건" 뱃지용 (Mig 151).
+      try {
+        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+        const { data } = await supabase.rpc("get_inquiry_funnel", {
+          p_actor:     user.user_id,
+          p_start_ymd: today,
+          p_end_ymd:   today,
+        });
+        if (!cancelled) setInquiriesTodayCount(Number(data?.totals?.today || 0));
+      } catch (_e) {
+        // 실패 시 0 유지 — 카드 뱃지만 영향
       }
     }
     refreshInquiriesCount();
@@ -2105,6 +2119,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       onClickUsolN={() => setScreen("usol_n")}
       onClickInquiries={() => setScreen("inquiries")}
       inquiriesNewCount={inquiriesNewCount}
+      inquiriesTodayCount={inquiriesTodayCount}
       onTaskAssign={(task) => {
         setSelectedTask(task);
         const flow = determineWorkflow(task.workItems)
@@ -3768,6 +3783,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       // 2026-06-24 — 홈페이지 접수함 (inquiries)
       onClickInquiries={() => setScreen("inquiries")}
       inquiriesNewCount={inquiriesNewCount}
+      inquiriesTodayCount={inquiriesTodayCount}
       onClickUrgentAssign={() => { setSelectedTask(URGENT_TASK); setScreen("recommend"); }}
       onEngineerClick={(eng) => goEngineerDay(eng, null)}
       onTaskClick={(task) => goTaskDetail(task, null)}
@@ -3842,7 +3858,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, onEngineerClick, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, onEngineerClick, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4086,7 +4102,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -4106,7 +4122,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
-function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0 }) {
+function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0 }) {
   return (
     <div style={{ padding: "0 16px 16px" }}>
       {/* 2026-06-24 — 홈페이지 접수함 진입 카드
@@ -4149,7 +4165,10 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
                 fontWeight: hasNew ? 700 : 400,
                 color: hasNew ? "#FFE2E2" : "var(--text-secondary)",
               }}>
-                {hasNew ? `신규 ${inquiriesNewCount}건` : "통화·스팸 처리"}
+                {/* 2026-06-28 — "오늘 N건" 뱃지 추가 (Mig 151 get_inquiry_funnel.totals.today). */}
+                {hasNew
+                  ? `신규 ${inquiriesNewCount}건${inquiriesTodayCount > 0 ? ` · 오늘 ${inquiriesTodayCount}건` : ""}`
+                  : (inquiriesTodayCount > 0 ? `오늘 ${inquiriesTodayCount}건 · 통화·스팸 처리` : "통화·스팸 처리")}
               </span>
             </div>
             <ChevronRight size={18} style={{ color: hasNew ? "#fff" : "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
