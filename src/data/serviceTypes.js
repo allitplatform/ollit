@@ -23,6 +23,26 @@ export const SERVICE_TYPES = {
     bgColor:     "var(--bg-secondary)",
     borderColor: "#FFB800",
   },
+  // 2026-06-28 — 설치 (Mig 124/125 활성화). 보라 톤.
+  install: {
+    id:          "install",
+    label:       "설치",
+    icon:        "🔧",
+    color:       "#8B5CF6",
+    textColor:   "#8B5CF6",
+    bgColor:     "var(--bg-secondary)",
+    borderColor: "#8B5CF6",
+  },
+  // 2026-06-28 — 누설 (Mig 122 활성화). 빨강 톤.
+  leak: {
+    id:          "leak",
+    label:       "누설",
+    icon:        "💧",
+    color:       "#DC2626",
+    textColor:   "#DC2626",
+    bgColor:     "var(--bg-secondary)",
+    borderColor: "#DC2626",
+  },
   visit: {
     id:          "visit",
     label:       "출장",
@@ -45,14 +65,22 @@ export const SERVICE_TYPES = {
 
 // 작업 분류 자동 감지
 // 2026-05-26 C-1 — workType 정확일치 → isRefrigerant (DB "냉매점검(...)" 측 catch).
-import { isRefrigerant } from "../utils/workTypeKind.js";
+// 2026-06-28 — getServiceKind 사용 (설치/누설 5종 work_types.name 직접 매칭 포함).
+import { getServiceKind } from "../utils/workTypeKind.js";
 
 export function detectServiceType(task) {
   if (!task) return SERVICE_TYPES.cleaning;
   if (task.status === "visit_only") return SERVICE_TYPES.visit;
   if (task.orderType === "extra")   return SERVICE_TYPES.extra;
-  if (isRefrigerant(task))          return SERVICE_TYPES.refrigerant;
 
+  // serviceCode 우선 (DB) → workType startsWith → 5종 work_types.name 직접 매칭 (workTypeKind v2).
+  const kind = getServiceKind(task);
+  if (kind === "refrigerant") return SERVICE_TYPES.refrigerant;
+  if (kind === "install")     return SERVICE_TYPES.install;
+  if (kind === "leak")        return SERVICE_TYPES.leak;
+  if (kind === "cleaning")    return SERVICE_TYPES.cleaning;
+
+  // 옛 텍스트 fallback (workType / productName 자유 텍스트 케이스)
   const text = `${task.productName || ""} ${task.workType || ""}`.toLowerCase();
   if (text.includes("냉매") || text.includes("가스") || text.includes("충전")) {
     return SERVICE_TYPES.refrigerant;

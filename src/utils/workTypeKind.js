@@ -23,6 +23,11 @@ function _kindFromWorkType(wt) {
   if (s.startsWith("냉매")) return "refrigerant";
   if (s.startsWith("설치")) return "install";
   if (s.startsWith("누설")) return "leak";
+  // 2026-06-28 — 설치 5종 work_types.name 직접 매칭 (Mig 124/125 활성화 결과).
+  //   "신규설치" / "이전설치" / "철거" / "실외기중고교체" / "기계중고교체" → install kind.
+  //   task_items.work_types.name 이 5종 중 하나면 startsWith 매칭 안 되어 "other" 떨어지는 사고 차단.
+  if (s === "신규설치" || s === "이전설치" || s === "철거"
+      || s === "실외기중고교체" || s === "기계중고교체") return "install";
   return "other";
 }
 
