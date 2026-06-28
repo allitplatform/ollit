@@ -41,10 +41,15 @@ const DEFAULT_APPLIANCE_POOL = {
 
 // 작업 종류 한글 → quote_rates jsonb의 service_code 키 매핑
 // 2026-06-08 — export 추가 (AdminApp 접수 폼 측 동일 매핑 재사용)
+// 2026-06-28 — 누설/설치 추가 (Mig 122 누설=냉매동일정산 / 123·124·125 설치 75/25).
+//   service_code 는 service_types 테이블 코드와 정확히 매칭 (commission_policies 조회 키).
+//   빠지면 lookupRate 가 serviceCode undefined → quoteRates 매핑 못 찾아 단가 0.
 export const WORK_TYPE_TO_SERVICE = {
   "세척":     "cleaning",
   "냉매충전": "refrigerant",
   "출장비":   "visit_fee",
+  "누설":     "leak",
+  "설치":     "install",
 };
 
 // 2026-05-26 → 2026-06-06 정정 — 고객 자동 생성. region(구>시>군) + 전화 끝 4자리.

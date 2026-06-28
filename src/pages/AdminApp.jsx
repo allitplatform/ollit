@@ -9032,26 +9032,11 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   const workTypes = ["세척", "냉매충전", "누설", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
   const appliances = ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"];
   // 작업유형별 기종 풀 (V14 헌법 / 정책 시트와 일치)
-  // 냉매충전은 원청별 분기 — getAppliancePool() 사용 (KA만 1way 첫 대 / 1way 추가 분리)
-  const APPLIANCE_POOL = {
-    "세척":           ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"],
-    "출장비":         ["(공통)"],
-    "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
-    "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
-  };
-
-  // 냉매충전 1way — UI에서는 모든 원청이 단일 "1way" 라벨 (KA 차등 단가는 자동 처리)
-  // KA: 사용자가 "1way" + qty 입력 → 견적 자동 계산 (KA_1WAY_FIRST/ADDITIONAL) + 저장 시
-  //     workItems가 "1way 첫 대" / "1way 추가" 두 행으로 자동 분리 → 시트 매칭
-  // 다른 6 원청: 단일 "1way" 그대로 (단일 단가)
-  // 함수 골격은 향후 다른 원청 / 다른 기종 차등 정책 박을 자리로 유지
-  function getAppliancePool(workType, principalName) {
-    if (workType === "냉매충전") {
-      // 모든 원청 동일 풀 (KA 차등은 자동 계산 + 저장 시 분리로 처리)
-      return ["벽걸이", "스탠드", "4way", "투인원", "1way"];
-    }
-    return APPLIANCE_POOL[workType] || [];
-  }
+  // 2026-06-28 — 로컬 APPLIANCE_POOL + getAppliancePool 사본 제거.
+  //   누설/설치 키 누락 사고 (Mig 122/123/124/125 활성화 시 sync 안 됨) → 3곳 매핑 트랩.
+  //   공유 receptionForm.getAppliancePool (line 60 getAppliancePoolShared import) 직접 사용.
+  //   향후 새 작업유형 추가 시 한 곳만 (receptionForm.js APPLIANCE_POOL) 수정하면 모든 폼 동기.
+  const getAppliancePool = getAppliancePoolShared;
 
   // 2026-05-26 — 지역(region) 추출. 도로명 주소 "서울특별시 성북구 ..." → "성북구".
   //   우선: '구'로 끝나는 토큰 (행정구역 구)
