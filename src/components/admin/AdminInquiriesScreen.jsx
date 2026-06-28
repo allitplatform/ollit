@@ -9,7 +9,7 @@
 //   PC 우 패널에 NewReceptionPcForm 임베드 → 등록 성공 시 markInquiryConverted (best-effort)
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Phone, ArrowRight, MoreVertical, RefreshCw, X } from "lucide-react";
+import { Phone, ArrowRight, MoreVertical, RefreshCw, X, BarChart3 } from "lucide-react";
 import {
   listInquiries,
   setInquiryStatus,
@@ -189,6 +189,33 @@ function AdminInquiriesMobile({
   actorId, items, filter, setFilter, loading, error, busyId, newCount,
   onBack, onCall, onSpam, onConvert, onReload,
 }) {
+  // 2026-06-28 — 모바일은 통계를 별도 화면으로 분리 (좁은 폭에서 목록 밀림 차단).
+  //   헤더 우측 📊 아이콘 → showStats=true → 통계 전용 화면. 뒤로 → 접수함 복귀.
+  const [showStats, setShowStats] = useState(false);
+
+  if (showStats) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#F4F6FA", paddingBottom: 40 }}>
+        <div style={{
+          position: "sticky", top: 0, zIndex: 5,
+          background: "#fff", borderBottom: "1px solid #E5EAF1",
+          padding: "12px 14px", display: "flex", alignItems: "center", gap: 10,
+        }}>
+          <button onClick={() => setShowStats(false)} aria-label="뒤로" style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            fontSize: 22, color: "#1C2B3A", padding: 4,
+          }}>←</button>
+          <h1 style={{ fontSize: 17, fontWeight: 800, color: "#1C2B3A", letterSpacing: "-0.3px" }}>
+            📊 접수함 통계
+          </h1>
+        </div>
+        <div style={{ padding: "14px" }}>
+          <InquiryStatsHeader t={inqStatsT} actorId={actorId}/>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ minHeight: "100vh", background: "#F4F6FA", paddingBottom: 40 }}>
       {/* 헤더 */}
@@ -215,7 +242,16 @@ function AdminInquiriesMobile({
             }}>신규 {newCount}</span>
           )}
         </h1>
-        <div style={{ marginLeft: "auto" }}>
+        <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+          {/* 2026-06-28 — 통계 화면 진입 */}
+          <button onClick={() => setShowStats(true)} aria-label="통계" title="통계" style={{
+            background: "#F4F6FA", color: "#4A5A70",
+            border: "none", borderRadius: 8,
+            padding: "8px 10px", cursor: "pointer",
+            display: "inline-flex", alignItems: "center",
+          }}>
+            <BarChart3 size={14}/>
+          </button>
           <button onClick={onReload} disabled={loading} aria-label="새로고침" style={{
             background: "#EAF2FB", color: "#2563EB",
             border: "none", borderRadius: 8,
@@ -231,12 +267,7 @@ function AdminInquiriesMobile({
       {/* 필터 칩 */}
       <FilterChips filter={filter} setFilter={setFilter} compact />
 
-      {/* 2026-06-28 — 통계 헤더 (Mig 151 RPC) */}
-      <div style={{ padding: "0 14px" }}>
-        <InquiryStatsHeader t={inqStatsT} actorId={actorId}/>
-      </div>
-
-      {/* 본문 */}
+      {/* 본문 — 2026-06-28: 통계는 별도 화면으로 분리 (📊 아이콘 진입) */}
       <div style={{ padding: "0 14px" }}>
         {error && <ErrorBox text={error} />}
         {!loading && items.length === 0 && !error && <EmptyBox />}
