@@ -69,9 +69,12 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
     ? ((current.total - previous.total) / previous.total) * 100
     : null;
 
+  // 2026-06-28 — install/leak 버킷 분리 (Mig 122/124/125).
   const sd = current.byServiceDetail || {
     cleaning:    { total: 0, count: 0, owner: 0 },
     refrigerant: { total: 0, count: 0, owner: 0 },
+    install:     { total: 0, count: 0, owner: 0 },
+    leak:        { total: 0, count: 0, owner: 0 },
     other:       { total: 0, count: 0, owner: 0 },
   };
 
@@ -194,13 +197,34 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
           detail={sd.refrigerant}
           total={total}
         />
-        <ServiceBar
-          icon="🚗"
-          label="기타"
-          color={COLOR_OTHER}
-          detail={sd.other}
-          total={total}
-        />
+        {/* 2026-06-28 — install/leak 행 추가. 0 이면 숨김 (other 패턴 일관). */}
+        {(sd.install?.total || 0) > 0 && (
+          <ServiceBar
+            icon="🔧"
+            label="설치"
+            color="#8B5CF6"
+            detail={sd.install}
+            total={total}
+          />
+        )}
+        {(sd.leak?.total || 0) > 0 && (
+          <ServiceBar
+            icon="💧"
+            label="누설"
+            color="#DC2626"
+            detail={sd.leak}
+            total={total}
+          />
+        )}
+        {(sd.other?.total || 0) > 0 && (
+          <ServiceBar
+            icon="🚗"
+            label="기타"
+            color={COLOR_OTHER}
+            detail={sd.other}
+            total={total}
+          />
+        )}
       </div>
 
       {/* 2026-06-19 — 오늘/이번달 기사별 정산 (period 토글 연동, KST 기준) */}

@@ -56,6 +56,9 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick }) 
 
   const cleaningPct    = (current.byService.cleaning    / denom) * 100;
   const refrigerantPct = (current.byService.refrigerant / denom) * 100;
+  // 2026-06-28 — install/leak 버킷 분리 (Mig 122/124/125 활성화 반영).
+  const installPct     = ((current.byService.install || 0) / denom) * 100;
+  const leakPct        = ((current.byService.leak    || 0) / denom) * 100;
   const otherPct       = (current.byService.other       / denom) * 100;
 
   return (
@@ -148,6 +151,13 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick }) 
         </div>
         <ServiceBar t={t} label="세척" icon="❄" amount={current.byService.cleaning}    pct={cleaningPct}    color="#0EA5E9"/>
         <ServiceBar t={t} label="냉매" icon="⚡" amount={current.byService.refrigerant} pct={refrigerantPct} color="#FFB800"/>
+        {/* 2026-06-28 — install/leak 행 추가. 0 이면 숨김 (other 패턴 일관). */}
+        {(current.byService.install || 0) > 0 && (
+          <ServiceBar t={t} label="설치" icon="🔧" amount={current.byService.install} pct={installPct} color="#8B5CF6"/>
+        )}
+        {(current.byService.leak || 0) > 0 && (
+          <ServiceBar t={t} label="누설" icon="💧" amount={current.byService.leak} pct={leakPct} color="#DC2626"/>
+        )}
         {current.byService.other > 0 && (
           <ServiceBar t={t} label="기타" icon="•" amount={current.byService.other} pct={otherPct} color={t.textMuted}/>
         )}
