@@ -5243,17 +5243,19 @@ function DateGroupHeader({ t, ymd, count }) {
 function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
   const isAssigned = task.assignmentStatus === "assigned";
 
-  // 2026-06-06 — 서비스 유형 아이콘 (serviceCode 기준, cleaning/refrigerant만)
+  // 2026-06-28 — 서비스 유형 아이콘 (serviceCode 기준).
+  //   cleaning/refrigerant + install/leak 추가 (Mig 122/124/125 활성화).
   const serviceKinds = (() => {
     const set = new Set();
+    const ACCEPTED = new Set(["cleaning", "refrigerant", "install", "leak"]);
     if (Array.isArray(task.workItems) && task.workItems.length > 0) {
       for (const it of task.workItems) {
         const k = getServiceKind(it);
-        if (k === "cleaning" || k === "refrigerant") set.add(k);
+        if (ACCEPTED.has(k)) set.add(k);
       }
     } else {
       const k = getServiceKind(task);
-      if (k === "cleaning" || k === "refrigerant") set.add(k);
+      if (ACCEPTED.has(k)) set.add(k);
     }
     return set;
   })();
@@ -5275,6 +5277,13 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
           )}
           {serviceKinds.has("refrigerant") && (
             <Zap size={13} style={{ color: "#EF9F27", flexShrink: 0 }} aria-label="냉매충전"/>
+          )}
+          {/* 2026-06-28 — 설치/누설 아이콘 추가 (Mig 124/125 활성화 후 누락 사고 보완). */}
+          {serviceKinds.has("install") && (
+            <Wrench size={13} style={{ color: "#8B5CF6", flexShrink: 0 }} aria-label="설치"/>
+          )}
+          {serviceKinds.has("leak") && (
+            <AlertTriangle size={13} style={{ color: "#DC2626", flexShrink: 0 }} aria-label="누설"/>
           )}
           <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
           {task.hasRefrigerant && task.workType !== "냉매충전" && !serviceKinds.has("refrigerant") && (
@@ -7171,10 +7180,17 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
 
   // workType 아이콘 — 2026-05-21 Phase 5 Step 0.H-3: 세척 색 = 파랑 (t.info)
-  // 2026-05-26 C-1 — workType 정확일치 → isRefrigerant.
-  const isRef = isRefrigerant(task);
-  const WorkIcon = isRef ? Zap : Snowflake;
-  const workColor = isRef ? "#EF9F27" : t.info;
+  // 2026-06-28 — install/leak 추가 (Mig 124/125 활성화 보완). serviceKind 4분기.
+  const _serviceKind = getServiceKind(task);
+  const WorkIcon = _serviceKind === "refrigerant" ? Zap
+                  : _serviceKind === "install"   ? Wrench
+                  : _serviceKind === "leak"      ? AlertTriangle
+                  : Snowflake;
+  const workColor = _serviceKind === "refrigerant" ? "#EF9F27"
+                   : _serviceKind === "install"   ? "#8B5CF6"
+                   : _serviceKind === "leak"      ? "#DC2626"
+                   : t.info;
+  const isRef = _serviceKind === "refrigerant";  // 옛 코드 호환
   // 2026-06-09 — visit (출장비) 표시.
   //   pure visit (status='visit_only' 또는 활성 items 전부 visit) → 🚗 메인 아이콘.
   //   혼합 task (visit + 세척/냉매) → 메인 아이콘 그대로 + VisitBadge.
