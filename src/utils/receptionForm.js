@@ -72,17 +72,26 @@ export const KA_1WAY_ADDITIONAL_PRICE = 70000;
 //   냉매충전은 원청별 분기 — getAppliancePool() 사용 (KA 도 표시는 동일 "1way").
 //   누설: 6원청 5기종 (벽걸이/스탠드/1way/투인원/4way) — 정책 동일.
 //         usol_n 누설 = appliance NULL (냉매점검) — getAppliancePool 에서 분기.
-//   설치: allday 원청만 정책 존재, appliance NULL — getAppliancePool 에서 분기.
-//         이전 5종 (신규설치/이전설치/철거/실외기중고교체/기계중고교체) 는 정책 없음 (사고 원인).
-// 2026-06-28 — 설치 옵션 정정. 5종 → 정책 매칭 위해 "(공통)" 1 옵션 (allday only).
+//   설치: allday 원청만 정책 존재 (appliance NULL = install+null 1행 정책).
+//         5종 (신규설치/이전설치/철거/실외기중고교체/기계중고교체) 표시·선택·기록용.
+//         appliance_types 에 그 5종 없음 → sync 트리거가 appliance_type_id NULL 매핑 →
+//         정책 install+null 매칭 → 분배 75/25.
+//         5종 이름은 workItem.description 으로 저장 → Mig 154 sync v5 가 task_items.description 에 옮김.
+// 2026-06-28 — 설치 5종 표시·선택 복원. 매칭은 NULL, 기록은 description.
 export const APPLIANCE_POOL = {
   "세척":           ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"],
   "누설":           ["벽걸이", "스탠드", "1way", "투인원", "4way"],
-  "설치":           ["(공통)"],
+  "설치":           ["신규설치", "이전설치", "철거", "실외기중고교체", "기계중고교체"],
   "출장비":         ["(공통)"],
   "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
   "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
 };
+
+// 2026-06-28 — 매칭 시 appliance NULL 처리해야 하는 작업유형.
+//   설치 5종 (신규설치 등) 은 appliance_types 에 없는 표시용 이름.
+//   → 정책 매칭/sync 트리거가 NULL 처리. UI 는 그대로 5종 표시.
+//   호출처: fee preview (calculateCommissionMultiRpc) 직전 변환.
+export const NULL_APPLIANCE_WORK_TYPES = ["설치"];
 
 // 냉매충전 기종 풀 (모든 원청 동일 UI 라벨, KA 차등 단가는 자동 처리).
 export const REFRIGERANT_APPLIANCE_POOL = ["벽걸이", "스탠드", "4way", "투인원", "1way"];
@@ -253,17 +262,17 @@ export function formatWorkItems(workItems) {
 
 // 작업유형 + 원청 → 기종 풀 (UI 노출).
 //   냉매충전: 모든 원청 동일 풀 (KA 차등은 저장 시 자동 분리).
-//   설치: allday 원청만 (commission_policies 에 allday + install + appliance NULL 1행만 존재).
+//   설치: allday 원청만 5종 노출 (정책은 install+null 1행, 5종은 표시·기록용).
 //         다른 원청 = [] (정책 없음 → 폼에서 "정책 없음" 안내).
 //   누설: 6원청 5기종. 단 usol_n = "(공통)" 1 옵션 (냉매점검 — appliance NULL 정책).
 //   기타: APPLIANCE_POOL 매핑.
-// 2026-06-28 — 정책 매칭 정확화 (설치 5종 → "(공통)" 1, usol_n 누설 분기).
+// 2026-06-28 — 설치 5종 복원. 매칭 NULL, 기록 description.
 export function getAppliancePool(workType, principalName) {
   if (workType === "냉매충전") return REFRIGERANT_APPLIANCE_POOL;
 
   if (workType === "설치") {
-    // 정책 = allday + install + appliance NULL 1행만. 다른 원청 정책 없음.
-    return principalName === "올데이케어" ? ["(공통)"] : [];
+    // 정책 = allday + install + appliance NULL 1행. 5종은 표시·선택·description 기록용.
+    return principalName === "올데이케어" ? APPLIANCE_POOL["설치"] : [];
   }
 
   if (workType === "누설") {

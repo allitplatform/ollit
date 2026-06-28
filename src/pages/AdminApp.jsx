@@ -9288,7 +9288,14 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
       setErrors(prev => ({ ...prev, addItem: "기종/케이스 선택" }));
       return;
     }
-    const item = { ...editItem, qty: editItem.qty || 1 };
+    // 2026-06-28 — 설치 5종 (신규설치/이전설치 등) 은 표시·선택용. 분배 매칭은 NULL.
+    //   description 에 그 5종 이름 명시 → Mig 154 sync v5 가 task_items.description 로 옮김.
+    //   appliance 는 UI 표시 위해 그대로 보존 (appliance_types 못 찾아도 sync 트리거가 NULL 매핑).
+    const item = {
+      ...editItem,
+      qty: editItem.qty || 1,
+      ...(editItem.workType === "설치" ? { description: editItem.appliance } : {}),
+    };
     setWorkItems(prev => [...prev, item]);
     setEditItem({ workType: "", appliance: "", qty: 1 });
     setShowAddItem(false);
@@ -9324,11 +9331,17 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     setFeeError("");
     const timer = setTimeout(async () => {
       try {
+        // 2026-06-28 — 설치 5종 → appliance "" 변환 (정책은 install+null 1행 매칭).
+        //   UI 의 5종 (신규설치/이전설치 등) 은 description 보존, RPC 에는 appliance 비움.
+        //   calculate_commission 이 appliance NULL 로 install 정책 매칭 → 75/25.
+        const workItemsForFee = workItems.map(i =>
+          i.workType === "설치" ? { ...i, appliance: "" } : i
+        );
         // 2026-05-16 Phase 4 — calculateCommissionMultiRpc 측 멀티 항목 + qty 박은 spec
         // 단가형/비율형/정액형 분기 자동 박힘. 유솔N skip.
         const result = await calculateCommissionMultiRpc({
           principalName: form.principal,
-          workItems,
+          workItems: workItemsForFee,
           totalEstimate: form.estimateTotal,
           totalExtra: 0,
           totalNaverFee: 0,
