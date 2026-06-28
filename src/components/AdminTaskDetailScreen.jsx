@@ -10,6 +10,8 @@ import { TaskBasicEditScreen } from "./TaskBasicEditScreen.jsx";
 import { Chip } from "./Chip.jsx";
 // 2026-06-26 — 공지 3단계: 운영자 → 기사 작업 메시지 (옵션 c 서버 저장 + 푸시).
 import { SendTaskMessageModal } from "./admin/SendTaskMessageModal.jsx";
+// 2026-06-28 — 작업 견적 수정/추가 모달 (Mig 153 admin_update/insert_task_item).
+import { EditTaskItemModal, AddTaskItemModal } from "./admin/TaskItemEditModals.jsx";
 import { detectServiceType } from "../data/serviceTypes.js";
 import { TaskCardMenu } from "./TaskCardMenu.jsx";
 import { formatTimeOnly, formatDateTimeKST } from "../utils/dateLabel.js";
@@ -100,6 +102,19 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   const [task, setTask] = useState(initialTask);
   const [loading, setLoading] = useState(!isInitialFull);
   const [fetchError, setFetchError] = useState(null);
+  // 2026-06-28 — 견적 수정 후 재 fetch + 정규화 (Mig 153 적용 결과 표시).
+  const reloadTask = async () => {
+    if (!initialTask?.id) return;
+    try {
+      const row = await getTaskByIdDb(initialTask.id);
+      if (row) {
+        const normalized = v14NormalizeTask(row);
+        if (normalized) setTask(normalized);
+      }
+    } catch (e) {
+      console.warn("[AdminTaskDetailScreen.reloadTask]", e);
+    }
+  };
   useEffect(() => {
     setTask(initialTask);
     setLoading(!(initialTask?.task_no && initialTask?.address));
@@ -274,7 +289,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       <SettlementInfoCard task={task}/>
       {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출).
             2026-06-02 — usol_n 측 측 — 정산 사이클 측 대체 (사장님 spec). */}
-      {task.principalCode !== "usol_n" && <TaskItemsCard task={task}/>}
+      {task.principalCode !== "usol_n" && <TaskItemsCard task={task} user={user} onReload={reloadTask}/>}
       {task.principalCode === "usol_n" && (
         <UsolNSettlementCycleCard
           taskId={task.id}
@@ -836,12 +851,51 @@ function SettlementRow({ label, value, color, bold }) {
 // ──────────────── Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 카드 ────────────────
 // 2026-05-31 — task_items per-item 표시 + 신규 흐름 (non-usol_n / non-prepaid) 측 받은 돈 input.
 // onBlur 측 setTaskItemReceivedAmount 호출 → DB 트리거 chain → tasks.received_total + extra_fee + compute_payment 자동 sync.
-function TaskItemsCard({ task }) {
+function TaskItemsCard({ task, user, onReload }) {
   if (task?.type === "external") return null;
 
   const items = Array.isArray(task?.workItems) ? task.workItems : [];
   const usesReceivedTotalFlow =
     task?.principalCode !== 'usol_n' && task?.paymentMethod !== 'prepaid';
+
+  // 2026-06-28 — 견적 수정/추가 가드 + 모달 state.
+  //   클라 1차 가드 — 서버(Mig 153 RPC)가 진실 (engineer_remit_confirmed_at NULL + 트랙 B 차단).
+  //   클라는 UX 위해 미리 체크: payment.engineer_remit_confirmed_at 정보가 task 에 있나? — 없으면 항상 활성 (서버가 reject).
+  //   task.payment.engineer_remit_confirmed_at / task.engineerRemitConfirmedAt 둘 다 시도.
+  const editActorId = user?.user_id || user?.userId || user?.id || null;
+  const remitConfirmedAt =
+    task?.payment?.engineer_remit_confirmed_at ||
+    task?.engineerRemitConfirmedAt ||
+    null;
+  const isUsolNTrackB = task?.principalCode === "usol_n" && (task?.payment?.track === "B" || task?.paymentTrack === "B");
+  const canEdit = !remitConfirmedAt && !isUsolNTrackB && !!editActorId;
+  const disabledReason = remitConfirmedAt
+    ? "정산 송금 확인 완료 — 수정 불가"
+    : isUsolNTrackB
+      ? "유솔N 월정산 — 수정 불가"
+      : !editActorId ? "로그인 운영자 확인 실패" : "";
+
+  const [editItem,   setEditItem]   = useState(null);
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [toast,      setToast]      = useState("");
+
+  // 견적 수정/추가 모달 테마 (다크/라이트 무관 통합 토큰).
+  const editT = useMemo(() => ({
+    bg:             "var(--bg-primary)",
+    text:           "var(--text-primary)",
+    textSecondary:  "var(--text-secondary)",
+    textMuted:      "var(--text-tertiary, var(--text-secondary))",
+    border:         "var(--border)",
+    bgElevated:     "var(--bg-elevated)",
+    bgInset:        "var(--bg-inset, rgba(255,255,255,0.04))",
+    bgSecondary:    "var(--bg-secondary)",
+  }), []);
+
+  async function handleApplied(label) {
+    setToast(label);
+    if (onReload) await onReload();
+    setTimeout(() => setToast(""), 2400);
+  }
 
   // local input state
   const [localReceived, setLocalReceived] = useState(() => {
@@ -946,6 +1000,28 @@ function TaskItemsCard({ task }) {
                     marginLeft: "auto",
                   }}>✗ 취소</span>
                 )}
+                {/* 2026-06-28 — 견적 수정 버튼 (Mig 153). 미정산 + 비-취소 항목만. */}
+                {!isCanceled && it.id && (
+                  <button
+                    type="button"
+                    onClick={() => canEdit ? setEditItem(it) : null}
+                    disabled={!canEdit}
+                    title={canEdit ? "견적 수정" : disabledReason}
+                    aria-label="견적 수정"
+                    style={{
+                      marginLeft: isCanceled ? 0 : "auto",
+                      padding: "3px 7px",
+                      background: canEdit ? "rgba(255,27,141,0.1)" : "var(--bg-secondary)",
+                      border: `1px solid ${canEdit ? "#FF1B8D" : "var(--border)"}`,
+                      borderRadius: 6,
+                      color: canEdit ? "#FF1B8D" : "var(--text-tertiary, var(--text-secondary))",
+                      fontSize: 10, fontWeight: 700,
+                      cursor: canEdit ? "pointer" : "not-allowed",
+                      opacity: canEdit ? 1 : 0.5,
+                      fontFamily: "inherit",
+                    }}
+                  >✏️ 수정</button>
+                )}
               </div>
 
               {/* 견적 */}
@@ -1035,7 +1111,69 @@ function TaskItemsCard({ task }) {
             </div>
           </>
         )}
+
+        {/* 2026-06-28 — 항목 추가 (Mig 153). 미정산 + 트랙B 아님 시만 활성. */}
+        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            onClick={() => canEdit && setShowAdd(true)}
+            disabled={!canEdit}
+            title={canEdit ? "항목 추가 (정책 검증)" : disabledReason}
+            style={{
+              padding: "6px 12px",
+              background: canEdit ? "rgba(255,27,141,0.1)" : "var(--bg-secondary)",
+              border: `1px dashed ${canEdit ? "#FF1B8D" : "var(--border)"}`,
+              borderRadius: 8,
+              color: canEdit ? "#FF1B8D" : "var(--text-tertiary, var(--text-secondary))",
+              fontSize: 11, fontWeight: 800,
+              cursor: canEdit ? "pointer" : "not-allowed",
+              opacity: canEdit ? 1 : 0.5,
+              fontFamily: "inherit",
+            }}
+          >➕ 항목 추가</button>
+        </div>
+        {!canEdit && disabledReason && (
+          <div style={{
+            marginTop: 6, fontSize: 10, fontWeight: 600,
+            color: "var(--text-tertiary, var(--text-secondary))",
+            textAlign: "right",
+          }}>⚠️ {disabledReason}</div>
+        )}
       </div>
+
+      {/* 모달 — 수정 / 추가 */}
+      {editItem && (
+        <EditTaskItemModal
+          t={editT}
+          item={editItem}
+          task={task}
+          actorId={editActorId}
+          onClose={() => setEditItem(null)}
+          onApplied={() => { setEditItem(null); handleApplied("✓ 견적 수정됨"); }}
+        />
+      )}
+      {showAdd && (
+        <AddTaskItemModal
+          t={editT}
+          task={task}
+          actorId={editActorId}
+          onClose={() => setShowAdd(false)}
+          onApplied={() => { setShowAdd(false); handleApplied("✓ 항목 추가됨"); }}
+        />
+      )}
+
+      {/* 토스트 */}
+      {toast && (
+        <div style={{
+          position: "fixed", left: "50%", bottom: "calc(60px + env(safe-area-inset-bottom))",
+          transform: "translateX(-50%)",
+          background: "rgba(0, 135, 90, 0.95)", color: "#fff",
+          padding: "10px 16px", borderRadius: 10,
+          fontSize: 13, fontWeight: 700,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+          zIndex: 1200, pointerEvents: "none",
+        }}>{toast}</div>
+      )}
     </div>
   );
 }
