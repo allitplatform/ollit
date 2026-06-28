@@ -70,13 +70,15 @@ export const KA_1WAY_ADDITIONAL_PRICE = 70000;
 
 // 작업유형별 기종 풀 (V14 헌법 / 정책 시트와 일치).
 //   냉매충전은 원청별 분기 — getAppliancePool() 사용 (KA 도 표시는 동일 "1way").
-//   누설: 냉매와 동일 5기종 (정산 정책도 냉매와 동일).
-//   설치: "기종" 슬롯에 종류 5개 (신규설치/이전설치/철거/실외기중고교체/기계중고교체).
-//        sync 트리거가 service_types '설치' + work_types.name LIKE '%종류%'로 매칭 → 정산 75/25.
+//   누설: 6원청 5기종 (벽걸이/스탠드/1way/투인원/4way) — 정책 동일.
+//         usol_n 누설 = appliance NULL (냉매점검) — getAppliancePool 에서 분기.
+//   설치: allday 원청만 정책 존재, appliance NULL — getAppliancePool 에서 분기.
+//         이전 5종 (신규설치/이전설치/철거/실외기중고교체/기계중고교체) 는 정책 없음 (사고 원인).
+// 2026-06-28 — 설치 옵션 정정. 5종 → 정책 매칭 위해 "(공통)" 1 옵션 (allday only).
 export const APPLIANCE_POOL = {
   "세척":           ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"],
   "누설":           ["벽걸이", "스탠드", "1way", "투인원", "4way"],
-  "설치":           ["신규설치", "이전설치", "철거", "실외기중고교체", "기계중고교체"],
+  "설치":           ["(공통)"],
   "출장비":         ["(공통)"],
   "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
   "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
@@ -251,9 +253,25 @@ export function formatWorkItems(workItems) {
 
 // 작업유형 + 원청 → 기종 풀 (UI 노출).
 //   냉매충전: 모든 원청 동일 풀 (KA 차등은 저장 시 자동 분리).
+//   설치: allday 원청만 (commission_policies 에 allday + install + appliance NULL 1행만 존재).
+//         다른 원청 = [] (정책 없음 → 폼에서 "정책 없음" 안내).
+//   누설: 6원청 5기종. 단 usol_n = "(공통)" 1 옵션 (냉매점검 — appliance NULL 정책).
 //   기타: APPLIANCE_POOL 매핑.
-export function getAppliancePool(workType, _principalName) {
+// 2026-06-28 — 정책 매칭 정확화 (설치 5종 → "(공통)" 1, usol_n 누설 분기).
+export function getAppliancePool(workType, principalName) {
   if (workType === "냉매충전") return REFRIGERANT_APPLIANCE_POOL;
+
+  if (workType === "설치") {
+    // 정책 = allday + install + appliance NULL 1행만. 다른 원청 정책 없음.
+    return principalName === "올데이케어" ? ["(공통)"] : [];
+  }
+
+  if (workType === "누설") {
+    // usol_n 누설 = appliance NULL (냉매점검 정책). 그 외 6원청 = 5기종.
+    if (principalName === "유솔홈케어 N") return ["(공통)"];
+    return APPLIANCE_POOL["누설"];
+  }
+
   return APPLIANCE_POOL[workType] || [];
 }
 

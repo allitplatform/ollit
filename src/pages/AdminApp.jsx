@@ -9670,23 +9670,41 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
                 </div>
               </div>
               {/* V14 헌법 — 작업유형별 기종 풀 (정책 시트와 일치) */}
-              {editItem.workType && (
-                <div>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>
-                    {editItem.workType === "추가선택(YS-N)" ? "추가 종류"
-                      : editItem.workType === "냉매점검(YS-N)" ? "케이스"
-                      : editItem.workType === "출장비" ? "구분"
-                      : editItem.workType === "설치" ? "종류"
-                      : "기종"}
+              {editItem.workType && (() => {
+                const pool = getAppliancePool(editItem.workType, form.principal);
+                return (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>
+                      {editItem.workType === "추가선택(YS-N)" ? "추가 종류"
+                        : editItem.workType === "냉매점검(YS-N)" ? "케이스"
+                        : editItem.workType === "출장비" ? "구분"
+                        : editItem.workType === "설치" ? "구분"
+                        : "기종"}
+                    </div>
+                    {pool.length === 0 ? (
+                      // 2026-06-28 — 정책 없음 안내 (설치 + non-allday 등).
+                      //   commission_policies 에 그 (원청 × 종류) 조합 없음.
+                      <div style={{
+                        padding: "10px 12px",
+                        background: "rgba(220, 38, 38, 0.08)",
+                        border: `1px solid #DC2626`,
+                        borderRadius: 8,
+                        fontSize: 11, fontWeight: 700,
+                        color: "#DC2626",
+                      }}>
+                        ⚠️ 이 원청({form.principal})에 {editItem.workType} 정책 없음 — 다른 종류 선택
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {pool.map(a => (
+                          <FormChip t={t} key={a} active={editItem.appliance === a}
+                            onClick={() => setEditItem(prev => ({ ...prev, appliance: a }))}>{a}</FormChip>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {getAppliancePool(editItem.workType, form.principal).map(a => (
-                      <FormChip t={t} key={a} active={editItem.appliance === a}
-                        onClick={() => setEditItem(prev => ({ ...prev, appliance: a }))}>{a}</FormChip>
-                    ))}
-                  </div>
-                </div>
-              )}
+                );
+              })()}
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>수량</div>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
