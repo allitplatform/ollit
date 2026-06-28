@@ -55,25 +55,23 @@ function getMainItem(task) {
   return main || null;
 }
 function getServiceKind(task) {
-  // 2026-06-09 — visit 판별 공용 모듈 사용. (옛 인라인 task.status==='visit_only' 분기 → isAllItemsVisit)
-  //   pure visit (status='visit_only' 또는 활성 items 전부 visit) → 'visit'.
-  //   혼합 task (visit + 세척/냉매) 는 visit 가 아닌 main item 기준 분기 (혼합 시 VisitBadge 별도 표시).
   if (isAllItemsVisit(task)) return "visit";
-  // 2026-06-06 — service code 기준 분기 (정확). workType 텍스트는 fallback.
-  //   사고 이력: rowToTask 측 workItems[].workType 은 work_types.name 측 매핑돼
-  //   '냉매_스탠드' / '세척_벽걸이' 같은 기종별 세분 이름. 사람 라벨('냉매충전')
-  //   비교가 fail → 모두 'clean'로 떨어져 ❄️. (안현생 case).
-  //   → serviceCode (work_types.service_types.code, rowToTask line 196 매핑) 1순위.
   const main = getMainItem(task);
   if (main) {
     const svc = String(main.serviceCode || main.service_code || "").toLowerCase();
     if (svc === "refrigerant") return "refrigerant";
     if (svc === "cleaning")    return "clean";
-    // 옛 category_data.workItems 측 serviceCode 없는 경우 — workType 텍스트 패턴 fallback.
+    // 2026-06-28 — install/leak 추가.
+    if (svc === "install") return "install";
+    if (svc === "leak")    return "leak";
     const wt = String(main.workType || main.work_type || "");
     if (/냉매|가스|충전/.test(wt)) return "refrigerant";
     if (/세척|cleaning|clean/i.test(wt)) return "clean";
-    return "clean";   // 최종 fallback (유솔H 본작업=세척 패턴 호환)
+    // 설치 5종 work_types.name 직접 매칭
+    if (wt === "신규설치" || wt === "이전설치" || wt === "철거"
+        || wt === "실외기중고교체" || wt === "기계중고교체" || wt.startsWith("설치")) return "install";
+    if (wt.startsWith("누설")) return "leak";
+    return "clean";
   }
   return "addon";
 }
@@ -120,7 +118,9 @@ function ServiceIcon({ kind, size = 14 }) {
   if (kind === "visit")       return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
   if (kind === "addon")       return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
   if (kind === "refrigerant") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
-  // clean (세척, 옛 유솔H 본작업 패턴)
+  // 2026-06-28 — install/leak 아이콘 추가 (Mig 122/124/125 활성화).
+  if (kind === "install")     return <span style={{ fontSize: size, color: "#8B5CF6" }}>🔧</span>;
+  if (kind === "leak")        return <span style={{ fontSize: size, color: "#DC2626" }}>💧</span>;
   return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
 }
 

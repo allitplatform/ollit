@@ -120,15 +120,24 @@ function getKind(task) {
   const svc = String(main.work_types?.service_types?.code || "").toLowerCase();
   if (svc === "refrigerant") return "refrigerant";
   if (svc === "cleaning")    return "clean";
+  // 2026-06-28 — install/leak 추가.
+  if (svc === "install") return "install";
+  if (svc === "leak")    return "leak";
   const wt = String(main.work_types?.name || "");
   if (/냉매|가스|충전/.test(wt)) return "refrigerant";
   if (/세척|cleaning|clean/i.test(wt)) return "clean";
+  if (wt === "신규설치" || wt === "이전설치" || wt === "철거"
+      || wt === "실외기중고교체" || wt === "기계중고교체" || wt.startsWith("설치")) return "install";
+  if (wt.startsWith("누설")) return "leak";
   return "clean";
 }
 
 function ServiceIcon({ kind, size = 14 }) {
   if (kind === "visit")       return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
   if (kind === "refrigerant") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
+  // 2026-06-28 — install/leak 아이콘 추가 (allday 원청 외엔 거의 안 보이지만 일관 처리).
+  if (kind === "install")     return <span style={{ fontSize: size, color: "#8B5CF6" }}>🔧</span>;
+  if (kind === "leak")        return <span style={{ fontSize: size, color: "#DC2626" }}>💧</span>;
   return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
 }
 

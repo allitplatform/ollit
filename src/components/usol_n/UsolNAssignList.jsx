@@ -52,24 +52,31 @@ function getMainItem(task) {
 
 function getServiceKind(task) {
   // 2026-06-09 — visit 판별 공용 모듈 사용 (utils/visitFeeDetect).
-  //   pure visit (status='visit_only' 또는 활성 items 전부 visit) → 'visit'.
-  //   혼합 task 는 main item 기준 분기 + TaskRowOperator 측 별도 VisitBadge 표시.
   if (isAllItemsVisit(task)) return "visit";
   const main = getMainItem(task);
   if (!main) return "addon";
   const code = main?.work_types?.service_types?.code || main?.serviceCode || "";
-  if (code === "cleaning") return "main";
+  if (code === "cleaning")    return "main";
   if (code === "refrigerant") return "addon";
-  // fallback — work_type name 측 catch '세척' 측 catch '냉매' 측 catch
+  // 2026-06-28 — install/leak 추가 (Mig 122/124/125 활성화 보완).
+  if (code === "install") return "install";
+  if (code === "leak")    return "leak";
   const wt = String(main?.work_types?.name || main?.workType || "");
   if (wt.includes("세척")) return "main";
   if (wt.includes("냉매")) return "addon";
+  // 설치 5종 work_types.name 직접 매칭
+  if (wt === "신규설치" || wt === "이전설치" || wt === "철거"
+      || wt === "실외기중고교체" || wt === "기계중고교체" || wt.startsWith("설치")) return "install";
+  if (wt.startsWith("누설")) return "leak";
   return "main";
 }
 
 function ServiceIcon({ kind, size = 14 }) {
   if (kind === "visit") return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
   if (kind === "addon") return <Zap size={size} style={{ color: REFRIGERANT_COLOR }}/>;
+  // 2026-06-28 — install/leak 아이콘 추가.
+  if (kind === "install") return <span style={{ fontSize: size, color: "#8B5CF6" }}>🔧</span>;
+  if (kind === "leak")    return <span style={{ fontSize: size, color: "#DC2626" }}>💧</span>;
   return <Snowflake size={size} style={{ color: CLEAN_COLOR }}/>;
 }
 
