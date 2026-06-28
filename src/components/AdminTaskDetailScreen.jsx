@@ -985,7 +985,17 @@ function TaskItemsCard({ task, user, onReload }) {
                   color: isCanceled ? "#9CA3AF" : "var(--text-primary)",
                   textDecoration: isCanceled ? "line-through" : "none",
                 }}>
-                  {it.appliance || colors.name} ×{qty}
+                  {/* 2026-06-28 — 설치 항목 표시 폴백.
+                       설치 5종 (실외기중고교체 등) 은 appliance_type_id NULL → it.appliance 빔.
+                       it.description (Mig 154 sync v5 가 저장) 또는
+                       it.workType (work_types.name = "실외기중고교체") 로 노출.
+                       colors.name 과 같은 라벨 중복 방지 (예: workType "설치" + colors.name "설치"). */}
+                  {(() => {
+                    if (it.appliance)   return it.appliance;
+                    if (it.description) return it.description;
+                    if (it.workType && it.workType !== colors.name) return it.workType;
+                    return colors.name;
+                  })()} ×{qty}
                 </span>
                 {orderTypeLabel && (
                   <span style={{ fontSize: 9, color: "var(--text-tertiary)", fontWeight: 600 }}>
