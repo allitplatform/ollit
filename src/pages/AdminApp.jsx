@@ -176,6 +176,8 @@ import AdminPcBookkeeping from "./AdminPcBookkeeping.jsx";
 import AdminPcCashflow from "./AdminPcCashflow.jsx";
 import AdminMobileBookkeeping from "./AdminMobileBookkeeping.jsx";
 import AdminPcUsolnSettleBoard from "./AdminPcUsolnSettleBoard.jsx";
+// 2026-06-29 — PC 정산 현황판 (분배 계산). Mig 155 v6 RPC.
+import AdminPcDistributionBoard from "./AdminPcDistributionBoard.jsx";
 // 2026-06-03 — Phase 2a: 냉매 미처리 별도 화면.
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 // 2026-06-03 — 대시보드 "매출 현황" 블록.
@@ -3299,6 +3301,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   if (screen === "usolnSettleBoard") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AdminPcUsolnSettleBoard t={t} user={user}/>
+    </Shell>;
+  }
+  // 2026-06-29 — PC 정산 현황판 (분배 계산). Mig 155 v6 b_eng_owed / c1_margin / c2_margin.
+  //   "지금 회사가 나눌 수 있는 돈" 자동 계산. 3블록 (현금 / 받을 회사몫 / 분배 천장).
+  if (screen === "distributionBoard") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AdminPcDistributionBoard t={t} user={user}/>
     </Shell>;
   }
   // 2026-06-13 — PC 매출 리포트 (1단계: 하루 리포트만). 월 리포트는 별도 단계.

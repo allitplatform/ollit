@@ -88,6 +88,8 @@ const GROUPS = [
       { id: "revenueDetail",         label: "매출 상세" },
       // 2026-06-14 — 유솔N 정산 현황판 (Mig 130). 작업월별 4단계 + 마진.
       { id: "usolnSettleBoard",      label: "유솔N 정산 현황판" },
+      // 2026-06-29 — 정산 현황판 (분배 계산). Mig 155 v6 — 현금/유솔 받을 회사몫/분배 천장.
+      { id: "distributionBoard",     label: "정산 현황판 (분배 계산)" },
     ],
   },
   // 2026-06-13 — 가계부 별도 그룹 (정산에서 분리). screen id 'bookkeeping' 그대로.
