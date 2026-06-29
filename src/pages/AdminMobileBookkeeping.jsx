@@ -25,6 +25,9 @@ import { getUsolnAdjustment } from "../lib/bookkeepingUsolnAdjustmentDb.js";
 import {
   getCashflowSummary, listCashflow, addCashflow, updateCashflow, deleteCashflow,
 } from "../lib/bookkeepingCashflowDb.js";
+// 2026-06-29 — PC 통합본과 동일: 현금/천장 산출용 정산판 요약 RPC.
+//   산식 변경 0건 — AdminPcBookkeeping 의 호출/계산을 그대로 가져옴.
+import { getUsolnSettleBoardSummary } from "../lib/usolnSettleBoardDb.js";
 import {
   computeRevenueByYmRange,
   getMonthRange,
@@ -214,6 +217,40 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
   const cumValue    = Number(cum.cumulative_carryover) || 0;
   const cumNeg      = cumValue < 0;
 
+  // ── 2026-06-29 — 현금 / 천장 (PC 통합본과 동일 산식, 호출만 추가)
+  //   cashNow = current_balance − Σ b_eng_owed (전체 작업월)
+  //   ceiling = cashNow + (N−1)월 c1_margin + c2_margin
+  const [boardSummary, setBoardSummary] = useState({ months: [], start_month: "2026-04" });
+  useEffect(() => {
+    if (!actor) return;
+    let alive = true;
+    (async () => {
+      const res = await getUsolnSettleBoardSummary(actor);
+      if (!alive) return;
+      if (res?.ok) {
+        setBoardSummary({
+          months: res.months || [],
+          start_month: res.start_month || "2026-04",
+        });
+      }
+    })().catch(() => { /* 실패 시 0 으로 표시 */ });
+    return () => { alive = false; };
+  }, [actor]);
+  const totalBEngOwed = useMemo(
+    () => (boardSummary.months || []).reduce((s, m) => s + (Number(m.b_eng_owed) || 0), 0),
+    [boardSummary.months]
+  );
+  const cashNow = (Number(cashflow.current_balance) || 0) - totalBEngOwed;
+  const prevYm = shiftYm(selectedYm, -1);
+  const prevMonthBoard = useMemo(
+    () => (boardSummary.months || []).find(m => m.wm === prevYm) || null,
+    [boardSummary.months, prevYm]
+  );
+  const c1Margin = Number(prevMonthBoard?.c1_margin) || 0;
+  const c2Margin = Number(prevMonthBoard?.c2_margin) || 0;
+  const incomingTotal = c1Margin + c2Margin;
+  const ceiling = cashNow + incomingTotal;
+
   return (
     <div style={{ padding: "12px 14px 24px" }}>
       {/* 헤더 — 뒤로가기 + 제목 + view 별 상태 */}
@@ -290,69 +327,53 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
         </button>
       </div>
 
-      {/* 가계부 view — 손익 + 누적이월 (읽기 전용) */}
+      {/* 2026-06-29 — 가계부 view: 5블록 흐름 (디자인 개선).
+          ① 순이익 → ② 현금/천장(2칸) → ③ 손익 항목 → ④ 분배 → ⑤ 남은 것 → 누적(작게).
+          계산 로직 변경 0 — PC 통합본 산식 그대로. */}
       {view === "bookkeeping" && <>
-      {/* 카드 1: 📊 손익 */}
-      <Card t={t} title="📊 손익" subtitle="그 달 수입 − 운영비 − 분배">
 
-        <Row t={t} label="일정산 (track A)"           value={incomeTrackA} color="#3B82F6"/>
-        <Row t={t} label="유솔N 월정산 (자동+보정)"   value={usolNTotal}   color="#8B5CF6"
-          hint={usolNAdj !== 0 ? `자동 ${fmtKRW(usolNB)} + 보정 ${fmtSigned(usolNAdj)}` : null}
-        />
-        <Row t={t} label="기타 (세스코·개인건 등)"     value={otherIncomeSum} color="#14B8A6"/>
-        <Divider t={t}/>
-        <Row t={t} label="수입 합계"  value={incomeTotal} color={t.text} bold/>
-        <Row t={t} label="운영비"     value={expenseSum}  color={t.danger} negative/>
-        <Divider t={t}/>
-        <Row t={t} label="순이익"     value={netProfit}   color={t.accent} big highlight/>
-        <Row t={t} label="분배"       value={distSum}     color={t.warning || "#F59E0B"} negative/>
-        <Row t={t} label="당월 차이"  value={monthlyDiff} color={monthlyDiff < 0 ? t.danger : t.success} signed/>
-      </Card>
+      {/* ① 순이익 — Hero (accent 카드, 가운데, 36px) */}
+      <HeroProfit t={t}
+        netProfit={netProfit}
+        incomeTotal={incomeTotal}
+        expenseSum={expenseSum}
+      />
 
-      {/* 카드 2: 📦 누적 이월 */}
-      <div style={{
-        marginTop: 12,
-        background: cumNeg ? (t.dangerBg || "rgba(255,59,92,0.08)") : (t.successBg || "rgba(34,197,94,0.08)"),
-        border: `2px solid ${cumNeg ? (t.dangerBorder || t.danger) : (t.successBorder || t.success)}`,
-        borderRadius: 12, overflow: "hidden",
-      }}>
-        <div style={{ padding: "14px 14px 8px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 13, fontWeight: 800, color: cumNeg ? t.danger : t.success }}>📦 누적 이월</span>
-            <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>
-              {cum.start_month} ~ {selectedYm}
-            </span>
-          </div>
-          <div style={{ marginTop: 6, textAlign: "center" }}>
-            {cumLoading ? (
-              <span style={{ fontSize: 12, color: t.textMuted }}>불러오는 중...</span>
-            ) : (
-              <span className="mono" style={{
-                fontSize: 26, fontWeight: 900,
-                color: cumNeg ? t.danger : t.success,
-                fontVariantNumeric: "tabular-nums",
-              }}>
-                {cumNeg ? "−" : ""}{fmtKRW(Math.abs(cumValue)).replace("₩", "₩")}
-              </span>
-            )}
-          </div>
-          {!cumLoading && cumNeg && (
-            <div style={{ marginTop: 6, padding: "6px 10px", textAlign: "center",
-              fontSize: 10, color: t.textSecondary, lineHeight: 1.5,
-            }}>
-              💡 아직 못 채운 금액. 다음 달 수입이 쌓이면 메워집니다.
-            </div>
-          )}
-        </div>
-        <div style={{
-          padding: "8px 14px",
-          background: t.bgInset,
-          borderTop: `1px solid ${cumNeg ? (t.dangerBorder || t.danger) : (t.successBorder || t.success)}`,
-          fontSize: 10, color: t.textMuted, textAlign: "center",
-        }}>
-          월별 표는 PC 가계부에서 확인
-        </div>
-      </div>
+      {/* ② 현금 / 나눠도 됨 — 2칸 색 카드 */}
+      <TwoCellCash t={t}
+        cashNow={cashNow}
+        ceiling={ceiling}
+      />
+
+      {/* ③ 손익 항목 — 3행 줄 리스트 (일정산 / 유솔N / 운영비) */}
+      <ProfitDetailCard t={t}
+        incomeTrackA={incomeTrackA}
+        usolNTotal={usolNTotal}
+        usolNAdj={usolNAdj}
+        usolNB={usolNB}
+        otherIncomeSum={otherIncomeSum}
+        expenseSum={expenseSum}
+      />
+
+      {/* ④ 분배 — 한 줄 (천장 경고 X, 가불 표시 X) */}
+      <DistributionLine t={t} distSum={distSum}/>
+
+      {/* ⑤ 이번 달 회사에 남은 것 — 가운데, 26px, success */}
+      <RemainingFinal t={t}
+        netProfit={netProfit}
+        distSum={distSum}
+        monthlyDiff={monthlyDiff}
+      />
+
+      {/* 누적 이월 — 맨 아래 작은 한 줄 (13px, secondary) */}
+      <CarryFootnote t={t}
+        cumValue={cumValue}
+        cumNeg={cumNeg}
+        cumLoading={cumLoading}
+        startMonth={cum.start_month}
+        endMonth={selectedYm}
+      />
+
       </>}
 
       {/* 통장 view — 입출금 가능 */}
@@ -496,7 +517,245 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
 }
 
 // ────────────────────────────────────────────
-// 작은 부품들 — 모바일 전용
+// 2026-06-29 — 5블록 디자인 헬퍼 (모바일 가계부 신규)
+//   계산은 본체에서 prop 으로 받음. 표시만 담당.
+//   weight 400/500 통일, tabular-nums, letter-spacing 좁게.
+// ────────────────────────────────────────────
+
+function HeroProfit({ t, netProfit, incomeTotal, expenseSum }) {
+  return (
+    <div style={{
+      background: t.accentBg || "rgba(255,27,141,0.08)",
+      border: `0.5px solid ${t.accent}`,
+      borderRadius: 14,
+      padding: "20px 16px 16px",
+      textAlign: "center",
+    }}>
+      <div style={{
+        fontSize: 12, fontWeight: 400, color: t.accent,
+        opacity: 0.95, letterSpacing: "-0.2px",
+      }}>이번 달 순이익</div>
+      <div style={{
+        marginTop: 6,
+        fontSize: 36, fontWeight: 500,
+        color: (Number(netProfit) || 0) < 0 ? t.danger : t.accent,
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-1.1px",
+        lineHeight: 1.1,
+      }}>{fmtMoney(netProfit)}</div>
+      <div style={{
+        marginTop: 8,
+        fontSize: 11, fontWeight: 400,
+        color: t.accent, opacity: 0.7,
+        letterSpacing: "-0.2px",
+        fontVariantNumeric: "tabular-nums",
+      }}>
+        수입 {fmtMoney(incomeTotal)} − 운영비 {fmtMoney(expenseSum)}
+      </div>
+    </div>
+  );
+}
+
+function TwoCellCash({ t, cashNow, ceiling }) {
+  return (
+    <div style={{
+      display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
+      marginTop: 10,
+    }}>
+      <CashCell t={t}
+        label="지금 현금"
+        sub="통장 − 기사 줄 돈"
+        value={cashNow}
+        fg={t.success}
+        bg={t.successBg || "rgba(29,158,117,0.10)"}
+        border={t.successBorder || "rgba(29,158,117,0.30)"}
+      />
+      <CashCell t={t}
+        label="나눠도 됨"
+        sub="분배 천장"
+        value={ceiling}
+        fg={t.accent}
+        bg={t.accentBg || "rgba(255,27,141,0.10)"}
+        border={`${t.accent}55`}
+      />
+    </div>
+  );
+}
+
+function CashCell({ t, label, sub, value, fg, bg, border }) {
+  const v = Number(value) || 0;
+  return (
+    <div style={{
+      background: bg,
+      border: `0.5px solid ${border}`,
+      borderRadius: 12,
+      padding: "12px 12px 11px",
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 500, color: fg,
+        letterSpacing: "-0.2px",
+      }}>{label}</div>
+      <div style={{
+        marginTop: 4,
+        fontSize: 19, fontWeight: 500,
+        color: v < 0 ? t.danger : fg,
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.5px",
+        lineHeight: 1.15,
+        whiteSpace: "nowrap",
+        overflow: "hidden", textOverflow: "ellipsis",
+      }}>{fmtMoney(v)}</div>
+      <div style={{
+        marginTop: 3,
+        fontSize: 10, fontWeight: 400, color: t.textMuted,
+        letterSpacing: "-0.2px",
+      }}>{sub}</div>
+    </div>
+  );
+}
+
+function ProfitDetailCard({ t, incomeTrackA, usolNTotal, usolNAdj, usolNB, otherIncomeSum, expenseSum }) {
+  return (
+    <div style={{
+      marginTop: 10,
+      background: t.bgElevated,
+      border: `0.5px solid ${t.border}`,
+      borderRadius: 12,
+      padding: "4px 14px",
+    }}>
+      <DetailRow t={t} label="일정산"          value={incomeTrackA}/>
+      <DetailRow t={t} label="유솔N 월정산"    value={usolNTotal}
+        sub={usolNAdj !== 0 ? `자동 ${fmtMoney(usolNB)} + 보정 ${fmtMoney(usolNAdj)}` : null}
+        last={false}
+      />
+      <DetailRow t={t} label="기타"            value={otherIncomeSum}/>
+      <DetailRow t={t} label="운영비"          value={expenseSum} negative last/>
+    </div>
+  );
+}
+
+function DetailRow({ t, label, value, negative, sub, last }) {
+  const v = Number(value) || 0;
+  const display = negative ? `− ${fmtMoney(Math.abs(v))}` : fmtMoney(v);
+  return (
+    <div style={{
+      display: "flex", alignItems: "baseline", gap: 10,
+      padding: "11px 0",
+      borderBottom: last ? "none" : `0.5px solid ${t.border}`,
+    }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+        <span style={{
+          fontSize: 12, fontWeight: 400, color: t.text,
+          letterSpacing: "-0.2px",
+        }}>{label}</span>
+        {sub && (
+          <span style={{
+            fontSize: 10, fontWeight: 400, color: t.textMuted,
+            letterSpacing: "-0.2px",
+            fontVariantNumeric: "tabular-nums",
+          }}>{sub}</span>
+        )}
+      </div>
+      <span style={{
+        fontSize: 14, fontWeight: 500,
+        color: negative ? t.danger : t.text,
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.3px",
+        whiteSpace: "nowrap",
+      }}>{display}</span>
+    </div>
+  );
+}
+
+function DistributionLine({ t, distSum }) {
+  return (
+    <div style={{
+      marginTop: 10,
+      background: t.bgElevated,
+      border: `0.5px solid ${t.border}`,
+      borderRadius: 12,
+      padding: "14px 16px",
+      display: "flex", alignItems: "baseline", gap: 10,
+    }}>
+      <span style={{
+        flex: 1, fontSize: 13, fontWeight: 500, color: t.textSecondary,
+        letterSpacing: "-0.2px",
+      }}>분배</span>
+      <span style={{
+        fontSize: 18, fontWeight: 500, color: t.text,
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.4px",
+      }}>{fmtMoney(distSum)}</span>
+    </div>
+  );
+}
+
+function RemainingFinal({ t, netProfit, distSum, monthlyDiff }) {
+  const v = Number(monthlyDiff) || 0;
+  const color = v < 0 ? t.danger : t.success;
+  const bg    = v < 0 ? (t.dangerBg || "rgba(255,68,68,0.06)")
+                     : (t.successBg || "rgba(29,158,117,0.08)");
+  return (
+    <div style={{
+      marginTop: 10,
+      background: bg,
+      border: `0.5px solid ${v < 0 ? (t.dangerBorder || t.danger) : (t.successBorder || t.success)}`,
+      borderRadius: 12,
+      padding: "16px 14px 14px",
+      textAlign: "center",
+    }}>
+      <div style={{
+        fontSize: 12, fontWeight: 400, color, opacity: 0.9,
+        letterSpacing: "-0.2px",
+      }}>이번 달 회사에 남은 것</div>
+      <div style={{
+        marginTop: 6,
+        fontSize: 26, fontWeight: 500, color,
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.8px",
+        lineHeight: 1.15,
+      }}>{fmtMoney(v)}</div>
+      <div style={{
+        marginTop: 6,
+        fontSize: 11, fontWeight: 400, color, opacity: 0.7,
+        letterSpacing: "-0.2px",
+        fontVariantNumeric: "tabular-nums",
+      }}>
+        순이익 {fmtMoney(netProfit)} − 분배 {fmtMoney(distSum)}
+      </div>
+    </div>
+  );
+}
+
+function CarryFootnote({ t, cumValue, cumNeg, cumLoading, startMonth, endMonth }) {
+  const display = cumLoading
+    ? "불러오는 중..."
+    : `${startMonth} ~ ${endMonth} 누적 ${cumNeg ? "− " : ""}${fmtMoney(Math.abs(cumValue))}`;
+  return (
+    <div style={{
+      marginTop: 10,
+      padding: "8px 4px",
+      fontSize: 13, fontWeight: 400,
+      color: cumNeg ? t.danger : t.textSecondary,
+      textAlign: "center",
+      letterSpacing: "-0.2px",
+      fontVariantNumeric: "tabular-nums",
+      opacity: cumLoading ? 0.5 : 1,
+    }}>
+      📦 {display}
+    </div>
+  );
+}
+
+// 음수 처리 포맷 — "− ₩x"
+function fmtMoney(n) {
+  const v = Number(n) || 0;
+  if (v < 0) return `− ₩${Math.abs(v).toLocaleString("ko-KR")}`;
+  return `₩${v.toLocaleString("ko-KR")}`;
+}
+
+// ────────────────────────────────────────────
+// 작은 부품들 — 모바일 전용 (기존)
 // ────────────────────────────────────────────
 function navBtn(t) {
   return {
