@@ -33,6 +33,10 @@ import {
   computeRevenueByYmRange,
   getMonthRange,
 } from "../utils/revenueStats.js";
+// 2026-06-29 — 정산 현황판 통합 (블록 ②현금 / ③천장).
+//   계산식·RPC 변경 0건 — AdminPcDistributionBoard 와 동일 호출.
+import { getUsolnSettleBoardSummary } from "../lib/usolnSettleBoardDb.js";
+import { getCashflowSummary } from "../lib/bookkeepingCashflowDb.js";
 
 // 2026-06-13 — 대표 3명 (Phase 1 고정). user_id 는 Mig 114 진단 시 확정.
 const REPRESENTATIVES = [
@@ -201,6 +205,55 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
   const incomeTotal = incomeTrackA + usolNTotal + otherIncomeSum;
   const netProfit   = incomeTotal - (totals.sum || 0);
 
+  // 2026-06-29 — 정산 현황판 통합 (블록 ② 현금 / ③ 천장).
+  //   계산식: AdminPcDistributionBoard 그대로 — 호출 위치만 가계부.
+  //   ② cashNow = current_balance − Σ b_eng_owed (전체 작업월 합).
+  //   ③ ceiling = cashNow + (N-1)월 c1_margin + (N-1)월 c2_margin.
+  const [boardSummary, setBoardSummary] = useState({ months: [], start_month: "2026-04" });
+  const [cashflowSum,  setCashflowSum]  = useState(null);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [boardErr,     setBoardErr]     = useState("");
+  useEffect(() => {
+    if (!actor) { setBoardLoading(false); return; }
+    let alive = true;
+    setBoardLoading(true); setBoardErr("");
+    (async () => {
+      const [resSum, resCash] = await Promise.all([
+        getUsolnSettleBoardSummary(actor),
+        getCashflowSummary(selectedYm, actor),  // current_balance 는 workMonth 무관, 다만 RPC 시그니처 요구
+      ]);
+      if (!alive) return;
+      if (!resSum?.ok)  { setBoardErr(resSum?.error || "정산판 조회 실패");  setBoardLoading(false); return; }
+      if (!resCash?.ok) { setBoardErr(resCash?.error || "통장 조회 실패");   setBoardLoading(false); return; }
+      setBoardSummary({
+        months: resSum.months || [],
+        start_month: resSum.start_month || "2026-04",
+      });
+      setCashflowSum(resCash);
+      setBoardLoading(false);
+    })().catch(e => { if (alive) { setBoardErr(e?.message || "에러"); setBoardLoading(false); } });
+    return () => { alive = false; };
+  }, [actor, selectedYm, reloadTick]);
+
+  // 전체 작업월 미지급 기사 줄 돈 합 (작업월 무관)
+  const totalBEngOwed = useMemo(
+    () => (boardSummary.months || []).reduce((s, m) => s + (Number(m.b_eng_owed) || 0), 0),
+    [boardSummary.months]
+  );
+  const currentBalance = Number(cashflowSum?.current_balance) || 0;
+  const cashNow        = currentBalance - totalBEngOwed;
+
+  // (N−1)월 작업분 — 천장의 유솔 받을 회사몫
+  const prevYm = shiftYm(selectedYm, -1);
+  const prevMonthBoard = useMemo(
+    () => (boardSummary.months || []).find(m => m.wm === prevYm) || null,
+    [boardSummary.months, prevYm]
+  );
+  const c1Margin    = Number(prevMonthBoard?.c1_margin) || 0;
+  const c2Margin    = Number(prevMonthBoard?.c2_margin) || 0;
+  const incomingTotal = c1Margin + c2Margin;
+  const ceiling     = cashNow + incomingTotal;
+
   const isThisMonth = selectedYm === nowKstYm();
 
   return (
@@ -209,9 +262,9 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
         <Wallet size={22} style={{ color: t.accent }}/>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: t.text }}>가계부</div>
-          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
-            월별 운영비 입력 · 손익/이월/분배는 다음 단계
+          <div style={{ fontSize: 20, fontWeight: 500, color: t.text, letterSpacing: "-0.4px" }}>가계부</div>
+          <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2, fontWeight: 400 }}>
+            벌었다 → 현금은 → 나눠도 되나 → 나누기 → 남은 것
           </div>
         </div>
       </div>
@@ -397,7 +450,10 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         onDelete={(r) => setOiDialog({ mode: "delete", row: r })}
       />
 
-      {/* 손익 카드 — 수입 (일정산 / 유솔N(자동+보정) / 기타 / 합계). 누적 이월과 일치. */}
+      {/* ─────────────────────────────────────────────
+          1. 벌었다 — 손익 (수입 − 운영비 = 순이익)
+          ───────────────────────────────────────────── */}
+      <SectionLabel t={t} text="① 벌었다"/>
       <ProfitCard t={t}
         incomeTrackA={incomeTrackA}
         usolNB={usolNTotal}
@@ -413,11 +469,48 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         netProfit={netProfit}
       />
 
-      {/* 나누기 — 분배 + 이월 (당월 + 누적) */}
+      <Connector t={t}>벌긴 벌었다 — 근데 이 돈이 지금 통장에 다 있을까?</Connector>
+
+      {/* ─────────────────────────────────────────────
+          2. 지금 현금은 (현황판 ① 가져옴)
+          ───────────────────────────────────────────── */}
+      <SectionLabel t={t} text="② 지금 현금은"/>
+      <CashBlock t={t}
+        loading={boardLoading}
+        err={boardErr}
+        currentBalance={currentBalance}
+        totalBEngOwed={totalBEngOwed}
+        cashNow={cashNow}
+      />
+
+      {/* ─────────────────────────────────────────────
+          3. 그래서 나눠도 되는 돈 (현황판 ③ 가져옴) — 강조
+          ───────────────────────────────────────────── */}
+      <SectionLabel t={t} text="③ 그래서 나눠도 되는 돈"/>
+      <CeilingBlock t={t}
+        loading={boardLoading}
+        prevYm={prevYm}
+        cashNow={cashNow}
+        c1Margin={c1Margin}
+        c2Margin={c2Margin}
+        incomingTotal={incomingTotal}
+        ceiling={ceiling}
+        prevMonthExists={!!prevMonthBoard}
+      />
+
+      <Connector t={t}>이 선 안에서 나누면 통장 안 터진다</Connector>
+
+      {/* ─────────────────────────────────────────────
+          4. 나누기 (분배 입력) — ③ 바로 아래. ceiling 경고 표시.
+          5. 이번 달 회사에 남은 것 — DivisionCard 내부 "당월 차이" 3줄 강화.
+          ───────────────────────────────────────────── */}
+      <SectionLabel t={t} text="④ 나누기"/>
       <DivisionCard t={t}
         workMonth={selectedYm}
         actor={actor}
         netProfit={netProfit}
+        ceiling={ceiling}
+        ceilingReady={!boardLoading && !boardErr}
         onSaved={() => setReloadTick(n => n + 1)}
         reloadKey={reloadTick + oiReloadTick}
       />
@@ -468,6 +561,180 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         />
       )}
 
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────
+// 2026-06-29 — 5블록 통합 — 섹션 라벨 / 연결 문구 / 현금 / 천장
+//   계산은 메인 컴포넌트에서 prop 으로 받음. 표시만 담당.
+// ──────────────────────────────────────────────
+
+function SectionLabel({ t, text }) {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      marginTop: 14, marginBottom: 8,
+    }}>
+      <span style={{
+        fontSize: 13, fontWeight: 500, color: t.textSecondary,
+        letterSpacing: "-0.3px",
+        whiteSpace: "nowrap",
+      }}>{text}</span>
+      <div style={{ flex: 1, height: 1, background: t.border, opacity: 0.6 }}/>
+    </div>
+  );
+}
+
+function Connector({ t, children }) {
+  return (
+    <div style={{
+      margin: "10px 0",
+      fontSize: 12, fontWeight: 400, color: t.textMuted,
+      textAlign: "center", letterSpacing: "-0.2px",
+      lineHeight: 1.5,
+    }}>{children}</div>
+  );
+}
+
+// 블록 ② — 지금 현금은
+//   "통장 {balance} − 기사 줄 돈 {total_b}" 한 줄 + 큰 숫자.
+function CashBlock({ t, loading, err, currentBalance, totalBEngOwed, cashNow }) {
+  return (
+    <div style={{
+      background: t.bgElevated,
+      border: `0.5px solid ${t.border}`,
+      borderRadius: 12,
+      padding: "16px 20px",
+    }}>
+      {loading ? (
+        <div style={{ padding: "8px 0", fontSize: 12, color: t.textMuted, textAlign: "center" }}>
+          현금 불러오는 중...
+        </div>
+      ) : err ? (
+        <div style={{ padding: "8px 0", fontSize: 12, color: t.danger, textAlign: "center" }}>
+          ⚠️ {err}
+        </div>
+      ) : (
+        <>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+            <span style={{
+              flex: 1, fontSize: 13, fontWeight: 500, color: t.textSecondary,
+              letterSpacing: "-0.3px",
+            }}>통장에서 기사 줄 돈 빼면</span>
+            <span style={{
+              fontSize: 28, fontWeight: 500,
+              color: cashNow < 0 ? t.danger : t.success,
+              fontVariantNumeric: "tabular-nums",
+              letterSpacing: "-0.8px",
+              lineHeight: 1.1,
+              whiteSpace: "nowrap",
+            }}>{fmtSigned(cashNow)}</span>
+          </div>
+          <div style={{
+            height: 1, background: t.border, opacity: 0.6,
+            margin: "12px -20px 10px",
+          }}/>
+          <div style={{
+            fontSize: 12, fontWeight: 400, color: t.textMuted,
+            letterSpacing: "-0.2px",
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            통장 {fmtKRW(currentBalance)} − 기사 줄 돈 {fmtKRW(totalBEngOwed)}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// 블록 ③ — 그래서 나눠도 되는 돈 (분배 천장)
+//   강조 카드, 가운데 정렬, 초대형 숫자.
+function CeilingBlock({ t, loading, prevYm, cashNow, c1Margin, c2Margin, incomingTotal, ceiling, prevMonthExists }) {
+  const prevM = prevYm ? Number(prevYm.split("-")[1]) : null;
+  return (
+    <div style={{
+      background: t.accentBg || "rgba(255,27,141,0.08)",
+      border: `0.5px solid ${t.accent}`,
+      borderRadius: 12,
+      padding: "20px 20px 18px",
+      textAlign: "center",
+    }}>
+      {loading ? (
+        <div style={{ padding: "12px 0", fontSize: 12, color: t.textMuted }}>
+          천장 계산 중...
+        </div>
+      ) : (
+        <>
+          <div style={{
+            fontSize: 14, fontWeight: 500, color: t.accent,
+            letterSpacing: "-0.3px", opacity: 0.95,
+          }}>이번에 나눌 수 있는 최대</div>
+          <div style={{
+            marginTop: 8,
+            fontSize: 36, fontWeight: 500,
+            color: ceiling < 0 ? t.danger : t.accent,
+            fontVariantNumeric: "tabular-nums",
+            letterSpacing: "-1.1px",
+            lineHeight: 1.1,
+          }}>{fmtSigned(ceiling)}</div>
+          <div style={{
+            marginTop: 10,
+            fontSize: 12, fontWeight: 400,
+            color: t.accent, opacity: 0.7,
+            letterSpacing: "-0.2px",
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            ② 현금 {fmtSigned(cashNow)} + {prevM ? `${prevM}월 작업분 ` : ""}유솔 받을 {fmtKRW(incomingTotal)}
+          </div>
+          {prevMonthExists && incomingTotal > 0 && (
+            <div style={{
+              marginTop: 6,
+              fontSize: 11, fontWeight: 400,
+              color: t.accent, opacity: 0.6,
+              letterSpacing: "-0.2px",
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              유솔 받을 = 독촉 {fmtKRW(c2Margin)} + 대기 {fmtKRW(c1Margin)} · 유솔 입금 들어오면 채워짐
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// 음수 시 "− ₩x" 포맷
+function fmtSigned(n) {
+  const v = Number(n) || 0;
+  if (v < 0) return `− ₩${Math.abs(v).toLocaleString("ko-KR")}`;
+  return `₩${v.toLocaleString("ko-KR")}`;
+}
+
+// ⑤ "남은 것" 3줄 — 라벨 좌, 숫자 우, big=결과줄 강조.
+function RemainRow({ t, label, value, valueColor, muted, negative, big }) {
+  const v = Number(value) || 0;
+  const display = negative ? `− ${fmtKRW(Math.abs(v))}` : fmtSigned(v);
+  return (
+    <div style={{
+      display: "flex", alignItems: "baseline", gap: 10,
+      padding: big ? "4px 0 2px" : "3px 0",
+    }}>
+      <span style={{
+        flex: 1,
+        fontSize: big ? 13 : 12,
+        fontWeight: big ? 500 : 400,
+        color: muted ? t.textMuted : t.text,
+        letterSpacing: "-0.2px",
+      }}>{label}</span>
+      <span style={{
+        fontSize: big ? 20 : 13,
+        fontWeight: 500,
+        color: valueColor || (muted ? t.textSecondary : t.text),
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: big ? "-0.5px" : "-0.2px",
+        whiteSpace: "nowrap",
+      }}>{display}</span>
     </div>
   );
 }
@@ -1037,7 +1304,7 @@ function ProfitRow({ t, label, value, color, hint, negative, big, mid, highlight
 //   · 자동 이월 = 순이익 − 분배 합. 음수면 저장 막음.
 //   · DB carryover 값과 자동 계산값 불일치 시 ⚠️ 표시 (자동 덮어쓰기 X).
 // ──────────────────────────────────────────────
-function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
+function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = false, onSaved, reloadKey }) {
   const [loading, setLoading]   = useState(true);
   const [err, setErr]           = useState("");
 
@@ -1119,6 +1386,13 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
   const autoCarry   = netProfit - distSum;
   const overrun     = autoCarry < 0;            // 분배 합 > 순이익 → 음수 이월
   const sumMatch    = (distSum + Math.max(autoCarry, 0)) === netProfit && !overrun;
+
+  // 2026-06-29 — 천장 경고 (분배 소계 > 천장).
+  //   저장 차단 X — 표시만 (사장님 spec). overrun(분배 > 순이익) 은 별개로 저장 차단 유지.
+  const overCeiling = ceilingReady
+    && Number.isFinite(Number(ceiling))
+    && distSum > Number(ceiling);
+  const ceilingGap  = overCeiling ? distSum - Number(ceiling) : 0;
   // 2026-06-14 — 옛 bookkeeping_carryover 저장값과 자동 계산 불일치 경고 제거.
   //   누적 RPC(Mig 129)를 단일 진실로 사용. 옛 carryover 행은 저장은 유지하되 비교 안 함.
 
@@ -1230,40 +1504,54 @@ function DivisionCard({ t, workMonth, actor, netProfit, onSaved, reloadKey }) {
             }}>{fmtKRW(distSum)}</span>
           </div>
 
-          {/* 당월 차이 (= 자동 이월: 순이익 − 분배 소계) */}
+          {/* 2026-06-29 — 천장 초과 경고 (저장 차단 X, 표시만).
+              분배 소계가 ③ 천장을 넘으면 노란 경고. 천장은 메인에서 계산해 prop 으로 받음. */}
+          {overCeiling && (
+            <div style={{
+              padding: "10px 14px", marginTop: 10,
+              background: "rgba(245,158,11,0.12)",
+              border: `0.5px solid rgba(245,158,11,0.30)`,
+              borderRadius: 9,
+              display: "flex", flexDirection: "column", gap: 4,
+            }}>
+              <div style={{
+                display: "flex", alignItems: "baseline", gap: 8,
+                fontSize: 12, fontWeight: 500, color: "#B45309",
+                letterSpacing: "-0.2px",
+              }}>
+                <span>⚠️ 분배 {fmtKRW(distSum)} 이 천장 {fmtKRW(Number(ceiling))} 을 넘음</span>
+                <span style={{
+                  fontSize: 11, fontWeight: 400, color: "#92400E", opacity: 0.85,
+                  fontVariantNumeric: "tabular-nums",
+                }}>(초과 {fmtKRW(ceilingGap)})</span>
+              </div>
+              <div style={{
+                fontSize: 11, fontWeight: 400, color: t.textMuted,
+                letterSpacing: "-0.2px",
+              }}>
+                현금 부족분은 유솔 입금 후 지급 — 저장은 가능.
+              </div>
+            </div>
+          )}
+
+          {/* ⑤ 이번 달 회사에 남은 것 — 3줄 (순이익 / − 분배 / = 남은 것).
+              내부 계산은 기존 autoCarry 그대로. 표시만 3줄. */}
           <div style={{
-            display: "flex", alignItems: "center", gap: 10,
             padding: "12px 14px", marginTop: 10,
             background: overrun ? t.dangerBg : t.bgInset,
-            border: `1.5px solid ${overrun ? t.dangerBorder : t.border}`,
+            border: `0.5px solid ${overrun ? t.dangerBorder : t.border}`,
             borderRadius: 9,
           }}>
-            <span style={{
-              fontSize: 12, fontWeight: 800,
-              color: overrun ? t.danger : t.text,
-            }}>당월 차이</span>
-            <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>
-              = 순이익 − 분배 소계 (이번 달만)
-            </span>
-            <div style={{ flex: 1 }}/>
-            <span className="mono" style={{
-              fontSize: 17, fontWeight: 800,
-              color: overrun ? t.danger : t.success,
-              fontVariantNumeric: "tabular-nums",
-            }}>{fmtKRW(autoCarry)}</span>
+            <div style={{
+              fontSize: 12, fontWeight: 500, color: overrun ? t.danger : t.text,
+              marginBottom: 8, letterSpacing: "-0.2px",
+            }}>⑤ 이번 달 회사에 남은 것</div>
+            <RemainRow t={t} label="순이익"     value={netProfit} muted/>
+            <RemainRow t={t} label="− 분배"     value={distSum}   negative muted/>
+            <div style={{ height: 1, background: t.border, opacity: 0.6, margin: "6px 0" }}/>
+            <RemainRow t={t} label="= 남은 것"  value={autoCarry}
+              valueColor={overrun ? t.danger : t.success} big/>
           </div>
-
-          {/* 누적 이월 (Mig 126) — 시작월부터 그 달까지 누적 */}
-          <CumulativeCarryoverBox t={t}
-            workMonth={workMonth}
-            cumCarry={cumCarry}
-            loading={cumLoading}
-            err={cumErr}
-            monthlyOpen={monthlyOpen}
-            onToggle={() => setMonthlyOpen(o => !o)}
-          />
-
-          {/* (옛 carryover 불일치 경고 제거 — 누적 RPC Mig 129 단일 진실 사용.) */}
 
           {/* 이월 메모 */}
           <div style={{ marginTop: 10 }}>
