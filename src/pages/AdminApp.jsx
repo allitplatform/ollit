@@ -166,7 +166,11 @@ import { formatTimeOnly, formatDateOnly, formatScheduleShort, todayYmd, toKstYmd
 import { isRemittanceTarget, isPendingRemit, isAutoConfirmedRemit } from "../utils/remitFilter.js";
 // 2026-06-07 — KA/crikrin 측측 측측 측측 측측 (정산 탭 측측 측측측).
 import { markPartnerDailyRemit, undoPartnerDailyRemit, describeDailyRemitError, ymdKstToday } from "../lib/partnerDailySettleDb.js";
-import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
+// 2026-06-29 — Mig 156: confirm 시점에 통장 자동 IN. 새 RPC 어댑터 사용.
+import {
+  confirmEngineerRemitWithCashflow,
+  cancelConfirmEngineerRemitWithCashflow,
+} from "../lib/paymentsDb.js";
 import SettlementHistoryContent from "../components/admin/SettlementHistoryContent.jsx";
 import AdminPcRemitInbox from "./AdminPcRemitInbox.jsx";
 import AdminPcPrincipalPayout from "./AdminPcPrincipalPayout.jsx";
@@ -6659,7 +6663,7 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
     if (taskIds.length === 0) return;
     setConfirming(true);
     try {
-      const res = await confirmEngineerRemit(taskIds, adminUserId);
+      const res = await confirmEngineerRemitWithCashflow(taskIds, adminUserId);
       if (!res || res.ok === false) {
         alert(`입금 확인 실패: ${(res && res.error) || "알 수 없는 오류"}`);
       } else {
@@ -6687,8 +6691,15 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
     const taskIds = (group.tasks || []).map(t => t.id).filter(Boolean);
     if (taskIds.length === 0) return;
     setCancelling(true);
+    // 2026-06-29 — Mig 156 RPC 가 p_actor 요구. confirm 흐름과 동일.
+    const cancelActor = user?.user_id || user?.id;
+    if (!cancelActor) {
+      alert("관리자 사용자 ID를 찾을 수 없습니다.");
+      setCancelling(false);
+      return;
+    }
     try {
-      const res = await cancelConfirmRemit(taskIds);
+      const res = await cancelConfirmEngineerRemitWithCashflow(taskIds, cancelActor);
       if (!res || res.ok === false) {
         alert(`확인 취소 실패: ${(res && res.error) || "알 수 없는 오류"}`);
       } else {

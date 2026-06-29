@@ -26,7 +26,11 @@ import { useMemo, useState } from "react";
 import { Wallet, Clock, CheckCircle2, AlertTriangle, ChevronDown, ChevronUp, Search, X, RotateCcw } from "lucide-react";
 import { isRemittanceTarget, calcRemitAmount, isAutoConfirmedRemit } from "../utils/remitFilter.js";
 import { toKstYmd } from "../utils/dateLabel.js";
-import { confirmEngineerRemit, cancelConfirmRemit } from "../lib/paymentsDb.js";
+// 2026-06-29 — Mig 156: confirm 시점에 통장 자동 IN. 새 RPC 어댑터 사용.
+import {
+  confirmEngineerRemitWithCashflow,
+  cancelConfirmEngineerRemitWithCashflow,
+} from "../lib/paymentsDb.js";
 
 // ──────────────────────────────────────────────
 // 헬퍼 (SettlementHistoryContent.jsx 와 동일 본문)
@@ -487,7 +491,7 @@ function EngineerGroup({ t, engineer, tasks, open, onToggle, onTaskClick, user, 
     if (!ok) return;
     setConfirming(true);
     try {
-      const res = await confirmEngineerRemit(taskIds, adminUserId);
+      const res = await confirmEngineerRemitWithCashflow(taskIds, adminUserId);
       if (!res || res.ok === false) {
         alert(`입금 확인 실패: ${(res && res.error) || "알 수 없는 오류"}`);
       } else if (typeof onRefreshTasks === "function") {
@@ -504,6 +508,9 @@ function EngineerGroup({ t, engineer, tasks, open, onToggle, onTaskClick, user, 
   async function handleCancelConfirm(e) {
     e.stopPropagation();
     if (cancelling) return;
+    // 2026-06-29 — Mig 156 RPC 가 p_actor 요구. confirm 흐름과 동일.
+    const adminUserId = user?.user_id || user?.id;
+    if (!adminUserId) { alert("관리자 사용자 ID를 찾을 수 없습니다."); return; }
     const ok = window.confirm(
       `${engineer} 기사 입금 확인을 취소합니다.\n\n` +
       `완료 ${tasks.length}건 · 송금액 ${fmtKRW(subRemit + subUnpaid)}\n` +
@@ -512,7 +519,7 @@ function EngineerGroup({ t, engineer, tasks, open, onToggle, onTaskClick, user, 
     if (!ok) return;
     setCancelling(true);
     try {
-      const res = await cancelConfirmRemit(taskIds);
+      const res = await cancelConfirmEngineerRemitWithCashflow(taskIds, adminUserId);
       if (!res || res.ok === false) {
         alert(`확인 취소 실패: ${(res && res.error) || "알 수 없는 오류"}`);
       } else if (typeof onRefreshTasks === "function") {
