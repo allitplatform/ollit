@@ -38,6 +38,11 @@ import {
 import { getUsolnSettleBoardSummary } from "../lib/usolnSettleBoardDb.js";
 import { getCashflowSummary } from "../lib/bookkeepingCashflowDb.js";
 
+// 2026-06-29 — 건물 보증금 (묶인 자산). 표시만 — 계산(cashNow/ceiling/분배) 어디에도 안 들어감.
+//   5월 사무실 계약금 500만 + 6월 잔금 1500만 = 2000만. 손익에서 제외했던 자산.
+//   보증금 변경/회수 시 이 상수만 갱신.
+const DEPOSIT_ASSET = 20_000_000;
+
 // 2026-06-13 — 대표 3명 (Phase 1 고정). user_id 는 Mig 114 진단 시 확정.
 const REPRESENTATIVES = [
   { code: "E022", name: "조동욱", user_id: "77777777-7777-7777-7777-777777770022" },
@@ -641,6 +646,34 @@ function CashBlock({ t, loading, err, currentBalance, totalBEngOwed, cashNow }) 
             fontVariantNumeric: "tabular-nums",
           }}>
             통장 {fmtKRW(currentBalance)} − 기사 줄 돈 {fmtKRW(totalBEngOwed)}
+          </div>
+
+          {/* 2026-06-29 — 건물 보증금 (묶인 자산) 참고 표시.
+              ⚠️ 계산 무관 — cashNow / ceiling / 분배 어디에도 들어가지 않음.
+              현금(success) 보다 작고 차분한 secondary 색. */}
+          <div style={{
+            height: 1, background: t.border, opacity: 0.6,
+            margin: "12px -20px 10px",
+          }}/>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+            <span style={{
+              flex: 1, fontSize: 13, fontWeight: 400, color: t.textMuted,
+              letterSpacing: "-0.2px",
+            }}>건물 보증금 (묶인 자산)</span>
+            <span style={{
+              fontSize: 16, fontWeight: 500, color: t.textSecondary,
+              fontVariantNumeric: "tabular-nums",
+              letterSpacing: "-0.3px",
+              whiteSpace: "nowrap",
+            }}>{fmtKRW(DEPOSIT_ASSET)}</span>
+          </div>
+          <div style={{
+            marginTop: 4,
+            fontSize: 12, fontWeight: 400, color: t.textMuted,
+            letterSpacing: "-0.2px",
+            opacity: 0.85,
+          }}>
+            돌려받을 돈 · 분배엔 안 들어감
           </div>
         </>
       )}
