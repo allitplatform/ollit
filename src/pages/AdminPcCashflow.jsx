@@ -20,6 +20,7 @@ import {
   listCashflow, addCashflow, updateCashflow, deleteCashflow,
   getCashflowBaseline, setCashflowBaseline,
   getCashflowSummary,
+  getCashflowDayClose, fetchTaskNoMap,
   CASHFLOW_DIRECTIONS, CASHFLOW_DIRECTION_KO,
 } from "../lib/bookkeepingCashflowDb.js";
 
@@ -41,6 +42,17 @@ function shiftYm(ym, delta) {
   const nm = (total % 12) + 1;
   return `${ny}-${String(nm).padStart(2, "0")}`;
 }
+// 2026-06-30 — 일 단위 네비게이터용. ymd ± delta(days). 윤년/달 길이 자동 처리.
+function shiftYmd(ymd, delta) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, (m||1)-1, d||1);
+  dt.setDate(dt.getDate() + delta);
+  const ny = dt.getFullYear();
+  const nm = String(dt.getMonth() + 1).padStart(2, "0");
+  const nd = String(dt.getDate()).padStart(2, "0");
+  return `${ny}-${nm}-${nd}`;
+}
+function ymdToYm(ymd) { return (ymd || "").slice(0, 7); }
 function ymdToDow(ymd) {
   if (!ymd) return "";
   const [y, m, d] = ymd.split("-").map(Number);
@@ -72,44 +84,66 @@ function parseAmount(s, allowNegative = false) {
 // ──────────────────────────────────────────────
 export default function AdminPcCashflow({ t, user }) {
   const todayYmd = kstYmd();
-  const [selectedYm, setSelectedYm] = useState(nowKstYm());
+  // 2026-06-30 — 월 → 일 단위 네비게이터 (사장님 spec)
+  const [selectedDate, setSelectedDate] = useState(todayYmd);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [rows, setRows] = useState([]);                  // 그 달 거래
-  const [summary, setSummary] = useState(null);          // month_in/out/current_balance
+  const [monthRows, setMonthRows] = useState([]);        // 그 달 거래 (선택 일 filter용)
+  const [dayClose, setDayClose] = useState(null);        // { day_in, day_out, day_close_balance }
   const [baseline, setBaseline] = useState(null);        // {baseline_date, baseline_amount, memo} | null
+  const [taskNoMap, setTaskNoMap] = useState({});        // { task_id_uuid: task_no }
   const [reloadTick, setReloadTick] = useState(0);
   const [dialog, setDialog] = useState(null);            // { mode, row?, direction? }
   const [baselineDialog, setBaselineDialog] = useState(false);
 
   const actor = user?.user_id || user?.userId || user?.id;
+  const selectedYm = ymdToYm(selectedDate);
+  const dow = ymdToDow(selectedDate);
+  const isToday = selectedDate === todayYmd;
 
+  // 데이터 fetch — 일자 변경 시 그 달 + day_close 재조회
   useEffect(() => {
     if (!actor) { setLoading(false); return; }
     let alive = true;
     setLoading(true); setErr("");
     (async () => {
-      const [resL, resS, resB] = await Promise.all([
+      const [resL, resD, resB] = await Promise.all([
         listCashflow(selectedYm, actor),
-        getCashflowSummary(selectedYm, actor),
+        getCashflowDayClose(selectedDate, actor),
         getCashflowBaseline(actor),
       ]);
       if (!alive) return;
       if (!resL?.ok) { setErr(resL?.error || "거래 조회 실패"); setLoading(false); return; }
-      if (!resS?.ok) { setErr(resS?.error || "요약 조회 실패"); setLoading(false); return; }
+      if (!resD?.ok) { setErr(resD?.error || "마감 잔고 조회 실패"); setLoading(false); return; }
       if (!resB?.ok) { setErr(resB?.error || "기준 잔고 조회 실패"); setLoading(false); return; }
-      setRows(resL.rows || []);
-      setSummary(resS);
+      setMonthRows(resL.rows || []);
+      setDayClose(resD);
       setBaseline(resB.row || null);
       setLoading(false);
     })().catch(e => { if (alive) { setErr(e?.message || "에러"); setLoading(false); } });
     return () => { alive = false; };
-  }, [selectedYm, actor, reloadTick]);
+  }, [selectedDate, selectedYm, actor, reloadTick]);
 
-  const inRows  = useMemo(() => (rows || []).filter(r => r.direction === "in"),  [rows]);
-  const outRows = useMemo(() => (rows || []).filter(r => r.direction === "out"), [rows]);
+  // 그날 거래만 filter (시간순)
+  const dayRows = useMemo(
+    () => (monthRows || []).filter(r => r.flow_date === selectedDate),
+    [monthRows, selectedDate]
+  );
 
-  const isThisMonth = selectedYm === nowKstYm();
+  // auto_engineer_remit 행의 task_no 조회
+  useEffect(() => {
+    if (!actor) return;
+    const ids = dayRows
+      .filter(r => r.source === "auto_engineer_remit" && r.source_ref)
+      .map(r => r.source_ref);
+    if (ids.length === 0) { setTaskNoMap({}); return; }
+    let alive = true;
+    (async () => {
+      const map = await fetchTaskNoMap(ids);
+      if (alive) setTaskNoMap(map);
+    })().catch(() => { /* 무시 — task_no 표시 안 됨 정도 */ });
+    return () => { alive = false; };
+  }, [dayRows, actor]);
 
   return (
     <div style={{ padding: "20px 24px 40px", maxWidth: 1400, margin: "0 auto" }}>
@@ -119,18 +153,18 @@ export default function AdminPcCashflow({ t, user }) {
         <div>
           <div style={{ fontSize: 20, fontWeight: 800, color: t.text }}>통장</div>
           <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
-            월별 입출금 수동 기록 · 기준 잔고 + 누적 = 현재 잔고
+            일별 입출금 · 기준 잔고 + 그날까지 누적 = 마감 잔고
           </div>
         </div>
       </div>
 
-      {/* 월 선택 */}
+      {/* 일 단위 네비게이터 */}
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
         padding: "12px 14px", marginBottom: 14,
         background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10,
       }}>
-        <button onClick={() => setSelectedYm(s => shiftYm(s, -1))} aria-label="이전 달" style={navBtnStyle(t)}>
+        <button onClick={() => setSelectedDate(s => shiftYmd(s, -1))} aria-label="이전 날" style={navBtnStyle(t)}>
           <ChevronLeft size={16}/>
         </button>
         <div style={{
@@ -138,12 +172,12 @@ export default function AdminPcCashflow({ t, user }) {
           background: t.bgInset, border: `1.5px solid ${t.accent}`,
           borderRadius: 8,
           fontSize: 14, fontWeight: 800, color: t.text,
-          minWidth: 140, textAlign: "center",
+          minWidth: 160, textAlign: "center",
           fontVariantNumeric: "tabular-nums",
         }}>
-          {selectedYm.slice(0, 4)}년 {Number(selectedYm.slice(5, 7))}월
+          {selectedDate}{dow ? ` (${dow})` : ""}
         </div>
-        <button onClick={() => setSelectedYm(s => shiftYm(s, +1))} aria-label="다음 달" style={navBtnStyle(t)}>
+        <button onClick={() => setSelectedDate(s => shiftYmd(s, +1))} aria-label="다음 날" style={navBtnStyle(t)}>
           <ChevronRight size={16}/>
         </button>
         <label style={{
@@ -155,43 +189,41 @@ export default function AdminPcCashflow({ t, user }) {
           cursor: "pointer", fontFamily: "inherit",
         }}>
           <Calendar size={13}/>
-          <span>월 선택</span>
-          <input type="month" value={selectedYm}
-            onChange={(e) => e.target.value && setSelectedYm(e.target.value)}
+          <span>날짜 선택</span>
+          <input type="date" value={selectedDate}
+            onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
             style={{
               border: "none", background: "transparent",
               fontFamily: "inherit", fontSize: 12, color: t.text,
               padding: 0, width: 0, opacity: 0, position: "absolute",
             }}/>
         </label>
-        <button onClick={() => setSelectedYm(nowKstYm())} disabled={isThisMonth}
+        <button onClick={() => setSelectedDate(todayYmd)} disabled={isToday}
           style={{
             padding: "7px 14px",
-            background: isThisMonth ? "transparent" : t.accentBg,
-            border: `1px solid ${isThisMonth ? t.border : t.accent}`,
+            background: isToday ? "transparent" : t.accentBg,
+            border: `1px solid ${isToday ? t.border : t.accent}`,
             borderRadius: 8,
             fontSize: 12, fontWeight: 700,
-            color: isThisMonth ? t.textMuted : t.accent,
-            cursor: isThisMonth ? "default" : "pointer",
+            color: isToday ? t.textMuted : t.accent,
+            cursor: isToday ? "default" : "pointer",
             fontFamily: "inherit",
-            opacity: isThisMonth ? 0.6 : 1,
+            opacity: isToday ? 0.6 : 1,
           }}>
-          → 이번달
+          → 오늘
         </button>
         <div style={{ flex: 1 }}/>
         <div style={{ fontSize: 12, color: t.textSecondary }}>
-          이번달 거래 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{rows.length}</span>건
+          이 날 거래 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{dayRows.length}</span>건
         </div>
       </div>
 
-      {/* 3 카드 */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
+      {/* 2 카드 — 이 날 들어옴 / 이 날 마감 잔고 */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         <BigCard t={t} icon={<ArrowDownCircle size={18}/>}
-          label="들어온 돈" amount={summary?.month_in || 0} color={t.success}/>
-        <BigCard t={t} icon={<ArrowUpCircle size={18}/>}
-          label="나간 돈" amount={summary?.month_out || 0} color={t.danger}/>
+          label="이 날 들어옴" amount={dayClose?.day_in || 0} color={t.success}/>
         <BigCard t={t} icon={<Wallet size={18}/>}
-          label="현재 잔고 (전체 누적)" amount={summary?.current_balance || 0}
+          label="이 날 마감 잔고 (누적)" amount={dayClose?.day_close_balance || 0}
           color={t.accent} signed big/>
       </div>
 
@@ -208,28 +240,15 @@ export default function AdminPcCashflow({ t, user }) {
         }}>⚠️ {err}</div>
       )}
 
-      {/* 들어온 돈 표 */}
-      <DirectionSection t={t}
-        direction="in"
-        title="들어온 돈"
-        icon={<ArrowDownCircle size={14} style={{ color: t.success }}/>}
-        rows={inRows}
-        sum={summary?.month_in || 0}
+      {/* 그날 거래 통합 timeline */}
+      <DayTimelineSection t={t}
+        rows={dayRows}
+        taskNoMap={taskNoMap}
         loading={loading}
-        onAdd={() => setDialog({ mode: "add", direction: "in", row: null })}
-        onEdit={(r) => setDialog({ mode: "edit", direction: r.direction, row: r })}
-        onDelete={(r) => setDialog({ mode: "delete", row: r })}
-      />
-
-      {/* 나간 돈 표 */}
-      <DirectionSection t={t}
-        direction="out"
-        title="나간 돈"
-        icon={<ArrowUpCircle size={14} style={{ color: t.danger }}/>}
-        rows={outRows}
-        sum={summary?.month_out || 0}
-        loading={loading}
-        onAdd={() => setDialog({ mode: "add", direction: "out", row: null })}
+        dayIn={dayClose?.day_in || 0}
+        dayOut={dayClose?.day_out || 0}
+        onAddIn={() => setDialog({ mode: "add", direction: "in", row: null })}
+        onAddOut={() => setDialog({ mode: "add", direction: "out", row: null })}
         onEdit={(r) => setDialog({ mode: "edit", direction: r.direction, row: r })}
         onDelete={(r) => setDialog({ mode: "delete", row: r })}
       />
@@ -238,7 +257,7 @@ export default function AdminPcCashflow({ t, user }) {
       {dialog?.mode === "add" && (
         <EditDialog t={t} mode="add" actor={actor}
           direction={dialog.direction}
-          defaultDate={todayYmd}
+          defaultDate={selectedDate}
           onClose={() => setDialog(null)}
           onSaved={() => { setDialog(null); setReloadTick(n => n + 1); }}
         />
@@ -365,42 +384,52 @@ function BaselineCard({ t, baseline, onEdit }) {
 }
 
 // ──────────────────────────────────────────────
-// 들어온 / 나간 섹션
-//   좁은 PC 액션 잘림 정정 — 95px / minmax(0,1fr) / 110px / 60px (가계부 패턴)
+// 2026-06-30 — 그날 거래 통합 timeline (in/out 합쳐서 표시)
+//   컬럼: 방향(20px) / 내용(1fr) / 작업번호(110px) / 금액(110px) / 액션(60px)
 // ──────────────────────────────────────────────
-function DirectionSection({ t, direction, title, icon, rows, sum, loading, onAdd, onEdit, onDelete }) {
-  const isIn = direction === "in";
-  const sumColor = isIn ? t.success : t.danger;
+function DayTimelineSection({ t, rows, taskNoMap, loading, dayIn, dayOut, onAddIn, onAddOut, onEdit, onDelete }) {
   return (
     <div style={{
       background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
       overflow: "hidden", marginBottom: 14,
     }}>
-      {/* 섹션 헤더 + 추가 */}
+      {/* 섹션 헤더 — 합계 + 추가 버튼 2개 */}
       <div style={{
         display: "flex", alignItems: "center", gap: 10,
         padding: "14px 18px",
         borderBottom: `1px solid ${t.border}`,
       }}>
-        {icon}
-        <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{title}</div>
+        <ArrowDownCircle size={14} style={{ color: t.success }}/>
+        <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>이 날 거래</div>
         <div style={{ fontSize: 12, color: t.textSecondary }}>
           <span className="mono" style={{ fontWeight: 700, color: t.text }}>{rows.length}</span>건
           <span style={{ color: t.textDim, margin: "0 6px" }}>·</span>
-          <span className="mono" style={{ fontWeight: 800, color: sumColor }}>{fmtKRW(sum)}</span>
+          <span className="mono" style={{ fontWeight: 800, color: t.success }}>+{fmtKRW(dayIn)}</span>
+          <span style={{ color: t.textDim, margin: "0 4px" }}>/</span>
+          <span className="mono" style={{ fontWeight: 800, color: t.danger }}>−{fmtKRW(dayOut)}</span>
         </div>
         <div style={{ flex: 1 }}/>
-        <button onClick={onAdd} style={{
+        <button onClick={onAddIn} style={{
           padding: "8px 14px",
-          background: isIn ? t.success : t.danger,
-          color: "#fff",
+          background: t.success, color: "#fff",
           border: "none", borderRadius: 8,
           fontSize: 12, fontWeight: 800,
           cursor: "pointer", fontFamily: "inherit",
           display: "inline-flex", alignItems: "center", gap: 5,
         }}>
           <Plus size={13} strokeWidth={2.8}/>
-          {isIn ? "입금 추가" : "출금 추가"}
+          입금 추가
+        </button>
+        <button onClick={onAddOut} style={{
+          padding: "8px 14px",
+          background: t.danger, color: "#fff",
+          border: "none", borderRadius: 8,
+          fontSize: 12, fontWeight: 800,
+          cursor: "pointer", fontFamily: "inherit",
+          display: "inline-flex", alignItems: "center", gap: 5,
+        }}>
+          <Plus size={13} strokeWidth={2.8}/>
+          출금 추가
         </button>
       </div>
 
@@ -411,26 +440,27 @@ function DirectionSection({ t, direction, title, icon, rows, sum, loading, onAdd
         </div>
       ) : rows.length === 0 ? (
         <div style={{ padding: "30px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
-          이번 달 {isIn ? "입금" : "출금"} 없음
+          이 날 거래 없음
         </div>
       ) : (
         <>
-          {/* 표 헤더 (4컬럼 — 좁은 PC 안전) */}
+          {/* 표 헤더 (5컬럼 — 좁은 PC 안전) */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "95px minmax(0, 1fr) 110px 60px",
+            gridTemplateColumns: "24px minmax(0, 1fr) 110px 110px 60px",
             gap: 8, alignItems: "center",
             padding: "10px 14px",
             fontSize: 10, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4,
             borderBottom: `1px solid ${t.border}`,
           }}>
-            <span>날짜</span>
+            <span/>
             <span>내용</span>
+            <span>작업번호</span>
             <span style={{ textAlign: "right" }}>금액</span>
             <span style={{ textAlign: "right" }}>액션</span>
           </div>
           {rows.map(r => (
-            <CashflowRow key={r.id} t={t} row={r} amountColor={sumColor}
+            <TimelineRow key={r.id} t={t} row={r} taskNo={taskNoMap[r.source_ref] || ""}
               onEdit={() => onEdit(r)} onDelete={() => onDelete(r)}/>
           ))}
         </>
@@ -439,21 +469,25 @@ function DirectionSection({ t, direction, title, icon, rows, sum, loading, onAdd
   );
 }
 
-function CashflowRow({ t, row, amountColor, onEdit, onDelete }) {
-  const dow = ymdToDow(row.flow_date);
+function TimelineRow({ t, row, taskNo, onEdit, onDelete }) {
+  const isIn = row.direction === "in";
+  const amountColor = isIn ? t.success : t.danger;
+  const isAuto = row.source === "auto_engineer_remit";
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "95px minmax(0, 1fr) 110px 60px",
+      gridTemplateColumns: "24px minmax(0, 1fr) 110px 110px 60px",
       gap: 8, alignItems: "center",
       padding: "10px 14px",
       borderTop: `1px solid ${t.border}`,
     }}>
-      <span className="mono" style={{
-        fontSize: 12, color: t.text, fontVariantNumeric: "tabular-nums",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      <span style={{
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        width: 18, height: 18, borderRadius: 9,
+        background: isIn ? "rgba(0,135,90,0.12)" : "rgba(220,38,38,0.12)",
+        color: amountColor,
       }}>
-        {row.flow_date}{dow ? ` (${dow})` : ""}
+        {isIn ? <ArrowDownCircle size={12}/> : <ArrowUpCircle size={12}/>}
       </span>
       <span style={{
         fontSize: 12, color: row.memo ? t.text : t.textDim,
@@ -461,10 +495,16 @@ function CashflowRow({ t, row, amountColor, onEdit, onDelete }) {
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
       }}>{row.memo || "—"}</span>
       <span className="mono" style={{
+        fontSize: 11, fontWeight: 700,
+        color: taskNo ? t.textSecondary : t.textDim,
+        fontVariantNumeric: "tabular-nums",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>{taskNo || (isAuto ? "—" : "")}</span>
+      <span className="mono" style={{
         fontSize: 13, fontWeight: 800, color: amountColor,
         textAlign: "right", fontVariantNumeric: "tabular-nums",
         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>{fmtKRW(row.amount)}</span>
+      }}>{isIn ? "+" : "−"}{fmtKRW(row.amount)}</span>
       <div style={{ display: "flex", gap: 3, justifyContent: "flex-end" }}>
         <button onClick={onEdit} aria-label="편집" title="편집" style={iconBtnStyle(t)}>
           <Edit3 size={12}/>

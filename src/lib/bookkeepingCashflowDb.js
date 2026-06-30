@@ -135,3 +135,39 @@ export async function getCashflowSummary(workMonth, actor) {
     p_actor:      actor,
   }, { month_in: 0, month_out: 0, current_balance: 0, baseline_amount: 0, total_in: 0, total_out: 0 });
 }
+
+// ============================================================
+// 일 단위 마감 잔고 + 그날 in/out (Mig 158 bookkeeping_cashflow_day_close)
+//   workDate = "YYYY-MM-DD" (KST 기준 date)
+//   반환: { ok, flow_date, baseline_date, baseline_amount, day_in, day_out, day_close_balance }
+// ============================================================
+export async function getCashflowDayClose(workDate, actor) {
+  if (!workDate) return { ok: false, error: "workDate 필수" };
+  if (!actor)    return { ok: false, error: "actor 필수" };
+  return callRpc("bookkeeping_cashflow_day_close", {
+    p_date:  workDate,
+    p_actor: actor,
+  }, { day_in: 0, day_out: 0, day_close_balance: 0, baseline_amount: 0 });
+}
+
+// ============================================================
+// task_no 일괄 조회 — cashflow source_ref(task_id) UUID 배열 → { uuid: task_no } map
+//   auto_engineer_remit 행의 task_no 표시용. 통장 화면 전용 헬퍼.
+// ============================================================
+export async function fetchTaskNoMap(taskIds) {
+  const ids = (taskIds || []).filter(Boolean);
+  if (ids.length === 0) return {};
+  const { data, error } = await supabase
+    .from("tasks")
+    .select("id, task_no")
+    .in("id", ids);
+  if (error) {
+    console.error("[bookkeepingCashflowDb.fetchTaskNoMap]", error);
+    return {};
+  }
+  const map = {};
+  for (const r of (data || [])) {
+    if (r?.id) map[r.id] = r.task_no || null;
+  }
+  return map;
+}
