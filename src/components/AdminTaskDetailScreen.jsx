@@ -1233,13 +1233,14 @@ function WorkTimeHistoryCard({ task, onTaskRefresh }) {
         </div>
 
         {/* 2026-06-30 — 취소 → 복구 카드 (Mig 157, status='취소' 일 때만 표시) */}
+        {/* WorkTimeHistoryCard scope: props.onTaskRefresh = AdminTaskDetailScreen 의 refetchTaskBasic */}
         {task.status === "취소" && (
-          <RestoreFromCancelCard task={task} onRestored={refetchTaskBasic}/>
+          <RestoreFromCancelCard task={task} onRestored={onTaskRefresh}/>
         )}
 
         {/* 2026-06-07 — 취소 정보 입력 카드 (status='취소' 일 때만 표시, 변경 이력 위) */}
         {task.status === "취소" && (
-          <CancelInfoCard task={task} onSaved={refetchTaskBasic}/>
+          <CancelInfoCard task={task} onSaved={onTaskRefresh}/>
         )}
 
         {/* 변경 이력 (task_changes) — 2026-05-29 v2: task 객체 전달 (synthetic cancel row 옛 작업 fallback) */}
