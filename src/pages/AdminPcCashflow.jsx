@@ -214,16 +214,16 @@ export default function AdminPcCashflow({ t, user }) {
         </button>
         <div style={{ flex: 1 }}/>
         <div style={{ fontSize: 12, color: t.textSecondary }}>
-          이 날 거래 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{dayRows.length}</span>건
+          거래 <span className="mono" style={{ fontWeight: 700, color: t.text }}>{dayRows.length}</span>건
         </div>
       </div>
 
-      {/* 2 카드 — 이 날 들어옴 / 이 날 마감 잔고 */}
+      {/* 2 카드 — 들어온 돈 / 마감 잔고 */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
         <BigCard t={t} icon={<ArrowDownCircle size={18}/>}
-          label="이 날 들어옴" amount={dayClose?.day_in || 0} color={t.success}/>
+          label="들어온 돈" amount={dayClose?.day_in || 0} color={t.success}/>
         <BigCard t={t} icon={<Wallet size={18}/>}
-          label="이 날 마감 잔고 (누적)" amount={dayClose?.day_close_balance || 0}
+          label="마감 잔고" amount={dayClose?.day_close_balance || 0}
           color={t.accent} signed big/>
       </div>
 
@@ -400,7 +400,7 @@ function DayTimelineSection({ t, rows, taskNoMap, loading, dayIn, dayOut, onAddI
         borderBottom: `1px solid ${t.border}`,
       }}>
         <ArrowDownCircle size={14} style={{ color: t.success }}/>
-        <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>이 날 거래</div>
+        <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>거래</div>
         <div style={{ fontSize: 12, color: t.textSecondary }}>
           <span className="mono" style={{ fontWeight: 700, color: t.text }}>{rows.length}</span>건
           <span style={{ color: t.textDim, margin: "0 6px" }}>·</span>
@@ -440,7 +440,7 @@ function DayTimelineSection({ t, rows, taskNoMap, loading, dayIn, dayOut, onAddI
         </div>
       ) : rows.length === 0 ? (
         <div style={{ padding: "30px 20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
-          이 날 거래 없음
+          거래 없음
         </div>
       ) : (
         <>

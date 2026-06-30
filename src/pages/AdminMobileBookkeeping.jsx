@@ -480,7 +480,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
       {/* 통장 view — 일 단위 (사장님 spec 2026-06-30) */}
       {view === "cashflow" && <>
       <div>
-        <Card t={t} title="💳 통장" subtitle="이 날 거래 + 마감 잔고 (baseline 은 PC)">
+        <Card t={t} title="💳 통장" subtitle="거래 + 마감 잔고 (baseline 은 PC)">
           <div style={{ textAlign: "center", padding: "4px 0 10px" }}>
             {cashflowLoading ? (
               <span style={{ fontSize: 12, color: t.textMuted }}>불러오는 중...</span>
@@ -493,7 +493,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
                 {dayClose.day_close_balance < 0 ? "−" : ""}{fmtKRW(Math.abs(dayClose.day_close_balance)).replace("₩", "₩")}
               </span>
             )}
-            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>이 날 마감 잔고 (누적)</div>
+            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>마감 잔고</div>
           </div>
           <div style={{
             display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
@@ -501,14 +501,14 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
             background: t.bgInset, borderRadius: 8,
           }}>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 2 }}>이 날 들어옴</div>
+              <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 2 }}>들어온 돈</div>
               <div className="mono" style={{
                 fontSize: 13, fontWeight: 800, color: t.success,
                 fontVariantNumeric: "tabular-nums",
               }}>+{fmtKRW(dayClose.day_in).replace("₩", "₩")}</div>
             </div>
             <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 2 }}>이 날 나감</div>
+              <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 2 }}>나간 돈</div>
               <div className="mono" style={{
                 fontSize: 13, fontWeight: 800, color: t.danger,
                 fontVariantNumeric: "tabular-nums",
@@ -547,7 +547,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
                 fontSize: 11, fontWeight: 700, color: t.textMuted,
                 cursor: "pointer", fontFamily: "inherit", textAlign: "left",
               }}>
-                {cfListOpen ? "▾" : "▸"} 이 날 거래 {dayRows.length}건
+                {cfListOpen ? "▾" : "▸"} 거래 {dayRows.length}건
               </button>
 
               {cfListOpen && (
