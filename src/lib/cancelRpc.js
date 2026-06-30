@@ -122,3 +122,21 @@ export async function adminSetCancelCompensation(taskId, kind) {
   });
   return normalize(r);
 }
+
+// 2026-06-30 — 취소 → 복구 (Mig 157 admin_restore_canceled_task RPC).
+//   취소된 task 를 이전 상태로 되돌림. previousStatus 우선 → wasCompleted fallback.
+//   옵션 A: category_data 컬럼 UPDATE 안 함 — cancel* 키 잔존 (정상 동작).
+//   토큰 status_history 자동 INSERT (BEFORE trg) + compute_payment 재계산.
+//   결과 data: { restored_to, previous_status, items_restored, engineer_amount,
+//               principal_amount, owner_amount, is_balanced, remitted, legacy_backup_missing }.
+export async function adminRestoreCanceledTask(taskId, opts = {}) {
+  const actorId = currentUserId();
+  if (!actorId) return { ok: false, error: "로그인 필요" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  const r = await supabase.rpc("admin_restore_canceled_task", {
+    p_task_id:   taskId,
+    p_actor:     actorId,
+    p_to_status: opts.toStatus || null,
+  });
+  return normalize(r);
+}

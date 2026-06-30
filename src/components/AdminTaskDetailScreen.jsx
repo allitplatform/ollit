@@ -28,7 +28,7 @@ import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
 import { getUserById } from "../data/users.js";
 // 2026-05-29 v2 — 이름 위주 표시 (D2) + 한국어 사유/원청 라벨
 import { getCancelReasonLabel, getCancelActorLabel } from "../data/cancelReasons.js";
-import { setTaskCancelInfo } from "../lib/cancelRpc.js";
+import { setTaskCancelInfo, adminRestoreCanceledTask } from "../lib/cancelRpc.js";
 // Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
 import { listPhotosByTask } from "../lib/photosDb.js";
 // Phase 5 Step 0.C-3-c — 상태 변경 이력 (status_history 테이블) — 0.C-4 측 task_changes 통합으로 사용 제거
@@ -1232,9 +1232,14 @@ function WorkTimeHistoryCard({ task, onTaskRefresh }) {
           <TimestampRows task={task}/>
         </div>
 
+        {/* 2026-06-30 — 취소 → 복구 카드 (Mig 157, status='취소' 일 때만 표시) */}
+        {task.status === "취소" && (
+          <RestoreFromCancelCard task={task} onRestored={refetchTaskBasic}/>
+        )}
+
         {/* 2026-06-07 — 취소 정보 입력 카드 (status='취소' 일 때만 표시, 변경 이력 위) */}
         {task.status === "취소" && (
-          <CancelInfoCard task={task} onSaved={onTaskRefresh}/>
+          <CancelInfoCard task={task} onSaved={refetchTaskBasic}/>
         )}
 
         {/* 변경 이력 (task_changes) — 2026-05-29 v2: task 객체 전달 (synthetic cancel row 옛 작업 fallback) */}
@@ -1273,6 +1278,118 @@ function D4TimeRow({ label, value }) {
       <span className="mono" style={{ fontSize: 13, color: "var(--text-primary)", fontWeight: 600 }}>
         {value || "—"}
       </span>
+    </div>
+  );
+}
+
+// 2026-06-30 — 취소 → 복구 카드 (Mig 157 admin_restore_canceled_task RPC).
+//   status='취소' 일 때만 표시. previousStatus 우선 → wasCompleted fallback.
+//   송금 확인 건은 사전 confirm 추가. 복구 후 결과 toast + 부모 refetch.
+function RestoreFromCancelCard({ task, onRestored }) {
+  const cat = task?.categoryData || {};
+  const prevStatus = cat.previousStatus || null;
+  const wasCompleted = cat.wasCompleted === true || cat.wasCompleted === "true";
+  const targetGuess = prevStatus || (wasCompleted ? "완료" : "확정");
+  const remitted = !!(task?.engineerRemittedAt || task?.engineerRemitConfirmedAt);
+
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(null);
+
+  async function handleRestore() {
+    setError("");
+    setDone(null);
+
+    if (remitted) {
+      const ok = window.confirm(
+        "이미 송금된 작업입니다.\n복구 시 송금 분배가 재계산됩니다.\n계속할까요?"
+      );
+      if (!ok) return;
+    } else {
+      const ok = window.confirm(
+        `이 작업을 '${targetGuess}'로 되돌립니다.\n정산이 재계산됩니다.\n계속할까요?`
+      );
+      if (!ok) return;
+    }
+
+    setBusy(true);
+    try {
+      const res = await adminRestoreCanceledTask(task.id);
+      if (!res || res.ok === false) {
+        const raw = String((res && res.error) || "").toLowerCase();
+        if (raw.includes("could not find") || raw.includes("does not exist") || raw.includes("pgrst202")) {
+          setError("RPC 미배포 — 사장님 SQL 실행 필요 (Migration 157)");
+        } else {
+          setError((res && res.error) || "복구 실패");
+        }
+        return;
+      }
+      setDone(res.data);
+      onRestored && onRestored();
+    } catch (e) {
+      setError(e?.message || "복구 중 오류");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
+        ↩️ 취소 → 복구
+      </div>
+      <div style={{
+        padding: 10,
+        background: "rgba(5,150,105,0.06)",
+        border: "1px solid rgba(5,150,105,0.18)",
+        borderRadius: 8,
+        display: "flex", flexDirection: "column", gap: 8,
+      }}>
+        <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5 }}>
+          복귀 상태: <strong style={{ color: "#059669" }}>{targetGuess}</strong>
+          {prevStatus
+            ? <span style={{ fontSize: 11, color: "var(--text-secondary)" }}> (취소 직전 상태)</span>
+            : <span style={{ fontSize: 11, color: "var(--text-secondary)" }}> (이전 상태 정보 없음 → fallback)</span>}
+        </div>
+        {remitted && (
+          <div style={{
+            fontSize: 11, color: "#DC2626", fontWeight: 700,
+            padding: "6px 8px", background: "rgba(220,38,38,0.08)", borderRadius: 4,
+          }}>
+            ⚠️ 송금 확인된 작업입니다. 복구 시 환불/재배분 확인 필요.
+          </div>
+        )}
+        {error && (
+          <div style={{ fontSize: 11, color: "#DC2626", fontWeight: 600 }}>⚠️ {error}</div>
+        )}
+        {done && (
+          <div style={{
+            fontSize: 11, color: "#059669", fontWeight: 700,
+            padding: "6px 8px", background: "rgba(5,150,105,0.08)", borderRadius: 4,
+            lineHeight: 1.5,
+          }}>
+            ✓ '{done.restored_to}' 복구 완료 · 정산 재계산<br/>
+            기사 ₩{Number(done.engineer_amount || 0).toLocaleString("ko-KR")} / 원청 ₩{Number(done.principal_amount || 0).toLocaleString("ko-KR")} / 회사 ₩{Number(done.owner_amount || 0).toLocaleString("ko-KR")}
+            {done.legacy_backup_missing > 0 && (
+              <><br/><span style={{ color: "#FF8F00" }}>⚠ 결제금액 백업 누락 {done.legacy_backup_missing}건 — 확인 필요</span></>
+            )}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={handleRestore}
+          disabled={busy || !!done}
+          style={{
+            padding: "8px 12px",
+            fontSize: 12, fontWeight: 700,
+            border: "none", borderRadius: 6,
+            background: busy || done ? "var(--bg-secondary)" : "#059669",
+            color: busy || done ? "var(--text-secondary)" : "white",
+            cursor: busy || done ? "default" : "pointer",
+          }}>
+          {busy ? "복구 중..." : done ? "✓ 복구 완료" : "↩️ 취소 복구"}
+        </button>
+      </div>
     </div>
   );
 }
