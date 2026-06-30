@@ -21,7 +21,14 @@ import { TEXT } from "../../styles/textTokens.js";
 // 추가선택 SKU: 피톤치드 / 스팀살균 / 송풍팬(분해) / 냉매(점검·충전)
 // 그 외 (의류건조기, 세탁기 등) — 다른 회사
 // 2026-06-08 — "냉매" 추가 (냉매점검/냉매충전 row 가 "다른 회사" 로 잘못 분류되던 사고 정정)
-const OUR_PRODUCT_KEYWORDS = ["에어컨청소", "에어컨 청소", "피톤치드", "스팀살균", "송풍팬", "냉매"];
+// 2026-07-01 — "실외기" / "벽걸이에어컨" 추가 (강성철 등 4+1 건 미매칭 사고 정정 / Coco 확인)
+//   "실외기" 일반 단어이나 본 시트는 유솔N 정산 한정 + principal 필터 usol_n 로 1차 보호 → 위험 X.
+const OUR_PRODUCT_KEYWORDS = [
+  "에어컨청소", "에어컨 청소",
+  "피톤치드", "스팀살균", "송풍팬", "냉매",
+  "실외기",         // 실외기 가스충전 / 냉매 (강성철 등 4 건)
+  "벽걸이에어컨",   // 벽걸이 (1 건)
+];
 
 // 2026-06-09 — 첫 15자리 문자열 키 (LEFT(digits, 15)).
 //   사고: 네이버 원본은 16번째 자리 항상 '1' 인데 DB 저장 시 16번째 자리가 '0' 으로 잘림.
@@ -121,24 +128,6 @@ export function UsolNCsvMatch({ splitView = false } = {}) {
           return;
         }
 
-        // [DIAG 2026-07-01] 강성철 추적 — fetchRes 도착 단계
-        const DIAG_POID = "2026051334158921";
-        const DIAG_TASK_NO = "YS-260514-006";
-        const fetchResHit = (fetchRes.items || []).find(it =>
-          String(it.product_order_id || "") === DIAG_POID
-          || it.tasks?.task_no === DIAG_TASK_NO
-        );
-        const csvRowHit = ourRows.find(r => r.productOrderId === DIAG_POID);
-        console.warn("[DIAG UsolNCsvMatch fetchRes]",
-          "ourOrderIds_count:", ourOrderIds.length,
-          "ourRows_count:", ourRows.length,
-          "fetchRes_items_count:", fetchRes.items?.length || 0,
-          "강성철_in_csv_ourRows:", !!csvRowHit,
-          "강성철_in_fetchRes:", !!fetchResHit,
-          csvRowHit ? { productName: csvRowHit.productName, csv_poid: csvRowHit.productOrderId } : null,
-          fetchResHit ? { db_poid: fetchResHit.product_order_id, status: fetchResHit.tasks?.status } : null
-        );
-
         // 2026-06-01 — floor(/10) 키 매칭 + 우선순위.
         //   네이버 상품주문번호 10단위 → 끝자리 떼도 행끼리 충돌 X.
         //   저장 측 ±1 오차 (예 ...071 vs CSV ...070) 흡수.
@@ -164,23 +153,6 @@ export function UsolNCsvMatch({ splitView = false } = {}) {
           }
         });
 
-        // [DIAG 2026-07-01] 강성철 추적 — itemByKey 단계
-        const diagKey = poidKey(DIAG_POID);
-        const diagItemInMap = itemByKey.get(diagKey);
-        console.warn("[DIAG itemByKey]",
-          "itemByKey_size:", itemByKey.size,
-          "diagKey:", diagKey,
-          "key_in_itemByKey:", itemByKey.has(diagKey),
-          "csv_ourRow_poid_key:", csvRowHit ? poidKey(csvRowHit.productOrderId) : null,
-          "csv_ourRow_poid_raw:", csvRowHit ? csvRowHit.productOrderId : null,
-          "csv_ourRow_poidKey_eq_diagKey:", csvRowHit ? poidKey(csvRowHit.productOrderId) === diagKey : null,
-          diagItemInMap ? {
-            mapped_task_no: diagItemInMap.tasks?.task_no,
-            mapped_customer: diagItemInMap.tasks?.customer_name,
-            mapped_poid: diagItemInMap.product_order_id,
-          } : null
-        );
-
         // matched: itemByKey 측 key 일치 / unmatched: 작업DB 측 키 없음
         const matched   = ourRows.filter(r => itemByKey.has(poidKey(r.productOrderId)));
         const unmatched = ourRows.filter(r => !itemByKey.has(poidKey(r.productOrderId)));
@@ -193,24 +165,6 @@ export function UsolNCsvMatch({ splitView = false } = {}) {
           if (item && item.naver_settled_at) matchedAlready.push({ ...m, item });
           else if (item)                     matchedFresh.push({ ...m, item });
         });
-
-        // [DIAG 2026-07-01] 강성철 추적 — 분류 후 단계
-        const inMatchedFresh   = matchedFresh.find(m => m.productOrderId === DIAG_POID);
-        const inMatchedAlready = matchedAlready.find(m => m.productOrderId === DIAG_POID);
-        const inUnmatched      = unmatched.find(m => m.productOrderId === DIAG_POID);
-        const inOther          = otherRows.find(r => r.productOrderId === DIAG_POID);
-        console.warn("[DIAG 분류 후]",
-          "matchedFresh:", matchedFresh.length,
-          "matchedAlready:", matchedAlready.length,
-          "unmatched:", unmatched.length,
-          "otherCompany:", otherRows.length,
-          "강성철_위치:",
-            inMatchedFresh   ? "matched_fresh"
-          : inMatchedAlready ? "matched_already"
-          : inUnmatched      ? "unmatched"
-          : inOther          ? "other_company"
-          :                    "어디에도_없음"
-        );
 
         setMatchResult({
           matched:        matchedFresh,

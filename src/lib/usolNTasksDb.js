@@ -437,28 +437,6 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
     if (data.length < PAGE_SIZE) break;
   }
 
-  // [DIAG 2026-07-01] 강성철 추적 — fetch raw 단계
-  const DIAG_POID = "2026051334158921";
-  const DIAG_TASK_NO = "YS-260514-006";
-  const rawHit = all.find(it =>
-    String(it.product_order_id || "") === DIAG_POID
-    || it.tasks?.task_no === DIAG_TASK_NO
-  );
-  console.warn("[DIAG fetch raw]",
-    "pages_loaded:", all.length,
-    "csvKeySet_size:", csvKeySet.size,
-    "csvKey_has_202605133415892:", csvKeySet.has("202605133415892"),
-    "강성철_in_raw:", !!rawHit,
-    rawHit ? {
-      task_no: rawHit.tasks?.task_no,
-      status: rawHit.tasks?.status,
-      principal_id: rawHit.tasks?.principal_id,
-      poid: rawHit.product_order_id,
-      poid_typeof: typeof rawHit.product_order_id,
-      is_canceled: rawHit.is_canceled,
-    } : null
-  );
-
   // 취소 작업 제외 + 첫 15자 키 일치만 반환.
   //   2026-06-01 — 취소 task_item 이 완료 task 의 정산을 가로채는 버그 차단.
   //   같은 15자 키에 후보 여럿이면 client 측 (UsolNCsvMatch) 에서 status='완료' /
@@ -470,26 +448,6 @@ export async function fetchUsolNTaskItemsByOrderIds(productOrderIds) {
     if (digits.length < 15) return false;
     return csvKeySet.has(digits.slice(0, 15));
   });
-
-  // [DIAG 2026-07-01] 강성철 추적 — filter 후 단계
-  const filteredHit = filtered.find(it =>
-    String(it.product_order_id || "") === DIAG_POID
-    || it.tasks?.task_no === DIAG_TASK_NO
-  );
-  console.warn("[DIAG fetch filtered]",
-    "filtered_count:", filtered.length,
-    "강성철_in_filtered:", !!filteredHit,
-    // raw 에는 있는데 filtered 에 없으면 어느 조건에서 떨어졌는지 추적
-    !filteredHit && rawHit ? {
-      reason_status_canceled: rawHit.tasks?.status === "취소",
-      reason_poid_null: rawHit.product_order_id == null,
-      raw_digits: String(rawHit.product_order_id || "").replace(/\D/g, ""),
-      raw_digits_len: String(rawHit.product_order_id || "").replace(/\D/g, "").length,
-      raw_first15: String(rawHit.product_order_id || "").replace(/\D/g, "").slice(0, 15),
-      csv_has_first15: csvKeySet.has(String(rawHit.product_order_id || "").replace(/\D/g, "").slice(0, 15)),
-    } : null
-  );
-
   return { ok: true, items: filtered };
 }
 
