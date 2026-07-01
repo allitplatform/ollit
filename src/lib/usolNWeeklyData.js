@@ -389,7 +389,33 @@ export async function fetchJuneLiveWeeks() {
     wk.weeklyTotal    = wk.sumCompanyRcv;
     wk.weeklySubtotal = wk.sumSubtotal;
   }
-  return [...weekMap.values()].sort((a, b) => b.monday.localeCompare(a.monday));
+  const sorted = [...weekMap.values()].sort((a, b) => b.monday.localeCompare(a.monday));
+
+  // 2026-07-01 — Attach carryover C2 items to the latest cycle (current billing week).
+  //   Past-cycle naver-settled + company-unpaid items get folded into this week's
+  //   card/drill-in/excel so usol picks them up on the next settlement.
+  //   Does NOT touch past cards (confirmed remittance snapshots stay immutable).
+  if (sorted.length > 0) {
+    const latest = sorted[0];
+    const carry  = await fetchCarryoverC2Items(latest.monday);
+    for (const it of carry) {
+      latest.items.push(it);
+      latest.naverCount += 1;
+      const sub  = Number(it.subtotal) || 0;
+      const comp = Number(it._company_receive) || 0;
+      latest.sumSubtotal   += sub;
+      latest.sumCompanyRcv += comp;
+      if (comp > 0) {
+        const ym = workYmOfItem(it);
+        if (ym) {
+          latest.monthlyAmounts.set(ym, (latest.monthlyAmounts.get(ym) || 0) + comp);
+        }
+      }
+    }
+    latest.weeklyTotal    = latest.sumCompanyRcv;
+    latest.weeklySubtotal = latest.sumSubtotal;
+  }
+  return sorted;
 }
 
 // ── 드릴인 — 측 주차 (KST monday~sunday) task_items fetch ─────
@@ -510,5 +536,149 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
       _company_receive: compRcv,
     };
   });
+
+  // 2026-07-01 — When this drill-in is for the current billing cycle,
+  //   append past-cycle C2 carryover so drill-in list + excel match the card.
+  //   Non-current-cycle drill-ins are untouched (past week snapshots preserved).
+  const todayMondayYmd = mondayOfYmd(getKstToday());
+  if (mondayYmd === todayMondayYmd) {
+    const carry = await fetchCarryoverC2Items(mondayYmd);
+    if (carry.length > 0) flat.push(...carry);
+  }
   return { ok: true, items: flat };
+}
+
+// 2026-07-01 — Carryover C2 items for current-cycle billing.
+//   Purpose: past-week naver-settled task_items that company has NOT received
+//   (matched by usol but not paid to us) auto-appended to the current cycle
+//   so they appear in this week's billing list (card + drill-in + excel).
+//   WHERE:
+//     principal = usol_n, status = '완료', NOT is_canceled, subtotal > 0
+//     naver_settled_at IS NOT NULL
+//     company_received_at IS NULL
+//     naver_settled_at < mondayUtc  (past cycles only)
+//     EXISTS payments.track = 'B'
+//   Item shape matches fetchWeekItemsByMonday. Extra fields:
+//     _is_carryover:   true
+//     _carryover_week: "YYYY-MM-DD" (original KST monday of naver_settled_at)
+//   Auto-vanishes once company_received_at is stamped by CSV match/manual mark.
+export async function fetchCarryoverC2Items(mondayYmd) {
+  if (!mondayYmd) return [];
+
+  // KST 00:00 of mondayYmd == UTC (day - 1) 15:00
+  const [sy, sm, sd] = mondayYmd.split("-").map(Number);
+  const mondayUtc = new Date(Date.UTC(sy, sm - 1, sd, -9, 0, 0)).toISOString();
+
+  const PAGE = 1000;
+  const MAX_PAGES = 20;
+  const raw = [];
+  for (let p = 0; p < MAX_PAGES; p++) {
+    const { data, error } = await supabase
+      .from("task_items")
+      .select(
+        `id, task_id, naver_settled_at, company_received_at,
+         net_amount, subtotal, is_canceled, product_order_id, order_type,
+         qty, unit_price, description,
+         work_types ( id, name ),
+         appliance_types ( id, name ),
+         tasks!inner ( id, task_no, customer_name, phone, address, district,
+                       principal_id, status, received_at, scheduled_at, completed_at )`
+      )
+      .eq("tasks.principal_id", USOL_N_PID)
+      .eq("tasks.status", "완료")
+      .not("naver_settled_at", "is", null)
+      .is("company_received_at", null)
+      .lt("naver_settled_at", mondayUtc)
+      .gt("subtotal", 0)
+      .order("id", { ascending: true })
+      .range(p * PAGE, (p + 1) * PAGE - 1);
+    if (error) {
+      console.error("[usolNWeeklyData.fetchCarryoverC2Items] page", p, error);
+      return [];
+    }
+    if (!data || data.length === 0) break;
+    raw.push(...data);
+    if (data.length < PAGE) break;
+  }
+
+  const active = raw.filter(it => !it.is_canceled && it.tasks?.status !== "취소");
+  if (active.length === 0) return [];
+
+  // Batch fetch payments.track='B' -> filter set + distribution factors.
+  const uniqueTaskIds = [...new Set(active.map(it => it.task_id).filter(Boolean))];
+  const trackBSet          = new Set();
+  const principalExclByTask = new Map();
+  const subSumByTask        = new Map();
+  const CHUNK = 300;
+
+  for (let i = 0; i < uniqueTaskIds.length; i += CHUNK) {
+    const ids = uniqueTaskIds.slice(i, i + CHUNK);
+    const { data: payRows, error: payErr } = await supabase
+      .from("payments")
+      .select("task_id, principal_amount, extra_fee")
+      .eq("track", "B")
+      .in("task_id", ids);
+    if (payErr) {
+      console.error("[usolNWeeklyData.fetchCarryoverC2Items payments]", i, payErr);
+      continue;
+    }
+    for (const p of (payRows || [])) {
+      trackBSet.add(p.task_id);
+      const prin  = Number(p.principal_amount) || 0;
+      const extra = Number(p.extra_fee)        || 0;
+      const usolExtraShare = Math.floor(extra * 0.15);
+      principalExclByTask.set(p.task_id, prin - usolExtraShare);
+    }
+  }
+  if (trackBSet.size === 0) return [];
+
+  const trackBIds = [...trackBSet];
+  for (let i = 0; i < trackBIds.length; i += CHUNK) {
+    const ids = trackBIds.slice(i, i + CHUNK);
+    const { data: tiRows, error: tiErr } = await supabase
+      .from("task_items")
+      .select("task_id, subtotal, is_canceled")
+      .in("task_id", ids);
+    if (tiErr) {
+      console.error("[usolNWeeklyData.fetchCarryoverC2Items task_items full]", i, tiErr);
+      continue;
+    }
+    for (const ti of (tiRows || [])) {
+      if (ti.is_canceled) continue;
+      const v = Number(ti.subtotal) || 0;
+      subSumByTask.set(ti.task_id, (subSumByTask.get(ti.task_id) || 0) + v);
+    }
+  }
+
+  const flat = [];
+  for (const it of active) {
+    if (!trackBSet.has(it.task_id)) continue;
+    const sub          = Number(it.subtotal) || 0;
+    const taskSub      = subSumByTask.get(it.task_id) || 0;
+    const taskPrinExcl = principalExclByTask.get(it.task_id) || 0;
+    const distPrin     = taskSub > 0 ? Math.round(taskPrinExcl * (sub / taskSub)) : 0;
+    const compRcv      = sub - distPrin;
+
+    const settledYmd    = kstYmd(it.naver_settled_at);
+    const carryoverWeek = settledYmd ? mondayOfYmd(settledYmd) : null;
+
+    const t = it.tasks || {};
+    flat.push({
+      ...it,
+      customer_name: t.customer_name || "",
+      task_no:       t.task_no || "",
+      phone:         t.phone || "",
+      address:       t.address || "",
+      district:      t.district || "",
+      principal_id:  t.principal_id,
+      task_status:   t.status,
+      received_at:   t.received_at,
+      scheduled_at:  t.scheduled_at,
+      completed_at:  t.completed_at,
+      _company_receive: compRcv,
+      _is_carryover:    true,
+      _carryover_week:  carryoverWeek,
+    });
+  }
+  return flat;
 }

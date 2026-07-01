@@ -19,8 +19,17 @@ import {
   NAVER_NET_TO_COMPANY_FACTOR,
   kstYmd,
   mdLabel,
+  addDaysYmd,
   C_GREEN_DONE,
 } from "../../lib/usolNWeeklyData.js";
+
+// 2026-07-01 — Human label for a carryover item's original naver-settled week.
+//   Input: "YYYY-MM-DD" (KST monday of naver_settled_at). Output: "M/D~M/D".
+function carryoverWeekLabel(mondayYmd) {
+  if (!mondayYmd) return "";
+  const sundayYmd = addDaysYmd(mondayYmd, 6);
+  return `${mdLabel(mondayYmd)}~${mdLabel(sundayYmd)}`;
+}
 
 // 2026-06-09 — usol_n 주정산 엑셀 다운로드 헬퍼.
 //   sunday 가 속한 달 기준 N월 N주차 라벨 (PrincipalSettleTab getKoreanWeekLabel 과 동일 산식).
@@ -169,7 +178,12 @@ export function WeekSettleDetail({
         : "";
       const detail = downloadableItems.map(it => {
         const base = Number(it.net_amount) || 0;
+        const isCarry = !!it._is_carryover;
+        const bucket  = isCarry
+          ? `이전 미정산 (${carryoverWeekLabel(it._carryover_week)})`
+          : "당주 정산";
         return {
+          "구분":           bucket,
           "정산완료일":     kstYmd(it.naver_settled_at) || "",
           "상품주문번호":   String(it.product_order_id ?? ""),
           "구매자명":       it.customer_name || "",
@@ -180,14 +194,21 @@ export function WeekSettleDetail({
           "실입금(85%)":    Math.round(base * NAVER_NET_TO_COMPANY_FACTOR),
         };
       });
-      const tot = detail.reduce((s, d) => s + d["정산원금"], 0);
+      const tot        = detail.reduce((s, d) => s + d["정산원금"], 0);
+      const carryRows  = detail.filter(d => d["구분"] !== "당주 정산");
+      const carryTot   = carryRows.reduce((s, d) => s + d["정산원금"], 0);
+      const currentTot = tot - carryTot;
       const summary = [{
-        "정산주차":       label,
-        "기간":           range,
-        "네이버 건수":    detail.length,
-        "정산원금":       tot,
-        "유솔수수료(15%)": Math.round(tot * 0.15),
-        "실입금(85%)":    Math.round(tot * NAVER_NET_TO_COMPANY_FACTOR),
+        "정산주차":         label,
+        "기간":             range,
+        "네이버 건수":      detail.length,
+        "정산원금":         tot,
+        "유솔수수료(15%)":   Math.round(tot * 0.15),
+        "실입금(85%)":      Math.round(tot * NAVER_NET_TO_COMPANY_FACTOR),
+        "당주 건수":        detail.length - carryRows.length,
+        "당주 정산원금":     currentTot,
+        "이월 건수":        carryRows.length,
+        "이월 정산원금":     carryTot,
       }];
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summary), "요약");
@@ -467,18 +488,35 @@ function SettleItemRow({ item, onClick }) {
   const naverYmd = kstYmd(item.naver_settled_at);
   const naverDate = naverYmd ? naverYmd.slice(5).replace("-", "/") : "";
   const orderId = item.product_order_id || "";
+  // 2026-07-01 — Carryover flag surfaces a visible badge + amber border.
+  const isCarryover     = !!item._is_carryover;
+  const carryoverRange  = isCarryover ? carryoverWeekLabel(item._carryover_week) : "";
+  const leftBorderColor = isCarryover ? C_AMBER : stage.color;
 
   return (
     <div onClick={onClick || undefined} style={{
       background: "var(--bg-elevated, #1F1F1F)",
       border: "1px solid var(--border, #2A2A2A)",
-      borderLeft: `3px solid ${stage.color}`,
+      borderLeft: `3px solid ${leftBorderColor}`,
       borderRadius: 8,
       padding: "8px 10px",
       display: "flex", flexDirection: "column", gap: 4,
       minHeight: 38,
       cursor: onClick ? "pointer" : "default",
     }}>
+      {isCarryover && (
+        <div style={{
+          alignSelf: "flex-start",
+          fontSize: 10, fontWeight: 700, color: C_AMBER,
+          background: "rgba(230,163,58,0.10)",
+          border: `1px solid ${C_AMBER}55`,
+          borderRadius: 6,
+          padding: "2px 6px",
+          lineHeight: 1.2,
+        }}>
+          ⏰ 이전 미정산 · {carryoverRange} 정산
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ flexShrink: 0, fontSize: 14 }}>{stage.dot}</div>
         <span style={{
