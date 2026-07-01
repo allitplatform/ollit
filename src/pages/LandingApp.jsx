@@ -935,7 +935,7 @@ function Footer() {
           상호: 에어컨청소 에어컨가스충전 올데이케어 &nbsp;·&nbsp; 경기도 고양시 덕양구 상막3길 5, 1동 805호<br/>
           서울·경기 전 지역 출장 · 냉매충전 · 분해세척 · 누설수리 · 설치
         </p>
-        <p className="ldg-footer-tel">대표전화 1866-2003</p>
+        <p className="ldg-footer-tel">대표전화 <a href={PHONE_TEL}>{PHONE_DISPLAY}</a></p>
         <p style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", marginTop: 14, letterSpacing: "-0.1px" }}>
           <a href="/privacy" target="_blank" rel="noopener noreferrer"
              style={{ color: "rgba(255,255,255,0.9)", textDecoration: "underline", fontWeight: 700 }}>
@@ -1068,6 +1068,21 @@ function LandingAppMain() {
     const prevTitle = document.title;
     document.title = "올데이케어 - 에어컨 분해세척·냉매충전·설치·수리";
     return () => { document.title = prevTitle; };
+  }, []);
+
+  // 2026-07-01 — Deep-link scroll: external ?page=landing#form entries land
+  //   before CtaForm mounts, so a naked hash won't scroll. Wait two rAF ticks
+  //   for the form section to be in the DOM + laid out, then scroll into view.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== "#form") return;
+    const raf1 = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = document.getElementById("form");
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+    return () => cancelAnimationFrame(raf1);
   }, []);
 
   return (
