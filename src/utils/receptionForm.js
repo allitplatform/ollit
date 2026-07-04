@@ -302,6 +302,10 @@ export function formatPhone(raw) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
 }
 
+// 한국 휴대폰 번호 매치 regex — 모듈 최상위에서 재사용 (parseKakaoText + 서류발행 자동분석).
+//   +82 국가코드 / 공백 / 점 / 하이픈 변형 허용. 첫 매치만 반환 (g 플래그 없음).
+export const KO_PHONE_REGEX = /(?:\+?82[\s-]?)?0?1[0-9][\s.-]?\d{3,4}[\s.-]?\d{4}/;
+
 // 2026-05-21 — KA 자유 텍스트 파서 (라벨 X / 전화 앵커 + "가.충" 패턴).
 //   입력 예: "공릉동공릉아파트 603동1505호\n벽걸이 .가.충. 70.000\n01039291303"
 //   출력: parseKakaoText 와 동일 형식 (handleAutoFill 매핑 그대로).
@@ -403,8 +407,8 @@ export function parseKakaoText(text) {
   if (!text || !text.trim()) return result;
 
   // 1. 연락처 (다양한 형식: +82 / 국가코드 / 공백 / 점 / 하이픈)
-  const phoneRegex = /(?:\+?82[\s-]?)?0?1[0-9][\s.-]?\d{3,4}[\s.-]?\d{4}/;
-  const phoneMatch = text.match(phoneRegex);
+  //    regex 는 모듈 최상위 KO_PHONE_REGEX 사용 (서류발행 자동분석과 공용).
+  const phoneMatch = text.match(KO_PHONE_REGEX);
 
   // KA 자유 텍스트 패턴 ("가.충" + 전화) → parseKaText 위임
   if (phoneMatch && /가\s*\.?\s*충/.test(text)) {

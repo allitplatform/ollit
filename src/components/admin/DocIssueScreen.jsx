@@ -15,6 +15,7 @@ import { supabase } from "../../lib/supabase.js";
 import { getEngineerBusinessInfo } from "../../lib/engineerBusinessInfoDb.js";
 import { issueDocument } from "../../lib/docIssuesDb.js";
 import { parseDocIssuePaste, computeVatBreakdown } from "../../lib/docIssueParser.js";
+import { formatPhone } from "../../utils/receptionForm.js";
 import "./DocIssueScreen.css";
 
 // ──────────────────────────────────────────────
@@ -446,6 +447,9 @@ export default function DocIssueScreen({
   const [recipientBizName, setRecipientBizName] = useState("");
   const [recipientBizNo, setRecipientBizNo]   = useState("");
   const [recipientAddress, setRecipientAddress] = useState("");
+  // 2026-07-04 — 개인 수신자 연락처 (사업자 탭 무영향). 서류 템플릿 recipient.phone 렌더.
+  //   자동 채움: 카톡 자동분석 첫 매치 + engineerMode task.phone. 사용자 수정 가능.
+  const [recipientPhone, setRecipientPhone] = useState("");
 
   // 품목
   const [items, setItems] = useState([]);
@@ -482,10 +486,11 @@ export default function DocIssueScreen({
   //   품목: task.workItems → "appliance workType" 라벨 + qty (가격은 합계로 따로 표시).
   useEffect(() => {
     if (!engineerMode || !task) return;
-    // 받는분 자동 채움 — 기본 '개인' + 고객명/주소
+    // 받는분 자동 채움 — 기본 '개인' + 고객명/주소/연락처 (task.phone: rowToTask 라인 99).
     setRecipientType("individual");
     setRecipientName(task.customer || task.customerName || "");
     setRecipientAddress(task.address || "");
+    setRecipientPhone(task.phone ? formatPhone(task.phone) : "");
 
     // 품목 — task.workItems 매핑 (가격은 합계 입력칸에서 따로 관리)
     const wis = Array.isArray(task.workItems) ? task.workItems : [];
@@ -603,6 +608,7 @@ export default function DocIssueScreen({
   function handleAutoParse() {
     const r = parseDocIssuePaste(pasteText);
     if (r.address && !recipientAddress) setRecipientAddress(r.address);
+    if (r.phone   && !recipientPhone)   setRecipientPhone(r.phone);
     if (r.items && r.items.length > 0) {
       setItems(prev => prev.concat(r.items.map(it => ({
         label: it.label,
@@ -657,6 +663,9 @@ export default function DocIssueScreen({
       bizName: recipientBizName,
       bizNo:   recipientBizNo,
       address: recipientAddress,
+      // 2026-07-04 — 개인 수신자 연락처. 사업자 탭에도 필드 전달되나 InvoiceTemplate/ReceiptTemplate
+      //   가 recipient.type='individual' 분기에서만 셀 노출하므로 사업자 서류엔 영향 0.
+      phone:   recipientPhone,
     };
     const safeItems = items.filter(it => (it.label || "").trim() !== "");
     const issuedAtKor = ymdToKoreanDate(issueDate);
@@ -1014,6 +1023,14 @@ export default function DocIssueScreen({
                 value={recipientName}
                 onChange={setRecipientName}
                 placeholder="예: 홍길동"
+              />
+              <LabeledInput
+                label="연락처"
+                value={recipientPhone}
+                onChange={(v) => setRecipientPhone(formatPhone(v))}
+                placeholder="010-1234-5678"
+                mono
+                inputMode="tel"
               />
               <LabeledInput
                 label="주소"

@@ -1,12 +1,14 @@
 // 2026-06-19 — 서류 발행 (거래명세서/영수증) 카톡 텍스트 best-effort 파서.
+// 2026-07-04 — 연락처(phone) 필드 추가. 개인 수신자 자동 채움용.
 //
 // 기존 partnerPasteParser.parsePartnerPaste 는 KA/crikrin 원청 1:N 카톡 분리에
 // 특화 (principalCode 강제). 본 모듈은 즉석 발행용 — 한 건 텍스트에서 주소·
-// 품목·금액·부가세표기만 최대한 끄집어 form 에 미리 채움 (best-effort).
+// 연락처·품목·금액·부가세표기만 최대한 끄집어 form 에 미리 채움 (best-effort).
 //
 // 응답:
 //   {
 //     address:      string | "",
+//     phone:        string | "",       // 개인 수신자 휴대폰 (010-1234-5678 형식). 없으면 "".
 //     items:        [{ label: string, qty: number, price?: number }],
 //     supplyPrice:  number | null,     // "공급가" 추정 (부가세 별도 표기 시)
 //     totalAmount:  number | null,     // "합계" 추정 (부가세 포함 / 단일 금액)
@@ -18,6 +20,8 @@
 //   }
 //
 // best-effort 라 추출 실패는 빈 값/0 으로 반환. 사용자 수정 전제.
+
+import { KO_PHONE_REGEX, formatPhone } from "../utils/receptionForm.js";
 
 // ──────────────────────────────────────────────
 // 헬퍼
@@ -98,6 +102,7 @@ function parseItemLine(rawLine) {
 export function parseDocIssuePaste(rawText) {
   const out = {
     address:     "",
+    phone:       "",
     items:       [],
     supplyPrice: null,
     totalAmount: null,
@@ -115,6 +120,18 @@ export function parseDocIssuePaste(rawText) {
   for (const line of lines) {
     const m = line.match(KO_REGION_RX);
     if (m) { out.address = m[0].trim(); break; }
+  }
+
+  // 1b) 연락처 — 첫 휴대폰 매치. KO_PHONE_REGEX 재사용 (receptionForm 과 공용).
+  //     +82 국가코드 및 하이픈/공백/점 변형 정규화 후 formatPhone 로 010-1234-5678 형식.
+  const phoneMatch = text.match(KO_PHONE_REGEX);
+  if (phoneMatch) {
+    let p = phoneMatch[0].replace(/^\+?82\s?-?\s?/, "").replace(/\D/g, "");
+    if (p.startsWith("10") || p.startsWith("11") || p.startsWith("16") ||
+        p.startsWith("17") || p.startsWith("18") || p.startsWith("19")) {
+      p = "0" + p;
+    }
+    out.phone = formatPhone(p);
   }
 
   // 2) 부가세표기.
