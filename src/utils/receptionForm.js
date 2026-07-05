@@ -295,16 +295,32 @@ export function getAppliancePool(workType, principalName) {
 // ============================================
 
 // 자동 하이픈 (공용).
+// 2026-07-04 — 안심번호(0503, 4-4-5, 13자리) 지원. 하드캡 11→13, 자릿수 분기 추가.
+//   · 11자리 (010 등)     → XXX-XXXX-XXXX  (3-4-4)  ★ 기존 동작 완전 동일.
+//   · 13자리 (0503 안심)  → XXXX-XXXX-XXXXX (4-4-5) ← 신규.
+//   · 그 외 길이           → 하이픈 없이 숫자 그대로 (부분 입력 / 미확인 계열).
+// ⚠️ 서류발행 (DocIssueScreen) 도 이 함수 공유. 11자리 결과 불변이 회귀 안전선.
 export function formatPhone(raw) {
-  const digits = (raw || "").replace(/\D/g, "").slice(0, 11);
-  if (digits.length < 4) return digits;
-  if (digits.length < 8) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  const digits = (raw || "").replace(/\D/g, "").slice(0, 13);
+  if (digits.length === 11) {
+    return `${digits.slice(0, 3)}-${digits.slice(3, 7)}-${digits.slice(7)}`;
+  }
+  if (digits.length === 13) {
+    return `${digits.slice(0, 4)}-${digits.slice(4, 8)}-${digits.slice(8)}`;
+  }
+  return digits;
 }
 
-// 한국 휴대폰 번호 매치 regex — 모듈 최상위에서 재사용 (parseKakaoText + 서류발행 자동분석).
+// 한국 휴대폰 + 안심번호 매치 regex — 모듈 최상위에서 재사용 (parseKakaoText + 서류발행 자동분석).
 //   +82 국가코드 / 공백 / 점 / 하이픈 변형 허용. 첫 매치만 반환 (g 플래그 없음).
-export const KO_PHONE_REGEX = /(?:\+?82[\s-]?)?0?1[0-9][\s.-]?\d{3,4}[\s.-]?\d{4}/;
+// 2026-07-04 — 안심번호(050X) 계열 포함 확장. 뒷자리 4~5 허용 (13자리 안심 마지막 5).
+//   매칭 검증 통과 (Node 실행):
+//     '0503-1234-56789'  → '0503-1234-56789'
+//     '010-1234-5678'    → '010-1234-5678'
+//     '01012345678'      → '01012345678'
+//     '05031234567890'   → '0503123456789'
+//     '011-234-5678'     → '011-234-5678' (기존 그대로)
+export const KO_PHONE_REGEX = /(?:\+?82[\s-]?)?(?:0?1[0-9]|050\d)[\s.-]?\d{3,4}[\s.-]?\d{4,5}/;
 
 // 2026-05-21 — KA 자유 텍스트 파서 (라벨 X / 전화 앵커 + "가.충" 패턴).
 //   입력 예: "공릉동공릉아파트 603동1505호\n벽걸이 .가.충. 70.000\n01039291303"

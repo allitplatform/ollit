@@ -87,10 +87,13 @@ export function TaskBasicEditScreen({ task, actorUserId, accentColor = "#FF1B8D"
     if (errors.schedule) setErrors(prev => ({ ...prev, schedule: null }));
   }
 
-  // 연락처 자동 하이픈 (010-1234-5678)
+  // 연락처 자동 하이픈 (010-1234-5678 + 0503-1234-56789 안심번호).
+  // 2026-07-04 — 안심번호 13자리 지원. 하드캡 11→13, 4-4-5 분기 추가.
+  //   shared receptionForm.formatPhone 과 동일 로직 (통합은 별도 사이클).
   function formatPhone(raw) {
-    const d = String(raw || "").replace(/\D/g, "").slice(0, 11);
+    const d = String(raw || "").replace(/\D/g, "").slice(0, 13);
     if (d.length === 11) return `${d.slice(0,3)}-${d.slice(3,7)}-${d.slice(7)}`;
+    if (d.length === 13) return `${d.slice(0,4)}-${d.slice(4,8)}-${d.slice(8)}`;
     if (d.length === 10) return `${d.slice(0,3)}-${d.slice(3,6)}-${d.slice(6)}`;
     return d;
   }
