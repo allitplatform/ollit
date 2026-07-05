@@ -583,6 +583,8 @@ export function parseKakaoText(text) {
   }
 
   // 작업 종류 (키워드 매핑 — 복수 인식)
+  // 2026-07-05 — "누수" 별칭 추가. 사장님 spec: 누수=누설 동일 처리 (신규 service_code 만들지 않음).
+  //   기존 leak work_type 그대로 사용 → compute_payment v22 IN ('refrigerant','leak') 정합 유지.
   const workTypeMap = {
     "세척": "세척",
     "청소": "세척",
@@ -591,6 +593,7 @@ export function parseKakaoText(text) {
     "충전": "냉매충전",
     "설치": "설치",
     "누설": "누설",
+    "누수": "누설",   // 별칭 — service_types.name = '누설' 로 저장돼 leak service 매칭.
     "점검": "점검",
     "수리": "수리",
   };
