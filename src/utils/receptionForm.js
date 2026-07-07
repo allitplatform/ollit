@@ -654,7 +654,17 @@ export function parseKakaoText(text) {
         result.workItems.push({ workType: "냉매충전", appliance: a.appliance, qty: a.qty });
       }
     } else {
-      const refrigerantQtyRegex = /(?:냉매(?:충전|가스)?|가스(?:충전)?|충전)\s*(\d+)\s*대?/;
+      // 2026-07-07 — Bug 4 fix (원문 3, 4 root cause).
+      //   이전 정규식 `\s*대?` 의 `대?` optional → "벽.가스 100.000" 텍스트에서
+      //   "가스" 매치 후 (\d+) 가 "100" 삼킴 → qty=100 오탐.
+      //   신 규칙: 대 마커 필수 (`\s*대` — `?` 제거). 없으면 매치 실패 → default qty=1.
+      //   Bug 2 (itemRegex) 와 동일 사장님 spec.
+      //   Node 검증:
+      //     '벽.가스 100.000'  → 매치 실패 → qty=1
+      //     '벽가스100.000'    → 매치 실패 → qty=1
+      //     '가스 2대'         → qty=2 (마커 있음)
+      //     '냉매충전 3대'     → qty=3
+      const refrigerantQtyRegex = /(?:냉매(?:충전|가스)?|가스(?:충전)?|충전)\s*(\d+)\s*대/;
       const qtyMatch = text.match(refrigerantQtyRegex);
       const refrigerantQty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
       result.workItems.push({ workType: "냉매충전", appliance: "", qty: refrigerantQty });
