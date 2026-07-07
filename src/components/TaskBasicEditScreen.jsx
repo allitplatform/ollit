@@ -44,6 +44,45 @@ function inferScheduleMode(scheduledAt) {
   return "input";
 }
 
+// 2026-07-07 — Section / Chip 을 모듈 스코프로 hoist (안티패턴 fix).
+//   과거: 함수 본문 안에서 정의 → 매 렌더 재정의 → identity 불안정 → input DOM
+//   unmount/remount → 매 keystroke 마다 포커스 소실. 원본 (2026-06-06 생성) 부터
+//   존재한 버그. 모듈 스코프로 옮겨 identity 고정 → input DOM 안정.
+//   t / accentColor 는 프롭으로 전달.
+function Section({ icon, label, required, error, children, t, accentColor }) {
+  const borderColor = error ? t.danger : (required ? accentColor : t.border);
+  const borderWidth = (error || required) ? 2 : 1;
+  return (
+    <div style={{
+      marginBottom: 12,
+      background: t.bgElevated,
+      border: `${borderWidth}px solid ${borderColor}`,
+      borderRadius: 10, padding: "12px 14px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
+        <span style={{ fontSize: 13 }}>{icon}</span>
+        <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{label}</span>
+        {error && <span style={{ marginLeft: "auto", fontSize: 10, color: t.danger, fontWeight: 700 }}>{error}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Chip({ active, onClick, children, t, accentColor }) {
+  return (
+    <button onClick={onClick} type="button" style={{
+      padding: "6px 12px",
+      background: active ? accentColor : t.bgInset,
+      border: active ? `1px solid ${accentColor}` : `1px solid ${t.border}`,
+      borderRadius: 999, fontSize: 11, fontWeight: 700,
+      color: active ? "white" : t.textSecondary,
+      cursor: "pointer", fontFamily: "inherit",
+      whiteSpace: "nowrap", flexShrink: 0,
+    }}>{children}</button>
+  );
+}
+
 export function TaskBasicEditScreen({ task, actorUserId, accentColor = "#FF1B8D", t, onClose, onSaved }) {
   // 초기값 task 측 추출
   const initKst = utcIsoToKstDateTime(task?.scheduledAt || task?.scheduled_at);
@@ -145,40 +184,8 @@ export function TaskBasicEditScreen({ task, actorUserId, accentColor = "#FF1B8D"
     fontFamily: "inherit", outline: "none", boxSizing: "border-box",
   });
 
-  // FormSection 인라인 (NewReceptionScreenLite 패턴 — required = 2px 핑크 테두리)
-  function Section({ icon, label, required, error, children }) {
-    const borderColor = error ? t.danger : (required ? accentColor : t.border);
-    const borderWidth = (error || required) ? 2 : 1;
-    return (
-      <div style={{
-        marginBottom: 12,
-        background: t.bgElevated,
-        border: `${borderWidth}px solid ${borderColor}`,
-        borderRadius: 10, padding: "12px 14px",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-          <span style={{ fontSize: 13 }}>{icon}</span>
-          <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{label}</span>
-          {error && <span style={{ marginLeft: "auto", fontSize: 10, color: t.danger, fontWeight: 700 }}>{error}</span>}
-        </div>
-        {children}
-      </div>
-    );
-  }
-
-  function Chip({ active, onClick, children }) {
-    return (
-      <button onClick={onClick} type="button" style={{
-        padding: "6px 12px",
-        background: active ? accentColor : t.bgInset,
-        border: active ? `1px solid ${accentColor}` : `1px solid ${t.border}`,
-        borderRadius: 999, fontSize: 11, fontWeight: 700,
-        color: active ? "white" : t.textSecondary,
-        cursor: "pointer", fontFamily: "inherit",
-        whiteSpace: "nowrap", flexShrink: 0,
-      }}>{children}</button>
-    );
-  }
+  // 2026-07-07 — Section / Chip 은 모듈 스코프로 이동 (파일 상단). 매 렌더 재정의로
+  //   input DOM 이 unmount/remount 돼 포커스 소실되던 안티패턴 fix. t/accentColor 는 프롭.
 
   return (
     <div className="fade-in" style={{ background: t.bg, minHeight: "100vh" }}>
@@ -202,33 +209,33 @@ export function TaskBasicEditScreen({ task, actorUserId, accentColor = "#FF1B8D"
       </div>
 
       <div style={{ padding: "12px 14px" }}>
-        <Section icon="📞" label="연락처" required error={errors.phone}>
+        <Section icon="📞" label="연락처" required error={errors.phone} t={t} accentColor={accentColor}>
           <input type="tel" value={form.phone}
             onChange={(e) => update("phone", formatPhone(e.target.value))}
             placeholder="010-0000-0000"
             style={inputStyle(!!errors.phone)}/>
         </Section>
 
-        <Section icon="📍" label="주소" required error={errors.address}>
+        <Section icon="📍" label="주소" required error={errors.address} t={t} accentColor={accentColor}>
           <input type="text" value={form.address}
             onChange={(e) => update("address", e.target.value)}
             placeholder="강남구 역삼동 123-45"
             style={inputStyle(!!errors.address)}/>
         </Section>
 
-        <Section icon="👤" label="고객명">
+        <Section icon="👤" label="고객명" t={t} accentColor={accentColor}>
           <input type="text" value={form.customerName}
             onChange={(e) => update("customerName", e.target.value)}
             placeholder="고객명 (선택)"
             style={inputStyle(false)}/>
         </Section>
 
-        <Section icon="📅" label="희망 일정 (필수)" required error={errors.schedule}>
+        <Section icon="📅" label="희망 일정 (필수)" required error={errors.schedule} t={t} accentColor={accentColor}>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-            <Chip active={scheduleMode === "today"}    onClick={setScheduleToday}>오늘</Chip>
-            <Chip active={scheduleMode === "tomorrow"} onClick={setScheduleTomorrow}>내일</Chip>
-            <Chip active={scheduleMode === "tbd"}      onClick={setScheduleTbd}>일정 미정</Chip>
-            <Chip active={scheduleMode === "input"}    onClick={setScheduleInput}>직접 입력</Chip>
+            <Chip active={scheduleMode === "today"}    onClick={setScheduleToday}    t={t} accentColor={accentColor}>오늘</Chip>
+            <Chip active={scheduleMode === "tomorrow"} onClick={setScheduleTomorrow} t={t} accentColor={accentColor}>내일</Chip>
+            <Chip active={scheduleMode === "tbd"}      onClick={setScheduleTbd}      t={t} accentColor={accentColor}>일정 미정</Chip>
+            <Chip active={scheduleMode === "input"}    onClick={setScheduleInput}    t={t} accentColor={accentColor}>직접 입력</Chip>
           </div>
           {scheduleMode === "today" && (
             <div style={{ marginTop: 8, fontSize: 11, color: t.textMuted }}>
@@ -257,7 +264,7 @@ export function TaskBasicEditScreen({ task, actorUserId, accentColor = "#FF1B8D"
           )}
         </Section>
 
-        <Section icon="📝" label="요청사항">
+        <Section icon="📝" label="요청사항" t={t} accentColor={accentColor}>
           <textarea value={form.requestNote}
             onChange={(e) => update("requestNote", e.target.value)}
             placeholder="추가 요청사항"
