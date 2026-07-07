@@ -43,20 +43,24 @@
 -- Table assumptions (verify before apply):
 --   principal_daily_remittances (
 --     id uuid PK,
+--     tenant_id uuid NOT NULL   -- confirmed by owner 2026-07-07
 --     principal_id uuid,
 --     settle_date  date,
 --     remitted_amount int,
 --     remitted_at timestamptz,
 --     remitted_by uuid,
+--     updated_at timestamptz    -- original RPC bumps this on ON CONFLICT DO UPDATE
 --     UNIQUE (principal_id, settle_date)  -- required for ON CONFLICT
 --   )
---   tenant_id column existence unknown -> NOT included in INSERT below.
---   If the table has tenant_id NOT NULL, add it to the INSERT (v_tenant := c_tenant).
+--   Tenant lookup pattern (mirrors original RPC): tenant_id is fetched from
+--   the principals row for p_principal_id, not hardcoded. This keeps the
+--   RPC multi-tenant clean.
 --
 --   bookkeeping_cashflow schema (confirmed via Mig 122 + 156):
 --     tenant_id / direction / amount(bigint) / flow_date(date) / memo /
 --     created_by / created_at / updated_at / source / source_ref
 --     partial UNIQUE INDEX uniq_bk_cf_source_ref ON (source, source_ref) WHERE source IS NOT NULL
+--   Cashflow tenant_id also uses the principals-derived value (not hardcoded).
 --
 -- Regression + safety:
 --   - Push trigger notify_partner_daily_settle_trg (Mig 107) still fires on
@@ -86,9 +90,9 @@ RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  c_tenant         CONSTANT uuid := '11111111-1111-1111-1111-111111111111';
   c_source         CONSTANT text := 'auto_principal_payout';
   v_principal_name text;
+  v_tenant_id      uuid;
   v_pdr_id         uuid;
 BEGIN
   -- Argument validation (aligned with describeDailyRemitError codes).
@@ -114,26 +118,30 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'role_not_allowed');
   END IF;
 
-  -- Principal existence + name (used in memo).
-  SELECT name INTO v_principal_name
+  -- Principal existence + name (memo) + tenant_id (both pdr and cashflow INSERTs).
+  -- Original RPC pattern: tenant_id sourced from principals row rather than a
+  -- hardcoded constant, so multi-tenant expansion needs no downstream edit.
+  SELECT name, tenant_id INTO v_principal_name, v_tenant_id
   FROM principals
   WHERE id = p_principal_id;
-  IF v_principal_name IS NULL THEN
+  IF v_principal_name IS NULL OR v_tenant_id IS NULL THEN
     RETURN jsonb_build_object('ok', false, 'error', 'principal_not_found');
   END IF;
 
-  -- Upsert principal_daily_remittances. Existing invariant assumed:
-  --   UNIQUE(principal_id, settle_date). Amount can be updated in place
-  --   (re-mark on same day/principal with corrected amount).
+  -- Upsert principal_daily_remittances. Existing invariants assumed:
+  --   tenant_id NOT NULL, UNIQUE(principal_id, settle_date), updated_at column.
+  --   Amount can be updated in place (re-mark on same day/principal with a
+  --   corrected amount). updated_at bumped on every DO UPDATE (original spec).
   INSERT INTO principal_daily_remittances (
-    principal_id, settle_date, remitted_amount, remitted_at, remitted_by
+    tenant_id, principal_id, settle_date, remitted_amount, remitted_at, remitted_by
   ) VALUES (
-    p_principal_id, p_settle_date, p_amount, now(), p_actor
+    v_tenant_id, p_principal_id, p_settle_date, p_amount, now(), p_actor
   )
   ON CONFLICT (principal_id, settle_date) DO UPDATE SET
     remitted_amount = EXCLUDED.remitted_amount,
     remitted_at     = EXCLUDED.remitted_at,
-    remitted_by     = EXCLUDED.remitted_by
+    remitted_by     = EXCLUDED.remitted_by,
+    updated_at      = now()
   RETURNING id INTO v_pdr_id;
 
   -- Cashflow mirror.
@@ -144,7 +152,7 @@ BEGIN
       tenant_id, direction, amount, flow_date, memo,
       created_by, source, source_ref
     ) VALUES (
-      c_tenant, 'out', p_amount::bigint, p_settle_date,
+      v_tenant_id, 'out', p_amount::bigint, p_settle_date,
       '원청 지급 · ' || v_principal_name || ' · ' || p_settle_date::text,
       p_actor, c_source, v_pdr_id
     )
