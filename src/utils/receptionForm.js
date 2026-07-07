@@ -491,28 +491,71 @@ export function parseKakaoText(text) {
     result.address = addrColonMatch[1].replace(/[\s,!.?]+$/, "").trim();
     result.matched.push("주소");
   } else {
-    //   1순위: 시 키워드 + 그 줄 끝까지
-    const cityRegex = /(서울|경기|인천|부산|대구|광주|대전|울산|세종|제주)[^\n]+/;
-    const cityMatch = text.match(cityRegex);
-    if (cityMatch) {
-      result.address = cityMatch[0].replace(/[\s,!.?]+$/, "").trim();
-      result.matched.push("주소");
-    } else {
-      //   2순위: 동/구/로/길 키워드
-      const kwRegex = /(?:^|[\s:：])([가-힣]{2,}(?:동|구|로|길)[\s\d\-,]*\d+(?:\s*[가-힣]+\d*호?)?)/m;
-      const kwMatch = text.match(kwRegex);
-      if (kwMatch) {
-        result.address = kwMatch[1].replace(/[\s,!.?]+$/, "").trim();
-        result.matched.push("주소");
-      } else {
-        //   3순위: 짧은 구/시 단독
-        const shortRegex = /(?:^|[\s:：])([가-힣]{2,4}(?:구|시))(?:\s|$|[,.!?])/m;
-        const shortMatch = text.match(shortRegex);
-        if (shortMatch) {
-          result.address = shortMatch[1].trim();
-          result.matched.push("주소");
+    // 2026-07-07 — A: 라인 기반 anchor + 후속 라인 병합 (인식률 확장).
+    //   기존 cityRegex/kwRegex/shortRegex 3순위 체인이 못 잡던 케이스 처리:
+    //     · 광역시·도 없이 구/동/시/로/길/번지 시작 (서대문구북아현동 / 신대방동 / 김포 구래동)
+    //     · 두 줄 주소 (강북구수유동58-6 \n 영진빌라401호)
+    //     · 슬래시 뒤 호수 잘림 → 라인 통째 잡음으로 해결
+    //   Anchor: 광역시·도 매치 OR (한글 2+ + 동/구/시/로/길/번지/번길) 매치 라인.
+    //   Continuation: 다음 라인이 (숫자 시작 OR "(" 시작 OR 한글 + 호/동/층/번지/아파트/빌라/빌딩/타운/타워) 이면 병합.
+    //     phone/price 라인 만나면 중단.
+    // B: A 로도 못 잡으면 → looksLikeAddrCont 첫 라인 원문 그대로 (빈칸 방지, 사장님 spec).
+    //   사용자가 폼에서 정리.
+    const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+    const REGION_HEAD_RX = /(?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)/;
+    const KW_END_RX      = /[가-힣]{2,}(?:동|구|시|로|길|번지|번길)/;
+    const isPhoneOrPriceOnly = (l) => {
+      const stripped = l.replace(/\s/g, "");
+      if (/^\d[\d\-.]*\d$/.test(stripped) && stripped.length >= 8) return true;   // phone-shape (010-1234-5678, 01012345678 etc.)
+      if (/^\d{1,3}(?:\.\d{3})+\.?$/.test(stripped)) return true;                  // dot price
+      if (/^\d+\s*만\s*원?$/.test(l)) return true;                                 // 만원
+      if (/^\d{1,3}(?:,\d{3})+\s*원?$/.test(l)) return true;                       // 콤마 원
+      return false;
+    };
+    const isAnchorLine       = (l) => REGION_HEAD_RX.test(l) || KW_END_RX.test(l);
+    const looksLikeAddrCont  = (l) => {
+      if (/^\d/.test(l)) return true;
+      if (/^\(/.test(l)) return true;
+      if (/호|동|층|번지|아파트|빌라|빌딩|타운|타워|호실/.test(l)) return true;
+      return false;
+    };
+    // A: anchor 라인 시작 → 후속 라인 병합.
+    let addrFound = null;
+    let addrLabel = "주소";
+    for (let i = 0; i < lines.length; i++) {
+      if (isPhoneOrPriceOnly(lines[i])) continue;
+      if (isAnchorLine(lines[i])) {
+        const collected = [lines[i]];
+        for (let j = i + 1; j < lines.length; j++) {
+          if (isPhoneOrPriceOnly(lines[j])) break;
+          if (isAnchorLine(lines[j]) || looksLikeAddrCont(lines[j])) {
+            collected.push(lines[j]);
+          } else break;
+        }
+        addrFound = collected.join(" ");
+        break;
+      }
+    }
+    // B: fallback — anchor 없어도 looksLikeAddrCont 첫 라인 (원문 보존).
+    if (!addrFound) {
+      for (let i = 0; i < lines.length; i++) {
+        if (isPhoneOrPriceOnly(lines[i])) continue;
+        if (looksLikeAddrCont(lines[i])) {
+          const collected = [lines[i]];
+          for (let j = i + 1; j < lines.length; j++) {
+            if (isPhoneOrPriceOnly(lines[j])) break;
+            if (looksLikeAddrCont(lines[j])) collected.push(lines[j]);
+            else break;
+          }
+          addrFound = collected.join(" ");
+          addrLabel = "주소 (원문 보존)";
+          break;
         }
       }
+    }
+    if (addrFound) {
+      result.address = addrFound.replace(/[\s,!.?]+$/, "").trim();
+      result.matched.push(addrLabel);
     }
   }
 
