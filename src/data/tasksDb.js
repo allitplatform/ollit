@@ -291,7 +291,10 @@ export function taskToRow(task, partial = false) {
 
   // 고객
   if (task.customer !== undefined) row.customer_name = task.customer;
-  if (task.phone    !== undefined) row.phone         = task.phone;
+  // 2026-07-07 — 저장 전 defensive trim (사장님 spec). 사고 이력: DB 에 " 010..."
+  //   / "010... " 앞뒤 공백 포함 저장 다수 확인. 파서 output 은 formatPhone 이
+  //   이미 스트립하나 시트 import / 수동 paste 등 우회 경로 있어 저장 지점에서 재차 방어.
+  if (task.phone    !== undefined) row.phone         = typeof task.phone === "string" ? task.phone.trim() : task.phone;
   if (task.address  !== undefined) row.address       = task.address;
   if (task.region   !== undefined) row.district      = task.region;
 

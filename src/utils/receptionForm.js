@@ -340,7 +340,9 @@ export function parseKaText(text, phoneMatch) {
   if (pDigits.startsWith("10") || pDigits.startsWith("11") || pDigits.startsWith("16") || pDigits.startsWith("17") || pDigits.startsWith("18") || pDigits.startsWith("19")) {
     pDigits = "0" + pDigits;
   }
-  result.phone = formatPhone(pDigits);
+  // 2026-07-07 — 저장 전 defensive trim (사장님 spec). formatPhone 이
+  //   \D 스트립하므로 이론상 공백 0 이나, 사고 이력 대비 명시.
+  result.phone = formatPhone(pDigits).trim();
   result.matched.push("연락처");
 
   // 전화 기준으로 앞/뒤 분리
@@ -442,7 +444,9 @@ export function parseKakaoText(text) {
     if (p.startsWith("10") || p.startsWith("11") || p.startsWith("16") || p.startsWith("17") || p.startsWith("18") || p.startsWith("19")) {
       p = "0" + p;
     }
-    result.phone = formatPhone(p);
+    // 2026-07-07 — 저장 전 defensive trim (사장님 spec). formatPhone 이
+    //   \D 스트립하므로 이론상 공백 0 이나, 사고 이력 대비 명시.
+    result.phone = formatPhone(p).trim();
     result.matched.push("연락처");
   }
 
