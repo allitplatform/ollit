@@ -159,7 +159,9 @@ BEGIN
       AND source_ref = v_pdr_id;
   END IF;
 
-  RETURN jsonb_build_object('ok', true, 'id', v_pdr_id);
+  -- Response shape preserved as { ok: true }. Wrapper + UI only read `ok`
+  -- (partnerDailySettleDb.js:148-163 + AdminPcPrincipalPayout.jsx:487-490).
+  RETURN jsonb_build_object('ok', true);
 END;
 $$;
 
@@ -169,6 +171,7 @@ COMMENT ON FUNCTION mark_principal_daily_remit(uuid, date, int, uuid) IS
   'v2 (Migration 164, 2026-07-07) - UPSERT principal_daily_remittances + mirror '
   'bookkeeping_cashflow OUT (source=auto_principal_payout, source_ref=pdr.id). '
   'p_amount = 0 deletes the mirrored OUT row (correction path). '
+  'Response shape {ok:true} preserved from original RPC. '
   'Signature reconstructed from partnerDailySettleDb.js wrapper - verify before apply.';
 
 
@@ -188,7 +191,8 @@ SET search_path = public
 AS $$
 DECLARE
   c_source CONSTANT text := 'auto_principal_payout';
-  v_pdr_id uuid;
+  v_pdr_id  uuid;
+  v_deleted int;
 BEGIN
   IF p_actor IS NULL THEN
     RETURN jsonb_build_object('ok', false, 'error', 'role_not_allowed');
@@ -207,36 +211,44 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', 'role_not_allowed');
   END IF;
 
-  -- Capture the pdr row id for cashflow deletion. If none exists, no-op.
+  -- Capture the pdr row id (may be NULL if no matching row).
   SELECT id INTO v_pdr_id
   FROM principal_daily_remittances
   WHERE principal_id = p_principal_id
     AND settle_date  = p_settle_date;
 
-  IF v_pdr_id IS NULL THEN
-    -- Nothing to undo. Treat as success (idempotent) so double-click is safe.
-    RETURN jsonb_build_object('ok', true, 'note', 'no_row_to_undo');
+  -- Cashflow OUT row cleanup - only when we have a source_ref to match on.
+  -- Guards against DELETE ... WHERE source_ref = NULL (never matches but is
+  -- a wasted statement; guard is explicit for readability).
+  IF v_pdr_id IS NOT NULL THEN
+    DELETE FROM bookkeeping_cashflow
+    WHERE source     = c_source
+      AND source_ref = v_pdr_id;
   END IF;
 
-  -- Delete cashflow OUT row first. If pdr delete then fails, transaction rolls
-  -- back and cashflow is restored - no orphan mirror row.
-  DELETE FROM bookkeeping_cashflow
-  WHERE source     = c_source
-    AND source_ref = v_pdr_id;
-
+  -- Delete the pdr row. Runs unconditionally per original response contract.
+  -- If v_pdr_id IS NULL, WHERE id = NULL matches 0 rows -> v_deleted = 0
+  -- (idempotent no-op path preserved).
   DELETE FROM principal_daily_remittances
   WHERE id = v_pdr_id;
 
-  RETURN jsonb_build_object('ok', true, 'id', v_pdr_id);
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+
+  -- Response shape preserved as { ok: true, deleted: <int> } per original RPC.
+  -- Wrapper + UI only read `ok` (partnerDailySettleDb.js:165-179 +
+  -- AdminPcPrincipalPayout.jsx:517-521); `deleted` is harmless pass-through.
+  RETURN jsonb_build_object('ok', true, 'deleted', v_deleted);
 END;
 $$;
 
 GRANT EXECUTE ON FUNCTION undo_principal_daily_remit(uuid, date, uuid) TO anon, authenticated;
 
 COMMENT ON FUNCTION undo_principal_daily_remit(uuid, date, uuid) IS
-  'v2 (Migration 164, 2026-07-07) - DELETE mirrored bookkeeping_cashflow OUT '
-  'row first (source=auto_principal_payout, source_ref=pdr.id), then DELETE '
-  'the principal_daily_remittances row. Idempotent - no-op if pdr row missing.';
+  'v2 (Migration 164, 2026-07-07) - Capture pdr.id, conditionally DELETE the '
+  'mirrored bookkeeping_cashflow OUT row (source=auto_principal_payout, '
+  'source_ref=pdr.id), then DELETE the principal_daily_remittances row. '
+  'Response shape {ok:true, deleted:<int>} preserved from original RPC. '
+  'Idempotent - no-op when v_pdr_id NULL yields deleted=0.';
 
 COMMIT;
 
@@ -269,7 +281,7 @@ COMMIT;
 --     28000,
 --     '77777777-7777-7777-7777-aaaaaaaa0004'::uuid
 --   ) AS result;
---   -- Expect: { ok:true, id:<uuid> }.
+--   -- Expect: { ok:true } (original response shape preserved).
 --
 --   SELECT * FROM principal_daily_remittances
 --     WHERE principal_id = (SELECT id FROM principals WHERE code='KA')
@@ -305,7 +317,7 @@ COMMIT;
 --       AND settle_date='2026-07-07'::date;
 --   -- Expect: 0 (pdr row preserved, only cashflow cleared).
 --
---   -- (d) Undo.
+--   -- (d) Undo - expect { ok:true, deleted:1 } (row existed and was removed).
 --   SELECT undo_principal_daily_remit(
 --     (SELECT id FROM principals WHERE code='KA'),
 --     '2026-07-07'::date,
@@ -316,13 +328,13 @@ COMMIT;
 --       AND settle_date='2026-07-07'::date;
 --   -- Expect: 0.
 --
---   -- (e) Undo again (idempotent).
+--   -- (e) Undo again (idempotent - no row to delete).
 --   SELECT undo_principal_daily_remit(
 --     (SELECT id FROM principals WHERE code='KA'),
 --     '2026-07-07'::date,
 --     '77777777-7777-7777-7777-aaaaaaaa0004'::uuid
 --   );
---   -- Expect: { ok:true, note:'no_row_to_undo' }.
+--   -- Expect: { ok:true, deleted:0 } (v_pdr_id NULL -> DELETE 0 rows).
 -- ROLLBACK;
 --
 -- D. Permission denied (non-operator actor).
