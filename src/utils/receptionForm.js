@@ -461,6 +461,13 @@ export function parseKakaoText(text) {
   } else if ((priceMatch = text.match(priceRegex4))) {
     result.estimatedPrice = parseInt(priceMatch[1].replace(/,/g, ""), 10);
     result.matched.push("금액");
+  } else if ((priceMatch = text.match(/(?<!\d)(\d{1,3}(?:\.\d{3})+)(?!\d)/))) {
+    // 2026-07-07 — 마침표 천단위 표기 (예: "100.000" = 100,000). Bug 3 fix.
+    //   기존 범용 파서는 dot 표기 지원 X ("가.충" 트리거된 KA 파서만 처리).
+    //   앞뒤 digit 경계 (?<!\d)(?!\d) 로 점 표기 phone (010.1234.5678) 를
+    //   price 로 오탐하지 않음 (Node 검증 통과).
+    result.estimatedPrice = parseInt(priceMatch[1].replace(/\./g, ""), 10);
+    result.matched.push("금액");
   } else {
     priceMatch = text.match(priceRegex2);
     if (priceMatch) {
@@ -575,13 +582,26 @@ export function parseKakaoText(text) {
   }
 
   // 6. 기종 + 수량 (V14 헌법 7 기종 + 옛 호환)
+  // 2026-07-07 — qty 캡처 마커 필수화 (Bug 2 fix, A-003 root cause).
+  //   이전 정규식 `(\d+)?` optional greedy 가 "스탠드 100.000" 같은 텍스트에서
+  //   뒷 price 앞자리 100 을 qty 로 삼킴 → task_items 에 qty=100 저장.
+  //   신 규칙: (×|x) 앞자리 마커 또는 (대) 뒷자리 마커 있을 때만 qty 캡처.
+  //   마커 없으면 qty=1 강제.
+  //   Node 검증:
+  //     '스탠드 100.000'      → qty=1 (marker X)
+  //     '스탠드 100.000 대'   → qty=1 (대 는 100 과 인접 X, marker X)
+  //     '스탠드×2 100.000'    → qty=2 (× marker)
+  //     '스탠드 2대'          → qty=2 (대 marker)
+  //     '벽걸이×3 스탠드 2대' → 벽걸이:3 + 스탠드:2
   const applianceItems = [];
-  const itemRegex = /(벽걸이|1way|스탠드|4way|원형|투인원|시스템멀티|시스템\s?멀티|시스템|천장형|이동식)\s*(?:[×x]\s*)?(\d+)?\s*대?/gi;
+  const itemRegex = /(벽걸이|1way|스탠드|4way|원형|투인원|시스템멀티|시스템\s?멀티|시스템|천장형|이동식)\s*(?:[×x]\s*(\d+)|(\d+)\s*대)?/gi;
   let itemMatch;
   while ((itemMatch = itemRegex.exec(text)) !== null) {
     const appliance = itemMatch[1].replace(/\s+/g, "");
     if (!applianceItems.some(x => x.appliance === appliance)) {
-      applianceItems.push({ appliance, qty: parseInt(itemMatch[2]) || 1 });
+      // itemMatch[2] = × 뒤 qty / itemMatch[3] = 대 앞 qty. 둘 다 없으면 1.
+      const qty = parseInt(itemMatch[2] || itemMatch[3]) || 1;
+      applianceItems.push({ appliance, qty });
     }
   }
   if (applianceItems.length > 0) {
