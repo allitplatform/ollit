@@ -34,9 +34,10 @@ export const SERVICE_TYPES = {
     borderColor: "#8B5CF6",
   },
   // 2026-06-28 — 누설 (Mig 122 활성화). 빨강 톤.
+  // 2026-07-08 — 표시 라벨만 '누설/누수' (id / kind='leak' 매칭키 무손).
   leak: {
     id:          "leak",
-    label:       "누설",
+    label:       "누설/누수",
     icon:        "💧",
     color:       "#DC2626",
     textColor:   "#DC2626",

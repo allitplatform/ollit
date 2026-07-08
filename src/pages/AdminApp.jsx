@@ -51,7 +51,7 @@ import { isRefrigerant, getServiceKind } from "../utils/workTypeKind.js";
 // 2026-06-17 — 새 접수 폼 공유 헬퍼/상수 (모바일/PC 폼 공유 위해 추출).
 import {
   PRINCIPALS, PRINCIPAL_COLORS, PRINCIPAL_NAME_TO_CODE,
-  WORK_TYPES_CONFIG, WORK_TYPES,
+  WORK_TYPES_CONFIG, WORK_TYPES, formatWorkTypeLabel,
   KA_PRINCIPAL_NAME, KA_1WAY_FIRST_PRICE, KA_1WAY_ADDITIONAL_PRICE,
   APPLIANCE_POOL, REFRIGERANT_APPLIANCE_POOL,
   calcKaOnewayEstimate, splitWorkItemsForKa1way, mergeKaOneway,
@@ -9714,7 +9714,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {workTypes.map(w => (
                     <FormChip t={t} key={w} active={editItem.workType === w}
-                      onClick={() => setEditItem(prev => ({ ...prev, workType: w }))}>{w}</FormChip>
+                      onClick={() => setEditItem(prev => ({ ...prev, workType: w }))}>{formatWorkTypeLabel(w)}</FormChip>
                   ))}
                 </div>
               </div>

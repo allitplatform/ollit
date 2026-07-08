@@ -156,7 +156,7 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick }) 
           <ServiceBar t={t} label="설치" icon="🔧" amount={current.byService.install} pct={installPct} color="#8B5CF6"/>
         )}
         {(current.byService.leak || 0) > 0 && (
-          <ServiceBar t={t} label="누설" icon="💧" amount={current.byService.leak} pct={leakPct} color="#DC2626"/>
+          <ServiceBar t={t} label="누설/누수" icon="💧" amount={current.byService.leak} pct={leakPct} color="#DC2626"/>
         )}
         {current.byService.other > 0 && (
           <ServiceBar t={t} label="기타" icon="•" amount={current.byService.other} pct={otherPct} color={t.textMuted}/>

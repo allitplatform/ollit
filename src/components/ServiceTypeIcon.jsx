@@ -53,7 +53,8 @@ function _baseType(workType) {
   if (kind === "cleaning")    return "세척";
   if (kind === "refrigerant") return "냉매충전";
   if (kind === "install")     return "설치";
-  if (kind === "leak")        return "누설";
+  // 2026-07-08 — 표시 라벨만 '누설/누수' (kind='leak' 매칭·저장 무손).
+  if (kind === "leak")        return "누설/누수";
   // 측 catch (점검/수리 등) — 옛 split fallback
   const s = String(workType || "").trim();
   if (!s) return "";

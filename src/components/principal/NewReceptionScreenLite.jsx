@@ -30,6 +30,7 @@ import { PAYMENT_METHOD_OPTIONS } from "../../data/paymentMethods.js";
 // 2026-06-06 — KA/crikrin 붙여넣기 prefill (선택 기능). 유솔은 미사용.
 //   extractRegion — 주소에서 짧은 지역명 (구>시>군, 캡 6자) 추출. 고객 자동명 + task.region 둘 다 사용.
 import { APPLIANCE_CODE_TO_LABEL, extractRegion } from "../../utils/partnerPasteParser.js";
+import { formatWorkTypeLabel } from "../../utils/receptionForm.js";
 
 // 유솔H 기본 — 작업 종류 / 기종 풀
 const DEFAULT_WORK_TYPES = ["세척", "냉매충전", "출장비"];
@@ -789,7 +790,7 @@ export function NewReceptionScreenLite({
                     {workTypes.map(wt => (
                       <FormChip key={wt} t={t} accent={accentColor} active={editItem.workType === wt}
                         onClick={() => { setEditField({ workType: wt, appliance: "", unitPrice: 0 }); setEditPriceTouched(false); }}
-                      >{wt}</FormChip>
+                      >{formatWorkTypeLabel(wt)}</FormChip>
                     ))}
                   </div>
                 </div>
@@ -1230,7 +1231,7 @@ export function NewReceptionScreenLite({
                   {workTypes.map(wt => (
                     <FormChip key={wt} t={t} accent={accentColor} active={editItem.workType === wt}
                       onClick={() => { setEditField({ workType: wt, appliance: "", unitPrice: 0 }); setEditPriceTouched(false); }}
-                    >{wt}</FormChip>
+                    >{formatWorkTypeLabel(wt)}</FormChip>
                   ))}
                 </div>
               </div>

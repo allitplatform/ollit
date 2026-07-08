@@ -98,7 +98,22 @@ export const REFRIGERANT_APPLIANCE_POOL = ["벽걸이", "스탠드", "4way", "�
 
 // 작업유형 7종 (UI 노출 순서).
 //   2026-06-25 누설/설치 활성화 — 누설은 냉매와 동일 정산, 설치는 75/25.
+//   ⚠️ WORK_TYPES 원소 값은 저장/매칭 키 (파서 output, category_data.workItems.workType,
+//     service_types.name 매칭 대상). UI 노출 텍스트는 formatWorkTypeLabel() 로 감쌀 것.
 export const WORK_TYPES = ["세척", "냉매충전", "누설", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
+
+// 2026-07-08 — 표시 라벨 매핑 (저장값/매칭키와 표시값 분리).
+//   저장/매칭 (파서 output, category_data.workItems.workType, service_types.name,
+//     sync 트리거 v6 LIKE, compute_payment leak 분기) 은 '누설' 그대로 유지.
+//   UI 렌더링 시 formatWorkTypeLabel() 로 감싸 사용자에게 '누설/누수' 노출.
+//   매핑 없는 workType 은 identity 반환.
+export const WORK_TYPE_DISPLAY_LABEL = {
+  "누설": "누설/누수",
+};
+
+export function formatWorkTypeLabel(workType) {
+  return WORK_TYPE_DISPLAY_LABEL[workType] || workType;
+}
 
 // ============================================
 // 헬퍼 — KA 1way 분할/합침 / 정렬 / 표시

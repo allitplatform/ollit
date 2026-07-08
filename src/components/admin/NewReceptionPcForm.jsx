@@ -22,7 +22,7 @@ import { useMinWidth } from "../../utils/useIsPc.js";
 import { supabase } from "../../lib/supabase.js";
 import {
   PRINCIPALS, PRINCIPAL_NAME_TO_CODE,
-  WORK_TYPES,
+  WORK_TYPES, formatWorkTypeLabel,
   splitWorkItemsForKa1way,
   getAppliancePool,
   // 2026-06-17 Phase 2 — 카톡/KA 파서 (모바일 폼과 공유, Stage 1 확장).
@@ -545,7 +545,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
                   onChange={(e) => setEditItem({ workType: e.target.value, appliance: "", qty: editItem.qty })}
                   style={inputStyle(t)}>
                   <option value="">— 작업유형 —</option>
-                  {WORK_TYPES.map(wt => <option key={wt} value={wt}>{wt}</option>)}
+                  {WORK_TYPES.map(wt => <option key={wt} value={wt}>{formatWorkTypeLabel(wt)}</option>)}
                 </select>
                 <select value={editItem.appliance}
                   onChange={(e) => setEditItem(prev => ({ ...prev, appliance: e.target.value }))}

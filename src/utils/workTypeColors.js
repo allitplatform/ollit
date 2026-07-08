@@ -37,13 +37,14 @@ const COLORS_INSTALL = {
 };
 
 // 2026-06-28 — 누설 색 (빨강 톤). Mig 122 누설=냉매동일정산 활성화 보완.
+// 2026-07-08 — name 은 표시 라벨. 매칭 키 (getServiceKind → 'leak') 무손.
 const COLORS_LEAK = {
   main:  "#DC2626",
   box:   { light: "#FECACA", dark: "#3F1212" },
   sub:   { light: "#991B1B", dark: "#F87171" },
   label: { light: "#DC2626", dark: "#F87171" },
   icon:  "💧",
-  name:  "누설",
+  name:  "누설/누수",
   buttonText: "#fff",
 };
 

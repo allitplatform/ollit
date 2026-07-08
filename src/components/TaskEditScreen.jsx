@@ -8,7 +8,7 @@
 import { useState, useMemo } from "react";
 import { canEditField } from "../data/permissions.js";
 import { saveTaskHistory, getFieldLabel } from "../data/taskHistory.js";
-import { getAppliancePool } from "../utils/receptionForm.js";
+import { getAppliancePool, formatWorkTypeLabel } from "../utils/receptionForm.js";
 
 const WORKTYPE_OPTIONS = ["세척", "냉매충전", "누설", "설치"];
 
@@ -431,7 +431,7 @@ function WorkItemsEditor({ items, onChange, editable }) {
                 onChange={e => update(idx, "workType", e.target.value)}
                 style={{ ...inputStyle, flex: 1, padding: "6px 8px", fontSize: 12 }}
               >
-                {WORKTYPE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                {WORKTYPE_OPTIONS.map(opt => <option key={opt} value={opt}>{formatWorkTypeLabel(opt)}</option>)}
               </select>
               {it.workType !== "냉매충전" && (
                 <select
