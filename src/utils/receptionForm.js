@@ -673,6 +673,26 @@ export function parseKakaoText(text) {
   };
   const detectedWorkTypes = [];
   const seenWT = new Set();
+
+  // 2026-07-08 — "물펌프" 별도 조건. workTypeMap 이 substring match 라
+  //   "물펌프 수리" 텍스트가 "수리" 키워드로 걸려 workType='수리' 배출되던 사고 정정.
+  //   ("수리" → "누설" 통째 매핑은 "에어컨 수리" false positive 유발이라 옵션 B 채택.)
+  //   service_types 에서 '수리'/'점검' 껍데기 삭제됨 (오늘) → sync 트리거 v6 이 '수리' RAISE.
+  //   "물펌프" 감지 시 workType='누설' 로 매핑 → leak service 저장 → sync 통과 →
+  //   compute_payment v22 leak 분기 (IN 'refrigerant','leak') 로 정산 정상.
+  //
+  //   ★ seenWT 세팅 2가지:
+  //     · '누설' — "누설"/"누수" workTypeMap 키워드 중복 push 방지.
+  //     · '수리' — "물펌프 수리" 텍스트가 workTypeMap "수리" 키워드에도 걸려 '수리'
+  //               workItem 이 추가로 생성되면 sync 트리거 v6 이 그 workItem 에서 RAISE →
+  //               task 저장 실패. 사장님 spec "접수 성공" 만족 위해 억제.
+  //     · "에어컨 수리" (물펌프 없음) → 이 분기 진입 안 함 → '수리' workTypeMap 정상 매치.
+  if (text.includes("물펌프")) {
+    detectedWorkTypes.push("누설");
+    seenWT.add("누설");
+    seenWT.add("수리");
+  }
+
   for (const [keyword, workType] of Object.entries(workTypeMap)) {
     if (text.includes(keyword) && !seenWT.has(workType)) {
       detectedWorkTypes.push(workType);
