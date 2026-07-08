@@ -10,6 +10,8 @@ import { useState, useMemo, useEffect } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
+import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
+import { formatOffDayType } from "../lib/offDaysDb.js";
 
 const KIND_COLOR = {
   cleaning:    "#0EA5E9",
@@ -128,6 +130,17 @@ export function AdminPcEngineerMonthlyCalendarScreen({
   // 선택된 날짜 (cell 클릭 시 = 그날 작업 자세히 패널).
   const [selectedYmd, setSelectedYmd] = useState(todayY);
   const selectedDateTasks = byDate.get(selectedYmd) || [];
+
+  // 2026-07-08 — 그 달 grid 범위 (앞 여백 일 포함) 안 이 기사 휴무 조회.
+  //   monthDays[0]  = grid 시작 일요일 / monthDays[last] = grid 끝 토요일.
+  const gridStartYmd = monthDays.length > 0 ? ymd(monthDays[0])                    : `${safeYear}-${pad(safeMonth)}-01`;
+  const gridEndYmd   = monthDays.length > 0 ? ymd(monthDays[monthDays.length - 1]) : `${safeYear}-${pad(safeMonth)}-31`;
+  const { byNameDate: offByNameDate } = useOffDaysInRange(gridStartYmd, gridEndYmd);
+  const engineerOffsByDate = useMemo(() => {
+    const name = engineer?.name || "";
+    return name ? (offByNameDate.get(name) || new Map()) : new Map();
+  }, [engineer, offByNameDate]);
+  const selectedDayOffs = engineerOffsByDate.get(selectedYmd) || [];
 
   function shiftMonth(delta) {
     let y = safeYear, m = safeMonth + delta;
@@ -255,6 +268,7 @@ export function AdminPcEngineerMonthlyCalendarScreen({
                 const isToday    = dy === todayY;
                 const isSelected = dy === selectedYmd;
                 const tasks = byDate.get(dy) || [];
+                const offs  = engineerOffsByDate.get(dy) || [];
                 return (
                   <DayCell key={dy}
                     date={d}
@@ -262,6 +276,7 @@ export function AdminPcEngineerMonthlyCalendarScreen({
                     isToday={isToday}
                     isSelected={isSelected}
                     tasks={tasks}
+                    offs={offs}
                     borderRight={idx % 7 !== 6}
                     borderBottom={idx + 7 < monthDays.length}
                     onSelect={() => setSelectedYmd(dy)}
@@ -276,6 +291,7 @@ export function AdminPcEngineerMonthlyCalendarScreen({
           <SelectedDayAside
             ymd={selectedYmd}
             tasks={selectedDateTasks}
+            offs={selectedDayOffs}
             onTaskClick={onTaskClick}
           />
         </div>
@@ -300,17 +316,20 @@ function NavBtn({ children, onClick, ariaLabel }) {
   );
 }
 
-function DayCell({ date, isOutMonth, isToday, isSelected, tasks, borderRight, borderBottom, onSelect, onTaskClick }) {
+function DayCell({ date, isOutMonth, isToday, isSelected, tasks, offs = [], borderRight, borderBottom, onSelect, onTaskClick }) {
   const shown = tasks.slice(0, MAX_CHIPS_PER_CELL);
   const extra = tasks.length - shown.length;
   const dnum = date.getDate();
+  const hasFullDayOff = offs.some(o => o.type === "single" || o.type === "range" || o.type === "repeat" || o.type === "휴무종일");
   return (
     <div onClick={onSelect}
       style={{
         padding: 6,
         borderRight:  borderRight  ? "1px solid var(--border)" : "none",
         borderBottom: borderBottom ? "1px solid var(--border)" : "none",
-        background: (isToday || isSelected) ? "var(--accent-bg)" : "transparent",
+        background: hasFullDayOff        ? "rgba(148, 163, 184, 0.14)"
+                  : (isToday || isSelected) ? "var(--accent-bg)"
+                                            : "transparent",
         display: "flex", flexDirection: "column", gap: 3,
         cursor: "pointer",
         opacity: isOutMonth ? 0.4 : 1,
@@ -336,6 +355,9 @@ function DayCell({ date, isOutMonth, isToday, isSelected, tasks, borderRight, bo
         )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+        {offs.map((o, idx) => (
+          <OffChip key={o.id || `off-${idx}`} off={o}/>
+        ))}
         {shown.map(t => (
           <TaskChip key={t.id || t.taskCode} task={t}
             onClick={(e) => { e.stopPropagation(); onTaskClick?.(t); }}/>
@@ -347,6 +369,35 @@ function DayCell({ date, isOutMonth, isToday, isSelected, tasks, borderRight, bo
           }}>외 {extra}</span>
         )}
       </div>
+    </div>
+  );
+}
+
+// 2026-07-08 — 월간 grid 안 휴무 표시 chip. 회색 톤 🏖️.
+function OffChip({ off }) {
+  const label = formatOffDayType(off.type);
+  const isHourly = off.type === "hourly" || off.type === "휴무부분";
+  const timeStr = isHourly ? ` ${off.startTime || ""}~${off.endTime || ""}` : "";
+  return (
+    <div
+      title={`${label}${timeStr}${off.memo ? " · " + off.memo : ""}`}
+      style={{
+        background: "rgba(148, 163, 184, 0.18)",
+        border: "1px solid rgba(148, 163, 184, 0.4)",
+        borderLeft: "3px solid #64748B",
+        borderRadius: 4,
+        padding: "2px 5px",
+        fontSize: 9, fontWeight: 700,
+        color: "var(--text-secondary)",
+        display: "flex", gap: 3, alignItems: "center",
+        overflow: "hidden", minWidth: 0,
+      }}
+    >
+      <span style={{ flexShrink: 0 }}>🏖️</span>
+      <span style={{
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        flex: 1, minWidth: 0,
+      }}>{label}{timeStr}</span>
     </div>
   );
 }
@@ -393,7 +444,7 @@ function TaskChip({ task, onClick }) {
 // 2026-06-12 — 그날 작업 우 aside (320px sticky). 정보: 시간·종류·고객·지역·상태.
 //   금액·주문번호는 task 필드 신뢰 어려워 제외 (사장님 spec — 돈 숫자 함부로 X).
 //   작업 클릭 → onTaskClick (Shell 우 aside 작업 상세 옛 패턴).
-function SelectedDayAside({ ymd, tasks, onTaskClick }) {
+function SelectedDayAside({ ymd, tasks, offs = [], onTaskClick }) {
   const [, m, d] = ymd.split("-").map(Number);
   return (
     <div style={{
@@ -420,15 +471,48 @@ function SelectedDayAside({ ymd, tasks, onTaskClick }) {
         }}>{m}월 {d}일</div>
         <div style={{
           fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
-        }}>{tasks.length}건</div>
+        }}>{tasks.length}건{offs.length > 0 ? ` · 휴무 ${offs.length}` : ""}</div>
       </div>
-      {tasks.length === 0 ? (
+      {/* 2026-07-08 — 이 날 휴무 있으면 aside 상단에 별도 섹션. */}
+      {offs.length > 0 && (
         <div style={{
-          padding: "30px 10px",
-          textAlign: "center",
-          color: "var(--text-secondary)",
-          fontSize: 12, fontWeight: 600,
-        }}>이 날 작업 없음</div>
+          display: "flex", flexDirection: "column", gap: 4,
+          paddingBottom: 6,
+          borderBottom: tasks.length > 0 ? "1px solid var(--border)" : "none",
+        }}>
+          {offs.map((o, idx) => {
+            const label = formatOffDayType(o.type);
+            const isHourly = o.type === "hourly" || o.type === "휴무부분";
+            const timeStr = isHourly ? ` ${o.startTime || ""}~${o.endTime || ""}` : "";
+            return (
+              <div key={o.id || `off-${idx}`} style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "6px 8px",
+                background: "rgba(148, 163, 184, 0.14)",
+                borderLeft: "3px solid #64748B",
+                borderRadius: 6,
+                fontSize: 12, fontWeight: 700,
+                color: "var(--text-secondary)",
+              }}>
+                <span>🏖️</span>
+                <span>{label}{timeStr}</span>
+                {o.memo && (
+                  <span style={{ fontWeight: 500, color: "var(--text-tertiary)" }}>· {o.memo}</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {tasks.length === 0 ? (
+        offs.length === 0 && (
+          <div style={{
+            padding: "30px 10px",
+            textAlign: "center",
+            color: "var(--text-secondary)",
+            fontSize: 12, fontWeight: 600,
+          }}>이 날 작업 없음</div>
+        )
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           {tasks.map(t => (

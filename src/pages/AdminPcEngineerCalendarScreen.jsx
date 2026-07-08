@@ -11,6 +11,8 @@ import { useState, useMemo, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
+import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
+import { formatOffDayType } from "../lib/offDaysDb.js";
 
 const KIND_COLOR = {
   cleaning:    "#0EA5E9",
@@ -191,6 +193,10 @@ export function AdminPcEngineerCalendarScreen({
   const totalTasks = weekTasks.length;
   const isThisWeek = ymd(weekStart) === ymd(startOfWeekMon(todayDate));
 
+  // 2026-07-08 — 그 주 기사 휴무 조회 (전 기사 range fetch, name 매칭).
+  //   Cell 안 작업 칩 위에 "🏖️ 휴무" 배지 추가. 셀 배경도 회색 톤.
+  const { byNameDate: offByNameDate } = useOffDaysInRange(ymd(weekStart), ymd(weekEnd));
+
   return (
     <div style={{
       padding: "20px 24px 24px",
@@ -364,8 +370,10 @@ export function AdminPcEngineerCalendarScreen({
                   const dy = ymd(d);
                   const isToday = dy === todayY;
                   const tasks = inner ? (inner.get(dy) || []) : [];
+                  // 2026-07-08 — 그 기사 그 날 휴무 lookup (이름 매칭).
+                  const offs = offByNameDate.get(row.name)?.get(dy) || [];
                   return (
-                    <Cell key={dy} tasks={tasks}
+                    <Cell key={dy} tasks={tasks} offs={offs}
                       isToday={isToday}
                       borderRight={i < 6}
                       onTaskClick={onTaskClick}
@@ -397,18 +405,27 @@ function NavBtn({ children, onClick, ariaLabel }) {
   );
 }
 
-function Cell({ tasks, isToday, borderRight, onTaskClick }) {
+function Cell({ tasks, offs = [], isToday, borderRight, onTaskClick }) {
   const shown = tasks.slice(0, MAX_CHIPS_PER_CELL);
   const extra = tasks.length - shown.length;
+  const hasOff = offs.length > 0;
+  // 2026-07-08 — 종일 휴무 (single / range) 시 셀 배경 회색.
+  //   시간 휴무 (hourly) 는 배지만.
+  const hasFullDayOff = offs.some(o => o.type === "single" || o.type === "range" || o.type === "repeat" || o.type === "휴무종일");
   return (
     <div style={{
       padding: 5,
       borderRight: borderRight ? "1px solid var(--border)" : "none",
-      background: isToday ? "var(--accent-bg)" : "transparent",
+      background: hasFullDayOff ? "rgba(148, 163, 184, 0.12)"
+                : isToday       ? "var(--accent-bg)"
+                                : "transparent",
       display: "flex", flexDirection: "column", gap: 3,
       minHeight: 60,
       minWidth: 0,
     }}>
+      {hasOff && offs.map((o, idx) => (
+        <OffChip key={o.id || `off-${idx}`} off={o}/>
+      ))}
       {shown.map(t => (
         <TaskChip key={t.id || t.taskCode} task={t} onClick={() => onTaskClick?.(t)}/>
       ))}
@@ -419,6 +436,35 @@ function Cell({ tasks, isToday, borderRight, onTaskClick }) {
           padding: "2px 4px",
         }}>외 {extra}</span>
       )}
+    </div>
+  );
+}
+
+// 2026-07-08 — 휴무 표시 chip. 회색 톤 + 🏖️ 아이콘 + 유형 라벨.
+function OffChip({ off }) {
+  const label = formatOffDayType(off.type);
+  const isHourly = off.type === "hourly" || off.type === "휴무부분";
+  const timeStr = isHourly ? ` ${off.startTime || ""}~${off.endTime || ""}` : "";
+  return (
+    <div
+      title={`${label}${timeStr}${off.memo ? " · " + off.memo : ""}`}
+      style={{
+        background: "rgba(148, 163, 184, 0.18)",
+        border: "1px solid rgba(148, 163, 184, 0.4)",
+        borderLeft: "3px solid #64748B",
+        borderRadius: 4,
+        padding: "3px 6px",
+        fontSize: 10, fontWeight: 700,
+        color: "var(--text-secondary)",
+        display: "flex", gap: 4, alignItems: "center",
+        overflow: "hidden", minWidth: 0,
+      }}
+    >
+      <span style={{ flexShrink: 0 }}>🏖️</span>
+      <span style={{
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        flex: 1, minWidth: 0,
+      }}>{label}{timeStr}</span>
     </div>
   );
 }

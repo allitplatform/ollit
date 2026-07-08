@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   loadTasksForRole as getTasks,
   updateTaskAdapter as apiUpdateTask,
@@ -3638,6 +3638,67 @@ function extractTimeHint(hint) {
   return "";
 }
 
+// ================================================================
+// 2026-07-08 — 휴무 payload → DB row 확장 (handleSaveOffDay 유틸)
+//   EngineerOffDayAddModal 이 넘겨주는 payload 타입 4종을
+//   user_off_days INSERT 형태 (per-date row) 로 펼친다.
+//     · single → 1행
+//     · hourly → 1행 (start/end 채움)
+//     · range  → 시작~종료 각 날짜 1행 (스키마 무변경)
+//     · repeat → 향후 8주간 해당 요일 각 1행
+// ================================================================
+
+function _ymdAddDays(ymd, days) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+function _expandOffDayPayloadToRows(payload) {
+  const type = payload?.type;
+  if (type === "single") {
+    if (!payload.date) return [];
+    return [{ type: "single", date: payload.date, startTime: null, endTime: null }];
+  }
+  if (type === "hourly") {
+    if (!payload.date) return [];
+    return [{ type: "hourly", date: payload.date, startTime: payload.startTime || null, endTime: payload.endTime || null }];
+  }
+  if (type === "range") {
+    const { startDate, endDate } = payload;
+    if (!startDate || !endDate) return [];
+    if (endDate < startDate) return [];
+    const rows = [];
+    let cur = startDate;
+    // 최대 366일 (안전 상한) — 정상 케이스는 훨씬 짧음
+    for (let i = 0; i < 366 && cur <= endDate; i++) {
+      rows.push({ type: "range", date: cur, startTime: null, endTime: null });
+      cur = _ymdAddDays(cur, 1);
+    }
+    return rows;
+  }
+  if (type === "repeat") {
+    const weekdays = Array.isArray(payload.weekdays) ? payload.weekdays : [];
+    if (weekdays.length === 0) return [];
+    // 앞으로 8주간 (56일) 해당 요일 확장 — 오늘 포함
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+    const rows = [];
+    for (let i = 0; i < 56; i++) {
+      const ymd = _ymdAddDays(todayStr, i);
+      const [y, m, d] = ymd.split("-").map(Number);
+      const dow = new Date(y, m - 1, d).getDay();
+      if (weekdays.includes(dow)) {
+        rows.push({ type: "repeat", date: ymd, startTime: null, endTime: null });
+      }
+    }
+    return rows;
+  }
+  return [];
+}
+
 export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   // V13-1-fix — localStorage 모드 로드 + CSS 변수 적용
   const [mode, setMode] = useState(() => loadThemeSaved());
@@ -4636,24 +4697,23 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
 
   // V13-FINAL2-fix1 — 휴무 / 계좌 / 활동 지역 / 통화 화면 상태
   const [offDayModalOpen, setOffDayModalOpen] = useState(false);
-  // V14 — 5월 시뮬 휴무 (5/3 일요일, 5/5 어린이날)
-  // V14 v6 — 휴무 (localStorage 저장)
-  const [savedOffDays, setSavedOffDays] = useState(() => {
-    try {
-      const v = localStorage.getItem("ollit_off_days");
-      if (v) {
-        const parsed = JSON.parse(v);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {}
-    // Step 5-7-E — ENABLE_MOCK 분기 (운영 = 빈 배열 / 시뮬 = 가족 모임 mock)
-    return ENABLE_MOCK ? [
-      { type: "hourly", date: todayYmd(), startTime: "19:00", endTime: "21:00", reason: "가족 모임" },
-    ] : [];
-  });
-  useEffect(() => {
-    try { localStorage.setItem("ollit_off_days", JSON.stringify(savedOffDays)); } catch (e) {}
-  }, [savedOffDays]);
+  // 2026-07-08 — savedOffDays 를 DB 소스로 전환 (기존 localStorage 캐시 폐기).
+  //   · 운영자 화면 조회 (getAllOffDaysInRange) 와 정합성 확보
+  //   · 저장/삭제 모두 addOffDay / deleteOffDay 로 DB 반영 후 재로드
+  //   · 로그인 초기에는 [] 로 시작 → user.name 확인되면 즉시 1회 load
+  const [savedOffDays, setSavedOffDays] = useState([]);
+  const _reloadOffDays = useCallback(async () => {
+    const engineerName = user?.name || engineerProfile?.name || null;
+    if (!engineerName) return;
+    const res = await getOffDays(engineerName);
+    if (res.ok) {
+      // getOffDays 는 flat row (date / startTime / endTime) 반환 → EngineerCalendarTab 형식 동일.
+      setSavedOffDays(res.offDays || []);
+    } else {
+      console.warn("[EngineerApp.reloadOffDays] fail", res.error);
+    }
+  }, [user?.name, engineerProfile?.name]);
+  useEffect(() => { _reloadOffDays(); }, [_reloadOffDays]);
   const [savedAccount, setSavedAccount] = useState(null);
   const [savedRegions, setSavedRegions] = useState(null);
   const [callTaskId, setCallTaskId] = useState(null);
@@ -4697,24 +4757,73 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
     const key = off.id || `${off.type}|${off.date || off.startDate || ""}|${off.startTime || ""}|${(off.weekdays || []).join(",")}`;
     setRemoveOffConfirm({ key, off, label: getOffLabel(off) });
   }
-  function handleConfirmRemoveOff() {
+  // 2026-07-08 — 휴무 해제도 DB 반영 (savedOffDays 가 DB 소스이므로).
+  //   · savedOffDays 행은 이제 DB uuid (off.id) 보장 → deleteOffDay 로 삭제.
+  //   · id 없는 옛 로컬 데이터는 (localStorage 폐기했으므로) 더 이상 존재하지 않음.
+  //   · 성공/실패 실제 알림 (성공 위장 X).
+  async function handleConfirmRemoveOff() {
     if (!removeOffConfirm) return;
-    const { off, key } = removeOffConfirm;
-    setSavedOffDays(prev => prev.filter(o => {
-      const oKey = o.id || `${o.type}|${o.date || o.startDate || ""}|${o.startTime || ""}|${(o.weekdays || []).join(",")}`;
-      return oKey !== key;
-    }));
+    const { off } = removeOffConfirm;
     setRemoveOffConfirm(null);
+    if (!off?.id) {
+      alert("휴무 정보에 ID가 없어 삭제할 수 없습니다.");
+      return;
+    }
+    const res = await deleteOffDay(off.id);
+    if (!res.ok) {
+      alert(`휴무 해제 실패: ${res.error || "unknown"}`);
+      return;
+    }
+    await _reloadOffDays();
     showToast("휴무가 해제되었습니다.");
   }
 
-  function handleSaveOffDay(payload) {
-    setSavedOffDays(prev => {
-      const next = [...prev, { ...payload, id: payload?.id || `off_${Date.now()}` }];
-      return next;
-    });
+  // 2026-07-08 — 휴무 저장을 DB (user_off_days) 로 이관.
+  //   · 이전: setSavedOffDays 로컬만 → 새로고침 시 사라짐, 운영자 화면 조회 불가.
+  //   · 이후: EngineerOffDayAddModal payload → DB rows 확장 → addOffDay 병렬 → 재로드.
+  //   · type 은 영문 키 (single / range / repeat / hourly) 그대로 저장.
+  //   · range: 시작~종료 각 날짜 1행씩 loop-expand (스키마 무변경).
+  //   · repeat: 앞으로 8주간 해당 요일 각 1행씩 loop-expand.
+  //   · 부분 실패도 실제 알림 (성공 위장 X).
+  async function handleSaveOffDay(payload) {
+    const engineerName = user?.name || engineerProfile?.name || null;
+    if (!engineerName) {
+      alert("사용자 정보 없음. 다시 로그인 후 시도해 주세요.");
+      return;
+    }
+    const rows = _expandOffDayPayloadToRows(payload);
+    if (rows.length === 0) {
+      alert("저장할 날짜가 없습니다.");
+      return;
+    }
+
+    const memo = payload?.reason || "";
+    const results = await Promise.all(rows.map(r => addOffDay({
+      engineer:  engineerName,
+      type:      r.type,
+      date:      r.date,
+      startTime: r.startTime,
+      endTime:   r.endTime,
+      memo,
+    })));
+    const failed = results.filter(x => !x.ok);
+    if (failed.length > 0) {
+      const total = rows.length;
+      const ok = total - failed.length;
+      alert(`휴무 저장 실패 — 전체 ${total}건 중 ${ok}건만 저장됐습니다.\n(첫 실패: ${failed[0]?.error || "unknown"})`);
+      // 부분 성공 상태 유지 위해 DB 재로드
+      await _reloadOffDays();
+      return;
+    }
+
     setOffDayModalOpen(false);
-    showToast(payload?.type === "hourly" ? "시간 휴무가 추가됐습니다." : "휴무가 추가됐습니다.");
+    await _reloadOffDays();
+    const msg =
+      payload?.type === "hourly" ? "시간 휴무가 저장됐습니다." :
+      payload?.type === "range"  ? `기간 휴무 ${rows.length}일이 저장됐습니다.` :
+      payload?.type === "repeat" ? `반복 휴무 ${rows.length}회가 저장됐습니다.` :
+      "휴무가 저장됐습니다.";
+    showToast(msg);
   }
   // 2026-06-07 — tenants.ops_phone 사용. 숫자만 추출, 값 없으면 호출 안 함.
   //   ★ 더미("01012345678") 하드코딩 폐기. opsPhone null 이면 EngineerMeTab 측

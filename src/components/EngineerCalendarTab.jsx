@@ -37,12 +37,15 @@ function compareTime(a, b) {
 }
 
 // V14 — 휴무 헬퍼 (single/range/repeat = full / hourly = 부분)
+// 2026-07-08 — DB 로 이관 후 range/repeat 도 per-date row 로 저장됨.
+//   · 옛 payload aggregate (startDate/endDate/weekdays) 있으면 우선 사용 (하위 호환)
+//   · 없으면 o.date === ymd 매칭 fallback (DB row)
 function isFullDayOffYmd(ymd, dow, offDays) {
   return (offDays || []).some(o => {
     const type = o.type;
-    if (type === "hourly") return false;
-    if (type === "range")  return o.startDate && o.endDate && ymd >= o.startDate && ymd <= o.endDate;
-    if (type === "repeat") return Array.isArray(o.weekdays) && o.weekdays.includes(dow);
+    if (type === "hourly" || type === "휴무부분") return false;
+    if (type === "range"  && o.startDate && o.endDate) return ymd >= o.startDate && ymd <= o.endDate;
+    if (type === "repeat" && Array.isArray(o.weekdays)) return o.weekdays.includes(dow);
     return o.date === ymd;
   });
 }
@@ -132,14 +135,15 @@ export function EngineerCalendarTab({
   }, [monthData, selectedDate]);
 
   // V14 — selectedDate에 매칭되는 전체 휴무 객체들 (single/range/repeat)
+  // 2026-07-08 — DB per-date row + 옛 aggregate 둘 다 처리 (isFullDayOffYmd 와 동일).
   const dayFullOffs = useMemo(() => {
     const ymd = formatYmd(selectedDate);
     const dow = new Date(selectedDate).getDay();
     return (offDays || []).filter(o => {
       const type = o.type;
-      if (type === "hourly") return false;
-      if (type === "range")  return o.startDate && o.endDate && ymd >= o.startDate && ymd <= o.endDate;
-      if (type === "repeat") return Array.isArray(o.weekdays) && o.weekdays.includes(dow);
+      if (type === "hourly" || type === "휴무부분") return false;
+      if (type === "range"  && o.startDate && o.endDate) return ymd >= o.startDate && ymd <= o.endDate;
+      if (type === "repeat" && Array.isArray(o.weekdays)) return o.weekdays.includes(dow);
       return o.date === ymd;
     });
   }, [offDays, selectedDate]);
@@ -493,6 +497,8 @@ function FullDayOffCard({ off, onRemove }) {
   const info = typeMap[off.type] || { icon: "📅", label: "휴무" };
 
   // 반복 휴무는 어떤 요일인지 표시
+  // 2026-07-08 — DB per-date row 는 aggregate 필드 (startDate/weekdays) 결손.
+  //   이 경우 그 날 날짜 (off.date) 를 subtitle 로 표시.
   let subtitle = null;
   if (off.type === "repeat" && Array.isArray(off.weekdays)) {
     const days = off.weekdays
@@ -501,8 +507,10 @@ function FullDayOffCard({ off, onRemove }) {
       .map(d => ["일","월","화","수","목","금","토"][d])
       .join(", ");
     subtitle = `매주 ${days}요일`;
-  } else if (off.type === "range") {
-    subtitle = `${off.startDate || "—"} ~ ${off.endDate || "—"}`;
+  } else if (off.type === "range" && off.startDate && off.endDate) {
+    subtitle = `${off.startDate} ~ ${off.endDate}`;
+  } else if (off.date) {
+    subtitle = off.date;
   }
 
   return (

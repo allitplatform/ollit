@@ -18,6 +18,8 @@ import { getServiceKind } from "../utils/workTypeKind.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 import { adminRescheduleTask, adminReassignTask } from "../lib/adminTaskRpc.js";
 import { supabase } from "../lib/supabase.js";
+import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
+import { formatOffDayType } from "../lib/offDaysDb.js";
 
 const START_HOUR    = 7;
 const END_HOUR      = 24;
@@ -40,6 +42,14 @@ const KIND_COLOR = {
   refrigerant: "#FFB800",
 };
 const KIND_COLOR_FALLBACK = "#9CA3AF";
+
+// 2026-07-08 — "HH:MM" → 자정 기준 분. 실패 시 null.
+function _hmToMinutes(hm) {
+  if (!hm || typeof hm !== "string") return null;
+  const m = hm.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
+}
 
 const TEXT_ON_KIND = {
   cleaning:    "#fff",
@@ -154,6 +164,18 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       return toKstYmd(scheduled) === selectedDate;
     });
   }, [apiTasks, selectedDate]);
+
+  // 2026-07-08 — 그 날 전 기사 휴무 fetch (name → offs[]).
+  //   Lane 이 lane.name 으로 lookup → 회색 밴드 (종일) 또는 시간 밴드 (hourly) 렌더.
+  const { byNameDate: offByNameDate } = useOffDaysInRange(selectedDate, selectedDate);
+  const offsByLaneName = useMemo(() => {
+    const m = new Map();
+    for (const [name, inner] of offByNameDate.entries()) {
+      const arr = inner.get(selectedDate) || [];
+      if (arr.length > 0) m.set(name, arr);
+    }
+    return m;
+  }, [offByNameDate, selectedDate]);
 
   const lanes = useMemo(() => {
     const byEng = new Map();
@@ -424,6 +446,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       <TimeAxisView
         wrapperRef={scrollWrapperRef}
         lanes={lanes}
+        offsByLaneName={offsByLaneName}
         onTaskClick={onTaskClick}
         onTaskDragCommit={handleTaskDragCommit}
         showNowLine={showNowLine}
@@ -575,7 +598,7 @@ function ConfirmDialog({ info, busy, onYes, onNo }) {
   );
 }
 
-function TimeAxisView({ wrapperRef, lanes, onTaskClick, onTaskDragCommit, showNowLine, nowPct, nowLabel, highlightTaskId }) {
+function TimeAxisView({ wrapperRef, lanes, offsByLaneName, onTaskClick, onTaskDragCommit, showNowLine, nowPct, nowLabel, highlightTaskId }) {
   if (lanes.length === 0) {
     return (
       <div style={{
@@ -647,6 +670,7 @@ function TimeAxisView({ wrapperRef, lanes, onTaskClick, onTaskDragCommit, showNo
           <Lane
             key={lane.key}
             lane={lane}
+            offs={offsByLaneName.get(lane.name) || []}
             onTaskClick={onTaskClick}
             onTaskDragCommit={onTaskDragCommit}
             highlightTaskId={highlightTaskId}
@@ -693,16 +717,22 @@ function TimeAxisView({ wrapperRef, lanes, onTaskClick, onTaskDragCommit, showNo
   );
 }
 
-function Lane({ lane, onTaskClick, onTaskDragCommit, highlightTaskId }) {
+function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId }) {
   // 시간 영역 폭 측정용 ref — 드래그 거리(px → 분) 환산에 사용.
   const laneRef = useRef(null);
+  // 2026-07-08 — 이 lane 그 날 휴무 (offs) 분류.
+  //   fullDay = single/range/repeat/휴무종일 (있으면 laneName 옆에 🏖️ 배지 + 전체 회색 밴드)
+  //   hourly  = hourly/휴무부분 (시간 밴드 렌더)
+  const fullDayOffs = offs.filter(o => o.type === "single" || o.type === "range" || o.type === "repeat" || o.type === "휴무종일");
+  const hourlyOffs  = offs.filter(o => o.type === "hourly" || o.type === "휴무부분");
+  const hasFullDayOff = fullDayOffs.length > 0;
   return (
     <>
       <div style={{
         padding: "8px 14px",
         borderRight: "1px solid var(--border)",
         borderBottom: "1px solid var(--border)",
-        background: "var(--bg-elevated)",
+        background: hasFullDayOff ? "rgba(148, 163, 184, 0.14)" : "var(--bg-elevated)",
         fontSize: 12, fontWeight: 700, color: "var(--text-primary)",
         display: "flex", alignItems: "center", gap: 6,
         minHeight: LANE_HEIGHT,
@@ -714,7 +744,10 @@ function Lane({ lane, onTaskClick, onTaskDragCommit, highlightTaskId }) {
         <span style={{
           flex: 1, minWidth: 0,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>{lane.name}</span>
+        }}>
+          {hasFullDayOff && <span style={{ marginRight: 4 }}>🏖️</span>}
+          {lane.name}
+        </span>
         <span className="mono" style={{
           fontSize: 10, color: "var(--text-secondary)", fontWeight: 700,
           flexShrink: 0,
@@ -728,8 +761,55 @@ function Lane({ lane, onTaskClick, onTaskDragCommit, highlightTaskId }) {
           position: "relative",
           borderBottom: "1px solid var(--border)",
           minHeight: LANE_HEIGHT,
-          background: "var(--bg-elevated)",
+          background: hasFullDayOff ? "rgba(148, 163, 184, 0.10)" : "var(--bg-elevated)",
         }}>
+        {/* 2026-07-08 — 종일 휴무 표시 배너 (가로 100% 회색 밴드 + 라벨). */}
+        {hasFullDayOff && (
+          <div title={fullDayOffs.map(o => `${formatOffDayType(o.type)}${o.memo ? " · " + o.memo : ""}`).join(" / ")}
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "repeating-linear-gradient(45deg, rgba(148,163,184,0.10) 0 8px, rgba(148,163,184,0.18) 8px 16px)",
+              color: "var(--text-secondary)",
+              fontSize: 11, fontWeight: 700,
+              pointerEvents: "none",
+              zIndex: 1,
+            }}>
+            🏖️ {formatOffDayType(fullDayOffs[0].type)}
+          </div>
+        )}
+        {/* 2026-07-08 — 시간 휴무 밴드 (하나 이상 겹칠 수 있음). */}
+        {hourlyOffs.map((o, idx) => {
+          const s = _hmToMinutes(o.startTime);
+          const e = _hmToMinutes(o.endTime);
+          if (s == null || e == null || e <= s) return null;
+          const startMin = START_HOUR * 60;
+          const totalMin = TOTAL_HOURS * 60;
+          const leftPct  = Math.max(0, (s - startMin) / totalMin) * 100;
+          const widthPct = Math.min(100 - leftPct, ((e - s) / totalMin) * 100);
+          if (widthPct <= 0) return null;
+          return (
+            <div key={o.id || `hoff-${idx}`}
+              title={`${formatOffDayType(o.type)} ${o.startTime}~${o.endTime}${o.memo ? " · " + o.memo : ""}`}
+              style={{
+                position: "absolute",
+                top: 4, bottom: 4,
+                left:  `${leftPct}%`,
+                width: `${widthPct}%`,
+                background: "repeating-linear-gradient(45deg, rgba(148,163,184,0.18) 0 6px, rgba(148,163,184,0.30) 6px 12px)",
+                border: "1px solid rgba(100, 116, 139, 0.5)",
+                borderRadius: 4,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                color: "var(--text-secondary)",
+                fontSize: 10, fontWeight: 700,
+                pointerEvents: "none",
+                zIndex: 1,
+              }}>
+              🏖️ {o.startTime}~{o.endTime}
+            </div>
+          );
+        })}
         {Array.from({ length: TOTAL_HOURS - 1 }).map((_, i) => (
           <div key={i} style={{
             position: "absolute",

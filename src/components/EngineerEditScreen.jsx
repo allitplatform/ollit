@@ -22,6 +22,8 @@ import { supabase } from "../lib/supabase.js";
 // 2026-06-18 Mig 141 — 사업자 정보 카드 (운영자 대리 입력 — actor = 운영자 user_id).
 import { EngineerBusinessInfoCard } from "./EngineerBusinessInfoCard.jsx";
 import { useIsDark } from "../hooks/useIsDark.js";
+// 2026-07-08 — 프로상세 하단 휴무 미리보기.
+import { getOffDays, formatOffDayType } from "../lib/offDaysDb.js";
 
 // Step 5-5-C Phase 4-C-2 — 시트 (전체) 행 매핑 헬퍼 (form 초기값 + workTypesOriginal 둘 다 호출)
 function _computeInitialWorkTypes(engineer) {
@@ -620,6 +622,14 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
             <PcCard>{ratesSection}</PcCard>
             <PcCard>{memoSection}</PcCard>
           </div>
+          {/* 2026-07-08 — 이 프로 등록 휴무 미리보기 (신규 X, 이름 있어야). */}
+          {!isNew && engineer?.name && (
+            <div style={{ marginTop: 14 }}>
+              <PcCard>
+                <EngineerOffDaysPreview engineerName={engineer.name}/>
+              </PcCard>
+            </div>
+          )}
           {errorNode}
           {toastNode}
           {/* PC 헤더에 취소/저장 흡수 — 본문 saveNode 없음. */}
@@ -655,9 +665,85 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
           )}
           {accountSection}
           {memoSection}
+          {/* 2026-07-08 — 이 프로 등록 휴무 미리보기 (모바일). */}
+          {!isNew && engineer?.name && (
+            <div style={{ marginTop: 16 }}>
+              <EngineerOffDaysPreview engineerName={engineer.name}/>
+            </div>
+          )}
           {errorNode}
           {toastNode}
           {saveNode}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 2026-07-08 — 프로상세 하단 휴무 미리보기.
+//   · 이 기사가 등록한 휴무를 오늘 이후 순으로 최대 20건 표시.
+//   · 저장/삭제는 여기서 안 함 (기사앱에서만) — 조회만.
+//   · 이름 매칭 (getOffDays) — offDaysDb 내부 users.role=engineer inner join.
+function EngineerOffDaysPreview({ engineerName }) {
+  const [offDays, setOffDays] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError("");
+    getOffDays(engineerName).then(res => {
+      if (!alive) return;
+      if (res.ok) setOffDays(res.offDays || []);
+      else        setError(res.error || "load fail");
+      setLoading(false);
+    });
+    return () => { alive = false; };
+  }, [engineerName]);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const upcoming = useMemo(() => {
+    return (offDays || [])
+      .filter(o => (o.date || "") >= todayStr)
+      .sort((a, b) => (a.date || "").localeCompare(b.date || ""))
+      .slice(0, 20);
+  }, [offDays, todayStr]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
+        🏖️ 등록된 휴무 <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>(오늘 이후 {upcoming.length}건 / 전체 {offDays.length}건)</span>
+      </div>
+      {loading ? (
+        <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>불러오는 중…</div>
+      ) : error ? (
+        <div style={{ fontSize: 12, color: "#EF4444" }}>조회 실패: {error}</div>
+      ) : upcoming.length === 0 ? (
+        <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>등록된 앞으로의 휴무 없음</div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {upcoming.map(o => {
+            const label   = formatOffDayType(o.type);
+            const isHourly = o.type === "hourly" || o.type === "휴무부분";
+            const timeStr = isHourly ? ` ${o.startTime || ""}~${o.endTime || ""}` : "";
+            return (
+              <div key={o.id} style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "6px 10px",
+                background: "rgba(148, 163, 184, 0.10)",
+                borderLeft: "3px solid #64748B",
+                borderRadius: 6,
+                fontSize: 12, fontWeight: 700,
+                color: "var(--text-primary)",
+              }}>
+                <span style={{ minWidth: 100, fontVariantNumeric: "tabular-nums" }}>{o.date}</span>
+                <span style={{ color: "var(--text-secondary)" }}>{label}{timeStr}</span>
+                {o.memo && (
+                  <span style={{ fontWeight: 500, color: "var(--text-tertiary)" }}>· {o.memo}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

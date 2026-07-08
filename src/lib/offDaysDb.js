@@ -94,6 +94,7 @@ export async function getOffDays(engineer) {
   }
 
   // 호출 시 engineerName 이미 알고 있음 → row 매핑마다 name lookup 불필요
+  // 2026-07-08 — reason 별칭 (EngineerCalendarTab 화면이 off.reason 참조 → 호환)
   const offDays = (data || []).map(row => ({
     id:        row.id,
     offId:     row.id,        // EngineerApp 호환 (off.offId 사용처 여러 곳)
@@ -103,6 +104,7 @@ export async function getOffDays(engineer) {
     startTime: timeFromDb(row.start_time),
     endTime:   timeFromDb(row.end_time),
     memo:      row.memo || "",
+    reason:    row.memo || "",  // 옛 표시 컴포넌트 호환
   }));
 
   return { ok: true, offDays };
@@ -158,4 +160,59 @@ export async function deleteOffDay(offId) {
     return { ok: false, error: error.message };
   }
   return { ok: true };
+}
+
+// ============================================================
+// 2026-07-08 — 운영자 화면 조회 (전 기사 range fetch)
+// ============================================================
+
+// 기간 내 전체 기사 휴무 조회 (운영자 타임라인/주간/월간/프로상세용).
+//   users JOIN 으로 engineerName / engineerCode 동봉 → 프론트 매핑 없이 즉시 사용.
+//   응답: { ok: true, offDays: [...] } | { ok: false, error, offDays: [] }
+export async function getAllOffDaysInRange(startYmd, endYmd) {
+  if (!startYmd || !endYmd) {
+    return { ok: false, error: "range 없음", offDays: [] };
+  }
+
+  const { data, error } = await supabase
+    .from("user_off_days")
+    .select("id, user_id, off_date, type, start_time, end_time, memo, users:user_id(id, name, code)")
+    .gte("off_date", startYmd)
+    .lte("off_date", endYmd)
+    .order("off_date", { ascending: true });
+
+  if (error) {
+    console.error("[offDaysDb.getAllOffDaysInRange]", error);
+    return { ok: false, error: error.message, offDays: [] };
+  }
+
+  const offDays = (data || []).map(row => ({
+    id:           row.id,
+    userId:       row.user_id,
+    engineerName: row.users?.name || "",
+    engineerCode: row.users?.code || "",
+    type:         row.type || "",
+    date:         dateFromDb(row.off_date),
+    startTime:    timeFromDb(row.start_time),
+    endTime:      timeFromDb(row.end_time),
+    memo:         row.memo || "",
+  }));
+
+  return { ok: true, offDays };
+}
+
+// 타입 영문키 → 한글 라벨 (화면 표시용 매핑).
+//   저장은 영문 키 (single/range/repeat/hourly). 옛 데이터 호환 항목 포함.
+export const OFF_DAY_TYPE_LABEL = {
+  single:   "하루 휴무",
+  range:    "기간 휴무",
+  repeat:   "반복 휴무",
+  hourly:   "시간 휴무",
+  // 옛 데이터 (구 AddOffDayModal 로 저장된 것) — 화면 표시 호환
+  "휴무종일": "하루 휴무",
+  "휴무부분": "시간 휴무",
+};
+
+export function formatOffDayType(type) {
+  return OFF_DAY_TYPE_LABEL[type] || type || "";
 }
