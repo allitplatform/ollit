@@ -194,6 +194,8 @@ import { EngineerTaskListScreen } from "../components/admin/EngineerTaskList.jsx
 import { AnnouncementManageScreen } from "../components/admin/AnnouncementManageScreen.jsx";
 // 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점).
 import { EngineerCalendarScreen } from "../components/admin/EngineerCalendarScreen.jsx";
+// 2026-07-08 — 모바일 프로상세 (EngineerDayScreen) 오늘 휴무 조회.
+import { getOffDays, formatOffDayType } from "../lib/offDaysDb.js";
 // 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
 import { fetchUnprocessedRefriAddons, rollbackRefrigerantAddonSource } from "../lib/refrigerantAddonsDb.js";
 import {
@@ -7338,6 +7340,22 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
   const schedule = engineer.todaySchedule || [];
   const stats = getEngineerStats(engineer.id, TODAY_DATE);
 
+  // 2026-07-08 — 이 프로의 오늘 휴무 조회 (DB user_off_days).
+  //   schedule 은 apiTasks 파생 → 배정 작업만. 휴무 별도 표시 필요.
+  const [todayOffs, setTodayOffs] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    const name = engineer?.name;
+    if (!name) { setTodayOffs([]); return; }
+    getOffDays(name).then(res => {
+      if (!alive) return;
+      const today = todayYmd();
+      const filtered = (res.ok ? (res.offDays || []) : []).filter(o => (o.date || "") === today);
+      setTodayOffs(filtered);
+    });
+    return () => { alive = false; };
+  }, [engineer?.name]);
+
   // 활동 카드 렌더링용 — 기사 정보 주입 (TaskCard 재사용)
   const enrichedItems = stats.items.map((a, idx) => ({
     ...a,
@@ -7407,7 +7425,34 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
 
         {/* 타임라인 카드 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-          {schedule.length === 0 ? (
+          {/* 2026-07-08 — 오늘 휴무 카드 (일정 위에 노출). */}
+          {todayOffs.map((o, idx) => {
+            const label   = formatOffDayType(o.type);
+            const isHourly = o.type === "hourly" || o.type === "휴무부분";
+            const timeStr = isHourly ? `${o.startTime || "—"} ~ ${o.endTime || "—"}` : "종일";
+            return (
+              <div key={o.id || `off-${idx}`} style={{
+                padding: "10px 12px",
+                background: t.bgInset,
+                border: `1px dashed ${t.border}`,
+                borderLeft: `3px solid #64748B`,
+                borderRadius: 8,
+                display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <span style={{ fontSize: 18 }}>🏖️</span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: t.textSecondary }}>
+                    {label}
+                    <span style={{ marginLeft: 6, fontWeight: 600, color: t.textMuted }}>· {timeStr}</span>
+                  </div>
+                  {o.memo && (
+                    <div style={{ fontSize: 11, color: t.textMuted }}>📝 {o.memo}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+          {schedule.length === 0 && todayOffs.length === 0 ? (
             <div style={{ padding: "20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>일정 없음</div>
           ) : schedule.map((slot, idx) => {
             const isWork = slot.type === "work";

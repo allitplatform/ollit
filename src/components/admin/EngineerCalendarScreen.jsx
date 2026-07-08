@@ -13,6 +13,8 @@ import {
   getMonthGrid,
   findEngineerForTask,
 } from "../../utils/engineerCalendarStats.js";
+// 2026-07-08 — 선택 프로 휴무 조회.
+import { getOffDays, formatOffDayType } from "../../lib/offDaysDb.js";
 
 const MAX_SEARCH_RESULTS = 20;
 const DEBOUNCE_MS = 200;
@@ -118,6 +120,32 @@ export function EngineerCalendarScreen({
     });
     return arr;
   }, [tasksByDate, safeSelectedYmd]);
+
+  // 2026-07-08 — 선택된 프로의 휴무 fetch (그 프로 전체 목록).
+  //   그 달 grid + 하단 오늘 카드 양쪽에서 사용.
+  //   date 별 Map 으로 grouping → offsByYmd.get(ymd) → off[].
+  const [engineerOffDays, setEngineerOffDays] = useState([]);
+  useEffect(() => {
+    let alive = true;
+    const name = engineer?.name;
+    if (!name) { setEngineerOffDays([]); return; }
+    getOffDays(name).then(res => {
+      if (!alive) return;
+      setEngineerOffDays(res.ok ? (res.offDays || []) : []);
+    });
+    return () => { alive = false; };
+  }, [engineer?.name]);
+  const offsByYmd = useMemo(() => {
+    const m = new Map();
+    for (const o of engineerOffDays) {
+      const k = o.date || "";
+      if (!k) continue;
+      if (!m.has(k)) m.set(k, []);
+      m.get(k).push(o);
+    }
+    return m;
+  }, [engineerOffDays]);
+  const dayOffs = offsByYmd.get(safeSelectedYmd) || [];
 
   // 2026-06-03 Phase B — 측측측 검색 측측 (전체 apiTasks, 클라 측측).
   //   취소 측측, 측측측 측측측 측측 (= 측측측 측측 측측 측측 측측 측측 측측 측측 X).
@@ -490,6 +518,10 @@ export function EngineerCalendarScreen({
             const dow = idx % 7;
             const dayColor = dow === 0 ? "#EF4444" : dow === 6 ? "#3B82F6" : t.text;
             const cls = classifyByService(tasks);
+            // 2026-07-08 — 이 셀 휴무 여부.
+            const offs = offsByYmd.get(cell.ymd) || [];
+            const hasFullDayOff = offs.some(o => o.type === "single" || o.type === "range" || o.type === "repeat" || o.type === "휴무종일");
+            const hasHourlyOff  = offs.some(o => o.type === "hourly" || o.type === "휴무부분");
 
             return (
               <button
@@ -499,6 +531,8 @@ export function EngineerCalendarScreen({
                   aspectRatio: "1 / 1.1",
                   background: isSelected
                     ? (t.accent + "22")
+                    : hasFullDayOff
+                    ? "rgba(148, 163, 184, 0.18)"
                     : (isToday ? (t.bgInset || "rgba(255,255,255,0.04)") : t.bgElevated),
                   border: `1px solid ${isSelected ? t.accent : (isToday ? t.accent + "55" : t.border)}`,
                   borderRadius: 8,
@@ -513,7 +547,13 @@ export function EngineerCalendarScreen({
                 <div style={{
                   fontSize: 11, fontWeight: isToday ? 800 : 700,
                   color: dayColor, textAlign: "left",
-                }}>{cell.day}</div>
+                  display: "flex", alignItems: "center", gap: 2,
+                }}>
+                  <span>{cell.day}</span>
+                  {(hasFullDayOff || hasHourlyOff) && (
+                    <span style={{ fontSize: 8 }}>🏖️</span>
+                  )}
+                </div>
 
                 {/* 측측 점 + 측측 */}
                 <DotsRow t={t} cls={cls} total={tasks.length}/>
@@ -533,17 +573,54 @@ export function EngineerCalendarScreen({
             {fmtDayLabel(safeSelectedYmd)}
           </span>
           <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
-            {dayTasks.length}건
+            {dayTasks.length}건{dayOffs.length > 0 ? ` · 휴무 ${dayOffs.length}` : ""}
           </span>
         </div>
 
-        {dayTasks.length === 0 ? (
+        {/* 2026-07-08 — 이 날 휴무 리스트 (있으면 상단). */}
+        {dayOffs.length > 0 && (
           <div style={{
-            padding: "18px 14px", textAlign: "center",
-            color: t.textMuted, fontSize: 12,
-            background: t.bgElevated, border: `1px solid ${t.border}`,
-            borderRadius: 10,
-          }}>이 날 일정 없음</div>
+            marginBottom: 10,
+            display: "flex", flexDirection: "column", gap: 6,
+          }}>
+            {dayOffs.map((o, idx) => {
+              const label   = formatOffDayType(o.type);
+              const isHourly = o.type === "hourly" || o.type === "휴무부분";
+              const timeStr = isHourly ? `${o.startTime || "—"} ~ ${o.endTime || "—"}` : "종일";
+              return (
+                <div key={o.id || `off-${idx}`} style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "10px 12px",
+                  background: t.bgElevated,
+                  border: `1px dashed ${t.border}`,
+                  borderLeft: `3px solid #64748B`,
+                  borderRadius: 10,
+                }}>
+                  <span style={{ fontSize: 16 }}>🏖️</span>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
+                      {label}
+                      <span style={{ marginLeft: 6, fontWeight: 600, color: t.textMuted }}>· {timeStr}</span>
+                    </div>
+                    {o.memo && (
+                      <div style={{ fontSize: 11, color: t.textMuted }}>📝 {o.memo}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {dayTasks.length === 0 ? (
+          dayOffs.length === 0 && (
+            <div style={{
+              padding: "18px 14px", textAlign: "center",
+              color: t.textMuted, fontSize: 12,
+              background: t.bgElevated, border: `1px solid ${t.border}`,
+              borderRadius: 10,
+            }}>이 날 일정 없음</div>
+          )
         ) : (
           <div style={{
             background: t.bgElevated, border: `1px solid ${t.border}`,

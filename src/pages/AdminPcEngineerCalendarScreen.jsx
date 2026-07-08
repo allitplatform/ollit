@@ -197,6 +197,36 @@ export function AdminPcEngineerCalendarScreen({
   //   Cell 안 작업 칩 위에 "🏖️ 휴무" 배지 추가. 셀 배경도 회색 톤.
   const { byNameDate: offByNameDate } = useOffDaysInRange(ymd(weekStart), ymd(weekEnd));
 
+  // 2026-07-08 — 그 주 배정 작업 없이 휴무만 있는 기사도 row 로 노출.
+  //   기존 rows 는 weekTasks 파생 → 작업 0 기사 안 뜸. offByNameDate 에 있는 이름 중
+  //   기존 rows 에 없는 이름을 orphan row 로 추가 (검색 매칭 후 처리).
+  const rowsWithOff = useMemo(() => {
+    if (offByNameDate.size === 0) return rows;
+    const existingNames = new Set(rows.map(r => r.name));
+    const orphans = [];
+    for (const [name] of offByNameDate.entries()) {
+      if (!name || existingNames.has(name)) continue;
+      const eng = (apiEngineers || []).find(e => e.name === name) || null;
+      // 검색 활성화 시 이름 매칭 안 되면 skip.
+      const q = search.trim().toLowerCase();
+      if (q && !name.toLowerCase().includes(q)) continue;
+      orphans.push({
+        key: eng?.id || `__off-only__${name}`,
+        eid: eng?.id || null,
+        eng,
+        name,
+        tasks: [],
+        isUnassigned: false,
+      });
+    }
+    if (orphans.length === 0) return rows;
+    orphans.sort((a, b) => a.name.localeCompare(b.name));
+    // 미배정 행 유지 위치 (항상 마지막). 배정된 orphans 는 미배정 앞.
+    const idxUnassigned = rows.findIndex(r => r.isUnassigned);
+    if (idxUnassigned === -1) return [...rows, ...orphans];
+    return [...rows.slice(0, idxUnassigned), ...orphans, ...rows.slice(idxUnassigned)];
+  }, [rows, offByNameDate, apiEngineers, search]);
+
   return (
     <div style={{
       padding: "20px 24px 24px",
@@ -217,7 +247,7 @@ export function AdminPcEngineerCalendarScreen({
           <div style={{
             fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
           }}>
-            {rows.length}행 · {totalTasks}건
+            {rowsWithOff.length}행 · {totalTasks}건
             {unassignedCount > 0 && (
               <span style={{ color: "var(--orange, #F59E0B)", marginLeft: 6, fontWeight: 800 }}>
                 · 미배정 {unassignedCount}
@@ -277,7 +307,7 @@ export function AdminPcEngineerCalendarScreen({
       </div>
 
       {/* 표 — 좌 기사명(90px) + 가로 7일 */}
-      {rows.length === 0 ? (
+      {rowsWithOff.length === 0 ? (
         <EmptyBox label={search ? `"${search}" 검색 결과 없음` : "이번 주 작업 없음"}/>
       ) : (
         <div style={{
@@ -327,7 +357,7 @@ export function AdminPcEngineerCalendarScreen({
           </div>
 
           {/* 기사 행 */}
-          {rows.map((row, ri) => {
+          {rowsWithOff.map((row, ri) => {
             const isHighlight = !!(engineerId && row.eid === engineerId);
             const inner = cellsByEngineerDate.get(row.key);
             return (
@@ -339,7 +369,7 @@ export function AdminPcEngineerCalendarScreen({
                 style={{
                   display: "grid",
                   gridTemplateColumns: "90px repeat(7, 1fr)",
-                  borderBottom: ri < rows.length - 1 ? "1px solid var(--border)" : "none",
+                  borderBottom: ri < rowsWithOff.length - 1 ? "1px solid var(--border)" : "none",
                   background: isHighlight ? "var(--accent-bg)" : "transparent",
                   transition: "background 0.2s",
                 }}>

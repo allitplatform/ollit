@@ -242,6 +242,33 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     return list;
   }, [todayTasks, apiEngineers]);
 
+  // 2026-07-08 — 그 날 작업 배정 없이 휴무만 있는 기사도 lane 으로 노출.
+  //   기존 lanes 는 todayTasks 파생 → 배정 0 기사 안 뜸.
+  //   offsByLaneName 이름 중 기존 lanes 에 이름 있는 것은 skip, 나머지는 orphan lane 추가.
+  const lanesWithOff = useMemo(() => {
+    if (offsByLaneName.size === 0) return lanes;
+    const existingNames = new Set(lanes.map(l => l.name));
+    const orphans = [];
+    for (const [name] of offsByLaneName.entries()) {
+      if (!name || existingNames.has(name)) continue;
+      // apiEngineers 에서 이름 매칭 → eid / engineerCode / engineerUserId 채움 (재배정 대상 lane 유지)
+      const eng = (apiEngineers || []).find(e => e.name === name) || null;
+      orphans.push({
+        key:  `__off-only__${name}`,
+        eid:  eng?.id || null,
+        ename: name,
+        tasks: [],
+        engineerUserId: eng?.user_id || eng?.userId || eng?.uuid || eng?.userUuid || null,
+        engineerCode:   eng?.code    || null,
+        name,
+      });
+    }
+    if (orphans.length === 0) return lanes;
+    // 휴무만 있는 기사 lane 은 tasks=0 → 정렬상 하위. 이름 alpha 로 정렬 후 뒤에 붙임.
+    orphans.sort((a, b) => a.name.localeCompare(b.name));
+    return [...lanes, ...orphans];
+  }, [lanes, offsByLaneName, apiEngineers]);
+
   // 드래그 드롭 → 확인 모달.
   //   confirmInfo = { task, oldTime, newTime, newIso, onAccept, onCancel } | null
   const [confirmInfo, setConfirmInfo] = useState(null);
@@ -445,7 +472,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
       <TimeAxisView
         wrapperRef={scrollWrapperRef}
-        lanes={lanes}
+        lanes={lanesWithOff}
         offsByLaneName={offsByLaneName}
         onTaskClick={onTaskClick}
         onTaskDragCommit={handleTaskDragCommit}
