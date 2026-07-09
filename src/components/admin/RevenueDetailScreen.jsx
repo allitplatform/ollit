@@ -66,7 +66,8 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
   //   · 원청별/기사별/작업별 3탭 모두 이 mode 로 통합 집계.
   const today = todayYmd();
   const [y0, m0] = today.split("-").map(Number);
-  const [mode, setMode] = useState("month"); // 'day' | 'month'
+  // 2026-07-09 — 진입 기본 'day' (오늘). 월별 토글은 유지.
+  const [mode, setMode] = useState("day"); // 'day' | 'month'
   const [year, setYear]   = useState(y0);
   const [month, setMonth] = useState(m0);
   const [selectedDay, setSelectedDay] = useState(today); // "YYYY-MM-DD"
