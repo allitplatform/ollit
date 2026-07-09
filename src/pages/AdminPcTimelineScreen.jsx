@@ -813,7 +813,10 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
           </div>
         )}
         {/* 2026-07-08 — 시간 휴무 밴드 (하나 이상 겹칠 수 있음).
-            2026-07-09 — 클릭 → 사유 팝업. */}
+            2026-07-09 — 클릭 → 사유 팝업.
+            2026-07-09 — 밴드 안 시간 텍스트 제거 (좁은 밴드에서 잘림 방지).
+                          밴드 위치 자체가 시간대 표현 → 아이콘만 남김.
+                          정확한 시간+사유는 클릭 팝업으로 확인. */}
         {hourlyOffs.map((o, idx) => {
           const s = _hmToMinutes(o.startTime);
           const e = _hmToMinutes(o.endTime);
@@ -840,11 +843,11 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
                 borderRadius: 4,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "var(--text-secondary)",
-                fontSize: 10, fontWeight: 700,
+                fontSize: 11, fontWeight: 700,
                 cursor: "pointer",
                 zIndex: 2,
               }}>
-              🏖️ {o.startTime}~{o.endTime}
+              🏖️
             </div>
           );
         })}
