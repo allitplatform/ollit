@@ -37,11 +37,17 @@ const DRAG_THRESHOLD_PX = 5;
 //   진행중 / 완료 / 취소 / visit_only / 정산완료.
 const LOCKED_STATUSES = new Set(["진행중", "완료", "취소", "visit_only", "정산완료"]);
 
+// 2026-07-09 — leak / install / other 색 누락 사고 정정.
+//   getServiceKind → 'leak' / 'install' 반환하는데 여기 매핑 없어 fallback 회색 표시.
+//   workTypeColors.js 표준 (세척 파랑 / 냉매 노랑 / 설치 보라 / 누설 빨강 / 그 외 핑크) 과 통일.
 const KIND_COLOR = {
   cleaning:    "#0EA5E9",
   refrigerant: "#FFB800",
+  install:     "#8B5CF6",
+  leak:        "#DC2626",
+  other:       "#FF1B8D",
 };
-const KIND_COLOR_FALLBACK = "#9CA3AF";
+const KIND_COLOR_FALLBACK = "#FF1B8D";
 
 // 2026-07-08 — "HH:MM" → 자정 기준 분. 실패 시 null.
 function _hmToMinutes(hm) {
@@ -51,9 +57,13 @@ function _hmToMinutes(hm) {
   return Number(m[1]) * 60 + Number(m[2]);
 }
 
+// 2026-07-09 — 노랑 (냉매) 만 검정, 나머지 (파랑/보라/빨강/핑크) 는 흰색.
 const TEXT_ON_KIND = {
   cleaning:    "#fff",
   refrigerant: "#1A1A1A",
+  install:     "#fff",
+  leak:        "#fff",
+  other:       "#fff",
 };
 const TEXT_ON_KIND_FALLBACK = "#fff";
 
@@ -156,9 +166,13 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     : 0;
   const nowLabel = `${pad(nowH)}:${pad(nowM)}`;
 
+  // 2026-07-09 — 취소 작업도 밴드 노출 (기존: 취소 제외).
+  //   운영자가 취소된 작업 존재를 인지해야 재배정/복구 판단 가능.
+  //   시각 구분: TaskBar 안 status === "취소" 분기 (회색 대각선 + 취소선 + 흐림).
+  //   드래그 방지: LOCKED_STATUSES 에 이미 "취소" 포함 → 재배치 안 됨.
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
-      if (!t || t.status === "취소") return false;
+      if (!t) return false;
       const scheduled = t.scheduledAt || t.scheduled_at;
       if (!scheduled) return false;
       return toKstYmd(scheduled) === selectedDate;
@@ -927,12 +941,14 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   const textCol   = TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK;
 
   const isDone = task.status === "완료" || task.status === "정산완료" || task.status === "visit_only";
+  // 2026-07-09 — 취소 상태 표시 지원.
+  const isCanceled = task.status === "취소";
   // 2026-06-19 — 검색 강조 / 흐림.
   const tidStr = task.id || task.taskCode;
   const isHighlightActive = !!highlightTaskId;
   const isHighlighted    = isHighlightActive && highlightTaskId === tidStr;
   const isDimmed         = isHighlightActive && !isHighlighted;
-  const baseOpacity = isDimmed ? 0.3 : (isDone ? 0.5 : 1);
+  const baseOpacity = isDimmed ? 0.3 : (isCanceled ? 0.45 : (isDone ? 0.5 : 1));
   const opacity = drag && drag.dragging ? 0.85 : baseOpacity;
 
   // 2026-06-19 — cross-lane 드래그 시각 강조 (다른 기사 lane 위에 올라간 상태).
@@ -949,7 +965,11 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
     baseTimeStr,
     customer,
     region,
-    kind === "refrigerant" ? "냉매" : kind === "cleaning" ? "세척" : "",
+    kind === "refrigerant" ? "냉매"
+      : kind === "cleaning" ? "세척"
+      : kind === "install"  ? "설치"
+      : kind === "leak"     ? "누설/누수"
+      : "",
     task.status || "",
   ].filter(Boolean);
   const title = titleParts.join(" · ");
@@ -1113,12 +1133,17 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
         top: 4,
         height: LANE_HEIGHT - 8,
         width: `calc(${widthPct}% - 2px)`,
-        background: kindColor,
+        // 2026-07-09 — 취소면 회색 대각선 스트라이프 배경 (본래 색상 위에 오버레이).
+        background: isCanceled
+          ? `repeating-linear-gradient(45deg, ${kindColor}66 0 6px, ${kindColor}33 6px 12px)`
+          : kindColor,
         border: isCrossLaneDrag
           ? "2px solid #8B5CF6"           // cross-lane: 보라
           : isHighlighted
             ? "2px solid #FF1B8D"
-            : `1px solid ${kindColor}`,
+            : isCanceled
+              ? `1px dashed ${kindColor}`
+              : `1px solid ${kindColor}`,
         borderLeft: isCrossLaneDrag
           ? "4px solid #8B5CF6"
           : isHighlighted
@@ -1160,7 +1185,9 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
           color: textCol,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           lineHeight: 1.1,
-        }}>{customer}</span>
+          // 2026-07-09 — 취소 시 취소선.
+          textDecoration: isCanceled ? "line-through" : "none",
+        }}>{isCanceled ? "취소 · " : ""}{customer}</span>
         {showPreview ? (
           <span style={{
             fontSize: 9, fontWeight: 800,
