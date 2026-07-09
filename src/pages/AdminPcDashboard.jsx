@@ -140,6 +140,15 @@ export function AdminPcDashboard({
         </div>
       </div>
 
+      {/* 2026-07-09 — 원청별 오늘 현황 표 (접수/완료/회사 몫).
+            사장님 spec:
+              · 접수 = created_at KST 오늘 + 취소 제외 (트랙 무관)
+              · 완료 = completed_at KST 오늘 + status='완료' (트랙 무관)
+              · 회사 몫 = 완료 건 owner_amount 합 (트랙 A 만; usol_n = "월정산").
+              · 데이터 없는 원청 행 생략.
+              · "이익" 아님 — 운영비 전 gross → 라벨 "회사 몫". */}
+      <AdminPcTodayByPrincipal apiTasks={apiTasks}/>
+
       {/* 메트릭 5개 한줄 */}
       <MetricsRow metrics={metrics}/>
 
@@ -580,6 +589,217 @@ function EngineerBar({ name, count, maxCount }) {
         fontVariantNumeric: "tabular-nums",
       }}>{count}건</span>
     </div>
+  );
+}
+
+
+// ──────────────────────────────────────────────────────────────────
+// 2026-07-09 — 원청별 오늘 현황 (접수 / 완료 / 회사 몫).
+//   ⚠️ owner_amount 는 gross → 라벨 "회사 몫" (운영비 전. "이익" 아님).
+//   ⚠️ 접수/완료 는 독립 집계 (오늘 접수한 게 오늘 완료 아님).
+//   · 접수: created_at KST 오늘 + status !== "취소" (트랙 무관 count)
+//   · 완료: completed_at KST 오늘 + status === "완료" (트랙 무관 count)
+//   · 회사 몫: 완료 건 owner_amount 합 (usol_n 은 트랙 B → "월정산" 표시)
+//   · 접수/완료 둘 다 0인 원청 행 생략.
+// ──────────────────────────────────────────────────────────────────
+const PRINCIPAL_ORDER = [
+  { code: "allday",  name: "올데이케어" },
+  { code: "KA",      name: "KA" },
+  { code: "KB",      name: "KB" },
+  { code: "yongin",  name: "용인컴퍼니" },
+  { code: "usol_h",  name: "유솔홈케어 H" },
+  { code: "crikrin", name: "크리크린" },
+  { code: "usol_n",  name: "유솔홈케어 N" },
+];
+const USOLN_CODE = "usol_n";
+
+function AdminPcTodayByPrincipal({ apiTasks = [] }) {
+  const today = todayYmd();
+
+  const { rows, totals } = useMemo(() => {
+    const received = new Map();
+    const done     = new Map();
+    const owner    = new Map();
+
+    for (const t of (apiTasks || [])) {
+      if (!t) continue;
+      const code = String(t.principalCode || t.principal_code || "").trim();
+      if (!code) continue;
+
+      // 오늘 접수 (취소 제외)
+      const created = t.createdAt || t.created_at;
+      if (created && t.status !== "취소" && toKstYmd(created) === today) {
+        received.set(code, (received.get(code) || 0) + 1);
+      }
+      // 오늘 완료 (status='완료' 만)
+      const completed = t.completedAt || t.completed_at;
+      if (completed && t.status === "완료" && toKstYmd(completed) === today) {
+        done.set(code, (done.get(code) || 0) + 1);
+        // 회사 몫 — usol_n 은 트랙 B (월정산) 이므로 즉시 미확정
+        if (code !== USOLN_CODE) {
+          owner.set(code, (owner.get(code) || 0) + Number(t.owner_amount || 0));
+        }
+      }
+    }
+
+    const rowsAll = PRINCIPAL_ORDER.map(p => ({
+      code:     p.code,
+      name:     p.name,
+      received: received.get(p.code) || 0,
+      done:     done.get(p.code)     || 0,
+      owner:    owner.get(p.code)    || 0,
+      isTrackB: p.code === USOLN_CODE,
+    })).filter(r => r.received > 0 || r.done > 0);
+
+    const totalsRow = {
+      received: rowsAll.reduce((s, r) => s + r.received, 0),
+      done:     rowsAll.reduce((s, r) => s + r.done,     0),
+      owner:    rowsAll.reduce((s, r) => s + (r.isTrackB ? 0 : r.owner), 0),
+    };
+
+    return { rows: rowsAll, totals: totalsRow };
+  }, [apiTasks, today]);
+
+  return (
+    <div style={{
+      background: "var(--bg-elevated)",
+      border: "1px solid var(--border)",
+      borderRadius: 14,
+      padding: "16px 18px",
+      display: "flex", flexDirection: "column", gap: 12,
+    }}>
+      {/* 헤더 */}
+      <div style={{
+        display: "flex", alignItems: "baseline", justifyContent: "space-between",
+        gap: 12,
+      }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+          <div style={{
+            fontSize: 15, fontWeight: 800,
+            color: "var(--text-primary)",
+            letterSpacing: "-0.3px",
+          }}>📊 원청별 오늘 현황</div>
+          <div style={{
+            fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
+          }}>{today}</div>
+        </div>
+        <div style={{
+          fontSize: 10, color: "var(--text-tertiary)", fontWeight: 600,
+        }}>
+          회사 몫 = 매출 − 기사정산 − 원청수수료 (gross)
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div style={{
+          padding: "24px 12px", textAlign: "center",
+          color: "var(--text-secondary)", fontSize: 12, fontWeight: 600,
+          background: "var(--bg-secondary)",
+          borderRadius: 8,
+        }}>오늘 접수·완료 없음</div>
+      ) : (
+        <div style={{ overflowX: "auto" }}>
+          <table style={{
+            width: "100%", borderCollapse: "collapse",
+            fontSize: 13, fontFamily: "inherit",
+          }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                <Th align="left"  width="26%">원청</Th>
+                <Th align="right" width="18%">오늘 접수</Th>
+                <Th align="right" width="18%">오늘 완료</Th>
+                <Th align="right" width="38%">회사 몫</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.code} style={{ borderBottom: "1px solid var(--border)" }}>
+                  <Td align="left">
+                    <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{r.name}</span>
+                    <span style={{
+                      marginLeft: 6,
+                      fontSize: 10, fontWeight: 600,
+                      color: "var(--text-tertiary)",
+                    }}>{r.code}</span>
+                  </Td>
+                  <Td align="right"><NumCell n={r.received} unit="건" muted={r.received === 0}/></Td>
+                  <Td align="right"><NumCell n={r.done}     unit="건" muted={r.done === 0}/></Td>
+                  <Td align="right">
+                    {r.isTrackB ? (
+                      <span style={{
+                        fontSize: 11, fontWeight: 700,
+                        color: "var(--text-tertiary)",
+                        padding: "2px 8px",
+                        background: "var(--bg-secondary)",
+                        borderRadius: 6,
+                      }}>월정산</span>
+                    ) : (
+                      <NumCell n={r.owner} unit="원" muted={r.owner === 0}/>
+                    )}
+                  </Td>
+                </tr>
+              ))}
+              {/* 합계 (usol_n owner 는 제외됨) */}
+              <tr style={{
+                background: "var(--bg-secondary)",
+                fontWeight: 800,
+              }}>
+                <Td align="left">
+                  <span style={{ color: "var(--text-primary)" }}>합계</span>
+                  <span style={{
+                    marginLeft: 6, fontSize: 10, color: "var(--text-tertiary)", fontWeight: 600,
+                  }}>(회사 몫은 트랙 A만)</span>
+                </Td>
+                <Td align="right"><NumCell n={totals.received} unit="건"/></Td>
+                <Td align="right"><NumCell n={totals.done}     unit="건"/></Td>
+                <Td align="right"><NumCell n={totals.owner}    unit="원"/></Td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Th({ children, align = "left", width }) {
+  return (
+    <th style={{
+      padding: "8px 10px",
+      textAlign: align,
+      fontSize: 10, fontWeight: 700,
+      color: "var(--text-secondary)",
+      letterSpacing: 0.5,
+      textTransform: "uppercase",
+      width,
+    }}>{children}</th>
+  );
+}
+function Td({ children, align = "left" }) {
+  return (
+    <td style={{
+      padding: "10px 10px",
+      textAlign: align,
+      color: "var(--text-primary)",
+    }}>{children}</td>
+  );
+}
+function NumCell({ n, unit, muted = false }) {
+  const val = Number(n) || 0;
+  return (
+    <span className="mono" style={{
+      fontSize: 13, fontWeight: 800,
+      color: muted ? "var(--text-tertiary)" : "var(--text-primary)",
+      fontVariantNumeric: "tabular-nums",
+      letterSpacing: "-0.2px",
+    }}>
+      {val.toLocaleString("ko-KR")}
+      <span style={{
+        fontSize: 10, fontWeight: 600,
+        color: "var(--text-secondary)",
+        marginLeft: 2,
+      }}>{unit}</span>
+    </span>
   );
 }
 
