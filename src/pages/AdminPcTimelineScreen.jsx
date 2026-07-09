@@ -166,13 +166,15 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     : 0;
   const nowLabel = `${pad(nowH)}:${pad(nowM)}`;
 
-  // 2026-07-09 — 취소 작업도 밴드 노출 (기존: 취소 제외).
-  //   운영자가 취소된 작업 존재를 인지해야 재배정/복구 판단 가능.
-  //   시각 구분: TaskBar 안 status === "취소" 분기 (회색 대각선 + 취소선 + 흐림).
-  //   드래그 방지: LOCKED_STATUSES 에 이미 "취소" 포함 → 재배치 안 됨.
+  // 2026-07-09 — 사장님 spec 정정: 타임라인에서 취소 작업 밴드 제외.
+  //   · 데이터 삭제 아님, 화면 표시만 필터. 정산/이력/통계 화면은 취소 그대로 유지.
+  //   · lane 그룹핑도 자동 반영 (todayTasks 파생) → 취소만 있던 기사 lane 자체 미노출.
+  //   · 검색 결과 (searchResults) 는 apiTasks 전체 대상 유지 (취소도 검색 매칭).
+  //   · TaskBar 안 isCanceled 분기 (dashed / 대각선) 는 dead code 로 남음 —
+  //     이후 재복구 대비 그대로 두되 실제 실행 경로에서는 안 도달.
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
-      if (!t) return false;
+      if (!t || t.status === "취소") return false;
       const scheduled = t.scheduledAt || t.scheduled_at;
       if (!scheduled) return false;
       return toKstYmd(scheduled) === selectedDate;
@@ -940,12 +942,11 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   const kindColor = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
   const textCol   = TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK;
 
-  // 2026-07-09 — status 별 시각 분기 세분화.
-  //   · 취소 : 종류색 유지 + 대각선 스트라이프 + dashed border. opacity 0.65
-  //             (기존 0.45 → 상향, 회색 처럼 안 뵈게).
-  //   · visit_only : 종류색 유지 + "출장" 뱃지 + dotted border. opacity 유지 (1.0).
-  //             (기존 isDone 로 묶여 opacity 0.5 흐림 → 회색 착시).
-  //   · 완료 / 정산완료 : 기존과 동일. opacity 0.5.
+  // 2026-07-09 — status 별 시각 분기.
+  //   · 취소 : todayTasks 필터에서 이미 제외 (아래 스타일 dead code).
+  //   · visit_only : 종류색 유지 + dotted border + "출장 · " 접두 + opacity 0.5.
+  //             (사장님 spec: 실질 매출 아니라 시각적으로 덜 강조. 있었다는 표시로 남김.)
+  //   · 완료 / 정산완료 : opacity 0.5 흐림.
   const isCanceled  = task.status === "취소";
   const isVisitOnly = task.status === "visit_only";
   const isDone      = task.status === "완료" || task.status === "정산완료";
@@ -955,8 +956,9 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   const isHighlighted    = isHighlightActive && highlightTaskId === tidStr;
   const isDimmed         = isHighlightActive && !isHighlighted;
   const baseOpacity = isDimmed ? 0.3
-                    : isCanceled ? 0.65
-                    : isDone     ? 0.5
+                    : isCanceled  ? 0.65
+                    : isVisitOnly ? 0.5
+                    : isDone      ? 0.5
                     : 1;
   const opacity = drag && drag.dragging ? 0.85 : baseOpacity;
 
