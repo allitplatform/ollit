@@ -6,8 +6,8 @@
 //     · 데이터 = getTasksByYmRange (computeRevenueByYmRange 와 동일 필터 → 합계 정합).
 //   데이터 = RevenueOverviewBlock 와 동일 dataset (isTrackARemittance + KST).
 //   usol_n (트랙 B) 제외 — 정합 일관.
-import { useState, useMemo } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useMemo, useRef } from "react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
 import { todayYmd } from "../../utils/dateLabel.js";
 import { useIsPc } from "../../utils/useIsPc.js";
 import {
@@ -19,6 +19,23 @@ import {
   pickServiceCode,
 } from "../../utils/revenueStats.js";
 import { EngineerTaskModal } from "./EngineerTaskList.jsx";
+
+// 2026-07-09 — 일별 네비용 헬퍼. selectedDay ("YYYY-MM-DD") ±1 일 이동.
+function shiftYmd(ymd, delta) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + delta);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+// 2026-07-09 — "YYYY-MM-DD" → "M/D(요일)" (일별 라벨).
+const DOW_KR = ["일", "월", "화", "수", "목", "금", "토"];
+function fmtDayLabel(ymd) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(y, m - 1, d);
+  return `${m}/${d} (${DOW_KR[dt.getDay()]})`;
+}
 
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 
@@ -43,11 +60,17 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
   const [selectedEngineer, setSelectedEngineer] = useState(null);
   // 2026-06-16 — 탭 상태 (원청별 / 기사별 / 작업별).
   const [tab, setTab] = useState("principal"); // 'principal' | 'engineer' | 'task'
-  // 측측 측측 — default = 측측 KST 측측측.
+  // 2026-07-09 — 기간 mode: 'day' | 'month'. 기본 'month' (기존 동작 보존).
+  //   · day  → startYmd = endYmd = selectedDay (KST toKstYmd 매칭)
+  //   · month → getMonthRange(year, month)
+  //   · 원청별/기사별/작업별 3탭 모두 이 mode 로 통합 집계.
   const today = todayYmd();
   const [y0, m0] = today.split("-").map(Number);
+  const [mode, setMode] = useState("month"); // 'day' | 'month'
   const [year, setYear]   = useState(y0);
   const [month, setMonth] = useState(m0);
+  const [selectedDay, setSelectedDay] = useState(today); // "YYYY-MM-DD"
+  const dayPickerRef = useRef(null);
 
   function prevMonth() {
     if (month === 1) { setYear(year - 1); setMonth(12); }
@@ -57,11 +80,37 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
     if (month === 12) { setYear(year + 1); setMonth(1); }
     else              { setMonth(month + 1); }
   }
+  // 2026-07-09 — 일별 이동. year/month state 도 selectedDay 에 맞춰 sync.
+  function shiftDay(delta) {
+    const next = shiftYmd(selectedDay, delta);
+    setSelectedDay(next);
+    const [ny, nm] = next.split("-").map(Number);
+    setYear(ny);
+    setMonth(nm);
+  }
+  function openDayPicker() {
+    const el = dayPickerRef.current;
+    if (!el) return;
+    if (typeof el.showPicker === "function") {
+      try { el.showPicker(); return; } catch (_) {}
+    }
+    el.focus();
+    el.click();
+  }
+  function handleDayPickerChange(e) {
+    const v = e.target.value;
+    if (!v) return;
+    setSelectedDay(v);
+    const [ny, nm] = v.split("-").map(Number);
+    setYear(ny);
+    setMonth(nm);
+  }
 
-  const { start: startYmd, end: endYmd } = useMemo(
-    () => getMonthRange(year, month),
-    [year, month]
-  );
+  // 2026-07-09 — 3탭 공용 기간. mode 에 따라 자동 결정.
+  const { start: startYmd, end: endYmd } = useMemo(() => {
+    if (mode === "day") return { start: selectedDay, end: selectedDay };
+    return getMonthRange(year, month);
+  }, [mode, selectedDay, year, month]);
 
   const summary = useMemo(
     () => computeRevenueByYmRange(apiTasks, startYmd, endYmd, user),
@@ -72,41 +121,20 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
     [apiTasks, startYmd, endYmd, user]
   );
 
-  // 2026-06-19 — 기사별 탭 기간 토글 (사장님 spec). 작업별 탭과 동일 패턴.
-  //   기본 '오늘'. ⚠️ byEngineer useMemo 가 engStartYmd/engEndYmd 참조 →
-  //   반드시 byEngineer 선언 위에 둘 것 (TDZ 차단). 직전 fbd0ee1 사고 원인 정정.
-  const [engineerPeriod, setEngineerPeriod] = useState("today");
-  const { engStartYmd, engEndYmd } = useMemo(() => {
-    if (engineerPeriod === "today") {
-      return { engStartYmd: today, engEndYmd: today };
-    }
-    return { engStartYmd: startYmd, engEndYmd: endYmd };
-  }, [engineerPeriod, today, startYmd, endYmd]);
-
-  // 2026-06-19 — owner_amount(회사 마진) 내림차순 (사장님 spec, 메인보드와 통일).
-  //   computeRevenueByEngineer 는 row 에 engineer / owner / total 모두 포함하지만
-  //   기본 정렬이 engineer 내림차순이라 여기서 owner 내림차순으로 재정렬.
+  // 2026-07-09 — 기사별 / 작업별 자체 "오늘/이번달" 토글 폐기.
+  //   상위 mode (day/month) 로 통합 → startYmd/endYmd 를 그대로 사용.
+  //   owner_amount(회사 마진) 내림차순.
   const byEngineer = useMemo(() => {
-    const raw = computeRevenueByEngineer(apiTasks, engStartYmd, engEndYmd, user);
+    const raw = computeRevenueByEngineer(apiTasks, startYmd, endYmd, user);
     return raw.slice().sort((a, b) => (b.owner || 0) - (a.owner || 0));
-  }, [apiTasks, engStartYmd, engEndYmd, user]);
+  }, [apiTasks, startYmd, endYmd, user]);
 
-  // 2026-06-16 — 작업별 탭 상태 (period: 오늘 / 이번달 / 종류 필터: 전체/세척/냉매/기타).
-  //   기본 '오늘' — 사장님 spec.
-  const [taskPeriod, setTaskPeriod] = useState("today"); // 'today' | 'month'
-  const [taskKind,   setTaskKind]   = useState("all");   // 'all' | 'cleaning' | 'refrigerant' | 'other'
-
-  // 작업별 탭의 기간 — 오늘 = todayYmd~todayYmd, 이번달 = 선택된 월 범위.
-  const { taskStartYmd, taskEndYmd } = useMemo(() => {
-    if (taskPeriod === "today") {
-      return { taskStartYmd: today, taskEndYmd: today };
-    }
-    return { taskStartYmd: startYmd, taskEndYmd: endYmd };
-  }, [taskPeriod, today, startYmd, endYmd]);
+  // 2026-06-16 — 작업별 탭 종류 필터 (전체/세척/냉매/기타). 기간은 상위 mode.
+  const [taskKind, setTaskKind] = useState("all"); // 'all' | 'cleaning' | 'refrigerant' | 'other'
 
   // 작업별 리스트 (필터 + 정렬). 합계 검산용.
   const { taskList, taskTotalRevenue, taskTotalOwner } = useMemo(() => {
-    const raw = getTasksByYmRange(apiTasks, taskStartYmd, taskEndYmd, user);
+    const raw = getTasksByYmRange(apiTasks, startYmd, endYmd, user);
     const filtered = taskKind === "all"
       ? raw
       : raw.filter(tk => kindOfTask(tk).key === taskKind);
@@ -118,7 +146,10 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
     const sumTotal = sorted.reduce((s, x) => s + Number(x.totalAmount || x.총금액 || x.estimateTotal || 0), 0);
     const sumOwner = sorted.reduce((s, x) => s + Number(x.owner_amount || 0), 0);
     return { taskList: sorted, taskTotalRevenue: sumTotal, taskTotalOwner: sumOwner };
-  }, [apiTasks, taskStartYmd, taskEndYmd, user, taskKind]);
+  }, [apiTasks, startYmd, endYmd, user, taskKind]);
+
+  const isDay = mode === "day";
+  const periodLabel = isDay ? fmtDayLabel(selectedDay) : `${year}년 ${month}월`;
 
   return (
     <div style={{
@@ -148,8 +179,41 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
         </div>
       </div>
 
-      {/* 월 측측 */}
+      {/* 2026-07-09 — 일별/월별 mode 세그먼트 + 기간 네비 */}
       <div style={{ padding: "14px 16px 0" }}>
+        {/* mode 세그먼트 */}
+        <div style={{
+          display: "flex", gap: 4,
+          padding: 3,
+          background: t.bgElevated,
+          border: `1px solid ${t.border}`,
+          borderRadius: 999,
+          marginBottom: 10,
+          width: "fit-content",
+        }}>
+          {[
+            { id: "day",   label: "일별" },
+            { id: "month", label: "월별" },
+          ].map(opt => {
+            const on = mode === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setMode(opt.id)}
+                style={{
+                  padding: "5px 16px",
+                  background: on ? t.accent : "transparent",
+                  border: "none",
+                  borderRadius: 999,
+                  color: on ? "#fff" : t.textSecondary,
+                  fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>{opt.label}</button>
+            );
+          })}
+        </div>
+        {/* 기간 네비 */}
         <div style={{
           display: "flex", alignItems: "center", justifyContent: "center", gap: 12,
           padding: "10px 14px",
@@ -157,19 +221,49 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
           border: `1px solid ${t.border}`,
           borderRadius: 10,
           marginBottom: 14,
+          position: "relative",
         }}>
-          <button onClick={prevMonth} style={navBtnStyle(t)} aria-label="이전 달">
+          <button
+            onClick={() => isDay ? shiftDay(-1) : prevMonth()}
+            style={navBtnStyle(t)}
+            aria-label={isDay ? "이전 날" : "이전 달"}>
             <ChevronLeft size={18}/>
           </button>
           <div style={{
             fontSize: 15, fontWeight: 800, color: t.text,
-            minWidth: 110, textAlign: "center",
+            minWidth: 130, textAlign: "center",
           }}>
-            {year}년 {month}월
+            {periodLabel}
           </div>
-          <button onClick={nextMonth} style={navBtnStyle(t)} aria-label="다음 달">
+          <button
+            onClick={() => isDay ? shiftDay(1) : nextMonth()}
+            style={navBtnStyle(t)}
+            aria-label={isDay ? "다음 날" : "다음 달"}>
             <ChevronRight size={18}/>
           </button>
+          {/* 일별 mode 에서만 달력 아이콘 (특정일 선택) */}
+          {isDay && (
+            <>
+              <button
+                onClick={openDayPicker}
+                style={{ ...navBtnStyle(t), marginLeft: 4 }}
+                aria-label="날짜 선택">
+                <Calendar size={16}/>
+              </button>
+              {/* 숨겨진 native date picker (달력 아이콘 클릭 시 열림) */}
+              <input
+                ref={dayPickerRef}
+                type="date"
+                value={selectedDay}
+                onChange={handleDayPickerChange}
+                style={{
+                  position: "absolute",
+                  opacity: 0, pointerEvents: "none",
+                  width: 1, height: 1, right: 12,
+                }}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -182,7 +276,7 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
           <SummaryBox t={t} icon="🤝" label="원청 수수료"  value={summary.principal}/>
         </div>
         <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginBottom: 14 }}>
-          이 달 {summary.count}건 · 트랙 A (유솔N·추가선택 제외)
+          {isDay ? "이 날" : "이 달"} {summary.count}건 · 트랙 A (유솔N·추가선택 제외)
         </div>
 
         {/* 2026-06-16 — 탭 바 (원청별 / 기사별 / 작업별) */}
@@ -192,43 +286,17 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
         {tab === "principal" && (
           <>
             <SectionHeader t={t} title="원청별" sub={`${byPrincipal.length}개 · 매출 내림차순`}/>
-            <PrincipalCardList t={t} rows={byPrincipal} emptyText="이 달 매출 데이터 없음"/>
+            <PrincipalCardList t={t} rows={byPrincipal} emptyText={`${isDay ? "이 날" : "이 달"} 매출 데이터 없음`}/>
           </>
         )}
 
-        {/* 기사별 표 — [오늘 / 이번 달] 토글 (2026-06-19) */}
+        {/* 기사별 표 — 2026-07-09: 자체 토글 폐기, 상위 mode(일/월) 로 통합. */}
         {tab === "engineer" && (
           <>
             <SectionHeader
               t={t}
               title="기사별"
               sub={`${byEngineer.length}명 · 회사마진 내림차순`}
-              right={(
-                <div style={{ display: "flex", gap: 6 }}>
-                  {[
-                    { id: "today", label: "오늘" },
-                    { id: "month", label: "이번 달" },
-                  ].map(opt => {
-                    const on = engineerPeriod === opt.id;
-                    return (
-                      <button
-                        key={opt.id}
-                        type="button"
-                        onClick={() => setEngineerPeriod(opt.id)}
-                        style={{
-                          padding: "4px 10px",
-                          background: on ? t.accent : "transparent",
-                          border: `1px solid ${on ? t.accent : t.border}`,
-                          borderRadius: 999,
-                          color: on ? "#fff" : t.textSecondary,
-                          fontSize: 11, fontWeight: 700,
-                          cursor: "pointer", fontFamily: "inherit",
-                        }}
-                      >{opt.label}</button>
-                    );
-                  })}
-                </div>
-              )}
             />
             <Table t={t}
               columns={[
@@ -237,14 +305,14 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
                 { key: "owner", label: "회사 마진", align: "right", format: fmtKRW, accent: true, width: "minmax(0, 1.9fr)" },
               ]}
               rows={byEngineer}
-              emptyText={engineerPeriod === "today" ? "오늘 회사 마진 데이터 없음" : "이 달 회사 마진 데이터 없음"}
+              emptyText={`${isDay ? "이 날" : "이 달"} 회사 마진 데이터 없음`}
               onRowClick={(row) => {
-                // 클릭 시점 토글 그대로 이어받기 (engStartYmd/engEndYmd 가 이미 그 값).
+                // 클릭 시점 상위 mode 기간 그대로 이어받기.
                 const payload = {
                   ...row,
-                  startYmd: engStartYmd,
-                  endYmd: engEndYmd,
-                  periodLabel: engineerPeriod === "today" ? "오늘" : "이번 달",
+                  startYmd,
+                  endYmd,
+                  periodLabel: isDay ? fmtDayLabel(selectedDay) : `${year}년 ${month}월`,
                 };
                 if (isPc) {
                   setSelectedEngineer(payload);
@@ -256,16 +324,15 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
           </>
         )}
 
-        {/* 작업별 — PC=표, 모바일=카드. 기본 '오늘', 종류 필터(전체/세척/냉매/기타). */}
+        {/* 작업별 — PC=표, 모바일=카드. 상위 mode 기간, 종류 필터(전체/세척/냉매/기타). */}
         {tab === "task" && (
           <TaskView
             t={t}
             isPc={isPc}
+            isDay={isDay}
             tasks={taskList}
             sumTotal={taskTotalRevenue}
             sumOwner={taskTotalOwner}
-            period={taskPeriod}
-            setPeriod={setTaskPeriod}
             kind={taskKind}
             setKind={setTaskKind}
             onTaskClick={onTaskClick}
@@ -330,37 +397,15 @@ function TabBar({ t, tab, setTab }) {
 // ──────────────────────────────────────────────────────────────────
 // 작업별 뷰 — PC=표 / 모바일=카드. 기간·종류 필터 + 하단 합계.
 // ──────────────────────────────────────────────────────────────────
-function TaskView({ t, isPc, tasks, sumTotal, sumOwner, period, setPeriod, kind, setKind, onTaskClick }) {
+function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, onTaskClick }) {
   return (
     <>
-      {/* 기간 토글 (오늘 / 이번 달) + 종류 필터 (전체 / 세척 / 냉매 / 기타) */}
+      {/* 2026-07-09 — 자체 기간 토글 폐기 (상위 mode 사용). 종류 필터만 유지. */}
       <div style={{
         display: "flex", flexWrap: "wrap", gap: 8,
         marginTop: 4, marginBottom: 10,
         alignItems: "center",
       }}>
-        <div style={{ display: "flex", gap: 4 }}>
-          {[
-            { id: "today", label: "오늘" },
-            { id: "month", label: "이번 달" },
-          ].map(opt => {
-            const active = period === opt.id;
-            return (
-              <button key={opt.id} type="button"
-                onClick={() => setPeriod(opt.id)}
-                style={{
-                  padding: "5px 12px",
-                  background: active ? t.accent : "transparent",
-                  border: `1px solid ${active ? t.accent : t.border}`,
-                  borderRadius: 999,
-                  color: active ? "#fff" : t.textSecondary,
-                  fontSize: 11, fontWeight: 700,
-                  cursor: "pointer", fontFamily: "inherit",
-                }}>{opt.label}</button>
-            );
-          })}
-        </div>
-        <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 600 }}>·</span>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {[
             { id: "all",         label: "전체" },
@@ -398,7 +443,7 @@ function TaskView({ t, isPc, tasks, sumTotal, sumOwner, period, setPeriod, kind,
           color: t.textMuted, fontSize: 12,
           background: t.bgElevated, border: `1px solid ${t.border}`,
           borderRadius: 10, marginBottom: 14,
-        }}>해당 기간 / 종류의 작업이 없음</div>
+        }}>{isDay ? "이 날" : "이 달"} / 선택 종류의 작업이 없음</div>
       ) : isPc ? (
         <TaskTable t={t} tasks={tasks} onTaskClick={onTaskClick}/>
       ) : (
