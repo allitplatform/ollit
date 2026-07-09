@@ -216,3 +216,18 @@ export const OFF_DAY_TYPE_LABEL = {
 export function formatOffDayType(type) {
   return OFF_DAY_TYPE_LABEL[type] || type || "";
 }
+
+// 2026-07-09 — 휴무 클릭 시 사유 팝업 텍스트 생성.
+//   · 타임라인 밴드 / 주간·월간 chip / 프로상세 리스트 모두 이 헬퍼 사용.
+//   · memo 있으면 라벨 + 시간 + 사유 3줄. 없으면 라벨 + 시간 2줄.
+export function formatOffAlertText(off) {
+  if (!off) return "";
+  const label   = formatOffDayType(off.type);
+  const isHourly = off.type === "hourly" || off.type === "휴무부분";
+  const dateStr = off.date ? `📅 ${off.date}` : "";
+  const timeStr = isHourly
+    ? `🕐 ${off.startTime || "—"} ~ ${off.endTime || "—"}`
+    : "🕐 종일";
+  const memoStr = off.memo ? `📝 사유: ${off.memo}` : "📝 사유: (없음)";
+  return [`🏖️ ${label}`, dateStr, timeStr, memoStr].filter(Boolean).join("\n");
+}

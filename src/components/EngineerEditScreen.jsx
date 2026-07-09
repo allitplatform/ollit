@@ -23,7 +23,8 @@ import { supabase } from "../lib/supabase.js";
 import { EngineerBusinessInfoCard } from "./EngineerBusinessInfoCard.jsx";
 import { useIsDark } from "../hooks/useIsDark.js";
 // 2026-07-08 — 프로상세 하단 휴무 미리보기.
-import { getOffDays, formatOffDayType } from "../lib/offDaysDb.js";
+// 2026-07-09 — formatOffAlertText: 리스트 클릭 시 사유 팝업.
+import { getOffDays, formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
 
 // Step 5-5-C Phase 4-C-2 — 시트 (전체) 행 매핑 헬퍼 (form 초기값 + workTypesOriginal 둘 다 호출)
 function _computeInitialWorkTypes(engineer) {
@@ -726,22 +727,29 @@ function EngineerOffDaysPreview({ engineerName }) {
             const label   = formatOffDayType(o.type);
             const isHourly = o.type === "hourly" || o.type === "휴무부분";
             const timeStr = isHourly ? ` ${o.startTime || ""}~${o.endTime || ""}` : "";
+            const alertText = formatOffAlertText(o);
             return (
-              <div key={o.id} style={{
-                display: "flex", alignItems: "center", gap: 8,
-                padding: "6px 10px",
-                background: "rgba(148, 163, 184, 0.10)",
-                borderLeft: "3px solid #64748B",
-                borderRadius: 6,
-                fontSize: 12, fontWeight: 700,
-                color: "var(--text-primary)",
-              }}>
+              // 2026-07-09 — 클릭 → 사유 팝업.
+              <button key={o.id}
+                onClick={() => alert(alertText)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 8,
+                  padding: "6px 10px",
+                  background: "rgba(148, 163, 184, 0.10)",
+                  border: "none",
+                  borderLeft: "3px solid #64748B",
+                  borderRadius: 6,
+                  fontSize: 12, fontWeight: 700,
+                  color: "var(--text-primary)",
+                  textAlign: "left", width: "100%",
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>
                 <span style={{ minWidth: 100, fontVariantNumeric: "tabular-nums" }}>{o.date}</span>
                 <span style={{ color: "var(--text-secondary)" }}>{label}{timeStr}</span>
                 {o.memo && (
                   <span style={{ fontWeight: 500, color: "var(--text-tertiary)" }}>· {o.memo}</span>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>

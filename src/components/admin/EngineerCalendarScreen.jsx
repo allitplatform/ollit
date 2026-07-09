@@ -14,7 +14,8 @@ import {
   findEngineerForTask,
 } from "../../utils/engineerCalendarStats.js";
 // 2026-07-08 — 선택 프로 휴무 조회.
-import { getOffDays, formatOffDayType } from "../../lib/offDaysDb.js";
+// 2026-07-09 — formatOffAlertText: 리스트 클릭 시 사유 팝업.
+import { getOffDays, formatOffDayType, formatOffAlertText } from "../../lib/offDaysDb.js";
 
 const MAX_SEARCH_RESULTS = 20;
 const DEBOUNCE_MS = 200;
@@ -587,15 +588,21 @@ export function EngineerCalendarScreen({
               const label   = formatOffDayType(o.type);
               const isHourly = o.type === "hourly" || o.type === "휴무부분";
               const timeStr = isHourly ? `${o.startTime || "—"} ~ ${o.endTime || "—"}` : "종일";
+              const alertText = formatOffAlertText(o);
               return (
-                <div key={o.id || `off-${idx}`} style={{
-                  display: "flex", alignItems: "center", gap: 8,
-                  padding: "10px 12px",
-                  background: t.bgElevated,
-                  border: `1px dashed ${t.border}`,
-                  borderLeft: `3px solid #64748B`,
-                  borderRadius: 10,
-                }}>
+                // 2026-07-09 — 클릭 → 사유 팝업.
+                <button key={o.id || `off-${idx}`}
+                  onClick={() => alert(alertText)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    padding: "10px 12px",
+                    background: t.bgElevated,
+                    border: `1px dashed ${t.border}`,
+                    borderLeft: `3px solid #64748B`,
+                    borderRadius: 10,
+                    textAlign: "left", width: "100%",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}>
                   <span style={{ fontSize: 16 }}>🏖️</span>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
@@ -606,7 +613,7 @@ export function EngineerCalendarScreen({
                       <div style={{ fontSize: 11, color: t.textMuted }}>📝 {o.memo}</div>
                     )}
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>

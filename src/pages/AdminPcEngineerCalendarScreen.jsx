@@ -12,7 +12,7 @@ import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
 import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
-import { formatOffDayType } from "../lib/offDaysDb.js";
+import { formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
 
 const KIND_COLOR = {
   cleaning:    "#0EA5E9",
@@ -471,13 +471,16 @@ function Cell({ tasks, offs = [], isToday, borderRight, onTaskClick }) {
 }
 
 // 2026-07-08 — 휴무 표시 chip. 회색 톤 + 🏖️ 아이콘 + 유형 라벨.
+// 2026-07-09 — 클릭 → 사유 팝업 (memo 없어도 라벨/시간 표시).
 function OffChip({ off }) {
   const label = formatOffDayType(off.type);
   const isHourly = off.type === "hourly" || off.type === "휴무부분";
   const timeStr = isHourly ? ` ${off.startTime || ""}~${off.endTime || ""}` : "";
+  const alertText = formatOffAlertText(off);
   return (
     <div
-      title={`${label}${timeStr}${off.memo ? " · " + off.memo : ""}`}
+      title={alertText}
+      onClick={(ev) => { ev.stopPropagation(); alert(alertText); }}
       style={{
         background: "rgba(148, 163, 184, 0.18)",
         border: "1px solid rgba(148, 163, 184, 0.4)",
@@ -488,6 +491,7 @@ function OffChip({ off }) {
         color: "var(--text-secondary)",
         display: "flex", gap: 4, alignItems: "center",
         overflow: "hidden", minWidth: 0,
+        cursor: "pointer",
       }}
     >
       <span style={{ flexShrink: 0 }}>🏖️</span>

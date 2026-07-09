@@ -11,7 +11,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
 import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
-import { formatOffDayType } from "../lib/offDaysDb.js";
+import { formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
 
 const KIND_COLOR = {
   cleaning:    "#0EA5E9",
@@ -374,13 +374,16 @@ function DayCell({ date, isOutMonth, isToday, isSelected, tasks, offs = [], bord
 }
 
 // 2026-07-08 — 월간 grid 안 휴무 표시 chip. 회색 톤 🏖️.
+// 2026-07-09 — 클릭 → 사유 팝업.
 function OffChip({ off }) {
   const label = formatOffDayType(off.type);
   const isHourly = off.type === "hourly" || off.type === "휴무부분";
   const timeStr = isHourly ? ` ${off.startTime || ""}~${off.endTime || ""}` : "";
+  const alertText = formatOffAlertText(off);
   return (
     <div
-      title={`${label}${timeStr}${off.memo ? " · " + off.memo : ""}`}
+      title={alertText}
+      onClick={(ev) => { ev.stopPropagation(); alert(alertText); }}
       style={{
         background: "rgba(148, 163, 184, 0.18)",
         border: "1px solid rgba(148, 163, 184, 0.4)",
@@ -391,6 +394,7 @@ function OffChip({ off }) {
         color: "var(--text-secondary)",
         display: "flex", gap: 3, alignItems: "center",
         overflow: "hidden", minWidth: 0,
+        cursor: "pointer",
       }}
     >
       <span style={{ flexShrink: 0 }}>🏖️</span>
@@ -484,22 +488,30 @@ function SelectedDayAside({ ymd, tasks, offs = [], onTaskClick }) {
             const label = formatOffDayType(o.type);
             const isHourly = o.type === "hourly" || o.type === "휴무부분";
             const timeStr = isHourly ? ` ${o.startTime || ""}~${o.endTime || ""}` : "";
+            const alertText = formatOffAlertText(o);
             return (
-              <div key={o.id || `off-${idx}`} style={{
-                display: "flex", alignItems: "center", gap: 6,
-                padding: "6px 8px",
-                background: "rgba(148, 163, 184, 0.14)",
-                borderLeft: "3px solid #64748B",
-                borderRadius: 6,
-                fontSize: 12, fontWeight: 700,
-                color: "var(--text-secondary)",
-              }}>
+              // 2026-07-09 — 클릭 → 사유 팝업.
+              <button key={o.id || `off-${idx}`}
+                title={alertText}
+                onClick={() => alert(alertText)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "6px 8px",
+                  background: "rgba(148, 163, 184, 0.14)",
+                  border: "none",
+                  borderLeft: "3px solid #64748B",
+                  borderRadius: 6,
+                  fontSize: 12, fontWeight: 700,
+                  color: "var(--text-secondary)",
+                  textAlign: "left",
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>
                 <span>🏖️</span>
                 <span>{label}{timeStr}</span>
                 {o.memo && (
                   <span style={{ fontWeight: 500, color: "var(--text-tertiary)" }}>· {o.memo}</span>
                 )}
-              </div>
+              </button>
             );
           })}
         </div>

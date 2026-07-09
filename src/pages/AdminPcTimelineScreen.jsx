@@ -19,7 +19,7 @@ import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 import { adminRescheduleTask, adminReassignTask } from "../lib/adminTaskRpc.js";
 import { supabase } from "../lib/supabase.js";
 import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
-import { formatOffDayType } from "../lib/offDaysDb.js";
+import { formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
 
 const START_HOUR    = 7;
 const END_HOUR      = 24;
@@ -790,9 +790,15 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
           minHeight: LANE_HEIGHT,
           background: hasFullDayOff ? "rgba(148, 163, 184, 0.10)" : "var(--bg-elevated)",
         }}>
-        {/* 2026-07-08 — 종일 휴무 표시 배너 (가로 100% 회색 밴드 + 라벨). */}
+        {/* 2026-07-08 — 종일 휴무 표시 배너 (가로 100% 회색 밴드 + 라벨).
+            2026-07-09 — 클릭 → 사유 팝업 (memo 없어도 타입/시간 라벨). */}
         {hasFullDayOff && (
-          <div title={fullDayOffs.map(o => `${formatOffDayType(o.type)}${o.memo ? " · " + o.memo : ""}`).join(" / ")}
+          <div
+            title={fullDayOffs.map(o => formatOffAlertText(o)).join("\n\n")}
+            onClick={(ev) => {
+              ev.stopPropagation();
+              alert(fullDayOffs.map(o => formatOffAlertText(o)).join("\n\n"));
+            }}
             style={{
               position: "absolute",
               inset: 0,
@@ -800,13 +806,14 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
               background: "repeating-linear-gradient(45deg, rgba(148,163,184,0.10) 0 8px, rgba(148,163,184,0.18) 8px 16px)",
               color: "var(--text-secondary)",
               fontSize: 11, fontWeight: 700,
-              pointerEvents: "none",
+              cursor: "pointer",
               zIndex: 1,
             }}>
             🏖️ {formatOffDayType(fullDayOffs[0].type)}
           </div>
         )}
-        {/* 2026-07-08 — 시간 휴무 밴드 (하나 이상 겹칠 수 있음). */}
+        {/* 2026-07-08 — 시간 휴무 밴드 (하나 이상 겹칠 수 있음).
+            2026-07-09 — 클릭 → 사유 팝업. */}
         {hourlyOffs.map((o, idx) => {
           const s = _hmToMinutes(o.startTime);
           const e = _hmToMinutes(o.endTime);
@@ -818,7 +825,11 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
           if (widthPct <= 0) return null;
           return (
             <div key={o.id || `hoff-${idx}`}
-              title={`${formatOffDayType(o.type)} ${o.startTime}~${o.endTime}${o.memo ? " · " + o.memo : ""}`}
+              title={formatOffAlertText(o)}
+              onClick={(ev) => {
+                ev.stopPropagation();
+                alert(formatOffAlertText(o));
+              }}
               style={{
                 position: "absolute",
                 top: 4, bottom: 4,
@@ -830,8 +841,8 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
                 display: "flex", alignItems: "center", justifyContent: "center",
                 color: "var(--text-secondary)",
                 fontSize: 10, fontWeight: 700,
-                pointerEvents: "none",
-                zIndex: 1,
+                cursor: "pointer",
+                zIndex: 2,
               }}>
               🏖️ {o.startTime}~{o.endTime}
             </div>

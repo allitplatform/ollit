@@ -195,7 +195,8 @@ import { AnnouncementManageScreen } from "../components/admin/AnnouncementManage
 // 2026-06-03 — 기사별 달력 (Phase A: 월 격자 + 일정 점).
 import { EngineerCalendarScreen } from "../components/admin/EngineerCalendarScreen.jsx";
 // 2026-07-08 — 모바일 프로상세 (EngineerDayScreen) 오늘 휴무 조회.
-import { getOffDays, formatOffDayType } from "../lib/offDaysDb.js";
+// 2026-07-09 — formatOffAlertText: 클릭 시 사유 팝업.
+import { getOffDays, formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
 // 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
 import { fetchUnprocessedRefriAddons, rollbackRefrigerantAddonSource } from "../lib/refrigerantAddonsDb.js";
 import {
@@ -7425,20 +7426,27 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
 
         {/* 타임라인 카드 */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-          {/* 2026-07-08 — 오늘 휴무 카드 (일정 위에 노출). */}
+          {/* 2026-07-08 — 오늘 휴무 카드 (일정 위에 노출).
+              2026-07-09 — 클릭 → 사유 팝업. */}
           {todayOffs.map((o, idx) => {
             const label   = formatOffDayType(o.type);
             const isHourly = o.type === "hourly" || o.type === "휴무부분";
             const timeStr = isHourly ? `${o.startTime || "—"} ~ ${o.endTime || "—"}` : "종일";
+            const alertText = formatOffAlertText(o);
             return (
-              <div key={o.id || `off-${idx}`} style={{
-                padding: "10px 12px",
-                background: t.bgInset,
-                border: `1px dashed ${t.border}`,
-                borderLeft: `3px solid #64748B`,
-                borderRadius: 8,
-                display: "flex", alignItems: "center", gap: 8,
-              }}>
+              <button key={o.id || `off-${idx}`}
+                onClick={() => alert(alertText)}
+                style={{
+                  padding: "10px 12px",
+                  background: t.bgInset,
+                  border: `1px dashed ${t.border}`,
+                  borderLeft: `3px solid #64748B`,
+                  borderRadius: 8,
+                  display: "flex", alignItems: "center", gap: 8,
+                  textAlign: "left",
+                  cursor: "pointer", fontFamily: "inherit",
+                  width: "100%",
+                }}>
                 <span style={{ fontSize: 18 }}>🏖️</span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 700, color: t.textSecondary }}>
@@ -7449,7 +7457,7 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
                     <div style={{ fontSize: 11, color: t.textMuted }}>📝 {o.memo}</div>
                   )}
                 </div>
-              </div>
+              </button>
             );
           })}
           {schedule.length === 0 && todayOffs.length === 0 ? (
