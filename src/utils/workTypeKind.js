@@ -23,6 +23,9 @@ function _kindFromWorkType(wt) {
   if (s.startsWith("냉매")) return "refrigerant";
   if (s.startsWith("설치")) return "install";
   if (s.startsWith("누설")) return "leak";
+  // 2026-07-09 — "누수" 단독 저장 케이스 방어 (storage key 는 "누설" 이 정석이지만
+  //   옛 데이터 / 예외 입력 대비). 표시 라벨 "누설/누수" 와 무관 — 매칭 keyword 확장.
+  if (s.startsWith("누수")) return "leak";
   // 2026-06-28 — 설치 5종 work_types.name 직접 매칭 (Mig 124/125 활성화 결과).
   //   "신규설치" / "이전설치" / "철거" / "실외기중고교체" / "기계중고교체" → install kind.
   //   task_items.work_types.name 이 5종 중 하나면 startsWith 매칭 안 되어 "other" 떨어지는 사고 차단.

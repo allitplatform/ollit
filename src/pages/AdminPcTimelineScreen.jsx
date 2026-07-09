@@ -940,15 +940,24 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   const kindColor = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
   const textCol   = TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK;
 
-  const isDone = task.status === "완료" || task.status === "정산완료" || task.status === "visit_only";
-  // 2026-07-09 — 취소 상태 표시 지원.
-  const isCanceled = task.status === "취소";
+  // 2026-07-09 — status 별 시각 분기 세분화.
+  //   · 취소 : 종류색 유지 + 대각선 스트라이프 + dashed border. opacity 0.65
+  //             (기존 0.45 → 상향, 회색 처럼 안 뵈게).
+  //   · visit_only : 종류색 유지 + "출장" 뱃지 + dotted border. opacity 유지 (1.0).
+  //             (기존 isDone 로 묶여 opacity 0.5 흐림 → 회색 착시).
+  //   · 완료 / 정산완료 : 기존과 동일. opacity 0.5.
+  const isCanceled  = task.status === "취소";
+  const isVisitOnly = task.status === "visit_only";
+  const isDone      = task.status === "완료" || task.status === "정산완료";
   // 2026-06-19 — 검색 강조 / 흐림.
   const tidStr = task.id || task.taskCode;
   const isHighlightActive = !!highlightTaskId;
   const isHighlighted    = isHighlightActive && highlightTaskId === tidStr;
   const isDimmed         = isHighlightActive && !isHighlighted;
-  const baseOpacity = isDimmed ? 0.3 : (isCanceled ? 0.45 : (isDone ? 0.5 : 1));
+  const baseOpacity = isDimmed ? 0.3
+                    : isCanceled ? 0.65
+                    : isDone     ? 0.5
+                    : 1;
   const opacity = drag && drag.dragging ? 0.85 : baseOpacity;
 
   // 2026-06-19 — cross-lane 드래그 시각 강조 (다른 기사 lane 위에 올라간 상태).
@@ -1143,7 +1152,9 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
             ? "2px solid #FF1B8D"
             : isCanceled
               ? `1px dashed ${kindColor}`
-              : `1px solid ${kindColor}`,
+              : isVisitOnly
+                ? `1px dotted ${kindColor}`  // 2026-07-09 — 출장비 dotted border
+                : `1px solid ${kindColor}`,
         borderLeft: isCrossLaneDrag
           ? "4px solid #8B5CF6"
           : isHighlighted
@@ -1187,7 +1198,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
           lineHeight: 1.1,
           // 2026-07-09 — 취소 시 취소선.
           textDecoration: isCanceled ? "line-through" : "none",
-        }}>{isCanceled ? "취소 · " : ""}{customer}</span>
+        }}>{isCanceled ? "취소 · " : isVisitOnly ? "출장 · " : ""}{customer}</span>
         {showPreview ? (
           <span style={{
             fontSize: 9, fontWeight: 800,
