@@ -8,7 +8,7 @@
 //   usol_n (트랙 B) 제외 — 정합 일관.
 import { useState, useMemo, useRef } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Calendar } from "lucide-react";
-import { todayYmd } from "../../utils/dateLabel.js";
+import { todayYmd, toKstYmd } from "../../utils/dateLabel.js";
 import { useIsPc } from "../../utils/useIsPc.js";
 import {
   computeRevenueByYmRange,
@@ -120,6 +120,45 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
     () => computeRevenueByPrincipal(apiTasks, startYmd, endYmd, user),
     [apiTasks, startYmd, endYmd, user]
   );
+
+  // 2026-07-09 — 원청별 접수/완료 카운트 (사장님 spec, 트랙 무관, KST 범위).
+  //   · 접수 = createdAt KST in [startYmd, endYmd] + status !== "취소"
+  //   · 완료 = completedAt KST in [startYmd, endYmd] + status === "완료"
+  //   · byPrincipal 는 트랙 A 완료 매출 dataset 만 대상 → usol_n 원청은 이 화면 미노출 (원 정합).
+  //   · 즉 접수/완료 병합은 byPrincipal 에 있는 원청 code 만 대상.
+  const principalCounts = useMemo(() => {
+    const received = new Map();
+    const done     = new Map();
+    for (const t of (apiTasks || [])) {
+      if (!t) continue;
+      const code = String(t.principalCode || t.principal_code || "").trim();
+      if (!code) continue;
+      const created = t.createdAt || t.created_at;
+      if (created && t.status !== "취소") {
+        const k = toKstYmd(created);
+        if (k && k >= startYmd && k <= endYmd) {
+          received.set(code, (received.get(code) || 0) + 1);
+        }
+      }
+      const completed = t.completedAt || t.completed_at;
+      if (completed && t.status === "완료") {
+        const k = toKstYmd(completed);
+        if (k && k >= startYmd && k <= endYmd) {
+          done.set(code, (done.get(code) || 0) + 1);
+        }
+      }
+    }
+    return { received, done };
+  }, [apiTasks, startYmd, endYmd]);
+
+  // byPrincipal + 접수/완료 병합.
+  const byPrincipalWithCounts = useMemo(() => {
+    return byPrincipal.map(row => ({
+      ...row,
+      received: principalCounts.received.get(row.code) || 0,
+      done:     principalCounts.done.get(row.code)     || 0,
+    }));
+  }, [byPrincipal, principalCounts]);
 
   // 2026-07-09 — 기사별 / 작업별 자체 "오늘/이번달" 토글 폐기.
   //   상위 mode (day/month) 로 통합 → startYmd/endYmd 를 그대로 사용.
@@ -282,11 +321,12 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
         {/* 2026-06-16 — 탭 바 (원청별 / 기사별 / 작업별) */}
         <TabBar t={t} tab={tab} setTab={setTab}/>
 
-        {/* 원청별 — 카드형 세로 쌓기 (2026-06-19 사장님 spec) — 표 폐기, 잘림 0 */}
+        {/* 원청별 — 카드형 세로 쌓기 (2026-06-19 사장님 spec) — 표 폐기, 잘림 0
+              2026-07-09 — 각 카드에 접수/완료 건수 추가 (사장님 spec, KST 트랙 무관). */}
         {tab === "principal" && (
           <>
-            <SectionHeader t={t} title="원청별" sub={`${byPrincipal.length}개 · 매출 내림차순`}/>
-            <PrincipalCardList t={t} rows={byPrincipal} emptyText={`${isDay ? "이 날" : "이 달"} 매출 데이터 없음`}/>
+            <SectionHeader t={t} title="원청별" sub={`${byPrincipalWithCounts.length}개 · 매출 내림차순`}/>
+            <PrincipalCardList t={t} rows={byPrincipalWithCounts} emptyText={`${isDay ? "이 날" : "이 달"} 매출 데이터 없음`}/>
           </>
         )}
 
@@ -705,9 +745,11 @@ function SectionHeader({ t, title, sub, right }) {
 }
 
 // 2026-06-19 — 원청별 카드형 (사장님 spec: 매출/마진 세로 쌓기).
-//   1줄: 원청명(좌) + 건수(우)
-//   2줄: 매출 ₩... (좌, accent) · 마진 ₩... (우, text) — 원 단위 전체 표시
-//   잘림 0 — 표 컬럼 폭 변동 영향 없음.
+// 2026-07-09 — 접수/완료 컬럼 추가 (사장님 spec):
+//   · 접수 = 선택 기간 createdAt KST + 취소 제외
+//   · 완료 = 선택 기간 completedAt KST + status='완료'
+//   1줄: 원청명(좌) + 접수 M · 완료 N(우)
+//   2줄: 매출 ₩... (좌, accent) · 마진 ₩... (우, text)
 function PrincipalCardList({ t, rows, emptyText }) {
   if (!rows || rows.length === 0) {
     return (
@@ -732,6 +774,7 @@ function PrincipalCardList({ t, rows, emptyText }) {
         }}>
           <div style={{
             display: "flex", alignItems: "baseline", justifyContent: "space-between",
+            gap: 10,
           }}>
             <span style={{
               fontSize: 13, fontWeight: 800, color: t.text,
@@ -739,9 +782,20 @@ function PrincipalCardList({ t, rows, emptyText }) {
               minWidth: 0, flex: 1,
             }}>{row.name || "—"}</span>
             <span style={{
+              display: "flex", alignItems: "baseline", gap: 8,
               fontSize: 11, fontWeight: 700, color: t.textSecondary,
-              marginLeft: 8, flexShrink: 0,
-            }}>{row.count || 0}건</span>
+              flexShrink: 0,
+            }}>
+              <span>
+                <span style={{ fontSize: 10, color: t.textMuted, marginRight: 3 }}>접수</span>
+                <span className="mono" style={{ color: t.text, fontWeight: 800 }}>{row.received || 0}</span>
+              </span>
+              <span style={{ color: t.textMuted }}>·</span>
+              <span>
+                <span style={{ fontSize: 10, color: t.textMuted, marginRight: 3 }}>완료</span>
+                <span className="mono" style={{ color: t.text, fontWeight: 800 }}>{row.done || 0}</span>
+              </span>
+            </span>
           </div>
           <div style={{
             display: "flex", alignItems: "baseline", justifyContent: "space-between",
