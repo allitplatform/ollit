@@ -61,6 +61,8 @@ const GROUPS = [
       // 2026-06-24 — 옛 "냉매 자동배정 대기" 메뉴 제거 (사장님 spec — 해당 기능 미사용 확정).
       //   자리 대신 홈페이지 접수함 진입. screen='inquiries' 자동 라우팅.
       { id: "inquiries",      label: "홈페이지 접수함" },
+      // 2026-07-10 — 지역별 접수 현황 (tasks + 미처리 inquiries 합산, 읽기 전용).
+      { id: "regionStats",    label: "지역별 접수 현황" },
       // 2026-06-16 — 냉매 미처리 (세척 완료 시 입력된 냉매충전, [냉매 작업 만들기] 대상).
       //   N 배지 표시 — pcCtx.refrigerantAddonCount 사용.
       { id: "refrigerantAddonList", label: "냉매 미처리" },

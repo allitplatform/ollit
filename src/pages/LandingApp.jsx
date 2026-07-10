@@ -800,14 +800,23 @@ function useBookingForm() {
     setSubmitting(true);
     setError(null);
     try {
+      const serviceType = SERVICE_CODE[form.service] ?? 'unknown';
       const { error: rpcErr } = await supabase.rpc('create_inquiry', {
-        p_service_type:   SERVICE_CODE[form.service] ?? 'unknown',
+        p_service_type:   serviceType,
         p_name:           form.name.trim(),
         p_phone:          form.phone.trim(),
         p_address:        form.address.trim(),
         p_agreed_privacy: form.consent === true,
       });
       if (rpcErr) throw rpcErr;
+      // 2026-07-10 — GA4 전환 이벤트. service_type 만 (PII 절대 X).
+      //   gtag stub 은 main.jsx 에서 랜딩 host + PROD 조건 만족 시 초기화됨.
+      //   운영 PWA 화면에서는 window.gtag 미정의 → optional chaining 로 no-op.
+      if (typeof window !== "undefined" && typeof window.gtag === "function") {
+        try {
+          window.gtag("event", "generate_lead", { service_type: serviceType });
+        } catch (_) { /* GA 실패는 접수 성공에 영향 X */ }
+      }
       setSubmitted(true);
     } catch (e2) {
       setError(messageFor(e2));

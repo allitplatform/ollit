@@ -188,6 +188,8 @@ import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddon
 import { RevenueOverviewBlock } from "../components/admin/RevenueOverviewBlock.jsx";
 // 2026-06-03 — 매출 자세히 화면 (2차).
 import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
+// 2026-07-10 — 지역별 접수 현황 (tasks + 미처리 inquiries 합산, 읽기 전용).
+import { RegionStatsScreen } from "../components/admin/RegionStatsScreen.jsx";
 // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환용).
 import { EngineerTaskListScreen } from "../components/admin/EngineerTaskList.jsx";
 // 2026-06-26 — 공지사항 관리 (Mig 147/148). 운영자 → 전체 기사 공통 공지 + 푸시.
@@ -3164,6 +3166,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   if (screen === "announcements") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AnnouncementManageScreen t={t} user={user} onBack={goBack}/>
+    </Shell>;
+  }
+  // 2026-07-10 — 지역별 접수 현황 (읽기 전용, tasks + 미처리 inquiries 합산).
+  if (screen === "regionStats") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <RegionStatsScreen t={t} apiTasks={apiTasks} user={user} onBack={goBack}/>
     </Shell>;
   }
   // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환).

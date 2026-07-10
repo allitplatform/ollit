@@ -29,6 +29,25 @@ if ("serviceWorker" in navigator && import.meta.env.PROD && !_isLandingRoute()) 
   });
 }
 
+// 2026-07-10 — GA4 (Google Analytics 4) 손님용 랜딩 host 에서만 로드.
+//   ⚠️ 운영 PWA (ollit.vercel.app 운영자 화면) 는 절대 로드 X — _isLandingRoute() true 인 경우만.
+//   ⚠️ PII (이름/전화/주소) 이벤트 파라미터 절대 삽입 X — service_type 만.
+//   · 측정 ID: G-D7PDSCVHBS
+//   · page_view: 스크립트 초기화 시 자동
+//   · 전환 이벤트 generate_lead: handleSubmit 성공 콜백 측에서 발화 (LandingApp.jsx)
+if (import.meta.env.PROD && _isLandingRoute()) {
+  const GA_ID = "G-D7PDSCVHBS";
+  // dataLayer / gtag stub — 스크립트 load 지연 시에도 event push 가능.
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function gtag() { window.dataLayer.push(arguments); };
+  window.gtag("js", new Date());
+  window.gtag("config", GA_ID);
+  const s = document.createElement("script");
+  s.async = true;
+  s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+  document.head.appendChild(s);
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
