@@ -78,15 +78,54 @@ export function InquiryStatsHeader({ t, actorId }) {
     return Math.max(m, 1);
   }, [daily]);
 
-  // 퍼널 3단계 지표.
-  //   접수  = 전 기간 스팸 제외 총합. totals.all_time_excl_spam 우선. 없으면 funnel.total_excl_spam.
-  //   성사  = converted + completed_in (Mig 152 이후 converted 상태 유지, 완료는 completed_in 상태로 이동).
-  //   완료  = totals.all_time_completed 우선. 없으면 funnel.completed_in.
-  const acceptN  = Number(totals.all_time_excl_spam ?? funnel.total_excl_spam ?? 0);
-  const doneK    = Number(totals.all_time_completed ?? funnel.completed_in ?? 0);
-  const settleM  = Number(funnel.converted || 0) + Number(funnel.completed_in || 0);
-  const convRate = acceptN > 0 ? (settleM / acceptN) * 100 : 0;
-  const doneRate = acceptN > 0 ? (doneK   / acceptN) * 100 : 0;
+  // 2026-07-10 — 사장님 spec: 접수 ⊇ 성사 ⊇ 완료 단일 모집단.
+  //   ⚠️ 이전엔 접수(totals) vs 성사(funnel) 소스 상이 → 성사 > 접수 사고 (135%).
+  //   정정: funnel 한 소스에서 4개 필드 다 계산. totals 필드는 사용 X.
+  //     · 접수 (N) = funnel.total_excl_spam (전 기간, 스팸 제외 접수 총합)
+  //     · 성사 (M) = funnel.converted + funnel.completed_in
+  //                  (converted = 전환된 상태 유지 / completed_in = 전환 후 완료 상태)
+  //     · 완료 (K) = funnel.completed_in
+  //   안전장치: settle > accept 이면 clamp (RPC 오차 대비, ⚠️ 이 상황은 근본 데이터 이상 → 진단 필요).
+  const rawSettle = Number(funnel.converted || 0) + Number(funnel.completed_in || 0);
+  const rawDone   = Number(funnel.completed_in || 0);
+  const acceptN   = Number(funnel.total_excl_spam || 0);
+  const settleM   = Math.min(rawSettle, acceptN);
+  const doneK     = Math.min(rawDone,   settleM);
+  const convRate  = acceptN > 0 ? (settleM / acceptN) * 100 : 0;
+  const doneRate  = settleM > 0 ? (doneK   / settleM) * 100 : 0;
+
+  // 진단 로그 — clamp 발동 or 소스 불일치 확인용.
+  useEffect(() => {
+    if (!totals && !funnel) return;
+    if (acceptN === 0) return;
+    console.log("[InquiryStats] FUNNEL=" + JSON.stringify({
+      accept:  acceptN,
+      settle:  settleM,
+      done:    doneK,
+      convRate: Number(convRate.toFixed(2)),
+      doneRate: Number(doneRate.toFixed(2)),
+      raw: {
+        funnel: {
+          new:              Number(funnel.new || 0),
+          contacted:        Number(funnel.contacted || 0),
+          converted:        Number(funnel.converted || 0),
+          completed_in:     Number(funnel.completed_in || 0),
+          spam:             Number(funnel.spam || 0),
+          total_excl_spam:  Number(funnel.total_excl_spam || 0),
+        },
+        totals: {
+          today:               Number(totals.today || 0),
+          this_month:          Number(totals.this_month || 0),
+          all_time_excl_spam:  Number(totals.all_time_excl_spam || 0),
+          all_time_completed:  Number(totals.all_time_completed || 0),
+        },
+      },
+      clamp: {
+        settle: rawSettle !== settleM,
+        done:   rawDone   !== doneK,
+      },
+    }));
+  }, [acceptN, settleM, doneK, funnel, totals]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{
@@ -259,18 +298,18 @@ function FunnelHero({ t, acceptN, settleM, doneK, convRate, doneRate, loading })
           value={fmtNum(doneK)}
           suffix="건"
           color={COLOR_DONE}
-          rate={acceptN > 0 ? `${doneRate.toFixed(1)}%` : "—"}
-          rateLabel="완료율"
+          rate={settleM > 0 ? `${doneRate.toFixed(1)}%` : "—"}
+          rateLabel="성사 대비 완료"
           loading={loading}
           emphasize
         />
       </div>
 
-      {/* 퍼널 폭 시각화 (접수=100% 기준) */}
+      {/* 퍼널 폭 시각화 (bar = 접수 100% 기준 시각. 라벨 = 각 단계 대비) */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <FunnelWidthBar t={t} label="접수" value={acceptN} pct={100}      color={COLOR_TOTAL} align="left"/>
-        <FunnelWidthBar t={t} label="성사" value={settleM} pct={settlePct} color={COLOR_CONV}  align="center"/>
-        <FunnelWidthBar t={t} label="완료" value={doneK}   pct={donePct}   color={COLOR_DONE}  align="center"/>
+        <FunnelWidthBar t={t} label="접수" barPct={100}       labelPct={100}      color={COLOR_TOTAL} align="left"/>
+        <FunnelWidthBar t={t} label="성사" barPct={settlePct} labelPct={convRate} labelSuffix=" (접수 대비)" color={COLOR_CONV} align="center"/>
+        <FunnelWidthBar t={t} label="완료" barPct={donePct}   labelPct={doneRate} labelSuffix=" (성사 대비)" color={COLOR_DONE} align="center"/>
       </div>
     </div>
   );
@@ -327,7 +366,9 @@ function HeroArrow({ color }) {
   );
 }
 
-function FunnelWidthBar({ t, label, value, pct, color, align }) {
+function FunnelWidthBar({ t, label, barPct, labelPct, labelSuffix, color, align }) {
+  const bp = Math.min(100, Math.max(0, Number(barPct) || 0));
+  const lp = Number(labelPct) || 0;
   return (
     <div style={{
       display: "grid",
@@ -347,17 +388,17 @@ function FunnelWidthBar({ t, label, value, pct, color, align }) {
         <div style={{
           position: "absolute",
           top: 0, bottom: 0,
-          left: align === "center" ? `${(100 - pct) / 2}%` : 0,
-          width: `${Math.min(100, Math.max(0, pct))}%`,
+          left: align === "center" ? `${(100 - bp) / 2}%` : 0,
+          width: `${bp}%`,
           background: color,
         }}/>
       </div>
       <div className="mono" style={{
-        fontSize: 10, fontWeight: 700, minWidth: 44, textAlign: "right",
+        fontSize: 10, fontWeight: 700, minWidth: 92, textAlign: "right",
         color: t.textMuted || "var(--text-tertiary, var(--text-secondary))",
         fontVariantNumeric: "tabular-nums",
       }}>
-        {pct.toFixed(0)}%
+        {lp.toFixed(0)}%{labelSuffix || ""}
       </div>
     </div>
   );
