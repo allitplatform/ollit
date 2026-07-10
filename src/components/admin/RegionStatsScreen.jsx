@@ -292,6 +292,13 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
         </div>
       </div>
 
+      {/* 2026-07-10 — 상단 서울 25구 SVG 지도 + 옆 서울 외 리스트 */}
+      {!loading && !error && rows.length > 0 && (
+        <div style={{ padding: "6px 16px 8px" }}>
+          <SeoulMapPanel t={t} rows={rows}/>
+        </div>
+      )}
+
       {/* 표 */}
       <div style={{ padding: "10px 16px 20px" }}>
         {loading ? (
@@ -435,6 +442,161 @@ function NumSpan({ t, n, accent }) {
       textAlign: "right",
       fontVariantNumeric: "tabular-nums",
     }}>{Number(n || 0).toLocaleString("ko-KR")}</span>
+  );
+}
+
+// 2026-07-10 — 서울 25구 SVG 색칠 지도 + 옆 서울 외 지역 리스트.
+//   지리적 100% 정확 아님 — 5x5 grid 근사 (방위 감각만).
+//   셀 색: accent + fillOpacity (건수/최댓값 비율). 0건은 옅음.
+//   호버: 셀 강조 + 하단 라벨.
+const SEOUL_GU_GRID = [
+  ["강서구","은평구","도봉구","강북구","노원구"],
+  ["양천구","서대문구","종로구","성북구","중랑구"],
+  ["영등포구","마포구","중구","동대문구","광진구"],
+  ["구로구","용산구","성동구","강동구","송파구"],
+  ["금천구","관악구","동작구","서초구","강남구"],
+];
+
+function SeoulMapPanel({ t, rows }) {
+  const seoulCounts = useMemo(() => {
+    const m = new Map();
+    for (const r of rows) {
+      if (r.key && r.key.startsWith("서울 ")) {
+        m.set(r.label.replace("서울 ", ""), r.total);
+      }
+    }
+    return m;
+  }, [rows]);
+  const nonSeoulRows = useMemo(
+    () => rows.filter(r => !r.key || !r.key.startsWith("서울 ")),
+    [rows]
+  );
+  const seoulTotal = useMemo(
+    () => [...seoulCounts.values()].reduce((s, v) => s + v, 0),
+    [seoulCounts]
+  );
+  const maxCount = useMemo(
+    () => Math.max(1, ...seoulCounts.values()),
+    [seoulCounts]
+  );
+  const [hovered, setHovered] = useState(null);
+
+  const CELL = 76, GAP = 4, OUTER = 10;
+  const size = OUTER * 2 + CELL * 5 + GAP * 4;
+
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+      gap: 12,
+      alignItems: "start",
+    }}>
+      {/* 서울 25구 지도 */}
+      <div style={{
+        background: t.bgElevated,
+        border: `1px solid ${t.border}`,
+        borderRadius: 12,
+        padding: 10,
+      }}>
+        <div style={{
+          display: "flex", alignItems: "baseline", justifyContent: "space-between",
+          marginBottom: 6, padding: "0 4px",
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>서울 25구</span>
+          <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>총 {seoulTotal}건</span>
+        </div>
+        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "100%", height: "auto", display: "block" }}>
+          {SEOUL_GU_GRID.map((row, ri) => row.map((gu, ci) => {
+            const count = seoulCounts.get(gu) || 0;
+            const alpha = count === 0 ? 0.08 : 0.20 + 0.72 * (count / maxCount);
+            const x = OUTER + ci * (CELL + GAP);
+            const y = OUTER + ri * (CELL + GAP);
+            const isHovered = hovered === gu;
+            const textCol = count === 0 ? (t.textMuted || "#94a3b8")
+                          : alpha > 0.55 ? "#fff"
+                                         : (t.text || "#111");
+            return (
+              <g key={gu}
+                onMouseEnter={() => setHovered(gu)}
+                onMouseLeave={() => setHovered(null)}
+                style={{ cursor: count > 0 ? "pointer" : "default" }}>
+                <rect
+                  x={x} y={y} width={CELL} height={CELL} rx={7}
+                  fill={t.accent || "#FF1B8D"}
+                  fillOpacity={alpha}
+                  stroke={isHovered ? (t.accent || "#FF1B8D") : (t.border || "#e5e7eb")}
+                  strokeWidth={isHovered ? 2.5 : 1}
+                />
+                <text
+                  x={x + CELL / 2} y={y + CELL / 2 - 4}
+                  textAnchor="middle" fontSize="10" fontWeight="700"
+                  fill={textCol}
+                  style={{ pointerEvents: "none" }}>
+                  {gu.replace(/구$/, "")}
+                </text>
+                <text
+                  x={x + CELL / 2} y={y + CELL / 2 + 16}
+                  textAnchor="middle" fontSize="15" fontWeight="800"
+                  fill={textCol}
+                  style={{ pointerEvents: "none", fontVariantNumeric: "tabular-nums" }}>
+                  {count}
+                </text>
+              </g>
+            );
+          }))}
+        </svg>
+        {/* 하단 hover 라벨 */}
+        <div style={{
+          minHeight: 22, marginTop: 6, padding: "0 4px",
+          fontSize: 11, color: t.textSecondary, fontWeight: 700,
+        }}>
+          {hovered
+            ? <span>서울 {hovered} · <span className="mono" style={{ color: t.accent, fontWeight: 800 }}>{seoulCounts.get(hovered) || 0}건</span></span>
+            : <span style={{ color: t.textMuted }}>셀 위에 마우스 올리면 상세 표시</span>}
+        </div>
+      </div>
+
+      {/* 서울 외 지역 리스트 */}
+      <div style={{
+        background: t.bgElevated,
+        border: `1px solid ${t.border}`,
+        borderRadius: 12,
+        padding: 10,
+        display: "flex", flexDirection: "column", gap: 4,
+        maxHeight: size + 40, overflowY: "auto",
+      }}>
+        <div style={{
+          display: "flex", alignItems: "baseline", justifyContent: "space-between",
+          padding: "0 4px", marginBottom: 4,
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>서울 외</span>
+          <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>{nonSeoulRows.length}개 지역</span>
+        </div>
+        {nonSeoulRows.length === 0 ? (
+          <div style={{
+            padding: "18px 8px", textAlign: "center",
+            color: t.textMuted, fontSize: 11, fontWeight: 600,
+          }}>서울 외 접수 없음</div>
+        ) : nonSeoulRows.map(r => (
+          <div key={r.key} style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "6px 8px",
+            background: r.key === "미상" ? (t.bgInset || "rgba(148,163,184,0.08)") : "transparent",
+            borderRadius: 6,
+          }}>
+            <span style={{
+              fontSize: 12, fontWeight: 700,
+              color: r.key === "미상" ? t.textMuted : t.text,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>{r.label}</span>
+            <span className="mono" style={{
+              fontSize: 13, fontWeight: 800, color: t.accent,
+              fontVariantNumeric: "tabular-nums",
+            }}>{r.total}</span>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
