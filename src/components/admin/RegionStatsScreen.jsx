@@ -6,7 +6,7 @@
 //   표시: 시도/시군구별 건수 정렬, 기간 필터, 세부 breakdown (tasks vs inquiries).
 //   ⚠️ 읽기 전용. 정산 트리거 무손.
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { todayYmd, toKstYmd } from "../../utils/dateLabel.js";
 import { listInquiries } from "../../lib/inquiriesDb.js";
@@ -292,10 +292,13 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
         </div>
       </div>
 
-      {/* 2026-07-10 — 상단 서울 25구 SVG 지도 + 옆 서울 외 리스트 */}
+      {/* 2026-07-10 — 상단 서울 25구 SVG 지도 + 옆 서울 외 리스트.
+            지도 크래시가 나머지 화면(표/요약) 을 죽이지 않게 ErrorBoundary 격리. */}
       {!loading && !error && rows.length > 0 && (
         <div style={{ padding: "6px 16px 8px" }}>
-          <SeoulMapPanel t={t} rows={rows}/>
+          <SeoulMapErrorBoundary t={t}>
+            <SeoulMapPanel t={t} rows={rows}/>
+          </SeoulMapErrorBoundary>
         </div>
       )}
 
@@ -694,7 +697,9 @@ function SeoulMapPanel({ t, rows }) {
         borderRadius: 12,
         padding: 10,
         display: "flex", flexDirection: "column", gap: 4,
-        maxHeight: size + 40, overflowY: "auto",
+        // 2026-07-10 hotfix — 지도 높이 (gridSize 또는 geoView.H) 에 맞춤. 이전엔 삭제된 size 참조로 크래시.
+        maxHeight: (geoView ? geoView.H : gridSize) + 40,
+        overflowY: "auto",
       }}>
         <div style={{
           display: "flex", alignItems: "baseline", justifyContent: "space-between",
@@ -729,6 +734,49 @@ function SeoulMapPanel({ t, rows }) {
       </div>
     </div>
   );
+}
+
+// 2026-07-10 hotfix — 지도 크래시 격리용 ErrorBoundary.
+//   지도 하나 때문에 화면 전체가 죽는 사고 방지.
+//   에러 발생 시 빈 자리에 안내 문구만 표시하고 나머지 화면 (요약/표) 은 살아있게.
+class SeoulMapErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { err: null };
+  }
+  static getDerivedStateFromError(err) {
+    return { err };
+  }
+  componentDidCatch(err, info) {
+    console.warn("[SeoulMap] render crash — 격리됨", err, info);
+  }
+  render() {
+    if (this.state.err) {
+      const t = this.props.t || {};
+      return (
+        <div style={{
+          padding: "18px 14px", textAlign: "center",
+          color: t.textMuted || "#94a3b8", fontSize: 12, fontWeight: 600,
+          background: t.bgElevated || "#fff",
+          border: `1px solid ${t.border || "#e5e7eb"}`,
+          borderRadius: 10,
+        }}>
+          지도 표시 실패 (아래 표는 정상 동작) ·{" "}
+          <button
+            type="button"
+            onClick={() => this.setState({ err: null })}
+            style={{
+              background: "transparent", border: "none",
+              color: t.accent || "#FF1B8D",
+              fontSize: 11, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+              textDecoration: "underline",
+            }}>다시 시도</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 export default RegionStatsScreen;
