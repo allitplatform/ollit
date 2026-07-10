@@ -78,30 +78,42 @@ export function InquiryStatsHeader({ t, actorId }) {
     return Math.max(m, 1);
   }, [daily]);
 
-  // 2026-07-10 — 사장님 spec: 접수 ⊇ 성사 ⊇ 완료 단일 모집단.
-  //   ⚠️ 이전엔 접수(totals) vs 성사(funnel) 소스 상이 → 성사 > 접수 사고 (135%).
-  //   정정: funnel 한 소스에서 4개 필드 다 계산. totals 필드는 사용 X.
-  //     · 접수 (N) = funnel.total_excl_spam (전 기간, 스팸 제외 접수 총합)
-  //     · 성사 (M) = funnel.converted + funnel.completed_in
-  //                  (converted = 전환된 상태 유지 / completed_in = 전환 후 완료 상태)
-  //     · 완료 (K) = funnel.completed_in
-  //   안전장치: settle > accept 이면 clamp (RPC 오차 대비, ⚠️ 이 상황은 근본 데이터 이상 → 진단 필요).
+  // 2026-07-10 v2 — 사장님 spec 재정의:
+  //   전체 접수(스팸 포함) → 스팸(회색 표기) → 유효 접수 → 성사 → 완료.
+  //   각 단계는 앞 단계의 부분집합. clamp 방어.
+  //     · 전체 접수 (T) = valid + spam
+  //     · 스팸       (S) = funnel.spam
+  //     · 유효 접수  (V) = funnel.total_excl_spam (= T - S)
+  //     · 성사       (M) = funnel.converted + funnel.completed_in (clamp ≤ V)
+  //     · 완료       (K) = funnel.completed_in (clamp ≤ M)
+  //   비율:
+  //     · 스팸률     = S / T
+  //     · 전환율     = M / V (≤100%, 유효 접수 대비)
+  //     · 완료율     = K / M (성사 대비)
   const rawSettle = Number(funnel.converted || 0) + Number(funnel.completed_in || 0);
   const rawDone   = Number(funnel.completed_in || 0);
-  const acceptN   = Number(funnel.total_excl_spam || 0);
-  const settleM   = Math.min(rawSettle, acceptN);
+  const validV    = Number(funnel.total_excl_spam || 0);
+  const spamS     = Number(funnel.spam || 0);
+  const totalT    = validV + spamS;
+  const settleM   = Math.min(rawSettle, validV);
   const doneK     = Math.min(rawDone,   settleM);
-  const convRate  = acceptN > 0 ? (settleM / acceptN) * 100 : 0;
+  const spamRate  = totalT  > 0 ? (spamS   / totalT ) * 100 : 0;
+  const convRate  = validV  > 0 ? (settleM / validV ) * 100 : 0;
   const doneRate  = settleM > 0 ? (doneK   / settleM) * 100 : 0;
+  // 하위 호환 alias (기존 히어로/bar 참조).
+  const acceptN = validV;
 
   // 진단 로그 — clamp 발동 or 소스 불일치 확인용.
   useEffect(() => {
-    if (!totals && !funnel) return;
-    if (acceptN === 0) return;
+    if (!funnel) return;
+    if (totalT === 0) return;
     console.log("[InquiryStats] FUNNEL=" + JSON.stringify({
-      accept:  acceptN,
+      total:   totalT,   // 전체 접수 (스팸 포함)
+      spam:    spamS,
+      valid:   validV,   // 유효 접수 = total - spam
       settle:  settleM,
       done:    doneK,
+      spamRate: Number(spamRate.toFixed(2)),
       convRate: Number(convRate.toFixed(2)),
       doneRate: Number(doneRate.toFixed(2)),
       raw: {
@@ -113,19 +125,13 @@ export function InquiryStatsHeader({ t, actorId }) {
           spam:             Number(funnel.spam || 0),
           total_excl_spam:  Number(funnel.total_excl_spam || 0),
         },
-        totals: {
-          today:               Number(totals.today || 0),
-          this_month:          Number(totals.this_month || 0),
-          all_time_excl_spam:  Number(totals.all_time_excl_spam || 0),
-          all_time_completed:  Number(totals.all_time_completed || 0),
-        },
       },
       clamp: {
         settle: rawSettle !== settleM,
         done:   rawDone   !== doneK,
       },
     }));
-  }, [acceptN, settleM, doneK, funnel, totals]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [totalT, validV, spamS, settleM, doneK, funnel]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{
@@ -136,12 +142,15 @@ export function InquiryStatsHeader({ t, actorId }) {
       marginBottom: 14,
       display: "flex", flexDirection: "column", gap: 14,
     }}>
-      {/* 히어로 퍼널 — 접수 → 성사 → 완료 */}
+      {/* 히어로 퍼널 — 전체 접수 → 스팸 → 유효 접수 → 성사 → 완료 */}
       <FunnelHero
         t={t}
-        acceptN={acceptN}
+        totalT={totalT}
+        spamS={spamS}
+        validV={validV}
         settleM={settleM}
         doneK={doneK}
+        spamRate={spamRate}
         convRate={convRate}
         doneRate={doneRate}
         loading={loading}
@@ -257,16 +266,33 @@ export function InquiryStatsHeader({ t, actorId }) {
   );
 }
 
-// 히어로 — 접수 N → 성사 M (전환율%) → 완료 K (완료율%).
-//   퍼널 시각화: 왼쪽 값 (접수) 최대, 성사·완료 는 접수 대비 폭으로 시각화.
-function FunnelHero({ t, acceptN, settleM, doneK, convRate, doneRate, loading }) {
-  const settlePct = acceptN > 0 ? Math.min(100, (settleM / acceptN) * 100) : 0;
-  const donePct   = acceptN > 0 ? Math.min(100, (doneK   / acceptN) * 100) : 0;
+// 히어로 — 전체 접수 T → 스팸 S → 유효 V → 성사 M → 완료 K.
+//   퍼널 폭 시각화 (bar): 전체 접수 (T) 100% 기준. 각 단계 폭.
+//   라벨 %: 각 단계별 상위 대비 (스팸=T 대비, 유효=T 대비, 성사=V 대비, 완료=M 대비).
+function FunnelHero({ t, totalT, spamS, validV, settleM, doneK, spamRate, convRate, doneRate, loading }) {
+  const spamPct   = totalT > 0 ? (spamS   / totalT) * 100 : 0;
+  const validPct  = totalT > 0 ? (validV  / totalT) * 100 : 0;
+  const settlePct = totalT > 0 ? (settleM / totalT) * 100 : 0;
+  const donePct   = totalT > 0 ? (doneK   / totalT) * 100 : 0;
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
     }}>
-      {/* 3개 큰 숫자 (라벨/값/비율) */}
+      {/* 상단 요약 — 전체 접수 T (스팸 S 제외 → 유효 V) */}
+      <div style={{
+        display: "flex", alignItems: "baseline", gap: 8,
+        padding: "2px 4px",
+        fontSize: 11, fontWeight: 700,
+        color: t.textSecondary || "var(--text-secondary)",
+      }}>
+        <span>전체 접수 <span className="mono" style={{ color: t.text || "var(--text-primary)", fontWeight: 800 }}>{fmtNum(totalT)}</span> 건</span>
+        <span style={{ color: t.textMuted }}>·</span>
+        <span>스팸 <span className="mono" style={{ color: COLOR_SPAM, fontWeight: 800 }}>{fmtNum(spamS)}</span> ({spamRate.toFixed(1)}%) 제외</span>
+        <span style={{ color: t.textMuted }}>=</span>
+        <span>유효 <span className="mono" style={{ color: COLOR_TOTAL, fontWeight: 800 }}>{fmtNum(validV)}</span> 건</span>
+      </div>
+
+      {/* 3개 큰 숫자 (라벨/값/비율) — 유효 접수 기준 성사/완료 */}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
@@ -274,25 +300,23 @@ function FunnelHero({ t, acceptN, settleM, doneK, convRate, doneRate, loading })
         alignItems: "stretch",
       }}>
         <HeroStat t={t}
-          label="접수"
-          value={fmtNum(acceptN)}
+          label="유효 접수"
+          value={fmtNum(validV)}
           suffix="건"
           color={COLOR_TOTAL}
           rate={null}
           loading={loading}
         />
-        <HeroArrow color={t.textMuted || "#94a3b8"}/>
         <HeroStat t={t}
           label="성사 (전환)"
           value={fmtNum(settleM)}
           suffix="건"
           color={COLOR_CONV}
-          rate={acceptN > 0 ? `${convRate.toFixed(1)}%` : "—"}
+          rate={validV > 0 ? `${convRate.toFixed(1)}%` : "—"}
           rateLabel="전환율"
           loading={loading}
           emphasize
         />
-        <HeroArrow color={t.textMuted || "#94a3b8"}/>
         <HeroStat t={t}
           label="완료"
           value={fmtNum(doneK)}
@@ -305,11 +329,13 @@ function FunnelHero({ t, acceptN, settleM, doneK, convRate, doneRate, loading })
         />
       </div>
 
-      {/* 퍼널 폭 시각화 (bar = 접수 100% 기준 시각. 라벨 = 각 단계 대비) */}
+      {/* 퍼널 폭 시각화 (bar = 전체 접수 100% 기준) */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <FunnelWidthBar t={t} label="접수" barPct={100}       labelPct={100}      color={COLOR_TOTAL} align="left"/>
-        <FunnelWidthBar t={t} label="성사" barPct={settlePct} labelPct={convRate} labelSuffix=" (접수 대비)" color={COLOR_CONV} align="center"/>
-        <FunnelWidthBar t={t} label="완료" barPct={donePct}   labelPct={doneRate} labelSuffix=" (성사 대비)" color={COLOR_DONE} align="center"/>
+        <FunnelWidthBar t={t} label="전체"    barPct={100}       labelPct={100}      color={COLOR_TOTAL} align="left"/>
+        <FunnelWidthBar t={t} label="스팸"    barPct={spamPct}   labelPct={spamRate}  labelSuffix=" (전체 대비)" color={COLOR_SPAM}  align="center"/>
+        <FunnelWidthBar t={t} label="유효"    barPct={validPct}  labelPct={100 - spamRate} labelSuffix=" (전체 대비)" color={COLOR_TOTAL} align="center"/>
+        <FunnelWidthBar t={t} label="성사"    barPct={settlePct} labelPct={convRate} labelSuffix=" (유효 대비)" color={COLOR_CONV}  align="center"/>
+        <FunnelWidthBar t={t} label="완료"    barPct={donePct}   labelPct={doneRate} labelSuffix=" (성사 대비)" color={COLOR_DONE}  align="center"/>
       </div>
     </div>
   );
