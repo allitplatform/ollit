@@ -138,6 +138,7 @@ export default function AdminInquiriesScreen({
         t={t}
         user={user}
         actorId={actorId}
+        apiTasks={apiTasks}
         items={items}
         filter={filter}
         setFilter={setFilter}
@@ -159,6 +160,7 @@ export default function AdminInquiriesScreen({
   return (
     <AdminInquiriesMobile
       actorId={actorId}
+      apiTasks={apiTasks}
       items={items}
       filter={filter}
       setFilter={setFilter}
@@ -179,7 +181,7 @@ export default function AdminInquiriesScreen({
 // 모바일 — C 미니멀 카드
 // ===========================================================
 function AdminInquiriesMobile({
-  actorId, items, filter, setFilter, loading, error, busyId, newCount,
+  actorId, apiTasks = [], items, filter, setFilter, loading, error, busyId, newCount,
   onBack, onCall, onSpam, onConvert, onReload,
 }) {
   // 2026-06-28 — 모바일은 통계를 별도 화면으로 분리 (좁은 폭에서 목록 밀림 차단).
@@ -372,7 +374,7 @@ function MiniCardRow({ row, busy, onCall, onSpam, onConvert }) {
 // PC — 2단 (좌 270 리스트 + 우 상세/폼)
 // ===========================================================
 function AdminInquiriesPc({
-  t, user, actorId, items, filter, setFilter, loading, error, busyId, newCount,
+  t, user, actorId, apiTasks = [], items, filter, setFilter, loading, error, busyId, newCount,
   selectedRow, onSelect, onBack,
   onCall, onSpam, onReload, onPcSubmitDone,
 }) {

@@ -205,7 +205,8 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
       marginBottom: 14,
       display: "flex", flexDirection: "column", gap: 14,
     }}>
-      {/* 히어로 퍼널 — 전체 → 스팸 → 유효 → 문의만 + 성사 → 완료 */}
+      {/* 히어로 퍼널 — 전체 → 스팸 → 유효 → 문의만 + 성사 → 완료
+            2026-07-10 — task 데이터 없으면 성사/완료 "—" (부분 실패 격리, 사장님 spec). */}
       <FunnelHero
         t={t}
         totalT={totalT}
@@ -219,6 +220,7 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
         convRate={convRate}
         doneRate={doneRate}
         loading={loading}
+        tasksAvailable={safeTasks.length > 0}
       />
 
       {/* 미니 라인 — 오늘 · 이번달 (히어로 대비 보조) */}
@@ -336,7 +338,8 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
 //   퍼널 폭 시각화 (bar): 전체 (T) 100% 기준.
 //   라벨 %: 각 단계별 상위 대비.
 function FunnelHero({ t, totalT, spamS, validV, inquiryOnlyQ, settleM, doneK,
-                     spamRate, inquiryOnlyRate, convRate, doneRate, loading }) {
+                     spamRate, inquiryOnlyRate, convRate, doneRate, loading,
+                     tasksAvailable = true }) {
   const spamPct        = totalT > 0 ? (spamS        / totalT) * 100 : 0;
   const validPct       = totalT > 0 ? (validV       / totalT) * 100 : 0;
   const inquiryOnlyPct = totalT > 0 ? (inquiryOnlyQ / totalT) * 100 : 0;
@@ -377,20 +380,20 @@ function FunnelHero({ t, totalT, spamS, validV, inquiryOnlyQ, settleM, doneK,
         />
         <HeroStat t={t}
           label="성사 (전환)"
-          value={fmtNum(settleM)}
-          suffix="건"
+          value={tasksAvailable ? fmtNum(settleM) : "—"}
+          suffix={tasksAvailable ? "건" : ""}
           color={COLOR_CONV}
-          rate={validV > 0 ? `${convRate.toFixed(1)}%` : "—"}
+          rate={tasksAvailable && validV > 0 ? `${convRate.toFixed(1)}%` : "—"}
           rateLabel="전환율"
           loading={loading}
           emphasize
         />
         <HeroStat t={t}
           label="완료"
-          value={fmtNum(doneK)}
-          suffix="건"
+          value={tasksAvailable ? fmtNum(doneK) : "—"}
+          suffix={tasksAvailable ? "건" : ""}
           color={COLOR_DONE}
-          rate={settleM > 0 ? `${doneRate.toFixed(1)}%` : "—"}
+          rate={tasksAvailable && settleM > 0 ? `${doneRate.toFixed(1)}%` : "—"}
           rateLabel="성사 대비 완료"
           loading={loading}
           emphasize
