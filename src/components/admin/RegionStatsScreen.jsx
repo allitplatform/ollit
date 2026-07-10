@@ -19,6 +19,21 @@ const PERIOD_OPTS = [
   { id: "all",    label: "전체" },
 ];
 
+const SOURCE_OPTS = [
+  { id: "all",       label: "전체" },
+  { id: "homepage",  label: "홈페이지만" },
+];
+
+// 2026-07-10 — 홈페이지 유입 판별 (전용 컬럼 없음, memo 접두 사용).
+//   전환 로직 (AdminInquiriesScreen / AdminApp) 은 memo 를
+//   "[홈페이지 접수 ...] 희망 서비스: ..." 형식으로 남김.
+//   inquiries 자체는 전부 홈페이지 유입이라 별도 판정 X.
+function _isFromHomepage(task) {
+  const m = task && (task.memo || task.workMemo || "");
+  if (!m) return false;
+  return /^\s*\[홈페이지 접수/.test(String(m));
+}
+
 // KST 기준 이번주 월요일 ymd.
 function _startOfWeekMonYmd() {
   const d = new Date();
@@ -43,6 +58,9 @@ function _rangeForPeriod(period) {
 
 export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
   const [period, setPeriod]         = useState("today");
+  // 2026-07-10 — 소스 필터 (전체 / 홈페이지만). 기본 전체.
+  //   홈페이지만: tasks 는 memo "[홈페이지 접수" 접두만 / inquiries 는 전부 유입.
+  const [source, setSource]         = useState("all");
   const [inquiries, setInquiries]   = useState([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
@@ -73,6 +91,7 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
   const { start, end } = useMemo(() => _rangeForPeriod(period), [period]);
 
   // tasks 는 created_at (접수 시각) KST 기준 필터. 취소 제외.
+  // 2026-07-10 — source='homepage' 시 memo 접두 필터 추가.
   const tasksInRange = useMemo(() => {
     return (apiTasks || []).filter(x => {
       if (!x || x.status === "취소") return false;
@@ -80,9 +99,11 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
       if (!created) return false;
       const k = toKstYmd(created);
       if (!k) return false;
-      return k >= start && k <= end;
+      if (k < start || k > end) return false;
+      if (source === "homepage" && !_isFromHomepage(x)) return false;
+      return true;
     });
-  }, [apiTasks, start, end]);
+  }, [apiTasks, start, end, source]);
 
   const inquiriesInRange = useMemo(() => {
     return (inquiries || []).filter(x => {
@@ -148,8 +169,36 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
         </div>
       </div>
 
+      {/* 2026-07-10 — 소스 필터 (전체 / 홈페이지만) */}
+      <div style={{ padding: "12px 16px 4px" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={{
+            fontSize: 10, color: t.textMuted, fontWeight: 700,
+            letterSpacing: 0.3, marginRight: 4,
+          }}>소스</span>
+          {SOURCE_OPTS.map(opt => {
+            const on = source === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setSource(opt.id)}
+                style={{
+                  padding: "5px 12px",
+                  background: on ? (t.bgInset || "rgba(255,255,255,0.06)") : "transparent",
+                  border: `1px solid ${on ? t.text : t.border}`,
+                  borderRadius: 999,
+                  color: on ? t.text : t.textSecondary,
+                  fontSize: 11, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>{opt.label}</button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* 기간 필터 */}
-      <div style={{ padding: "12px 16px 8px" }}>
+      <div style={{ padding: "8px 16px 8px" }}>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {PERIOD_OPTS.map(opt => {
             const on = period === opt.id;
@@ -172,6 +221,9 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
         </div>
         <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginTop: 8 }}>
           {start} ~ {end} · {period === "all" ? "전체 기간" : "KST 기준"}
+          {source === "homepage" && (
+            <span style={{ marginLeft: 6, color: t.accent, fontWeight: 700 }}>· 홈페이지 유입만</span>
+          )}
         </div>
       </div>
 
