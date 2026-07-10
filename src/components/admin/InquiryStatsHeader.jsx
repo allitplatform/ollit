@@ -9,7 +9,7 @@
 //   ✳️ 현재 상태 분포 (신규/통화함/전환됨/완료_in) → 제거 (히어로가 대체).
 //   ✳️ 지역 관련 요소 없음 (지역별 접수 현황 화면으로 일원화).
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   getInquiryDailyCounts,
   getInquiryFunnel,
@@ -40,7 +40,21 @@ function fmtPct(n) {
   return `${Number(n).toFixed(1)}%`;
 }
 
-export function InquiryStatsHeader({ t, actorId, apiTasks = [] }) {
+// 2026-07-10 hotfix — ErrorBoundary 로 감싸 크래시 격리.
+//   apiTasks/funnel/totals 등 예상외 값이나 render 예외 발생 시 화면 전체가 죽지 않도록.
+export function InquiryStatsHeader(props) {
+  return (
+    <InquiryStatsErrorBoundary t={props.t}>
+      <InquiryStatsHeaderInner {...props}/>
+    </InquiryStatsErrorBoundary>
+  );
+}
+
+function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
+  // 2026-07-10 hotfix — apiTasks undefined 방어 (사장님 크래시 리포트).
+  //   default parameter `= []` 는 caller 가 명시적으로 undefined 넘길 때만 발동.
+  //   실제로는 null 이 넘어올 수도 → 안 fallback.
+  const safeTasks = Array.isArray(apiTasks) ? apiTasks : [];
   const [dailyDays, setDailyDays] = useState(14);
   const [totals, setTotals]   = useState({});
   const [funnel, setFunnel]   = useState({});
@@ -113,13 +127,13 @@ export function InquiryStatsHeader({ t, actorId, apiTasks = [] }) {
   const spamS     = Number(funnel.spam || 0);
   const totalT    = validV + spamS;
 
-  // 성사/완료: apiTasks + convertedTaskIds join.
+  // 성사/완료: safeTasks + convertedTaskIds join.
   const { rawSettle, rawDone } = useMemo(() => {
-    if (!apiTasks || apiTasks.length === 0 || convertedTaskIds.size === 0) {
+    if (safeTasks.length === 0 || convertedTaskIds.size === 0) {
       return { rawSettle: 0, rawDone: 0 };
     }
     let settle = 0, done = 0;
-    for (const task of apiTasks) {
+    for (const task of safeTasks) {
       if (!task || !task.id) continue;
       if (!convertedTaskIds.has(String(task.id))) continue;
       // 성사 판정 = 기사 배정됨.
@@ -134,7 +148,7 @@ export function InquiryStatsHeader({ t, actorId, apiTasks = [] }) {
       if (st === "완료" || st === "정산완료") done += 1;
     }
     return { rawSettle: settle, rawDone: done };
-  }, [apiTasks, convertedTaskIds]);
+  }, [safeTasks, convertedTaskIds]);
 
   const settleM       = Math.min(rawSettle, validV);
   const doneK         = Math.min(rawDone,   settleM);
@@ -174,13 +188,13 @@ export function InquiryStatsHeader({ t, actorId, apiTasks = [] }) {
       inquiryOnly:     inquiryOnlyQ,
       inquiryOnlyRate: Number(inquiryOnlyRate.toFixed(2)),
       convertedTaskIds: convertedTaskIds.size,
-      apiTasksCount:    apiTasks.length,
+      apiTasksCount:    safeTasks.length,
       clamp: {
         settle: rawSettle !== settleM,
         done:   rawDone   !== doneK,
       },
     }));
-  }, [totalT, validV, spamS, settleM, doneK, funnel, inquiryOnlyQ, convertedTaskIds, apiTasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [totalT, validV, spamS, settleM, doneK, funnel, inquiryOnlyQ, convertedTaskIds, safeTasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{
@@ -492,6 +506,43 @@ function Legend({ color, label }) {
       {label}
     </span>
   );
+}
+
+// 2026-07-10 hotfix — 크래시 격리용 ErrorBoundary.
+//   render / effect 예외로 화면 전체 죽는 사고 방지.
+class InquiryStatsErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  componentDidCatch(err, info) {
+    console.warn("[InquiryStatsHeader] render crash — 격리됨", err, info);
+  }
+  render() {
+    if (this.state.err) {
+      const t = this.props.t || {};
+      return (
+        <div style={{
+          padding: "14px", marginBottom: 14,
+          background: t.bgElevated || "#fff",
+          border: `1px solid ${t.border || "#e5e7eb"}`,
+          borderRadius: 12,
+          color: t.textMuted || "#94a3b8",
+          fontSize: 12, fontWeight: 600, textAlign: "center",
+        }}>
+          통계 헤더 표시 실패 (접수 목록은 정상 동작) ·{" "}
+          <button type="button"
+            onClick={() => this.setState({ err: null })}
+            style={{
+              background: "transparent", border: "none",
+              color: "#FF1B8D",
+              fontSize: 11, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+              textDecoration: "underline",
+            }}>다시 시도</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 function Empty({ t, children }) {
