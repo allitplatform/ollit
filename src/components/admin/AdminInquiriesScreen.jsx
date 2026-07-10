@@ -30,6 +30,9 @@ const FILTERS = [
   { key: "all",       label: "전체" },
   { key: "new",       label: "신규" },
   { key: "contacted", label: "통화함" },
+  // 2026-07-10 — 사장님 spec: 스팸 필터 노출. 삭제(영구) 버튼도 이 필터에서 접근.
+  //   'all' 은 여전히 스팸 제외. 'spam' 선택 시 status='spam' 만 조회.
+  { key: "spam",      label: "스팸" },
 ];
 
 // timestamptz → "HH:mm" (KST local)
