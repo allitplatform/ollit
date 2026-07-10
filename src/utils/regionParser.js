@@ -3,8 +3,12 @@
 //   전략:
 //     1. 시도 keyword startsWith / includes 매칭 (17개 광역시·도)
 //     2. 시도별 시군구 사전 매칭 (서울 25구 / 인천 10구 / 경기 주요 시)
-//     3. 못 잡으면 "미상"
-//   ⚠️ 완벽 파싱 목표 X — 부실 텍스트 관대 처리. 못 잡히면 카운트 "미상" 로.
+//     3. 시도 미명시 시 시군구 → 상위 시도 역추론 + 서울 구 short.
+//     4. 시도·시군구 다 못 잡으면 → 동 사전 (regionDongMap) 최종 시도.
+//     5. 그래도 못 잡으면 "미상".
+//   ⚠️ 완벽 파싱 목표 X — 부실 텍스트 관대 처리.
+
+import { detectFromDong } from "./regionDongMap.js";
 
 const SIDO_KEYWORDS = [
   "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
@@ -117,14 +121,27 @@ function _detectSigungu(addr, sido) {
 // 최종 export — 자유텍스트 주소 → { sido, sigungu, key, label }.
 //   key   = 집계용 canonical (예: "서울 강남구", 못 잡으면 "미상")
 //   label = 화면 표시용 (동일 규칙)
+//   2026-07-10 — 시도·시군구 다 못 잡으면 동 사전 (regionDongMap) 최종 시도.
 export function parseRegion(addr) {
   const sido = _detectSido(addr);
-  if (!sido) return { sido: "", sigungu: "", key: "미상", label: "미상" };
-  const sigungu = _detectSigungu(addr, sido);
-  if (sigungu) {
-    return { sido, sigungu, key: `${sido} ${sigungu}`, label: `${sido} ${sigungu}` };
+  if (sido) {
+    const sigungu = _detectSigungu(addr, sido);
+    if (sigungu) {
+      return { sido, sigungu, key: `${sido} ${sigungu}`, label: `${sido} ${sigungu}` };
+    }
+    return { sido, sigungu: "", key: sido, label: sido };
   }
-  return { sido, sigungu: "", key: sido, label: sido };
+  // 시도 결손 → 동 사전 fallback (성산동 → 마포구 등).
+  const dongHit = detectFromDong(addr);
+  if (dongHit && dongHit.sido && dongHit.sigungu) {
+    return {
+      sido:    dongHit.sido,
+      sigungu: dongHit.sigungu,
+      key:     `${dongHit.sido} ${dongHit.sigungu}`,
+      label:   `${dongHit.sido} ${dongHit.sigungu}`,
+    };
+  }
+  return { sido: "", sigungu: "", key: "미상", label: "미상" };
 }
 
 // 시도만 집계 key.
