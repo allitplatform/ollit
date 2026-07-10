@@ -114,14 +114,19 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
     // 홈페이지 필터 적용 + 진단 (마커 매칭 부재 시 실제 필드 값 샘플 로그)
     const matched = inRange.filter(_isFromHomepage);
     if (matched.length === 0 && inRange.length > 0) {
+      // 2026-07-10 — 한 줄 JSON 로 출력 (콘솔 펼치기 없이 확인용).
+      //   각 필드 앞 40자만 잘라서 노이즈 방지. principal 도 포함 —
+      //   memo 파싱 대신 원청 기준 필터가 안정적인지 판단용.
+      const cut = (v) => v == null ? null : String(v).slice(0, 40);
       const sample = inRange.slice(0, 3).map(x => ({
-        code:        x.taskCode || x.task_no || x.id,
-        request:     x.request,
-        requestNote: x.requestNote,
-        memo:        x.memo,
-        workMemo:    x.workMemo,
+        code:          x.taskCode || x.task_no || x.id,
+        principal:     x.principal || x.principalName || x.principalCode || x.principal_code,
+        request:       cut(x.request),
+        requestNote:   cut(x.requestNote),
+        memo:          cut(x.memo),
+        workMemo:      cut(x.workMemo),
       }));
-      console.warn("[RegionStats] '홈페이지만' 매칭 0건 — 실제 필드 샘플", { total: inRange.length, sample });
+      console.log("[RegionStats] SAMPLE=" + JSON.stringify({ total: inRange.length, sample }));
     }
     return matched;
   }, [apiTasks, start, end, source]);
