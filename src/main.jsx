@@ -51,6 +51,37 @@ if (import.meta.env.PROD && _isLandingRoute()) {
   console.log("[GA4] init", GA_ID, "host=", window.location.hostname);
 }
 
+// 2026-07-10 — 네이버 프리미엄 로그분석 (wcslog.js).
+//   ⚠️ 로드 조건 = GA4 와 완전 동일 (랜딩 host + PROD only). 운영 PWA 는 X.
+//   · SPA 라 최초 진입 시 1회 실행. wcs.inflow() 로 네이버 광고 유입 파라미터 캡처.
+//   · guard: window.wcs 없으면 skip (차단기/네트워크 대비).
+if (import.meta.env.PROD && _isLandingRoute()) {
+  const NAVER_SITE_ID = "s_27453e8ff114";
+  // wcs_add / _nasa stub — 스크립트 load 전에도 참조 안전.
+  window.wcs_add       = window.wcs_add || {};
+  window.wcs_add["wa"] = NAVER_SITE_ID;
+  window._nasa         = window._nasa || {};
+  const s = document.createElement("script");
+  s.async = true;
+  s.src = "https://wcs.naver.net/wcslog.js";
+  s.onload = () => {
+    try {
+      if (window.wcs && typeof window.wcs.inflow === "function") {
+        window.wcs.inflow();
+        if (typeof window.wcs_do === "function") window.wcs_do();
+        console.log("[NAVER] wcs loaded", NAVER_SITE_ID);
+      } else {
+        console.warn("[NAVER] wcs unavailable after script load");
+      }
+    } catch (err) {
+      console.warn("[NAVER] wcs init throw", err);
+    }
+  };
+  s.onerror = (e) => console.warn("[NAVER] wcslog.js load failed (ad-blocker?)", e);
+  document.head.appendChild(s);
+  console.log("[NAVER] init", NAVER_SITE_ID, "host=", window.location.hostname);
+}
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />
