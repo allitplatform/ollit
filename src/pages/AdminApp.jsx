@@ -3556,6 +3556,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <AdminInquiriesScreen
         t={t}
         user={user}
+        apiTasks={apiTasks}
         onBack={goBack}
         onAfterEmbedConvert={() => {
           // PC 임베드 폼 등록 후 — 메인 작업 list 갱신 (best-effort)

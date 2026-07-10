@@ -16,12 +16,14 @@ import {
   ymdKstNDaysAgo,
   ymdKstToday,
 } from "../../lib/inquiryStatsDb.js";
+import { listInquiries } from "../../lib/inquiriesDb.js";
 
 const ACCENT       = "#FF1B8D";
 const COLOR_TOTAL  = "#3B82F6";   // 접수 — 파랑
 const COLOR_SPAM   = "#9CA3AF";   // 스팸 — 회색
 const COLOR_CONV   = "#16A34A";   // 성사 — 초록
 const COLOR_DONE   = "#FF1B8D";   // 완료 — 핑크 (accent)
+const COLOR_INQ_ONLY = "#F59E0B"; // 문의만(미배정) — 주황
 
 // 히어로는 all-time 지표. funnel 을 넉넉한 범위로 조회.
 const ALL_TIME_START = "2020-01-01";
@@ -38,13 +40,15 @@ function fmtPct(n) {
   return `${Number(n).toFixed(1)}%`;
 }
 
-export function InquiryStatsHeader({ t, actorId }) {
+export function InquiryStatsHeader({ t, actorId, apiTasks = [] }) {
   const [dailyDays, setDailyDays] = useState(14);
   const [totals, setTotals]   = useState({});
   const [funnel, setFunnel]   = useState({});
   const [daily, setDaily]     = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
+  // 2026-07-10 — 성사/완료 판정: converted inquiries.task_id → apiTasks join.
+  const [convertedTaskIds, setConvertedTaskIds] = useState(() => new Set());
 
   useEffect(() => {
     if (!actorId) return;
@@ -59,11 +63,18 @@ export function InquiryStatsHeader({ t, actorId }) {
       // 히어로 퍼널: 전 기간 (사장님 spec 성사/완료 중심).
       getInquiryFunnel({ actorId, startYmd: ALL_TIME_START, endYmd: today }),
       getInquiryDailyCounts({ actorId, startYmd: dailyStart, endYmd: today }),
-    ]).then(([fRes, dRes]) => {
+      // 2026-07-10 — converted inquiries.task_id → apiTasks join (성사/완료 판별).
+      listInquiries(actorId, "converted"),
+    ]).then(([fRes, dRes, cvRows]) => {
       if (!alive) return;
       if (!fRes.ok) setError(fRes.error || "통계 불러오기 실패");
       else { setTotals(fRes.totals); setFunnel(fRes.funnel); }
       if (dRes.ok) setDaily(dRes.items);
+      const ids = new Set();
+      for (const r of (cvRows || [])) {
+        if (r.task_id) ids.add(String(r.task_id));
+      }
+      setConvertedTaskIds(ids);
     }).finally(() => { if (alive) setLoading(false); });
 
     return () => { alive = false; };
@@ -78,29 +89,63 @@ export function InquiryStatsHeader({ t, actorId }) {
     return Math.max(m, 1);
   }, [daily]);
 
-  // 2026-07-10 v2 — 사장님 spec 재정의:
-  //   전체 접수(스팸 포함) → 스팸(회색 표기) → 유효 접수 → 성사 → 완료.
-  //   각 단계는 앞 단계의 부분집합. clamp 방어.
+  // 2026-07-10 v3 — 사장님 확정 spec:
+  //   전체 접수(스팸 포함) → 스팸(회색) → 유효 접수 → 문의만(미성사) + 성사 → 완료.
+  //   각 단계 부분집합 보장. clamp 방어.
+  //
+  //   ✳️ 성사 정의 변경 (핵심): task 존재 AND assigned_engineer 있음.
+  //      단순 converted 상태만으로는 성사 아님 (미배정 시 문의만).
+  //   ✳️ 완료 정의: task 상태 '완료' or '정산완료'.
+  //      수금/정산 조건 (remitStatus 등) 은 추후 세분 검증.
+  //
+  //   계산:
   //     · 전체 접수 (T) = valid + spam
   //     · 스팸       (S) = funnel.spam
-  //     · 유효 접수  (V) = funnel.total_excl_spam (= T - S)
-  //     · 성사       (M) = funnel.converted + funnel.completed_in (clamp ≤ V)
-  //     · 완료       (K) = funnel.completed_in (clamp ≤ M)
+  //     · 유효 접수  (V) = funnel.total_excl_spam
+  //     · 성사       (M) = converted inquiries.task_id 중 apiTasks 안 assigned_engineer 있는 것.
+  //     · 완료       (K) = 성사 중 task.status IN ('완료','정산완료')
+  //     · 문의만     (Q) = V - M
   //   비율:
-  //     · 스팸률     = S / T
-  //     · 전환율     = M / V (≤100%, 유효 접수 대비)
-  //     · 완료율     = K / M (성사 대비)
-  const rawSettle = Number(funnel.converted || 0) + Number(funnel.completed_in || 0);
-  const rawDone   = Number(funnel.completed_in || 0);
+  //     · 스팸률   = S / T
+  //     · 전환율   = M / V (≤100%)
+  //     · 완료율   = K / M (≤100%)
   const validV    = Number(funnel.total_excl_spam || 0);
   const spamS     = Number(funnel.spam || 0);
   const totalT    = validV + spamS;
-  const settleM   = Math.min(rawSettle, validV);
-  const doneK     = Math.min(rawDone,   settleM);
-  const spamRate  = totalT  > 0 ? (spamS   / totalT ) * 100 : 0;
-  const convRate  = validV  > 0 ? (settleM / validV ) * 100 : 0;
-  const doneRate  = settleM > 0 ? (doneK   / settleM) * 100 : 0;
-  // 하위 호환 alias (기존 히어로/bar 참조).
+
+  // 성사/완료: apiTasks + convertedTaskIds join.
+  const { rawSettle, rawDone } = useMemo(() => {
+    if (!apiTasks || apiTasks.length === 0 || convertedTaskIds.size === 0) {
+      return { rawSettle: 0, rawDone: 0 };
+    }
+    let settle = 0, done = 0;
+    for (const task of apiTasks) {
+      if (!task || !task.id) continue;
+      if (!convertedTaskIds.has(String(task.id))) continue;
+      // 성사 판정 = 기사 배정됨.
+      const eid = task.assignedEngineerId || task.assigned_engineer_id
+               || task.engineerId         || task.engineer_id;
+      const ename = task.assignedEngineer || task.engineer;
+      const isAssigned = !!(eid || (ename && String(ename).trim().length > 0));
+      if (!isAssigned) continue;
+      settle += 1;
+      // 완료 판정 = task.status IN ('완료','정산완료').
+      const st = task.status || "";
+      if (st === "완료" || st === "정산완료") done += 1;
+    }
+    return { rawSettle: settle, rawDone: done };
+  }, [apiTasks, convertedTaskIds]);
+
+  const settleM       = Math.min(rawSettle, validV);
+  const doneK         = Math.min(rawDone,   settleM);
+  const inquiryOnlyQ  = Math.max(0, validV - settleM);
+
+  const spamRate        = totalT  > 0 ? (spamS        / totalT ) * 100 : 0;
+  const convRate        = validV  > 0 ? (settleM      / validV ) * 100 : 0;
+  const doneRate        = settleM > 0 ? (doneK        / settleM) * 100 : 0;
+  const inquiryOnlyRate = validV  > 0 ? (inquiryOnlyQ / validV ) * 100 : 0;
+
+  // 하위 호환 alias.
   const acceptN = validV;
 
   // 진단 로그 — clamp 발동 or 소스 불일치 확인용.
@@ -126,12 +171,16 @@ export function InquiryStatsHeader({ t, actorId }) {
           total_excl_spam:  Number(funnel.total_excl_spam || 0),
         },
       },
+      inquiryOnly:     inquiryOnlyQ,
+      inquiryOnlyRate: Number(inquiryOnlyRate.toFixed(2)),
+      convertedTaskIds: convertedTaskIds.size,
+      apiTasksCount:    apiTasks.length,
       clamp: {
         settle: rawSettle !== settleM,
         done:   rawDone   !== doneK,
       },
     }));
-  }, [totalT, validV, spamS, settleM, doneK, funnel]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [totalT, validV, spamS, settleM, doneK, funnel, inquiryOnlyQ, convertedTaskIds, apiTasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{
@@ -142,15 +191,17 @@ export function InquiryStatsHeader({ t, actorId }) {
       marginBottom: 14,
       display: "flex", flexDirection: "column", gap: 14,
     }}>
-      {/* 히어로 퍼널 — 전체 접수 → 스팸 → 유효 접수 → 성사 → 완료 */}
+      {/* 히어로 퍼널 — 전체 → 스팸 → 유효 → 문의만 + 성사 → 완료 */}
       <FunnelHero
         t={t}
         totalT={totalT}
         spamS={spamS}
         validV={validV}
+        inquiryOnlyQ={inquiryOnlyQ}
         settleM={settleM}
         doneK={doneK}
         spamRate={spamRate}
+        inquiryOnlyRate={inquiryOnlyRate}
         convRate={convRate}
         doneRate={doneRate}
         loading={loading}
@@ -266,14 +317,17 @@ export function InquiryStatsHeader({ t, actorId }) {
   );
 }
 
-// 히어로 — 전체 접수 T → 스팸 S → 유효 V → 성사 M → 완료 K.
-//   퍼널 폭 시각화 (bar): 전체 접수 (T) 100% 기준. 각 단계 폭.
-//   라벨 %: 각 단계별 상위 대비 (스팸=T 대비, 유효=T 대비, 성사=V 대비, 완료=M 대비).
-function FunnelHero({ t, totalT, spamS, validV, settleM, doneK, spamRate, convRate, doneRate, loading }) {
-  const spamPct   = totalT > 0 ? (spamS   / totalT) * 100 : 0;
-  const validPct  = totalT > 0 ? (validV  / totalT) * 100 : 0;
-  const settlePct = totalT > 0 ? (settleM / totalT) * 100 : 0;
-  const donePct   = totalT > 0 ? (doneK   / totalT) * 100 : 0;
+// 히어로 — 전체 T → 스팸 S → 유효 V → 문의만 Q + 성사 M → 완료 K.
+//   ⚠️ 성사 정의: task 존재 AND 기사 배정됨. 미배정 = 문의만.
+//   퍼널 폭 시각화 (bar): 전체 (T) 100% 기준.
+//   라벨 %: 각 단계별 상위 대비.
+function FunnelHero({ t, totalT, spamS, validV, inquiryOnlyQ, settleM, doneK,
+                     spamRate, inquiryOnlyRate, convRate, doneRate, loading }) {
+  const spamPct        = totalT > 0 ? (spamS        / totalT) * 100 : 0;
+  const validPct       = totalT > 0 ? (validV       / totalT) * 100 : 0;
+  const inquiryOnlyPct = totalT > 0 ? (inquiryOnlyQ / totalT) * 100 : 0;
+  const settlePct      = totalT > 0 ? (settleM      / totalT) * 100 : 0;
+  const donePct        = totalT > 0 ? (doneK        / totalT) * 100 : 0;
   return (
     <div style={{
       display: "flex", flexDirection: "column", gap: 10,
@@ -331,11 +385,12 @@ function FunnelHero({ t, totalT, spamS, validV, settleM, doneK, spamRate, convRa
 
       {/* 퍼널 폭 시각화 (bar = 전체 접수 100% 기준) */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <FunnelWidthBar t={t} label="전체"    barPct={100}       labelPct={100}      color={COLOR_TOTAL} align="left"/>
-        <FunnelWidthBar t={t} label="스팸"    barPct={spamPct}   labelPct={spamRate}  labelSuffix=" (전체 대비)" color={COLOR_SPAM}  align="center"/>
-        <FunnelWidthBar t={t} label="유효"    barPct={validPct}  labelPct={100 - spamRate} labelSuffix=" (전체 대비)" color={COLOR_TOTAL} align="center"/>
-        <FunnelWidthBar t={t} label="성사"    barPct={settlePct} labelPct={convRate} labelSuffix=" (유효 대비)" color={COLOR_CONV}  align="center"/>
-        <FunnelWidthBar t={t} label="완료"    barPct={donePct}   labelPct={doneRate} labelSuffix=" (성사 대비)" color={COLOR_DONE}  align="center"/>
+        <FunnelWidthBar t={t} label="전체"    barPct={100}            labelPct={100}            color={COLOR_TOTAL} align="left"/>
+        <FunnelWidthBar t={t} label="스팸"    barPct={spamPct}        labelPct={spamRate}       labelSuffix=" (전체 대비)" color={COLOR_SPAM}    align="center"/>
+        <FunnelWidthBar t={t} label="유효"    barPct={validPct}       labelPct={100 - spamRate} labelSuffix=" (전체 대비)" color={COLOR_TOTAL}   align="center"/>
+        <FunnelWidthBar t={t} label="문의만"  barPct={inquiryOnlyPct} labelPct={inquiryOnlyRate} labelSuffix=" (유효 대비, 미배정)" color={COLOR_INQ_ONLY} align="center"/>
+        <FunnelWidthBar t={t} label="성사"    barPct={settlePct}      labelPct={convRate}       labelSuffix=" (유효 대비)" color={COLOR_CONV}    align="center"/>
+        <FunnelWidthBar t={t} label="완료"    barPct={donePct}        labelPct={doneRate}       labelSuffix=" (성사 대비)" color={COLOR_DONE}    align="center"/>
       </div>
     </div>
   );

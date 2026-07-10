@@ -49,6 +49,7 @@ function shortRegion() { return ""; }
 export default function AdminInquiriesScreen({
   t,
   user,
+  apiTasks = [],           // 2026-07-10 — InquiryStatsHeader 성사/완료 판별용
   onBack,
   onConvertToForm,         // 모바일 — 부모(AdminApp) 가 새 접수 폼 prefill 라우팅
   onAfterEmbedConvert,     // PC — 임베드 폼 등록 후 부모 알림 (optional)
@@ -202,7 +203,7 @@ function AdminInquiriesMobile({
           </h1>
         </div>
         <div style={{ padding: "14px" }}>
-          <InquiryStatsHeader t={inqStatsT} actorId={actorId}/>
+          <InquiryStatsHeader t={inqStatsT} actorId={actorId} apiTasks={apiTasks}/>
         </div>
       </div>
     );
@@ -436,7 +437,7 @@ function AdminInquiriesPc({
       {/* === 우 패널 === */}
       <main style={{ flex: 1, overflowY: "auto", padding: "16px 24px 40px" }}>
         {/* 2026-06-28 — 통계 헤더 (Mig 151 RPC) — 항상 노출, 선택 무관 */}
-        <InquiryStatsHeader t={inqStatsT} actorId={actorId}/>
+        <InquiryStatsHeader t={inqStatsT} actorId={actorId} apiTasks={apiTasks}/>
 
         {selectedRow ? (
           <PcDetailPanel
