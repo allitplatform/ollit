@@ -17,6 +17,7 @@ const PERIOD_OPTS = [
   { id: "week",   label: "이번주" },
   { id: "month",  label: "이번달" },
   { id: "all",    label: "전체" },
+  { id: "custom", label: "직접 선택" },
 ];
 
 const SOURCE_OPTS = [
@@ -46,16 +47,28 @@ function _startOfMonthYmd() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
 
-function _rangeForPeriod(period) {
+function _rangeForPeriod(period, customStart, customEnd) {
   const today = todayYmd();
   if (period === "today") return { start: today,                  end: today };
   if (period === "week")  return { start: _startOfWeekMonYmd(),   end: today };
   if (period === "month") return { start: _startOfMonthYmd(),     end: today };
+  if (period === "custom") {
+    // 시작만 지정 (종료 미지정) → 시작=종료 (단일 날짜).
+    // 종료만 지정 → 종료=시작.
+    // 시작 > 종료 → swap (사용자 실수 관대).
+    let s = customStart || today;
+    let e = customEnd   || s;
+    if (s > e) { const t = s; s = e; e = t; }
+    return { start: s, end: e };
+  }
   return { start: "0000-01-01", end: "9999-12-31" }; // all
 }
 
 export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
   const [period, setPeriod]         = useState("today");
+  // 2026-07-10 — 사용자 지정 기간 (period='custom' 시 활성).
+  const [customStart, setCustomStart] = useState(() => todayYmd());
+  const [customEnd,   setCustomEnd]   = useState(() => todayYmd());
   // 2026-07-10 — 소스 필터 (전체 / 홈페이지만). 기본 전체.
   const [source, setSource]         = useState("all");
   const [inquiries, setInquiries]   = useState([]);
@@ -96,7 +109,10 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
     return () => { alive = false; };
   }, [user?.user_id, user?.id]);
 
-  const { start, end } = useMemo(() => _rangeForPeriod(period), [period]);
+  const { start, end } = useMemo(
+    () => _rangeForPeriod(period, customStart, customEnd),
+    [period, customStart, customEnd]
+  );
 
   // tasks 는 created_at (접수 시각) KST 기준 필터. 취소 제외.
   // 2026-07-10 — source='homepage' 시 memo 접두 필터 추가.
@@ -256,8 +272,81 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
             );
           })}
         </div>
+        {/* 2026-07-10 — '직접 선택' 시 시작일 ~ 종료일 date picker.
+              단일 날짜: 시작만 바꾸고 종료는 그대로 두면 자동으로 시작=종료 로 clamp. */}
+        {period === "custom" && (
+          <div style={{
+            display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap",
+            marginTop: 8,
+          }}>
+            <input
+              type="date"
+              value={customStart}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                setCustomStart(v);
+                // 종료보다 시작이 크면 종료를 시작으로 맞춰줌 (단일 날짜 편의).
+                if (v > customEnd) setCustomEnd(v);
+              }}
+              style={{
+                padding: "6px 10px",
+                background: t.bgElevated,
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                color: t.text,
+                fontSize: 12, fontWeight: 700,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+              aria-label="시작일"
+            />
+            <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 700 }}>~</span>
+            <input
+              type="date"
+              value={customEnd}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!v) return;
+                setCustomEnd(v);
+                if (v < customStart) setCustomStart(v);
+              }}
+              style={{
+                padding: "6px 10px",
+                background: t.bgElevated,
+                border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                color: t.text,
+                fontSize: 12, fontWeight: 700,
+                fontFamily: "inherit",
+                outline: "none",
+              }}
+              aria-label="종료일"
+            />
+            <button
+              type="button"
+              onClick={() => {
+                const today = todayYmd();
+                setCustomStart(today);
+                setCustomEnd(today);
+              }}
+              style={{
+                padding: "5px 10px",
+                background: "transparent",
+                border: `1px solid ${t.border}`,
+                borderRadius: 999,
+                color: t.textSecondary,
+                fontSize: 11, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>오늘로</button>
+          </div>
+        )}
         <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginTop: 8 }}>
-          {start} ~ {end} · {period === "all" ? "전체 기간" : "KST 기준"}
+          {start === end ? `${start} (하루)` : `${start} ~ ${end}`}
+          {" · "}
+          {period === "all"    ? "전체 기간"
+            : period === "custom" ? "직접 선택"
+            : "KST 기준"}
           {source === "homepage" && (
             <span style={{ marginLeft: 6, color: t.accent, fontWeight: 700 }}>· 홈페이지 유입만</span>
           )}
