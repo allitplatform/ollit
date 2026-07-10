@@ -25,20 +25,17 @@ const SOURCE_OPTS = [
 ];
 
 // 2026-07-10 — 홈페이지 유입 판별.
-//   전환 로직 (AdminInquiriesScreen / AdminApp) 은 접수 시 memo 를
-//   "[홈페이지 접수 ...] 희망 서비스: ..." 로 세팅.
-//   저장 경로: tasksDb.js taskToRow — task.memo → DB request_note.
-//   조회 경로: rowToTask — row.request_note → task.request / task.requestNote.
-//   ⚠️ 초기 구현 버그: task.memo 만 검사 → 항상 false → "홈페이지만" 필터 0건.
-//   정정: request / requestNote / memo / workMemo 모두 검사 (접수 경로별 필드 상이 대비).
-const _HOMEPAGE_MARKER_RE = /\[홈페이지\s*접수/;
+//   초기 구현 (memo "[홈페이지 접수" 마커) 폐기 — 실제 task 필드에 마커 없음
+//   (SAMPLE 확인: memo="", workMemo="", request=null, requestNote 자유메모).
+//   대체: 원청 = "올데이케어" (직영) 기반 판별.
+//   · principalCode "allday" 매칭 (영문 코드, CLAUDE.md 명시)
+//   · principal / principalName 한글 "올데이케어" 매칭 (표시 라벨)
 function _isFromHomepage(task) {
   if (!task) return false;
-  const candidates = [task.request, task.requestNote, task.memo, task.workMemo];
-  for (const m of candidates) {
-    if (!m) continue;
-    if (_HOMEPAGE_MARKER_RE.test(String(m))) return true;
-  }
+  const code = String(task.principalCode || task.principal_code || "").trim().toLowerCase();
+  if (code === "allday") return true;
+  const name = String(task.principal || task.principalName || "").trim();
+  if (name === "올데이케어") return true;
   return false;
 }
 
@@ -111,23 +108,20 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
       return k >= start && k <= end;
     });
     if (source !== "homepage") return inRange;
-    // 홈페이지 필터 적용 + 진단 (마커 매칭 부재 시 실제 필드 값 샘플 로그)
+    // 홈페이지 필터 (원청 기준). 진단: 원청별 건수 분포 한 줄 로그.
     const matched = inRange.filter(_isFromHomepage);
-    if (matched.length === 0 && inRange.length > 0) {
-      // 2026-07-10 — 한 줄 JSON 로 출력 (콘솔 펼치기 없이 확인용).
-      //   각 필드 앞 40자만 잘라서 노이즈 방지. principal 도 포함 —
-      //   memo 파싱 대신 원청 기준 필터가 안정적인지 판단용.
-      const cut = (v) => v == null ? null : String(v).slice(0, 40);
-      const sample = inRange.slice(0, 3).map(x => ({
-        code:          x.taskCode || x.task_no || x.id,
-        principal:     x.principal || x.principalName || x.principalCode || x.principal_code,
-        request:       cut(x.request),
-        requestNote:   cut(x.requestNote),
-        memo:          cut(x.memo),
-        workMemo:      cut(x.workMemo),
-      }));
-      console.log("[RegionStats] SAMPLE=" + JSON.stringify({ total: inRange.length, sample }));
+    // 2026-07-10 — 로드된 tasks 의 원청별 카운트 (홈페이지 필터 클릭 시 매번 출력).
+    //   allday/올데이케어 = 0 이면 근본 데이터 소스 (테넌트/원청/기간 필터) 점검 필요.
+    const distribution = {};
+    for (const x of inRange) {
+      const name = String(x.principal || x.principalName || x.principalCode || x.principal_code || "(미상)").trim() || "(미상)";
+      distribution[name] = (distribution[name] || 0) + 1;
     }
+    console.log("[RegionStats] PRINCIPAL_DIST=" + JSON.stringify({
+      totalInRange: inRange.length,
+      matchedHomepage: matched.length,
+      dist: distribution,
+    }));
     return matched;
   }, [apiTasks, start, end, source]);
 
