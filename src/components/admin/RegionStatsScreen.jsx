@@ -132,15 +132,21 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
   }, [inquiries, start, end]);
 
   // 지역별 집계 — key = parseRegion(address).key
-  const rows = useMemo(() => {
+  //   2026-07-10 — 미상 행 펼침용 원문 배열 unparsed 도 함께 수집.
+  const { rows, unparsedSamples } = useMemo(() => {
     const map = new Map();
+    const unparsed = []; // { addr, kind } 파싱 실패 (key === "미상")
     const push = (addr, kind) => {
       const { key, label } = parseRegion(addr);
-      if (!map.has(key)) map.set(key, { key, label, tasks: 0, inquiries: 0, total: 0 });
+      if (!map.has(key)) map.set(key, { key, label, tasks: 0, inquiries: 0, total: 0, unparsed: [] });
       const row = map.get(key);
       if (kind === "task") row.tasks += 1;
       else                 row.inquiries += 1;
       row.total += 1;
+      if (key === "미상") {
+        row.unparsed.push({ addr: String(addr || "").trim(), kind });
+        unparsed.push(String(addr || "").trim());
+      }
     };
     for (const tk of tasksInRange) {
       const addr = tk.address || tk.fullAddress || tk.주소 || "";
@@ -150,8 +156,23 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
       const addr = iq.address || iq.주소 || "";
       push(addr, "inquiry");
     }
-    return [...map.values()].sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+    const sorted = [...map.values()].sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+    return { rows: sorted, unparsedSamples: unparsed };
   }, [tasksInRange, inquiriesInRange]);
+
+  // 2026-07-10 — 미상 원문 콘솔 로그 (파서 개선 근거 확인용).
+  useEffect(() => {
+    if (unparsedSamples.length > 0) {
+      const preview = unparsedSamples.slice(0, 20).map(a => a.slice(0, 60));
+      console.log("[RegionStats] UNPARSED=" + JSON.stringify({
+        count: unparsedSamples.length,
+        sample: preview,
+      }));
+    }
+  }, [unparsedSamples]);
+
+  // 미상 행 펼침 상태 (원문 리스트 노출 토글).
+  const [showUnparsed, setShowUnparsed] = useState(false);
 
   const grandTotal = rows.reduce((s, r) => s + r.total, 0);
   const grandTasks = rows.reduce((s, r) => s + r.tasks, 0);
@@ -303,23 +324,77 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
               <Th t={t} align="right">작업</Th>
               <Th t={t} align="right">대기 문의</Th>
             </div>
-            {rows.map((r, idx) => (
-              <div key={r.key} style={{
-                display: "grid",
-                gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 0.8fr)",
-                gap: 8, padding: "10px 14px",
-                borderTop: idx === 0 ? "none" : `1px solid ${t.border}`,
-                alignItems: "center",
-              }}>
-                <span style={{
-                  fontSize: 13, fontWeight: 700, color: t.text,
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                }}>{r.label}</span>
-                <NumSpan t={t} n={r.total}     accent/>
-                <NumSpan t={t} n={r.tasks}/>
-                <NumSpan t={t} n={r.inquiries}/>
-              </div>
-            ))}
+            {rows.map((r, idx) => {
+              const isUnparsed = r.key === "미상";
+              const expanded = isUnparsed && showUnparsed;
+              return (
+                <div key={r.key} style={{
+                  borderTop: idx === 0 ? "none" : `1px solid ${t.border}`,
+                }}>
+                  <button
+                    type="button"
+                    onClick={isUnparsed ? () => setShowUnparsed(v => !v) : undefined}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 0.8fr)",
+                      gap: 8, padding: "10px 14px",
+                      width: "100%",
+                      alignItems: "center",
+                      background: "transparent",
+                      border: "none",
+                      cursor: isUnparsed ? "pointer" : "default",
+                      fontFamily: "inherit",
+                      textAlign: "left",
+                    }}>
+                    <span style={{
+                      fontSize: 13, fontWeight: 700, color: t.text,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      display: "flex", alignItems: "center", gap: 4,
+                    }}>
+                      {r.label}
+                      {isUnparsed && (
+                        <span style={{
+                          fontSize: 10, color: t.textMuted, fontWeight: 700,
+                        }}>{expanded ? "▲ 접기" : "▼ 원문 보기"}</span>
+                      )}
+                    </span>
+                    <NumSpan t={t} n={r.total}     accent/>
+                    <NumSpan t={t} n={r.tasks}/>
+                    <NumSpan t={t} n={r.inquiries}/>
+                  </button>
+                  {/* 2026-07-10 — 미상 행 펼침: 손님이 실제 적은 주소 원문 나열 */}
+                  {isUnparsed && expanded && r.unparsed.length > 0 && (
+                    <div style={{
+                      padding: "0 14px 12px",
+                      display: "flex", flexDirection: "column", gap: 4,
+                      background: t.bgInset || "rgba(148, 163, 184, 0.05)",
+                    }}>
+                      <div style={{
+                        fontSize: 10, color: t.textMuted, fontWeight: 700,
+                        letterSpacing: 0.3, paddingTop: 8,
+                      }}>원문 {r.unparsed.length}건 (파서가 지역 못 잡음)</div>
+                      {r.unparsed.map((u, i) => (
+                        <div key={i} style={{
+                          padding: "6px 8px",
+                          background: t.bg,
+                          border: `1px solid ${t.border}`,
+                          borderRadius: 6,
+                          fontSize: 12, fontFamily: "'Pretendard', sans-serif",
+                          color: t.text,
+                          wordBreak: "break-all",
+                        }}>
+                          <span style={{
+                            fontSize: 9, color: t.textMuted, fontWeight: 700,
+                            marginRight: 6,
+                          }}>{u.kind === "task" ? "T" : "I"}</span>
+                          {u.addr || "(빈 주소)"}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

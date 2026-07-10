@@ -34,6 +34,8 @@ const SIGUNGU_BY_SIDO = {
     "수원","성남","고양","용인","부천","안산","안양","남양주","화성","평택",
     "의정부","시흥","파주","김포","광명","광주","군포","하남","오산","이천",
     "안성","구리","의왕","양주","포천","여주","양평","가평","연천",
+    // 2026-07-10 — 누락 시·군 보강.
+    "과천","동두천",
   ],
   "부산": [
     "중구","서구","동구","영도구","부산진구","동래구","남구","북구","해운대구",
@@ -58,13 +60,40 @@ const SIGUNGU_BY_SIDO = {
   "제주": ["제주시","서귀포시"],
 };
 
-// 시도 판정 — 주소 문자열 첫 매칭.
+// 2026-07-10 — 축약/역추론용 사전 (한 번만 빌드).
+//   서울 25구의 접미 "구" 를 제거한 short form ("마포", "강남", ...).
+//   시도 미명시 + 서울 구 short 만 있는 경우 서울로 판정.
+const _SEOUL_GU_SHORT = SIGUNGU_BY_SIDO["서울"].map(g => g.replace(/구$/, ""));
+// 시군구 → 상위 시도 역맵. 중복 이름 (예: 서울/부산/인천 "중구") 은 첫 매칭 시도로 배정.
+//   ⚠️ 이 매핑은 "시도 keyword 못 잡을 때만" fallback 으로 사용 (부정확 감수).
+const _SIGUNGU_TO_SIDO = (() => {
+  const m = new Map();
+  for (const sido of Object.keys(SIGUNGU_BY_SIDO)) {
+    for (const name of SIGUNGU_BY_SIDO[sido]) {
+      if (!m.has(name)) m.set(name, sido);
+    }
+  }
+  return m;
+})();
+
+// 시도 판정 — 주소 문자열 첫 매칭. 못 잡으면 역추론 (시군구 → 상위 시도).
 function _detectSido(addr) {
   const s = String(addr || "").trim();
   if (!s) return "";
   for (const k of SIDO_KEYWORDS) {
     // 사전 정규화 없이 includes — 부실 텍스트 관대. 서울특별시/부산광역시 등 접미 포함해도 매칭.
     if (s.includes(k)) return SIDO_LABEL[k] || k;
+  }
+  // 2026-07-10 — 시도 명시 없음 → 역추론:
+  //   1) 서울 구 short ("마포", "강남" 등) 만 있어도 서울로.
+  //   2) 시군구 사전에 있는 이름 (예: "수원", "성남") 이면 상위 시도로.
+  for (const short of _SEOUL_GU_SHORT) {
+    if (!short) continue;
+    if (s.includes(short + "구")) return "서울";
+    if (s.includes(short))        return "서울";
+  }
+  for (const [name, sido] of _SIGUNGU_TO_SIDO.entries()) {
+    if (s.includes(name)) return sido;
   }
   return "";
 }
