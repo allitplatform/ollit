@@ -11,9 +11,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import {
-  getInquiryDailyCounts,
   getInquiryFunnel,
-  ymdKstNDaysAgo,
   ymdKstToday,
 } from "../../lib/inquiryStatsDb.js";
 import { listInquiries } from "../../lib/inquiriesDb.js";
@@ -27,12 +25,6 @@ const COLOR_INQ_ONLY = "#F59E0B"; // 문의만(미배정) — 주황
 
 // 히어로는 all-time 지표. funnel 을 넉넉한 범위로 조회.
 const ALL_TIME_START = "2020-01-01";
-
-const DAILY_PRESETS = [
-  { days: 7,  label: "7일" },
-  { days: 14, label: "14일" },
-  { days: 30, label: "30일" },
-];
 
 function fmtNum(n) { return (Number(n) || 0).toLocaleString("ko-KR"); }
 function fmtPct(n) {
@@ -55,10 +47,8 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
   //   default parameter `= []` 는 caller 가 명시적으로 undefined 넘길 때만 발동.
   //   실제로는 null 이 넘어올 수도 → 안 fallback.
   const safeTasks = Array.isArray(apiTasks) ? apiTasks : [];
-  const [dailyDays, setDailyDays] = useState(14);
   const [totals, setTotals]   = useState({});
   const [funnel, setFunnel]   = useState({});
-  const [daily, setDaily]     = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
   // 2026-07-10 — 성사/완료 판정: converted inquiries.task_id → apiTasks join.
@@ -71,19 +61,16 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
     setError("");
 
     const today = ymdKstToday();
-    const dailyStart  = ymdKstNDaysAgo(dailyDays - 1);
 
     Promise.all([
       // 히어로 퍼널: 전 기간 (사장님 spec 성사/완료 중심).
       getInquiryFunnel({ actorId, startYmd: ALL_TIME_START, endYmd: today }),
-      getInquiryDailyCounts({ actorId, startYmd: dailyStart, endYmd: today }),
       // 2026-07-10 — converted inquiries.task_id → apiTasks join (성사/완료 판별).
       listInquiries(actorId, "converted"),
-    ]).then(([fRes, dRes, cvRows]) => {
+    ]).then(([fRes, cvRows]) => {
       if (!alive) return;
       if (!fRes.ok) setError(fRes.error || "통계 불러오기 실패");
       else { setTotals(fRes.totals); setFunnel(fRes.funnel); }
-      if (dRes.ok) setDaily(dRes.items);
       const ids = new Set();
       for (const r of (cvRows || [])) {
         if (r.task_id) ids.add(String(r.task_id));
@@ -92,16 +79,7 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
     }).finally(() => { if (alive) setLoading(false); });
 
     return () => { alive = false; };
-  }, [actorId, dailyDays]);
-
-  const maxDaily = useMemo(() => {
-    let m = 0;
-    for (const d of daily) {
-      const sum = (d.total || 0) + (d.spam || 0);
-      if (sum > m) m = sum;
-    }
-    return Math.max(m, 1);
-  }, [daily]);
+  }, [actorId]);
 
   // 2026-07-10 v3 — 사장님 확정 spec:
   //   전체 접수(스팸 포함) → 스팸(회색) → 유효 접수 → 문의만(미성사) + 성사 → 완료.
@@ -232,90 +210,15 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
         <span>이번 달 <span className="mono" style={{ color: t.text || "var(--text-primary)", fontWeight: 800 }}>{fmtNum(totals.this_month)}</span> 건</span>
       </div>
 
-      {/* 일별 막대 (보조 유지) */}
-      <div>
-        <div style={{
-          display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: t.text || "var(--text-primary)" }}>
-            일별 접수
-          </div>
-          <div style={{ flex: 1 }}/>
-          <div style={{ display: "flex", gap: 4 }}>
-            {DAILY_PRESETS.map(p => {
-              const on = dailyDays === p.days;
-              return (
-                <button key={p.days} type="button"
-                  onClick={() => setDailyDays(p.days)}
-                  style={{
-                    padding: "4px 10px",
-                    background: on ? ACCENT : "transparent",
-                    border: `1px solid ${on ? ACCENT : (t.border || "var(--border)")}`,
-                    borderRadius: 999,
-                    color: on ? "#fff" : (t.textSecondary || "var(--text-secondary)"),
-                    fontSize: 10, fontWeight: 700,
-                    cursor: "pointer", fontFamily: "inherit",
-                  }}>{p.label}</button>
-              );
-            })}
-          </div>
-        </div>
-        {loading && daily.length === 0 ? (
-          <Empty t={t}>불러오는 중...</Empty>
-        ) : daily.length === 0 ? (
-          <Empty t={t}>데이터 없음</Empty>
-        ) : (
-          <div style={{
-            display: "flex", gap: 3, alignItems: "flex-end",
-            height: 90,
-            padding: "4px 0",
-          }}>
-            {daily.map(d => {
-              const sum = (d.total || 0) + (d.spam || 0);
-              const tH = (d.total / maxDaily) * 80;
-              const sH = (d.spam  / maxDaily) * 80;
-              return (
-                <div key={d.ymd} style={{
-                  flex: 1, minWidth: 0,
-                  display: "flex", flexDirection: "column",
-                  alignItems: "center", gap: 2,
-                  height: "100%", justifyContent: "flex-end",
-                }} title={`${d.ymd} · 접수 ${d.total} · 스팸 ${d.spam}`}>
-                  {sum > 0 ? (
-                    <>
-                      {d.spam > 0 && (
-                        <div style={{
-                          width: "100%", maxWidth: 18,
-                          height: `${Math.max(2, sH)}px`,
-                          background: COLOR_SPAM, borderRadius: "2px 2px 0 0",
-                        }}/>
-                      )}
-                      {d.total > 0 && (
-                        <div style={{
-                          width: "100%", maxWidth: 18,
-                          height: `${Math.max(2, tH)}px`,
-                          background: COLOR_TOTAL,
-                          borderRadius: d.spam > 0 ? 0 : "2px 2px 0 0",
-                        }}/>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ width: "100%", maxWidth: 18, height: 1, background: t.border || "var(--border)" }}/>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        <div style={{
-          display: "flex", gap: 10, justifyContent: "flex-end",
-          fontSize: 10, color: t.textMuted || "var(--text-tertiary, var(--text-secondary))",
-          fontWeight: 600, marginTop: 4,
-        }}>
-          <Legend color={COLOR_TOTAL} label="접수"/>
-          <Legend color={COLOR_SPAM}  label="스팸"/>
-        </div>
-      </div>
+      {/* 2026-07-10 — 일별 막대그래프 폐기. 대신 퍼널 바 (전체 → 성사 → 완료).
+            각 단계 폭 % + 절대값. 단계 전환율 (접수→성사, 성사→완료) 별도 표기. */}
+      <FunnelBars
+        t={t}
+        totalT={totalT}
+        settleM={settleM}
+        doneK={doneK}
+        tasksAvailable={safeTasks.length > 0}
+      />
 
       {error && (
         <div style={{
@@ -366,6 +269,98 @@ function SimpleThreeStats({ t, totalT, spamS, settleM, doneK, loading, tasksAvai
         loading={loading}
         emphasize
       />
+    </div>
+  );
+}
+
+// 2026-07-10 — 퍼널 바 3단 (사장님 spec, 일별 차트 대체).
+//   전체 접수 (100% 기준) → 성사 → 완료. 폭 % = 전체 대비.
+//   숫자 + % 병기. 단계 전환율 별도 표기 (접수→성사, 성사→완료).
+//   tasksAvailable === false 이면 성사/완료 "—".
+function FunnelBars({ t, totalT, settleM, doneK, tasksAvailable }) {
+  const settlePct = totalT > 0 ? (settleM / totalT) * 100 : 0;
+  const donePct   = totalT > 0 ? (doneK   / totalT) * 100 : 0;
+  const s2m       = totalT > 0 ? (settleM / totalT) * 100 : 0;
+  const m2k       = settleM > 0 ? (doneK  / settleM) * 100 : 0;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div style={{
+        fontSize: 12, fontWeight: 800, color: t.text || "var(--text-primary)",
+      }}>퍼널</div>
+
+      <FunnelRow t={t} label="전체 접수" color={COLOR_TOTAL} pct={100}       value={totalT}   showValue/>
+      <FunnelRow t={t} label="성사"      color={COLOR_CONV}  pct={settlePct} value={settleM}  showValue={tasksAvailable} disabled={!tasksAvailable}/>
+      <FunnelRow t={t} label="완료"      color={COLOR_DONE}  pct={donePct}   value={doneK}    showValue={tasksAvailable} disabled={!tasksAvailable}/>
+
+      {/* 단계 전환율 */}
+      <div style={{
+        display: "flex", gap: 12, flexWrap: "wrap",
+        fontSize: 11, fontWeight: 700,
+        color: t.textSecondary || "var(--text-secondary)",
+        paddingTop: 4, borderTop: `1px dashed ${t.border || "var(--border)"}`,
+      }}>
+        <span>
+          접수 → 성사 <span className="mono" style={{ color: COLOR_CONV, fontWeight: 800 }}>
+            {tasksAvailable && totalT > 0 ? `${s2m.toFixed(1)}%` : "—"}
+          </span>
+        </span>
+        <span style={{ color: t.textMuted }}>·</span>
+        <span>
+          성사 → 완료 <span className="mono" style={{ color: COLOR_DONE, fontWeight: 800 }}>
+            {tasksAvailable && settleM > 0 ? `${m2k.toFixed(1)}%` : "—"}
+          </span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function FunnelRow({ t, label, color, pct, value, showValue, disabled }) {
+  const bp = Math.min(100, Math.max(0, Number(pct) || 0));
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "78px minmax(0, 1fr) auto",
+      gap: 10, alignItems: "center",
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 800, color: color,
+        letterSpacing: 0.3,
+        opacity: disabled ? 0.4 : 1,
+      }}>{label}</div>
+      <div style={{
+        position: "relative", height: 14,
+        background: t.bgInset || "rgba(148,163,184,0.10)",
+        border: `1px solid ${t.border || "var(--border)"}`,
+        borderRadius: 4, overflow: "hidden",
+      }}>
+        <div style={{
+          position: "absolute", top: 0, bottom: 0, left: 0,
+          width: `${bp}%`,
+          background: color,
+          opacity: disabled ? 0.3 : 1,
+          transition: "width 0.3s ease",
+        }}/>
+      </div>
+      <div className="mono" style={{
+        fontSize: 12, fontWeight: 800,
+        color: t.text || "var(--text-primary)",
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.2px",
+        minWidth: 84, textAlign: "right",
+      }}>
+        {showValue ? (
+          <>
+            {Number(value || 0).toLocaleString("ko-KR")}
+            <span style={{
+              marginLeft: 4, fontSize: 10, fontWeight: 700,
+              color: t.textMuted || "var(--text-tertiary, var(--text-secondary))",
+            }}>({bp.toFixed(0)}%)</span>
+          </>
+        ) : (
+          <span style={{ color: t.textMuted }}>—</span>
+        )}
+      </div>
     </div>
   );
 }
