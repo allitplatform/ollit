@@ -45,7 +45,10 @@ if (import.meta.env.PROD && _isLandingRoute()) {
   const s = document.createElement("script");
   s.async = true;
   s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+  s.onload  = () => console.log("[GA4] gtag.js loaded", GA_ID);
+  s.onerror = (e) => console.warn("[GA4] gtag.js load failed (ad-blocker?)", e);
   document.head.appendChild(s);
+  console.log("[GA4] init", GA_ID, "host=", window.location.hostname);
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(

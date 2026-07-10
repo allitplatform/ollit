@@ -811,11 +811,23 @@ function useBookingForm() {
       if (rpcErr) throw rpcErr;
       // 2026-07-10 — GA4 전환 이벤트. service_type 만 (PII 절대 X).
       //   gtag stub 은 main.jsx 에서 랜딩 host + PROD 조건 만족 시 초기화됨.
-      //   운영 PWA 화면에서는 window.gtag 미정의 → optional chaining 로 no-op.
-      if (typeof window !== "undefined" && typeof window.gtag === "function") {
-        try {
-          window.gtag("event", "generate_lead", { service_type: serviceType });
-        } catch (_) { /* GA 실패는 접수 성공에 영향 X */ }
+      //   운영 PWA 화면에서는 window.gtag 미정의 → guard 로 no-op.
+      // 2026-07-10 진단 — 발화 여부 확인 위해 콘솔 로그 (GA4 Realtime 지연 대비).
+      //   event_callback: GA4 서버 전송 완료 시 콜백 → 실전송 확인.
+      try {
+        if (typeof window !== "undefined" && typeof window.gtag === "function") {
+          const params = {
+            service_type: serviceType,
+            event_callback: () => { console.log("[GA4] generate_lead → sent", serviceType); },
+          };
+          window.gtag("event", "generate_lead", params);
+          console.log("[GA4] generate_lead → queued", serviceType);
+        } else {
+          console.warn("[GA4] window.gtag not defined — event skipped", { host: window?.location?.hostname });
+        }
+      } catch (gaErr) {
+        // GA 실패는 접수 성공에 영향 X (하지만 원인 파악 위해 로그).
+        console.warn("[GA4] generate_lead throw", gaErr);
       }
       setSubmitted(true);
     } catch (e2) {
