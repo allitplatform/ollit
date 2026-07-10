@@ -132,19 +132,19 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
   }, [inquiries, start, end]);
 
   // 지역별 집계 — key = parseRegion(address).key
-  //   2026-07-10 — 미상 행 펼침용 원문 배열 unparsed 도 함께 수집.
+  //   2026-07-10 — 모든 행 원문 펼침용 samples 배열 수집 (미상뿐 아니라 전 지역).
   const { rows, unparsedSamples } = useMemo(() => {
     const map = new Map();
-    const unparsed = []; // { addr, kind } 파싱 실패 (key === "미상")
+    const unparsed = []; // 콘솔 진단용 (미상만)
     const push = (addr, kind) => {
       const { key, label } = parseRegion(addr);
-      if (!map.has(key)) map.set(key, { key, label, tasks: 0, inquiries: 0, total: 0, unparsed: [] });
+      if (!map.has(key)) map.set(key, { key, label, tasks: 0, inquiries: 0, total: 0, samples: [] });
       const row = map.get(key);
       if (kind === "task") row.tasks += 1;
       else                 row.inquiries += 1;
       row.total += 1;
+      row.samples.push({ addr: String(addr || "").trim(), kind });
       if (key === "미상") {
-        row.unparsed.push({ addr: String(addr || "").trim(), kind });
         unparsed.push(String(addr || "").trim());
       }
     };
@@ -171,8 +171,8 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
     }
   }, [unparsedSamples]);
 
-  // 미상 행 펼침 상태 (원문 리스트 노출 토글).
-  const [showUnparsed, setShowUnparsed] = useState(false);
+  // 어느 행을 펼쳤는지 (key). 클릭 토글.
+  const [expandedKey, setExpandedKey] = useState(null);
 
   const grandTotal = rows.reduce((s, r) => s + r.total, 0);
   const grandTasks = rows.reduce((s, r) => s + r.tasks, 0);
@@ -332,45 +332,45 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
               <Th t={t} align="right">대기 문의</Th>
             </div>
             {rows.map((r, idx) => {
+              const expanded = expandedKey === r.key;
               const isUnparsed = r.key === "미상";
-              const expanded = isUnparsed && showUnparsed;
               return (
                 <div key={r.key} style={{
                   borderTop: idx === 0 ? "none" : `1px solid ${t.border}`,
                 }}>
                   <button
                     type="button"
-                    onClick={isUnparsed ? () => setShowUnparsed(v => !v) : undefined}
+                    onClick={() => setExpandedKey(v => v === r.key ? null : r.key)}
                     style={{
                       display: "grid",
                       gridTemplateColumns: "minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 0.8fr)",
                       gap: 8, padding: "10px 14px",
                       width: "100%",
                       alignItems: "center",
-                      background: "transparent",
+                      background: expanded ? (t.bgInset || "rgba(148,163,184,0.06)") : "transparent",
                       border: "none",
-                      cursor: isUnparsed ? "pointer" : "default",
+                      cursor: "pointer",
                       fontFamily: "inherit",
                       textAlign: "left",
                     }}>
                     <span style={{
-                      fontSize: 13, fontWeight: 700, color: t.text,
+                      fontSize: 13, fontWeight: 700,
+                      color: isUnparsed ? t.textMuted : t.text,
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                      display: "flex", alignItems: "center", gap: 4,
+                      display: "flex", alignItems: "center", gap: 6,
                     }}>
+                      <span style={{
+                        fontSize: 10, color: t.textMuted, fontWeight: 700,
+                        minWidth: 12,
+                      }}>{expanded ? "▲" : "▼"}</span>
                       {r.label}
-                      {isUnparsed && (
-                        <span style={{
-                          fontSize: 10, color: t.textMuted, fontWeight: 700,
-                        }}>{expanded ? "▲ 접기" : "▼ 원문 보기"}</span>
-                      )}
                     </span>
                     <NumSpan t={t} n={r.total}     accent/>
                     <NumSpan t={t} n={r.tasks}/>
                     <NumSpan t={t} n={r.inquiries}/>
                   </button>
-                  {/* 2026-07-10 — 미상 행 펼침: 손님이 실제 적은 주소 원문 나열 */}
-                  {isUnparsed && expanded && r.unparsed.length > 0 && (
+                  {/* 2026-07-10 — 모든 행 펼침: 손님이 실제 적은 주소 원문 나열 */}
+                  {expanded && r.samples && r.samples.length > 0 && (
                     <div style={{
                       padding: "0 14px 12px",
                       display: "flex", flexDirection: "column", gap: 4,
@@ -379,8 +379,8 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
                       <div style={{
                         fontSize: 10, color: t.textMuted, fontWeight: 700,
                         letterSpacing: 0.3, paddingTop: 8,
-                      }}>원문 {r.unparsed.length}건 (파서가 지역 못 잡음)</div>
-                      {r.unparsed.map((u, i) => (
+                      }}>원문 {r.samples.length}건 {isUnparsed && "(파서가 지역 못 잡음)"}</div>
+                      {r.samples.map((u, i) => (
                         <div key={i} style={{
                           padding: "6px 8px",
                           background: t.bg,
@@ -445,10 +445,69 @@ function NumSpan({ t, n, accent }) {
   );
 }
 
-// 2026-07-10 — 서울 25구 SVG 색칠 지도 + 옆 서울 외 지역 리스트.
-//   지리적 100% 정확 아님 — 5x5 grid 근사 (방위 감각만).
-//   셀 색: accent + fillOpacity (건수/최댓값 비율). 0건은 옅음.
-//   호버: 셀 강조 + 하단 라벨.
+// 2026-07-10 v2 — 서울 25구 실제 경계 SVG 지도 (GeoJSON runtime fetch).
+//   · 공개 GeoJSON (southkorea/southkorea-maps) 을 CDN fetch → 서울 25구 필터 →
+//     경위도 좌표를 SVG viewBox 로 정규화 → path 렌더.
+//   · 캐시: sessionStorage 로 페이지 재진입 시 재fetch 회피.
+//   · fetch 실패 시 grid fallback (기존 5x5).
+
+// 후보 URL — 순서대로 시도. 실패 시 다음. 25구 자치구 레벨 GeoJSON.
+const SEOUL_GEO_URLS = [
+  "https://raw.githubusercontent.com/southkorea/seoul-maps/master/kostat/2013/json/seoul_municipalities_geo_simple.json",
+  "https://raw.githubusercontent.com/vuski/admdongkor/master/ver20230101/HangJeongDong_ver20230101.geojson",
+];
+const SEOUL_GEO_CACHE_KEY = "ollit_seoul_geo_v1";
+
+async function _fetchSeoulGeo() {
+  // sessionStorage 캐시
+  try {
+    const cached = sessionStorage.getItem(SEOUL_GEO_CACHE_KEY);
+    if (cached) return JSON.parse(cached);
+  } catch (_) {}
+  for (const url of SEOUL_GEO_URLS) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (j && Array.isArray(j.features) && j.features.length > 0) {
+        try { sessionStorage.setItem(SEOUL_GEO_CACHE_KEY, JSON.stringify(j)); } catch (_) {}
+        return j;
+      }
+    } catch (e) {
+      console.warn("[SeoulMap] geo fetch fail", url, e?.message);
+    }
+  }
+  return null;
+}
+
+// GeoJSON feature 이름 필드 정규화 — 다양한 스키마 대응.
+//   SGG_NM / adm_nm / name / 시군구 / properties.name 등.
+function _featureName(f) {
+  const p = (f && f.properties) || {};
+  return p.SIG_KOR_NM || p.SGG_NM || p.sggnm || p.name || p.NAME_2 || p.adm_nm || p["시군구"] || "";
+}
+
+// GeoJSON 좌표 배열 (Polygon or MultiPolygon) → SVG path d (경위도 → 픽셀 매핑 후).
+function _coordsToPath(coords, geoType, project) {
+  const polys = geoType === "MultiPolygon" ? coords : [coords];
+  const parts = [];
+  for (const poly of polys) {
+    for (const ring of poly) {
+      if (!ring || ring.length === 0) continue;
+      let d = "";
+      for (let i = 0; i < ring.length; i++) {
+        const [lon, lat] = ring[i];
+        const [x, y] = project(lon, lat);
+        d += (i === 0 ? "M" : "L") + x.toFixed(1) + "," + y.toFixed(1);
+      }
+      d += "Z";
+      parts.push(d);
+    }
+  }
+  return parts.join(" ");
+}
+
+// 서울 25구 grid (fallback + fetch 실패 시).
 const SEOUL_GU_GRID = [
   ["강서구","은평구","도봉구","강북구","노원구"],
   ["양천구","서대문구","종로구","성북구","중랑구"],
@@ -481,8 +540,59 @@ function SeoulMapPanel({ t, rows }) {
   );
   const [hovered, setHovered] = useState(null);
 
+  // GeoJSON 로드 상태.
+  const [geo, setGeo] = useState(null);       // null=로딩 / "FAIL" / {features:[...]}
+  useEffect(() => {
+    let alive = true;
+    _fetchSeoulGeo().then(j => {
+      if (!alive) return;
+      if (!j) { setGeo("FAIL"); return; }
+      // 서울 25구 필터 — 이름에 "구" 접미 + SEOUL_GU_GRID 안에 존재.
+      const guSet = new Set(SEOUL_GU_GRID.flat());
+      const seoulFeats = (j.features || []).filter(f => {
+        const nm = _featureName(f);
+        return nm && guSet.has(nm);
+      });
+      if (seoulFeats.length < 20) { setGeo("FAIL"); return; }
+      setGeo({ features: seoulFeats });
+    });
+    return () => { alive = false; };
+  }, []);
+
+  // GeoJSON 로드 성공 → bbox → 투영 함수 계산.
+  const geoView = useMemo(() => {
+    if (!geo || geo === "FAIL") return null;
+    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    for (const f of geo.features) {
+      const g = f.geometry;
+      if (!g) continue;
+      const polys = g.type === "MultiPolygon" ? g.coordinates : [g.coordinates];
+      for (const poly of polys) {
+        for (const ring of poly) {
+          for (const [lon, lat] of ring) {
+            if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+            if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+          }
+        }
+      }
+    }
+    // 서울 위도 근사 여기서는 등거리 근사 (짧은 거리는 왜곡 minimal).
+    const W = 460, H = 380, PAD = 6;
+    const scaleX = (W - PAD * 2) / (maxLon - minLon);
+    const scaleY = (H - PAD * 2) / (maxLat - minLat);
+    const scale  = Math.min(scaleX, scaleY);
+    const offX = PAD + ((W - PAD * 2) - (maxLon - minLon) * scale) / 2;
+    const offY = PAD + ((H - PAD * 2) - (maxLat - minLat) * scale) / 2;
+    const project = (lon, lat) => [
+      offX + (lon - minLon) * scale,
+      offY + (maxLat - lat) * scale,       // y 뒤집기
+    ];
+    return { W, H, project };
+  }, [geo]);
+
+  // fallback grid size
   const CELL = 76, GAP = 4, OUTER = 10;
-  const size = OUTER * 2 + CELL * 5 + GAP * 4;
+  const gridSize = OUTER * 2 + CELL * 5 + GAP * 4;
 
   return (
     <div style={{
@@ -502,49 +612,70 @@ function SeoulMapPanel({ t, rows }) {
           display: "flex", alignItems: "baseline", justifyContent: "space-between",
           marginBottom: 6, padding: "0 4px",
         }}>
-          <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>서울 25구</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: t.text }}>
+            서울 25구{geo === "FAIL" && <span style={{ marginLeft: 6, fontSize: 10, color: t.textMuted, fontWeight: 600 }}>(간이 grid)</span>}
+          </span>
           <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700 }}>총 {seoulTotal}건</span>
         </div>
-        <svg viewBox={`0 0 ${size} ${size}`} style={{ width: "100%", height: "auto", display: "block" }}>
-          {SEOUL_GU_GRID.map((row, ri) => row.map((gu, ci) => {
-            const count = seoulCounts.get(gu) || 0;
-            const alpha = count === 0 ? 0.08 : 0.20 + 0.72 * (count / maxCount);
-            const x = OUTER + ci * (CELL + GAP);
-            const y = OUTER + ri * (CELL + GAP);
-            const isHovered = hovered === gu;
-            const textCol = count === 0 ? (t.textMuted || "#94a3b8")
-                          : alpha > 0.55 ? "#fff"
-                                         : (t.text || "#111");
-            return (
-              <g key={gu}
-                onMouseEnter={() => setHovered(gu)}
-                onMouseLeave={() => setHovered(null)}
-                style={{ cursor: count > 0 ? "pointer" : "default" }}>
-                <rect
-                  x={x} y={y} width={CELL} height={CELL} rx={7}
-                  fill={t.accent || "#FF1B8D"}
-                  fillOpacity={alpha}
-                  stroke={isHovered ? (t.accent || "#FF1B8D") : (t.border || "#e5e7eb")}
-                  strokeWidth={isHovered ? 2.5 : 1}
-                />
-                <text
-                  x={x + CELL / 2} y={y + CELL / 2 - 4}
-                  textAnchor="middle" fontSize="10" fontWeight="700"
-                  fill={textCol}
-                  style={{ pointerEvents: "none" }}>
-                  {gu.replace(/구$/, "")}
-                </text>
-                <text
-                  x={x + CELL / 2} y={y + CELL / 2 + 16}
-                  textAnchor="middle" fontSize="15" fontWeight="800"
-                  fill={textCol}
-                  style={{ pointerEvents: "none", fontVariantNumeric: "tabular-nums" }}>
-                  {count}
-                </text>
-              </g>
-            );
-          }))}
-        </svg>
+
+        {/* 실제 지도 or fallback grid or 로딩 */}
+        {geo === null ? (
+          <div style={{ padding: 40, textAlign: "center", color: t.textMuted, fontSize: 11 }}>지도 불러오는 중…</div>
+        ) : geo === "FAIL" ? (
+          <svg viewBox={`0 0 ${gridSize} ${gridSize}`} style={{ width: "100%", height: "auto", display: "block" }}>
+            {SEOUL_GU_GRID.map((row, ri) => row.map((gu, ci) => {
+              const count = seoulCounts.get(gu) || 0;
+              const alpha = count === 0 ? 0.08 : 0.20 + 0.72 * (count / maxCount);
+              const x = OUTER + ci * (CELL + GAP);
+              const y = OUTER + ri * (CELL + GAP);
+              const isHovered = hovered === gu;
+              const textCol = count === 0 ? (t.textMuted || "#94a3b8")
+                            : alpha > 0.55 ? "#fff"
+                                           : (t.text || "#111");
+              return (
+                <g key={gu}
+                  onMouseEnter={() => setHovered(gu)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{ cursor: count > 0 ? "pointer" : "default" }}>
+                  <rect
+                    x={x} y={y} width={CELL} height={CELL} rx={7}
+                    fill={t.accent || "#FF1B8D"} fillOpacity={alpha}
+                    stroke={isHovered ? (t.accent || "#FF1B8D") : (t.border || "#e5e7eb")}
+                    strokeWidth={isHovered ? 2.5 : 1}
+                  />
+                  <text x={x + CELL / 2} y={y + CELL / 2 - 4} textAnchor="middle" fontSize="10" fontWeight="700"
+                    fill={textCol} style={{ pointerEvents: "none" }}>{gu.replace(/구$/, "")}</text>
+                  <text x={x + CELL / 2} y={y + CELL / 2 + 16} textAnchor="middle" fontSize="15" fontWeight="800"
+                    fill={textCol} style={{ pointerEvents: "none", fontVariantNumeric: "tabular-nums" }}>{count}</text>
+                </g>
+              );
+            }))}
+          </svg>
+        ) : (
+          <svg viewBox={`0 0 ${geoView.W} ${geoView.H}`}
+            style={{ width: "100%", height: "auto", display: "block" }}>
+            {geo.features.map(f => {
+              const nm = _featureName(f);
+              const count = seoulCounts.get(nm) || 0;
+              const alpha = count === 0 ? 0.08 : 0.20 + 0.72 * (count / maxCount);
+              const isHovered = hovered === nm;
+              const d = _coordsToPath(f.geometry.coordinates, f.geometry.type, geoView.project);
+              return (
+                <g key={nm}
+                  onMouseEnter={() => setHovered(nm)}
+                  onMouseLeave={() => setHovered(null)}
+                  style={{ cursor: count > 0 ? "pointer" : "default" }}>
+                  <path d={d}
+                    fill={t.accent || "#FF1B8D"} fillOpacity={alpha}
+                    stroke={isHovered ? (t.accent || "#FF1B8D") : (t.border || "#e5e7eb")}
+                    strokeWidth={isHovered ? 2 : 0.8}
+                  />
+                </g>
+              );
+            })}
+          </svg>
+        )}
+
         {/* 하단 hover 라벨 */}
         <div style={{
           minHeight: 22, marginTop: 6, padding: "0 4px",
@@ -552,7 +683,7 @@ function SeoulMapPanel({ t, rows }) {
         }}>
           {hovered
             ? <span>서울 {hovered} · <span className="mono" style={{ color: t.accent, fontWeight: 800 }}>{seoulCounts.get(hovered) || 0}건</span></span>
-            : <span style={{ color: t.textMuted }}>셀 위에 마우스 올리면 상세 표시</span>}
+            : <span style={{ color: t.textMuted }}>지역 위에 마우스 올리면 상세 표시</span>}
         </div>
       </div>
 
