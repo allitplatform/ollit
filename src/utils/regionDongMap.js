@@ -171,33 +171,35 @@ const GYEONGGI_DONG_TO_SI = {
   "갈산": "안양", "인덕원": "안양", "만안": "안양", "박달": "안양",
 };
 
-// 2026-07-10 v2 — 온전 토큰 매칭.
-//   부분매칭 오탐 방지 ("서북구" 안 "북동" 등). 앞뒤 한글 없어야 매칭.
-//   dongShort 뒤에 "동" 접미 붙는 경우도 인정 (예: "성산" → "성산동" 매칭).
-function _matchDongToken(s, dong) {
-  // 앞: 한글 아님. 뒤: 한글 없음 or "동" (즉시) 또는 숫자·공백·구분자.
-  //   "성산동" 원문에서 "성산" 매칭 위해 뒤 "동" 허용.
-  const re = new RegExp("(?<![가-힣])" + dong.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?:동)?(?![가-힣])");
-  return re.test(s);
-}
+// 2026-07-10 v3 — longest-match includes.
+//   상위 파서 (regionParser v4) 가 시도/시군구 우선 매칭. 동 사전은 최종 fallback.
+//   동 이름을 length desc 로 순회 → "성산동" 이 있으면 "산" 등 단문 매칭 앞섬.
+
+// 서울/경기 동 사전을 하나로 합쳐 longest-match.
+const _ALL_DONGS = (() => {
+  const arr = [];
+  for (const [dong, gu] of Object.entries(SEOUL_DONG_TO_GU)) {
+    if (AMBIGUOUS_DONGS.has(dong)) continue;
+    arr.push({ dong, sido: "서울", sigungu: gu });
+    arr.push({ dong: dong + "동", sido: "서울", sigungu: gu });
+  }
+  for (const [dong, si] of Object.entries(GYEONGGI_DONG_TO_SI)) {
+    if (AMBIGUOUS_DONGS.has(dong)) continue;
+    arr.push({ dong, sido: "경기", sigungu: si });
+    arr.push({ dong: dong + "동", sido: "경기", sigungu: si });
+  }
+  arr.sort((a, b) => b.dong.length - a.dong.length);
+  return arr;
+})();
 
 // ─────────────────────────────────────────────────────────────
-// 동 → 지역 판정 — 순서: 중복 세트 우선 검사, 그 다음 서울 → 경기.
-//   반환: { sido, sigungu } 또는 null.
+// 동 → 지역 판정. Longest-match includes.
 // ─────────────────────────────────────────────────────────────
 export function detectFromDong(addr) {
   const s = String(addr || "").trim();
   if (!s) return null;
-
-  // 1) 서울 동 매핑 — 온전 토큰.
-  for (const [dong, gu] of Object.entries(SEOUL_DONG_TO_GU)) {
-    if (AMBIGUOUS_DONGS.has(dong)) continue;
-    if (_matchDongToken(s, dong)) return { sido: "서울", sigungu: gu };
-  }
-  // 2) 경기 동 매핑.
-  for (const [dong, si] of Object.entries(GYEONGGI_DONG_TO_SI)) {
-    if (AMBIGUOUS_DONGS.has(dong)) continue;
-    if (_matchDongToken(s, dong)) return { sido: "경기", sigungu: si };
+  for (const { dong, sido, sigungu } of _ALL_DONGS) {
+    if (s.includes(dong)) return { sido, sigungu };
   }
   return null;
 }

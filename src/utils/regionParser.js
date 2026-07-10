@@ -1,61 +1,60 @@
-// 2026-07-10 — 자유텍스트 주소 → 지역 (시도 / 시군구) 관대 파싱.
-//   목적: AdminApp "지역별 접수 현황" 뷰용 집계 키 생성.
+// 2026-07-10 v4 — 자유텍스트 주소 → 지역 파서 (재작성, 사장님 spec).
+//   목적: AdminApp "지역별 접수 현황" 뷰용 집계 키.
 //
-// v3 (2026-07-10) — 오탐 정정:
-//   1) 부분매칭 → 온전한 토큰 매칭 (한글 word boundary).
-//      "천안시 서북구" 안 "북구" 로 부산 배정 사고 방지.
-//   2) 명시 시(市) 최우선. "천안시" 매칭 시 시군구·역추론 skip → 충남 배정.
-//   3) 건물명 마스킹 ("경남아파트" 안 "경남" 무시).
-//   4) 도로명 stem 매핑 (은평로 → 은평구 등 소수 대표만).
-//   5) 시도 명시 없는 애매 역추론은 다른 단서 전무 시에만.
+// v3 실패 사례 (온전 토큰 매칭) — v4 정정:
+//   ✗ "서울시강동구고덕로333 126동1702호" (공백 없음) → 매칭 실패
+//   ✗ "천안시 서북구" → 시도 결손 후 "천안" 매칭까지만 (서북구 세분 미인식)
+//   ✗ "가좌로…경남아파트" → 마스킹은 OK, 도로명 미매칭 시 미상
 //
-// 판정 파이프라인 (parseRegion):
-//   [전처리] 건물명 마스킹.
-//   [1]     시군구 온전 토큰 매칭 (전 시도) — 명시 시/군/구 최우선.
-//   [2]     시도 keyword 온전 토큰 매칭 (접미 특별시/광역시/도 허용).
-//           → 시도 + 시군구(같은 시도 안) 조합.
-//   [3]     서울 구 short ("마포" 등) 온전 토큰.
-//   [4]     도로명 stem 매핑 (은평로 등).
-//   [5]     동 사전 (regionDongMap) 온전 토큰.
-//   [6]     미상.
+// v4 규칙 (사장님 4개 spec):
+//   [부분매칭 허용] 공백 없어도 includes 검사.
+//   [longest-match] 사전 이름 길이 내림차순 → "서북구" (사전 있으면) 먼저.
+//   [시도-시군구 일치] 시도 명시되면 그 시도 안에서만 시군구 검사 → 부산 오탐 방지.
+//   [명시 시 최우선] "천안시" 같은 명시 시(市)/군 검출되면 즉시 그 시도 확정.
+//   [건물명 마스킹] "경남아파트" 등 접미어 앞 지역어 무시.
+//   [도로명 stem] 은평로 → 은평구, 가좌로 → 서대문구 등 소수 대표만.
+//   [세분 구 사전] 서북구/동남구(천안), 분당구(성남), 처인구(용인) 등 → 상위 시 매핑.
 
 import { detectFromDong } from "./regionDongMap.js";
 
-const SIDO_KEYWORDS = [
-  "서울", "부산", "대구", "인천", "광주", "대전", "울산", "세종",
-  "경기", "강원", "충북", "충남", "전북", "전남", "경북", "경남", "제주",
-];
-
-const SIDO_LABEL = {
-  "서울": "서울", "부산": "부산", "대구": "대구", "인천": "인천",
-  "광주": "광주", "대전": "대전", "울산": "울산", "세종": "세종",
-  "경기": "경기", "강원": "강원", "충북": "충북", "충남": "충남",
-  "전북": "전북", "전남": "전남", "경북": "경북", "경남": "경남",
-  "제주": "제주",
+// ─────────────────────────────────────────────────────────────
+// 시도 keyword — longest form 포함 (서울특별시 > 서울시 > 서울).
+//   longest-match 우선 순회를 위해 length desc sort.
+// ─────────────────────────────────────────────────────────────
+const SIDO_KEYWORD_MAP = {
+  "서울": ["서울특별시", "서울시", "서울"],
+  "부산": ["부산광역시", "부산시", "부산"],
+  "대구": ["대구광역시", "대구시", "대구"],
+  "인천": ["인천광역시", "인천시", "인천"],
+  "광주": ["광주광역시", "광주시", "광주"], // "광주" 는 경기 광주시와 중복 — 시군구 검사에서 상위 매칭 우선
+  "대전": ["대전광역시", "대전시", "대전"],
+  "울산": ["울산광역시", "울산시", "울산"],
+  "세종": ["세종특별자치시", "세종시", "세종"],
+  "경기": ["경기도", "경기"],
+  "강원": ["강원특별자치도", "강원도", "강원"],
+  "충북": ["충청북도", "충북"],
+  "충남": ["충청남도", "충남"],
+  "전북": ["전북특별자치도", "전라북도", "전북"],
+  "전남": ["전라남도", "전남"],
+  "경북": ["경상북도", "경북"],
+  "경남": ["경상남도", "경남"],
+  "제주": ["제주특별자치도", "제주도", "제주"],
 };
 
-// 시도 keyword 뒤에 붙을 수 있는 접미 (특별시/광역시/도/시 등).
-//   토큰 매칭 시 이 접미 허용.
-const _SIDO_SUFFIX = {
-  "서울": "(?:특별시|시)?",
-  "부산": "(?:광역시|시)?",
-  "대구": "(?:광역시|시)?",
-  "인천": "(?:광역시|시)?",
-  "광주": "(?:광역시|시)?",
-  "대전": "(?:광역시|시)?",
-  "울산": "(?:광역시|시)?",
-  "세종": "(?:특별자치시|시)?",
-  "경기": "(?:도)?",
-  "강원": "(?:특별자치도|도)?",
-  "충북": "(?:도)?",
-  "충남": "(?:도)?",
-  "전북": "(?:특별자치도|도)?",
-  "전남": "(?:도)?",
-  "경북": "(?:도)?",
-  "경남": "(?:도)?",
-  "제주": "(?:특별자치도|도)?",
-};
+// keyword → canonical label (첫 매칭용).
+const _SIDO_KW_TO_LABEL = (() => {
+  const m = new Map();
+  for (const [label, kws] of Object.entries(SIDO_KEYWORD_MAP)) {
+    for (const kw of kws) m.set(kw, label);
+  }
+  return m;
+})();
+// 길이 내림차순 sort — longest 먼저.
+const _SIDO_KEYWORDS_SORTED = [..._SIDO_KW_TO_LABEL.keys()].sort((a, b) => b.length - a.length);
 
+// ─────────────────────────────────────────────────────────────
+// 시도별 시군구 (기존, 대소 확장 유지).
+// ─────────────────────────────────────────────────────────────
 const SIGUNGU_BY_SIDO = {
   "서울": [
     "강남구","강동구","강북구","강서구","관악구","광진구","구로구","금천구",
@@ -66,10 +65,10 @@ const SIGUNGU_BY_SIDO = {
     "중구","동구","미추홀구","연수구","남동구","부평구","계양구","서구","강화군","옹진군",
   ],
   "경기": [
-    "수원","성남","고양","용인","부천","안산","안양","남양주","화성","평택",
-    "의정부","시흥","파주","김포","광명","광주","군포","하남","오산","이천",
-    "안성","구리","의왕","양주","포천","여주","양평","가평","연천",
-    "과천","동두천",
+    "수원시","성남시","고양시","용인시","부천시","안산시","안양시","남양주시","화성시","평택시",
+    "의정부시","시흥시","파주시","김포시","광명시","광주시","군포시","하남시","오산시","이천시",
+    "안성시","구리시","의왕시","양주시","포천시","여주시","양평군","가평군","연천군",
+    "과천시","동두천시",
   ],
   "부산": [
     "중구","서구","동구","영도구","부산진구","동래구","남구","북구","해운대구",
@@ -83,48 +82,122 @@ const SIGUNGU_BY_SIDO = {
   "울산": ["중구","남구","동구","북구","울주군"],
   "세종": ["세종"],
   "강원": [
-    "춘천","원주","강릉","동해","태백","속초","삼척",
-    "홍천","횡성","영월","평창","정선","철원","화천","양구","인제","양양","고성",
+    "춘천시","원주시","강릉시","동해시","태백시","속초시","삼척시",
+    "홍천군","횡성군","영월군","평창군","정선군","철원군","화천군","양구군","인제군","양양군",
+    "고성군",
   ],
   "충북": [
-    "청주","충주","제천","보은","옥천","영동","증평","진천","괴산","음성","단양",
+    "청주시","충주시","제천시","보은군","옥천군","영동군","증평군","진천군","괴산군","음성군","단양군",
   ],
   "충남": [
-    "천안","공주","보령","아산","서산","논산","계룡","당진",
-    "금산","부여","서천","청양","홍성","예산","태안",
+    "천안시","공주시","보령시","아산시","서산시","논산시","계룡시","당진시",
+    "금산군","부여군","서천군","청양군","홍성군","예산군","태안군",
   ],
   "전북": [
-    "전주","군산","익산","정읍","남원","김제",
-    "완주","진안","무주","장수","임실","순창","고창","부안",
+    "전주시","군산시","익산시","정읍시","남원시","김제시",
+    "완주군","진안군","무주군","장수군","임실군","순창군","고창군","부안군",
   ],
   "전남": [
-    "목포","여수","순천","나주","광양",
-    "담양","곡성","구례","고흥","보성","화순","장흥","강진","해남","영암",
-    "무안","함평","영광","장성","완도","진도","신안",
+    "목포시","여수시","순천시","나주시","광양시",
+    "담양군","곡성군","구례군","고흥군","보성군","화순군","장흥군","강진군","해남군","영암군",
+    "무안군","함평군","영광군","장성군","완도군","진도군","신안군",
   ],
   "경북": [
-    "포항","경주","김천","안동","구미","영주","영천","상주","문경","경산",
-    "군위","의성","청송","영양","영덕","청도","고령","성주","칠곡","예천",
-    "봉화","울진","울릉",
+    "포항시","경주시","김천시","안동시","구미시","영주시","영천시","상주시","문경시","경산시",
+    "군위군","의성군","청송군","영양군","영덕군","청도군","고령군","성주군","칠곡군","예천군",
+    "봉화군","울진군","울릉군",
   ],
   "경남": [
-    "창원","진주","통영","사천","김해","밀양","거제","양산",
-    "의령","함안","창녕","남해","하동","산청","함양","거창","합천",
+    "창원시","진주시","통영시","사천시","김해시","밀양시","거제시","양산시",
+    "의령군","함안군","창녕군","남해군","하동군","산청군","함양군","거창군","합천군",
   ],
   "제주": ["제주시","서귀포시"],
 };
 
-const _SEOUL_GU_SHORT = SIGUNGU_BY_SIDO["서울"].map(g => g.replace(/구$/, ""));
+// 각 시도별 시군구 이름 length desc 정렬 캐시.
+const _SIGUNGU_SORTED_BY_SIDO = (() => {
+  const m = {};
+  for (const [sido, list] of Object.entries(SIGUNGU_BY_SIDO)) {
+    m[sido] = [...list].sort((a, b) => b.length - a.length);
+  }
+  return m;
+})();
 
-// 도로명 stem 매핑 (대표 소수만). 명확한 것만.
-//   ⚠️ 동명 겹침 대비 실질적으로 안전한 것만 (동/구별칭 겸용 흔한 것).
+// 전 시도 시군구 통합 리스트 (name, sido). length desc.
+const _ALL_SIGUNGU_SORTED = (() => {
+  const arr = [];
+  const seen = new Set();
+  for (const sido of Object.keys(SIGUNGU_BY_SIDO)) {
+    for (const name of SIGUNGU_BY_SIDO[sido]) {
+      const key = name;
+      // 중복 이름 (서울 "중구" vs 부산 "중구") 은 첫 등록 시도 우선 (서울 우선).
+      if (seen.has(key)) continue;
+      seen.add(key);
+      arr.push({ name, sido });
+    }
+  }
+  arr.sort((a, b) => b.name.length - a.name.length);
+  return arr;
+})();
+
+// ─────────────────────────────────────────────────────────────
+// 세분 구 사전 — 특정 시의 하위 구 → 상위 { sido, sigungu, district }.
+//   longest-match 최우선. "서북구" 가 이 사전에 있으면 "북구" (부산/대구 등) 보다 우선.
+// ─────────────────────────────────────────────────────────────
+const DISTRICT_TO_REGION = {
+  // 천안 (충남)
+  "서북구": { sido: "충남", sigungu: "천안시" },
+  "동남구": { sido: "충남", sigungu: "천안시" },
+  // 청주 (충북)
+  "상당구": { sido: "충북", sigungu: "청주시" },
+  "서원구": { sido: "충북", sigungu: "청주시" },
+  "흥덕구": { sido: "충북", sigungu: "청주시" },
+  "청원구": { sido: "충북", sigungu: "청주시" },
+  // 수원 (경기)
+  "장안구": { sido: "경기", sigungu: "수원시" },
+  "팔달구": { sido: "경기", sigungu: "수원시" },
+  "권선구": { sido: "경기", sigungu: "수원시" },
+  "영통구": { sido: "경기", sigungu: "수원시" },
+  // 성남 (경기)
+  "수정구": { sido: "경기", sigungu: "성남시" },
+  "중원구": { sido: "경기", sigungu: "성남시" },
+  "분당구": { sido: "경기", sigungu: "성남시" },
+  // 고양 (경기)
+  "덕양구":   { sido: "경기", sigungu: "고양시" },
+  "일산동구": { sido: "경기", sigungu: "고양시" },
+  "일산서구": { sido: "경기", sigungu: "고양시" },
+  // 용인 (경기)
+  "처인구": { sido: "경기", sigungu: "용인시" },
+  "기흥구": { sido: "경기", sigungu: "용인시" },
+  "수지구": { sido: "경기", sigungu: "용인시" },
+  // 부천 (경기, 옛 3구)
+  "원미구": { sido: "경기", sigungu: "부천시" },
+  "소사구": { sido: "경기", sigungu: "부천시" },
+  "오정구": { sido: "경기", sigungu: "부천시" },
+  // 안산 (경기)
+  "상록구": { sido: "경기", sigungu: "안산시" },
+  "단원구": { sido: "경기", sigungu: "안산시" },
+  // 안양 (경기)
+  "만안구": { sido: "경기", sigungu: "안양시" },
+  "동안구": { sido: "경기", sigungu: "안양시" },
+  // 창원 (경남)
+  "의창구":     { sido: "경남", sigungu: "창원시" },
+  "성산구":     { sido: "경남", sigungu: "창원시" },
+  "진해구":     { sido: "경남", sigungu: "창원시" },
+  "마산합포구": { sido: "경남", sigungu: "창원시" },
+  "마산회원구": { sido: "경남", sigungu: "창원시" },
+};
+const _DISTRICT_KEYS_SORTED = Object.keys(DISTRICT_TO_REGION).sort((a, b) => b.length - a.length);
+
+// ─────────────────────────────────────────────────────────────
+// 도로명 stem — 소수 대표.
+// ─────────────────────────────────────────────────────────────
 const ROADNAME_TO_GU = {
   "은평로":     { sido: "서울", sigungu: "은평구" },
   "가좌로":     { sido: "서울", sigungu: "서대문구" },
   "종로":       { sido: "서울", sigungu: "종로구" },
   "테헤란로":   { sido: "서울", sigungu: "강남구" },
   "강남대로":   { sido: "서울", sigungu: "강남구" },
-  "신사동길":   { sido: "서울", sigungu: "강남구" },
   "잠실로":     { sido: "서울", sigungu: "송파구" },
   "잠실대로":   { sido: "서울", sigungu: "송파구" },
   "반포대로":   { sido: "서울", sigungu: "서초구" },
@@ -135,158 +208,152 @@ const ROADNAME_TO_GU = {
   "청계천로":   { sido: "서울", sigungu: "중구" },
   "을지로":     { sido: "서울", sigungu: "중구" },
   "명동길":     { sido: "서울", sigungu: "중구" },
-  "성수이로":   { sido: "서울", sigungu: "성동구" },
   "왕십리로":   { sido: "서울", sigungu: "성동구" },
-  "홍대입구":   { sido: "서울", sigungu: "마포구" },
+  "성수이로":   { sido: "서울", sigungu: "성동구" },
   "월드컵로":   { sido: "서울", sigungu: "마포구" },
   "합정로":     { sido: "서울", sigungu: "마포구" },
-  "여의도동":   { sido: "서울", sigungu: "영등포구" },
+  "고덕로":     { sido: "서울", sigungu: "강동구" },
+  "천호대로":   { sido: "서울", sigungu: "강동구" },
 };
+const _ROADNAME_KEYS_SORTED = Object.keys(ROADNAME_TO_GU).sort((a, b) => b.length - a.length);
 
-// 건물명 마스킹 접미어 (건물명 앞 지역어 무시용).
+// ─────────────────────────────────────────────────────────────
+// 서울 구 short (접미 "구" 없는 형태). 접미 "구" 붙어야만 매칭.
+// ─────────────────────────────────────────────────────────────
+const _SEOUL_GU_WITH_SUFFIX = SIGUNGU_BY_SIDO["서울"].slice().sort((a, b) => b.length - a.length);
+
+// ─────────────────────────────────────────────────────────────
+// 건물명 마스킹 접미어.
+//   ⚠️ "경남아파트" → 공백 치환 → "경남" 매칭 방지.
+// ─────────────────────────────────────────────────────────────
 const BUILDING_SUFFIX_RE = /[가-힣A-Za-z0-9]{1,10}(?:아파트|빌라|맨션|타워|오피스텔|상가|빌딩|하이츠|캐슬|파크|프라자|플라자|리버파크|스카이|하우스)/g;
 
-// 정규식 이스케이프 (한글은 무해).
-function _reEscape(s) {
-  return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-// 한글 word boundary 흉내 — 앞뒤 한글 없어야 온전한 토큰.
-//   전문자 (?<![가-힣])name(?![가-힣]) 를 문자열 검색으로 대체.
-function _matchToken(s, name, suffix = "") {
-  const re = new RegExp("(?<![가-힣])" + _reEscape(name) + suffix + "(?![가-힣])");
-  return re.test(s);
-}
-
-// 전처리: 건물명 마스킹 + 정규화.
-//   "경남아파트" → "         " 로 대체하여 "경남" 오탐 방지.
 function _preprocess(addr) {
   const s = String(addr || "").trim();
   if (!s) return "";
   return s.replace(BUILDING_SUFFIX_RE, m => " ".repeat(m.length));
 }
 
-// 시도 판정 — 온전 토큰 매칭. 접미 특별시/광역시/도/시 허용.
+// ─────────────────────────────────────────────────────────────
+// 검출 함수들 (모두 includes + longest-match).
+// ─────────────────────────────────────────────────────────────
+
+// 시도 keyword.
 function _detectSido(s) {
-  if (!s) return "";
-  for (const k of SIDO_KEYWORDS) {
-    const suf = _SIDO_SUFFIX[k] || "";
-    if (_matchToken(s, k, suf)) return SIDO_LABEL[k] || k;
+  for (const kw of _SIDO_KEYWORDS_SORTED) {
+    if (s.includes(kw)) return _SIDO_KW_TO_LABEL.get(kw);
   }
   return "";
 }
 
-// 시군구 판정 — sido 안 목록에서 온전 토큰 매칭. 접미 없는 이름은 시/군 옵션 허용.
-function _detectSigungu(s, sido) {
-  if (!s || !sido) return "";
-  const list = SIGUNGU_BY_SIDO[sido];
+// 세분 구 (longest-match).
+function _detectDistrict(s) {
+  for (const name of _DISTRICT_KEYS_SORTED) {
+    if (s.includes(name)) return { name, ...DISTRICT_TO_REGION[name] };
+  }
+  return null;
+}
+
+// 특정 시도 안 시군구 (longest-match).
+function _detectSigunguIn(s, sido) {
+  const list = _SIGUNGU_SORTED_BY_SIDO[sido];
   if (!list) return "";
   for (const name of list) {
-    const suffix = /[시군구]$/.test(name) ? "" : "(?:시|군)?";
-    if (_matchToken(s, name, suffix)) return /[시군구]$/.test(name) ? name : (name + "시");
+    if (s.includes(name)) return name;
   }
   return "";
 }
 
-// 전 시도 시군구 사전 스캔 — 명시 시(市) 최우선.
-//   반환: { sido, sigungu } | null
+// 전 시도 시군구 스캔 (longest-match, 중복 이름은 첫 등록 시도 우선).
 function _detectSigunguGlobal(s) {
-  if (!s) return null;
-  for (const sido of Object.keys(SIGUNGU_BY_SIDO)) {
-    for (const name of SIGUNGU_BY_SIDO[sido]) {
-      const suffix = /[시군구]$/.test(name) ? "" : "(?:시|군)?";
-      if (_matchToken(s, name, suffix)) {
-        return { sido, sigungu: /[시군구]$/.test(name) ? name : (name + "시") };
-      }
-    }
+  for (const { name, sido } of _ALL_SIGUNGU_SORTED) {
+    if (s.includes(name)) return { sido, sigungu: name };
   }
   return null;
 }
 
-// 도로명 stem 매칭 (온전 토큰).
-function _detectRoadname(s) {
-  if (!s) return null;
-  for (const road of Object.keys(ROADNAME_TO_GU)) {
-    if (_matchToken(s, road)) return ROADNAME_TO_GU[road];
-  }
-  return null;
-}
-
-// 서울 구 short (접미 "구" 없는 형태) 온전 토큰.
+// 서울 구 short (접미 "구" 필수).
 function _detectSeoulGuShort(s) {
-  if (!s) return "";
-  for (const short of _SEOUL_GU_SHORT) {
-    if (!short) continue;
-    // 접미 "구" 는 optional. 서울 구 short 는 반드시 "구" 붙여야 온전 (예: "마포구").
-    // 접미 "구" 없이 "마포" 만 있으면 다른 지명일 수 있음 (예: 마포대교) — 이 fallback 은 신중.
-    if (_matchToken(s, short + "구")) return short + "구";
+  for (const gu of _SEOUL_GU_WITH_SUFFIX) {
+    if (s.includes(gu)) return gu;
   }
   return "";
 }
 
-// 최종 export — 자유텍스트 주소 → { sido, sigungu, key, label }.
-export function parseRegion(addr) {
-  const raw = _preprocess(addr);
-  if (!raw) return { sido: "", sigungu: "", key: "미상", label: "미상" };
+// 도로명 stem (longest-match).
+function _detectRoadname(s) {
+  for (const road of _ROADNAME_KEYS_SORTED) {
+    if (s.includes(road)) return { name: road, ...ROADNAME_TO_GU[road] };
+  }
+  return null;
+}
 
-  // [1] 시도 명시 → 그 시도 안 시군구 매칭 시도. 시도 매칭됐지만 시군구 못 잡으면 시도만.
-  const sido = _detectSido(raw);
+// ─────────────────────────────────────────────────────────────
+// 통합 파이프라인.
+//   시도 명시 → 그 시도 안 세분 구 / 시군구 / 도로명.
+//   시도 결손 → 세분 구 → 전 시도 시군구 → 서울 구 short → 도로명 → 동 사전.
+// ─────────────────────────────────────────────────────────────
+function _extractRegion(rawAddr) {
+  const s = _preprocess(rawAddr);
+  if (!s) return null;
+
+  const sido = _detectSido(s);
+
   if (sido) {
-    const sigungu = _detectSigungu(raw, sido);
-    if (sigungu) {
-      return { sido, sigungu, key: `${sido} ${sigungu}`, label: `${sido} ${sigungu}` };
+    // [1] 세분 구 우선 (같은 시도만 인정).
+    const disHit = _detectDistrict(s);
+    if (disHit && disHit.sido === sido) {
+      return { sido, sigungu: disHit.sigungu, district: disHit.name };
     }
-    // 시도만 잡힌 상태에서 도로명 stem 시도 (서울 은평로 등).
-    const road = _detectRoadname(raw);
+    // [2] 그 시도 안 시군구.
+    const sg = _detectSigunguIn(s, sido);
+    if (sg) return { sido, sigungu: sg };
+    // [3] 도로명 stem (같은 시도만).
+    const road = _detectRoadname(s);
     if (road && road.sido === sido) {
-      return { sido, sigungu: road.sigungu, key: `${sido} ${road.sigungu}`, label: `${sido} ${road.sigungu}` };
+      return { sido, sigungu: road.sigungu };
     }
-    return { sido, sigungu: "", key: sido, label: sido };
+    return { sido, sigungu: "" };
   }
 
-  // [2] 시도 결손 — 명시 시(市)/군 최우선 (전 시도 온전 토큰 스캔).
-  const globalHit = _detectSigunguGlobal(raw);
-  if (globalHit) {
-    return {
-      sido:    globalHit.sido,
-      sigungu: globalHit.sigungu,
-      key:     `${globalHit.sido} ${globalHit.sigungu}`,
-      label:   `${globalHit.sido} ${globalHit.sigungu}`,
-    };
+  // 시도 결손.
+  // [4] 세분 구 (그 자체가 시도 결정 → 명시 시(市) 최우선 취급).
+  const disHit = _detectDistrict(s);
+  if (disHit) {
+    return { sido: disHit.sido, sigungu: disHit.sigungu, district: disHit.name };
   }
-
-  // [3] 서울 구 short (접미 "구" 필수).
-  const seoulGu = _detectSeoulGuShort(raw);
-  if (seoulGu) {
-    return { sido: "서울", sigungu: seoulGu, key: `서울 ${seoulGu}`, label: `서울 ${seoulGu}` };
+  // [5] 전 시도 시군구 스캔 (명시 시(市)/군 매칭 시 그 시도 확정).
+  const sgGlobal = _detectSigunguGlobal(s);
+  if (sgGlobal) return sgGlobal;
+  // [6] 서울 구 short.
+  const seoulGu = _detectSeoulGuShort(s);
+  if (seoulGu) return { sido: "서울", sigungu: seoulGu };
+  // [7] 도로명 stem.
+  const road = _detectRoadname(s);
+  if (road) return { sido: road.sido, sigungu: road.sigungu };
+  // [8] 동 사전.
+  const dong = detectFromDong(s);
+  if (dong && dong.sido && dong.sigungu) {
+    return { sido: dong.sido, sigungu: dong.sigungu };
   }
+  return null;
+}
 
-  // [4] 도로명 stem.
-  const road = _detectRoadname(raw);
-  if (road) {
-    return { sido: road.sido, sigungu: road.sigungu, key: `${road.sido} ${road.sigungu}`, label: `${road.sido} ${road.sigungu}` };
+// 최종 export — { sido, sigungu, district?, key, label }.
+export function parseRegion(addr) {
+  const hit = _extractRegion(addr);
+  if (!hit) return { sido: "", sigungu: "", key: "미상", label: "미상" };
+  const { sido, sigungu, district } = hit;
+  if (sigungu) {
+    const label = district ? `${sido} ${sigungu} ${district}` : `${sido} ${sigungu}`;
+    return { sido, sigungu, district: district || "", key: label, label };
   }
-
-  // [5] 동 사전 fallback.
-  const dongHit = detectFromDong(raw);
-  if (dongHit && dongHit.sido && dongHit.sigungu) {
-    return {
-      sido:    dongHit.sido,
-      sigungu: dongHit.sigungu,
-      key:     `${dongHit.sido} ${dongHit.sigungu}`,
-      label:   `${dongHit.sido} ${dongHit.sigungu}`,
-    };
-  }
-
-  return { sido: "", sigungu: "", key: "미상", label: "미상" };
+  return { sido, sigungu: "", district: "", key: sido, label: sido };
 }
 
 // 시도만 집계 key.
 export function regionSidoOnly(addr) {
-  const raw = _preprocess(addr);
-  const sido = _detectSido(raw);
-  if (sido) return sido;
-  const globalHit = _detectSigunguGlobal(raw);
-  if (globalHit) return globalHit.sido;
-  return "미상";
+  const hit = _extractRegion(addr);
+  if (!hit || !hit.sido) return "미상";
+  return hit.sido;
 }
