@@ -305,9 +305,14 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     if (!form.phone || form.phone.replace(/\D/g, "").length < 9) errs.phone = "연락처를 입력하세요.";
     if (!form.address) errs.address = "주소를 입력하세요.";
     if (workItems.length === 0) errs.workItems = "작업항목을 1개 이상 추가하세요.";
+    // 2026-07-10 — appliance="" 저장 사고 방지 (A-260710-003 등 policy_not_found 원인).
+    //   냉매충전 대상 명시적 메시지 (카톡 파싱이 기종 미인식 시 "" 세팅).
     for (const it of workItems) {
-      if (requiresApplianceFor(it.workType) && !it.appliance) {
-        errs.workItems = "기종 필수 작업유형의 기종이 비어있습니다.";
+      if (!requiresApplianceFor(it.workType)) continue;
+      if (!it.appliance || String(it.appliance).trim() === "") {
+        errs.workItems = it.workType === "냉매충전"
+          ? "냉매충전 기종(벽걸이/스탠드/4way/투인원/1way)을 선택하세요."
+          : `기종이 비어있는 작업 항목이 있습니다 (${it.workType}).`;
         break;
       }
     }

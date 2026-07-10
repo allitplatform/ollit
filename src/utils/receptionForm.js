@@ -745,7 +745,11 @@ export function parseKakaoText(text) {
       const refrigerantQtyRegex = /(?:냉매(?:충전|가스)?|가스(?:충전)?|충전)\s*(\d+)\s*대/;
       const qtyMatch = text.match(refrigerantQtyRegex);
       const refrigerantQty = qtyMatch ? parseInt(qtyMatch[1]) : 1;
+      // 2026-07-10 — 냉매 기종 미인식 상태로 workItem 추가 → 폼에서 사용자가 기종 직접 선택 필요.
+      //   appliance="" 로 저장하나 workItemsNeedReview 로 폼 강조 유도.
+      //   폼 handleSubmit 이 이 상태로는 제출 차단 (모바일/PC 양쪽 검증 추가됨 — AdminApp/NewReceptionPcForm).
       result.workItems.push({ workType: "냉매충전", appliance: "", qty: refrigerantQty });
+      result.workItemsNeedReview = true;
     }
   }
 

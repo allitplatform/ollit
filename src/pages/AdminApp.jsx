@@ -9483,6 +9483,21 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     if (!form.phone.trim())         errs.phone = "연락처 입력";
     if (!form.address.trim())       errs.address = "주소 입력";
     if (workItems.length === 0)     errs.workItems = "작업 항목 1개 이상";
+    // 2026-07-10 — appliance="" 저장 사고 방지 (A-260710-003 등 policy_not_found 원인).
+    //   PC 폼은 requiresApplianceFor 로 막고 있으나 모바일 폼에는 개별 검증 부재.
+    //   카톡 파싱이 냉매 기종 미인식 시 appliance="" 로 저장 → 여기 필수 검사로 저장 차단.
+    for (const it of workItems) {
+      if (!it.workType) {
+        errs.workItems = "작업 항목의 작업유형이 비어있습니다.";
+        break;
+      }
+      if (!it.appliance || String(it.appliance).trim() === "") {
+        errs.workItems = it.workType === "냉매충전"
+          ? "냉매충전 기종(벽걸이/스탠드/4way/투인원/1way)을 선택하세요."
+          : `기종이 비어있는 작업 항목이 있습니다 (${it.workType}).`;
+        break;
+      }
+    }
     // 2026-05-21 Migration 047 — 견적금액 미정 토글 시 검증 skip (product_price=0 측 저장)
     if (!priceTBD && (!form.estimateTotal || form.estimateTotal <= 0)) errs.estimateTotal = "견적 금액 입력";
     if (Object.keys(errs).length > 0) {
