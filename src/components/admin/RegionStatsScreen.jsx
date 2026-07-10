@@ -24,14 +24,22 @@ const SOURCE_OPTS = [
   { id: "homepage",  label: "홈페이지만" },
 ];
 
-// 2026-07-10 — 홈페이지 유입 판별 (전용 컬럼 없음, memo 접두 사용).
-//   전환 로직 (AdminInquiriesScreen / AdminApp) 은 memo 를
-//   "[홈페이지 접수 ...] 희망 서비스: ..." 형식으로 남김.
-//   inquiries 자체는 전부 홈페이지 유입이라 별도 판정 X.
+// 2026-07-10 — 홈페이지 유입 판별.
+//   전환 로직 (AdminInquiriesScreen / AdminApp) 은 접수 시 memo 를
+//   "[홈페이지 접수 ...] 희망 서비스: ..." 로 세팅.
+//   저장 경로: tasksDb.js taskToRow — task.memo → DB request_note.
+//   조회 경로: rowToTask — row.request_note → task.request / task.requestNote.
+//   ⚠️ 초기 구현 버그: task.memo 만 검사 → 항상 false → "홈페이지만" 필터 0건.
+//   정정: request / requestNote / memo / workMemo 모두 검사 (접수 경로별 필드 상이 대비).
+const _HOMEPAGE_MARKER_RE = /\[홈페이지\s*접수/;
 function _isFromHomepage(task) {
-  const m = task && (task.memo || task.workMemo || "");
-  if (!m) return false;
-  return /^\s*\[홈페이지 접수/.test(String(m));
+  if (!task) return false;
+  const candidates = [task.request, task.requestNote, task.memo, task.workMemo];
+  for (const m of candidates) {
+    if (!m) continue;
+    if (_HOMEPAGE_MARKER_RE.test(String(m))) return true;
+  }
+  return false;
 }
 
 // KST 기준 이번주 월요일 ymd.
@@ -93,16 +101,29 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
   // tasks 는 created_at (접수 시각) KST 기준 필터. 취소 제외.
   // 2026-07-10 — source='homepage' 시 memo 접두 필터 추가.
   const tasksInRange = useMemo(() => {
-    return (apiTasks || []).filter(x => {
+    // 기간 안 취소 제외 dataset
+    const inRange = (apiTasks || []).filter(x => {
       if (!x || x.status === "취소") return false;
       const created = x.createdAt || x.created_at || x.receivedAt || x.received_at;
       if (!created) return false;
       const k = toKstYmd(created);
       if (!k) return false;
-      if (k < start || k > end) return false;
-      if (source === "homepage" && !_isFromHomepage(x)) return false;
-      return true;
+      return k >= start && k <= end;
     });
+    if (source !== "homepage") return inRange;
+    // 홈페이지 필터 적용 + 진단 (마커 매칭 부재 시 실제 필드 값 샘플 로그)
+    const matched = inRange.filter(_isFromHomepage);
+    if (matched.length === 0 && inRange.length > 0) {
+      const sample = inRange.slice(0, 3).map(x => ({
+        code:        x.taskCode || x.task_no || x.id,
+        request:     x.request,
+        requestNote: x.requestNote,
+        memo:        x.memo,
+        workMemo:    x.workMemo,
+      }));
+      console.warn("[RegionStats] '홈페이지만' 매칭 0건 — 실제 필드 샘플", { total: inRange.length, sample });
+    }
+    return matched;
   }, [apiTasks, start, end, source]);
 
   const inquiriesInRange = useMemo(() => {
