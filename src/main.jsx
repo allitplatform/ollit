@@ -20,6 +20,43 @@ function _isLandingRoute() {
     search.includes("page=landing")
   );
 }
+// 2026-07-10 — 청크 로드 실패 (배포 hash 변경 후 옛 페이지 인스턴스) 자동 리로드.
+//   증상: 배포 후 lazy import (dynamic import()) 가 옛 hash 요청 → 404.
+//   대책: script src 로드 실패 or dynamic import 실패 감지 → 페이지 리로드.
+//   ⚠️ 무한 리로드 방지: sessionStorage 30초 debounce.
+function _triggerChunkReload(reason) {
+  try {
+    const KEY = "__chunk_reload_at__";
+    const now = Date.now();
+    const last = Number(sessionStorage.getItem(KEY) || 0);
+    if (now - last < 30_000) {
+      console.warn("[chunk-load] reload debounced (30s window)", reason);
+      return;
+    }
+    sessionStorage.setItem(KEY, String(now));
+    console.warn("[chunk-load] auto reload", reason);
+    window.location.reload();
+  } catch (e) {
+    console.warn("[chunk-load] reload trigger fail", e);
+  }
+}
+window.addEventListener("error", (e) => {
+  const target = e && e.target;
+  if (!target) return;
+  const tag = target.tagName;
+  const src = target.src || target.href || "";
+  // 우리 assets 청크 로드 실패만 감지.
+  if ((tag === "SCRIPT" || tag === "LINK") && /\/assets\/[^/]+\.(?:js|css)(?:\?.*)?$/.test(src)) {
+    _triggerChunkReload("script:" + src);
+  }
+}, true);
+window.addEventListener("unhandledrejection", (e) => {
+  const msg = String((e && e.reason && e.reason.message) || e.reason || "");
+  if (/Failed to fetch dynamically imported module|Loading chunk .+ failed|Importing a module script failed/i.test(msg)) {
+    _triggerChunkReload("promise:" + msg);
+  }
+});
+
 if ("serviceWorker" in navigator && import.meta.env.PROD && !_isLandingRoute()) {
   window.addEventListener("load", () => {
     navigator.serviceWorker

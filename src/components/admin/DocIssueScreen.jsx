@@ -18,6 +18,32 @@ import { parseDocIssuePaste, computeVatBreakdown } from "../../lib/docIssueParse
 import { formatPhone } from "../../utils/receptionForm.js";
 import "./DocIssueScreen.css";
 
+// 2026-07-10 — docIssueRender 청크 로드 헬퍼.
+//   dynamic import 실패 (배포 후 옛 hash 참조 등) 시 사용자 안내 + 자동 리로드 트리거.
+//   전역 unhandledrejection handler (main.jsx) 가 최종 catch 하지만 여기서
+//   명시적으로 잡아 사용자 alert 후 reload 진행 → UX 개선.
+async function _importDocIssueRender() {
+  try {
+    return await import("../../lib/docIssueRender.js");
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    const isChunkFail = /Failed to fetch dynamically imported module|Loading chunk|Importing a module script failed/i.test(msg);
+    if (isChunkFail) {
+      console.warn("[DocIssueScreen] docIssueRender chunk load fail — reloading", err);
+      try { alert("새 버전이 배포됐습니다. 페이지를 새로고침합니다."); } catch {}
+      try {
+        const KEY = "__chunk_reload_at__";
+        const last = Number(sessionStorage.getItem(KEY) || 0);
+        if (Date.now() - last > 30_000) {
+          sessionStorage.setItem(KEY, String(Date.now()));
+          window.location.reload();
+        }
+      } catch {}
+    }
+    throw err;
+  }
+}
+
 // ──────────────────────────────────────────────
 // 모듈 최상위 — 부모 리렌더에 input remount 안 일으키도록 분리.
 //   (직전 EngineerBusinessInfoCard 포커스 손실 교훈 — 본문 안 정의 금지.)
@@ -654,7 +680,7 @@ export default function DocIssueScreen({
   //   함수는 docNo 를 인자로 받기만 함.
   async function buildCanvas(docNo) {
     const { renderInvoiceCanvas, renderReceiptCanvas } =
-      await import("../../lib/docIssueRender.js");
+      await _importDocIssueRender();
 
     const issuer = issuerInfo || {};
     const recipient = {
