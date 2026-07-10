@@ -205,20 +205,17 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
       marginBottom: 14,
       display: "flex", flexDirection: "column", gap: 14,
     }}>
-      {/* 히어로 퍼널 — 전체 → 스팸 → 유효 → 문의만 + 성사 → 완료
-            2026-07-10 — task 데이터 없으면 성사/완료 "—" (부분 실패 격리, 사장님 spec). */}
-      <FunnelHero
+      {/* 2026-07-10 사장님 확정 — 딱 3개 큰 숫자:
+            1. 전체 접수 (스팸 포함) — 아래 "스팸 N" 작게 병기.
+            2. 성사 = task 존재 + 기사 배정.
+            3. 완료 = task 완료 / 정산완료.
+            task 데이터 없으면 성사/완료 "—" (전체 접수는 뜨게, 부분 실패 격리). */}
+      <SimpleThreeStats
         t={t}
         totalT={totalT}
         spamS={spamS}
-        validV={validV}
-        inquiryOnlyQ={inquiryOnlyQ}
         settleM={settleM}
         doneK={doneK}
-        spamRate={spamRate}
-        inquiryOnlyRate={inquiryOnlyRate}
-        convRate={convRate}
-        doneRate={doneRate}
         loading={loading}
         tasksAvailable={safeTasks.length > 0}
       />
@@ -333,11 +330,84 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
   );
 }
 
-// 히어로 — 전체 T → 스팸 S → 유효 V → 문의만 Q + 성사 M → 완료 K.
-//   ⚠️ 성사 정의: task 존재 AND 기사 배정됨. 미배정 = 문의만.
-//   퍼널 폭 시각화 (bar): 전체 (T) 100% 기준.
-//   라벨 %: 각 단계별 상위 대비.
-function FunnelHero({ t, totalT, spamS, validV, inquiryOnlyQ, settleM, doneK,
+// 2026-07-10 v4 — 사장님 확정: 큰 숫자 3개 카드.
+//   1. 전체 접수 T (스팸 포함) — 아래 "스팸 S" 작게 병기.
+//   2. 성사 M — task 존재 + 배정된 것.
+//   3. 완료 K — task 완료 상태.
+//   tasksAvailable === false 이면 성사/완료 = "—".
+function SimpleThreeStats({ t, totalT, spamS, settleM, doneK, loading, tasksAvailable }) {
+  return (
+    <div style={{
+      display: "grid",
+      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+      gap: 10,
+      alignItems: "stretch",
+    }}>
+      <BigStatCard t={t}
+        label="전체 접수"
+        value={fmtNum(totalT)}
+        subLine={<span>스팸 <span className="mono" style={{ color: COLOR_SPAM, fontWeight: 800 }}>{fmtNum(spamS)}</span></span>}
+        color={COLOR_TOTAL}
+        loading={loading}
+      />
+      <BigStatCard t={t}
+        label="성사 (전환)"
+        value={tasksAvailable ? fmtNum(settleM) : "—"}
+        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "작업 생성 + 기사 배정" : "작업 데이터 로드 실패"}</span>}
+        color={COLOR_CONV}
+        loading={loading}
+        emphasize
+      />
+      <BigStatCard t={t}
+        label="완료"
+        value={tasksAvailable ? fmtNum(doneK) : "—"}
+        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "작업 완료 상태" : "작업 데이터 로드 실패"}</span>}
+        color={COLOR_DONE}
+        loading={loading}
+        emphasize
+      />
+    </div>
+  );
+}
+
+function BigStatCard({ t, label, value, subLine, color, loading, emphasize }) {
+  return (
+    <div style={{
+      padding: emphasize ? "14px 16px" : "12px 14px",
+      background: emphasize ? `${color}10` : (t.bgInset || "rgba(255,255,255,0.03)"),
+      border: `1px solid ${emphasize ? `${color}55` : (t.border || "var(--border)")}`,
+      borderRadius: 10,
+      display: "flex", flexDirection: "column", gap: 6,
+      minWidth: 0,
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+        color: color,
+        textTransform: "uppercase",
+      }}>{label}</div>
+      <div className="mono" style={{
+        fontSize: 32, fontWeight: 900,
+        color: t.text || "var(--text-primary)",
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-1px",
+        lineHeight: 1.02,
+      }}>
+        {loading ? "—" : value}
+      </div>
+      {subLine && (
+        <div style={{
+          fontSize: 11, fontWeight: 700,
+          color: t.textSecondary || "var(--text-secondary)",
+        }}>
+          {subLine}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 옛 FunnelHero 는 사장님 spec (v4) 로 SimpleThreeStats 로 대체됨. 남은 함수 signature 는 dead code.
+function _UnusedFunnelHero({ t, totalT, spamS, validV, inquiryOnlyQ, settleM, doneK,
                      spamRate, inquiryOnlyRate, convRate, doneRate, loading,
                      tasksAvailable = true }) {
   const spamPct        = totalT > 0 ? (spamS        / totalT) * 100 : 0;
