@@ -24,20 +24,13 @@ const SOURCE_OPTS = [
   { id: "homepage",  label: "홈페이지만" },
 ];
 
-// 2026-07-10 — 홈페이지 유입 판별.
-//   초기 구현 (memo "[홈페이지 접수" 마커) 폐기 — 실제 task 필드에 마커 없음
-//   (SAMPLE 확인: memo="", workMemo="", request=null, requestNote 자유메모).
-//   대체: 원청 = "올데이케어" (직영) 기반 판별.
-//   · principalCode "allday" 매칭 (영문 코드, CLAUDE.md 명시)
-//   · principal / principalName 한글 "올데이케어" 매칭 (표시 라벨)
-function _isFromHomepage(task) {
-  if (!task) return false;
-  const code = String(task.principalCode || task.principal_code || "").trim().toLowerCase();
-  if (code === "allday") return true;
-  const name = String(task.principal || task.principalName || "").trim();
-  if (name === "올데이케어") return true;
-  return false;
-}
+// 2026-07-10 — 홈페이지 유입 판별 방식 (v3):
+//   v1 (memo "[홈페이지 접수" 마커): 폐기 — task 필드에 마커 없음.
+//   v2 (원청=올데이케어): 폐기 — 원청은 홈페이지 외 다른 소스도 포함 (부정확).
+//   v3 (inquiries.task_id 기반): Mig 152 mark_inquiry_converted v2 가
+//     DELETE 대신 UPDATE 로 inquiries.status='converted' + task_id 보존 →
+//     converted inquiries 의 task_id 가 곧 "홈페이지에서 전환된 task" 집합.
+//     ⚠️ 신규/과거 모두 정확 (Mig 152 이후 전환분).
 
 // KST 기준 이번주 월요일 ymd.
 function _startOfWeekMonYmd() {
@@ -64,9 +57,10 @@ function _rangeForPeriod(period) {
 export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
   const [period, setPeriod]         = useState("today");
   // 2026-07-10 — 소스 필터 (전체 / 홈페이지만). 기본 전체.
-  //   홈페이지만: tasks 는 memo "[홈페이지 접수" 접두만 / inquiries 는 전부 유입.
   const [source, setSource]         = useState("all");
   const [inquiries, setInquiries]   = useState([]);
+  // 홈페이지 전환 task_id Set (Mig 152 converted inquiries.task_id).
+  const [homepageTaskIds, setHomepageTaskIds] = useState(() => new Set());
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState("");
 
@@ -76,18 +70,27 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
     setError("");
     const actorId = user?.user_id || user?.id;
     if (!actorId) { setInquiries([]); setLoading(false); return () => { alive = false; }; }
-    // 미처리 대기 = new / contacted (spam / converted 제외).
+    // 미처리 대기 (new / contacted) + 전환분 (converted, task_id 추출용) 동시 조회.
     Promise.all([
       listInquiries(actorId, "new"),
       listInquiries(actorId, "contacted"),
-    ]).then(([n, c]) => {
+      listInquiries(actorId, "converted"),
+    ]).then(([n, c, cv]) => {
       if (!alive) return;
       setInquiries([...(n || []), ...(c || [])]);
+      // 홈페이지 전환 task_id Set — 홈페이지만 필터의 진실 소스.
+      const ids = new Set();
+      for (const r of (cv || [])) {
+        if (r.task_id) ids.add(String(r.task_id));
+      }
+      setHomepageTaskIds(ids);
+      console.log("[RegionStats] converted inquiries loaded — homepage tasks:", ids.size);
       setLoading(false);
     }).catch(e => {
       if (!alive) return;
       setError(String(e?.message || e));
       setInquiries([]);
+      setHomepageTaskIds(new Set());
       setLoading(false);
     });
     return () => { alive = false; };
@@ -108,22 +111,15 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
       return k >= start && k <= end;
     });
     if (source !== "homepage") return inRange;
-    // 홈페이지 필터 (원청 기준). 진단: 원청별 건수 분포 한 줄 로그.
-    const matched = inRange.filter(_isFromHomepage);
-    // 2026-07-10 — 로드된 tasks 의 원청별 카운트 (홈페이지 필터 클릭 시 매번 출력).
-    //   allday/올데이케어 = 0 이면 근본 데이터 소스 (테넌트/원청/기간 필터) 점검 필요.
-    const distribution = {};
-    for (const x of inRange) {
-      const name = String(x.principal || x.principalName || x.principalCode || x.principal_code || "(미상)").trim() || "(미상)";
-      distribution[name] = (distribution[name] || 0) + 1;
-    }
-    console.log("[RegionStats] PRINCIPAL_DIST=" + JSON.stringify({
-      totalInRange: inRange.length,
+    // 홈페이지 필터 = converted inquiries.task_id 기반 (v3).
+    const matched = inRange.filter(x => x && x.id && homepageTaskIds.has(String(x.id)));
+    console.log("[RegionStats] HOMEPAGE_FILTER=" + JSON.stringify({
+      totalInRange:    inRange.length,
       matchedHomepage: matched.length,
-      dist: distribution,
+      homepageIds:     homepageTaskIds.size,
     }));
     return matched;
-  }, [apiTasks, start, end, source]);
+  }, [apiTasks, start, end, source, homepageTaskIds]);
 
   const inquiriesInRange = useMemo(() => {
     return (inquiries || []).filter(x => {
@@ -245,6 +241,18 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
             <span style={{ marginLeft: 6, color: t.accent, fontWeight: 700 }}>· 홈페이지 유입만</span>
           )}
         </div>
+        {source === "homepage" && (
+          <div style={{
+            fontSize: 10, color: t.textMuted, fontWeight: 600, marginTop: 4,
+            padding: "4px 8px",
+            background: t.bgInset || "rgba(148, 163, 184, 0.08)",
+            borderRadius: 6,
+            display: "inline-block",
+          }}>
+            ⓘ 판별: 접수함 converted 상태의 inquiries.task_id 기반.
+            2026-06-28 (Mig 152) 이전 전환분은 소급 불가.
+          </div>
+        )}
       </div>
 
       {/* 요약 */}
