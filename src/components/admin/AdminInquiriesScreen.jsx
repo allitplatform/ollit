@@ -39,17 +39,9 @@ function toKstHm(value) {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-// 주소 → 짧은 지역 라벨 ("서울 강남구 ..." → "강남구")
-function shortRegion(address) {
-  if (!address) return "";
-  const tokens = String(address).trim().split(/\s+/);
-  const gu = tokens.find((t) => /^[가-힣]+구$/.test(t));
-  if (gu) return gu;
-  const siGun = tokens.find(
-    (t) => /^[가-힣]+(시|군)$/.test(t) && !/(특별시|광역시|특별자치시|특별자치도)$/.test(t)
-  );
-  return siGun || tokens[0] || "";
-}
+// 2026-07-10 — shortRegion 폐기. 지역 표시는 "지역별 접수 현황" 화면으로 일원화.
+//   호출처 (row 카드 2행) 도 함께 제거됨. 함수 body 는 옛 호출 대비 no-op 유지.
+function shortRegion() { return ""; }
 
 // ===========================================================
 // 루트 — useIsPc 분기로 모바일/PC 위임
@@ -354,7 +346,7 @@ function MiniCardRow({ row, busy, onCall, onSpam, onConvert }) {
           ) : (
             <span>연락처 없음</span>
           )}
-          {row.address && <> · {shortRegion(row.address)}</>}
+          {/* 2026-07-10 — 지역 표시 제거 (지역별 접수 현황 화면으로 일원화, 사장님 spec) */}
         </div>
       </div>
 
@@ -511,7 +503,7 @@ function PcListRow({ row, selected, onClick }) {
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>
         {row.phone || "연락처 없음"}
-        {row.address && <> · {shortRegion(row.address)}</>}
+        {/* 2026-07-10 — 지역 표시 제거 (지역별 접수 현황 화면으로 일원화, 사장님 spec) */}
       </div>
     </button>
   );

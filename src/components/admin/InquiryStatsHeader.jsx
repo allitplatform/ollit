@@ -1,13 +1,13 @@
 // 2026-06-28 — 접수함 통계 헤더 (Mig 151 RPC 연결).
-//   AdminInquiriesScreen 상단. 시안(inquiry_funnel_mockup) 패턴.
-//   구성:
-//     · 카드 4: 오늘 신규 / 이번 달 / 누적(스팸제외) / 전환율%
-//     · 일별 막대: 7/14/30 토글 (기본 14)
-//     · 현재상태 분포: 신규/통화함/전환됨/완료_in (⚠️ "누적 통과 아님 — 현재 상태" 라벨 명확)
-//
-//   ⚠️ 퍼널 (현재상태 분포) 와 전환율 카드 의미 구분:
-//     · 카드 전환율 = 누적완료/누적접수 (진짜 전환률, 누적 KPI)
-//     · 분포 막대  = 지정 기간 접수의 현재 상태 분포 (mutually exclusive, "지금 어디 머무는가")
+// 2026-07-10 v2 — 사장님 spec: 성사/완료 중심 재구성.
+//   ✳️ 히어로 = 퍼널 3단계: 접수 N → 성사 M (전환율%) → 완료 K (완료율%).
+//     · 성사(전환) = converted 상태의 inquiries. Mig 152 이후 보존됨.
+//                    "지금 어떤 상태" 기준으로 converted + completed_in 합산.
+//     · 완료 = task 완료 상태 (all_time_completed / completed_in).
+//   ✳️ 일별 접수 차트 = 보조 유지 (7/14/30 토글).
+//   ✳️ 카드 4 (오늘/이번달/누적/전환율%) → 하나의 미니 라인으로 축소.
+//   ✳️ 현재 상태 분포 (신규/통화함/전환됨/완료_in) → 제거 (히어로가 대체).
+//   ✳️ 지역 관련 요소 없음 (지역별 접수 현황 화면으로 일원화).
 
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -18,14 +18,14 @@ import {
 } from "../../lib/inquiryStatsDb.js";
 
 const ACCENT       = "#FF1B8D";
-const COLOR_TOTAL  = "#3B82F6";   // 신규/접수 — 파랑
+const COLOR_TOTAL  = "#3B82F6";   // 접수 — 파랑
 const COLOR_SPAM   = "#9CA3AF";   // 스팸 — 회색
-const COLOR_NEW    = "#DC2626";   // 신규 (분포) — 빨강 (inquiriesDb INQUIRY_STATUS 와 일관)
-const COLOR_CONT   = "#2563EB";   // 통화함 — 파랑
-const COLOR_CONV   = "#16A34A";   // 전환됨 — 초록
-const COLOR_DONE   = "#FF1B8D";   // 완료_in — 핑크 (accent)
+const COLOR_CONV   = "#16A34A";   // 성사 — 초록
+const COLOR_DONE   = "#FF1B8D";   // 완료 — 핑크 (accent)
 
-const FUNNEL_DAYS = 30;
+// 히어로는 all-time 지표. funnel 을 넉넉한 범위로 조회.
+const ALL_TIME_START = "2020-01-01";
+
 const DAILY_PRESETS = [
   { days: 7,  label: "7일" },
   { days: 14, label: "14일" },
@@ -45,7 +45,6 @@ export function InquiryStatsHeader({ t, actorId }) {
   const [daily, setDaily]     = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
-  const [tick, setTick]       = useState(0);
 
   useEffect(() => {
     if (!actorId) return;
@@ -54,11 +53,11 @@ export function InquiryStatsHeader({ t, actorId }) {
     setError("");
 
     const today = ymdKstToday();
-    const funnelStart = ymdKstNDaysAgo(FUNNEL_DAYS - 1);
     const dailyStart  = ymdKstNDaysAgo(dailyDays - 1);
 
     Promise.all([
-      getInquiryFunnel({ actorId, startYmd: funnelStart, endYmd: today }),
+      // 히어로 퍼널: 전 기간 (사장님 spec 성사/완료 중심).
+      getInquiryFunnel({ actorId, startYmd: ALL_TIME_START, endYmd: today }),
       getInquiryDailyCounts({ actorId, startYmd: dailyStart, endYmd: today }),
     ]).then(([fRes, dRes]) => {
       if (!alive) return;
@@ -68,7 +67,7 @@ export function InquiryStatsHeader({ t, actorId }) {
     }).finally(() => { if (alive) setLoading(false); });
 
     return () => { alive = false; };
-  }, [actorId, dailyDays, tick]);
+  }, [actorId, dailyDays]);
 
   const maxDaily = useMemo(() => {
     let m = 0;
@@ -79,9 +78,15 @@ export function InquiryStatsHeader({ t, actorId }) {
     return Math.max(m, 1);
   }, [daily]);
 
-  // 분포 막대 — 최대값 (4 단계 중 가장 큰 거)
-  const funnelTotal = Number(funnel.total_excl_spam || 0);
-  const denom = funnelTotal > 0 ? funnelTotal : 1;
+  // 퍼널 3단계 지표.
+  //   접수  = 전 기간 스팸 제외 총합. totals.all_time_excl_spam 우선. 없으면 funnel.total_excl_spam.
+  //   성사  = converted + completed_in (Mig 152 이후 converted 상태 유지, 완료는 completed_in 상태로 이동).
+  //   완료  = totals.all_time_completed 우선. 없으면 funnel.completed_in.
+  const acceptN  = Number(totals.all_time_excl_spam ?? funnel.total_excl_spam ?? 0);
+  const doneK    = Number(totals.all_time_completed ?? funnel.completed_in ?? 0);
+  const settleM  = Number(funnel.converted || 0) + Number(funnel.completed_in || 0);
+  const convRate = acceptN > 0 ? (settleM / acceptN) * 100 : 0;
+  const doneRate = acceptN > 0 ? (doneK   / acceptN) * 100 : 0;
 
   return (
     <div style={{
@@ -92,20 +97,30 @@ export function InquiryStatsHeader({ t, actorId }) {
       marginBottom: 14,
       display: "flex", flexDirection: "column", gap: 14,
     }}>
-      {/* 카드 4 */}
+      {/* 히어로 퍼널 — 접수 → 성사 → 완료 */}
+      <FunnelHero
+        t={t}
+        acceptN={acceptN}
+        settleM={settleM}
+        doneK={doneK}
+        convRate={convRate}
+        doneRate={doneRate}
+        loading={loading}
+      />
+
+      {/* 미니 라인 — 오늘 · 이번달 (히어로 대비 보조) */}
       <div style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
-        gap: 8,
+        display: "flex", gap: 12, flexWrap: "wrap",
+        fontSize: 11, fontWeight: 700,
+        color: t.textSecondary || "var(--text-secondary)",
+        paddingTop: 4, borderTop: `1px dashed ${t.border || "var(--border)"}`,
       }}>
-        <Card t={t} label="오늘 신규"        value={fmtNum(totals.today)}/>
-        <Card t={t} label="이번 달"          value={fmtNum(totals.this_month)}/>
-        <Card t={t} label="누적 (스팸제외)"  value={fmtNum(totals.all_time_excl_spam)}/>
-        <Card t={t} label={`전환율${totals.all_time_completed != null ? ` (${fmtNum(totals.all_time_completed)}건)` : ""}`}
-                    value={fmtPct(totals.conversion_rate_pct)} accent/>
+        <span>오늘 <span className="mono" style={{ color: t.text || "var(--text-primary)", fontWeight: 800 }}>{fmtNum(totals.today)}</span> 건</span>
+        <span style={{ color: t.textMuted }}>·</span>
+        <span>이번 달 <span className="mono" style={{ color: t.text || "var(--text-primary)", fontWeight: 800 }}>{fmtNum(totals.this_month)}</span> 건</span>
       </div>
 
-      {/* 일별 막대 */}
+      {/* 일별 막대 (보조 유지) */}
       <div>
         <div style={{
           display: "flex", alignItems: "center", gap: 8, marginBottom: 8,
@@ -190,41 +205,6 @@ export function InquiryStatsHeader({ t, actorId }) {
         </div>
       </div>
 
-      {/* 현재 상태 분포 */}
-      <div>
-        <div style={{
-          display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8,
-        }}>
-          <div style={{ fontSize: 12, fontWeight: 800, color: t.text || "var(--text-primary)" }}>
-            현재 상태 분포
-          </div>
-          <div style={{
-            fontSize: 10, color: t.textMuted || "var(--text-tertiary, var(--text-secondary))",
-            fontWeight: 600,
-          }}>
-            (지난 {FUNNEL_DAYS}일 접수 · "누적 통과 아님 — 지금 그 상태인 건수")
-          </div>
-        </div>
-        {funnelTotal === 0 ? (
-          <Empty t={t}>지난 {FUNNEL_DAYS}일 접수 없음</Empty>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <FunnelBar t={t} label="신규 (new)"        value={funnel.new}          denom={denom} color={COLOR_NEW}/>
-            <FunnelBar t={t} label="통화함 (contacted)" value={funnel.contacted}    denom={denom} color={COLOR_CONT}/>
-            <FunnelBar t={t} label="전환됨 (converted)" value={funnel.converted}    denom={denom} color={COLOR_CONV}/>
-            <FunnelBar t={t} label="완료 (task=완료)"  value={funnel.completed_in} denom={denom} color={COLOR_DONE} subtle/>
-            {(funnel.spam || 0) > 0 && (
-              <div style={{
-                fontSize: 10, color: t.textMuted || "var(--text-tertiary, var(--text-secondary))",
-                fontWeight: 600, marginTop: 2,
-              }}>
-                (스팸 {funnel.spam}건 — 분모 제외)
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
       {error && (
         <div style={{
           padding: "8px 10px",
@@ -238,64 +218,146 @@ export function InquiryStatsHeader({ t, actorId }) {
   );
 }
 
-function Card({ t, label, value, accent }) {
+// 히어로 — 접수 N → 성사 M (전환율%) → 완료 K (완료율%).
+//   퍼널 시각화: 왼쪽 값 (접수) 최대, 성사·완료 는 접수 대비 폭으로 시각화.
+function FunnelHero({ t, acceptN, settleM, doneK, convRate, doneRate, loading }) {
+  const settlePct = acceptN > 0 ? Math.min(100, (settleM / acceptN) * 100) : 0;
+  const donePct   = acceptN > 0 ? Math.min(100, (doneK   / acceptN) * 100) : 0;
   return (
     <div style={{
-      padding: "10px 12px",
-      background: t.bgInset || t.bgSecondary || "rgba(255,255,255,0.03)",
-      border: `1px solid ${t.border || "var(--border)"}`,
-      borderRadius: 8,
-      display: "flex", flexDirection: "column", gap: 4,
-      minWidth: 0,
+      display: "flex", flexDirection: "column", gap: 10,
     }}>
+      {/* 3개 큰 숫자 (라벨/값/비율) */}
       <div style={{
-        fontSize: 10, color: t.textMuted || "var(--text-tertiary, var(--text-secondary))",
-        fontWeight: 700, letterSpacing: 0.3,
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>{label}</div>
-      <div className="mono" style={{
-        fontSize: 18, fontWeight: 800,
-        color: accent ? ACCENT : (t.text || "var(--text-primary)"),
-        letterSpacing: "-0.5px",
-        fontVariantNumeric: "tabular-nums",
-      }}>{value}</div>
+        display: "grid",
+        gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+        gap: 8,
+        alignItems: "stretch",
+      }}>
+        <HeroStat t={t}
+          label="접수"
+          value={fmtNum(acceptN)}
+          suffix="건"
+          color={COLOR_TOTAL}
+          rate={null}
+          loading={loading}
+        />
+        <HeroArrow color={t.textMuted || "#94a3b8"}/>
+        <HeroStat t={t}
+          label="성사 (전환)"
+          value={fmtNum(settleM)}
+          suffix="건"
+          color={COLOR_CONV}
+          rate={acceptN > 0 ? `${convRate.toFixed(1)}%` : "—"}
+          rateLabel="전환율"
+          loading={loading}
+          emphasize
+        />
+        <HeroArrow color={t.textMuted || "#94a3b8"}/>
+        <HeroStat t={t}
+          label="완료"
+          value={fmtNum(doneK)}
+          suffix="건"
+          color={COLOR_DONE}
+          rate={acceptN > 0 ? `${doneRate.toFixed(1)}%` : "—"}
+          rateLabel="완료율"
+          loading={loading}
+          emphasize
+        />
+      </div>
+
+      {/* 퍼널 폭 시각화 (접수=100% 기준) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <FunnelWidthBar t={t} label="접수" value={acceptN} pct={100}      color={COLOR_TOTAL} align="left"/>
+        <FunnelWidthBar t={t} label="성사" value={settleM} pct={settlePct} color={COLOR_CONV}  align="center"/>
+        <FunnelWidthBar t={t} label="완료" value={doneK}   pct={donePct}   color={COLOR_DONE}  align="center"/>
+      </div>
     </div>
   );
 }
 
-function FunnelBar({ t, label, value, denom, color, subtle }) {
-  const v = Number(value || 0);
-  const pct = denom > 0 ? (v / denom) * 100 : 0;
+function HeroStat({ t, label, value, suffix, color, rate, rateLabel, loading, emphasize }) {
+  return (
+    <div style={{
+      gridColumn: "span 1",
+      padding: emphasize ? "12px 14px" : "10px 12px",
+      background: emphasize ? `${color}10` : (t.bgInset || "rgba(255,255,255,0.03)"),
+      border: `1px solid ${emphasize ? `${color}55` : (t.border || "var(--border)")}`,
+      borderRadius: 10,
+      display: "flex", flexDirection: "column", gap: 4,
+      minWidth: 0,
+    }}>
+      <div style={{
+        fontSize: 10, fontWeight: 800, letterSpacing: 0.5,
+        color: color,
+        textTransform: "uppercase",
+      }}>{label}</div>
+      <div className="mono" style={{
+        fontSize: emphasize ? 26 : 22, fontWeight: 900,
+        color: t.text || "var(--text-primary)",
+        fontVariantNumeric: "tabular-nums",
+        letterSpacing: "-0.7px",
+        lineHeight: 1.05,
+        display: "flex", alignItems: "baseline", gap: 4,
+      }}>
+        {loading ? "—" : value}
+        <span style={{ fontSize: 12, fontWeight: 700, color: t.textMuted || "#94a3b8" }}>{suffix}</span>
+      </div>
+      {rate && (
+        <div style={{
+          fontSize: 11, fontWeight: 700,
+          color: t.textSecondary || "var(--text-secondary)",
+        }}>
+          <span style={{ color: t.textMuted, marginRight: 3 }}>{rateLabel || "비율"}</span>
+          <span className="mono" style={{ color: color, fontWeight: 800 }}>{rate}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HeroArrow({ color }) {
+  return (
+    <div style={{
+      display: "none", // grid 안에서 별도 화살표 아이콘 생략 (grid 3열 유지, 화살표 시각 미포함).
+      // hidden — 향후 활성 원하면 display: "flex" 로 전환.
+      alignItems: "center", justifyContent: "center",
+      fontSize: 22, color,
+    }}>→</div>
+  );
+}
+
+function FunnelWidthBar({ t, label, value, pct, color, align }) {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "minmax(110px, 1.2fr) 1fr auto",
+      gridTemplateColumns: "60px minmax(0, 1fr) auto",
       gap: 10, alignItems: "center",
     }}>
       <div style={{
-        fontSize: 11, fontWeight: 700,
-        color: t.textSecondary || "var(--text-secondary)",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        fontSize: 10, fontWeight: 800, color: color,
+        textTransform: "uppercase", letterSpacing: 0.3,
       }}>{label}</div>
       <div style={{
-        position: "relative", height: 14,
+        position: "relative", height: 10,
         background: t.bgInset || "rgba(255,255,255,0.04)",
         border: `1px solid ${t.border || "var(--border)"}`,
-        borderRadius: 4, overflow: "hidden",
+        borderRadius: 3, overflow: "hidden",
       }}>
         <div style={{
+          position: "absolute",
+          top: 0, bottom: 0,
+          left: align === "center" ? `${(100 - pct) / 2}%` : 0,
           width: `${Math.min(100, Math.max(0, pct))}%`,
-          height: "100%", background: color,
-          opacity: subtle ? 0.85 : 1,
+          background: color,
         }}/>
       </div>
       <div className="mono" style={{
-        fontSize: 11, fontWeight: 800,
-        color: t.text || "var(--text-primary)",
+        fontSize: 10, fontWeight: 700, minWidth: 44, textAlign: "right",
+        color: t.textMuted || "var(--text-tertiary, var(--text-secondary))",
         fontVariantNumeric: "tabular-nums",
-        minWidth: 56, textAlign: "right",
       }}>
-        {fmtNum(v)} <span style={{ color: t.textMuted || "var(--text-tertiary, var(--text-secondary))", fontWeight: 600 }}>· {pct.toFixed(0)}%</span>
+        {pct.toFixed(0)}%
       </div>
     </div>
   );
