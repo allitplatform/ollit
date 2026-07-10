@@ -9,11 +9,12 @@
 //   PC 우 패널에 NewReceptionPcForm 임베드 → 등록 성공 시 markInquiryConverted (best-effort)
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Phone, ArrowRight, MoreVertical, RefreshCw, X, BarChart3 } from "lucide-react";
+import { Phone, ArrowRight, MoreVertical, RefreshCw, X, BarChart3, Trash2 } from "lucide-react";
 import {
   listInquiries,
   setInquiryStatus,
   markInquiryConverted,
+  deleteInquiry,          // 2026-07-10 — 스팸 영구 삭제 (Mig 169)
   serviceLabel,
   statusMeta,
   SERVICE_WORKTYPE,
@@ -105,6 +106,38 @@ export default function AdminInquiriesScreen({
     }
   }
 
+  // 2026-07-10 — 스팸 문의 영구 삭제 (Mig 169 RPC).
+  //   확인 1회 (사장님 spec). converted 실데이터는 서버가 거부 (task_id IS NOT NULL).
+  async function removeSpam(row) {
+    if (busyId) return;
+    if (!row || row.status !== "spam") {
+      alert("스팸 상태만 영구 삭제 가능합니다.");
+      return;
+    }
+    if (row.task_id) {
+      alert("전환된 실데이터 (task_id 존재) — 삭제 불가.");
+      return;
+    }
+    const nameHint = row.name || row.phone || "이 문의";
+    const ok = window.confirm(`정말 삭제할까요?\n\n${nameHint}\n\n※ 이 작업은 되돌릴 수 없습니다.`);
+    if (!ok) return;
+    setBusyId(row.id);
+    try {
+      const res = await deleteInquiry(actorId, row.id);
+      if (!res.ok) {
+        alert("삭제 실패: " + (res.error || "unknown"));
+        return;
+      }
+      // 선택 상태 해제 (PC 우 패널).
+      if (selectedId === row.id) setSelectedId(null);
+      await load();
+    } catch (e) {
+      alert("삭제 실패: " + (e?.message || e));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   // 모바일 [작업 전환] — 부모 prefill 라우팅에 위임
   function convertMobile(row) {
     if (busyId) return;
@@ -151,6 +184,7 @@ export default function AdminInquiriesScreen({
         onBack={onBack}
         onCall={(id) => act(id, "contacted")}
         onSpam={(id) => act(id, "spam")}
+        onDelete={removeSpam}
         onReload={load}
         onPcSubmitDone={onPcSubmitDone}
       />
@@ -171,6 +205,7 @@ export default function AdminInquiriesScreen({
       onBack={onBack}
       onCall={(id) => act(id, "contacted")}
       onSpam={(id) => act(id, "spam")}
+      onDelete={removeSpam}
       onConvert={convertMobile}
       onReload={load}
     />
@@ -182,7 +217,7 @@ export default function AdminInquiriesScreen({
 // ===========================================================
 function AdminInquiriesMobile({
   actorId, apiTasks = [], items, filter, setFilter, loading, error, busyId, newCount,
-  onBack, onCall, onSpam, onConvert, onReload,
+  onBack, onCall, onSpam, onDelete, onConvert, onReload,
 }) {
   // 2026-06-28 — 모바일은 통계를 별도 화면으로 분리 (좁은 폭에서 목록 밀림 차단).
   //   헤더 우측 📊 아이콘 → showStats=true → 통계 전용 화면. 뒤로 → 접수함 복귀.
@@ -275,6 +310,7 @@ function AdminInquiriesMobile({
               busy={busyId === row.id}
               onCall={() => onCall(row.id)}
               onSpam={() => onSpam(row.id)}
+              onDelete={() => onDelete && onDelete(row)}
               onConvert={() => onConvert(row)}
             />
           ))}
@@ -297,10 +333,11 @@ const inqStatsT = {
   accent:         "#FF1B8D",
 };
 
-function MiniCardRow({ row, busy, onCall, onSpam, onConvert }) {
+function MiniCardRow({ row, busy, onCall, onSpam, onDelete, onConvert }) {
   const isNew  = row.status === "new";
   const isSpam = row.status === "spam";
   const phoneClick = row.phone ? `tel:${row.phone}` : null;
+  const canDelete = isSpam && !row.task_id; // 2026-07-10 — 스팸 + 미전환만 삭제 가능
 
   return (
     <article style={{
@@ -353,18 +390,31 @@ function MiniCardRow({ row, busy, onCall, onSpam, onConvert }) {
         </div>
       </div>
 
-      {/* 우측 — 3 아이콘 액션 (스팸은 ⋯ 메뉴 안) */}
+      {/* 우측 — 액션. 스팸이면 삭제(영구) 버튼 노출. 아니면 통화/전환/스팸. */}
       <div style={{ display: "flex", gap: 4, flexShrink: 0, alignItems: "center" }}>
-        <IconBtn label="통화" disabled={busy || isSpam} onClick={() => {
-          if (row.phone) window.location.href = `tel:${row.phone}`;
-          onCall && onCall();
-        }}>
-          <Phone size={16} />
-        </IconBtn>
-        <IconBtn label="작업 전환" variant="primary" disabled={busy || isSpam} onClick={onConvert}>
-          <ArrowRight size={16} />
-        </IconBtn>
-        <RowKebab disabled={busy || isSpam} onSpam={onSpam} />
+        {isSpam ? (
+          <IconBtn
+            label="삭제 (영구)"
+            variant="danger"
+            disabled={busy || !canDelete}
+            onClick={onDelete}
+          >
+            <Trash2 size={16}/>
+          </IconBtn>
+        ) : (
+          <>
+            <IconBtn label="통화" disabled={busy} onClick={() => {
+              if (row.phone) window.location.href = `tel:${row.phone}`;
+              onCall && onCall();
+            }}>
+              <Phone size={16} />
+            </IconBtn>
+            <IconBtn label="작업 전환" variant="primary" disabled={busy} onClick={onConvert}>
+              <ArrowRight size={16} />
+            </IconBtn>
+            <RowKebab disabled={busy} onSpam={onSpam} />
+          </>
+        )}
       </div>
     </article>
   );
@@ -376,7 +426,7 @@ function MiniCardRow({ row, busy, onCall, onSpam, onConvert }) {
 function AdminInquiriesPc({
   t, user, actorId, apiTasks = [], items, filter, setFilter, loading, error, busyId, newCount,
   selectedRow, onSelect, onBack,
-  onCall, onSpam, onReload, onPcSubmitDone,
+  onCall, onSpam, onDelete, onReload, onPcSubmitDone,
 }) {
   return (
     <div style={{ display: "flex", height: "calc(100vh)", background: "#F4F6FA" }}>
@@ -449,6 +499,7 @@ function AdminInquiriesPc({
             busy={busyId === selectedRow.id}
             onCall={() => onCall(selectedRow.id)}
             onSpam={() => onSpam(selectedRow.id)}
+            onDelete={() => onDelete && onDelete(selectedRow)}
             onClose={() => onSelect(null)}
             onSubmitDone={(form) => onPcSubmitDone(form, selectedRow)}
           />
@@ -512,7 +563,7 @@ function PcListRow({ row, selected, onClick }) {
   );
 }
 
-function PcDetailPanel({ t, user, row, busy, onCall, onSpam, onClose, onSubmitDone }) {
+function PcDetailPanel({ t, user, row, busy, onCall, onSpam, onDelete, onClose, onSubmitDone }) {
   const at = toKstYmdHm(row.created_at);
   const initial = {
     principal: "올데이케어",   // PRINCIPALS[0].id 정확 일치
@@ -576,8 +627,22 @@ function PcDetailPanel({ t, user, row, busy, onCall, onSpam, onClose, onSubmitDo
           </>)}
         </div>
 
-        {/* 액션 — PC 는 공간 여유라 통화함/스팸 직접 노출 */}
-        {!isSpam && (
+        {/* 액션 — 스팸이면 삭제(영구), 아니면 통화함/스팸 처리. */}
+        {isSpam ? (
+          <div style={{ display: "flex", gap: 8, marginTop: 14, alignItems: "center" }}>
+            <SmallBtn
+              label="삭제 (영구)"
+              color="#DC2626"
+              disabled={busy || !!row.task_id}
+              onClick={onDelete}
+            />
+            {row.task_id && (
+              <span style={{ fontSize: 11, color: "#93A2B4", fontWeight: 600 }}>
+                전환된 실데이터는 삭제 불가
+              </span>
+            )}
+          </div>
+        ) : (
           <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
             <SmallBtn label="통화함으로 처리" color="#2563EB"
               disabled={busy || row.status === "contacted"} onClick={onCall}/>
@@ -661,11 +726,20 @@ function EmptyBox({ compact }) {
 
 function IconBtn({ children, label, onClick, disabled, variant }) {
   const primary = variant === "primary";
+  const danger  = variant === "danger";  // 2026-07-10 — 삭제(영구) 스팸 액션
+  const bg  = disabled ? "#E5EAF1"
+            : danger   ? "#DC2626"
+            : primary  ? "#2563EB"
+            : "#F4F8FD";
+  const fg  = disabled ? "#9CA8B6"
+            : danger   ? "#fff"
+            : primary  ? "#fff"
+            : "#2563EB";
   return (
     <button onClick={onClick} disabled={disabled} title={label} aria-label={label} style={{
       width: 36, height: 36, borderRadius: 8,
-      background: disabled ? "#E5EAF1" : (primary ? "#2563EB" : "#F4F8FD"),
-      color: disabled ? "#9CA8B6" : (primary ? "#fff" : "#2563EB"),
+      background: bg,
+      color: fg,
       border: "none",
       cursor: disabled ? "not-allowed" : "pointer",
       display: "inline-flex", alignItems: "center", justifyContent: "center",

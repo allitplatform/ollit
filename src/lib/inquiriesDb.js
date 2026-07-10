@@ -73,6 +73,20 @@ export async function setInquiryStatus(actorId, inquiryId, status) {
   if (error) throw error;
 }
 
+// 2026-07-10 — 스팸 문의 영구 삭제 (Mig 169).
+//   조건: status='spam' + task_id IS NULL (converted 실데이터는 삭제 불가).
+//   응답: { ok: true, deleted: true } or { ok: false, error }.
+export async function deleteInquiry(actorId, inquiryId) {
+  if (!actorId)   throw new Error("actorId required");
+  if (!inquiryId) throw new Error("inquiryId required");
+  const { data, error } = await supabase.rpc("delete_inquiry", {
+    p_actor:      actorId,
+    p_inquiry_id: inquiryId,
+  });
+  if (error) throw error;
+  return data || { ok: false, error: "unknown" };
+}
+
 // 인콰이리 → 작업 생성 후 마킹 (best-effort).
 //   Migration 118(convert_inquiry_to_task) 은 폐기됨 — 호출 금지.
 //   대신: 운영자가 "새 접수 폼"을 prefill 로 채워 등록 → apiCreateTask 성공 후 이 함수 호출.
