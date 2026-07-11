@@ -1341,7 +1341,11 @@ function RestoreFromCancelCard({ task, onRestored }) {
   const cat = task?.categoryData || {};
   const prevStatus = cat.previousStatus || null;
   const wasCompleted = cat.wasCompleted === true || cat.wasCompleted === "true";
-  const targetGuess = prevStatus || (wasCompleted ? "완료" : "확정");
+  // 2026-07-11 v3 (Mig 172) — status='취소' 아니면 현재 status 유지 (표식 클리어만).
+  const statusIsCancel = task?.status === "취소";
+  const targetGuess = statusIsCancel
+    ? (prevStatus || (wasCompleted ? "완료" : "확정"))
+    : (task?.status || "확정");
   const remitted = !!(task?.engineerRemittedAt || task?.engineerRemitConfirmedAt);
 
   const [busy, setBusy] = useState(false);
@@ -1399,9 +1403,11 @@ function RestoreFromCancelCard({ task, onRestored }) {
       }}>
         <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5 }}>
           복귀 상태: <strong style={{ color: "#059669" }}>{targetGuess}</strong>
-          {prevStatus
-            ? <span style={{ fontSize: 11, color: "var(--text-secondary)" }}> (취소 직전 상태)</span>
-            : <span style={{ fontSize: 11, color: "var(--text-secondary)" }}> (이전 상태 정보 없음 → fallback)</span>}
+          {!statusIsCancel
+            ? <span style={{ fontSize: 11, color: "var(--text-secondary)" }}> (현재 상태 유지 · 취소 표식만 정리)</span>
+            : prevStatus
+              ? <span style={{ fontSize: 11, color: "var(--text-secondary)" }}> (취소 직전 상태)</span>
+              : <span style={{ fontSize: 11, color: "var(--text-secondary)" }}> (이전 상태 정보 없음 → fallback)</span>}
         </div>
         {remitted && (
           <div style={{
