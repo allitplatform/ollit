@@ -44,7 +44,7 @@ import { AllTasksScreen } from "../components/AllTasksScreen.jsx";
 import { RawOrdersArchiveScreen } from "../components/admin/RawOrdersArchiveScreen.jsx";
 // 2026-06-24 — 홈페이지 접수함 (inquiries) 운영 화면 + 신규 count polling + 마킹 RPC
 import AdminInquiriesScreen from "../components/admin/AdminInquiriesScreen.jsx";
-import { listInquiries, markInquiryConverted, serviceLabel } from "../lib/inquiriesDb.js";
+import { listInquiries, markInquiryConverted, serviceLabel, SERVICE_WORKTYPE } from "../lib/inquiriesDb.js";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../data/paymentMethods.js";
 import { isRefrigerant, getServiceKind } from "../utils/workTypeKind.js";
@@ -2727,6 +2727,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onStatusChange={async (newStatus) => {
           const tk = selectedTaskDetail;
           if (!tk?.id || !newStatus) return;
+          // 2026-07-11 — 사장님 spec: 기종 미정 시 완료·정산 진입 차단.
+          //   기사앱과 동일 원칙. UI dropdown 어느 곳에서 눌러도 여기서 gate.
+          if (tk.applianceUndecided === true && (newStatus === "완료" || newStatus === "정산완료")) {
+            alert("기종을 먼저 선택하세요.\n\n상세 화면 상단 [기종 선택] 버튼으로 진행하세요.");
+            return;
+          }
           try {
             console.log('[V14 2B-2] updateTask 상태', { taskId: tk.id, status: newStatus });
             const res = await apiUpdateTask(tk.id, { status: newStatus });
@@ -3574,6 +3580,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               address:   inquiryRow.address || "",
               workItems: [],               // 전화 확인 후 운영자가 채움
               memo:      `[홈페이지 접수${at ? " " + at : ""}] 희망 서비스: ${serviceLabel(inquiryRow.service_type)}`,
+              // 2026-07-11 — 사장님 spec: 홈페이지 전환 시 종목(workType) 반드시 보존.
+              //   service_type unknown ("잘 모르겠어요") 은 해피콜에서 확정하므로 여기서 빈 값 → 사장님이 폼에서 수동 선택 필요.
+              //   그 외 (refrigerant/cleaning/repair/install) 는 SERVICE_WORKTYPE 매핑으로 자동 세팅.
+              workType:  SERVICE_WORKTYPE[inquiryRow.service_type] || "",
               // 2026-07-11 — 사장님 spec: 홈페이지 전환 자동 '기종 미정' 플래그.
               //   접수 폼에서 사장님이 명시적으로 해제(체크 해제) 하지 않으면 저장 시 true.
               //   나중에 ApplianceSelectModal 로 기종 채우면 자동 해제.
@@ -7324,6 +7334,19 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
             flexShrink: 0, whiteSpace: "nowrap",
           }}>{pill.label}</span>
         )}
+        {/* 2026-07-11 — 사장님 spec: 기종 미정 뱃지 (노랑/주황). */}
+        {task.applianceUndecided && (
+          <span
+            title="기종이 아직 선택되지 않았습니다. 상세에서 [기종 선택] 진행."
+            style={{
+              fontSize: 10, fontWeight: 800,
+              padding: "2px 7px", borderRadius: 8,
+              background: "rgba(245, 158, 11, 0.20)",
+              color: "#F59E0B",
+              border: "1px solid rgba(245, 158, 11, 0.50)",
+              flexShrink: 0, whiteSpace: "nowrap",
+            }}>⚠️ 기종 미정</span>
+        )}
       </div>
 
       {/* 회사 수익 (ActivityGroupSection의 showCompanyProfit 경로만 노출 — 임시 라벨) */}
@@ -9093,6 +9116,8 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     requestTime:   init.requestTime   || "",
     memo:          init.memo          || "",
     estimateTotal: init.estimateTotal || 0,
+    // 2026-07-11 — 사장님 spec: 종목(workType) 보존 (홈페이지 전환 시 채움).
+    workType:      init.workType      || "",
   });
   const [errors, setErrors] = useState({});
 
@@ -9533,7 +9558,8 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         phone:         form.phone,
         address:       form.address,
         region,
-        workType:      head.workType,
+        // 2026-07-11 — 사장님 spec: workItems 비어있어도 종목(workType) 보존 (홈페이지 전환).
+        workType:      head.workType || form.workType || "",
         appliance:     head.appliance,
         qty:           head.qty || 1,
         workItems:     splitItems,              // 다중 항목 (KA 1way 분리됨 / 시트가 catch)

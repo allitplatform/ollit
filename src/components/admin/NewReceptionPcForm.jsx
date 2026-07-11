@@ -69,6 +69,9 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     requestTime:   init.requestTime   || "",
     memo:          init.memo          || "",
     estimateTotal: init.estimateTotal || 0,
+    // 2026-07-11 — 사장님 spec: 종목(workType) 보존. 홈페이지 전환 시 init.workType 넘어옴.
+    //   workItems 비어있어도 root 에 남겨 taskData 저장 시 categoryData.workType 로 저장.
+    workType:      init.workType      || "",
   });
   const [scheduleMode, setScheduleMode] = useState(null);    // null | 'tbd' | 'input'
   const [priceTBD, setPriceTBD] = useState(false);
@@ -344,7 +347,8 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         phone:         form.phone,
         address:       form.address,
         region,
-        workType:      head.workType,
+        // 2026-07-11 — 사장님 spec: workItems 비어있어도 종목(workType) 보존 (홈페이지 전환).
+        workType:      head.workType || form.workType || "",
         appliance:     head.appliance,
         qty:           head.qty || 1,
         workItems:     splitItems,
