@@ -123,7 +123,8 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
         serviceCode: WORK_TYPE_TO_SERVICE[workType] || null,
       };
       const prevCategory = task.categoryData || {};
-      const nextCategory = { ...prevCategory, workItems: [newWorkItem] };
+      // 2026-07-11 — applianceUndecided 플래그 명시 해제 (사장님 spec: 기종 채워지면 해제).
+      const nextCategory = { ...prevCategory, workItems: [newWorkItem], applianceUndecided: false };
 
       console.log("[ApplianceSelect] BEFORE update", {
         taskId: task.id,
@@ -357,13 +358,15 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
 }
 
 // 헬퍼 — task 가 기종 선택 팝업 대상인지 판정.
-//   1) 종목 (workType) 은 있는데 기종 (appliance) 이 비어있음.
-//   2) 또는 workItems 전체가 비어있음 (홈페이지 접수 초기 상태).
+//   우선순위:
+//     1) task.applianceUndecided === true (플래그 명시)   ← 2026-07-11 사장님 spec 추가
+//     2) workItems 안 첫 항목에 workType 있는데 appliance 비어있음
+//     3) workItems 비어있는데 root 에 workType 있음 (홈페이지 접수 초기)
 export function needsApplianceSelection(task) {
   if (!task) return false;
+  if (task.applianceUndecided === true) return true;
   const wi = Array.isArray(task.workItems) ? task.workItems : [];
   if (wi.length === 0) {
-    // workType 만 root 에 있는 경우 → 팝업 필요.
     return !!(task.workType && String(task.workType).trim());
   }
   const first = wi[0] || {};

@@ -171,6 +171,8 @@ export function rowToTask(row) {
 
     // 메타
     categoryData:  cat,
+    // 2026-07-11 — 기종 미정 플래그 (사장님 spec, Mig 없이 category_data jsonb 안).
+    applianceUndecided: cat.applianceUndecided === true,
     // 2026-05-25 Round 2 — 취소 건 기사 수고비 (Migration 073)
     cancelEngineerCompKind:   row.cancel_engineer_comp_kind   || null,
     cancelEngineerCompAmount: row.cancel_engineer_comp_amount ?? null,
@@ -827,6 +829,9 @@ export async function createTaskAdapter(taskData, actor = null) {
     }
 
     // [4] category_data jsonb 구성 (workItems / 메타)
+    // 2026-07-11 — applianceUndecided 플래그 (사장님 spec: 기종 미정 명시).
+    //   홈페이지 전환 or 접수 폼에서 '기종 미정' 체크 시 true 저장.
+    //   기종 선택 팝업 후 자동 해제 (ApplianceSelectModal 에서 workItems 완성 시 별도 처리).
     const categoryData = {
       ...(taskData.workItems ? { workItems: taskData.workItems } : {}),
       ...(taskData.workType  ? { workType:  taskData.workType  } : {}),
@@ -834,6 +839,7 @@ export async function createTaskAdapter(taskData, actor = null) {
       ...(taskData.qty       ? { qty:       taskData.qty       } : {}),
       ...(taskData.quote     ? { quote:     taskData.quote     } : {}),
       ...(taskData.scheduleType ? { scheduleType: taskData.scheduleType } : {}),
+      ...(taskData.applianceUndecided === true ? { applianceUndecided: true } : {}),
     };
 
     // [5] tasks row INSERT — 2026-06-03 unique violation 측측 측측 측측 (최대 5측측).

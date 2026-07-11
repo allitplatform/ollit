@@ -72,6 +72,9 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
   });
   const [scheduleMode, setScheduleMode] = useState(null);    // null | 'tbd' | 'input'
   const [priceTBD, setPriceTBD] = useState(false);
+  // 2026-07-11 — 사장님 spec: 기종 미정 체크 (홈페이지 전환 등 workItems 비어있는 상황).
+  //   init.applianceUndecided true 로 넘어오면 기본 체크 (홈페이지 전환 흐름).
+  const [applianceUndecided, setApplianceUndecided] = useState(init.applianceUndecided === true);
   const [estimateTouched, setEstimateTouched] = useState(false);
   const [workItems, setWorkItems] = useState(Array.isArray(init.workItems) ? init.workItems : []);
   const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
@@ -304,7 +307,10 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     if (!form.principal) errs.principal = "원청을 선택하세요.";
     if (!form.phone || form.phone.replace(/\D/g, "").length < 9) errs.phone = "연락처를 입력하세요.";
     if (!form.address) errs.address = "주소를 입력하세요.";
-    if (workItems.length === 0) errs.workItems = "작업항목을 1개 이상 추가하세요.";
+    // 2026-07-11 — 사장님 spec: workItems 비어있으면 '기종 미정' 체크 필수.
+    if (workItems.length === 0 && !applianceUndecided) {
+      errs.workItems = "작업항목을 1개 이상 추가하거나 '기종 미정'을 체크하세요.";
+    }
     // 2026-07-10 — appliance="" 저장 사고 방지 (A-260710-003 등 policy_not_found 원인).
     //   냉매충전 대상 명시적 메시지 (카톡 파싱이 기종 미인식 시 "" 세팅).
     for (const it of workItems) {
@@ -342,6 +348,8 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         appliance:     head.appliance,
         qty:           head.qty || 1,
         workItems:     splitItems,
+        // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
+        applianceUndecided: workItems.length === 0 && applianceUndecided,
         quote:         priceTBD ? 0 : (form.estimateTotal || 0),
         estimateTotal: priceTBD ? 0 : (form.estimateTotal || 0),
         workDate:      scheduleMode === "input" ? form.requestDate : "",
@@ -602,6 +610,17 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
                     setEstimateTouched(false);
                   }}/>
                 견적 미정
+              </label>
+              {/* 2026-07-11 — 사장님 spec: '기종 미정' 체크박스. 견적 미정과 짝.
+                    workItems 비어있을 때 이 체크 없으면 저장 차단. */}
+              <label style={{
+                display: "flex", alignItems: "center", gap: 6,
+                fontSize: 12, color: t.textSecondary, fontWeight: 600,
+                cursor: "pointer",
+              }}>
+                <input type="checkbox" checked={applianceUndecided}
+                  onChange={(e) => setApplianceUndecided(e.target.checked)}/>
+                기종 미정
               </label>
             </div>
             {!priceTBD && autoEstimateValue != null && autoEstimateValue !== form.estimateTotal && (

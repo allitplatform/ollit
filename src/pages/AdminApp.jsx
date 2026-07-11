@@ -3574,6 +3574,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               address:   inquiryRow.address || "",
               workItems: [],               // 전화 확인 후 운영자가 채움
               memo:      `[홈페이지 접수${at ? " " + at : ""}] 희망 서비스: ${serviceLabel(inquiryRow.service_type)}`,
+              // 2026-07-11 — 사장님 spec: 홈페이지 전환 자동 '기종 미정' 플래그.
+              //   접수 폼에서 사장님이 명시적으로 해제(체크 해제) 하지 않으면 저장 시 true.
+              //   나중에 ApplianceSelectModal 로 기종 채우면 자동 해제.
+              applianceUndecided: true,
             },
           });
           setScreen("newReceptionForm");
@@ -9125,6 +9129,9 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   //   체크 측: estimateTotal=0 + input disabled + product_price=0 측 저장
   //   기사 측 작업 완료 측 현장 추가금 측 측 (allday 측 동일 흐름)
   const [priceTBD, setPriceTBD] = useState(false);
+  // 2026-07-11 — 사장님 spec: '기종 미정' 체크. 견적 미정과 짝.
+  //   init.applianceUndecided true (홈페이지 전환) → 기본 체크.
+  const [applianceUndecided, setApplianceUndecided] = useState(init.applianceUndecided === true);
 
   // V14 헌법 v6 — 작업유형 5가지 / 기종 7가지
   const workTypes = ["세척", "냉매충전", "누설", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
@@ -9483,7 +9490,10 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     if (!form.principal)            errs.principal = "원청 선택";
     if (!form.phone.trim())         errs.phone = "연락처 입력";
     if (!form.address.trim())       errs.address = "주소 입력";
-    if (workItems.length === 0)     errs.workItems = "작업 항목 1개 이상";
+    // 2026-07-11 — 사장님 spec: workItems 비어있으면 '기종 미정' 체크 필수.
+    if (workItems.length === 0 && !applianceUndecided) {
+      errs.workItems = "작업 항목 1개 이상 or '기종 미정' 체크";
+    }
     // 2026-07-10 — appliance="" 저장 사고 방지 (A-260710-003 등 policy_not_found 원인).
     //   PC 폼은 requiresApplianceFor 로 막고 있으나 모바일 폼에는 개별 검증 부재.
     //   카톡 파싱이 냉매 기종 미인식 시 appliance="" 로 저장 → 여기 필수 검사로 저장 차단.
@@ -9527,6 +9537,8 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         appliance:     head.appliance,
         qty:           head.qty || 1,
         workItems:     splitItems,              // 다중 항목 (KA 1way 분리됨 / 시트가 catch)
+        // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
+        applianceUndecided: workItems.length === 0 && applianceUndecided,
         quote:         form.estimateTotal,
         estimateTotal: form.estimateTotal,
         workDate:      form.requestDate,
@@ -9909,6 +9921,25 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
               style={{ margin: 0, cursor: "pointer" }}
             />
             <span>견적 금액 미정 (현장 측 측 확정)</span>
+          </label>
+          {/* 2026-07-11 — 사장님 spec: '기종 미정' 체크 (견적 미정과 짝).
+                workItems 비어있어도 저장 허용. 작업 목록/상세에 뱃지 표시. */}
+          <label style={{
+            display: "flex", alignItems: "center", gap: 8,
+            padding: "8px 10px", marginBottom: 10,
+            background: applianceUndecided ? t.accentBg : t.bgInset,
+            border: `1px solid ${applianceUndecided ? t.accent : t.border}`,
+            borderRadius: 8, cursor: "pointer",
+            fontSize: 12, fontWeight: 600,
+            color: applianceUndecided ? t.accent : t.textSecondary,
+          }}>
+            <input
+              type="checkbox"
+              checked={applianceUndecided}
+              onChange={(e) => setApplianceUndecided(e.target.checked)}
+              style={{ margin: 0, cursor: "pointer" }}
+            />
+            <span>기종 미정 (예약확정 or 현장에서 선택)</span>
           </label>
 
           {/* 단축 칩 */}
