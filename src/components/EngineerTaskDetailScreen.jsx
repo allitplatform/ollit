@@ -33,6 +33,8 @@ import { WorkItemRow } from "./WorkItemRow.jsx";
 import { rescheduleEngineerTask, engineerFullCancel } from "../lib/engineerTaskRpc.js";
 // 2026-06-19 Step 2b — 기사 본인 영수증 발행 (운영자 DocIssueScreen 의 기사 모드 재사용)
 import DocIssueScreen from "./admin/DocIssueScreen.jsx";
+// 2026-07-11 — 홈페이지 접수 기종 미정 팝업 (현장 완료 처리 전 선택).
+import { ApplianceSelectModal, needsApplianceSelection } from "./ApplianceSelectModal.jsx";
 // 2026-05-27 Phase 2 — Supabase task_memos (운영자↔기사 양방향)
 import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
 // 2026-05-29 — 결제 방식 라벨 (현장결제/선결제 등 안전 정보 시각화)
@@ -224,6 +226,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   const [workMemo, setWorkMemo] = useState(task.workMemo || "");
   const [menuOpen, setMenuOpen] = useState(false);
   const [subScreen, setSubScreen] = useState(null); // null / "cancel" / "reschedule" / "complete" / "refriAddonConsent" / "docIssue" (2026-06-19 Step 2b) 등
+  // 2026-07-11 — 홈페이지 접수 기종 미정 팝업 (사장님 spec, 현장에서 선택).
+  const [showApplianceModal, setShowApplianceModal] = useState(false);
   // 2026-06-03 — Phase 1 보강: 세척+냉매충전 동의서 측측.
   //   [완료 처리] 측 "예" 측측 측 RefrigerantConsentScreen 측측 측측 측측 측측. 동의 완료 측측 측측 측측.
   //   취소/뒤로 측측 완료 화면 측측 — 측측 측측 측측 (= 측측 측측 측측).
@@ -895,6 +899,55 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         {/* 2026-05-25 — ⋮ 메뉴 제거. 일정변경/재배정/취소 는 하단 '일정 변경 · 취소' 카드로 통합. */}
         <div style={{ width: 56 }} aria-hidden="true"/>
       </div>
+
+      {/* 2026-07-11 — 홈페이지 접수 (기종 미정) 배너. 클릭 → 기종 선택 팝업.
+            사장님 spec: 현장에서 알게 됐을 때 선택 → lookupRate → 금액 자동. */}
+      {needsApplianceSelection(task) && !isCompleted && (
+        <div style={{
+          margin: "8px 16px 0",
+          padding: "12px 14px",
+          background: "#FFF7ED",
+          border: "1px solid #F59E0B",
+          borderLeft: "4px solid #F59E0B",
+          borderRadius: 10,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 10, flexWrap: "wrap",
+        }}>
+          <div style={{ minWidth: 0, color: "#78350F" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#9A3412" }}>⚠️ 기종 미정</div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, marginTop: 2 }}>
+              홈페이지 접수. 완료 처리 전 기종을 선택해주세요.
+            </div>
+          </div>
+          <button
+            onClick={() => setShowApplianceModal(true)}
+            style={{
+              padding: "8px 16px",
+              background: "#F59E0B", border: "none",
+              borderRadius: 8, color: "#fff",
+              fontSize: 13, fontWeight: 800,
+              cursor: "pointer", fontFamily: "inherit",
+              flexShrink: 0,
+            }}>기종 선택</button>
+        </div>
+      )}
+      {showApplianceModal && (
+        <ApplianceSelectModal
+          task={task}
+          onClose={() => setShowApplianceModal(false)}
+          onSaved={() => {
+            setShowApplianceModal(false);
+            // 상세 재로드 트리거 — 부모(EngineerApp) 의 refreshTask 콜백이 있으면 호출.
+            //   없으면 페이지 새로고침 (fallback).
+            if (typeof onBack === "function") {
+              // onBack 은 뒤로가기용. 재로드용 별도 콜백 없음 → 자동 새로고침 대신
+              // 사용자에게 안내 후 뒤로. 다음 진입 시 최신 데이터.
+              alert("기종 저장 완료. 다시 이 작업을 열면 반영됩니다.");
+              onBack();
+            }
+          }}
+        />
+      )}
 
       {/* V14 — 확정/진행중 = 통합 메인 카드 (시간 + 작업 항목 + 고객) */}
       {(isConfirmed || isInProgress) && <WorkMainCard task={task} itemEngineerAmounts={itemEngineerAmounts}/>}
@@ -3164,6 +3217,12 @@ function CancelScreen({ task, itemEngineerAmounts = {}, onBack, onConfirm }) {
     </div>
   );
 }
+
+// 2026-07-11 — 홈페이지 접수 기종 미정 팝업 — 별도 export 없이 main 함수 return 안에 렌더.
+//   위 CancelScreen 은 별도 컴포넌트지만 ApplianceSelectModal 은 EngineerTaskDetailScreen 안에서
+//   showApplianceModal state 로 render. 아래 main return 종료 전에 삽입은 스코프 상 불가 →
+//   대신 상단 배너와 나란히 sibling 으로 삽입 (return 첫 자식 뒤).
+//   ⚠️ 이 주석은 문서화 목적, 실제 렌더는 아래 main return 안 상단 배너 옆에 이미 추가된 상태.
 
 // ──────────────── RescheduleScreen (일정 변경) ────────────────
 function RescheduleScreen({ task, onBack, onConfirm }) {

@@ -7,6 +7,8 @@ import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
 // 2026-06-06 — 기본 정보 편집 (5 필드 — update_task_basic RPC, Mig 099).
 import { TaskBasicEditScreen } from "./TaskBasicEditScreen.jsx";
+// 2026-07-11 — 홈페이지 접수 기종 미정 팝업.
+import { ApplianceSelectModal, needsApplianceSelection } from "./ApplianceSelectModal.jsx";
 import { Chip } from "./Chip.jsx";
 // 2026-06-26 — 공지 3단계: 운영자 → 기사 작업 메시지 (옵션 c 서버 저장 + 푸시).
 import { SendTaskMessageModal } from "./admin/SendTaskMessageModal.jsx";
@@ -81,6 +83,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   // 2026-06-26 — 운영자 → 기사 메시지 모달 (옵션 c).
   const [showMessageModal, setShowMessageModal] = useState(false);
+  // 2026-07-11 — 홈페이지 접수 기종 미정 팝업 (사장님 spec).
+  const [showApplianceModal, setShowApplianceModal] = useState(false);
   const [sendStatus, setSendStatus] = useState("");  // 토스트 — "전송됨" / "전송 실패" 등
   const actorIdForMessage = user?.user_id || user?.userId || user?.id || null;
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
@@ -273,6 +277,37 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           cursor: "pointer", fontFamily: "inherit",
         }}>수정</button>
       </div>
+      {/* 2026-07-11 — 홈페이지 접수 (기종 미정) 배너. 클릭 → 기종 선택 팝업.
+            사장님 spec: 예약확정/배정 단계에서 기종 선택 → lookupRate → 금액 자동. */}
+      {needsApplianceSelection(task) && (
+        <div style={{
+          margin: "8px 12px 0",
+          padding: "12px 14px",
+          background: "#FFF7ED",
+          border: "1px solid #F59E0B",
+          borderLeft: "4px solid #F59E0B",
+          borderRadius: 10,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 10, flexWrap: "wrap",
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#9A3412" }}>⚠️ 기종 미정</div>
+            <div style={{ fontSize: 11.5, color: "#78350F", fontWeight: 600, marginTop: 2 }}>
+              홈페이지 접수 — 기종·금액 미정 상태. 예약확정 전 기종을 선택하세요.
+            </div>
+          </div>
+          <button
+            onClick={() => setShowApplianceModal(true)}
+            style={{
+              padding: "8px 16px",
+              background: "#F59E0B", border: "none",
+              borderRadius: 8, color: "#fff",
+              fontSize: 13, fontWeight: 800,
+              cursor: "pointer", fontFamily: "inherit",
+              flexShrink: 0,
+            }}>기종 선택</button>
+        </div>
+      )}
       {/* 카드 1 — 상태 + 작업 종류 측 catch (변경 X) */}
       <MainCard task={task} onStatusChange={onStatusChange}/>
       {/* 카드 2 — 2026-05-26 D-2: 작업 정보 통합 (연락처/주소/일정 + 배정 프로 + 측 측 측 측)
@@ -361,6 +396,16 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
             setShowCancelDialog(false);
             onCancelTask && onCancelTask(reasonId, memo);
           }}
+        />
+      )}
+
+      {/* 2026-07-11 — 홈페이지 접수 기종 미정 팝업 (사장님 spec).
+            저장 성공 시 reloadTask() → category_data 재조회 + Mig 017 트리거 결과 반영. */}
+      {showApplianceModal && (
+        <ApplianceSelectModal
+          task={task}
+          onClose={() => setShowApplianceModal(false)}
+          onSaved={() => { setShowApplianceModal(false); reloadTask(); }}
         />
       )}
 
