@@ -15,6 +15,7 @@ import {
   ymdKstToday,
 } from "../../lib/inquiryStatsDb.js";
 import { listInquiries } from "../../lib/inquiriesDb.js";
+import { toKstYmd } from "../../utils/dateLabel.js";
 
 const ACCENT       = "#FF1B8D";
 const COLOR_TOTAL  = "#3B82F6";   // 접수 — 파랑
@@ -23,8 +24,12 @@ const COLOR_CONV   = "#16A34A";   // 성사 — 초록
 const COLOR_DONE   = "#FF1B8D";   // 완료 — 핑크 (accent)
 const COLOR_INQ_ONLY = "#F59E0B"; // 문의만(미배정) — 주황
 
-// 히어로는 all-time 지표. funnel 을 넉넉한 범위로 조회.
-const ALL_TIME_START = "2020-01-01";
+// 2026-07-11 — 기간 프리셋 (사장님 spec). custom 은 date picker.
+const PERIOD_OPTS = [
+  { id: "today",  label: "오늘" },
+  { id: "month",  label: "이번 달" },
+  { id: "custom", label: "직접 선택" },
+];
 
 function fmtNum(n) { return (Number(n) || 0).toLocaleString("ko-KR"); }
 function fmtPct(n) {
@@ -43,16 +48,33 @@ export function InquiryStatsHeader(props) {
 }
 
 function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
-  // 2026-07-10 hotfix — apiTasks undefined 방어 (사장님 크래시 리포트).
-  //   default parameter `= []` 는 caller 가 명시적으로 undefined 넘길 때만 발동.
-  //   실제로는 null 이 넘어올 수도 → 안 fallback.
+  // 2026-07-10 hotfix — apiTasks undefined 방어.
   const safeTasks = Array.isArray(apiTasks) ? apiTasks : [];
   const [totals, setTotals]   = useState({});
   const [funnel, setFunnel]   = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
-  // 2026-07-10 — 성사/완료 판정: converted inquiries.task_id → apiTasks join.
-  const [convertedTaskIds, setConvertedTaskIds] = useState(() => new Set());
+  // 2026-07-11 — 기간 필터 (사장님 spec).
+  const [period, setPeriod]   = useState("today");
+  const [customStart, setCustomStart] = useState(() => ymdKstToday());
+  const [customEnd,   setCustomEnd]   = useState(() => ymdKstToday());
+  // 성사/완료 판정: converted inquiries → 기간 필터 후 task_id 만 Set.
+  const [convertedRows, setConvertedRows] = useState([]);
+
+  // 선택 기간 계산.
+  const { startYmd, endYmd } = useMemo(() => {
+    const today = ymdKstToday();
+    if (period === "today") return { startYmd: today, endYmd: today };
+    if (period === "month") {
+      const [y, m] = today.split("-").map(Number);
+      return { startYmd: `${y}-${String(m).padStart(2,"0")}-01`, endYmd: today };
+    }
+    // custom
+    let s = customStart || today;
+    let e = customEnd   || s;
+    if (s > e) { const tmp = s; s = e; e = tmp; }
+    return { startYmd: s, endYmd: e };
+  }, [period, customStart, customEnd]);
 
   useEffect(() => {
     if (!actorId) return;
@@ -60,26 +82,31 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
     setLoading(true);
     setError("");
 
-    const today = ymdKstToday();
-
     Promise.all([
-      // 히어로 퍼널: 전 기간 (사장님 spec 성사/완료 중심).
-      getInquiryFunnel({ actorId, startYmd: ALL_TIME_START, endYmd: today }),
-      // 2026-07-10 — converted inquiries.task_id → apiTasks join (성사/완료 판별).
+      getInquiryFunnel({ actorId, startYmd, endYmd }),
       listInquiries(actorId, "converted"),
     ]).then(([fRes, cvRows]) => {
       if (!alive) return;
       if (!fRes.ok) setError(fRes.error || "통계 불러오기 실패");
       else { setTotals(fRes.totals); setFunnel(fRes.funnel); }
-      const ids = new Set();
-      for (const r of (cvRows || [])) {
-        if (r.task_id) ids.add(String(r.task_id));
-      }
-      setConvertedTaskIds(ids);
+      setConvertedRows(cvRows || []);
     }).finally(() => { if (alive) setLoading(false); });
 
     return () => { alive = false; };
-  }, [actorId]);
+  }, [actorId, startYmd, endYmd]);
+
+  // 2026-07-11 — 성사/완료 계산 시 그 기간 안 접수 (created_at KST) 만 대상.
+  const convertedTaskIds = useMemo(() => {
+    const ids = new Set();
+    for (const r of convertedRows) {
+      const created = r.created_at;
+      if (!created) continue;
+      const k = toKstYmd(created);
+      if (!k || k < startYmd || k > endYmd) continue;
+      if (r.task_id) ids.add(String(r.task_id));
+    }
+    return ids;
+  }, [convertedRows, startYmd, endYmd]);
 
   // 2026-07-10 v3 — 사장님 확정 spec:
   //   전체 접수(스팸 포함) → 스팸(회색) → 유효 접수 → 문의만(미성사) + 성사 → 완료.
@@ -183,11 +210,20 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
       marginBottom: 14,
       display: "flex", flexDirection: "column", gap: 14,
     }}>
-      {/* 2026-07-10 사장님 확정 — 딱 3개 큰 숫자:
-            1. 전체 접수 (스팸 포함) — 아래 "스팸 N" 작게 병기.
-            2. 성사 = task 존재 + 기사 배정.
-            3. 완료 = task 완료 / 정산완료.
-            task 데이터 없으면 성사/완료 "—" (전체 접수는 뜨게, 부분 실패 격리). */}
+      {/* 2026-07-11 — 기간 필터 (사장님 spec: 오늘 / 이번 달 / 직접 선택). */}
+      <PeriodFilter
+        t={t}
+        period={period}
+        setPeriod={setPeriod}
+        customStart={customStart}
+        setCustomStart={setCustomStart}
+        customEnd={customEnd}
+        setCustomEnd={setCustomEnd}
+        startYmd={startYmd}
+        endYmd={endYmd}
+      />
+
+      {/* 2026-07-10 사장님 확정 — 딱 3개 큰 숫자 (선택 기간 기준으로 재계산). */}
       <SimpleThreeStats
         t={t}
         totalT={totalT}
@@ -197,18 +233,6 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
         loading={loading}
         tasksAvailable={safeTasks.length > 0}
       />
-
-      {/* 미니 라인 — 오늘 · 이번달 (히어로 대비 보조) */}
-      <div style={{
-        display: "flex", gap: 12, flexWrap: "wrap",
-        fontSize: 11, fontWeight: 700,
-        color: t.textSecondary || "var(--text-secondary)",
-        paddingTop: 4, borderTop: `1px dashed ${t.border || "var(--border)"}`,
-      }}>
-        <span>오늘 <span className="mono" style={{ color: t.text || "var(--text-primary)", fontWeight: 800 }}>{fmtNum(totals.today)}</span> 건</span>
-        <span style={{ color: t.textMuted }}>·</span>
-        <span>이번 달 <span className="mono" style={{ color: t.text || "var(--text-primary)", fontWeight: 800 }}>{fmtNum(totals.this_month)}</span> 건</span>
-      </div>
 
       {/* 2026-07-10 — 일별 막대그래프 폐기. 대신 퍼널 바 (전체 → 성사 → 완료).
             각 단계 폭 % + 절대값. 단계 전환율 (접수→성사, 성사→완료) 별도 표기. */}
@@ -360,6 +384,96 @@ function FunnelRow({ t, label, color, pct, value, showValue, disabled }) {
         ) : (
           <span style={{ color: t.textMuted }}>—</span>
         )}
+      </div>
+    </div>
+  );
+}
+
+// 2026-07-11 — 기간 필터 세그먼트 + custom date picker.
+//   [오늘] [이번 달] [직접 선택]. 선택 기간 라벨 표시.
+function PeriodFilter({ t, period, setPeriod, customStart, setCustomStart, customEnd, setCustomEnd, startYmd, endYmd }) {
+  const isCustom = period === "custom";
+  const rangeLabel = startYmd === endYmd ? `${startYmd} (하루)` : `${startYmd} ~ ${endYmd}`;
+  const periodLabel = period === "today" ? "오늘"
+                    : period === "month" ? "이번 달"
+                    : "직접 선택";
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {/* 프리셋 세그먼트 */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        {PERIOD_OPTS.map(opt => {
+          const on = period === opt.id;
+          return (
+            <button
+              key={opt.id}
+              type="button"
+              onClick={() => setPeriod(opt.id)}
+              style={{
+                padding: "6px 14px",
+                background: on ? "#FF1B8D" : "transparent",
+                border: `1px solid ${on ? "#FF1B8D" : (t.border || "var(--border)")}`,
+                borderRadius: 999,
+                color: on ? "#fff" : (t.textSecondary || "var(--text-secondary)"),
+                fontSize: 12, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>{opt.label}</button>
+          );
+        })}
+      </div>
+
+      {/* custom 시 시작~종료 date picker */}
+      {isCustom && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            type="date"
+            value={customStart}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) return;
+              setCustomStart(v);
+              if (v > customEnd) setCustomEnd(v);
+            }}
+            style={{
+              padding: "5px 10px",
+              background: t.bgElevated || "#fff",
+              border: `1px solid ${t.border || "var(--border)"}`,
+              borderRadius: 8,
+              color: t.text || "var(--text-primary)",
+              fontSize: 12, fontWeight: 700,
+              fontFamily: "inherit", outline: "none",
+            }}
+            aria-label="시작일"
+          />
+          <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 700 }}>~</span>
+          <input
+            type="date"
+            value={customEnd}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) return;
+              setCustomEnd(v);
+              if (v < customStart) setCustomStart(v);
+            }}
+            style={{
+              padding: "5px 10px",
+              background: t.bgElevated || "#fff",
+              border: `1px solid ${t.border || "var(--border)"}`,
+              borderRadius: 8,
+              color: t.text || "var(--text-primary)",
+              fontSize: 12, fontWeight: 700,
+              fontFamily: "inherit", outline: "none",
+            }}
+            aria-label="종료일"
+          />
+        </div>
+      )}
+
+      {/* 선택 기간 라벨 */}
+      <div style={{
+        fontSize: 11, color: t.textMuted || "var(--text-tertiary, var(--text-secondary))",
+        fontWeight: 600,
+      }}>
+        {periodLabel} · {rangeLabel} · KST
       </div>
     </div>
   );
