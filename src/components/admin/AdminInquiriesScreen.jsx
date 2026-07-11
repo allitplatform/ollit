@@ -398,17 +398,24 @@ function MiniCardRow({ row, busy, onCall, onSpam, onDelete, onConvert }) {
       alignItems: "center",
     }}>
       <div style={{ minWidth: 0 }}>
-        {/* 1행 — 아이콘 + 이름 + 상태점 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+        {/* 1행 — 아이콘 + 종목 라벨 + 이름 + 상태점.
+              2026-07-11 — 사장님 spec: 종목 라벨 (한글) 병기. 아이콘 유지. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3, flexWrap: "wrap" }}>
           <ServiceTypeIcon
             workType={SERVICE_WORKTYPE[row.service_type] || ""}
             size={15}
             showLabel={false}
           />
           <span style={{
+            fontSize: 11.5, fontWeight: 800, color: "#2563EB",
+            background: "#EAF2FB", padding: "2px 8px", borderRadius: 999,
+            whiteSpace: "nowrap", flexShrink: 0,
+          }}>{serviceLabel(row.service_type)}</span>
+          <span style={{
             fontSize: 15, fontWeight: 800, color: "#1C2B3A",
             letterSpacing: "-0.3px",
             whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            minWidth: 0,
           }}>{row.name || "이름 미입력"}</span>
           {isNew && (
             <span aria-label="신규" style={{
@@ -589,12 +596,19 @@ function PcListRow({ row, selected, onClick }) {
       fontFamily: "inherit",
       minWidth: 0,
     }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+      {/* 1행 — 아이콘 + 종목 라벨 pill + 이름 + 상태점.
+            2026-07-11 — 사장님 spec: 종목 한글 라벨 병기. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 5, marginBottom: 3, flexWrap: "wrap" }}>
         <ServiceTypeIcon
           workType={SERVICE_WORKTYPE[row.service_type] || ""}
           size={14}
           showLabel={false}
         />
+        <span style={{
+          fontSize: 10.5, fontWeight: 800, color: "#2563EB",
+          background: "#EAF2FB", padding: "1px 7px", borderRadius: 999,
+          whiteSpace: "nowrap", flexShrink: 0,
+        }}>{serviceLabel(row.service_type)}</span>
         <span style={{
           fontSize: 14, fontWeight: 800, color: "#1C2B3A",
           letterSpacing: "-0.3px",
@@ -654,12 +668,19 @@ function PcDetailPanel({ t, user, row, busy, onCall, onSpam, onDelete, onClose, 
         background: "#fff", border: "1px solid #E5EAF1",
         borderRadius: 12, padding: "16px 18px", marginBottom: 14,
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8, flexWrap: "wrap" }}>
+        {/* 상단 1행 — 아이콘 + 종목 pill + 이름 + 신규 + 접수시각.
+              2026-07-11 — 사장님 spec: 종목 한글 라벨 명확 표시 (SERVICE_LABEL). */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
           <ServiceTypeIcon
             workType={SERVICE_WORKTYPE[row.service_type] || ""}
             size={18}
-            showLabel={true}
+            showLabel={false}
           />
+          <span style={{
+            fontSize: 12.5, fontWeight: 800, color: "#2563EB",
+            background: "#EAF2FB", padding: "3px 10px", borderRadius: 999,
+            whiteSpace: "nowrap", flexShrink: 0,
+          }}>{serviceLabel(row.service_type)}</span>
           <span style={{ fontSize: 20, fontWeight: 900, color: "#1C2B3A", letterSpacing: "-0.5px" }}>
             {row.name || "이름 미입력"}
           </span>

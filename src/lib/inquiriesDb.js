@@ -13,12 +13,13 @@
 import { supabase } from "./supabase";
 
 // service_type 코드 → 손님 표시 한글 (중앙화 — 랜딩 SERVICE_CODE 의 역방향).
+// 2026-07-11 — 사장님 spec: unknown 라벨을 "잘 모르겠어요(방문진단)" 로 명확화.
 export const SERVICE_LABEL = {
   refrigerant: "냉매충전",
   cleaning:    "분해세척",
   repair:      "수리·누설수리",
   install:     "에어컨 설치",
-  unknown:     "미정",
+  unknown:     "잘 모르겠어요(방문진단)",
 };
 
 export function serviceLabel(code) {
