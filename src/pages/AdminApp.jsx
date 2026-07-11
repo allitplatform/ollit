@@ -3583,7 +3583,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               // 2026-07-11 — 사장님 spec: 홈페이지 전환 시 종목(workType) 반드시 보존.
               //   service_type unknown ("잘 모르겠어요") 은 해피콜에서 확정하므로 여기서 빈 값 → 사장님이 폼에서 수동 선택 필요.
               //   그 외 (refrigerant/cleaning/repair/install) 는 SERVICE_WORKTYPE 매핑으로 자동 세팅.
-              workType:  SERVICE_WORKTYPE[inquiryRow.service_type] || "",
+              workType:  (console.log("[InquiryConvert] service_type=", inquiryRow.service_type, "→ workType=", SERVICE_WORKTYPE[inquiryRow.service_type]), SERVICE_WORKTYPE[inquiryRow.service_type] || ""),
               // 2026-07-11 — 사장님 spec: 홈페이지 전환 자동 '기종 미정' 플래그.
               //   접수 폼에서 사장님이 명시적으로 해제(체크 해제) 하지 않으면 저장 시 true.
               //   나중에 ApplianceSelectModal 로 기종 채우면 자동 해제.
@@ -5487,11 +5487,27 @@ function NewReceptionScreen({
         return determineMainWorkType(r.workItems) === type;
       });
     }
-    return {
+    // 2026-07-11 — 사장님 spec: 카운트와 리스트 일치 필수.
+    //   4그룹 (세척/냉매/누설/설치) 어디에도 안 잡힌 것들 → "기타" 그룹.
+    //   기종 미정 (workType 없거나 예외 workType) task 누락 방지.
+    const groups = {
       세척:    getByType("세척"),
       냉매충전: getByType("냉매충전"),
       누설:    getByType("누설"),
       설치:    getByType("설치"),
+    };
+    const bucketed = new Set([
+      ...groups.세척, ...groups.냉매충전, ...groups.누설, ...groups.설치,
+    ].map(r => r.id));
+    const others = unique.filter(r => !bucketed.has(r.id));
+    if (others.length > 0) {
+      console.log("[NewReceptionScreen] 기타 그룹 (workType 미분류)", others.map(r => ({
+        id: r.id, workType: r.workType, hasWorkItems: (r.workItems || []).length, applianceUndecided: r.applianceUndecided,
+      })));
+    }
+    return {
+      ...groups,
+      기타: others,
     };
   };
   const [tasks, setTasks] = useState(computeTasks);
@@ -5516,7 +5532,9 @@ function NewReceptionScreen({
   const refrigerants = filterByQuery(tasks.냉매충전);
   const leaks        = filterByQuery(tasks.누설);
   const installs     = filterByQuery(tasks.설치);
-  const total = cleanings.length + refrigerants.length + leaks.length + installs.length;
+  // 2026-07-11 — 사장님 spec: 미분류 (기종 미정 / workType 예외) 그룹 추가.
+  const others       = filterByQuery(tasks.기타 || []);
+  const total = cleanings.length + refrigerants.length + leaks.length + installs.length + others.length;
 
   // 헤더 텍스트 + 그룹 표시 분기 (filter prop)
   // 2026-06-25 — 누설/설치 분류 추가 (StatBox 진입 시 filter=null → 4그룹 전부 표시).
@@ -5524,6 +5542,7 @@ function NewReceptionScreen({
   const showRefrigerants = !filter || filter === "냉매충전";
   const showLeaks        = !filter || filter === "누설";
   const showInstalls     = !filter || filter === "설치";
+  const showOthers       = !filter; // '기타' 는 필터 없을 때만 표시 (전체 리스트).
   const headerText =
     filter === "세척"     ? `에어컨 세척 ${cleanings.length}건` :
     filter === "냉매충전" ? `냉매 충전 ${refrigerants.length}건` :
@@ -5729,6 +5748,21 @@ function NewReceptionScreen({
         {showInstalls && installs.length > 0 && (
           <ReceptionGroup t={t} workType="설치" title="설치" subtitle="신규" subtitleColor={t.textMuted} count={installs.length}>
             {installs.map((task) => (
+              <CleaningCard key={task.id} t={t} task={task}
+                onAssign={() => onAssign(task)}
+                onMemo={() => setMemoTask(task)}
+                onEdit={() => setEditingTask(task)}
+                onCardMenuAction={onCardMenuAction}
+              />
+            ))}
+          </ReceptionGroup>
+        )}
+
+        {/* 2026-07-11 — 사장님 spec: 4그룹 미분류 (기종 미정 등) task 노출.
+              카운트와 리스트 항상 일치 보장. */}
+        {showOthers && others.length > 0 && (
+          <ReceptionGroup t={t} workType="" title="기타" subtitle="기종/종목 미정" subtitleColor="#F59E0B" count={others.length}>
+            {others.map((task) => (
               <CleaningCard key={task.id} t={t} task={task}
                 onAssign={() => onAssign(task)}
                 onMemo={() => setMemoTask(task)}
@@ -9571,11 +9605,15 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         scheduledDate: form.requestDate,
         scheduledTime: form.requestTime,
         memo:          form.memo,
-        // 2026-05-10 명세 — 신규 접수 default = "미배정"
-        // (배정 흐름: 미배정 → 약속대기[냉매+추천] → 배정[운영자] → 확정[기사 일정] → 진행중 → 완료)
-        // 약속대기는 냉매충전 + 자동 추천 흐름에서만 박음 (별도 화면 / 여기 X)
         status:        "미배정",
       };
+      // 2026-07-11 — 진단 로그 (사장님 실제 저장 값 검증).
+      console.log("[NewReceptionMobile SAVE]", {
+        head_workType: head.workType, form_workType: form.workType,
+        final_workType: taskData.workType,
+        applianceUndecided: taskData.applianceUndecided,
+        workItems_count: (taskData.workItems || []).length,
+      });
       const res = await apiCreateTask(taskData, {
         changedBy:     user?.user_id || user?.id || null,
         changedByName: user?.name || null,

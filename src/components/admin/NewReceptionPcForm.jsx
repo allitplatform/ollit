@@ -354,6 +354,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         workItems:     splitItems,
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
         applianceUndecided: workItems.length === 0 && applianceUndecided,
+        __log_note:    "see console [NewReceptionPc SAVE]",
         quote:         priceTBD ? 0 : (form.estimateTotal || 0),
         estimateTotal: priceTBD ? 0 : (form.estimateTotal || 0),
         workDate:      scheduleMode === "input" ? form.requestDate : "",
@@ -362,6 +363,14 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         memo:          form.memo,
         status:        "미배정",
       };
+      // 2026-07-11 — 진단 로그 (사장님 실제 저장 값 검증).
+      console.log("[NewReceptionPc SAVE]", {
+        head_workType: head.workType, form_workType: form.workType,
+        final_workType: taskData.workType,
+        applianceUndecided: taskData.applianceUndecided,
+        workItems_count: (taskData.workItems || []).length,
+      });
+      delete taskData.__log_note;
       const res = await apiCreateTask(taskData, {
         changedBy:     user?.user_id || user?.id || null,
         changedByName: user?.name || null,
