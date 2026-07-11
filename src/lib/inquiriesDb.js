@@ -60,18 +60,29 @@ export async function listInquiries(actorId, status = null) {
   return Array.isArray(data) ? data : [];
 }
 
-export async function setInquiryStatus(actorId, inquiryId, status) {
+// 2026-07-11 — spamReason 옵션 (Mig 170). status='spam' 시에만 저장, 그 외 무시.
+export async function setInquiryStatus(actorId, inquiryId, status, spamReason = null) {
   if (!actorId)   throw new Error("actorId required");
   if (!inquiryId) throw new Error("inquiryId required");
   const allowed = ["new", "contacted", "spam"];
   if (!allowed.includes(status)) throw new Error("status must be one of " + allowed.join("/"));
   const { error } = await supabase.rpc("set_inquiry_status", {
-    p_actor:      actorId,
-    p_inquiry_id: inquiryId,
-    p_status:     status,
+    p_actor:       actorId,
+    p_inquiry_id:  inquiryId,
+    p_status:      status,
+    p_spam_reason: status === "spam" ? (spamReason || null) : null,
   });
   if (error) throw error;
 }
+
+// 2026-07-11 — 빠른 선택 사유 (사장님 spec). 자유 텍스트도 허용.
+export const SPAM_REASON_PRESETS = [
+  "장난·허위",
+  "광고·스팸문자",
+  "중복접수",
+  "타지역·서비스불가",
+  "연락두절",
+];
 
 // 2026-07-10 — 스팸 문의 영구 삭제 (Mig 169).
 //   조건: status='spam' + task_id IS NULL (converted 실데이터는 삭제 불가).

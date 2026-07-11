@@ -15,6 +15,7 @@ import {
   setInquiryStatus,
   markInquiryConverted,
   deleteInquiry,          // 2026-07-10 — 스팸 영구 삭제 (Mig 169)
+  SPAM_REASON_PRESETS,    // 2026-07-11 — 스팸 사유 빠른 선택 (Mig 170)
   serviceLabel,
   statusMeta,
   SERVICE_WORKTYPE,
@@ -109,6 +110,33 @@ export default function AdminInquiriesScreen({
     }
   }
 
+  // 2026-07-11 — 스팸 사유 모달 상태 (Mig 170).
+  //   markSpamOpen: 대상 row (id/이름 표시용) or null.
+  //   onSubmit(reason) → setInquiryStatus + reload.
+  const [markSpamOpen, setMarkSpamOpen] = useState(null); // row | null
+  function requestSpam(rowOrId) {
+    if (busyId) return;
+    const row = typeof rowOrId === "string"
+      ? items.find(x => x.id === rowOrId)
+      : rowOrId;
+    if (!row) return;
+    setMarkSpamOpen(row);
+  }
+  async function confirmSpam(reason) {
+    const row = markSpamOpen;
+    if (!row) return;
+    setMarkSpamOpen(null);
+    setBusyId(row.id);
+    try {
+      await setInquiryStatus(actorId, row.id, "spam", reason || null);
+      await load();
+    } catch (e) {
+      alert("스팸 처리 실패: " + (e?.message || e));
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   // 2026-07-10 — 스팸 문의 영구 삭제 (Mig 169 RPC).
   //   확인 1회 (사장님 spec). converted 실데이터는 서버가 거부 (task_id IS NOT NULL).
   async function removeSpam(row) {
@@ -168,11 +196,47 @@ export default function AdminInquiriesScreen({
 
   const selectedRow = selectedId ? items.find((x) => x.id === selectedId) : null;
 
+  // 2026-07-11 — 스팸 사유 모달 (Mig 170). PC/모바일 공용.
+  const spamModal = markSpamOpen ? (
+    <SpamReasonModal
+      row={markSpamOpen}
+      onClose={() => setMarkSpamOpen(null)}
+      onConfirm={confirmSpam}
+    />
+  ) : null;
+
   if (isPc) {
     return (
-      <AdminInquiriesPc
-        t={t}
-        user={user}
+      <>
+        <AdminInquiriesPc
+          t={t}
+          user={user}
+          actorId={actorId}
+          apiTasks={apiTasks}
+          items={items}
+          filter={filter}
+          setFilter={setFilter}
+          loading={loading}
+          error={error}
+          busyId={busyId}
+          newCount={newCount}
+          selectedRow={selectedRow}
+          onSelect={setSelectedId}
+          onBack={onBack}
+          onCall={(id) => act(id, "contacted")}
+          onSpam={(id) => requestSpam(id)}
+          onDelete={removeSpam}
+          onReload={load}
+          onPcSubmitDone={onPcSubmitDone}
+        />
+        {spamModal}
+      </>
+    );
+  }
+
+  return (
+    <>
+      <AdminInquiriesMobile
         actorId={actorId}
         apiTasks={apiTasks}
         items={items}
@@ -182,36 +246,15 @@ export default function AdminInquiriesScreen({
         error={error}
         busyId={busyId}
         newCount={newCount}
-        selectedRow={selectedRow}
-        onSelect={setSelectedId}
         onBack={onBack}
         onCall={(id) => act(id, "contacted")}
-        onSpam={(id) => act(id, "spam")}
+        onSpam={(id) => requestSpam(id)}
         onDelete={removeSpam}
+        onConvert={convertMobile}
         onReload={load}
-        onPcSubmitDone={onPcSubmitDone}
       />
-    );
-  }
-
-  return (
-    <AdminInquiriesMobile
-      actorId={actorId}
-      apiTasks={apiTasks}
-      items={items}
-      filter={filter}
-      setFilter={setFilter}
-      loading={loading}
-      error={error}
-      busyId={busyId}
-      newCount={newCount}
-      onBack={onBack}
-      onCall={(id) => act(id, "contacted")}
-      onSpam={(id) => act(id, "spam")}
-      onDelete={removeSpam}
-      onConvert={convertMobile}
-      onReload={load}
-    />
+      {spamModal}
+    </>
   );
 }
 
@@ -391,6 +434,18 @@ function MiniCardRow({ row, busy, onCall, onSpam, onDelete, onConvert }) {
           )}
           {/* 2026-07-10 — 지역 표시 제거 (지역별 접수 현황 화면으로 일원화, 사장님 spec) */}
         </div>
+        {/* 2026-07-11 — 스팸 사유 표시 (Mig 170). 없으면 "사유 없음". */}
+        {isSpam && (
+          <div style={{
+            marginTop: 4, fontSize: 11.5, color: "#93A2B4", fontWeight: 700,
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}>
+            사유: <span style={{
+              color: row.spam_reason ? "#6B7280" : "#B7C1CE",
+              fontWeight: row.spam_reason ? 800 : 600,
+            }}>{row.spam_reason || "사유 없음"}</span>
+          </div>
+        )}
       </div>
 
       {/* 우측 — 액션. 스팸이면 삭제(영구) 버튼 노출. 아니면 통화/전환/스팸. */}
@@ -520,7 +575,8 @@ function AdminInquiriesPc({
 }
 
 function PcListRow({ row, selected, onClick }) {
-  const isNew = row.status === "new";
+  const isNew  = row.status === "new";
+  const isSpam = row.status === "spam";
   return (
     <button onClick={onClick} style={{
       display: "block", width: "100%",
@@ -562,6 +618,18 @@ function PcListRow({ row, selected, onClick }) {
         {row.phone || "연락처 없음"}
         {/* 2026-07-10 — 지역 표시 제거 (지역별 접수 현황 화면으로 일원화, 사장님 spec) */}
       </div>
+      {/* 2026-07-11 — 스팸 사유 (Mig 170). */}
+      {isSpam && (
+        <div style={{
+          marginTop: 3, fontSize: 11, color: "#93A2B4", fontWeight: 700,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>
+          사유: <span style={{
+            color: row.spam_reason ? "#6B7280" : "#B7C1CE",
+            fontWeight: row.spam_reason ? 800 : 600,
+          }}>{row.spam_reason || "사유 없음"}</span>
+        </div>
+      )}
     </button>
   );
 }
@@ -629,6 +697,21 @@ function PcDetailPanel({ t, user, row, busy, onCall, onSpam, onDelete, onClose, 
             <span style={{ color: "#4A5A70", whiteSpace: "pre-line" }}>{row.memo}</span>
           </>)}
         </div>
+
+        {/* 2026-07-11 — 스팸 사유 표시 (Mig 170). */}
+        {isSpam && (
+          <div style={{
+            marginTop: 12, padding: "9px 12px",
+            background: "#F4F6FA", border: "1px solid #E5EAF1",
+            borderRadius: 8, fontSize: 13, color: "#4A5A70",
+          }}>
+            <span style={{ color: "#93A2B4", fontWeight: 700, marginRight: 6 }}>사유</span>
+            <span style={{
+              fontWeight: row.spam_reason ? 800 : 600,
+              color: row.spam_reason ? "#1C2B3A" : "#B7C1CE",
+            }}>{row.spam_reason || "사유 없음"}</span>
+          </div>
+        )}
 
         {/* 액션 — 스팸이면 삭제(영구), 아니면 통화함/스팸 처리. */}
         {isSpam ? (
@@ -813,6 +896,142 @@ function RowKebab({ disabled, onSpam }) {
             }}>스팸 처리</button>
         </div>
       )}
+    </div>
+  );
+}
+
+// ===========================================================
+// 2026-07-11 — 스팸 사유 입력 모달 (Mig 170).
+//   자유 텍스트 + 빠른 선택 5개 (SPAM_REASON_PRESETS).
+//   [스팸 처리] 클릭 → onConfirm(reason). 사유 없이도 가능 ("사유 없음" 저장).
+// ===========================================================
+function SpamReasonModal({ row, onClose, onConfirm }) {
+  const [reason, setReason] = useState("");
+  const nameHint = row?.name || row?.phone || "이 문의";
+
+  function pick(preset) {
+    setReason(preset);
+  }
+  function submit() {
+    onConfirm(reason.trim() || null);
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{
+        position: "fixed", inset: 0,
+        background: "rgba(0,0,0,0.35)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        zIndex: 1000, padding: 16,
+      }}>
+      <div style={{
+        background: "#fff", borderRadius: 14,
+        width: "100%", maxWidth: 440,
+        padding: "18px 20px 16px",
+        boxShadow: "0 20px 40px rgba(0,0,0,0.15)",
+        display: "flex", flexDirection: "column", gap: 12,
+      }}>
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 8,
+        }}>
+          <div style={{ fontSize: 16, fontWeight: 900, color: "#1C2B3A", letterSpacing: "-0.4px" }}>
+            스팸으로 처리
+          </div>
+          <button onClick={onClose} aria-label="닫기" style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            color: "#93A2B4", padding: 2, display: "inline-flex",
+          }}>
+            <X size={18}/>
+          </button>
+        </div>
+        <div style={{ fontSize: 12, color: "#6A7D94", fontWeight: 700 }}>
+          대상: <span style={{ color: "#1C2B3A", fontWeight: 800 }}>{nameHint}</span>
+        </div>
+
+        {/* 빠른 선택 */}
+        <div>
+          <div style={{
+            fontSize: 11, color: "#93A2B4", fontWeight: 800,
+            marginBottom: 6, letterSpacing: 0.3, textTransform: "uppercase",
+          }}>빠른 선택</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {SPAM_REASON_PRESETS.map(preset => {
+              const on = reason === preset;
+              return (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => pick(preset)}
+                  style={{
+                    padding: "6px 12px",
+                    background: on ? "#DC2626" : "#F4F6FA",
+                    border: `1px solid ${on ? "#DC2626" : "#E5EAF1"}`,
+                    borderRadius: 999,
+                    color: on ? "#fff" : "#4A5A70",
+                    fontSize: 12, fontWeight: 700,
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}>{preset}</button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 자유 텍스트 */}
+        <div>
+          <div style={{
+            fontSize: 11, color: "#93A2B4", fontWeight: 800,
+            marginBottom: 6, letterSpacing: 0.3, textTransform: "uppercase",
+          }}>사유 (선택)</div>
+          <textarea
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="직접 입력하거나 빠른 선택 클릭"
+            rows={2}
+            maxLength={200}
+            style={{
+              width: "100%", boxSizing: "border-box",
+              padding: "9px 11px",
+              background: "#fff",
+              border: "1px solid #E5EAF1",
+              borderRadius: 8,
+              color: "#1C2B3A",
+              fontSize: 13, fontFamily: "inherit",
+              resize: "vertical", minHeight: 48,
+              outline: "none",
+            }}
+          />
+          <div style={{
+            fontSize: 10, color: "#93A2B4", fontWeight: 600,
+            marginTop: 3, textAlign: "right",
+          }}>{reason.length}/200</div>
+        </div>
+
+        {/* 액션 */}
+        <div style={{
+          display: "flex", gap: 8, justifyContent: "flex-end",
+          paddingTop: 4,
+        }}>
+          <button onClick={onClose} style={{
+            padding: "9px 16px",
+            background: "#F4F6FA", border: "1px solid #E5EAF1",
+            borderRadius: 8, color: "#4A5A70",
+            fontSize: 13, fontWeight: 700,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>취소</button>
+          <button onClick={submit} style={{
+            padding: "9px 18px",
+            background: "#DC2626", border: "none",
+            borderRadius: 8, color: "#fff",
+            fontSize: 13, fontWeight: 800,
+            cursor: "pointer", fontFamily: "inherit",
+            letterSpacing: "-0.2px",
+          }}>스팸 처리</button>
+        </div>
+      </div>
     </div>
   );
 }
