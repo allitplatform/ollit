@@ -17,6 +17,8 @@ import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
 // 2026-07-11 — task 실질 취소 판정 (배지/목록/타임라인 일관).
 import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
+// 2026-07-11 — visit_only 판정 (색 판정에서 냉매 등 prefill 잔존 workType 무시).
+import { isPureVisitOnly, isAllItemsVisit } from "../utils/visitFeeDetect.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 import { adminRescheduleTask, adminReassignTask } from "../lib/adminTaskRpc.js";
 import { supabase } from "../lib/supabase.js";
@@ -42,11 +44,16 @@ const LOCKED_STATUSES = new Set(["진행중", "완료", "취소", "visit_only", 
 // 2026-07-09 — leak / install / other 색 누락 사고 정정.
 //   getServiceKind → 'leak' / 'install' 반환하는데 여기 매핑 없어 fallback 회색 표시.
 //   workTypeColors.js 표준 (세척 파랑 / 냉매 노랑 / 설치 보라 / 누설 빨강 / 그 외 핑크) 과 통일.
+// 2026-07-11 — visit_only 판정 통일 (사장님 spec):
+//   status='visit_only' 인데 workItems 첫 항목이 '냉매충전' 등이면 getServiceKind 는
+//   'refrigerant' 반환 → 노랑 오표시. 접수함 전환 경로가 prefill 값을 안 지우면 재발.
+//   → TaskBar 안에서 isPureVisitOnly(task) 우선 검사 → kind='visit' 강제.
 const KIND_COLOR = {
   cleaning:    "#0EA5E9",
   refrigerant: "#FFB800",
   install:     "#8B5CF6",
   leak:        "#DC2626",
+  visit:       "#FF1B8D",   // 2026-07-11 — 출장·visit_only 전용 핑크.
   other:       "#FF1B8D",
 };
 const KIND_COLOR_FALLBACK = "#FF1B8D";
@@ -65,6 +72,7 @@ const TEXT_ON_KIND = {
   refrigerant: "#1A1A1A",
   install:     "#fff",
   leak:        "#fff",
+  visit:       "#fff",   // 2026-07-11 — visit 도 핑크 배경이라 흰 글자.
   other:       "#fff",
 };
 const TEXT_ON_KIND_FALLBACK = "#fff";
@@ -940,17 +948,20 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   if (leftPct + widthPct > 100) widthPct = 100 - leftPct;
   if (widthPct <= 0) return null;
 
-  const kind = getServiceKind(task);
+  // 2026-07-11 — 출장 판정 최우선 (접수함 전환 경로가 workItems.workType 을 냉매 등으로
+  //   prefill 한 상태에서 status='visit_only' 만 세팅되면 getServiceKind → 'refrigerant'
+  //   → 노랑 오표시. 판정 함수 하나로 통일: isPureVisitOnly OR isAllItemsVisit.
+  const isVisitOnly = isPureVisitOnly(task) || isAllItemsVisit(task);
+  const kind = isVisitOnly ? 'visit' : getServiceKind(task);
   const kindColor = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
   const textCol   = TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK;
 
   // 2026-07-09 — status 별 시각 분기.
   //   · 취소 : todayTasks 필터에서 이미 제외 (아래 스타일 dead code).
-  //   · visit_only : 종류색 유지 + dotted border + "출장 · " 접두 + opacity 0.5.
+  //   · visit_only : 종류색 (핑크) + dotted border + "출장 · " 접두 + opacity 0.5.
   //             (사장님 spec: 실질 매출 아니라 시각적으로 덜 강조. 있었다는 표시로 남김.)
   //   · 완료 / 정산완료 : opacity 0.5 흐림.
   const isCanceled  = isEffectivelyCanceled(task); // 2026-07-11 — 전항목 취소도 포함
-  const isVisitOnly = task.status === "visit_only";
   const isDone      = task.status === "완료" || task.status === "정산완료";
   // 2026-06-19 — 검색 강조 / 흐림.
   const tidStr = task.id || task.taskCode;
