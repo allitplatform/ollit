@@ -134,17 +134,20 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
   const spamS     = Number(funnel.spam || 0);
   const totalT    = validV + spamS;
 
-  // 성사/완료: safeTasks + convertedTaskIds join.
-  const { rawSettle, rawDone } = useMemo(() => {
+  // 2026-07-11 v2 — 각 단계 직접 카운트 (뺄셈 X). 사장님 spec:
+  //   성사 = 배정된 것 (취소 포함) → 완료 + 서비스예정 + 성사후취소 합.
+  //   완료 = task.status IN ('완료','정산완료').
+  //   서비스 예정 = 배정 이상 AND 완료 아님 AND 취소 아님.
+  //   성사 후 취소 = 배정됐다가 isEffectivelyCanceled.
+  //   취소 판정: isEffectivelyCanceled (status + workItems + cancelReason 일관).
+  const { rawSettle, rawDone, rawUpcoming, rawCanceledAfter } = useMemo(() => {
     if (safeTasks.length === 0 || convertedTaskIds.size === 0) {
-      return { rawSettle: 0, rawDone: 0 };
+      return { rawSettle: 0, rawDone: 0, rawUpcoming: 0, rawCanceledAfter: 0 };
     }
-    let settle = 0, done = 0;
+    let settle = 0, done = 0, upcoming = 0, canceledAfter = 0;
     for (const task of safeTasks) {
       if (!task || !task.id) continue;
       if (!convertedTaskIds.has(String(task.id))) continue;
-      // 2026-07-11 — 취소 (명시적 or 실질) 은 성사·완료·서비스예정 전 카운트에서 제외.
-      if (isEffectivelyCanceled(task)) continue;
       // 성사 판정 = 기사 배정됨.
       const eid = task.assignedEngineerId || task.assigned_engineer_id
                || task.engineerId         || task.engineer_id;
@@ -152,18 +155,25 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
       const isAssigned = !!(eid || (ename && String(ename).trim().length > 0));
       if (!isAssigned) continue;
       settle += 1;
-      // 완료 판정 = task.status IN ('완료','정산완료').
       const st = task.status || "";
-      if (st === "완료" || st === "정산완료") done += 1;
+      const isCanceled = isEffectivelyCanceled(task);
+      const isDone = (st === "완료" || st === "정산완료");
+      if (isCanceled) {
+        canceledAfter += 1;
+      } else if (isDone) {
+        done += 1;
+      } else {
+        upcoming += 1;
+      }
     }
-    return { rawSettle: settle, rawDone: done };
+    return { rawSettle: settle, rawDone: done, rawUpcoming: upcoming, rawCanceledAfter: canceledAfter };
   }, [safeTasks, convertedTaskIds]);
 
-  const settleM       = Math.min(rawSettle, validV);
-  const doneK         = Math.min(rawDone,   settleM);
-  // 2026-07-11 — 서비스 예정 = 성사 - 완료 (배정·일정확정됐고 서비스 앞둔 건).
-  const upcomingP     = Math.max(0, settleM - doneK);
-  const inquiryOnlyQ  = Math.max(0, validV - settleM);
+  const settleM         = Math.min(rawSettle, validV);
+  const doneK           = Math.min(rawDone, settleM);
+  const upcomingP       = Math.min(rawUpcoming, settleM);
+  const canceledAfterZ  = Math.min(rawCanceledAfter, settleM);
+  const inquiryOnlyQ    = Math.max(0, validV - settleM);
 
   const spamRate        = totalT  > 0 ? (spamS        / totalT ) * 100 : 0;
   const convRate        = validV  > 0 ? (settleM      / validV ) * 100 : 0;
@@ -183,6 +193,9 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
       valid:   validV,   // 유효 접수 = total - spam
       settle:  settleM,
       done:    doneK,
+      upcoming: upcomingP,
+      canceledAfter: canceledAfterZ,
+      identityCheck: (doneK + upcomingP + canceledAfterZ) === settleM,
       spamRate: Number(spamRate.toFixed(2)),
       convRate: Number(convRate.toFixed(2)),
       doneRate: Number(doneRate.toFixed(2)),
@@ -203,9 +216,11 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
       clamp: {
         settle: rawSettle !== settleM,
         done:   rawDone   !== doneK,
+        upcoming: rawUpcoming !== upcomingP,
+        canceledAfter: rawCanceledAfter !== canceledAfterZ,
       },
     }));
-  }, [totalT, validV, spamS, settleM, doneK, funnel, inquiryOnlyQ, convertedTaskIds, safeTasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [totalT, validV, spamS, settleM, doneK, upcomingP, canceledAfterZ, funnel, inquiryOnlyQ, convertedTaskIds, safeTasks.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{
@@ -230,7 +245,7 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
       />
 
       {/* 2026-07-10 사장님 확정 — 큰 숫자 카드 (선택 기간 기준으로 재계산). */}
-      {/* 2026-07-11 — '서비스 예정' 추가 (성사 - 완료). */}
+      {/* 2026-07-11 v2 — '서비스 예정' 직접 카운트 + '성사 후 취소' 병기. */}
       <SimpleThreeStats
         t={t}
         totalT={totalT}
@@ -238,6 +253,7 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
         settleM={settleM}
         upcomingP={upcomingP}
         doneK={doneK}
+        canceledAfterZ={canceledAfterZ}
         loading={loading}
         tasksAvailable={safeTasks.length > 0}
       />
@@ -273,7 +289,18 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
 //   3. 서비스 예정 P — 성사 - 완료 (배정·확정됐고 서비스 앞둔 건).
 //   4. 완료 K — task 완료 상태.
 //   tasksAvailable === false 이면 성사/서비스예정/완료 = "—".
-function SimpleThreeStats({ t, totalT, spamS, settleM, upcomingP, doneK, loading, tasksAvailable }) {
+function SimpleThreeStats({ t, totalT, spamS, settleM, upcomingP, doneK, canceledAfterZ, loading, tasksAvailable }) {
+  // 2026-07-11 v2 — 성사 = 완료 + 서비스예정 + 성사후취소. 항등식 표시.
+  const settleSubLine = tasksAvailable ? (
+    <span style={{ color: t.textMuted, fontSize: 10 }}>
+      완료 <span className="mono" style={{ color: COLOR_DONE, fontWeight: 800 }}>{fmtNum(doneK)}</span>
+      {" · "}
+      예정 <span className="mono" style={{ color: COLOR_UPCOMING, fontWeight: 800 }}>{fmtNum(upcomingP)}</span>
+      {" · "}
+      취소 <span className="mono" style={{ color: COLOR_SPAM, fontWeight: 800 }}>{fmtNum(canceledAfterZ)}</span>
+    </span>
+  ) : <span style={{ color: t.textMuted }}>데이터 로드 실패</span>;
+
   return (
     <div style={{
       display: "grid",
@@ -291,7 +318,7 @@ function SimpleThreeStats({ t, totalT, spamS, settleM, upcomingP, doneK, loading
       <BigStatCard t={t}
         label="성사 (전환)"
         value={tasksAvailable ? fmtNum(settleM) : "—"}
-        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "작업 + 기사 배정" : "데이터 로드 실패"}</span>}
+        subLine={settleSubLine}
         color={COLOR_CONV}
         loading={loading}
         emphasize
@@ -299,7 +326,7 @@ function SimpleThreeStats({ t, totalT, spamS, settleM, upcomingP, doneK, loading
       <BigStatCard t={t}
         label="서비스 예정"
         value={tasksAvailable ? fmtNum(upcomingP) : "—"}
-        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "성사 − 완료" : "데이터 로드 실패"}</span>}
+        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "배정 · 미완료 · 미취소" : "데이터 로드 실패"}</span>}
         color={COLOR_UPCOMING}
         loading={loading}
         emphasize
