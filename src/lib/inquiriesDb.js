@@ -99,18 +99,31 @@ export async function deleteInquiry(actorId, inquiryId) {
   return data || { ok: false, error: "unknown" };
 }
 
-// 인콰이리 → 작업 생성 후 마킹 (best-effort).
+// 인콰이리 → 작업 생성 후 마킹.
 //   Migration 118(convert_inquiry_to_task) 은 폐기됨 — 호출 금지.
 //   대신: 운영자가 "새 접수 폼"을 prefill 로 채워 등록 → apiCreateTask 성공 후 이 함수 호출.
-//   실패해도 작업은 살림 — 호출자 catch 로 콘솔 경고만 (사용자 흐름 막지 X).
+//   Mig 152 RPC 는 rows_affected 반환. UPDATE 대상 status IN ('new','contacted') 아니면 0.
+// 2026-07-11 — 조용한 실패 방지 (사장님 spec):
+//   · RPC 에러 → throw.
+//   · RPC ok=false → throw (권한/유효성).
+//   · rows_affected=0 → throw ('inquiry 상태 변경 없음' — 이미 converted / spam / 없음 등).
+//   호출자가 명확히 catch 하여 UI 경고 표시.
 export async function markInquiryConverted(actorId, inquiryId, taskId) {
   if (!actorId)   throw new Error("actorId required");
   if (!inquiryId) throw new Error("inquiryId required");
   if (!taskId)    throw new Error("taskId required");
-  const { error } = await supabase.rpc("mark_inquiry_converted", {
+  const { data, error } = await supabase.rpc("mark_inquiry_converted", {
     p_actor:      actorId,
     p_inquiry_id: inquiryId,
     p_task_id:    taskId,
   });
   if (error) throw error;
+  if (data && data.ok === false) {
+    throw new Error(`[mark_inquiry_converted] ${data.error || "unknown error"}`);
+  }
+  const affected = Number(data?.rows_affected ?? 0);
+  if (affected === 0) {
+    throw new Error("[mark_inquiry_converted] rows_affected=0 — inquiry 상태 변경 없음 (이미 converted / spam / 삭제됨 or tenant 불일치)");
+  }
+  return data;
 }

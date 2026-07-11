@@ -2320,13 +2320,29 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onSubmit={(form) => {
           addReception(form);
 
-          // 2026-06-24 — 접수함 prefill 진입이면 마킹 (best-effort, 실패해도 작업은 살림).
+          // 2026-06-24 — 접수함 prefill 진입이면 마킹.
+          // 2026-07-11 — 조용한 실패 방지 (사장님 spec):
+          //   RPC 실패 / rows_affected=0 시 명시적 toast + 콘솔 로그.
+          //   task 는 이미 생성됐으므로 롤백 X — 대신 사장님이 접수함에서 수동 확인/재시도.
           if (form._v14ApiOk && form.taskId && pendingInquiry?.id) {
             const inquiryIdToMark = pendingInquiry.id;
             const actor = user?.user_id || user?.id;
             if (actor) {
               markInquiryConverted(actor, inquiryIdToMark, form.taskId)
-                .catch((e) => console.warn("[inquiries] mark_inquiry_converted 실패 — 작업은 살림", e));
+                .then((res) => {
+                  console.log("[inquiries] converted 마킹 성공", res);
+                })
+                .catch((e) => {
+                  const msg = e?.message || String(e);
+                  console.warn("[inquiries] mark_inquiry_converted 실패", msg, {
+                    inquiryId: inquiryIdToMark, taskId: form.taskId,
+                  });
+                  addToast({
+                    type: "error",
+                    title: "⚠ 접수함 링크 실패",
+                    message: `작업 ${form.taskId} 생성됐지만 접수 상태·링크 갱신 안 됨.\n원인: ${msg}\n접수함에서 수동 확인 필요.`,
+                  });
+                });
             }
             setPendingInquiry(null);
           }
