@@ -41,6 +41,7 @@ const PAYMENT_SELECT = `
     status,
     computed_at,
     track,
+    compute_error,
     engineer_remitted_at,
     engineer_remit_confirmed_at,
     engineer_remit_confirmed_by,
@@ -266,6 +267,11 @@ export function rowToTask(row) {
     calc_method:      payment?.calc_method      || null,
     payment_status:   payment?.status           || null,
     is_balanced:      payment?.is_balanced      ?? null,
+    // 2026-07-11 Mig 173 — compute_payment 실패 가시화.
+    //   paymentMissing = payments row 자체 없음 (조용한 실패 사고).
+    //   computeError   = payments.compute_error 필드 (트리거가 마킹한 에러 메시지).
+    paymentMissing:   !payment,
+    computeError:     payment?.compute_error    || null,
 
     // 2026-05-18 Fix #29 — Migration 031/032: 자금 흐름 트랙 (compute_payment v10 자동 결정).
     // 'A'=일일정산(기사→회사), 'B'=월정산(회사→기사). isTrackARemittance가 task.track으로 판별.

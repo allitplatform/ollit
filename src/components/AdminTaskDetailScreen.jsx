@@ -1273,6 +1273,9 @@ function WorkTimeHistoryCard({ task, onTaskRefresh }) {
           </div>
         )}
 
+        {/* 2026-07-11 Mig 173 — 분배 미계산 배너 (compute_payment 실패 or payments row 없음). */}
+        <PaymentComputeErrorCard task={task}/>
+
         {/* 진행 5단계 (옛 TimestampHistory 영역) */}
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
@@ -1296,6 +1299,43 @@ function WorkTimeHistoryCard({ task, onTaskRefresh }) {
 
         {/* 변경 이력 (task_changes) — 2026-05-29 v2: task 객체 전달 (synthetic cancel row 옛 작업 fallback) */}
         <TaskChangesSection task={task}/>
+      </div>
+    </div>
+  );
+}
+
+// 2026-07-11 Mig 173 — 분배 미계산 배너.
+//   조건: payments row 없음 (paymentMissing) OR compute_error 필드 값 있음.
+//   목적: 조용한 실패 사고 (예: KA leak 1way 정책 없음 → payments NULL) 을
+//         관리자 화면에서 즉시 인지. 로그·정책 확인 유도.
+function PaymentComputeErrorCard({ task }) {
+  const missing = !!task?.paymentMissing;
+  const errMsg  = task?.computeError || null;
+  if (!missing && !errMsg) return null;
+
+  const title = missing
+    ? "⚠️ 분배 미계산 — payments 없음"
+    : "⚠️ 분배 계산 실패";
+  const detail = errMsg
+    ? errMsg
+    : "완료 상태인데 payments row 가 생성되지 않았습니다. 원인: 수수료 정책 (원청·종목·기종 조합) 누락 등.";
+
+  return (
+    <div style={{
+      marginBottom: 10,
+      padding: "10px 12px",
+      background: "rgba(220,38,38,0.08)",
+      border: "1px solid #DC2626",
+      borderRadius: 8,
+      display: "flex", flexDirection: "column", gap: 6,
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: "#DC2626" }}>{title}</div>
+      <div style={{
+        fontSize: 11, color: "var(--text-primary)", fontWeight: 600,
+        wordBreak: "break-all", lineHeight: 1.4,
+      }}>{detail}</div>
+      <div style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 600 }}>
+        조치: commission_policies 에 해당 (원청·종목·기종) row 추가 후 task_items 재저장하면 자동 재계산.
       </div>
     </div>
   );
