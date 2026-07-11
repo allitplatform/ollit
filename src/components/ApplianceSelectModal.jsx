@@ -307,16 +307,14 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
               ) : !appliance ? (
                 <div style={{ fontSize: 13, color: "#93A2B4", fontWeight: 700 }}>기종을 먼저 선택하세요.</div>
               ) : isQuoteUndecided ? (
-                // 2026-07-11 — 사장님 spec: 단가 없음/0 → '견적 미정' 흐름.
-                //   올데이케어 등 현장 견적 방식 원청. 저장 허용 + 안내.
+                // 2026-07-11 — 사장님 spec: 단가 없음/0 → '견적 미정' 흐름 (올데이케어 등 현장 견적).
+                //   "단가 0" 경고 문구 제거 (오해 소지). 담백하게 '견적 미정 · 현장 견적' 만.
                 <>
                   <div style={{ fontSize: 15, fontWeight: 900, color: "#F59E0B" }}>
                     견적 미정
                   </div>
                   <div style={{ fontSize: 11, color: "#78350F", fontWeight: 700 }}>
-                    {noQuote
-                      ? "원청 단가표 미설정 — 현장에서 금액 입력 후 정산됩니다."
-                      : `이 기종(${appliance})의 단가 0 — 현장에서 금액 입력 후 정산됩니다.`}
+                    현장 견적 — 완료 시 금액 입력 후 정산됩니다.
                   </div>
                 </>
               ) : (
