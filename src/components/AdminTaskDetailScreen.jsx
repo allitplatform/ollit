@@ -1281,14 +1281,16 @@ function WorkTimeHistoryCard({ task, onTaskRefresh }) {
           <TimestampRows task={task}/>
         </div>
 
-        {/* 2026-06-30 — 취소 → 복구 카드 (Mig 157, status='취소' 일 때만 표시) */}
-        {/* WorkTimeHistoryCard scope: props.onTaskRefresh = AdminTaskDetailScreen 의 refetchTaskBasic */}
-        {task.status === "취소" && (
+        {/* 2026-06-30 — 취소 → 복구 카드 (Mig 157) */}
+        {/* 2026-07-11 — 실질 취소 전부에 표시 (예전 취소 경로 status 미변경 건 포함). */}
+        {/*   previousStatus 미저장 건은 RestoreFromCancelCard 내부에서 '확정' 폴백. */}
+        {isEffectivelyCanceled(task) && (
           <RestoreFromCancelCard task={task} onRestored={onTaskRefresh}/>
         )}
 
-        {/* 2026-06-07 — 취소 정보 입력 카드 (status='취소' 일 때만 표시, 변경 이력 위) */}
-        {task.status === "취소" && (
+        {/* 2026-06-07 — 취소 정보 입력 카드 (변경 이력 위) */}
+        {/* 2026-07-11 — 조건 통일: isEffectivelyCanceled. */}
+        {isEffectivelyCanceled(task) && (
           <CancelInfoCard task={task} onSaved={onTaskRefresh}/>
         )}
 
