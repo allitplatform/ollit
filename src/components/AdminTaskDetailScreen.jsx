@@ -9,6 +9,8 @@ import { ArrowLeft } from "lucide-react";
 import { TaskBasicEditScreen } from "./TaskBasicEditScreen.jsx";
 // 2026-07-11 — 홈페이지 접수 기종 미정 팝업.
 import { ApplianceSelectModal, needsApplianceSelection } from "./ApplianceSelectModal.jsx";
+// 2026-07-11 — task 실질 취소 판정 (배지/목록/타임라인 일관).
+import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
 import { Chip } from "./Chip.jsx";
 // 2026-06-26 — 공지 3단계: 운영자 → 기사 작업 메시지 (옵션 c 서버 저장 + 푸시).
 import { SendTaskMessageModal } from "./admin/SendTaskMessageModal.jsx";
@@ -63,6 +65,9 @@ const STATE_MAP = {
 //         → 옛 코드는 거짓 "미배정" 표시. 새 코드는 status='배정' → "배정" 표시.
 function getStateInfo(task) {
   if (task.type === "external") return { label: "외근", color: "#FF8F00" };
+  // 2026-07-11 — 사장님 spec: 실질 취소 (전항목 취소 or cancelReason) 최우선.
+  //   기존: task.status 만 참조 → status='확정' 유지된 전체 취소 케이스 배지 오표시.
+  if (isEffectivelyCanceled(task))  return { label: "취소",   color: "var(--text-tertiary)" };
   const completedAt = task.completedAt || task.완료시간;
   const startedAt   = task.startedAt   || task.시작시간;
   if (completedAt)                return { label: "완료",   color: "#00875A" };
@@ -71,7 +76,6 @@ function getStateInfo(task) {
   if (task.status === "약속대기") return { label: "약속대기", color: "var(--text-secondary)" };
   if (task.status === "배정")     return { label: "배정",   color: "var(--text-primary)" };
   if (task.status === "확정")     return { label: "확정",   color: "var(--text-primary)" };
-  if (task.status === "취소")     return { label: "취소",   color: "var(--text-tertiary)" };
   return STATE_MAP[task.state] || { label: task.status || "예정", color: "var(--text-primary)" };
 }
 

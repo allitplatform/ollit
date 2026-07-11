@@ -15,6 +15,8 @@ import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 console.log('[AdminPcTimelineScreen MODULE LOADED v2026-06-20-trace5]');
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
+// 2026-07-11 — task 실질 취소 판정 (배지/목록/타임라인 일관).
+import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 import { adminRescheduleTask, adminReassignTask } from "../lib/adminTaskRpc.js";
 import { supabase } from "../lib/supabase.js";
@@ -174,7 +176,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
   //     이후 재복구 대비 그대로 두되 실제 실행 경로에서는 안 도달.
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
-      if (!t || t.status === "취소") return false;
+      if (!t || isEffectivelyCanceled(t)) return false;  // 2026-07-11 — 전항목 취소 도 제외
       const scheduled = t.scheduledAt || t.scheduled_at;
       if (!scheduled) return false;
       return toKstYmd(scheduled) === selectedDate;
@@ -947,7 +949,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   //   · visit_only : 종류색 유지 + dotted border + "출장 · " 접두 + opacity 0.5.
   //             (사장님 spec: 실질 매출 아니라 시각적으로 덜 강조. 있었다는 표시로 남김.)
   //   · 완료 / 정산완료 : opacity 0.5 흐림.
-  const isCanceled  = task.status === "취소";
+  const isCanceled  = isEffectivelyCanceled(task); // 2026-07-11 — 전항목 취소도 포함
   const isVisitOnly = task.status === "visit_only";
   const isDone      = task.status === "완료" || task.status === "정산완료";
   // 2026-06-19 — 검색 강조 / 흐림.

@@ -47,6 +47,8 @@ import AdminInquiriesScreen from "../components/admin/AdminInquiriesScreen.jsx";
 import { listInquiries, markInquiryConverted, serviceLabel, SERVICE_WORKTYPE } from "../lib/inquiriesDb.js";
 // 2026-07-11 — 사장님 spec: 배너/뱃지/완료차단 3곳 판정 통일.
 import { needsApplianceSelection } from "../components/ApplianceSelectModal.jsx";
+// 2026-07-11 — task 실질 취소 판정 (배지/목록/타임라인 일관).
+import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../data/paymentMethods.js";
 import { isRefrigerant, getServiceKind } from "../utils/workTypeKind.js";
@@ -7297,8 +7299,10 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
 
   // 상태 배지 (사장님 spec 색):
   //   완료=그린계열 / 진행(active/moving)=블루계열 / 예정·대기=중성 / 외근=보라
+  //   2026-07-11 — 실질 취소 (전항목 취소 or cancelReason) 최우선 표시.
   const pill = (() => {
     if (isExternal)              return { bg: "rgba(127,119,221,0.18)", color: "#C8C2F1", label: "외근" };
+    if (isEffectivelyCanceled(task)) return { bg: "#3F1212", color: "#F87171", label: "취소" };
     if (task.state === "done")   return { bg: "#0F6E56", color: "#9FE1CB", label: "완료" };
     if (task.state === "active") return { bg: "#185FA5", color: "#B5D4F4", label: "진행" };
     if (task.state === "moving") return { bg: "#185FA5", color: "#B5D4F4", label: "이동" };
