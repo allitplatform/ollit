@@ -829,6 +829,20 @@ function useBookingForm() {
         // GA 실패는 접수 성공에 영향 X (하지만 원인 파악 위해 로그).
         console.warn("[GA4] generate_lead throw", gaErr);
       }
+      // 2026-07-11 — 네이버 전환 이벤트 (프리미엄 로그분석). 접수완료를 "신청" 전환으로 기록.
+      //   공통 스크립트(wcslog.js)는 main.jsx 에서 랜딩 host + PROD 조건에서 로드됨.
+      //   window.wcs 없으면 no-op (운영 PWA·차단기 대비). PII 없이 전환 유형/값만 전송.
+      try {
+        if (typeof window !== "undefined" && window.wcs && typeof window.wcs.cnv === "function") {
+          const _nasa = {};
+          _nasa["cnv"] = window.wcs.cnv("2", "1"); // 2 = 신청/예약 전환
+          if (typeof window.wcs_do === "function") window.wcs_do(_nasa);
+          console.log("[NAVER] 전환 전송", serviceType);
+        }
+      } catch (nvErr) {
+        // 네이버 전환 실패는 접수 성공에 영향 X.
+        console.warn("[NAVER] cnv throw", nvErr);
+      }
       setSubmitted(true);
     } catch (e2) {
       setError(messageFor(e2));
