@@ -960,6 +960,38 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
       {/* 영역 3 — 요청사항 + 운영 메모 + 전화/문자 (확정/진행중은 고객 헤더 숨김) */}
       <CustomerInfo task={task} hideCustomerHeader={isConfirmed || isInProgress} user={user} onMemoAdd={onMemoAdd}/>
 
+      {/* 2026-07-11 — 사장님 spec: 새 배정/예약확정 화면에도 기종 선택 배너.
+            요청사항 아래 · 도착시간(=일정 확정) 위. isWaiting/isAssigned 상태에 표시. */}
+      {needsApplianceSelection(task) && !isCompleted && !isInProgress && (
+        <div style={{
+          margin: "10px 16px 0",
+          padding: "13px 15px",
+          background: "#FFF7ED",
+          border: "1px solid #F59E0B",
+          borderLeft: "4px solid #F59E0B",
+          borderRadius: 12,
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          gap: 10, flexWrap: "wrap",
+        }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "#9A3412" }}>⚠️ 기종 미정</div>
+            <div style={{ fontSize: 12, color: "#78350F", fontWeight: 600, marginTop: 3 }}>
+              고객과 통화 후 기종을 선택하세요. 금액이 자동 반영됩니다.
+            </div>
+          </div>
+          <button
+            onClick={() => setShowApplianceModal(true)}
+            style={{
+              padding: "10px 18px",
+              background: "#F59E0B", border: "none",
+              borderRadius: 10, color: "#fff",
+              fontSize: 14, fontWeight: 800,
+              cursor: "pointer", fontFamily: "inherit",
+              flexShrink: 0,
+            }}>기종 선택</button>
+        </div>
+      )}
+
       {/* V14 — 길찾기 (확정만 / 네이버 + T맵) */}
       {isConfirmed && <MapButtons task={task}/>}
 
