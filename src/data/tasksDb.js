@@ -60,6 +60,23 @@ const PAYMENT_SELECT = `
 `;
 
 // Supabase row → 클라이언트 task (camelCase / v14NormalizeTask 호환)
+// 2026-07-11 — 홈페이지 접수 memo 안 "희망 서비스: 냉매충전" 파싱 → workType 문자열.
+//   저장 로직이 workType 을 놓친 옛 데이터 recover 용. SERVICE_LABEL 다섯 종류 매칭.
+function _parseWorkTypeFromMemo(memo) {
+  if (!memo) return "";
+  const s = String(memo);
+  if (!/홈페이지 접수/.test(s)) return "";
+  const m = s.match(/희망\s*서비스\s*:\s*([^\s·|\/,()]+)/);
+  if (!m) return "";
+  const label = m[1].trim();
+  // SERVICE_LABEL / SERVICE_WORKTYPE 매핑 (inquiriesDb.js 상수 재현 — 순환 참조 회피).
+  if (/냉매/.test(label))       return "냉매충전";
+  if (/(분해)?세척/.test(label)) return "세척";
+  if (/(수리|누설)/.test(label)) return "수리";
+  if (/설치/.test(label))       return "설치";
+  return "";
+}
+
 export function rowToTask(row) {
   if (!row) return null;
   // Phase 4-2 fix — category_data jsonb 평탄화 (workType/workItems 등 별도 추출)
@@ -221,7 +238,9 @@ export function rowToTask(row) {
                        }))
                      : (Array.isArray(cat.workItems) ? cat.workItems : []),
     // 2026-05-24 — 대표값도 본작업 우선 (sortedTaskItems[0])
-    workType:      cat.workType  || sortedTaskItems[0]?.work_types?.name || "",
+    // 2026-07-11 — 사장님 spec: workType 저장 안 된 옛 홈페이지 접수 recover.
+    //   memo 의 "[홈페이지 접수 ...] 희망 서비스: 냉매충전" 형식에서 파싱.
+    workType:      cat.workType  || sortedTaskItems[0]?.work_types?.name || _parseWorkTypeFromMemo(row.request_note) || "",
     appliance:     cat.appliance || sortedTaskItems[0]?.appliance_types?.name || "",
     qty:           Number(cat.qty) || Number(sortedTaskItems[0]?.qty) || 1,
     quote:         cat.quote      || 0,
