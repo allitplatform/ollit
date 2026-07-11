@@ -16,11 +16,13 @@ import {
 } from "../../lib/inquiryStatsDb.js";
 import { listInquiries } from "../../lib/inquiriesDb.js";
 import { toKstYmd } from "../../utils/dateLabel.js";
+import { isEffectivelyCanceled } from "../../utils/taskCancelState.js";
 
 const ACCENT       = "#FF1B8D";
 const COLOR_TOTAL  = "#3B82F6";   // 접수 — 파랑
 const COLOR_SPAM   = "#9CA3AF";   // 스팸 — 회색
 const COLOR_CONV   = "#16A34A";   // 성사 — 초록
+const COLOR_UPCOMING = "#0EA5E9"; // 서비스 예정 — 하늘
 const COLOR_DONE   = "#FF1B8D";   // 완료 — 핑크 (accent)
 const COLOR_INQ_ONLY = "#F59E0B"; // 문의만(미배정) — 주황
 
@@ -141,6 +143,8 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
     for (const task of safeTasks) {
       if (!task || !task.id) continue;
       if (!convertedTaskIds.has(String(task.id))) continue;
+      // 2026-07-11 — 취소 (명시적 or 실질) 은 성사·완료·서비스예정 전 카운트에서 제외.
+      if (isEffectivelyCanceled(task)) continue;
       // 성사 판정 = 기사 배정됨.
       const eid = task.assignedEngineerId || task.assigned_engineer_id
                || task.engineerId         || task.engineer_id;
@@ -157,6 +161,8 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
 
   const settleM       = Math.min(rawSettle, validV);
   const doneK         = Math.min(rawDone,   settleM);
+  // 2026-07-11 — 서비스 예정 = 성사 - 완료 (배정·일정확정됐고 서비스 앞둔 건).
+  const upcomingP     = Math.max(0, settleM - doneK);
   const inquiryOnlyQ  = Math.max(0, validV - settleM);
 
   const spamRate        = totalT  > 0 ? (spamS        / totalT ) * 100 : 0;
@@ -223,23 +229,26 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
         endYmd={endYmd}
       />
 
-      {/* 2026-07-10 사장님 확정 — 딱 3개 큰 숫자 (선택 기간 기준으로 재계산). */}
+      {/* 2026-07-10 사장님 확정 — 큰 숫자 카드 (선택 기간 기준으로 재계산). */}
+      {/* 2026-07-11 — '서비스 예정' 추가 (성사 - 완료). */}
       <SimpleThreeStats
         t={t}
         totalT={totalT}
         spamS={spamS}
         settleM={settleM}
+        upcomingP={upcomingP}
         doneK={doneK}
         loading={loading}
         tasksAvailable={safeTasks.length > 0}
       />
 
-      {/* 2026-07-10 — 일별 막대그래프 폐기. 대신 퍼널 바 (전체 → 성사 → 완료).
-            각 단계 폭 % + 절대값. 단계 전환율 (접수→성사, 성사→완료) 별도 표기. */}
+      {/* 2026-07-10 — 일별 막대그래프 폐기. 대신 퍼널 바.
+            2026-07-11 — 서비스 예정 단계 추가: 전체 → 성사 → 서비스 예정 → 완료. */}
       <FunnelBars
         t={t}
         totalT={totalT}
         settleM={settleM}
+        upcomingP={upcomingP}
         doneK={doneK}
         tasksAvailable={safeTasks.length > 0}
       />
@@ -257,17 +266,19 @@ function InquiryStatsHeaderInner({ t = {}, actorId, apiTasks }) {
   );
 }
 
-// 2026-07-10 v4 — 사장님 확정: 큰 숫자 3개 카드.
+// 2026-07-10 v4 — 사장님 확정: 큰 숫자 카드.
+// 2026-07-11 — '서비스 예정' 추가 → 4개 카드.
 //   1. 전체 접수 T (스팸 포함) — 아래 "스팸 S" 작게 병기.
-//   2. 성사 M — task 존재 + 배정된 것.
-//   3. 완료 K — task 완료 상태.
-//   tasksAvailable === false 이면 성사/완료 = "—".
-function SimpleThreeStats({ t, totalT, spamS, settleM, doneK, loading, tasksAvailable }) {
+//   2. 성사 M — task 존재 + 배정 + 취소 아님.
+//   3. 서비스 예정 P — 성사 - 완료 (배정·확정됐고 서비스 앞둔 건).
+//   4. 완료 K — task 완료 상태.
+//   tasksAvailable === false 이면 성사/서비스예정/완료 = "—".
+function SimpleThreeStats({ t, totalT, spamS, settleM, upcomingP, doneK, loading, tasksAvailable }) {
   return (
     <div style={{
       display: "grid",
-      gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-      gap: 10,
+      gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+      gap: 8,
       alignItems: "stretch",
     }}>
       <BigStatCard t={t}
@@ -280,15 +291,23 @@ function SimpleThreeStats({ t, totalT, spamS, settleM, doneK, loading, tasksAvai
       <BigStatCard t={t}
         label="성사 (전환)"
         value={tasksAvailable ? fmtNum(settleM) : "—"}
-        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "작업 생성 + 기사 배정" : "작업 데이터 로드 실패"}</span>}
+        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "작업 + 기사 배정" : "데이터 로드 실패"}</span>}
         color={COLOR_CONV}
+        loading={loading}
+        emphasize
+      />
+      <BigStatCard t={t}
+        label="서비스 예정"
+        value={tasksAvailable ? fmtNum(upcomingP) : "—"}
+        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "성사 − 완료" : "데이터 로드 실패"}</span>}
+        color={COLOR_UPCOMING}
         loading={loading}
         emphasize
       />
       <BigStatCard t={t}
         label="완료"
         value={tasksAvailable ? fmtNum(doneK) : "—"}
-        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "작업 완료 상태" : "작업 데이터 로드 실패"}</span>}
+        subLine={<span style={{ color: t.textMuted }}>{tasksAvailable ? "작업 완료 상태" : "데이터 로드 실패"}</span>}
         color={COLOR_DONE}
         loading={loading}
         emphasize
@@ -297,24 +316,26 @@ function SimpleThreeStats({ t, totalT, spamS, settleM, doneK, loading, tasksAvai
   );
 }
 
-// 2026-07-10 — 퍼널 바 3단 (사장님 spec, 일별 차트 대체).
-//   전체 접수 (100% 기준) → 성사 → 완료. 폭 % = 전체 대비.
-//   숫자 + % 병기. 단계 전환율 별도 표기 (접수→성사, 성사→완료).
-//   tasksAvailable === false 이면 성사/완료 "—".
-function FunnelBars({ t, totalT, settleM, doneK, tasksAvailable }) {
-  const settlePct = totalT > 0 ? (settleM / totalT) * 100 : 0;
-  const donePct   = totalT > 0 ? (doneK   / totalT) * 100 : 0;
-  const s2m       = totalT > 0 ? (settleM / totalT) * 100 : 0;
-  const m2k       = settleM > 0 ? (doneK  / settleM) * 100 : 0;
+// 2026-07-10 — 퍼널 바 (사장님 spec, 일별 차트 대체).
+// 2026-07-11 — 서비스 예정 단계 추가: 전체 → 성사 → 서비스 예정 → 완료.
+//   폭 % = 전체 대비. 단계 전환율 별도 표기.
+//   tasksAvailable === false 이면 성사/서비스예정/완료 "—".
+function FunnelBars({ t, totalT, settleM, upcomingP, doneK, tasksAvailable }) {
+  const settlePct   = totalT > 0 ? (settleM   / totalT) * 100 : 0;
+  const upcomingPct = totalT > 0 ? (upcomingP / totalT) * 100 : 0;
+  const donePct     = totalT > 0 ? (doneK     / totalT) * 100 : 0;
+  const s2m         = totalT > 0 ? (settleM   / totalT) * 100 : 0;
+  const m2k         = settleM > 0 ? (doneK    / settleM) * 100 : 0;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{
         fontSize: 12, fontWeight: 800, color: t.text || "var(--text-primary)",
       }}>퍼널</div>
 
-      <FunnelRow t={t} label="전체 접수" color={COLOR_TOTAL} pct={100}       value={totalT}   showValue/>
-      <FunnelRow t={t} label="성사"      color={COLOR_CONV}  pct={settlePct} value={settleM}  showValue={tasksAvailable} disabled={!tasksAvailable}/>
-      <FunnelRow t={t} label="완료"      color={COLOR_DONE}  pct={donePct}   value={doneK}    showValue={tasksAvailable} disabled={!tasksAvailable}/>
+      <FunnelRow t={t} label="전체 접수"   color={COLOR_TOTAL}    pct={100}         value={totalT}    showValue/>
+      <FunnelRow t={t} label="성사"        color={COLOR_CONV}     pct={settlePct}   value={settleM}   showValue={tasksAvailable} disabled={!tasksAvailable}/>
+      <FunnelRow t={t} label="서비스 예정" color={COLOR_UPCOMING} pct={upcomingPct} value={upcomingP} showValue={tasksAvailable} disabled={!tasksAvailable}/>
+      <FunnelRow t={t} label="완료"        color={COLOR_DONE}     pct={donePct}     value={doneK}     showValue={tasksAvailable} disabled={!tasksAvailable}/>
 
       {/* 단계 전환율 */}
       <div style={{
