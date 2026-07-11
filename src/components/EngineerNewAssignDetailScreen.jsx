@@ -16,6 +16,8 @@ import { supabase } from "../lib/supabase.js";
 import { useTaskMemos, getMemoTypeLabel, getAuthorRoleEmoji } from "../lib/taskMemosDb.js";
 // 2026-05-29 — 결제 방식 라벨 (현장결제/선결제 등 안전 정보 시각화)
 import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
+// 2026-07-11 — 홈페이지 접수 기종 미정 팝업 (새 배정 화면에서도 통화 후 기종 입력).
+import { ApplianceSelectModal, needsApplianceSelection } from "./ApplianceSelectModal.jsx";
 
 const PhoneSvgWhite = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
@@ -68,6 +70,22 @@ export function EngineerNewAssignDetailScreen({
   //   (v14NormalizeTask 가 category_data.callMemo 평탄화) 또는 raw category_data.callMemo fallback.
   //   재진입 시 본인이 쓴 메모 그대로 보이게.
   const [memo, setMemo]                 = useState(task?.callMemo || task?.categoryData?.callMemo || "");
+  // 2026-07-11 — 사장님 spec: 새 배정 화면에도 기종 선택 팝업.
+  const [showApplianceModal, setShowApplianceModal] = useState(false);
+  // 진단 로그 — 사장님 F12 콘솔 검증용. 확정 후 제거.
+  useEffect(() => {
+    const wi = Array.isArray(task?.workItems) ? task.workItems : [];
+    console.log("[NewAssignDetail applianceCheck]", {
+      taskId: task?.id,
+      workItems_count: wi.length,
+      first_workType:  wi[0]?.workType,
+      first_appliance: wi[0]?.appliance,
+      root_workType:   task?.workType,
+      root_appliance:  task?.appliance,
+      applianceUndecided: task?.applianceUndecided,
+      needs: needsApplianceSelection(task),
+    });
+  }, [task]);
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [showCustom, setShowCustom]     = useState(false);
   const [customDate, setCustomDate]     = useState("");
@@ -404,6 +422,50 @@ export function EngineerNewAssignDetailScreen({
             )}
           </div>
         </div>
+      )}
+
+      {/* 2026-07-11 — 사장님 spec: 새 배정 화면 [기종 선택] 배너.
+            요청사항 아래 · 도착시간(=일정 확정) 위. needsApplianceSelection 판정. */}
+      {needsApplianceSelection(task) && (
+        <div style={{ padding: "0 16px 14px" }}>
+          <div style={{
+            padding: "13px 15px",
+            background: "#FFF7ED",
+            border: "1px solid #F59E0B",
+            borderLeft: "4px solid #F59E0B",
+            borderRadius: 12,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            gap: 10, flexWrap: "wrap",
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#9A3412" }}>⚠️ 기종 미정</div>
+              <div style={{ fontSize: 12, color: "#78350F", fontWeight: 600, marginTop: 3 }}>
+                고객과 통화 후 기종을 선택하세요. 금액이 자동 반영됩니다.
+              </div>
+            </div>
+            <button
+              onClick={() => setShowApplianceModal(true)}
+              style={{
+                padding: "10px 18px",
+                background: "#F59E0B", border: "none",
+                borderRadius: 10, color: "#fff",
+                fontSize: 14, fontWeight: 800,
+                cursor: "pointer", fontFamily: "inherit",
+                flexShrink: 0,
+              }}>기종 선택</button>
+          </div>
+        </div>
+      )}
+      {showApplianceModal && (
+        <ApplianceSelectModal
+          task={task}
+          onClose={() => setShowApplianceModal(false)}
+          onSaved={() => {
+            setShowApplianceModal(false);
+            alert("기종 저장 완료. 새 배정 목록으로 돌아갑니다. 다시 열면 반영됩니다.");
+            onBack && onBack();
+          }}
+        />
       )}
 
       {/* 2026-05-29 — 운영자/원청 메모 카드 (task_memos) — 작업 정보 아래, 협의 입력 위.
