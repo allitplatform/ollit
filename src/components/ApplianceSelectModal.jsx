@@ -105,6 +105,10 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
   const noSupport = !appliances; // 알려지지 않은 workType
   const noQuote = !ratesLoading && !quoteRates;
   const priceZero = !!appliance && unitPrice === 0;
+  // 2026-07-11 — 사장님 spec: 단가 0/없음이면 '견적 미정' 흐름으로 저장 허용.
+  //   올데이케어(직영) 등 현장 견적 방식 원청 지원. 기종은 저장 + 금액은 0.
+  //   기존 관행: priceTBD 상태 = productPrice 0 저장 (별도 플래그 X, 현장에서 금액 입력).
+  const isQuoteUndecided = noQuote || priceZero;
 
   async function handleSave() {
     if (!canSave) return;
@@ -112,31 +116,40 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
     setErr("");
     try {
       const finalQty = Math.max(1, Number(qty) || 1);
-      // 새 workItem — 정상 스키마 유지.
-      //   quote 필드에 unitPrice 저장 (fallback / 표시용). task_items 는 트리거가 재생성.
+      // 2026-07-11 — 견적 미정 흐름: 단가 0/없음이면 productPrice=0 저장 (기존 관행).
+      //   기종은 저장 → 현장 견적. 정산은 나중에 기사가 금액 입력 시 자동 재계산.
+      const finalUnit  = isQuoteUndecided ? 0 : unitPrice;
+      const finalTotal = isQuoteUndecided ? 0 : totalPrice;
       const newWorkItem = {
         workType,
         appliance,
         qty: finalQty,
-        quote: unitPrice,
+        quote: finalUnit,
         orderType: "본작업",
         serviceCode: WORK_TYPE_TO_SERVICE[workType] || null,
       };
       const prevCategory = task.categoryData || {};
-      // 2026-07-11 — applianceUndecided 플래그 명시 해제 (사장님 spec: 기종 채워지면 해제).
-      const nextCategory = { ...prevCategory, workItems: [newWorkItem], applianceUndecided: false };
+      // 2026-07-11 — applianceUndecided 플래그 명시 해제 (기종 채워짐).
+      //   quote 필드 (category_data.quote) 도 정합 갱신 (0 or unit).
+      const nextCategory = {
+        ...prevCategory,
+        workItems: [newWorkItem],
+        applianceUndecided: false,
+        quote: finalUnit,
+      };
 
       console.log("[ApplianceSelect] BEFORE update", {
         taskId: task.id,
         prevProductPrice: task.productPrice,
         prevWorkItems: prevCategory.workItems,
         newWorkItem,
-        newProductPrice: totalPrice,
+        newProductPrice: finalTotal,
+        isQuoteUndecided,
       });
 
       const res = await updateTaskDb(task.id, {
         categoryData: nextCategory,
-        productPrice: totalPrice,
+        productPrice: finalTotal,
       });
       if (!res.ok) {
         setErr(res.error || "저장 실패");
@@ -291,16 +304,21 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
               </div>
               {ratesLoading ? (
                 <div style={{ fontSize: 13, color: "#93A2B4", fontWeight: 700 }}>단가 조회 중…</div>
-              ) : noQuote ? (
-                <div style={{ fontSize: 12, color: "#C33", fontWeight: 700 }}>
-                  ⚠️ 이 원청은 단가표(quote_rates) 미설정 → 저장 불가.
-                </div>
               ) : !appliance ? (
                 <div style={{ fontSize: 13, color: "#93A2B4", fontWeight: 700 }}>기종을 먼저 선택하세요.</div>
-              ) : priceZero ? (
-                <div style={{ fontSize: 12, color: "#C33", fontWeight: 700 }}>
-                  ⚠️ 이 기종({appliance})의 단가가 0 → 저장 불가. 원청 단가표 확인 필요.
-                </div>
+              ) : isQuoteUndecided ? (
+                // 2026-07-11 — 사장님 spec: 단가 없음/0 → '견적 미정' 흐름.
+                //   올데이케어 등 현장 견적 방식 원청. 저장 허용 + 안내.
+                <>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: "#F59E0B" }}>
+                    견적 미정
+                  </div>
+                  <div style={{ fontSize: 11, color: "#78350F", fontWeight: 700 }}>
+                    {noQuote
+                      ? "원청 단가표 미설정 — 현장에서 금액 입력 후 정산됩니다."
+                      : `이 기종(${appliance})의 단가 0 — 현장에서 금액 입력 후 정산됩니다.`}
+                  </div>
+                </>
               ) : (
                 <>
                   <div className="mono" style={{
@@ -338,19 +356,20 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
             cursor: saving ? "not-allowed" : "pointer", fontFamily: "inherit",
             opacity: saving ? 0.6 : 1,
           }}>취소</button>
+          {/* 2026-07-11 — 사장님 spec: 견적 미정도 저장 허용. noSupport (종목 미지원) 만 차단. */}
           <button
             onClick={handleSave}
-            disabled={!canSave || noSupport || noQuote || priceZero}
+            disabled={!canSave || noSupport}
             style={{
               padding: "9px 18px",
-              background: (!canSave || noSupport || noQuote || priceZero) ? "#B7C1CE" : "#2563EB",
+              background: (!canSave || noSupport) ? "#B7C1CE" : (isQuoteUndecided ? "#F59E0B" : "#2563EB"),
               border: "none",
               borderRadius: 8, color: "#fff",
               fontSize: 13, fontWeight: 800,
-              cursor: (!canSave || noSupport || noQuote || priceZero) ? "not-allowed" : "pointer",
+              cursor: (!canSave || noSupport) ? "not-allowed" : "pointer",
               fontFamily: "inherit",
               letterSpacing: "-0.2px",
-            }}>{saving ? "저장 중…" : "저장 및 견적 반영"}</button>
+            }}>{saving ? "저장 중…" : (isQuoteUndecided ? "기종 저장 (견적 미정)" : "저장 및 견적 반영")}</button>
         </div>
       </div>
     </div>
