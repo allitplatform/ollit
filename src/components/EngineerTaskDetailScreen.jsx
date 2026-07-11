@@ -900,6 +900,22 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         <div style={{ width: 56 }} aria-hidden="true"/>
       </div>
 
+      {/* 2026-07-11 — 진단 로그: 기종 미정 판정 데이터 확인 (사장님 콘솔 검증용). */}
+      {(() => {
+        const wi = Array.isArray(task.workItems) ? task.workItems : [];
+        console.log("[EngineerTaskDetail applianceCheck]", {
+          taskId: task.id,
+          workItems_count: wi.length,
+          first_workType:  wi[0]?.workType,
+          first_appliance: wi[0]?.appliance,
+          root_workType:   task.workType,
+          root_appliance:  task.appliance,
+          applianceUndecided: task.applianceUndecided,
+          needs: needsApplianceSelection(task),
+        });
+        return null;
+      })()}
+
       {/* 2026-07-11 — 홈페이지 접수 (기종 미정) 배너. 클릭 → 기종 선택 팝업.
             사장님 spec: 현장에서 알게 됐을 때 선택 → lookupRate → 금액 자동. */}
       {needsApplianceSelection(task) && !isCompleted && (

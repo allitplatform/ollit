@@ -45,6 +45,8 @@ import { RawOrdersArchiveScreen } from "../components/admin/RawOrdersArchiveScre
 // 2026-06-24 — 홈페이지 접수함 (inquiries) 운영 화면 + 신규 count polling + 마킹 RPC
 import AdminInquiriesScreen from "../components/admin/AdminInquiriesScreen.jsx";
 import { listInquiries, markInquiryConverted, serviceLabel, SERVICE_WORKTYPE } from "../lib/inquiriesDb.js";
+// 2026-07-11 — 사장님 spec: 배너/뱃지/완료차단 3곳 판정 통일.
+import { needsApplianceSelection } from "../components/ApplianceSelectModal.jsx";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
 import { PAYMENT_METHOD_OPTIONS } from "../data/paymentMethods.js";
 import { isRefrigerant, getServiceKind } from "../utils/workTypeKind.js";
@@ -2728,8 +2730,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
           const tk = selectedTaskDetail;
           if (!tk?.id || !newStatus) return;
           // 2026-07-11 — 사장님 spec: 기종 미정 시 완료·정산 진입 차단.
-          //   기사앱과 동일 원칙. UI dropdown 어느 곳에서 눌러도 여기서 gate.
-          if (tk.applianceUndecided === true && (newStatus === "완료" || newStatus === "정산완료")) {
+          //   3곳 (배너/뱃지/완료차단) needsApplianceSelection 로 판정 통일.
+          if (needsApplianceSelection(tk) && (newStatus === "완료" || newStatus === "정산완료")) {
             alert("기종을 먼저 선택하세요.\n\n상세 화면 상단 [기종 선택] 버튼으로 진행하세요.");
             return;
           }
@@ -7368,8 +7370,8 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
             flexShrink: 0, whiteSpace: "nowrap",
           }}>{pill.label}</span>
         )}
-        {/* 2026-07-11 — 사장님 spec: 기종 미정 뱃지 (노랑/주황). */}
-        {task.applianceUndecided && (
+        {/* 2026-07-11 — 사장님 spec: 기종 미정 뱃지 (배너/완료차단과 동일 판정). */}
+        {needsApplianceSelection(task) && (
           <span
             title="기종이 아직 선택되지 않았습니다. 상세에서 [기종 선택] 진행."
             style={{

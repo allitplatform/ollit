@@ -357,25 +357,36 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
   );
 }
 
+// placeholder 값 판정 (사장님 spec: "미정"/"기타"/"—"/"-" 등도 미정 취급).
+//   저장 흐름 어딘가 appliance 를 빈값 대신 placeholder 로 채우는 케이스 방어.
+const _APPLIANCE_PLACEHOLDER_RE = /^(미정|기타|미확정|—|-|_|\?|없음|선택|선택안함|선택안됨)$/i;
+function _isPlaceholderAppliance(apl) {
+  if (!apl) return true;
+  const s = String(apl).trim();
+  if (s === "") return true;
+  return _APPLIANCE_PLACEHOLDER_RE.test(s);
+}
+
 // 헬퍼 — task 가 기종 선택 팝업 대상인지 판정.
 //   우선순위:
-//     1) task.applianceUndecided === true (플래그 명시)   ← 사장님 spec
-//     2) workItems 안 첫 항목에 workType 있는데 appliance 비어있음
-//     3) workItems 비어있는데 root 에 workType 있음 (홈페이지 접수 초기)
+//     1) task.applianceUndecided === true (플래그 명시)
+//     2) workItems 안 첫 항목에 workType 있는데 appliance 미정 (빈값 or placeholder)
+//     3) workItems 비어있는데 root 에 workType 있음
 //     4) workItems 비어있고 memo 에 "[홈페이지 접수" 마커 (옛 저장 recover)
 export function needsApplianceSelection(task) {
   if (!task) return false;
   if (task.applianceUndecided === true) return true;
   const wi = Array.isArray(task.workItems) ? task.workItems : [];
+  const first = wi[0] || {};
+  // 2026-07-11 — placeholder 감지 (사장님 spec, 저장 부작용 방어).
+  if (first.workType && _isPlaceholderAppliance(first.appliance)) return true;
   if (wi.length === 0) {
     if (task.workType && String(task.workType).trim()) return true;
     // 홈페이지 접수 마커 검사 (memo/request/requestNote 어디에라도).
     const notes = [task.request, task.requestNote, task.memo, task.workMemo].filter(Boolean).join(" ");
     if (/\[홈페이지\s*접수/.test(notes)) return true;
-    return false;
   }
-  const first = wi[0] || {};
-  return !!(first.workType && (!first.appliance || String(first.appliance).trim() === ""));
+  return false;
 }
 
 export default ApplianceSelectModal;
