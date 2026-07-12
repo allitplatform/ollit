@@ -314,6 +314,12 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     if (workItems.length === 0 && !applianceUndecided) {
       errs.workItems = "작업항목을 1개 이상 추가하거나 '기종 미정'을 체크하세요.";
     }
+    // 2026-07-12 — 사장님 spec: 기종 미정 + workItems 비었으면 종목(workType) 은 필수.
+    //   저장 후 기사앱 기종선택 배너가 종목 문자열로 기종 목록 결정 (냉매충전/세척 등).
+    //   종목 없으면 '기타/기타' 사고 재발 → 명시적 차단.
+    if (workItems.length === 0 && applianceUndecided && !form.workType) {
+      errs.workType = "'기종 미정' 체크 시 종목(냉매충전/세척/수리/설치)을 선택하세요.";
+    }
     // 2026-07-10 — appliance="" 저장 사고 방지 (A-260710-003 등 policy_not_found 원인).
     //   냉매충전 대상 명시적 메시지 (카톡 파싱이 기종 미인식 시 "" 세팅).
     for (const it of workItems) {
@@ -632,10 +638,59 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
                 cursor: "pointer",
               }}>
                 <input type="checkbox" checked={applianceUndecided}
-                  onChange={(e) => setApplianceUndecided(e.target.checked)}/>
+                  onChange={(e) => {
+                    setApplianceUndecided(e.target.checked);
+                    // 체크 해제 시 workType 도 초기화 (revalidate 목적).
+                    if (!e.target.checked) setForm(p => ({ ...p, workType: "" }));
+                  }}/>
                 기종 미정
               </label>
             </div>
+
+            {/* 2026-07-12 — 사장님 spec: '기종 미정' 체크 시 종목(workType) 선택 필드 노출.
+                  root workType 만 저장 → 기사앱 기종선택 팝업이 종목별 기종 목록 표시.
+                  '기타/기타' 사고 재발 방지. 홈페이지 전환 흐름과 구조 동일. */}
+            {workItems.length === 0 && applianceUndecided && (
+              <div style={{
+                marginTop: 8, padding: "10px 12px",
+                background: t.bgInset, border: `1px solid ${t.border}`,
+                borderRadius: 8,
+                display: "flex", flexDirection: "column", gap: 8,
+              }}>
+                <div style={{
+                  fontSize: 11, color: t.textSecondary, fontWeight: 800, letterSpacing: 0.3,
+                  textTransform: "uppercase",
+                }}>종목 선택 <span style={{ color: "#DC2626" }}>*</span></div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {["냉매충전", "세척", "수리", "설치"].map(wt => {
+                    const on = form.workType === wt;
+                    return (
+                      <button
+                        key={wt}
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, workType: wt }))}
+                        style={{
+                          padding: "7px 14px",
+                          background: on ? "#2563EB" : "transparent",
+                          border: `1px solid ${on ? "#2563EB" : t.border}`,
+                          borderRadius: 999,
+                          color: on ? "#fff" : t.textSecondary,
+                          fontSize: 12, fontWeight: 700,
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}>{wt}</button>
+                    );
+                  })}
+                </div>
+                {errors.workType && (
+                  <div style={{ fontSize: 11, color: "#DC2626", fontWeight: 700 }}>
+                    ⚠ {errors.workType}
+                  </div>
+                )}
+                <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>
+                  기사앱에서 이 종목에 해당하는 기종 목록이 팝업으로 열립니다.
+                </div>
+              </div>
+            )}
             {!priceTBD && autoEstimateValue != null && autoEstimateValue !== form.estimateTotal && (
               <div style={{
                 padding: "6px 10px", background: t.bgInset, border: `1px solid ${t.border}`,

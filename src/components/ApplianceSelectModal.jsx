@@ -60,10 +60,18 @@ function _fmtKrw(n) {
 }
 
 export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose, onSaved }) {
-  const workType = _pickWorkType(task);
+  const initialWorkType = _pickWorkType(task);
   const principalCode = _pickPrincipalCode(task, pcOverride);
   const principalId   = _pickPrincipalId(task);
+
+  // 2026-07-12 — 사장님 spec: 저장된 workType 이 placeholder('기타' 등) 이거나
+  //   APPLIANCES_BY_WORKTYPE 미지원 종목이면 팝업 안에서 종목부터 재선택.
+  //   '기타/기타' 로 잘못 저장된 옛 작업 recovery 경로.
+  const initialWorkTypeUsable = !!APPLIANCES_BY_WORKTYPE[initialWorkType]
+    && !_isPlaceholderAppliance(initialWorkType);
+  const [workType, setWorkType] = useState(initialWorkTypeUsable ? initialWorkType : "");
   const appliances = APPLIANCES_BY_WORKTYPE[workType] || null;
+  const needsWorkTypePick = !initialWorkTypeUsable;
 
   const [appliance, setAppliance] = useState("");
   const [qty, setQty]             = useState(1);
@@ -188,7 +196,7 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
         }}>
           <div style={{ fontSize: 16, fontWeight: 900, color: "#1C2B3A", letterSpacing: "-0.4px" }}>
-            기종 선택 <span style={{ fontSize: 12, color: "#93A2B4", fontWeight: 700 }}>({workType || "종목 미정"})</span>
+            {needsWorkTypePick ? "종목·기종 선택" : "기종 선택"} <span style={{ fontSize: 12, color: "#93A2B4", fontWeight: 700 }}>({workType || "종목 미정"})</span>
           </div>
           <button onClick={onClose} aria-label="닫기" style={{
             background: "transparent", border: "none", cursor: "pointer",
@@ -203,15 +211,50 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
           {task?.address ? <> · <span style={{ color: "#93A2B4" }}>{task.address}</span></> : null}
         </div>
 
-        {noSupport ? (
-          <div style={{
-            padding: "12px 14px", borderRadius: 10,
-            background: "#FEECEC", border: "1px solid #F5B5B5",
-            color: "#C33", fontSize: 13, fontWeight: 700,
-          }}>
-            이 종목({workType || "미정"})은 팝업에서 기종 선택을 지원하지 않습니다.
-            해피콜에서 종목을 확정한 후 다시 시도하세요.
+        {/* 2026-07-12 — 종목 재선택 UI (사장님 spec: '기타/기타' recovery + 홈페이지 접수 미정 대응). */}
+        {needsWorkTypePick && (
+          <div>
+            <div style={{
+              fontSize: 11, color: "#93A2B4", fontWeight: 800,
+              marginBottom: 6, letterSpacing: 0.3, textTransform: "uppercase",
+            }}>종목 <span style={{ color: "#DC2626" }}>*</span></div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {["냉매충전", "세척"].map(wt => {
+                const on = workType === wt;
+                return (
+                  <button
+                    key={wt}
+                    type="button"
+                    onClick={() => { setWorkType(wt); setAppliance(""); }}
+                    style={{
+                      padding: "8px 14px",
+                      background: on ? "#2563EB" : "#F4F6FA",
+                      border: `1px solid ${on ? "#2563EB" : "#E5EAF1"}`,
+                      borderRadius: 999,
+                      color: on ? "#fff" : "#4A5A70",
+                      fontSize: 13, fontWeight: 800,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}>{wt}</button>
+                );
+              })}
+            </div>
+            <div style={{ fontSize: 10, color: "#93A2B4", fontWeight: 600, marginTop: 6 }}>
+              수리/설치는 팝업 미지원 — 관리자 화면에서 작업항목 편집으로 처리하세요.
+            </div>
           </div>
+        )}
+
+        {noSupport ? (
+          !needsWorkTypePick && (
+            <div style={{
+              padding: "12px 14px", borderRadius: 10,
+              background: "#FEECEC", border: "1px solid #F5B5B5",
+              color: "#C33", fontSize: 13, fontWeight: 700,
+            }}>
+              이 종목({workType || "미정"})은 팝업에서 기종 선택을 지원하지 않습니다.
+              관리자 화면에서 종목을 수정하세요.
+            </div>
+          )
         ) : (
           <>
             {/* 기종 선택 */}
