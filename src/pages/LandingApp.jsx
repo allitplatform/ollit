@@ -561,11 +561,11 @@ function Price({ scrollToForm }) {
               <h3>냉매충전</h3>
               <span className="ldg-price-sub">(가스충전)</span>
             </div>
-            {/* 2026-07-12 — 3컬럼: 기종 / 정상가 / 완충 시작가. */}
+            {/* 2026-07-12 — 3컬럼: 기종 / 정상가(취소선) / 완충비. */}
             <div className="ldg-price-thead-3">
               <span className="hd">기종</span>
               <span className="hd">정상가</span>
-              <span className="hd sale">완충 시작가</span>
+              <span className="hd sale">완충비</span>
             </div>
             {CHARGE_ROWS.map((r, i) => (
               <div key={i} className="ldg-price-row-3">
@@ -573,7 +573,7 @@ function Price({ scrollToForm }) {
                 {r.regular == null ? (
                   <span className="regular-empty">—</span>
                 ) : (
-                  <span className="regular">{won(r.regular)}</span>
+                  <span className="orig">{won(r.regular)}</span>
                 )}
                 {typeof r.sale === "string" ? (
                   <span className="phone-chat">{r.sale}</span>
