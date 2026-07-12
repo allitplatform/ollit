@@ -20,6 +20,9 @@ import { X } from "lucide-react";
 import { supabase } from "../lib/supabase.js";
 import { updateTaskDb } from "../data/tasksDb.js";
 import { lookupRate, WORK_TYPE_TO_SERVICE } from "./principal/NewReceptionScreenLite.jsx";
+// 2026-07-12 — 배지·배너 판정 통일 (사장님 spec).
+//   detectServiceType.id === 'undecided' 이면 needsApplianceSelection 도 무조건 true.
+import { detectServiceType } from "../data/serviceTypes.js";
 
 // 종목별 기종 목록 (사장님 spec).
 const APPLIANCES_BY_WORKTYPE = {
@@ -442,6 +445,13 @@ function _isPlaceholderAppliance(apl) {
 export function needsApplianceSelection(task) {
   if (!task) return false;
   if (task.applianceUndecided === true) return true;
+  // 2026-07-12 — 사장님 spec: 배지가 '미정' 이면 무조건 배너 표시 (판정 통일).
+  //   detectServiceType 이 undecided 판정하는 모든 케이스를 needsApplianceSelection 도 커버.
+  //   ('기타' workType 이 놓치는 경로 방어. placeholder 판정 로직 이중화.)
+  try {
+    const st = detectServiceType(task);
+    if (st && st.id === "undecided") return true;
+  } catch (_e) { /* ignore */ }
   const wi = Array.isArray(task.workItems) ? task.workItems : [];
   const first = wi[0] || {};
   if (wi.length > 0) {
