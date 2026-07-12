@@ -532,15 +532,42 @@ function DetailHeader({ task, onBack, onMenuAction }) {
 }
 
 // ──────────────── 2. MainCard ────────────────
-function MainCard({ task }) {
+// 2026-07-12 — 사장님 spec: 상태 배지 클릭 → 드롭다운으로 상태 변경 (완료→확정 되돌리기 포함).
+//   가드: 완료 요청 시 needsApplianceSelection 검사 (기존 onStatusChange 안 handler 로 통일).
+//   되돌릴 때 completedAt 클리어 (완료 아닌 상태로 변경 시).
+const STATUS_MENU_OPTIONS = ["미배정", "배정", "확정", "완료"];
+
+function MainCard({ task, onStatusChange }) {
   const stateInfo = getStateInfo(task);
   const serviceType = detectServiceType(task);
   const isExternal = task.type === "external";
   const titleText = isExternal ? (task.note || "외근") : (task.customer || "—");
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
+  const canChangeStatus = !isExternal
+    && !isEffectivelyCanceled(task)
+    && task.status !== "visit_only"
+    && !!onStatusChange;
 
   // V14 Step 3.1 Fix C — 사이드바 + 우상단 알약 = 작업유형 색 박힘 (serviceType.color)
   // 옛: stateInfo.color (state별 색) → 신규: serviceType.color (작업유형 색)
   const sideColor = (serviceType && serviceType.color) || stateInfo.color;
+
+  async function handlePick(newStatus) {
+    setShowStatusMenu(false);
+    if (!onStatusChange) return;
+    if (newStatus === task.status) return;
+    // 되돌리기 (완료 → 확정 등) 확인.
+    if ((task.status === "완료" || task.status === "정산완료") && newStatus !== "완료" && newStatus !== "정산완료") {
+      const ok = window.confirm(
+        `'${task.status}' → '${newStatus}' 로 되돌립니다.\n\n` +
+        `completedAt 이 초기화되고, 필요 시 기사가 재완료 처리해야 합니다.\n\n` +
+        `계속할까요?`
+      );
+      if (!ok) return;
+    }
+    onStatusChange(newStatus);
+  }
+
   return (
     <div style={{ padding: "20px 20px 0" }}>
       <div style={{
@@ -549,15 +576,63 @@ function MainCard({ task }) {
         position: "relative",
       }}>
         {/* 우측 상단 상태 알약 — V14 Step 3.1: 작업유형 색 박힘 */}
-        <div style={{
-          position: "absolute", top: 12, right: 12,
-          background: sideColor,
-          color: "#fff",
-          padding: "4px 12px", borderRadius: 20,
-          fontSize: 10, fontWeight: 700,
-        }}>
-          {stateInfo.label}
-        </div>
+        {/* 2026-07-12 — 클릭 → 상태 변경 드롭다운 (외근·취소·visit_only 제외). */}
+        <button
+          type="button"
+          onClick={() => canChangeStatus && setShowStatusMenu(v => !v)}
+          disabled={!canChangeStatus}
+          title={canChangeStatus ? "상태 변경" : ""}
+          style={{
+            position: "absolute", top: 12, right: 12,
+            background: sideColor,
+            color: "#fff",
+            padding: "4px 12px", borderRadius: 20,
+            fontSize: 10, fontWeight: 700,
+            border: "none", cursor: canChangeStatus ? "pointer" : "default",
+            fontFamily: "inherit", letterSpacing: "-0.2px",
+          }}>
+          {stateInfo.label}{canChangeStatus ? " ▾" : ""}
+        </button>
+        {showStatusMenu && (
+          <>
+            <div
+              onClick={() => setShowStatusMenu(false)}
+              style={{ position: "fixed", inset: 0, zIndex: 40 }}/>
+            <div style={{
+              position: "absolute", top: 44, right: 12, zIndex: 41,
+              background: "var(--bg-elevated)",
+              border: "1px solid var(--border)",
+              borderRadius: 10,
+              boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
+              padding: 4, minWidth: 120,
+            }}>
+              {STATUS_MENU_OPTIONS.map(s => {
+                const isCurrent = s === task.status;
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => handlePick(s)}
+                    disabled={isCurrent}
+                    style={{
+                      display: "block", width: "100%",
+                      padding: "8px 12px",
+                      background: isCurrent ? "var(--bg-inset, rgba(255,255,255,0.03))" : "transparent",
+                      border: "none",
+                      color: isCurrent ? "var(--text-secondary)" : "var(--text-primary)",
+                      fontSize: 13, fontWeight: 700,
+                      textAlign: "left",
+                      cursor: isCurrent ? "default" : "pointer",
+                      fontFamily: "inherit",
+                      borderRadius: 6,
+                    }}>
+                    {isCurrent ? `✓ ${s}` : s}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
 
         {/* 작업 종류 칩 — V14: active=true 박기 (색 박힘) */}
         {!isExternal && (

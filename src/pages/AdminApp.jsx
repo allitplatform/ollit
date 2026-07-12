@@ -2754,8 +2754,14 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
             return;
           }
           try {
-            console.log('[V14 2B-2] updateTask 상태', { taskId: tk.id, status: newStatus });
-            const res = await apiUpdateTask(tk.id, { status: newStatus });
+            // 2026-07-12 — 사장님 spec: 완료 → 확정/배정/미배정 되돌리기 시 completedAt 초기화.
+            //   payments 는 트리거·수동 compute_payment 재계산 경로 유지 (직접 삭제 X).
+            const wasDone   = tk.status === "완료" || tk.status === "정산완료";
+            const goingDone = newStatus === "완료" || newStatus === "정산완료";
+            const updates = { status: newStatus };
+            if (wasDone && !goingDone) updates.completedAt = null;
+            console.log('[V14 2B-2] updateTask 상태', { taskId: tk.id, updates });
+            const res = await apiUpdateTask(tk.id, updates);
             if (!res || res.ok === false) {
               alert(`상태 변경 실패: ${(res && res.error) || '실패'}`);
               return;
@@ -2764,13 +2770,18 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               '작업중': 'active', '진행중': 'active',
               '완료': 'done', '정산완료': 'done',
               '확정': 'scheduled',
+              '배정': 'scheduled',
               '미배정': 'waiting',
             };
             setApiTasks(prev => prev.map(t =>
-              t.id === tk.id ? { ...t, status: newStatus, state: stateMap[newStatus] || t.state } : t
+              t.id === tk.id
+                ? { ...t, status: newStatus, state: stateMap[newStatus] || t.state,
+                    completedAt: wasDone && !goingDone ? null : t.completedAt }
+                : t
             ));
             setSelectedTaskDetail(prev => prev ? {
-              ...prev, status: newStatus, state: stateMap[newStatus] || prev.state
+              ...prev, status: newStatus, state: stateMap[newStatus] || prev.state,
+              completedAt: wasDone && !goingDone ? null : prev.completedAt
             } : prev);
             addToast({ type: "status_change", title: `✓ ${newStatus}`, message: tk.customer || "" });
             // 2026-05-19 Phase 5 Step 0.C-4 — 변경 이력 audit log
@@ -2779,7 +2790,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               changeType:    "status",
               before:        { status: tk.status || null },
               after:         { status: newStatus },
-              note:          null,
+              note:          wasDone && !goingDone ? "되돌리기 (completedAt 클리어)" : null,
               changedBy:     user?.user_id || user?.id || null,
               changedByName: user?.name || null,
               changedByRole: "운영자",
