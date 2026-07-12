@@ -551,7 +551,7 @@
 .ldg-price-title h3 { margin-bottom: 0; }
 .ldg-price-sub { font-size: 14px; color: #93A2B4; font-weight: 600; }
 .ldg-price-thead-3 {
-  display: grid; grid-template-columns: 1fr 86px 96px; gap: 8px;
+  display: grid; grid-template-columns: 1fr 100px 108px; gap: 8px;
   padding-bottom: 10px; border-bottom: 2px solid #EEF2F7;
 }
 .ldg-price-thead-2 {
@@ -564,7 +564,7 @@
 .ldg-price-thead-2 .hd:first-child { text-align: left; }
 .ldg-price-thead-3 .hd.sale, .ldg-price-thead-2 .hd.sale { color: #e0794d; }
 .ldg-price-row-3 {
-  display: grid; grid-template-columns: 1fr 86px 96px; gap: 8px;
+  display: grid; grid-template-columns: 1fr 100px 108px; gap: 8px;
   align-items: center; padding: 16px 0; border-bottom: 1px solid #F2F5F9;
 }
 .ldg-price-row-2 {
@@ -581,11 +581,20 @@
   font-size: 13px; color: #AEB9C6;
   text-decoration: line-through; text-align: right;
 }
+/* 2026-07-12 — 사장님 spec: 냉매충전 정상가 컬럼 (취소선 X, 부드러운 톤). */
+.ldg-price-row-3 .regular {
+  font-size: 15px; font-weight: 700; color: #4A5A70;
+  text-align: right; letter-spacing: -0.3px;
+}
+.ldg-price-row-3 .regular-empty {
+  font-size: 15px; color: #C3CBD5; text-align: right; font-weight: 700;
+}
 .ldg-price-row-3 .sale, .ldg-price-row-2 .sale {
   font-size: 18px; font-weight: 900; color: #e0794d;
   text-align: right; letter-spacing: -0.5px;
 }
-.ldg-price-row-2 .phone-chat {
+.ldg-price-row-2 .phone-chat,
+.ldg-price-row-3 .phone-chat {
   font-size: 14px; font-weight: 700; color: #2563EB;
   text-align: right; letter-spacing: -0.5px;
 }

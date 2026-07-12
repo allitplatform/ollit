@@ -496,13 +496,16 @@ function Solution() {
 // 5. PRICE
 // ============================================================
 // 분해세척 표 제거 (사장님 spec — 견적 상이로 가격 미표시).
+// 2026-07-12 — 사장님 spec: '보충' 폐기 → '완충' 기준. 정상가·완충 시작가 2컬럼.
+//   금액 기존 대비 +30,000. 4WAY / 누설수리 는 전화 상담.
+//   "+ 완충 시 30,000원 추가" 행 삭제.
 const CHARGE_ROWS = [
-  { name: "벽걸이",                          sale: 70000   },
-  { name: "스탠드",                          sale: 80000   },
-  { name: "2 IN 1",                          sale: 100000  },
-  { name: "천장형", aux: " (1WAY)",          sale: 90000   },
-  { name: "천장형", aux: " (4WAY)",          sale: "전화 상담" },
-  { name: "누설 수리",                       sale: "전화 상담" },
+  { name: "벽걸이",                  regular: 120000, sale: 100000 },
+  { name: "스탠드",                  regular: 130000, sale: 110000 },
+  { name: "2 IN 1",                  regular: 130000, sale: 130000 },
+  { name: "천장형", aux: " (1WAY)",  regular: 120000, sale: 120000 },
+  { name: "천장형", aux: " (4WAY)",  regular: null,   sale: "전화 상담" },
+  { name: "누설 수리",               regular: null,   sale: "전화 상담" },
 ];
 
 function won(n, tilde = false) {
@@ -519,7 +522,7 @@ function Price({ scrollToForm }) {
         <p className="ldg-lead">
           현장에서 서비스 전 <strong style={{ color: "#1C2B3A", fontWeight: 700 }}>정확한 견적을 안내</strong>드리고,&nbsp;
           <strong style={{ color: "#1C2B3A", fontWeight: 700 }}>동의하신 금액으로만</strong> 진행합니다.&nbsp;
-          <span style={{ color: "#93A2B4" }}>분해세척은 기종별 할인가, 냉매충전은 보충가 기준입니다.</span>
+          <span style={{ color: "#93A2B4" }}>분해세척은 기종별 할인가, 냉매충전은 완충 기준입니다.</span>
         </p>
 
         <div className="ldg-price-grid">
@@ -558,13 +561,20 @@ function Price({ scrollToForm }) {
               <h3>냉매충전</h3>
               <span className="ldg-price-sub">(가스충전)</span>
             </div>
-            <div className="ldg-price-thead-2">
+            {/* 2026-07-12 — 3컬럼: 기종 / 정상가 / 완충 시작가. */}
+            <div className="ldg-price-thead-3">
               <span className="hd">기종</span>
-              <span className="hd sale">보충 시작가</span>
+              <span className="hd">정상가</span>
+              <span className="hd sale">완충 시작가</span>
             </div>
             {CHARGE_ROWS.map((r, i) => (
-              <div key={i} className="ldg-price-row-2">
+              <div key={i} className="ldg-price-row-3">
                 <span className="name">{r.name}{r.aux && <span className="aux">{r.aux}</span>}</span>
+                {r.regular == null ? (
+                  <span className="regular-empty">—</span>
+                ) : (
+                  <span className="regular">{won(r.regular)}</span>
+                )}
                 {typeof r.sale === "string" ? (
                   <span className="phone-chat">{r.sale}</span>
                 ) : (
@@ -572,7 +582,6 @@ function Price({ scrollToForm }) {
                 )}
               </div>
             ))}
-            <div className="ldg-price-note">+ 완충 시 30,000원 추가</div>
             <div className="ldg-price-warn">※ 기계 고장·실외기 접근 불가로 인해 충전을 못할 경우 출장비 30,000원이 발생합니다.</div>
             <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm("냉매충전"); }}>냉매충전 접수하기 →</a>
           </div>
