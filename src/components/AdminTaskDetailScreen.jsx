@@ -1010,7 +1010,9 @@ function TaskItemsCard({ task, user, onReload }) {
     }
   }
 
-  if (items.length === 0) return null;
+  // 2026-07-12 — 사장님 spec: items 0개여도 카드 렌더 ([+ 항목 추가] 항상 노출).
+  //   빈 작업 (A-260712-029 같이 workItems 없이 저장된 case) 복구 경로 확보.
+  //   이전: return null 로 카드 자체가 사라져 사용자가 항목 추가 불가.
 
   return (
     <div style={{ padding: D1_OUTER_PAD }}>
@@ -1018,6 +1020,23 @@ function TaskItemsCard({ task, user, onReload }) {
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
           🔢 작업 항목별
         </div>
+
+        {items.length === 0 && (
+          <div style={{
+            padding: "14px 12px",
+            background: "#FFF7ED",
+            border: "1px dashed #F59E0B",
+            borderRadius: 8,
+            color: "#78350F",
+            fontSize: 12, fontWeight: 700,
+            textAlign: "center", marginBottom: 8,
+          }}>
+            ⚠️ 작업 항목이 없습니다.<br/>
+            <span style={{ fontSize: 11, fontWeight: 600 }}>
+              아래 '➕ 항목 추가' 버튼으로 종목·기종·수량을 등록하세요.
+            </span>
+          </div>
+        )}
 
         {items.map((it, idx) => {
           const colors    = getWorkTypeColors(it.workType);

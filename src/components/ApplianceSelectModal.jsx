@@ -453,18 +453,15 @@ export function needsApplianceSelection(task) {
     if (st && st.id === "undecided") return true;
   } catch (_e) { /* ignore */ }
   const wi = Array.isArray(task.workItems) ? task.workItems : [];
+  // 2026-07-12 — 사장님 spec: 항목 0 이면 root workType 유무 상관 없이 무조건 미정.
+  //   A-260712-029 (workItems=[] + rootWorkType=null) — 완전 갇힘 방지.
+  //   빈 task 는 정상 흐름 불가 → 배너로 종목·기종 선택 강제.
+  if (wi.length === 0) return true;
   const first = wi[0] || {};
-  if (wi.length > 0) {
-    const wtEmpty  = !first.workType || String(first.workType).trim() === "";
-    const wtPlace  = _isPlaceholderAppliance(first.workType);
-    const aplPlace = _isPlaceholderAppliance(first.appliance);
-    if (wtEmpty || wtPlace || aplPlace) return true;
-  }
-  if (wi.length === 0) {
-    if (task.workType && String(task.workType).trim()) return true;
-    const notes = [task.request, task.requestNote, task.memo, task.workMemo].filter(Boolean).join(" ");
-    if (/\[홈페이지\s*접수/.test(notes)) return true;
-  }
+  const wtEmpty  = !first.workType || String(first.workType).trim() === "";
+  const wtPlace  = _isPlaceholderAppliance(first.workType);
+  const aplPlace = _isPlaceholderAppliance(first.appliance);
+  if (wtEmpty || wtPlace || aplPlace) return true;
   // 최종 방어: root task.workType 이 placeholder ('기타' 등).
   if (task.workType && _isPlaceholderAppliance(task.workType)) return true;
   return false;
