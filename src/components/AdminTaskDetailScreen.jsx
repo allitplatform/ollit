@@ -283,6 +283,23 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       </div>
       {/* 2026-07-11 — 홈페이지 접수 (기종 미정) 배너. 클릭 → 기종 선택 팝업.
             사장님 spec: 예약확정/배정 단계에서 기종 선택 → lookupRate → 금액 자동. */}
+      {/* 2026-07-12 — 진단 로그 (사장님 spec: '기타/기타' 사고 재발 시 원인 파악). */}
+      {(() => {
+        try {
+          console.log("[AdminTaskDetail applianceCheck]", {
+            taskNo: task?.taskCode || task?.task_no,
+            applianceUndecided: task?.applianceUndecided,
+            rootWorkType: task?.workType,
+            rootAppliance: task?.appliance,
+            workItems: (task?.workItems || []).map(w => ({
+              workType: w?.workType, appliance: w?.appliance, qty: w?.qty,
+              serviceCode: w?.serviceCode,
+            })),
+            needsApplianceSelection: needsApplianceSelection(task),
+          });
+        } catch (_e) { /* ignore */ }
+        return null;
+      })()}
       {needsApplianceSelection(task) && (
         <div style={{
           margin: "8px 12px 0",

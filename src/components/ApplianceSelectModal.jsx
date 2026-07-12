@@ -430,22 +430,33 @@ function _isPlaceholderAppliance(apl) {
 // 헬퍼 — task 가 기종 선택 팝업 대상인지 판정.
 //   우선순위:
 //     1) task.applianceUndecided === true (플래그 명시)
-//     2) workItems 안 첫 항목에 workType 있는데 appliance 미정 (빈값 or placeholder)
+//     2) workItems 첫 항목 workType 또는 appliance 이 placeholder ('기타' 등)
+//        또는 빈값 (사고: work_types.name 매칭 실패 시 undefined).
 //     3) workItems 비어있는데 root 에 workType 있음
 //     4) workItems 비어있고 memo 에 "[홈페이지 접수" 마커 (옛 저장 recover)
+//     5) root task.workType 이 placeholder ('기타' 등) — 최종 방어.
+// 2026-07-12 — 사장님 spec: workType placeholder 도 미정 취급.
+//   A-260712-029 (김은희) case — sync_task_items_trg 가 work_types.name='기타' 미매칭 →
+//   task_items.work_type_id=NULL → rowToTask 에서 workItems[0].workType=undefined →
+//   기존 판정 `first.workType && ...` 조건 fail → 배너 안 뜸.
 export function needsApplianceSelection(task) {
   if (!task) return false;
   if (task.applianceUndecided === true) return true;
   const wi = Array.isArray(task.workItems) ? task.workItems : [];
   const first = wi[0] || {};
-  // 2026-07-11 — placeholder 감지 (사장님 spec, 저장 부작용 방어).
-  if (first.workType && _isPlaceholderAppliance(first.appliance)) return true;
+  if (wi.length > 0) {
+    const wtEmpty  = !first.workType || String(first.workType).trim() === "";
+    const wtPlace  = _isPlaceholderAppliance(first.workType);
+    const aplPlace = _isPlaceholderAppliance(first.appliance);
+    if (wtEmpty || wtPlace || aplPlace) return true;
+  }
   if (wi.length === 0) {
     if (task.workType && String(task.workType).trim()) return true;
-    // 홈페이지 접수 마커 검사 (memo/request/requestNote 어디에라도).
     const notes = [task.request, task.requestNote, task.memo, task.workMemo].filter(Boolean).join(" ");
     if (/\[홈페이지\s*접수/.test(notes)) return true;
   }
+  // 최종 방어: root task.workType 이 placeholder ('기타' 등).
+  if (task.workType && _isPlaceholderAppliance(task.workType)) return true;
   return false;
 }
 

@@ -62,7 +62,28 @@ export const SERVICE_TYPES = {
     bgColor:     "var(--bg-secondary)",
     borderColor: "#FF8F00",
   },
+  // 2026-07-12 — 사장님 spec: 종목 미확정 상태 (예: 관리자 폼에서 '기타/기타' 저장,
+  //   홈페이지 접수 종목 미상). 세척 폴백 대신 '미정' 배지 표시.
+  undecided: {
+    id:          "undecided",
+    label:       "미정",
+    icon:        "❔",
+    color:       "#F59E0B",
+    textColor:   "#F59E0B",
+    bgColor:     "var(--bg-secondary)",
+    borderColor: "#F59E0B",
+  },
 };
+
+// 2026-07-12 — placeholder workType 판정 (미정/기타/미확정/빈값 등).
+//   detectServiceType 폴백 정정 + 배너 판정 공용. 소문자 정규화.
+const _PLACEHOLDER_WT_RE = /^(미정|기타|미확정|—|-|_|\?|없음|선택|선택안함|선택안됨)$/i;
+function _isPlaceholderWorkType(s) {
+  if (!s) return true;
+  const v = String(s).trim();
+  if (v === "") return true;
+  return _PLACEHOLDER_WT_RE.test(v);
+}
 
 // 작업 분류 자동 감지
 // 2026-05-26 C-1 — workType 정확일치 → isRefrigerant (DB "냉매점검(...)" 측 catch).
@@ -73,6 +94,18 @@ export function detectServiceType(task) {
   if (!task) return SERVICE_TYPES.cleaning;
   if (task.status === "visit_only") return SERVICE_TYPES.visit;
   if (task.orderType === "extra")   return SERVICE_TYPES.extra;
+
+  // 2026-07-12 — 사장님 spec: 종목 미확정 → '세척' 폴백 대신 '미정' 배지.
+  //   applianceUndecided 플래그 우선 검사 → workType placeholder / workItems[0].workType
+  //   placeholder / 둘 다 빈값 → undecided.
+  if (task.applianceUndecided === true) return SERVICE_TYPES.undecided;
+  const firstWt = Array.isArray(task.workItems) && task.workItems.length > 0
+    ? task.workItems[0]?.workType
+    : null;
+  const rootWt  = task.workType;
+  const hasReal = (firstWt && !_isPlaceholderWorkType(firstWt))
+               || (rootWt  && !_isPlaceholderWorkType(rootWt));
+  if (!hasReal) return SERVICE_TYPES.undecided;
 
   // serviceCode 우선 (DB) → workType startsWith → 5종 work_types.name 직접 매칭 (workTypeKind v2).
   const kind = getServiceKind(task);
@@ -89,7 +122,9 @@ export function detectServiceType(task) {
   if (text.includes("출장") && !text.includes("청소") && !text.includes("세척")) {
     return SERVICE_TYPES.visit;
   }
-  return SERVICE_TYPES.cleaning;
+  // 2026-07-12 — 최종 fallback: '세척' 대신 '미정'.
+  //   진짜 세척 작업이면 이미 kind='cleaning' 로 위에서 반환됐음.
+  return SERVICE_TYPES.undecided;
 }
 
 export function getServiceTypeById(id) {
