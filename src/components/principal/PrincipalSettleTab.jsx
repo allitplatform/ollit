@@ -324,13 +324,22 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
         if (amt > 0) monthlyAmounts.set(ym, (monthlyAmounts.get(ym) || 0) + amt);
       }
 
+      // 2026-07-13 — 사장님 spec: 드릴인 items 도 이월 포함.
+      //   문제: 카드 집계 (displayNaverCount/displayWeeklyTotal) 는 src.naverCount/weeklyTotal
+      //         사용 → 이월 반영 (2,867,013). 그러나 items:dbItems 는 fetchPrincipalSettleItems
+      //         결과라 이월 미포함 (14건, 864,375).
+      //   → WeekSettleDetail 상세·엑셀 청구서에서 이월 39건 누락.
+      //   fix: usol_n 부분은 src.items (fetchJuneLiveWeeks 가 이월 append 한 것) 우선 사용,
+      //        없으면 usolNDb (WEEKLY_DATA_FIXED 옛 주차 fallback). + otherDb (비 usol_n).
+      const usolNItemsForDrill = (src && Array.isArray(src.items)) ? src.items : usolNDb;
+      const drillItems = [...usolNItemsForDrill, ...otherDb];
       list.push({
         key, year, week, monday, sunday, monthDay,
         mondayStr, sundayStr, depositStr,
         displayNaverCount,
         displayWeeklyTotal,
         monthlyAmounts,
-        items: dbItems,  // 드릴인 측 (cancel 필터 적용된 DB items)
+        items: drillItems,  // 드릴인 측 (usol_n 이월 포함 + 비 usol_n DB)
       });
     }
     list.sort((a, b) => b.key.localeCompare(a.key));
