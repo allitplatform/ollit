@@ -585,7 +585,8 @@
   font-size: 18px; font-weight: 900; color: #e0794d;
   text-align: right; letter-spacing: -0.5px;
 }
-.ldg-price-row-2 .phone-chat {
+.ldg-price-row-2 .phone-chat,
+.ldg-price-row-3 .phone-chat {
   font-size: 14px; font-weight: 700; color: #2563EB;
   text-align: right; letter-spacing: -0.5px;
 }

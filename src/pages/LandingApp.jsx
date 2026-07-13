@@ -496,13 +496,15 @@ function Solution() {
 // 5. PRICE
 // ============================================================
 // 분해세척 표 제거 (사장님 spec — 견적 상이로 가격 미표시).
+// 2026-07-13 — 사장님 spec: 정상가 열 추가 (취소선, 회색). 보충 시작가·구조 무손.
+//   regular=null → 빈 칸 (천장형 1WAY/4WAY / 누설 수리).
 const CHARGE_ROWS = [
-  { name: "벽걸이",                          sale: 70000   },
-  { name: "스탠드",                          sale: 80000   },
-  { name: "2 IN 1",                          sale: 100000  },
-  { name: "천장형", aux: " (1WAY)",          sale: 90000   },
-  { name: "천장형", aux: " (4WAY)",          sale: "전화 상담" },
-  { name: "누설 수리",                       sale: "전화 상담" },
+  { name: "벽걸이",                          regular: 90000,  sale: 70000   },
+  { name: "스탠드",                          regular: 120000, sale: 80000   },
+  { name: "2 IN 1",                          regular: 160000, sale: 100000  },
+  { name: "천장형", aux: " (1WAY)",          regular: null,   sale: 90000   },
+  { name: "천장형", aux: " (4WAY)",          regular: null,   sale: "전화 상담" },
+  { name: "누설 수리",                       regular: null,   sale: "전화 상담" },
 ];
 
 function won(n, tilde = false) {
@@ -558,13 +560,20 @@ function Price({ scrollToForm }) {
               <h3>냉매충전</h3>
               <span className="ldg-price-sub">(가스충전)</span>
             </div>
-            <div className="ldg-price-thead-2">
+            {/* 2026-07-13 — 3컬럼: 기종 / 정상가 (취소선) / 보충 시작가. */}
+            <div className="ldg-price-thead-3">
               <span className="hd">기종</span>
+              <span className="hd">정상가</span>
               <span className="hd sale">보충 시작가</span>
             </div>
             {CHARGE_ROWS.map((r, i) => (
-              <div key={i} className="ldg-price-row-2">
+              <div key={i} className="ldg-price-row-3">
                 <span className="name">{r.name}{r.aux && <span className="aux">{r.aux}</span>}</span>
+                {r.regular == null ? (
+                  <span aria-hidden="true"></span>
+                ) : (
+                  <span className="orig">{won(r.regular)}</span>
+                )}
                 {typeof r.sale === "string" ? (
                   <span className="phone-chat">{r.sale}</span>
                 ) : (
