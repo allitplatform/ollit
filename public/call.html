@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>올데이케어 전화 연결</title>
+  <meta name="robots" content="noindex" />
+  <!-- 2026-07-13 — 블로그/외부채널용 전화 연결 경유 페이지.
+       네이버 블로그는 이미지에 tel: 링크를 못 걸어서 https 경유로 우회.
+       진입 즉시 전화 앱 호출, 실패 시(PC 등) 버튼 표시. -->
+  <meta http-equiv="refresh" content="0;url=tel:18662003" />
+  <style>
+    body { margin:0; font-family:-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif;
+           background:#f6f9fd; display:flex; align-items:center; justify-content:center;
+           min-height:100vh; }
+    .box { text-align:center; padding:32px; }
+    .num { display:inline-block; background:#2B6CEE; color:#fff; text-decoration:none;
+           font-size:28px; font-weight:800; padding:18px 44px; border-radius:16px;
+           box-shadow:0 6px 18px rgba(43,108,238,.35); }
+    p { color:#50637d; font-size:15px; margin:18px 0 0; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <a class="num" href="tel:18662003">📞 1866-2003 전화하기</a>
+    <p>전화 앱이 자동으로 열리지 않으면 위 버튼을 눌러주세요.<br/>올데이케어 · 수도권 에어컨 냉매충전·수리</p>
+  </div>
+  <script>location.href = 'tel:18662003';</script>
+</body>
+</html>
