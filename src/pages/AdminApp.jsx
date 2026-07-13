@@ -205,8 +205,6 @@ import { EngineerCalendarScreen } from "../components/admin/EngineerCalendarScre
 import { getOffDays, formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
 // 2026-06-03 — Phase 2a fix: 대시보드 count 측측 측측 fetch (목록과 동일 source / categoryData footgun 측측).
 import { fetchUnprocessedRefriAddons, rollbackRefrigerantAddonSource } from "../lib/refrigerantAddonsDb.js";
-// 2026-07-13 — 사장님 spec: 대시보드/목록 화면 새로고침 버튼 (재사용 컴포넌트).
-import { RefreshButton } from "../components/common/RefreshButton.jsx";
 import {
   listNotifications as listStoredNotifications,
   markAsRead as markStoredAsRead,
@@ -1881,21 +1879,6 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.userId]);
 
-  // 2026-07-13 — 사장님 spec: 탭/앱이 백그라운드에서 다시 활성화될 때 자동 재조회.
-  //   document.visibilityState === 'visible' 진입 시 fetchTasks background 호출.
-  //   폼 화면 진입 중이면 skip (입력 방해 방지).
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const handler = () => {
-      if (document.visibilityState !== "visible") return;
-      if (screen === "newReceptionForm") return;
-      fetchTasks({ background: true });
-    };
-    document.addEventListener("visibilitychange", handler);
-    return () => document.removeEventListener("visibilitychange", handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screen]);
-
   // 2026-05-22 — Service Worker push 메시지 도착 시 자동 refetch (이중 안전망)
   // realtime 측 실패해도 push 도착할 때마다 화면 갱신. 신규접수 폼 진입 시는 끊기.
   useEffect(() => {
@@ -2160,7 +2143,6 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
       }}
       onOpenTaskDetail={(task) => openTaskDetailFromLight(task, null)}
-      onRefreshTasks={fetchTasks}
     />
   ) : null;
 
@@ -2474,7 +2456,6 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onTaskClick={(task) => goTaskDetail(task, "liveWork")}
         initialFilter={liveWorkFilter}
         apiTasks={apiTasks}
-        onRefreshTasks={fetchTasks}
       />
     </Shell>;
   }
@@ -3167,7 +3148,6 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onMemo={(task) => { setSelectedTask(task); setScreen("memoAdd"); }}
         onEdit={(task) => { setSelectedTask(task); setScreen("taskEdit"); }}
         onTaskClick={(task) => goTaskDetail(task, "assignedList")}
-        onRefreshTasks={fetchTasks}
       />
     </Shell>;
   }
@@ -3178,7 +3158,6 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onBack={goBack}
         apiTasks={apiTasks}
         onTaskClick={(task) => goTaskDetail(task, "inProgressList")}
-        onRefreshTasks={fetchTasks}
       />
     </Shell>;
   }
@@ -4025,20 +4004,13 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
 
       <div style={{ padding: "20px 16px 0" }}>
         {/* 1. 인사말 */}
-        {/* 2026-07-13 — 오른쪽 끝에 새로고침 버튼 (사장님 spec). */}
-        <div style={{
-          marginBottom: 20,
-          display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12,
-        }}>
-          <div>
-            <div className="mono" style={{ fontSize: 10, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>
-              {TODAY} · {NOW}
-            </div>
-            <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
-              안녕하세요 <span style={{ color: t.accent }}>{user?.name || ADMIN_USER}</span>님
-            </div>
+        <div style={{ marginBottom: 20 }}>
+          <div className="mono" style={{ fontSize: 10, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>
+            {TODAY} · {NOW}
           </div>
-          <RefreshButton onRefresh={onRefreshTasks} title="대시보드 새로고침"/>
+          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-0.02em", lineHeight: 1.2 }}>
+            안녕하세요 <span style={{ color: t.accent }}>{user?.name || ADMIN_USER}</span>님
+          </div>
         </div>
 
         {/* 2. 작업 통계 — 핫핑크 = 새 접수 + 진행중 (사장님 KPI) */}
@@ -5211,7 +5183,7 @@ function ReassignRequestListScreen({ t, apiTasks = [], onBack, onMemo, onEdit, o
   );
 }
 
-function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit, onTaskClick, onRefreshTasks }) {
+function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit, onTaskClick }) {
   // 2026-05-21 Phase 5 Step 0.G-5-B — 메인 카운트 통일 (TASK_FILTERS 공유 / 사장님 spec 확정)
   //   배정 완료 = TASK_FILTERS.assigned (유솔N 본작업 냉매만 + status='배정' / 날짜 X)
   //   일정 확정 = TASK_FILTERS.confirmed (유솔N 본작업 냉매만 + status='확정' / 날짜 X)
@@ -5245,9 +5217,7 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
         <button onClick={onBack} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
           <ArrowLeft size={18}/>
         </button>
-        <div style={{ fontSize: 16, fontWeight: 800, flex: 1 }}>{titleText}</div>
-        {/* 2026-07-13 — 새로고침 (사장님 spec). */}
-        <RefreshButton onRefresh={onRefreshTasks} title="목록 새로고침"/>
+        <div style={{ fontSize: 16, fontWeight: 800 }}>{titleText}</div>
       </div>
 
       <div style={{ padding: "14px 16px 20px" }}>
@@ -6315,7 +6285,7 @@ const TASK_GROUPS = [
   { id: "done",      label: "완료",    colorKey: "textMuted",       predicate: (s) => s.type === "work"     && s.state === "done"    },
 ];
 
-function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [], onRefreshTasks }) {
+function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [] }) {
   // 2026-05-19 Phase 5 Step 0.C-10 — TASKS_TODAY mock fallback 제거
   //   사장님 catch: 박소영 (관악구 김재현) 가짜 작업 측 TASKS_TODAY 측 잔존 measure 측.
   //   apiTasks 측 only.
@@ -6352,8 +6322,6 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [], 
             )}
           </div>
         </div>
-        {/* 2026-07-13 — 새로고침 (사장님 spec). */}
-        <RefreshButton onRefresh={onRefreshTasks} title="목록 새로고침"/>
       </div>
       <div style={{ paddingTop: 14 }}>
         <LiveWorkContent t={t} onTaskClick={onTaskClick} initialFilter={initialFilter} apiTasks={apiTasks}/>
@@ -6368,7 +6336,7 @@ function LiveWorkScreen({ t, onBack, onTaskClick, initialFilter, apiTasks = [], 
 // ============================================
 const IN_PROGRESS_GROUP_IDS = new Set(["active", "moving", "external"]);
 
-function InProgressListScreen({ t, onBack, onTaskClick, apiTasks = [], onRefreshTasks }) {
+function InProgressListScreen({ t, onBack, onTaskClick, apiTasks = [] }) {
   const [query, setQuery] = useState("");
   // 2026-05-21 Phase 5 Step 0.G-5-B — 메인 카운트 통일 (TASK_FILTERS 공유)
   //   진행중 = isScheduledToday + status='진행중'/'작업중' (원청 구분 없이 전부 포함)
@@ -6394,8 +6362,6 @@ function InProgressListScreen({ t, onBack, onTaskClick, apiTasks = [], onRefresh
             활성 <span className="mono" style={{ color: t.success, fontWeight: 700 }}>{activeCount}</span>건
           </div>
         </div>
-        {/* 2026-07-13 — 새로고침 (사장님 spec). */}
-        <RefreshButton onRefresh={onRefreshTasks} title="목록 새로고침"/>
       </div>
 
       <div style={{ padding: "14px 16px 16px" }}>
