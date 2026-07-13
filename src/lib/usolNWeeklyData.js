@@ -540,12 +540,44 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
   // 2026-07-01 — When this drill-in is for the current billing cycle,
   //   append past-cycle C2 carryover so drill-in list + excel match the card.
   //   Non-current-cycle drill-ins are untouched (past week snapshots preserved).
-  const todayMondayYmd = mondayOfYmd(getKstToday());
-  if (mondayYmd === todayMondayYmd) {
+  // 2026-07-13 — 사장님 spec: 기준을 '오늘 monday' → '최신 미확정 주차 monday' 로 통일.
+  //   fetchJuneLiveWeeks 는 sorted[0].monday (=데이터 상 최신 naver_settled monday) 에
+  //   carryover 를 붙임. 여기서 '오늘 monday' 기준을 쓰면 오늘이 7/13 (Mon) 인데
+  //   최신 데이터가 7/6 주차인 경우 7/6 드릴인이 carryover 못 받아 카드(46) vs 드릴인(7)
+  //   불일치 발생 + 엑셀에서 이월 39건 누락.
+  const latestMondayYmd = await _latestBillingMondayYmd();
+  if (latestMondayYmd && mondayYmd === latestMondayYmd) {
     const carry = await fetchCarryoverC2Items(mondayYmd);
     if (carry.length > 0) flat.push(...carry);
   }
   return { ok: true, items: flat };
+}
+
+// 2026-07-13 — 최신 billing monday 결정 helper (사장님 spec 통일용).
+//   fetchJuneLiveWeeks 가 sorted[0] (max monday of naver_settled_at) 에 carryover
+//   를 append 하는 것과 동일 기준. fetchWeekItemsByMonday 가 같은 monday 매칭 시
+//   carryover 붙임 → 카드·드릴인·엑셀 일관.
+//
+//   구현: task_items 에서 usol_n + 완료 + naver_settled_at NOT NULL 중
+//         max(naver_settled_at) 조회 → mondayOfYmd(KST) 반환.
+//   fallback: 조회 실패 or 데이터 없음 → 오늘 monday (기존 spec 잔존).
+async function _latestBillingMondayYmd() {
+  const { data, error } = await supabase
+    .from("task_items")
+    .select("naver_settled_at, tasks!inner ( principal_id, status )")
+    .eq("tasks.principal_id", USOL_N_PID)
+    .eq("tasks.status", "완료")
+    .not("naver_settled_at", "is", null)
+    .not("is_canceled", "eq", true)
+    .order("naver_settled_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    console.warn("[usolNWeeklyData._latestBillingMondayYmd] fallback → today", error);
+    return mondayOfYmd(getKstToday());
+  }
+  const iso = data && data[0] && data[0].naver_settled_at;
+  if (!iso) return mondayOfYmd(getKstToday());
+  return mondayOfYmd(kstYmd(iso));
 }
 
 // 2026-07-01 — Carryover C2 items for current-cycle billing.
