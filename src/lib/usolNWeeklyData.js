@@ -395,25 +395,34 @@ export async function fetchJuneLiveWeeks() {
   //   Past-cycle naver-settled + company-unpaid items get folded into this week's
   //   card/drill-in/excel so usol picks them up on the next settlement.
   //   Does NOT touch past cards (confirmed remittance snapshots stay immutable).
+  // 2026-07-13 v2 — 사장님 spec: 이월 append 기준을 drill-in 과 통일 (_latestBillingMondayYmd).
+  //   기존: sorted[0].monday (=본 fetch base 최신 monday) 사용.
+  //   문제: _latestBillingMondayYmd() 는 status='완료' 필터가 있고, base fetch 는 없어
+  //         status 가 다른 최신 item (예: 진행중) 있으면 sorted[0].monday 가 더 앞쪽으로
+  //         밀림 → 이월이 admin drill-in 이 붙이는 주(=_latestBillingMondayYmd)와 어긋남
+  //         → 원청 카드에서 이월 미노출 (사장님 리포트: 원청 14건, 관리자 53건).
+  //   fix: _latestBillingMondayYmd() 사용, sorted 안에 매칭 있으면 그 주에 붙이고
+  //        없으면 sorted[0] fallback (최소 회귀).
   if (sorted.length > 0) {
-    const latest = sorted[0];
-    const carry  = await fetchCarryoverC2Items(latest.monday);
+    const latestMondayYmd = await _latestBillingMondayYmd();
+    const target = sorted.find(w => w.monday === latestMondayYmd) || sorted[0];
+    const carry  = await fetchCarryoverC2Items(target.monday);
     for (const it of carry) {
-      latest.items.push(it);
-      latest.naverCount += 1;
+      target.items.push(it);
+      target.naverCount += 1;
       const sub  = Number(it.subtotal) || 0;
       const comp = Number(it._company_receive) || 0;
-      latest.sumSubtotal   += sub;
-      latest.sumCompanyRcv += comp;
+      target.sumSubtotal   += sub;
+      target.sumCompanyRcv += comp;
       if (comp > 0) {
         const ym = workYmOfItem(it);
         if (ym) {
-          latest.monthlyAmounts.set(ym, (latest.monthlyAmounts.get(ym) || 0) + comp);
+          target.monthlyAmounts.set(ym, (target.monthlyAmounts.get(ym) || 0) + comp);
         }
       }
     }
-    latest.weeklyTotal    = latest.sumCompanyRcv;
-    latest.weeklySubtotal = latest.sumSubtotal;
+    target.weeklyTotal    = target.sumCompanyRcv;
+    target.weeklySubtotal = target.sumSubtotal;
   }
   return sorted;
 }
