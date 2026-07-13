@@ -24,6 +24,8 @@ import { AdminPcUsolNMonthlyPanel } from "./AdminPcUsolNMonthlyPanel.jsx";
 // 2026-06-12 — 작업 검색 (맨 아래 풀폭). 클라이언트 필터 (apiTasks).
 import { AdminPcTaskSearchPanel } from "./AdminPcTaskSearchPanel.jsx";
 import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
+// 2026-07-13 — 새로고침 버튼 (사장님 spec).
+import { RefreshButton } from "../components/common/RefreshButton.jsx";
 
 function fmtKRW(n) {
   return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
@@ -49,6 +51,7 @@ export function AdminPcDashboard({
   inquiriesNewCount = 0,
   onTaskAssign,
   onOpenTaskDetail,
+  onRefreshTasks,   // 2026-07-13 — 사장님 spec (부모 fetchTasks 주입).
 }) {
   // 2026-06-12 — 반응형 — 1280px 이상이면 2단 (매출 좌 / 알림+유솔N 우), 미만이면 1단 세로 stack.
   const isWide = useMinWidth(1280);
@@ -150,6 +153,14 @@ export function AdminPcDashboard({
       <AdminPcTodayByPrincipal apiTasks={apiTasks}/>
 
       {/* 메트릭 5개 한줄 */}
+      {/* 2026-07-13 — 사장님 spec: 헤더 우측 새로고침 버튼. */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{
+          fontSize: 12, fontWeight: 800, color: "var(--text-secondary)",
+          letterSpacing: 0.5, textTransform: "uppercase",
+        }}>오늘 상태</div>
+        <RefreshButton onRefresh={onRefreshTasks} title="대시보드 새로고침"/>
+      </div>
       <MetricsRow metrics={metrics}/>
 
       {/* 2026-06-12 — 기사별 일정 제거 (사장님 spec: 개요에서 제외).
