@@ -17,7 +17,7 @@ import {
   setTaskItemReceivedAmount as apiSetItemReceived,
   setAllTaskItemReceivedAmounts as apiSetAllItemsReceived,
 } from "../data/tasksDb.js";
-import { isRefrigerant as isRefrigerantWorkType } from "../utils/workTypeKind.js";
+import { isRefrigerant as isRefrigerantWorkType, getServiceKind } from "../utils/workTypeKind.js";
 import { supabase } from "../lib/supabase.js";
 import {
   TaskCompleteScreen as CompletionCompleteScreen,
@@ -1549,6 +1549,36 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
           </div>
         </div>
       )}
+
+      {/* 2026-07-14 — 사장님 spec: 냉매·누설 건은 동의서 받기 전 상담용으로
+            "고객 견적금액" 을 기사에게 표시. (동의서 화면에는 넣지 않음 —
+            현장 추가금 가능성 때문에 고객 서명 문서에 고정 금액 노출 X.)
+            작업 항목 옆 금액은 기사 정산 예상액이라 별도 표기 필요. */}
+      {(() => {
+        const kind = getServiceKind(task);
+        if (kind !== "refrigerant" && kind !== "leak") return null;
+        const quote = Number(task.estimateTotal || 0);
+        return (
+          <div style={{
+            borderTop: `0.5px solid ${dividerColor}`,
+            paddingTop: 12, paddingBottom: 12, marginBottom: 2,
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+          }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>
+              💬 고객 견적금액 <span style={{ fontWeight: 600, color: "var(--text-tertiary)" }}>(현장 추가금 별도)</span>
+            </span>
+            {quote > 0 ? (
+              <span className="mono" style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>
+                ₩{quote.toLocaleString("ko-KR")}
+              </span>
+            ) : (
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--warning, #F59E0B)", fontStyle: "italic" }}>
+                미정 — 고객 협의 후 확정
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* 영역 3 — 고객 정보 (구분선) */}
       <div style={{
