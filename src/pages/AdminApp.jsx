@@ -1839,7 +1839,22 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     setTasksDebug(null);
     try {
       console.log('[V14 2A] fetchTasks 시작 — role=admin / userId=', user?.id || user?.userId || 'admin');
-      const res = await apiGetTasks('admin', user?.id || user?.userId || 'admin', null);
+      // 2026-07-14 — Stage 4: 첫 페이지(최신 1,000건) 도착 즉시 선반영 → 목록 화면 첫 페인트 단축.
+      //   초기 로드(현재 apiTasks 비어있음)에서만 적용 — 이후엔 전체 결과가 곧바로 덮어씀.
+      //   background 재조회는 선반영 없음 (깜빡임 방지).
+      const _firstPageOpts = isBackground ? {} : {
+        onFirstPage: (firstTasks) => {
+          try {
+            setApiTasks(prev => {
+              if (prev && prev.length > 0) return prev;  // 이미 데이터 있음 — 선반영 불필요
+              const normalized = (firstTasks || []).map(_v14NormalizeTask).filter(Boolean);
+              console.log('[Stage 4] 첫 페이지 선반영:', normalized.length, '건');
+              return normalized;
+            });
+          } catch (_e) { /* 선반영 실패 무시 — 전체 결과가 곧 도착 */ }
+        },
+      };
+      const res = await apiGetTasks('admin', user?.id || user?.userId || 'admin', null, _firstPageOpts);
       console.log('[V14 2A] raw 응답:', res);
       console.log('[V14 2A] 응답 키:', res ? Object.keys(res) : 'null');
 

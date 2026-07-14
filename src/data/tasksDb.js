@@ -627,7 +627,65 @@ export async function updateTaskStatusDb(taskId, status, { startedAt, completedA
 // principal name / assigned engineer name 추가:
 //   tasks 측 principal_id (UUID) / assigned_engineer_id (UUID) 만 있어서
 //   별도 fetch 후 in-memory join (PostgREST embed PGRST201 회피).
-export async function loadTasksForRole(role, userId, principalCode) {
+// 2026-07-14 — Stage 4: loadTasksForRole 의 [2]principals/[3]users lookup + [4]rowToTask 매핑을
+//   부분집합(첫 페이지)에도 재사용할 수 있게 추출. 내용은 기존 블록 그대로.
+async function _enrichAndMapTaskRows(rows) {
+  // [2] principals lookup (in-memory join)
+  const principalIds = [...new Set(rows.map(r => r.principal_id).filter(Boolean))];
+  let principalMap = new Map();
+  if (principalIds.length > 0) {
+    const { data: pData, error: pErr } = await supabase
+      .from("principals")
+      .select("id, code, name, color, prefix")
+      .in("id", principalIds);
+    if (pErr) {
+      console.error("[tasksDb._enrichAndMapTaskRows:principals]", pErr);
+    } else {
+      principalMap = new Map((pData || []).map(p => [p.id, p]));
+    }
+  }
+
+  // [3] users (배정 기사) lookup
+  const userIds = [...new Set(rows.map(r => r.assigned_engineer_id).filter(Boolean))];
+  let userMap = new Map();
+  if (userIds.length > 0) {
+    const { data: uData, error: uErr } = await supabase
+      .from("users")
+      .select("id, code, name, phone")
+      .in("id", userIds);
+    if (uErr) {
+      console.error("[tasksDb._enrichAndMapTaskRows:users]", uErr);
+    } else {
+      userMap = new Map((uData || []).map(u => [u.id, u]));
+    }
+  }
+
+  // [4] rowToTask + 시트 호환 필드 추가 (principal name / assignedEngineer name 등)
+  return rows.map(row => {
+    const task = rowToTask(row);
+    if (row.principal_id) {
+      const p = principalMap.get(row.principal_id);
+      if (p) {
+        task.principal       = p.name || "";
+        task.principalCode   = p.code || "";
+        task.principalColor  = p.color || "";
+        task.principalPrefix = p.prefix || "";
+      }
+    }
+    if (row.assigned_engineer_id) {
+      const u = userMap.get(row.assigned_engineer_id);
+      if (u) {
+        task.assignedEngineer = u.name || "";
+        task.engineer         = u.name || "";
+        task.engineerPhone    = u.phone || "";
+        task.engineerCode     = u.code || "";
+      }
+    }
+    return task;
+  });
+}
+
+export async function loadTasksForRole(role, userId, principalCode, opts = {}) {
   try {
     // [1] 작업 전체
     // 2026-05-25 — Supabase hosted db.max_rows=1000 cap 확인.
@@ -666,88 +724,59 @@ export async function loadTasksForRole(role, userId, principalCode) {
 
     const PAGE = 1000;
     const HARD_CAP = 10000;
-    let rows = [];
-    let from = 0;
-    while (from < HARD_CAP) {
+    // 2026-07-14 — Stage 4: 옛 순차 while 루프 (3왕복 직렬) 교체.
+    //   · 첫 페이지 도착 즉시 opts.onFirstPage(tasks) 콜백 — 호출측이 화면 선반영 가능.
+    //   · 나머지 페이지는 count 기반 병렬 fetch — 전체 완료 시간 단축 (3왕복 → 사실상 1왕복).
+    const buildQ = (withCount) => {
       let q = supabase
         .from("tasks")
-        .select(PAYMENT_SELECT)
+        .select(PAYMENT_SELECT, withCount ? { count: "exact" } : undefined)
         .eq("tenant_id", TENANT_ID);
       if (Array.isArray(principalIdFilter)) {
         q = q.in("principal_id", principalIdFilter);
       } else if (typeof principalIdFilter === "string") {
         q = q.eq("principal_id", principalIdFilter);
       }
-      const { data: page, error } = await q
-        .order("received_at", { ascending: false })
-        .range(from, from + PAGE - 1);
-      if (error) {
-        console.error("[tasksDb.loadTasksForRole:tasks]", error);
-        return { ok: false, error: error.message, tasks: [] };
+      return q.order("received_at", { ascending: false });
+    };
+
+    const { data: firstPage, error: firstErr, count: totalCount } = await buildQ(true).range(0, PAGE - 1);
+    if (firstErr) {
+      console.error("[tasksDb.loadTasksForRole:tasks]", firstErr);
+      return { ok: false, error: firstErr.message, tasks: [] };
+    }
+    let rows = firstPage || [];
+
+    // 첫 페이지 선반영 콜백 — enrich 는 비동기 진행 (전체 fetch 를 막지 않음).
+    if (rows.length > 0 && opts && typeof opts.onFirstPage === "function") {
+      _enrichAndMapTaskRows(rows.slice())
+        .then(ts => { try { opts.onFirstPage(ts); } catch (_e) { /* 콜백 오류 무시 */ } })
+        .catch(() => { /* 선반영 실패 무시 — 전체 결과가 곧 도착 */ });
+    }
+
+    // 나머지 페이지 병렬 fetch
+    const total = Math.min(Number(totalCount || rows.length), HARD_CAP);
+    if (rows.length === PAGE && total > PAGE) {
+      const jobs = [];
+      for (let from = PAGE; from < total; from += PAGE) {
+        jobs.push(buildQ(false).range(from, Math.min(from + PAGE, total) - 1));
       }
-      if (!page || page.length === 0) break;
-      rows = rows.concat(page);
-      if (page.length < PAGE) break;
-      from += PAGE;
+      const results = await Promise.all(jobs);
+      for (const r of results) {
+        if (r.error) {
+          console.error("[tasksDb.loadTasksForRole:tasks-page]", r.error);
+          return { ok: false, error: r.error.message, tasks: [] };
+        }
+        rows = rows.concat(r.data || []);
+      }
     }
 
     if (!rows || rows.length === 0) {
       return { ok: true, tasks: [] };
     }
 
-    // [2] principals lookup (in-memory join)
-    const principalIds = [...new Set(rows.map(r => r.principal_id).filter(Boolean))];
-    let principalMap = new Map();
-    if (principalIds.length > 0) {
-      const { data: pData, error: pErr } = await supabase
-        .from("principals")
-        .select("id, code, name, color, prefix")
-        .in("id", principalIds);
-      if (pErr) {
-        console.error("[tasksDb.loadTasksForRole:principals]", pErr);
-      } else {
-        principalMap = new Map((pData || []).map(p => [p.id, p]));
-      }
-    }
-
-    // [3] users (배정 기사) lookup
-    const userIds = [...new Set(rows.map(r => r.assigned_engineer_id).filter(Boolean))];
-    let userMap = new Map();
-    if (userIds.length > 0) {
-      const { data: uData, error: uErr } = await supabase
-        .from("users")
-        .select("id, code, name, phone")
-        .in("id", userIds);
-      if (uErr) {
-        console.error("[tasksDb.loadTasksForRole:users]", uErr);
-      } else {
-        userMap = new Map((uData || []).map(u => [u.id, u]));
-      }
-    }
-
-    // [4] rowToTask + 시트 호환 필드 추가 (principal name / assignedEngineer name 등)
-    const tasks = rows.map(row => {
-      const task = rowToTask(row);
-      if (row.principal_id) {
-        const p = principalMap.get(row.principal_id);
-        if (p) {
-          task.principal       = p.name || "";
-          task.principalCode   = p.code || "";
-          task.principalColor  = p.color || "";
-          task.principalPrefix = p.prefix || "";
-        }
-      }
-      if (row.assigned_engineer_id) {
-        const u = userMap.get(row.assigned_engineer_id);
-        if (u) {
-          task.assignedEngineer = u.name || "";
-          task.engineer         = u.name || "";
-          task.engineerPhone    = u.phone || "";
-          task.engineerCode     = u.code || "";
-        }
-      }
-      return task;
-    });
+    // [2][3][4] — principals/users lookup + rowToTask 매핑 (헬퍼로 추출, 내용 동일)
+    const tasks = await _enrichAndMapTaskRows(rows);
 
     return { ok: true, tasks };
   } catch (e) {
