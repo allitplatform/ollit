@@ -19,6 +19,8 @@ import { EngineerBadge } from "../components/EngineerBadge.jsx";
 import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
 // 2026-05-19 Phase 5 Step 0.C-4 — 변경 이력 audit log (Migration 039)
 import { insertTaskChange } from "../lib/taskChangesDb.js";
+// 2026-07-14 — 냉매충전 자동배정 푸시 ON/OFF (Mig 179). 성수기 = 끄고 바로 수동 배정.
+import { getAutoPushAssign, setAutoPushAssign } from "../lib/tenantSettingsDb.js";
 // 2026-05-20 Phase 5 Step 0.F-1 — 작업유형 색 사이드바 (V14 spec)
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { ServiceTypeIcon } from "../components/ServiceTypeIcon.jsx";
@@ -1541,6 +1543,25 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-07-14 — Stage 3: '이번 달' + 전월비 서버 집계 (Mig 176 get_admin_dashboard_summary_range).
   //   { month, prevSameDay, prevMonthToDate } — null 이면 해당 항목 클라 계산 fallback.
   const [dashRanges, setDashRanges] = useState(null);
+  // 2026-07-14 — 냉매충전 자동배정 푸시 ON/OFF (Mig 179 tenants.auto_push_assign).
+  //   사장님: 성수기엔 기사들이 수락을 못 해서 어차피 운영자가 배정 → 끄면 알림 없이 바로 수동 배정.
+  //   true 기본 (= 기존 동작). 배정 클릭 순간마다 fresh 재조회 — 폰/PC 어디서 꺼도 즉시 반영.
+  const [autoPushOn, setAutoPushOn] = useState(true);
+  useEffect(() => {
+    let alive = true;
+    getAutoPushAssign().then(r => { if (alive && r.ok) setAutoPushOn(r.enabled); });
+    return () => { alive = false; };
+  }, []);
+  // 배정 진입 화면 결정 — auto_first_accept 라도 푸시 OFF 면 수동(recommend).
+  const resolveAssignScreen = async (flow) => {
+    if (flow !== "auto_first_accept") return "recommend";
+    let on = autoPushOn;
+    try {
+      const r = await getAutoPushAssign();
+      if (r.ok) { on = r.enabled; if (r.enabled !== autoPushOn) setAutoPushOn(r.enabled); }
+    } catch (_e) { /* 조회 실패 — 캐시값 사용 */ }
+    return on ? "autoAssign" : "recommend";
+  };
   // 2026-07-14 — Stage 2b: 서버 집계는 다른 요청(접수함/통계) 뒤에 줄 세우지 않고
   //   mount 즉시 독립 호출. 화면 복귀(screenStack) 시에도 재조회 — 카드 최신 유지.
   useEffect(() => {
@@ -2095,7 +2116,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       : ([form.requestDate, form.requestTime].filter(Boolean).join(" ") || "협의");
     const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow || "manual_with_recommendation";
     // Step 5-3 v3 — 자동 배정 작업이면 등록 시점에 push 시작 (carded 상태 표시용)
-    const isAuto = workflow === "auto_first_accept";
+    // 2026-07-14 — 푸시 토글 OFF 면 자동배정 표시도 안 함 (Mig 179).
+    const isAuto = workflow === "auto_first_accept" && autoPushOn;
     let pushCount = 0;
     if (isAuto) {
       const broadcast = getAutoBroadcastCandidates(head.workType, form.region, head.appliance, 4);
@@ -2209,12 +2231,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       inquiriesTodayCount={inquiriesTodayCount}
       dashSummary={dashSummary}
       dashRanges={dashRanges}
-      onTaskAssign={(task) => {
+      onTaskAssign={async (task) => {
         setSelectedTask(task);
         const flow = determineWorkflow(task.workItems)
           || WORK_TYPES_CONFIG[task.workType]?.workflow
           || "manual_with_recommendation";
-        setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
+        setScreen(await resolveAssignScreen(flow));
       }}
       onOpenTaskDetail={(task) => openTaskDetailFromLight(task, null)}
     />
@@ -2336,12 +2358,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onRefresh={fetchTasks}
         receptionUpdates={receptionUpdates}
         onBack={() => { goBack(); setNewReceptionFilter(null); }}
-        onAssign={(task) => {
+        onAssign={async (task) => {
           // Step 5-3 — 세척 카드 [기사 배정 →] → 추천 화면 (manual_with_recommendation)
           // 냉매 카드는 onAssign 호출 X (RefrigerantCard에 button 없음)
           const flow = determineWorkflow(task.workItems) || WORK_TYPES_CONFIG[task.workType]?.workflow || "manual_with_recommendation";
           setSelectedTask(task);
-          setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
+          setScreen(await resolveAssignScreen(flow));
         }}
         onClickAdd={() => setScreen("newReceptionForm")}
         onClickPushing={(task) => { setSelectedTask(task); setScreen("autoAssign"); }}
@@ -2391,7 +2413,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         user={user}
         initial={pendingInquiry?.initial}
         onBack={() => { setPendingInquiry(null); goBack(); }}
-        onSubmit={(form) => {
+        onSubmit={async (form) => {
           addReception(form);
 
           // 2026-06-24 — 접수함 prefill 진입이면 마킹.
@@ -2445,7 +2467,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
           // 무한 루프 catch 박힐 영역 catch 박은 후 다시 결정 박을 차례
           const head = (form.workItems && form.workItems[0]) || {};
           const workflow = WORK_TYPES_CONFIG[head.workType]?.workflow;
-          const isAuto = workflow === "auto_first_accept";
+          // 2026-07-14 — 푸시 토글 OFF 면 자동배정 화면 진입 자체를 막음 (Mig 179).
+          const isAuto = workflow === "auto_first_accept"
+            && (await resolveAssignScreen(workflow)) === "autoAssign";
           if (form._v14ApiOk && isAuto && form.taskId) {
             setSelectedTask({
               id:         form.taskId,
@@ -2744,14 +2768,14 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
           setSelectedTask(selectedTaskDetail);
           setScreen("taskHistory");
         }}
-        onAssign={() => {
+        onAssign={async () => {
           // V14 2B-1 fix — 기사 배정/변경 = RecommendScreen 진입
           // (자동 배정 작업은 autoAssign / 그 외는 recommend / 옛 시뮬 mock OK)
           const tk = selectedTaskDetail;
           if (!tk) return;
           const flow = WORK_TYPES_CONFIG[tk.workType]?.workflow || "manual_with_recommendation";
           setSelectedTask(tk);
-          setScreen(flow === "auto_first_accept" ? "autoAssign" : "recommend");
+          setScreen(await resolveAssignScreen(flow));
         }}
         // V14 2B-2 — 일정 변경 (prompt 박은 임시 모달 / 진짜 picker = Phase 2)
         onScheduleChange={async () => {
@@ -3614,6 +3638,25 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onPrincipalSettlement={() => setScreen("principal_settlement")}
         onCommissionPolicy={() => setScreen("commissionPolicy")}
         onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
+        autoPushOn={autoPushOn}
+        onToggleAutoPush={async () => {
+          // 2026-07-14 — 냉매충전 자동배정 푸시 ON/OFF (Mig 179).
+          const next = !autoPushOn;
+          setAutoPushOn(next);                       // optimistic
+          const res = await setAutoPushAssign(next);
+          if (!res.ok) {
+            setAutoPushOn(!next);                    // 실패 — 되돌림
+            addToast({ type: "assignment", title: "저장 실패", message: res.error || "다시 시도해주세요" });
+            return;
+          }
+          addToast({
+            type: "assignment",
+            title: next ? "자동배정 푸시 켜짐" : "자동배정 푸시 꺼짐",
+            message: next
+              ? "냉매충전 접수 시 기사들에게 알림이 발송됩니다"
+              : "알림 없이 바로 수동 배정 화면으로 갑니다",
+          });
+        }}
       />
     </Shell>;
   }
@@ -8496,6 +8539,13 @@ function AutoAssignScreen({ t, task, apiEngineers = [], apiTasks = [], onBack, o
           //   → 50% 매칭 + 호출 부담 2배. 정답은 c.id 단독 = 100% 매칭.
           const candidateKeys = broadcast.map(c => c.id).filter(Boolean);
           try {
+            // 2026-07-14 — 푸시 토글 OFF 면 push_candidates 기록 자체를 차단 (Mig 179 방어선).
+            //   (라우팅에서 이미 걸러지지만, ON 시절 만들어진 카드로 진입하는 edge 대비)
+            const pushSetting = await getAutoPushAssign();
+            if (pushSetting.ok && pushSetting.enabled === false) {
+              console.log('[AutoAssign] 푸시 토글 OFF — 알림 발송 차단:', task.id);
+              return;
+            }
             // 사전 조회 — DB 측 push_candidates 박힌 영역 catch
             const { data: current, error: selErr } = await supabase
               .from('tasks')

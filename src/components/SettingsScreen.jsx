@@ -53,6 +53,7 @@ export function SettingsScreen({
   onUsolN, onSettlement, onPrincipalSettlement,
   onCommissionPolicy,  // Phase 2 — 수수료정책 관리 (admin/owner/operator)
   themeMode, onToggleTheme,
+  autoPushOn, onToggleAutoPush,  // 2026-07-14 — 냉매충전 자동배정 푸시 ON/OFF (Mig 179)
 }) {
   const [search, setSearch] = useState("");
   const currentUser = getCurrentUser(user);
@@ -256,6 +257,43 @@ export function SettingsScreen({
               sub={item.sub}
               onClick={item.onClick}
             />)}
+            {/* 2026-07-14 — 냉매충전 자동배정 푸시 ON/OFF (Mig 179 / 사장님 spec).
+                  성수기 = 기사들이 일하느라 수락 못 함 → 끄고 바로 수동 배정. */}
+            {typeof onToggleAutoPush === "function" && hasPermission(currentUser, "menu.users") && (
+              <div style={{
+                background: "var(--bg-elevated)",
+                border: "1px solid var(--border)",
+                borderRadius: 10,
+                padding: "12px 14px",
+                marginTop: 8,
+                display: "flex", alignItems: "center", gap: 10,
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginBottom: 4 }}>
+                    📡 냉매충전 자동배정 푸시
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                    {autoPushOn
+                      ? "켜짐 — 접수 시 기사들에게 알림 발송, 선착 수락"
+                      : "꺼짐 — 알림 없이 바로 수동 배정 화면 (성수기 모드)"}
+                  </div>
+                </div>
+                <button
+                  onClick={onToggleAutoPush}
+                  style={{
+                    flexShrink: 0,
+                    padding: "8px 16px",
+                    borderRadius: 999,
+                    border: "none",
+                    fontSize: 12, fontWeight: 800,
+                    cursor: "pointer", fontFamily: "inherit",
+                    background: autoPushOn ? "var(--accent, #FF1B8D)" : "var(--bg-secondary)",
+                    color: autoPushOn ? "#fff" : "var(--text-secondary)",
+                    boxShadow: autoPushOn ? "none" : "inset 0 0 0 1px var(--border)",
+                  }}
+                >{autoPushOn ? "ON" : "OFF"}</button>
+              </div>
+            )}
           </Section>
         )}
 
