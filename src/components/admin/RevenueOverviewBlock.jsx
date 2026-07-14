@@ -207,4 +207,46 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
             color: t.textSecondary,
             fontSize: 12, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+          }}
+        >
+          원청별 · 기사별 자세히 →
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Legend({ color, label, amount, t }) {
+  return (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+      <span style={{ width: 8, height: 8, background: color, borderRadius: 2, flexShrink: 0 }}/>
+      <span style={{ color: t.textSecondary, fontWeight: 600 }}>{label}</span>
+      <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{fmtKRW(amount)}</span>
+    </span>
+  );
+}
+
+function ServiceBar({ label, icon, amount, pct, color, t }) {
+  return (
+    <div style={{ marginBottom: 6 }}>
+      <div style={{
+        display: "flex", justifyContent: "space-between",
+        marginBottom: 3, fontSize: 11,
+      }}>
+        <span style={{ color: t.text, fontWeight: 700 }}>
+          <span style={{ marginRight: 4 }}>{icon}</span>{label}
+        </span>
+        <span className="mono" style={{ color: t.textSecondary, fontWeight: 700 }}>
+          ₩{(Number(amount) || 0).toLocaleString("ko-KR")}{" "}
+          <span style={{ color: t.textMuted, fontWeight: 600 }}>({pct.toFixed(1)}%)</span>
+        </span>
+      </div>
+      <div style={{ height: 6, background: t.bgInset, borderRadius: 3, overflow: "hidden" }}>
+        <div style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: "100%", background: color }}/>
+      </div>
+    </div>
+  );
+}
+
+export default RevenueOverviewBlock;
