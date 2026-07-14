@@ -8753,37 +8753,6 @@ function AutoAssignScreen({ t, task, apiEngineers = [], apiTasks = [], onBack, o
               </div>
             </div>
 
-            {/* 2026-07-14 — 오늘 동선 지도 (사장님 spec). 수락 대기 화면에도 동일 표시.
-                  알림 발송된 후보들의 오늘 작업(오늘 일정·진행중·오늘 완료) 구를 색점으로. */}
-            {(() => {
-              const todayYmdKst = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
-              const toYmd = (v) => {
-                if (!v) return "";
-                try { return new Date(v).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }); } catch { return ""; }
-              };
-              const uniq = [...new Set(candidates.map(e => e.name).filter(Boolean))].slice(0, 8);
-              const byEng = uniq.map(name => {
-                const districts = {};
-                for (const tk of apiTasks) {
-                  const eng = tk.assignedEngineer || tk.engineer || "";
-                  if (eng !== name) continue;
-                  const st = tk.status || tk.상태 || "";
-                  const isToday =
-                    st === "진행중" ||
-                    ((st === "확정" || st === "배정") && toYmd(tk.scheduledAt || tk.확정일시) === todayYmdKst) ||
-                    ((st === "완료" || st === "visit_only") && toYmd(tk.completedAt || tk.completed_at) === todayYmdKst);
-                  if (!isToday) continue;
-                  const gu = normalizeDistrict(tk.region);
-                  if (!gu) continue;
-                  districts[gu] = (districts[gu] || 0) + 1;
-                }
-                return { name, districts };
-              });
-              return (
-                <AssignRegionMap t={t} taskRegion={task.region} engineers={byEng}/>
-              );
-            })()}
-
             {/* 후보 카드 — 각각 [강제 배정] 버튼 박힘 */}
             <div style={{
               background: t.bgElevated, border: `1px solid ${t.border}`,
@@ -8822,6 +8791,38 @@ function AutoAssignScreen({ t, task, apiEngineers = [], apiTasks = [], onBack, o
                 * 긴급/노쇼 측 [강제 배정] 사용 — 운영자 측 직접 배정 spec
               </div>
             </div>
+
+            {/* 2026-07-14 — 오늘 동선 지도 (사장님 spec). v2: 기사 카드 아래로 이동 (위가 복잡하다는 피드백). */}
+            {(() => {
+              const todayYmdKst = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+              const toYmd = (v) => {
+                if (!v) return "";
+                try { return new Date(v).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }); } catch { return ""; }
+              };
+              const uniq = [...new Set(candidates.map(e => e.name).filter(Boolean))].slice(0, 8);
+              const byEng = uniq.map(name => {
+                const districts = {};
+                for (const tk of apiTasks) {
+                  const eng = tk.assignedEngineer || tk.engineer || "";
+                  if (eng !== name) continue;
+                  const st = tk.status || tk.상태 || "";
+                  const isToday =
+                    st === "진행중" ||
+                    ((st === "확정" || st === "배정") && toYmd(tk.scheduledAt || tk.확정일시) === todayYmdKst) ||
+                    ((st === "완료" || st === "visit_only") && toYmd(tk.completedAt || tk.completed_at) === todayYmdKst);
+                  if (!isToday) continue;
+                  const gu = normalizeDistrict(tk.region);
+                  if (!gu) continue;
+                  districts[gu] = (districts[gu] || 0) + 1;
+                }
+                return { name, districts };
+              });
+              return (
+                <div style={{ marginTop: 10 }}>
+                  <AssignRegionMap t={t} taskRegion={task.region} engineers={byEng}/>
+                </div>
+              );
+            })()}
 
             {/* 2026-05-21 — 전체 기사 검색 (권한 측 측 측 기사 측 측 측) */}
             <button
