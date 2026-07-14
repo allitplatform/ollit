@@ -72,6 +72,11 @@ export function EngineerNewAssignDetailScreen({
   const [memo, setMemo]                 = useState(task?.callMemo || task?.categoryData?.callMemo || "");
   // 2026-07-11 — 사장님 spec: 새 배정 화면에도 기종 선택 팝업.
   const [showApplianceModal, setShowApplianceModal] = useState(false);
+  // 2026-07-14 — 사장님 spec: 고객 취소 시 브라우저 confirm 만 뜨고 사유 미기록 → 사유 팝업.
+  const [showCancelModal, setShowCancelModal]   = useState(false);
+  const [cancelReason, setCancelReason]         = useState(null);
+  const [cancelMemo, setCancelMemo]             = useState("");
+  const [cancelSubmitting, setCancelSubmitting] = useState(false);
   // 진단 로그 — 사장님 F12 콘솔 검증용. 확정 후 제거.
   useEffect(() => {
     const wi = Array.isArray(task?.workItems) ? task.workItems : [];
@@ -625,7 +630,7 @@ export function EngineerNewAssignDetailScreen({
           }}>
             ⚠️ 일정 불가
           </button>
-          <button onClick={onCustomerCancel} style={{
+          <button onClick={() => { setCancelReason(null); setCancelMemo(""); setShowCancelModal(true); }} style={{
             padding: 14,
             background: "var(--card-bg)",
             border: "1.5px solid #FF3B5C",
@@ -671,6 +676,119 @@ export function EngineerNewAssignDetailScreen({
           </button>
         </div>
       </div>
+
+      {/* 2026-07-14 — 고객 취소 사유 팝업 (사장님 spec).
+            사유 필수 선택 + 메모(선택) → onCustomerCancel(사유 문자열) 로 전달. */}
+      {showCancelModal && (
+        <div
+          onClick={() => !cancelSubmitting && setShowCancelModal(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "rgba(0,0,0,0.65)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%", maxWidth: 480,
+              background: "var(--bg-primary)",
+              borderRadius: "16px 16px 0 0",
+              padding: "20px 16px 24px",
+              fontFamily: "inherit",
+            }}
+          >
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>
+              ✕ 고객 취소 처리
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 14 }}>
+              취소 사유를 선택해주세요. 운영팀 기록에 남습니다.
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+              {["고객 취소 요청", "고객 연락 두절", "중복 접수", "기타"].map(r => (
+                <button
+                  key={r}
+                  onClick={() => setCancelReason(r)}
+                  style={{
+                    padding: 12,
+                    background: cancelReason === r ? "rgba(255,61,90,0.10)" : "var(--bg-secondary)",
+                    border: cancelReason === r ? "1.5px solid #FF3D5A" : "1px solid var(--border)",
+                    borderRadius: 8,
+                    color: cancelReason === r ? "#FF3D5A" : "var(--text-primary)",
+                    fontSize: 13, fontWeight: 600, textAlign: "left",
+                    cursor: "pointer", fontFamily: "inherit",
+                  }}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+
+            <textarea
+              value={cancelMemo}
+              onChange={(e) => setCancelMemo(e.target.value)}
+              placeholder="상세 내용 (선택) — 예: 다른 업체에서 이미 처리"
+              style={{
+                width: "100%", boxSizing: "border-box",
+                height: 64, padding: 10,
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                color: "var(--text-primary)",
+                fontSize: 12, fontFamily: "inherit", resize: "vertical",
+                marginBottom: 14,
+              }}
+            />
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8 }}>
+              <button
+                onClick={() => setShowCancelModal(false)}
+                disabled={cancelSubmitting}
+                style={{
+                  padding: 14,
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 12,
+                  color: "var(--text-secondary)",
+                  fontSize: 14, fontWeight: 600,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                닫기
+              </button>
+              <button
+                onClick={async () => {
+                  if (!cancelReason || cancelSubmitting) return;
+                  setCancelSubmitting(true);
+                  const reasonText = cancelMemo.trim()
+                    ? `${cancelReason} — ${cancelMemo.trim()}`
+                    : cancelReason;
+                  try {
+                    await onCustomerCancel?.(reasonText);
+                  } finally {
+                    setCancelSubmitting(false);
+                    setShowCancelModal(false);
+                  }
+                }}
+                disabled={!cancelReason || cancelSubmitting}
+                style={{
+                  padding: 14,
+                  background: (!cancelReason || cancelSubmitting) ? "var(--bg-tertiary)" : "#FF3B5C",
+                  border: "none",
+                  borderRadius: 12,
+                  color: (!cancelReason || cancelSubmitting) ? "var(--text-tertiary)" : "#fff",
+                  fontSize: 14, fontWeight: 700,
+                  cursor: (!cancelReason || cancelSubmitting) ? "not-allowed" : "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {cancelSubmitting ? "처리 중..." : "취소 확정"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -5222,15 +5222,16 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               showToast("일정 불가 — 운영자에게 재배정 요청을 보냈습니다.");
               resetTo("main");
             }}
-            onCustomerCancel={async () => {
-              const ok = window.confirm("정말 취소하시겠습니까?");
-              if (!ok) return;
+            onCustomerCancel={async (reasonText) => {
+              // 2026-07-14 — 사장님 spec: window.confirm 제거, 사유 팝업(자식 컴포넌트)에서
+              //   사유 문자열을 받아 기록. reasonText 없으면 안전 기본값.
+              const cancelWhy = (typeof reasonText === "string" && reasonText.trim()) ? reasonText.trim() : "고객 취소";
               const id = callTaskId || (acceptedCall && acceptedCall.id);
               if (id && tasks.find(x => x.id === id)) {
                 // 2026-06-19 Mig 142 — RPC 경유 (partner/admin 대칭 category_data 머지).
                 //   옛 updateTask({ status:"취소", cancelReason:"고객 취소" }) 폐기 —
                 //   단순 컬럼 UPDATE 라 cancelActor 등 6필드 누락 사고 이력.
-                const res = await engineerFullCancel(id, "고객 취소");
+                const res = await engineerFullCancel(id, cancelWhy);
                 if (!res || res.ok === false) {
                   showToast(`⚠️ 취소 실패 — ${res?.error || "알 수 없음"}`);
                   return;
@@ -5238,7 +5239,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
                 // Optimistic — RPC 성공 후 UI 즉시 반영. 사후 fetchTasks 로 정합.
                 setApiTasks(prev => prev.map(t =>
                   t.id === id
-                    ? { ...t, status: "취소", state: "canceled", cancelReason: "고객 취소" }
+                    ? { ...t, status: "취소", state: "canceled", cancelReason: cancelWhy }
                     : t
                 ));
               }
