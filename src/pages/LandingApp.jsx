@@ -39,11 +39,11 @@ function messageFor(e) {
 function Ticker() {
   const set = (
     <>
-      <span className="ldg-ticker-item"><span style={{ color: "#E0673D" }}>★</span> 고객 만족도 <span style={{ color: "#E0673D" }}>98%</span></span>
+      <span className="ldg-ticker-item"><span style={{ color: "var(--coral)" }}>★</span> 고객 만족도 <span style={{ color: "var(--coral)" }}>98%</span></span>
       <span className="ldg-ticker-sep">|</span>
-      <span className="ldg-ticker-item"><span style={{ color: "#5B9BD5" }}>❄</span> 누적 작업 <span style={{ color: "#E0673D" }}>5,000건+</span></span>
+      <span className="ldg-ticker-item"><span style={{ color: "#5B9BD5" }}>❄</span> 누적 작업 <span style={{ color: "var(--coral)" }}>5,000건+</span></span>
       <span className="ldg-ticker-sep">|</span>
-      <span className="ldg-ticker-item">서울·경기 <span style={{ color: "#FFC79A", fontWeight: 800 }}>당일 출장</span></span>
+      <span className="ldg-ticker-item">서울·경기 <span style={{ color: "var(--coral-light)", fontWeight: 800 }}>당일 출장</span></span>
       <span className="ldg-ticker-sep">|</span>
       <span className="ldg-ticker-item">전 브랜드 냉매충전 가능</span>
       <span className="ldg-ticker-sep">|</span>
@@ -445,7 +445,7 @@ function Solution() {
           <article className="ldg-soln-card">
             <div className="ldg-soln-photo">
               <img src="/landing/assets/charge.jpg" alt="실외기 냉매 충전 작업 현장" style={{ objectPosition: "center 30%" }} />
-              <div className="ldg-soln-photo-badge" style={{ background: "#E0673D" }}>주력 서비스</div>
+              <div className="ldg-soln-photo-badge" style={{ background: "var(--coral)", color: "#1C2B3A" }}>주력 서비스</div>
             </div>
             <div className="ldg-soln-body">
               <h3>냉매충전</h3>
@@ -582,7 +582,7 @@ function Price({ scrollToForm }) {
               </div>
             ))}
             <div className="ldg-price-note">+ 완충 시 30,000원 추가</div>
-            <div className="ldg-price-warn">※ 기계 고장·실외기 접근 불가로 인해 충전을 못할 경우 출장비 30,000원이 발생합니다.</div>
+            <div className="ldg-price-warn">※ 기계 고장·실외기 접근 불가로 인해 충전을 못할 경우 출장비 40,000원이 발생합니다.</div>
             <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm("냉매충전"); }}>냉매충전 접수하기 →</a>
           </div>
         </div>
