@@ -81,13 +81,21 @@ export default function AssignRegionMap({ t, taskRegion, engineers = [] }) {
   const isLight = !!t.isLight;
 
   // 프로 → {구: 건수} + 색
+  //   v3: 구/시/군으로 안 끝나는 값은 버림 — 주소 쪼가리("장안동373-1", "문정로",
+  //   "마천동279-25")가 '서울 밖' 줄에 지역인 척 끼어들던 문제 (사장님 피드백).
   const marks = useMemo(() => {
-    return (engineers || []).slice(0, 8).map((e, i) => ({
-      name: e.name,
-      color: ENG_COLORS[i % ENG_COLORS.length],
-      districts: e.districts || {},     // { "강남구": 2, "김포시": 1 }
-      total: Object.values(e.districts || {}).reduce((s, n) => s + n, 0),
-    }));
+    return (engineers || []).slice(0, 8).map((e, i) => {
+      const districts = {};
+      for (const [gu, n] of Object.entries(e.districts || {})) {
+        if (/[구시군]$/.test(gu)) districts[gu] = n;
+      }
+      return {
+        name: e.name,
+        color: ENG_COLORS[i % ENG_COLORS.length],
+        districts,                       // { "강남구": 2, "김포시": 1 }
+        total: Object.values(districts).reduce((s, n) => s + n, 0),
+      };
+    });
   }, [engineers]);
 
   const { paths, labels, dots, W, H, seoulNames } = useMemo(() => {
@@ -203,7 +211,8 @@ export default function AssignRegionMap({ t, taskRegion, engineers = [] }) {
         ))}
       </div>
 
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}>
+      {/* v3: PC 넓은 화면에서 지도가 통째로 커져 잘리던 문제 — 폭 제한 + 가운데 */}
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", maxWidth: 560, height: "auto", display: "block", margin: "0 auto" }}>
         {paths.map(p => (
           <path key={p.name} d={p.d} fill={p.fill} stroke={p.stroke} strokeWidth={p.sw}/>
         ))}
@@ -222,9 +231,9 @@ export default function AssignRegionMap({ t, taskRegion, engineers = [] }) {
         ))}
       </svg>
 
-      {/* 서울 밖 동선 — 한 줄만 */}
+      {/* 서울 밖 동선 — 줄바꿈 허용 (v2 ellipsis 는 끝이 잘려 보임) */}
       {outsideLine && (
-        <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6, lineHeight: 1.6 }}>
           서울 밖: {outsideLine}
         </div>
       )}

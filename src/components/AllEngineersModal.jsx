@@ -59,10 +59,10 @@ export function AllEngineersModal({ task, engineers: enginerProp, onSelect, onCl
       <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
         <div style={headerStyle}>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 700 }}>
+            <div style={{ fontSize: 15, fontWeight: 700 }}>
               👥 전체 프로 {engineers.length}명
             </div>
-            <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>
               점수 높은 순 · 검색 가능
             </div>
           </div>
@@ -86,7 +86,7 @@ export function AllEngineersModal({ task, engineers: enginerProp, onSelect, onCl
               pointerEvents: "none",
             }}>🔍</span>
           </div>
-          <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 6 }}>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 6 }}>
             {filtered.length}명 검색됨
           </div>
         </div>
@@ -133,11 +133,11 @@ function AllEngineerRow({ recommendation, onSelect }) {
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)" }}>
             {engineer.name}
           </span>
           <span style={{
-            fontSize: 9, color: tierColor,
+            fontSize: 10, color: tierColor,
             background: `${tierColor}26`,
             padding: "1px 5px", borderRadius: 3, fontWeight: 700,
           }}>
@@ -145,7 +145,7 @@ function AllEngineerRow({ recommendation, onSelect }) {
           </span>
         </div>
         <span style={{
-          fontSize: 13, color: tierColor,
+          fontSize: 14, color: tierColor,
           fontWeight: 700, fontFamily: "inherit",
         }}>
           {score}
@@ -153,7 +153,7 @@ function AllEngineerRow({ recommendation, onSelect }) {
       </div>
 
       <div style={{
-        fontSize: 9, color: "var(--text-tertiary, var(--text-secondary))",
+        fontSize: 10.5, color: "var(--text-tertiary, var(--text-secondary))",
         display: "flex", gap: 6, alignItems: "center",
       }}>
         <span>{careerLabel}</span>
@@ -170,10 +170,14 @@ const overlayStyle = {
   display: "flex", alignItems: "center", justifyContent: "center",
   zIndex: 1100,
   padding: 16,
+  // 2026-07-14 — body zoom(글자 크기 1.2/1.4배)이 fixed 팝업 좌표를 틀어뜨려
+  //   PC에서 팝업이 한쪽에 붙고 잘리던 문제. 팝업 subtree 만 zoom 을 되돌려
+  //   실제 화면 기준 정중앙 고정. (아래 폰트는 한 단계씩 키워 체감 크기 유지)
+  zoom: "calc(1 / var(--font-scale, 1))",
 };
 
 const contentStyle = {
-  width: 480, maxWidth: "100%", maxHeight: "85vh",
+  width: 460, maxWidth: "100%", maxHeight: "82vh",
   background: "var(--bg-primary)",
   border: "1px solid var(--border)",
   borderRadius: 14,
@@ -204,7 +208,7 @@ const inputStyle = {
   border: "1px solid var(--border)",
   borderRadius: 8,
   color: "var(--text-primary)",
-  fontSize: 12, fontFamily: "inherit",
+  fontSize: 13, fontFamily: "inherit",
   outline: "none", boxSizing: "border-box",
 };
 
