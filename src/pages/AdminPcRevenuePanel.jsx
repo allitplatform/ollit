@@ -18,6 +18,7 @@ import {
   getPrevMonthSameDay,
   getMonthStart,
   getPrevMonthStart,
+  fromServerSummary,
 } from "../utils/revenueStats.js";
 import { isTrackARemittance } from "../utils/remitFilter.js";
 
@@ -34,7 +35,7 @@ function fmtKRW(n) {
   return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
 }
 
-export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onClickEngineerList }) {
+export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onClickEngineerList, serverSummary = null }) {
   const [period, setPeriod] = useState("today"); // 'today' | 'month'
   // 2026-06-16 — ≥1280px 에선 도넛을 키워서 보기 좋게 (사장님 spec).
   const isWide = useMinWidth(1280);
@@ -52,12 +53,16 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
       prevStart = getPrevMonthStart(today); prevEnd = getPrevMonthSameDay(today);
       label = "이번 달";
     }
+    // 2026-07-14 — Stage 2c: '오늘' 뷰는 서버 집계 우선 (Mig 175). 없으면 클라 계산 fallback.
+    const curFromServer = (period === "today" && serverSummary && serverSummary.revenue)
+      ? fromServerSummary(serverSummary)
+      : null;
     return {
-      current:  computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
+      current:  curFromServer || computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
       previous: computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
       periodLabel: label,
     };
-  }, [apiTasks, user, period]);
+  }, [apiTasks, user, period, serverSummary]);
 
   const total = current.total || 0;
   const denom = total > 0 ? total : 1;

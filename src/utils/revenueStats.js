@@ -29,6 +29,40 @@ const EMPTY = {
   count: 0,
 };
 
+// 2026-07-14 — Stage 2c: 서버 집계(get_admin_dashboard_summary) 응답 → computeRevenueByYmRange 반환 형태 매핑.
+//   RevenueOverviewBlock(모바일) + AdminPcRevenuePanel(PC) 공용. '오늘' 뷰 전용 (RPC가 당일만 제공).
+export function fromServerSummary(s) {
+  const r  = (s && s.revenue) || {};
+  const bs = (s && s.by_service) || {};
+  const det = (k) => ({
+    total: Number(bs[k]?.amount || 0),
+    count: Number(bs[k]?.count  || 0),
+    owner: Number(bs[k]?.owner  || 0),
+  });
+  const d = {
+    cleaning:    det("cleaning"),
+    refrigerant: det("refrigerant"),
+    install:     det("install"),
+    leak:        det("leak"),
+    other:       det("other"),
+  };
+  return {
+    total:     Number(r.total           || 0),
+    engineer:  Number(r.engineer_settle || 0),
+    principal: Number(r.principal_fee   || 0),
+    owner:     Number(r.company_margin  || 0),
+    byService: {
+      cleaning:    d.cleaning.total,
+      refrigerant: d.refrigerant.total,
+      install:     d.install.total,
+      leak:        d.leak.total,
+      other:       d.other.total,
+    },
+    byServiceDetail: d,
+    count: d.cleaning.count + d.refrigerant.count + d.install.count + d.leak.count + d.other.count,
+  };
+}
+
 // task 의 대표 service code (= 본작업 또는 첫 item 기준).
 // 2026-06-16 — export 공개: RevenueDetailScreen 작업별 탭의 종류 뱃지(세척/냉매/기타) 분류용.
 export function pickServiceCode(task) {

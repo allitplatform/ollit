@@ -9,34 +9,12 @@ import {
   getPrevMonthSameDay,
   getMonthStart,
   getPrevMonthStart,
+  fromServerSummary,
 } from "../../utils/revenueStats.js";
 
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 function fmtPct(n, digits = 1) { return `${n.toFixed(digits)}%`; }
 
-// 2026-07-14 — Stage 2: 서버 집계(get_admin_dashboard_summary) → current 형태 매핑.
-//   브라우저 2,300건 다운로드/계산 없이 '오늘' 카드 즉시 렌더.
-//   computeRevenueByYmRange 반환 형태와 1:1 (total/engineer/principal/owner/byService/count).
-function _fromServerSummary(s) {
-  const r = s.revenue || {};
-  const bs = s.by_service || {};
-  const amt = (k) => Number(bs[k]?.amount || 0);
-  const cnt = (k) => Number(bs[k]?.count || 0);
-  return {
-    total:     Number(r.total || 0),
-    engineer:  Number(r.engineer_settle || 0),
-    principal: Number(r.principal_fee || 0),
-    owner:     Number(r.company_margin || 0),
-    byService: {
-      cleaning:    amt("cleaning"),
-      refrigerant: amt("refrigerant"),
-      install:     amt("install"),
-      leak:        amt("leak"),
-      other:       amt("other"),
-    },
-    count: cnt("cleaning") + cnt("refrigerant") + cnt("install") + cnt("leak") + cnt("other"),
-  };
-}
 
 export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, serverSummary = null }) {
   const [period, setPeriod] = useState("today"); // 'today' | 'month'
@@ -63,7 +41,7 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
     //   serverSummary 없거나 실패 시 기존 클라 계산으로 fallback (안전망).
     //   '이번 달' 및 전월비(previous)는 그대로 클라 계산 (서버 RPC는 당일만 제공).
     const curFromServer = (period === "today" && serverSummary && serverSummary.revenue)
-      ? _fromServerSummary(serverSummary)
+      ? fromServerSummary(serverSummary)
       : null;
     return {
       current:  curFromServer || computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
