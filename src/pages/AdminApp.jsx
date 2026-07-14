@@ -5528,9 +5528,10 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
             🔁 재배정
           </span>
         )}
+        {/* 2026-07-14 — 사장님 spec: "약속 대기" 글자 제거, 노란 원형만 */}
         {isWaiting && (
-          <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: "#FFB800", flexShrink: 0, whiteSpace: "nowrap" }}>
-            ● 약속 대기
+          <span title="약속 대기" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 800, color: "#FFB800", flexShrink: 0, whiteSpace: "nowrap" }}>
+            ●
           </span>
         )}
         {isSchedOk && (
