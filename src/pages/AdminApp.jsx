@@ -3172,6 +3172,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         t={t}
         task={selectedTask}
         apiEngineers={apiEngineers}
+        apiTasks={apiTasks}
         onBack={goBack}
         onComplete={async (eng) => {
           // V14 — apiAssignEngineer 호출 (시트 Q + R='확정' 박힘)
@@ -8439,7 +8440,7 @@ function TaskCancelDialog({ task, onClose, onConfirm }) {
 // 후보 기사 알림 전송 → 3초 카운트다운 → 첫 후보 자동 수락 (Phase 1 mock)
 // Phase 2 — Web Push + Supabase Realtime 실시간 처리
 // ============================================
-function AutoAssignScreen({ t, task, apiEngineers = [], onBack, onComplete, onFallbackManual }) {
+function AutoAssignScreen({ t, task, apiEngineers = [], apiTasks = [], onBack, onComplete, onFallbackManual }) {
   const [candidates, setCandidates] = useState([]);
   // 2026-05-21 — 전체 기사 검색 모달 (= 권한 측 측 기사 측 측 측 측 측 spec)
   const [showAllEngineers, setShowAllEngineers] = useState(false);
@@ -8751,6 +8752,37 @@ function AutoAssignScreen({ t, task, apiEngineers = [], onBack, onComplete, onFa
                 기사가 수락하면 자동으로 배정됩니다
               </div>
             </div>
+
+            {/* 2026-07-14 — 오늘 동선 지도 (사장님 spec). 수락 대기 화면에도 동일 표시.
+                  알림 발송된 후보들의 오늘 작업(오늘 일정·진행중·오늘 완료) 구를 색점으로. */}
+            {(() => {
+              const todayYmdKst = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+              const toYmd = (v) => {
+                if (!v) return "";
+                try { return new Date(v).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }); } catch { return ""; }
+              };
+              const uniq = [...new Set(candidates.map(e => e.name).filter(Boolean))].slice(0, 8);
+              const byEng = uniq.map(name => {
+                const districts = {};
+                for (const tk of apiTasks) {
+                  const eng = tk.assignedEngineer || tk.engineer || "";
+                  if (eng !== name) continue;
+                  const st = tk.status || tk.상태 || "";
+                  const isToday =
+                    st === "진행중" ||
+                    ((st === "확정" || st === "배정") && toYmd(tk.scheduledAt || tk.확정일시) === todayYmdKst) ||
+                    ((st === "완료" || st === "visit_only") && toYmd(tk.completedAt || tk.completed_at) === todayYmdKst);
+                  if (!isToday) continue;
+                  const gu = normalizeDistrict(tk.region);
+                  if (!gu) continue;
+                  districts[gu] = (districts[gu] || 0) + 1;
+                }
+                return { name, districts };
+              });
+              return (
+                <AssignRegionMap t={t} taskRegion={task.region} engineers={byEng}/>
+              );
+            })()}
 
             {/* 후보 카드 — 각각 [강제 배정] 버튼 박힘 */}
             <div style={{
