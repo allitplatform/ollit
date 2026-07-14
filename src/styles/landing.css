@@ -3,6 +3,13 @@
    · 폰트: Noto Sans KR (index.html 측 Google Fonts CDN).
    · 토큰/스타일은 정답 인라인 스타일 그대로 옮김. */
 
+:root {
+  --coral: #FF5A1F;
+  --coral-hover: #E04A15;
+  --coral-border: #F7D9C4;
+  --coral-light: #FFC79A;
+}
+
 .ldg-root {
   font-family: 'Noto Sans KR', sans-serif;
   -webkit-font-smoothing: antialiased;
