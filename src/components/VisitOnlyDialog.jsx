@@ -13,8 +13,8 @@ export function VisitOnlyDialog({ task, onConfirm, onClose }) {
       taskId: task?.id,
       status: "visit_only",
       visitFee: VISIT_FEE.amount,
-      engineerEarning: VISIT_FEE.amount,
-      companyMargin: 0,
+      engineerEarning: VISIT_FEE.engineerAmount,
+      companyMargin: VISIT_FEE.companyAmount,
       principalFee: 0,
       reasonId: reason,
       reasonLabel: reasonObj?.label,
@@ -71,7 +71,9 @@ export function VisitOnlyDialog({ task, onConfirm, onClose }) {
             ₩{VISIT_FEE.amount.toLocaleString()}
           </div>
           <div style={{ fontSize: 9, color: "#fff", opacity: 0.85, marginTop: 4 }}>
-            전액 프로 수고비 (회사 0 / 원청 0)
+            {VISIT_FEE.engineerShare >= 100
+              ? "전액 프로 수고비 (회사 0 / 원청 0)"
+              : `프로 ₩${VISIT_FEE.engineerAmount.toLocaleString()} (${VISIT_FEE.engineerShare}%) · 회사 ₩${VISIT_FEE.companyAmount.toLocaleString()}`}
           </div>
         </div>
 

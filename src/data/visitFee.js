@@ -1,11 +1,20 @@
 // Step 8+9 V7 — 출장비만 정산 (현장 가서 작업 못한 경우)
-// 30,000원 고정 / 기사 100% / 회사·원청 0%
+// 2026-07-14 — 사장님 spec: 2026-07-15(KST)부터 출장비 40,000 / 기사 60% · 회사 40%.
+//   그 전까지는 기존 30,000 / 기사 100%. 날짜 게이트로 자정에 자동 전환
+//   (DB mark_visit_only v2 · compute_payment v26 과 동일 기준일 — Mig 177/178).
+
+function _isNewRule() {
+  // KST 오늘 날짜 문자열 비교 (en-CA = YYYY-MM-DD)
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }) >= "2026-07-15";
+}
 
 export const VISIT_FEE = {
-  amount: 30000,
-  engineerShare: 100,
-  companyShare: 0,
+  get amount()        { return _isNewRule() ? 40000 : 30000; },
+  get engineerShare() { return _isNewRule() ? 60 : 100; },
+  get companyShare()  { return _isNewRule() ? 40 : 0; },
   principalShare: 0,
+  get engineerAmount() { return _isNewRule() ? 24000 : 30000; },
+  get companyAmount()  { return _isNewRule() ? 16000 : 0; },
 };
 
 export const VISIT_REASONS = [
@@ -19,8 +28,8 @@ export function calcVisitOnly() {
   return {
     type: "visit_only",
     total:     VISIT_FEE.amount,
-    engineer:  VISIT_FEE.amount,
-    company:   0,
+    engineer:  VISIT_FEE.engineerAmount,
+    company:   VISIT_FEE.companyAmount,
     principal: 0,
   };
 }
