@@ -194,6 +194,8 @@ import AdminPcDistributionBoard from "./AdminPcDistributionBoard.jsx";
 import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddonListScreen.jsx";
 // 2026-06-03 — 대시보드 "매출 현황" 블록.
 import { RevenueOverviewBlock } from "../components/admin/RevenueOverviewBlock.jsx";
+// 2026-07-14 — 배정 추천 화면 지역 지도 (오늘 동선). 사장님 spec.
+import AssignRegionMap, { normalizeDistrict } from "../components/admin/AssignRegionMap.jsx";
 // 2026-06-03 — 매출 자세히 화면 (2차).
 import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
 // 2026-07-10 — 지역별 접수 현황 (tasks + 미처리 inquiries 합산, 읽기 전용).
@@ -2926,6 +2928,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         assigning={assigning}
         assignError={assignError}
         apiEngineers={apiEngineers}
+        apiTasks={apiTasks}
         onAssign={async (eng) => {
           // V14 2B-3 — 진짜 assignEngineer API (시트 Q 배정기사 + R 상태 박힘)
           // V14 속도 Phase 1 — Optimistic Update / fetchTasks 박지 X / apiTasks 직접 update
@@ -8824,7 +8827,7 @@ function AutoAssignScreen({ t, task, apiEngineers = [], onBack, onComplete, onFa
   );
 }
 
-function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assigning = false, assignError = "", apiEngineers = [] }) {
+function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assigning = false, assignError = "", apiEngineers = [], apiTasks = [] }) {
   // V11-10 — 모든 기사에서 선택 모달 (지역 매칭 X일 때 활성화)
   const [showAllEngineers, setShowAllEngineers] = useState(false);
 
@@ -8935,6 +8938,39 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
       )}
 
       <div style={{ padding: "14px 16px 20px" }}>
+        {/* 2026-07-14 — 오늘 동선 지도 (사장님 spec: 접수마다 외부 지도 열던 수고 제거).
+              후보 프로들의 오늘 작업(오늘 일정·진행중·오늘 완료)의 구를 색점으로. */}
+        {(() => {
+          const todayYmdKst = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+          const toYmd = (v) => {
+            if (!v) return "";
+            try { return new Date(v).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }); } catch { return ""; }
+          };
+          const candNames = [...candidates.main, ...candidates.sub, ...candidates.capable]
+            .map(e => e.name).filter(Boolean);
+          const uniq = [...new Set(candNames)].slice(0, 8);
+          const byEng = uniq.map(name => {
+            const districts = {};
+            for (const tk of apiTasks) {
+              const eng = tk.assignedEngineer || tk.engineer || "";
+              if (eng !== name) continue;
+              const st = tk.status || tk.상태 || "";
+              const isToday =
+                st === "진행중" ||
+                ((st === "확정" || st === "배정") && toYmd(tk.scheduledAt || tk.확정일시) === todayYmdKst) ||
+                ((st === "완료" || st === "visit_only") && toYmd(tk.completedAt || tk.completed_at) === todayYmdKst);
+              if (!isToday) continue;
+              const gu = normalizeDistrict(tk.region);
+              if (!gu) continue;
+              districts[gu] = (districts[gu] || 0) + 1;
+            }
+            return { name, districts };
+          });
+          return (
+            <AssignRegionMap t={t} taskRegion={task.region} engineers={byEng}/>
+          );
+        })()}
+
         <div style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 10 }}>
           {apiLoading ? "추천 프로 catch 중..." : (
             <>
