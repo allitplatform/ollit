@@ -221,6 +221,12 @@ export function v14NormalizeTask(t) {
     recommendedEngineerId: t.recommendedEngineerId || t.recommended_engineer_id || null,
     recommendedEngineer,
     startedAt, completedAt,
+    // 2026-07-14 — Mig 013 status 시각 매핑 누락 fix ("두 곳 모두 매핑" 트랩).
+    //   AdminApp 로컬 _v14NormalizeTask 엔 있었으나 여기(공용) 누락 →
+    //   상세화면이 재조회 + 본 함수로 정규화하면서 배정/일정확정 시각이 항상 "—" 표시.
+    //   (DB 트리거는 정상 — 값은 계속 쌓이고 있었음. 표시만 누락.)
+    assignedAt:           t.assignedAt           || t.assigned_at            || "",
+    scheduledConfirmedAt: t.scheduledConfirmedAt || t.scheduled_confirmed_at || "",
     // 2026-05-25 — 부분완료 (Migration 068)
     partialReason: t.partialReason ?? t.partial_reason ?? null,
     partialMemo:   t.partialMemo   ?? t.partial_memo   ?? null,
