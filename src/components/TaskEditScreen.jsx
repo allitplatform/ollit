@@ -9,6 +9,12 @@ import { useState, useMemo } from "react";
 import { canEditField } from "../data/permissions.js";
 import { saveTaskHistory, getFieldLabel } from "../data/taskHistory.js";
 import { getAppliancePool, formatWorkTypeLabel } from "../utils/receptionForm.js";
+// 2026-07-14 — 사장님 리포트 "수정해도 내용이 다르게 있어": 이 화면의 저장이
+//   localStorage 이력 + 토스트만 남기고 DB 에 아무것도 안 쓰던 유령이었음.
+//   fix: 안전 매핑 필드(고객명/연락처/주소/견적/비고)만 updateTaskAdapter 로 실제 저장.
+//   작업내용(task_items 연동 필요)·일정(전용 흐름)·금액분배(정산 엔진 소관)는
+//   이 화면에서 수정 잠금 — 가짜 저장보다 정직한 잠금.
+import { updateTaskAdapter } from "../data/tasksDb.js";
 
 const WORKTYPE_OPTIONS = ["세척", "냉매충전", "누설", "설치"];
 
@@ -35,12 +41,37 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
     return changes;
   }
 
-  function handleSave() {
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    if (saving) return;
     const changes = diffChanges();
     if (changes.length === 0) {
       onBack?.();
       return;
     }
+
+    // 2026-07-14 — DB 저장 (안전 매핑 필드만). taskToRow 매핑:
+    //   customer→customer_name / phone→phone / address→address /
+    //   estimateTotal→productPrice(견적=product_price) / note→memo→request_note
+    const DB_FIELDS = new Set(["customer", "phone", "address", "estimateTotal", "note", "memo"]);
+    const dbChanges = changes.filter(c => DB_FIELDS.has(c.field));
+    if (dbChanges.length > 0) {
+      setSaving(true);
+      const updates = {};
+      for (const c of dbChanges) {
+        if (c.field === "estimateTotal") updates.productPrice = Number(data.estimateTotal) || 0;
+        else if (c.field === "note" || c.field === "memo") updates.memo = data.note || data.memo || "";
+        else updates[c.field] = data[c.field];
+      }
+      const res = await updateTaskAdapter(task.id, updates);
+      setSaving(false);
+      if (!res || res.ok === false) {
+        alert(`저장 실패 — ${res?.error || "알 수 없는 오류"}\n변경이 저장되지 않았습니다.`);
+        return;   // 화면 유지 — 재시도 가능
+      }
+    }
+
     changes.forEach(c => {
       saveTaskHistory({
         taskId: task.id,
@@ -64,7 +95,7 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
       color: "var(--text-primary)",
       fontFamily: "-apple-system, 'Pretendard', sans-serif",
     }}>
-      <Header title="작업 수정" subtitle={task.taskCode || task.id} onBack={onBack} onAction={handleSave}/>
+      <Header title="작업 수정" subtitle={task.taskCode || task.id} onBack={onBack} onAction={handleSave} saving={saving}/>
 
       <div style={{ padding: 16 }}>
         <ReadOnlyField label="작업번호" value={task.taskCode || task.id}/>
@@ -91,12 +122,15 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
           />
         </Section>
 
-        <Section title="🛠️ 작업 내용">
+        {/* 2026-07-14 — 작업 내용은 이 화면에서 수정 잠금.
+              workItems 는 task_items 테이블과 이중 저장 구조 (정산 엔진이 task_items 사용)
+              — 여기서 category_data 만 고치면 정산이 어긋남. 표시만 하고 잠금. */}
+        <Section title="🛠️ 작업 내용 (읽기 전용)">
           {Array.isArray(data.workItems) && data.workItems.length > 0 ? (
             <WorkItemsEditor
               items={data.workItems}
-              onChange={items => set("workItems", items)}
-              editable={canEditField(user, "workItems")}
+              onChange={() => {}}
+              editable={false}
             />
           ) : (
             <>
@@ -104,42 +138,48 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
                 label="작업 종류"
                 value={data.workType || ""}
                 options={WORKTYPE_OPTIONS}
-                onChange={v => set("workType", v)}
-                editable={canEditField(user, "workType")}
+                onChange={() => {}}
+                editable={false}
               />
               <FieldSelect
                 label={data.workType === "설치" ? "종류" : "기종"}
                 value={data.appliance || ""}
                 options={getAppliancePool(data.workType, data.principal)}
-                onChange={v => set("appliance", v)}
-                editable={canEditField(user, "appliances")}
+                onChange={() => {}}
+                editable={false}
               />
               <FieldNumber
                 label="수량"
                 value={data.qty || 1}
-                onChange={v => set("qty", v)}
-                editable={canEditField(user, "appliances")}
+                onChange={() => {}}
+                editable={false}
                 min={1}
               />
             </>
           )}
+          <div style={{ fontSize: 10.5, color: "var(--text-tertiary)", marginTop: 6, lineHeight: 1.5 }}>
+            작업 종류·기종 변경은 정산과 연결되어 있어 여기서 수정할 수 없습니다. 운영팀 흐름(재접수/항목 조정)을 이용해주세요.
+          </div>
         </Section>
 
-        <Section title="📅 일정">
+        {/* 2026-07-14 — 일정 잠금: schedule/time 은 화면 표시용 파생 문자열이라
+              여기서 고쳐도 실제 일정(scheduled_at)이 안 바뀜. 일정 변경은 타임라인/기사 앱 흐름. */}
+        <Section title="📅 일정 (읽기 전용)">
           <FieldText
             label="일정"
             value={data.schedule || ""}
-            onChange={v => set("schedule", v)}
-            editable={canEditField(user, "schedule")}
-            placeholder="예: 오늘 오후 2시"
+            onChange={() => {}}
+            editable={false}
           />
           <FieldText
             label="시간"
             value={data.time || ""}
-            onChange={v => set("time", v)}
-            editable={canEditField(user, "time")}
-            placeholder="14:00"
+            onChange={() => {}}
+            editable={false}
           />
+          <div style={{ fontSize: 10.5, color: "var(--text-tertiary)", marginTop: 6 }}>
+            일정 변경은 작업 상세의 '일정 변경' 또는 타임라인에서 해주세요.
+          </div>
         </Section>
 
         {(canEditField(user, "estimateTotal") || canEditField(user, "addonFee")
@@ -154,39 +194,23 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
                 suffix="원"
               />
             )}
-            {canEditField(user, "addonFee") && (
-              <FieldNumber
-                label="현장 추가금"
-                value={data.addonFee || 0}
-                onChange={v => set("addonFee", v)}
-                editable
-                suffix="원"
-              />
-            )}
+            {/* 2026-07-14 — 분배 금액(원청/프로/마진)·추가금은 정산 엔진(compute_payment)
+                  소관이라 여기서 고쳐도 반영 안 됨 (기존에도 유령 필드) — 표시만. */}
             {canEditField(user, "principal_amount") && (
               <FieldNumber
-                label="원청 수수료"
+                label="원청 수수료 (자동 계산)"
                 value={data.principal_amount || 0}
-                onChange={v => set("principal_amount", v)}
-                editable
+                onChange={() => {}}
+                editable={false}
                 suffix="원"
               />
             )}
             {canEditField(user, "engineer_amount") && (
               <FieldNumber
-                label="프로 단가"
+                label="프로 단가 (자동 계산)"
                 value={data.engineer_amount || 0}
-                onChange={v => set("engineer_amount", v)}
-                editable
-                suffix="원"
-              />
-            )}
-            {canEditField(user, "owner_amount") && (
-              <FieldNumber
-                label="회사 마진"
-                value={data.owner_amount || 0}
-                onChange={v => set("owner_amount", v)}
-                editable
+                onChange={() => {}}
+                editable={false}
                 suffix="원"
               />
             )}
@@ -221,14 +245,14 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
           borderRadius: 8, fontSize: 11, color: "var(--text-secondary)",
           lineHeight: 1.6,
         }}>
-          ℹ️ 변경된 항목은 자동으로 수정 이력에 기록됩니다.
+          ℹ️ 고객명·연락처·주소·견적 금액·비고가 저장 대상입니다. 저장 시 DB에 반영되고 수정 이력에 기록됩니다.
         </div>
       </div>
     </div>
   );
 }
 
-function Header({ title, subtitle, onBack, onAction }) {
+function Header({ title, subtitle, onBack, onAction, saving = false }) {
   return (
     <div style={{
       position: "sticky", top: 0, zIndex: 10,
@@ -250,12 +274,12 @@ function Header({ title, subtitle, onBack, onAction }) {
           </div>
         )}
       </div>
-      <button onClick={onAction} style={{
-        background: "var(--accent)",
-        color: "#fff", border: "none",
+      <button onClick={onAction} disabled={saving} style={{
+        background: saving ? "var(--bg-tertiary)" : "var(--accent)",
+        color: saving ? "var(--text-tertiary)" : "#fff", border: "none",
         padding: "8px 14px", borderRadius: 8,
-        fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-      }}>저장</button>
+        fontSize: 13, fontWeight: 700, cursor: saving ? "wait" : "pointer", fontFamily: "inherit",
+      }}>{saving ? "저장 중..." : "저장"}</button>
     </div>
   );
 }
