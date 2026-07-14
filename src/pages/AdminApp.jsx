@@ -70,6 +70,8 @@ import { SettlementScreen as SettlementDailyClose } from "../components/Settleme
 import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
 import { startDailyAlertScheduler, stopDailyAlertScheduler } from "../utils/dailyAlertScheduler.js";
 import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../utils/dashboardStats.js";
+// 2026-07-14 — Stage 3: 기간 집계 RPC 날짜 계산용 (매출 카드와 동일 규칙).
+import { getMonthStart, getPrevMonthSameDay, getPrevMonthStart } from "../utils/revenueStats.js";
 // 2026-06-12 — PC 셸 (1024px+). isPc true 일 때 Shell 함수가 AdminPcShell 로 wrap.
 import { useIsPc } from "../utils/useIsPc.js";
 // 2026-06-17 — PC 새 접수 폼 (Stage 2). 모바일은 기존 NewReceptionFormScreen 유지.
@@ -1532,14 +1534,17 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-07-14 — Stage 2: 대시보드 매출 카드 서버 집계 (Mig 175 get_admin_dashboard_summary).
   //   브라우저 2,300건 다운로드/계산 없이 '오늘' 매출/마진/정산/수수료 즉시 렌더. null이면 클라 계산 fallback.
   const [dashSummary, setDashSummary] = useState(null);
+  // 2026-07-14 — Stage 3: '이번 달' + 전월비 서버 집계 (Mig 176 get_admin_dashboard_summary_range).
+  //   { month, prevSameDay, prevMonthToDate } — null 이면 해당 항목 클라 계산 fallback.
+  const [dashRanges, setDashRanges] = useState(null);
   // 2026-07-14 — Stage 2b: 서버 집계는 다른 요청(접수함/통계) 뒤에 줄 세우지 않고
   //   mount 즉시 독립 호출. 화면 복귀(screenStack) 시에도 재조회 — 카드 최신 유지.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       if (!user?.user_id) return;
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
       try {
-        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
         const { data, error } = await supabase.rpc("get_admin_dashboard_summary", {
           p_actor:    user.user_id,
           p_date_kst: today,
@@ -1547,6 +1552,31 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         if (!cancelled && !error && data && data.revenue) setDashSummary(data);
       } catch (_e) {
         // 실패 시 null 유지 — RevenueOverviewBlock이 클라 계산으로 fallback
+      }
+      // Stage 3 — 기간 3개 병렬 (이번달 1일~오늘 / 전월 동일일 / 전월 1일~동일일).
+      //   Mig 176 미실행 등 실패 시 해당 항목 null → 클라 계산 fallback.
+      try {
+        const monthStart  = getMonthStart(today);
+        const prevSameDay = getPrevMonthSameDay(today);
+        const prevMonthStart = getPrevMonthStart(today);
+        const rangeCall = async (s, e) => {
+          try {
+            const { data, error } = await supabase.rpc("get_admin_dashboard_summary_range", {
+              p_actor: user.user_id, p_start_kst: s, p_end_kst: e,
+            });
+            return (!error && data && data.revenue) ? data : null;
+          } catch (_e2) { return null; }
+        };
+        const [m, pd, pm] = await Promise.all([
+          rangeCall(monthStart, today),
+          rangeCall(prevSameDay, prevSameDay),
+          rangeCall(prevMonthStart, prevSameDay),
+        ]);
+        if (!cancelled && (m || pd || pm)) {
+          setDashRanges({ month: m, prevSameDay: pd, prevMonthToDate: pm });
+        }
+      } catch (_e) {
+        // 실패 시 null 유지 — 클라 계산 fallback
       }
     })();
     return () => { cancelled = true; };
@@ -2159,6 +2189,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       inquiriesNewCount={inquiriesNewCount}
       inquiriesTodayCount={inquiriesTodayCount}
       dashSummary={dashSummary}
+      dashRanges={dashRanges}
       onTaskAssign={(task) => {
         setSelectedTask(task);
         const flow = determineWorkflow(task.workItems)
@@ -3879,6 +3910,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       inquiriesNewCount={inquiriesNewCount}
       inquiriesTodayCount={inquiriesTodayCount}
       dashSummary={dashSummary}
+      dashRanges={dashRanges}
       onClickUrgentAssign={() => { setSelectedTask(URGENT_TASK); setScreen("recommend"); }}
       onEngineerClick={(eng) => goEngineerDay(eng, null)}
       onTaskClick={(task) => goTaskDetail(task, null)}
@@ -3953,7 +3985,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, onEngineerClick, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4102,7 +4134,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
         {/* 2026-06-03 — 측측 4박스(오늘 매출/회사 마진/프로 정산/원청 수수료) 측측 →
               RevenueOverviewBlock 측측 측측 (= 같은 dataset + 토글 + 구성 + 종류별 측측 측측 측측).
               dynamicStats.revenue 측측 측측 (= dashboardStats.js 측측 측측 측측 측측 측측 X). */}
-        <RevenueOverviewBlock t={t} apiTasks={apiTasks} user={user} onDetailClick={onClickRevenueDetail} serverSummary={dashSummary}/>
+        <RevenueOverviewBlock t={t} apiTasks={apiTasks} user={user} onDetailClick={onClickRevenueDetail} serverSummary={dashSummary} serverRanges={dashRanges}/>
 
         {/* V14 큰 흐름 — 취소 요청 알림 (status='취소요청' 인 작업) */}
         {(apiTasks || []).filter(t => (t.status || t.상태) === '취소요청').map(task => (

@@ -35,7 +35,7 @@ function fmtKRW(n) {
   return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
 }
 
-export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onClickEngineerList, serverSummary = null }) {
+export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onClickEngineerList, serverSummary = null, serverRanges = null }) {
   const [period, setPeriod] = useState("today"); // 'today' | 'month'
   // 2026-06-16 — ≥1280px 에선 도넛을 키워서 보기 좋게 (사장님 spec).
   const isWide = useMinWidth(1280);
@@ -53,16 +53,20 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
       prevStart = getPrevMonthStart(today); prevEnd = getPrevMonthSameDay(today);
       label = "이번 달";
     }
-    // 2026-07-14 — Stage 2c: '오늘' 뷰는 서버 집계 우선 (Mig 175). 없으면 클라 계산 fallback.
-    const curFromServer = (period === "today" && serverSummary && serverSummary.revenue)
-      ? fromServerSummary(serverSummary)
-      : null;
+    // 2026-07-14 — Stage 2c/3: 서버 집계 우선 (오늘=Mig 175 / 이번달·전월비=Mig 176). 없으면 클라 fallback.
+    const _sv = (o) => (o && o.revenue) ? fromServerSummary(o) : null;
+    const curFromServer = (period === "today")
+      ? _sv(serverSummary)
+      : _sv(serverRanges?.month);
+    const prevFromServer = (period === "today")
+      ? _sv(serverRanges?.prevSameDay)
+      : _sv(serverRanges?.prevMonthToDate);
     return {
-      current:  curFromServer || computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
-      previous: computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
+      current:  curFromServer  || computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
+      previous: prevFromServer || computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
       periodLabel: label,
     };
-  }, [apiTasks, user, period, serverSummary]);
+  }, [apiTasks, user, period, serverSummary, serverRanges]);
 
   const total = current.total || 0;
   const denom = total > 0 ? total : 1;

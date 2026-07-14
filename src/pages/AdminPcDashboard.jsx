@@ -37,6 +37,7 @@ export function AdminPcDashboard({
   dynamicStats,
   refrigerantAddonCount = 0,
   dashSummary = null,
+  dashRanges = null,
   onClickRevenueDetail,
   onClickNewReception,
   onClickAssignedList,
@@ -101,6 +102,7 @@ export function AdminPcDashboard({
           onDetailClick={onClickRevenueDetail}
           onClickEngineerList={onClickRevenueDetail}
           serverSummary={dashSummary}
+          serverRanges={dashRanges}
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <CompactCard

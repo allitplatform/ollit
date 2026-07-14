@@ -16,7 +16,7 @@ function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 function fmtPct(n, digits = 1) { return `${n.toFixed(digits)}%`; }
 
 
-export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, serverSummary = null }) {
+export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, serverSummary = null, serverRanges = null }) {
   const [period, setPeriod] = useState("today"); // 'today' | 'month'
 
   const { current, previous, periodLabel } = useMemo(() => {
@@ -37,18 +37,21 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
       prevEnd   = getPrevMonthSameDay(today);
       label = "이번 달";
     }
-    // 2026-07-14 — Stage 2: '오늘' 뷰는 서버 집계(serverSummary) 우선 → 즉시 렌더.
-    //   serverSummary 없거나 실패 시 기존 클라 계산으로 fallback (안전망).
-    //   '이번 달' 및 전월비(previous)는 그대로 클라 계산 (서버 RPC는 당일만 제공).
-    const curFromServer = (period === "today" && serverSummary && serverSummary.revenue)
-      ? fromServerSummary(serverSummary)
-      : null;
+    // 2026-07-14 — Stage 2/3: 서버 집계 우선 → 즉시 렌더. 없으면 클라 계산 fallback.
+    //   오늘: serverSummary(Mig 175) / 이번달·전월비: serverRanges(Mig 176).
+    const _sv = (o) => (o && o.revenue) ? fromServerSummary(o) : null;
+    const curFromServer = (period === "today")
+      ? _sv(serverSummary)
+      : _sv(serverRanges?.month);
+    const prevFromServer = (period === "today")
+      ? _sv(serverRanges?.prevSameDay)
+      : _sv(serverRanges?.prevMonthToDate);
     return {
-      current:  curFromServer || computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
-      previous: computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
+      current:  curFromServer  || computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
+      previous: prevFromServer || computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
       periodLabel: label,
     };
-  }, [apiTasks, user, period, serverSummary]);
+  }, [apiTasks, user, period, serverSummary, serverRanges]);
 
   // 전월비 (= 같은 기간).
   const diffPct = previous.total > 0
