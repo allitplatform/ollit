@@ -19,7 +19,7 @@ import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
 import { isTrackARemittance, isRemittanceTarget, isTrackC } from "../utils/remitFilter.js";
 import { isCompletedStatus } from "../utils/taskStatus.js";
-import { isCleaning, isRefrigerant } from "../utils/workTypeKind.js";
+import { isCleaning, isRefrigerant, getServiceKind } from "../utils/workTypeKind.js";
 import { ENABLE_MOCK } from "../config/env.js";
 import { loadEngineers, saveEngineerWithSync, createEmptyEngineer } from "../data/engineers.js";
 // 2026-05-19 Fix #30 account-fetch — 회사 계좌 DB 우선 조회 (localStorage 의존 제거)
@@ -1614,6 +1614,11 @@ function CompactTaskCard({ task, t, index, onClick }) {
             <span style={{ fontSize: 14, fontWeight: 700, textDecoration: isCompleted ? "line-through" : "none", textDecorationColor: t.textMuted }}>{task.customer}</span>
             <span style={{ fontSize: 11, color: t.textMuted }}>{task.address}</span>
             {hasScheduleChange && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", background: t.warningBg, color: t.warning, borderRadius: 4 }}>일정변경</span>}
+            {/* 2026-07-14 — 동의서 미수집 배지 (냉매/누설 + 진행중·완료 + consent 없음, 사장님 spec) */}
+            {(isInProgress || isCompleted)
+              && (isRefrigerant(task) || getServiceKind(task) === "leak")
+              && !task.consent?.signedAt
+              && <span style={{ fontSize: 9, fontWeight: 800, padding: "2px 6px", background: "rgba(255,59,92,0.12)", color: "#FF3B5C", borderRadius: 4 }}>동의서 ✗</span>}
           </div>
           <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
             <Icon size={11} style={{ color: t.textMuted }}/>

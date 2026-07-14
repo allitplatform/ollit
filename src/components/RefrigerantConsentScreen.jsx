@@ -24,10 +24,45 @@ import { saveConsentAdapter } from "../data/tasksDb.js";
 // 2026-06-03 — Phase 1 보강: add-on(세척+냉매충전 2-task) 컨텍스트 측측 prop 2개 추가.
 //   skipAutoSave=true → 측측 측측 measure 측측 (부모 측측). onComplete 측측 signatureBlob 측측.
 //   rejectMode="cancel" → 거부 버튼 = "측측 — 측측" (출장비만 X). 기본/일반 냉매 동작 측측.
-export default function RefrigerantConsentScreen({ task, onBack, onComplete, onReject, skipAutoSave = false, rejectMode = "visit_only" }) {
+// 2026-07-14 — kind prop 추가 (사장님 spec: 누수/누설 시공에도 동의서).
+//   kind="refrigerant"(기본): 기존 냉매 문구 그대로.
+//   kind="leak": 1단계 시공 종류 선택 ([부위 수리] / [누설차단제]) → 해당 문구만 표시 → 서명.
+//   저장 시 consent.type 에 어떤 문구에 서명했는지 기록 ("leak_repair" | "leak_sealant").
+
+// 누설 동의서 문구 (2026-07-14 사장님 제공 원문)
+const LEAK_TEXTS = {
+  leak_repair: {
+    title: "누설 부위 수리 동의",
+    pick:  "🔧 부위 수리",
+    pickDesc: "누설 부위를 찾아 수리한 경우",
+    items: [
+      "업체는 금번 수리한 부위에 한하여 시공일로부터 1년간 무상 A/S를 보장합니다.",
+      "수리하지 않은 다른 부위에서 누설 또는 고장이 발생할 수 있으며, 이에 따른 수리 및 냉매 충전 비용은 별도로 발생할 수 있음을 확인합니다.",
+      "수리하지 않은 다른 부위의 누설 및 고장에 대해서는 환불이나 무상 재시공을 요구하지 않으며, 이에 대해 이의를 제기하지 않습니다.",
+      "시공 후 냉난방 상태를 확인하였으며 정상 작동됨을 확인합니다.",
+    ],
+  },
+  leak_sealant: {
+    title: "누설차단제 시공 동의",
+    pick:  "🧪 누설차단제",
+    pickDesc: "차단제(약품)를 주입한 경우",
+    items: [
+      "본인은 에어컨 누설차단제 시공에 대해 충분한 설명을 듣고 아래 사항에 동의합니다.",
+      "누설차단제는 미세 누설 보조용 시공이며, 모든 누설을 완벽하게 차단하는 것은 아닙니다.",
+      "누설 상태에 따라 효과가 없거나 냉매(가스)가 다시 부족해질 수 있음을 확인합니다.",
+      "냉매가 재차 부족할 경우 별도의 누설 수리 및 냉매 충전 비용이 발생할 수 있으며, 본인은 누설차단제 시공 비용에 대한 환불이나 무상 재시공을 요구하지 않고 이에 이의를 제기하지 않습니다.",
+      "시공 후 냉난방 상태를 확인하였으며 정상 작동됨을 확인합니다.",
+    ],
+  },
+};
+
+export default function RefrigerantConsentScreen({ task, onBack, onComplete, onReject, skipAutoSave = false, rejectMode = "visit_only", kind = "refrigerant" }) {
   const [customerName, setCustomerName] = useState("");
   const [hasStroke, setHasStroke]       = useState(false);
   const [submitting, setSubmitting]     = useState(false);
+  // 누설 모드 — 시공 종류 (null = 선택 화면)
+  const [leakType, setLeakType] = useState(null);
+  const isLeak = kind === "leak";
   const canvasRef = useRef(null);
   const drawing   = useRef(false);
 
@@ -89,8 +124,10 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
       canvas.removeEventListener("mouseup",    end);
       canvas.removeEventListener("mouseleave", end);
     };
+    // 2026-07-14 — 누설 모드: 시공 종류 선택 후에야 캔버스가 mount 되므로 leakType 의존.
+    //   (기존 [] 이면 선택 화면에서 effect 가 소진돼 서명 핸들러가 안 붙음)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [leakType]);
 
   function clearCanvas() {
     const canvas = canvasRef.current;
@@ -129,10 +166,13 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
       }
       const file = new File([blob], `consent_${task.id}.png`, { type: "image/png" });
 
+      // 2026-07-14 — 동의 문구 종류 (냉매 / 누설 부위수리 / 누설차단제)
+      const consentType = isLeak ? leakType : "refrigerant";
+
       // 2026-06-03 — skipAutoSave 분기: 측측 측측 measure 측측, 측측 측측 측측 측측 (Phase 1 add-on 측측).
       if (skipAutoSave) {
         if (typeof onComplete === "function") {
-          onComplete({ customerName: name, signatureBlob: file });
+          onComplete({ customerName: name, signatureBlob: file, type: consentType });
         }
         return;
       }
@@ -148,6 +188,7 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
       const save = await saveConsentAdapter(task.id, {
         customerName: name,
         signatureUrl: up.url,
+        type: consentType,
       });
       if (!save?.ok) {
         alert(`동의서 저장 실패: ${save?.error || "unknown"}`);
@@ -160,6 +201,7 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
           customerName: name,
           signatureUrl: up.url,
           signedAt: save.task?.consent?.signedAt || new Date().toISOString(),
+          type: consentType,
         });
       }
     } catch (e) {
@@ -185,6 +227,60 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
     if (typeof onReject === "function") onReject();
   }
 
+  // ──────────────── 누설 모드 1단계 — 시공 종류 선택 ────────────────
+  if (isLeak && !leakType) {
+    return (
+      <div style={{ minHeight: "100vh", background: "var(--bg-primary)", paddingBottom: 40 }}>
+        <div style={{
+          padding: "14px 16px",
+          borderBottom: "1px solid var(--border-color)",
+          display: "flex", alignItems: "center", gap: 10,
+          background: "var(--bg-secondary)",
+        }}>
+          <button
+            onClick={onBack}
+            style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: "var(--text-primary)", display: "flex" }}
+          >
+            <ArrowLeft size={18}/>
+          </button>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>
+              📋 누수/누설 시공 동의
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
+              {task?.customer || "고객"} · 오늘 하신 시공을 선택해 주세요
+            </div>
+          </div>
+        </div>
+
+        <div style={{ margin: "18px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {["leak_repair", "leak_sealant"].map((key) => (
+            <button
+              key={key}
+              onClick={() => setLeakType(key)}
+              style={{
+                width: "100%", padding: "20px 18px",
+                background: "var(--bg-secondary)",
+                border: "1.5px solid var(--border-color)",
+                borderRadius: 14,
+                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>
+                {LEAK_TEXTS[key].pick}
+              </div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                {LEAK_TEXTS[key].pickDesc} → {LEAK_TEXTS[key].title}
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const leakDoc = isLeak ? LEAK_TEXTS[leakType] : null;
+
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)", paddingBottom: 40 }}>
       {/* 헤더 */}
@@ -195,22 +291,49 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
         background: "var(--bg-secondary)",
       }}>
         <button
-          onClick={onBack}
+          onClick={isLeak ? () => setLeakType(null) : onBack}
           style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: "var(--text-primary)", display: "flex" }}
         >
           <ArrowLeft size={18}/>
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>
-            📋 냉매 가스 충전 서비스 동의
+            {isLeak ? `📋 ${leakDoc.title}` : "📋 냉매 가스 충전 서비스 동의"}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
-            {task?.customer || "고객"} · {task?.workType || "냉매충전"}
+            {task?.customer || "고객"} · {isLeak ? "누수/누설 시공" : (task?.workType || "냉매충전")}
           </div>
         </div>
       </div>
 
-      {/* 동의서 문구 */}
+      {/* 동의서 문구 — 누설: 사장님 제공 조항 리스트 */}
+      {isLeak && (
+        <div style={{
+          margin: "14px 16px",
+          padding: "16px 16px 18px",
+          background: "var(--bg-secondary)",
+          border: "1px solid var(--border-color)",
+          borderRadius: 12,
+          fontSize: 13, lineHeight: 1.7, color: "var(--text-primary)",
+        }}>
+          {leakDoc.items.map((txt, i) => (
+            <div key={i} style={{ marginTop: i === 0 ? 0 : 12 }}>
+              <b>{i + 1}.</b> {txt}
+            </div>
+          ))}
+          <div style={{
+            marginTop: 14, padding: "10px 12px",
+            background: "rgba(255,184,0,0.10)",
+            border: "1px solid rgba(255,184,0,0.30)",
+            borderRadius: 8, fontWeight: 700,
+          }}>
+            위 내용을 충분히 이해하고 이에 동의합니다.
+          </div>
+        </div>
+      )}
+
+      {/* 동의서 문구 — 냉매 (기존) */}
+      {!isLeak && (
       <div style={{
         margin: "14px 16px",
         padding: "16px 16px 18px",
@@ -261,6 +384,7 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
           위 내용을 충분히 안내받았으며, 이에 동의합니다.
         </div>
       </div>
+      )}
 
       {/* 고객 성함 입력 */}
       <div style={{ margin: "0 16px 14px" }}>

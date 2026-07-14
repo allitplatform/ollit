@@ -694,6 +694,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     return (
       <RefrigerantConsentScreen
         task={task}
+        kind={getServiceKind(task) === "leak" ? "leak" : "refrigerant"}
+        rejectMode={(task.status === "진행중" || task.status === "완료" || task.status === "visit_only") ? "cancel" : "visit_only"}
         onBack={() => setSubScreen(null)}
         onComplete={(consent) => {
           // saveConsentAdapter 측 이미 DB 반영 — 로컬 task 캐시 갱신 위해 onUpdate 호출
@@ -702,6 +704,11 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
           setSubScreen(null);
         }}
         onReject={() => {
+          // 2026-07-14 — 소급 서명(진행중/완료 건)에서는 출장비 흐름 X — 그냥 뒤로.
+          if (task.status === "진행중" || task.status === "완료" || task.status === "visit_only") {
+            setSubScreen(null);
+            return;
+          }
           // Phase 2 — visit_only 정산 정상화 후 본격 연결. 현재는 라우팅만.
           setSubScreen("visitOnly");
         }}
@@ -1047,6 +1054,34 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         </>
       )}
 
+      {/* 2026-07-14 — 소급 동의서 (사장님 spec: 현장에서 놓친 건 나중에 받기).
+            진행중/완료된 냉매·누설 건인데 동의서가 없으면 빨간 버튼 노출. */}
+      {(isInProgress || isCompleted) && (() => {
+        // visit_only(출장만) = 고객이 동의 거부한 케이스 — 소급 대상 아님.
+        if (task.status === "visit_only") return null;
+        const _needs = isRefrigerantWorkType(task) || getServiceKind(task) === "leak";
+        const _has = !!(task.consent?.signedAt);
+        if (!_needs || _has) return null;
+        return (
+          <div style={{ padding: "0 16px 12px" }}>
+            <button
+              onClick={() => setSubScreen("consent")}
+              style={{
+                width: "100%", padding: 14,
+                background: "rgba(255,59,92,0.10)",
+                border: "1.5px solid rgba(255,59,92,0.45)",
+                borderRadius: 12,
+                color: "#FF3B5C",
+                fontSize: 14, fontWeight: 800,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              ⚠️ 동의서 미수집 — 지금 받기
+            </button>
+          </div>
+        );
+      })()}
+
       {/* 완료 — 등록된 사진 + 메모 + 정산 */}
       {isCompleted && (
         <>
@@ -1105,14 +1140,17 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
       {/* 2026-05-22 — 냉매 작업 측 동의서 필수 가드 (Phase 1) */}
       {isConfirmed && (() => {
         // 2026-05-26 C-2 — workType 정확일치 → isRefrigerantWorkType (DB "냉매점검(...)" 측 catch).
+        // 2026-07-14 — 누수/누설 시공도 동의서 필수 (사장님 spec: 냉매와 동일 차단).
         const isRefrigerant = isRefrigerantWorkType(task);
+        const isLeakWork = getServiceKind(task) === "leak";
+        const needsConsent = isRefrigerant || isLeakWork;
         const hasConsent = !!(task.consent?.signedAt);
-        const startBlocked = isRefrigerant && !hasConsent;
+        const startBlocked = needsConsent && !hasConsent;
         const signedAtLabel = hasConsent ? formatTimeOnly(task.consent.signedAt) : "";
         return (
         <div style={{ padding: "16px" }}>
-          {/* 냉매 작업 — 동의 전: 동의서 버튼 / 동의 후: 완료 표시 */}
-          {isRefrigerant && !hasConsent && (
+          {/* 냉매/누설 작업 — 동의 전: 동의서 버튼 / 동의 후: 완료 표시 */}
+          {needsConsent && !hasConsent && (
             <button
               onClick={() => setSubScreen("consent")}
               style={{
@@ -1124,10 +1162,10 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
                 marginBottom: 10,
               }}
             >
-              📝 냉매 충전 동의서
+              {isLeakWork ? "📝 누수/누설 시공 동의서" : "📝 냉매 충전 동의서"}
             </button>
           )}
-          {isRefrigerant && hasConsent && (
+          {needsConsent && hasConsent && (
             <div style={{
               padding: "10px 12px", marginBottom: 10,
               background: "rgba(15,110,86,0.10)",

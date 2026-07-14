@@ -19,6 +19,8 @@ import { EditTaskItemModal, AddTaskItemModal } from "./admin/TaskItemEditModals.
 import { detectServiceType } from "../data/serviceTypes.js";
 import { TaskCardMenu } from "./TaskCardMenu.jsx";
 import { formatTimeOnly, formatDateTimeKST } from "../utils/dateLabel.js";
+// 2026-07-14 — 동의서 미수집 경고 (냉매/누설 판정)
+import { getServiceKind } from "../utils/workTypeKind.js";
 import { VisitOnlyDialog } from "./VisitOnlyDialog.jsx";
 // 2026-06-03 — 품목별 취소 (PrincipalApp 측측 측측). admin_partial_cancel_item RPC 측측.
 import { PartialCancelDialog } from "./CancelDialogs.jsx";
@@ -357,8 +359,29 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {/* 카드 6 — 요청사항 · 메모 */}
       <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
       {/* 2026-05-29 v2 (D6) — CancelInfoCard 폐기. 변경 이력 카드 측 cancel 이벤트 빨강 강조로 대체. */}
-      {/* 2026-05-22 — 냉매 충전 동의서 (있을 때만 노출, Phase 1) */}
+      {/* 2026-05-22 — 냉매 충전 동의서 (있을 때만 노출, Phase 1)
+            2026-07-14 — 누설 동의서 통합 + 미수집 경고 (사장님 spec: 관리자도 표시). */}
       {task.consent?.signedAt && <ConsentCard consent={task.consent}/>}
+      {!task.consent?.signedAt
+        && (getServiceKind(task) === "refrigerant" || getServiceKind(task) === "leak")
+        && ["진행중", "완료", "정산완료"].includes(task.status)
+        && (
+        <div style={{ padding: D1_OUTER_PAD }}>
+          <div style={{
+            ...D1_CARD_STYLE,
+            border: "1.5px solid rgba(255,59,92,0.45)",
+            background: "rgba(255,59,92,0.07)",
+          }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: "#FF3B5C" }}>
+              ⚠️ 동의서 미수집
+            </div>
+            <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>
+              {getServiceKind(task) === "leak" ? "누수/누설" : "냉매충전"} 건인데 고객 서명 동의서가 없습니다.
+              기사님 앱 작업 상세의 [동의서 미수집 — 지금 받기] 버튼으로 소급 수집할 수 있어요.
+            </div>
+          </div>
+        </div>
+      )}
       {/* 2026-05-22 — 재배정 요청 카드 (있을 때만 노출).
             2026-05-29 v2 (D7): status='취소' 면 숨김 (취소 우선, 재배정 의미 없음). */}
       {task.reassignRequest?.requestedAt && task.status !== "취소" && <ReassignRequestCard request={task.reassignRequest}/>}
@@ -2268,13 +2291,17 @@ function ConsentCard({ consent }) {
   const signatureUrl = consent?.signatureUrl || "";
   const signedAt = consent?.signedAt || "";
   const signedAtLabel = signedAt ? formatDateTimeKST(signedAt) : "";
+  // 2026-07-14 — 어떤 문구에 서명했는지 (누설 확장)
+  const typeLabel = consent?.type === "leak_repair"  ? "누설 부위 수리 동의서"
+                  : consent?.type === "leak_sealant" ? "누설차단제 시공 동의서"
+                  : "냉매 충전 동의서";
 
   return (
     <div style={{ padding: D1_OUTER_PAD }}>
     <div style={D1_CARD_STYLE}>
       <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>
-          📝 냉매 충전 동의서
+          📝 {typeLabel}
         </div>
         <div style={{ flex: 1 }}/>
         <span style={{

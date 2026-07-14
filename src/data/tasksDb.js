@@ -1523,9 +1523,11 @@ export async function markVisitOnlyAdapter(taskId, reason, memo = "") {
 // 현재 category_data 측 consent 키만 머지 — 다른 키(cancelReason 등) 보존.
 // requestCancelAdapter 패턴 동일 차용 (current 조회 → spread → 저장).
 //
-// 입력: taskId, { customerName, signatureUrl }
+// 입력: taskId, { customerName, signatureUrl, type? }
+//   type (2026-07-14 누설 동의서 확장): "refrigerant" | "leak_repair" | "leak_sealant"
+//   — 어떤 문구에 서명했는지 기록 (분쟁 대비). 생략 시 기존과 동일 (냉매).
 // 출력: { ok: true, task } | { ok: false, error }
-export async function saveConsentAdapter(taskId, { customerName, signatureUrl }) {
+export async function saveConsentAdapter(taskId, { customerName, signatureUrl, type }) {
   if (!taskId)        return { ok: false, error: "taskId 없음" };
   if (!customerName)  return { ok: false, error: "고객 성함 없음" };
   if (!signatureUrl)  return { ok: false, error: "서명 없음" };
@@ -1540,6 +1542,7 @@ export async function saveConsentAdapter(taskId, { customerName, signatureUrl })
         customerName: String(customerName).trim(),
         signatureUrl,
         signedAt: new Date().toISOString(),
+        ...(type ? { type } : {}),
       },
     };
 
