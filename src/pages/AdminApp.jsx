@@ -8898,6 +8898,7 @@ function AutoAssignScreen({ t, task, apiEngineers = [], apiTasks = [], onBack, o
       {showAllEngineers && (
         <AllEngineersModal
           task={task}
+          apiTasks={apiTasks}
           engineers={apiEngineers && apiEngineers.length > 0 ? apiEngineers : undefined}
           onSelect={(engineerId, engineer) => {
             setShowAllEngineers(false);
@@ -9192,6 +9193,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
       {showAllEngineers && (
         <AllEngineersModal
           task={task}
+          apiTasks={apiTasks}
           engineers={apiEngineers && apiEngineers.length > 0 ? apiEngineers : undefined}
           onSelect={(engineerId, engineer) => {
             setShowAllEngineers(false);
