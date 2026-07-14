@@ -434,6 +434,24 @@ export async function getTaskByIdDb(id) {
   return rowToTask(data);
 }
 
+// 2026-07-14 — Stage 4b: 신규 등록 직후 목록 즉시 반영용 단건 조회.
+//   getTaskByIdDb 와 달리 목록(loadTasksForRole)과 동일한 enrich
+//   (원청 이름/색, 기사 이름/연락처) 포함 — 목록에 바로 꽂아도 표시 완전.
+export async function getTaskForListById(id) {
+  if (!id) return null;
+  const { data, error } = await supabase
+    .from("tasks")
+    .select(PAYMENT_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !data) {
+    if (error) console.error("[tasksDb.getTaskForListById]", error);
+    return null;
+  }
+  const tasks = await _enrichAndMapTaskRows([data]);
+  return tasks[0] || null;
+}
+
 // task_no 단건 조회 (tenant 필터 적용)
 export async function getTaskByTaskNoDb(taskNo) {
   if (!taskNo) return null;

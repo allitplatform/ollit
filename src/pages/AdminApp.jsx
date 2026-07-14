@@ -116,6 +116,8 @@ import {
 } from "../api.js";
 import {
   loadTasksForRole as apiGetTasks,
+  // 2026-07-14 — Stage 4b: 신규 등록 직후 목록 즉시 반영용 단건 조회.
+  getTaskForListById as apiGetTaskForList,
   createTaskAdapter as apiCreateTask,
   updateTaskAdapter as apiUpdateTask,
   approveCancelAdapter as apiApproveCancel,
@@ -2415,6 +2417,26 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
                 });
             }
             setPendingInquiry(null);
+          }
+
+          // 2026-07-14 — Stage 4b: 등록된 작업 단건 즉시 목록 반영.
+          //   옛 흐름은 Realtime → 전체 재조회(수 MB)를 기다려야 새 작업이 보였음.
+          //   생성 직후 그 1건만 조회(~0.2s)해 목록 맨 위에 삽입. Realtime 전체 재조회가
+          //   나중에 도착하면 동일 id 로 자연 병합 (중복 삽입 방지 체크 포함).
+          if (form._v14ApiOk && form.taskId) {
+            apiGetTaskForList(form.taskId)
+              .then((tk) => {
+                if (!tk) return;
+                const normalized = _v14NormalizeTask(tk);
+                if (!normalized || !normalized.id) return;
+                setApiTasks(prev => {
+                  const list = prev || [];
+                  if (list.some(x => x.id === normalized.id)) return list;  // Realtime 선착 — 중복 방지
+                  return [normalized, ...list];
+                });
+                console.log('[Stage 4b] 신규 작업 단건 반영:', normalized.taskCode || normalized.id);
+              })
+              .catch(() => { /* 실패 무시 — Realtime 전체 재조회가 커버 */ });
           }
 
           // 2026-05-14 진단용 — 자동 AutoAssignScreen 진입 임시 다시 켜기 (디버그 로그 catch 박을 차례)
