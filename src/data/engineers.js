@@ -315,11 +315,30 @@ export const SEOUL_DISTRICTS = [
   "성북구","송파구","양천구","영등포구","용산구","은평구","종로구","중구","중랑구",
 ];
 
-export const GG_INCHEON = [
-  "고양시","구리","남양주","의정부","양주","용인","하남","시흥시",
+// 2026-07-14 — 사장님 spec: 경기 확장 + 인천 구 단위 (실제 tasks.district 상위 지역 기준).
+//   칩 이름은 canonical(시 접미사) — "남양주시"/"남양주" 같은 표기 흔들림은
+//   normalizeZoneName 매칭으로 흡수 (아래).
+export const GYEONGGI = [
+  "고양시","덕양구","일산동구","일산서구","파주시","김포시","부천시","시흥시",
+  "광명시","안양시","군포시","의왕시","안산시","수원시","화성시","성남시","용인시",
+  "하남시","남양주시","구리시","의정부시","양주시","동두천시","이천시","평택시","천안시",
 ];
+export const INCHEON = [
+  "계양구","부평구","서구","남동구","연수구","미추홀구",
+];
+// 하위호환 — 옛 import 지점용 (경기+인천 합본)
+export const GG_INCHEON = [...GYEONGGI, ...INCHEON];
 
 export const ALL_REGIONS = [...SEOUL_DISTRICTS, ...GG_INCHEON];
+
+// 2026-07-14 — 지역명 표기 흔들림 흡수: 끝의 "시" 제거 ("남양주시"→"남양주").
+//   실제 데이터에 "남양주시" 15건 + "남양주" 13건처럼 두 표기가 섞여 있어
+//   정확일치 매칭이 반쪽만 작동하던 문제. 구/군 이름은 그대로 둠.
+export function normalizeZoneName(z) {
+  const s = String(z || "").trim();
+  if (s.length >= 3 && s.endsWith("시")) return s.slice(0, -1);
+  return s;
+}
 
 // Step 5-1 — 시트(설정_기사) 캐시 키 (feePolicy.js setEngineersCache와 동일)
 const SHEET_CACHE_KEY = "ollit_engineers_cache_v1";

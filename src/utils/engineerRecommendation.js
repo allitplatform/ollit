@@ -10,6 +10,8 @@ import { loadEngineers } from "../data/engineers.js";
 import { loadTasks } from "../data/tasks.js";
 import { loadRegions } from "../data/regions.js";
 import { isRefrigerant } from "./workTypeKind.js";
+// 2026-07-14 — 지역명 표기 흔들림 흡수 ("남양주시"↔"남양주")
+import { normalizeZoneName } from "../data/engineers.js";
 import { supabase } from "../lib/supabase.js";
 
 const RECOMMEND_THRESHOLD = 50; // isRecommended 기준
@@ -62,7 +64,9 @@ function matchSkill(engineer, task) {
       const isAllRegion = zones.length === 0
         || zones.includes("전국")
         || zones.includes("(전국)");
-      const regionMatch = !r || isAllRegion || zones.includes(r);
+      // 2026-07-14 — 표기 흔들림 흡수: "남양주시"↔"남양주" 등 (normalizeZoneName)
+      const regionMatch = !r || isAllRegion
+        || zones.some(z => normalizeZoneName(z) === normalizeZoneName(r));
       if (!regionMatch) continue;
       return { matched: true, grade: String(s.grade || "").trim(), skill: s };
     }
@@ -340,7 +344,7 @@ export async function recommendEngineersFromDb(task) {
     if (zones.length === 0) return true;
     if (zones.includes("전국")) return true;
     if (!region) return true;
-    return zones.includes(region);
+    return zones.some(z => normalizeZoneName(z) === normalizeZoneName(region));
   });
 
   // [4] 정렬: main 먼저, 같은 등급 내 이름순

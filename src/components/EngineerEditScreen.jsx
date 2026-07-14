@@ -13,7 +13,7 @@ import {
   mapSheetSkillToWorkType,
   saveEngineerSkillWithSync, deleteEngineerSkillWithSync,
   CAREER_LEVELS, STATUS_OPTIONS, ROLE_OPTIONS, APPLIANCE_OPTIONS,
-  SEOUL_DISTRICTS, GG_INCHEON,
+  SEOUL_DISTRICTS, GYEONGGI, INCHEON, normalizeZoneName,
 } from "../data/engineers.js";
 // 2026-05-28 — 신규 기사 code 자동 부여 (next_engineer_code RPC).
 //   옛: generateId(name) = `${name}_${Date.now().toString(36)}` → "이름_랜덤" 비정상 code.
@@ -147,6 +147,14 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
 
   function toggleArrayItem(arr, item) {
     return arr.includes(item) ? arr.filter(x => x !== item) : [...arr, item];
+  }
+
+  // 2026-07-14 — 지역 전용 토글: normalizeZoneName 기준 ("남양주시" 칩 ↔ 저장값 "남양주" 호환)
+  function toggleZoneItem(arr, item) {
+    const n = normalizeZoneName(item);
+    return arr.some(x => normalizeZoneName(x) === n)
+      ? arr.filter(x => normalizeZoneName(x) !== n)
+      : [...arr, item];
   }
 
   // Step 5-4 — 단가 행 핸들러
@@ -391,7 +399,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
       <WorkTypeEditor
         work={form.workTypes.cleaning}
         onChange={(field, value) => updateWork("cleaning", field, value)}
-        onToggleZone={(z) => updateWork("cleaning", "zones", toggleArrayItem(form.workTypes.cleaning.zones, z))}
+        onToggleZone={(z) => updateWork("cleaning", "zones", toggleZoneItem(form.workTypes.cleaning.zones, z))}
         onToggleAppliance={(a) => updateWork("cleaning", "appliances", toggleArrayItem(form.workTypes.cleaning.appliances, a))}
       />
     </Section>
@@ -402,7 +410,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
       <WorkTypeEditor
         work={form.workTypes.refrigerant}
         onChange={(field, value) => updateWork("refrigerant", field, value)}
-        onToggleZone={(z) => updateWork("refrigerant", "zones", toggleArrayItem(form.workTypes.refrigerant.zones, z))}
+        onToggleZone={(z) => updateWork("refrigerant", "zones", toggleZoneItem(form.workTypes.refrigerant.zones, z))}
         onToggleAppliance={(a) => updateWork("refrigerant", "appliances", toggleArrayItem(form.workTypes.refrigerant.appliances, a))}
       />
     </Section>
@@ -774,13 +782,15 @@ function EngineerOffDaysPreview({ engineerName }) {
 function WorkTypeEditor({ work, onChange, onToggleZone, onToggleAppliance }) {
   const isOn = work.role !== "none";
   const [zoneSearch, setZoneSearch] = useState("");
+  // 2026-07-14 — 경기 확장 + 인천 구 단위 추가로 칩이 많아짐 (사장님 "박스 너무 커지지 않나")
+  //   → 경기/인천 그룹은 기본 접힘: 선택된 칩만 표시 + [+N개 더보기]. 검색 중엔 자동 펼침.
+  const [showGG, setShowGG] = useState(false);
+  const [showIC, setShowIC] = useState(false);
+
+  const zoneOn = (z) => work.zones.some(x => normalizeZoneName(x) === normalizeZoneName(z));
 
   const filteredSeoul = useMemo(
     () => zoneSearch ? SEOUL_DISTRICTS.filter(z => z.includes(zoneSearch)) : SEOUL_DISTRICTS,
-    [zoneSearch]
-  );
-  const filteredGG = useMemo(
-    () => zoneSearch ? GG_INCHEON.filter(z => z.includes(zoneSearch)) : GG_INCHEON,
     [zoneSearch]
   );
 
@@ -806,21 +816,50 @@ function WorkTypeEditor({ work, onChange, onToggleZone, onToggleAppliance }) {
             <div style={subLabelStyle}>서울</div>
             <div style={chipGridStyle}>
               {filteredSeoul.map(z => (
-                <ChipCheck key={z} label={z} on={work.zones.includes(z)} onClick={() => onToggleZone(z)}/>
+                <ChipCheck key={z} label={z} on={zoneOn(z)} onClick={() => onToggleZone(z)}/>
               ))}
               {filteredSeoul.length === 0 && (
                 <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>매칭 없음</span>
               )}
             </div>
-            <div style={{ ...subLabelStyle, marginTop: 12 }}>경기/인천</div>
-            <div style={chipGridStyle}>
-              {filteredGG.map(z => (
-                <ChipCheck key={z} label={z} on={work.zones.includes(z)} onClick={() => onToggleZone(z)}/>
-              ))}
-              {filteredGG.length === 0 && (
-                <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>매칭 없음</span>
-              )}
-            </div>
+            {[
+              { label: "경기", list: GYEONGGI, show: showGG, setShow: setShowGG },
+              { label: "인천", list: INCHEON,  show: showIC, setShow: setShowIC },
+            ].map(g => {
+              const searched = zoneSearch ? g.list.filter(z => z.includes(zoneSearch)) : null;
+              const expanded = !!zoneSearch || g.show;
+              const visible = searched != null ? searched : (expanded ? g.list : g.list.filter(zoneOn));
+              const hiddenN = g.list.length - visible.length;
+              return (
+                <div key={g.label}>
+                  <div style={{ ...subLabelStyle, marginTop: 12 }}>{g.label}</div>
+                  <div style={chipGridStyle}>
+                    {visible.map(z => (
+                      <ChipCheck key={z} label={z} on={zoneOn(z)} onClick={() => onToggleZone(z)}/>
+                    ))}
+                    {zoneSearch && visible.length === 0 && (
+                      <span style={{ fontSize: 11, color: "var(--text-tertiary)" }}>매칭 없음</span>
+                    )}
+                    {!zoneSearch && (
+                      <button
+                        type="button"
+                        onClick={() => g.setShow(v => !v)}
+                        style={{
+                          padding: "8px 12px",
+                          background: "transparent",
+                          border: "1px dashed var(--border)",
+                          borderRadius: 7, fontSize: 12,
+                          color: "var(--text-secondary)",
+                          cursor: "pointer", fontFamily: "inherit",
+                        }}
+                      >
+                        {g.show ? "접기 ▲" : `+${hiddenN}개 더보기`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {/* 가능 기종 */}
