@@ -740,6 +740,32 @@ export async function loadTasksForRole(role, userId, principalCode, opts = {}) {
       }
     }
 
+    // 2026-07-14 — Stage 5: 기사 역할 서버 사이드 필터.
+    //   옛 동작: 기사 폰마다 전체 tasks(~2,400건/5.4MB)를 60초 폴링으로 통째 다운로드
+    //   → DB statement timeout (성공률 85%)의 주범. 실측: 종결 2,292 vs 활성 87건.
+    //   새 동작: "내 작업 전부(수입/이력) + 활성 작업 전부(방송/수락 대기)" 만
+    //   = or(assigned_engineer_id.eq.나, status.not.in.종결4종) — 실측 235건/472KB (-91%).
+    //   검증: 종결 상태에서 assigned_engineer_id 없는 건 0건 — 필터로 빠지는 데이터 없음.
+    //   engineerId 는 code("E016") 또는 uuid — code 면 users 에서 uuid 변환.
+    //   변환 실패 시 필터 없이 옛 전체 fetch 로 안전 후퇴.
+    let engineerOrFilter = null;
+    if (role === "engineer" && userId) {
+      try {
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(userId));
+        let engUuid = isUuid ? String(userId) : null;
+        if (!engUuid) {
+          const { data: uRow } = await supabase
+            .from("users").select("id").eq("code", String(userId)).maybeSingle();
+          engUuid = uRow?.id || null;
+        }
+        if (engUuid) {
+          engineerOrFilter = `assigned_engineer_id.eq.${engUuid},status.not.in.("완료","취소","정산완료","visit_only")`;
+        }
+      } catch (_e) {
+        engineerOrFilter = null; // 안전 후퇴 — 전체 fetch
+      }
+    }
+
     const PAGE = 1000;
     const HARD_CAP = 10000;
     // 2026-07-14 — Stage 4: 옛 순차 while 루프 (3왕복 직렬) 교체.
@@ -754,6 +780,10 @@ export async function loadTasksForRole(role, userId, principalCode, opts = {}) {
         q = q.in("principal_id", principalIdFilter);
       } else if (typeof principalIdFilter === "string") {
         q = q.eq("principal_id", principalIdFilter);
+      }
+      // Stage 5 — 기사 서버 필터 (위 주석 참조). null 이면 옛 전체 fetch.
+      if (engineerOrFilter) {
+        q = q.or(engineerOrFilter);
       }
       return q.order("received_at", { ascending: false });
     };
