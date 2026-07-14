@@ -5452,7 +5452,7 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
       }}>
       {/* top: 원청 + 아이콘 + 고객 + (재배정) + 상태(우측) */}
       <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "11px 15px 8px", minWidth: 0 }}>
-        <PrincipalLabel name={task.principal}/>
+        <PrincipalLabel name={task.principal} short/>
         {serviceKinds.has("cleaning") && (
           <Snowflake size={13} style={{ color: "#378ADD", flexShrink: 0 }} aria-label="세척"/>
         )}
@@ -5918,8 +5918,21 @@ function ReceptionGroup({ t, workType, title, subtitle, subtitleColor, count, ch
   );
 }
 
-function PrincipalLabel({ name }) {
+// 2026-07-14 — short prop: 카드 밀도용 축약 표기 (사장님 D안 spec).
+//   "에어컨프로 (KA)"→KA / "올데이케어"→올데이 / "유솔홈케어 N"→유솔N ...
+function _shortPrincipalName(name) {
+  const s = String(name || "");
+  const paren = s.match(/\(([^)]+)\)/);
+  if (paren) return paren[1];                    // 괄호 안 코드 우선 (KA/KB)
+  return s
+    .replace("유솔홈케어 ", "유솔")
+    .replace("올데이케어", "올데이")
+    .replace("컴퍼니", "");
+}
+
+function PrincipalLabel({ name, short = false }) {
   const color = PRINCIPAL_COLORS[name] || "#888780";
+  const label = short ? _shortPrincipalName(name) : name;
   return (
     <span style={{
       fontSize: 9, fontWeight: 800, padding: "2px 6px",
@@ -5928,7 +5941,7 @@ function PrincipalLabel({ name }) {
       borderRadius: 4,
       letterSpacing: 0.3,
       whiteSpace: "nowrap",
-    }}>{name}</span>
+    }}>{label}</span>
   );
 }
 
