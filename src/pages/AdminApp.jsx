@@ -5431,7 +5431,6 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
   //   · 견적 = 우상단 고정
   const isWaiting   = task.status === '배정';
   const isSchedOk   = task.status === '확정';
-  const barColor    = isWaiting ? "#FFB800" : (isSchedOk ? "#22C55E" : t.border);
   const schedAt     = task.scheduledAt || task.confirmedAt || task.확정일시 || "";
   const schedText   = isSchedOk ? (formatScheduleShort(schedAt) || task.schedule) : task.schedule;
   const engInitial  = (task.assignedEngineer || "?").slice(0, 1);
@@ -5441,13 +5440,9 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
       onClick={() => onClick && onClick(task)}
       style={{
         background: t.bgElevated, border: `1px solid ${t.border}`,
-        borderRadius: 12, padding: "11px 12px 10px 16px", marginBottom: 8,
+        borderRadius: 12, padding: "11px 13px 10px", marginBottom: 8,
         cursor: onClick ? "pointer" : "default",
-        position: "relative", overflow: "hidden",
       }}>
-      {/* 좌측 상태 색바 */}
-      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: barColor }}/>
-
       {/* 1행: 원청 + 서비스 아이콘 + 고객 + (재배정 배지) + 견적(우측) */}
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, minWidth: 0 }}>
         <PrincipalLabel name={task.principal}/>
@@ -5480,8 +5475,8 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
           </span>
         )}
         {task.estimateTotal > 0 && (
-          <span className="mono" style={{ marginLeft: "auto", fontSize: 13, fontWeight: 800, color: t.text, flexShrink: 0 }}>
-            <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginRight: 3 }}>견적</span>
+          <span className="mono" style={{ marginLeft: "auto", fontSize: 16.5, fontWeight: 800, color: t.text, flexShrink: 0, letterSpacing: "-0.3px" }}>
+            <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginRight: 4 }}>견적</span>
             ₩{task.estimateTotal.toLocaleString()}
           </span>
         )}
