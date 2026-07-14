@@ -14,7 +14,31 @@ import {
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 function fmtPct(n, digits = 1) { return `${n.toFixed(digits)}%`; }
 
-export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick }) {
+// 2026-07-14 — Stage 2: 서버 집계(get_admin_dashboard_summary) → current 형태 매핑.
+//   브라우저 2,300건 다운로드/계산 없이 '오늘' 카드 즉시 렌더.
+//   computeRevenueByYmRange 반환 형태와 1:1 (total/engineer/principal/owner/byService/count).
+function _fromServerSummary(s) {
+  const r = s.revenue || {};
+  const bs = s.by_service || {};
+  const amt = (k) => Number(bs[k]?.amount || 0);
+  const cnt = (k) => Number(bs[k]?.count || 0);
+  return {
+    total:     Number(r.total || 0),
+    engineer:  Number(r.engineer_settle || 0),
+    principal: Number(r.principal_fee || 0),
+    owner:     Number(r.company_margin || 0),
+    byService: {
+      cleaning:    amt("cleaning"),
+      refrigerant: amt("refrigerant"),
+      install:     amt("install"),
+      leak:        amt("leak"),
+      other:       amt("other"),
+    },
+    count: cnt("cleaning") + cnt("refrigerant") + cnt("install") + cnt("leak") + cnt("other"),
+  };
+}
+
+export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, serverSummary = null }) {
   const [period, setPeriod] = useState("today"); // 'today' | 'month'
 
   const { current, previous, periodLabel } = useMemo(() => {
@@ -35,12 +59,18 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick }) 
       prevEnd   = getPrevMonthSameDay(today);
       label = "이번 달";
     }
+    // 2026-07-14 — Stage 2: '오늘' 뷰는 서버 집계(serverSummary) 우선 → 즉시 렌더.
+    //   serverSummary 없거나 실패 시 기존 클라 계산으로 fallback (안전망).
+    //   '이번 달' 및 전월비(previous)는 그대로 클라 계산 (서버 RPC는 당일만 제공).
+    const curFromServer = (period === "today" && serverSummary && serverSummary.revenue)
+      ? _fromServerSummary(serverSummary)
+      : null;
     return {
-      current:  computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
+      current:  curFromServer || computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
       previous: computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
       periodLabel: label,
     };
-  }, [apiTasks, user, period]);
+  }, [apiTasks, user, period, serverSummary]);
 
   // 전월비 (= 같은 기간).
   const diffPct = previous.total > 0
@@ -177,46 +207,4 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick }) 
             color: t.textSecondary,
             fontSize: 12, fontWeight: 700,
             cursor: "pointer", fontFamily: "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-          }}
-        >
-          원청별 · 기사별 자세히 →
-        </button>
-      )}
-    </div>
-  );
-}
-
-function Legend({ color, label, amount, t }) {
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-      <span style={{ width: 8, height: 8, background: color, borderRadius: 2, flexShrink: 0 }}/>
-      <span style={{ color: t.textSecondary, fontWeight: 600 }}>{label}</span>
-      <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{fmtKRW(amount)}</span>
-    </span>
-  );
-}
-
-function ServiceBar({ label, icon, amount, pct, color, t }) {
-  return (
-    <div style={{ marginBottom: 6 }}>
-      <div style={{
-        display: "flex", justifyContent: "space-between",
-        marginBottom: 3, fontSize: 11,
-      }}>
-        <span style={{ color: t.text, fontWeight: 700 }}>
-          <span style={{ marginRight: 4 }}>{icon}</span>{label}
-        </span>
-        <span className="mono" style={{ color: t.textSecondary, fontWeight: 700 }}>
-          ₩{(Number(amount) || 0).toLocaleString("ko-KR")}{" "}
-          <span style={{ color: t.textMuted, fontWeight: 600 }}>({pct.toFixed(1)}%)</span>
-        </span>
-      </div>
-      <div style={{ height: 6, background: t.bgInset, borderRadius: 3, overflow: "hidden" }}>
-        <div style={{ width: `${Math.max(0, Math.min(100, pct))}%`, height: "100%", background: color }}/>
-      </div>
-    </div>
-  );
-}
-
-export default RevenueOverviewBlock;
+            display: "flex", alignItems: "center", justifyContent: "center", gap
