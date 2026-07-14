@@ -54,6 +54,20 @@ const LEAK_TEXTS = {
       "시공 후 냉난방 상태를 확인하였으며 정상 작동됨을 확인합니다.",
     ],
   },
+  // 2026-07-14 — 누수(물샘)는 냉매 누설과 다른 시공 (사장님 지적).
+  //   무상 A/S 기간 명시 없음 (사장님 결정). 문구는 초안 승인분 — 추후 수정 예정.
+  water_leak: {
+    title: "누수(물샘) 수리 동의",
+    pick:  "💧 누수(물샘) 수리",
+    pickDesc: "물이 새서 배수·설치 등을 조치한 경우",
+    items: [
+      "본인은 에어컨 누수(물샘) 수리 시공에 대해 충분한 설명을 듣고 아래 사항에 동의합니다.",
+      "누수의 원인은 배수(드레인) 막힘, 설치 구배 불량, 결로, 배관 보온 불량 등 다양하며, 금번 시공은 현장에서 확인된 원인에 대한 조치입니다.",
+      "조치한 부위 외 다른 원인으로 누수가 재발할 수 있으며, 이 경우 수리 비용은 별도로 발생할 수 있음을 확인합니다.",
+      "사용 환경(먼지·곰팡이·배수 막힘 재발 등)으로 인한 재발은 무상 A/S 대상이 아니며, 이에 대해 환불이나 무상 재시공을 요구하지 않으며 이의를 제기하지 않습니다.",
+      "시공 후 정상 배수 및 작동 상태를 확인하였습니다.",
+    ],
+  },
 };
 
 export default function RefrigerantConsentScreen({ task, onBack, onComplete, onReject, skipAutoSave = false, rejectMode = "visit_only", kind = "refrigerant" }) {
@@ -254,7 +268,7 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
         </div>
 
         <div style={{ margin: "18px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-          {["leak_repair", "leak_sealant"].map((key) => (
+          {["leak_repair", "leak_sealant", "water_leak"].map((key) => (
             <button
               key={key}
               onClick={() => setLeakType(key)}

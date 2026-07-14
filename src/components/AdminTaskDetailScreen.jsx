@@ -2294,6 +2294,7 @@ function ConsentCard({ consent }) {
   // 2026-07-14 — 어떤 문구에 서명했는지 (누설 확장)
   const typeLabel = consent?.type === "leak_repair"  ? "누설 부위 수리 동의서"
                   : consent?.type === "leak_sealant" ? "누설차단제 시공 동의서"
+                  : consent?.type === "water_leak"   ? "누수(물샘) 수리 동의서"
                   : "냉매 충전 동의서";
 
   return (
