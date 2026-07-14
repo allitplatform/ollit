@@ -1532,6 +1532,26 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   // 2026-07-14 — Stage 2: 대시보드 매출 카드 서버 집계 (Mig 175 get_admin_dashboard_summary).
   //   브라우저 2,300건 다운로드/계산 없이 '오늘' 매출/마진/정산/수수료 즉시 렌더. null이면 클라 계산 fallback.
   const [dashSummary, setDashSummary] = useState(null);
+  // 2026-07-14 — Stage 2b: 서버 집계는 다른 요청(접수함/통계) 뒤에 줄 세우지 않고
+  //   mount 즉시 독립 호출. 화면 복귀(screenStack) 시에도 재조회 — 카드 최신 유지.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!user?.user_id) return;
+      try {
+        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+        const { data, error } = await supabase.rpc("get_admin_dashboard_summary", {
+          p_actor:    user.user_id,
+          p_date_kst: today,
+        });
+        if (!cancelled && !error && data && data.revenue) setDashSummary(data);
+      } catch (_e) {
+        // 실패 시 null 유지 — RevenueOverviewBlock이 클라 계산으로 fallback
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id, screenStack.length]);
   // 접수함 → "작업 전환" 으로 새 접수 폼에 prefill 주입 중인 inquiry.
   //   { id, initial } — 폼 등록 성공 후 mark_inquiry_converted 호출용.
   //   일반 새 접수 흐름에서는 null 유지.
@@ -1557,18 +1577,6 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         if (!cancelled) setInquiriesTodayCount(Number(data?.totals?.today || 0));
       } catch (_e) {
         // 실패 시 0 유지 — 카드 뱃지만 영향
-      }
-      // 2026-07-14 — Stage 2: 대시보드 매출 카드 서버 집계 (Mig 175).
-      //   apiTasks(2,300건) 다운로드/계산과 독립적으로 '오늘' 매출 즉시 확보. 실패 시 null → 클라 계산 fallback.
-      try {
-        const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
-        const { data, error } = await supabase.rpc("get_admin_dashboard_summary", {
-          p_actor:    user.user_id,
-          p_date_kst: today,
-        });
-        if (!cancelled && !error && data && data.revenue) setDashSummary(data);
-      } catch (_e) {
-        // 실패 시 dashSummary 유지(또는 null) — RevenueOverviewBlock이 클라 계산으로 fallback
       }
     }
     refreshInquiriesCount();
