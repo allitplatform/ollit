@@ -1332,7 +1332,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
                     color: "var(--text-tertiary)",
                     marginTop: 2,
                   }}>
-                    일정 바꾸기 · 재배정 요청 · 작업 취소
+                    일정 바꾸기 · 재배정 · 출장비만 · 취소
                   </div>
                 </div>
                 <span style={{
@@ -1377,6 +1377,20 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
                   ) : (
                     <>
                       <Row icon="🔁" label="재배정 요청" onClick={() => onRequestReassign?.(task)}/>
+                      <div style={DIVIDER_STYLE}/>
+                    </>
+                  )}
+
+                  {/* 2026-07-14 — 사장님 spec: 출장비만 진입로가 냉매 동의서 거부/완료 분기에만
+                        있어서 그 외 작업은 확정 상태에서 방문출장 처리 불가였음.
+                        확정·진행중에 행 추가 — 기존 subScreen='visitOnly' 흐름 재사용. */}
+                  {(isConfirmed || isInProgress) && (
+                    <>
+                      <Row
+                        icon="🚗"
+                        label="출장비만 (작업 못 한 경우)"
+                        onClick={() => setSubScreen("visitOnly")}
+                      />
                       <div style={DIVIDER_STYLE}/>
                     </>
                   )}
