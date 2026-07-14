@@ -5424,27 +5424,34 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
     return set;
   })();
 
-  // 2026-07-14 — A안 컴팩트 카드 (사장님 목업 승인).
-  //   · 높이 1/3: 기사 배정/상태가 각각 통짜 줄 → 한 줄로 병합
-  //   · 상태 = 좌측 4px 색바 + 칩 (대기=노랑 / 확정=초록) — 스크롤 중 색만 훑으면 됨
-  //   · 버튼 4개 균등 → "📞 고객"(주요·핑크) + ✎(수정)만. 프로 통화/메모는 카드 탭 → 상세
-  //   · 견적 = 우상단 고정
+  // 2026-07-14 — D안 하단 액션바 카드 (사장님 선택 + 프로 전화 추가).
+  //   · top: 원청/아이콘/고객 + 상태(우측 색글자 — 확정이면 시각 포함)
+  //   · mid: 지역·기종·(대기 시 일정)·메모 + 견적(우측 17.5px)
+  //   · bot: 프로 배정 텍스트 + [📞 프로] [📞 고객(핑크)] [✎] — 카드 밑변 프레임 통합
   const isWaiting   = task.status === '배정';
   const isSchedOk   = task.status === '확정';
   const schedAt     = task.scheduledAt || task.confirmedAt || task.확정일시 || "";
   const schedText   = isSchedOk ? (formatScheduleShort(schedAt) || task.schedule) : task.schedule;
-  const engInitial  = (task.assignedEngineer || "?").slice(0, 1);
+
+  const botBtnBase = {
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5,
+    padding: "10px 14px", background: "transparent",
+    border: "none", borderLeft: `1px solid ${t.border}`,
+    fontSize: 12.5, fontWeight: 800, cursor: "pointer",
+    fontFamily: "inherit", textDecoration: "none",
+  };
 
   return (
     <div
       onClick={() => onClick && onClick(task)}
       style={{
         background: t.bgElevated, border: `1px solid ${t.border}`,
-        borderRadius: 12, padding: "11px 13px 10px", marginBottom: 8,
+        borderRadius: 14, padding: 0, marginBottom: 9,
         cursor: onClick ? "pointer" : "default",
+        overflow: "hidden",
       }}>
-      {/* 1행: 원청 + 서비스 아이콘 + 고객 + (재배정 배지) + 견적(우측) */}
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, minWidth: 0 }}>
+      {/* top: 원청 + 아이콘 + 고객 + (재배정) + 상태(우측) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "11px 15px 8px", minWidth: 0 }}>
         <PrincipalLabel name={task.principal}/>
         {serviceKinds.has("cleaning") && (
           <Snowflake size={13} style={{ color: "#378ADD", flexShrink: 0 }} aria-label="세척"/>
@@ -5458,7 +5465,7 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         {serviceKinds.has("leak") && (
           <AlertTriangle size={13} style={{ color: "#DC2626", flexShrink: 0 }} aria-label="누설"/>
         )}
-        <span style={{ fontSize: 14, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.customer}</span>
+        <span style={{ fontSize: 15, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.customer}</span>
         {task.hasRefrigerant && task.workType !== "냉매충전" && !serviceKinds.has("refrigerant") && (
           <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
         )}
@@ -5474,69 +5481,56 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
             🔁 재배정
           </span>
         )}
+        {isWaiting && (
+          <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: "#FFB800", flexShrink: 0, whiteSpace: "nowrap" }}>
+            ● 약속 대기
+          </span>
+        )}
+        {isSchedOk && (
+          <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: "#22C55E", flexShrink: 0, whiteSpace: "nowrap" }}>
+            ✓ {schedText ? `${schedText} ` : ""}확정
+          </span>
+        )}
+      </div>
+
+      {/* mid: 지역 · 기종 · (대기 시 일정) · 메모 + 견적(우측) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 15px 10px", minWidth: 0 }}>
+        <span style={{ flex: 1, fontSize: 12, color: t.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`}
+          {isWaiting && schedText ? ` · ${schedText}` : ""}
+          {task.memo && <span style={{ color: t.textMuted, fontStyle: "italic" }}> · 📝 {task.memo}</span>}
+        </span>
         {task.estimateTotal > 0 && (
-          <span className="mono" style={{ marginLeft: "auto", fontSize: 16.5, fontWeight: 800, color: t.text, flexShrink: 0, letterSpacing: "-0.3px" }}>
-            <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginRight: 4 }}>견적</span>
+          <span className="mono" style={{ fontSize: 17.5, fontWeight: 800, color: t.text, flexShrink: 0, letterSpacing: "-0.3px" }}>
             ₩{task.estimateTotal.toLocaleString()}
           </span>
         )}
       </div>
 
-      {/* 2행: 지역 · 기종 · 일정 (확정이면 일정 초록 강조) + 메모 이어붙임 */}
-      <div style={{ fontSize: 11.5, color: t.textSecondary, marginBottom: 8, lineHeight: 1.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`}
-        {" · "}
-        {isSchedOk
-          ? <span style={{ color: "#22C55E", fontWeight: 700 }}>{schedText}</span>
-          : schedText}
-        {task.memo && <span style={{ color: t.textMuted, fontStyle: "italic" }}> · 📝 {task.memo}</span>}
-      </div>
-
-      {/* 3행: 프로 + 상태 칩 + 액션 (📞 고객 / ✎) */}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-          <span style={{
-            width: 22, height: 22, borderRadius: "50%",
-            background: t.bgInset || "rgba(255,255,255,0.06)",
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            fontSize: 11, fontWeight: 700, color: t.textSecondary, flexShrink: 0,
-          }}>{engInitial}</span>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: t.text, whiteSpace: "nowrap" }}>
-            {task.assignedEngineer} 프로
-          </span>
+      {/* bot: 프로 배정 + 액션바 (프로/고객 전화 + 수정) */}
+      <div onClick={(e) => e.stopPropagation()} style={{
+        display: "flex", alignItems: "stretch",
+        borderTop: `1px solid ${t.border}`,
+      }}>
+        <span style={{
+          flex: 1, padding: "10px 15px",
+          fontSize: 12, color: t.textSecondary, fontWeight: 600,
+          display: "flex", alignItems: "center", minWidth: 0,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>
+          <span style={{ color: t.text, fontWeight: 700 }}>{task.assignedEngineer}</span>&nbsp;프로 배정
         </span>
-        {isWaiting && (
-          <span style={{
-            fontSize: 10.5, fontWeight: 800, padding: "3px 9px", borderRadius: 999, flexShrink: 0,
-            background: "rgba(255,184,0,0.13)", color: "#FFB800",
-            border: "1px solid rgba(255,184,0,0.35)",
-          }}>● 약속 대기</span>
-        )}
-        {isSchedOk && (
-          <span style={{
-            fontSize: 10.5, fontWeight: 800, padding: "3px 9px", borderRadius: 999, flexShrink: 0,
-            background: "rgba(34,197,94,0.13)", color: "#22C55E",
-            border: "1px solid rgba(34,197,94,0.35)",
-          }}>✓ 약속 확정</span>
-        )}
-        <span onClick={(e) => e.stopPropagation()} style={{ marginLeft: "auto", display: "flex", gap: 6, flexShrink: 0 }}>
-          <a href={`tel:${task.phone}`} style={{
-            display: "inline-flex", alignItems: "center", gap: 5,
-            padding: "7px 12px", borderRadius: 9,
-            background: "#FF1B8D", color: "#fff",
-            fontSize: 12, fontWeight: 700, textDecoration: "none", fontFamily: "inherit",
-          }}>
-            <Phone size={13}/> 고객
+        {task.engineerPhone && (
+          <a href={`tel:${task.engineerPhone}`} style={{ ...botBtnBase, color: t.textSecondary }}>
+            <Phone size={13}/> 프로
           </a>
-          <button onClick={() => onEdit && onEdit(task)} style={{
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            padding: "7px 10px", borderRadius: 9,
-            background: "rgba(255,255,255,0.04)", border: `1px solid ${t.border}`,
-            color: t.textSecondary, cursor: "pointer", fontFamily: "inherit",
-          }}>
-            <Edit3 size={13}/>
-          </button>
-        </span>
+        )}
+        <a href={`tel:${task.phone}`} style={{ ...botBtnBase, color: "#FF1B8D" }}>
+          <Phone size={13}/> 고객
+        </a>
+        <button onClick={() => onEdit && onEdit(task)} style={{ ...botBtnBase, color: t.textMuted }}>
+          <Edit3 size={13}/>
+        </button>
       </div>
     </div>
   );
