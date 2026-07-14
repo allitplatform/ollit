@@ -5424,121 +5424,124 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
     return set;
   })();
 
+  // 2026-07-14 — A안 컴팩트 카드 (사장님 목업 승인).
+  //   · 높이 1/3: 기사 배정/상태가 각각 통짜 줄 → 한 줄로 병합
+  //   · 상태 = 좌측 4px 색바 + 칩 (대기=노랑 / 확정=초록) — 스크롤 중 색만 훑으면 됨
+  //   · 버튼 4개 균등 → "📞 고객"(주요·핑크) + ✎(수정)만. 프로 통화/메모는 카드 탭 → 상세
+  //   · 견적 = 우상단 고정
+  const isWaiting   = task.status === '배정';
+  const isSchedOk   = task.status === '확정';
+  const barColor    = isWaiting ? "#FFB800" : (isSchedOk ? "#22C55E" : t.border);
+  const schedAt     = task.scheduledAt || task.confirmedAt || task.확정일시 || "";
+  const schedText   = isSchedOk ? (formatScheduleShort(schedAt) || task.schedule) : task.schedule;
+  const engInitial  = (task.assignedEngineer || "?").slice(0, 1);
+
   return (
     <div
       onClick={() => onClick && onClick(task)}
       style={{
         background: t.bgElevated, border: `1px solid ${t.border}`,
-        borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+        borderRadius: 12, padding: "11px 12px 10px 16px", marginBottom: 8,
         cursor: onClick ? "pointer" : "default",
+        position: "relative", overflow: "hidden",
       }}>
-      {/* 헤더: 원청 라벨 + 서비스 아이콘 + 주소키워드 + 재배정 요청 배지 */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
-          <PrincipalLabel name={task.principal}/>
-          {serviceKinds.has("cleaning") && (
-            <Snowflake size={13} style={{ color: "#378ADD", flexShrink: 0 }} aria-label="세척"/>
-          )}
-          {serviceKinds.has("refrigerant") && (
-            <Zap size={13} style={{ color: "#EF9F27", flexShrink: 0 }} aria-label="냉매충전"/>
-          )}
-          {/* 2026-06-28 — 설치/누설 아이콘 추가 (Mig 124/125 활성화 후 누락 사고 보완). */}
-          {serviceKinds.has("install") && (
-            <Wrench size={13} style={{ color: "#8B5CF6", flexShrink: 0 }} aria-label="설치"/>
-          )}
-          {serviceKinds.has("leak") && (
-            <AlertTriangle size={13} style={{ color: "#DC2626", flexShrink: 0 }} aria-label="누설"/>
-          )}
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
-          {task.hasRefrigerant && task.workType !== "냉매충전" && !serviceKinds.has("refrigerant") && (
-            <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
-          )}
-          {/* 2026-05-26 — 기사 재배정 요청 배지 (category_data.reassignRequest 있을 때만) */}
-          {task.reassignRequest?.requestedAt && (
-            <span style={{
-              fontSize: 10, fontWeight: 800,
-              color: "#FF1B8D",
-              background: "rgba(255,27,141,0.12)",
-              border: "1px solid rgba(255,27,141,0.40)",
-              padding: "2px 7px", borderRadius: 999,
-              flexShrink: 0, whiteSpace: "nowrap",
-            }} title={task.reassignRequest.reason || ""}>
-              🔁 재배정 요청
-            </span>
-          )}
-        </div>
+      {/* 좌측 상태 색바 */}
+      <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: barColor }}/>
+
+      {/* 1행: 원청 + 서비스 아이콘 + 고객 + (재배정 배지) + 견적(우측) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 5, minWidth: 0 }}>
+        <PrincipalLabel name={task.principal}/>
+        {serviceKinds.has("cleaning") && (
+          <Snowflake size={13} style={{ color: "#378ADD", flexShrink: 0 }} aria-label="세척"/>
+        )}
+        {serviceKinds.has("refrigerant") && (
+          <Zap size={13} style={{ color: "#EF9F27", flexShrink: 0 }} aria-label="냉매충전"/>
+        )}
+        {serviceKinds.has("install") && (
+          <Wrench size={13} style={{ color: "#8B5CF6", flexShrink: 0 }} aria-label="설치"/>
+        )}
+        {serviceKinds.has("leak") && (
+          <AlertTriangle size={13} style={{ color: "#DC2626", flexShrink: 0 }} aria-label="누설"/>
+        )}
+        <span style={{ fontSize: 14, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.customer}</span>
+        {task.hasRefrigerant && task.workType !== "냉매충전" && !serviceKinds.has("refrigerant") && (
+          <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
+        )}
+        {task.reassignRequest?.requestedAt && (
+          <span style={{
+            fontSize: 10, fontWeight: 800,
+            color: "#FF1B8D",
+            background: "rgba(255,27,141,0.12)",
+            border: "1px solid rgba(255,27,141,0.40)",
+            padding: "2px 7px", borderRadius: 999,
+            flexShrink: 0, whiteSpace: "nowrap",
+          }} title={task.reassignRequest.reason || ""}>
+            🔁 재배정
+          </span>
+        )}
+        {task.estimateTotal > 0 && (
+          <span className="mono" style={{ marginLeft: "auto", fontSize: 13, fontWeight: 800, color: t.text, flexShrink: 0 }}>
+            <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginRight: 3 }}>견적</span>
+            ₩{task.estimateTotal.toLocaleString()}
+          </span>
+        )}
       </div>
 
-      {/* 본문 */}
-      <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
-        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`} · {task.schedule}
+      {/* 2행: 지역 · 기종 · 일정 (확정이면 일정 초록 강조) + 메모 이어붙임 */}
+      <div style={{ fontSize: 11.5, color: t.textSecondary, marginBottom: 8, lineHeight: 1.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`}
+        {" · "}
+        {isSchedOk
+          ? <span style={{ color: "#22C55E", fontWeight: 700 }}>{schedText}</span>
+          : schedText}
+        {task.memo && <span style={{ color: t.textMuted, fontStyle: "italic" }}> · 📝 {task.memo}</span>}
       </div>
-      {task.estimateTotal > 0 && (
-        <div className="mono" style={{ fontSize: 11, color: t.textMuted, marginBottom: 6 }}>
-          견적 ₩{task.estimateTotal.toLocaleString()}
-        </div>
-      )}
-      {task.memo && (
-        <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 8, display: "flex", alignItems: "center", gap: 4, fontStyle: "italic" }}>
-          <FileText size={10}/><span>{task.memo}</span>
-        </div>
-      )}
 
-      {/* AdminApp-fix1 — 배정 정보 (무채색 / 정보) */}
-      <div style={{
-        background: t.bgInset || t.bgElevated,
-        border: `1px solid ${t.border}`,
-        borderRadius: 8, padding: "8px 10px", marginBottom: 6,
-        display: "flex", alignItems: "center", gap: 6,
-      }}>
-        <User size={12} style={{ color: t.textSecondary }}/>
-        <span style={{ fontSize: 11, color: t.text, fontWeight: 600 }}>
-          {task.assignedEngineer} 프로 배정
+      {/* 3행: 프로 + 상태 칩 + 액션 (📞 고객 / ✎) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <span style={{
+            width: 22, height: 22, borderRadius: "50%",
+            background: t.bgInset || "rgba(255,255,255,0.06)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            fontSize: 11, fontWeight: 700, color: t.textSecondary, flexShrink: 0,
+          }}>{engInitial}</span>
+          <span style={{ fontSize: 12.5, fontWeight: 700, color: t.text, whiteSpace: "nowrap" }}>
+            {task.assignedEngineer} 프로
+          </span>
         </span>
-      </div>
-
-      {/* 상태 박스 — status 기반 분기 (2026-05-15 사장님 spec) */}
-      {task.status === '배정' && (
-        <div style={{
-          marginTop: 10,
-          marginBottom: 8,
-          padding: "6px 10px",
-          background: "rgba(255, 193, 7, 0.04)",
-          border: t.isLight
-            ? "1px solid rgba(255, 152, 0, 0.40)"
-            : "1px solid rgba(255, 193, 7, 0.35)",
-          borderRadius: 8,
-          fontSize: 11,
-          fontWeight: 500,
-          color: t.isLight ? "#E65100" : "#FFD54F",
-          display: "flex", alignItems: "center", gap: 5,
-        }}>
-          🟡 약속 대기
-        </div>
-      )}
-      {task.status === '확정' && (() => {
-        const scheduledAt = task.scheduledAt || task.confirmedAt || task.확정일시 || "";
-        const timeText = formatScheduleShort(scheduledAt) || task.schedule;
-        return (
-          <div style={{
-            background: t.successBg, border: `1px solid ${t.successBorder}`,
-            borderRadius: 8, padding: "8px 10px", marginBottom: 8,
-            display: "flex", alignItems: "center", gap: 6,
+        {isWaiting && (
+          <span style={{
+            fontSize: 10.5, fontWeight: 800, padding: "3px 9px", borderRadius: 999, flexShrink: 0,
+            background: "rgba(255,184,0,0.13)", color: "#FFB800",
+            border: "1px solid rgba(255,184,0,0.35)",
+          }}>● 약속 대기</span>
+        )}
+        {isSchedOk && (
+          <span style={{
+            fontSize: 10.5, fontWeight: 800, padding: "3px 9px", borderRadius: 999, flexShrink: 0,
+            background: "rgba(34,197,94,0.13)", color: "#22C55E",
+            border: "1px solid rgba(34,197,94,0.35)",
+          }}>✓ 약속 확정</span>
+        )}
+        <span onClick={(e) => e.stopPropagation()} style={{ marginLeft: "auto", display: "flex", gap: 6, flexShrink: 0 }}>
+          <a href={`tel:${task.phone}`} style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "7px 12px", borderRadius: 9,
+            background: "#FF1B8D", color: "#fff",
+            fontSize: 12, fontWeight: 700, textDecoration: "none", fontFamily: "inherit",
           }}>
-            <CheckCircle2 size={12} style={{ color: t.success }}/>
-            <span style={{ fontSize: 11, color: t.success, fontWeight: 700 }}>
-              일정 확정{timeText ? ` · ${timeText}` : ""}
-            </span>
-          </div>
-        );
-      })()}
-
-      {/* 액션 4개 (균등) — V14 stopPropagation (카드 클릭 박지 X) */}
-      <div onClick={(e) => e.stopPropagation()} style={{ display: "flex", gap: 6 }}>
-        <ActionIconBtn t={t} icon={<Phone size={13}/>}    href={`tel:${task.phone}`}         flex={1}/>
-        <ActionIconBtn t={t} icon={<User size={13}/>}     href={`tel:${task.engineerPhone}`} flex={1}/>
-        <ActionIconBtn t={t} icon={<FileText size={13}/>} onClick={() => onMemo && onMemo(task)} flex={1}/>
-        <ActionIconBtn t={t} icon={<Edit3 size={13}/>}    onClick={() => onEdit && onEdit(task)} flex={1}/>
+            <Phone size={13}/> 고객
+          </a>
+          <button onClick={() => onEdit && onEdit(task)} style={{
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            padding: "7px 10px", borderRadius: 9,
+            background: "rgba(255,255,255,0.04)", border: `1px solid ${t.border}`,
+            color: t.textSecondary, cursor: "pointer", fontFamily: "inherit",
+          }}>
+            <Edit3 size={13}/>
+          </button>
+        </span>
       </div>
     </div>
   );
