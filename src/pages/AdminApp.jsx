@@ -5534,9 +5534,10 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
             ●
           </span>
         )}
+        {/* 2026-07-14 — 사장님 spec: 체크/'확정' 글자 제거, 초록 일정만 (일정 없으면 ● 만) */}
         {isSchedOk && (
-          <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: "#22C55E", flexShrink: 0, whiteSpace: "nowrap" }}>
-            ✓ {schedText ? `${schedText} ` : ""}확정
+          <span title="일정 확정" style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: "#22C55E", flexShrink: 0, whiteSpace: "nowrap" }}>
+            {schedText || "●"}
           </span>
         )}
       </div>
