@@ -94,20 +94,33 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
   const [busy, setBusy]       = useState(false);
   // 2026-06-18 Mig 141 — 사업자 정보 카드용 user_id (UUID). 시트 캐시에는 보통 결손.
   //   engineer.user_id / engineer.id 우선, 없으면 code → users.id 한 번 조회 후 캐시.
-  const [targetUserId, setTargetUserId] = useState(engineer?.user_id || engineer?.id || null);
+  // 2026-07-14 fix — 사장님 리포트 "사업자 등록돼 있는데 없다고 뜸":
+  //   시트 캐시 기사 객체는 id 가 UUID 가 아니라 코드("E039") — 검사 없이 UUID 자리에
+  //   들어가 invalid input syntax for type uuid 로 조회 실패하던 버그.
+  //   UUID 모양일 때만 채택, 아니면 code(또는 code 모양의 id) → users.id 변환.
+  const _isUuid = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(v || ""));
+  const [targetUserId, setTargetUserId] = useState(
+    _isUuid(engineer?.user_id) ? engineer.user_id
+    : _isUuid(engineer?.id)    ? engineer.id
+    : null
+  );
   const isDark = useIsDark();
   useEffect(() => {
-    if (targetUserId || isNew || !engineer?.code) return;
+    if (targetUserId || isNew) return;
+    const code = engineer?.code
+      || (typeof engineer?.id === "string" && !_isUuid(engineer.id) ? engineer.id : null);
+    if (!code) return;
     let alive = true;
     supabase.from("users")
       .select("id")
-      .eq("code", engineer.code)
+      .eq("code", code)
       .maybeSingle()
       .then(({ data }) => {
         if (alive && data?.id) setTargetUserId(data.id);
       });
     return () => { alive = false; };
-  }, [engineer?.code, isNew, targetUserId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [engineer?.code, engineer?.id, isNew, targetUserId]);
 
   // Step 5-4 — 단가 행 state (기존 행 fetch + 변경 추적)
   const [rates, setRates] = useState(() =>
