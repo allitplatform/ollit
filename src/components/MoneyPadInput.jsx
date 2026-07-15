@@ -146,7 +146,7 @@ export function MoneyPadInput({
                   cursor: "pointer", fontFamily: "inherit",
                 }}
               >
-                💚 견적 그대로 ₩{Number(quoteAmount).toLocaleString("ko-KR")}
+                견적 그대로 ₩{Number(quoteAmount).toLocaleString("ko-KR")}
               </button>
             )}
 
