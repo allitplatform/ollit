@@ -15,6 +15,8 @@ import { getAppliancePool, formatWorkTypeLabel } from "../utils/receptionForm.js
 //   작업내용(task_items 연동 필요)·일정(전용 흐름)·금액분배(정산 엔진 소관)는
 //   이 화면에서 수정 잠금 — 가짜 저장보다 정직한 잠금.
 import { updateTaskAdapter } from "../data/tasksDb.js";
+// 2026-07-15 — 지역(구) 수정용 (도로명만 있는 주소로 지역이 "삼양로"처럼 저장된 건 보정)
+import { ALL_REGIONS } from "../data/engineers.js";
 
 const WORKTYPE_OPTIONS = ["세척", "냉매충전", "누설", "설치"];
 
@@ -54,7 +56,8 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
     // 2026-07-14 — DB 저장 (안전 매핑 필드만). taskToRow 매핑:
     //   customer→customer_name / phone→phone / address→address /
     //   estimateTotal→productPrice(견적=product_price) / note→memo→request_note
-    const DB_FIELDS = new Set(["customer", "phone", "address", "estimateTotal", "note", "memo"]);
+    // 2026-07-15 — region 추가 (taskToRow: region→district). 도로명만 있는 접수 보정용.
+    const DB_FIELDS = new Set(["customer", "phone", "address", "region", "estimateTotal", "note", "memo"]);
     const dbChanges = changes.filter(c => DB_FIELDS.has(c.field));
     if (dbChanges.length > 0) {
       setSaving(true);
@@ -120,6 +123,27 @@ export function TaskEditScreen({ task, user, onBack, onSave }) {
             onChange={v => set("address", v)}
             editable={canEditField(user, "address")}
           />
+          {/* 2026-07-15 — 지역(구) 직접 수정 (사장님 spec).
+                주소가 "삼양로 69길.."처럼 구 없이 들어오면 지역이 도로명으로 저장돼
+                기사 매칭/지도가 어긋남 — 여기서 바로잡기. datalist 로 표준 지역 제안. */}
+          <div style={{ marginBottom: 10 }}>
+            <FieldText
+              label="지역 (구·시)"
+              value={data.region || ""}
+              onChange={v => set("region", v)}
+              editable={canEditField(user, "address")}
+              placeholder="예: 강북구"
+              listId="task-edit-region-list"
+            />
+            <datalist id="task-edit-region-list">
+              {ALL_REGIONS.map(r => <option key={r} value={r}/>)}
+            </datalist>
+            {data.region && !/[구시군]$/.test(String(data.region).trim()) && (
+              <div style={{ fontSize: 11, color: "#FF3B5C", marginTop: 2 }}>
+                ⚠️ 구/시 이름이 아니에요 — 기사 매칭이 안 될 수 있어요 (예: 강북구)
+              </div>
+            )}
+          </div>
         </Section>
 
         {/* 2026-07-14 — 작업 내용은 이 화면에서 수정 잠금.
@@ -330,7 +354,7 @@ const readonlyStyle = {
   cursor: "not-allowed",
 };
 
-function FieldText({ label, value, onChange, editable = true, placeholder = "" }) {
+function FieldText({ label, value, onChange, editable = true, placeholder = "", listId }) {
   if (!editable) {
     return (
       <FieldShell label={label}>
@@ -344,6 +368,7 @@ function FieldText({ label, value, onChange, editable = true, placeholder = "" }
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
+        list={listId}
         style={inputStyle}
       />
     </FieldShell>

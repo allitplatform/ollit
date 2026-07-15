@@ -213,6 +213,10 @@ const ROADNAME_TO_GU = {
   "월드컵로":   { sido: "서울", sigungu: "마포구" },
   "합정로":     { sido: "서울", sigungu: "마포구" },
   "고덕로":     { sido: "서울", sigungu: "강동구" },
+  // 2026-07-15 — 사장님 발견: "삼양로 69길" 접수가 지역 "삼양로"로 저장 → 매칭 실패
+  "삼양로":     { sido: "서울", sigungu: "강북구" },
+  "도봉로":     { sido: "서울", sigungu: "도봉구" },
+  "미아로":     { sido: "서울", sigungu: "강북구" },
   "천호대로":   { sido: "서울", sigungu: "강동구" },
 };
 const _ROADNAME_KEYS_SORTED = Object.keys(ROADNAME_TO_GU).sort((a, b) => b.length - a.length);

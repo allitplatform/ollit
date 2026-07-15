@@ -34,6 +34,9 @@ import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
 import { createTaskAdapter as apiCreateTask } from "../../data/tasksDb.js";
 // 2026-06-17 Phase 2 — 원청별 붙여넣기 파서 (KA/crikrin 주문 텍스트).
 import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL, extractRegion } from "../../utils/partnerPasteParser.js";
+// 2026-07-15 — 도로명·동 사전 fallback + 지역 수동 선택 목록
+import { parseRegion } from "../../utils/regionParser.js";
+import { ALL_REGIONS } from "../../data/engineers.js";
 
 // formatPhone 은 receptionForm.js 에서 import (DRY).
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
@@ -95,7 +98,21 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
-  const region = useMemo(() => extractRegion(form.address), [form.address]);
+  // 2026-07-15 — 지역 추출 2단계 + 수동 보정 (사장님 spec).
+  //   ① extractRegion (구/시/군 직접 매칭) ② 실패 시 parseRegion (도로명·동 사전)
+  //   ③ 그래도 구/시가 아니면 운영자가 직접 선택 (regionOverride).
+  const [regionOverride, setRegionOverride] = useState("");
+  const regionAuto = useMemo(() => {
+    const r1 = extractRegion(form.address);
+    if (r1 && /[구시군]$/.test(r1)) return r1;
+    try {
+      const r2 = parseRegion(form.address);
+      if (r2 && r2.sigungu) return r2.sigungu;
+    } catch (_e) { /* 사전 파서 실패 무시 */ }
+    return r1 || "";
+  }, [form.address]);
+  const regionBad = !regionAuto || !/[구시군]$/.test(regionAuto);
+  const region = regionOverride || regionAuto;
 
   // ── 원청 변경 시 quote_rates fetch ──
   useEffect(() => {
@@ -494,9 +511,32 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
                 onChange={(e) => setForm(p => ({ ...p, address: e.target.value }))}
                 placeholder="도로명 주소" style={inputStyle(t)}/>
             </Field>
-            {region && (
+            {region && !regionBad && !regionOverride && (
               <div style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>
                 지역 자동: <span style={{ color: t.text, fontWeight: 700 }}>{region}</span>
+              </div>
+            )}
+            {/* 2026-07-15 — 주소에서 구/시를 못 뽑으면 직접 선택 (사장님 spec: "삼양로" 저장 사고 방지) */}
+            {form.address && (regionBad || regionOverride) && (
+              <div style={{ marginTop: 6 }}>
+                {regionBad && !regionOverride && (
+                  <div style={{ fontSize: 11, color: "#FF3B5C", marginBottom: 4 }}>
+                    ⚠️ 주소에서 지역(구·시)을 못 찾았어요{regionAuto ? ` — "${regionAuto}"로 저장되면 기사 매칭이 안 돼요` : ""}. 직접 선택:
+                  </div>
+                )}
+                <select
+                  value={regionOverride}
+                  onChange={(e) => setRegionOverride(e.target.value)}
+                  style={{ ...inputStyle(t), maxWidth: 220 }}
+                >
+                  <option value="">지역 선택…</option>
+                  {ALL_REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+                {regionOverride && (
+                  <span style={{ fontSize: 11, color: t.textMuted, marginLeft: 8 }}>
+                    지역: <b style={{ color: t.text }}>{regionOverride}</b> 로 저장
+                  </span>
+                )}
               </div>
             )}
           </Card>
