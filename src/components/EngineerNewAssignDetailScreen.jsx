@@ -67,6 +67,7 @@ export function EngineerNewAssignDetailScreen({
   onRequestReassign,   // 2026-07-15 — 사유 입력 재배정 요청 (기존 V14Modal 재사용)
   onCustomerCancel,
   onAskOps,
+  onCustomerCall,      // 2026-07-15 — 고객 통화 자동 기록 + 복귀 시 결과 시트 (사장님 spec)
 }) {
   // 2026-05-27 — 옛 task.callMemo (DB 매핑 없는 죽은 키) → 평탄화된 task.callMemo
   //   (v14NormalizeTask 가 category_data.callMemo 평탄화) 또는 raw category_data.callMemo fallback.
@@ -151,7 +152,11 @@ export function EngineerNewAssignDetailScreen({
   const colors = getWorkTypeColors(task.workType);
 
   function makeCall() {
-    if (task.phone) window.location.href = `tel:${task.phone}`;
+    if (task.phone) {
+      // 2026-07-15 — 통화 자동 기록 (운영자 배정 카드 ☎ 배지) + 복귀 시 결과 시트
+      onCustomerCall && onCustomerCall(task);
+      window.location.href = `tel:${task.phone}`;
+    }
   }
 
   function openMap() {

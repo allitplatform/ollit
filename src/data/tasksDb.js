@@ -210,6 +210,10 @@ export function rowToTask(row) {
     // 2026-05-22 — 기사 재배정 요청 (category_data.reassignRequest jsonb 평탄화)
     //   { reason, requestedAt } — 없으면 null
     reassignRequest: cat.reassignRequest || null,
+    // 2026-07-15 — 기사 고객 통화 기록 (category_data.customerCall 평탄화)
+    //   { lastAt, count, result: 'talked'|'absent'|null, resultAt } — 없으면 null
+    //   기사 앱 [고객 전화] 탭 시 자동 기록 → 운영자 배정 카드 ☎ 배지 (사장님 spec)
+    customerCall: cat.customerCall || null,
     // Phase 4-2 fix — category_data 평탄화 (시트 호환 / 화면 필터 통과)
     // 2026-05-19 Phase 5 Step 0.C-16 — task_items 측 fallback 매핑 (category_data.workItems 측 NULL 측 catch)
     // 2026-05-21 Phase 5 Step 0.G-5-A — serviceCode / orderType 측 측 추가
@@ -1552,6 +1556,58 @@ export async function saveConsentAdapter(taskId, { customerName, signatureUrl, t
   } catch (e) {
     console.error("[tasksDb.saveConsentAdapter]", e);
     return { ok: false, error: e.message || "동의서 저장 실패" };
+  }
+}
+
+// ============================================================
+// 2026-07-15 — 기사 고객 통화 기록 (사장님 spec: "전화 안 한 기사 vs 전화한 기사")
+// ============================================================
+// [고객 전화] 탭 순간 자동 기록 — saveConsentAdapter 동일 fetch-merge 패턴
+// (stale local categoryData 통째 덮어쓰기 금지 — consent 등 다른 키 보존).
+// customerCall: { lastAt, count, result: 'talked'|'absent'|null, resultAt }
+export async function recordCustomerCallAdapter(taskId) {
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  try {
+    const current = await getTaskByIdDb(taskId);
+    if (!current) return { ok: false, error: "작업 없음" };
+    const prev = current.categoryData?.customerCall || {};
+    const nextCategoryData = {
+      ...(current.categoryData || {}),
+      customerCall: {
+        lastAt: new Date().toISOString(),
+        count: (Number(prev.count) || 0) + 1,
+        result: null,          // 새 통화 시도 — 결과는 팝업에서 (미선택 시 '전화함'만)
+        resultAt: null,
+      },
+    };
+    return await updateTaskDb(taskId, { categoryData: nextCategoryData });
+  } catch (e) {
+    console.warn("[tasksDb.recordCustomerCallAdapter]", e?.message);
+    return { ok: false, error: e?.message || "통화 기록 실패" };
+  }
+}
+
+// 통화 결과 기록 — 팝업 [통화됨]/[부재중] 탭.
+export async function setCustomerCallResultAdapter(taskId, result) {
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  if (result !== "talked" && result !== "absent") return { ok: false, error: "result 값 오류" };
+  try {
+    const current = await getTaskByIdDb(taskId);
+    if (!current) return { ok: false, error: "작업 없음" };
+    const prev = current.categoryData?.customerCall || {};
+    const nextCategoryData = {
+      ...(current.categoryData || {}),
+      customerCall: {
+        lastAt: prev.lastAt || new Date().toISOString(),
+        count: Number(prev.count) || 1,
+        result,
+        resultAt: new Date().toISOString(),
+      },
+    };
+    return await updateTaskDb(taskId, { categoryData: nextCategoryData });
+  } catch (e) {
+    console.warn("[tasksDb.setCustomerCallResultAdapter]", e?.message);
+    return { ok: false, error: e?.message || "통화 결과 기록 실패" };
   }
 }
 

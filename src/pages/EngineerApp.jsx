@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   loadTasksForRole as getTasks,
   updateTaskAdapter as apiUpdateTask,
@@ -8,6 +8,8 @@ import {
   startTaskAdapter as apiStartTask,
   completeTaskAdapter as apiCompleteTask,
   changePriceAdapter as apiChangePrice,
+  recordCustomerCallAdapter,
+  setCustomerCallResultAdapter,
 } from "../data/tasksDb.js";
 import { uploadPhoto } from "../lib/photosDb.js";
 import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
@@ -653,7 +655,7 @@ function formatMinutesLabel(min) {
 // V14 v8 — 진행 카드 (사장님 spec '가장 가까운 작업')
 // 모드: 진행 중 (now >= start && now < end) / 다음 작업 (시작 전)
 // 30분 이내 시작 → 핑크 강조 / 진행 중 → 펄스 + 완료 보고 버튼
-function NextWorkCard({ work, now, onClick, onCompleteReport }) {
+function NextWorkCard({ work, now, onClick, onCompleteReport, onCustomerCall }) {
   if (!work) return null;
   const startTime = work.scheduledTime || work.time || null;
   const endTime   = work.endTime || null;
@@ -860,7 +862,11 @@ function NextWorkCard({ work, now, onClick, onCompleteReport }) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (hasPhone) window.location.href = `tel:${phone}`;
+                if (hasPhone) {
+                  // 2026-07-15 — 통화 자동 기록 (운영자 ☎ 배지) + 복귀 시 결과 시트
+                  onCustomerCall && onCustomerCall(work);
+                  window.location.href = `tel:${phone}`;
+                }
               }}
               disabled={!hasPhone}
               style={{
@@ -919,6 +925,7 @@ function MainScreen({
   onClickTomorrow,
   onClickCalendar,
   onCompleteReport,
+  onCustomerCall,
   pendingAcceptances = [],
   newAssignmentsOverride,
   usolNTotal = 0,
@@ -1164,6 +1171,7 @@ function MainScreen({
           now={nowDate}
           onClick={onTaskClick}
           onCompleteReport={onCompleteReport}
+          onCustomerCall={onCustomerCall}
         />
       ) : noTaskToday ? (
         <EncourageCard
@@ -4066,6 +4074,43 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
 
   const reset = () => { resetTasks(); resetTo("main"); setSelectedTaskId(null); };
 
+  // 2026-07-15 — 고객 통화 자동 기록 + 통화 결과 시트 (사장님 spec).
+  //   [고객 전화] 탭 → 즉시 customerCall 기록 (운영자 카드 ☎ 배지) + pendingCallRef 세팅.
+  //   앱으로 돌아오면(visibilitychange) 일정 미확정 건에 한해 결과 시트 한 번 표시.
+  const [callSheetTask, setCallSheetTask] = useState(null);
+  const pendingCallRef = useRef(null);
+  function handleCustomerCall(taskLike) {
+    if (!taskLike || !taskLike.id) return;
+    try { recordCustomerCallAdapter(taskLike.id); } catch { /* fire-and-forget */ }
+    pendingCallRef.current = taskLike;
+  }
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      const tk = pendingCallRef.current;
+      if (!tk) return;
+      pendingCallRef.current = null;
+      // 일정 이미 확정/진행 이후 단계면 시트 생략 (전화함 기록은 이미 남음)
+      const st = String(tk.status || "");
+      if (["확정", "진행중", "작업중", "완료", "취소", "취소요청", "visit_only"].includes(st)) return;
+      setCallSheetTask(tk);
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+  async function handleCallResult(result) {
+    const tk = callSheetTask;
+    setCallSheetTask(null);
+    if (!tk) return;
+    if (result === "schedule") {
+      // 일정 잡혔어요 → 새 배정 상세(일정 칩)로
+      setCallTaskId(tk.id);
+      setScreen("newAssignCall");
+      return;
+    }
+    try { await setCustomerCallResultAdapter(tk.id, result); } catch { /* 무해 */ }
+  }
+
   // V14 큰 흐름 — 모달 state (취소 요청 / 금액 변경 / 완료 + 사진)
   const [cancelRequestTask, setCancelRequestTask] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
@@ -5019,6 +5064,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               onClickTomorrow={handleTomorrowClick}
               onClickCalendar={() => { setCalendarInitial(null); resetTo("calendar"); }}
               onCompleteReport={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
+              onCustomerCall={handleCustomerCall}
               pendingAcceptances={pendingAcceptances}
               newAssignmentsOverride={newAssignments}
               usolNTotal={0}
@@ -5199,6 +5245,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             }}
             onSave={handleSaveCall}
             onRequestReassign={(t) => setReassignRequestTask(t)}
+            onCustomerCall={handleCustomerCall}
             onUnableSchedule={async () => {
               // 2026-05-27 — 옛 죽은 키(updateTask {status:"미배정", unableSchedule:true})
               //   제거. requestReassignAdapter 재사용 (Mig 056 RPC):
@@ -5437,6 +5484,86 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             >요청 전송</button>
           </div>
         </V14Modal>
+      )}
+
+      {/* 2026-07-15 — 통화 결과 시트 (사장님 spec: 일정/조율중/부재중 3갈래 + 그냥 닫기) */}
+      {callSheetTask && (
+        <div
+          onClick={() => setCallSheetTask(null)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 1400,
+            background: "rgba(0,0,0,0.45)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+            zoom: "calc(1 / var(--font-scale, 1))",   // 글자크기 zoom 역보정 (MoneyPadInput 동일)
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%", maxWidth: 420,
+              background: "var(--bg-primary, #fff)",
+              borderRadius: "18px 18px 0 0",
+              border: "1px solid var(--border)", borderBottom: "none",
+              padding: "16px 16px calc(18px + env(safe-area-inset-bottom))",
+              boxShadow: "0 -8px 30px rgba(0,0,0,0.3)",
+            }}
+          >
+            <div style={{ width: 40, height: 4, borderRadius: 999, background: "var(--border)", margin: "0 auto 14px" }}/>
+            <div style={{ fontSize: 16, fontWeight: 800, textAlign: "center", color: "var(--text-primary)" }}>
+              📞 고객님과 통화 되셨어요?
+            </div>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", textAlign: "center", margin: "4px 0 14px" }}>
+              {callSheetTask.customer || ""} · 방금 전화함
+            </div>
+            <button
+              onClick={() => handleCallResult("schedule")}
+              style={{
+                width: "100%", padding: "16px 6px", marginBottom: 10,
+                background: "rgba(255,27,141,0.10)", border: "1.5px solid #FF1B8D",
+                borderRadius: 14, color: "#FF1B8D", fontSize: 15, fontWeight: 800,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >
+              📅 일정 잡혔어요
+              <span style={{ display: "block", fontSize: 11, fontWeight: 600, marginTop: 3, opacity: 0.8 }}>바로 날짜·시간 입력으로</span>
+            </button>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <button
+                onClick={() => handleCallResult("talked")}
+                style={{
+                  padding: "15px 6px", background: "rgba(3,199,89,0.10)",
+                  border: "1.5px solid #03C75A", borderRadius: 14,
+                  color: "#03C75A", fontSize: 14, fontWeight: 800,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                ✓ 통화됨
+                <span style={{ display: "block", fontSize: 10.5, fontWeight: 600, marginTop: 3, opacity: 0.8 }}>일정은 조율중</span>
+              </button>
+              <button
+                onClick={() => handleCallResult("absent")}
+                style={{
+                  padding: "15px 6px", background: "rgba(229,72,77,0.08)",
+                  border: "1.5px solid #E5484D", borderRadius: 14,
+                  color: "#E5484D", fontSize: 14, fontWeight: 800,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                ✗ 부재중
+                <span style={{ display: "block", fontSize: 10.5, fontWeight: 600, marginTop: 3, opacity: 0.8 }}>나중에 다시</span>
+              </button>
+            </div>
+            <button
+              onClick={() => setCallSheetTask(null)}
+              style={{
+                width: "100%", marginTop: 10, padding: 11,
+                background: "transparent", border: "none",
+                color: "var(--text-secondary)", fontSize: 12, fontWeight: 600,
+                cursor: "pointer", fontFamily: "inherit",
+              }}
+            >그냥 닫기</button>
+          </div>
+        </div>
       )}
 
       {/* V14 큰 흐름 — 금액 변경 모달 (현장 추가) */}

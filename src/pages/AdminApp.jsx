@@ -678,6 +678,8 @@ function _v14NormalizeTask(t) {
     consent: t.consent || t.categoryData?.consent || null,
     // 2026-05-22 — 재배정 요청 (3곳 매핑 트랩)
     reassignRequest: t.reassignRequest || t.categoryData?.reassignRequest || null,
+    // 2026-07-15 — 기사 고객 통화 기록 (3곳 매핑 트랩)
+    customerCall: t.customerCall || t.categoryData?.customerCall || null,
     // 2026-05-27 — 기사 일정변경 사유 + 협의 메모 (category_data 평탄화, 3곳 매핑 트랩)
     rescheduleReason: t.rescheduleReason || t.categoryData?.rescheduleReason || "",
     rescheduledAt:    t.rescheduledAt    || t.categoryData?.rescheduledAt    || "",
@@ -5451,7 +5453,20 @@ function DateGroupHeader({ t, ymd, count }) {
   );
 }
 
+// 2026-07-15 — 통화 배지용 상대 시간 ("방금"/"N분 전"/"N시간 전"/"N일 전")
+function _callTimeAgo(iso) {
+  const ts = new Date(iso).getTime();
+  if (!Number.isFinite(ts)) return "";
+  const diff = Date.now() - ts;
+  if (diff < 60 * 1000) return "방금";
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)}분 전`;
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)}시간 전`;
+  return `${Math.floor(diff / 86400000)}일 전`;
+}
+
 function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
+  // 2026-07-15 — 사장님 spec: 통화 상태 배지 (모바일 = ☎ 아이콘만 / PC = 글자+시간).
+  const isPcCard = useIsPc();
   const isAssigned = task.assignmentStatus === "assigned";
 
   // 2026-06-28 — 서비스 유형 아이콘 (serviceCode 기준).
@@ -5529,11 +5544,31 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
           </span>
         )}
         {/* 2026-07-14 — 사장님 spec: "약속 대기" 글자 제거, 노란 원형만 */}
-        {isWaiting && (
-          <span title="약속 대기" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 800, color: "#FFB800", flexShrink: 0, whiteSpace: "nowrap" }}>
+        {/* 2026-07-15 — 통화 기록 있으면 ☎ 배지로 교체 (전화함/통화됨·조율중/부재중).
+              모바일 = 아이콘만 ("모바일은 정신없다" — 사장님) / PC = 글자+시간. */}
+        {isWaiting && !task.customerCall && (
+          <span title="약속 대기 · 연락 전" style={{ marginLeft: "auto", fontSize: 12, fontWeight: 800, color: "#FFB800", flexShrink: 0, whiteSpace: "nowrap" }}>
             ●
           </span>
         )}
+        {isWaiting && task.customerCall && (() => {
+          const cc = task.customerCall;
+          const ago = _callTimeAgo(cc.resultAt || cc.lastAt);
+          const cfg = cc.result === "talked"
+            ? { color: "#FF7A00", label: "통화됨 · 조율중", title: "통화됨 — 일정 조율중" }
+            : cc.result === "absent"
+              ? { color: "#E5484D", label: `부재중${Number(cc.count) > 1 ? `×${cc.count}` : ""}`, title: "부재중" }
+              : { color: "#3B82F6", label: "전화함", title: "고객에게 전화함" };
+          return (
+            <span title={`${cfg.title}${ago ? ` · ${ago}` : ""}`} style={{
+              marginLeft: "auto", fontSize: 11, fontWeight: 800,
+              color: cfg.color, flexShrink: 0, whiteSpace: "nowrap",
+              display: "inline-flex", alignItems: "center", gap: 4,
+            }}>
+              ☎{isPcCard && <span>{cfg.label} · {ago}</span>}
+            </span>
+          );
+        })()}
         {/* 2026-07-14 — 사장님 spec: 체크/'확정' 글자 제거, 초록 일정만 (일정 없으면 ● 만) */}
         {isSchedOk && (
           <span title="일정 확정" style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: "#22C55E", flexShrink: 0, whiteSpace: "nowrap" }}>
