@@ -813,6 +813,16 @@ function WorkTypeEditor({ work, onChange, onToggleZone, onToggleAppliance }) {
               onChange={(e) => setZoneSearch(e.target.value)}
               style={{ ...inputStyle, marginBottom: 10 }}
             />
+            {/* 2026-07-15 — 전국 칩 (사장님 spec: "전국을 다 클릭할 수 없으니까").
+                  구 30개 클릭 대신 한 번에 전국 지정. 매칭 로직은 zones 의 "전국" 값을 이미 지원. */}
+            <div style={{ ...chipGridStyle, marginBottom: 10 }}>
+              <ChipCheck label="🌍 전국 (모든 지역)" on={zoneOn("전국")} onClick={() => onToggleZone("전국")}/>
+              {zoneOn("전국") && (
+                <span style={{ fontSize: 11, color: "var(--text-secondary)", alignSelf: "center" }}>
+                  모든 지역에 매칭 — 배정 화면에선 "전지역" 그룹으로 표시
+                </span>
+              )}
+            </div>
             <div style={subLabelStyle}>서울</div>
             <div style={chipGridStyle}>
               {filteredSeoul.map(z => (
