@@ -1067,6 +1067,11 @@ function TaskItemsCard({ task, user, onReload }) {
   const usesReceivedTotalFlow =
     task?.principalCode !== 'usol_n' && task?.paymentMethod !== 'prepaid';
 
+  // 2026-07-15 — 방문출장 건: 원래 작업(무엇을 하러 갔는지)은 그대로 보이되 견적은 0원 표시.
+  //   사장님 spec: "출장비 건도 작업이 어떤 건지는 알아야" — 항목 목록 유지 + 금액만 0.
+  //   받은 돈 input / 견적 수정 버튼도 숨김 — 방문출장 정산(출장비 카드)과 충돌하는 입력 통로 차단.
+  const isVisitOnly = task?.status === "visit_only";
+
   // 2026-06-28 — 견적 수정/추가 가드 + 모달 state.
   //   클라 1차 가드 — 서버(Mig 153 RPC)가 진실 (engineer_remit_confirmed_at NULL + 트랙 B 차단).
   //   클라는 UX 위해 미리 체크: payment.engineer_remit_confirmed_at 정보가 task 에 있나? — 없으면 항상 활성 (서버가 reject).
@@ -1188,7 +1193,7 @@ function TaskItemsCard({ task, user, onReload }) {
           const subtotal  = Number(it.subtotal) || (unitPrice * qty);
           const isMain    = (it.orderType || it.order_type) !== '추가선택';
           const isCanceled = !!it.isCanceled;
-          const canShowInput = usesReceivedTotalFlow && isMain && !isCanceled;
+          const canShowInput = usesReceivedTotalFlow && isMain && !isCanceled && !isVisitOnly;
           const orderTypeLabel = it.orderType || it.order_type || "";
 
           return (
@@ -1238,8 +1243,17 @@ function TaskItemsCard({ task, user, onReload }) {
                     marginLeft: "auto",
                   }}>✗ 취소</span>
                 )}
-                {/* 2026-06-28 — 견적 수정 버튼 (Mig 153). 미정산 + 비-취소 항목만. */}
-                {!isCanceled && it.id && (
+                {/* 2026-07-15 — 방문출장 건 배지 (견적 0원 처리 표시) */}
+                {isVisitOnly && !isCanceled && (
+                  <span style={{
+                    fontSize: 9, fontWeight: 800,
+                    padding: "1px 5px", borderRadius: 999,
+                    background: "rgba(59,130,246,0.12)", color: "#1D4ED8",
+                    marginLeft: "auto",
+                  }}>🚗 출장 전환</span>
+                )}
+                {/* 2026-06-28 — 견적 수정 버튼 (Mig 153). 미정산 + 비-취소 항목만. 방문출장 건 숨김 (2026-07-15). */}
+                {!isCanceled && it.id && !isVisitOnly && (
                   <button
                     type="button"
                     onClick={() => canEdit ? setEditItem(it) : null}
@@ -1275,7 +1289,8 @@ function TaskItemsCard({ task, user, onReload }) {
                   fontWeight: 700,
                   textDecoration: isCanceled ? "line-through" : "none",
                 }}>
-                  ₩{subtotal.toLocaleString("ko-KR")}
+                  {/* 2026-07-15 — 방문출장 건: 원래 견적 대신 0원 (정산은 출장비 카드 기준) */}
+                  ₩{(isVisitOnly ? 0 : subtotal).toLocaleString("ko-KR")}
                 </span>
               </div>
 
@@ -1350,7 +1365,8 @@ function TaskItemsCard({ task, user, onReload }) {
           </>
         )}
 
-        {/* 2026-06-28 — 항목 추가 (Mig 153). 미정산 + 트랙B 아님 시만 활성. */}
+        {/* 2026-06-28 — 항목 추가 (Mig 153). 미정산 + 트랙B 아님 시만 활성. 방문출장 건 숨김 (2026-07-15). */}
+        {!isVisitOnly && (
         <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
           <button
             type="button"
@@ -1370,7 +1386,8 @@ function TaskItemsCard({ task, user, onReload }) {
             }}
           >➕ 항목 추가</button>
         </div>
-        {!canEdit && disabledReason && (
+        )}
+        {!isVisitOnly && !canEdit && disabledReason && (
           <div style={{
             marginTop: 6, fontSize: 10, fontWeight: 600,
             color: "var(--text-tertiary, var(--text-secondary))",
