@@ -2768,7 +2768,6 @@ function PhotoSection({ photos, beforeFileRef, afterFileRef, onPhotoChange, onRe
           )}
           <Camera size={26} color="#fff"/>
           <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginTop: 5 }}>작업 전 찍기</div>
-          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.85)", marginTop: 2, fontWeight: 600 }}>📷 촬영 · 🖼 갤러리</div>
         </div>
         <div onClick={() => afterFileRef.current?.click()}
              style={{
@@ -2791,9 +2790,9 @@ function PhotoSection({ photos, beforeFileRef, afterFileRef, onPhotoChange, onRe
           )}
           <Camera size={26} color={afterPhotos.length > 0 ? "#fff" : "#03C75A"}/>
           <div style={{ fontSize: 14, fontWeight: 800, color: afterPhotos.length > 0 ? "#fff" : "#03C75A", marginTop: 5 }}>작업 후 찍기</div>
-          <div style={{ fontSize: 10, color: afterPhotos.length > 0 ? "rgba(255,255,255,0.85)" : "var(--text-secondary)", marginTop: 2, fontWeight: 600 }}>
-            {afterPhotos.length > 0 ? "📷 촬영 · 🖼 갤러리" : "필수 · 아직 0장"}
-          </div>
+          {afterPhotos.length === 0 && (
+            <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2, fontWeight: 600 }}>필수</div>
+          )}
         </div>
       </div>
 
