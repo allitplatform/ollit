@@ -2727,21 +2727,7 @@ function PerItemReceivedCards({ items = [], receivedById = {}, onItemChange, onA
   );
 }
 
-// 2026-07-15 — 자주 쓰는 문구 칩 (사장님 spec: 타이핑 최소화). 탭하면 메모에 붙음.
-//   문구 목록은 사장님 확정본으로 교체 예정 — 임시 4개.
-const MEMO_PRESETS = [
-  "보온재 정리함",
-  "누설 재방문 안내함",
-  "고객 요청 추가작업",
-  "실외기 접근 어려움",
-];
-
 function WorkMemoInput({ value, onChange }) {
-  const appendPreset = (txt) => {
-    const cur = String(value || "").trim();
-    if (cur.includes(txt)) return;
-    onChange(cur ? `${cur} ${txt}.` : `${txt}. `);
-  };
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
@@ -2750,24 +2736,8 @@ function WorkMemoInput({ value, onChange }) {
       }}>
         📝 작업 메모 (선택)
       </div>
-      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6 }}>
-        {MEMO_PRESETS.map(txt => (
-          <button
-            key={txt}
-            onClick={() => appendPreset(txt)}
-            style={{
-              flexShrink: 0, padding: "7px 12px", borderRadius: 999,
-              background: String(value || "").includes(txt) ? "rgba(255,27,141,0.07)" : "var(--card-bg)",
-              border: `1px solid ${String(value || "").includes(txt) ? "#FF1B8D" : "var(--border)"}`,
-              color: String(value || "").includes(txt) ? "#C2185B" : "var(--text-primary)",
-              fontSize: 11.5, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-            }}
-          >{txt}</button>
-        ))}
-      </div>
       <textarea
-        placeholder="작업 내용 / 특이사항 (길면 키보드 🎤 음성 입력)"
+        placeholder="작업 내용 / 특이사항"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{

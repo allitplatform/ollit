@@ -267,17 +267,8 @@ export function EngineerNewAssignCallScreen({
           ✓ 일정 + 메모 저장
         </button>
 
+        {/* 2026-07-15 — 사장님 spec: [일정 불가] 버튼 제거. */}
         <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={onUnableSchedule} style={{
-            flex: 1, padding: 11,
-            background: "rgba(255,179,0,0.10)",
-            border: "1px solid rgba(255,179,0,0.4)",
-            borderRadius: 8, color: "#FFB300",
-            fontSize: 11, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit",
-          }}>
-            ⚠️ 일정 불가
-          </button>
           <button onClick={onCustomerCancel} style={{
             flex: 1, padding: 11,
             background: "rgba(255,61,90,0.08)",
