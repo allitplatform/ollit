@@ -60,8 +60,12 @@ export function isTrackARemittance(task) {
 //   호출처: EngineerApp.todayTrackATasks / 입금 측측측 / AdminApp 정산 / SettlementHistoryContent.
 export function isRemittanceTarget(task) {
   if (!isTrackARemittance(task)) return false;
-  // 출장비측측 측 회사 측 측측 측측 측측 X (사장님 측측).
-  return task.status !== "visit_only";
+  // 2026-07-15 — 출장비 60/40 개편 (Mig 177/178): visit_only 도 회사 몫(16,000)이 생겨
+  //   회사 송금 대상. 옛 규칙(기사 100%, ~7/14) 건은 회사 몫이 0이라 금액 기준으로 자연 제외
+  //   — 날짜 비교 없이 과거/현재 모두 정확.
+  //   (버그 이력: 이 제외가 옛 규칙 그대로 남아 7/15 첫 출장비 건 16,000이 송금 집계에 안 잡힘)
+  if (task.status === "visit_only") return calcRemitAmount(task) > 0;
+  return true;
 }
 
 // 필요 시 호출처에서 합성: 미정산만 보고 싶을 때.
