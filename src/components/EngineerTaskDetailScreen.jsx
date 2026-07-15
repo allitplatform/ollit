@@ -2100,8 +2100,9 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
         </div>
       )}
 
-      {/* 2026-05-25 — 톤다운: 풀 컬러 → 중립 배경 + 작은 컬러 아이콘 */}
-      {!isCompleted && (
+      {/* 2026-05-25 — 톤다운: 풀 컬러 → 중립 배경 + 작은 컬러 아이콘
+            2026-07-15 — 사장님 spec: 진행중(완료 보고 화면)에선 고객 전화/문자 숨김 — 확정 단계에서만. */}
+      {!isCompleted && !isInProgress && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
           <button onClick={() => makeCall(task.phone)} style={{
             padding: 12,
@@ -2381,9 +2382,38 @@ function ExtraFeeInput({ value, onChange, onAdd, baseAmount = 0 }) {
 //   자동 계산된 추가금 = GREATEST(received_total - product_price, 0). 트리거 공식과 동일.
 //   분기: principalCode != 'usol_n' && paymentMethod != 'prepaid' 일 때만 렌더.
 function ReceivedTotalInput({ value, onChange, onAdd, baseAmount = 0 }) {
+  // 2026-07-15 — 사장님 spec(1안): 박스 하나 — 질문 + 금액 칸 + 상태 한 줄.
+  //   옛 구조(견적합 카드 + 입력 + 빠른버튼 + 자동추가금 + 총액 = 숫자 4개)가
+  //   기사님들에게 어렵다는 피드백 → 전부 제거. 추가금 계산은 시스템이 뒤에서.
   const receivedNum = Number(value) || 0;
   const isUndecided = baseAmount === 0;
-  const autoExtra   = Math.max(receivedNum - baseAmount, 0);
+  const diff = receivedNum - baseAmount;
+
+  let statusNode = null;
+  if (receivedNum > 0) {
+    let bg, border, color, text;
+    if (isUndecided) {
+      bg = "rgba(3,199,90,0.10)"; border = "rgba(3,199,90,0.35)"; color = "#2E7D32";
+      text = `받은 금액 ₩${receivedNum.toLocaleString("ko-KR")} — 그대로 결제 총액이 됩니다`;
+    } else if (diff === 0) {
+      bg = "rgba(3,199,90,0.10)"; border = "rgba(3,199,90,0.35)"; color = "#2E7D32";
+      text = `✓ 견적(₩${baseAmount.toLocaleString("ko-KR")})과 동일`;
+    } else if (diff > 0) {
+      bg = "rgba(255,27,141,0.07)"; border = "rgba(255,27,141,0.30)"; color = "#C2185B";
+      text = `견적 ₩${baseAmount.toLocaleString("ko-KR")} + 추가 ₩${diff.toLocaleString("ko-KR")} 받음`;
+    } else {
+      bg = "rgba(230,135,14,0.10)"; border = "rgba(230,135,14,0.35)"; color = "#E6870E";
+      text = `⚠ 견적보다 ₩${Math.abs(diff).toLocaleString("ko-KR")} 적어요 — 확인해 주세요`;
+    }
+    statusNode = (
+      <div style={{
+        marginTop: 10, padding: "10px 12px", borderRadius: 10,
+        background: bg, border: `1px solid ${border}`,
+        fontSize: 13, fontWeight: 700, color,
+      }}>{text}</div>
+    );
+  }
+
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
@@ -2392,120 +2422,26 @@ function ReceivedTotalInput({ value, onChange, onAdd, baseAmount = 0 }) {
         padding: 14,
       }}>
         <div style={{
-          fontSize: 13, color: "var(--extra-fee-header)",
-          fontWeight: 600, marginBottom: 2,
+          fontSize: 15, color: "var(--extra-fee-header)",
+          fontWeight: 800, marginBottom: 10,
         }}>
-          💰 고객 결제 총액
-        </div>
-        <div style={{
-          fontSize: 11, color: "var(--text-tertiary)",
-          fontWeight: 500, marginBottom: 10,
-        }}>
-          현장에서 받은 돈 (견적 + 추가금 합계)
+          💰 고객에게 얼마 받았나요?
         </div>
 
-        {/* 견적 합 안내 카드 */}
-        <div style={{
-          padding: "10px 12px", marginBottom: 10,
-          background: "var(--card-bg)",
-          border: `1px solid ${isUndecided ? "var(--warning)" : "var(--border)"}`,
-          borderRadius: 8,
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          fontSize: 12, fontWeight: 600,
-          color: isUndecided ? "var(--warning)" : "var(--text-secondary)",
-        }}>
-          <span>견적 합 (자동)</span>
-          {isUndecided ? (
-            <span style={{ fontStyle: "italic" }}>미정 (현장 확정)</span>
-          ) : (
-            <span className="mono" style={{ color: "var(--text-primary)", fontSize: 14, fontWeight: 700 }}>
-              ₩{baseAmount.toLocaleString("ko-KR")}
-            </span>
-          )}
-        </div>
-
-        {/* 받은 돈 입력 */}
         <MoneyPadInput
           value={value}
           onChange={(v) => onChange(v)}
           quoteAmount={Number(baseAmount || 0)}
-          placeholder="현장에서 받은 돈"
-          label="고객 결제 총액"
-          style={{ padding: 12, borderRadius: 10, border: "1px solid var(--extra-fee-border)", fontSize: 16, marginBottom: 10 }}
+          placeholder={isUndecided ? "받은 금액 입력 (견적 미정)" : "받은 금액 입력"}
+          label="받은 돈"
+          style={{ padding: "14px 12px", borderRadius: 12, border: "1.5px solid var(--extra-fee-border)", fontSize: 18 }}
         />
 
-        {/* Quick add — 받은 돈에 더하기 */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 6,
-        }}>
-          {[
-            { amount: 5000,   label: "+5천"  },
-            { amount: 10000,  label: "+1만"  },
-            { amount: 50000,  label: "+5만"  },
-            { amount: 100000, label: "+10만" },
-          ].map(b => (
-            <button
-              key={b.amount}
-              onClick={() => onAdd(b.amount)}
-              style={{
-                padding: 8,
-                background: "var(--card-bg)",
-                border: "1px solid var(--extra-fee-border)",
-                borderRadius: 8,
-                color: "var(--extra-fee-text)",
-                fontSize: 12, fontWeight: 600,
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              {b.label}
-            </button>
-          ))}
-        </div>
-
-        {/* 자동 계산된 추가금 + 총액 (받은 돈 > 0 일 때) */}
-        {receivedNum > 0 && (
-          <div style={{
-            marginTop: 10, padding: "10px 12px",
-            background: "var(--card-bg)",
-            borderRadius: 8,
-            display: "flex", flexDirection: "column", gap: 6,
-            fontSize: 12, fontWeight: 700,
-          }}>
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              color: "var(--text-secondary)",
-            }}>
-              <span>= 자동 계산된 추가금</span>
-              <span className="mono" style={{ color: "var(--text-primary)" }}>
-                ₩{autoExtra.toLocaleString("ko-KR")}
-              </span>
-            </div>
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              color: "var(--text-primary)",
-            }}>
-              <span>총액 = 결제 총액</span>
-              <span className="mono" style={{ color: "var(--accent)", fontSize: 14 }}>
-                ₩{receivedNum.toLocaleString("ko-KR")}
-              </span>
-            </div>
-          </div>
-        )}
+        {statusNode}
       </div>
     </div>
   );
 }
-
-// 2026-05-31 — Phase C Step 4 — 메인 2개+ row 측 받은 돈 각자 입력 (work_type 측 카드).
-//   사용자 spec: 각 메인 카드 (work_type별) + 합계 카드 + 부분 취소 카드 회색 표시.
-//   props:
-//     items          — 메인 row 측 (canceled 포함, 추가선택 제외)
-//     receivedById   — { [itemId]: string }  state
-//     onItemChange   — (itemId, value: string) → state update
-//     onAddToItem    — (itemId, amount: int) → quick add
 function PerItemReceivedCards({ items = [], receivedById = {}, onItemChange, onAddToItem }) {
   const nonCanceled = items.filter(it => !it.isCanceled);
   // 합계 (canceled 제외 — 입력란도 0 강제)
