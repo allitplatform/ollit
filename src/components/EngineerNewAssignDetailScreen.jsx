@@ -292,10 +292,10 @@ export function EngineerNewAssignDetailScreen({
                   const rpcAmount = (itemId != null) ? itemEngineerAmounts[itemId] : undefined;
                   price = (rpcAmount != null) ? rpcAmount : Math.floor(subtotal * distRatio);
                 } else {
-                  // 2026-07-15 — 사장님 spec: 이 화면 금액은 "고객 견적"이어야 하는데
-                  //   item subtotal 이 기사 단가로 들어오는 원청이 있어 기사 수입처럼 보였음.
-                  //   → per-item 가격 숨기고 아래 "고객 견적" 한 줄(estimateTotal)로 통일.
-                  price = null;
+                  // 2026-07-15 — 사장님 spec(스크린샷 스타일): 항목 우측에 '고객 견적' 라벨 +
+                  //   진짜 견적금액(estimateTotal). item subtotal 은 기사 단가로 들어오는
+                  //   원청이 있어 기사 수입처럼 보이던 것 — 표시 안 함.
+                  price = idx === 0 ? Number(task.estimateTotal || 0) : null;
                 }
                 return (
                   <WorkItemRow
@@ -304,7 +304,7 @@ export function EngineerNewAssignDetailScreen({
                     appliance={wi.appliance_types?.name || wi.appliance || ""}
                     qty={wi.qty || 1}
                     price={price}
-                    priceLabel={isUsolN ? "내 정산금" : null}
+                    priceLabel={isUsolN ? "내 정산금" : (idx === 0 && Number(task.estimateTotal || 0) > 0 ? "고객 견적" : null)}
                     client={task.client}
                     dividerTop={idx > 0}
                     isCanceled={!!(wi.isCanceled ?? wi.is_canceled)}
@@ -313,23 +313,6 @@ export function EngineerNewAssignDetailScreen({
               });
             })()}
           </div>
-
-          {/* 2026-07-15 — 고객 견적 (상담용, 사장님 spec). usol_n 제외 (내 정산금 표시 유지). */}
-          {task.principalCode !== "usol_n" && Number(task.estimateTotal || 0) > 0 && (
-            <div style={{
-              margin: "0 0 12px",
-              padding: "9px 12px",
-              borderRadius: 10,
-              background: "rgba(255,27,141,0.06)",
-              border: "1px solid rgba(255,27,141,0.25)",
-              display: "flex", alignItems: "center",
-            }}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: "#C2185B" }}>💬 고객 견적</span>
-              <span className="mono" style={{ marginLeft: "auto", fontSize: 16, fontWeight: 800, color: "#C2185B" }}>
-                ₩{Number(task.estimateTotal).toLocaleString("ko-KR")}
-              </span>
-            </div>
-          )}
 
           <div style={{
             fontSize: 26, fontWeight: 600,

@@ -71,6 +71,7 @@ export function EngineerNewAssignCallScreen({
   onUnableSchedule,
   onCustomerCancel,
   onAskOps,
+  onCallOps,   // 2026-07-15 — 운영팀 전화 (카톡과 분리)
 }) {
   const [memo, setMemo] = useState(task?.callMemo || "");
   const [datePreset, setDatePreset] = useState("tomorrow");
@@ -285,7 +286,7 @@ export function EngineerNewAssignCallScreen({
       {/* 운영팀 문의 — V14 v8 카카오 공식 브랜딩 */}
       <div style={{ padding: 16 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <button onClick={onAskOps} style={{
+          <button onClick={onCallOps || onAskOps} style={{
             background: "#34C759",
             color: "#fff",
             border: "none",

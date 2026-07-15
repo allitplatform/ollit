@@ -5256,7 +5256,19 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               resetTo("main");
               fetchTasks();
             }}
-            onAskOps={() => alert("운영팀에 문의")}
+            onCallOps={async () => {
+              // 2026-07-15 — 운영팀 전화 (설정 > 운영팀 전화번호, Mig 104)
+              try {
+                const r = await getOpsPhone();
+                if (r?.ok && r.phone) { window.location.href = `tel:${r.phone}`; return; }
+              } catch (_e) { /* 아래 안내 */ }
+              alert("운영팀 번호가 아직 설정되지 않았어요 (관리자 설정 > 운영팀 전화번호)");
+            }}
+            onAskOps={() => {
+              // 2026-07-15 — 임시: 기사 폰의 카카오톡 앱 열기 (사장님 spec).
+              //   다음 주 카카오 채널 생성 후 https://pf.kakao.com/_채널ID/chat 으로 교체 예정.
+              window.location.href = "kakaotalk://launch";
+            }}
           />
         )}
 
