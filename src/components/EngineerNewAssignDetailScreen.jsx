@@ -291,7 +291,10 @@ export function EngineerNewAssignDetailScreen({
                   const rpcAmount = (itemId != null) ? itemEngineerAmounts[itemId] : undefined;
                   price = (rpcAmount != null) ? rpcAmount : Math.floor(subtotal * distRatio);
                 } else {
-                  price = subtotal;
+                  // 2026-07-15 — 사장님 spec: 이 화면 금액은 "고객 견적"이어야 하는데
+                  //   item subtotal 이 기사 단가로 들어오는 원청이 있어 기사 수입처럼 보였음.
+                  //   → per-item 가격 숨기고 아래 "고객 견적" 한 줄(estimateTotal)로 통일.
+                  price = null;
                 }
                 return (
                   <WorkItemRow
@@ -309,6 +312,23 @@ export function EngineerNewAssignDetailScreen({
               });
             })()}
           </div>
+
+          {/* 2026-07-15 — 고객 견적 (상담용, 사장님 spec). usol_n 제외 (내 정산금 표시 유지). */}
+          {task.principalCode !== "usol_n" && Number(task.estimateTotal || 0) > 0 && (
+            <div style={{
+              margin: "0 0 12px",
+              padding: "9px 12px",
+              borderRadius: 10,
+              background: "rgba(255,27,141,0.06)",
+              border: "1px solid rgba(255,27,141,0.25)",
+              display: "flex", alignItems: "center",
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: "#C2185B" }}>💬 고객 견적</span>
+              <span className="mono" style={{ marginLeft: "auto", fontSize: 16, fontWeight: 800, color: "#C2185B" }}>
+                ₩{Number(task.estimateTotal).toLocaleString("ko-KR")}
+              </span>
+            </div>
+          )}
 
           <div style={{
             fontSize: 26, fontWeight: 600,
@@ -580,20 +600,80 @@ export function EngineerNewAssignDetailScreen({
             📅 다른 시간/날짜 직접 선택
           </button>
 
-          {showCustom && (
-            <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-              <input type="date" value={customDate}
-                onChange={(e) => setCustomDate(e.target.value)}
-                style={inputStyle}/>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 13, color: "var(--text-secondary)", width: 36, fontWeight: 600 }}>시간</span>
-                <div style={{ flex: 1, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 4 }}>
-                  <DropdownPicker value={customHour} options={HOURS_24}    onChange={setCustomHour}/>
-                  <DropdownPicker value={customMin}  options={MINUTES_30}  onChange={setCustomMin}/>
+          {showCustom && (() => {
+            // 2026-07-15 — 사장님 spec: 달력/드롭다운 대신 칩 — 날짜 가로줄 + 시 가로줄 + 분 토글.
+            const _pad = (n) => String(n).padStart(2, "0");
+            const _ymd = (d) => `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())}`;
+            const _now = new Date();
+            const _todayYmd = _ymd(_now);
+            const DAY_NAMES = ["일", "월", "화", "수", "목", "금", "토"];
+            const dayChips = Array.from({ length: 6 }, (_, i) => {
+              const d = new Date(_now);
+              d.setDate(d.getDate() + i);
+              const label = i === 0 ? "오늘" : i === 1 ? "내일" : i === 2 ? "모레" : DAY_NAMES[d.getDay()];
+              return { ymd: _ymd(d), label, sub: `${d.getMonth() + 1}/${d.getDate()} ${DAY_NAMES[d.getDay()]}`, dow: d.getDay() };
+            });
+            const inChips = dayChips.some(c => c.ymd === customDate);
+            const isToday = customDate === _todayYmd;
+            const chipBase = {
+              flexShrink: 0, textAlign: "center", borderRadius: 10,
+              background: "var(--card-bg)", border: "1.5px solid var(--border)",
+              cursor: "pointer", fontFamily: "inherit", color: "var(--text-primary)",
+            };
+            const onStyle = { borderColor: "#FF1B8D", background: "rgba(255,27,141,0.06)", color: "#C2185B" };
+            return (
+              <div style={{ marginBottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* 날짜 칩 */}
+                <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+                  {dayChips.map(c => (
+                    <button key={c.ymd} onClick={() => setCustomDate(c.ymd)}
+                      style={{ ...chipBase, width: 62, padding: "7px 0", fontSize: 12, fontWeight: 700,
+                               ...(customDate === c.ymd ? onStyle : {}),
+                               color: customDate === c.ymd ? "#C2185B" : (c.dow === 0 ? "#E53935" : c.dow === 6 ? "#1E88E5" : "var(--text-primary)") }}>
+                      {c.label}
+                      <span style={{ display: "block", fontSize: 10, color: "var(--text-secondary)", fontWeight: 600, marginTop: 1 }}>{c.sub}</span>
+                    </button>
+                  ))}
+                  <label style={{ ...chipBase, width: 62, padding: "7px 0", fontSize: 12, fontWeight: 700,
+                                  ...(customDate && !inChips ? onStyle : {}), position: "relative", overflow: "hidden" }}>
+                    달력
+                    <span style={{ display: "block", fontSize: 10, color: "var(--text-secondary)", fontWeight: 600, marginTop: 1 }}>
+                      {customDate && !inChips ? customDate.slice(5).replace("-", "/") : "그 이후"}
+                    </span>
+                    <input type="date" value={customDate}
+                      onChange={(e) => setCustomDate(e.target.value)}
+                      style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}/>
+                  </label>
+                </div>
+                {/* 시 가로 칩 */}
+                <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+                  {Array.from({ length: 15 }, (_, i) => 7 + i).map(h => {
+                    const hh = _pad(h);
+                    const past = isToday && h <= _now.getHours();
+                    const on = customHour === hh;
+                    return (
+                      <button key={h} onClick={() => setCustomHour(hh)}
+                        style={{ ...chipBase, width: 48, padding: "9px 0", fontSize: 13, fontWeight: 700,
+                                 opacity: past && !on ? 0.35 : 1,
+                                 ...(on ? { borderColor: "#FF1B8D", background: "#FF1B8D", color: "#fff" } : {}) }}>
+                        {h}시
+                      </button>
+                    );
+                  })}
+                </div>
+                {/* 분 토글 */}
+                <div style={{ display: "flex", gap: 6 }}>
+                  {["00", "30"].map(m => (
+                    <button key={m} onClick={() => setCustomMin(m)}
+                      style={{ ...chipBase, flex: 1, padding: "9px 0", fontSize: 13, fontWeight: 700,
+                               ...(customMin === m ? { borderColor: "#FF1B8D", background: "#FF1B8D", color: "#fff" } : {}) }}>
+                      {m}분
+                    </button>
+                  ))}
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* 3. 협의 메모 */}
           <SectionLabel>📝 협의 메모 (선택)</SectionLabel>

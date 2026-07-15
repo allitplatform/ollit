@@ -2,6 +2,8 @@
 // 정산 요약 카드 일관 (수수료 흐름 표시) / 사장님 catch 14개 반영
 
 import { useState, useEffect } from "react";
+// 2026-07-15 — 받은 돈 전용 키패드 (사장님 spec: 0 하나 실수 방지)
+import { MoneyPadInput } from "./MoneyPadInput.jsx";
 import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
@@ -156,23 +158,12 @@ function PartialReceivedSummary({ baseAmount = 0, origAmount = 0, receivedTotal 
           }}>
             받은 돈 (수정 가능)
           </div>
-          <input
-            type="number"
-            inputMode="numeric"
-            placeholder="현장에서 받은 돈"
+          <MoneyPadInput
             value={receivedTotal}
-            onChange={(e) => onReceivedChange && onReceivedChange(e.target.value)}
-            style={{
-              width: "100%", padding: 10,
-              background: "var(--card-bg)",
-              border: `1px solid ${accentColor}`,
-              borderRadius: 8,
-              color: "var(--text-primary)",
-              fontSize: 14, boxSizing: "border-box",
-              outline: "none",
-              fontFamily: "inherit",
-              fontWeight: 700,
-            }}
+            onChange={(v) => onReceivedChange && onReceivedChange(v)}
+            quoteAmount={Number(baseAmount || 0)}
+            placeholder="현장에서 받은 돈"
+            accentColor={accentColor}
           />
         </div>
 
@@ -372,23 +363,13 @@ function PartialPerItemCards({ items = [], actualQtyById = {}, onItemQtyChange, 
                 }}>
                   받은 돈
                 </div>
-                <input
-                  type="number"
-                  inputMode="numeric"
+                <MoneyPadInput
                   value={value}
-                  placeholder={String(subtotal)}
-                  onChange={(e) => onReceivedChange && onReceivedChange(it.id, e.target.value)}
-                  style={{
-                    width: "100%", padding: 10,
-                    background: "var(--card-bg)",
-                    border: `1px solid ${colors.main}`,
-                    borderRadius: 8,
-                    color: "var(--text-primary)",
-                    fontSize: 15, boxSizing: "border-box",
-                    outline: "none", marginBottom: 8,
-                    fontFamily: "inherit",
-                    fontWeight: 700,
-                  }}
+                  onChange={(v) => onReceivedChange && onReceivedChange(it.id, v)}
+                  quoteAmount={Number(subtotal || 0)}
+                  placeholder={`견적 ₩${Number(subtotal || 0).toLocaleString("ko-KR")}`}
+                  accentColor={colors.main}
+                  style={{ marginBottom: 8 }}
                 />
 
                 {/* 빠른 입력 */}
@@ -1039,23 +1020,12 @@ function RefrigerantAddonCard({ hasAddon, setHasAddon, appliance, setAppliance, 
               <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
                 받은 현금
               </div>
-              <input
-                type="number"
-                inputMode="numeric"
-                placeholder="현금 받은 금액 (원)"
+              <MoneyPadInput
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                style={{
-                  width: "100%", padding: "10px 12px",
-                  background: "var(--input-bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: 10,
-                  color: "var(--text-primary)",
-                  fontSize: 14, fontWeight: 700,
-                  fontFamily: "inherit",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
+                onChange={(v) => setAmount(v)}
+                placeholder="현금 받은 금액 (원)"
+                label="받은 현금"
+                style={{ borderRadius: 10, border: "1px solid var(--border)", background: "var(--input-bg)" }}
               />
             </div>
             <div style={{ fontSize: 10, color: "var(--text-tertiary, var(--text-secondary))", lineHeight: 1.5 }}>

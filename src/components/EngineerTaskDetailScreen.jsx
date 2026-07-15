@@ -2727,7 +2727,21 @@ function PerItemReceivedCards({ items = [], receivedById = {}, onItemChange, onA
   );
 }
 
+// 2026-07-15 — 자주 쓰는 문구 칩 (사장님 spec: 타이핑 최소화). 탭하면 메모에 붙음.
+//   문구 목록은 사장님 확정본으로 교체 예정 — 임시 4개.
+const MEMO_PRESETS = [
+  "보온재 정리함",
+  "누설 재방문 안내함",
+  "고객 요청 추가작업",
+  "실외기 접근 어려움",
+];
+
 function WorkMemoInput({ value, onChange }) {
+  const appendPreset = (txt) => {
+    const cur = String(value || "").trim();
+    if (cur.includes(txt)) return;
+    onChange(cur ? `${cur} ${txt}.` : `${txt}. `);
+  };
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
       <div style={{
@@ -2736,8 +2750,24 @@ function WorkMemoInput({ value, onChange }) {
       }}>
         📝 작업 메모 (선택)
       </div>
+      <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 6 }}>
+        {MEMO_PRESETS.map(txt => (
+          <button
+            key={txt}
+            onClick={() => appendPreset(txt)}
+            style={{
+              flexShrink: 0, padding: "7px 12px", borderRadius: 999,
+              background: String(value || "").includes(txt) ? "rgba(255,27,141,0.07)" : "var(--card-bg)",
+              border: `1px solid ${String(value || "").includes(txt) ? "#FF1B8D" : "var(--border)"}`,
+              color: String(value || "").includes(txt) ? "#C2185B" : "var(--text-primary)",
+              fontSize: 11.5, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >{txt}</button>
+        ))}
+      </div>
       <textarea
-        placeholder="작업 내용 / 특이사항"
+        placeholder="작업 내용 / 특이사항 (길면 키보드 🎤 음성 입력)"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         style={{
@@ -2762,35 +2792,56 @@ function PhotoSection({ photos, beforeFileRef, afterFileRef, onPhotoChange, onRe
   const afterPhotos  = photos.filter(p => p.step === "완료");
   return (
     <div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)" }}>
-      {/* 박스 2개 — 작업 전 / 작업 후 */}
+      {/* 2026-07-15 — C안 (사장님 spec): 파랑=전 / 초록=후 큰 버튼.
+            누르면 폰 선택창(카메라/갤러리) — 미리 찍어둔 사진 여러 장 한 번에 선택 가능 (multiple).
+            후 사진 0장이면 초록 점선으로 남아 누락 방지. */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
         <div onClick={() => beforeFileRef.current?.click()}
              style={{
-               background: "var(--card-bg)",
-               borderRadius: 8,
-               border: "1px dashed #FF1B8D",
-               padding: 12, minHeight: 100,
+               position: "relative",
+               background: "#1E88E5",
+               borderRadius: 14,
+               padding: "16px 8px 13px", minHeight: 96,
                display: "flex", flexDirection: "column",
                alignItems: "center", justifyContent: "center",
                cursor: "pointer",
              }}>
-          <Camera size={28} color="#FF1B8D"/>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginTop: 6 }}>작업 전</div>
-          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>{beforePhotos.length}장</div>
+          {beforePhotos.length > 0 && (
+            <span style={{
+              position: "absolute", top: 8, right: 8, minWidth: 22, height: 22,
+              borderRadius: 999, background: "#fff", color: "#1E88E5",
+              fontSize: 12, fontWeight: 800, padding: "0 6px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>{beforePhotos.length}</span>
+          )}
+          <Camera size={26} color="#fff"/>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#fff", marginTop: 5 }}>작업 전 찍기</div>
+          <div style={{ fontSize: 10, color: "rgba(255,255,255,0.85)", marginTop: 2, fontWeight: 600 }}>📷 촬영 · 🖼 갤러리</div>
         </div>
         <div onClick={() => afterFileRef.current?.click()}
              style={{
-               background: "var(--card-bg)",
-               borderRadius: 8,
-               border: afterPhotos.length > 0 ? "1px dashed #FF1B8D" : "1px dashed var(--border)",
-               padding: 12, minHeight: 100,
+               position: "relative",
+               background: afterPhotos.length > 0 ? "#03C75A" : "var(--card-bg)",
+               borderRadius: 14,
+               border: afterPhotos.length > 0 ? "none" : "2px dashed #03C75A",
+               padding: "16px 8px 13px", minHeight: 96,
                display: "flex", flexDirection: "column",
                alignItems: "center", justifyContent: "center",
                cursor: "pointer",
              }}>
-          <Camera size={28} color={afterPhotos.length > 0 ? "#FF1B8D" : "var(--text-secondary)"}/>
-          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--text-primary)", marginTop: 6 }}>작업 후</div>
-          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 2 }}>{afterPhotos.length}장</div>
+          {afterPhotos.length > 0 && (
+            <span style={{
+              position: "absolute", top: 8, right: 8, minWidth: 22, height: 22,
+              borderRadius: 999, background: "#fff", color: "#03C75A",
+              fontSize: 12, fontWeight: 800, padding: "0 6px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>{afterPhotos.length}</span>
+          )}
+          <Camera size={26} color={afterPhotos.length > 0 ? "#fff" : "#03C75A"}/>
+          <div style={{ fontSize: 14, fontWeight: 800, color: afterPhotos.length > 0 ? "#fff" : "#03C75A", marginTop: 5 }}>작업 후 찍기</div>
+          <div style={{ fontSize: 10, color: afterPhotos.length > 0 ? "rgba(255,255,255,0.85)" : "var(--text-secondary)", marginTop: 2, fontWeight: 600 }}>
+            {afterPhotos.length > 0 ? "📷 촬영 · 🖼 갤러리" : "필수 · 아직 0장"}
+          </div>
         </div>
       </div>
 
