@@ -645,9 +645,16 @@ export function EngineerNewAssignDetailScreen({
                       style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}/>
                   </label>
                 </div>
-                {/* 시 가로 칩 */}
-                <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
-                  {Array.from({ length: 15 }, (_, i) => 7 + i).map(h => {
+                {/* 시 가로 칩 — 24시간 전체 (사장님 spec: 밤 작업도 있음). 열리면 현재 시간대로 자동 스크롤. */}
+                <div
+                  ref={(el) => {
+                    if (el && !el._autoScrolled) {
+                      el._autoScrolled = true;
+                      el.scrollLeft = Math.max(0, (_now.getHours() - 1) * 54);
+                    }
+                  }}
+                  style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>
+                  {Array.from({ length: 24 }, (_, i) => i).map(h => {
                     const hh = _pad(h);
                     const past = isToday && h <= _now.getHours();
                     const on = customHour === hh;
