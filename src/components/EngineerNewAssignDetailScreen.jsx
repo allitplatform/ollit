@@ -63,6 +63,7 @@ export function EngineerNewAssignDetailScreen({
   onBack,
   onSave,
   onUnableSchedule,
+  onRequestReassign,   // 2026-07-15 — 사유 입력 재배정 요청 (기존 V14Modal 재사용)
   onCustomerCancel,
   onAskOps,
 }) {
@@ -705,8 +706,19 @@ export function EngineerNewAssignDetailScreen({
           {canConfirm ? `✓ 일정 확정 → ${confirmTime} 도착 예정` : "도착 시간 선택"}
         </button>
 
-        {/* 2026-07-15 — 사장님 spec: [일정 불가] 버튼 제거 (재배정은 운영자 통해서만). */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 8 }}>
+        {/* 2026-07-15 — 사장님 spec: 원터치 [일정 불가] 대신 사유 입력하는 [재배정 요청]. */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+          <button onClick={() => onRequestReassign && onRequestReassign(task)} style={{
+            padding: 14,
+            background: "var(--card-bg)",
+            border: "1.5px solid #FFB800",
+            borderRadius: 12,
+            color: "var(--refrig-text)",
+            fontSize: 14, fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>
+            🔁 재배정 요청
+          </button>
           <button onClick={() => { setCancelReason(null); setCancelMemo(""); setShowCancelModal(true); }} style={{
             padding: 14,
             background: "var(--card-bg)",

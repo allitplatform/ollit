@@ -5198,6 +5198,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               goBack();
             }}
             onSave={handleSaveCall}
+            onRequestReassign={(t) => setReassignRequestTask(t)}
             onUnableSchedule={async () => {
               // 2026-05-27 — 옛 죽은 키(updateTask {status:"미배정", unableSchedule:true})
               //   제거. requestReassignAdapter 재사용 (Mig 056 RPC):
