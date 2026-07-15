@@ -67,13 +67,21 @@ export async function setInquiryStatus(actorId, inquiryId, status, spamReason = 
   if (!inquiryId) throw new Error("inquiryId required");
   const allowed = ["new", "contacted", "spam"];
   if (!allowed.includes(status)) throw new Error("status must be one of " + allowed.join("/"));
-  const { error } = await supabase.rpc("set_inquiry_status", {
+  const { data, error } = await supabase.rpc("set_inquiry_status", {
     p_actor:       actorId,
     p_inquiry_id:  inquiryId,
     p_status:      status,
     p_spam_reason: status === "spam" ? (spamReason || null) : null,
   });
   if (error) throw error;
+  // 2026-07-15 — RPC 가 jsonb {ok, rows_affected} 로 실패를 알리는데 클라가 안 봤음
+  //   → 스팸 처리 실패해도 조용히 성공처럼 보이고 목록에 그대로 남는 버그 (사장님 발견).
+  if (data && data.ok === false) {
+    throw new Error(data.error || "상태 변경 실패");
+  }
+  if (data && (data.rows_affected ?? 1) === 0) {
+    throw new Error("상태 변경 없음 — 이미 전환(converted)됐거나 삭제된 문의일 수 있어요");
+  }
 }
 
 // 2026-07-11 — 빠른 선택 사유 (사장님 spec). 자유 텍스트도 허용.
