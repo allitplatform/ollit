@@ -63,6 +63,7 @@ export function EngineerNewAssignDetailScreen({
   onBack,
   onSave,
   onUnableSchedule,
+  onCallOps,           // 2026-07-15 — 운영팀 전화 (카톡과 분리 — 전화 버튼이 카톡을 열던 버그 fix)
   onRequestReassign,   // 2026-07-15 — 사유 입력 재배정 요청 (기존 V14Modal 재사용)
   onCustomerCancel,
   onAskOps,
@@ -719,7 +720,7 @@ export function EngineerNewAssignDetailScreen({
       {/* 5. 운영팀 문의 — V14 v8 카카오 공식 브랜딩 */}
       <div style={{ padding: "20px 16px 8px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <button onClick={onAskOps} style={{
+          <button onClick={onCallOps || onAskOps} style={{
             background: "#34C759",
             color: "#fff",
             border: "none",
