@@ -254,6 +254,8 @@ export function v14NormalizeTask(t) {
     totalAmount: Number(t.totalAmount || t.total_amount || 0) || 0,
     // 2026-06-08 — productPrice 매핑 (3곳 트랩 / PrincipalApp KA·crikrin 견적금액 표시 의존)
     productPrice: Number(t.productPrice ?? t.product_price ?? 0) || 0,
+    // 2026-07-15 — travelFee 매핑 (3곳 트랩 / 방문출장 정산 카드 표시 의존 — 출장비 60/40 첫날)
+    travelFee: Number(t.travelFee ?? t.travel_fee ?? 0) || 0,
     // 2026-05-18 Fix #29 — 자금 흐름 트랙 (Migration 031/032, compute_payment v10 자동 결정).
     // 'A'=일일정산(기사→회사), 'B'=월정산(회사→기사). isTrackARemittance가 task.track 판별.
     // tasksDb.rowToTask가 이미 매핑한 top-level track 우선, 누락 시 payment 객체에서 재추출.

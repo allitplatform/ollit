@@ -936,6 +936,51 @@ function SettlementInfoCard({ task }) {
   const principalAmt = Number(task.principal_amount || 0);
   const hasPayment   = engineerAmt > 0 || ownerAmt > 0 || principalAmt > 0;
 
+  // 2026-07-15 — 방문출장(visit_only): 견적이 아니라 출장비가 정산의 전부인데
+  //   카드가 estimateTotal 만 봐서 "견적 미입력"으로 비어 보이던 문제 (사장님 spec:
+  //   "정산정보에 금액이랑 배분까지 — 이제 기사 100%가 아니니까" / 출장비 60·40 첫날).
+  const isVisitOnly = task.status === "visit_only";
+  const travelAmt   = Number(task.travelFee ?? 0) || Number(task.totalAmount || 0);
+
+  if (isVisitOnly) {
+    return (
+      <div style={{ padding: D1_OUTER_PAD }}>
+        <div style={D1_CARD_STYLE}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
+            💰 정산 정보 <span style={{ fontWeight: 600, color: "var(--text-tertiary)" }}>· 방문 출장</span>
+          </div>
+          {travelAmt > 0 ? (
+            <>
+              <SettlementRow label="출장비" value={travelAmt}/>
+              <div style={{ height: 1, background: "var(--border)", margin: "6px 0" }}/>
+              <SettlementRow label="합계" value={travelAmt} color="var(--text-primary)" bold/>
+              {hasPayment && (
+                <>
+                  <div style={{ height: 1, background: "var(--border)", margin: "8px 0" }}/>
+                  <div style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
+                    📊 분배
+                  </div>
+                  {engineerAmt  > 0 && <SettlementRow label="기사 분배" value={engineerAmt}  color="#06B6D4"/>}
+                  {ownerAmt     > 0 && <SettlementRow label="회사 수익" value={ownerAmt}     color="#1D9E75"/>}
+                  {principalAmt > 0 && <SettlementRow label="원청 수수료" value={principalAmt} color="#A855F7"/>}
+                </>
+              )}
+              {!hasPayment && (
+                <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6 }}>
+                  분배 계산 대기 중 — 새로고침해도 안 나오면 알려주세요
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={{ fontSize: 12, color: "var(--text-tertiary)", fontWeight: 600, textAlign: "center", padding: 6 }}>
+              출장비 미입력
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: D1_OUTER_PAD }}>
       <div style={D1_CARD_STYLE}>
