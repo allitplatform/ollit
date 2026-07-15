@@ -257,9 +257,13 @@ export async function recommendEngineersGroupedAdapter(workType, principal, regi
     principal: principal || "",
     region:    region    || "",
   });
-  const main = list.filter(e => e.level === "main");
-  const sub  = list.filter(e => e.level === "sub");
-  return { ok: true, main, sub, capable: [] };
+  // 2026-07-15 — '지역 메인/백업' = 작업지 구를 명시 등록한 기사만.
+  //   전국·지역 미설정 기사는 capable(전지역 가능) 그룹으로 분리 — 사장님 spec:
+  //   "전국 기사가 메인기사로 다 뜨네". 자동배정 알림 대상엔 여전히 포함 (3그룹 합침).
+  const main    = list.filter(e => e.regionHit === "zone" && e.level === "main");
+  const sub     = list.filter(e => e.regionHit === "zone" && e.level === "sub");
+  const capable = list.filter(e => e.regionHit !== "zone");
+  return { ok: true, main, sub, capable };
 }
 
 // ============================================================
@@ -338,17 +342,27 @@ export async function recommendEngineersFromDb(task) {
     zonesByUser.get(z.user_id).push(String(z.district || "").trim());
   }
 
-  // [3] 지역 필터: zones 비면 전 지역 통과 / "전국" 포함 통과 / region in zones
-  const filtered = candidates.filter(c => {
+  // [3] 지역 필터 + 매칭 방식 구분 (2026-07-15 사장님 발견:
+  //   "전국" 기사가 모든 지역에서 '지역 메인'으로 떠서 진짜 지역 기사와 구분 안 됨).
+  //   regionHit: "zone" = 작업지 구를 명시 등록한 기사 / "all" = 전국·지역 미설정·작업지 불명.
+  const filtered = [];
+  for (const c of candidates) {
     const zones = zonesByUser.get(c.userId) || [];
-    if (zones.length === 0) return true;
-    if (zones.includes("전국")) return true;
-    if (!region) return true;
-    return zones.some(z => normalizeZoneName(z) === normalizeZoneName(region));
-  });
+    const isAll = zones.length === 0 || zones.includes("전국");
+    if (isAll || !region) {
+      filtered.push({ ...c, regionHit: "all" });
+      continue;
+    }
+    if (zones.some(z => normalizeZoneName(z) === normalizeZoneName(region))) {
+      filtered.push({ ...c, regionHit: "zone" });
+    }
+  }
 
-  // [4] 정렬: main 먼저, 같은 등급 내 이름순
+  // [4] 정렬: 명시 지역 매칭 먼저 → main 먼저 → 이름순
   filtered.sort((a, b) => {
+    const az = a.regionHit === "zone" ? 0 : 1;
+    const bz = b.regionHit === "zone" ? 0 : 1;
+    if (az !== bz) return az - bz;
     const ap = a.level === "main" ? 0 : 1;
     const bp = b.level === "main" ? 0 : 1;
     if (ap !== bp) return ap - bp;

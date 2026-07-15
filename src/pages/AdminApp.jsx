@@ -9003,12 +9003,11 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
   const candidates = apiCandidates;
   const totalCandidates = candidates.main.length + candidates.sub.length + candidates.capable.length;
 
-  // Step 5-3-3 — 그룹명 정정 ("벽걸이 전문" → "벽걸이 가능" / 신입도 포함)
-  const capableLabel = headItem.appliance ? `${headItem.appliance} 가능` : "기종 가능";
+  // 2026-07-15 — capable = 전국·지역 미설정 기사 (지역 메인/백업과 분리, 사장님 spec).
   const groups = [
     { id: "main",    color: "#FF1B8D", label: "지역 메인", list: candidates.main },
     { id: "sub",     color: "#888780", label: "지역 백업", list: candidates.sub },
-    { id: "capable", color: "#FF1B8D", label: capableLabel, list: candidates.capable },
+    { id: "capable", color: "#6B7280", label: "전지역·지역 미설정", list: candidates.capable },
   ];
 
   return (
