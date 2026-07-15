@@ -5888,6 +5888,7 @@ function NewReceptionScreen({
           <ReceptionGroup t={t} workType="냉매충전" title="가스 충전" subtitle="자동 진행" subtitleColor={t.success} count={refrigerants.length}>
             {refrigerants.map((task) => (
               <RefrigerantCard key={task.id} t={t} task={task}
+                onAssign={() => onAssign(task)}
                 onMemo={() => setMemoTask(task)}
                 onEdit={() => setEditingTask(task)}
                 onClickPushing={onClickPushing}
@@ -6139,7 +6140,7 @@ function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
 // Step 5-3 v3 — RefrigerantCard 정정
 // autoAssignStatus 기반 상태 박스 + 카드 자체 클릭 분기 (pushing → 자동 배정 화면 / accepted → 작업 상세)
 // legacy autoStatus / assignedEngineer 호환
-function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccepted, onCardMenuAction }) {
+function RefrigerantCard({ t, task, onAssign, onMemo, onEdit, onClickPushing, onClickAccepted, onCardMenuAction }) {
   // 새 필드 우선 / 구 필드 fallback
   const status = task.autoAssignStatus
     || (task.autoStatus === "push" ? "pushing" : null)
@@ -6245,6 +6246,23 @@ function RefrigerantCard({ t, task, onMemo, onEdit, onClickPushing, onClickAccep
             <strong>{acceptedName || "—"}</strong> 프로 수락
           </span>
           <span style={{ fontSize: 10, color: t.textMuted }}>자동 배정 완료</span>
+        </div>
+      )}
+      {/* 2026-07-14 — 사장님 spec: 냉매 카드에도 세척과 동일한 [프로 배정] 버튼.
+            푸시 토글 OFF(성수기)면 추천 화면(지역 메인 그룹)으로, ON이면 기존 자동배정 화면으로
+            — 라우팅은 onAssign(resolveAssignScreen)이 알아서 분기. 수락 완료 건은 버튼 X. */}
+      {!isAccepted && onAssign && (
+        <div style={{ display: "flex", gap: 6 }}>
+          <button onClick={(e) => { e.stopPropagation(); onAssign(); }} style={{
+            flex: 1,
+            background: t.accent, color: "white", border: "none",
+            padding: "10px",
+            borderRadius: 8,
+            fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+          }}>
+            프로 배정 <ArrowRight size={14}/>
+          </button>
         </div>
       )}
     </div>
