@@ -11,7 +11,7 @@ import {
   Clock, FileText, RotateCcw, CheckCircle2, AlertCircle, Star, Search,
   Users, BarChart3, TrendingUp, Activity, Wallet, Bell, Camera,
   Briefcase, Hash, AlertTriangle, MoreVertical, Award, XCircle, Edit3, ClipboardList,
-  ListChecks,
+  ListChecks, Droplet,
 } from "lucide-react";
 import { OllitMark } from "../components/OllitMark.jsx";
 import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
@@ -7054,10 +7054,19 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
             // appliance(벽걸이/스탠드)를 모델로 표시, workType은 ⚡/❄ 아이콘으로 압축.
             const itemSummary = `${task.appliance || "—"}×${task.qty || 1}`;
             // 2026-05-26 C-1 — workType 정확일치 → isRefrigerant (DB "냉매점검(...)" 측 catch).
-            const isRef = isRefrigerant(task);
-            const WorkIcon = isRef ? Zap : Snowflake;
-            // 2026-05-21 Phase 5 Step 0.H-3 — 세척 색 = 파랑 (t.info / 통일)
-            const workColor = isRef ? "#EF9F27" : t.info;
+            // 2026-07-15 — 사장님 발견: 냉매 아니면 무조건 ❄(세척) 이분법이라
+            //   누설/설치/수리가 전부 세척 아이콘으로 표시 → getServiceKind 5분기로 교체.
+            const kind = getServiceKind(task);
+            const WorkIcon = kind === "refrigerant" ? Zap
+                           : kind === "leak"        ? Droplet
+                           : kind === "install"     ? Wrench
+                           : kind === "cleaning"    ? Snowflake
+                           : Settings;   // 수리/기타
+            const workColor = kind === "refrigerant" ? "#EF9F27"
+                            : kind === "leak"        ? "#DC2626"
+                            : kind === "install"     ? "#8B5CF6"
+                            : kind === "cleaning"    ? t.info
+                            : t.textSecondary;
             // 2026-05-17 Round 2 Fix #14 — 작업당 표시값 = principal + owner (= 회사+원청 수수료).
             // 그룹 합계(groupDoneByEngineer)와 동일 계산식.
             const earning = (Number(task.principal_amount) || 0) + (Number(task.owner_amount) || 0);
