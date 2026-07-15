@@ -1487,7 +1487,7 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
       background: "var(--card-bg)",
       border: "1px solid var(--border)",
       borderRadius: 18,
-      padding: "18px 18px 18px 22px",
+      padding: "14px 14px 14px 18px",
       position: "relative",
       overflow: "hidden",
     }}>
@@ -1512,7 +1512,7 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
 
       {/* 영역 1 — 상태 + N 마크 (유솔N 세척만) + 시간 + (진행중인 경우 시작 시각 우측) */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 6, marginBottom: 12,
+        display: "flex", alignItems: "center", gap: 6, marginBottom: 8,
       }}>
         <span style={{
           width: 8, height: 8, borderRadius: "50%", background: labelColor,
@@ -1541,7 +1541,7 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
       {/* 시간 (Hero 36px) */}
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 4 }}>
         <span style={{
-          fontSize: 36, fontWeight: 700,
+          fontSize: 28, fontWeight: 700,
           fontFamily: "inherit",
           color: "var(--text-primary)",
           letterSpacing: "-1px", lineHeight: 1,
@@ -1573,7 +1573,7 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
       ) : (
         <div style={{
           fontSize: 13, color: "var(--label-main)",
-          marginTop: 8, marginBottom: 16, fontWeight: 700,
+          marginTop: 6, marginBottom: 10, fontWeight: 700,
           display: "flex", alignItems: "center", gap: 4,
         }}>
           {/* 2026-05-25 — 큰 시간(Hero 36px) 과 중복 제거. 라벨만. */}
@@ -1585,7 +1585,7 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
       {items.length > 0 && (
         <div style={{
           borderTop: `0.5px solid ${dividerColor}`,
-          paddingTop: 14, marginBottom: 14,
+          paddingTop: 11, marginBottom: 11,
         }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {items.map((item, idx) => (
@@ -1640,10 +1640,10 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
         paddingTop: 14,
       }}>
         <div style={{
-          fontSize: 26, fontWeight: 700,
+          fontSize: 21, fontWeight: 700,
           color: "var(--text-primary)",
           letterSpacing: "-0.4px",
-          marginBottom: 6,
+          marginBottom: 4,
         }}>
           {task.customer || "—"}님
         </div>
@@ -1651,8 +1651,22 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
           <div style={{
             fontSize: 14, color: "var(--label-main)",
             fontWeight: 700, marginBottom: 4,
+            display: "flex", alignItems: "center", gap: 8,
           }}>
-            📞 {task.phone}
+            <span>📞 {task.phone}</span>
+            {/* 2026-07-15 — 사장님 spec: 결제 방식을 별도 줄 대신 카드 안 칩으로 */}
+            {task.paymentMethod && (
+              <span style={{
+                fontSize: 11, fontWeight: 800,
+                padding: "2px 8px", borderRadius: 999,
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border)",
+                color: "var(--text-secondary)",
+                flexShrink: 0,
+              }}>
+                💳 {PAYMENT_METHOD_LABELS[task.paymentMethod] || task.paymentMethod}
+              </span>
+            )}
           </div>
         )}
         <AddressLine task={task} lineClamp={0} baseStyle={{
@@ -1931,15 +1945,6 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
         </>
       )}
 
-      {/* 2026-05-29 — 결제 방식 라벨 (선택값 있을 때만 / NULL 숨김) */}
-      {task.paymentMethod && (
-        <div style={{
-          fontSize: 14, color: "var(--text-secondary)",
-          fontWeight: 600, marginBottom: 12,
-        }}>
-          💳 결제: {PAYMENT_METHOD_LABELS[task.paymentMethod] || task.paymentMethod}
-        </div>
-      )}
 
       {/* V14 — 요청사항 (노랑 박스 + 좌측 3px 노란 바) */}
       {task.requestNote && (
@@ -2012,7 +2017,9 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
         </div>
       )}
 
-      {/* 2026-05-27 Phase 2 — 작업 메모 (운영자↔기사 양방향, task_memos 테이블) */}
+      {/* 2026-05-27 Phase 2 — 작업 메모 (운영자↔기사 양방향, task_memos 테이블)
+            2026-07-15 — 사장님 spec: 메모 없으면 박스 숨김 (운영자가 남기면 나타남). */}
+      {taskMemos.length > 0 && (
       <div style={{
         background: "var(--bg-secondary)",
         border: "1px solid var(--border)",
@@ -2039,11 +2046,7 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
             >+ 메모 추가</button>
           )}
         </div>
-        {taskMemos.length === 0 ? (
-          <div style={{ fontSize: 11, color: "var(--text-tertiary, var(--text-secondary))", padding: "4px 0" }}>
-            아직 메모가 없습니다
-          </div>
-        ) : (
+        {(
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {taskMemos.map(m => (
               <div key={m.id} style={{
@@ -2070,6 +2073,7 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
           </div>
         )}
       </div>
+      )}
 
       {/* V14 — 운영팀 메모 (보라 박스 + 좌측 3px 보라 바) */}
       {operatorNote && (
