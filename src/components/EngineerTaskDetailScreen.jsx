@@ -9,6 +9,8 @@ import { ArrowLeft, Camera, X } from "lucide-react";
 // 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트 (구 내부 정의 → src/components/common/AddressLine.jsx).
 import { AddressLine, buildFullAddress } from "./common/AddressLine.jsx";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
+// 2026-07-15 — 받은 돈 전용 키패드 (사장님 spec)
+import { MoneyPadInput } from "./MoneyPadInput.jsx";
 import { uploadPhoto, listPhotosByTask } from "../lib/photosDb.js";
 import {
   changePriceAdapter as apiChangePrice,
@@ -2310,23 +2312,13 @@ function ExtraFeeInput({ value, onChange, onAdd, baseAmount = 0 }) {
           )}
         </div>
 
-        <input
-          type="number"
-          inputMode="numeric"
-          placeholder="0"
+        <MoneyPadInput
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            width: "100%", padding: 12,
-            background: "var(--card-bg)",
-            border: "1px solid var(--extra-fee-border)",
-            borderRadius: 10,
-            color: "var(--text-primary)",
-            fontSize: 16, boxSizing: "border-box",
-            outline: "none", marginBottom: 10,
-            fontFamily: "inherit",
-            fontWeight: 600,
-          }}
+          onChange={(v) => onChange(v)}
+          quoteAmount={0}
+          placeholder="0"
+          label="추가금"
+          style={{ padding: 12, borderRadius: 10, border: "1px solid var(--extra-fee-border)", fontSize: 16, marginBottom: 10 }}
         />
         <div style={{
           display: "grid",
@@ -2433,23 +2425,13 @@ function ReceivedTotalInput({ value, onChange, onAdd, baseAmount = 0 }) {
         </div>
 
         {/* 받은 돈 입력 */}
-        <input
-          type="number"
-          inputMode="numeric"
-          placeholder="현장에서 받은 돈"
+        <MoneyPadInput
           value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{
-            width: "100%", padding: 12,
-            background: "var(--card-bg)",
-            border: "1px solid var(--extra-fee-border)",
-            borderRadius: 10,
-            color: "var(--text-primary)",
-            fontSize: 16, boxSizing: "border-box",
-            outline: "none", marginBottom: 10,
-            fontFamily: "inherit",
-            fontWeight: 600,
-          }}
+          onChange={(v) => onChange(v)}
+          quoteAmount={Number(baseAmount || 0)}
+          placeholder="현장에서 받은 돈"
+          label="고객 결제 총액"
+          style={{ padding: 12, borderRadius: 10, border: "1px solid var(--extra-fee-border)", fontSize: 16, marginBottom: 10 }}
         />
 
         {/* Quick add — 받은 돈에 더하기 */}
