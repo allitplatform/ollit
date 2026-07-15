@@ -129,6 +129,11 @@ export default function AdminInquiriesScreen({
     setBusyId(row.id);
     try {
       await setInquiryStatus(actorId, row.id, "spam", reason || null);
+      // 2026-07-15 — 저장 성공 즉시 목록에서 제거 (사장님 발견: 처리 후 목록에 그대로 남던 버그).
+      //   뒤의 load() 재조회가 혹시 실패해도 화면은 이미 올바른 상태.
+      if (filter !== "spam") {
+        setItems(prev => prev.filter(x => x.id !== row.id));
+      }
       await load();
     } catch (e) {
       alert("스팸 처리 실패: " + (e?.message || e));
