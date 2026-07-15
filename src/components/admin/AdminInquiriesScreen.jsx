@@ -102,6 +102,13 @@ export default function AdminInquiriesScreen({
     setBusyId(id);
     try {
       await setInquiryStatus(actorId, id, newStatus);
+      // 2026-07-15 — 성공 즉시 로컬 반영 (재조회가 실패해도 화면 정상 — 스팸 처리와 동일 보강).
+      //   현재 탭 조건에 안 맞게 되면 제거, 맞으면 status 만 갱신.
+      setItems(prev => {
+        if (filter !== "all" && filter !== newStatus) return prev.filter(x => x.id !== id);
+        if (filter === "all" && (newStatus === "spam" || newStatus === "converted")) return prev.filter(x => x.id !== id);
+        return prev.map(x => (x.id === id ? { ...x, status: newStatus } : x));
+      });
       await load();
     } catch (e) {
       alert("처리 실패: " + (e?.message || e));
@@ -166,6 +173,8 @@ export default function AdminInquiriesScreen({
       }
       // 선택 상태 해제 (PC 우 패널).
       if (selectedId === row.id) setSelectedId(null);
+      // 2026-07-15 — 삭제 성공 즉시 로컬 제거 (재조회 실패 대비)
+      setItems(prev => prev.filter(x => x.id !== row.id));
       await load();
     } catch (e) {
       alert("삭제 실패: " + (e?.message || e));
