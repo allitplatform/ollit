@@ -5426,29 +5426,47 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
 }
 
 // 2026-06-19 — 일자 그룹 헤더 ("6/19 (금) · N건" 또는 "일정 미정 · N건").
-//   기존 카드 톤에 맞춘 가벼운 디자인 (text-secondary + 작은 폰트 + 좌측 살짝 들여쓰기).
+// 2026-07-15 — 사장님 spec "날짜가 눈에 안 띄어": 크고 굵게 + 오늘/내일 태그 + 구분선.
 function DateGroupHeader({ t, ymd, count }) {
-  let label;
-  if (!ymd) {
-    label = "일정 미정";
-  } else {
+  let label = "일정 미정";
+  let dayTag = "";
+  if (ymd) {
     const [, m, d] = ymd.split("-");
     const dt = new Date(ymd + "T00:00:00");
     const dow = isNaN(dt.getTime()) ? "" : ["일","월","화","수","목","금","토"][dt.getDay()];
     label = `${Number(m)}/${Number(d)}${dow ? ` (${dow})` : ""}`;
+    // 오늘/내일 태그 (KST 기준)
+    const now = new Date();
+    const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const tomorrow = new Date(now.getTime() + 86400000);
+    const tomYmd = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+    if (ymd === todayYmd) dayTag = "오늘";
+    else if (ymd === tomYmd) dayTag = "내일";
   }
+  const isToday = dayTag === "오늘";
   return (
     <div style={{
-      padding: "10px 4px 6px",
+      padding: "14px 2px 7px",
       marginTop: 4,
-      fontSize: 11, fontWeight: 700,
-      color: t.textMuted || "var(--text-secondary)",
-      letterSpacing: "-0.1px",
-      display: "flex", alignItems: "center", gap: 6,
+      display: "flex", alignItems: "center", gap: 8,
     }}>
-      <span>{label}</span>
-      <span style={{ opacity: 0.6 }}>·</span>
-      <span>{count}건</span>
+      {dayTag && (
+        <span style={{
+          fontSize: 10, fontWeight: 800,
+          padding: "2px 8px", borderRadius: 999,
+          background: isToday ? "rgba(255,27,141,0.12)" : "rgba(59,130,246,0.12)",
+          color: isToday ? "#FF1B8D" : "#3B82F6",
+          border: `1px solid ${isToday ? "rgba(255,27,141,0.4)" : "rgba(59,130,246,0.4)"}`,
+          flexShrink: 0,
+        }}>{dayTag}</span>
+      )}
+      <span style={{
+        fontSize: 14.5, fontWeight: 800, letterSpacing: "-0.2px",
+        color: ymd ? t.text : (t.textMuted || "var(--text-secondary)"),
+        flexShrink: 0,
+      }}>{label}</span>
+      <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, flexShrink: 0 }}>{count}건</span>
+      <div style={{ flex: 1, height: 1, background: t.border, opacity: 0.8 }}/>
     </div>
   );
 }
