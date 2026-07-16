@@ -61,25 +61,44 @@ function _jsonp(params) {
 
 // 주소 문자열 → 시군구 해석.
 //   sgg: "강북구" / "부천시" / "고양시 덕양구"→"덕양구" (구가 있으면 구 우선 — 기사 매칭 단위)
+// 2026-07-16 — 검색어 정제 후보 (사장님 발견: "상도로60길 35 동녘빌라 403호" 통짜 검색 = 0건).
+//   juso 검색은 건물명·동호수가 붙으면 못 찾는 경우가 많음 → 도로명+번지까지만 잘라 재시도.
+//   후보 순서: ① 원문 ② "…로/길 N(-N)"까지 ③ "…동 N(-N)"까지 (지번형)
+function _keywordCandidates(kw) {
+  const base = kw.replace(/\s+/g, " ").trim();
+  const cands = [base];
+  const road = base.match(/^(.*?(?:로|길)\s*\d+(?:-\d+)?)/);
+  if (road && road[1].trim() !== base) cands.push(road[1].trim());
+  const jibun = base.match(/^(.*?동\s*\d+(?:-\d+)?)/);
+  if (jibun && jibun[1].trim() !== base && !cands.includes(jibun[1].trim())) cands.push(jibun[1].trim());
+  return cands;
+}
+
 export async function resolveAddressDistrict(keyword) {
   const kw = String(keyword || "").trim();
   if (!JUSO_CONFM_KEY) return { ok: false, reason: "no_key" };
   if (kw.length < 4) return { ok: false, reason: "too_short" };
 
   try {
-    const data = await _jsonp({
-      confmKey: JUSO_CONFM_KEY,
-      currentPage: "1",
-      countPerPage: "1",
-      keyword: kw,
-      resultType: "json",
-    });
-    const errCode = data?.results?.common?.errorCode;
-    const juso = data?.results?.juso;
-    if (errCode !== "0" || !Array.isArray(juso) || juso.length === 0) {
-      return { ok: false, reason: errCode || "no_result" };
+    let hit = null;
+    let lastErr = "no_result";
+    for (const cand of _keywordCandidates(kw)) {
+      const data = await _jsonp({
+        confmKey: JUSO_CONFM_KEY,
+        currentPage: "1",
+        countPerPage: "1",
+        keyword: cand,
+        resultType: "json",
+      });
+      const errCode = data?.results?.common?.errorCode;
+      const juso = data?.results?.juso;
+      if (errCode === "0" && Array.isArray(juso) && juso.length > 0) {
+        hit = juso[0];
+        break;
+      }
+      lastErr = errCode || "no_result";
     }
-    const hit = juso[0];
+    if (!hit) return { ok: false, reason: lastErr };
     const sido = String(hit.siNm || "").trim();
     const sggRaw = String(hit.sggNm || "").trim();          // "강북구" / "고양시 덕양구"
     if (!sggRaw) return { ok: false, reason: "no_sgg" };

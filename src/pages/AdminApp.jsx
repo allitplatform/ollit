@@ -2585,6 +2585,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <EngineerDayScreen
         t={t}
         engineer={selectedEngineer}
+        apiTasks={apiTasks}
         onBack={goBackFromStack}
         onTaskClick={(task) => openTaskDetailFromLight(task, "engineerDay")}
       />
@@ -5079,6 +5080,7 @@ function RouteTimeline({ t, slots, onSlotClick }) {
         const applianceLabel = s.workItems && s.workItems.length > 0
           ? formatWorkItemsAppliance(s.workItems)
           : s.appliance ? `${s.appliance} ×${s.qty || 1}` : s.workType;
+        // 2026-07-16 — 사장님 spec "1번 체크는 없고": 완료도 ✓ 대신 회색 '번호' 유지 (순번 연속성)
         const nodeStyle = s._cancel
           ? { background: t.bgElevated, color: "#E5484D", border: "2px solid #E5484D" }
           : s._done
@@ -5104,7 +5106,7 @@ function RouteTimeline({ t, slots, onSlotClick }) {
               boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
               ...nodeStyle,
             }}>
-              {s._cancel ? "✕" : s._done ? "✓" : s._seq}
+              {s._cancel ? "✕" : s._seq}
             </span>
             <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
               <span className="mono" style={{
@@ -7811,19 +7813,31 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
 // 시안 C — 기사 오늘 (Step 4)
 // ─────────────────────────────────────────────
 
-function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
+function EngineerDayScreen({ t, engineer, apiTasks = [], onBack, onTaskClick }) {
   if (!engineer) return <PlaceholderScreen t={t} title="프로 오늘" label="프로 정보 없음" onBack={onBack}/>;
 
   const schedule = engineer.todaySchedule || [];
   // 2026-07-16 — getEngineerStats(ENGINEER_ASSIGNMENTS mock) 제거 (사장님 발견: "최영수" 없는 작업 노출).
-  //   실데이터 = engineer.todaySchedule (apiTasks 파생) 에서 직접 집계.
-  const workSlots = schedule.filter(s => s.type === "work");
+  // 2026-07-16 v2 — 사장님 spec: 신규 배정 = 전체(일정 미정이라 오늘 필터에 안 걸림),
+  //   일정 확정 = 전체(내일 이후 포함), 완료 = 오늘만. → apiTasks 에서 이 기사 작업 전체로 집계.
+  const myTasks = (apiTasks || []).filter(task =>
+    (engineer.name && (task.assignedEngineer === engineer.name || task.engineer === engineer.name)) ||
+    ((engineer.engineerId || engineer.id) && (task.assignedEngineerId === (engineer.engineerId || engineer.id) || task.engineerId === (engineer.engineerId || engineer.id)))
+  );
+  const todayStr2 = todayYmd();
+  const myWaiting = myTasks.filter(x => x.state === "waiting");
+  const myConfirmed = myTasks
+    .filter(x => x.state === "scheduled" || x.state === "moving" || x.state === "active")
+    .sort((a, b) => String(a.scheduledAt || "9").localeCompare(String(b.scheduledAt || "9")));
+  const myDoneToday = myTasks.filter(x =>
+    x.state === "done" &&
+    (x.completedDate === todayStr2 || String(x.completedAt || "").slice(0, 10) === todayStr2 || toKstYmd(x.completedAt) === todayStr2)
+  );
   const stats = {
-    newAssigned:   workSlots.filter(s => s.state === "waiting").length,
-    confirmed:     workSlots.filter(s => s.state === "scheduled" || s.state === "moving" || s.state === "active").length,
-    todayDone:     workSlots.filter(s => s.state === "done").length,
-    todayAssigned: workSlots.filter(s => String(s.assignedAt || "").slice(0, 10) === TODAY_DATE).length,
-    items:         workSlots,
+    newAssigned:   myWaiting.length,
+    confirmed:     myConfirmed.length,
+    todayDone:     myDoneToday.length,
+    todayAssigned: myTasks.filter(x => toKstYmd(x.assignedAt) === todayStr2).length,
   };
 
   // 2026-07-16 — 동선 지도용: 오늘 작업을 시간순 정렬 (미정 시간은 뒤로)
@@ -7850,26 +7864,24 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
   }, [engineer?.name]);
 
   // 활동 카드 렌더링용 — 기사 정보 주입 (TaskCard 재사용)
-  // 2026-07-16 — mock 항목 대신 원본 task(slot.task) 사용 — 클릭 시 실제 작업 상세로.
-  const enrichedItems = stats.items.map((a, idx) => ({
-    ...(a.task || a),
-    state:         a.state,
-    taskId:        (a.task && a.task.id) || `${engineer.id}-A-${idx}`,
+  // 2026-07-16 v2 — 상단 박스와 동일 모수 (신규=전체 / 확정=전체 / 완료=오늘)
+  const enrich = (a, idx) => ({
+    ...a,
+    taskId:        a.id || `${engineer.id}-A-${idx}`,
     engineerId:    engineer.id,
     engineer:      engineer.name,
     engineerRank:  engineer.rank,
     engineerLevel: engineer.level,
-  }));
-
+  });
   const groups = [
-    { id: "assigned",  label: "신규 배정", icon: "📋", color: t.success,
-      items: enrichedItems.filter(a => a.state === "waiting"),
+    { id: "assigned",  label: "신규 배정 (전체)", icon: "📋", color: t.success,
+      items: myWaiting.map(enrich),
       showProfit: false },
-    { id: "confirmed", label: "일정 확정", icon: "📅", color: t.text,
-      items: enrichedItems.filter(a => a.state === "scheduled" || a.state === "moving" || a.state === "active"),
+    { id: "confirmed", label: "일정 확정 (전체)", icon: "📅", color: t.text,
+      items: myConfirmed.map(enrich),
       showProfit: false },
-    { id: "completed", label: "완료",     icon: "✓",  color: t.textSecondary,
-      items: enrichedItems.filter(a => a.state === "done" && a.completedDate === TODAY_DATE),
+    { id: "completed", label: "오늘 완료",        icon: "✓",  color: t.textSecondary,
+      items: myDoneToday.map(enrich),
       showProfit: true },
   ];
 

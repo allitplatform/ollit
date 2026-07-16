@@ -167,7 +167,8 @@ export default function MetroRouteMap({ t, slots = [] }) {
           : p.isDone
             ? "background:#9AA1AC;color:#fff;border:2px solid #fff;"
             : "background:#FF1B8D;color:#fff;border:2px solid #fff;";
-        const label = p.isCancel ? "✕" : p.isDone ? "✓" : String(p.seq);
+        // 2026-07-16 — 사장님 spec "1번 체크는 없고": 완료도 회색 '번호' 유지
+        const label = p.isCancel ? "✕" : String(p.seq);
         L.marker([p.lat, p.lng], {
           icon: L.divIcon({
             className: "",
