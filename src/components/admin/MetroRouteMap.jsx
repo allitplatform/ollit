@@ -10,6 +10,7 @@
 //   · 지도 밖(수도권 외/매칭 실패) 방문지는 아래 텍스트 줄 fallback.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizeDistrict } from "./AssignRegionMap.jsx";
+import { resolveAddressDistrict } from "../../lib/jusoApi.js";
 
 const GEO_URL = "https://cdn.jsdelivr.net/gh/southkorea/southkorea-maps@master/kostat/2013/json/skorea_municipalities_geo_simple.json";
 const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
@@ -83,6 +84,24 @@ function matchFeature(featureName, gu) {
   return featureName === gu || featureName.endsWith(gu) || featureName.startsWith(gu);
 }
 
+// 2026-07-16 — 동 단위 주소("면목동 33-10") → 구 해석: 주소 API 재활용 (사장님 "지도 밖" 피드백).
+//   모듈 캐시로 같은 주소 재조회 방지. 실패 시 null (지도 밖 라인 fallback 유지).
+const _guResolveCache = {};
+async function resolveGuViaApi(raw) {
+  const key = String(raw || "").trim();
+  if (!key || key.length < 4) return null;
+  if (key in _guResolveCache) return _guResolveCache[key];
+  try {
+    const res = await resolveAddressDistrict(key);
+    const gu = res && res.ok && res.sgg ? res.sgg : null;
+    _guResolveCache[key] = gu;
+    return gu;
+  } catch {
+    _guResolveCache[key] = null;
+    return null;
+  }
+}
+
 // slots: [{ time, region, address, state, status }] — 시간순 정렬된 오늘 작업.
 export default function MetroRouteMap({ t, slots = [] }) {
   const boxRef = useRef(null);
@@ -98,37 +117,50 @@ export default function MetroRouteMap({ t, slots = [] }) {
       const isDone = s.state === "done";
       if (!isCancel) seq += 1;
       const gu = normalizeDistrict(s.region || s.address || "");
-      return { gu, isCancel, isDone, seq: isCancel ? null : seq, time: s.time || "" };
+      return {
+        gu, isCancel, isDone, seq: isCancel ? null : seq, time: s.time || "",
+        address: s.address || "", rawRegion: s.region || "",
+      };
     });
   }, [slots]);
 
   useEffect(() => {
     let alive = true;
     if (stops.length === 0) return;
-    Promise.all([loadGeo(), loadLeaflet()]).then(([feats, L]) => {
+    Promise.all([loadGeo(), loadLeaflet()]).then(async ([feats, L]) => {
       if (!alive || !feats || !L || !boxRef.current) return;
 
-      // 구 → 좌표 (centroid 평균, [lat, lng])
-      const guCoord = {};
-      const miss = [];
-      for (const st of stops) {
-        if (!st.gu || guCoord[st.gu] !== undefined) {
-          if (!st.gu) miss.push(st);
-          continue;
-        }
-        const matched = feats.filter(f => matchFeature(featName(f), st.gu));
-        if (matched.length === 0) { guCoord[st.gu] = null; continue; }
+      // 구 좌표 계산 헬퍼 (centroid 평균, [lat, lng])
+      const coordOfGu = (gu) => {
+        const matched = feats.filter(f => matchFeature(featName(f), gu));
+        if (matched.length === 0) return null;
         let x = 0, y = 0, n = 0;
         for (const f of matched) {
           const c = featureCentroid(f);
           if (!c) continue;
           x += c[0]; y += c[1]; n++;
         }
-        guCoord[st.gu] = n ? [y / n, x / n] : null;   // GeoJSON=[lon,lat] → Leaflet=[lat,lng]
-      }
+        return n ? [y / n, x / n] : null;   // GeoJSON=[lon,lat] → Leaflet=[lat,lng]
+      };
 
-      const placed = stops.filter(s => s.gu && guCoord[s.gu]);
-      const missed = stops.filter(s => !s.gu || !guCoord[s.gu]);
+      // 1차: 지역명(구/시) 직접 매칭 / 2차: 동 단위·매칭 실패 → 주소 API로 구 해석 (사장님 "지도 밖" 피드백)
+      const resolved = [];
+      for (const st of stops) {
+        let gu = st.gu;
+        let coord = gu ? coordOfGu(gu) : null;
+        if (!coord) {
+          const apiGu = await resolveGuViaApi(st.address || st.rawRegion || st.gu);
+          if (apiGu) {
+            const c2 = coordOfGu(apiGu);
+            if (c2) { gu = apiGu; coord = c2; }
+          }
+        }
+        resolved.push({ ...st, gu: gu || st.gu, _coord: coord });
+      }
+      if (!alive || !boxRef.current) return;
+
+      const placed = resolved.filter(s => s._coord);
+      const missed = resolved.filter(s => !s._coord);
       setUnmapped(missed);
       if (placed.length === 0) return;
 
@@ -144,7 +176,7 @@ export default function MetroRouteMap({ t, slots = [] }) {
       const pts = placed.map(s => {
         const k = s.gu;
         const i = (usedCount[k] = (usedCount[k] || 0) + 1) - 1;
-        const [lat, lng] = guCoord[k];
+        const [lat, lng] = s._coord;
         return { ...s, lat: lat + i * 0.006, lng: lng + i * 0.006 };
       });
 
