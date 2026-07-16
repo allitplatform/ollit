@@ -4732,6 +4732,9 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
             address: task.fullAddress || task.address || "",
             status: task.status || "",
             estimateTotal: Number(task.estimateTotal) || 0,
+            // 2026-07-16 — 원본 task 참조 (EngineerDayScreen 상세 리스트/클릭 실데이터화 —
+            //   getEngineerStats mock(ENGINEER_ASSIGNMENTS) 잔재 제거용. "최영수 없는 작업" 사장님 발견)
+            task,
           }));
         return {
           ...eng,
@@ -7725,7 +7728,16 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
   if (!engineer) return <PlaceholderScreen t={t} title="프로 오늘" label="프로 정보 없음" onBack={onBack}/>;
 
   const schedule = engineer.todaySchedule || [];
-  const stats = getEngineerStats(engineer.id, TODAY_DATE);
+  // 2026-07-16 — getEngineerStats(ENGINEER_ASSIGNMENTS mock) 제거 (사장님 발견: "최영수" 없는 작업 노출).
+  //   실데이터 = engineer.todaySchedule (apiTasks 파생) 에서 직접 집계.
+  const workSlots = schedule.filter(s => s.type === "work");
+  const stats = {
+    newAssigned:   workSlots.filter(s => s.state === "waiting").length,
+    confirmed:     workSlots.filter(s => s.state === "scheduled" || s.state === "moving" || s.state === "active").length,
+    todayDone:     workSlots.filter(s => s.state === "done").length,
+    todayAssigned: workSlots.filter(s => String(s.assignedAt || "").slice(0, 10) === TODAY_DATE).length,
+    items:         workSlots,
+  };
 
   // 2026-07-16 — 동선 지도용: 오늘 작업을 시간순 정렬 (미정 시간은 뒤로)
   const routeSlots = [...schedule]
@@ -7751,9 +7763,11 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
   }, [engineer?.name]);
 
   // 활동 카드 렌더링용 — 기사 정보 주입 (TaskCard 재사용)
+  // 2026-07-16 — mock 항목 대신 원본 task(slot.task) 사용 — 클릭 시 실제 작업 상세로.
   const enrichedItems = stats.items.map((a, idx) => ({
-    ...a,
-    taskId:        `${engineer.id}-A-${idx}`,
+    ...(a.task || a),
+    state:         a.state,
+    taskId:        (a.task && a.task.id) || `${engineer.id}-A-${idx}`,
     engineerId:    engineer.id,
     engineer:      engineer.name,
     engineerRank:  engineer.rank,
@@ -7871,9 +7885,8 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
           ) : schedule.map((slot, idx) => {
             const isWork = slot.type === "work";
             const handleClick = isWork && onTaskClick ? () => {
-              // 단일 진실 소스: TASKS_TODAY 에서 매칭 항목 찾아 전달
-              const match = TASKS_TODAY.find(x => x.engineerId === engineer.id && x.taskCode === slot.taskCode);
-              onTaskClick(match || { ...slot, engineer: engineer.name, engineerRank: engineer.rank, engineerLevel: engineer.level, engineerId: engineer.id });
+              // 2026-07-16 — 원본 task 직접 전달 (옛 TASKS_TODAY mock 매칭 제거)
+              onTaskClick(slot.task || { ...slot, engineer: engineer.name, engineerRank: engineer.rank, engineerLevel: engineer.level, engineerId: engineer.id });
             } : undefined;
             return <TimelineItem key={idx} t={t} slot={slot} onClick={handleClick}/>;
           })}
