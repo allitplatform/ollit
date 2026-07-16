@@ -114,7 +114,8 @@ export default function MetroRouteMap({ t, slots = [] }) {
     let seq = 0;
     return (slots || []).map(s => {
       const isCancel = s.state === "canceled" || s.status === "취소" || s.status === "취소요청";
-      const isDone = s.state === "done";
+      // 2026-07-16 — visit_only(출장비)도 완료 계열 (타임라인과 동일 규칙)
+      const isDone = s.state === "done" || s.status === "visit_only" || s.state === "visit_only";
       if (!isCancel) seq += 1;
       const gu = normalizeDistrict(s.region || s.address || "");
       return {

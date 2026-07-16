@@ -4001,6 +4001,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       dashRanges={dashRanges}
       onClickUrgentAssign={() => { setSelectedTask(URGENT_TASK); setScreen("recommend"); }}
       onEngineerClick={(eng) => goEngineerDay(eng, null)}
+      // 2026-07-16 — 기사 리스트 📅 버튼 → 그 기사 캘린더 (사장님 spec)
+      onEngineerCalendar={(eng) => { setCalEngineerId(eng.engineerId || eng.id); setScreen("engineerCalendar"); }}
       onTaskClick={(task) => goTaskDetail(task, null)}
       onClickCancelHandle={(task) => setCancelHandleTask(task)}
     />
@@ -4073,7 +4075,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4319,7 +4321,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
 
         {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
-        {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onClickManage={onClickManage}/>}
+        {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onEngineerCalendar={onEngineerCalendar} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
           <div style={{ padding: "0 16px 16px" }}>
             <SettlementContent t={t} apiTasks={apiTasks} user={user} onRefreshTasks={onRefreshTasks} onTaskClick={onTaskClick} onClickSettlementHistory={onClickSettlementHistory}
@@ -4666,7 +4668,7 @@ function StubTab({ t, label }) {
 // ─────────────────────────────────────────────
 // 기사 탭 — Step 3-2 정정: 검색 + 자동 그룹 (필터 칩 제거 / 외근→활동중)
 // ─────────────────────────────────────────────
-function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, onClickManage }) {
+function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, onEngineerCalendar, onClickManage }) {
   const [search, setSearch] = useState("");
 
   // 자동 상태 계산 — Step 3-3: 활동중 그룹 분리 (진행중/이동중/외근중 → 별도 그룹)
@@ -4845,6 +4847,7 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
               defaultCollapsed={g.defaultCollapsed}
               engineers={list}
               onEngineerClick={onEngineerClick}
+              onEngineerCalendar={onEngineerCalendar}
               onTaskClick={(task, eng) => onEngineerClick && onEngineerClick(eng)}
             />
           );
@@ -4854,7 +4857,7 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
   );
 }
 
-function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, engineers, onEngineerClick, onTaskClick }) {
+function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, engineers, onEngineerClick, onEngineerCalendar, onTaskClick }) {
   const [collapsed, setCollapsed] = useState(!!defaultCollapsed);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const headerColor = color || t.textSecondary;
@@ -4885,6 +4888,7 @@ function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, enginee
           key={eng.id} t={t} eng={eng}
           expanded={expandedIds.has(eng.id)}
           onToggle={() => toggleExpand(eng.id)}
+          onOpenCalendar={onEngineerCalendar ? () => onEngineerCalendar(eng) : undefined}
           onTaskClick={(task) => onTaskClick && onTaskClick(task, eng)}
         />
       ))}
@@ -4894,7 +4898,7 @@ function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, enginee
 
 // V13-FINAL2-fix3 — 카드 클릭 = 그 기사 작업 인라인 펼침 (EngineerDay 진입 X)
 // +N 위치 = 진행중 배지 앞
-function EngineerCard({ t, eng, expanded, onToggle, onTaskClick }) {
+function EngineerCard({ t, eng, expanded, onToggle, onTaskClick, onOpenCalendar }) {
   // 2026-05-17 Round 2 Fix #19 — 옛 getEngineerStats(eng.id, TODAY_DATE) 제거.
   // 그 헬퍼는 ENGINEER_ASSIGNMENTS mock + 하드코딩된 "2026-04-27"을 읽어서
   // 강병익 펼치면 정수아/박은서 등 mock customer 노출되던 root cause.
@@ -4926,6 +4930,22 @@ function EngineerCard({ t, eng, expanded, onToggle, onTaskClick }) {
               }}
             >
               <Phone size={12}/>
+            </button>
+          )}
+          {/* 2026-07-16 — 달력 버튼 (사장님 spec): 그 기사 캘린더 바로 열기 */}
+          {onOpenCalendar && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onOpenCalendar(); }}
+              aria-label="프로 캘린더"
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                background: "rgba(59,130,246,0.08)",
+                border: "1px solid rgba(59,130,246,0.35)",
+                color: "#3B82F6", cursor: "pointer",
+              }}
+            >
+              <Calendar size={12}/>
             </button>
           )}
           <div style={{
@@ -5064,9 +5084,11 @@ function RouteTimeline({ t, slots, onSlotClick }) {
   let seq = 0;
   const stops = slots.map(s => {
     const isCancel = s.state === "canceled" || s.status === "취소" || s.status === "취소요청";
-    const isDone = s.state === "done";
+    // 2026-07-16 — visit_only(출장비)도 완료 계열 (사장님 spec "출장비도 갔다 온 거니까 예정 아님")
+    const isVisitOnly = s.status === "visit_only" || s.state === "visit_only";
+    const isDone = s.state === "done" || isVisitOnly;
     if (!isCancel) seq += 1;
-    return { ...s, _cancel: isCancel, _done: isDone, _seq: isCancel ? null : seq };
+    return { ...s, _cancel: isCancel, _done: isDone, _visitOnly: isVisitOnly, _seq: isCancel ? null : seq };
   });
   const isActiveState = (s) => s.state === "active" || s.state === "moving";
   return (
@@ -5088,11 +5110,13 @@ function RouteTimeline({ t, slots, onSlotClick }) {
             : { background: "#FF1B8D", color: "#fff", border: `2.5px solid ${t.bgElevated}` };
         const badge = s._cancel
           ? { text: "취소", bg: "rgba(229,72,77,0.10)", color: "#E5484D" }
-          : s._done
-            ? { text: "완료", bg: t.bgInset, color: t.textMuted }
-            : isActiveState(s)
-              ? { text: "진행중", bg: "rgba(255,27,141,0.12)", color: "#FF1B8D" }
-              : { text: "예정", bg: "rgba(255,27,141,0.08)", color: "#FF1B8D" };
+          : s._visitOnly
+            ? { text: "출장비만", bg: t.bgInset, color: t.textMuted }
+            : s._done
+              ? { text: "완료", bg: t.bgInset, color: t.textMuted }
+              : isActiveState(s)
+                ? { text: "진행중", bg: "rgba(255,27,141,0.12)", color: "#FF1B8D" }
+                : { text: "예정", bg: "rgba(255,27,141,0.08)", color: "#FF1B8D" };
         return (
           <div key={idx}
             onClick={onSlotClick ? () => onSlotClick(s) : undefined}
