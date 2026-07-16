@@ -198,6 +198,7 @@ import { RefrigerantAddonListScreen } from "../components/admin/RefrigerantAddon
 import { RevenueOverviewBlock } from "../components/admin/RevenueOverviewBlock.jsx";
 // 2026-07-14 — 배정 추천 화면 지역 지도 (오늘 동선). 사장님 spec.
 import AssignRegionMap, { normalizeDistrict } from "../components/admin/AssignRegionMap.jsx";
+import MetroRouteMap from "../components/admin/MetroRouteMap.jsx";
 // 2026-06-03 — 매출 자세히 화면 (2차).
 import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
 // 2026-07-10 — 지역별 접수 현황 (tasks + 미처리 inquiries 합산, 읽기 전용).
@@ -5185,12 +5186,19 @@ function EngineerActivityCard({ t, eng }) {
   );
 }
 
-function ActivityBox({ t, label, value, bg, color }) {
+function ActivityBox({ t, label, value, bg, color, onClick, active }) {
+  // 2026-07-16 — onClick 지원 (사장님 spec: 박스 탭 → 아래 상세 리스트 펼침)
   return (
-    <div style={{
-      background: bg,
-      borderRadius: 6, padding: "4px 6px", textAlign: "center",
-    }}>
+    <div
+      onClick={onClick}
+      className={onClick ? "clickable" : undefined}
+      style={{
+        background: bg,
+        borderRadius: 6, padding: "4px 6px", textAlign: "center",
+        cursor: onClick ? "pointer" : "default",
+        border: active ? `1.5px solid ${color}` : "1.5px solid transparent",
+        boxSizing: "border-box",
+      }}>
       <div style={{ fontSize: 8, color: t.textMuted, fontWeight: 700, letterSpacing: 0.2, marginBottom: 1, whiteSpace: "nowrap" }}>
         {label}
       </div>
@@ -7518,12 +7526,16 @@ function TaskGroupSection({ t, group, items, defaultOpen, onTaskClick }) {
 }
 
 // 기사 상세 활동 정보 — 신규 배정만 펼침 (Step 4-3)
-function ActivityGroupSection({ t, group, defaultOpen, onTaskClick }) {
-  const [open, setOpen] = useState(defaultOpen);
+function ActivityGroupSection({ t, group, defaultOpen, onTaskClick, open: openProp, onToggle }) {
+  // 2026-07-16 — controlled 모드 지원 (상단 ActivityBox 탭 → 해당 그룹 펼침)
+  const [openLocal, setOpenLocal] = useState(defaultOpen);
+  const controlled = openProp !== undefined;
+  const open = controlled ? openProp : openLocal;
+  const toggle = controlled ? (onToggle || (() => {})) : (() => setOpenLocal(v => !v));
   return (
     <div style={{ marginBottom: 14 }}>
       <button
-        onClick={() => setOpen(v => !v)}
+        onClick={toggle}
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 6,
           padding: "6px 4px", marginBottom: 8,
@@ -7715,6 +7727,13 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
   const schedule = engineer.todaySchedule || [];
   const stats = getEngineerStats(engineer.id, TODAY_DATE);
 
+  // 2026-07-16 — 동선 지도용: 오늘 작업을 시간순 정렬 (미정 시간은 뒤로)
+  const routeSlots = [...schedule]
+    .filter(s => s.type === "work")
+    .sort((a, b) => String(a.time || "99:99").localeCompare(String(b.time || "99:99")));
+  // 활동 그룹 펼침 제어 (상단 3박스 탭과 연동)
+  const [openGroupId, setOpenGroupId] = useState("assigned");
+
   // 2026-07-08 — 이 프로의 오늘 휴무 조회 (DB user_off_days).
   //   schedule 은 apiTasks 파생 → 배정 작업만. 휴무 별도 표시 필요.
   const [todayOffs, setTodayOffs] = useState([]);
@@ -7790,11 +7809,18 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
 
       <div style={{ padding: "14px 16px 16px" }}>
         {/* 활동 요약 — 3박스 grid (사장님 catch: newAssigned / confirmed / todayDone) */}
+        {/* 2026-07-16 — 박스 탭 → 아래 해당 상세 리스트 펼침 (사장님 spec) */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 14 }}>
-          <ActivityBox t={t} label="신규 배정" value={stats.newAssigned} bg={t.successBg} color={t.success}/>
-          <ActivityBox t={t} label="일정 확정" value={stats.confirmed}   bg={t.bgInset}   color={t.text}/>
-          <ActivityBox t={t} label="완료"     value={stats.todayDone}   bg={t.bgInset}   color={t.textSecondary}/>
+          <ActivityBox t={t} label="신규 배정" value={stats.newAssigned} bg={t.successBg} color={t.success}
+            onClick={() => setOpenGroupId(v => v === "assigned" ? null : "assigned")} active={openGroupId === "assigned"}/>
+          <ActivityBox t={t} label="일정 확정" value={stats.confirmed}   bg={t.bgInset}   color={t.text}
+            onClick={() => setOpenGroupId(v => v === "confirmed" ? null : "confirmed")} active={openGroupId === "confirmed"}/>
+          <ActivityBox t={t} label="완료"     value={stats.todayDone}   bg={t.bgInset}   color={t.textSecondary}
+            onClick={() => setOpenGroupId(v => v === "completed" ? null : "completed")} active={openGroupId === "completed"}/>
         </div>
+
+        {/* 2026-07-16 — 오늘 동선 지도 (수도권 시군구 + 방문 순번, 사장님 spec) */}
+        <MetroRouteMap t={t} slots={routeSlots}/>
 
         {/* 타임라인 헤더 */}
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
@@ -7860,7 +7886,8 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
             {groups.map(g => g.items.length === 0 ? null : (
               <ActivityGroupSection
                 key={g.id} t={t} group={g}
-                defaultOpen={g.id === "assigned"}
+                open={openGroupId === g.id}
+                onToggle={() => setOpenGroupId(v => v === g.id ? null : g.id)}
                 onTaskClick={onTaskClick}
               />
             ))}
