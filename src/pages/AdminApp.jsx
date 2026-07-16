@@ -7849,12 +7849,14 @@ function EngineerDayScreen({ t, engineer, apiTasks = [], onBack, onTaskClick }) 
     ((engineer.engineerId || engineer.id) && (task.assignedEngineerId === (engineer.engineerId || engineer.id) || task.engineerId === (engineer.engineerId || engineer.id)))
   );
   const todayStr2 = todayYmd();
-  const myWaiting = myTasks.filter(x => x.state === "waiting");
+  // 2026-07-16 v3 — 사장님 spec: 신규 배정 = status "배정" 전체.
+  //   (v2의 state==="waiting" 은 오답 — v14 매핑에서 "배정"→scheduled 라 항상 0이었음)
+  const myWaiting = myTasks.filter(x => x.status === "배정");
   const myConfirmed = myTasks
-    .filter(x => x.state === "scheduled" || x.state === "moving" || x.state === "active")
+    .filter(x => x.status === "확정" || x.status === "진행중" || x.status === "작업중" || x.status === "이동중")
     .sort((a, b) => String(a.scheduledAt || "9").localeCompare(String(b.scheduledAt || "9")));
   const myDoneToday = myTasks.filter(x =>
-    x.state === "done" &&
+    (x.status === "완료" || x.status === "visit_only" || x.state === "done") &&
     (x.completedDate === todayStr2 || String(x.completedAt || "").slice(0, 10) === todayStr2 || toKstYmd(x.completedAt) === todayStr2)
   );
   const stats = {
