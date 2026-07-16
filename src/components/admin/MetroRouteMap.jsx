@@ -1,37 +1,64 @@
-// 2026-07-16 — 프로 오늘 동선 지도 (사장님 spec: "기사님 오늘 동선을 지도그림으로").
-//   AssignRegionMap(서울 구 전용)과 달리 수도권(서울+인천+경기) 시군구 범위 —
-//   사장님 질문 "서울이 아닐 때는?" → 텃밭(고양·파주·김포·부천)이 서울 밖이라 수도권 필수.
-//   · 데이터: southkorea/southkorea-maps 전국 시군구 GeoJSON (jsdelivr, 368KB, 런타임 1회 + 모듈 캐시)
-//     kostat code prefix: 11=서울, 23=인천, 31=경기 만 필터.
-//   · 방문 구 = 핑크 채움 + 시간순 방문 순번(①②③) 표시. 나머지는 옅은 타일 (라벨 없음 — 251개 라벨은 노이즈).
-//   · 이름 매칭: "일산동구" ↔ feature "고양시일산동구" (endsWith), "부천시" ↔ "부천시소사구" (startsWith).
-//   · fetch 실패/수도권 밖 방문지는 아래 텍스트 줄 fallback — 화면 흐름 영향 0.
-import { useEffect, useMemo, useState } from "react";
+// 2026-07-16 — 프로 오늘 동선 지도 v2: 진짜 지도 (사장님 D안 확정).
+//   v1(수도권 초로플레스)은 "빈 폴리곤 낭비 + 서울 밖 반쪽" 피드백으로 교체.
+//   · 지도: OpenStreetMap 타일 + Leaflet — **API 키 불필요/무료**.
+//     Leaflet 은 npm 의존 추가 없이 unpkg CDN 런타임 1회 로드 (AssignRegionMap 의
+//     GeoJSON CDN 패턴과 동일 — 실패 시 조용히 미표시, 화면 흐름 영향 0).
+//   · 핀 위치: 수도권 시군구 GeoJSON(모듈 캐시)의 구 중심 — 주소 좌표 변환(카카오 키) 불필요.
+//     "일산동구"↔"고양시일산동구"(endsWith), "부천시"↔"부천시소사구"(startsWith) 매칭.
+//   · 핀: 방문 순번(핑크) / 완료 ✓(회색) / 취소 ✕(흰+빨강 테두리 — 동선에 포함, 사장님 spec).
+//   · 이동선: 시간순 연결 — 취소 구간은 빨강 점선, 나머지 핑크 실선 (F안 미니멀 요소 흡수).
+//   · 지도 밖(수도권 외/매칭 실패) 방문지는 아래 텍스트 줄 fallback.
+import { useEffect, useMemo, useRef, useState } from "react";
 import { normalizeDistrict } from "./AssignRegionMap.jsx";
 
 const GEO_URL = "https://cdn.jsdelivr.net/gh/southkorea/southkorea-maps@master/kostat/2013/json/skorea_municipalities_geo_simple.json";
+const LEAFLET_JS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 
-let _cache = null;
-let _promise = null;
+// ── GeoJSON (수도권 시군구) — 모듈 캐시 ──
+let _geoCache = null;
+let _geoPromise = null;
 function loadGeo() {
-  if (_cache) return Promise.resolve(_cache);
-  if (_promise) return _promise;
-  _promise = fetch(GEO_URL)
+  if (_geoCache) return Promise.resolve(_geoCache);
+  if (_geoPromise) return _geoPromise;
+  _geoPromise = fetch(GEO_URL)
     .then(r => (r.ok ? r.json() : null))
     .then(j => {
       if (!j || !Array.isArray(j.features)) return null;
-      // 수도권만 (서울 11 / 인천 23 / 경기 31)
       const feats = j.features.filter(f => /^(11|23|31)/.test(String(f?.properties?.code || "")));
-      _cache = { ...j, features: feats };
-      return _cache;
+      _geoCache = feats;
+      return feats;
     })
     .catch(() => null);
-  return _promise;
+  return _geoPromise;
 }
 
-function featName(f) {
-  return f?.properties?.name || "";
+// ── Leaflet CDN 로더 — 모듈 캐시 ──
+let _leafletPromise = null;
+function loadLeaflet() {
+  if (typeof window !== "undefined" && window.L) return Promise.resolve(window.L);
+  if (_leafletPromise) return _leafletPromise;
+  _leafletPromise = new Promise((resolve) => {
+    try {
+      if (!document.querySelector(`link[href="${LEAFLET_CSS}"]`)) {
+        const css = document.createElement("link");
+        css.rel = "stylesheet";
+        css.href = LEAFLET_CSS;
+        document.head.appendChild(css);
+      }
+      const s = document.createElement("script");
+      s.src = LEAFLET_JS;
+      s.onload = () => resolve(window.L || null);
+      s.onerror = () => resolve(null);
+      document.head.appendChild(s);
+    } catch {
+      resolve(null);
+    }
+  });
+  return _leafletPromise;
 }
+
+function featName(f) { return f?.properties?.name || ""; }
 
 function ringCentroid(ring) {
   let x = 0, y = 0;
@@ -51,124 +78,117 @@ function featureCentroid(f) {
   }
   return null;
 }
-
-// 구/시 이름 ↔ feature 이름 매칭 ("일산동구" ↔ "고양시일산동구" / "부천시" ↔ "부천시소사구")
 function matchFeature(featureName, gu) {
   if (!featureName || !gu) return false;
   return featureName === gu || featureName.endsWith(gu) || featureName.startsWith(gu);
 }
 
-// slots: [{ time, region, address }] — 시간순 정렬된 오늘 작업.
+// slots: [{ time, region, address, state, status }] — 시간순 정렬된 오늘 작업.
 export default function MetroRouteMap({ t, slots = [] }) {
-  const [geo, setGeo] = useState(_cache);
+  const boxRef = useRef(null);
+  const mapRef = useRef(null);
+  const [ready, setReady] = useState(false);   // geo + leaflet 로드 완료
+  const [unmapped, setUnmapped] = useState([]);
 
-  useEffect(() => {
-    if (geo) return;
-    let alive = true;
-    loadGeo().then(g => { if (alive) setGeo(g); });
-    return () => { alive = false; };
-  }, [geo]);
-
-  // 방문지: 시간순 → [{ gu, seq: [1,3], times: [...] }]
-  const visits = useMemo(() => {
-    const list = [];
-    (slots || []).forEach((s, i) => {
+  // 방문 스톱: 시간순 + 취소 표시 + 순번(취소 제외 카운트) — RouteTimeline 과 동일 규칙
+  const stops = useMemo(() => {
+    let seq = 0;
+    return (slots || []).map(s => {
+      const isCancel = s.state === "canceled" || s.status === "취소" || s.status === "취소요청";
+      const isDone = s.state === "done";
+      if (!isCancel) seq += 1;
       const gu = normalizeDistrict(s.region || s.address || "");
-      if (!gu || !/[구시군]$/.test(gu)) return;
-      const hit = list.find(v => v.gu === gu);
-      if (hit) hit.seq.push(i + 1);
-      else list.push({ gu, seq: [i + 1] });
+      return { gu, isCancel, isDone, seq: isCancel ? null : seq, time: s.time || "" };
     });
-    return list;
   }, [slots]);
 
-  const isLight = !!t.isLight;
+  useEffect(() => {
+    let alive = true;
+    if (stops.length === 0) return;
+    Promise.all([loadGeo(), loadLeaflet()]).then(([feats, L]) => {
+      if (!alive || !feats || !L || !boxRef.current) return;
 
-  const view = useMemo(() => {
-    if (!geo) return null;
-    // 방문 feature 집합
-    const hotFeats = new Set();
-    const guToFeats = {};
-    for (const f of geo.features) {
-      const name = featName(f);
-      for (const v of visits) {
-        if (matchFeature(name, v.gu)) {
-          hotFeats.add(name);
-          (guToFeats[v.gu] = guToFeats[v.gu] || []).push(f);
+      // 구 → 좌표 (centroid 평균, [lat, lng])
+      const guCoord = {};
+      const miss = [];
+      for (const st of stops) {
+        if (!st.gu || guCoord[st.gu] !== undefined) {
+          if (!st.gu) miss.push(st);
+          continue;
         }
-      }
-    }
-    // bbox: 방문지가 있으면 방문지 중심 + 서울 포함 / 없으면 서울+주변만
-    //   전체 수도권(연천~안성)은 너무 넓어 라벨이 작아짐 → 방문 구 bbox에 패딩.
-    const eachPoint = (f, cb) => {
-      const g = f.geometry; if (!g) return;
-      const polys = g.type === "Polygon" ? [g.coordinates] : (g.type === "MultiPolygon" ? g.coordinates : []);
-      for (const poly of polys) for (const ring of poly) for (const p of ring) cb(p);
-    };
-    let minLon = Infinity, maxLon = -Infinity, minLat = Infinity, maxLat = -Infinity;
-    const boundFeats = hotFeats.size > 0
-      ? geo.features.filter(f => hotFeats.has(featName(f)) || /^11/.test(String(f.properties?.code || "")))
-      : geo.features.filter(f => /^11/.test(String(f.properties?.code || "")));
-    for (const f of boundFeats) eachPoint(f, ([lon, lat]) => {
-      if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
-      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
-    });
-    // 패딩 8%
-    const padLon = (maxLon - minLon) * 0.08, padLat = (maxLat - minLat) * 0.08;
-    minLon -= padLon; maxLon += padLon; minLat -= padLat; maxLat += padLat;
-
-    const latK = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
-    const W0 = (maxLon - minLon) * latK, H0 = (maxLat - minLat);
-    const W = 360, H = Math.max(200, Math.round(360 * (H0 / W0)));
-    const px = (lon) => ((lon - minLon) * latK / W0) * W;
-    const py = (lat) => ((maxLat - lat) / H0) * H;
-
-    const paths = [];
-    const marks = [];
-    for (const f of geo.features) {
-      const name = featName(f);
-      const g = f.geometry; if (!g) continue;
-      const polys = g.type === "Polygon" ? [g.coordinates] : (g.type === "MultiPolygon" ? g.coordinates : []);
-      let d = "", anyIn = false;
-      for (const poly of polys) {
-        for (const ring of poly) {
-          d += ring.map((p, i) => {
-            const x = px(p[0]), y = py(p[1]);
-            if (x > -30 && x < W + 30 && y > -30 && y < H + 30) anyIn = true;
-            return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-          }).join("") + "Z";
+        const matched = feats.filter(f => matchFeature(featName(f), st.gu));
+        if (matched.length === 0) { guCoord[st.gu] = null; continue; }
+        let x = 0, y = 0, n = 0;
+        for (const f of matched) {
+          const c = featureCentroid(f);
+          if (!c) continue;
+          x += c[0]; y += c[1]; n++;
         }
+        guCoord[st.gu] = n ? [y / n, x / n] : null;   // GeoJSON=[lon,lat] → Leaflet=[lat,lng]
       }
-      if (!anyIn) continue;   // viewBox 밖 시군구는 그리지 않음 (paths 수 절약)
-      const hot = hotFeats.has(name);
-      paths.push({
-        name, d,
-        fill: hot ? "rgba(255,27,141,0.55)" : (isLight ? "#ECECF1" : "rgba(255,255,255,0.07)"),
-        stroke: hot ? "#FF1B8D" : (isLight ? "#FFFFFF" : "rgba(0,0,0,0.45)"),
-        sw: hot ? 1.4 : 0.8,
+
+      const placed = stops.filter(s => s.gu && guCoord[s.gu]);
+      const missed = stops.filter(s => !s.gu || !guCoord[s.gu]);
+      setUnmapped(missed);
+      if (placed.length === 0) return;
+
+      // 지도 초기화 (재진입 시 기존 인스턴스 제거)
+      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; }
+      const map = L.map(boxRef.current, { zoomControl: false, attributionControl: false });
+      mapRef.current = map;
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18 }).addTo(map);
+      L.control.zoom({ position: "bottomright" }).addTo(map);
+
+      // 같은 구 겹침 오프셋 (여러 방문이 같은 구면 핀이 포개짐 → 살짝 분산)
+      const usedCount = {};
+      const pts = placed.map(s => {
+        const k = s.gu;
+        const i = (usedCount[k] = (usedCount[k] || 0) + 1) - 1;
+        const [lat, lng] = guCoord[k];
+        return { ...s, lat: lat + i * 0.006, lng: lng + i * 0.006 };
       });
-    }
-    // 방문 순번 마크 — 구 단위 centroid (여러 feature 매칭이면 평균)
-    for (const v of visits) {
-      const feats = guToFeats[v.gu] || [];
-      if (feats.length === 0) continue;
-      let x = 0, y = 0, n = 0;
-      for (const f of feats) {
-        const c = featureCentroid(f);
-        if (!c) continue;
-        x += px(c[0]); y += py(c[1]); n++;
+
+      // 이동선 (시간순 — 취소 구간 빨강 점선)
+      for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i];
+        const cancelSeg = a.isCancel || b.isCancel;
+        L.polyline([[a.lat, a.lng], [b.lat, b.lng]], {
+          color: cancelSeg ? "#E5484D" : "#FF1B8D",
+          weight: cancelSeg ? 2.5 : 3.5,
+          dashArray: cancelSeg ? "6 5" : null,
+          opacity: 0.85,
+        }).addTo(map);
       }
-      if (!n) continue;
-      marks.push({ x: x / n, y: y / n, gu: v.gu, seqText: v.seq.join("·") });
-    }
-    return { paths, marks, W, H, matchedGus: new Set(Object.keys(guToFeats)) };
-  }, [geo, visits, isLight]);
 
-  if (!geo || !view) return null;
-  if (visits.length === 0) return null;   // 오늘 일정 없으면 지도 생략
+      // 핀
+      for (const p of pts) {
+        const style = p.isCancel
+          ? "background:#fff;color:#E5484D;border:2px solid #E5484D;"
+          : p.isDone
+            ? "background:#9AA1AC;color:#fff;border:2px solid #fff;"
+            : "background:#FF1B8D;color:#fff;border:2px solid #fff;";
+        const label = p.isCancel ? "✕" : p.isDone ? "✓" : String(p.seq);
+        L.marker([p.lat, p.lng], {
+          icon: L.divIcon({
+            className: "",
+            html: `<div style="width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font:800 12px -apple-system,sans-serif;box-shadow:0 2px 5px rgba(0,0,0,.3);${style}">${label}</div>`,
+            iconSize: [26, 26], iconAnchor: [13, 13],
+          }),
+          title: `${p.time} ${p.gu}`,
+        }).addTo(map);
+      }
 
-  // 지도에 못 올린 방문지 (수도권 밖 / 매칭 실패) — 텍스트 fallback
-  const unmapped = visits.filter(v => !view.matchedGus.has(v.gu));
+      map.fitBounds(pts.map(p => [p.lat, p.lng]), { padding: [36, 36], maxZoom: 13 });
+      setReady(true);
+    });
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(stops)]);
+
+  // 언마운트 시 지도 정리
+  useEffect(() => () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } }, []);
+
+  if (!slots || slots.length === 0) return null;
 
   return (
     <div style={{
@@ -176,28 +196,18 @@ export default function MetroRouteMap({ t, slots = [] }) {
       borderRadius: 12, padding: "10px 12px", marginBottom: 14,
     }}>
       <div style={{ fontSize: 10, fontWeight: 800, color: t.textMuted, letterSpacing: 0.5, marginBottom: 6 }}>
-        🗺 오늘 동선 <span style={{ fontWeight: 600 }}>· 숫자 = 방문 순서</span>
+        🗺 오늘 동선 <span style={{ fontWeight: 600 }}>· 숫자 = 방문 순서 · ✕ = 취소</span>
       </div>
-      <svg viewBox={`0 0 ${view.W} ${view.H}`} style={{ width: "100%", maxWidth: 560, height: "auto", display: "block", margin: "0 auto" }}>
-        {view.paths.map(p => (
-          <path key={p.name} d={p.d} fill={p.fill} stroke={p.stroke} strokeWidth={p.sw}/>
-        ))}
-        {view.marks.map((m, i) => (
-          <g key={i}>
-            <text x={m.x} y={m.y - 5} textAnchor="middle" fontSize={8.5} fontWeight={800}
-              fill={isLight ? "#26262C" : "#FFFFFF"} style={{ pointerEvents: "none" }}>
-              {m.gu.replace(/구$/, "").replace(/시$/, "")}
-            </text>
-            <circle cx={m.x} cy={m.y + 3} r={6.5} fill="#FF1B8D" stroke={isLight ? "#FFFFFF" : "rgba(0,0,0,0.5)"} strokeWidth={1.2}/>
-            <text x={m.x} y={m.y + 5.5} textAnchor="middle" fontSize={6.5} fontWeight={800} fill="#FFFFFF">
-              {m.seqText}
-            </text>
-          </g>
-        ))}
-      </svg>
+      <div ref={boxRef} style={{
+        height: 260, borderRadius: 10, overflow: "hidden",
+        background: t.bgInset,
+        display: ready ? "block" : "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {!ready && <span style={{ fontSize: 11, color: t.textMuted }}>지도 불러오는 중…</span>}
+      </div>
       {unmapped.length > 0 && (
         <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6, lineHeight: 1.6 }}>
-          지도 밖: {unmapped.map(v => `${v.seq.join("·")} ${v.gu}`).join("  |  ")}
+          지도 밖: {unmapped.map(v => `${v.isCancel ? "✕" : v.seq ?? ""} ${v.gu || "지역 미상"} ${v.time}`.trim()).join("  |  ")}
         </div>
       )}
     </div>
