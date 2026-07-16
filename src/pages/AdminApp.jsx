@@ -5054,6 +5054,93 @@ function EngineerTaskMiniCard({ t, task, onClick }) {
   );
 }
 
+// 2026-07-16 — 노선도(A안) 타임라인 (사장님 확정 spec).
+//   세로 라인 + 정거장 노드: 완료 ✓회색 / 취소 ✕빨강(동선에 포함, 흐리게) / 예정 = 방문 순번 핑크.
+//   정보 2줄: 시간·지역·고객·기종 / 주소·금액·상태 배지. 탭 → 작업 상세.
+function RouteTimeline({ t, slots, onSlotClick }) {
+  if (!slots || slots.length === 0) return null;
+  // 방문 순번 = 취소 제외하고 시간순 카운트
+  let seq = 0;
+  const stops = slots.map(s => {
+    const isCancel = s.state === "canceled" || s.status === "취소" || s.status === "취소요청";
+    const isDone = s.state === "done";
+    if (!isCancel) seq += 1;
+    return { ...s, _cancel: isCancel, _done: isDone, _seq: isCancel ? null : seq };
+  });
+  const isActiveState = (s) => s.state === "active" || s.state === "moving";
+  return (
+    <div style={{ position: "relative", paddingLeft: 34, marginBottom: 14 }}>
+      {/* 세로 라인 */}
+      <div style={{
+        position: "absolute", left: 15, top: 10, bottom: 14, width: 3,
+        background: "linear-gradient(#FF1B8D, rgba(255,27,141,0.25))", borderRadius: 3,
+      }}/>
+      {stops.map((s, idx) => {
+        const applianceLabel = s.workItems && s.workItems.length > 0
+          ? formatWorkItemsAppliance(s.workItems)
+          : s.appliance ? `${s.appliance} ×${s.qty || 1}` : s.workType;
+        const nodeStyle = s._cancel
+          ? { background: t.bgElevated, color: "#E5484D", border: "2px solid #E5484D" }
+          : s._done
+            ? { background: "#B9BEC7", color: "#fff", border: `2.5px solid ${t.bgElevated}` }
+            : { background: "#FF1B8D", color: "#fff", border: `2.5px solid ${t.bgElevated}` };
+        const badge = s._cancel
+          ? { text: "취소", bg: "rgba(229,72,77,0.10)", color: "#E5484D" }
+          : s._done
+            ? { text: "완료", bg: t.bgInset, color: t.textMuted }
+            : isActiveState(s)
+              ? { text: "진행중", bg: "rgba(255,27,141,0.12)", color: "#FF1B8D" }
+              : { text: "예정", bg: "rgba(255,27,141,0.08)", color: "#FF1B8D" };
+        return (
+          <div key={idx}
+            onClick={onSlotClick ? () => onSlotClick(s) : undefined}
+            className={onSlotClick ? "clickable" : undefined}
+            style={{ position: "relative", padding: "6px 0 13px", cursor: onSlotClick ? "pointer" : "default", opacity: s._cancel ? 0.75 : 1 }}>
+            <span style={{
+              position: "absolute", left: -34, top: 5,
+              width: 26, height: 26, borderRadius: "50%",
+              fontSize: 12, fontWeight: 800,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 1px 4px rgba(0,0,0,0.15)",
+              ...nodeStyle,
+            }}>
+              {s._cancel ? "✕" : s._done ? "✓" : s._seq}
+            </span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+              <span className="mono" style={{
+                fontSize: 13, fontWeight: 800, width: 44, flexShrink: 0,
+                color: s._done ? t.textMuted : t.text,
+                textDecoration: s._done ? "line-through" : "none",
+              }}>{s.time || "미정"}</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: s._cancel ? "#E5484D" : t.text }}>
+                {s.region || "—"}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: t.textSecondary, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {s.customer}{applianceLabel ? ` · ${applianceLabel}` : ""}
+              </span>
+            </div>
+            <div style={{
+              fontSize: 11, color: t.textMuted, marginTop: 2, paddingLeft: 50,
+              textDecoration: s._cancel ? "line-through" : "none",
+              display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap",
+            }}>
+              <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {s.address || ""}
+                {s.address && s.estimateTotal > 0 ? " · " : ""}
+                {s.estimateTotal > 0 ? `₩${s.estimateTotal.toLocaleString("ko-KR")}` : ""}
+              </span>
+              <span style={{
+                fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 999,
+                background: badge.bg, color: badge.color, flexShrink: 0, textDecoration: "none",
+              }}>{badge.text}</span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function TimelineItem({ t, slot, onClick }) {
   // type 분기
   if (slot.type === "off_full") {
@@ -7882,14 +7969,16 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
           })}
           {schedule.length === 0 && todayOffs.length === 0 ? (
             <div style={{ padding: "20px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>일정 없음</div>
-          ) : schedule.map((slot, idx) => {
-            const isWork = slot.type === "work";
-            const handleClick = isWork && onTaskClick ? () => {
-              // 2026-07-16 — 원본 task 직접 전달 (옛 TASKS_TODAY mock 매칭 제거)
-              onTaskClick(slot.task || { ...slot, engineer: engineer.name, engineerRank: engineer.rank, engineerLevel: engineer.level, engineerId: engineer.id });
-            } : undefined;
-            return <TimelineItem key={idx} t={t} slot={slot} onClick={handleClick}/>;
-          })}
+          ) : (
+            /* 2026-07-16 — 노선도(A안) 타임라인로 교체 (사장님 확정). 취소도 ✕로 동선에 포함. */
+            <RouteTimeline
+              t={t}
+              slots={routeSlots}
+              onSlotClick={onTaskClick ? (s) => {
+                onTaskClick(s.task || { ...s, engineer: engineer.name, engineerRank: engineer.rank, engineerLevel: engineer.level, engineerId: engineer.id });
+              } : undefined}
+            />
+          )}
         </div>
 
         {/* ───── 활동 정보 (Step 4-3: 신규 배정만 펼침 — 작업 탭과 일관) ───── */}
