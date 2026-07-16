@@ -4723,6 +4723,14 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
             principal: task.principal,
             // 2026-05-17 Round 2 Fix #19 — EngineerCard의 "신규 +N" 카운트용
             assignedAt: task.assignedAt || null,
+            // 2026-07-16 — 프로 상세 타임라인 정보 보강 (사장님 spec "상세가 정확한 정보가 없어").
+            //   기종×수량 / 주소 / 견적 / status 를 TimelineItem 에서 표시.
+            appliance: task.appliance || "",
+            qty: task.qty || 1,
+            workItems: Array.isArray(task.workItems) ? task.workItems : null,
+            address: task.fullAddress || task.address || "",
+            status: task.status || "",
+            estimateTotal: Number(task.estimateTotal) || 0,
           }));
         return {
           ...eng,
@@ -4899,6 +4907,22 @@ function EngineerCard({ t, eng, expanded, onToggle, onTaskClick }) {
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <EngineerBadge engineer={eng} role={eng.level === "main" ? "main" : (eng.level === "backup" || eng.level === "sub") ? "backup" : null} size="sm"/>
+          {/* 2026-07-16 — 리스트에서 바로 통화 (사장님 spec). 카드 펼침과 분리 (stopPropagation) */}
+          {eng.phone && (
+            <button
+              onClick={(e) => { e.stopPropagation(); window.location.href = `tel:${String(eng.phone).replace(/\D/g, "")}`; }}
+              aria-label="프로 통화"
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                background: "rgba(255,27,141,0.08)",
+                border: "1px solid rgba(255,27,141,0.35)",
+                color: "#FF1B8D", cursor: "pointer",
+              }}
+            >
+              <Phone size={12}/>
+            </button>
+          )}
           <div style={{
             marginLeft: "auto", display: "flex", alignItems: "center", gap: 6,
             minWidth: 110, justifyContent: "flex-end",
@@ -5078,8 +5102,8 @@ function TimelineItem({ t, slot, onClick }) {
 
   return (
     <div onClick={onClick} className={onClick ? "clickable" : undefined} style={{
-      display: "flex", alignItems: "center", gap: 8,
-      padding: strong ? "6px 8px" : "5px 4px",
+      display: "flex", alignItems: "flex-start", gap: 8,
+      padding: strong ? "7px 8px" : "6px 4px",
       background: strong ? color + "1A" : "transparent",
       borderLeft: strong ? `2px solid ${color}` : "none",
       borderRadius: strong ? 2 : 0,
@@ -5091,10 +5115,29 @@ function TimelineItem({ t, slot, onClick }) {
         width: 44, flexShrink: 0,
         textDecoration: slot.state === "done" ? "line-through" : "none",
       }}>{slot.time}</span>
-      <Icon size={12} style={{ color, flexShrink: 0 }}/>
-      <span style={{ fontSize: 11, color: t.text, fontWeight: 600, minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {slot.customer} <span style={{ color: t.textMuted, fontWeight: 500 }}>({slot.workType})</span>
-      </span>
+      <Icon size={12} style={{ color, flexShrink: 0, marginTop: 1 }}/>
+      {/* 2026-07-16 — 정보 보강 (사장님 spec): 기종×수량 + 주소 + 견적 2줄 표시 */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 11, color: t.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {slot.customer}{" "}
+          <span style={{ color: t.textMuted, fontWeight: 500 }}>
+            ({slot.workItems && slot.workItems.length > 0
+              ? formatWorkItemsAppliance(slot.workItems)
+              : slot.appliance
+                ? `${slot.appliance} ×${slot.qty || 1}`
+                : slot.workType})
+          </span>
+        </div>
+        {(slot.address || slot.estimateTotal > 0) && (
+          <div style={{ fontSize: 10, color: t.textMuted, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {slot.address}
+            {slot.address && slot.estimateTotal > 0 ? " · " : ""}
+            {slot.estimateTotal > 0 && (
+              <span className="mono" style={{ fontWeight: 700 }}>₩{slot.estimateTotal.toLocaleString("ko-KR")}</span>
+            )}
+          </div>
+        )}
+      </div>
       <span style={{ fontSize: 10, color: t.textMuted, flexShrink: 0 }}>· {slot.region}</span>
       {onClick && <ChevronRight size={12} style={{ color: t.textMuted, flexShrink: 0 }}/>}
     </div>
@@ -7722,7 +7765,13 @@ function EngineerDayScreen({ t, engineer, onBack, onTaskClick }) {
             <EngineerBadge engineer={engineer} role={engineer.level === "main" ? "main" : (engineer.level === "backup" || engineer.level === "sub") ? "backup" : null} size="lg"/>
           </div>
           <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
-            {engineer.region} · 오늘 일정 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{schedule.length}</span>건
+            {/* 2026-07-16 — region "—" 노출 fix + 연락처 표시 (사장님 spec) */}
+            {[
+              engineer.region && engineer.region !== "—" ? engineer.region : null,
+              engineer.phone || null,
+            ].filter(Boolean).join(" · ")}
+            {(engineer.region && engineer.region !== "—") || engineer.phone ? " · " : ""}
+            오늘 일정 <span className="mono" style={{ color: t.text, fontWeight: 700 }}>{schedule.length}</span>건
           </div>
         </div>
         {stats.todayAssigned > 0 && (
