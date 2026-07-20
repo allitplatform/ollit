@@ -177,11 +177,23 @@ export function WeekSettleDetail({
         ? `${mdLabel(week.mondayStr)}~${mdLabel(week.sundayStr)}`
         : "";
       const detail = downloadableItems.map(it => {
-        const base = Number(it.net_amount) || 0;
         const isCarry = !!it._is_carryover;
         const bucket  = isCarry
           ? `이전 미정산 (${carryoverWeekLabel(it._carryover_week)})`
           : "당주 정산";
+        // 2026-07-20 — 스냅샷 items (Mig 185) 는 재계산 금지, 저장값 그대로.
+        //   라이브 items 는 기존 산식 (net_amount × 0.85) 유지.
+        let sub, fee, net;
+        if (it._fromSnapshot) {
+          sub = Number(it.subtotal) || 0;
+          net = Number(it._company_receive) || 0;
+          fee = sub - net;
+        } else {
+          const base = Number(it.net_amount) || 0;
+          sub = base;
+          fee = Math.round(base * 0.15);
+          net = Math.round(base * NAVER_NET_TO_COMPANY_FACTOR);
+        }
         return {
           "구분":           bucket,
           "정산완료일":     kstYmd(it.naver_settled_at) || "",
@@ -189,12 +201,15 @@ export function WeekSettleDetail({
           "구매자명":       it.customer_name || "",
           "서비스종류":     it.work_types?.name || "",
           "배정기사":       it.assigned_engineer_name || "",
-          "정산원금":       base,
-          "유솔수수료(15%)": Math.round(base * 0.15),
-          "실입금(85%)":    Math.round(base * NAVER_NET_TO_COMPANY_FACTOR),
+          "정산원금":       sub,
+          "유솔수수료(15%)": fee,
+          "실입금(85%)":    net,
         };
       });
+      // 2026-07-20 — 요약도 detail 합 기준. 스냅샷·라이브 혼합 시에도 정합.
       const tot        = detail.reduce((s, d) => s + d["정산원금"], 0);
+      const totFee     = detail.reduce((s, d) => s + d["유솔수수료(15%)"], 0);
+      const totNet     = detail.reduce((s, d) => s + d["실입금(85%)"], 0);
       const carryRows  = detail.filter(d => d["구분"] !== "당주 정산");
       const carryTot   = carryRows.reduce((s, d) => s + d["정산원금"], 0);
       const currentTot = tot - carryTot;
@@ -203,8 +218,8 @@ export function WeekSettleDetail({
         "기간":             range,
         "네이버 건수":      detail.length,
         "정산원금":         tot,
-        "유솔수수료(15%)":   Math.round(tot * 0.15),
-        "실입금(85%)":      Math.round(tot * NAVER_NET_TO_COMPANY_FACTOR),
+        "유솔수수료(15%)":   totFee,
+        "실입금(85%)":      totNet,
         "당주 건수":        detail.length - carryRows.length,
         "당주 정산원금":     currentTot,
         "이월 건수":        carryRows.length,

@@ -424,6 +424,66 @@ export async function fetchJuneLiveWeeks() {
     target.weeklyTotal    = target.sumCompanyRcv;
     target.weeklySubtotal = target.sumSubtotal;
   }
+
+  // ── 2026-07-20 확정 스냅샷 병합 (Mig 185) ────────────────────────
+  //   확정 주차 = 라이브 대신 스냅샷 items 사용 → 카드/드릴인/엑셀 3중 일치.
+  //   요약-only (건별 items 0건 + snapshot_item_count 있음) → 카드에 요약값만 표시.
+  //   옛 확정 (snapshot_item_count NULL) → 라이브 유지 (스냅샷 이전 시대).
+  const confirmedRemits = await fetchConfirmedRemitsForUsolN({ monthsBack: 6 });
+  for (const remit of confirmedRemits) {
+    if (remit.snapshot_item_count == null) continue;   // 옛 확정 → 라이브 유지
+    const monday = remit.week_start;
+    const snap   = await fetchSnapshotItemsForRemit(remit.id);
+    const sunday = addDaysYmd(monday, 6);
+    const deposit = addDaysYmd(sunday, 1);
+    const monthlyAmounts = new Map();
+    let sumSubtotal = 0;
+    let sumCompanyRcv = 0;
+
+    if (snap.length > 0) {
+      // 건별 스냅샷 있음 — 카드 집계 = Σ 스냅샷
+      for (const it of snap) {
+        const sub  = Number(it.subtotal) || 0;
+        const comp = Number(it._company_receive) || 0;
+        sumSubtotal   += sub;
+        sumCompanyRcv += comp;
+        if (comp > 0) {
+          const ym = workYmOfItem(it);
+          if (ym) monthlyAmounts.set(ym, (monthlyAmounts.get(ym) || 0) + comp);
+        }
+      }
+    } else {
+      // 요약-only 폴백 — remitted_amount 를 카드 합계로
+      sumCompanyRcv = Number(remit.remitted_amount) || 0;
+      sumSubtotal   = 0;
+    }
+
+    const snapshotWeek = {
+      weekKey:        isoWeekKeyFromYmd(monday),
+      monday, sunday, deposit,
+      payYm:          deposit.slice(0, 7),
+      naverCount:     snap.length > 0 ? snap.length : (remit.snapshot_item_count || 0),
+      sumNet:         0,
+      sumSubtotal,
+      sumCompanyRcv,
+      monthlyAmounts,
+      items:          snap,
+      weeklyTotal:    sumCompanyRcv,
+      weeklySubtotal: sumSubtotal,
+      _fromSnapshot:  true,
+      _remit_id:      remit.id,
+      _summaryOnly:   snap.length === 0 ? {
+        count:  remit.snapshot_item_count,
+        amount: Number(remit.remitted_amount) || 0,
+      } : null,
+    };
+
+    const idx = sorted.findIndex(w => w.monday === monday);
+    if (idx >= 0) sorted[idx] = snapshotWeek;   // 라이브 주차 교체
+    else sorted.push(snapshotWeek);              // 라이브에 없는 옛 확정 주차 추가
+  }
+  sorted.sort((a, b) => b.monday.localeCompare(a.monday));
+
   return sorted;
 }
 
@@ -436,6 +496,43 @@ export async function fetchJuneLiveWeeks() {
 //   · 5월 초 측 측 measure 측 측 측 — DB 측 측 측 측 측 측 시트값 < DB 측 측 measure 측 (별개 spec).
 export async function fetchWeekItemsByMonday(mondayYmd) {
   if (!mondayYmd) return { ok: false, items: [], error: "monday 누락" };
+
+  // 2026-07-20 — 확정 주차 스냅샷 분기 (Mig 185).
+  //   그 monday 의 remit 이 confirmed 이면 라이브 계산 대신 스냅샷 items 반환.
+  //   요약-only (건별 스냅샷 0건 + snapshot_item_count 있음) → items:[] + _summaryOnly 부착.
+  //   미확정 → 아래 기존 라이브 계산 (fetchCarryoverC2Items 포함).
+  {
+    const { data: remitRow, error: remitErr } = await supabase
+      .from("principal_weekly_remittances")
+      .select("id, week_start, confirmed_at, remitted_amount, snapshot_item_count")
+      .eq("principal_id", USOL_N_PID)
+      .eq("week_start", mondayYmd)
+      .not("confirmed_at", "is", null)
+      .maybeSingle();
+    if (remitErr) {
+      console.warn("[fetchWeekItemsByMonday.snapshotProbe]", remitErr);
+    }
+    if (remitRow && remitRow.id) {
+      const snap = await fetchSnapshotItemsForRemit(remitRow.id);
+      if (snap.length > 0) {
+        return { ok: true, items: snap, _fromSnapshot: true };
+      }
+      if (remitRow.snapshot_item_count != null) {
+        // 요약-only 폴백 (7/6 · 7/13 소급 후엔 발생 X, 미래 대비)
+        return {
+          ok: true,
+          items: [],
+          _fromSnapshot: true,
+          _summaryOnly: {
+            count:  remitRow.snapshot_item_count,
+            amount: remitRow.remitted_amount,
+          },
+        };
+      }
+      // 옛 확정 (스냅샷 이전) → 라이브 폴백 (아래 진행)
+    }
+  }
+
   const nextMondayYmd = addDaysYmd(mondayYmd, 7);
   // KST 00:00 = UTC 측 전날 15:00.
   //   Date.UTC(y, m-1, d, -9) = UTC (y, m-1, d-1, 15:00:00).
@@ -719,6 +816,103 @@ export async function fetchCarryoverC2Items(mondayYmd) {
       _company_receive: compRcv,
       _is_carryover:    true,
       _carryover_week:  carryoverWeek,
+    });
+  }
+  return flat;
+}
+
+// ── 2026-07-20 확정 스냅샷 (Mig 185) ────────────────────────────────
+// 배경:
+//   Mig 185 도입: 주차 확정 시 principal_weekly_remit_items 에 청구 items 스냅샷 저장.
+//   확정 주차 카드/드릴인/엑셀은 스냅샷 기반 표시. 미확정 주차는 라이브 유지.
+//   fetchJuneLiveWeeks + fetchWeekItemsByMonday 안에서 분기 흡수 (소비자 무변경).
+
+// 확정 remit 목록 (스냅샷 있는 것 우선).
+//   returns [{ id, week_start, week_end, confirmed_at, remitted_amount, snapshot_item_count }]
+export async function fetchConfirmedRemitsForUsolN({ monthsBack = 6 } = {}) {
+  const cutoff = new Date();
+  cutoff.setMonth(cutoff.getMonth() - monthsBack);
+  cutoff.setHours(0, 0, 0, 0);
+
+  const { data, error } = await supabase
+    .from("principal_weekly_remittances")
+    .select("id, week_start, week_end, confirmed_at, remitted_amount, snapshot_item_count")
+    .eq("principal_id", USOL_N_PID)
+    .not("confirmed_at", "is", null)
+    .gte("week_start", cutoff.toISOString().slice(0, 10))
+    .order("week_start", { ascending: false });
+  if (error) {
+    console.error("[usolNWeeklyData.fetchConfirmedRemitsForUsolN]", error);
+    return [];
+  }
+  return data || [];
+}
+
+// 스냅샷 items → 프론트 shape (fetchWeekItemsByMonday 반환 호환).
+//   returns [{ 라이브 shape + _fromSnapshot, _snapshot_remit_id, _company_receive, _is_carryover, _carryover_week }]
+export async function fetchSnapshotItemsForRemit(remitId) {
+  if (!remitId) return [];
+  const { data, error } = await supabase
+    .from("principal_weekly_remit_items")
+    .select(`
+      id, task_item_id, subtotal, net_amount, company_receive_amount,
+      is_carryover, carryover_source_monday, naver_settled_at,
+      task_items (
+        id, product_order_id, order_type, qty, unit_price, description,
+        is_canceled,
+        work_types ( id, name ),
+        appliance_types ( id, name ),
+        tasks (
+          id, task_no, customer_name, phone, address, district,
+          principal_id, status, received_at, scheduled_at, completed_at
+        )
+      )
+    `)
+    .eq("remit_id", remitId)
+    .order("naver_settled_at", { ascending: true });
+  if (error) {
+    console.error("[usolNWeeklyData.fetchSnapshotItemsForRemit]", error);
+    return [];
+  }
+  const flat = [];
+  for (const row of (data || [])) {
+    const ti = row.task_items || {};
+    const t  = ti.tasks || {};
+    flat.push({
+      // task_items 기본 필드 (라이브 shape 호환)
+      id:               ti.id || row.task_item_id,
+      task_id:          t.id,
+      product_order_id: ti.product_order_id,
+      order_type:       ti.order_type,
+      qty:              ti.qty,
+      unit_price:       ti.unit_price,
+      description:      ti.description,
+      is_canceled:      ti.is_canceled ?? false,
+      // 금액 (스냅샷 값)
+      subtotal:         row.subtotal,
+      net_amount:       row.net_amount,
+      // 시각 (스냅샷 값)
+      naver_settled_at: row.naver_settled_at,
+      // 참조 오브젝트
+      work_types:       ti.work_types || null,
+      appliance_types:  ti.appliance_types || null,
+      // tasks 평탄화 (라이브 shape 호환)
+      customer_name:    t.customer_name || "",
+      task_no:          t.task_no || "",
+      phone:            t.phone || "",
+      address:          t.address || "",
+      district:         t.district || "",
+      principal_id:     t.principal_id,
+      task_status:      t.status,
+      received_at:      t.received_at,
+      scheduled_at:     t.scheduled_at,
+      completed_at:     t.completed_at,
+      // 스냅샷 부가 필드
+      _company_receive:   row.company_receive_amount,
+      _is_carryover:      row.is_carryover,
+      _carryover_week:    row.carryover_source_monday,
+      _fromSnapshot:      true,
+      _snapshot_remit_id: remitId,
     });
   }
   return flat;
