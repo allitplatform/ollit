@@ -320,7 +320,8 @@ export const SEOUL_DISTRICTS = [
 //   normalizeZoneName 매칭으로 흡수 (아래).
 export const GYEONGGI = [
   "고양시","덕양구","일산동구","일산서구","파주시","김포시","부천시","시흥시",
-  "광명시","안양시","군포시","의왕시","안산시","수원시","화성시","성남시","용인시",
+  "광명시","안양시","군포시","의왕시","과천시","안산시","수원시","화성시",
+  "성남시","분당구","수정구","중원구","용인시",
   "하남시","남양주시","구리시","의정부시","양주시","동두천시","이천시","평택시","천안시",
 ];
 export const INCHEON = [
@@ -338,6 +339,29 @@ export function normalizeZoneName(z) {
   const s = String(z || "").trim();
   if (s.length >= 3 && s.endsWith("시")) return s.slice(0, -1);
   return s;
+}
+
+// 2026-07-20 — 시 ↔ 소속 구 커버 매칭 (사장님 spec: 분당·과천 추가하면서).
+//   "성남시"로 등록한 기사는 분당구/수정구/중원구 접수에 떠야 하고,
+//   "덕양구" 기사는 구가 안 잡혀 "고양시"로 저장된 접수에도 떠야 함 (양방향).
+//   ※ 서울 구는 시 소속 세분화 없음 — 여기엔 다구(多區) 경기 시만 등록.
+const CITY_DISTRICTS = {
+  "고양시": ["덕양구", "일산동구", "일산서구"],
+  "성남시": ["분당구", "수정구", "중원구"],
+};
+
+// zone(기사 등록 지역)이 region(작업지)을 커버하는가 — 정확일치 + 시↔구.
+export function zoneCoversRegion(zone, region) {
+  const nz = normalizeZoneName(zone);
+  const nr = normalizeZoneName(region);
+  if (!nz || !nr) return false;
+  if (nz === nr) return true;
+  for (const [city, gus] of Object.entries(CITY_DISTRICTS)) {
+    const nc = normalizeZoneName(city);
+    if (nz === nc && gus.some(g => normalizeZoneName(g) === nr)) return true;  // 시 기사 → 구 작업
+    if (nr === nc && gus.some(g => normalizeZoneName(g) === nz)) return true;  // 구 기사 → 시 작업
+  }
+  return false;
 }
 
 // Step 5-1 — 시트(설정_기사) 캐시 키 (feePolicy.js setEngineersCache와 동일)

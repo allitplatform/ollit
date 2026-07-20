@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { listEngineersFromDb } from "../lib/engineersDb.js";
 import {
-  SEOUL_DISTRICTS, GYEONGGI, INCHEON, normalizeZoneName,
+  SEOUL_DISTRICTS, GYEONGGI, INCHEON, zoneCoversRegion,
 } from "../data/engineers.js";
 
 const GEO_URL = "https://cdn.jsdelivr.net/gh/southkorea/seoul-maps@master/juso/2015/json/seoul_municipalities_geo_simple.json";
@@ -122,7 +122,7 @@ export default function EngineerCoverageMap() {
     const map = {};
     for (const r of [...SEOUL_DISTRICTS, ...GYEONGGI, ...INCHEON]) {
       const covering = zoneEngs.filter(e =>
-        e.zones.some(z => normalizeZoneName(z) === normalizeZoneName(r))
+        e.zones.some(z => zoneCoversRegion(z, r))   // 시↔구 커버 포함 (성남시 기사 → 분당구 등)
       );
       map[r] = {
         clean: covering.filter(e => e.clean),

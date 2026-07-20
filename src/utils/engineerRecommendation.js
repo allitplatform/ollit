@@ -11,7 +11,7 @@ import { loadTasks } from "../data/tasks.js";
 import { loadRegions } from "../data/regions.js";
 import { isRefrigerant, getServiceKind } from "./workTypeKind.js";
 // 2026-07-14 — 지역명 표기 흔들림 흡수 ("남양주시"↔"남양주")
-import { normalizeZoneName } from "../data/engineers.js";
+import { normalizeZoneName, zoneCoversRegion } from "../data/engineers.js";
 import { supabase } from "../lib/supabase.js";
 
 const RECOMMEND_THRESHOLD = 50; // isRecommended 기준
@@ -75,7 +75,7 @@ function matchSkill(engineer, task) {
         || zones.includes("(전국)");
       // 2026-07-14 — 표기 흔들림 흡수: "남양주시"↔"남양주" 등 (normalizeZoneName)
       const regionMatch = !r || isAllRegion
-        || zones.some(z => normalizeZoneName(z) === normalizeZoneName(r));
+        || zones.some(z => zoneCoversRegion(z, r));   // 2026-07-20 — 시↔구 커버 포함
       if (!regionMatch) continue;
       return { matched: true, grade: String(s.grade || "").trim(), skill: s };
     }
@@ -366,7 +366,7 @@ export async function recommendEngineersFromDb(task) {
     }
     // 2026-07-20 — matchedZone 부착: RecommendCard 지역 줄이 비어 나오던 것
     //   (DB 후보에 cleanZones/matchedZone 없음 → infoText "") 표시 복구.
-    const hit = zones.find(z => normalizeZoneName(z) === normalizeZoneName(region));
+    const hit = zones.find(z => zoneCoversRegion(z, region));   // 2026-07-20 — 시↔구 커버 포함
     if (hit) {
       filtered.push({ ...c, regionHit: "zone", matchedZone: hit, zones });
     }
