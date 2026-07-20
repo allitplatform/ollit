@@ -51,7 +51,14 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
     });
   }
   const filtered = useMemo(() => {
-    return engineers.filter(e => {
+    // 2026-07-20 — 정렬: 활동 그룹 → 휴직 그룹, 각 그룹 안에서 이름 가나다순.
+    const sorted = engineers.slice().sort((a, b) => {
+      const aOff = a.status !== "active";
+      const bOff = b.status !== "active";
+      if (aOff !== bOff) return aOff ? 1 : -1;
+      return (a.name || "").localeCompare(b.name || "", "ko");
+    });
+    return sorted.filter(e => {
       // 검색 (이름 OR 지역) — 지역은 DB zones 우선, fallback SEED
       if (search) {
         const inName = e.name && e.name.includes(search);
@@ -100,16 +107,16 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
       {/* 카운터 + 휴직 포함 토글 (2026-07-20) */}
       <div style={countersStyle}>
         <span style={{ color: "var(--text-primary)" }}>활동 <strong style={{ color: "#00875A" }}>{counts.active}</strong></span>
-        <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 휴직 {counts.off}</span>
+        <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 퇴사 {counts.off}</span>
         {counts.quit > 0 && <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 퇴사 {counts.quit}</span>}
         <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 신입 {counts.rookie}</span>
         {(counts.off > 0 || counts.quit > 0) && (
           <button
             onClick={() => setIncludeOff(v => !v)}
             style={includeToggleStyle(includeOff)}
-            title={search ? "검색 중엔 자동으로 휴직도 표시됩니다" : ""}
+            title={search ? "검색 중엔 자동으로 퇴사도 표시됩니다" : ""}
           >
-            {includeOff ? "✓ 휴직 포함" : `+ 휴직 ${counts.off + counts.quit}명 포함`}
+            {includeOff ? "✓ 퇴사 포함" : `+ 퇴사 ${counts.off + counts.quit}명 포함`}
           </button>
         )}
       </div>

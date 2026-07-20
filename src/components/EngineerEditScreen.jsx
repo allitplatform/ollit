@@ -315,7 +315,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
     setBusy(false);
     // 2026-07-20 — Mig 183 RPC 전환. 작업 이력 있는 기사는 삭제 대신 비활성 처리됨.
     if (res.ok && res.action === "deactivated") {
-      setToast({ type: "success", message: "작업 이력이 있어 삭제 대신 비활성(휴직) 처리했어요" });
+      setToast({ type: "success", message: "작업 이력이 있어 삭제 대신 퇴사 처리했어요" });
       setTimeout(() => onSaved && onSaved(null), 900);
     } else if (res.ok) {
       setToast({ type: "success", message: "프로 삭제 완료" });

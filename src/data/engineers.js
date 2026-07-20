@@ -20,6 +20,8 @@ import {
   upsertEngineerSkillToDb,
   deleteEngineerSkillFromDb,
 } from "../lib/engineerSkillsDb.js";
+// 2026-07-20 — save/delete 시 시트 캐시(SHEET_CACHE_KEY) 도 즉시 동기화용.
+import { setEngineersCache } from "../utils/engineersCache.js";
 
 const STORAGE_KEY = "ollit_engineers_v1";
 
@@ -297,7 +299,7 @@ export const CAREER_LEVELS = {
 
 export const STATUS_OPTIONS = {
   active: { name: "활동중", color: "#00875A" },
-  off:    { name: "휴직",   color: "#888780" },
+  off:    { name: "퇴사",   color: "#888780" },
   quit:   { name: "퇴사",   color: "#555" },
 };
 
@@ -567,6 +569,59 @@ function _toSyncPayload(eng) {
   };
 }
 
+// 2026-07-20 — 시트 캐시(SHEET_CACHE_KEY) 즉시 patch.
+//   배경: loadEngineers 병합에서 status 가 adapted(시트 캐시) 우선으로 바뀜 (2026-07-20 fix).
+//   → 저장·삭제 시 STORAGE_KEY 만 갱신하면 다음 마운트에서 시트 캐시 옛 status 로 덮여
+//     화면 미반영. AdminApp 이 다음 시트 재fetch 할 때까지 상태 변경 안 보임.
+//   해결: 저장·삭제 성공 시 SHEET_CACHE_KEY 항목도 함께 patch.
+//   patch shape 은 engineersDb.js rowToSheetShape 미러 (필요 필드만).
+function _patchSheetCacheItem(eng, mode /* 'upsert' | 'delete' | 'deactivate' */) {
+  try {
+    const list = _loadSheetEngineersFromCache();
+    const idx = list.findIndex(s =>
+      (s.engineerId && s.engineerId === eng.id) ||
+      (s.id && s.id === eng.id)
+    );
+
+    if (mode === "delete") {
+      if (idx < 0) return;
+      setEngineersCache(list.filter((_, i) => i !== idx));
+      return;
+    }
+
+    if (mode === "deactivate") {
+      if (idx < 0) return;
+      const patched = { ...list[idx], active: false, is_active: false, status: "off" };
+      const next = list.map((s, i) => i === idx ? patched : s);
+      setEngineersCache(next);
+      return;
+    }
+
+    // upsert (신규 or 편집)
+    const statusVal  = eng.status || "active";
+    const activeBool = statusVal === "active";
+    const base = idx >= 0 ? list[idx] : {};
+    const patched = {
+      ...base,
+      engineerId:          eng.id,
+      id:                  eng.id,
+      name:                eng.name  || "",
+      phone:               eng.phone || "",
+      status:              statusVal,
+      active:              activeBool,
+      is_active:           activeBool,
+      cm_refrigerant_rate: eng.cm_refrigerant_rate ?? base.cm_refrigerant_rate ?? 50,
+      bankName:            eng.bankName      || base.bankName      || "",
+      accountNumber:       eng.accountNumber || base.accountNumber || "",
+      accountHolder:       eng.accountHolder || base.accountHolder || "",
+    };
+    const next = idx >= 0 ? list.map((s, i) => i === idx ? patched : s) : [...list, patched];
+    setEngineersCache(next);
+  } catch (e) {
+    console.warn("[engineers._patchSheetCacheItem]", e);
+  }
+}
+
 // upsert: localStorage 즉시 + Supabase DB 비동기 sync
 // Phase 3-6 — apiSaveEngineer (시트) → upsertEngineerToDb (DB). 시그니처 / 응답 형태 동일.
 // 응답: { ok: true, action, engineerId } | { ok: false, error, localOk: true }
@@ -578,6 +633,8 @@ export async function saveEngineerWithSync(eng) {
     ? list.map(e => e.id === eng.id ? eng : e)
     : [eng, ...list];
   saveEngineers(next);
+  // 시트 캐시도 즉시 patch (2026-07-20 — status 병합 우선순위 변경 대응)
+  _patchSheetCacheItem(eng, "upsert");
 
   // 2) DB sync (비동기 / 실패 시 localStorage는 유지)
   try {
@@ -589,6 +646,7 @@ export async function saveEngineerWithSync(eng) {
     if (res.engineerId && res.engineerId !== eng.id) {
       const updated = next.map(e => e.id === eng.id ? { ...e, id: res.engineerId } : e);
       saveEngineers(updated);
+      _patchSheetCacheItem({ ...eng, id: res.engineerId }, "upsert");
       return { ok: true, action: res.action, engineerId: res.engineerId };
     }
     return { ok: true, action: res.action || "update", engineerId: res.engineerId || eng.id };
@@ -608,6 +666,12 @@ export async function deleteEngineerWithSync(engineerId) {
       throw new Error((res && res.error) || "DB sync 실패");
     }
     // 2026-07-20 — Mig 183: action 전달 ('deleted' | 'deactivated' 작업 이력 보존 비활성)
+    //   시트 캐시도 상응 반영. deactivated 이면 항목 유지 + status=off, deleted 이면 제거.
+    if (res.action === "deactivated") {
+      _patchSheetCacheItem({ id: engineerId }, "deactivate");
+    } else {
+      _patchSheetCacheItem({ id: engineerId }, "delete");
+    }
     return { ok: true, action: res.action || "deleted", reason: res.reason || "" };
   } catch (e) {
     return { ok: false, error: e.message || "네트워크 오류", localOk: true };
