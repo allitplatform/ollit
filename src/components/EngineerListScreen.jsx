@@ -16,6 +16,8 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
   const [engineers] = useState(() => loadEngineers());
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  // 2026-07-20 — 기본은 활동 기사만. 토글 켜면 휴직도 표시. 검색 있으면 자동 통과.
+  const [includeOff, setIncludeOff] = useState(false);
 
   // 2026-06-08 — DB epp 직접 fetch (매 mount). engineerId(=users.code) → skills 배열.
   //   응답 전엔 null → summarize "—" 표시 (SEED 폴백 차단).
@@ -63,13 +65,15 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
         const inZones = dbZones.some(z => z.includes(search));
         if (!inName && !inZones) return false;
       }
+      // 2026-07-20 — 활동 기본 필터. 검색 있거나 토글 켜면 휴직/퇴사도 통과.
+      if (!search && !includeOff && e.status !== "active") return false;
       // 기능 필터 — DB 기준. skillsMap 로딩 전엔 통과 (= 카운트 0 깜빡임 회피).
       if (filter === "cleaning"    && skillsMap && !_hasSkillDb(e, "세척"))    return false;
       if (filter === "refrigerant" && skillsMap && !_hasSkillDb(e, "냉매충전")) return false;
       if (filter === "rookie"      && e.careerLevel !== "rookie")              return false;
       return true;
     });
-  }, [engineers, search, filter, skillsMap]);
+  }, [engineers, search, filter, skillsMap, includeOff]);
 
   const counts = useMemo(() => ({
     active: engineers.filter(e => e.status === "active").length,
@@ -93,12 +97,21 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
         </div>
       </div>
 
-      {/* 카운터 */}
+      {/* 카운터 + 휴직 포함 토글 (2026-07-20) */}
       <div style={countersStyle}>
         <span style={{ color: "var(--text-primary)" }}>활동 <strong style={{ color: "#00875A" }}>{counts.active}</strong></span>
         <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 휴직 {counts.off}</span>
         {counts.quit > 0 && <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 퇴사 {counts.quit}</span>}
         <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 신입 {counts.rookie}</span>
+        {(counts.off > 0 || counts.quit > 0) && (
+          <button
+            onClick={() => setIncludeOff(v => !v)}
+            style={includeToggleStyle(includeOff)}
+            title={search ? "검색 중엔 자동으로 휴직도 표시됩니다" : ""}
+          >
+            {includeOff ? "✓ 휴직 포함" : `+ 휴직 ${counts.off + counts.quit}명 포함`}
+          </button>
+        )}
       </div>
 
       {/* 검색 */}
@@ -222,6 +235,18 @@ const regionsBtnStyle = {
   fontFamily: "inherit",
 };
 const countersStyle = { padding: "14px 16px 8px", fontSize: 12 };
+const includeToggleStyle = (on) => ({
+  marginLeft: 12,
+  padding: "3px 10px",
+  background: on ? "rgba(255, 27, 141, 0.12)" : "var(--bg-secondary)",
+  border: `1px solid ${on ? "#FF1B8D" : "var(--border)"}`,
+  borderRadius: 6,
+  fontSize: 11,
+  color: on ? "#FF1B8D" : "var(--text-secondary)",
+  cursor: "pointer",
+  fontWeight: on ? 700 : 500,
+  fontFamily: "inherit",
+});
 const searchStyle = {
   width: "100%", background: "var(--bg-secondary)", border: "1px solid var(--border)",
   borderRadius: 10, padding: "10px 12px", color: "var(--text-primary)", fontSize: 13,
