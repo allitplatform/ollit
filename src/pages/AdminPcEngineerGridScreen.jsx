@@ -8,6 +8,7 @@ import { useState, useMemo, useEffect } from "react";
 import { Search, Plus, Phone } from "lucide-react";
 import { loadEngineers } from "../data/engineers.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
+import { filterAndSortEngineers } from "../utils/engineerListFilter.js";
 
 const COLOR_CLEANING    = "#0EA5E9";
 const COLOR_REFRIGERANT = "#FFB800";
@@ -39,6 +40,8 @@ export function AdminPcEngineerGridScreen({ onEdit, onAdd, onCalendar }) {
   const [engineers] = useState(() => loadEngineers());
   const [search, setSearch] = useState("");
   const [skillsMap, setSkillsMap] = useState(null);
+  // 2026-07-20 — 활동 기본 + 퇴사 토글 (EngineerListScreen 과 동일 규칙).
+  const [includeOff, setIncludeOff] = useState(false);
 
   // DB skills fetch (옛 EngineerListScreen line 23~ 동일 패턴).
   useEffect(() => {
@@ -83,29 +86,35 @@ export function AdminPcEngineerGridScreen({ onEdit, onAdd, onCalendar }) {
     });
   }
 
+  // 카운트 (전체 기준)
+  const counts = useMemo(() => ({
+    active: engineers.filter(e => e.status === "active").length,
+    off:    engineers.filter(e => e.status !== "active").length,
+  }), [engineers]);
+
   const filtered = useMemo(() => {
-    if (!search) return engineers;
-    const q = search.trim();
-    if (!q) return engineers;
-    // 2026-06-13 — 핸드폰 검색 추가 (하이픈 무관).
-    //   숫자만 들어온 검색어는 phone 도 숫자만 추출 후 includes 비교.
-    //   문자 섞이면 옛 방식 (이름/지역) 만.
-    const qDigits = q.replace(/\D/g, "");
-    return engineers.filter(e => {
-      if (e.name && e.name.includes(q)) return true;
-      const zones = getEngZones(e.id);
-      if (zones.some(z => z.includes(q))) return true;
-      // 핸드폰 — qDigits 있을 때만 시도
-      if (qDigits) {
-        const phone = String(e.phone || e.phoneNumber || "");
-        const phoneDigits = phone.replace(/\D/g, "");
-        if (phoneDigits && phoneDigits.includes(qDigits)) return true;
-      }
-      return false;
-    });
-    // skillsMap deps — search 변경 시만 trigger. zones 매핑이 skillsMap 의존 → 추가.
+    // 1) 화면 자체 필터 — 검색 (이름/지역/핸드폰)
+    let custom = engineers;
+    const q = (search || "").trim();
+    if (q) {
+      // 2026-06-13 — 핸드폰 검색 (하이픈 무관). 숫자면 phone 도 숫자만 비교.
+      const qDigits = q.replace(/\D/g, "");
+      custom = engineers.filter(e => {
+        if (e.name && e.name.includes(q)) return true;
+        const zones = getEngZones(e.id);
+        if (zones.some(z => z.includes(q))) return true;
+        if (qDigits) {
+          const phone = String(e.phone || e.phoneNumber || "");
+          const phoneDigits = phone.replace(/\D/g, "");
+          if (phoneDigits && phoneDigits.includes(qDigits)) return true;
+        }
+        return false;
+      });
+    }
+    // 2) 공용 헬퍼 — 정렬 (활동→퇴사, 가나다) + 활동 기본 필터 (검색·토글 시 퇴사 포함)
+    return filterAndSortEngineers(custom, { search: q, includeOff });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [engineers, search, skillsMap]);
+  }, [engineers, search, skillsMap, includeOff]);
 
   return (
     <div style={{
@@ -119,15 +128,42 @@ export function AdminPcEngineerGridScreen({ onEdit, onAdd, onCalendar }) {
         gap: 12, flexWrap: "wrap",
       }}>
         <div style={{
-          fontSize: 18, fontWeight: 800,
-          color: "var(--text-primary)",
-          letterSpacing: "-0.4px",
+          display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
         }}>
-          기사 목록
-          <span style={{
-            marginLeft: 10,
-            fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
-          }}>{filtered.length}명</span>
+          <div style={{
+            fontSize: 18, fontWeight: 800,
+            color: "var(--text-primary)",
+            letterSpacing: "-0.4px",
+          }}>
+            기사 목록
+          </div>
+          {/* 2026-07-20 — 카운터 + 퇴사 포함 토글 (모바일 EngineerListScreen 과 동일 규칙) */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12 }}>
+            <span style={{ color: "var(--text-primary)" }}>
+              활동 <strong style={{ color: "#10B981" }}>{counts.active}</strong>
+            </span>
+            <span style={{ color: "var(--text-secondary)" }}>· 퇴사 {counts.off}</span>
+            {counts.off > 0 && (
+              <button
+                onClick={() => setIncludeOff(v => !v)}
+                title={search ? "검색 중엔 자동으로 퇴사도 표시됩니다" : ""}
+                style={{
+                  padding: "3px 10px",
+                  background: includeOff ? "rgba(255, 27, 141, 0.12)" : "var(--bg-secondary)",
+                  border: `1px solid ${includeOff ? "var(--accent, #FF1B8D)" : "var(--border)"}`,
+                  borderRadius: 6,
+                  fontSize: 11,
+                  color: includeOff ? "var(--accent, #FF1B8D)" : "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontWeight: includeOff ? 700 : 500,
+                  fontFamily: "inherit",
+                }}
+              >
+                {includeOff ? "✓ 퇴사 포함" : `+ 퇴사 ${counts.off}명 포함`}
+              </button>
+            )}
+            <span style={{ color: "var(--text-secondary)" }}>· 표시 {filtered.length}</span>
+          </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <SearchBar value={search} onChange={setSearch}/>

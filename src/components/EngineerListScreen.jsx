@@ -10,6 +10,7 @@ import {
 } from "../data/engineers.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { EngineerBadge } from "./EngineerBadge.jsx";
+import { filterAndSortEngineers } from "../utils/engineerListFilter.js";
 
 export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
   // 매번 마운트 시 localStorage 다시 읽음 (편집 후 복귀 시 새 데이터 반영)
@@ -51,15 +52,8 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
     });
   }
   const filtered = useMemo(() => {
-    // 2026-07-20 — 정렬: 활동 그룹 → 휴직 그룹, 각 그룹 안에서 이름 가나다순.
-    const sorted = engineers.slice().sort((a, b) => {
-      const aOff = a.status !== "active";
-      const bOff = b.status !== "active";
-      if (aOff !== bOff) return aOff ? 1 : -1;
-      return (a.name || "").localeCompare(b.name || "", "ko");
-    });
-    return sorted.filter(e => {
-      // 검색 (이름 OR 지역) — 지역은 DB zones 우선, fallback SEED
+    // 1) 화면 자체 필터 — 검색 (이름/지역) + 기능 필터
+    const custom = engineers.filter(e => {
       if (search) {
         const inName = e.name && e.name.includes(search);
         const dbList = skillsMap ? (skillsMap.get(String(e.id||"").trim()) || []) : [];
@@ -72,14 +66,13 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
         const inZones = dbZones.some(z => z.includes(search));
         if (!inName && !inZones) return false;
       }
-      // 2026-07-20 — 활동 기본 필터. 검색 있거나 토글 켜면 휴직/퇴사도 통과.
-      if (!search && !includeOff && e.status !== "active") return false;
-      // 기능 필터 — DB 기준. skillsMap 로딩 전엔 통과 (= 카운트 0 깜빡임 회피).
       if (filter === "cleaning"    && skillsMap && !_hasSkillDb(e, "세척"))    return false;
       if (filter === "refrigerant" && skillsMap && !_hasSkillDb(e, "냉매충전")) return false;
       if (filter === "rookie"      && e.careerLevel !== "rookie")              return false;
       return true;
     });
+    // 2) 공용 헬퍼로 정렬 + 활동/퇴사 상태 필터 (PC 화면과 규칙 통일)
+    return filterAndSortEngineers(custom, { search, includeOff });
   }, [engineers, search, filter, skillsMap, includeOff]);
 
   const counts = useMemo(() => ({
