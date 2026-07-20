@@ -313,13 +313,17 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
     setBusy(true);
     const res = await deleteEngineerWithSync(form.id);
     setBusy(false);
-    if (res.ok) {
+    // 2026-07-20 — Mig 183 RPC 전환. 작업 이력 있는 기사는 삭제 대신 비활성 처리됨.
+    if (res.ok && res.action === "deactivated") {
+      setToast({ type: "success", message: "작업 이력이 있어 삭제 대신 비활성(휴직) 처리했어요" });
+      setTimeout(() => onSaved && onSaved(null), 900);
+    } else if (res.ok) {
       setToast({ type: "success", message: "프로 삭제 완료" });
       setTimeout(() => onSaved && onSaved(null), 600);
     } else {
       setToast({
         type: "warn",
-        message: `로컬 삭제 완료 / 시트 sync 실패: ${res.error || "알 수 없는 오류"}`,
+        message: `삭제 실패: ${res.error || "알 수 없는 오류"}`,
       });
     }
   }

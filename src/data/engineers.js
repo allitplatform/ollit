@@ -575,7 +575,8 @@ export async function deleteEngineerWithSync(engineerId) {
     if (!res || res.ok === false) {
       throw new Error((res && res.error) || "DB sync 실패");
     }
-    return { ok: true };
+    // 2026-07-20 — Mig 183: action 전달 ('deleted' | 'deactivated' 작업 이력 보존 비활성)
+    return { ok: true, action: res.action || "deleted", reason: res.reason || "" };
   } catch (e) {
     return { ok: false, error: e.message || "네트워크 오류", localOk: true };
   }

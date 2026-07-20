@@ -10,7 +10,7 @@
 //   · 지역 많으면 "강남·서초 외 8" 로 접기
 import { useState, useMemo } from "react";
 import { recommendEngineers } from "../utils/engineerRecommendation.js";
-import { loadEngineers } from "../data/engineers.js";
+import { loadEngineers, getEngineerSkillsByEngineer } from "../data/engineers.js";
 
 const REGION_LABEL = {
   main:     "메인",
@@ -29,8 +29,18 @@ export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [],
   const [searchQuery, setSearchQuery] = useState("");
 
   const engineers = useMemo(() => {
-    if (Array.isArray(enginerProp)) return enginerProp;
-    try { return loadEngineers(); } catch { return []; }
+    const base = Array.isArray(enginerProp)
+      ? enginerProp
+      : (() => { try { return loadEngineers(); } catch { return []; } })();
+    // 2026-07-20 — 지역 안 뜨던 버그 fix: apiEngineers(DB 기본정보 shape)에는
+    //   skills/zones가 없어서 전원 "지역 없음" + 메인/서브 배지 실종.
+    //   스킬 캐시(AdminApp fetchEngineerSkills가 앱 진입마다 DB에서 갱신)를 붙여
+    //   지역 매칭(recommendEngineers→matchSkill)과 지역 표시를 복구.
+    return base.map(e => {
+      if (Array.isArray(e.skills) && e.skills.length > 0) return e;
+      const skills = getEngineerSkillsByEngineer(e.id || e.engineerId);
+      return skills.length > 0 ? { ...e, skills } : e;
+    });
   }, [enginerProp]);
 
   // 최근 30일 기사별 회사 수익 — {total, count, avg}.
@@ -87,6 +97,7 @@ export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [],
       const zonesAll = [
         ...(e.workTypes?.cleaning?.zones    || []),
         ...(e.workTypes?.refrigerant?.zones || []),
+        ...((e.skills || []).flatMap(sk => Array.isArray(sk.zones) ? sk.zones : [])),
       ].join(" ").toLowerCase();
       return name.includes(q) || phone.includes(q) || zonesAll.includes(q);
     });
@@ -177,6 +188,8 @@ function AllEngineerRow({ recommendation, profit, onSelect }) {
   const zones = [...new Set([
     ...(engineer.workTypes?.cleaning?.zones    || []),
     ...(engineer.workTypes?.refrigerant?.zones || []),
+    // 2026-07-20 — DB shape 기사(workTypes 없음)는 skills 캐시 zones로 표시
+    ...((engineer.skills || []).flatMap(sk => Array.isArray(sk.zones) ? sk.zones : [])),
   ])].filter(Boolean);
   const zoneText = zones.length > 0
     ? zones.slice(0, 2).map(_shortZone).join("·") + (zones.length > 2 ? ` 외 ${zones.length - 2}` : "")

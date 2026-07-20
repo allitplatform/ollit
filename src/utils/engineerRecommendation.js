@@ -37,6 +37,9 @@ function matchSkill(engineer, task) {
   if (skills.length === 0) return { matched: false, grade: "", skill: null };
 
   const wt = String(task?.workType || "").trim();
+  // 2026-07-20 — DB skills workType은 "세척"/"냉매충전" 둘뿐인데 task.workType은
+  //   "냉매점검(가정용)" 같은 변형이 있어 exact 매칭이 빠지던 것 — canonical 폴백 추가.
+  const wtCanonical = isRefrigerant(task) ? "냉매충전" : "세척";
   const r  = task?.region ? String(task.region).trim() : "";
   const tPid   = task?.principalId ? String(task.principalId).trim() : "";
   const tPname = task?.principal   ? String(task.principal).trim()   : "";
@@ -54,7 +57,7 @@ function matchSkill(engineer, task) {
   function findByPrincipalFilter(filterFn) {
     for (const s of skills) {
       const sWT = String(s.workType || "").trim();
-      if (sWT !== wt) continue;
+      if (sWT !== wt && sWT !== wtCanonical) continue;
       const sP = String(s.principal || "").trim();
       if (!filterFn(sP)) continue;
       // 지역 매칭: zones 비어있음 / "전국" / 포함
@@ -350,11 +353,14 @@ export async function recommendEngineersFromDb(task) {
     const zones = zonesByUser.get(c.userId) || [];
     const isAll = zones.length === 0 || zones.includes("전국");
     if (isAll || !region) {
-      filtered.push({ ...c, regionHit: "all" });
+      filtered.push({ ...c, regionHit: "all", zones });
       continue;
     }
-    if (zones.some(z => normalizeZoneName(z) === normalizeZoneName(region))) {
-      filtered.push({ ...c, regionHit: "zone" });
+    // 2026-07-20 — matchedZone 부착: RecommendCard 지역 줄이 비어 나오던 것
+    //   (DB 후보에 cleanZones/matchedZone 없음 → infoText "") 표시 복구.
+    const hit = zones.find(z => normalizeZoneName(z) === normalizeZoneName(region));
+    if (hit) {
+      filtered.push({ ...c, regionHit: "zone", matchedZone: hit, zones });
     }
   }
 

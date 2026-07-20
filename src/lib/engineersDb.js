@@ -256,20 +256,31 @@ export async function upsertEngineerToDb(eng) {
   };
 }
 
-// 삭제 — code 기준 hard DELETE (user_roles 측 ON DELETE CASCADE)
-// 작업 history FK 충돌 시 에러 반환 → 호출처 (deleteEngineerWithSync) 측 localOk:true 반환.
-// Phase 3-3 (원청)과 동일 패턴.
+// 삭제 — 2026-07-20 Migration 183 admin_delete_engineer RPC 전환.
+//   옛: anon 직접 DELETE → users에 anon DELETE 정책 없음 → RLS 0행 silent fail
+//       ("삭제 완료" 토스트 후 새로고침하면 기사가 그대로 살아있던 버그).
+//   새: SECURITY DEFINER RPC + _caller_is_admin (Mig 102 저장 3종과 동일 패턴).
+//       작업 이력 있는 기사는 hard delete 대신 is_active=false 비활성 처리
+//       → action: 'deleted' | 'deactivated' 로 구분 반환 (호출처 토스트 분기).
 export async function deleteEngineerFromDb(engineerCode) {
   if (!engineerCode) return { ok: false, error: "engineerCode 없음" };
-  const { error } = await supabase
-    .from("users")
-    .delete()
-    .eq("tenant_id", TENANT_ID)
-    .eq("code", engineerCode);
+  const actor = currentUserId();
+  if (!actor) return { ok: false, error: "로그인 필요 (actor 없음)" };
+
+  const { data, error } = await supabase.rpc("admin_delete_engineer", {
+    p_code:  engineerCode,
+    p_actor: actor,
+  });
 
   if (error) {
-    console.error("[engineersDb.deleteEngineerFromDb]", error);
-    return { ok: false, error: error.message };
+    console.error("[engineersDb.deleteEngineerFromDb:rpc]", error);
+    if (_isRpcMissingError(error.message)) {
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 183)" };
+    }
+    return { ok: false, error: error.message || "RPC 호출 실패" };
   }
-  return { ok: true };
+  if (data && data.ok === false) {
+    return { ok: false, error: data.error || "삭제 실패" };
+  }
+  return { ok: true, action: data?.action || "deleted", reason: data?.reason || "" };
 }
