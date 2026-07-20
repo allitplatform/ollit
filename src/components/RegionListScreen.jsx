@@ -7,6 +7,8 @@ import {
 } from "../data/regions.js";
 import { loadEngineers, saveEngineers } from "../data/engineers.js";
 import { EngineerBadge } from "./EngineerBadge.jsx";
+// 2026-07-20 — 지역 커버리지 지도 (서울 GeoJSON + 경기/인천 타일, DB fresh)
+import EngineerCoverageMap from "./EngineerCoverageMap.jsx";
 
 export function RegionListScreen({ onBack, onAdd, onEdit }) {
   const [regions]   = useState(() => loadRegions());
@@ -170,6 +172,9 @@ export function RegionListScreen({ onBack, onAdd, onEdit }) {
           <Stat label="배정 프로"   value={totalStats.engineers} suffix="명" color="#00875A"/>
           <Stat label="미배정"     value={totalStats.unassigned} suffix="개" color={totalStats.unassigned > 0 ? "#FF1B8D" : "var(--text-secondary)"}/>
         </div>
+
+        {/* 2026-07-20 — 커버리지 지도 (사장님 spec: "지도로 나눠 있으면 보기 편할 것") */}
+        <EngineerCoverageMap/>
 
         <SectionLabel>활성 지역</SectionLabel>
         {activeGroups.map(group => (

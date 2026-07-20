@@ -9,7 +9,7 @@
 import { loadEngineers } from "../data/engineers.js";
 import { loadTasks } from "../data/tasks.js";
 import { loadRegions } from "../data/regions.js";
-import { isRefrigerant } from "./workTypeKind.js";
+import { isRefrigerant, getServiceKind } from "./workTypeKind.js";
 // 2026-07-14 — 지역명 표기 흔들림 흡수 ("남양주시"↔"남양주")
 import { normalizeZoneName } from "../data/engineers.js";
 import { supabase } from "../lib/supabase.js";
@@ -17,9 +17,15 @@ import { supabase } from "../lib/supabase.js";
 const RECOMMEND_THRESHOLD = 50; // isRecommended 기준
 
 // 2026-05-26 C-2 — workType 정확일치 → isRefrigerant (DB "냉매점검(...)" 측 catch).
-function getWorkTypeKey(task) {
-  if (isRefrigerant(task)) return "refrigerant";
+// 2026-07-20 — 사장님 규칙: 설치/누설/누수 작업은 냉매 기사의 기능·지역으로 배정.
+//   (5종 판정 getServiceKind 중 install/leak → refrigerant 로 귀속. 옛 2분법이
+//    누설·설치 접수를 전부 "세척"으로 떨어뜨려 냉매 기사 지역이 무시되던 버그.)
+function serviceKindToRecKey(kind) {
+  if (kind === "refrigerant" || kind === "install" || kind === "leak") return "refrigerant";
   return "cleaning";
+}
+function getWorkTypeKey(task) {
+  return serviceKindToRecKey(getServiceKind(task));
 }
 
 // 지역명 → 서브그룹 (서울/경기/인천)
@@ -39,7 +45,7 @@ function matchSkill(engineer, task) {
   const wt = String(task?.workType || "").trim();
   // 2026-07-20 — DB skills workType은 "세척"/"냉매충전" 둘뿐인데 task.workType은
   //   "냉매점검(가정용)" 같은 변형이 있어 exact 매칭이 빠지던 것 — canonical 폴백 추가.
-  const wtCanonical = isRefrigerant(task) ? "냉매충전" : "세척";
+  const wtCanonical = serviceKindToRecKey(getServiceKind(task)) === "refrigerant" ? "냉매충전" : "세척";
   const r  = task?.region ? String(task.region).trim() : "";
   const tPid   = task?.principalId ? String(task.principalId).trim() : "";
   const tPname = task?.principal   ? String(task.principal).trim()   : "";
@@ -284,8 +290,10 @@ function _pickServiceCode(task) {
   for (const it of items) {
     const c = String(it?.serviceCode || it?.service_code || "").toLowerCase();
     if (c === "cleaning" || c === "refrigerant") return c;
+    // 2026-07-20 — 설치/누설 serviceCode → 냉매 기사 풀 (사장님 규칙)
+    if (c === "install" || c === "leak") return "refrigerant";
   }
-  return isRefrigerant(task) ? "refrigerant" : "cleaning";
+  return serviceKindToRecKey(getServiceKind(task));
 }
 
 export async function recommendEngineersFromDb(task) {
