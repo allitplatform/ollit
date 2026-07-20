@@ -76,3 +76,23 @@ export function isCleaning(input) {
 export function isRefrigerant(input) {
   return getServiceKind(input) === "refrigerant";
 }
+
+// 2026-07-20 — 5종 통일 뱃지·필터 소스.
+//   각 화면이 자체 SERVICE_KIND / kind 배열을 재선언하다가 이분법·삼항 잔재가 남는 사고 방지.
+//   RevenueDetailScreen / PaymentHistoryScreen / 미래 매출 화면 등 공유.
+//   색상은 workTypeColors.js COLORS_* 팔레트와 정렬.
+export const SERVICE_KIND_META = {
+  cleaning:    { key: "cleaning",    label: "세척",       color: "#0EA5E9", icon: "❄" },
+  refrigerant: { key: "refrigerant", label: "냉매",       color: "#FFB800", icon: "⚡" },
+  install:     { key: "install",     label: "설치",       color: "#8B5CF6", icon: "🔧" },
+  leak:        { key: "leak",        label: "누설/누수",  color: "#DC2626", icon: "💧" },
+  other:       { key: "other",       label: "기타",       color: "#9CA3AF", icon: "•" },
+};
+
+// 순서 표기·필터 chip 렌더용.
+export const SERVICE_KIND_ORDER = ["cleaning", "refrigerant", "install", "leak", "other"];
+
+// task / workItem / 문자열 → META 하나.
+export function getServiceKindMeta(input) {
+  return SERVICE_KIND_META[getServiceKind(input)] || SERVICE_KIND_META.other;
+}

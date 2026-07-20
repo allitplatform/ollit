@@ -16,8 +16,13 @@ import {
   computeRevenueByEngineer,
   getMonthRange,
   getTasksByYmRange,
-  pickServiceCode,
 } from "../../utils/revenueStats.js";
+// 2026-07-20 — 5종 통일 (SERVICE_KIND_META). 옛 자체 3종 (cleaning/refrigerant/other) 폐기.
+import {
+  getServiceKind,
+  SERVICE_KIND_META,
+  SERVICE_KIND_ORDER,
+} from "../../utils/workTypeKind.js";
 import { EngineerTaskModal } from "./EngineerTaskList.jsx";
 
 // 2026-07-09 — 일별 네비용 헬퍼. selectedDay ("YYYY-MM-DD") ±1 일 이동.
@@ -39,17 +44,10 @@ function fmtDayLabel(ymd) {
 
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 
-// 2026-06-16 — service code → 종류 라벨/색.
-const SERVICE_KIND = {
-  cleaning:    { key: "cleaning",    label: "세척", color: "#0EA5E9" },
-  refrigerant: { key: "refrigerant", label: "냉매", color: "#FFB800" },
-  other:       { key: "other",       label: "기타", color: "#9CA3AF" },
-};
+// 2026-07-20 — 5종 통일. workTypeKind.getServiceKind 사용 (설치/누설/기타 정확 분류).
+//   옛 자체 3종 (cleaning/refrigerant/other) 폐기 — 누설·설치가 "기타" 로 뭉치는 사고 해결.
 function kindOfTask(task) {
-  const code = pickServiceCode(task);
-  if (code === "cleaning")    return SERVICE_KIND.cleaning;
-  if (code === "refrigerant") return SERVICE_KIND.refrigerant;
-  return SERVICE_KIND.other;
+  return SERVICE_KIND_META[getServiceKind(task)] || SERVICE_KIND_META.other;
 }
 
 // 2026-06-26 — onEngineerClick: 모바일에서 기사 행 클릭 시 부모(AdminApp) 로 올려 화면 전환.
@@ -449,10 +447,8 @@ function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, on
       }}>
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
           {[
-            { id: "all",         label: "전체" },
-            { id: "cleaning",    label: "세척" },
-            { id: "refrigerant", label: "냉매" },
-            { id: "other",       label: "기타" },
+            { id: "all", label: "전체" },
+            ...SERVICE_KIND_ORDER.map(k => ({ id: k, label: SERVICE_KIND_META[k].label })),
           ].map(opt => {
             const active = kind === opt.id;
             return (

@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { ArrowLeft, Clock, Check, AlertCircle } from "lucide-react";
 import { useIsDark } from "../hooks/useIsDark.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { getServiceKindMeta } from "../utils/workTypeKind.js";
 import { reportEngineerRemit } from "../lib/paymentsDb.js";
 
 async function handleReport(taskIds) {
@@ -326,17 +327,15 @@ function DailyGroupCard({ data, isExpanded, onToggle, onTaskClick, isDark }) {
   );
 }
 
+// 2026-07-20 — 5종 통일. 옛 이분법 (세척 vs 냉매) → getServiceKindMeta 5종.
+//   type 은 workType 문자열 (예: "세척_벽걸이" / "냉매점검(...)" / "누설_벽걸이" / "신규설치").
+//   ServiceKindMeta 가 5종 (cleaning/refrigerant/install/leak/other) 색·라벨 통일 반환.
 function WorkTypeBadge({ type }) {
-  const isCleaning = type === "세척";
-  const bg    = isCleaning ? "#E6F1FB" : "#FAEEDA";
-  const color = isCleaning ? "#0C447C" : "#854F0B";
-  const icon  = isCleaning ? "❄" : "⚡";
-  // 짧은 이름 박음 (사장님 spec: "냉매충전" → "냉매")
-  const shortName = isCleaning ? "세척" : "냉매";
+  const meta = getServiceKindMeta(type);
   return (
     <div style={{
-      background: bg,
-      color: color,
+      background: `${meta.color}22`,
+      color: meta.color,
       fontSize: 11,
       padding: "3px 8px",
       borderRadius: 8,
@@ -347,8 +346,8 @@ function WorkTypeBadge({ type }) {
       gap: 4,
       whiteSpace: "nowrap",
     }}>
-      <span style={{ fontSize: 10 }}>{icon}</span>
-      <span>{shortName}</span>
+      <span style={{ fontSize: 10 }}>{meta.icon}</span>
+      <span>{meta.label}</span>
     </div>
   );
 }
