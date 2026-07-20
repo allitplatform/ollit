@@ -124,195 +124,141 @@ def emit_sql(target, items):
     values_lines = ",\n".join(format_values_row(it) for it in items)
 
     sql = f"""-- ad-hoc_2026-07-20_backfill_remit_items_{label}.sql
--- 2026-07-20 — 자동 생성 (scripts/gen-backfill-remit-items-sql.py)
+-- 2026-07-20 v3 — DO 블록 / RAISE NOTICE / TEMP TABLE / BEGIN·COMMIT 전부 제거
 --
--- 소급 대상: {label} 확정 주차 (usol_n, week_start={week_start}, week_end={week_end})
--- 엑셀 소스: {target['pattern']}
+-- v2 실패 원인 (Supabase SQL Editor):
+--   DO $$ 블록 실행 여부 확인 불가. "Success. No rows returned" 만 표시.
+--   NOTICE 안 보임. 트랜잭션 컨텍스트 처리 방식 불명 → 실제 INSERT 0건.
+--   진단 SQL [S3] 결과: 매칭·필터 모두 정상 (10_passes_ALL=53).
+--
+-- v3 구조: 순수 SQL 문장 4개.
+--   [1] INSERT ... SELECT ... ON CONFLICT DO NOTHING RETURNING id
+--       → 편집기에 rows returned 로 삽입 건수 표시
+--   [2] UPDATE principal_weekly_remittances SET snapshot_item_count ... RETURNING
+--       → 요약 세팅 확인
+--   [3] UPDATE task_items SET company_received_at ... RETURNING id
+--       → 스탬프 건수 표시
+--   [4] SELECT 검증 — 최종 카운트 · 총액
+--
+-- 실행:
+--   각 섹션 [1]~[4] 를 블록 지정 후 개별 Run.
+--   각 문장 자동 커밋 (BEGIN/COMMIT 없음).
+--   문제 발생 시 각 문장 결과 즉시 확인 가능.
 --
 -- 엑셀 파싱 결과:
 --   · 총 건수: {actual_count} (기대: {expected_count})
 --   · 이월 건수: {actual_carry} (기대: {expected_carry})
 --   · Σ ROUND(subtotal × 0.85): {actual_recv:,} (기대: {expected_recv:,})
---
--- 처리 (임시 테이블 방식):
---   1. remit_id 조회 (usol_n · week_start · confirmed)
---   2. _excel_rows 임시 테이블에 엑셀 items INSERT
---   3. _matched 임시 테이블 = LEFT JOIN task_items (매칭 성공/실패 함께 보존)
---   4. 매칭 실패 리포트 — FOR 루프로 poid · buyer · subtotal RAISE NOTICE 각 행 출력
---   5. principal_weekly_remit_items INSERT (매칭 성공만)
---   6. snapshot_item_count = {actual_count} UPDATE (매칭 실패해도 사장님 값 유지)
---   7. company_received_at 스탬프 (스냅샷 items 중 NULL만)
---   8. 최종 요약 리포트
---
--- 실행:
---   BEGIN;
---   \\i ad-hoc_2026-07-20_backfill_remit_items_{label}.sql
---   -- 리포트 확인 후 COMMIT (문제 시 ROLLBACK)
---   COMMIT;
 
-BEGIN;
-
-DO $$
-DECLARE
-  v_pid            uuid;
-  v_remit_id       uuid;
-  v_confirmed_at   timestamptz;
-  v_snapshot_count int;
-  v_stamped_count  int;
-  v_missing_count  int;
-  r RECORD;
-BEGIN
-  SELECT id INTO v_pid FROM principals WHERE code = 'usol_n';
-  IF v_pid IS NULL THEN
-    RAISE EXCEPTION 'principal usol_n 없음';
-  END IF;
-
-  SELECT id, confirmed_at INTO v_remit_id, v_confirmed_at
+-- ============================================================================
+-- [1] 스냅샷 INSERT
+--   기대: {actual_count} rows returned (편집기 하단 rows count 확인)
+--   0 rows returned → remit 조회 실패 or 필터 이상 (진단 SQL [S3] 재확인)
+--   {actual_count} 미만 → 매칭 실패분 (진단 SQL [S4] 로 상세 확인)
+-- ============================================================================
+WITH remit AS (
+  SELECT id AS remit_id, confirmed_at, tenant_id
     FROM principal_weekly_remittances
-   WHERE principal_id = v_pid
+   WHERE principal_id = (SELECT id FROM principals WHERE code = 'usol_n')
      AND week_start = DATE '{week_start}'
-     AND confirmed_at IS NOT NULL;
-  IF v_remit_id IS NULL THEN
-    RAISE EXCEPTION '{week_start} 확정 remit row 없음 (미확정 or 없음)';
-  END IF;
-
-  -- (2) 엑셀 items → 임시 테이블
-  CREATE TEMP TABLE _excel_rows (
-    product_order_id text,
-    buyer_name       text,
-    subtotal         int,
-    is_carryover     boolean,
-    carry_monday     date
-  ) ON COMMIT DROP;
-
-  INSERT INTO _excel_rows (product_order_id, buyer_name, subtotal, is_carryover, carry_monday)
+     AND confirmed_at IS NOT NULL
+),
+excel(poid, buyer_name, subtotal, is_carryover, carry_monday) AS (
   VALUES
-{values_lines};
+{values_lines}
+)
+INSERT INTO principal_weekly_remit_items (
+  tenant_id, remit_id, task_item_id,
+  subtotal, net_amount, company_receive_amount,
+  is_carryover, carryover_source_monday,
+  naver_settled_at, captured_at
+)
+SELECT
+  r.tenant_id,
+  r.remit_id,
+  ti.id,
+  e.subtotal,
+  NULL,
+  ROUND(e.subtotal::numeric * 0.85)::int,
+  e.is_carryover,
+  e.carry_monday,
+  ti.naver_settled_at,
+  r.confirmed_at
+FROM excel e
+JOIN task_items ti ON ti.product_order_id = e.poid
+JOIN tasks       t ON t.id = ti.task_id
+CROSS JOIN remit r
+WHERE t.principal_id = (SELECT id FROM principals WHERE code = 'usol_n')
+  AND (t.status IS NULL OR t.status != '취소')
+  AND COALESCE(ti.is_canceled, false) = false
+ON CONFLICT (remit_id, task_item_id) DO NOTHING
+RETURNING id;
 
-  -- (3) 매칭 — LEFT JOIN 결과 임시 보존 (매칭 실패도 포함)
-  CREATE TEMP TABLE _matched ON COMMIT DROP AS
-  SELECT
-    e.product_order_id,
-    e.buyer_name,
-    e.subtotal,
-    e.is_carryover,
-    e.carry_monday,
-    ti.id                     AS task_item_id,
-    ti.tenant_id,
-    ti.naver_settled_at,
-    ti.company_received_at,
-    t.customer_name           AS db_customer_name,
-    t.principal_id,
-    t.status                  AS task_status,
-    ti.is_canceled            AS ti_canceled
-  FROM _excel_rows e
-  LEFT JOIN task_items ti ON ti.product_order_id = e.product_order_id::text
-  LEFT JOIN tasks       t ON t.id = ti.task_id;
+-- ============================================================================
+-- [2] snapshot_item_count 세팅 (엑셀 원본 건수 · 매칭 실패해도 사장님 값 유지)
+--   기대: 1 row returned (그 remit row 정보 표시)
+-- ============================================================================
+UPDATE principal_weekly_remittances
+   SET snapshot_item_count = {actual_count},
+       updated_at = now()
+ WHERE principal_id = (SELECT id FROM principals WHERE code = 'usol_n')
+   AND week_start = DATE '{week_start}'
+   AND confirmed_at IS NOT NULL
+RETURNING id, week_start, confirmed_at, remitted_amount, snapshot_item_count;
 
-  -- (4) 매칭 실패 상세 리포트 — 각 행 poid · buyer · subtotal · task_status · 스탬프 여부 · 사유
-  --     사장님 개별 처리 판단용 (취소분 vs 주문번호 변경분 구분).
-  FOR r IN
-    SELECT product_order_id, buyer_name, subtotal,
-           task_item_id, principal_id, task_status, ti_canceled, company_received_at,
-           CASE
-             WHEN task_item_id IS NULL          THEN 'task_items 없음 (주문번호 변경 or 삭제)'
-             WHEN principal_id != v_pid          THEN 'principal 불일치 (다른 원청)'
-             WHEN task_status = '취소'           THEN 'tasks.status=취소 (확정 후 취소)'
-             WHEN COALESCE(ti_canceled, false)   THEN 'task_items.is_canceled=true'
-             ELSE '기타'
-           END AS reason
-      FROM _matched
-     WHERE task_item_id IS NULL OR principal_id != v_pid
-        OR task_status = '취소' OR COALESCE(ti_canceled, false)
-     ORDER BY product_order_id
-  LOOP
-    RAISE NOTICE '[missing] poid=% buyer=% subtotal=% task_status=% stamped=% reason=%',
-      r.product_order_id,
-      r.buyer_name,
-      r.subtotal,
-      COALESCE(r.task_status, '(N/A)'),
-      CASE WHEN r.company_received_at IS NULL THEN 'NO' ELSE r.company_received_at::text END,
-      r.reason;
-  END LOOP;
-
-  SELECT count(*) INTO v_missing_count FROM _matched
-   WHERE task_item_id IS NULL OR principal_id != v_pid
-      OR task_status = '취소' OR COALESCE(ti_canceled, false);
-
-  -- (5) 스냅샷 INSERT (매칭 성공 + usol_n 소속 + 취소 아닌 것만)
-  WITH inserted AS (
-    INSERT INTO principal_weekly_remit_items (
-      tenant_id, remit_id, task_item_id,
-      subtotal, net_amount, company_receive_amount,
-      is_carryover, carryover_source_monday,
-      naver_settled_at, captured_at
+-- ============================================================================
+-- [3] company_received_at 스탬프 (스냅샷 items 중 NULL 만)
+--   기대 ({label}):
+--     · 7_13 → 이월 39건 스탬프 (당주 14 는 이미 다른 경로 스탬프됨)
+--     · 7_6  → 4건 or 이하 (사장님 언급 111건 이미 스탬프 · 나머지 4건 유실 처리)
+--   실제 rows returned 로 확인.
+-- ============================================================================
+UPDATE task_items ti
+   SET company_received_at = (
+     SELECT confirmed_at FROM principal_weekly_remittances
+      WHERE principal_id = (SELECT id FROM principals WHERE code = 'usol_n')
+        AND week_start = DATE '{week_start}'
+        AND confirmed_at IS NOT NULL
+   )
+ WHERE ti.id IN (
+   SELECT ri.task_item_id
+     FROM principal_weekly_remit_items ri
+    WHERE ri.remit_id = (
+      SELECT id FROM principal_weekly_remittances
+       WHERE principal_id = (SELECT id FROM principals WHERE code = 'usol_n')
+         AND week_start = DATE '{week_start}'
+         AND confirmed_at IS NOT NULL
     )
-    SELECT
-      m.tenant_id, v_remit_id, m.task_item_id,
-      m.subtotal, NULL,
-      ROUND(m.subtotal::numeric * 0.85)::int,
-      m.is_carryover, m.carry_monday,
-      m.naver_settled_at, v_confirmed_at
-    FROM _matched m
-    WHERE m.task_item_id IS NOT NULL
-      AND m.principal_id = v_pid
-      AND m.task_status != '취소'
-      AND COALESCE(m.ti_canceled, false) = false
-    ON CONFLICT (remit_id, task_item_id) DO NOTHING
-    RETURNING id
-  )
-  SELECT count(*) INTO v_snapshot_count FROM inserted;
-
-  -- (6) 요약 스냅샷: 엑셀 원본 건수 (매칭 실패해도 사장님 값 유지)
-  UPDATE principal_weekly_remittances
-     SET snapshot_item_count = {actual_count}
-   WHERE id = v_remit_id;
-
-  -- (7) company_received_at 스탬프 (스냅샷 items, NULL 만)
-  WITH stamped AS (
-    UPDATE task_items ti
-       SET company_received_at = v_confirmed_at
-     WHERE ti.id IN (
-       SELECT ri.task_item_id FROM principal_weekly_remit_items ri
-        WHERE ri.remit_id = v_remit_id
-     )
-       AND ti.company_received_at IS NULL
-    RETURNING ti.id
-  )
-  SELECT count(*) INTO v_stamped_count FROM stamped;
-
-  RAISE NOTICE '[backfill {label}] remit_id=% snapshot_inserted=% missing=% stamped=% snapshot_item_count={actual_count}',
-    v_remit_id, v_snapshot_count, v_missing_count, v_stamped_count;
-END $$;
+ )
+   AND ti.company_received_at IS NULL
+RETURNING ti.id;
 
 -- ============================================================================
--- 검증 SQL (COMMIT 전 실행)
+-- [4] 최종 검증 — 스냅샷 카운트 · 총액 · 이월 분리
+--   기대: cnt={actual_count} · sum_recv≈{actual_recv:,} · carry_cnt={actual_carry}
+--   (반올림 차이 ±수원 정상)
 -- ============================================================================
---
--- [1] 스냅샷 대조
--- SELECT
---   count(*) AS cnt,
---   sum(company_receive_amount) AS sum_recv,
---   sum(CASE WHEN is_carryover THEN 1 ELSE 0 END) AS carry_cnt
---   FROM principal_weekly_remit_items
---  WHERE remit_id = (
---    SELECT id FROM principal_weekly_remittances
---     WHERE principal_id = (SELECT id FROM principals WHERE code='usol_n')
---       AND week_start = DATE '{week_start}'
---  );
--- 기대: cnt=? sum_recv={expected_recv:,} carry_cnt={expected_carry}
---
--- [2] snapshot_item_count 확인
--- SELECT snapshot_item_count FROM principal_weekly_remittances
---  WHERE principal_id = (SELECT id FROM principals WHERE code='usol_n')
---    AND week_start = DATE '{week_start}';
--- 기대: {actual_count}
---
--- [3] 스탬프 확인 — 이월 소멸 검증 (다음 미확정 주차 이월 재계산)
--- WITH usoln AS (SELECT id AS pid FROM principals WHERE code='usol_n')
--- SELECT count(*), sum(ti.subtotal)
---   FROM task_items ti JOIN tasks t ON ti.task_id = t.id
---  WHERE t.principal_id = (SELECT pid FROM usoln)
+SELECT
+  count(*)                                      AS cnt,
+  sum(company_receive_amount)                   AS sum_recv,
+  sum(CASE WHEN is_carryover THEN 1 ELSE 0 END) AS carry_cnt,
+  sum(subtotal)                                 AS sum_subtotal
+FROM principal_weekly_remit_items
+WHERE remit_id = (
+  SELECT id FROM principal_weekly_remittances
+   WHERE principal_id = (SELECT id FROM principals WHERE code = 'usol_n')
+     AND week_start = DATE '{week_start}'
+);
+
+-- ============================================================================
+-- [5] (선택) 이월 소멸 확인 — 소급 후 미회수 items 재계산
+--   기대: {label} 소급 완료 후 그 주차까지의 미회수 이월 감소 확인
+-- ============================================================================
+-- SELECT count(*) AS remaining_unpaid_upto_{label},
+--        sum(ti.subtotal) AS remaining_sum
+--   FROM task_items ti
+--   JOIN tasks t ON ti.task_id = t.id
+--  WHERE t.principal_id = (SELECT id FROM principals WHERE code = 'usol_n')
 --    AND t.status = '완료'
 --    AND ti.naver_settled_at IS NOT NULL
 --    AND ti.company_received_at IS NULL
@@ -320,17 +266,161 @@ END $$;
 --    AND COALESCE(ti.is_canceled, false) = false
 --    AND ti.subtotal > 0
 --    AND EXISTS (SELECT 1 FROM payments p WHERE p.task_id = t.id AND p.track = 'B');
--- 기대: 매칭 실패분 (v_missing_count) 근접. 0 이면 완전 소멸.
-
--- 이상 없으면:
-COMMIT;
--- 문제 시:
--- ROLLBACK;
 """
     out_path = os.path.join(OUT_DIR, f"ad-hoc_2026-07-20_backfill_remit_items_{label}.sql")
     with open(out_path, "w", encoding="utf-8") as f:
         f.write(sql)
     return out_path, actual_count, actual_carry, actual_recv
+
+def emit_diag_sql(target, items):
+    """Emit SELECT-only diagnostic SQL — no BEGIN/COMMIT, no TEMP tables, no DO block.
+    Supabase SQL Editor 는 마지막 SELECT 결과만 표시 → 섹션별 개별 실행."""
+    label = target["label"]
+    week_start = target["week_start"]
+    week_end = target["week_end"]
+
+    def val_row(item):
+        poid = item["product_order_id"].replace("'", "''")
+        return f"    ('{poid}'::text, {item['subtotal']}::int)"
+
+    values_lines = ",\n".join(val_row(it) for it in items)
+
+    sql = f"""-- ad-hoc_2026-07-20_diag_backfill_{label}.sql
+-- 2026-07-20 — 진단 SQL (SELECT-only, BEGIN/COMMIT/TEMP TABLE 없음)
+--
+-- Supabase SQL Editor 는 마지막 SELECT 만 결과 표시 → 아래 섹션 [S1]~[S5] 를
+-- 각각 개별 실행. 각 섹션 끝의 세미콜론 앞까지 블록 지정 후 Run.
+-- 결과 테이블 형태로 반환 → NOTICE 안 보이는 문제 회피.
+
+-- ============================================================================
+-- [S1] 컬럼 타입 확인 (product_order_id 실제 타입 · 매칭 실패 원인 후보)
+-- ============================================================================
+SELECT
+  attname   AS column_name,
+  format_type(atttypid, atttypmod) AS column_type
+  FROM pg_attribute
+ WHERE attrelid = 'task_items'::regclass
+   AND attname IN ('product_order_id', 'company_received_at', 'is_canceled', 'subtotal')
+   AND attnum > 0
+ ORDER BY attnum;
+
+-- ============================================================================
+-- [S2] remit row 정보 (id · week_start · confirmed_at · remitted_amount)
+-- ============================================================================
+SELECT id, week_start, week_end, confirmed_at, remitted_amount,
+       snapshot_item_count
+  FROM principal_weekly_remittances
+ WHERE principal_id = (SELECT id FROM principals WHERE code = 'usol_n')
+   AND week_start = DATE '{week_start}';
+
+-- ============================================================================
+-- [S3] 매칭 단계별 카운트 요약 (핵심 진단)
+--   기대 (7_13): total=53, ti_matched=53, task_matched=53, passes_all=53
+--   실제와 대조 → 어느 단계에서 유실됐는지 즉시 파악
+-- ============================================================================
+WITH usoln AS (SELECT id AS pid FROM principals WHERE code = 'usol_n'),
+     excel(poid, subtotal) AS (
+       VALUES
+{values_lines}
+     ),
+     joined AS (
+       SELECT
+         e.poid                                     AS excel_poid,
+         e.subtotal                                 AS excel_subtotal,
+         ti.id                                      AS ti_id,
+         ti.product_order_id                        AS ti_poid,
+         ti.company_received_at                     AS ti_stamped,
+         ti.is_canceled                             AS ti_canceled,
+         t.id                                       AS task_id,
+         t.principal_id                             AS task_principal,
+         t.status                                   AS task_status
+       FROM excel e
+       LEFT JOIN task_items ti ON ti.product_order_id = e.poid
+       LEFT JOIN tasks       t ON t.id = ti.task_id
+     ),
+     existing AS (
+       SELECT task_item_id FROM principal_weekly_remit_items
+        WHERE remit_id = (
+          SELECT id FROM principal_weekly_remittances
+           WHERE principal_id = (SELECT pid FROM usoln)
+             AND week_start = DATE '{week_start}'
+        )
+     )
+SELECT '01_excel_total'                            AS bucket, count(*) AS cnt FROM joined
+UNION ALL SELECT '02_ti_matched',                    count(*) FROM joined WHERE ti_id IS NOT NULL
+UNION ALL SELECT '03_ti_unmatched (poid mismatch)',  count(*) FROM joined WHERE ti_id IS NULL
+UNION ALL SELECT '04_task_matched',                  count(*) FROM joined WHERE task_id IS NOT NULL
+UNION ALL SELECT '05_task_orphan (ti O + task X)',   count(*) FROM joined WHERE ti_id IS NOT NULL AND task_id IS NULL
+UNION ALL SELECT '06_principal_is_usoln',            count(*) FROM joined WHERE task_principal = (SELECT pid FROM usoln)
+UNION ALL SELECT '07_principal_other',               count(*) FROM joined WHERE task_principal IS NOT NULL AND task_principal != (SELECT pid FROM usoln)
+UNION ALL SELECT '08_status_not_cancelled',          count(*) FROM joined WHERE task_status != '취소' OR task_status IS NULL
+UNION ALL SELECT '09_ti_not_cancelled',              count(*) FROM joined WHERE COALESCE(ti_canceled, false) = false
+UNION ALL SELECT '10_passes_ALL_filters',            count(*) FROM joined
+  WHERE ti_id IS NOT NULL
+    AND task_principal = (SELECT pid FROM usoln)
+    AND (task_status != '취소' OR task_status IS NULL)
+    AND COALESCE(ti_canceled, false) = false
+UNION ALL SELECT '11_already_snapshot (would conflict)', count(*) FROM joined
+  WHERE ti_id IN (SELECT task_item_id FROM existing)
+ORDER BY 1;
+
+-- ============================================================================
+-- [S4] 실패 샘플 상세 (앞 20건)
+--   ti_matched / task_matched / task_principal (usol_n 여부) / task_status /
+--   ti_stamped (company_received_at) 컬럼으로 실패 사유 판단.
+-- ============================================================================
+WITH usoln AS (SELECT id AS pid FROM principals WHERE code = 'usol_n'),
+     excel(poid, subtotal) AS (
+       VALUES
+{values_lines}
+     )
+SELECT
+  e.poid                                           AS excel_poid,
+  e.subtotal                                       AS excel_subtotal,
+  ti.id IS NOT NULL                                AS ti_matched,
+  t.id IS NOT NULL                                 AS task_matched,
+  (t.principal_id = (SELECT pid FROM usoln))       AS is_usoln,
+  t.status                                         AS task_status,
+  ti.is_canceled                                   AS ti_canceled,
+  ti.company_received_at                           AS ti_stamped
+FROM excel e
+LEFT JOIN task_items ti ON ti.product_order_id = e.poid
+LEFT JOIN tasks       t ON t.id = ti.task_id
+WHERE ti.id IS NULL
+   OR t.principal_id IS NULL
+   OR t.principal_id != (SELECT pid FROM usoln)
+   OR t.status = '취소'
+   OR COALESCE(ti.is_canceled, false)
+LIMIT 20;
+
+-- ============================================================================
+-- [S5] 성공 샘플 상세 (앞 5건 — 실제로 매칭 · 필터 통과했는지 눈으로 확인)
+-- ============================================================================
+WITH usoln AS (SELECT id AS pid FROM principals WHERE code = 'usol_n'),
+     excel(poid, subtotal) AS (
+       VALUES
+{values_lines}
+     )
+SELECT
+  e.poid          AS excel_poid,
+  e.subtotal      AS excel_subtotal,
+  ti.id           AS ti_id,
+  ti.subtotal     AS ti_subtotal,
+  t.customer_name AS customer_name,
+  t.status        AS task_status,
+  ROUND(e.subtotal::numeric * 0.85)::int AS expected_company_receive
+FROM excel e
+JOIN task_items ti ON ti.product_order_id = e.poid
+JOIN tasks       t ON t.id = ti.task_id
+WHERE t.principal_id = (SELECT pid FROM usoln)
+  AND t.status != '취소'
+  AND COALESCE(ti.is_canceled, false) = false
+LIMIT 5;
+"""
+    out_path = os.path.join(OUT_DIR, f"ad-hoc_2026-07-20_diag_backfill_{label}.sql")
+    with open(out_path, "w", encoding="utf-8") as f:
+        f.write(sql)
+    return out_path
 
 def main():
     for target in TARGETS:
@@ -347,7 +437,9 @@ def main():
         status = "OK" if (cnt == exp_cnt and carry == exp_carry) else "MISMATCH"
         recv_status = "OK" if recv == exp_recv else f"DIFF({recv - exp_recv:+d})"
         print(f"[{status}] {target['label']}: count={cnt}/{exp_cnt} carry={carry}/{exp_carry} recv={recv:,}/{exp_recv:,} {recv_status}")
-        print(f"        emitted: {out_path}")
+        print(f"        emitted backfill: {out_path}")
+        diag_path = emit_diag_sql(target, items)
+        print(f"        emitted diag:     {diag_path}")
 
 if __name__ == "__main__":
     main()

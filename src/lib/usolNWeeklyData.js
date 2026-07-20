@@ -430,10 +430,13 @@ export async function fetchJuneLiveWeeks() {
   //   요약-only (건별 items 0건 + snapshot_item_count 있음) → 카드에 요약값만 표시.
   //   옛 확정 (snapshot_item_count NULL) → 라이브 유지 (스냅샷 이전 시대).
   const confirmedRemits = await fetchConfirmedRemitsForUsolN({ monthsBack: 6 });
+  console.warn("[SNAP.card] confirmedRemits:", confirmedRemits.length,
+    confirmedRemits.map(r => ({ id: r.id, week_start: r.week_start, snapshot_item_count: r.snapshot_item_count })));
   for (const remit of confirmedRemits) {
     if (remit.snapshot_item_count == null) continue;   // 옛 확정 → 라이브 유지
     const monday = remit.week_start;
     const snap   = await fetchSnapshotItemsForRemit(remit.id);
+    console.warn("[SNAP.card] merged week:", monday, "snap count=", snap.length);
     const sunday = addDaysYmd(monday, 6);
     const deposit = addDaysYmd(sunday, 1);
     const monthlyAmounts = new Map();
@@ -501,6 +504,7 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
   //   그 monday 의 remit 이 confirmed 이면 라이브 계산 대신 스냅샷 items 반환.
   //   요약-only (건별 스냅샷 0건 + snapshot_item_count 있음) → items:[] + _summaryOnly 부착.
   //   미확정 → 아래 기존 라이브 계산 (fetchCarryoverC2Items 포함).
+  console.warn("[SNAP.drill] fetchWeekItemsByMonday called mondayYmd=", mondayYmd);
   {
     const { data: remitRow, error: remitErr } = await supabase
       .from("principal_weekly_remittances")
@@ -509,15 +513,19 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
       .eq("week_start", mondayYmd)
       .not("confirmed_at", "is", null)
       .maybeSingle();
+    console.warn("[SNAP.drill] remit lookup:", { mondayYmd, remitRow, remitErr });
     if (remitErr) {
       console.warn("[fetchWeekItemsByMonday.snapshotProbe]", remitErr);
     }
     if (remitRow && remitRow.id) {
       const snap = await fetchSnapshotItemsForRemit(remitRow.id);
+      console.warn("[SNAP.drill] snap result:", { remitId: remitRow.id, snapCount: snap.length, snapshot_item_count: remitRow.snapshot_item_count });
       if (snap.length > 0) {
+        console.warn("[SNAP.drill] → return snapshot items", snap.length);
         return { ok: true, items: snap, _fromSnapshot: true };
       }
       if (remitRow.snapshot_item_count != null) {
+        console.warn("[SNAP.drill] → return _summaryOnly (snap empty but snapshot_item_count set)");
         // 요약-only 폴백 (7/6 · 7/13 소급 후엔 발생 X, 미래 대비)
         return {
           ok: true,
@@ -529,7 +537,10 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
           },
         };
       }
+      console.warn("[SNAP.drill] → 옛 확정 (snapshot_item_count NULL), fall back to live");
       // 옛 확정 (스냅샷 이전) → 라이브 폴백 (아래 진행)
+    } else {
+      console.warn("[SNAP.drill] → no confirmed remit for this monday, fall back to live");
     }
   }
 
@@ -851,7 +862,11 @@ export async function fetchConfirmedRemitsForUsolN({ monthsBack = 6 } = {}) {
 // 스냅샷 items → 프론트 shape (fetchWeekItemsByMonday 반환 호환).
 //   returns [{ 라이브 shape + _fromSnapshot, _snapshot_remit_id, _company_receive, _is_carryover, _carryover_week }]
 export async function fetchSnapshotItemsForRemit(remitId) {
-  if (!remitId) return [];
+  if (!remitId) {
+    console.warn("[SNAP.fetch] fetchSnapshotItemsForRemit called with null/empty remitId");
+    return [];
+  }
+  console.warn("[SNAP.fetch] fetchSnapshotItemsForRemit called remitId=", remitId);
   const { data, error } = await supabase
     .from("principal_weekly_remit_items")
     .select(`
@@ -870,6 +885,16 @@ export async function fetchSnapshotItemsForRemit(remitId) {
     `)
     .eq("remit_id", remitId)
     .order("naver_settled_at", { ascending: true });
+  console.warn("[SNAP.fetch] result:", {
+    remitId,
+    dataLen: (data || []).length,
+    error,
+    firstRow: (data || [])[0] ? {
+      id: data[0].id,
+      task_item_id: data[0].task_item_id,
+      has_task_items: !!data[0].task_items,
+    } : null,
+  });
   if (error) {
     console.error("[usolNWeeklyData.fetchSnapshotItemsForRemit]", error);
     return [];
