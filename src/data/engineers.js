@@ -381,12 +381,19 @@ function adaptSheetEngineerToSeed(sheetEng) {
   // Step 5-8 — 시트 H열 계좌번호 / I열 은행명 (다양한 키 호환)
   const accountNumber = String(sheetEng.accountNumber || sheetEng.계좌번호 || "").trim();
   const bankName      = String(sheetEng.bankName      || sheetEng.은행명   || "").trim();
+  // 2026-07-20 — DB status 실제 값 반영 (옛: 하드코딩 "active" → 휴직 표시 안 됨).
+  //   engineersDb.js rowToSheetShape 이 status(=dbActiveToStatus(is_active)) / active(boolean) 세팅.
+  //   호환: status / active / is_active 셋 중 하나라도 off/false 이면 "off".
+  let status = "active";
+  if (sheetEng.status === "off" || sheetEng.active === false || sheetEng.is_active === false) {
+    status = "off";
+  }
   return {
     id: id || generateId(name),
     name,
     phone,
-    careerLevel: "career",  // 사장님 결재 5 — 기본 career
-    status:      "active",  // 사장님 결재 5 — 기본 active
+    careerLevel: "career",  // 사장님 결재 5 — 기본 career (DB에 컬럼 없으므로 default)
+    status,                 // DB 값 반영
     workTypes: {
       cleaning:    { role: "none", zones: [], appliances: [] },
       refrigerant: { role: "none", zones: [], appliances: [] },
@@ -395,7 +402,7 @@ function adaptSheetEngineerToSeed(sheetEng) {
     cm_refrigerant_rate: Number.isFinite(rateNum) && rateNum > 0 ? rateNum : 50,
     bankName,
     accountNumber,
-    accountHolder: "",  // 시트 미보유 — 본인이 EngineerAccountEditScreen에서 박음 (옛 측 localStorage 보존)
+    accountHolder: "",  // 시트 미보유 — 본인이 EngineerAccountEditScreen에서 저장 (옛 localStorage 값 보존)
     _fromSheet: true,
   };
 }
@@ -460,9 +467,11 @@ export function loadEngineers() {
       merged.push({
         ...oldMatch,                  // 옛 SEED 정보 base (workTypes 등)
         ...adapted,                   // 시트 측 우선 (id / name / phone / 기본값)
-        // 옛 SEED 풍부 정보 명시 보존 (어댑터 default를 옛 측이 덮음)
+        // DB에 없는 풍부 정보만 옛 SEED 보존. status/휴직 여부는 DB(adapted) 우선.
+        //   2026-07-20 — 옛: status oldMatch 우선 → DB 휴직이 옛 캐시 "active"로 덮여 표시 오류.
+        //   fix: status는 DB(adapted) 우선. careerLevel / workTypes / note 는 DB 컬럼 없어 옛 유지.
         careerLevel: oldMatch.careerLevel || adapted.careerLevel,
-        status:      oldMatch.status      || adapted.status,
+        status:      adapted.status,
         workTypes:   oldMatch.workTypes   || adapted.workTypes,
         note:        oldMatch.note        || adapted.note,
         // 시트 측 우선 (저장 시 sync 일관성)
@@ -478,10 +487,9 @@ export function loadEngineers() {
     }
   }
 
-  // 5) 옛 SEED에만 있는 항목 (시트에 없는 사람) — 보존
-  for (const o of oldList) {
-    if (!usedOldIds.has(o.id)) merged.push({ ...o, _onlyOld: true });
-  }
+  // 5) 2026-07-20 — 옛 "_onlyOld 부활" 로직 삭제.
+  //   옛: 시트에 없는 사람을 옛 localStorage 에서 부활 → DB에서 삭제된 기사가 계속 표시되는 버그.
+  //   DB가 진실 소스. 시트 캐시 비어있을 때만 옛 폴백 (line 435-438 return) — 그 외엔 DB 기준.
 
   // 6) Step 5-5-C Phase 1 — engineer.skills 배열 첨부 (C-3 hybrid)
   // 시트 _기사역량 캐시 (Step 5-5-A setEngineerSkillsCache)에서 engineerId로 lookup.

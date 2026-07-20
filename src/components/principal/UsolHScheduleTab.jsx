@@ -274,6 +274,7 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
           .from("tasks")
           .select(`
             id, task_no, customer_name, status, scheduled_at, district, address,
+            assigned_engineer_id,
             task_items (
               id, qty, order_type,
               work_types ( id, name, service_types ( id, code ) ),
@@ -288,7 +289,8 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
         accumulated.push(...data);
         if (data.length < PAGE_SIZE) break;
       }
-      if (alive) setMonthTasks(accumulated);
+      const withNames = await attachEngineerNames(accumulated);
+      if (alive) setMonthTasks(withNames);
     })().catch(() => { /* 사일런트 — 캘린더 카운트 미표시. */ });
     return () => { alive = false; };
   }, [isPc, usolActive, usolCodes.join(","), calYm]);
@@ -339,6 +341,7 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
           .from("tasks")
           .select(`
             id, task_no, customer_name, status, scheduled_at, district,
+            assigned_engineer_id,
             task_items (
               id, qty, order_type,
               work_types ( id, name, service_types ( id, code ) ),
@@ -366,6 +369,7 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
         .from("tasks")
         .select(`
           id, task_no, customer_name, status, scheduled_at, district,
+          assigned_engineer_id,
           task_items (
             id, qty, order_type,
             work_types ( id, name, service_types ( id, code ) ),
@@ -380,8 +384,10 @@ export function UsolHScheduleTab({ t, principalCodes = [], onSelect }) {
         .limit(50);
       if (Array.isArray(nullData)) accumulated.push(...nullData);
 
+      const withNames = await attachEngineerNames(accumulated);
+
       if (!alive) return;
-      setTasks(accumulated);
+      setTasks(withNames);
       setLoading(false);
     })().catch(e => { if (alive) { setError(e?.message || "에러"); setLoading(false); } });
 
@@ -912,7 +918,10 @@ function ScheduleCalendar({ t, calYm, setCalYm, dayCount, selectedYmd, onSelectY
 
 // 일정 fetch row (snake_case) → PcTableRow 가 받는 task shape 매핑.
 //   v14NormalizeTask 미사용 — 일정 SELECT 측 가벼운 컬럼만 받음.
+//   2026-07-20 — assignedEngineer / engineer 하드코딩 "" 정정.
+//   fetch 시 attachEngineerNames 로 row.assigned_engineer_name 부착 → 여기서 사용.
 function mapScheduleRowToTask(row) {
+  const engName = row.assigned_engineer_name || "";
   return {
     id: row.id,
     customer: row.customer_name || "",
@@ -925,8 +934,8 @@ function mapScheduleRowToTask(row) {
     region: row.district || "",
     address: row.address || "",
     customerAddress: row.address || "",
-    assignedEngineer: "",
-    engineer: "",
+    assignedEngineer: engName,
+    engineer: engName,
     workItems: (row.task_items || []).map(it => ({
       id: it.id,
       workType: it.work_types?.name,
@@ -936,6 +945,30 @@ function mapScheduleRowToTask(row) {
       qty: it.qty,
     })),
   };
+}
+
+// 2026-07-20 — 일정 tasks row 배열에 engineer 이름 in-memory JOIN.
+//   패턴: src/lib/principalDashboardDb.js (원청 role 에서 users SELECT RLS OK).
+//   반환: rows 각 항목에 `assigned_engineer_name` 필드 추가 (없으면 빈 문자열).
+async function attachEngineerNames(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+  const userIds = [...new Set(rows.map(r => r.assigned_engineer_id).filter(Boolean))];
+  if (userIds.length === 0) {
+    return rows.map(r => ({ ...r, assigned_engineer_name: "" }));
+  }
+  const { data, error } = await supabase
+    .from("users")
+    .select("id, name")
+    .in("id", userIds);
+  if (error) {
+    console.warn("[UsolHScheduleTab.attachEngineerNames]", error);
+    return rows.map(r => ({ ...r, assigned_engineer_name: "" }));
+  }
+  const nameMap = new Map((data || []).map(u => [u.id, u.name || ""]));
+  return rows.map(r => ({
+    ...r,
+    assigned_engineer_name: r.assigned_engineer_id ? (nameMap.get(r.assigned_engineer_id) || "") : "",
+  }));
 }
 
 // 아이콘 버튼 (이전/다음 달).
