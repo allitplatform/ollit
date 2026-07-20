@@ -56,7 +56,7 @@ function _toUpsertPatch(eng) {
 
 // status 양방향
 function statusToDbActive(status) {
-  // "active" → true / "off" / "quit" → false
+  // "active" → true / "off" → false
   return status === "active";
 }
 

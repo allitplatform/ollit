@@ -4694,7 +4694,7 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
   // (ENABLE_MOCK=true 환경 보존).
   //
   // 2026-05-17 Round 2 Fix #11 — DB에 seed 등록된 29명 중 active 기사만 노출.
-  // listEngineersFromDb는 inactive/quit 기사도 모두 반환하기 때문에
+  // listEngineersFromDb는 inactive(off) 기사도 모두 반환하기 때문에
   // EngineersTab 진입 시점에 필터링 (다른 화면은 전체 명단이 필요할 수 있어
   // 데이터 레이어가 아니라 이 화면에서만 좁힘). active = is_active true.
   const activeApiEngineers = (apiEngineers || []).filter(

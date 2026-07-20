@@ -300,7 +300,8 @@ export const CAREER_LEVELS = {
 export const STATUS_OPTIONS = {
   active: { name: "활동중", color: "#00875A" },
   off:    { name: "퇴사",   color: "#888780" },
-  quit:   { name: "퇴사",   color: "#555" },
+  // 2026-07-20 — 옛 3단계 (활동중/휴직/퇴사) → 2단계 (활동중/퇴사) 통합. DB는 is_active
+  // boolean 뿐이라 off/quit 구분 안 됨. quit 항목 제거.
 };
 
 export const ROLE_OPTIONS = {
@@ -542,7 +543,7 @@ export function createEmptyEngineer() {
 // ============================================================
 // Step 5-2 — 양방향 sync 헬퍼 (localStorage 즉시 + GAS 비동기)
 // ============================================================
-// 매핑: status="active" → 활성=true / status="off"|"quit" → 활성=false
+// 매핑: status="active" → 활성=true / status="off" → 활성=false
 // 시트 측 5칼럼 + cm_냉매비율만 sync. workTypes/careerLevel/note는 localStorage 전용 (Step 5-5에서)
 
 // status → 시트 활성(boolean)

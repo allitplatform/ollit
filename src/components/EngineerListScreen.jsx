@@ -85,7 +85,6 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
   const counts = useMemo(() => ({
     active: engineers.filter(e => e.status === "active").length,
     off:    engineers.filter(e => e.status === "off").length,
-    quit:   engineers.filter(e => e.status === "quit").length,
     rookie: engineers.filter(e => e.careerLevel === "rookie").length,
   }), [engineers]);
 
@@ -104,19 +103,18 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
         </div>
       </div>
 
-      {/* 카운터 + 휴직 포함 토글 (2026-07-20) */}
+      {/* 카운터 + 퇴사 포함 토글 (2026-07-20) */}
       <div style={countersStyle}>
         <span style={{ color: "var(--text-primary)" }}>활동 <strong style={{ color: "#00875A" }}>{counts.active}</strong></span>
         <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 퇴사 {counts.off}</span>
-        {counts.quit > 0 && <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 퇴사 {counts.quit}</span>}
         <span style={{ color: "var(--text-secondary)", marginLeft: 10 }}>· 신입 {counts.rookie}</span>
-        {(counts.off > 0 || counts.quit > 0) && (
+        {counts.off > 0 && (
           <button
             onClick={() => setIncludeOff(v => !v)}
             style={includeToggleStyle(includeOff)}
             title={search ? "검색 중엔 자동으로 퇴사도 표시됩니다" : ""}
           >
-            {includeOff ? "✓ 퇴사 포함" : `+ 퇴사 ${counts.off + counts.quit}명 포함`}
+            {includeOff ? "✓ 퇴사 포함" : `+ 퇴사 ${counts.off}명 포함`}
           </button>
         )}
       </div>

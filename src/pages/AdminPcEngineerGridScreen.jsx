@@ -12,11 +12,11 @@ import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 const COLOR_CLEANING    = "#0EA5E9";
 const COLOR_REFRIGERANT = "#FFB800";
 
-// 상태 매핑 — DB status enum: active / off / quit (옛 STATUS_OPTIONS 와 동일).
+// 2026-07-20 — 상태 2단계 통합 (active / off). DB는 is_active boolean 뿐이라 off/quit
+// 구분 안 됨. 옛 quit 항목 제거 + off 라벨 "퇴사" 로 통일.
 const STATUS_META = {
   active: { label: "활동중", dotColor: "#10B981" },
-  off:    { label: "휴직",   dotColor: "#F59E0B" },
-  quit:   { label: "퇴사",   dotColor: "#9CA3AF" },
+  off:    { label: "퇴사",   dotColor: "#9CA3AF" },
 };
 
 function initials(name) {
