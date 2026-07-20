@@ -7,13 +7,10 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { Search } from "lucide-react";
-import { isRefrigerant } from "../utils/workTypeKind.js";
+// 2026-07-20 — 5종 통일 (SERVICE_KIND_META). 옛 자체 KindBadge/getWorkKind 이분법 폐기.
+import { getServiceKindMeta } from "../utils/workTypeKind.js";
 // 2026-06-12 — 상태 색 공통 매핑 사용 (사장님 spec — 확정 파랑 / 완료 초록 구분).
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
-
-// 세척 / 냉매 / 기타 종류별 색.
-const COLOR_CLEANING    = "#0EA5E9";
-const COLOR_REFRIGERANT = "#FFB800";
 
 // 결과 상한 — 너무 많이 표시하면 dashboard 느려짐.
 const RESULT_LIMIT = 100;
@@ -226,7 +223,9 @@ function ResultRow({ task, onClick }) {
   const engineer = task.engineer || task.assignedEngineer || task.engineerName || "—";
   const principal = task.principalLabel || task.principal || task.principalCode || "—";
   const status   = task.status || task.상태 || "—";
-  const kind     = getWorkKind(task);
+  // 2026-07-20 — 5종 통일 (SERVICE_KIND_META 사용). workItems[i] main (본작업 우선) → getServiceKindMeta.
+  const kindTask = _pickMainWorkTarget(task);
+  const kindMeta = getServiceKindMeta(kindTask);
 
   const statusStyle = getTaskStatusColor(status);
 
@@ -262,7 +261,7 @@ function ResultRow({ task, onClick }) {
         }}>{principal}</span>
       </Cell>
       <Cell onClick={onClick}>
-        <KindBadge kind={kind}/>
+        <KindBadge meta={kindMeta}/>
       </Cell>
       <Cell onClick={onClick}>
         <span style={{
@@ -295,50 +294,26 @@ function Cell({ children, onClick }) {
   );
 }
 
-// 작업종류 결정 — workItems[i] 중 본작업 (orderType="본작업") 또는 첫 번째.
-//   isRefrigerant 로 냉매 감지. 그 외 = 세척 (단순화).
-function getWorkKind(task) {
+// 2026-07-20 — 5종 통일. 옛 이분법 (냉매 vs 세척) 삭제.
+//   본작업(orderType='본작업') 우선, 없으면 items[0], 그것도 없으면 task 자체.
+//   getServiceKindMeta 가 5종 (cleaning/refrigerant/install/leak/other) 색·라벨·아이콘 반환.
+function _pickMainWorkTarget(task) {
   const items = Array.isArray(task.workItems) ? task.workItems : [];
-  if (items.length === 0) {
-    // workItems 없으면 task 자체 workType 사용.
-    if (isRefrigerant(task)) return "refrigerant";
-    if (task.workType || task.appliance) return "cleaning";
-    return "other";
-  }
-  const main = items.find(it => (it.orderType || it.order_type) === "본작업") || items[0];
-  if (isRefrigerant(main) || isRefrigerant(task)) return "refrigerant";
-  return "cleaning";
+  if (items.length === 0) return task;
+  return items.find(it => (it.orderType || it.order_type) === "본작업") || items[0];
 }
 
-function KindBadge({ kind }) {
-  if (kind === "refrigerant") {
-    return (
-      <span style={{
-        padding: "3px 8px",
-        fontSize: 10, fontWeight: 800,
-        color: COLOR_REFRIGERANT,
-        background: `${COLOR_REFRIGERANT}22`,
-        borderRadius: 999,
-        whiteSpace: "nowrap",
-      }}>⚡ 냉매</span>
-    );
-  }
-  if (kind === "cleaning") {
-    return (
-      <span style={{
-        padding: "3px 8px",
-        fontSize: 10, fontWeight: 800,
-        color: COLOR_CLEANING,
-        background: `${COLOR_CLEANING}22`,
-        borderRadius: 999,
-        whiteSpace: "nowrap",
-      }}>❄ 세척</span>
-    );
-  }
+function KindBadge({ meta }) {
+  if (!meta) return <span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 600 }}>—</span>;
   return (
     <span style={{
-      fontSize: 10, color: "var(--text-secondary)", fontWeight: 600,
-    }}>—</span>
+      padding: "3px 8px",
+      fontSize: 10, fontWeight: 800,
+      color: meta.color,
+      background: `${meta.color}22`,
+      borderRadius: 999,
+      whiteSpace: "nowrap",
+    }}>{meta.icon} {meta.label}</span>
   );
 }
 

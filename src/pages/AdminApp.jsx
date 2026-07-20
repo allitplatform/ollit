@@ -7690,16 +7690,20 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
   const fmtKRW = (n) => `₩${(n || 0).toLocaleString("ko-KR")}`;
 
   // workType 아이콘 — 2026-05-21 Phase 5 Step 0.H-3: 세척 색 = 파랑 (t.info)
-  // 2026-06-28 — install/leak 추가 (Mig 124/125 활성화 보완). serviceKind 4분기.
+  // 2026-06-28 — install/leak 추가 (Mig 124/125 활성화 보완).
+  // 2026-07-20 — 5종 통일 (7b4c992 원칙). '그 외 = 세척' 폴백 폐기.
+  //   kind='other' 는 회색 (Settings 아이콘) 로 명시. 세척 아이콘·색 잘못 표시 사고 방지.
   const _serviceKind = getServiceKind(task);
-  const WorkIcon = _serviceKind === "refrigerant" ? Zap
-                  : _serviceKind === "install"   ? Wrench
-                  : _serviceKind === "leak"      ? AlertTriangle
-                  : Snowflake;
-  const workColor = _serviceKind === "refrigerant" ? "#EF9F27"
-                   : _serviceKind === "install"   ? "#8B5CF6"
-                   : _serviceKind === "leak"      ? "#DC2626"
-                   : t.info;
+  const WorkIcon = _serviceKind === "cleaning"    ? Snowflake
+                  : _serviceKind === "refrigerant" ? Zap
+                  : _serviceKind === "install"    ? Wrench
+                  : _serviceKind === "leak"       ? AlertTriangle
+                  : Settings;                       // other (수리/점검/기타)
+  const workColor = _serviceKind === "cleaning"    ? t.info
+                   : _serviceKind === "refrigerant" ? "#EF9F27"
+                   : _serviceKind === "install"    ? "#8B5CF6"
+                   : _serviceKind === "leak"       ? "#DC2626"
+                   : t.textSecondary;               // other
   const isRef = _serviceKind === "refrigerant";  // 옛 코드 호환
   // 2026-06-09 — visit (출장비) 표시.
   //   pure visit (status='visit_only' 또는 활성 items 전부 visit) → 🚗 메인 아이콘.
@@ -7747,7 +7751,7 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
         display: "flex", alignItems: "center", gap: 8,
         minHeight: 38,
       }}>
-        {/* workType 아이콘 — pure visit 시 🚗, else 세척/냉매 lucide */}
+        {/* workType 아이콘 — pure visit 시 🚗, else _serviceKind 5분기 lucide (2026-07-20 5종 통일) */}
         {!isExternal && (
           isPureVisit
             ? <VisitIcon size={13}/>
