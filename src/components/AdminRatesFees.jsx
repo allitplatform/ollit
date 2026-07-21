@@ -76,15 +76,7 @@ export function AdminRatesFees({ user, onBack, initialTab = "rates" }) {
           📏 <b>쿨가이 · 에어컨프로</b> 단가 기준 — 위 = 프로(기사) 단가, 아래 = 쿨가이 고객 표시가.
         </div>
       )}
-      {activeTab === "list" && (
-        <div style={{
-          margin: "14px 16px 0", padding: "10px 13px", borderRadius: 9,
-          background: "rgba(14,165,233,0.08)", border: "1px solid rgba(14,165,233,0.30)",
-          fontSize: 11, lineHeight: 1.6,
-        }}>
-          📋 정산 엔진이 실제 사용하는 DB 정책 (조회 전용 — 수정은 신중히).
-        </div>
-      )}
+      {/* 2026-07-21 — 정책 탭 안내는 CommissionPolicyScreen 자체 🔒 배지로 일원화 (중복 제거) */}
 
       <div>
         {activeTab === "rates" && <RatesManagementScreen embedded/>}

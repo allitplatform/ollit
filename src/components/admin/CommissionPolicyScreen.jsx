@@ -1,6 +1,9 @@
-// Phase 2 — 수수료 정책 목록 화면 (admin / operator 박은 영역)
-// 디자인 — 원청관리 (PrincipalListScreen) 스타일 통일 (CSS 변수)
-// db/migrations/009_commission_policies_v6.sql 박은 영역 박은 영역 78 row
+// Phase 2 — 수수료 정책 목록 화면 (admin / operator)
+// 2026-07-21 — 조회 전용 잠금 + 가독성 재설계 (사장님 spec).
+//   · 편집 모달 진입 제거: 정책 수정 = 정산 직결 — 지금까지처럼 마이그레이션 SQL로만 (Claude 세션).
+//     (옛 편집 모달의 저장은 RPC 미경유 직접 update 경로 — RLS 정책과도 상충. 모달 파일은 미사용 처리.)
+//   · 목록 = 원청별 그룹 + 표 형태 (항목 / 방식 / 기사 단가 / 수수료율 / 원청 정액).
+//   · 데이터 소스 listCommissionPolicies (DB) 그대로 — 조회만.
 
 import { useState, useEffect, useMemo } from "react";
 import {
@@ -11,7 +14,6 @@ import {
   CALC_METHOD_DESC,
   QTY_LABEL,
 } from "../../lib/commissionPoliciesDb.js";
-import { CommissionPolicyEditModal } from "./CommissionPolicyEditModal.jsx";
 
 const PRINCIPAL_OPTIONS = [
   { value: "", label: "전체" },
@@ -33,6 +35,9 @@ const SERVICE_OPTIONS = [
   { value: "visit_fee",   label: "출장비" },
 ];
 
+// 원청 그룹 표시 순서 (필터 옵션 순서 재사용, "전체" 제외)
+const GROUP_ORDER = PRINCIPAL_OPTIONS.filter(o => o.value).map(o => o.value);
+
 export function CommissionPolicyScreen() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +45,6 @@ export function CommissionPolicyScreen() {
   const [search, setSearch] = useState("");
   const [filterPrincipal, setFilterPrincipal] = useState("");
   const [filterService, setFilterService] = useState("");
-  const [editing, setEditing] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -73,18 +77,27 @@ export function CommissionPolicyScreen() {
     });
   }, [rows, search, filterPrincipal, filterService]);
 
-  const handleEditDone = (updated) => {
-    setEditing(null);
-    if (updated) {
-      setRows(prev => prev.map(r => r.id === updated.id ? updated : r));
+  // 원청별 그룹화 — GROUP_ORDER 순, 목록에 없는 코드는 뒤에.
+  const groups = useMemo(() => {
+    const byCode = new Map();
+    for (const r of filtered) {
+      const code = r.principal_code || "?";
+      if (!byCode.has(code)) byCode.set(code, []);
+      byCode.get(code).push(r);
     }
-  };
+    const ordered = [];
+    for (const code of GROUP_ORDER) {
+      if (byCode.has(code)) { ordered.push([code, byCode.get(code)]); byCode.delete(code); }
+    }
+    for (const [code, list] of byCode) ordered.push([code, list]);
+    return ordered;
+  }, [filtered]);
 
   return (
     <div>
-      {/* 안내 박스 */}
+      {/* 안내 박스 — 조회 전용 */}
       <div style={infoBoxStyle}>
-        💡 수수료 정책은 7개 원청 × 78개 정책으로 구성됩니다. 수정 시 즉시 정산에 반영됩니다.
+        🔒 정산 엔진이 실제 사용하는 정책입니다 (<b>조회 전용</b>). 변경이 필요하면 Claude 세션에서 SQL로 정확하게 진행하세요.
       </div>
 
       {/* 카운터 */}
@@ -97,7 +110,7 @@ export function CommissionPolicyScreen() {
         </span>
       </div>
 
-      {/* 필터 */}
+      {/* 필터 + 검색 */}
       <div style={filterBarStyle}>
         <select
           value={filterPrincipal}
@@ -117,108 +130,129 @@ export function CommissionPolicyScreen() {
             <option key={o.value} value={o.value}>서비스: {o.label}</option>
           ))}
         </select>
-      </div>
-
-      {/* 검색 */}
-      <div style={{ padding: "0 16px 12px" }}>
         <input
           type="text"
-          placeholder="🔍 policy_key / 기종 검색"
+          placeholder="🔍 검색 (기종 · policy_key)"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          style={searchStyle}
+          style={{ ...searchStyle, flex: 1.4 }}
         />
       </div>
 
-      {/* 에러 */}
+      {/* 에러 / 로딩 / 빈 결과 */}
       {error && (
         <div style={{ padding: "0 16px 12px" }}>
           <div style={errorStyle}>{error}</div>
         </div>
       )}
+      {loading && <div style={emptyStyle}>로딩중...</div>}
+      {!loading && filtered.length === 0 && <div style={emptyStyle}>조회 결과 없음</div>}
 
-      {/* 로딩 */}
-      {loading && (
-        <div style={emptyStyle}>로딩중...</div>
-      )}
-
-      {/* 목록 */}
-      {!loading && filtered.length === 0 && (
-        <div style={emptyStyle}>조회 결과 없음</div>
-      )}
-
-      {!loading && filtered.length > 0 && (
-        <div style={{ padding: "0 16px 24px" }}>
-          {filtered.map(row => (
-            <PolicyRow key={row.id} row={row} onClick={() => setEditing(row)} />
-          ))}
-        </div>
-      )}
-
-      {/* 수정 모달 */}
-      {editing && (
-        <CommissionPolicyEditModal
-          policy={editing}
-          onClose={() => setEditing(null)}
-          onSaved={handleEditDone}
-        />
-      )}
+      {/* 원청별 그룹 표 */}
+      {!loading && groups.map(([code, list]) => (
+        <PolicyGroup key={code} code={code} list={list}/>
+      ))}
+      <div style={{ height: 24 }}/>
     </div>
   );
 }
 
-function PolicyRow({ row, onClick }) {
-  const principalLabel = PRINCIPAL_LABEL[row.principal_code] || row.principal_code;
-  const serviceLabel   = SERVICE_LABEL[row.service_code]     || row.service_code;
-  const calcLabel      = CALC_METHOD_LABEL[row.calc_method]  || row.calc_method;
-  const calcDesc       = CALC_METHOD_DESC[row.calc_method]   || "";
-  const qtyLabel       = row.qty_condition ? (QTY_LABEL[row.qty_condition] || row.qty_condition) : "";
-  const hasFake = !!(row.notes && row.notes.includes("fake_base"));
-
+// ──────────────────────────────────────────────
+// 원청 한 그룹 — 헤더 + 표
+// ──────────────────────────────────────────────
+function PolicyGroup({ code, list }) {
+  const label = PRINCIPAL_LABEL[code] || code;
   return (
-    <button type="button" onClick={onClick} style={rowStyle}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 4, color: "var(--text-primary)" }}>
-            {principalLabel} · {serviceLabel}
-            {row.appliance_code && ` · ${row.appliance_code}`}
-            {qtyLabel && (
-              <span style={{ marginLeft: 6, fontSize: 11, color: "#FFB800", fontWeight: 500 }}>
-                ({qtyLabel})
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 4 }}>
-            <span style={{ color: "#FF1B8D", fontWeight: 600 }}>{calcLabel}</span>
-            {calcDesc && <span style={{ marginLeft: 6 }}>· {calcDesc}</span>}
-          </div>
-          <div style={{ fontSize: 9, color: "var(--text-tertiary)", fontFamily: "monospace", opacity: 0.7 }}>
-            {row.policy_key}
-          </div>
-        </div>
-        <div style={{ textAlign: "right", fontSize: 11, color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-          {row.engineer_base != null && (
-            <div>기사 단가 {row.engineer_base.toLocaleString()}원</div>
-          )}
-          {row.fee_rate != null && (
-            <div>수수료율 {(row.fee_rate * 100).toFixed(0)}%</div>
-          )}
-          {row.principal_fee && (
-            <div>원청 정액 {Number(row.principal_fee).toLocaleString()}원</div>
-          )}
-          {hasFake && (
-            <div
-              style={{ color: "#FF1B8D", fontSize: 10, marginTop: 2 }}
-              title="운영자만 볼 수 있는 가격"
-            >
-              🔒 가짜단가
-            </div>
-          )}
-        </div>
+    <div style={{ margin: "0 16px 18px" }}>
+      {/* 그룹 헤더 */}
+      <div style={{
+        display: "flex", alignItems: "baseline", gap: 8,
+        padding: "0 2px 8px",
+      }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>{label}</span>
+        <span className="mono" style={{ fontSize: 10, color: "var(--text-tertiary)" }}>{code}</span>
+        <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{list.length}개</span>
       </div>
-    </button>
+
+      {/* 표 */}
+      <div style={{
+        border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden",
+        background: "var(--bg-secondary)",
+      }}>
+        {/* 표 헤더 */}
+        <div style={gridRowStyle(true)}>
+          <span>항목</span>
+          <span>계산 방식</span>
+          <span style={num}>기사 단가</span>
+          <span style={num}>수수료율</span>
+          <span style={num}>원청 정액</span>
+        </div>
+        {list.map(row => <PolicyTableRow key={row.id} row={row}/>)}
+      </div>
+    </div>
   );
 }
+
+function PolicyTableRow({ row }) {
+  const serviceLabel = SERVICE_LABEL[row.service_code] || row.service_code;
+  const calcLabel    = CALC_METHOD_LABEL[row.calc_method] || row.calc_method;
+  const calcDesc     = CALC_METHOD_DESC[row.calc_method] || "";
+  const qtyLabel     = row.qty_condition ? (QTY_LABEL[row.qty_condition] || row.qty_condition) : "";
+  const hasFake      = !!(row.notes && row.notes.includes("fake_base"));
+
+  return (
+    <div style={gridRowStyle(false)} title={row.policy_key}>
+      {/* 항목: 서비스 · 기종 (수량조건) */}
+      <span style={{ minWidth: 0 }}>
+        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-primary)" }}>
+          {serviceLabel}{row.appliance_code ? ` · ${row.appliance_code}` : ""}
+        </span>
+        {qtyLabel && (
+          <span style={{ marginLeft: 6, fontSize: 10.5, color: "#FFB800", fontWeight: 600 }}>({qtyLabel})</span>
+        )}
+        {hasFake && (
+          <span style={{ marginLeft: 6, fontSize: 10, color: "#FF1B8D" }} title="운영자만 볼 수 있는 가격">🔒</span>
+        )}
+      </span>
+
+      {/* 계산 방식 */}
+      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ fontSize: 11.5, color: "#FF1B8D", fontWeight: 700 }}>{calcLabel}</span>
+        {calcDesc && (
+          <span style={{ marginLeft: 5, fontSize: 10.5, color: "var(--text-secondary)" }}>{calcDesc}</span>
+        )}
+      </span>
+
+      {/* 숫자 3열 — 없으면 — */}
+      <span style={numVal}>{row.engineer_base != null ? row.engineer_base.toLocaleString() : "—"}</span>
+      <span style={numVal}>{row.fee_rate != null ? `${(row.fee_rate * 100).toFixed(0)}%` : "—"}</span>
+      <span style={numVal}>{row.principal_fee ? Number(row.principal_fee).toLocaleString() : "—"}</span>
+    </div>
+  );
+}
+
+// 표 grid — 헤더/행 공용
+function gridRowStyle(isHead) {
+  return {
+    display: "grid",
+    gridTemplateColumns: "minmax(150px, 1.4fr) minmax(170px, 1.6fr) 90px 70px 90px",
+    gap: 10, alignItems: "center",
+    padding: isHead ? "9px 14px" : "9px 14px",
+    borderTop: isHead ? "none" : "1px solid var(--border)",
+    background: isHead ? "var(--bg-elevated, var(--bg-tertiary))" : "transparent",
+    fontSize: isHead ? 10.5 : 12,
+    fontWeight: isHead ? 800 : 500,
+    color: isHead ? "var(--text-secondary)" : "var(--text-primary)",
+    letterSpacing: isHead ? 0.3 : 0,
+  };
+}
+const num = { textAlign: "right" };
+const numVal = {
+  textAlign: "right",
+  fontSize: 12, fontWeight: 700,
+  color: "var(--text-primary)",
+  fontVariantNumeric: "tabular-nums",
+};
 
 // ============= 스타일 =============
 const infoBoxStyle = {
@@ -238,9 +272,11 @@ const counterStyle = {
 const filterBarStyle = {
   display: "flex", gap: 8,
   padding: "0 16px 12px",
+  flexWrap: "wrap",
 };
 const selectStyle = {
   flex: 1,
+  minWidth: 140,
   background: "var(--bg-secondary)",
   border: "1px solid var(--border)",
   color: "var(--text-primary)",
@@ -251,7 +287,7 @@ const selectStyle = {
   outline: "none",
 };
 const searchStyle = {
-  width: "100%",
+  minWidth: 180,
   background: "var(--bg-secondary)",
   border: "1px solid var(--border)",
   borderRadius: 10,
@@ -261,17 +297,6 @@ const searchStyle = {
   fontFamily: "inherit",
   outline: "none",
   boxSizing: "border-box",
-};
-const rowStyle = {
-  width: "100%",
-  background: "var(--bg-secondary)",
-  border: "1px solid var(--border)",
-  borderRadius: 10,
-  padding: "12px 14px",
-  marginBottom: 8,
-  cursor: "pointer",
-  textAlign: "left",
-  fontFamily: "inherit",
 };
 const emptyStyle = {
   textAlign: "center",
