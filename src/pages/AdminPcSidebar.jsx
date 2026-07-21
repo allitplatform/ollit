@@ -90,8 +90,8 @@ const GROUPS = [
       { id: "revenueDetail",         label: "매출 상세" },
       // 2026-06-14 — 유솔N 정산 현황판 (Mig 130). 작업월별 4단계 + 마진.
       { id: "usolnSettleBoard",      label: "유솔N 정산 현황판" },
-      // 2026-06-29 — 정산 현황판 (분배 계산). Mig 155 v6 — 현금/유솔 받을 회사몫/분배 천장.
-      { id: "distributionBoard",     label: "정산 현황판 (분배 계산)" },
+      // 2026-07-21 — "정산 현황판 (분배 계산)" 메뉴 제거 (사장님 확정).
+      //   가계부 ②현금/③천장 블록과 동일 산식·데이터 (6/29 통합) — 중복. 화면·라우트는 보존.
     ],
   },
   // 2026-06-13 — 가계부 별도 그룹 (정산에서 분리). screen id 'bookkeeping' 그대로.
@@ -159,6 +159,8 @@ const SCREEN_TO_GROUP = (() => {
   // 2026-06-13 — 사이드바에서 빠진 옛 정산 screen → 정산 그룹 활성.
   map.settlement            = "settlement";
   map.principal_settlement  = "settlement";
+  // 2026-07-21 — 분배 계산 화면 잔존 진입 시 정산 그룹 활성 (메뉴는 제거됨).
+  map.distributionBoard     = "settlement";
   // 2026-06-16 — 냉매 미처리는 "작업" 그룹으로 이동 (사이드바 항목 신설).
   map.refrigerantAddonList  = "tasks";
   // 2026-06-13 v2 — 옛 기준정보 그룹 해체. 외부 진입(설정 카드 등)에서도 새 그룹으로 동기화.
