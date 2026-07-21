@@ -109,15 +109,10 @@ ${vars.engineerName} 기사님이 배정되었습니다.
     // 2026-07-21 — 출장비 안내 (visit_only 건. Mig 184 트리거 발화, amount = tasks.travel_fee).
     return (
 `${prefix}출장비 안내
-
-안녕하세요, 방문 결과
-현장 여건상 작업 진행이 어려워
-출장비만 발생했습니다.
+금일 방문 건은
+작업 진행이 어려웠던 점 양해 부탁드립니다.
 
 ▶ 출장비: ${formatAmount(vars.amount)}원
-
-이용해 주셔서 감사합니다.
-
 문의: 1866-2003`
     );
   }
