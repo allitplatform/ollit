@@ -974,6 +974,9 @@ function AdminPcTodayByPrincipal({ apiTasks = [] }) {
     return { rows: rowsAll, totals: totalsRow };
   }, [apiTasks, today]);
 
+  // 2026-07-21 v3 — 비중 바 기준 최대값 (트랙 A 행만)
+  const maxOwner = Math.max(0, ...rows.filter(r => !r.isTrackB).map(r => r.owner));
+
   return (
     <div style={{
       background: "var(--bg-elevated)",
@@ -1048,7 +1051,21 @@ function AdminPcTodayByPrincipal({ apiTasks = [] }) {
                         borderRadius: 6,
                       }}>월정산</span>
                     ) : (
-                      <NumCell n={r.owner} unit="원" muted={r.owner === 0}/>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                        <NumCell n={r.owner} unit="원" muted={r.owner === 0}/>
+                        {/* 2026-07-21 v3 — 회사 몫 비중 바 (행 최대값 대비). */}
+                        <div style={{
+                          width: "100%", height: 5, borderRadius: 999,
+                          background: "var(--bg-secondary)", overflow: "hidden",
+                        }}>
+                          <div style={{
+                            height: "100%", borderRadius: 999,
+                            width: `${maxOwner > 0 ? Math.max(r.owner > 0 ? 4 : 0, Math.round((r.owner / maxOwner) * 100)) : 0}%`,
+                            background: "var(--accent)",
+                            opacity: 0.85,
+                          }}/>
+                        </div>
+                      </div>
                     )}
                   </Td>
                 </tr>
