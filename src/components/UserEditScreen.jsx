@@ -1,6 +1,10 @@
-// Step 9 — 사용자 편집 / 추가 (V4 명확화: 드롭다운 + 권한 안내)
-// 2026-06-07 — Migration 103 RPC 연동 (DB 직접 저장).
-import { useState } from "react";
+// 2026-07-21 v3 — 사용자 편집 재설계 (사장님 spec).
+//   · 로직 무손상: Mig 103 RPC 3종 (admin_upsert_user / set_user_roles / reset_user_password) 흐름 그대로.
+//   · 레이아웃만 재구성: PC(1024px+) 2단 — 좌 "기본 정보"(이름/전화/비번/활성) / 우 "역할"(선택+연결+권한).
+//     모바일 1열. 역할 선택은 컴팩트 행 (옛 세로 풀스택 → 정리).
+//   · 권한 미리보기는 접이식 (기본 접힘 — 매번 스크롤 차지하던 것 정리).
+//   · 역할 색은 data/users.js ROLES 정비본 사용 (관리자 색 묻힘 fix).
+import { useState, useEffect } from "react";
 import {
   loadUsers, saveUsers, generateUserId, ROLES, PERMISSIONS,
 } from "../data/users.js";
@@ -19,16 +23,34 @@ const PWA_ROLE_TO_DEFAULT = {
   principal: "operator",   // principal 신규는 본 화면 범위 밖 — 안전 fallback
 };
 
+function useIsPc() {
+  const [isPc, setIsPc] = useState(() =>
+    typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const fn = (e) => setIsPc(e.matches);
+    mq.addEventListener ? mq.addEventListener("change", fn) : mq.addListener(fn);
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener("change", fn) : mq.removeListener(fn);
+    };
+  }, []);
+  return isPc;
+}
+
 export function UserEditScreen({ user, isNew, onSaved, onBack }) {
+  const isPc = useIsPc();
   const [data, setData] = useState({ ...user });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [originalRole] = useState(user?.role || "");
+  const [showPerms, setShowPerms] = useState(false);  // 권한 미리보기 접이식
 
   function updateField(field, value) {
     setData(d => ({ ...d, [field]: value }));
   }
 
+  // ── 저장 (로직 v2 그대로 — Mig 103) ──────────────────────────
   async function handleSave() {
     setError("");
     const name = (data.name || "").trim();
@@ -110,7 +132,7 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
     }
   }
 
-  // 2026-06-07 — "삭제" → "비활성" (is_active=false). 행 보존, FK 안전.
+  // ── 비활성 (로직 v2 그대로 — "삭제" 아님, is_active=false) ──────
   async function handleDelete() {
     if (isNew) return;
     if (!window.confirm(`"${data.name}" 을(를) 비활성으로 끄시겠어요?\n\n로그인 불가 상태가 됩니다 (행은 보존).`)) return;
@@ -121,7 +143,6 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
         patch: { is_active: false },
       });
       if (!up.ok) { setError(up.error || "비활성 실패"); setBusy(false); return; }
-      // 캐시 반영
       const list = loadUsers();
       saveUsers(list.map(u => u.id === data.id ? { ...u, active: false } : u));
       setBusy(false);
@@ -138,139 +159,158 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
     .filter(([_, allowed]) => allowed.includes(data.role))
     .map(([perm]) => perm);
 
-  return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
-      <div style={headerStyle}>
-        <button onClick={onBack} style={backBtnStyle}>←</button>
-        <div style={titleStyle}>{isNew ? "사용자 추가" : "사용자 편집"}</div>
-        {!isNew && (
-          <button onClick={handleDelete} disabled={busy} style={dangerBtnStyle}>끄기(비활성)</button>
-        )}
+  const selectedRole = ROLES[data.role];
+
+  // ── 카드: 기본 정보 ──
+  const basicCard = (
+    <Card title="👤 기본 정보">
+      <Field label="이름">
+        <input
+          type="text" placeholder="예: 김지혜"
+          value={data.name || ""}
+          onChange={(e) => updateField("name", e.target.value)}
+          style={inputStyle}
+        />
+      </Field>
+
+      <Field label="전화번호 (= 로그인 아이디)" hint="⚠️ 바꾸면 새 번호로만 로그인할 수 있어요.">
+        <input
+          type="tel" placeholder="예: 010-1234-5678"
+          value={data.phone || ""}
+          onChange={(e) => updateField("phone", e.target.value)}
+          style={inputStyle}
+        />
+      </Field>
+
+      <Field label="비밀번호"
+        hint={isNew
+          ? "비워두면 휴대폰 끝 4자리로 자동 설정돼요."
+          : "입력 시 리셋됩니다 — 사용자는 다음 로그인에서 본인 비번을 다시 설정해야 해요."}>
+        <input
+          type="text" placeholder={isNew ? "비워두면 자동 설정" : "변경하지 않으려면 비워두세요"}
+          value={data.password || ""}
+          onChange={(e) => updateField("password", e.target.value)}
+          style={inputStyle}
+        />
+      </Field>
+
+      {/* 활성 토글 */}
+      <div
+        onClick={() => updateField("active", !data.active)}
+        style={{
+          display: "flex", alignItems: "center", gap: 12,
+          padding: "12px 14px",
+          background: "var(--bg-secondary)", border: "1px solid var(--border)",
+          borderRadius: 10, cursor: "pointer",
+        }}
+      >
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 700 }}>
+            {data.active ? "활성" : "비활성"}
+          </div>
+          <div style={{ fontSize: 10.5, color: "var(--text-secondary)", marginTop: 2 }}>
+            {data.active ? "로그인 가능" : "로그인 불가 (계정은 보존)"}
+          </div>
+        </div>
+        <Switch on={!!data.active}/>
+      </div>
+    </Card>
+  );
+
+  // ── 카드: 역할 ──
+  const roleCard = (
+    <Card title="🎭 역할" sub={selectedRole ? selectedRole.name : "선택해주세요"}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {Object.entries(ROLES).map(([k, r]) => {
+          const active = data.role === k;
+          return (
+            <div
+              key={k}
+              onClick={() => updateField("role", k)}
+              style={{
+                padding: "10px 14px",
+                background: active ? r.color + "1C" : "var(--bg-secondary)",
+                border: `1px solid ${active ? r.color : "var(--border)"}`,
+                borderRadius: 9, cursor: "pointer",
+                display: "flex", alignItems: "center", gap: 10,
+              }}
+            >
+              <span style={{
+                width: 9, height: 9, borderRadius: "50%",
+                background: r.color, flexShrink: 0,
+                boxShadow: active ? `0 0 0 3px ${r.color}30` : "none",
+              }}/>
+              <span style={{
+                fontSize: 13, fontWeight: active ? 800 : 600,
+                color: active ? r.color : "var(--text-primary)",
+                flexShrink: 0,
+              }}>{r.name}</span>
+              <span style={{ fontSize: 10.5, color: "var(--text-secondary)", marginLeft: "auto", textAlign: "right" }}>
+                {r.desc}
+              </span>
+            </div>
+          );
+        })}
       </div>
 
-      {/* 2026-07-21 v2 — PC 폭 제한 (모바일 화면이 PC에서 풀폭으로 늘어지던 것 정리) */}
-      <div style={{ padding: "16px", maxWidth: 640, margin: "0 auto" }}>
-        <Field label="이름">
-          <input
-            type="text" placeholder="예: 김지혜"
-            value={data.name || ""}
-            onChange={(e) => updateField("name", e.target.value)}
-            style={inputStyle}
-          />
-        </Field>
+      {data.role === "engineer" && <EngineerLinkField data={data} updateField={updateField}/>}
+      {data.role === "principal" && <PrincipalLinkField data={data} updateField={updateField}/>}
+      {["owner", "admin", "happycall"].includes(data.role) && (
+        <RoleScopeInfo role={data.role}/>
+      )}
 
-        <Field label="전화번호 (= 로그인 아이디)">
-          <input
-            type="tel" placeholder="예: 010-1234-5678"
-            value={data.phone || ""}
-            onChange={(e) => updateField("phone", e.target.value)}
-            style={{ ...inputStyle, fontFamily: "inherit" }}
-          />
-          <InfoBox color="#FFB020">
-            ⚠️ 전화번호 = 로그인 아이디입니다. 바꾸면 새 번호로만 로그인할 수 있어요.
-          </InfoBox>
-        </Field>
-
-        <Field label="비밀번호">
-          <input
-            type="text" placeholder={isNew ? "비워두면 휴대폰 끝 4자리로 자동 설정" : "변경하지 않으려면 비워두세요"}
-            value={data.password || ""}
-            onChange={(e) => updateField("password", e.target.value)}
-            style={inputStyle}
-          />
-          {!isNew && (
-            <InfoBox color="#FFB020">
-              운영자 리셋입니다. 사용자는 다음 로그인 시 본인 비번을 다시 설정해야 해요.
-            </InfoBox>
-          )}
-        </Field>
-
-        <Field label="역할">
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {Object.entries(ROLES).map(([k, r]) => {
-              const active = data.role === k;
-              return (
-                <div
-                  key={k}
-                  onClick={() => updateField("role", k)}
-                  style={{
-                    padding: "10px 14px",
-                    background: active ? r.color + "20" : "var(--bg-secondary)",
-                    border: `1px solid ${active ? r.color : "var(--bg-tertiary)"}`,
-                    borderRadius: 8, cursor: "pointer",
-                    display: "flex", alignItems: "center", gap: 10,
-                  }}
-                >
-                  <span style={{
-                    width: 8, height: 8, borderRadius: "50%",
-                    background: r.color, flexShrink: 0,
-                  }}/>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: active ? r.color : "var(--text-primary)" }}>
-                      {r.name}
-                    </div>
-                    <div style={{ fontSize: 10, color: "var(--text-secondary)", marginTop: 2 }}>
-                      {r.desc}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </Field>
-
-        {data.role === "engineer" && <EngineerLinkField data={data} updateField={updateField}/>}
-        {data.role === "principal" && <PrincipalLinkField data={data} updateField={updateField}/>}
-        {["owner", "admin", "happycall"].includes(data.role) && (
-          <RoleScopeInfo role={data.role}/>
-        )}
-
-        <Field label="활성 여부">
-          <div
-            onClick={() => updateField("active", !data.active)}
-            style={{
-              display: "flex", alignItems: "center", gap: 10,
-              padding: "10px 12px",
-              background: "var(--bg-secondary)", border: "1px solid var(--border)",
-              borderRadius: 8, cursor: "pointer",
-            }}
-          >
-            <div style={{
-              width: 36, height: 20, borderRadius: 10,
-              background: data.active ? "#00875A" : "var(--bg-tertiary)",
-              position: "relative", flexShrink: 0,
-            }}>
-              <div style={{
-                position: "absolute", top: 2,
-                left: data.active ? 18 : 2,
-                width: 16, height: 16, borderRadius: "50%",
-                background: "var(--text-primary)",
-              }}/>
-            </div>
-            <span style={{ fontSize: 12, color: data.active ? "var(--text-primary)" : "var(--text-secondary)" }}>
-              {data.active ? "활성 (로그인 가능)" : "비활성 (로그인 불가)"}
-            </span>
-          </div>
-        </Field>
-
-        {/* 권한 미리보기 */}
-        <Field label={`권한 미리보기 (${rolePermissions.length}개)`}>
+      {/* 권한 미리보기 — 접이식 */}
+      <div>
+        <button onClick={() => setShowPerms(v => !v)} style={{
+          background: "transparent", border: "none", padding: "4px 0",
+          fontSize: 11.5, fontWeight: 700, color: "var(--text-secondary)",
+          cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span>{showPerms ? "▾" : "▸"}</span>
+          권한 미리보기 ({rolePermissions.length}개)
+        </button>
+        {showPerms && (
           <div style={{
-            background: "var(--bg-inset)", border: "1px solid var(--border)",
+            marginTop: 6,
+            background: "var(--bg-inset, var(--bg-secondary))", border: "1px solid var(--border)",
             borderRadius: 8, padding: "10px 12px",
-            fontSize: 10, color: "var(--text-secondary)", fontFamily: "inherit",
-            maxHeight: 140, overflow: "auto",
+            fontSize: 10, color: "var(--text-secondary)",
+            maxHeight: 160, overflow: "auto",
           }}>
             {rolePermissions.map(p => (
               <div key={p} style={{ color: "#00875A", lineHeight: 1.7 }}>✓ {p}</div>
             ))}
             {rolePermissions.length === 0 && <div style={{ color: "var(--text-tertiary)" }}>권한 없음</div>}
           </div>
-        </Field>
+        )}
+      </div>
+    </Card>
+  );
+
+  return (
+    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
+      <div style={headerStyle}>
+        <button onClick={onBack} style={backBtnStyle}>←</button>
+        <div style={titleStyle}>{isNew ? "사용자 추가" : `사용자 편집${data.name ? " — " + data.name : ""}`}</div>
+        {!isNew ? (
+          <button onClick={handleDelete} disabled={busy} style={dangerBtnStyle}>끄기(비활성)</button>
+        ) : <div style={{ width: 40 }}/>}
+      </div>
+
+      <div style={{ padding: isPc ? "24px 28px" : 16, maxWidth: 1120, margin: "0 auto" }}>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isPc ? "1fr 1fr" : "1fr",
+          gap: 20, alignItems: "start",
+        }}>
+          {basicCard}
+          {roleCard}
+        </div>
 
         {error && (
           <div style={{
-            margin: "12px 0", padding: "10px 12px",
+            margin: "16px 0 0", padding: "10px 12px",
             background: "rgba(239, 68, 68, 0.10)",
             border: "1px solid rgba(239, 68, 68, 0.30)",
             borderRadius: 8, color: "#FF3D5A",
@@ -278,7 +318,7 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
           }}>{error}</div>
         )}
 
-        <div style={{ marginTop: 24, display: "flex", gap: 10 }}>
+        <div style={{ marginTop: 20, display: "flex", gap: 10, maxWidth: isPc ? 480 : "none" }}>
           <button onClick={onBack} disabled={busy} style={cancelBtnStyle}>취소</button>
           <button onClick={handleSave} disabled={busy} style={{ ...saveBtnStyle, opacity: busy ? 0.6 : 1 }}>
             {busy ? "저장 중..." : "저장"}
@@ -289,7 +329,7 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
   );
 }
 
-// ===== 연결 필드 (V4 명확화) =====
+// ===== 연결 필드 (V4 명확화 — 내용 유지, 스타일만 카드 톤) =====
 function EngineerLinkField({ data, updateField }) {
   const engineers = loadEngineers();
   const selected = engineers.find(e => e.id === data.engineerId);
@@ -338,7 +378,7 @@ function PrincipalLinkField({ data, updateField }) {
           </option>
         ))}
       </select>
-      <InfoBox color="#FF1B8D">
+      <InfoBox color="#0EA5E9">
         ℹ️ 이 사용자는 <strong>{selected?.name || "선택한 원청"}</strong>의 작업만 볼 수 있습니다.<br/>
         · 다른 원청 작업: 안 보임<br/>
         · 회사 마진: 안 보임<br/>
@@ -356,11 +396,49 @@ function RoleScopeInfo({ role }) {
     happycall: "접수 / 일정 권한 (수수료 / 마진 정보는 안 보임)",
   };
   return (
-    <div style={{ marginBottom: 18 }}>
-      <InfoBox color="#00875A">
-        ℹ️ 이 역할은 별도 연결 없이 모든 데이터에 접근합니다.<br/>
-        · {TEXT[role]}
-      </InfoBox>
+    <InfoBox color="#00875A">
+      ℹ️ 이 역할은 별도 연결 없이 모든 데이터에 접근합니다.<br/>
+      · {TEXT[role]}
+    </InfoBox>
+  );
+}
+
+// ===== 공용 소품 =====
+function Card({ title, sub, children }) {
+  return (
+    <section style={{
+      background: "var(--bg-elevated, var(--bg-secondary))",
+      border: "1px solid var(--border)",
+      borderRadius: 14, overflow: "hidden",
+    }}>
+      <div style={{
+        padding: "14px 18px", borderBottom: "1px solid var(--border)",
+        display: "flex", alignItems: "baseline", gap: 8,
+      }}>
+        <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>{title}</h2>
+        {sub && <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{sub}</span>}
+      </div>
+      <div style={{ padding: "16px 18px", display: "flex", flexDirection: "column", gap: 14 }}>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function Switch({ on }) {
+  return (
+    <div style={{
+      width: 38, height: 21, borderRadius: 999,
+      background: on ? "#00875A" : "var(--bg-tertiary, var(--border))",
+      position: "relative", flexShrink: 0,
+      transition: "background 0.15s",
+    }}>
+      <div style={{
+        position: "absolute", top: 2.5, left: on ? 19 : 3,
+        width: 16, height: 16, borderRadius: "50%",
+        background: "#fff", transition: "left 0.18s",
+        boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+      }}/>
     </div>
   );
 }
@@ -380,13 +458,18 @@ function InfoBox({ children, color = "#FF1B8D" }) {
   );
 }
 
-function Field({ label, children }) {
+function Field({ label, hint, children }) {
   return (
-    <div style={{ marginBottom: 18 }}>
-      <div style={{ fontSize: 11, color: "var(--text-secondary)", marginBottom: 6, fontWeight: 500 }}>
+    <div>
+      <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginBottom: 6, fontWeight: 700 }}>
         {label}
       </div>
       {children}
+      {hint && (
+        <div style={{ fontSize: 10.5, color: "var(--text-tertiary)", marginTop: 5, lineHeight: 1.5 }}>
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
@@ -397,7 +480,7 @@ const headerStyle = {
   position: "sticky", top: 0, background: "var(--bg-primary)", zIndex: 10,
 };
 const backBtnStyle = { background: "none", border: "none", color: "var(--text-primary)", fontSize: 18, cursor: "pointer", padding: 4 };
-const titleStyle = { fontSize: 15, fontWeight: 500, flex: 1, textAlign: "center" };
+const titleStyle = { fontSize: 15, fontWeight: 700, flex: 1, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const dangerBtnStyle = {
   background: "rgba(239, 68, 68, 0.10)", border: "1px solid rgba(239, 68, 68, 0.30)",
   color: "#FF3D5A", fontSize: 12, fontWeight: 500,
@@ -418,8 +501,8 @@ const cancelBtnStyle = {
   fontFamily: "inherit",
 };
 const saveBtnStyle = {
-  flex: 2, background: "#FF1B8D", border: "none",
-  color: "var(--text-primary)", fontSize: 14, fontWeight: 600,
+  flex: 2, background: "var(--accent, #FF1B8D)", border: "none",
+  color: "#fff", fontSize: 14, fontWeight: 700,
   padding: 12, borderRadius: 10, cursor: "pointer",
   fontFamily: "inherit",
 };

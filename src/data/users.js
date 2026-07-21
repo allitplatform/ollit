@@ -5,12 +5,14 @@
 const STORAGE_KEY        = "ollit_users_v1";
 const USERS_CACHE_KEY    = "ollit_users_cache_v1";  // Step 5-7 시트 fetch 캐시
 
+// 2026-07-21 — 역할 색 정비 (사장님 지적: 관리자 #1A1512 가 다크 배경에 묻힘).
+//   다크/라이트 양쪽에서 보이고 서로 구분되는 5색. principal 도 owner 와 겹치던 핑크 → 스카이 분리.
 export const ROLES = {
   owner:     { name: "대표 / 운영자", color: "#FF1B8D", desc: "전체 권한" },
-  admin:     { name: "관리자",        color: "#1A1512", desc: "배정 / 정산" },
-  happycall: { name: "해피콜",        color: "#888780", desc: "접수 / 일정 조율" },
+  admin:     { name: "관리자",        color: "#8B5CF6", desc: "배정 / 정산" },
+  happycall: { name: "해피콜",        color: "#F59E0B", desc: "접수 / 일정 조율" },
   engineer:  { name: "기사",          color: "#00875A", desc: "자기 작업만" },
-  principal: { name: "원청",          color: "#FF1B8D", desc: "자기 원청 작업만" },
+  principal: { name: "원청",          color: "#0EA5E9", desc: "자기 원청 작업만" },
 };
 
 const SEED_USERS = [

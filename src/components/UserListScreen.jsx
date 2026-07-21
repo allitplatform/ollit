@@ -179,8 +179,10 @@ export function UserListScreen({ onBack, onAdd, onEdit }) {
                         </span>
                       </td>
                       <td style={{ padding: "11px 14px" }}>
+                        {/* 2026-07-21 — 역할 배지: 역할색 틴트 배경 (다크/라이트 공통 가독) */}
                         <span style={{
-                          background: "var(--bg-tertiary, var(--bg-elevated))", color: role.color,
+                          background: role.color + "1F", color: role.color,
+                          border: `1px solid ${role.color}40`,
                           fontSize: 11, padding: "3px 8px", borderRadius: 5, fontWeight: 700,
                         }}>{role.name}</span>
                       </td>
@@ -247,8 +249,9 @@ function UserRow({ user: u, onClick }) {
         }}/>
         <span style={{ fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>{u.name}</span>
         <span style={{
-          background: "var(--bg-tertiary)", color: role.color,
-          fontSize: 10, padding: "2px 6px", borderRadius: 4, fontWeight: 500,
+          background: role.color + "1F", color: role.color,
+          border: `1px solid ${role.color}40`,
+          fontSize: 10, padding: "2px 6px", borderRadius: 4, fontWeight: 700,
         }}>{role.name}</span>
         <span style={{
           marginLeft: "auto", fontSize: 11,
