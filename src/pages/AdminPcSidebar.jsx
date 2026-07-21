@@ -139,8 +139,9 @@ const GROUPS = [
       { id: "announcements",         label: "📢 공지사항" },
       { id: "userList",              label: "사용자" },
       { id: "companyAccount",        label: "회사 계좌" },
-      { id: "notificationSettings",  label: "알림 설정" },
-      { id: "settings",              label: "일반" },
+      // 2026-07-21 — "알림 설정" + "일반" → "설정" 한 화면으로 통합 (사장님 승인 시안).
+      //   notificationSettings 진입은 AdminApp 분기에서 settings 와 동일 화면으로 처리.
+      { id: "settings",              label: "설정" },
     ],
   },
 ];
@@ -169,6 +170,8 @@ const SCREEN_TO_GROUP = (() => {
   map.ratesManagement   = "principal";
   map.commissionPolicy  = "principal";
   map.regionList        = "engineers";
+  // 2026-07-21 — 옛 알림 설정 진입 경로 (외부 링크/뒤로가기 잔존분) → 설정 그룹 활성.
+  map.notificationSettings = "settingsGroup";
   return map;
 })();
 

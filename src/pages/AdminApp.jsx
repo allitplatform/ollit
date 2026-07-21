@@ -101,7 +101,7 @@ import { SettingsScreen } from "../components/SettingsScreen.jsx";
 import { CompanyAccountScreen } from "../components/CompanyAccountScreen.jsx";
 import { UserListScreen } from "../components/UserListScreen.jsx";
 import { UserEditScreen } from "../components/UserEditScreen.jsx";
-import { NotificationsScreen as NotiSettingsScreen } from "../components/NotificationsScreen.jsx";
+// 2026-07-21 — NotificationsScreen(알림 설정) 은 SettingsScreen 으로 통합 — import 제거.
 import { createEmptyUser } from "../data/users.js";
 import { PrincipalListScreen } from "../components/PrincipalListScreen.jsx";
 import { PrincipalEditScreen } from "../components/PrincipalEditScreen.jsx";
@@ -3622,25 +3622,15 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   // Step 9 — 통합 설정
-  if (screen === "settings") {
+  // 2026-07-21 — 설정 통합: 옛 "notificationSettings" 진입도 이 화면으로 (NotificationsScreen 흡수).
+  //   중복 링크 props (원청/기사/단가/지역/사용자/회사계좌/정산/수수료정책/시트백업/유솔N) 전부 제거 — 사이드바가 담당.
+  if (screen === "settings" || screen === "notificationSettings") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <SettingsScreen
         user={user}
         themeMode={mode}
         onBack={goBack}
         onLogout={onLogout}
-        onPrincipals={() => setScreen("principalList")}
-        onEngineers={() => setScreen("engineerList")}
-        onRates={() => setScreen("ratesManagement")}
-        onRegions={() => setScreen("regionList")}
-        onUsers={() => setScreen("userList")}
-        onCompanyAccount={() => setScreen("companyAccount")}
-        onNotifications={() => setScreen("notificationSettings")}
-        onBackup={() => addToast({ type: "assignment", title: "백업 / 복원", message: "준비 중인 기능입니다" })}
-        onUsolN={(menuId) => setScreen(menuId)}
-        onSettlement={() => setScreen("settlement")}
-        onPrincipalSettlement={() => setScreen("principal_settlement")}
-        onCommissionPolicy={() => setScreen("commissionPolicy")}
         onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
         autoPushOn={autoPushOn}
         onToggleAutoPush={async () => {
@@ -3809,11 +3799,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       />
     </Shell>;
   }
-  if (screen === "notificationSettings") {
-    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-   <NotiSettingsScreen user={user} onBack={goBack}/>
-    </Shell>;
-  }
+  // 2026-07-21 — "notificationSettings" 분기 제거 — 위 settings 분기가 함께 처리 (설정 통합).
   // Step 5-8 F-4 — 회사 계좌 관리 (운영자/관리자만 / PERMISSIONS["menu.company_account"])
   if (screen === "companyAccount") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
