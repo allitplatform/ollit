@@ -20,7 +20,9 @@ import { fetchPrincipalSettleItems } from "../lib/principalSettleDb.js";
 import { USOL_N_PID } from "../lib/usolNWeeklyData.js";
 // 2026-06-12 — 유솔N 패널 = PC 전용 새 디자인 (순이익 주인공).
 //   계산 helper 만 UsolNToEngineerSection 에서 export 가져옴, UI 새로.
-import { AdminPcUsolNMonthlyPanel } from "./AdminPcUsolNMonthlyPanel.jsx";
+// 2026-07-21 — 유솔N 큰 패널 제거 (사장님 spec: "이제 큰 부분 아님" + 자체 계산이라 정산판과 어긋날 수 있었음).
+//   컴팩트 카드로 대체 — 데이터 = usoln_settle_board_summary RPC (정산판·가계부와 동일 소스, 항상 일치).
+import { getUsolnSettleBoardSummary } from "../lib/usolnSettleBoardDb.js";
 // 2026-06-12 — 작업 검색 (맨 아래 풀폭). 클라이언트 필터 (apiTasks).
 import { AdminPcTaskSearchPanel } from "./AdminPcTaskSearchPanel.jsx";
 import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
@@ -139,8 +141,8 @@ export function AdminPcDashboard({
             actionLabel="만들기 →"
             onClick={onClickRefriAddon}
           />
-          {/* 유솔N 월정산 — 우 컬럼 끝에 stack (빈 공간 채움, 매출 도넛 길이와 균형). */}
-          <AdminPcUsolNMonthlyPanel user={user} onClick={onClickUsolN}/>
+          {/* 2026-07-21 — 유솔N 컴팩트 카드 (정산판 RPC 동일 소스). 상세는 유솔N 화면에서. */}
+          <UsolNCompactCard user={user} onClick={onClickUsolN}/>
         </div>
       </div>
 
@@ -165,6 +167,77 @@ export function AdminPcDashboard({
         onTaskClick={onOpenTaskDetail}
       />
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 2026-07-21 — 유솔N 컴팩트 카드.
+//   전월(=이번 지급 사이클) 작업분 기준: 회사 마진 / 안 받음(대기+독촉) / 기사 미지급.
+//   데이터 = usoln_settle_board_summary (정산판·가계부와 동일 RPC — 대시보드 자체 계산 제거).
+function UsolNCompactCard({ user, onClick }) {
+  const actor = user?.user_id || user?.userId || user?.id;
+  // KST 전월 "YYYY-MM"
+  const ym = useMemo(() => {
+    const nowYm = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul", year: "numeric", month: "2-digit",
+    }).format(new Date());                       // "YYYY-MM"
+    const [y, m] = nowYm.split("-").map(Number);
+    const py = m === 1 ? y - 1 : y;
+    const pm = m === 1 ? 12 : m - 1;
+    return `${py}-${String(pm).padStart(2, "0")}`;
+  }, []);
+  const [row, setRow] = useState(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (!actor) { setLoading(false); return; }
+    let alive = true;
+    getUsolnSettleBoardSummary(actor).then(res => {
+      if (!alive) return;
+      if (res?.ok) {
+        setRow((res.months || []).find(x => x.wm === ym) || null);
+      }
+      setLoading(false);
+    }).catch(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [actor, ym]);
+
+  const margin    = Number(row?.margin) || 0;
+  const notRecv   = (Number(row?.c1_margin) || 0) + (Number(row?.c2_margin) || 0);
+  const engOwed   = Number(row?.b_eng_owed) || 0;
+  const monthNum  = Number(ym.split("-")[1]);
+
+  return (
+    <button onClick={onClick} style={{
+      background: "var(--bg-elevated)",
+      border: "1px solid var(--border)",
+      borderRadius: 14,
+      padding: "14px 16px",
+      cursor: "pointer",
+      fontFamily: "inherit",
+      textAlign: "left",
+      display: "flex", flexDirection: "column", gap: 6,
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 15 }}>🟢</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>
+          유솔N 정산 · {monthNum}월 작업분
+        </span>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-tertiary)" }}>열기 →</span>
+      </div>
+      <div style={{
+        fontSize: 22, fontWeight: 800,
+        color: margin < 0 ? "#ff4444" : "var(--text-primary)",
+        fontVariantNumeric: "tabular-nums", letterSpacing: "-0.5px",
+      }}>
+        {loading ? "···" : fmtKRW(margin)}
+        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", marginLeft: 6 }}>회사 마진</span>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>
+        {loading ? "불러오는 중..." : (
+          <>안 받음 {fmtKRW(notRecv)} · 기사 미지급 {fmtKRW(engOwed)}</>
+        )}
+      </div>
+    </button>
   );
 }
 
