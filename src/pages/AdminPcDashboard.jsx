@@ -16,6 +16,8 @@ import { useMinWidth } from "../utils/useIsPc.js";
 import { computeRevenueByYmRange } from "../utils/revenueStats.js";
 // 2026-07-21 v2 — 대시보드 재설계: "시작 전(오늘 예약·확정)" 계산에 기존 효과상태 helper 재사용.
 import { TASK_FILTERS } from "../utils/dashboardStats.js";
+// 2026-07-21 v5 — 접수함 대형 카드 🅓 전환 흐름형 (사장님 확정): list_inquiries RPC 재사용.
+import { listInquiries } from "../lib/inquiriesDb.js";
 // 2026-06-12 — 유솔N 정산대기 = 원청 화면 (PrincipalSettleTab) 과 동일 source/필터.
 //   task_items 단위, task_status="완료" + principal_id=USOL_N_PID + naver_settled_at NULL + subtotal>0 + is_canceled!=true.
 import { fetchPrincipalSettleItems } from "../lib/principalSettleDb.js";
@@ -53,6 +55,7 @@ export function AdminPcDashboard({
   // 2026-06-24 — 홈페이지 접수함 (옛 "냉매 자동배정 대기" 카드 자리 대체)
   onClickInquiries,
   inquiriesNewCount = 0,
+  inquiriesTodayCount = 0,
   onTaskAssign,
   onOpenTaskDetail,
 }) {
@@ -160,7 +163,7 @@ export function AdminPcDashboard({
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* 2026-07-21 v4 — 홈페이지 접수함 대형 카드 승격 (사장님 spec: 중요). */}
-          <InquiriesBigCard count={inquiriesNewCount} onClick={onClickInquiries}/>
+          <InquiriesBigCard count={inquiriesNewCount} todayCount={inquiriesTodayCount} user={user} onClick={onClickInquiries}/>
           <CompactCard
             icon="🔄"
             label="재배정 요청"
@@ -851,39 +854,107 @@ const PRINCIPAL_ORDER = [
 ];
 const USOLN_CODE = "usol_n";
 
-// 2026-07-21 v4 — 홈페이지 접수함 대형 카드 (사장님 spec: 중요 — 우 컬럼 최상단, 크게).
-//   신규 1건+ 이면 핑크 강조 + 안내 문구. 클릭 → 접수함 화면 (기존 동일).
-function InquiriesBigCard({ count = 0, onClick }) {
+// 2026-07-21 v5 — 홈페이지 접수함 대형 카드 🅓 "문의 → 접수 전환 흐름형" (사장님 확정).
+//   신규 N (크게, 핑크 강조) + 이번 주 흐름: 문의 → 전화 완료 → 작업 전환(%).
+//   집계 = list_inquiries RPC 전체 → 클라 필터:
+//     이번 주 = created_at KST 월요일~오늘 / 전화 완료 = contacted+converted / 전환 = converted (스팸 제외).
+function InquiriesBigCard({ count = 0, todayCount = 0, user, onClick }) {
   const hot = count > 0;
+  const actor = user?.user_id || user?.userId || user?.id;
+  const [week, setWeek] = useState({ total: 0, called: 0, converted: 0 });
+
+  useEffect(() => {
+    if (!actor) return;
+    let alive = true;
+    listInquiries(actor)
+      .then(rows => {
+        if (!alive) return;
+        // 이번 주 시작 (KST 월요일) "YYYY-MM-DD"
+        const now = new Date();
+        const kstNow = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Seoul" }));
+        const dow = kstNow.getDay();                      // 0=일
+        const back = dow === 0 ? 6 : dow - 1;             // 월요일까지 거슬러
+        const monday = new Date(kstNow.getTime() - back * 86400000);
+        const mondayYmd = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+
+        let total = 0, called = 0, converted = 0;
+        for (const q of (rows || [])) {
+          if (!q?.created_at) continue;
+          if (q.status === "spam") continue;              // 스팸은 흐름에서 제외
+          if (toKstYmd(q.created_at) < mondayYmd) continue;
+          total += 1;
+          if (q.status === "contacted" || q.status === "converted") called += 1;
+          if (q.status === "converted") converted += 1;
+        }
+        setWeek({ total, called, converted });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [actor, count]);
+
+  const convPct = week.total > 0 ? Math.round((week.converted / week.total) * 100) : 0;
+
+  const flowStep = (v, label, color) => (
+    <div style={{
+      flex: 1, textAlign: "center",
+      background: "var(--bg-secondary)",
+      border: "1px solid var(--border)",
+      borderRadius: 10, padding: "10px 6px", minWidth: 0,
+    }}>
+      <div style={{
+        fontSize: 19, fontWeight: 800,
+        color: color || "var(--text-primary)",
+        fontVariantNumeric: "tabular-nums",
+      }}>{v}</div>
+      <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-secondary)", marginTop: 1, whiteSpace: "nowrap" }}>{label}</div>
+    </div>
+  );
+
   return (
     <button onClick={onClick} style={{
       background: hot ? "var(--accent-bg)" : "var(--bg-elevated)",
       border: `1px solid ${hot ? "var(--accent)" : "var(--border)"}`,
       borderRadius: 14,
-      padding: "18px 20px",
+      padding: "16px 18px",
       cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-      display: "flex", alignItems: "center", gap: 16,
+      display: "flex", flexDirection: "column", gap: 12,
     }}>
-      <span style={{
-        width: 46, height: 46, borderRadius: 12,
-        background: "var(--accent-bg)",
-        fontSize: 22,
-        display: "inline-flex", alignItems: "center", justifyContent: "center",
-        flexShrink: 0,
-      }}>📨</span>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>홈페이지 접수함</div>
-        <div style={{ fontSize: 11.5, color: hot ? "var(--accent)" : "var(--text-secondary)", marginTop: 3, fontWeight: hot ? 700 : 500 }}>
-          {hot ? "새 문의가 기다리고 있어요 — 빨리 전화할수록 접수율↑" : "새 문의 없음 · 클릭해서 전체 보기"}
+      {/* 헤더 + 큰 숫자 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <span style={{
+          width: 44, height: 44, borderRadius: 12,
+          background: "var(--accent-bg)", fontSize: 21,
+          display: "inline-flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0,
+        }}>📨</span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.3px" }}>
+            홈페이지 접수함
+          </div>
+          <div style={{
+            fontSize: 11.5, marginTop: 3,
+            color: hot ? "var(--accent)" : "var(--text-secondary)",
+            fontWeight: hot ? 700 : 500,
+          }}>
+            {hot ? "새 문의 대기 중 — 빨리 전화할수록 접수율↑" : `오늘 문의 ${todayCount}건 · 새 문의 없음`}
+          </div>
         </div>
+        <span style={{
+          fontSize: 36, fontWeight: 800,
+          color: hot ? "var(--accent)" : "var(--text-primary)",
+          fontVariantNumeric: "tabular-nums", letterSpacing: "-1px", flexShrink: 0,
+        }}>{count}</span>
+        <span style={{ fontSize: 12, fontWeight: 800, color: "var(--accent)", flexShrink: 0 }}>열기 →</span>
       </div>
-      <span style={{
-        fontSize: 34, fontWeight: 800,
-        color: hot ? "var(--accent)" : "var(--text-primary)",
-        fontVariantNumeric: "tabular-nums", letterSpacing: "-1px",
-        flexShrink: 0,
-      }}>{count}</span>
-      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--accent)", flexShrink: 0 }}>열기 →</span>
+
+      {/* 이번 주 전환 흐름 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        {flowStep(week.total, "이번 주 문의")}
+        <span style={{ color: "var(--text-tertiary)", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>›</span>
+        {flowStep(week.called, "전화 완료")}
+        <span style={{ color: "var(--text-tertiary)", fontSize: 13, fontWeight: 800, flexShrink: 0 }}>›</span>
+        {flowStep(week.converted, `작업 전환 ${convPct}%`, "#2BB673")}
+      </div>
     </button>
   );
 }
