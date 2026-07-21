@@ -179,8 +179,10 @@ export function AdminPcDashboard({
             actionLabel="만들기 →"
             onClick={onClickRefriAddon}
           />
-          {/* 원청별 오늘 — 우 컬럼으로 이동 (옛 풀폭) */}
-          <AdminPcTodayByPrincipal apiTasks={apiTasks}/>
+          {/* 원청별 오늘 — 우 컬럼 마지막, 남는 높이 채움 (좌 매출 패널과 바닥 맞춤). */}
+          <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+            <AdminPcTodayByPrincipal apiTasks={apiTasks} fill/>
+          </div>
           {/* 2026-07-21 v4 — 최근 7일 매출 카드 제거 (사장님 spec). */}
         </div>
       </div>
@@ -959,7 +961,7 @@ function InquiriesBigCard({ count = 0, todayCount = 0, user, onClick }) {
   );
 }
 
-function AdminPcTodayByPrincipal({ apiTasks = [] }) {
+function AdminPcTodayByPrincipal({ apiTasks = [], fill = false }) {
   const today = todayYmd();
 
   const { rows, totals } = useMemo(() => {
@@ -1016,6 +1018,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [] }) {
       borderRadius: 14,
       padding: "16px 18px",
       display: "flex", flexDirection: "column", gap: 12,
+      flex: fill ? 1 : undefined,   // 2026-07-21 — 우 컬럼 바닥 맞춤 (여백 제거)
     }}>
       {/* 헤더 */}
       <div style={{
