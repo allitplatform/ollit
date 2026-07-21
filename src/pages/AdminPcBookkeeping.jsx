@@ -269,7 +269,7 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         <div>
           <div style={{ fontSize: 20, fontWeight: 500, color: t.text, letterSpacing: "-0.4px" }}>가계부</div>
           <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2, fontWeight: 400 }}>
-            벌었다 → 현금은 → 나눠도 되나 → 나누기 → 남은 것
+            이번 달 성적표 → 돈의 흐름 → 나누기
           </div>
         </div>
       </div>
@@ -341,10 +341,31 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         </div>
       </div>
 
+      {/* 2026-07-21 — "돈의 흐름" 재설계 (사장님 승인 시안): 2단 배치.
+          좌 = 이번 달 성적표(손익) + 운영비 + 기타 수입 / 우 = 돈의 흐름(옛 ②③ 통합) + 나누기.
+          계산·상태·RPC 무변경 — JSX 배치와 문구만. */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 18, alignItems: "start" }}>
+      <div style={{ minWidth: 0 }}>
+
+      <ProfitCard t={t}
+        incomeTrackA={incomeTrackA}
+        usolNB={usolNTotal}
+        usolNBAuto={usolNB}
+        usolNAdjustment={usolNAdjustment}
+        usolNBLoading={usolNBLoading}
+        usolNBErr={usolNBErr}
+        otherIncome={otherIncomeSum}
+        otherIncomeLoading={otherIncomeLoading}
+        otherIncomeErr={otherIncomeErr}
+        incomeTotal={incomeTotal}
+        expense={totals.sum}
+        netProfit={netProfit}
+      />
+
       {/* 운영비 섹션 */}
       <div style={{
         background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
-        overflow: "hidden", marginBottom: 14,
+        overflow: "hidden", marginBottom: 14, marginTop: 14,
       }}>
         {/* 섹션 헤더 + + 지출 추가 */}
         <div style={{
@@ -455,47 +476,16 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         onDelete={(r) => setOiDialog({ mode: "delete", row: r })}
       />
 
-      {/* ─────────────────────────────────────────────
-          1. 벌었다 — 손익 (수입 − 운영비 = 순이익)
-          ───────────────────────────────────────────── */}
-      <SectionLabel t={t} text="① 벌었다"/>
-      <ProfitCard t={t}
-        incomeTrackA={incomeTrackA}
-        usolNB={usolNTotal}
-        usolNBAuto={usolNB}
-        usolNAdjustment={usolNAdjustment}
-        usolNBLoading={usolNBLoading}
-        usolNBErr={usolNBErr}
-        otherIncome={otherIncomeSum}
-        otherIncomeLoading={otherIncomeLoading}
-        otherIncomeErr={otherIncomeErr}
-        incomeTotal={incomeTotal}
-        expense={totals.sum}
-        netProfit={netProfit}
-      />
+      </div>{/* ← 좌 컬럼 끝 */}
 
-      <Connector t={t}>벌긴 벌었다 — 근데 이 돈이 지금 통장에 다 있을까?</Connector>
-
-      {/* ─────────────────────────────────────────────
-          2. 지금 현금은 (현황판 ① 가져옴)
-          ───────────────────────────────────────────── */}
-      <SectionLabel t={t} text="② 지금 현금은"/>
-      <CashBlock t={t}
+      <div style={{ minWidth: 0 }}>{/* → 우 컬럼: 돈의 흐름 + 나누기 */}
+      <FlowCard t={t}
         loading={boardLoading}
         err={boardErr}
         currentBalance={currentBalance}
         totalBEngOwed={totalBEngOwed}
         cashNow={cashNow}
-      />
-
-      {/* ─────────────────────────────────────────────
-          3. 그래서 나눠도 되는 돈 (현황판 ③ 가져옴) — 강조
-          ───────────────────────────────────────────── */}
-      <SectionLabel t={t} text="③ 그래서 나눠도 되는 돈"/>
-      <CeilingBlock t={t}
-        loading={boardLoading}
         prevYm={prevYm}
-        cashNow={cashNow}
         c1Margin={c1Margin}
         c2Margin={c2Margin}
         incomingTotal={incomingTotal}
@@ -503,13 +493,6 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         prevMonthExists={!!prevMonthBoard}
       />
 
-      <Connector t={t}>이 선 안에서 나누면 통장 안 터진다</Connector>
-
-      {/* ─────────────────────────────────────────────
-          4. 나누기 (분배 입력) — ③ 바로 아래. ceiling 경고 표시.
-          5. 이번 달 회사에 남은 것 — DivisionCard 내부 "당월 차이" 3줄 강화.
-          ───────────────────────────────────────────── */}
-      <SectionLabel t={t} text="④ 나누기"/>
       <DivisionCard t={t}
         workMonth={selectedYm}
         actor={actor}
@@ -519,6 +502,8 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         onSaved={() => setReloadTick(n => n + 1)}
         reloadKey={reloadTick + oiReloadTick}
       />
+      </div>{/* ← 우 컬럼 끝 */}
+      </div>{/* ← 2단 grid 끝 */}
 
       {/* 다이얼로그 */}
       {dialog?.mode === "add" && (
@@ -604,76 +589,84 @@ function Connector({ t, children }) {
 
 // 블록 ② — 지금 현금은
 //   "통장 {balance} − 기사 줄 돈 {total_b}" 한 줄 + 큰 숫자.
-function CashBlock({ t, loading, err, currentBalance, totalBEngOwed, cashNow }) {
+// 2026-07-21 — "돈의 흐름" 카드 (옛 CashBlock + CeilingBlock 통합, 사장님 승인 시안).
+//   통장 잔고 → 기사 몫 빼기 → 회사 현금 → 유솔 몫 더하기 → 나눠도 되는 최대 (히어로).
+//   props·값은 옛 두 블록과 동일 — 표시만 담당, 계산 무변경.
+function FlowCard({ t, loading, err, currentBalance, totalBEngOwed, cashNow,
+                    prevYm, c1Margin, c2Margin, incomingTotal, ceiling, prevMonthExists }) {
+  const prevM = prevYm ? Number(prevYm.split("-")[1]) : null;
   return (
     <div style={{
-      background: t.bgElevated,
-      border: `0.5px solid ${t.border}`,
-      borderRadius: 12,
-      padding: "16px 20px",
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      padding: "18px 22px", marginTop: 14,
     }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>💸 돈의 흐름 — 나눠도 되는 돈 계산</div>
+      <div style={{ fontSize: 11, color: t.textMuted, marginTop: 3, marginBottom: 14, lineHeight: 1.5 }}>
+        통장 잔고에서 "남의 돈"을 빼고, "곧 들어올 내 돈"을 더하면 끝.
+      </div>
+
       {loading ? (
-        <div style={{ padding: "8px 0", fontSize: 12, color: t.textMuted, textAlign: "center" }}>
-          현금 불러오는 중...
+        <div style={{ padding: "24px 0", fontSize: 12, color: t.textMuted, textAlign: "center" }}>
+          불러오는 중...
         </div>
       ) : err ? (
-        <div style={{ padding: "8px 0", fontSize: 12, color: t.danger, textAlign: "center" }}>
+        <div style={{ padding: "24px 0", fontSize: 12, color: t.danger, textAlign: "center" }}>
           ⚠️ {err}
         </div>
       ) : (
         <>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-            <span style={{
-              flex: 1, fontSize: 13, fontWeight: 500, color: t.textSecondary,
-              letterSpacing: "-0.3px",
-            }}>통장에서 기사 줄 돈 빼면</span>
-            <span style={{
-              fontSize: 28, fontWeight: 500,
-              color: cashNow < 0 ? t.danger : t.success,
-              fontVariantNumeric: "tabular-nums",
-              letterSpacing: "-0.8px",
-              lineHeight: 1.1,
-              whiteSpace: "nowrap",
-            }}>{fmtSigned(cashNow)}</span>
-          </div>
+          <FlowStep t={t} icon="🏦" title="통장 잔고"
+            desc="지금 통장에 찍혀 있는 금액"
+            amount={fmtKRW(currentBalance)} amountColor={t.text}/>
+          <FlowLine t={t}/>
+          <FlowStep t={t} icon="👷" title="기사님들 몫 빼기" tone="danger"
+            desc="통장에 있지만 회사 돈 아님 — 아직 안 보낸 기사 정산금"
+            amount={`− ${fmtKRW(totalBEngOwed)}`} amountColor={t.danger}/>
+          <FlowLine t={t}/>
+          <FlowStep t={t} icon="💰" title="회사가 진짜 쥔 현금" mid
+            amount={fmtSigned(cashNow)} amountColor={cashNow < 0 ? t.danger : t.success}/>
+          <FlowLine t={t}/>
+          <FlowStep t={t} icon="🟢" tone="success"
+            title={`유솔에서 올 돈 더하기${prevM ? ` (${prevM}월 작업분)` : ""}`}
+            desc={prevMonthExists && incomingTotal > 0
+              ? `일은 끝났고 입금만 안 됨 — 독촉 ${fmtKRW(c2Margin)} + 대기 ${fmtKRW(c1Margin)}`
+              : "이번 달은 기다리는 유솔 몫 없음"}
+            amount={`+ ${fmtKRW(incomingTotal)}`} amountColor={t.success}/>
+
+          {/* 히어로 — 나눠도 되는 최대 */}
           <div style={{
-            height: 1, background: t.border, opacity: 0.6,
-            margin: "12px -20px 10px",
-          }}/>
-          <div style={{
-            fontSize: 12, fontWeight: 400, color: t.textMuted,
-            letterSpacing: "-0.2px",
-            fontVariantNumeric: "tabular-nums",
+            marginTop: 14, textAlign: "center",
+            padding: "20px 16px 16px",
+            borderRadius: 12,
+            background: t.accentBg || "rgba(255,27,141,0.08)",
+            border: `1px solid ${t.accent}`,
           }}>
-            통장 {fmtKRW(currentBalance)} − 기사 줄 돈 {fmtKRW(totalBEngOwed)}
+            <div style={{ fontSize: 13, fontWeight: 800, color: t.accent }}>🎯 이번에 나눠도 되는 최대</div>
+            <div style={{
+              marginTop: 6,
+              fontSize: 36, fontWeight: 500,
+              color: ceiling < 0 ? t.danger : t.accent,
+              fontVariantNumeric: "tabular-nums",
+              letterSpacing: "-1.1px", lineHeight: 1.1,
+            }}>{fmtSigned(ceiling)}</div>
+            <div style={{
+              marginTop: 8, fontSize: 11, color: t.accent, opacity: 0.75,
+              fontVariantNumeric: "tabular-nums",
+            }}>
+              {fmtSigned(cashNow)} + {fmtKRW(incomingTotal)} — 이 안에서만 나누면 회사가 안전해요
+            </div>
           </div>
 
-          {/* 2026-06-29 — 건물 보증금 (묶인 자산) 참고 표시.
-              ⚠️ 계산 무관 — cashNow / ceiling / 분배 어디에도 들어가지 않음.
-              현금(success) 보다 작고 차분한 secondary 색. */}
+          {/* 보증금 — 참고 (계산 무관, 기존과 동일) */}
           <div style={{
-            height: 1, background: t.border, opacity: 0.6,
-            margin: "12px -20px 10px",
-          }}/>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-            <span style={{
-              flex: 1, fontSize: 13, fontWeight: 400, color: t.textMuted,
-              letterSpacing: "-0.2px",
-            }}>건물 보증금 (묶인 자산)</span>
-            <span style={{
-              fontSize: 16, fontWeight: 500, color: t.textSecondary,
-              fontVariantNumeric: "tabular-nums",
-              letterSpacing: "-0.3px",
-              whiteSpace: "nowrap",
-            }}>{fmtKRW(DEPOSIT_ASSET)}</span>
-          </div>
-          <div style={{
-            marginTop: 4,
-            fontSize: 12, fontWeight: 400, color: t.textMuted,
-            letterSpacing: "-0.2px",
-            opacity: 0.85,
+            marginTop: 12,
+            display: "flex", alignItems: "baseline", gap: 10,
+            padding: "9px 12px",
+            border: `1px dashed ${t.border}`, borderRadius: 9,
+            fontSize: 11.5, color: t.textMuted,
+            fontVariantNumeric: "tabular-nums",
           }}>
-            돌려받을 돈 · 분배엔 안 들어감
+            🏢 건물 보증금 {fmtKRW(DEPOSIT_ASSET)} — 묶인 자산 (계산에 안 들어감, 참고만)
           </div>
         </>
       )}
@@ -681,60 +674,36 @@ function CashBlock({ t, loading, err, currentBalance, totalBEngOwed, cashNow }) 
   );
 }
 
-// 블록 ③ — 그래서 나눠도 되는 돈 (분배 천장)
-//   강조 카드, 가운데 정렬, 초대형 숫자.
-function CeilingBlock({ t, loading, prevYm, cashNow, c1Margin, c2Margin, incomingTotal, ceiling, prevMonthExists }) {
-  const prevM = prevYm ? Number(prevYm.split("-")[1]) : null;
+function FlowStep({ t, icon, title, desc, amount, amountColor, mid, tone }) {
+  const toneBorder =
+    tone === "danger"  ? "rgba(248,113,113,0.35)" :
+    tone === "success" ? "rgba(43,182,115,0.35)"  : t.border;
   return (
     <div style={{
-      background: t.accentBg || "rgba(255,27,141,0.08)",
-      border: `0.5px solid ${t.accent}`,
-      borderRadius: 12,
-      padding: "20px 20px 18px",
-      textAlign: "center",
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "11px 13px",
+      borderRadius: 11,
+      border: `1px ${mid ? "dashed" : "solid"} ${toneBorder}`,
+      background: mid ? "transparent" : t.bgInset,
     }}>
-      {loading ? (
-        <div style={{ padding: "12px 0", fontSize: 12, color: t.textMuted }}>
-          천장 계산 중...
-        </div>
-      ) : (
-        <>
-          <div style={{
-            fontSize: 14, fontWeight: 500, color: t.accent,
-            letterSpacing: "-0.3px", opacity: 0.95,
-          }}>이번에 나눌 수 있는 최대</div>
-          <div style={{
-            marginTop: 8,
-            fontSize: 36, fontWeight: 500,
-            color: ceiling < 0 ? t.danger : t.accent,
-            fontVariantNumeric: "tabular-nums",
-            letterSpacing: "-1.1px",
-            lineHeight: 1.1,
-          }}>{fmtSigned(ceiling)}</div>
-          <div style={{
-            marginTop: 10,
-            fontSize: 12, fontWeight: 400,
-            color: t.accent, opacity: 0.7,
-            letterSpacing: "-0.2px",
-            fontVariantNumeric: "tabular-nums",
-          }}>
-            ② 현금 {fmtSigned(cashNow)} + {prevM ? `${prevM}월 작업분 ` : ""}유솔 받을 {fmtKRW(incomingTotal)}
-          </div>
-          {prevMonthExists && incomingTotal > 0 && (
-            <div style={{
-              marginTop: 6,
-              fontSize: 11, fontWeight: 400,
-              color: t.accent, opacity: 0.6,
-              letterSpacing: "-0.2px",
-              fontVariantNumeric: "tabular-nums",
-            }}>
-              유솔 받을 = 독촉 {fmtKRW(c2Margin)} + 대기 {fmtKRW(c1Margin)} · 유솔 입금 들어오면 채워짐
-            </div>
-          )}
-        </>
-      )}
+      <span style={{ fontSize: 18, width: 26, textAlign: "center", flexShrink: 0 }}>{icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{title}</div>
+        {desc && (
+          <div style={{ fontSize: 10.5, color: t.textMuted, marginTop: 2, lineHeight: 1.5 }}>{desc}</div>
+        )}
+      </div>
+      <span style={{
+        fontSize: mid ? 18 : 16, fontWeight: 800,
+        color: amountColor || t.text,
+        fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap",
+      }}>{amount}</span>
     </div>
   );
+}
+
+function FlowLine({ t }) {
+  return <div style={{ width: 2, height: 14, background: t.border, marginLeft: 25 }}/>;
 }
 
 // 음수 시 "− ₩x" 포맷
@@ -1260,38 +1229,41 @@ function ProfitCard({ t, incomeTrackA, usolNB, usolNBAuto, usolNAdjustment,
       ? `⚠️ ${usolNBErr}`
       : hasAdj
         ? `자동 ${fmt(usolNBAuto)} + 수동 보정 ${fmt(usolNAdjustment)} = ${fmt(usolNB)} (전월 작업분 + 보정).`
-        : "유솔N 세척·추가선택 회사 마진 — 전월 작업분(작업 다음 달 정산 반영).";
+        : "네이버 결제 — 한 달 늦게 들어오는 회사 몫.";
   return (
     <div style={{
       background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
       padding: "18px 22px",
       marginTop: 14,
     }}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: t.text, marginBottom: 14 }}>
-        📊 손익
+      <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>
+        📊 이번 달 성적표
+      </div>
+      <div style={{ fontSize: 11, color: t.textMuted, marginTop: 3, marginBottom: 14, lineHeight: 1.5 }}>
+        "이번 달 장사를 얼마나 잘했나" — 오른쪽 돈의 흐름(현금)과는 별개예요.
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <ProfitRow t={t} label="수입 — 일정산 (track A)" value={incomeTrackA} color="#3B82F6"
-          hint="매출 리포트 '이번달' 회사 마진과 동일 (revenueStats)."/>
+        <ProfitRow t={t} label="일정산 수입" value={incomeTrackA} color="#3B82F6"
+          hint="세척·냉매 등 그날그날 정산되는 회사 몫 — 매출 리포트와 같은 숫자."/>
         <ProfitRow t={t}
-          label="수입 — 유솔N 월정산 (전월 작업분)"
+          label="유솔N 수입 (전월 작업분)"
           value={usolNB}
           color="#8B5CF6"
           hint={usolnHint}
         />
         <ProfitRow t={t}
-          label="수입 — 기타 (세스코·개인건 등)"
+          label="기타 수입"
           value={otherIncome}
           color="#14B8A6"
           hint={otherIncomeLoading
             ? "불러오는 중..."
             : otherIncomeErr
               ? `⚠️ ${otherIncomeErr}`
-              : "세스코 수수료·개인건 등 수동 입력 (통장 cashflow 와 별개, 손익용)."}
+              : "세스코 · 개인건 등 직접 입력한 수입."}
         />
         <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>
         <ProfitRow t={t} label="수입 합계" value={incomeTotal} color={t.text} mid/>
-        <ProfitRow t={t} label="운영비" value={expense} color={t.danger} negative/>
+        <ProfitRow t={t} label="운영비 (임대료·광고비·인건비…)" value={expense} color={t.danger} negative/>
         <div style={{ height: 1, background: t.border, margin: "4px 0" }}/>
         <ProfitRow t={t} label="순이익" value={netProfit} color={t.accent} big highlight/>
       </div>
@@ -1494,7 +1466,7 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
       marginTop: 14,
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>🔀 나누기 — 분배 + 이월</div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: t.text }}>👥 나누기 — 대표 3명 분배 + 이월</div>
         <div style={{ flex: 1 }}/>
         <div style={{ fontSize: 11, color: t.textMuted }}>
           순이익 <span className="mono" style={{ fontWeight: 800, color: t.accent }}>{fmtKRW(netProfit)}</span>
@@ -1511,6 +1483,32 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
         </div>
       ) : (
         <>
+          {/* 2026-07-21 — 한도 게이지 (사장님 승인 시안). 표시만 — 저장 로직 무관. */}
+          {ceilingReady && Number.isFinite(Number(ceiling)) && Number(ceiling) > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{
+                height: 8, borderRadius: 999, overflow: "hidden",
+                background: t.bgInset, border: `1px solid ${t.border}`,
+              }}>
+                <div style={{
+                  height: "100%",
+                  width: `${Math.min(100, Math.round((distSum / Number(ceiling)) * 100))}%`,
+                  background: overCeiling ? t.danger : t.accent,
+                  borderRadius: 999,
+                  transition: "width 0.25s",
+                }}/>
+              </div>
+              <div style={{
+                display: "flex", justifyContent: "space-between",
+                marginTop: 5, fontSize: 10.5, color: t.textMuted,
+                fontVariantNumeric: "tabular-nums",
+              }}>
+                <span>나눈 돈 <b style={{ color: overCeiling ? t.danger : t.text }}>{fmtKRW(distSum)}</b></span>
+                <span>한도 {fmtKRW(ceiling)}</span>
+              </div>
+            </div>
+          )}
+
           {/* 대표 3명 입력 */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {REPRESENTATIVES.map((rep, i) => (
