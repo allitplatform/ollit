@@ -261,6 +261,9 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
 
   const isThisMonth = selectedYm === nowKstYm();
 
+  // 2026-07-21 v2 — 탭 분리 (사장님 spec "한 번에 하나만"): pl=성적표·입력 / flow=돈의 흐름 / div=나누기.
+  const [tab, setTab] = useState("pl");
+
   return (
     <div style={{ padding: "20px 24px 40px", maxWidth: 1400, margin: "0 auto" }}>
       {/* 헤더 */}
@@ -341,11 +344,49 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         </div>
       </div>
 
-      {/* 2026-07-21 — "돈의 흐름" 재설계 (사장님 승인 시안): 2단 배치.
-          좌 = 이번 달 성적표(손익) + 운영비 + 기타 수입 / 우 = 돈의 흐름(옛 ②③ 통합) + 나누기.
-          계산·상태·RPC 무변경 — JSX 배치와 문구만. */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1.1fr", gap: 18, alignItems: "start" }}>
-      <div style={{ minWidth: 0 }}>
+      {/* 2026-07-21 v2 — 요약 스트립 + 탭 3개 (사장님 spec: 화면이 정신없다 → 한 번에 하나만).
+          계산·상태·RPC 무변경 — 배치·문구만. 요약 숫자 = 아래 탭들과 동일 값. */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12,
+        marginBottom: 14,
+      }}>
+        <SummaryStat t={t} icon="📊" label="이번 달 순이익"
+          value={fmtSigned(netProfit)}
+          color={netProfit < 0 ? t.danger : t.accent}
+          active={tab === "pl"} onClick={() => setTab("pl")}/>
+        <SummaryStat t={t} icon="💰" label="회사가 쥔 현금"
+          value={boardLoading ? "…" : fmtSigned(cashNow)}
+          color={cashNow < 0 ? t.danger : t.success}
+          active={tab === "flow"} onClick={() => setTab("flow")}/>
+        <SummaryStat t={t} icon="🎯" label="나눠도 되는 최대"
+          value={boardLoading ? "…" : fmtSigned(ceiling)}
+          color={ceiling < 0 ? t.danger : t.accent}
+          active={tab === "div"} onClick={() => setTab("div")}/>
+      </div>
+
+      {/* 탭 바 */}
+      <div style={{
+        display: "flex", gap: 6, marginBottom: 14,
+        borderBottom: `1px solid ${t.border}`,
+      }}>
+        {[
+          { id: "pl",   label: "📊 성적표 · 입력" },
+          { id: "flow", label: "💸 돈의 흐름" },
+          { id: "div",  label: "👥 나누기" },
+        ].map(tb => (
+          <button key={tb.id} onClick={() => setTab(tb.id)} style={{
+            padding: "11px 18px",
+            background: "transparent", border: "none",
+            borderBottom: tab === tb.id ? `2px solid ${t.accent}` : "2px solid transparent",
+            color: tab === tb.id ? t.accent : t.textMuted,
+            fontSize: 13, fontWeight: tab === tb.id ? 800 : 600,
+            cursor: "pointer", fontFamily: "inherit",
+          }}>{tb.label}</button>
+        ))}
+      </div>
+
+      {tab === "pl" && (
+      <div style={{ maxWidth: 860, margin: "0 auto" }}>
 
       <ProfitCard t={t}
         incomeTrackA={incomeTrackA}
@@ -476,9 +517,11 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         onDelete={(r) => setOiDialog({ mode: "delete", row: r })}
       />
 
-      </div>{/* ← 좌 컬럼 끝 */}
+      </div>
+      )}{/* ← pl 탭 끝 */}
 
-      <div style={{ minWidth: 0 }}>{/* → 우 컬럼: 돈의 흐름 + 나누기 */}
+      {tab === "flow" && (
+      <div style={{ maxWidth: 680, margin: "0 auto" }}>
       <FlowCard t={t}
         loading={boardLoading}
         err={boardErr}
@@ -492,7 +535,11 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         ceiling={ceiling}
         prevMonthExists={!!prevMonthBoard}
       />
+      </div>
+      )}{/* ← flow 탭 끝 */}
 
+      {tab === "div" && (
+      <div style={{ maxWidth: 680, margin: "0 auto" }}>
       <DivisionCard t={t}
         workMonth={selectedYm}
         actor={actor}
@@ -502,8 +549,8 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
         onSaved={() => setReloadTick(n => n + 1)}
         reloadKey={reloadTick + oiReloadTick}
       />
-      </div>{/* ← 우 컬럼 끝 */}
-      </div>{/* ← 2단 grid 끝 */}
+      </div>
+      )}{/* ← div 탭 끝 */}
 
       {/* 다이얼로그 */}
       {dialog?.mode === "add" && (
@@ -559,6 +606,28 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
 // 2026-06-29 — 5블록 통합 — 섹션 라벨 / 연결 문구 / 현금 / 천장
 //   계산은 메인 컴포넌트에서 prop 으로 받음. 표시만 담당.
 // ──────────────────────────────────────────────
+
+// 2026-07-21 v2 — 상단 요약 스탯 (클릭 = 해당 탭 이동). 표시만.
+function SummaryStat({ t, icon, label, value, color, active, onClick }) {
+  return (
+    <button onClick={onClick} style={{
+      display: "flex", flexDirection: "column", gap: 5,
+      alignItems: "flex-start",
+      padding: "13px 16px",
+      background: active ? (t.accentBg || "rgba(255,27,141,0.08)") : t.bgElevated,
+      border: `1px solid ${active ? t.accent : t.border}`,
+      borderRadius: 12,
+      cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+    }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: t.textMuted }}>{icon} {label}</span>
+      <span style={{
+        fontSize: 22, fontWeight: 800, color,
+        fontVariantNumeric: "tabular-nums", letterSpacing: "-0.6px",
+        whiteSpace: "nowrap",
+      }}>{value}</span>
+    </button>
+  );
+}
 
 function SectionLabel({ t, text }) {
   return (
