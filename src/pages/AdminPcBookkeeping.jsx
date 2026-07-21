@@ -8,7 +8,7 @@
 //
 // 권한: RLS owner/admin/operator (A004 admin 통과). 직접 supabase.from CRUD.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Wallet, Plus, Edit3, Trash2, X, Save, Calendar,
 } from "lucide-react";
@@ -89,6 +89,7 @@ function parseAmount(s) {
 export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
   const todayYmd = kstYmd();
   const [selectedYm, setSelectedYm] = useState(nowKstYm());
+  const monthPickerRef = useRef(null);  // 2026-07-21 — 월 선택 showPicker fix
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [rows, setRows] = useState([]);
@@ -303,24 +304,34 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
           style={navBtnStyle(t)}>
           <ChevronRight size={16}/>
         </button>
-        <label style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          padding: "7px 12px",
-          background: "transparent", border: `1px solid ${t.border}`,
-          borderRadius: 8,
-          fontSize: 12, fontWeight: 700, color: t.textMuted,
-          cursor: "pointer", fontFamily: "inherit",
-        }}>
+        {/* 2026-07-21 — 월 선택 fix: 라벨 클릭으로는 달력 안 뜸 → showPicker() 직접 호출 (통장 날짜 선택과 동일 fix). */}
+        <button type="button"
+          onClick={() => {
+            const el = monthPickerRef.current;
+            if (!el) return;
+            try { el.showPicker(); } catch (_) { el.focus(); el.click(); }
+          }}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "7px 12px",
+            background: "transparent", border: `1px solid ${t.border}`,
+            borderRadius: 8,
+            fontSize: 12, fontWeight: 700, color: t.textMuted,
+            cursor: "pointer", fontFamily: "inherit",
+            position: "relative",
+          }}>
           <Calendar size={13}/>
           <span>월 선택</span>
-          <input type="month" value={selectedYm}
+          <input ref={monthPickerRef} type="month" value={selectedYm}
             onChange={(e) => e.target.value && setSelectedYm(e.target.value)}
+            tabIndex={-1}
             style={{
               border: "none", background: "transparent",
               fontFamily: "inherit", fontSize: 12, color: t.text,
-              padding: 0, width: 0, opacity: 0, position: "absolute",
+              padding: 0, width: 0, height: 0, opacity: 0,
+              position: "absolute", left: 0, bottom: 0,
             }}/>
-        </label>
+        </button>
         <button onClick={() => setSelectedYm(nowKstYm())}
           disabled={isThisMonth}
           style={{

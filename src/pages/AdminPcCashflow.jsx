@@ -11,7 +11,7 @@
 //
 // 가계부와 별개. 좁은 PC 액션 잘림 정정 (가계부 교훈 동일 적용).
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Wallet, Plus, Edit3, Trash2, X, Save, Calendar,
   ArrowDownCircle, ArrowUpCircle, BookOpen,
@@ -86,6 +86,7 @@ export default function AdminPcCashflow({ t, user }) {
   const todayYmd = kstYmd();
   // 2026-06-30 — 월 → 일 단위 네비게이터 (사장님 spec)
   const [selectedDate, setSelectedDate] = useState(todayYmd);
+  const datePickerRef = useRef(null);  // 2026-07-21 — 날짜 선택 showPicker fix
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [monthRows, setMonthRows] = useState([]);        // 그 달 거래 (선택 일 filter용)
@@ -180,24 +181,35 @@ export default function AdminPcCashflow({ t, user }) {
         <button onClick={() => setSelectedDate(s => shiftYmd(s, +1))} aria-label="다음 날" style={navBtnStyle(t)}>
           <ChevronRight size={16}/>
         </button>
-        <label style={{
-          display: "inline-flex", alignItems: "center", gap: 5,
-          padding: "7px 12px",
-          background: "transparent", border: `1px solid ${t.border}`,
-          borderRadius: 8,
-          fontSize: 12, fontWeight: 700, color: t.textMuted,
-          cursor: "pointer", fontFamily: "inherit",
-        }}>
+        {/* 2026-07-21 — 날짜 선택 fix (사장님 발견): 라벨 클릭으로는 브라우저가 달력을 안 띄움.
+            showPicker() 직접 호출 (미지원 브라우저는 focus fallback). */}
+        <button type="button"
+          onClick={() => {
+            const el = datePickerRef.current;
+            if (!el) return;
+            try { el.showPicker(); } catch (_) { el.focus(); el.click(); }
+          }}
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 5,
+            padding: "7px 12px",
+            background: "transparent", border: `1px solid ${t.border}`,
+            borderRadius: 8,
+            fontSize: 12, fontWeight: 700, color: t.textMuted,
+            cursor: "pointer", fontFamily: "inherit",
+            position: "relative",
+          }}>
           <Calendar size={13}/>
           <span>날짜 선택</span>
-          <input type="date" value={selectedDate}
+          <input ref={datePickerRef} type="date" value={selectedDate}
             onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+            tabIndex={-1}
             style={{
               border: "none", background: "transparent",
               fontFamily: "inherit", fontSize: 12, color: t.text,
-              padding: 0, width: 0, opacity: 0, position: "absolute",
+              padding: 0, width: 0, height: 0, opacity: 0,
+              position: "absolute", left: 0, bottom: 0,
             }}/>
-        </label>
+        </button>
         <button onClick={() => setSelectedDate(todayYmd)} disabled={isToday}
           style={{
             padding: "7px 14px",
