@@ -103,23 +103,27 @@ export function AdminPcDashboard({
       flexDirection: "column",
       gap: 20,
     }}>
-      {/* ── 히어로 5칸 — 오늘 접수 / 오늘 완료 / 오늘 회사 몫 / 미배정 / 유솔N ── */}
+      {/* ── 히어로 — 중복 제거 (2026-07-21 v3, 사장님 지적):
+            · "오늘 완료" 칸 제거 — 아래 오늘 진행 바가 동일 정보 담당.
+            · "미배정" 칸은 0건이면 숨김 — 평소엔 처리 대기 칸이 담당, 1건+ 일 때만 경고로 등장.
+            → 평소 3칸 (오늘 접수 / 오늘 회사 몫 / 유솔N), 미배정 발생 시 4칸. */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: isWide ? "repeat(5, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))",
+        gridTemplateColumns: isWide
+          ? `repeat(${(ownerToday != null ? 2 : 1) + (unassignedCount > 0 ? 1 : 0) + 1}, minmax(0, 1fr))`
+          : "repeat(2, minmax(0, 1fr))",
         gap: 12,
       }}>
         <HeroStat icon="📥" label="오늘 접수" value={todayReceived}/>
-        <HeroStat icon="✅" label="오늘 완료" value={stats.completed || 0}
-          sub={`진행 중 ${stats.inProgress || 0}`}
-          onClick={() => onClickLiveWork?.("completed-today")}/>
         {ownerToday != null && (
           <HeroStat icon="💰" label="오늘 회사 몫" value={fmtKRW(ownerToday)}
             sub="완료 건 기준 (일정산)" money/>
         )}
-        <HeroStat icon="⚠️" label="미배정" value={unassignedCount}
-          warn={unassignedCount > 0} sub="클릭 → 배정"
-          onClick={() => onClickNewReception?.()}/>
+        {unassignedCount > 0 && (
+          <HeroStat icon="⚠️" label="미배정" value={unassignedCount}
+            warn sub="클릭 → 배정"
+            onClick={() => onClickNewReception?.()}/>
+        )}
         <UsolNCompactCard user={user} onClick={onClickUsolN}/>
       </div>
 
