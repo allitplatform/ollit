@@ -11,7 +11,7 @@
 //
 // 가계부와 별개. 좁은 PC 액션 잘림 정정 (가계부 교훈 동일 적용).
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronLeft, ChevronRight, Wallet, Plus, Edit3, Trash2, X, Save, Calendar,
   ArrowDownCircle, ArrowUpCircle, BookOpen,
@@ -86,7 +86,6 @@ export default function AdminPcCashflow({ t, user }) {
   const todayYmd = kstYmd();
   // 2026-06-30 — 월 → 일 단위 네비게이터 (사장님 spec)
   const [selectedDate, setSelectedDate] = useState(todayYmd);
-  const datePickerRef = useRef(null);  // 2026-07-21 — 날짜 선택 showPicker fix
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [monthRows, setMonthRows] = useState([]);        // 그 달 거래 (선택 일 filter용)
@@ -154,7 +153,7 @@ export default function AdminPcCashflow({ t, user }) {
         <div>
           <div style={{ fontSize: 20, fontWeight: 800, color: t.text }}>통장</div>
           <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
-            일별 입출금 · 기준 잔고 + 그날까지 누적 = 마감 잔고
+            일별 입출금 · 마감 잔고 (은행 실잔고 기준)
           </div>
         </div>
       </div>
@@ -181,35 +180,24 @@ export default function AdminPcCashflow({ t, user }) {
         <button onClick={() => setSelectedDate(s => shiftYmd(s, +1))} aria-label="다음 날" style={navBtnStyle(t)}>
           <ChevronRight size={16}/>
         </button>
-        {/* 2026-07-21 — 날짜 선택 fix (사장님 발견): 라벨 클릭으로는 브라우저가 달력을 안 띄움.
-            showPicker() 직접 호출 (미지원 브라우저는 focus fallback). */}
-        <button type="button"
-          onClick={() => {
-            const el = datePickerRef.current;
-            if (!el) return;
-            try { el.showPicker(); } catch (_) { el.focus(); el.click(); }
-          }}
-          style={{
-            display: "inline-flex", alignItems: "center", gap: 5,
-            padding: "7px 12px",
-            background: "transparent", border: `1px solid ${t.border}`,
-            borderRadius: 8,
-            fontSize: 12, fontWeight: 700, color: t.textMuted,
-            cursor: "pointer", fontFamily: "inherit",
-            position: "relative",
-          }}>
+        <label style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          padding: "7px 12px",
+          background: "transparent", border: `1px solid ${t.border}`,
+          borderRadius: 8,
+          fontSize: 12, fontWeight: 700, color: t.textMuted,
+          cursor: "pointer", fontFamily: "inherit",
+        }}>
           <Calendar size={13}/>
           <span>날짜 선택</span>
-          <input ref={datePickerRef} type="date" value={selectedDate}
+          <input type="date" value={selectedDate}
             onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
-            tabIndex={-1}
             style={{
               border: "none", background: "transparent",
               fontFamily: "inherit", fontSize: 12, color: t.text,
-              padding: 0, width: 0, height: 0, opacity: 0,
-              position: "absolute", left: 0, bottom: 0,
+              padding: 0, width: 0, opacity: 0, position: "absolute",
             }}/>
-        </button>
+        </label>
         <button onClick={() => setSelectedDate(todayYmd)} disabled={isToday}
           style={{
             padding: "7px 14px",
@@ -239,10 +227,9 @@ export default function AdminPcCashflow({ t, user }) {
           color={t.accent} signed big/>
       </div>
 
-      {/* 기준 잔고 영역 */}
-      <BaselineCard t={t} baseline={baseline}
-        onEdit={() => setBaselineDialog(true)}
-      />
+      {/* 2026-07-21 — 기준 잔고 카드 제거 (사장님 spec).
+          값은 DB 에 유지 (마감 잔고 계산에 계속 사용) — 화면 노출/수정 UI 만 제거.
+          은행정합(Mig 186, 42,118,374) 이후 실수 수정 방지 목적. BaselineCard 컴포넌트는 미사용 보존. */}
 
       {err && (
         <div style={{

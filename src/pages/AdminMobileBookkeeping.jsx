@@ -1,24 +1,21 @@
-// 2026-06-14 — 모바일 가계부 (읽기 전용, 4카드).
+// 2026-07-21 — 모바일 가계부·통장 재설계 (🅒 대시보드형, 사장님 확정).
 //
-// 사장님 spec:
-//   PC AdminPcBookkeeping 은 maxWidth 1400 + 고정 픽셀 grid 라 모바일(380px) 깨짐.
-//   → 모바일 전용 간소 뷰 신규. 진입은 개요 탭의 "📊 가계부 보기" 버튼.
+// 사장님 spec (2026-07-21):
+//   · 가계부 탭: 순이익 대문짝 히어로(그라데이션) + 현금 2칸 + 수입/운영비 구성 막대 + 분배 게이지.
+//   · 통장 탭: 마감잔고 히어로 + 버튼 3개 (입금/출금/🧾지출) + 거래 리스트 항상 표시 (자동/수동/운영비 칩).
+//   · 🧾 지출 = 운영비(bookkeeping_expenses) 저장 → Mig 185 트리거가 통장 자동 반영 (모바일 지출 입력 구멍 해소).
+//   · 자동 행(auto_*)은 편집/삭제 버튼 없음 — 실수 방지. 수동(manual)만 ✏️/🗑.
+//   · 기준잔고(baseline) 문구 제거 (값은 내부 유지 — 2026-07-21 은행정합 42,118,374 보호).
 //
-// 4카드 (전부 읽기 전용):
-//   1) 📊 손익 — 그 달 수입(일정산/유솔N/기타) + 운영비 + 순이익 + 분배 + 당월 차이
-//   2) 📦 누적 이월 — 시작월(2026-04) ~ 당월 누적 (Mig 129 RPC)
-//   3) 💳 통장 — 잔고 + 이번달 in/out (Mig 122 RPC)
-//   4) ✏️ 안내 — "입력/편집은 PC 가계부에서"
-//
-// 계산 로직·RPC 는 PC 와 100% 동일 (재사용). UI 컴포넌트만 모바일 전용.
-//
+// 계산 로직·RPC 는 PC 와 100% 동일 (재사용). UI 만 모바일 전용.
 // ⚠️ CLAUDE.md 금지 어근 자가 검사 통과 의무.
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ChevronLeft, ChevronRight, Wallet, Plus, Minus, Edit3, Trash2, X, Save } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Wallet, Plus, Minus, Receipt, Edit3, Trash2, X, Save } from "lucide-react";
 import {
-  listExpenses, listDistributions,
+  listExpenses, addExpense, listDistributions,
   getUsolNTrackBMargin, getCumulativeCarryover,
+  EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KO,
 } from "../lib/bookkeepingDb.js";
 import { listOtherIncome } from "../lib/bookkeepingOtherIncomeDb.js";
 import { getUsolnAdjustment } from "../lib/bookkeepingUsolnAdjustmentDb.js";
@@ -26,8 +23,7 @@ import {
   getCashflowSummary, listCashflow, addCashflow, updateCashflow, deleteCashflow,
   getCashflowDayClose, fetchTaskNoMap,
 } from "../lib/bookkeepingCashflowDb.js";
-// 2026-06-29 — PC 통합본과 동일: 현금/천장 산출용 정산판 요약 RPC.
-//   산식 변경 0건 — AdminPcBookkeeping 의 호출/계산을 그대로 가져옴.
+// 2026-06-29 — PC 통합본과 동일: 현금/천장 산출용 정산판 요약 RPC. 산식 변경 0건.
 import { getUsolnSettleBoardSummary } from "../lib/usolnSettleBoardDb.js";
 import {
   computeRevenueByYmRange,
@@ -51,7 +47,6 @@ function shiftYm(ym, delta) {
   const nm = (total % 12) + 1;
   return `${ny}-${String(nm).padStart(2, "0")}`;
 }
-// 2026-06-30 — 통장 view 일 단위 네비게이터용
 function shiftYmd(ymd, delta) {
   const [y, m, d] = ymd.split("-").map(Number);
   const dt = new Date(y, (m||1)-1, d||1);
@@ -67,11 +62,6 @@ function ymdToDow(ymd) {
 }
 function ymdToYm(ymd) { return (ymd || "").slice(0, 7); }
 const fmtKRW = n => `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
-const fmtSigned = n => {
-  const v = Number(n) || 0;
-  if (v === 0) return "₩0";
-  return (v < 0 ? "−" : "+") + fmtKRW(Math.abs(v)).replace("₩", "₩");
-};
 function fmtAmountInput(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
   if (!digits) return "";
@@ -80,6 +70,41 @@ function fmtAmountInput(raw) {
 function parseAmount(s) {
   return Number(String(s || "").replace(/\D/g, "")) || 0;
 }
+// 음수 처리 포맷 — "− ₩x"
+function fmtMoney(n) {
+  const v = Number(n) || 0;
+  if (v < 0) return `− ₩${Math.abs(v).toLocaleString("ko-KR")}`;
+  return `₩${v.toLocaleString("ko-KR")}`;
+}
+// 범례용 압축 표기 — 6.2M / 340K
+function fmtCompact(n) {
+  const v = Math.abs(Number(n) || 0);
+  if (v >= 1000000) return `${(v / 1000000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (v >= 1000)    return `${Math.round(v / 1000)}K`;
+  return String(v);
+}
+
+// 운영비 카테고리 색 (구성 막대·범례 공용)
+const EXPENSE_CAT_COLORS = {
+  ad:    "#FF1B8D",
+  tax:   "#8B5CF6",
+  labor: "#FBBF24",
+  meal:  "#60A5FA",
+  rent:  "#2BB673",
+  etc:   "#5C6470",
+};
+
+// 통장 source → 칩 라벨 (편집 가능 여부 포함)
+function sourceChip(source) {
+  switch (source) {
+    case "auto_engineer_remit":     return { label: "자동·일정산", kind: "auto" };
+    case "auto_usoln_remit":        return { label: "자동·유솔",   kind: "auto" };
+    case "auto_principal_payout":   return { label: "자동·원청",   kind: "auto" };
+    case "auto_principal_passthru": return { label: "자동·수수료", kind: "auto" };
+    case "auto_expense":            return { label: "운영비",      kind: "expense" };
+    default:                        return { label: "수동",        kind: "manual" };
+  }
+}
 
 // ────────────────────────────────────────────
 // 본체
@@ -87,16 +112,15 @@ function parseAmount(s) {
 export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack }) {
   const todayYmd = kstYmd();
   const [selectedYm, setSelectedYm] = useState(nowKstYm());
-  // 2026-06-30 — 통장 view 일 단위 네비게이터 (사장님 spec)
   const [selectedDate, setSelectedDate] = useState(todayYmd);
-  // 2026-06-14 — 화면 상단 토글: 'bookkeeping'(손익+누적이월, 읽기전용) | 'cashflow'(통장, 입력 가능)
+  // 'bookkeeping'(가계부) | 'cashflow'(통장)
   const [view, setView] = useState("bookkeeping");
   const actor = user?.user_id || user?.userId || user?.id;
   const isThisMonth = selectedYm === nowKstYm();
   const isToday = selectedDate === todayYmd;
   const dayDow = ymdToDow(selectedDate);
 
-  // 통장 view 진입 시 selectedYm 을 selectedDate 의 월로 강제 동기 (그 달 거래 fetch)
+  // 통장 view 진입 시 selectedYm 을 selectedDate 의 월로 동기
   useEffect(() => {
     if (view !== "cashflow") return;
     const ymOfDate = ymdToYm(selectedDate);
@@ -153,19 +177,31 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
     return () => { alive = false; };
   }, [selectedYm, actor]);
 
-  // ── 운영비
-  const [expenseSum, setExpenseSum] = useState(0);
+  // ── 운영비 — 2026-07-21: rows 보관 (카테고리 구성 막대용). 합산 로직 동일.
+  const [expenseRows, setExpenseRows] = useState([]);
+  const [expReloadTick, setExpReloadTick] = useState(0);   // 모바일 지출 추가 시 ++
   useEffect(() => {
-    if (!actor) { setExpenseSum(0); return; }
+    if (!actor) { setExpenseRows([]); return; }
     let alive = true;
     (async () => {
       const res = await listExpenses(selectedYm, actor);
       if (!alive) return;
-      const sum = (res?.rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      setExpenseSum(sum);
-    })().catch(() => { if (alive) setExpenseSum(0); });
+      setExpenseRows(res?.ok ? (res.rows || []) : []);
+    })().catch(() => { if (alive) setExpenseRows([]); });
     return () => { alive = false; };
-  }, [selectedYm, actor]);
+  }, [selectedYm, actor, expReloadTick]);
+  const expenseSum = useMemo(
+    () => expenseRows.reduce((s, r) => s + (Number(r.amount) || 0), 0),
+    [expenseRows]
+  );
+  const expenseByCat = useMemo(() => {
+    const map = {};
+    for (const r of expenseRows) {
+      const c = EXPENSE_CATEGORIES.includes(r.category) ? r.category : "etc";
+      map[c] = (map[c] || 0) + (Number(r.amount) || 0);
+    }
+    return map;
+  }, [expenseRows]);
 
   // ── 분배
   const [distSum, setDistSum] = useState(0);
@@ -202,15 +238,13 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
     return () => { alive = false; };
   }, [selectedYm, actor]);
 
-  // ── 통장 요약 (Mig 122) + 거래 목록 (모바일에서 입력 가능 — 유일하게)
-  const [cashflow, setCashflow] = useState({ month_in: 0, month_out: 0, current_balance: 0, baseline_amount: 0 });
+  // ── 통장 요약 (Mig 122) + 거래 목록
+  const [cashflow, setCashflow] = useState({ month_in: 0, month_out: 0, current_balance: 0 });
   const [cashflowLoading, setCashflowLoading] = useState(false);
   const [cashflowRows, setCashflowRows] = useState([]);
   const [cashflowListLoading, setCashflowListLoading] = useState(false);
-  const [cfReloadTick, setCfReloadTick] = useState(0);   // 거래 추가/편집/삭제 시 ++
-  const [cfDialog, setCfDialog] = useState(null);         // { mode:'add'|'edit'|'delete', direction?, row? }
-  const [cfListOpen, setCfListOpen] = useState(false);    // 거래 목록 접기/펼치기 (default 접힘)
-  // 2026-06-30 — 일 단위 마감 잔고 + 그날 in/out (Mig 158)
+  const [cfReloadTick, setCfReloadTick] = useState(0);
+  const [cfDialog, setCfDialog] = useState(null);   // { mode:'add'|'edit'|'delete'|'expense', direction?, row? }
   const [dayClose, setDayClose] = useState({ day_in: 0, day_out: 0, day_close_balance: 0 });
   const [taskNoMap, setTaskNoMap] = useState({});
   useEffect(() => {
@@ -230,7 +264,6 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
           month_in:        Number(resSum.month_in)        || 0,
           month_out:       Number(resSum.month_out)       || 0,
           current_balance: Number(resSum.current_balance) || 0,
-          baseline_amount: Number(resSum.baseline_amount) || 0,
         });
       }
       setCashflowRows(resList?.ok ? (resList.rows || []) : []);
@@ -249,13 +282,13 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
     return () => { alive = false; };
   }, [selectedYm, selectedDate, actor, cfReloadTick]);
 
-  // 그날 거래만 filter (timeline 표시용)
+  // 그날 거래만 filter
   const dayRows = useMemo(
     () => (cashflowRows || []).filter(r => r.flow_date === selectedDate),
     [cashflowRows, selectedDate]
   );
 
-  // auto_engineer_remit 행의 task_no 조회 (그날 거래만)
+  // auto_engineer_remit 행의 task_no 조회
   useEffect(() => {
     if (!actor) return;
     const ids = dayRows
@@ -270,16 +303,13 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
     return () => { alive = false; };
   }, [dayRows, actor]);
 
-  // ── 합산 계산
+  // ── 합산 계산 (기존 산식 그대로)
   const incomeTotal = incomeTrackA + usolNTotal + otherIncomeSum;
   const netProfit   = incomeTotal - expenseSum;
   const monthlyDiff = netProfit - distSum;
   const cumValue    = Number(cum.cumulative_carryover) || 0;
-  const cumNeg      = cumValue < 0;
 
-  // ── 2026-06-29 — 현금 / 천장 (PC 통합본과 동일 산식, 호출만 추가)
-  //   cashNow = current_balance − Σ b_eng_owed (전체 작업월)
-  //   ceiling = cashNow + (N−1)월 c1_margin + c2_margin
+  // ── 현금 / 천장 (PC 통합본과 동일 산식)
   const [boardSummary, setBoardSummary] = useState({ months: [], start_month: "2026-04" });
   useEffect(() => {
     if (!actor) return;
@@ -293,7 +323,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
           start_month: res.start_month || "2026-04",
         });
       }
-    })().catch(() => { /* 실패 시 0 으로 표시 */ });
+    })().catch(() => { /* 실패 시 0 표시 */ });
     return () => { alive = false; };
   }, [actor]);
   const totalBEngOwed = useMemo(
@@ -306,14 +336,11 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
     () => (boardSummary.months || []).find(m => m.wm === prevYm) || null,
     [boardSummary.months, prevYm]
   );
-  const c1Margin = Number(prevMonthBoard?.c1_margin) || 0;
-  const c2Margin = Number(prevMonthBoard?.c2_margin) || 0;
-  const incomingTotal = c1Margin + c2Margin;
-  const ceiling = cashNow + incomingTotal;
+  const ceiling = cashNow + (Number(prevMonthBoard?.c1_margin) || 0) + (Number(prevMonthBoard?.c2_margin) || 0);
 
   return (
     <div style={{ padding: "12px 14px 24px" }}>
-      {/* 헤더 — 뒤로가기 + 제목 + view 별 상태 */}
+      {/* 헤더 */}
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         {onBack && (
           <button onClick={onBack} aria-label="뒤로" style={navBtn(t)}>
@@ -325,9 +352,6 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
           {view === "bookkeeping" ? "가계부" : "통장"}
         </div>
         <div style={{ flex: 1 }}/>
-        <span style={{ fontSize: 10, color: t.textMuted }}>
-          {view === "bookkeeping" ? "읽기 전용" : "입력 가능"}
-        </span>
       </div>
 
       {/* 토글 — [가계부] [통장] */}
@@ -428,160 +452,252 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
         </div>
       )}
 
-      {/* 2026-06-29 — 가계부 view: 5블록 흐름 (디자인 개선).
-          ① 순이익 → ② 현금/천장(2칸) → ③ 손익 항목 → ④ 분배 → ⑤ 남은 것 → 누적(작게).
-          계산 로직 변경 0 — PC 통합본 산식 그대로. */}
+      {/* ═══ 가계부 view — 🅒 대시보드형 (2026-07-21) ═══ */}
       {view === "bookkeeping" && <>
 
-      {/* ① 순이익 — Hero (accent 카드, 가운데, 36px) */}
-      <HeroProfit t={t}
-        netProfit={netProfit}
-        incomeTotal={incomeTotal}
-        expenseSum={expenseSum}
-      />
+      {/* ① 순이익 히어로 — 그라데이션 + 번 돈/쓴 돈 요약 */}
+      <div style={{
+        background: `linear-gradient(135deg, ${t.accent}29, #8B5CF61A)`,
+        border: `0.5px solid ${t.accent}`,
+        borderRadius: 14,
+        padding: "18px 14px 15px",
+        textAlign: "center",
+        marginBottom: 8,
+      }}>
+        <div style={{ fontSize: 12, fontWeight: 400, color: t.accent, letterSpacing: "-0.2px" }}>
+          이번 달 순이익
+        </div>
+        <div style={{
+          marginTop: 5,
+          fontSize: 32, fontWeight: 600,
+          color: netProfit < 0 ? t.danger : t.accent,
+          fontVariantNumeric: "tabular-nums",
+          letterSpacing: "-1px", lineHeight: 1.1,
+        }}>{fmtMoney(netProfit)}</div>
+        <div style={{
+          display: "flex", justifyContent: "center", gap: 16,
+          marginTop: 8, fontSize: 11, fontWeight: 500,
+          fontVariantNumeric: "tabular-nums", letterSpacing: "-0.2px",
+        }}>
+          <span style={{ color: t.success }}>번 돈 +{fmtCompact(incomeTotal)}</span>
+          <span style={{ color: t.danger }}>쓴 돈 −{fmtCompact(expenseSum)}</span>
+        </div>
+      </div>
 
-      {/* ② 현금 / 나눠도 됨 — 2칸 색 카드 */}
-      <TwoCellCash t={t}
-        cashNow={cashNow}
-        ceiling={ceiling}
-      />
-
-      {/* ③ 손익 항목 — 3행 줄 리스트 (일정산 / 유솔N / 운영비) */}
-      <ProfitDetailCard t={t}
-        incomeTrackA={incomeTrackA}
-        usolNTotal={usolNTotal}
-        usolNAdj={usolNAdj}
-        usolNB={usolNB}
-        otherIncomeSum={otherIncomeSum}
-        expenseSum={expenseSum}
-      />
-
-      {/* ④ 분배 — 한 줄 (천장 경고 X, 가불 표시 X) */}
-      <DistributionLine t={t} distSum={distSum}/>
-
-      {/* ⑤ 이번 달 회사에 남은 것 — 가운데, 26px, success */}
-      <RemainingFinal t={t}
-        netProfit={netProfit}
-        distSum={distSum}
-        monthlyDiff={monthlyDiff}
-      />
-
-      {/* 누적 이월 — 맨 아래 작은 한 줄 (13px, secondary) */}
-      <CarryFootnote t={t}
-        cumValue={cumValue}
-        cumNeg={cumNeg}
-        cumLoading={cumLoading}
-        startMonth={cum.start_month}
-        endMonth={selectedYm}
-      />
-
-      </>}
-
-      {/* 통장 view — 일 단위 (사장님 spec 2026-06-30) */}
-      {view === "cashflow" && <>
-      <div>
-        <Card t={t} title="💳 통장" subtitle="거래 + 마감 잔고 (baseline 은 PC)">
-          <div style={{ textAlign: "center", padding: "4px 0 10px" }}>
-            {cashflowLoading ? (
-              <span style={{ fontSize: 12, color: t.textMuted }}>불러오는 중...</span>
-            ) : (
-              <span className="mono" style={{
-                fontSize: 24, fontWeight: 900,
-                color: dayClose.day_close_balance < 0 ? t.danger : t.text,
-                fontVariantNumeric: "tabular-nums",
-              }}>
-                {dayClose.day_close_balance < 0 ? "−" : ""}{fmtKRW(Math.abs(dayClose.day_close_balance)).replace("₩", "₩")}
-              </span>
-            )}
-            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>마감 잔고</div>
-          </div>
+      {/* ② 현금 2칸 */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+        <div style={{
+          background: t.bgElevated, border: `0.5px solid ${t.border}`,
+          borderRadius: 12, padding: "11px 12px", textAlign: "center",
+        }}>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: t.success }}>지금 현금</div>
           <div style={{
-            display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
-            padding: "8px 10px",
-            background: t.bgInset, borderRadius: 8,
-          }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 2 }}>들어온 돈</div>
-              <div className="mono" style={{
-                fontSize: 13, fontWeight: 800, color: t.success,
-                fontVariantNumeric: "tabular-nums",
-              }}>+{fmtKRW(dayClose.day_in).replace("₩", "₩")}</div>
-            </div>
-            <div style={{ textAlign: "center" }}>
-              <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginBottom: 2 }}>나간 돈</div>
-              <div className="mono" style={{
-                fontSize: 13, fontWeight: 800, color: t.danger,
-                fontVariantNumeric: "tabular-nums",
-              }}>−{fmtKRW(dayClose.day_out).replace("₩", "₩")}</div>
-            </div>
-          </div>
+            marginTop: 4, fontSize: 17, fontWeight: 600,
+            color: cashNow < 0 ? t.danger : t.success,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-0.5px",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}>{fmtMoney(cashNow)}</div>
+          <div style={{ marginTop: 3, fontSize: 9, color: t.textMuted }}>통장 − 기사 줄 돈</div>
+        </div>
+        <div style={{
+          background: t.bgElevated, border: `0.5px solid ${t.border}`,
+          borderRadius: 12, padding: "11px 12px", textAlign: "center",
+        }}>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: t.accent }}>나눠도 됨</div>
+          <div style={{
+            marginTop: 4, fontSize: 17, fontWeight: 600,
+            color: ceiling < 0 ? t.danger : t.accent,
+            fontVariantNumeric: "tabular-nums", letterSpacing: "-0.5px",
+            whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          }}>{fmtMoney(ceiling)}</div>
+          <div style={{ marginTop: 3, fontSize: 9, color: t.textMuted }}>분배 천장</div>
+        </div>
+      </div>
 
-          {/* + 입금 / + 출금 버튼 */}
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-            <button onClick={() => setCfDialog({ mode: "add", direction: "in", row: null })} style={{
-              flex: 1, padding: "10px 12px",
-              background: t.success, color: "#fff", border: "none", borderRadius: 8,
-              fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
-            }}>
-              <Plus size={13} strokeWidth={2.8}/>
-              입금
-            </button>
-            <button onClick={() => setCfDialog({ mode: "add", direction: "out", row: null })} style={{
-              flex: 1, padding: "10px 12px",
-              background: t.danger, color: "#fff", border: "none", borderRadius: 8,
-              fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-              display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 4,
-            }}>
-              <Minus size={13} strokeWidth={2.8}/>
-              출금
-            </button>
-          </div>
+      {/* ③ 수입 구성 + 운영비 구성 — 막대 */}
+      <div style={{
+        background: t.bgElevated, border: `0.5px solid ${t.border}`,
+        borderRadius: 12, padding: "12px 13px", marginBottom: 8,
+      }}>
+        <CompositionBar t={t}
+          title="수입 구성" total={incomeTotal} totalColor={t.text}
+          parts={[
+            { label: "일정산", value: incomeTrackA,   color: "#2BB673" },
+            { label: "유솔N",  value: usolNTotal,     color: "#60A5FA" },
+            { label: "기타",   value: otherIncomeSum, color: "#8B5CF6" },
+          ]}
+        />
+        <div style={{ height: 12 }}/>
+        <CompositionBar t={t}
+          title="운영비 구성" total={expenseSum} totalColor={t.danger} totalPrefix="− "
+          parts={EXPENSE_CATEGORIES
+            .map(c => ({
+              label: EXPENSE_CATEGORY_KO[c] || c,
+              value: expenseByCat[c] || 0,
+              color: EXPENSE_CAT_COLORS[c] || "#5C6470",
+            }))
+            .filter(p => p.value > 0)}
+        />
+      </div>
 
-          {/* 그날 거래 목록 토글 */}
-          {dayRows.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <button onClick={() => setCfListOpen(o => !o)} style={{
-                width: "100%", padding: "8px 10px",
-                background: "transparent", border: `1px solid ${t.border}`, borderRadius: 7,
-                fontSize: 11, fontWeight: 700, color: t.textMuted,
-                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-              }}>
-                {cfListOpen ? "▾" : "▸"} 거래 {dayRows.length}건
-              </button>
+      {/* ④ 분배 게이지 + 남은 것 + 누적 */}
+      <div style={{
+        background: t.bgElevated, border: `0.5px solid ${t.border}`,
+        borderRadius: 12, padding: "12px 13px",
+      }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+          <span style={{ fontSize: 11.5, fontWeight: 700, color: t.textSecondary }}>분배</span>
+          <span style={{
+            marginLeft: "auto", fontSize: 14, fontWeight: 600, color: t.text,
+            fontVariantNumeric: "tabular-nums",
+          }}>{fmtMoney(distSum)}</span>
+          <span style={{ fontSize: 9.5, color: t.textMuted, fontVariantNumeric: "tabular-nums" }}>
+            / 천장 {fmtCompact(ceiling)}
+          </span>
+        </div>
+        <div style={{
+          height: 9, borderRadius: 999, background: t.bgInset,
+          overflow: "hidden", marginTop: 8,
+        }}>
+          <div style={{
+            height: "100%", borderRadius: 999, background: "#FBBF24",
+            width: `${ceiling > 0 ? Math.min(100, Math.round((distSum / ceiling) * 100)) : 0}%`,
+          }}/>
+        </div>
+        <div style={{
+          marginTop: 10, textAlign: "center",
+          fontSize: 11, fontWeight: 600,
+          color: monthlyDiff < 0 ? t.danger : t.success,
+          fontVariantNumeric: "tabular-nums", letterSpacing: "-0.2px",
+        }}>
+          회사에 남은 것 {fmtMoney(monthlyDiff)}
+          <span style={{ color: t.textMuted, fontWeight: 400 }}>
+            {"  ·  "}📦 누적 {cumLoading ? "…" : fmtMoney(cumValue)}
+          </span>
+        </div>
+      </div>
 
-              {cfListOpen && (
-                <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
-                  {cashflowListLoading ? (
-                    <div style={{ padding: "10px", textAlign: "center", color: t.textMuted, fontSize: 11 }}>
-                      불러오는 중...
-                    </div>
-                  ) : (
-                    dayRows.map(r => (
-                      <CashflowMobileRow key={r.id} t={t} row={r}
-                        taskNo={taskNoMap[r.source_ref] || ""}
-                        onEdit={() => setCfDialog({ mode: "edit", direction: r.direction, row: r })}
-                        onDelete={() => setCfDialog({ mode: "delete", row: r })}
-                      />
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </Card>
+      {/* 안내 — 분배·기타 수입은 PC (운영비는 통장 탭 🧾 지출로 모바일 입력 가능) */}
+      <div style={{
+        marginTop: 10,
+        padding: "9px 12px",
+        background: t.bgInset, border: `1px dashed ${t.border}`,
+        borderRadius: 10,
+        fontSize: 10.5, color: t.textSecondary, textAlign: "center", lineHeight: 1.5,
+      }}>
+        ✏️ 지출 입력은 통장 탭의 🧾 지출 버튼 · 분배/기타 수입은 PC 가계부에서
       </div>
 
       </>}
 
-      {/* 통장 거래 다이얼로그 (view 와 무관하게 cfDialog 열려있으면 표시) */}
+      {/* ═══ 통장 view — 3버튼 + 리스트 상시 표시 (2026-07-21) ═══ */}
+      {view === "cashflow" && <>
+
+      {/* 마감 잔고 히어로 + 그날 in/out + 버튼 3개 */}
+      <div style={{
+        background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+        padding: "14px 13px", marginBottom: 8, textAlign: "center",
+      }}>
+        {cashflowLoading ? (
+          <span style={{ fontSize: 12, color: t.textMuted }}>불러오는 중...</span>
+        ) : (
+          <span className="mono" style={{
+            fontSize: 26, fontWeight: 800,
+            color: dayClose.day_close_balance < 0 ? t.danger : t.text,
+            fontVariantNumeric: "tabular-nums",
+          }}>
+            {dayClose.day_close_balance < 0 ? "−" : ""}{fmtKRW(Math.abs(dayClose.day_close_balance))}
+          </span>
+        )}
+        <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>마감 잔고</div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <div style={{ flex: 1, background: t.bgInset, borderRadius: 8, padding: "7px 6px" }}>
+            <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700 }}>들어온 돈</div>
+            <div className="mono" style={{
+              fontSize: 13, fontWeight: 800, color: t.success,
+              fontVariantNumeric: "tabular-nums", marginTop: 2,
+            }}>+{fmtKRW(dayClose.day_in)}</div>
+          </div>
+          <div style={{ flex: 1, background: t.bgInset, borderRadius: 8, padding: "7px 6px" }}>
+            <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700 }}>나간 돈</div>
+            <div className="mono" style={{
+              fontSize: 13, fontWeight: 800, color: t.danger,
+              fontVariantNumeric: "tabular-nums", marginTop: 2,
+            }}>−{fmtKRW(dayClose.day_out)}</div>
+          </div>
+        </div>
+
+        {/* 버튼 3개 — 입금 / 출금 / 지출 */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginTop: 10 }}>
+          <button onClick={() => setCfDialog({ mode: "add", direction: "in", row: null })} style={{
+            padding: "10px 4px",
+            background: t.success, color: "#fff", border: "none", borderRadius: 9,
+            fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 3,
+          }}>
+            <Plus size={13} strokeWidth={2.8}/>입금
+          </button>
+          <button onClick={() => setCfDialog({ mode: "add", direction: "out", row: null })} style={{
+            padding: "10px 4px",
+            background: t.danger, color: "#fff", border: "none", borderRadius: 9,
+            fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 3,
+          }}>
+            <Minus size={13} strokeWidth={2.8}/>출금
+          </button>
+          <button onClick={() => setCfDialog({ mode: "expense" })} style={{
+            padding: "10px 4px",
+            background: "#FBBF24", color: "#1A1A1A", border: "none", borderRadius: 9,
+            fontSize: 12, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 3,
+          }}>
+            <Receipt size={13} strokeWidth={2.6}/>지출
+          </button>
+        </div>
+      </div>
+
+      {/* 그날 거래 — 상시 표시 */}
+      <div style={{
+        fontSize: 10.5, fontWeight: 800, color: t.textSecondary,
+        margin: "2px 2px 6px",
+      }}>
+        이날 거래 {dayRows.length}건
+      </div>
+      {cashflowListLoading ? (
+        <div style={{ padding: "12px", textAlign: "center", color: t.textMuted, fontSize: 11 }}>
+          불러오는 중...
+        </div>
+      ) : dayRows.length === 0 ? (
+        <div style={{
+          padding: "16px 12px", textAlign: "center",
+          background: t.bgElevated, border: `1px dashed ${t.border}`, borderRadius: 10,
+          color: t.textMuted, fontSize: 11,
+        }}>
+          이 날짜엔 거래가 없어요
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+          {dayRows.map(r => (
+            <CashflowMobileRow key={r.id} t={t} row={r}
+              taskNo={taskNoMap[r.source_ref] || ""}
+              onEdit={() => setCfDialog({ mode: "edit", direction: r.direction, row: r })}
+              onDelete={() => setCfDialog({ mode: "delete", row: r })}
+            />
+          ))}
+        </div>
+      )}
+
+      </>}
+
+      {/* ═══ 다이얼로그 ═══ */}
       {cfDialog?.mode === "add" && (
         <CashflowDialog t={t} mode="add"
           actor={actor}
           direction={cfDialog.direction}
           defaultDate={selectedDate}
           onClose={() => setCfDialog(null)}
-          onSaved={() => { setCfDialog(null); setCfReloadTick(n => n + 1); setCfListOpen(true); }}
+          onSaved={() => { setCfDialog(null); setCfReloadTick(n => n + 1); }}
         />
       )}
       {cfDialog?.mode === "edit" && (
@@ -600,263 +716,65 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack 
           onDeleted={() => { setCfDialog(null); setCfReloadTick(n => n + 1); }}
         />
       )}
-
-      {/* PC 안내 footer — view 별 다른 문구 */}
-      <div style={{
-        marginTop: 12,
-        padding: "10px 12px",
-        background: t.bgInset, border: `1px dashed ${t.border}`,
-        borderRadius: 10,
-        fontSize: 11, color: t.textSecondary, textAlign: "center", lineHeight: 1.5,
-      }}>
-        {view === "bookkeeping"
-          ? "✏️ 운영비 · 분배 · 기타 수입 등 입력은 PC 가계부에서"
-          : "✏️ 기준 잔고(baseline) 설정은 PC 통장에서"}
-      </div>
+      {cfDialog?.mode === "expense" && (
+        <ExpenseDialog t={t} actor={actor}
+          defaultDate={view === "cashflow" ? selectedDate : kstYmd()}
+          onClose={() => setCfDialog(null)}
+          onSaved={() => {
+            setCfDialog(null);
+            // 통장(자동 미러) + 운영비 양쪽 갱신
+            setCfReloadTick(n => n + 1);
+            setExpReloadTick(n => n + 1);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ────────────────────────────────────────────
-// 2026-06-29 — 5블록 디자인 헬퍼 (모바일 가계부 신규)
-//   계산은 본체에서 prop 으로 받음. 표시만 담당.
-//   weight 400/500 통일, tabular-nums, letter-spacing 좁게.
+// 구성 막대 (수입/운영비 공용) — 표시 전용
 // ────────────────────────────────────────────
-
-function HeroProfit({ t, netProfit, incomeTotal, expenseSum }) {
+function CompositionBar({ t, title, total, totalColor, totalPrefix = "", parts }) {
+  const sum = parts.reduce((s, p) => s + p.value, 0);
   return (
-    <div style={{
-      background: t.accentBg || "rgba(255,27,141,0.08)",
-      border: `0.5px solid ${t.accent}`,
-      borderRadius: 14,
-      padding: "20px 16px 16px",
-      textAlign: "center",
-    }}>
-      <div style={{
-        fontSize: 12, fontWeight: 400, color: t.accent,
-        opacity: 0.95, letterSpacing: "-0.2px",
-      }}>이번 달 순이익</div>
-      <div style={{
-        marginTop: 6,
-        fontSize: 36, fontWeight: 500,
-        color: (Number(netProfit) || 0) < 0 ? t.danger : t.accent,
-        fontVariantNumeric: "tabular-nums",
-        letterSpacing: "-1.1px",
-        lineHeight: 1.1,
-      }}>{fmtMoney(netProfit)}</div>
-      <div style={{
-        marginTop: 8,
-        fontSize: 11, fontWeight: 400,
-        color: t.accent, opacity: 0.7,
-        letterSpacing: "-0.2px",
-        fontVariantNumeric: "tabular-nums",
-      }}>
-        수입 {fmtMoney(incomeTotal)} − 운영비 {fmtMoney(expenseSum)}
-      </div>
-    </div>
-  );
-}
-
-function TwoCellCash({ t, cashNow, ceiling }) {
-  return (
-    <div style={{
-      display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8,
-      marginTop: 10,
-    }}>
-      <CashCell t={t}
-        label="지금 현금"
-        sub="통장 − 기사 줄 돈"
-        value={cashNow}
-        fg={t.success}
-        bg={t.successBg || "rgba(29,158,117,0.10)"}
-        border={t.successBorder || "rgba(29,158,117,0.30)"}
-      />
-      <CashCell t={t}
-        label="나눠도 됨"
-        sub="분배 천장"
-        value={ceiling}
-        fg={t.accent}
-        bg={t.accentBg || "rgba(255,27,141,0.10)"}
-        border={`${t.accent}55`}
-      />
-    </div>
-  );
-}
-
-function CashCell({ t, label, sub, value, fg, bg, border }) {
-  const v = Number(value) || 0;
-  return (
-    <div style={{
-      background: bg,
-      border: `0.5px solid ${border}`,
-      borderRadius: 12,
-      padding: "12px 12px 11px",
-    }}>
-      <div style={{
-        fontSize: 11, fontWeight: 500, color: fg,
-        letterSpacing: "-0.2px",
-      }}>{label}</div>
-      <div style={{
-        marginTop: 4,
-        fontSize: 19, fontWeight: 500,
-        color: v < 0 ? t.danger : fg,
-        fontVariantNumeric: "tabular-nums",
-        letterSpacing: "-0.5px",
-        lineHeight: 1.15,
-        whiteSpace: "nowrap",
-        overflow: "hidden", textOverflow: "ellipsis",
-      }}>{fmtMoney(v)}</div>
-      <div style={{
-        marginTop: 3,
-        fontSize: 10, fontWeight: 400, color: t.textMuted,
-        letterSpacing: "-0.2px",
-      }}>{sub}</div>
-    </div>
-  );
-}
-
-function ProfitDetailCard({ t, incomeTrackA, usolNTotal, usolNAdj, usolNB, otherIncomeSum, expenseSum }) {
-  return (
-    <div style={{
-      marginTop: 10,
-      background: t.bgElevated,
-      border: `0.5px solid ${t.border}`,
-      borderRadius: 12,
-      padding: "4px 14px",
-    }}>
-      <DetailRow t={t} label="일정산"          value={incomeTrackA}/>
-      <DetailRow t={t} label="유솔N 월정산"    value={usolNTotal}
-        sub={usolNAdj !== 0 ? `자동 ${fmtMoney(usolNB)} + 보정 ${fmtMoney(usolNAdj)}` : null}
-        last={false}
-      />
-      <DetailRow t={t} label="기타"            value={otherIncomeSum}/>
-      <DetailRow t={t} label="운영비"          value={expenseSum} negative last/>
-    </div>
-  );
-}
-
-function DetailRow({ t, label, value, negative, sub, last }) {
-  const v = Number(value) || 0;
-  const display = negative ? `− ${fmtMoney(Math.abs(v))}` : fmtMoney(v);
-  return (
-    <div style={{
-      display: "flex", alignItems: "baseline", gap: 10,
-      padding: "11px 0",
-      borderBottom: last ? "none" : `0.5px solid ${t.border}`,
-    }}>
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+    <div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+        <span style={{ fontSize: 10.5, fontWeight: 800, color: t.textSecondary }}>{title}</span>
         <span style={{
-          fontSize: 12, fontWeight: 400, color: t.text,
-          letterSpacing: "-0.2px",
-        }}>{label}</span>
-        {sub && (
-          <span style={{
-            fontSize: 10, fontWeight: 400, color: t.textMuted,
-            letterSpacing: "-0.2px",
-            fontVariantNumeric: "tabular-nums",
-          }}>{sub}</span>
-        )}
+          marginLeft: "auto", fontSize: 12, fontWeight: 600, color: totalColor,
+          fontVariantNumeric: "tabular-nums",
+        }}>{totalPrefix}{fmtKRW(total)}</span>
       </div>
-      <span style={{
-        fontSize: 14, fontWeight: 500,
-        color: negative ? t.danger : t.text,
-        fontVariantNumeric: "tabular-nums",
-        letterSpacing: "-0.3px",
-        whiteSpace: "nowrap",
-      }}>{display}</span>
-    </div>
-  );
-}
-
-function DistributionLine({ t, distSum }) {
-  return (
-    <div style={{
-      marginTop: 10,
-      background: t.bgElevated,
-      border: `0.5px solid ${t.border}`,
-      borderRadius: 12,
-      padding: "14px 16px",
-      display: "flex", alignItems: "baseline", gap: 10,
-    }}>
-      <span style={{
-        flex: 1, fontSize: 13, fontWeight: 500, color: t.textSecondary,
-        letterSpacing: "-0.2px",
-      }}>분배</span>
-      <span style={{
-        fontSize: 18, fontWeight: 500, color: t.text,
-        fontVariantNumeric: "tabular-nums",
-        letterSpacing: "-0.4px",
-      }}>{fmtMoney(distSum)}</span>
-    </div>
-  );
-}
-
-function RemainingFinal({ t, netProfit, distSum, monthlyDiff }) {
-  const v = Number(monthlyDiff) || 0;
-  const color = v < 0 ? t.danger : t.success;
-  const bg    = v < 0 ? (t.dangerBg || "rgba(255,68,68,0.06)")
-                     : (t.successBg || "rgba(29,158,117,0.08)");
-  return (
-    <div style={{
-      marginTop: 10,
-      background: bg,
-      border: `0.5px solid ${v < 0 ? (t.dangerBorder || t.danger) : (t.successBorder || t.success)}`,
-      borderRadius: 12,
-      padding: "16px 14px 14px",
-      textAlign: "center",
-    }}>
       <div style={{
-        fontSize: 12, fontWeight: 400, color, opacity: 0.9,
-        letterSpacing: "-0.2px",
-      }}>이번 달 회사에 남은 것</div>
-      <div style={{
-        marginTop: 6,
-        fontSize: 26, fontWeight: 500, color,
-        fontVariantNumeric: "tabular-nums",
-        letterSpacing: "-0.8px",
-        lineHeight: 1.15,
-      }}>{fmtMoney(v)}</div>
-      <div style={{
-        marginTop: 6,
-        fontSize: 11, fontWeight: 400, color, opacity: 0.7,
-        letterSpacing: "-0.2px",
-        fontVariantNumeric: "tabular-nums",
+        display: "flex", height: 8, borderRadius: 999, overflow: "hidden",
+        background: t.bgInset, marginTop: 7,
       }}>
-        순이익 {fmtMoney(netProfit)} − 분배 {fmtMoney(distSum)}
+        {sum > 0 && parts.map((p, i) => (
+          <div key={i} style={{
+            width: `${(p.value / sum) * 100}%`,
+            background: p.color, height: "100%",
+          }}/>
+        ))}
+      </div>
+      <div style={{
+        display: "flex", flexWrap: "wrap", gap: "4px 10px", marginTop: 6,
+        fontSize: 9.5, color: t.textSecondary, fontVariantNumeric: "tabular-nums",
+      }}>
+        {parts.map((p, i) => (
+          <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <span style={{ width: 7, height: 7, borderRadius: 2, background: p.color, display: "inline-block" }}/>
+            {p.label} {fmtCompact(p.value)}
+          </span>
+        ))}
+        {sum === 0 && <span style={{ color: t.textMuted }}>이번 달 내역 없음</span>}
       </div>
     </div>
   );
-}
-
-function CarryFootnote({ t, cumValue, cumNeg, cumLoading, startMonth, endMonth }) {
-  const display = cumLoading
-    ? "불러오는 중..."
-    : `${startMonth} ~ ${endMonth} 누적 ${cumNeg ? "− " : ""}${fmtMoney(Math.abs(cumValue))}`;
-  return (
-    <div style={{
-      marginTop: 10,
-      padding: "8px 4px",
-      fontSize: 13, fontWeight: 400,
-      color: cumNeg ? t.danger : t.textSecondary,
-      textAlign: "center",
-      letterSpacing: "-0.2px",
-      fontVariantNumeric: "tabular-nums",
-      opacity: cumLoading ? 0.5 : 1,
-    }}>
-      📦 {display}
-    </div>
-  );
-}
-
-// 음수 처리 포맷 — "− ₩x"
-function fmtMoney(n) {
-  const v = Number(n) || 0;
-  if (v < 0) return `− ₩${Math.abs(v).toLocaleString("ko-KR")}`;
-  return `₩${v.toLocaleString("ko-KR")}`;
 }
 
 // ────────────────────────────────────────────
-// 작은 부품들 — 모바일 전용 (기존)
+// 작은 부품들
 // ────────────────────────────────────────────
 function navBtn(t) {
   return {
@@ -867,107 +785,53 @@ function navBtn(t) {
   };
 }
 
-function Card({ t, title, subtitle, children }) {
-  return (
-    <div style={{
-      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
-      padding: "12px 14px",
-    }}>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 10 }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: t.text }}>{title}</span>
-        {subtitle && <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500 }}>{subtitle}</span>}
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-function Divider({ t }) {
-  return <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>;
-}
-
-function Row({ t, label, value, color, hint, negative, signed, big, bold, highlight }) {
-  const v = Number(value) || 0;
-  let display;
-  if (signed) {
-    display = v === 0 ? "₩0" : (v < 0 ? "−" : "+") + fmtKRW(Math.abs(v)).replace("₩", "₩");
-  } else if (negative && v > 0) {
-    display = "−" + fmtKRW(v).replace("₩", "₩");
-  } else {
-    display = fmtKRW(v);
-  }
-  return (
-    <div style={{
-      display: "flex", alignItems: "baseline", gap: 8,
-      padding: highlight ? "6px 8px" : "2px 0",
-      background: highlight ? color + "11" : undefined,
-      borderRadius: highlight ? 7 : 0,
-    }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, flex: 1 }}>
-        <span style={{
-          fontSize: big ? 12 : bold ? 11.5 : 11,
-          fontWeight: (bold || big) ? 800 : 600,
-          color: (bold || big) ? t.text : t.textSecondary,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>{label}</span>
-        {hint && (
-          <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 500 }}>{hint}</span>
-        )}
-      </div>
-      <span className="mono" style={{
-        fontSize: big ? 18 : 14,
-        fontWeight: 800, color,
-        fontVariantNumeric: "tabular-nums",
-        whiteSpace: "nowrap",
-      }}>{display}</span>
-    </div>
-  );
-}
-
 // ────────────────────────────────────────────
-// 통장 거래 행 (모바일)
+// 통장 거래 행 — 칩 구분 + 자동 행 편집 잠금 (2026-07-21)
 // ────────────────────────────────────────────
 function CashflowMobileRow({ t, row, taskNo, onEdit, onDelete }) {
   const isIn = row.direction === "in";
+  const chip = sourceChip(row.source);
+  const editable = chip.kind === "manual";
+  const chipStyle = {
+    auto:    { background: t.bgInset,               color: t.textMuted },
+    expense: { background: "rgba(251,191,36,0.12)", color: "#FBBF24" },
+    manual:  { background: t.accentBg || "rgba(255,27,141,0.1)", color: t.accent },
+  }[chip.kind];
   return (
     <div style={{
-      display: "grid",
-      gridTemplateColumns: "1fr 28px 28px",
-      gap: 6, alignItems: "center",
-      padding: "8px 8px",
-      background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 7,
+      display: "flex", alignItems: "center", gap: 7,
+      padding: "8px 9px",
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 9,
     }}>
-      <div style={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+      <div style={{ minWidth: 0, flex: 1, display: "flex", flexDirection: "column", gap: 1 }}>
         <span className="mono" style={{
-          fontSize: 12, fontWeight: 800,
+          fontSize: 12.5, fontWeight: 800,
           color: isIn ? t.success : t.danger,
           fontVariantNumeric: "tabular-nums",
         }}>
-          {isIn ? "+" : "−"}{fmtKRW(row.amount).replace("₩", "₩")}
+          {isIn ? "+" : "−"}{fmtKRW(row.amount)}
         </span>
         <span style={{
           fontSize: 10, color: t.textSecondary,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
-          {row.memo || "—"}
+          {row.memo || "—"}{taskNo ? ` · ${taskNo}` : ""}
         </span>
-        {taskNo && (
-          <span className="mono" style={{
-            fontSize: 9, color: t.textMuted, fontWeight: 700,
-            fontVariantNumeric: "tabular-nums",
-          }}>
-            {taskNo}
-          </span>
-        )}
       </div>
-      <button onClick={onEdit} title="편집" style={iconBtnSm(t)}>
-        <Edit3 size={11}/>
-      </button>
-      <button onClick={onDelete} title="삭제" style={{ ...iconBtnSm(t), color: t.danger }}>
-        <Trash2 size={11}/>
-      </button>
+      <span style={{
+        fontSize: 8.5, fontWeight: 800, borderRadius: 999, padding: "2px 7px",
+        flexShrink: 0, ...chipStyle,
+      }}>{chip.label}</span>
+      {editable && (
+        <>
+          <button onClick={onEdit} title="편집" style={iconBtnSm(t)}>
+            <Edit3 size={11}/>
+          </button>
+          <button onClick={onDelete} title="삭제" style={{ ...iconBtnSm(t), color: t.danger }}>
+            <Trash2 size={11}/>
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -978,12 +842,12 @@ function iconBtnSm(t) {
     background: "transparent", border: `1px solid ${t.border}`,
     color: t.textSecondary, borderRadius: 5,
     cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center",
-    fontFamily: "inherit",
+    fontFamily: "inherit", flexShrink: 0,
   };
 }
 
 // ────────────────────────────────────────────
-// 통장 거래 추가/편집 다이얼로그 (모바일, 380px 최적화)
+// 통장 거래 추가/편집 다이얼로그
 // ────────────────────────────────────────────
 function CashflowDialog({ t, mode, actor, direction, row, defaultDate, onClose, onSaved }) {
   const [amountStr, setAmountStr] = useState(row?.amount != null ? Number(row.amount).toLocaleString("ko-KR") : "");
@@ -1043,6 +907,9 @@ function CashflowDialog({ t, mode, actor, direction, row, defaultDate, onClose, 
           <span style={{ fontSize: 15, fontWeight: 800, color: dirColor }}>
             {mode === "add" ? `${dirKo} 추가` : `${dirKo} 편집`}
           </span>
+          <span style={{ fontSize: 9.5, color: t.textMuted, fontWeight: 600 }}>
+            통장 직접 기록
+          </span>
           <div style={{ flex: 1 }}/>
           <button onClick={onClose} disabled={busy} aria-label="닫기" style={{
             background: "transparent", border: "none", padding: 4,
@@ -1083,10 +950,22 @@ function CashflowDialog({ t, mode, actor, direction, row, defaultDate, onClose, 
           <label style={fieldLabel(t)}>내용 (선택)</label>
           <input type="text" value={memo}
             onChange={e => setMemo(e.target.value)}
-            placeholder="예: 유솔 입금 / 식대"
+            placeholder={isIn ? "예: 유솔 입금 / 직접수금" : "예: 분배 / 지급"}
             style={inputStyle(t)}
           />
         </div>
+
+        {/* 2026-07-21 — 출금엔 운영비 안내 (지출 버튼 유도) */}
+        {!isIn && mode === "add" && (
+          <div style={{
+            padding: "8px 10px",
+            background: t.bgInset, border: `1px dashed ${t.border}`,
+            borderRadius: 7, fontSize: 10.5, color: t.textSecondary, lineHeight: 1.5,
+          }}>
+            ⚠️ 식비·광고비 같은 <b style={{ color: "#FBBF24" }}>지출은 🧾 지출 버튼</b>으로!
+            여기서 넣으면 운영비(손익)에 안 잡혀요.
+          </div>
+        )}
 
         {actionErr && (
           <div style={{
@@ -1105,6 +984,177 @@ function CashflowDialog({ t, mode, actor, direction, row, defaultDate, onClose, 
             flex: 1, padding: "11px 12px",
             background: busy ? t.bgInset : dirColor,
             color: busy ? t.textMuted : "#fff",
+            border: "none", borderRadius: 8,
+            fontSize: 13, fontWeight: 800,
+            cursor: busy ? "wait" : "pointer", fontFamily: "inherit",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 5,
+            opacity: busy ? 0.6 : 1,
+          }}>
+            <Save size={13}/>
+            {busy ? "저장 중..." : "저장"}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ────────────────────────────────────────────
+// 🧾 지출(운영비) 추가 다이얼로그 — 2026-07-21 신규
+//   addExpense RPC (Mig 103 계열) → Mig 185 트리거가 통장 자동 미러.
+// ────────────────────────────────────────────
+function ExpenseDialog({ t, actor, defaultDate, onClose, onSaved }) {
+  const AMBER = "#FBBF24";
+  const [category, setCategory]   = useState("");
+  const [amountStr, setAmountStr] = useState("");
+  const [date, setDate]           = useState(defaultDate);
+  const [memo, setMemo]           = useState("");
+  const [busy, setBusy] = useState(false);
+  const [actionErr, setActionErr] = useState("");
+
+  const amount = parseAmount(amountStr);
+
+  async function handleSave() {
+    if (!actor)     { setActionErr("관리자 사용자 ID 없음"); return; }
+    if (!category)  { setActionErr("카테고리를 선택해주세요."); return; }
+    if (amount <= 0){ setActionErr("금액을 입력해주세요."); return; }
+    if (!date)      { setActionErr("날짜를 선택해주세요."); return; }
+    setActionErr("");
+    setBusy(true);
+    try {
+      const res = await addExpense({
+        workMonth: ymdToYm(date),
+        category, amount,
+        expenseDate: date, memo, actor,
+      });
+      if (!res?.ok) {
+        setActionErr(res?.error || "저장 실패");
+      } else {
+        onSaved?.();
+      }
+    } catch (e) {
+      setActionErr(e?.message || "예외 발생");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <div onClick={busy ? undefined : onClose} style={{
+        position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+        background: "rgba(0,0,0,0.5)", zIndex: 200,
+      }}/>
+      <div style={{
+        position: "fixed", top: "50%", left: "50%",
+        transform: "translate(-50%, -50%)",
+        width: "min(360px, 92vw)",
+        background: t.bgElevated, borderRadius: 14,
+        border: `2px solid ${AMBER}`,
+        boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+        zIndex: 201, padding: "18px 18px",
+        display: "flex", flexDirection: "column", gap: 12,
+        maxHeight: "90vh", overflow: "auto",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 15, fontWeight: 800, color: AMBER }}>
+            🧾 지출 추가
+          </span>
+          <span style={{ fontSize: 9.5, color: t.textMuted, fontWeight: 600 }}>
+            운영비로 기록
+          </span>
+          <div style={{ flex: 1 }}/>
+          <button onClick={onClose} disabled={busy} aria-label="닫기" style={{
+            background: "transparent", border: "none", padding: 4,
+            color: t.textMuted, cursor: "pointer",
+          }}>
+            <X size={16}/>
+          </button>
+        </div>
+
+        {/* 카테고리 */}
+        <div>
+          <label style={fieldLabel(t)}>카테고리 <span style={{ color: t.danger }}>*</span></label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 }}>
+            {EXPENSE_CATEGORIES.map(c => {
+              const on = category === c;
+              return (
+                <button key={c} onClick={() => setCategory(c)} disabled={busy} style={{
+                  padding: "9px 4px",
+                  background: on ? "rgba(251,191,36,0.10)" : t.bgInset,
+                  border: `1.5px solid ${on ? AMBER : t.border}`,
+                  borderRadius: 8, fontSize: 11.5, fontWeight: 700,
+                  color: on ? AMBER : t.textSecondary,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}>
+                  {EXPENSE_CATEGORY_KO[c] || c}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 금액 */}
+        <div>
+          <label style={fieldLabel(t)}>금액 (₩) <span style={{ color: t.danger }}>*</span></label>
+          <input type="text" value={amountStr} inputMode="numeric"
+            onChange={e => setAmountStr(fmtAmountInput(e.target.value))}
+            placeholder="예: 300,000"
+            style={{
+              ...inputStyle(t),
+              fontFamily: "ui-monospace, monospace",
+              fontVariantNumeric: "tabular-nums",
+              textAlign: "right",
+              fontSize: 16, fontWeight: 800,
+              color: AMBER,
+            }}
+          />
+        </div>
+
+        {/* 날짜 */}
+        <div>
+          <label style={fieldLabel(t)}>날짜 <span style={{ color: t.danger }}>*</span></label>
+          <input type="date" value={date}
+            onChange={e => setDate(e.target.value)}
+            style={inputStyle(t)}
+          />
+        </div>
+
+        {/* 메모 */}
+        <div>
+          <label style={fieldLabel(t)}>내용 (선택)</label>
+          <input type="text" value={memo}
+            onChange={e => setMemo(e.target.value)}
+            placeholder="예: 네이버 파워링크 충전"
+            style={inputStyle(t)}
+          />
+        </div>
+
+        <div style={{
+          padding: "8px 10px",
+          background: t.bgInset, border: `1px dashed ${t.border}`,
+          borderRadius: 7, fontSize: 10.5, color: t.textSecondary, lineHeight: 1.5,
+        }}>
+          💡 저장하면 <b>운영비 + 통장</b>에 동시 반영돼요 (자동연동)
+        </div>
+
+        {actionErr && (
+          <div style={{
+            padding: "8px 10px",
+            background: t.dangerBg || "rgba(255,59,92,0.08)",
+            border: `1px solid ${t.dangerBorder || t.danger}`,
+            borderRadius: 7, fontSize: 11, color: t.danger, fontWeight: 600,
+          }}>⚠️ {actionErr}</div>
+        )}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={onClose} disabled={busy} style={ghostBtn(t)}>
+            취소
+          </button>
+          <button onClick={handleSave} disabled={busy} style={{
+            flex: 1, padding: "11px 12px",
+            background: busy ? t.bgInset : AMBER,
+            color: busy ? t.textMuted : "#1A1A1A",
             border: "none", borderRadius: 8,
             fontSize: 13, fontWeight: 800,
             cursor: busy ? "wait" : "pointer", fontFamily: "inherit",
@@ -1180,7 +1230,7 @@ function CashflowDeleteDialog({ t, actor, row, onClose, onDeleted }) {
             color: isIn ? t.success : t.danger,
             fontVariantNumeric: "tabular-nums",
           }}>
-            {isIn ? "+" : "−"}{fmtKRW(row.amount).replace("₩", "₩")}
+            {isIn ? "+" : "−"}{fmtKRW(row.amount)}
           </div>
           <div style={{ fontSize: 11, color: t.textSecondary }}>
             {row.memo || "(메모 없음)"}
