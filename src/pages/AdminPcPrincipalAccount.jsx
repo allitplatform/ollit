@@ -1,29 +1,22 @@
 // 2026-06-13 — PC 운영자 "원청 계좌" 화면.
-//
-// 사장님 spec:
-//   · 원청 7개 표시 — 원청명 / 은행 / 계좌번호 / 예금주 / 연락처.
-//   · 빈 계좌(crikrin/KB/yongin) 표시 + 채우기.
-//   · 편집(4필드) → updatePrincipalAccount(+phone) RPC 호출, 다이얼로그 확인.
-//   · 계좌번호 민감 — 표시 OK(운영자), 편집 시 다이얼로그/저장 확인.
-//
-// 데이터:
-//   · listPrincipalsFromDb — 전체 7개 (rowToSheetShape 결과). dbId 필드로 RPC 호출.
-//   · updatePrincipalAccount(Mig 113 v2) — 6 인자 (phone 추가, owner/admin/operator 통과).
-//
+// 2026-07-21 — 시안 반영 재배치: 좌 원청 테이블 + 우 상세 패널 (사장님 승인 시안 레이아웃).
+//   · 데이터·저장 무변경: listPrincipalsFromDb 조회 + updatePrincipalAccount(Mig 113 v2) RPC + 저장 확인 다이얼로그 그대로.
+//   · 우 패널 정보(코드/유형/접두어/비고)는 DB에 실재하는 필드만 표시 — 없는 값 지어내지 않음.
+//   · 새 원청 추가 버튼 없음 — 새 원청 = DB·정산 정책·화면 반영 한 세트 (계약 시 Claude 세션에서 일괄 세팅).
 // ⚠️ DB·계산·RPC 본문 변경 0줄. 호출만.
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Building2, CheckCircle2, AlertTriangle, Edit3, X, Save, Phone, CreditCard,
+  Building2, CheckCircle2, AlertTriangle, X, Save, Phone, CreditCard,
 } from "lucide-react";
 import { listPrincipalsFromDb, updatePrincipalAccount } from "../lib/principalsDb.js";
 
 export default function AdminPcPrincipalAccount({ t, user }) {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
-  const [rows, setRows] = useState([]);              // [{ dbId, code, name, bankName, accountNumber, accountHolder, phone }]
+  const [rows, setRows] = useState([]);              // [{ dbId, code, name, type, prefix, note, bankName, accountNumber, accountHolder, phone }]
   const [reloadTick, setReloadTick] = useState(0);
-  const [editing, setEditing] = useState(null);      // 편집 중 row
+  const [selectedId, setSelectedId] = useState(null);
 
   const actor = user?.user_id || user?.userId || user?.id;
 
@@ -36,12 +29,16 @@ export default function AdminPcPrincipalAccount({ t, user }) {
       if (!res?.ok) {
         setErr(res?.error || "조회 실패"); setLoading(false); return;
       }
-      // active true 만. code 정렬 유지.
-      setRows((res.principals || []).filter(p => p?.dbId));
+      const list = (res.principals || []).filter(p => p?.dbId);
+      setRows(list);
+      // 선택 유지 (재조회 후) — 없으면 첫 행
+      setSelectedId(prev => list.some(r => r.dbId === prev) ? prev : (list[0]?.dbId || null));
       setLoading(false);
     })().catch(e => { if (alive) { setErr(e?.message || "에러"); setLoading(false); } });
     return () => { alive = false; };
   }, [reloadTick]);
+
+  const selected = rows.find(r => r.dbId === selectedId) || null;
 
   // 채움 통계
   const stats = useMemo(() => {
@@ -62,9 +59,9 @@ export default function AdminPcPrincipalAccount({ t, user }) {
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 18 }}>
         <Building2 size={22} style={{ color: t.accent }}/>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: t.text }}>원청 계좌</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: t.text }}>원청</div>
           <div style={{ fontSize: 12, color: t.textMuted, marginTop: 2 }}>
-            원청별 입금 계좌 (은행 · 계좌번호 · 예금주 · 연락처)
+            {stats.total}곳 — 행을 클릭하면 오른쪽에서 정보 확인 · 계좌 관리
           </div>
         </div>
         <div style={{ flex: 1 }}/>
@@ -85,44 +82,97 @@ export default function AdminPcPrincipalAccount({ t, user }) {
         </div>
       ) : (
         <div style={{
-          background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
-          overflow: "hidden",
+          display: "grid",
+          gridTemplateColumns: "minmax(380px, 1.3fr) minmax(320px, 1fr)",
+          gap: 18, alignItems: "start",
         }}>
-          {/* 표 헤더 */}
+          {/* ── 좌: 원청 테이블 ── */}
           <div style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(140px, 1.1fr) minmax(110px, 0.9fr) minmax(170px, 1.4fr) minmax(120px, 1fr) minmax(140px, 1fr) 80px",
-            gap: 10, alignItems: "center",
-            padding: "12px 18px",
-            background: t.bgInset,
-            fontSize: 11, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4,
-            borderBottom: `1px solid ${t.border}`,
+            background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+            overflow: "hidden",
           }}>
-            <span>원청</span>
-            <span>은행</span>
-            <span>계좌번호</span>
-            <span>예금주</span>
-            <span>연락처</span>
-            <span style={{ textAlign: "right" }}>편집</span>
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "minmax(150px, 1.4fr) minmax(80px, 0.7fr) 90px",
+              gap: 10, alignItems: "center",
+              padding: "12px 18px",
+              background: t.bgInset,
+              fontSize: 11, color: t.textMuted, fontWeight: 700, letterSpacing: 0.4,
+              borderBottom: `1px solid ${t.border}`,
+            }}>
+              <span>원청</span>
+              <span>코드</span>
+              <span style={{ textAlign: "center" }}>계좌</span>
+            </div>
+            {rows.map(r => {
+              const has3 = r.bankName && r.accountNumber && r.accountHolder;
+              const hasSome = r.bankName || r.accountNumber || r.accountHolder;
+              const status = has3 ? "filled" : hasSome ? "partial" : "empty";
+              const active = r.dbId === selectedId;
+              return (
+                <div key={r.dbId}
+                  onClick={() => setSelectedId(r.dbId)}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(150px, 1.4fr) minmax(80px, 0.7fr) 90px",
+                    gap: 10, alignItems: "center",
+                    padding: "12px 18px",
+                    borderTop: `1px solid ${t.border}`,
+                    cursor: "pointer",
+                    background: active ? (t.accentBg || "rgba(255,27,141,0.10)") : "transparent",
+                    borderLeft: `3px solid ${active ? t.accent : "transparent"}`,
+                  }}>
+                  <span style={{
+                    fontSize: 13, fontWeight: active ? 800 : 700,
+                    color: active ? t.accent : t.text,
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>{r.name || r.code || "—"}</span>
+                  <span className="mono" style={{ fontSize: 11, color: t.textMuted }}>{r.code}</span>
+                  <span style={{ textAlign: "center" }}>
+                    {status === "filled" && (
+                      <span style={{ fontSize: 11, fontWeight: 800, color: t.success, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <CheckCircle2 size={12}/> 등록
+                      </span>
+                    )}
+                    {status === "partial" && (
+                      <span style={{ fontSize: 11, fontWeight: 800, color: t.warning, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <AlertTriangle size={12}/> 일부
+                      </span>
+                    )}
+                    {status === "empty" && (
+                      <span style={{ fontSize: 11, fontWeight: 800, color: t.danger, display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <AlertTriangle size={12}/> 미등록
+                      </span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+            <div style={{
+              margin: 12, padding: "10px 12px",
+              border: `1px dashed ${t.border}`, borderRadius: 9,
+              fontSize: 10.5, color: t.textMuted, lineHeight: 1.6,
+            }}>
+              ➕ 새 원청 추가는 화면에서 하지 않습니다 — 정산 규칙·DB 등록이 함께 필요해서, 계약 시 Claude 세션에서 한 번에 세팅합니다.
+            </div>
           </div>
-          {rows.map(r => (
-            <PrincipalRow key={r.dbId} t={t} row={r}
-              onEdit={() => setEditing(r)}/>
-          ))}
-        </div>
-      )}
 
-      {editing && (
-        <EditDialog
-          t={t}
-          row={editing}
-          actor={actor}
-          onClose={() => setEditing(null)}
-          onSaved={() => {
-            setEditing(null);
-            setReloadTick(n => n + 1);
-          }}
-        />
+          {/* ── 우: 상세 패널 (정보 + 계좌 편집) ── */}
+          {selected ? (
+            <DetailPanel
+              key={selected.dbId}
+              t={t}
+              row={selected}
+              actor={actor}
+              onSaved={() => setReloadTick(n => n + 1)}
+            />
+          ) : (
+            <div style={{
+              background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+              padding: 40, textAlign: "center", color: t.textMuted, fontSize: 12,
+            }}>왼쪽에서 원청을 선택하세요</div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -144,69 +194,10 @@ function Stat({ t, label, value, color }) {
 }
 
 // ──────────────────────────────────────────────
-// 원청 한 줄
+// 우측 상세 패널 — 정보(KV, DB 실재 필드만) + 계좌 4필드 인라인 편집
+//   저장 흐름 = 옛 EditDialog 와 동일 (필수 3필드 검증 → 확인 다이얼로그 → updatePrincipalAccount RPC)
 // ──────────────────────────────────────────────
-function PrincipalRow({ t, row, onEdit }) {
-  const has3 = row.bankName && row.accountNumber && row.accountHolder;
-  const hasSome = row.bankName || row.accountNumber || row.accountHolder;
-  const status = has3 ? "filled" : hasSome ? "partial" : "empty";
-  const dim = !has3;
-
-  return (
-    <div style={{
-      display: "grid",
-      gridTemplateColumns: "minmax(140px, 1.1fr) minmax(110px, 0.9fr) minmax(170px, 1.4fr) minmax(120px, 1fr) minmax(140px, 1fr) 80px",
-      gap: 10, alignItems: "center",
-      padding: "12px 18px",
-      borderTop: `1px solid ${t.border}`,
-      opacity: dim ? 0.85 : 1,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-        {status === "filled"  && <CheckCircle2 size={14} style={{ color: t.success, flexShrink: 0 }}/>}
-        {status === "partial" && <AlertTriangle size={14} style={{ color: t.warning, flexShrink: 0 }}/>}
-        {status === "empty"   && <AlertTriangle size={14} style={{ color: t.danger, flexShrink: 0 }}/>}
-        <span style={{
-          fontSize: 13, fontWeight: 700, color: t.text,
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>{row.name || row.code || "—"}</span>
-      </div>
-      <span style={{ fontSize: 13, color: row.bankName ? t.text : t.textMuted }}>
-        {row.bankName || "—"}
-      </span>
-      <span className="mono" style={{
-        fontSize: 12, color: row.accountNumber ? t.text : t.textMuted,
-        fontVariantNumeric: "tabular-nums",
-        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-      }}>{row.accountNumber || "—"}</span>
-      <span style={{ fontSize: 13, color: row.accountHolder ? t.text : t.textMuted }}>
-        {row.accountHolder || "—"}
-      </span>
-      <span className="mono" style={{
-        fontSize: 12, color: row.phone ? t.text : t.textMuted,
-        fontVariantNumeric: "tabular-nums",
-      }}>{row.phone || "—"}</span>
-      <div style={{ textAlign: "right" }}>
-        <button onClick={onEdit}
-          style={{
-            padding: "6px 12px",
-            background: "transparent", border: `1px solid ${t.border}`,
-            color: t.textSecondary, borderRadius: 7,
-            fontSize: 11, fontWeight: 700, fontFamily: "inherit",
-            cursor: "pointer",
-            display: "inline-flex", alignItems: "center", gap: 4,
-          }}>
-          <Edit3 size={11}/>
-          편집
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────
-// 편집 다이얼로그 — 4필드 + 저장 확인
-// ──────────────────────────────────────────────
-function EditDialog({ t, row, actor, onClose, onSaved }) {
+function DetailPanel({ t, row, actor, onSaved }) {
   const [bankName, setBankName]           = useState(row.bankName || "");
   const [accountNumber, setAccountNumber] = useState(row.accountNumber || "");
   const [accountHolder, setAccountHolder] = useState(row.accountHolder || "");
@@ -214,6 +205,13 @@ function EditDialog({ t, row, actor, onClose, onSaved }) {
   const [busy, setBusy] = useState(false);
   const [actionErr, setActionErr] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [savedMsg, setSavedMsg] = useState("");
+
+  const dirty =
+    bankName !== (row.bankName || "") ||
+    accountNumber !== (row.accountNumber || "") ||
+    accountHolder !== (row.accountHolder || "") ||
+    phone !== (row.phone || "");
 
   const hasAll =
     bankName.trim() !== "" &&
@@ -249,6 +247,9 @@ function EditDialog({ t, row, actor, onClose, onSaved }) {
         setActionErr(res?.error || "저장 실패");
         setConfirmOpen(false);
       } else {
+        setConfirmOpen(false);
+        setSavedMsg("✓ 저장됨");
+        setTimeout(() => setSavedMsg(""), 2500);
         onSaved?.();
       }
     } catch (e) {
@@ -260,41 +261,29 @@ function EditDialog({ t, row, actor, onClose, onSaved }) {
   }
 
   return (
-    <>
-      <div onClick={onClose} style={{
-        position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-        background: "rgba(0,0,0,0.5)", zIndex: 200, cursor: "pointer",
-      }}/>
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12,
+      overflow: "hidden",
+    }}>
       <div style={{
-        position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)",
-        width: "min(520px, 92vw)",
-        background: t.bgElevated, borderRadius: 14,
-        border: `1px solid ${t.border}`,
-        boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
-        zIndex: 201, padding: "22px 26px",
-        display: "flex", flexDirection: "column", gap: 16,
-        maxHeight: "90vh", overflow: "auto",
+        padding: "13px 18px", borderBottom: `1px solid ${t.border}`,
+        display: "flex", alignItems: "center", gap: 8,
       }}>
-        {/* 헤더 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Building2 size={20} style={{ color: t.accent }}/>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: t.text }}>
-              {row.name || row.code} 계좌 편집
-            </div>
-            <div style={{ fontSize: 11, color: t.textMuted, marginTop: 2 }}>
-              원청 코드: <span className="mono">{row.code}</span>
-            </div>
-          </div>
-          <button onClick={onClose} aria-label="닫기" style={{
-            background: "transparent", border: "none", padding: 4,
-            color: t.textMuted, cursor: "pointer", display: "flex",
-          }}>
-            <X size={18}/>
-          </button>
-        </div>
+        <Building2 size={16} style={{ color: t.accent }}/>
+        <span style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{row.name || row.code}</span>
+        <span style={{ fontSize: 11, color: t.textMuted }}>정보 · 계좌</span>
+      </div>
 
-        {/* 4 필드 */}
+      <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+        {/* 정보 KV — DB 실재 필드만 */}
+        <Kv t={t} label="코드" value={row.code} mono/>
+        {row.type   ? <Kv t={t} label="유형"   value={row.type}/>   : null}
+        {row.prefix ? <Kv t={t} label="접두어" value={row.prefix} mono/> : null}
+        {row.note   ? <Kv t={t} label="비고"   value={row.note}/>   : null}
+
+        <div style={{ borderTop: `1px solid ${t.border}`, margin: "2px 0" }}/>
+
+        {/* 계좌 4필드 */}
         <Field t={t} label="은행" required value={bankName} onChange={setBankName} placeholder="예: 우리은행"/>
         <Field t={t} label="계좌번호" required value={accountNumber} onChange={setAccountNumber}
           placeholder="예: 1005-104-865024"
@@ -314,33 +303,28 @@ function EditDialog({ t, row, actor, onClose, onSaved }) {
             borderRadius: 8, fontSize: 12, color: t.danger, fontWeight: 600,
           }}>⚠️ {actionErr}</div>
         )}
+        {savedMsg && (
+          <div style={{ fontSize: 12, color: t.success, fontWeight: 700 }}>{savedMsg}</div>
+        )}
 
-        {/* 액션 */}
-        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-          <button onClick={onClose} disabled={busy} style={{
-            padding: "10px 18px",
-            background: "transparent", border: `1px solid ${t.border}`,
-            borderRadius: 8, fontSize: 13, fontWeight: 700,
-            color: t.textSecondary, cursor: busy ? "wait" : "pointer",
-            fontFamily: "inherit",
-          }}>취소</button>
-          <button onClick={handleSave} disabled={busy} style={{
-            padding: "10px 20px",
-            background: busy ? t.bgInset : t.accent,
-            border: "none", borderRadius: 8,
-            fontSize: 13, fontWeight: 800, color: busy ? t.textMuted : "#fff",
-            cursor: busy ? "wait" : "pointer",
-            fontFamily: "inherit",
-            display: "inline-flex", alignItems: "center", gap: 6,
-            opacity: busy ? 0.6 : 1,
-          }}>
-            <Save size={13}/>
-            저장
-          </button>
+        <button onClick={handleSave} disabled={busy || !dirty} style={{
+          padding: "11px 20px",
+          background: busy || !dirty ? t.bgInset : t.accent,
+          border: "none", borderRadius: 9,
+          fontSize: 13, fontWeight: 800, color: busy || !dirty ? t.textMuted : "#fff",
+          cursor: busy || !dirty ? "default" : "pointer",
+          fontFamily: "inherit",
+          display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+        }}>
+          <Save size={13}/>
+          {busy ? "저장 중..." : "계좌 저장"}
+        </button>
+        <div style={{ fontSize: 10.5, color: t.textMuted, lineHeight: 1.6 }}>
+          수수료·단가는 "단가 · 수수료" 메뉴에서. 여기는 정보 확인 + 계좌만.
         </div>
       </div>
 
-      {/* 확인 다이얼로그 — 저장 직전 */}
+      {/* 확인 다이얼로그 — 저장 직전 (기존 그대로) */}
       {confirmOpen && (
         <ConfirmSavePanel t={t}
           row={row}
@@ -350,7 +334,24 @@ function EditDialog({ t, row, actor, onClose, onSaved }) {
           onConfirm={handleConfirm}
         />
       )}
-    </>
+    </div>
+  );
+}
+
+function Kv({ t, label, value, mono }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10,
+      padding: "8px 11px",
+      background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 8,
+    }}>
+      <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>{label}</span>
+      <span className={mono ? "mono" : ""} style={{
+        fontSize: 12.5, color: t.text, fontWeight: 700,
+        fontFamily: mono ? "ui-monospace, monospace" : "inherit",
+        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+      }}>{value || "—"}</span>
+    </div>
   );
 }
 
