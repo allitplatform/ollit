@@ -14,6 +14,8 @@ import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 // 2026-06-12 — 반응형 (1280px 2단↔1단 자동 전환).
 import { useMinWidth } from "../utils/useIsPc.js";
 import { computeRevenueByYmRange } from "../utils/revenueStats.js";
+// 2026-07-21 v2 — 대시보드 재설계: "시작 전(오늘 예약·확정)" 계산에 기존 효과상태 helper 재사용.
+import { TASK_FILTERS } from "../utils/dashboardStats.js";
 // 2026-06-12 — 유솔N 정산대기 = 원청 화면 (PrincipalSettleTab) 과 동일 source/필터.
 //   task_items 단위, task_status="완료" + principal_id=USOL_N_PID + naver_settled_at NULL + subtotal>0 + is_canceled!=true.
 import { fetchPrincipalSettleItems } from "../lib/principalSettleDb.js";
@@ -70,17 +72,29 @@ export function AdminPcDashboard({
     [apiTasks]
   );
 
-  // 메트릭 5개 — 새접수 / 배정 / 확정 / 진행 / 완료. 클릭 → 옛 setScreen.
-  //   색 절제: 새 접수만 핑크 강조 (0 초과 시), 나머지 무채색.
-  const metrics = [
-    { id: "new",        label: "새 접수", count: stats.new        || 0, onClick: () => onClickNewReception?.(),                  highlight: true },
-    // 2026-06-16 — "배정" 클릭 시 "assigned" 인자 명시 전달. 인자 X → undefined → AssignedTasksScreen 의 isAssigned 가
-    //   false 로 떨어져 TASK_FILTERS.confirmed 분기로 가던 사고. 모바일(StatBox) 은 이미 "assigned" 넘김.
-    { id: "assigned",   label: "배정",   count: stats.assigned   || 0, onClick: () => onClickAssignedList?.("assigned") },
-    { id: "confirmed",  label: "확정",   count: stats.confirmed  || 0, onClick: () => onClickAssignedList?.("confirmed") },
-    { id: "inProgress", label: "진행",   count: stats.inProgress || 0, onClick: () => onClickInProgress?.() },
-    { id: "completed",  label: "완료",   count: stats.completed  || 0, onClick: () => onClickLiveWork?.("completed-today") },
-  ];
+  // 2026-07-21 v2 — 재설계 (사장님 확정 시안):
+  //   히어로 5칸 (오늘 접수/오늘 완료/오늘 회사 몫/미배정/유솔N)
+  //   + 작업 현황 카드 (처리 대기 3칸 | 오늘 진행 바 🅐 — 세그먼트 클릭 이동).
+  //   옛 메트릭 5줄(MetricsRow) 제거 — 필터 의미(대기열 vs 오늘)가 섞여 있던 표시 문제 해소.
+  //   카운트 필터 자체는 기존 spec (2026-05-21 확정) 그대로.
+  const todayStr = todayYmd();
+  const todayReceived = useMemo(() =>
+    (apiTasks || []).reduce((cnt, x) => {
+      const b = x.createdAt || x.created_at || x.receivedAt || x.received_at || x.접수일시;
+      return (b && toKstYmd(b) === todayStr) ? cnt + 1 : cnt;
+    }, 0),
+    [apiTasks, todayStr]
+  );
+  // 시작 전 = 오늘 예약(scheduled 오늘) + 효과상태 '확정' — 기존엔 어디에도 안 보이던 숫자.
+  const notStartedToday = useMemo(() =>
+    (apiTasks || []).filter(x => {
+      const n = x.scheduledAt || x.scheduled_at || x.확정일시 || x.confirmedAt;
+      if (!n || toKstYmd(n) !== todayStr) return false;
+      return TASK_FILTERS.getEffectiveStatus(x) === "확정";
+    }).length,
+    [apiTasks, todayStr]
+  );
+  const ownerToday = stats.revenue?.owner;   // 권한 없으면 undefined → 칸 숨김
 
   return (
     <div style={{
@@ -89,8 +103,42 @@ export function AdminPcDashboard({
       flexDirection: "column",
       gap: 20,
     }}>
-      {/* 상단 — 매출 + 우 컬럼 (3카드 + 유솔N stack). 1280px+ 2단 / 미만 1단.
-            alignItems:stretch — 좌우 칸 높이 같이 (매출 패널이 우 컬럼 길이만큼 늘어남). */}
+      {/* ── 히어로 5칸 — 오늘 접수 / 오늘 완료 / 오늘 회사 몫 / 미배정 / 유솔N ── */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: isWide ? "repeat(5, minmax(0, 1fr))" : "repeat(2, minmax(0, 1fr))",
+        gap: 12,
+      }}>
+        <HeroStat icon="📥" label="오늘 접수" value={todayReceived}/>
+        <HeroStat icon="✅" label="오늘 완료" value={stats.completed || 0}
+          sub={`진행 중 ${stats.inProgress || 0}`}
+          onClick={() => onClickLiveWork?.("completed-today")}/>
+        {ownerToday != null && (
+          <HeroStat icon="💰" label="오늘 회사 몫" value={fmtKRW(ownerToday)}
+            sub="완료 건 기준 (일정산)" money/>
+        )}
+        <HeroStat icon="⚠️" label="미배정" value={unassignedCount}
+          warn={unassignedCount > 0} sub="클릭 → 배정"
+          onClick={() => onClickNewReception?.()}/>
+        <UsolNCompactCard user={user} onClick={onClickUsolN}/>
+      </div>
+
+      {/* ── 작업 현황 — 처리 대기(누적) | 오늘 진행 바 (🅐 확정안) ── */}
+      <WorkStatusCard
+        unassigned={unassignedCount}
+        assigned={stats.assigned || 0}
+        confirmed={stats.confirmed || 0}
+        inProgress={stats.inProgress || 0}
+        completedToday={stats.completed || 0}
+        notStartedToday={notStartedToday}
+        onUnassigned={() => onClickNewReception?.()}
+        onAssigned={() => onClickAssignedList?.("assigned")}
+        onConfirmed={() => onClickAssignedList?.("confirmed")}
+        onInProgress={() => onClickInProgress?.()}
+        onCompleted={() => onClickLiveWork?.("completed-today")}
+      />
+
+      {/* ── 메인 2단 — 좌 매출(기존 패널 그대로) / 우 할 일 + 원청별 오늘 ── */}
       <div style={{
         display: "grid",
         gridTemplateColumns: isWide ? "minmax(0, 1.4fr) minmax(0, 1fr)" : "minmax(0, 1fr)",
@@ -108,15 +156,6 @@ export function AdminPcDashboard({
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <CompactCard
-            icon="📥"
-            label="미배정 작업"
-            count={unassignedCount}
-            actionLabel="전체 →"
-            onClick={() => onClickNewReception?.()}
-          />
-          {/* 2026-06-24 — 홈페이지 접수함 (옛 "냉매 자동배정 대기" 카드 자리).
-                신규 N>0 시 빨강 강조 (미배정 카드와 같은 패턴), 0 시 기본 흰 카드. */}
-          <CompactCard
             icon="📨"
             label="홈페이지 접수함"
             count={inquiriesNewCount}
@@ -132,8 +171,6 @@ export function AdminPcDashboard({
             onClick={onClickReassign}
             color="#FF8A3D"
           />
-          {/* 2026-06-16 — 냉매 미처리 (기사 PWA 세척 완료 시 입력분, [냉매 작업 만들기] 대상).
-                color 생략 → 기본 var(--accent) 핑크 강조. N>0 일 때 값 색·hover 테두리가 핑크로. */}
           <CompactCard
             icon="🛠️"
             label="냉매 미처리"
@@ -141,22 +178,12 @@ export function AdminPcDashboard({
             actionLabel="만들기 →"
             onClick={onClickRefriAddon}
           />
-          {/* 2026-07-21 — 유솔N 컴팩트 카드 (정산판 RPC 동일 소스). 상세는 유솔N 화면에서. */}
-          <UsolNCompactCard user={user} onClick={onClickUsolN}/>
+          {/* 원청별 오늘 — 우 컬럼으로 이동 (옛 풀폭) */}
+          <AdminPcTodayByPrincipal apiTasks={apiTasks}/>
         </div>
       </div>
 
-      {/* 2026-07-09 — 원청별 오늘 현황 표 (접수/완료/회사 몫).
-            사장님 spec:
-              · 접수 = created_at KST 오늘 + 취소 제외 (트랙 무관)
-              · 완료 = completed_at KST 오늘 + status='완료' (트랙 무관)
-              · 회사 몫 = 완료 건 owner_amount 합 (트랙 A 만; usol_n = "월정산").
-              · 데이터 없는 원청 행 생략.
-              · "이익" 아님 — 운영비 전 gross → 라벨 "회사 몫". */}
-      <AdminPcTodayByPrincipal apiTasks={apiTasks}/>
-
-      {/* 메트릭 5개 한줄 */}
-      <MetricsRow metrics={metrics}/>
+      {/* 2026-07-21 v2 — 원청별 오늘 표는 우 컬럼으로 이동 / 메트릭 5줄은 WorkStatusCard 로 대체. */}
 
       {/* 2026-06-12 — 기사별 일정 제거 (사장님 spec: 개요에서 제외).
             옛 EngineersPanel + EngineerBar 함수 dead code 보존 (복원 시 mount 재추가). */}
@@ -171,6 +198,140 @@ export function AdminPcDashboard({
 }
 
 // ──────────────────────────────────────────────────────────────────
+// 2026-07-21 v2 — 히어로 스탯 칸.
+function HeroStat({ icon, label, value, sub, warn, money, onClick }) {
+  return (
+    <button onClick={onClick} disabled={!onClick} style={{
+      background: "var(--bg-elevated)",
+      border: `1px solid ${warn ? "rgba(248,113,113,0.55)" : "var(--border)"}`,
+      borderRadius: 14,
+      padding: "13px 15px",
+      cursor: onClick ? "pointer" : "default",
+      fontFamily: "inherit", textAlign: "left",
+      display: "flex", flexDirection: "column", gap: 3,
+      minWidth: 0,
+    }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-secondary)" }}>{icon} {label}</span>
+      <span style={{
+        fontSize: money ? 19 : 24, fontWeight: 800,
+        color: warn ? "#F87171" : "var(--text-primary)",
+        fontVariantNumeric: "tabular-nums", letterSpacing: "-0.6px",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+      }}>{value}</span>
+      {sub && <span style={{ fontSize: 10.5, color: "var(--text-tertiary)" }}>{sub}</span>}
+    </button>
+  );
+}
+
+// 2026-07-21 v2 — 작업 현황 카드 (사장님 확정 시안).
+//   좌 "처리 대기" = 날짜 무관 대기열 3칸 (미배정/배정됨/확정 — 옛 메트릭 앞 3칸과 동일 필터).
+//   우 "오늘" = 진행 바 🅐: 완료(초록) + 진행(앰버) + 시작 전(회색) — 세그먼트 클릭 시 해당 목록.
+//   시작 전 = 오늘 예약 + 효과상태 '확정' (신규 표시 — 계산은 기존 helper 재사용).
+function WorkStatusCard({
+  unassigned, assigned, confirmed,
+  inProgress, completedToday, notStartedToday,
+  onUnassigned, onAssigned, onConfirmed, onInProgress, onCompleted,
+}) {
+  const todayTotal = completedToday + inProgress + notStartedToday;
+  const pct = (n) => todayTotal > 0 ? Math.round((n / todayTotal) * 100) : 0;
+  const donePct = pct(completedToday);
+  const progPct = pct(inProgress);
+  const waitPct = Math.max(0, 100 - donePct - progPct);
+
+  const waitCell = (n, label, desc, hot, onClick) => (
+    <button onClick={onClick} style={{
+      background: "var(--bg-secondary)",
+      border: `1px solid ${hot ? "rgba(248,113,113,0.55)" : "var(--border)"}`,
+      borderRadius: 11, padding: "11px 8px", textAlign: "center",
+      cursor: "pointer", fontFamily: "inherit", minWidth: 0,
+    }}>
+      <div style={{
+        fontSize: 21, fontWeight: 800,
+        color: hot ? "#F87171" : "var(--text-primary)",
+        fontVariantNumeric: "tabular-nums",
+      }}>{n}</div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-secondary)", marginTop: 2 }}>{label}</div>
+      <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 2 }}>{desc}</div>
+    </button>
+  );
+
+  const seg = (widthPct, bg, fg, text, onClick, title) => (
+    widthPct > 0 && (
+      <button onClick={onClick} title={title} style={{
+        width: `${widthPct}%`,
+        background: bg, color: fg,
+        border: "none", cursor: "pointer", fontFamily: "inherit",
+        fontSize: 10, fontWeight: 800,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        overflow: "hidden", whiteSpace: "nowrap",
+      }}>{widthPct >= 14 ? text : ""}</button>
+    )
+  );
+
+  return (
+    <div style={{
+      background: "var(--bg-elevated)", border: "1px solid var(--border)",
+      borderRadius: 14, padding: "15px 18px",
+    }}>
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 3fr) 1px minmax(0, 2.4fr)",
+        gap: 16, alignItems: "stretch",
+      }}>
+        {/* 좌 — 처리 대기 */}
+        <div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 7, marginBottom: 9 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#FBBF24" }}>📋 처리 대기</span>
+            <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>날짜 무관 — 쌓여 있는 일</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+            {waitCell(unassigned, "미배정", "기사 배정 필요", unassigned > 0, onUnassigned)}
+            {waitCell(assigned, "배정됨", "약속 조율 중", false, onAssigned)}
+            {waitCell(confirmed, "확정", "내일 이후 포함", false, onConfirmed)}
+          </div>
+        </div>
+
+        <div style={{ background: "var(--border)" }}/>
+
+        {/* 우 — 오늘 진행 바 */}
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 7, marginBottom: 9 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: "#2BB673" }}>☀️ 오늘</span>
+            <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>일정 {todayTotal}건</span>
+          </div>
+          {todayTotal === 0 ? (
+            <div style={{ padding: "14px 0", fontSize: 12, color: "var(--text-tertiary)" }}>
+              오늘 일정이 없습니다
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                <span style={{ fontSize: 20, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+                  {completedToday}<span style={{ fontSize: 13, color: "var(--text-secondary)", fontWeight: 700 }}>/{todayTotal} 완료</span>
+                </span>
+                <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{donePct}%</span>
+              </div>
+              <div style={{
+                display: "flex", height: 22, borderRadius: 11, overflow: "hidden",
+                border: "1px solid var(--border)", marginTop: 9,
+              }}>
+                {seg(donePct, "#2BB673", "#fff", `완료 ${completedToday}`, onCompleted, "오늘 완료 목록")}
+                {seg(progPct, "#FBBF24", "#1A1512", `진행 ${inProgress}`, onInProgress, "진행 중 목록")}
+                {seg(waitPct, "var(--bg-tertiary)", "var(--text-secondary)", `대기 ${notStartedToday}`, onConfirmed, "오늘 예약 (시작 전)")}
+              </div>
+              <div style={{ display: "flex", gap: 13, marginTop: 7, fontSize: 10.5, color: "var(--text-secondary)" }}>
+                <span><i style={{ display: "inline-block", width: 8, height: 8, borderRadius: 3, background: "#2BB673", marginRight: 5 }}/>완료 {completedToday}</span>
+                <span><i style={{ display: "inline-block", width: 8, height: 8, borderRadius: 3, background: "#FBBF24", marginRight: 5 }}/>진행 중 {inProgress}</span>
+                <span><i style={{ display: "inline-block", width: 8, height: 8, borderRadius: 3, background: "var(--bg-tertiary)", marginRight: 5 }}/>시작 전 {notStartedToday}</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // 2026-07-21 — 유솔N 컴팩트 카드.
 //   전월(=이번 지급 사이클) 작업분 기준: 회사 마진 / 안 받음(대기+독촉) / 기사 미지급.
 //   데이터 = usoln_settle_board_summary (정산판·가계부와 동일 RPC — 대시보드 자체 계산 제거).
