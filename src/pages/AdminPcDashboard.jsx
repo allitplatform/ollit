@@ -964,20 +964,31 @@ function InquiriesBigCard({ count = 0, todayCount = 0, user, onClick }) {
 function AdminPcTodayByPrincipal({ apiTasks = [], fill = false }) {
   const today = todayYmd();
 
-  const { rows, totals } = useMemo(() => {
+  const { rows, totals, hourly } = useMemo(() => {
     const received = new Map();
     const done     = new Map();
     const owner    = new Map();
+    // 2026-07-21 — 오늘 접수 시간대 (사장님 확정: 표 + 접수 시간대형).
+    //   버킷 13개: [~8시, 9, 10, ..., 19, 20시+]. 접수 필터(취소 제외)와 동일 모수.
+    const hourlyArr = new Array(13).fill(0);
+    const hourFmt = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Seoul", hour: "2-digit", hour12: false,
+    });
 
     for (const t of (apiTasks || [])) {
       if (!t) continue;
       const code = String(t.principalCode || t.principal_code || "").trim();
       if (!code) continue;
 
-      // 오늘 접수 (취소 제외)
+      // 오늘 접수 — 표 카운트는 취소 제외 (기존 spec) / 시간대는 취소 포함 (사장님 spec: 전체 유입).
       const created = t.createdAt || t.created_at;
-      if (created && t.status !== "취소" && toKstYmd(created) === today) {
-        received.set(code, (received.get(code) || 0) + 1);
+      if (created && toKstYmd(created) === today) {
+        const h = Number(hourFmt.format(new Date(created)));
+        const idx = h <= 8 ? 0 : h >= 20 ? 12 : h - 8;
+        hourlyArr[idx] += 1;
+        if (t.status !== "취소") {
+          received.set(code, (received.get(code) || 0) + 1);
+        }
       }
       // 오늘 완료 (status='완료' 만)
       const completed = t.completedAt || t.completed_at;
@@ -1005,7 +1016,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false }) {
       owner:    rowsAll.reduce((s, r) => s + (r.isTrackB ? 0 : r.owner), 0),
     };
 
-    return { rows: rowsAll, totals: totalsRow };
+    return { rows: rowsAll, totals: totalsRow, hourly: hourlyArr };
   }, [apiTasks, today]);
 
   // 2026-07-21 v3 — 비중 바 기준 최대값 (트랙 A 행만)
@@ -1124,6 +1135,61 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false }) {
           </table>
         </div>
       )}
+
+      {/* 2026-07-21 — 오늘 접수 시간대 (표 아래 여백 채움 — 사장님 확정안).
+            marginTop:auto — 카드가 fill 로 늘어난 만큼 바닥에 붙음. */}
+      {hourly.some(c => c > 0) && (
+        <HourlyReceivedChart hourly={hourly} total={hourly.reduce((a, b) => a + b, 0)}/>
+      )}
+    </div>
+  );
+}
+
+// 2026-07-21 — 오늘 접수 시간대 미니 히스토그램 (~8시 / 9~19시 / 20시+ 13버킷).
+//   현재 시간 버킷 = 핑크 강조. hover 시 건수 title.
+function HourlyReceivedChart({ hourly = [], total = 0 }) {
+  const max = Math.max(1, ...hourly);
+  const nowH = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul", hour: "2-digit", hour12: false,
+  }).format(new Date()));
+  const nowIdx = nowH <= 8 ? 0 : nowH >= 20 ? 12 : nowH - 8;
+  const labels = ["~8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20+"];
+
+  return (
+    <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid var(--border)" }}>
+      <div style={{
+        fontSize: 10.5, fontWeight: 800, color: "var(--text-secondary)",
+        marginBottom: 8, display: "flex", justifyContent: "space-between",
+      }}>
+        <span>🕐 오늘 접수 시간대 <span style={{ fontWeight: 600, color: "var(--text-tertiary)" }}>(취소 포함)</span></span>
+        <span style={{ fontVariantNumeric: "tabular-nums" }}>{total}건</span>
+      </div>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 58 }}>
+        {hourly.map((c, i) => (
+          <div key={i} title={`${labels[i]}시 · ${c}건`} style={{
+            flex: 1,
+            height: `${c > 0 ? Math.max(12, Math.round((c / max) * 100)) : 5}%`,
+            borderRadius: "4px 4px 2px 2px",
+            background: c > 0
+              ? (i === nowIdx ? "var(--accent)" : "var(--accent-bg)")
+              : "var(--bg-secondary)",
+            border: c > 0
+              ? `1px solid ${i === nowIdx ? "var(--accent)" : "rgba(255,27,141,0.35)"}`
+              : "1px solid var(--border)",
+            minWidth: 0,
+          }}/>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+        {labels.map((lb, i) => (
+          <span key={lb} style={{
+            flex: 1, textAlign: "center",
+            fontSize: 8.5, fontWeight: i === nowIdx ? 800 : 600,
+            color: i === nowIdx ? "var(--accent)" : "var(--text-tertiary)",
+            whiteSpace: "nowrap",
+          }}>{lb}</span>
+        ))}
+      </div>
     </div>
   );
 }
