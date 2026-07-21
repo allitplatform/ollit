@@ -11,7 +11,7 @@
 //   POST /api/sms/send
 //   body: {
 //     secret:        string  — SMS_TRIGGER_SECRET (필수)
-//     type:          'assign' | 'complete'
+//     type:          'assign' | 'complete' | 'visit_fee'  (visit_fee — 2026-07-21 출장비 안내 추가)
 //     principal:     string  — principal_code ('allday' 등)
 //     customerPhone: string  — 수신 고객 번호
 //     vars: {
@@ -105,6 +105,22 @@ ${vars.engineerName} 기사님이 배정되었습니다.
 문의: 1866-2003`
     );
   }
+  if (type === "visit_fee") {
+    // 2026-07-21 — 출장비 안내 (visit_only 건. Mig 184 트리거 발화, amount = tasks.travel_fee).
+    return (
+`${prefix}출장비 안내
+
+안녕하세요, 방문 결과
+현장 여건상 작업 진행이 어려워
+출장비만 발생했습니다.
+
+▶ 출장비: ${formatAmount(vars.amount)}원
+
+이용해 주셔서 감사합니다.
+
+문의: 1866-2003`
+    );
+  }
   return (
 `${prefix}서비스 완료 안내
 
@@ -176,8 +192,8 @@ export default async function handler(req, res) {
   const toRaw     = body.customerPhone;
   const vars      = body.vars || {};
 
-  if (type !== "assign" && type !== "complete") {
-    res.status(400).json({ ok: false, error: "type must be assign|complete" });
+  if (type !== "assign" && type !== "complete" && type !== "visit_fee") {
+    res.status(400).json({ ok: false, error: "type must be assign|complete|visit_fee" });
     return;
   }
   const to = normalizePhone(toRaw);
