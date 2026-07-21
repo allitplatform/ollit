@@ -3632,6 +3632,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onBack={goBack}
         onLogout={onLogout}
         onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
+        // 2026-07-21 v2 — 공지/사용자/회사계좌 → 설정 안 "관리" 카드 진입 (사이드바에서 제거).
+        onAnnouncements={() => setScreen("announcements")}
+        onUsers={() => setScreen("userList")}
+        onCompanyAccount={() => setScreen("companyAccount")}
         autoPushOn={autoPushOn}
         onToggleAutoPush={async () => {
           // 2026-07-14 — 냉매충전 자동배정 푸시 ON/OFF (Mig 179).

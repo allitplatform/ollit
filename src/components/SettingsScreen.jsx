@@ -78,6 +78,8 @@ export function SettingsScreen({
   user, onBack, onLogout,
   themeMode, onToggleTheme,
   autoPushOn, onToggleAutoPush,  // 냉매충전 자동배정 푸시 (Mig 179)
+  // 2026-07-21 v2 — 사장님 spec: 공지/사용자/회사계좌 사이드바에서 빼고 설정 안 "관리" 카드로.
+  onAnnouncements, onUsers, onCompanyAccount,
 }) {
   const currentUser = getCurrentUser(user);
   const isPc = useIsPc();
@@ -309,6 +311,21 @@ export function SettingsScreen({
     </Card>
   );
 
+  // 2026-07-21 v2 — 관리 카드 (사이드바에서 옮겨온 3개 진입점. 공지는 월 2회 수준 저빈도 — 사장님 확인).
+  const manageCard = (
+    <Card title="🗂 관리" sub="관리 화면으로 이동">
+      {typeof onAnnouncements === "function" && (
+        <NavRow icon="📢" label="공지사항" desc="전체 기사 공지 작성 + 푸시 발송" onClick={onAnnouncements}/>
+      )}
+      {typeof onUsers === "function" && hasPermission(currentUser, "menu.users") && (
+        <NavRow icon="👥" label="사용자" desc="계정 · 역할 · 비밀번호 리셋" onClick={onUsers}/>
+      )}
+      {typeof onCompanyAccount === "function" && hasPermission(currentUser, "menu.company_account") && (
+        <NavRow icon="💳" label="회사 계좌" desc="기사 송금 안내에 쓰이는 계좌" onClick={onCompanyAccount}/>
+      )}
+    </Card>
+  );
+
   const notiCard = (
     <Card title="🔔 알림" sub="이 기기·내 계정에 적용">
       <ChannelRow
@@ -420,6 +437,7 @@ export function SettingsScreen({
         }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {opsCard}
+            {manageCard}
             {personalCard}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -479,6 +497,24 @@ function Card({ title, sub, children }) {
         {children}
       </div>
     </section>
+  );
+}
+
+// 2026-07-21 v2 — 관리 카드용 이동 행 (공지/사용자/회사계좌)
+function NavRow({ icon, label, desc, onClick }) {
+  return (
+    <div onClick={onClick} style={{
+      display: "flex", alignItems: "center", gap: 12,
+      padding: "12px 14px", border: "1px solid var(--border)", borderRadius: 10,
+      background: "var(--bg-secondary)", cursor: "pointer",
+    }}>
+      <span style={{ fontSize: 17, width: 24, textAlign: "center" }}>{icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>{label}</div>
+        <div style={{ fontSize: 10.5, color: "var(--text-secondary)", marginTop: 2 }}>{desc}</div>
+      </div>
+      <span style={{ fontSize: 13, color: "var(--text-tertiary)" }}>›</span>
+    </div>
   );
 }
 

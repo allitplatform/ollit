@@ -135,12 +135,9 @@ const GROUPS = [
     label: "설정",
     icon: Settings,
     items: [
-      // 2026-06-26 — 공지사항 (Mig 147/148). 운영자 → 전체 기사 공통 공지 + 푸시.
-      { id: "announcements",         label: "📢 공지사항" },
-      { id: "userList",              label: "사용자" },
-      { id: "companyAccount",        label: "회사 계좌" },
-      // 2026-07-21 — "알림 설정" + "일반" → "설정" 한 화면으로 통합 (사장님 승인 시안).
-      //   notificationSettings 진입은 AdminApp 분기에서 settings 와 동일 화면으로 처리.
+      // 2026-07-21 v2 — 사장님 spec: 공지사항/사용자/회사 계좌도 설정 화면 안으로.
+      //   사이드바는 "설정" 단일 항목 (대시보드/유솔N 그룹과 같은 패턴).
+      //   각 화면 진입은 설정 화면의 "관리" 카드에서. notificationSettings 는 settings 와 동일 화면.
       { id: "settings",              label: "설정" },
     ],
   },
@@ -172,6 +169,11 @@ const SCREEN_TO_GROUP = (() => {
   map.regionList        = "engineers";
   // 2026-07-21 — 옛 알림 설정 진입 경로 (외부 링크/뒤로가기 잔존분) → 설정 그룹 활성.
   map.notificationSettings = "settingsGroup";
+  // 2026-07-21 v2 — 공지/사용자/회사계좌는 설정 화면 "관리" 카드에서 진입 → 설정 그룹 활성 유지.
+  map.announcements     = "settingsGroup";
+  map.userList          = "settingsGroup";
+  map.userEdit          = "settingsGroup";
+  map.companyAccount    = "settingsGroup";
   return map;
 })();
 

@@ -148,7 +148,8 @@ export function UserEditScreen({ user, isNew, onSaved, onBack }) {
         )}
       </div>
 
-      <div style={{ padding: "16px" }}>
+      {/* 2026-07-21 v2 — PC 폭 제한 (모바일 화면이 PC에서 풀폭으로 늘어지던 것 정리) */}
+      <div style={{ padding: "16px", maxWidth: 640, margin: "0 auto" }}>
         <Field label="이름">
           <input
             type="text" placeholder="예: 김지혜"
