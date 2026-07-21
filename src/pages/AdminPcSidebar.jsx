@@ -124,10 +124,12 @@ const GROUPS = [
     label: "원청",
     icon: Building2,
     items: [
-      { id: "principalList",      label: "원청 목록" },
-      { id: "principalAccount",   label: "원청 계좌" },
-      { id: "ratesManagement",    label: "원청 단가" },
-      { id: "commissionPolicy",   label: "원청 수수료 정책" },
+      // 2026-07-21 — 사장님 승인 시안: 원청 그룹 4개 → 2개.
+      //   "원청" = 정보·계좌 (AdminPcPrincipalAccount — DB 직결, 검증된 화면).
+      //   "단가 · 수수료" = 단가표 + DB 정책 목록 + 계산기 3탭 (AdminRatesFees).
+      //   옛 원청 목록/편집 화면은 라우트 keep (모바일 대시보드 등 잔존 진입로) — 사이드바에서만 제외.
+      { id: "principalAccount",   label: "원청 (정보·계좌)" },
+      { id: "ratesFees",          label: "단가 · 수수료" },
     ],
   },
   {
@@ -166,6 +168,8 @@ const SCREEN_TO_GROUP = (() => {
   map.principalAccount  = "principal";
   map.ratesManagement   = "principal";
   map.commissionPolicy  = "principal";
+  // 2026-07-21 — 원청 그룹 2개 재편 잔존 경로: 옛 편집 화면 진입 시에도 원청 그룹 활성.
+  map.principalEdit     = "principal";
   map.regionList        = "engineers";
   // 2026-07-21 — 옛 알림 설정 진입 경로 (외부 링크/뒤로가기 잔존분) → 설정 그룹 활성.
   map.notificationSettings = "settingsGroup";

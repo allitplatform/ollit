@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { loadRates, saveRates, APPLIANCE_OPTIONS } from "../data/standardRates.js";
 
-export function RatesManagementScreen({ onBack }) {
+// 2026-07-21 — embedded prop: "단가 · 수수료" 통합 화면(AdminRatesFees) 탭 안에서 렌더될 때
+//   자체 헤더/배경을 숨김. 단가 저장 방식·계산 로직은 무변경.
+export function RatesManagementScreen({ onBack, embedded = false }) {
   const [rates, setRates]     = useState(() => loadRates());
   const [autoSync, setAutoSync] = useState(true);
   const [savedAt, setSavedAt]   = useState("");
@@ -52,12 +54,19 @@ export function RatesManagementScreen({ onBack }) {
   }
 
   return (
-    <div style={{ background: "var(--bg-primary)", minHeight: "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80 }}>
+    <div style={{ background: embedded ? "transparent" : "var(--bg-primary)", minHeight: embedded ? "auto" : "100vh", color: "var(--text-primary)", fontFamily: "-apple-system, 'Pretendard', sans-serif", paddingBottom: 80, maxWidth: embedded ? 640 : "none" }}>
+      {!embedded && (
       <div style={headerStyle}>
         <button onClick={onBack} style={backBtnStyle}>←</button>
         <div style={titleStyle}>프로 단가표</div>
         <button onClick={handleSave} style={saveBtnStyle}>저장</button>
       </div>
+      )}
+      {embedded && (
+        <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 16px 0" }}>
+          <button onClick={handleSave} style={saveBtnStyle}>단가 저장</button>
+        </div>
+      )}
 
       <div style={{ padding: 16 }}>
         {/* 안내 */}

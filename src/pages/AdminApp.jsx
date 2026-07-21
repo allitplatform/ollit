@@ -107,8 +107,8 @@ import { PrincipalListScreen } from "../components/PrincipalListScreen.jsx";
 import { PrincipalEditScreen } from "../components/PrincipalEditScreen.jsx";
 import { NaverUploadScreen } from "../components/NaverUploadScreen.jsx";
 import { bulkInsertUsolNOrders } from "../lib/usolNTasksDb.js";
-import { RatesManagementScreen } from "../components/RatesManagementScreen.jsx";
-import { CommissionPolicyManagement } from "../components/admin/CommissionPolicyManagement.jsx";
+// 2026-07-21 — RatesManagementScreen/CommissionPolicyManagement 직접 사용 제거 → AdminRatesFees 3탭 통합.
+import { AdminRatesFees } from "../components/AdminRatesFees.jsx";
 import { createEmptyPrincipal } from "../data/principals.js";
 // V14 Week 1 1F + 2A + 2B-3 — 진짜 API (시뮬 createTask + 시뮬 22건 + RecommendScreen 폐기)
 // Phase 3-1 — 정책 호출은 DB (commissionPoliciesDb.js) 측 어댑터 사용. 시트 calculateFee / getAllPolicies 폐기.
@@ -3659,9 +3659,15 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   // Phase 2 — 수수료정책 관리 (admin/owner/operator)
-  if (screen === "commissionPolicy") {
+  // 2026-07-21 — "단가 · 수수료" 통합 (사장님 승인 시안): 옛 ratesManagement / commissionPolicy 진입도
+  //   AdminRatesFees 3탭 컨테이너로. 옛 screen id 는 해당 탭으로 열림 (호환).
+  if (screen === "commissionPolicy" || screen === "ratesFees" || screen === "ratesManagement") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <CommissionPolicyManagement user={user} onBack={goBack}/>
+      <AdminRatesFees
+        user={user}
+        onBack={goBack}
+        initialTab={screen === "ratesManagement" ? "rates" : screen === "commissionPolicy" ? "list" : "rates"}
+      />
     </Shell>;
   }
   // V11-2-fix — 유솔 N 워크스페이스 (단일 라우트, 5탭 컨테이너 내부)
@@ -3835,13 +3841,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <AdminPcPrincipalAccount t={t} user={user}/>
     </Shell>;
   }
-  if (screen === "ratesManagement") {
-    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <RatesManagementScreen
-        onBack={goBack}
-      />
-    </Shell>;
-  }
+  // 2026-07-21 — ratesManagement 별도 분기 제거 — 위 "단가 · 수수료" 통합 분기가 처리.
   if (screen === "naverUpload") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <NaverUploadScreen
