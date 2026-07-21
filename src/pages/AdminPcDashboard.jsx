@@ -94,7 +94,7 @@ export function AdminPcDashboard({
     }).length,
     [apiTasks, todayStr]
   );
-  const ownerToday = stats.revenue?.owner;   // 권한 없으면 undefined → 칸 숨김
+  const ownerToday = stats.revenue?.margin;  // dashboardStats 는 margin 키 (권한 없으면 undefined → 칸 숨김)
 
   return (
     <div style={{
@@ -246,9 +246,10 @@ function WorkStatusCard({
       cursor: "pointer", fontFamily: "inherit", minWidth: 0,
     }}>
       <div style={{
-        fontSize: 21, fontWeight: 800,
+        fontSize: 27, fontWeight: 800,
         color: hot ? "#F87171" : "var(--text-primary)",
         fontVariantNumeric: "tabular-nums",
+        lineHeight: 1.1,
       }}>{n}</div>
       <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-secondary)", marginTop: 2 }}>{label}</div>
       <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 2 }}>{desc}</div>
@@ -416,13 +417,13 @@ function CompactCard({ icon, label, count, actionLabel, onClick, color }) {
       background: "var(--bg-elevated)",
       border: "1px solid var(--border)",
       borderRadius: 14,
-      padding: "18px 22px",
+      padding: "12px 16px",
       cursor: "pointer",
       fontFamily: "inherit",
       textAlign: "left",
       display: "grid",
       gridTemplateColumns: "auto 1fr auto",
-      gap: 16,
+      gap: 12,
       alignItems: "center",
       transition: "border-color 0.1s",
     }}
@@ -430,7 +431,7 @@ function CompactCard({ icon, label, count, actionLabel, onClick, color }) {
     onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
     >
       <span style={{
-        width: 38, height: 38, borderRadius: 9,
+        width: 32, height: 32, borderRadius: 9,
         background: iconBg,
         fontSize: 18,
         display: "inline-flex", alignItems: "center", justifyContent: "center",
