@@ -22,7 +22,7 @@
 // 색 톤 — AdminPcRevenuePanel 과 동일.
 
 import { useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Wallet, Calendar } from "lucide-react";
+import { ChevronLeft, ChevronRight, Wallet, Calendar, Download } from "lucide-react";
 import { todayYmd } from "../utils/dateLabel.js";
 import {
   computeRevenueByYmRange,
@@ -30,6 +30,8 @@ import {
   computeRevenueByEngineer,
   getMonthRange,
 } from "../utils/revenueStats.js";
+// 2026-07-21 — 기사별 월 수익 CSV 다운로드 (사장님 spec: 출장비 포함, 엑셀에서 열림)
+import { downloadEngineerEarningsCsv } from "../utils/engineerEarningsExport.js";
 
 const COLOR_ENGINEER  = "#3B82F6";
 const COLOR_PRINCIPAL = "#F59E0B";
@@ -409,6 +411,10 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
             totalDataset={month}
             emptyText="이 달 기사 기여 없음"
             title="👷 기사별 기여 (이 달)"
+            onDownload={(row) => downloadEngineerEarningsCsv({
+              apiTasks, ym: selectedYm,
+              engineerId: row.id, engineerName: row.name, user,
+            })}
           />
         </div>
       </div>
@@ -424,7 +430,7 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
 //   · "(미배정)" row 도 그대로 노출 (합계 정합성)
 //   · 비중% = (row.owner / totalDataset.owner) × 100. 총 마진이 0이면 "-" 표시
 // ──────────────────────────────────────────────
-function EngineerContributionTable({ t, rows, totalDataset, emptyText, title }) {
+function EngineerContributionTable({ t, rows, totalDataset, emptyText, title, onDownload }) {
   const totals = totalDataset || { count: 0, total: 0, engineer: 0, owner: 0 };
 
   // 합계 행 — rows 합산. totalDataset 과 동일해야 함 (검증용 — UI 표시는 totalDataset 그대로).
@@ -501,8 +507,27 @@ function EngineerContributionTable({ t, rows, totalDataset, emptyText, title }) 
                 border: `1px solid ${t.border}`,
                 opacity: isUnassigned ? 0.7 : 1,
               }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>
-                  {r.name || "—"}
+                <span style={{
+                  fontSize: 13, fontWeight: 700, color: t.text,
+                  display: "inline-flex", alignItems: "center", gap: 7, minWidth: 0,
+                }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {r.name || "—"}
+                  </span>
+                  {/* 2026-07-21 — 기사 월 수익 CSV (출장비 포함). 월 표에서만 노출 (onDownload prop). */}
+                  {onDownload && !isUnassigned && (
+                    <button onClick={() => onDownload(r)}
+                      title={`${r.name} 이 달 수익 엑셀 다운로드`}
+                      style={{
+                        padding: "3px 6px", flexShrink: 0,
+                        background: "transparent", border: `1px solid ${t.border}`,
+                        borderRadius: 6, color: t.textSecondary,
+                        cursor: "pointer", display: "inline-flex", alignItems: "center",
+                        fontFamily: "inherit",
+                      }}>
+                      <Download size={12}/>
+                    </button>
+                  )}
                 </span>
                 <span className="mono" style={{
                   fontSize: 12, textAlign: "right", color: t.text, fontWeight: 700,
