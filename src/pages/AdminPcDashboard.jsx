@@ -159,14 +159,8 @@ export function AdminPcDashboard({
           serverRanges={dashRanges}
         />
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          <CompactCard
-            icon="📨"
-            label="홈페이지 접수함"
-            count={inquiriesNewCount}
-            actionLabel={inquiriesNewCount > 0 ? "신규 →" : "열기 →"}
-            onClick={onClickInquiries}
-            color={inquiriesNewCount > 0 ? "#DC2626" : undefined}
-          />
+          {/* 2026-07-21 v4 — 홈페이지 접수함 대형 카드 승격 (사장님 spec: 중요). */}
+          <InquiriesBigCard count={inquiriesNewCount} onClick={onClickInquiries}/>
           <CompactCard
             icon="🔄"
             label="재배정 요청"
@@ -184,9 +178,7 @@ export function AdminPcDashboard({
           />
           {/* 원청별 오늘 — 우 컬럼으로 이동 (옛 풀폭) */}
           <AdminPcTodayByPrincipal apiTasks={apiTasks}/>
-          {/* 2026-07-21 v3 — 최근 7일 매출 추이 (사장님 spec: 우측 빈 공간 그래프로).
-                computeRevenueByYmRange 일자별 재사용 — 새 계산식 없음. */}
-          <Last7RevenueCard apiTasks={apiTasks} user={user}/>
+          {/* 2026-07-21 v4 — 최근 7일 매출 카드 제거 (사장님 spec). */}
         </div>
       </div>
 
@@ -859,71 +851,40 @@ const PRINCIPAL_ORDER = [
 ];
 const USOLN_CODE = "usol_n";
 
-// 2026-07-21 v3 — 최근 7일 매출 추이 (막대 = 총 매출, 라벨 = 요일 / 오늘 핑크 강조).
-//   데이터 = computeRevenueByYmRange 하루 단위 호출 (매출 리포트와 동일 계산 재사용).
-function Last7RevenueCard({ apiTasks = [], user }) {
-  const days = useMemo(() => {
-    const out = [];
-    const DOW = ["일", "월", "화", "수", "목", "금", "토"];
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date(Date.now() - i * 86400000);
-      const ymd = toKstYmd(d.toISOString());
-      const rev = computeRevenueByYmRange(apiTasks, ymd, ymd, user);
-      const kstDate = new Date(d.toLocaleDateString("en-US", { timeZone: "Asia/Seoul" }));
-      out.push({
-        ymd,
-        dow: i === 0 ? "오늘" : DOW[isNaN(kstDate.getTime()) ? 0 : kstDate.getDay()],
-        total: Number(rev?.total) || 0,
-        owner: Number(rev?.owner) || 0,
-        isToday: i === 0,
-      });
-    }
-    return out;
-  }, [apiTasks, user]);
-
-  const max = Math.max(1, ...days.map(d => d.total));
-  const fmtShort = (n) => n >= 10000 ? `${Math.round(n / 10000)}만` : (n > 0 ? `${Math.round(n / 1000)}천` : "");
-
+// 2026-07-21 v4 — 홈페이지 접수함 대형 카드 (사장님 spec: 중요 — 우 컬럼 최상단, 크게).
+//   신규 1건+ 이면 핑크 강조 + 안내 문구. 클릭 → 접수함 화면 (기존 동일).
+function InquiriesBigCard({ count = 0, onClick }) {
+  const hot = count > 0;
   return (
-    <div style={{
-      background: "var(--bg-elevated)", border: "1px solid var(--border)",
-      borderRadius: 14, padding: "16px 18px",
+    <button onClick={onClick} style={{
+      background: hot ? "var(--accent-bg)" : "var(--bg-elevated)",
+      border: `1px solid ${hot ? "var(--accent)" : "var(--border)"}`,
+      borderRadius: 14,
+      padding: "18px 20px",
+      cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+      display: "flex", alignItems: "center", gap: 16,
     }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12 }}>
-        <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.3px" }}>📈 최근 7일 매출</span>
-        <span style={{ fontSize: 10, color: "var(--text-tertiary)", fontWeight: 600 }}>
-          완료 기준 · 매출 리포트와 동일 계산
-        </span>
+      <span style={{
+        width: 46, height: 46, borderRadius: 12,
+        background: "var(--accent-bg)",
+        fontSize: 22,
+        display: "inline-flex", alignItems: "center", justifyContent: "center",
+        flexShrink: 0,
+      }}>📨</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)" }}>홈페이지 접수함</div>
+        <div style={{ fontSize: 11.5, color: hot ? "var(--accent)" : "var(--text-secondary)", marginTop: 3, fontWeight: hot ? 700 : 500 }}>
+          {hot ? "새 문의가 기다리고 있어요 — 빨리 전화할수록 접수율↑" : "새 문의 없음 · 클릭해서 전체 보기"}
+        </div>
       </div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 8, height: 96 }}>
-        {days.map(d => (
-          <div key={d.ymd} title={`${d.ymd} · ₩${d.total.toLocaleString("ko-KR")}`}
-            style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 4, minWidth: 0 }}>
-            <span style={{
-              fontSize: 9.5, fontWeight: 700,
-              color: d.isToday ? "var(--accent)" : "var(--text-tertiary)",
-              fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap",
-            }}>{fmtShort(d.total)}</span>
-            <div style={{
-              width: "100%",
-              height: `${Math.max(3, Math.round((d.total / max) * 68))}px`,
-              borderRadius: "6px 6px 2px 2px",
-              background: d.isToday ? "var(--accent)" : "var(--accent-bg)",
-              border: d.isToday ? "1px solid var(--accent)" : "1px solid rgba(255,27,141,0.30)",
-            }}/>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 5 }}>
-        {days.map(d => (
-          <span key={d.ymd} style={{
-            flex: 1, textAlign: "center",
-            fontSize: 9.5, fontWeight: d.isToday ? 800 : 600,
-            color: d.isToday ? "var(--accent)" : "var(--text-tertiary)",
-          }}>{d.dow}</span>
-        ))}
-      </div>
-    </div>
+      <span style={{
+        fontSize: 34, fontWeight: 800,
+        color: hot ? "var(--accent)" : "var(--text-primary)",
+        fontVariantNumeric: "tabular-nums", letterSpacing: "-1px",
+        flexShrink: 0,
+      }}>{count}</span>
+      <span style={{ fontSize: 12, fontWeight: 800, color: "var(--accent)", flexShrink: 0 }}>열기 →</span>
+    </button>
   );
 }
 

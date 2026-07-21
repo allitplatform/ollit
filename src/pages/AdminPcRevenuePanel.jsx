@@ -544,24 +544,7 @@ function EngineerSettlementSection({ apiTasks = [], period, periodLabel, onClick
         );
       })}
 
-      {moreCount > 0 && typeof onClickAll === "function" && (
-        <button
-          type="button"
-          onClick={onClickAll}
-          style={{
-            marginTop: 4,
-            padding: "7px 10px",
-            background: "transparent",
-            border: "1px solid var(--border)",
-            borderRadius: 7,
-            color: "var(--text-secondary)",
-            fontSize: 11, fontWeight: 700,
-            cursor: "pointer", fontFamily: "inherit",
-          }}
-        >
-          전체 {list.length}명 →
-        </button>
-      )}
+      {/* 2026-07-21 — "전체 N명" 버튼 제거 (사장님 spec — 아래 "원청별·기사별 자세히" 가 담당). */}
     </div>
   );
 }
