@@ -101,14 +101,14 @@ import { SettingsScreen } from "../components/SettingsScreen.jsx";
 import { CompanyAccountScreen } from "../components/CompanyAccountScreen.jsx";
 import { UserListScreen } from "../components/UserListScreen.jsx";
 import { UserEditScreen } from "../components/UserEditScreen.jsx";
-// 2026-07-21 — NotificationsScreen(알림 설정) 은 SettingsScreen 으로 통합 — import 제거.
+import { NotificationsScreen as NotiSettingsScreen } from "../components/NotificationsScreen.jsx";
 import { createEmptyUser } from "../data/users.js";
 import { PrincipalListScreen } from "../components/PrincipalListScreen.jsx";
 import { PrincipalEditScreen } from "../components/PrincipalEditScreen.jsx";
 import { NaverUploadScreen } from "../components/NaverUploadScreen.jsx";
 import { bulkInsertUsolNOrders } from "../lib/usolNTasksDb.js";
-// 2026-07-21 — RatesManagementScreen/CommissionPolicyManagement 직접 사용 제거 → AdminRatesFees 3탭 통합.
-import { AdminRatesFees } from "../components/AdminRatesFees.jsx";
+import { RatesManagementScreen } from "../components/RatesManagementScreen.jsx";
+import { CommissionPolicyManagement } from "../components/admin/CommissionPolicyManagement.jsx";
 import { createEmptyPrincipal } from "../data/principals.js";
 // V14 Week 1 1F + 2A + 2B-3 — 진짜 API (시뮬 createTask + 시뮬 22건 + RecommendScreen 폐기)
 // Phase 3-1 — 정책 호출은 DB (commissionPoliciesDb.js) 측 어댑터 사용. 시트 calculateFee / getAllPolicies 폐기.
@@ -2289,6 +2289,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       month={calMonth}
       setMonth={setCalMonth}
       onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendarMonth")}
+      user={user}
     />
   ) : null;
 
@@ -3397,6 +3398,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
           month={calMonth}
           setMonth={setCalMonth}
           onTaskClick={(task) => openTaskDetailFromLight(task, "engineerCalendarMonth")}
+          user={user}
         />
       </Shell>;
     }
@@ -3622,20 +3624,26 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   // Step 9 — 통합 설정
-  // 2026-07-21 — 설정 통합: 옛 "notificationSettings" 진입도 이 화면으로 (NotificationsScreen 흡수).
-  //   중복 링크 props (원청/기사/단가/지역/사용자/회사계좌/정산/수수료정책/시트백업/유솔N) 전부 제거 — 사이드바가 담당.
-  if (screen === "settings" || screen === "notificationSettings") {
+  if (screen === "settings") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <SettingsScreen
         user={user}
         themeMode={mode}
         onBack={goBack}
         onLogout={onLogout}
-        onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
-        // 2026-07-21 v2 — 공지/사용자/회사계좌 → 설정 안 "관리" 카드 진입 (사이드바에서 제거).
-        onAnnouncements={() => setScreen("announcements")}
+        onPrincipals={() => setScreen("principalList")}
+        onEngineers={() => setScreen("engineerList")}
+        onRates={() => setScreen("ratesManagement")}
+        onRegions={() => setScreen("regionList")}
         onUsers={() => setScreen("userList")}
         onCompanyAccount={() => setScreen("companyAccount")}
+        onNotifications={() => setScreen("notificationSettings")}
+        onBackup={() => addToast({ type: "assignment", title: "백업 / 복원", message: "준비 중인 기능입니다" })}
+        onUsolN={(menuId) => setScreen(menuId)}
+        onSettlement={() => setScreen("settlement")}
+        onPrincipalSettlement={() => setScreen("principal_settlement")}
+        onCommissionPolicy={() => setScreen("commissionPolicy")}
+        onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
         autoPushOn={autoPushOn}
         onToggleAutoPush={async () => {
           // 2026-07-14 — 냉매충전 자동배정 푸시 ON/OFF (Mig 179).
@@ -3659,15 +3667,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   // Phase 2 — 수수료정책 관리 (admin/owner/operator)
-  // 2026-07-21 — "단가 · 수수료" 통합 (사장님 승인 시안): 옛 ratesManagement / commissionPolicy 진입도
-  //   AdminRatesFees 3탭 컨테이너로. 옛 screen id 는 해당 탭으로 열림 (호환).
-  if (screen === "commissionPolicy" || screen === "ratesFees" || screen === "ratesManagement") {
+  if (screen === "commissionPolicy") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <AdminRatesFees
-        user={user}
-        onBack={goBack}
-        initialTab={screen === "ratesManagement" ? "rates" : screen === "commissionPolicy" ? "list" : "rates"}
-      />
+      <CommissionPolicyManagement user={user} onBack={goBack}/>
     </Shell>;
   }
   // V11-2-fix — 유솔 N 워크스페이스 (단일 라우트, 5탭 컨테이너 내부)
@@ -3809,7 +3811,11 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       />
     </Shell>;
   }
-  // 2026-07-21 — "notificationSettings" 분기 제거 — 위 settings 분기가 함께 처리 (설정 통합).
+  if (screen === "notificationSettings") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+   <NotiSettingsScreen user={user} onBack={goBack}/>
+    </Shell>;
+  }
   // Step 5-8 F-4 — 회사 계좌 관리 (운영자/관리자만 / PERMISSIONS["menu.company_account"])
   if (screen === "companyAccount") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
@@ -3841,7 +3847,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <AdminPcPrincipalAccount t={t} user={user}/>
     </Shell>;
   }
-  // 2026-07-21 — ratesManagement 별도 분기 제거 — 위 "단가 · 수수료" 통합 분기가 처리.
+  if (screen === "ratesManagement") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <RatesManagementScreen
+        onBack={goBack}
+      />
+    </Shell>;
+  }
   if (screen === "naverUpload") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <NaverUploadScreen

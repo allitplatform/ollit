@@ -7,11 +7,13 @@
 //   ⚠️ 모바일 옛 EngineerCalendarScreen 그대로 (AdminApp.jsx PC 분기).
 
 import { useState, useMemo, useEffect } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
 import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
 import { formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
+// 2026-07-21 — 기사 월 수익 엑셀 다운로드 (사장님 spec: 이 화면에서 기사+월 고르고 바로 받기)
+import { downloadEngineerEarningsCsv } from "../utils/engineerEarningsExport.js";
 
 const KIND_COLOR = {
   cleaning:    "#0EA5E9",
@@ -60,6 +62,7 @@ export function AdminPcEngineerMonthlyCalendarScreen({
   year, setYear,
   month, setMonth,
   onTaskClick,
+  user,   // 2026-07-21 — 수익 엑셀 권한 체크용 (canSeeField)
 }) {
   const todayY = todayYmd();
   const [ty, tm] = todayY.split("-").map(Number);
@@ -219,6 +222,36 @@ export function AdminPcEngineerMonthlyCalendarScreen({
               <ChevronRight size={16}/>
             </NavBtn>
           </div>
+
+          {/* 2026-07-21 — 기사 월 수익 엑셀 (출장비 포함). 선택된 기사 × 이 달 CSV. */}
+          <button
+            onClick={() => {
+              if (!engineerId && !engineer) return;
+              downloadEngineerEarningsCsv({
+                apiTasks,
+                ym: `${safeYear}-${String(safeMonth).padStart(2, "0")}`,
+                engineerId: engineerId || engineer?.id,
+                engineerName: engineer?.name || "기사",
+                user,
+              });
+            }}
+            disabled={!engineerId && !engineer}
+            title="이 기사 · 이 달 수익 엑셀 다운로드 (출장비 포함)"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              padding: "8px 14px",
+              background: "var(--accent-bg)",
+              border: "1px solid var(--accent)",
+              borderRadius: 8,
+              color: "var(--accent)",
+              fontSize: 12, fontWeight: 800,
+              cursor: (engineerId || engineer) ? "pointer" : "default",
+              fontFamily: "inherit",
+              opacity: (engineerId || engineer) ? 1 : 0.5,
+            }}>
+            <Download size={14}/>
+            수익 엑셀
+          </button>
         </div>
       </div>
 
