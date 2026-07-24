@@ -18,14 +18,14 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ChevronLeft, ChevronRight, Plus, Minus, Receipt, Edit3, Trash2, X, Save } from "lucide-react";
 import {
   listExpenses, addExpense, listDistributions,
-  getUsolNTrackBMargin, getCumulativeCarryover,
+  getUsolNTrackBMargin,
   EXPENSE_CATEGORIES, EXPENSE_CATEGORY_KO,
 } from "../lib/bookkeepingDb.js";
 import { listOtherIncome } from "../lib/bookkeepingOtherIncomeDb.js";
 import { getUsolnAdjustment } from "../lib/bookkeepingUsolnAdjustmentDb.js";
 import {
   getCashflowSummary, listCashflow, addCashflow, updateCashflow, deleteCashflow,
-  fetchTaskNoMap,
+  getCashflowDayClose, fetchTaskNoMap,
 } from "../lib/bookkeepingCashflowDb.js";
 // 2026-06-29 — PC 통합본과 동일: 현금/천장 산출용 정산판 요약 RPC. 산식 변경 0건.
 import { getUsolnSettleBoardSummary } from "../lib/usolnSettleBoardDb.js";
@@ -59,6 +59,12 @@ function ymdToDow(ymd) {
   return isNaN(dt.getTime()) ? "" : KO_DOW_M[dt.getDay()];
 }
 function ymdToYm(ymd) { return (ymd || "").slice(0, 7); }
+function shiftYmd(ymd, delta) {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const dt = new Date(y, (m||1)-1, d||1);
+  dt.setDate(dt.getDate() + delta);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
 const fmtKRW = n => `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
 function fmtAmountInput(raw) {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -126,6 +132,18 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
   const actor = user?.user_id || user?.userId || user?.id;
   const isThisMonth = selectedYm === nowKstYm();
   const isBank = mode === "bank";
+
+  // 2026-07-24 — 통장 [일별|월별] 탭 (사장님 spec: 기본 = 오늘, 날짜 선택 가능)
+  const [bankView, setBankView] = useState("day");   // "day" | "month"
+  const [selectedDate, setSelectedDate] = useState(todayYmd);
+  const isToday = selectedDate === todayYmd;
+  const dayDow = ymdToDow(selectedDate);
+  // 일별 탭에서 날짜 이동 시 그 달 거래를 fetch 하도록 월 동기
+  useEffect(() => {
+    if (!isBank || bankView !== "day") return;
+    const ymOfDate = ymdToYm(selectedDate);
+    if (ymOfDate && ymOfDate !== selectedYm) setSelectedYm(ymOfDate);
+  }, [isBank, bankView, selectedDate, selectedYm]);
 
   // ── 일정산 (track A) — 클라 계산 (전체 매출/기사/원청/회사 몫 전부 사용)
   const monthRange = useMemo(() => {
@@ -220,26 +238,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
     return () => { alive = false; };
   }, [selectedYm, actor, isBank]);
 
-  // ── 누적 이월 (Mig 129)
-  const [cum, setCum] = useState({ cumulative_carryover: 0, start_month: "2026-04" });
-  const [cumLoading, setCumLoading] = useState(false);
-  useEffect(() => {
-    if (!actor || isBank) return;
-    let alive = true;
-    setCumLoading(true);
-    (async () => {
-      const res = await getCumulativeCarryover(selectedYm, actor);
-      if (!alive) return;
-      if (res?.ok) {
-        setCum({
-          cumulative_carryover: Number(res.cumulative_carryover) || 0,
-          start_month: res.start_month || "2026-04",
-        });
-      }
-      setCumLoading(false);
-    })().catch(() => { if (alive) setCumLoading(false); });
-    return () => { alive = false; };
-  }, [selectedYm, actor, isBank]);
+  // 2026-07-24 — 누적 이월 표시 제거 (사장님 spec) → RPC 호출도 제거.
 
   // ── 통장 요약 (Mig 122) + 거래 목록 — 두 화면 다 사용 (손익은 잔고 표시용)
   const [cashflow, setCashflow] = useState({ month_in: 0, month_out: 0, current_balance: 0 });
@@ -249,15 +248,18 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
   const [cfReloadTick, setCfReloadTick] = useState(0);
   const [cfDialog, setCfDialog] = useState(null);   // { mode:'add'|'edit'|'delete'|'expense', direction?, row? }
   const [taskNoMap, setTaskNoMap] = useState({});
+  // 일별 탭용 — 그날 마감 잔고 + in/out (Mig 158 RPC)
+  const [dayClose, setDayClose] = useState({ day_in: 0, day_out: 0, day_close_balance: 0 });
   useEffect(() => {
     if (!actor) return;
     let alive = true;
     setCashflowLoading(true);
     setCashflowListLoading(true);
     (async () => {
-      const [resSum, resList] = await Promise.all([
+      const [resSum, resList, resDay] = await Promise.all([
         getCashflowSummary(selectedYm, actor),
         isBank ? listCashflow(selectedYm, actor) : Promise.resolve({ ok: true, rows: [] }),
+        isBank ? getCashflowDayClose(selectedDate, actor) : Promise.resolve(null),
       ]);
       if (!alive) return;
       if (resSum?.ok) {
@@ -268,13 +270,26 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
         });
       }
       setCashflowRows(resList?.ok ? (resList.rows || []) : []);
+      if (resDay?.ok) {
+        setDayClose({
+          day_in:            Number(resDay.day_in)            || 0,
+          day_out:           Number(resDay.day_out)           || 0,
+          day_close_balance: Number(resDay.day_close_balance) || 0,
+        });
+      }
       setCashflowLoading(false);
       setCashflowListLoading(false);
     })().catch(() => {
       if (alive) { setCashflowLoading(false); setCashflowListLoading(false); }
     });
     return () => { alive = false; };
-  }, [selectedYm, actor, isBank, cfReloadTick]);
+  }, [selectedYm, selectedDate, actor, isBank, cfReloadTick]);
+
+  // 일별 탭 — 그날 거래만
+  const dayRows = useMemo(
+    () => (cashflowRows || []).filter(r => r.flow_date === selectedDate),
+    [cashflowRows, selectedDate]
+  );
 
   // ── 타임라인: 날짜별 그룹 (최신 날짜부터)
   const dayGroups = useMemo(() => {
@@ -320,7 +335,6 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
   const incomeTotal = incomeTrackA + usolNTotal + otherIncomeSum;
   const netProfit   = incomeTotal - expenseSum;
   const monthlyDiff = netProfit - distSum;
-  const cumValue    = Number(cum.cumulative_carryover) || 0;
 
   // ── 현금 / 천장 (PC 통합본과 동일 산식) — 손익 화면 분배·여유 카드용
   const [boardSummary, setBoardSummary] = useState({ months: [], start_month: "2026-04" });
@@ -398,34 +412,112 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
         <div style={{ flex: 1 }}/>
       </div>
 
-      {monthNav}
+      {/* 네비게이터 — 손익: 월 / 통장: 탭에 따라 일·월 */}
+      {!isBank && monthNav}
 
-      {/* ═══ 🏦 통장 — 잔고 히어로 + 버튼 3개 + 날짜별 타임라인 ═══ */}
+      {/* ═══ 🏦 통장 — [일별|월별] 탭 + 잔고 히어로 + 버튼 3개 + 거래 ═══ */}
       {isBank && <>
+
+      {/* 탭 — 일별(기본) / 월별 */}
+      <div style={{
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6,
+        padding: 4, marginBottom: 10,
+        background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 10,
+      }}>
+        {[
+          { key: "day",   label: "📆 일별" },
+          { key: "month", label: "🗓 월별" },
+        ].map(seg => {
+          const active = bankView === seg.key;
+          return (
+            <button key={seg.key} onClick={() => setBankView(seg.key)} style={{
+              padding: "9px 8px",
+              background: active ? t.bgElevated : "transparent",
+              border: active ? `1.5px solid ${t.accent}` : `1px solid transparent`,
+              borderRadius: 7, fontSize: 12, fontWeight: 800,
+              color: active ? t.text : t.textMuted,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>{seg.label}</button>
+          );
+        })}
+      </div>
+
+      {/* 일별 = 날짜 네비게이터 (date picker) / 월별 = 월 네비게이터 */}
+      {bankView === "day" ? (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 6,
+          padding: "8px 10px", marginBottom: 12,
+          background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 10,
+        }}>
+          <button onClick={() => setSelectedDate(s => shiftYmd(s, -1))} aria-label="이전 날" style={navBtn(t)}>
+            <ChevronLeft size={14}/>
+          </button>
+          <label style={{
+            flex: 1, position: "relative",
+            padding: "6px 10px", background: t.bgInset, border: `1.5px solid ${t.accent}`,
+            borderRadius: 7, fontSize: 13, fontWeight: 800, color: t.text, textAlign: "center",
+            fontVariantNumeric: "tabular-nums",
+            cursor: "pointer",
+          }}>
+            {selectedDate}{dayDow ? ` (${dayDow})` : ""}
+            <input type="date" value={selectedDate}
+              onChange={e => e.target.value && setSelectedDate(e.target.value)}
+              style={{
+                position: "absolute", inset: 0, opacity: 0, cursor: "pointer",
+                border: "none", background: "transparent", padding: 0,
+              }}/>
+          </label>
+          <button onClick={() => setSelectedDate(s => shiftYmd(s, +1))} aria-label="다음 날" style={navBtn(t)}>
+            <ChevronRight size={14}/>
+          </button>
+          <button onClick={() => setSelectedDate(todayYmd)} disabled={isToday} style={{
+            padding: "6px 10px",
+            background: isToday ? "transparent" : (t.accentBg || "rgba(0,123,255,0.1)"),
+            border: `1px solid ${isToday ? t.border : t.accent}`,
+            borderRadius: 7, fontSize: 10, fontWeight: 700,
+            color: isToday ? t.textMuted : t.accent,
+            cursor: isToday ? "default" : "pointer", fontFamily: "inherit",
+            opacity: isToday ? 0.6 : 1,
+          }}>
+            오늘
+          </button>
+        </div>
+      ) : monthNav}
 
       <div style={{
         background: t.bgElevated, border: `1px solid ${t.border}`,
         borderTop: `3px solid ${C_REMAIN}`,
         borderRadius: 12, padding: "14px 13px", marginBottom: 8, textAlign: "center",
       }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: t.textMuted }}>지금 통장에</div>
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: t.textMuted }}>
+          {bankView === "day" ? (isToday ? "지금 통장에" : "이날 마감 잔고") : "지금 통장에"}
+        </div>
         {cashflowLoading ? (
           <div style={{ fontSize: 12, color: t.textMuted, padding: "8px 0" }}>불러오는 중...</div>
         ) : (
           <div className="mono" style={{
             marginTop: 3,
             fontSize: 27, fontWeight: 900,
-            color: cashflow.current_balance < 0 ? t.danger : C_REMAIN,
+            color: (bankView === "day" ? dayClose.day_close_balance : cashflow.current_balance) < 0 ? t.danger : C_REMAIN,
             fontVariantNumeric: "tabular-nums", letterSpacing: "-0.5px",
-          }}>{fmtMoney(cashflow.current_balance)}</div>
+          }}>{fmtMoney(bankView === "day" ? dayClose.day_close_balance : cashflow.current_balance)}</div>
         )}
         <div style={{
           display: "flex", justifyContent: "center", gap: 14,
           marginTop: 6, fontSize: 11, fontWeight: 600,
           fontVariantNumeric: "tabular-nums",
         }}>
-          <span style={{ color: t.success }}>{Number(selectedYm.slice(5, 7))}월 +{fmtMan(cashflow.month_in)}</span>
-          <span style={{ color: t.danger }}>−{fmtMan(cashflow.month_out)}</span>
+          {bankView === "day" ? (
+            <>
+              <span style={{ color: t.success }}>이날 +{fmtMan(dayClose.day_in)}</span>
+              <span style={{ color: t.danger }}>−{fmtMan(dayClose.day_out)}</span>
+            </>
+          ) : (
+            <>
+              <span style={{ color: t.success }}>{Number(selectedYm.slice(5, 7))}월 +{fmtMan(cashflow.month_in)}</span>
+              <span style={{ color: t.danger }}>−{fmtMan(cashflow.month_out)}</span>
+            </>
+          )}
         </div>
 
         {/* 버튼 3개 — 입금 / 출금 / 지출 */}
@@ -457,11 +549,36 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
         </div>
       </div>
 
-      {/* 날짜별 거래 타임라인 */}
+      {/* 거래 — 일별: 그날 리스트 / 월별: 날짜별 타임라인 */}
       {cashflowListLoading ? (
         <div style={{ padding: "14px", textAlign: "center", color: t.textMuted, fontSize: 11 }}>
           불러오는 중...
         </div>
+      ) : bankView === "day" ? (
+        dayRows.length === 0 ? (
+          <div style={{
+            padding: "18px 12px", textAlign: "center",
+            background: t.bgElevated, border: `1px dashed ${t.border}`, borderRadius: 10,
+            color: t.textMuted, fontSize: 11,
+          }}>
+            이 날짜엔 거래가 없어요
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 10.5, fontWeight: 800, color: t.textSecondary, margin: "2px 2px 6px" }}>
+              이날 거래 {dayRows.length}건
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              {dayRows.map(r => (
+                <CashflowMobileRow key={r.id} t={t} row={r}
+                  taskNo={taskNoMap[r.source_ref] || ""}
+                  onEdit={() => setCfDialog({ mode: "edit", direction: r.direction, row: r })}
+                  onDelete={() => setCfDialog({ mode: "delete", row: r })}
+                />
+              ))}
+            </div>
+          </>
+        )
       ) : dayGroups.length === 0 ? (
         <div style={{
           padding: "18px 12px", textAlign: "center",
@@ -681,16 +798,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
         </div>
       </div>
 
-      {/* ⑤ 누적 + PC 안내 */}
-      <div style={{
-        padding: "9px 12px",
-        background: t.bgInset, border: `1px dashed ${t.border}`,
-        borderRadius: 10,
-        fontSize: 10.5, color: t.textSecondary, textAlign: "center", lineHeight: 1.6,
-      }}>
-        📦 {cum.start_month?.slice(5, 7) ? `${Number(cum.start_month.slice(5, 7))}월부터` : ""} 쌓인 순이익 {cumLoading ? "…" : fmtMoney(cumValue)}
-        <br/>분배·기타 수입 입력은 PC 가계부에서
-      </div>
+      {/* 2026-07-24 — 하단 누적·PC 안내 박스 제거 (사장님 spec) */}
 
       </>}
 
@@ -699,7 +807,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
         <CashflowDialog t={t} mode="add"
           actor={actor}
           direction={cfDialog.direction}
-          defaultDate={isThisMonth ? todayYmd : `${selectedYm}-01`}
+          defaultDate={isBank && bankView === "day" ? selectedDate : (isThisMonth ? todayYmd : `${selectedYm}-01`)}
           onClose={() => setCfDialog(null)}
           onSaved={() => { setCfDialog(null); setCfReloadTick(n => n + 1); }}
         />
@@ -722,7 +830,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
       )}
       {cfDialog?.mode === "expense" && (
         <ExpenseDialog t={t} actor={actor}
-          defaultDate={isThisMonth ? todayYmd : `${selectedYm}-01`}
+          defaultDate={isBank && bankView === "day" ? selectedDate : (isThisMonth ? todayYmd : `${selectedYm}-01`)}
           onClose={() => setCfDialog(null)}
           onSaved={() => {
             setCfDialog(null);

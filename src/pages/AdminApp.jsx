@@ -76,7 +76,12 @@ import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScre
 import { startDailyAlertScheduler, stopDailyAlertScheduler } from "../utils/dailyAlertScheduler.js";
 import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../utils/dashboardStats.js";
 // 2026-07-14 — Stage 3: 기간 집계 RPC 날짜 계산용 (매출 카드와 동일 규칙).
-import { getMonthStart, getPrevMonthSameDay, getPrevMonthStart } from "../utils/revenueStats.js";
+import { getMonthStart, getPrevMonthSameDay, getPrevMonthStart, getMonthRange, computeRevenueByYmRange } from "../utils/revenueStats.js";
+// 2026-07-24 — 개요 탭 돈 스트립 미리보기 (통장 잔고 · 이번 달 순이익 — 손익 화면과 동일 산식)
+import { getCashflowSummary as ovGetCashflowSummary, getCashflowDayClose as ovGetCashflowDayClose } from "../lib/bookkeepingCashflowDb.js";
+import { getUsolNTrackBMargin as ovGetUsolNTrackBMargin, listExpenses as ovListExpenses } from "../lib/bookkeepingDb.js";
+import { listOtherIncome as ovListOtherIncome } from "../lib/bookkeepingOtherIncomeDb.js";
+import { getUsolnAdjustment as ovGetUsolnAdjustment } from "../lib/bookkeepingUsolnAdjustmentDb.js";
 // 2026-06-12 — PC 셸 (1024px+). isPc true 일 때 Shell 함수가 AdminPcShell 로 wrap.
 import { useIsPc } from "../utils/useIsPc.js";
 // 2026-06-17 — PC 새 접수 폼 (Stage 2). 모바일은 기존 NewReceptionFormScreen 유지.
@@ -4381,7 +4386,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickMobileBank={onClickMobileBank} onClickMobileProfit={onClickMobileProfit} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount} onClickEngMessages={onClickEngMessages} engMsgUnread={engMsgUnread}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} user={user} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickMobileBank={onClickMobileBank} onClickMobileProfit={onClickMobileProfit} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount} onClickEngMessages={onClickEngMessages} engMsgUnread={engMsgUnread}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onEngineerCalendar={onEngineerCalendar} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -4452,21 +4457,113 @@ function MobileTodayBar({ t, apiTasks = [], completedToday = 0, inProgress = 0, 
   );
 }
 
-function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, onClickEngMessages, engMsgUnread = 0 }) {
-  // 2026-07-24 — 개요 탭 v2 (사장님 확정: 🅐 검색 바로형 · 방식 1 화면 점프).
-  //   · 검색창 = 아이콘만, placeholder·안내문 없음 (사장님 spec "깔끔하게").
-  //     입력 후 엔터/🔍 → 전체 작업 화면으로 점프 (검색어 프리필, 전화번호 검색 포함).
-  //     빈 채로 눌러도 전체 작업 진입 (기존 카드 대체).
-  //   · 유솔N → 설정으로 이동 (세척 시즌 종료 — 내년 복귀 예정). 공지사항 → 설정으로.
-  //   · 유지: 접수함 대형 카드 / 달력·가계부·문서 3타일 / 새 접수 등록.
+function OverviewTab({ t, user, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, onClickEngMessages, engMsgUnread = 0 }) {
+  // 2026-07-24 — 개요 탭 v3 (사장님 확정: 🅐 리스트형).
+  //   · 검색창 유지 (엔터/🔍 → 전체 작업 점프).
+  //   · 접수함·메시지함·통장·손익·문서 = 아이콘 줄 리스트 한 카드 — 한 화면, 스크롤 없음.
+  //   · 통장 줄 = 잔고 + 오늘 입출 미리보기 / 손익 줄 = 이번 달 순이익 미리보기 (1회 로드).
+  //   · 새 접수 등록 버튼 유지.
   const [ovQuery, setOvQuery] = useState("");
   const submitSearch = () => {
     if (onSearchAllTasks) onSearchAllTasks(ovQuery.trim());
     else if (onClickAllTasks) onClickAllTasks();
     setOvQuery("");
   };
+
+  // ── 통장·손익 미리보기 (개요 진입 시 1회 — 손익 화면과 동일 산식·RPC)
+  const ovActor = user?.user_id || user?.userId || user?.id || null;
+  const [moneyPrev, setMoneyPrev] = useState(null);   // { balance, dayIn, dayOut, netProfit }
+  useEffect(() => {
+    if (!ovActor) return;
+    let alive = true;
+    const kstToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(new Date());
+    const ym = kstToday.slice(0, 7);
+    const [yy, mm] = ym.split("-").map(Number);
+    (async () => {
+      const range = getMonthRange(yy, mm);
+      const rev = computeRevenueByYmRange(apiTasks, range.start, range.end, user);
+      const [sum, day, usoln, adj, other, exp] = await Promise.all([
+        ovGetCashflowSummary(ym, ovActor),
+        ovGetCashflowDayClose(kstToday, ovActor),
+        ovGetUsolNTrackBMargin(ym, ovActor),
+        ovGetUsolnAdjustment(ym, ovActor),
+        ovListOtherIncome(ym, ovActor),
+        ovListExpenses(ym, ovActor),
+      ]);
+      if (!alive) return;
+      const otherSum = (other?.rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const expSum   = (exp?.rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      const netProfit = (Number(rev?.owner) || 0)
+        + (usoln?.ok ? (Number(usoln.amount) || 0) : 0)
+        + (adj?.ok && adj.row ? (Number(adj.row.amount) || 0) : 0)
+        + otherSum - expSum;
+      setMoneyPrev({
+        balance: sum?.ok ? (Number(sum.current_balance) || 0) : null,
+        dayIn:   day?.ok ? (Number(day.day_in)  || 0) : 0,
+        dayOut:  day?.ok ? (Number(day.day_out) || 0) : 0,
+        netProfit,
+      });
+    })().catch(() => { /* 미리보기 실패 — 줄은 그대로, 숫자만 생략 */ });
+    return () => { alive = false; };
+  }, [ovActor]);   // apiTasks 변동마다 재호출 X — 개요 진입 시 1회
+
+  const fmtManOv = (n) => {
+    const v = Number(n) || 0;
+    const sign = v < 0 ? "−" : "";
+    const a = Math.abs(v);
+    if (a >= 10000) return `${sign}${Math.round(a / 10000).toLocaleString("ko-KR")}만`;
+    return `${sign}${a.toLocaleString("ko-KR")}`;
+  };
   return (
     <div style={{ padding: "0 16px 16px" }}>
+      {/* 💰 돈 스트립 — 🅒 히어로 (통장 잔고 · 이번 달 순이익, 누르면 각 화면) */}
+      {(onClickMobileBank || onClickMobileProfit) && (
+        <div style={{
+          display: "flex",
+          background: "var(--bg-elevated)",
+          border: "0.5px solid var(--border)",
+          borderRadius: 12, overflow: "hidden",
+          marginBottom: 10,
+        }}>
+          {onClickMobileBank && (
+            <button onClick={onClickMobileBank} style={{
+              flex: 1, padding: "11px 8px", textAlign: "center",
+              background: "transparent", border: "none",
+              borderRight: onClickMobileProfit ? "0.5px solid var(--border)" : "none",
+              cursor: "pointer", fontFamily: "inherit",
+            }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-tertiary, var(--text-secondary))" }}>🏦 통장</div>
+              <div className="mono" style={{
+                fontSize: 16, fontWeight: 900, color: "#2563EB", marginTop: 2,
+                fontVariantNumeric: "tabular-nums",
+              }}>{moneyPrev?.balance != null ? fmtManOv(moneyPrev.balance) : "…"}</div>
+              <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 1, fontVariantNumeric: "tabular-nums" }}>
+                {moneyPrev ? `오늘 +${fmtManOv(moneyPrev.dayIn)} · −${fmtManOv(moneyPrev.dayOut)}` : " "}
+              </div>
+            </button>
+          )}
+          {onClickMobileProfit && (
+            <button onClick={onClickMobileProfit} style={{
+              flex: 1, padding: "11px 8px", textAlign: "center",
+              background: "transparent", border: "none",
+              cursor: "pointer", fontFamily: "inherit",
+            }}>
+              <div style={{ fontSize: 9.5, fontWeight: 700, color: "var(--text-tertiary, var(--text-secondary))" }}>📊 순이익</div>
+              <div className="mono" style={{
+                fontSize: 16, fontWeight: 900, marginTop: 2,
+                color: moneyPrev && moneyPrev.netProfit < 0 ? "#DC2626" : "#00875A",
+                fontVariantNumeric: "tabular-nums",
+              }}>{moneyPrev ? `${moneyPrev.netProfit > 0 ? "+" : ""}${fmtManOv(moneyPrev.netProfit)}` : "…"}</div>
+              <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 1 }}>
+                {`${Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", month: "2-digit" }).format(new Date()))}월 남은 돈`}
+              </div>
+            </button>
+          )}
+        </div>
+      )}
+
       {/* 🔍 작업 검색 — 전체 작업 점프 (최다 사용 동선) */}
       {(onSearchAllTasks || onClickAllTasks) && (
         <div style={{
@@ -4500,128 +4597,63 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
         </div>
       )}
 
-      {/* 홈페이지 접수함 — 신규 카운트 대형 카드 (유지) */}
-      {onClickInquiries && (() => {
-        const hasNew = inquiriesNewCount > 0;
-        return (
-          <button
-            onClick={onClickInquiries}
-            style={{
-              width: "100%",
-              padding: "12px 14px",
-              background: hasNew ? "#DC2626" : "var(--bg-elevated)",
-              border: hasNew ? "none" : "0.5px solid var(--border)",
-              borderRadius: 10,
-              marginBottom: 14,
-              cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 12,
-              fontFamily: "inherit",
-              textAlign: "left",
-            }}
-          >
-            <span style={{
-              width: 38, height: 38, flexShrink: 0,
-              background: hasNew ? "#fff" : "var(--accent-bg)",
-              borderRadius: 9,
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <MessageCircle size={20} style={{ color: hasNew ? "#DC2626" : "var(--accent)" }}/>
-            </span>
-            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-              <span style={{
-                fontSize: hasNew ? 16 : 15,
-                fontWeight: hasNew ? 800 : 500,
-                color: hasNew ? "#fff" : "var(--text-primary)",
-                letterSpacing: "-0.2px",
-              }}>홈페이지 접수함</span>
-              <span style={{
-                fontSize: 12,
-                fontWeight: hasNew ? 700 : 400,
-                color: hasNew ? "#FFE2E2" : "var(--text-secondary)",
-              }}>
-                {hasNew
-                  ? `신규 ${inquiriesNewCount}건${inquiriesTodayCount > 0 ? ` · 오늘 ${inquiriesTodayCount}건` : ""}`
-                  : (inquiriesTodayCount > 0 ? `오늘 ${inquiriesTodayCount}건 · 통화·스팸 처리` : "통화·스팸 처리")}
-              </span>
-            </div>
-            <ChevronRight size={18} style={{ color: hasNew ? "#fff" : "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
-          </button>
-        );
-      })()}
-
-      {/* 2026-07-24 — 💬 기사 메시지함 (Mig 188). 안읽음 있으면 강조 + 배지. */}
-      {onClickEngMessages && (() => {
-        const hasUnread = engMsgUnread > 0;
-        return (
-          <button
-            onClick={onClickEngMessages}
-            style={{
-              width: "100%",
-              padding: "12px 14px",
-              background: "var(--bg-elevated)",
-              border: hasUnread ? "1px solid var(--accent)" : "0.5px solid var(--border)",
-              borderRadius: 10,
-              marginBottom: 14,
-              cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 12,
-              fontFamily: "inherit",
-              textAlign: "left",
-            }}
-          >
-            <span style={{
-              width: 38, height: 38, flexShrink: 0,
-              background: "var(--accent-bg)",
-              borderRadius: 9,
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              fontSize: 18,
-            }}>💬</span>
-            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-              <span style={{
-                fontSize: 15, fontWeight: hasUnread ? 800 : 500,
-                color: "var(--text-primary)", letterSpacing: "-0.2px",
-              }}>기사 메시지함</span>
-              <span style={{
-                fontSize: 12,
-                fontWeight: hasUnread ? 700 : 400,
-                color: hasUnread ? "var(--accent)" : "var(--text-secondary)",
-              }}>
-                {hasUnread ? `안 읽은 메시지 ${engMsgUnread}건` : "기사 메시지 · 요청"}
-              </span>
-            </div>
-            {hasUnread && (
-              <span style={{
-                minWidth: 22, height: 22, borderRadius: 999,
-                background: "#F87171", color: "#fff",
-                fontSize: 11, fontWeight: 800,
-                display: "inline-flex", alignItems: "center", justifyContent: "center",
-                padding: "0 7px", flexShrink: 0,
-              }}>{engMsgUnread}</span>
-            )}
-            <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
-          </button>
-        );
-      })()}
-
-      {/* 통장 · 손익 · 문서 — 3타일 (2026-07-24: 가계부 해체 → 통장/손익 직행, 달력은 설정으로) */}
-      {(onClickMobileBank || onClickMobileProfit || onClickDocIssue) && (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 14 }}>
+      {/* 🅐 리스트 카드 — 접수함 / 메시지함 / 문서 (통장·손익은 상단 스트립이 담당) */}
+      {(onClickInquiries || onClickEngMessages || onClickDocIssue) && (
+        <div style={{
+          background: "var(--bg-elevated)",
+          border: "0.5px solid var(--border)",
+          borderRadius: 12, padding: "2px 12px",
+          marginBottom: 14,
+        }}>
           {[
-            onClickMobileBank   && { key: "bank",   icon: "🏦", label: "통장",     onClick: onClickMobileBank },
-            onClickMobileProfit && { key: "profit", icon: "📊", label: "손익",     onClick: onClickMobileProfit },
-            onClickDocIssue     && { key: "doc",    icon: "📄", label: "문서 발행", onClick: onClickDocIssue },
-          ].filter(Boolean).map(it => (
+            onClickInquiries && {
+              key: "inq", icon: "📥", iconBg: "var(--accent-bg)",
+              label: "홈페이지 접수함", sub: "통화·스팸 처리",
+              badge: inquiriesNewCount > 0
+                ? { text: `신규 ${inquiriesNewCount}`, bg: "#DC2626" }
+                : (inquiriesTodayCount > 0 ? { text: `오늘 ${inquiriesTodayCount}`, bg: "var(--accent)" } : null),
+              onClick: onClickInquiries,
+            },
+            onClickEngMessages && {
+              key: "msg", icon: "💬", iconBg: "rgba(124,58,237,0.10)",
+              label: "기사 메시지함", sub: "기사 메시지 · 요청",
+              badge: engMsgUnread > 0 ? { text: String(engMsgUnread), bg: "#F87171" } : null,
+              onClick: onClickEngMessages,
+            },
+            onClickDocIssue && {
+              key: "doc", icon: "📄", iconBg: "var(--bg-tertiary, var(--bg-secondary))",
+              label: "문서 발행", sub: "동의서 · 명세서",
+              badge: null,
+              onClick: onClickDocIssue,
+            },
+          ].filter(Boolean).map((it, idx, arr) => (
             <button key={it.key} onClick={it.onClick} style={{
-              padding: "12px 4px",
-              background: "var(--bg-elevated)",
-              border: "0.5px solid var(--border)",
-              borderRadius: 10,
-              cursor: "pointer", fontFamily: "inherit", textAlign: "center",
+              width: "100%", padding: "11px 2px",
+              background: "transparent", border: "none",
+              borderBottom: idx === arr.length - 1 ? "none" : "0.5px solid var(--border)",
+              cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+              display: "flex", alignItems: "center", gap: 10,
             }}>
-              <div style={{ fontSize: 17 }}>{it.icon}</div>
-              <div style={{
-                fontSize: 11, fontWeight: 700, color: "var(--text-primary)",
-                marginTop: 5, letterSpacing: "-0.2px", whiteSpace: "nowrap",
-              }}>{it.label}</div>
+              <span style={{
+                width: 32, height: 32, flexShrink: 0,
+                background: it.iconBg, borderRadius: 9,
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                fontSize: 15,
+              }}>{it.icon}</span>
+              <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+                <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
+                  {it.label}
+                </span>
+                <span style={{ fontSize: 10, color: "var(--text-secondary)" }}>{it.sub}</span>
+              </span>
+              {it.badge && (
+                <span style={{
+                  fontSize: 10, fontWeight: 800, borderRadius: 999,
+                  background: it.badge.bg, color: "#fff",
+                  padding: "3px 8px", flexShrink: 0,
+                }}>{it.badge.text}</span>
+              )}
+              <ChevronRight size={16} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
             </button>
           ))}
         </div>
