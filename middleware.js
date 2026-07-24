@@ -26,6 +26,10 @@ export const config = {
 const ALLDAY_OG = {
   title:       "올데이케어 - 에어컨 분해세척·냉매충전·설치·수리",
   description: "서울·경기 당일 출장. 냉매충전·분해세척·누설수리·설치",
+  // 2026-07-24 — <meta name="description"> 전용 (검색엔진 노출용). OG description 과 톤 통일.
+  //   원인: 네이버 서치어드바이저에서 사이트 설명이 index.html 기본값("현장과 사람을 잇는 운영 플랫폼")
+  //         으로 노출됨. OG 는 여기서 치환됐지만 일반 meta description 은 치환 대상에서 누락.
+  metaDescription: "서울·경기 당일 출장. 에어컨 분해세척·냉매충전·누설수리·설치 전문 올데이케어",
   image:       "https://xn--2n1bk06aikal6b92t.kr/og-alldaycare-v2.png",  // 카톡/CDN 캐시 무효화용 파일명 버전
   url:         "https://xn--2n1bk06aikal6b92t.kr",
 };
@@ -75,6 +79,11 @@ export default async function middleware(request) {
       .replace(
         /<meta property="og:url"[^>]*>/,
         `<meta property="og:url" content="${escapeAttr(ALLDAY_OG.url)}">`,
+      )
+      // 검색엔진(네이버·구글) 노출용 meta description — OG 와 별개로 치환 필요.
+      .replace(
+        /<meta name="description"[^>]*>/,
+        `<meta name="description" content="${escapeAttr(ALLDAY_OG.metaDescription)}">`,
       )
       .replace(
         /<title>[^<]*<\/title>/,
