@@ -1,0 +1,160 @@
+// 2026-07-24 — 운영자 기사 메시지함 (신규, Mig 188 · 사장님 확정 시안 v2).
+//   진입: 개요 탭 접수함 아래 "💬 기사 메시지함" 카드 (안읽음 배지).
+//   구성: 필터 칩 [전체/안읽음/요청] + 스레드 목록 (기사 이름 주인공) + 채팅 (MessageChatScreen 공용).
+//   요청 = kind !== 'general' 인 마지막 메시지 스레드.
+
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { ArrowLeft } from "lucide-react";
+import { adminListMessageThreads } from "../lib/taskMessagesDb.js";
+import {
+  MessageThreadCard, MessageChatScreen, DaySectionLabel, groupThreadsByDay,
+} from "./MessageCenter.jsx";
+
+const ACCENT = "#FF1B8D";
+
+export function AdminMessagesScreen({ user, onBack }) {
+  const actorId = user?.user_id || user?.userId || user?.id || null;
+
+  const [items, setItems]     = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [tick, setTick]       = useState(0);
+  const [filter, setFilter]   = useState("all");   // all | unread | request
+  const [openThread, setOpenThread] = useState(null);
+
+  const reload = useCallback(() => setTick(v => v + 1), []);
+
+  useEffect(() => {
+    if (!actorId) return;
+    let alive = true;
+    setLoading(true); setError("");
+    adminListMessageThreads({ actorId }).then(res => {
+      if (!alive) return;
+      if (!res.ok) { setError(res.error || "목록 실패"); setItems([]); }
+      else setItems(res.items);
+    }).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
+  }, [actorId, tick]);
+
+  const totalUnread = useMemo(
+    () => items.reduce((s, t) => s + (Number(t.unread_count) || 0), 0),
+    [items]
+  );
+  const requestCount = useMemo(
+    () => items.filter(t => t.last_kind && t.last_kind !== "general").length,
+    [items]
+  );
+  const filtered = useMemo(() => {
+    if (filter === "unread")  return items.filter(t => (Number(t.unread_count) || 0) > 0);
+    if (filter === "request") return items.filter(t => t.last_kind && t.last_kind !== "general");
+    return items;
+  }, [items, filter]);
+  const groups = useMemo(
+    () => groupThreadsByDay(filtered, t => t.last_at),
+    [filtered]
+  );
+
+  if (openThread) {
+    return (
+      <MessageChatScreen
+        role="admin"
+        actorId={actorId}
+        thread={openThread}
+        onBack={() => { setOpenThread(null); reload(); }}
+        onSent={reload}
+      />
+    );
+  }
+
+  const chips = [
+    { key: "all",     label: `전체 ${items.length}` },
+    { key: "unread",  label: `안읽음 ${totalUnread > 0 ? totalUnread : 0}` },
+    { key: "request", label: `요청 ${requestCount}` },
+  ];
+
+  const renderGroup = (label, arr) => arr.length === 0 ? null : (
+    <div key={label}>
+      <DaySectionLabel>{label}</DaySectionLabel>
+      {arr.map(t => (
+        <MessageThreadCard
+          key={`${t.engineer_user}-${t.task_id || "general"}`}
+          avatarLabel={(t.engineer_name || "기").slice(0, 1)}
+          avatarTone="eng"
+          title={t.engineer_name || t.engineer_code || "기사"}
+          kind={t.last_kind}
+          taskLabel={t.task_no ? `${t.task_no} ${t.customer_name || ""}`.trim() : null}
+          preview={t.last_body}
+          previewFromMe={!!t.last_from_me}
+          at={t.last_at}
+          unread={Number(t.unread_count) || 0}
+          onClick={() => setOpenThread({
+            engineerUserId: t.engineer_user,
+            engineerName: t.engineer_name || "",
+            taskId: t.task_id || null,
+            taskNo: t.task_no || null,
+            customerName: t.customer_name || null,
+          })}
+        />
+      ))}
+    </div>
+  );
+
+  return (
+    <div style={{
+      minHeight: "100dvh", background: "var(--bg-primary)", color: "var(--text-primary)",
+      paddingBottom: "calc(30px + env(safe-area-inset-bottom))",
+    }}>
+      {/* 헤더 */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 10,
+        padding: "16px 16px 12px", borderBottom: "1px solid var(--border)",
+      }}>
+        <button onClick={onBack} aria-label="뒤로" style={{
+          background: "transparent", border: "none", padding: 4,
+          color: "var(--text-primary)", cursor: "pointer", display: "flex",
+        }}><ArrowLeft size={18}/></button>
+        <span style={{ fontSize: 16, fontWeight: 800 }}>💬 기사 메시지함</span>
+        {totalUnread > 0 && (
+          <span style={{
+            background: "#F87171", color: "#fff", fontSize: 10, fontWeight: 800,
+            borderRadius: 999, padding: "2px 8px",
+          }}>{totalUnread}</span>
+        )}
+      </div>
+
+      <div style={{ padding: "12px 14px" }}>
+        {/* 필터 칩 */}
+        <div style={{ display: "flex", gap: 5, marginBottom: 10 }}>
+          {chips.map(c => {
+            const on = filter === c.key;
+            return (
+              <button key={c.key} onClick={() => setFilter(c.key)} style={{
+                padding: "6px 12px", borderRadius: 999,
+                fontSize: 10.5, fontWeight: 800, fontFamily: "inherit", cursor: "pointer",
+                background: on ? "rgba(255,27,141,0.1)" : "var(--bg-secondary, transparent)",
+                border: `1px solid ${on ? ACCENT : "var(--border)"}`,
+                color: on ? ACCENT : "var(--text-secondary)",
+              }}>{c.label}</button>
+            );
+          })}
+        </div>
+
+        {loading && items.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 30, fontSize: 12, color: "var(--text-secondary)" }}>불러오는 중...</div>
+        ) : error ? (
+          <div style={{ textAlign: "center", padding: 30, fontSize: 12, color: "var(--text-secondary)" }}>⚠️ {error}</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "36px 10px", fontSize: 12, color: "var(--text-secondary)" }}>
+            {filter === "all" ? "아직 기사 메시지가 없어요" : "해당하는 메시지가 없어요"}
+          </div>
+        ) : (
+          <>
+            {renderGroup("오늘", groups.오늘)}
+            {renderGroup("어제", groups.어제)}
+            {renderGroup("이전", groups.이전)}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

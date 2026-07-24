@@ -58,3 +58,99 @@ export async function markTaskMessageRead({ id, userId }) {
   }
   return { ok: true, rowsAffected: data?.rows_affected ?? 0 };
 }
+
+// ============================================================
+// 2026-07-24 — 메시지 창구 v2 (Mig 188, 양방향 스레드)
+//   설계: claude/올잇_설계확정_기사메시지창구_2026-07-24.md
+// ============================================================
+
+export const MESSAGE_KINDS = ["general", "assign", "schedule", "complete", "settle"];
+export const MESSAGE_KIND_KO = {
+  general:  "일반",
+  assign:   "배정",
+  schedule: "일정",
+  complete: "완료",
+  settle:   "정산",
+};
+export const MESSAGE_KIND_ICON = {
+  general: "💬", assign: "🧭", schedule: "📅", complete: "✅", settle: "💰",
+};
+
+async function _rpc(name, args) {
+  const { data, error } = await supabase.rpc(name, args);
+  if (error) {
+    console.error(`[taskMessagesDb.${name}]`, error);
+    return { ok: false, error: error.message || "요청 실패" };
+  }
+  return { ok: true, data };
+}
+
+// 기사 발신 (taskId 없으면 일반 스레드)
+export async function engineerSendMessage({ actorId, taskId = null, kind = "general", body }) {
+  if (!actorId) return { ok: false, error: "actorId 누락" };
+  if (!body || !String(body).trim()) return { ok: false, error: "메시지 본문 필수" };
+  const r = await _rpc("engineer_send_message", {
+    p_actor: actorId, p_task_id: taskId, p_kind: kind, p_body: String(body).trim(),
+  });
+  if (!r.ok) return r;
+  if (r.data && r.data.ok === false) return { ok: false, error: r.data.error || "전송 실패" };
+  return { ok: true, id: r.data?.id };
+}
+
+// 운영자 발신 v2 (task 무관 + kind)
+export async function adminSendMessage({ actorId, engineerUserId, taskId = null, kind = "general", body }) {
+  if (!actorId) return { ok: false, error: "actorId 누락" };
+  if (!engineerUserId) return { ok: false, error: "수신 기사 누락" };
+  if (!body || !String(body).trim()) return { ok: false, error: "메시지 본문 필수" };
+  const r = await _rpc("admin_send_message", {
+    p_actor: actorId, p_engineer_user: engineerUserId,
+    p_task_id: taskId, p_kind: kind, p_body: String(body).trim(),
+  });
+  if (!r.ok) return r;
+  if (r.data && r.data.ok === false) return { ok: false, error: r.data.error || "전송 실패" };
+  return { ok: true, id: r.data?.id };
+}
+
+// 스레드 목록 — 운영자
+export async function adminListMessageThreads({ actorId }) {
+  if (!actorId) return { ok: false, error: "actorId 누락", items: [] };
+  const r = await _rpc("admin_list_message_threads", { p_actor: actorId });
+  if (!r.ok) return { ...r, items: [] };
+  return { ok: true, items: Array.isArray(r.data) ? r.data : [] };
+}
+
+// 스레드 목록 — 기사
+export async function listEngineerMessageThreads({ actorId }) {
+  if (!actorId) return { ok: false, error: "actorId 누락", items: [] };
+  const r = await _rpc("list_engineer_message_threads", { p_actor: actorId });
+  if (!r.ok) return { ...r, items: [] };
+  return { ok: true, items: Array.isArray(r.data) ? r.data : [] };
+}
+
+// 채팅 화면 메시지 (양방향 시간순)
+export async function listThreadMessages({ actorId, engineerUserId, taskId = null }) {
+  if (!actorId || !engineerUserId) return { ok: false, error: "actor/engineer 누락", items: [] };
+  const r = await _rpc("list_thread_messages", {
+    p_actor: actorId, p_engineer_user: engineerUserId, p_task_id: taskId,
+  });
+  if (!r.ok) return { ...r, items: [] };
+  return { ok: true, items: Array.isArray(r.data) ? r.data : [] };
+}
+
+// 스레드 읽음 처리 (자기 수신분만)
+export async function markThreadRead({ actorId, engineerUserId, taskId = null }) {
+  if (!actorId || !engineerUserId) return { ok: false, error: "actor/engineer 누락" };
+  const r = await _rpc("mark_thread_read", {
+    p_actor: actorId, p_engineer_user: engineerUserId, p_task_id: taskId,
+  });
+  if (!r.ok) return r;
+  return { ok: true, marked: r.data?.marked ?? 0 };
+}
+
+// 운영자 안읽음 총계 (개요 카드 배지)
+export async function adminMessagesUnreadCount({ actorId }) {
+  if (!actorId) return { ok: true, count: 0 };
+  const r = await _rpc("admin_messages_unread_count", { p_actor: actorId });
+  if (!r.ok) return { ok: false, count: 0 };
+  return { ok: true, count: Number(r.data?.count) || 0 };
+}

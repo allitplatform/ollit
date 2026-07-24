@@ -42,6 +42,9 @@ import { TaskHistoryScreen } from "../components/TaskHistoryScreen.jsx";
 import { getHistoryCount } from "../data/taskHistory.js";
 import { UsolNScreen } from "../components/UsolNScreen.jsx";
 import { AllTasksScreen } from "../components/AllTasksScreen.jsx";
+// 2026-07-24 — 기사 메시지함 (Mig 188 양방향 창구)
+import { AdminMessagesScreen } from "../components/AdminMessagesScreen.jsx";
+import { adminMessagesUnreadCount } from "../lib/taskMessagesDb.js";
 // 2026-05-29 Phase 1 — 발주 원본 archive (Migration 080)
 import { RawOrdersArchiveScreen } from "../components/admin/RawOrdersArchiveScreen.jsx";
 // 2026-06-24 — 홈페이지 접수함 (inquiries) 운영 화면 + 신규 count polling + 마킹 RPC
@@ -1551,6 +1554,22 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   const [inquiriesNewCount, setInquiriesNewCount] = useState(0);
   // 2026-06-28 — OverviewTab 카드 "오늘 N건" 뱃지용 (Mig 151 get_inquiry_funnel.totals.today).
   const [inquiriesTodayCount, setInquiriesTodayCount] = useState(0);
+  // 2026-07-24 — 기사 메시지함 안읽음 (개요 카드 배지, Mig 188). 60초 갱신 + 화면 전환 시 재조회.
+  const [engMsgUnread, setEngMsgUnread] = useState(0);
+  useEffect(() => {
+    const actor = user?.user_id || user?.userId || user?.id;
+    if (!actor) return;
+    let alive = true;
+    const fetchUnread = () => {
+      adminMessagesUnreadCount({ actorId: actor }).then(r => {
+        if (alive && r.ok) setEngMsgUnread(r.count);
+      }).catch(() => {});
+    };
+    fetchUnread();
+    const iv = setInterval(fetchUnread, 60000);
+    return () => { alive = false; clearInterval(iv); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, screen]);
   // 2026-07-14 — Stage 2: 대시보드 매출 카드 서버 집계 (Mig 175 get_admin_dashboard_summary).
   //   브라우저 2,300건 다운로드/계산 없이 '오늘' 매출/마진/정산/수수료 즉시 렌더. null이면 클라 계산 fallback.
   const [dashSummary, setDashSummary] = useState(null);
@@ -3336,6 +3355,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     </Shell>;
   }
   // 2026-06-26 — 공지사항 관리 (운영자) — Mig 147/148.
+  // 2026-07-24 — 기사 메시지함 (Mig 188)
+  if (screen === "adminMessages") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AdminMessagesScreen user={user} onBack={goBack}/>
+    </Shell>;
+  }
   if (screen === "announcements") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <AnnouncementManageScreen t={t} user={user} onBack={goBack}/>
@@ -4011,6 +4036,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       onClickRawOrdersArchive={() => setScreen("rawOrdersArchive")}
       // 2026-06-24 — 홈페이지 접수함 (inquiries)
       onClickInquiries={() => setScreen("inquiries")}
+      onClickEngMessages={() => setScreen("adminMessages")}
+      engMsgUnread={engMsgUnread}
       inquiriesNewCount={inquiriesNewCount}
       inquiriesTodayCount={inquiriesTodayCount}
       dashSummary={dashSummary}
@@ -4091,7 +4118,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, onClickEngMessages, engMsgUnread = 0, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4335,7 +4362,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount} onClickEngMessages={onClickEngMessages} engMsgUnread={engMsgUnread}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onEngineerCalendar={onEngineerCalendar} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -4355,7 +4382,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
-function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0 }) {
+function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, onClickEngMessages, engMsgUnread = 0 }) {
   // 2026-07-24 — 개요 탭 v2 (사장님 확정: 🅐 검색 바로형 · 방식 1 화면 점프).
   //   · 검색창 = 아이콘만, placeholder·안내문 없음 (사장님 spec "깔끔하게").
   //     입력 후 엔터/🔍 → 전체 작업 화면으로 점프 (검색어 프리필, 전화번호 검색 포함).
@@ -4448,6 +4475,59 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
               </span>
             </div>
             <ChevronRight size={18} style={{ color: hasNew ? "#fff" : "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
+          </button>
+        );
+      })()}
+
+      {/* 2026-07-24 — 💬 기사 메시지함 (Mig 188). 안읽음 있으면 강조 + 배지. */}
+      {onClickEngMessages && (() => {
+        const hasUnread = engMsgUnread > 0;
+        return (
+          <button
+            onClick={onClickEngMessages}
+            style={{
+              width: "100%",
+              padding: "12px 14px",
+              background: "var(--bg-elevated)",
+              border: hasUnread ? "1px solid var(--accent)" : "0.5px solid var(--border)",
+              borderRadius: 10,
+              marginBottom: 14,
+              cursor: "pointer",
+              display: "flex", alignItems: "center", gap: 12,
+              fontFamily: "inherit",
+              textAlign: "left",
+            }}
+          >
+            <span style={{
+              width: 38, height: 38, flexShrink: 0,
+              background: "var(--accent-bg)",
+              borderRadius: 9,
+              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              fontSize: 18,
+            }}>💬</span>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+              <span style={{
+                fontSize: 15, fontWeight: hasUnread ? 800 : 500,
+                color: "var(--text-primary)", letterSpacing: "-0.2px",
+              }}>기사 메시지함</span>
+              <span style={{
+                fontSize: 12,
+                fontWeight: hasUnread ? 700 : 400,
+                color: hasUnread ? "var(--accent)" : "var(--text-secondary)",
+              }}>
+                {hasUnread ? `안 읽은 메시지 ${engMsgUnread}건` : "기사 메시지 · 요청"}
+              </span>
+            </div>
+            {hasUnread && (
+              <span style={{
+                minWidth: 22, height: 22, borderRadius: 999,
+                background: "#F87171", color: "#fff",
+                fontSize: 11, fontWeight: 800,
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                padding: "0 7px", flexShrink: 0,
+              }}>{engMsgUnread}</span>
+            )}
+            <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
           </button>
         );
       })()}
