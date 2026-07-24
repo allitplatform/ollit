@@ -44,6 +44,9 @@ const GROUPS = [
     icon: LayoutDashboard,
     items: [
       { id: "main", label: "메인" },
+      // 2026-07-24 — 마케팅 조감 (홈페이지 접수 퍼널 + 완료 매출·회사이익 + 지역 top5).
+      //   1단계는 DB 기반, 2단계는 네이버 광고 API 연동 예정.
+      { id: "marketing", label: "마케팅" },
     ],
   },
   {

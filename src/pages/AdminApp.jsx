@@ -3379,6 +3379,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <RegionStatsScreen t={t} apiTasks={apiTasks} user={user} onBack={goBack}/>
     </Shell>;
   }
+  // 2026-07-24 — 마케팅 조감 (홈페이지 유입 퍼널 + 매출·이익 + 지역 top5).
+  if (screen === "marketing") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <MarketingScreen t={t} apiTasks={apiTasks} user={user} onBack={goBack}/>
+    </Shell>;
+  }
   // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환).
   if (screen === "engineerTaskDetail") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
