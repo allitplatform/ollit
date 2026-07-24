@@ -9849,6 +9849,12 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
       !/(특별시|광역시|특별자치시|특별자치도)$/.test(tok)
     );
     if (siGun) return siGun;
+    // 2026-07-24 — 시·군·구가 도로명에 붙은 케이스 ("김포시한강8로331 솔터마을"):
+    //   토큰 앞머리의 ○○시/○○군/○○구 를 떼어 지역으로 (특별시·광역시는 제외).
+    for (const tok of tokens) {
+      const m = tok.match(/^([가-힣]{1,5}구|[가-힣]{2,5}시|[가-힣]{2,5}군)(?=[가-힣\d])/);
+      if (m && !/(특별시|광역시)$/.test(m[1])) return m[1];
+    }
     // 2026-07-24 — 구·시 없이 동으로 시작하는 주소 ("상도3동285-2 우연빌라501호"):
     //   번지 숫자 떼고 동 이름만 ("상도3동"). 이전엔 첫 토큰 통째 → 지역 통계 오염.
     for (const tok of tokens) {
@@ -9870,7 +9876,10 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   //       "상암동 월드컵아파트 ..." + ...2940 → "상암동 2940"
   //   기존 생성된 이름은 그대로 (정산 이력 연결). 신규 접수부터 적용.
   function _pickAddressKeyword(rawAddress) {
-    const tokens = String(rawAddress || "").trim().split(/\s+/).filter(Boolean);
+    // 2026-07-24 — 시·군·구가 도로명에 붙은 케이스 정규화
+    //   ("김포시한강8로331" → "한강8로331" — 지역은 region 이 따로 잡음).
+    const tokens = String(rawAddress || "").trim().split(/\s+/).filter(Boolean)
+      .map(tok => tok.replace(/^[가-힣]{1,5}(?:특별시|광역시|시|군|구)(?=[가-힣])/, ""));
     if (tokens.length === 0) return "";
 
     // 1) 동/읍/면 토큰 우선 (순수 한글 + 끝글자 동/읍/면)
@@ -9882,11 +9891,11 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
 
     // 2) 도로명 본체 추출 — 숫자 세부 떼기
     //    "갈현로47길" → "갈현로", "테헤란대로12길" → "테헤란대로",
-    //    "갈현로" / "테헤란로" / "○○대로" / "○○길" 단독은 그대로.
+    //    2026-07-24 — "한강8로331" 처럼 도로명 자체에 숫자 낀 케이스 지원 → "한강8로".
     for (const tok of tokens) {
-      const m1 = tok.match(/^([가-힣]+(?:대로|로))\d+(?:번)?길?$/);
+      const m1 = tok.match(/^([가-힣]+\d{0,2}(?:대로|로))\d+(?:번)?길?(?:[\d\-]*)$/);
       if (m1) return m1[1];
-      const m2 = tok.match(/^([가-힣]+(?:대로|로|길))$/);
+      const m2 = tok.match(/^([가-힣]+\d{0,2}(?:대로|로|길))$/);
       if (m2) return m2[1];
     }
 
