@@ -4470,44 +4470,56 @@ function OverviewTab({ t, user, totalNew, apiTasks = [], onClickNewReception, on
     setOvQuery("");
   };
 
-  // ── 통장·손익 미리보기 (개요 진입 시 1회 — 손익 화면과 동일 산식·RPC)
+  // ── 통장·손익 미리보기 (손익 화면과 동일 산식·RPC)
+  //   RPC 값(잔고·유솔N·운영비 등)은 진입 시 1회 fetch, 일정산 수입은 apiTasks 에서
+  //   클라 계산 — apiTasks 가 늦게 로드돼도 useMemo 가 자동 재계산 (2026-07-24 fix:
+  //   진입 직후 apiTasks 빈 상태로 순이익이 음수로 굳던 버그).
   const ovActor = user?.user_id || user?.userId || user?.id || null;
-  const [moneyPrev, setMoneyPrev] = useState(null);   // { balance, dayIn, dayOut, netProfit }
+  const kstToday = useMemo(() => new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date()), []);
+  const ovYm = kstToday.slice(0, 7);
+  const [moneyRpc, setMoneyRpc] = useState(null);   // { balance, dayIn, dayOut, usolN, otherSum, expSum }
   useEffect(() => {
     if (!ovActor) return;
     let alive = true;
-    const kstToday = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
-    }).format(new Date());
-    const ym = kstToday.slice(0, 7);
-    const [yy, mm] = ym.split("-").map(Number);
     (async () => {
-      const range = getMonthRange(yy, mm);
-      const rev = computeRevenueByYmRange(apiTasks, range.start, range.end, user);
       const [sum, day, usoln, adj, other, exp] = await Promise.all([
-        ovGetCashflowSummary(ym, ovActor),
+        ovGetCashflowSummary(ovYm, ovActor),
         ovGetCashflowDayClose(kstToday, ovActor),
-        ovGetUsolNTrackBMargin(ym, ovActor),
-        ovGetUsolnAdjustment(ym, ovActor),
-        ovListOtherIncome(ym, ovActor),
-        ovListExpenses(ym, ovActor),
+        ovGetUsolNTrackBMargin(ovYm, ovActor),
+        ovGetUsolnAdjustment(ovYm, ovActor),
+        ovListOtherIncome(ovYm, ovActor),
+        ovListExpenses(ovYm, ovActor),
       ]);
       if (!alive) return;
-      const otherSum = (other?.rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      const expSum   = (exp?.rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0);
-      const netProfit = (Number(rev?.owner) || 0)
-        + (usoln?.ok ? (Number(usoln.amount) || 0) : 0)
-        + (adj?.ok && adj.row ? (Number(adj.row.amount) || 0) : 0)
-        + otherSum - expSum;
-      setMoneyPrev({
-        balance: sum?.ok ? (Number(sum.current_balance) || 0) : null,
-        dayIn:   day?.ok ? (Number(day.day_in)  || 0) : 0,
-        dayOut:  day?.ok ? (Number(day.day_out) || 0) : 0,
-        netProfit,
+      setMoneyRpc({
+        balance:  sum?.ok ? (Number(sum.current_balance) || 0) : null,
+        dayIn:    day?.ok ? (Number(day.day_in)  || 0) : 0,
+        dayOut:   day?.ok ? (Number(day.day_out) || 0) : 0,
+        usolN:    (usoln?.ok ? (Number(usoln.amount) || 0) : 0)
+                + (adj?.ok && adj.row ? (Number(adj.row.amount) || 0) : 0),
+        otherSum: (other?.rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0),
+        expSum:   (exp?.rows || []).reduce((s, r) => s + (Number(r.amount) || 0), 0),
       });
     })().catch(() => { /* 미리보기 실패 — 줄은 그대로, 숫자만 생략 */ });
     return () => { alive = false; };
-  }, [ovActor]);   // apiTasks 변동마다 재호출 X — 개요 진입 시 1회
+  }, [ovActor, ovYm, kstToday]);
+
+  const moneyPrev = useMemo(() => {
+    if (!moneyRpc) return null;
+    const [yy, mm] = ovYm.split("-").map(Number);
+    const range = getMonthRange(yy, mm);
+    const rev = computeRevenueByYmRange(apiTasks, range.start, range.end, user);
+    return {
+      balance: moneyRpc.balance,
+      dayIn:   moneyRpc.dayIn,
+      dayOut:  moneyRpc.dayOut,
+      netProfit: (Number(rev?.owner) || 0) + moneyRpc.usolN + moneyRpc.otherSum - moneyRpc.expSum,
+      // 일정산 수입이 아직 0 (작업 데이터 로딩 전) 이면 순이익 표시 보류
+      revReady: apiTasks.length > 0 || (Number(rev?.owner) || 0) > 0,
+    };
+  }, [moneyRpc, apiTasks, user, ovYm]);
 
   const fmtManOv = (n) => {
     const v = Number(n) || 0;
@@ -4555,7 +4567,7 @@ function OverviewTab({ t, user, totalNew, apiTasks = [], onClickNewReception, on
                 fontSize: 16, fontWeight: 900, marginTop: 2,
                 color: moneyPrev && moneyPrev.netProfit < 0 ? "#DC2626" : "#00875A",
                 fontVariantNumeric: "tabular-nums",
-              }}>{moneyPrev ? `${moneyPrev.netProfit > 0 ? "+" : ""}${fmtManOv(moneyPrev.netProfit)}` : "…"}</div>
+              }}>{moneyPrev && moneyPrev.revReady ? `${moneyPrev.netProfit > 0 ? "+" : ""}${fmtManOv(moneyPrev.netProfit)}` : "…"}</div>
               <div style={{ fontSize: 9, color: "var(--text-secondary)", marginTop: 1 }}>
                 {`${Number(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul", month: "2-digit" }).format(new Date()))}월 남은 돈`}
               </div>
@@ -4579,6 +4591,7 @@ function OverviewTab({ t, user, totalNew, apiTasks = [], onClickNewReception, on
             onChange={(e) => setOvQuery(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") submitSearch(); }}
             enterKeyHint="search"
+            placeholder="고객 · 전화번호 · 주소 · 작업번호"
             style={{
               flex: 1, minWidth: 0,
               background: "transparent", border: "none", outline: "none",
