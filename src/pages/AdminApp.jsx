@@ -1532,6 +1532,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   const [selectedEngineer, setSelectedEngineer] = useState(null);
   const [selectedTaskDetail, setSelectedTaskDetail] = useState(null);
   const [newReceptionFilter, setNewReceptionFilter] = useState(null);  // null | '세척' | '냉매충전'
+  // 2026-07-24 — 개요 탭 검색창 → 전체 작업 점프 (방식 1, 사장님 확정). 검색어 프리필.
+  const [allTasksPrefill, setAllTasksPrefill] = useState("");
   const [assignedFilter, setAssignedFilter] = useState(null);  // 'assigned' | 'confirmed'
   // 2026-05-17 Round 1 Fix #2 — 메인 "완료" 카드 클릭 시 작업 탭으로 이동 + 필터 (오늘+완료)
   const [liveWorkFilter, setLiveWorkFilter] = useState(null);  // null | 'completed-today'
@@ -3647,6 +3649,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onUsers={() => setScreen("userList")}
         onCompanyAccount={() => setScreen("companyAccount")}
         onNotifications={() => setScreen("notificationSettings")}
+        onAnnouncements={() => setScreen("announcements")}
         onBackup={() => addToast({ type: "assignment", title: "백업 / 복원", message: "준비 중인 기능입니다" })}
         onUsolN={(menuId) => setScreen(menuId)}
         onSettlement={() => setScreen("settlement")}
@@ -3709,6 +3712,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <AllTasksScreen
         onBack={goBack}
         apiEngineers={apiEngineers}
+        initialSearch={allTasksPrefill}
         onTaskClick={(task) => {
           // task = allPrincipalTasksDb fetched row (snake_case + principalCode)
           // _v14NormalizeTask 측 fallback 위해 별칭 매핑 (usol_n 패턴 그대로)
@@ -4001,7 +4005,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       onClickSettlementHistory={() => setScreen("settlementHistory")}
       onClickSettings={() => setScreen("settings")}
       onClickUsolN={() => setScreen("usol_n")}
-      onClickAllTasks={() => setScreen("allTasks")}
+      onClickAllTasks={() => { setAllTasksPrefill(""); setScreen("allTasks"); }}
+      onSearchAllTasks={(q) => { setAllTasksPrefill(q || ""); setScreen("allTasks"); }}
       // 2026-05-29 Phase 1 — 발주 원본 archive (Migration 080)
       onClickRawOrdersArchive={() => setScreen("rawOrdersArchive")}
       // 2026-06-24 — 홈페이지 접수함 (inquiries)
@@ -4086,7 +4091,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4330,7 +4335,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onEngineerCalendar={onEngineerCalendar} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -4350,11 +4355,55 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
-function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0 }) {
+function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0 }) {
+  // 2026-07-24 — 개요 탭 v2 (사장님 확정: 🅐 검색 바로형 · 방식 1 화면 점프).
+  //   · 검색창 = 아이콘만, placeholder·안내문 없음 (사장님 spec "깔끔하게").
+  //     입력 후 엔터/🔍 → 전체 작업 화면으로 점프 (검색어 프리필, 전화번호 검색 포함).
+  //     빈 채로 눌러도 전체 작업 진입 (기존 카드 대체).
+  //   · 유솔N → 설정으로 이동 (세척 시즌 종료 — 내년 복귀 예정). 공지사항 → 설정으로.
+  //   · 유지: 접수함 대형 카드 / 달력·가계부·문서 3타일 / 새 접수 등록.
+  const [ovQuery, setOvQuery] = useState("");
+  const submitSearch = () => {
+    if (onSearchAllTasks) onSearchAllTasks(ovQuery.trim());
+    else if (onClickAllTasks) onClickAllTasks();
+    setOvQuery("");
+  };
   return (
     <div style={{ padding: "0 16px 16px" }}>
-      {/* 2026-06-24 — 홈페이지 접수함 진입 카드
-            신규(status='new') 카운트 빨강 뱃지. 0 일 땐 흰 카드. */}
+      {/* 🔍 작업 검색 — 전체 작업 점프 (최다 사용 동선) */}
+      {(onSearchAllTasks || onClickAllTasks) && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "4px 6px 4px 14px",
+          background: "var(--bg-elevated)",
+          border: "1.5px solid var(--accent)",
+          borderRadius: 12,
+          marginBottom: 14,
+        }}>
+          <input
+            value={ovQuery}
+            onChange={(e) => setOvQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submitSearch(); }}
+            enterKeyHint="search"
+            style={{
+              flex: 1, minWidth: 0,
+              background: "transparent", border: "none", outline: "none",
+              padding: "11px 0",
+              fontSize: 14, color: "var(--text-primary)", fontFamily: "inherit",
+            }}
+          />
+          <button onClick={submitSearch} aria-label="작업 검색" style={{
+            width: 40, height: 40, flexShrink: 0,
+            background: "var(--accent)", border: "none", borderRadius: 9,
+            display: "inline-flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+          }}>
+            <Search size={17} color="#fff"/>
+          </button>
+        </div>
+      )}
+
+      {/* 홈페이지 접수함 — 신규 카운트 대형 카드 (유지) */}
       {onClickInquiries && (() => {
         const hasNew = inquiriesNewCount > 0;
         return (
@@ -4393,7 +4442,6 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
                 fontWeight: hasNew ? 700 : 400,
                 color: hasNew ? "#FFE2E2" : "var(--text-secondary)",
               }}>
-                {/* 2026-06-28 — "오늘 N건" 뱃지 추가 (Mig 151 get_inquiry_funnel.totals.today). */}
                 {hasNew
                   ? `신규 ${inquiriesNewCount}건${inquiriesTodayCount > 0 ? ` · 오늘 ${inquiriesTodayCount}건` : ""}`
                   : (inquiriesTodayCount > 0 ? `오늘 ${inquiriesTodayCount}건 · 통화·스팸 처리` : "통화·스팸 처리")}
@@ -4404,253 +4452,32 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
         );
       })()}
 
-      {/* 2026-05-26 — 유솔N 진입 카드 ("미배정 N건")
-            기준: usol_n principal + status === '미배정' 인 작업 수.
-              · status가 진실 소스. assigned_engineer_id 무관.
-              · 평소 0건 / 새 발주 업로드되면 증가 → 사장님이 배정하면 다시 0.
-            ※ UsolNAssignList(배정 탭)는 별개 — isUsolNActionNeeded 그대로 유지. */}
-      {onClickUsolN && (() => {
-        const usolNAssignCount = (apiTasks || []).filter(t => {
-          const code = t.principalCode || t.principal_code;
-          return code === "usol_n" && t.status === "미배정";
-        }).length;
-        return (
-          <button
-            onClick={onClickUsolN}
-            style={{
-              width: "100%",
-              padding: "12px 14px",
-              background: "#03C75A",
-              border: "none",
-              borderRadius: 10,
-              marginBottom: 14,
-              cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 12,
-              fontFamily: "inherit",
-              color: "#fff",
-              textAlign: "left",
-            }}
-          >
-            {/* 좌측: 흰 둥근 사각형 + 초록 N */}
-            <span style={{
-              width: 38, height: 38, flexShrink: 0,
-              background: "#fff",
-              borderRadius: 9,
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-              fontSize: 20, fontWeight: 900, color: "#03C75A",
-              letterSpacing: "-0.5px",
-            }}>N</span>
-            {/* 중앙: 2줄 텍스트 */}
-            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-              <span style={{ fontSize: 16, fontWeight: 800, color: "#fff", letterSpacing: "-0.2px" }}>
-                유솔N · 네이버 접수
-              </span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#EAFBF1" }}>
-                미배정 {usolNAssignCount}건
-              </span>
-            </div>
-            {/* 우측: › 셰브런 */}
-            <span style={{ fontSize: 22, fontWeight: 700, color: "#fff", flexShrink: 0, lineHeight: 1 }}>›</span>
-          </button>
-        );
-      })()}
-
-      {/* 2026-05-27 — "전체 작업" (6원청, usol_n 제외) 진입 버튼.
-            시안 C — 흰 카드 + 핑크 아이콘. 핑크 CSS 변수(--accent / --accent-bg) 사용. */}
-      {onClickAllTasks && (() => {
-        const allTasksCount = (apiTasks || []).filter(t => {
-          const code = t.principalCode || t.principal_code;
-          return code && code !== "usol_n";
-        }).length;
-        return (
-          <button
-            onClick={onClickAllTasks}
-            style={{
-              width: "100%",
-              padding: "12px 14px",
+      {/* 달력 · 가계부 · 문서 — 3타일 (유솔N·공지·전체작업 카드는 제거 — 검색창·설정이 대체) */}
+      {(onClickEngineerCalendar || onClickMobileBookkeeping || onClickDocIssue) && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 14 }}>
+          {[
+            onClickEngineerCalendar  && { key: "cal",  icon: "📅", label: "기사별 달력", onClick: onClickEngineerCalendar },
+            onClickMobileBookkeeping && { key: "book", icon: "📊", label: "가계부",     onClick: onClickMobileBookkeeping },
+            onClickDocIssue          && { key: "doc",  icon: "📄", label: "문서 발행",  onClick: onClickDocIssue },
+          ].filter(Boolean).map(it => (
+            <button key={it.key} onClick={it.onClick} style={{
+              padding: "12px 4px",
               background: "var(--bg-elevated)",
               border: "0.5px solid var(--border)",
               borderRadius: 10,
-              marginBottom: 14,
-              cursor: "pointer",
-              display: "flex", alignItems: "center", gap: 12,
-              fontFamily: "inherit",
-              textAlign: "left",
-            }}
-          >
-            <span style={{
-              width: 38, height: 38, flexShrink: 0,
-              background: "var(--accent-bg)",
-              borderRadius: 9,
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", fontFamily: "inherit", textAlign: "center",
             }}>
-              <ListChecks size={20} style={{ color: "var(--accent)" }}/>
-            </span>
-            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-              <span style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
-                전체 작업
-              </span>
-              <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                6원청 · {allTasksCount.toLocaleString()}건 · 검색·필터
-              </span>
-            </div>
-            <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
-          </button>
-        );
-      })()}
-
-      {/* 2026-06-03 — 기사별 달력 진입 (Phase A: 월 격자 + 일정 점). */}
-      {onClickEngineerCalendar && (
-        <button
-          onClick={onClickEngineerCalendar}
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            background: "var(--bg-elevated)",
-            border: "0.5px solid var(--border)",
-            borderRadius: 10,
-            marginBottom: 14,
-            cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 12,
-            fontFamily: "inherit",
-            textAlign: "left",
-          }}
-        >
-          <span style={{
-            width: 38, height: 38, flexShrink: 0,
-            background: "var(--accent-bg)",
-            borderRadius: 9,
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <Calendar size={20} style={{ color: "var(--accent)" }}/>
-          </span>
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
-              기사별 달력
-            </span>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-              월 격자 · 일정 한눈에
-            </span>
-          </div>
-          <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
-        </button>
+              <div style={{ fontSize: 17 }}>{it.icon}</div>
+              <div style={{
+                fontSize: 11, fontWeight: 700, color: "var(--text-primary)",
+                marginTop: 5, letterSpacing: "-0.2px", whiteSpace: "nowrap",
+              }}>{it.label}</div>
+            </button>
+          ))}
+        </div>
       )}
 
-      {/* 2026-06-14 — 가계부 진입 (모바일 간소 뷰, 읽기 전용). 평소 개요엔 돈 정보 X. */}
-      {onClickMobileBookkeeping && (
-        <button
-          onClick={onClickMobileBookkeeping}
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            background: "var(--bg-elevated)",
-            border: "0.5px solid var(--border)",
-            borderRadius: 10,
-            marginBottom: 14,
-            cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 12,
-            fontFamily: "inherit",
-            textAlign: "left",
-          }}
-        >
-          <span style={{
-            width: 38, height: 38, flexShrink: 0,
-            background: "var(--accent-bg)",
-            borderRadius: 9,
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18,
-          }}>
-            📊
-          </span>
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
-              가계부 보기
-            </span>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-              손익 · 누적 이월 · 통장 (읽기 전용)
-            </span>
-          </div>
-          <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
-        </button>
-      )}
-
-      {/* 2026-06-19 Step 2 — 서류 발행 (즉석, 작업목록 무관) */}
-      {onClickDocIssue && (
-        <button
-          onClick={onClickDocIssue}
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            background: "var(--bg-elevated)",
-            border: "0.5px solid var(--border)",
-            borderRadius: 10,
-            marginBottom: 14,
-            cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 12,
-            fontFamily: "inherit",
-            textAlign: "left",
-          }}
-        >
-          <span style={{
-            width: 38, height: 38, flexShrink: 0,
-            background: "var(--accent-bg)",
-            borderRadius: 9,
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18,
-          }}>
-            📄
-          </span>
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
-              서류 발행
-            </span>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-              카톡 붙여넣기 → 거래명세서·영수증 즉석 발행
-            </span>
-          </div>
-          <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
-        </button>
-      )}
-
-      {/* 2026-06-26 — 공지사항 작성/관리 (Mig 147/148/149). PC 사이드바와 동일 화면. */}
-      {onClickAnnouncements && (
-        <button
-          onClick={onClickAnnouncements}
-          style={{
-            width: "100%",
-            padding: "12px 14px",
-            background: "var(--bg-elevated)",
-            border: "0.5px solid var(--border)",
-            borderRadius: 10,
-            marginBottom: 14,
-            cursor: "pointer",
-            display: "flex", alignItems: "center", gap: 12,
-            fontFamily: "inherit",
-            textAlign: "left",
-          }}
-        >
-          <span style={{
-            width: 38, height: 38, flexShrink: 0,
-            background: "var(--accent-bg)",
-            borderRadius: 9,
-            display: "inline-flex", alignItems: "center", justifyContent: "center",
-            fontSize: 18,
-          }}>
-            📢
-          </span>
-          <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 2 }}>
-            <span style={{ fontSize: 15, fontWeight: 500, color: "var(--text-primary)", letterSpacing: "-0.2px" }}>
-              공지사항
-            </span>
-            <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-              전체 기사 공지 작성·발행 (푸시 자동)
-            </span>
-          </div>
-          <ChevronRight size={18} style={{ color: "var(--text-tertiary, var(--text-secondary))", flexShrink: 0 }}/>
-        </button>
-      )}
-
-      {/* + 새 접수 등록 (Step 5-1d: placeholder → 실제 폼 연결, FAB 제거) */}
+      {/* + 새 접수 등록 (유지) */}
       <button onClick={onClickAddReception} style={{
         width: "100%",
         padding: "14px",

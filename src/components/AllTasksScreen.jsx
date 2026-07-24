@@ -46,11 +46,12 @@ const PRINCIPAL_FILTERS = [
   ...PRINCIPAL_CHIP_ORDER,
 ];
 
-export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [] }) {
+export function AllTasksScreen({ onTaskClick, onBack, apiEngineers = [], initialSearch = "" }) {
   const [statusId, setStatusId] = useState("all");
   const [principalCode, setPrincipalCode] = useState(null);
-  const [searchInput, setSearchInput] = useState("");
-  const [searchTerm,  setSearchTerm]  = useState("");
+  // 2026-07-24 — 개요 탭 검색창 점프 (방식 1): 진입 시 검색어 프리필 → 즉시 결과.
+  const [searchInput, setSearchInput] = useState(initialSearch || "");
+  const [searchTerm,  setSearchTerm]  = useState((initialSearch || "").trim());
   const [quickFilter, setQuickFilter] = useState(null);
   const [counts, setCounts] = useState({ todayCreated: 0, todayCompleted: 0, confirmed: 0 });
 

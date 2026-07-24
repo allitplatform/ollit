@@ -128,6 +128,8 @@ import { EngineerNewAssignCallScreen } from "../components/EngineerNewAssignCall
 import { EngineerNewAssignDetailScreen } from "../components/EngineerNewAssignDetailScreen.jsx";
 // 2026-05-27 Phase 2 — task_memos 작성 (운영자↔기사 양방향). MemoAddScreen 공유.
 import { MemoAddScreen } from "../components/MemoAddScreen.jsx";
+// 2026-07-24 — 푸시 구독 자동 갱신 (기사 알림 미수신 수리)
+import { subscribePushWithSync, isPushSupported } from "../utils/pushNotification.js";
 
 const NOW = "10:00";
 
@@ -3725,6 +3727,31 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
       if (res.ok && res.phone) setOpsPhone(res.phone);
     });
     return () => { alive = false; };
+  }, []);
+
+  // 2026-07-24 — 푸시 구독 자동 갱신 (사장님 spec: 기사 알림 미수신 수리).
+  //   원인: 구독은 '내 정보' 토글 때 1회만 등록 — 폰 OS 의 주소 교체·앱 재설치 후엔
+  //   죽은 구독으로 계속 발송돼 알림이 조용히 끊김 (6월 구독자 다수 확인).
+  //   수리: 앱을 열 때마다 권한이 이미 허용된 폰이면 조용히 재구독 → 주소·last_used_at 갱신.
+  //   권한 프롬프트 없음 — Notification.permission === 'granted' 일 때만 실행.
+  useEffect(() => {
+    try {
+      if (typeof Notification === "undefined") return;
+      if (Notification.permission !== "granted") return;
+      if (!isPushSupported()) return;
+    } catch (e) { return; }
+    const timer = setTimeout(() => {
+      subscribePushWithSync({
+        userId:     user?.user_id || user?.userId || user?.id || "",
+        engineerId: user?.code || user?.engineerId || "",
+        role:       "engineer",
+      }).then(res => {
+        if (res?.ok) console.log("[push] 구독 자동 갱신 완료");
+        else console.warn("[push] 구독 자동 갱신 실패:", res?.reason || res?.error);
+      }).catch(() => { /* 조용히 무시 — 다음 앱 실행 때 재시도 */ });
+    }, 3000);   // 앱 부팅 직후 경합 회피
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // 2026-05-25 — 유솔 입금 카드: usol_n principal 계좌 정보 (마운트 1회 fetch).
