@@ -702,7 +702,9 @@ export function parseKakaoText(text) {
   //               workItem 이 추가로 생성되면 sync 트리거 v6 이 그 workItem 에서 RAISE →
   //               task 저장 실패. 사장님 spec "접수 성공" 만족 위해 억제.
   //     · "에어컨 수리" (물펌프 없음) → 이 분기 진입 안 함 → '수리' workTypeMap 정상 매치.
-  if (text.includes("물펌프")) {
+  // 2026-07-24 — 사장님 spec: 물떨어짐/물샘/물수리/물새 계열 전부 누설로.
+  //   "물수리" 는 "수리" 키워드에도 걸리므로 seenWT 로 '수리' 억제 (물펌프 패턴과 동일).
+  if (/물\s*(펌프|떨어|샘|새|수리)/.test(text)) {
     detectedWorkTypes.push("누설");
     seenWT.add("누설");
     seenWT.add("수리");
@@ -771,36 +773,109 @@ export function parseKakaoText(text) {
     result.matched.push("기종 인식 (작업 직접 선택)");
   }
 
-  // 7. 일정 (M월 D일 + H:MM / H시 MM분)
-  const dateTimeRegex = /(\d{1,2})\s*월\s*(\d{1,2})\s*일\s*(?:[^\d]{0,8})?(\d{1,2})\s*[:시]\s*(\d{0,2})/;
-  const dateRegex2 = /(\d{1,2})\s*월\s*(\d{1,2})\s*일/;
-  const timeRegex = /(\d{1,2})\s*시\s*(\d{0,2})\s*분?/;
-
-  const dateTimeMatch = text.match(dateTimeRegex);
+  // 7. 일정 — 2026-07-24 강화 (사장님 spec: "7/26"·내일/모레·요일·오전/오후·N시반 인식)
   const today = new Date();
   const yyyy = today.getFullYear();
-  if (dateTimeMatch) {
-    const mm = String(dateTimeMatch[1]).padStart(2, "0");
-    const dd = String(dateTimeMatch[2]).padStart(2, "0");
-    const h  = String(dateTimeMatch[3]).padStart(2, "0");
-    const min = (dateTimeMatch[4] || "00").padStart(2, "0");
-    result.requestDate = `${yyyy}-${mm}-${dd}`;
-    result.requestTime = `${h}:${min}`;
-    result.matched.push("일정");
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const setDateFrom = (d, label) => {
+    result.requestDate = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+    result.matched.push(label);
+  };
+  // 날짜: ① M월 D일 ② M/D · M-D · M.D (전화/금액과 격리) ③ 오늘/내일/모레 ④ (다음주) X요일
+  const mdKor = text.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+  // 숫자 날짜는 라인 단위 — 주소 라인("방이동 12-3")의 번지를 날짜로 오인하지 않게.
+  const ADDRISH_RX = /[가-힣]{2,}(?:시|구|동|로|길|번지|번길)\s*\d/;
+  const addrCondensedForDate = (result.address || "").replace(/\s/g, "");
+  let mdNum = null;
+  for (const rawL of text.split(/\n/)) {
+    const lt = rawL.trim();
+    if (!lt) continue;
+    if (ADDRISH_RX.test(lt)) continue;
+    const condL = lt.replace(/\s/g, "");
+    if (addrCondensedForDate && condL.length >= 4 && addrCondensedForDate.includes(condL.slice(0, 8))) continue;
+    const m = lt.match(/(?<![\d.\-\/])(\d{1,2})[\/.\-](\d{1,2})(?![\d.\-\/])/);
+    if (m) { mdNum = m; break; }
+  }
+  if (mdKor) {
+    result.requestDate = `${yyyy}-${pad2(mdKor[1])}-${pad2(mdKor[2])}`;
+    result.matched.push("일정 (날짜)");
+  } else if (mdNum && +mdNum[1] >= 1 && +mdNum[1] <= 12 && +mdNum[2] >= 1 && +mdNum[2] <= 31) {
+    result.requestDate = `${yyyy}-${pad2(mdNum[1])}-${pad2(mdNum[2])}`;
+    result.matched.push("일정 (날짜)");
+  } else if (/모레/.test(text)) {
+    const d = new Date(today); d.setDate(d.getDate() + 2); setDateFrom(d, "일정 (모레)");
+  } else if (/내일/.test(text)) {
+    const d = new Date(today); d.setDate(d.getDate() + 1); setDateFrom(d, "일정 (내일)");
+  } else if (/오늘\s*(방문|작업|가능|중|로|께|에)?/.test(text) && /오늘/.test(text)) {
+    setDateFrom(new Date(today), "일정 (오늘)");
   } else {
-    const altDate = text.match(dateRegex2);
-    if (altDate) {
-      const mm = String(altDate[1]).padStart(2, "0");
-      const dd = String(altDate[2]).padStart(2, "0");
-      result.requestDate = `${yyyy}-${mm}-${dd}`;
-      result.matched.push("일정 (날짜만)");
+    const wd = text.match(/(다음\s*주\s*)?([월화수목금토일])요일/);
+    if (wd) {
+      const idx = "일월화수목금토".indexOf(wd[2]);
+      const d = new Date(today);
+      let diff = (idx - d.getDay() + 7) % 7;
+      if (diff === 0) diff = 7;
+      if (wd[1]) diff += 7;
+      d.setDate(d.getDate() + diff);
+      setDateFrom(d, "일정 (요일)");
     }
-    const timeMatch = text.match(timeRegex);
-    if (timeMatch) {
-      const h = String(timeMatch[1]).padStart(2, "0");
-      const min = (timeMatch[2] || "00").padStart(2, "0");
-      result.requestTime = `${h}:${min}`;
-      if (!result.matched.includes("일정 (날짜만)")) result.matched.push("시간");
+  }
+  // 시간: (오전|오후|저녁|밤|아침)? N시(반|MM분)? / N:MM (+ 이후/이전/쯤)
+  const tm = text.match(/(오전|오후|저녁|밤|아침)?\s*(\d{1,2})\s*[:시]\s*(반|\d{1,2})?\s*분?\s*(이후|이전|쯤|경)?/);
+  if (tm && tm[2] != null) {
+    let h = parseInt(tm[2], 10);
+    const period = tm[1] || "";
+    if ((period === "오후" || period === "저녁" || period === "밤") && h < 12) h += 12;
+    if (period === "오전" && h === 12) h = 0;
+    // 표기 없는 1~7시는 영업시간 특성상 오후로 해석 ("3시" → 15:00).
+    if (!period && h >= 1 && h <= 7) h += 12;
+    if (h >= 0 && h <= 23) {
+      const min = tm[3] === "반" ? "30" : pad2(parseInt(tm[3] || "0", 10) || 0);
+      result.requestTime = `${pad2(h)}:${min}`;
+      result.matched.push("시간");
+      if (tm[4]) result.scheduleHint = `${h > 12 ? h - 12 : h}시 ${tm[4]}`;
+    }
+  } else {
+    // 시각 없이 오전/오후/저녁만 — 힌트로 (메모에 합류, requestTime 은 비움)
+    const period = text.match(/(오전|오후|저녁)\s*(중|중으로|방문|희망|께|에)?/);
+    if (period) result.scheduleHint = `${period[1]} 희망`;
+  }
+
+  // 8. 메모 — 2026-07-24 (사장님 spec: 라벨 메모 + 잔여 문장 자동 수집)
+  if (!result.memo) {
+    const memoLabel = text.match(/(?:메모|비고|요청사항|특이사항)\s*[:：]\s*([^\n]+)/);
+    if (memoLabel) { result.memo = memoLabel[1].trim(); result.matched.push("메모"); }
+  }
+  {
+    const LABELED_RX = /^(원청|이름|고객|성함|성명|주소|연락처|전화|핸드폰|휴대폰|기종|견적|금액|가격|수량|작업|작업유형|일정|시간|날짜|희망|메모|비고|요청|요청사항|특이사항)\s*[:：]/;
+    const KNOWN_TOKEN_RX = /(벽걸이|스탠드|4way|1way|투인원|시스템\s?멀티|시스템|천장형|원형|이동식|세척|청소|냉매충전|냉매점검|냉매|가스|충전|설치|누설|누수|점검|수리|출장비?|물펌프|물떨어짐?|물샘|올데이케어|올데이|에어컨\s?프로|쿨가이|용인컴퍼니|용인|크리크린|유솔홈케어|유솔|KA|KB|오늘|내일|모레|오전|오후|저녁|아침|다음\s*주|[월화수목금토일]요일)/g;
+    const addrCondensed = (result.address || "").replace(/\s/g, "");
+    const memoLines = [];
+    for (const rawLine of text.split(/\n/)) {
+      const l = rawLine.trim();
+      if (!l || l.length < 2) continue;
+      if (LABELED_RX.test(l)) continue;                                  // 라벨 필드 — 이미 파싱됨
+      if (KO_PHONE_REGEX.test(l)) continue;                              // 전화번호 포함 라인
+      if (/[가-힣]{2,}(?:시|구|동|로|길|번지|번길)\s*\d/.test(l)) continue;  // 주소성 라인
+      const cond = l.replace(/\s/g, "");
+      if (addrCondensed && cond.length >= 4 && addrCondensed.includes(cond.slice(0, 8))) continue;  // 주소 라인
+      // 숫자·기호·알려진 키워드만으로 이뤄진 라인 (전화/금액/기종/일정 등) → skip
+      const stripped = l.replace(KNOWN_TOKEN_RX, "")
+        .replace(/[\d\s\-.,:：×x대원만시분월일주\/()~+·]/g, "");
+      if (stripped.length < 2) continue;
+      memoLines.push(l);
+      if (memoLines.length >= 3) break;   // 과수집 방지
+    }
+    const autoParts = [];
+    if (result.scheduleHint) autoParts.push(`⏰ ${result.scheduleHint}`);
+    if (memoLines.length > 0) autoParts.push(memoLines.join(" / "));
+    if (autoParts.length > 0) {
+      if (result.memo) {
+        result.memo = `${result.memo} / ${autoParts.join(" / ")}`;
+      } else {
+        result.memo = autoParts.join(" / ");
+        result.matched.push("메모 (자동)");
+      }
     }
   }
 

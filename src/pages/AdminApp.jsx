@@ -9738,6 +9738,8 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   // V14 1F — 진짜 API 등록 + 분배 미리보기 (관리자만)
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  // 2026-07-24 — 🅐 확인 요약 모드 (사장님 확정): 자동 채우기 후 긴 폼 대신 요약 확인 카드.
+  const [confirmMode, setConfirmMode] = useState(false);
   const [feePreview, setFeePreview] = useState(null);   // { fee, policy, parsed } | null
   const [feeLoading, setFeeLoading] = useState(false);
   const [feeError, setFeeError] = useState("");
@@ -9879,6 +9881,15 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         // 카톡 텍스트에 명시된 견적은 사용자 의도값 — 자동 계산이 덮어쓰기 X
         setEstimateTouched(true);
       }
+      // 2026-07-24 — 사장님 spec: 고객명 미인식 시 [구 + 전화 뒤 4자리] 자동 생성 (예: 성동구 5678).
+      //   기존 autoGenerateCustomer 재사용 — 제출 시점이 아니라 자동 채우기 시점에 바로 보여줌.
+      if (!next.customer && (next.address || next.phone)) {
+        const gen = autoGenerateCustomer(next);
+        if (gen && gen !== "고객 미정") {
+          next.customer = gen;
+          filledKeys.push("customer");
+        }
+      }
       return next;
     });
 
@@ -9904,9 +9915,13 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     if (r.priceNeedsConfirm) {
       setPriceConfirm({ rawValue: r.priceRawValue, estimated: r.estimatedPrice });
     }
+
+    // 2026-07-24 — 🅐: 뭐라도 인식됐으면 확인 요약 모드로 (긴 폼 스킵).
+    if (r.matched && r.matched.length > 0) setConfirmMode(true);
   }
 
   function handleClear() {
+    setConfirmMode(false);
     setKakaoText("");
     setForm({
       principal: "", customer: "", phone: "", address: "",
@@ -10152,6 +10167,8 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     if (!priceTBD && (!form.estimateTotal || form.estimateTotal <= 0)) errs.estimateTotal = "견적 금액 입력";
     if (Object.keys(errs).length > 0) {
       setErrors(errs);
+      // 2026-07-24 — 🅐 확인 요약에서 저장 눌렀는데 검증 실패 → 폼으로 내려서 에러 표시.
+      setConfirmMode(false);
       return;
     }
     const finalCustomer = autoGenerateCustomer(form, region);
@@ -10207,6 +10224,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
           setSubmitError(res.error || "등록 실패");
         }
         setSubmitting(false);
+        setConfirmMode(false);   // 2026-07-24 — 🅐: 실패 사유는 폼에서 보여줌.
         return;
       }
       // V14 형식 작업번호 (예: O260507-001) — 부모로 전달
@@ -10223,6 +10241,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     } catch (e) {
       setSubmitError(e.message || "등록 실패");
       setSubmitting(false);
+      setConfirmMode(false);   // 2026-07-24 — 🅐: 실패 사유는 폼에서 보여줌.
     }
   }
 
@@ -10236,6 +10255,118 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   });
 
   const principalColor = PRINCIPAL_COLORS[form.principal] || t.border;
+
+  // 2026-07-24 — 🅐 확인 요약 모드 (사장님 확정 시안): 카톡 자동 채우기 후
+  //   긴 폼 대신 요약 카드로 확인 → 틀린 것만 "수정"(폼 복귀) → 저장.
+  //   검증/저장 로직은 기존 handleSubmit 그대로 (실패 시 폼으로 내려 에러 표시).
+  if (confirmMode) {
+    const workSummary = workItems.length > 0
+      ? workItems.map(it => [it.workType, it.appliance, `×${it.qty || 1}`].filter(Boolean).join(" ")).join(", ")
+      : (applianceUndecided ? "기종 미정" : null);
+    const scheduleLabel = form.requestDate
+      ? `${form.requestDate}${form.requestTime ? " " + form.requestTime : ""}`
+      : (form.requestTime || null);
+    const priceLabel = priceTBD
+      ? "미정 (현장 확정)"
+      : (Number(form.estimateTotal) > 0
+          ? `₩${Number(form.estimateTotal).toLocaleString("ko-KR")}`
+          : null);
+    const confirmRows = [
+      { icon: "🏢", label: "원청",   value: form.principal || null },
+      { icon: "👤", label: "고객",   value: form.customer || null },
+      { icon: "📱", label: "연락처", value: form.phone || null },
+      { icon: "📍", label: "주소",   value: form.address || null },
+      { icon: "❄",  label: "작업",   value: workSummary },
+      { icon: "📅", label: "일정",   value: scheduleLabel },
+      { icon: "💰", label: "견적",   value: priceLabel,
+        hint: (!priceLabel && autoEstimateValue)
+          ? `자동 견적 ₩${Number(autoEstimateValue).toLocaleString("ko-KR")} 적용 예정`
+          : null },
+      ...(form.memo ? [{ icon: "📝", label: "메모", value: form.memo }] : []),
+    ];
+    return (
+      <div className="fade-in">
+        {/* 헤더 */}
+        <div style={{ padding: "16px", borderBottom: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 10, position: "sticky", top: 0, background: t.bg, zIndex: 100 }}>
+          <button onClick={() => setConfirmMode(false)} style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: t.text, display: "flex" }}>
+            <ArrowLeft size={18}/>
+          </button>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>✅ 접수 확인</div>
+        </div>
+
+        <div style={{ padding: "16px" }}>
+          <div style={{ fontSize: 11.5, color: t.textMuted, marginBottom: 10 }}>
+            자동으로 채웠어요 — 틀린 항목만 <b style={{ color: t.accent }}>수정</b>을 눌러 고쳐주세요.
+          </div>
+
+          <div style={{
+            background: t.bgElevated, border: `1px solid ${t.border}`,
+            borderTop: `3px solid ${principalColor}`,
+            borderRadius: 12, padding: "6px 14px", marginBottom: 14,
+          }}>
+            {confirmRows.map((row, i) => (
+              <div key={row.label} style={{
+                display: "flex", alignItems: "flex-start", gap: 10,
+                padding: "11px 0",
+                borderBottom: i === confirmRows.length - 1 ? "none" : `1px solid ${t.border}`,
+              }}>
+                <span style={{ width: 18, textAlign: "center", fontSize: 12, flexShrink: 0, marginTop: 1 }}>{row.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 2 }}>{row.label}</div>
+                  {row.value ? (
+                    <div style={{ fontSize: 13, fontWeight: 700, color: t.text, wordBreak: "break-all", whiteSpace: "pre-wrap" }}>
+                      {row.value}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#FBBF24" }}>
+                      미입력 — 수정을 눌러 입력
+                    </div>
+                  )}
+                  {row.hint && (
+                    <div style={{ fontSize: 10.5, color: t.textMuted, marginTop: 2 }}>{row.hint}</div>
+                  )}
+                </div>
+                <button onClick={() => setConfirmMode(false)} style={{
+                  flexShrink: 0, background: "transparent", border: "none",
+                  color: t.accent, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                  fontFamily: "inherit", padding: "2px 2px", marginTop: 8,
+                }}>{row.value ? "수정" : "입력"}</button>
+              </div>
+            ))}
+          </div>
+
+          {submitError && (
+            <div style={{
+              padding: "10px 12px", marginBottom: 10, borderRadius: 8,
+              background: "rgba(248,113,113,0.1)", border: "1px solid rgba(248,113,113,0.4)",
+              fontSize: 12, color: "#F87171", fontWeight: 700,
+            }}>⚠️ {submitError}</div>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={submitting}
+            style={{
+              width: "100%", padding: "14px", borderRadius: 11, border: "none",
+              background: submitting ? t.border : t.accent, color: "#fff",
+              fontSize: 14, fontWeight: 800, cursor: submitting ? "default" : "pointer",
+              fontFamily: "inherit", marginBottom: 8,
+            }}
+          >{submitting ? "등록 중..." : "저장"}</button>
+          <button
+            onClick={() => setConfirmMode(false)}
+            disabled={submitting}
+            style={{
+              width: "100%", padding: "12px", borderRadius: 11,
+              background: "transparent", border: `1px solid ${t.border}`,
+              color: t.textDim, fontSize: 12.5, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}
+          >✏️ 전체 폼에서 수정</button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fade-in">
