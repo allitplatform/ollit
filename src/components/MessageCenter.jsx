@@ -165,18 +165,26 @@ export function MessageChatScreen({ role, actorId, thread, onBack, onSent, onDel
   const reload = useCallback(async () => {
     if (!actorId || !engineerUserId) return;
     const res = await listThreadMessages({ actorId, engineerUserId, taskId });
-    if (res.ok) setItems(res.items);
+    if (res.ok) {
+      setItems(res.items);
+      // 2026-07-24 — 사장님 발견: 읽어도 배지 안 사라짐 → 화면에 보이는 순간마다 읽음 처리.
+      //   (진입 1회만 하던 방식 폐기 — 채팅 열려 있는 동안 새로 온 메시지도 즉시 읽음)
+      const hasIncomingUnread = res.items.some(m =>
+        (isAdmin ? m.from_engineer : !m.from_engineer) && !m.read_at
+      );
+      if (hasIncomingUnread) {
+        markThreadRead({ actorId, engineerUserId, taskId }).catch(() => {});
+      }
+    }
     setLoading(false);
-  }, [actorId, engineerUserId, taskId]);
+  }, [actorId, engineerUserId, taskId, isAdmin]);
 
   useEffect(() => {
     setLoading(true);
     reload();
-    // 열면서 자기 수신분 읽음 처리
-    markThreadRead({ actorId, engineerUserId, taskId }).catch(() => {});
     const iv = setInterval(reload, 15000);   // 15초 폴링 (푸시 보조)
     return () => clearInterval(iv);
-  }, [reload, actorId, engineerUserId, taskId]);
+  }, [reload]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -279,8 +287,23 @@ export function MessageChatScreen({ role, actorId, thread, onBack, onSent, onDel
             {items.map(m => {
               // from_engineer 기준: 내 말풍선 = (기사면 from_engineer) / (운영자면 !from_engineer)
               const mine = isAdmin ? !m.from_engineer : !!m.from_engineer;
+              // 2026-07-24 — 보낸 사람 이름 (사장님 spec: 운영자 여러 명일 때 누가 답했는지).
+              //   · 기사 화면: 운영팀 말풍선에 이름 표시
+              //   · 운영자 화면: 같은 편(운영팀) 말풍선이라도 다른 운영자가 보낸 건 이름 표시
+              const showName =
+                (!mine && m.from_name) ||
+                (mine && isAdmin && m.from_user !== actorId && m.from_name);
               return (
-                <div key={m.id} style={{
+                <div key={m.id} style={{ display: "contents" }}>
+                {showName && (
+                  <span style={{
+                    fontSize: 9.5, fontWeight: 700,
+                    color: "var(--text-tertiary, var(--text-secondary))",
+                    alignSelf: mine ? "flex-end" : "flex-start",
+                    margin: mine ? "0 6px -3px 0" : "0 0 -3px 6px",
+                  }}>{m.from_name}</span>
+                )}
+                <div style={{
                   maxWidth: "80%",
                   alignSelf: mine ? "flex-end" : "flex-start",
                   background: mine ? ACCENT : "var(--bg-elevated)",
@@ -306,6 +329,7 @@ export function MessageChatScreen({ role, actorId, thread, onBack, onSent, onDel
                   }}>
                     {timeLabel(m.created_at)}{mine && m.read_at ? " · 읽음" : ""}
                   </span>
+                </div>
                 </div>
               );
             })}
@@ -340,6 +364,14 @@ export function MessageChatScreen({ role, actorId, thread, onBack, onSent, onDel
           <textarea
             value={input}
             onChange={e => setInput(e.target.value)}
+            onKeyDown={e => {
+              // 2026-07-24 — 사장님 spec: 엔터 = 보내기 (Shift+엔터 = 줄바꿈)
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSend();
+              }
+            }}
+            enterKeyHint="send"
             rows={1}
             placeholder=""
             style={{
