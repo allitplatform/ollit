@@ -20,6 +20,7 @@ export function AdminMessagesScreen({ user, onBack }) {
   const [error, setError]     = useState("");
   const [tick, setTick]       = useState(0);
   const [filter, setFilter]   = useState("all");   // all | unread | request
+  const [query, setQuery]     = useState("");      // 2026-07-24 — 검색 (사장님 spec)
   const [openThread, setOpenThread] = useState(null);
 
   const reload = useCallback(() => setTick(v => v + 1), []);
@@ -45,10 +46,20 @@ export function AdminMessagesScreen({ user, onBack }) {
     [items]
   );
   const filtered = useMemo(() => {
-    if (filter === "unread")  return items.filter(t => (Number(t.unread_count) || 0) > 0);
-    if (filter === "request") return items.filter(t => t.last_kind && t.last_kind !== "general");
-    return items;
-  }, [items, filter]);
+    let arr = items;
+    if (filter === "unread")  arr = arr.filter(t => (Number(t.unread_count) || 0) > 0);
+    if (filter === "request") arr = arr.filter(t => t.last_kind && t.last_kind !== "general");
+    // 2026-07-24 — 검색 (사장님 spec): 기사 이름 · 기사 코드 · 작업번호 · 고객명 · 마지막 내용
+    const q = query.trim().toLowerCase();
+    if (q) {
+      arr = arr.filter(t => {
+        const hay = [t.engineer_name, t.engineer_code, t.task_no, t.customer_name, t.last_body]
+          .filter(Boolean).join(" ").toLowerCase();
+        return hay.includes(q);
+      });
+    }
+    return arr;
+  }, [items, filter, query]);
   const groups = useMemo(
     () => groupThreadsByDay(filtered, t => t.last_at),
     [filtered]
@@ -132,6 +143,19 @@ export function AdminMessagesScreen({ user, onBack }) {
       </div>
 
       <div style={{ padding: "12px 14px" }}>
+        {/* 2026-07-24 — 검색 (사장님 spec) */}
+        <input
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+          placeholder="🔍 기사 · 작업번호 · 고객 · 내용"
+          style={{
+            width: "100%", boxSizing: "border-box",
+            padding: "10px 12px", marginBottom: 10,
+            background: "var(--bg-elevated)", border: "1px solid var(--border)",
+            borderRadius: 9, fontSize: 12.5, color: "var(--text-primary)",
+            fontFamily: "inherit", outline: "none",
+          }}
+        />
         {/* 필터 칩 */}
         <div style={{ display: "flex", gap: 5, marginBottom: 10 }}>
           {chips.map(c => {
