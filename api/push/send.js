@@ -121,7 +121,7 @@ export default async function handler(req, res) {
   // → 같은 title + 5초 이내 알림이 인앱 dedup 으로 묶임. 연쇄 알림 첫 1건만 보임.
   // 2026-06-06 — kind 추가 (Mig 101 user_notification_preferences 게이트). payload 측 명시 측 사용,
   //   미지정 측 inferKindFromTitle 측 fallback. 트리거 SQL 수정 없이 동작.
-  const { targetType, targetId, title, body: msgBody, url, tag, icon, badge, requireInteraction, taskId, kind: kindParam } = body;
+  const { targetType, targetId, title, body: msgBody, url, tag, icon, badge, requireInteraction, taskId, kind: kindParam, excludeUserId } = body;
 
   if (!targetType || !title) {
     return res.status(400).json({ ok: false, error: "targetType + title 필수" });
@@ -150,6 +150,10 @@ export default async function handler(req, res) {
         return res.status(500).json({ ok: false, error: roleErr.message || "user_roles 조회 실패" });
       }
       targetUserIds = [...new Set((roleRows || []).map(r => r.user_id).filter(Boolean))];
+      // 2026-07-24 — 보낸 사람 제외 (역할 2개 계정이 자기 메시지 알림을 자기가 받던 문제).
+      if (excludeUserId) {
+        targetUserIds = targetUserIds.filter(id => id !== String(excludeUserId));
+      }
       if (targetUserIds.length === 0) {
         return res.status(200).json({ ok: true, sent: 0, failed: 0, expired: 0, total: 0, note: "role 매칭 user 없음" });
       }
