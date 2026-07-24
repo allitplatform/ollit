@@ -67,18 +67,17 @@ function StatusChip({ tone = "mut", children }) {
   );
 }
 
-// 마진 막대 — 연한 = 마진 (1위 대비), 진한 = 마진율 (그 막대 안 비중).
-function MarginBar({ t, ratio, rate, color }) {
-  const w1 = Math.max(0, Math.min(100, Math.round((ratio || 0) * 100)));
-  const w2 = Math.max(0, Math.min(w1, Math.round(w1 * (rate || 0))));
+// 마진 막대 — 2026-07-24 v4.1 (사장님 확정): 기간 전체 회사 마진에서 차지하는 비중.
+//   "오늘 번 돈은 누가 만들었나"가 한눈에. (1위 대비·마진율 이중 표시 폐기.)
+function MarginBar({ t, share, color }) {
+  const w = Math.max(0, Math.min(100, Math.round((share || 0) * 100)));
   return (
     <div style={{
       height: 8, background: t.bgInset || "rgba(128,128,128,0.12)",
       borderRadius: "0 4px 4px 0", overflow: "hidden", position: "relative",
       marginTop: 8,
     }}>
-      <span style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${w1}%`, background: color, opacity: 0.26 }}/>
-      <span style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${w2}%`, background: color }}/>
+      <span style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${w}%`, background: color, borderRadius: "0 4px 4px 0" }}/>
     </div>
   );
 }
@@ -489,10 +488,11 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
           </span>
         </div>
 
-        {/* 원청별 — 2026-07-24 v4: 마진 큰 초록 숫자 + 매출·마진율 보조 + 마진 막대 */}
+        {/* 원청별 — 2026-07-24 v4: 마진 큰 초록 숫자 + 매출·마진율 보조 + 비중 막대 */}
         {tab === "principal" && (
           <PrincipalCardList t={t}
             rows={byPrincipalWithCounts.slice().sort((a, b) => (b.owner || 0) - (a.owner || 0))}
+            totalOwner={summary.owner}
             emptyText={`${isDay ? "이 날" : "이 달"} 매출 데이터 없음`}/>
         )}
 
@@ -522,6 +522,7 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
             )}
             <EngineerCardListV4 t={t}
               rows={byEngineerV4}
+              totalOwner={summary.owner}
               emptyText={`${isDay ? "이 날" : "이 달"} 회사 마진 데이터 없음`}
               onRowClick={(row) => {
                 // 클릭 시점 상위 mode 기간 그대로 이어받기.
@@ -975,7 +976,7 @@ function SectionHeader({ t, title, sub, right }) {
 //   1줄: 원청명 + [완료 N / 접수 M] 칩
 //   2줄: 초록 마진 큰 숫자 (좌) · 매출 ₩ + 마진율 % (우, 회색 보조)
 //   3줄: 마진 막대 — 연한 = 1위 대비, 진한 = 마진율.
-function PrincipalCardList({ t, rows, emptyText }) {
+function PrincipalCardList({ t, rows, totalOwner = 0, emptyText }) {
   if (!rows || rows.length === 0) {
     return (
       <div style={{
@@ -986,13 +987,14 @@ function PrincipalCardList({ t, rows, emptyText }) {
       }}>{emptyText}</div>
     );
   }
-  const maxOwner = Math.max(1, ...rows.map(r => Number(r.owner) || 0));
+  const denom = Math.max(1, Number(totalOwner) || 0);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
       {rows.map((row, idx) => {
         const owner = Number(row.owner) || 0;
         const total = Number(row.total) || 0;
         const rate  = total > 0 ? owner / total : 0;
+        const share = owner / denom;
         return (
           <div key={(row.code || row.id || row.name || idx) + "_" + idx} style={{
             background: t.bgElevated,
@@ -1022,7 +1024,10 @@ function PrincipalCardList({ t, rows, emptyText }) {
                 whiteSpace: "nowrap",
               }}>매출 {fmtKRW(total)}{total > 0 ? ` · ${Math.round(rate * 100)}%` : ""}</span>
             </div>
-            <MarginBar t={t} ratio={owner / maxOwner} rate={rate} color={MARGIN_GREEN}/>
+            <MarginBar t={t} share={share} color={MARGIN_GREEN}/>
+            <div className="mono" style={{ fontSize: 9.5, color: t.textMuted, marginTop: 4 }}>
+              전체 마진의 {Math.round(share * 100)}%
+            </div>
           </div>
         );
       })}
@@ -1034,7 +1039,7 @@ function PrincipalCardList({ t, rows, emptyText }) {
 //   1줄: 기사명 + 상태 칩 (✓ 완료/배정 · 🚗 출장 · ✗ 취소 · 대기)
 //   2줄: 초록 마진 큰 숫자 · 매출 보조
 //   3줄: 청록 막대 (1위 대비 / 진한 = 마진율) + 건당 ₩ 풋노트.
-function EngineerCardListV4({ t, rows, emptyText, onRowClick }) {
+function EngineerCardListV4({ t, rows, totalOwner = 0, emptyText, onRowClick }) {
   if (!rows || rows.length === 0) {
     return (
       <div style={{
@@ -1045,13 +1050,13 @@ function EngineerCardListV4({ t, rows, emptyText, onRowClick }) {
       }}>{emptyText}</div>
     );
   }
-  const maxOwner = Math.max(1, ...rows.map(r => Number(r.owner) || 0));
+  const denom = Math.max(1, Number(totalOwner) || 0);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
       {rows.map((row, idx) => {
         const owner = Number(row.owner) || 0;
         const total = Number(row.total) || 0;
-        const rate  = total > 0 ? owner / total : 0;
+        const share = owner / denom;
         return (
           <button
             key={(row.code || row.id || row.name || idx) + "_" + idx}
@@ -1094,12 +1099,10 @@ function EngineerCardListV4({ t, rows, emptyText, onRowClick }) {
                 fontSize: 11, fontWeight: 600, color: t.textMuted, whiteSpace: "nowrap",
               }}>매출 {fmtKRW(total)}</span>
             </div>
-            <MarginBar t={t} ratio={owner / maxOwner} rate={rate} color={ENG_CYAN}/>
-            {row.per > 0 && (
-              <div className="mono" style={{ fontSize: 9.5, color: t.textMuted, marginTop: 4 }}>
-                건당 {fmtKRW(row.per)}
-              </div>
-            )}
+            <MarginBar t={t} share={share} color={ENG_CYAN}/>
+            <div className="mono" style={{ fontSize: 9.5, color: t.textMuted, marginTop: 4 }}>
+              전체 마진의 {Math.round(share * 100)}%{row.per > 0 ? ` · 건당 ${fmtKRW(row.per)}` : ""}
+            </div>
           </button>
         );
       })}
