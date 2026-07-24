@@ -8,11 +8,17 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { sendTaskMessage } from "../../lib/taskMessagesDb.js";
+// 2026-07-24 — 옛 sendTaskMessage(Mig 150) → adminSendMessage(Mig 188)로 교체.
+//   옛 RPC 는 engineer_user(스레드 키) 없이 저장 → 기사 메시지함 목록에 안 뜨던 버그.
+//   새 RPC 는 스레드 저장 + 푸시(자기수신 제외)까지 한 번에.
+import { adminSendMessage } from "../../lib/taskMessagesDb.js";
 
 const ACCENT = "#FF1B8D";
 
+// 2026-07-24 — 사장님 spec: 실사용 문구 2개 추가.
 const TEMPLATES = [
+  "정보수정 되었습니다.",
+  "빠른연락부탁드립니다.",
   "주소 확인 부탁드립니다.",
   "고객 부재중입니다.",
   "일정 변경 가능한가요?",
@@ -53,11 +59,12 @@ export function SendTaskMessageModal({ t, task, actorId, onClose, onSent }) {
     if (!task?.id)        { setError("작업 정보 확인 실패"); return; }
     setSubmitting(true);
     setError("");
-    const res = await sendTaskMessage({
-      taskId:   task.id,
-      toUserId,
-      body:     body.trim(),
+    const res = await adminSendMessage({
       actorId,
+      engineerUserId: toUserId,
+      taskId:         task.id,
+      kind:           "general",
+      body:           body.trim(),
     });
     setSubmitting(false);
     if (!res.ok) { setError(res.error || "전송 실패"); return; }
