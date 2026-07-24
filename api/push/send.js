@@ -137,15 +137,19 @@ export default async function handler(req, res) {
     let targetUserIds = null;
 
     if (targetType === "role" && targetId) {
+      // 2026-07-24 — 복수 role 지원 ('admin,operator,owner') + user 중복 제거.
+      //   기사 메시지 푸시가 role 별 3회 호출로 나가 같은 사람이 2~3번 받던 문제 fix
+      //   (한 계정이 여러 역할 보유 시). 단일 role 호출은 기존과 동일 동작.
+      const roles = String(targetId).split(",").map(s => s.trim()).filter(Boolean);
       const { data: roleRows, error: roleErr } = await supabase
         .from("user_roles")
         .select("user_id")
-        .eq("role", String(targetId));
+        .in("role", roles);
       if (roleErr) {
         console.error("[push send:role lookup]", roleErr);
         return res.status(500).json({ ok: false, error: roleErr.message || "user_roles 조회 실패" });
       }
-      targetUserIds = (roleRows || []).map(r => r.user_id).filter(Boolean);
+      targetUserIds = [...new Set((roleRows || []).map(r => r.user_id).filter(Boolean))];
       if (targetUserIds.length === 0) {
         return res.status(200).json({ ok: true, sent: 0, failed: 0, expired: 0, total: 0, note: "role 매칭 user 없음" });
       }
