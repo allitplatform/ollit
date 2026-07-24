@@ -262,6 +262,15 @@ const TODAY = (() => {
 const TODAY_DATE = "2026-04-27";  // 비교용 (assignedDate / completedDate / workDate)
 const ADMIN_USER = "이대표";
 
+// 2026-07-21 — 사장님 spec: 앱 모든 작업 검색창에서 고객 전화번호 검색 지원.
+//   숫자만 3자리 이상 입력하면 하이픈 무시하고 부분 일치.
+function _phoneHit(q, phone) {
+  const qd = String(q || "").replace(/\D/g, "");
+  if (qd.length < 3) return false;
+  const pd = String(phone || "").replace(/\D/g, "");
+  return !!pd && pd.includes(qd);
+}
+
 // ============================================
 // Mock 데이터 (시안 4-V4 / 1 / 5-V3 / 3-V5 검증용)
 // ============================================
@@ -5449,8 +5458,8 @@ function ReassignRequestListScreen({ t, apiTasks = [], onBack, onMemo, onEdit, o
   const q = query.trim().toLowerCase();
   const all = !q ? sorted : sorted.filter((s) => {
     const reason = String(s?.reassignRequest?.reason || "").toLowerCase();
-    const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo, reason].filter(Boolean).join(" ").toLowerCase();
-    return fields.includes(q);
+    const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo, s.phone, reason].filter(Boolean).join(" ").toLowerCase();
+    return fields.includes(q) || _phoneHit(q, s.phone);
   });
 
   return (
@@ -5473,7 +5482,7 @@ function ReassignRequestListScreen({ t, apiTasks = [], onBack, onMemo, onEdit, o
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="고객 · 지역 · 작업 · 프로 · 사유"
+            placeholder="고객 · 전화번호 · 지역 · 작업 · 프로 · 사유"
             style={{
               width: "100%", boxSizing: "border-box",
               padding: "8px 10px 8px 30px",
@@ -5507,8 +5516,8 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
   // 2026-05-21 Phase 5 Step 0.H — 검색란 추가 (InProgressListScreen 측 동일 spec)
   const q = query.trim().toLowerCase();
   const filtered = !q ? baseSource : baseSource.filter((s) => {
-    const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo].filter(Boolean).join(" ").toLowerCase();
-    return fields.includes(q);
+    const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo, s.phone].filter(Boolean).join(" ").toLowerCase();
+    return fields.includes(q) || _phoneHit(q, s.phone);
   });
   // 2026-06-19 — 정렬: 서비스 예정일시(scheduledAt) ASC. 동일 날짜는 시간
   //   오름차순 자동 적용. null/undefined 는 Infinity 로 맨 뒤 (assigned 일정
@@ -5541,7 +5550,7 @@ function AssignedTasksScreen({ t, filter, apiTasks = [], onBack, onMemo, onEdit,
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="고객 · 지역 · 작업 · 프로"
+            placeholder="고객 · 전화번호 · 지역 · 작업 · 프로"
             style={{
               width: "100%", boxSizing: "border-box",
               padding: "8px 10px 8px 30px",
@@ -5910,18 +5919,11 @@ function NewReceptionScreen({
   // 2026-07-21 — 사장님 spec: 고객 전화번호 검색 추가 (숫자만 입력해도 하이픈 무시 매칭).
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
-  const qDigits = q.replace(/\D/g, "");
   const filterByQuery = (arr) => {
     if (!q) return arr;
     return arr.filter((s) => {
       const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo, s.phone].filter(Boolean).join(" ").toLowerCase();
-      if (fields.includes(q)) return true;
-      // 전화번호 — 숫자만 비교 (3자리 이상 입력 시)
-      if (qDigits.length >= 3) {
-        const phoneDigits = String(s.phone || "").replace(/\D/g, "");
-        if (phoneDigits && phoneDigits.includes(qDigits)) return true;
-      }
-      return false;
+      return fields.includes(q) || _phoneHit(q, s.phone);
     });
   };
   const cleanings    = filterByQuery(tasks.세척);
@@ -6129,7 +6131,7 @@ function NewReceptionScreen({
           })}
         </div>
         {showCleanings && (
-          <ReceptionGroup t={t} workType="세척" title="에어컨 세척" subtitle="신규" subtitleColor={t.textMuted} count={cleanings.length}>
+          <div style={{ marginBottom: 4 }}>
             {cleanings.map((task) => (
               <CleaningCard key={task.id} t={t} task={task}
                 onAssign={() => onAssign(task)}
@@ -6138,11 +6140,11 @@ function NewReceptionScreen({
                 onCardMenuAction={onCardMenuAction}
               />
             ))}
-          </ReceptionGroup>
+          </div>
         )}
 
         {showRefrigerants && (
-          <ReceptionGroup t={t} workType="냉매충전" title="가스 충전" subtitle="자동 진행" subtitleColor={t.success} count={refrigerants.length}>
+          <div style={{ marginBottom: 4 }}>
             {refrigerants.map((task) => (
               <RefrigerantCard key={task.id} t={t} task={task}
                 onAssign={() => onAssign(task)}
@@ -6153,11 +6155,11 @@ function NewReceptionScreen({
                 onCardMenuAction={onCardMenuAction}
               />
             ))}
-          </ReceptionGroup>
+          </div>
         )}
 
         {showLeaks && leaks.length > 0 && (
-          <ReceptionGroup t={t} workType="누설" title="누설 수리" subtitle="신규" subtitleColor={t.textMuted} count={leaks.length}>
+          <div style={{ marginBottom: 4 }}>
             {leaks.map((task) => (
               <CleaningCard key={task.id} t={t} task={task}
                 onAssign={() => onAssign(task)}
@@ -6166,11 +6168,11 @@ function NewReceptionScreen({
                 onCardMenuAction={onCardMenuAction}
               />
             ))}
-          </ReceptionGroup>
+          </div>
         )}
 
         {showInstalls && installs.length > 0 && (
-          <ReceptionGroup t={t} workType="설치" title="설치" subtitle="신규" subtitleColor={t.textMuted} count={installs.length}>
+          <div style={{ marginBottom: 4 }}>
             {installs.map((task) => (
               <CleaningCard key={task.id} t={t} task={task}
                 onAssign={() => onAssign(task)}
@@ -6179,13 +6181,13 @@ function NewReceptionScreen({
                 onCardMenuAction={onCardMenuAction}
               />
             ))}
-          </ReceptionGroup>
+          </div>
         )}
 
         {/* 2026-07-11 — 사장님 spec: 4그룹 미분류 (기종 미정 등) task 노출.
               카운트와 리스트 항상 일치 보장. */}
         {showOthers && others.length > 0 && (
-          <ReceptionGroup t={t} workType="" title="기타" subtitle="기종/종목 미정" subtitleColor="#F59E0B" count={others.length}>
+          <div style={{ marginBottom: 4 }}>
             {others.map((task) => (
               <CleaningCard key={task.id} t={t} task={task}
                 onAssign={() => onAssign(task)}
@@ -6194,7 +6196,7 @@ function NewReceptionScreen({
                 onCardMenuAction={onCardMenuAction}
               />
             ))}
-          </ReceptionGroup>
+          </div>
         )}
       </div>
 
@@ -6785,8 +6787,8 @@ function InProgressListScreen({ t, onBack, onTaskClick, apiTasks = [] }) {
 
   const q = query.trim().toLowerCase();
   const filtered = !q ? baseSource : baseSource.filter((s) => {
-    const fields = [s.customer, s.region, s.workType, s.engineer, s.note].filter(Boolean).join(" ").toLowerCase();
-    return fields.includes(q);
+    const fields = [s.customer, s.region, s.workType, s.engineer, s.note, s.phone].filter(Boolean).join(" ").toLowerCase();
+    return fields.includes(q) || _phoneHit(q, s.phone);
   });
   const activeCount = filtered.length;
 
@@ -6813,7 +6815,7 @@ function InProgressListScreen({ t, onBack, onTaskClick, apiTasks = [] }) {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="고객 · 지역 · 작업 · 프로"
+            placeholder="고객 · 전화번호 · 지역 · 작업 · 프로"
             style={{
               width: "100%", boxSizing: "border-box",
               padding: "8px 10px 8px 30px",
@@ -7572,9 +7574,9 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
   const q = query.trim().toLowerCase();
   const matched = !q ? base : base.filter((s) => {
     const fields = [
-      s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note,
+      s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.phone,
     ].filter(Boolean).join(" ").toLowerCase();
-    return fields.includes(q);
+    return fields.includes(q) || _phoneHit(q, s.phone);
   });
 
   // 2026-05-21 Phase 5 Step 0.H — 작업 예정 시간 오름차순 정렬 (가까운 시간 측 측 측)
@@ -7604,7 +7606,7 @@ function LiveWorkContent({ t, onTaskClick, initialFilter, apiTasks = [] }) {
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="고객 · 지역 · 작업 · 프로"
+          placeholder="고객 · 전화번호 · 지역 · 작업 · 프로"
           style={{
             width: "100%", boxSizing: "border-box",
             padding: "8px 10px 8px 30px",

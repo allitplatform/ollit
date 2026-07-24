@@ -155,10 +155,14 @@ export function EngineerCalendarScreen({
     const q = debouncedQuery.toLowerCase();
     if (q.length === 0) return [];
     const out = [];
+    // 2026-07-21 — 사장님 spec: 전화번호 검색 추가 (숫자만 3자리 이상 입력, 하이픈 무시 매칭).
+    const qDigits = q.replace(/\D/g, "");
     for (const task of (apiTasks || [])) {
       if (task.status === "취소") continue;
       const name = String(task.customer || "").toLowerCase();
-      if (!name.includes(q)) continue;
+      const phoneDigits = qDigits.length >= 3 ? String(task.phone || "").replace(/\D/g, "") : "";
+      const hit = name.includes(q) || (phoneDigits && phoneDigits.includes(qDigits));
+      if (!hit) continue;
       out.push(task);
       if (out.length >= MAX_SEARCH_RESULTS * 4) break; // sort 측측 측측 측측 측측 측측.
     }
@@ -252,7 +256,7 @@ export function EngineerCalendarScreen({
             type="text"
             value={custQuery}
             onChange={e => setCustQuery(e.target.value)}
-            placeholder="고객명으로 찾기 (전체 기사 대상)"
+            placeholder="고객명 · 전화번호로 찾기 (전체 기사 대상)"
             style={{
               flex: 1, background: "transparent", border: "none", outline: "none",
               color: t.text, fontSize: 13, fontFamily: "inherit",

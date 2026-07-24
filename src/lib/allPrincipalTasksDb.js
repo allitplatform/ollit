@@ -156,6 +156,14 @@ export async function fetchAllPrincipalTasks({
           `address.ilike.%${esc}%`,
           `phone.ilike.%${esc}%`,
         );
+        // 2026-07-21 — 사장님 spec: 전화번호 하이픈 무시 검색.
+        //   숫자만 3자리 이상 입력 시 자리 사이 % 삽입 → "01012345678"도 "010-1234-5678" 매칭.
+        const kwDigits = kw.replace(/\D/g, "");
+        if (kwDigits.length >= 3 && kwDigits !== kw) {
+          orParts.push(`phone.ilike.%${kwDigits.split("").join("%")}%`);
+        } else if (kwDigits.length >= 3 && /^\d+$/.test(kw)) {
+          orParts.push(`phone.ilike.%${kwDigits.split("").join("%")}%`);
+        }
       }
       if (hasEngineerIds) {
         orParts.push(`assigned_engineer_id.in.(${engineerIds.join(",")})`);
