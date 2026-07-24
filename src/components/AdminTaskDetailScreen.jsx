@@ -403,6 +403,17 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
             <div style={{
               fontSize: 13, fontWeight: 800, color: "var(--text-primary)",
             }}>출장비만으로 처리된 작업</div>
+            {/* 2026-07-21 — 사장님 spec: 전환 전 기종 표시 (Mig 187 prevItems). 사유도 함께. */}
+            {task.categoryData?.visitOnly?.prevItems && (
+              <div style={{
+                fontSize: 11.5, color: "var(--text-primary)", marginTop: 3, fontWeight: 700,
+              }}>이전 작업: {task.categoryData.visitOnly.prevItems}</div>
+            )}
+            {task.categoryData?.visitOnly?.reason && (
+              <div style={{
+                fontSize: 10.5, color: "var(--text-secondary)", marginTop: 2, fontWeight: 600,
+              }}>사유: {task.categoryData.visitOnly.reason}</div>
+            )}
             <div style={{
               fontSize: 11, color: "var(--text-secondary)", marginTop: 2, fontWeight: 600,
             }}>정상 작업으로 되돌릴 수 있습니다 (분배 자동 재계산)</div>
