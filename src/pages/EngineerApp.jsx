@@ -4504,7 +4504,10 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
     async function reload() {
       const stored = await listStoredNotifications();
       if (cancelled) return;
-      const adapted = stored.map(adaptStoredNoti);
+      // 2026-07-24 — 사장님 spec: 채팅 메시지(💬)는 메시지 탭이 전담 — 알림 리스트에서 제외.
+      const adapted = stored
+        .filter(s => !/^(💬|📨)/.test(s.title || ""))
+        .map(adaptStoredNoti);
       // ENABLE_MOCK 모드면 mock + IndexedDB 합쳐서 / 운영 모드면 IndexedDB만
       setNotifications(ENABLE_MOCK ? [...adapted, ..._MOCK_NOTIFICATIONS] : adapted);
     }

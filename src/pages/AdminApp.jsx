@@ -211,8 +211,6 @@ import MetroRouteMap from "../components/admin/MetroRouteMap.jsx";
 import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
 // 2026-07-10 — 지역별 접수 현황 (tasks + 미처리 inquiries 합산, 읽기 전용).
 import { RegionStatsScreen } from "../components/admin/RegionStatsScreen.jsx";
-// 2026-07-24 — 마케팅 조감 (홈페이지 접수 퍼널 + 완료 매출·회사이익 + 지역 top5). 광고 API 는 2단계.
-import { MarketingScreen } from "../components/admin/MarketingScreen.jsx";
 // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환용).
 import { EngineerTaskListScreen } from "../components/admin/EngineerTaskList.jsx";
 // 2026-06-26 — 공지사항 관리 (Mig 147/148). 운영자 → 전체 기사 공통 공지 + 푸시.
@@ -2044,7 +2042,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     async function reload() {
       const stored = await listStoredNotifications();
       if (cancelled) return;
-      const adapted = stored.map(adaptStoredAdminNoti);
+      // 2026-07-24 — 사장님 spec: 채팅 메시지(💬)는 메시지함이 전담 — 알림 리스트에서 제외.
+      const adapted = stored
+        .filter(s => !/^(💬|📨)/.test(s.title || ""))
+        .map(adaptStoredAdminNoti);
       // mock + IndexedDB 합쳐서 (옛 mock 호환 / push 받은 거 추가)
       setNotifications([...adapted, ...NOTIFICATIONS_MOCK]);
     }
@@ -2587,7 +2588,20 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onClickItem={async (noti) => {
           // 알림 taskId / relatedId 어느 쪽이든 허용 — 어댑터 adaptStoredAdminNoti 는 relatedId 만 노출.
           const id = noti.taskId || noti.relatedId;
-          if (!id) return;
+          // 2026-07-24 — 사장님 리포트: 작업 없는 알림(홈페이지 접수 등) 클릭 시 무반응 →
+          //   제목 기반 라우팅. 접수함/메시지함으로 화면 전환.
+          if (!id) {
+            const title = noti.title || "";
+            const target =
+              /홈페이지 접수|새 문의/.test(title) ? "inquiries" :
+              /^(💬|📨)|메시지/.test(title)       ? "adminMessages" :
+              /공지/.test(title)                  ? "announcements" : null;
+            markNotiRead(noti.id);
+            if (!target) return;   // 매칭 없으면 읽음만 처리, 화면 유지
+            setScreenStack(prev => prev[prev.length - 1] === "notifications" ? prev.slice(0, -1) : prev);
+            setScreen(target);
+            return;
+          }
           // (a) 메모리 apiTasks 우선  (b) 없으면 DB 단건 폴백 (완료/취소 무관 진입)
           let task = apiTasks.find(t => t.id === id || t.taskCode === id) || null;
           if (!task) {
@@ -3377,12 +3391,6 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   if (screen === "regionStats") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <RegionStatsScreen t={t} apiTasks={apiTasks} user={user} onBack={goBack}/>
-    </Shell>;
-  }
-  // 2026-07-24 — 마케팅 조감 (홈페이지 유입 퍼널 + 매출·이익 + 지역 top5).
-  if (screen === "marketing") {
-    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <MarketingScreen t={t} apiTasks={apiTasks} user={user} onBack={goBack}/>
     </Shell>;
   }
   // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환).
