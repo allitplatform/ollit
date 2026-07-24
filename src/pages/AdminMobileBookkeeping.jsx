@@ -302,6 +302,18 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
     return Object.keys(byDate).sort().reverse().map(d => ({ date: d, rows: byDate[d] }));
   }, [cashflowRows]);
 
+  // 2026-07-24 — 월별 탭 [전체|입금|출금] 필터 (사장님 spec).
+  //   표시만 필터 — 날짜별 마감 잔고(dayCloseMap)는 전체 거래 기준 유지.
+  const [bankFilter, setBankFilter] = useState("all");   // all | in | out
+  const dayGroupsView = useMemo(() => {
+    if (bankFilter === "all") return dayGroups;
+    return dayGroups
+      .map(g => ({ date: g.date, rows: g.rows.filter(r => r.direction === bankFilter) }))
+      .filter(g => g.rows.length > 0);
+  }, [dayGroups, bankFilter]);
+  const monthInCount  = useMemo(() => (cashflowRows || []).filter(r => r.direction === "in").length,  [cashflowRows]);
+  const monthOutCount = useMemo(() => (cashflowRows || []).filter(r => r.direction === "out").length, [cashflowRows]);
+
   // 날짜별 마감 잔고 — 클라 계산 (이번 달만 정확: 현재 잔고에서 이후 거래 되감기).
   //   과거 달은 다음 달 거래가 rows 에 없어 어긋남 → pill 숨김.
   const dayCloseMap = useMemo(() => {
@@ -579,16 +591,39 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
             </div>
           </>
         )
-      ) : dayGroups.length === 0 ? (
-        <div style={{
-          padding: "18px 12px", textAlign: "center",
-          background: t.bgElevated, border: `1px dashed ${t.border}`, borderRadius: 10,
-          color: t.textMuted, fontSize: 11,
-        }}>
-          이 달엔 거래가 없어요
-        </div>
       ) : (
-        dayGroups.map(g => (
+        <>
+        {/* 2026-07-24 — [전체|입금|출금] 필터 칩 (사장님 spec) */}
+        <div style={{ display: "flex", gap: 5, marginBottom: 8 }}>
+          {[
+            { key: "all", label: `전체 ${(cashflowRows || []).length}`,       color: t.accent },
+            { key: "in",  label: `＋ 입금 ${monthInCount}`,  color: t.success },
+            { key: "out", label: `－ 출금 ${monthOutCount}`, color: t.danger },
+          ].map(c => {
+            const on = bankFilter === c.key;
+            return (
+              <button key={c.key} onClick={() => setBankFilter(c.key)} style={{
+                padding: "6px 12px", borderRadius: 999,
+                fontSize: 10.5, fontWeight: 800, fontFamily: "inherit", cursor: "pointer",
+                background: on ? `${c.color}1A` : "transparent",
+                border: `1px solid ${on ? c.color : t.border}`,
+                color: on ? c.color : t.textMuted,
+              }}>{c.label}</button>
+            );
+          })}
+        </div>
+
+        {dayGroupsView.length === 0 ? (
+          <div style={{
+            padding: "18px 12px", textAlign: "center",
+            background: t.bgElevated, border: `1px dashed ${t.border}`, borderRadius: 10,
+            color: t.textMuted, fontSize: 11,
+          }}>
+            {bankFilter === "all" ? "이 달엔 거래가 없어요"
+              : bankFilter === "in" ? "이 달엔 입금이 없어요" : "이 달엔 출금이 없어요"}
+          </div>
+        ) : (
+        dayGroupsView.map(g => (
           <div key={g.date} style={{ marginBottom: 10 }}>
             <div style={{
               display: "flex", alignItems: "center", gap: 6,
@@ -618,6 +653,8 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
             </div>
           </div>
         ))
+        )}
+        </>
       )}
 
       <div style={{

@@ -9849,7 +9849,14 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
       !/(특별시|광역시|특별자치시|특별자치도)$/.test(tok)
     );
     if (siGun) return siGun;
-    return tokens[0] || "";
+    // 2026-07-24 — 구·시 없이 동으로 시작하는 주소 ("상도3동285-2 우연빌라501호"):
+    //   번지 숫자 떼고 동 이름만 ("상도3동"). 이전엔 첫 토큰 통째 → 지역 통계 오염.
+    for (const tok of tokens) {
+      const m = tok.match(/^([가-힣]{2,}\d{0,2}[동읍면])(?:[\d\-]|$)/);
+      if (m) return m[1];
+    }
+    // fallback — 첫 토큰에서 끝자리 번지/하이픈 제거
+    return (tokens[0] || "").replace(/[\d\-]+$/, "") || tokens[0] || "";
   })();
 
   // 2026-06-19 — 고객 자동 생성 규칙 변경 (사장님 spec).
@@ -9867,8 +9874,9 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     if (tokens.length === 0) return "";
 
     // 1) 동/읍/면 토큰 우선 (순수 한글 + 끝글자 동/읍/면)
+    //    2026-07-24 — "상도3동" 같은 숫자 낀 동 이름 지원 (\d* 삽입).
     for (const tok of tokens) {
-      const m = tok.match(/^([가-힣]+[동읍면])$/);
+      const m = tok.match(/^([가-힣]+\d*[동읍면])$/);
       if (m) return m[1];
     }
 
@@ -9882,9 +9890,11 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
       if (m2) return m2[1];
     }
 
-    // 3) 토큰 안에 동/읍/면 부분 매칭 (예: "갈현동123" 같은 끝-숫자 케이스)
+    // 3) 토큰 안에 동/읍/면 부분 매칭 (예: "갈현동123", "상도3동285-2" 붙은 케이스)
+    //    2026-07-24 — "상도3동285-2" → "상도3동" ("동 이름 숫자" + "번지 숫자" 분리:
+    //    동 앞 숫자는 1~2자리, 뒤는 번지·하이픈 무엇이든).
     for (const tok of tokens) {
-      const m = tok.match(/^([가-힣]{2,}[동읍면])(?:\d|$)/);
+      const m = tok.match(/^([가-힣]{2,}\d{0,2}[동읍면])(?:[\d\-]|$)/);
       if (m) return m[1];
     }
 
