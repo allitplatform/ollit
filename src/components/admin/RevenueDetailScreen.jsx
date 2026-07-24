@@ -1079,9 +1079,8 @@ function EngineerCardListV4({ t, rows, totalOwner = 0, emptyText, onRowClick }) 
                 minWidth: 0, flex: 1,
               }}>{row.name || "—"}</span>
               <span style={{ display: "flex", gap: 4, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                <StatusChip tone={row.rate != null && row.rate < 80 ? "warn" : "ok"}>
-                  ✓ {row.doneN}{row.assigned > 0 ? `/${row.assigned}` : ""}{row.rate != null ? ` · ${row.rate}%` : ""}
-                </StatusChip>
+                {/* 2026-07-24 v4.2 — 사장님 spec: 완료 수만 (배정 대비·% 표기 제거) */}
+                <StatusChip tone="ok">✓ {row.doneN}</StatusChip>
                 {row.visit > 0 && <StatusChip tone="warn">🚗 {row.visit}</StatusChip>}
                 {row.canceled > 0 && <StatusChip tone="bad">✗ {row.canceled}</StatusChip>}
                 {row.waiting > 0 && <StatusChip tone="mut">대기 {row.waiting}</StatusChip>}
