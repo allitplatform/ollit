@@ -32,7 +32,7 @@ import { KakaoBypassScreen } from "./components/KakaoBypassScreen.jsx";
 import { isKakaoInApp, tryBypassKakao } from "./lib/kakaoBypass.js";
 import { PasswordChangeScreen } from "./components/PasswordChangeScreen.jsx";
 import {
-  addNotification as addNotificationToStore,
+  // 2026-07-24 — addNotification import 제거 (중복 저장 수리 — 저장은 SW 한 곳만)
   clearAll as clearAllStoredNotifications,
 } from "./utils/notificationStore.js";
 import { switchActiveRole } from "./lib/roles.js";
@@ -102,19 +102,21 @@ export default function App() {
     window.__DEBUG_NORMALIZE = false;
   }
 
-  // 2026-05-10 — service worker push 메시지 수신 → IndexedDB 저장 + 카운터 갱신 트리거
+  // 2026-05-10 — service worker push 메시지 수신 → 카운터 갱신 트리거.
+  // 2026-07-24 fix — 인앱 알림함 2줄 중복 (사장님 리포트: 역할 1개인데도 2개).
+  //   원인: SW push 핸들러가 IndexedDB 직접 저장 + 앱도 여기서 addNotificationToStore
+  //         → 앱이 열려 있을 때 받은 푸시만 2번 저장 (양쪽이 동시에 써서 dedup 도 무력).
+  //   수리: 저장은 SW 한 곳만 (백그라운드 포함 항상 저장됨). 앱은 새로고침 신호만.
+  //         SW 저장 커밋보다 postMessage 가 먼저 도착할 수 있어 400ms 지연 후 dispatch.
   useEffect(() => {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
     const handler = (event) => {
       if (event.data?.type !== "PUSH_RECEIVED") return;
-      const payload = event.data.data || {};
-      const { title, body, url, taskId } = payload;
-      addNotificationToStore({ title, body, url, taskId }).then(() => {
-        // 카운터 갱신 트리거 (커스텀 이벤트)
+      setTimeout(() => {
         try {
           window.dispatchEvent(new CustomEvent("notification:added"));
         } catch (e) { /* */ }
-      });
+      }, 400);
     };
     navigator.serviceWorker.addEventListener("message", handler);
     return () => navigator.serviceWorker.removeEventListener("message", handler);
