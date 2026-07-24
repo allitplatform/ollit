@@ -7851,6 +7851,10 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
             ? <VisitIcon size={13}/>
             : <WorkIcon size={13} style={{ color: workColor, flexShrink: 0 }}/>
         )}
+        {/* 2026-07-24 — 사장님 spec: 진행중/완료 리스트에 원청 표시 (축약 칩, 원청색) */}
+        {!isExternal && task.principal && (
+          <PrincipalLabel name={task.principal} short/>
+        )}
         {/* 고객명 */}
         <span style={{
           fontSize: 12, fontWeight: 500, color: t.text,
