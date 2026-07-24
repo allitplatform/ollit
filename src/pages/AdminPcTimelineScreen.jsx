@@ -115,7 +115,11 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
         t.phone, t.전화번호,
         t.task_no, t.taskNo, t.taskCode,
       ].filter(Boolean).join(" ").toLowerCase();
-      if (fields.includes(q)) matched.push(t);
+      // 2026-07-21 — 전화번호 하이픈 무시 매칭 (숫자만 3자리 이상 입력 시).
+      const qDigits = q.replace(/\D/g, "");
+      const phoneDigits = qDigits.length >= 3
+        ? String(t.phone || t.전화번호 || "").replace(/\D/g, "") : "";
+      if (fields.includes(q) || (phoneDigits && phoneDigits.includes(qDigits))) matched.push(t);
     }
     matched.sort((a, b) => {
       const aT = new Date(a.scheduledAt || a.scheduled_at).getTime();

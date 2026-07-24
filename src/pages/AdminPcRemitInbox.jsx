@@ -185,16 +185,19 @@ export default function AdminPcRemitInbox({ t, apiTasks = [], user, onTaskClick,
     return monthFiltered.filter(task => pickRowStatus(task) === statusFilter);
   }, [monthFiltered, statusFilter]);
 
-  // 검색 (기사명 / 고객명 / 작업번호)
+  // 검색 (기사명 / 고객명 / 전화번호 / 작업번호) — 2026-07-21 전화번호 추가 (하이픈 무시)
   const filtered = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return statusFiltered;
+    const qDigits = q.replace(/\D/g, "");
     return statusFiltered.filter(task => {
       const fields = [
         task.engineer, task.assignedEngineer,
-        task.customer, task.taskNo, task.taskCode,
+        task.customer, task.taskNo, task.taskCode, task.phone,
       ].filter(Boolean).join(" ").toLowerCase();
-      return fields.includes(q);
+      if (fields.includes(q)) return true;
+      const phoneDigits = qDigits.length >= 3 ? String(task.phone || "").replace(/\D/g, "") : "";
+      return !!(phoneDigits && phoneDigits.includes(qDigits));
     });
   }, [statusFiltered, searchQuery]);
 
@@ -348,7 +351,7 @@ export default function AdminPcRemitInbox({ t, apiTasks = [], user, onTaskClick,
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="기사명 / 고객명 / 작업번호"
+            placeholder="기사명 / 고객명 / 전화번호 / 작업번호"
             style={{
               flex: 1, background: "transparent", border: "none", outline: "none",
               color: t.text, fontSize: 12, fontFamily: "inherit", minWidth: 0,

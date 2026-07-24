@@ -31,6 +31,8 @@ export function AdminPcTaskSearchPanel({ apiTasks = [], onTaskClick }) {
   const results = useMemo(() => {
     if (!query) return [];
     const q = query.toLowerCase();
+    // 2026-07-21 — 사장님 spec: 전화번호 검색 (숫자만 3자리 이상, 하이픈 무시 매칭).
+    const qDigits = q.replace(/\D/g, "");
     const matched = [];
     for (const t of apiTasks) {
       if (!t) continue;
@@ -42,10 +44,13 @@ export function AdminPcTaskSearchPanel({ apiTasks = [], onTaskClick }) {
         t.address, t.지역, t.region, t.district,
         t.engineer, t.assignedEngineer, t.engineerName,
         t.taskCode, t.task_no, t.id, t.작업번호,
+        t.phone,
         productOrderIds,
         t.product_order_id, t.productOrderId,
       ].filter(Boolean).join(" ").toLowerCase();
-      if (haystack.includes(q)) matched.push(t);
+      const phoneDigits = qDigits.length >= 3 ? String(t.phone || "").replace(/\D/g, "") : "";
+      const hit = haystack.includes(q) || (phoneDigits && phoneDigits.includes(qDigits));
+      if (hit) matched.push(t);
       if (matched.length >= RESULT_LIMIT + 1) break;  // limit + 1 (truncated 표시용)
     }
     return matched;
@@ -87,7 +92,7 @@ export function AdminPcTaskSearchPanel({ apiTasks = [], onTaskClick }) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="고객명 · 주소 · 기사 · 작업번호 · 상품주문번호 (유솔N 네이버 주문)"
+            placeholder="고객명 · 전화번호 · 주소 · 기사 · 작업번호 · 상품주문번호"
             style={{
               flex: 1,
               boxSizing: "border-box",
