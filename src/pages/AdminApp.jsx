@@ -5907,13 +5907,21 @@ function NewReceptionScreen({
   const [editingTask, setEditingTask] = useState(null);
 
   // 2026-05-21 Phase 5 Step 0.H — 검색란 추가 (InProgressListScreen 측 동일 spec)
+  // 2026-07-21 — 사장님 spec: 고객 전화번호 검색 추가 (숫자만 입력해도 하이픈 무시 매칭).
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
+  const qDigits = q.replace(/\D/g, "");
   const filterByQuery = (arr) => {
     if (!q) return arr;
     return arr.filter((s) => {
-      const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo].filter(Boolean).join(" ").toLowerCase();
-      return fields.includes(q);
+      const fields = [s.customer, s.region, s.workType, s.engineer, s.assignedEngineer, s.note, s.memo, s.phone].filter(Boolean).join(" ").toLowerCase();
+      if (fields.includes(q)) return true;
+      // 전화번호 — 숫자만 비교 (3자리 이상 입력 시)
+      if (qDigits.length >= 3) {
+        const phoneDigits = String(s.phone || "").replace(/\D/g, "");
+        if (phoneDigits && phoneDigits.includes(qDigits)) return true;
+      }
+      return false;
     });
   };
   const cleanings    = filterByQuery(tasks.세척);
@@ -5924,19 +5932,21 @@ function NewReceptionScreen({
   const others       = filterByQuery(tasks.기타 || []);
   const total = cleanings.length + refrigerants.length + leaks.length + installs.length + others.length;
 
-  // 헤더 텍스트 + 그룹 표시 분기 (filter prop)
-  // 2026-06-25 — 누설/설치 분류 추가 (StatBox 진입 시 filter=null → 4그룹 전부 표시).
-  const showCleanings    = !filter || filter === "세척";
-  const showRefrigerants = !filter || filter === "냉매충전";
-  const showLeaks        = !filter || filter === "누설";
-  const showInstalls     = !filter || filter === "설치";
-  const showOthers       = !filter; // '기타' 는 필터 없을 때만 표시 (전체 리스트).
+  // 2026-07-21 — 필터 칩 (사장님 spec): 진입 filter prop 은 초기값만 — 화면 안에서 칩으로 자유 전환.
+  const [kindFilter, setKindFilter] = useState(filter || null);
+  useEffect(() => { setKindFilter(filter || null); }, [filter]);
+  const showCleanings    = !kindFilter || kindFilter === "세척";
+  const showRefrigerants = !kindFilter || kindFilter === "냉매충전";
+  const showLeaks        = !kindFilter || kindFilter === "누설";
+  const showInstalls     = !kindFilter || kindFilter === "설치";
+  const showOthers       = !kindFilter || kindFilter === "기타";
   const headerText =
-    filter === "세척"     ? `에어컨 세척 ${cleanings.length}건` :
-    filter === "냉매충전" ? `냉매 충전 ${refrigerants.length}건` :
-    filter === "누설"     ? `누설 수리 ${leaks.length}건` :
-    filter === "설치"     ? `설치 ${installs.length}건` :
-                             `새 접수 ${total}건`;
+    kindFilter === "세척"     ? `에어컨 세척 ${cleanings.length}건` :
+    kindFilter === "냉매충전" ? `냉매 충전 ${refrigerants.length}건` :
+    kindFilter === "누설"     ? `누설 수리 ${leaks.length}건` :
+    kindFilter === "설치"     ? `설치 ${installs.length}건` :
+    kindFilter === "기타"     ? `기타 ${others.length}건` :
+                                `새 접수 ${total}건`;
 
   const saveTask = (updated) => {
     setTasks(prev => ({
@@ -6083,7 +6093,7 @@ function NewReceptionScreen({
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="고객 · 지역 · 작업 · 프로"
+            placeholder="고객 · 전화번호 · 지역 · 작업 · 프로"
             style={{
               width: "100%", boxSizing: "border-box",
               padding: "8px 10px 8px 30px",
@@ -6092,6 +6102,31 @@ function NewReceptionScreen({
               fontSize: 12, fontFamily: "inherit", outline: "none",
             }}
           />
+        </div>
+
+        {/* 2026-07-21 — 필터 칩 (사장님 spec): 종류 전환. 세로 스크롤 대신 칩 탭. */}
+        <div style={{ display: "flex", gap: 5, marginBottom: 14, flexWrap: "wrap" }}>
+          {[
+            { key: null,      label: "전체",  n: total },
+            { key: "세척",     label: "세척",  n: cleanings.length },
+            { key: "냉매충전", label: "냉매",  n: refrigerants.length },
+            { key: "누설",     label: "누설",  n: leaks.length },
+            { key: "설치",     label: "설치",  n: installs.length },
+            ...(others.length > 0 ? [{ key: "기타", label: "기타", n: others.length }] : []),
+          ].map(c => {
+            const on = kindFilter === c.key;
+            return (
+              <button key={c.label} onClick={() => setKindFilter(c.key)} style={{
+                padding: "6px 11px", borderRadius: 999,
+                fontSize: 11, fontWeight: 800, fontFamily: "inherit", cursor: "pointer",
+                background: on ? (t.accentBg || "rgba(255,27,141,0.1)") : t.bgInset,
+                border: `1px solid ${on ? t.accent : t.border}`,
+                color: on ? t.accent : t.textSecondary,
+              }}>
+                {c.label} <span className="mono" style={{ fontVariantNumeric: "tabular-nums" }}>{c.n}</span>
+              </button>
+            );
+          })}
         </div>
         {showCleanings && (
           <ReceptionGroup t={t} workType="세척" title="에어컨 세척" subtitle="신규" subtitleColor={t.textMuted} count={cleanings.length}>
@@ -6272,96 +6307,181 @@ function ActionIconBtn({ t, icon, onClick, href, flex }) {
   return <button onClick={onClick} style={baseStyle}>{icon}</button>;
 }
 
-function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
-  // V14 2B-1 — 카드 body 클릭 → 작업 상세 진입 (기사 배정 / ⋯ 메뉴는 stopPropagation)
-  const handleCardClick = () => {
-    if (onCardMenuAction) onCardMenuAction("detail", task);
-  };
+// ─────────────────────────────────────────────
+// 2026-07-21 — 새 접수 카드 재설계 (사장님 확정: 원청 밴드 + 견적 강조, 정보 짤림 없음)
+//   · 밴드 = 원청 색 + 고객명 + ⏱ 접수 경과 배지 (3h↑ 노랑 / 24h↑ 빨강)
+//   · 본문 좌측 = 📍지역 / ❄기종 전부 / 📅희망일 / 📱전화 / 📝메모 / 📡푸시 — 전부 줄바꿈 (말줄임 없음)
+//   · 본문 우측 = 견적 크게 · 하단 = [프로 배정 | 📞 전화]
+//   · 배정 로직·클릭 분기·데이터 변경 0 — 표시만 재구성.
+// ─────────────────────────────────────────────
+function _receptionAge(task) {
+  const src = task.createdAt || task.receivedAt || "";
+  const then = new Date(src).getTime();
+  if (!src || isNaN(then)) return null;
+  const mins = Math.max(0, Math.floor((Date.now() - then) / 60000));
+  if (mins < 60) return { label: `${mins}분`, level: 0 };
+  const hours = Math.floor(mins / 60);
+  if (hours < 3)  return { label: `${hours}시간`, level: 0 };
+  if (hours < 24) return { label: `${hours}시간`, level: 1 };
+  const days = Math.floor(hours / 24);
+  return { label: `${days}일`, level: 2 };
+}
+
+function ReceptionAgeBadge({ t, age }) {
+  if (!age) return null;
+  const styleByLevel = {
+    0: { background: t.bgInset,                 color: t.textMuted },
+    1: { background: "rgba(251,191,36,0.14)",   color: "#D97706" },
+    2: { background: "rgba(248,113,113,0.14)",  color: t.danger || "#EF4444" },
+  }[age.level];
+  return (
+    <span className="mono" style={{
+      fontSize: 9, fontWeight: 800, borderRadius: 999, padding: "2px 7px",
+      whiteSpace: "nowrap", flexShrink: 0, fontVariantNumeric: "tabular-nums",
+      ...styleByLevel,
+    }}>⏱ {age.label}</span>
+  );
+}
+
+function ReceptionInfoRow({ t, icon, children }) {
+  return (
+    <div style={{ display: "flex", gap: 6, fontSize: 11, color: t.textSecondary, lineHeight: 1.45 }}>
+      <span style={{ width: 14, flexShrink: 0, textAlign: "center", fontSize: 10, paddingTop: 1 }}>{icon}</span>
+      <span style={{ minWidth: 0, wordBreak: "break-word" }}>{children}</span>
+    </div>
+  );
+}
+
+// 카드 본문 공용 shell — CleaningCard / RefrigerantCard 가 같이 사용.
+function ReceptionCardShell({ t, task, onCardMenuAction, onClick, clickable = true, children }) {
+  const bandColor = PRINCIPAL_COLORS[task.principal] || "#888780";
+  const age = _receptionAge(task);
   return (
     <div
-      onClick={handleCardClick}
-      className="clickable"
+      onClick={clickable ? onClick : undefined}
+      className={clickable ? "clickable" : undefined}
       style={{
         background: t.bgElevated, border: `1px solid ${t.border}`,
-        borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-        overflow: "visible",
-        cursor: "pointer",
+        borderRadius: 12, marginBottom: 8, overflow: "hidden",
+        cursor: clickable ? "pointer" : "default",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
-          <PrincipalLabel name={task.principal}/>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
-          {task.hasRefrigerant && task.workType !== "냉매충전" && (
-            <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
-          )}
-        </div>
-        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, flexShrink: 0 }}>{task.time}</span>
+      {/* 원청 밴드 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 12px", background: bandColor + "22" }}>
+        <span style={{ fontSize: 10, fontWeight: 800, color: bandColor, whiteSpace: "nowrap", flexShrink: 0 }}>
+          {task.principal || "—"}
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: t.text, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {task.customer}
+        </span>
+        {task.hasRefrigerant && task.workType !== "냉매충전" && (
+          <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
+        )}
+        <div style={{ flex: 1 }}/>
+        <ReceptionAgeBadge t={t} age={age}/>
         {onCardMenuAction && (
           <span onClick={(e) => e.stopPropagation()}>
             <TaskCardMenu task={task} onAction={onCardMenuAction}/>
           </span>
         )}
       </div>
-      <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
-        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`} · {task.schedule}
-      </div>
-      {task.estimateTotal > 0 && (
-        <div className="mono" style={{ fontSize: 11, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>
-          견적 ₩{task.estimateTotal.toLocaleString()}
-        </div>
-      )}
-      {task.memo && (
-        <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 4, fontStyle: "italic" }}>
-          <FileText size={10}/><span>{task.memo}</span>
-        </div>
-      )}
-      {/* 2026-05-14 — push_candidates 기반 알림 발송 표시 */}
-      {(() => {
-        const keys = Array.isArray(task.pushCandidates) ? task.pushCandidates : [];
-        const engineerCount = keys.filter(k => /^E\d+$/.test(k)).length;
-        if (engineerCount === 0) return null;
-        return (
-          <div style={{
-            marginTop: 10,
-            marginBottom: 8,
-            padding: "6px 10px",
-            background: "rgba(255, 27, 141, 0.04)",
-            border: t.isLight
-              ? "1px solid rgba(255, 27, 141, 0.40)"
-              : "1px solid rgba(255, 27, 141, 0.35)",
-            borderRadius: 8,
-            fontSize: 11,
-            fontWeight: 500,
-            color: t.isLight ? "#C2185B" : "#FF8FBC",
-            display: "flex",
-            alignItems: "center",
-            gap: 5,
-          }}>
-            <span>📡</span>
-            <span>{engineerCount}명의 프로에게 알림 발송됨</span>
-          </div>
-        );
-      })()}
-      <div style={{ display: "flex", gap: 6 }}>
-        <button onClick={(e) => { e.stopPropagation(); onAssign && onAssign(); }} style={{
-          flex: 1,
-          background: t.accent, color: "white", border: "none",
-          padding: "10px",
-          borderRadius: 8,
-          fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-        }}>
-          프로 배정 <ArrowRight size={14}/>
-        </button>
+      <div style={{ padding: "9px 12px 11px" }}>
+        {children}
       </div>
     </div>
   );
 }
 
+// 좌측 정보 열 + 우측 견적 — 공용.
+function ReceptionCardInfo({ t, task, extraRows = null }) {
+  const phone = String(task.phone || "").trim();
+  const appliance = task.workItems && task.workItems.length > 0
+    ? formatWorkItemsAppliance(task.workItems)
+    : `${task.appliance || "—"} ×${task.qty || 1}`;
+  const scheduleText = [task.schedule, task.time].filter(Boolean).join(" · ");
+  return (
+    <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+        <ReceptionInfoRow t={t} icon="📍"><b style={{ color: t.text, fontWeight: 700 }}>{task.region || "—"}</b></ReceptionInfoRow>
+        <ReceptionInfoRow t={t} icon="❄"><b style={{ color: t.text, fontWeight: 700 }}>{appliance}</b>{task.workType ? ` · ${task.workType}` : ""}</ReceptionInfoRow>
+        {scheduleText && (
+          <ReceptionInfoRow t={t} icon="📅">희망 <b style={{ color: t.text, fontWeight: 700 }}>{scheduleText}</b></ReceptionInfoRow>
+        )}
+        {phone && (
+          <ReceptionInfoRow t={t} icon="📱"><b className="mono" style={{ color: t.text, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{phone}</b></ReceptionInfoRow>
+        )}
+        {task.memo && (
+          <ReceptionInfoRow t={t} icon="📝">{task.memo}</ReceptionInfoRow>
+        )}
+        {extraRows}
+      </div>
+      <div style={{ flexShrink: 0, textAlign: "right", paddingTop: 2 }}>
+        <div style={{ fontSize: 8, color: t.textMuted, fontWeight: 700 }}>견적</div>
+        <div className="mono" style={{
+          fontSize: 17, fontWeight: 800, letterSpacing: "-0.5px", marginTop: 1,
+          color: task.estimateTotal > 0 ? t.text : t.textMuted,
+          fontVariantNumeric: "tabular-nums",
+        }}>
+          {task.estimateTotal > 0 ? `₩${task.estimateTotal.toLocaleString()}` : "—"}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 하단 버튼 줄 — [프로 배정 | 📞] 공용.
+function ReceptionCardButtons({ t, task, onAssign, assignLabel = "프로 배정", assignMuted = false }) {
+  const phone = String(task.phone || "").trim();
+  return (
+    <div style={{ display: "flex", gap: 6, marginTop: 9 }}>
+      {onAssign && (
+        <button onClick={(e) => { e.stopPropagation(); onAssign(); }} style={{
+          flex: 1,
+          background: assignMuted ? t.bgInset : t.accent,
+          color: assignMuted ? t.textSecondary : "white",
+          border: "none", padding: "9px", borderRadius: 8,
+          fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
+        }}>
+          {assignLabel} {!assignMuted && <ArrowRight size={13}/>}
+        </button>
+      )}
+      {phone && (
+        <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} style={{
+          width: 40, background: t.bgInset, border: `1px solid ${t.border}`,
+          borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 13, textDecoration: "none",
+        }}>📞</a>
+      )}
+    </div>
+  );
+}
+
+function CleaningCard({ t, task, onAssign, onMemo, onEdit, onCardMenuAction }) {
+  // V14 2B-1 — 카드 body 클릭 → 작업 상세 진입 (기사 배정 / ⋯ 메뉴는 stopPropagation)
+  // 2026-07-21 — 원청 밴드 + 견적 강조 디자인 (클릭/배정 로직 무변경).
+  const handleCardClick = () => {
+    if (onCardMenuAction) onCardMenuAction("detail", task);
+  };
+  const pushKeys = Array.isArray(task.pushCandidates) ? task.pushCandidates : [];
+  const pushCount = pushKeys.filter(k => /^E\d+$/.test(k)).length;
+  return (
+    <ReceptionCardShell t={t} task={task} onCardMenuAction={onCardMenuAction} onClick={handleCardClick}>
+      <ReceptionCardInfo t={t} task={task}
+        extraRows={pushCount > 0 ? (
+          <ReceptionInfoRow t={t} icon="📡">
+            <span style={{ color: t.accent, fontWeight: 700 }}>{pushCount}명의 프로에게 알림 발송됨</span>
+          </ReceptionInfoRow>
+        ) : null}
+      />
+      <ReceptionCardButtons t={t} task={task} onAssign={onAssign}/>
+    </ReceptionCardShell>
+  );
+}
+
 // Step 5-3 v3 — RefrigerantCard 정정
-// autoAssignStatus 기반 상태 박스 + 카드 자체 클릭 분기 (pushing → 자동 배정 화면 / accepted → 작업 상세)
-// legacy autoStatus / assignedEngineer 호환
+// autoAssignStatus 기반 상태 + 카드 자체 클릭 분기 (pushing → 자동 배정 화면 / accepted → 작업 상세)
+// 2026-07-21 — 원청 밴드 + 견적 강조 디자인 통일 (상태는 📡/✅ 정보 줄로 — 클릭 분기·로직 무변경).
 function RefrigerantCard({ t, task, onAssign, onMemo, onEdit, onClickPushing, onClickAccepted, onCardMenuAction }) {
   // 새 필드 우선 / 구 필드 fallback
   const status = task.autoAssignStatus
@@ -6372,7 +6492,6 @@ function RefrigerantCard({ t, task, onAssign, onMemo, onEdit, onClickPushing, on
   const isAccepted = status === "accepted";
   const pushCount  = task.pushCount || (task.candidates?.length) || 4;
 
-  // V14 2B-1 — pushing/accepted 면 → 그 분기 / 그 외 → 작업 상세
   const handleCardClick = () => {
     if (isPushing  && onClickPushing)  onClickPushing(task);
     else if (isAccepted && onClickAccepted) onClickAccepted(task);
@@ -6380,114 +6499,47 @@ function RefrigerantCard({ t, task, onAssign, onMemo, onEdit, onClickPushing, on
   };
   const isClickable = (isPushing && onClickPushing) || (isAccepted && onClickAccepted) || !!onCardMenuAction;
 
-  return (
-    <div
-      onClick={isClickable ? handleCardClick : undefined}
-      className={isClickable ? "clickable" : undefined}
-      style={{
-        background: t.bgElevated, border: `1px solid ${t.border}`,
-        borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-        cursor: isClickable ? "pointer" : "default",
-        overflow: "visible",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flex: 1, minWidth: 0 }}>
-          <PrincipalLabel name={task.principal}/>
-          <span style={{ fontSize: 13, fontWeight: 700 }}>{task.customer}</span>
-          {task.hasRefrigerant && task.workType !== "냉매충전" && (
-            <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
-          )}
-        </div>
-        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 500, flexShrink: 0 }}>{task.time}</span>
-        {onCardMenuAction && (
-          <span onClick={(e) => e.stopPropagation()}>
-            <TaskCardMenu task={task} onAction={onCardMenuAction}/>
-          </span>
-        )}
-      </div>
-      <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 4, lineHeight: 1.5 }}>
-        {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`} · {task.schedule}
-      </div>
-      {task.estimateTotal > 0 && (
-        <div className="mono" style={{ fontSize: 11, color: t.textMuted, marginBottom: task.memo ? 6 : 10 }}>
-          견적 ₩{task.estimateTotal.toLocaleString()}
-        </div>
-      )}
-      {task.memo && (
-        <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 10, display: "flex", alignItems: "center", gap: 4, fontStyle: "italic" }}>
-          <FileText size={10}/><span>{task.memo}</span>
-        </div>
-      )}
-      {/* 2026-05-14 — push_candidates 기반 알림 발송 표시 */}
-      {(() => {
-        const keys = Array.isArray(task.pushCandidates) ? task.pushCandidates : [];
-        const engineerCount = keys.filter(k => /^E\d+$/.test(k)).length;
-        if (engineerCount === 0) return null;
-        return (
-          <div style={{
-            marginTop: 10,
-            marginBottom: 8,
-            padding: "6px 10px",
-            background: "rgba(255, 27, 141, 0.04)",
-            border: t.isLight
-              ? "1px solid rgba(255, 27, 141, 0.40)"
-              : "1px solid rgba(255, 27, 141, 0.35)",
-            borderRadius: 8,
-            fontSize: 11,
-            fontWeight: 500,
-            color: t.isLight ? "#C2185B" : "#FF8FBC",
-            display: "flex", alignItems: "center", gap: 5,
-          }}>
-            <span>📡</span>
-            <span>{engineerCount}명의 프로에게 알림 발송됨</span>
-          </div>
-        );
-      })()}
+  const notifyKeys = Array.isArray(task.pushCandidates) ? task.pushCandidates : [];
+  const notifyCount = notifyKeys.filter(k => /^E\d+$/.test(k)).length;
+
+  const statusRows = (
+    <>
       {isPushing && (
-        <div style={{
-          background: t.warningBg, border: `1px solid ${t.warningBorder}`,
-          borderRadius: 8, padding: "8px 10px", marginBottom: 8,
-          display: "flex", alignItems: "center", gap: 6,
-        }}>
-          <span style={{ fontSize: 11 }}>🟡</span>
-          <span style={{ fontSize: 11, color: t.warning, fontWeight: 700, flex: 1 }}>
-            프로 <span className="mono">{pushCount}</span>명 푸시 중
+        <ReceptionInfoRow t={t} icon="📡">
+          <span style={{ color: t.warning, fontWeight: 700 }}>
+            프로 <span className="mono">{pushCount}</span>명 푸시 중 · 수락 대기
           </span>
-          <span style={{ fontSize: 10, color: t.textMuted }}>수락 대기</span>
-        </div>
+        </ReceptionInfoRow>
       )}
       {isAccepted && (
-        <div style={{
-          background: t.successBg, border: `1px solid ${t.successBorder}`,
-          borderRadius: 8, padding: "8px 10px", marginBottom: 8,
-          display: "flex", alignItems: "center", gap: 6,
-        }}>
-          <span style={{ fontSize: 11 }}>🟢</span>
-          <span style={{ fontSize: 11, color: t.success, fontWeight: 700, flex: 1 }}>
-            <strong>{acceptedName || "—"}</strong> 프로 수락
+        <ReceptionInfoRow t={t} icon="✅">
+          <span style={{ color: t.success, fontWeight: 700 }}>
+            {acceptedName || "—"} 프로 수락 · 자동 배정 완료
           </span>
-          <span style={{ fontSize: 10, color: t.textMuted }}>자동 배정 완료</span>
-        </div>
+        </ReceptionInfoRow>
       )}
-      {/* 2026-07-14 — 사장님 spec: 냉매 카드에도 세척과 동일한 [프로 배정] 버튼.
-            푸시 토글 OFF(성수기)면 추천 화면(지역 메인 그룹)으로, ON이면 기존 자동배정 화면으로
-            — 라우팅은 onAssign(resolveAssignScreen)이 알아서 분기. 수락 완료 건은 버튼 X. */}
-      {!isAccepted && onAssign && (
-        <div style={{ display: "flex", gap: 6 }}>
-          <button onClick={(e) => { e.stopPropagation(); onAssign(); }} style={{
-            flex: 1,
-            background: t.accent, color: "white", border: "none",
-            padding: "10px",
-            borderRadius: 8,
-            fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            display: "flex", alignItems: "center", justifyContent: "center", gap: 4,
-          }}>
-            프로 배정 <ArrowRight size={14}/>
-          </button>
-        </div>
+      {!isPushing && !isAccepted && notifyCount > 0 && (
+        <ReceptionInfoRow t={t} icon="📡">
+          <span style={{ color: t.accent, fontWeight: 700 }}>{notifyCount}명의 프로에게 알림 발송됨</span>
+        </ReceptionInfoRow>
       )}
-    </div>
+    </>
+  );
+
+  return (
+    <ReceptionCardShell t={t} task={task} onCardMenuAction={onCardMenuAction}
+      onClick={handleCardClick} clickable={isClickable}>
+      <ReceptionCardInfo t={t} task={task} extraRows={statusRows}/>
+      {/* 2026-07-14 — 사장님 spec: 냉매 카드에도 [프로 배정] 버튼. 수락 완료 건은 버튼 X (기존 동일).
+            푸시 중이면 버튼 문구만 회색 "진행 상황 보기" (클릭 = onAssign — 라우팅 분기 기존 그대로). */}
+      {!isAccepted && (
+        <ReceptionCardButtons t={t} task={task} onAssign={onAssign}
+          assignLabel={isPushing ? "진행 상황 보기" : "프로 배정"}
+          assignMuted={isPushing}
+        />
+      )}
+      {isAccepted && <ReceptionCardButtons t={t} task={task} onAssign={null}/>}
+    </ReceptionCardShell>
   );
 }
 
