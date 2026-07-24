@@ -211,6 +211,8 @@ import MetroRouteMap from "../components/admin/MetroRouteMap.jsx";
 import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
 // 2026-07-10 — 지역별 접수 현황 (tasks + 미처리 inquiries 합산, 읽기 전용).
 import { RegionStatsScreen } from "../components/admin/RegionStatsScreen.jsx";
+// 2026-07-24 — 마케팅 조감 (홈페이지 접수 퍼널 + 완료 매출·회사이익 + 지역 top5). 광고 API 는 2단계.
+import { MarketingScreen } from "../components/admin/MarketingScreen.jsx";
 // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환용).
 import { EngineerTaskListScreen } from "../components/admin/EngineerTaskList.jsx";
 // 2026-06-26 — 공지사항 관리 (Mig 147/148). 운영자 → 전체 기사 공통 공지 + 푸시.

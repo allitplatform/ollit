@@ -44,6 +44,45 @@ function fmtDayLabel(ymd) {
 
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
 
+// 2026-07-24 v4 — 마진 초록 (손익 화면 회사 몫과 동일 색 언어) + 기사 청록.
+//   "초록 금액 = 회사 마진" 범례 한 줄이 라벨 반복을 대체 (사장님 spec).
+const MARGIN_GREEN = "#28A96A";
+const ENG_CYAN     = "#0EA5C6";
+
+// 상태 칩 (✓ 완료 / 진행·대기 / 🚗 출장 / ✗ 취소)
+function StatusChip({ tone = "mut", children }) {
+  const style = {
+    ok:   { background: "rgba(43,182,115,0.14)",  color: "#2BB673" },
+    warn: { background: "rgba(251,191,36,0.14)",  color: "#D97706" },
+    bad:  { background: "rgba(248,113,113,0.14)", color: "#DC2626" },
+    mut:  { background: "rgba(128,128,128,0.12)", color: "inherit" },
+  }[tone] || {};
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 800, borderRadius: 999, padding: "2px 8px",
+      display: "inline-flex", alignItems: "center", gap: 3,
+      whiteSpace: "nowrap", opacity: tone === "mut" ? 0.75 : 1,
+      ...style,
+    }}>{children}</span>
+  );
+}
+
+// 마진 막대 — 연한 = 마진 (1위 대비), 진한 = 마진율 (그 막대 안 비중).
+function MarginBar({ t, ratio, rate, color }) {
+  const w1 = Math.max(0, Math.min(100, Math.round((ratio || 0) * 100)));
+  const w2 = Math.max(0, Math.min(w1, Math.round(w1 * (rate || 0))));
+  return (
+    <div style={{
+      height: 8, background: t.bgInset || "rgba(128,128,128,0.12)",
+      borderRadius: "0 4px 4px 0", overflow: "hidden", position: "relative",
+      marginTop: 8,
+    }}>
+      <span style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${w1}%`, background: color, opacity: 0.26 }}/>
+      <span style={{ position: "absolute", top: 0, left: 0, height: "100%", width: `${w2}%`, background: color }}/>
+    </div>
+  );
+}
+
 // 2026-07-20 — 5종 통일. workTypeKind.getServiceKind 사용 (설치/누설/기타 정확 분류).
 //   옛 자체 3종 (cleaning/refrigerant/other) 폐기 — 누설·설치가 "기타" 로 뭉치는 사고 해결.
 function kindOfTask(task) {
@@ -166,6 +205,96 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
     const raw = computeRevenueByEngineer(apiTasks, startYmd, endYmd, user);
     return raw.slice().sort((a, b) => (b.owner || 0) - (a.owner || 0));
   }, [apiTasks, startYmd, endYmd, user]);
+
+  // ── 2026-07-24 — v4 재설계 (사장님 확정: "이 화면의 주인공은 회사 마진").
+  //   [1] 기간 상태 카운트 — 완료 / 진행·대기 / 🚗 출장 전환 / ✗ 취소 (히어로 칩).
+  //   기준: 완료·출장 = completedAt (없으면 예정일), 취소 = 취소시각(없으면 예정일),
+  //         진행·대기 = 예정일이 기간 안인데 아직 종결 안 된 작업. best-effort 근사.
+  const statusCounts = useMemo(() => {
+    let done = 0, visit = 0, canceled = 0, pending = 0;
+    const inRange = (ymd) => ymd && ymd >= startYmd && ymd <= endYmd;
+    for (const tk of (apiTasks || [])) {
+      if (!tk) continue;
+      const sched = toKstYmd(tk.scheduledDate || tk.scheduled_date || tk.requestedDate || tk.workDate || "") || "";
+      const comp  = toKstYmd(tk.completedAt || tk.completed_at || "") || "";
+      if (tk.status === "완료") {
+        if (inRange(comp)) done++;
+      } else if (tk.status === "visit_only") {
+        if (inRange(comp || sched)) visit++;
+      } else if (tk.status === "취소") {
+        const cx = toKstYmd(tk.canceledAt || tk.canceled_at || "") || sched;
+        if (inRange(cx)) canceled++;
+      } else if (inRange(sched)) {
+        pending++;
+      }
+    }
+    return { done, visit, canceled, pending };
+  }, [apiTasks, startYmd, endYmd]);
+
+  //   [2] 기사별 배정/완료/출장/취소/대기 집계 (사장님 spec: "오늘 몇 건 중 몇 건
+  //       완료했고 취소·출장비로 끝냈는지") + byEngineer(마진·매출) 병합 + 건당·완료율.
+  const engineerStatMap = useMemo(() => {
+    const map = new Map();
+    const inRange = (ymd) => ymd && ymd >= startYmd && ymd <= endYmd;
+    const bump = (name, key) => {
+      if (!name) return;
+      const row = map.get(name) || { assigned: 0, doneCnt: 0, visit: 0, canceled: 0 };
+      row[key]++;
+      map.set(name, row);
+    };
+    for (const tk of (apiTasks || [])) {
+      if (!tk) continue;
+      const name = String(tk.assignedEngineer || tk.engineer || "").trim();
+      if (!name) continue;
+      const sched = toKstYmd(tk.scheduledDate || tk.scheduled_date || tk.requestedDate || tk.workDate || "") || "";
+      const comp  = toKstYmd(tk.completedAt || tk.completed_at || "") || "";
+      if (tk.status === "완료") {
+        if (inRange(comp)) { bump(name, "assigned"); bump(name, "doneCnt"); }
+      } else if (tk.status === "visit_only") {
+        if (inRange(comp || sched)) { bump(name, "assigned"); bump(name, "visit"); }
+      } else if (tk.status === "취소") {
+        const cx = toKstYmd(tk.canceledAt || tk.canceled_at || "") || sched;
+        if (inRange(cx)) { bump(name, "assigned"); bump(name, "canceled"); }
+      } else if (inRange(sched)) {
+        bump(name, "assigned");
+      }
+    }
+    return map;
+  }, [apiTasks, startYmd, endYmd]);
+
+  const [engSort, setEngSort] = useState("margin"); // 'margin' | 'per' | 'rate' (월별만 노출)
+  const byEngineerV4 = useMemo(() => {
+    const rows = byEngineer.map(row => {
+      const st = engineerStatMap.get(String(row.name || "").trim()) || { assigned: 0, doneCnt: 0, visit: 0, canceled: 0 };
+      const doneN = st.doneCnt || Number(row.count) || 0;
+      const per   = doneN > 0 ? Math.round((row.owner || 0) / doneN) : 0;
+      const rate  = st.assigned > 0 ? Math.round((doneN / st.assigned) * 100) : null;
+      const waiting = Math.max(0, st.assigned - doneN - st.visit - st.canceled);
+      return { ...row, ...st, doneN, per, rate, waiting };
+    });
+    const sorted = rows.slice();
+    if (mode === "month" && engSort === "per")       sorted.sort((a, b) => (b.per || 0) - (a.per || 0));
+    else if (mode === "month" && engSort === "rate") sorted.sort((a, b) => (b.rate || 0) - (a.rate || 0));
+    else                                             sorted.sort((a, b) => (b.owner || 0) - (a.owner || 0));
+    return sorted;
+  }, [byEngineer, engineerStatMap, mode, engSort]);
+
+  //   [3] 작업별 부록 — 기간 안 출장 전환·취소 건 (본 리스트·합계와 분리 표시).
+  const extraTasks = useMemo(() => {
+    const inRange = (ymd) => ymd && ymd >= startYmd && ymd <= endYmd;
+    const out = [];
+    for (const tk of (apiTasks || [])) {
+      if (!tk) continue;
+      const sched = toKstYmd(tk.scheduledDate || tk.scheduled_date || tk.requestedDate || tk.workDate || "") || "";
+      const comp  = toKstYmd(tk.completedAt || tk.completed_at || "") || "";
+      if (tk.status === "visit_only" && inRange(comp || sched)) out.push({ task: tk, extraKind: "visit" });
+      else if (tk.status === "취소") {
+        const cx = toKstYmd(tk.canceledAt || tk.canceled_at || "") || sched;
+        if (inRange(cx)) out.push({ task: tk, extraKind: "cancel" });
+      }
+    }
+    return out;
+  }, [apiTasks, startYmd, endYmd]);
 
   // 2026-06-16 — 작업별 탭 종류 필터 (전체/세척/냉매/기타). 기간은 상위 mode.
   const [taskKind, setTaskKind] = useState("all"); // 'all' | 'cleaning' | 'refrigerant' | 'other'
@@ -305,45 +434,94 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
         </div>
       </div>
 
-      {/* 4 요약 */}
+      {/* 2026-07-24 v4 — 마진 히어로 (사장님 확정: 큰 숫자 = 회사 마진, 메인 핑크).
+          매출·마진율·프로·원청은 회색 보조 줄, 상태(완료/진행/출장/취소)는 칩. */}
       <div style={{ padding: "0 16px 4px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 14 }}>
-          <SummaryBox t={t} icon="💰" label="매출"        value={summary.total}     accent/>
-          <SummaryBox t={t} icon="📈" label="회사 마진"    value={summary.owner}     accent/>
-          <SummaryBox t={t} icon="👷" label="프로 정산"    value={summary.engineer}/>
-          <SummaryBox t={t} icon="🤝" label="원청 수수료"  value={summary.principal}/>
-        </div>
-        <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginBottom: 14 }}>
-          {isDay ? "이 날" : "이 달"} {summary.count}건 · 트랙 A (유솔N·추가선택 제외)
+        <div style={{
+          background: t.bgElevated,
+          border: `1px solid ${t.border}`,
+          borderTop: `3px solid ${t.accent}`,
+          borderRadius: 12,
+          padding: "14px 16px",
+          marginBottom: 14,
+          fontVariantNumeric: "tabular-nums",
+        }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted }}>
+            {isDay ? "오늘 회사 마진" : "이 달 회사 마진"}
+          </div>
+          <div className="mono" style={{
+            fontSize: 26, fontWeight: 900, color: t.accent,
+            letterSpacing: "-0.5px", marginTop: 2,
+          }}>{fmtKRW(summary.owner)}</div>
+          <div className="mono" style={{
+            fontSize: 11, color: t.textSecondary, fontWeight: 600, marginTop: 4,
+          }}>
+            매출 {fmtKRW(summary.total)}
+            {summary.total > 0 ? ` · 마진율 ${Math.round((summary.owner / summary.total) * 100)}%` : ""}
+          </div>
+          <div className="mono" style={{
+            fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: 2,
+          }}>
+            프로 {fmtKRW(summary.engineer)} · 원청 {fmtKRW(summary.principal)} · {summary.count}건
+          </div>
+          <div style={{ display: "flex", gap: 5, marginTop: 9, flexWrap: "wrap" }}>
+            <StatusChip tone="ok">✓ 완료 {statusCounts.done}</StatusChip>
+            {statusCounts.pending > 0 && <StatusChip tone="mut">진행·대기 {statusCounts.pending}</StatusChip>}
+            {statusCounts.visit > 0 && <StatusChip tone="warn">🚗 출장 {statusCounts.visit}</StatusChip>}
+            {statusCounts.canceled > 0 && <StatusChip tone="bad">✗ 취소 {statusCounts.canceled}</StatusChip>}
+          </div>
         </div>
 
         {/* 2026-06-16 — 탭 바 (원청별 / 기사별 / 작업별) */}
         <TabBar t={t} tab={tab} setTab={setTab}/>
 
-        {/* 원청별 — 카드형 세로 쌓기 (2026-06-19 사장님 spec) — 표 폐기, 잘림 0
-              2026-07-09 — 각 카드에 접수/완료 건수 추가 (사장님 spec, KST 트랙 무관). */}
+        {/* 2026-07-24 v4 — 마진 색 범례 (카드 안 "마진" 라벨 반복 제거 — 사장님 spec) */}
+        <div style={{
+          display: "flex", alignItems: "center", gap: 5,
+          fontSize: 9.5, color: t.textMuted, fontWeight: 600,
+          margin: "0 2px 8px",
+        }}>
+          <span style={{ width: 8, height: 8, borderRadius: 3, background: MARGIN_GREEN, display: "inline-block" }}/>
+          초록 금액 = 회사 마진
+          <span style={{ marginLeft: "auto" }}>
+            {tab === "principal" && `${byPrincipalWithCounts.length}개 · 마진 내림차순`}
+            {tab === "engineer" && `${byEngineerV4.length}명`}
+          </span>
+        </div>
+
+        {/* 원청별 — 2026-07-24 v4: 마진 큰 초록 숫자 + 매출·마진율 보조 + 마진 막대 */}
         {tab === "principal" && (
-          <>
-            <SectionHeader t={t} title="원청별" sub={`${byPrincipalWithCounts.length}개 · 매출 내림차순`}/>
-            <PrincipalCardList t={t} rows={byPrincipalWithCounts} emptyText={`${isDay ? "이 날" : "이 달"} 매출 데이터 없음`}/>
-          </>
+          <PrincipalCardList t={t}
+            rows={byPrincipalWithCounts.slice().sort((a, b) => (b.owner || 0) - (a.owner || 0))}
+            emptyText={`${isDay ? "이 날" : "이 달"} 매출 데이터 없음`}/>
         )}
 
-        {/* 기사별 표 — 2026-07-09: 자체 토글 폐기, 상위 mode(일/월) 로 통합. */}
+        {/* 기사별 — 2026-07-24 v4: 카드형 (마진 주인공 + 배정/완료/출장/취소 칩 + 건당).
+             월별 모드는 정렬 3종 (총마진/건당/완료율 — 사장님 spec "건수 대비 마진"). */}
         {tab === "engineer" && (
           <>
-            <SectionHeader
-              t={t}
-              title="기사별"
-              sub={`${byEngineer.length}명 · 회사마진 내림차순`}
-            />
-            <Table t={t}
-              columns={[
-                { key: "name",  label: "기사",     align: "left",  width: "minmax(0, 1.4fr)" },
-                { key: "count", label: "건수",     align: "right", width: "minmax(0, 0.7fr)" },
-                { key: "owner", label: "회사 마진", align: "right", format: fmtKRW, accent: true, width: "minmax(0, 1.9fr)" },
-              ]}
-              rows={byEngineer}
+            {mode === "month" && (
+              <div style={{ display: "flex", gap: 4, marginBottom: 8 }}>
+                {[
+                  { id: "margin", label: "총마진순" },
+                  { id: "per",    label: "건당순" },
+                  { id: "rate",   label: "완료율순" },
+                ].map(opt => {
+                  const on = engSort === opt.id;
+                  return (
+                    <button key={opt.id} type="button" onClick={() => setEngSort(opt.id)} style={{
+                      padding: "5px 11px", borderRadius: 999,
+                      background: on ? (t.accentBg || "rgba(255,27,141,0.1)") : "transparent",
+                      border: `1px solid ${on ? t.accent : t.border}`,
+                      color: on ? t.accent : t.textSecondary,
+                      fontSize: 10.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+                    }}>{opt.label}</button>
+                  );
+                })}
+              </div>
+            )}
+            <EngineerCardListV4 t={t}
+              rows={byEngineerV4}
               emptyText={`${isDay ? "이 날" : "이 달"} 회사 마진 데이터 없음`}
               onRowClick={(row) => {
                 // 클릭 시점 상위 mode 기간 그대로 이어받기.
@@ -375,6 +553,7 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
             kind={taskKind}
             setKind={setTaskKind}
             onTaskClick={onTaskClick}
+            extraTasks={extraTasks}
           />
         )}
       </div>
@@ -436,7 +615,7 @@ function TabBar({ t, tab, setTab }) {
 // ──────────────────────────────────────────────────────────────────
 // 작업별 뷰 — PC=표 / 모바일=카드. 기간·종류 필터 + 하단 합계.
 // ──────────────────────────────────────────────────────────────────
-function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, onTaskClick }) {
+function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, onTaskClick, extraTasks = [] }) {
   return (
     <>
       {/* 2026-07-09 — 자체 기간 토글 폐기 (상위 mode 사용). 종류 필터만 유지. */}
@@ -487,7 +666,57 @@ function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, on
         <TaskCardList t={t} tasks={tasks} onTaskClick={onTaskClick}/>
       )}
 
-      {/* 하단 합계 — 매출현황 총매출 검산용. */}
+      {/* 2026-07-24 v4 — 부록: 기간 안 🚗 출장 전환·✗ 취소 건 (본 합계와 분리, 모바일만).
+          사장님 spec: "취소나 출장비를 받아서 끝냈는지도 궁금" — 그날 전체 그림 제공. */}
+      {!isPc && extraTasks.length > 0 && (
+        <>
+          <div style={{ fontSize: 10.5, fontWeight: 800, color: t.textMuted, margin: "2px 2px 6px" }}>
+            그 외 — 출장 전환 {extraTasks.filter(e => e.extraKind === "visit").length}건 ·
+            취소 {extraTasks.filter(e => e.extraKind === "cancel").length}건 (합계 제외)
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+            {extraTasks.map(({ task, extraKind }, i) => {
+              const isVisit = extraKind === "visit";
+              const owner = Number(task.owner_amount || 0);
+              const travel = Number(task.travelFee || task.travel_fee || task.totalAmount || 0);
+              return (
+                <button key={task.id || i} type="button"
+                  onClick={() => onTaskClick && onTaskClick(task)}
+                  style={{
+                    background: t.bgElevated, border: `1px solid ${t.border}`,
+                    borderRadius: 10, padding: "10px 14px",
+                    cursor: onTaskClick ? "pointer" : "default",
+                    fontFamily: "inherit", textAlign: "left",
+                    opacity: isVisit ? 0.9 : 0.7, width: "100%",
+                    fontVariantNumeric: "tabular-nums",
+                  }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{
+                      flex: 1, minWidth: 0, fontSize: 13, fontWeight: 800, color: t.text,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>{task.customer || task.customerName || "—"}</span>
+                    <StatusChip tone={isVisit ? "warn" : "bad"}>{isVisit ? "🚗 출장 전환" : "✗ 취소"}</StatusChip>
+                  </div>
+                  <div style={{
+                    display: "flex", justifyContent: "space-between", alignItems: "baseline",
+                    marginTop: 5,
+                  }}>
+                    <span style={{ fontSize: 10.5, color: t.textSecondary, fontWeight: 600 }}>
+                      {task.principal || task.principalName || "—"} · {task.assignedEngineer || task.engineer || "—"}
+                    </span>
+                    <span className="mono" style={{
+                      fontSize: 12.5, fontWeight: 800,
+                      color: isVisit ? MARGIN_GREEN : t.textMuted,
+                    }}>{isVisit ? `${fmtKRW(owner)}${travel > 0 ? ` / 출장비 ${fmtKRW(travel)}` : ""}` : fmtKRW(0)}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* 하단 합계 — 매출현황 총매출 검산용. 2026-07-24 v4: 마진(초록) 우선. */}
       {tasks.length > 0 && (
         <div style={{
           display: "grid", gridTemplateColumns: "1fr auto auto",
@@ -501,11 +730,11 @@ function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, on
             합계 ({tasks.length}건)
           </span>
           <span className="mono" style={{
-            fontSize: 13, fontWeight: 800, color: t.text,
+            fontSize: 12, fontWeight: 700, color: t.textMuted,
             letterSpacing: "-0.3px",
-          }}>{fmtKRW(sumTotal)}</span>
+          }}>매출 {fmtKRW(sumTotal)}</span>
           <span className="mono" style={{
-            fontSize: 13, fontWeight: 800, color: t.accent,
+            fontSize: 13, fontWeight: 800, color: MARGIN_GREEN,
             letterSpacing: "-0.3px", minWidth: 100, textAlign: "right",
           }}>{fmtKRW(sumOwner)}</span>
         </div>
@@ -567,7 +796,7 @@ function TaskTable({ t, tasks, onTaskClick }) {
             <Td t={t} align="left">{task.assignedEngineer || task.engineer || "—"}</Td>
             <Td t={t} align="center"><KindBadge kind={kind}/></Td>
             <Td t={t} align="right" mono>{fmtKRW(total)}</Td>
-            <Td t={t} align="right" mono accent>{fmtKRW(owner)}</Td>
+            <Td t={t} align="right" mono green>{fmtKRW(owner)}</Td>
           </button>
         );
       })}
@@ -585,12 +814,12 @@ function Th({ t, align, children }) {
   );
 }
 
-function Td({ t, align, children, strong, mono, accent }) {
+function Td({ t, align, children, strong, mono, accent, green }) {
   return (
     <div className={mono ? "mono" : ""} style={{
       fontSize: 12,
       fontWeight: strong ? 800 : 600,
-      color: accent ? t.accent : t.text,
+      color: green ? MARGIN_GREEN : (accent ? t.accent : t.text),
       textAlign: align,
       letterSpacing: mono ? "-0.3px" : 0,
       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -651,25 +880,20 @@ function TaskCardList({ t, tasks, onTaskClick }) {
               {task.principal || task.principalName || "—"} · {task.assignedEngineer || task.engineer || "—"}
               {itemSummary ? ` · ${itemSummary}` : ""}
             </div>
-            {/* 3줄 — 매출 + 회사 마진 (핑크) */}
+            {/* 3줄 — 2026-07-24 v4: 마진(초록 큰 숫자, 좌) + 매출(회색 보조, 우).
+                 "마진" 라벨은 상단 범례가 전담 — 사장님 spec. */}
             <div style={{
               display: "flex", justifyContent: "space-between", alignItems: "baseline",
               paddingTop: 4, borderTop: `1px dashed ${t.border}`,
             }}>
-              <div>
-                <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginRight: 6 }}>매출</span>
-                <span className="mono" style={{
-                  fontSize: 13, fontWeight: 800, color: t.text,
-                  letterSpacing: "-0.3px",
-                }}>{fmtKRW(total)}</span>
-              </div>
-              <div>
-                <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginRight: 6 }}>회사 마진</span>
-                <span className="mono" style={{
-                  fontSize: 14, fontWeight: 800, color: t.accent,
-                  letterSpacing: "-0.3px",
-                }}>{fmtKRW(owner)}</span>
-              </div>
+              <span className="mono" style={{
+                fontSize: 15, fontWeight: 900, color: MARGIN_GREEN,
+                letterSpacing: "-0.4px",
+              }}>{fmtKRW(owner)}</span>
+              <span className="mono" style={{
+                fontSize: 11, fontWeight: 600, color: t.textMuted,
+                letterSpacing: "-0.3px",
+              }}>매출 {fmtKRW(total)}</span>
             </div>
           </button>
         );
@@ -747,6 +971,10 @@ function SectionHeader({ t, title, sub, right }) {
 //   · 완료 = 선택 기간 completedAt KST + status='완료'
 //   1줄: 원청명(좌) + 접수 M · 완료 N(우)
 //   2줄: 매출 ₩... (좌, accent) · 마진 ₩... (우, text)
+// 2026-07-24 v4 — 마진이 주인공 (사장님 확정):
+//   1줄: 원청명 + [완료 N / 접수 M] 칩
+//   2줄: 초록 마진 큰 숫자 (좌) · 매출 ₩ + 마진율 % (우, 회색 보조)
+//   3줄: 마진 막대 — 연한 = 1위 대비, 진한 = 마진율.
 function PrincipalCardList({ t, rows, emptyText }) {
   if (!rows || rows.length === 0) {
     return (
@@ -758,72 +986,123 @@ function PrincipalCardList({ t, rows, emptyText }) {
       }}>{emptyText}</div>
     );
   }
+  const maxOwner = Math.max(1, ...rows.map(r => Number(r.owner) || 0));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
-      {rows.map((row, idx) => (
-        <div key={(row.code || row.id || row.name || idx) + "_" + idx} style={{
-          background: t.bgElevated,
-          border: `1px solid ${t.border}`,
-          borderRadius: 10,
-          padding: "10px 14px",
-          display: "flex", flexDirection: "column", gap: 6,
-          fontVariantNumeric: "tabular-nums",
-        }}>
-          <div style={{
-            display: "flex", alignItems: "baseline", justifyContent: "space-between",
-            gap: 10,
+      {rows.map((row, idx) => {
+        const owner = Number(row.owner) || 0;
+        const total = Number(row.total) || 0;
+        const rate  = total > 0 ? owner / total : 0;
+        return (
+          <div key={(row.code || row.id || row.name || idx) + "_" + idx} style={{
+            background: t.bgElevated,
+            border: `1px solid ${t.border}`,
+            borderRadius: 10,
+            padding: "11px 14px",
+            fontVariantNumeric: "tabular-nums",
           }}>
-            <span style={{
-              fontSize: 13, fontWeight: 800, color: t.text,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-              minWidth: 0, flex: 1,
-            }}>{row.name || "—"}</span>
-            <span style={{
-              display: "flex", alignItems: "baseline", gap: 8,
-              fontSize: 11, fontWeight: 700, color: t.textSecondary,
-              flexShrink: 0,
-            }}>
-              <span>
-                <span style={{ fontSize: 10, color: t.textMuted, marginRight: 3 }}>접수</span>
-                <span className="mono" style={{ color: t.text, fontWeight: 800 }}>{row.received || 0}</span>
-              </span>
-              <span style={{ color: t.textMuted }}>·</span>
-              <span>
-                <span style={{ fontSize: 10, color: t.textMuted, marginRight: 3 }}>완료</span>
-                <span className="mono" style={{ color: t.text, fontWeight: 800 }}>{row.done || 0}</span>
-              </span>
-            </span>
-          </div>
-          <div style={{
-            display: "flex", alignItems: "baseline", justifyContent: "space-between",
-            gap: 10,
-            paddingTop: 5, borderTop: `1px dashed ${t.border}`,
-          }}>
-            <span style={{ display: "flex", alignItems: "baseline", gap: 4, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{
-                fontSize: 10, fontWeight: 700, color: t.textMuted,
-                flexShrink: 0,
-              }}>매출</span>
-              <span className="mono" style={{
-                fontSize: 13, fontWeight: 800, color: t.accent,
-                letterSpacing: "-0.3px",
-                whiteSpace: "nowrap",
-              }}>{fmtKRW(row.total || 0)}</span>
-            </span>
-            <span style={{ display: "flex", alignItems: "baseline", gap: 4, minWidth: 0 }}>
-              <span style={{
-                fontSize: 10, fontWeight: 700, color: t.textMuted,
-                flexShrink: 0,
-              }}>마진</span>
-              <span className="mono" style={{
                 fontSize: 13, fontWeight: 800, color: t.text,
-                letterSpacing: "-0.3px",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                minWidth: 0, flex: 1,
+              }}>{row.name || "—"}</span>
+              <StatusChip tone="mut">완료 {row.done || 0} / 접수 {row.received || 0}</StatusChip>
+            </div>
+            <div style={{
+              display: "flex", alignItems: "baseline", justifyContent: "space-between",
+              gap: 10, marginTop: 6,
+            }}>
+              <span className="mono" style={{
+                fontSize: 16, fontWeight: 900, color: MARGIN_GREEN,
+                letterSpacing: "-0.4px", whiteSpace: "nowrap",
+              }}>{fmtKRW(owner)}</span>
+              <span className="mono" style={{
+                fontSize: 11, fontWeight: 600, color: t.textMuted,
                 whiteSpace: "nowrap",
-              }}>{fmtKRW(row.owner || 0)}</span>
-            </span>
+              }}>매출 {fmtKRW(total)}{total > 0 ? ` · ${Math.round(rate * 100)}%` : ""}</span>
+            </div>
+            <MarginBar t={t} ratio={owner / maxOwner} rate={rate} color={MARGIN_GREEN}/>
           </div>
-        </div>
-      ))}
+        );
+      })}
+    </div>
+  );
+}
+
+// 2026-07-24 v4 — 기사별 카드 (사장님 확정):
+//   1줄: 기사명 + 상태 칩 (✓ 완료/배정 · 🚗 출장 · ✗ 취소 · 대기)
+//   2줄: 초록 마진 큰 숫자 · 매출 보조
+//   3줄: 청록 막대 (1위 대비 / 진한 = 마진율) + 건당 ₩ 풋노트.
+function EngineerCardListV4({ t, rows, emptyText, onRowClick }) {
+  if (!rows || rows.length === 0) {
+    return (
+      <div style={{
+        padding: "18px 14px", textAlign: "center",
+        color: t.textMuted, fontSize: 12,
+        background: t.bgElevated, border: `1px solid ${t.border}`,
+        borderRadius: 10, marginBottom: 14,
+      }}>{emptyText}</div>
+    );
+  }
+  const maxOwner = Math.max(1, ...rows.map(r => Number(r.owner) || 0));
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 14 }}>
+      {rows.map((row, idx) => {
+        const owner = Number(row.owner) || 0;
+        const total = Number(row.total) || 0;
+        const rate  = total > 0 ? owner / total : 0;
+        return (
+          <button
+            key={(row.code || row.id || row.name || idx) + "_" + idx}
+            type="button"
+            onClick={() => onRowClick && onRowClick(row)}
+            style={{
+              background: t.bgElevated,
+              border: `1px solid ${t.border}`,
+              borderRadius: 10,
+              padding: "11px 14px",
+              cursor: onRowClick ? "pointer" : "default",
+              fontFamily: "inherit", textAlign: "left",
+              fontVariantNumeric: "tabular-nums",
+              width: "100%",
+            }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{
+                fontSize: 13, fontWeight: 800, color: t.text,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                minWidth: 0, flex: 1,
+              }}>{row.name || "—"}</span>
+              <span style={{ display: "flex", gap: 4, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                <StatusChip tone={row.rate != null && row.rate < 80 ? "warn" : "ok"}>
+                  ✓ {row.doneN}{row.assigned > 0 ? `/${row.assigned}` : ""}{row.rate != null ? ` · ${row.rate}%` : ""}
+                </StatusChip>
+                {row.visit > 0 && <StatusChip tone="warn">🚗 {row.visit}</StatusChip>}
+                {row.canceled > 0 && <StatusChip tone="bad">✗ {row.canceled}</StatusChip>}
+                {row.waiting > 0 && <StatusChip tone="mut">대기 {row.waiting}</StatusChip>}
+              </span>
+            </div>
+            <div style={{
+              display: "flex", alignItems: "baseline", justifyContent: "space-between",
+              gap: 10, marginTop: 6,
+            }}>
+              <span className="mono" style={{
+                fontSize: 16, fontWeight: 900, color: MARGIN_GREEN,
+                letterSpacing: "-0.4px", whiteSpace: "nowrap",
+              }}>{fmtKRW(owner)}</span>
+              <span className="mono" style={{
+                fontSize: 11, fontWeight: 600, color: t.textMuted, whiteSpace: "nowrap",
+              }}>매출 {fmtKRW(total)}</span>
+            </div>
+            <MarginBar t={t} ratio={owner / maxOwner} rate={rate} color={ENG_CYAN}/>
+            {row.per > 0 && (
+              <div className="mono" style={{ fontSize: 9.5, color: t.textMuted, marginTop: 4 }}>
+                건당 {fmtKRW(row.per)}
+              </div>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
