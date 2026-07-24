@@ -213,8 +213,13 @@ export function MessageChatScreen({ role, actorId, thread, onBack, onSent, onDel
 
   return (
     <div style={{
+      // 2026-07-24 — 사장님 리포트 fix: 앱 껍데기(헤더·탭바) 안에서 100dvh 로 렌더되면
+      //   전체가 화면보다 길어져 입력창이 스크롤 밑으로 밀림. → 화면 전체 고정 오버레이로
+      //   교체 — 부모 레이아웃과 무관하게 헤더/입력창이 항상 화면 안. (PC 는 720px 중앙)
+      position: "fixed", top: 0, bottom: 0, left: 0, right: 0,
+      margin: "0 auto", maxWidth: 720, zIndex: 800,
       display: "flex", flexDirection: "column",
-      height: "100dvh", background: "var(--bg-primary)", color: "var(--text-primary)",
+      background: "var(--bg-primary)", color: "var(--text-primary)",
     }}>
       {/* 헤더 */}
       <div style={{
