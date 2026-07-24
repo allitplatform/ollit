@@ -52,6 +52,7 @@ export function SettingsScreen({
   onCompanyAccount,  // Step 5-8 F-4
   onUsolN, onSettlement, onPrincipalSettlement,
   onAnnouncements,  // 2026-07-24 — 공지사항 (개요 탭에서 설정으로 이동)
+  onEngineerCalendar,  // 2026-07-24 — 기사별 달력 (개요 탭 타일 제거 → 설정으로 이동)
   onCommissionPolicy,  // Phase 2 — 수수료정책 관리 (admin/owner/operator)
   themeMode, onToggleTheme,
   autoPushOn, onToggleAutoPush,  // 2026-07-14 — 냉매충전 자동배정 푸시 ON/OFF (Mig 179)
@@ -197,6 +198,8 @@ export function SettingsScreen({
     { key: "users",           icon: "👥", label: "사용자 / 권한", sub: "5역할",  perm: "menu.users",         onClick: onUsers },
     { key: "company_account", icon: "💳", label: "회사 계좌",     sub: "변경 가능 (운영자)", perm: "menu.company_account", onClick: onCompanyAccount },
     { key: "announcements",   icon: "📢", label: "공지사항 관리", sub: "기사 공지", onClick: onAnnouncements },
+    // 2026-07-24 — 개요 탭 달력 타일 제거 → 설정으로 이동 (사장님 spec: 통장·손익 타일이 대체)
+    { key: "engineer_calendar", icon: "📅", label: "기사별 달력", sub: "월간 배정 달력", onClick: onEngineerCalendar },
        { key: "notifications",   icon: "🔔", label: "알림",         sub: "시스템 / 푸시 / 이메일", perm: "menu.notifications", onClick: onNotifications },
     { key: "backup",          icon: "💾", label: "시트 백업",     sub: "Google Sheets에서 사본 만들기", perm: "menu.backup", onClick: handleSheetBackup },
   ];

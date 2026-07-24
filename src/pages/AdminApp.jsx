@@ -3502,12 +3502,17 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <AdminPcCashflow t={t} user={user}/>
     </Shell>;
   }
-  // 2026-06-14 — 모바일 가계부 (4카드 읽기 전용). 개요 탭 "📊 가계부 보기" 진입.
-  //   PC 컴포넌트(AdminPcBookkeeping) 재사용 X — 모바일 폭에서 깨짐.
-  //   계산/RPC 만 공유: revenueStats + bookkeepingDb + bookkeepingCashflowDb + 보정.
-  if (screen === "mobileBookkeeping") {
+  // 2026-07-24 — 모바일 「가계부」 해체 → 🏦 통장 / 📊 손익 분리 (사장님 확정).
+  //   "mobileBookkeeping" 구 라우트는 통장으로 호환 처리.
+  if (screen === "mobileBank" || screen === "mobileBookkeeping") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <AdminMobileBookkeeping t={t} user={user} apiTasks={apiTasks} onBack={goBack}/>
+      <AdminMobileBookkeeping t={t} user={user} apiTasks={apiTasks} onBack={goBack} mode="bank"/>
+    </Shell>;
+  }
+  if (screen === "mobileProfit") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <AdminMobileBookkeeping t={t} user={user} apiTasks={apiTasks} onBack={goBack} mode="profit"
+        onJumpBank={() => setScreen("mobileBank")}/>
     </Shell>;
   }
   // 2026-06-14 — PC 유솔N 정산 현황판 (Mig 130 RPC). 작업월별 4단계 진행 + 마진.
@@ -3675,6 +3680,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
         onCompanyAccount={() => setScreen("companyAccount")}
         onNotifications={() => setScreen("notificationSettings")}
         onAnnouncements={() => setScreen("announcements")}
+        onEngineerCalendar={() => setScreen("engineerCalendar")}
         onBackup={() => addToast({ type: "assignment", title: "백업 / 복원", message: "준비 중인 기능입니다" })}
         onUsolN={(menuId) => setScreen(menuId)}
         onSettlement={() => setScreen("settlement")}
@@ -4019,7 +4025,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       onClickReassign={() => setScreen("reassignList")}
       onClickRefriAddon={() => setScreen("refrigerantAddonList")}
       onClickEngineerCalendar={() => setScreen("engineerCalendar")}
-      onClickMobileBookkeeping={() => setScreen("mobileBookkeeping")}
+      onClickMobileBank={() => setScreen("mobileBank")}
+      onClickMobileProfit={() => setScreen("mobileProfit")}
       onClickDocIssue={() => setScreen("docIssue")}
       onClickAnnouncements={() => setScreen("announcements")}
       refrigerantAddonCount={refrigerantAddonCount}
@@ -4118,7 +4125,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, onClickEngMessages, engMsgUnread = 0, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, onClickEngMessages, engMsgUnread = 0, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4374,7 +4381,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickEngineerCalendar={onClickEngineerCalendar} onClickMobileBookkeeping={onClickMobileBookkeeping} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount} onClickEngMessages={onClickEngMessages} engMsgUnread={engMsgUnread}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickMobileBank={onClickMobileBank} onClickMobileProfit={onClickMobileProfit} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount} onClickEngMessages={onClickEngMessages} engMsgUnread={engMsgUnread}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onEngineerCalendar={onEngineerCalendar} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -4445,7 +4452,7 @@ function MobileTodayBar({ t, apiTasks = [], completedToday = 0, inProgress = 0, 
   );
 }
 
-function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, onClickEngMessages, engMsgUnread = 0 }) {
+function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, onClickEngMessages, engMsgUnread = 0 }) {
   // 2026-07-24 — 개요 탭 v2 (사장님 확정: 🅐 검색 바로형 · 방식 1 화면 점프).
   //   · 검색창 = 아이콘만, placeholder·안내문 없음 (사장님 spec "깔끔하게").
   //     입력 후 엔터/🔍 → 전체 작업 화면으로 점프 (검색어 프리필, 전화번호 검색 포함).
@@ -4595,13 +4602,13 @@ function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickL
         );
       })()}
 
-      {/* 달력 · 가계부 · 문서 — 3타일 (유솔N·공지·전체작업 카드는 제거 — 검색창·설정이 대체) */}
-      {(onClickEngineerCalendar || onClickMobileBookkeeping || onClickDocIssue) && (
+      {/* 통장 · 손익 · 문서 — 3타일 (2026-07-24: 가계부 해체 → 통장/손익 직행, 달력은 설정으로) */}
+      {(onClickMobileBank || onClickMobileProfit || onClickDocIssue) && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 7, marginBottom: 14 }}>
           {[
-            onClickEngineerCalendar  && { key: "cal",  icon: "📅", label: "기사별 달력", onClick: onClickEngineerCalendar },
-            onClickMobileBookkeeping && { key: "book", icon: "📊", label: "가계부",     onClick: onClickMobileBookkeeping },
-            onClickDocIssue          && { key: "doc",  icon: "📄", label: "문서 발행",  onClick: onClickDocIssue },
+            onClickMobileBank   && { key: "bank",   icon: "🏦", label: "통장",     onClick: onClickMobileBank },
+            onClickMobileProfit && { key: "profit", icon: "📊", label: "손익",     onClick: onClickMobileProfit },
+            onClickDocIssue     && { key: "doc",    icon: "📄", label: "문서 발행", onClick: onClickDocIssue },
           ].filter(Boolean).map(it => (
             <button key={it.key} onClick={it.onClick} style={{
               padding: "12px 4px",
