@@ -4212,6 +4212,18 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
           <StatBox t={t} label="완료"     value={dynamicStats?.completed  ?? TODAY_STATS.completed}   color={t.success} onClick={() => onClickLiveWork("completed-today")}/>
         </div>
 
+        {/* 2026-07-24 — ☀️ 오늘 진행 바 (사장님 spec: PC WorkStatusCard 오늘 바의 모바일판).
+              완료(초록)+진행(앰버)+시작 전(회색) 세그먼트 — 클릭 시 해당 목록.
+              시작 전 = 오늘 예약(scheduled 오늘) + 효과상태 '확정' (PC와 동일 계산). */}
+        <MobileTodayBar t={t}
+          apiTasks={apiTasks}
+          completedToday={dynamicStats?.completed ?? 0}
+          inProgress={dynamicStats?.inProgress ?? 0}
+          onCompleted={() => onClickLiveWork("completed-today")}
+          onInProgress={onClickInProgress}
+          onNotStarted={() => onClickAssignedList("confirmed")}
+        />
+
         {/* 2026-06-03 — Phase 2a: 냉매 미처리 알림 줄 (Phase 1 측측 기사 PWA 측측 입력 측 측). */}
         {refrigerantAddonCount > 0 && (
           <div
@@ -4382,6 +4394,57 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
 
 // 시안 4-V4 — 개요 탭 콘텐츠 (5/6/7 부분)
 // 2026-05-11 — 옛 6개 카드 (workTypeOrder / workTypeCounts) 제거 / 새 작업 흐름 카드로 통합
+// 2026-07-24 — 모바일 ☀️ 오늘 진행 바 (PC WorkStatusCard 오늘 구역과 동일 계산/색).
+function MobileTodayBar({ t, apiTasks = [], completedToday = 0, inProgress = 0, onCompleted, onInProgress, onNotStarted }) {
+  const todayStr = todayYmd();
+  const notStarted = useMemo(() =>
+    (apiTasks || []).filter(x => {
+      const n = x.scheduledAt || x.scheduled_at || x.확정일시 || x.confirmedAt;
+      if (!n || toKstYmd(n) !== todayStr) return false;
+      return TASK_FILTERS.getEffectiveStatus(x) === "확정";
+    }).length,
+    [apiTasks, todayStr]
+  );
+  const total = completedToday + inProgress + notStarted;
+  if (total === 0) return null;   // 오늘 일정 없으면 표시 안 함 (길이 절약)
+  const pct = (n) => Math.round((n / total) * 100);
+  const donePct = pct(completedToday);
+  const progPct = pct(inProgress);
+  const waitPct = Math.max(0, 100 - donePct - progPct);
+  const GREEN = "#2BB673", AMBER = "#FBBF24";
+  const seg = (width, bg, fg, label, onClick) => width <= 0 ? null : (
+    <button onClick={onClick} style={{
+      width: `${width}%`, minWidth: label ? 34 : 0,
+      background: bg, color: fg, border: "none",
+      fontSize: 10, fontWeight: 800, fontFamily: "inherit",
+      cursor: "pointer", padding: 0, whiteSpace: "nowrap", overflow: "hidden",
+    }}>{label}</button>
+  );
+  return (
+    <div style={{
+      background: t.bgElevated, border: `1px solid ${t.border}`,
+      borderRadius: 12, padding: "11px 13px", marginBottom: 14,
+    }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: GREEN }}>☀️ 오늘</span>
+        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>일정 {total}건</span>
+        <span className="mono" style={{
+          marginLeft: "auto", fontSize: 14, fontWeight: 800,
+          fontVariantNumeric: "tabular-nums",
+        }}>{completedToday}<span style={{ fontSize: 10, color: t.textSecondary, fontWeight: 600 }}>/{total} 완료 · {donePct}%</span></span>
+      </div>
+      <div style={{
+        display: "flex", height: 20, borderRadius: 10, overflow: "hidden",
+        border: `1px solid ${t.border}`, marginTop: 8, background: t.bgInset,
+      }}>
+        {seg(donePct, GREEN, "#fff", `완료 ${completedToday}`, onCompleted)}
+        {seg(progPct, AMBER, "#1A1A1A", `진행 ${inProgress}`, onInProgress)}
+        {seg(waitPct, "transparent", t.textSecondary, `대기 ${notStarted}`, onNotStarted)}
+      </div>
+    </div>
+  );
+}
+
 function OverviewTab({ t, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickEngineerCalendar, onClickMobileBookkeeping, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, onClickEngMessages, engMsgUnread = 0 }) {
   // 2026-07-24 — 개요 탭 v2 (사장님 확정: 🅐 검색 바로형 · 방식 1 화면 점프).
   //   · 검색창 = 아이콘만, placeholder·안내문 없음 (사장님 spec "깔끔하게").
