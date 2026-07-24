@@ -56,6 +56,21 @@ export function TaskMessagesTab({ engineer, onTabChange, unreadCount = 0, onClic
     return () => { alive = false; };
   }, [userId, tick]);
 
+  // 2026-07-24 — 실시간 보강 (사장님 spec "실시간 안 되나?"):
+  //   푸시 도착(notification:added)·화면 복귀 시 목록 즉시 갱신 + 30초 폴링 보조.
+  useEffect(() => {
+    const onPush = () => reload();
+    const onVis = () => { if (document.visibilityState === "visible") reload(); };
+    window.addEventListener("notification:added", onPush);
+    document.addEventListener("visibilitychange", onVis);
+    const iv = setInterval(reload, 30000);
+    return () => {
+      window.removeEventListener("notification:added", onPush);
+      document.removeEventListener("visibilitychange", onVis);
+      clearInterval(iv);
+    };
+  }, [reload]);
+
   const unreadMessagesCount = useMemo(
     () => items.reduce((s, t) => s + (Number(t.unread_count) || 0), 0),
     [items]

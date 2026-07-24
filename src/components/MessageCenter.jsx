@@ -182,8 +182,20 @@ export function MessageChatScreen({ role, actorId, thread, onBack, onSent, onDel
   useEffect(() => {
     setLoading(true);
     reload();
-    const iv = setInterval(reload, 15000);   // 15초 폴링 (푸시 보조)
-    return () => clearInterval(iv);
+    // 2026-07-24 — 사장님 spec "실시간 안 되나?": 15초 폴링 → 3중 갱신.
+    //   ① 푸시 도착 즉시 (SW → notification:added 이벤트 — 사실상 실시간)
+    //   ② 5초 폴링 (푸시 누락 보조)
+    //   ③ 화면 복귀(visibilitychange) 즉시
+    const iv = setInterval(reload, 5000);
+    const onPush = () => reload();
+    const onVis = () => { if (document.visibilityState === "visible") reload(); };
+    window.addEventListener("notification:added", onPush);
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      clearInterval(iv);
+      window.removeEventListener("notification:added", onPush);
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, [reload]);
 
   useEffect(() => {
@@ -220,6 +232,8 @@ export function MessageChatScreen({ role, actorId, thread, onBack, onSent, onDel
       margin: "0 auto", maxWidth: 720, zIndex: 800,
       display: "flex", flexDirection: "column",
       background: "var(--bg-primary)", color: "var(--text-primary)",
+      // 2026-07-24 — 사장님 리포트: 뒤로가기가 상태바(노치) 밑에 깔려 터치 불가 → safe-area 패딩.
+      paddingTop: "env(safe-area-inset-top)",
     }}>
       {/* 헤더 */}
       <div style={{
