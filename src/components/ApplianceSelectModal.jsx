@@ -442,8 +442,31 @@ function _isPlaceholderAppliance(apl) {
 //   A-260712-029 (김은희) case — sync_task_items_trg 가 work_types.name='기타' 미매칭 →
 //   task_items.work_type_id=NULL → rowToTask 에서 workItems[0].workType=undefined →
 //   기존 판정 `first.workType && ...` 조건 fail → 배너 안 뜸.
+// 2026-07-24 — 기종(벽걸이/스탠드…) 선택이 실제로 필요한 종목.
+//   설치(신규설치·기계중고교체 등 5종)·출장비·유솔N 부가는 appliance NULL 이 정상
+//   (설치 5종은 표시용 이름 — 정책 매칭이 NULL 처리) → 기종 검사 제외.
+const _APPLIANCE_REQUIRED_WT = ["세척", "냉매충전", "누설"];
+
 export function needsApplianceSelection(task) {
   if (!task) return false;
+  // 2026-07-24 — 사장님 리포트 fix ①: 방문출장 전환/완료(visit_only)·취소 건은
+  //   기종 선택이 의미 없음 (정산은 출장비/취소 로직) — 배지·배너·완료차단 전부 해제.
+  if (task.status === "visit_only" || task.status === "취소") return false;
+
+  // 2026-07-24 — 사장님 리포트 fix ②: 항목이 멀쩡히 특정돼 있으면 확정으로 본다.
+  //   설치(A-260724-010 기계중고교체)처럼 기종 개념이 없는 종목이 appliance NULL 로
+  //   오탐하던 사고 + 항목 확정 후에도 applianceUndecided 플래그 잔존 오탐 동시 수리.
+  //   (기종 검사는 세척/냉매충전/누설만 — 설치·출장비 등은 workType 만 있으면 확정.)
+  const wi = Array.isArray(task.workItems) ? task.workItems : [];
+  if (wi.length > 0) {
+    const first  = wi[0] || {};
+    const wtNorm = String(first.workType || "").trim();
+    const wtOk   = wtNorm !== "" && !_isPlaceholderAppliance(first.workType);
+    const aplOk  = !_APPLIANCE_REQUIRED_WT.includes(wtNorm)
+                 || !_isPlaceholderAppliance(first.appliance);
+    if (wtOk && aplOk) return false;   // 실물이 확정 — 플래그/추정보다 우선.
+  }
+
   if (task.applianceUndecided === true) return true;
   // 2026-07-12 — 사장님 spec: 배지가 '미정' 이면 무조건 배너 표시 (판정 통일).
   //   detectServiceType 이 undecided 판정하는 모든 케이스를 needsApplianceSelection 도 커버.
@@ -452,19 +475,12 @@ export function needsApplianceSelection(task) {
     const st = detectServiceType(task);
     if (st && st.id === "undecided") return true;
   } catch (_e) { /* ignore */ }
-  const wi = Array.isArray(task.workItems) ? task.workItems : [];
   // 2026-07-12 — 사장님 spec: 항목 0 이면 root workType 유무 상관 없이 무조건 미정.
   //   A-260712-029 (workItems=[] + rootWorkType=null) — 완전 갇힘 방지.
   //   빈 task 는 정상 흐름 불가 → 배너로 종목·기종 선택 강제.
   if (wi.length === 0) return true;
-  const first = wi[0] || {};
-  const wtEmpty  = !first.workType || String(first.workType).trim() === "";
-  const wtPlace  = _isPlaceholderAppliance(first.workType);
-  const aplPlace = _isPlaceholderAppliance(first.appliance);
-  if (wtEmpty || wtPlace || aplPlace) return true;
-  // 최종 방어: root task.workType 이 placeholder ('기타' 등).
-  if (task.workType && _isPlaceholderAppliance(task.workType)) return true;
-  return false;
+  // 여기 도달 = 항목은 있으나 workType/기종이 placeholder·빈값 → 미정.
+  return true;
 }
 
 export default ApplianceSelectModal;
