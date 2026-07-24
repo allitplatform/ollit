@@ -8,7 +8,7 @@
 //   ⚠️ CSS 변수(var(--bg-*, --text-*, --border, --accent)) 사용 — 기사·운영자 앱 공통 동작.
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Send, Trash2 } from "lucide-react";
 import {
   listThreadMessages, markThreadRead,
   engineerSendMessage, adminSendMessage,
@@ -149,7 +149,7 @@ export function DaySectionLabel({ children }) {
 // 채팅 화면 — role: 'engineer' | 'admin'
 //   thread: { engineerUserId, engineerName?, taskId?, taskNo?, customerName? }
 // ────────────────────────────────────────────
-export function MessageChatScreen({ role, actorId, thread, onBack, onSent }) {
+export function MessageChatScreen({ role, actorId, thread, onBack, onSent, onDelete }) {
   const isAdmin = role === "admin";
   const [items, setItems]     = useState([]);
   const [loading, setLoading] = useState(true);
@@ -157,6 +157,7 @@ export function MessageChatScreen({ role, actorId, thread, onBack, onSent }) {
   const [kind, setKind]       = useState("general");
   const [busy, setBusy]       = useState(false);
   const [err, setErr]         = useState("");
+  const [askDelete, setAskDelete] = useState(false);   // 🗑 2단 확인
   const bottomRef = useRef(null);
   const engineerUserId = thread?.engineerUserId;
   const taskId = thread?.taskId || null;
@@ -228,7 +229,40 @@ export function MessageChatScreen({ role, actorId, thread, onBack, onSent }) {
             </div>
           )}
         </div>
+        {/* 2026-07-24 — 휴지통 (사장님 spec). onDelete 있는 쪽(운영자)만 노출. */}
+        {onDelete && (
+          <button onClick={() => setAskDelete(true)} aria-label="대화 삭제" style={{
+            background: "transparent", border: "1px solid var(--border)",
+            borderRadius: 8, padding: "7px 9px",
+            color: "#F87171", cursor: "pointer", display: "flex", flexShrink: 0,
+          }}><Trash2 size={15}/></button>
+        )}
       </div>
+
+      {/* 삭제 2단 확인 배너 */}
+      {askDelete && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 8,
+          padding: "10px 14px", flexShrink: 0,
+          background: "rgba(248,113,113,0.1)", borderBottom: "1px solid rgba(248,113,113,0.4)",
+        }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: "#F87171", flex: 1 }}>
+            이 대화를 삭제할까요? (양쪽에서 사라짐)
+          </span>
+          <button onClick={() => setAskDelete(false)} style={{
+            padding: "7px 12px", background: "transparent",
+            border: "1px solid var(--border)", borderRadius: 8,
+            fontSize: 11.5, fontWeight: 700, color: "var(--text-secondary)",
+            cursor: "pointer", fontFamily: "inherit",
+          }}>취소</button>
+          <button onClick={() => { setAskDelete(false); onDelete(); }} style={{
+            padding: "7px 12px", background: "#F87171",
+            border: "none", borderRadius: 8,
+            fontSize: 11.5, fontWeight: 800, color: "#fff",
+            cursor: "pointer", fontFamily: "inherit",
+          }}>삭제</button>
+        </div>
+      )}
 
       {/* 메시지 */}
       <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 8px" }}>

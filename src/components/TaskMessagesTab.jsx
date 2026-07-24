@@ -14,7 +14,7 @@ import {
 
 const ACCENT = "#FF1B8D";
 
-export function TaskMessagesTab({ engineer, onTabChange, unreadCount = 0, onClickTask }) {
+export function TaskMessagesTab({ engineer, onTabChange, unreadCount = 0, onClickTask, initialThread = null, onConsumeInitialThread }) {
   const userId = engineer?.user_id || engineer?.userId || null;
 
   const [items, setItems]     = useState([]);
@@ -25,6 +25,19 @@ export function TaskMessagesTab({ engineer, onTabChange, unreadCount = 0, onClic
   const [openThread, setOpenThread] = useState(null);
 
   const reload = useCallback(() => setTick(v => v + 1), []);
+
+  // 2026-07-24 — 다른 화면("메시지 보내기" 버튼)에서 특정 스레드로 바로 진입.
+  useEffect(() => {
+    if (!initialThread || !userId) return;
+    setOpenThread({
+      engineerUserId: userId,
+      taskId: initialThread.taskId || null,
+      taskNo: initialThread.taskNo || null,
+      customerName: initialThread.customerName || null,
+    });
+    if (onConsumeInitialThread) onConsumeInitialThread();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialThread, userId]);
 
   useEffect(() => {
     if (!userId) {
@@ -108,6 +121,17 @@ export function TaskMessagesTab({ engineer, onTabChange, unreadCount = 0, onClic
             borderRadius: 999, padding: "2px 8px",
           }}>{unreadMessagesCount}</span>
         )}
+        <div style={{ flex: 1 }}/>
+        {/* 2026-07-24 — 사장님 spec: 상단 오른쪽에도 보내기 버튼 */}
+        <button
+          onClick={() => setOpenThread({ engineerUserId: userId, taskId: null })}
+          style={{
+            background: ACCENT, color: "#fff", border: "none",
+            borderRadius: 999, padding: "7px 13px",
+            fontSize: 11.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+          }}>
+          ✉️ 보내기
+        </button>
       </div>
 
       <div style={{ padding: "0 14px" }}>

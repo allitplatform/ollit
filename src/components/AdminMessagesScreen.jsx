@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { ArrowLeft } from "lucide-react";
-import { adminListMessageThreads } from "../lib/taskMessagesDb.js";
+import { adminListMessageThreads, adminDeleteMessageThread } from "../lib/taskMessagesDb.js";
 import {
   MessageThreadCard, MessageChatScreen, DaySectionLabel, groupThreadsByDay,
 } from "./MessageCenter.jsx";
@@ -62,6 +62,15 @@ export function AdminMessagesScreen({ user, onBack }) {
         thread={openThread}
         onBack={() => { setOpenThread(null); reload(); }}
         onSent={reload}
+        onDelete={async () => {
+          // 2026-07-24 — 휴지통 (사장님 spec): 스레드 소프트 삭제 → 목록 복귀.
+          const res = await adminDeleteMessageThread({
+            actorId,
+            engineerUserId: openThread.engineerUserId,
+            taskId: openThread.taskId || null,
+          });
+          if (res.ok) { setOpenThread(null); reload(); }
+        }}
       />
     );
   }

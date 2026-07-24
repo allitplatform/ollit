@@ -299,8 +299,8 @@ export function EngineerNewAssignCallScreen({
             📞 운영팀 전화
           </button>
           <button onClick={onAskOps} style={{
-            background: "#FEE500",
-            color: "#391B1B",
+            background: "#FF1B8D",
+            color: "#fff",
             border: "none",
             padding: 12,
             borderRadius: 10,
@@ -308,10 +308,7 @@ export function EngineerNewAssignCallScreen({
             cursor: "pointer", fontFamily: "inherit",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="#391B1B" aria-hidden="true">
-              <path d="M12 3C6.48 3 2 6.48 2 10.8c0 2.76 1.74 5.16 4.36 6.55-.18.61-.65 2.18-.74 2.51-.12.4.15.4.31.29.13-.09 2.04-1.39 2.85-1.95.4.06.81.1 1.22.1 5.52 0 10-3.48 10-7.79S17.52 3 12 3z"/>
-            </svg>
-            카톡 문의
+            💬 메시지 보내기
           </button>
         </div>
       </div>

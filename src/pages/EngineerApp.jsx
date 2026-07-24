@@ -3773,6 +3773,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   }, []);
   // V14 — navigation stack: 알림 → 작업 → 뒤로 = 알림 복귀
   const [screenStack, setScreenStack] = useState(["main"]);
+  // 2026-07-24 — 메시지 창구 (Mig 188): 특정 작업/일반 채팅으로 바로 진입용 초기 스레드.
+  const [msgInitialThread, setMsgInitialThread] = useState(null);
   const screen = screenStack[screenStack.length - 1];
   const setScreen = (s) => setScreenStack(prev => (prev[prev.length - 1] === s ? prev : [...prev, s]));
   const goBack    = () => setScreenStack(prev => (prev.length > 1 ? prev.slice(0, -1) : prev));
@@ -5205,6 +5207,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             engineer={engineerProfileMerged}
             onTabChange={handleTabChange}
             unreadCount={unreadCount}
+            initialThread={msgInitialThread}
+            onConsumeInitialThread={() => setMsgInitialThread(null)}
             onClickTask={(taskId) => {
               if (!taskId) return;
               setSelectedTaskId(taskId);
@@ -5226,6 +5230,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
         {/* 내 정보 탭 */}
         {screen === "profile" && (
           <EngineerMeTab
+            onMessageOps={() => { setMsgInitialThread({ taskId: null }); resetTo("messages"); }}
             engineer={engineerProfileMerged}
             theme={mode}
             onChangeTheme={(value) => setMode(value)}
@@ -5339,9 +5344,13 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               alert("운영팀 번호가 아직 설정되지 않았어요 (관리자 설정 > 운영팀 전화번호)");
             }}
             onAskOps={() => {
-              // 2026-07-15 — 임시: 기사 폰의 카카오톡 앱 열기 (사장님 spec).
-              //   다음 주 카카오 채널 생성 후 https://pf.kakao.com/_채널ID/chat 으로 교체 예정.
-              window.location.href = "kakaotalk://launch";
+              // 2026-07-24 — 카톡 → 메시지 창구 (Mig 188, 사장님 spec).
+              //   이 작업에 대한 운영팀 채팅 스레드로 바로 진입.
+              const tk = acceptedCall || tasks.find(x => x.id === callTaskId) || extraAssignments.find(x => x.id === callTaskId) || null;
+              setMsgInitialThread(tk
+                ? { taskId: tk.id, taskNo: tk.taskNo || tk.taskCode || null, customerName: tk.customer || null }
+                : { taskId: null });
+              resetTo("messages");
             }}
           />
         )}

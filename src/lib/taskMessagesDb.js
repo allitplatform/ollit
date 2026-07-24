@@ -154,3 +154,14 @@ export async function adminMessagesUnreadCount({ actorId }) {
   if (!r.ok) return { ok: false, count: 0 };
   return { ok: true, count: Number(r.data?.count) || 0 };
 }
+
+// 스레드 소프트 삭제 — 운영자 전용 (휴지통, Mig 188b)
+export async function adminDeleteMessageThread({ actorId, engineerUserId, taskId = null }) {
+  if (!actorId || !engineerUserId) return { ok: false, error: "actor/engineer 누락" };
+  const r = await _rpc("admin_delete_message_thread", {
+    p_actor: actorId, p_engineer_user: engineerUserId, p_task_id: taskId,
+  });
+  if (!r.ok) return r;
+  if (r.data && r.data.ok === false) return { ok: false, error: r.data.error || "삭제 실패" };
+  return { ok: true, deleted: r.data?.deleted ?? 0 };
+}
