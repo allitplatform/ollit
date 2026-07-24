@@ -488,6 +488,10 @@ export default function DocIssueScreen({
   // 문서 종류 — 기사 모드 기본 '영수증', 운영자 모드 기본 '거래명세서'
   const [docType, setDocType] = useState(engineerMode ? "receipt" : "invoice");
 
+  // 2026-07-24 — 🅐 확인 요약 모드 (사장님 확정 — 새 접수 폼과 동일 패턴).
+  //   자동 분석 후 긴 폼 대신 요약 카드 → 틀린 것만 수정 → 바로 발행.
+  const [confirmMode, setConfirmMode] = useState(false);
+
   // 2026-06-19 — 발행 날짜 (수동 변경 가능, 기본 오늘 KST).
   //   거래명세서.거래일자 / 영수증.영수일자 에 반영.
   //   발행번호(YYMMDD-NNN)는 발행 화면이 아닌 generateSerialNo 가 실제 today 기준 — 입력 날짜와 무관.
@@ -631,22 +635,30 @@ export default function DocIssueScreen({
   }, [issuerCode, actor, activeEngineers, engineerMode]);
 
   // 자동 분석 → form 미리 채움 (best-effort).
+  // 2026-07-24 v2 — 파서 v2 연동 (docTypeHint / 만원 단위 / 단독 금액 / 주소 확대):
+  //   · 품목 concat → replace (요청 1건 = 발행 1건 관례 — 중복 붙여넣기 오염 방지)
+  //   · 뭐라도 잡히면 확인 요약 모드(🅐)로 전환.
   function handleAutoParse() {
     const r = parseDocIssuePaste(pasteText);
-    if (r.address && !recipientAddress) setRecipientAddress(r.address);
-    if (r.phone   && !recipientPhone)   setRecipientPhone(r.phone);
+    let matched = 0;
+    if (r.docTypeHint) { setDocType(r.docTypeHint); matched++; }
+    if (r.address) { setRecipientAddress(r.address); matched++; }
+    if (r.phone)   { setRecipientPhone(r.phone); matched++; }
     if (r.items && r.items.length > 0) {
-      setItems(prev => prev.concat(r.items.map(it => ({
+      setItems(r.items.map(it => ({
         label: it.label,
         qty:   it.qty || 1,
         price: it.price,
-      }))));
+      })));
+      matched++;
     }
     if (r.vatMode) setVatMode(r.vatMode);
     const amount = r.vatMode === "exclusive" ? r.supplyPrice : r.totalAmount;
     if (amount) {
       setAmountRaw(Number(amount).toLocaleString("ko-KR"));
+      matched++;
     }
+    if (matched > 0) setConfirmMode(true);
   }
 
   function handleAddPreset(label) {
@@ -838,6 +850,119 @@ export default function DocIssueScreen({
   }
 
   // ──────────────────────────────────────────────
+  // 2026-07-24 — 🅐 확인 요약 렌더 (자동 분석 후)
+  // ──────────────────────────────────────────────
+  if (confirmMode) {
+    const engName = (() => {
+      const eng = activeEngineers.find(e => (e.engineerId || e.id) === issuerCode);
+      return eng?.name || issuerInfo?.business_name || issuerCode || "";
+    })();
+    const itemSummary = items.filter(it => (it.label || "").trim())
+      .map(it => `${it.label} ×${it.qty || 1}`).join(", ");
+    const recipientSummary = recipientType === "business"
+      ? [recipientBizName, recipientBizNo].filter(Boolean).join(" · ")
+      : [recipientName, recipientPhone].filter(Boolean).join(" · ");
+    const confirmRows = [
+      { icon: "📄", label: "문서 종류",
+        value: `${docType === "invoice" ? "거래명세서" : "영수증"} · ${issueDate}` },
+      { icon: "👷", label: "발행처",
+        value: issuerInfo ? `${engName} (사업자 ✓)` : null,
+        missText: issuerLoading ? "사업자 정보 불러오는 중..." : "미선택 — 수정을 눌러 선택" },
+      { icon: "👤", label: recipientType === "business" ? "받는분 (사업자)" : "받는분",
+        value: recipientSummary || null },
+      { icon: "📍", label: "주소", value: recipientAddress || null },
+      { icon: "🧰", label: `품목 ${items.length}건`, value: itemSummary || null },
+      { icon: "💰", label: "금액",
+        value: amountNum > 0
+          ? `합계 ₩${vatBreak.total.toLocaleString("ko-KR")} (${vatMode === "exclusive" ? "부가세 별도" : "부가세 포함"}${docType === "receipt" && !showVat ? " · 미표기" : ""})`
+          : null,
+        hint: amountNum > 0
+          ? `공급가 ${vatBreak.supply.toLocaleString("ko-KR")} · 부가세 ${vatBreak.vat.toLocaleString("ko-KR")}`
+          : null },
+    ];
+    return (
+      <div style={{
+        background: "var(--bg-primary)",
+        minHeight: "100vh",
+        color: "var(--text-primary)",
+        fontFamily: "-apple-system, 'Pretendard', sans-serif",
+        paddingBottom: 70,
+      }}>
+        {/* 헤더 */}
+        <div style={{
+          position: "sticky", top: 0, zIndex: 5,
+          background: "var(--bg-primary)",
+          borderBottom: "1px solid var(--border)",
+          padding: "10px 14px",
+          display: "flex", alignItems: "center", gap: 8,
+        }}>
+          <button type="button" onClick={() => setConfirmMode(false)} aria-label="뒤로" style={{
+            background: "transparent", border: "none",
+            fontSize: 20, padding: 2, cursor: "pointer",
+            color: "var(--text-primary)", minHeight: 32,
+          }}>←</button>
+          <div style={{ fontSize: 15, fontWeight: 700, letterSpacing: "-0.2px" }}>
+            ✅ 발행 확인
+          </div>
+        </div>
+
+        <div style={{ padding: 10, maxWidth: 720, margin: "0 auto" }}>
+          <div style={{ fontSize: 11.5, color: "var(--text-secondary)", margin: "2px 2px 8px" }}>
+            자동으로 채웠어요 — 틀린 항목만 <b style={{ color: "#FF1B8D" }}>수정</b>을 눌러 고쳐주세요.
+          </div>
+
+          <div style={{
+            background: "var(--bg-elevated)",
+            border: "1px solid var(--border)",
+            borderTop: "3px solid #FF1B8D",
+            borderRadius: 12, padding: "4px 14px", marginBottom: 10,
+          }}>
+            {confirmRows.map((row, i) => (
+              <div key={row.label} style={{
+                display: "flex", alignItems: "flex-start", gap: 10,
+                padding: "11px 0",
+                borderBottom: i === confirmRows.length - 1 ? "none" : "1px solid var(--border)",
+              }}>
+                <span style={{ width: 18, textAlign: "center", fontSize: 12, flexShrink: 0, marginTop: 1 }}>{row.icon}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 2 }}>{row.label}</div>
+                  {row.value ? (
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", wordBreak: "break-all", whiteSpace: "pre-wrap" }}>
+                      {row.value}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "#D97706" }}>
+                      {row.missText || "미입력 — 수정을 눌러 입력"}
+                    </div>
+                  )}
+                  {row.hint && (
+                    <div style={{ fontSize: 10.5, color: "var(--text-secondary)", marginTop: 2 }}>{row.hint}</div>
+                  )}
+                </div>
+                <button type="button" onClick={() => setConfirmMode(false)} style={{
+                  flexShrink: 0, background: "transparent", border: "none",
+                  color: "#FF1B8D", fontSize: 11, fontWeight: 800, cursor: "pointer",
+                  fontFamily: "inherit", padding: "2px 2px", marginTop: 8,
+                }}>{row.value ? "수정" : "입력"}</button>
+              </div>
+            ))}
+          </div>
+
+          {/* 발행 액션 — 기존 DocActionBar 재사용 (카톡 메인 / 이미지·PDF) */}
+          <DocActionBar issuing={issuing} onAction={handleIssue}/>
+          <div style={{ height: 6 }}/>
+          <button type="button" onClick={() => setConfirmMode(false)} disabled={issuing} style={{
+            width: "100%", padding: "11px",
+            background: "transparent", border: "1px solid var(--border)",
+            color: "var(--text-secondary)", borderRadius: 11,
+            fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+          }}>✏️ 전체 폼에서 수정</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ──────────────────────────────────────────────
   // 렌더
   // ──────────────────────────────────────────────
   return (
@@ -873,6 +998,34 @@ export default function DocIssueScreen({
       </div>
 
       <div style={{ padding: 10, maxWidth: 720, margin: "0 auto" }}>
+        {/* 0) 문서 종류 + 발행 날짜 — 2026-07-24 맨 위로 이동 (사장님 spec:
+            뭘 만들지 먼저 정하고 채우는 순서. 종류에 따라 아래 폼 옵션이 맞춰 바뀜). */}
+        <Section title="문서 종류 / 발행 날짜" isDark={isDark}>
+          <div style={{ marginBottom: 7 }}>
+            <TwoToggle
+              value={docType}
+              options={DOC_OPTS}
+              onChange={setDocType}
+              isDark={isDark}
+            />
+          </div>
+          <LabeledInput
+            label={`${docType === "invoice" ? "거래일자" : "영수일자"} (기본 오늘 · 수동 변경 가능)`}
+            value={issueDate}
+            onChange={setIssueDate}
+            type="date"
+            className="doc-date-input"
+          />
+          {docType === "receipt" && (
+            <div style={{
+              marginTop: 2, fontSize: 11,
+              color: "var(--text-secondary)",
+            }}>
+              ※ 발행번호(YYMMDD-NNN)는 실제 발행 시점 기준이며, 위 영수일자와는 별개입니다.
+            </div>
+          )}
+        </Section>
+
         {/* 1) 발행처 — 기사 모드는 본인 고정, 운영자 모드는 드롭다운 */}
         <Section
           title={engineerMode ? "발행처 (내 사업자 정보)" : "발행처 (기사)"}
@@ -1213,33 +1366,6 @@ export default function DocIssueScreen({
               />
               영수증에 부가세 별도 표기 생략
             </label>
-          )}
-        </Section>
-
-        {/* 6) 문서 종류 + 발행 날짜 */}
-        <Section title="문서 종류 / 발행 날짜" isDark={isDark}>
-          <div style={{ marginBottom: 7 }}>
-            <TwoToggle
-              value={docType}
-              options={DOC_OPTS}
-              onChange={setDocType}
-              isDark={isDark}
-            />
-          </div>
-          <LabeledInput
-            label={`${docType === "invoice" ? "거래일자" : "영수일자"} (기본 오늘 · 수동 변경 가능)`}
-            value={issueDate}
-            onChange={setIssueDate}
-            type="date"
-            className="doc-date-input"
-          />
-          {docType === "receipt" && (
-            <div style={{
-              marginTop: 2, fontSize: 11,
-              color: "var(--text-secondary)",
-            }}>
-              ※ 발행번호(YYMMDD-NNN)는 실제 발행 시점 기준이며, 위 영수일자와는 별개입니다.
-            </div>
           )}
         </Section>
 
