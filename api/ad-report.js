@@ -1,6 +1,7 @@
 // 2026-07-25 — 마케팅 화면 블록④ 광고 지출·CPA (네이버 검색광고 API).
 // GET /api/ad-report?since=YYYY-MM-DD&until=YYYY-MM-DD&actor=<uuid>[&daily=1]
-//   daily=1 이면 응답에 days:[{ymd,cost,clicks,impressions}] 추가 (마케팅 블록⑤ 일별 대조표).
+//   daily=1    → days:[{ymd,cost,clicks,impressions}]            (블록⑤ 일별 대조)
+//   keywords=1 → keywords:[{id,text,cost,clicks,impressions,avgRnk}] (블록⑥ 키워드별 진단)
 //
 // 관리자 게이트: actor(uuid) → user_roles.role IN ('owner','admin') 확인.
 //   PUSH_API_KEY 방식 미사용 (클라에서 호출하는 엔드포인트라 키 노출 우려).
@@ -154,6 +155,138 @@ async function fetchDaily(ids, since, until) {
   return { mode: "perDay", rows: out };
 }
 
+// ── 키워드별 성과 ──────────────────────────────────────
+//   "예산을 다 못 쓴다" 의 원인을 가르는 지표 2개:
+//     avgRnk(평균노출순위) 1~2위인데 노출이 안 늘면 = 검색량 천장.
+//     avgRnk 3위 밖이면                    = 순위 밀림 (입찰가 올리면 예산 소진 가능).
+//     노출 0 인 키워드 수               = 죽은 키워드 (입찰가가 너무 낮아 아예 안 뜬다).
+//   경로: /ncc/campaigns → /ncc/adgroups → /ncc/keywords → /stats(ids=키워드id)
+const KW_LIMITS = { campaigns: 50, adgroups: 300, keywords: 6000, show: 300 };
+
+// 동시 실행 헬퍼. 키워드가 수백~수천개면 순차 루프로는 Vercel 타임아웃이 난다.
+async function _mapLimit(items, conc, fn) {
+  const out = [];
+  for (let i = 0; i < items.length; i += conc) {
+    const chunk = items.slice(i, i + conc);
+    out.push(...await Promise.all(chunk.map(fn)));
+  }
+  return out;
+}
+
+async function fetchKeywords(campaignIds, since, until) {
+  const t0 = Date.now();
+  const DEADLINE = 22000; // Vercel 함수 제한 전에 안전하게 빠져나온다
+
+  // ① 광고그룹 (이름 + 그룹 기본입찰가까지 같이 받는다)
+  const campUse = campaignIds.slice(0, KW_LIMITS.campaigns);
+  const groups = [];
+  await _mapLimit(campUse, 4, async cid => {
+    try {
+      const gs = await naverGet("/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(cid));
+      for (const g of (Array.isArray(gs) ? gs : [])) {
+        const gid = g && (g.nccAdgroupId || g.id);
+        if (!gid) continue;
+        groups.push({
+          id:      gid,
+          name:    String(g.name || gid),
+          bidAmt:  Number(g.bidAmt || 0),
+          enabled: g.userLock !== true,
+        });
+      }
+    } catch (e) { console.error("[ad-report] adgroups 실패", cid, e?.message || e); }
+  });
+  if (groups.length === 0) return { rows: [], meta: { adgroups: 0, total: 0, shown: 0, dead: 0, truncated: false } };
+
+  const gUse = groups.slice(0, KW_LIMITS.adgroups);
+  const gMap = new Map(gUse.map(g => [g.id, g]));
+
+  // ② 키워드
+  const kwMap = new Map(); // id -> { text, gid, bid, useGroupBid }
+  await _mapLimit(gUse.map(g => g.id), 6, async gid => {
+    if (Date.now() - t0 > DEADLINE) return;
+    try {
+      const ks = await naverGet("/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(gid));
+      for (const k of (Array.isArray(ks) ? ks : [])) {
+        const kid = k && (k.nccKeywordId || k.id);
+        if (!kid) continue;
+        if (k.userLock === true) continue;          // 꺼둔 키워드 제외
+        if (kwMap.size >= KW_LIMITS.keywords) return;
+        const useGroupBid = k.useGroupBidAmt === true;
+        kwMap.set(kid, {
+          text:        String(k.keyword || k.name || kid),
+          gid,
+          gname:       gMap.get(gid)?.name || "",
+          bid:         useGroupBid ? Number(gMap.get(gid)?.bidAmt || 0) : Number(k.bidAmt || 0),
+          useGroupBid,
+        });
+      }
+    } catch (e) { console.error("[ad-report] keywords 실패", gid, e?.message || e); }
+  });
+  const totalKw = kwMap.size;
+  if (totalKw === 0) return { rows: [], meta: { adgroups: gUse.length, total: 0, shown: 0, dead: 0, truncated: false } };
+
+  // ③ 통계 — ids 는 반복 파라미터. URL 길이 때문에 100개씩 끊고, 동시 4개씩 보낸다.
+  const allIds = [...kwMap.keys()];
+  const fields = ["impCnt", "clkCnt", "salesAmt", "avgRnk"];
+  const chunks = [];
+  for (let i = 0; i < allIds.length; i += 100) chunks.push(allIds.slice(i, i + 100));
+
+  const statMap = new Map();
+  await _mapLimit(chunks, 4, async chunk => {
+    if (Date.now() - t0 > DEADLINE) return;
+    try {
+      const qs =
+        chunk.map(id => "ids=" + encodeURIComponent(id)).join("&") +
+        "&fields="    + encodeURIComponent(JSON.stringify(fields)) +
+        "&timeRange=" + encodeURIComponent(JSON.stringify({ since, until }));
+      const st = await naverGet("/stats", qs);
+      const rows = Array.isArray(st?.data) ? st.data : Array.isArray(st) ? st : [];
+      for (const r of rows) {
+        const id = r?.id || r?.nccKeywordId;
+        if (id) statMap.set(id, r);
+      }
+    } catch (e) { console.error("[ad-report] 키워드 stats 실패", e?.message || e); }
+  });
+
+  // ④ 합치기. 노출 0 은 표에서는 빼지만 몇 개인지는 세서 알려준다(진단 재료).
+  const live = [];
+  let dead = 0;
+  let deadBidSum = 0;
+  for (const [id, info] of kwMap) {
+    const r   = statMap.get(id);
+    const imp = Number(r?.impCnt   || 0);
+    const clk = Number(r?.clkCnt   || 0);
+    if (imp <= 0 && clk <= 0) { dead += 1; deadBidSum += info.bid; continue; }
+    live.push({
+      id,
+      text:        info.text,
+      group:       info.gname,
+      bid:         info.bid,
+      useGroupBid: info.useGroupBid,
+      impressions: imp,
+      clicks:      clk,
+      cost:        Number(r?.salesAmt || 0),
+      avgRnk:      Number(r?.avgRnk   || 0),
+    });
+  }
+  live.sort((a, b) => b.cost - a.cost);
+
+  return {
+    rows: live.slice(0, KW_LIMITS.show),
+    meta: {
+      adgroups:    gUse.length,
+      adgroupsAll: groups.length,
+      total:       totalKw,
+      live:        live.length,
+      shown:       Math.min(live.length, KW_LIMITS.show),
+      dead,
+      deadAvgBid:  dead > 0 ? Math.round(deadBidSum / dead) : 0,
+      truncated:   groups.length > gUse.length || totalKw >= KW_LIMITS.keywords,
+      ms:          Date.now() - t0,
+    },
+  };
+}
+
 async function assertAdmin(actor) {
   if (!actor || !UUID_RE.test(actor)) return { ok: false, code: 400, error: "actor(uuid) required" };
   if (!supabase) return { ok: false, code: 500, error: "supabase service role 미구성" };
@@ -180,6 +313,7 @@ export default async function handler(req, res) {
   const until = String(req.query.until || "");
   const actor = String(req.query.actor || "");
   const wantDaily = String(req.query.daily || "") === "1";
+  const wantKw    = String(req.query.keywords || "") === "1";
 
   if (!YMD_RE.test(since) || !YMD_RE.test(until)) {
     return res.status(400).json({ ok: false, error: "since/until = YYYY-MM-DD 필수" });
@@ -247,13 +381,26 @@ export default async function handler(req, res) {
       daysMode = d.mode;
     }
 
+    let keywords = undefined, keywordMeta = undefined;
+    if (wantKw) {
+      try {
+        const kwRes = await fetchKeywords(ids, since, until);
+        keywords    = kwRes.rows;
+        keywordMeta = kwRes.meta;
+      } catch (e) {
+        console.error("[ad-report] keywords 블록 실패", e?.message || e);
+        keywords    = [];
+        keywordMeta = { error: String(e?.message || e) };
+      }
+    }
+
     res.setHeader("Cache-Control", "s-maxage=1800, stale-while-revalidate=3600");
     return res.status(200).json({
       ok: true,
       cost, clicks, impressions, cpc, ctr,
       since, until,
       vatIncluded: false, // salesAmt 는 VAT 별도. 클라에서 ×1.1 로 실청구액 계산.
-      days, daysMode,
+      days, daysMode, keywords, keywordMeta,
     });
   } catch (e) {
     console.error("[ad-report]", e?.message || e);

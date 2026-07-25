@@ -65,6 +65,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   // 2026-07-25 — 기본 "이번달". "오늘"이면 오늘 접수→오늘 완료가 사실상 없어 항상 N/0/0 표기됨.
   const [period, setPeriod] = useState("month");
   const [showDailyTable, setShowDailyTable] = useState(false);
+  const [kwShowAll, setKwShowAll] = useState(false);
   // 2026-07-25 — 스팸 포함 모든 status (null = 전체) 를 1회 호출로. 클라에서 status 별 분류.
   const [allInquiries, setAllInquiries] = useState([]);
   // converted inquiries 의 task_id Set — 홈페이지 유입 task 판별 진실 소스 (v3).
@@ -211,7 +212,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
     if (!actorId) { setAd(null); return () => { alive = false; }; }
     setAdLoading(true);
     setAdError("");
-    fetch(`/api/ad-report?since=${encodeURIComponent(start)}&until=${encodeURIComponent(end)}&actor=${encodeURIComponent(actorId)}&daily=1`)
+    fetch(`/api/ad-report?since=${encodeURIComponent(start)}&until=${encodeURIComponent(end)}&actor=${encodeURIComponent(actorId)}&daily=1&keywords=1`)
       .then(r => r.json())
       .then(j => {
         if (!alive) return;
@@ -312,6 +313,62 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
     ? daily.adDrivenDone * profitPerJob
     : null;
   const adNet    = adProfit != null ? adProfit - adCostVat : null;
+
+  // ── 블록 ⑥ — 키워드별 성과 ───────────────────────
+  //   "예산을 다 못 쓴다" 의 원인 판별. 지표 2개.
+  //     avgRnk(평균노출순위) — 낮을수록(1위에 가까울수록) 위에 뜬다.
+  //     노출 0 키워드 수      — 등록만 돼 있고 실제로는 안 뜨는 것들. 많으면 입찰가 문제다.
+  const kw = useMemo(() => {
+    const meta = ad?.keywordMeta || null;
+    const rows = (ad?.keywords || []).map(k => ({
+      ...k,
+      costVat: Math.round(Number(k.cost || 0) * 1.1),
+      ctr:     k.impressions > 0 ? (k.clicks / k.impressions) : 0,
+      cpc:     k.clicks > 0 ? Math.round(Number(k.cost || 0) * 1.1 / k.clicks) : 0,
+    }));
+    if (rows.length === 0) return { rows: [], avgRank: null, meta };
+    let impSum = 0, rankSum = 0;
+    for (const r of rows) {
+      if (r.impressions > 0 && r.avgRnk > 0) { impSum += r.impressions; rankSum += r.avgRnk * r.impressions; }
+    }
+    const avgRank = impSum > 0 ? (rankSum / impSum) : null;
+    return { rows, avgRank, meta };
+  }, [ad]);
+
+  // 등록 키워드 중 실제로 노출된 비율. 이게 낮으면 "키워드가 많아도 소용없다" 는 뜻.
+  const kwLiveRate = (kw.meta && kw.meta.total > 0) ? (kw.meta.live / kw.meta.total) : null;
+
+  // 진단 문구 — 사장님이 바로 행동으로 옮길 수 있게.
+  //   판정 순서가 중요하다. '죽은 키워드가 많다' 가 '순위가 좋다' 보다 앞선다.
+  //   상위 몇 개가 1위여도, 나머지 수백 개가 안 뜨면 예산은 계속 남는다.
+  const kwVerdict = (() => {
+    if (kwLiveRate != null && kwLiveRate < 0.5) {
+      const deadN = kw.meta.dead;
+      return {
+        color: "#DC2626",
+        head: `등록한 키워드 ${_fmtKRW(kw.meta.total)}개 중 ${_fmtKRW(deadN)}개가 한 번도 안 떴습니다`,
+        body: `키워드 수는 문제가 아닙니다. 대부분이 입찰가가 낮아 노출 자체가 안 되고 있습니다`
+            + (kw.meta.deadAvgBid > 0 ? ` (안 뜨는 키워드 평균 입찰가 ${_fmtKRW(kw.meta.deadAvgBid)}원).` : ".")
+            + " 예산이 남는 진짜 이유가 이것입니다. 광고그룹 기본 입찰가부터 올려야 합니다.",
+      };
+    }
+    if (kw.avgRank == null) return null;
+    if (kw.avgRank <= 2.0) return {
+      color: "#2563EB",
+      head: `이미 최상단입니다 (평균 ${kw.avgRank.toFixed(1)}위)`,
+      body: "입찰가를 올려도 노출이 크게 늘지 않습니다. 검색하는 사람 수가 천장입니다. 예산을 더 쓰려면 키워드를 늘리거나 다른 광고(플레이스·당근 등)로 넓혀야 합니다.",
+    };
+    if (kw.avgRank <= 3.5) return {
+      color: "#D97706",
+      head: `조금 밀려 있습니다 (평균 ${kw.avgRank.toFixed(1)}위)`,
+      body: "돈 되는 키워드의 입찰가를 올리면 노출이 늘고 예산도 더 쓸 수 있습니다. 아래 표에서 광고비 큰 것부터 손보세요.",
+    };
+    return {
+      color: "#DC2626",
+      head: `많이 밀려 있습니다 (평균 ${kw.avgRank.toFixed(1)}위)`,
+      body: "순위가 낮아 노출 기회를 놓치고 있습니다. 입찰가 올리는 것이 가장 먼저 할 일입니다.",
+    };
+  })();
 
   return (
     <div style={{
@@ -804,6 +861,96 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                   </div>
                 </>
               )}
+            </Panel>
+          )}
+
+          {/* ⑥ 키워드별 성과 — 예산을 못 쓰는 원인 진단 */}
+          {ad?.ok && !adLoading && kw.rows.length > 0 && (
+            <Panel t={t} title="⑥ 키워드별 성과"
+                   subtitle="평균순위가 낮을수록(1위에 가까울수록) 위에 뜬다. 예산을 못 쓰는 이유가 여기서 갈린다">
+              {kwVerdict && (
+                <div style={{
+                  padding: "12px 14px", borderRadius: 10, marginBottom: 12,
+                  background: `${kwVerdict.color}1A`,
+                  border: `1px solid ${kwVerdict.color}`,
+                }}>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: kwVerdict.color, lineHeight: 1.4 }}>
+                    {kwVerdict.head}
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 11.5, fontWeight: 700, color: t.text, lineHeight: 1.7 }}>
+                    {kwVerdict.body}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6, lineHeight: 1.6 }}>
+                {kw.meta
+                  ? <>등록 {_fmtKRW(kw.meta.total)}개 · 실제 노출된 것 {_fmtKRW(kw.meta.live)}개
+                      {kw.meta.live > kw.rows.length && <> · 아래 표는 광고비 큰 순 {_fmtKRW(kw.rows.length)}개</>}
+                      {kw.meta.truncated && <><br/><span style={{ color: "#D97706" }}>⚠️ 키워드가 너무 많아 일부만 불러왔습니다. 숫자는 실제보다 적게 보일 수 있습니다.</span></>}
+                    </>
+                  : <>돌아가는 키워드 {_fmtKRW(kw.rows.length)}개 · 광고비 큰 순</>}
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table className="mono" style={{
+                  width: "100%", borderCollapse: "collapse",
+                  fontSize: 11, fontVariantNumeric: "tabular-nums",
+                }}>
+                  <thead>
+                    <tr style={{ color: t.textMuted, fontWeight: 800 }}>
+                      <th style={{ textAlign: "left",  padding: "5px 6px" }}>키워드</th>
+                      <th style={{ textAlign: "right", padding: "5px 6px" }}>평균순위</th>
+                      <th style={{ textAlign: "right", padding: "5px 6px" }}>노출</th>
+                      <th style={{ textAlign: "right", padding: "5px 6px" }}>클릭</th>
+                      <th style={{ textAlign: "right", padding: "5px 6px" }}>클릭당</th>
+                      <th style={{ textAlign: "right", padding: "5px 6px" }}>광고비</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(kwShowAll ? kw.rows : kw.rows.slice(0, 40)).map(r => {
+                      const pricey = r.cpc > 0 && profitPerJob != null && r.cpc * 20 > profitPerJob;
+                      return (
+                        <tr key={r.id} style={{ borderTop: `1px solid ${t.border}` }}>
+                          <td style={{
+                            padding: "5px 6px", color: t.text, fontWeight: 700,
+                            maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }} title={r.text}>{r.text}</td>
+                          <td style={{
+                            padding: "5px 6px", textAlign: "right", fontWeight: 800,
+                            color: r.avgRnk > 0 && r.avgRnk <= 2 ? "#16A34A" : t.textMuted,
+                          }}>{r.avgRnk > 0 ? r.avgRnk.toFixed(1) : "-"}</td>
+                          <td style={{ padding: "5px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.impressions)}</td>
+                          <td style={{ padding: "5px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.clicks)}</td>
+                          <td style={{
+                            padding: "5px 6px", textAlign: "right",
+                            color: pricey ? "#DC2626" : t.textMuted, fontWeight: pricey ? 800 : 700,
+                          }}>{_fmtKRW(r.cpc)}</td>
+                          <td style={{ padding: "5px 6px", textAlign: "right", color: t.text, fontWeight: 800 }}>{_fmtKRW(r.costVat)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {kw.rows.length > 40 && (
+                <button
+                  onClick={() => setKwShowAll(v => !v)}
+                  style={{
+                    marginTop: 8, padding: "7px 12px", borderRadius: 8,
+                    border: `1px solid ${t.border}`, background: "transparent",
+                    color: t.textMuted, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                  }}>
+                  {kwShowAll ? "접기" : `나머지 ${_fmtKRW(kw.rows.length - 40)}개 더 보기`}
+                </button>
+              )}
+
+              <div style={{ marginTop: 10, fontSize: 10, color: t.textMuted, fontWeight: 600, lineHeight: 1.6 }}>
+                ⓘ 평균순위는 낮을수록 좋다(1위가 맨 위). 초록은 2위 안쪽.
+                <br/>
+                ⚠️ 빨간 '클릭당' 금액은 클릭 20번에 일 한 건도 못 따면 손해가 나는 수준이라는 뜻이다.
+                그 키워드는 끄거나 입찰가를 내리는 걸 검토해야 한다.
+              </div>
             </Panel>
           )}
         </div>
