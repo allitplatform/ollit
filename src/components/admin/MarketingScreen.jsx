@@ -55,7 +55,7 @@ function _pctText(num, den) {
 export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   // 2026-07-25 — 기본 "이번달". "오늘"이면 오늘 접수→오늘 완료가 사실상 없어 항상 N/0/0 표기됨.
   const [period, setPeriod] = useState("month");
-  // 모든 inquiries (new + contacted + converted) — 접수 시점(created_at) 기준 필터에 사용.
+  // 2026-07-25 — 스팸 포함 모든 status (null = 전체) 를 1회 호출로. 클라에서 status 별 분류.
   const [allInquiries, setAllInquiries] = useState([]);
   // converted inquiries 의 task_id Set — 홈페이지 유입 task 판별 진실 소스 (v3).
   const [homepageTaskIds, setHomepageTaskIds] = useState(() => new Set());
@@ -73,16 +73,13 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
       setLoading(false);
       return () => { alive = false; };
     }
-    Promise.all([
-      listInquiries(actorId, "new"),
-      listInquiries(actorId, "contacted"),
-      listInquiries(actorId, "converted"),
-    ]).then(([n, c, cv]) => {
+    listInquiries(actorId, null).then(rows => {
       if (!alive) return;
-      setAllInquiries([...(n || []), ...(c || []), ...(cv || [])]);
+      const list = rows || [];
+      setAllInquiries(list);
       const ids = new Set();
-      for (const r of (cv || [])) {
-        if (r.task_id) ids.add(String(r.task_id));
+      for (const r of list) {
+        if (r.status === "converted" && r.task_id) ids.add(String(r.task_id));
       }
       setHomepageTaskIds(ids);
       setLoading(false);
@@ -99,6 +96,8 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   const { start, end } = useMemo(() => _rangeForPeriod(period), [period]);
 
   // ── 블록 ① — 접수 퍼널 (기간: inquiries.created_at 기준) ─────────────────────
+  //   총 접수(스팸 포함) → 유효(converted) → 완료. 스팸률 별도 표기.
+  //   new/contacted 는 구조적으로 0(운영 흐름상 즉시 converted/spam) — "전환율" 지표 폐기.
   const funnel = useMemo(() => {
     const inRange = (allInquiries || []).filter(x => {
       const c = x.created_at || x.createdAt;
@@ -106,7 +105,8 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
       const k = toKstYmd(c);
       return k && k >= start && k <= end;
     });
-    const received  = inRange.length;
+    const total     = inRange.length;
+    const spam      = inRange.filter(x => x.status === "spam").length;
     const converted = inRange.filter(x => x.status === "converted" && x.task_id);
     // converted → 실제 task 조회. status 로 완료/취소 판정.
     const taskById = new Map();
@@ -125,8 +125,9 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
       if (st === "완료" || tk.completedAt || tk.completed_at) completed += 1;
     }
     return {
-      received,
-      converted: converted.length,
+      total,
+      spam,
+      valid: converted.length,
       completed,
       canceled,
     };
@@ -141,6 +142,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   }, [apiTasks, homepageTaskIds, start, end, user]);
 
   // ── 블록 ③ — 지역 top5 (기간: task.created_at 기준, 홈페이지 유입만) ────────
+  //   2026-07-25 — "미상"(주소 파싱 실패) 은 순위에서 제외하고 하단에 별도 표기.
   const regionTop5 = useMemo(() => {
     const tasksInRange = (apiTasks || []).filter(x => {
       if (!x || x.status === "취소") return false;
@@ -151,18 +153,24 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
       return k && k >= start && k <= end;
     });
     const map = new Map();
+    let unknown = 0;
     for (const tk of tasksInRange) {
       const addr = tk.address || tk.fullAddress || tk.주소 || "";
       const { key, label } = parseRegion(addr);
+      if (key === "미상") { unknown += 1; continue; }
       if (!map.has(key)) map.set(key, { key, label, count: 0 });
       map.get(key).count += 1;
     }
     const sorted = [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
-    return { rows: sorted.slice(0, 5), total: tasksInRange.length };
+    const rankedTotal = tasksInRange.length - unknown;
+    return { rows: sorted.slice(0, 5), total: rankedTotal, unknown, grandTotal: tasksInRange.length };
   }, [apiTasks, homepageTaskIds, start, end]);
 
-  const cancelRate = funnel.converted > 0
-    ? _pctText(funnel.canceled, funnel.converted)
+  const cancelRate = funnel.valid > 0
+    ? _pctText(funnel.canceled, funnel.valid)
+    : "-";
+  const spamRate = funnel.total > 0
+    ? _pctText(funnel.spam, funnel.total)
     : "-";
 
   return (
@@ -253,16 +261,12 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
               gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
               gap: 10,
             }}>
-              <FunnelStep t={t} label="접수"        value={funnel.received}  accent/>
-              <FunnelStep t={t}
-                label="성사 (전환)"
-                value={funnel.converted}
-                sub={funnel.received > 0 ? _pctText(funnel.converted, funnel.received) + " 전환율" : null}
-              />
+              <FunnelStep t={t} label="총 접수 (스팸 포함)" value={funnel.total} accent/>
+              <FunnelStep t={t} label="유효 (converted)"    value={funnel.valid}/>
               <FunnelStep t={t}
                 label="완료"
                 value={funnel.completed}
-                sub={funnel.converted > 0 ? _pctText(funnel.completed, funnel.converted) + " 완료율" : null}
+                sub={funnel.valid > 0 ? _pctText(funnel.completed, funnel.valid) + " 완료율" : null}
               />
             </div>
             <div style={{
@@ -272,7 +276,25 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
               borderRadius: 8,
               display: "flex", alignItems: "center", justifyContent: "space-between",
             }}>
-              <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>취소율 (성사 대비)</span>
+              <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>스팸률 (총 접수 대비)</span>
+              <span className="mono" style={{
+                fontSize: 15, fontWeight: 800,
+                color: funnel.spam > 0 ? "#6B7280" : t.text,
+                fontVariantNumeric: "tabular-nums",
+              }}>
+                {spamRate} <span style={{ fontSize: 10, color: t.textMuted, marginLeft: 4 }}>
+                  ({funnel.spam}건)
+                </span>
+              </span>
+            </div>
+            <div style={{
+              marginTop: 6,
+              padding: "8px 12px",
+              background: t.bgInset || "rgba(148, 163, 184, 0.06)",
+              borderRadius: 8,
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+            }}>
+              <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>취소율 (유효 대비)</span>
               <span className="mono" style={{
                 fontSize: 15, fontWeight: 800,
                 color: funnel.canceled > 0 ? "#DC2626" : t.text,
@@ -306,8 +328,8 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
           </Panel>
 
           {/* ③ 지역 top5 */}
-          <Panel t={t} title="③ 지역 top5" subtitle="기간: 접수(task.created_at) 기준 · 홈페이지 유입만">
-            {regionTop5.rows.length === 0 ? (
+          <Panel t={t} title="③ 지역 top5" subtitle="기간: 접수(task.created_at) 기준 · 홈페이지 유입만 · 주소 파싱 실패(미상)는 순위 제외">
+            {regionTop5.grandTotal === 0 ? (
               <div style={{ padding: 20, textAlign: "center", color: t.textMuted, fontSize: 12 }}>
                 이 기간 홈페이지 유입 없음
               </div>
@@ -353,6 +375,23 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                     </div>
                   );
                 })}
+                {regionTop5.rows.length === 0 && (
+                  <div style={{ padding: "12px 4px", textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+                    이 기간 순위 대상 없음 (전부 주소 미상)
+                  </div>
+                )}
+                {regionTop5.unknown > 0 && (
+                  <div style={{
+                    marginTop: 4,
+                    padding: "6px 4px",
+                    borderTop: `1px dashed ${t.border}`,
+                    display: "flex", justifyContent: "space-between",
+                    fontSize: 11, color: t.textMuted, fontWeight: 700,
+                  }}>
+                    <span>주소 미상 (순위 제외)</span>
+                    <span className="mono" style={{ color: t.text }}>{regionTop5.unknown}건</span>
+                  </div>
+                )}
                 <div style={{
                   marginTop: 4,
                   padding: "6px 4px",
@@ -361,7 +400,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                   fontSize: 11, color: t.textMuted, fontWeight: 700,
                 }}>
                   <span>홈페이지 유입 합계</span>
-                  <span className="mono" style={{ color: t.text }}>{regionTop5.total}건</span>
+                  <span className="mono" style={{ color: t.text }}>{regionTop5.grandTotal}건</span>
                 </div>
               </div>
             )}
