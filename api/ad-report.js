@@ -1,5 +1,6 @@
 // 2026-07-25 — 마케팅 화면 블록④ 광고 지출·CPA (네이버 검색광고 API).
-// GET /api/ad-report?since=YYYY-MM-DD&until=YYYY-MM-DD&actor=<uuid>
+// GET /api/ad-report?since=YYYY-MM-DD&until=YYYY-MM-DD&actor=<uuid>[&daily=1]
+//   daily=1 이면 응답에 days:[{ymd,cost,clicks,impressions}] 추가 (마케팅 블록⑤ 일별 대조표).
 //
 // 관리자 게이트: actor(uuid) → user_roles.role IN ('owner','admin') 확인.
 //   PUSH_API_KEY 방식 미사용 (클라에서 호출하는 엔드포인트라 키 노출 우려).
@@ -12,7 +13,7 @@
 //   `${timestamp}.${method}.${path}` (path 는 쿼리스트링 제외한 경로만)
 //   헤더: X-Timestamp / X-API-KEY / X-Customer / X-Signature
 //
-// 응답: { ok:true, cost, clicks, impressions, cpc, ctr, since, until, vatIncluded:false }
+// 응답: { ok:true, cost, clicks, impressions, cpc, ctr, since, until, vatIncluded:false, days? }
 //   - cost 는 네이버 salesAmt (VAT 별도). 클라에서 ×1.1 로 VAT 포함 CPA 계산.
 //   - 광고 API 실패 시에도 500 던지지 말고 200 + { ok:false, error } — 나머지 3블록 살아야.
 //
@@ -80,6 +81,79 @@ async function naverGet(path, queryString) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
+// ── 일별 분해 ────────────────────────────────────────────────────────────────
+//   1순위: /stats 에 timeIncrement=allDays → 요청 1회로 일별 행.
+//   2순위(대체): 하루씩 timeRange 를 끊어 호출. 느리지만 검증된 경로라 확실하다.
+function _dayList(since, until) {
+  const out = [];
+  const d = new Date(`${since}T00:00:00Z`);
+  const last = new Date(`${until}T00:00:00Z`);
+  while (d <= last && out.length < 200) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return out;
+}
+
+async function fetchDaily(ids, since, until) {
+  const fields = ["impCnt", "clkCnt", "salesAmt"];
+  const idsQs  = ids.map(id => "ids=" + encodeURIComponent(id)).join("&");
+
+  // ① timeIncrement=allDays
+  try {
+    const qs = idsQs
+      + "&fields="        + encodeURIComponent(JSON.stringify(fields))
+      + "&timeRange="     + encodeURIComponent(JSON.stringify({ since, until }))
+      + "&timeIncrement=" + encodeURIComponent("allDays");
+    const s = await naverGet("/stats", qs);
+    const rows = Array.isArray(s?.data) ? s.data : Array.isArray(s) ? s : [];
+    const agg = new Map();
+    for (const r of rows) {
+      const raw = r?.dateStartDate || r?.statDt || r?.date || r?.dt || "";
+      const ymd = String(raw).slice(0, 10);
+      if (!YMD_RE.test(ymd)) continue;
+      const cur = agg.get(ymd) || { ymd, cost: 0, clicks: 0, impressions: 0 };
+      cur.impressions += Number(r?.impCnt   || 0);
+      cur.clicks      += Number(r?.clkCnt   || 0);
+      cur.cost        += Number(r?.salesAmt || 0);
+      agg.set(ymd, cur);
+    }
+    if (agg.size > 1) {
+      return { mode: "allDays", rows: [...agg.values()].sort((a, b) => (a.ymd < b.ymd ? -1 : 1)) };
+    }
+  } catch (e) {
+    console.error("[ad-report] timeIncrement=allDays 실패 → 일별 루프 대체:", e?.message || e);
+  }
+
+  // ② 하루씩 (동시 4개, 최대 62일)
+  const list = _dayList(since, until).slice(0, 62);
+  const out  = [];
+  const CONC = 4;
+  for (let i = 0; i < list.length; i += CONC) {
+    const chunk = list.slice(i, i + CONC);
+    const got = await Promise.all(chunk.map(async ymd => {
+      try {
+        const qs = idsQs
+          + "&fields="    + encodeURIComponent(JSON.stringify(fields))
+          + "&timeRange=" + encodeURIComponent(JSON.stringify({ since: ymd, until: ymd }));
+        const s = await naverGet("/stats", qs);
+        const rows = Array.isArray(s?.data) ? s.data : Array.isArray(s) ? s : [];
+        let cost = 0, clicks = 0, impressions = 0;
+        for (const r of rows) {
+          impressions += Number(r?.impCnt   || 0);
+          clicks      += Number(r?.clkCnt   || 0);
+          cost        += Number(r?.salesAmt || 0);
+        }
+        return { ymd, cost, clicks, impressions };
+      } catch {
+        return { ymd, cost: 0, clicks: 0, impressions: 0, err: true };
+      }
+    }));
+    out.push(...got);
+  }
+  return { mode: "perDay", rows: out };
+}
+
 async function assertAdmin(actor) {
   if (!actor || !UUID_RE.test(actor)) return { ok: false, code: 400, error: "actor(uuid) required" };
   if (!supabase) return { ok: false, code: 500, error: "supabase service role 미구성" };
@@ -105,6 +179,7 @@ export default async function handler(req, res) {
   const since = String(req.query.since || "");
   const until = String(req.query.until || "");
   const actor = String(req.query.actor || "");
+  const wantDaily = String(req.query.daily || "") === "1";
 
   if (!YMD_RE.test(since) || !YMD_RE.test(until)) {
     return res.status(400).json({ ok: false, error: "since/until = YYYY-MM-DD 필수" });
@@ -136,6 +211,7 @@ export default async function handler(req, res) {
         ok: true,
         cost: 0, clicks: 0, impressions: 0, cpc: 0, ctr: 0,
         since, until, vatIncluded: false,
+        days: wantDaily ? [] : undefined,
         note: "캠페인 없음",
       });
     }
@@ -164,12 +240,20 @@ export default async function handler(req, res) {
     const cpc = clicks > 0 ? Math.round(cost / clicks) : 0;
     const ctr = impressions > 0 ? clicks / impressions : 0;
 
+    let days = undefined, daysMode = undefined;
+    if (wantDaily) {
+      const d = await fetchDaily(ids, since, until);
+      days = d.rows;
+      daysMode = d.mode;
+    }
+
     res.setHeader("Cache-Control", "s-maxage=1800, stale-while-revalidate=3600");
     return res.status(200).json({
       ok: true,
       cost, clicks, impressions, cpc, ctr,
       since, until,
       vatIncluded: false, // salesAmt 는 VAT 별도. 클라에서 ×1.1 로 실청구액 계산.
+      days, daysMode,
     });
   } catch (e) {
     console.error("[ad-report]", e?.message || e);

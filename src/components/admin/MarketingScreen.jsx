@@ -12,6 +12,9 @@
 //     실제의 약 1/3 이었고, 그 결과 흑자인 광고가 적자로 표시됐다 (7월: 92건 vs 실제 319건).
 //     → 광고 CPA 분모 = principalCode === "allday" 완료건 (자체 유입 전체).
 //     블록①②③ 은 "홈페이지 폼" 분석이므로 그대로 둔다 (성격이 다름).
+//   3단계 (2026-07-25): 블록⑤ 일별 광고비 vs 자체유입 대조.
+//     유입경로(tasks.channel) 미기록 상태에서 광고 기여분을 역산하기 위한 화면.
+//     광고비 하위 1/3 일자의 평균 접수 = "자연유입 기준선", 그 위 초과분 = 광고 기여 추정.
 
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -152,15 +155,16 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   //   그 전부가 올데이케어 원청으로 들어오므로 광고 성과의 분모는 이쪽이 맞다.
   //   ⚠️ 한계: 유입경로(tasks.channel) 가 기록되지 않아, 이 중 몇 건이 광고에서 왔는지는
   //   아직 알 수 없다. 따라서 아래 CPA 는 "가장 유리하게 본 값"(하한 CPA)이다.
+  const selfTasks = useMemo(() => (apiTasks || []).filter(t2 => {
+    if (!t2) return false;
+    const code = t2.principalCode || t2.principal_code || "";
+    return code === SELF_PRINCIPAL_CODE;
+  }), [apiTasks]);
+
   const selfRevenue = useMemo(() => {
     if (!canSeeField(user, "task.total_amount")) return null;
-    const filtered = (apiTasks || []).filter(t2 => {
-      if (!t2) return false;
-      const code = t2.principalCode || t2.principal_code || "";
-      return code === SELF_PRINCIPAL_CODE;
-    });
-    return computeRevenueByYmRange(filtered, start, end, user);
-  }, [apiTasks, start, end, user]);
+    return computeRevenueByYmRange(selfTasks, start, end, user);
+  }, [selfTasks, start, end, user]);
 
   // ── 블록 ③ — 지역 top5 (기간: task.created_at 기준, 홈페이지 유입만) ────────
   //   2026-07-25 — "미상"(주소 파싱 실패) 은 순위에서 제외하고 하단에 별도 표기.
@@ -206,7 +210,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
     if (!actorId) { setAd(null); return () => { alive = false; }; }
     setAdLoading(true);
     setAdError("");
-    fetch(`/api/ad-report?since=${encodeURIComponent(start)}&until=${encodeURIComponent(end)}&actor=${encodeURIComponent(actorId)}`)
+    fetch(`/api/ad-report?since=${encodeURIComponent(start)}&until=${encodeURIComponent(end)}&actor=${encodeURIComponent(actorId)}&daily=1`)
       .then(r => r.json())
       .then(j => {
         if (!alive) return;
@@ -239,6 +243,68 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   const breakEvenJobs    = (profitPerJob != null && profitPerJob > 0 && adCostVat > 0)
     ? Math.ceil(adCostVat / profitPerJob)
     : null;
+
+  // ── 블록 ⑤ — 일별 광고비 vs 자체유입 ───────────────────────────────────────
+  //   왜 접수(completed 아님)와 짝짓나: 접수→완료까지 며칠 걸린다. 같은 날 완료매출은
+  //   며칠 전 광고의 결과라 당일 광고비와 나란히 놓으면 인과가 어긋난다.
+  //   자연유입 기준선: 광고비가 가장 적었던 날들의 평균 접수. 광고 없이도 들어오는 양.
+  //   광고 기여 추정 = Σ max(0, 그날 접수 − 기준선) → 완료율 곱해 완료건으로 환산.
+  const daily = useMemo(() => {
+    const adDays = new Map();
+    for (const d of (ad?.days || [])) {
+      if (d && d.ymd) adDays.set(String(d.ymd), d);
+    }
+    const canMoney = canSeeField(user, "task.total_amount");
+    const rows = [];
+    const cur  = new Date(`${start}T00:00:00Z`);
+    const last = new Date(`${end}T00:00:00Z`);
+    while (cur <= last && rows.length < 200) {
+      const ymd = cur.toISOString().slice(0, 10);
+      const a   = adDays.get(ymd);
+      let received = 0;
+      for (const x of selfTasks) {
+        const c = x.createdAt || x.created_at || x.receivedAt || x.received_at;
+        if (c && toKstYmd(c) === ymd) received += 1;
+      }
+      const rv = canMoney ? computeRevenueByYmRange(selfTasks, ymd, ymd, user) : null;
+      rows.push({
+        ymd,
+        cost:        a ? Math.round(Number(a.cost || 0) * 1.1) : 0,
+        clicks:      a ? Number(a.clicks || 0) : 0,
+        impressions: a ? Number(a.impressions || 0) : 0,
+        received,
+        done:  rv?.count || 0,
+        owner: Number(rv?.owner || 0),
+      });
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+    const totalCost = rows.reduce((sum, r) => sum + r.cost, 0);
+    // 5일 미만이거나 광고비 자체가 0 이면 기준선 비교가 성립하지 않는다.
+    if (rows.length < 5 || totalCost <= 0) return { rows, baseline: null };
+
+    const sorted   = [...rows].sort((a, b) => a.cost - b.cost);
+    const k        = Math.max(3, Math.floor(rows.length / 3));
+    const lowDays  = sorted.slice(0, k);
+    const baseline = lowDays.reduce((sum, r) => sum + r.received, 0) / k;
+
+    const totalReceived = rows.reduce((sum, r) => sum + r.received, 0);
+    const adDrivenRecv  = rows.reduce((sum, r) => sum + Math.max(0, r.received - baseline), 0);
+    const convRate      = totalReceived > 0 ? (selfCount / totalReceived) : 0;
+    const adDrivenDone  = Math.round(adDrivenRecv * convRate);
+
+    return {
+      rows,
+      baseline,
+      lowDayCount:   k,
+      lowDayAvgCost: Math.round(lowDays.reduce((sum, r) => sum + r.cost, 0) / k),
+      totalReceived,
+      adDrivenRecv:  Math.round(adDrivenRecv),
+      convRate,
+      adDrivenDone,
+    };
+  }, [ad, selfTasks, start, end, user, selfCount]);
+
+  const maxDayCost = Math.max(1, ...daily.rows.map(r => r.cost));
 
   return (
     <div style={{
@@ -573,6 +639,104 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
               </>
             )}
           </Panel>
+
+          {/* ⑤ 일별 광고비 vs 자체유입 */}
+          {ad?.ok && !adLoading && daily.rows.length >= 5 && (
+            <Panel t={t} title="⑤ 일별 광고비 vs 자체유입"
+                   subtitle="광고 적게 쓴 날의 접수량 = 자연유입 기준선. 그 위 초과분이 광고가 만든 몫이다">
+              {daily.baseline != null && (
+                <div style={{
+                  marginBottom: 10, padding: "10px 12px",
+                  background: t.bgInset || "rgba(148, 163, 184, 0.06)",
+                  borderRadius: 8, fontSize: 11, fontWeight: 700,
+                  color: t.textMuted, lineHeight: 1.6,
+                }}>
+                  자연유입 기준선{" "}
+                  <span className="mono" style={{ color: t.text, fontWeight: 800 }}>
+                    하루 {daily.baseline.toFixed(1)}건
+                  </span>{" "}
+                  <span style={{ fontWeight: 600 }}>
+                    (광고비 최저 {daily.lowDayCount}일 평균 · 그날 평균 광고비 {_fmtKRW(daily.lowDayAvgCost)}원)
+                  </span>
+                  <br/>
+                  기준선 초과 접수{" "}
+                  <span className="mono" style={{ color: t.text, fontWeight: 800 }}>
+                    {_fmtKRW(daily.adDrivenRecv)}건
+                  </span>{" "}
+                  × 완료율 {(daily.convRate * 100).toFixed(0)}% ={" "}
+                  <span className="mono" style={{ color: t.text, fontWeight: 800 }}>
+                    광고 기여 완료 ≈ {_fmtKRW(daily.adDrivenDone)}건
+                  </span>
+                  {breakEvenJobs != null && (
+                    <div style={{
+                      marginTop: 6, paddingTop: 6,
+                      borderTop: `1px dashed ${t.border}`,
+                      fontSize: 12, fontWeight: 800,
+                      color: daily.adDrivenDone >= breakEvenJobs ? "#16A34A" : "#DC2626",
+                    }}>
+                      {daily.adDrivenDone >= breakEvenJobs
+                        ? `✓ 손익분기 ${_fmtKRW(breakEvenJobs)}건 넘김 (+${_fmtKRW(daily.adDrivenDone - breakEvenJobs)}건)`
+                        : `✗ 손익분기 ${_fmtKRW(breakEvenJobs)}건 미달 (−${_fmtKRW(breakEvenJobs - daily.adDrivenDone)}건)`}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ overflowX: "auto" }}>
+                <table className="mono" style={{
+                  width: "100%", borderCollapse: "collapse",
+                  fontSize: 11, fontVariantNumeric: "tabular-nums",
+                }}>
+                  <thead>
+                    <tr style={{ color: t.textMuted, fontWeight: 800 }}>
+                      <th style={{ textAlign: "left",  padding: "4px 6px" }}>날짜</th>
+                      <th style={{ textAlign: "right", padding: "4px 6px" }}>광고비</th>
+                      <th style={{ textAlign: "right", padding: "4px 6px" }}>클릭</th>
+                      <th style={{ textAlign: "right", padding: "4px 6px" }}>접수</th>
+                      <th style={{ textAlign: "right", padding: "4px 6px" }}>완료</th>
+                      <th style={{ textAlign: "right", padding: "4px 6px" }}>회사이익</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {daily.rows.map(r => {
+                      const over = daily.baseline != null && r.received > daily.baseline;
+                      return (
+                        <tr key={r.ymd} style={{ borderTop: `1px solid ${t.border}` }}>
+                          <td style={{ padding: "4px 6px", color: t.textMuted, fontWeight: 700 }}>
+                            {r.ymd.slice(5)}
+                          </td>
+                          <td style={{ padding: "4px 6px", textAlign: "right", color: t.text }}>
+                            <span style={{
+                              display: "inline-block",
+                              padding: "1px 4px", borderRadius: 4,
+                              background: `rgba(255, 27, 141, ${(r.cost / maxDayCost * 0.22).toFixed(3)})`,
+                            }}>{_fmtKRW(r.cost)}</span>
+                          </td>
+                          <td style={{ padding: "4px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.clicks)}</td>
+                          <td style={{
+                            padding: "4px 6px", textAlign: "right",
+                            color: over ? "#16A34A" : t.text, fontWeight: over ? 800 : 700,
+                          }}>{_fmtKRW(r.received)}</td>
+                          <td style={{ padding: "4px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.done)}</td>
+                          <td style={{ padding: "4px 6px", textAlign: "right", color: t.text }}>{_fmtKRW(r.owner)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{
+                marginTop: 8, fontSize: 10, color: t.textMuted, fontWeight: 600, lineHeight: 1.5,
+              }}>
+                ⓘ 접수는 그날 들어온 자체유입 전부(취소 포함), 완료·이익은 그날 완료된 건 기준이라
+                같은 줄이 같은 고객이 아니다. 접수→완료에 며칠 걸리기 때문이다.
+                <br/>
+                ⚠️ 요일 효과가 두 지표를 함께 흔든다(주말은 광고비도 접수도 적다). 기준선은 이를
+                보정하지 않으므로 추정치다. 정확히 알려면 접수 시 유입경로 한 칸을 받아야 한다.
+              </div>
+            </Panel>
+          )}
         </div>
       )}
     </div>
