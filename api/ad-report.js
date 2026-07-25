@@ -68,7 +68,12 @@ async function naverGet(path, queryString) {
   const r = await fetch(url, { method: "GET", headers: signNaver("GET", path) });
   const text = await r.text();
   if (!r.ok) {
-    const err = new Error(`naver ${path} ${r.status}: ${text.slice(0, 300)}`);
+    // 2026-07-25 — 4xx 는 요청 쿼리스트링도 error 에 포함 (디버깅 왕복 축소).
+    //   ⚠️ 헤더(X-API-KEY / X-Signature) 는 절대 포함하지 않음.
+    const qsPart = (queryString && r.status >= 400 && r.status < 500)
+      ? ` | qs=${queryString.slice(0, 500)}`
+      : "";
+    const err = new Error(`naver ${path} ${r.status}: ${text.slice(0, 300)}${qsPart}`);
     err.status = r.status;
     throw err;
   }
@@ -135,14 +140,14 @@ export default async function handler(req, res) {
       });
     }
 
-    // ② /stats — ids / fields / timeRange 를 JSON.stringify → URL 인코딩.
-    //    서명은 "/stats" 경로만 (쿼리스트링 제외).
+    // ② /stats — ids 는 반복 쿼리 파라미터 형식 (JSON 배열로 넣으면 네이버가 통째로 1개 ID 로
+    //    파싱해 11001 BAD_REQUEST). fields / timeRange 는 JSON 유지. 서명은 "/stats" 경로만.
     const fields    = ["impCnt", "clkCnt", "salesAmt"];
     const timeRange = { since, until };
     const qs =
-      "ids="       + encodeURIComponent(JSON.stringify(ids)) +
-      "&fields="   + encodeURIComponent(JSON.stringify(fields)) +
-      "&timeRange="+ encodeURIComponent(JSON.stringify(timeRange));
+      ids.map(id => "ids=" + encodeURIComponent(id)).join("&") +
+      "&fields="    + encodeURIComponent(JSON.stringify(fields)) +
+      "&timeRange=" + encodeURIComponent(JSON.stringify(timeRange));
 
     const stats = await naverGet("/stats", qs);
     // 응답 형식: { data: [{ id, impCnt, clkCnt, salesAmt }, ...] } 또는 배열 자체.
