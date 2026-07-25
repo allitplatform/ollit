@@ -396,6 +396,10 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   // 실제 관리 단위는 키워드가 아니라 광고그룹이다. 700개는 못 봐도 19줄은 본다.
   //   status 로 한 줄 진단까지 붙여서, 사장님이 표를 해석할 필요가 없게 만든다.
   const groups = useMemo(() => {
+    // 전환 1건에 평균 몇 클릭이 드는지. 그 2배를 못 채운 그룹은 판정을 보류한다.
+    let tClk = 0, tConv = 0;
+    for (const g of (ad?.adGroups || [])) { tClk += Number(g.clicks || 0); tConv += Number(g.conv || 0); }
+    const needClicks = tConv > 0 ? Math.max(20, Math.ceil((tClk / tConv) * 2)) : 20;
     const rows = (ad?.adGroups || []).map(g => {
       const costVat = Math.round(Number(g.cost || 0) * 1.1);
       const conv    = Number(g.conv || 0);
@@ -406,7 +410,10 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
       if (costVat < 10000 && g.impressions < 100) {
         status = { key: "dead",  label: "안 돌아감", color: "#94A3B8" };
       } else if (cpa == null) {
-        status = { key: "noconv", label: "전환 없음", color: "#DC2626" };
+        // 클릭 수가 너무 적으면 '전환 없음' 은 통계적으로 의미가 없다. 아직 모르는 것뿐이다.
+        status = Number(g.clicks || 0) < needClicks
+          ? { key: "few",    label: "아직 모름", color: "#94A3B8" }
+          : { key: "noconv", label: "전환 없음", color: "#DC2626" };
       } else if (profitPerJob != null && cpa > profitPerJob) {
         status = { key: "over",  label: "비쌈",     color: "#DC2626" };
       } else if (profitPerJob != null && cpa < profitPerJob * 0.5) {
@@ -417,7 +424,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
       return { ...g, costVat, conv, cpa, cpaRaw, status };
     });
     const totalCost = rows.reduce((a, b) => a + b.costVat, 0);
-    return { rows, totalCost };
+    return { rows, totalCost, needClicks };
   }, [ad, profitPerJob, convFactor]);
 
   // 한 줄 요약 — 몇 개 그룹이 돈의 대부분을 쓰는가.
@@ -1087,6 +1094,10 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                 <b>미조회</b>는 광고비가 적어 키워드까지 열어보지 않은 그룹입니다(광고비·순위 숫자는 정확합니다).
                 <br/>
                 ⓘ <b>순위</b>가 1~2위면 이미 맨 위입니다. 입찰가를 올려도 더 올라갈 자리가 없습니다.
+                <br/>
+                ⓘ <b style={{ color: "#94A3B8" }}>아직 모름</b> = 클릭이 {groups.needClicks}번도 안 쌓인 그룹.
+                우리 평균은 클릭 {groups.needClicks ? Math.round(groups.needClicks / 2) : "-"}번에 1건이 들어오니,
+                클릭 몇 번으로 "전환 없음" 이라고 단정할 수 없습니다. 판단하려면 광고비를 더 태워봐야 합니다.
                 {convFactor ? (
                   <>
                     <br/>
