@@ -64,6 +64,7 @@ function _pctText(num, den) {
 export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   // 2026-07-25 — 기본 "이번달". "오늘"이면 오늘 접수→오늘 완료가 사실상 없어 항상 N/0/0 표기됨.
   const [period, setPeriod] = useState("month");
+  const [showDailyTable, setShowDailyTable] = useState(false);
   // 2026-07-25 — 스팸 포함 모든 status (null = 전체) 를 1회 호출로. 클라에서 status 별 분류.
   const [allInquiries, setAllInquiries] = useState([]);
   // converted inquiries 의 task_id Set — 홈페이지 유입 task 판별 진실 소스 (v3).
@@ -305,6 +306,12 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   }, [ad, selfTasks, start, end, user, selfCount]);
 
   const maxDayCost = Math.max(1, ...daily.rows.map(r => r.cost));
+  const maxRecv    = Math.max(1, ...daily.rows.map(r => r.received));
+  // 광고가 만든 이익 − 광고비 = 실제로 남은 돈. 블록⑤ 한 줄 결론.
+  const adProfit = (profitPerJob != null && daily.adDrivenDone != null)
+    ? daily.adDrivenDone * profitPerJob
+    : null;
+  const adNet    = adProfit != null ? adProfit - adCostVat : null;
 
   return (
     <div style={{
@@ -640,101 +647,163 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
             )}
           </Panel>
 
-          {/* ⑤ 일별 광고비 vs 자체유입 */}
+          {/* ⑤ 광고가 만든 일감 (일별 역산) */}
           {ad?.ok && !adLoading && daily.rows.length >= 5 && (
-            <Panel t={t} title="⑤ 일별 광고비 vs 자체유입"
-                   subtitle="광고 적게 쓴 날의 접수량 = 자연유입 기준선. 그 위 초과분이 광고가 만든 몫이다">
-              {daily.baseline != null && (
-                <div style={{
-                  marginBottom: 10, padding: "10px 12px",
-                  background: t.bgInset || "rgba(148, 163, 184, 0.06)",
-                  borderRadius: 8, fontSize: 11, fontWeight: 700,
-                  color: t.textMuted, lineHeight: 1.6,
-                }}>
-                  자연유입 기준선{" "}
-                  <span className="mono" style={{ color: t.text, fontWeight: 800 }}>
-                    하루 {daily.baseline.toFixed(1)}건
-                  </span>{" "}
-                  <span style={{ fontWeight: 600 }}>
-                    (광고비 최저 {daily.lowDayCount}일 평균 · 그날 평균 광고비 {_fmtKRW(daily.lowDayAvgCost)}원)
-                  </span>
-                  <br/>
-                  기준선 초과 접수{" "}
-                  <span className="mono" style={{ color: t.text, fontWeight: 800 }}>
-                    {_fmtKRW(daily.adDrivenRecv)}건
-                  </span>{" "}
-                  × 완료율 {(daily.convRate * 100).toFixed(0)}% ={" "}
-                  <span className="mono" style={{ color: t.text, fontWeight: 800 }}>
-                    광고 기여 완료 ≈ {_fmtKRW(daily.adDrivenDone)}건
-                  </span>
-                  {breakEvenJobs != null && (
-                    <div style={{
-                      marginTop: 6, paddingTop: 6,
-                      borderTop: `1px dashed ${t.border}`,
-                      fontSize: 12, fontWeight: 800,
-                      color: daily.adDrivenDone >= breakEvenJobs ? "#16A34A" : "#DC2626",
-                    }}>
-                      {daily.adDrivenDone >= breakEvenJobs
-                        ? `✓ 손익분기 ${_fmtKRW(breakEvenJobs)}건 넘김 (+${_fmtKRW(daily.adDrivenDone - breakEvenJobs)}건)`
-                        : `✗ 손익분기 ${_fmtKRW(breakEvenJobs)}건 미달 (−${_fmtKRW(breakEvenJobs - daily.adDrivenDone)}건)`}
-                    </div>
-                  )}
+            <Panel t={t} title="⑤ 광고가 만든 일감"
+                   subtitle="광고 거의 안 쓴 날에도 들어온 접수 = 광고 없어도 왔을 건수다. 그 위로 넘은 만큼이 광고 성과다">
+              {daily.baseline == null || adNet == null ? (
+                <div style={{ padding: 16, textAlign: "center", color: t.textMuted, fontSize: 12, lineHeight: 1.6 }}>
+                  이 기간은 비교할 수 없습니다. (최소 5일 이상 + 광고비 지출 필요)
                 </div>
-              )}
+              ) : (
+                <>
+                  <div style={{
+                    padding: "14px 14px",
+                    borderRadius: 10,
+                    background: adNet >= 0 ? "rgba(22, 163, 74, 0.10)" : "rgba(220, 38, 38, 0.10)",
+                    border: `1px solid ${adNet >= 0 ? "#16A34A" : "#DC2626"}`,
+                    marginBottom: 14,
+                  }}>
+                    <div style={{
+                      fontSize: 15, fontWeight: 900, lineHeight: 1.4,
+                      color: adNet >= 0 ? "#16A34A" : "#DC2626",
+                    }}>
+                      {adNet >= 0
+                        ? `✓ 광고비보다 ${_fmtKRW(adNet)}원 더 벌었습니다`
+                        : `✗ 광고비보다 ${_fmtKRW(Math.abs(adNet))}원 모자랍니다`}
+                    </div>
+                    <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: t.text, lineHeight: 1.9 }}>
+                      광고로 따온 일 <span className="mono" style={{ fontWeight: 900 }}>약 {_fmtKRW(daily.adDrivenDone)}건</span>
+                      {" × "}건당 남는 돈 <span className="mono" style={{ fontWeight: 900 }}>{_fmtKRW(profitPerJob)}원</span>
+                      {" = "}<span className="mono" style={{ fontWeight: 900 }}>{_fmtKRW(adProfit)}원</span>
+                      <br/>
+                      쓴 광고비 <span className="mono" style={{ fontWeight: 900 }}>{_fmtKRW(adCostVat)}원</span>
+                      {" → "}남은 돈{" "}
+                      <span className="mono" style={{ fontWeight: 900, color: adNet >= 0 ? "#16A34A" : "#DC2626" }}>
+                        {adNet >= 0 ? "+" : "−"}{_fmtKRW(Math.abs(adNet))}원
+                      </span>
+                    </div>
+                  </div>
 
-              <div style={{ overflowX: "auto" }}>
-                <table className="mono" style={{
-                  width: "100%", borderCollapse: "collapse",
-                  fontSize: 11, fontVariantNumeric: "tabular-nums",
-                }}>
-                  <thead>
-                    <tr style={{ color: t.textMuted, fontWeight: 800 }}>
-                      <th style={{ textAlign: "left",  padding: "4px 6px" }}>날짜</th>
-                      <th style={{ textAlign: "right", padding: "4px 6px" }}>광고비</th>
-                      <th style={{ textAlign: "right", padding: "4px 6px" }}>클릭</th>
-                      <th style={{ textAlign: "right", padding: "4px 6px" }}>접수</th>
-                      <th style={{ textAlign: "right", padding: "4px 6px" }}>완료</th>
-                      <th style={{ textAlign: "right", padding: "4px 6px" }}>회사이익</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: t.textMuted, marginBottom: 6 }}>
+                    이 기간 자체 접수 {_fmtKRW(daily.totalReceived)}건을 둘로 나누면
+                  </div>
+                  <div style={{ display: "flex", height: 26, borderRadius: 6, overflow: "hidden", marginBottom: 6 }}>
+                    <div style={{
+                      flex: Math.max(1, daily.totalReceived - daily.adDrivenRecv),
+                      background: "rgba(148, 163, 184, 0.35)",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 10, fontWeight: 800, color: t.text, minWidth: 0,
+                    }}>
+                      {_fmtKRW(daily.totalReceived - daily.adDrivenRecv)}
+                    </div>
+                    <div style={{
+                      flex: Math.max(1, daily.adDrivenRecv),
+                      background: "#16A34A",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      fontSize: 10, fontWeight: 800, color: "#fff", minWidth: 0,
+                    }}>
+                      {_fmtKRW(daily.adDrivenRecv)}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 12, fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 14 }}>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "rgba(148, 163, 184, 0.55)", marginRight: 4 }}/>광고 없어도 왔을 건</span>
+                    <span><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: "#16A34A", marginRight: 4 }}/>광고가 더 데려온 건</span>
+                  </div>
+
+                  <div style={{ fontSize: 11, fontWeight: 800, color: t.textMuted, marginBottom: 8 }}>
+                    날짜별 접수 — 점선(하루 {daily.baseline.toFixed(1)}건)이 광고 없어도 들어오는 수준
+                  </div>
+                  <div style={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 2, height: 84, marginBottom: 4 }}>
+                    <div style={{
+                      position: "absolute", left: 0, right: 0,
+                      bottom: `${(daily.baseline / maxRecv) * 100}%`,
+                      borderTop: `1px dashed ${t.textMuted}`, opacity: 0.8,
+                    }}/>
                     {daily.rows.map(r => {
-                      const over = daily.baseline != null && r.received > daily.baseline;
+                      const over = r.received > daily.baseline;
                       return (
-                        <tr key={r.ymd} style={{ borderTop: `1px solid ${t.border}` }}>
-                          <td style={{ padding: "4px 6px", color: t.textMuted, fontWeight: 700 }}>
-                            {r.ymd.slice(5)}
-                          </td>
-                          <td style={{ padding: "4px 6px", textAlign: "right", color: t.text }}>
-                            <span style={{
-                              display: "inline-block",
-                              padding: "1px 4px", borderRadius: 4,
-                              background: `rgba(255, 27, 141, ${(r.cost / maxDayCost * 0.22).toFixed(3)})`,
-                            }}>{_fmtKRW(r.cost)}</span>
-                          </td>
-                          <td style={{ padding: "4px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.clicks)}</td>
-                          <td style={{
-                            padding: "4px 6px", textAlign: "right",
-                            color: over ? "#16A34A" : t.text, fontWeight: over ? 800 : 700,
-                          }}>{_fmtKRW(r.received)}</td>
-                          <td style={{ padding: "4px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.done)}</td>
-                          <td style={{ padding: "4px 6px", textAlign: "right", color: t.text }}>{_fmtKRW(r.owner)}</td>
-                        </tr>
+                        <div key={r.ymd}
+                             title={`${r.ymd} · 접수 ${r.received}건 · 광고비 ${_fmtKRW(r.cost)}원`}
+                             style={{ flex: 1, minWidth: 0, height: "100%", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
+                          <div style={{
+                            height: `${(r.received / maxRecv) * 100}%`,
+                            background: over ? "#16A34A" : "rgba(148, 163, 184, 0.45)",
+                            borderRadius: "3px 3px 0 0",
+                          }}/>
+                        </div>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, fontWeight: 700, color: t.textMuted, marginBottom: 12 }}>
+                    <span>{daily.rows[0].ymd.slice(5)}</span>
+                    <span>{daily.rows[daily.rows.length - 1].ymd.slice(5)}</span>
+                  </div>
 
-              <div style={{
-                marginTop: 8, fontSize: 10, color: t.textMuted, fontWeight: 600, lineHeight: 1.5,
-              }}>
-                ⓘ 접수는 그날 들어온 자체유입 전부(취소 포함), 완료·이익은 그날 완료된 건 기준이라
-                같은 줄이 같은 고객이 아니다. 접수→완료에 며칠 걸리기 때문이다.
-                <br/>
-                ⚠️ 요일 효과가 두 지표를 함께 흔든다(주말은 광고비도 접수도 적다). 기준선은 이를
-                보정하지 않으므로 추정치다. 정확히 알려면 접수 시 유입경로 한 칸을 받아야 한다.
-              </div>
+                  <button
+                    onClick={() => setShowDailyTable(v => !v)}
+                    style={{
+                      width: "100%", padding: "8px 10px",
+                      background: t.bgInset || "rgba(148, 163, 184, 0.06)",
+                      border: `1px solid ${t.border}`, borderRadius: 8,
+                      color: t.textMuted, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                      fontFamily: "inherit",
+                    }}>
+                    {showDailyTable ? "날짜별 숫자 접기 ▲" : "날짜별 숫자 보기 ▼"}
+                  </button>
+
+                  {showDailyTable && (
+                    <div style={{ overflowX: "auto", marginTop: 8 }}>
+                      <table className="mono" style={{
+                        width: "100%", borderCollapse: "collapse",
+                        fontSize: 11, fontVariantNumeric: "tabular-nums",
+                      }}>
+                        <thead>
+                          <tr style={{ color: t.textMuted, fontWeight: 800 }}>
+                            <th style={{ textAlign: "left",  padding: "4px 6px" }}>날짜</th>
+                            <th style={{ textAlign: "right", padding: "4px 6px" }}>광고비</th>
+                            <th style={{ textAlign: "right", padding: "4px 6px" }}>클릭</th>
+                            <th style={{ textAlign: "right", padding: "4px 6px" }}>접수</th>
+                            <th style={{ textAlign: "right", padding: "4px 6px" }}>완료</th>
+                            <th style={{ textAlign: "right", padding: "4px 6px" }}>회사이익</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {daily.rows.map(r => {
+                            const over = r.received > daily.baseline;
+                            return (
+                              <tr key={r.ymd} style={{ borderTop: `1px solid ${t.border}` }}>
+                                <td style={{ padding: "4px 6px", color: t.textMuted, fontWeight: 700 }}>{r.ymd.slice(5)}</td>
+                                <td style={{ padding: "4px 6px", textAlign: "right", color: t.text }}>
+                                  <span style={{
+                                    display: "inline-block", padding: "1px 4px", borderRadius: 4,
+                                    background: `rgba(255, 27, 141, ${(r.cost / maxDayCost * 0.22).toFixed(3)})`,
+                                  }}>{_fmtKRW(r.cost)}</span>
+                                </td>
+                                <td style={{ padding: "4px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.clicks)}</td>
+                                <td style={{
+                                  padding: "4px 6px", textAlign: "right",
+                                  color: over ? "#16A34A" : t.text, fontWeight: over ? 800 : 700,
+                                }}>{_fmtKRW(r.received)}</td>
+                                <td style={{ padding: "4px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.done)}</td>
+                                <td style={{ padding: "4px 6px", textAlign: "right", color: t.text }}>{_fmtKRW(r.owner)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: 10, fontSize: 10, color: t.textMuted, fontWeight: 600, lineHeight: 1.6 }}>
+                    ⓘ 접수하고 며칠 뒤에 완료되므로, 같은 날짜의 접수와 완료는 같은 고객이 아니다.
+                    그래서 광고비와 같이 볼 것은 <b>접수</b> 숫자다.
+                    <br/>
+                    ⚠️ 주말은 광고비도 접수도 같이 줄어든다. 이 요일 효과를 보정하지 않았으므로 위 숫자는 추정치다.
+                    접수받을 때 "어떻게 알고 연락하셨어요?" 한 칸만 기록하면 이 추정 자체가 필요 없어진다.
+                  </div>
+                </>
+              )}
             </Panel>
           )}
         </div>
