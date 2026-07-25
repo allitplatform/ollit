@@ -6,6 +6,12 @@
 //   2단계 (2026-07-25): 네이버 검색광고 API 연동 → 블록④ 활성화.
 //     GET /api/ad-report?since&until&actor. salesAmt VAT 별도 → 클라에서 ×1.1 로 실청구액 CPA.
 //     CPA vs 완료 1건당 회사이익 비교 (초록=남는 장사, 빨강=적자).
+//   ⚠️ 2026-07-25 정정 — 블록④ CPA 분모 교체.
+//     기존: 홈페이지 폼(inquiries) 완료건. 이건 자체 유입의 일부일 뿐이다.
+//     전화·당근·네이버쇼핑 유입이 전부 "올데이케어" 원청으로 들어오므로 폼 기준 분모는
+//     실제의 약 1/3 이었고, 그 결과 흑자인 광고가 적자로 표시됐다 (7월: 92건 vs 실제 319건).
+//     → 광고 CPA 분모 = principalCode === "allday" 완료건 (자체 유입 전체).
+//     블록①②③ 은 "홈페이지 폼" 분석이므로 그대로 둔다 (성격이 다름).
 
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -14,6 +20,9 @@ import { listInquiries } from "../../lib/inquiriesDb.js";
 import { parseRegion } from "../../utils/regionParser.js";
 import { computeRevenueByYmRange } from "../../utils/revenueStats.js";
 import { canSeeField } from "../../data/permissions.js";
+
+// 자체 유입(직영) 원청 코드. 홈페이지·전화·당근·네이버쇼핑 등 우리가 직접 딴 건이 전부 여기로 들어온다.
+const SELF_PRINCIPAL_CODE = "allday";
 
 const PERIOD_OPTS = [
   { id: "today", label: "오늘" },
@@ -138,6 +147,21 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
     return computeRevenueByYmRange(filtered, start, end, user);
   }, [apiTasks, homepageTaskIds, start, end, user]);
 
+  // ── 자체 유입(올데이케어 원청) 완료 실적 — 블록④ CPA 의 분모 ────────────────
+  //   2026-07-25 정정. 광고는 폼 접수만 만드는 게 아니라 전화·당근·네이버쇼핑 유입도 만든다.
+  //   그 전부가 올데이케어 원청으로 들어오므로 광고 성과의 분모는 이쪽이 맞다.
+  //   ⚠️ 한계: 유입경로(tasks.channel) 가 기록되지 않아, 이 중 몇 건이 광고에서 왔는지는
+  //   아직 알 수 없다. 따라서 아래 CPA 는 "가장 유리하게 본 값"(하한 CPA)이다.
+  const selfRevenue = useMemo(() => {
+    if (!canSeeField(user, "task.total_amount")) return null;
+    const filtered = (apiTasks || []).filter(t2 => {
+      if (!t2) return false;
+      const code = t2.principalCode || t2.principal_code || "";
+      return code === SELF_PRINCIPAL_CODE;
+    });
+    return computeRevenueByYmRange(filtered, start, end, user);
+  }, [apiTasks, start, end, user]);
+
   // ── 블록 ③ — 지역 top5 (기간: task.created_at 기준, 홈페이지 유입만) ────────
   //   2026-07-25 — "미상"(주소 파싱 실패) 은 순위에서 제외하고 하단에 별도 표기.
   const regionTop5 = useMemo(() => {
@@ -199,14 +223,21 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   }, [user?.user_id, user?.id, start, end]);
 
   const adCostVat        = ad?.ok ? Math.round(Number(ad.cost || 0) * 1.1) : 0;
-  const cpaVat           = ad?.ok && funnel.completed > 0
-    ? Math.round(adCostVat / funnel.completed)
+  // 2026-07-25 정정 — 분모: 홈페이지 폼 완료건(funnel.completed) → 자체유입 완료건(selfRevenue.count)
+  const selfCount        = selfRevenue?.count || 0;
+  const cpaVat           = ad?.ok && selfCount > 0
+    ? Math.round(adCostVat / selfCount)
     : null;
-  const profitPerJob     = revenue && revenue.count > 0
-    ? Math.round(Number(revenue.owner || 0) / revenue.count)
+  const profitPerJob     = selfRevenue && selfCount > 0
+    ? Math.round(Number(selfRevenue.owner || 0) / selfCount)
     : null;
   const cpaVerdictColor  = (cpaVat != null && profitPerJob != null)
     ? (cpaVat < profitPerJob ? "#16A34A" : "#DC2626")
+    : null;
+  // 손익분기 건수 — 광고비를 회수하는 데 필요한 최소 완료건 수.
+  //   자체유입 중 이 수만큼만 광고에서 왔으면 본전. 유입경로 미기록이라 실제 기여분은 미상.
+  const breakEvenJobs    = (profitPerJob != null && profitPerJob > 0 && adCostVat > 0)
+    ? Math.ceil(adCostVat / profitPerJob)
     : null;
 
   return (
@@ -443,7 +474,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
           </Panel>
 
           {/* ④ 광고 지출·CPA (네이버 검색광고) */}
-          <Panel t={t} title="④ 광고 지출 · CPA" subtitle="네이버 검색광고 · 광고비/CPA 는 VAT 포함(실청구), 원본 salesAmt 는 VAT 별도">
+          <Panel t={t} title="④ 광고 지출 · CPA" subtitle="네이버 검색광고 · 분모는 자체유입(올데이케어) 완료건 · 광고비/CPA 는 VAT 포함(실청구)">
             {adLoading ? (
               <div style={{ padding: 20, textAlign: "center", color: t.textMuted, fontSize: 12 }}>
                 광고 지표 조회 중…
@@ -480,7 +511,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                     marginBottom: 4,
                   }}>
                     <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
-                      CPA (VAT 포함) — 광고비 ÷ 완료({funnel.completed}건)
+                      CPA (VAT 포함) — 광고비 ÷ 자체유입 완료({selfCount}건)
                     </span>
                     <span className="mono" style={{
                       fontSize: 16, fontWeight: 800,
@@ -494,7 +525,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                     display: "flex", alignItems: "center", justifyContent: "space-between",
                   }}>
                     <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
-                      완료 1건당 회사이익 — 이익 ÷ 완료({revenue?.count || 0}건)
+                      완료 1건당 회사이익 — 이익 ÷ 자체유입 완료({selfCount}건)
                     </span>
                     <span className="mono" style={{
                       fontSize: 13, fontWeight: 700, color: t.text,
@@ -516,11 +547,28 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                     </div>
                   )}
                 </div>
+                {breakEvenJobs != null && (
+                  <div style={{
+                    marginTop: 8,
+                    padding: "8px 10px",
+                    background: t.bgInset || "rgba(148, 163, 184, 0.06)",
+                    borderRadius: 8,
+                    fontSize: 11, fontWeight: 700, color: t.textMuted, lineHeight: 1.5,
+                  }}>
+                    손익분기 <span className="mono" style={{ color: t.text, fontWeight: 800 }}>{_fmtKRW(breakEvenJobs)}건</span>
+                    {selfCount > 0 && (
+                      <> — 자체유입 {_fmtKRW(selfCount)}건 중 {(breakEvenJobs / selfCount * 100).toFixed(0)}% 이상이 광고 유입이면 본전</>
+                    )}
+                  </div>
+                )}
                 <div style={{
                   marginTop: 8, fontSize: 10, color: t.textMuted, fontWeight: 600, lineHeight: 1.5,
                 }}>
                   ⓘ 네이버 salesAmt 는 VAT 별도 (원본 {_fmtKRW(Math.round(Number(ad.cost || 0)))}원).
                   카드 실청구는 VAT 포함 (×1.1). CPA·손익 판단은 실청구액 기준.
+                  <br/>
+                  ⚠️ 분모는 자체유입(전화·홈페이지·당근·네이버쇼핑) 완료 전체다. 유입경로가 기록되지
+                  않아 이 중 광고 기여분을 아직 가려낼 수 없으므로, 위 CPA 는 가장 유리하게 본 값이다.
                 </div>
               </>
             )}
