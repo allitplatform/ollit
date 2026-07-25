@@ -307,6 +307,76 @@ async function fetchKeywords(campaignIds, since, until) {
   };
 }
 
+// ── 키워드도구 (검색량 조회) ─────────────────────────────────────────────────
+//   GET /keywordstool?hintKeywords=a,b,c&showDetail=1
+//   - hintKeywords 는 한 번에 5개까지. 더 넣으면 네이버가 조용히 잘라먹는다.
+//   - 월 검색량이 10 미만이면 숫자가 아니라 "< 10" 문자열로 온다. Number() 하면 NaN.
+//   - 응답의 relKeyword 는 공백 없는 형태다. 우리 등록 키워드와 맞추려면 양쪽 다 정규화해야 한다.
+function _normKw(v) {
+  return String(v || "").replace(/\s+/g, "").toLowerCase();
+}
+function _qcNum(v) {
+  const n = Number(String(v == null ? "" : v).replace(/[^0-9]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+function _qcLow(v) {
+  return typeof v === "string" && v.indexOf("<") >= 0;
+}
+
+async function fetchKeywordTool(seeds) {
+  const chunks = [];
+  for (let i = 0; i < seeds.length; i += 5) chunks.push(seeds.slice(i, i + 5));
+  const map = new Map();
+  await _mapLimit(chunks, 3, async chunk => {
+    try {
+      const qs = "hintKeywords=" + encodeURIComponent(chunk.join(",")) + "&showDetail=1";
+      const r = await naverGet("/keywordstool", qs);
+      const list = Array.isArray(r?.keywordList) ? r.keywordList : [];
+      for (const k of list) {
+        const word = String(k?.relKeyword || "").trim();
+        if (!word) continue;
+        const pc = _qcNum(k.monthlyPcQcCnt);
+        const mo = _qcNum(k.monthlyMobileQcCnt);
+        const prev = map.get(word);
+        if (prev && prev.total >= pc + mo) continue;
+        map.set(word, {
+          keyword: word,
+          pc, mobile: mo, total: pc + mo,
+          low:  _qcLow(k.monthlyPcQcCnt) && _qcLow(k.monthlyMobileQcCnt),
+          comp: String(k.compIdx || ""),
+        });
+      }
+    } catch (e) { console.error("[ad-report] keywordstool 실패", e?.message || e); }
+  });
+  return map;
+}
+
+// 전 광고그룹의 '등록된 키워드 단어' 만 수집. 통계는 안 부른다 — 그래서 싸다.
+async function fetchRegisteredKeywords(campaignIds) {
+  const groups = [];
+  await _mapLimit(campaignIds.slice(0, KW_LIMITS.campaigns), 4, async cid => {
+    try {
+      const gs = await naverGet("/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(cid));
+      for (const g of (Array.isArray(gs) ? gs : [])) {
+        const gid = g && (g.nccAdgroupId || g.id);
+        if (gid) groups.push({ id: gid, name: String(g.name || gid) });
+      }
+    } catch (e) { console.error("[ad-report] adgroups(reg) 실패", cid, e?.message || e); }
+  });
+  const reg = new Map();
+  await _mapLimit(groups.slice(0, KW_LIMITS.adgroups), 4, async g => {
+    try {
+      const ks = await naverGet("/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(g.id));
+      for (const k of (Array.isArray(ks) ? ks : [])) {
+        const w = _normKw(k?.keyword || k?.name || "");
+        if (!w || reg.has(w)) continue;
+        reg.set(w, { group: g.name, on: k?.userLock !== true });
+      }
+    } catch (e) { console.error("[ad-report] keywords(reg) 실패", g.id, e?.message || e); }
+  });
+  return { reg, groupCount: groups.length };
+}
+
 async function assertAdmin(actor) {
   if (!actor || !UUID_RE.test(actor)) return { ok: false, code: 400, error: "actor(uuid) required" };
   if (!supabase) return { ok: false, code: 500, error: "supabase service role 미구성" };
@@ -334,6 +404,8 @@ export default async function handler(req, res) {
   const actor = String(req.query.actor || "");
   const wantDaily = String(req.query.daily || "") === "1";
   const wantKw    = String(req.query.keywords || "") === "1";
+  const wantTool  = String(req.query.tool || "") === "1";
+  const seedsRaw  = String(req.query.seeds || "");
 
   if (!YMD_RE.test(since) || !YMD_RE.test(until)) {
     return res.status(400).json({ ok: false, error: "since/until = YYYY-MM-DD 필수" });
@@ -350,6 +422,54 @@ export default async function handler(req, res) {
       ok: false,
       error: "NAVER_AD_API_KEY / NAVER_AD_SECRET / NAVER_AD_CUSTOMER_ID 환경변수 누락",
     });
+  }
+
+  // ── 키워드도구 모드 — 검색량 순으로 '우리한테 없는 단어' 찾기 ────────────────
+  //   기간 통계와 무관하므로 여기서 끝낸다. 무거운 /stats 를 아예 안 탄다.
+  if (wantTool) {
+    const seeds = seedsRaw.split(",").map(x => x.trim()).filter(Boolean).slice(0, 20);
+    if (seeds.length === 0) {
+      return res.status(400).json({ ok: false, error: "seeds(쉼표구분) 필수" });
+    }
+    try {
+      const cps = await naverGet("/ncc/campaigns", "");
+      const cids = Array.isArray(cps)
+        ? cps.map(c => c && (c.nccCampaignId || c.id)).filter(Boolean)
+        : [];
+      const [volMap, regRes] = await Promise.all([
+        fetchKeywordTool(seeds),
+        fetchRegisteredKeywords(cids),
+      ]);
+      const rows = [...volMap.values()]
+        .map(v => {
+          const hit = regRes.reg.get(_normKw(v.keyword));
+          return {
+            ...v,
+            registered: !!hit,
+            group: hit ? hit.group : null,
+            on:    hit ? hit.on : null,
+          };
+        })
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 500);
+      const missing = rows.filter(r => !r.registered);
+      res.setHeader("Cache-Control", "s-maxage=3600, stale-while-revalidate=7200");
+      return res.status(200).json({
+        ok: true,
+        tool: {
+          rows,
+          seeds,
+          found:        volMap.size,
+          registered:   regRes.reg.size,
+          adgroups:     regRes.groupCount,
+          missingCount: missing.length,
+          missingVol:   missing.reduce((a, b) => a + b.total, 0),
+        },
+      });
+    } catch (e) {
+      console.error("[ad-report] tool", e?.message || e);
+      return res.status(200).json({ ok: false, error: e?.message || "키워드도구 호출 실패" });
+    }
   }
 
   // 광고 API 실패해도 마케팅 화면 나머지 3블록은 살아야 함 → try/catch 로 200 + ok:false 반환.

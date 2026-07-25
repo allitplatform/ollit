@@ -67,6 +67,14 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   const [showDailyTable, setShowDailyTable] = useState(false);
   const [kwShowAll, setKwShowAll] = useState(false);
   const [showKwTable, setShowKwTable] = useState(false);
+
+  // ⑦ 검색량 조회 — 씨앗 단어를 네이버에 던져 연관 키워드를 검색량과 함께 받는다.
+  const [seeds, setSeeds] = useState("에어컨청소,에어컨세척,에어컨가스충전,벽걸이에어컨청소,시스템에어컨청소");
+  const [tool, setTool] = useState(null);
+  const [toolLoading, setToolLoading] = useState(false);
+  const [toolError, setToolError] = useState("");
+  const [toolOnlyMissing, setToolOnlyMissing] = useState(true);
+  const [toolShowAll, setToolShowAll] = useState(false);
   // 2026-07-25 — 스팸 포함 모든 status (null = 전체) 를 1회 호출로. 클라에서 status 별 분류.
   const [allInquiries, setAllInquiries] = useState([]);
   // converted inquiries 의 task_id Set — 홈페이지 유입 task 판별 진실 소스 (v3).
@@ -228,6 +236,30 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
       });
     return () => { alive = false; };
   }, [user?.user_id, user?.id, start, end]);
+
+  const runKeywordTool = () => {
+    const actorId = user?.user_id || user?.id;
+    if (!actorId) { setToolError("로그인 정보 없음"); return; }
+    const list = seeds.split(",").map(x => x.trim()).filter(Boolean);
+    if (list.length === 0) { setToolError("씨앗 단어를 하나 이상 넣으세요"); return; }
+    setToolLoading(true); setToolError(""); setToolShowAll(false);
+    fetch(`/api/ad-report?since=${encodeURIComponent(start)}&until=${encodeURIComponent(end)}`
+        + `&actor=${encodeURIComponent(actorId)}&tool=1&seeds=${encodeURIComponent(list.join(","))}`)
+      .then(r => r.json())
+      .then(j => {
+        if (j && j.ok && j.tool) { setTool(j.tool); }
+        else { setTool(null); setToolError(String(j?.error || "조회 실패")); }
+        setToolLoading(false);
+      })
+      .catch(e => { setTool(null); setToolError(String(e?.message || e)); setToolLoading(false); });
+  };
+
+  // 표에 실제로 그릴 줄. '없는 것만' 필터 + 기본 40줄.
+  const toolRows = useMemo(() => {
+    const all = tool?.rows || [];
+    const f = toolOnlyMissing ? all.filter(r => !r.registered) : all;
+    return { all, filtered: f, view: toolShowAll ? f : f.slice(0, 40) };
+  }, [tool, toolOnlyMissing, toolShowAll]);
 
   const adCostVat        = ad?.ok ? Math.round(Number(ad.cost || 0) * 1.1) : 0;
   // 2026-07-25 정정 — 분모: 홈페이지 폼 완료건(funnel.completed) → 자체유입 완료건(selfRevenue.count)
@@ -1152,6 +1184,161 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
               )}
             </Panel>
           )}
+
+          {/* ⑦ 검색량 조회 — 손님이 찾는데 우리 광고엔 없는 단어 */}
+          <Panel t={t} title="⑦ 검색량 순위 — 우리한테 없는 단어 찾기"
+                 subtitle="네이버가 알려주는 '사람들이 실제로 검색한 단어' 를 검색량 큰 순으로">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
+              <input
+                value={seeds}
+                onChange={e => setSeeds(e.target.value)}
+                placeholder="씨앗 단어를 쉼표로 (예: 에어컨청소,에어컨세척)"
+                style={{
+                  flex: "1 1 320px", minWidth: 200, padding: "9px 11px", borderRadius: 8,
+                  border: `1px solid ${t.border}`, background: t.bg, color: t.text,
+                  fontSize: 12, fontWeight: 700, outline: "none",
+                }} />
+              <button
+                onClick={runKeywordTool}
+                disabled={toolLoading}
+                style={{
+                  padding: "9px 16px", borderRadius: 8, border: "none",
+                  background: toolLoading ? t.border : "#2563EB", color: "#fff",
+                  fontSize: 12, fontWeight: 900, cursor: toolLoading ? "default" : "pointer",
+                  whiteSpace: "nowrap",
+                }}>
+                {toolLoading ? "찾는 중…" : "검색량 조회"}
+              </button>
+            </div>
+
+            <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, lineHeight: 1.7, marginBottom: 10 }}>
+              씨앗 단어 하나를 넣으면 네이버가 <b style={{ color: t.text }}>비슷한 단어를 검색량과 함께</b> 돌려줍니다.
+              그걸 우리 광고에 등록된 단어와 맞춰봐서, <b style={{ color: "#DC2626" }}>손님은 찾는데 우리한테 없는 단어</b>를 빨갛게 표시합니다.
+            </div>
+
+            {toolError && (
+              <div style={{
+                padding: "10px 12px", borderRadius: 8, marginBottom: 10,
+                background: "#DC262614", border: "1px solid #DC2626",
+                fontSize: 11.5, fontWeight: 800, color: "#DC2626",
+              }}>{toolError}</div>
+            )}
+
+            {tool && (
+              <>
+                <div style={{
+                  padding: "12px 14px", borderRadius: 10, marginBottom: 10,
+                  background: tool.missingCount > 0 ? "#DC26261A" : "#16A34A1A",
+                  border: `1px solid ${tool.missingCount > 0 ? "#DC2626" : "#16A34A"}`,
+                }}>
+                  <div style={{
+                    fontSize: 14, fontWeight: 900, lineHeight: 1.4,
+                    color: tool.missingCount > 0 ? "#DC2626" : "#16A34A",
+                  }}>
+                    {tool.missingCount > 0
+                      ? `우리 광고에 없는 단어 ${_fmtKRW(tool.missingCount)}개 — 합쳐서 월 ${_fmtKRW(tool.missingVol)}번 검색됩니다`
+                      : "찾은 단어가 전부 이미 등록돼 있습니다"}
+                  </div>
+                  <div style={{ marginTop: 6, fontSize: 11.5, fontWeight: 700, color: t.text, lineHeight: 1.7 }}>
+                    네이버가 알려준 단어 {_fmtKRW(tool.found)}개 · 우리가 등록해 둔 단어 {_fmtKRW(tool.registered)}개(광고그룹 {_fmtKRW(tool.adgroups)}개).
+                    {tool.missingCount > 0 && " 아래 빨간 줄을 위에서부터 광고그룹에 넣으면 됩니다."}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+                  <button
+                    onClick={() => { setToolOnlyMissing(v => !v); setToolShowAll(false); }}
+                    style={{
+                      padding: "7px 12px", borderRadius: 999,
+                      border: `1px solid ${toolOnlyMissing ? "#DC2626" : t.border}`,
+                      background: toolOnlyMissing ? "#DC262618" : "transparent",
+                      color: toolOnlyMissing ? "#DC2626" : t.textMuted,
+                      fontSize: 11, fontWeight: 900, cursor: "pointer",
+                    }}>
+                    {toolOnlyMissing ? "없는 것만 보는 중" : "전부 보는 중"}
+                  </button>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, alignSelf: "center" }}>
+                    {_fmtKRW(toolRows.filtered.length)}개
+                  </span>
+                </div>
+
+                <div style={{ overflowX: "auto" }}>
+                  <table className="mono" style={{
+                    width: "100%", borderCollapse: "collapse",
+                    fontSize: 11, fontVariantNumeric: "tabular-nums",
+                  }}>
+                    <thead>
+                      <tr style={{ color: t.textMuted, fontWeight: 800 }}>
+                        <th style={{ textAlign: "left",  padding: "5px 6px" }}>단어</th>
+                        <th style={{ textAlign: "right", padding: "5px 6px" }}>월 검색량</th>
+                        <th style={{ textAlign: "right", padding: "5px 6px" }}>모바일</th>
+                        <th style={{ textAlign: "left",  padding: "5px 6px" }}>우리 광고</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {toolRows.view.map(r => {
+                        const st = !r.registered
+                          ? { label: "없음 — 추가", color: "#DC2626" }
+                          : r.on === false
+                            ? { label: "꺼둠", color: "#D97706" }
+                            : { label: "있음", color: "#94A3B8" };
+                        return (
+                          <tr key={r.keyword} style={{ borderTop: `1px solid ${t.border}` }}>
+                            <td style={{
+                              padding: "6px", color: t.text,
+                              fontWeight: r.registered ? 700 : 900,
+                              maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }} title={r.group ? `${r.keyword} · ${r.group}` : r.keyword}>{r.keyword}</td>
+                            <td style={{
+                              padding: "6px", textAlign: "right", fontWeight: 900,
+                              color: r.registered ? t.textMuted : "#DC2626",
+                            }}>
+                              {r.low ? "10 미만" : _fmtKRW(r.total)}
+                            </td>
+                            <td style={{ padding: "6px", textAlign: "right", color: t.textMuted }}>
+                              {r.low ? "-" : _fmtKRW(r.mobile)}
+                            </td>
+                            <td style={{ padding: "6px" }}>
+                              <span style={{
+                                display: "inline-block", padding: "2px 7px", borderRadius: 999,
+                                background: `${st.color}22`, color: st.color,
+                                fontSize: 10, fontWeight: 900, whiteSpace: "nowrap",
+                              }}>{st.label}</span>
+                              {r.group && (
+                                <span style={{ marginLeft: 6, fontSize: 10, color: t.textMuted, fontWeight: 700 }}>
+                                  {r.group}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {toolRows.filtered.length > 40 && (
+                  <button
+                    onClick={() => setToolShowAll(v => !v)}
+                    style={{
+                      marginTop: 8, padding: "7px 12px", borderRadius: 8,
+                      border: `1px solid ${t.border}`, background: "transparent",
+                      color: t.textMuted, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                    }}>
+                    {toolShowAll ? "접기" : `나머지 ${_fmtKRW(toolRows.filtered.length - 40)}개 더 보기`}
+                  </button>
+                )}
+
+                <div style={{ marginTop: 10, fontSize: 10.5, color: t.textMuted, fontWeight: 600, lineHeight: 1.75 }}>
+                  ⓘ 검색량은 <b style={{ color: t.text }}>PC + 모바일 한 달 기준</b>입니다. 우리 손님은 대부분 모바일입니다.
+                  <br/>
+                  ⓘ <b>"10 미만"</b>은 네이버가 정확한 숫자를 안 주는 구간입니다. 사실상 검색이 없다는 뜻이라 넣어도 소용없습니다.
+                  <br/>
+                  ⓘ 씨앗 단어를 바꾸면 다른 목록이 나옵니다. 한 번에 5개씩 조회되니 여러 번 나눠 돌려보세요.
+                </div>
+              </>
+            )}
+          </Panel>
         </div>
       )}
     </div>
