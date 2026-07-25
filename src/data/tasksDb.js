@@ -3,6 +3,7 @@
 // 외부 인터페이스(rowToTask 결과)는 옛 v14NormalizeTask 결과와 호환되게 camelCase로 반환.
 
 import { supabase } from "../lib/supabase.js";
+import { clearReassignRequest as clearReassignRequestRpc } from "../lib/adminTaskRpc.js";
 
 // Phase 1 MVP 단일 테넌트 (allit). 멀티 테넌트 확장 시 user.tenant_id 사용.
 export const TENANT_ID = "11111111-1111-1111-1111-111111111111";
@@ -1249,10 +1250,13 @@ export async function assignEngineerAdapter(taskId, engineerName, options = {}) 
     const res = await assignEngineerDb(taskId, userId, { status });
     if (!res.ok) return res;
 
-    // 2026-05-22 Phase 2 — 재배정 후 reassignRequest 키 자동 정리 (best-effort)
+    // 2026-05-22 Phase 2 — 재배정 후 reassignRequest 키 자동 정리
+    // 2026-07-25 fix — await 로 변경. 예전엔 fire-and-forget 이라 호출처의
+    //   optimistic update / polling 과 경쟁해서 "같은 기사 재선택" 시
+    //   재배정 요청 목록에서 안 사라지는 버그가 있었음.
     // 운영자가 [변경] 측 기사 교체 시 jsonb 측 reassignRequest 측 남아있으면 카드 측 잔존.
     // 실패해도 배정 자체 측 통과 — 다음 polling 측 정리됨.
-    _clearReassignRequest(taskId);
+    await _clearReassignRequest(taskId);
 
     return { ok: true, taskId: res.data?.id, task: res.data };
   } catch (e) {
@@ -1476,16 +1480,19 @@ export async function requestReassignAdapter(taskId, reason) {
 // 2026-05-22 Phase 2 — 운영자 재배정 후 reassignRequest 키 정리.
 // assignEngineerAdapter 측 자동 호출 — 새 기사 배정 후 jsonb 측 reassignRequest 키 삭제.
 // 다른 jsonb 키 (consent / cancelReason 등) 보존.
+// 2026-07-25 — Mig 192 clear_reassign_request RPC 로 교체.
+//   옛 구현: getTaskByIdDb → categoryData 통째 재작성 → updateTaskDb.
+//     읽고-쓰기 사이에 다른 저장이 끼면 견적/동의서 키가 덮일 위험 + 실패 시 조용히 무시.
+//   새 구현: 서버에서 category_data - 'reassignRequest' 한 방. 다른 키 무손상.
 async function _clearReassignRequest(taskId) {
-  if (!taskId) return;
+  if (!taskId) return { ok: false, error: "taskId 없음" };
   try {
-    const current = await getTaskByIdDb(taskId);
-    if (!current?.categoryData?.reassignRequest) return;  // 키 없으면 skip
-    const nextCategoryData = { ...current.categoryData };
-    delete nextCategoryData.reassignRequest;
-    await updateTaskDb(taskId, { categoryData: nextCategoryData });
+    const res = await clearReassignRequestRpc(taskId);
+    if (!res?.ok) console.warn("[_clearReassignRequest]", res?.error);
+    return res;
   } catch (e) {
     console.warn("[_clearReassignRequest]", e?.message || e);
+    return { ok: false, error: e?.message || "재배정 요청 해제 예외" };
   }
 }
 

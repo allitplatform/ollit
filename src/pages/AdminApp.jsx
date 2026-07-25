@@ -3173,6 +3173,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
                       status: '배정',
                       상태: '배정',
                       state: 'scheduled',
+                      // 2026-07-25 — 같은 기사 재선택 시 재배정 요청이 목록에 남던 버그.
+                      //   isReassignment 는 '다른 기사' 일 때만 true 라 이 분기로 떨어지는데
+                      //   여기 optimistic state 에 reassignRequest 초기화가 빠져 있었고
+                      //   _optimisticUntil 5분 동안 polling 이 덮지도 못해 계속 남았음.
+                      //   서버는 assignEngineerAdapter → clear_reassign_request 로 이미 지움.
+                      reassignRequest: null,
                     }
                   : t
               );
@@ -3186,6 +3192,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               engineer: eng.name,
               status: '배정',
               state: 'scheduled',
+              reassignRequest: null,   // 2026-07-25 — 재배정 요청 목록 잔존 fix
             } : prev);
             // V14 — 작업 상세 화면 (selectedTaskDetail) 도 동기화 ⭐
             setSelectedTaskDetail(prev => prev ? {
@@ -3193,6 +3200,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
               assignedEngineer: eng.name, engineer: eng.name,
               배정기사: eng.name,
               status: '배정', 상태: '배정', state: 'scheduled',
+              reassignRequest: null,   // 2026-07-25 — 재배정 요청 목록 잔존 fix
             } : prev);
 
             // 옛 mock state 호환 (extraReceptions 사용 시)

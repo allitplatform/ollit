@@ -20,7 +20,7 @@ import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
 // 2026-07-11 — visit_only 판정 (색 판정에서 냉매 등 prefill 잔존 workType 무시).
 import { isPureVisitOnly, isAllItemsVisit } from "../utils/visitFeeDetect.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
-import { adminRescheduleTask, adminReassignTask } from "../lib/adminTaskRpc.js";
+import { adminRescheduleTask, adminReassignTask, clearReassignRequest } from "../lib/adminTaskRpc.js";
 import { supabase } from "../lib/supabase.js";
 import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
 import { formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
@@ -435,6 +435,19 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
         onCancelUI && onCancelUI();
         setConfirmInfo(null);
         return;
+      }
+      // 2026-07-25 — 타임라인에서 기사를 바꿔도 '재배정 요청' 목록에 남던 버그.
+      //   Mig 145 admin_reassign_task 는 기사/일정만 갱신하고
+      //   category_data.reassignRequest 는 건드리지 않음 → 여기서 해제.
+      //   시간만 끄는 단순 드래그(isReassign=false)에는 적용 X — 잘못 끌었을 때
+      //   요청이 소리 없이 사라지면 안 되므로.
+      if (isReassign) {
+        try {
+          const cr = await clearReassignRequest(task.id);
+          if (!cr?.ok) console.warn("[clearReassignRequest]", cr?.error);
+        } catch (e) {
+          console.warn("[clearReassignRequest]", e?.message || e);
+        }
       }
       const msg = isReassign
         ? `${task.customer || "작업"} 재배정 완료 (${newEngineerName} · ${newTime})`

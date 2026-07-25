@@ -50,3 +50,20 @@ export async function adminReassignTask(taskId, engineerId, scheduledAtIso) {
   });
   return normalizeRpcResp(r);
 }
+
+// 2026-07-25 — 기사 재배정 요청 플래그 해제 — Mig 192 clear_reassign_request.
+//   category_data - 'reassignRequest' 단일 UPDATE (읽고-쓰기 race 없음, 다른 키 보존).
+//   호출 시점: 운영자가 재배정 요청을 처리했을 때
+//     · 타임라인 lane 이동 (기사 교체)
+//     · [기사 변경] 화면에서 기사 선택 — 같은 기사 재선택 포함 (= 요청 반려, 그대로 진행)
+//   응답: { ok:true, task_id, cleared } | { ok:false, error }
+export async function clearReassignRequest(taskId) {
+  const actor = currentUserId();
+  if (!actor) return { ok: false, error: "로그인 필요" };
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  const r = await supabase.rpc("clear_reassign_request", {
+    p_task_id: taskId,
+    p_actor:   actor,
+  });
+  return normalizeRpcResp(r);
+}
