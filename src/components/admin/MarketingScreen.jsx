@@ -339,13 +339,37 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   // 등록 키워드 중 실제로 노출된 비율. 이게 낮으면 "키워드가 많아도 소용없다" 는 뜻.
   const kwLiveRate = (kw.meta && kw.meta.total > 0) ? (kw.meta.live / kw.meta.total) : null;
 
+  // 네이버 전환은 '웹에서 폼을 넣은 사람' 만 센다. 전화로 온 손님이 통째로 빠진다.
+  //   블록⑤의 '광고로 따온 일' 추정치로 배율을 구해 건당비용을 보정한다.
+  //   블록⑤ 추정은 보수적인(적게 잡는) 방식이라, 보정 후에도 실제보단 비싸게 나온다.
+  const convFactor = useMemo(() => {
+    const naverConv = (ad?.adGroups || []).reduce((sum, g) => sum + Number(g.conv || 0), 0);
+    if (naverConv <= 0) return null;
+    if (daily.adDrivenDone == null || daily.adDrivenDone <= 0) return null;
+    const f = daily.adDrivenDone / naverConv;
+    return f > 1.05 ? { f, naverConv, real: daily.adDrivenDone } : null;
+  }, [ad, daily]);
+
+  // 실제로 노출되고 있는 광고의 평균 순위 — 노출수로 가중.
+  //   '입찰가를 제대로 세팅했나' 의 답이 곧 이 숫자다.
+  const liveRank = useMemo(() => {
+    let impSum = 0, rankSum = 0, n = 0;
+    for (const g of (ad?.adGroups || [])) {
+      const imp = Number(g.impressions || 0), rk = Number(g.avgRnk || 0);
+      if (imp > 0 && rk > 0) { impSum += imp; rankSum += rk * imp; n += 1; }
+    }
+    return impSum > 0 ? { rank: rankSum / impSum, groups: n } : null;
+  }, [ad]);
+
   // 실제 관리 단위는 키워드가 아니라 광고그룹이다. 700개는 못 봐도 19줄은 본다.
   //   status 로 한 줄 진단까지 붙여서, 사장님이 표를 해석할 필요가 없게 만든다.
   const groups = useMemo(() => {
     const rows = (ad?.adGroups || []).map(g => {
       const costVat = Math.round(Number(g.cost || 0) * 1.1);
       const conv    = Number(g.conv || 0);
-      const cpa     = conv > 0 ? Math.round(costVat / conv) : null;
+      const convAdj = convFactor ? conv * convFactor.f : conv;
+      const cpaRaw  = conv > 0 ? Math.round(costVat / conv) : null;
+      const cpa     = convAdj > 0 ? Math.round(costVat / convAdj) : null;
       let status;
       if (costVat < 10000 && g.impressions < 100) {
         status = { key: "dead",  label: "안 돌아감", color: "#94A3B8" };
@@ -358,11 +382,11 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
       } else {
         status = { key: "ok",    label: "적정",     color: "#D97706" };
       }
-      return { ...g, costVat, conv, cpa, status };
+      return { ...g, costVat, conv, cpa, cpaRaw, status };
     });
     const totalCost = rows.reduce((a, b) => a + b.costVat, 0);
     return { rows, totalCost };
-  }, [ad, profitPerJob]);
+  }, [ad, profitPerJob, convFactor]);
 
   // 한 줄 요약 — 몇 개 그룹이 돈의 대부분을 쓰는가.
   const groupConcentration = useMemo(() => {
@@ -374,34 +398,54 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   }, [groups]);
 
   // 진단 문구 — 사장님이 바로 행동으로 옮길 수 있게.
-  //   판정 순서가 중요하다. '죽은 키워드가 많다' 가 '순위가 좋다' 보다 앞선다.
-  //   상위 몇 개가 1위여도, 나머지 수백 개가 안 뜨면 예산은 계속 남는다.
+  //   판정 순서가 중요하다. '지금 뜨는 광고가 몇 위인가' 를 제일 먼저 본다.
+  //   최저입찰가로도 1~2위를 먹고 있으면 경쟁자가 없다는 뜻이고,
+  //   그건 곧 그 단어를 검색하는 사람이 없다는 뜻이다. 입찰가를 올려도 소용없다.
   const kwVerdict = (() => {
-    if (kwLiveRate != null && kwLiveRate < 0.5) {
-      const deadN = kw.meta.dead;
+    const r = (liveRank && liveRank.rank) != null ? liveRank.rank : kw.avgRank;
+    const deadN = (kw.meta && kw.meta.dead > 0) ? kw.meta.dead : 0;
+
+    // 순위 자료가 아예 없을 때만, 예전처럼 노출 실패율로 판단한다.
+    if (r == null) {
+      if (kwLiveRate != null && kwLiveRate < 0.5 && deadN > 0) {
+        return {
+          color: "#DC2626",
+          head: `조사한 키워드 ${_fmtKRW(kw.meta.total)}개 중 ${_fmtKRW(deadN)}개가 한 번도 안 떴습니다`,
+          body: "노출이 아예 없어 원인을 가릴 수 없습니다. 광고그룹이 켜져 있는지, 예산이 걸려 있는지부터 확인하세요.",
+        };
+      }
+      return null;
+    }
+
+    if (r <= 2.5) {
+      const minBidMost = kw.meta && kw.meta.deadMinBidPct > 0.6;
       return {
-        color: "#DC2626",
-        head: `등록한 키워드 ${_fmtKRW(kw.meta.total)}개 중 ${_fmtKRW(deadN)}개가 한 번도 안 떴습니다`,
-        body: `키워드 수는 문제가 아닙니다. 대부분이 입찰가가 낮아 노출 자체가 안 되고 있습니다`
-            + (kw.meta.deadAvgBid > 0 ? ` (안 뜨는 키워드 평균 입찰가 ${_fmtKRW(kw.meta.deadAvgBid)}원).` : ".")
-            + " 예산이 남는 진짜 이유가 이것입니다. 광고그룹 기본 입찰가부터 올려야 합니다.",
+        color: "#2563EB",
+        head: `입찰가는 잘 맞춰져 있습니다 (뜨는 광고 평균 ${r.toFixed(1)}위)`,
+        body: "지금 나가고 있는 광고는 전부 검색 결과 맨 위 1~2번째 자리에 붙어 있습니다. "
+            + "입찰가를 더 올려도 올라갈 자리가 없습니다."
+            + (deadN > 0
+                ? ` 안 뜨는 키워드 ${_fmtKRW(deadN)}개는 입찰가 문제가 아닙니다`
+                  + (minBidMost ? " — 최저가로도 1~2위가 나오는 걸 보면 경쟁자 자체가 없습니다" : "")
+                  + ". 그 단어를 검색하는 사람이 없어서입니다."
+                : "")
+            + " 예산이 남는 이유가 이것입니다. 돈을 더 쓰려면 검색량이 있는 새 키워드를 찾거나 다른 채널로 넓혀야 합니다.",
       };
     }
-    if (kw.avgRank == null) return null;
-    if (kw.avgRank <= 2.0) return {
-      color: "#2563EB",
-      head: `이미 최상단입니다 (평균 ${kw.avgRank.toFixed(1)}위)`,
-      body: "입찰가를 올려도 노출이 크게 늘지 않습니다. 검색하는 사람 수가 천장입니다. 예산을 더 쓰려면 키워드를 늘리거나 다른 광고(플레이스·당근 등)로 넓혀야 합니다.",
-    };
-    if (kw.avgRank <= 3.5) return {
-      color: "#D97706",
-      head: `조금 밀려 있습니다 (평균 ${kw.avgRank.toFixed(1)}위)`,
-      body: "돈 되는 키워드의 입찰가를 올리면 노출이 늘고 예산도 더 쓸 수 있습니다. 아래 표에서 광고비 큰 것부터 손보세요.",
-    };
+
+    if (r <= 3.5) {
+      return {
+        color: "#D97706",
+        head: `조금 밀려 있습니다 (뜨는 광고 평균 ${r.toFixed(1)}위)`,
+        body: "돈 되는 그룹의 입찰가를 올리면 노출이 늘고 예산도 더 쓸 수 있습니다. 아래 표에서 광고비 큰 것부터 손보세요.",
+      };
+    }
+
     return {
       color: "#DC2626",
-      head: `많이 밀려 있습니다 (평균 ${kw.avgRank.toFixed(1)}위)`,
-      body: "순위가 낮아 노출 기회를 놓치고 있습니다. 입찰가 올리는 것이 가장 먼저 할 일입니다.",
+      head: `많이 밀려 있습니다 (뜨는 광고 평균 ${r.toFixed(1)}위)`,
+      body: "순위가 낮아 노출 기회를 놓치고 있습니다. 입찰가 올리는 것이 가장 먼저 할 일입니다."
+          + (deadN > 0 ? ` 안 뜨는 키워드 ${_fmtKRW(deadN)}개도 같은 원인일 가능성이 큽니다.` : ""),
     };
   })();
 
@@ -967,11 +1011,18 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                             color: g.cpa == null ? t.textMuted : g.status.color,
                           }}>
                             {g.cpa != null ? _fmtKRW(g.cpa) : "-"}
+                            {convFactor && g.cpaRaw != null && g.cpaRaw !== g.cpa && (
+                              <div style={{ fontSize: 9, fontWeight: 600, color: t.textMuted, opacity: 0.75 }}>
+                                네이버 {_fmtKRW(g.cpaRaw)}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: "6px", textAlign: "right", color: t.textMuted }}>
-                            {g.kwTotal > 0
-                              ? <>{_fmtKRW(g.kwLive)}<span style={{ opacity: 0.6 }}>/{_fmtKRW(g.kwTotal)}</span></>
-                              : "-"}
+                            {g.kwTotal == null
+                              ? <span style={{ opacity: 0.5 }}>미조회</span>
+                              : g.kwTotal > 0
+                                ? <>{_fmtKRW(g.kwLive)}<span style={{ opacity: 0.6 }}>/{_fmtKRW(g.kwTotal)}</span></>
+                                : "-"}
                           </td>
                           <td style={{
                             padding: "6px", textAlign: "right",
@@ -1001,8 +1052,22 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                 여기 입찰가를 올리는 게 제일 안전합니다.
                 <br/>
                 ⓘ <b>키워드</b> 칸의 "3/812" 는 812개 등록했는데 3개만 실제로 떴다는 뜻입니다.
+                <b>미조회</b>는 광고비가 적어 키워드까지 열어보지 않은 그룹입니다(광고비·순위 숫자는 정확합니다).
                 <br/>
-                ⚠️ 전환은 네이버가 웹에서 잡은 것만 셉니다. <b>전화로 온 손님은 빠져 있어</b> 건당비용이 실제보다 비싸 보입니다.
+                ⓘ <b>순위</b>가 1~2위면 이미 맨 위입니다. 입찰가를 올려도 더 올라갈 자리가 없습니다.
+                {convFactor ? (
+                  <>
+                    <br/>
+                    ⓘ 네이버 전환은 <b>웹으로 접수한 사람만</b> 셉니다. 전화 손님이 빠져 있어 그대로 쓰면 건당비용이 부풀려집니다.
+                    그래서 블록⑤ 추정({_fmtKRW(convFactor.real)}건)과 네이버 집계({_fmtKRW(convFactor.naverConv)}건)의
+                    차이 <b>{convFactor.f.toFixed(1)}배</b>로 보정한 값을 크게 적었습니다. 작은 회색 숫자가 네이버 원본입니다.
+                  </>
+                ) : (
+                  <>
+                    <br/>
+                    ⚠️ 전환은 네이버가 웹에서 잡은 것만 셉니다. <b>전화로 온 손님은 빠져 있어</b> 건당비용이 실제보다 비싸 보입니다.
+                  </>
+                )}
               </div>
 
               {kw.rows.length > 0 && (
@@ -1021,9 +1086,11 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                     <div style={{ marginTop: 10 }}>
                       <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6, lineHeight: 1.6 }}>
                         {kw.meta
-                          ? <>등록 {_fmtKRW(kw.meta.total)}개 · 실제 노출된 것 {_fmtKRW(kw.meta.live)}개
-                              {kw.meta.live > kw.rows.length && <> · 아래는 광고비 큰 순 {_fmtKRW(kw.rows.length)}개</>}
-                              {kw.meta.truncated && <><br/><span style={{ color: "#D97706" }}>⚠️ 키워드가 너무 많아 일부만 불러왔습니다. 숫자는 실제보다 적게 보일 수 있습니다.</span></>}
+                          ? <>광고비 상위 {_fmtKRW(kw.meta.detailGroups || 0)}개 그룹의 키워드 {_fmtKRW(kw.meta.total)}개를 조사했고,
+                              그 중 실제로 뜬 것은 {_fmtKRW(kw.meta.live)}개입니다.
+                              {kw.meta.live > kw.rows.length && <> 아래는 광고비 큰 순 {_fmtKRW(kw.rows.length)}개.</>}
+                              {kw.meta.partial && <><br/><span style={{ color: "#D97706" }}>⚠️ 전체 등록 키워드 수는 이보다 훨씬 많습니다. 광고비가 붙지 않는 그룹은 조사하지 않았습니다.</span></>}
+                              {kw.meta.truncated && <><br/><span style={{ color: "#D97706" }}>⚠️ 광고그룹이 너무 많아 일부만 불러왔습니다.</span></>}
                             </>
                           : <>돌아가는 키워드 {_fmtKRW(kw.rows.length)}개 · 광고비 큰 순</>}
                       </div>

@@ -161,79 +161,31 @@ async function fetchDaily(ids, since, until) {
 //     avgRnk 3위 밖이면                    = 순위 밀림 (입찰가 올리면 예산 소진 가능).
 //     노출 0 인 키워드 수               = 죽은 키워드 (입찰가가 너무 낮아 아예 안 뜬다).
 //   경로: /ncc/campaigns → /ncc/adgroups → /ncc/keywords → /stats(ids=키워드id)
-const KW_LIMITS = { campaigns: 50, adgroups: 300, keywords: 6000, show: 300 };
+const KW_LIMITS = {
+  campaigns:    50,
+  adgroups:     300,
+  detailGroups: 6,     // 키워드 상세는 광고비 큰 그룹만. 전체는 수만개라 못 가져온다.
+  keywords:     4000,
+  show:         300,
+};
 
-// 동시 실행 헬퍼. 키워드가 수백~수천개면 순차 루프로는 Vercel 타임아웃이 난다.
+// 동시 실행 헬퍼. 순차 루프로는 Vercel 타임아웃이 난다.
 async function _mapLimit(items, conc, fn) {
   const out = [];
   for (let i = 0; i < items.length; i += conc) {
-    const chunk = items.slice(i, i + conc);
-    out.push(...await Promise.all(chunk.map(fn)));
+    out.push(...await Promise.all(items.slice(i, i + conc).map(fn)));
   }
   return out;
 }
 
-async function fetchKeywords(campaignIds, since, until) {
-  const t0 = Date.now();
-  const DEADLINE = 22000; // Vercel 함수 제한 전에 안전하게 빠져나온다
-
-  // ① 광고그룹 (이름 + 그룹 기본입찰가까지 같이 받는다)
-  const campUse = campaignIds.slice(0, KW_LIMITS.campaigns);
-  const groups = [];
-  await _mapLimit(campUse, 4, async cid => {
-    try {
-      const gs = await naverGet("/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(cid));
-      for (const g of (Array.isArray(gs) ? gs : [])) {
-        const gid = g && (g.nccAdgroupId || g.id);
-        if (!gid) continue;
-        groups.push({
-          id:      gid,
-          name:    String(g.name || gid),
-          bidAmt:  Number(g.bidAmt || 0),
-          enabled: g.userLock !== true,
-        });
-      }
-    } catch (e) { console.error("[ad-report] adgroups 실패", cid, e?.message || e); }
-  });
-  if (groups.length === 0) return { rows: [], groups: [], meta: { adgroups: 0, total: 0, live: 0, shown: 0, dead: 0, truncated: false } };
-
-  const gUse = groups.slice(0, KW_LIMITS.adgroups);
-  const gMap = new Map(gUse.map(g => [g.id, g]));
-
-  // ② 키워드
-  const kwMap = new Map(); // id -> { text, gid, bid, useGroupBid }
-  await _mapLimit(gUse.map(g => g.id), 6, async gid => {
-    if (Date.now() - t0 > DEADLINE) return;
-    try {
-      const ks = await naverGet("/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(gid));
-      for (const k of (Array.isArray(ks) ? ks : [])) {
-        const kid = k && (k.nccKeywordId || k.id);
-        if (!kid) continue;
-        if (k.userLock === true) continue;          // 꺼둔 키워드 제외
-        if (kwMap.size >= KW_LIMITS.keywords) return;
-        const useGroupBid = k.useGroupBidAmt === true;
-        kwMap.set(kid, {
-          text:        String(k.keyword || k.name || kid),
-          gid,
-          gname:       gMap.get(gid)?.name || "",
-          bid:         useGroupBid ? Number(gMap.get(gid)?.bidAmt || 0) : Number(k.bidAmt || 0),
-          useGroupBid,
-        });
-      }
-    } catch (e) { console.error("[ad-report] keywords 실패", gid, e?.message || e); }
-  });
-  const totalKw = kwMap.size;
-  if (totalKw === 0) return { rows: [], groups: [], meta: { adgroups: gUse.length, total: 0, live: 0, shown: 0, dead: 0, truncated: false } };
-
-  // ③ 통계 — ids 는 반복 파라미터. URL 길이 때문에 100개씩 끊고, 동시 4개씩 보낸다.
-  const allIds = [...kwMap.keys()];
+// /stats 는 캠페인·광고그룹·키워드 id 를 다 받는다. 그룹 단위는 이걸로 한 번에 끝낸다.
+//   키워드를 합산해서 그룹 값을 만들면, 키워드를 다 못 가져왔을 때 광고비가 0 으로 보인다.
+async function fetchStatsByIds(ids, since, until) {
   const fields = ["impCnt", "clkCnt", "salesAmt", "avgRnk", "ccnt"];
   const chunks = [];
-  for (let i = 0; i < allIds.length; i += 100) chunks.push(allIds.slice(i, i + 100));
-
-  const statMap = new Map();
+  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100));
+  const map = new Map();
   await _mapLimit(chunks, 4, async chunk => {
-    if (Date.now() - t0 > DEADLINE) return;
     try {
       const qs =
         chunk.map(id => "ids=" + encodeURIComponent(id)).join("&") +
@@ -242,84 +194,115 @@ async function fetchKeywords(campaignIds, since, until) {
       const st = await naverGet("/stats", qs);
       const rows = Array.isArray(st?.data) ? st.data : Array.isArray(st) ? st : [];
       for (const r of rows) {
-        const id = r?.id || r?.nccKeywordId;
-        if (id) statMap.set(id, r);
+        const id = r?.id || r?.nccKeywordId || r?.nccAdgroupId;
+        if (id) map.set(id, r);
       }
-    } catch (e) { console.error("[ad-report] 키워드 stats 실패", e?.message || e); }
+    } catch (e) { console.error("[ad-report] stats 실패", e?.message || e); }
+  });
+  return map;
+}
+
+function _statRow(r) {
+  return {
+    impressions: Number(r?.impCnt   || 0),
+    clicks:      Number(r?.clkCnt   || 0),
+    cost:        Number(r?.salesAmt || 0),
+    conv:        Number(r?.ccnt     || 0),
+    avgRnk:      Number(r?.avgRnk   || 0),
+  };
+}
+
+async function fetchKeywords(campaignIds, since, until) {
+  const t0 = Date.now();
+  const DEADLINE = 22000;
+
+  // ① 광고그룹
+  const groups = [];
+  await _mapLimit(campaignIds.slice(0, KW_LIMITS.campaigns), 4, async cid => {
+    try {
+      const gs = await naverGet("/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(cid));
+      for (const g of (Array.isArray(gs) ? gs : [])) {
+        const gid = g && (g.nccAdgroupId || g.id);
+        if (!gid) continue;
+        groups.push({ id: gid, name: String(g.name || gid), bidAmt: Number(g.bidAmt || 0) });
+      }
+    } catch (e) { console.error("[ad-report] adgroups 실패", cid, e?.message || e); }
+  });
+  if (groups.length === 0) {
+    return { rows: [], groups: [], meta: { adgroups: 0, total: 0, live: 0, shown: 0, dead: 0, truncated: false } };
+  }
+
+  const gUse = groups.slice(0, KW_LIMITS.adgroups);
+
+  // ② 그룹 통계 — 여기가 표의 진짜 숫자다. 키워드 합산이 아니다.
+  const gStats = await fetchStatsByIds(gUse.map(g => g.id), since, until);
+  const groupRows = gUse.map(g => ({
+    id: g.id, name: g.name, bidAmt: g.bidAmt,
+    ..._statRow(gStats.get(g.id)),
+    kwTotal: null, kwLive: null,   // 상세를 조사한 그룹만 채운다
+  })).sort((a, b) => b.cost - a.cost);
+
+  // ③ 키워드 상세 — 광고비 큰 그룹만. 나머지는 어차피 볼 게 없다.
+  const detail = groupRows.slice(0, KW_LIMITS.detailGroups);
+  const kwMap  = new Map();
+  await _mapLimit(detail.map(g => g.id), 4, async gid => {
+    if (Date.now() - t0 > DEADLINE) return;
+    try {
+      const ks = await naverGet("/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(gid));
+      const arr = Array.isArray(ks) ? ks : [];
+      const row = groupRows.find(g => g.id === gid);
+      if (row) { row.kwTotal = arr.length; row.kwLive = 0; }
+      for (const k of arr) {
+        const kid = k && (k.nccKeywordId || k.id);
+        if (!kid || k.userLock === true) continue;
+        if (kwMap.size >= KW_LIMITS.keywords) return;
+        const useGroupBid = k.useGroupBidAmt === true;
+        kwMap.set(kid, {
+          text:        String(k.keyword || k.name || kid),
+          gid,
+          gname:       row?.name || "",
+          bid:         useGroupBid ? Number(row?.bidAmt || 0) : Number(k.bidAmt || 0),
+          useGroupBid,
+        });
+      }
+    } catch (e) { console.error("[ad-report] keywords 실패", gid, e?.message || e); }
   });
 
-  // ④ 합치기. 키워드 단위로는 수백~수천이라 사람이 못 본다.
-  //    그래서 '그룹 19줄' 로 접어서 같이 돌려준다. 이게 실제 관리 단위다.
-  const gAgg = new Map();
-  for (const g of gUse) {
-    gAgg.set(g.id, {
-      id: g.id, name: g.name, bidAmt: g.bidAmt,
-      kwTotal: 0, kwLive: 0, kwDead: 0,
-      impressions: 0, clicks: 0, cost: 0, conv: 0,
-      rankImpSum: 0, rankSum: 0,
-    });
-  }
+  // ④ 키워드 통계
+  const kStats = kwMap.size > 0 ? await fetchStatsByIds([...kwMap.keys()], since, until) : new Map();
 
   const live = [];
-  let dead = 0, deadBidSum = 0;
+  let dead = 0, deadBidSum = 0, deadMinBid = 0;
   for (const [id, info] of kwMap) {
-    const r    = statMap.get(id);
-    const imp  = Number(r?.impCnt   || 0);
-    const clk  = Number(r?.clkCnt   || 0);
-    const cost = Number(r?.salesAmt || 0);
-    const conv = Number(r?.ccnt     || 0);
-    const rnk  = Number(r?.avgRnk   || 0);
-
-    const ga = gAgg.get(info.gid);
-    if (ga) {
-      ga.kwTotal += 1;
-      ga.impressions += imp; ga.clicks += clk; ga.cost += cost; ga.conv += conv;
-      if (imp > 0 && rnk > 0) { ga.rankImpSum += imp; ga.rankSum += rnk * imp; }
-    }
-
-    if (imp <= 0 && clk <= 0) {
+    const st = _statRow(kStats.get(id));
+    if (st.impressions <= 0 && st.clicks <= 0) {
       dead += 1; deadBidSum += info.bid;
-      if (ga) ga.kwDead += 1;
+      if (info.bid > 0 && info.bid <= 100) deadMinBid += 1;
       continue;
     }
-    if (ga) ga.kwLive += 1;
-    live.push({
-      id,
-      text:        info.text,
-      group:       info.gname,
-      bid:         info.bid,
-      useGroupBid: info.useGroupBid,
-      impressions: imp,
-      clicks:      clk,
-      cost,
-      conv,
-      avgRnk:      rnk,
-    });
+    const row = groupRows.find(g => g.id === info.gid);
+    if (row) row.kwLive = (row.kwLive || 0) + 1;
+    live.push({ id, text: info.text, group: info.gname, bid: info.bid, useGroupBid: info.useGroupBid, ...st });
   }
   live.sort((a, b) => b.cost - a.cost);
-
-  const groupRows = [...gAgg.values()]
-    .map(g => ({
-      id: g.id, name: g.name, bidAmt: g.bidAmt,
-      kwTotal: g.kwTotal, kwLive: g.kwLive, kwDead: g.kwDead,
-      impressions: g.impressions, clicks: g.clicks, cost: g.cost, conv: g.conv,
-      avgRnk: g.rankImpSum > 0 ? (g.rankSum / g.rankImpSum) : 0,
-    }))
-    .sort((a, b) => b.cost - a.cost);
 
   return {
     rows: live.slice(0, KW_LIMITS.show),
     groups: groupRows,
     meta: {
-      adgroups:    gUse.length,
-      adgroupsAll: groups.length,
-      total:       totalKw,
-      live:        live.length,
-      shown:       Math.min(live.length, KW_LIMITS.show),
+      adgroups:     gUse.length,
+      adgroupsAll:  groups.length,
+      detailGroups: detail.length,
+      total:        kwMap.size,
+      live:         live.length,
+      shown:        Math.min(live.length, KW_LIMITS.show),
       dead,
-      deadAvgBid:  dead > 0 ? Math.round(deadBidSum / dead) : 0,
-      truncated:   groups.length > gUse.length || totalKw >= KW_LIMITS.keywords,
-      ms:          Date.now() - t0,
+      deadAvgBid:   dead > 0 ? Math.round(deadBidSum / dead) : 0,
+      deadMinBidPct: dead > 0 ? deadMinBid / dead : 0,
+      // 상세를 안 본 그룹이 있거나, 키워드 상한에 걸렸으면 '일부만 봤다' 고 알린다.
+      partial:      groupRows.length > detail.length || kwMap.size >= KW_LIMITS.keywords,
+      truncated:    groups.length > gUse.length,
+      ms:           Date.now() - t0,
     },
   };
 }
