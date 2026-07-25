@@ -53,7 +53,8 @@ function _pctText(num, den) {
 }
 
 export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
-  const [period, setPeriod] = useState("today");
+  // 2026-07-25 — 기본 "이번달". "오늘"이면 오늘 접수→오늘 완료가 사실상 없어 항상 N/0/0 표기됨.
+  const [period, setPeriod] = useState("month");
   // 모든 inquiries (new + contacted + converted) — 접수 시점(created_at) 기준 필터에 사용.
   const [allInquiries, setAllInquiries] = useState([]);
   // converted inquiries 의 task_id Set — 홈페이지 유입 task 판별 진실 소스 (v3).
@@ -118,8 +119,10 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
       const tk = taskById.get(String(cv.task_id));
       if (!tk) continue;
       const st = tk.status || "";
+      // 2026-07-25 — 취소를 먼저 배제. DB에 status='취소'인데 completed_at 이 남은 task 18건 실재 →
+      //   기존 (st === "완료" || tk.completedAt || tk.completed_at) 이 취소를 완료로 이중 계상.
+      if (st === "취소") { canceled += 1; continue; }
       if (st === "완료" || tk.completedAt || tk.completed_at) completed += 1;
-      if (st === "취소") canceled += 1;
     }
     return {
       received,
@@ -283,7 +286,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
           </Panel>
 
           {/* ② 완료 매출·회사이익 */}
-          <Panel t={t} title="② 완료 매출 · 회사이익" subtitle="기간: 완료(task.completed_at) 기준 · 홈페이지 유입만">
+          <Panel t={t} title="② 완료 매출 · 회사이익" subtitle="기간: 완료(task.completed_at) 기준 · 홈페이지 유입만 · ①의 완료와 집계 기준이 다름(완료 시각 기준)">
             {revenue == null ? (
               <div style={{ padding: 16, textAlign: "center", color: t.textMuted, fontSize: 12 }}>
                 매출 조회 권한 없음
