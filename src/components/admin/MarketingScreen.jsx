@@ -1,14 +1,11 @@
 // 2026-07-24 — 마케팅 조감 화면 (운영자 PC).
-//   1단계 (이 파일): DB 기반 3블록.
-//     ① 홈페이지 접수 퍼널  — 접수 → 성사(전환) → 완료 + 취소율.
-//        판별: converted inquiries.task_id 기반 (v3, Mig 152 이후만 정확).
-//        기간: inquiries.created_at (접수 시각) KST 기준.
-//     ② 완료 매출·회사이익  — 홈페이지 유입 완료 작업만 필터해서 computeRevenueByYmRange 재사용.
-//        기간: task.completed_at (완료 시각) KST 기준.
-//     ③ 지역 top5           — 홈페이지 유입 task 의 주소를 parseRegion 로 집계, 총 건수 내림차순 top5.
-//        기간: task.created_at (접수 시각) KST 기준.
-//   2단계 (별도 커밋): 네이버 검색광고 API → 지출/클릭/CPC + CPA vs 회사이익 게이지.
-//     환경변수 세팅 후 api/ad-report.js 신설 예정.
+//   1단계: DB 기반 3블록.
+//     ① 홈페이지 접수 퍼널  — 총 접수(스팸 포함) / 유효(converted) / 완료 + 스팸률·취소율.
+//     ② 완료 매출·회사이익  — 홈페이지 유입 완료 작업만 필터. 기간: completed_at.
+//     ③ 지역 top5           — 홈페이지 유입 task 주소 집계 (미상 제외). 기간: created_at.
+//   2단계 (2026-07-25): 네이버 검색광고 API 연동 → 블록④ 활성화.
+//     GET /api/ad-report?since&until&actor. salesAmt VAT 별도 → 클라에서 ×1.1 로 실청구액 CPA.
+//     CPA vs 완료 1건당 회사이익 비교 (초록=남는 장사, 빨강=적자).
 
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -172,6 +169,45 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   const spamRate = funnel.total > 0
     ? _pctText(funnel.spam, funnel.total)
     : "-";
+
+  // ── 블록 ④ — 네이버 검색광고 (기간: since~until, KST) ───────────────────────
+  //   salesAmt 는 VAT 별도 → ×1.1 로 실청구액 산출. CPA 는 실청구액 기준.
+  const [ad, setAd] = useState(null);          // { ok, cost, clicks, impressions, cpc, ctr, ... } | null
+  const [adLoading, setAdLoading] = useState(false);
+  const [adError, setAdError]     = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    const actorId = user?.user_id || user?.id;
+    if (!actorId) { setAd(null); return () => { alive = false; }; }
+    setAdLoading(true);
+    setAdError("");
+    fetch(`/api/ad-report?since=${encodeURIComponent(start)}&until=${encodeURIComponent(end)}&actor=${encodeURIComponent(actorId)}`)
+      .then(r => r.json())
+      .then(j => {
+        if (!alive) return;
+        setAd(j || null);
+        setAdLoading(false);
+      })
+      .catch(e => {
+        if (!alive) return;
+        setAdError(String(e?.message || e));
+        setAd(null);
+        setAdLoading(false);
+      });
+    return () => { alive = false; };
+  }, [user?.user_id, user?.id, start, end]);
+
+  const adCostVat        = ad?.ok ? Math.round(Number(ad.cost || 0) * 1.1) : 0;
+  const cpaVat           = ad?.ok && funnel.completed > 0
+    ? Math.round(adCostVat / funnel.completed)
+    : null;
+  const profitPerJob     = revenue && revenue.count > 0
+    ? Math.round(Number(revenue.owner || 0) / revenue.count)
+    : null;
+  const cpaVerdictColor  = (cpaVat != null && profitPerJob != null)
+    ? (cpaVat < profitPerJob ? "#16A34A" : "#DC2626")
+    : null;
 
   return (
     <div style={{
@@ -406,17 +442,88 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
             )}
           </Panel>
 
-          {/* 2단계 예약 안내 (광고 API 미연동 상태 표시) */}
-          <Panel t={t} title="④ 광고 지출·CPA (2단계 — 미연동)" subtitle="네이버 검색광고 API 연동 필요">
-            <div style={{
-              padding: "18px 14px", textAlign: "center",
-              color: t.textMuted, fontSize: 12, fontWeight: 600, lineHeight: 1.6,
-            }}>
-              환경변수 세팅 후 활성화 예정:<br/>
-              <span className="mono" style={{
-                fontSize: 11, color: t.textSecondary, letterSpacing: "-0.2px",
-              }}>NAVER_AD_API_KEY / NAVER_AD_SECRET / NAVER_AD_CUSTOMER_ID</span>
-            </div>
+          {/* ④ 광고 지출·CPA (네이버 검색광고) */}
+          <Panel t={t} title="④ 광고 지출 · CPA" subtitle="네이버 검색광고 · 광고비/CPA 는 VAT 포함(실청구), 원본 salesAmt 는 VAT 별도">
+            {adLoading ? (
+              <div style={{ padding: 20, textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+                광고 지표 조회 중…
+              </div>
+            ) : (adError || !ad || ad.ok === false) ? (
+              <div style={{ padding: 16, textAlign: "center", color: t.textMuted, fontSize: 12, lineHeight: 1.5 }}>
+                광고 API 조회 실패
+                {(adError || ad?.error) && (
+                  <div style={{ marginTop: 4, fontSize: 10, color: t.textSecondary }}>
+                    {adError || ad?.error}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                <div style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+                  gap: 8,
+                }}>
+                  <Metric t={t} label="광고비 (VAT 포함)" value={_fmtKRW(adCostVat)}     suffix="원" accent/>
+                  <Metric t={t} label="클릭"               value={_fmtKRW(ad.clicks)}    suffix="회"/>
+                  <Metric t={t} label="CPC"                value={_fmtKRW(ad.cpc)}       suffix="원"/>
+                  <Metric t={t} label="CTR"                value={(Number(ad.ctr || 0) * 100).toFixed(2)} suffix="%"/>
+                </div>
+                <div style={{
+                  marginTop: 10,
+                  padding: "10px 12px",
+                  background: t.bgInset || "rgba(148, 163, 184, 0.06)",
+                  borderRadius: 8,
+                }}>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    marginBottom: 4,
+                  }}>
+                    <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
+                      CPA (VAT 포함) — 광고비 ÷ 완료({funnel.completed}건)
+                    </span>
+                    <span className="mono" style={{
+                      fontSize: 16, fontWeight: 800,
+                      color: cpaVerdictColor || t.text,
+                      fontVariantNumeric: "tabular-nums",
+                    }}>
+                      {cpaVat != null ? _fmtKRW(cpaVat) + "원" : "-"}
+                    </span>
+                  </div>
+                  <div style={{
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                  }}>
+                    <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>
+                      완료 1건당 회사이익 — 이익 ÷ 완료({revenue?.count || 0}건)
+                    </span>
+                    <span className="mono" style={{
+                      fontSize: 13, fontWeight: 700, color: t.text,
+                      fontVariantNumeric: "tabular-nums",
+                    }}>
+                      {profitPerJob != null ? _fmtKRW(profitPerJob) + "원" : "-"}
+                    </span>
+                  </div>
+                  {(cpaVat != null && profitPerJob != null) && (
+                    <div style={{
+                      marginTop: 6,
+                      fontSize: 11, fontWeight: 700,
+                      color: cpaVerdictColor,
+                      textAlign: "right",
+                    }}>
+                      {cpaVat < profitPerJob
+                        ? `✓ 남는 장사 (건당 +${_fmtKRW(profitPerJob - cpaVat)}원)`
+                        : `✗ 적자 (건당 −${_fmtKRW(cpaVat - profitPerJob)}원)`}
+                    </div>
+                  )}
+                </div>
+                <div style={{
+                  marginTop: 8, fontSize: 10, color: t.textMuted, fontWeight: 600, lineHeight: 1.5,
+                }}>
+                  ⓘ 네이버 salesAmt 는 VAT 별도 (원본 {_fmtKRW(Math.round(Number(ad.cost || 0)))}원).
+                  카드 실청구는 VAT 포함 (×1.1). CPA·손익 판단은 실청구액 기준.
+                </div>
+              </>
+            )}
           </Panel>
         </div>
       )}
