@@ -195,7 +195,7 @@ async function fetchKeywords(campaignIds, since, until) {
       }
     } catch (e) { console.error("[ad-report] adgroups 실패", cid, e?.message || e); }
   });
-  if (groups.length === 0) return { rows: [], meta: { adgroups: 0, total: 0, shown: 0, dead: 0, truncated: false } };
+  if (groups.length === 0) return { rows: [], groups: [], meta: { adgroups: 0, total: 0, live: 0, shown: 0, dead: 0, truncated: false } };
 
   const gUse = groups.slice(0, KW_LIMITS.adgroups);
   const gMap = new Map(gUse.map(g => [g.id, g]));
@@ -223,11 +223,11 @@ async function fetchKeywords(campaignIds, since, until) {
     } catch (e) { console.error("[ad-report] keywords 실패", gid, e?.message || e); }
   });
   const totalKw = kwMap.size;
-  if (totalKw === 0) return { rows: [], meta: { adgroups: gUse.length, total: 0, shown: 0, dead: 0, truncated: false } };
+  if (totalKw === 0) return { rows: [], groups: [], meta: { adgroups: gUse.length, total: 0, live: 0, shown: 0, dead: 0, truncated: false } };
 
   // ③ 통계 — ids 는 반복 파라미터. URL 길이 때문에 100개씩 끊고, 동시 4개씩 보낸다.
   const allIds = [...kwMap.keys()];
-  const fields = ["impCnt", "clkCnt", "salesAmt", "avgRnk"];
+  const fields = ["impCnt", "clkCnt", "salesAmt", "avgRnk", "ccnt"];
   const chunks = [];
   for (let i = 0; i < allIds.length; i += 100) chunks.push(allIds.slice(i, i + 100));
 
@@ -248,15 +248,41 @@ async function fetchKeywords(campaignIds, since, until) {
     } catch (e) { console.error("[ad-report] 키워드 stats 실패", e?.message || e); }
   });
 
-  // ④ 합치기. 노출 0 은 표에서는 빼지만 몇 개인지는 세서 알려준다(진단 재료).
+  // ④ 합치기. 키워드 단위로는 수백~수천이라 사람이 못 본다.
+  //    그래서 '그룹 19줄' 로 접어서 같이 돌려준다. 이게 실제 관리 단위다.
+  const gAgg = new Map();
+  for (const g of gUse) {
+    gAgg.set(g.id, {
+      id: g.id, name: g.name, bidAmt: g.bidAmt,
+      kwTotal: 0, kwLive: 0, kwDead: 0,
+      impressions: 0, clicks: 0, cost: 0, conv: 0,
+      rankImpSum: 0, rankSum: 0,
+    });
+  }
+
   const live = [];
-  let dead = 0;
-  let deadBidSum = 0;
+  let dead = 0, deadBidSum = 0;
   for (const [id, info] of kwMap) {
-    const r   = statMap.get(id);
-    const imp = Number(r?.impCnt   || 0);
-    const clk = Number(r?.clkCnt   || 0);
-    if (imp <= 0 && clk <= 0) { dead += 1; deadBidSum += info.bid; continue; }
+    const r    = statMap.get(id);
+    const imp  = Number(r?.impCnt   || 0);
+    const clk  = Number(r?.clkCnt   || 0);
+    const cost = Number(r?.salesAmt || 0);
+    const conv = Number(r?.ccnt     || 0);
+    const rnk  = Number(r?.avgRnk   || 0);
+
+    const ga = gAgg.get(info.gid);
+    if (ga) {
+      ga.kwTotal += 1;
+      ga.impressions += imp; ga.clicks += clk; ga.cost += cost; ga.conv += conv;
+      if (imp > 0 && rnk > 0) { ga.rankImpSum += imp; ga.rankSum += rnk * imp; }
+    }
+
+    if (imp <= 0 && clk <= 0) {
+      dead += 1; deadBidSum += info.bid;
+      if (ga) ga.kwDead += 1;
+      continue;
+    }
+    if (ga) ga.kwLive += 1;
     live.push({
       id,
       text:        info.text,
@@ -265,14 +291,25 @@ async function fetchKeywords(campaignIds, since, until) {
       useGroupBid: info.useGroupBid,
       impressions: imp,
       clicks:      clk,
-      cost:        Number(r?.salesAmt || 0),
-      avgRnk:      Number(r?.avgRnk   || 0),
+      cost,
+      conv,
+      avgRnk:      rnk,
     });
   }
   live.sort((a, b) => b.cost - a.cost);
 
+  const groupRows = [...gAgg.values()]
+    .map(g => ({
+      id: g.id, name: g.name, bidAmt: g.bidAmt,
+      kwTotal: g.kwTotal, kwLive: g.kwLive, kwDead: g.kwDead,
+      impressions: g.impressions, clicks: g.clicks, cost: g.cost, conv: g.conv,
+      avgRnk: g.rankImpSum > 0 ? (g.rankSum / g.rankImpSum) : 0,
+    }))
+    .sort((a, b) => b.cost - a.cost);
+
   return {
     rows: live.slice(0, KW_LIMITS.show),
+    groups: groupRows,
     meta: {
       adgroups:    gUse.length,
       adgroupsAll: groups.length,
@@ -381,15 +418,17 @@ export default async function handler(req, res) {
       daysMode = d.mode;
     }
 
-    let keywords = undefined, keywordMeta = undefined;
+    let keywords = undefined, keywordMeta = undefined, adGroups = undefined;
     if (wantKw) {
       try {
         const kwRes = await fetchKeywords(ids, since, until);
         keywords    = kwRes.rows;
+        adGroups    = kwRes.groups;
         keywordMeta = kwRes.meta;
       } catch (e) {
         console.error("[ad-report] keywords 블록 실패", e?.message || e);
         keywords    = [];
+        adGroups    = [];
         keywordMeta = { error: String(e?.message || e) };
       }
     }
@@ -400,7 +439,7 @@ export default async function handler(req, res) {
       cost, clicks, impressions, cpc, ctr,
       since, until,
       vatIncluded: false, // salesAmt 는 VAT 별도. 클라에서 ×1.1 로 실청구액 계산.
-      days, daysMode, keywords, keywordMeta,
+      days, daysMode, keywords, adGroups, keywordMeta,
     });
   } catch (e) {
     console.error("[ad-report]", e?.message || e);

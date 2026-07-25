@@ -66,6 +66,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   const [period, setPeriod] = useState("month");
   const [showDailyTable, setShowDailyTable] = useState(false);
   const [kwShowAll, setKwShowAll] = useState(false);
+  const [showKwTable, setShowKwTable] = useState(false);
   // 2026-07-25 — 스팸 포함 모든 status (null = 전체) 를 1회 호출로. 클라에서 status 별 분류.
   const [allInquiries, setAllInquiries] = useState([]);
   // converted inquiries 의 task_id Set — 홈페이지 유입 task 판별 진실 소스 (v3).
@@ -337,6 +338,40 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
 
   // 등록 키워드 중 실제로 노출된 비율. 이게 낮으면 "키워드가 많아도 소용없다" 는 뜻.
   const kwLiveRate = (kw.meta && kw.meta.total > 0) ? (kw.meta.live / kw.meta.total) : null;
+
+  // 실제 관리 단위는 키워드가 아니라 광고그룹이다. 700개는 못 봐도 19줄은 본다.
+  //   status 로 한 줄 진단까지 붙여서, 사장님이 표를 해석할 필요가 없게 만든다.
+  const groups = useMemo(() => {
+    const rows = (ad?.adGroups || []).map(g => {
+      const costVat = Math.round(Number(g.cost || 0) * 1.1);
+      const conv    = Number(g.conv || 0);
+      const cpa     = conv > 0 ? Math.round(costVat / conv) : null;
+      let status;
+      if (costVat < 10000 && g.impressions < 100) {
+        status = { key: "dead",  label: "안 돌아감", color: "#94A3B8" };
+      } else if (cpa == null) {
+        status = { key: "noconv", label: "전환 없음", color: "#DC2626" };
+      } else if (profitPerJob != null && cpa > profitPerJob) {
+        status = { key: "over",  label: "비쌈",     color: "#DC2626" };
+      } else if (profitPerJob != null && cpa < profitPerJob * 0.5) {
+        status = { key: "cheap", label: "더 써도 됨", color: "#16A34A" };
+      } else {
+        status = { key: "ok",    label: "적정",     color: "#D97706" };
+      }
+      return { ...g, costVat, conv, cpa, status };
+    });
+    const totalCost = rows.reduce((a, b) => a + b.costVat, 0);
+    return { rows, totalCost };
+  }, [ad, profitPerJob]);
+
+  // 한 줄 요약 — 몇 개 그룹이 돈의 대부분을 쓰는가.
+  const groupConcentration = useMemo(() => {
+    const rows = groups.rows;
+    if (rows.length === 0 || groups.totalCost <= 0) return null;
+    let acc = 0, n = 0;
+    for (const r of rows) { acc += r.costVat; n += 1; if (acc >= groups.totalCost * 0.9) break; }
+    return { n, total: rows.length, pct: Math.round((acc / groups.totalCost) * 100) };
+  }, [groups]);
 
   // 진단 문구 — 사장님이 바로 행동으로 옮길 수 있게.
   //   판정 순서가 중요하다. '죽은 키워드가 많다' 가 '순위가 좋다' 보다 앞선다.
@@ -864,10 +899,10 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
             </Panel>
           )}
 
-          {/* ⑥ 키워드별 성과 — 예산을 못 쓰는 원인 진단 */}
-          {ad?.ok && !adLoading && kw.rows.length > 0 && (
-            <Panel t={t} title="⑥ 키워드별 성과"
-                   subtitle="평균순위가 낮을수록(1위에 가까울수록) 위에 뜬다. 예산을 못 쓰는 이유가 여기서 갈린다">
+          {/* ⑥ 광고그룹 — 실제 관리 단위. 키워드는 접어서 아래로. */}
+          {ad?.ok && !adLoading && (groups.rows.length > 0 || kw.rows.length > 0) && (
+            <Panel t={t} title="⑥ 광고그룹별 성과"
+                   subtitle="키워드 말고 여기만 보면 된다. 매일 볼 건 이 표 하나">
               {kwVerdict && (
                 <div style={{
                   padding: "12px 14px", borderRadius: 10, marginBottom: 12,
@@ -883,74 +918,171 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                 </div>
               )}
 
-              <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6, lineHeight: 1.6 }}>
-                {kw.meta
-                  ? <>등록 {_fmtKRW(kw.meta.total)}개 · 실제 노출된 것 {_fmtKRW(kw.meta.live)}개
-                      {kw.meta.live > kw.rows.length && <> · 아래 표는 광고비 큰 순 {_fmtKRW(kw.rows.length)}개</>}
-                      {kw.meta.truncated && <><br/><span style={{ color: "#D97706" }}>⚠️ 키워드가 너무 많아 일부만 불러왔습니다. 숫자는 실제보다 적게 보일 수 있습니다.</span></>}
-                    </>
-                  : <>돌아가는 키워드 {_fmtKRW(kw.rows.length)}개 · 광고비 큰 순</>}
-              </div>
-              <div style={{ overflowX: "auto" }}>
-                <table className="mono" style={{
-                  width: "100%", borderCollapse: "collapse",
-                  fontSize: 11, fontVariantNumeric: "tabular-nums",
+              {groupConcentration && groupConcentration.n < groupConcentration.total && (
+                <div style={{
+                  padding: "10px 12px", borderRadius: 9, marginBottom: 10,
+                  background: t.bg, border: `1px solid ${t.border}`,
+                  fontSize: 12, fontWeight: 800, color: t.text, lineHeight: 1.6,
                 }}>
-                  <thead>
-                    <tr style={{ color: t.textMuted, fontWeight: 800 }}>
-                      <th style={{ textAlign: "left",  padding: "5px 6px" }}>키워드</th>
-                      <th style={{ textAlign: "right", padding: "5px 6px" }}>평균순위</th>
-                      <th style={{ textAlign: "right", padding: "5px 6px" }}>노출</th>
-                      <th style={{ textAlign: "right", padding: "5px 6px" }}>클릭</th>
-                      <th style={{ textAlign: "right", padding: "5px 6px" }}>클릭당</th>
-                      <th style={{ textAlign: "right", padding: "5px 6px" }}>광고비</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(kwShowAll ? kw.rows : kw.rows.slice(0, 40)).map(r => {
-                      const pricey = r.cpc > 0 && profitPerJob != null && r.cpc * 20 > profitPerJob;
-                      return (
-                        <tr key={r.id} style={{ borderTop: `1px solid ${t.border}` }}>
-                          <td style={{
-                            padding: "5px 6px", color: t.text, fontWeight: 700,
-                            maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          }} title={r.text}>{r.text}</td>
-                          <td style={{
-                            padding: "5px 6px", textAlign: "right", fontWeight: 800,
-                            color: r.avgRnk > 0 && r.avgRnk <= 2 ? "#16A34A" : t.textMuted,
-                          }}>{r.avgRnk > 0 ? r.avgRnk.toFixed(1) : "-"}</td>
-                          <td style={{ padding: "5px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.impressions)}</td>
-                          <td style={{ padding: "5px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.clicks)}</td>
-                          <td style={{
-                            padding: "5px 6px", textAlign: "right",
-                            color: pricey ? "#DC2626" : t.textMuted, fontWeight: pricey ? 800 : 700,
-                          }}>{_fmtKRW(r.cpc)}</td>
-                          <td style={{ padding: "5px 6px", textAlign: "right", color: t.text, fontWeight: 800 }}>{_fmtKRW(r.costVat)}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {kw.rows.length > 40 && (
-                <button
-                  onClick={() => setKwShowAll(v => !v)}
-                  style={{
-                    marginTop: 8, padding: "7px 12px", borderRadius: 8,
-                    border: `1px solid ${t.border}`, background: "transparent",
-                    color: t.textMuted, fontSize: 11, fontWeight: 800, cursor: "pointer",
-                  }}>
-                  {kwShowAll ? "접기" : `나머지 ${_fmtKRW(kw.rows.length - 40)}개 더 보기`}
-                </button>
+                  그룹 {_fmtKRW(groupConcentration.total)}개 중 {_fmtKRW(groupConcentration.n)}개가 광고비의 {groupConcentration.pct}%를 씁니다.
+                  <span style={{ color: t.textMuted, fontWeight: 700 }}> 나머지는 사실상 볼 필요가 없습니다.</span>
+                </div>
               )}
 
-              <div style={{ marginTop: 10, fontSize: 10, color: t.textMuted, fontWeight: 600, lineHeight: 1.6 }}>
-                ⓘ 평균순위는 낮을수록 좋다(1위가 맨 위). 초록은 2위 안쪽.
+              {groups.rows.length > 0 && (
+                <div style={{ overflowX: "auto" }}>
+                  <table className="mono" style={{
+                    width: "100%", borderCollapse: "collapse",
+                    fontSize: 11, fontVariantNumeric: "tabular-nums",
+                  }}>
+                    <thead>
+                      <tr style={{ color: t.textMuted, fontWeight: 800 }}>
+                        <th style={{ textAlign: "left",  padding: "5px 6px" }}>그룹</th>
+                        <th style={{ textAlign: "right", padding: "5px 6px" }}>광고비</th>
+                        <th style={{ textAlign: "right", padding: "5px 6px" }}>전환</th>
+                        <th style={{ textAlign: "right", padding: "5px 6px" }}>건당비용</th>
+                        <th style={{ textAlign: "right", padding: "5px 6px" }}>키워드</th>
+                        <th style={{ textAlign: "right", padding: "5px 6px" }}>순위</th>
+                        <th style={{ textAlign: "left",  padding: "5px 6px" }}>판정</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groups.rows.map(g => (
+                        <tr key={g.id} style={{
+                          borderTop: `1px solid ${t.border}`,
+                          opacity: g.status.key === "dead" ? 0.5 : 1,
+                        }}>
+                          <td style={{
+                            padding: "6px", color: t.text, fontWeight: 800,
+                            maxWidth: 130, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                          }} title={g.name}>{g.name}</td>
+                          <td style={{ padding: "6px", textAlign: "right", color: t.text, fontWeight: 800 }}>
+                            {_fmtKRW(g.costVat)}
+                          </td>
+                          <td style={{ padding: "6px", textAlign: "right", color: t.textMuted }}>
+                            {g.conv > 0 ? _fmtKRW(g.conv) : "-"}
+                          </td>
+                          <td style={{
+                            padding: "6px", textAlign: "right", fontWeight: 900,
+                            color: g.cpa == null ? t.textMuted : g.status.color,
+                          }}>
+                            {g.cpa != null ? _fmtKRW(g.cpa) : "-"}
+                          </td>
+                          <td style={{ padding: "6px", textAlign: "right", color: t.textMuted }}>
+                            {g.kwTotal > 0
+                              ? <>{_fmtKRW(g.kwLive)}<span style={{ opacity: 0.6 }}>/{_fmtKRW(g.kwTotal)}</span></>
+                              : "-"}
+                          </td>
+                          <td style={{
+                            padding: "6px", textAlign: "right",
+                            color: g.avgRnk > 0 && g.avgRnk <= 2 ? "#16A34A" : t.textMuted, fontWeight: 700,
+                          }}>
+                            {g.avgRnk > 0 ? g.avgRnk.toFixed(1) : "-"}
+                          </td>
+                          <td style={{ padding: "6px" }}>
+                            <span style={{
+                              display: "inline-block", padding: "2px 7px", borderRadius: 999,
+                              background: `${g.status.color}22`, color: g.status.color,
+                              fontSize: 10, fontWeight: 900, whiteSpace: "nowrap",
+                            }}>{g.status.label}</span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div style={{ marginTop: 10, fontSize: 10.5, color: t.textMuted, fontWeight: 600, lineHeight: 1.75 }}>
+                ⓘ <b style={{ color: t.text }}>건당비용</b>이 회사 이익{profitPerJob != null ? ` ${_fmtKRW(profitPerJob)}원` : ""}보다
+                크면 그 그룹은 밑지는 중입니다.
                 <br/>
-                ⚠️ 빨간 '클릭당' 금액은 클릭 20번에 일 한 건도 못 따면 손해가 나는 수준이라는 뜻이다.
-                그 키워드는 끄거나 입찰가를 내리는 걸 검토해야 한다.
+                ⓘ <b style={{ color: "#16A34A" }}>더 써도 됨</b> = 싸게 일감을 따고 있는데 광고비를 적게 쓰는 그룹.
+                여기 입찰가를 올리는 게 제일 안전합니다.
+                <br/>
+                ⓘ <b>키워드</b> 칸의 "3/812" 는 812개 등록했는데 3개만 실제로 떴다는 뜻입니다.
+                <br/>
+                ⚠️ 전환은 네이버가 웹에서 잡은 것만 셉니다. <b>전화로 온 손님은 빠져 있어</b> 건당비용이 실제보다 비싸 보입니다.
               </div>
+
+              {kw.rows.length > 0 && (
+                <>
+                  <button
+                    onClick={() => setShowKwTable(v => !v)}
+                    style={{
+                      marginTop: 12, padding: "8px 12px", borderRadius: 8,
+                      border: `1px solid ${t.border}`, background: "transparent",
+                      color: t.textMuted, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                    }}>
+                    {showKwTable ? "키워드 목록 닫기" : "키워드 하나씩 보기 (필요할 때만)"}
+                  </button>
+
+                  {showKwTable && (
+                    <div style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6, lineHeight: 1.6 }}>
+                        {kw.meta
+                          ? <>등록 {_fmtKRW(kw.meta.total)}개 · 실제 노출된 것 {_fmtKRW(kw.meta.live)}개
+                              {kw.meta.live > kw.rows.length && <> · 아래는 광고비 큰 순 {_fmtKRW(kw.rows.length)}개</>}
+                              {kw.meta.truncated && <><br/><span style={{ color: "#D97706" }}>⚠️ 키워드가 너무 많아 일부만 불러왔습니다. 숫자는 실제보다 적게 보일 수 있습니다.</span></>}
+                            </>
+                          : <>돌아가는 키워드 {_fmtKRW(kw.rows.length)}개 · 광고비 큰 순</>}
+                      </div>
+                      <div style={{ overflowX: "auto" }}>
+                        <table className="mono" style={{
+                          width: "100%", borderCollapse: "collapse",
+                          fontSize: 11, fontVariantNumeric: "tabular-nums",
+                        }}>
+                          <thead>
+                            <tr style={{ color: t.textMuted, fontWeight: 800 }}>
+                              <th style={{ textAlign: "left",  padding: "5px 6px" }}>키워드</th>
+                              <th style={{ textAlign: "right", padding: "5px 6px" }}>순위</th>
+                              <th style={{ textAlign: "right", padding: "5px 6px" }}>노출</th>
+                              <th style={{ textAlign: "right", padding: "5px 6px" }}>클릭</th>
+                              <th style={{ textAlign: "right", padding: "5px 6px" }}>클릭당</th>
+                              <th style={{ textAlign: "right", padding: "5px 6px" }}>광고비</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(kwShowAll ? kw.rows : kw.rows.slice(0, 40)).map(r => {
+                              const pricey = r.cpc > 0 && profitPerJob != null && r.cpc * 20 > profitPerJob;
+                              return (
+                                <tr key={r.id} style={{ borderTop: `1px solid ${t.border}` }}>
+                                  <td style={{
+                                    padding: "5px 6px", color: t.text, fontWeight: 700,
+                                    maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                  }} title={`${r.text} · ${r.group}`}>{r.text}</td>
+                                  <td style={{
+                                    padding: "5px 6px", textAlign: "right", fontWeight: 800,
+                                    color: r.avgRnk > 0 && r.avgRnk <= 2 ? "#16A34A" : t.textMuted,
+                                  }}>{r.avgRnk > 0 ? r.avgRnk.toFixed(1) : "-"}</td>
+                                  <td style={{ padding: "5px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.impressions)}</td>
+                                  <td style={{ padding: "5px 6px", textAlign: "right", color: t.textMuted }}>{_fmtKRW(r.clicks)}</td>
+                                  <td style={{
+                                    padding: "5px 6px", textAlign: "right",
+                                    color: pricey ? "#DC2626" : t.textMuted, fontWeight: pricey ? 800 : 700,
+                                  }}>{_fmtKRW(r.cpc)}</td>
+                                  <td style={{ padding: "5px 6px", textAlign: "right", color: t.text, fontWeight: 800 }}>{_fmtKRW(r.costVat)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      {kw.rows.length > 40 && (
+                        <button
+                          onClick={() => setKwShowAll(v => !v)}
+                          style={{
+                            marginTop: 8, padding: "7px 12px", borderRadius: 8,
+                            border: `1px solid ${t.border}`, background: "transparent",
+                            color: t.textMuted, fontSize: 11, fontWeight: 800, cursor: "pointer",
+                          }}>
+                          {kwShowAll ? "접기" : `나머지 ${_fmtKRW(kw.rows.length - 40)}개 더 보기`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </Panel>
           )}
         </div>
