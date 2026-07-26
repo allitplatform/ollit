@@ -56,13 +56,13 @@
   <div id="oneline" class="box"></div>
   <div id="issues" class="box" style="display:none"></div>
 
-  <h2>📊 서비스별 오늘 성적</h2>
+  <h2>📊 서비스별 오늘 성적 <span style="font-weight:400;color:#B5B3B0">— 어느 장사에 돈이 나가고 있나</span></h2>
   <div class="box"><table id="svcT"></table></div>
 
-  <h2>🗂 그룹별 (돈 쓴 순 · 줄 누르면 아래 표가 그 그룹만 보임)</h2>
+  <h2>🗂 그룹별 <span style="font-weight:400;color:#B5B3B0">— 네이버 광고 폴더별 · 줄을 누르면 아래 표가 그 그룹만 보임</span></h2>
   <div class="box"><table id="grpT"></table></div>
 
-  <h2>🔍 키워드 전체</h2>
+  <h2>🔍 키워드 전체 <span style="font-weight:400;color:#B5B3B0">— 손님이 검색하는 단어 하나하나 · 배지: <span class="bdg b1">1위</span> <span class="bdg b2">2~3위</span> <span class="bdg b3">밀림</span> · 막대 길이 = 크기</span></h2>
   <div class="bar-c">
     <input id="q" placeholder="🔍 키워드 검색 — 일산, 논현동, 청소…">
     <select id="gsel" onchange="shown=150;render()"><option value="">모든 그룹</option></select>
@@ -179,8 +179,16 @@ function render(){
   const probs=[];
   if(pushed.length)probs.push('⚠️ <b>'+pushed.slice(0,3).map(d=>d.kw).join(', ')+'</b>'+(pushed.length>3?' 외 '+(pushed.length-3)+'개':'')+' — 지금 2~4위로 밀려 있음. 다음 정시 자동맞춤이 올립니다. 계속 밀리면 경쟁사가 상한 위로 지른 것 — 문구(품질)로 이길 자리.');
   if(waiting.length)probs.push('⏳ <b>'+waiting.join(' · ')+'</b> — 광고문구 심사 대기라 노출 0. 보통 하루면 통과. 내일도 0이면 그때 진짜 문제.');
-  $('oneline').innerHTML='오늘 <b style="color:var(--blue)">'+fm(allCost)+'원</b> 써서 노출 <b>'+fm(allImp)+'번</b> · 클릭 <b>'+allClk+'번</b>. '
-    +(probs.length?'챙길 일 <b style="color:var(--red)">'+probs.length+'가지</b>:':'<span style="color:var(--green)">특별히 챙길 일 없음.</span>');
+  const estJobs=allClk>0?Math.max(1,Math.round(allClk/3.6)):0;
+  const step=(l,v,c)=>'<div style="text-align:center;padding:6px 14px"><div style="font-size:11.5px;color:#9B9A97;font-weight:600">'+l+'</div><div style="font-size:20px;font-weight:800;color:'+(c||'#191919')+'">'+v+'</div></div>';
+  const arrow='<div style="font-size:18px;color:#C9C7C4;font-weight:400">→</div>';
+  $('oneline').innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:2px">'
+    +step('① 오늘 쓴 돈',fm(allCost)+'원','#2F80ED')+arrow
+    +step('② 광고가 보임',fm(allImp)+'번')+arrow
+    +step('③ 손님이 누름',allClk+'번')+arrow
+    +step('④ 예상 접수',estJobs?'약 '+estJobs+'건':'—','#1C7F4B')
+    +'</div><div style="font-size:12px;color:#9B9A97;margin-top:6px;text-align:center">우리 평균: 클릭 3.6번마다 접수 1건 → 예상 건당 광고비 '+(estJobs?fm(Math.round(allCost/estJobs))+'원':'—')+' (목표: 65,000원 아래)</div>'
+    +(probs.length?'<div style="margin-top:8px;font-size:13.5px">챙길 일 <b style="color:var(--red)">'+probs.length+'가지</b> ↓</div>':'<div style="margin-top:8px;font-size:13.5px;color:var(--green)">챙길 일 없음 — 자동이 관리 중</div>');
   $('issues').style.display=probs.length?'':'none';
   $('issues').innerHTML=probs.join('<br><br>');
   $('issues').style.borderColor=probs.length?'#FCA5A5':'var(--line)';
