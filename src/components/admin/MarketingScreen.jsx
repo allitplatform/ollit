@@ -53,6 +53,21 @@ function _rangeForPeriod(period) {
   return { start: today, end: today };
 }
 
+// 네이버 키워드도구는 '같이 검색되는 단어' 를 준다. 그래서 삼성서비스센터·붙박이장 같은
+// 우리 장사와 무관한 단어가 검색량 상위를 다 차지한다. 여기서 걸러낸다.
+const _KW_BUY  = /(추천|구입|구매|렌탈|렌털|중고|판매|매장|가격비교|신제품|얼마|스탠드형|리모컨|사용법|전기세|평수)/;
+const _KW_ASC  = /(서비스센터|as센터|무상|보증|as$|as[^a-z]|삼성전자|엘지전자)/i;
+const _KW_WORK = /(충전|냉매|가스|청소|세척|수리|고장|안시원|시원하지|안나와|안나옴|안됨|물떨어|누수|냄새|곰팡이|점검|실외기|필터|얼음|결빙|에러|안돌아|약해|냉방|배수|드레인|살균|분해)/;
+
+// work = 우리 일 · as = 제조사 AS 찾는 사람(애매) · etc = 무관
+function _kwClass(word) {
+  const w = String(word || "");
+  if (_KW_BUY.test(w))  return "etc";
+  if (_KW_ASC.test(w))  return "as";
+  if (_KW_WORK.test(w)) return "work";
+  return "etc";
+}
+
 function _fmtKRW(n) {
   return Number(n || 0).toLocaleString("ko-KR");
 }
@@ -74,6 +89,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   const [toolLoading, setToolLoading] = useState(false);
   const [toolError, setToolError] = useState("");
   const [toolOnlyMissing, setToolOnlyMissing] = useState(true);
+  const [toolWorkOnly, setToolWorkOnly] = useState(true);
   const [toolShowAll, setToolShowAll] = useState(false);
   // 2026-07-25 — 스팸 포함 모든 status (null = 전체) 를 1회 호출로. 클라에서 status 별 분류.
   const [allInquiries, setAllInquiries] = useState([]);
@@ -256,10 +272,19 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
 
   // 표에 실제로 그릴 줄. '없는 것만' 필터 + 기본 40줄.
   const toolRows = useMemo(() => {
-    const all = tool?.rows || [];
-    const f = toolOnlyMissing ? all.filter(r => !r.registered) : all;
-    return { all, filtered: f, view: toolShowAll ? f : f.slice(0, 40) };
-  }, [tool, toolOnlyMissing, toolShowAll]);
+    const all = (tool?.rows || []).map(r => ({ ...r, cls: _kwClass(r.keyword) }));
+    const work = all.filter(r => r.cls === "work");
+    // 헤드라인 숫자는 '우리 일 관련' 만으로 센다. 안 그러면 삼성서비스센터 70만이 다 먹는다.
+    const workMissing = work.filter(r => !r.registered);
+    const head = {
+      count: workMissing.length,
+      vol:   workMissing.reduce((a, b) => a + Number(b.total || 0), 0),
+      noise: all.length - work.length,
+    };
+    let f = toolWorkOnly ? work : all;
+    if (toolOnlyMissing) f = f.filter(r => !r.registered);
+    return { all, filtered: f, view: toolShowAll ? f : f.slice(0, 40), head };
+  }, [tool, toolOnlyMissing, toolWorkOnly, toolShowAll]);
 
   const adCostVat        = ad?.ok ? Math.round(Number(ad.cost || 0) * 1.1) : 0;
   // 2026-07-25 정정 — 분모: 홈페이지 폼 완료건(funnel.completed) → 자체유입 완료건(selfRevenue.count)
@@ -1239,20 +1264,22 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
               <>
                 <div style={{
                   padding: "12px 14px", borderRadius: 10, marginBottom: 10,
-                  background: tool.missingCount > 0 ? "#DC26261A" : "#16A34A1A",
-                  border: `1px solid ${tool.missingCount > 0 ? "#DC2626" : "#16A34A"}`,
+                  background: toolRows.head.count > 0 ? "#DC26261A" : "#16A34A1A",
+                  border: `1px solid ${toolRows.head.count > 0 ? "#DC2626" : "#16A34A"}`,
                 }}>
                   <div style={{
                     fontSize: 14, fontWeight: 900, lineHeight: 1.4,
-                    color: tool.missingCount > 0 ? "#DC2626" : "#16A34A",
+                    color: toolRows.head.count > 0 ? "#DC2626" : "#16A34A",
                   }}>
-                    {tool.missingCount > 0
-                      ? `우리 광고에 없는 단어 ${_fmtKRW(tool.missingCount)}개 — 합쳐서 월 ${_fmtKRW(tool.missingVol)}번 검색됩니다`
-                      : "찾은 단어가 전부 이미 등록돼 있습니다"}
+                    {toolRows.head.count > 0
+                      ? `우리 일 관련인데 광고에 없는 단어 ${_fmtKRW(toolRows.head.count)}개 — 합쳐서 월 ${_fmtKRW(toolRows.head.vol)}번 검색됩니다`
+                      : "우리 일 관련 단어는 전부 이미 등록돼 있습니다"}
                   </div>
                   <div style={{ marginTop: 6, fontSize: 11.5, fontWeight: 700, color: t.text, lineHeight: 1.7 }}>
-                    네이버가 알려준 단어 {_fmtKRW(tool.found)}개 · 우리가 등록해 둔 단어 {_fmtKRW(tool.registered)}개(광고그룹 {_fmtKRW(tool.adgroups)}개).
-                    {tool.missingCount > 0 && " 아래 빨간 줄을 위에서부터 광고그룹에 넣으면 됩니다."}
+                    네이버가 알려준 단어 {_fmtKRW(tool.found)}개 중 {_fmtKRW(toolRows.head.noise)}개는
+                    <b> 에어컨 사려는 사람 · 제조사 무상AS 찾는 사람</b>이라 빼고 셌습니다.
+                    우리가 등록해 둔 단어는 {_fmtKRW(tool.registered)}개(광고그룹 {_fmtKRW(tool.adgroups)}개).
+                    {toolRows.head.count > 0 && " 아래 빨간 줄을 위에서부터 광고그룹에 넣으면 됩니다."}
                   </div>
                 </div>
 
@@ -1266,7 +1293,18 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                       color: toolOnlyMissing ? "#DC2626" : t.textMuted,
                       fontSize: 11, fontWeight: 900, cursor: "pointer",
                     }}>
-                    {toolOnlyMissing ? "없는 것만 보는 중" : "전부 보는 중"}
+                    {toolOnlyMissing ? "없는 것만 보는 중" : "등록된 것도 보는 중"}
+                  </button>
+                  <button
+                    onClick={() => { setToolWorkOnly(v => !v); setToolShowAll(false); }}
+                    style={{
+                      padding: "7px 12px", borderRadius: 999,
+                      border: `1px solid ${toolWorkOnly ? "#2563EB" : t.border}`,
+                      background: toolWorkOnly ? "#2563EB18" : "transparent",
+                      color: toolWorkOnly ? "#2563EB" : t.textMuted,
+                      fontSize: 11, fontWeight: 900, cursor: "pointer",
+                    }}>
+                    {toolWorkOnly ? "우리 일 관련만" : "무관한 단어까지 전부"}
                   </button>
                   <span style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, alignSelf: "center" }}>
                     {_fmtKRW(toolRows.filtered.length)}개
