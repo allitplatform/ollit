@@ -99,7 +99,8 @@ export default async function handler(req, res) {
       const arr = (r && r.estimate) || (Array.isArray(r) ? r : []);
       for (const e of arr) {
         const bid = e.bid ?? e.bidAmt ?? e.estimate;
-        if (e.key != null && bid != null) estMap.set(norm(e.key), Number(bid));
+        const kk  = e.keyword ?? e.key;   // 네이버는 keyword 라는 이름으로 돌려준다
+        if (kk != null && bid != null) estMap.set(norm(kk), Number(bid));
       }
     }
 
