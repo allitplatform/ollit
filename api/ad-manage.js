@@ -129,7 +129,50 @@ export default async function handler(req, res) {
       return;
     }
 
-    res.status(200).json({ ok: true, steps: ["group&name=", "addkw&gid=&bid=&kws=", "list&gid="] });
+    // 검색량 수집: 그룹의 살아있는 단어를 keywordstool로 조회해 Supabase에 저장
+    // ?step=volsync&gid=...&offset=0&limit=50 → { done, next }
+    if (step === "volsync") {
+      const SB_URL = process.env.VITE_SUPABASE_URL;
+      const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const gid = req.query.gid;
+      const offset = Number(req.query.offset || 0), limit = Number(req.query.limit || 50);
+      const ks = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(gid));
+      const alive = (Array.isArray(ks.data) ? ks.data : [])
+        .filter(k => (k.bidAmt || 0) > 70).map(k => String(k.keyword).replace(/\s+/g, ""));
+      const part = alive.slice(offset, offset + limit);
+      const qc = v => { if (typeof v === "number") return v;
+        const t = String(v || "").replace(/[^0-9]/g, ""); return t ? Number(t) : 5; };
+      const rows = [];
+      for (let i = 0; i < part.length; i += 5) {
+        const pack = part.slice(i, i + 5);
+        try {
+          const r = await call("GET", "/keywordstool",
+            "hintKeywords=" + encodeURIComponent(pack.join(",")) + "&showDetail=1");
+          const map = new Map((r.data && r.data.keywordList || [])
+            .map(k => [String(k.relKeyword).replace(/\s+/g, "").toUpperCase(),
+                       { m: qc(k.monthlyMobileQcCnt), t: qc(k.monthlyPcQcCnt) + qc(k.monthlyMobileQcCnt) }]));
+          for (const kw of pack) {
+            const hit = map.get(kw.toUpperCase());
+            if (hit) rows.push({ kw, vol_total: hit.t, vol_mobile: hit.m });
+          }
+        } catch (e) { /* skip pack */ }
+      }
+      if (rows.length && SB_URL && SB_KEY) {
+        await fetch(`${SB_URL}/rest/v1/ad_kw_volume?on_conflict=kw`, {
+          method: "POST",
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+            "Content-Type": "application/json",
+            Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(rows),
+        });
+      }
+      res.status(200).json({ ok: true, groupAlive: alive.length,
+        processed: part.length, saved: rows.length,
+        next: offset + limit < alive.length ? offset + limit : null });
+      return;
+    }
+
+    res.status(200).json({ ok: true, steps: ["group&name=", "addkw&gid=&bid=&kws=", "list&gid=", "volsync&gid=&offset="] });
   } catch (e) {
     res.status(200).json({ ok: false, error: String(e && e.message || e) });
   }
