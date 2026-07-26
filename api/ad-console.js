@@ -11,6 +11,14 @@ const NAVER_BASE     = "https://api.searchad.naver.com";
 const TOKEN = "85cd10a6b18bed7ad40ace71d23fb1fe0f244e425d6184bb";
 const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 
+const SB_URL = process.env.VITE_SUPABASE_URL;
+const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+async function sbGet(qs) {
+  const r = await fetch(`${SB_URL}/rest/v1/ad_autobid_log?${qs}`, {
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+  return r.ok ? r.json() : [];
+}
+
 export const maxDuration = 60;
 
 function sign(method, path) {
@@ -38,6 +46,13 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if ((req.query.token || "") !== TOKEN) { res.status(404).end(); return; }
   try {
+    // 키워드 이력: 입찰가 변동 그래프 재료
+    if (req.query.hist) {
+      const rows = await sbGet("kw=eq." + encodeURIComponent(req.query.hist)
+        + "&order=run_at.asc&limit=500");
+      res.status(200).json({ ok: true, rows });
+      return;
+    }
     // ① 그룹 + 살아있는 키워드
     const groups = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(CAMPAIGN_ID));
     const rows = [];
@@ -86,7 +101,14 @@ export default async function handler(req, res) {
       r2.rnk = s.avgRnk || null;
       r2.top1 = estMap.get(norm(r2.kw)) ?? null;
     }
-    res.status(200).json({ ok: true, at: new Date().toISOString(), today, count: rows.length, rows });
+    // 자동맞춤 최근 실행 (생존 신호)
+    let lastRun = null;
+    try {
+      const lr = await sbGet("kw=eq._run&order=run_at.desc&limit=1");
+      if (lr && lr[0]) lastRun = { at: lr[0].run_at, watched: lr[0].bid_from,
+        changed: lr[0].bid_to, capped: lr[0].est1 };
+    } catch (e) {}
+    res.status(200).json({ ok: true, at: new Date().toISOString(), today, count: rows.length, lastRun, rows });
   } catch (e) {
     res.status(200).json({ ok: false, error: String(e && e.message || e) });
   }

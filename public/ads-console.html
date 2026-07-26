@@ -41,7 +41,9 @@
 
 <div id="app" style="display:none">
   <h1>광고 관제판</h1><span class="at" id="at"></span>
+  <div id="pulse" style="margin:8px 0;font-size:12.5px;font-weight:700;color:var(--mut)"></div>
   <div class="cards" id="cards"></div>
+  <div class="cards" id="grpcards" style="gap:8px"></div>
   <div class="bar">
     <input id="q" placeholder="🔍 키워드 검색 — 일산, 논현동, 청소…">
     <span class="chip on" data-f="all">전체</span>
@@ -60,6 +62,17 @@
   <div class="err" id="err"></div>
 </div>
 
+<div id="histPanel" style="display:none;position:fixed;right:24px;top:80px;width:440px;max-width:90vw;
+  background:var(--card);border:1px solid var(--blue);border-radius:14px;padding:16px;z-index:50;
+  box-shadow:0 10px 40px rgba(0,0,0,.5)">
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <b id="histTitle" style="font-size:14px"></b>
+    <span style="cursor:pointer;color:var(--mut);font-weight:900" onclick="document.getElementById('histPanel').style.display='none'">✕ 닫기</span>
+  </div>
+  <div id="histBody" style="margin-top:10px;font-size:12px;color:var(--mut)"></div>
+  <svg id="histSvg" width="100%" height="180" viewBox="0 0 408 180" style="margin-top:8px"></svg>
+</div>
+
 <script>
 let TOK=localStorage.getItem('adconsole_tok')||'';
 let DATA=[],gsel=null,fsel='all',sortK='cost',sortD=-1,shown=150;
@@ -76,6 +89,10 @@ async function load(){
     if(!j.ok){$('err').textContent='오류: '+j.error;return;}
     DATA=j.rows.map(d=>({...d,gap:(d.top1!=null)?(d.bid-d.top1):null}));
     $('at').textContent=j.today+' 기준 · '+new Date(j.at).toLocaleTimeString('ko-KR')+' 갱신 · '+j.count+'개';
+    if(j.lastRun){const m=Math.round((Date.now()-new Date(j.lastRun.at))/60000);
+      $('pulse').innerHTML='🟢 <b style="color:var(--green)">1위 자동맞춤 살아있음</b> — '
+        +(m<1?'방금':m+'분 전')+' 실행 · 감시 '+j.lastRun.watched+'개 · 변경 '+j.lastRun.changed+'개 · 상한정지 '+j.lastRun.capped+'개';
+    }else{$('pulse').innerHTML='⏳ 자동맞춤 기록 대기 중 (첫 자동 실행은 매시간 7분)';}
     buildGrpChips();render();
   }catch(e){$('err').textContent='서버 연결 실패: '+e;}
 }
@@ -113,14 +130,48 @@ function render(){
    +'<div class="card"><div class="l">오늘 클릭</div><div class="v">'+tClk.toLocaleString()+'</div></div>'
    +'<div class="card"><div class="l">오늘 비용(VAT포함)</div><div class="v">'+tCost.toLocaleString()+'원</div></div>'
    +'<div class="card"><div class="l">1위 확보</div><div class="v g">'+winning.toLocaleString()+'개</div></div>';
-  $('tb').innerHTML=f.slice(0,shown).map(d=>{
+  const gAgg={};
+  DATA.filter(d=>d.on).forEach(d=>{const g=gAgg[d.grp]=gAgg[d.grp]||{imp:0,clk:0,cost:0,win:0,n:0};
+    g.imp+=d.imp;g.clk+=d.clk;g.cost+=d.cost;g.n++;if(d.top1!=null&&d.bid>=d.top1)g.win++;});
+  $('grpcards').innerHTML=Object.entries(gAgg).sort((a,b)=>b[1].cost-a[1].cost).slice(0,8)
+    .map(([g,v])=>'<div class="card" style="min-width:104px;padding:8px 12px;cursor:pointer" onclick="gsel=\''+g+'\';buildGrpChips();render()">'
+      +'<div class="l">'+g+'</div><div style="font-size:13px;font-weight:900">'+v.cost.toLocaleString()+'원</div>'
+      +'<div class="l">클릭 '+v.clk+' · 1위 '+v.win+'/'+v.n+'</div></div>').join('');
+  $('tb').innerHTML=f.slice(0,shown).map((d,i)=>{
     let j='<span class="m">—</span>';
     if(!d.on)j='<span class="m">꺼짐</span>';
     else if(d.top1!=null)j=d.bid>=d.top1?'<span class="win">1위</span>':'<span class="lose">밀림 '+fm(d.top1-d.bid)+'</span>';
-    return '<tr><td>'+d.kw+'</td><td>'+d.grp+'</td><td>'+fm(d.bid)+'</td><td>'+fm(d.top1)+'</td><td>'+j
+    return '<tr style="cursor:pointer" onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')"><td>'+d.kw+'</td><td>'+d.grp+'</td><td>'+fm(d.bid)+'</td><td>'+fm(d.top1)+'</td><td>'+j
       +'</td><td>'+fm(d.imp)+'</td><td>'+fm(d.clk)+'</td><td>'+(d.cost?fm(d.cost)+'원':'—')
       +'</td><td>'+(d.rnk?Number(d.rnk).toFixed(1):'—')+'</td></tr>';}).join('');
   $('more').style.display=f.length>shown?'block':'none';
+}
+async function showHist(kw){
+  $('histPanel').style.display='block';
+  $('histTitle').textContent=kw+' — 입찰가 변동 기록';
+  $('histBody').textContent='불러오는 중…';$('histSvg').innerHTML='';
+  const j=await fetch('/api/ad-console?token='+encodeURIComponent(TOK)+'&hist='+encodeURIComponent(kw),{cache:'no-store'}).then(x=>x.json());
+  const rows=(j.rows||[]);
+  if(!rows.length){$('histBody').textContent='아직 기록이 없습니다. 자동맞춤이 이 단어를 바꿀 때마다 여기 쌓입니다.';return;}
+  $('histBody').textContent=rows.length+'번 조정됨 · 최근: '+new Date(rows[rows.length-1].run_at).toLocaleString('ko-KR');
+  // 단일 계열 선 그래프 (입찰가 to)
+  const W=408,H=180,P=34;
+  const vs=rows.map(r=>r.bid_to),ts=rows.map(r=>new Date(r.run_at).getTime());
+  const mn=Math.min(...vs)*0.9,mx=Math.max(...vs)*1.1||1;
+  const X=t=>rows.length<2?W/2:P+(W-2*P)*(t-ts[0])/((ts[ts.length-1]-ts[0])||1);
+  const Y=v=>H-P-(H-2*P)*(v-mn)/((mx-mn)||1);
+  let svg='';
+  // 격자 (은은하게)
+  for(let i=0;i<=3;i++){const y=P+(H-2*P)*i/3;const val=Math.round(mx-(mx-mn)*i/3);
+    svg+='<line x1="'+P+'" y1="'+y+'" x2="'+(W-P)+'" y2="'+y+'" stroke="#1E2A44" stroke-width="1"/>'
+       +'<text x="'+(P-6)+'" y="'+(y+4)+'" fill="#7C8CA8" font-size="9" text-anchor="end">'+val.toLocaleString()+'</text>';}
+  const pts=rows.map((r,i)=>X(ts[i]).toFixed(1)+','+Y(r.bid_to).toFixed(1)).join(' ');
+  svg+='<polyline points="'+pts+'" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linejoin="round"/>';
+  rows.forEach((r,i)=>{svg+='<circle cx="'+X(ts[i]).toFixed(1)+'" cy="'+Y(r.bid_to).toFixed(1)+'" r="4" fill="#3B82F6" stroke="#111A2E" stroke-width="2"><title>'
+    +new Date(r.run_at).toLocaleTimeString('ko-KR')+' — '+r.bid_from.toLocaleString()+'→'+r.bid_to.toLocaleString()+'원 (1위가 '+(r.est1||0).toLocaleString()+')</title></circle>';});
+  const last=rows[rows.length-1];
+  svg+='<text x="'+(W-P)+'" y="'+(Y(last.bid_to)-10)+'" fill="#E2E8F0" font-size="11" font-weight="800" text-anchor="end">'+last.bid_to.toLocaleString()+'원</text>';
+  $('histSvg').innerHTML=svg;
 }
 boot();
 </script></body></html>
