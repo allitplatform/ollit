@@ -48,7 +48,8 @@ const GROUP_POLICY = {
   "김포시":       { cap: 15000, margin: 1.1,  lowerOk: true  },
   "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true  },
   "서울":         { cap: 15000, margin: 1.1,  lowerOk: true  },
-  "메인키워드":   { cap: 20000, margin: 1.15, lowerOk: false },
+  // 메인: 1위가 2만 이하면 1위 추격 / 넘으면 2위 확보(최대 2.5만) — "2위가 마지노선"(사장님 7/26)
+  "메인키워드":   { cap: 20000, margin: 1.15, lowerOk: false, pos2: true, cap2: 25000 },
   // 사장님(7/26 저녁): 수리·누설·누수 + 가스충전이 제일 메인 → 핵심 대접
   "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true  },
 };
@@ -114,7 +115,20 @@ export default async function handler(req, res) {
 
     // ② 모바일 1위 견적 (100개씩) — 응답 형태가 문서와 다른 경우까지 흡수
     const estMap = new Map();
+    const est2Map = new Map();
     const norm = (x) => String(x || "").replace(/\s+/g, "").toUpperCase();
+    // 2위 견적 (메인키워드 등 pos2 그룹만)
+    const p2kws = kws.filter(k => (GROUP_POLICY[k.grp] || {}).pos2);
+    for (const part of chunk(p2kws, 100)) {
+      try {
+        const r = await call("POST", "/estimate/average-position-bid/keyword", null, {
+          device: "MOBILE", items: part.map(k => ({ key: k.kw, position: 2 })) });
+        for (const e of ((r && r.estimate) || [])) {
+          const kk = e.keyword ?? e.key;
+          if (kk != null && e.bid != null) est2Map.set(norm(kk), Number(e.bid));
+        }
+      } catch (e) {}
+    }
     for (const part of chunk(kws, 100)) {
       let r;
       try {
@@ -139,7 +153,12 @@ export default async function handler(req, res) {
       if (!est) { noEst++; continue; }
       const pol = GROUP_POLICY[k.grp] || { cap: 15000, margin: 1.1, lowerOk: true };
       let bid = Math.round(est * pol.margin / 10) * 10;
-      if (bid > pol.cap) { bid = pol.cap; capped++; }
+      if (bid > pol.cap && pol.pos2) {
+        // 1위가 너무 비쌈 → 2위 가격 + 10% 로 2위 확보 (최대 cap2)
+        const e2 = est2Map.get(norm(k.kw));
+        bid = e2 ? Math.min(Math.round(e2 * 1.1 / 10) * 10, pol.cap2) : pol.cap;
+        capped++;
+      } else if (bid > pol.cap) { bid = pol.cap; capped++; }
       if (bid < FLOOR) bid = FLOOR;
       if (!pol.lowerOk && bid < k.cur) continue;  // 메인키워드: 올리기만, 내리진 않음
       if (Math.abs(bid - k.cur) / k.cur >= 0.1) {
