@@ -126,7 +126,7 @@
     <thead><tr>
       <th class="l" data-s="kw">키워드</th><th class="l" data-s="grp">그룹</th>
       <th data-s="vol">월 검색량</th><th data-s="rnk">지금 순위</th>
-      <th data-s="bid">내 입찰가</th><th data-s="top1">1위 가격</th>
+      <th data-s="bid">내 입찰가</th><th data-s="lastBid">마지막 입찰</th><th data-s="top1">1위 가격</th>
       <th data-s="imp">노출</th><th data-s="clk">클릭</th><th data-s="cpc">클릭당 낸 돈</th><th data-s="cost">오늘 쓴 돈</th>
       <th id="mgCol" style="display:none">관리</th>
     </tr></thead><tbody id="tb"></tbody>
@@ -282,7 +282,9 @@ function render(){
       +'<td class="l">'+d.kw+'</td><td class="l sub">'+d.grp+'</td>'
       +'<td>'+(d.vol!=null?bar(d.vol,vMax,fm(d.vol)):'—')+'</td>'
       +'<td>'+rankBdg(d)+'</td>'
-      +'<td>'+fm(d.bid)+'</td><td class="sub">'+fm(d.top1)+'</td>'
+      +'<td>'+fm(d.bid)+'</td>'
+      +'<td class="sub">'+(d.lastBid?new Date(d.lastBid).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'—')+'</td>'
+      +'<td class="sub">'+fm(d.top1)+'</td>'
       +'<td>'+fm(d.imp)+'</td><td>'+(d.clk||'')+'</td>'
       +'<td>'+(d.cpc?'<b>'+fm(d.cpc)+'원</b>'+(d.cpc<d.bid?' <span class="sub" style="color:#1C7F4B">입찰가보다 싸게</span>':''):'—')+'</td>'
       +'<td>'+(d.cost?bar(d.cost,cMax,fm(d.cost)+'원'):'')+'</td>'+mg+'</tr>';}).join('');

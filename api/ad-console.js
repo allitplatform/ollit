@@ -159,6 +159,14 @@ export default async function handler(req, res) {
       }
     } catch (e) {}
 
+    // 키워드별 마지막 입찰 조정 시각
+    try {
+      const logs = await sbGet("kw=neq._run&order=run_at.desc&limit=2000&select=kw,run_at");
+      const lmap = new Map();
+      for (const l of logs) { const k = norm(l.kw); if (!lmap.has(k)) lmap.set(k, l.run_at); }
+      for (const r2 of rows) r2.lastBid = lmap.get(norm(r2.kw)) || null;
+    } catch (e) {}
+
     // 자동맞춤 최근 실행 (생존 신호)
     let lastRun = null;
     try {
