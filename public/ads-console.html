@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>올잇 광고 관제판</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-dynamic-subset.min.css">
 <style>
@@ -44,9 +44,10 @@
  .more{padding:12px;text-align:center;color:var(--blue);font-weight:900;cursor:pointer}
  .err{color:var(--red);font-weight:800;margin:16px 0}
  @media (max-width:768px){
-   body{padding:12px 10px 60px}
-   #shell{flex-direction:column;margin:-12px -10px 0}
-   #sideNav{width:100%!important;height:auto!important;position:static!important;display:flex;align-items:center;gap:2px;padding:10px 12px!important;overflow-x:auto}
+   body{padding:0 0 60px}
+   #shell{flex-direction:column;margin:0}
+   #sideNav{padding-top:calc(8px + env(safe-area-inset-top))!important;position:sticky!important;top:0;z-index:20}
+   #sideNav{width:100%!important;height:auto!important;display:flex;align-items:center;gap:2px;padding:10px 12px!important;overflow-x:auto}
 
    #sideNav{flex-wrap:nowrap;padding:8px 10px!important}
    #sideNav>div{flex-shrink:0}
