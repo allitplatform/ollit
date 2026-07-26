@@ -176,7 +176,8 @@ async function load(){
     const j=await r.json();
     if(!j.ok){$('err').textContent='오류: '+j.error;return;}
     DATA=j.rows.map(d=>({...d,cpc:d.clk>0?Math.round(d.cost/d.clk):null})); window.TODAYJOBS=j.todayJobs;
-    $('at').textContent=j.today+' 기준 · '+new Date(j.at).toLocaleTimeString('ko-KR')+' 갱신 · '+j.count+'개';
+    $('at').textContent=j.today+' 기준 · '+new Date(j.at).toLocaleTimeString('ko-KR')+' 갱신 · '+j.count+'개'
+      +(j.lastRun?' · 자동입찰 '+new Date(j.lastRun.at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+' 실행':'');
     if(j.lastRun){const m=Math.round((Date.now()-new Date(j.lastRun.at))/60000);
       $('pulse').innerHTML='<span style="display:inline-flex;align-items:center;gap:7px;background:#F0F9F1;border:1px solid #CDE8D0;color:#1C5A2E;border-radius:999px;padding:6px 14px;font-size:12px;font-weight:700">'
         +'<span style="width:7px;height:7px;border-radius:99px;background:#22A94E;box-shadow:0 0 0 3px #22A94E33"></span>'
@@ -276,7 +277,7 @@ function render(){
   $('tb').innerHTML=f.slice(0,shown).map((d,i)=>{
     const mg=MANAGE?'<td onclick="event.stopPropagation()">'
       +'<input value="'+d.bid+'" style="width:64px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:12px" id="bi_'+i+'">'
-      +'<button style="margin-left:4px;padding:3px 8px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:800;cursor:pointer" onclick="setBid('+i+',\''+d.id+'\',\''+d.gid+'\')">저장</button>'
+      +'<button style="margin-left:4px;padding:3px 8px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:800;cursor:pointer" onclick="setBid('+i+',\''+d.id+'\',\''+d.gid+'\',\''+d.kw.replace(/'/g,"")+'\','+d.bid+')">저장</button>'
       +'<button style="margin-left:4px;padding:3px 8px;border-radius:6px;border:none;background:'+(d.on?'#DC2626':'#15803D')+';color:#fff;font-size:11px;font-weight:800;cursor:pointer" onclick="setOnOff(\''+d.id+'\',\''+d.gid+'\','+(d.on?0:1)+')">'+(d.on?'끄기':'켜기')+'</button></td>':'';
     return '<tr style="cursor:pointer" onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')">'
       +'<td class="l">'+d.kw+'</td><td class="l sub">'+d.grp+'</td>'
@@ -307,9 +308,9 @@ function toggleManage(){
   const mn=$('mgNav'); if(mn){mn.style.background=MANAGE?'#DC2626':'';mn.style.color=MANAGE?'#fff':'';}
   render();
 }
-async function setBid(i,id,gid){
+async function setBid(i,id,gid,kw,oldBid){
   const bid=Number($('bi_'+i).value);
-  const j=await fetch(API+'/api/ad-manage?token='+encodeURIComponent(MTOK)+'&step=setbid&id='+id+'&gid='+gid+'&bid='+bid,{cache:'no-store'}).then(r=>r.status===404?{ok:false,error:'비밀번호 틀림'}:r.json());
+  const j=await fetch(API+'/api/ad-manage?token='+encodeURIComponent(MTOK)+'&step=setbid&id='+id+'&gid='+gid+'&bid='+bid+'&kw='+encodeURIComponent(kw||'')+'&from='+(oldBid||0),{cache:'no-store'}).then(r=>r.status===404?{ok:false,error:'비밀번호 틀림'}:r.json());
   alert(j.ok?'변경됨: '+bid.toLocaleString()+'원':'실패: '+(j.error||JSON.stringify(j.err)));
   if(j.ok)load();
 }

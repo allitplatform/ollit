@@ -137,6 +137,17 @@ export default async function handler(req, res) {
         res.status(200).json({ ok: false, error: "id/gid/bid(70~100000) 필요" }); return; }
       const r = await call("PUT", "/ncc/keywords", "fields=bidAmt",
         [{ nccKeywordId: id, nccAdgroupId: gid, bidAmt: bid, useGroupBidAmt: false }]);
+      // 수동 변경도 이력에 남긴다
+      if (r.ok && req.query.kw) {
+        try {
+          const SU = process.env.VITE_SUPABASE_URL, SK = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          await fetch(`${SU}/rest/v1/ad_autobid_log`, { method: "POST",
+            headers: { apikey: SK, Authorization: `Bearer ${SK}`,
+              "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ kw: String(req.query.kw), grp: "_수동",
+              bid_from: Number(req.query.from || 0), bid_to: bid, est1: null }) });
+        } catch (e) {}
+      }
       res.status(200).json({ ok: r.ok, err: r.ok ? null : r.data });
       return;
     }
