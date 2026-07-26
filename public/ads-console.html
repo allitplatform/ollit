@@ -89,7 +89,7 @@
  <div id="shell" style="display:flex;min-height:100vh;margin:0">
   <aside id="sideNav" style="width:210px;flex-shrink:0;background:#0F172A;color:#fff;padding:22px 14px;position:sticky;top:0;height:100vh;box-sizing:border-box">
     <div style="display:flex;align-items:center;gap:10px;margin:2px 6px 18px">
-      <img src="/icon-ads-192.png" width="34" height="34" style="border-radius:9px" onerror="this.style.display='none'">
+      <img src="/icon-192.png" width="34" height="34" style="border-radius:9px" onerror="this.style.display='none'">
       <div><div style="font-weight:800;font-size:15px">올잇</div>
       <div style="font-size:10.5px;color:#94A3B8">광고 관제 시스템</div></div>
     </div>
@@ -164,7 +164,9 @@ let DATA=[],fsel='all',sortK='cost',sortD=-1,shown=150;
 let MANAGE=false,MTOK=localStorage.getItem('adconsole_mtok')||'';
 const $=id=>document.getElementById(id);
 const fm=n=>n==null?'—':Number(n).toLocaleString();
-function saveTok(){TOK=$('tokIn').value.trim();localStorage.setItem('adconsole_tok',TOK);boot();}
+function saveTok(){TOK=$('tokIn').value.trim();localStorage.setItem('adconsole_tok',TOK);
+  if(TOK.startsWith('b29adde0')){MTOK=TOK;localStorage.setItem('adconsole_mtok',TOK);}
+  boot();}
 function boot(){ if(!TOK){$('login').style.display='block';$('app').style.display='none';return;}
   $('login').style.display='none';$('app').style.display='block';load(); }
 function svcOf(g){
@@ -178,7 +180,9 @@ async function load(){
   $('err').textContent='';$('at').textContent='불러오는 중… (15초쯤)';
   try{
     const r=await fetch(API+'/api/ad-console?token='+encodeURIComponent(TOK)+(MTOK?'&wt='+encodeURIComponent(MTOK):''),{cache:'no-store'});
-    if(r.status===404){localStorage.removeItem('adconsole_tok');TOK='';boot();return;}
+    if(r.status===404){localStorage.removeItem('adconsole_tok');TOK='';boot();
+      const ti=$('tokIn'); if(ti){ti.value='';ti.placeholder='비밀번호가 틀립니다 — 다시 입력';ti.style.borderColor='#DC2626';}
+      return;}
     const j=await r.json();
     if(!j.ok){$('err').textContent='오류: '+j.error;return;}
     DATA=j.rows.map(d=>({...d,cpc:d.clk>0?Math.round(d.cost/d.clk):null})); window.TODAYJOBS=j.todayJobs;

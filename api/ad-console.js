@@ -64,7 +64,7 @@ const norm = (x) => String(x || "").replace(/\s+/g, "").toUpperCase();
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   const tk = req.query.token || "";
-  if (tk !== TOKEN && tk !== TOKEN_FULL) { res.status(404).end(); return; }
+  if (tk !== TOKEN && tk !== TOKEN_FULL && tk !== WRITE_TOKEN) { res.status(404).end(); return; }
   try {
     // 부정클릭 감시: 최근 클릭 로그 IP 집계
     if (req.query.clicks) {
@@ -142,7 +142,7 @@ export default async function handler(req, res) {
     // 오늘 실제 접수 (올데이케어 = 자체유입) — 관리 토큰 소지자에게만 (수익 정보)
     let todayJobs = null;
     try {
-      if (tk !== TOKEN_FULL && (req.query.wt || "") !== WRITE_TOKEN) throw new Error("viewer");
+      if (tk !== TOKEN_FULL && tk !== WRITE_TOKEN && (req.query.wt || "") !== WRITE_TOKEN) throw new Error("viewer");
       const kstDay = today; // KST YYYY-MM-DD
       const startISO = new Date(`${kstDay}T00:00:00+09:00`).toISOString();
       const endISO   = new Date(`${kstDay}T23:59:59+09:00`).toISOString();
