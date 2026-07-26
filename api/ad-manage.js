@@ -198,7 +198,36 @@ export default async function handler(req, res) {
       return;
     }
 
-    res.status(200).json({ ok: true, steps: ["group&name=", "addkw&gid=&bid=&kws=", "list&gid=", "volsync&gid=&offset="] });
+    // 경보: 자동맞춤이 75분 넘게 안 돌았으면 사장님 폰으로 문자
+    if (step === "health") {
+      const SB_URL2 = process.env.VITE_SUPABASE_URL, SB_KEY2 = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const ALERT_TO = "01041163991";  // 알림 받을 번호
+      const lr = await fetch(`${SB_URL2}/rest/v1/ad_autobid_log?kw=eq._run&order=run_at.desc&limit=1`, {
+        headers: { apikey: SB_KEY2, Authorization: `Bearer ${SB_KEY2}` } }).then(r => r.json());
+      const last = lr && lr[0] && lr[0].run_at;
+      const ageMin = last ? Math.round((Date.now() - new Date(last).getTime()) / 60000) : 9999;
+      let alerted = false;
+      if (ageMin > 75) {
+        const K = process.env.SOLAPI_API_KEY, S = process.env.SOLAPI_API_SECRET;
+        if (K && S) {
+          const date = new Date().toISOString();
+          const salt = crypto.randomBytes(16).toString("hex");
+          const sig = crypto.createHmac("sha256", S).update(date + salt).digest("hex");
+          await fetch("https://api.solapi.com/messages/v4/send-many", {
+            method: "POST",
+            headers: { "Content-Type": "application/json",
+              Authorization: `HMAC-SHA256 apiKey=${K}, date=${date}, salt=${salt}, signature=${sig}` },
+            body: JSON.stringify({ messages: [{ to: ALERT_TO, from: "01041163991",
+              text: `[올잇 광고] 1위 자동맞춤이 ${ageMin}분째 멈춰 있습니다. 관제판 확인 필요.`, type: "SMS" }] }),
+          });
+          alerted = true;
+        }
+      }
+      res.status(200).json({ ok: true, lastRun: last, ageMin, alerted });
+      return;
+    }
+
+    res.status(200).json({ ok: true, steps: ["group&name=", "addkw&gid=&bid=&kws=", "list&gid=", "volsync&gid=&offset=", "health"] });
   } catch (e) {
     res.status(200).json({ ok: false, error: String(e && e.message || e) });
   }

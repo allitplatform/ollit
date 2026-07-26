@@ -112,6 +112,25 @@ export default async function handler(req, res) {
       }
     } catch (e) {}
 
+    // 오늘 실제 접수 (올데이케어 = 자체유입)
+    let todayJobs = null;
+    try {
+      const kstDay = today; // KST YYYY-MM-DD
+      const startISO = new Date(`${kstDay}T00:00:00+09:00`).toISOString();
+      const endISO   = new Date(`${kstDay}T23:59:59+09:00`).toISOString();
+      const pr = await fetch(`${SB_URL}/rest/v1/principals?code=eq.allday&select=id`, {
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }).then(r => r.json());
+      const pid = pr && pr[0] && pr[0].id;
+      if (pid) {
+        const cr = await fetch(`${SB_URL}/rest/v1/tasks?principal_id=eq.${pid}`
+          + `&created_at=gte.${encodeURIComponent(startISO)}&created_at=lt.${encodeURIComponent(endISO)}&select=id`, {
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+            Prefer: "count=exact", Range: "0-0" } });
+        const cRange = cr.headers.get("content-range");
+        if (cRange && cRange.includes("/")) todayJobs = Number(cRange.split("/")[1]);
+      }
+    } catch (e) {}
+
     // 자동맞춤 최근 실행 (생존 신호)
     let lastRun = null;
     try {
@@ -119,7 +138,7 @@ export default async function handler(req, res) {
       if (lr && lr[0]) lastRun = { at: lr[0].run_at, watched: lr[0].bid_from,
         changed: lr[0].bid_to, capped: lr[0].est1 };
     } catch (e) {}
-    res.status(200).json({ ok: true, at: new Date().toISOString(), today, count: rows.length, lastRun, rows });
+    res.status(200).json({ ok: true, at: new Date().toISOString(), today, count: rows.length, lastRun, todayJobs, rows });
   } catch (e) {
     res.status(200).json({ ok: false, error: String(e && e.message || e) });
   }
