@@ -97,6 +97,7 @@
     <div class="nav on" data-tab="t1"><span class="ni">📊</span><span class="nl"> 오늘 성적</span></div>
     <div class="nav" data-tab="t2"><span class="ni">🔤</span><span class="nl"> 키워드</span></div>
     <div class="nav" data-tab="t3"><span class="ni">🛡</span><span class="nl"> 부정클릭</span></div>
+    <div class="nav" data-tab="t4"><span class="ni">📄</span><span class="nl"> 보고서</span></div>
     <div style="margin-top:22px;border-top:1px solid #1E293B;padding-top:14px">
       <div class="nav" onclick="load()"><span class="ni">↻</span><span class="nl"> 새로고침</span></div>
       <div class="nav" onclick="toggleManage()" id="mgNav"><span class="ni">🔧</span><span class="nl"> 관리 모드</span></div>
@@ -140,6 +141,10 @@
   </table></div>
   <div class="more" id="more" style="display:none">더 보기</div>
   </div><!-- /t2 -->
+  <div id="t4" style="display:none">
+    <h2>📄 일일 보고서 <span style="font-weight:400;color:#B5B3B0">— 매일 아침 자동 생성 · 열린 화면에서 공유/인쇄 → PDF 저장</span></h2>
+    <div class="box"><table id="repT"></table></div>
+  </div>
   <div id="t3" style="display:none">
     <h2>🛡 랜딩페이지 방문 IP 감시 <span style="font-weight:400;color:#B5B3B0">— 같은 IP가 광고로 반복 유입되면 의심. 오늘부터 쌓입니다</span></h2>
     <div class="box"><table id="clkT"></table></div>
@@ -204,9 +209,10 @@ document.addEventListener('click',e=>{
   const t=e.target;
   const nav=t.closest?t.closest('[data-tab]'):null;
   if(nav){
-    ['t1','t2','t3'].forEach(id=>$(id).style.display=id===nav.dataset.tab?'':'none');
+    ['t1','t2','t3','t4'].forEach(id=>$(id).style.display=id===nav.dataset.tab?'':'none');
     document.querySelectorAll('[data-tab]').forEach(c=>c.classList.toggle('on',c.dataset.tab===nav.dataset.tab));
     if(nav.dataset.tab==='t3')loadClicks();
+    if(nav.dataset.tab==='t4')loadReports();
     return;
   }
   if(t.dataset&&t.dataset.f){fsel=t.dataset.f;
@@ -317,6 +323,14 @@ function render(){
       +'<td>'+(d.cost?bar(d.cost,cMax,fm(d.cost)+'원'):'')+'</td>'+mg+'</tr>';}).join('');
   $('more').style.display=f.length>shown?'block':'none';
   $('more').textContent='더 보기 ('+(f.length-Math.min(shown,f.length))+'개 남음)';
+}
+async function loadReports(){
+  $('repT').innerHTML='<tr><td class="l">불러오는 중…</td></tr>';
+  const j=await fetch(API+'/api/ad-console?token='+encodeURIComponent(TOK)+'&reports=1',{cache:'no-store'}).then(x=>x.json());
+  if(!j.ok||!j.list||!j.list.length){$('repT').innerHTML='<tr><td class="l" style="color:#9B9A97">아직 보고서 없음 — 내일 아침 8시 반 첫 보고서가 여기 쌓입니다.</td></tr>';return;}
+  $('repT').innerHTML='<tr><th class="l">날짜</th><th class="l">생성 시각</th><th class="l"></th></tr>'
+    +j.list.map(r=>'<tr><td class="l"><b>'+(r.d||'')+'</b> 일일 보고서</td><td class="l sub">'+new Date(r.created_at).toLocaleString('ko-KR')+'</td>'
+      +'<td class="l"><a href="'+API+'/api/report?id='+r.slug+'" target="_blank" style="color:#2F80ED;font-weight:800;text-decoration:none">열기 →</a></td></tr>').join('');
 }
 async function loadClicks(){
   $('clkT').innerHTML='<tr><td class="l">불러오는 중…</td></tr>';

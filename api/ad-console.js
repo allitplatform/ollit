@@ -66,6 +66,14 @@ export default async function handler(req, res) {
   const tk = req.query.token || "";
   if (tk !== TOKEN && tk !== TOKEN_FULL && tk !== WRITE_TOKEN) { res.status(404).end(); return; }
   try {
+    // 보고서 목록
+    if (req.query.reports) {
+      const r = await fetch(`${SB_URL}/rest/v1/ad_daily_report?select=slug,d,created_at&order=created_at.desc&limit=60`, {
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+      res.status(200).json({ ok: true, list: r.ok ? await r.json() : [] });
+      return;
+    }
+
     // 부정클릭 감시: 최근 클릭 로그 IP 집계
     if (req.query.clicks) {
       const rows = await sbGetLog();
