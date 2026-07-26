@@ -209,6 +209,36 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 임의 후보 검색량 심사 (?step=volprobe&kws=a,b,... 최대 50) — 저장도 함께
+    if (step === "volprobe") {
+      const SBu = process.env.VITE_SUPABASE_URL, SBk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const kws = String(req.query.kws || "").split(",").map(s => s.trim()).filter(Boolean).slice(0, 50);
+      const qc = v => { if (typeof v === "number") return v;
+        const t = String(v || "").replace(/[^0-9]/g, ""); return t ? Number(t) : 5; };
+      const out = [];
+      for (let i = 0; i < kws.length; i += 5) {
+        const pack = kws.slice(i, i + 5);
+        try {
+          const r = await call("GET", "/keywordstool",
+            "hintKeywords=" + encodeURIComponent(pack.join(",")) + "&showDetail=1");
+          const map = new Map(((r.data && r.data.keywordList) || [])
+            .map(k => [String(k.relKeyword).replace(/\s+/g, "").toUpperCase(),
+                       qc(k.monthlyPcQcCnt) + qc(k.monthlyMobileQcCnt)]));
+          for (const kw of pack) out.push({ kw, vol: map.get(kw.toUpperCase()) ?? null });
+        } catch (e) { for (const kw of pack) out.push({ kw, vol: null }); }
+      }
+      const withVol = out.filter(o => o.vol != null);
+      if (withVol.length && SBu && SBk) {
+        await fetch(`${SBu}/rest/v1/ad_kw_volume?on_conflict=kw`, { method: "POST",
+          headers: { apikey: SBk, Authorization: `Bearer ${SBk}`,
+            "Content-Type": "application/json",
+            Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(withVol.map(o => ({ kw: o.kw, vol_total: o.vol }))) });
+      }
+      res.status(200).json({ ok: true, probed: out.length, rows: out });
+      return;
+    }
+
     // 경보: 자동맞춤이 75분 넘게 안 돌았으면 사장님 폰으로 문자
     if (step === "health") {
       const SB_URL2 = process.env.VITE_SUPABASE_URL, SB_KEY2 = process.env.SUPABASE_SERVICE_ROLE_KEY;

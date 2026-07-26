@@ -12,7 +12,26 @@ import { loadRegions } from "../data/regions.js";
 import { isRefrigerant, getServiceKind } from "./workTypeKind.js";
 // 2026-07-14 — 지역명 표기 흔들림 흡수 ("남양주시"↔"남양주")
 import { normalizeZoneName, zoneCoversRegion } from "../data/engineers.js";
+// 2026-07-26 — 동 단위 주소 → 구/시 승격 (사장님 spec: "세부 동으로 들어오면
+//   지도 쳐서 구 찾아 다시 검색하는 게 불편"). 지역별 접수 현황과 같은 파서 재사용
+//   (동 사전 + 공백 없는 주소 + 세분구 처리 전부 포함).
+import { parseRegion } from "./regionParser.js";
 import { supabase } from "../lib/supabase.js";
+
+// task 의 지역 후보 목록 — [원래 region, 파서가 뽑은 구/시].
+//   주소 전체를 파서에 넣는 게 정확 (region 은 주소 첫 단어라 동일 수 있음).
+//   주소가 없으면 region 문자열 자체를 파싱 ("죽전동" → 용인시).
+export function resolveRegionCandidates(region, address) {
+  const out = [];
+  const r = String(region || "").trim();
+  if (r) out.push(r);
+  const src = String(address || "").trim() || r;
+  if (src) {
+    const p = parseRegion(src);
+    if (p && p.sigungu && !out.includes(p.sigungu)) out.push(p.sigungu);
+  }
+  return out;
+}
 
 const RECOMMEND_THRESHOLD = 50; // isRecommended 기준
 
@@ -46,7 +65,9 @@ function matchSkill(engineer, task) {
   // 2026-07-20 — DB skills workType은 "세척"/"냉매충전" 둘뿐인데 task.workType은
   //   "냉매점검(가정용)" 같은 변형이 있어 exact 매칭이 빠지던 것 — canonical 폴백 추가.
   const wtCanonical = serviceKindToRecKey(getServiceKind(task)) === "refrigerant" ? "냉매충전" : "세척";
-  const r  = task?.region ? String(task.region).trim() : "";
+  // 2026-07-26 — 동 단위 지역 승격: region + 주소 파싱 구/시 를 함께 대조.
+  const rCands = resolveRegionCandidates(task?.region, task?.fullAddress || task?.address);
+  const r  = rCands.length > 0 ? rCands[0] : "";
   const tPid   = task?.principalId ? String(task.principalId).trim() : "";
   const tPname = task?.principal   ? String(task.principal).trim()   : "";
 
@@ -74,8 +95,8 @@ function matchSkill(engineer, task) {
         || zones.includes("전국")
         || zones.includes("(전국)");
       // 2026-07-14 — 표기 흔들림 흡수: "남양주시"↔"남양주" 등 (normalizeZoneName)
-      const regionMatch = !r || isAllRegion
-        || zones.some(z => zoneCoversRegion(z, r));   // 2026-07-20 — 시↔구 커버 포함
+      const regionMatch = rCands.length === 0 || isAllRegion
+        || zones.some(z => rCands.some(c => zoneCoversRegion(z, c)));   // 2026-07-26 — 동→구 승격 포함
       if (!regionMatch) continue;
       return { matched: true, grade: String(s.grade || "").trim(), skill: s };
     }
@@ -260,11 +281,12 @@ export const RECOMMEND_INFO = {
 //   · 지역: zones 비면 전국 통과 / zones 있으면 task.region in zones (또는 zones에 "전국")
 //   · 점수/threshold/top-N/capable 제거. 메인 먼저, 그 다음 백업. 전원.
 // 응답: { ok, main, sub, capable: [] } — capable 호환용 빈 배열 (호출처 변경 X).
-export async function recommendEngineersGroupedAdapter(workType, principal, region) {
+export async function recommendEngineersGroupedAdapter(workType, principal, region, address) {
   const list = await recommendEngineersFromDb({
     workType:  workType  || "",
     principal: principal || "",
     region:    region    || "",
+    address:   address   || "",   // 2026-07-26 — 동→구 승격용 (없으면 region 만으로 파싱)
   });
   // 2026-07-15 — '지역 메인/백업' = 작업지 구를 명시 등록한 기사만.
   //   전국·지역 미설정 기사는 capable(전지역 가능) 그룹으로 분리 — 사장님 spec:
@@ -298,6 +320,8 @@ function _pickServiceCode(task) {
 
 export async function recommendEngineersFromDb(task) {
   const region  = String(task?.region || "").trim();
+  // 2026-07-26 — 동 단위 승격: "죽전동" 접수 → ["죽전동","용인시"] 로 zones 대조.
+  const rCands  = resolveRegionCandidates(task?.region, task?.address);
   const svcCode = _pickServiceCode(task);
 
   // [1] epp + users JOIN (활성 기사 + 해당 serviceCode 메인/백업)
@@ -360,13 +384,13 @@ export async function recommendEngineersFromDb(task) {
   for (const c of candidates) {
     const zones = zonesByUser.get(c.userId) || [];
     const isAll = zones.length === 0 || zones.includes("전국");
-    if (isAll || !region) {
+    if (isAll || rCands.length === 0) {
       filtered.push({ ...c, regionHit: "all", zones });
       continue;
     }
     // 2026-07-20 — matchedZone 부착: RecommendCard 지역 줄이 비어 나오던 것
     //   (DB 후보에 cleanZones/matchedZone 없음 → infoText "") 표시 복구.
-    const hit = zones.find(z => zoneCoversRegion(z, region));   // 2026-07-20 — 시↔구 커버 포함
+    const hit = zones.find(z => rCands.some(c2 => zoneCoversRegion(z, c2)));   // 2026-07-26 — 동→구 승격 포함
     if (hit) {
       filtered.push({ ...c, regionHit: "zone", matchedZone: hit, zones });
     }

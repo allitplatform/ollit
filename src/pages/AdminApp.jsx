@@ -8934,7 +8934,7 @@ function AutoAssignScreen({ t, task, apiEngineers = [], apiTasks = [], onBack, o
     console.log('[Phase 3-10 AutoAssign] recommendEngineers', { workType: mainWorkType, principal, region });
     (async () => {
       try {
-        const res = await recommendEngineersGroupedAdapter(mainWorkType, principal, region);
+        const res = await recommendEngineersGroupedAdapter(mainWorkType, principal, region, task.fullAddress || task.address || "");
         console.log('[V14 AutoAssign] 응답:', res);
         if (cancelled) return;
         if (!res || res.ok === false) {
@@ -9367,7 +9367,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
         const region = task.region || "";
         const principal = task.principal || "";
         console.log('[Phase 3-10 추천] recommendEngineers', { workType: mainWorkType, principal, region });
-        const res = await recommendEngineersGroupedAdapter(mainWorkType, principal, region);
+        const res = await recommendEngineersGroupedAdapter(mainWorkType, principal, region, task.fullAddress || task.address || "");
         console.log('[V14 2B-3] 응답:', res);
         if (cancelled) return;
         if (!res || res.ok === false) {
