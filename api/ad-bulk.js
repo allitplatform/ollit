@@ -24,7 +24,7 @@ const SEEDS = [
 ];
 
 // 분류 — MarketingScreen 과 동일 + 자동차/셀프 제외 강화
-const KW_EXCL = /(자동차|차량|버스|트럭|화물|캠핑|셀프|추천|구입|구매|렌탈|렌털|중고|판매|매장|가격비교|신제품|얼마|스탠드형|리모컨|사용법|전기세|평수|보관|이사)/;
+const KW_EXCL = /(자동차|차량|버스|트럭|화물|캠핑|셀프|추천|구입|구매|렌탈|렌털|중고|판매|매장|가격비교|신제품|얼마|스탠드형|리모컨|사용법|전기세|평수|보관|이사|커버|받침|거치대|호스$)/;
 const KW_ASC  = /(서비스센터|as센터|무상|보증|as$|as[^a-z0-9가-힣]|삼성전자|엘지전자|에어컨as)/i;
 const KW_WORK = /(충전|냉매|가스|청소|세척|수리|고장|안시원|시원하지|안나와|안나옴|안됨|물떨어|누수|냄새|곰팡이|점검|실외기|필터|얼음|결빙|에러|안돌아|약해|냉방|배수|드레인|살균|분해)/;
 
@@ -122,6 +122,7 @@ export default async function handler(req, res) {
       const r = await call("POST", "/ncc/adgroups", null, {
         nccCampaignId: CAMPAIGN_ID,
         name: NEW_GROUP_NAME,
+        adgroupType: main.adgroupType || "WEB_SITE",
         pcChannelId: main.pcChannelId,
         mobileChannelId: main.mobileChannelId,
         bidAmt: BID, useDailyBudget: false,
