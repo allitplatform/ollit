@@ -44,6 +44,7 @@
   <div id="pulse" style="margin:8px 0;font-size:12.5px;font-weight:700;color:var(--mut)"></div>
   <div class="cards" id="cards"></div>
   <div class="cards" id="grpcards" style="gap:8px"></div>
+  <div id="issues" style="margin:6px 0 12px"></div>
   <div class="bar">
     <input id="q" placeholder="🔍 키워드 검색 — 일산, 논현동, 청소…">
     <span class="chip on" data-f="all">전체</span>
@@ -51,12 +52,15 @@
     <span class="chip" data-f="lose">1위 뺏긴 것</span>
     <span class="chip" data-f="off">꺼진 것 보기</span>
     <button class="rf" onclick="load()">↻ 새로고침</button>
+    <button class="rf" id="mgBtn" style="background:#334155" onclick="toggleManage()">🔧 관리 모드</button>
   </div>
   <div class="bar" id="grpChips"></div>
   <table><thead><tr>
     <th data-s="kw">키워드</th><th data-s="grp">그룹</th>
+    <th data-s="vol">월 검색량</th>
     <th data-s="bid">내 입찰가</th><th data-s="top1">1위 가격</th><th data-s="gap">판정</th>
     <th data-s="imp">오늘 노출</th><th data-s="clk">클릭</th><th data-s="cost">비용</th><th data-s="rnk">순위</th>
+    <th id="mgCol" style="display:none">관리</th>
   </tr></thead><tbody id="tb"></tbody></table>
   <div class="more" id="more" style="display:none">더 보기</div>
   <div class="err" id="err"></div>
@@ -133,7 +137,7 @@ function render(){
   const gAgg={};
   DATA.filter(d=>d.on).forEach(d=>{const g=gAgg[d.grp]=gAgg[d.grp]||{imp:0,clk:0,cost:0,win:0,n:0};
     g.imp+=d.imp;g.clk+=d.clk;g.cost+=d.cost;g.n++;if(d.top1!=null&&d.bid>=d.top1)g.win++;});
-  $('grpcards').innerHTML=Object.entries(gAgg).sort((a,b)=>b[1].cost-a[1].cost).slice(0,8)
+  $('grpcards').innerHTML=Object.entries(gAgg).sort((a,b)=>b[1].cost-a[1].cost)
     .map(([g,v])=>'<div class="card" style="min-width:104px;padding:8px 12px;cursor:pointer" onclick="gsel=\''+g+'\';buildGrpChips();render()">'
       +'<div class="l">'+g+'</div><div style="font-size:13px;font-weight:900">'+v.cost.toLocaleString()+'원</div>'
       +'<div class="l">클릭 '+v.clk+' · 1위 '+v.win+'/'+v.n+'</div></div>').join('');
@@ -144,10 +148,45 @@ function render(){
     else if(d.top1!=null)j=d.bid>=d.top1
       ?(d.rnk?'<span class="a">입찰OK·실측 '+Number(d.rnk).toFixed(1)+'위</span>':'<span class="win">1위권</span>')
       :'<span class="lose">밀림 '+fm(d.top1-d.bid)+'</span>';
-    return '<tr style="cursor:pointer" onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')"><td>'+d.kw+'</td><td>'+d.grp+'</td><td>'+fm(d.bid)+'</td><td>'+fm(d.top1)+'</td><td>'+j
+    const mg=MANAGE?'<td onclick="event.stopPropagation()" style="white-space:nowrap">'
+      +'<input value="'+d.bid+'" style="width:64px;background:#0E1730;border:1px solid var(--line);color:var(--tx);border-radius:6px;padding:3px 6px;font-size:12px" id="bi_'+i+'">'
+      +'<button style="margin-left:4px;padding:3px 8px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:800;cursor:pointer" onclick="setBid('+i+',\''+d.id+'\',\''+d.gid+'\')">저장</button>'
+      +'<button style="margin-left:4px;padding:3px 8px;border-radius:6px;border:none;background:'+(d.on?'#DC2626':'#16A34A')+';color:#fff;font-size:11px;font-weight:800;cursor:pointer" onclick="setOnOff(\''+d.id+'\',\''+d.gid+'\','+(d.on?0:1)+')">'+(d.on?'끄기':'켜기')+'</button></td>':'';
+    return '<tr style="cursor:pointer" onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')"><td>'+d.kw+'</td><td>'+d.grp+'</td>'
+      +'<td class="'+(d.vol>=10000?'a':'')+'">'+(d.vol!=null?fm(d.vol):'—')+'</td>'
+      +'<td>'+fm(d.bid)+'</td><td>'+fm(d.top1)+'</td><td>'+j
       +'</td><td>'+fm(d.imp)+'</td><td>'+fm(d.clk)+'</td><td>'+(d.cost?fm(d.cost)+'원':'—')
-      +'</td><td>'+(d.rnk?Number(d.rnk).toFixed(1):'—')+'</td></tr>';}).join('');
+      +'</td><td>'+(d.rnk?Number(d.rnk).toFixed(1):'—')+'</td>'+mg+'</tr>';}).join('');
+  // 문제함: 핵심그룹 순위 밀림 / 검색량 큰데 노출 0
+  const CORE=new Set(['메인키워드','확장_수리누설']);
+  const p1=DATA.filter(d=>d.on&&CORE.has(d.grp)&&d.rnk&&d.rnk>2.5).slice(0,5)
+    .map(d=>'⚠️ <b>'+d.kw+'</b> 실측 '+Number(d.rnk).toFixed(1)+'위 — 핵심 단어가 밀리는 중');
+  const p2=DATA.filter(d=>d.on&&(d.vol||0)>=5000&&d.imp===0).slice(0,5)
+    .map(d=>'🕳️ <b>'+d.kw+'</b> 월 '+fm(d.vol)+'번 검색되는데 오늘 노출 0 — 소재 심사·품질 확인 필요');
+  const ps=[...p1,...p2];
+  $('issues').innerHTML=ps.length
+    ?'<div style="background:#7f1d1d22;border:1px solid #DC2626;border-radius:12px;padding:10px 14px;font-size:12.5px;line-height:1.9"><b style="color:#F87171">📋 오늘의 문제함 ('+ps.length+')</b><br>'+ps.join('<br>')+'</div>'
+    :'<div style="background:#14532d22;border:1px solid #16A34A;border-radius:12px;padding:8px 14px;font-size:12.5px;color:var(--green);font-weight:800">✅ 문제함 비어 있음 — 핵심 단어 전부 정상</div>';
   $('more').style.display=f.length>shown?'block':'none';
+}
+let MANAGE=false,MTOK=localStorage.getItem('adconsole_mtok')||'';
+function toggleManage(){
+  if(!MANAGE){ if(!MTOK){MTOK=prompt('관리 비밀번호 (쓰기 권한)')||'';if(!MTOK)return;localStorage.setItem('adconsole_mtok',MTOK);} MANAGE=true; }
+  else MANAGE=false;
+  document.getElementById('mgCol').style.display=MANAGE?'':'none';
+  document.getElementById('mgBtn').style.background=MANAGE?'#DC2626':'#334155';
+  render();
+}
+async function setBid(i,id,gid){
+  const bid=Number(document.getElementById('bi_'+i).value);
+  const j=await fetch('/api/ad-manage?token='+encodeURIComponent(MTOK)+'&step=setbid&id='+id+'&gid='+gid+'&bid='+bid,{cache:'no-store'}).then(r=>r.status===404?{ok:false,error:'비밀번호 틀림'}:r.json());
+  alert(j.ok?'변경됨: '+bid.toLocaleString()+'원':'실패: '+(j.error||JSON.stringify(j.err)));
+  if(j.ok)load();
+}
+async function setOnOff(id,gid,on){
+  const j=await fetch('/api/ad-manage?token='+encodeURIComponent(MTOK)+'&step=onoff&id='+id+'&gid='+gid+'&on='+on,{cache:'no-store'}).then(r=>r.status===404?{ok:false,error:'비밀번호 틀림'}:r.json());
+  alert(j.ok?(on?'켜짐':'꺼짐'):'실패: '+(j.error||JSON.stringify(j.err)));
+  if(j.ok)load();
 }
 async function showHist(kw){
   $('histPanel').style.display='block';

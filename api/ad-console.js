@@ -60,7 +60,7 @@ export default async function handler(req, res) {
       const list = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(g.nccAdgroupId));
       for (const k of (Array.isArray(list) ? list : [])) {
         if ((k.bidAmt || 0) > 70) {
-          rows.push({ id: k.nccKeywordId, kw: k.keyword, grp: g.name,
+          rows.push({ id: k.nccKeywordId, kw: k.keyword, grp: g.name, gid: g.nccAdgroupId,
             bid: k.bidAmt, on: !k.userLock, st: k.status });
         }
       }
@@ -101,6 +101,17 @@ export default async function handler(req, res) {
       r2.rnk = s.avgRnk || null;
       r2.top1 = estMap.get(norm(r2.kw)) ?? null;
     }
+    // 월 검색량 조인
+    try {
+      const vr = await fetch(`${SB_URL}/rest/v1/ad_kw_volume?select=kw,vol_total,vol_mobile`, {
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, Range: "0-2000" } });
+      if (vr.ok) {
+        const vols = await vr.json();
+        const vmap = new Map(vols.map(v => [norm(v.kw), v.vol_total]));
+        for (const r2 of rows) r2.vol = vmap.get(norm(r2.kw)) ?? null;
+      }
+    } catch (e) {}
+
     // 자동맞춤 최근 실행 (생존 신호)
     let lastRun = null;
     try {

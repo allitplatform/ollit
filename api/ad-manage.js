@@ -129,6 +129,27 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 개별 입찰가 수정
+    if (step === "setbid") {
+      const { id, gid } = req.query; const bid = Number(req.query.bid);
+      if (!id || !gid || !bid || bid < 70 || bid > 100000) {
+        res.status(200).json({ ok: false, error: "id/gid/bid(70~100000) 필요" }); return; }
+      const r = await call("PUT", "/ncc/keywords", "fields=bidAmt",
+        [{ nccKeywordId: id, nccAdgroupId: gid, bidAmt: bid, useGroupBidAmt: false }]);
+      res.status(200).json({ ok: r.ok, err: r.ok ? null : r.data });
+      return;
+    }
+
+    // 키워드 켜기/끄기
+    if (step === "onoff") {
+      const { id, gid } = req.query; const on = req.query.on === "1";
+      if (!id || !gid) { res.status(200).json({ ok: false, error: "id/gid 필요" }); return; }
+      const r = await call("PUT", "/ncc/keywords", "fields=userLock",
+        [{ nccKeywordId: id, nccAdgroupId: gid, userLock: !on }]);
+      res.status(200).json({ ok: r.ok, err: r.ok ? null : r.data });
+      return;
+    }
+
     // 검색량 수집: 그룹의 살아있는 단어를 keywordstool로 조회해 Supabase에 저장
     // ?step=volsync&gid=...&offset=0&limit=50 → { done, next }
     if (step === "volsync") {
