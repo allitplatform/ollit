@@ -47,6 +47,7 @@
     <span class="chip on" data-f="all">전체</span>
     <span class="chip" data-f="spend">오늘 돈 쓴 것</span>
     <span class="chip" data-f="lose">1위 뺏긴 것</span>
+    <span class="chip" data-f="off">꺼진 것 보기</span>
     <button class="rf" onclick="load()">↻ 새로고침</button>
   </div>
   <div class="bar" id="grpChips"></div>
@@ -95,6 +96,7 @@ $('more').onclick=()=>{shown+=300;render();};
 function fm(n){return n==null?'—':Number(n).toLocaleString();}
 function render(){
   let f=DATA;
+  if(fsel==='off')f=f.filter(d=>!d.on);else f=f.filter(d=>d.on);
   if(gsel)f=f.filter(d=>d.grp===gsel);
   if(fsel==='spend')f=f.filter(d=>d.cost>0);
   if(fsel==='lose')f=f.filter(d=>d.top1!=null&&d.bid<d.top1);
@@ -113,7 +115,8 @@ function render(){
    +'<div class="card"><div class="l">1위 확보</div><div class="v g">'+winning.toLocaleString()+'개</div></div>';
   $('tb').innerHTML=f.slice(0,shown).map(d=>{
     let j='<span class="m">—</span>';
-    if(d.top1!=null)j=d.bid>=d.top1?'<span class="win">1위</span>':'<span class="lose">밀림 '+fm(d.top1-d.bid)+'</span>';
+    if(!d.on)j='<span class="m">꺼짐</span>';
+    else if(d.top1!=null)j=d.bid>=d.top1?'<span class="win">1위</span>':'<span class="lose">밀림 '+fm(d.top1-d.bid)+'</span>';
     return '<tr><td>'+d.kw+'</td><td>'+d.grp+'</td><td>'+fm(d.bid)+'</td><td>'+fm(d.top1)+'</td><td>'+j
       +'</td><td>'+fm(d.imp)+'</td><td>'+fm(d.clk)+'</td><td>'+(d.cost?fm(d.cost)+'원':'—')
       +'</td><td>'+(d.rnk?Number(d.rnk).toFixed(1):'—')+'</td></tr>';}).join('');

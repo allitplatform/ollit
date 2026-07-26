@@ -20,13 +20,23 @@ const TOKEN = "b29adde027905ee35c810634f09bda48a697f973fbdb8ca8";
 const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 // 확장_증상청소 는 제외 — 검색량 큰 청소 단어를 1위에 걸면 예산이 며칠에 다 나간다.
 // 청소 그룹은 2,000원 고정으로 일주일 데이터 먼저.
-const TARGET_GROUPS = new Set([
-  "중간키워드", "중간키워드2", "고양시", "고양시2", "파주시",
-  "김포시", "남양주시", "서울",   // "서울" = 구 단위 그룹 (은평구·강북구 등)
-]);
-const CAP = 15000;      // 상한(사장님 지정) — 1위가 이보다 비싸면 포기하고 2위
+// 사장님 전략(7/26): "비싼 키워드는 2~3위, 노출 많은 건 무조건 1위"
+//  → 지역 그룹: 1위 추격, 상한 15,000 (상한 초과 시 자연스럽게 2~3위)
+//  → 메인키워드: 1위 추격, 상한 20,000, 단 **내리지는 않음** (견적이 실제보다 낮게
+//    나오는 단어가 있어서 — 에어컨가스충전 견적 9,690인데 실순위 2.1 — 믿고 내리면 뺏긴다)
+const GROUP_POLICY = {
+  "중간키워드":   { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "중간키워드2":  { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "고양시":       { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "고양시2":      { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "파주시":       { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "김포시":       { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "서울":         { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "메인키워드":   { cap: 20000, margin: 1.15, lowerOk: false },
+};
+const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 const FLOOR = 1000;     // 바닥 — 견적이 이상하게 낮아도 이 밑으론 안 내림
-const MARGIN = 1.1;     // 1위가 대비 10% 여유
 
 export const maxDuration = 60;
 
@@ -110,9 +120,11 @@ export default async function handler(req, res) {
     for (const k of kws) {
       const est = estMap.get(norm(k.kw));
       if (!est) { noEst++; continue; }
-      let bid = Math.round(est * MARGIN / 10) * 10;
-      if (bid > CAP) { bid = CAP; capped++; }
+      const pol = GROUP_POLICY[k.grp] || { cap: 15000, margin: 1.1, lowerOk: true };
+      let bid = Math.round(est * pol.margin / 10) * 10;
+      if (bid > pol.cap) { bid = pol.cap; capped++; }
       if (bid < FLOOR) bid = FLOOR;
+      if (!pol.lowerOk && bid < k.cur) continue;  // 메인키워드: 올리기만, 내리진 않음
       if (Math.abs(bid - k.cur) / k.cur >= 0.1) {
         changes.push({ id: k.id, gid: k.gid, kw: k.kw, grp: k.grp,
                        from: k.cur, to: bid, est1: est });
