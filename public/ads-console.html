@@ -94,7 +94,7 @@
       <th class="l" data-s="kw">키워드</th><th class="l" data-s="grp">그룹</th>
       <th data-s="vol">월 검색량</th><th data-s="rnk">지금 순위</th>
       <th data-s="bid">내 입찰가</th><th data-s="top1">1위 가격</th>
-      <th data-s="imp">노출</th><th data-s="clk">클릭</th><th data-s="cost">오늘 쓴 돈</th>
+      <th data-s="imp">노출</th><th data-s="clk">클릭</th><th data-s="cpc">클릭당 낸 돈</th><th data-s="cost">오늘 쓴 돈</th>
       <th id="mgCol" style="display:none">관리</th>
     </tr></thead><tbody id="tb"></tbody>
   </table></div>
@@ -140,7 +140,7 @@ async function load(){
     if(r.status===404){localStorage.removeItem('adconsole_tok');TOK='';boot();return;}
     const j=await r.json();
     if(!j.ok){$('err').textContent='오류: '+j.error;return;}
-    DATA=j.rows; window.TODAYJOBS=j.todayJobs;
+    DATA=j.rows.map(d=>({...d,cpc:d.clk>0?Math.round(d.cost/d.clk):null})); window.TODAYJOBS=j.todayJobs;
     $('at').textContent=j.today+' 기준 · '+new Date(j.at).toLocaleTimeString('ko-KR')+' 갱신 · '+j.count+'개';
     if(j.lastRun){const m=Math.round((Date.now()-new Date(j.lastRun.at))/60000);
       $('pulse').innerHTML='🟢 <b style="color:var(--green)">1위 자동맞춤 살아있음</b> — '+(m<1?'방금':m+'분 전')+' 실행 · 감시 '+j.lastRun.watched+'개 · 변경 '+j.lastRun.changed+'개 · 비싸서 2위 선택 '+j.lastRun.capped+'개';
@@ -246,6 +246,7 @@ function render(){
       +'<td>'+rankBdg(d)+'</td>'
       +'<td>'+fm(d.bid)+'</td><td class="sub">'+fm(d.top1)+'</td>'
       +'<td>'+fm(d.imp)+'</td><td>'+(d.clk||'')+'</td>'
+      +'<td>'+(d.cpc?'<b>'+fm(d.cpc)+'원</b>'+(d.cpc<d.bid?' <span class="sub" style="color:#1C7F4B">입찰가보다 싸게</span>':''):'—')+'</td>'
       +'<td>'+(d.cost?bar(d.cost,cMax,fm(d.cost)+'원'):'')+'</td>'+mg+'</tr>';}).join('');
   $('more').style.display=f.length>shown?'block':'none';
   $('more').textContent='더 보기 ('+(f.length-Math.min(shown,f.length))+'개 남음)';
