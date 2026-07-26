@@ -36,6 +36,19 @@
     <meta property="og:type" content="website" />
 
     <title>올잇 - 현장과 사람을 잇는</title>
+    <!-- 2026-07-26 부정클릭 감시 1단계: 랜딩(올데이케어.kr / /landing) 방문만 서버에 기록 -->
+    <script>
+      (function () {
+        try {
+          var h = location.hostname, p = location.pathname;
+          var isLanding = h.indexOf("xn--") === 0 || h.indexOf("올데이케어") >= 0 || p.indexOf("/landing") === 0;
+          if (!isLanding) return;
+          var u = "/api/click-log?qs=" + encodeURIComponent(location.search.slice(1, 400))
+                + "&ref=" + encodeURIComponent((document.referrer || "").slice(0, 200));
+          navigator.sendBeacon ? navigator.sendBeacon(u) : fetch(u, { method: "GET", keepalive: true });
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

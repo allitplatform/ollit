@@ -51,7 +51,14 @@
 </div>
 
 <div id="app" style="display:none">
-  <h1>광고 관제판</h1><span class="at" id="at"></span>
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;margin:-40px -28px 22px;background:#0F172A;color:#fff">
+    <div style="font-weight:800;font-size:15px;letter-spacing:-0.01em">⚡ OLLIT <span style="color:#94A3B8;font-weight:600">광고 관제</span></div>
+    <div style="display:flex;gap:14px;align-items:center;font-size:12px;color:#94A3B8">
+      <span id="navPulse"></span>
+      <button class="rf" style="padding:6px 12px" onclick="load()">↻ 새로고침</button>
+    </div>
+  </div>
+  <h1 style="display:none">광고 관제판</h1><span class="at" id="at"></span>
   <div id="pulse" style="margin:6px 0;font-size:12.5px;font-weight:700;color:var(--mut)"></div>
   <div id="oneline" class="box"></div>
   <div id="issues" class="box" style="display:none"></div>
@@ -124,6 +131,7 @@ async function load(){
     if(j.lastRun){const m=Math.round((Date.now()-new Date(j.lastRun.at))/60000);
       $('pulse').innerHTML='🟢 <b style="color:var(--green)">1위 자동맞춤 살아있음</b> — '+(m<1?'방금':m+'분 전')+' 실행 · 감시 '+j.lastRun.watched+'개 · 변경 '+j.lastRun.changed+'개 · 비싸서 2위 선택 '+j.lastRun.capped+'개';
     }else $('pulse').innerHTML='⏳ 자동맞춤 다음 실행: 매시간 7분';
+    $('navPulse').textContent=(j.lastRun?'🟢 자동 가동중':'⏳ 대기')+' · '+j.today;
     const gs=[...new Set(DATA.map(d=>d.grp))];
     $('gsel').innerHTML='<option value="">모든 그룹</option>'+gs.map(g=>'<option>'+g+'</option>').join('');
     render();
