@@ -55,18 +55,19 @@
    #sideNav{padding-top:calc(14px + env(safe-area-inset-top))!important;position:sticky!important;top:0;z-index:20}
    #sideNav{width:100%!important;height:auto!important;display:flex;align-items:center;gap:2px;padding:10px 12px!important;overflow-x:auto}
 
-   #sideNav{flex-wrap:nowrap;padding:8px 10px!important}
-   #sideNav>div{flex-shrink:0}
-   #sideNav>div[style*="border-top"]{border:none!important;margin:0 0 0 auto!important;padding:0!important;display:flex;gap:2px;align-items:center}
-   #sideNav .nav{padding:8px 10px;font-size:15px;line-height:1;white-space:nowrap;border-radius:10px;display:flex;align-items:center}
-   #sideNav .nav .nl{display:none;font-size:12.5px;font-weight:800;vertical-align:middle}
-   #sideNav .nav.on .nl{display:inline}
-   #sideNav>div:first-child .nl{display:none}
-   #sideNav img{width:24px!important;height:24px!important}
-   #sideNav>div:first-child{margin:0 4px 0 0!important;display:flex;align-items:center}
-   #sideNav>div:first-child div div:last-child{display:none}
-   #sideNav>div:first-child div div:first-child{font-size:13px}
+   /* 하단 고정 탭바 (앱 스타일) */
+   #sideNav{position:fixed!important;top:auto!important;bottom:0;left:0;right:0;width:100%!important;height:auto!important;
+     display:flex;justify-content:space-around;align-items:center;gap:0;
+     padding:8px 6px calc(8px + env(safe-area-inset-bottom))!important;
+     background:#0F172A;z-index:50;border-top:1px solid #1E293B;box-sizing:border-box}
+   #sideNav>div:first-child{display:none!important}  /* 로고는 하단바에서 숨김 */
+   #sideNav>div[style*="border-top"]{border:none!important;margin:0!important;padding:0!important;display:contents}
+   #sideNav .nav{display:flex;flex-direction:column;align-items:center;gap:3px;
+     padding:4px 12px;font-size:19px;line-height:1;border-radius:10px;margin:0}
+   #sideNav .nav .nl{display:block;font-size:10px;font-weight:700;letter-spacing:0}
+   #sideNav .nav.on{background:transparent;color:#60A5FA}
    #navPulse{display:none}
+   #mainArea{padding-bottom:110px!important}
    #mainArea{padding:14px 12px!important}
    #oneline>div:first-child{flex-wrap:wrap}
    #oneline>div:first-child>div[style*="width:1px"]{display:none}
@@ -95,7 +96,7 @@
     </div>
     <div class="nav on" data-tab="t1"><span class="ni">📊</span><span class="nl"> 오늘 성적</span></div>
     <div class="nav" data-tab="t2"><span class="ni">🔤</span><span class="nl"> 키워드</span></div>
-    <div class="nav" data-tab="t3"><span class="ni">🛡</span><span class="nl"> 부정클릭 감시</span></div>
+    <div class="nav" data-tab="t3"><span class="ni">🛡</span><span class="nl"> 부정클릭</span></div>
     <div style="margin-top:22px;border-top:1px solid #1E293B;padding-top:14px">
       <div class="nav" onclick="load()"><span class="ni">↻</span><span class="nl"> 새로고침</span></div>
       <div class="nav" onclick="toggleManage()" id="mgNav"><span class="ni">🔧</span><span class="nl"> 관리 모드</span></div>
