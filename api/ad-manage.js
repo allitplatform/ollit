@@ -94,6 +94,33 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 확장소재 원본 조회 (구조 파악용)
+    if (step === "extlist") {
+      const r = await call("GET", "/ncc/ad-extensions", "ownerId=" + encodeURIComponent(req.query.owner));
+      res.status(200).json({ ok: r.ok, count: Array.isArray(r.data) ? r.data.length : 0, raw: r.data });
+      return;
+    }
+
+    // 확장소재 복제: from(그룹)의 소재를 to(캠페인/그룹)로 — types 쉼표 목록으로 제한 가능
+    if (step === "extcopy") {
+      const { from, to } = req.query;
+      const types = String(req.query.types || "").split(",").map(s => s.trim()).filter(Boolean);
+      const src = await call("GET", "/ncc/ad-extensions", "ownerId=" + encodeURIComponent(from));
+      const list = Array.isArray(src.data) ? src.data : [];
+      const out = [];
+      for (const e of list) {
+        if (types.length && !types.includes(e.type)) continue;
+        const body = JSON.parse(JSON.stringify(e));
+        for (const k of ["nccAdExtensionId", "ownerId", "customerId", "regTm", "editTm",
+                         "status", "statusReason", "inspectStatus", "delFlag"]) delete body[k];
+        body.ownerId = to;
+        const r = await call("POST", "/ncc/ad-extensions", null, body);
+        out.push({ type: e.type, ok: r.ok, err: r.ok ? null : ((r.data && (r.data.title || r.data.code)) || r.status) });
+      }
+      res.status(200).json({ ok: true, tried: out.length, result: out });
+      return;
+    }
+
     if (step === "list") {
       const r = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(req.query.gid));
       const rows = Array.isArray(r.data) ? r.data : [];
