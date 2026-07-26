@@ -30,7 +30,8 @@ async function fetchSerp(kw) {
 // 광고 아이템 경계 후보를 여러 개 시도해 가장 그럴듯한 걸 쓴다.
 function parseRank(html) {
   const out = { blocked: false, adsTotal: null, rank: null, markerUsed: null };
-  if (html.includes("captcha") || html.includes("자동입력 방지") || html.length < 5000) {
+  // 진짜 차단 페이지만: 본문이 극단적으로 짧거나 방지문자 안내가 뜬 경우
+  if (html.length < 20000 || html.includes("자동입력 방지문자") || html.includes("비정상적인 접근")) {
     out.blocked = true; return out;
   }
   const start = html.search(/파워링크|power_link|splink/i);
