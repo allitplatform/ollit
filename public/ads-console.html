@@ -47,13 +47,18 @@
    body{padding:12px 10px 60px}
    #shell{flex-direction:column;margin:-12px -10px 0}
    #sideNav{width:100%!important;height:auto!important;position:static!important;display:flex;align-items:center;gap:2px;padding:10px 12px!important;overflow-x:auto}
-   #sideNav>div{margin:0!important}
-   #sideNav .nav{padding:9px 11px;font-size:16px;white-space:nowrap;border-radius:10px}
+
+   #sideNav{flex-wrap:nowrap;padding:8px 10px!important}
+   #sideNav>div{flex-shrink:0}
+   #sideNav>div[style*="border-top"]{border:none!important;margin:0 0 0 auto!important;padding:0!important;display:flex;gap:2px;align-items:center}
+   #sideNav .nav{padding:8px 10px;font-size:15px;line-height:1;white-space:nowrap;border-radius:10px;display:flex;align-items:center}
    #sideNav .nav .nl{display:none;font-size:12.5px;font-weight:800;vertical-align:middle}
    #sideNav .nav.on .nl{display:inline}
    #sideNav>div:first-child .nl{display:none}
-   #sideNav img{width:26px!important;height:26px!important}
+   #sideNav img{width:24px!important;height:24px!important}
+   #sideNav>div:first-child{margin:0 4px 0 0!important;display:flex;align-items:center}
    #sideNav>div:first-child div div:last-child{display:none}
+   #sideNav>div:first-child div div:first-child{font-size:13px}
    #navPulse{display:none}
    #mainArea{padding:14px 12px!important}
    #oneline>div:first-child{flex-wrap:wrap}
