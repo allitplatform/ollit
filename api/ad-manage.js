@@ -159,8 +159,10 @@ export default async function handler(req, res) {
       const gid = req.query.gid;
       const offset = Number(req.query.offset || 0), limit = Number(req.query.limit || 50);
       const ks = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(gid));
+      const wantAll = req.query.all === "1";   // all=1 → 70원 잠자는 단어까지
       const alive = (Array.isArray(ks.data) ? ks.data : [])
-        .filter(k => (k.bidAmt || 0) > 70).map(k => String(k.keyword).replace(/\s+/g, ""));
+        .filter(k => wantAll ? (k.bidAmt || 0) <= 70 : (k.bidAmt || 0) > 70)
+        .map(k => String(k.keyword).replace(/\s+/g, ""));
       const part = alive.slice(offset, offset + limit);
       const qc = v => { if (typeof v === "number") return v;
         const t = String(v || "").replace(/[^0-9]/g, ""); return t ? Number(t) : 5; };
@@ -188,8 +190,10 @@ export default async function handler(req, res) {
           body: JSON.stringify(rows),
         });
       }
+      rows.sort((a, b) => b.vol_total - a.vol_total);
       res.status(200).json({ ok: true, groupAlive: alive.length,
         processed: part.length, saved: rows.length,
+        top: rows.slice(0, 12),
         next: offset + limit < alive.length ? offset + limit : null });
       return;
     }
