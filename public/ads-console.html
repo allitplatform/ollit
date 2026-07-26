@@ -34,6 +34,9 @@
  .chip{font-size:12px;font-weight:700;padding:6px 13px;border-radius:8px;border:1px solid #EBEAE8;background:#fff;cursor:pointer;color:#787774;transition:all .1s}
  .chip:hover{background:#F7F6F3}
  .chip.on{background:#191919;border-color:#191919;color:#fff}
+ .nav{padding:10px 12px;border-radius:8px;font-size:13.5px;font-weight:700;color:#94A3B8;cursor:pointer;margin:2px 0;transition:all .1s}
+ .nav:hover{background:#1E293B;color:#fff}
+ .nav.on{background:#2563EB;color:#fff}
  button.rf{font-size:12.5px;font-weight:700;padding:9px 15px;border-radius:9px;border:none;background:#2F80ED;color:#fff;cursor:pointer;transition:opacity .1s} button.rf:hover{opacity:.85}
  #issues{margin:10px 0;padding:12px 16px;font-size:13px;line-height:1.9}
  #login{max-width:380px;margin:80px auto;text-align:center}
@@ -51,19 +54,21 @@
 </div>
 
 <div id="app" style="display:none">
-  <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;margin:-40px -28px 22px;background:#0F172A;color:#fff">
-    <div style="font-weight:800;font-size:15px;letter-spacing:-0.01em">⚡ OLLIT <span style="color:#94A3B8;font-weight:600">광고 관제</span></div>
-    <div style="display:flex;gap:14px;align-items:center;font-size:12px;color:#94A3B8">
-      <span id="navPulse"></span>
-      <button class="rf" style="padding:6px 12px" onclick="load()">↻ 새로고침</button>
+ <div style="display:flex;min-height:100vh;margin:-40px -28px 0">
+  <aside style="width:210px;flex-shrink:0;background:#0F172A;color:#fff;padding:22px 14px;position:sticky;top:0;height:100vh;box-sizing:border-box">
+    <div style="font-weight:800;font-size:16px;margin:2px 8px 4px">⚡ OLLIT</div>
+    <div style="font-size:11.5px;color:#94A3B8;margin:0 8px 18px">광고 관제 시스템</div>
+    <div class="nav on" data-tab="t1">📊 오늘 성적</div>
+    <div class="nav" data-tab="t2">🔤 키워드</div>
+    <div class="nav" data-tab="t3">🛡 부정클릭 감시</div>
+    <div style="margin-top:22px;border-top:1px solid #1E293B;padding-top:14px">
+      <div class="nav" onclick="load()">↻ 새로고침</div>
+      <div class="nav" onclick="toggleManage()" id="mgNav">🔧 관리 모드</div>
     </div>
-  </div>
+    <div id="navPulse" style="position:absolute;bottom:18px;left:22px;font-size:11px;color:#94A3B8"></div>
+  </aside>
+  <main style="flex:1;min-width:0;padding:28px 30px;box-sizing:border-box">
   <h1 style="display:none">광고 관제판</h1><span class="at" id="at"></span>
-  <div style="display:flex;gap:6px;margin:4px 0 14px">
-    <span class="chip on" data-tab="t1" style="font-size:13px">📊 오늘 성적</span>
-    <span class="chip" data-tab="t2" style="font-size:13px">🔤 키워드</span>
-    <span class="chip" data-tab="t3" style="font-size:13px">🛡 부정클릭</span>
-  </div>
   <div id="t1">
   <div id="pulse" style="margin:6px 0;font-size:12.5px;font-weight:700;color:var(--mut)"></div>
   <div id="oneline" class="box"></div>
@@ -86,8 +91,7 @@
     <span class="chip" data-f="lose">밀린 것</span>
     <span class="chip" data-f="off">꺼진 것</span>
     <span class="chip" data-f="capped">비싸서 2위</span>
-    <button class="rf" onclick="load()">↻ 새로고침</button>
-    <button class="rf" id="mgBtn" style="background:#64748B" onclick="toggleManage()">🔧 관리 모드</button>
+
   </div>
   <div class="box"><table>
     <thead><tr>
@@ -105,6 +109,8 @@
     <div class="box"><table id="clkT"></table></div>
   </div>
   <div class="err" id="err"></div>
+  </main>
+ </div>
 </div>
 
 <div id="histPanel">
@@ -153,10 +159,11 @@ async function load(){
 }
 document.addEventListener('click',e=>{
   const t=e.target;
-  if(t.dataset&&t.dataset.tab){
-    ['t1','t2','t3'].forEach(id=>$(id).style.display=id===t.dataset.tab?'':'none');
-    document.querySelectorAll('[data-tab]').forEach(c=>c.classList.toggle('on',c.dataset.tab===t.dataset.tab));
-    if(t.dataset.tab==='t3')loadClicks();
+  const nav=t.closest?t.closest('[data-tab]'):null;
+  if(nav){
+    ['t1','t2','t3'].forEach(id=>$(id).style.display=id===nav.dataset.tab?'':'none');
+    document.querySelectorAll('[data-tab]').forEach(c=>c.classList.toggle('on',c.dataset.tab===nav.dataset.tab));
+    if(nav.dataset.tab==='t3')loadClicks();
     return;
   }
   if(t.dataset&&t.dataset.f){fsel=t.dataset.f;
@@ -264,7 +271,7 @@ function toggleManage(){
   if(!MANAGE){ if(!MTOK){MTOK=prompt('관리 비밀번호 (쓰기 권한)')||'';if(!MTOK)return;localStorage.setItem('adconsole_mtok',MTOK);} MANAGE=true; }
   else MANAGE=false;
   $('mgCol').style.display=MANAGE?'':'none';
-  $('mgBtn').style.background=MANAGE?'#DC2626':'#64748B';
+  const mn=$('mgNav'); if(mn){mn.style.background=MANAGE?'#DC2626':'';mn.style.color=MANAGE?'#fff':'';}
   render();
 }
 async function setBid(i,id,gid){
