@@ -73,9 +73,15 @@ export default async function handler(req, res) {
       const kw = req.query.kw || KEYWORDS[0];
       const { status, html } = await fetchSerp(kw);
       const p = parseRank(html);
-      const sIdx = html.search(/파워링크|power_link|splink/i);
-      res.status(200).json({ ok: true, kw, status, len: html.length, secStart: sIdx,
-        parse: p, sample: sIdx >= 0 ? html.slice(sIdx, sIdx + 1500) : html.slice(0, 1200) });
+      const count = (re) => (html.match(new RegExp(re, "g")) || []).length;
+      const diag = {
+        powerLabel: count("파워링크"), splink: count("splink"), powerClass: count("power_link"),
+        ader: count("ader\\.naver\\.com"), cite: count("<cite"),
+        adBadge: count(">광고<"), liItem: count("<li"),
+        oursIdx: (() => { for (const o of OURS) { const i = html.indexOf(o); if (i >= 0) return { o, i }; } return null; })(),
+        secStart: html.search(/파워링크|power_link|splink/i),
+      };
+      res.status(200).json({ ok: true, kw, status, len: html.length, parse: p, diag });
       return;
     }
     const rows = [];
