@@ -34,35 +34,28 @@ function parseRank(html) {
   if (html.length < 20000 || html.includes("자동입력 방지문자") || html.includes("비정상적인 접근")) {
     out.blocked = true; return out;
   }
-  const start = html.search(/파워링크|power_link|splink/i);
-  if (start < 0) { out.adsTotal = 0; return out; }
-  // 광고 섹션 대략 범위
-  const endRel = html.slice(start).search(/연관\s*검색어|함께\s*많이\s*찾는|VIEW|인기글|지식iN/i);
-  const section = html.slice(start, endRel > 0 ? start + endRel : start + 120000);
-  const MARKERS = [
-    /<li[^>]*class="[^"]*(?:ad_item|item|lst)[^"]*"/g,
-    /ader\.naver\.com\/v1\/[^"]*type=1[^"]*"/g,
-    /class="[^"]*url_link[^"]*"/g,
-    /<cite/g,
-  ];
-  for (const mk of MARKERS) {
-    const idx = [];
-    let m; const re = new RegExp(mk.source, "g");
-    while ((m = re.exec(section)) !== null) idx.push(m.index);
-    if (idx.length >= 2 && idx.length <= 25) {
-      out.adsTotal = idx.length; out.markerUsed = mk.source.slice(0, 30);
-      let ourPos = -1;
-      for (const o of OURS) { const p = section.indexOf(o); if (p >= 0 && (ourPos < 0 || p < ourPos)) ourPos = p; }
-      if (ourPos >= 0) {
-        let rank = 0;
-        for (const i of idx) { if (i <= ourPos) rank++; else break; }
-        out.rank = Math.max(1, rank);
-      }
-      return out;
-    }
+  // 광고 = ader.naver.com 링크 묶음(클러스터). 링크 사이 간격이 크면 다음 광고.
+  const idx = [];
+  const re = /ader\.naver\.com/g; let m;
+  while ((m = re.exec(html)) !== null) idx.push(m.index);
+  if (!idx.length) { out.adsTotal = 0; return out; }
+  const GAP = 1500;
+  const clusters = [];
+  let cs = idx[0], ce = idx[0];
+  for (let i = 1; i < idx.length; i++) {
+    if (idx[i] - ce > GAP) { clusters.push([cs, ce]); cs = idx[i]; }
+    ce = idx[i];
   }
-  // 마커 실패: 존재 여부만
-  for (const o of OURS) if (section.includes(o)) { out.rank = 0; break; } // 0 = 있는데 위치모름
+  clusters.push([cs, ce]);
+  out.adsTotal = clusters.length; out.markerUsed = "ader-cluster";
+  out.clusters = clusters.map(c => c[0]);
+  let ourPos = -1;
+  for (const o of OURS) { const p = html.indexOf(o); if (p >= 0 && (ourPos < 0 || p < ourPos)) ourPos = p; }
+  if (ourPos >= 0) {
+    let rank = 0;
+    for (const [a, b] of clusters) { if (a - 800 <= ourPos) rank++; else break; }
+    if (rank > 0 && rank <= clusters.length) out.rank = rank;
+  }
   return out;
 }
 
