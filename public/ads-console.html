@@ -59,6 +59,12 @@
     </div>
   </div>
   <h1 style="display:none">광고 관제판</h1><span class="at" id="at"></span>
+  <div style="display:flex;gap:6px;margin:4px 0 14px">
+    <span class="chip on" data-tab="t1" style="font-size:13px">📊 오늘 성적</span>
+    <span class="chip" data-tab="t2" style="font-size:13px">🔤 키워드</span>
+    <span class="chip" data-tab="t3" style="font-size:13px">🛡 부정클릭</span>
+  </div>
+  <div id="t1">
   <div id="pulse" style="margin:6px 0;font-size:12.5px;font-weight:700;color:var(--mut)"></div>
   <div id="oneline" class="box"></div>
   <div id="issues" class="box" style="display:none"></div>
@@ -69,6 +75,8 @@
   <h2>🗂 그룹별 <span style="font-weight:400;color:#B5B3B0">— 네이버 광고 폴더별 · 줄을 누르면 아래 표가 그 그룹만 보임</span></h2>
   <div class="box"><table id="grpT"></table></div>
 
+  </div><!-- /t1 -->
+  <div id="t2" style="display:none">
   <h2>🔍 키워드 전체 <span style="font-weight:400;color:#B5B3B0">— 손님이 검색하는 단어 하나하나 · 배지: <span class="bdg b1">1위</span> <span class="bdg b2">2~3위</span> <span class="bdg b3">밀림</span> · 막대 길이 = 크기</span></h2>
   <div class="bar-c">
     <input id="q" placeholder="🔍 키워드 검색 — 일산, 논현동, 청소…">
@@ -77,6 +85,7 @@
     <span class="chip" data-f="spend">오늘 돈 쓴 것</span>
     <span class="chip" data-f="lose">밀린 것</span>
     <span class="chip" data-f="off">꺼진 것</span>
+    <span class="chip" data-f="capped">비싸서 2위</span>
     <button class="rf" onclick="load()">↻ 새로고침</button>
     <button class="rf" id="mgBtn" style="background:#64748B" onclick="toggleManage()">🔧 관리 모드</button>
   </div>
@@ -90,6 +99,11 @@
     </tr></thead><tbody id="tb"></tbody>
   </table></div>
   <div class="more" id="more" style="display:none">더 보기</div>
+  </div><!-- /t2 -->
+  <div id="t3" style="display:none">
+    <h2>🛡 랜딩페이지 방문 IP 감시 <span style="font-weight:400;color:#B5B3B0">— 같은 IP가 광고로 반복 유입되면 의심. 오늘부터 쌓입니다</span></h2>
+    <div class="box"><table id="clkT"></table></div>
+  </div>
   <div class="err" id="err"></div>
 </div>
 
@@ -139,6 +153,12 @@ async function load(){
 }
 document.addEventListener('click',e=>{
   const t=e.target;
+  if(t.dataset&&t.dataset.tab){
+    ['t1','t2','t3'].forEach(id=>$(id).style.display=id===t.dataset.tab?'':'none');
+    document.querySelectorAll('[data-tab]').forEach(c=>c.classList.toggle('on',c.dataset.tab===t.dataset.tab));
+    if(t.dataset.tab==='t3')loadClicks();
+    return;
+  }
   if(t.dataset&&t.dataset.f){fsel=t.dataset.f;
     document.querySelectorAll('[data-f]').forEach(c=>c.classList.toggle('on',c.dataset.f===fsel));shown=150;render();}
   if(t.dataset&&t.dataset.s){const k=t.dataset.s;
@@ -208,6 +228,7 @@ function render(){
   const gv=$('gsel').value; if(gv)f=f.filter(d=>d.grp===gv);
   if(fsel==='spend')f=f.filter(d=>d.cost>0);
   if(fsel==='lose')f=f.filter(d=>(d.rnk&&d.rnk>2.5)||(d.top1!=null&&d.bid<d.top1&&!d.rnk));
+  if(fsel==='capped')f=f.filter(d=>d.bid>=15000&&d.top1!=null&&d.top1>d.bid);
   const t=$('q').value.trim();
   if(t)f=f.filter(d=>d.kw.includes(t)||d.grp.includes(t));
   f=[...f].sort((a,b)=>{const x=a[sortK],y=b[sortK];
@@ -228,6 +249,15 @@ function render(){
       +'<td>'+(d.cost?bar(d.cost,cMax,fm(d.cost)+'원'):'')+'</td>'+mg+'</tr>';}).join('');
   $('more').style.display=f.length>shown?'block':'none';
   $('more').textContent='더 보기 ('+(f.length-Math.min(shown,f.length))+'개 남음)';
+}
+async function loadClicks(){
+  $('clkT').innerHTML='<tr><td class="l">불러오는 중…</td></tr>';
+  const j=await fetch(API+'/api/ad-console?token='+encodeURIComponent(TOK)+'&clicks=1',{cache:'no-store'}).then(x=>x.json());
+  if(!j.ok||!j.ips||!j.ips.length){$('clkT').innerHTML='<tr><td class="l" style="color:#9B9A97">아직 기록 없음 — 랜딩페이지에 손님이 들어오면 여기 쌓입니다.</td></tr>';return;}
+  $('clkT').innerHTML='<tr><th class="l">IP</th><th>방문</th><th>광고 유입</th><th class="l">마지막</th><th class="l">유입 경로</th><th class="l">판정</th></tr>'
+    +j.ips.map(v=>{
+      const sus=v.ad>=4?'<span class="bdg b3">의심 — 확인 필요</span>':(v.n>=4?'<span class="bdg b2">잦은 방문</span>':'<span class="bdg b1">정상</span>');
+      return '<tr><td class="l">'+v.ip+'</td><td>'+v.n+'</td><td>'+v.ad+'</td><td class="l sub">'+new Date(v.last).toLocaleString('ko-KR')+'</td><td class="l sub">'+(v.ref||'직접 방문')+'</td><td class="l">'+sus+'</td></tr>';}).join('');
 }
 function toggleManage(){
   if(!MANAGE){ if(!MTOK){MTOK=prompt('관리 비밀번호 (쓰기 권한)')||'';if(!MTOK)return;localStorage.setItem('adconsole_mtok',MTOK);} MANAGE=true; }

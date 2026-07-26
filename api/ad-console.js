@@ -13,6 +13,23 @@ const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 
 const SB_URL = process.env.VITE_SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+async function sbGetLog() {
+  const r = await fetch(`${SB_URL}/rest/v1/ad_click_log?order=ts.desc&limit=800`, {
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+  const list = r.ok ? await r.json() : [];
+  const byIp = {};
+  for (const c of list) {
+    const k = c.ip || "?";
+    const v = byIp[k] = byIp[k] || { n: 0, last: null, ad: 0, ref: "" };
+    v.n++; if (!v.last) v.last = c.ts;
+    if ((c.qs || "").includes("n_") || (c.ref || "").includes("naver")) v.ad++;
+    if (!v.ref && c.ref) v.ref = c.ref.slice(0, 60);
+  }
+  const ips = Object.entries(byIp).map(([ip, v]) => ({ ip, ...v }))
+    .sort((a, b) => b.n - a.n).slice(0, 100);
+  return { total: list.length, ips };
+}
+
 async function sbGet(qs) {
   const r = await fetch(`${SB_URL}/rest/v1/ad_autobid_log?${qs}`, {
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
@@ -46,6 +63,13 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if ((req.query.token || "") !== TOKEN) { res.status(404).end(); return; }
   try {
+    // 부정클릭 감시: 최근 클릭 로그 IP 집계
+    if (req.query.clicks) {
+      const rows = await sbGetLog();
+      res.status(200).json({ ok: true, ...rows });
+      return;
+    }
+
     // 키워드 이력: 입찰가 변동 그래프 재료
     if (req.query.hist) {
       const rows = await sbGet("kw=eq." + encodeURIComponent(req.query.hist)
