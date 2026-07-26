@@ -49,6 +49,8 @@ const GROUP_POLICY = {
   "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true  },
   "서울":         { cap: 15000, margin: 1.1,  lowerOk: true  },
   "메인키워드":   { cap: 20000, margin: 1.15, lowerOk: false },
+  // 사장님(7/26 저녁): 수리·누설·누수 + 가스충전이 제일 메인 → 핵심 대접
+  "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true  },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 const FLOOR = 1000;     // 바닥 — 견적이 이상하게 낮아도 이 밑으론 안 내림
