@@ -17,6 +17,21 @@ const NAVER_CUSTOMER = process.env.NAVER_AD_CUSTOMER_ID;
 const NAVER_BASE     = "https://api.searchad.naver.com";
 const TOKEN = "b29adde027905ee35c810634f09bda48a697f973fbdb8ca8";
 
+// 변경 이력 기록 (보라웨어식 시간대별 그래프의 재료) — 실패해도 본 작업은 계속
+const SB_URL = process.env.VITE_SUPABASE_URL;
+const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+async function logRows(rows) {
+  if (!SB_URL || !SB_KEY || !rows.length) return;
+  try {
+    await fetch(`${SB_URL}/rest/v1/ad_autobid_log`, {
+      method: "POST",
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`,
+        "Content-Type": "application/json", Prefer: "return=minimal" },
+      body: JSON.stringify(rows),
+    });
+  } catch (e) { /* 기록 실패는 무시 */ }
+}
+
 const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 // 확장_증상청소 는 제외 — 검색량 큰 청소 단어를 1위에 걸면 예산이 며칠에 다 나간다.
 // 청소 그룹은 2,000원 고정으로 일주일 데이터 먼저.
@@ -147,6 +162,10 @@ export default async function handler(req, res) {
                          bidAmt: c.to, useGroupBidAmt: false })));
       applied += Array.isArray(r) ? r.length : 0;
     }
+    await logRows([
+      { kw: "_run", grp: "_summary", bid_from: kws.length, bid_to: applied, est1: capped },
+      ...changes.map(c => ({ kw: c.kw, grp: c.grp, bid_from: c.from, bid_to: c.to, est1: c.est1 })),
+    ]);
     res.status(200).json({ ok: true, alive: kws.length,
       applied, capped, noEst });
   } catch (e) {
