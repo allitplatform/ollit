@@ -211,6 +211,8 @@ import MetroRouteMap from "../components/admin/MetroRouteMap.jsx";
 import { RevenueDetailScreen } from "../components/admin/RevenueDetailScreen.jsx";
 // 2026-07-10 — 지역별 접수 현황 (tasks + 미처리 inquiries 합산, 읽기 전용).
 import { RegionStatsScreen } from "../components/admin/RegionStatsScreen.jsx";
+// 2026-07-26 — 접수 통계 허브 (원청별 + 지역별 탭, 모바일 개요 진입)
+import { StatsHubScreen } from "../components/admin/StatsHubScreen.jsx";
 // 2026-07-24 — 마케팅 조감 (홈페이지 접수 퍼널 + 완료 매출·회사이익 + 지역 top5). 광고 API 는 2단계.
 import { MarketingScreen } from "../components/admin/MarketingScreen.jsx";
 // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환용).
@@ -3403,6 +3405,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       <RegionStatsScreen t={t} apiTasks={apiTasks} user={user} onBack={goBack}/>
     </Shell>;
   }
+  // 2026-07-26 — 접수 통계 허브 (원청별 신규 + 지역별 재사용). 개요 탭 📊 진입.
+  if (screen === "statsHub") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <StatsHubScreen t={t} apiTasks={apiTasks} user={user} onBack={goBack}/>
+    </Shell>;
+  }
   // 2026-07-24 — 마케팅 조감 (홈페이지 유입 퍼널 + 매출·이익 + 지역 top5).
   if (screen === "marketing") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
@@ -4066,6 +4074,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       onClickMobileProfit={() => setScreen("mobileProfit")}
       onClickDocIssue={() => setScreen("docIssue")}
       onClickAnnouncements={() => setScreen("announcements")}
+      onClickStats={() => setScreen("statsHub")}
       refrigerantAddonCount={refrigerantAddonCount}
       onClickRevenueDetail={() => setScreen("revenueDetail")}
       onClickSettlement={() => setScreen("settlement")}
@@ -4162,7 +4171,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, onClickEngMessages, engMsgUnread = 0, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickStats, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, onClickEngMessages, engMsgUnread = 0, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4418,7 +4427,7 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
           })}
         </div>
 
-        {activeTab === "overview"   && <OverviewTab t={t} user={user} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickMobileBank={onClickMobileBank} onClickMobileProfit={onClickMobileProfit} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount} onClickEngMessages={onClickEngMessages} engMsgUnread={engMsgUnread}/>}
+        {activeTab === "overview"   && <OverviewTab t={t} user={user} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickMobileBank={onClickMobileBank} onClickMobileProfit={onClickMobileProfit} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickStats={onClickStats} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount} onClickEngMessages={onClickEngMessages} engMsgUnread={engMsgUnread}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
         {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onEngineerCalendar={onEngineerCalendar} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
@@ -4489,7 +4498,7 @@ function MobileTodayBar({ t, apiTasks = [], completedToday = 0, inProgress = 0, 
   );
 }
 
-function OverviewTab({ t, user, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, onClickEngMessages, engMsgUnread = 0 }) {
+function OverviewTab({ t, user, totalNew, apiTasks = [], onClickNewReception, onClickLiveWork, onClickAddReception, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickStats, onClickInquiries, inquiriesNewCount = 0, inquiriesTodayCount = 0, onClickEngMessages, engMsgUnread = 0 }) {
   // 2026-07-24 — 개요 탭 v3 (사장님 확정: 🅐 리스트형).
   //   · 검색창 유지 (엔터/🔍 → 전체 작업 점프).
   //   · 접수함·메시지함·통장·손익·문서 = 아이콘 줄 리스트 한 카드 — 한 화면, 스크롤 없음.
@@ -4664,6 +4673,13 @@ function OverviewTab({ t, user, totalNew, apiTasks = [], onClickNewReception, on
               label: "기사 메시지함", sub: "기사 메시지 · 요청",
               badge: engMsgUnread > 0 ? { text: String(engMsgUnread), bg: "#F87171" } : null,
               onClick: onClickEngMessages,
+            },
+            // 2026-07-26 — 접수 통계 (원청별 · 지역별). 사장님 A안 확정.
+            onClickStats && {
+              key: "stats", icon: "📊", iconBg: "rgba(14,165,233,0.10)",
+              label: "접수 통계", sub: "원청별 · 지역별 접수량",
+              badge: null,
+              onClick: onClickStats,
             },
             onClickDocIssue && {
               key: "doc", icon: "📄", iconBg: "var(--bg-tertiary, var(--bg-secondary))",

@@ -64,7 +64,7 @@ function _rangeForPeriod(period, customStart, customEnd) {
   return { start: "0000-01-01", end: "9999-12-31" }; // all
 }
 
-export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
+export function RegionStatsScreen({ t, apiTasks = [], user, onBack, embedded = false }) {
   const [period, setPeriod]         = useState("today");
   // 2026-07-10 — 사용자 지정 기간 (period='custom' 시 활성).
   const [customStart, setCustomStart] = useState(() => todayYmd());
@@ -196,13 +196,14 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
 
   return (
     <div style={{
-      minHeight: "100vh",
+      minHeight: embedded ? "auto" : "100vh",
       background: t.bg,
       color: t.text,
       paddingBottom: "calc(40px + env(safe-area-inset-bottom))",
       fontFamily: "'Pretendard', sans-serif",
     }}>
-      {/* 헤더 */}
+      {/* 헤더 — 2026-07-26 embedded (StatsHubScreen 지역별 탭) 시 허브 헤더가 대신함 */}
+      {!embedded && (
       <div style={{
         display: "flex", alignItems: "center", gap: 8,
         padding: "14px 16px",
@@ -221,6 +222,7 @@ export function RegionStatsScreen({ t, apiTasks = [], user, onBack }) {
           📍 지역별 접수 현황
         </div>
       </div>
+      )}
 
       {/* 2026-07-10 — 소스 필터 (전체 / 홈페이지만) */}
       <div style={{ padding: "12px 16px 4px" }}>
