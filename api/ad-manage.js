@@ -239,6 +239,38 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 아침 보고서 저장 (POST body: {d, html}) → 열람 슬러그 반환
+    if (step === "savereport") {
+      const SBu = process.env.VITE_SUPABASE_URL, SBk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const b = req.body || {};
+      if (!b.html) { res.status(200).json({ ok: false, error: "html 필요(POST)" }); return; }
+      const slug = crypto.randomBytes(9).toString("hex");
+      const r = await fetch(`${SBu}/rest/v1/ad_daily_report`, { method: "POST",
+        headers: { apikey: SBk, Authorization: `Bearer ${SBk}`,
+          "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ slug, d: b.d || null, html: String(b.html) }) });
+      res.status(200).json({ ok: r.ok, slug, url: "https://ollit.vercel.app/api/report?id=" + slug });
+      return;
+    }
+
+    // 문자 발송 (사장님 번호 고정)
+    if (step === "sms") {
+      const text = String(req.query.text || "").slice(0, 1800);
+      if (!text) { res.status(200).json({ ok: false, error: "text 필요" }); return; }
+      const K = process.env.SOLAPI_API_KEY, S = process.env.SOLAPI_API_SECRET;
+      const date = new Date().toISOString();
+      const salt = crypto.randomBytes(16).toString("hex");
+      const sig = crypto.createHmac("sha256", S).update(date + salt).digest("hex");
+      const r = await fetch("https://api.solapi.com/messages/v4/send-many", { method: "POST",
+        headers: { "Content-Type": "application/json",
+          Authorization: `HMAC-SHA256 apiKey=${K}, date=${date}, salt=${salt}, signature=${sig}` },
+        body: JSON.stringify({ messages: [{ to: "01048874002", from: "01041163991",
+          text, type: text.length > 43 ? "LMS" : "SMS",
+          subject: "올잇 광고 보고" }] }) });
+      res.status(200).json({ ok: r.ok, status: r.status });
+      return;
+    }
+
     // 경보: 자동맞춤이 75분 넘게 안 돌았으면 사장님 폰으로 문자
     if (step === "health") {
       const SB_URL2 = process.env.VITE_SUPABASE_URL, SB_KEY2 = process.env.SUPABASE_SERVICE_ROLE_KEY;
