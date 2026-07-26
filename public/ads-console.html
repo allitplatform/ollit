@@ -127,7 +127,7 @@
       <th class="l" data-s="kw">키워드</th><th class="l" data-s="grp">그룹</th>
       <th data-s="vol">월 검색량</th><th data-s="rnk">지금 순위</th>
       <th data-s="bid">내 입찰가</th><th data-s="lastBid">마지막 입찰</th><th data-s="top1">1위 가격</th>
-      <th data-s="imp">노출</th><th data-s="clk">클릭</th><th data-s="cpc">클릭당 낸 돈</th><th data-s="cost">오늘 쓴 돈</th>
+      <th data-s="imp">노출</th><th data-s="clk">클릭</th><th data-s="conv">전환</th><th data-s="cpc">클릭당 낸 돈</th><th data-s="cost">오늘 쓴 돈</th>
       <th id="mgCol" style="display:none">관리</th>
     </tr></thead><tbody id="tb"></tbody>
   </table></div>
@@ -221,13 +221,13 @@ function render(){
   // 서비스 표
   const sAgg={};
   DATA.filter(d=>d.on).forEach(d=>{const k=svcOf(d.grp);const v=sAgg[k]=sAgg[k]||{imp:0,clk:0,cost:0,n:0,win:0};
-    v.imp+=d.imp;v.clk+=d.clk;v.cost+=d.cost;v.n++;if((d.rnk&&d.rnk<=1.4)||(d.top1!=null&&d.bid>=d.top1))v.win++;});
+    v.imp+=d.imp;v.clk+=d.clk;v.cost+=d.cost;v.conv=(v.conv||0)+(d.conv||0);v.n++;if((d.rnk&&d.rnk<=1.4)||(d.top1!=null&&d.bid>=d.top1))v.win++;});
   const ORDER=['가스·냉매충전 — 전국 본진','가스충전 — 지역 공략','수리·누설 — 핵심 신규','청소·증상 — 실험','설치 — 실험'];
   const sMax=Math.max(...ORDER.map(k=>sAgg[k]?sAgg[k].cost:0),1);
-  $('svcT').innerHTML='<tr><th class="l">서비스</th><th>단어</th><th>1위권</th><th>노출</th><th>클릭</th><th>오늘 쓴 돈</th><th class="l">상태</th></tr>'
+  $('svcT').innerHTML='<tr><th class="l">서비스</th><th>단어</th><th>1위권</th><th>노출</th><th>클릭</th><th>전환</th><th>오늘 쓴 돈</th><th class="l">상태</th></tr>'
     +ORDER.filter(k=>sAgg[k]).map(k=>{const v=sAgg[k];
       const st=v.cost>0?'<span class="bdg b1">돌아가는 중</span>':(v.imp>0?'<span class="bdg b2">노출 시작</span>':'<span class="bdg b2">심사 대기</span>');
-      return '<tr><td class="l">'+k+'</td><td>'+v.n+'</td><td>'+v.win+'</td><td>'+fm(v.imp)+'</td><td>'+v.clk+'</td>'
+      return '<tr><td class="l">'+k+'</td><td>'+v.n+'</td><td>'+v.win+'</td><td>'+fm(v.imp)+'</td><td>'+v.clk+'</td><td><b style="color:#1C7F4B">'+(v.conv||'')+'</b></td>'
         +'<td>'+bar(v.cost,sMax,fm(v.cost)+'원')+'</td><td class="l">'+st+'</td></tr>';}).join('');
   // 그룹 표
   const gAgg={};
@@ -287,6 +287,7 @@ function render(){
       +'<td class="sub">'+(d.lastBid?new Date(d.lastBid).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'—')+'</td>'
       +'<td class="sub">'+fm(d.top1)+'</td>'
       +'<td>'+fm(d.imp)+'</td><td>'+(d.clk||'')+'</td>'
+      +'<td>'+(d.conv?'<b style="color:#1C7F4B">'+d.conv+'</b>':'')+'</td>'
       +'<td>'+(d.cpc?'<b>'+fm(d.cpc)+'원</b>'+(d.cpc<d.bid?' <span class="sub" style="color:#1C7F4B">입찰가보다 싸게</span>':''):'—')+'</td>'
       +'<td>'+(d.cost?bar(d.cost,cMax,fm(d.cost)+'원'):'')+'</td>'+mg+'</tr>';}).join('');
   $('more').style.display=f.length>shown?'block':'none';

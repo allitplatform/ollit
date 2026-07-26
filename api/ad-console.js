@@ -95,7 +95,7 @@ export default async function handler(req, res) {
 
     // ② 오늘 성과 (키워드 단위)
     const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-    const fields = encodeURIComponent(JSON.stringify(["impCnt","clkCnt","salesAmt","avgRnk"]));
+    const fields = encodeURIComponent(JSON.stringify(["impCnt","clkCnt","salesAmt","avgRnk","ccnt"]));
     const tr = encodeURIComponent(JSON.stringify({ since: today, until: today }));
     const statMap = new Map();
     for (const part of chunk(rows, 100)) {
@@ -123,7 +123,7 @@ export default async function handler(req, res) {
 
     for (const r2 of rows) {
       const s = statMap.get(r2.id) || {};
-      r2.imp = s.impCnt || 0; r2.clk = s.clkCnt || 0;
+      r2.imp = s.impCnt || 0; r2.clk = s.clkCnt || 0; r2.conv = s.ccnt || 0;
       r2.cost = Math.round((s.salesAmt || 0) * 1.1);
       r2.rnk = s.avgRnk || null;
       r2.top1 = estMap.get(norm(r2.kw)) ?? null;
