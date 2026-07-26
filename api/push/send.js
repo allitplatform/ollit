@@ -256,7 +256,11 @@ export default async function handler(req, res) {
       endpoint: s.endpoint,
       keys: { p256dh: s.p256dh, auth: s.auth },
     };
-    return webpush.sendNotification(subscription, payload).catch(err => {
+    // 2026-07-26 — 즉시 배달 (사장님: "기사 알림이 바로바로 안 온다").
+    //   urgency 기본 "normal" 은 절전(Doze) 중인 폰에 배달을 미룸 — 늘 만지는
+    //   운영자 폰만 빨랐던 이유. "high" = 화면 꺼진 폰도 즉시 깨워 배달.
+    //   TTL 3600 = 1시간 지난 알림은 폐기 (뒤늦은 재배달 혼란 방지).
+    return webpush.sendNotification(subscription, payload, { TTL: 3600, urgency: "high" }).catch(err => {
       // 만료된 구독은 expired 마킹
       if (err && (err.statusCode === 404 || err.statusCode === 410)) {
         return { __expired: true, endpoint: s.endpoint };

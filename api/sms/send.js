@@ -86,6 +86,13 @@ function buildSolapiAuth(apiKey, apiSecret) {
 }
 
 // 본문 조립 — spec §4 그대로. allday 만 첫 줄에 [올데이케어] prefix.
+// 2026-07-26 — 길이 기반 단문/장문 자동 (한글 2바이트 환산, 90바이트 이하 = SMS 9원).
+function pickSmsType(text) {
+  let b = 0;
+  for (const ch of String(text || "")) b += ch.charCodeAt(0) > 127 ? 2 : 1;
+  return b <= 90 ? "SMS" : "LMS";
+}
+
 function buildText(type, principal, vars) {
   const prefix = principal === "allday" ? "[올데이케어] " : "";
   if (type === "assign") {
@@ -103,6 +110,25 @@ ${vars.engineerName} 기사님이 배정되었습니다.
 양해 부탁드립니다.
 
 문의: 1866-2003`
+    );
+  }
+  // 2026-07-26 Mig 193 — 기사용 문자 (수신자 = 기사 폰. customerPhone 필드를
+  //   수신자 슬롯으로 재사용 — 트리거가 기사 번호를 넣어 보냄).
+  //   푸시 지연 대비 확실 채널 (사장님 결정: 배정마다 무조건 문자).
+  if (type === "eng_assign") {
+    // 2026-07-26 — 사장님 spec: 초간단 (상세는 앱에). 단문(SMS) 요금.
+    //   재배정도 받는 기사에겐 "새 배정" — "재배정" 표기는 다른 기사를 거친
+    //   건이라는 인상을 줄 수 있음 (사장님 지적). reassigned 구분 폐기.
+    return (
+`[올잇] 새 배정 · ${vars.customer || "고객"} 고객
+앱에서 확인해 주세요.`
+    );
+  }
+  if (type === "eng_unassign") {
+    // 2026-07-26 — 사장님 문구 확정: "제외" → "취소".
+    return (
+`[올잇] ${vars.customer || "고객"} 고객 건
+배정 취소되었습니다. 앱 확인해 주세요.`
     );
   }
   if (type === "visit_fee") {
@@ -187,8 +213,9 @@ export default async function handler(req, res) {
   const toRaw     = body.customerPhone;
   const vars      = body.vars || {};
 
-  if (type !== "assign" && type !== "complete" && type !== "visit_fee") {
-    res.status(400).json({ ok: false, error: "type must be assign|complete|visit_fee" });
+  const ENG_TYPES = ["eng_assign", "eng_unassign"];   // 2026-07-26 Mig 193
+  if (type !== "assign" && type !== "complete" && type !== "visit_fee" && !ENG_TYPES.includes(type)) {
+    res.status(400).json({ ok: false, error: "type must be assign|complete|visit_fee|eng_assign|eng_unassign" });
     return;
   }
   const to = normalizePhone(toRaw);
@@ -209,12 +236,13 @@ export default async function handler(req, res) {
       return;
     }
     vars.engineerPhone = formatPhoneDisplay(engDigits);  // 010-1234-5678 표시
-  } else {
+  } else if (!ENG_TYPES.includes(type)) {
     if (vars.amount == null || Number.isNaN(Number(vars.amount))) {
       res.status(400).json({ ok: false, error: "amount 누락 / 형식 오류" });
       return;
     }
   }
+  // eng_* — customer/region 은 비어도 발송 (기사에게 안 가는 것보다 낫다)
 
   const text = buildText(type, principal, vars);
 
@@ -230,7 +258,7 @@ export default async function handler(req, res) {
           to,
           from: SOLAPI_FROM,
           text,
-          type: "LMS",
+          type: pickSmsType(text),   // 2026-07-26 — 기사 단문은 SMS 요금
         }],
       }),
     });
