@@ -201,7 +201,7 @@ export default async function handler(req, res) {
     // 경보: 자동맞춤이 75분 넘게 안 돌았으면 사장님 폰으로 문자
     if (step === "health") {
       const SB_URL2 = process.env.VITE_SUPABASE_URL, SB_KEY2 = process.env.SUPABASE_SERVICE_ROLE_KEY;
-      const ALERT_TO = "01041163991";  // 알림 받을 번호
+      const ALERT_TO = "01048874002";  // 알림 받을 번호(사장님)
       const lr = await fetch(`${SB_URL2}/rest/v1/ad_autobid_log?kw=eq._run&order=run_at.desc&limit=1`, {
         headers: { apikey: SB_KEY2, Authorization: `Bearer ${SB_KEY2}` } }).then(r => r.json());
       const last = lr && lr[0] && lr[0].run_at;
