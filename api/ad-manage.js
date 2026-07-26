@@ -29,6 +29,7 @@ async function call(method, path, qs, body) {
 }
 
 export default async function handler(req, res) {
+  res.setHeader("Access-Control-Allow-Origin", "*");
   if ((req.query.token || "") !== TOKEN) { res.status(404).end(); return; }
   try {
     const step = req.query.step || "";

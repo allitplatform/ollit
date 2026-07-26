@@ -78,6 +78,7 @@
 </div>
 
 <script>
+const API=location.protocol==='file:'?'https://ollit.vercel.app':'';
 let TOK=localStorage.getItem('adconsole_tok')||'';
 let DATA=[],gsel=null,fsel='all',sortK='cost',sortD=-1,shown=150;
 const $=id=>document.getElementById(id);
@@ -87,7 +88,7 @@ function boot(){ if(!TOK){$('login').style.display='block';$('app').style.displa
 async function load(){
   $('err').textContent='';$('at').textContent='불러오는 중… (10초쯤 걸립니다)';
   try{
-    const r=await fetch('/api/ad-console?token='+encodeURIComponent(TOK),{cache:'no-store'});
+    const r=await fetch(API+'/api/ad-console?token='+encodeURIComponent(TOK),{cache:'no-store'});
     if(r.status===404){localStorage.removeItem('adconsole_tok');TOK='';boot();return;}
     const j=await r.json();
     if(!j.ok){$('err').textContent='오류: '+j.error;return;}
@@ -179,12 +180,12 @@ function toggleManage(){
 }
 async function setBid(i,id,gid){
   const bid=Number(document.getElementById('bi_'+i).value);
-  const j=await fetch('/api/ad-manage?token='+encodeURIComponent(MTOK)+'&step=setbid&id='+id+'&gid='+gid+'&bid='+bid,{cache:'no-store'}).then(r=>r.status===404?{ok:false,error:'비밀번호 틀림'}:r.json());
+  const j=await fetch(API+'/api/ad-manage?token='+encodeURIComponent(MTOK)+'&step=setbid&id='+id+'&gid='+gid+'&bid='+bid,{cache:'no-store'}).then(r=>r.status===404?{ok:false,error:'비밀번호 틀림'}:r.json());
   alert(j.ok?'변경됨: '+bid.toLocaleString()+'원':'실패: '+(j.error||JSON.stringify(j.err)));
   if(j.ok)load();
 }
 async function setOnOff(id,gid,on){
-  const j=await fetch('/api/ad-manage?token='+encodeURIComponent(MTOK)+'&step=onoff&id='+id+'&gid='+gid+'&on='+on,{cache:'no-store'}).then(r=>r.status===404?{ok:false,error:'비밀번호 틀림'}:r.json());
+  const j=await fetch(API+'/api/ad-manage?token='+encodeURIComponent(MTOK)+'&step=onoff&id='+id+'&gid='+gid+'&on='+on,{cache:'no-store'}).then(r=>r.status===404?{ok:false,error:'비밀번호 틀림'}:r.json());
   alert(j.ok?(on?'켜짐':'꺼짐'):'실패: '+(j.error||JSON.stringify(j.err)));
   if(j.ok)load();
 }
@@ -192,7 +193,7 @@ async function showHist(kw){
   $('histPanel').style.display='block';
   $('histTitle').textContent=kw+' — 입찰가 변동 기록';
   $('histBody').textContent='불러오는 중…';$('histSvg').innerHTML='';
-  const j=await fetch('/api/ad-console?token='+encodeURIComponent(TOK)+'&hist='+encodeURIComponent(kw),{cache:'no-store'}).then(x=>x.json());
+  const j=await fetch(API+'/api/ad-console?token='+encodeURIComponent(TOK)+'&hist='+encodeURIComponent(kw),{cache:'no-store'}).then(x=>x.json());
   const rows=(j.rows||[]);
   if(!rows.length){$('histBody').textContent='아직 기록이 없습니다. 자동맞춤이 이 단어를 바꿀 때마다 여기 쌓입니다.';return;}
   $('histBody').textContent=rows.length+'번 조정됨 · 최근: '+new Date(rows[rows.length-1].run_at).toLocaleString('ko-KR');
