@@ -73,21 +73,41 @@ export default async function handler(req, res) {
       }
     }
 
-    // ② 모바일 1위 견적 (100개씩)
+    // 원인 조사 모드: 견적 API 원본 응답을 그대로 보여줌
+    if (req.query.probe) {
+      const sample = kws.slice(0, 3).map(k => ({ key: k.kw, position: 1 }));
+      let raw, err = null;
+      try {
+        raw = await call("POST", "/estimate/average-position-bid/keyword", null,
+          { device: "MOBILE", items: sample });
+      } catch (e) { err = String(e.message || e); }
+      res.status(200).json({ ok: true, mode: "probe", sent: sample, raw, err });
+      return;
+    }
+
+    // ② 모바일 1위 견적 (100개씩) — 응답 형태가 문서와 다른 경우까지 흡수
     const estMap = new Map();
+    const norm = (x) => String(x || "").replace(/\s+/g, "").toUpperCase();
     for (const part of chunk(kws, 100)) {
-      const r = await call("POST", "/estimate/average-position-bid/keyword", null, {
-        device: "MOBILE",
-        items: part.map(k => ({ key: k.kw, position: 1 })),
-      });
-      for (const e of (r && r.estimate || [])) estMap.set(e.key, e.bid);
+      let r;
+      try {
+        r = await call("POST", "/estimate/average-position-bid/keyword", null, {
+          device: "MOBILE",
+          items: part.map(k => ({ key: k.kw, position: 1 })),
+        });
+      } catch (e) { continue; }
+      const arr = (r && r.estimate) || (Array.isArray(r) ? r : []);
+      for (const e of arr) {
+        const bid = e.bid ?? e.bidAmt ?? e.estimate;
+        if (e.key != null && bid != null) estMap.set(norm(e.key), Number(bid));
+      }
     }
 
     // ③ 새 입찰가 계산
     const changes = [];
     let capped = 0, noEst = 0;
     for (const k of kws) {
-      const est = estMap.get(k.kw);
+      const est = estMap.get(norm(k.kw));
       if (!est) { noEst++; continue; }
       let bid = Math.round(est * MARGIN / 10) * 10;
       if (bid > CAP) { bid = CAP; capped++; }
