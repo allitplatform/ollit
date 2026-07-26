@@ -7,10 +7,11 @@ const TOKEN = "b29adde027905ee35c810634f09bda48a697f973fbdb8ca8";
 const SB_URL = process.env.VITE_SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+// 오늘 광고비 상위 실측 TOP10 (7/26 기준 — 필요시 교체)
 const KEYWORDS = [
-  "에어컨가스충전", "에어컨냉매충전", "에어컨수리", "에어컨청소",
-  "에어컨물떨어짐", "에어컨설치", "에어컨가스충전비용", "에어컨냉매충전가격",
-  "에어컨이안시원해요", "에어컨누설수리",
+  "에어컨가스충전", "에어컨냉매충전", "에어컨수리", "에어컨가스충전비",
+  "에어콘가스충전", "에어컨냉매충전가격", "에어컨가스충전비용", "에어컨냉매충전비용",
+  "에어컨이안시원해요", "에어컨청소",
 ];
 const OURS = ["올데이케어", "olldaycare", "xn--2n1bk06aikal6b92t", "1866-2003"];
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
