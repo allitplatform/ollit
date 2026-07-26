@@ -1959,10 +1959,20 @@ function ChangeEntry({ entry }) {
              : name         ? name
              : "시스템";
   // 2026-05-29 v2 — cancel 이벤트 note 한국어 매핑 (reasonId → CANCEL_REASONS 라벨)
+  // 2026-07-26 — visit_only 도 같은 reasonId 코드로 저장됨 ("other" 등) 인데
+  //   매핑이 cancel 만 타서 원문 코드가 노출되던 것 (사장님 발견) — 동일 매핑 적용.
+  //   기사 자유 입력 memo (after_data.memo) 있으면 "기타 · 실외기 접근 불가" 식으로 병기.
   const isCancel = entry.change_type === "cancel";
-  const noteDisplay = isCancel
-    ? (getCancelReasonLabel(entry.note) || entry.note)
-    : entry.note;
+  const isVisit  = entry.change_type === "visit_only";
+  let noteDisplay = entry.note;
+  if (isCancel) {
+    noteDisplay = getCancelReasonLabel(entry.note) || entry.note;
+  } else if (isVisit) {
+    const label = getCancelReasonLabel(entry.note) || entry.note || "";
+    const memo  = entry.after_data && entry.after_data.memo
+      ? String(entry.after_data.memo).trim() : "";
+    noteDisplay = memo ? (label ? label + " · " + memo : memo) : label;
+  }
   return (
     <div style={{
       padding: 8,
