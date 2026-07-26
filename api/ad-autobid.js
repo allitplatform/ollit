@@ -18,9 +18,11 @@ const NAVER_BASE     = "https://api.searchad.naver.com";
 const TOKEN = "b29adde027905ee35c810634f09bda48a697f973fbdb8ca8";
 
 const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
+// 확장_증상청소 는 제외 — 검색량 큰 청소 단어를 1위에 걸면 예산이 며칠에 다 나간다.
+// 청소 그룹은 2,000원 고정으로 일주일 데이터 먼저.
 const TARGET_GROUPS = new Set([
   "중간키워드", "중간키워드2", "고양시", "고양시2", "파주시",
-  "김포시", "남양주시", "확장_증상청소",
+  "김포시", "남양주시",
 ]);
 const CAP = 10000;      // 상한 — 1위가 이보다 비싸면 포기하고 2위
 const FLOOR = 1000;     // 바닥 — 견적이 이상하게 낮아도 이 밑으론 안 내림
