@@ -48,8 +48,9 @@ const GROUP_POLICY = {
   "김포시":       { cap: 15000, margin: 1.1,  lowerOk: true  },
   "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true  },
   "서울":         { cap: 15000, margin: 1.1,  lowerOk: true  },
-  // 메인: 1위가 2만 이하면 1위 추격 / 넘으면 2위 확보(최대 2.5만) — "2위가 마지노선"(사장님 7/26)
-  "메인키워드":   { cap: 20000, margin: 1.15, lowerOk: false, pos2: true, cap2: 25000 },
+  // 메인(7/26 밤 개정): 비용대비 순이익 원칙 — 7/13 데이터(입찰 1.3만·2위권·최고 성적) 기준.
+  // 1위 과열 안 따라감. 추격 여유 5%, 상한 15,000.
+  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false },
   // 사장님(7/26 저녁): 수리·누설·누수 + 가스충전이 제일 메인 → 핵심 대접
   "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true  },
 };
