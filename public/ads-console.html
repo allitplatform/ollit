@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>올잇 광고 관제판</title>
+<style>
+ :root{--bg:#0B1220;--card:#111A2E;--line:#1E2A44;--tx:#E2E8F0;--mut:#7C8CA8;--blue:#3B82F6;--green:#34D399;--red:#F87171;--amber:#FBBF24}
+ body{font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;background:var(--bg);color:var(--tx);margin:0;padding:20px 24px;line-height:1.5}
+ h1{font-size:19px;margin:0 8px 0 0;display:inline-block}
+ .at{color:var(--mut);font-size:12px}
+ .cards{display:flex;gap:12px;margin:14px 0;flex-wrap:wrap}
+ .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 16px;min-width:120px}
+ .card .l{font-size:11px;color:var(--mut);font-weight:700}
+ .card .v{font-size:20px;font-weight:900;font-variant-numeric:tabular-nums}
+ .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+ #q{flex:1;min-width:220px;font-size:14px;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--tx);outline:none}
+ #q:focus{border-color:var(--blue)}
+ .chip{font-size:11.5px;font-weight:800;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--card);cursor:pointer;color:var(--mut)}
+ .chip.on{background:var(--blue);border-color:var(--blue);color:#fff}
+ button.rf{font-size:12px;font-weight:900;padding:8px 14px;border-radius:10px;border:none;background:var(--blue);color:#fff;cursor:pointer}
+ table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden;font-size:12.5px}
+ th{background:#0E1730;text-align:right;padding:8px 10px;font-size:11px;color:var(--mut);cursor:pointer;white-space:nowrap;user-select:none}
+ th:first-child,th:nth-child(2){text-align:left}
+ td{padding:6px 10px;border-top:1px solid var(--line);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+ td:first-child{text-align:left;font-weight:700}
+ td:nth-child(2){text-align:left;color:var(--mut);font-size:11.5px}
+ .g{color:var(--green)}.r{color:var(--red)}.a{color:var(--amber)}.m{color:var(--mut)}
+ .win{color:var(--green);font-weight:900}
+ .lose{color:var(--red);font-weight:900}
+ #login{max-width:380px;margin:80px auto;text-align:center}
+ #login input{width:100%;box-sizing:border-box;font-size:15px;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--tx);margin:12px 0}
+ .more{padding:12px;text-align:center;color:var(--blue);font-weight:900;cursor:pointer}
+ .err{color:var(--red);font-weight:800;margin:20px 0}
+</style></head><body>
+
+<div id="login" style="display:none">
+  <h1>광고 관제판</h1>
+  <p class="at">접속 비밀번호를 입력하세요. 한 번만 입력하면 이 컴퓨터에 저장됩니다.</p>
+  <input id="tokIn" type="password" placeholder="비밀번호">
+  <button class="rf" onclick="saveTok()">들어가기</button>
+</div>
+
+<div id="app" style="display:none">
+  <h1>광고 관제판</h1><span class="at" id="at"></span>
+  <div class="cards" id="cards"></div>
+  <div class="bar">
+    <input id="q" placeholder="🔍 키워드 검색 — 일산, 논현동, 청소…">
+    <span class="chip on" data-f="all">전체</span>
+    <span class="chip" data-f="spend">오늘 돈 쓴 것</span>
+    <span class="chip" data-f="lose">1위 뺏긴 것</span>
+    <button class="rf" onclick="load()">↻ 새로고침</button>
+  </div>
+  <div class="bar" id="grpChips"></div>
+  <table><thead><tr>
+    <th data-s="kw">키워드</th><th data-s="grp">그룹</th>
+    <th data-s="bid">내 입찰가</th><th data-s="top1">1위 가격</th><th data-s="gap">판정</th>
+    <th data-s="imp">오늘 노출</th><th data-s="clk">클릭</th><th data-s="cost">비용</th><th data-s="rnk">순위</th>
+  </tr></thead><tbody id="tb"></tbody></table>
+  <div class="more" id="more" style="display:none">더 보기</div>
+  <div class="err" id="err"></div>
+</div>
+
+<script>
+let TOK=localStorage.getItem('adconsole_tok')||'';
+let DATA=[],gsel=null,fsel='all',sortK='cost',sortD=-1,shown=150;
+const $=id=>document.getElementById(id);
+function saveTok(){TOK=$('tokIn').value.trim();localStorage.setItem('adconsole_tok',TOK);boot();}
+function boot(){ if(!TOK){$('login').style.display='block';$('app').style.display='none';return;}
+  $('login').style.display='none';$('app').style.display='block';load(); }
+async function load(){
+  $('err').textContent='';$('at').textContent='불러오는 중… (10초쯤 걸립니다)';
+  try{
+    const r=await fetch('/api/ad-console?token='+encodeURIComponent(TOK),{cache:'no-store'});
+    if(r.status===404){localStorage.removeItem('adconsole_tok');TOK='';boot();return;}
+    const j=await r.json();
+    if(!j.ok){$('err').textContent='오류: '+j.error;return;}
+    DATA=j.rows.map(d=>({...d,gap:(d.top1!=null)?(d.bid-d.top1):null}));
+    $('at').textContent=j.today+' 기준 · '+new Date(j.at).toLocaleTimeString('ko-KR')+' 갱신 · '+j.count+'개';
+    buildGrpChips();render();
+  }catch(e){$('err').textContent='서버 연결 실패: '+e;}
+}
+function buildGrpChips(){
+  const gs=[...new Set(DATA.map(d=>d.grp))];
+  $('grpChips').innerHTML='';
+  gs.forEach(g=>{const s=document.createElement('span');s.className='chip'+(gsel===g?' on':'');s.textContent=g;
+    s.onclick=()=>{gsel=(gsel===g?null:g);buildGrpChips();render();};$('grpChips').appendChild(s);});
+}
+document.addEventListener('click',e=>{
+  if(e.target.dataset&&e.target.dataset.f){fsel=e.target.dataset.f;
+    document.querySelectorAll('[data-f]').forEach(c=>c.classList.toggle('on',c.dataset.f===fsel));shown=150;render();}
+  if(e.target.dataset&&e.target.dataset.s){const k=e.target.dataset.s;
+    if(sortK===k)sortD*=-1;else{sortK=k;sortD=-1;}render();}
+});
+$('q')&&$('q').addEventListener('input',()=>{shown=150;render();});
+$('more').onclick=()=>{shown+=300;render();};
+function fm(n){return n==null?'—':Number(n).toLocaleString();}
+function render(){
+  let f=DATA;
+  if(gsel)f=f.filter(d=>d.grp===gsel);
+  if(fsel==='spend')f=f.filter(d=>d.cost>0);
+  if(fsel==='lose')f=f.filter(d=>d.top1!=null&&d.bid<d.top1);
+  const t=$('q').value.trim();
+  if(t)f=f.filter(d=>d.kw.includes(t)||d.grp.includes(t));
+  f=[...f].sort((a,b)=>{const x=a[sortK],y=b[sortK];
+    if(x==null)return 1;if(y==null)return -1;
+    return (x>y?1:x<y?-1:0)*sortD*(typeof x==='string'?-1:1);});
+  const tImp=f.reduce((s,d)=>s+d.imp,0),tClk=f.reduce((s,d)=>s+d.clk,0),tCost=f.reduce((s,d)=>s+d.cost,0);
+  const winning=f.filter(d=>d.top1!=null&&d.bid>=d.top1).length;
+  $('cards').innerHTML=
+    '<div class="card"><div class="l">키워드</div><div class="v">'+f.length.toLocaleString()+'</div></div>'
+   +'<div class="card"><div class="l">오늘 노출</div><div class="v">'+tImp.toLocaleString()+'</div></div>'
+   +'<div class="card"><div class="l">오늘 클릭</div><div class="v">'+tClk.toLocaleString()+'</div></div>'
+   +'<div class="card"><div class="l">오늘 비용(VAT포함)</div><div class="v">'+tCost.toLocaleString()+'원</div></div>'
+   +'<div class="card"><div class="l">1위 확보</div><div class="v g">'+winning.toLocaleString()+'개</div></div>';
+  $('tb').innerHTML=f.slice(0,shown).map(d=>{
+    let j='<span class="m">—</span>';
+    if(d.top1!=null)j=d.bid>=d.top1?'<span class="win">1위</span>':'<span class="lose">밀림 '+fm(d.top1-d.bid)+'</span>';
+    return '<tr><td>'+d.kw+'</td><td>'+d.grp+'</td><td>'+fm(d.bid)+'</td><td>'+fm(d.top1)+'</td><td>'+j
+      +'</td><td>'+fm(d.imp)+'</td><td>'+fm(d.clk)+'</td><td>'+(d.cost?fm(d.cost)+'원':'—')
+      +'</td><td>'+(d.rnk?Number(d.rnk).toFixed(1):'—')+'</td></tr>';}).join('');
+  $('more').style.display=f.length>shown?'block':'none';
+}
+boot();
+</script></body></html>
