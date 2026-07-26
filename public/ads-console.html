@@ -70,8 +70,8 @@
    #mainArea{padding-bottom:110px!important}
    #mainArea{padding:14px 12px!important}
    #oneline>div:first-child{flex-wrap:wrap}
-   #oneline>div:first-child>div[style*="width:1px"]{display:none}
-   #oneline .fstep{flex:1 1 44%!important;padding:8px 4px!important}
+   #oneline>div:first-child>div[style*="padding:0 2px"]{display:none}
+   #oneline .fstep{flex:1 1 44%!important;min-width:42%!important}
    .box{overflow-x:auto}
    .box table{min-width:640px}
    .bar{width:76px}
@@ -260,15 +260,29 @@ function render(){
   if(pushed.length)probs.push('⚠️ <b>'+pushed.slice(0,3).map(d=>d.kw).join(', ')+'</b>'+(pushed.length>3?' 외 '+(pushed.length-3)+'개':'')+' — 지금 2~4위로 밀려 있음. 다음 정시 자동맞춤이 올립니다. 계속 밀리면 경쟁사가 상한 위로 지른 것 — 문구(품질)로 이길 자리.');
   if(waiting.length)probs.push('⏳ <b>'+waiting.join(' · ')+'</b> — 광고문구 심사 대기라 노출 0. 보통 하루면 통과. 내일도 0이면 그때 진짜 문제.');
   const realJobs=window.TODAYJOBS, estJobs=allClk>0?Math.max(1,Math.round(allClk/3.6)):0;
-  const step=(l,v,c)=>'<div class="fstep" style="text-align:center;padding:2px 18px;flex:1"><div style="font-size:12px;color:#9B9A97;font-weight:600;margin-bottom:4px">'+l+'</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.02em;color:'+(c||'#191919')+'">'+v+'</div></div>';
-  const arrow='<div style="width:1px;align-self:stretch;background:#F1F0EF"></div>';
-  $('oneline').innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:2px">'
-    +step('① 오늘 쓴 돈',fm(allCost)+'원','#2F80ED')+arrow
-    +step('② 광고가 보임',fm(allImp)+'번')+arrow
-    +step('③ 손님이 누름',allClk+'번')+arrow
-    +step(realJobs!=null?'④ 오늘 실제 접수':'④ 예상 접수(추정)',realJobs!=null?realJobs+'건':(estJobs?'약 '+estJobs+'건':'—'),'#1C7F4B')
-    +'</div><div style="font-size:12px;color:#9B9A97;margin-top:6px;text-align:center">④ 기준 건당 광고비 '+((realJobs||estJobs)?fm(Math.round(allCost/(realJobs||estJobs)))+'원':'—')+' (목표 65,000원 아래)</div>'
-    +(probs.length?'<div style="margin-top:8px;font-size:13.5px">챙길 일 <b style="color:var(--red)">'+probs.length+'가지</b> ↓</div>':'<div style="margin-top:8px;font-size:13.5px;color:var(--green)">챙길 일 없음 — 자동이 관리 중</div>');
+  const jobs=realJobs!=null?realJobs:estJobs;
+  const cpa=jobs?Math.round(allCost/jobs):null;
+  const tile=(icon,l,v,bg,c)=>'<div class="fstep" style="flex:1;min-width:130px;background:'+bg+';border-radius:14px;padding:14px 16px">'
+    +'<div style="font-size:12px;color:'+c+'99;font-weight:700">'+icon+' '+l+'</div>'
+    +'<div style="font-size:23px;font-weight:800;letter-spacing:-0.02em;color:'+c+';margin-top:3px">'+v+'</div></div>';
+  const chev='<div style="align-self:center;color:#C9C7C4;font-size:15px;padding:0 2px">›</div>';
+  const pct=cpa?Math.min(100,Math.round(cpa/65000*100)):0;
+  const gcol=cpa==null?'#9B9A97':(cpa<=65000?'#1C7F4B':'#DC2626');
+  $('oneline').innerHTML=
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">'
+    +tile('💸','오늘 쓴 돈',fm(allCost)+'원','#EEF3FD','#1D4ED8')+chev
+    +tile('👀','광고가 보임',fm(allImp)+'번','#F4F3F1','#37352F')+chev
+    +tile('👆','손님이 누름',allClk+'번','#F4F3F1','#37352F')+chev
+    +tile('📋',realJobs!=null?'오늘 실제 접수':'예상 접수',jobs?(realJobs!=null?jobs+'건':'약 '+jobs+'건'):'—','#EAF6EE','#1C7F4B')
+    +'</div>'
+    +'<div style="margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+    +'<div style="font-size:12.5px;font-weight:700;color:#787774">접수 1건당 광고비</div>'
+    +'<div style="flex:1;min-width:160px;height:10px;background:#F1F0EF;border-radius:99px;overflow:hidden">'
+    +'<div style="width:'+pct+'%;height:100%;border-radius:99px;background:'+gcol+'"></div></div>'
+    +'<div style="font-size:13.5px;font-weight:800;color:'+gcol+'">'+(cpa?fm(cpa)+'원':'—')+'</div>'
+    +'<div style="font-size:11.5px;color:#9B9A97">목표 65,000원</div>'
+    +'</div>'
+    +(probs.length?'<div style="margin-top:10px;font-size:13.5px;font-weight:700">챙길 일 <b style="color:var(--red)">'+probs.length+'가지</b> ↓</div>':'<div style="margin-top:10px;font-size:13.5px;color:var(--green);font-weight:700">챙길 일 없음 — 자동이 관리 중</div>');
   $('issues').style.display=probs.length?'':'none';
   $('issues').innerHTML=probs.join('<br><br>');
   $('issues').style.cssText='margin:10px 0;padding:14px 18px;font-size:13px;line-height:1.85;background:#FDF7F2;border:1px solid #F3E2CE;border-left:4px solid #E8A33D;border-radius:10px;'+(probs.length?'':'display:none');
