@@ -1,9 +1,10 @@
-// 2026-07-26 v2 — 일회성: 지역 키워드 입찰가 197개 변경 (작업 후 삭제).
-// v1 에서 인천 37개 등록은 성공. 입찰가 변경은 3705(Invalid ad group number) —
-// 대량 수정 body 에 nccAdgroupId 가 빠져서였다. v2 는 항목마다 그룹 ID 포함.
-// 사용: ?token=...        → 미리보기
-//       ?token=...&run=1  → 입찰가 변경만 실행 (인천 등록은 재실행 안 함 — 중복 방지)
-//       ?token=...&check=1 → 두 그룹 현재 입찰가 재조회
+// 2026-07-26 v3 — 확장 키워드 대량 등록 (작업 후 삭제).
+// 방침(사장님): "에어컨 관련은 노출 다 돼도 좋다. 입찰가는 낮게."
+// 하는 일:
+//   ?step=plan   → 키워드도구에서 후보 수집 → 우리 일 관련만 분류 → 등록 예정 목록 미리보기 (쓰기 없음)
+//   ?step=group  → 새 광고그룹 '확장_증상청소' 생성 (메인키워드 그룹의 채널 복제)
+//   ?step=add&gid=grp-... → 후보 상위 100개를 그 그룹에 입찰가 2,000원으로 등록
+//   ?check=1     → 새 그룹 현재 상태 재조회
 
 import crypto from "crypto";
 
@@ -12,208 +13,26 @@ const NAVER_SECRET   = process.env.NAVER_AD_SECRET;
 const NAVER_CUSTOMER = process.env.NAVER_AD_CUSTOMER_ID;
 const NAVER_BASE     = "https://api.searchad.naver.com";
 const TOKEN = "7d1d70eb28b87512ab6ad1b308991dcce3a706749f30611c";
-const GRP_MID  = "grp-a001-01-000000069547311"; // 중간키워드
-const GRP_MID2 = "grp-a001-01-000000070185143"; // 중간키워드2
 
-const BID_CHANGES = [
-  { id: "nkw-a001-01-000008364157961", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157962", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157963", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157964", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157965", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157966", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157967", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157968", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157969", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157970", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157971", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157972", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157973", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157974", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157975", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157976", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157977", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157978", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157979", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157981", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157982", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157985", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157987", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157989", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157991", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157993", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157995", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157997", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364157999", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364158003", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364158005", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364158007", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364158009", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364158011", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165970", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165971", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165972", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165973", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165974", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165975", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165976", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165977", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165978", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165980", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165984", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165986", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165988", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165990", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165992", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165993", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165995", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165997", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364165998", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166000", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166001", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166004", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166006", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166008", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166010", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166012", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166014", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166016", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166017", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166019", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166021", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166023", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166025", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364166027", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169079", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169080", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169081", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169082", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169083", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169084", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169085", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169086", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169087", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169088", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169089", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169090", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169091", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169092", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169093", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169094", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169095", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169096", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169097", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169098", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169099", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169100", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169101", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169102", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169103", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169104", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169105", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169106", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169107", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169108", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169109", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169111", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364169113", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365148", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365150", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365152", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365154", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365156", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365158", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365160", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365162", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365163", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365165", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365167", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365169", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365171", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365173", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365176", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365178", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365179", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365181", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365182", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365184", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365186", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365188", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365190", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365191", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365193", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365195", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365197", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365199", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365201", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365203", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365205", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365207", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365209", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008364365211", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974260", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974262", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974263", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974264", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974265", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974266", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974268", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974269", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974270", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974271", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974272", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974273", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974274", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974275", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974276", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974277", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974278", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974279", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974280", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974281", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974282", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974283", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974284", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974285", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974286", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974287", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974288", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974289", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974290", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974291", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008392974292", gid: "grp-a001-01-000000069547311", bid: 2000 },
-  { id: "nkw-a001-01-000008403249169", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249170", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249172", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249173", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249174", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249176", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249177", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249178", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249179", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249180", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249181", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249182", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249183", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249184", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249185", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249186", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249187", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249188", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249189", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249190", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249191", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249192", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249193", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249194", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249195", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249196", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249197", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249198", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249199", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249200", gid: "grp-a001-01-000000070185143", bid: 3000 },
-  { id: "nkw-a001-01-000008403249201", gid: "grp-a001-01-000000070185143", bid: 3000 }
+const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
+const MAIN_GROUP  = "메인키워드";           // 채널 복제 원본
+const NEW_GROUP_NAME = "확장_증상청소";
+const BID = 2000;
+const SEEDS = [
+  ["에어컨청소","벽걸이에어컨청소","에어컨냄새제거","에어컨수리","에어컨실외기"],
+  ["에어컨필터청소","에어컨가스","에어컨냉매","시스템에어컨청소","에어컨물떨어짐"],
 ];
+
+// 분류 — MarketingScreen 과 동일 + 자동차/셀프 제외 강화
+const KW_EXCL = /(자동차|차량|버스|트럭|화물|캠핑|셀프|추천|구입|구매|렌탈|렌털|중고|판매|매장|가격비교|신제품|얼마|스탠드형|리모컨|사용법|전기세|평수|보관|이사)/;
+const KW_ASC  = /(서비스센터|as센터|무상|보증|as$|as[^a-z0-9가-힣]|삼성전자|엘지전자|에어컨as)/i;
+const KW_WORK = /(충전|냉매|가스|청소|세척|수리|고장|안시원|시원하지|안나와|안나옴|안됨|물떨어|누수|냄새|곰팡이|점검|실외기|필터|얼음|결빙|에러|안돌아|약해|냉방|배수|드레인|살균|분해)/;
+
+function qcNum(v) {
+  if (typeof v === "number") return v;
+  const s = String(v || "").replace(/[^0-9]/g, "");
+  return s ? Number(s) : 5;
+}
 
 function sign(method, path) {
   const ts = Date.now();
@@ -232,35 +51,99 @@ async function call(method, path, qs, body) {
   return { status: r.status, ok: r.ok, data };
 }
 
+async function collectCandidates() {
+  // ① 키워드도구 2회
+  const seen = new Map();
+  for (const pack of SEEDS) {
+    const r = await call("GET", "/keywordstool",
+      "hintKeywords=" + encodeURIComponent(pack.join(",")) + "&showDetail=1");
+    const list = r.data && r.data.keywordList || [];
+    for (const k of list) {
+      const kw = String(k.relKeyword || "").replace(/\s+/g, "");
+      if (!kw || seen.has(kw)) continue;
+      seen.set(kw, qcNum(k.monthlyPcQcCnt) + qcNum(k.monthlyMobileQcCnt));
+    }
+  }
+  // ② 우리 일 관련만
+  let cand = [...seen.entries()]
+    .filter(([kw]) => !KW_EXCL.test(kw) && !KW_ASC.test(kw) && KW_WORK.test(kw))
+    .sort((a, b) => b[1] - a[1]);
+  // ③ 이미 등록된 단어 제외 (메인키워드 그룹만 — 지역조합 그룹과는 충돌 안 함)
+  const ag = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(CAMPAIGN_ID));
+  const groups = Array.isArray(ag.data) ? ag.data : [];
+  const main = groups.find(g => g.name === MAIN_GROUP);
+  const existing = new Set();
+  if (main) {
+    const ks = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(main.nccAdgroupId));
+    for (const k of (Array.isArray(ks.data) ? ks.data : [])) existing.add(String(k.keyword).replace(/\s+/g, ""));
+  }
+  const done = groups.find(g => g.name === NEW_GROUP_NAME);
+  if (done) {
+    const ks = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(done.nccAdgroupId));
+    for (const k of (Array.isArray(ks.data) ? ks.data : [])) existing.add(String(k.keyword).replace(/\s+/g, ""));
+  }
+  cand = cand.filter(([kw]) => !existing.has(kw)).slice(0, 100);
+  return { cand, groups, main, done };
+}
+
 export default async function handler(req, res) {
   if ((req.query.token || "") !== TOKEN) { res.status(404).end(); return; }
   try {
+    const step = req.query.step || "";
+
     if (req.query.check) {
-      const out = {};
-      for (const [name, gid] of [["mid", GRP_MID], ["mid2", GRP_MID2]]) {
-        const r = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(gid));
-        out[name] = Array.isArray(r.data)
-          ? { total: r.data.length,
-               over70: r.data.filter(k => (k.bidAmt || 0) > 70).length,
-               incheon: r.data.filter(k => k.keyword.includes("인천")).length,
-               sample: r.data.filter(k => (k.bidAmt || 0) > 70).slice(0, 6)
-                 .map(k => ({ kw: k.keyword, bid: k.bidAmt })) }
-          : { err: r.data };
-      }
-      res.status(200).json({ ok: true, mode: "check", ...out });
+      const ag = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(CAMPAIGN_ID));
+      const g = (Array.isArray(ag.data) ? ag.data : []).find(x => x.name === NEW_GROUP_NAME);
+      if (!g) { res.status(200).json({ ok: false, error: "새 그룹 없음" }); return; }
+      const ks = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(g.nccAdgroupId));
+      const rows = Array.isArray(ks.data) ? ks.data : [];
+      res.status(200).json({ ok: true, group: g.nccAdgroupId, total: rows.length,
+        sample: rows.slice(0, 10).map(k => ({ kw: k.keyword, bid: k.bidAmt, status: k.status })) });
       return;
     }
-    if (!req.query.run) {
-      res.status(200).json({ ok: true, mode: "dry", bidChanges: BID_CHANGES.length,
-        sample: BID_CHANGES.slice(0, 3) });
+
+    if (step === "plan") {
+      const { cand, main, done } = await collectCandidates();
+      res.status(200).json({ ok: true, mode: "plan",
+        mainFound: !!main, newGroupExists: !!done,
+        count: cand.length,
+        totalVol: cand.reduce((a, b) => a + b[1], 0),
+        top30: cand.slice(0, 30).map(([kw, v]) => ({ kw, vol: v })) });
       return;
     }
-    const bidBody = BID_CHANGES.map(b => ({
-      nccKeywordId: b.id, nccAdgroupId: b.gid, bidAmt: b.bid, useGroupBidAmt: false }));
-    const r1 = await call("PUT", "/ncc/keywords", "fields=bidAmt", bidBody);
-    res.status(200).json({ ok: r1.ok,
-      bids: { status: r1.status, changed: Array.isArray(r1.data) ? r1.data.length : 0,
-              err: r1.ok ? null : r1.data } });
+
+    if (step === "group") {
+      const ag = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(CAMPAIGN_ID));
+      const groups = Array.isArray(ag.data) ? ag.data : [];
+      const exist = groups.find(g => g.name === NEW_GROUP_NAME);
+      if (exist) { res.status(200).json({ ok: true, gid: exist.nccAdgroupId, note: "이미 있음" }); return; }
+      const main = groups.find(g => g.name === MAIN_GROUP);
+      if (!main) { res.status(200).json({ ok: false, error: "메인키워드 그룹 못 찾음" }); return; }
+      const r = await call("POST", "/ncc/adgroups", null, {
+        nccCampaignId: CAMPAIGN_ID,
+        name: NEW_GROUP_NAME,
+        pcChannelId: main.pcChannelId,
+        mobileChannelId: main.mobileChannelId,
+        bidAmt: BID, useDailyBudget: false,
+      });
+      res.status(200).json({ ok: r.ok, gid: r.data && r.data.nccAdgroupId, err: r.ok ? null : r.data });
+      return;
+    }
+
+    if (step === "add") {
+      const gid = req.query.gid;
+      if (!gid) { res.status(200).json({ ok: false, error: "gid 필요" }); return; }
+      const { cand } = await collectCandidates();
+      const bodyArr = cand.map(([kw]) => ({ keyword: kw, bidAmt: BID, useGroupBidAmt: false }));
+      if (!bodyArr.length) { res.status(200).json({ ok: true, created: 0, note: "후보 없음(이미 등록됨)" }); return; }
+      const r = await call("POST", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(gid), bodyArr);
+      res.status(200).json({ ok: r.ok,
+        created: Array.isArray(r.data) ? r.data.length : 0,
+        err: r.ok ? null : r.data });
+      return;
+    }
+
+    res.status(200).json({ ok: true, steps: ["plan", "group", "add&gid=", "check=1"] });
   } catch (e) {
     res.status(200).json({ ok: false, error: String(e && e.message || e) });
   }
