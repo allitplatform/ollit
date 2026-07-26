@@ -123,13 +123,13 @@ function render(){
     if(x==null)return 1;if(y==null)return -1;
     return (x>y?1:x<y?-1:0)*sortD*(typeof x==='string'?-1:1);});
   const tImp=f.reduce((s,d)=>s+d.imp,0),tClk=f.reduce((s,d)=>s+d.clk,0),tCost=f.reduce((s,d)=>s+d.cost,0);
-  const winning=f.filter(d=>d.top1!=null&&d.bid>=d.top1).length;
+  const winning=f.filter(d=>(d.rnk&&d.rnk<=1.4)||(d.top1!=null&&d.bid>=d.top1&&!d.rnk)).length;
   $('cards').innerHTML=
     '<div class="card"><div class="l">키워드</div><div class="v">'+f.length.toLocaleString()+'</div></div>'
    +'<div class="card"><div class="l">오늘 노출</div><div class="v">'+tImp.toLocaleString()+'</div></div>'
    +'<div class="card"><div class="l">오늘 클릭</div><div class="v">'+tClk.toLocaleString()+'</div></div>'
    +'<div class="card"><div class="l">오늘 비용(VAT포함)</div><div class="v">'+tCost.toLocaleString()+'원</div></div>'
-   +'<div class="card"><div class="l">1위 확보</div><div class="v g">'+winning.toLocaleString()+'개</div></div>';
+   +'<div class="card"><div class="l">1위권(실측 우선)</div><div class="v g">'+winning.toLocaleString()+'개</div></div>';
   const gAgg={};
   DATA.filter(d=>d.on).forEach(d=>{const g=gAgg[d.grp]=gAgg[d.grp]||{imp:0,clk:0,cost:0,win:0,n:0};
     g.imp+=d.imp;g.clk+=d.clk;g.cost+=d.cost;g.n++;if(d.top1!=null&&d.bid>=d.top1)g.win++;});
@@ -140,7 +140,10 @@ function render(){
   $('tb').innerHTML=f.slice(0,shown).map((d,i)=>{
     let j='<span class="m">—</span>';
     if(!d.on)j='<span class="m">꺼짐</span>';
-    else if(d.top1!=null)j=d.bid>=d.top1?'<span class="win">1위</span>':'<span class="lose">밀림 '+fm(d.top1-d.bid)+'</span>';
+    else if(d.rnk&&d.rnk<=1.4)j='<span class="win">1위(실측)</span>';
+    else if(d.top1!=null)j=d.bid>=d.top1
+      ?(d.rnk?'<span class="a">입찰OK·실측 '+Number(d.rnk).toFixed(1)+'위</span>':'<span class="win">1위권</span>')
+      :'<span class="lose">밀림 '+fm(d.top1-d.bid)+'</span>';
     return '<tr style="cursor:pointer" onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')"><td>'+d.kw+'</td><td>'+d.grp+'</td><td>'+fm(d.bid)+'</td><td>'+fm(d.top1)+'</td><td>'+j
       +'</td><td>'+fm(d.imp)+'</td><td>'+fm(d.clk)+'</td><td>'+(d.cost?fm(d.cost)+'원':'—')
       +'</td><td>'+(d.rnk?Number(d.rnk).toFixed(1):'—')+'</td></tr>';}).join('');
