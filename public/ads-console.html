@@ -48,7 +48,12 @@
    #shell{flex-direction:column;margin:-12px -10px 0}
    #sideNav{width:100%!important;height:auto!important;position:static!important;display:flex;align-items:center;gap:2px;padding:10px 12px!important;overflow-x:auto}
    #sideNav>div{margin:0!important}
-   #sideNav .nav{padding:8px 10px;font-size:12px;white-space:nowrap}
+   #sideNav .nav{padding:9px 11px;font-size:16px;white-space:nowrap;border-radius:10px}
+   #sideNav .nav .nl{display:none;font-size:12.5px;font-weight:800;vertical-align:middle}
+   #sideNav .nav.on .nl{display:inline}
+   #sideNav>div:first-child .nl{display:none}
+   #sideNav img{width:26px!important;height:26px!important}
+   #sideNav>div:first-child div div:last-child{display:none}
    #navPulse{display:none}
    #mainArea{padding:14px 12px!important}
    #oneline>div:first-child{flex-wrap:wrap}
@@ -76,12 +81,12 @@
       <div><div style="font-weight:800;font-size:15px">올잇</div>
       <div style="font-size:10.5px;color:#94A3B8">광고 관제 시스템</div></div>
     </div>
-    <div class="nav on" data-tab="t1">📊 오늘 성적</div>
-    <div class="nav" data-tab="t2">🔤 키워드</div>
-    <div class="nav" data-tab="t3">🛡 부정클릭 감시</div>
+    <div class="nav on" data-tab="t1"><span class="ni">📊</span><span class="nl"> 오늘 성적</span></div>
+    <div class="nav" data-tab="t2"><span class="ni">🔤</span><span class="nl"> 키워드</span></div>
+    <div class="nav" data-tab="t3"><span class="ni">🛡</span><span class="nl"> 부정클릭 감시</span></div>
     <div style="margin-top:22px;border-top:1px solid #1E293B;padding-top:14px">
-      <div class="nav" onclick="load()">↻ 새로고침</div>
-      <div class="nav" onclick="toggleManage()" id="mgNav">🔧 관리 모드</div>
+      <div class="nav" onclick="load()"><span class="ni">↻</span><span class="nl"> 새로고침</span></div>
+      <div class="nav" onclick="toggleManage()" id="mgNav"><span class="ni">🔧</span><span class="nl"> 관리 모드</span></div>
     </div>
     <div id="navPulse" style="position:absolute;bottom:18px;left:22px;font-size:11px;color:#94A3B8"></div>
   </aside>
