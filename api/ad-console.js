@@ -9,6 +9,7 @@ const NAVER_SECRET   = process.env.NAVER_AD_SECRET;
 const NAVER_CUSTOMER = process.env.NAVER_AD_CUSTOMER_ID;
 const NAVER_BASE     = "https://api.searchad.naver.com";
 const TOKEN = "85cd10a6b18bed7ad40ace71d23fb1fe0f244e425d6184bb";
+const WRITE_TOKEN = "b29adde027905ee35c810634f09bda48a697f973fbdb8ca8"; // 실제 접수 공개 게이트
 const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 
 const SB_URL = process.env.VITE_SUPABASE_URL;
@@ -136,9 +137,10 @@ export default async function handler(req, res) {
       }
     } catch (e) {}
 
-    // 오늘 실제 접수 (올데이케어 = 자체유입)
+    // 오늘 실제 접수 (올데이케어 = 자체유입) — 관리 토큰 소지자에게만 (수익 정보)
     let todayJobs = null;
     try {
+      if ((req.query.wt || "") !== WRITE_TOKEN) throw new Error("viewer");
       const kstDay = today; // KST YYYY-MM-DD
       const startISO = new Date(`${kstDay}T00:00:00+09:00`).toISOString();
       const endISO   = new Date(`${kstDay}T23:59:59+09:00`).toISOString();
