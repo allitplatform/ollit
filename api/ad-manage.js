@@ -62,6 +62,38 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 그룹의 타게팅 원본 확인
+    if (step === "targets") {
+      const r = await call("GET", "/ncc/adgroups/" + req.query.gid);
+      res.status(200).json({ ok: r.ok, name: r.data && r.data.name,
+        targets: r.data && r.data.targets });
+      return;
+    }
+
+    // 지역 타게팅이 걸린 모든 그룹에 지역코드 추가 (예: codes=RL11,RL02190)
+    if (step === "alladdregion") {
+      const codes = String(req.query.codes || "").split(",").map(s => s.trim()).filter(Boolean);
+      if (!codes.length) { res.status(200).json({ ok: false, error: "codes 필요" }); return; }
+      const ag = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(CAMPAIGN_ID));
+      const out = [];
+      for (const g of (Array.isArray(ag.data) ? ag.data : [])) {
+        const full = await call("GET", "/ncc/adgroups/" + g.nccAdgroupId);
+        const grp = full.data;
+        const t = (grp.targets || []).find(x =>
+          String(x.targetTp || "").toUpperCase().includes("REGION") && x.target && x.target.location);
+        if (!t) { out.push({ grp: g.name, skip: "지역 타게팅 없음(전지역)" }); continue; }
+        let changed = false;
+        for (const c of codes) {
+          if (!t.target.location[c]) { t.target.location[c] = true; changed = true; }
+        }
+        if (!changed) { out.push({ grp: g.name, skip: "이미 포함" }); continue; }
+        const put = await call("PUT", "/ncc/adgroups/" + g.nccAdgroupId, null, grp);
+        out.push({ grp: g.name, ok: put.ok, err: put.ok ? null : (put.data && put.data.title) || put.status });
+      }
+      res.status(200).json({ ok: true, codes, result: out });
+      return;
+    }
+
     if (step === "list") {
       const r = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(req.query.gid));
       const rows = Array.isArray(r.data) ? r.data : [];
