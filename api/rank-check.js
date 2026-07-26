@@ -34,10 +34,12 @@ function parseRank(html) {
   if (html.length < 20000 || html.includes("자동입력 방지문자") || html.includes("비정상적인 접근")) {
     out.blocked = true; return out;
   }
-  // 광고 = ader.naver.com 링크 묶음(클러스터). 링크 사이 간격이 크면 다음 광고.
+  // 광고 = ader.naver.com 링크 묶음(클러스터). 파워링크 구역(power_link)부터만 센다.
+  const secStart = html.indexOf("power_link");
+  const base = secStart > 0 ? secStart : 0;
   const idx = [];
   const re = /ader\.naver\.com/g; let m;
-  while ((m = re.exec(html)) !== null) idx.push(m.index);
+  while ((m = re.exec(html)) !== null) { if (m.index >= base) idx.push(m.index); }
   if (!idx.length) { out.adsTotal = 0; return out; }
   const GAP = 1500;
   const clusters = [];
@@ -50,7 +52,7 @@ function parseRank(html) {
   out.adsTotal = clusters.length; out.markerUsed = "ader-cluster";
   out.clusters = clusters.map(c => c[0]);
   let ourPos = -1;
-  for (const o of OURS) { const p = html.indexOf(o); if (p >= 0 && (ourPos < 0 || p < ourPos)) ourPos = p; }
+  for (const o of OURS) { const p = html.indexOf(o, base); if (p >= 0 && (ourPos < 0 || p < ourPos)) ourPos = p; }
   if (ourPos >= 0) {
     let rank = 0;
     for (const [a, b] of clusters) { if (a - 800 <= ourPos) rank++; else break; }
