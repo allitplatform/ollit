@@ -43,6 +43,21 @@
  #login input{width:100%;font-size:15px;padding:12px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--tx);margin:12px 0}
  .more{padding:12px;text-align:center;color:var(--blue);font-weight:900;cursor:pointer}
  .err{color:var(--red);font-weight:800;margin:16px 0}
+ @media (max-width:768px){
+   body{padding:12px 10px 60px}
+   #shell{flex-direction:column;margin:-12px -10px 0}
+   #sideNav{width:100%!important;height:auto!important;position:static!important;display:flex;align-items:center;gap:2px;padding:10px 12px!important;overflow-x:auto}
+   #sideNav>div{margin:0!important}
+   #sideNav .nav{padding:8px 10px;font-size:12px;white-space:nowrap}
+   #navPulse{display:none}
+   #mainArea{padding:14px 12px!important}
+   #oneline>div:first-child{flex-wrap:wrap}
+   #oneline>div:first-child>div[style*="width:1px"]{display:none}
+   #oneline .fstep{flex:1 1 44%!important;padding:8px 4px!important}
+   .box{overflow-x:auto}
+   .box table{min-width:640px}
+   .bar{width:76px}
+ }
  #histPanel{display:none;position:fixed;right:24px;top:80px;width:440px;max-width:92vw;background:#fff;border:1px solid var(--blue);border-radius:14px;padding:16px;z-index:50;box-shadow:0 10px 40px rgba(15,23,42,.25)}
 </style></head><body>
 
@@ -54,8 +69,8 @@
 </div>
 
 <div id="app" style="display:none">
- <div style="display:flex;min-height:100vh;margin:-40px -28px 0">
-  <aside style="width:210px;flex-shrink:0;background:#0F172A;color:#fff;padding:22px 14px;position:sticky;top:0;height:100vh;box-sizing:border-box">
+ <div id="shell" style="display:flex;min-height:100vh;margin:-40px -28px 0">
+  <aside id="sideNav" style="width:210px;flex-shrink:0;background:#0F172A;color:#fff;padding:22px 14px;position:sticky;top:0;height:100vh;box-sizing:border-box">
     <div style="display:flex;align-items:center;gap:10px;margin:2px 6px 18px">
       <img src="/icon-192.png" width="34" height="34" style="border-radius:9px" onerror="this.style.display='none'">
       <div><div style="font-weight:800;font-size:15px">올잇</div>
@@ -70,7 +85,7 @@
     </div>
     <div id="navPulse" style="position:absolute;bottom:18px;left:22px;font-size:11px;color:#94A3B8"></div>
   </aside>
-  <main style="flex:1;min-width:0;padding:28px 30px;box-sizing:border-box">
+  <main id="mainArea" style="flex:1;min-width:0;padding:28px 30px;box-sizing:border-box">
   <h1 style="display:none">광고 관제판</h1><span class="at" id="at"></span>
   <div id="t1">
   <div id="pulse" style="margin:6px 0;font-size:12.5px;font-weight:700;color:var(--mut)"></div>
@@ -222,7 +237,7 @@ function render(){
   if(pushed.length)probs.push('⚠️ <b>'+pushed.slice(0,3).map(d=>d.kw).join(', ')+'</b>'+(pushed.length>3?' 외 '+(pushed.length-3)+'개':'')+' — 지금 2~4위로 밀려 있음. 다음 정시 자동맞춤이 올립니다. 계속 밀리면 경쟁사가 상한 위로 지른 것 — 문구(품질)로 이길 자리.');
   if(waiting.length)probs.push('⏳ <b>'+waiting.join(' · ')+'</b> — 광고문구 심사 대기라 노출 0. 보통 하루면 통과. 내일도 0이면 그때 진짜 문제.');
   const realJobs=window.TODAYJOBS, estJobs=allClk>0?Math.max(1,Math.round(allClk/3.6)):0;
-  const step=(l,v,c)=>'<div style="text-align:center;padding:2px 18px;flex:1"><div style="font-size:12px;color:#9B9A97;font-weight:600;margin-bottom:4px">'+l+'</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.02em;color:'+(c||'#191919')+'">'+v+'</div></div>';
+  const step=(l,v,c)=>'<div class="fstep" style="text-align:center;padding:2px 18px;flex:1"><div style="font-size:12px;color:#9B9A97;font-weight:600;margin-bottom:4px">'+l+'</div><div style="font-size:24px;font-weight:800;letter-spacing:-0.02em;color:'+(c||'#191919')+'">'+v+'</div></div>';
   const arrow='<div style="width:1px;align-self:stretch;background:#F1F0EF"></div>';
   $('oneline').innerHTML='<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:2px">'
     +step('① 오늘 쓴 돈',fm(allCost)+'원','#2F80ED')+arrow

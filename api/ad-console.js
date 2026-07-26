@@ -8,8 +8,9 @@ const NAVER_API_KEY  = process.env.NAVER_AD_API_KEY;
 const NAVER_SECRET   = process.env.NAVER_AD_SECRET;
 const NAVER_CUSTOMER = process.env.NAVER_AD_CUSTOMER_ID;
 const NAVER_BASE     = "https://api.searchad.naver.com";
-const TOKEN = "85cd10a6b18bed7ad40ace71d23fb1fe0f244e425d6184bb";
-const WRITE_TOKEN = "b29adde027905ee35c810634f09bda48a697f973fbdb8ca8"; // 실제 접수 공개 게이트
+const TOKEN      = "85cd10a6b18bed7ad40ace71d23fb1fe0f244e425d6184bb"; // 업체용 보기 (추정만)
+const TOKEN_FULL = "82ae0c34ae8eeec0f6932b82"; // 대표용 보기 (실제 접수 포함, 조작 불가)
+const WRITE_TOKEN = "b29adde027905ee35c810634f09bda48a697f973fbdb8ca8"; // 관리자
 const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 
 const SB_URL = process.env.VITE_SUPABASE_URL;
@@ -62,7 +63,8 @@ const norm = (x) => String(x || "").replace(/\s+/g, "").toUpperCase();
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  if ((req.query.token || "") !== TOKEN) { res.status(404).end(); return; }
+  const tk = req.query.token || "";
+  if (tk !== TOKEN && tk !== TOKEN_FULL) { res.status(404).end(); return; }
   try {
     // 부정클릭 감시: 최근 클릭 로그 IP 집계
     if (req.query.clicks) {
@@ -140,7 +142,7 @@ export default async function handler(req, res) {
     // 오늘 실제 접수 (올데이케어 = 자체유입) — 관리 토큰 소지자에게만 (수익 정보)
     let todayJobs = null;
     try {
-      if ((req.query.wt || "") !== WRITE_TOKEN) throw new Error("viewer");
+      if (tk !== TOKEN_FULL && (req.query.wt || "") !== WRITE_TOKEN) throw new Error("viewer");
       const kstDay = today; // KST YYYY-MM-DD
       const startISO = new Date(`${kstDay}T00:00:00+09:00`).toISOString();
       const endISO   = new Date(`${kstDay}T23:59:59+09:00`).toISOString();
