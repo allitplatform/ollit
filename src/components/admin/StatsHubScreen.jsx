@@ -12,6 +12,8 @@ import React, { useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { todayYmd, toKstYmd } from "../../utils/dateLabel.js";
 import { RegionStatsScreen } from "./RegionStatsScreen.jsx";
+// 2026-07-27 — 취소 숫자 클릭 → 목록 펼침 (사유 한국어 라벨)
+import { getCancelReasonLabel } from "../../data/cancelReasons.js";
 
 // 표시 순서·색 — receptionForm.js PRINCIPALS 색과 동기 (수동 복사).
 const PRINCIPAL_ORDER = [
@@ -56,11 +58,13 @@ const _won = (n) => (Number(n) || 0).toLocaleString("ko-KR");
 // ─── 원청별 탭 ───────────────────────────────────────────
 function PrincipalStatsTab({ t, apiTasks = [] }) {
   const [period, setPeriod] = useState("week");
+  const [openCancel, setOpenCancel] = useState(null);   // 취소 목록 펼친 원청 code
   const { start, end } = useMemo(() => _range(period), [period]);
 
   const { rows, totals } = useMemo(() => {
     const received = new Map();
     const canceled = new Map();   // 2026-07-27 — 사장님 spec: 취소도 보이게
+    const cxList   = new Map();   // code → 취소 task 목록 (클릭 펼침용)
     const done     = new Map();
     const owner    = new Map();
     for (const tk of (apiTasks || [])) {
@@ -72,8 +76,14 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
       if (created) {
         const k = toKstYmd(created);
         if (k && k >= start && k <= end) {
-          if (tk.status === "취소") canceled.set(code, (canceled.get(code) || 0) + 1);
-          else received.set(code, (received.get(code) || 0) + 1);
+          // 2026-07-27 v2 — 사장님 spec: 접수 = 전체 유입 (취소 포함).
+          //   "61 접수 + 취소 13" 이 빼기처럼 읽힘 — 진짜 들어온 건 74. 취소는 그중 일부.
+          received.set(code, (received.get(code) || 0) + 1);
+          if (tk.status === "취소") {
+            canceled.set(code, (canceled.get(code) || 0) + 1);
+            if (!cxList.has(code)) cxList.set(code, []);
+            cxList.get(code).push(tk);
+          }
         }
       }
       const completed = tk.completedAt || tk.completed_at;
@@ -91,6 +101,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
       ...p,
       received: received.get(p.code) || 0,
       canceled: canceled.get(p.code) || 0,
+      cxTasks:  cxList.get(p.code)   || [],
       done:     done.get(p.code)     || 0,
       owner:    owner.get(p.code)    || 0,
       isTrackB: p.code === USOLN_CODE,
@@ -189,7 +200,16 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>{r.name}</span>
               <span style={{ width: 34, textAlign: "right", fontSize: 12.5, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: t.text }}>{r.received}</span>
-              <span style={{ width: 30, textAlign: "right", fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: r.canceled > 0 ? "#FF3B5C" : t.textMuted }}>{r.canceled}</span>
+              <span
+                onClick={() => r.canceled > 0 && setOpenCancel(openCancel === r.code ? null : r.code)}
+                style={{
+                  width: 30, textAlign: "right", fontSize: 12, fontWeight: 700,
+                  fontVariantNumeric: "tabular-nums",
+                  color: r.canceled > 0 ? "#FF3B5C" : t.textMuted,
+                  textDecoration: r.canceled > 0 ? "underline" : "none",
+                  cursor: r.canceled > 0 ? "pointer" : "default",
+                }}
+              >{r.canceled}</span>
               <span style={{ width: 34, textAlign: "right", fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: t.textSecondary }}>{r.done}</span>
               <span style={{
                 width: 82, textAlign: "right", fontVariantNumeric: "tabular-nums",
@@ -207,6 +227,30 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
                 opacity: r.isTrackB ? 0.5 : 1,
               }}/>
             </div>
+            {/* 2026-07-27 — 취소 숫자 클릭 시 목록 펼침 */}
+            {openCancel === r.code && r.cxTasks.length > 0 && (
+              <div style={{
+                marginTop: 7, padding: "8px 10px",
+                background: "rgba(255,59,92,0.06)",
+                border: "1px solid rgba(255,59,92,0.25)",
+                borderRadius: 9,
+              }}>
+                {r.cxTasks.map(ct => (
+                  <div key={ct.id} style={{
+                    fontSize: 11, color: t.textSecondary, lineHeight: 1.8,
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    <span style={{ fontWeight: 800, color: t.text }}>{ct.customer || "고객 미상"}</span>
+                    <span style={{ color: t.textMuted }}> · {ct.taskCode || ct.id}</span>
+                    {(() => {
+                      const raw = ct.cancelReason || (ct.categoryData && ct.categoryData.cancelReason) || "";
+                      const label = raw ? (getCancelReasonLabel(raw) || raw) : "";
+                      return label ? <span style={{ color: "#FF3B5C" }}> — {label}</span> : null;
+                    })()}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
 
@@ -228,7 +272,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
       <div style={{ fontSize: 10, color: t.textMuted, marginTop: 10, lineHeight: 1.7 }}>
         회사 몫 = 운영비 빼기 전 금액 (이익 아님). 유솔N 은 월정산이라 금액 미확정.<br/>
         접수와 완료는 따로 셈 (이번 기간 접수 ≠ 이번 기간 완료).<br/>
-        접수 = 유효 접수 (취소 제외) · 취소 = 이 기간 접수됐다가 취소된 건. 전체 유입 = 접수+취소.
+        접수 = 전체 유입 (취소 포함) · 취소 = 그중 취소된 건 · 유효 접수 = 접수 − 취소.
       </div>
     </div>
   );
