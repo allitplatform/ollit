@@ -64,6 +64,14 @@ function parseRank(html) {
 export default async function handler(req, res) {
   if ((req.query.token || "") !== TOKEN) { res.status(404).end(); return; }
   try {
+    if (req.query.debug === "raw") {
+      // 파서 실험용: SERP 원본 HTML 그대로 반환 (확인만, 클릭 없음)
+      const kw = req.query.kw || KEYWORDS[0];
+      const { html } = await fetchSerp(kw);
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.status(200).send(html);
+      return;
+    }
     if (req.query.debug) {
       const kw = req.query.kw || KEYWORDS[0];
       const { status, html } = await fetchSerp(kw);
