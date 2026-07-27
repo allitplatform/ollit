@@ -231,6 +231,60 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 부정클릭 자동 순찰 (?step=ippatrol) — 30분마다 cron 호출
+    //   기준: 최근 24시간 광고 유입 4회 이상 OR 10분 내 3회 연타. 걸리면 노출제한 자동 등록 + 문자.
+    if (step === "ippatrol") {
+      const SU = process.env.VITE_SUPABASE_URL, SK = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const sinceIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+      const r = await fetch(`${SU}/rest/v1/ad_click_log?ts=gte.${encodeURIComponent(sinceIso)}&order=ts.asc&limit=2000&select=ip,ts,qs,ref`, {
+        headers: { apikey: SK, Authorization: `Bearer ${SK}` } });
+      const list = r.ok ? await r.json() : [];
+      const byIp = {};
+      for (const c of list) {
+        const isAd = (c.qs || "").includes("n_") || (c.ref || "").includes("naver");
+        if (!isAd || !c.ip) continue;
+        (byIp[c.ip] = byIp[c.ip] || []).push(new Date(c.ts).getTime());
+      }
+      const bad = [];
+      for (const [ip, times] of Object.entries(byIp)) {
+        let burst = false;
+        for (let i = 0; i + 2 < times.length; i++) if (times[i + 2] - times[i] <= 10 * 60000) { burst = true; break; }
+        if (times.length >= 4 || burst) bad.push({ ip, n: times.length, burst });
+      }
+      // 이미 등록된 IP 제외
+      let already = new Set();
+      try {
+        const ex = await call("GET", "/tool/ip-exclusions", "");
+        for (const e of (Array.isArray(ex.data) ? ex.data : [])) if (e.filterIp) already.add(e.filterIp);
+      } catch (e) {}
+      const targets = bad.filter(b => !already.has(b.ip)).slice(0, 10);
+      const results = [];
+      for (const b of targets) {
+        const rr = await call("POST", "/tool/ip-exclusions", "",
+          { filterIp: b.ip, memo: "자동순찰 " + new Date(Date.now() + 9 * 3600000).toISOString().slice(5, 10) });
+        results.push({ ip: b.ip, n: b.n, burst: b.burst, ok: rr.ok });
+      }
+      if (results.some(x => x.ok)) {
+        try {
+          const msg = "[올잇 광고] 부정클릭 자동차단: " + results.filter(x => x.ok).map(x => x.ip + "(" + x.n + "회" + (x.burst ? "·연타" : "") + ")").join(", ");
+          const K = process.env.SOLAPI_API_KEY, S = process.env.SOLAPI_API_SECRET;
+          if (K && S) {
+            const date = new Date().toISOString();
+            const salt = crypto.randomBytes(16).toString("hex");
+            const sig = crypto.createHmac("sha256", S).update(date + salt).digest("hex");
+            await fetch("https://api.solapi.com/messages/v4/send-many", { method: "POST",
+              headers: { "Content-Type": "application/json",
+                Authorization: `HMAC-SHA256 apiKey=${K}, date=${date}, salt=${salt}, signature=${sig}` },
+              body: JSON.stringify({ messages: [{ to: "01048874002", from: "01041163991",
+                text: msg, type: msg.length > 43 ? "LMS" : "SMS", subject: "올잇 광고 경보" }] }) });
+          }
+        } catch (e) {}
+      }
+      res.status(200).json({ ok: true, scanned: Object.keys(byIp).length, flagged: bad.length,
+        alreadyBlocked: already.size, registered: results });
+      return;
+    }
+
     // 비즈머니 잔액 조회 (?step=bizmoney[&snap=1]) — 실시간 지출 계산용
     //   snap=1 이면 오늘(KST) 기준 스냅샷을 ad_autobid_log에 저장 (kw=_bizmoney, grp=날짜, bid_from=잔액)
     //   0시 5분 스냅샷 잔액 − 지금 잔액 = 오늘 실시간 지출 (네이버 화면과 거의 일치)
