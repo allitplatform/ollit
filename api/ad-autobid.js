@@ -39,20 +39,24 @@ const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 //  → 지역 그룹: 1위 추격, 상한 15,000 (상한 초과 시 자연스럽게 2~3위)
 //  → 메인키워드: 1위 추격, 상한 20,000, 단 **내리지는 않음** (견적이 실제보다 낮게
 //    나오는 단어가 있어서 — 에어컨가스충전 견적 9,690인데 실순위 2.1 — 믿고 내리면 뺏긴다)
+// 7/27 낮 사장님 지시: 청소 빼고 전부 2위 이상 유지. 단 터무니없는 가격은 제외.
+// → 1위가 15,000 이하면 1위 추격 / 넘으면 2위 가격으로 2위 확보(최대 20,000) / 2위도 2만 넘으면 포기.
 const GROUP_POLICY = {
-  "중간키워드":   { cap: 15000, margin: 1.1,  lowerOk: true  },
-  "중간키워드2":  { cap: 15000, margin: 1.1,  lowerOk: true  },
-  "고양시":       { cap: 15000, margin: 1.1,  lowerOk: true  },
-  "고양시2":      { cap: 15000, margin: 1.1,  lowerOk: true  },
-  "파주시":       { cap: 15000, margin: 1.1,  lowerOk: true  },
-  "김포시":       { cap: 15000, margin: 1.1,  lowerOk: true  },
-  "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true  },
-  "서울":         { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "중간키워드":   { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  "중간키워드2":  { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  "고양시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  "고양시2":      { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  "파주시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  "김포시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  "서울":         { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
   // 메인(7/26 밤 개정): 비용대비 순이익 원칙 — 7/13 데이터(입찰 1.3만·2위권·최고 성적) 기준.
   // 1위 과열 안 따라감. 추격 여유 5%, 상한 15,000.
-  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false },
+  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 20000 },
   // 사장님(7/26 저녁): 수리·누설·누수 + 가스충전이 제일 메인 → 핵심 대접
-  "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true  },
+  "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  // 설치: 1위가 4천원대로 싸서 상위 유지 대상에 포함 (7/27)
+  "확장_설치":     { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 
@@ -126,18 +130,6 @@ export default async function handler(req, res) {
     const estMap = new Map();
     const est2Map = new Map();
     const norm = (x) => String(x || "").replace(/\s+/g, "").toUpperCase();
-    // 2위 견적 (메인키워드 등 pos2 그룹만)
-    const p2kws = kws.filter(k => (GROUP_POLICY[k.grp] || {}).pos2);
-    for (const part of chunk(p2kws, 100)) {
-      try {
-        const r = await call("POST", "/estimate/average-position-bid/keyword", null, {
-          device: "MOBILE", items: part.map(k => ({ key: k.kw, position: 2 })) });
-        for (const e of ((r && r.estimate) || [])) {
-          const kk = e.keyword ?? e.key;
-          if (kk != null && e.bid != null) est2Map.set(norm(kk), Number(e.bid));
-        }
-      } catch (e) {}
-    }
     for (const part of chunk(kws, 100)) {
       let r;
       try {
@@ -154,6 +146,24 @@ export default async function handler(req, res) {
       }
     }
 
+    // ②-2 2위 견적 — 1위가 상한을 넘긴 키워드만 조회 (호출 최소화)
+    const p2kws = kws.filter(k => {
+      const pol = GROUP_POLICY[k.grp] || {};
+      if (!pol.pos2 || KW_CAP[norm(k.kw)] != null) return false;
+      const e1 = estMap.get(norm(k.kw));
+      return e1 && Math.round(e1 * (pol.margin || 1.1) / 10) * 10 > (pol.cap || 15000);
+    });
+    for (const part of chunk(p2kws, 100)) {
+      try {
+        const r = await call("POST", "/estimate/average-position-bid/keyword", null, {
+          device: "MOBILE", items: part.map(k => ({ key: k.kw, position: 2 })) });
+        for (const e of ((r && r.estimate) || [])) {
+          const kk = e.keyword ?? e.key;
+          if (kk != null && e.bid != null) est2Map.set(norm(kk), Number(e.bid));
+        }
+      } catch (e) {}
+    }
+
     // ③ 새 입찰가 계산
     const changes = [];
     let capped = 0, noEst = 0;
@@ -164,9 +174,11 @@ export default async function handler(req, res) {
       const cap = KW_CAP[norm(k.kw)] != null ? KW_CAP[norm(k.kw)] : pol.cap; // 키워드 개별 상한 우선
       let bid = Math.round(est * pol.margin / 10) * 10;
       if (bid > cap && pol.pos2 && KW_CAP[norm(k.kw)] == null) {
-        // 1위가 너무 비쌈 → 2위 가격 + 10% 로 2위 확보 (최대 cap2)
+        // 1위가 너무 비쌈 → 2위 가격 + 10% 로 2위 확보 (최대 cap2).
+        // 2위조차 cap2를 넘는 터무니없는 판은 안 따라감(cap에 묶고 포기).
         const e2 = est2Map.get(norm(k.kw));
-        bid = e2 ? Math.min(Math.round(e2 * 1.1 / 10) * 10, pol.cap2) : cap;
+        const b2 = e2 ? Math.round(e2 * 1.1 / 10) * 10 : null;
+        bid = (b2 && b2 <= pol.cap2) ? b2 : cap;
         capped++;
       } else if (bid > cap) { bid = cap; capped++; }
       if (bid < FLOOR) bid = FLOOR;

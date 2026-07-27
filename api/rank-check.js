@@ -14,6 +14,8 @@ const KEYWORDS = [
   "에어컨이안시원해요", "에어컨청소",
 ];
 const OURS = ["올데이케어", "olldaycare", "xn--2n1bk06aikal6b92t", "1866-2003"];
+// 라이벌 감시 (7/27 사장님 지목) — 같은 화면에서 경쟁사 순위도 함께 기록
+const RIVALS = ["에어컨퍼니"];
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
 
 export const maxDuration = 60;
@@ -50,7 +52,9 @@ function parseRank(html) {
   for (let k = 0; k < first.length; k++) {
     const a = first[k], b = k + 1 < first.length ? first[k + 1] : a + 6000;
     const seg = html.slice(a, b);
-    if (OURS.some(o => seg.includes(o))) { out.rank = k + 1; break; }
+    if (out.rank == null && OURS.some(o => seg.includes(o))) out.rank = k + 1;
+    if (out.rival == null && RIVALS.some(o => seg.includes(o))) out.rival = k + 1;
+    if (out.rank != null && out.rival != null) break;
   }
   return out;
 }
@@ -87,6 +91,7 @@ export default async function handler(req, res) {
         const { status, html } = await fetchSerp(kw);
         const p = parseRank(html);
         rows.push({ kw, rank: p.blocked ? null : p.rank, ads_total: p.adsTotal,
+          rival: p.blocked ? null : (p.rival ?? null),
           blocked: p.blocked || status !== 200 });
       } catch (e) { rows.push({ kw, rank: null, ads_total: null, blocked: true }); }
       await new Promise(r => setTimeout(r, 800)); // 사람 속도

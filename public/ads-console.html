@@ -244,9 +244,11 @@ function rankBdg(d){
 function serpBdg(kw){const s=window.SERP&&window.SERP[kw];if(!s)return '';
   if(s.blocked)return '';
   const m=Math.round((Date.now()-new Date(s.at))/60000);
-  const tip='실제 검색화면 확인 '+(m<60?m+'분 전':Math.round(m/60)+'시간 전')+' · 광고 '+(s.ads||'?')+'개 노출 · 표준지역 기준(내 위치에선 다를 수 있음)';
-  if(s.rank==null)return ' <span class="bdg" style="background:#FEF3C7;color:#92400E" title="'+tip+'">실측 권외</span>';
-  return ' <span class="bdg" style="background:#EDE9FE;color:#5B21B6" title="'+tip+'">실측 '+s.rank+'위</span>';
+  const rv=s.rival!=null?' · 라이벌(에어컨퍼니) '+s.rival+'위':'';
+  const tip='실제 검색화면 확인 '+(m<60?m+'분 전':Math.round(m/60)+'시간 전')+' · 광고 '+(s.ads||'?')+'개 노출'+rv+' · 표준지역 기준(내 위치에선 다를 수 있음)';
+  const rvb=s.rival!=null?' <span class="bdg" style="background:#FFE4E6;color:#9F1239" title="'+tip+'">퍼니 '+s.rival+'위</span>':'';
+  if(s.rank==null)return ' <span class="bdg" style="background:#FEF3C7;color:#92400E" title="'+tip+'">실측 권외</span>'+rvb;
+  return ' <span class="bdg" style="background:#EDE9FE;color:#5B21B6" title="'+tip+'">실측 '+s.rank+'위</span>'+rvb;
 }
 function render(){
   // 서비스 표
