@@ -55,8 +55,8 @@ const GROUP_POLICY = {
   "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 20000 },
   // 사장님(7/26 저녁): 수리·누설·누수 + 가스충전이 제일 메인 → 핵심 대접
   "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
-  // 설치: 1위가 4천원대로 싸서 상위 유지 대상에 포함 (7/27)
-  "확장_설치":     { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  // 설치(7/27 사장님 확정): 지금은 시기 아님 — 싼 자리(5,000 이하)만 줍고 비싼 판은 성수기에.
+  "확장_설치":     { cap: 5000,  margin: 1.1,  lowerOk: true  },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 
