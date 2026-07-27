@@ -117,6 +117,8 @@ const GROUPS = [
       { id: "engineerCalendar",      label: "기사 달력 (주간)" },
       // 2026-06-12 — 월간 달력 (한 기사 × 한 달).
       { id: "engineerCalendarMonth", label: "기사 달력 (월간)" },
+      // 2026-07-27 — 사장님 spec: 기사 메시지함 PC 진입로 (원래 모바일 개요에서만 진입 가능했음).
+      { id: "adminMessages",         label: "기사 메시지함" },
       { id: "regionList",            label: "지역" },
     ],
   },
