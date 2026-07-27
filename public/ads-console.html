@@ -130,15 +130,10 @@
     <span class="chip" data-f="capped">비싸서 2위</span>
     <span class="chip" data-f="dong">지역+동 (쌍)</span>
     <span class="chip" data-f="nodong">지역 동뺀 (쌍)</span>
-    <span style="flex-basis:100%;height:0"></span>
-    <span class="chip on" id="vEasy" onclick="setView('easy')">💬 쉬운 보기</span>
-    <span class="chip" id="vTbl" onclick="setView('table')">표로 보기 (자세히)</span>
+
   </div>
-  <div id="sigTiles" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4px 0 10px"></div>
-  <div id="sigNote" style="font-size:12px;color:#9B9A97;margin:-4px 0 10px"></div>
   <div id="twincmp" style="display:none;margin:8px 0;padding:11px 16px;font-size:13px;background:#F0F6FF;border:1px solid #CDDDF5;border-radius:10px"></div>
-  <div id="easyBox" style="display:none"></div>
-  <div class="box" id="tblBox"><table>
+  <div class="box"><table>
     <thead><tr>
       <th class="l" data-s="kw">키워드</th><th class="l" data-s="grp">그룹</th>
       <th data-s="vol">월 검색량</th><th data-s="rnk">지금 순위</th>
@@ -175,8 +170,6 @@
 const API=location.protocol==='file:'?'https://ollit.vercel.app':'';
 let TOK=localStorage.getItem('adconsole_tok')||'';
 let DATA=[],fsel='all',sortK='cost',sortD=-1,shown=150;
-let VIEW=localStorage.getItem('adconsole_view')||'easy';
-function setView(v){VIEW=v;try{localStorage.setItem('adconsole_view',v)}catch(e){}render();}
 let MANAGE=false,MTOK=localStorage.getItem('adconsole_mtok')||'';
 const $=id=>document.getElementById(id);
 const fm=n=>n==null?'—':Number(n).toLocaleString();
@@ -315,31 +308,9 @@ function render(){
   $('issues').style.display=probs.length?'':'none';
   $('issues').innerHTML=probs.join('<br><br>');
   $('issues').style.cssText='margin:10px 0;padding:14px 18px;font-size:13px;line-height:1.85;background:#FDF7F2;border:1px solid #F3E2CE;border-left:4px solid #E8A33D;border-radius:10px;'+(probs.length?'':'display:none');
-  // 신호등 타일 — 색깔과 개수만
-  const isWin=d=>(d.rnk!=null&&d.rnk<=1.4)||(d.rnk==null&&d.top1!=null&&d.bid>=d.top1);
-  const isMid=d=>d.rnk!=null&&d.rnk>1.4&&d.rnk<=3.2;
-  const isPush=d=>(d.rnk!=null&&d.rnk>3.2)||(d.rnk==null&&d.top1!=null&&d.bid<d.top1);
-  {const onK=DATA.filter(d=>d.on);
-   const nW=onK.filter(isWin).length,nM=onK.filter(isMid).length,nP=onK.filter(isPush).length;
-   const nQ=DATA.length-nW-nM-nP;
-   const tile=(key,emoji,label,n,bg,fg)=>'<div onclick="fsel=\''+key+'\';document.querySelectorAll(\'[data-f]\').forEach(c=>c.classList.remove(\'on\'));shown=150;render()" '
-     +'style="cursor:pointer;text-align:center;padding:13px 4px;border-radius:12px;background:'+bg+';border:2px solid '+(fsel===key?fg:'transparent')+'">'
-     +'<div style="font-size:19px">'+emoji+'</div><div style="font-size:21px;font-weight:800;color:'+fg+'">'+n+'</div>'
-     +'<div style="font-size:11.5px;color:'+fg+';font-weight:700">'+label+'</div></div>';
-   $('sigTiles').innerHTML=tile('win','🟢','잘함 (1위권)',nW,'#F0F9F1','#1C5A2E')
-     +tile('mid','🟡','2~3위',nM,'#FEF9E7','#8A6D1A')
-     +tile('push','🔴','밀림',nP,'#FDF0EF','#9F1D1D')
-     +tile('quiet','😴','쉬는 중',nQ,'#F4F4F2','#787774');
-   $('sigNote').textContent=fsel==='push'?'빨간 것도 기계가 10분마다 올리는 중이에요 — 1위가 2만원 넘는 판만 일부러 안 따라갑니다':'타일을 누르면 그 키워드만 보여요';
-  }
   // 키워드 표
   let f=DATA;
-  if(fsel==='off')f=f.filter(d=>!d.on);
-  else if(fsel==='quiet')f=f.filter(d=>!d.on||(!isWin(d)&&!isMid(d)&&!isPush(d)));
-  else f=f.filter(d=>d.on);
-  if(fsel==='win')f=f.filter(isWin);
-  if(fsel==='mid')f=f.filter(isMid);
-  if(fsel==='push')f=f.filter(isPush);
+  if(fsel==='off')f=f.filter(d=>!d.on);else f=f.filter(d=>d.on);
   const gv=$('gsel').value; if(gv)f=f.filter(d=>d.grp===gv);
   if(fsel==='spend')f=f.filter(d=>d.cost>0);
   if(fsel==='lose')f=f.filter(d=>(d.rnk&&d.rnk>2.5)||(d.top1!=null&&d.bid<d.top1&&!d.rnk));
@@ -362,56 +333,6 @@ function render(){
   f=[...f].sort((a,b)=>{const x=a[sortK],y=b[sortK];
     if(x==null)return 1;if(y==null)return -1;
     return (x>y?1:x<y?-1:0)*sortD*(typeof x==='string'?-1:1);});
-  // 쉬운 보기 — 키워드마다 사람말 한 문장
-  const ve=$('vEasy'),vt=$('vTbl');
-  if(ve){ve.classList.toggle('on',VIEW==='easy');vt.classList.toggle('on',VIEW!=='easy');}
-  if(VIEW==='easy'&&!MANAGE){
-    $('tblBox').style.display='none';$('easyBox').style.display='';
-    const tileSel=['win','mid','push','quiet'].includes(fsel);
-    const act=tileSel?f:f.filter(d=>d.on&&(d.cost>0||d.imp>0));
-    const quiet=tileSel?0:f.filter(d=>d.on&&!d.cost&&!d.imp).length, off=tileSel?0:f.filter(d=>!d.on).length;
-    // 결론 한 문장: 오늘 돈의 90%를 쓰는 키워드는 몇 개인가
-    const GOAL=65000;
-    const spenders=[...DATA].filter(d=>d.cost>0).sort((a,b)=>b.cost-a.cost);
-    const totC=spenders.reduce((s,d)=>s+d.cost,0);
-    let acc=0,n90=0;for(const d of spenders){acc+=d.cost;n90++;if(acc>=totC*0.9)break}
-    const concl=totC>0?'<b>키워드 '+fm(DATA.length)+'개 중 '+n90+'개가 오늘 광고비의 90%를 씁니다.</b> 나머지는 사실상 볼 필요가 없습니다.':'오늘은 아직 광고비 지출이 없습니다.';
-    // 키워드 판정 (그룹 화면과 같은 문법 · 기준: 접수 1건 = '+GOAL+'원)
-    const judge=d=>{
-      if(!d.on)return ['꺼짐','#F4F4F2','#787774'];
-      if(d.conv>0){const per=Math.round(d.cost/d.conv);
-        if(per<=GOAL*0.6)return ['더 써도 됨','#F0F9F1','#1C5A2E'];
-        if(per<=GOAL)return ['적정','#FEF9E7','#8A6D1A'];
-        return ['비쌈','#FDF0EF','#9F1D1D'];}
-      if(d.cost>=GOAL)return ['비쌈 — 접수 0','#FDF0EF','#9F1D1D'];
-      if(d.cost>0)return ['아직 모름','#F4F4F2','#787774'];
-      if(d.imp>0)return ['공짜 노출','#F0F6FF','#1D4E89'];
-      return ['조용','#F4F4F2','#9B9A97'];
-    };
-    $('easyBox').innerHTML='<div style="padding:12px 16px;margin-bottom:10px;background:#191919;color:#EAEAEA;border-radius:10px;font-size:13px">'+concl+'</div>'
-    +act.slice(0,50).map(d=>{
-      const J=judge(d);
-      let line;
-      if(d.conv>0)line='접수 <b>'+d.conv+'건</b> · 접수 1건에 <b>'+fm(Math.round(d.cost/d.conv))+'원</b> 듦 (기준 '+fm(GOAL)+'원)';
-      else if(d.clk>0)line='클릭 '+d.clk+'번 · <b>'+fm(d.cost)+'원</b> 씀 — 아직 접수로 안 이어짐';
-      else if(d.imp>0)line=fm(d.imp)+'번 보였는데 클릭 0 — 나간 돈 없음';
-      else line='오늘 조용함 — 나간 돈 없음';
-      let why='';
-      if(d.rnk&&d.rnk>3.2&&d.top1!=null)why=d.top1>20000?' · 1위 '+fm(d.top1)+'원이라 일부러 안 따라감':' · 기계가 올리는 중';
-      return '<div onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')" style="cursor:pointer;background:#fff;border:1px solid #EBEAE8;border-radius:10px;padding:12px 16px;margin-bottom:8px">'
-        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
-        +'<span><b style="font-size:14.5px">'+d.kw+'</b> <span style="font-size:12px;color:#9B9A97">'+fm(d.cost)+'원</span></span>'
-        +'<span>'+rankBdg(d)+serpBdg(d.kw)
-        +' <span class="bdg" style="background:'+J[1]+';color:'+J[2]+'">'+J[0]+'</span></span></div>'
-        +'<div style="font-size:12.5px;color:#57564F;margin-top:5px;line-height:1.6">'+line+why+'</div></div>';
-    }).join('')
-    +'<div style="color:#9B9A97;font-size:12.5px;padding:10px 4px">'
-    +(act.length>50?'…돈·노출 있는 것 50개까지만 표시 · ':'')
-    +'그 외 오늘 조용한 키워드 '+fm(quiet)+'개, 꺼진 키워드 '+fm(off)+'개는 [표로 보기]에서</div>';
-    $('more').style.display='none';
-    return;
-  }
-  $('easyBox').style.display='none';$('tblBox').style.display='';
   const vMax=Math.max(...f.map(d=>d.vol||0),1),cMax=Math.max(...f.map(d=>d.cost),1);
   $('tb').innerHTML=f.slice(0,shown).map((d,i)=>{
     const mg=MANAGE?'<td onclick="event.stopPropagation()">'
@@ -423,7 +344,7 @@ function render(){
       +'<td>'+(d.vol!=null?bar(d.vol,vMax,fm(d.vol)):'—')+'</td>'
       +'<td>'+rankBdg(d)+serpBdg(d.kw)+'</td>'
       +'<td>'+fm(d.bid)+'</td>'
-      +'<td class="sub">'+(d.lastBid?(function(t){const dd=new Date(t);const today=new Date();const day=(today-dd)/86400000;const tm=dd.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});return dd.toDateString()===today.toDateString()?tm:(day<2?'어제 ':(dd.getMonth()+1)+'/'+dd.getDate()+' ')+tm})(d.lastBid):'—')+'</td>'
+      +'<td class="sub">'+(d.lastBid?new Date(d.lastBid).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'—')+'</td>'
       +'<td class="sub">'+fm(d.top1)+'</td>'
       +'<td>'+fm(d.imp)+'</td><td>'+(d.clk||'')+'</td>'
       +'<td>'+(d.conv?'<b style="color:#1C7F4B">'+d.conv+'</b>':'')+'</td>'
