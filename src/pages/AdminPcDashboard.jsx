@@ -972,6 +972,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
 
   const { rows, totals, hourly } = useMemo(() => {
     const received = new Map();
+    const canceled = new Map();   // 2026-07-27 — 통계 허브와 기준 통일 (접수=전체 유입)
     const done     = new Map();
     const owner    = new Map();
     // 2026-07-21 — 오늘 접수 시간대 (사장님 확정: 표 + 접수 시간대형).
@@ -992,8 +993,10 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
         const h = Number(hourFmt.format(new Date(created)));
         const idx = h <= 8 ? 0 : h >= 20 ? 12 : h - 8;
         hourlyArr[idx] += 1;
-        if (t.status !== "취소") {
-          received.set(code, (received.get(code) || 0) + 1);
+        // 2026-07-27 — 사장님 spec: 접수 = 전체 유입 (취소 포함), 취소는 별도 열.
+        received.set(code, (received.get(code) || 0) + 1);
+        if (t.status === "취소") {
+          canceled.set(code, (canceled.get(code) || 0) + 1);
         }
       }
       // 오늘 완료 (status='완료' 만)
@@ -1011,10 +1014,11 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
       code:     p.code,
       name:     p.name,
       received: received.get(p.code) || 0,
+      canceled: canceled.get(p.code) || 0,
       done:     done.get(p.code)     || 0,
       owner:    owner.get(p.code)    || 0,
       isTrackB: p.code === USOLN_CODE,
-    })).filter(r => r.received > 0 || r.done > 0);
+    })).filter(r => r.received > 0 || r.done > 0 || r.canceled > 0);
 
     const totalsRow = {
       received: rowsAll.reduce((s, r) => s + r.received, 0),
@@ -1075,8 +1079,9 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
                 <Th align="left"  width="26%">원청</Th>
-                <Th align="right" width="18%">오늘 접수</Th>
-                <Th align="right" width="18%">오늘 완료</Th>
+                <Th align="right" width="15%">오늘 접수</Th>
+                <Th align="right" width="12%">취소</Th>
+                <Th align="right" width="15%">오늘 완료</Th>
                 {!happycallMode && <Th align="right" width="38%">회사 몫</Th>}
               </tr>
             </thead>
@@ -1092,6 +1097,12 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
                     }}>{r.code}</span>
                   </Td>
                   <Td align="right"><NumCell n={r.received} unit="건" muted={r.received === 0}/></Td>
+                  <Td align="right">
+                    <span style={{
+                      fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                      color: r.canceled > 0 ? "#FF3B5C" : "var(--text-tertiary)",
+                    }}>{r.canceled}건</span>
+                  </Td>
                   <Td align="right"><NumCell n={r.done}     unit="건" muted={r.done === 0}/></Td>
                   {!happycallMode && (
                   <Td align="right">
