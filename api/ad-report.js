@@ -405,6 +405,7 @@ export default async function handler(req, res) {
   const wantDaily = String(req.query.daily || "") === "1";
   const wantKw    = String(req.query.keywords || "") === "1";
   const wantTool  = String(req.query.tool || "") === "1";
+  const wantLive  = String(req.query.live || "") === "1"; // 지금 실시간 카드용 (오늘 접수·자동입찰 생존 포함)
   const seedsRaw  = String(req.query.seeds || "");
 
   if (!YMD_RE.test(since) || !YMD_RE.test(until)) {
@@ -536,13 +537,39 @@ export default async function handler(req, res) {
       }
     }
 
-    res.setHeader("Cache-Control", "s-maxage=1800, stale-while-revalidate=3600");
+    // ── 지금 실시간 (live=1): 오늘 실접수 수 + 자동입찰 생존 신호 ──────────────
+    let live = undefined;
+    if (wantLive && supabase) {
+      live = {};
+      try {
+        const kstDay = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+        const startISO = new Date(`${kstDay}T00:00:00+09:00`).toISOString();
+        const endISO   = new Date(`${kstDay}T23:59:59+09:00`).toISOString();
+        const { data: pr } = await supabase.from("principals").select("id").eq("code", "allday").limit(1);
+        const pid = pr && pr[0] && pr[0].id;
+        if (pid) {
+          const { count } = await supabase.from("tasks")
+            .select("id", { count: "exact", head: true })
+            .eq("principal_id", pid)
+            .gte("created_at", startISO).lt("created_at", endISO);
+          live.jobsToday = count ?? null;
+        }
+      } catch (e) { live.jobsToday = null; }
+      try {
+        const { data: lr } = await supabase.from("ad_autobid_log")
+          .select("run_at,bid_from,bid_to,est1").eq("kw", "_run")
+          .order("run_at", { ascending: false }).limit(1);
+        if (lr && lr[0]) live.lastRun = { at: lr[0].run_at, watched: lr[0].bid_from, changed: lr[0].bid_to };
+      } catch (e) {}
+    }
+
+    res.setHeader("Cache-Control", wantLive ? "no-store" : "s-maxage=1800, stale-while-revalidate=3600");
     return res.status(200).json({
       ok: true,
       cost, clicks, impressions, cpc, ctr,
       since, until,
       vatIncluded: false, // salesAmt 는 VAT 별도. 클라에서 ×1.1 로 실청구액 계산.
-      days, daysMode, keywords, adGroups, keywordMeta,
+      days, daysMode, keywords, adGroups, keywordMeta, live,
     });
   } catch (e) {
     console.error("[ad-report]", e?.message || e);

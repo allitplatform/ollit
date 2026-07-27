@@ -253,6 +253,25 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
     return () => { alive = false; };
   }, [user?.user_id, user?.id, start, end]);
 
+  // ── 블록 ⓪ — 지금 실시간 (오늘 광고비 + 실접수 + 자동입찰 생존) ──────────────
+  //   기간 필터와 무관하게 항상 '오늘'. 5분마다 자동 갱신.
+  const [liveAd, setLiveAd] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const actorId = user?.user_id || user?.id;
+    if (!actorId) return () => { alive = false; };
+    const load = () => {
+      const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      fetch(`/api/ad-report?since=${today}&until=${today}&actor=${encodeURIComponent(actorId)}&live=1`)
+        .then(r => r.json())
+        .then(j => { if (alive) setLiveAd(j && j.ok ? j : null); })
+        .catch(() => { if (alive) setLiveAd(null); });
+    };
+    load();
+    const iv = setInterval(load, 5 * 60 * 1000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [user?.user_id, user?.id]);
+
   const runKeywordTool = () => {
     const actorId = user?.user_id || user?.id;
     if (!actorId) { setToolError("로그인 정보 없음"); return; }
@@ -298,6 +317,29 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   const cpaVerdictColor  = (cpaVat != null && profitPerJob != null)
     ? (cpaVat < profitPerJob ? "#16A34A" : "#DC2626")
     : null;
+
+  // ⓪ 지금 실시간 — 화면에 그릴 값 (profitPerJob 계산 이후에 있어야 함)
+  const liveView = useMemo(() => {
+    if (!liveAd) return null;
+    const costVat = Math.round(Number(liveAd.cost || 0) * 1.1);
+    const jobs = liveAd.live?.jobsToday ?? null;
+    const per = jobs > 0 ? Math.round(costVat / jobs) : null;
+    const goal = profitPerJob != null ? profitPerJob : 65000;
+    // 페이스: 광고 시간 08~20시 기준, 지금까지 속도로 마감 예상
+    const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
+    const kstH = kstNow.getUTCHours() + kstNow.getUTCMinutes() / 60;
+    const ran = Math.min(Math.max(kstH - 8, 0.25), 12);
+    const proj = kstH < 20 ? Math.round(costVat * 12 / ran) : costVat;
+    let verdict;
+    if (per != null && per <= goal * 0.6)      verdict = { label: "더 써도 됨",    color: "#16A34A" };
+    else if (per != null && per <= goal)       verdict = { label: "적정",          color: "#D97706" };
+    else if (per != null)                      verdict = { label: "밑지는 중",     color: "#DC2626" };
+    else if (costVat >= goal)                  verdict = { label: "접수 0 — 확인", color: "#DC2626" };
+    else                                       verdict = { label: "아직 이름",     color: "#94A3B8" };
+    const lr = liveAd.live?.lastRun;
+    const lrMin = lr ? Math.round((Date.now() - new Date(lr.at).getTime()) / 60000) : null;
+    return { costVat, jobs, per, goal, proj, verdict, lrMin, lrWatched: lr?.watched };
+  }, [liveAd, profitPerJob]);
   // 손익분기 건수 — 광고비를 회수하는 데 필요한 최소 완료건 수.
   //   자체유입 중 이 수만큼만 광고에서 왔으면 본전. 유입경로 미기록이라 실제 기여분은 미상.
   const breakEvenJobs    = (profitPerJob != null && profitPerJob > 0 && adCostVat > 0)
@@ -578,6 +620,40 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
           원청 코드 기준(v2) 은 폐기. <b>2026-06-28 (Mig 152) 이전 전환분은 소급 불가</b> — 그 이전 데이터는 홈페이지 유입 여부 판정 불가.
         </div>
       </div>
+
+      {/* ⓪ 지금 실시간 — 기간 필터와 무관하게 항상 오늘 */}
+      {liveView && (
+        <div style={{ padding: "8px 16px 0" }}>
+          <div style={{
+            background: t.bgElevated, border: `1px solid ${liveView.verdict.color}44`,
+            borderLeft: `4px solid ${liveView.verdict.color}`,
+            borderRadius: 12, padding: "13px 14px 11px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 800 }}>🔴 지금 실시간 <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>오늘 0시~방금 · 5분마다 갱신</span></span>
+              <span style={{
+                marginLeft: "auto", fontSize: 11, fontWeight: 800, color: liveView.verdict.color,
+                border: `1px solid ${liveView.verdict.color}55`, borderRadius: 999, padding: "3px 10px",
+              }}>{liveView.verdict.label}</span>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.55, marginBottom: 10 }}>
+              오늘 <b className="mono">{_fmtKRW(liveView.costVat)}원</b> 써서 접수 <b className="mono">{liveView.jobs ?? "?"}건</b>
+              {liveView.per != null && (<> — 1건에 <b className="mono" style={{ color: liveView.verdict.color }}>{_fmtKRW(liveView.per)}원</b> <span style={{ color: t.textMuted, fontWeight: 600 }}>(기준 {_fmtKRW(liveView.goal)}원)</span></>)}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8 }}>
+              <Metric t={t} label="오늘 광고비 (VAT포함)" value={_fmtKRW(liveView.costVat)} suffix="원" />
+              <Metric t={t} label="오늘 실접수" value={liveView.jobs ?? "-"} suffix="건" />
+              <Metric t={t} label="이 속도면 마감쯤" value={_fmtKRW(liveView.proj)} suffix="원" />
+            </div>
+            <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: 8 }}>
+              {liveView.lrMin != null
+                ? <>🟢 1위 자동맞춤 {liveView.lrMin < 1 ? "방금" : `${liveView.lrMin}분 전`} 실행 · 키워드 {_fmtKRW(liveView.lrWatched || 0)}개 감시 중</>
+                : <>⚪ 자동입찰 기록 없음</>}
+              {liveView.lrMin != null && liveView.lrMin > 75 && <b style={{ color: "#DC2626" }}> — 75분 넘게 조용함, 확인 필요</b>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div style={{ padding: 40, textAlign: "center", color: t.textMuted, fontSize: 12 }}>
