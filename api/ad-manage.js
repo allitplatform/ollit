@@ -209,6 +209,23 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 연관 키워드 발굴 (?step=relkw&hints=a,b,... 최대 5) — 네이버가 추천하는 관련 검색어 전부
+    if (step === "relkw") {
+      const hints = String(req.query.hints || "").split(",").map(s => s.trim()).filter(Boolean).slice(0, 5);
+      if (!hints.length) { res.status(200).json({ ok: false, error: "hints 필요" }); return; }
+      const qc = v => { if (typeof v === "number") return v;
+        const t = String(v || "").replace(/[^0-9]/g, ""); return t ? Number(t) : 5; };
+      const r = await call("GET", "/keywordstool",
+        "hintKeywords=" + encodeURIComponent(hints.join(",")) + "&showDetail=1");
+      const list = ((r.data && r.data.keywordList) || [])
+        .map(k => ({ kw: String(k.relKeyword).replace(/\s+/g, ""),
+                     vol: qc(k.monthlyPcQcCnt) + qc(k.monthlyMobileQcCnt),
+                     comp: k.compIdx || null }))
+        .sort((a, b) => b.vol - a.vol);
+      res.status(200).json({ ok: r.ok, count: list.length, rows: list.slice(0, 400) });
+      return;
+    }
+
     // 임의 후보 검색량 심사 (?step=volprobe&kws=a,b,... 최대 50) — 저장도 함께
     if (step === "volprobe") {
       const SBu = process.env.VITE_SUPABASE_URL, SBk = process.env.SUPABASE_SERVICE_ROLE_KEY;
