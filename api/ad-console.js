@@ -75,8 +75,18 @@ export default async function handler(req, res) {
       return;
     }
 
-    // 부정클릭 감시: 최근 클릭 로그 IP 집계
+    // 부정클릭 감시: 최근 클릭 로그 IP 집계 (+ ?ip=x.x.x.x 시간대 상세)
     if (req.query.clicks) {
+      if (req.query.ip) {
+        const r = await fetch(`${SB_URL}/rest/v1/ad_click_log?ip=eq.${encodeURIComponent(req.query.ip)}&order=ts.desc&limit=100&select=ts,qs,ref`, {
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+        const list = r.ok ? await r.json() : [];
+        res.status(200).json({ ok: true, ip: req.query.ip,
+          rows: list.map(c => ({ ts: c.ts,
+            ad: (c.qs || "").includes("n_") || (c.ref || "").includes("naver"),
+            kw: (() => { try { const m = /n_(?:keyword|query)=([^&]+)/.exec(c.qs || ""); return m ? decodeURIComponent(m[1]) : null; } catch (e) { return null; } })() })) });
+        return;
+      }
       const rows = await sbGetLog();
       res.status(200).json({ ok: true, ...rows });
       return;
