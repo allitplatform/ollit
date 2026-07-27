@@ -113,8 +113,11 @@ export function AdminPcDashboard({
             → 평소 3칸 (오늘 접수 / 오늘 회사 몫 / 유솔N), 미배정 발생 시 4칸. */}
       <div style={{
         display: "grid",
+        // 2026-07-27 — 해피콜: 회사몫·유솔N 칸이 빠지므로 칸 수 재계산 (빈 구멍 방지)
         gridTemplateColumns: isWide
-          ? `repeat(${(ownerToday != null ? 2 : 1) + (unassignedCount > 0 ? 1 : 0) + 1}, minmax(0, 1fr))`
+          ? `repeat(${happycallMode
+              ? 1 + (unassignedCount > 0 ? 1 : 0)
+              : (ownerToday != null ? 2 : 1) + (unassignedCount > 0 ? 1 : 0) + 1}, minmax(0, 1fr))`
           : "repeat(2, minmax(0, 1fr))",
         gap: 12,
       }}>
@@ -149,7 +152,7 @@ export function AdminPcDashboard({
       {/* ── 메인 2단 — 좌 매출(기존 패널 그대로) / 우 할 일 + 원청별 오늘 ── */}
       <div style={{
         display: "grid",
-        gridTemplateColumns: isWide ? "minmax(0, 1.4fr) minmax(0, 1fr)" : "minmax(0, 1fr)",
+        gridTemplateColumns: isWide && !happycallMode ? "minmax(0, 1.4fr) minmax(0, 1fr)" : "minmax(0, 1fr)",
         gap: 20,
         alignItems: "stretch",
       }}>
