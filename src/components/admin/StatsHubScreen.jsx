@@ -60,6 +60,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
 
   const { rows, totals } = useMemo(() => {
     const received = new Map();
+    const canceled = new Map();   // 2026-07-27 — 사장님 spec: 취소도 보이게
     const done     = new Map();
     const owner    = new Map();
     for (const tk of (apiTasks || [])) {
@@ -68,10 +69,11 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
       if (!code) continue;
 
       const created = tk.createdAt || tk.created_at;
-      if (created && tk.status !== "취소") {
+      if (created) {
         const k = toKstYmd(created);
         if (k && k >= start && k <= end) {
-          received.set(code, (received.get(code) || 0) + 1);
+          if (tk.status === "취소") canceled.set(code, (canceled.get(code) || 0) + 1);
+          else received.set(code, (received.get(code) || 0) + 1);
         }
       }
       const completed = tk.completedAt || tk.completed_at;
@@ -88,16 +90,18 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
     const all = PRINCIPAL_ORDER.map(p => ({
       ...p,
       received: received.get(p.code) || 0,
+      canceled: canceled.get(p.code) || 0,
       done:     done.get(p.code)     || 0,
       owner:    owner.get(p.code)    || 0,
       isTrackB: p.code === USOLN_CODE,
-    })).filter(r => r.received > 0 || r.done > 0);
+    })).filter(r => r.received > 0 || r.done > 0 || r.canceled > 0);
     // 접수 많은 순 (동수면 완료 순)
     all.sort((a, b) => b.received - a.received || b.done - a.done);
     return {
       rows: all,
       totals: {
         received: all.reduce((s, r) => s + r.received, 0),
+        canceled: all.reduce((s, r) => s + r.canceled, 0),
         done:     all.reduce((s, r) => s + r.done,     0),
         owner:    all.reduce((s, r) => s + (r.isTrackB ? 0 : r.owner), 0),
       },
@@ -145,6 +149,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
       {/* 합계 3칸 */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
         {totCell(totals.received, "접수")}
+        {totCell(totals.canceled, "취소", "#FF3B5C")}
         {totCell(totals.done, "완료", "#0EA5E9")}
         {totCell(`₩${_won(totals.owner)}`, "회사 몫 (유솔N 제외)", t.accent)}
       </div>
@@ -161,6 +166,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
           <span style={{ width: 7, flexShrink: 0 }}/>
           <span style={{ flex: 1 }}>원청</span>
           <span style={{ width: 34, textAlign: "right" }}>접수</span>
+          <span style={{ width: 30, textAlign: "right" }}>취소</span>
           <span style={{ width: 34, textAlign: "right" }}>완료</span>
           <span style={{ width: 82, textAlign: "right" }}>회사 몫</span>
         </div>
@@ -183,6 +189,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
                 overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
               }}>{r.name}</span>
               <span style={{ width: 34, textAlign: "right", fontSize: 12.5, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: t.text }}>{r.received}</span>
+              <span style={{ width: 30, textAlign: "right", fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: r.canceled > 0 ? "#FF3B5C" : t.textMuted }}>{r.canceled}</span>
               <span style={{ width: 34, textAlign: "right", fontSize: 12, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: t.textSecondary }}>{r.done}</span>
               <span style={{
                 width: 82, textAlign: "right", fontVariantNumeric: "tabular-nums",
@@ -211,6 +218,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
             <span style={{ width: 7, flexShrink: 0 }}/>
             <span style={{ flex: 1, fontSize: 12.5, fontWeight: 800, color: t.text }}>합계</span>
             <span style={{ width: 34, textAlign: "right", fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: t.text }}>{totals.received}</span>
+            <span style={{ width: 30, textAlign: "right", fontSize: 12.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: totals.canceled > 0 ? "#FF3B5C" : t.textMuted }}>{totals.canceled}</span>
             <span style={{ width: 34, textAlign: "right", fontSize: 12.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", color: t.textSecondary }}>{totals.done}</span>
             <span style={{ width: 82, textAlign: "right", fontSize: 12.5, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: t.accent }}>{_won(totals.owner)}</span>
           </div>
@@ -219,7 +227,8 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
 
       <div style={{ fontSize: 10, color: t.textMuted, marginTop: 10, lineHeight: 1.7 }}>
         회사 몫 = 운영비 빼기 전 금액 (이익 아님). 유솔N 은 월정산이라 금액 미확정.<br/>
-        접수와 완료는 따로 셈 (이번 기간 접수 ≠ 이번 기간 완료). 취소 제외.
+        접수와 완료는 따로 셈 (이번 기간 접수 ≠ 이번 기간 완료).<br/>
+        접수 = 유효 접수 (취소 제외) · 취소 = 이 기간 접수됐다가 취소된 건. 전체 유입 = 접수+취소.
       </div>
     </div>
   );
