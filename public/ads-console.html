@@ -128,8 +128,11 @@
     <span class="chip" data-f="lose">밀린 것</span>
     <span class="chip" data-f="off">꺼진 것</span>
     <span class="chip" data-f="capped">비싸서 2위</span>
+    <span class="chip" data-f="dong">지역+동 (쌍)</span>
+    <span class="chip" data-f="nodong">지역 동뺀 (쌍)</span>
 
   </div>
+  <div id="twincmp" style="display:none;margin:8px 0;padding:11px 16px;font-size:13px;background:#F0F6FF;border:1px solid #CDDDF5;border-radius:10px"></div>
   <div class="box"><table>
     <thead><tr>
       <th class="l" data-s="kw">키워드</th><th class="l" data-s="grp">그룹</th>
@@ -310,6 +313,19 @@ function render(){
   if(fsel==='spend')f=f.filter(d=>d.cost>0);
   if(fsel==='lose')f=f.filter(d=>(d.rnk&&d.rnk>2.5)||(d.top1!=null&&d.bid<d.top1&&!d.rnk));
   if(fsel==='capped')f=f.filter(d=>d.bid>=15000&&d.top1!=null&&d.top1>d.bid);
+  // 동포함/동뺀 쌍둥이 비교 — 같은 지역끼리 짝이 있는 것만 (공정 비교)
+  if(fsel==='dong'||fsel==='nodong'){
+    const all=new Set(DATA.map(d=>d.kw));const dongS=new Set(),shortS=new Set();
+    DATA.forEach(d=>{const m=d.kw.match(/^(.+)동(에어컨.+)$/);
+      if(m&&all.has(m[1]+m[2])){dongS.add(d.kw);shortS.add(m[1]+m[2]);}});
+    f=f.filter(d=>(fsel==='dong'?dongS:shortS).has(d.kw));
+    const ag=s=>{let imp=0,clk=0,cost=0,conv=0;DATA.forEach(d=>{if(s.has(d.kw)){imp+=d.imp;clk+=d.clk;cost+=d.cost;conv+=(d.conv||0)}});return {imp,clk,cost,conv}};
+    const A=ag(dongS),B=ag(shortS);
+    $('twincmp').style.display='';
+    $('twincmp').innerHTML='<b>쌍둥이 '+dongS.size+'쌍 오늘 성적</b> — '
+      +'동뺀: 노출 '+fm(B.imp)+' · 클릭 '+B.clk+' · '+fm(B.cost)+'원 · 접수 '+B.conv
+      +' &nbsp;vs&nbsp; 동포함: 노출 '+fm(A.imp)+' · 클릭 '+A.clk+' · '+fm(A.cost)+'원 · 접수 '+A.conv;
+  } else { const tc=$('twincmp'); if(tc)tc.style.display='none'; }
   const t=$('q').value.trim();
   if(t)f=f.filter(d=>d.kw.includes(t)||d.grp.includes(t));
   f=[...f].sort((a,b)=>{const x=a[sortK],y=b[sortK];
