@@ -55,6 +55,14 @@ const GROUP_POLICY = {
   "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true  },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
+
+// 키워드별 개별 상한 (그룹 상한보다 우선) — 2026-07-27 사장님 결정
+// 냉매충전: 메인 중 메인이라 17,000까지 허용 / 냉매·가스: 10,000까지만 (2~3위권 실험)
+const KW_CAP = {
+  "에어컨냉매충전": 17000,
+  "에어컨냉매": 10000,
+  "에어컨가스": 10000,
+};
 const FLOOR = 1000;     // 바닥 — 견적이 이상하게 낮아도 이 밑으론 안 내림
 
 export const maxDuration = 60;
@@ -153,13 +161,14 @@ export default async function handler(req, res) {
       const est = estMap.get(norm(k.kw));
       if (!est) { noEst++; continue; }
       const pol = GROUP_POLICY[k.grp] || { cap: 15000, margin: 1.1, lowerOk: true };
+      const cap = KW_CAP[norm(k.kw)] != null ? KW_CAP[norm(k.kw)] : pol.cap; // 키워드 개별 상한 우선
       let bid = Math.round(est * pol.margin / 10) * 10;
-      if (bid > pol.cap && pol.pos2) {
+      if (bid > cap && pol.pos2 && KW_CAP[norm(k.kw)] == null) {
         // 1위가 너무 비쌈 → 2위 가격 + 10% 로 2위 확보 (최대 cap2)
         const e2 = est2Map.get(norm(k.kw));
-        bid = e2 ? Math.min(Math.round(e2 * 1.1 / 10) * 10, pol.cap2) : pol.cap;
+        bid = e2 ? Math.min(Math.round(e2 * 1.1 / 10) * 10, pol.cap2) : cap;
         capped++;
-      } else if (bid > pol.cap) { bid = pol.cap; capped++; }
+      } else if (bid > cap) { bid = cap; capped++; }
       if (bid < FLOOR) bid = FLOOR;
       if (!pol.lowerOk && bid < k.cur) continue;  // 메인키워드: 올리기만, 내리진 않음
       if (Math.abs(bid - k.cur) / k.cur >= 0.1) {
