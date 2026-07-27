@@ -42,28 +42,28 @@ const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 // 7/27 낮 사장님 지시: 청소 빼고 전부 2위 이상 유지. 단 터무니없는 가격은 제외.
 // → 1위가 15,000 이하면 1위 추격 / 넘으면 2위 가격으로 2위 확보(최대 20,000) / 2위도 2만 넘으면 포기.
 const GROUP_POLICY = {
-  "중간키워드":   { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
-  "중간키워드2":  { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
-  "고양시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
-  "고양시2":      { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
-  "파주시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
-  "김포시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
-  "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
-  "서울":         { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  "중간키워드":   { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
+  "중간키워드2":  { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
+  "고양시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
+  "고양시2":      { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
+  "파주시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
+  "김포시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
+  "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
+  "서울":         { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
   // 메인(7/26 밤 개정): 비용대비 순이익 원칙 — 7/13 데이터(입찰 1.3만·2위권·최고 성적) 기준.
   // 1위 과열 안 따라감. 추격 여유 5%, 상한 15,000.
-  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 20000 },
+  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 15000 },
   // 사장님(7/26 저녁): 수리·누설·누수 + 가스충전이 제일 메인 → 핵심 대접
-  "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 20000 },
+  "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
   // 설치(7/27 사장님 확정): 지금은 시기 아님 — 싼 자리(5,000 이하)만 줍고 비싼 판은 성수기에.
   "확장_설치":     { cap: 5000,  margin: 1.1,  lowerOk: true  },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 
-// 키워드별 개별 상한 (그룹 상한보다 우선) — 2026-07-27 사장님 결정
-// 냉매충전: 메인 중 메인이라 17,000까지 허용 / 냉매·가스: 10,000까지만 (2~3위권 실험)
+// 키워드별 개별 상한 (그룹 상한보다 우선)
+// 7/27 저녁 개정: 냉매충전 17,000 실험 종료 — 클릭 240개 동일한데 단가만 1.7배 (7/13 대비).
+// 상단권(1~3위)이면 클릭 흡수 비슷 → 웃돈 금지. 냉매·가스: 10,000 (2~3위권 실험 유지)
 const KW_CAP = {
-  "에어컨냉매충전": 17000,
   "에어컨냉매": 10000,
   "에어컨가스": 10000,
 };
