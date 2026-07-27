@@ -193,12 +193,15 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
     return computeRevenueByYmRange(selfTasks, start, end, user);
   }, [selfTasks, start, end, user]);
 
-  // ── 블록 ③ — 지역 top5 (기간: task.created_at 기준, 홈페이지 유입만) ────────
+  // ── 블록 ③ — 지역 top10 (기간: task.created_at 기준)
   //   2026-07-25 — "미상"(주소 파싱 실패) 은 순위에서 제외하고 하단에 별도 표기.
+  //   2026-07-27 — 홈페이지 유입만 → **전체 자체 접수**로 확대 (전화 접수 포함, 원청 KA- 제외).
+  //   홈페이지 유입은 하루 접수의 일부라 지역 분포 대표성이 없었음 (52건 중 9건 사례).
   const regionTop5 = useMemo(() => {
     const tasksInRange = (apiTasks || []).filter(x => {
       if (!x || x.status === "취소") return false;
-      if (!homepageTaskIds.has(String(x.id))) return false;
+      const no = String(x.taskNo || x.task_no || "");
+      if (no.startsWith("KA-")) return false; // 원청 물량은 광고 지역 판단과 무관
       const c = x.createdAt || x.created_at || x.receivedAt || x.received_at;
       if (!c) return false;
       const k = toKstYmd(c);
@@ -215,8 +218,8 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
     }
     const sorted = [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     const rankedTotal = tasksInRange.length - unknown;
-    return { rows: sorted.slice(0, 5), total: rankedTotal, unknown, grandTotal: tasksInRange.length };
-  }, [apiTasks, homepageTaskIds, start, end]);
+    return { rows: sorted.slice(0, 10), total: rankedTotal, unknown, grandTotal: tasksInRange.length };
+  }, [apiTasks, start, end]);
 
   const cancelRate = funnel.valid > 0
     ? _pctText(funnel.canceled, funnel.valid)
@@ -748,7 +751,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
           </Panel>
 
           {/* ③ 지역 top5 */}
-          <Panel t={t} title="③ 지역 top5" subtitle="기간: 접수(task.created_at) 기준 · 홈페이지 유입만 · 주소 파싱 실패(미상)는 순위 제외">
+          <Panel t={t} title="③ 지역 top10" subtitle="기간: 접수(task.created_at) 기준 · 전화 포함 전체 자체 접수 (원청 제외) · 주소 미상은 순위 제외">
             {regionTop5.grandTotal === 0 ? (
               <div style={{ padding: 20, textAlign: "center", color: t.textMuted, fontSize: 12 }}>
                 이 기간 홈페이지 유입 없음
@@ -819,7 +822,7 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
                   display: "flex", justifyContent: "space-between",
                   fontSize: 11, color: t.textMuted, fontWeight: 700,
                 }}>
-                  <span>홈페이지 유입 합계</span>
+                  <span>자체 접수 합계 (전화 포함)</span>
                   <span className="mono" style={{ color: t.text }}>{regionTop5.grandTotal}건</span>
                 </div>
               </div>

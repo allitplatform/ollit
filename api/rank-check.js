@@ -16,6 +16,8 @@ const KEYWORDS = [
 const OURS = ["올데이케어", "olldaycare", "xn--2n1bk06aikal6b92t", "1866-2003"];
 // 라이벌 감시 (7/27 사장님 지목) — 같은 화면에서 경쟁사 순위도 함께 기록
 const RIVALS = ["에어컨퍼니"];
+// 블로그 감시 (7/27) — 우리 블로그가 검색 첫 화면에 뜨기 시작하는 순간 포착
+const OUR_BLOG = "alldaycare365";
 const UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
 
 export const maxDuration = 60;
@@ -92,6 +94,7 @@ export default async function handler(req, res) {
         const p = parseRank(html);
         rows.push({ kw, rank: p.blocked ? null : p.rank, ads_total: p.adsTotal,
           rival: p.blocked ? null : (p.rival ?? null),
+          blog: p.blocked ? null : html.includes(OUR_BLOG),
           blocked: p.blocked || status !== 200 });
       } catch (e) { rows.push({ kw, rank: null, ads_total: null, blocked: true }); }
       await new Promise(r => setTimeout(r, 800)); // 사람 속도
