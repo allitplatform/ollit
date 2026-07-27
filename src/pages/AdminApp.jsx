@@ -5952,10 +5952,7 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
           {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`}
           {isWaiting && schedText ? ` · ${schedText}` : ""}
           {task.memo && <span style={{ color: t.textMuted, fontStyle: "italic" }}> · 📝 {task.memo}</span>}
-          {/* 2026-07-27 — 통화됨(조율중) 사유 표시 (기사 입력, customerCall.resultMemo) */}
-          {isWaiting && task.customerCall?.result === "talked" && task.customerCall?.resultMemo && (
-            <span style={{ color: "#FF7A00", fontWeight: 700 }}> · ☎ “{task.customerCall.resultMemo}”</span>
-          )}
+
         </span>
         {task.estimateTotal > 0 && (
           <span className="mono" style={{ fontSize: 17.5, fontWeight: 800, color: t.text, flexShrink: 0, letterSpacing: "-0.3px" }}>
@@ -5963,6 +5960,16 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
           </span>
         )}
       </div>
+
+      {/* 2026-07-27 v2 — 통화됨(조율중) 사유: 하단 전용 줄 (사장님 B안 — 중간 병기는 잘림) */}
+      {isWaiting && task.customerCall?.result === "talked" && task.customerCall?.resultMemo && (
+        <div style={{
+          margin: "0 15px 11px", padding: "7px 11px",
+          background: "rgba(255,122,0,0.10)",
+          borderLeft: "3px solid #FF7A00", borderRadius: 7,
+          fontSize: 12, color: "#FFB27A", lineHeight: 1.5,
+        }}>☎ “{task.customerCall.resultMemo}”</div>
+      )}
 
       {/* bot: 프로 배정 + 액션바 (프로/고객 전화 + 수정) */}
       <div onClick={(e) => e.stopPropagation()} style={{
