@@ -209,6 +209,24 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 광고 노출제한 IP (?step=ipblock&list=1 조회 / &ips=a,b,c 등록) — 부정클릭 2단계
+    //   등록된 IP에는 우리 광고가 아예 안 보임 (네이버 한도 600개)
+    if (step === "ipblock") {
+      if (req.query.list === "1") {
+        const r = await call("GET", "/tool/ip-exclusions", "");
+        res.status(200).json({ ok: r.ok, list: r.data });
+        return;
+      }
+      const ips = String(req.query.ips || "").split(",").map(s => s.trim())
+        .filter(s => /^\d{1,3}(\.\d{1,3}){3}$/.test(s)).slice(0, 20);
+      if (!ips.length) { res.status(200).json({ ok: false, error: "ips 필요 (쉼표구분 IPv4)" }); return; }
+      const memo = String(req.query.memo || "관제판 악성판정").slice(0, 30);
+      const r = await call("POST", "/tool/ip-exclusions", "",
+        ips.map(ip => ({ filterIp: ip, memo })));
+      res.status(200).json({ ok: r.ok, added: ips, err: r.ok ? null : r.data });
+      return;
+    }
+
     // 비즈머니 잔액 조회 (?step=bizmoney[&snap=1]) — 실시간 지출 계산용
     //   snap=1 이면 오늘(KST) 기준 스냅샷을 ad_autobid_log에 저장 (kw=_bizmoney, grp=날짜, bid_from=잔액)
     //   0시 5분 스냅샷 잔액 − 지금 잔액 = 오늘 실시간 지출 (네이버 화면과 거의 일치)
