@@ -621,11 +621,14 @@ function AdminInquiriesPc({
   selectedRow, onSelect, onBack,
   onCall, onSpam, onDelete, onReload, onPcSubmitDone,
 }) {
+  // 2026-07-27 — 사장님 spec: 통계(퍼널)는 기본 숨김, 📊 버튼으로만.
+  //   업무 공간(목록+상세)이 상석. 통계가 항상 떠서 처리 공간을 밀던 것 정리.
+  const [showStats, setShowStats] = useState(false);
   return (
     <div style={{ display: "flex", height: "calc(100vh)", background: "#F4F6FA" }}>
       {/* === 좌 리스트 270px === */}
       <aside style={{
-        width: 270, flexShrink: 0,
+        width: 340, flexShrink: 0,   /* 2026-07-27 — 사장님 spec: 목록 넓게 */
         background: "#fff",
         borderRight: "1px solid #E5EAF1",
         display: "flex", flexDirection: "column",
@@ -648,7 +651,16 @@ function AdminInquiriesPc({
               }}>신규 {newCount}</span>
             )}
           </h2>
-          <div style={{ marginLeft: "auto" }}>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+            <button onClick={() => setShowStats(v => !v)} aria-label="통계" title="통계 보기/숨기기" style={{
+              background: showStats ? "#2563EB" : "#F4F6FA",
+              color: showStats ? "#fff" : "#4A5A70",
+              border: "none", borderRadius: 7,
+              padding: "6px 8px", cursor: "pointer",
+              display: "inline-flex", alignItems: "center",
+            }}>
+              <BarChart3 size={13}/>
+            </button>
             <button onClick={onReload} disabled={loading} aria-label="새로고침" style={{
               background: "#EAF2FB", color: "#2563EB",
               border: "none", borderRadius: 7,
@@ -682,8 +694,10 @@ function AdminInquiriesPc({
 
       {/* === 우 패널 === */}
       <main style={{ flex: 1, overflowY: "auto", padding: "16px 24px 40px" }}>
-        {/* 2026-06-28 — 통계 헤더 (Mig 151 RPC) — 항상 노출, 선택 무관 */}
-        <InquiryStatsHeader t={inqStatsT} actorId={actorId} apiTasks={apiTasks}/>
+        {/* 2026-07-27 — 통계는 📊 버튼으로만 (사장님 spec: 업무 공간 우선) */}
+        {showStats && (
+          <InquiryStatsHeader t={inqStatsT} actorId={actorId} apiTasks={apiTasks}/>
+        )}
 
         {selectedRow ? (
           <PcDetailPanel
@@ -699,12 +713,16 @@ function AdminInquiriesPc({
             onSubmitDone={(form) => onPcSubmitDone(form, selectedRow)}
           />
         ) : (
+          !showStats && (
           <div style={{
-            marginTop: 40, textAlign: "center", color: "#93A2B4",
-            fontSize: 14, fontWeight: 600,
+            marginTop: 60, textAlign: "center", color: "#93A2B4",
+            fontSize: 14, fontWeight: 600, lineHeight: 2,
           }}>
-            좌측에서 접수를 선택하세요.
+            좌측 목록에서 접수를 선택하면<br/>
+            여기서 전화 · 통화함 처리 · 작업 전환까지 한 번에 합니다.<br/>
+            <span style={{ fontSize: 12, color: "#B7C1CE" }}>통계는 좌측 상단 📊 버튼</span>
           </div>
+          )
         )}
       </main>
     </div>
