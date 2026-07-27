@@ -370,16 +370,39 @@ function render(){
     const tileSel=['win','mid','push','quiet'].includes(fsel);
     const act=tileSel?f:f.filter(d=>d.on&&(d.cost>0||d.imp>0));
     const quiet=tileSel?0:f.filter(d=>d.on&&!d.cost&&!d.imp).length, off=tileSel?0:f.filter(d=>!d.on).length;
-    $('easyBox').innerHTML=act.slice(0,50).map(d=>{
+    // 결론 한 문장: 오늘 돈의 90%를 쓰는 키워드는 몇 개인가
+    const GOAL=65000;
+    const spenders=[...DATA].filter(d=>d.cost>0).sort((a,b)=>b.cost-a.cost);
+    const totC=spenders.reduce((s,d)=>s+d.cost,0);
+    let acc=0,n90=0;for(const d of spenders){acc+=d.cost;n90++;if(acc>=totC*0.9)break}
+    const concl=totC>0?'<b>키워드 '+fm(DATA.length)+'개 중 '+n90+'개가 오늘 광고비의 90%를 씁니다.</b> 나머지는 사실상 볼 필요가 없습니다.':'오늘은 아직 광고비 지출이 없습니다.';
+    // 키워드 판정 (그룹 화면과 같은 문법 · 기준: 접수 1건 = '+GOAL+'원)
+    const judge=d=>{
+      if(!d.on)return ['꺼짐','#F4F4F2','#787774'];
+      if(d.conv>0){const per=Math.round(d.cost/d.conv);
+        if(per<=GOAL*0.6)return ['더 써도 됨','#F0F9F1','#1C5A2E'];
+        if(per<=GOAL)return ['적정','#FEF9E7','#8A6D1A'];
+        return ['비쌈','#FDF0EF','#9F1D1D'];}
+      if(d.cost>=GOAL)return ['비쌈 — 접수 0','#FDF0EF','#9F1D1D'];
+      if(d.cost>0)return ['아직 모름','#F4F4F2','#787774'];
+      if(d.imp>0)return ['공짜 노출','#F0F6FF','#1D4E89'];
+      return ['조용','#F4F4F2','#9B9A97'];
+    };
+    $('easyBox').innerHTML='<div style="padding:12px 16px;margin-bottom:10px;background:#191919;color:#EAEAEA;border-radius:10px;font-size:13px">'+concl+'</div>'
+    +act.slice(0,50).map(d=>{
+      const J=judge(d);
       let line;
-      if(d.clk>0)line='오늘 <b>'+d.clk+'명</b>이 눌러서 <b>'+fm(d.cost)+'원</b> 씀 (1명당 '+fm(d.cpc)+'원)'+(d.conv?' · <b style="color:#1C7F4B">📋 접수 '+d.conv+'건</b>':'');
-      else if(d.imp>0)line='오늘 '+fm(d.imp)+'번 보였는데 아직 클릭 0 — 나간 돈 없음';
+      if(d.conv>0)line='접수 <b>'+d.conv+'건</b> · 접수 1건에 <b>'+fm(Math.round(d.cost/d.conv))+'원</b> 듦 (기준 '+fm(GOAL)+'원)';
+      else if(d.clk>0)line='클릭 '+d.clk+'번 · <b>'+fm(d.cost)+'원</b> 씀 — 아직 접수로 안 이어짐';
+      else if(d.imp>0)line=fm(d.imp)+'번 보였는데 클릭 0 — 나간 돈 없음';
       else line='오늘 조용함 — 나간 돈 없음';
       let why='';
-      if(d.rnk&&d.rnk>3.2&&d.top1!=null)why=d.top1>20000?' · 1위가 '+fm(d.top1)+'원이라 안 따라가는 중':' · 기계가 순위 끌어올리는 중';
+      if(d.rnk&&d.rnk>3.2&&d.top1!=null)why=d.top1>20000?' · 1위 '+fm(d.top1)+'원이라 일부러 안 따라감':' · 기계가 올리는 중';
       return '<div onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')" style="cursor:pointer;background:#fff;border:1px solid #EBEAE8;border-radius:10px;padding:12px 16px;margin-bottom:8px">'
         +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
-        +'<b style="font-size:14.5px">'+d.kw+'</b><span>'+rankBdg(d)+serpBdg(d.kw)+'</span></div>'
+        +'<span><b style="font-size:14.5px">'+d.kw+'</b> <span style="font-size:12px;color:#9B9A97">'+fm(d.cost)+'원</span></span>'
+        +'<span>'+rankBdg(d)+serpBdg(d.kw)
+        +' <span class="bdg" style="background:'+J[1]+';color:'+J[2]+'">'+J[0]+'</span></span></div>'
         +'<div style="font-size:12.5px;color:#57564F;margin-top:5px;line-height:1.6">'+line+why+'</div></div>';
     }).join('')
     +'<div style="color:#9B9A97;font-size:12.5px;padding:10px 4px">'
