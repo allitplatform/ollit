@@ -12,7 +12,36 @@
 // 기술: HTTPS PWA + 사용자 탭 제스처 기반 → clipboard API 정상.
 
 import { useState } from "react";
-import { Copy } from "lucide-react";
+import { Copy, Pencil } from "lucide-react";
+// 2026-07-27 — 주소 수정 내장 (사장님 spec: 기사 앱 모든 화면에서 연필 아이콘).
+//   Mig 194 engineer_update_address — 본인 배정 건만, 변경 이력 자동.
+import { supabase } from "../../lib/supabase.js";
+import { currentUserId } from "../../lib/cancelRpc.js";
+import { parseRegion } from "../../utils/regionParser.js";
+
+async function editTaskAddress(task, onToast) {
+  const cur = task.fullAddress || task.address || "";
+  const next = window.prompt("정확한 주소로 고쳐주세요", cur);
+  if (next === null) return;
+  const trimmed = String(next).trim();
+  if (!trimmed || trimmed === cur) return;
+  const actor = currentUserId();
+  if (!actor) { if (onToast) onToast("로그인 정보 없음"); return; }
+  const p = parseRegion(trimmed);
+  const { data, error } = await supabase.rpc("engineer_update_address", {
+    p_task_id:  task.id,
+    p_address:  trimmed,
+    p_district: (p && p.sigungu) || "",
+    p_actor:    actor,
+  });
+  if (error || !data?.ok) {
+    alert("주소 수정 실패: " + (data?.error || error?.message || ""));
+    return;
+  }
+  task.address = trimmed;
+  task.fullAddress = trimmed;
+  if (onToast) onToast("주소 수정됨");
+}
 
 // 주소 합성 — DB tasks.address 가 풀 주소면 우선.
 //   옛 시드(address="강남구" + fullAddress="청담로 200") 호환 fallback 유지.
@@ -63,6 +92,7 @@ export function AddressLine({
   iconColor = "var(--label-main)",
   variant = "bordered",
   lineClamp = 1,
+  editable = true,   // 2026-07-27 — 기본 ON (기사 앱 전 화면). 끄려면 false.
 }) {
   const [toast, setToast] = useState(null);
   const addr = task?.fullAddress || task?.address || task?.region || "—";
@@ -124,6 +154,15 @@ export function AddressLine({
       {hasAddr && (
         <button onClick={handleCopy} aria-label="주소 복사" style={buttonStyle}>
           <Copy size={14}/>
+        </button>
+      )}
+      {editable && task?.id && (
+        <button
+          onClick={(e) => { e.stopPropagation(); editTaskAddress(task, (m) => { setToast(m); setTimeout(() => setToast(null), 1500); }); }}
+          aria-label="주소 수정" title="주소 수정"
+          style={{ ...buttonStyle, color: "#FF1B8D", borderColor: variant === "plain" ? undefined : "rgba(255,27,141,0.4)" }}
+        >
+          <Pencil size={variant === "plain" ? 13 : 14}/>
         </button>
       )}
       {toast && (

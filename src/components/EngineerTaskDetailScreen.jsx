@@ -1941,49 +1941,10 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
               📞 {task.phone}
             </div>
           )}
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <AddressLine task={task} lineClamp={0} baseStyle={{
-                fontSize: 14, color: "var(--text-secondary)",
-                fontWeight: 600, marginBottom: 12,
-              }} iconColor="var(--text-secondary)"/>
-            </div>
-            {/* 2026-07-27 — 사장님 spec: 홈페이지 접수 주소 부정확 → 기사가 직접 수정.
-                  Mig 194 engineer_update_address (본인 배정 건만, 변경 이력 자동). */}
-            <button
-              onClick={async () => {
-                const cur = task.fullAddress || task.address || "";
-                const next = window.prompt("정확한 주소로 고쳐주세요", cur);
-                if (next === null) return;
-                const trimmed = String(next).trim();
-                if (!trimmed || trimmed === cur) return;
-                const actor = currentUserId();
-                if (!actor) { alert("로그인 정보 없음"); return; }
-                const p = parseRegion(trimmed);
-                const { data, error } = await supabase.rpc("engineer_update_address", {
-                  p_task_id:  task.id,
-                  p_address:  trimmed,
-                  p_district: (p && p.sigungu) || "",
-                  p_actor:    actor,
-                });
-                if (error || !data?.ok) {
-                  alert("주소 수정 실패: " + (data?.error || error?.message || ""));
-                  return;
-                }
-                task.address = trimmed;   // 화면 즉시 반영 (재조회 전 임시)
-                task.fullAddress = trimmed;
-                alert("주소가 수정되었습니다.");
-              }}
-              style={{
-                flexShrink: 0, padding: "5px 10px",
-                background: "rgba(255,27,141,0.10)",
-                border: "1px solid rgba(255,27,141,0.4)",
-                borderRadius: 8, color: "#FF1B8D",
-                fontSize: 11.5, fontWeight: 800,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >✎ 주소 수정</button>
-          </div>
+          <AddressLine task={task} lineClamp={0} baseStyle={{
+            fontSize: 14, color: "var(--text-secondary)",
+            fontWeight: 600, marginBottom: 12,
+          }} iconColor="var(--text-secondary)"/>
         </>
       )}
 
