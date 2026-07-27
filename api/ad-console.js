@@ -66,8 +66,9 @@ export default async function handler(req, res) {
   const tk = req.query.token || "";
   if (tk !== TOKEN && tk !== TOKEN_FULL && tk !== WRITE_TOKEN) { res.status(404).end(); return; }
   try {
-    // 보고서 목록
+    // 보고서 목록 — 대표/관리자만 (업체 비번에는 안 보임)
     if (req.query.reports) {
+      if (tk === TOKEN) { res.status(200).json({ ok: true, list: [] }); return; }
       const r = await fetch(`${SB_URL}/rest/v1/ad_daily_report?select=slug,d,created_at&order=created_at.desc&limit=60`, {
         headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
       res.status(200).json({ ok: true, list: r.ok ? await r.json() : [] });

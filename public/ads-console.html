@@ -174,7 +174,10 @@ function saveTok(){TOK=$('tokIn').value.trim();localStorage.setItem('adconsole_t
   if(TOK.startsWith('b29adde0')){MTOK=TOK;localStorage.setItem('adconsole_mtok',TOK);}
   boot();}
 function boot(){ if(!TOK){$('login').style.display='block';$('app').style.display='none';return;}
-  $('login').style.display='none';$('app').style.display='block';load(); }
+  $('login').style.display='none';$('app').style.display='block';
+  // 업체 비번이면 보고서 탭 숨김 (서버에서도 목록 안 내려줌)
+  if(TOK.startsWith('85cd10a6')){document.querySelectorAll('[data-tab="t4"]').forEach(e=>e.style.display='none');}
+  load(); }
 function svcOf(g){
   if(g==='메인키워드')return '가스·냉매충전 — 전국 본진';
   if(g==='확장_수리누설')return '수리·누설 — 핵심 신규';
