@@ -5952,6 +5952,10 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
           {task.region} · {task.workItems && task.workItems.length > 0 ? formatWorkItemsAppliance(task.workItems) : `${task.appliance || "—"} ×${task.qty || 1}`}
           {isWaiting && schedText ? ` · ${schedText}` : ""}
           {task.memo && <span style={{ color: t.textMuted, fontStyle: "italic" }}> · 📝 {task.memo}</span>}
+          {/* 2026-07-27 — 통화됨(조율중) 사유 표시 (기사 입력, customerCall.resultMemo) */}
+          {isWaiting && task.customerCall?.result === "talked" && task.customerCall?.resultMemo && (
+            <span style={{ color: "#FF7A00", fontWeight: 700 }}> · ☎ “{task.customerCall.resultMemo}”</span>
+          )}
         </span>
         {task.estimateTotal > 0 && (
           <span className="mono" style={{ fontSize: 17.5, fontWeight: 800, color: t.text, flexShrink: 0, letterSpacing: "-0.3px" }}>

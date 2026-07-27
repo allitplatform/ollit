@@ -1595,7 +1595,7 @@ export async function recordCustomerCallAdapter(taskId) {
 }
 
 // 통화 결과 기록 — 팝업 [통화됨]/[부재중] 탭.
-export async function setCustomerCallResultAdapter(taskId, result) {
+export async function setCustomerCallResultAdapter(taskId, result, memo) {
   if (!taskId) return { ok: false, error: "taskId 없음" };
   if (result !== "talked" && result !== "absent") return { ok: false, error: "result 값 오류" };
   try {
@@ -1609,6 +1609,8 @@ export async function setCustomerCallResultAdapter(taskId, result) {
         count: Number(prev.count) || 1,
         result,
         resultAt: new Date().toISOString(),
+        // 2026-07-27 — 사장님 확정: 통화됨(조율중) 사유 한 줄 (운영자 목록 표시용)
+        resultMemo: String(memo || "").trim() || prev.resultMemo || "",
       },
     };
     return await updateTaskDb(taskId, { categoryData: nextCategoryData });

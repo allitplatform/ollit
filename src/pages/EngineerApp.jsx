@@ -4137,7 +4137,13 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
       setScreen("newAssignCall");
       return;
     }
-    try { await setCustomerCallResultAdapter(tk.id, result); } catch { /* 무해 */ }
+    // 2026-07-27 — 사장님 확정: 통화됨(조율중)이면 사유 한 줄 (건너뛰기 가능).
+    //   운영자 일정 미정 목록에 그대로 표시 — 채근 전화 없이 사정 파악.
+    let memo = "";
+    if (result === "talked") {
+      memo = window.prompt("고객님이 뭐라고 하셨어요? (선택)\n예: 수요일에 다시 연락 준다고 함", "") || "";
+    }
+    try { await setCustomerCallResultAdapter(tk.id, result, memo); } catch { /* 무해 */ }
   }
 
   // V14 큰 흐름 — 모달 state (취소 요청 / 금액 변경 / 완료 + 사진)
