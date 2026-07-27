@@ -2323,6 +2323,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   //   같은 React element 라 reconcile reuse — 검색 input 등 자체 state 유지.
   const adminPcDashboardNode = isPc ? (
     <AdminPcDashboard
+      happycallMode={happycallMode}
       t={t}
       apiTasks={apiTasks}
       apiEngineers={apiEngineers}
@@ -2448,8 +2449,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   useEffect(() => {
     if (!happycallMode) return;
     if (screen && HAPPYCALL_BLOCKED.has(screen)) { setScreen(null); return; }
-    // PC 메인 대시보드는 매출·회사몫 투성이 — 해피콜은 타임라인을 홈으로.
-    if (isPc && screen === null) setScreen("pcTimeline");
+    // 2026-07-27 v2 — 사장님 spec: 해피콜도 메인 대시보드 홈 (흐름·검색·현황 필요).
+    //   돈 요소는 AdminPcDashboard happycallMode 가 개별 가림.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [happycallMode, screen, isPc]);
 

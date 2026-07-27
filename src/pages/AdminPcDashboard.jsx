@@ -36,6 +36,7 @@ function fmtKRW(n) {
 }
 
 export function AdminPcDashboard({
+  happycallMode = false,   // 2026-07-27 — 해피콜: 흐름·검색은 그대로, 돈 요소만 가림
   t,
   apiTasks = [],
   apiEngineers = [],
@@ -118,7 +119,7 @@ export function AdminPcDashboard({
         gap: 12,
       }}>
         <HeroStat icon="📥" label="오늘 접수" value={todayReceived}/>
-        {ownerToday != null && (
+        {!happycallMode && ownerToday != null && (
           <HeroStat icon="💰" label="오늘 회사 몫" value={fmtKRW(ownerToday)}
             sub="완료 건 기준 (일정산)" money/>
         )}
@@ -127,7 +128,7 @@ export function AdminPcDashboard({
             warn sub="클릭 → 배정"
             onClick={() => onClickNewReception?.()}/>
         )}
-        <UsolNCompactCard user={user} onClick={onClickUsolN}/>
+        {!happycallMode && <UsolNCompactCard user={user} onClick={onClickUsolN}/>}
       </div>
 
       {/* ── 작업 현황 — 처리 대기(누적) | 오늘 진행 바 (🅐 확정안) ── */}
@@ -152,6 +153,7 @@ export function AdminPcDashboard({
         gap: 20,
         alignItems: "stretch",
       }}>
+        {!happycallMode && (
         <AdminPcRevenuePanel
           t={t}
           apiTasks={apiTasks}
@@ -161,6 +163,7 @@ export function AdminPcDashboard({
           serverSummary={dashSummary}
           serverRanges={dashRanges}
         />
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           {/* 2026-07-21 v4 — 홈페이지 접수함 대형 카드 승격 (사장님 spec: 중요). */}
           <InquiriesBigCard count={inquiriesNewCount} todayCount={inquiriesTodayCount} user={user} onClick={onClickInquiries}/>
@@ -181,7 +184,7 @@ export function AdminPcDashboard({
           />
           {/* 원청별 오늘 — 우 컬럼 마지막, 남는 높이 채움 (좌 매출 패널과 바닥 맞춤). */}
           <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <AdminPcTodayByPrincipal apiTasks={apiTasks} fill/>
+            <AdminPcTodayByPrincipal happycallMode={happycallMode} apiTasks={apiTasks} fill/>
           </div>
           {/* 2026-07-21 v4 — 최근 7일 매출 카드 제거 (사장님 spec). */}
         </div>
@@ -961,7 +964,7 @@ function InquiriesBigCard({ count = 0, todayCount = 0, user, onClick }) {
   );
 }
 
-function AdminPcTodayByPrincipal({ apiTasks = [], fill = false }) {
+function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = false }) {
   const today = todayYmd();
 
   const { rows, totals, hourly } = useMemo(() => {
@@ -1071,7 +1074,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false }) {
                 <Th align="left"  width="26%">원청</Th>
                 <Th align="right" width="18%">오늘 접수</Th>
                 <Th align="right" width="18%">오늘 완료</Th>
-                <Th align="right" width="38%">회사 몫</Th>
+                {!happycallMode && <Th align="right" width="38%">회사 몫</Th>}
               </tr>
             </thead>
             <tbody>
@@ -1087,6 +1090,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false }) {
                   </Td>
                   <Td align="right"><NumCell n={r.received} unit="건" muted={r.received === 0}/></Td>
                   <Td align="right"><NumCell n={r.done}     unit="건" muted={r.done === 0}/></Td>
+                  {!happycallMode && (
                   <Td align="right">
                     {r.isTrackB ? (
                       <span style={{
@@ -1114,6 +1118,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false }) {
                       </div>
                     )}
                   </Td>
+                  )}
                 </tr>
               ))}
               {/* 합계 (usol_n owner 는 제외됨) */}
