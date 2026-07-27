@@ -1895,10 +1895,28 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     return { list: null, key: 'no array key found' };
   }
 
+  // 2026-07-27 — 접수 러시 렉 수리용 refs (묶음 타이머 + background 중복 가드)
+  const _bgFetchRef   = useRef({ inFlight: false, queued: false });
+  const _bgTimerRef   = useRef(null);
+  function scheduleBgRefetch() {
+    if (_bgTimerRef.current) return;   // 이미 예약됨 — 이번 이벤트는 묶음에 포함
+    _bgTimerRef.current = setTimeout(() => {
+      _bgTimerRef.current = null;
+      fetchTasks({ background: true });
+    }, 10000);   // 2026-07-27 — 4s→10s (직원 5명 동시 접수 러시에도 여전히 무거워 확대)
+  }
+
   async function fetchTasks(options = {}) {
     // 2026-05-14 fix — 60초 폴링 시 로딩 인디케이터 박지 X (깜박임 catch)
     // 초기 mount / 수동 새로고침: 로딩 박음 / 폴링: 백그라운드
     const isBackground = options.background === true;
+    // 2026-07-27 — 접수 러시 렉 수리 [가드 1/2]: background 재조회가 이미 도는 중이면
+    //   또 시작하지 않고 "끝나면 한 번 더" 예약만. (여러 운영자 동시 접수 시
+    //   이벤트마다 전체 목록 재다운로드가 겹겹이 쌓여 화면이 얼던 것.)
+    if (isBackground) {
+      if (_bgFetchRef.current.inFlight) { _bgFetchRef.current.queued = true; return; }
+      _bgFetchRef.current.inFlight = true;
+    }
     if (!isBackground) {
       setTasksLoading(true);
     }
@@ -1998,14 +2016,24 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       if (!isBackground) {
         setTasksLoading(false);
       }
+      if (isBackground) {
+        _bgFetchRef.current.inFlight = false;
+        if (_bgFetchRef.current.queued) {
+          _bgFetchRef.current.queued = false;
+          setTimeout(() => fetchTasks({ background: true }), 1000);
+        }
+      }
     }
   }
   // 2026-05-14 — Supabase Realtime 구독 (옛 60초 폴링 폐기)
   // 신규접수 폼 진입 시 fetch 끊기 (입력 초기화 방지)
-  // payload 분기 박지 X / 단순 refetch 패턴 (background:true 측 깜박임 X)
+  // 2026-07-27 — 접수 러시 렉 수리 [가드 2/2]: 이벤트를 4초 창으로 묶어 1회만 재조회.
+  //   접수 1건 = tasks 이벤트 3~10개 (INSERT + compute/sync UPDATE 연쇄) 인데
+  //   이벤트마다 전체 목록을 다시 받아 운영자 전원이 동시에 얼었음.
+  //   4초 지연은 러시 때 수십 초 프리즈보다 훨씬 낫다 (사장님 장애 보고 2026-07-27).
   useRealtimeTasks(() => {
     if (screen === "newReceptionForm") return;
-    fetchTasks({ background: true });
+    scheduleBgRefetch();
   });
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
@@ -2021,7 +2049,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     const handler = (event) => {
       if (event.data?.type !== "PUSH_RECEIVED") return;
       if (screen === "newReceptionForm") return;
-      fetchTasks({ background: true });
+      scheduleBgRefetch();   // 2026-07-27 — realtime 과 같은 4초 묶음
     };
     navigator.serviceWorker.addEventListener("message", handler);
     return () => navigator.serviceWorker.removeEventListener("message", handler);

@@ -209,6 +209,26 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 비즈머니 잔액 조회 (?step=bizmoney[&snap=1]) — 실시간 지출 계산용
+    //   snap=1 이면 오늘(KST) 기준 스냅샷을 ad_autobid_log에 저장 (kw=_bizmoney, grp=날짜, bid_from=잔액)
+    //   0시 5분 스냅샷 잔액 − 지금 잔액 = 오늘 실시간 지출 (네이버 화면과 거의 일치)
+    if (step === "bizmoney") {
+      const r = await call("GET", "/billing/bizmoney", "");
+      const bal = r.data && (r.data.bizmoney ?? r.data.balance ?? null);
+      if (req.query.snap === "1" && r.ok && bal != null) {
+        const SU = process.env.VITE_SUPABASE_URL, SK = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const kst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+        try {
+          await fetch(`${SU}/rest/v1/ad_autobid_log`, { method: "POST",
+            headers: { apikey: SK, Authorization: `Bearer ${SK}`,
+              "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ kw: "_bizmoney", grp: kst, bid_from: Math.round(bal), bid_to: 0, est1: null }) });
+        } catch (e) {}
+      }
+      res.status(200).json({ ok: r.ok, balance: bal, raw: r.ok ? undefined : r.data });
+      return;
+    }
+
     // 연관 키워드 발굴 (?step=relkw&hints=a,b,... 최대 5) — 네이버가 추천하는 관련 검색어 전부
     if (step === "relkw") {
       const hints = String(req.query.hints || "").split(",").map(s => s.trim()).filter(Boolean).slice(0, 5);

@@ -561,6 +561,22 @@ export default async function handler(req, res) {
           .order("run_at", { ascending: false }).limit(1);
         if (lr && lr[0]) live.lastRun = { at: lr[0].run_at, watched: lr[0].bid_from, changed: lr[0].bid_to };
       } catch (e) {}
+      // 실시간 지출 (비즈머니 방식): 오늘 0시 잔액 스냅샷 − 지금 잔액.
+      // 보고서 API(위 cost)는 1~2시간 지연되므로, 스냅샷이 있으면 이 값을 우선 사용.
+      try {
+        const kstDay2 = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+        const { data: snap } = await supabase.from("ad_autobid_log")
+          .select("bid_from").eq("kw", "_bizmoney").eq("grp", kstDay2)
+          .order("run_at", { ascending: true }).limit(1);
+        if (snap && snap[0] && snap[0].bid_from > 0) {
+          const bz = await naverGet("/billing/bizmoney", "");
+          const nowBal = bz && (bz.bizmoney ?? bz.balance);
+          if (nowBal != null) {
+            const spent = Math.max(0, Number(snap[0].bid_from) - Number(nowBal));
+            if (spent >= 0) live.spendRealtime = spent; // VAT 취급은 클라에서 보고서와 동일하게 ×1.1
+          }
+        }
+      } catch (e) {}
     }
 
     res.setHeader("Cache-Control", wantLive ? "no-store" : "s-maxage=1800, stale-while-revalidate=3600");

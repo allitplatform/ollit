@@ -321,7 +321,11 @@ export function MarketingScreen({ t, apiTasks = [], user, onBack }) {
   // ⓪ 지금 실시간 — 화면에 그릴 값 (profitPerJob 계산 이후에 있어야 함)
   const liveView = useMemo(() => {
     if (!liveAd) return null;
-    const costVat = Math.round(Number(liveAd.cost || 0) * 1.1);
+    // 비즈머니 실시간(0시 잔액−지금 잔액)이 있으면 그걸 우선 — 보고서 API는 1~2시간 지연됨
+    const rawCost = liveAd.live?.spendRealtime != null
+      ? Math.max(Number(liveAd.live.spendRealtime), Number(liveAd.cost || 0))
+      : Number(liveAd.cost || 0);
+    const costVat = Math.round(rawCost * 1.1);
     const jobs = liveAd.live?.jobsToday ?? null;
     const per = jobs > 0 ? Math.round(costVat / jobs) : null;
     const goal = profitPerJob != null ? profitPerJob : 65000;
