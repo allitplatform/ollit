@@ -196,6 +196,13 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
     refrigerantAddonCount = 0,
   } = pcCtx || {};
 
+  // 2026-07-27 — 해피콜 모드: 작업·기사 그룹만 (돈·관리·마케팅 메뉴 숨김).
+  //   PC 메인 대시보드(매출 노출)도 숨김 — 해피콜 홈은 타임라인 (AdminApp 가드가 라우팅).
+  const happycall = !!(pcCtx && pcCtx.happycallMode);
+  const visibleGroups = happycall
+    ? GROUPS.filter(g => g.id === "tasks" || g.id === "engineers")
+    : GROUPS;
+
   const currentGroup = SCREEN_TO_GROUP[screen] || "dashboard";
   const [openGroup, setOpenGroup] = useState(currentGroup);
 
@@ -342,7 +349,7 @@ export function AdminPcSidebar({ t, pcCtx, width = 260 }) {
         flexDirection: "column",
         gap: 2,
       }}>
-        {GROUPS.map(group => {
+        {visibleGroups.map(group => {
           const Icon = group.icon;
           const isOpen = openGroup === group.id;
           const containsActive = group.items.some(it => it.id === screen);

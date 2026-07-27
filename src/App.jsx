@@ -183,7 +183,9 @@ export default function App() {
       case "engineer":
         return <EngineerApp user={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />;
       case "happycall":
-        return <HappycallApp user={currentUser} onLogout={handleLogout} />;
+        // 2026-07-27 — 해피콜 직원 채용 (사장님 확정): 운영자 앱 재사용 + 돈·관리 숨김.
+        //   옛 목업 HappycallApp (4월 시연용) 라우팅 폐기 — 파일은 보존.
+        return <AdminApp user={currentUser} onLogout={handleLogout} happycallMode />;
       case "admin":
         return <AdminApp user={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />;
       case "principal":

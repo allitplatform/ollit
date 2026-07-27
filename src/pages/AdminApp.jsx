@@ -1441,7 +1441,7 @@ function Shell({ t, toasts, children, pcCtx }) {
 // 메인 export — 화면 분기 (모달 state)
 // ============================================
 
-export default function AdminApp({ user, onLogout, onSwitchRole }) {
+export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode = false }) {
   const [mode, setMode] = useState(() => loadThemeSaved());
   // 테마 변경 시 CSS 변수 + body 배경 + localStorage 저장
   useEffect(() => {
@@ -2435,8 +2435,27 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   //     · selectedTaskDetail — 우 aside (다음 단계 mount)
   //     · unreadCount        — 알림 종 badge
   //     · sidebarSummary     — 하단 요약 3개 (오늘 접수 / 미배정 / 오늘 완료)
+  // 2026-07-27 — 해피콜 모드: 돈·관리 화면 차단.
+  //   경계 (사장님 확정): 견적·총금액 = 보임 / 회사몫·기사몫·정산·통장·손익·설정 = 숨김.
+  //   진입로(사이드바·버튼)를 숨기고, 직접 라우팅도 여기서 방어.
+  const HAPPYCALL_BLOCKED = new Set([
+    "marketing", "usol_n", "settlementHistory", "principalPayout", "revenueReport",
+    "revenueDetail", "usolnSettleBoard", "bookkeeping", "cashflow", "mobileBank",
+    "mobileProfit", "settlement", "principalAccount", "ratesFees", "settings",
+    "notificationSettings", "principalList", "rawOrdersArchive", "announcements",
+    "statsHub", "engineerTaskList",
+  ]);
+  useEffect(() => {
+    if (!happycallMode) return;
+    if (screen && HAPPYCALL_BLOCKED.has(screen)) { setScreen(null); return; }
+    // PC 메인 대시보드는 매출·회사몫 투성이 — 해피콜은 타임라인을 홈으로.
+    if (isPc && screen === null) setScreen("pcTimeline");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [happycallMode, screen, isPc]);
+
   const pcCtx = {
     user,
+    happycallMode,   // 2026-07-27 — 사이드바 메뉴 필터용
     // 2026-06-13 — 사이드바 상단 테마 토글에 mode/setMode 노출 (기존 로직 그대로 호출).
     mode,
     setMode,
@@ -4149,19 +4168,20 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
       onClickReassign={() => setScreen("reassignList")}
       onClickRefriAddon={() => setScreen("refrigerantAddonList")}
       onClickEngineerCalendar={() => setScreen("engineerCalendar")}
-      onClickMobileBank={() => setScreen("mobileBank")}
-      onClickMobileProfit={() => setScreen("mobileProfit")}
+      happycallMode={happycallMode}
+      onClickMobileBank={happycallMode ? undefined : () => setScreen("mobileBank")}
+      onClickMobileProfit={happycallMode ? undefined : () => setScreen("mobileProfit")}
       onClickDocIssue={() => setScreen("docIssue")}
-      onClickAnnouncements={() => setScreen("announcements")}
-      onClickStats={() => setScreen("statsHub")}
+      onClickAnnouncements={happycallMode ? undefined : () => setScreen("announcements")}
+      onClickStats={happycallMode ? undefined : () => setScreen("statsHub")}
       refrigerantAddonCount={refrigerantAddonCount}
-      onClickRevenueDetail={() => setScreen("revenueDetail")}
-      onClickSettlement={() => setScreen("settlement")}
+      onClickRevenueDetail={happycallMode ? undefined : () => setScreen("revenueDetail")}
+      onClickSettlement={happycallMode ? undefined : () => setScreen("settlement")}
       onClickManage={() => setScreen("engineerList")}
-      onClickManagePrincipals={() => setScreen("principalList")}
-      onClickSettlementHistory={() => setScreen("settlementHistory")}
-      onClickSettings={() => setScreen("settings")}
-      onClickUsolN={() => setScreen("usol_n")}
+      onClickManagePrincipals={happycallMode ? undefined : () => setScreen("principalList")}
+      onClickSettlementHistory={happycallMode ? undefined : () => setScreen("settlementHistory")}
+      onClickSettings={happycallMode ? undefined : () => setScreen("settings")}
+      onClickUsolN={happycallMode ? undefined : () => setScreen("usol_n")}
       onClickAllTasks={() => { setAllTasksPrefill(""); setScreen("allTasks"); }}
       onSearchAllTasks={(q) => { setAllTasksPrefill(q || ""); setScreen("allTasks"); }}
       // 2026-05-29 Phase 1 — 발주 원본 archive (Migration 080)
@@ -4250,7 +4270,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickStats, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, onClickEngMessages, engMsgUnread = 0, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickStats, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, onClickEngMessages, engMsgUnread = 0, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4411,7 +4431,10 @@ function DashboardScreen({ t, mode, setMode, onLogout, user, onSwitchRole, dynam
         {/* 2026-06-03 — 측측 4박스(오늘 매출/회사 마진/프로 정산/원청 수수료) 측측 →
               RevenueOverviewBlock 측측 측측 (= 같은 dataset + 토글 + 구성 + 종류별 측측 측측 측측).
               dynamicStats.revenue 측측 측측 (= dashboardStats.js 측측 측측 측측 측측 측측 X). */}
+        {/* 2026-07-27 — 해피콜: 매출 블록 숨김 (회사몫·마진 노출) */}
+        {!happycallMode && (
         <RevenueOverviewBlock t={t} apiTasks={apiTasks} user={user} onDetailClick={onClickRevenueDetail} serverSummary={dashSummary} serverRanges={dashRanges}/>
+        )}
 
         {/* V14 큰 흐름 — 취소 요청 알림 (status='취소요청' 인 작업) */}
         {(apiTasks || []).filter(t => (t.status || t.상태) === '취소요청').map(task => (
