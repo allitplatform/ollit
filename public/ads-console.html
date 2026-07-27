@@ -130,10 +130,13 @@
     <span class="chip" data-f="capped">비싸서 2위</span>
     <span class="chip" data-f="dong">지역+동 (쌍)</span>
     <span class="chip" data-f="nodong">지역 동뺀 (쌍)</span>
-
+    <span style="flex-basis:100%;height:0"></span>
+    <span class="chip on" id="vEasy" onclick="setView('easy')">💬 쉬운 보기</span>
+    <span class="chip" id="vTbl" onclick="setView('table')">표로 보기 (자세히)</span>
   </div>
   <div id="twincmp" style="display:none;margin:8px 0;padding:11px 16px;font-size:13px;background:#F0F6FF;border:1px solid #CDDDF5;border-radius:10px"></div>
-  <div class="box"><table>
+  <div id="easyBox" style="display:none"></div>
+  <div class="box" id="tblBox"><table>
     <thead><tr>
       <th class="l" data-s="kw">키워드</th><th class="l" data-s="grp">그룹</th>
       <th data-s="vol">월 검색량</th><th data-s="rnk">지금 순위</th>
@@ -170,6 +173,8 @@
 const API=location.protocol==='file:'?'https://ollit.vercel.app':'';
 let TOK=localStorage.getItem('adconsole_tok')||'';
 let DATA=[],fsel='all',sortK='cost',sortD=-1,shown=150;
+let VIEW=localStorage.getItem('adconsole_view')||'easy';
+function setView(v){VIEW=v;try{localStorage.setItem('adconsole_view',v)}catch(e){}render();}
 let MANAGE=false,MTOK=localStorage.getItem('adconsole_mtok')||'';
 const $=id=>document.getElementById(id);
 const fm=n=>n==null?'—':Number(n).toLocaleString();
@@ -333,6 +338,31 @@ function render(){
   f=[...f].sort((a,b)=>{const x=a[sortK],y=b[sortK];
     if(x==null)return 1;if(y==null)return -1;
     return (x>y?1:x<y?-1:0)*sortD*(typeof x==='string'?-1:1);});
+  // 쉬운 보기 — 키워드마다 사람말 한 문장
+  const ve=$('vEasy'),vt=$('vTbl');
+  if(ve){ve.classList.toggle('on',VIEW==='easy');vt.classList.toggle('on',VIEW!=='easy');}
+  if(VIEW==='easy'&&!MANAGE){
+    $('tblBox').style.display='none';$('easyBox').style.display='';
+    const act=f.filter(d=>d.on&&(d.cost>0||d.imp>0));
+    const quiet=f.filter(d=>d.on&&!d.cost&&!d.imp).length, off=f.filter(d=>!d.on).length;
+    $('easyBox').innerHTML=act.slice(0,50).map(d=>{
+      let line;
+      if(d.clk>0)line='오늘 <b>'+d.clk+'명</b>이 눌러서 <b>'+fm(d.cost)+'원</b> 씀 (1명당 '+fm(d.cpc)+'원)'+(d.conv?' · <b style="color:#1C7F4B">📋 접수 '+d.conv+'건</b>':'');
+      else line='오늘 '+fm(d.imp)+'번 보였는데 아직 클릭 0 — 나간 돈 없음';
+      let why='';
+      if(d.rnk&&d.rnk>3.2&&d.top1!=null)why=d.top1>20000?' · 1위가 '+fm(d.top1)+'원이라 안 따라가는 중':' · 기계가 순위 끌어올리는 중';
+      return '<div onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')" style="cursor:pointer;background:#fff;border:1px solid #EBEAE8;border-radius:10px;padding:12px 16px;margin-bottom:8px">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">'
+        +'<b style="font-size:14.5px">'+d.kw+'</b><span>'+rankBdg(d)+serpBdg(d.kw)+'</span></div>'
+        +'<div style="font-size:12.5px;color:#57564F;margin-top:5px;line-height:1.6">'+line+why+'</div></div>';
+    }).join('')
+    +'<div style="color:#9B9A97;font-size:12.5px;padding:10px 4px">'
+    +(act.length>50?'…돈·노출 있는 것 50개까지만 표시 · ':'')
+    +'그 외 오늘 조용한 키워드 '+fm(quiet)+'개, 꺼진 키워드 '+fm(off)+'개는 [표로 보기]에서</div>';
+    $('more').style.display='none';
+    return;
+  }
+  $('easyBox').style.display='none';$('tblBox').style.display='';
   const vMax=Math.max(...f.map(d=>d.vol||0),1),cMax=Math.max(...f.map(d=>d.cost),1);
   $('tb').innerHTML=f.slice(0,shown).map((d,i)=>{
     const mg=MANAGE?'<td onclick="event.stopPropagation()">'
@@ -344,7 +374,7 @@ function render(){
       +'<td>'+(d.vol!=null?bar(d.vol,vMax,fm(d.vol)):'—')+'</td>'
       +'<td>'+rankBdg(d)+serpBdg(d.kw)+'</td>'
       +'<td>'+fm(d.bid)+'</td>'
-      +'<td class="sub">'+(d.lastBid?new Date(d.lastBid).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'—')+'</td>'
+      +'<td class="sub">'+(d.lastBid?(function(t){const dd=new Date(t);const today=new Date();const day=(today-dd)/86400000;const tm=dd.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});return dd.toDateString()===today.toDateString()?tm:(day<2?'어제 ':(dd.getMonth()+1)+'/'+dd.getDate()+' ')+tm})(d.lastBid):'—')+'</td>'
       +'<td class="sub">'+fm(d.top1)+'</td>'
       +'<td>'+fm(d.imp)+'</td><td>'+(d.clk||'')+'</td>'
       +'<td>'+(d.conv?'<b style="color:#1C7F4B">'+d.conv+'</b>':'')+'</td>'
