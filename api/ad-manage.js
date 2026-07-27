@@ -221,9 +221,13 @@ export default async function handler(req, res) {
         .filter(s => /^\d{1,3}(\.\d{1,3}){3}$/.test(s)).slice(0, 20);
       if (!ips.length) { res.status(200).json({ ok: false, error: "ips 필요 (쉼표구분 IPv4)" }); return; }
       const memo = String(req.query.memo || "관제판 악성판정").slice(0, 30);
-      const r = await call("POST", "/tool/ip-exclusions", "",
-        ips.map(ip => ({ filterIp: ip, memo })));
-      res.status(200).json({ ok: r.ok, added: ips, err: r.ok ? null : r.data });
+      // 네이버는 배열이 아니라 IP 1개씩 객체로 받는다 (IpExclusionRequest)
+      const out = [];
+      for (const ip of ips) {
+        const r = await call("POST", "/tool/ip-exclusions", "", { filterIp: ip, memo });
+        out.push({ ip, ok: r.ok, err: r.ok ? null : r.data });
+      }
+      res.status(200).json({ ok: out.every(o => o.ok), results: out });
       return;
     }
 
