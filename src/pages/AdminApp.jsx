@@ -1903,8 +1903,59 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
     _bgTimerRef.current = setTimeout(() => {
       _bgTimerRef.current = null;
       fetchTasks({ background: true });
-    }, 10000);   // 2026-07-27 — 4s→10s (직원 5명 동시 접수 러시에도 여전히 무거워 확대)
+    }, 10000);
   }
+
+  // 2026-07-27 v2 — 근본 수리: 실시간 이벤트 = 전체 재조회 대신 "그 한 건만" 조회·병합.
+  //   접수 1건 = tasks 이벤트 3~10개 (compute/sync 트리거 연쇄) — 건별 1.5초 묶음으로
+  //   단건 조회 1번. 전체 목록 재다운로드는 러시 중 완전 제거 (3분 안전망만).
+  //   단건 조회 = getTaskForListById (Stage 4b, 목록과 동일 enrich) → _v14NormalizeTask.
+  const _rtPendingRef = useRef(new Map());   // taskId → timeout id
+  function mergeOneTask(taskId) {
+    apiGetTaskForList(taskId).then(row => {
+      if (!row) return;
+      const incoming = _v14NormalizeTask(row);
+      if (!incoming) return;
+      setApiTasks(prev => {
+        const now = Date.now();
+        const FINALIZED = new Set(['취소', '완료', '정산완료', '취소요청']);
+        const idx = prev.findIndex(t => t.id === incoming.id);
+        if (idx < 0) return [incoming, ...prev];   // 신규 접수 — 앞에 삽입
+        const cur = prev[idx];
+        // Optimistic 보호 — 전체 재조회와 동일 규칙 (finalized 는 DB 우선)
+        if (cur._optimisticUntil && cur._optimisticUntil > now && !FINALIZED.has(incoming.status)) {
+          return prev;
+        }
+        const next = prev.slice();
+        next[idx] = incoming;
+        return next;
+      });
+    }).catch(() => { /* 단건 실패 — 3분 안전망 전체 동기화가 수습 */ });
+  }
+  function handleRealtimeTaskEvent(payload) {
+    const evt = payload?.eventType;
+    if (evt === 'DELETE') {
+      const goneId = payload?.old?.id;
+      if (goneId) setApiTasks(prev => prev.filter(t => t.id !== goneId));
+      return;
+    }
+    const taskId = payload?.new?.id;
+    if (!taskId) { scheduleBgRefetch(); return; }   // id 없으면 옛 경로 fallback
+    if (_rtPendingRef.current.has(taskId)) return;  // 이 건 조회 이미 예약됨
+    _rtPendingRef.current.set(taskId, setTimeout(() => {
+      _rtPendingRef.current.delete(taskId);
+      mergeOneTask(taskId);
+    }, 1500));
+  }
+  // 3분 안전망 — 실시간이 이벤트를 흘려도 전체가 어긋난 채 방치되지 않게.
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (screen === "newReceptionForm") return;
+      fetchTasks({ background: true });
+    }, 180000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen]);
 
   async function fetchTasks(options = {}) {
     // 2026-05-14 fix — 60초 폴링 시 로딩 인디케이터 박지 X (깜박임 catch)
@@ -2031,9 +2082,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole }) {
   //   접수 1건 = tasks 이벤트 3~10개 (INSERT + compute/sync UPDATE 연쇄) 인데
   //   이벤트마다 전체 목록을 다시 받아 운영자 전원이 동시에 얼었음.
   //   4초 지연은 러시 때 수십 초 프리즈보다 훨씬 낫다 (사장님 장애 보고 2026-07-27).
-  useRealtimeTasks(() => {
+  useRealtimeTasks((payload) => {
     if (screen === "newReceptionForm") return;
-    scheduleBgRefetch();
+    handleRealtimeTaskEvent(payload);   // 2026-07-27 v2 — 단건 병합 (전체 재조회 폐기)
   });
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
