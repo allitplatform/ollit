@@ -1164,20 +1164,34 @@ function HourlyReceivedChart({ hourly = [], total = 0 }) {
         <span>🕐 오늘 접수 시간대 <span style={{ fontWeight: 600, color: "var(--text-tertiary)" }}>(취소 포함)</span></span>
         <span style={{ fontVariantNumeric: "tabular-nums" }}>{total}건</span>
       </div>
-      <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 58 }}>
+      {/* 2026-07-27 — 사장님 spec: 막대 위 건수 숫자 (0 은 표시 안 함) */}
+      <div style={{ display: "flex", alignItems: "stretch", gap: 4, height: 70 }}>
         {hourly.map((c, i) => (
           <div key={i} title={`${labels[i]}시 · ${c}건`} style={{
-            flex: 1,
-            height: `${c > 0 ? Math.max(12, Math.round((c / max) * 100)) : 5}%`,
-            borderRadius: "4px 4px 2px 2px",
-            background: c > 0
-              ? (i === nowIdx ? "var(--accent)" : "var(--accent-bg)")
-              : "var(--bg-secondary)",
-            border: c > 0
-              ? `1px solid ${i === nowIdx ? "var(--accent)" : "rgba(255,27,141,0.35)"}`
-              : "1px solid var(--border)",
-            minWidth: 0,
-          }}/>
+            flex: 1, minWidth: 0,
+            display: "flex", flexDirection: "column", justifyContent: "flex-end",
+          }}>
+            <div style={{
+              textAlign: "center", fontSize: 9.5, fontWeight: 800,
+              lineHeight: "11px", marginBottom: 2,
+              fontVariantNumeric: "tabular-nums",
+              color: i === nowIdx ? "var(--accent)" : "var(--text-secondary)",
+              visibility: c > 0 ? "visible" : "hidden",
+            }}>{c}</div>
+            <div style={{ flex: 1, display: "flex", alignItems: "flex-end" }}>
+              <div style={{
+                width: "100%",
+                height: `${c > 0 ? Math.max(12, Math.round((c / max) * 100)) : 5}%`,
+                borderRadius: "4px 4px 2px 2px",
+                background: c > 0
+                  ? (i === nowIdx ? "var(--accent)" : "var(--accent-bg)")
+                  : "var(--bg-secondary)",
+                border: c > 0
+                  ? `1px solid ${i === nowIdx ? "var(--accent)" : "rgba(255,27,141,0.35)"}`
+                  : "1px solid var(--border)",
+              }}/>
+            </div>
+          </div>
         ))}
       </div>
       <div style={{ display: "flex", gap: 4, marginTop: 4 }}>

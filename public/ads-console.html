@@ -194,7 +194,7 @@ async function load(){
       return;}
     const j=await r.json();
     if(!j.ok){$('err').textContent='오류: '+j.error;return;}
-    DATA=j.rows.map(d=>({...d,cpc:d.clk>0?Math.round(d.cost/d.clk):null})); window.TODAYJOBS=j.todayJobs;
+    DATA=j.rows.map(d=>({...d,cpc:d.clk>0?Math.round(d.cost/d.clk):null})); window.TODAYJOBS=j.todayJobs; window.SERP=j.serp||{};
     $('at').textContent=j.today+' 기준 · '+new Date(j.at).toLocaleTimeString('ko-KR')+' 갱신 · '+j.count+'개'
       +(j.lastRun?' · 자동입찰 '+new Date(j.lastRun.at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})+' 실행':'');
     if(j.lastRun){const m=Math.round((Date.now()-new Date(j.lastRun.at))/60000);
@@ -236,6 +236,14 @@ function rankBdg(d){
     return '<span class="bdg b3">'+r.toFixed(1)+'위 밀림</span>';}
   if(d.top1!=null)return d.bid>=d.top1?'<span class="bdg b1">1위권</span>':'<span class="bdg b3">입찰 부족</span>';
   return '<span class="bdg b0">—</span>';
+}
+// 30분마다 실제 검색결과를 열어 확인한 순위 (핵심 10개만 · 위치 무관 표준 기준)
+function serpBdg(kw){const s=window.SERP&&window.SERP[kw];if(!s)return '';
+  if(s.blocked)return '';
+  const m=Math.round((Date.now()-new Date(s.at))/60000);
+  const tip='실제 검색화면 확인 '+(m<60?m+'분 전':Math.round(m/60)+'시간 전')+' · 광고 '+(s.ads||'?')+'개 노출 · 표준지역 기준(내 위치에선 다를 수 있음)';
+  if(s.rank==null)return ' <span class="bdg" style="background:#FEF3C7;color:#92400E" title="'+tip+'">실측 권외</span>';
+  return ' <span class="bdg" style="background:#EDE9FE;color:#5B21B6" title="'+tip+'">실측 '+s.rank+'위</span>';
 }
 function render(){
   // 서비스 표
@@ -316,7 +324,7 @@ function render(){
     return '<tr style="cursor:pointer" onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')">'
       +'<td class="l">'+d.kw+'</td><td class="l sub">'+d.grp+'</td>'
       +'<td>'+(d.vol!=null?bar(d.vol,vMax,fm(d.vol)):'—')+'</td>'
-      +'<td>'+rankBdg(d)+'</td>'
+      +'<td>'+rankBdg(d)+serpBdg(d.kw)+'</td>'
       +'<td>'+fm(d.bid)+'</td>'
       +'<td class="sub">'+(d.lastBid?new Date(d.lastBid).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'—')+'</td>'
       +'<td class="sub">'+fm(d.top1)+'</td>'

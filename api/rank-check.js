@@ -26,37 +26,31 @@ async function fetchSerp(kw) {
   return { status: r.status, html };
 }
 
-// 파워링크 광고 블록에서 우리 위치 찾기.
-// 광고 아이템 경계 후보를 여러 개 시도해 가장 그럴듯한 걸 쓴다.
+// 파워링크 광고 블록에서 우리 위치 찾기 (2026-07-27 눈금 보정판).
+// 광고 아이템 1개 = data-slog-content 속성 1개 (실측으로 확인).
+// 첫 연속 블록(간격 30k 이내)만 상단 파워링크로 인정하고,
+// 각 아이템 구간 안에 우리 브랜드 문자열이 있으면 그 순번이 순위.
 function parseRank(html) {
-  const out = { blocked: false, adsTotal: null, rank: null, markerUsed: null };
-  // 진짜 차단 페이지만: 본문이 극단적으로 짧거나 방지문자 안내가 뜬 경우
+  const out = { blocked: false, adsTotal: null, rank: null, markerUsed: "slog-item" };
   if (html.length < 20000 || html.includes("자동입력 방지문자") || html.includes("비정상적인 접근")) {
     out.blocked = true; return out;
   }
-  // 광고 = ader.naver.com 링크 묶음(클러스터). 파워링크 구역(power_link)부터만 센다.
-  const secStart = html.indexOf("power_link");
-  const base = secStart > 0 ? secStart : 0;
   const idx = [];
-  const re = /ader\.naver\.com/g; let m;
-  while ((m = re.exec(html)) !== null) { if (m.index >= base) idx.push(m.index); }
+  let i = -1;
+  while ((i = html.indexOf("data-slog-content=", i + 1)) >= 0) idx.push(i);
   if (!idx.length) { out.adsTotal = 0; return out; }
-  const GAP = 1500;
-  const clusters = [];
-  let cs = idx[0], ce = idx[0];
-  for (let i = 1; i < idx.length; i++) {
-    if (idx[i] - ce > GAP) { clusters.push([cs, ce]); cs = idx[i]; }
-    ce = idx[i];
+  const GAP = 30000; // 상단 블록과 하단 추가 블록 사이는 10만+ 벌어짐
+  const first = [idx[0]];
+  for (let k = 1; k < idx.length; k++) {
+    if (idx[k] - idx[k - 1] > GAP) break;
+    first.push(idx[k]);
   }
-  clusters.push([cs, ce]);
-  out.adsTotal = clusters.length; out.markerUsed = "ader-cluster";
-  out.clusters = clusters.map(c => c[0]);
-  let ourPos = -1;
-  for (const o of OURS) { const p = html.indexOf(o, base); if (p >= 0 && (ourPos < 0 || p < ourPos)) ourPos = p; }
-  if (ourPos >= 0) {
-    let rank = 0;
-    for (const [a, b] of clusters) { if (a - 800 <= ourPos) rank++; else break; }
-    if (rank > 0 && rank <= clusters.length) out.rank = rank;
+  out.adsTotal = first.length;
+  out.clusters = first;
+  for (let k = 0; k < first.length; k++) {
+    const a = first[k], b = k + 1 < first.length ? first[k + 1] : a + 6000;
+    const seg = html.slice(a, b);
+    if (OURS.some(o => seg.includes(o))) { out.rank = k + 1; break; }
   }
   return out;
 }

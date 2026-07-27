@@ -183,7 +183,18 @@ export default async function handler(req, res) {
       if (lr && lr[0]) lastRun = { at: lr[0].run_at, watched: lr[0].bid_from,
         changed: lr[0].bid_to, capped: lr[0].est1 };
     } catch (e) {}
-    res.status(200).json({ ok: true, at: new Date().toISOString(), today, count: rows.length, lastRun, todayJobs, rows });
+    // 실측 순위 (30분마다 검색결과 확인 — 핵심 10개)
+    let serp = null;
+    try {
+      const sr = await fetch(`${SB_URL}/rest/v1/ad_serp_rank?select=kw,rank,ads_total,blocked,ts&order=ts.desc&limit=10`, {
+        headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+      if (sr.ok) {
+        const list = await sr.json();
+        serp = {};
+        for (const r2 of list) if (!(r2.kw in serp)) serp[r2.kw] = { rank: r2.rank, ads: r2.ads_total, at: r2.ts, blocked: r2.blocked };
+      }
+    } catch (e) {}
+    res.status(200).json({ ok: true, at: new Date().toISOString(), today, count: rows.length, lastRun, todayJobs, serp, rows });
   } catch (e) {
     res.status(200).json({ ok: false, error: String(e && e.message || e) });
   }
