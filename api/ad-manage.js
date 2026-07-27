@@ -241,6 +241,7 @@ export default async function handler(req, res) {
       const list = r.ok ? await r.json() : [];
       const byIp = {};
       for (const c of list) {
+        if ((c.ref || "").includes("navercorp")) continue; // 네이버 내부 점검봇 — 차단 금지
         const isAd = (c.qs || "").includes("n_") || (c.ref || "").includes("naver");
         if (!isAd || !c.ip) continue;
         (byIp[c.ip] = byIp[c.ip] || []).push(new Date(c.ts).getTime());

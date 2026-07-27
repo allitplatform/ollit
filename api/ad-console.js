@@ -22,10 +22,18 @@ async function sbGetLog() {
   const byIp = {};
   for (const c of list) {
     const k = c.ip || "?";
-    const v = byIp[k] = byIp[k] || { n: 0, last: null, ad: 0, ref: "" };
+    const v = byIp[k] = byIp[k] || { n: 0, last: null, ad: 0, ref: "", times: [], bot: false };
     v.n++; if (!v.last) v.last = c.ts;
-    if ((c.qs || "").includes("n_") || (c.ref || "").includes("naver")) v.ad++;
+    if ((c.ref || "").includes("navercorp")) v.bot = true; // 네이버 내부 점검봇 (과금 아님)
+    else if ((c.qs || "").includes("n_") || (c.ref || "").includes("naver")) { v.ad++; v.times.push(new Date(c.ts).getTime()); }
     if (!v.ref && c.ref) v.ref = c.ref.slice(0, 60);
+  }
+  // 연타 감지: 광고 클릭 3번이 10분 안에 몰려 있으면 의심
+  for (const v of Object.values(byIp)) {
+    v.times.sort((a, b) => a - b);
+    v.burst = false;
+    for (let i = 0; i + 2 < v.times.length; i++) if (v.times[i + 2] - v.times[i] <= 600000) { v.burst = true; break; }
+    delete v.times;
   }
   const ips = Object.entries(byIp).map(([ip, v]) => ({ ip, ...v }))
     .sort((a, b) => b.n - a.n).slice(0, 100);
