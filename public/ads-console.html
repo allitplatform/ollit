@@ -134,6 +134,8 @@
     <span class="chip on" id="vEasy" onclick="setView('easy')">💬 쉬운 보기</span>
     <span class="chip" id="vTbl" onclick="setView('table')">표로 보기 (자세히)</span>
   </div>
+  <div id="sigTiles" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:4px 0 10px"></div>
+  <div id="sigNote" style="font-size:12px;color:#9B9A97;margin:-4px 0 10px"></div>
   <div id="twincmp" style="display:none;margin:8px 0;padding:11px 16px;font-size:13px;background:#F0F6FF;border:1px solid #CDDDF5;border-radius:10px"></div>
   <div id="easyBox" style="display:none"></div>
   <div class="box" id="tblBox"><table>
@@ -313,9 +315,31 @@ function render(){
   $('issues').style.display=probs.length?'':'none';
   $('issues').innerHTML=probs.join('<br><br>');
   $('issues').style.cssText='margin:10px 0;padding:14px 18px;font-size:13px;line-height:1.85;background:#FDF7F2;border:1px solid #F3E2CE;border-left:4px solid #E8A33D;border-radius:10px;'+(probs.length?'':'display:none');
+  // 신호등 타일 — 색깔과 개수만
+  const isWin=d=>(d.rnk!=null&&d.rnk<=1.4)||(d.rnk==null&&d.top1!=null&&d.bid>=d.top1);
+  const isMid=d=>d.rnk!=null&&d.rnk>1.4&&d.rnk<=3.2;
+  const isPush=d=>(d.rnk!=null&&d.rnk>3.2)||(d.rnk==null&&d.top1!=null&&d.bid<d.top1);
+  {const onK=DATA.filter(d=>d.on);
+   const nW=onK.filter(isWin).length,nM=onK.filter(isMid).length,nP=onK.filter(isPush).length;
+   const nQ=DATA.length-nW-nM-nP;
+   const tile=(key,emoji,label,n,bg,fg)=>'<div onclick="fsel=\''+key+'\';document.querySelectorAll(\'[data-f]\').forEach(c=>c.classList.remove(\'on\'));shown=150;render()" '
+     +'style="cursor:pointer;text-align:center;padding:13px 4px;border-radius:12px;background:'+bg+';border:2px solid '+(fsel===key?fg:'transparent')+'">'
+     +'<div style="font-size:19px">'+emoji+'</div><div style="font-size:21px;font-weight:800;color:'+fg+'">'+n+'</div>'
+     +'<div style="font-size:11.5px;color:'+fg+';font-weight:700">'+label+'</div></div>';
+   $('sigTiles').innerHTML=tile('win','🟢','잘함 (1위권)',nW,'#F0F9F1','#1C5A2E')
+     +tile('mid','🟡','2~3위',nM,'#FEF9E7','#8A6D1A')
+     +tile('push','🔴','밀림',nP,'#FDF0EF','#9F1D1D')
+     +tile('quiet','😴','쉬는 중',nQ,'#F4F4F2','#787774');
+   $('sigNote').textContent=fsel==='push'?'빨간 것도 기계가 10분마다 올리는 중이에요 — 1위가 2만원 넘는 판만 일부러 안 따라갑니다':'타일을 누르면 그 키워드만 보여요';
+  }
   // 키워드 표
   let f=DATA;
-  if(fsel==='off')f=f.filter(d=>!d.on);else f=f.filter(d=>d.on);
+  if(fsel==='off')f=f.filter(d=>!d.on);
+  else if(fsel==='quiet')f=f.filter(d=>!d.on||(!isWin(d)&&!isMid(d)&&!isPush(d)));
+  else f=f.filter(d=>d.on);
+  if(fsel==='win')f=f.filter(isWin);
+  if(fsel==='mid')f=f.filter(isMid);
+  if(fsel==='push')f=f.filter(isPush);
   const gv=$('gsel').value; if(gv)f=f.filter(d=>d.grp===gv);
   if(fsel==='spend')f=f.filter(d=>d.cost>0);
   if(fsel==='lose')f=f.filter(d=>(d.rnk&&d.rnk>2.5)||(d.top1!=null&&d.bid<d.top1&&!d.rnk));
@@ -343,12 +367,14 @@ function render(){
   if(ve){ve.classList.toggle('on',VIEW==='easy');vt.classList.toggle('on',VIEW!=='easy');}
   if(VIEW==='easy'&&!MANAGE){
     $('tblBox').style.display='none';$('easyBox').style.display='';
-    const act=f.filter(d=>d.on&&(d.cost>0||d.imp>0));
-    const quiet=f.filter(d=>d.on&&!d.cost&&!d.imp).length, off=f.filter(d=>!d.on).length;
+    const tileSel=['win','mid','push','quiet'].includes(fsel);
+    const act=tileSel?f:f.filter(d=>d.on&&(d.cost>0||d.imp>0));
+    const quiet=tileSel?0:f.filter(d=>d.on&&!d.cost&&!d.imp).length, off=tileSel?0:f.filter(d=>!d.on).length;
     $('easyBox').innerHTML=act.slice(0,50).map(d=>{
       let line;
       if(d.clk>0)line='오늘 <b>'+d.clk+'명</b>이 눌러서 <b>'+fm(d.cost)+'원</b> 씀 (1명당 '+fm(d.cpc)+'원)'+(d.conv?' · <b style="color:#1C7F4B">📋 접수 '+d.conv+'건</b>':'');
-      else line='오늘 '+fm(d.imp)+'번 보였는데 아직 클릭 0 — 나간 돈 없음';
+      else if(d.imp>0)line='오늘 '+fm(d.imp)+'번 보였는데 아직 클릭 0 — 나간 돈 없음';
+      else line='오늘 조용함 — 나간 돈 없음';
       let why='';
       if(d.rnk&&d.rnk>3.2&&d.top1!=null)why=d.top1>20000?' · 1위가 '+fm(d.top1)+'원이라 안 따라가는 중':' · 기계가 순위 끌어올리는 중';
       return '<div onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')" style="cursor:pointer;background:#fff;border:1px solid #EBEAE8;border-radius:10px;padding:12px 16px;margin-bottom:8px">'
