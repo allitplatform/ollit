@@ -69,11 +69,12 @@ const KW_CAP = {
 };
 const FLOOR = 1000;     // 바닥 — 견적이 이상하게 낮아도 이 밑으론 안 내림
 
-// 시간대별 상한 가중치 (7/27 실측: 12~17시 클릭단가 7천원대로 아침·저녁(4천원대)보다 1.5배 비쌈)
-// 낮에는 비싼 자리를 안 사고, 아침·저녁 싼 시간에 제값으로 산다. 노출은 계속 켜져 있음(균등배분 아님).
-function timeFactor() {
+// 시간대 전략 (7/27 실측: 12~17시 클릭단가 7천원대 = 아침·저녁의 1.5배)
+// 낮에는 목표를 1위→2위로 낮춰 2위 가격만 낸다. 순위는 2~3위 보장(사장님: 3위 밑 금지),
+// 노출은 계속 켜져 있음. 아침·저녁은 1위 추격 그대로.
+function isMidday() {
   const kstH = new Date(Date.now() + 9 * 3600 * 1000).getUTCHours();
-  return (kstH >= 12 && kstH < 18) ? 0.85 : 1.0;
+  return kstH >= 12 && kstH < 18;
 }
 
 export const maxDuration = 60;
@@ -153,10 +154,12 @@ export default async function handler(req, res) {
       }
     }
 
-    // ②-2 2위 견적 — 1위가 상한을 넘긴 키워드만 조회 (호출 최소화)
+    // ②-2 2위 견적 — 평소엔 1위가 상한 초과분만, 낮(12~17시)엔 내림 가능한 그룹 전부 (2위 확보 모드)
+    const midday = isMidday();
     const p2kws = kws.filter(k => {
       const pol = GROUP_POLICY[k.grp] || {};
       if (!pol.pos2 || KW_CAP[norm(k.kw)] != null) return false;
+      if (midday && pol.lowerOk) return true;
       const e1 = estMap.get(norm(k.kw));
       return e1 && Math.round(e1 * (pol.margin || 1.1) / 10) * 10 > (pol.cap || 15000);
     });
@@ -178,17 +181,19 @@ export default async function handler(req, res) {
       const est = estMap.get(norm(k.kw));
       if (!est) { noEst++; continue; }
       const pol = GROUP_POLICY[k.grp] || { cap: 15000, margin: 1.1, lowerOk: true };
-      const tf = timeFactor(); // 낮(12~17시) 0.85 — 상한만 낮춤
-      const baseCap = KW_CAP[norm(k.kw)] != null ? KW_CAP[norm(k.kw)] : pol.cap; // 키워드 개별 상한 우선
-      const cap = Math.round(baseCap * tf / 10) * 10;
+      const cap = KW_CAP[norm(k.kw)] != null ? KW_CAP[norm(k.kw)] : pol.cap; // 키워드 개별 상한 우선
       let bid = Math.round(est * pol.margin / 10) * 10;
+      // 낮(12~17시): 내림 가능한 그룹은 2위 가격 + 5%로 2위 확보 (3위 밑 금지 — 2위가를 내니 2~3위 보장)
+      if (midday && pol.lowerOk && pol.pos2 && KW_CAP[norm(k.kw)] == null) {
+        const e2m = est2Map.get(norm(k.kw));
+        if (e2m) bid = Math.min(bid, Math.round(e2m * 1.05 / 10) * 10);
+      }
       if (bid > cap && pol.pos2 && KW_CAP[norm(k.kw)] == null) {
         // 1위가 너무 비쌈 → 2위 가격 + 10% 로 2위 확보 (최대 cap2).
         // 2위조차 cap2를 넘는 터무니없는 판은 안 따라감(cap에 묶고 포기).
         const e2 = est2Map.get(norm(k.kw));
         const b2 = e2 ? Math.round(e2 * 1.1 / 10) * 10 : null;
-        const cap2t = Math.round((pol.cap2 || 15000) * tf / 10) * 10;
-        bid = (b2 && b2 <= cap2t) ? b2 : cap;
+        bid = (b2 && b2 <= pol.cap2) ? b2 : cap;
         capped++;
       } else if (bid > cap) { bid = cap; capped++; }
       if (bid < FLOOR) bid = FLOOR;
