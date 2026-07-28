@@ -18,6 +18,9 @@ export const SERVICE_LABEL = {
   refrigerant: "냉매충전",
   cleaning:    "분해세척",
   repair:      "수리·누설수리",
+  // 2026-07-28 — 종목 개편: 누설/누수 분리 (repair 는 옛 접수 행 표시용 유지)
+  leak:        "냉매 누설",
+  water_leak:  "물 누수",
   install:     "에어컨 설치",
   unknown:     "잘 모르겠어요(방문진단)",
 };
@@ -34,6 +37,9 @@ export const SERVICE_WORKTYPE = {
   refrigerant: "냉매충전",
   cleaning:    "세척",
   repair:      "수리",
+  // 2026-07-28 — 접수함→작업 전환 시 종목 프리필
+  leak:        "누설",
+  water_leak:  "누수",
   install:     "설치",
   unknown:     "",
 };

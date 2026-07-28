@@ -17,7 +17,10 @@ const PHONE_TEL     = "tel:18662003";
 const SERVICE_CODE = {
   '냉매충전':       'refrigerant',
   '분해세척':       'cleaning',
-  '수리·누설수리':  'repair',
+  // 2026-07-28 — 사장님 확정: 수리·누설수리 → 냉매 누설 / 물 누수 분리 (설명 병기).
+  //   옛 'repair' 코드는 기존 접수함 행 표시용으로만 유지 (inquiriesDb SERVICE_LABEL).
+  '냉매 누설 (시원하지 않아요)': 'leak',
+  '물 누수 (물이 떨어져요)':     'water_leak',
   '에어컨 설치':    'install',
   '잘 모르겠어요':  'unknown',
 };
@@ -418,7 +421,7 @@ function Why({ scrollToForm }) {
             </div>
             <h3 className="ldg-why-h3">부품 고장</h3>
             <p className="ldg-why-desc">압축기·팽창밸브 등 핵심 부품 이상은 전문 진단이 필요합니다. 에러 코드·전원 차단은 점검 신호입니다.</p>
-            <a href="#form" className="ldg-why-solve outline" onClick={(e) => onSolveClick(e, "수리·누설수리")}>방문 진단으로 확인 →</a>
+            <a href="#form" className="ldg-why-solve outline" onClick={(e) => onSolveClick(e, "냉매 누설 (시원하지 않아요)")}>방문 진단으로 확인 →</a>
           </article>
         </div>
       </div>
@@ -550,7 +553,7 @@ function Price({ scrollToForm }) {
                 <li>실외기 점검 · 진단</li>
               </ul>
               <div className="ldg-wash-note">방문 진단 후 정확한 견적을 안내드립니다.</div>
-              <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm("수리·누설수리"); }}>수리·설치 상담하기 →</a>
+              <a href="#form" className="ldg-price-cta" onClick={(e) => { e.preventDefault(); scrollToForm("물 누수 (물이 떨어져요)"); }}>수리·설치 상담하기 →</a>
             </div>
           </div>
 
@@ -886,7 +889,8 @@ function BookingFormBody({ form, set, onSubmit, submitted, submitting, error, ca
           <option value="">선택해 주세요</option>
           <option value="냉매충전">냉매충전</option>
           <option value="분해세척">분해세척</option>
-          <option value="수리·누설수리">수리 / 누설수리</option>
+          <option value="냉매 누설 (시원하지 않아요)">냉매 누설 — 시원하지 않아요</option>
+          <option value="물 누수 (물이 떨어져요)">물 누수 — 물이 떨어져요</option>
           <option value="에어컨 설치">에어컨 설치</option>
           <option value="잘 모르겠어요">잘 모르겠어요 (방문 후 진단)</option>
         </select>

@@ -56,7 +56,10 @@ export const WORK_TYPES_CONFIG = {
   "냉매충전": { enabled: true,  workflow: "auto_first_accept",          needsAppliance: false, priority: 99 },
   "설치":     { enabled: true,  workflow: "manual_with_recommendation", needsAppliance: true,  priority: 2  },
   "누설":     { enabled: true,  workflow: "manual_with_recommendation", needsAppliance: true,  priority: 3  },
-  "수리":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 4  },
+  // 2026-07-28 — 사장님 확정: 누수(물 떨어짐) 신설 — 누설(냉매)과 별개 종목.
+  //   풀·분배 = 냉매 계열 (workTypeKind '누수'→leak 매핑 기존재 / DB Mig 195·196).
+  "누수":     { enabled: true,  workflow: "manual_with_recommendation", needsAppliance: true,  priority: 4  },
+  "수리":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
   "점검":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
 };
 
