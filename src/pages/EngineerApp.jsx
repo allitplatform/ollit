@@ -930,6 +930,7 @@ function MainScreen({
   onClickCalendar,
   onCompleteReport,
   onCustomerCall,
+  onEnterCallResult,
   pendingAcceptances = [],
   newAssignmentsOverride,
   usolNTotal = 0,
@@ -993,6 +994,33 @@ function MainScreen({
 
   // 다음 일정 리스트 = 진행 카드에 들어간 작업은 제외 (중복 제거)
   const upcomingTasks = todayRemaining.filter(x => !nextWork || x.id !== nextWork.id);
+
+  // 2026-07-28 — 통화 결과 미입력 건 (사장님 spec).
+  //   [고객 전화] 를 누르면 customerCall.lastAt 이 찍히지만, 기사가 통화 후 앱으로
+  //   돌아오지 않으면 visibilitychange 가 안 걸려 결과 시트가 뜨지 않는다.
+  //   → 운영자 화면엔 "☎ 전화함" 만 남고 사유가 영원히 비어 있음.
+  //   30분 넘게 결과가 안 찍힌 건을 메인 맨 위에 띄워 결과 입력을 강제한다.
+  const CALL_PENDING_MS = 30 * 60 * 1000;
+  const CALL_RESULT_SKIP_STATUS = ["확정", "진행중", "작업중", "완료", "취소", "취소요청", "visit_only"];
+  const pendingCallTasks = tasks.filter(x => {
+    const cc = x?.customerCall;
+    if (!cc || !cc.lastAt) return false;
+    if (cc.result) return false;                                   // 이미 결과 입력됨
+    if (CALL_RESULT_SKIP_STATUS.includes(String(x.status || ""))) return false;
+    const ts = new Date(cc.lastAt).getTime();
+    if (!ts || isNaN(ts)) return false;
+    return (nowDate.getTime() - ts) > CALL_PENDING_MS;
+  }).sort((a, b) => new Date(a.customerCall.lastAt) - new Date(b.customerCall.lastAt));
+
+  function callAgoLabel(iso) {
+    const ts = new Date(iso).getTime();
+    if (!ts || isNaN(ts)) return "";
+    const min = Math.floor((nowDate.getTime() - ts) / 60000);
+    if (min < 60) return `${min}분 전`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}시간 전`;
+    return `${Math.floor(hr / 24)}일 전`;
+  }
 
   // 오늘 0건 (진행중도 확정도 약속대기도 X)
   const noTaskToday = !activeTask
@@ -1106,6 +1134,64 @@ function MainScreen({
           )}
         </div>
       </div>
+
+      {/* 2026-07-28 — 통화 결과 미입력 경고 (맨 위 / 빨강).
+          전화만 걸고 결과를 안 고른 건. 누르면 기존 통화 결과 시트가 그대로 뜬다. */}
+      {pendingCallTasks.length > 0 && (
+        <div style={{
+          margin: "0 16px 14px",
+          background: "#FEF2F2",
+          border: "1px solid #FCA5A5",
+          borderLeft: "4px solid #E5484D",
+          borderRadius: 14,
+          padding: "12px 14px",
+        }}>
+          <div style={{
+            fontSize: 13, fontWeight: 800, color: "#B91C1C",
+            marginBottom: 4, display: "flex", alignItems: "center", gap: 6,
+          }}>
+            ⚠️ 통화 결과를 입력하세요
+          </div>
+          <div style={{ fontSize: 11.5, color: "#B91C1C", opacity: 0.85, marginBottom: 10 }}>
+            전화는 걸었는데 결과를 안 고른 작업 {pendingCallTasks.length}건이에요.
+          </div>
+          {pendingCallTasks.map(x => (
+            <div key={x.id} style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "9px 10px",
+              background: "#fff",
+              border: "1px solid #FEE2E2",
+              borderRadius: 10,
+              marginBottom: 6,
+            }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                  fontSize: 13, fontWeight: 700, color: "#1A1A1A",
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }}>
+                  {x.customer || "고객"} {x.region ? `· ${x.region}` : ""}
+                </div>
+                <div style={{ fontSize: 11, color: "#8A8A8A", marginTop: 2 }}>
+                  ☎ 전화함 · {callAgoLabel(x.customerCall?.lastAt)}
+                </div>
+              </div>
+              <button
+                onClick={() => onEnterCallResult && onEnterCallResult(x)}
+                style={{
+                  flexShrink: 0,
+                  padding: "8px 12px",
+                  background: "#E5484D", color: "#fff",
+                  border: "none", borderRadius: 9,
+                  fontSize: 12, fontWeight: 700,
+                  cursor: "pointer", fontFamily: "inherit",
+                }}
+              >
+                결과 입력
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* V14 v6 — 오늘 수고하셨습니다 카드 (검정 + 핑크 / 사장님 spec) */}
       {allDoneToday && (
@@ -5125,6 +5211,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               onClickCalendar={() => { setCalendarInitial(null); resetTo("calendar"); }}
               onCompleteReport={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
               onCustomerCall={handleCustomerCall}
+              /* 2026-07-28 — 통화 결과 미입력 경고에서 기존 결과 시트 재사용 */
+              onEnterCallResult={(tk) => { if (tk) setCallSheetTask(tk); }}
               pendingAcceptances={pendingAcceptances}
               newAssignmentsOverride={newAssignments}
               usolNTotal={0}
