@@ -1831,10 +1831,25 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   // 2026-05-25 Round 2 — 옛 approveCancelAdapter 폐기, admin_full_cancel RPC 로 통일.
   //   부수처리 (Optimistic / 토스트 / 모달 close / fetchTasks) 는 그대로 유지.
   //   거절(handleRejectCancel) / 기사 측 취소요청(requestCancelAdapter) 경로는 무수정.
+  // 2026-07-28 — 기사 취소 사유 소실 fix (사장님 제보 "사유가 누락됨").
+  //   옛 흐름: 기사가 request_engineer_cancel 로 category_data.cancelReason 에 사유 저장
+  //           → 운영자가 [확인] 누르면 admin_full_cancel(p_reason='운영자 확인') 이
+  //             같은 키를 jsonb || 머지로 덮어써서 기사 사유가 영구 소실.
+  //   새 흐름: 기사가 쓴 사유를 그대로 다시 넘겨 보존. 사유가 정말 비었을 때만 기본값.
+  function _engineerCancelReasonOf(tk) {
+    if (!tk) return "";
+    const r = tk.cancelReason
+           || tk.categoryData?.cancelReason
+           || tk.category_data?.cancelReason
+           || "";
+    return String(r).trim();
+  }
+
   async function handleApproveCancel() {
     if (!cancelHandleTask?.id) return;
     try {
-      const res = await adminFullCancel(cancelHandleTask.id, '운영자 확인');
+      const engReason = _engineerCancelReasonOf(cancelHandleTask);
+      const res = await adminFullCancel(cancelHandleTask.id, engReason || '운영자 확인 (기사 사유 미기재)');
       if (!res || res.ok === false) {
         addToast({ type: "completed", title: "취소 실패", message: (res && res.error) || "알 수 없는 오류" });
         return;
@@ -4219,8 +4234,17 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
           {cancelHandleTask.address}
         </div>
         <div style={{ background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 8, padding: "10px 12px", marginBottom: 12 }}>
+          {/* 2026-07-28 — 옛 코드는 task.memo(작업 메모)를 보여줘서 기사가 쓴 사유가
+              항상 "(사유 없음)" 으로 보였다. 실제 사유는 category_data.cancelReason. */}
           <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 4 }}>프로 요청 사유</div>
-          <div style={{ fontSize: 12, color: t.text, lineHeight: 1.5 }}>{cancelHandleTask.memo || "(사유 없음)"}</div>
+          <div style={{ fontSize: 12, color: t.text, lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+            {_engineerCancelReasonOf(cancelHandleTask) || cancelHandleTask.memo || "(사유 없음)"}
+          </div>
+          {cancelHandleTask.categoryData?.cancelRequestedAt && (
+            <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6 }}>
+              요청 {new Date(cancelHandleTask.categoryData.cancelRequestedAt).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </div>
+          )}
         </div>
         <label style={{ fontSize: 11, fontWeight: 700, color: t.textMuted, display: "block", marginBottom: 4 }}>거절 사유 (거절 시 입력)</label>
         <textarea
