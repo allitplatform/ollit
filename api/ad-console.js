@@ -209,6 +209,9 @@ export default async function handler(req, res) {
 
     // 접수 → 매출 깔때기 (?funnel=1&days=N) — "광고비 대비 진짜 얼마 벌었나"
     // 접수 건수만 세면 취소·노쇼가 안 보인다. 상태 분포 + payments 합계까지 본다.
+    // 7/29 추가: 시간대(KST 0~23)별 접수. 네이버 /stats 의 breakdown=hh24 와 시간축을 맞춰
+    //  "그 시간대에 클릭 N건 사서 접수 M건 나왔나"를 볼 수 있게 한다.
+    //  hours[] = 기간 전체 합(상태별), rows[].h = 날짜별 24칸 접수 건수.
     if (req.query.funnel) {
       if (tk !== TOKEN_FULL && tk !== WRITE_TOKEN && (req.query.wt || "") !== WRITE_TOKEN) { res.status(404).end(); return; }
       const days = Math.min(60, Math.max(1, Number(req.query.days || 7)));
@@ -222,12 +225,24 @@ export default async function handler(req, res) {
         + `&created_at=gte.${encodeURIComponent(since)}`
         + `&select=id,created_at,status,category_data,payments(principal_amount,track)&limit=5000`, { headers: H }).then(r => r.json());
       const byDay = {};
+      const byHour = Array.from({ length: 24 }, (_, i) => ({ h: i, n: 0, done: 0, cancel: 0, visit: 0 }));
+      const DONE = new Set(["완료", "부분완료", "completed", "partial"]);
+      const CANC = new Set(["취소", "canceled"]);
+      const VISI = new Set(["출장비만", "visit_only"]);
       for (const t2 of (Array.isArray(rowsF) ? rowsF : [])) {
-        const d = new Date(new Date(t2.created_at).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-        const b = byDay[d] || (byDay[d] = { day: d, n: 0, st: {}, cr: {}, paidN: 0, amt: 0 });
+        const kd = new Date(new Date(t2.created_at).getTime() + 9 * 3600 * 1000);
+        const d = kd.toISOString().slice(0, 10);
+        const hh = kd.getUTCHours();                       // +9h 시킨 값이라 이게 KST 시(時)
+        const b = byDay[d] || (byDay[d] = { day: d, n: 0, st: {}, cr: {}, paidN: 0, amt: 0, h: new Array(24).fill(0) });
         b.n++;
+        b.h[hh]++;
         const s = t2.status == null ? "(없음)" : String(t2.status);
         b.st[s] = (b.st[s] || 0) + 1;
+        const H24 = byHour[hh];
+        H24.n++;
+        if (DONE.has(s)) H24.done++;
+        else if (CANC.has(s)) H24.cancel++;
+        else if (VISI.has(s)) H24.visit++;
         if (s === "취소" || s === "canceled") {
           const cd = t2.category_data || {};
           const raw = cd.cancelReason || "";
@@ -239,7 +254,7 @@ export default async function handler(req, res) {
         if (sum > 0) { b.paidN++; b.amt += sum; }
       }
       const rows = Object.values(byDay).sort((a, b) => a.day < b.day ? 1 : -1);
-      res.status(200).json({ ok: true, days, total: (rowsF || []).length, rows });
+      res.status(200).json({ ok: true, days, total: (rowsF || []).length, rows, hours: byHour });
       return;
     }
 
