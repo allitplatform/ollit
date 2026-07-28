@@ -106,6 +106,7 @@
   </aside>
   <main id="mainArea" style="flex:1;min-width:0;padding:28px 38px 80px;box-sizing:border-box">
   <h1 style="display:none">광고 관제판</h1><span class="at" id="at"></span>
+  <button onclick="logoutTok()" style="float:right;margin-top:-2px;padding:4px 10px;font-size:11px;border:1px solid #E6E4E1;background:#fff;border-radius:7px;color:#787774;cursor:pointer">비밀번호 바꾸기</button>
   <div id="t1">
   <div id="pulse" style="margin:6px 0;font-size:12.5px;font-weight:700;color:var(--mut)"></div>
   <div id="oneline" class="box"></div>
@@ -176,6 +177,7 @@ const fm=n=>n==null?'—':Number(n).toLocaleString();
 function saveTok(){TOK=$('tokIn').value.trim();localStorage.setItem('adconsole_tok',TOK);
   if(TOK.startsWith('b29adde0')){MTOK=TOK;localStorage.setItem('adconsole_mtok',TOK);}
   boot();}
+function logoutTok(){ localStorage.removeItem('adconsole_tok'); localStorage.removeItem('adconsole_mtok'); TOK=''; MTOK=''; MANAGE=false; boot(); }
 function boot(){ if(!TOK){$('login').style.display='block';$('app').style.display='none';return;}
   $('login').style.display='none';$('app').style.display='block';
   // 업체 비번이면 보고서 탭 숨김 (서버에서도 목록 안 내려줌)
@@ -216,7 +218,7 @@ async function load(){
 async function loadTrend(){
   const box=$('flowBox'); if(!box)return;
   try{
-    const j=await fetch(API+'/api/ad-console?token='+encodeURIComponent(TOK)+'&trend=1',{cache:'no-store'}).then(x=>x.json());
+    const j=await fetch(API+'/api/ad-console?token='+encodeURIComponent(TOK)+(MTOK?'&wt='+encodeURIComponent(MTOK):'')+'&trend=1',{cache:'no-store'}).then(x=>x.json());
     let html='';
     // ① 지출 곡선 (VAT 포함 환산)
     if(j.spend&&j.spend.length>1){
@@ -231,6 +233,11 @@ async function loadTrend(){
         +'<path d="'+path+'" fill="none" stroke="#5B8DEF" stroke-width="2.5" stroke-linecap="round"/></svg>';
     }
     // ③ 시각별 지출 · 접수 (2026-07-28 신규) — 몇 시에 얼마 쓰고 몇 건 들어왔나
+    if(!j.jobsH){
+      html+='<div style="margin:12px 0 0;padding:9px 12px;border:1px dashed #E6E4E1;border-radius:9px;font-size:12px;color:#B5B3B0">'
+        +'🕐 시각별 지출·접수 표는 <b style="color:#787774">대표용 비밀번호</b>로 로그인해야 보입니다 '
+        +'<span style="color:#C9C7C4">(지금은 업체용 보기)</span> — 우측 상단 “비밀번호 바꾸기”</div>';
+    }
     if(j.jobsH){
       const cum=new Array(24).fill(null);
       (j.spend||[]).forEach(p=>{const k=new Date(new Date(p.at).getTime()+9*3600e3);cum[k.getUTCHours()]=Math.round(p.won*1.1);});
