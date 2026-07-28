@@ -134,6 +134,29 @@ export default async function handler(req, res) {
           (out.serp[r2.kw] = out.serp[r2.kw] || []).push({ t: r2.ts, r: r2.rank, v: r2.rival });
         }
       } catch (e) {}
+      // 시각별 접수 건수 (KST 0~23시, 어제 포함) — 관리 토큰만
+      try {
+        if (tk === TOKEN_FULL || tk === WRITE_TOKEN || (req.query.wt || "") === WRITE_TOKEN) {
+          const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
+          const pr = await fetch(`${SB_URL}/rest/v1/principals?code=eq.allday&select=id`, { headers: H }).then(r => r.json());
+          const pid = pr && pr[0] && pr[0].id;
+          if (pid) {
+            const yst = new Date(Date.now() + 9 * 3600 * 1000 - 86400000).toISOString().slice(0, 10);
+            const stISO = new Date(`${yst}T00:00:00+09:00`).toISOString();
+            const enISO = new Date(`${kst}T23:59:59+09:00`).toISOString();
+            const tr = await fetch(`${SB_URL}/rest/v1/tasks?principal_id=eq.${pid}`
+              + `&created_at=gte.${encodeURIComponent(stISO)}&created_at=lt.${encodeURIComponent(enISO)}`
+              + `&select=created_at&limit=3000`, { headers: H }).then(r => r.json());
+            const th = new Array(24).fill(0), yh = new Array(24).fill(0);
+            for (const t of (Array.isArray(tr) ? tr : [])) {
+              const k = new Date(new Date(t.created_at).getTime() + 9 * 3600 * 1000);
+              const d = k.toISOString().slice(0, 10), h = k.getUTCHours();
+              if (d === kst) th[h]++; else if (d === yst) yh[h]++;
+            }
+            out.jobsH = th; out.jobsHY = yh;
+          }
+        }
+      } catch (e) {}
       res.status(200).json(out);
       return;
     }

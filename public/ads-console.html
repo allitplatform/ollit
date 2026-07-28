@@ -230,6 +230,46 @@ async function loadTrend(){
         +'<text x="6" y="18" font-size="9" fill="#B5B3B0">'+fm(maxW)+'원</text>'
         +'<path d="'+path+'" fill="none" stroke="#5B8DEF" stroke-width="2.5" stroke-linecap="round"/></svg>';
     }
+    // ③ 시각별 지출 · 접수 (2026-07-28 신규) — 몇 시에 얼마 쓰고 몇 건 들어왔나
+    if(j.jobsH){
+      const cum=new Array(24).fill(null);
+      (j.spend||[]).forEach(p=>{const k=new Date(new Date(p.at).getTime()+9*3600e3);cum[k.getUTCHours()]=Math.round(p.won*1.1);});
+      const first=cum.findIndex(v=>v!=null);
+      const nowH=new Date(Date.now()+9*3600e3).getUTCHours();
+      let carry=null;const cf=cum.map(v=>{if(v!=null)carry=v;return carry;});
+      const rows=[];let prev=0;
+      for(let h=0;h<=nowH;h++){
+        const c=cf[h],jb=(j.jobsH[h]||0),yb=((j.jobsHY||[])[h]||0);
+        if(c==null){ if(jb||yb)rows.push({h,won:null,jb,yb}); continue; }
+        const won=Math.max(0,c-prev); prev=c;
+        rows.push({h,won,jb,yb,pre:h===first});
+      }
+      const maxW=Math.max(1,...rows.map(r=>r.won||0)), maxJ=Math.max(1,...rows.map(r=>Math.max(r.jb,r.yb)));
+      const tW=rows.reduce((a,r)=>a+(r.won||0),0), tJ=rows.reduce((a,r)=>a+r.jb,0);
+      const tY=(j.jobsHY||[]).reduce((a,b)=>a+b,0);
+      const col=v=>v<=25000?'#1C7F4B':(v<=35300?'#787774':'#DC2626');
+      html+='<div style="font-size:12.5px;font-weight:700;color:#787774;margin:12px 0 4px">🕐 시각별 지출 · 접수 '
+        +'<span style="font-weight:400;color:#B5B3B0">— 건당 2.5만 이하 초록 · 3.53만 넘으면 빨강(적자선)</span></div>'
+        +'<div style="overflow:auto;border:1px solid #F1F0EF;border-radius:10px"><table style="width:100%;border-collapse:collapse;font-size:12px;background:#fff">'
+        +'<tr style="background:#FAFAF9;color:#787774;font-size:11px"><th style="padding:5px 8px;text-align:left">시각</th>'
+        +'<th style="padding:5px 8px;text-align:right">지출</th><th style="padding:5px 8px;text-align:right">접수</th>'
+        +'<th style="padding:5px 8px;text-align:right">건당</th><th style="padding:5px 8px;text-align:right;color:#B5B3B0">어제</th></tr>'
+        +rows.map(r=>{
+          const per=(r.won&&r.jb)?Math.round(r.won/r.jb):null;
+          const bw=r.won?Math.round(r.won/maxW*100):0, bj=r.jb?Math.round(r.jb/maxJ*100):0;
+          return '<tr style="border-top:1px solid #F5F4F2">'
+            +'<td style="padding:5px 8px;font-weight:600">'+r.h+'시'+(r.pre?'<span style="color:#B5B3B0;font-weight:400;font-size:10px"> 이전포함</span>':'')+'</td>'
+            +'<td style="padding:5px 8px;text-align:right;background:linear-gradient(to left,rgba(91,141,239,.16) '+bw+'%,transparent '+bw+'%)">'+(r.won==null?'-':fm(r.won))+'</td>'
+            +'<td style="padding:5px 8px;text-align:right;font-weight:700;background:linear-gradient(to left,rgba(28,127,75,.16) '+bj+'%,transparent '+bj+'%)">'+(r.jb||'')+'</td>'
+            +'<td style="padding:5px 8px;text-align:right;font-weight:700;color:'+(per?col(per):'#D8D6D3')+'">'+(per?fm(per):'-')+'</td>'
+            +'<td style="padding:5px 8px;text-align:right;color:#B5B3B0">'+(r.yb||'')+'</td></tr>';
+        }).join('')
+        +'<tr style="border-top:2px solid #E5E4E2;background:#FAFAF9;font-weight:700">'
+        +'<td style="padding:6px 8px">합계</td><td style="padding:6px 8px;text-align:right">'+fm(tW)+'</td>'
+        +'<td style="padding:6px 8px;text-align:right">'+tJ+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;color:'+(tJ?col(Math.round(tW/tJ)):'#D8D6D3')+'">'+(tJ?fm(Math.round(tW/tJ)):'-')+'</td>'
+        +'<td style="padding:6px 8px;text-align:right;color:#B5B3B0">'+tY+'</td></tr></table></div>';
+    }
     // ② 실측 순위 추세 (기록 있는 키워드만)
     const kws=Object.entries(j.serp||{}).filter(([k,v])=>v.some(x=>x.r!=null)).slice(0,4);
     if(kws.length){
