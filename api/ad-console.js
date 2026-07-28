@@ -172,15 +172,38 @@ export default async function handler(req, res) {
       const since = new Date(Date.now() - days * 86400000).toISOString();
       const rowsR = await fetch(`${SB_URL}/rest/v1/tasks?principal_id=eq.${pid}`
         + `&created_at=gte.${encodeURIComponent(since)}&select=address&limit=5000`, { headers: H }).then(r => r.json());
-      const agg = {};
+      const MET = { "서울": "서울", "서울시": "서울", "서울특별시": "서울",
+        "부산": "부산", "부산시": "부산", "부산광역시": "부산", "대구": "대구", "대구시": "대구", "대구광역시": "대구",
+        "인천": "인천", "인천시": "인천", "인천광역시": "인천", "광주": "광주", "광주시": "광주", "광주광역시": "광주",
+        "대전": "대전", "대전시": "대전", "대전광역시": "대전", "울산": "울산", "울산시": "울산", "울산광역시": "울산",
+        "세종": "세종", "세종시": "세종", "세종특별자치시": "세종", "제주": "제주", "제주시": "제주", "제주도": "제주" };
+      const DO = /^(경기|경기도|강원|강원도|강원특별자치도|충북|충청북도|충남|충청남도|전북|전라북도|전북특별자치도|전남|전라남도|경북|경상북도|경남|경상남도)$/;
+      const agg = {}, miss = {};
       for (const t of (Array.isArray(rowsR) ? rowsR : [])) {
-        const a2 = String(t.address || "");
-        const m = a2.match(/([가-힣]+(?:특별시|광역시|시|군))\s*([가-힣]+(?:구|시|군|읍|면))?/);
-        const k = m ? (m[1] + (m[2] ? " " + m[2] : "")) : "(주소미상)";
+        const a2 = String(t.address || "").trim().replace(/\s+/g, " ");
+        const tok = a2.split(" ");
+        let k = null;
+        if (tok[0] && MET[tok[0]]) {
+          const gu = (tok[1] && /(구|군)$/.test(tok[1])) ? tok[1] : "";
+          k = MET[tok[0]] + (gu ? " " + gu : "");
+        } else if (tok[0] && DO.test(tok[0])) {
+          const si = (tok[1] && /(시|군)$/.test(tok[1])) ? tok[1] : "";
+          k = si || tok[0];
+        } else if (tok[0] && /(시|군)$/.test(tok[0])) {
+          k = tok[0];
+        } else if (tok[0] && /(구)$/.test(tok[0])) {
+          k = "서울 " + tok[0];
+        }
+        if (!k) {
+          k = "(주소미상)";
+          const pf = a2 ? tok.slice(0, 2).join(" ").slice(0, 12) : "(빈값)";
+          miss[pf] = (miss[pf] || 0) + 1;
+        }
         agg[k] = (agg[k] || 0) + 1;
       }
       res.status(200).json({ ok: true, days, total: (rowsR || []).length,
-        rows: Object.entries(agg).sort((x, y) => y[1] - x[1]).map(([k, v]) => ({ area: k, n: v })) });
+        rows: Object.entries(agg).sort((x, y) => y[1] - x[1]).map(([k, v]) => ({ area: k, n: v })),
+        miss: Object.entries(miss).sort((x, y) => y[1] - x[1]).slice(0, 25).map(([k, v]) => ({ p: k, n: v })) });
       return;
     }
 
