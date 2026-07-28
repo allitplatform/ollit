@@ -830,19 +830,19 @@
 
 /* 2026-07-28 — 블로그 링크: 흰 알약이 다크 배경에서 접수 CTA보다 튀어서 보조 톤으로 낮춤 */
 .ldg-blog-wrap { text-align: center; margin-top: 30px; }
-.ldg-blog-link {
+.ldg-trust .ldg-blog-link {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 13px 24px; border-radius: 999px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.18);
-  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.94);
   font-weight: 700; font-size: 14.5px; letter-spacing: -0.2px;
   text-decoration: none;
   transition: background .18s ease, border-color .18s ease, color .18s ease;
 }
-.ldg-blog-link:hover {
-  background: rgba(255,255,255,0.1);
-  border-color: rgba(255,255,255,0.34);
+.ldg-trust .ldg-blog-link:hover {
+  background: rgba(255,255,255,0.16);
+  border-color: rgba(255,255,255,0.5);
   color: #fff;
 }
 
