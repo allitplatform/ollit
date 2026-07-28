@@ -89,7 +89,14 @@ export default async function handler(req, res) {
         const r = await fetch(`${SB_URL}/rest/v1/ad_click_log?ip=eq.${encodeURIComponent(req.query.ip)}&order=ts.desc&limit=100&select=ts,qs,ref`, {
           headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
         const list = r.ok ? await r.json() : [];
-        res.status(200).json({ ok: true, ip: req.query.ip,
+        // IP 위치 조회 (시군구 수준 · 휴대폰 IP는 통신사 관문 위치라 부정확할 수 있음)
+        let geo = null;
+        try {
+          const g = await fetch(`http://ip-api.com/json/${encodeURIComponent(req.query.ip)}?lang=ko&fields=status,country,regionName,city,isp,mobile`);
+          const gj = await g.json();
+          if (gj && gj.status === "success") geo = { region: gj.regionName, city: gj.city, isp: gj.isp, mobile: !!gj.mobile };
+        } catch (e) {}
+        res.status(200).json({ ok: true, ip: req.query.ip, geo,
           rows: list.map(c => ({ ts: c.ts,
             ad: (c.qs || "").includes("n_") || (c.ref || "").includes("naver"),
             kw: (() => { try { const m = /n_(?:keyword|query)=([^&]+)/.exec(c.qs || ""); return m ? decodeURIComponent(m[1]) : null; } catch (e) { return null; } })() })) });

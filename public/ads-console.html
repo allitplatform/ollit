@@ -388,7 +388,8 @@ async function ipDetail(ip,i){
       +(d.getMonth()+1)+'/'+d.getDate()+' '+d.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'})
       +(r.ad?' 광고':' 직접')+(r.kw?' · '+r.kw:'')+'</span>';
   }).join('');
-  $('ipdC_'+i).innerHTML='<b>'+ip+'</b> 방문 기록 (오래된 것부터) — 빨강=광고 클릭(돈 나감), 초록=직접 방문<br>'+line;
+  const geo=j.geo?('📍 '+(j.geo.region||'')+' '+(j.geo.city||'')+' · '+(j.geo.isp||'')+(j.geo.mobile?' (모바일 — 위치 부정확)':' (유선 — 위치 신뢰)')+' · '):'';
+  $('ipdC_'+i).innerHTML='<b>'+ip+'</b> '+geo+'방문 기록 (오래된 것부터) — 빨강=광고 클릭(돈 나감), 초록=직접 방문<br>'+line;
 }
 function toggleManage(){
   if(!MANAGE){ if(!MTOK){MTOK=prompt('관리 비밀번호 (쓰기 권한)')||'';if(!MTOK)return;localStorage.setItem('adconsole_mtok',MTOK);} MANAGE=true; }
