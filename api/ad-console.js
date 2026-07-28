@@ -15,11 +15,26 @@ const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 
 const SB_URL = process.env.VITE_SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-// 영어 지명 → 한글 (서울 25구 + 수도권 주요 시 · IP 지오 DB가 영문 로마자로 줘서 변환)
-const KO_PLACE = { "Seoul":"서울","Incheon":"인천","Gyeonggi-do":"경기","Busan":"부산","Daegu":"대구","Daejeon":"대전","Gwangju":"광주","Ulsan":"울산","Sejong-si":"세종",
+// 영어 지명 → 한글 (전국판 · IP 지오 DB가 영문 로마자로 줘서 변환)
+const KO_PLACE = { "Seoul":"서울","Incheon":"인천","Busan":"부산","Daegu":"대구","Daejeon":"대전","Gwangju":"광주","Ulsan":"울산","Sejong":"세종",
+  "Gyeonggi-do":"경기","Gangwon-do":"강원","Gangwon State":"강원","Chungcheongbuk-do":"충북","Chungcheongnam-do":"충남","Jeollabuk-do":"전북","Jeonbuk State":"전북","Jeollanam-do":"전남","Gyeongsangbuk-do":"경북","Gyeongsangnam-do":"경남","Jeju-do":"제주",
   "Jongno-gu":"종로구","Jung-gu":"중구","Yongsan-gu":"용산구","Seongdong-gu":"성동구","Gwangjin-gu":"광진구","Dongdaemun-gu":"동대문구","Jungnang-gu":"중랑구","Seongbuk-gu":"성북구","Gangbuk-gu":"강북구","Dobong-gu":"도봉구","Nowon-gu":"노원구","Eunpyeong-gu":"은평구","Seodaemun-gu":"서대문구","Mapo-gu":"마포구","Yangcheon-gu":"양천구","Gangseo-gu":"강서구","Guro-gu":"구로구","Geumcheon-gu":"금천구","Yeongdeungpo-gu":"영등포구","Dongjak-gu":"동작구","Gwanak-gu":"관악구","Seocho-gu":"서초구","Gangnam-gu":"강남구","Songpa-gu":"송파구","Gangdong-gu":"강동구",
-  "Goyang-si":"고양시","Paju-si":"파주시","Gimpo-si":"김포시","Bucheon-si":"부천시","Suwon-si":"수원시","Seongnam-si":"성남시","Yongin-si":"용인시","Anyang-si":"안양시","Ansan-si":"안산시","Namyangju-si":"남양주시","Uijeongbu-si":"의정부시","Hwaseong-si":"화성시","Siheung-si":"시흥시","Pyeongtaek-si":"평택시","Gwangmyeong-si":"광명시","Hanam-si":"하남시","Guri-si":"구리시","Goyang":"고양시","Incheon Metropolitan City":"인천" };
-function koPlace(s) { if (!s) return s; return KO_PLACE[s] || s; }
+  "Bupyeong-gu":"부평구","Namdong-gu":"남동구","Yeonsu-gu":"연수구","Michuhol-gu":"미추홀구","Gyeyang-gu":"계양구","Seo-gu":"서구","Dong-gu":"동구","Buk-gu":"북구","Nam-gu":"남구","Ganghwa-gun":"강화군",
+  "Goyang":"고양시","Paju":"파주시","Gimpo":"김포시","Bucheon":"부천시","Suwon":"수원시","Seongnam":"성남시","Yongin":"용인시","Anyang":"안양시","Ansan":"안산시","Namyangju":"남양주시","Uijeongbu":"의정부시","Hwaseong":"화성시","Siheung":"시흥시","Pyeongtaek":"평택시","Gwangmyeong":"광명시","Hanam":"하남시","Guri":"구리시","Gunpo":"군포시","Uiwang":"의왕시","Osan":"오산시","Icheon":"이천시","Anseong":"안성시","Yangju":"양주시","Pocheon":"포천시","Dongducheon":"동두천시","Gwacheon":"과천시","Yeoju":"여주시","Yangpyeong":"양평군","Gapyeong":"가평군","Yeoncheon":"연천군",
+  "Cheonan":"천안시","Asan":"아산시","Seosan":"서산시","Dangjin":"당진시","Gongju":"공주시","Nonsan":"논산시","Boryeong":"보령시","Gyeryong":"계룡시","Hongseong":"홍성군","Yesan":"예산군","Taean":"태안군","Buyeo":"부여군","Seocheon":"서천군","Cheongyang":"청양군","Geumsan":"금산군",
+  "Cheongju":"청주시","Chungju":"충주시","Jecheon":"제천시","Jincheon":"진천군","Eumseong":"음성군","Okcheon":"옥천군",
+  "Chuncheon":"춘천시","Wonju":"원주시","Gangneung":"강릉시","Sokcho":"속초시","Donghae":"동해시","Samcheok":"삼척시",
+  "Jeonju":"전주시","Gunsan":"군산시","Iksan":"익산시","Mokpo":"목포시","Yeosu":"여수시","Suncheon":"순천시","Gwangyang":"광양시",
+  "Changwon":"창원시","Gimhae":"김해시","Yangsan":"양산시","Jinju":"진주시","Geoje":"거제시","Tongyeong":"통영시","Pohang":"포항시","Gumi":"구미시","Gyeongju":"경주시","Gyeongsan":"경산시","Andong":"안동시","Gimcheon":"김천시",
+  "Jeju City":"제주시","Seogwipo":"서귀포시","Incheon Metropolitan City":"인천" };
+function koPlace(s) {
+  if (!s) return s;
+  if (KO_PLACE[s]) return KO_PLACE[s];
+  // "Cheonan-si" → "Cheonan" 처럼 접미사 떼고 재조회
+  const base = String(s).replace(/-(si|gun|gu)$/i, "");
+  if (KO_PLACE[base]) return KO_PLACE[base];
+  return s;
+}
 function koIsp(s) {
   if (!s) return s; const t = String(s).toLowerCase();
   if (t.includes("korea telecom") || t.includes("kt ")) return "KT";
