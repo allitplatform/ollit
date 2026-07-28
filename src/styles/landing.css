@@ -759,20 +759,28 @@
 .ldg-trust {
   background: #1C2B3A; padding: 36px 24px 110px;
 }
+/* 2026-07-28 — 통계 3종: 허공에 뜬 배치 -> 구분선으로 나뉜 하나의 밴드로 묶음 */
 .ldg-stats {
   display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 24px; margin-bottom: 80px; text-align: center;
+  gap: 0; margin-bottom: 56px; text-align: center;
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 20px;
+  padding: 32px 10px 28px;
 }
+.ldg-stats > div { padding: 0 8px; }
+.ldg-stats > div + div { border-left: 1px solid rgba(255,255,255,0.09); }
 .ldg-stat-icon {
-  width: 48px; height: 48px; border-radius: 50%;
+  width: 44px; height: 44px; border-radius: 50%;
   background: rgba(91,155,213,0.15);
   display: flex; align-items: center; justify-content: center;
   margin: 0 auto 14px;
 }
 .ldg-stat-num {
-  font-size: clamp(38px, 7vw, 72px);
+  font-size: clamp(30px, 5.6vw, 64px);
   font-weight: 900; color: var(--coral);
-  letter-spacing: -2px; line-height: 1;
+  letter-spacing: -2.5px; line-height: 1;
+  white-space: nowrap;
 }
 .ldg-stat-plus { font-size: 0.5em; font-weight: 700; }
 .ldg-stat-lbl {
@@ -792,7 +800,19 @@
 .ldg-review-card {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 14px; padding: 28px 26px;
+  border-radius: 14px; padding: 26px 24px 22px;
+  display: flex; flex-direction: column;
+  transition: border-color .18s ease, background .18s ease;
+}
+.ldg-review-card:hover {
+  background: rgba(255,255,255,0.085);
+  border-color: rgba(255,255,255,0.18);
+}
+/* 본문이 남는 높이를 먹어 이름 블록이 항상 카드 바닥에 정렬됨 */
+.ldg-review-text { flex: 1; }
+.ldg-review-foot {
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.08);
 }
 .ldg-review-stars {
   font-size: 14px; color: #F6B93C;
@@ -800,13 +820,31 @@
 }
 .ldg-review-text {
   font-size: 14px; color: rgba(255,255,255,0.82);
-  line-height: 1.8; margin-bottom: 20px; letter-spacing: -0.2px;
+  line-height: 1.8; margin-bottom: 18px; letter-spacing: -0.2px;
 }
 .ldg-review-name {
   font-size: 13px; color: rgba(255,255,255,0.6);
   font-weight: 600; margin-bottom: 2px;
 }
 .ldg-review-detail { font-size: 12px; color: rgba(91,155,213,0.7); }
+
+/* 2026-07-28 — 블로그 링크: 흰 알약이 다크 배경에서 접수 CTA보다 튀어서 보조 톤으로 낮춤 */
+.ldg-blog-wrap { text-align: center; margin-top: 30px; }
+.ldg-blog-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 13px 24px; border-radius: 999px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.85);
+  font-weight: 700; font-size: 14.5px; letter-spacing: -0.2px;
+  text-decoration: none;
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
+}
+.ldg-blog-link:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.34);
+  color: #fff;
+}
 
 /* ============================================================
    9. FORM
@@ -990,6 +1028,12 @@ select.ldg-form-input { cursor: pointer; }
   .ldg-hero { padding: 48px 18px 0; }
   .ldg-section { padding: 64px 18px 72px; }
   .ldg-trust { padding: 24px 18px 90px; }
+  /* 2026-07-28 — 누적 건수 10,000+ 로 자릿수 늘어 3열에서 넘치던 문제 */
+  .ldg-stats { padding: 24px 4px 22px; margin-bottom: 44px; border-radius: 16px; }
+  .ldg-stats > div { padding: 0 4px; }
+  .ldg-stat-num { font-size: clamp(21px, 6.4vw, 34px); letter-spacing: -1.4px; }
+  .ldg-stat-icon { width: 36px; height: 36px; margin-bottom: 10px; }
+  .ldg-stat-lbl { font-size: 11.5px; margin-top: 8px; }
   .ldg-form-section { padding: 72px 18px 64px; }
   .ldg-solution { padding: 72px 18px 0; }
 

@@ -44,7 +44,7 @@ function Ticker() {
     <>
       <span className="ldg-ticker-item"><span style={{ color: "var(--coral)" }}>★</span> 고객 만족도 <span style={{ color: "var(--coral)" }}>98%</span></span>
       <span className="ldg-ticker-sep">|</span>
-      <span className="ldg-ticker-item"><span style={{ color: "#5B9BD5" }}>❄</span> 누적 작업 <span style={{ color: "var(--coral)" }}>5,000건+</span></span>
+      <span className="ldg-ticker-item"><span style={{ color: "#5B9BD5" }}>❄</span> 누적 작업 <span style={{ color: "var(--coral)" }}>10,000건+</span></span>
       <span className="ldg-ticker-sep">|</span>
       <span className="ldg-ticker-item">서울·경기·인천 <span style={{ color: "var(--coral-light)", fontWeight: 800 }}>당일 출장</span></span>
       <span className="ldg-ticker-sep">|</span>
@@ -590,15 +590,6 @@ function Price({ scrollToForm }) {
           </div>
         </div>
 
-        {/* 2026-07-28 — CS 예방: 누설 시 비용 전 범위 사전 공개 ("반쪽 가격"이 사기 오해의 원인) */}
-        <div style={{ marginTop: 18, padding: "16px 20px", background: "#F5F8FC", border: "1px solid #DCE6F2", borderRadius: 14, lineHeight: 1.7 }}>
-          <div style={{ fontWeight: 800, color: "#1C2B3A", marginBottom: 4 }}>진단에서 누설(가스 새는 곳)이 발견되면?</div>
-          <div style={{ fontSize: 14.5, color: "#4A5A6B" }}>
-            새는 곳을 두고 충전만 하면 몇 주 뒤 다시 빠져 <strong>충전비를 버리게 됩니다.</strong>&nbsp;
-            그래서 수리를 먼저 안내드리며, 이 경우 <strong>수리 포함 15~35만원 범위</strong>에서 현장 견적이 나옵니다.
-            금액을 먼저 안내드리고, <strong>동의하신 경우에만</strong> 진행합니다.
-          </div>
-        </div>
         <p className="ldg-price-disclaimer">* 정확한 금액은 방문 진단 후 확정되며, 추가 비용은 사전 동의 후에만 청구됩니다.</p>
       </div>
     </section>
@@ -766,7 +757,7 @@ function Trust() {
         <div className="ldg-stats">
           <div>
             <div className="ldg-stat-icon"><ClipboardIcon /></div>
-            <StatNum target={5000} plus />
+            <StatNum target={10000} plus />
             <div className="ldg-stat-lbl">누적 작업 건수</div>
           </div>
           <div>
@@ -787,17 +778,17 @@ function Trust() {
             <div className="ldg-review-card" key={i}>
               <div className="ldg-review-stars">★★★★★</div>
               <p className="ldg-review-text">{r.text}</p>
-              <div className="ldg-review-name">{r.name}</div>
-              <div className="ldg-review-detail">{r.detail}</div>
+              <div className="ldg-review-foot">
+                <div className="ldg-review-name">{r.name}</div>
+                <div className="ldg-review-detail">{r.detail}</div>
+              </div>
             </div>
           ))}
         </div>
-        {/* 2026-07-28 — 블로그 연결: 실작업 기록 15편이 신뢰 자산인데 사이트와 단절돼 있었음 */}
-        <div style={{ textAlign: "center", marginTop: 28 }}>
-          <a href="https://blog.naver.com/alldaycare365" target="_blank" rel="noopener noreferrer"
-             style={{ display: "inline-block", padding: "13px 26px", borderRadius: 12, background: "#fff",
-                      border: "1.5px solid #C9D6E6", color: "#1C2B3A", fontWeight: 800, fontSize: 15, textDecoration: "none" }}>
-            📖 현장 이야기 블로그 — 실제 작업 기록 보기 →
+        {/* 2026-07-28 — 블로그 연결: 실작업 기록이 신뢰 자산인데 사이트와 단절돼 있었음 */}
+        <div className="ldg-blog-wrap">
+          <a className="ldg-blog-link" href="https://blog.naver.com/alldaycare365" target="_blank" rel="noopener noreferrer">
+            현장 이야기 블로그 — 실제 작업 기록 보기 <span aria-hidden="true">→</span>
           </a>
         </div>
       </div>
