@@ -98,7 +98,11 @@ export function detectServiceType(task) {
   // 2026-07-12 — 사장님 spec: 종목 미확정 → '세척' 폴백 대신 '미정' 배지.
   //   applianceUndecided 플래그 우선 검사 → workType placeholder / workItems[0].workType
   //   placeholder / 둘 다 빈값 → undecided.
-  if (task.applianceUndecided === true) return SERVICE_TYPES.undecided;
+  // 2026-07-28 — 사장님 지적 수리: applianceUndecided 는 "기종 미정" 플래그이지
+  //   "종목 미정" 이 아니다. 누설로 확정된 접수인데 기종만 안 골랐다고 배지가
+  //   '미정' 으로 떨어지던 문제 (A-260728-041 일현로 5731).
+  //   → 실제 workType 이 있으면 그 종목 배지를 쓰고, 기종 안내는 노란 배너가 따로 한다.
+  //   (workType 도 없으면 아래 hasReal 검사에서 그대로 undecided 로 떨어짐 — 커버 유지.)
   const firstWt = Array.isArray(task.workItems) && task.workItems.length > 0
     ? task.workItems[0]?.workType
     : null;
