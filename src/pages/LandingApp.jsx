@@ -590,6 +590,15 @@ function Price({ scrollToForm }) {
           </div>
         </div>
 
+        {/* 2026-07-28 — CS 예방: 누설 시 비용 전 범위 사전 공개 ("반쪽 가격"이 사기 오해의 원인) */}
+        <div style={{ marginTop: 18, padding: "16px 20px", background: "#F5F8FC", border: "1px solid #DCE6F2", borderRadius: 14, lineHeight: 1.7 }}>
+          <div style={{ fontWeight: 800, color: "#1C2B3A", marginBottom: 4 }}>진단에서 누설(가스 새는 곳)이 발견되면?</div>
+          <div style={{ fontSize: 14.5, color: "#4A5A6B" }}>
+            새는 곳을 두고 충전만 하면 몇 주 뒤 다시 빠져 <strong>충전비를 버리게 됩니다.</strong>&nbsp;
+            그래서 수리를 먼저 안내드리며, 이 경우 <strong>수리 포함 15~35만원 범위</strong>에서 현장 견적이 나옵니다.
+            금액을 먼저 안내드리고, <strong>동의하신 경우에만</strong> 진행합니다.
+          </div>
+        </div>
         <p className="ldg-price-disclaimer">* 정확한 금액은 방문 진단 후 확정되며, 추가 비용은 사전 동의 후에만 청구됩니다.</p>
       </div>
     </section>
@@ -782,6 +791,14 @@ function Trust() {
               <div className="ldg-review-detail">{r.detail}</div>
             </div>
           ))}
+        </div>
+        {/* 2026-07-28 — 블로그 연결: 실작업 기록 15편이 신뢰 자산인데 사이트와 단절돼 있었음 */}
+        <div style={{ textAlign: "center", marginTop: 28 }}>
+          <a href="https://blog.naver.com/alldaycare365" target="_blank" rel="noopener noreferrer"
+             style={{ display: "inline-block", padding: "13px 26px", borderRadius: 12, background: "#fff",
+                      border: "1.5px solid #C9D6E6", color: "#1C2B3A", fontWeight: 800, fontSize: 15, textDecoration: "none" }}>
+            📖 현장 이야기 블로그 — 실제 작업 기록 보기 →
+          </a>
         </div>
       </div>
     </section>
@@ -981,9 +998,15 @@ function Footer() {
         <p className="ldg-footer-info">
           대표 조동욱, 구현서 &nbsp;·&nbsp; 사업자등록번호 430-07-03167<br/>
           상호: 에어컨청소 에어컨가스충전 올데이케어 &nbsp;·&nbsp; 경기도 고양시 덕양구 상막3길 5, 1동 805호<br/>
-          서울·경기 전 지역 출장 · 냉매충전 · 분해세척 · 누설수리 · 설치
+          서울·경기·인천·충남 출장 · 냉매충전 · 분해세척 · 누설수리 · 설치
         </p>
         <p className="ldg-footer-tel">대표전화 <a href={PHONE_TEL}>{PHONE_DISPLAY}</a></p>
+        <p style={{ fontSize: 13, marginTop: 10 }}>
+          <a href="https://blog.naver.com/alldaycare365" target="_blank" rel="noopener noreferrer"
+             style={{ color: "rgba(255,255,255,0.85)", textDecoration: "underline", fontWeight: 700 }}>
+            현장 이야기 블로그
+          </a>
+        </p>
         <p style={{ fontSize: 13, color: "rgba(255,255,255,0.7)", marginTop: 14, letterSpacing: "-0.1px" }}>
           <a href="/privacy" target="_blank" rel="noopener noreferrer"
              style={{ color: "rgba(255,255,255,0.9)", textDecoration: "underline", fontWeight: 700 }}>
