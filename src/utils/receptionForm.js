@@ -112,7 +112,9 @@ export const WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치
 //   UI 렌더링 시 formatWorkTypeLabel() 로 감싸 사용자에게 '누설/누수' 노출.
 //   매핑 없는 workType 은 identity 반환.
 export const WORK_TYPE_DISPLAY_LABEL = {
-  "누설": "누설/누수",
+  // 2026-07-28 — 누수 종목 신설로 합본 라벨 폐기. 괄호 설명으로 구분 명확화.
+  "누설": "누설 (냉매)",
+  "누수": "누수 (물)",
 };
 
 export function formatWorkTypeLabel(workType) {
