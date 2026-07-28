@@ -57,6 +57,9 @@ const GROUP_POLICY = {
   "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
   // 설치(7/27 사장님 확정): 지금은 시기 아님 — 싼 자리(5,000 이하)만 줍고 비싼 판은 성수기에.
   "확장_설치":     { cap: 5000,  margin: 1.1,  lowerOk: true  },
+  // 증상·청소(7/28 신설): 지금까지 자동입찰 밖에 방치돼 입찰가가 얼어 있던 그룹.
+  // 세척 단가가 수리보다 낮으니 상한도 낮게 8,000으로 시작한다.
+  "확장_증상청소": { cap: 8000,  margin: 1.1,  lowerOk: true,  pos2: true, cap2: 8000 },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 
