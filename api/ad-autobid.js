@@ -77,6 +77,17 @@ function isMidday() {
   return kstH >= 12 && kstH < 18;
 }
 
+// 매 실행마다 비즈머니 잔액 1줄 기록 → 관제판 "시간대별 지출 곡선" 재료 (7/28 업그레이드)
+async function logBizBalance() {
+  try {
+    const r = await call("GET", "/billing/bizmoney", "");
+    const bal = r && (r.bizmoney ?? r.balance);
+    if (bal == null) return;
+    const kst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    await logRows([{ kw: "_bz", grp: kst, bid_from: Math.round(bal), bid_to: 0, est1: null }]);
+  } catch (e) {}
+}
+
 export const maxDuration = 60;
 
 function sign(method, path) {
@@ -224,6 +235,7 @@ export default async function handler(req, res) {
       { kw: "_run", grp: "_summary", bid_from: kws.length, bid_to: applied, est1: capped },
       ...changes.map(c => ({ kw: c.kw, grp: c.grp, bid_from: c.from, bid_to: c.to, est1: c.est1 })),
     ]);
+    await logBizBalance(); // 시간대별 지출 곡선 재료
     res.status(200).json({ ok: true, alive: kws.length,
       applied, capped, noEst });
   } catch (e) {

@@ -83,6 +83,30 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 흐름 데이터 (?trend=1): 시간대별 지출 곡선 + 실측 순위 48시간 추세
+    if (req.query.trend) {
+      const kst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      const out = { ok: true, spend: [], snap: null, serp: {} };
+      try {
+        const s = await fetch(`${SB_URL}/rest/v1/ad_autobid_log?kw=eq._bizmoney&grp=eq.${kst}&order=run_at.asc&limit=1&select=bid_from`, {
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }).then(r => r.json());
+        if (s && s[0]) out.snap = s[0].bid_from;
+        const b = await fetch(`${SB_URL}/rest/v1/ad_autobid_log?kw=eq._bz&grp=eq.${kst}&order=run_at.asc&limit=200&select=run_at,bid_from`, {
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }).then(r => r.json());
+        if (Array.isArray(b) && out.snap) out.spend = b.map(x => ({ at: x.run_at, won: Math.max(0, out.snap - x.bid_from) }));
+      } catch (e) {}
+      try {
+        const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
+        const sr = await fetch(`${SB_URL}/rest/v1/ad_serp_rank?ts=gte.${encodeURIComponent(since)}&order=ts.asc&limit=1000&select=ts,kw,rank,rival`, {
+          headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }).then(r => r.json());
+        for (const r2 of (Array.isArray(sr) ? sr : [])) {
+          (out.serp[r2.kw] = out.serp[r2.kw] || []).push({ t: r2.ts, r: r2.rank, v: r2.rival });
+        }
+      } catch (e) {}
+      res.status(200).json(out);
+      return;
+    }
+
     // 부정클릭 감시: 최근 클릭 로그 IP 집계 (+ ?ip=x.x.x.x 시간대 상세)
     if (req.query.clicks) {
       if (req.query.ip) {

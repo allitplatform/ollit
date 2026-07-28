@@ -209,7 +209,46 @@ async function load(){
     const gs=[...new Set(DATA.map(d=>d.grp))];
     $('gsel').innerHTML='<option value="">모든 그룹</option>'+gs.map(g=>'<option>'+g+'</option>').join('');
     render();
+    loadTrend();
   }catch(e){$('err').textContent='서버 연결 실패: '+e;}
+}
+// 📈 흐름: 시간대별 지출 곡선 + 실측 순위 48h 추세 (7/28 업그레이드)
+async function loadTrend(){
+  const box=$('flowBox'); if(!box)return;
+  try{
+    const j=await fetch(API+'/api/ad-console?token='+encodeURIComponent(TOK)+'&trend=1',{cache:'no-store'}).then(x=>x.json());
+    let html='';
+    // ① 지출 곡선 (VAT 포함 환산)
+    if(j.spend&&j.spend.length>1){
+      const pts=j.spend.map(p=>({h:(new Date(p.at).getTime()+9*3600e3)%86400000/3600000,w:Math.round(p.won*1.1)}));
+      const maxW=Math.max(...pts.map(p=>p.w),10000);
+      const X=h=>40+(h-8)/14*540, Y=w=>95-(w/maxW)*80;
+      const path=pts.filter(p=>p.h>=8).map((p,i)=>(i?'L':'M')+X(p.h).toFixed(1)+' '+Y(p.w).toFixed(1)).join(' ');
+      html+='<div style="font-size:12.5px;font-weight:700;color:#787774;margin-bottom:4px">📈 오늘 지출 흐름 <span style="font-weight:400;color:#B5B3B0">— 10분마다 기록 · 지금 '+fm(Math.round(j.spend[j.spend.length-1].won*1.1))+'원</span></div>'
+        +'<svg viewBox="0 0 600 110" style="width:100%;height:96px;background:#FAFAF9;border:1px solid #F1F0EF;border-radius:10px">'
+        +[8,12,17,22].map(h=>'<text x="'+X(h)+'" y="107" font-size="9" fill="#B5B3B0" text-anchor="middle">'+h+'시</text><line x1="'+X(h)+'" y1="12" x2="'+X(h)+'" y2="96" stroke="#F1F0EF"/>').join('')
+        +'<text x="6" y="18" font-size="9" fill="#B5B3B0">'+fm(maxW)+'원</text>'
+        +'<path d="'+path+'" fill="none" stroke="#5B8DEF" stroke-width="2.5" stroke-linecap="round"/></svg>';
+    }
+    // ② 실측 순위 추세 (기록 있는 키워드만)
+    const kws=Object.entries(j.serp||{}).filter(([k,v])=>v.some(x=>x.r!=null)).slice(0,4);
+    if(kws.length){
+      html+='<div style="font-size:12.5px;font-weight:700;color:#787774;margin:10px 0 4px">📍 실측 순위 48시간 <span style="font-weight:400;color:#B5B3B0">— 아래로 갈수록 밀림 · 회색선=3위 마지노선</span></div>'
+        +'<div style="display:flex;gap:8px;flex-wrap:wrap">'
+        +kws.map(([k,v])=>{
+          const pts=v.filter(x=>x.r!=null);
+          const t0=new Date(v[0].t).getTime(), t1=new Date(v[v.length-1].t).getTime()||t0+1;
+          const X=t=>6+(new Date(t).getTime()-t0)/(t1-t0||1)*128, Y=r=>6+((Math.min(r,8)-1)/7)*46;
+          const path=pts.map((p,i)=>(i?'L':'M')+X(p.t).toFixed(1)+' '+Y(p.r).toFixed(1)).join(' ');
+          const last=pts[pts.length-1];
+          return '<div style="border:1px solid #F1F0EF;border-radius:10px;padding:8px 10px;background:#fff">'
+            +'<div style="font-size:11px;font-weight:700">'+k+' <span style="color:'+(last.r<=3?'#1C7F4B':'#DC2626')+'">'+last.r+'위</span></div>'
+            +'<svg viewBox="0 0 140 58" style="width:140px;height:58px"><line x1="6" y1="'+Y(3)+'" x2="134" y2="'+Y(3)+'" stroke="#E5E4E2" stroke-dasharray="3 3"/>'
+            +'<path d="'+path+'" fill="none" stroke="#7C5CE0" stroke-width="2"/></svg></div>';
+        }).join('')+'</div>';
+    }
+    box.innerHTML=html;
+  }catch(e){}
 }
 document.addEventListener('click',e=>{
   const t=e.target;
@@ -288,8 +327,10 @@ function render(){
     +'<div style="font-size:12px;color:'+c+'99;font-weight:700">'+icon+' '+l+'</div>'
     +'<div style="font-size:23px;font-weight:800;letter-spacing:-0.02em;color:'+c+';margin-top:3px">'+v+'</div></div>';
   const chev='<div style="align-self:center;color:#C9C7C4;font-size:15px;padding:0 2px">›</div>';
-  const pct=cpa?Math.min(100,Math.round(cpa/65000*100)):0;
-  const gcol=cpa==null?'#9B9A97':(cpa<=65000?'#1C7F4B':'#DC2626');
+  // 7/28 눈금 교체: 목표 25,000(사장님) / 한계 35,300(손익 기준)
+  const GOAL_CPA=25000, LIMIT_CPA=35300;
+  const pct=cpa?Math.min(100,Math.round(cpa/LIMIT_CPA*100)):0;
+  const gcol=cpa==null?'#9B9A97':(cpa<=GOAL_CPA?'#1C7F4B':(cpa<=LIMIT_CPA?'#B45309':'#DC2626'));
   $('oneline').innerHTML=
     '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:stretch">'
     +tile('💸','오늘 쓴 돈',fm(allCost)+'원','#EEF3FD','#1D4ED8')+chev
@@ -302,8 +343,9 @@ function render(){
     +'<div style="flex:1;min-width:160px;height:10px;background:#F1F0EF;border-radius:99px;overflow:hidden">'
     +'<div style="width:'+pct+'%;height:100%;border-radius:99px;background:'+gcol+'"></div></div>'
     +'<div style="font-size:13.5px;font-weight:800;color:'+gcol+'">'+(cpa?fm(cpa)+'원':'—')+'</div>'
-    +'<div style="font-size:11.5px;color:#9B9A97">목표 65,000원</div>'
+    +'<div style="font-size:11.5px;color:#9B9A97">목표 25,000 · 한계 35,300원</div>'
     +'</div>'
+    +'<div id="flowBox" style="margin-top:14px"></div>'
     +(probs.length?'<div style="margin-top:10px;font-size:13.5px;font-weight:700">챙길 일 <b style="color:var(--red)">'+probs.length+'가지</b> ↓</div>':'<div style="margin-top:10px;font-size:13.5px;color:var(--green);font-weight:700">챙길 일 없음 — 자동이 관리 중</div>');
   $('issues').style.display=probs.length?'':'none';
   $('issues').innerHTML=probs.join('<br><br>');
