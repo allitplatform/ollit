@@ -46,7 +46,7 @@ function Ticker() {
       <span className="ldg-ticker-sep">|</span>
       <span className="ldg-ticker-item"><span style={{ color: "#5B9BD5" }}>❄</span> 누적 작업 <span style={{ color: "var(--coral)" }}>5,000건+</span></span>
       <span className="ldg-ticker-sep">|</span>
-      <span className="ldg-ticker-item">서울·경기 <span style={{ color: "var(--coral-light)", fontWeight: 800 }}>당일 출장</span></span>
+      <span className="ldg-ticker-item">서울·경기·인천 <span style={{ color: "var(--coral-light)", fontWeight: 800 }}>당일 출장</span></span>
       <span className="ldg-ticker-sep">|</span>
       <span className="ldg-ticker-item">전 브랜드 냉매충전 가능</span>
       <span className="ldg-ticker-sep">|</span>
@@ -92,7 +92,7 @@ function Hero() {
         <div className="ldg-hero-left">
           <div className="ldg-hero-badges">
             <span className="ldg-hero-badge urgent">긴급 출동 가능</span>
-            <span className="ldg-hero-badge blue">서울·경기 당일 출장</span>
+            <span className="ldg-hero-badge blue">서울·경기·인천 당일 출장</span>
           </div>
 
           <h1 className="ldg-hero-h1">
@@ -976,7 +976,7 @@ function CtaForm({ prefillService }) {
         <div className="ldg-form-head">
           <p className="ldg-eyebrow">BOOKING</p>
           <h2 className="ldg-h2" style={{ fontSize: "clamp(26px, 4.5vw, 44px)" }}>{"시원하지 않으면,\n냉매 점검부터"}</h2>
-          <p className="ldg-lead" style={{ marginBottom: 0 }}>서울·경기 전 지역 당일 출장</p>
+          <p className="ldg-lead" style={{ marginBottom: 0 }}>서울·경기·인천 전 지역 당일 출장</p>
         </div>
         <BookingFormBody
           form={bf.form} set={bf.set} onSubmit={bf.handleSubmit}
@@ -998,7 +998,7 @@ function Footer() {
         <p className="ldg-footer-info">
           대표 조동욱, 구현서 &nbsp;·&nbsp; 사업자등록번호 430-07-03167<br/>
           상호: 에어컨청소 에어컨가스충전 올데이케어 &nbsp;·&nbsp; 경기도 고양시 덕양구 상막3길 5, 1동 805호<br/>
-          서울·경기·인천·충남 출장 · 냉매충전 · 분해세척 · 누설수리 · 설치
+          서울·경기·인천·천안 출장 · 냉매충전 · 분해세척 · 누설수리 · 설치
         </p>
         <p className="ldg-footer-tel">대표전화 <a href={PHONE_TEL}>{PHONE_DISPLAY}</a></p>
         <p style={{ fontSize: 13, marginTop: 10 }}>
