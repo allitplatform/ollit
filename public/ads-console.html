@@ -292,7 +292,7 @@ function serpBdg(kw){const s=window.SERP&&window.SERP[kw];if(!s)return '';
 function render(){
   // 서비스 표
   const sAgg={};
-  DATA.filter(d=>d.on).forEach(d=>{const k=svcOf(d.grp);const v=sAgg[k]=sAgg[k]||{imp:0,clk:0,cost:0,n:0,win:0};
+  DATA.filter(d=>d.on||d.cost>0).forEach(d=>{const k=svcOf(d.grp);const v=sAgg[k]=sAgg[k]||{imp:0,clk:0,cost:0,n:0,win:0};
     v.imp+=d.imp;v.clk+=d.clk;v.cost+=d.cost;v.conv=(v.conv||0)+(d.conv||0);v.n++;if((d.rnk&&d.rnk<=1.4)||(d.top1!=null&&d.bid>=d.top1))v.win++;});
   const ORDER=['가스·냉매충전 — 전국 본진','가스충전 — 지역 공략','수리·누설 — 핵심 신규','청소·증상 — 실험','설치 — 실험'];
   const sMax=Math.max(...ORDER.map(k=>sAgg[k]?sAgg[k].cost:0),1);
@@ -303,7 +303,7 @@ function render(){
         +'<td>'+bar(v.cost,sMax,fm(v.cost)+'원')+'</td><td class="l">'+st+'</td></tr>';}).join('');
   // 그룹 표
   const gAgg={};
-  DATA.filter(d=>d.on).forEach(d=>{const g=gAgg[d.grp]=gAgg[d.grp]||{imp:0,clk:0,cost:0,win:0,n:0};
+  DATA.filter(d=>d.on||d.cost>0).forEach(d=>{const g=gAgg[d.grp]=gAgg[d.grp]||{imp:0,clk:0,cost:0,win:0,n:0};
     g.imp+=d.imp;g.clk+=d.clk;g.cost+=d.cost;g.n++;if((d.rnk&&d.rnk<=1.4)||(d.top1!=null&&d.bid>=d.top1))g.win++;});
   const ge=Object.entries(gAgg).sort((a,b)=>b[1].cost-a[1].cost);
   const gMax=Math.max(...ge.map(x=>x[1].cost),1);
@@ -313,7 +313,9 @@ function render(){
       +'<td>'+bar(v.cost,gMax,v.cost?fm(v.cost)+'원':'0')+'</td></tr>').join('');
   // 한 문장 + 문제
   const on=DATA.filter(d=>d.on);
-  const allCost=on.reduce((a,d)=>a+d.cost,0),allClk=on.reduce((a,d)=>a+d.clk,0),allImp=on.reduce((a,d)=>a+d.imp,0);
+  // 2026-07-28 — 오늘 쓴 돈은 중지된 키워드 것도 실제로 나간 돈이다. 총액은 반드시 포함.
+  const billed=DATA.filter(d=>d.on||d.cost>0);
+  const allCost=billed.reduce((a,d)=>a+d.cost,0),allClk=billed.reduce((a,d)=>a+d.clk,0),allImp=billed.reduce((a,d)=>a+d.imp,0);
   const CORE=new Set(['메인키워드','확장_수리누설']);
   const pushed=on.filter(d=>CORE.has(d.grp)&&d.rnk&&d.rnk>2.5&&d.imp>0);
   const waiting=[...new Set(on.filter(d=>(d.vol||0)>=5000&&d.imp===0).map(d=>svcOf(d.grp)))];
@@ -352,7 +354,7 @@ function render(){
   $('issues').style.cssText='margin:10px 0;padding:14px 18px;font-size:13px;line-height:1.85;background:#FDF7F2;border:1px solid #F3E2CE;border-left:4px solid #E8A33D;border-radius:10px;'+(probs.length?'':'display:none');
   // 키워드 표
   let f=DATA;
-  if(fsel==='off')f=f.filter(d=>!d.on);else f=f.filter(d=>d.on);
+  if(fsel==='off')f=f.filter(d=>!d.on);else f=f.filter(d=>d.on||d.cost>0);   // 2026-07-28 — 중지해도 오늘 돈 쓴 건 판에 남긴다(총액 누락 방지)
   const gv=$('gsel').value; if(gv)f=f.filter(d=>d.grp===gv);
   if(fsel==='spend')f=f.filter(d=>d.cost>0);
   if(fsel==='lose')f=f.filter(d=>(d.rnk&&d.rnk>2.5)||(d.top1!=null&&d.bid<d.top1&&!d.rnk));
@@ -382,7 +384,7 @@ function render(){
       +'<button style="margin-left:4px;padding:3px 8px;border-radius:6px;border:none;background:var(--blue);color:#fff;font-size:11px;font-weight:800;cursor:pointer" onclick="setBid('+i+',\''+d.id+'\',\''+d.gid+'\',\''+d.kw.replace(/'/g,"")+'\','+d.bid+')">저장</button>'
       +'<button style="margin-left:4px;padding:3px 8px;border-radius:6px;border:none;background:'+(d.on?'#DC2626':'#15803D')+';color:#fff;font-size:11px;font-weight:800;cursor:pointer" onclick="setOnOff(\''+d.id+'\',\''+d.gid+'\','+(d.on?0:1)+')">'+(d.on?'끄기':'켜기')+'</button></td>':'';
     return '<tr style="cursor:pointer" onclick="showHist(\''+d.kw.replace(/'/g,"")+'\')">'
-      +'<td class="l">'+d.kw+'</td><td class="l sub">'+d.grp+'</td>'
+      +'<td class="l">'+d.kw+(d.on?'':' <span class="bdg b3">중지</span>')+'</td><td class="l sub">'+d.grp+'</td>'
       +'<td>'+(d.vol!=null?bar(d.vol,vMax,fm(d.vol)):'—')+'</td>'
       +'<td>'+rankBdg(d)+serpBdg(d.kw)+'</td>'
       +'<td>'+fm(d.bid)+'</td>'
