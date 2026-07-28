@@ -2356,6 +2356,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
       onClickInquiries={() => setScreen("inquiries")}
       inquiriesNewCount={inquiriesNewCount}
       inquiriesTodayCount={inquiriesTodayCount}
+      // 2026-07-28 — PC 대시보드 기사 메시지 칸 (사이드바 메뉴만으론 새 메시지를 못 알아챔)
+      onClickEngMessages={() => setScreen("adminMessages")}
+      engMsgUnread={engMsgUnread}
       dashSummary={dashSummary}
       dashRanges={dashRanges}
       onTaskAssign={async (task) => {

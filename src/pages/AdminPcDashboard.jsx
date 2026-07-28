@@ -59,6 +59,11 @@ export function AdminPcDashboard({
   onClickInquiries,
   inquiriesNewCount = 0,
   inquiriesTodayCount = 0,
+  // 2026-07-28 — 기사 메시지함 진입 + 안읽음 (사장님 요청: "메시지 온지 안 온지 몰라서").
+  //   사이드바 메뉴는 이미 있으나 대시보드에 안 보여 놓치던 문제 → 히어로 칸으로 승격.
+  //   값은 AdminApp engMsgUnread (Mig 188 adminMessagesUnreadCount, 60초 갱신) 그대로 재사용.
+  onClickEngMessages,
+  engMsgUnread = 0,
   onTaskAssign,
   onOpenTaskDetail,
 }) {
@@ -116,10 +121,12 @@ export function AdminPcDashboard({
       <div style={{
         display: "grid",
         // 2026-07-27 — 해피콜: 회사몫·유솔N 칸이 빠지므로 칸 수 재계산 (빈 구멍 방지)
+        // 2026-07-28 — 기사 메시지 칸 +1 (해피콜에서도 표시 — 돈 요소 아님)
         gridTemplateColumns: isWide
-          ? `repeat(${happycallMode
+          ? `repeat(${(happycallMode
               ? 1 + (unassignedCount > 0 ? 1 : 0)
-              : (ownerToday != null ? 2 : 1) + (unassignedCount > 0 ? 1 : 0) + 1}, minmax(0, 1fr))`
+              : (ownerToday != null ? 2 : 1) + (unassignedCount > 0 ? 1 : 0) + 1)
+              + (onClickEngMessages ? 1 : 0)}, minmax(0, 1fr))`
           : "repeat(2, minmax(0, 1fr))",
         gap: 12,
       }}>
@@ -132,6 +139,14 @@ export function AdminPcDashboard({
           <HeroStat icon="⚠️" label="미배정" value={unassignedCount}
             warn sub="클릭 → 배정"
             onClick={() => onClickNewReception?.()}/>
+        )}
+        {/* 2026-07-28 — 기사 메시지함 (안읽음 있으면 빨강 강조) */}
+        {onClickEngMessages && (
+          <HeroStat icon="💬" label="기사 메시지"
+            value={engMsgUnread > 0 ? `${engMsgUnread}건` : "—"}
+            warn={engMsgUnread > 0}
+            sub={engMsgUnread > 0 ? "안읽음 · 클릭 → 열기" : "새 메시지 없음"}
+            onClick={() => onClickEngMessages?.()}/>
         )}
         {!happycallMode && <UsolNCompactCard user={user} onClick={onClickUsolN}/>}
       </div>
