@@ -93,6 +93,13 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   const [showMessageModal, setShowMessageModal] = useState(false);
   // 2026-07-11 — 홈페이지 접수 기종 미정 팝업 (사장님 spec).
   const [showApplianceModal, setShowApplianceModal] = useState(false);
+  // 2026-07-28 — 기종을 나중에 바꾸는 진입로 (사장님 요청).
+  //   기존엔 '기종 미정' 배너로만 열 수 있어, 한 번 저장하면 바꿀 길이 없었음.
+  //   가드 2개 — 둘 다 사고 방지용이라 임의로 풀면 안 됨:
+  //   (1) 완료·취소·방문만 = 숨김. 정산이 끝났거나 끝나가는 건의 금액을 조용히 바꾸는 걸 막는다.
+  //       (완료 건 정정은 기존 '견적 수정' 경로가 담당.)
+  //   (2) 작업항목 2줄 이상 = 숨김. 팝업 저장은 workItems 를 1줄로 덮어쓰기 때문에
+  //       2줄짜리(예: 세척 2대 + 냉매) 를 여기서 저장하면 나머지 줄이 날아간다.
   const [sendStatus, setSendStatus] = useState("");  // 토스트 — "전송됨" / "전송 실패" 등
   const actorIdForMessage = user?.user_id || user?.userId || user?.id || null;
   const [showVisitOnlyDialog, setShowVisitOnlyDialog] = useState(false);
@@ -274,7 +281,23 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       <DetailHeader task={task} onBack={onBack} onMenuAction={handleMenuAction}/>
       {/* 2026-06-06 — 기본 정보 수정 버튼 (5 필드: 연락처/주소/고객명/희망일정/요청사항).
           정산/배정/상태 등은 별도 RPC 통해서만 — 본 버튼은 update_task_basic (Mig 099) 호출. */}
-      <div style={{ padding: "12px 20px 0", display: "flex", justifyContent: "flex-end" }}>
+      <div style={{ padding: "12px 20px 0", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        {(() => {
+          const wiCount = Array.isArray(task?.workItems) ? task.workItems.length : 0;
+          const locked = ["완료", "취소", "취소요청", "visit_only"].includes(String(task?.status || ""));
+          if (needsApplianceSelection(task) || locked || wiCount > 1) return null;
+          return (
+            <button onClick={() => setShowApplianceModal(true)} style={{
+              padding: "6px 14px",
+              background: "transparent",
+              border: "1px solid #F59E0B",
+              borderRadius: 8,
+              color: "#B45309",
+              fontSize: 12, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>기종 변경</button>
+          );
+        })()}
         <button onClick={() => setEditingBasic(true)} style={{
           padding: "6px 14px",
           background: "transparent",

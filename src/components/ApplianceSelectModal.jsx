@@ -91,8 +91,17 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
   const appliances = _appliancePool(workType, principalCode);
   const needsWorkTypePick = !initialWorkTypeUsable;
 
-  const [appliance, setAppliance] = useState("");
-  const [qty, setQty]             = useState(1);
+  // 2026-07-28 — 기종 "나중에 변경" 흐름 지원 (사장님 요청: "벽걸이가 아닐 수도 있는데").
+  //   지금 저장돼 있는 기종·수량을 미리 채워둔다.
+  //   이게 없으면 변경하려고 열었을 때 수량이 1로 리셋돼 3대짜리가 1대로 깎임.
+  const _initWi = Array.isArray(task?.workItems) && task.workItems.length > 0 ? task.workItems[0] : null;
+  const _initAppliance = String(_initWi?.appliance || "").trim();
+  const _initPool = initialWorkTypeUsable ? (_appliancePool(initialWorkType, principalCode) || []) : [];
+  const [appliance, setAppliance] = useState(
+    _initAppliance && !_isPlaceholderAppliance(_initAppliance) && _initPool.includes(_initAppliance)
+      ? _initAppliance : ""
+  );
+  const [qty, setQty]             = useState(Math.max(1, Number(_initWi?.qty) || 1));
   const [quoteRates, setQuoteRates] = useState(null);
   const [ratesLoading, setRatesLoading] = useState(true);
   const [saving, setSaving] = useState(false);
