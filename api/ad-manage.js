@@ -71,6 +71,32 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 임의 GET 패스스루 (진단용) — ?step=raw&path=/ncc/adgroups/xxx&qs=a=b
+    if (step === "raw") {
+      const path = String(req.query.path || "");
+      if (!path.startsWith("/")) { res.status(200).json({ ok: false, error: "path 필요" }); return; }
+      const r = await call("GET", path, req.query.qs ? String(req.query.qs) : null);
+      res.status(200).json({ ok: r.ok, status: r.status, data: r.data });
+      return;
+    }
+
+    // 그룹별 지역 타게팅 전수 조회 (진단용) — targets + targetSummary + /ncc/targets
+    if (step === "regionaudit") {
+      const ag = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(CAMPAIGN_ID));
+      const out = [];
+      for (const g of (Array.isArray(ag.data) ? ag.data : [])) {
+        const full = await call("GET", "/ncc/adgroups/" + g.nccAdgroupId);
+        const tg = await call("GET", "/ncc/targets", "nccAdgroupId=" + encodeURIComponent(g.nccAdgroupId));
+        out.push({ grp: g.name, gid: g.nccAdgroupId,
+          summary: full.data && full.data.targetSummary,
+          keys: full.data ? Object.keys(full.data) : null,
+          tps: (full.data && full.data.targets || []).map(x => x.targetTp),
+          tgStatus: tg.status, tg: tg.data });
+      }
+      res.status(200).json({ ok: true, campaign: CAMPAIGN_ID, rows: out });
+      return;
+    }
+
     // 지역 타게팅이 걸린 모든 그룹에 지역코드 추가 (예: codes=RL11,RL02190)
     if (step === "alladdregion") {
       const codes = String(req.query.codes || "").split(",").map(s => s.trim()).filter(Boolean);
