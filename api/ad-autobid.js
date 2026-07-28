@@ -66,6 +66,8 @@ const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 const KW_CAP = {
   "에어컨냉매": 10000,
   "에어컨가스": 10000,
+  // 7/28 사장님 지시로 추가. 월 50회·GHP(상업용 가스냉난방) 검색어 → 자동입찰이 못 올리게 못박음
+  "가스에어컨": 1000,
 };
 const FLOOR = 1000;     // 바닥 — 견적이 이상하게 낮아도 이 밑으론 안 내림
 
