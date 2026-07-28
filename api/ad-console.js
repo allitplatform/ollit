@@ -161,6 +161,29 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 접수 지역 분포 (?regions=1&days=N) — 시·구 단위만 집계, 상세주소/고객정보는 절대 안 나감
+    if (req.query.regions) {
+      if (tk !== TOKEN_FULL && tk !== WRITE_TOKEN && (req.query.wt || "") !== WRITE_TOKEN) { res.status(404).end(); return; }
+      const days = Math.min(60, Math.max(1, Number(req.query.days || 14)));
+      const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
+      const pr = await fetch(`${SB_URL}/rest/v1/principals?code=eq.allday&select=id`, { headers: H }).then(r => r.json());
+      const pid = pr && pr[0] && pr[0].id;
+      if (!pid) { res.status(200).json({ ok: false, error: "principal 없음" }); return; }
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const rowsR = await fetch(`${SB_URL}/rest/v1/tasks?principal_id=eq.${pid}`
+        + `&created_at=gte.${encodeURIComponent(since)}&select=address&limit=5000`, { headers: H }).then(r => r.json());
+      const agg = {};
+      for (const t of (Array.isArray(rowsR) ? rowsR : [])) {
+        const a2 = String(t.address || "");
+        const m = a2.match(/([가-힣]+(?:특별시|광역시|시|군))\s*([가-힣]+(?:구|시|군|읍|면))?/);
+        const k = m ? (m[1] + (m[2] ? " " + m[2] : "")) : "(주소미상)";
+        agg[k] = (agg[k] || 0) + 1;
+      }
+      res.status(200).json({ ok: true, days, total: (rowsR || []).length,
+        rows: Object.entries(agg).sort((x, y) => y[1] - x[1]).map(([k, v]) => ({ area: k, n: v })) });
+      return;
+    }
+
     // 부정클릭 감시: 최근 클릭 로그 IP 집계 (+ ?ip=x.x.x.x 시간대 상세)
     if (req.query.clicks) {
       if (req.query.ip) {
