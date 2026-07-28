@@ -25,6 +25,10 @@ import { lookupRate, WORK_TYPE_TO_SERVICE } from "./principal/NewReceptionScreen
 import { detectServiceType } from "../data/serviceTypes.js";
 // 2026-07-28 — 기종 목록은 접수폼과 같은 단일 소스를 쓴다 (두 벌 관리 금지).
 import { getAppliancePool, PRINCIPAL_NAME_TO_CODE } from "../utils/receptionForm.js";
+// 2026-07-28 — DB work_types.name 세분화("누설_벽걸이","세척_1way" 등) → 5종 종목 환원.
+//   팝업이 종목명을 정확 일치로만 비교해서, 이미 종목이 확정된 건을 열면
+//   "종목 미정" 이라며 종목부터 다시 묻던 문제 (A-260728-041 일현로 5731).
+import { getServiceKind } from "../utils/workTypeKind.js";
 
 // 2026-07-28 — 팝업에서 고를 수 있는 종목을 전 종목으로 확장 (사장님 요청).
 //   기존: 세척·냉매충전만 → 홈페이지 "에어컨 설치" 접수가 '기타/기타' 로 갇혀
@@ -42,6 +46,23 @@ function _appliancePool(workType, principalCode) {
   if (!workType) return null;
   const pool = getAppliancePool(workType, _CODE_TO_PRINCIPAL_NAME[principalCode] || "");
   return Array.isArray(pool) && pool.length > 0 ? pool : null;
+}
+
+// 저장된 종목 문자열 → 팝업이 쓰는 5종 canonical 종목.
+//   task_items 를 거치면 work_types.name 이 "누설_벽걸이" 처럼 기종까지 붙은 이름으로
+//   돌아온다. 정확 일치만 보면 종목을 못 알아보므로 kind 판정으로 되돌린다.
+function _canonWorkType(raw, principalCode) {
+  const s0 = String(raw || "").trim();
+  if (!s0 || _isPlaceholderAppliance(s0)) return "";
+  if (POPUP_WORK_TYPES.includes(s0) && _appliancePool(s0, principalCode)) return s0;
+  const kind = getServiceKind(s0);
+  let c = "";
+  if (kind === "cleaning")    c = "세척";
+  else if (kind === "refrigerant") c = "냉매충전";
+  else if (kind === "install")     c = "설치";
+  // 누설·누수는 단가 정책이 달라서 합치면 안 된다 (Mig 195). 접두사로 구분.
+  else if (kind === "leak")        c = s0.startsWith("누수") ? "누수" : "누설";
+  return (c && _appliancePool(c, principalCode)) ? c : "";
 }
 
 function _pickWorkType(task) {
@@ -84,10 +105,9 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
   // 2026-07-12 — 사장님 spec: 저장된 workType 이 placeholder('기타' 등) 이거나
   //   APPLIANCES_BY_WORKTYPE 미지원 종목이면 팝업 안에서 종목부터 재선택.
   //   '기타/기타' 로 잘못 저장된 옛 작업 recovery 경로.
-  const initialWorkTypeUsable = POPUP_WORK_TYPES.includes(initialWorkType)
-    && !!_appliancePool(initialWorkType, principalCode)
-    && !_isPlaceholderAppliance(initialWorkType);
-  const [workType, setWorkType] = useState(initialWorkTypeUsable ? initialWorkType : "");
+  const canonWorkType = _canonWorkType(initialWorkType, principalCode);
+  const initialWorkTypeUsable = !!canonWorkType;
+  const [workType, setWorkType] = useState(canonWorkType);
   const appliances = _appliancePool(workType, principalCode);
   const needsWorkTypePick = !initialWorkTypeUsable;
 
@@ -96,7 +116,7 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
   //   이게 없으면 변경하려고 열었을 때 수량이 1로 리셋돼 3대짜리가 1대로 깎임.
   const _initWi = Array.isArray(task?.workItems) && task.workItems.length > 0 ? task.workItems[0] : null;
   const _initAppliance = String(_initWi?.appliance || "").trim();
-  const _initPool = initialWorkTypeUsable ? (_appliancePool(initialWorkType, principalCode) || []) : [];
+  const _initPool = initialWorkTypeUsable ? (_appliancePool(canonWorkType, principalCode) || []) : [];
   const [appliance, setAppliance] = useState(
     _initAppliance && !_isPlaceholderAppliance(_initAppliance) && _initPool.includes(_initAppliance)
       ? _initAppliance : ""
@@ -449,7 +469,8 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
 const _APPLIANCE_PLACEHOLDER_RE = /^(미정|기타|미확정|—|-|_|\?|없음|선택|선택안함|선택안됨)$/i;
 function _isPlaceholderAppliance(apl) {
   if (!apl) return true;
-  const s = String(apl).trim();
+  // 2026-07-28 — 접수 저장 흐름이 "(미정)" 처럼 괄호를 씌워 넣는 경우가 있어 괄호 제거 후 판정.
+  const s = String(apl).trim().replace(/^\(+|\)+$/g, "").trim();
   if (s === "") return true;
   return _APPLIANCE_PLACEHOLDER_RE.test(s);
 }
