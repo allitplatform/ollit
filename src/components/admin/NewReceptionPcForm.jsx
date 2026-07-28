@@ -398,7 +398,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         //   불필요하므로 "종목 ×1 · 단가 0" 한 줄을 실어 보냄 → sync 트리거가 항목 생성.
         //   세척/냉매는 기존 기종미정 흐름 유지 (기사앱 기종선택 배너가 채움).
         workItems:     (splitItems.length === 0 && applianceUndecided
-                        && (form.workType === "설치" || form.workType === "누설"))
+                        && ["설치", "누설", "누수"].includes(form.workType))
           ? [{ workType: form.workType, appliance: "(미정)", qty: 1, quote: 0 }]
           : splitItems,
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).

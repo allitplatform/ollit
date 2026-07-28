@@ -10437,7 +10437,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         // 2026-07-28 — 설치/누설 + 기종미정: 빈 workItems 면 task_items 미생성 → 분배 0
         //   (PC 폼 2026-07-27 fix 동일). "종목 ×1 · 단가 0" 실어 보냄.
         workItems:     (splitItems.length === 0 && applianceUndecided
-                        && (form.workType === "설치" || form.workType === "누설"))
+                        && ["설치", "누설", "누수"].includes(form.workType))
           ? [{ workType: form.workType, appliance: "(미정)", qty: 1, quote: 0 }]
           : splitItems,
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
@@ -10972,7 +10972,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
                 종목 선택 (기종 미정이어도 필수)
               </div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {["세척", "냉매충전", "설치", "누설", "수리"].map(wt => (
+                {["세척", "냉매충전", "설치", "누설", "누수"].map(wt => (
                   <FormChip t={t} key={wt} active={form.workType === wt}
                     onClick={() => update("workType", wt)}>{wt}</FormChip>
                 ))}
