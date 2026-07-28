@@ -15,6 +15,20 @@ const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 
 const SB_URL = process.env.VITE_SUPABASE_URL;
 const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+// 영어 지명 → 한글 (서울 25구 + 수도권 주요 시 · IP 지오 DB가 영문 로마자로 줘서 변환)
+const KO_PLACE = { "Seoul":"서울","Incheon":"인천","Gyeonggi-do":"경기","Busan":"부산","Daegu":"대구","Daejeon":"대전","Gwangju":"광주","Ulsan":"울산","Sejong-si":"세종",
+  "Jongno-gu":"종로구","Jung-gu":"중구","Yongsan-gu":"용산구","Seongdong-gu":"성동구","Gwangjin-gu":"광진구","Dongdaemun-gu":"동대문구","Jungnang-gu":"중랑구","Seongbuk-gu":"성북구","Gangbuk-gu":"강북구","Dobong-gu":"도봉구","Nowon-gu":"노원구","Eunpyeong-gu":"은평구","Seodaemun-gu":"서대문구","Mapo-gu":"마포구","Yangcheon-gu":"양천구","Gangseo-gu":"강서구","Guro-gu":"구로구","Geumcheon-gu":"금천구","Yeongdeungpo-gu":"영등포구","Dongjak-gu":"동작구","Gwanak-gu":"관악구","Seocho-gu":"서초구","Gangnam-gu":"강남구","Songpa-gu":"송파구","Gangdong-gu":"강동구",
+  "Goyang-si":"고양시","Paju-si":"파주시","Gimpo-si":"김포시","Bucheon-si":"부천시","Suwon-si":"수원시","Seongnam-si":"성남시","Yongin-si":"용인시","Anyang-si":"안양시","Ansan-si":"안산시","Namyangju-si":"남양주시","Uijeongbu-si":"의정부시","Hwaseong-si":"화성시","Siheung-si":"시흥시","Pyeongtaek-si":"평택시","Gwangmyeong-si":"광명시","Hanam-si":"하남시","Guri-si":"구리시","Goyang":"고양시","Incheon Metropolitan City":"인천" };
+function koPlace(s) { if (!s) return s; return KO_PLACE[s] || s; }
+function koIsp(s) {
+  if (!s) return s; const t = String(s).toLowerCase();
+  if (t.includes("korea telecom") || t.includes("kt ")) return "KT";
+  if (t.includes("sk broadband") || t.includes("hanaro")) return "SK브로드밴드";
+  if (t.includes("sk telecom")) return "SKT";
+  if (t.includes("lg dacom") || t.includes("lg powercomm") || t.includes("lg uplus") || t.includes("lguplus")) return "LG유플러스";
+  return s;
+}
+
 async function sbGetLog() {
   const r = await fetch(`${SB_URL}/rest/v1/ad_click_log?order=ts.desc&limit=800`, {
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
@@ -35,8 +49,10 @@ async function sbGetLog() {
     for (let i = 0; i + 2 < v.times.length; i++) if (v.times[i + 2] - v.times[i] <= 600000) { v.burst = true; break; }
     delete v.times;
   }
+  // 정렬: 의심(연타·광고4회+) 먼저 → 광고 유입 많은 순 → 방문 순. 네이버 점검봇은 맨 아래.
+  const score = v => v.bot ? -1 : ((v.burst || v.ad >= 4) ? 2 : (v.n >= 4 ? 1 : 0));
   const ips = Object.entries(byIp).map(([ip, v]) => ({ ip, ...v }))
-    .sort((a, b) => b.n - a.n).slice(0, 100);
+    .sort((a, b) => (score(b) - score(a)) || (b.ad - a.ad) || (b.n - a.n)).slice(0, 100);
   return { total: list.length, ips };
 }
 
@@ -118,7 +134,7 @@ export default async function handler(req, res) {
         try {
           const g = await fetch(`http://ip-api.com/json/${encodeURIComponent(req.query.ip)}?lang=ko&fields=status,country,regionName,city,isp,mobile`);
           const gj = await g.json();
-          if (gj && gj.status === "success") geo = { region: gj.regionName, city: gj.city, isp: gj.isp, mobile: !!gj.mobile };
+          if (gj && gj.status === "success") geo = { region: koPlace(gj.regionName), city: koPlace(gj.city), isp: koIsp(gj.isp), mobile: !!gj.mobile };
         } catch (e) {}
         res.status(200).json({ ok: true, ip: req.query.ip, geo,
           rows: list.map(c => ({ ts: c.ts,
