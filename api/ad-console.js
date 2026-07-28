@@ -220,14 +220,18 @@ export default async function handler(req, res) {
       const since = new Date(new Date(`${kstNow}T00:00:00+09:00`).getTime() - (days - 1) * 86400000).toISOString();
       const rowsF = await fetch(`${SB_URL}/rest/v1/tasks?principal_id=eq.${pid}`
         + `&created_at=gte.${encodeURIComponent(since)}`
-        + `&select=id,created_at,status,payments(principal_amount,track)&limit=5000`, { headers: H }).then(r => r.json());
+        + `&select=id,created_at,status,canceled_reason,payments(principal_amount,track)&limit=5000`, { headers: H }).then(r => r.json());
       const byDay = {};
       for (const t2 of (Array.isArray(rowsF) ? rowsF : [])) {
         const d = new Date(new Date(t2.created_at).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
-        const b = byDay[d] || (byDay[d] = { day: d, n: 0, st: {}, paidN: 0, amt: 0 });
+        const b = byDay[d] || (byDay[d] = { day: d, n: 0, st: {}, cr: {}, paidN: 0, amt: 0 });
         b.n++;
         const s = t2.status == null ? "(없음)" : String(t2.status);
         b.st[s] = (b.st[s] || 0) + 1;
+        if (s === "취소" || s === "canceled") {
+          const cr = t2.canceled_reason == null || t2.canceled_reason === "" ? "(사유없음)" : String(t2.canceled_reason).slice(0, 24);
+          b.cr[cr] = (b.cr[cr] || 0) + 1;
+        }
         const ps = Array.isArray(t2.payments) ? t2.payments : [];
         const sum = ps.reduce((x, y) => x + (Number(y && y.principal_amount) || 0), 0);
         if (sum > 0) { b.paidN++; b.amt += sum; }
