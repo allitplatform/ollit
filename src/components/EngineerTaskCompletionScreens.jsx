@@ -10,6 +10,8 @@ import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { calculateCommissionMultiRpc, PRINCIPAL_NAME_TO_CODE } from "../lib/commissionPoliciesDb.js";
 import { supabase } from "../lib/supabase.js";
+// 2026-07-28 (Mig 198/199) — 설치 자재비 저장 RPC 어댑터
+import { setMaterialCostAdapter } from "../data/tasksDb.js";
 
 // 2026-05-17 — 진행중 상태는 trigger_compute_payment가 발화하지 않아 payments가 stale.
 // 완료 확인 화면 mount 시 RPC를 직접 호출해서 재계산 후 payments를 다시 읽어옴.
@@ -857,6 +859,54 @@ function MainAction({ label, color, onClick, disabled }) {
 }
 
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// 2026-07-28 (Mig 198/199) — 설치 자재비 카드
+//   설치 건에서만 노출. 고객이 낸 총금액은 그대로 두고, 분배할 때만
+//   자재비를 먼저 빼고 남은 금액을 75(기사)/25(회사) 로 나눈 뒤
+//   자재비를 기사 몫에 되돌려줌. 저장 즉시 payments 재계산 → 내 수익 갱신.
+// ═══════════════════════════════════════════════════════
+function MaterialCostCard({ value, onChange, onSave, saving, saved }) {
+  const n = Number(value) || 0;
+  return (
+    <div style={{
+      margin: "0 16px 12px", padding: 14, borderRadius: 14,
+      background: "rgba(255,184,0,0.07)", border: "1px solid rgba(255,184,0,0.35)",
+    }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: "#FFB800", marginBottom: 3 }}>
+        🧰 자재비 (내가 산 부품값)
+      </div>
+      <div style={{ fontSize: 11, color: "#B0B0B0", lineHeight: 1.5, marginBottom: 10 }}>
+        고객님이 낸 금액은 그대로예요. 자재비는 먼저 돌려드리고,
+        남은 금액만 나눕니다. 없으면 비워두세요.
+      </div>
+      <MoneyPadInput
+        value={value}
+        onChange={onChange}
+        placeholder="자재비 입력"
+        accentColor="#FFB800"
+        label="자재비"
+      />
+      <button
+        onClick={onSave}
+        disabled={saving}
+        style={{
+          width: "100%", marginTop: 10, padding: "11px 0", borderRadius: 11,
+          border: "1.5px solid #FFB800", background: "rgba(255,184,0,0.12)",
+          color: "#FFB800", fontSize: 13, fontWeight: 800,
+          fontFamily: "inherit", opacity: saving ? 0.5 : 1,
+        }}
+      >
+        {saving ? "저장 중…" : saved ? "✓ 저장됨 · 다시 저장" : "자재비 저장하고 수익 다시 계산"}
+      </button>
+      {saved && (
+        <div style={{ fontSize: 11, color: "#03C75A", fontWeight: 700, marginTop: 7, textAlign: "center" }}>
+          자재비 {n.toLocaleString("ko-KR")}원 반영됐어요
+        </div>
+      )}
+    </div>
+  );
+}
+
 // 1. 작업 완료 (핑크)
 // ═══════════════════════════════════════════════════════
 export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
@@ -877,6 +927,16 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
 
   const baseAmount = task.estimateTotal || 0;
   const extraFee   = task.extraFee || 0;
+
+  // 2026-07-28 (Mig 198/199) — 설치 자재비. 총금액에서 먼저 빼고, 기사님께 그대로 돌려드림.
+  const isInstallTask = (() => {
+    const wi = Array.isArray(task.workItems) ? task.workItems : [];
+    if (wi.length > 0) return wi.every(x => x.serviceCode === 'install');
+    return String(task.workType || "") === "설치";
+  })();
+  const [material, setMaterial]   = useState(task.materialCost ? String(task.materialCost) : "");
+  const [matSaving, setMatSaving] = useState(false);
+  const [matSaved, setMatSaved]   = useState(false);
   // 2026-05-16 Phase 4 통합 2-D — DB payments 박은 spec (compute_payment v7)
   const total      = baseAmount + extraFee;
   // 2026-05-17 — 진행중 상태에선 trigger가 안 돌아 payments가 stale.
@@ -914,6 +974,16 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   }, [task.id]);
   const commission = Math.max(0, total - earning); // 회사+원청 송금액 (= 수수료 합)
 
+  async function saveMaterial() {
+    const n = Math.max(0, Math.floor(Number(material) || 0));
+    setMatSaving(true); setMatSaved(false);
+    const res = await setMaterialCostAdapter(task.id, n);
+    setMatSaving(false);
+    if (!res || !res.ok) { alert((res && res.error) || "자재비 저장 실패"); return; }
+    setMatSaved(true);
+    if (typeof res.engineerAmount === 'number') setEarning(res.engineerAmount);
+  }
+
   function handleConfirm() {
     // 2026-06-03 — Phase 1 검증: "예" 측측 금액 0/빈 측측 측측 X.
     if (hasRefriAddon) {
@@ -941,6 +1011,16 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
       <CustomerCard task={task} accentColor="#FF1B8D"/>
       {/* 2026-05-21 — 견적 / 추가 / 총액 요약 (사장님 spec) */}
       <AmountSummaryCard baseAmount={baseAmount} extraFee={extraFee} accentColor="#FF1B8D"/>
+      {/* 2026-07-28 (Mig 198/199) — 설치 전용: 자재비 입력 */}
+      {isInstallTask && (
+        <MaterialCostCard
+          value={material}
+          onChange={(v) => { setMaterial(v); setMatSaved(false); }}
+          onSave={saveMaterial}
+          saving={matSaving}
+          saved={matSaved}
+        />
+      )}
       {/* V14 v6 — 사장님 Q6: 기사 PWA = 본인 수익만 (수수료/회사이익 X) */}
       <EarningOnlyCard amount={earning} color="#FF1B8D" loading={earningLoading}/>
       {/* 2026-06-03 — Phase 1: 세척+냉매충전 2-task 토글 (모든 원청 측측 / 측측 냉매 작업 측측). */}

@@ -48,6 +48,8 @@ import { calcTotalDuration } from "../utils/dateLabel.js";
 // 2026-05-31 — Phase C Step 6 — per-item received_amount UI 측
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { setTaskItemReceivedAmount as apiSetItemReceived, getTaskByIdDb } from "../data/tasksDb.js";
+// 2026-07-28 (Mig 198/199) — 설치 자재비 저장 RPC
+import { setMaterialCostAdapter } from "../data/tasksDb.js";
 // 2026-06-02 — 정산 대기 측 partial payload 측 측 → id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일 spec).
 import { v14NormalizeTask } from "../utils/v14Task.js";
 // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138 unmark_visit_only RPC).
@@ -935,6 +937,33 @@ function D2LabelRow({ label, value, mono, wrap, highlight }) {
 // 회사 수익 / 기사 분배 = payments 측 매핑 (task.engineer_amount / task.owner_amount)
 function SettlementInfoCard({ task }) {
   const isExternal = task.type === "external";
+  // 2026-07-28 (Mig 198/199) — 설치 자재비. 총금액에서 먼저 빼고 기사님께 돌려드림.
+  //   고객 총금액(합계)은 그대로 — 분배만 바뀜.
+  const isInstall = (() => {
+    const wi = Array.isArray(task.workItems) ? task.workItems : [];
+    if (wi.length > 0) return wi.every(x => x.serviceCode === 'install');
+    return String(task.workType || "") === "설치";
+  })();
+  const [matEdit,   setMatEdit]   = useState(false);
+  const [matInput,  setMatInput]  = useState(String(task.materialCost || 0));
+  const [matSaving, setMatSaving] = useState(false);
+  const [matLocal,  setMatLocal]  = useState(null);   // 저장 직후 화면 반영
+  const [payLocal,  setPayLocal]  = useState(null);
+  const materialAmt = matLocal != null ? matLocal : Number(task.materialCost || 0);
+  const engShow     = payLocal ? payLocal.engineer : Number(task.engineer_amount || 0);
+  const ownShow     = payLocal ? payLocal.owner    : Number(task.owner_amount || 0);
+
+  async function saveMaterialCost() {
+    const n = Math.max(0, Math.floor(Number(matInput) || 0));
+    setMatSaving(true);
+    const res = await setMaterialCostAdapter(task.id, n);
+    setMatSaving(false);
+    if (!res || !res.ok) { alert((res && res.error) || "자재비 저장 실패"); return; }
+    setMatLocal(n);
+    setPayLocal({ engineer: res.engineerAmount || 0, owner: res.ownerAmount || 0 });
+    setMatEdit(false);
+  }
+
   if (isExternal) return null;
 
   const isDone = task.state === "done";
@@ -946,6 +975,7 @@ function SettlementInfoCard({ task }) {
   const ownerAmt     = Number(task.owner_amount || 0);
   const principalAmt = Number(task.principal_amount || 0);
   const hasPayment   = engineerAmt > 0 || ownerAmt > 0 || principalAmt > 0;
+
 
   // 2026-07-15 — 방문출장(visit_only): 견적이 아니라 출장비가 정산의 전부인데
   //   카드가 estimateTotal 만 봐서 "견적 미입력"으로 비어 보이던 문제 (사장님 spec:
@@ -1024,10 +1054,73 @@ function SettlementInfoCard({ task }) {
                 <div style={{ fontSize: 9, color: "var(--text-secondary)", fontWeight: 600, marginBottom: 4 }}>
                   📊 분배
                 </div>
-                {engineerAmt  > 0 && <SettlementRow label="기사 분배" value={engineerAmt}  color="#06B6D4"/>}
-                {ownerAmt     > 0 && <SettlementRow label="회사 수익" value={ownerAmt}     color="#1D9E75"/>}
+                {materialAmt > 0 && (
+                  <SettlementRow label="자재비 (기사 선지출)" value={materialAmt} color="#FFB800"/>
+                )}
+                {engShow      > 0 && <SettlementRow label="기사 분배" value={engShow}      color="#06B6D4"/>}
+                {ownShow      > 0 && <SettlementRow label="회사 수익" value={ownShow}      color="#1D9E75"/>}
                 {principalAmt > 0 && <SettlementRow label="원청 수수료" value={principalAmt} color="#A855F7"/>}
               </>
+            )}
+
+            {/* 2026-07-28 — 설치 전용 자재비 입력 (기사님이 못 넣었을 때 운영자가 수정) */}
+            {isInstall && (
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: "1px dashed var(--border)" }}>
+                {!matEdit ? (
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                    <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700 }}>
+                      🧰 자재비 {materialAmt > 0 ? `${materialAmt.toLocaleString("ko-KR")}원` : "없음"}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setMatInput(String(materialAmt || "")); setMatEdit(true); }}
+                      style={{
+                        padding: "5px 12px", borderRadius: 8, fontSize: 11, fontWeight: 800,
+                        background: "rgba(255,184,0,0.12)", border: "1px solid rgba(255,184,0,0.4)",
+                        color: "#FFB800", fontFamily: "inherit", cursor: "pointer",
+                      }}
+                    >자재비 수정</button>
+                  </div>
+                ) : (
+                  <div>
+                    <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginBottom: 6, lineHeight: 1.5 }}>
+                      기사님이 산 부품값. 합계에서 먼저 빼고 기사님께 그대로 돌려드립니다. (고객 금액은 안 바뀜)
+                    </div>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={matInput}
+                        onChange={(e) => setMatInput(e.target.value)}
+                        placeholder="0"
+                        style={{
+                          flex: 1, padding: "9px 11px", borderRadius: 9,
+                          background: "var(--input-bg)", border: "1px solid var(--border)",
+                          color: "var(--text-primary)", fontSize: 14, fontWeight: 800,
+                          fontFamily: "inherit", outline: "none", minWidth: 0,
+                        }}
+                      />
+                      <button
+                        type="button" disabled={matSaving} onClick={saveMaterialCost}
+                        style={{
+                          padding: "9px 14px", borderRadius: 9, fontSize: 12, fontWeight: 800,
+                          background: "#FFB800", border: "none", color: "#111",
+                          fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
+                          opacity: matSaving ? 0.6 : 1,
+                        }}
+                      >{matSaving ? "저장 중…" : "저장"}</button>
+                      <button
+                        type="button" onClick={() => setMatEdit(false)}
+                        style={{
+                          padding: "9px 12px", borderRadius: 9, fontSize: 12, fontWeight: 700,
+                          background: "transparent", border: "1px solid var(--border)",
+                          color: "var(--text-secondary)", fontFamily: "inherit", cursor: "pointer",
+                        }}
+                      >취소</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </>
         ) : (

@@ -4,6 +4,7 @@
 
 import { supabase } from "../lib/supabase.js";
 import { clearReassignRequest as clearReassignRequestRpc } from "../lib/adminTaskRpc.js";
+import { currentUserId } from "../lib/cancelRpc.js";
 
 // Phase 1 MVP 단일 테넌트 (allit). 멀티 테넌트 확장 시 user.tenant_id 사용.
 export const TENANT_ID = "11111111-1111-1111-1111-111111111111";
@@ -172,6 +173,8 @@ export function rowToTask(row) {
     productPrice:  row.product_price,
     travelFee:     row.travel_fee,
     extraFee:      row.extra_fee,
+    // Mig 198 — 설치 자재비 (기사가 산 부품값). 분배 전 차감 후 기사에게 환급.
+    materialCost:  row.material_cost ?? 0,
     extraReason:   row.extra_reason,
     extraFeeAt:    row.extra_fee_at,
     // 2026-05-30 — Migration 083 — 고객 결제 총액 (3곳 매핑 트랩)
@@ -374,6 +377,7 @@ export function taskToRow(task, partial = false) {
   if (task.productPrice !== undefined) row.product_price = task.productPrice;
   if (task.travelFee    !== undefined) row.travel_fee    = task.travelFee;
   if (task.extraFee     !== undefined) row.extra_fee     = task.extraFee;
+  if (task.materialCost !== undefined) row.material_cost = Number(task.materialCost) || 0;
   if (task.extraReason  !== undefined) row.extra_reason  = task.extraReason;
   if (task.extraFeeAt   !== undefined) row.extra_fee_at  = _toTsOrNull(task.extraFeeAt);
   // 2026-05-30 — Migration 083 — received_total write. NULL 허용 (가드 케이스).
@@ -1444,6 +1448,37 @@ export async function changePriceAdapter(taskId, newPrice, addAmount, reason) {
   }
 
   return res;
+}
+
+// ============================================================
+// 2026-07-28 (Mig 198/199) — 설치 자재비
+//   기사가 산 부품값. 총금액은 그대로 두고 분배에서만 먼저 차감 →
+//   남은 금액을 75(기사)/25(회사) 로 나눈 뒤 자재비를 기사 몫에 되돌려줌.
+//   tasks 직접 UPDATE 는 기사 RLS 차단 → RPC 경유 (set_material_cost).
+// 응답: { ok, materialCost, engineerAmount, ownerAmount } | { ok:false, error }
+// ============================================================
+export async function setMaterialCostAdapter(taskId, amount) {
+  if (!taskId) return { ok: false, error: "taskId 없음" };
+  const actor = currentUserId();
+  if (!actor) return { ok: false, error: "로그인 필요" };
+  const n = Math.max(0, Math.floor(Number(amount) || 0));
+  try {
+    const { data, error } = await supabase.rpc('set_material_cost', {
+      p_task_id: taskId,
+      p_amount:  n,
+      p_actor:   actor,
+    });
+    if (error) return { ok: false, error: error.message };
+    if (!data?.ok) return { ok: false, error: data?.error || "자재비 저장 실패" };
+    return {
+      ok: true,
+      materialCost:   data.material_cost ?? n,
+      engineerAmount: data.engineer_amount ?? 0,
+      ownerAmount:    data.owner_amount ?? 0,
+    };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
 }
 
 // ============================================================
