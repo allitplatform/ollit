@@ -10385,6 +10385,10 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     if (workItems.length === 0 && !applianceUndecided) {
       errs.workItems = "작업 항목 1개 이상 or '기종 미정' 체크";
     }
+    // 2026-07-28 — 기종미정이면 종목 필수 (PC 2026-07-12 와 동일. '기타/미정' 사고 차단)
+    if (workItems.length === 0 && applianceUndecided && !form.workType) {
+      errs.workItems = "'기종 미정' 체크 시 종목(세척/냉매충전/설치/누설/수리)을 선택하세요.";
+    }
     // 2026-07-10 — appliance="" 저장 사고 방지 (A-260710-003 등 policy_not_found 원인).
     //   PC 폼은 requiresApplianceFor 로 막고 있으나 모바일 폼에는 개별 검증 부재.
     //   카톡 파싱이 냉매 기종 미인식 시 appliance="" 로 저장 → 여기 필수 검사로 저장 차단.
@@ -10430,7 +10434,12 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         workType:      head.workType || form.workType || "",
         appliance:     head.appliance,
         qty:           head.qty || 1,
-        workItems:     splitItems,              // 다중 항목 (KA 1way 분리됨 / 시트가 catch)
+        // 2026-07-28 — 설치/누설 + 기종미정: 빈 workItems 면 task_items 미생성 → 분배 0
+        //   (PC 폼 2026-07-27 fix 동일). "종목 ×1 · 단가 0" 실어 보냄.
+        workItems:     (splitItems.length === 0 && applianceUndecided
+                        && (form.workType === "설치" || form.workType === "누설"))
+          ? [{ workType: form.workType, appliance: "(미정)", qty: 1, quote: 0 }]
+          : splitItems,
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
         applianceUndecided: workItems.length === 0 && applianceUndecided,
         quote:         form.estimateTotal,
@@ -10953,6 +10962,23 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
             />
             <span>기종 미정 (예약확정 or 현장에서 선택)</span>
           </label>
+
+          {/* 2026-07-28 — 사장님 발견 (A-260728-003): 모바일은 기종미정 체크 시 종목
+                선택이 안 떠서 workType "" 저장 → 작업이 '미정·기타'로 등록되던 버그.
+                PC 폼 2026-07-12 fix 와 동일하게 종목 칩 필수 노출. */}
+          {applianceUndecided && workItems.length === 0 && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={{ fontSize: 11.5, fontWeight: 700, color: t.textSecondary, marginBottom: 6 }}>
+                종목 선택 (기종 미정이어도 필수)
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {["세척", "냉매충전", "설치", "누설", "수리"].map(wt => (
+                  <FormChip t={t} key={wt} active={form.workType === wt}
+                    onClick={() => update("workType", wt)}>{wt}</FormChip>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* 단축 칩 */}
           <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2, marginBottom: 8, opacity: priceTBD ? 0.4 : 1, pointerEvents: priceTBD ? "none" : "auto" }}>
