@@ -9,7 +9,7 @@
 //   ⚠️ 색 토큰만 (var(--accent) 다크 #FF1B8D / 라이트 #E91860).
 //   ⚠️ 모바일(<1024) 옛 DashboardScreen 그대로.
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Fragment } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 // 2026-06-12 — 반응형 (1280px 2단↔1단 자동 전환).
 import { useMinWidth } from "../utils/useIsPc.js";
@@ -30,6 +30,8 @@ import { getUsolnSettleBoardSummary } from "../lib/usolnSettleBoardDb.js";
 // 2026-06-12 — 작업 검색 (맨 아래 풀폭). 클라이언트 필터 (apiTasks).
 import { AdminPcTaskSearchPanel } from "./AdminPcTaskSearchPanel.jsx";
 import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
+// 2026-07-28 — 원청별 표 속 취소 숫자 클릭 → 사유 목록 펼침 (모바일 통계허브와 동일 UX).
+import { getCancelReasonLabel } from "../data/cancelReasons.js";
 
 function fmtKRW(n) {
   return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
@@ -969,10 +971,13 @@ function InquiriesBigCard({ count = 0, todayCount = 0, user, onClick }) {
 
 function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = false }) {
   const today = todayYmd();
+  // 2026-07-28 — 취소 목록 펼친 원청 code (하나만 펼쳐짐).
+  const [openCancel, setOpenCancel] = useState(null);
 
   const { rows, totals, hourly } = useMemo(() => {
     const received = new Map();
     const canceled = new Map();   // 2026-07-27 — 통계 허브와 기준 통일 (접수=전체 유입)
+    const cxList   = new Map();   // 2026-07-28 — code → 취소 task 목록 (클릭 펼침용)
     const done     = new Map();
     const owner    = new Map();
     // 2026-07-21 — 오늘 접수 시간대 (사장님 확정: 표 + 접수 시간대형).
@@ -997,6 +1002,8 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
         received.set(code, (received.get(code) || 0) + 1);
         if (t.status === "취소") {
           canceled.set(code, (canceled.get(code) || 0) + 1);
+          if (!cxList.has(code)) cxList.set(code, []);
+          cxList.get(code).push(t);
         }
       }
       // 오늘 완료 (status='완료' 만)
@@ -1015,6 +1022,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
       name:     p.name,
       received: received.get(p.code) || 0,
       canceled: canceled.get(p.code) || 0,
+      cxTasks:  cxList.get(p.code)   || [],
       done:     done.get(p.code)     || 0,
       owner:    owner.get(p.code)    || 0,
       isTrackB: p.code === USOLN_CODE,
@@ -1022,6 +1030,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
 
     const totalsRow = {
       received: rowsAll.reduce((s, r) => s + r.received, 0),
+      canceled: rowsAll.reduce((s, r) => s + r.canceled, 0),
       done:     rowsAll.reduce((s, r) => s + r.done,     0),
       owner:    rowsAll.reduce((s, r) => s + (r.isTrackB ? 0 : r.owner), 0),
     };
@@ -1087,7 +1096,8 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
             </thead>
             <tbody>
               {rows.map(r => (
-                <tr key={r.code} style={{ borderBottom: "1px solid var(--border)" }}>
+                <Fragment key={r.code}>
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
                   <Td align="left">
                     <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{r.name}</span>
                     <span style={{
@@ -1098,10 +1108,26 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
                   </Td>
                   <Td align="right"><NumCell n={r.received} unit="건" muted={r.received === 0}/></Td>
                   <Td align="right">
-                    <span style={{
-                      fontWeight: 700, fontVariantNumeric: "tabular-nums",
-                      color: r.canceled > 0 ? "#FF3B5C" : "var(--text-tertiary)",
-                    }}>{r.canceled}건</span>
+                    {/* 2026-07-28 — 취소 건수 클릭 → 아래 줄에 사유 펼침. 0건이면 그냥 텍스트. */}
+                    {r.canceled > 0 ? (
+                      <button
+                        type="button"
+                        title="클릭하면 취소 사유가 보입니다"
+                        onClick={() => setOpenCancel(openCancel === r.code ? null : r.code)}
+                        style={{
+                          background: "none", border: "none", padding: 0, margin: 0,
+                          font: "inherit", fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                          color: "#FF3B5C", cursor: "pointer",
+                          textDecoration: "underline", textDecorationStyle: "dotted",
+                          textUnderlineOffset: 3,
+                        }}
+                      >{r.canceled}건 {openCancel === r.code ? "\u25B2" : "\u25BC"}</button>
+                    ) : (
+                      <span style={{
+                        fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                        color: "var(--text-tertiary)",
+                      }}>0건</span>
+                    )}
                   </Td>
                   <Td align="right"><NumCell n={r.done}     unit="건" muted={r.done === 0}/></Td>
                   {!happycallMode && (
@@ -1134,6 +1160,37 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
                   </Td>
                   )}
                 </tr>
+                {/* 2026-07-28 — 취소 사유 펼침 줄 */}
+                {openCancel === r.code && r.cxTasks.length > 0 && (
+                  <tr>
+                    <td colSpan={happycallMode ? 4 : 5} style={{ padding: "0 0 10px" }}>
+                      <div style={{
+                        padding: "9px 12px",
+                        background: "rgba(255,59,92,0.06)",
+                        border: "1px solid rgba(255,59,92,0.25)",
+                        borderRadius: 9,
+                      }}>
+                        {r.cxTasks.map(ct => {
+                          const raw = ct.cancelReason || (ct.categoryData && ct.categoryData.cancelReason) || "";
+                          const label = raw ? (getCancelReasonLabel(raw) || raw) : "";
+                          return (
+                            <div key={ct.id} style={{
+                              fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.9,
+                              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                            }}>
+                              <span style={{ fontWeight: 800, color: "var(--text-primary)" }}>{ct.customer || "\uace0\uac1d \ubbf8\uc0c1"}</span>
+                              <span style={{ color: "var(--text-tertiary)" }}> \u00b7 {ct.taskCode || ct.taskNo || ct.task_no || ct.id}</span>
+                              {label
+                                ? <span style={{ color: "#FF3B5C" }}> \u2014 {label}</span>
+                                : <span style={{ color: "var(--text-tertiary)" }}> \u2014 \uc0ac\uc720 \uc5c6\uc74c</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
               {/* 합계 (usol_n owner 는 제외됨) */}
               <tr style={{
@@ -1147,8 +1204,15 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
                   }}>(회사 몫은 트랙 A만)</span>
                 </Td>
                 <Td align="right"><NumCell n={totals.received} unit="건"/></Td>
+                {/* 2026-07-28 — 합계 줄에 취소 칸이 없어서 완료·회사몫이 한 칸씩 왼쪽으로 밀려 있었음. */}
+                <Td align="right">
+                  <span style={{
+                    fontWeight: 800, fontVariantNumeric: "tabular-nums",
+                    color: totals.canceled > 0 ? "#FF3B5C" : "var(--text-tertiary)",
+                  }}>{totals.canceled}건</span>
+                </Td>
                 <Td align="right"><NumCell n={totals.done}     unit="건"/></Td>
-                <Td align="right"><NumCell n={totals.owner}    unit="원"/></Td>
+                {!happycallMode && <Td align="right"><NumCell n={totals.owner}    unit="원"/></Td>}
               </tr>
             </tbody>
           </table>
