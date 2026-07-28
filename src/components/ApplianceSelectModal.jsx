@@ -23,12 +23,26 @@ import { lookupRate, WORK_TYPE_TO_SERVICE } from "./principal/NewReceptionScreen
 // 2026-07-12 — 배지·배너 판정 통일 (사장님 spec).
 //   detectServiceType.id === 'undecided' 이면 needsApplianceSelection 도 무조건 true.
 import { detectServiceType } from "../data/serviceTypes.js";
+// 2026-07-28 — 기종 목록은 접수폼과 같은 단일 소스를 쓴다 (두 벌 관리 금지).
+import { getAppliancePool, PRINCIPAL_NAME_TO_CODE } from "../utils/receptionForm.js";
 
-// 종목별 기종 목록 (사장님 spec).
-const APPLIANCES_BY_WORKTYPE = {
-  "세척":     ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"],
-  "냉매충전": ["벽걸이", "스탠드", "4way", "투인원", "1way"],
-};
+// 2026-07-28 — 팝업에서 고를 수 있는 종목을 전 종목으로 확장 (사장님 요청).
+//   기존: 세척·냉매충전만 → 홈페이지 "에어컨 설치" 접수가 '기타/기타' 로 갇혀
+//   어디서도 종목을 못 고치던 사고 (팝업은 "관리자 화면에서" 라 안내하고,
+//   관리자 화면 견적 수정은 수량·단가만 바꿔서 서로 떠넘기는 구조였음).
+//   설치는 allday(올데이케어) 정책만 존재 → 다른 원청이면 pool 이 비어 선택 불가.
+const POPUP_WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치"];
+
+const _CODE_TO_PRINCIPAL_NAME = Object.fromEntries(
+  Object.entries(PRINCIPAL_NAME_TO_CODE).map(([name, code]) => [code, name])
+);
+
+// 종목 + 원청 → 기종 목록. 정책·기종이 없으면 null (= 선택 불가).
+function _appliancePool(workType, principalCode) {
+  if (!workType) return null;
+  const pool = getAppliancePool(workType, _CODE_TO_PRINCIPAL_NAME[principalCode] || "");
+  return Array.isArray(pool) && pool.length > 0 ? pool : null;
+}
 
 function _pickWorkType(task) {
   if (!task) return "";
@@ -70,10 +84,11 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
   // 2026-07-12 — 사장님 spec: 저장된 workType 이 placeholder('기타' 등) 이거나
   //   APPLIANCES_BY_WORKTYPE 미지원 종목이면 팝업 안에서 종목부터 재선택.
   //   '기타/기타' 로 잘못 저장된 옛 작업 recovery 경로.
-  const initialWorkTypeUsable = !!APPLIANCES_BY_WORKTYPE[initialWorkType]
+  const initialWorkTypeUsable = POPUP_WORK_TYPES.includes(initialWorkType)
+    && !!_appliancePool(initialWorkType, principalCode)
     && !_isPlaceholderAppliance(initialWorkType);
   const [workType, setWorkType] = useState(initialWorkTypeUsable ? initialWorkType : "");
-  const appliances = APPLIANCES_BY_WORKTYPE[workType] || null;
+  const appliances = _appliancePool(workType, principalCode);
   const needsWorkTypePick = !initialWorkTypeUsable;
 
   const [appliance, setAppliance] = useState("");
@@ -222,7 +237,7 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
               marginBottom: 6, letterSpacing: 0.3, textTransform: "uppercase",
             }}>종목 <span style={{ color: "#DC2626" }}>*</span></div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {["냉매충전", "세척"].map(wt => {
+              {POPUP_WORK_TYPES.filter(wt => !!_appliancePool(wt, principalCode)).map(wt => {
                 const on = workType === wt;
                 return (
                   <button
@@ -242,7 +257,7 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
               })}
             </div>
             <div style={{ fontSize: 10, color: "#93A2B4", fontWeight: 600, marginTop: 6 }}>
-              수리/설치는 팝업 미지원 — 관리자 화면에서 작업항목 편집으로 처리하세요.
+              종목을 저장하면 견적·정산이 다시 계산됩니다. 이 원청에 정책이 없는 종목은 목록에 나오지 않습니다.
             </div>
           </div>
         )}
@@ -254,8 +269,8 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
               background: "#FEECEC", border: "1px solid #F5B5B5",
               color: "#C33", fontSize: 13, fontWeight: 700,
             }}>
-              이 종목({workType || "미정"})은 팝업에서 기종 선택을 지원하지 않습니다.
-              관리자 화면에서 종목을 수정하세요.
+              이 원청에는 <b>{workType || "미정"}</b> 종목의 기종·정산 정책이 없습니다.
+              다른 종목을 고르시거나 사무실에 문의하세요.
             </div>
           )
         ) : (
@@ -445,7 +460,8 @@ function _isPlaceholderAppliance(apl) {
 // 2026-07-24 — 기종(벽걸이/스탠드…) 선택이 실제로 필요한 종목.
 //   설치(신규설치·기계중고교체 등 5종)·출장비·유솔N 부가는 appliance NULL 이 정상
 //   (설치 5종은 표시용 이름 — 정책 매칭이 NULL 처리) → 기종 검사 제외.
-const _APPLIANCE_REQUIRED_WT = ["세척", "냉매충전", "누설"];
+// 2026-07-28 — 누수 추가 (누설과 동일하게 5기종 선택 필요 — Mig 195).
+const _APPLIANCE_REQUIRED_WT = ["세척", "냉매충전", "누설", "누수"];
 
 export function needsApplianceSelection(task) {
   if (!task) return false;

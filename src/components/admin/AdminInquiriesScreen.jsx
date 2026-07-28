@@ -820,6 +820,12 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
     phone:     row.phone   || "",
     address:   row.address || "",
     workItems: [],
+    // 2026-07-28 — 홈페이지에서 고객이 고른 종목을 접수폼에 프리필.
+    //   이게 비어 있어서 "에어컨 설치" 접수가 종목 미정 → '기타/기타 ×1 ₩0' 으로
+    //   저장되던 사고 수리 (임영빈 A-260728, 조종석 배정 건).
+    //   NewReceptionPcForm 은 init.workType / init.applianceUndecided 를 이미 받는다.
+    workType: SERVICE_WORKTYPE[row.service_type] || "",
+    applianceUndecided: true,
     memo: `[홈페이지 접수${at ? " " + at : ""}] 희망 서비스: ${serviceLabel(row.service_type)}`,
   };
   const isNew  = row.status === "new";
