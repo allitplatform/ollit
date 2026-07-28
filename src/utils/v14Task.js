@@ -199,6 +199,8 @@ export function v14NormalizeTask(t) {
     estimateTotal: estimate,
     addonFee,
     extraFee,
+    // 2026-07-28 Mig 198 — 설치 자재비 (분배 전 차감 후 기사 환급)
+    materialCost: Number(t.materialCost ?? t.material_cost ?? 0) || 0,
     receivedTotal,
     // 2026-05-19 Phase 5 Step 0.C-13 — is_legacy (Migration 042) 매핑
     isLegacy: !!(t.isLegacy ?? t.is_legacy),

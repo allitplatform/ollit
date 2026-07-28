@@ -941,8 +941,8 @@ function SettlementInfoCard({ task }) {
   //   고객 총금액(합계)은 그대로 — 분배만 바뀜.
   const isInstall = (() => {
     const wi = Array.isArray(task.workItems) ? task.workItems : [];
-    if (wi.length > 0) return wi.every(x => x.serviceCode === 'install');
-    return String(task.workType || "") === "설치";
+    if (wi.length > 0) return wi.every(x => x.serviceCode === 'install' || /설치/.test(String(x.workType || x.appliance || "")));
+    return /설치/.test(String(task.workType || "") + String(task.summary || ""));
   })();
   const [matEdit,   setMatEdit]   = useState(false);
   const [matInput,  setMatInput]  = useState(String(task.materialCost || 0));

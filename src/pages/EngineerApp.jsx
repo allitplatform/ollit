@@ -227,6 +227,8 @@ function convertSheetTask(s) {
     productPrice: s.estimateTotal || 0,
     travelFee: s.travelFee || 0,
     extraFee: s.extraFee || 0,
+    // 2026-07-28 Mig 198 — 설치 자재비
+    materialCost: Number(s.materialCost ?? s.material_cost ?? 0) || 0,
     extraReason: s.extraReason || "",
     commissionRate: 40,
     commission: Math.floor((s.estimateTotal || 0) * 0.4),

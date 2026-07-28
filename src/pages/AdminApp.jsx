@@ -675,6 +675,8 @@ function _v14NormalizeTask(t) {
     // 공유 v14Task.js 측 매핑 있음 / 로컬 _v14NormalizeTask 측 누락 — AdminTaskDetailScreen 측 현장 추가금 표시용
     extraFee:    Number(t.extraFee    || t.extra_fee    || t.추가금 || t.addAmount || 0),
     extraReason: t.extraReason  || t.extra_reason  || "",
+    // 2026-07-28 Mig 198 — 설치 자재비 ("두 곳 모두 매핑" 트랩: v14Task.js / EngineerApp 도 동일)
+    materialCost: Number(t.materialCost ?? t.material_cost ?? 0) || 0,
     extraFeeAt:  t.extraFeeAt   || t.extra_fee_at   || null,
     // 2026-05-30 — Migration 083 — 고객 결제 총액 ("두 곳 모두 매핑" 트랩).
     //   NULL 보존 (가드 케이스 usol_n/prepaid 또는 미입력 구분용) — Number() 강제 변환 안 함.

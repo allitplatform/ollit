@@ -931,8 +931,8 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   // 2026-07-28 (Mig 198/199) — 설치 자재비. 총금액에서 먼저 빼고, 기사님께 그대로 돌려드림.
   const isInstallTask = (() => {
     const wi = Array.isArray(task.workItems) ? task.workItems : [];
-    if (wi.length > 0) return wi.every(x => x.serviceCode === 'install');
-    return String(task.workType || "") === "설치";
+    if (wi.length > 0) return wi.every(x => x.serviceCode === 'install' || /설치/.test(String(x.workType || x.appliance || "")));
+    return /설치/.test(String(task.workType || "") + String(task.summary || ""));
   })();
   const [material, setMaterial]   = useState(task.materialCost ? String(task.materialCost) : "");
   const [matSaving, setMatSaving] = useState(false);
