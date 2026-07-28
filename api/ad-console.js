@@ -207,6 +207,36 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 접수 → 매출 깔때기 (?funnel=1&days=N) — "광고비 대비 진짜 얼마 벌었나"
+    // 접수 건수만 세면 취소·노쇼가 안 보인다. 상태 분포 + payments 합계까지 본다.
+    if (req.query.funnel) {
+      if (tk !== TOKEN_FULL && tk !== WRITE_TOKEN && (req.query.wt || "") !== WRITE_TOKEN) { res.status(404).end(); return; }
+      const days = Math.min(60, Math.max(1, Number(req.query.days || 7)));
+      const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
+      const pr = await fetch(`${SB_URL}/rest/v1/principals?code=eq.allday&select=id`, { headers: H }).then(r => r.json());
+      const pid = pr && pr[0] && pr[0].id;
+      if (!pid) { res.status(200).json({ ok: false, error: "principal 없음" }); return; }
+      const kstNow = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      const since = new Date(new Date(`${kstNow}T00:00:00+09:00`).getTime() - (days - 1) * 86400000).toISOString();
+      const rowsF = await fetch(`${SB_URL}/rest/v1/tasks?principal_id=eq.${pid}`
+        + `&created_at=gte.${encodeURIComponent(since)}`
+        + `&select=id,created_at,status,payments(principal_amount,track)&limit=5000`, { headers: H }).then(r => r.json());
+      const byDay = {};
+      for (const t2 of (Array.isArray(rowsF) ? rowsF : [])) {
+        const d = new Date(new Date(t2.created_at).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+        const b = byDay[d] || (byDay[d] = { day: d, n: 0, st: {}, paidN: 0, amt: 0 });
+        b.n++;
+        const s = t2.status == null ? "(없음)" : String(t2.status);
+        b.st[s] = (b.st[s] || 0) + 1;
+        const ps = Array.isArray(t2.payments) ? t2.payments : [];
+        const sum = ps.reduce((x, y) => x + (Number(y && y.principal_amount) || 0), 0);
+        if (sum > 0) { b.paidN++; b.amt += sum; }
+      }
+      const rows = Object.values(byDay).sort((a, b) => a.day < b.day ? 1 : -1);
+      res.status(200).json({ ok: true, days, total: (rowsF || []).length, rows });
+      return;
+    }
+
     // 부정클릭 감시: 최근 클릭 로그 IP 집계 (+ ?ip=x.x.x.x 시간대 상세)
     if (req.query.clicks) {
       if (req.query.ip) {
