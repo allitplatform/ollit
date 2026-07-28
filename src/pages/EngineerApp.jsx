@@ -4109,6 +4109,18 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   //   [고객 전화] 탭 → 즉시 customerCall 기록 (운영자 카드 ☎ 배지) + pendingCallRef 세팅.
   //   앱으로 돌아오면(visibilitychange) 일정 미확정 건에 한해 결과 시트 한 번 표시.
   const [callSheetTask, setCallSheetTask] = useState(null);
+  // 2026-07-28 — 통화됨 사유 입력 단계 (window.prompt 대체).
+  const [callMemoStep,  setCallMemoStep]  = useState(false);
+  const [callMemoDraft, setCallMemoDraft] = useState("");
+  function closeCallSheet() {
+    setCallSheetTask(null); setCallMemoStep(false); setCallMemoDraft("");
+  }
+  // 2026-07-28 — 사유 입력 중에 바깥을 눌러 닫아도 "통화됨" 은 저장한다.
+  //   (안 그러면 기사가 통화됨을 눌렀는데도 결과가 '전화함' 으로만 남음 = 사장님이 본 증상)
+  function dismissCallSheet() {
+    if (callMemoStep) { handleCallMemoSave(callMemoDraft); return; }
+    closeCallSheet();
+  }
   const pendingCallRef = useRef(null);
   function handleCustomerCall(taskLike) {
     if (!taskLike || !taskLike.id) return;
@@ -4131,21 +4143,29 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   }, []);
   async function handleCallResult(result) {
     const tk = callSheetTask;
-    setCallSheetTask(null);
-    if (!tk) return;
+    if (!tk) { closeCallSheet(); return; }
     if (result === "schedule") {
       // 일정 잡혔어요 → 새 배정 상세(일정 칩)로
+      closeCallSheet();
       setCallTaskId(tk.id);
       setScreen("newAssignCall");
       return;
     }
-    // 2026-07-27 — 사장님 확정: 통화됨(조율중)이면 사유 한 줄 (건너뛰기 가능).
-    //   운영자 일정 미정 목록에 그대로 표시 — 채근 전화 없이 사정 파악.
-    let memo = "";
-    if (result === "talked") {
-      memo = window.prompt("고객님이 뭐라고 하셨어요? (선택)\n예: 수요일에 다시 연락 준다고 함", "") || "";
-    }
-    try { await setCustomerCallResultAdapter(tk.id, result, memo); } catch { /* 무해 */ }
+    // 2026-07-28 — 사유 입력을 window.prompt → 시트 안 입력창으로 교체.
+    //   prompt 는 앱(웹뷰)에서 안 뜨는 기기가 있어 사유가 한 건도 안 쌓이지 않았음.
+    if (result === "talked") { setCallMemoStep(true); return; }
+    closeCallSheet();
+    try { await setCustomerCallResultAdapter(tk.id, result, ""); } catch { /* 무해 */ }
+  }
+
+  // 2026-07-28 — 통화됨 사유 저장 (건너뛰기 = 빈 사유로 저장).
+  async function handleCallMemoSave(memo) {
+    const tk = callSheetTask;
+    closeCallSheet();
+    if (!tk) return;
+    try {
+      await setCustomerCallResultAdapter(tk.id, "talked", String(memo || "").trim());
+    } catch { /* 무해 */ }
   }
 
   // V14 큰 흐름 — 모달 state (취소 요청 / 금액 변경 / 완료 + 사진)
@@ -5536,7 +5556,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
       {/* 2026-07-15 — 통화 결과 시트 (사장님 spec: 일정/조율중/부재중 3갈래 + 그냥 닫기) */}
       {callSheetTask && (
         <div
-          onClick={() => setCallSheetTask(null)}
+          onClick={dismissCallSheet}
           style={{
             position: "fixed", inset: 0, zIndex: 1400,
             background: "rgba(0,0,0,0.45)",
@@ -5556,6 +5576,52 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             }}
           >
             <div style={{ width: 40, height: 4, borderRadius: 999, background: "var(--border)", margin: "0 auto 14px" }}/>
+            {callMemoStep ? (
+              <>
+                <div style={{ fontSize: 16, fontWeight: 800, textAlign: "center", color: "var(--text-primary)" }}>
+                  고객님이 뭐라고 하셨어요?
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-secondary)", textAlign: "center", margin: "4px 0 12px" }}>
+                  사무실에서 바로 보입니다 · 안 쓰셔도 됩니다
+                </div>
+                <textarea
+                  autoFocus
+                  value={callMemoDraft}
+                  onChange={(e) => setCallMemoDraft(e.target.value.slice(0, 120))}
+                  placeholder="예: 수요일에 다시 연락 준다고 하심"
+                  rows={3}
+                  style={{
+                    width: "100%", padding: "12px 13px", marginBottom: 10,
+                    background: "var(--bg-secondary, #F7F7F8)",
+                    border: "1.5px solid var(--border)", borderRadius: 12,
+                    fontSize: 15, color: "var(--text-primary)",
+                    fontFamily: "inherit", resize: "none", outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 10 }}>
+                  <button
+                    onClick={() => handleCallMemoSave("")}
+                    style={{
+                      padding: "15px 6px", background: "transparent",
+                      border: "1.5px solid var(--border)", borderRadius: 14,
+                      color: "var(--text-secondary)", fontSize: 14, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >건너뛰기</button>
+                  <button
+                    onClick={() => handleCallMemoSave(callMemoDraft)}
+                    style={{
+                      padding: "15px 6px", background: "#03C75A",
+                      border: "1.5px solid #03C75A", borderRadius: 14,
+                      color: "#fff", fontSize: 15, fontWeight: 800,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >저장</button>
+                </div>
+              </>
+            ) : (
+              <>
             <div style={{ fontSize: 16, fontWeight: 800, textAlign: "center", color: "var(--text-primary)" }}>
               📞 고객님과 통화 되셨어요?
             </div>
@@ -5601,7 +5667,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               </button>
             </div>
             <button
-              onClick={() => setCallSheetTask(null)}
+              onClick={closeCallSheet}
               style={{
                 width: "100%", marginTop: 10, padding: 11,
                 background: "transparent", border: "none",
@@ -5609,6 +5675,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
                 cursor: "pointer", fontFamily: "inherit",
               }}
             >그냥 닫기</button>
+              </>
+            )}
           </div>
         </div>
       )}
