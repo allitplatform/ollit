@@ -52,7 +52,10 @@ const GROUP_POLICY = {
   "서울":         { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
   // 메인(7/26 밤 개정): 비용대비 순이익 원칙 — 7/13 데이터(입찰 1.3만·2위권·최고 성적) 기준.
   // 1위 과열 안 따라감. 추격 여유 5%, 상한 15,000.
-  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 15000 },
+  // 7/29 실험: 낮(12~18시)에만 내림 허용 + 2위가 목표. 아침·저녁은 종전대로 1위 추격·내림 금지.
+  //  근거 — 7/28 실측 12/16/17시 3시간에 48만원 쓰고 접수 5건(건당 9.6만). 메인이 전체 지출 56%인데
+  //  기존 낮 완화(lowerOk 필요)가 메인에는 한 번도 걸린 적이 없었다.
+  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false, middayLower: true, pos2: true, cap2: 15000 },
   // 사장님(7/26 저녁): 수리·누설·누수 + 가스충전이 제일 메인 → 핵심 대접
   "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
   // 설치(7/27 사장님 확정): 지금은 시기 아님 — 싼 자리(5,000 이하)만 줍고 비싼 판은 성수기에.
@@ -175,7 +178,7 @@ export default async function handler(req, res) {
     const p2kws = kws.filter(k => {
       const pol = GROUP_POLICY[k.grp] || {};
       if (!pol.pos2 || KW_CAP[norm(k.kw)] != null) return false;
-      if (midday && pol.lowerOk) return true;
+      if (midday && (pol.lowerOk || pol.middayLower)) return true;
       const e1 = estMap.get(norm(k.kw));
       return e1 && Math.round(e1 * (pol.margin || 1.1) / 10) * 10 > (pol.cap || 15000);
     });
@@ -200,7 +203,7 @@ export default async function handler(req, res) {
       const cap = KW_CAP[norm(k.kw)] != null ? KW_CAP[norm(k.kw)] : pol.cap; // 키워드 개별 상한 우선
       let bid = Math.round(est * pol.margin / 10) * 10;
       // 낮(12~17시): 내림 가능한 그룹은 2위 가격 + 5%로 2위 확보 (3위 밑 금지 — 2위가를 내니 2~3위 보장)
-      if (midday && pol.lowerOk && pol.pos2 && KW_CAP[norm(k.kw)] == null) {
+      if (midday && (pol.lowerOk || pol.middayLower) && pol.pos2 && KW_CAP[norm(k.kw)] == null) {
         const e2m = est2Map.get(norm(k.kw));
         if (e2m) bid = Math.min(bid, Math.round(e2m * 1.05 / 10) * 10);
       }
@@ -213,7 +216,7 @@ export default async function handler(req, res) {
         capped++;
       } else if (bid > cap) { bid = cap; capped++; }
       if (bid < FLOOR) bid = FLOOR;
-      if (!pol.lowerOk && bid < k.cur) continue;  // 메인키워드: 올리기만, 내리진 않음
+      if (!pol.lowerOk && !(midday && pol.middayLower) && bid < k.cur) continue;  // 올리기만 (메인은 낮에만 예외)
       if (Math.abs(bid - k.cur) / k.cur >= 0.1) {
         changes.push({ id: k.id, gid: k.gid, kw: k.kw, grp: k.grp,
                        from: k.cur, to: bid, est1: est });
