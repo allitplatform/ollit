@@ -354,7 +354,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     //   저장 후 기사앱 기종선택 배너가 종목 문자열로 기종 목록 결정 (냉매충전/세척 등).
     //   종목 없으면 '기타/기타' 사고 재발 → 명시적 차단.
     if (workItems.length === 0 && applianceUndecided && !form.workType) {
-      errs.workType = "'기종 미정' 체크 시 종목(냉매충전/세척/수리/설치)을 선택하세요.";
+      errs.workType = "'기종 미정' 체크 시 종목(세척/냉매충전/설치/누설/누수)을 선택하세요.";
     }
     // 2026-07-10 — appliance="" 저장 사고 방지 (A-260710-003 등 policy_not_found 원인).
     //   냉매충전 대상 명시적 메시지 (카톡 파싱이 기종 미인식 시 "" 세팅).
@@ -728,7 +728,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
                   textTransform: "uppercase",
                 }}>종목 선택 <span style={{ color: "#DC2626" }}>*</span></div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                  {["냉매충전", "세척", "수리", "설치"].map(wt => {
+                  {["세척", "냉매충전", "설치", "누설", "누수"].map(wt => {
                     const on = form.workType === wt;
                     return (
                       <button

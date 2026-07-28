@@ -50,6 +50,8 @@ export const WORK_TYPE_TO_SERVICE = {
   "냉매충전": "refrigerant",
   "출장비":   "visit_fee",
   "누설":     "leak",
+  // 2026-07-28 — 종목 개편: 누수 신설 (Mig 195/196, 정산 leak 미러)
+  "누수":     "water_leak",
   "설치":     "install",
 };
 

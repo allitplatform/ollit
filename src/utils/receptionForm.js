@@ -84,6 +84,7 @@ export const KA_1WAY_ADDITIONAL_PRICE = 70000;
 export const APPLIANCE_POOL = {
   "세척":           ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"],
   "누설":           ["벽걸이", "스탠드", "1way", "투인원", "4way"],
+  "누수":           ["벽걸이", "스탠드", "1way", "투인원", "4way"],
   "설치":           ["신규설치", "이전설치", "철거", "실외기중고교체", "기계중고교체"],
   "출장비":         ["(공통)"],
   "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
@@ -103,7 +104,7 @@ export const REFRIGERANT_APPLIANCE_POOL = ["벽걸이", "스탠드", "4way", "�
 //   2026-06-25 누설/설치 활성화 — 누설은 냉매와 동일 정산, 설치는 75/25.
 //   ⚠️ WORK_TYPES 원소 값은 저장/매칭 키 (파서 output, category_data.workItems.workType,
 //     service_types.name 매칭 대상). UI 노출 텍스트는 formatWorkTypeLabel() 로 감쌀 것.
-export const WORK_TYPES = ["세척", "냉매충전", "누설", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
+export const WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
 
 // 2026-07-08 — 표시 라벨 매핑 (저장값/매칭키와 표시값 분리).
 //   저장/매칭 (파서 output, category_data.workItems.workType, service_types.name,
