@@ -217,6 +217,7 @@ import { RegionStatsScreen } from "../components/admin/RegionStatsScreen.jsx";
 import { StatsHubScreen } from "../components/admin/StatsHubScreen.jsx";
 // 2026-07-24 — 마케팅 조감 (홈페이지 접수 퍼널 + 완료 매출·회사이익 + 지역 top5). 광고 API 는 2단계.
 import { MarketingScreen } from "../components/admin/MarketingScreen.jsx";
+import { MarketingScreenMobile } from "../components/admin/MarketingScreenMobile.jsx";
 // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환용).
 import { EngineerTaskListScreen } from "../components/admin/EngineerTaskList.jsx";
 // 2026-06-26 — 공지사항 관리 (Mig 147/148). 운영자 → 전체 기사 공통 공지 + 푸시.
@@ -3537,8 +3538,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   }
   // 2026-07-24 — 마케팅 조감 (홈페이지 유입 퍼널 + 매출·이익 + 지역 top5).
   if (screen === "marketing") {
+    // 2026-07-29 — PC 는 기존 MarketingScreen(정교한 ①~⑥), 모바일/PWA 는 재설계된 MarketingScreenMobile.
+    const MarketingComp = isPc ? MarketingScreen : MarketingScreenMobile;
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <MarketingScreen t={t} apiTasks={apiTasks} user={user} onBack={goBack}/>
+      <MarketingComp t={t} apiTasks={apiTasks} user={user} onBack={goBack}/>
     </Shell>;
   }
   // 2026-06-26 — 매출 상세 기사별 → 기사 클릭 시 작업 리스트 (모바일 화면 전환).
