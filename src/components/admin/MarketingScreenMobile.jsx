@@ -189,6 +189,10 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
     return () => { alive = false; clearInterval(iv); };
   }, [user?.user_id, user?.id]);
 
+  // 2026-07-29 — 목표/한계를 profitPerJob 동적값 대신 앱 전체에서 이미 쓰는 고정값(25,000/35,300,
+  //   ads-console.html·시각별 카드와 동일)으로 통일 — "지금 쓰는 돈이 적정선인지" 를 매번 다른 기준 대신
+  //   항상 같은 눈금으로 판단하게. 페이스미터 디자인(C안) 채택 — 마감 예상 지출(proj) 도 다시 계산.
+  const GOAL_CPA = 25000, LIMIT_CPA = 35300;
   const liveView = useMemo(() => {
     if (!liveAd) return null;
     const rawCost = liveAd.live?.spendRealtime != null
@@ -197,17 +201,21 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
     const costVat = Math.round(rawCost * 1.1);
     const jobs = liveAd.live?.jobsToday ?? null;
     const per = jobs > 0 ? Math.round(costVat / jobs) : null;
-    const goal = profitPerJob != null ? profitPerJob : 65000;
     let verdict;
-    if (per != null && per <= goal * 0.6)      verdict = { label: "더 써도 됨",    color: "#16A34A" };
-    else if (per != null && per <= goal)       verdict = { label: "적정",          color: "#D97706" };
-    else if (per != null)                      verdict = { label: "밑지는 중",     color: "#DC2626" };
-    else if (costVat >= goal)                  verdict = { label: "접수 0 — 확인", color: "#DC2626" };
-    else                                       verdict = { label: "아직 이름",     color: "#94A3B8" };
+    if (per != null && per <= GOAL_CPA)        verdict = { label: "적정",          color: "#16A34A" };
+    else if (per != null && per <= LIMIT_CPA)  verdict = { label: "주의",          color: "#D97706" };
+    else if (per != null)                      verdict = { label: "적자선 초과",   color: "#DC2626" };
+    else if (costVat >= GOAL_CPA)               verdict = { label: "접수 0 — 확인", color: "#DC2626" };
+    else                                        verdict = { label: "집계중",        color: "#94A3B8" };
     const lr = liveAd.live?.lastRun;
     const lrMin = lr ? Math.round((Date.now() - new Date(lr.at).getTime()) / 60000) : null;
-    return { costVat, jobs, per, goal, verdict, lrMin, lrWatched: lr?.watched };
-  }, [liveAd, profitPerJob]);
+    // 페이스: 광고 시간 08~20시 기준, 지금까지 속도로 마감 예상 (PC ⓪ 와 동일 공식)
+    const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
+    const kstH = kstNow.getUTCHours() + kstNow.getUTCMinutes() / 60;
+    const ran = Math.min(Math.max(kstH - 8, 0.25), 12);
+    const proj = kstH < 20 ? Math.round(costVat * 12 / ran) : costVat;
+    return { costVat, jobs, per, verdict, lrMin, lrWatched: lr?.watched, proj };
+  }, [liveAd]);
 
   // ── 시간대별 지출·접수 (api/ad-console.js trend — 오늘 전용, 별도 소스) ──
   const [hourTrend, setHourTrend] = useState(null);
@@ -279,22 +287,39 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
 
       <div style={{ padding: "12px 16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
 
-        {/* ⓪ 지금 실시간 — 최우선 요약, 기간필터 무관 항상 오늘 */}
+        {/* ⓪ 지금 실시간 — 페이스미터 디자인(C안, 사장님 선택 7/29). 최우선 요약, 기간필터 무관 항상 오늘.
+            "지금 쓰는 돈이 적정선인지" 를 막대 하나로 바로 보이게 — 채움 길이=지금 건당비용, 검정 세로선=목표(25,000원). */}
         {liveView && (
-          <div style={{ background: t.bgElevated, border: `1px solid ${liveView.verdict.color}44`, borderLeft: `4px solid ${liveView.verdict.color}`, borderRadius: 12, padding: "13px 14px 11px" }}>
+          <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 16, padding: "14px 16px 13px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 800 }}>🔴 지금 실시간</span>
-              <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>5분마다 갱신</span>
-              <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: liveView.verdict.color, border: `1px solid ${liveView.verdict.color}55`, borderRadius: 999, padding: "3px 10px" }}>{liveView.verdict.label}</span>
+              <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: liveView.verdict.color, background: `${liveView.verdict.color}1F`, borderRadius: 999, padding: "3px 10px" }}>{liveView.verdict.label}</span>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.55, marginBottom: 4 }}>
-              오늘 <b className="mono">{_fmtKRW(liveView.costVat)}원</b> 써서 접수 <b className="mono">{liveView.jobs ?? "?"}건</b>
-              {liveView.per != null && (<> — 1건에 <b className="mono" style={{ color: liveView.verdict.color }}>{_fmtKRW(liveView.per)}원</b></>)}
+            <div style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1, marginBottom: 2 }}>
+              {liveView.per != null ? _fmtKRW(liveView.per) : "-"}
+              <span style={{ fontSize: 14, color: t.textMuted, fontWeight: 700, marginLeft: 3 }}>원/건</span>
+            </div>
+            <div style={{ fontSize: 11, color: t.textSecondary, fontWeight: 600, marginBottom: 12 }}>
+              오늘 {_fmtKRW(liveView.costVat)}원 써서 {liveView.jobs ?? "?"}건 접수
+              {liveView.lrMin != null && ` · 자동입찰 ${liveView.lrMin < 1 ? "방금" : `${liveView.lrMin}분 전`} 실행`}
+            </div>
+            <div style={{ position: "relative", height: 26, background: t.bgInset || "rgba(148,163,184,.15)", borderRadius: 8, marginBottom: 6 }}>
+              <div style={{
+                position: "absolute", left: 0, top: 0, bottom: 0,
+                width: `${liveView.per != null ? Math.min(100, liveView.per / LIMIT_CPA * 100) : 0}%`,
+                background: "linear-gradient(90deg, #F4A73A, " + liveView.verdict.color + ")",
+                borderRadius: 8, transition: "width .3s",
+              }}/>
+              <div style={{ position: "absolute", top: -4, bottom: -4, width: 2, left: `${GOAL_CPA / LIMIT_CPA * 100}%`, background: t.text }}/>
+              <div style={{ position: "absolute", top: -16, left: `${GOAL_CPA / LIMIT_CPA * 100}%`, transform: "translateX(-50%)", fontSize: 9, fontWeight: 800, color: t.text, whiteSpace: "nowrap" }}>목표</div>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9.5, color: t.textMuted, fontWeight: 700, marginBottom: 10 }}>
+              <span>0원</span><span>한계 {_fmtKRW(LIMIT_CPA)}원</span>
             </div>
             <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>
-              {liveView.lrMin != null
-                ? `🟢 자동입찰 ${liveView.lrMin < 1 ? "방금" : `${liveView.lrMin}분 전`} 실행 · 감시 ${_fmtKRW(liveView.lrWatched || 0)}개`
-                : "⚪ 자동입찰 기록 없음"}
+              {liveView.per != null && liveView.jobs > 0
+                ? `📈 이 속도면 오늘 마감쯤 약 ${_fmtKRW(liveView.proj)}원 · 감시 ${_fmtKRW(liveView.lrWatched || 0)}개`
+                : (liveView.lrMin != null ? `감시 ${_fmtKRW(liveView.lrWatched || 0)}개` : "⚪ 자동입찰 기록 없음")}
             </div>
           </div>
         )}
