@@ -355,13 +355,15 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
               {regionShown.map((r, idx) => {
                 const pct = (r.count / maxRegion) * 100;
                 return (
-                  <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                    <span style={{ width: 16, flexShrink: 0, fontSize: 10, fontWeight: 800, color: idx === 0 ? t.accent : t.textMuted, textAlign: "right" }}>{idx + 1}</span>
-                    <span style={{ width: 58, flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
-                    <div style={{ flex: 1, height: 18, borderRadius: 6, background: t.bgInset || "rgba(148,163,184,.12)", overflow: "hidden" }}>
-                      <div style={{ width: `${pct}%`, height: "100%", background: t.accent, borderRadius: 6, minWidth: r.count > 0 ? 4 : 0 }}/>
+                  <div key={r.key} style={{ marginBottom: 9 }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 3 }}>
+                      <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, color: idx === 0 ? t.accent : t.textMuted }}>{idx + 1}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 700, color: t.text, wordBreak: "keep-all" }}>{r.label}</span>
+                      <span className="mono" style={{ flexShrink: 0, fontSize: 12, fontWeight: 800, color: t.text }}>{r.count}건</span>
                     </div>
-                    <span className="mono" style={{ width: 32, flexShrink: 0, textAlign: "right", fontSize: 11.5, fontWeight: 800, color: t.text }}>{r.count}</span>
+                    <div style={{ height: 14, borderRadius: 5, background: t.bgInset || "rgba(148,163,184,.12)", overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: t.accent, borderRadius: 5, minWidth: r.count > 0 ? 4 : 0 }}/>
+                    </div>
                   </div>
                 );
               })}
