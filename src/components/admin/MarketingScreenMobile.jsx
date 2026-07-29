@@ -123,16 +123,19 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
   const selfCount    = selfRevenue?.count || 0;
   const profitPerJob = selfRevenue && selfCount > 0 ? Math.round(Number(selfRevenue.owner || 0) / selfCount) : null;
 
-  // ── 지역 랭킹 (PC ③과 동일 공식 — 전화포함 자체접수, 원청 제외) ──────────
+  // ── 지역 랭킹 (2026-07-29 수정 — 홈페이지 유입만이 아니라 "오늘" 올데이케어(자체) 원청
+  //   접수 전체 기준으로 변경. 기간 필터와 무관하게 항상 오늘. selfTasks 와 동일한
+  //   principalCode==="allday" 판별을 쓰되, 날짜만 오늘로 고정.
   const regionTop = useMemo(() => {
+    const todayK = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
     const tasksInRange = (apiTasks || []).filter(x => {
       if (!x || x.status === "취소") return false;
-      const no = String(x.taskNo || x.task_no || "");
-      if (no.startsWith("KA-")) return false;
+      const code = x.principalCode || x.principal_code || "";
+      if (code !== SELF_PRINCIPAL_CODE) return false;
       const c = x.createdAt || x.created_at || x.receivedAt || x.received_at;
       if (!c) return false;
       const k = toKstYmd(c);
-      return k && k >= start && k <= end;
+      return k === todayK;
     });
     const map = new Map();
     let unknown = 0;
@@ -145,7 +148,7 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
     }
     const sorted = [...map.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
     return { rows: sorted, unknown, grandTotal: tasksInRange.length };
-  }, [apiTasks, start, end]);
+  }, [apiTasks]);
 
   // ── ④ 광고 지출·CPA (기간: since~until) ─────────────────────────────────
   const [ad, setAd] = useState(null);
@@ -316,6 +319,34 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
           </Card>
         )}
 
+
+        {/* 지역 랭킹 — 막대그래프. 2026-07-29 — "오늘" + 올데이케어(자체) 원청 접수 전체 기준으로 변경.
+            기간 필터와 무관 (⓪지금실시간·시간대별과 같은 그룹). */}
+        <Card t={t} title="📍 오늘 지역 랭킹" sub="오늘 올데이케어(자체) 원청 접수 전체 · 기간 필터와 무관">
+          {regionShown.length === 0 ? (
+            <div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>오늘 데이터 없음</div>
+          ) : (
+            <>
+              {regionShown.map((r, idx) => {
+                const pct = (r.count / maxRegion) * 100;
+                return (
+                  <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
+                    <span style={{ width: 16, flexShrink: 0, fontSize: 10, fontWeight: 800, color: idx === 0 ? t.accent : t.textMuted, textAlign: "right" }}>{idx + 1}</span>
+                    <span style={{ width: 58, flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
+                    <div style={{ flex: 1, height: 18, borderRadius: 6, background: t.bgInset || "rgba(148,163,184,.12)", overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: t.accent, borderRadius: 6, minWidth: r.count > 0 ? 4 : 0 }}/>
+                    </div>
+                    <span className="mono" style={{ width: 32, flexShrink: 0, textAlign: "right", fontSize: 11.5, fontWeight: 800, color: t.text }}>{r.count}</span>
+                  </div>
+                );
+              })}
+              <div style={{ marginTop: 4, paddingTop: 6, borderTop: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", fontSize: 10.5, color: t.textMuted, fontWeight: 700 }}>
+                <span>{regionRest > 0 ? `그 외 지역 ${_fmtKRW(regionRest)}건` : " "}</span>
+                <span>주소 미상 {regionTop.unknown}건 · 오늘 합계 {regionTop.grandTotal}건</span>
+              </div>
+            </>
+          )}
+        </Card>
         {/* 기간 필터 (아래 카드들에 적용) */}
         <div style={{ display: "flex", gap: 6 }}>
           {PERIOD_OPTS.map(opt => {
@@ -380,33 +411,6 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
                   )}
                 </>
               )}
-            </>
-          )}
-        </Card>
-
-        {/* 지역 랭킹 — 막대그래프 */}
-        <Card t={t} title="📍 지역 랭킹" sub="전화 포함 전체 자체 접수 (원청 제외)">
-          {regionShown.length === 0 ? (
-            <div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>이 기간 데이터 없음</div>
-          ) : (
-            <>
-              {regionShown.map((r, idx) => {
-                const pct = (r.count / maxRegion) * 100;
-                return (
-                  <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 7 }}>
-                    <span style={{ width: 16, flexShrink: 0, fontSize: 10, fontWeight: 800, color: idx === 0 ? t.accent : t.textMuted, textAlign: "right" }}>{idx + 1}</span>
-                    <span style={{ width: 58, flexShrink: 0, fontSize: 11.5, fontWeight: 700, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</span>
-                    <div style={{ flex: 1, height: 18, borderRadius: 6, background: t.bgInset || "rgba(148,163,184,.12)", overflow: "hidden" }}>
-                      <div style={{ width: `${pct}%`, height: "100%", background: t.accent, borderRadius: 6, minWidth: r.count > 0 ? 4 : 0 }}/>
-                    </div>
-                    <span className="mono" style={{ width: 32, flexShrink: 0, textAlign: "right", fontSize: 11.5, fontWeight: 800, color: t.text }}>{r.count}</span>
-                  </div>
-                );
-              })}
-              <div style={{ marginTop: 4, paddingTop: 6, borderTop: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", fontSize: 10.5, color: t.textMuted, fontWeight: 700 }}>
-                <span>{regionRest > 0 ? `그 외 지역 ${_fmtKRW(regionRest)}건` : " "}</span>
-                <span>주소 미상 {regionTop.unknown}건 · 합계 {regionTop.grandTotal}건</span>
-              </div>
             </>
           )}
         </Card>
