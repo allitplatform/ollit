@@ -32,6 +32,8 @@ import { AdminPcTaskSearchPanel } from "./AdminPcTaskSearchPanel.jsx";
 import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
 // 2026-07-28 — 원청별 표 속 취소 숫자 클릭 → 사유 목록 펼침 (모바일 통계허브와 동일 UX).
 import { getCancelReasonLabel } from "../data/cancelReasons.js";
+// 2026-07-29 — 접수 시간대 차트 공용화 (모바일 통계 허브와 같은 컴포넌트 사용).
+import { HourlyReceivedChart, hourBucketIndexKst } from "../components/admin/HourlyReceivedChart.jsx";
 
 function fmtKRW(n) {
   return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
@@ -984,8 +986,29 @@ function InquiriesBigCard({ count = 0, todayCount = 0, user, onClick }) {
   );
 }
 
+// 2026-07-29 — 날짜 이동 helper (YYYY-MM-DD ± n일, KST 기준 문자열 연산).
+function _shiftYmd(ymd, days) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  if (!y || !m || !d) return ymd;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+const _WD = ["일", "월", "화", "수", "목", "금", "토"];
+function _ymdLabel(ymd) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  if (!y) return ymd;
+  const w = _WD[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${m}/${d}(${w})`;
+}
+
 function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = false }) {
-  const today = todayYmd();
+  const todayY = todayYmd();
+  // 2026-07-29 — 사장님 요청: "다른 날짜도 볼 수 있으면 좋겠다".
+  //   기본은 오늘. apiTasks 는 전체 목록이 이미 메모리에 있어서 서버 재조회 없이 날짜만 바꿔 집계한다.
+  const [viewDate, setViewDate] = useState(todayY);
+  const today = viewDate;                       // 아래 집계 로직은 그대로 (변수명 유지)
+  const isToday = viewDate === todayY;
   // 2026-07-28 — 취소 목록 펼친 원청 code (하나만 펼쳐짐).
   const [openCancel, setOpenCancel] = useState(null);
 
@@ -998,9 +1021,6 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
     // 2026-07-21 — 오늘 접수 시간대 (사장님 확정: 표 + 접수 시간대형).
     //   버킷 13개: [~8시, 9, 10, ..., 19, 20시+]. 접수 필터(취소 제외)와 동일 모수.
     const hourlyArr = new Array(13).fill(0);
-    const hourFmt = new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Asia/Seoul", hour: "2-digit", hour12: false,
-    });
 
     for (const t of (apiTasks || [])) {
       if (!t) continue;
@@ -1010,9 +1030,8 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
       // 오늘 접수 — 표 카운트는 취소 제외 (기존 spec) / 시간대는 취소 포함 (사장님 spec: 전체 유입).
       const created = t.createdAt || t.created_at;
       if (created && toKstYmd(created) === today) {
-        const h = Number(hourFmt.format(new Date(created)));
-        const idx = h <= 8 ? 0 : h >= 20 ? 12 : h - 8;
-        hourlyArr[idx] += 1;
+        const idx = hourBucketIndexKst(created);
+        if (idx >= 0) hourlyArr[idx] += 1;
         // 2026-07-27 — 사장님 spec: 접수 = 전체 유입 (취소 포함), 취소는 별도 열.
         received.set(code, (received.get(code) || 0) + 1);
         if (t.status === "취소") {
@@ -1070,15 +1089,52 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
         display: "flex", alignItems: "baseline", justifyContent: "space-between",
         gap: 12,
       }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{
             fontSize: 15, fontWeight: 800,
             color: "var(--text-primary)",
             letterSpacing: "-0.3px",
-          }}>📊 원청별 오늘 현황</div>
-          <div style={{
-            fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
-          }}>{today}</div>
+          }}>📊 원청별 {isToday ? "오늘 " : ""}현황</div>
+
+          {/* 2026-07-29 — 날짜 이동 (◀ 어제 / 달력 / 내일 ▶ / 오늘로). 전부 클라 집계. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            <DayNavBtn label="◀" title="하루 전"
+              onClick={() => { setOpenCancel(null); setViewDate(d => _shiftYmd(d, -1)); }}/>
+            <input
+              type="date"
+              value={viewDate}
+              max={todayY}
+              onChange={(e) => { setOpenCancel(null); if (e.target.value) setViewDate(e.target.value); }}
+              style={{
+                padding: "3px 6px",
+                background: "var(--bg-secondary)",
+                border: "1px solid var(--border)",
+                borderRadius: 7,
+                color: "var(--text-primary)",
+                fontSize: 11, fontWeight: 700, fontFamily: "inherit",
+                colorScheme: "dark light",
+              }}
+            />
+            <DayNavBtn label="▶" title="하루 후" disabled={isToday}
+              onClick={() => { setOpenCancel(null); setViewDate(d => _shiftYmd(d, 1)); }}/>
+            {!isToday && (
+              <button type="button"
+                onClick={() => { setOpenCancel(null); setViewDate(todayY); }}
+                style={{
+                  marginLeft: 2, padding: "3px 9px",
+                  background: "var(--accent)", color: "#fff",
+                  border: "none", borderRadius: 7,
+                  fontSize: 10.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+                }}
+              >오늘</button>
+            )}
+          </div>
+
+          {!isToday && (
+            <span style={{ fontSize: 10.5, color: "var(--text-tertiary)", fontWeight: 700 }}>
+              {_ymdLabel(viewDate)} 지난 기록
+            </span>
+          )}
         </div>
         <div style={{
           fontSize: 10, color: "var(--text-tertiary)", fontWeight: 600,
@@ -1093,7 +1149,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
           color: "var(--text-secondary)", fontSize: 12, fontWeight: 600,
           background: "var(--bg-secondary)",
           borderRadius: 8,
-        }}>오늘 접수·완료 없음</div>
+        }}>{isToday ? "오늘" : _ymdLabel(viewDate)} 접수·완료 없음</div>
       ) : (
         <div style={{ overflowX: "auto" }}>
           <table style={{
@@ -1103,9 +1159,9 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
             <thead>
               <tr style={{ borderBottom: "1px solid var(--border)" }}>
                 <Th align="left"  width="26%">원청</Th>
-                <Th align="right" width="15%">오늘 접수</Th>
+                <Th align="right" width="15%">접수</Th>
                 <Th align="right" width="12%">취소</Th>
-                <Th align="right" width="15%">오늘 완료</Th>
+                <Th align="right" width="15%">완료</Th>
                 {!happycallMode && <Th align="right" width="38%">회사 몫</Th>}
               </tr>
             </thead>
@@ -1234,75 +1290,41 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
         </div>
       )}
 
-      {/* 2026-07-21 — 오늘 접수 시간대 (표 아래 여백 채움 — 사장님 확정안).
-            marginTop:auto — 카드가 fill 로 늘어난 만큼 바닥에 붙음. */}
+      {/* 2026-07-21 — 접수 시간대 (표 아래 여백 채움 — 사장님 확정안).
+            marginTop:auto — 카드가 fill 로 늘어난 만큼 바닥에 붙음.
+          2026-07-29 — 컴포넌트를 components/admin/HourlyReceivedChart.jsx 로 분리
+            (모바일 통계 허브와 공용). 과거 날짜를 볼 땐 "지금 시각" 강조를 끈다. */}
       {hourly.some(c => c > 0) && (
-        <HourlyReceivedChart hourly={hourly} total={hourly.reduce((a, b) => a + b, 0)}/>
+        <HourlyReceivedChart
+          hourly={hourly}
+          total={hourly.reduce((a, b) => a + b, 0)}
+          title={isToday ? "오늘 접수 시간대" : `${_ymdLabel(viewDate)} 접수 시간대`}
+          highlightNow={isToday}
+        />
       )}
     </div>
   );
 }
 
-// 2026-07-21 — 오늘 접수 시간대 미니 히스토그램 (~8시 / 9~19시 / 20시+ 13버킷).
-//   현재 시간 버킷 = 핑크 강조. hover 시 건수 title.
-function HourlyReceivedChart({ hourly = [], total = 0 }) {
-  const max = Math.max(1, ...hourly);
-  const nowH = Number(new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Seoul", hour: "2-digit", hour12: false,
-  }).format(new Date()));
-  const nowIdx = nowH <= 8 ? 0 : nowH >= 20 ? 12 : nowH - 8;
-  const labels = ["~8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20+"];
-
+// 2026-07-29 — 날짜 이동 버튼 (◀ / ▶). 작고 조용한 스타일 — 카드 제목 옆.
+function DayNavBtn({ label, title, onClick, disabled = false }) {
   return (
-    <div style={{ marginTop: "auto", paddingTop: 12, borderTop: "1px solid var(--border)" }}>
-      <div style={{
-        fontSize: 10.5, fontWeight: 800, color: "var(--text-secondary)",
-        marginBottom: 8, display: "flex", justifyContent: "space-between",
-      }}>
-        <span>🕐 오늘 접수 시간대 <span style={{ fontWeight: 600, color: "var(--text-tertiary)" }}>(취소 포함)</span></span>
-        <span style={{ fontVariantNumeric: "tabular-nums" }}>{total}건</span>
-      </div>
-      {/* 2026-07-27 — 사장님 spec: 막대 위 건수 숫자 (0 은 표시 안 함) */}
-      <div style={{ display: "flex", alignItems: "stretch", gap: 4, height: 70 }}>
-        {hourly.map((c, i) => (
-          <div key={i} title={`${labels[i]}시 · ${c}건`} style={{
-            flex: 1, minWidth: 0,
-            display: "flex", flexDirection: "column", justifyContent: "flex-end",
-          }}>
-            <div style={{
-              textAlign: "center", fontSize: 9.5, fontWeight: 800,
-              lineHeight: "11px", marginBottom: 2,
-              fontVariantNumeric: "tabular-nums",
-              color: i === nowIdx ? "var(--accent)" : "var(--text-secondary)",
-              visibility: c > 0 ? "visible" : "hidden",
-            }}>{c}</div>
-            <div style={{ flex: 1, display: "flex", alignItems: "flex-end" }}>
-              <div style={{
-                width: "100%",
-                height: `${c > 0 ? Math.max(12, Math.round((c / max) * 100)) : 5}%`,
-                borderRadius: "4px 4px 2px 2px",
-                background: c > 0
-                  ? (i === nowIdx ? "var(--accent)" : "var(--accent-bg)")
-                  : "var(--bg-secondary)",
-                border: c > 0
-                  ? `1px solid ${i === nowIdx ? "var(--accent)" : "rgba(255,27,141,0.35)"}`
-                  : "1px solid var(--border)",
-              }}/>
-            </div>
-          </div>
-        ))}
-      </div>
-      <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
-        {labels.map((lb, i) => (
-          <span key={lb} style={{
-            flex: 1, textAlign: "center",
-            fontSize: 8.5, fontWeight: i === nowIdx ? 800 : 600,
-            color: i === nowIdx ? "var(--accent)" : "var(--text-tertiary)",
-            whiteSpace: "nowrap",
-          }}>{lb}</span>
-        ))}
-      </div>
-    </div>
+    <button
+      type="button"
+      title={title}
+      disabled={disabled}
+      onClick={disabled ? undefined : onClick}
+      style={{
+        width: 24, height: 24, lineHeight: "22px", padding: 0,
+        background: "var(--bg-secondary)",
+        border: "1px solid var(--border)",
+        borderRadius: 7,
+        color: disabled ? "var(--text-tertiary)" : "var(--text-primary)",
+        opacity: disabled ? 0.4 : 1,
+        fontSize: 10, fontWeight: 800, fontFamily: "inherit",
+        cursor: disabled ? "default" : "pointer",
+      }}
+    >{label}</button>
   );
 }
 

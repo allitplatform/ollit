@@ -14,6 +14,9 @@ import { todayYmd, toKstYmd } from "../../utils/dateLabel.js";
 import { RegionStatsScreen } from "./RegionStatsScreen.jsx";
 // 2026-07-27 — 취소 숫자 클릭 → 목록 펼침 (사유 한국어 라벨)
 import { getCancelReasonLabel } from "../../data/cancelReasons.js";
+// 2026-07-29 — 사장님 요청 "모바일 접수현황에도 접수 시간대가 있으면 좋겠다".
+//   PC 대시보드와 같은 컴포넌트를 공용으로 씀 (숫자 기준도 자동으로 같아짐).
+import { HourlyReceivedChart, hourBucketIndexKst } from "./HourlyReceivedChart.jsx";
 
 // 표시 순서·색 — receptionForm.js PRINCIPALS 색과 동기 (수동 복사).
 const PRINCIPAL_ORDER = [
@@ -46,6 +49,11 @@ function _startOfMonthYmd() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
 }
+// 2026-07-29 — 차트 제목용 기간 이름 ("오늘 접수 시간대" 처럼).
+function _periodLabel(period) {
+  return (PERIOD_OPTS.find(o => o.id === period) || {}).label || "";
+}
+
 function _range(period) {
   const today = todayYmd();
   if (period === "today") return { start: today,               end: today };
@@ -61,7 +69,10 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
   const [openCancel, setOpenCancel] = useState(null);   // 취소 목록 펼친 원청 code
   const { start, end } = useMemo(() => _range(period), [period]);
 
-  const { rows, totals } = useMemo(() => {
+  const { rows, totals, hourly } = useMemo(() => {
+    // 2026-07-29 — 접수 시간대 13버킷 [~8시, 9..19, 20시+].
+    //   선택 기간 전체를 "몇 시에 들어왔나" 로 합산 (취소 포함 = 전체 유입).
+    const hourlyArr = new Array(13).fill(0);
     const received = new Map();
     const canceled = new Map();   // 2026-07-27 — 사장님 spec: 취소도 보이게
     const cxList   = new Map();   // code → 취소 task 목록 (클릭 펼침용)
@@ -79,6 +90,8 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
           // 2026-07-27 v2 — 사장님 spec: 접수 = 전체 유입 (취소 포함).
           //   "61 접수 + 취소 13" 이 빼기처럼 읽힘 — 진짜 들어온 건 74. 취소는 그중 일부.
           received.set(code, (received.get(code) || 0) + 1);
+          const hIdx = hourBucketIndexKst(created);
+          if (hIdx >= 0) hourlyArr[hIdx] += 1;
           if (tk.status === "취소") {
             canceled.set(code, (canceled.get(code) || 0) + 1);
             if (!cxList.has(code)) cxList.set(code, []);
@@ -110,6 +123,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
     all.sort((a, b) => b.received - a.received || b.done - a.done);
     return {
       rows: all,
+      hourly: hourlyArr,
       totals: {
         received: all.reduce((s, r) => s + r.received, 0),
         canceled: all.reduce((s, r) => s + r.canceled, 0),
@@ -268,6 +282,24 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
           </div>
         )}
       </div>
+
+      {/* 2026-07-29 — 접수 시간대 (PC 대시보드와 같은 컴포넌트).
+            기간을 바꾸면 그 기간 전체를 시간대별로 합산해서 보여준다.
+            "오늘" 일 때만 지금 시각 막대를 핑크로 강조. */}
+      {hourly.some(c => c > 0) && (
+        <div style={{
+          background: t.bgElevated, border: `1px solid ${t.border}`,
+          borderRadius: 14, padding: "10px 14px 12px", marginTop: 10,
+        }}>
+          <HourlyReceivedChart
+            hourly={hourly}
+            total={totals.received}
+            title={`${_periodLabel(period)} 접수 시간대`}
+            highlightNow={period === "today"}
+            compact
+          />
+        </div>
+      )}
 
       <div style={{ fontSize: 10, color: t.textMuted, marginTop: 10, lineHeight: 1.7 }}>
         회사 몫 = 운영비 빼기 전 금액 (이익 아님). 유솔N 은 월정산이라 금액 미확정.<br/>
