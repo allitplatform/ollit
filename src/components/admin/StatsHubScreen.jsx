@@ -74,6 +74,14 @@ function _range(period, customStart, customEnd) {
 }
 const _won = (n) => (Number(n) || 0).toLocaleString("ko-KR");
 
+// 2026-07-29 — 어제 날짜 (문자열 계산이라 시간대 사고가 안 난다).
+function _prevYmd(ymd) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
 // ─── 원청별 탭 ───────────────────────────────────────────
 function PrincipalStatsTab({ t, apiTasks = [] }) {
   // 2026-07-29 — 기본값 week → today (사장님 요청).
@@ -86,10 +94,14 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
     [period, customStart, customEnd]
   );
 
-  const { rows, totals, hourly } = useMemo(() => {
+  const yesterYmd = useMemo(() => _prevYmd(todayYmd()), []);
+
+  const { rows, totals, hourly, ydayHourly } = useMemo(() => {
     // 2026-07-29 — 접수 시간대 13버킷 [~8시, 9..19, 20시+].
     //   선택 기간 전체를 "몇 시에 들어왔나" 로 합산 (취소 포함 = 전체 유입).
     const hourlyArr = new Array(13).fill(0);
+    // 어제 같은 그림 — "어제 이맘때 몇 건이었나" 비교용 (기간과 무관하게 항상 계산).
+    const ydayArr = new Array(13).fill(0);
     const received = new Map();
     const canceled = new Map();   // 2026-07-27 — 사장님 spec: 취소도 보이게
     const cxList   = new Map();   // code → 취소 task 목록 (클릭 펼침용)
@@ -103,6 +115,11 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
       const created = tk.createdAt || tk.created_at;
       if (created) {
         const k = toKstYmd(created);
+        // 어제 접수 — 선택 기간과 상관없이 항상 따로 센다 (비교 기준).
+        if (k === yesterYmd) {
+          const yIdx = hourBucketIndexKst(created);
+          if (yIdx >= 0) ydayArr[yIdx] += 1;
+        }
         if (k && k >= start && k <= end) {
           // 2026-07-27 v2 — 사장님 spec: 접수 = 전체 유입 (취소 포함).
           //   "61 접수 + 취소 13" 이 빼기처럼 읽힘 — 진짜 들어온 건 74. 취소는 그중 일부.
@@ -141,6 +158,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
     return {
       rows: all,
       hourly: hourlyArr,
+      ydayHourly: ydayArr,
       totals: {
         received: all.reduce((s, r) => s + r.received, 0),
         canceled: all.reduce((s, r) => s + r.canceled, 0),
@@ -148,9 +166,32 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
         owner:    all.reduce((s, r) => s + (r.isTrackB ? 0 : r.owner), 0),
       },
     };
-  }, [apiTasks, start, end]);
+  }, [apiTasks, start, end, yesterYmd]);
 
   const maxReceived = Math.max(1, ...rows.map(r => r.received));
+
+  // 2026-07-29 — "어제 이맘때 몇 건, 오늘 몇 건" 비교.
+  //   ⚠️ 하루 총량끼리 비교하면 오전엔 무조건 지는 것처럼 보인다.
+  //      그래서 '지금 시각까지 누적' 끼리만 비교한다.
+  //   ⚠️ 어제 하루 한 건과의 비교라 표본이 1개다. 추세가 아니라 눈금으로만 쓸 것.
+  const isToday = period === "today"
+    || (period === "custom" && start === end && start === todayYmd());
+  const cmp = useMemo(() => {
+    if (!isToday) return null;
+    const nowIdx = hourBucketIndexKst(new Date());
+    if (nowIdx < 0) return null;
+    let now = 0, yNow = 0;
+    for (let i = 0; i <= nowIdx; i++) {
+      now  += hourly[i]     || 0;
+      yNow += ydayHourly[i] || 0;
+    }
+    const yAll = ydayHourly.reduce((s, v) => s + (v || 0), 0);
+    if (yAll === 0) return null;                 // 어제 데이터가 없으면 비교 안 함
+    const diff = yNow > 0 ? Math.round(((now - yNow) / yNow) * 100) : null;
+    // 착지 예상 = 오늘누적 × (어제하루 ÷ 어제같은시각). 어제 패턴이 오늘도 같다고 가정.
+    const projected = yNow > 0 ? Math.round(now * (yAll / yNow)) : null;
+    return { now, yNow, yAll, diff, projected, nowIdx };
+  }, [isToday, hourly, ydayHourly]);
 
   const chip = (opt) => {
     const on = period === opt.id;
@@ -251,6 +292,43 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
           : (start === end ? `${start} (하루)` : `${start} ~ ${end}`)}
         {period !== "all" && " · KST 기준"}
       </div>
+
+      {/* 2026-07-29 — 사장님 요청: "어제는 얼마인데 오늘 몇 개 들어왔나".
+            같은 시각까지 누적끼리 비교 (하루 총량 비교는 오전에 항상 지는 것처럼 보임). */}
+      {cmp && (
+        <div style={{
+          background: t.bgElevated, border: `1px solid ${t.border}`,
+          borderRadius: 12, padding: "11px 13px", marginBottom: 12,
+        }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 6, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: t.textSecondary }}>
+              어제 이맘때
+            </span>
+            <span style={{ fontSize: 15, fontWeight: 800, color: t.textSecondary, fontVariantNumeric: "tabular-nums" }}>
+              {cmp.yNow}건
+            </span>
+            <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 700 }}>→</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: t.textSecondary }}>오늘</span>
+            <span style={{ fontSize: 20, fontWeight: 800, color: t.text, fontVariantNumeric: "tabular-nums", letterSpacing: "-0.5px" }}>
+              {cmp.now}건
+            </span>
+            {cmp.diff !== null && (
+              <span style={{
+                fontSize: 12.5, fontWeight: 800, fontVariantNumeric: "tabular-nums",
+                color: cmp.diff > 0 ? "#10B981" : cmp.diff < 0 ? "#FF3B5C" : t.textMuted,
+              }}>
+                {cmp.diff > 0 ? "▲" : cmp.diff < 0 ? "▼" : "="} {Math.abs(cmp.diff)}%
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: 5, lineHeight: 1.6 }}>
+            어제 하루 {cmp.yAll}건
+            {cmp.projected !== null && <> · 이 흐름이면 오늘 <b style={{ color: t.textSecondary }}>{cmp.projected}건</b> 예상</>}
+            <br/>
+            접수량은 광고비를 따라갑니다. 광고비가 어제와 다르면 이 숫자만으로 판단하지 마세요.
+          </div>
+        </div>
+      )}
 
       {/* 합계 3칸 */}
       <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
@@ -376,8 +454,9 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
             hourly={hourly}
             total={totals.received}
             title={`${_periodLabel(period)} 접수 시간대`}
-            highlightNow={period === "today"
-              || (period === "custom" && start === end && start === todayYmd())}
+            highlightNow={isToday}
+            compare={cmp ? ydayHourly : null}
+            compareLabel="어제"
             compact
           />
         </div>

@@ -12,6 +12,9 @@
 //     note         : string         (제목 옆 작은 회색 글 / 기본 "(취소 포함)")
 //     highlightNow : boolean        (true 면 현재 시각 버킷 핑크 강조 — 오늘 볼 때만 켠다)
 //     compact      : boolean        (모바일 — 높이/글자 축소)
+//     compare      : number[13]|null (2026-07-29 추가 — 뒤에 깔 회색 비교 막대. 보통 '어제')
+//     compareLabel : string          (범례 글자 / 기본 "어제")
+//   ⚠️ compare 는 옵션. 안 넘기면 이전과 100% 동일하게 그린다 (PC 대시보드 무손).
 
 import React from "react";
 
@@ -34,11 +37,16 @@ export function HourlyReceivedChart({
   note = "(취소 포함)",
   highlightNow = true,
   compact = false,
+  compare = null,
+  compareLabel = "어제",
 }) {
   const arr = Array.isArray(hourly) && hourly.length === 13
     ? hourly
     : new Array(13).fill(0);
-  const max = Math.max(1, ...arr);
+  // 비교 배열은 길이 13 일 때만 인정 (잘못 넘어오면 그냥 무시 = 예전 그림).
+  const cmpArr = Array.isArray(compare) && compare.length === 13 ? compare : null;
+  // 눈금은 두 배열을 합쳐서 잡아야 높이 비교가 거짓말을 안 한다.
+  const max = Math.max(1, ...arr, ...(cmpArr || []));
   const nowIdx = highlightNow ? hourBucketIndexKst(new Date()) : -1;
   const barH = compact ? 56 : 70;
 
@@ -51,14 +59,29 @@ export function HourlyReceivedChart({
         <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           🕐 {title}
           {note ? <span style={{ fontWeight: 600, color: "var(--text-tertiary)" }}> {note}</span> : null}
+          {cmpArr && (
+            <span style={{ fontWeight: 600, color: "var(--text-tertiary)" }}>
+              {" · "}
+              <span style={{
+                display: "inline-block", width: 7, height: 7, borderRadius: 2,
+                background: "var(--bg-secondary)", border: "1px solid var(--border)",
+                marginRight: 3, verticalAlign: "middle",
+              }}/>
+              {compareLabel}
+            </span>
+          )}
         </span>
         <span style={{ fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>{total}건</span>
       </div>
 
       {/* 막대 위 건수 숫자 (0 은 자리만 차지, 표시 안 함) */}
       <div style={{ display: "flex", alignItems: "stretch", gap: compact ? 2 : 4, height: barH }}>
-        {arr.map((c, i) => (
-          <div key={i} title={`${HOUR_BUCKET_LABELS[i]}시 · ${c}건`} style={{
+        {arr.map((c, i) => {
+          const cmp = cmpArr ? (Number(cmpArr[i]) || 0) : null;
+          return (
+          <div key={i} title={cmpArr
+            ? `${HOUR_BUCKET_LABELS[i]}시 · 오늘 ${c}건 / ${compareLabel} ${cmp}건`
+            : `${HOUR_BUCKET_LABELS[i]}시 · ${c}건`} style={{
             flex: 1, minWidth: 0,
             display: "flex", flexDirection: "column", justifyContent: "flex-end",
           }}>
@@ -69,9 +92,21 @@ export function HourlyReceivedChart({
               color: i === nowIdx ? "var(--accent)" : "var(--text-secondary)",
               visibility: c > 0 ? "visible" : "hidden",
             }}>{c}</div>
-            <div style={{ flex: 1, display: "flex", alignItems: "flex-end" }}>
+            <div style={{ flex: 1, display: "flex", alignItems: "flex-end", position: "relative" }}>
+              {/* 비교(어제) 막대 — 뒤에 넓게 깔고, 오늘 막대를 그 위에 좁게 얹는다 */}
+              {cmp !== null && cmp > 0 && (
+                <div style={{
+                  position: "absolute", left: 0, right: 0, bottom: 0,
+                  height: `${Math.max(6, Math.round((cmp / max) * 100))}%`,
+                  borderRadius: "4px 4px 2px 2px",
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border)",
+                }}/>
+              )}
               <div style={{
-                width: "100%",
+                position: "relative",
+                width: cmpArr ? "58%" : "100%",
+                margin: cmpArr ? "0 auto" : 0,
                 height: `${c > 0 ? Math.max(12, Math.round((c / max) * 100)) : 5}%`,
                 borderRadius: "4px 4px 2px 2px",
                 background: c > 0
@@ -83,7 +118,8 @@ export function HourlyReceivedChart({
               }}/>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div style={{ display: "flex", gap: compact ? 2 : 4, marginTop: 4 }}>
