@@ -30,11 +30,14 @@ const PRINCIPAL_ORDER = [
 ];
 const USOLN_CODE = "usol_n";
 
+// 2026-07-29 — 사장님 요청: 기본은 '오늘', 날짜도 직접 고를 수 있게.
+//   '직접' 옵션·산식은 RegionStatsScreen 과 동일하게 맞춤 (두 탭이 따로 놀면 헷갈림).
 const PERIOD_OPTS = [
-  { id: "today", label: "오늘" },
-  { id: "week",  label: "이번주" },
-  { id: "month", label: "이번달" },
-  { id: "all",   label: "전체" },
+  { id: "today",  label: "오늘" },
+  { id: "week",   label: "이번주" },
+  { id: "month",  label: "이번달" },
+  { id: "all",    label: "전체" },
+  { id: "custom", label: "직접" },
 ];
 
 function _startOfWeekMonYmd() {
@@ -51,23 +54,37 @@ function _startOfMonthYmd() {
 }
 // 2026-07-29 — 차트 제목용 기간 이름 ("오늘 접수 시간대" 처럼).
 function _periodLabel(period) {
+  if (period === "custom") return "선택 기간";
   return (PERIOD_OPTS.find(o => o.id === period) || {}).label || "";
 }
 
-function _range(period) {
+function _range(period, customStart, customEnd) {
   const today = todayYmd();
   if (period === "today") return { start: today,               end: today };
   if (period === "week")  return { start: _startOfWeekMonYmd(), end: today };
   if (period === "month") return { start: _startOfMonthYmd(),   end: today };
+  if (period === "custom") {
+    // 한쪽만 고르면 그 하루. 거꾸로 골라도 알아서 뒤집는다 (사용자 실수 관대).
+    let s = customStart || today;
+    let e = customEnd   || s;
+    if (s > e) { const tmp = s; s = e; e = tmp; }
+    return { start: s, end: e };
+  }
   return { start: "0000-01-01", end: "9999-12-31" };
 }
 const _won = (n) => (Number(n) || 0).toLocaleString("ko-KR");
 
 // ─── 원청별 탭 ───────────────────────────────────────────
 function PrincipalStatsTab({ t, apiTasks = [] }) {
-  const [period, setPeriod] = useState("week");
+  // 2026-07-29 — 기본값 week → today (사장님 요청).
+  const [period, setPeriod] = useState("today");
+  const [customStart, setCustomStart] = useState(() => todayYmd());
+  const [customEnd,   setCustomEnd]   = useState(() => todayYmd());
   const [openCancel, setOpenCancel] = useState(null);   // 취소 목록 펼친 원청 code
-  const { start, end } = useMemo(() => _range(period), [period]);
+  const { start, end } = useMemo(
+    () => _range(period, customStart, customEnd),
+    [period, customStart, customEnd]
+  );
 
   const { rows, totals, hourly } = useMemo(() => {
     // 2026-07-29 — 접수 시간대 13버킷 [~8시, 9..19, 20시+].
@@ -139,12 +156,12 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
     const on = period === opt.id;
     return (
       <button key={opt.id} type="button" onClick={() => setPeriod(opt.id)} style={{
-        flex: 1, padding: "8px 0", textAlign: "center",
+        flex: 1, minWidth: 0, padding: "8px 0", textAlign: "center", whiteSpace: "nowrap",
         background: on ? t.accent : "transparent",
         border: `1px solid ${on ? t.accent : t.border}`,
         borderRadius: 10,
         color: on ? "#fff" : t.textSecondary,
-        fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+        fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
       }}>{opt.label}</button>
     );
   };
@@ -167,8 +184,72 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
   return (
     <div style={{ padding: "12px 16px" }}>
       {/* 기간 칩 */}
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+      <div style={{ display: "flex", gap: 5, marginBottom: 8 }}>
         {PERIOD_OPTS.map(chip)}
+      </div>
+
+      {/* 2026-07-29 — '직접' 선택 시 시작일 ~ 종료일 달력.
+            한쪽만 바꾸면 반대쪽을 따라가게 해서 "하루만 보기" 가 쉽게 된다. */}
+      {period === "custom" && (
+        <div style={{
+          display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap",
+          marginBottom: 8,
+        }}>
+          <input
+            type="date"
+            value={customStart}
+            max={todayYmd()}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) return;
+              setCustomStart(v);
+              if (v > customEnd) setCustomEnd(v);
+            }}
+            style={{
+              flex: 1, minWidth: 128, padding: "7px 8px",
+              background: t.bgElevated, border: `1px solid ${t.border}`,
+              borderRadius: 9, color: t.text,
+              fontSize: 12, fontWeight: 700, fontFamily: "inherit", outline: "none",
+            }}
+            aria-label="시작일"
+          />
+          <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 700 }}>~</span>
+          <input
+            type="date"
+            value={customEnd}
+            max={todayYmd()}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (!v) return;
+              setCustomEnd(v);
+              if (v < customStart) setCustomStart(v);
+            }}
+            style={{
+              flex: 1, minWidth: 128, padding: "7px 8px",
+              background: t.bgElevated, border: `1px solid ${t.border}`,
+              borderRadius: 9, color: t.text,
+              fontSize: 12, fontWeight: 700, fontFamily: "inherit", outline: "none",
+            }}
+            aria-label="종료일"
+          />
+          <button
+            type="button"
+            onClick={() => { const d = todayYmd(); setCustomStart(d); setCustomEnd(d); }}
+            style={{
+              padding: "6px 11px", background: "transparent",
+              border: `1px solid ${t.border}`, borderRadius: 999,
+              color: t.textSecondary, fontSize: 11, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+            }}>오늘로</button>
+        </div>
+      )}
+
+      {/* 지금 보고 있는 기간 — 칩만 보면 며칠치인지 헷갈려서 항상 표시 */}
+      <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginBottom: 12 }}>
+        {period === "all"
+          ? "전체 기간"
+          : (start === end ? `${start} (하루)` : `${start} ~ ${end}`)}
+        {period !== "all" && " · KST 기준"}
       </div>
 
       {/* 합계 3칸 */}
@@ -295,7 +376,8 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
             hourly={hourly}
             total={totals.received}
             title={`${_periodLabel(period)} 접수 시간대`}
-            highlightNow={period === "today"}
+            highlightNow={period === "today"
+              || (period === "custom" && start === end && start === todayYmd())}
             compact
           />
         </div>
