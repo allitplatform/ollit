@@ -3850,6 +3850,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
         onNotifications={() => setScreen("notificationSettings")}
         onAnnouncements={() => setScreen("announcements")}
         onEngineerCalendar={() => setScreen("engineerCalendar")}
+        onMarketing={() => setScreen("marketing")}
         onBackup={() => addToast({ type: "assignment", title: "백업 / 복원", message: "준비 중인 기능입니다" })}
         onUsolN={(menuId) => setScreen(menuId)}
         onSettlement={() => setScreen("settlement")}

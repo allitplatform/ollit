@@ -53,6 +53,7 @@ export function SettingsScreen({
   onUsolN, onSettlement, onPrincipalSettlement,
   onAnnouncements,  // 2026-07-24 — 공지사항 (개요 탭에서 설정으로 이동)
   onEngineerCalendar,  // 2026-07-24 — 기사별 달력 (개요 탭 타일 제거 → 설정으로 이동)
+  onMarketing,  // 2026-07-29 — 마케팅 조감 (PC 사이드바 전용이던 걸 PWA 설정에서도 진입 가능하게)
   onCommissionPolicy,  // Phase 2 — 수수료정책 관리 (admin/owner/operator)
   themeMode, onToggleTheme,
   autoPushOn, onToggleAutoPush,  // 2026-07-14 — 냉매충전 자동배정 푸시 ON/OFF (Mig 179)
@@ -195,6 +196,7 @@ export function SettingsScreen({
     { key: "commission_policy", icon: "📊", label: "수수료정책 관리", sub: "Supabase 78 정책 + 계산기", onClick: onCommissionPolicy },
   ];
   const system = [
+    { key: "marketing",       icon: "📈", label: "마케팅",       sub: "광고비 · 접수 리포트 (실시간)", onClick: onMarketing },
     { key: "users",           icon: "👥", label: "사용자 / 권한", sub: "5역할",  perm: "menu.users",         onClick: onUsers },
     { key: "company_account", icon: "💳", label: "회사 계좌",     sub: "변경 가능 (운영자)", perm: "menu.company_account", onClick: onCompanyAccount },
     { key: "announcements",   icon: "📢", label: "공지사항 관리", sub: "기사 공지", onClick: onAnnouncements },
