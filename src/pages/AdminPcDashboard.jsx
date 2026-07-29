@@ -31,7 +31,7 @@ import { getUsolnSettleBoardSummary } from "../lib/usolnSettleBoardDb.js";
 import { AdminPcTaskSearchPanel } from "./AdminPcTaskSearchPanel.jsx";
 import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
 // 2026-07-28 — 원청별 표 속 취소 숫자 클릭 → 사유 목록 펼침 (모바일 통계허브와 동일 UX).
-import { getCancelReasonLabel } from "../data/cancelReasons.js";
+import { getCancelReasonLabel, isMistakeTask } from "../data/cancelReasons.js";
 // 2026-07-29 — 접수 시간대 차트 공용화 (모바일 통계 허브와 같은 컴포넌트 사용).
 import { HourlyReceivedChart, hourBucketIndexKst } from "../components/admin/HourlyReceivedChart.jsx";
 
@@ -1012,7 +1012,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
   // 2026-07-28 — 취소 목록 펼친 원청 code (하나만 펼쳐짐).
   const [openCancel, setOpenCancel] = useState(null);
 
-  const { rows, totals, hourly } = useMemo(() => {
+  const { rows, totals, hourly, skipped } = useMemo(() => {
     const received = new Map();
     const canceled = new Map();   // 2026-07-27 — 통계 허브와 기준 통일 (접수=전체 유입)
     const cxList   = new Map();   // 2026-07-28 — code → 취소 task 목록 (클릭 펼침용)
@@ -1021,11 +1021,20 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
     // 2026-07-21 — 오늘 접수 시간대 (사장님 확정: 표 + 접수 시간대형).
     //   버킷 13개: [~8시, 9, 10, ..., 19, 20시+]. 접수 필터(취소 제외)와 동일 모수.
     const hourlyArr = new Array(13).fill(0);
+    // 2026-07-29 — 오접수(실수) 제외 건수 (조용히 빼지 않고 화면에 알린다).
+    let skippedN = 0;
 
     for (const t of (apiTasks || [])) {
       if (!t) continue;
       const code = String(t.principalCode || t.principal_code || "").trim();
       if (!code) continue;
+
+      // 2026-07-29 — 오접수: 접수·취소·취소율·시간대 전부에서 제외 (기록은 남음).
+      if (isMistakeTask(t)) {
+        const c = t.createdAt || t.created_at;
+        if (c && toKstYmd(c) === today) skippedN += 1;
+        continue;
+      }
 
       // 오늘 접수 — 표 카운트는 취소 제외 (기존 spec) / 시간대는 취소 포함 (사장님 spec: 전체 유입).
       const created = t.createdAt || t.created_at;
@@ -1069,7 +1078,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
       owner:    rowsAll.reduce((s, r) => s + (r.isTrackB ? 0 : r.owner), 0),
     };
 
-    return { rows: rowsAll, totals: totalsRow, hourly: hourlyArr };
+    return { rows: rowsAll, totals: totalsRow, hourly: hourlyArr, skipped: skippedN };
   }, [apiTasks, today]);
 
   // 2026-07-21 v3 — 비중 바 기준 최대값 (트랙 A 행만)
@@ -1301,6 +1310,19 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
           title={isToday ? "오늘 접수 시간대" : `${_ymdLabel(viewDate)} 접수 시간대`}
           highlightNow={isToday}
         />
+      )}
+
+      {/* 2026-07-29 — 오접수 제외 알림 */}
+      {skipped > 0 && (
+        <div style={{
+          marginTop: 8, padding: "6px 9px",
+          background: "rgba(245,158,11,0.10)",
+          border: "1px solid rgba(245,158,11,0.28)",
+          borderRadius: 7,
+          fontSize: 10.5, fontWeight: 700, color: "#B45309",
+        }}>
+          🗑️ 오접수 {skipped}건 제외됨 (작업 상세에서 되돌릴 수 있음)
+        </div>
       )}
     </div>
   );

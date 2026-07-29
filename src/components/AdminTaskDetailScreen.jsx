@@ -33,7 +33,7 @@ import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
 // 2026-05-29 — 취소 정보 카드 측 사용자 이름 lookup (사장님 D2-b)
 import { getUserById } from "../data/users.js";
 // 2026-05-29 v2 — 이름 위주 표시 (D2) + 한국어 사유/원청 라벨
-import { getCancelReasonLabel, getCancelActorLabel } from "../data/cancelReasons.js";
+import { getCancelReasonLabel, getCancelActorLabel, isMistakeCancelReason } from "../data/cancelReasons.js";
 import { setTaskCancelInfo, adminRestoreCanceledTask } from "../lib/cancelRpc.js";
 // Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
 import { listPhotosByTask } from "../lib/photosDb.js";
@@ -1866,6 +1866,48 @@ function CancelInfoCard({ task, onSaved }) {
     { v: "customer", label: "고객" },
   ];
 
+  // 2026-07-29 — 오접수 표시 / 해제 (한 번에 저장까지).
+  //   표시: 사유 앞머리를 'mistake' 로 바꾼다 → 접수·취소·취소율·시간대 집계에서 빠짐.
+  //   해제: 앞머리를 'other' 로 되돌린다 → 다시 통계에 잡힘. 원문 메모는 보존.
+  const isMistake = isMistakeCancelReason(reason);
+  async function handleToggleMistake() {
+    if (saving) return;
+    // 사유 앞머리(id)와 메모를 분리 — 구분자는 " · " / " — " 둘 다.
+    const text  = String(reason || "").trim();
+    const parts = text.split(/\s+[·—]\s+/);
+    const memo  = parts.slice(1).join(" · ").trim()
+               || (parts.length === 1 && !/^(customer|schedule|onsite|other|mistake)$/.test(parts[0]) ? parts[0] : "");
+    const nextId = isMistake ? "other" : "mistake";
+    const next   = memo ? `${nextId} · ${memo}` : nextId;
+    if (!isMistake && !window.confirm(
+      "이 건을 '오접수(실수)' 로 표시할까요?\n\n" +
+      "접수 · 취소 · 취소율 · 시간대 통계에서 빠집니다.\n" +
+      "기록은 그대로 남고 여기서 언제든 되돌릴 수 있습니다."
+    )) return;
+    setError("");
+    setSaving(true);
+    try {
+      const res = await setTaskCancelInfo({
+        taskId: task.id,
+        actorKind: actorKind || "operator",   // 취소자 미입력이어도 한 번에 되게
+        reason: next,
+      });
+      if (!res || res.ok === false) {
+        setError((res && res.error) || "저장 실패");
+        return;
+      }
+      setReason(next);
+      if (!actorKind) setActorKind("operator");
+      setSavedFlash(true);
+      setTimeout(() => setSavedFlash(false), 1500);
+      onSaved && onSaved();
+    } catch (e) {
+      setError(e?.message || "저장 중 오류");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px dashed var(--border)" }}>
       <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 700, marginBottom: 6 }}>
@@ -1939,6 +1981,35 @@ function CancelInfoCard({ task, onSaved }) {
           }}>
           {saving ? "저장 중..." : "💾 저장"}
         </button>
+
+        {/* 2026-07-29 — 오접수 표시 / 해제 (통계 제외 토글) */}
+        <div style={{ borderTop: "1px dashed var(--border)", paddingTop: 8 }}>
+          {isMistake && (
+            <div style={{
+              fontSize: 11, fontWeight: 700, color: "#B45309",
+              background: "rgba(245,158,11,0.12)",
+              border: "1px solid rgba(245,158,11,0.3)",
+              borderRadius: 6, padding: "6px 8px", marginBottom: 6,
+            }}>
+              🗑️ 오접수로 표시됨 — 접수·취소·취소율 통계에서 제외 중
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={handleToggleMistake}
+            disabled={saving}
+            style={{
+              width: "100%", padding: "8px 12px",
+              fontSize: 12, fontWeight: 700,
+              border: `1px solid ${isMistake ? "var(--border)" : "rgba(245,158,11,0.5)"}`,
+              borderRadius: 6,
+              background: isMistake ? "var(--bg-elevated)" : "rgba(245,158,11,0.10)",
+              color: isMistake ? "var(--text-secondary)" : "#B45309",
+              cursor: saving ? "default" : "pointer",
+            }}>
+            {isMistake ? "↩️ 오접수 해제 (통계에 다시 넣기)" : "🗑️ 오접수로 표시 (통계에서 빼기)"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2829,6 +2900,8 @@ function CancelDialog({ task, onClose, onConfirm }) {
     { id: "schedule", emoji: "📅", label: "일정 조율 실패" },
     { id: "onsite",   emoji: "⚠️", label: "현장 작업 불가" },
     { id: "other",    emoji: "📝", label: "기타" },
+    // 2026-07-29 — 오접수. 고르면 접수·취소·취소율 집계에서 빠진다 (기록은 남음).
+    { id: "mistake",  emoji: "🗑️", label: "오접수 (실수) — 통계 제외" },
   ];
   const [selectedId, setSelectedId] = useState("customer");
   const [memo, setMemo] = useState("");

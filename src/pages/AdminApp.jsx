@@ -8959,6 +8959,8 @@ function TaskCancelDialog({ task, onClose, onConfirm }) {
     { id: "schedule", emoji: "📅", label: "일정 조율 실패",     desc: "프로·고객 시간이 안 맞음" },
     { id: "onsite",   emoji: "⚠️", label: "현장 작업 불가",     desc: "기종 다름 / 접근 불가 등" },
     { id: "other",    emoji: "📝", label: "기타",              desc: "메모에 상세 입력" },
+    // 2026-07-29 — 오접수. 고른 순간 이 건은 접수·취소·취소율 집계에서 빠진다.
+    { id: "mistake",  emoji: "🗑️", label: "오접수 (실수)",     desc: "잘못 만든 접수 — 통계에서 제외됩니다" },
   ];
   const [selectedId, setSelectedId] = useState("customer");
   const [memo, setMemo] = useState("");

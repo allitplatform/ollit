@@ -29,7 +29,15 @@ export const CANCEL_REASONS = [
   { id: "schedule", label: "일정 조율 실패",     desc: "기사·고객 시간이 안 맞음",      emoji: "📅" },
   { id: "onsite",   label: "현장 작업 불가",     desc: "기종 다름 / 접근 불가 등",       emoji: "⚠️" },
   { id: "other",    label: "기타",              desc: "메모에 상세 입력",               emoji: "📝" },
+  // 2026-07-29 — 오접수(실수). 잘못 만든 접수를 통계에서만 빼기 위한 사유.
+  //   ⚠️ 이 사유로 취소하면 접수·취소·취소율·시간대 집계에서 통째로 빠진다.
+  //     기록은 그대로 남고 취소 정보 카드에서 되돌릴 수 있다.
+  //     판정 함수는 data/cancelReasons.js 의 isMistakeTask().
+  { id: "mistake",  label: "오접수 (실수)",     desc: "잘못 만든 접수 — 통계에서 제외",  emoji: "🗑️" },
 ];
+
+// 2026-07-29 — 통계에서 제외할 취소 사유 id. 한 곳에서만 정의한다.
+export const MISTAKE_REASON_ID = "mistake";
 
 // 액션 라벨 (UI 표시용)
 export const ACTION_LABELS = {

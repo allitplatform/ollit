@@ -13,7 +13,7 @@ import { ArrowLeft } from "lucide-react";
 import { todayYmd, toKstYmd } from "../../utils/dateLabel.js";
 import { RegionStatsScreen } from "./RegionStatsScreen.jsx";
 // 2026-07-27 — 취소 숫자 클릭 → 목록 펼침 (사유 한국어 라벨)
-import { getCancelReasonLabel } from "../../data/cancelReasons.js";
+import { getCancelReasonLabel, isMistakeTask } from "../../data/cancelReasons.js";
 // 2026-07-29 — 사장님 요청 "모바일 접수현황에도 접수 시간대가 있으면 좋겠다".
 //   PC 대시보드와 같은 컴포넌트를 공용으로 씀 (숫자 기준도 자동으로 같아짐).
 import { HourlyReceivedChart, hourBucketIndexKst } from "./HourlyReceivedChart.jsx";
@@ -96,7 +96,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
 
   const yesterYmd = useMemo(() => _prevYmd(todayYmd()), []);
 
-  const { rows, totals, hourly, ydayHourly } = useMemo(() => {
+  const { rows, totals, hourly, ydayHourly, skipped } = useMemo(() => {
     // 2026-07-29 — 접수 시간대 13버킷 [~8시, 9..19, 20시+].
     //   선택 기간 전체를 "몇 시에 들어왔나" 로 합산 (취소 포함 = 전체 유입).
     const hourlyArr = new Array(13).fill(0);
@@ -107,10 +107,21 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
     const cxList   = new Map();   // code → 취소 task 목록 (클릭 펼침용)
     const done     = new Map();
     const owner    = new Map();
+    // 2026-07-29 — 오접수(실수) 로 표시된 건은 몇 건이 빠졌는지만 센다 (숨기지 않고 알린다).
+    let skippedN = 0;
     for (const tk of (apiTasks || [])) {
       if (!tk) continue;
       const code = String(tk.principalCode || tk.principal_code || "").trim();
       if (!code) continue;
+
+      // 2026-07-29 — 오접수: 접수·취소·취소율·시간대 전부에서 제외.
+      //   작업 자체는 남아 있고 상세 화면에서 되돌릴 수 있다.
+      if (isMistakeTask(tk)) {
+        const c = tk.createdAt || tk.created_at;
+        const ck = c ? toKstYmd(c) : null;
+        if (ck && ck >= start && ck <= end) skippedN += 1;
+        continue;
+      }
 
       const created = tk.createdAt || tk.created_at;
       if (created) {
@@ -159,6 +170,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
       rows: all,
       hourly: hourlyArr,
       ydayHourly: ydayArr,
+      skipped: skippedN,
       totals: {
         received: all.reduce((s, r) => s + r.received, 0),
         canceled: all.reduce((s, r) => s + r.canceled, 0),
@@ -459,6 +471,19 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
             compareLabel="어제"
             compact
           />
+        </div>
+      )}
+
+      {/* 2026-07-29 — 오접수 제외 알림. 조용히 빼면 숫자를 의심하게 되므로 항상 알린다. */}
+      {skipped > 0 && (
+        <div style={{
+          marginTop: 10, padding: "7px 10px",
+          background: "rgba(245,158,11,0.10)",
+          border: "1px solid rgba(245,158,11,0.28)",
+          borderRadius: 8,
+          fontSize: 10.5, fontWeight: 700, color: "#B45309",
+        }}>
+          🗑️ 오접수 {skipped}건은 위 숫자에서 빠져 있습니다 (작업 상세에서 되돌릴 수 있음)
         </div>
       )}
 
