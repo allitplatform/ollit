@@ -396,9 +396,12 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         // 2026-07-27 — 설치/누설 + 기종미정: 빈 workItems 로 저장되면 task_items 가
         //   영원히 안 생겨 분배 0 (A-260726-027/035 사고). 설치·누설은 기종이 정산에
         //   불필요하므로 "종목 ×1 · 단가 0" 한 줄을 실어 보냄 → sync 트리거가 항목 생성.
-        //   세척/냉매는 기존 기종미정 흐름 유지 (기사앱 기종선택 배너가 채움).
-        workItems:     (splitItems.length === 0 && applianceUndecided
-                        && ["설치", "누설", "누수"].includes(form.workType))
+        // 2026-07-29 — 사장님 지시: 종목 제한 해제. 세척/냉매도 같은 사고가 나므로
+        //   "기종미정 + 항목 0" 이면 종목 무관하게 자리표시 한 줄을 항상 만든다.
+        //   appliance "(미정)" 은 placeholder 로 인식돼 기사앱 [기종 선택] 배너가 계속 뜨고,
+        //   ApplianceSelectModal.handleSave 가 workItems 배열을 통째로 교체하므로
+        //   기사가 기종을 고르면 이 자리표시 줄은 깨끗이 덮인다.
+        workItems:     (splitItems.length === 0 && applianceUndecided && !!form.workType)
           ? [{ workType: form.workType, appliance: "(미정)", qty: 1, quote: 0 }]
           : splitItems,
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).

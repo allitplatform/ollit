@@ -20,6 +20,10 @@ import {
   setAllTaskItemReceivedAmounts as apiSetAllItemsReceived,
 } from "../data/tasksDb.js";
 import { isRefrigerant as isRefrigerantWorkType, getServiceKind } from "../utils/workTypeKind.js";
+// 2026-07-29 — 완료 파업 가드 (사장님 지시). 기종·설치종류 미선택이면 완료 버튼에서 차단.
+//   금액(총액 0원) 검사는 여기가 아니라 완료 확정 화면에서 — 여기서 막으면 기사가
+//   현장 추가금을 넣을 화면에 도달하지 못해 갇힌다.
+import { applianceBlockReason } from "../utils/completeGuard.js";
 import { supabase } from "../lib/supabase.js";
 // 2026-07-27 — 기사 주소 수정 (Mig 194 RPC + 구/시 재추출)
 import { currentUserId } from "../lib/cancelRpc.js";
@@ -1228,6 +1232,9 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
                 alert(`사진은 최소 ${PHOTO_MIN}장 필요합니다.`);
                 return;
               }
+              // 2026-07-29 — 기종·설치종류 미선택이면 여기서 정지 (A-260727-051 사고).
+              const blocked = applianceBlockReason(task);
+              if (blocked) { alert(blocked); return; }
               await persistAndNavigate("complete");
             }}
             disabled={!enough || saving}

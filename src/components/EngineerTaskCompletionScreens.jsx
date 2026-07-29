@@ -12,6 +12,8 @@ import { calculateCommissionMultiRpc, PRINCIPAL_NAME_TO_CODE } from "../lib/comm
 import { supabase } from "../lib/supabase.js";
 // 2026-07-28 (Mig 198/199) — 설치 자재비 저장 RPC 어댑터
 import { setMaterialCostAdapter } from "../data/tasksDb.js";
+// 2026-07-29 — 완료 파업 가드 (총액 0원 차단). 기종 검사는 앞 화면(완료 버튼)에서 이미 끝남.
+import { amountBlockReason } from "../utils/completeGuard.js";
 
 // 2026-05-17 — 진행중 상태는 trigger_compute_payment가 발화하지 않아 payments가 stale.
 // 완료 확인 화면 mount 시 RPC를 직접 호출해서 재계산 후 payments를 다시 읽어옴.
@@ -985,6 +987,11 @@ export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
   }
 
   function handleConfirm() {
+    // 2026-07-29 — 총액 파업 (사장님 지시). A-260727-051 처럼 금액이 하나도 안 잡힌 채
+    //   완료되는 것을 막는다. 여기서 막는 이유: 기사가 금액을 되돌아가 고칠 수 있는
+    //   마지막 지점이기 때문 (완료 버튼에서 막으면 이 화면에 도달을 못 해 갇힌다).
+    const amtBlocked = amountBlockReason(task, total);
+    if (amtBlocked) { alert(amtBlocked + "\n\n뒤로 가서 금액을 먼저 입력해주세요."); return; }
     // 2026-06-03 — Phase 1 검증: "예" 측측 금액 0/빈 측측 측측 X.
     if (hasRefriAddon) {
       const n = Number(refriAmount);

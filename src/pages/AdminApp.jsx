@@ -52,6 +52,8 @@ import AdminInquiriesScreen from "../components/admin/AdminInquiriesScreen.jsx";
 import { listInquiries, markInquiryConverted, serviceLabel, SERVICE_WORKTYPE } from "../lib/inquiriesDb.js";
 // 2026-07-11 — 사장님 spec: 배너/뱃지/완료차단 3곳 판정 통일.
 import { needsApplianceSelection } from "../components/ApplianceSelectModal.jsx";
+// 2026-07-29 — 완료 파업 가드 (기종/설치종류/총액 0원). 상태 변경 시점에만 사용.
+import { completeBlockReason } from "../utils/completeGuard.js";
 // 2026-07-11 — task 실질 취소 판정 (배지/목록/타임라인 일관).
 import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
 import { isUsolNActionNeeded } from "../lib/usolNTasksDb.js";
@@ -3046,9 +3048,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
           if (!tk?.id || !newStatus) return;
           // 2026-07-11 — 사장님 spec: 기종 미정 시 완료·정산 진입 차단.
           //   3곳 (배너/뱃지/완료차단) needsApplianceSelection 로 판정 통일.
-          if (needsApplianceSelection(tk) && (newStatus === "완료" || newStatus === "정산완료")) {
-            alert("기종을 먼저 선택하세요.\n\n상세 화면 상단 [기종 선택] 버튼으로 진행하세요.");
-            return;
+          // 2026-07-29 — 사장님 지시 "기종 선택하고 총액 입력 파업!".
+          //   completeBlockReason = needsApplianceSelection + 설치종류 미선택 + 총액 0원.
+          //   A-260727-051 (설치 / 작업금액 0원 / 항목 견적 ₩0) 이 그냥 완료되던 구멍을 막음.
+          if (newStatus === "완료" || newStatus === "정산완료") {
+            const blocked = completeBlockReason(tk);
+            if (blocked) { alert(blocked); return; }
           }
           try {
             // 2026-07-12 — 사장님 spec: 완료 → 확정/배정/미배정 되돌리기 시 completedAt 초기화.
@@ -10465,8 +10470,11 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         qty:           head.qty || 1,
         // 2026-07-28 — 설치/누설 + 기종미정: 빈 workItems 면 task_items 미생성 → 분배 0
         //   (PC 폼 2026-07-27 fix 동일). "종목 ×1 · 단가 0" 실어 보냄.
-        workItems:     (splitItems.length === 0 && applianceUndecided
-                        && ["설치", "누설", "누수"].includes(form.workType))
+        // 2026-07-29 — 사장님 지시 "모바일이랑 pc 접수폼에 다 하자": 종목 제한 해제.
+        //   세척/냉매도 같은 사고가 나므로 "기종미정 + 항목 0" 이면 종목 무관하게
+        //   자리표시 한 줄을 항상 만든다. "(미정)" 은 placeholder 로 인식돼
+        //   기사앱 [기종 선택] 배너가 계속 뜨고, 기종 선택 시 배열이 통째로 교체된다.
+        workItems:     (splitItems.length === 0 && applianceUndecided && !!form.workType)
           ? [{ workType: form.workType, appliance: "(미정)", qty: 1, quote: 0 }]
           : splitItems,
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
