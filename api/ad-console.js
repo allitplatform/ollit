@@ -317,9 +317,18 @@ export default async function handler(req, res) {
         : new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 7);
       const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" };
       // 권한검증용 owner 액터 하나 확보 (RPC가 p_actor role 검사함 — 읽기전용 조회에 사용)
-      const ur = await fetch(`${SB_URL}/rest/v1/user_roles?role=eq.owner&select=user_id&limit=1`, { headers: H }).then(r => r.json());
-      const actor = ur && ur[0] && ur[0].user_id;
-      if (!actor) { res.status(200).json({ ok: false, error: "owner 액터 없음" }); return; }
+      let ur = await fetch(`${SB_URL}/rest/v1/user_roles?role=eq.owner&select=user_id&limit=1`, { headers: H }).then(r => r.json());
+      let actor = ur && ur[0] && ur[0].user_id;
+      if (!actor) {
+        ur = await fetch(`${SB_URL}/rest/v1/user_roles?role=in.(owner,admin,operator)&select=user_id,role&limit=5`, { headers: H }).then(r => r.json());
+        actor = ur && ur[0] && ur[0].user_id;
+      }
+      if (!actor) {
+        const dist = await fetch(`${SB_URL}/rest/v1/user_roles?select=role&limit=200`, { headers: H }).then(r => r.json());
+        const cnt = {}; for (const d of (Array.isArray(dist) ? dist : [])) cnt[d.role] = (cnt[d.role] || 0) + 1;
+        res.status(200).json({ ok: false, error: "owner 액터 없음", roleDist: cnt, urSample: ur });
+        return;
+      }
       const rpc = async (name, args) => fetch(`${SB_URL}/rest/v1/rpc/${name}`, {
         method: "POST", headers: H, body: JSON.stringify(args) }).then(r => r.json());
       const [carry, expenses] = await Promise.all([
