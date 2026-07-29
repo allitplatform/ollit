@@ -308,6 +308,32 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 실제 순이익 (?pnl=1&ym=YYYY-MM) — 가계부(통장 연동) 기준. 광고비·인건비 등 운영비 다 뺀 진짜 바닥선.
+    // 7/29 추가: "완료건당 회사마진 75,683원"이 광고비를 이기는 것처럼 보여도
+    //  임대료·인건비·세금까지 뺀 뒤에도 남는지는 이 숫자로만 확인 가능하다.
+    if (req.query.pnl) {
+      if (tk !== TOKEN_FULL && tk !== WRITE_TOKEN && (req.query.wt || "") !== WRITE_TOKEN) { res.status(404).end(); return; }
+      const ym = String(req.query.ym || "").match(/^\d{4}-\d{2}$/) ? req.query.ym
+        : new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 7);
+      const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" };
+      // 권한검증용 owner 액터 하나 확보 (RPC가 p_actor role 검사함 — 읽기전용 조회에 사용)
+      const us = await fetch(`${SB_URL}/rest/v1/users?role=eq.owner&select=id&limit=1`, { headers: H }).then(r => r.json());
+      const actor = us && us[0] && us[0].id;
+      if (!actor) { res.status(200).json({ ok: false, error: "owner 액터 없음" }); return; }
+      const rpc = async (name, args) => fetch(`${SB_URL}/rest/v1/rpc/${name}`, {
+        method: "POST", headers: H, body: JSON.stringify(args) }).then(r => r.json());
+      const [carry, expenses] = await Promise.all([
+        rpc("bookkeeping_cumulative_carryover", { p_work_month: ym, p_actor: actor }),
+        rpc("bookkeeping_list_expenses", { p_work_month: ym, p_actor: actor }),
+      ]);
+      const expRows = (expenses && expenses.rows) || [];
+      const byCat = {};
+      for (const r of expRows) { const c = r.category || "etc"; byCat[c] = (byCat[c] || 0) + (Number(r.amount) || 0); }
+      res.status(200).json({ ok: true, ym, monthly: carry && carry.monthly, cumulative: carry && carry.cumulative_carryover,
+        expenseByCategory: byCat, expenseRows: expRows.length, raw: { carry, expensesOk: !!(expenses && expenses.ok) } });
+      return;
+    }
+
     // 부정클릭 감시: 최근 클릭 로그 IP 집계 (+ ?ip=x.x.x.x 시간대 상세)
     if (req.query.clicks) {
       if (req.query.ip) {
