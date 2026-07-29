@@ -258,6 +258,56 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 기사별 회사 마진 (?engmargin=1&days=N) — "원청(우리)이 기사에게서 매일 얼마 버나"
+    // 7/29 추가: 광고비 대신 기사 직접 보상을 검토하려면 완료건당 회사 마진 실측이 먼저 필요하다.
+    //  payments.owner_amount = 완료 작업 1건이 회사에 남기는 돈(기사정산·원청수수료 뺀 값).
+    if (req.query.engmargin) {
+      if (tk !== TOKEN_FULL && tk !== WRITE_TOKEN && (req.query.wt || "") !== WRITE_TOKEN) { res.status(404).end(); return; }
+      const days = Math.min(60, Math.max(1, Number(req.query.days || 7)));
+      const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
+      const pr = await fetch(`${SB_URL}/rest/v1/principals?code=eq.allday&select=id`, { headers: H }).then(r => r.json());
+      const pid = pr && pr[0] && pr[0].id;
+      if (!pid) { res.status(200).json({ ok: false, error: "principal 없음" }); return; }
+      const kstNow = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      const since = new Date(new Date(`${kstNow}T00:00:00+09:00`).getTime() - (days - 1) * 86400000).toISOString();
+      const rowsE = await fetch(`${SB_URL}/rest/v1/tasks?principal_id=eq.${pid}`
+        + `&completed_at=gte.${encodeURIComponent(since)}`
+        + `&status=eq.완료`
+        + `&select=id,completed_at,assigned_engineer_id,payments(engineer_amount,principal_amount,owner_amount)&limit=5000`, { headers: H }).then(r => r.json());
+      const rows = Array.isArray(rowsE) ? rowsE : [];
+      const engIds = [...new Set(rows.map(r => r.assigned_engineer_id).filter(Boolean))];
+      let nameMap = {};
+      if (engIds.length) {
+        const us = await fetch(`${SB_URL}/rest/v1/users?id=in.(${engIds.join(",")})&select=id,name`, { headers: H }).then(r => r.json());
+        for (const u of (Array.isArray(us) ? us : [])) nameMap[u.id] = u.name || u.id;
+      }
+      const byEng = {};
+      const byDay = {};
+      let sumOwner = 0, sumEngineer = 0, sumPrincipal = 0, n = 0;
+      for (const t2 of rows) {
+        const ps = Array.isArray(t2.payments) ? t2.payments : [];
+        const owner = ps.reduce((x, y) => x + (Number(y && y.owner_amount) || 0), 0);
+        const eng   = ps.reduce((x, y) => x + (Number(y && y.engineer_amount) || 0), 0);
+        const princ = ps.reduce((x, y) => x + (Number(y && y.principal_amount) || 0), 0);
+        if (owner === 0 && eng === 0 && princ === 0) continue; // 정산 미확정 건 제외
+        n++; sumOwner += owner; sumEngineer += eng; sumPrincipal += princ;
+        const name = nameMap[t2.assigned_engineer_id] || "(미배정)";
+        const eb = byEng[name] || (byEng[name] = { name, n: 0, owner: 0 });
+        eb.n++; eb.owner += owner;
+        const d = new Date(new Date(t2.completed_at).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+        const db = byDay[d] || (byDay[d] = { day: d, n: 0, owner: 0 });
+        db.n++; db.owner += owner;
+      }
+      res.status(200).json({
+        ok: true, days, n,
+        sum: { owner: sumOwner, engineer: sumEngineer, principal: sumPrincipal },
+        perTask: n ? Math.round(sumOwner / n) : 0,
+        byEngineer: Object.values(byEng).sort((a, b) => b.owner - a.owner),
+        byDay: Object.values(byDay).sort((a, b) => a.day < b.day ? 1 : -1),
+      });
+      return;
+    }
+
     // 부정클릭 감시: 최근 클릭 로그 IP 집계 (+ ?ip=x.x.x.x 시간대 상세)
     if (req.query.clicks) {
       if (req.query.ip) {
