@@ -124,7 +124,20 @@ export default async function handler(req, res) {
         if (s && s[0]) out.snap = s[0].bid_from;
         const b = await fetch(`${SB_URL}/rest/v1/ad_autobid_log?kw=eq._bz&grp=eq.${kst}&order=run_at.asc&limit=200&select=run_at,bid_from`, {
           headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }).then(r => r.json());
-        if (Array.isArray(b) && out.snap) out.spend = b.map(x => ({ at: x.run_at, won: Math.max(0, out.snap - x.bid_from) }));
+        // 잔액 스냅샷 기반 누적 지출: "오늘 첫 잔액 - 지금 잔액" 방식은 중간에 비즈머니를 충전하면
+        // 잔액이 늘어나 결과가 음수로 나오고 그 이후 계속 0으로 고정돼버린다(7/29 낮 충전 때 발견된 버그).
+        // 대신 스냅샷 간 "감소분"만 누적하고 증가(=충전)는 무시해, 충전이 몇 번 껴도 곡선이 안 깨지게 한다.
+        if (Array.isArray(b) && out.snap != null) {
+          let prevBal = out.snap;
+          let cum = 0;
+          out.spend = b.map(x => {
+            const bal = x.bid_from;
+            const delta = prevBal - bal;
+            if (delta > 0) cum += delta;
+            prevBal = bal;
+            return { at: x.run_at, won: cum };
+          });
+        }
       } catch (e) {}
       try {
         const since = new Date(Date.now() - 48 * 3600 * 1000).toISOString();
