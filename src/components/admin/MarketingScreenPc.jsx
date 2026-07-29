@@ -200,17 +200,27 @@ export function MarketingScreenPc({ t, apiTasks = [], user, onBack }) {
   }, [user?.user_id, user?.id, start, end]);
 
   // ── ⓪ 지금 실시간 (항상 오늘, 5분 갱신, 페이스미터 디자인 — 모바일과 동일) ──
+  // 2026-07-29 — 카드가 통째로 사라지는 문제 진단용: loading/error 상태를 따로 잡아
+  //   "왜 안 뜨는지" 화면에 그대로 보이게 함 (예전엔 liveAd 실패 시 조용히 카드 자체가 없어졌음).
   const [liveAd, setLiveAd] = useState(null);
+  const [liveAdLoading, setLiveAdLoading] = useState(true);
+  const [liveAdError, setLiveAdError] = useState("");
   useEffect(() => {
     let alive = true;
     const actorId = user?.user_id || user?.id;
-    if (!actorId) return () => { alive = false; };
+    if (!actorId) { setLiveAdLoading(false); setLiveAdError("로그인 정보 없음(actorId 없음)"); return () => { alive = false; }; }
     const load = () => {
+      setLiveAdLoading(true);
       const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
       fetch(`/api/ad-report?since=${today}&until=${today}&actor=${encodeURIComponent(actorId)}&live=1`)
         .then(r => r.json())
-        .then(j => { if (alive) setLiveAd(j && j.ok ? j : null); })
-        .catch(() => { if (alive) setLiveAd(null); });
+        .then(j => {
+          if (!alive) return;
+          if (j && j.ok) { setLiveAd(j); setLiveAdError(""); }
+          else { setLiveAd(null); setLiveAdError(String(j?.error || "API 응답에 ok:true 없음")); }
+          setLiveAdLoading(false);
+        })
+        .catch(e => { if (!alive) return; setLiveAd(null); setLiveAdError(String(e?.message || e)); setLiveAdLoading(false); });
     };
     load();
     const iv = setInterval(load, 5 * 60 * 1000);
@@ -487,7 +497,12 @@ export function MarketingScreenPc({ t, apiTasks = [], user, onBack }) {
 
       <div style={{ maxWidth: 1180, margin: "0 auto", padding: "20px 24px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-        {/* ⓪ 지금 실시간 — 페이스미터 */}
+        {/* ⓪ 지금 실시간 — 페이스미터. liveView 가 null 이어도 카드 자체는 항상 보이게(원인 진단용). */}
+        {!liveView && (
+          <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 16, padding: "14px 22px", fontSize: 12.5, color: t.textMuted, fontWeight: 700 }}>
+            🔴 지금 실시간 — {liveAdLoading ? "불러오는 중…" : `데이터 없음 (${liveAdError || "원인 미상"})`}
+          </div>
+        )}
         {liveView && (
           <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 16, padding: "18px 22px 16px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>

@@ -172,17 +172,26 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
   const breakEvenJobs = (profitPerJob != null && profitPerJob > 0 && adCostVat > 0) ? Math.ceil(adCostVat / profitPerJob) : null;
 
   // ── ⓪ 지금 실시간 (항상 오늘, 5분마다) ──────────────────────────────────
+  // 2026-07-29 — 카드가 통째로 사라지는 문제 진단용: loading/error 상태를 따로 잡음.
   const [liveAd, setLiveAd] = useState(null);
+  const [liveAdLoading, setLiveAdLoading] = useState(true);
+  const [liveAdError, setLiveAdError] = useState("");
   useEffect(() => {
     let alive = true;
     const actorId = user?.user_id || user?.id;
-    if (!actorId) return () => { alive = false; };
+    if (!actorId) { setLiveAdLoading(false); setLiveAdError("로그인 정보 없음(actorId 없음)"); return () => { alive = false; }; }
     const load = () => {
+      setLiveAdLoading(true);
       const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
       fetch(`/api/ad-report?since=${today}&until=${today}&actor=${encodeURIComponent(actorId)}&live=1`)
         .then(r => r.json())
-        .then(j => { if (alive) setLiveAd(j && j.ok ? j : null); })
-        .catch(() => { if (alive) setLiveAd(null); });
+        .then(j => {
+          if (!alive) return;
+          if (j && j.ok) { setLiveAd(j); setLiveAdError(""); }
+          else { setLiveAd(null); setLiveAdError(String(j?.error || "API 응답에 ok:true 없음")); }
+          setLiveAdLoading(false);
+        })
+        .catch(e => { if (!alive) return; setLiveAd(null); setLiveAdError(String(e?.message || e)); setLiveAdLoading(false); });
     };
     load();
     const iv = setInterval(load, 5 * 60 * 1000);
@@ -289,7 +298,12 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
 
         {/* ⓪ 지금 실시간 — 페이스미터 디자인(C안, 사장님 선택 7/29). 최우선 요약, 기간필터 무관 항상 오늘.
             "지금 쓰는 돈이 적정선인지" 를 막대 하나로 바로 보이게 — 채움 길이=지금 건당비용, 검정 세로선=목표(25,000원). */}
-        {liveView && (
+{!liveView && (
+          <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 16, padding: "12px 16px", fontSize: 11.5, color: t.textMuted, fontWeight: 700 }}>
+            🔴 지금 실시간 — {liveAdLoading ? "불러오는 중…" : `데이터 없음 (${liveAdError || "원인 미상"})`}
+          </div>
+        )}
+                {liveView && (
           <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 16, padding: "14px 16px 13px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 13, fontWeight: 800 }}>🔴 지금 실시간</span>
