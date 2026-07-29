@@ -220,6 +220,48 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 작업유형별 완료율·수익 (?worktype=1&days=N) — "설치·청소가 실제로 얼마나 완료로 이어지고 얼마 남기나"
+    // 7/29 추가: 설치는 완료 확률이 낮고 세척(청소)은 원청수수료가 작다는 감(感)을 실측으로 검증하기 위함.
+    //   메인 작업유형 판정은 프론트(determineMainWorkType)와 동일한 priority 규칙을 그대로 씀
+    //   (세척 1 > 설치 2 > 누설 3 > 누수 4 > 수리/점검 5 > 냉매충전 99 — 숫자가 작을수록 메인).
+    if (req.query.worktype) {
+      if (tk !== TOKEN_FULL && tk !== WRITE_TOKEN && (req.query.wt || "") !== WRITE_TOKEN) { res.status(404).end(); return; }
+      const days = Math.min(90, Math.max(1, Number(req.query.days || 21)));
+      const H = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
+      const pr = await fetch(`${SB_URL}/rest/v1/principals?code=eq.allday&select=id`, { headers: H }).then(r => r.json());
+      const pid = pr && pr[0] && pr[0].id;
+      if (!pid) { res.status(200).json({ ok: false, error: "principal 없음" }); return; }
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const rowsW = await fetch(`${SB_URL}/rest/v1/tasks?principal_id=eq.${pid}`
+        + `&created_at=gte.${encodeURIComponent(since)}`
+        + `&select=id,status,category_data,payments(principal_amount,owner_amount)&limit=6000`, { headers: H }).then(r => r.json());
+      const PRI = { "세척": 1, "설치": 2, "누설": 3, "누수": 4, "수리": 5, "점검": 5, "냉매충전": 99 };
+      const DONE = new Set(["완료", "부분완료", "completed", "partial"]);
+      const CANC = new Set(["취소", "canceled"]);
+      const agg = {};
+      for (const t2 of (Array.isArray(rowsW) ? rowsW : [])) {
+        const items = (t2.category_data && Array.isArray(t2.category_data.workItems)) ? t2.category_data.workItems : [];
+        let main = null, bestP = 1000;
+        for (const it of items) {
+          const p = PRI[it.workType] ?? 100;
+          if (p < bestP) { bestP = p; main = it.workType; }
+        }
+        main = main || "(미상)";
+        const a = agg[main] || (agg[main] = { workType: main, n: 0, done: 0, cancel: 0, other: 0, ownerSum: 0, principalSum: 0 });
+        a.n++;
+        const s = String(t2.status || "");
+        if (DONE.has(s)) a.done++; else if (CANC.has(s)) a.cancel++; else a.other++;
+        const ps = Array.isArray(t2.payments) ? t2.payments : [];
+        for (const p of ps) { a.ownerSum += Number(p.owner_amount) || 0; a.principalSum += Number(p.principal_amount) || 0; }
+      }
+      const rows = Object.values(agg)
+        .map(a => ({ ...a, doneRate: a.n ? +(a.done / a.n * 100).toFixed(1) : 0,
+          ownerPerDone: a.done ? Math.round(a.ownerSum / a.done) : null }))
+        .sort((x, y) => y.n - x.n);
+      res.status(200).json({ ok: true, days, total: (rowsW || []).length, rows });
+      return;
+    }
+
     // 접수 → 매출 깔때기 (?funnel=1&days=N) — "광고비 대비 진짜 얼마 벌었나"
     // 접수 건수만 세면 취소·노쇼가 안 보인다. 상태 분포 + payments 합계까지 본다.
     // 7/29 추가: 시간대(KST 0~23)별 접수. 네이버 /stats 의 breakdown=hh24 와 시간축을 맞춰
