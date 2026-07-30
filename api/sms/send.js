@@ -112,13 +112,42 @@ ${vars.engineerName} 기사님이 배정되었습니다.
 문의: 1866-2003`
     );
   }
+  // 2026-07-30 Mig 202 — 고객용 재배정 안내.
+  //   그전까지는 재배정에도 위 'assign' 문구가 그대로 나갔다 → 고객 눈에는
+  //   기사 두 명이 배정된 것처럼 보임(이중배정 오해). 앞 기사 연락처가
+  //   무효라는 것도 명시해야 잘못된 번호로 전화하는 사고를 막는다.
+  if (type === "reassign") {
+    return (
+`${prefix}담당 기사 변경 안내
+
+신청하신 에어컨 서비스의
+담당 기사님이 변경되었습니다.
+
+▶ 변경된 기사: ${vars.engineerName} 기사님
+▶ 기사 연락처: ${vars.engineerPhone}
+
+앞서 안내드린 기사님 연락처는
+더 이상 유효하지 않으니 참고 부탁드립니다.
+변경된 기사님이 일정 조율을 위해
+연락드릴 예정입니다.
+
+문의: 1866-2003`
+    );
+  }
   // 2026-07-26 Mig 193 — 기사용 문자 (수신자 = 기사 폰. customerPhone 필드를
   //   수신자 슬롯으로 재사용 — 트리거가 기사 번호를 넣어 보냄).
   //   푸시 지연 대비 확실 채널 (사장님 결정: 배정마다 무조건 문자).
   if (type === "eng_assign") {
     // 2026-07-26 — 사장님 spec: 초간단 (상세는 앱에). 단문(SMS) 요금.
-    //   재배정도 받는 기사에겐 "새 배정" — "재배정" 표기는 다른 기사를 거친
-    //   건이라는 인상을 줄 수 있음 (사장님 지적). reassigned 구분 폐기.
+    // 2026-07-30 — 07-26 의 "reassigned 구분 폐기" 결정을 되돌림.
+    //   운영해 보니 "재배정" 표기가 없으면 받는 쪽이 이중배정인지 구분 못 함.
+    //   reassigned 플래그는 Mig 193 이 이미 보내고 있어 SQL 변경 불필요.
+    if (vars.reassigned) {
+      return (
+`[올잇] 재배정 · ${vars.customer || "고객"} 고객
+일정 재조율 해주세요. 앱 확인해 주세요.`
+      );
+    }
     return (
 `[올잇] 새 배정 · ${vars.customer || "고객"} 고객
 앱에서 확인해 주세요.`
@@ -214,8 +243,10 @@ export default async function handler(req, res) {
   const vars      = body.vars || {};
 
   const ENG_TYPES = ["eng_assign", "eng_unassign"];   // 2026-07-26 Mig 193
-  if (type !== "assign" && type !== "complete" && type !== "visit_fee" && !ENG_TYPES.includes(type)) {
-    res.status(400).json({ ok: false, error: "type must be assign|complete|visit_fee|eng_assign|eng_unassign" });
+  // 2026-07-30 Mig 202 — 'reassign' 은 assign 과 같은 변수(기사명/연락처)를 쓴다.
+  const ASSIGN_TYPES = ["assign", "reassign"];
+  if (!ASSIGN_TYPES.includes(type) && type !== "complete" && type !== "visit_fee" && !ENG_TYPES.includes(type)) {
+    res.status(400).json({ ok: false, error: "type must be assign|reassign|complete|visit_fee|eng_assign|eng_unassign" });
     return;
   }
   const to = normalizePhone(toRaw);
@@ -225,7 +256,7 @@ export default async function handler(req, res) {
   }
 
   // 사장님 spec ① — engineerName / engineerPhone 둘 중 하나라도 NULL 이면 발송 skip (대표번호 fallback X).
-  if (type === "assign") {
+  if (ASSIGN_TYPES.includes(type)) {
     if (!vars.engineerName || !vars.engineerPhone) {
       res.status(400).json({ ok: false, error: "engineerName / engineerPhone 누락 — 발송 skip" });
       return;
