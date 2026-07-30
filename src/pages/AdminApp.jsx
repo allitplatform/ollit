@@ -5963,11 +5963,14 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         {isWaiting && task.customerCall && (() => {
           const cc = task.customerCall;
           const ago = _callTimeAgo(cc.resultAt || cc.lastAt);
+          // 2026-07-30 — 'scheduled' 추가: 기사가 "일정 잡혔어요" 를 누른 건.
           const cfg = cc.result === "talked"
             ? { color: "#FF7A00", label: "통화됨 · 조율중", title: "통화됨 — 일정 조율중" }
             : cc.result === "absent"
               ? { color: "#E5484D", label: `부재중${Number(cc.count) > 1 ? `×${cc.count}` : ""}`, title: "부재중" }
-              : { color: "#3B82F6", label: "전화함", title: "고객에게 전화함" };
+              : cc.result === "scheduled"
+                ? { color: "#22C55E", label: "일정 잡는중", title: "기사가 일정 잡았다고 응답 — 시간 입력 대기" }
+                : { color: "#3B82F6", label: "전화함", title: "고객에게 전화함" };
           return (
             <span title={`${cfg.title}${ago ? ` · ${ago}` : ""}`} style={{
               marginLeft: "auto", fontSize: 11, fontWeight: 800,
@@ -6001,14 +6004,26 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
         )}
       </div>
 
-      {/* 2026-07-27 v2 — 통화됨(조율중) 사유: 하단 전용 줄 (사장님 B안 — 중간 병기는 잘림) */}
-      {isWaiting && task.customerCall?.result === "talked" && task.customerCall?.resultMemo && (
+      {/* 2026-07-27 v2 — 통화 사유: 하단 전용 줄 (사장님 B안 — 중간 병기는 잘림) */}
+      {/* 2026-07-30 — result 종류 제한 해제 (talked 외 scheduled/absent 도 사유가 있으면 보여준다) */}
+      {isWaiting && task.customerCall?.resultMemo && (
         <div style={{
           margin: "0 15px 11px", padding: "7px 11px",
           background: "rgba(255,122,0,0.10)",
           borderLeft: "3px solid #FF7A00", borderRadius: 7,
           fontSize: 12, color: "#FFB27A", lineHeight: 1.5,
         }}>☎ “{task.customerCall.resultMemo}”</div>
+      )}
+
+      {/* 2026-07-30 — 협의 메모(새 배정 화면에서 기사가 남긴 것). 지금까지 상세화면에만
+            보여서 사무실에서 안 보였다. 통화 사유와 같은 자리에 색만 다르게 노출. */}
+      {isWaiting && task.callMemo && (
+        <div style={{
+          margin: "0 15px 11px", padding: "7px 11px",
+          background: "rgba(59,130,246,0.10)",
+          borderLeft: "3px solid #3B82F6", borderRadius: 7,
+          fontSize: 12, color: "#93BEFF", lineHeight: 1.5, whiteSpace: "pre-wrap",
+        }}>📝 “{task.callMemo}”</div>
       )}
 
       {/* bot: 프로 배정 + 액션바 (프로/고객 전화 + 수정) */}

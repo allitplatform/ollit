@@ -1606,7 +1606,13 @@ export async function saveConsentAdapter(taskId, { customerName, signatureUrl, t
 // ============================================================
 // [고객 전화] 탭 순간 자동 기록 — saveConsentAdapter 동일 fetch-merge 패턴
 // (stale local categoryData 통째 덮어쓰기 금지 — consent 등 다른 키 보존).
-// customerCall: { lastAt, count, result: 'talked'|'absent'|null, resultAt }
+// customerCall: { lastAt, count, result: 'talked'|'absent'|'scheduled'|null, resultAt, resultMemo }
+//
+// 2026-07-30 — 사장님 지시 (통화 결과 미저장 수정):
+//   기존에는 재전화할 때마다 result/resultAt/resultMemo 를 통째로 null 로 밀어버려서
+//   먼저 남긴 사유가 사라졌다. 이제는 이전 결과를 그대로 보존하고 lastAt 만 갱신한다.
+//   "이 전화는 아직 결과 미입력" 판정은 result 유무가 아니라
+//   resultAt < lastAt (마지막 통화 이후 결과가 없음) 으로 한다.
 export async function recordCustomerCallAdapter(taskId) {
   if (!taskId) return { ok: false, error: "taskId 없음" };
   try {
@@ -1616,10 +1622,13 @@ export async function recordCustomerCallAdapter(taskId) {
     const nextCategoryData = {
       ...(current.categoryData || {}),
       customerCall: {
+        ...prev,
         lastAt: new Date().toISOString(),
         count: (Number(prev.count) || 0) + 1,
-        result: null,          // 새 통화 시도 — 결과는 팝업에서 (미선택 시 '전화함'만)
-        resultAt: null,
+        // 이전 결과 보존 — 지우지 않는다. 미입력 판정은 resultAt < lastAt 으로.
+        result:     prev.result     || null,
+        resultAt:   prev.resultAt   || null,
+        resultMemo: prev.resultMemo || "",
       },
     };
     return await updateTaskDb(taskId, { categoryData: nextCategoryData });
@@ -1629,10 +1638,12 @@ export async function recordCustomerCallAdapter(taskId) {
   }
 }
 
-// 통화 결과 기록 — 팝업 [통화됨]/[부재중] 탭.
+// 통화 결과 기록 — 팝업 [일정 잡혔어요]/[통화됨]/[부재중] 탭.
+// 2026-07-30 — 'scheduled' 추가: "일정 잡혔어요" 도 결과로 남긴다(기존엔 기록 0).
+const _CALL_RESULTS = ["talked", "absent", "scheduled"];
 export async function setCustomerCallResultAdapter(taskId, result, memo) {
   if (!taskId) return { ok: false, error: "taskId 없음" };
-  if (result !== "talked" && result !== "absent") return { ok: false, error: "result 값 오류" };
+  if (!_CALL_RESULTS.includes(result)) return { ok: false, error: "result 값 오류" };
   try {
     const current = await getTaskByIdDb(taskId);
     if (!current) return { ok: false, error: "작업 없음" };
@@ -1640,6 +1651,7 @@ export async function setCustomerCallResultAdapter(taskId, result, memo) {
     const nextCategoryData = {
       ...(current.categoryData || {}),
       customerCall: {
+        ...prev,
         lastAt: prev.lastAt || new Date().toISOString(),
         count: Number(prev.count) || 1,
         result,

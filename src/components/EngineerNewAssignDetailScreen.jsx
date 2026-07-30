@@ -176,6 +176,10 @@ export function EngineerNewAssignDetailScreen({
       scheduledDate = todayYmd;
       scheduledTime = selectedSlot;
     } else {
+      // 2026-07-30 — 일정 없이 메모만 저장.
+      //   기존엔 여기서 그냥 return 해서 메모가 통째로 버려졌고, 기사님들이 임의 시간을
+      //   찍어 넣어 저장하는 우회를 하고 있었다(= scheduled_at 오염). 이제 메모만 저장한다.
+      onSave && onSave({ memo });
       return;
     }
     // endTime = scheduledTime + 1h 자동 fallback (캘린더/DB NOT NULL 안전망)
@@ -190,6 +194,9 @@ export function EngineerNewAssignDetailScreen({
   // 확정 버튼에 박을 시간
   const confirmTime = showCustom ? `${customHour}:${customMin}` : selectedSlot;
   const canConfirm = !!confirmTime && (!showCustom || !!customDate);
+  // 2026-07-30 — 시간을 못 정했어도 메모가 있으면 저장할 수 있게 (사유 유실 방지).
+  const memoOnly = !canConfirm && !!String(memo || "").trim();
+  const canSave  = canConfirm || memoOnly;
 
   return (
     <div style={{
@@ -677,22 +684,30 @@ export function EngineerNewAssignDetailScreen({
           <textarea value={memo} onChange={(e) => setMemo(e.target.value)}
             placeholder="고객과 협의한 내용 / 특이사항"
             style={{ ...inputStyle, height: 70, fontSize: 12, resize: "vertical" }}/>
+          {/* 2026-07-30 — 시간 미정이어도 메모만 저장 가능하다는 안내 */}
+          <div style={{ marginTop: 6, fontSize: 11, color: "var(--text-secondary)", opacity: 0.85 }}>
+            시간이 아직 안 정해졌으면 <b>메모만 저장</b>하셔도 됩니다. 임의 시간 입력 금지.
+          </div>
         </div>
       </div>
 
       {/* 4. 액션 3개 */}
       <div style={{ padding: "0 16px" }}>
-        <button onClick={handleSave} disabled={!canConfirm} style={{
+        <button onClick={handleSave} disabled={!canSave} style={{
           width: "100%", padding: 14,
           background: canConfirm ? "#FF1B8D" : "transparent",
-          border: canConfirm ? "none" : "1px solid var(--border)",
+          border: canConfirm ? "none" : memoOnly ? "1px solid #FF1B8D" : "1px solid var(--border)",
           borderRadius: 12,
-          color: canConfirm ? "#fff" : "var(--text-secondary)",
+          color: canConfirm ? "#fff" : memoOnly ? "#FF1B8D" : "var(--text-secondary)",
           fontSize: 14, fontWeight: 600,
-          cursor: canConfirm ? "pointer" : "not-allowed", fontFamily: "inherit",
+          cursor: canSave ? "pointer" : "not-allowed", fontFamily: "inherit",
           marginBottom: 8,
         }}>
-          {canConfirm ? `✓ 일정 확정 → ${confirmTime} 도착 예정` : "도착 시간 선택"}
+          {canConfirm
+            ? `✓ 일정 확정 → ${confirmTime} 도착 예정`
+            : memoOnly
+              ? "📝 메모만 저장 (일정 미정)"
+              : "도착 시간 선택 · 또는 메모 입력"}
         </button>
 
         {/* 2026-07-15 — 사장님 spec: 원터치 [일정 불가] 대신 사유 입력하는 [재배정 요청]. */}

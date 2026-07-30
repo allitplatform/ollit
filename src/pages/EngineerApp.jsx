@@ -38,6 +38,20 @@ import {
 } from "../utils/notificationStore.js";
 
 // IndexedDB 측 알림 → NotiScreen props 형식 어댑트
+// 2026-07-30 — 통화 결과 시트 부제목용 상대시각. DB 기준으로 시트를 띄우면서
+//   "방금 전화함" 이 항상 맞지 않게 되어 실제 경과시간을 보여준다.
+function _callAgoLabel(iso) {
+  if (!iso) return "전화함";
+  const ts = new Date(iso).getTime();
+  if (!ts || isNaN(ts)) return "전화함";
+  const m = Math.floor((Date.now() - ts) / 60000);
+  if (m < 3)   return "방금 전화함";
+  if (m < 60)  return `${m}분 전 전화함`;
+  const h = Math.floor(m / 60);
+  if (h < 24)  return `${h}시간 전 전화함`;
+  return `${Math.floor(h / 24)}일 전 전화함`;
+}
+
 function adaptStoredNoti(stored) {
   const title = stored.title || "";
   let type = "team_message";
@@ -1005,7 +1019,11 @@ function MainScreen({
   const pendingCallTasks = tasks.filter(x => {
     const cc = x?.customerCall;
     if (!cc || !cc.lastAt) return false;
-    if (cc.result) return false;                                   // 이미 결과 입력됨
+    // 2026-07-30 — 재전화해도 이전 결과를 보존하도록 바뀌었으므로,
+    //   "결과 있음" 이 아니라 "마지막 통화 이후 결과 있음" 으로 판정한다.
+    const rts = cc.resultAt ? new Date(cc.resultAt).getTime() : 0;
+    const lts0 = new Date(cc.lastAt).getTime();
+    if (rts && lts0 && rts >= lts0) return false;                  // 이미 결과 입력됨
     if (CALL_RESULT_SKIP_STATUS.includes(String(x.status || ""))) return false;
     const ts = new Date(cc.lastAt).getTime();
     if (!ts || isNaN(ts)) return false;
@@ -4201,16 +4219,24 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   function closeCallSheet() {
     setCallSheetTask(null); setCallMemoStep(false); setCallMemoDraft("");
   }
-  // 2026-07-28 — 사유 입력 중에 바깥을 눌러 닫아도 "통화됨" 은 저장한다.
-  //   (안 그러면 기사가 통화됨을 눌렀는데도 결과가 '전화함' 으로만 남음 = 사장님이 본 증상)
+  // 2026-07-30 — 사장님 확정: 결과 시트는 셋 중 하나를 반드시 고르게 한다.
+  //   바깥을 눌러 닫는 경로는 "사유 입력 단계" 에서만 허용(그 경우엔 통화됨으로 저장).
+  //   선택 단계에서는 아무 일도 하지 않는다 = 닫히지 않는다.
   function dismissCallSheet() {
     if (callMemoStep) { handleCallMemoSave(callMemoDraft); return; }
-    closeCallSheet();
+    /* 선택 단계 — 무시 (셋 중 하나 필수) */
   }
   const pendingCallRef = useRef(null);
+  // 방금 답한 건 — DB 반영(fetchTasks) 전에 시트가 다시 뜨는 것을 막는다.
+  const answeredCallRef = useRef(new Set());
   function handleCustomerCall(taskLike) {
     if (!taskLike || !taskLike.id) return;
-    try { recordCustomerCallAdapter(taskLike.id); } catch { /* fire-and-forget */ }
+    answeredCallRef.current.delete(taskLike.id);   // 새 통화 = 새 결과 필요
+    // 기록이 끝난 뒤 목록을 갱신해야 DB 기준 시트가 뜬다 (아래 auto-open effect).
+    (async () => {
+      try { await recordCustomerCallAdapter(taskLike.id); } catch { /* 무해 */ }
+      try { fetchTasks(); } catch { /* 무해 */ }
+    })();
     pendingCallRef.current = taskLike;
   }
   useEffect(() => {
@@ -4222,26 +4248,59 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
       // 일정 이미 확정/진행 이후 단계면 시트 생략 (전화함 기록은 이미 남음)
       const st = String(tk.status || "");
       if (["확정", "진행중", "작업중", "완료", "취소", "취소요청", "visit_only"].includes(st)) return;
-      setCallSheetTask(tk);
+      setCallSheetTask(prev => prev || tk);
     }
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
+
+  // 2026-07-30 — 통화 결과 시트를 "메모리 ref" 가 아니라 "DB 상태" 기준으로도 띄운다.
+  //   기존엔 pendingCallRef(메모리)에만 의존 → 통화 중 OS 가 PWA 를 내리면 ref 가 사라져
+  //   앱에 돌아와도 시트가 안 떴다. 7/30 표본에서 40건 중 38건이 결과 미입력이었던 원인.
+  //   판정: 마지막 통화(lastAt) 이후에 결과(resultAt)가 없으면 미입력.
+  //   과거 건이 한꺼번에 쏟아지지 않도록 48시간 이내 통화만 자동으로 띄운다
+  //   (그보다 오래된 건은 메인 화면 빨간 카드에서 직접 들어가 입력).
+  useEffect(() => {
+    if (callSheetTask) return;
+    if (screen === "newAssignCall") return;
+    if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+    const SKIP = ["확정", "진행중", "작업중", "완료", "취소", "취소요청", "visit_only"];
+    const MAX_AGE = 48 * 60 * 60 * 1000;
+    const now = Date.now();
+    const pending = (tasks || []).filter(x => {
+      const cc = x?.customerCall;
+      if (!cc || !cc.lastAt) return false;
+      if (answeredCallRef.current.has(x.id)) return false;
+      if (SKIP.includes(String(x.status || ""))) return false;
+      const last = new Date(cc.lastAt).getTime();
+      if (!last || isNaN(last)) return false;
+      if (now - last > MAX_AGE) return false;
+      const res = cc.resultAt ? new Date(cc.resultAt).getTime() : 0;
+      return !(res && res >= last);
+    }).sort((a, b) => new Date(b.customerCall.lastAt) - new Date(a.customerCall.lastAt));
+    if (pending.length) setCallSheetTask(pending[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks, callSheetTask, screen]);
+
   async function handleCallResult(result) {
     const tk = callSheetTask;
     if (!tk) { closeCallSheet(); return; }
     if (result === "schedule") {
-      // 일정 잡혔어요 → 새 배정 상세(일정 칩)로
+      // 2026-07-30 — "일정 잡혔어요" 도 결과로 남긴다.
+      //   기존엔 화면만 넘어가고 기록이 0이라, 고객이 시간을 못 정하면 흔적이 통째로 사라졌다.
+      answeredCallRef.current.add(tk.id);
       closeCallSheet();
       setCallTaskId(tk.id);
       setScreen("newAssignCall");
+      try { await setCustomerCallResultAdapter(tk.id, "scheduled", ""); } catch { /* 무해 */ }
+      try { fetchTasks(); } catch { /* 무해 */ }
       return;
     }
     // 2026-07-28 — 사유 입력을 window.prompt → 시트 안 입력창으로 교체.
     //   prompt 는 앱(웹뷰)에서 안 뜨는 기기가 있어 사유가 한 건도 안 쌓이지 않았음.
     if (result === "talked") { setCallMemoStep(true); return; }
     closeCallSheet();
-    try { await setCustomerCallResultAdapter(tk.id, result, ""); } catch { /* 무해 */ }
+    await saveCallResult(tk, result, "");
   }
 
   // 2026-07-28 — 통화됨 사유 저장 (건너뛰기 = 빈 사유로 저장).
@@ -4249,9 +4308,27 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
     const tk = callSheetTask;
     closeCallSheet();
     if (!tk) return;
+    await saveCallResult(tk, "talked", String(memo || "").trim());
+  }
+
+  // 2026-07-30 — 저장 실패를 더 이상 삼키지 않는다.
+  //   기존엔 try/catch 로 조용히 넘어가서 기사님은 저장된 줄 알았고 운영자 화면엔 안 떴다.
+  async function saveCallResult(tk, result, memo) {
+    if (!tk || !tk.id) return;
+    answeredCallRef.current.add(tk.id);
+    let res = null;
     try {
-      await setCustomerCallResultAdapter(tk.id, "talked", String(memo || "").trim());
-    } catch { /* 무해 */ }
+      res = await setCustomerCallResultAdapter(tk.id, result, memo);
+    } catch (e) {
+      res = { ok: false, error: e?.message || "네트워크 오류" };
+    }
+    if (!res || res.ok === false) {
+      answeredCallRef.current.delete(tk.id);       // 실패 = 아직 안 답한 것
+      showToast(`⚠️ 통화 결과 저장 실패 — ${res?.error || "다시 시도해주세요"}`);
+      setCallSheetTask(tk);                        // 다시 물어본다
+      return;
+    }
+    try { fetchTasks(); } catch { /* 무해 */ }
   }
 
   // V14 큰 흐름 — 모달 state (취소 요청 / 금액 변경 / 완료 + 사진)
@@ -5133,21 +5210,27 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
         ? { ...currentCat, callMemo: memoText, callMemoAt: new Date().toISOString() }
         : currentCat;
 
+      // 2026-07-30 — 일정 없이 메모만 저장하는 경로 추가.
+      //   기존엔 시간을 안 넣으면 저장 버튼 자체가 비활성이라, 기사님이 아무 시간이나
+      //   찍어 넣어 메모를 남기고 있었다(= scheduled_at 오염). 이제 메모만 저장 가능.
+      //   일정이 없을 때는 일정 관련 필드를 아예 건드리지 않는다(기존 일정 보존).
       updateTask(id, {
-        scheduledDate,
-        scheduledTime,
-        scheduledAt: scheduledAtIso,
-        endTime: payload?.endTime,
+        ...(hasSchedule ? {
+          scheduledDate,
+          scheduledTime,
+          scheduledAt: scheduledAtIso,
+          endTime: payload?.endTime,
+          status: "확정",
+        } : {}),
         // category_data 머지 — memoText 있을 때만 덮어쓰기 (없으면 변화 X)
         ...(memoText ? { categoryData: nextCategoryData } : {}),
-        status: hasSchedule ? "확정" : "배정",
       });
     }
     // extraAssignments에 있으면 제거 (mock에서 확정 작업 별도 추가는 다음 catch)
     setExtraAssignments(prev => prev.filter(a => a.id !== id));
     setCallTaskId(null);
     setAcceptedCall(null);
-    showToast("일정이 확정됐습니다.");
+    showToast(hasSchedule ? "일정이 확정됐습니다." : "메모가 저장됐습니다.");
     resetTo("main");
   }
   function handleLocationSettings() {
@@ -5212,7 +5295,11 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               onCompleteReport={(id) => { setSelectedTaskId(id); setScreen("detail"); }}
               onCustomerCall={handleCustomerCall}
               /* 2026-07-28 — 통화 결과 미입력 경고에서 기존 결과 시트 재사용 */
-              onEnterCallResult={(tk) => { if (tk) setCallSheetTask(tk); }}
+              onEnterCallResult={(tk) => {
+                if (!tk) return;
+                answeredCallRef.current.delete(tk.id);
+                setCallSheetTask(tk);
+              }}
               pendingAcceptances={pendingAcceptances}
               newAssignmentsOverride={newAssignments}
               usolNTotal={0}
@@ -5714,7 +5801,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               📞 고객님과 통화 되셨어요?
             </div>
             <div style={{ fontSize: 12, color: "var(--text-secondary)", textAlign: "center", margin: "4px 0 14px" }}>
-              {callSheetTask.customer || ""} · 방금 전화함
+              {callSheetTask.customer || ""} · {_callAgoLabel(callSheetTask?.customerCall?.lastAt)}
             </div>
             <button
               onClick={() => handleCallResult("schedule")}
@@ -5754,15 +5841,13 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
                 <span style={{ display: "block", fontSize: 10.5, fontWeight: 600, marginTop: 3, opacity: 0.8 }}>나중에 다시</span>
               </button>
             </div>
-            <button
-              onClick={closeCallSheet}
-              style={{
-                width: "100%", marginTop: 10, padding: 11,
-                background: "transparent", border: "none",
-                color: "var(--text-secondary)", fontSize: 12, fontWeight: 600,
-                cursor: "pointer", fontFamily: "inherit",
-              }}
-            >그냥 닫기</button>
+            {/* 2026-07-30 — 사장님 확정: '그냥 닫기' 제거. 셋 중 하나 필수 선택. */}
+            <div style={{
+              marginTop: 12, textAlign: "center",
+              fontSize: 11.5, fontWeight: 600, color: "var(--text-secondary)", opacity: 0.85,
+            }}>
+              셋 중 하나를 눌러주세요 · 사무실에서 이 결과를 보고 움직입니다
+            </div>
               </>
             )}
           </div>
