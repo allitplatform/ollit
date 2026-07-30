@@ -183,7 +183,18 @@ export default async function handler(req, res) {
     // 2026-06-06 — Mig 101 kind 게이트. targetUserIds 측 enabled=false 인 user 제외.
     //   row 없음 = 켜짐 (default ON). false 행만 명시적으로 차단.
     //   kind 매핑 측 없으면 (inferKindFromTitle = null) 게이트 측 — 현행 유지.
-    if (kind && targetUserIds.length > 0) {
+    //
+    // 2026-07-30 — targetType='engineer' 는 kind 게이트 제외.
+    //   사고: 구현서(E002)/조동욱(E022) 는 admin + engineer 겸직. 운영자 화면에서
+    //   "모든 작업"이 쏟아지는 관리용 알림 8종을 전부 껐는데, 그 설정이 저장되는
+    //   칸이 기사용과 동일 → 본인 작업 배정 알림까지 같이 죽었다.
+    //   기사 앱에는 종류별 토글 UI 자체가 없다 (마스터 켜기/끄기 하나뿐).
+    //   따라서 user_notification_preferences 의 false 행은 100% 운영자/원청
+    //   화면에서 생성된 것 → 기사 인바운드 푸시에 적용하면 안 된다.
+    //   기사의 수신 거부 의사 표현은 '구독 해제'(push_subscriptions 삭제)가 유일.
+    //   role / user(원청) 타깃은 종전대로 게이트 적용.
+    const applyKindGate = kind && targetType !== "engineer";
+    if (applyKindGate && targetUserIds.length > 0) {
       const { data: prefRows, error: prefErr } = await supabase
         .from("user_notification_preferences")
         .select("user_id, enabled")
