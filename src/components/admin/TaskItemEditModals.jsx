@@ -9,6 +9,9 @@ import {
   adminUpdateTaskItem,
   adminInsertTaskItem,
   fetchPickerOptions,
+  adminChangeTaskItemType,
+  adminRemoveTaskItem,
+  previewTaskItemTypeChange,
 } from "../../lib/taskItemsEditDb.js";
 
 const ACCENT = "#FF1B8D";
@@ -62,11 +65,60 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]         = useState("");
 
+  // ──────────────────────────────────────────────────────────────
+  // 2026-07-30 — Mig 201: 종목 변경 / 오입력 삭제.
+  //   기본은 접혀 있다 (평소엔 수량·단가만 고치므로).
+  //   ⚠️ 종목이 바뀌면 분배율이 통째로 바뀐다 → 저장 전에 기사 몫 미리보기.
+  // ──────────────────────────────────────────────────────────────
+  const [typeMode,        setTypeMode]        = useState(false);
+  const [pickerLoading,   setPickerLoading]   = useState(false);
+  const [pickerError,     setPickerError]     = useState("");
+  const [pickerOpts,      setPickerOpts]      = useState(null);
+  const [serviceTypeId,   setServiceTypeId]   = useState("");
+  const [workTypeId,      setWorkTypeId]      = useState("");
+  const [applianceTypeId, setApplianceTypeId] = useState("");
+  const [preview,         setPreview]         = useState(null);
+  const [previewLoading,  setPreviewLoading]  = useState(false);
+  const [removing,        setRemoving]        = useState(false);
+
+  // 완료·취소 건은 서버가 거부한다 (Mig 201 가드). 버튼을 미리 잠가 헛수고를 막는다.
+  //   task.status 는 DB 원본값 ('진행중' / 'visit_only' 등).
+  const EDITABLE_STATUSES = ["미배정", "약속대기", "배정", "취소요청", "확정", "진행중"];
+  const statusOk = EDITABLE_STATUSES.includes(task?.status || "");
+
   useEffect(() => {
     function handler(e) { if (e.key === "Escape" && !submitting) onClose?.(); }
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [onClose, submitting]);
+
+  // 종목 변경 모드를 켤 때만 옵션 fetch (평소 수정에는 불필요한 네트워크 X)
+  useEffect(() => {
+    if (!typeMode || pickerOpts || pickerLoading) return;
+    let alive = true;
+    setPickerLoading(true); setPickerError("");
+    fetchPickerOptions().then(res => {
+      if (!alive) return;
+      if (!res.ok) { setPickerError(res.error || "옵션 불러오기 실패"); setPickerOpts(null); }
+      else setPickerOpts(res);
+    }).finally(() => { if (alive) setPickerLoading(false); });
+    return () => { alive = false; };
+  }, [typeMode, pickerOpts, pickerLoading]);
+
+  const filteredWorkTypes = useMemo(() => {
+    if (!pickerOpts || !serviceTypeId) return [];
+    return pickerOpts.workTypes.filter(w => w.service_type_id === serviceTypeId);
+  }, [pickerOpts, serviceTypeId]);
+
+  // 서비스 바꾸면 작업 종류 초기화
+  useEffect(() => { setWorkTypeId(""); }, [serviceTypeId]);
+
+  // 작업 종류 고르면 기본 단가 자동 채움 (기존 단가는 옛 종목 기준이라 의미 없음)
+  useEffect(() => {
+    if (!workTypeId || !pickerOpts) return;
+    const wt = pickerOpts.workTypes.find(w => w.id === workTypeId);
+    if (wt && Number(wt.default_unit_price) > 0) setUnitPrice(String(wt.default_unit_price));
+  }, [workTypeId, pickerOpts]);
 
   const qtyN  = Number(qty)       || 0;
   const upN   = Number(unitPrice) || 0;
@@ -75,7 +127,32 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
   const oldUp       = Number(item?.unitPrice ?? item?.unit_price ?? 0);
   const oldSubtotal = oldQty * oldUp;
   const diff        = newSubtotal - oldSubtotal;
-  const changed     = qtyN !== oldQty || upN !== oldUp;
+  const typeChanged = typeMode && !!workTypeId;
+  const changed     = qtyN !== oldQty || upN !== oldUp || typeChanged;
+
+  // 기사 몫 미리보기 — 종목/수량/단가가 바뀔 때마다 서버에 물어본다 (읽기 전용).
+  useEffect(() => {
+    if (!typeChanged || !actorId || !item?.id) { setPreview(null); return; }
+    let alive = true;
+    setPreviewLoading(true);
+    const timer = setTimeout(() => {
+      previewTaskItemTypeChange({
+        actorId, itemId: item.id,
+        workTypeId, applianceTypeId: applianceTypeId || null,
+        qty: qtyN > 0 ? qtyN : null,
+        unitPrice: upN >= 0 ? upN : null,
+      }).then(res => {
+        if (!alive) return;
+        setPreview(res.ok ? res : null);
+      }).finally(() => { if (alive) setPreviewLoading(false); });
+    }, 350);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [typeChanged, actorId, item?.id, workTypeId, applianceTypeId, qtyN, upN]);
+
+  const selectedWorkTypeName = useMemo(() => {
+    if (!pickerOpts || !workTypeId) return "";
+    return pickerOpts.workTypes.find(w => w.id === workTypeId)?.name || "";
+  }, [pickerOpts, workTypeId]);
 
   async function handleSubmit() {
     if (!changed)               { setError("변경 없음"); return; }
@@ -84,6 +161,39 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
     if (note.trim().length < 5) { setError("변경 사유 5자 이상 필수"); return; }
     if (!actorId)               { setError("로그인 운영자 확인 실패"); return; }
 
+    // ── 종목 변경 경로 (Mig 201 RPC) ──
+    if (typeChanged) {
+      if (!statusOk) { setError(`완료·취소된 작업은 종목을 바꿀 수 없습니다 (현재: ${task?.status || "?"})`); return; }
+      let msg = `종목을 "${selectedWorkTypeName || "선택한 종목"}" 으로 바꿉니다.\n`
+              + `이 항목 소계: ${fmtKRW(oldSubtotal)} → ${fmtKRW(newSubtotal)}\n`;
+      if (preview?.old && preview?.new) {
+        msg += `\n기사 몫 (이 항목 기준): ${fmtKRW(preview.old.engineer)} → ${fmtKRW(preview.new.engineer)}\n`;
+      }
+      msg += `\n종목이 바뀌면 분배율이 통째로 바뀝니다. 적용하시겠습니까?`;
+      if (!window.confirm(msg)) return;
+
+      setSubmitting(true); setError("");
+      const res = await adminChangeTaskItemType({
+        actorId, itemId: item.id,
+        workTypeId,
+        applianceTypeId: applianceTypeId || null,
+        qty: qtyN, unitPrice: upN,
+        note: note.trim(),
+      });
+      setSubmitting(false);
+      if (!res.ok) {
+        if (res.error === "policy_not_found") {
+          setError(`정책 없음 — ${res.detail || "이 조합 (원청/서비스/기종) 의 정산 정책이 등록 안 됨"}. 정책 추가 후 다시 시도.`);
+        } else {
+          setError(res.error || "종목 변경 실패");
+        }
+        return;
+      }
+      onApplied?.();
+      return;
+    }
+
+    // ── 수량·단가만 (기존 경로 그대로) ──
     const msg = `이 항목 소계: ${fmtKRW(oldSubtotal)} → ${fmtKRW(newSubtotal)} (${diff >= 0 ? "+" : ""}${fmtKRW(diff)}).\n적용하시겠습니까?\n\n(정산 자동 재계산 — 적용 후 새 분배 확인)`;
     if (!window.confirm(msg)) return;
 
@@ -99,10 +209,33 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
     onApplied?.();
   }
 
+  // 오입력 삭제 — ◐ 부분 취소와 다르다. 진짜 지운다.
+  async function handleRemove() {
+    if (note.trim().length < 5) { setError("삭제 사유 5자 이상 필수 (아래 사유 칸에 적어주세요)"); return; }
+    if (!actorId)               { setError("로그인 운영자 확인 실패"); return; }
+    if (!statusOk)              { setError(`완료·취소된 작업은 항목을 지울 수 없습니다 (현재: ${task?.status || "?"})`); return; }
+
+    const msg = `이 항목을 완전히 지웁니다.\n\n`
+              + `  ${item?.workType || ""} · ${item?.appliance || ""} (${oldQty}개 × ${fmtKRW(oldUp)})\n`
+              + `  소계 ${fmtKRW(oldSubtotal)}\n\n`
+              + `⚠️ 되돌리기 버튼은 없습니다 (변경 이력에만 남습니다).\n`
+              + `고객이 이 작업만 안 하기로 한 경우라면 삭제가 아니라 "◐ 부분 취소" 를 쓰세요.\n\n`
+              + `정말 지울까요?`;
+    if (!window.confirm(msg)) return;
+
+    setRemoving(true); setError("");
+    const res = await adminRemoveTaskItem({ actorId, itemId: item.id, note: note.trim() });
+    setRemoving(false);
+    if (!res.ok) { setError(res.error || "삭제 실패"); return; }
+    onApplied?.();
+  }
+
+  const busy = submitting || removing;
+
   return (
-    <div onClick={() => !submitting && onClose()} style={modalOverlay}>
+    <div onClick={() => !busy && onClose()} style={modalOverlay}>
       <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={modalCard(t)}>
-        <ModalHeader t={t} title="✏️ 견적 수정" subtitle={`${task?.taskNo || task?.task_no || ""} · ${task?.customer || ""}`} onClose={() => !submitting && onClose()}/>
+        <ModalHeader t={t} title="✏️ 견적 수정" subtitle={`${task?.taskNo || task?.task_no || ""} · ${task?.customer || ""}`} onClose={() => !busy && onClose()}/>
         <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
           {/* 현재 항목 */}
           <div style={{
@@ -117,6 +250,122 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
             </div>
             <div>소계 {fmtKRW(oldSubtotal)}</div>
           </div>
+
+          {/* ── 2026-07-30 종목 변경 (접힘 기본) ── */}
+          {!typeMode ? (
+            <button type="button"
+              onClick={() => { if (statusOk) setTypeMode(true); }}
+              disabled={!statusOk}
+              title={statusOk ? "종목(작업 종류) 자체를 바꿉니다" : `완료·취소된 작업은 종목을 바꿀 수 없습니다 (현재: ${task?.status || "?"})`}
+              style={{
+                padding: "9px 12px",
+                background: "transparent",
+                border: `1px dashed ${statusOk ? (t?.border || "var(--border)") : "transparent"}`,
+                borderRadius: 8,
+                color: statusOk ? (t?.textSecondary || "var(--text-secondary)") : (t?.textMuted || "var(--text-tertiary, var(--text-secondary))"),
+                fontSize: 12, fontWeight: 700, fontFamily: "inherit",
+                cursor: statusOk ? "pointer" : "not-allowed",
+                opacity: statusOk ? 1 : 0.5,
+                textAlign: "left",
+              }}>
+              🔧 종목이 잘못 들어갔나요? — 종목 바꾸기
+              {!statusOk && <span style={{ fontWeight: 600 }}> (완료·취소 건은 불가)</span>}
+            </button>
+          ) : (
+            <div style={{
+              padding: "12px",
+              background: "rgba(255,27,141,0.05)",
+              border: `1px solid ${ACCENT}`,
+              borderRadius: 10,
+              display: "flex", flexDirection: "column", gap: 10,
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div style={{ flex: 1, fontSize: 12, fontWeight: 800, color: ACCENT }}>🔧 종목 변경</div>
+                <button type="button" onClick={() => { setTypeMode(false); setServiceTypeId(""); setWorkTypeId(""); setApplianceTypeId(""); setPreview(null); }}
+                  disabled={busy}
+                  style={{
+                    background: "transparent", border: "none", padding: 0,
+                    color: t?.textSecondary || "var(--text-secondary)",
+                    fontSize: 11, fontWeight: 700, cursor: busy ? "default" : "pointer", fontFamily: "inherit",
+                  }}>취소</button>
+              </div>
+
+              {pickerLoading ? (
+                <div style={{ padding: 12, textAlign: "center", fontSize: 12, color: t?.textSecondary || "var(--text-secondary)" }}>
+                  옵션 불러오는 중...
+                </div>
+              ) : pickerError ? (
+                <ErrorBox text={pickerError}/>
+              ) : (
+                <>
+                  <div>
+                    <label style={labelStyle(t)}>새 서비스 종류 <span style={{ color: ACCENT }}>*</span></label>
+                    <select value={serviceTypeId} onChange={(e) => setServiceTypeId(e.target.value)} style={inputStyle(t)}>
+                      <option value="">선택...</option>
+                      {(pickerOpts?.serviceTypes || []).map(s => (
+                        <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {serviceTypeId && (
+                    <div>
+                      <label style={labelStyle(t)}>새 작업 종류 <span style={{ color: ACCENT }}>*</span></label>
+                      <select value={workTypeId} onChange={(e) => setWorkTypeId(e.target.value)} style={inputStyle(t)}>
+                        <option value="">선택...</option>
+                        {filteredWorkTypes.map(w => (
+                          <option key={w.id} value={w.id}>{w.name}{w.default_unit_price > 0 ? ` (기본 ${fmtKRW(w.default_unit_price)})` : ""}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={labelStyle(t)}>기종 (옵션)</label>
+                    <select value={applianceTypeId} onChange={(e) => setApplianceTypeId(e.target.value)} style={inputStyle(t)}>
+                      <option value="">(없음 — 정책이 NULL 기종이면)</option>
+                      {(pickerOpts?.applianceTypes || []).map(a => (
+                        <option key={a.id} value={a.id}>{a.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* 기사 몫 미리보기 — 조용히 분배가 바뀌는 걸 막는 핵심 장치 */}
+                  {typeChanged && (
+                    <div style={{
+                      padding: "10px 12px",
+                      background: t?.bgInset || "rgba(255,255,255,0.04)",
+                      border: `1px solid ${t?.border || "var(--border)"}`,
+                      borderRadius: 8,
+                      fontSize: 12,
+                    }}>
+                      {previewLoading ? (
+                        <span style={{ color: t?.textSecondary || "var(--text-secondary)" }}>기사 몫 계산 중...</span>
+                      ) : !preview ? (
+                        <span style={{ color: t?.textSecondary || "var(--text-secondary)" }}>미리보기를 불러오지 못했습니다 (저장은 가능 — 서버가 정책을 다시 검증합니다)</span>
+                      ) : !preview.new?.ok ? (
+                        <span style={{ color: ACCENT, fontWeight: 700 }}>
+                          ⚠️ 이 조합은 정산 정책이 없습니다 — 저장하면 거부됩니다
+                        </span>
+                      ) : (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                          <div style={{ fontWeight: 800, color: t?.text || "var(--text-primary)" }}>
+                            기사 몫 {fmtKRW(preview.old?.engineer)} → <span style={{ color: ACCENT }}>{fmtKRW(preview.new?.engineer)}</span>
+                          </div>
+                          <div style={{ color: t?.textSecondary || "var(--text-secondary)" }}>
+                            회사 몫 {fmtKRW(preview.old?.company)} → {fmtKRW(preview.new?.company)}
+                          </div>
+                          <div style={{ fontSize: 10, color: t?.textMuted || "var(--text-tertiary, var(--text-secondary))" }}>
+                            {preview.old?.service || "?"} → {preview.new?.service || "?"} · 이 항목만 기준 (자재비·출장비 제외 개략치)
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* qty + unit_price */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: 10 }}>
@@ -154,7 +403,7 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
           <div>
             <label style={labelStyle(t)}>변경 사유 <span style={{ color: ACCENT }}>* (5자 이상)</span></label>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} maxLength={500}
-              placeholder="예: 고객 요청으로 수량 정정"
+              placeholder="예: 고객 요청으로 수량 정정 / 접수 때 종목 잘못 넣음"
               style={{ ...inputStyle(t), resize: "vertical", minHeight: 70, lineHeight: 1.5 }}/>
             <div style={{ fontSize: 10, color: t?.textMuted || "var(--text-tertiary, var(--text-secondary))", textAlign: "right", marginTop: 4 }}>
               {note.length} / 500
@@ -162,12 +411,36 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
           </div>
 
           {error && <ErrorBox text={error}/>}
+
+          {/* ── 2026-07-30 오입력 삭제 ── */}
+          <div style={{ borderTop: `1px dashed ${t?.border || "var(--border)"}`, paddingTop: 10 }}>
+            <button type="button"
+              onClick={handleRemove}
+              disabled={busy || !statusOk || note.trim().length < 5}
+              title={!statusOk ? `완료·취소된 작업은 항목을 지울 수 없습니다 (현재: ${task?.status || "?"})` : "잘못 넣은 항목을 완전히 지웁니다"}
+              style={{
+                width: "100%", padding: "10px 12px",
+                background: "transparent",
+                border: `1px solid ${(busy || !statusOk || note.trim().length < 5) ? (t?.border || "var(--border)") : "rgba(220,38,38,0.55)"}`,
+                borderRadius: 8,
+                color: (busy || !statusOk || note.trim().length < 5) ? (t?.textMuted || "var(--text-tertiary, var(--text-secondary))") : "#DC2626",
+                fontSize: 12, fontWeight: 800, fontFamily: "inherit",
+                cursor: (busy || !statusOk || note.trim().length < 5) ? "not-allowed" : "pointer",
+              }}>
+              {removing ? "삭제 중..." : "🗑 이 항목 삭제 (잘못 넣은 항목)"}
+            </button>
+            <div style={{ fontSize: 10, lineHeight: 1.6, marginTop: 6, color: t?.textMuted || "var(--text-tertiary, var(--text-secondary))" }}>
+              고객이 이 작업만 안 하기로 한 경우는 삭제가 아니라 <b>◐ 부분 취소</b> 입니다.<br/>
+              삭제는 <b>처음부터 잘못 넣은 줄</b> 을 정리할 때만 — 되돌릴 수 없고 변경 이력에만 남습니다.
+              {note.trim().length < 5 && <><br/>위 사유를 5자 이상 적어야 삭제 버튼이 열립니다.</>}
+            </div>
+          </div>
         </div>
         <ModalFooter t={t}
-          submitting={submitting}
-          submitLabel={submitting ? "적용 중..." : "수정 적용 (자동 재계산)"}
-          disabled={!changed || submitting || note.trim().length < 5}
-          onCancel={() => !submitting && onClose()}
+          submitting={busy}
+          submitLabel={submitting ? "적용 중..." : (typeChanged ? "종목 변경 적용 (자동 재계산)" : "수정 적용 (자동 재계산)")}
+          disabled={!changed || busy || note.trim().length < 5 || (typeMode && !workTypeId)}
+          onCancel={() => !busy && onClose()}
           onSubmit={handleSubmit}
         />
       </div>
