@@ -3,7 +3,7 @@
 //   가드: 미정산 + 트랙 B 차단 + 사유 5자+ + 정책 매칭 (추가) — 서버단 진실.
 //   클라는 1차 검증 + confirm + 적용 후 reload 콜백.
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { X } from "lucide-react";
 import {
   adminUpdateTaskItem,
@@ -93,17 +93,29 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
   }, [onClose, submitting]);
 
   // 종목 변경 모드를 켤 때만 옵션 fetch (평소 수정에는 불필요한 네트워크 X)
+  //   ⚠️ 2026-07-30 버그 수정 — pickerLoading 을 deps 에 넣었더니
+  //      setPickerLoading(true) 가 effect 를 재실행시키고, 그 cleanup 이
+  //      alive=false 로 만들어 fetch 결과를 통째로 버렸다
+  //      → "옵션 불러오는 중..." 에서 영원히 멈춤.
+  //      중복 요청 방지는 state 가 아니라 ref 로 해야 한다 (리렌더를 안 일으킴).
+  const pickerReqRef = useRef(false);
   useEffect(() => {
-    if (!typeMode || pickerOpts || pickerLoading) return;
-    let alive = true;
+    if (!typeMode || pickerOpts || pickerReqRef.current) return;
+    pickerReqRef.current = true;
     setPickerLoading(true); setPickerError("");
     fetchPickerOptions().then(res => {
-      if (!alive) return;
-      if (!res.ok) { setPickerError(res.error || "옵션 불러오기 실패"); setPickerOpts(null); }
-      else setPickerOpts(res);
-    }).finally(() => { if (alive) setPickerLoading(false); });
-    return () => { alive = false; };
-  }, [typeMode, pickerOpts, pickerLoading]);
+      if (!res.ok) {
+        setPickerError(res.error || "옵션 불러오기 실패");
+        setPickerOpts(null);
+        pickerReqRef.current = false;   // 실패 시 재시도 가능하게
+      } else {
+        setPickerOpts(res);
+      }
+    }).catch(e => {
+      setPickerError(e?.message || "옵션 불러오기 실패");
+      pickerReqRef.current = false;
+    }).finally(() => setPickerLoading(false));
+  }, [typeMode, pickerOpts]);
 
   const filteredWorkTypes = useMemo(() => {
     if (!pickerOpts || !serviceTypeId) return [];
@@ -129,6 +141,10 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
   const diff        = newSubtotal - oldSubtotal;
   const typeChanged = typeMode && !!workTypeId;
   const changed     = qtyN !== oldQty || upN !== oldUp || typeChanged;
+
+  // 기종미정 접수 건은 workType/appliance 가 비어 있다 → "·" 만 덩그러니 보이지 않게.
+  const curLabel = [item?.workType, item?.appliance].filter(Boolean).join(" · ")
+                   || "(종목·기종 미지정)";
 
   // 기사 몫 미리보기 — 종목/수량/단가가 바뀔 때마다 서버에 물어본다 (읽기 전용).
   useEffect(() => {
@@ -246,7 +262,7 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
             fontSize: 12, color: t?.textSecondary || "var(--text-secondary)",
           }}>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>
-              {item?.workType || ""} · {item?.appliance || ""} (현재 {oldQty}개 × {fmtKRW(oldUp)})
+              {curLabel} (현재 {oldQty}개 × {fmtKRW(oldUp)})
             </div>
             <div>소계 {fmtKRW(oldSubtotal)}</div>
           </div>
@@ -295,7 +311,17 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
                   옵션 불러오는 중...
                 </div>
               ) : pickerError ? (
-                <ErrorBox text={pickerError}/>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <ErrorBox text={pickerError}/>
+                  <button type="button"
+                    onClick={() => { pickerReqRef.current = false; setPickerError(""); setPickerOpts(null); }}
+                    style={{
+                      padding: "8px 10px", background: "transparent",
+                      border: `1px solid ${ACCENT}`, borderRadius: 8,
+                      color: ACCENT, fontSize: 12, fontWeight: 700,
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}>🔄 다시 시도</button>
+                </div>
               ) : (
                 <>
                   <div>
