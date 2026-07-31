@@ -28,6 +28,10 @@ async function call(method, path, qs, body) {
   return { ok: r.ok, status: r.status, data: d };
 }
 
+// 통신사 모바일 공용(CGNAT) 대역 — IP 하나를 고객 수천 명이 공유하므로 차단 금지.
+// 2026-07-31 사고: 자동순찰이 이 대역 17개를 차단해 모바일 노출 급락 + 사장님 폰에서도 광고 안 보임.
+const MOBILE_CGNAT = /^(223\.(3[2-9]|[45][0-9]|6[0-3])\.|106\.10[12]\.|117\.111\.|211\.234\.|118\.235\.|110\.70\.|39\.7\.|175\.223\.|211\.36\.)/;
+
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   if ((req.query.token || "") !== TOKEN) { res.status(404).end(); return; }
@@ -253,9 +257,12 @@ export default async function handler(req, res) {
         res.status(200).json({ ok: r.ok, list: r.data });
         return;
       }
-      const ips = String(req.query.ips || "").split(",").map(s => s.trim())
+      const ipsRaw = String(req.query.ips || "").split(",").map(s => s.trim())
         .filter(s => /^\d{1,3}(\.\d{1,3}){3}$/.test(s)).slice(0, 20);
-      if (!ips.length) { res.status(200).json({ ok: false, error: "ips 필요 (쉼표구분 IPv4)" }); return; }
+      // 모바일 공용 대역은 force=1 없이는 등록 거부
+      const skippedMobile = ipsRaw.filter(ip => MOBILE_CGNAT.test(ip) && req.query.force !== "1");
+      const ips = ipsRaw.filter(ip => !skippedMobile.includes(ip));
+      if (!ips.length) { res.status(200).json({ ok: false, error: "ips 필요 (쉼표구분 IPv4)", skippedMobile }); return; }
       const memo = String(req.query.memo || "관제판 악성판정").slice(0, 30);
       // 네이버는 배열이 아니라 IP 1개씩 객체로 받는다 (IpExclusionRequest)
       const out = [];
@@ -263,7 +270,17 @@ export default async function handler(req, res) {
         const r = await call("POST", "/tool/ip-exclusions", "", { filterIp: ip, memo });
         out.push({ ip, ok: r.ok, err: r.ok ? null : r.data });
       }
-      res.status(200).json({ ok: out.every(o => o.ok), results: out });
+      res.status(200).json({ ok: out.every(o => o.ok), results: out, skippedMobile });
+      return;
+    }
+
+    // 노출제한 IP 삭제 (?step=ipdel&ids=30554350,30552843) — ipFilterId 쉼표구분
+    if (step === "ipdel") {
+      const ids = String(req.query.ids || "").split(",").map(s => s.trim())
+        .filter(s => /^\d+$/.test(s)).slice(0, 50);
+      if (!ids.length) { res.status(200).json({ ok: false, error: "ids 필요 (ipFilterId 쉼표구분)" }); return; }
+      const r = await call("DELETE", "/tool/ip-exclusions", "ipFilterIds=" + ids.join(","));
+      res.status(200).json({ ok: r.ok, status: r.status, data: r.data });
       return;
     }
 
@@ -294,7 +311,8 @@ export default async function handler(req, res) {
         const ex = await call("GET", "/tool/ip-exclusions", "");
         for (const e of (Array.isArray(ex.data) ? ex.data : [])) if (e.filterIp) already.add(e.filterIp);
       } catch (e) {}
-      const targets = bad.filter(b => !already.has(b.ip)).slice(0, 10);
+      // 모바일 공용(CGNAT) 대역은 절대 자동차단 금지 — 고객 수천 명 노출이 같이 죽는다
+      const targets = bad.filter(b => !already.has(b.ip) && !MOBILE_CGNAT.test(b.ip)).slice(0, 10);
       const results = [];
       for (const b of targets) {
         const rr = await call("POST", "/tool/ip-exclusions", "",
