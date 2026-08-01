@@ -561,7 +561,7 @@ th{background:#F7F6F4;text-align:center;font-weight:600} td:first-child{text-ali
 <h1>올잇 광고 일일 보고 — ${yStr} 결산 + ${todayStr} 현재</h1>
 <div class="sub">서버 자동생성(pg_cron) · ${kstNow.toISOString().slice(0, 16).replace("T", " ")} KST</div>
 <div class="hero">
-  <div class="card"><div class="l">어제(${yStr}) 확정 지출</div><div class="v">${yCost != null ? fmt(yCost) + "원" : "조회 실패"}</div><div class="grey">${yJobs != null ? "접수 " + yJobs + "건" : ""}</div></div>
+  <div class="card"><div class="l">어제(${yStr}) 확정 지출</div><div class="v">${yCost != null ? fmt(yCost) + "원" : "조회 실패"}</div><div class="grey">${yJobs != null ? "네이버 폼전환 " + yJobs + "건 (전화콜 미포함·실제보다 과소)" : ""}</div></div>
   <div class="card"><div class="l">오늘 실시간 지출</div><div class="v">${fmt(cost)}원</div><div class="grey">노출 ${fmt(imp)} · 클릭 ${fmt(clk)}</div></div>
   <div class="card"><div class="l">오늘 건당 광고비</div><div class="v ${cpa > LIMIT_CPA ? "bad" : (cpa > GOAL_CPA ? "warn" : "ok")}">${fmt(cpa)}원</div><div class="grey">${dial}</div></div>
   <div class="card"><div class="l">비즈머니 잔액</div><div class="v">${biz != null ? fmt(Math.round(biz)) + "원" : "조회 실패"}</div></div>
