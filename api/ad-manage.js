@@ -518,13 +518,18 @@ export default async function handler(req, res) {
       const topSpend = rows.filter(r => (r.cost || 0) >= 15000).sort((a, b) => b.cost - a.cost).slice(0, 8);
       const pendingKw = rows.filter(r => /PENDING|REVIEW/i.test(String(r.st || ""))).length;
 
-      // ③ 파워컨텐츠 심사 상태
-      let pcStatus = "확인불가";
+      // ③ 파워컨텐츠 — 심사 상태 + 실제 성과 (2026-08-01부터: /api/ad-console?pc=1 재사용,
+      //   기존엔 관제판이 파워링크만 집계해 파워컨텐츠가 사각지대였음. 개설일(7/27)~오늘 누적으로 판정재료 확보)
+      let pcStatus = "확인불가", pc = null;
       try {
         const cr = await call("GET", "/ncc/campaigns", "");
-        const pc = (Array.isArray(cr.data) ? cr.data : []).find(c => c.nccCampaignId === POWER_CONTENT_ID);
-        if (pc) pcStatus = pc.status + (pc.delFlag ? "(삭제됨)" : "");
+        const pcCamp = (Array.isArray(cr.data) ? cr.data : []).find(c => c.nccCampaignId === POWER_CONTENT_ID);
+        if (pcCamp) pcStatus = pcCamp.status + (pcCamp.delFlag ? "(삭제됨)" : "");
       } catch (e) {}
+      try {
+        pc = await fetch(`https://ollit.vercel.app/api/ad-console?token=${TOKEN}&pc=1&since=2026-07-27&until=${todayStr}`).then(r => r.json());
+      } catch (e) {}
+      const pcCpa = pc && pc.conv ? Math.round(pc.cost / pc.conv) : null;
 
       // ④ 밤사이 순찰 — 노출제한 IP 현황 (모바일 대역 재차단 감시가 핵심)
       let ipNew = [], ipTotal = 0, ipMobile = 0;
@@ -571,9 +576,14 @@ ${statErr ? `<div class="note">⚠️ 어제 네이버 확정치 조회 문제: 
 <table><tr><th>그룹</th><th>지출</th><th>노출</th><th>클릭</th><th>전환</th></tr>${rowsHtml || '<tr><td colspan="5">데이터 없음</td></tr>'}</table>
 <h2>지출 상위 키워드 (15,000원 이상)</h2>
 <table><tr><th>키워드</th><th>지출</th><th>클릭</th><th>전환</th><th>입찰</th><th>순위</th></tr>${topHtml || '<tr><td colspan="6">데이터 없음</td></tr>'}</table>
+<h2>파워컨텐츠 (개설 7/27 ~ 오늘 누적, 2주 판정 마감 8/10)</h2>
+<ul>
+<li>캠페인 상태: ${pcStatus}${pc && pc.dailyBudget ? " · 일예산 " + fmt(pc.dailyBudget) + "원" : ""}</li>
+<li>누적 지출 ${pc ? fmt(pc.cost) + "원" : "조회 실패"} · 노출 ${pc ? fmt(pc.imp) : "-"} · 클릭 ${pc ? fmt(pc.clk) : "-"} · CTR ${pc ? pc.ctr : "-"}% · CPC ${pc ? fmt(pc.cpc) + "원" : "-"}</li>
+<li>전환 ${pc ? pc.conv : "-"}건${pcCpa != null ? " · 전환당 " + fmt(pcCpa) + "원 (판정선 5만원)" : ""}</li>
+</ul>
 <h2>심사·순찰</h2>
 <ul>
-<li>파워컨텐츠 캠페인 상태: ${pcStatus}</li>
 <li>심사중(PENDING/REVIEW) 키워드: ${pendingKw}개</li>
 <li>노출제한 IP 총 ${ipTotal}개 (모바일 공용대역 ${ipMobile}개${ipMobile > 0 ? " — ⚠️ 코드상 자동등록 금지 구간인데 존재함, 확인 필요" : ""})</li>
 <li>최근 24시간 신규 차단: ${ipNew.length ? ipNew.join(", ") : "없음"}</li>
@@ -607,7 +617,8 @@ ${statErr ? `<div class="note">⚠️ 어제 네이버 확정치 조회 문제: 
         }
       } catch (e) {}
 
-      res.status(200).json({ ok: saveRes.ok, report: saveRes, cpa, cost, jobs, yCost, yJobs, ipTotal, ipMobile, statErr });
+      res.status(200).json({ ok: saveRes.ok, report: saveRes, cpa, cost, jobs, yCost, yJobs, ipTotal, ipMobile, statErr,
+        pc: pc && { cost: pc.cost, imp: pc.imp, clk: pc.clk, conv: pc.conv, ctr: pc.ctr, cpc: pc.cpc, cpa: pcCpa } });
       return;
     }
 

@@ -429,6 +429,48 @@ export default async function handler(req, res) {
       res.status(200).json({ ok: true, rows });
       return;
     }
+
+    // 파워컨텐츠 성과 (?pc=1) — 2026-08-01 추가. 기존 관제판은 파워링크(CAMPAIGN_ID)만 집계해
+    // 파워컨텐츠(cmp-a001-03-000000010907045)는 눈에 안 보이는 사각지대였음. 검증된 /stats
+    // 패턴(ids=+fields=+timeRange=, 아래 메인 흐름과 동일)을 그대로 재사용 — 새 방식 시도 안 함.
+    if (req.query.pc === "1") {
+      const PC_ID = "cmp-a001-03-000000010907045";
+      const since = req.query.since || new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      const until = req.query.until || since;
+      const camp = await call("GET", "/ncc/campaigns", "").catch(() => []);
+      const campInfo = (Array.isArray(camp) ? camp : []).find(c => c.nccCampaignId === PC_ID) || null;
+      const pcGroups = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(PC_ID)).catch(() => []);
+      const kwRows = [];
+      for (const g of (Array.isArray(pcGroups) ? pcGroups : [])) {
+        const ks = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(g.nccAdgroupId)).catch(() => []);
+        for (const k of (Array.isArray(ks) ? ks : [])) {
+          kwRows.push({ id: k.nccKeywordId, kw: k.keyword, grp: g.name, gid: g.nccAdgroupId,
+            bid: k.bidAmt, on: !k.userLock, st: k.status });
+        }
+      }
+      const fields = encodeURIComponent(JSON.stringify(["impCnt", "clkCnt", "salesAmt", "ccnt"]));
+      const tr = encodeURIComponent(JSON.stringify({ since, until }));
+      let cost = 0, imp = 0, clk = 0, conv = 0;
+      for (const part of chunk(kwRows, 100)) {
+        if (!part.length) continue;
+        const qs = part.map(k => "ids=" + encodeURIComponent(k.id)).join("&") + "&fields=" + fields + "&timeRange=" + tr;
+        try {
+          const s = await call("GET", "/stats", qs);
+          const arr = Array.isArray(s) ? s : (s && Array.isArray(s.data) ? s.data : []);
+          for (const d of arr) {
+            const row = kwRows.find(k => k.id === d.id);
+            if (row) { row.cost = Math.round((d.salesAmt || 0) * 1.1); row.imp = d.impCnt || 0; row.clk = d.clkCnt || 0; row.conv = d.ccnt || 0; }
+            cost += Math.round((d.salesAmt || 0) * 1.1); imp += d.impCnt || 0; clk += d.clkCnt || 0; conv += d.ccnt || 0;
+          }
+        } catch (e) { /* 통계 실패해도 그룹/키워드 목록은 살린다 */ }
+      }
+      res.status(200).json({ ok: true, since, until, status: campInfo && campInfo.status,
+        dailyBudget: campInfo && campInfo.dailyBudget, cost, imp, clk, conv,
+        ctr: imp ? +((clk / imp) * 100).toFixed(2) : 0, cpc: clk ? Math.round(cost / clk) : 0,
+        rows: kwRows });
+      return;
+    }
+
     // ① 그룹 + 살아있는 키워드
     const groups = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(CAMPAIGN_ID));
     const rows = [];
