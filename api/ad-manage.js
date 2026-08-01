@@ -11,6 +11,8 @@ const NAVER_CUSTOMER = process.env.NAVER_AD_CUSTOMER_ID;
 const NAVER_BASE     = "https://api.searchad.naver.com";
 const TOKEN = "b29adde027905ee35c810634f09bda48a697f973fbdb8ca8";
 const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
+const POWER_CONTENT_ID = "cmp-a001-03-000000010907045";
+const GOAL_CPA = 25000, LIMIT_CPA = 35300;
 
 function sign(method, path) {
   const ts = Date.now();
@@ -468,7 +470,148 @@ export default async function handler(req, res) {
       return;
     }
 
-    res.status(200).json({ ok: true, steps: ["group&name=", "addkw&gid=&bid=&kws=", "list&gid=", "volsync&gid=&offset=", "health"] });
+    // 아침 자동보고 (?step=morningreport) — 매일 08:10 KST pg_cron이 호출.
+    //   브라우저·세션·컴퓨터 전원과 무관하게 서버 혼자 돈다: 어제 확정치·오늘 실시간 수집
+    //   → 예산다이얼 계산 → HTML 작성 → 관제판 📄보고서 탭 저장 → 사장님 문자 알림.
+    //   PDF 생성·채팅 전달은 Claude 세션이 살아있을 때만 별도로 얹는다(있으면 좋고 없어도 핵심은 됨).
+    if (step === "morningreport") {
+      const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
+      const todayStr = kstNow.toISOString().slice(0, 10);
+      const yStr = new Date(kstNow.getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const fmt = n => Number(n || 0).toLocaleString("ko-KR");
+      const pickStat = d => { if (!d) return null;
+        if (Array.isArray(d)) return d[0] || null;
+        if (Array.isArray(d.data)) return d.data[0] || null;
+        return null; };
+
+      // ① 어제 확정치 (파워링크 + 파워컨텐츠, 캠페인 단위 — 실패해도 보고서는 계속 만든다)
+      let yPL = null, yPC = null, statErr = null;
+      try {
+        const fields = encodeURIComponent(JSON.stringify(["impCnt", "clkCnt", "salesAmt", "ccnt"]));
+        const tr = encodeURIComponent(JSON.stringify({ since: yStr, until: yStr }));
+        const r1 = await call("GET", "/stats", `ids=${encodeURIComponent(CAMPAIGN_ID)}&fields=${fields}&timeRange=${tr}`);
+        yPL = pickStat(r1.data);
+        const r2 = await call("GET", "/stats", `ids=${encodeURIComponent(POWER_CONTENT_ID)}&fields=${fields}&timeRange=${tr}`);
+        yPC = pickStat(r2.data);
+        if (!yPL) statErr = "네이버 통계 응답 형식 불일치 (수동 확인 필요)";
+      } catch (e) { statErr = String(e && e.message || e); }
+      const yCost = yPL ? Math.round((yPL.salesAmt || 0) * 1.1) : null;
+      const yJobs = yPL ? (yPL.ccnt || 0) : null;
+
+      // 비즈머니 잔액
+      let biz = null;
+      try { const rb = await call("GET", "/billing/bizmoney", ""); biz = rb.data && (rb.data.bizmoney ?? rb.data.balance); } catch (e) {}
+
+      // ② 오늘 실시간 — 관제판 자체 API 재사용(그룹/키워드 집계 로직 중복 방지, 자체 도메인이라 방화벽 문제 없음)
+      let todayData = null;
+      try { todayData = await fetch(`https://ollit.vercel.app/api/ad-console?token=${TOKEN}`).then(r => r.json()); } catch (e) {}
+      const rows = (todayData && Array.isArray(todayData.rows) ? todayData.rows : []).filter(r => r && typeof r === "object");
+      let cost = 0, imp = 0, clk = 0;
+      const grpMap = {};
+      for (const r of rows) {
+        cost += r.cost || 0; imp += r.imp || 0; clk += r.clk || 0;
+        const g = r.grp || "?"; grpMap[g] = grpMap[g] || { cost: 0, imp: 0, clk: 0, conv: 0 };
+        grpMap[g].cost += r.cost || 0; grpMap[g].imp += r.imp || 0; grpMap[g].clk += r.clk || 0; grpMap[g].conv += r.conv || 0;
+      }
+      const jobs = (todayData && todayData.todayJobs) || 0;
+      const cpa = jobs ? Math.round(cost / jobs) : 0;
+      const topSpend = rows.filter(r => (r.cost || 0) >= 15000).sort((a, b) => b.cost - a.cost).slice(0, 8);
+      const pendingKw = rows.filter(r => /PENDING|REVIEW/i.test(String(r.st || ""))).length;
+
+      // ③ 파워컨텐츠 심사 상태
+      let pcStatus = "확인불가";
+      try {
+        const cr = await call("GET", "/ncc/campaigns", "");
+        const pc = (Array.isArray(cr.data) ? cr.data : []).find(c => c.nccCampaignId === POWER_CONTENT_ID);
+        if (pc) pcStatus = pc.status + (pc.delFlag ? "(삭제됨)" : "");
+      } catch (e) {}
+
+      // ④ 밤사이 순찰 — 노출제한 IP 현황 (모바일 대역 재차단 감시가 핵심)
+      let ipNew = [], ipTotal = 0, ipMobile = 0;
+      try {
+        const ir = await call("GET", "/tool/ip-exclusions", "");
+        const list = Array.isArray(ir.data) ? ir.data : [];
+        ipTotal = list.length;
+        ipMobile = list.filter(x => MOBILE_CGNAT.test(x.filterIp || "")).length;
+        const sinceMs = Date.now() - 24 * 3600 * 1000;
+        ipNew = list.filter(x => (x.regTm || 0) >= sinceMs).map(x => x.filterIp);
+      } catch (e) {}
+
+      // 예산 다이얼 판정
+      let dial = "적정 유지";
+      if (cpa && cpa < GOAL_CPA * 0.85) dial = "여유 — 증액 검토 가능";
+      else if (cpa > LIMIT_CPA) dial = "초과 — 감액 검토 필요";
+
+      const rowsHtml = Object.entries(grpMap).filter(([, v]) => v.cost > 1000)
+        .sort((a, b) => b[1].cost - a[1].cost)
+        .map(([g, v]) => `<tr><td>${g}</td><td>${fmt(v.cost)}</td><td>${fmt(v.imp)}</td><td>${fmt(v.clk)}</td><td>${fmt(v.conv)}</td></tr>`).join("");
+      const topHtml = topSpend.map(r => `<tr><td>${r.kw}</td><td>${fmt(r.cost)}</td><td>${r.clk}</td><td>${r.conv || 0}</td><td>${fmt(r.bid)}</td><td>${r.rnk ?? "권외"}</td></tr>`).join("");
+
+      const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><style>
+body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#37352F;margin:28px auto;max-width:820px;padding:0 16px;font-size:14px;line-height:1.55}
+h1{font-size:21px;margin:0 0 2px} .sub{color:#787774;font-size:12.5px;margin-bottom:18px}
+h2{font-size:15.5px;margin:22px 0 8px;padding-bottom:4px;border-bottom:2px solid #37352F}
+table{border-collapse:collapse;width:100%;font-size:13px} th,td{border:1px solid #E3E2E0;padding:5px 8px;text-align:right}
+th{background:#F7F6F4;text-align:center;font-weight:600} td:first-child{text-align:left}
+.hero{display:flex;gap:10px;margin:14px 0;flex-wrap:wrap} .card{flex:1;min-width:150px;border:1px solid #E3E2E0;border-radius:8px;padding:12px 14px}
+.card .l{font-size:11.5px;color:#787774} .card .v{font-size:20px;font-weight:700;margin-top:2px}
+.ok{color:#0F7B6C}.warn{color:#D9730D}.bad{color:#E03E3E} .grey{color:#787774;font-size:12px}
+.note{background:#FBF3DB;border-radius:6px;padding:10px 12px;font-size:12.5px;margin:8px 0}
+</style></head><body>
+<h1>올잇 광고 일일 보고 — ${yStr} 결산 + ${todayStr} 현재</h1>
+<div class="sub">서버 자동생성(pg_cron) · ${kstNow.toISOString().slice(0, 16).replace("T", " ")} KST</div>
+<div class="hero">
+  <div class="card"><div class="l">어제(${yStr}) 확정 지출</div><div class="v">${yCost != null ? fmt(yCost) + "원" : "조회 실패"}</div><div class="grey">${yJobs != null ? "접수 " + yJobs + "건" : ""}</div></div>
+  <div class="card"><div class="l">오늘 실시간 지출</div><div class="v">${fmt(cost)}원</div><div class="grey">노출 ${fmt(imp)} · 클릭 ${fmt(clk)}</div></div>
+  <div class="card"><div class="l">오늘 건당 광고비</div><div class="v ${cpa > LIMIT_CPA ? "bad" : (cpa > GOAL_CPA ? "warn" : "ok")}">${fmt(cpa)}원</div><div class="grey">${dial}</div></div>
+  <div class="card"><div class="l">비즈머니 잔액</div><div class="v">${biz != null ? fmt(Math.round(biz)) + "원" : "조회 실패"}</div></div>
+</div>
+${statErr ? `<div class="note">⚠️ 어제 네이버 확정치 조회 문제: ${statErr} — 사람이 관제판에서 재확인 필요</div>` : ""}
+<h2>오늘 그룹별 지출</h2>
+<table><tr><th>그룹</th><th>지출</th><th>노출</th><th>클릭</th><th>전환</th></tr>${rowsHtml || '<tr><td colspan="5">데이터 없음</td></tr>'}</table>
+<h2>지출 상위 키워드 (15,000원 이상)</h2>
+<table><tr><th>키워드</th><th>지출</th><th>클릭</th><th>전환</th><th>입찰</th><th>순위</th></tr>${topHtml || '<tr><td colspan="6">데이터 없음</td></tr>'}</table>
+<h2>심사·순찰</h2>
+<ul>
+<li>파워컨텐츠 캠페인 상태: ${pcStatus}</li>
+<li>심사중(PENDING/REVIEW) 키워드: ${pendingKw}개</li>
+<li>노출제한 IP 총 ${ipTotal}개 (모바일 공용대역 ${ipMobile}개${ipMobile > 0 ? " — ⚠️ 코드상 자동등록 금지 구간인데 존재함, 확인 필요" : ""})</li>
+<li>최근 24시간 신규 차단: ${ipNew.length ? ipNew.join(", ") : "없음"}</li>
+</ul>
+<div class="grey" style="margin-top:20px">다음 자동보고: ${new Date(kstNow.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10)} 08:10 KST · 서버 cron 자동 실행 — 컴퓨터·세션 상태와 무관</div>
+</body></html>`;
+
+      // 저장 (관제판 📄보고서 탭)
+      let saveRes = { ok: false };
+      try {
+        const SBu = process.env.VITE_SUPABASE_URL, SBk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+        const slug = crypto.randomBytes(9).toString("hex");
+        const sr = await fetch(`${SBu}/rest/v1/ad_daily_report`, { method: "POST",
+          headers: { apikey: SBk, Authorization: `Bearer ${SBk}`, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ slug, d: yStr, html }) });
+        saveRes = { ok: sr.ok, slug, url: "https://ollit.vercel.app/api/report?id=" + slug };
+      } catch (e) { saveRes = { ok: false, error: String(e && e.message || e) }; }
+
+      // 사장님 문자 알림 (관제판 열어보게 유도 — 세션 없이도 존재를 알림)
+      try {
+        const K = process.env.SOLAPI_API_KEY, S = process.env.SOLAPI_API_SECRET;
+        if (K && S && saveRes.ok) {
+          const msg = `[올잇 광고] 아침 보고서 준비됨. 오늘 건당 ${fmt(cpa)}원(${dial}). ${saveRes.url}`;
+          const date = new Date().toISOString();
+          const salt = crypto.randomBytes(16).toString("hex");
+          const sig = crypto.createHmac("sha256", S).update(date + salt).digest("hex");
+          await fetch("https://api.solapi.com/messages/v4/send-many", { method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `HMAC-SHA256 apiKey=${K}, date=${date}, salt=${salt}, signature=${sig}` },
+            body: JSON.stringify({ messages: [{ to: "01048874002", from: "01041163991", text: msg,
+              type: msg.length > 43 ? "LMS" : "SMS", subject: "올잇 광고 아침보고" }] }) });
+        }
+      } catch (e) {}
+
+      res.status(200).json({ ok: saveRes.ok, report: saveRes, cpa, cost, jobs, yCost, yJobs, ipTotal, ipMobile, statErr });
+      return;
+    }
+
+    res.status(200).json({ ok: true, steps: ["group&name=", "addkw&gid=&bid=&kws=", "list&gid=", "volsync&gid=&offset=", "health", "morningreport"] });
   } catch (e) {
     res.status(200).json({ ok: false, error: String(e && e.message || e) });
   }
