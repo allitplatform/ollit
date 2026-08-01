@@ -178,7 +178,7 @@ export default async function handler(req, res) {
       const nextAd = JSON.parse(JSON.stringify(ad.ad));
       if (headline) nextAd.headline = headline;
       if (desc) nextAd.description = desc;
-      const r = await call("PUT", "/ncc/ads/" + encodeURIComponent(adid), null,
+      const r = await call("PUT", "/ncc/ads/" + encodeURIComponent(adid), "fields=ad",
         { nccAdId: adid, nccAdgroupId: gid, type: ad.type, ad: nextAd });
       res.status(200).json({ ok: r.ok, before, after: { headline: nextAd.headline, description: nextAd.description },
         err: r.ok ? null : r.data });
