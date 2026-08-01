@@ -162,6 +162,29 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 소재(헤드라인·설명) 수정 (?step=adhead&gid=...&adid=...&headline=...[&desc=...])
+    //   기존 소재 전체를 GET으로 받아 headline/description만 바꿔서 통째로 PUT — 이미지 등 나머지 필드 보존
+    if (step === "adhead") {
+      const { gid, adid } = req.query;
+      const headline = req.query.headline ? String(req.query.headline) : null;
+      const desc = req.query.desc ? String(req.query.desc) : null;
+      if (!gid || !adid || (!headline && !desc)) {
+        res.status(200).json({ ok: false, error: "gid/adid 필요 + headline 또는 desc 중 하나" }); return; }
+      const cur = await call("GET", "/ncc/ads", "nccAdgroupId=" + encodeURIComponent(gid));
+      const list = Array.isArray(cur.data) ? cur.data : [];
+      const ad = list.find(a => a.nccAdId === adid);
+      if (!ad) { res.status(200).json({ ok: false, error: "해당 adid를 그룹에서 못 찾음" }); return; }
+      const before = { headline: ad.ad.headline, description: ad.ad.description };
+      const nextAd = JSON.parse(JSON.stringify(ad.ad));
+      if (headline) nextAd.headline = headline;
+      if (desc) nextAd.description = desc;
+      const r = await call("PUT", "/ncc/ads/" + encodeURIComponent(adid), null,
+        { nccAdId: adid, nccAdgroupId: gid, type: ad.type, ad: nextAd });
+      res.status(200).json({ ok: r.ok, before, after: { headline: nextAd.headline, description: nextAd.description },
+        err: r.ok ? null : r.data });
+      return;
+    }
+
     // 개별 입찰가 수정
     if (step === "setbid") {
       const { id, gid } = req.query; const bid = Number(req.query.bid);
