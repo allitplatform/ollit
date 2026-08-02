@@ -109,6 +109,33 @@ export function AdminPcDashboard({
   );
   const ownerToday = stats.revenue?.margin;  // dashboardStats 는 margin 키 (권한 없으면 undefined → 칸 숨김)
 
+  // 2026-08-02 — 사장님 확정: 예정일 지난 미완료 건을 대시보드 맨 위에 띄운다 (모바일 홈과 동일).
+  //   발견 경위: 김병철 프로 건이 6/2 확정 상태로 61일 방치 → 전수 5건(2개월 3건).
+  //   예정일이 지나도 아무도 안 보면 영원히 남는 구조였다.
+  //   판정은 원본 status 로 한다 — getEffectiveStatus 는 예정일 지난 확정을 '진행중' 으로
+  //   바꿔 보여주기 때문에, 그걸 쓰면 모바일 홈 카드와 라벨이 어긋난다.
+  const overdueTasks = useMemo(() => {
+    const OPEN = ["배정", "확정", "진행중", "작업중", "이동중"];
+    return (apiTasks || [])
+      .filter(x => {
+        if (!OPEN.includes(String(x.status || ""))) return false;
+        const n = x.scheduledDate || x.scheduledAt || x.scheduled_at || x.확정일시 || x.confirmedAt;
+        if (!n) return false;
+        const ymd = String(n).length === 10 ? String(n) : toKstYmd(n);
+        return !!ymd && ymd < todayStr;
+      })
+      .map(x => {
+        const n = x.scheduledDate || x.scheduledAt || x.scheduled_at || x.확정일시 || x.confirmedAt;
+        const ymd = String(n).length === 10 ? String(n) : toKstYmd(n);
+        const days = Math.max(0, Math.round(
+          (new Date(`${todayStr}T00:00:00`) - new Date(`${ymd}T00:00:00`)) / 86400000
+        ));
+        return { task: x, ymd, days };
+      })
+      .sort((a, b) => b.days - a.days);
+  }, [apiTasks, todayStr]);
+  const [overdueOpen, setOverdueOpen] = useState(false);
+
   return (
     <div style={{
       padding: "24px 28px 36px",
@@ -116,6 +143,81 @@ export function AdminPcDashboard({
       flexDirection: "column",
       gap: 20,
     }}>
+      {/* 2026-08-02 — 예정일 지남 경보 (맨 위). 0건이면 아예 안 보인다. */}
+      {overdueTasks.length > 0 && (
+        <div style={{
+          background: "var(--bg-elevated)",
+          border: "1px solid rgba(248,113,113,0.55)",
+          borderRadius: 14,
+          overflow: "hidden",
+        }}>
+          <button
+            type="button"
+            onClick={() => setOverdueOpen(v => !v)}
+            style={{
+              width: "100%", background: "none", border: "none",
+              padding: "13px 16px", cursor: "pointer", fontFamily: "inherit",
+              display: "flex", alignItems: "center", gap: 10, textAlign: "left",
+            }}
+          >
+            <span style={{ fontSize: 17 }}>⚠️</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: "#F87171" }}>
+              예정일 지남 {overdueTasks.length}건
+            </span>
+            <span style={{ fontSize: 11.5, color: "var(--text-tertiary)" }}>
+              완료도 취소도 안 된 채 남아 있는 작업
+            </span>
+            <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 800, color: "#F87171" }}>
+              {overdueOpen ? "접기 ▲" : "펼치기 ▼"}
+            </span>
+          </button>
+          {overdueOpen && (
+            <div style={{ borderTop: "1px solid var(--border)" }}>
+              {overdueTasks.map(({ task: x, ymd, days }, i) => (
+                <button
+                  key={x.id || x.taskCode || x.taskNo || i}
+                  type="button"
+                  onClick={() => onOpenTaskDetail?.(x)}
+                  style={{
+                    width: "100%", background: "none", border: "none",
+                    borderTop: i === 0 ? "none" : "1px solid var(--border)",
+                    padding: "11px 16px", cursor: "pointer", fontFamily: "inherit",
+                    display: "grid", gridTemplateColumns: "minmax(0,1.1fr) minmax(0,1fr) auto auto",
+                    gap: 12, alignItems: "center", textAlign: "left",
+                  }}
+                >
+                  <span style={{
+                    fontSize: 13, fontWeight: 700, color: "var(--text-primary)",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    {x.customer || x.customerName || "—"}
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-tertiary)" }}>
+                      {" · "}{x.status}
+                    </span>
+                  </span>
+                  <span style={{
+                    fontSize: 12, color: "var(--text-secondary)",
+                    whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  }}>
+                    {x.assignedEngineer || x.engineer || "기사 미배정"}
+                    {x.region ? ` · ${x.region}` : ""}
+                  </span>
+                  <span className="mono" style={{
+                    fontSize: 12, color: "var(--text-tertiary)", whiteSpace: "nowrap",
+                  }}>{ymd}</span>
+                  <span style={{
+                    padding: "3px 9px", borderRadius: 999, whiteSpace: "nowrap",
+                    background: days >= 30 ? "#F87171" : "rgba(248,113,113,0.18)",
+                    color: days >= 30 ? "#fff" : "#F87171",
+                    fontSize: 11.5, fontWeight: 800, fontVariantNumeric: "tabular-nums",
+                  }}>{days}일</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── 히어로 — 중복 제거 (2026-07-21 v3, 사장님 지적):
             · "오늘 완료" 칸 제거 — 아래 오늘 진행 바가 동일 정보 담당.
             · "미배정" 칸은 0건이면 숨김 — 평소엔 처리 대기 칸이 담당, 1건+ 일 때만 경고로 등장.
