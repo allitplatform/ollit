@@ -288,15 +288,11 @@ export function PrincipalSettleTab({ principalCodes, onSelect }) {
 
       const dbItems   = dbEntry ? dbEntry.items : [];
       // usol_n / 비-usol_n 분리.
-      // 2026-07-28 — usolNDb 에서 company_received_at 있는 건 제외 (이월로 이미 다른 주차에서 정산 완료).
-      //   사고: 김채윤 YS-N-260615-001 (naver 7/14) 2건이 7/27 확정 시 이월로 정산 완료
-      //   (company_received_at=2026-07-27 12:49) 되어 7/20 스냅샷에 포함됐는데,
-      //   fetchJuneLiveWeeks 필터 추가 후 src 가 사라지자 else 분기(line 300-303)로 fallback
-      //   되어 usolNDb 경유로 7/13 미확정 카드에 재출현. src.items 필터와 정합 맞춤.
-      //   확정 주차는 src=snapshotWeek 로 채워지므로 이 필터 무영향.
-      const usolNDb   = dbItems.filter(it =>
-        it.principal_id === USOL_N_PID && !it.company_received_at
-      );
+      // 2026-07-28 v3 — v2 의 company_received_at 필터 제거.
+      //   v2 는 WEEKLY_DATA_FIXED (W14~W22) drill-in 도 함께 비워 4/27 등 옛 주차 items
+      //   사라지는 부작용 발생. 김채윤 중복은 fetchJuneLiveWeeks v3 필터에서 원천 배제되므로
+      //   여기서 재필터 불필요.
+      const usolNDb   = dbItems.filter(it => it.principal_id === USOL_N_PID);
       const otherDb   = dbItems.filter(it => it.principal_id !== USOL_N_PID);
 
       // 카드 메인 — usol_n 측 source 우선, 없으면 DB items / 비-usol_n 측 DB items 합산.

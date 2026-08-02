@@ -238,6 +238,18 @@ export function isDepositDone(depositYmd, todayYmd, remitStatus = null) {
 //   monthlyAmounts = 작업월 동적 분류 (= 회사 실수령 기준).
 //   cancel 필터: !is_canceled AND tasks.status != "취소".
 export async function fetchJuneLiveWeeks() {
+  // 2026-07-28 v3 — 확정 remit 목록 선(先) fetch: 옛 확정(no-snapshot) 주차 판별용.
+  //   v2 fix (query-level company_received_at IS NULL) 가 옛 확정 주차 items 도 제거해
+  //   6/29·6/22·6/15·6/08·6/01·4/27 등 총 62,628,046원 규모 카드가 사라짐.
+  //   v3 spec: 필터를 미확정 주차 items 에만 적용. 옛 확정 no-snapshot 주차는 필터 X.
+  //   (스냅샷 확정 주차는 아래 병합 경로가 라이브 결과를 치환하므로 무관.)
+  const confirmedRemits = await fetchConfirmedRemitsForUsolN({ monthsBack: 6 });
+  const oldConfirmedMondays = new Set(
+    confirmedRemits
+      .filter(r => r.snapshot_item_count == null)
+      .map(r => r.week_start)
+  );
+
   const PAGE = 1000;
   const MAX_PAGES = 30;
   const all = [];
@@ -247,7 +259,7 @@ export async function fetchJuneLiveWeeks() {
       .from("task_items")
       .select(
         `id, task_id, naver_settled_at, net_amount, subtotal, is_canceled, product_order_id, order_type,
-         qty, unit_price, description,
+         qty, unit_price, description, company_received_at,
          work_types ( id, name ),
          appliance_types ( id, name ),
          tasks!inner ( id, task_no, customer_name, phone, address, district,
@@ -256,13 +268,7 @@ export async function fetchJuneLiveWeeks() {
       .eq("tasks.principal_id", USOL_N_PID)
       .not("naver_settled_at", "is", null)
       .gte("naver_settled_at", JUN_LIVE_START_UTC)
-      // 2026-07-28 — 이월로 다른 주차에서 이미 수령한 건은 라이브 집계에서 제외.
-      //   사고: 김채윤 YS-N-260615-001 (naver 7/14, 2건) 이 7/27 확정 시 이월로 정산 완료
-      //   (company_received_at=2026-07-27 12:49) 되어 7/20 스냅샷 8건에 포함됐는데,
-      //   7/13 주차 미확정 라이브 카드에도 계속 노출되던 중복 표시 방지.
-      //   확정 주차는 아래 스냅샷 병합 경로가 처리하므로 라이브에서 빼도 손실 없음.
-      //   fetchCarryoverC2Items(line 739) 와 동일 필터 정렬 → 3중 일관.
-      .is("company_received_at", null)
+      // 2026-07-28 v3 — query 레벨 필터 제거. 아래 그룹 루프에서 주차별 조건 적용.
       .order("id", { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) {
@@ -343,6 +349,11 @@ export async function fetchJuneLiveWeeks() {
     if (!settledYmd) continue;
     const monday = mondayOfYmd(settledYmd);
     if (!monday || monday < "2026-06-01") continue;  // W22 이전은 fixed
+    // 2026-07-28 v3 — company_received_at 조건부 필터:
+    //   - 옛 확정 no-snapshot 주차 (oldConfirmedMondays 포함): 필터 X (이미 정산된 items 유지)
+    //   - 그 외 (미확정 or 스냅샷 확정): 필터 O (이월-수령 완료건 제외)
+    //   김채윤 중복 (7/13 미확정) 은 여전히 배제, 6/29 등 옛 확정 주차는 원복.
+    if (it.company_received_at && !oldConfirmedMondays.has(monday)) continue;
     if (!weekMap.has(monday)) {
       const sunday = addDaysYmd(monday, 6);
       const deposit = addDaysYmd(sunday, 1);
@@ -436,7 +447,7 @@ export async function fetchJuneLiveWeeks() {
   //   확정 주차 = 라이브 대신 스냅샷 items 사용 → 카드/드릴인/엑셀 3중 일치.
   //   요약-only (건별 items 0건 + snapshot_item_count 있음) → 카드에 요약값만 표시.
   //   옛 확정 (snapshot_item_count NULL) → 라이브 유지 (스냅샷 이전 시대).
-  const confirmedRemits = await fetchConfirmedRemitsForUsolN({ monthsBack: 6 });
+  //   2026-07-28 v3 — confirmedRemits 는 함수 상단에서 이미 조회 (재사용).
   console.warn("[SNAP.card] confirmedRemits:", confirmedRemits.length,
     confirmedRemits.map(r => ({ id: r.id, week_start: r.week_start, snapshot_item_count: r.snapshot_item_count })));
   for (const remit of confirmedRemits) {
@@ -512,6 +523,8 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
   //   요약-only (건별 스냅샷 0건 + snapshot_item_count 있음) → items:[] + _summaryOnly 부착.
   //   미확정 → 아래 기존 라이브 계산 (fetchCarryoverC2Items 포함).
   console.warn("[SNAP.drill] fetchWeekItemsByMonday called mondayYmd=", mondayYmd);
+  // 2026-07-28 v3 — 옛 확정 no-snapshot 주차 판별 플래그 (라이브 fetch 시 필터 조건 결정).
+  let isOldConfirmedNoSnapshot = false;
   {
     const { data: remitRow, error: remitErr } = await supabase
       .from("principal_weekly_remittances")
@@ -545,7 +558,8 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
         };
       }
       console.warn("[SNAP.drill] → 옛 확정 (snapshot_item_count NULL), fall back to live");
-      // 옛 확정 (스냅샷 이전) → 라이브 폴백 (아래 진행)
+      // 옛 확정 (스냅샷 이전) → 라이브 폴백 (아래 진행). company_received_at 필터 X.
+      isOldConfirmedNoSnapshot = true;
     } else {
       console.warn("[SNAP.drill] → no confirmed remit for this monday, fall back to live");
     }
@@ -563,7 +577,10 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
   const MAX_PAGES = 10;
   const all = [];
   for (let p = 0; p < MAX_PAGES; p++) {
-    const { data, error } = await supabase
+    // 2026-07-28 v3 — company_received_at 조건부 필터:
+    //   - 미확정 주차: IS NULL 필터 O (김채윤 등 이월-수령 완료건 제외)
+    //   - 옛 확정 no-snapshot 주차 (isOldConfirmedNoSnapshot): 필터 X (원복 items 유지)
+    let q = supabase
       .from("task_items")
       .select(
         `id, task_id, naver_settled_at, net_amount, subtotal, is_canceled, product_order_id, order_type,
@@ -576,10 +593,11 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
       .eq("tasks.principal_id", USOL_N_PID)
       .not("naver_settled_at", "is", null)
       .gte("naver_settled_at", startUtc)
-      .lt("naver_settled_at", endUtc)
-      // 2026-07-28 — 라이브 드릴인도 이월 정산 완료건 제외 (fetchJuneLiveWeeks 와 동일 필터).
-      //   확정 주차는 상단 스냅샷 조기반환(line 508-545)이 처리하므로 이 경로는 미확정 전용.
-      .is("company_received_at", null)
+      .lt("naver_settled_at", endUtc);
+    if (!isOldConfirmedNoSnapshot) {
+      q = q.is("company_received_at", null);
+    }
+    const { data, error } = await q
       .order("naver_settled_at", { ascending: true })
       .range(p * PAGE, (p + 1) * PAGE - 1);
     if (error) {
