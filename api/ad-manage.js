@@ -13,6 +13,7 @@ const TOKEN = "b29adde027905ee35c810634f09bda48a697f973fbdb8ca8";
 const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
 const POWER_CONTENT_ID = "cmp-a001-03-000000010907045";
 const GOAL_CPA = 25000, LIMIT_CPA = 35300;
+const DAILY_BUDGET = 2800000; // 사장님 확정 하루예산 (2026-07-31). 변경 시 여기만 수정.
 
 function sign(method, path) {
   const ts = Date.now();
@@ -498,34 +499,21 @@ export default async function handler(req, res) {
     //   → 예산다이얼 계산 → HTML 작성 → 관제판 📄보고서 탭 저장 → 사장님 문자 알림.
     //   PDF 생성·채팅 전달은 Claude 세션이 살아있을 때만 별도로 얹는다(있으면 좋고 없어도 핵심은 됨).
     if (step === "morningreport") {
+      const mode = String(req.query.mode || "morning"); // morning(08:10) | midday(3시간마다) | close(22:00)
       const kstNow = new Date(Date.now() + 9 * 3600 * 1000);
       const todayStr = kstNow.toISOString().slice(0, 10);
       const yStr = new Date(kstNow.getTime() - 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const y2Str = new Date(kstNow.getTime() - 48 * 3600 * 1000).toISOString().slice(0, 10);
+      const hh = kstNow.getUTCHours(); // kstNow가 +9 시프트라 UTC 게터가 곧 KST
       const fmt = n => Number(n || 0).toLocaleString("ko-KR");
       const pickStat = d => { if (!d) return null;
         if (Array.isArray(d)) return d[0] || null;
         if (Array.isArray(d.data)) return d.data[0] || null;
         return null; };
+      const SBu = process.env.VITE_SUPABASE_URL, SBk = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const sbH = { apikey: SBk, Authorization: `Bearer ${SBk}` };
 
-      // ① 어제 확정치 (파워링크 + 파워컨텐츠, 캠페인 단위 — 실패해도 보고서는 계속 만든다)
-      let yPL = null, yPC = null, statErr = null;
-      try {
-        const fields = encodeURIComponent(JSON.stringify(["impCnt", "clkCnt", "salesAmt", "ccnt"]));
-        const tr = encodeURIComponent(JSON.stringify({ since: yStr, until: yStr }));
-        const r1 = await call("GET", "/stats", `ids=${encodeURIComponent(CAMPAIGN_ID)}&fields=${fields}&timeRange=${tr}`);
-        yPL = pickStat(r1.data);
-        const r2 = await call("GET", "/stats", `ids=${encodeURIComponent(POWER_CONTENT_ID)}&fields=${fields}&timeRange=${tr}`);
-        yPC = pickStat(r2.data);
-        if (!yPL) statErr = "네이버 통계 응답 형식 불일치 (수동 확인 필요)";
-      } catch (e) { statErr = String(e && e.message || e); }
-      const yCost = yPL ? Math.round((yPL.salesAmt || 0) * 1.1) : null;
-      const yJobs = yPL ? (yPL.ccnt || 0) : null;
-
-      // 비즈머니 잔액
-      let biz = null;
-      try { const rb = await call("GET", "/billing/bizmoney", ""); biz = rb.data && (rb.data.bizmoney ?? rb.data.balance); } catch (e) {}
-
-      // ② 오늘 실시간 — 관제판 자체 API 재사용(그룹/키워드 집계 로직 중복 방지, 자체 도메인이라 방화벽 문제 없음)
+      // ── 공통: 오늘 실시간 (관제판 API 재사용)
       let todayData = null;
       try { todayData = await fetch(`https://ollit.vercel.app/api/ad-console?token=${TOKEN}`).then(r => r.json()); } catch (e) {}
       const rows = (todayData && Array.isArray(todayData.rows) ? todayData.rows : []).filter(r => r && typeof r === "object");
@@ -540,40 +528,113 @@ export default async function handler(req, res) {
       const cpa = jobs ? Math.round(cost / jobs) : 0;
       const topSpend = rows.filter(r => (r.cost || 0) >= 15000).sort((a, b) => b.cost - a.cost).slice(0, 8);
       const pendingKw = rows.filter(r => /PENDING|REVIEW/i.test(String(r.st || ""))).length;
+      // 경고 자동 추출: ①전환 0인데 지출 큰 키워드 ②돈 쓰는데 순위 밀린 키워드
+      const waste = rows.filter(r => (r.cost || 0) >= 15000 && !(r.conv > 0)).sort((a, b) => b.cost - a.cost).slice(0, 6);
+      const wasteSum = waste.reduce((s, r) => s + r.cost, 0);
+      const pushed = rows.filter(r => (r.cost || 0) >= 30000 && (r.rnk || 0) > 2.5).sort((a, b) => b.cost - a.cost).slice(0, 4);
 
-      // ③ 파워컨텐츠 — 심사 상태 + 실제 성과 (2026-08-01부터: /api/ad-console?pc=1 재사용,
-      //   기존엔 관제판이 파워링크만 집계해 파워컨텐츠가 사각지대였음. 개설일(7/27)~오늘 누적으로 판정재료 확보)
-      let pcStatus = "확인불가", pc = null;
-      try {
-        const cr = await call("GET", "/ncc/campaigns", "");
-        const pcCamp = (Array.isArray(cr.data) ? cr.data : []).find(c => c.nccCampaignId === POWER_CONTENT_ID);
-        if (pcCamp) pcStatus = pcCamp.status + (pcCamp.delFlag ? "(삭제됨)" : "");
-      } catch (e) {}
-      try {
-        pc = await fetch(`https://ollit.vercel.app/api/ad-console?token=${TOKEN}&pc=1&since=2026-07-27&until=${todayStr}`).then(r => r.json());
-      } catch (e) {}
-      const pcCpa = pc && pc.conv ? Math.round(pc.cost / pc.conv) : null;
+      // ── 공통: 페이스 예측 (0시부터 경과시간 기준 단순 환산)
+      const hoursGone = Math.max(0.5, hh + kstNow.getUTCMinutes() / 60);
+      const projected = cost > 0 ? Math.round(cost / hoursGone * 24) : 0;
+      const runoutHour = (cost > 0 && projected > DAILY_BUDGET) ? (hoursGone * DAILY_BUDGET / cost) : null;
 
-      // ④ 밤사이 순찰 — 노출제한 IP 현황 (모바일 대역 재차단 감시가 핵심)
+      // ── 공통: 비즈머니
+      let biz = null;
+      try { const rb = await call("GET", "/billing/bizmoney", ""); biz = rb.data && (rb.data.bizmoney ?? rb.data.balance); } catch (e) {}
+
+      // ── 어제·그제 마감 스냅샷(_daily: 22시 close 모드가 기록) + 어제 네이버 확정치 (morning만)
+      let yPL = null, statErr = null, ySnap = null, y2Snap = null;
+      if (mode === "morning") {
+        try {
+          const fields = encodeURIComponent(JSON.stringify(["impCnt", "clkCnt", "salesAmt", "ccnt"]));
+          const tr = encodeURIComponent(JSON.stringify({ since: yStr, until: yStr }));
+          const r1 = await call("GET", "/stats", `ids=${encodeURIComponent(CAMPAIGN_ID)}&fields=${fields}&timeRange=${tr}`);
+          yPL = pickStat(r1.data);
+          if (!yPL) statErr = "네이버 통계 응답 형식 불일치";
+        } catch (e) { statErr = String(e && e.message || e); }
+        try {
+          const q = d => fetch(`${SBu}/rest/v1/ad_autobid_log?kw=eq._daily&grp=eq.${d}&order=run_at.desc&limit=1`, { headers: sbH }).then(r => r.json());
+          const [a, b] = await Promise.all([q(yStr), q(y2Str)]);
+          ySnap = a && a[0] || null; y2Snap = b && b[0] || null; // bid_from=지출, bid_to=실접수
+        } catch (e) {}
+      }
+      const yCost = yPL ? Math.round((yPL.salesAmt || 0) * 1.1) : null;
+      const yForm = yPL ? (yPL.ccnt || 0) : null;
+
+      // ── 파워컨텐츠 (morning·close만 — midday는 생략해 호출 절약)
+      let pcStatus = "확인불가", pc = null, pcCpa = null;
+      if (mode !== "midday") {
+        try {
+          const cr = await call("GET", "/ncc/campaigns", "");
+          const pcCamp = (Array.isArray(cr.data) ? cr.data : []).find(c => c.nccCampaignId === POWER_CONTENT_ID);
+          if (pcCamp) pcStatus = pcCamp.status + (pcCamp.delFlag ? "(삭제됨)" : "");
+        } catch (e) {}
+        try { pc = await fetch(`https://ollit.vercel.app/api/ad-console?token=${TOKEN}&pc=1&since=2026-07-27&until=${todayStr}`).then(r => r.json()); } catch (e) {}
+        pcCpa = pc && pc.conv ? Math.round(pc.cost / pc.conv) : null;
+      }
+
+      // ── 순찰 (morning만)
       let ipNew = [], ipTotal = 0, ipMobile = 0;
-      try {
-        const ir = await call("GET", "/tool/ip-exclusions", "");
-        const list = Array.isArray(ir.data) ? ir.data : [];
-        ipTotal = list.length;
-        ipMobile = list.filter(x => MOBILE_CGNAT.test(x.filterIp || "")).length;
-        const sinceMs = Date.now() - 24 * 3600 * 1000;
-        ipNew = list.filter(x => (x.regTm || 0) >= sinceMs).map(x => x.filterIp);
-      } catch (e) {}
+      if (mode === "morning") {
+        try {
+          const ir = await call("GET", "/tool/ip-exclusions", "");
+          const list = Array.isArray(ir.data) ? ir.data : [];
+          ipTotal = list.length;
+          ipMobile = list.filter(x => MOBILE_CGNAT.test(x.filterIp || "")).length;
+          ipNew = list.filter(x => (x.regTm || 0) >= Date.now() - 24 * 3600 * 1000).map(x => x.filterIp);
+        } catch (e) {}
+      }
 
-      // 예산 다이얼 판정
+      // ── close: 오늘 마감 스냅샷 저장 (내일 아침 보고의 "어제 총정리" 재료)
+      if (mode === "close") {
+        try {
+          await fetch(`${SBu}/rest/v1/ad_autobid_log`, { method: "POST",
+            headers: { ...sbH, "Content-Type": "application/json", Prefer: "return=minimal" },
+            body: JSON.stringify({ kw: "_daily", grp: todayStr, bid_from: cost, bid_to: jobs, est1: null }) });
+        } catch (e) {}
+      }
+
+      // ── 예산 다이얼 (사장님 공식: 건당 3만 이하 증액 / 3~4만 적정 / 4만 초과 감액)
+      const judgeCpa = v => !v ? "판정 불가(접수 0)" : v <= 30000 ? "증액 여지 (3만 이하)" : v <= 40000 ? "적정 (3~4만)" : "감액 필요 (4만 초과)";
+      const recBudget = v => !v ? DAILY_BUDGET : v <= 30000 ? Math.round(DAILY_BUDGET * 1.1 / 10000) * 10000 : v <= 40000 ? DAILY_BUDGET : Math.round(DAILY_BUDGET * 0.85 / 10000) * 10000;
       let dial = "적정 유지";
       if (cpa && cpa < GOAL_CPA * 0.85) dial = "여유 — 증액 검토 가능";
       else if (cpa > LIMIT_CPA) dial = "초과 — 감액 검토 필요";
+
+      // ── 룰 기반 전략 문장 (해석·판단이 아니라 숫자 조건의 기계적 번역 — 그 이상의 전략은 세션에서)
+      const stratList = [];
+      const ySpend = ySnap ? Number(ySnap.bid_from) : null, yJobsReal = ySnap ? Number(ySnap.bid_to) : null;
+      const yCpaReal = (ySpend && yJobsReal) ? Math.round(ySpend / yJobsReal) : null;
+      if (mode === "morning") {
+        if (yCpaReal) stratList.push(`어제 22시 기준 건당 ${fmt(yCpaReal)}원 → ${judgeCpa(yCpaReal)} → 오늘 권장예산 ${fmt(recBudget(yCpaReal))}원 (현재 설정 ${fmt(DAILY_BUDGET)}원)`);
+        else stratList.push(`어제 마감 스냅샷 없음(22시 마감보고 미가동 또는 첫날) — 예산은 ${fmt(DAILY_BUDGET)}원 유지`);
+        if (y2Snap && ySnap) { const d1 = Number(ySnap.bid_from) - Number(y2Snap.bid_from), d2 = Number(ySnap.bid_to) - Number(y2Snap.bid_to);
+          stratList.push(`추이: 그제 대비 지출 ${d1 >= 0 ? "+" : ""}${fmt(d1)}원 · 접수 ${d2 >= 0 ? "+" : ""}${d2}건`); }
+        if (pc && pc.conv === 0 && pc.clk >= 50) stratList.push(`파워컨텐츠 클릭 ${pc.clk}회에 전환 0 지속 — 소재(제목·썸네일) 교체가 선결 과제`);
+        if (pendingKw > 0) stratList.push(`심사중 키워드 ${pendingKw}개 — 통과 여부 오후 확인`);
+      } else if (mode === "midday") {
+        stratList.push(`이 페이스면 오늘 ${fmt(projected)}원 (예산 ${fmt(DAILY_BUDGET)}원의 ${Math.round(projected / DAILY_BUDGET * 100)}%)${runoutHour ? ` — 약 ${Math.floor(runoutHour)}시경 소진 예상` : " — 소진 위험 없음"}`);
+        if (cpa) stratList.push(`현재 건당 ${fmt(cpa)}원 → ${judgeCpa(cpa)}`);
+        for (const w of waste.slice(0, 3)) stratList.push(`보강 후보: ${w.kw} — ${fmt(w.cost)}원 쓰고 전환 0 (입찰 ${fmt(w.bid)}원)`);
+        for (const p of pushed.slice(0, 2)) stratList.push(`순위 밀림: ${p.kw} — ${fmt(p.cost)}원 지출 중인데 ${p.rnk}위 (입찰 ${fmt(p.bid)}원)`);
+      } else { // close
+        stratList.push(`오늘 최종(22시): 지출 ${fmt(cost)}원 · 접수 ${jobs}건 · 건당 ${fmt(cpa)}원 → ${judgeCpa(cpa)}`);
+        stratList.push(`내일 권장예산: ${fmt(recBudget(cpa))}원 (현재 설정 ${fmt(DAILY_BUDGET)}원)`);
+        if (wasteSum > 0) stratList.push(`내일 손볼 것: 전환 0 지출 ${fmt(wasteSum)}원 (${waste.map(w => w.kw).join(", ")}) — 입찰 인하 또는 OFF 검토`);
+        if (pushed.length) stratList.push(`밀린 헤드 점검: ${pushed.map(p => `${p.kw}(${p.rnk}위)`).join(", ")}`);
+      }
 
       const rowsHtml = Object.entries(grpMap).filter(([, v]) => v.cost > 1000)
         .sort((a, b) => b[1].cost - a[1].cost)
         .map(([g, v]) => `<tr><td>${g}</td><td>${fmt(v.cost)}</td><td>${fmt(v.imp)}</td><td>${fmt(v.clk)}</td><td>${fmt(v.conv)}</td></tr>`).join("");
       const topHtml = topSpend.map(r => `<tr><td>${r.kw}</td><td>${fmt(r.cost)}</td><td>${r.clk}</td><td>${r.conv || 0}</td><td>${fmt(r.bid)}</td><td>${r.rnk ?? "권외"}</td></tr>`).join("");
+      const stratHtml = stratList.map(s => `<li>${s}</li>`).join("");
+
+      const TITLE = mode === "morning" ? `아침 보고 — ${yStr} 총정리 + 오늘 전략`
+        : mode === "midday" ? `중간 보고 ${String(hh).padStart(2, "0")}시 — 현재 상황·예측·보강`
+        : `마감 보고 — ${todayStr} 총정리 + 내일 전략`;
+      const STRAT_TITLE = mode === "morning" ? "오늘의 전략 (룰 기반 자동판정)"
+        : mode === "midday" ? "예측·보강할 것 (룰 기반 자동판정)" : "내일 전략 (룰 기반 자동판정)";
 
       const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"><style>
 body{font-family:'Malgun Gothic','Apple SD Gothic Neo',sans-serif;color:#37352F;margin:28px auto;max-width:820px;padding:0 16px;font-size:14px;line-height:1.55}
@@ -585,63 +646,70 @@ th{background:#F7F6F4;text-align:center;font-weight:600} td:first-child{text-ali
 .card .l{font-size:11.5px;color:#787774} .card .v{font-size:20px;font-weight:700;margin-top:2px}
 .ok{color:#0F7B6C}.warn{color:#D9730D}.bad{color:#E03E3E} .grey{color:#787774;font-size:12px}
 .note{background:#FBF3DB;border-radius:6px;padding:10px 12px;font-size:12.5px;margin:8px 0}
+.strat{background:#EDF3EC;border-radius:6px;padding:10px 14px;font-size:13px;margin:8px 0}
 </style></head><body>
-<h1>올잇 광고 일일 보고 — ${yStr} 결산 + ${todayStr} 현재</h1>
+<h1>올잇 광고 — ${TITLE}</h1>
 <div class="sub">서버 자동생성(pg_cron) · ${kstNow.toISOString().slice(0, 16).replace("T", " ")} KST</div>
 <div class="hero">
-  <div class="card"><div class="l">어제(${yStr}) 확정 지출</div><div class="v">${yCost != null ? fmt(yCost) + "원" : "조회 실패"}</div><div class="grey">${yJobs != null ? "네이버 폼전환 " + yJobs + "건 (전화콜 미포함·실제보다 과소)" : ""}</div></div>
-  <div class="card"><div class="l">오늘 실시간 지출</div><div class="v">${fmt(cost)}원</div><div class="grey">노출 ${fmt(imp)} · 클릭 ${fmt(clk)}</div></div>
+  ${mode === "morning" ? `<div class="card"><div class="l">어제(${yStr}) 마감 실적</div><div class="v">${ySpend != null ? fmt(ySpend) + "원" : (yCost != null ? fmt(yCost) + "원" : "조회 실패")}</div><div class="grey">${yJobsReal != null ? `실접수 ${yJobsReal}건 · 건당 ${fmt(yCpaReal)}원` : (yForm != null ? "네이버 폼전환 " + yForm + "건 (과소)" : "")}</div></div>` : ""}
+  <div class="card"><div class="l">오늘 실시간 지출</div><div class="v">${fmt(cost)}원</div><div class="grey">노출 ${fmt(imp)} · 클릭 ${fmt(clk)} · 접수 ${jobs}건</div></div>
   <div class="card"><div class="l">오늘 건당 광고비</div><div class="v ${cpa > LIMIT_CPA ? "bad" : (cpa > GOAL_CPA ? "warn" : "ok")}">${fmt(cpa)}원</div><div class="grey">${dial}</div></div>
+  ${mode !== "morning" ? `<div class="card"><div class="l">하루 환산 페이스</div><div class="v ${projected > DAILY_BUDGET ? "warn" : ""}">${fmt(projected)}원</div><div class="grey">예산 ${fmt(DAILY_BUDGET)}원${runoutHour ? ` · ${Math.floor(runoutHour)}시경 소진 예상` : ""}</div></div>` : ""}
   <div class="card"><div class="l">비즈머니 잔액</div><div class="v">${biz != null ? fmt(Math.round(biz)) + "원" : "조회 실패"}</div></div>
 </div>
-${statErr ? `<div class="note">⚠️ 어제 네이버 확정치 조회 문제: ${statErr} — 사람이 관제판에서 재확인 필요</div>` : ""}
+${statErr ? `<div class="note">⚠️ 어제 네이버 확정치 조회 문제: ${statErr}</div>` : ""}
+<h2>${STRAT_TITLE}</h2>
+<div class="strat"><ul style="margin:2px 0">${stratHtml || "<li>판정 재료 부족</li>"}</ul></div>
+<div class="grey">※ 숫자 조건의 기계적 판정임. 상황 해석·전략 조정은 채팅에서 요청.</div>
 <h2>오늘 그룹별 지출</h2>
 <table><tr><th>그룹</th><th>지출</th><th>노출</th><th>클릭</th><th>전환</th></tr>${rowsHtml || '<tr><td colspan="5">데이터 없음</td></tr>'}</table>
 <h2>지출 상위 키워드 (15,000원 이상)</h2>
 <table><tr><th>키워드</th><th>지출</th><th>클릭</th><th>전환</th><th>입찰</th><th>순위</th></tr>${topHtml || '<tr><td colspan="6">데이터 없음</td></tr>'}</table>
-<h2>파워컨텐츠 (개설 7/27 ~ 오늘 누적, 2주 판정 마감 8/10)</h2>
+${mode !== "midday" ? `<h2>파워컨텐츠 (개설 7/27~, 판정 마감 8/10)</h2>
 <ul>
 <li>캠페인 상태: ${pcStatus}${pc && pc.dailyBudget ? " · 일예산 " + fmt(pc.dailyBudget) + "원" : ""}</li>
 <li>누적 지출 ${pc ? fmt(pc.cost) + "원" : "조회 실패"} · 노출 ${pc ? fmt(pc.imp) : "-"} · 클릭 ${pc ? fmt(pc.clk) : "-"} · CTR ${pc ? pc.ctr : "-"}% · CPC ${pc ? fmt(pc.cpc) + "원" : "-"}</li>
 <li>전환 ${pc ? pc.conv : "-"}건${pcCpa != null ? " · 전환당 " + fmt(pcCpa) + "원 (판정선 5만원)" : ""}</li>
-</ul>
-<h2>심사·순찰</h2>
+</ul>` : ""}
+${mode === "morning" ? `<h2>심사·순찰</h2>
 <ul>
 <li>심사중(PENDING/REVIEW) 키워드: ${pendingKw}개</li>
-<li>노출제한 IP 총 ${ipTotal}개 (모바일 공용대역 ${ipMobile}개${ipMobile > 0 ? " — ⚠️ 코드상 자동등록 금지 구간인데 존재함, 확인 필요" : ""})</li>
+<li>노출제한 IP 총 ${ipTotal}개 (모바일 공용대역 ${ipMobile}개${ipMobile > 0 ? " — ⚠️ 자동등록 금지 구간인데 존재, 확인 필요" : ""})</li>
 <li>최근 24시간 신규 차단: ${ipNew.length ? ipNew.join(", ") : "없음"}</li>
-</ul>
-<div class="grey" style="margin-top:20px">다음 자동보고: ${new Date(kstNow.getTime() + 24 * 3600 * 1000).toISOString().slice(0, 10)} 08:10 KST · 서버 cron 자동 실행 — 컴퓨터·세션 상태와 무관</div>
+</ul>` : ""}
+<div class="grey" style="margin-top:20px">자동보고 일정: 아침 08:10 · 중간 11:10/14:10/17:10/20:10 · 마감 22:00 (KST, 서버 cron — 컴퓨터·세션 상태 무관)</div>
 </body></html>`;
 
-      // 저장 (관제판 📄보고서 탭)
+      // 저장 (관제판 📄보고서 탭) — 아침 보고는 어제 날짜, 중간·마감은 오늘 날짜
       let saveRes = { ok: false };
       try {
-        const SBu = process.env.VITE_SUPABASE_URL, SBk = process.env.SUPABASE_SERVICE_ROLE_KEY;
         const slug = crypto.randomBytes(9).toString("hex");
         const sr = await fetch(`${SBu}/rest/v1/ad_daily_report`, { method: "POST",
-          headers: { apikey: SBk, Authorization: `Bearer ${SBk}`, "Content-Type": "application/json", Prefer: "return=minimal" },
-          body: JSON.stringify({ slug, d: yStr, html }) });
+          headers: { ...sbH, "Content-Type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({ slug, d: mode === "morning" ? yStr : todayStr, html }) });
         saveRes = { ok: sr.ok, slug, url: "https://ollit.vercel.app/api/report?id=" + slug };
       } catch (e) { saveRes = { ok: false, error: String(e && e.message || e) }; }
 
-      // 사장님 문자 알림 (관제판 열어보게 유도 — 세션 없이도 존재를 알림)
+      // 문자 알림 — 아침·마감만 (3시간 중간보고까지 보내면 하루 6통 스팸이라 제외)
       try {
         const K = process.env.SOLAPI_API_KEY, S = process.env.SOLAPI_API_SECRET;
-        if (K && S && saveRes.ok) {
-          const msg = `[올잇 광고] 아침 보고서 준비됨. 오늘 건당 ${fmt(cpa)}원(${dial}). ${saveRes.url}`;
+        if (K && S && saveRes.ok && mode !== "midday") {
+          const msg = mode === "morning"
+            ? `[올잇 광고] 아침 보고서 준비됨. 어제 건당 ${yCpaReal ? fmt(yCpaReal) : "?"}원. ${saveRes.url}`
+            : `[올잇 광고] 마감 보고. 오늘 ${fmt(cost)}원/${jobs}건(건당 ${fmt(cpa)}원). 내일 권장예산 ${fmt(recBudget(cpa))}원. ${saveRes.url}`;
           const date = new Date().toISOString();
           const salt = crypto.randomBytes(16).toString("hex");
           const sig = crypto.createHmac("sha256", S).update(date + salt).digest("hex");
           await fetch("https://api.solapi.com/messages/v4/send-many", { method: "POST",
             headers: { "Content-Type": "application/json", Authorization: `HMAC-SHA256 apiKey=${K}, date=${date}, salt=${salt}, signature=${sig}` },
             body: JSON.stringify({ messages: [{ to: "01048874002", from: "01041163991", text: msg,
-              type: msg.length > 43 ? "LMS" : "SMS", subject: "올잇 광고 아침보고" }] }) });
+              type: msg.length > 43 ? "LMS" : "SMS", subject: "올잇 광고 자동보고" }] }) });
         }
       } catch (e) {}
 
-      res.status(200).json({ ok: saveRes.ok, report: saveRes, cpa, cost, jobs, yCost, yJobs, ipTotal, ipMobile, statErr,
-        pc: pc && { cost: pc.cost, imp: pc.imp, clk: pc.clk, conv: pc.conv, ctr: pc.ctr, cpc: pc.cpc, cpa: pcCpa } });
+      res.status(200).json({ ok: saveRes.ok, mode, report: saveRes, cpa, cost, jobs, projected, runoutHour,
+        yCpaReal, wasteSum, statErr,
+        pc: pc && { cost: pc.cost, clk: pc.clk, conv: pc.conv, cpa: pcCpa } });
       return;
     }
 
