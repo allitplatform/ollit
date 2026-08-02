@@ -8143,7 +8143,6 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
 function EngineerDayScreen({ t, engineer, apiTasks = [], onBack, onTaskClick }) {
   if (!engineer) return <PlaceholderScreen t={t} title="프로 오늘" label="프로 정보 없음" onBack={onBack}/>;
 
-  const schedule = engineer.todaySchedule || [];
   // 2026-07-16 — getEngineerStats(ENGINEER_ASSIGNMENTS mock) 제거 (사장님 발견: "최영수" 없는 작업 노출).
   // 2026-07-16 v2 — 사장님 spec: 신규 배정 = 전체(일정 미정이라 오늘 필터에 안 걸림),
   //   일정 확정 = 전체(내일 이후 포함), 완료 = 오늘만. → apiTasks 에서 이 기사 작업 전체로 집계.
@@ -8152,6 +8151,29 @@ function EngineerDayScreen({ t, engineer, apiTasks = [], onBack, onTaskClick }) 
     ((engineer.engineerId || engineer.id) && (task.assignedEngineerId === (engineer.engineerId || engineer.id) || task.engineerId === (engineer.engineerId || engineer.id)))
   );
   const todayStr2 = todayYmd();
+
+  // 2026-07-30 — 사장님 발견: "일정 확정 2건" 인데 "오늘 일정 0건 / 일정 없음".
+  //   원인: 타임라인만 engineer.todaySchedule(넘겨받은 객체)에 의존했다.
+  //   그 값은 프로 목록(EngineersTab)에서만 채워지고, 배정추천 화면에서 들어오면 비어 있다.
+  //   → 이 화면이 가진 apiTasks 로 직접 오늘 일정을 만든다 (다른 숫자들과 같은 소스).
+  const scheduleLive = myTasks
+    .filter(task => {
+      const sched = task.scheduledDate || (task.scheduledAt ? toKstYmd(task.scheduledAt) : "");
+      return sched === todayStr2;
+    })
+    .map(task => ({
+      type: "work", state: task.state, customer: task.customer, workType: task.workType,
+      region: task.region, note: task.workMemo || task.note || "", taskCode: task.taskCode,
+      time: task.time, principal: task.principal, assignedAt: task.assignedAt || null,
+      appliance: task.appliance || "", qty: task.qty || 1,
+      workItems: Array.isArray(task.workItems) ? task.workItems : null,
+      address: task.fullAddress || task.address || "",
+      status: task.status || "", estimateTotal: Number(task.estimateTotal) || 0,
+      task,
+    }));
+  // apiTasks 가 아직 안 왔을 때만 넘겨받은 값으로 폴백.
+  const schedule = (apiTasks && apiTasks.length) ? scheduleLive : (engineer.todaySchedule || []);
+
   // 2026-07-16 v3 — 사장님 spec: 신규 배정 = status "배정" 전체.
   //   (v2의 state==="waiting" 은 오답 — v14 매핑에서 "배정"→scheduled 라 항상 0이었음)
   const myWaiting = myTasks.filter(x => x.status === "배정");
