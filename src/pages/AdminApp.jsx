@@ -4332,6 +4332,29 @@ function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, us
   //   footgun (3곳 매핑 #3) 측측 우회 + 목록 화면과 100% 정합.
   const refrigerantAddonCount = Number(refrigerantAddonCountProp) || 0;
 
+  // 2026-08-02 — 사장님 확정: 예정일이 지났는데 아직 안 끝난 건을 홈 맨 위에 띄운다.
+  //   발견 경위: 김병철 프로 "일정 확정 2건" 중 하나가 6/2 확정 상태로 61일째 방치.
+  //   전수 조사 결과 5건(2개월 지난 건 3건, 그중 1건은 퇴사자 안승웅 배정)이 나왔다.
+  //   지금까지 예정일이 지나도 아무도 안 보면 영원히 남는 구조였다.
+  const _OVERDUE_STATUS = ["배정", "확정", "진행중", "작업중", "이동중"];
+  const overdueTasks = (() => {
+    const today = todayYmd();
+    return (apiTasks || [])
+      .filter(x => {
+        if (!_OVERDUE_STATUS.includes(String(x?.status || ""))) return false;
+        const sched = x.scheduledDate || (x.scheduledAt ? toKstYmd(x.scheduledAt) : "");
+        return !!sched && sched < today;
+      })
+      .sort((a, b) => String(a.scheduledDate || a.scheduledAt || "").localeCompare(String(b.scheduledDate || b.scheduledAt || "")));
+  })();
+  const [overdueOpen, setOverdueOpen] = useState(false);
+  function _overdueDays(x) {
+    const sched = x.scheduledDate || (x.scheduledAt ? toKstYmd(x.scheduledAt) : "");
+    if (!sched) return 0;
+    const ms = new Date(`${todayYmd()}T00:00:00`) - new Date(`${sched}T00:00:00`);
+    return Math.max(0, Math.round(ms / 86400000));
+  }
+
   return (
     <div className="fade-in">
       {/* 상단 헤더 — 올잇 마크 + 메타 + 역할 토글 + 테마 토글 + 로그아웃 */}
@@ -4386,6 +4409,67 @@ function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, us
       </div>
 
       <div style={{ padding: "20px 16px 0" }}>
+        {/* 2026-08-02 — 0. 예정일 지남 (맨 위 빨간 카드).
+              눌러서 펼치면 목록, 각 줄을 누르면 작업 상세로 이동. */}
+        {overdueTasks.length > 0 && (
+          <div style={{
+            marginBottom: 16,
+            background: "rgba(229,72,77,0.12)",
+            border: "1.5px solid rgba(229,72,77,0.55)",
+            borderRadius: 12,
+            overflow: "hidden",
+          }}>
+            <div
+              onClick={() => setOverdueOpen(v => !v)}
+              className="clickable"
+              style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+            >
+              <AlertTriangle size={14} style={{ color: "#E5484D", flexShrink: 0 }}/>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "#E5484D" }}>
+                예정일 지남 {overdueTasks.length}건
+              </span>
+              <span style={{ fontSize: 11, color: t.textSecondary, marginLeft: "auto" }}>
+                {overdueOpen ? "접기" : "확인하기"}
+              </span>
+              <span style={{ fontSize: 14, color: "#E5484D", fontWeight: 700, flexShrink: 0 }}>
+                {overdueOpen ? "⌃" : "›"}
+              </span>
+            </div>
+            {overdueOpen && (
+              <div style={{ borderTop: "1px solid rgba(229,72,77,0.30)" }}>
+                {overdueTasks.map((x, i) => (
+                  <div
+                    key={x.id || x.taskCode || i}
+                    onClick={() => onTaskClick && onTaskClick(x)}
+                    className="clickable"
+                    style={{
+                      padding: "10px 14px",
+                      borderTop: i === 0 ? "none" : `1px solid ${t.border}`,
+                      display: "flex", alignItems: "center", gap: 10, cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {x.customer || "—"}
+                        <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}> · {x.status}</span>
+                      </div>
+                      <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {x.assignedEngineer || x.engineer || "기사 미배정"} · {x.region || ""} · {x.scheduledDate || (x.scheduledAt ? toKstYmd(x.scheduledAt) : "")}
+                      </div>
+                    </div>
+                    <span style={{
+                      flexShrink: 0, padding: "3px 8px", borderRadius: 999,
+                      background: _overdueDays(x) >= 30 ? "#E5484D" : "rgba(229,72,77,0.20)",
+                      color: _overdueDays(x) >= 30 ? "#fff" : "#E5484D",
+                      fontSize: 11, fontWeight: 800,
+                    }}>{_overdueDays(x)}일</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* 1. 인사말 */}
         <div style={{ marginBottom: 20 }}>
           <div className="mono" style={{ fontSize: 10, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase", marginBottom: 6 }}>
