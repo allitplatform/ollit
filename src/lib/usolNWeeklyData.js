@@ -256,6 +256,13 @@ export async function fetchJuneLiveWeeks() {
       .eq("tasks.principal_id", USOL_N_PID)
       .not("naver_settled_at", "is", null)
       .gte("naver_settled_at", JUN_LIVE_START_UTC)
+      // 2026-07-28 — 이월로 다른 주차에서 이미 수령한 건은 라이브 집계에서 제외.
+      //   사고: 김채윤 YS-N-260615-001 (naver 7/14, 2건) 이 7/27 확정 시 이월로 정산 완료
+      //   (company_received_at=2026-07-27 12:49) 되어 7/20 스냅샷 8건에 포함됐는데,
+      //   7/13 주차 미확정 라이브 카드에도 계속 노출되던 중복 표시 방지.
+      //   확정 주차는 아래 스냅샷 병합 경로가 처리하므로 라이브에서 빼도 손실 없음.
+      //   fetchCarryoverC2Items(line 739) 와 동일 필터 정렬 → 3중 일관.
+      .is("company_received_at", null)
       .order("id", { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) {
@@ -570,6 +577,9 @@ export async function fetchWeekItemsByMonday(mondayYmd) {
       .not("naver_settled_at", "is", null)
       .gte("naver_settled_at", startUtc)
       .lt("naver_settled_at", endUtc)
+      // 2026-07-28 — 라이브 드릴인도 이월 정산 완료건 제외 (fetchJuneLiveWeeks 와 동일 필터).
+      //   확정 주차는 상단 스냅샷 조기반환(line 508-545)이 처리하므로 이 경로는 미확정 전용.
+      .is("company_received_at", null)
       .order("naver_settled_at", { ascending: true })
       .range(p * PAGE, (p + 1) * PAGE - 1);
     if (error) {
