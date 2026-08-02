@@ -1397,6 +1397,13 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
   const [amounts, setAmounts]   = useState(() => REPRESENTATIVES.map(() => ""));
   const [memos, setMemos]       = useState(() => REPRESENTATIVES.map(() => ""));
 
+  // 2026-08-02 — Mig 204: 나간 날 (통장 출금 날짜).
+  //   사장님 발견: "금액을 나눴는데 통장에 반영이 안되네".
+  //   분배는 손익 기록일 뿐 통장과 연결이 없었다. 이제 이 날짜를 넣고 저장하면
+  //   통장에 출금 1줄이 자동으로 생긴다. 비워두면 통장은 건드리지 않는다
+  //   (= 아직 안 나간 분배). 분배 기준은 "작업월"이 아니라 "통장에서 빠진 날".
+  const [paidDate, setPaidDate] = useState("");
+
   // DB carryover (저장된 값) + memo
   const [savedCarry, setSavedCarry] = useState(null); // { amount, memo } | null
   const [carryMemo, setCarryMemo]   = useState("");
@@ -1450,6 +1457,18 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
       setAmounts(newAmts);
       setMemos(newMemos);
 
+      // 2026-08-02 — 나간 날 prefill.
+      //   저장된 값 있으면 그거, 없고 이번 달이면 오늘, 지난 달이면 빈칸
+      //   (지난 달을 다시 저장할 때 오늘 날짜로 통장에 잘못 꽂히는 걸 막는다).
+      const savedPaid = (resD.rows || [])
+        .map(d => d.paid_date)
+        .find(v => !!v);
+      if (savedPaid) {
+        setPaidDate(String(savedPaid).slice(0, 10));
+      } else {
+        setPaidDate(workMonth === nowKstYm() ? kstYmd() : "");
+      }
+
       // carryover
       const c = resC.row;
       if (c) {
@@ -1478,6 +1497,10 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
     && Number.isFinite(Number(ceiling))
     && distSum > Number(ceiling);
   const ceilingGap  = overCeiling ? distSum - Number(ceiling) : 0;
+
+  // 2026-08-02 — 금액은 넣었는데 나간 날이 비어 있으면 통장에 안 들어간다.
+  //   저장은 막지 않는다 (아직 안 나간 분배를 미리 잡아두는 경우가 있으므로).
+  const noPaidDate = distSum > 0 && !paidDate;
   // 2026-06-14 — 옛 bookkeeping_carryover 저장값과 자동 계산 불일치 경고 제거.
   //   누적 RPC(Mig 129)를 단일 진실로 사용. 옛 carryover 행은 저장은 유지하되 비교 안 함.
 
@@ -1510,6 +1533,7 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
           repUserId: rep.user_id,
           amount:    distAmts[i],
           memo:      memos[i],
+          paidDate,          // 2026-08-02 Mig 204 — 있으면 통장 출금 자동 생성
           actor,
         });
         if (!res?.ok) {
@@ -1589,6 +1613,30 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
             </div>
           )}
 
+          {/* 2026-08-02 — Mig 204: 나간 날 (통장 출금 날짜).
+              여기에 날짜가 있어야 통장에 출금 1줄이 자동으로 생긴다.
+              비워두면 손익에만 기록되고 통장 잔고는 그대로 (= 아직 안 나간 돈). */}
+          <div style={{
+            display: "flex", alignItems: "center", gap: 10,
+            padding: "10px 12px", marginBottom: 10,
+            background: t.bgInset,
+            border: `1px solid ${noPaidDate ? "rgba(245,158,11,0.45)" : t.border}`,
+            borderRadius: 9,
+          }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: t.textMuted, whiteSpace: "nowrap" }}>
+              💸 나간 날
+            </span>
+            <input type="date" value={paidDate}
+              onChange={(e) => setPaidDate(e.target.value)}
+              style={{ ...inputStyle(t, true), width: 160, padding: "8px 10px", fontSize: 12.5 }}
+            />
+            <span style={{ fontSize: 11, color: t.textMuted, lineHeight: 1.5 }}>
+              {paidDate
+                ? "저장하면 이 날짜로 통장에 출금이 자동으로 들어갑니다."
+                : "비워두면 통장에는 안 들어갑니다 (아직 안 나간 돈)."}
+            </span>
+          </div>
+
           {/* 대표 3명 입력 */}
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {REPRESENTATIVES.map((rep, i) => (
@@ -1614,6 +1662,19 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
               fontVariantNumeric: "tabular-nums",
             }}>{fmtKRW(distSum)}</span>
           </div>
+
+          {/* 2026-08-02 — 나간 날 비어 있음 경고 (저장 차단 X). */}
+          {noPaidDate && (
+            <div style={{
+              padding: "10px 14px", marginTop: 10,
+              background: "rgba(245,158,11,0.12)",
+              border: `0.5px solid rgba(245,158,11,0.30)`,
+              borderRadius: 9,
+              fontSize: 12, color: "#B45309", letterSpacing: "-0.2px",
+            }}>
+              ⚠️ 나간 날이 비어 있어 통장에는 반영되지 않습니다 — 이미 나간 돈이면 날짜를 넣어 주세요.
+            </div>
+          )}
 
           {/* 2026-06-29 — 천장 초과 경고 (저장 차단 X, 표시만).
               분배 소계가 ③ 천장을 넘으면 노란 경고. 천장은 메인에서 계산해 prop 으로 받음. */}
@@ -1756,6 +1817,16 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
                   fontSize: 14, fontWeight: 800, color: t.accent,
                   fontVariantNumeric: "tabular-nums",
                 }}>{fmtKRW(distSum + autoCarry)} (순이익)</span>
+              </div>
+              {/* 2026-08-02 — 통장 반영 여부를 저장 직전에 한 번 더 보여준다. */}
+              <div style={{ height: 1, background: t.border, margin: "2px 0" }}/>
+              <div style={{
+                fontSize: 11.5, fontWeight: 700, lineHeight: 1.6,
+                color: paidDate ? t.success : "#B45309",
+              }}>
+                {paidDate
+                  ? `💸 통장 출금 ${fmtKRW(distSum)} 이 ${paidDate} 자로 자동 등록됩니다.`
+                  : "💸 나간 날이 비어 있어 통장에는 반영되지 않습니다."}
               </div>
             </div>
           }

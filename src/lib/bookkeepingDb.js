@@ -143,7 +143,15 @@ export async function listDistributions(workMonth, actor) {
   }, { rows: [] });
 }
 
-export async function setDistribution({ workMonth, repUserId, amount, memo, actor } = {}) {
+// 2026-08-02 — Mig 204: paidDate("나간 날") 추가.
+//   사장님 발견: "금액을 나눴는데 통장에 반영이 안되네".
+//   분배는 bookkeeping_distributions 에만 쓰였고 통장(bookkeeping_cashflow)과
+//   연결이 아예 없었다. 이제 paidDate 를 넘기면 RPC 가 통장 출금 1줄을
+//   (source='auto_distribution', source_ref=분배 id) 로 같이 만들어 준다.
+//   · paidDate 없으면(=아직 안 나감) 통장에는 아무것도 안 만든다.
+//   · 금액을 고치면 통장 줄도 같이 고쳐지고, 0 으로 만들면 통장 줄이 지워진다.
+//   · 4~7월 기존 분배는 paid_date 가 NULL 이라 소급 생성 안 됨(중복 방지).
+export async function setDistribution({ workMonth, repUserId, amount, memo, paidDate, actor } = {}) {
   if (!workMonth || !repUserId || amount == null) {
     return { ok: false, error: "workMonth/repUserId/amount 필수" };
   }
@@ -151,12 +159,18 @@ export async function setDistribution({ workMonth, repUserId, amount, memo, acto
   if (!Number.isFinite(amt) || amt < 0) return { ok: false, error: "금액은 0 이상 숫자" };
   if (!actor) return { ok: false, error: "actor 필수" };
 
+  const pd = String(paidDate || "").trim();
+  if (pd && !/^\d{4}-\d{2}-\d{2}$/.test(pd)) {
+    return { ok: false, error: "나간 날 형식은 YYYY-MM-DD" };
+  }
+
   return callRpc("bookkeeping_set_distribution", {
     p_work_month:  workMonth,
     p_rep_user_id: repUserId,
     p_amount:      Math.round(amt),
     p_memo:        memo || "",
     p_actor:       actor,
+    p_paid_date:   pd || null,
   });
 }
 
