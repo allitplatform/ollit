@@ -74,8 +74,13 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
   const [customerName, setCustomerName] = useState("");
   const [hasStroke, setHasStroke]       = useState(false);
   const [submitting, setSubmitting]     = useState(false);
-  // 누설 모드 — 시공 종류 (null = 선택 화면)
-  const [leakType, setLeakType] = useState(null);
+  // 2026-08-03 — 사장님 확정: 냉매로 들어온 건도 현장에서 누설 수리를 할 수 있고,
+  //   누설로 들어온 건도 충전만 할 수 있다 (이알음 A-260802-082 사례).
+  //   → 접수 종목과 무관하게 1단계에서 동의서 종류를 고른다:
+  //     냉매 충전 / 부위 수리 / 누설차단제 / 누수(물샘). 순서만 접수 종목 따라 다름.
+  //   docType(구 leakType): null = 선택 화면, "refrigerant" | LEAK_TEXTS 키.
+  //   add-on(세척+냉매, skipAutoSave) 흐름은 냉매 충전 고정 — 선택 화면 생략.
+  const [docType, setDocType] = useState(skipAutoSave ? "refrigerant" : null);
   const isLeak = kind === "leak";
   const canvasRef = useRef(null);
   const drawing   = useRef(false);
@@ -138,10 +143,10 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
       canvas.removeEventListener("mouseup",    end);
       canvas.removeEventListener("mouseleave", end);
     };
-    // 2026-07-14 — 누설 모드: 시공 종류 선택 후에야 캔버스가 mount 되므로 leakType 의존.
+    // 2026-07-14 — 시공 종류 선택 후에야 캔버스가 mount 되므로 docType 의존.
     //   (기존 [] 이면 선택 화면에서 effect 가 소진돼 서명 핸들러가 안 붙음)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leakType]);
+  }, [docType]);
 
   function clearCanvas() {
     const canvas = canvasRef.current;
@@ -180,8 +185,8 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
       }
       const file = new File([blob], `consent_${task.id}.png`, { type: "image/png" });
 
-      // 2026-07-14 — 동의 문구 종류 (냉매 / 누설 부위수리 / 누설차단제)
-      const consentType = isLeak ? leakType : "refrigerant";
+      // 2026-07-14 — 동의 문구 종류. 2026-08-03 — 1단계에서 고른 값 그대로 기록.
+      const consentType = docType || "refrigerant";
 
       // 2026-06-03 — skipAutoSave 분기: 측측 측측 measure 측측, 측측 측측 측측 측측 (Phase 1 add-on 측측).
       if (skipAutoSave) {
@@ -241,8 +246,19 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
     if (typeof onReject === "function") onReject();
   }
 
-  // ──────────────── 누설 모드 1단계 — 시공 종류 선택 ────────────────
-  if (isLeak && !leakType) {
+  // ──────────────── 1단계 — 동의서 종류 선택 (냉매·누설 공통, 2026-08-03) ────────────────
+  //   접수 종목은 "순서"만 정한다: 냉매 건은 냉매 충전이 맨 위, 누설 건은 수리류가 먼저.
+  const REFRI_PICK = {
+    key: "refrigerant",
+    pick: "❄️ 냉매 충전",
+    pickDesc: "냉매(가스)를 충전한 경우",
+    title: "냉매 가스 충전 서비스 동의",
+  };
+  const pickOrder = isLeak
+    ? ["leak_repair", "leak_sealant", "water_leak", "refrigerant"]
+    : ["refrigerant", "leak_repair", "leak_sealant", "water_leak"];
+
+  if (!docType) {
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg-primary)", paddingBottom: 40 }}>
         <div style={{
@@ -259,7 +275,7 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
           </button>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>
-              📋 누수/누설 시공 동의
+              📋 시공 동의서
             </div>
             <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
               {task?.customer || "고객"} · 오늘 하신 시공을 선택해 주세요
@@ -268,32 +284,37 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
         </div>
 
         <div style={{ margin: "18px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
-          {["leak_repair", "leak_sealant", "water_leak"].map((key) => (
-            <button
-              key={key}
-              onClick={() => setLeakType(key)}
-              style={{
-                width: "100%", padding: "20px 18px",
-                background: "var(--bg-secondary)",
-                border: "1.5px solid var(--border-color)",
-                borderRadius: 14,
-                cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-              }}
-            >
-              <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>
-                {LEAK_TEXTS[key].pick}
-              </div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                {LEAK_TEXTS[key].pickDesc} → {LEAK_TEXTS[key].title}
-              </div>
-            </button>
-          ))}
+          {pickOrder.map((key) => {
+            const doc = key === "refrigerant" ? REFRI_PICK : LEAK_TEXTS[key];
+            return (
+              <button
+                key={key}
+                onClick={() => setDocType(key)}
+                style={{
+                  width: "100%", padding: "20px 18px",
+                  background: "var(--bg-secondary)",
+                  border: "1.5px solid var(--border-color)",
+                  borderRadius: 14,
+                  cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                }}
+              >
+                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>
+                  {doc.pick}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
+                  {doc.pickDesc} → {doc.title}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
     );
   }
 
-  const leakDoc = isLeak ? LEAK_TEXTS[leakType] : null;
+  // 2026-08-03 — docType 기준 렌더 (접수 종목 무관)
+  const isRefriDoc = docType === "refrigerant";
+  const leakDoc = isRefriDoc ? null : LEAK_TEXTS[docType];
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)", paddingBottom: 40 }}>
@@ -305,23 +326,23 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
         background: "var(--bg-secondary)",
       }}>
         <button
-          onClick={isLeak ? () => setLeakType(null) : onBack}
+          onClick={skipAutoSave ? onBack : () => setDocType(null)}
           style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: "var(--text-primary)", display: "flex" }}
         >
           <ArrowLeft size={18}/>
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>
-            {isLeak ? `📋 ${leakDoc.title}` : "📋 냉매 가스 충전 서비스 동의"}
+            {isRefriDoc ? "📋 냉매 가스 충전 서비스 동의" : `📋 ${leakDoc.title}`}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
-            {task?.customer || "고객"} · {isLeak ? "누수/누설 시공" : (task?.workType || "냉매충전")}
+            {task?.customer || "고객"} · {isRefriDoc ? (task?.workType || "냉매충전") : "누수/누설 시공"}
           </div>
         </div>
       </div>
 
       {/* 동의서 문구 — 누설: 사장님 제공 조항 리스트 */}
-      {isLeak && (
+      {!isRefriDoc && (
         <div style={{
           margin: "14px 16px",
           padding: "16px 16px 18px",
@@ -346,8 +367,12 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
         </div>
       )}
 
-      {/* 동의서 문구 — 냉매 (기존) */}
-      {!isLeak && (
+      {/* 동의서 문구 — 냉매 충전 (2026-08-03 사장님 확정 개정판).
+            핵심: 점검 여부와 무관하게 누설 "수리"를 안 하면 다시 빠질 수 있고,
+            심하면 충전 당일 몇 시간 이내에도 빠질 수 있음을 명시.
+            구판의 "수리 서비스는 정상적으로 이행되었습니다" 문단은
+            충전 동의서에 안 맞는 내용이라 삭제 (수리 동의는 별도 문서). */}
+      {isRefriDoc && (
       <div style={{
         margin: "14px 16px",
         padding: "16px 16px 18px",
@@ -359,34 +384,30 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
       }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>[본 서비스 안내]</div>
         <div>
-          본 서비스는 에어컨 냉매 가스를 정상적으로 충전하는 작업입니다.
+          본 서비스는 에어컨 냉매(가스)를 충전하는 작업입니다. 냉매는 저절로 소모되지
+          않으며, 부족하다는 것은 어딘가에서 새고 있다는 뜻입니다.
         </div>
 
         <div style={{ fontWeight: 700, marginTop: 12, marginBottom: 6 }}>[안내 말씀]</div>
         <div>
-          충전 서비스는 정상적으로 이행됩니다. 다만 에어컨 기계 자체에 결함이 있는 경우,
-          충전된 냉매가 다시 누설될 수 있습니다.
+          <b>1.</b> 누설 점검을 했더라도, 누설 부위를 <b>수리하지 않고</b> 충전하는 경우
+          충전한 냉매는 다시 빠질 수 있습니다.
         </div>
-
         <div style={{ marginTop: 12 }}>
-          다음의 기계 결함이 있으면 충전 후 1~3일 이내에 냉매가 다시 빠질 수 있습니다:
+          <b>2.</b> 누설이 심한 경우 <b>충전 당일, 몇 시간 이내에도</b> 냉매가 모두
+          빠질 수 있음을 확인합니다.
         </div>
-        <ul style={{ margin: "6px 0 0 0", paddingLeft: 22 }}>
-          <li>컴프레서(압축기) 고장으로 인한 누설</li>
-          <li>배관 등 부품의 누설</li>
-          <li>누설 부위가 큰 경우</li>
-        </ul>
-
         <div style={{ marginTop: 12 }}>
-          이는 충전 작업의 불량이 아니라 제품 자체의 결함이며, 재충전으로 해결되지 않습니다.
-          근본 해결은 해당 부위의 A/S 또는 기계 교체가 필요하며, 재방문·재충전은
-          제공되지 않습니다.
+          <b>3.</b> 압축기(컴프레서) 고장, 배관 부식 등 기계 자체 결함이 있는 경우에도
+          충전 후 1~3일 이내 다시 빠질 수 있습니다.
         </div>
-
         <div style={{ marginTop: 12 }}>
-          또한, 수리한 누설 부위 외에 다른 부위에서 새로 누설이 발생하더라도
-          이는 본 서비스의 책임 범위에 해당하지 않습니다.
-          수리 서비스는 정상적으로 이행되었습니다.
+          <b>4.</b> 위 사유로 인한 재누설은 충전 작업의 불량이 아니므로,
+          재방문·재충전·환불은 제공되지 않습니다. 근본 해결은 누설 부위 수리 또는
+          기계 A/S·교체입니다.
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <b>5.</b> 시공 직후 냉방(난방)이 정상 작동됨을 확인하였습니다.
         </div>
 
         <div style={{
