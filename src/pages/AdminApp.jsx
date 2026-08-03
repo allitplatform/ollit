@@ -9147,9 +9147,12 @@ function TaskCancelDialog({ task, onClose, onConfirm }) {
           })}
         </div>
 
+        {/* 2026-08-03 — 사장님 확정: 취소 메모 필수.
+              사유 버튼만 누르고 확정 → "기타"/"고객 요청" 한 단어만 남아
+              나중에 왜 취소했는지 아무도 모름 (A-260803 다수). */}
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: "#888780", marginBottom: 6, fontWeight: 500 }}>
-            메모 (선택)
+            상세 사유 <span style={{ color: "#FF3D5A", fontWeight: 700 }}>(필수)</span>
           </div>
           <textarea
             value={memo}
@@ -9158,12 +9161,18 @@ function TaskCancelDialog({ task, onClose, onConfirm }) {
             rows={2}
             style={{
               width: "100%", background: "#221C18",
-              border: "1px solid #2A2420", borderRadius: 8,
+              border: `1px solid ${memo.trim() ? "#2A2420" : "rgba(255,61,90,0.55)"}`,
+              borderRadius: 8,
               padding: "10px 12px", color: "#fff",
               fontSize: 12, fontFamily: "inherit",
               outline: "none", boxSizing: "border-box", resize: "vertical",
             }}
           />
+          {!memo.trim() && (
+            <div style={{ fontSize: 10.5, color: "#FF3D5A", fontWeight: 700, marginTop: 5 }}>
+              상세 사유를 적어야 취소할 수 있습니다.
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 10 }}>
@@ -9172,10 +9181,15 @@ function TaskCancelDialog({ task, onClose, onConfirm }) {
             color: "#888780", fontSize: 14, fontWeight: 500,
             padding: 12, borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
           }}>닫기</button>
-          <button onClick={() => onConfirm(selectedId, memo)} style={{
-            flex: 2, background: "#FF3D5A", border: "none",
-            color: "#fff", fontSize: 14, fontWeight: 600,
-            padding: 12, borderRadius: 10, cursor: "pointer", fontFamily: "inherit",
+          <button
+            onClick={() => memo.trim() && onConfirm(selectedId, memo)}
+            disabled={!memo.trim()}
+            style={{
+            flex: 2, background: memo.trim() ? "#FF3D5A" : "#221C18",
+            border: memo.trim() ? "none" : "1px solid #2A2420",
+            color: memo.trim() ? "#fff" : "#888780", fontSize: 14, fontWeight: 600,
+            padding: 12, borderRadius: 10,
+            cursor: memo.trim() ? "pointer" : "not-allowed", fontFamily: "inherit",
           }}>취소 확정</button>
         </div>
       </div>

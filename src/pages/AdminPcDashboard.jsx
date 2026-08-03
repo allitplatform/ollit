@@ -1360,11 +1360,13 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
                               fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.9,
                               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                             }}>
+                              {/* 2026-08-03 \u2014 JSX \ud14d\uc2a4\ud2b8\uc5d0\uc11c\ub294 \u \uc774\uc2a4\ucf00\uc774\ud504\uac00 \uc548 \ud480\ub824
+                                    \ud654\uba74\uc5d0 "\u00b7" \uae00\uc790\uac00 \uadf8\ub300\ub85c \ucc0d\ud614\ub2e4 (\uc0ac\uc7a5\ub2d8 \ucea1\ucc98). \ubb38\uc790\ub85c \uad50\uccb4. */}
                               <span style={{ fontWeight: 800, color: "var(--text-primary)" }}>{ct.customer || "\uace0\uac1d \ubbf8\uc0c1"}</span>
-                              <span style={{ color: "var(--text-tertiary)" }}> \u00b7 {ct.taskCode || ct.taskNo || ct.task_no || ct.id}</span>
+                              <span style={{ color: "var(--text-tertiary)" }}>{" \u00b7 "}{ct.taskCode || ct.taskNo || ct.task_no || ct.id}</span>
                               {label
-                                ? <span style={{ color: "#FF3B5C" }}> \u2014 {label}</span>
-                                : <span style={{ color: "var(--text-tertiary)" }}> \u2014 \uc0ac\uc720 \uc5c6\uc74c</span>}
+                                ? <span style={{ color: "#FF3B5C" }}>{" \u2014 "}{label}</span>
+                                : <span style={{ color: "var(--text-tertiary)" }}>{" \u2014 \uc0ac\uc720 \uc5c6\uc74c"}</span>}
                             </div>
                           );
                         })}

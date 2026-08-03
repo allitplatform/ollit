@@ -815,10 +815,11 @@ export function EngineerNewAssignDetailScreen({
               ))}
             </div>
 
+            {/* 2026-08-03 — 사장님 확정: 상세 내용 필수 ("기타" 한 단어 취소 방지) */}
             <textarea
               value={cancelMemo}
               onChange={(e) => setCancelMemo(e.target.value)}
-              placeholder="상세 내용 (선택) — 예: 다른 업체에서 이미 처리"
+              placeholder="상세 내용 (필수) — 예: 다른 업체에서 이미 처리"
               style={{
                 width: "100%", boxSizing: "border-box",
                 height: 64, padding: 10,
@@ -849,11 +850,10 @@ export function EngineerNewAssignDetailScreen({
               </button>
               <button
                 onClick={async () => {
-                  if (!cancelReason || cancelSubmitting) return;
+                  // 2026-08-03 — 사장님 확정: 상세 내용 필수 (사유 버튼만으로 확정 불가)
+                  if (!cancelReason || !cancelMemo.trim() || cancelSubmitting) return;
                   setCancelSubmitting(true);
-                  const reasonText = cancelMemo.trim()
-                    ? `${cancelReason} — ${cancelMemo.trim()}`
-                    : cancelReason;
+                  const reasonText = `${cancelReason} — ${cancelMemo.trim()}`;
                   try {
                     await onCustomerCancel?.(reasonText);
                   } finally {
@@ -861,19 +861,19 @@ export function EngineerNewAssignDetailScreen({
                     setShowCancelModal(false);
                   }
                 }}
-                disabled={!cancelReason || cancelSubmitting}
+                disabled={!cancelReason || !cancelMemo.trim() || cancelSubmitting}
                 style={{
                   padding: 14,
-                  background: (!cancelReason || cancelSubmitting) ? "var(--bg-tertiary)" : "#FF3B5C",
+                  background: (!cancelReason || !cancelMemo.trim() || cancelSubmitting) ? "var(--bg-tertiary)" : "#FF3B5C",
                   border: "none",
                   borderRadius: 12,
-                  color: (!cancelReason || cancelSubmitting) ? "var(--text-tertiary)" : "#fff",
+                  color: (!cancelReason || !cancelMemo.trim() || cancelSubmitting) ? "var(--text-tertiary)" : "#fff",
                   fontSize: 14, fontWeight: 700,
-                  cursor: (!cancelReason || cancelSubmitting) ? "not-allowed" : "pointer",
+                  cursor: (!cancelReason || !cancelMemo.trim() || cancelSubmitting) ? "not-allowed" : "pointer",
                   fontFamily: "inherit",
                 }}
               >
-                {cancelSubmitting ? "처리 중..." : "취소 확정"}
+                {cancelSubmitting ? "처리 중..." : (!cancelMemo.trim() && cancelReason) ? "상세 내용을 적어주세요" : "취소 확정"}
               </button>
             </div>
           </div>
