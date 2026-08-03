@@ -34,6 +34,8 @@ import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
 import { getUserById } from "../data/users.js";
 // 2026-05-29 v2 — 이름 위주 표시 (D2) + 한국어 사유/원청 라벨
 import { getCancelReasonLabel, getCancelActorLabel, isMistakeCancelReason } from "../data/cancelReasons.js";
+// 2026-08-03 — 출장비 사유 id("wrong_type" 등) → 한글 라벨 변환용 (사장님 제보: 사유가 안 보여 다시 물음)
+import { getVisitReasonLabel } from "../data/visitFee.js";
 import { setTaskCancelInfo, adminRestoreCanceledTask } from "../lib/cancelRpc.js";
 // Phase 5 Step 0.C-3-b — 현장 완료 사진 (Supabase Storage / photos 테이블)
 import { listPhotosByTask } from "../lib/photosDb.js";
@@ -407,6 +409,42 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           </div>
         </div>
       )}
+      {/* 2026-08-03 — 취소 사유 카드 (사장님 제보: 사유가 변경 이력 속에 묻혀 있어
+            운영자가 기사에게 다시 물어봄). 취소·취소요청 건은 사유를 맨 앞에 크게 노출. */}
+      {(task.status === "취소" || task.status === "취소요청" || isEffectivelyCanceled(task)) && (() => {
+        const cat = task.categoryData || {};
+        const rawReason = task.cancelReason || cat.cancelReason || null;
+        if (!rawReason) return null;
+        const at = cat.cancelRequestedAt || task.cancelAt || cat.cancelAt || null;
+        return (
+          <div style={{
+            margin: "0 16px 12px",
+            padding: "12px 14px",
+            background: "rgba(255,59,92,0.06)",
+            border: "1px solid rgba(255,59,92,0.40)",
+            borderRadius: 10,
+            display: "flex", alignItems: "flex-start", gap: 10,
+          }}>
+            <span style={{ fontSize: 16 }}>🚫</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12.5, fontWeight: 800, color: "#FF3B5C" }}>
+                {task.status === "취소요청" ? "취소 요청 사유" : "취소 사유"}
+              </div>
+              <div style={{
+                fontSize: 12.5, color: "var(--text-primary)", marginTop: 4,
+                fontWeight: 700, lineHeight: 1.5, whiteSpace: "pre-wrap",
+              }}>
+                {getCancelReasonLabel(rawReason) || rawReason}
+              </div>
+              {at && (
+                <div style={{ fontSize: 10.5, color: "var(--text-secondary)", marginTop: 3 }}>
+                  {new Date(at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
       {/* 2026-05-22 — 재배정 요청 카드 (있을 때만 노출).
             2026-05-29 v2 (D7): status='취소' 면 숨김 (취소 우선, 재배정 의미 없음). */}
       {task.reassignRequest?.requestedAt && task.status !== "취소" && <ReassignRequestCard request={task.reassignRequest}/>}
@@ -434,10 +472,23 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
                 fontSize: 11.5, color: "var(--text-primary)", marginTop: 3, fontWeight: 700,
               }}>이전 작업: {task.categoryData.visitOnly.prevItems}</div>
             )}
+            {/* 2026-08-03 — 사장님 제보 "사유가 안 보여 다시 물음" fix:
+                  reason 은 id("wrong_type" 등)로 저장돼 있어 그대로 보여주면 못 읽는다 → 한글 라벨 변환.
+                  기사가 실제로 쓴 설명은 memo 에 있는데 여태 안 보여줬다 → 같이 노출. */}
             {task.categoryData?.visitOnly?.reason && (
               <div style={{
-                fontSize: 10.5, color: "var(--text-secondary)", marginTop: 2, fontWeight: 600,
-              }}>사유: {task.categoryData.visitOnly.reason}</div>
+                fontSize: 11.5, color: "var(--text-primary)", marginTop: 2, fontWeight: 700,
+              }}>사유: {
+                getVisitReasonLabel(task.categoryData.visitOnly.reason) !== "—"
+                  ? getVisitReasonLabel(task.categoryData.visitOnly.reason)
+                  : task.categoryData.visitOnly.reason
+              }</div>
+            )}
+            {task.categoryData?.visitOnly?.memo && (
+              <div style={{
+                fontSize: 11, color: "var(--text-secondary)", marginTop: 2, fontWeight: 600,
+                whiteSpace: "pre-wrap",
+              }}>기사 메모: {task.categoryData.visitOnly.memo}</div>
             )}
             <div style={{
               fontSize: 11, color: "var(--text-secondary)", marginTop: 2, fontWeight: 600,
