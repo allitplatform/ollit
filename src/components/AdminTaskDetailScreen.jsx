@@ -2613,10 +2613,18 @@ function ConsentCard({ consent }) {
   const signedAt = consent?.signedAt || "";
   const signedAtLabel = signedAt ? formatDateTimeKST(signedAt) : "";
   // 2026-07-14 — 어떤 문구에 서명했는지 (누설 확장)
-  const typeLabel = consent?.type === "leak_repair"  ? "누설 부위 수리 동의서"
-                  : consent?.type === "leak_sealant" ? "누설차단제 시공 동의서"
-                  : consent?.type === "water_leak"   ? "누수(물샘) 수리 동의서"
-                  : "냉매 충전 동의서";
+  // 2026-08-03 — 복수 선택 조합("refrigerant+leak_sealant") 지원: + 로 쪼개 각각 라벨링.
+  const _CONSENT_LABEL = {
+    refrigerant:  "냉매 충전",
+    leak_repair:  "누설 부위 수리",
+    leak_sealant: "누설차단제 시공",
+    water_leak:   "누수(물샘) 수리",
+  };
+  const typeLabel = (() => {
+    const parts = String(consent?.type || "refrigerant").split("+").filter(Boolean);
+    const labels = parts.map(p => _CONSENT_LABEL[p] || p);
+    return `${labels.join(" + ")} 동의서`;
+  })();
 
   return (
     <div style={{ padding: D1_OUTER_PAD }}>

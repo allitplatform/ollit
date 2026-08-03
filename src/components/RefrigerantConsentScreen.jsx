@@ -80,7 +80,12 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
   //     냉매 충전 / 부위 수리 / 누설차단제 / 누수(물샘). 순서만 접수 종목 따라 다름.
   //   docType(구 leakType): null = 선택 화면, "refrigerant" | LEAK_TEXTS 키.
   //   add-on(세척+냉매, skipAutoSave) 흐름은 냉매 충전 고정 — 선택 화면 생략.
-  const [docType, setDocType] = useState(skipAutoSave ? "refrigerant" : null);
+  // 2026-08-03 (2차) — 사장님 확정: 복수 선택. 충전+차단제, 충전+부위수리처럼
+  //   한 방문에 여러 시공을 하는 경우가 실재 → 체크박스로 여러 개 고르고,
+  //   고른 문구를 한 화면에 이어 붙여 서명은 한 번만 받는다.
+  //   consent.type 은 "refrigerant+leak_sealant" 처럼 + 로 조합 기록.
+  const [docTypes, setDocTypes] = useState(skipAutoSave ? ["refrigerant"] : []);
+  const [stage, setStage] = useState(skipAutoSave ? "doc" : "pick");
   const isLeak = kind === "leak";
   const canvasRef = useRef(null);
   const drawing   = useRef(false);
@@ -143,10 +148,10 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
       canvas.removeEventListener("mouseup",    end);
       canvas.removeEventListener("mouseleave", end);
     };
-    // 2026-07-14 — 시공 종류 선택 후에야 캔버스가 mount 되므로 docType 의존.
+    // 2026-07-14 — 시공 종류 선택 후에야 캔버스가 mount 되므로 stage 의존.
     //   (기존 [] 이면 선택 화면에서 effect 가 소진돼 서명 핸들러가 안 붙음)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docType]);
+  }, [stage]);
 
   function clearCanvas() {
     const canvas = canvasRef.current;
@@ -185,8 +190,8 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
       }
       const file = new File([blob], `consent_${task.id}.png`, { type: "image/png" });
 
-      // 2026-07-14 — 동의 문구 종류. 2026-08-03 — 1단계에서 고른 값 그대로 기록.
-      const consentType = docType || "refrigerant";
+      // 2026-07-14 — 동의 문구 종류. 2026-08-03 (2차) — 복수 선택 조합을 + 로 기록.
+      const consentType = (selectedDocs.length ? selectedDocs : ["refrigerant"]).join("+");
 
       // 2026-06-03 — skipAutoSave 분기: 측측 측측 measure 측측, 측측 측측 측측 측측 (Phase 1 add-on 측측).
       if (skipAutoSave) {
@@ -258,7 +263,16 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
     ? ["leak_repair", "leak_sealant", "water_leak", "refrigerant"]
     : ["refrigerant", "leak_repair", "leak_sealant", "water_leak"];
 
-  if (!docType) {
+  // 정렬은 pickOrder 기준 고정 — 화면·기록 순서가 사람마다 달라지지 않게.
+  const selectedDocs = pickOrder.filter((k) => docTypes.includes(k));
+
+  function toggleDoc(key) {
+    setDocTypes((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
+  }
+
+  if (stage === "pick") {
     return (
       <div style={{ minHeight: "100vh", background: "var(--bg-primary)", paddingBottom: 40 }}>
         <div style={{
@@ -278,43 +292,73 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
               📋 시공 동의서
             </div>
             <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
-              {task?.customer || "고객"} · 오늘 하신 시공을 선택해 주세요
+              {task?.customer || "고객"} · 오늘 하신 시공을 모두 선택해 주세요
             </div>
           </div>
         </div>
 
-        <div style={{ margin: "18px 16px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ margin: "18px 16px 10px", display: "flex", flexDirection: "column", gap: 12 }}>
           {pickOrder.map((key) => {
             const doc = key === "refrigerant" ? REFRI_PICK : LEAK_TEXTS[key];
+            const on = docTypes.includes(key);
             return (
               <button
                 key={key}
-                onClick={() => setDocType(key)}
+                onClick={() => toggleDoc(key)}
                 style={{
-                  width: "100%", padding: "20px 18px",
-                  background: "var(--bg-secondary)",
-                  border: "1.5px solid var(--border-color)",
+                  width: "100%", padding: "18px 16px",
+                  background: on ? "rgba(255,27,141,0.06)" : "var(--bg-secondary)",
+                  border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1.5px solid var(--border-color)",
                   borderRadius: 14,
                   cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+                  display: "flex", alignItems: "flex-start", gap: 12,
                 }}
               >
-                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>
-                  {doc.pick}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--text-secondary)" }}>
-                  {doc.pickDesc} → {doc.title}
-                </div>
+                <span style={{
+                  width: 22, height: 22, borderRadius: 6, flexShrink: 0, marginTop: 1,
+                  border: on ? "2px solid var(--accent, #FF1B8D)" : "2px solid var(--border-color)",
+                  background: on ? "var(--accent, #FF1B8D)" : "transparent",
+                  color: "#fff", fontSize: 14, fontWeight: 900,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>{on ? "✓" : ""}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: 15.5, fontWeight: 800, color: "var(--text-primary)", marginBottom: 4 }}>
+                    {doc.pick}
+                  </span>
+                  <span style={{ display: "block", fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                    {doc.pickDesc} → {doc.title}
+                  </span>
+                </span>
               </button>
             );
           })}
         </div>
+
+        <div style={{ margin: "0 16px" }}>
+          <div style={{ fontSize: 11, color: "var(--text-tertiary)", lineHeight: 1.6, margin: "0 2px 12px" }}>
+            오늘 실제로 한 시공을 <b>모두</b> 체크하세요. 고른 동의서가 다음 화면에 이어서
+            표시되고, 서명은 한 번만 받습니다.
+          </div>
+          <button
+            onClick={() => selectedDocs.length && setStage("doc")}
+            disabled={selectedDocs.length === 0}
+            style={{
+              width: "100%", padding: "15px",
+              background: selectedDocs.length ? "var(--accent, #FF1B8D)" : "var(--bg-tertiary, var(--bg-secondary))",
+              color: selectedDocs.length ? "#fff" : "var(--text-tertiary)",
+              border: "none", borderRadius: 13,
+              fontSize: 14.5, fontWeight: 800, fontFamily: "inherit",
+              cursor: selectedDocs.length ? "pointer" : "not-allowed",
+            }}
+          >
+            {selectedDocs.length
+              ? `선택한 동의서로 진행 (${selectedDocs.length}건) →`
+              : "시공을 하나 이상 선택하세요"}
+          </button>
+        </div>
       </div>
     );
   }
-
-  // 2026-08-03 — docType 기준 렌더 (접수 종목 무관)
-  const isRefriDoc = docType === "refrigerant";
-  const leakDoc = isRefriDoc ? null : LEAK_TEXTS[docType];
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)", paddingBottom: 40 }}>
@@ -326,100 +370,128 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
         background: "var(--bg-secondary)",
       }}>
         <button
-          onClick={skipAutoSave ? onBack : () => setDocType(null)}
+          onClick={skipAutoSave ? onBack : () => setStage("pick")}
           style={{ background: "transparent", border: "none", padding: 4, cursor: "pointer", color: "var(--text-primary)", display: "flex" }}
         >
           <ArrowLeft size={18}/>
         </button>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>
-            {isRefriDoc ? "📋 냉매 가스 충전 서비스 동의" : `📋 ${leakDoc.title}`}
+            {selectedDocs.length > 1
+              ? `📋 시공 동의 (${selectedDocs.length}건)`
+              : selectedDocs[0] === "refrigerant"
+                ? "📋 냉매 가스 충전 서비스 동의"
+                : `📋 ${LEAK_TEXTS[selectedDocs[0]]?.title || "시공 동의"}`}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 2 }}>
-            {task?.customer || "고객"} · {isRefriDoc ? (task?.workType || "냉매충전") : "누수/누설 시공"}
+            {task?.customer || "고객"} · {selectedDocs
+              .map((k) => (k === "refrigerant" ? "냉매 충전" : LEAK_TEXTS[k]?.title.replace(" 동의", "")))
+              .join(" + ")}
           </div>
         </div>
       </div>
 
-      {/* 동의서 문구 — 누설: 사장님 제공 조항 리스트 */}
-      {!isRefriDoc && (
-        <div style={{
-          margin: "14px 16px",
-          padding: "16px 16px 18px",
-          background: "var(--bg-secondary)",
-          border: "1px solid var(--border-color)",
-          borderRadius: 12,
-          fontSize: 13, lineHeight: 1.7, color: "var(--text-primary)",
-        }}>
-          {leakDoc.items.map((txt, i) => (
-            <div key={i} style={{ marginTop: i === 0 ? 0 : 12 }}>
-              <b>{i + 1}.</b> {txt}
+      {/* 2026-08-03 (2차) — 고른 동의서를 순서대로 이어 붙인다 (n/m 표시).
+            서명은 맨 아래 한 번 — 한 서명이 표시된 모든 문구에 대한 동의. */}
+      {selectedDocs.map((docKey, di) => {
+        const badge = selectedDocs.length > 1 ? `${di + 1} / ${selectedDocs.length}` : null;
+        const badgeEl = badge && (
+          <span style={{
+            fontSize: 10, fontWeight: 800, color: "var(--accent, #FF1B8D)",
+            background: "rgba(255,27,141,0.08)", borderRadius: 999,
+            padding: "2px 8px", marginRight: 8, verticalAlign: "2px",
+          }}>{badge}</span>
+        );
+
+        if (docKey === "refrigerant") {
+          // 냉매 충전 (2026-08-03 사장님 확정 개정판).
+          //   핵심: 점검 여부와 무관하게 누설 "수리"를 안 하면 다시 빠질 수 있고,
+          //   심하면 충전 당일 몇 시간 이내에도 빠질 수 있음을 명시.
+          return (
+            <div key={docKey} style={{
+              margin: "14px 16px",
+              padding: "16px 16px 18px",
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-color)",
+              borderRadius: 12,
+              fontSize: 13, lineHeight: 1.7, color: "var(--text-primary)",
+              whiteSpace: "pre-wrap",
+            }}>
+              <div style={{
+                fontWeight: 800, marginBottom: 10, paddingBottom: 10,
+                borderBottom: "1px solid var(--border-color)",
+              }}>{badgeEl}냉매 가스 충전 서비스 동의</div>
+              <div style={{ fontWeight: 700, marginBottom: 6 }}>[본 서비스 안내]</div>
+              <div>
+                본 서비스는 에어컨 냉매(가스)를 충전하는 작업입니다. 냉매는 저절로 소모되지
+                않으며, 부족하다는 것은 어딘가에서 새고 있다는 뜻입니다.
+              </div>
+
+              <div style={{ fontWeight: 700, marginTop: 12, marginBottom: 6 }}>[안내 말씀]</div>
+              <div>
+                <b>1.</b> 누설 점검을 했더라도, 누설 부위를 <b>수리하지 않고</b> 충전하는 경우
+                충전한 냉매는 다시 빠질 수 있습니다.
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <b>2.</b> 누설이 심한 경우 <b>충전 당일, 몇 시간 이내에도</b> 냉매가 모두
+                빠질 수 있음을 확인합니다.
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <b>3.</b> 압축기(컴프레서) 고장, 배관 부식 등 기계 자체 결함이 있는 경우에도
+                충전 후 1~3일 이내 다시 빠질 수 있습니다.
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <b>4.</b> 위 사유로 인한 재누설은 충전 작업의 불량이 아니므로,
+                재방문·재충전·환불은 제공되지 않습니다. 근본 해결은 누설 부위 수리 또는
+                기계 A/S·교체입니다.
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <b>5.</b> 시공 직후 냉방(난방)이 정상 작동됨을 확인하였습니다.
+              </div>
+
+              <div style={{
+                marginTop: 14, padding: "10px 12px",
+                background: "rgba(255,184,0,0.10)",
+                border: "1px solid rgba(255,184,0,0.30)",
+                borderRadius: 8, fontWeight: 700,
+              }}>
+                위 내용을 충분히 안내받았으며, 이에 동의합니다.
+              </div>
             </div>
-          ))}
-          <div style={{
-            marginTop: 14, padding: "10px 12px",
-            background: "rgba(255,184,0,0.10)",
-            border: "1px solid rgba(255,184,0,0.30)",
-            borderRadius: 8, fontWeight: 700,
+          );
+        }
+
+        const leakDoc = LEAK_TEXTS[docKey];
+        if (!leakDoc) return null;
+        return (
+          <div key={docKey} style={{
+            margin: "14px 16px",
+            padding: "16px 16px 18px",
+            background: "var(--bg-secondary)",
+            border: "1px solid var(--border-color)",
+            borderRadius: 12,
+            fontSize: 13, lineHeight: 1.7, color: "var(--text-primary)",
           }}>
-            위 내용을 충분히 이해하고 이에 동의합니다.
+            <div style={{
+              fontWeight: 800, marginBottom: 10, paddingBottom: 10,
+              borderBottom: "1px solid var(--border-color)",
+            }}>{badgeEl}{leakDoc.title}</div>
+            {leakDoc.items.map((txt, i) => (
+              <div key={i} style={{ marginTop: i === 0 ? 0 : 12 }}>
+                <b>{i + 1}.</b> {txt}
+              </div>
+            ))}
+            <div style={{
+              marginTop: 14, padding: "10px 12px",
+              background: "rgba(255,184,0,0.10)",
+              border: "1px solid rgba(255,184,0,0.30)",
+              borderRadius: 8, fontWeight: 700,
+            }}>
+              위 내용을 충분히 이해하고 이에 동의합니다.
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* 동의서 문구 — 냉매 충전 (2026-08-03 사장님 확정 개정판).
-            핵심: 점검 여부와 무관하게 누설 "수리"를 안 하면 다시 빠질 수 있고,
-            심하면 충전 당일 몇 시간 이내에도 빠질 수 있음을 명시.
-            구판의 "수리 서비스는 정상적으로 이행되었습니다" 문단은
-            충전 동의서에 안 맞는 내용이라 삭제 (수리 동의는 별도 문서). */}
-      {isRefriDoc && (
-      <div style={{
-        margin: "14px 16px",
-        padding: "16px 16px 18px",
-        background: "var(--bg-secondary)",
-        border: "1px solid var(--border-color)",
-        borderRadius: 12,
-        fontSize: 13, lineHeight: 1.7, color: "var(--text-primary)",
-        whiteSpace: "pre-wrap",
-      }}>
-        <div style={{ fontWeight: 700, marginBottom: 6 }}>[본 서비스 안내]</div>
-        <div>
-          본 서비스는 에어컨 냉매(가스)를 충전하는 작업입니다. 냉매는 저절로 소모되지
-          않으며, 부족하다는 것은 어딘가에서 새고 있다는 뜻입니다.
-        </div>
-
-        <div style={{ fontWeight: 700, marginTop: 12, marginBottom: 6 }}>[안내 말씀]</div>
-        <div>
-          <b>1.</b> 누설 점검을 했더라도, 누설 부위를 <b>수리하지 않고</b> 충전하는 경우
-          충전한 냉매는 다시 빠질 수 있습니다.
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <b>2.</b> 누설이 심한 경우 <b>충전 당일, 몇 시간 이내에도</b> 냉매가 모두
-          빠질 수 있음을 확인합니다.
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <b>3.</b> 압축기(컴프레서) 고장, 배관 부식 등 기계 자체 결함이 있는 경우에도
-          충전 후 1~3일 이내 다시 빠질 수 있습니다.
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <b>4.</b> 위 사유로 인한 재누설은 충전 작업의 불량이 아니므로,
-          재방문·재충전·환불은 제공되지 않습니다. 근본 해결은 누설 부위 수리 또는
-          기계 A/S·교체입니다.
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <b>5.</b> 시공 직후 냉방(난방)이 정상 작동됨을 확인하였습니다.
-        </div>
-
-        <div style={{
-          marginTop: 14, padding: "10px 12px",
-          background: "rgba(255,184,0,0.10)",
-          border: "1px solid rgba(255,184,0,0.30)",
-          borderRadius: 8, fontWeight: 700,
-        }}>
-          위 내용을 충분히 안내받았으며, 이에 동의합니다.
-        </div>
-      </div>
-      )}
+        );
+      })}
 
       {/* 고객 성함 입력 */}
       <div style={{ margin: "0 16px 14px" }}>
@@ -448,6 +520,11 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
         <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
           <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>
             서명 <span style={{ color: "#FF3B5C" }}>*</span>
+            {selectedDocs.length > 1 && (
+              <span style={{ fontWeight: 600, color: "var(--text-tertiary)" }}>
+                {" "}— 위 {selectedDocs.length}건의 동의서에 대한 서명입니다
+              </span>
+            )}
           </label>
           <div style={{ flex: 1 }}/>
           <button
@@ -501,7 +578,7 @@ export default function RefrigerantConsentScreen({ task, onBack, onComplete, onR
           }}
         >
           <Check size={16}/>
-          {submitting ? "저장 중..." : "동의 완료"}
+          {submitting ? "저장 중..." : selectedDocs.length > 1 ? `동의 완료 (${selectedDocs.length}건 서명)` : "동의 완료"}
         </button>
 
         <button
