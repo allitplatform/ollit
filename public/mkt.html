@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="/mkt-manifest.json">
+<link rel="apple-touch-icon" href="/icon-ads-180.png">
+<title>올잇 마케팅 · 광고주 관제판</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  :root { --bg:#f6f7f9; --card:#ffffff; --ink:#101418; --ink2:#5a6472; --mut:#8b95a1;
+    --line:#e6e9ee; --accent:#2a78d6; --good:#16a34a; --warn:#d97706; --bad:#dc2626; }
+  body { font-family:'Pretendard',system-ui,-apple-system,'Segoe UI',sans-serif; background:var(--bg); color:var(--ink);
+    padding:calc(14px + env(safe-area-inset-top)) 14px 40px; }
+  .wrap { max-width:520px; margin:0 auto; }
+  header { display:flex; align-items:baseline; gap:8px; margin-bottom:2px; }
+  h1 { font-size:18px; font-weight:900; letter-spacing:-.3px; }
+  .by { font-size:10px; color:var(--mut); font-weight:700; letter-spacing:1.5px; }
+  .sub { font-size:11px; color:var(--mut); font-weight:600; margin-bottom:12px; }
+  .adv { display:flex; gap:6px; margin-bottom:12px; }
+  .adv button { flex:1; padding:10px 0; border-radius:11px; border:1px solid var(--line); background:var(--card); color:var(--ink2); font-size:13px; font-weight:800; cursor:pointer; font-family:inherit; }
+  .adv button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .tabs { display:flex; gap:6px; margin-bottom:12px; }
+  .tabs button { flex:1; padding:8px 0; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--ink2); font-size:12px; font-weight:700; cursor:pointer; font-family:inherit; }
+  .tabs button.on { background:rgba(42,120,214,.1); border-color:var(--accent); color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:15px 16px 13px; margin-bottom:12px; }
+  .card h2 { font-size:13px; font-weight:800; margin-bottom:10px; }
+  .hero { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .hero .num { font-size:26px; font-weight:900; }
+  .hero .unit { font-size:13px; color:var(--mut); font-weight:700; }
+  .chip { margin-left:auto; font-size:11px; font-weight:800; border-radius:999px; padding:4px 11px; background:rgba(0,0,0,.05); }
+  .tiles { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .tile { background:var(--bg); border-radius:9px; padding:10px 8px; text-align:center; }
+  .tile .l { font-size:9.5px; color:var(--mut); font-weight:700; margin-bottom:3px; }
+  .tile .v { font-size:15px; font-weight:800; }
+  .rows .row { display:flex; align-items:center; gap:8px; padding:7px 0; border-top:1px solid var(--line); font-size:12px; }
+  .rows .row:first-child { border-top:none; }
+  .row .name { flex:1; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row .m { color:var(--ink2); font-variant-numeric:tabular-nums; }
+  .patrol { margin-top:10px; padding-top:8px; border-top:1px solid var(--line); font-size:10.5px; font-weight:700; color:var(--mut); }
+  .patrol.alert { color:var(--bad); }
+  .empty { padding:14px; text-align:center; color:var(--mut); font-size:12px; font-weight:600; }
+  .note { font-size:10px; color:var(--mut); font-weight:600; line-height:1.7; padding:2px 2px 0; }
+  .linkbtn { display:block; text-align:center; padding:13px 0; border-radius:12px; background:var(--accent); color:#fff; font-size:13.5px; font-weight:800; text-decoration:none; }
+  footer { text-align:center; font-size:10px; color:var(--mut); font-weight:700; margin-top:18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>광고주 관제판</h1><span class="by">ALLIT MARKETING</span></header>
+  <div class="sub" id="range">-</div>
+
+  <!-- 광고주 선택 (앞으로 광고주가 늘면 여기 버튼 추가) -->
+  <div class="adv" id="adv">
+    <button data-a="yusol" class="on">유솔홈케어</button>
+    <button data-a="allday">올데이케어</button>
+  </div>
+
+  <!-- 유솔 -->
+  <div id="v-yusol">
+    <div class="tabs" id="tabs">
+      <button data-p="today">오늘</button>
+      <button data-p="week" class="on">최근 7일</button>
+      <button data-p="month">이번 달</button>
+    </div>
+    <div class="card">
+      <div class="hero">
+        <span class="num" id="per">-</span><span class="unit">원/주문</span>
+        <span class="chip" id="verdict" style="color:#94a3b8">집계중</span>
+      </div>
+      <div class="tiles">
+        <div class="tile"><div class="l">광고비(VAT포함)</div><div class="v" id="cost">-</div></div>
+        <div class="tile"><div class="l">클릭</div><div class="v" id="clicks">-</div></div>
+        <div class="tile"><div class="l">주문(전환)</div><div class="v" id="conv">-</div></div>
+      </div>
+      <div class="patrol" id="patrol">🛡 클릭 감시 준비 중</div>
+      <div class="note">판정: 주문당 5,000원 이하 효율 · 10,000원 이하 적정 · 초과 조정 (벽걸이 마진 1.8만 기준)</div>
+    </div>
+    <div class="card"><h2>캠페인별</h2><div class="rows" id="camps"><div class="empty">-</div></div></div>
+    <div class="card"><h2>일별 흐름</h2><div class="rows" id="days"><div class="empty">-</div></div></div>
+  </div>
+
+  <!-- 올데이케어 — 기존 광고 관제판으로 연결 -->
+  <div id="v-allday" style="display:none">
+    <div class="card">
+      <h2>올데이케어 광고 관제판</h2>
+      <div class="note" style="margin-bottom:12px">올데이케어는 기존 관제판(실시간 키워드·순위·자동입찰)을 그대로 사용합니다.</div>
+      <a class="linkbtn" id="adcLink" href="/ads-console.html">관제판 열기 →</a>
+    </div>
+  </div>
+
+  <footer>올잇 마케팅 · 홈 화면에 추가하면 앱처럼 쓸 수 있습니다</footer>
+</div>
+<script>
+(function(){
+  // 접근 키: URL ?k= 우선, 없으면 저장된 키 (PWA 설치 후 재방문 대비)
+  var k = new URLSearchParams(location.search).get("k") || "";
+  try {
+    if (k) localStorage.setItem("mkt_k", k);
+    else k = localStorage.getItem("mkt_k") || "";
+  } catch(e){}
+
+  var period = "week";
+  function kstDate(off){ var d=new Date(Date.now()+9*3600*1000); d.setUTCDate(d.getUTCDate()+(off||0)); return d.toISOString().slice(0,10); }
+  function range(){
+    var today=kstDate(0);
+    if(period==="today") return {s:today,u:today};
+    if(period==="week")  return {s:kstDate(-6),u:today};
+    return {s:today.slice(0,8)+"01",u:today};
+  }
+  function won(n){ return Number(n||0).toLocaleString("ko-KR"); }
+
+  function loadYusol(){
+    var r=range();
+    document.getElementById("range").textContent = (r.s===r.u? r.s+" (하루)" : r.s+" ~ "+r.u) + " · KST";
+    fetch("/api/yusol-ad?token="+encodeURIComponent(k)+"&since="+r.s+"&until="+r.u+"&daily=1",{cache:"no-store"})
+      .then(function(x){return x.json();})
+      .then(function(j){
+        if(!j||j.ok===false){ document.getElementById("range").textContent="접속 권한이 없거나 준비 중입니다"; return; }
+        var costVat=Math.round((j.cost||0)*1.1), conv=j.conv||0;
+        var per=conv>0?Math.round(costVat/conv):null;
+        document.getElementById("cost").textContent=won(costVat)+"원";
+        document.getElementById("clicks").textContent=won(j.clicks||0);
+        document.getElementById("conv").textContent=won(conv);
+        document.getElementById("per").textContent=per!=null?won(per):"-";
+        var v,c;
+        if(per!=null&&per<=5000){v="효율 좋음";c="var(--good)";}
+        else if(per!=null&&per<=10000){v="적정";c="var(--warn)";}
+        else if(per!=null){v="조정 필요";c="var(--bad)";}
+        else if(costVat>0){v="주문 집계 전";c="var(--warn)";}
+        else{v="라이브 대기";c="#94a3b8";}
+        var chip=document.getElementById("verdict"); chip.textContent=v; chip.style.color=c;
+        var camps=(j.campaigns||[]).slice().sort(function(a,b){return (b.cost||0)-(a.cost||0);});
+        document.getElementById("camps").innerHTML = camps.length? camps.map(function(x){
+          return '<div class="row"><span class="name">'+String(x.name||"").replace(/</g,"&lt;")+'</span>'
+            +'<span class="m">'+won(Math.round((x.cost||0)*1.1))+'원</span><span class="m">'+won(x.clicks||0)+'클릭</span>'
+            +'<span class="m" style="font-weight:800">'+won(x.conv||0)+'주문</span></div>';
+        }).join("") : '<div class="empty">캠페인 준비 중</div>';
+        var days=(j.days||[]).slice().reverse();
+        document.getElementById("days").innerHTML = days.length? days.map(function(d){
+          return '<div class="row"><span class="name">'+d.ymd.slice(5)+'</span>'
+            +'<span class="m">'+won(Math.round((d.cost||0)*1.1))+'원</span><span class="m">'+won(d.clicks||0)+'클릭</span>'
+            +'<span class="m" style="font-weight:800">'+won(d.conv||0)+'주문</span></div>';
+        }).join("") : '<div class="empty">아직 집계된 날이 없습니다</div>';
+      })
+      .catch(function(){ document.getElementById("range").textContent="일시적 오류 — 잠시 후 새로고침"; });
+
+    // 클릭 급증 감시 — 오늘 vs 직전 7일 평균 (항상 8일 고정 조회)
+    fetch("/api/yusol-ad?token="+encodeURIComponent(k)+"&since="+kstDate(-7)+"&until="+kstDate(0)+"&daily=1",{cache:"no-store"})
+      .then(function(x){return x.json();})
+      .then(function(j){
+        if(!j||j.ok===false||!j.days) return;
+        var today=kstDate(0), t=null, prev=[];
+        j.days.forEach(function(d){ if(d.ymd===today) t=d; else prev.push(d); });
+        var avg=prev.length? prev.reduce(function(a,d){return a+d.clicks;},0)/prev.length : 0;
+        var tc=t?t.clicks:0, ratio=avg>0? tc/avg : null;
+        var el=document.getElementById("patrol");
+        if(ratio!=null && ratio>=2.5 && tc>=20){
+          el.className="patrol alert";
+          el.textContent="⚠ 클릭 급증 의심 — 오늘 "+tc+"클릭 (직전7일 평균 "+Math.round(avg)+"의 "+ratio.toFixed(1)+"배). 노출제한 IP 점검";
+        } else {
+          el.className="patrol";
+          el.textContent="🛡 클릭 감시 정상 — 오늘 "+tc+" · 직전7일 평균 "+Math.round(avg);
+        }
+      }).catch(function(){});
+  }
+
+  document.getElementById("tabs").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    period=b.dataset.p;
+    document.querySelectorAll("#tabs button").forEach(function(x){x.classList.toggle("on",x===b);});
+    loadYusol();
+  });
+  document.getElementById("adv").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    var a=b.dataset.a;
+    document.querySelectorAll("#adv button").forEach(function(x){x.classList.toggle("on",x===b);});
+    document.getElementById("v-yusol").style.display = a==="yusol" ? "" : "none";
+    document.getElementById("v-allday").style.display = a==="allday" ? "" : "none";
+  });
+
+  loadYusol();
+  setInterval(loadYusol, 5*60*1000);
+})();
+</script>
+</body>
+</html>
