@@ -198,8 +198,13 @@ export default function App() {
       return <PasswordChangeScreen user={currentUser} onComplete={handlePasswordChanged} />;
     }
     // 2026-08-03 — /mkt = 올잇 마케팅 PWA. 대표/운영자만, 그 외 역할은 안내 후 로그아웃 유도.
+    //   주의: DB_TO_APP_ROLE 이 owner → "admin" 으로 변환하므로 role 이 아니라
+    //   dbRole / roles[] 의 원본 값("owner")으로 판정해야 한다.
     if (_isMktRoute()) {
-      if (currentUser.role === "owner") {
+      const mktAllowed = currentUser.dbRole === "owner"
+        || (Array.isArray(currentUser.roles) && currentUser.roles.includes("owner"))
+        || currentUser.role === "owner";
+      if (mktAllowed) {
         return <MarketingPwaApp user={currentUser} onLogout={handleLogout} />;
       }
       return (
