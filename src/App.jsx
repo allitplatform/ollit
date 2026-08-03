@@ -5,6 +5,7 @@ import HappycallApp from "./pages/HappycallApp.jsx";
 import AdminApp from "./pages/AdminApp.jsx";
 import PrincipalApp from "./pages/PrincipalApp.jsx";
 import LandingApp from "./pages/LandingApp.jsx";
+import MarketingPwaApp from "./pages/MarketingPwaApp.jsx";
 
 // 2026-06-23 — 마케팅 랜딩 도메인 / 경로 진입 시 LandingApp 만 렌더 (운영 PWA 분기 차단).
 //   2026-06-24 — 올데이케어.kr (한글 도메인) 추가:
@@ -23,6 +24,15 @@ function _isLandingRoute() {
   if (path.startsWith("/privacy")) return true;             // 2026-06-24 — 개인정보처리방침 페이지
   if (search.includes("page=landing")) return true;
   return false;
+}
+
+// 2026-08-03 — 올잇 마케팅 PWA 경로 (/mkt). 같은 로그인(폰번호+비밀번호)을 쓰되,
+//   로그인 후 역할 분기 대신 마케팅 관제판(MarketingPwaApp)으로 진입.
+//   접근은 대표/운영자(owner) 역할만. manifest 를 /mkt-manifest.json 으로 바꿔
+//   홈 화면 추가 시 "올잇마케팅" 별도 앱으로 설치되게 한다.
+function _isMktRoute() {
+  if (typeof window === "undefined") return false;
+  return (window.location.pathname || "").startsWith("/mkt");
 }
 import { TasksProvider } from "./shared/TasksContext.jsx";
 import { SplashScreen } from "./components/SplashScreen.jsx";
@@ -85,6 +95,14 @@ export default function App() {
   // 앱 시작 시 저장된 테마 적용 (CSS 변수 세팅)
   useEffect(() => {
     applyTheme(loadTheme());
+  }, []);
+
+  // 2026-08-03 — /mkt 경로면 manifest 를 마케팅용으로 교체 (별도 PWA 설치용)
+  useEffect(() => {
+    if (!_isMktRoute()) return;
+    const link = document.querySelector('link[rel="manifest"]');
+    if (link) link.setAttribute("href", "/mkt-manifest.json");
+    document.title = "올잇 마케팅";
   }, []);
 
   // V14 — 앱 시작 시 저장된 글자 크기 적용 (data-font-size → CSS zoom)
@@ -178,6 +196,19 @@ export default function App() {
     // 시범 빠른 로그인은 필드 없음(undefined) → 통과
     if (currentUser.must_change_password === true) {
       return <PasswordChangeScreen user={currentUser} onComplete={handlePasswordChanged} />;
+    }
+    // 2026-08-03 — /mkt = 올잇 마케팅 PWA. 대표/운영자만, 그 외 역할은 안내 후 로그아웃 유도.
+    if (_isMktRoute()) {
+      if (currentUser.role === "owner") {
+        return <MarketingPwaApp user={currentUser} onLogout={handleLogout} />;
+      }
+      return (
+        <div style={{ minHeight: "100vh", background: "#0A0A0A", color: "#F5F5F5", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16, fontFamily: "'Pretendard', sans-serif", padding: 24, textAlign: "center" }}>
+          <div style={{ fontSize: 17, fontWeight: 800 }}>올잇 마케팅</div>
+          <div style={{ fontSize: 13, color: "#B9BDC4", lineHeight: 1.7 }}>이 화면은 마케팅 운영 계정 전용입니다.<br/>계정 권한을 확인해 주세요.</div>
+          <button onClick={handleLogout} style={{ padding: "12px 28px", borderRadius: 12, border: "none", background: "#FF1B8D", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>다른 계정으로 로그인</button>
+        </div>
+      );
     }
     switch (currentUser.role) {
       case "engineer":
