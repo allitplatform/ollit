@@ -65,6 +65,12 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]         = useState("");
 
+  // 2026-08-03 — window.confirm 제거 (사장님 실사용에서 확인창이 차단돼
+  //   버튼이 조용히 죽는 사고: A-260802-082 종목 변경 무반응).
+  //   브라우저 확인창 대신 2단계 버튼: 첫 클릭 = 경고 표시(armed), 둘째 클릭 = 실행.
+  //   armed 값: "" | "apply" | "remove". 입력이 바뀌면 자동 해제.
+  const [armed, setArmed] = useState("");
+
   // ──────────────────────────────────────────────────────────────
   // 2026-07-30 — Mig 201: 종목 변경 / 오입력 삭제.
   //   기본은 접혀 있다 (평소엔 수량·단가만 고치므로).
@@ -170,6 +176,9 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
     return pickerOpts.workTypes.find(w => w.id === workTypeId)?.name || "";
   }, [pickerOpts, workTypeId]);
 
+  // 입력이 바뀌면 "정말 적용" 대기 상태 해제 (다른 값으로 바뀐 걸 그대로 실행하면 안 됨)
+  useEffect(() => { setArmed(""); }, [qty, unitPrice, note, workTypeId, applianceTypeId, typeMode]);
+
   async function handleSubmit() {
     if (!changed)               { setError("변경 없음"); return; }
     if (qtyN <= 0)              { setError("qty > 0 필수"); return; }
@@ -180,13 +189,9 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
     // ── 종목 변경 경로 (Mig 201 RPC) ──
     if (typeChanged) {
       if (!statusOk) { setError(`완료·취소된 작업은 종목을 바꿀 수 없습니다 (현재: ${task?.status || "?"})`); return; }
-      let msg = `종목을 "${selectedWorkTypeName || "선택한 종목"}" 으로 바꿉니다.\n`
-              + `이 항목 소계: ${fmtKRW(oldSubtotal)} → ${fmtKRW(newSubtotal)}\n`;
-      if (preview?.old && preview?.new) {
-        msg += `\n기사 몫 (이 항목 기준): ${fmtKRW(preview.old.engineer)} → ${fmtKRW(preview.new.engineer)}\n`;
-      }
-      msg += `\n종목이 바뀌면 분배율이 통째로 바뀝니다. 적용하시겠습니까?`;
-      if (!window.confirm(msg)) return;
+      // 첫 클릭: 경고만 켜고 대기 (브라우저 확인창 안 씀 — 차단 환경에서 무반응 사고 방지)
+      if (armed !== "apply") { setArmed("apply"); setError(""); return; }
+      setArmed("");
 
       setSubmitting(true); setError("");
       const res = await adminChangeTaskItemType({
@@ -210,8 +215,8 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
     }
 
     // ── 수량·단가만 (기존 경로 그대로) ──
-    const msg = `이 항목 소계: ${fmtKRW(oldSubtotal)} → ${fmtKRW(newSubtotal)} (${diff >= 0 ? "+" : ""}${fmtKRW(diff)}).\n적용하시겠습니까?\n\n(정산 자동 재계산 — 적용 후 새 분배 확인)`;
-    if (!window.confirm(msg)) return;
+    if (armed !== "apply") { setArmed("apply"); setError(""); return; }
+    setArmed("");
 
     setSubmitting(true); setError("");
     const res = await adminUpdateTaskItem({
@@ -231,13 +236,8 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
     if (!actorId)               { setError("로그인 운영자 확인 실패"); return; }
     if (!statusOk)              { setError(`완료·취소된 작업은 항목을 지울 수 없습니다 (현재: ${task?.status || "?"})`); return; }
 
-    const msg = `이 항목을 완전히 지웁니다.\n\n`
-              + `  ${item?.workType || ""} · ${item?.appliance || ""} (${oldQty}개 × ${fmtKRW(oldUp)})\n`
-              + `  소계 ${fmtKRW(oldSubtotal)}\n\n`
-              + `⚠️ 되돌리기 버튼은 없습니다 (변경 이력에만 남습니다).\n`
-              + `고객이 이 작업만 안 하기로 한 경우라면 삭제가 아니라 "◐ 부분 취소" 를 쓰세요.\n\n`
-              + `정말 지울까요?`;
-    if (!window.confirm(msg)) return;
+    if (armed !== "remove") { setArmed("remove"); setError(""); return; }
+    setArmed("");
 
     setRemoving(true); setError("");
     const res = await adminRemoveTaskItem({ actorId, itemId: item.id, note: note.trim() });
@@ -438,6 +438,40 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
 
           {error && <ErrorBox text={error}/>}
 
+          {/* 2026-08-03 — 2단계 확인 (브라우저 확인창 대체) */}
+          {armed === "apply" && (
+            <div style={{
+              padding: "12px 14px",
+              background: "rgba(245,158,11,0.12)",
+              border: "1px solid rgba(245,158,11,0.45)",
+              borderRadius: 9,
+              fontSize: 12, lineHeight: 1.7,
+              color: t?.text || "var(--text-primary)",
+            }}>
+              <b style={{ color: "#B45309" }}>⚠️ 한 번 더 누르면 바로 적용됩니다.</b><br/>
+              {typeChanged && <>종목: <b>{selectedWorkTypeName || "선택한 종목"}</b> 으로 변경<br/></>}
+              소계 {fmtKRW(oldSubtotal)} → <b>{fmtKRW(newSubtotal)}</b>
+              {typeChanged && preview?.old && preview?.new && (
+                <> · 기사 몫 {fmtKRW(preview.old.engineer)} → <b>{fmtKRW(preview.new.engineer)}</b></>
+              )}
+              {typeChanged && <><br/>종목이 바뀌면 분배율이 통째로 바뀝니다.</>}
+            </div>
+          )}
+          {armed === "remove" && (
+            <div style={{
+              padding: "12px 14px",
+              background: "rgba(220,38,38,0.10)",
+              border: "1px solid rgba(220,38,38,0.45)",
+              borderRadius: 9,
+              fontSize: 12, lineHeight: 1.7,
+              color: t?.text || "var(--text-primary)",
+            }}>
+              <b style={{ color: "#DC2626" }}>⚠️ 한 번 더 누르면 완전히 지워집니다 — 되돌리기 없음.</b><br/>
+              {item?.workType || ""} · {item?.appliance || ""} ({oldQty}개 × {fmtKRW(oldUp)}) = 소계 {fmtKRW(oldSubtotal)}<br/>
+              고객이 이 작업만 안 하기로 한 거라면 삭제가 아니라 ◐ 부분 취소입니다.
+            </div>
+          )}
+
           {/* ── 2026-07-30 오입력 삭제 ── */}
           <div style={{ borderTop: `1px dashed ${t?.border || "var(--border)"}`, paddingTop: 10 }}>
             <button type="button"
@@ -453,7 +487,7 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
                 fontSize: 12, fontWeight: 800, fontFamily: "inherit",
                 cursor: (busy || !statusOk || note.trim().length < 5) ? "not-allowed" : "pointer",
               }}>
-              {removing ? "삭제 중..." : "🗑 이 항목 삭제 (잘못 넣은 항목)"}
+              {removing ? "삭제 중..." : armed === "remove" ? "🗑 정말 삭제 — 한 번 더 누르세요" : "🗑 이 항목 삭제 (잘못 넣은 항목)"}
             </button>
             <div style={{ fontSize: 10, lineHeight: 1.6, marginTop: 6, color: t?.textMuted || "var(--text-tertiary, var(--text-secondary))" }}>
               고객이 이 작업만 안 하기로 한 경우는 삭제가 아니라 <b>◐ 부분 취소</b> 입니다.<br/>
@@ -464,7 +498,11 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
         </div>
         <ModalFooter t={t}
           submitting={busy}
-          submitLabel={submitting ? "적용 중..." : (typeChanged ? "종목 변경 적용 (자동 재계산)" : "수정 적용 (자동 재계산)")}
+          submitLabel={
+            submitting ? "적용 중..."
+            : armed === "apply" ? "⚠️ 정말 적용 — 한 번 더 누르세요"
+            : (typeChanged ? "종목 변경 적용 (자동 재계산)" : "수정 적용 (자동 재계산)")
+          }
           disabled={!changed || busy || note.trim().length < 5 || (typeMode && !workTypeId)}
           onCancel={() => !busy && onClose()}
           onSubmit={handleSubmit}
@@ -491,6 +529,8 @@ export function AddTaskItemModal({ t, task, actorId, onClose, onApplied }) {
   const [note,            setNote]            = useState("");
   const [submitting,      setSubmitting]      = useState(false);
   const [error,           setError]           = useState("");
+  // 2026-08-03 — 2단계 확인 (window.confirm 차단 환경 대응)
+  const [armed,           setArmed]           = useState(false);
 
   useEffect(() => {
     function handler(e) { if (e.key === "Escape" && !submitting) onClose?.(); }
@@ -532,6 +572,9 @@ export function AddTaskItemModal({ t, task, actorId, onClose, onApplied }) {
   const upN  = Number(unitPrice) || 0;
   const newSubtotal = qtyN * upN;
 
+  // 입력 바뀌면 "정말 추가" 대기 해제
+  useEffect(() => { setArmed(false); }, [qty, unitPrice, note, workTypeId, applianceTypeId, orderType]);
+
   async function handleSubmit() {
     if (!workTypeId)            { setError("작업 종류 선택"); return; }
     if (qtyN <= 0)              { setError("qty > 0 필수"); return; }
@@ -539,8 +582,9 @@ export function AddTaskItemModal({ t, task, actorId, onClose, onApplied }) {
     if (note.trim().length < 5) { setError("변경 사유 5자 이상 필수"); return; }
     if (!actorId)               { setError("로그인 운영자 확인 실패"); return; }
 
-    const msg = `이 항목 추가: 소계 ${fmtKRW(newSubtotal)}.\n적용하시겠습니까?\n\n(정산 자동 재계산 — 적용 후 새 분배 확인. 정책 없는 조합은 거부됨)`;
-    if (!window.confirm(msg)) return;
+    // 2026-08-03 — window.confirm 대신 2단계 버튼 (확인창 차단 환경 무반응 사고 방지)
+    if (!armed) { setArmed(true); setError(""); return; }
+    setArmed(false);
 
     setSubmitting(true); setError("");
     const res = await adminInsertTaskItem({
@@ -664,12 +708,27 @@ export function AddTaskItemModal({ t, task, actorId, onClose, onApplied }) {
               </div>
 
               {error && <ErrorBox text={error}/>}
+
+              {/* 2026-08-03 — 2단계 확인 (브라우저 확인창 대체) */}
+              {armed && (
+                <div style={{
+                  padding: "12px 14px",
+                  background: "rgba(245,158,11,0.12)",
+                  border: "1px solid rgba(245,158,11,0.45)",
+                  borderRadius: 9,
+                  fontSize: 12, lineHeight: 1.7,
+                  color: t?.text || "var(--text-primary)",
+                }}>
+                  <b style={{ color: "#B45309" }}>⚠️ 한 번 더 누르면 추가됩니다.</b><br/>
+                  새 항목 소계 <b>{fmtKRW(newSubtotal)}</b> · 정산 자동 재계산 (정책 없는 조합은 거부됨)
+                </div>
+              )}
             </>
           )}
         </div>
         <ModalFooter t={t}
           submitting={submitting}
-          submitLabel={submitting ? "추가 중..." : "추가 적용 (정책 검증)"}
+          submitLabel={submitting ? "추가 중..." : armed ? "⚠️ 정말 추가 — 한 번 더 누르세요" : "추가 적용 (정책 검증)"}
           disabled={!workTypeId || qtyN <= 0 || upN < 0 || note.trim().length < 5 || submitting || pickerLoading}
           onCancel={() => !submitting && onClose()}
           onSubmit={handleSubmit}
