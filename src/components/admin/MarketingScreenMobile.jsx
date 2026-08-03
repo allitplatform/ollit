@@ -18,6 +18,9 @@ import { canSeeField } from "../../data/permissions.js";
 
 const SELF_PRINCIPAL_CODE = "allday";
 const ADC_TOKEN = "82ae0c34ae8eeec0f6932b82"; // 대표용 읽기전용 — api/ad-console.js (시간대 흐름 전용)
+// 2026-08-03 — 유솔홈케어 광고 계정(622180, 컨설팅 1호) 읽기 토큰 — api/yusol-ad.js
+const YUSOL_TOKEN = "yz74c1e0a95d2b8f36e41c07";
+const YUSOL_GOAL_CPA = 5000, YUSOL_LIMIT_CPA = 10000; // 벽걸이 마진 18,000원 기준 상한 1만
 const PERIOD_OPTS = [
   { id: "today", label: "오늘" },
   { id: "week",  label: "이번주" },
@@ -261,6 +264,73 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
     return rows;
   }, [hourTrend]);
 
+  // ── 유솔홈케어 광고 (2026-08-03 — 컨설팅 1호 광고주, 별도 계정 622180) ────
+  //   기간 카드: 선택 기간 합계 + 캠페인별. 감시 카드: 최근 8일 일별로 클릭 급증 판정
+  //   (오늘 클릭이 직전 7일 평균의 2.5배 이상 + 20클릭 이상이면 부정클릭 의심).
+  //   ⚠ 노출 범위: 운영자(owner) 단독. 유솔 컨설팅은 올잇 광고대행 사업 영역이라
+  //   올데이케어 공동 대표·관리자 계정에는 카드 자체를 렌더링하지 않고 API 호출도 하지 않는다.
+  const isYusolViewer = user?.role === "owner";
+  const [yusolAd, setYusolAd] = useState(null);
+  const [yusolLoading, setYusolLoading] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    if (!isYusolViewer) { setYusolAd(null); setYusolLoading(false); return () => { alive = false; }; }
+    setYusolLoading(true);
+    fetch(`/api/yusol-ad?token=${YUSOL_TOKEN}&since=${encodeURIComponent(start)}&until=${encodeURIComponent(end)}`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(j => { if (alive) { setYusolAd(j || null); setYusolLoading(false); } })
+      .catch(() => { if (alive) { setYusolAd(null); setYusolLoading(false); } });
+    return () => { alive = false; };
+  }, [start, end]);
+
+  const [yusolDays, setYusolDays] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    if (!isYusolViewer) { setYusolDays(null); return () => { alive = false; }; }
+    const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    const d0 = new Date(Date.now() + 9 * 3600 * 1000); d0.setUTCDate(d0.getUTCDate() - 7);
+    const since8 = d0.toISOString().slice(0, 10);
+    const load = () => {
+      fetch(`/api/yusol-ad?token=${YUSOL_TOKEN}&since=${since8}&until=${today}&daily=1`, { cache: "no-store" })
+        .then(r => r.json())
+        .then(j => { if (alive) setYusolDays(j?.ok ? (j.days || []) : null); })
+        .catch(() => { if (alive) setYusolDays(null); });
+    };
+    load();
+    const iv = setInterval(load, 10 * 60 * 1000);
+    return () => { alive = false; clearInterval(iv); };
+  }, []);
+
+  const yusolView = useMemo(() => {
+    if (!yusolAd || yusolAd.ok === false) return null;
+    const costVat = Math.round(Number(yusolAd.cost || 0) * 1.1);
+    const conv = Number(yusolAd.conv || 0);
+    const per = conv > 0 ? Math.round(costVat / conv) : null;
+    let verdict;
+    if (per != null && per <= YUSOL_GOAL_CPA)       verdict = { label: "효율 좋음", color: "#16A34A" };
+    else if (per != null && per <= YUSOL_LIMIT_CPA) verdict = { label: "적정",      color: "#D97706" };
+    else if (per != null)                            verdict = { label: "상한 초과", color: "#DC2626" };
+    else if (costVat > 0)                            verdict = { label: "주문 0",    color: "#DC2626" };
+    else                                             verdict = { label: "라이브 대기", color: "#94A3B8" };
+    const camps = (yusolAd.campaigns || []).map(c => ({
+      id: c.id, name: c.name, costVat: Math.round(Number(c.cost || 0) * 1.1),
+      clicks: Number(c.clicks || 0), conv: Number(c.conv || 0),
+    })).sort((a, b) => b.costVat - a.costVat);
+    return { costVat, clicks: Number(yusolAd.clicks || 0), conv, per, verdict, camps };
+  }, [yusolAd]);
+
+  const yusolPatrol = useMemo(() => {
+    if (!yusolDays || yusolDays.length === 0) return null;
+    const today = new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+    const todayRow = yusolDays.find(d => d.ymd === today);
+    const prev = yusolDays.filter(d => d.ymd !== today);
+    const avg = prev.length > 0 ? prev.reduce((a, d) => a + d.clicks, 0) / prev.length : 0;
+    const todayClicks = todayRow?.clicks || 0;
+    const ratio = avg > 0 ? todayClicks / avg : null;
+    const alert = ratio != null && ratio >= 2.5 && todayClicks >= 20;
+    return { todayClicks, avg: Math.round(avg), ratio, alert };
+  }, [yusolDays]);
+
   // ── 그룹별 광고 성과 (PC ⑥ 축약판 — 접힌 상세) ───────────────────────────
   const groups = useMemo(() => {
     const rows = (ad?.adGroups || []).map(g => {
@@ -455,6 +525,53 @@ export function MarketingScreenMobile({ t, apiTasks = [], user, onBack }) {
             </>
           )}
         </Card>
+
+        {/* 유솔홈케어 광고 (컨설팅 1호 — 별도 계정, 기간 필터 적용, 운영자 전용) */}
+        {isYusolViewer && (
+        <Card t={t} title="🧼 유솔 광고 (컨설팅)" sub="유솔홈케어 계정 · 주문당 5천 이하 효율 / 1만 상한 (마진 1.8만 기준)">
+          {yusolLoading && !yusolView ? (
+            <div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>조회 중…</div>
+          ) : !yusolView ? (
+            <div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+              연결 안 됨 — {yusolAd?.error || "Vercel 환경변수(YUSOL_AD_*) 확인"}
+            </div>
+          ) : (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <span className="mono" style={{ fontSize: 20, fontWeight: 900 }}>
+                  {yusolView.per != null ? _fmtKRW(yusolView.per) : "-"}
+                  <span style={{ fontSize: 12, color: t.textMuted, fontWeight: 700, marginLeft: 3 }}>원/주문</span>
+                </span>
+                <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: yusolView.verdict.color, background: `${yusolView.verdict.color}1F`, borderRadius: 999, padding: "3px 10px" }}>{yusolView.verdict.label}</span>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+                <MiniStat t={t} label="지출(VAT포함)" value={_fmtKRW(yusolView.costVat)} suffix="원" accent/>
+                <MiniStat t={t} label="클릭" value={_fmtKRW(yusolView.clicks)}/>
+                <MiniStat t={t} label="주문(전환)" value={_fmtKRW(yusolView.conv)}/>
+              </div>
+              {yusolView.camps.length > 0 && (
+                <div style={{ marginTop: 8, display: "flex", flexDirection: "column" }}>
+                  {yusolView.camps.map(c => (
+                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderTop: `1px solid ${t.border}`, fontSize: 11.5 }}>
+                      <span style={{ flex: 1, fontWeight: 700, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                      <span className="mono" style={{ color: t.textMuted }}>{_fmtKRW(c.costVat)}원</span>
+                      <span className="mono" style={{ color: t.textMuted }}>{c.clicks}클릭</span>
+                      <span className="mono" style={{ fontWeight: 800, color: c.conv > 0 ? "#16A34A" : t.textMuted }}>{c.conv}주문</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {yusolPatrol && (
+                <div style={{ marginTop: 8, paddingTop: 7, borderTop: `1px solid ${t.border}`, fontSize: 10.5, fontWeight: 700, color: yusolPatrol.alert ? "#DC2626" : t.textMuted }}>
+                  {yusolPatrol.alert
+                    ? `⚠ 클릭 급증 의심 — 오늘 ${yusolPatrol.todayClicks}클릭 (직전7일 평균 ${yusolPatrol.avg}의 ${yusolPatrol.ratio.toFixed(1)}배). 광고시스템 노출제한 IP 점검 요망`
+                    : `🛡 클릭 감시 정상 — 오늘 ${yusolPatrol.todayClicks} · 직전7일 평균 ${yusolPatrol.avg}`}
+                </div>
+              )}
+            </>
+          )}
+        </Card>
+        )}
 
         {/* 더 자세히 — 퍼널·매출 (아코디언) */}
         <button onClick={() => setOpenDetail(v => !v)} style={{

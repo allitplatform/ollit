@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 // 2026-06-03 — Principal 측측 측측 측측 측측 측측 측측: 글로벌 CSS 측 측측 (--text-primary 측).
 //   원인: Principal 측측 측측 측측 `useState("dark")` 측측측 (= 측측 측측 X) 측측 글로벌 CSS 측측
 //        App.jsx 측 loadTheme() 측측 측측측 측측 측측 (= 측측측 측측 측측 측측 측측 측측 측측 X).
@@ -29,7 +29,7 @@ import {
   ClipboardList, Wallet, Building2, ChevronRight, AlertCircle,
   CheckCircle2, Clock, User, Phone, MapPin, Calendar, Snowflake,
   Hash, Edit3, Camera, FileText, Sparkles, Search, Filter, DollarSign,
-  LogOut, Bell, ClipboardCheck, CalendarClock, XCircle,
+  LogOut, Bell, ClipboardCheck, CalendarClock, XCircle, TrendingUp,
 } from "lucide-react";
 import { useTasks } from "../shared/TasksContext.jsx";
 import { filterTasksForPrincipal } from "../shared/tasks.js";
@@ -600,6 +600,9 @@ export default function PrincipalApp({ user, onLogout }) {
 
   // 2026-06-03 — KA / crikrin 원청 분기 (유솔이면 null)
   const partnerCode = _resolvePartnerCode(user);
+  // 2026-08-03 — 유솔 광고 컨설팅 마케팅 탭 (올잇 대행 계약). 유솔 계정(usol_h/usol_n)에만 노출 —
+  //   다른 원청(올데이·KA·크리크린 등) 계정에는 탭 자체가 없다.
+  const hasMarketing = principalCodes.some(c => c === "usol_h" || c === "usol_n");
   const partnerConfig = partnerCode ? PARTNER_PWA_CONFIG[partnerCode] : null;
   const [quoteRates, setQuoteRates] = useState(null);
 
@@ -643,6 +646,7 @@ export default function PrincipalApp({ user, onLogout }) {
         setTab={setTab}
         isPartnerMode={!!partnerConfig}
         hasSchedule={principalCodes.some(c => c === "usol_h" || c === "usol_n")}
+        hasMarketing={hasMarketing}
         unreadCount={notifications.filter(n => !n.read).length}
         isUsolUnified={isUsolUnified}
         partnerCode={partnerCode}
@@ -667,6 +671,7 @@ export default function PrincipalApp({ user, onLogout }) {
               }
               return <PartnerDailySettleTab t={t} user={user} principalCodes={effectiveCodes} onTaskClick={setSelectedTask}/>;
             })()}
+            {tab === "marketing" && hasMarketing && <UsolMarketingTab t={t}/>}
             {tab === "info"   && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
             {tab === "noti"   && (
               <NotiScreen
@@ -734,6 +739,7 @@ export default function PrincipalApp({ user, onLogout }) {
                 }
                 return <PartnerDailySettleTab t={t} user={user} principalCodes={effectiveCodes} onTaskClick={setSelectedTask}/>;
               })()}
+              {tab === "marketing" && hasMarketing && <UsolMarketingTab t={t}/>}
               {tab === "info"   && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
               {/* 2026-06-08 — 원청 인앱 알림 탭 */}
               {tab === "noti"   && (
@@ -754,6 +760,7 @@ export default function PrincipalApp({ user, onLogout }) {
             t={t} tab={tab} onChange={setTab}
             isPartnerMode={!!partnerConfig}
             hasSchedule={principalCodes.some(c => c === "usol_h" || c === "usol_n")}
+            hasMarketing={hasMarketing}
             unreadCount={notifications.filter(n => !n.read).length}
           />
         )}
@@ -766,7 +773,7 @@ export default function PrincipalApp({ user, onLogout }) {
 //   원칙: 데이터·로직 컴포넌트 한 벌 공유, 배치만 분기. 기존 테마 토큰 그대로 사용.
 function PcShell({
   t, user, tab, setTab,
-  isPartnerMode, hasSchedule, unreadCount,
+  isPartnerMode, hasSchedule, hasMarketing, unreadCount,
   isUsolUnified, partnerCode, selectedUsolCode, setSelectedUsolCode,
   selectedTask, onCloseDetail, onLogout,
   sidebarSummary,
@@ -785,6 +792,7 @@ function PcShell({
         tab={tab} setTab={setTab}
         isPartnerMode={isPartnerMode}
         hasSchedule={hasSchedule}
+        hasMarketing={hasMarketing}
         unreadCount={unreadCount}
         isUsolUnified={isUsolUnified}
         partnerCode={partnerCode}
@@ -844,7 +852,7 @@ function PcShell({
 //   맨 아래: 로그아웃.
 function PcSidebar({
   t, user, tab, setTab,
-  isPartnerMode, hasSchedule, unreadCount,
+  isPartnerMode, hasSchedule, hasMarketing, unreadCount,
   isUsolUnified, partnerCode, selectedUsolCode, setSelectedUsolCode,
   onLogout,
   sidebarSummary = { todayReceived: 0, todayScheduled: 0, pendingSettle: 0 },
@@ -854,6 +862,7 @@ function PcSidebar({
     ...(hasSchedule ? [{ id: "schedule", icon: Calendar, label: "일정" }] : []),
     { id: "upload", icon: Plus,          label: isPartnerMode ? "접수" : "업로드" },
     { id: "settle", icon: Wallet,        label: "정산" },
+    ...(hasMarketing ? [{ id: "marketing", icon: TrendingUp, label: "마케팅" }] : []),
     { id: "noti",   icon: Bell,          label: "알림", badge: unreadCount },
     { id: "info",   icon: User,          label: "내 정보" },
   ];
@@ -1137,14 +1146,171 @@ function Header({ t, user }) {
 //   isPartnerMode (KA/crikrin) → "접수" (NewReceptionScreenLite 직접 입력 단일 경로)
 //   유솔(usol_h/usol_n)         → "업로드" (CSV/네이버 시트 업로드 + 수동 입력 혼합 흐름)
 //   Plus 아이콘은 신규 생성 의미로 양쪽 공통 유지.
-function BottomNav({ t, tab, onChange, isPartnerMode, hasSchedule, unreadCount = 0 }) {
+// 2026-08-03 — 유솔 전용 마케팅 탭 (올잇 광고 컨설팅 성과 보기).
+//   데이터: /api/yusol-ad (유솔 광고 계정 622180 — 검색광고 지출·클릭·주문 전환).
+//   읽기 전용. 원청 작업/정산 데이터와 무관한 별도 소스라 다른 탭에 영향 없음.
+const YUSOL_AD_TOKEN = "yz74c1e0a95d2b8f36e41c07";
+const YUSOL_MKT_PERIODS = [
+  { id: "today", label: "오늘" },
+  { id: "week",  label: "최근 7일" },
+  { id: "month", label: "이번 달" },
+];
+function _yusolKstYmd(offsetDays) {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  d.setUTCDate(d.getUTCDate() + (offsetDays || 0));
+  return d.toISOString().slice(0, 10);
+}
+function _yusolWon(n) { return Number(n || 0).toLocaleString("ko-KR"); }
+
+function UsolMarketingTab({ t }) {
+  const [period, setPeriod] = useState("week");
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const { since, until } = useMemo(() => {
+    const today = _yusolKstYmd(0);
+    if (period === "today") return { since: today, until: today };
+    if (period === "week")  return { since: _yusolKstYmd(-6), until: today };
+    return { since: today.slice(0, 8) + "01", until: today };
+  }, [period]);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    fetch(`/api/yusol-ad?token=${YUSOL_AD_TOKEN}&since=${since}&until=${until}&daily=1`, { cache: "no-store" })
+      .then(r => r.json())
+      .then(j => { if (alive) { setData(j && j.ok ? j : null); setLoading(false); } })
+      .catch(() => { if (alive) { setData(null); setLoading(false); } });
+    return () => { alive = false; };
+  }, [since, until]);
+
+  const view = useMemo(() => {
+    if (!data) return null;
+    const costVat = Math.round(Number(data.cost || 0) * 1.1);
+    const conv = Number(data.conv || 0);
+    const per = conv > 0 ? Math.round(costVat / conv) : null;
+    let verdict;
+    if (per != null && per <= 5000)       verdict = { label: "효율 좋음", color: "#16A34A" };
+    else if (per != null && per <= 10000) verdict = { label: "적정",      color: "#D97706" };
+    else if (per != null)                  verdict = { label: "조정 필요", color: "#DC2626" };
+    else if (costVat > 0)                  verdict = { label: "주문 집계 전", color: "#D97706" };
+    else                                   verdict = { label: "라이브 준비 중", color: "#94A3B8" };
+    const camps = (data.campaigns || []).map(c => ({
+      id: c.id, name: c.name,
+      costVat: Math.round(Number(c.cost || 0) * 1.1),
+      clicks: Number(c.clicks || 0), conv: Number(c.conv || 0),
+    })).sort((a, b) => b.costVat - a.costVat);
+    const days = (data.days || []).slice().reverse().map(d => ({
+      ymd: d.ymd, costVat: Math.round(Number(d.cost || 0) * 1.1),
+      clicks: Number(d.clicks || 0), conv: Number(d.conv || 0),
+    }));
+    return { costVat, clicks: Number(data.clicks || 0), conv, per, verdict, camps, days };
+  }, [data]);
+
+  const box = { background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 14, padding: "14px 16px 13px", marginBottom: 12 };
+
+  return (
+    <div className="fade-in" style={{ padding: "16px 16px 24px" }}>
+      <div style={{ fontSize: 17, fontWeight: 900, marginBottom: 2 }}>📈 마케팅</div>
+      <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginBottom: 12 }}>
+        네이버 광고 성과 · 올잇 마케팅 운영 · {since === until ? since : `${since} ~ ${until}`}
+      </div>
+
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {YUSOL_MKT_PERIODS.map(p => {
+          const on = period === p.id;
+          return (
+            <button key={p.id} type="button" onClick={() => setPeriod(p.id)} style={{
+              flex: 1, padding: "8px 0", borderRadius: 10,
+              background: on ? t.accent : "transparent",
+              border: `1px solid ${on ? t.accent : t.border}`,
+              color: on ? "#fff" : t.textSecondary,
+              fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+            }}>{p.label}</button>
+          );
+        })}
+      </div>
+
+      {loading && !view ? (
+        <div style={{ ...box, textAlign: "center", color: t.textMuted, fontSize: 12 }}>불러오는 중…</div>
+      ) : !view ? (
+        <div style={{ ...box, textAlign: "center", color: t.textMuted, fontSize: 12 }}>
+          집계 준비 중입니다 — 광고 라이브 후 숫자가 표시됩니다
+        </div>
+      ) : (
+        <>
+          <div style={box}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+              <span className="mono" style={{ fontSize: 24, fontWeight: 900 }}>
+                {view.per != null ? _yusolWon(view.per) : "-"}
+                <span style={{ fontSize: 13, color: t.textMuted, fontWeight: 700, marginLeft: 3 }}>원/주문</span>
+              </span>
+              <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: view.verdict.color, background: `${view.verdict.color}1F`, borderRadius: 999, padding: "4px 11px" }}>{view.verdict.label}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 8 }}>
+              {[
+                ["광고비(VAT포함)", _yusolWon(view.costVat) + "원"],
+                ["클릭", _yusolWon(view.clicks)],
+                ["주문(전환)", _yusolWon(view.conv)],
+              ].map(([l, v]) => (
+                <div key={l} style={{ background: t.bgInset || "rgba(148,163,184,.08)", borderRadius: 9, padding: "10px 8px", textAlign: "center" }}>
+                  <div style={{ fontSize: 9.5, color: t.textMuted, fontWeight: 700, marginBottom: 3 }}>{l}</div>
+                  <div className="mono" style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, fontSize: 10, color: t.textMuted, fontWeight: 600, lineHeight: 1.6 }}>
+              판정 기준: 주문 1건당 광고비 5,000원 이하 효율 좋음 · 10,000원 이하 적정 · 초과 시 조정
+            </div>
+          </div>
+
+          <div style={box}>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>캠페인별</div>
+            {view.camps.length === 0 ? (
+              <div style={{ padding: 10, textAlign: "center", color: t.textMuted, fontSize: 12 }}>캠페인 준비 중</div>
+            ) : view.camps.map(c => (
+              <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: `1px solid ${t.border}`, fontSize: 12 }}>
+                <span style={{ flex: 1, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
+                <span className="mono" style={{ color: t.textMuted }}>{_yusolWon(c.costVat)}원</span>
+                <span className="mono" style={{ color: t.textMuted }}>{_yusolWon(c.clicks)}클릭</span>
+                <span className="mono" style={{ fontWeight: 800, color: c.conv > 0 ? "#16A34A" : t.textMuted }}>{_yusolWon(c.conv)}주문</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={box}>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 8 }}>일별 흐름</div>
+            {view.days.length === 0 ? (
+              <div style={{ padding: 10, textAlign: "center", color: t.textMuted, fontSize: 12 }}>아직 집계된 날이 없습니다</div>
+            ) : view.days.map(d => (
+              <div key={d.ymd} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${t.border}`, fontSize: 12 }}>
+                <span style={{ width: 46, flexShrink: 0, fontWeight: 700, color: t.textSecondary }}>{d.ymd.slice(5)}</span>
+                <span className="mono" style={{ flex: 1, color: t.textMuted }}>{_yusolWon(d.costVat)}원</span>
+                <span className="mono" style={{ color: t.textMuted }}>{_yusolWon(d.clicks)}클릭</span>
+                <span className="mono" style={{ fontWeight: 800, color: d.conv > 0 ? "#16A34A" : t.textMuted }}>{_yusolWon(d.conv)}주문</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, textAlign: "center" }}>
+            운영·문의: 올잇 마케팅
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function BottomNav({ t, tab, onChange, isPartnerMode, hasSchedule, hasMarketing, unreadCount = 0 }) {
   // 2026-06-06 — usol_h 측 "일정" 탭 (Calendar).
   // 2026-06-08 — 원청 인앱 알림 탭 추가 (info 앞).
+  // 2026-08-03 — 유솔 전용 "마케팅" 탭 (광고 컨설팅 성과 — usol_h/usol_n 계정만).
   const tabs = [
     { id: "list",   icon: ClipboardList, label: "내 작업" },
     ...(hasSchedule ? [{ id: "schedule", icon: Calendar, label: "일정" }] : []),
     { id: "upload", icon: Plus,          label: isPartnerMode ? "접수" : "업로드" },
     { id: "settle", icon: Wallet,        label: "정산" },
+    ...(hasMarketing ? [{ id: "marketing", icon: TrendingUp, label: "마케팅" }] : []),
     { id: "noti",   icon: Bell,          label: "알림", badge: unreadCount },
     { id: "info",   icon: User,          label: "내 정보" },
   ];
