@@ -155,6 +155,12 @@ import { regionOrDistrictFromAddress } from "../utils/districtKeyword.js";
 import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { recommendEngineersGroupedAdapter } from "../utils/engineerRecommendation.js";
+// 2026-08-03 — 동선 배차 (사장님 확정: "이 기사 하루에 이 동네가 끼워질 자리가 있나"가 최우선)
+import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
+import {
+  loadGuCentroids, buildDaySchedule, computeGaps, routeVerdict, taskGuOf,
+  VERDICT_RANK, DAY_START_MIN, DAY_END_MIN, fmtMin, hmToMin,
+} from "../utils/assignRoute.js";
 import {
   calculateFeeCompat,
   calculateCommissionMultiRpc,
@@ -9699,6 +9705,55 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
     return () => { cancelled = true; };
   }, [task?.id, mainWorkType]);
 
+  // ── 2026-08-03 — 동선 배차: 날짜 탭 + 휴무 + 구 중심좌표 ──
+  //   희망 일정이 없는 접수가 다수 (사장님) → "언제로 잡아줄까"를 날짜 탭으로 넘기며 비교.
+  //   희망 일정이 있으면 그 날짜로 고정.
+  const _taskSchedYmd = task ? (task.scheduledDate || (task.scheduledAt ? toKstYmd(task.scheduledAt) : "")) : "";
+  const _dateLocked = !!_taskSchedYmd;
+  const [dayOffset, setDayOffset] = useState(0);
+  const dayTabs = useMemo(() => {
+    const out = [];
+    const base = new Date();
+    for (let i = 0; i < 3; i++) {
+      const d = new Date(base.getTime() + i * 86400000);
+      out.push(d.toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }));
+    }
+    return out;
+  }, []);
+  const selYmd = _dateLocked ? _taskSchedYmd : dayTabs[Math.min(dayOffset, 2)];
+  const { byNameDate: offByName } = useOffDaysInRange(
+    _dateLocked ? _taskSchedYmd : dayTabs[0],
+    _dateLocked ? _taskSchedYmd : dayTabs[2],
+  );
+  const [guCentroids, setGuCentroids] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    loadGuCentroids().then(m => { if (alive) setGuCentroids(m); });
+    return () => { alive = false; };
+  }, []);
+  const _newTaskGu = task ? taskGuOf(task.region, task.fullAddress || task.address) : "";
+
+  // 후보별 그날 일정·휴무·동선 (이름 키)
+  const routeInfoByName = useMemo(() => {
+    const m = new Map();
+    const all = [...(apiCandidates.main || []), ...(apiCandidates.sub || []), ...(apiCandidates.capable || [])];
+    for (const eng of all) {
+      const name = eng?.name;
+      if (!name || m.has(name)) continue;
+      const offs = offByName?.get?.(name)?.get?.(selYmd) || [];
+      const fullOff = offs.some(o => !o.startTime && !o.endTime);
+      const offRanges = offs
+        .filter(o => o.startTime && o.endTime)
+        .map(o => ({ startMin: hmToMin(o.startTime), endMin: hmToMin(o.endTime) }))
+        .filter(r => r.startMin != null && r.endMin != null && r.endMin > r.startMin);
+      const { blocks, untimed } = buildDaySchedule(apiTasks, name, selYmd);
+      const gaps = computeGaps(blocks, offRanges);
+      const verdict = routeVerdict({ taskGu: _newTaskGu, blocks, gaps, centroids: guCentroids, fullOff });
+      m.set(name, { blocks, untimed, gaps, offRanges, fullOff, verdict });
+    }
+    return m;
+  }, [apiCandidates, apiTasks, selYmd, offByName, guCentroids, _newTaskGu]);
+
   if (!task) {
     return <PlaceholderScreen t={t} title="추천 프로" label="작업 정보 없음" onBack={onBack}/>;
   }
@@ -9744,6 +9799,40 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
       )}
 
       <div style={{ padding: "14px 16px 20px" }}>
+        {/* 2026-08-03 — 날짜 탭 (일정 미정 접수가 다수 — "언제로 잡아줄까"부터).
+              희망 일정이 있으면 그 날짜 고정 표시. */}
+        {_dateLocked ? (
+          <div style={{
+            marginBottom: 12, padding: "8px 12px",
+            background: t.bgInset, borderRadius: 8,
+            fontSize: 11.5, fontWeight: 700, color: t.textSecondary,
+          }}>
+            📅 희망 일정 <span className="mono" style={{ color: t.accent }}>{_taskSchedYmd}</span> 기준으로 각 프로의 그날 일정을 보여줍니다
+          </div>
+        ) : (
+          <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+            {dayTabs.map((ymd, i) => {
+              const on = i === Math.min(dayOffset, 2);
+              const label = i === 0 ? "오늘" : i === 1 ? "내일" : "모레";
+              const md = `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))}`;
+              return (
+                <button key={ymd} type="button"
+                  onClick={() => setDayOffset(i)}
+                  style={{
+                    padding: "7px 13px", borderRadius: 999,
+                    background: on ? t.text : t.bgElevated,
+                    color: on ? t.bg : t.textSecondary,
+                    border: `1px solid ${on ? t.text : t.border}`,
+                    fontSize: 11.5, fontWeight: 800, fontFamily: "inherit", cursor: "pointer",
+                  }}
+                >{label} {md}</button>
+              );
+            })}
+            <span style={{ marginLeft: "auto", alignSelf: "center", fontSize: 10, color: t.textMuted }}>
+              동선 좋은 순 정렬
+            </span>
+          </div>
+        )}
         {/* 2026-07-14 — 오늘 동선 지도 (사장님 spec: 접수마다 외부 지도 열던 수고 제거).
               후보 프로들의 오늘 작업(오늘 일정·진행중·오늘 완료)의 구를 색점으로. */}
         {(() => {
@@ -9852,7 +9941,12 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
                   <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{g.label}</span>
                   <span style={{ fontSize: 13, color: g.color }}>{g.list.length}명</span>
                 </div>
-                {g.list.map((eng) => {
+                {/* 2026-08-03 — 그룹 안에서 동선 좋은 순 정렬 (good→free→unknown→far→full→off) */}
+                {[...g.list].sort((a, b) => {
+                  const ra = VERDICT_RANK[routeInfoByName.get(a?.name)?.verdict?.level] ?? 9;
+                  const rb = VERDICT_RANK[routeInfoByName.get(b?.name)?.verdict?.level] ?? 9;
+                  return ra - rb;
+                }).map((eng) => {
                   // V14 2B-3 — API 엔지니어 우선 (eng.matchedZone / cleanZones / refrigZones / region)
                   // 옛 ZONE_MAPPINGS fallback (API 응답 빈 키 catch X 시)
                   const taskZone = extractZone(task.region);
@@ -9882,6 +9976,8 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
                       t={t} eng={eng}
                       groupId={g.id}
                       infoText={infoText}
+                      routeInfo={routeInfoByName.get(eng?.name) || null}
+                      selYmd={selYmd}
                       onAssign={() => onAssign(eng)}
                       onCardClick={() => onEngineerCardClick && onEngineerCardClick(eng)}
                     />
@@ -9928,19 +10024,46 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
   );
 }
 
-function RecommendCard({ t, eng, groupId, infoText, onAssign, onCardClick }) {
+function RecommendCard({ t, eng, groupId, infoText, routeInfo = null, selYmd = "", onAssign, onCardClick }) {
   // Step 5-3-3 — infoText 우선 (그룹 컨텍스트로 박힌 zones / appliances)
   const lineText = (infoText && infoText.trim()) || eng.region || eng.regionLabel || "";
   const showInfoLine = !!lineText || (typeof eng.todayCount === "number") || (eng.newCount > 0);
   // Step 8+9 V2 — 그룹별 role 매핑 (main 그룹 = 메인 / sub = 서브 / capable = role 없음)
   const role = groupId === "main" ? "main" : groupId === "sub" ? "backup" : null;
 
+  // 2026-08-03 — 동선 배차 카드 (사장님 확정).
+  //   verdict.level: good(🟢) / free(일정 없음) / far(🟡) / full(⛔) / off(🏖️) / unknown
+  const ri = routeInfo;
+  const level = ri?.verdict?.level || "";
+  const fullOff = level === "off";
+  // 휴무 배정 = 경고 후 가능 (사장님 확정): 첫 클릭 경고, 재클릭 배정.
+  const [offArmed, setOffArmed] = useState(false);
+  useEffect(() => { setOffArmed(false); }, [selYmd]);
+
+  const VERDICT_UI = {
+    good:    { icon: "🟢", text: ri?.verdict?.km === 0 ? "동선 좋음 · 같은 구" : `동선 좋음 · ${ri?.verdict?.km}km`, color: "#059669" },
+    free:    { icon: "🟢", text: "이날 일정 없음 — 어디든 가능", color: "#059669" },
+    far:     { icon: "🟡", text: `이동 큼 · ${ri?.verdict?.km}km (${ri?.verdict?.nearGu || "인근"}→)`, color: "#B45309" },
+    full:    { icon: "⛔", text: "이날 여유 없음", color: "#DC2626" },
+    off:     { icon: "🏖️", text: "이날 휴무", color: "#6B7280" },
+    unknown: { icon: "·",  text: "동선 판정 불가 (지역 미매칭)", color: "#9CA3AF" },
+  };
+  const vui = VERDICT_UI[level] || null;
+
+  function handleAssignClick(e) {
+    e.stopPropagation();
+    if (fullOff && !offArmed) { setOffArmed(true); return; }
+    setOffArmed(false);
+    onAssign();
+  }
+
   return (
     <div onClick={onCardClick} className="clickable" style={{
       background: t.bgElevated, border: `1px solid ${t.border}`,
       borderRadius: 12, padding: "12px 14px", marginBottom: 8,
+      opacity: fullOff ? 0.72 : 1,
     }}>
-      {/* 1행: EngineerBadge + [배정] */}
+      {/* 1행: EngineerBadge + 동선 뱃지 + [배정] */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: showInfoLine ? 8 : 0, gap: 8 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0, flexWrap: "wrap" }}>
           <EngineerBadge engineer={eng} role={role}/>
@@ -9951,14 +10074,100 @@ function RecommendCard({ t, eng, groupId, infoText, onAssign, onCardClick }) {
               borderRadius: 4,
             }}>야간 OK</span>
           )}
+          {vui && (
+            <span style={{ fontSize: 10.5, fontWeight: 800, color: vui.color, whiteSpace: "nowrap" }}>
+              {vui.icon} {vui.text}
+            </span>
+          )}
         </div>
-        <button onClick={(e) => { e.stopPropagation(); onAssign(); }} style={{
+        <button onClick={handleAssignClick} style={{
           padding: "7px 14px",
-          background: t.accent, color: "white", border: "none", borderRadius: 8,
+          background: fullOff && !offArmed ? t.bgInset : offArmed ? "#DC2626" : t.accent,
+          color: fullOff && !offArmed ? t.textSecondary : "white",
+          border: fullOff && !offArmed ? `1px solid ${t.border}` : "none",
+          borderRadius: 8,
           fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-          flexShrink: 0,
-        }}>배정</button>
+          flexShrink: 0, whiteSpace: "nowrap",
+        }}>{offArmed ? "휴무인데 배정" : "배정"}</button>
       </div>
+
+      {/* 2026-08-03 — 휴무 배정 경고 (2단계) */}
+      {offArmed && (
+        <div style={{
+          margin: "0 0 8px", padding: "7px 10px",
+          background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.35)",
+          borderRadius: 7, fontSize: 10.5, fontWeight: 700, color: "#DC2626",
+        }}>
+          이날({selYmd.slice(5)}) 휴무입니다 — 기사와 협의됐으면 버튼을 한 번 더 누르세요.
+        </div>
+      )}
+
+      {/* 2026-08-03 — 그날 미니 타임라인 (08~20시) */}
+      {ri && (
+        <div style={{ margin: "0 0 8px" }}>
+          <div style={{
+            position: "relative", height: 30,
+            background: t.bgInset, borderRadius: 7,
+            border: `1px solid ${t.border}`,
+            overflow: "hidden",
+          }}>
+            {fullOff ? (
+              <div style={{
+                position: "absolute", inset: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 10, fontWeight: 800, color: t.textMuted,
+                background: `repeating-linear-gradient(45deg, transparent, transparent 6px, ${t.border} 6px, ${t.border} 7px)`,
+              }}>🏖️ 이날 휴무</div>
+            ) : (
+              <>
+                {/* 부분 휴무 빗금 */}
+                {(ri.offRanges || []).map((r, i) => {
+                  const L = Math.max(0, (r.startMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100);
+                  const W = Math.min(100 - L, (r.endMin - r.startMin) / (DAY_END_MIN - DAY_START_MIN) * 100);
+                  return (
+                    <div key={`off-${i}`} style={{
+                      position: "absolute", top: 0, bottom: 0,
+                      left: `${L}%`, width: `${W}%`,
+                      background: `repeating-linear-gradient(45deg, transparent, transparent 5px, ${t.border} 5px, ${t.border} 6px)`,
+                    }} title={`휴무 ${fmtMin(r.startMin)}~${fmtMin(r.endMin)}`}/>
+                  );
+                })}
+                {/* 작업 블록 */}
+                {(ri.blocks || []).map((b, i) => {
+                  const L = Math.max(0, (b.startMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100);
+                  const W = Math.max(4, Math.min(100 - L, (b.endMin - b.startMin) / (DAY_END_MIN - DAY_START_MIN) * 100));
+                  return (
+                    <div key={i} style={{
+                      position: "absolute", top: 3, bottom: 3,
+                      left: `${L}%`, width: `${W}%`,
+                      background: t.text, opacity: 0.75, borderRadius: 4,
+                      color: t.bg, fontSize: 8.5, fontWeight: 800,
+                      padding: "2px 4px", overflow: "hidden", whiteSpace: "nowrap", lineHeight: 1.2,
+                    }}>
+                      {b.label}<br/>{b.gu || b.region || ""}
+                    </div>
+                  );
+                })}
+                {(ri.blocks || []).length === 0 && (ri.offRanges || []).length === 0 && (
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: 9.5, fontWeight: 700, color: t.textMuted,
+                  }}>일정 없음</div>
+                )}
+              </>
+            )}
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: t.textDim, marginTop: 2, padding: "0 1px" }}>
+            <span>08</span><span>11</span><span>14</span><span>17</span><span>20</span><span>23</span>
+          </div>
+          {ri.untimed > 0 && (
+            <div style={{ fontSize: 9.5, color: t.textMuted, marginTop: 2 }}>
+              ⏳ 시간 미정 배정 {ri.untimed}건 (띠에 없음)
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 2행: 작은 점 + 참고사항 (zones / appliances). 정보 없으면 라인 자체 숨김 */}
       {showInfoLine && (
