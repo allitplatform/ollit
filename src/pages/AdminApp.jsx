@@ -9741,9 +9741,16 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
       const name = eng?.name;
       if (!name || m.has(name)) continue;
       const offs = offByName?.get?.(name)?.get?.(selYmd) || [];
-      const fullOff = offs.some(o => !o.startTime && !o.endTime);
+      // 2026-08-04 — 종일/부분 판정을 PC 타임라인(AdminPcTimelineScreen)과 동일하게
+      //   "type 기준"으로 통일 (사장님 제보: 캘린더엔 휴무가 보이는데 추천 화면엔 안 보임).
+      //   기존 시간값 기준은 옛 데이터(종일인데 시간 잔존)를 부분 휴무로 오판했다.
+      const FULL_TYPES = ["single", "range", "repeat", "휴무종일"];
+      const HOUR_TYPES = ["hourly", "휴무부분"];
+      const fullOff = offs.some(o =>
+        FULL_TYPES.includes(o.type) || (!HOUR_TYPES.includes(o.type) && !o.startTime && !o.endTime)
+      );
       const offRanges = offs
-        .filter(o => o.startTime && o.endTime)
+        .filter(o => HOUR_TYPES.includes(o.type) || (!FULL_TYPES.includes(o.type) && o.startTime && o.endTime))
         .map(o => ({ startMin: hmToMin(o.startTime), endMin: hmToMin(o.endTime) }))
         .filter(r => r.startMin != null && r.endMin != null && r.endMin > r.startMin);
       const { blocks, untimed } = buildDaySchedule(apiTasks, name, selYmd);
