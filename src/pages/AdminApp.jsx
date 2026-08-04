@@ -10107,91 +10107,90 @@ function RecommendCard({ t, eng, groupId, infoText, routeInfo = null, selYmd = "
         </div>
       )}
 
-      {/* 2026-08-03 — 그날 미니 타임라인 (08~20시) */}
-      {ri && (
+      {/* 2026-08-03 — 그날 미니 타임라인.
+            (3차, 사장님 피드백) 연속 띠 → 1시간 칸 격자: 배차가 1시간 단위라
+            칸 사이 틈이 보여야 "텀"이 읽힌다. 지난 시간 회색 덮개는 제거,
+            현재시간 빨간 선만 유지. */}
+      {ri && (() => {
+        const HOURS = [];
+        for (let h = DAY_START_MIN / 60; h < DAY_END_MIN / 60; h++) HOURS.push(h);
+        const busyByHour = new Map();
+        for (const b of (ri.blocks || [])) {
+          const h = Math.floor(b.startMin / 60);
+          if (!busyByHour.has(h)) busyByHour.set(h, []);
+          busyByHour.get(h).push(b);
+        }
+        const offHour = (h) => (ri.offRanges || []).some(r => r.startMin < (h + 1) * 60 && r.endMin > h * 60);
+        return (
         <div style={{ margin: "0 0 8px" }}>
-          <div style={{
-            position: "relative", height: 30,
-            background: t.bgInset, borderRadius: 7,
-            border: `1px solid ${t.border}`,
-            overflow: "hidden",
-          }}>
-            {fullOff ? (
-              <div style={{
-                position: "absolute", inset: 0,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 10, fontWeight: 800, color: t.textMuted,
-                background: `repeating-linear-gradient(45deg, transparent, transparent 6px, ${t.border} 6px, ${t.border} 7px)`,
-              }}>🏖️ 이날 휴무</div>
-            ) : (
-              <>
-                {/* 부분 휴무 빗금 */}
-                {(ri.offRanges || []).map((r, i) => {
-                  const L = Math.max(0, (r.startMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100);
-                  const W = Math.min(100 - L, (r.endMin - r.startMin) / (DAY_END_MIN - DAY_START_MIN) * 100);
+          {fullOff ? (
+            <div style={{
+              height: 28, borderRadius: 7,
+              border: `1px solid ${t.border}`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 10, fontWeight: 800, color: t.textMuted,
+              background: `repeating-linear-gradient(45deg, transparent, transparent 6px, ${t.border} 6px, ${t.border} 7px)`,
+            }}>🏖️ 이날 휴무</div>
+          ) : (
+            <div style={{ position: "relative" }}>
+              <div style={{ display: "flex", gap: 2 }}>
+                {HOURS.map((h) => {
+                  const jobs = busyByHour.get(h) || [];
+                  const isOff = offHour(h);
+                  const busy = jobs.length > 0;
                   return (
-                    <div key={`off-${i}`} style={{
-                      position: "absolute", top: 0, bottom: 0,
-                      left: `${L}%`, width: `${W}%`,
-                      background: `repeating-linear-gradient(45deg, transparent, transparent 5px, ${t.border} 5px, ${t.border} 6px)`,
-                    }} title={`휴무 ${fmtMin(r.startMin)}~${fmtMin(r.endMin)}`}/>
-                  );
-                })}
-                {/* 작업 블록 */}
-                {(ri.blocks || []).map((b, i) => {
-                  const L = Math.max(0, (b.startMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100);
-                  const W = Math.max(4, Math.min(100 - L, (b.endMin - b.startMin) / (DAY_END_MIN - DAY_START_MIN) * 100));
-                  return (
-                    <div key={i} style={{
-                      position: "absolute", top: 3, bottom: 3,
-                      left: `${L}%`, width: `${W}%`,
-                      background: t.text, opacity: 0.75, borderRadius: 4,
-                      color: t.bg, fontSize: 8.5, fontWeight: 800,
-                      padding: "2px 4px", overflow: "hidden", whiteSpace: "nowrap", lineHeight: 1.2,
-                    }}>
-                      {b.label}<br/>{b.gu || b.region || ""}
+                    <div key={h}
+                      title={busy ? jobs.map(j => `${j.label} ${j.gu || j.region || ""}`).join(" / ") : isOff ? "휴무" : `${h}시 비어 있음`}
+                      style={{
+                        flex: 1, height: 28, borderRadius: 4,
+                        minWidth: 0,
+                        background: busy ? t.text
+                          : isOff ? `repeating-linear-gradient(45deg, ${t.bgInset}, ${t.bgInset} 4px, ${t.border} 4px, ${t.border} 5px)`
+                          : t.bgInset,
+                        border: `1px solid ${busy ? t.text : t.border}`,
+                        opacity: busy ? 0.85 : 1,
+                        color: t.bg,
+                        fontSize: 8, fontWeight: 800,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        overflow: "hidden", whiteSpace: "nowrap",
+                      }}>
+                      {busy ? (jobs.length > 1 ? `${jobs.length}건` : (jobs[0].gu || jobs[0].region || "●").slice(0, 3)) : ""}
                     </div>
                   );
                 })}
-                {(ri.blocks || []).length === 0 && (ri.offRanges || []).length === 0 && (
-                  <div style={{
-                    position: "absolute", inset: 0,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 9.5, fontWeight: 700, color: t.textMuted,
-                  }}>일정 없음</div>
-                )}
-                {/* 2026-08-03 (2차) — 오늘 탭: 현재시간 빨간 선 + 지난 시간 흐림 (사장님 지적) */}
-                {ri.nowMin != null && ri.nowMin > DAY_START_MIN && (
-                  <>
-                    <div style={{
-                      position: "absolute", top: 0, bottom: 0, left: 0,
-                      width: `${Math.min(100, (ri.nowMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100)}%`,
-                      background: "rgba(127,127,127,0.22)",
-                      pointerEvents: "none",
-                    }}/>
-                    {ri.nowMin < DAY_END_MIN && (
-                      <div style={{
-                        position: "absolute", top: 0, bottom: 0,
-                        left: `${(ri.nowMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100}%`,
-                        width: 2, background: "#E5484D",
-                        pointerEvents: "none",
-                      }}/>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-          </div>
+              </div>
+              {/* 현재시간 선 (오늘 탭만) */}
+              {ri.nowMin != null && ri.nowMin > DAY_START_MIN && ri.nowMin < DAY_END_MIN && (
+                <div style={{
+                  position: "absolute", top: -2, bottom: -2,
+                  left: `${(ri.nowMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100}%`,
+                  width: 2, background: "#E5484D", borderRadius: 1,
+                  pointerEvents: "none",
+                }}/>
+              )}
+            </div>
+          )}
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: t.textDim, marginTop: 2, padding: "0 1px" }}>
             <span>08</span><span>11</span><span>14</span><span>17</span><span>20</span><span>23</span>
           </div>
-          {ri.untimed > 0 && (
-            <div style={{ fontSize: 9.5, color: t.textMuted, marginTop: 2 }}>
-              ⏳ 시간 미정 배정 {ri.untimed}건 (띠에 없음)
+          {/* 작업 요약 줄 — 칸이 작아 안 보이는 상세는 여기서 */}
+          {!fullOff && (ri.blocks || []).length > 0 && (
+            <div style={{
+              fontSize: 9.5, color: t.textSecondary, marginTop: 3,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {(ri.blocks || []).map(b => `${b.label} ${b.gu || b.region || ""}`).join(" · ")}
+              {ri.untimed > 0 ? ` · ⏳시간미정 ${ri.untimed}건` : ""}
+            </div>
+          )}
+          {!fullOff && (ri.blocks || []).length === 0 && ri.untimed > 0 && (
+            <div style={{ fontSize: 9.5, color: t.textMuted, marginTop: 3 }}>
+              ⏳ 시간 미정 배정 {ri.untimed}건
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
       {/* 2행: 작은 점 + 참고사항 (zones / appliances). 정보 없으면 라인 자체 숨김 */}
       {showInfoLine && (

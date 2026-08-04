@@ -99,7 +99,7 @@ export function taskGuOf(region, address) {
 
 export const DAY_START_MIN = 8 * 60;    // 하루 띠 08:00
 export const DAY_END_MIN   = 23 * 60;   // ~23:00 (2026-08-03 사장님: 야간 작업까지)
-export const DEFAULT_JOB_MIN = 90;      // 작업 소요 가정 90분
+export const DEFAULT_JOB_MIN = 60;      // 작업 소요 가정 60분 (2026-08-03 사장님: 1시간 단위 배차)
 
 // KST 분(minute of day) — scheduledAt ISO/"HH:MM" 모두 흡수
 function _minOf(v) {
