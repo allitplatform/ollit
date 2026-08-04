@@ -144,13 +144,15 @@ export function buildDaySchedule(apiTasks, engineerName, ymd) {
 }
 
 // 빈 구간 (needMin 이상만). offRanges: [{startMin,endMin}] — 부분 휴무 제외.
-export function computeGaps(blocks, offRanges = [], needMin = DEFAULT_JOB_MIN) {
+// 2026-08-03 (2차) — nowMin: 오늘이면 현재시각 이전은 빈 시간으로 안 친다
+//   (사장님 지적: 오후에 봐도 오전이 "여유"로 잡혀 판정이 왜곡됨).
+export function computeGaps(blocks, offRanges = [], needMin = DEFAULT_JOB_MIN, nowMin = null) {
   const busy = [
     ...blocks.map(b => [Math.max(b.startMin, DAY_START_MIN), Math.min(b.endMin, DAY_END_MIN)]),
     ...offRanges.map(r => [Math.max(r.startMin, DAY_START_MIN), Math.min(r.endMin, DAY_END_MIN)]),
   ].filter(([s, e]) => e > s).sort((a, b) => a[0] - b[0]);
   const gaps = [];
-  let cur = DAY_START_MIN;
+  let cur = nowMin != null ? Math.max(DAY_START_MIN, nowMin) : DAY_START_MIN;
   for (const [s, e] of busy) {
     if (s - cur >= needMin) gaps.push({ startMin: cur, endMin: s });
     cur = Math.max(cur, e);

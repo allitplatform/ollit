@@ -9747,9 +9747,14 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
         .map(o => ({ startMin: hmToMin(o.startTime), endMin: hmToMin(o.endTime) }))
         .filter(r => r.startMin != null && r.endMin != null && r.endMin > r.startMin);
       const { blocks, untimed } = buildDaySchedule(apiTasks, name, selYmd);
-      const gaps = computeGaps(blocks, offRanges);
+      // 2026-08-03 (2차) — 오늘 탭이면 현재시각 이전은 여유로 안 침 (사장님 지적)
+      const isToday = selYmd === dayTabs[0];
+      const nowMin = isToday
+        ? (() => { const p = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }).split(":"); return Number(p[0]) * 60 + Number(p[1]); })()
+        : null;
+      const gaps = computeGaps(blocks, offRanges, undefined, nowMin);
       const verdict = routeVerdict({ taskGu: _newTaskGu, blocks, gaps, centroids: guCentroids, fullOff });
-      m.set(name, { blocks, untimed, gaps, offRanges, fullOff, verdict });
+      m.set(name, { blocks, untimed, gaps, offRanges, fullOff, verdict, nowMin });
     }
     return m;
   }, [apiCandidates, apiTasks, selYmd, offByName, guCentroids, _newTaskGu]);
@@ -10154,6 +10159,25 @@ function RecommendCard({ t, eng, groupId, infoText, routeInfo = null, selYmd = "
                     display: "flex", alignItems: "center", justifyContent: "center",
                     fontSize: 9.5, fontWeight: 700, color: t.textMuted,
                   }}>일정 없음</div>
+                )}
+                {/* 2026-08-03 (2차) — 오늘 탭: 현재시간 빨간 선 + 지난 시간 흐림 (사장님 지적) */}
+                {ri.nowMin != null && ri.nowMin > DAY_START_MIN && (
+                  <>
+                    <div style={{
+                      position: "absolute", top: 0, bottom: 0, left: 0,
+                      width: `${Math.min(100, (ri.nowMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100)}%`,
+                      background: "rgba(127,127,127,0.22)",
+                      pointerEvents: "none",
+                    }}/>
+                    {ri.nowMin < DAY_END_MIN && (
+                      <div style={{
+                        position: "absolute", top: 0, bottom: 0,
+                        left: `${(ri.nowMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100}%`,
+                        width: 2, background: "#E5484D",
+                        pointerEvents: "none",
+                      }}/>
+                    )}
+                  </>
                 )}
               </>
             )}
