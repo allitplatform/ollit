@@ -25,6 +25,8 @@ const BASE     = "https://api.searchad.naver.com";
 
 // 읽기 전용 토큰 (마케팅 화면·향후 유솔 공유용 관제판에서 사용)
 const TOKEN = "yz74c1e0a95d2b8f36e41c07";
+// 쓰기(입찰 변경·키워드 추가) 전용 관리 토큰 — 화면 코드에 절대 넣지 말 것.
+const ADMIN = "cc49948f9ff3048ef3f343bef3";
 
 const YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -50,10 +52,11 @@ async function naverGet(path, queryString) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
-async function naverPost(path, body) {
-  const r = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { ...sign("POST", path), "Content-Type": "application/json" },
+async function naverBody(method, path, body, queryString) {
+  const url = queryString ? `${BASE}${path}?${queryString}` : `${BASE}${path}`;
+  const r = await fetch(url, {
+    method,
+    headers: { ...sign(method, path), "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const text = await r.text();
@@ -64,6 +67,8 @@ async function naverPost(path, body) {
   }
   try { return JSON.parse(text); } catch { return text; }
 }
+const naverPost = (path, body, qs) => naverBody("POST", path, body, qs);
+const naverPut  = (path, body, qs) => naverBody("PUT",  path, body, qs);
 
 const FIELDS_FULL = ["impCnt", "clkCnt", "salesAmt", "ccnt", "convAmt"];
 const FIELDS_BASE = ["impCnt", "clkCnt", "salesAmt"];
@@ -201,6 +206,92 @@ export default async function handler(req, res) {
         mine: mine.map(decorate),
         related: related.map(v => decorate({ keyword: v.keyword })),
       });
+    } catch (e) {
+      res.status(200).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+    }
+    return;
+  }
+
+  // ── 쓰기 모드 (admin 토큰 필수) ─────────────────────────────────────────
+  //   setgroupbid : &group=이름일부&bid=4500          — 그룹 기본 입찰가
+  //   setkwbid    : &kws=키워드:6500,키워드:5000       — 키워드 개별 입찰
+  //   usegroupbid : &kws=키워드,키워드                 — 개별 입찰 해제(그룹 기본 사용)
+  //   addkw       : &group=이름일부&kws=a,b,c[&bid=N]  — 키워드 추가(기본: 그룹 입찰 사용)
+  const WRITE_MODES = ["setgroupbid", "setkwbid", "usegroupbid", "addkw"];
+  const mode = String(q.mode || "");
+  if (WRITE_MODES.includes(mode)) {
+    if (String(q.admin || "") !== ADMIN) { res.status(403).json({ ok: false, error: "admin token" }); return; }
+    try {
+      const norm = s => String(s || "").replace(/\s+/g, "").toLowerCase();
+      // 파워링크 캠페인의 그룹 전부 수집
+      const camps = await naverGet("/ncc/campaigns");
+      let groups = [];
+      for (const c of (Array.isArray(camps) ? camps : [])) {
+        if (!c.nccCampaignId || c.campaignTp !== "WEB_SITE") continue;
+        const gs = await naverGet("/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(c.nccCampaignId));
+        groups = groups.concat(Array.isArray(gs) ? gs : []);
+      }
+
+      if (mode === "setgroupbid") {
+        const name = String(q.group || "");
+        const bid = Number(q.bid || 0);
+        const g = groups.find(x => String(x.name || "").includes(name));
+        if (!g || !(bid >= 70)) { res.status(200).json({ ok: false, error: "group/bid 확인" }); return; }
+        const full = await naverGet("/ncc/adgroups/" + g.nccAdgroupId);
+        full.bidAmt = bid;
+        const r = await naverPut("/ncc/adgroups/" + g.nccAdgroupId, full);
+        res.status(200).json({ ok: true, group: g.name, bidAmt: r?.bidAmt ?? bid });
+        return;
+      }
+
+      if (mode === "addkw") {
+        const name = String(q.group || "");
+        const g = groups.find(x => String(x.name || "").includes(name));
+        const kws = String(q.kws || "").split(",").map(s => s.trim()).filter(Boolean);
+        if (!g || !kws.length) { res.status(200).json({ ok: false, error: "group/kws 확인" }); return; }
+        const bid = Number(q.bid || 0);
+        const body = kws.map(k => bid >= 70
+          ? { keyword: k, bidAmt: bid, useGroupBidAmt: false }
+          : { keyword: k, bidAmt: Number(g.bidAmt || 3000), useGroupBidAmt: true });
+        const r = await naverPost("/ncc/keywords", body, "nccAdgroupId=" + encodeURIComponent(g.nccAdgroupId));
+        res.status(200).json({ ok: true, group: g.name, created: Array.isArray(r) ? r.length : 0 });
+        return;
+      }
+
+      // 키워드 대상 모드: 전체 키워드 수집 후 이름 매칭
+      const allkw = [];
+      for (const g of groups) {
+        const ks = await naverGet("/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(g.nccAdgroupId));
+        for (const k of (Array.isArray(ks) ? ks : [])) allkw.push(k);
+      }
+      const findKw = w => allkw.find(x => norm(x.keyword) === norm(w));
+
+      if (mode === "setkwbid") {
+        const pairs = String(q.kws || "").split(",").map(s => s.trim()).filter(Boolean)
+          .map(s => { const i = s.lastIndexOf(":"); return { w: s.slice(0, i), bid: Number(s.slice(i + 1)) }; })
+          .filter(p => p.w && p.bid >= 70);
+        const body = [], missing = [];
+        for (const p of pairs) {
+          const k = findKw(p.w);
+          if (!k) { missing.push(p.w); continue; }
+          body.push({ nccKeywordId: k.nccKeywordId, nccAdgroupId: k.nccAdgroupId, bidAmt: p.bid, useGroupBidAmt: false });
+        }
+        const r = body.length ? await naverPut("/ncc/keywords", body, "fields=bidAmt") : [];
+        res.status(200).json({ ok: true, changed: Array.isArray(r) ? r.length : 0, missing });
+        return;
+      }
+
+      if (mode === "usegroupbid") {
+        const body = [], missing = [];
+        for (const w of String(q.kws || "").split(",").map(s => s.trim()).filter(Boolean)) {
+          const k = findKw(w);
+          if (!k) { missing.push(w); continue; }
+          body.push({ nccKeywordId: k.nccKeywordId, nccAdgroupId: k.nccAdgroupId, bidAmt: k.bidAmt, useGroupBidAmt: true });
+        }
+        const r = body.length ? await naverPut("/ncc/keywords", body, "fields=bidAmt") : [];
+        res.status(200).json({ ok: true, changed: Array.isArray(r) ? r.length : 0, missing });
+        return;
+      }
     } catch (e) {
       res.status(200).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
     }
