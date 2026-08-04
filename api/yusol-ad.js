@@ -50,6 +50,21 @@ async function naverGet(path, queryString) {
   try { return JSON.parse(text); } catch { return text; }
 }
 
+async function naverPost(path, body) {
+  const r = await fetch(`${BASE}${path}`, {
+    method: "POST",
+    headers: { ...sign("POST", path), "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await r.text();
+  if (!r.ok) {
+    const err = new Error(`naver ${path} ${r.status}: ${text.slice(0, 200)}`);
+    err.status = r.status;
+    throw err;
+  }
+  try { return JSON.parse(text); } catch { return text; }
+}
+
 const FIELDS_FULL = ["impCnt", "clkCnt", "salesAmt", "ccnt", "convAmt"];
 const FIELDS_BASE = ["impCnt", "clkCnt", "salesAmt"];
 
@@ -87,6 +102,108 @@ export default async function handler(req, res) {
   if (String(q.token || "") !== TOKEN) { res.status(403).json({ ok: false, error: "token" }); return; }
   if (!API_KEY || !SECRET || !CUSTOMER) {
     res.status(200).json({ ok: false, error: "환경변수 미설정 (YUSOL_AD_API_KEY/SECRET/CUSTOMER_ID)" });
+    return;
+  }
+
+  // ── mode=keywords: 등록 키워드별 월 검색량 + 모바일 1위/4위 예상 입찰가 ──
+  //   GET /api/yusol-ad?token=...&mode=keywords
+  //   가성비 판정용. 검색량은 키워드도구(월간), 시세는 견적 API(모바일 노출 4자리 기준
+  //   4위 = 제일 싼 노출 자리). 연관 키워드도 검색량 상위 30개를 함께 돌려준다.
+  if (String(q.mode || "") === "keywords") {
+    try {
+      const norm = s => String(s || "").replace(/\s+/g, "").toLowerCase();
+      const qcNum = v => { const n = Number(String(v == null ? "" : v).replace(/[^0-9]/g, "")); return Number.isFinite(n) ? n : 0; };
+
+      // ① 파워링크 캠페인의 살아있는 키워드 수집
+      const camps = await naverGet("/ncc/campaigns");
+      const mine = [];
+      for (const c of (Array.isArray(camps) ? camps : [])) {
+        if (!c.nccCampaignId || c.campaignTp !== "WEB_SITE") continue;
+        if (c.userLock) continue;
+        const groups = await naverGet("/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(c.nccCampaignId));
+        for (const g of (Array.isArray(groups) ? groups : [])) {
+          const kws = await naverGet("/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(g.nccAdgroupId));
+          for (const k of (Array.isArray(kws) ? kws : [])) {
+            if (k.userLock) continue;
+            mine.push({
+              keyword: String(k.keyword || ""),
+              group: String(g.name || ""),
+              bid: k.useGroupBidAmt ? Number(g.bidAmt || 0) : Number(k.bidAmt || 0),
+              groupBid: !!k.useGroupBidAmt,
+            });
+          }
+        }
+      }
+
+      // ② 키워드도구 — 월 검색량 (5개씩). 연관 키워드도 함께 수집.
+      const seeds = [...new Set(mine.map(r => r.keyword))];
+      const volMap = new Map();   // norm(kw) -> {keyword,pc,mobile,comp}
+      for (let i = 0; i < seeds.length; i += 5) {
+        const part = seeds.slice(i, i + 5);
+        try {
+          const r = await naverGet("/keywordstool",
+            "hintKeywords=" + encodeURIComponent(part.join(",")) + "&showDetail=1");
+          for (const k of (Array.isArray(r?.keywordList) ? r.keywordList : [])) {
+            const word = String(k?.relKeyword || "").trim();
+            if (!word) continue;
+            const key = norm(word);
+            if (volMap.has(key)) continue;
+            volMap.set(key, {
+              keyword: word,
+              pc: qcNum(k.monthlyPcQcCnt), mobile: qcNum(k.monthlyMobileQcCnt),
+              comp: String(k.compIdx || ""),
+            });
+          }
+        } catch (e) { /* 청크 실패는 건너뜀 */ }
+      }
+
+      // ③ 연관 키워드: 미등록 + 모바일 검색량 상위 30개
+      const mineSet = new Set(seeds.map(norm));
+      const related = [...volMap.values()]
+        .filter(v => !mineSet.has(norm(v.keyword)))
+        .sort((a, b) => (b.mobile + b.pc) - (a.mobile + a.pc))
+        .slice(0, 30);
+
+      // ④ 모바일 1위/4위 예상 입찰가 (4위 = 모바일 마지막 노출 자리)
+      const allKws = [...new Set([...seeds, ...related.map(v => v.keyword)])];
+      async function estim(position) {
+        const out = new Map();
+        for (let i = 0; i < allKws.length; i += 100) {
+          try {
+            const r = await naverPost("/estimate/average-position-bid/keyword", {
+              device: "MOBILE",
+              items: allKws.slice(i, i + 100).map(k => ({ key: k, position })),
+            });
+            for (const e of ((r && r.estimate) || [])) {
+              const kk = e.keyword ?? e.key;
+              const bid = e.bid ?? e.bidAmt ?? e.estimate;
+              if (kk != null && bid != null) out.set(norm(kk), Number(bid));
+            }
+          } catch (e) { /* 견적 실패는 null 로 둠 */ }
+        }
+        return out;
+      }
+      const pos1 = await estim(1);
+      const pos4 = await estim(4);
+
+      const decorate = (base) => {
+        const v = volMap.get(norm(base.keyword)) || { pc: 0, mobile: 0, comp: "" };
+        return {
+          ...base,
+          pc: v.pc, mobile: v.mobile, total: v.pc + v.mobile, comp: v.comp,
+          mobile1: pos1.get(norm(base.keyword)) ?? null,
+          mobile4: pos4.get(norm(base.keyword)) ?? null,
+        };
+      };
+
+      res.status(200).json({
+        ok: true, mode: "keywords",
+        mine: mine.map(decorate),
+        related: related.map(v => decorate({ keyword: v.keyword })),
+      });
+    } catch (e) {
+      res.status(200).json({ ok: false, error: String(e?.message || e).slice(0, 300) });
+    }
     return;
   }
 
