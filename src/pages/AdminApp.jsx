@@ -10142,19 +10142,26 @@ function RecommendCard({ t, eng, groupId, infoText, routeInfo = null, selYmd = "
                     <div key={h}
                       title={busy ? jobs.map(j => `${j.label} ${j.gu || j.region || ""}`).join(" / ") : isOff ? "휴무" : `${h}시 비어 있음`}
                       style={{
-                        flex: 1, height: 28, borderRadius: 4,
+                        flex: 1, height: 30, borderRadius: 4,
                         minWidth: 0,
                         background: busy ? t.text
                           : isOff ? `repeating-linear-gradient(45deg, ${t.bgInset}, ${t.bgInset} 4px, ${t.border} 4px, ${t.border} 5px)`
                           : t.bgInset,
                         border: `1px solid ${busy ? t.text : t.border}`,
                         opacity: busy ? 0.85 : 1,
-                        color: t.bg,
-                        fontSize: 8, fontWeight: 800,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        overflow: "hidden", whiteSpace: "nowrap",
+                        color: busy ? t.bg : t.textMuted,
+                        fontSize: 8, fontWeight: busy ? 800 : 700,
+                        display: "flex", flexDirection: "column",
+                        alignItems: "center", justifyContent: "center", gap: 1,
+                        overflow: "hidden", whiteSpace: "nowrap", lineHeight: 1.1,
                       }}>
-                      {busy ? (jobs.length > 1 ? `${jobs.length}건` : (jobs[0].gu || jobs[0].region || "●").slice(0, 3)) : ""}
+                      {/* 2026-08-03 (4차, 사장님) — 칸마다 시간 숫자 상시 표시 (3시간 간격 눈금은 헷갈림) */}
+                      <span style={{ fontSize: 8.5, fontWeight: 800 }}>{String(h).padStart(2, "0")}</span>
+                      {busy && (
+                        <span style={{ fontSize: 7.5 }}>
+                          {jobs.length > 1 ? `${jobs.length}건` : (jobs[0].gu || jobs[0].region || "●").slice(0, 3)}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -10170,10 +10177,7 @@ function RecommendCard({ t, eng, groupId, infoText, routeInfo = null, selYmd = "
               )}
             </div>
           )}
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 8, color: t.textDim, marginTop: 2, padding: "0 1px" }}>
-            <span>08</span><span>11</span><span>14</span><span>17</span><span>20</span><span>23</span>
-          </div>
-          {/* 작업 요약 줄 — 칸이 작아 안 보이는 상세는 여기서 */}
+          {/* 작업 요약 줄 — 칸이 작아 안 보이는 상세는 여기서 (눈금 줄은 칸 내 숫자로 대체) */}
           {!fullOff && (ri.blocks || []).length > 0 && (
             <div style={{
               fontSize: 9.5, color: t.textSecondary, marginTop: 3,
