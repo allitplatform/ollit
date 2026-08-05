@@ -155,6 +155,8 @@ import { regionOrDistrictFromAddress } from "../utils/districtKeyword.js";
 import { listEngineerRatesFromDb } from "../lib/engineerRatesDb.js";
 import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { recommendEngineersGroupedAdapter } from "../utils/engineerRecommendation.js";
+// 2026-08-04 — 기기 푸시 구독 재연결 (운영자 로그인인데 이전 기사 로그인 알림이 오던 문제)
+import { rebindPushIfSubscribed } from "../utils/pushNotification.js";
 // 2026-08-03 — 동선 배차 (사장님 확정: "이 기사 하루에 이 동네가 끼워질 자리가 있나"가 최우선)
 import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
 import {
@@ -1454,6 +1456,16 @@ function Shell({ t, toasts, children, pcCtx }) {
 // ============================================
 
 export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode = false }) {
+  // 2026-08-04 — 사장님 제보: 최수연 운영자 로그인인데 조동욱 기사 알림이 옴.
+  //   이 기기의 푸시 구독이 이전 로그인(기사) 앞으로 남아 있던 것 —
+  //   운영자 로그인 시 구독을 본인 앞으로 재연결 (권한 팝업 없음, 구독 없으면 무동작).
+  useEffect(() => {
+    const uid = user?.user_id || user?.userId || user?.id || null;
+    if (!uid) return;
+    rebindPushIfSubscribed({ userId: uid, role: "operator" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.user_id, user?.userId, user?.id]);
+
   const [mode, setMode] = useState(() => loadThemeSaved());
   // 테마 변경 시 CSS 변수 + body 배경 + localStorage 저장
   useEffect(() => {

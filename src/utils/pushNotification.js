@@ -182,6 +182,42 @@ export async function subscribePushWithSync({ userId, engineerId, role } = {}) {
   }
 }
 
+// ============================================================
+// 2026-08-04 — 기기 구독 재연결 (사장님 제보: 최수연 운영자 로그인인데
+//   조동욱 기사 알림이 옴).
+//   원인: 한 기기의 푸시 endpoint 는 "마지막으로 subscribe 를 부른 사용자"
+//   앞으로 upsert 되는데, 관리자 앱은 로그인 시 subscribe 를 안 불러서
+//   이전 로그인(기사)의 구독이 그대로 남아 그 기사의 알림을 계속 받았다.
+//   → 로그인 시 이 함수를 불러 "이미 구독된 기기라면" 현재 사용자 앞으로
+//   조용히 재연결한다. 권한 팝업은 절대 띄우지 않는다 (구독 없으면 아무것도 안 함).
+// ============================================================
+export async function rebindPushIfSubscribed({ userId, role } = {}) {
+  if (!isPushSupported() || !userId) return { ok: false, reason: "unsupported" };
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") {
+    return { ok: false, reason: "no_permission" };
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (!sub) return { ok: false, reason: "no_subscription" };
+    const res = await fetch("/api/push/subscribe", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId,
+        engineerId: "",
+        role: role || "",
+        subscription: sub.toJSON(),
+        userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+      }),
+    });
+    const json = await res.json().catch(() => null);
+    return json && json.ok ? { ok: true } : { ok: false, reason: "sync_failed" };
+  } catch (e) {
+    return { ok: false, reason: "error", error: e?.message || String(e) };
+  }
+}
+
 // 구독 해제 + Vercel API 호출
 // 응답: { ok: true } | { ok: false, reason, error }
 export async function unsubscribePushWithSync({ userId, engineerId } = {}) {
