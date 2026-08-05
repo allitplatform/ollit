@@ -1204,7 +1204,10 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
         textAlign: "left",
         boxSizing: "border-box",
         opacity,
-        zIndex: drag && drag.dragging ? 50 : (isHighlighted ? 8 : 1),
+        // 2026-08-04 — 사장님 제보: 휴무 빗금 밴드(zIndex 1~2)가 작업 칩(1)을 덮어
+        //   휴무 시간대의 작업이 클릭 안 됨 → 칩 기본 z 를 밴드 위(3)로. 빈 빗금
+        //   영역 클릭은 여전히 휴무 사유 팝업.
+        zIndex: drag && drag.dragging ? 50 : (isHighlighted ? 8 : 3),
         boxShadow: isCrossLaneDrag
           ? "0 0 0 3px rgba(139, 92, 246, 0.35), 0 6px 18px rgba(0,0,0,0.4)"
           : isHighlighted
