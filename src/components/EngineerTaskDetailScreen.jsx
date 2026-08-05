@@ -1098,8 +1098,10 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
           {task.workMemo && <CompletedMemo memo={task.workMemo}/>}
           <SettlementInfo task={task}/>
           {/* 2026-06-19 Step 2b — 영수증/거래명세서 발행 (완료 + !usol_n 한정)
-              usol_n 은 네이버 결제라 영수증이 네이버 쪽에서 나감 → 제외. */}
-          {task.status === "완료" && task.principalCode !== "usol_n" && (
+              usol_n 은 네이버 결제라 영수증이 네이버 쪽에서 나감 → 제외.
+              2026-08-04 — 사장님: 출장비(visit_only) 건도 영수증 발행 허용.
+              금액 자동 채움은 travel_fee 합산이라 출장비 30,000 그대로 들어감. */}
+          {(task.status === "완료" || task.status === "visit_only") && task.principalCode !== "usol_n" && (
             <div style={{ padding: "0 16px 16px" }}>
               <button
                 type="button"
