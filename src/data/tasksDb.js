@@ -794,6 +794,14 @@ export async function loadTasksForRole(role, userId, principalCode, opts = {}) {
       if (engineerOrFilter) {
         q = q.or(engineerOrFilter);
       }
+      // 2026-08-04 — 창 fetch (사장님 "어플이 느려졌어" — 전체 4,184건을 3분마다
+      //   통째로 재다운로드하던 것이 원인). opts.recentDays 가 있으면
+      //   "열린 건 전체 + 최근 N일 안에 갱신된 마감 건"만 가져온다.
+      //   초기 로드는 recentDays 없이 전체 → 이후 폴링만 창으로 (호출측 merge).
+      if (opts && Number(opts.recentDays) > 0) {
+        const cutoffIso = new Date(Date.now() - Number(opts.recentDays) * 86400000).toISOString();
+        q = q.or(`status.not.in.("완료","취소","visit_only"),updated_at.gte.${cutoffIso}`);
+      }
       return q.order("received_at", { ascending: false });
     };
 

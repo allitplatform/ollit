@@ -730,6 +730,8 @@ function _v14NormalizeTask(t) {
     cancelAt:                 t.cancelAt                 ?? t.categoryData?.cancelAt                 ?? null,
     cancelPreviousStatus:     t.cancelPreviousStatus     ?? t.categoryData?.previousStatus           ?? null,
     cancelWasCompleted:       t.cancelWasCompleted       ?? t.categoryData?.wasCompleted             ?? null,
+    // 2026-08-04 — 창 fetch merge 판정용 (없으면 보존 쪽으로 안전 폴백)
+    updatedAt: t.updatedAt || t.updated_at || null,
     _api: true,                   // 진짜 API 출처 마킹
   };
 }
@@ -1936,6 +1938,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
 
   // 2026-07-27 — 접수 러시 렉 수리용 refs (묶음 타이머 + background 중복 가드)
   const _bgFetchRef   = useRef({ inFlight: false, queued: false });
+  // 2026-08-04 — 전체 로드 1회 완료 여부. true 가 된 뒤의 재조회는 45일 창 + merge.
+  const _didFullLoadRef = useRef(false);
   const _bgTimerRef   = useRef(null);
   function scheduleBgRefetch() {
     if (_bgTimerRef.current) return;   // 이미 예약됨 — 이번 이벤트는 묶음에 포함
@@ -2014,6 +2018,13 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
     setTasksDebug(null);
     try {
       console.log('[V14 2A] fetchTasks 시작 — role=admin / userId=', user?.id || user?.userId || 'admin');
+      // 2026-08-04 — 창 fetch (사장님 "어플이 느려졌어").
+      //   원인: 전체 이력(4,184건)을 3분마다 + 접수/변경 이벤트마다 통째로 재다운로드.
+      //   해법: 초기 로드만 전체, 이후 재조회는 "열린 건 + 최근 45일 갱신 건"만 받아
+      //   기존 목록에 merge. 과거 데이터는 세션 내내 유지 → 가계부/매출/검색 정확성 무변.
+      //   45일인 이유: 당월(최대 31일) + 여유 — "이번 달" 화면들이 항상 창 안에 들어옴.
+      const useWindow = options.full !== true && _didFullLoadRef.current === true;
+      const WINDOW_DAYS = 45;
       // 2026-07-14 — Stage 4: 첫 페이지(최신 1,000건) 도착 즉시 선반영 → 목록 화면 첫 페인트 단축.
       //   초기 로드(현재 apiTasks 비어있음)에서만 적용 — 이후엔 전체 결과가 곧바로 덮어씀.
       //   background 재조회는 선반영 없음 (깜빡임 방지).
@@ -2029,7 +2040,10 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
           } catch (_e) { /* 선반영 실패 무시 — 전체 결과가 곧 도착 */ }
         },
       };
-      const res = await apiGetTasks('admin', user?.id || user?.userId || 'admin', null, _firstPageOpts);
+      const res = await apiGetTasks('admin', user?.id || user?.userId || 'admin', null, {
+        ..._firstPageOpts,
+        ...(useWindow ? { recentDays: WINDOW_DAYS } : {}),
+      });
       console.log('[V14 2A] raw 응답:', res);
       console.log('[V14 2A] 응답 키:', res ? Object.keys(res) : 'null');
 
@@ -2080,9 +2094,26 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
             optimisticMap.set(t.id, t);
           }
         }
-        if (optimisticMap.size === 0) return normalized;
-        return normalized.map(t => optimisticMap.has(t.id) ? optimisticMap.get(t.id) : t);
+        // 2026-08-04 — 창 모드: 이번 응답은 "열린 건 + 최근 45일 갱신 건"뿐이므로
+        //   창 밖 과거 마감 건은 이전 목록에서 그대로 보존한다 (가계부/매출/검색용).
+        //   응답에 없는데 창 "안"이어야 할 행(= 삭제된 작업)은 버린다.
+        let base = normalized;
+        if (useWindow && Array.isArray(prev) && prev.length > 0) {
+          const cutoffMs = now - WINDOW_DAYS * 86400000;
+          const CLOSED = new Set(['완료', '취소', 'visit_only']);
+          const keepOld = prev.filter(t => {
+            if (dbMap.has(t.id)) return false;              // 새 응답에 있음 — 새 걸 씀
+            if (!CLOSED.has(String(t.status || ''))) return false;  // 열린 건인데 응답에 없음 = 삭제됨
+            const u = t.updatedAt ? new Date(t.updatedAt).getTime() : 0;
+            return !u || u < cutoffMs;                      // 창 밖 과거 마감 건 — 보존
+          });
+          base = normalized.concat(keepOld);
+        }
+        if (optimisticMap.size === 0) return base;
+        return base.map(t => optimisticMap.has(t.id) ? optimisticMap.get(t.id) : t);
       });
+      // 전체 로드가 한 번 성공했으면 이후 재조회는 창 모드
+      if (!useWindow) _didFullLoadRef.current = true;
       // 0건이면 디버그 표시 (사장님 catch 위해)
       if (normalized.length === 0) {
         setTasksDebug({
