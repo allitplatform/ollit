@@ -2023,7 +2023,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
       //   해법: 초기 로드만 전체, 이후 재조회는 "열린 건 + 최근 45일 갱신 건"만 받아
       //   기존 목록에 merge. 과거 데이터는 세션 내내 유지 → 가계부/매출/검색 정확성 무변.
       //   45일인 이유: 당월(최대 31일) + 여유 — "이번 달" 화면들이 항상 창 안에 들어옴.
-      const useWindow = options.full !== true && _didFullLoadRef.current === true;
+      // 2026-08-04 (2단계) — 첫 로드부터 창 모드. full:true 인 호출(마운트 4초 뒤
+      //   백그라운드 1회)만 전체를 받는다.
+      const useWindow = options.full !== true;
       const WINDOW_DAYS = 45;
       // 2026-07-14 — Stage 4: 첫 페이지(최신 1,000건) 도착 즉시 선반영 → 목록 화면 첫 페인트 단축.
       //   초기 로드(현재 apiTasks 비어있음)에서만 적용 — 이후엔 전체 결과가 곧바로 덮어씀.
@@ -2158,8 +2160,20 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   });
 
   // V14 — mount 시 한 번 + user 변경 시 재호출
+  // 2026-08-04 (2단계) — 사장님: "첫 화면 느린 게 젤 문제".
+  //   첫 로드도 45일 창으로 받아 화면을 즉시 띄우고, 과거 전체는 4초 뒤
+  //   백그라운드로 1회 마저 받는다 (가계부/매출 과거 월 숫자는 그때부터 완전).
   useEffect(() => {
-    fetchTasks();
+    fetchTasks();                                     // 창 로드 — 빠른 첫 화면
+    // 과거 전체 — 4초 뒤 조용히 1회. 겹침 등으로 스킵되면 20초 간격 재시도.
+    let timer = null;
+    const tryFull = () => {
+      if (_didFullLoadRef.current) return;
+      fetchTasks({ full: true, background: true });
+      timer = setTimeout(tryFull, 20000);
+    };
+    timer = setTimeout(tryFull, 4000);
+    return () => { if (timer) clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.userId]);
 
