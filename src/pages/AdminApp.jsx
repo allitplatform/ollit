@@ -160,9 +160,10 @@ import { rebindPushIfSubscribed } from "../utils/pushNotification.js";
 // 2026-08-03 — 동선 배차 (사장님 확정: "이 기사 하루에 이 동네가 끼워질 자리가 있나"가 최우선)
 import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
 import {
-  loadGuCentroids, buildDaySchedule, computeGaps, routeVerdict, taskGuOf,
-  VERDICT_RANK, DAY_START_MIN, DAY_END_MIN, fmtMin, hmToMin,
+  loadGuCentroids, taskGuOf, guCentroid, distKm, VERDICT_RANK,
 } from "../utils/assignRoute.js";
+// 2026-08-05 — 하루 격자 공용 부품 (사장님 확정 3종: 추천 카드 / 전체기사 모달 / 프로 목록)
+import { EngineerDayStrip, computeEngineerDayInfo, verdictUi } from "../components/EngineerDayStrip.jsx";
 import {
   calculateFeeCompat,
   calculateCommissionMultiRpc,
@@ -5042,6 +5043,23 @@ function StubTab({ t, label }) {
 function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, onEngineerCalendar, onClickManage }) {
   const [search, setSearch] = useState("");
 
+  // 2026-08-05 — ③ 프로 목록 오늘 격자 (사장님 확정: "모바일에서 기사가 언제
+  //   시간이 비는지 확인이 어렵다"). 카드마다 오늘 하루 격자 + 현재시간 선.
+  const _todayYmd3 = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+  const { byNameDate: _offByName3 } = useOffDaysInRange(_todayYmd3, _todayYmd3);
+  const riByName = useMemo(() => {
+    const m = new Map();
+    for (const e of (apiEngineers || [])) {
+      const name = e?.name;
+      if (!name || m.has(name)) continue;
+      const offs = _offByName3?.get?.(name)?.get?.(_todayYmd3) || [];
+      m.set(name, computeEngineerDayInfo({
+        apiTasks, engineerName: name, ymd: _todayYmd3, offs, isToday: true,
+      }));
+    }
+    return m;
+  }, [apiEngineers, apiTasks, _offByName3, _todayYmd3]);
+
   // 자동 상태 계산 — Step 3-3: 활동중 그룹 분리 (진행중/이동중/외근중 → 별도 그룹)
   const computeStatus = (schedule) => {
     if (!schedule || schedule.length === 0) return { label: "미정", icon: "❓", color: t.textMuted, group: "waiting" };
@@ -5217,6 +5235,7 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
               color={g.color}
               defaultCollapsed={g.defaultCollapsed}
               engineers={list}
+              riByName={riByName}
               onEngineerClick={onEngineerClick}
               onEngineerCalendar={onEngineerCalendar}
               onTaskClick={(task, eng) => onEngineerClick && onEngineerClick(eng)}
@@ -5228,7 +5247,7 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
   );
 }
 
-function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, engineers, onEngineerClick, onEngineerCalendar, onTaskClick }) {
+function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, engineers, riByName = null, onEngineerClick, onEngineerCalendar, onTaskClick }) {
   const [collapsed, setCollapsed] = useState(!!defaultCollapsed);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const headerColor = color || t.textSecondary;
@@ -5257,6 +5276,7 @@ function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, enginee
       {!collapsed && engineers.map(eng => (
         <EngineerCard
           key={eng.id} t={t} eng={eng}
+          ri={riByName?.get?.(eng.name) || null}
           expanded={expandedIds.has(eng.id)}
           onToggle={() => toggleExpand(eng.id)}
           onOpenCalendar={onEngineerCalendar ? () => onEngineerCalendar(eng) : undefined}
@@ -5269,7 +5289,7 @@ function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, enginee
 
 // V13-FINAL2-fix3 — 카드 클릭 = 그 기사 작업 인라인 펼침 (EngineerDay 진입 X)
 // +N 위치 = 진행중 배지 앞
-function EngineerCard({ t, eng, expanded, onToggle, onTaskClick, onOpenCalendar }) {
+function EngineerCard({ t, eng, ri = null, expanded, onToggle, onTaskClick, onOpenCalendar }) {
   // 2026-05-17 Round 2 Fix #19 — 옛 getEngineerStats(eng.id, TODAY_DATE) 제거.
   // 그 헬퍼는 ENGINEER_ASSIGNMENTS mock + 하드코딩된 "2026-04-27"을 읽어서
   // 강병익 펼치면 정수아/박은서 등 mock customer 노출되던 root cause.
@@ -5345,6 +5365,12 @@ function EngineerCard({ t, eng, expanded, onToggle, onTaskClick, onOpenCalendar 
               : <ChevronRight size={13} style={{ color: t.textMuted, flexShrink: 0 }}/>}
           </div>
         </div>
+        {/* 2026-08-05 — ③ 오늘 하루 격자 (사장님 확정: 언제 비는지 목록에서 바로) */}
+        {ri && (
+          <div style={{ marginTop: 8 }}>
+            <EngineerDayStrip t={t} ri={ri} showSummary={false}/>
+          </div>
+        )}
       </div>
 
       {/* 펼침 영역 — 그 기사 작업 인라인 */}
@@ -9791,37 +9817,67 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
   const _newTaskGu = task ? taskGuOf(task.region, task.fullAddress || task.address) : "";
 
   // 후보별 그날 일정·휴무·동선 (이름 키)
+  // 2026-08-05 — ① 주변 지역 그룹 (사장님 확정): 담당 구역이 작업 지역에서
+  //   15km 안인 기사들을 추천 아래에 별도 그룹으로. 이미 추천에 있는 기사 제외.
+  const nearbyList = useMemo(() => {
+    if (!task || !guCentroids || !_newTaskGu) return [];
+    const tc = guCentroid(_newTaskGu, guCentroids);
+    if (!tc) return [];
+    const listed = new Set(
+      [...(apiCandidates.main || []), ...(apiCandidates.sub || []), ...(apiCandidates.capable || [])]
+        .map(e => e?.name).filter(Boolean)
+    );
+    const out = [];
+    for (const e of (apiEngineers || [])) {
+      const name = e?.name;
+      if (!name || listed.has(name)) continue;
+      if (e.status === "off" || e.is_active === false) continue;
+      const zones = [...new Set([
+        ...(e.workTypes?.cleaning?.zones || []),
+        ...(e.workTypes?.refrigerant?.zones || []),
+        ...((e.skills || []).flatMap(sk => (Array.isArray(sk.zones) ? sk.zones : []))),
+        ...(Array.isArray(e.cleanZones) ? e.cleanZones : []),
+        ...(Array.isArray(e.refrigZones) ? e.refrigZones : []),
+      ])].filter(Boolean);
+      let best = null;
+      for (const z of zones) {
+        const zc = guCentroid(String(z).trim(), guCentroids);
+        const d = distKm(tc, zc);
+        if (d == null) continue;
+        if (!best || d < best.km) best = { km: d, zone: String(z).trim() };
+      }
+      if (best && best.km <= 15) {
+        out.push({ eng: e, km: Math.round(best.km * 10) / 10, zone: best.zone });
+      }
+    }
+    out.sort((a, b) => a.km - b.km);
+    return out.slice(0, 8);
+  }, [task?.id, apiCandidates, apiEngineers, guCentroids, _newTaskGu]);
+  const nearbyByName = useMemo(
+    () => new Map(nearbyList.map(x => [x.eng.name, x])),
+    [nearbyList]
+  );
+
+  // 후보별 그날 일정·휴무·동선 (이름 키) — 공용 부품(computeEngineerDayInfo)으로 통일
+  //   (휴무 종일/부분 type 판정 포함 — EngineerDayStrip.jsx classifyOffs)
   const routeInfoByName = useMemo(() => {
     const m = new Map();
-    const all = [...(apiCandidates.main || []), ...(apiCandidates.sub || []), ...(apiCandidates.capable || [])];
+    const all = [
+      ...(apiCandidates.main || []), ...(apiCandidates.sub || []), ...(apiCandidates.capable || []),
+      ...nearbyList.map(x => x.eng),
+    ];
     for (const eng of all) {
       const name = eng?.name;
       if (!name || m.has(name)) continue;
       const offs = offByName?.get?.(name)?.get?.(selYmd) || [];
-      // 2026-08-04 — 종일/부분 판정을 PC 타임라인(AdminPcTimelineScreen)과 동일하게
-      //   "type 기준"으로 통일 (사장님 제보: 캘린더엔 휴무가 보이는데 추천 화면엔 안 보임).
-      //   기존 시간값 기준은 옛 데이터(종일인데 시간 잔존)를 부분 휴무로 오판했다.
-      const FULL_TYPES = ["single", "range", "repeat", "휴무종일"];
-      const HOUR_TYPES = ["hourly", "휴무부분"];
-      const fullOff = offs.some(o =>
-        FULL_TYPES.includes(o.type) || (!HOUR_TYPES.includes(o.type) && !o.startTime && !o.endTime)
-      );
-      const offRanges = offs
-        .filter(o => HOUR_TYPES.includes(o.type) || (!FULL_TYPES.includes(o.type) && o.startTime && o.endTime))
-        .map(o => ({ startMin: hmToMin(o.startTime), endMin: hmToMin(o.endTime) }))
-        .filter(r => r.startMin != null && r.endMin != null && r.endMin > r.startMin);
-      const { blocks, untimed } = buildDaySchedule(apiTasks, name, selYmd);
-      // 2026-08-03 (2차) — 오늘 탭이면 현재시각 이전은 여유로 안 침 (사장님 지적)
-      const isToday = selYmd === dayTabs[0];
-      const nowMin = isToday
-        ? (() => { const p = new Date().toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" }).split(":"); return Number(p[0]) * 60 + Number(p[1]); })()
-        : null;
-      const gaps = computeGaps(blocks, offRanges, undefined, nowMin);
-      const verdict = routeVerdict({ taskGu: _newTaskGu, blocks, gaps, centroids: guCentroids, fullOff });
-      m.set(name, { blocks, untimed, gaps, offRanges, fullOff, verdict, nowMin });
+      m.set(name, computeEngineerDayInfo({
+        apiTasks, engineerName: name, ymd: selYmd, offs,
+        taskGu: _newTaskGu, centroids: guCentroids,
+        isToday: selYmd === dayTabs[0],
+      }));
     }
     return m;
-  }, [apiCandidates, apiTasks, selYmd, offByName, guCentroids, _newTaskGu]);
+  }, [apiCandidates, nearbyList, apiTasks, selYmd, offByName, guCentroids, _newTaskGu]);
 
   if (!task) {
     return <PlaceholderScreen t={t} title="추천 프로" label="작업 정보 없음" onBack={onBack}/>;
@@ -9835,6 +9891,8 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
     { id: "main",    color: "#FF1B8D", label: "지역 메인", list: candidates.main },
     { id: "sub",     color: "#888780", label: "지역 백업", list: candidates.sub },
     { id: "capable", color: "#6B7280", label: "전지역·지역 미설정", list: candidates.capable },
+    // 2026-08-05 — ① 주변 지역 (사장님 확정): 담당 구역이 15km 안인 기사, 가까운 순
+    { id: "nearby",  color: "#0EA5E9", label: "주변 지역", list: nearbyList.map(x => x.eng) },
   ];
 
   return (
@@ -10020,7 +10078,10 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
                   // 옛 ZONE_MAPPINGS fallback (API 응답 빈 키 catch X 시)
                   const taskZone = extractZone(task.region);
                   let infoText = "";
-                  if (eng.matchedZone) {
+                  const _nb = g.id === "nearby" ? nearbyByName.get(eng.name) : null;
+                  if (_nb) {
+                    infoText = `${_nb.zone} 담당 · ${_nb.km}km`;
+                  } else if (eng.matchedZone) {
                     infoText = String(eng.matchedZone);
                   } else if (g.id === "capable") {
                     // appliance 가능 — API의 appliances / 옛 fallback
@@ -10109,15 +10170,8 @@ function RecommendCard({ t, eng, groupId, infoText, routeInfo = null, selYmd = "
   const [offArmed, setOffArmed] = useState(false);
   useEffect(() => { setOffArmed(false); }, [selYmd]);
 
-  const VERDICT_UI = {
-    good:    { icon: "🟢", text: ri?.verdict?.km === 0 ? "동선 좋음 · 같은 구" : `동선 좋음 · ${ri?.verdict?.km}km`, color: "#059669" },
-    free:    { icon: "🟢", text: "이날 일정 없음 — 어디든 가능", color: "#059669" },
-    far:     { icon: "🟡", text: `이동 큼 · ${ri?.verdict?.km}km (${ri?.verdict?.nearGu || "인근"}→)`, color: "#B45309" },
-    full:    { icon: "⛔", text: "이날 여유 없음", color: "#DC2626" },
-    off:     { icon: "🏖️", text: "이날 휴무", color: "#6B7280" },
-    unknown: { icon: "·",  text: "동선 판정 불가 (지역 미매칭)", color: "#9CA3AF" },
-  };
-  const vui = VERDICT_UI[level] || null;
+  // 2026-08-05 — 뱃지 라벨 공용화 (EngineerDayStrip.verdictUi)
+  const vui = verdictUi(ri);
 
   function handleAssignClick(e) {
     e.stopPropagation();
@@ -10171,94 +10225,13 @@ function RecommendCard({ t, eng, groupId, infoText, routeInfo = null, selYmd = "
         </div>
       )}
 
-      {/* 2026-08-03 — 그날 미니 타임라인.
-            (3차, 사장님 피드백) 연속 띠 → 1시간 칸 격자: 배차가 1시간 단위라
-            칸 사이 틈이 보여야 "텀"이 읽힌다. 지난 시간 회색 덮개는 제거,
-            현재시간 빨간 선만 유지. */}
-      {ri && (() => {
-        const HOURS = [];
-        for (let h = DAY_START_MIN / 60; h < DAY_END_MIN / 60; h++) HOURS.push(h);
-        const busyByHour = new Map();
-        for (const b of (ri.blocks || [])) {
-          const h = Math.floor(b.startMin / 60);
-          if (!busyByHour.has(h)) busyByHour.set(h, []);
-          busyByHour.get(h).push(b);
-        }
-        const offHour = (h) => (ri.offRanges || []).some(r => r.startMin < (h + 1) * 60 && r.endMin > h * 60);
-        return (
+      {/* 2026-08-05 — 하루 격자 = 공용 부품 (EngineerDayStrip). 3곳 공유:
+            추천 카드 / 전체기사·재배정 모달 / 모바일 프로 목록. */}
+      {ri && (
         <div style={{ margin: "0 0 8px" }}>
-          {fullOff ? (
-            <div style={{
-              height: 28, borderRadius: 7,
-              border: `1px solid ${t.border}`,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              fontSize: 10, fontWeight: 800, color: t.textMuted,
-              background: `repeating-linear-gradient(45deg, transparent, transparent 6px, ${t.border} 6px, ${t.border} 7px)`,
-            }}>🏖️ 이날 휴무</div>
-          ) : (
-            <div style={{ position: "relative" }}>
-              <div style={{ display: "flex", gap: 2 }}>
-                {HOURS.map((h) => {
-                  const jobs = busyByHour.get(h) || [];
-                  const isOff = offHour(h);
-                  const busy = jobs.length > 0;
-                  return (
-                    <div key={h}
-                      title={busy ? jobs.map(j => `${j.label} ${j.gu || j.region || ""}`).join(" / ") : isOff ? "휴무" : `${h}시 비어 있음`}
-                      style={{
-                        flex: 1, height: 30, borderRadius: 4,
-                        minWidth: 0,
-                        background: busy ? t.text
-                          : isOff ? `repeating-linear-gradient(45deg, ${t.bgInset}, ${t.bgInset} 4px, ${t.border} 4px, ${t.border} 5px)`
-                          : t.bgInset,
-                        border: `1px solid ${busy ? t.text : t.border}`,
-                        opacity: busy ? 0.85 : 1,
-                        color: busy ? t.bg : t.textMuted,
-                        fontSize: 8, fontWeight: busy ? 800 : 700,
-                        display: "flex", flexDirection: "column",
-                        alignItems: "center", justifyContent: "center", gap: 1,
-                        overflow: "hidden", whiteSpace: "nowrap", lineHeight: 1.1,
-                      }}>
-                      {/* 2026-08-03 (4차, 사장님) — 칸마다 시간 숫자 상시 표시 (3시간 간격 눈금은 헷갈림) */}
-                      <span style={{ fontSize: 8.5, fontWeight: 800 }}>{String(h).padStart(2, "0")}</span>
-                      {busy && (
-                        <span style={{ fontSize: 7.5 }}>
-                          {jobs.length > 1 ? `${jobs.length}건` : (jobs[0].gu || jobs[0].region || "●").slice(0, 3)}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              {/* 현재시간 선 (오늘 탭만) */}
-              {ri.nowMin != null && ri.nowMin > DAY_START_MIN && ri.nowMin < DAY_END_MIN && (
-                <div style={{
-                  position: "absolute", top: -2, bottom: -2,
-                  left: `${(ri.nowMin - DAY_START_MIN) / (DAY_END_MIN - DAY_START_MIN) * 100}%`,
-                  width: 2, background: "#E5484D", borderRadius: 1,
-                  pointerEvents: "none",
-                }}/>
-              )}
-            </div>
-          )}
-          {/* 작업 요약 줄 — 칸이 작아 안 보이는 상세는 여기서 (눈금 줄은 칸 내 숫자로 대체) */}
-          {!fullOff && (ri.blocks || []).length > 0 && (
-            <div style={{
-              fontSize: 9.5, color: t.textSecondary, marginTop: 3,
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>
-              {(ri.blocks || []).map(b => `${b.label} ${b.gu || b.region || ""}`).join(" · ")}
-              {ri.untimed > 0 ? ` · ⏳시간미정 ${ri.untimed}건` : ""}
-            </div>
-          )}
-          {!fullOff && (ri.blocks || []).length === 0 && ri.untimed > 0 && (
-            <div style={{ fontSize: 9.5, color: t.textMuted, marginTop: 3 }}>
-              ⏳ 시간 미정 배정 {ri.untimed}건
-            </div>
-          )}
+          <EngineerDayStrip t={t} ri={ri}/>
         </div>
-        );
-      })()}
+      )}
 
       {/* 2행: 작은 점 + 참고사항 (zones / appliances). 정보 없으면 라인 자체 숨김 */}
       {showInfoLine && (

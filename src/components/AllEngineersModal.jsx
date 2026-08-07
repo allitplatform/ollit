@@ -8,9 +8,14 @@
 //     "회사 수익을 많이 주는 기사가 우선순위" — 단, 지역 밖 고수익이 위로 오면
 //     배정 실수 유발이라 지역 매칭이 1순위)
 //   · 지역 많으면 "강남·서초 외 8" 로 접기
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { recommendEngineers } from "../utils/engineerRecommendation.js";
 import { loadEngineers, getEngineerSkillsByEngineer } from "../data/engineers.js";
+// 2026-08-05 — ② 사장님 확정: "재배정·기사 검색 때 기사 정보 없이 선택해야 되는 게 아쉽다"
+//   → 행마다 동선 뱃지 + 하루 격자 (추천 카드와 같은 공용 부품).
+import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
+import { loadGuCentroids, taskGuOf } from "../utils/assignRoute.js";
+import { EngineerDayStrip, computeEngineerDayInfo, verdictUi } from "./EngineerDayStrip.jsx";
 
 const REGION_LABEL = {
   main:     "메인",
@@ -27,6 +32,20 @@ function _shortZone(z) {
 
 export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [], onSelect, onClose }) {
   const [searchQuery, setSearchQuery] = useState("");
+
+  // 2026-08-05 — ② 하루 격자·동선 계산 재료 (자급자족: 호출측 변경 불필요)
+  const _todayYmd = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+  const _selYmd = task?.scheduledDate
+    || (task?.scheduledAt ? new Date(task.scheduledAt).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" }) : "")
+    || _todayYmd;
+  const { byNameDate: _offByName } = useOffDaysInRange(_selYmd, _selYmd);
+  const [_centroids, _setCentroids] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    loadGuCentroids().then(m => { if (alive) _setCentroids(m); });
+    return () => { alive = false; };
+  }, []);
+  const _taskGu = task ? taskGuOf(task.region, task.fullAddress || task.address) : "";
 
   const engineers = useMemo(() => {
     const base = Array.isArray(enginerProp)
@@ -103,6 +122,22 @@ export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [],
     });
   }, [allScored, searchQuery]);
 
+  // 2026-08-05 — ② 기사별 하루 격자·동선 (선택 날짜 = 작업 희망일 또는 오늘)
+  const _riByName = useMemo(() => {
+    const m = new Map();
+    for (const rec of (allScored || [])) {
+      const name = rec?.engineer?.name;
+      if (!name || m.has(name)) continue;
+      const offs = _offByName?.get?.(name)?.get?.(_selYmd) || [];
+      m.set(name, computeEngineerDayInfo({
+        apiTasks, engineerName: name, ymd: _selYmd, offs,
+        taskGu: _taskGu, centroids: _centroids,
+        isToday: _selYmd === _todayYmd,
+      }));
+    }
+    return m;
+  }, [allScored, apiTasks, _offByName, _selYmd, _taskGu, _centroids, _todayYmd]);
+
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
@@ -168,6 +203,7 @@ export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [],
                 key={rec.engineer.id}
                 recommendation={rec}
                 profit={profitByName[rec.engineer?.name] || null}
+                ri={_riByName.get(rec.engineer?.name) || null}
                 onSelect={() => onSelect(rec.engineer.id, rec.engineer)}
               />
             ))
@@ -181,8 +217,11 @@ export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [],
 // 2026-07-14 — B안 한 줄 리스트 (사장님 선택).
 //   점수/"어려움" 딱지 제거. 이름 + 지역배지 + 건당수익(작게) | 지역(접기) | [선택].
 //   지역 많으면 "강남·서초 외 8". 수익 = 최근 30일 건당 평균 회사 수익.
-function AllEngineerRow({ recommendation, profit, onSelect }) {
+function AllEngineerRow({ recommendation, profit, ri = null, onSelect }) {
   const { engineer, regionMatch } = recommendation;
+  // 2026-08-05 — ② 동선 뱃지 + 휴무 흐림 (추천 카드와 동일 규칙)
+  const vui = verdictUi(ri);
+  const fullOff = !!ri?.fullOff;
 
   // 등록 지역 (세척+냉매 zone 합집합) — 앞 2개 + "외 N"
   const zones = [...new Set([
@@ -214,43 +253,54 @@ function AllEngineerRow({ recommendation, profit, onSelect }) {
         borderBottom: "1px solid var(--border)",
         cursor: "pointer", textAlign: "left",
         fontFamily: "inherit",
-        display: "flex", alignItems: "center", gap: 8,
+        display: "flex", flexDirection: "column", alignItems: "stretch", gap: 7,
         color: "var(--text-primary)",
+        opacity: fullOff ? 0.65 : 1,
       }}
     >
-      <span style={{ fontSize: 13.5, fontWeight: 700, flexShrink: 0 }}>
-        {engineer.name}
-      </span>
-      {showMatchBadge && (
+      <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ fontSize: 13.5, fontWeight: 700, flexShrink: 0 }}>
+          {engineer.name}
+        </span>
+        {showMatchBadge && (
+          <span style={{
+            fontSize: 9.5, color: "#FF1B8D",
+            background: "rgba(255,27,141,0.12)",
+            padding: "1.5px 6px", borderRadius: 999, fontWeight: 800,
+            flexShrink: 0,
+          }}>
+            {REGION_LABEL[regionMatch]}
+          </span>
+        )}
+        {/* 2026-08-05 — ② 동선 뱃지 (추천 카드와 동일) */}
+        {vui && (
+          <span style={{ fontSize: 10, fontWeight: 800, color: vui.color, whiteSpace: "nowrap", flexShrink: 0 }}>
+            {vui.icon} {vui.text}
+          </span>
+        )}
+        {profitText && (
+          <span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, flexShrink: 0 }}>
+            {profitText}
+          </span>
+        )}
         <span style={{
-          fontSize: 9.5, color: "#FF1B8D",
-          background: "rgba(255,27,141,0.12)",
-          padding: "1.5px 6px", borderRadius: 999, fontWeight: 800,
-          flexShrink: 0,
+          flex: 1, minWidth: 0,
+          fontSize: 11, color: "var(--text-tertiary, var(--text-secondary))",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+          textAlign: "right",
         }}>
-          {REGION_LABEL[regionMatch]}
+          {zoneText}
         </span>
-      )}
-      {profitText && (
-        <span style={{ fontSize: 10, color: "var(--text-secondary)", fontWeight: 700, flexShrink: 0 }}>
-          {profitText}
+        <span style={{
+          padding: "6px 14px", borderRadius: 999,
+          background: "#FF1B8D", color: "#fff",
+          fontSize: 11, fontWeight: 800, flexShrink: 0,
+        }}>
+          선택
         </span>
-      )}
-      <span style={{
-        flex: 1, minWidth: 0,
-        fontSize: 11, color: "var(--text-tertiary, var(--text-secondary))",
-        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        textAlign: "right",
-      }}>
-        {zoneText}
       </span>
-      <span style={{
-        padding: "6px 14px", borderRadius: 999,
-        background: "#FF1B8D", color: "#fff",
-        fontSize: 11, fontWeight: 800, flexShrink: 0,
-      }}>
-        선택
-      </span>
+      {/* 2026-08-05 — ② 하루 격자 (희망일 또는 오늘) */}
+      {ri && <EngineerDayStrip ri={ri} showSummary={false}/>}
     </button>
   );
 }
