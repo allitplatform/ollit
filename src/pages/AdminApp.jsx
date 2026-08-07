@@ -1592,6 +1592,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   const [inquiriesTodayCount, setInquiriesTodayCount] = useState(0);
   // 2026-07-24 — 기사 메시지함 안읽음 (개요 카드 배지, Mig 188). 60초 갱신 + 화면 전환 시 재조회.
   const [engMsgUnread, setEngMsgUnread] = useState(0);
+  // 2026-08-05 — 프로 탭 카드의 💬 버튼: 메시지함을 그 기사 대화로 바로 연다 (사장님 요청).
+  //   다른 경로(개요 카드·알림)로 열 땐 null 로 초기화 — 엉뚱한 기사 자동 오픈 방지.
+  const [msgInitialEngineer, setMsgInitialEngineer] = useState(null);
   useEffect(() => {
     const actor = user?.user_id || user?.userId || user?.id;
     if (!actor) return;
@@ -2440,7 +2443,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
       inquiriesNewCount={inquiriesNewCount}
       inquiriesTodayCount={inquiriesTodayCount}
       // 2026-07-28 — PC 대시보드 기사 메시지 칸 (사이드바 메뉴만으론 새 메시지를 못 알아챔)
-      onClickEngMessages={() => setScreen("adminMessages")}
+      onClickEngMessages={() => { setMsgInitialEngineer(null); setScreen("adminMessages"); }}
       engMsgUnread={engMsgUnread}
       dashSummary={dashSummary}
       dashRanges={dashRanges}
@@ -2790,6 +2793,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
             markNotiRead(noti.id);
             if (!target) return;   // 매칭 없으면 읽음만 처리, 화면 유지
             setScreenStack(prev => prev[prev.length - 1] === "notifications" ? prev.slice(0, -1) : prev);
+            if (target === "adminMessages") setMsgInitialEngineer(null);  // 2026-08-05 — 특정 기사 프리셋 잔존 방지
             setScreen(target);
             return;
           }
@@ -3581,7 +3585,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   // 2026-07-24 — 기사 메시지함 (Mig 188)
   if (screen === "adminMessages") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
-      <AdminMessagesScreen user={user} onBack={goBack}/>
+      <AdminMessagesScreen user={user} initialEngineer={msgInitialEngineer} onBack={() => { setMsgInitialEngineer(null); goBack(); }}/>
     </Shell>;
   }
   if (screen === "announcements") {
@@ -4284,7 +4288,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
       onClickRawOrdersArchive={() => setScreen("rawOrdersArchive")}
       // 2026-06-24 — 홈페이지 접수함 (inquiries)
       onClickInquiries={() => setScreen("inquiries")}
-      onClickEngMessages={() => setScreen("adminMessages")}
+      onClickEngMessages={() => { setMsgInitialEngineer(null); setScreen("adminMessages"); }}
       engMsgUnread={engMsgUnread}
       inquiriesNewCount={inquiriesNewCount}
       inquiriesTodayCount={inquiriesTodayCount}
@@ -4294,6 +4298,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
       onEngineerClick={(eng) => goEngineerDay(eng, null)}
       // 2026-07-16 — 기사 리스트 📅 버튼 → 그 기사 캘린더 (사장님 spec)
       onEngineerCalendar={(eng) => { setCalEngineerId(eng.engineerId || eng.id); setScreen("engineerCalendar"); }}
+      // 2026-08-05 — 기사 리스트 💬 버튼 → 메시지함 그 기사 대화 바로 열기 (사장님 요청)
+      onEngineerMessage={(eng) => { setMsgInitialEngineer({ userId: eng.userId || eng.user_id || eng.id, name: eng.name || "" }); setScreen("adminMessages"); }}
       onTaskClick={(task) => goTaskDetail(task, null)}
       onClickCancelHandle={(task) => setCancelHandleTask(task)}
     />
@@ -4375,7 +4381,7 @@ function V14AdminModal({ children, onClose }) {
 // 시안 4-V4 — 메인 대시보드
 // ============================================
 
-function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickStats, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, onClickEngMessages, engMsgUnread = 0, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
+function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, user, onSwitchRole, dynamicStats, apiTasks = [], apiEngineers = [], onEngineerMessage, onRefreshTasks, activeTab, setActiveTab, unreadCount, onClickBell, onClickAddReception, onClickNewReception, onClickAssignedList, onClickLiveWork, onClickInProgress, onClickReassign, onClickRefriAddon, refrigerantAddonCount: refrigerantAddonCountProp, onClickRevenueDetail, onClickEngineerCalendar, onClickMobileBank, onClickMobileProfit, onClickDocIssue, onClickAnnouncements, onClickStats, onClickSettlement, onClickUrgentAssign, onClickManage, onClickManagePrincipals, onClickSettlementHistory, onClickSettings, onClickUsolN, onClickAllTasks, onSearchAllTasks, onClickRawOrdersArchive, onClickInquiries, onClickEngMessages, engMsgUnread = 0, inquiriesNewCount = 0, inquiriesTodayCount = 0, dashSummary = null, dashRanges = null, onEngineerClick, onEngineerCalendar, onTaskClick, onClickCancelHandle,
   // 2026-06-03 — Option A: SettlementContent state lift forward (활성 sub-tab + 그룹 펼침).
   settlementSubTab, setSettlementSubTab,
   settlementExpanded, setSettlementExpanded,
@@ -4720,7 +4726,7 @@ function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, us
 
         {activeTab === "overview"   && <OverviewTab t={t} user={user} totalNew={totalNew} apiTasks={apiTasks} onClickNewReception={onClickNewReception} onClickLiveWork={onClickLiveWork} onClickAddReception={onClickAddReception} onClickUsolN={onClickUsolN} onClickAllTasks={onClickAllTasks} onSearchAllTasks={onSearchAllTasks} onClickMobileBank={onClickMobileBank} onClickMobileProfit={onClickMobileProfit} onClickDocIssue={onClickDocIssue} onClickAnnouncements={onClickAnnouncements} onClickStats={onClickStats} onClickInquiries={onClickInquiries} inquiriesNewCount={inquiriesNewCount} inquiriesTodayCount={inquiriesTodayCount} onClickEngMessages={onClickEngMessages} engMsgUnread={engMsgUnread}/>}
         {activeTab === "live"       && <LiveWorkContent t={t} apiTasks={apiTasks} onTaskClick={onTaskClick}/>}
-        {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onEngineerCalendar={onEngineerCalendar} onClickManage={onClickManage}/>}
+        {activeTab === "engineers"  && <EngineersTab t={t} apiEngineers={apiEngineers} apiTasks={apiTasks} onEngineerClick={onEngineerClick} onEngineerCalendar={onEngineerCalendar} onEngineerMessage={onEngineerMessage} onClickManage={onClickManage}/>}
         {activeTab === "settlement" && (
           <div style={{ padding: "0 16px 16px" }}>
             <SettlementContent t={t} apiTasks={apiTasks} user={user} onRefreshTasks={onRefreshTasks} onTaskClick={onTaskClick} onClickSettlementHistory={onClickSettlementHistory}
@@ -5040,7 +5046,7 @@ function StubTab({ t, label }) {
 // ─────────────────────────────────────────────
 // 기사 탭 — Step 3-2 정정: 검색 + 자동 그룹 (필터 칩 제거 / 외근→활동중)
 // ─────────────────────────────────────────────
-function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, onEngineerCalendar, onClickManage }) {
+function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, onEngineerCalendar, onEngineerMessage, onClickManage }) {
   const [search, setSearch] = useState("");
 
   // 2026-08-05 — ③ 프로 목록 오늘 격자 (사장님 확정: "모바일에서 기사가 언제
@@ -5238,6 +5244,7 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
               riByName={riByName}
               onEngineerClick={onEngineerClick}
               onEngineerCalendar={onEngineerCalendar}
+              onEngineerMessage={onEngineerMessage}
               onTaskClick={(task, eng) => onEngineerClick && onEngineerClick(eng)}
             />
           );
@@ -5247,7 +5254,7 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
   );
 }
 
-function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, engineers, riByName = null, onEngineerClick, onEngineerCalendar, onTaskClick }) {
+function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, engineers, riByName = null, onEngineerClick, onEngineerCalendar, onEngineerMessage, onTaskClick }) {
   const [collapsed, setCollapsed] = useState(!!defaultCollapsed);
   const [expandedIds, setExpandedIds] = useState(() => new Set());
   const headerColor = color || t.textSecondary;
@@ -5280,6 +5287,7 @@ function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, enginee
           expanded={expandedIds.has(eng.id)}
           onToggle={() => toggleExpand(eng.id)}
           onOpenCalendar={onEngineerCalendar ? () => onEngineerCalendar(eng) : undefined}
+          onOpenMessage={onEngineerMessage ? () => onEngineerMessage(eng) : undefined}
           onTaskClick={(task) => onTaskClick && onTaskClick(task, eng)}
         />
       ))}
@@ -5289,7 +5297,7 @@ function EngineerGroup({ t, icon, label, count, color, defaultCollapsed, enginee
 
 // V13-FINAL2-fix3 — 카드 클릭 = 그 기사 작업 인라인 펼침 (EngineerDay 진입 X)
 // +N 위치 = 진행중 배지 앞
-function EngineerCard({ t, eng, ri = null, expanded, onToggle, onTaskClick, onOpenCalendar }) {
+function EngineerCard({ t, eng, ri = null, expanded, onToggle, onTaskClick, onOpenCalendar, onOpenMessage }) {
   // 2026-05-17 Round 2 Fix #19 — 옛 getEngineerStats(eng.id, TODAY_DATE) 제거.
   // 그 헬퍼는 ENGINEER_ASSIGNMENTS mock + 하드코딩된 "2026-04-27"을 읽어서
   // 강병익 펼치면 정수아/박은서 등 mock customer 노출되던 root cause.
@@ -5321,6 +5329,22 @@ function EngineerCard({ t, eng, ri = null, expanded, onToggle, onTaskClick, onOp
               }}
             >
               <Phone size={12}/>
+            </button>
+          )}
+          {/* 2026-08-05 — 💬 버튼 (사장님 요청): 메시지함을 그 기사 대화로 바로 열기 */}
+          {onOpenMessage && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onOpenMessage(); }}
+              aria-label="프로 메시지"
+              style={{
+                display: "inline-flex", alignItems: "center", justifyContent: "center",
+                width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                background: "rgba(124,58,237,0.08)",
+                border: "1px solid rgba(124,58,237,0.35)",
+                color: "#7C3AED", cursor: "pointer",
+              }}
+            >
+              <MessageCircle size={12}/>
             </button>
           )}
           {/* 2026-07-16 — 달력 버튼 (사장님 spec): 그 기사 캘린더 바로 열기 */}

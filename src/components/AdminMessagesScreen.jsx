@@ -12,7 +12,9 @@ import {
 
 const ACCENT = "#FF1B8D";
 
-export function AdminMessagesScreen({ user, onBack }) {
+// 2026-08-05 — initialEngineer: { userId, name } 가 오면 그 기사 대화를 바로 연다
+//   (프로 탭 카드 💬 버튼 — 사장님 요청). 목록 화면 거치지 않고 즉시 채팅 진입.
+export function AdminMessagesScreen({ user, onBack, initialEngineer = null }) {
   const actorId = user?.user_id || user?.userId || user?.id || null;
 
   const [items, setItems]     = useState([]);
@@ -24,6 +26,17 @@ export function AdminMessagesScreen({ user, onBack }) {
   const [openThread, setOpenThread] = useState(null);
 
   const reload = useCallback(() => setTick(v => v + 1), []);
+
+  // 2026-08-05 — 특정 기사 대화 바로 열기 (마운트 1회 소비)
+  useEffect(() => {
+    if (!initialEngineer?.userId) return;
+    setOpenThread({
+      engineerUserId: initialEngineer.userId,
+      engineerName:   initialEngineer.name || "",
+      taskId: null, taskNo: null, customerName: null,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!actorId) return;
