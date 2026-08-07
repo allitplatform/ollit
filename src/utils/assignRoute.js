@@ -116,9 +116,12 @@ function _minOf(v) {
 }
 
 const OPEN_STATUS = ["배정", "확정", "진행중", "이동중", "작업중"];
+// 2026-08-05 — 사장님: "칸막이에 과거도 있으면 좋겠다" — 완료된 작업도
+//   회색 칸으로 격자에 표시 (오전에 한 일이 빈 칸으로 보이던 문제).
+const DONE_STATUS = ["완료", "visit_only"];
 
 // 기사 한 명의 ymd 하루 작업 블록.
-//   반환: { blocks: [{startMin,endMin,label,gu,region,status}], untimed: n(시간 미정 배정) }
+//   반환: { blocks: [{startMin,endMin,label,gu,region,status,done}], untimed: n(시간 미정 배정) }
 export function buildDaySchedule(apiTasks, engineerName, ymd) {
   const blocks = [];
   let untimed = 0;
@@ -126,17 +129,20 @@ export function buildDaySchedule(apiTasks, engineerName, ymd) {
     const eng = tk.assignedEngineer || tk.engineer || "";
     if (!eng || eng !== engineerName) continue;
     const st = String(tk.status || "");
-    if (!OPEN_STATUS.includes(st)) continue;
+    const isOpen = OPEN_STATUS.includes(st);
+    const isDone = DONE_STATUS.includes(st);
+    if (!isOpen && !isDone) continue;
     const sched = tk.scheduledDate || (tk.scheduledAt ? toKstYmd(tk.scheduledAt) : "");
     if (sched !== ymd) continue;
     const m = _minOf(tk.time) ?? _minOf(tk.scheduledAt);
     const gu = taskGuOf(tk.region, tk.fullAddress || tk.address);
-    if (m == null) { untimed += 1; continue; }
+    if (m == null) { if (isOpen) untimed += 1; continue; }
     blocks.push({
       startMin: m,
       endMin: m + DEFAULT_JOB_MIN,
       label: `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`,
       gu, region: tk.region || "", status: st,
+      done: isDone,
     });
   }
   blocks.sort((a, b) => a.startMin - b.startMin);

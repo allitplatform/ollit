@@ -5133,7 +5133,13 @@ function EngineersTab({ t, apiEngineers = [], apiTasks = [], onEngineerClick, on
             // 2026-07-16 — 원본 task 참조 (EngineerDayScreen 상세 리스트/클릭 실데이터화 —
             //   getEngineerStats mock(ENGINEER_ASSIGNMENTS) 잔재 제거용. "최영수 없는 작업" 사장님 발견)
             task,
-          }));
+          }))
+          // 2026-08-05 — 사장님: "아래 스케줄 순서가 뭐야?" — 접수순(사실상 무작위)이었음
+          //   → 시간순 정렬 (시간 없는 건 맨 뒤).
+          .sort((a, b) => {
+            const mm = (v) => { const m = String(v || "").match(/^(\d{1,2}):(\d{2})/); return m ? Number(m[1]) * 60 + Number(m[2]) : 9999; };
+            return mm(a.time) - mm(b.time);
+          });
         return {
           ...eng,
           // 화면 표시용 fallback 필드 (mock은 추가 메타가 있었음)

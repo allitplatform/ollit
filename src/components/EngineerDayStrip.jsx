@@ -82,16 +82,18 @@ export function EngineerDayStrip({ t = null, ri, showSummary = true }) {
               const jobs = busyByHour.get(h) || [];
               const isOff = offHour(h);
               const busy = jobs.length > 0;
+              // 2026-08-05 — 완료 건은 회색 칸 (사장님: "칸막이에 과거도")
+              const doneOnly = busy && jobs.every(j => j.done);
               return (
                 <div key={h}
-                  title={busy ? jobs.map(j => `${j.label} ${j.gu || j.region || ""}`).join(" / ") : isOff ? "휴무" : `${h}시 비어 있음`}
+                  title={busy ? jobs.map(j => `${j.done ? "✓" : ""}${j.label} ${j.gu || j.region || ""}`).join(" / ") : isOff ? "휴무" : `${h}시 비어 있음`}
                   style={{
                     flex: 1, height: 30, borderRadius: 4, minWidth: 0,
-                    background: busy ? C.text
+                    background: busy ? (doneOnly ? C.muted : C.text)
                       : isOff ? `repeating-linear-gradient(45deg, ${C.bgInset}, ${C.bgInset} 4px, ${C.border} 4px, ${C.border} 5px)`
                       : C.bgInset,
-                    border: `1px solid ${busy ? C.text : C.border}`,
-                    opacity: busy ? 0.85 : 1,
+                    border: `1px solid ${busy ? (doneOnly ? C.muted : C.text) : C.border}`,
+                    opacity: busy ? (doneOnly ? 0.6 : 0.85) : 1,
                     color: busy ? C.bg : C.muted,
                     fontSize: 8, fontWeight: busy ? 800 : 700,
                     display: "flex", flexDirection: "column",
@@ -123,7 +125,7 @@ export function EngineerDayStrip({ t = null, ri, showSummary = true }) {
           fontSize: 9.5, color: C.second, marginTop: 3,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
-          {(ri.blocks || []).map(b => `${b.label} ${b.gu || b.region || ""}`).join(" · ")}
+          {(ri.blocks || []).map(b => `${b.done ? "✓" : ""}${b.label} ${b.gu || b.region || ""}`).join(" · ")}
           {ri.untimed > 0 ? ` · ⏳시간미정 ${ri.untimed}건` : ""}
         </div>
       )}
