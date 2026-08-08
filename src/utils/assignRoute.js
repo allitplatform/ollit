@@ -42,7 +42,10 @@ function _featureCentroid(f) {
   return null;
 }
 
-// Map<피처이름, [lon, lat]> — 전국 (필터 없음: 수도권 밖 원정도 거리 계산)
+// Map<피처이름, [lon, lat]> — 전국.
+// 2026-08-05 — 동명 구(區) 충돌 수리: "중구"는 서울·인천·부산·대구에 다 있는데
+//   이전엔 마지막 피처가 덮어써 엉뚱한 도시 좌표가 잡힐 수 있었다.
+//   수도권(서울 11 → 인천 23 → 경기 31) 우선, 같은 이름은 먼저 온 것이 이긴다.
 export function loadGuCentroids() {
   if (_centroidCache) return Promise.resolve(_centroidCache);
   if (_centroidPromise) return _centroidPromise;
@@ -50,11 +53,19 @@ export function loadGuCentroids() {
     .then(r => (r.ok ? r.json() : null))
     .then(j => {
       if (!j || !Array.isArray(j.features)) return null;
+      const prio = (f) => {
+        const code = String(f?.properties?.code || "");
+        if (code.startsWith("11")) return 0;   // 서울
+        if (code.startsWith("23")) return 1;   // 인천
+        if (code.startsWith("31")) return 2;   // 경기
+        return 3;
+      };
+      const feats = [...j.features].sort((a, b) => prio(a) - prio(b));
       const m = new Map();
-      for (const f of j.features) {
+      for (const f of feats) {
         const name = f?.properties?.name || "";
         const c = _featureCentroid(f);
-        if (name && c) m.set(name, c);
+        if (name && c && !m.has(name)) m.set(name, c);
       }
       _centroidCache = m;
       return m;
@@ -63,12 +74,24 @@ export function loadGuCentroids() {
   return _centroidPromise;
 }
 
-// 구 이름 → 중심좌표 (MetroRouteMap.matchFeature 와 동일한 느슨 매칭)
+// 2026-08-05 — 행정구역이 아닌 현장 지역명 별칭 (사장님 발견: "영종구" 위치 못 잡음).
+//   영종도는 행정구역상 인천 중구지만 접수는 "영종구"로 들어온다 — 좌표 직접 지정.
+//   같은 부류가 또 나오면 여기에 한 줄씩 추가.
+const ALIAS_CENTROID = {
+  "영종구": [126.531, 37.494],   // 인천 영종국제도시
+  "영종도": [126.531, 37.494],
+  "영종":   [126.531, 37.494],
+};
+
+// 구 이름 → 중심좌표 (별칭 우선, 그다음 MetroRouteMap.matchFeature 와 동일한 느슨 매칭)
 export function guCentroid(gu, centroids) {
-  if (!gu || !centroids) return null;
-  if (centroids.has(gu)) return centroids.get(gu);
+  if (!gu) return null;
+  const key = String(gu).trim();
+  if (ALIAS_CENTROID[key]) return ALIAS_CENTROID[key];
+  if (!centroids) return null;
+  if (centroids.has(key)) return centroids.get(key);
   for (const [name, c] of centroids) {
-    if (name.endsWith(gu) || name.startsWith(gu)) return c;
+    if (name.endsWith(key) || name.startsWith(key)) return c;
   }
   return null;
 }
