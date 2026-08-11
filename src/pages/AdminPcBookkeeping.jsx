@@ -1407,6 +1407,8 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
   // DB carryover (저장된 값) + memo
   const [savedCarry, setSavedCarry] = useState(null); // { amount, memo } | null
   const [carryMemo, setCarryMemo]   = useState("");
+  // 2026-08-06 — 이번 달에 이미 저장돼 있던 분배 합 (누적 이월 재계산용, Mig 206)
+  const [savedDistSum, setSavedDistSum] = useState(0);
 
   // 누적 이월 (Mig 126)
   const [cumCarry, setCumCarry] = useState({ cumulative_carryover: 0, monthly: [], start_month: "2026-04" });
@@ -1456,6 +1458,8 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
       });
       setAmounts(newAmts);
       setMemos(newMemos);
+      // 2026-08-06 — 저장돼 있던 분배 합 (누적 이월 재계산용)
+      setSavedDistSum((resD.rows || []).reduce((s, d) => s + (Number(d.amount) || 0), 0));
 
       // 2026-08-02 — 나간 날 prefill.
       //   저장된 값 있으면 그거, 없고 이번 달이면 오늘, 지난 달이면 빈칸
@@ -1488,7 +1492,16 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
   const distAmts    = amounts.map(parseAmount);
   const distSum     = distAmts.reduce((s, n) => s + n, 0);
   const autoCarry   = netProfit - distSum;
-  const overrun     = autoCarry < 0;            // 분배 합 > 순이익 → 음수 이월
+  const overrun     = autoCarry < 0;            // 이번 달 이월 음수 (표시용 — 이제 차단 아님)
+  // 2026-08-06 — Mig 206 (사장님 확정): 차단 기준을 "이번 달 음수"에서
+  //   "누적 이월(4월부터) 음수"로 변경. 지난달 안 나눈 몫이 쌓여 있으면
+  //   이번 달 순이익보다 많이 나눠도 됨.
+  //   저장 후 누적 = 현재 누적 + 이번달 저장돼 있던 분배 − 새 분배
+  //   (누적 RPC가 이번 달 손익·저장 분배를 이미 포함하므로 이 항등식이 성립).
+  const newCumulative = (Number(cumCarry?.cumulative_carryover) || 0) + savedDistSum - distSum;
+  // 누적 조회 실패 시엔 옛 규칙(이번 달 음수 차단)으로 안전 폴백.
+  const cumBlocked = cumErr ? overrun : (!cumLoading && newCumulative < 0);
+  const usesPastShare = overrun && !cumBlocked;   // 지난달 몫에서 꺼내 쓰는 정상 케이스
   const sumMatch    = (distSum + Math.max(autoCarry, 0)) === netProfit && !overrun;
 
   // 2026-06-29 — 천장 경고 (분배 소계 > 천장).
@@ -1517,7 +1530,13 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
 
   function handleSubmit() {
     if (!actor) { setActionErr("관리자 사용자 ID 없음"); return; }
-    if (overrun) { setActionErr("분배 합이 순이익을 초과합니다. 마이너스 이월은 저장 불가."); return; }
+    // 2026-08-06 — Mig 206: 누적 이월이 음수가 되는 경우만 차단
+    if (cumBlocked) {
+      setActionErr(cumErr
+        ? "누적 이월 조회 실패 — 안전을 위해 순이익 초과 분배는 저장할 수 없습니다."
+        : `누적 이월까지 마이너스가 됩니다 (저장 시 누적 ${fmtKRW(newCumulative)}). 금액을 줄여주세요.`);
+      return;
+    }
     setActionErr("");
     setConfirmOpen(true);
   }
@@ -1710,8 +1729,8 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
               내부 계산은 기존 autoCarry 그대로. 표시만 3줄. */}
           <div style={{
             padding: "12px 14px", marginTop: 10,
-            background: overrun ? t.dangerBg : t.bgInset,
-            border: `0.5px solid ${overrun ? t.dangerBorder : t.border}`,
+            background: cumBlocked ? t.dangerBg : t.bgInset,
+            border: `0.5px solid ${cumBlocked ? t.dangerBorder : t.border}`,
             borderRadius: 9,
           }}>
             <div style={{
@@ -1723,6 +1742,30 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
             <div style={{ height: 1, background: t.border, opacity: 0.6, margin: "6px 0" }}/>
             <RemainRow t={t} label="= 남은 것"  value={autoCarry}
               valueColor={overrun ? t.danger : t.success} big/>
+            {/* 2026-08-06 — Mig 206: 순이익 초과 분배 = 지난달 몫 사용 안내 (차단 아님) */}
+            {usesPastShare && (
+              <div style={{
+                marginTop: 8, padding: "8px 10px",
+                background: "rgba(245,158,11,0.10)",
+                border: "0.5px solid rgba(245,158,11,0.30)",
+                borderRadius: 7,
+                fontSize: 11, lineHeight: 1.6, color: "#B45309", fontWeight: 600,
+              }}>
+                이번 달 순이익보다 {fmtKRW(-autoCarry)} 많이 나눕니다 — 지난달까지 쌓인
+                몫에서 나가는 것이고, 저장 후 누적 이월은 {fmtKRW(newCumulative)} 남습니다.
+              </div>
+            )}
+            {cumBlocked && !cumErr && (
+              <div style={{
+                marginTop: 8, padding: "8px 10px",
+                background: t.dangerBg, border: `0.5px solid ${t.dangerBorder}`,
+                borderRadius: 7,
+                fontSize: 11, lineHeight: 1.6, color: t.danger, fontWeight: 700,
+              }}>
+                ⛔ 쌓인 몫보다 많이 나누는 중 — 저장하면 누적 이월이 {fmtKRW(newCumulative)} 가
+                됩니다. 금액을 줄여주세요.
+              </div>
+            )}
           </div>
 
           {/* 이월 메모 */}
@@ -1741,11 +1784,11 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
             padding: "10px 14px", marginTop: 12,
-            background: sumMatch ? t.successBg : (overrun ? t.dangerBg : t.bgInset),
-            border: `1px solid ${sumMatch ? t.successBorder : (overrun ? t.dangerBorder : t.border)}`,
+            background: sumMatch ? t.successBg : (cumBlocked ? t.dangerBg : t.bgInset),
+            border: `1px solid ${sumMatch ? t.successBorder : (cumBlocked ? t.dangerBorder : t.border)}`,
             borderRadius: 8,
             fontSize: 12, fontWeight: 700,
-            color: sumMatch ? t.success : (overrun ? t.danger : t.textMuted),
+            color: sumMatch ? t.success : (cumBlocked ? t.danger : t.textMuted),
           }}>
             {sumMatch ? "✓" : "⚠️"} 분배 + 이월 = 순이익
             <span className="mono" style={{
@@ -1769,17 +1812,17 @@ function DivisionCard({ t, workMonth, actor, netProfit, ceiling, ceilingReady = 
           {/* 저장 버튼 */}
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 12 }}>
             <button onClick={handleSubmit}
-              disabled={busy || overrun}
+              disabled={busy || cumBlocked}
               style={{
                 padding: "10px 22px",
-                background: (busy || overrun) ? t.bgInset : t.accent,
-                color: (busy || overrun) ? t.textMuted : "#fff",
+                background: (busy || cumBlocked) ? t.bgInset : t.accent,
+                color: (busy || cumBlocked) ? t.textMuted : "#fff",
                 border: "none", borderRadius: 8,
                 fontSize: 13, fontWeight: 800,
-                cursor: (busy || overrun) ? "not-allowed" : "pointer",
+                cursor: (busy || cumBlocked) ? "not-allowed" : "pointer",
                 fontFamily: "inherit",
                 display: "inline-flex", alignItems: "center", gap: 6,
-                opacity: (busy || overrun) ? 0.6 : 1,
+                opacity: (busy || cumBlocked) ? 0.6 : 1,
               }}>
               💾 분배 + 이월 저장
             </button>
