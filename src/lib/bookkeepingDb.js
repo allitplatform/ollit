@@ -119,7 +119,9 @@ export async function getCarryover(workMonth, actor) {
 export async function setCarryover({ workMonth, amount, memo, actor } = {}) {
   if (!workMonth || amount == null) return { ok: false, error: "workMonth/amount 필수" };
   const amt = Number(amount);
-  if (!Number.isFinite(amt) || amt < 0) return { ok: false, error: "금액은 0 이상 숫자" };
+  // 2026-08-06 — Mig 206: 이월 음수 허용 (지난달 쌓인 몫에서 꺼내 쓰는 달).
+  //   누적 이월 음수 차단은 화면(DivisionCard)에서 수행.
+  if (!Number.isFinite(amt)) return { ok: false, error: "금액은 숫자" };
   if (!actor) return { ok: false, error: "actor 필수" };
 
   return callRpc("bookkeeping_set_carryover", {
