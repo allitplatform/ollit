@@ -273,8 +273,14 @@ footer .lgw{height:40px;width:auto;margin-bottom:18px}
 /* 헤드라인 마지막 줄 그라데이션 + 밑줄 드로우 */
 .hero h1 em{color:var(--brand-cta)}
 #heroH1{position:relative}
-#heroH1::after{content:'';position:absolute;left:0;bottom:-2px;height:5px;width:min(280px,56%);border-radius:99px;background:var(--brand-cta);transform:scaleX(0);transform-origin:left;animation:drawU 1s cubic-bezier(.16,.84,.34,1) .9s forwards}
-@keyframes drawU{to{transform:scaleX(1)}}
+/* 글자별 잉크 채움 + 바람 */
+.hero h1 em{color:var(--ink)}
+.hero h1 em .ch{display:inline-block;color:var(--ink);will-change:transform,color;
+  animation:inkFill .55s cubic-bezier(.16,.84,.34,1) forwards, wind 3.4s ease-in-out infinite}
+@keyframes inkFill{to{color:var(--brand-cta)}}
+@keyframes wind{0%,100%{transform:translateX(0) rotate(0deg)}
+  28%{transform:translateX(2px) rotate(-1.1deg)}
+  62%{transform:translateX(-2px) rotate(.8deg)}}
 
 /* 형광펜이 채워지는 하이라이트 */
 .say b.mark{background:linear-gradient(rgba(96,152,240,.38),rgba(96,152,240,.38)) left bottom/0% 42% no-repeat;padding:1px 2px;animation:hl 1s cubic-bezier(.16,.84,.34,1) 1.25s forwards}
@@ -413,8 +419,7 @@ header.sm .lg{height:28px}
   .hero{padding:30px 0 44px}
   .tagline{gap:10px;margin-bottom:20px}
   .tagline .a{font-size:13px}.tagline .b{font-size:12.5px}
-  #heroH1::after{height:4px;width:min(190px,54%)}
-  .say{font-size:17.5px;line-height:1.62;margin-bottom:26px;letter-spacing:-.7px}
+    .say{font-size:17.5px;line-height:1.62;margin-bottom:26px;letter-spacing:-.7px}
   .cta2{gap:9px;margin-bottom:14px}
   .cta2 a{flex:1 1 100%;min-height:56px;font-size:17px}
   .cta2 .cta-form{font-size:15.5px}
@@ -1001,6 +1006,17 @@ function rv(sel,type='rv-up',base=0,step=80){
 }
 
 /* 히어로 — 즉시 재생 */
+(function(){
+  const em=document.querySelector('#heroH1 em'); if(!em)return;
+  const t=em.textContent; em.textContent='';
+  [...t].forEach((c,i)=>{
+    const s=document.createElement('span'); s.className='ch';
+    s.textContent = c===' ' ? '\u00A0' : c;
+    if(RM){s.style.animation='none';s.style.color='var(--brand-cta)';}
+    else s.style.animationDelay=(820+i*75)+'ms, '+(1750+i*130)+'ms';
+    em.appendChild(s);
+  });
+})();
 requestAnimationFrame(()=>{
   document.querySelectorAll('#heroH1 .lmask').forEach(e=>e.classList.add('in'));
   ['.tagline','.say','.cta2','.undr','.hero-form-wrap'].forEach((s,i)=>{
