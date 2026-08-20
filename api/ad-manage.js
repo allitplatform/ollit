@@ -163,6 +163,23 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 소재 신규 등록 (?step=adnew&gid=...&headline=...&desc=...&url=...)
+    if (step === "adnew") {
+      const { gid } = req.query;
+      const headline = String(req.query.headline || "");
+      const desc = String(req.query.desc || "");
+      const url = String(req.query.url || "");
+      if (!gid || !headline || !desc || !url) {
+        res.status(200).json({ ok: false, error: "gid/headline/desc/url 전부 필요" }); return; }
+      const r = await call("POST", "/ncc/ads", null, {
+        nccAdgroupId: gid, type: "TEXT_45",
+        ad: { headline, description: desc, pc: { final: url }, mobile: { final: url } },
+        inspectRequestMsg: "누수 랜딩 소재"
+      });
+      res.status(200).json({ ok: r.ok, adId: r.ok ? r.data.nccAdId : null, err: r.ok ? null : r.data });
+      return;
+    }
+
     // 소재(헤드라인·설명) 수정 (?step=adhead&gid=...&adid=...&headline=...[&desc=...])
     //   기존 소재 전체를 GET으로 받아 headline/description만 바꿔서 통째로 PUT — 이미지 등 나머지 필드 보존
     if (step === "adhead") {
