@@ -277,7 +277,7 @@ transform:rotate(-4deg);box-shadow:inset 0 0 0 2px var(--blue), inset 0 0 0 4.5p
   <div class="wrap rev">
     <span class="eyebrow">간편 접수</span>
     <h2>10초 접수,<br><span class="bl">순서대로 연락드립니다</span></h2>
-    <form class="frm" onsubmit="return realSubmit(this)">
+    <form class="frm" onsubmit="realSubmit(this);return false">
       <label>성함<input type="text" name="nm" placeholder="홍길동" required></label>
       <label>연락처<input type="tel" name="ph" placeholder="010-0000-0000" required></label>
       <label>주소 (동까지만 적어주셔도 됩니다)<input type="text" name="ad" placeholder="예) 고양시 일산동구 정발산동" required></label>
