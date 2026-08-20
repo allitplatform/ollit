@@ -137,7 +137,7 @@ footer{padding:40px 22px 120px;font-size:12px;color:rgba(255,255,255,.4);line-he
 .pr b{font-size:17.5px;font-weight:900;letter-spacing:-.4px}
 .pr small{grid-column:2;display:block;font-size:13.5px !important;font-weight:600 !important;color:#5A6172 !important;line-height:1.55;margin-top:0 !important}
 @media(min-width:760px){.pr-list{display:grid;grid-template-columns:repeat(3,1fr)}.pr{grid-template-columns:1fr;text-align:center}.pr svg{margin:0 auto;grid-row:auto}.pr small{grid-column:1}}
-.form-sec{background:#0B0B0E}
+.form-sec{background:#0B0B0E;border-top:3px solid var(--blue)}
 .frm{margin-top:32px;display:grid;gap:14px;max-width:520px}
 .frm label{display:grid;gap:7px;font-size:13.5px;font-weight:800;color:rgba(255,255,255,.7);letter-spacing:.5px}
 .frm input,.frm select{background:#17171C;border:1.5px solid rgba(255,255,255,.14);border-radius:12px;padding:15px 16px;font-size:16px;color:#fff;font-family:inherit;font-weight:600}
@@ -212,6 +212,32 @@ box-shadow:0 18px 50px rgba(91,141,232,.35) !important}
   .hint{display:none}
 }
 @media(min-width:760px) and (max-width:999px){.hint{display:none}}
+
+/* ── 원인 선언부 ── */
+.why{margin-top:56px}
+.why-lead{font-size:15px;font-weight:700;color:rgba(255,255,255,.55);letter-spacing:-.2px}
+.why h3{margin-top:12px;font-size:clamp(34px,8.5vw,58px);font-weight:900;letter-spacing:-2px;line-height:1.22}
+.why h3 em{font-style:normal;color:#fff;box-shadow:inset 0 -20px 0 rgba(91,141,232,.55);padding:0 4px}
+/* ── 비대칭 듀얼 ── */
+.duel{margin-top:44px;display:flex;flex-direction:column;align-items:center;gap:26px}
+.lose{display:flex;flex-direction:column;gap:8px;transform:rotate(-1deg)}
+.lose del{font-size:clamp(17px,4.6vw,21px);font-weight:700;color:rgba(255,255,255,.38);
+text-decoration-color:rgba(255,255,255,.5);text-decoration-thickness:2px}
+.lose-tag{margin-top:6px;font-size:14px;font-weight:800;color:rgba(255,255,255,.6);letter-spacing:1px}
+.win2{position:relative;background:var(--blue);border-radius:10px;padding:46px 40px 34px;
+transform:rotate(-1.5deg);box-shadow:10px 10px 0 rgba(0,0,0,.45);max-width:440px;width:100%}
+.win2 .w-chk{position:absolute;top:-22px;left:50%;transform:translateX(-50%);width:48px;height:48px;
+border-radius:50%;background:#fff;color:var(--blue-d);font-size:24px;font-weight:900;
+display:flex;align-items:center;justify-content:center;box-shadow:0 8px 22px rgba(0,0,0,.35)}
+.win2 .w-brand{display:block;font-size:15px;font-weight:800;letter-spacing:3px;color:rgba(255,255,255,.85)}
+.win2 strong{display:block;margin-top:10px;font-size:clamp(26px,6.6vw,34px);font-weight:900;letter-spacing:-1.2px;line-height:1.3;color:#fff}
+.win2 .w-end{display:inline-block;margin-top:20px;background:none;color:#fff;font-size:16px;font-weight:900;
+padding:9px 20px;border:2.5px solid rgba(255,255,255,.95);border-radius:6px;letter-spacing:3px;
+transform:rotate(-4deg);box-shadow:inset 0 0 0 2px var(--blue), inset 0 0 0 4.5px rgba(255,255,255,.85)}
+@media(min-width:760px){
+  .duel{flex-direction:row;justify-content:center;align-items:center;gap:60px;margin-top:52px}
+  .lose{text-align:left}
+}
 </style>
 </head>
 <body>
@@ -231,6 +257,24 @@ box-shadow:0 18px 50px rgba(91,141,232,.35) !important}
   <div class="scrolldn">아래로 ↓</div>
 </div>
 
+<!-- 접수폼 -->
+<section class="form-sec" id="apply">
+  <div class="wrap rev">
+    <span class="eyebrow">간편 접수</span>
+    <h2>10초 접수,<br><span class="bl">순서대로 연락드립니다</span></h2>
+    <form class="frm" onsubmit="return demoSubmit(this)">
+      <label>성함<input type="text" name="nm" placeholder="홍길동" required></label>
+      <label>연락처<input type="tel" name="ph" placeholder="010-0000-0000" required></label>
+      <label>지역<input type="text" name="rg" placeholder="예) 고양시 일산동구"></label>
+      <label>증상
+        <select name="sy"><option>천장에서 물이 떨어져요</option><option>천장에 얼룩이 생겼어요</option><option>에어컨이 안 시원해요</option><option>에어컨 철거하고 싶어요</option><option>기타</option></select>
+      </label>
+      <button type="submit">접수하기</button>
+      <div class="ok-msg" style="display:none">✓ 접수되었습니다. 순서대로 연락드리겠습니다.<br><small>급하시면 지금 바로 <a href="tel:18662003" style="text-decoration:underline">1866-2003</a></small></div>
+    </form>
+  </div>
+</section>
+
 <!-- 진실 -->
 <section class="truth">
   <div class="wrap rev">
@@ -244,10 +288,23 @@ box-shadow:0 18px 50px rgba(91,141,232,.35) !important}
       <div class="ar">→</div>
       <div class="f worst"><svg viewBox="0 0 48 48" fill="none"><path d="M8 14 h32" stroke="#8FB4F2" stroke-width="2.6" stroke-linecap="round"/><path d="M16 20 c0 5 4 5 4 0 M24 22 c0 6 4 6 4 0 M32 20 c0 4 4 4 4 0" stroke="#8FB4F2" stroke-width="2.4" stroke-linecap="round"/></svg><b>천장에서 뚝, 뚝</b><span>갈 곳 잃은 물이<br>방으로 넘칩니다</span></div>
     </div>
-    <p class="oneline">닦아도 다시 떨어지는 이유 — <b>원인이 천장 속에 있기 때문입니다.</b></p>
-    <div class="vs">
-      <div class="c"><div class="mk no">✕</div><div class="h">닦고 · 받치고 · 말리고</div><div class="b">내일 또<br>젖는 천장</div><div class="st">여름 내내 반복</div></div>
-      <div class="c win"><div class="mk ok">✓</div><div class="h">올데이케어</div><div class="b">배관을 뚫어<br>물길을 되돌림</div><div class="st blue">한 번에 종결</div></div>
+    <div class="why">
+      <span class="why-lead">닦아도 다시 떨어지는 이유</span>
+      <h3>원인은 <em>천장 속</em>에<br>있기 때문입니다</h3>
+    </div>
+    <div class="duel">
+      <div class="lose">
+        <del>걸레로 닦는다</del>
+        <del>바가지를 받친다</del>
+        <del>휴지를 끼워둔다</del>
+        <span class="lose-tag">…내일 또 젖습니다</span>
+      </div>
+      <div class="win2">
+        <span class="w-chk">✓</span>
+        <span class="w-brand">저희 올데이케어는</span>
+        <strong>배관을 뚫어<br>물길을 되돌립니다</strong>
+        <span class="w-end">한 번에 종결</span>
+      </div>
     </div>
   </div>
 </section>
@@ -299,23 +356,6 @@ box-shadow:0 18px 50px rgba(91,141,232,.35) !important}
 </section>
 
 
-<!-- 접수폼 -->
-<section class="form-sec" id="apply">
-  <div class="wrap rev">
-    <span class="eyebrow">간편 접수</span>
-    <h2>10초 접수,<br><span class="bl">순서대로 연락드립니다</span></h2>
-    <form class="frm" onsubmit="return demoSubmit(this)">
-      <label>성함<input type="text" name="nm" placeholder="홍길동" required></label>
-      <label>연락처<input type="tel" name="ph" placeholder="010-0000-0000" required></label>
-      <label>지역<input type="text" name="rg" placeholder="예) 고양시 일산동구"></label>
-      <label>증상
-        <select name="sy"><option>천장에서 물이 떨어져요</option><option>천장에 얼룩이 생겼어요</option><option>에어컨이 안 시원해요</option><option>에어컨 철거하고 싶어요</option><option>기타</option></select>
-      </label>
-      <button type="submit">접수하기</button>
-      <div class="ok-msg" style="display:none">✓ 접수되었습니다. 순서대로 연락드리겠습니다.<br><small>급하시면 지금 바로 <a href="tel:18662003" style="text-decoration:underline">1866-2003</a></small></div>
-    </form>
-  </div>
-</section>
 
 <!-- 마지막 CTA -->
 <section class="last">
@@ -333,7 +373,7 @@ box-shadow:0 18px 50px rgba(91,141,232,.35) !important}
 
 <div class="callbar">
   <a class="call" href="tel:18662003">1866-2003 전화상담</a>
-  <a class="kko" href="#apply">10초 접수</a>
+  <a class="kko" href="#apply">10초 간편접수</a>
 </div>
 
 <script>
