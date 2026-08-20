@@ -163,6 +163,27 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 그룹 신규 생성 — 임의 캠페인 (?step=grpnew&cid=...&name=...&refgid=...&bid=1000)
+    if (step === "grpnew") {
+      const { cid, name, refgid } = req.query;
+      const bid = Number(req.query.bid || 1000);
+      if (!cid || !name || !refgid) { res.status(200).json({ ok: false, error: "cid/name/refgid 필요" }); return; }
+      const ag = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(cid));
+      const groups = Array.isArray(ag.data) ? ag.data : [];
+      const exist = groups.find(g => g.name === name);
+      if (exist) { res.status(200).json({ ok: true, gid: exist.nccAdgroupId, note: "이미 있음" }); return; }
+      const ref = groups.find(g => g.nccAdgroupId === refgid);
+      if (!ref) { res.status(200).json({ ok: false, error: "refgid 그룹을 캠페인에서 못 찾음" }); return; }
+      const r = await call("POST", "/ncc/adgroups", null, {
+        nccCampaignId: cid, name,
+        adgroupType: ref.adgroupType || "WEB_SITE",
+        pcChannelId: ref.pcChannelId, mobileChannelId: ref.mobileChannelId,
+        bidAmt: bid, useDailyBudget: false,
+      });
+      res.status(200).json({ ok: r.ok, gid: r.data && r.data.nccAdgroupId, err: r.ok ? null : r.data });
+      return;
+    }
+
     // 소재 신규 등록 (?step=adnew&gid=...&headline=...&desc=...&url=...)
     if (step === "adnew") {
       const { gid } = req.query;
