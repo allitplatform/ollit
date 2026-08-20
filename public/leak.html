@@ -178,6 +178,40 @@ box-shadow:0 18px 50px rgba(91,141,232,.35) !important}
 .mk{left:50%;transform:translateX(-50%)}
 .mk.ok{width:48px;height:48px;top:-20px;font-size:23px;animation:okpulse 2.4s infinite}
 @keyframes okpulse{0%,100%{box-shadow:0 6px 18px rgba(91,141,232,.5)}50%{box-shadow:0 6px 30px rgba(91,141,232,.95),0 0 0 8px rgba(91,141,232,.15)}}
+
+/* ── 글자 확대 + 여백 재조정 ── */
+.f{padding:34px 14px}
+.f svg{width:54px;height:54px;margin-bottom:16px}
+.f b{font-size:17px;letter-spacing:-.5px}
+.f span{font-size:13.5px;margin-top:8px;line-height:1.55}
+.ar{font-size:24px}
+.oneline{font-size:19px;margin-top:34px;margin-bottom:10px}
+.vs{margin-top:48px !important}
+.vs .c .h{font-size:16.5px !important}
+.vs .st{font-size:13px !important;padding:6px 14px !important}
+.step{flex-basis:300px !important}
+.step .im{height:200px !important}
+.step .tt{font-size:20px !important}
+.step .dd{font-size:15px !important;margin-top:8px !important}
+.pr b{font-size:19px !important}
+.pr small{font-size:15px !important}
+.free-sec p{font-size:18px !important}
+.hero .sub1{font-weight:700}
+@media(min-width:760px){
+  .f{padding:40px 18px}
+  .f b{font-size:19px}
+  .f span{font-size:14.5px}
+  .flow{gap:14px;max-width:900px;margin-left:auto;margin-right:auto}
+  .step{flex:0 0 288px !important}
+  .rail{gap:20px}
+}
+
+@media(min-width:1000px){
+  .rail{flex-wrap:nowrap;max-width:1280px;margin:36px auto 0}
+  .step{flex:1 1 0 !important;min-width:0}
+  .hint{display:none}
+}
+@media(min-width:760px) and (max-width:999px){.hint{display:none}}
 </style>
 </head>
 <body>
