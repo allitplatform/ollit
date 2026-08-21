@@ -184,6 +184,30 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 확장소재 복제 (?step=extcopy&src=grp-...&dst=grp-a,grp-b&skip=PHONE)
+    if (step === "extcopy") {
+      const src = req.query.src;
+      const dsts = String(req.query.dst || "").split(",").map(s => s.trim()).filter(Boolean);
+      const skip = String(req.query.skip || "").split(",").map(s => s.trim()).filter(Boolean);
+      if (!src || !dsts.length) { res.status(200).json({ ok: false, error: "src/dst 필요" }); return; }
+      const cur = await call("GET", "/ncc/ad-extensions", "ownerId=" + encodeURIComponent(src));
+      const items = (Array.isArray(cur.data) ? cur.data : []).filter(x => !skip.includes(x.type));
+      const results = [];
+      for (const dst of dsts) {
+        for (const it of items) {
+          const body = { ownerId: dst, type: it.type };
+          if (it.adExtension != null) body.adExtension = it.adExtension;
+          if (it.pcChannelId) body.pcChannelId = it.pcChannelId;
+          if (it.mobileChannelId) body.mobileChannelId = it.mobileChannelId;
+          const r = await call("POST", "/ncc/ad-extensions", null, body);
+          results.push({ dst, type: it.type, ok: r.ok, err: r.ok ? null : (r.data && (r.data.title || r.data.code)) });
+        }
+      }
+      const okCount = results.filter(x => x.ok).length;
+      res.status(200).json({ ok: true, copied: okCount, total: results.length, fails: results.filter(x => !x.ok) });
+      return;
+    }
+
     // 소재 신규 등록 (?step=adnew&gid=...&headline=...&desc=...&url=...)
     if (step === "adnew") {
       const { gid } = req.query;
