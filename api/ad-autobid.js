@@ -33,6 +33,8 @@ async function logRows(rows) {
 }
 
 const CAMPAIGN_ID = "cmp-a001-01-000000010808110";
+// 2026-08-21 누수 캠페인 추가 — 사장님 지시: A1 정밀은 무조건 1위
+const CAMPAIGN_IDS = [CAMPAIGN_ID, "cmp-a001-01-000000010993171"];
 // 확장_증상청소 는 제외 — 검색량 큰 청소 단어를 1위에 걸면 예산이 며칠에 다 나간다.
 // 청소 그룹은 2,000원 고정으로 일주일 데이터 먼저.
 // 사장님 전략(7/26): "비싼 키워드는 2~3위, 노출 많은 건 무조건 1위"
@@ -65,6 +67,8 @@ const GROUP_POLICY = {
   // 증상·청소(7/28 신설): 지금까지 자동입찰 밖에 방치돼 입찰가가 얼어 있던 그룹.
   // 세척 단가가 수리보다 낮으니 상한도 낮게 8,000으로 시작한다.
   "확장_증상청소": { cap: 8000,  margin: 1.1,  lowerOk: true,  pos2: true, cap2: 8000 },
+  // 누수 캠페인(2026-08-21, 사장님 지시): 정밀 누수 키워드 무조건 1위 — 메인키워드와 동일 정책
+  "A1_정밀":       { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 15000 },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 
@@ -128,9 +132,12 @@ export default async function handler(req, res) {
   if ((req.query.token || "") !== TOKEN) { res.status(404).end(); return; }
   try {
     // ① 대상 키워드 수집
-    const groups = (await call("GET", "/ncc/adgroups",
-      "nccCampaignId=" + encodeURIComponent(CAMPAIGN_ID)))
-      .filter(g => TARGET_GROUPS.has(g.name));
+    let groups = [];
+    for (const cid of CAMPAIGN_IDS) {
+      const gs = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(cid));
+      groups = groups.concat(Array.isArray(gs) ? gs : []);
+    }
+    groups = groups.filter(g => TARGET_GROUPS.has(g.name));
     const kws = [];
     for (const g of groups) {
       const list = await call("GET", "/ncc/keywords",
