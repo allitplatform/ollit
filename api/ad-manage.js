@@ -184,6 +184,26 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 키워드 ON/OFF (?step=kwlock&gid=...&kws=a,b,c&lock=true)
+    if (step === "kwlock") {
+      const gid = req.query.gid;
+      const lock = String(req.query.lock || "true") === "true";
+      const names = String(req.query.kws || "").split(",").map(s => s.trim().replace(/\s+/g, "")).filter(Boolean);
+      if (!gid || !names.length) { res.status(200).json({ ok: false, error: "gid/kws 필요" }); return; }
+      const cur = await call("GET", "/ncc/keywords", "nccAdgroupId=" + encodeURIComponent(gid));
+      const list = Array.isArray(cur.data) ? cur.data : [];
+      const targets = list.filter(k => names.includes(String(k.keyword).replace(/\s+/g, "")));
+      const out = [];
+      for (let i = 0; i < targets.length; i += 50) {
+        const part = targets.slice(i, i + 50);
+        const r = await call("PUT", "/ncc/keywords", "fields=userLock",
+          part.map(k => ({ nccKeywordId: k.nccKeywordId, nccAdgroupId: gid, userLock: lock })));
+        out.push({ ok: r.ok, n: part.length, err: r.ok ? null : (r.data && (r.data.title || r.data.code)) });
+      }
+      res.status(200).json({ ok: true, matched: targets.length, result: out });
+      return;
+    }
+
     // 1위/N위 예상 입찰가 조회 (?step=est&kws=a,b,c&pos=1&device=MOBILE)
     if (step === "est") {
       const kws = String(req.query.kws || "").split(",").map(s => s.trim().replace(/\s+/g, "")).filter(Boolean).slice(0, 100);

@@ -69,6 +69,8 @@ const GROUP_POLICY = {
   "확장_증상청소": { cap: 8000,  margin: 1.1,  lowerOk: true,  pos2: true, cap2: 8000 },
   // 누수 캠페인(2026-08-21, 사장님 지시): 정밀 누수 키워드 무조건 1위 — 메인키워드와 동일 정책
   "A1_정밀":       { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 15000 },
+  // 빅누수(2026-08-21): 검색량 대형 누수 키워드 — 1위 추격, 과열(>1.5만)은 2위 확보
+  "A0_빅누수":     { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 15000 },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 
