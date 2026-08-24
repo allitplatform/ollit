@@ -184,6 +184,24 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 1위/N위 예상 입찰가 조회 (?step=est&kws=a,b,c&pos=1&device=MOBILE)
+    if (step === "est") {
+      const kws = String(req.query.kws || "").split(",").map(s => s.trim().replace(/\s+/g, "")).filter(Boolean).slice(0, 100);
+      const pos = Number(req.query.pos || 1);
+      const device = (req.query.device || "MOBILE").toUpperCase();
+      if (!kws.length) { res.status(200).json({ ok: false, error: "kws 필요" }); return; }
+      const out = [];
+      for (let i = 0; i < kws.length; i += 20) {
+        const part = kws.slice(i, i + 20);
+        const r = await call("POST", "/estimate/average-position-bid/keyword", null,
+          { device, items: part.map(k => ({ key: k, position: pos })) });
+        const est = (r.data && r.data.estimate) || [];
+        for (const e of est) out.push({ kw: e.keyword, bid: e.bid });
+      }
+      res.status(200).json({ ok: true, device, pos, rows: out });
+      return;
+    }
+
     // 확장소재 복제 (?step=extcopy&src=grp-...&dst=grp-a,grp-b&skip=PHONE)
     if (step === "extcopy") {
       const src = req.query.src;
