@@ -44,14 +44,14 @@ const CAMPAIGN_IDS = [CAMPAIGN_ID, "cmp-a001-01-000000010993171"];
 // 7/27 낮 사장님 지시: 청소 빼고 전부 2위 이상 유지. 단 터무니없는 가격은 제외.
 // → 1위가 15,000 이하면 1위 추격 / 넘으면 2위 가격으로 2위 확보(최대 20,000) / 2위도 2만 넘으면 포기.
 const GROUP_POLICY = {
-  "중간키워드":   { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
-  "중간키워드2":  { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
-  "고양시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
-  "고양시2":      { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
-  "파주시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
-  "김포시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
-  "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
-  "서울":         { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
+  "중간키워드":   { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
+  "중간키워드2":  { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
+  "고양시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
+  "고양시2":      { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
+  "파주시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
+  "김포시":       { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
+  "남양주시":     { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
+  "서울":         { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
   // 메인(7/26 밤 개정): 비용대비 순이익 원칙 — 7/13 데이터(입찰 1.3만·2위권·최고 성적) 기준.
   // 1위 과열 안 따라감. 추격 여유 5%, 상한 15,000.
   // 7/29 원복: 낮 2위 실험(middayLower) 폐기. 하루 돌려본 실측이 명확히 손해였다.
@@ -59,18 +59,20 @@ const GROUP_POLICY = {
   //  그런데 클릭당 단가는 7,749 -> 8,259원으로 오히려 +7%. 싸게 사는 게 아니라 클릭만 잃었다.
   //  원인: 낮에 순위가 안 나오는 건 우리가 덜 사서가 아니라 경쟁이 세서다(그 시간대 CPC가 원래 비쌈).
   //  결론 — 순위를 내려 광고비를 깎는 길은 막혔다. 메인은 종전대로 1위 추격·내림 금지.
-  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 15000 },
+  // 2026-08-21 사장님 지시: 가스는 2위 고정 (1위 과금 비효율 판단). 7/29 실측(2위 전환 시 클릭 -50%) 고지 후 결정.
+  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: true, pos2: true, cap2: 15000, targetPos: 2 },
   // 사장님(7/26 저녁): 수리·누설·누수 + 가스충전이 제일 메인 → 핵심 대접
-  "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000 },
+  "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
   // 설치(7/27 사장님 확정): 지금은 시기 아님 — 싼 자리(5,000 이하)만 줍고 비싼 판은 성수기에.
   "확장_설치":     { cap: 5000,  margin: 1.1,  lowerOk: true  },
   // 증상·청소(7/28 신설): 지금까지 자동입찰 밖에 방치돼 입찰가가 얼어 있던 그룹.
   // 세척 단가가 수리보다 낮으니 상한도 낮게 8,000으로 시작한다.
   "확장_증상청소": { cap: 8000,  margin: 1.1,  lowerOk: true,  pos2: true, cap2: 8000 },
   // 누수 캠페인(2026-08-21, 사장님 지시): 정밀 누수 키워드 무조건 1위 — 메인키워드와 동일 정책
-  "A1_정밀":       { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 15000 },
+  // 2026-08-21 사장님 지시: 누수는 1위, 단 1위가 ≥ 2위가×2 면 2위로 (ratio2)
+  "A1_정밀":       { cap: 15000, margin: 1.05, lowerOk: true, pos2: true, cap2: 15000, ratio2: 2 },
   // 빅누수(2026-08-21): 검색량 대형 누수 키워드 — 1위 추격, 과열(>1.5만)은 2위 확보
-  "A0_빅누수":     { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 15000 },
+  "A0_빅누수":     { cap: 15000, margin: 1.05, lowerOk: true, pos2: true, cap2: 15000, ratio2: 2 },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 
@@ -213,6 +215,11 @@ export default async function handler(req, res) {
       const pol = GROUP_POLICY[k.grp] || { cap: 15000, margin: 1.1, lowerOk: true };
       const cap = KW_CAP[norm(k.kw)] != null ? KW_CAP[norm(k.kw)] : pol.cap; // 키워드 개별 상한 우선
       let bid = Math.round(est * pol.margin / 10) * 10;
+      const e2r = est2Map.get(norm(k.kw));
+      // targetPos 2 (가스): 2위 가격 + 마진으로 2위 확보
+      if (pol.targetPos === 2 && e2r) bid = Math.round(e2r * 1.1 / 10) * 10;
+      // ratio2 (누수): 1위가가 2위가의 ratio2배 이상이면 2위로 후퇴
+      if (pol.ratio2 && e2r && est >= e2r * pol.ratio2) bid = Math.round(e2r * 1.1 / 10) * 10;
       // 낮(12~17시): 내림 가능한 그룹은 2위 가격 + 5%로 2위 확보 (3위 밑 금지 — 2위가를 내니 2~3위 보장)
       if (midday && pol.lowerOk && pol.pos2 && KW_CAP[norm(k.kw)] == null) {
         const e2m = est2Map.get(norm(k.kw));
