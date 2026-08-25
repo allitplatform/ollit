@@ -411,17 +411,24 @@ async function realSubmit(f){
   const err = f.querySelector('.err-msg'); err.style.display='none';
   btn.disabled = true; btn.textContent = '접수 중...';
   try{
-    const res = await fetch(SB_URL + "/rest/v1/rpc/create_inquiry", {
-      method: "POST",
-      headers: { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        p_service_type:   f.sy.value,
-        p_name:           f.nm.value.trim(),
-        p_phone:          f.ph.value.trim(),
-        p_address:        f.ad.value.trim(),
-        p_agreed_privacy: f.cs.checked === true
-      })
+    const payload = {
+      p_service_type:   f.sy.value,
+      p_name:           f.nm.value.trim(),
+      p_phone:          f.ph.value.trim(),
+      p_address:        f.ad.value.trim(),
+      p_agreed_privacy: f.cs.checked === true
+    };
+    const hdrs = { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "Content-Type": "application/json" };
+    // v2 = 유입경로(source) 기록 버전. 아직 DB에 없으면(404) 구버전으로 자동 폴백.
+    let res = await fetch(SB_URL + "/rest/v1/rpc/create_inquiry_v2", {
+      method: "POST", headers: hdrs,
+      body: JSON.stringify(Object.assign({ p_source: "leak_landing" }, payload))
     });
+    if (res.status === 404) {
+      res = await fetch(SB_URL + "/rest/v1/rpc/create_inquiry", {
+        method: "POST", headers: hdrs, body: JSON.stringify(payload)
+      });
+    }
     if (!res.ok) {
       let msg = '접수에 실패했습니다. 잠시 후 다시 시도하시거나 1866-2003으로 전화 주세요.';
       try {

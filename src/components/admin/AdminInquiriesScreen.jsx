@@ -528,6 +528,13 @@ function MiniCardRow({ row, busy, apiTasks = [], onCall, onSpam, onDelete, onCon
               background: "#EAF2FB", padding: "2px 8px", borderRadius: 999,
               whiteSpace: "nowrap", flexShrink: 0,
             }}>{serviceLabel(row.service_type)}</span>
+            {row.source === "leak_landing" && (
+              <span style={{
+                fontSize: 10.5, fontWeight: 800, color: "#7C3AED",
+                background: "#F3E8FF", padding: "2px 8px", borderRadius: 999,
+                whiteSpace: "nowrap", flexShrink: 0,
+              }}>누수광고</span>
+            )}
             {el.label && (
               <span style={{
                 marginLeft: "auto", flexShrink: 0,
@@ -759,6 +766,13 @@ function PcListRow({ row, selected, apiTasks = [], onClick }) {
           background: selected ? "#fff" : "#EAF2FB", padding: "1px 7px", borderRadius: 999,
           whiteSpace: "nowrap", flexShrink: 0,
         }}>{serviceLabel(row.service_type)}</span>
+        {row.source === "leak_landing" && (
+          <span style={{
+            fontSize: 10, fontWeight: 800, color: "#7C3AED",
+            background: selected ? "#fff" : "#F3E8FF", padding: "1px 7px", borderRadius: 999,
+            whiteSpace: "nowrap", flexShrink: 0,
+          }}>누수광고</span>
+        )}
         {row.status === "contacted" && (
           <span style={{
             fontSize: 9.5, fontWeight: 800, color: "#059669",
@@ -826,7 +840,7 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
     //   NewReceptionPcForm 은 init.workType / init.applianceUndecided 를 이미 받는다.
     workType: SERVICE_WORKTYPE[row.service_type] || "",
     applianceUndecided: true,
-    memo: `[홈페이지 접수${at ? " " + at : ""}] 희망 서비스: ${serviceLabel(row.service_type)}`,
+    memo: `[${row.source === "leak_landing" ? "누수광고 랜딩" : "홈페이지"} 접수${at ? " " + at : ""}] 희망 서비스: ${serviceLabel(row.service_type)}`,
   };
   const isNew  = row.status === "new";
   const isSpam = row.status === "spam";
