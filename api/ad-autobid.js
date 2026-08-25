@@ -60,7 +60,9 @@ const GROUP_POLICY = {
   //  원인: 낮에 순위가 안 나오는 건 우리가 덜 사서가 아니라 경쟁이 세서다(그 시간대 CPC가 원래 비쌈).
   //  결론 — 순위를 내려 광고비를 깎는 길은 막혔다. 메인은 종전대로 1위 추격·내림 금지.
   // 2026-08-21 사장님 지시: 가스는 2위 고정 (1위 과금 비효율 판단). 7/29 실측(2위 전환 시 클릭 -50%) 고지 후 결정.
-  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: true, pos2: true, cap2: 15000, targetPos: 2 },
+  // 2026-08-25 실측 확정: 2위 정책 폐기 — 실제 순위 2.6~5위로 밀리고 냉매충전 노출30·클릭0.
+  // 메인 3종(가스충전·냉매충전·에어콘가스충전)은 1위 추격·내림 금지 복원, 상한은 KW_CAP 17,000.
+  "메인키워드":   { cap: 15000, margin: 1.05, lowerOk: false, pos2: true, cap2: 15000 },
   // 사장님(7/26 저녁): 수리·누설·누수 + 가스충전이 제일 메인 → 핵심 대접
   "확장_수리누설": { cap: 15000, margin: 1.1,  lowerOk: true,  pos2: true, cap2: 15000, targetPos: 2 },
   // 설치(7/27 사장님 확정): 지금은 시기 아님 — 싼 자리(5,000 이하)만 줍고 비싼 판은 성수기에.
@@ -70,9 +72,9 @@ const GROUP_POLICY = {
   "확장_증상청소": { cap: 8000,  margin: 1.1,  lowerOk: true,  pos2: true, cap2: 8000 },
   // 누수 캠페인(2026-08-21, 사장님 지시): 정밀 누수 키워드 무조건 1위 — 메인키워드와 동일 정책
   // 2026-08-21 사장님 지시: 누수는 1위, 단 1위가 ≥ 2위가×2 면 2위로 (ratio2)
-  "A1_정밀":       { cap: 15000, margin: 1.05, lowerOk: true, pos2: true, cap2: 15000, ratio2: 2 },
+  "A1_정밀":       { cap: 15000, margin: 1.05, lowerOk: true, pos2: true, cap2: 15000, ratio2: 2, noMidday: true },
   // 빅누수(2026-08-21): 검색량 대형 누수 키워드 — 1위 추격, 과열(>1.5만)은 2위 확보
-  "A0_빅누수":     { cap: 15000, margin: 1.05, lowerOk: true, pos2: true, cap2: 15000, ratio2: 2 },
+  "A0_빅누수":     { cap: 15000, margin: 1.05, lowerOk: true, pos2: true, cap2: 15000, ratio2: 2, noMidday: true },
 };
 const TARGET_GROUPS = new Set(Object.keys(GROUP_POLICY));
 
@@ -84,6 +86,10 @@ const KW_CAP = {
   "에어컨가스": 10000,
   // 7/28 사장님 지시로 추가. 월 50회·GHP(상업용 가스냉난방) 검색어 → 자동입찰이 못 올리게 못박음
   "가스에어컨": 1000,
+  // 2026-08-25: 가스 메인 3종 1위 추격 상한 (7/31 실측 16,800 → 1위권 진입 검증)
+  "에어컨가스충전": 17000,
+  "에어컨냉매충전": 17000,
+  "에어콘가스충전": 17000,
 };
 const FLOOR = 1000;     // 바닥 — 견적이 이상하게 낮아도 이 밑으론 안 내림
 
@@ -191,7 +197,8 @@ export default async function handler(req, res) {
     const p2kws = kws.filter(k => {
       const pol = GROUP_POLICY[k.grp] || {};
       if (!pol.pos2 || KW_CAP[norm(k.kw)] != null) return false;
-      if (midday && pol.lowerOk) return true;
+      if (pol.targetPos === 2 || pol.ratio2) return true; // 2위 견적 상시 필요 (8/25)
+      if (midday && pol.lowerOk && !pol.noMidday) return true;
       const e1 = estMap.get(norm(k.kw));
       return e1 && Math.round(e1 * (pol.margin || 1.1) / 10) * 10 > (pol.cap || 15000);
     });
@@ -221,7 +228,7 @@ export default async function handler(req, res) {
       // ratio2 (누수): 1위가가 2위가의 ratio2배 이상이면 2위로 후퇴
       if (pol.ratio2 && e2r && est >= e2r * pol.ratio2) bid = Math.round(e2r * 1.1 / 10) * 10;
       // 낮(12~17시): 내림 가능한 그룹은 2위 가격 + 5%로 2위 확보 (3위 밑 금지 — 2위가를 내니 2~3위 보장)
-      if (midday && pol.lowerOk && pol.pos2 && KW_CAP[norm(k.kw)] == null) {
+      if (midday && pol.lowerOk && !pol.noMidday && pol.pos2 && KW_CAP[norm(k.kw)] == null) {
         const e2m = est2Map.get(norm(k.kw));
         if (e2m) bid = Math.min(bid, Math.round(e2m * 1.05 / 10) * 10);
       }
