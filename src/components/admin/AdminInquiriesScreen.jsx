@@ -34,6 +34,8 @@ const FILTERS = [
   // 2026-07-10 — 사장님 spec: 스팸 필터 노출. 삭제(영구) 버튼도 이 필터에서 접근.
   //   'all' 은 여전히 스팸 제외. 'spam' 선택 시 status='spam' 만 조회.
   { key: "spam",      label: "스팸" },
+  // 2026-08-25 — 사장님 spec: 오늘 홈페이지로 들어온 접수 전체 + 처리 결과(전환·일정·완료·취소)를 한눈에.
+  { key: "today",     label: "오늘 현황" },
 ];
 
 // timestamptz → "HH:mm" (KST local)
@@ -112,6 +114,113 @@ function dupSummary(dups) {
 }
 
 // ===========================================================
+// 2026-08-25 — "오늘 현황" 카드: 접수 1건의 처리 여정 표시 (읽기 전용)
+//   신규(미처리) / 통화함 / 스팸(+사유) / 전환됨 → 연결 작업의 상태·예정일까지.
+//   작업 연결: Mig 152 의 inquiries.task_id → 이미 로드된 apiTasks 에서 대조 (서버 호출 없음).
+// ===========================================================
+function _kstYmd(iso) {
+  if (!iso) return "";
+  return new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+function _fmtSched(iso) {
+  if (!iso) return "";
+  const d = new Date(new Date(iso).getTime() + 9 * 3600 * 1000);
+  return (d.getUTCMonth() + 1) + "/" + d.getUTCDate() + " " +
+    String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0");
+}
+function _taskStageMeta(status) {
+  if (status === "완료" || status === "정산완료") return { label: status, color: "#16A34A", bg: "#E6F4EB" };
+  if (status === "취소")                           return { label: "취소",  color: "#6B7280", bg: "#EEF1F4" };
+  if (status === "미배정")                          return { label: "미배정", color: "#B45309", bg: "#FEF3C7" };
+  return { label: status || "진행중", color: "#2563EB", bg: "#EAF2FB" };  // 배정·확정 등
+}
+function TodayStatusCard({ row, apiTasks = [] }) {
+  const hm = (toKstYmdHm(row.created_at) || "").split(" ")[1] || "";
+  const task = row.task_id ? (apiTasks || []).find((tk) => tk && tk.id === row.task_id) : null;
+
+  let stage;   // { label, color, bg, sub }
+  if (row.status === "spam") {
+    stage = { label: "스팸", color: "#6B7280", bg: "#EEF1F4", sub: row.spam_reason || "" };
+  } else if (row.status === "contacted") {
+    stage = { label: "통화함 — 작업 전환 대기", color: "#2563EB", bg: "#EAF2FB", sub: "" };
+  } else if (row.status === "converted") {
+    if (task) {
+      const m = _taskStageMeta(task.status);
+      const sched = task.scheduledAt ? _fmtSched(task.scheduledAt) : "";
+      stage = { label: "작업 " + (task.taskCode || "") + " · " + m.label, color: m.color, bg: m.bg,
+                sub: sched && task.status !== "완료" && task.status !== "취소" ? "방문예정 " + sched : "" };
+    } else {
+      stage = { label: "작업 전환됨", color: "#16A34A", bg: "#E6F4EB", sub: "" };
+    }
+  } else {
+    stage = { label: "신규 — 미처리", color: "#DC2626", bg: "#FDECEC", sub: "" };
+  }
+
+  return (
+    <div style={{
+      background: "#fff", border: "1px solid #E5EAF1", borderRadius: 12,
+      padding: "11px 13px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11.5, fontWeight: 800, color: "#7A8499", flexShrink: 0 }}>{hm}</span>
+        <span style={{
+          fontSize: 13.5, fontWeight: 800, color: "#1C2B3A", letterSpacing: "-0.3px",
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0,
+        }}>{row.name || "이름 미입력"}</span>
+        <span style={{
+          fontSize: 10, fontWeight: 800, color: "#2563EB", background: "#EAF2FB",
+          padding: "1px 7px", borderRadius: 999, whiteSpace: "nowrap", flexShrink: 0,
+        }}>{serviceLabel(row.service_type)}</span>
+        <span style={{
+          fontSize: 10, fontWeight: 800, flexShrink: 0, whiteSpace: "nowrap",
+          color: row.source === "leak_landing" ? "#7C3AED" : "#4A5A70",
+          background: row.source === "leak_landing" ? "#F3E8FF" : "#F2F5F9",
+          padding: "1px 7px", borderRadius: 999,
+        }}>{row.source === "leak_landing" ? "누수광고" : "홈페이지"}</span>
+        <span style={{
+          marginLeft: "auto", flexShrink: 0, fontSize: 10.5, fontWeight: 800,
+          color: stage.color, background: stage.bg, padding: "2px 9px", borderRadius: 999,
+          whiteSpace: "nowrap",
+        }}>{stage.label}</span>
+      </div>
+      {(stage.sub || row.phone) && (
+        <div style={{ marginTop: 4, fontSize: 11, color: "#6A7D94",
+                      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {row.phone}
+          {stage.sub && (<><span style={{ color: "#B7C1CE" }}> · </span>
+            <span style={{ fontWeight: 800, color: stage.color }}>{stage.sub}</span></>)}
+        </div>
+      )}
+    </div>
+  );
+}
+function TodaySummaryBar({ items }) {
+  const n = { total: items.length, nw: 0, ct: 0, cv: 0, sp: 0, leak: 0 };
+  for (const r of items) {
+    if (r.status === "new") n.nw++;
+    else if (r.status === "contacted") n.ct++;
+    else if (r.status === "converted") n.cv++;
+    else if (r.status === "spam") n.sp++;
+    if (r.source === "leak_landing") n.leak++;
+  }
+  return (
+    <div style={{
+      background: "#1C2B3A", color: "#fff", borderRadius: 12,
+      padding: "10px 14px", marginBottom: 8,
+      fontSize: 12, fontWeight: 700, letterSpacing: "-0.2px", lineHeight: 1.7,
+    }}>
+      오늘 접수 <b style={{ fontSize: 14 }}>{n.total}</b>건
+      {n.leak > 0 && <span style={{ color: "#C4B5FD" }}> (누수광고 {n.leak})</span>}
+      <span style={{ opacity: .55 }}> — </span>
+      <span style={{ color: "#FCA5A5" }}>미처리 {n.nw}</span> ·
+      <span style={{ color: "#93C5FD" }}> 통화함 {n.ct}</span> ·
+      <span style={{ color: "#86EFAC" }}> 작업전환 {n.cv}</span> ·
+      <span style={{ opacity: .6 }}> 스팸 {n.sp}</span>
+    </div>
+  );
+}
+
+// ===========================================================
 // 루트 — useIsPc 분기로 모바일/PC 위임
 // ===========================================================
 export default function AdminInquiriesScreen({
@@ -137,12 +246,15 @@ export default function AdminInquiriesScreen({
     setLoading(true);
     setError(null);
     try {
-      const status = filter === "all" ? null : filter;
+      const status = (filter === "all" || filter === "today") ? null : filter;
       const rows = await listInquiries(actorId, status);
       // 스팸 + 전환됨은 어떤 칩에서도 안 보임 — 'all' 일 때 클라 측에서 제외.
       //   2026-06-28 — Mig 152 로 mark_inquiry_converted 가 DELETE 에서 UPDATE 로 변경.
       //   전환된 행이 inquiries 에 보존되어 통계(전환율/퍼널) 가능. 단 접수함 화면엔 안 보이게.
-      const visible = filter === "all"
+      // 2026-08-25 — 'today' 칩: 오늘(KST) 들어온 접수는 스팸·전환 포함 전부 보여준다 (처리 현황 추적용).
+      const visible = filter === "today"
+        ? rows.filter((r) => _kstYmd(r.created_at) === _kstYmd(new Date().toISOString()))
+        : filter === "all"
         ? rows.filter((r) => r.status !== "spam" && r.status !== "converted")
         : rows;
       setItems(visible);
@@ -432,8 +544,12 @@ function AdminInquiriesMobile({
         {error && <ErrorBox text={error} />}
         {!loading && items.length === 0 && !error && <EmptyBox />}
 
+        {filter === "today" && items.length > 0 && <TodaySummaryBar items={items} />}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {items.map((row) => (
+            filter === "today" ? (
+              <TodayStatusCard key={row.id} row={row} apiTasks={apiTasks} />
+            ) : (
             <MiniCardRow
               key={row.id}
               row={row}
@@ -444,6 +560,7 @@ function AdminInquiriesMobile({
               onDelete={() => onDelete && onDelete(row)}
               onConvert={() => onConvert(row)}
             />
+            )
           ))}
         </div>
       </div>
@@ -685,8 +802,12 @@ function AdminInquiriesPc({
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 10px 16px" }}>
           {error && <ErrorBox text={error} />}
           {!loading && items.length === 0 && !error && <EmptyBox compact />}
+          {filter === "today" && items.length > 0 && <TodaySummaryBar items={items} />}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             {items.map((row) => (
+              filter === "today" ? (
+                <TodayStatusCard key={row.id} row={row} apiTasks={apiTasks} />
+              ) : (
               <PcListRow
                 key={row.id}
                 row={row}
@@ -694,6 +815,7 @@ function AdminInquiriesPc({
                 selected={selectedRow?.id === row.id}
                 onClick={() => onSelect(row.id)}
               />
+              )
             ))}
           </div>
         </div>
