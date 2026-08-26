@@ -71,6 +71,8 @@ function _diffWorkTypes(original, current) {
 const REFRIGERANT_RATE_OPTIONS = [
   { value: 50,  label: "50% (일반 / 기본)" },
   { value: 60,  label: "60% (A 그룹)" },
+  // 2026-08-06 — 사장님: 특정 기사 회사 수수료 35% (= 기사 65%)
+  { value: 65,  label: "65% (회사 35%)" },
   { value: 100, label: "100% (대표 / 잔여 전액)" },
 ];
 
@@ -373,7 +375,8 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
         onChange={(v) => updateField("cm_refrigerant_rate", v)}
       />
       <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 6, lineHeight: 1.5 }}>
-        * 냉매충전 시 적용되는 기사 비율. 시트 설정_기사 cm_냉매비율과 양방향 sync.
+        * 냉매충전·누설·누수 건에 적용되는 기사 비율 (세척 등 다른 종목과 섞인 건은 기본
+        비율로 계산됨). 시트 설정_기사 cm_냉매비율과 양방향 sync.
       </div>
     </Section>
   );
