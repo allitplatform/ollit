@@ -164,6 +164,42 @@ export default async function handler(req, res) {
     }
 
     // 그룹 신규 생성 — 임의 캠페인 (?step=grpnew&cid=...&name=...&refgid=...&bid=1000)
+    // 새 캠페인 + 기본 그룹 생성 (?step=campnew&name=...&gname=...&refgid=<채널복사원본 그룹>&budget=20000&bid=1000)
+    // 2026-09-06 — 벌초 캠페인용. refgid는 다른 캠페인 그룹이어도 됨 (채널만 복사).
+    if (step === "campnew") {
+      const name = String(req.query.name || "");
+      const gname = String(req.query.gname || "기본그룹");
+      const refgid = String(req.query.refgid || "");
+      const budget = Number(req.query.budget || 20000);
+      if (!name || !refgid) { res.status(200).json({ ok: false, error: "name/refgid 필요" }); return; }
+      const cl = await call("GET", "/ncc/campaigns");
+      let camp = (Array.isArray(cl.data) ? cl.data : []).find(c => c.name === name);
+      if (!camp) {
+        const r = await call("POST", "/ncc/campaigns", null, {
+          campaignTp: "WEB_SITE", name, customerId: Number(NAVER_CUSTOMER),
+          dailyBudget: budget, useDailyBudget: true, deliveryMethod: "ACCELERATED",
+        });
+        if (!r.ok) { res.status(200).json({ ok: false, at: "campaign", err: r.data }); return; }
+        camp = r.data;
+      }
+      const ref = await call("GET", "/ncc/adgroups/" + refgid);
+      if (!ref.ok) { res.status(200).json({ ok: false, at: "ref", err: ref.data }); return; }
+      const gl = await call("GET", "/ncc/adgroups", "nccCampaignId=" + encodeURIComponent(camp.nccCampaignId));
+      let grp = (Array.isArray(gl.data) ? gl.data : []).find(g => g.name === gname);
+      if (!grp) {
+        const g = await call("POST", "/ncc/adgroups", null, {
+          nccCampaignId: camp.nccCampaignId, name: gname,
+          adgroupType: ref.data.adgroupType || "WEB_SITE",
+          pcChannelId: ref.data.pcChannelId, mobileChannelId: ref.data.mobileChannelId,
+          bidAmt: Number(req.query.bid || 1000), useDailyBudget: false,
+        });
+        if (!g.ok) { res.status(200).json({ ok: false, at: "group", cid: camp.nccCampaignId, err: g.data }); return; }
+        grp = g.data;
+      }
+      res.status(200).json({ ok: true, cid: camp.nccCampaignId, gid: grp.nccAdgroupId });
+      return;
+    }
+
     if (step === "grpnew") {
       const { cid, name, refgid } = req.query;
       const bid = Number(req.query.bid || 1000);

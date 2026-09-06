@@ -118,6 +118,14 @@ function dupSummary(dups) {
 //   신규(미처리) / 통화함 / 스팸(+사유) / 전환됨 → 연결 작업의 상태·예정일까지.
 //   작업 연결: Mig 152 의 inquiries.task_id → 이미 로드된 apiTasks 에서 대조 (서버 호출 없음).
 // ===========================================================
+// 2026-09-06 — 유입경로 배지 공통 (leak_landing=누수광고, grave_landing/*=벌초·산소)
+function sourceBadge(src) {
+  const v = String(src || "");
+  if (v === "leak_landing") return { label: "누수광고", color: "#7C3AED", bg: "#F3E8FF" };
+  if (v.startsWith("grave_landing")) return { label: "벌초·산소", color: "#15803D", bg: "#DCFCE7" };
+  return null;
+}
+
 function _kstYmd(iso) {
   if (!iso) return "";
   return new Date(new Date(iso).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
@@ -173,10 +181,10 @@ function TodayStatusCard({ row, apiTasks = [] }) {
         }}>{serviceLabel(row.service_type)}</span>
         <span style={{
           fontSize: 10, fontWeight: 800, flexShrink: 0, whiteSpace: "nowrap",
-          color: row.source === "leak_landing" ? "#7C3AED" : "#4A5A70",
-          background: row.source === "leak_landing" ? "#F3E8FF" : "#F2F5F9",
+          color: (sourceBadge(row.source) || { color: "#4A5A70" }).color,
+          background: (sourceBadge(row.source) || { bg: "#F2F5F9" }).bg,
           padding: "1px 7px", borderRadius: 999,
-        }}>{row.source === "leak_landing" ? "누수광고" : "홈페이지"}</span>
+        }}>{(sourceBadge(row.source) || { label: "홈페이지" }).label}</span>
         <span style={{
           marginLeft: "auto", flexShrink: 0, fontSize: 10.5, fontWeight: 800,
           color: stage.color, background: stage.bg, padding: "2px 9px", borderRadius: 999,
@@ -645,12 +653,12 @@ function MiniCardRow({ row, busy, apiTasks = [], onCall, onSpam, onDelete, onCon
               background: "#EAF2FB", padding: "2px 8px", borderRadius: 999,
               whiteSpace: "nowrap", flexShrink: 0,
             }}>{serviceLabel(row.service_type)}</span>
-            {row.source === "leak_landing" && (
+            {sourceBadge(row.source) && (
               <span style={{
-                fontSize: 10.5, fontWeight: 800, color: "#7C3AED",
-                background: "#F3E8FF", padding: "2px 8px", borderRadius: 999,
+                fontSize: 10.5, fontWeight: 800, color: sourceBadge(row.source).color,
+                background: sourceBadge(row.source).bg, padding: "2px 8px", borderRadius: 999,
                 whiteSpace: "nowrap", flexShrink: 0,
-              }}>누수광고</span>
+              }}>{sourceBadge(row.source).label}</span>
             )}
             {el.label && (
               <span style={{
@@ -888,12 +896,12 @@ function PcListRow({ row, selected, apiTasks = [], onClick }) {
           background: selected ? "#fff" : "#EAF2FB", padding: "1px 7px", borderRadius: 999,
           whiteSpace: "nowrap", flexShrink: 0,
         }}>{serviceLabel(row.service_type)}</span>
-        {row.source === "leak_landing" && (
+        {sourceBadge(row.source) && (
           <span style={{
-            fontSize: 10, fontWeight: 800, color: "#7C3AED",
-            background: selected ? "#fff" : "#F3E8FF", padding: "1px 7px", borderRadius: 999,
+            fontSize: 10, fontWeight: 800, color: sourceBadge(row.source).color,
+            background: selected ? "#fff" : sourceBadge(row.source).bg, padding: "1px 7px", borderRadius: 999,
             whiteSpace: "nowrap", flexShrink: 0,
-          }}>누수광고</span>
+          }}>{sourceBadge(row.source).label}</span>
         )}
         {row.status === "contacted" && (
           <span style={{
@@ -962,7 +970,7 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
     //   NewReceptionPcForm 은 init.workType / init.applianceUndecided 를 이미 받는다.
     workType: SERVICE_WORKTYPE[row.service_type] || "",
     applianceUndecided: true,
-    memo: `[${row.source === "leak_landing" ? "누수광고 랜딩" : "홈페이지"} 접수${at ? " " + at : ""}] 희망 서비스: ${serviceLabel(row.service_type)}`,
+    memo: `[${sourceBadge(row.source) ? sourceBadge(row.source).label + " 랜딩" : "홈페이지"} 접수${at ? " " + at : ""}] 희망 서비스: ${serviceLabel(row.service_type)}`,
   };
   const isNew  = row.status === "new";
   const isSpam = row.status === "spam";
