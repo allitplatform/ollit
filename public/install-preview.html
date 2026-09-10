@@ -256,6 +256,10 @@ select:focus,input:focus,textarea:focus{outline:none;border-color:var(--brand-ct
 .agree input{width:17px;height:17px;accent-color:var(--brand-cta);margin-top:2px;flex-shrink:0}
 .agree label{font-size:12.5px;color:#7B8B9E;line-height:1.75;font-weight:500}
 .req{color:#DC2626}
+.err-msg{background:#FEF2F2;border:1.5px solid #FCA5A5;color:#B91C1C;border-radius:12px;padding:14px;font-size:14px;font-weight:700;line-height:1.6;text-align:center;margin-top:12px}
+.ok-msg{background:#EFF6FF;border:1.5px solid #93C5FD;color:#1E3A8A;border-radius:14px;padding:20px;font-size:15.5px;font-weight:800;line-height:1.7;text-align:center}
+.ok-msg small{display:block;margin-top:8px;font-size:13px;font-weight:600;color:#3B5B92}
+.ok-msg a{color:#1D4ED8;font-weight:800;text-decoration:underline}
 
 footer{background:#080D14;color:#7F8FA3;padding:52px 0;font-size:13px;line-height:2}
 footer a{color:#9BB4CC}
@@ -563,54 +567,35 @@ header.sm .lg{height:28px}
     <div class="hero-form-wrap" id="form">
       <div class="fh-hd"><b>접수하기</b><span class="live">1분이면 끝납니다</span></div>
       <div class="fcard hero-form">
-        <div class="fld"><label>어떤 서비스인가요 <span class="req">*</span></label>
-          <select id="fSvc" onchange="svcChange()">
-            <option value="install">이전설치 (철거 + 재설치)</option>
-            <option value="install_new">신규설치</option>
-            <option value="remove">철거만</option>
-            <option value="refri">냉매충전</option>
-            <option value="wash">분해세척</option>
-            <option value="leak">냉매 누설 — 시원하지 않아요</option>
-            <option value="water">물 누수 — 물이 떨어져요</option>
+        <form class="frm-live" onsubmit="return realSubmit(this)">
+        <div class="fld"><label>어떤 작업인가요 <span class="req">*</span></label>
+          <select id="fSvc" name="sy">
+            <option value="install">에어컨 이전설치 (이사)</option>
+            <option value="install">신규 설치</option>
+            <option value="install">철거만</option>
+            <option value="refrigerant">냉매충전</option>
+            <option value="cleaning">분해세척</option>
+            <option value="leak">안 시원해요 (냉매 누설)</option>
+            <option value="water_leak">물이 떨어져요 (누수)</option>
             <option value="unknown">잘 모르겠어요 — 방문 진단</option>
           </select>
         </div>
         <div class="f2">
-          <div class="fld"><label>기종</label>
-            <select id="fType"><option>벽걸이</option><option>스탠드</option><option>투인원</option><option>천장형 1WAY</option><option>천장형 4WAY</option><option>상업용</option><option>모르겠어요</option></select>
-          </div>
-          <div class="fld"><label>대수</label>
-            <select id="fQty"><option>1대</option><option>2대</option><option>3대</option><option>4대 이상</option></select>
-          </div>
+          <div class="fld"><label>이름 <span class="req">*</span></label><input type="text" name="nm" placeholder="홍길동" required></div>
+          <div class="fld"><label>연락처 <span class="req">*</span></label><input type="tel" name="ph" placeholder="010-0000-0000" required></div>
         </div>
-        <div class="f2">
-          <div class="fld"><label>이름 <span class="req">*</span></label><input type="text" placeholder="홍길동"></div>
-          <div class="fld"><label>연락처 <span class="req">*</span></label><input type="tel" placeholder="010-0000-0000"></div>
+        <div class="fld"><label>주소 <span class="req">*</span></label>
+          <input type="text" name="ad" placeholder="예: 서울 마포구 서교동" required>
+          <small class="h">동까지만 적어주셔도 됩니다. 나머지는 통화로 여쭙겠습니다.</small>
         </div>
-        <div class="fld"><label id="addr1Lbl">현재 주소 (철거할 곳) <span class="req">*</span></label>
-          <input type="text" placeholder="예: 서울 마포구 서교동 ○○아파트">
-          <small class="h">시 / 구 까지 꼭 넣어주세요. 배차가 빨라집니다.</small>
-        </div>
-        <div id="installOnly">
-          <div class="fld"><label>이사 갈 주소 (설치할 곳)</label><input type="text" placeholder="예: 서울 은평구 응암동 ○○아파트"></div>
-          <div class="f2">
-            <div class="fld"><label>희망 날짜</label><input type="text" placeholder="예: 9월 12일 오전"></div>
-            <div class="fld"><label>실외기 위치</label>
-              <select><option>베란다 안 (안전)</option><option>외벽 · 난간 (위험)</option><option>옥상 · 지상</option><option>모르겠어요</option></select>
-            </div>
-          </div>
-          <div class="fld">
-            <label>실외기 사진 <span style="font-size:11px;font-weight:800;color:#7B8B9E;margin-left:2px">선택</span></label>
-            <div class="photo"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg></span><span><b>지금 올리기</b><p>실외기 자리 1장이면 충분합니다</p></span><span class="arw">›</span></div>
-            <div class="smsnote"><i>↳</i><span><b style="color:#0E1620">지금 안 올리셔도 됩니다.</b> 접수하시면 바로 문자를 보내드립니다. 답장으로 사진만 주시면 방문 전에 예상 범위를 좁혀 안내드립니다. <b style="color:#0E1620">최종 금액은 현장에서 시공 전에 확정합니다.</b></span></div>
-          </div>
-        </div>
-        <div class="fld"><label>남기실 말씀</label><textarea rows="3" id="fMemo" placeholder="궁금한 점을 편하게 적어주세요"></textarea></div>
         <div class="fld"><div class="agree">
-          <input type="checkbox" id="ag">
-          <label for="ag"><b style="color:#0E1620;font-weight:800">[필수]</b> 개인정보 수집·이용에 동의합니다. 수집 항목(이름·연락처·주소·사진)은 출장 접수 목적으로만 사용되며, 관련 법령에 따라 일정 기간 보관 후 파기됩니다. <a href="/privacy" style="color:#2F6AD1;font-weight:800">처리방침 보기</a></label>
+          <input type="checkbox" id="ag" name="cs" required>
+          <label for="ag"><b style="color:#0E1620;font-weight:800">[필수]</b> 개인정보 수집·이용에 동의합니다. 수집 항목(이름·연락처·주소)은 출장 접수 목적으로만 사용되며, 관련 법령에 따라 일정 기간 보관 후 파기됩니다. <a href="/privacy" style="color:#2F6AD1;font-weight:800">처리방침 보기</a></label>
         </div></div>
-        <button class="btn">접수하기<i>→</i></button>
+        <button class="btn" type="submit" id="subBtn">접수하기<i>→</i></button>
+        <div class="err-msg" style="display:none"></div>
+        <div class="ok-msg" style="display:none">✓ 접수되었습니다. 순서대로 연락드리겠습니다.<br><small>기종 · 대수 · 희망 날짜는 <b>문자로 여쭙겠습니다.</b> 급하시면 지금 바로 <a href="tel:18662003">1866-2003</a></small></div>
+        </form>
         <a href="#price" class="toquote">가격이 궁금하세요? <b>가격표 보기</b> ↓</a>
         <p style="text-align:center;font-size:13px;color:#9BA9B9;margin-top:14px;font-weight:600">전화 접수 <a href="tel:18662003" style="color:#2F6AD1;font-weight:800">1866-2003</a></p>
       </div>
@@ -806,19 +791,62 @@ const TICK=['❄ 누적 작업 <b>5,000건+</b>','수도권 전지역 당일 출
 document.getElementById('tick').innerHTML=[...TICK,...TICK].map(t=>`<span>${t}</span>`).join('');
 function goForm(from){
   const s=document.getElementById('fSvc');
-  if(from==='refri')s.value='refri';
-  else if(from==='wash')s.value='wash';
+  if(from==='refri')s.value='refrigerant';
+  else if(from==='wash')s.value='cleaning';
   else s.value='install';
-  svcChange();
   document.getElementById('form').scrollIntoView({behavior:'smooth'});
 }
-function svcChange(){
-  const v=document.getElementById('fSvc').value;
-  const ins=['install','install_new','remove'].includes(v);
-  document.getElementById('installOnly').classList.toggle('hide',!ins);
-  document.getElementById('addr1Lbl').innerHTML=(v==='install'?'현재 주소 (철거할 곳)':'주소')+' <span class="req">*</span>';
+
+/* 접수 전송 — leak.html / care.html 과 동일한 create_inquiry 경로.
+   허용 service_type 7종: refrigerant cleaning repair install unknown leak water_leak
+   (db/migrations/197_inquiry_service_split.sql) */
+const SB_URL = "https://jtxmzgqykmjyzzsnjqio.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eG16Z3F5a21qeXp6c25qcWlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjQ2MDYsImV4cCI6MjA5MzEwMDYwNn0.v07Gsm2vUx0Gs6r5EqMZvzOVHt2btIipt5a6tnsGFS4";
+async function realSubmit(f){
+  const btn=f.querySelector('#subBtn'), err=f.querySelector('.err-msg');
+  if(btn.disabled) return false;
+  err.style.display='none';
+  btn.disabled=true; btn.textContent='접수 중...';
+  try{
+    const payload={
+      p_service_type:   f.sy.value,
+      p_name:           f.nm.value.trim(),
+      p_phone:          f.ph.value.trim(),
+      p_address:        f.ad.value.trim(),
+      p_agreed_privacy: f.cs.checked === true
+    };
+    const hdrs={"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json"};
+    let res=await fetch(SB_URL+"/rest/v1/rpc/create_inquiry_v2",{
+      method:"POST",headers:hdrs,
+      body:JSON.stringify(Object.assign({p_source:"install_landing"},payload))});
+    if(res.status===404){
+      res=await fetch(SB_URL+"/rest/v1/rpc/create_inquiry",{
+        method:"POST",headers:hdrs,body:JSON.stringify(payload)});
+    }
+    if(!res.ok){
+      let msg='접수에 실패했습니다. 잠시 후 다시 시도하시거나 1866-2003으로 전화 주세요.';
+      try{
+        const j=await res.json(); const m=String(j.message||'');
+        if(m.includes('invalid_name'))            msg='이름을 확인해 주세요.';
+        else if(m.includes('invalid_phone'))      msg='연락처를 정확히 입력해 주세요. (숫자 9~11자리)';
+        else if(m.includes('invalid_address'))    msg='주소(지역)를 입력해 주세요.';
+        else if(m.includes('invalid_service_type'))msg='어떤 작업인지 선택해 주세요.';
+        else if(m.includes('privacy'))            msg='개인정보 수집·이용에 동의해 주세요.';
+      }catch(e){}
+      err.textContent=msg; err.style.display='block';
+      btn.disabled=false; btn.innerHTML='접수하기<i>→</i>';
+      return false;
+    }
+    f.querySelectorAll('.fld,button').forEach(e=>e.style.display='none');
+    f.querySelector('.ok-msg').style.display='block';
+    try{ if(window.gtag) gtag('event','generate_lead',{service_type:f.sy.value}); }catch(e){}
+  }catch(e){
+    err.textContent='네트워크 오류입니다. 1866-2003으로 전화 주시면 바로 접수해 드립니다.';
+    err.style.display='block';
+    btn.disabled=false; btn.innerHTML='접수하기<i>→</i>';
+  }
+  return false;
 }
-svcChange();
 (function(){
   const c=document.getElementById('cmp'),b=document.getElementById('befLay'),h=document.getElementById('hnd');
   let drag=false;
