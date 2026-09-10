@@ -174,12 +174,15 @@ select:focus,input:focus,textarea:focus{outline:none;border-color:var(--brand-ct
 .pgh{display:flex;align-items:baseline;gap:12px;padding-bottom:14px;border-bottom:2px solid var(--ink);margin-bottom:4px;flex-wrap:wrap}
 .pgh b{font-size:clamp(18px,2.4vw,26px);font-weight:900;letter-spacing:-1.1px}
 .pgh span{font-size:13px;font-weight:700;color:#9BA9B9;margin-left:auto}
-.pgh .hot{font-size:11.5px;font-weight:900;color:#fff;background:var(--pt);padding:4px 10px;border-radius:5px}
+.pgh .hot{font-size:11.5px;font-weight:900;color:#fff;background:var(--pt);padding:4px 10px;border-radius:5px;margin-left:0;flex:0 0 auto}
 .pl{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 2px;border-bottom:1px solid #EDF2F7}
 .pl .l b{font-size:17px;font-weight:800;display:block;letter-spacing:-.6px}
 .pl .l span{font-size:13px;color:#9BA9B9;font-weight:600}
 .pl .r{font-size:clamp(21px,2.8vw,28px);font-weight:900;color:var(--ink);letter-spacing:-1.2px;white-space:nowrap}
 .pgroup.lead .pl .r{color:var(--pt)}
+.pgroup.lead .pl .r{display:flex;flex-direction:column;align-items:flex-end;gap:4px;line-height:1.08}
+.pgroup.lead .pl .r .was{font-size:14.5px;font-weight:700;color:#A9B5C3;text-decoration:line-through;letter-spacing:-.4px}
+.pgroup.lead .pl .r .nowln{display:flex;align-items:center;gap:9px}
 .pl .r small{font-size:14px;font-weight:800;color:#5A6878;letter-spacing:0}
 .pl.sm .r{font-size:19px;color:#3A4E62}
 .pcols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:clamp(24px,4vw,52px)}
@@ -473,11 +476,13 @@ header.sm .lg{height:28px}
   .pgh{padding-bottom:11px;gap:8px}
   .pgh b{font-size:21px}
   .pgh span{font-size:11.5px;margin-left:0;flex-basis:100%}
+  .pgh .hot{flex-basis:auto}
   .pl{flex-direction:row;align-items:center;padding:15px 2px;gap:10px}
   .pl .l b{font-size:16px}
   .pl .l span{font-size:12.5px;line-height:1.5;display:block;margin-top:3px}
   .pl .r{font-size:20px;letter-spacing:-.9px}
-  .pl .r small{font-size:12px}
+  .pgroup.lead .pl .r .was{font-size:13px}
+    .pl .r small{font-size:12px}
   .pl:hover{padding-left:2px}
   .pcols{gap:36px}
   .pgroup{margin-bottom:38px}
@@ -684,19 +689,20 @@ header.sm .lg{height:28px}
 
     <div style="margin-top:56px">
       <div class="pgroup lead">
-        <div class="pgh"><span class="hot">주력</span><b>이전설치</b><span>설치비 · 1대 기준</span></div>
-        <div class="pl"><div class="l"><b>벽걸이</b></div><div class="r">15만원</div></div>
-        <div class="pl"><div class="l"><b>스탠드</b></div><div class="r">18만원</div></div>
-        <div class="pl"><div class="l"><b>투인원</b></div><div class="r">30만원</div></div>
+        <div class="pgh"><span class="hot">주력</span><b>이전설치</b><span>1대 기준</span></div>
+        <div class="pl"><div class="l"><b>벽걸이 에어컨 기본 설치비</b></div><div class="r"><span class="was">26만원</span><span class="nowln">15만원</span></div></div>
+        <div class="pl"><div class="l"><b>스탠드 에어컨 기본 설치비</b></div><div class="r"><span class="was">31만원</span><span class="nowln">18만원</span></div></div>
+        <div class="pl"><div class="l"><b>투인원 에어컨 기본 설치비</b></div><div class="r"><span class="was">36만원</span><span class="nowln">30만원</span></div></div>
       </div>
       <div class="pgroup">
         <div class="pgh"><b>추가금</b><span>기본 포함분을 넘을 때만</span></div>
         <div class="pl sm"><div class="l"><b>배관 추가</b><span>기본 5m 초과분 · 벽걸이 · 스탠드 동일</span></div><div class="r"><small>m당 </small>16,000원</div></div>
         <div class="pl sm"><div class="l"><b>전선 추가</b><span>기본 5m 초과분</span></div><div class="r"><small>m당 </small>5,000원</div></div>
-        <div class="pl sm"><div class="l"><b>타공</b><span>기본 1개 포함 · 벽 재질과 두께에 따라</span></div><div class="r"><small>1구당 </small>10,000~30,000원</div></div>
+        <div class="pl sm"><div class="l"><b>타공</b><span>기본 1개 포함 · 벽 재질에 따라</span></div><div class="r"><small>1구당 </small>10,000~30,000원</div></div>
       </div>
       <div class="pnote">
         <div class="r"><i>✓</i><p>모든 금액은 <b>부가세 별도 · 1대 기준</b>입니다</p></div>
+        <div class="r"><i>✓</i><p>취소선 금액은 <b>2026년 8월 홈페이지 게재가</b>입니다</p></div>
         <div class="r"><i>✓</i><p>기본 시공에 <b>배관 5m · 타공 1개 · 진공작업</b>이 포함됩니다</p></div>
         <div class="r"><i>✓</i><p><b>철거 · 운반비는 별도</b>입니다. 실외기 위치와 이사 거리에 따라 달라져 <b>현장에서 확인 후 알려드립니다</b></p></div>
         <div class="r hi"><i>✓</i><p>이전설치와 분해세척을 함께 하시면 <b>세척비 10% 할인</b></p></div>
