@@ -69,3 +69,20 @@ gcal_token.json
 data/gcal-index.json
 
 .vercel
+
+hero_photos/
+hero_photos_refrig/
+hero_selected/
+_to_delete/
+_to_delete_tmp_stage_/
+Claude outputs/
+data/
+블로그사진참고/
+추가사진/
+**/_to_delete/
+.stg_*
+_stg*
+*.before-*
+*.mp4
+*.jpg
+*.jpeg
