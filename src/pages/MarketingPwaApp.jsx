@@ -524,8 +524,7 @@ function ClientSummary({ t, adv, data, view, since, until }) {
     lines.push(`${per} 아직 집계된 클릭이 없습니다. 네이버 집계는 실제보다 1~2시간 늦게 반영됩니다.`);
   }
   if (view.isToday && view.yRow) {
-    const diff = view.sum.clicks - view.yRow.clicks;
-    lines.push(`어제는 광고비 ${won(Math.round(view.yRow.cost * 1.1))}원에 ${won(view.yRow.clicks)}클릭이었습니다${view.sum.clicks > 0 ? ` (오늘은 현재까지 ${diff >= 0 ? "+" : ""}${diff}클릭)` : ""}.`);
+    lines.push(`어제 하루는 광고비 ${won(Math.round(view.yRow.cost * 1.1))}원에 ${won(view.yRow.clicks)}클릭${view.yRow.rank ? `, 평균 ${view.yRow.rank.toFixed(1)}위` : ""}였습니다.`);
   }
   if (view.leadTotal > 0 && view.per != null) {
     lines.push(`접수 ${won(view.leadTotal)}건 기준으로 접수 1건을 받는 데 광고비 ${won(view.per)}원이 들었습니다${adv.cpa_limit ? ` — 기준 ${won(adv.cpa_limit)}원 대비 ${view.per <= (adv.cpa_good || 0) ? "매우 효율적" : view.per <= adv.cpa_limit ? "적정 범위" : "초과, 조정 중"}입니다` : ""}.`);
@@ -562,14 +561,24 @@ function CareCard({ t, isPc, data, view }) {
     <Card t={t} title="실시간 관리 현황" sub="올잇 마케팅이 이 계정을 자동·수동으로 관리하고 있는 기록입니다">
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12.5, fontWeight: 800 }}>
         <span style={{ width: 9, height: 9, borderRadius: 999, background: live ? t.success : t.textMuted, boxShadow: live ? `0 0 0 4px ${t.success}33` : "none" }}/>
-        {c.last_check ? `마지막 점검 ${fmtAgo(c.last_check)}` : "점검 준비 중"}
+        {c.last_check ? `마지막 점검 ${fmtAgo(c.last_check)}` : "오늘 첫 자동 점검 대기 중"}
         <span style={{ marginLeft: "auto", fontSize: 11, color: t.textMuted, fontWeight: 700 }}>30분 간격 자동 점검</span>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 4 : 2}, minmax(0, 1fr))`, gap: 8 }}>
-        <MiniStat t={t} label="오늘 점검" value={won(c.checks_today || 0)} suffix="회" accent/>
-        <MiniStat t={t} label="오늘 입찰 조정" value={c.checks_today && !c.adjusted_today ? "불필요" : won(c.adjusted_today || 0)} suffix={c.checks_today && !c.adjusted_today ? "" : "건"}/>
-        <MiniStat t={t} label="감시 키워드" value={won(c.watched || 0)} suffix="개"/>
-        <MiniStat t={t} label="이번 주 운영 작업" value={won(c.ops_week || 0)} suffix="건"/>
+        {c.checks_today ? (
+          <>
+            <MiniStat t={t} label="오늘 점검" value={won(c.checks_today)} suffix="회" accent/>
+            <MiniStat t={t} label="오늘 입찰 조정" value={c.adjusted_today ? won(c.adjusted_today) : "불필요"} suffix={c.adjusted_today ? "건" : ""}/>
+            <MiniStat t={t} label="감시 키워드" value={won(c.watched || 0)} suffix="개"/>
+          </>
+        ) : (
+          <>
+            <MiniStat t={t} label="오늘 점검" value="대기" accent/>
+            <MiniStat t={t} label="오늘 입찰 조정" value="대기"/>
+            <MiniStat t={t} label="자동 점검 그룹" value={won(data.autobid?.groups || 0)} suffix="개"/>
+          </>
+        )}
+        <MiniStat t={t} label="이번 주 운영 작업" value={c.ops_week ? won(c.ops_week) : "집계 중"} suffix={c.ops_week ? "건" : ""}/>
       </div>
       <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${t.border}`, display: "flex", flexWrap: "wrap", gap: "4px 14px", fontSize: 11, fontWeight: 700, color: t.textMuted }}>
         <span style={{ color: rankOk ? t.success : t.textMuted }}>{rankOk ? "✅ 목표 순위 유지 중" : view.rank != null ? `📍 평균 ${view.rank.toFixed(1)}위 · 조정 중` : "📍 순위 집계 대기"}</span>
