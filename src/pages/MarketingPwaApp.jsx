@@ -347,8 +347,8 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
               </span>
               <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: view.verdict.color, background: `${view.verdict.color}1F`, borderRadius: 999, padding: "4px 11px" }}>{view.verdict.label}</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 5 : 3}, minmax(0, 1fr))`, gap: 8 }}>
-              <MiniStat t={t} label={owner ? "광고비(VAT포함)" : "쓴 광고비 (부가세 포함)"} value={won(view.costVat)} suffix="원" accent/>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 5 : 2}, minmax(0, 1fr))`, gap: 8 }}>
+              <div style={{ gridColumn: isPc ? "auto" : "1 / -1" }}><MiniStat t={t} label={owner ? "광고비(VAT포함)" : "쓴 광고비 (부가세 포함)"} value={won(view.costVat)} suffix="원" accent/></div>
               <MiniStat t={t} label={owner ? "클릭" : "광고 클릭"} value={won(view.sum.clicks)} suffix={owner ? "" : "명"}/>
               <MiniStat t={t} label="접수" value={won(view.leadTotal || view.sum.conv)}/>
               <MiniStat t={t} label={owner ? "클릭당 비용" : "클릭 1회 비용"} value={won(view.cpc)} suffix="원"/>
@@ -618,7 +618,7 @@ function ReportView({ advId, user }) {
 
 // ---------- 상태 보드 (성과 카드 하단 4칸) ----------
 // 비즈머니 / 클릭 감시 / IP 차단 / 자동입찰 — 문장 대신 색 배지 + 게이지.
-function StatusTile({ t, icon, title, value, badge, color, sub, bar }) {
+function StatusTile({ t, icon, title, value, badge, color, sub, bar, wrap }) {
   return (
     <div style={{ background: t.bgInset, borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: t.textMuted, fontWeight: 700 }}>
@@ -631,7 +631,7 @@ function StatusTile({ t, icon, title, value, badge, color, sub, bar }) {
           <div style={{ width: `${Math.max(3, Math.min(100, bar))}%`, height: "100%", background: color, borderRadius: 999, transition: "width .3s" }}/>
         </div>
       )}
-      {sub && <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+      {sub && <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, lineHeight: 1.4, ...(wrap ? {} : { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }) }}>{sub}</div>}
     </div>
   );
 }
@@ -670,7 +670,7 @@ function StatusBoard({ t, isPc, data, view, owner }) {
   }
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}`, display: "grid", gridTemplateColumns: `repeat(${isPc ? 4 : 2}, minmax(0, 1fr))`, gap: 8 }}>
-      {tiles.map((x, i) => <StatusTile key={i} t={t} {...x}/>)}
+      {tiles.map((x, i) => <StatusTile key={i} t={t} wrap={!isPc} {...x}/>)}
     </div>
   );
 }
