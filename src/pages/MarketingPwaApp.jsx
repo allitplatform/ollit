@@ -23,6 +23,19 @@ const THEMES = {
     success: "#16A34A", warning: "#D97706", danger: "#DC2626",
   },
 };
+function sectionsFor(owner, showKeywords) {
+  return [
+    { id: "perf", label: "성과", icon: "📊" },
+    ...(owner ? [{ id: "autobid", label: "자동입찰", icon: "🤖" }] : []),
+    ...((owner || showKeywords) ? [{ id: "keywords", label: "키워드", icon: "🔑" }] : []),
+    { id: "log", label: owner ? "이력·공유" : "변경 이력", icon: "📝" },
+  ];
+}
+function useSection() {
+  const [section, setSection] = useState(() => { try { return localStorage.getItem("mkt_section") || "perf"; } catch { return "perf"; } });
+  const pick = useCallback((id) => { setSection(id); try { localStorage.setItem("mkt_section", id); } catch { /* */ } }, []);
+  return [section, pick];
+}
 const PERIODS = [
   { id: "today", label: "오늘" },
   { id: "week",  label: "최근 7일" },
@@ -74,6 +87,7 @@ export default function MarketingPwaApp({ user, onLogout }) {
   const [advId, setAdvId] = useState(null);
   const [editing, setEditing] = useState(null); // null | "new" | advertiser object
   const [err, setErr] = useState(null);
+  const [section, pickSection] = useSection();
 
   const reload = useCallback(async () => {
     const j = await api("list", { actor });
@@ -90,12 +104,20 @@ export default function MarketingPwaApp({ user, onLogout }) {
       {activeAdvs.map(a => {
         const on = advId === a.id;
         return (
-          <button key={a.id} onClick={() => setAdvId(a.id)} className="tab-btn" style={{
-            width: "100%", display: "flex", alignItems: "center", gap: 10, padding: isPc ? "12px 14px" : "9px 12px",
-            background: on ? t.accentBg : "transparent", border: isPc ? "none" : `1px solid ${on ? t.accent : t.border}`,
-            borderLeft: isPc ? `3px solid ${on ? t.accent : "transparent"}` : undefined, borderRadius: 8,
-            color: on ? t.accent : t.textSecondary, fontSize: 13.5, fontWeight: on ? 800 : 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left", whiteSpace: "nowrap",
-          }}>{a.name}</button>
+          <div key={a.id} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <button onClick={() => { setAdvId(a.id); setEditing(null); }} className="tab-btn" style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 10, padding: isPc ? "12px 14px" : "9px 12px",
+              background: on ? t.accentBg : "transparent", border: isPc ? "none" : `1px solid ${on ? t.accent : t.border}`,
+              borderLeft: isPc ? `3px solid ${on ? t.accent : "transparent"}` : undefined, borderRadius: 8,
+              color: on ? t.accent : t.textSecondary, fontSize: 13.5, fontWeight: on ? 800 : 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left", whiteSpace: "nowrap",
+            }}>{a.name}</button>
+            {isPc && on && !editing && sectionsFor(true, a.show_keywords).map(sc => { const sel = section === sc.id; return (
+              <button key={sc.id} onClick={() => pickSection(sc.id)} className="tab-btn" style={{
+                width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 14px 8px 30px", background: sel ? t.bgInset : "transparent", border: "none", borderRadius: 8,
+                color: sel ? t.text : t.textMuted, fontSize: 12.5, fontWeight: sel ? 800 : 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left",
+              }}><span style={{ fontSize: 12 }}>{sc.icon}</span>{sc.label}</button>
+            ); })}
+          </div>
         );
       })}
       <button onClick={() => setEditing("new")} className="tab-btn" style={{ display: "flex", alignItems: "center", gap: 6, padding: isPc ? "11px 14px" : "9px 12px", background: "transparent", border: `1px dashed ${t.borderStrong}`, borderRadius: 8, color: t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
@@ -112,7 +134,7 @@ export default function MarketingPwaApp({ user, onLogout }) {
           onClose={() => setEditing(null)} onSaved={async (saved) => { setEditing(null); await reload(); if (saved?.id) setAdvId(saved.id); }}/>
       )}
       {!editing && adv && (
-        <AdPanel key={adv.id} t={t} isPc={isPc} adv={adv} actor={actor} actorName={user?.name} owner onEdit={() => setEditing(adv)}/>
+        <AdPanel key={adv.id} t={t} isPc={isPc} adv={adv} actor={actor} actorName={user?.name} owner section={section} onSection={pickSection} sideNav={isPc} onEdit={() => setEditing(adv)}/>
       )}
       {!editing && !adv && advs && (
         <Card t={t} title="광고주가 없습니다" sub="왼쪽 '광고주 추가'에서 네이버 검색광고 API 키를 등록하세요">
@@ -202,17 +224,13 @@ export function ClientAdView({ token }) {
 }
 
 // ===================== 성과 패널 (운영자·광고주 공용) =====================
-function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
+function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section: sectionProp, onSection, sideNav }) {
   const [period, setPeriod] = useState("today");
-  const [section, setSection] = useState(() => { try { return localStorage.getItem("mkt_section") || "perf"; } catch { return "perf"; } });
-  const pickSection = (id) => { setSection(id); try { localStorage.setItem("mkt_section", id); } catch { /* */ } };
-  const sections = useMemo(() => [
-    { id: "perf", label: "📊 성과" },
-    ...(owner ? [{ id: "autobid", label: "🤖 자동입찰" }] : []),
-    ...((owner || adv.show_keywords) ? [{ id: "keywords", label: "🔑 키워드" }] : []),
-    { id: "log", label: owner ? "📝 이력·공유" : "📝 변경 이력" },
-  ], [owner, adv.show_keywords]);
-  useEffect(() => { if (!sections.some(x => x.id === section)) setSection("perf"); }, [sections, section]);
+  const [localSection, pickLocal] = useSection();
+  const section = sectionProp ?? localSection;
+  const pickSection = onSection || pickLocal;
+  const sections = useMemo(() => sectionsFor(owner, adv.show_keywords), [owner, adv.show_keywords]);
+  useEffect(() => { if (!sections.some(x => x.id === section)) pickSection("perf"); }, [sections, section, pickSection]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
@@ -286,11 +304,13 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
       <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: -6 }}>
         {period === "today" ? `${until} (오늘)` : `${since} ~ ${until}`} · KST · 5분마다 갱신{loading ? " · 조회 중…" : ""}
       </div>
-      <div style={{ display: "flex", gap: 4, padding: 4, background: t.bgInset, borderRadius: 12, overflowX: "auto" }}>
-        {sections.map(sc => { const on = section === sc.id; return (
-          <button key={sc.id} type="button" onClick={() => pickSection(sc.id)} className="tab-btn" style={{ flex: 1, minWidth: 80, padding: "9px 6px", background: on ? t.bgElevated : "transparent", border: "none", boxShadow: on ? "0 1px 4px rgba(0,0,0,.18)" : "none", borderRadius: 9, color: on ? t.text : t.textMuted, fontSize: 12.5, fontWeight: on ? 800 : 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{sc.label}</button>
-        ); })}
-      </div>
+      {!sideNav && (
+        <div style={{ display: "flex", gap: 4, padding: 4, background: t.bgInset, borderRadius: 12, overflowX: "auto" }}>
+          {sections.map(sc => { const on = section === sc.id; return (
+            <button key={sc.id} type="button" onClick={() => pickSection(sc.id)} className="tab-btn" style={{ flex: 1, minWidth: 80, padding: "9px 6px", background: on ? t.bgElevated : "transparent", border: "none", boxShadow: on ? "0 1px 4px rgba(0,0,0,.18)" : "none", borderRadius: 9, color: on ? t.text : t.textMuted, fontSize: 12.5, fontWeight: on ? 800 : 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{sc.icon} {sc.label}</button>
+          ); })}
+        </div>
+      )}
 
       {!view ? (
         <Card t={t} title={`${adv.name} 광고 성과`}><div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>{loading ? "네이버에서 불러오는 중…" : "연결 실패 — 잠시 후 새로고침"}</div></Card>
