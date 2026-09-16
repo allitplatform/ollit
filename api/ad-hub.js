@@ -12,6 +12,9 @@
 //   POST ?mode=log      body {actor, id, action, detail, actor_name, visible_to_client}
 //   GET  ?mode=logs&actor=&id=
 //   GET  ?mode=refresh  (Authorization: Bearer CRON_SECRET 또는 actor) — 전 광고주 어제·오늘 캐시 갱신
+//   GET  ?mode=keywords&actor=&id=&since=&until=[&fresh=1]   키워드 성과(캐시 10분) + 모바일 1위 예상가(상위 40)
+//   POST ?mode=setbid   body {actor, id, keywordId, adgroupId, bid, keyword?, prevBid?, actor_name}  — 입찰 변경 + 이력 자동 기록
+//   POST ?mode=lockkw   body {actor, id, keywordId, adgroupId, lock:true|false, keyword?}
 // 광고주(열람 링크 토큰):
 //   GET  ?mode=client&token=&since=&until=
 //   POST ?mode=client_leads body {token, ymd, leads, note}
@@ -146,6 +149,59 @@ async function cacheDays(adv, live) {
   if (rows.length) await supabase.from("ad_daily_stats").upsert(rows, { onConflict: "advertiser_id,ymd,campaign_id" });
 }
 
+// ---------- 키워드 ----------
+async function mapLimit(items, limit, fn) {
+  const out = new Array(items.length); let i = 0;
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; out[idx] = await fn(items[idx], idx); }
+  }));
+  return out;
+}
+function chunk(arr, n) { const r = []; for (let i = 0; i < arr.length; i += n) r.push(arr.slice(i, i + n)); return r; }
+
+async function fetchKeywords(adv, since, until) {
+  const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
+  const all = await nv.get("/ncc/campaigns");
+  const filt = adv.campaign_filter ? String(adv.campaign_filter).trim() : "";
+  const camps = (Array.isArray(all) ? all : []).filter(c => !c.delFlag && (!filt || String(c.name || "").includes(filt)));
+  const groups = [];
+  for (const c of camps) {
+    const gs = await nv.get("/ncc/adgroups", `nccCampaignId=${encodeURIComponent(c.nccCampaignId)}`);
+    for (const g of (Array.isArray(gs) ? gs : [])) if (!g.delFlag) groups.push({ id: g.nccAdgroupId, name: g.name, campaign: c.name, bid: g.bidAmt, lock: g.userLock, status: g.status });
+  }
+  const kwLists = await mapLimit(groups, 4, g => nv.get("/ncc/keywords", `nccAdgroupId=${encodeURIComponent(g.id)}`).catch(() => []));
+  const kws = [];
+  groups.forEach((g, i) => { for (const k of (Array.isArray(kwLists[i]) ? kwLists[i] : [])) if (!k.delFlag) kws.push({ id: k.nccKeywordId, keyword: k.keyword, groupId: g.id, group: g.name, bid: k.useGroupBidAmt ? g.bid : k.bidAmt, useGroupBid: !!k.useGroupBidAmt, lock: !!k.userLock, status: k.status, qi: k.nccQi?.qiGrade ?? null }); });
+  const byId = Object.fromEntries(kws.map(k => [k.id, k]));
+  const chunks = chunk(kws.map(k => k.id), 20);
+  const statRows = await mapLimit(chunks, 8, ids => statsFor(nv, ids, since, until).catch(() => []));
+  for (const rows of statRows) for (const r of rows) { const k = byId[r.id]; if (k) Object.assign(k, row(r)); }
+  for (const k of kws) { if (k.impressions == null) Object.assign(k, row({})); k.ctr = k.impressions ? Number((k.clicks / k.impressions * 100).toFixed(2)) : 0; k.cpc = k.clicks ? Math.round(k.cost / k.clicks) : 0; }
+  kws.sort((a, b) => (b.cost - a.cost) || (b.impressions - a.impressions));
+  // 상위 40개 모바일 1위 예상가
+  const top = kws.filter(k => k.impressions > 0).slice(0, 40);
+  if (top.length) {
+    try {
+      const est = await nv.post("/estimate/average-position-bid/keyword", { device: "MOBILE", items: top.map(k => ({ key: k.keyword, position: 1 })) });
+      const m = {}; for (const e of (est?.estimate || [])) m[e.keyword] = e.bid;
+      for (const k of top) if (m[k.keyword] != null) k.top1Bid = m[k.keyword];
+    } catch (e) { console.error("[ad-hub] estimate", e?.message); }
+  }
+  return { groups, keywords: kws, total: kws.length, exposed: kws.filter(k => k.impressions > 0).length };
+}
+
+async function keywordsCached(adv, since, until, fresh) {
+  const key = `${since}_${until}`;
+  if (!fresh) {
+    const { data } = await supabase.from("ad_keyword_cache").select("payload,fetched_at").eq("advertiser_id", adv.id).eq("range_key", key).maybeSingle();
+    if (data && Date.now() - new Date(data.fetched_at).getTime() < 10 * 60 * 1000) return { ...data.payload, cached: true, fetched_at: data.fetched_at };
+  }
+  const payload = await fetchKeywords(adv, since, until);
+  const slim = { ...payload, keywords: payload.keywords.slice(0, 300) };
+  await supabase.from("ad_keyword_cache").upsert({ advertiser_id: adv.id, range_key: key, payload: slim, fetched_at: new Date().toISOString() }, { onConflict: "advertiser_id,range_key" });
+  return { ...slim, cached: false, fetched_at: new Date().toISOString() };
+}
+
 // ---------- 공통 ----------
 function pub(a) {
   return { id: a.id, name: a.name, slug: a.slug, customer_id: a.customer_id, campaign_filter: a.campaign_filter,
@@ -191,6 +247,7 @@ function parseRange(q) {
   if (daysBetween(since, until) > 31) since = addDays(until, -31);
   return { since, until };
 }
+function won(n) { return Number(n || 0).toLocaleString("ko-KR"); }
 function num(v, d = null) { if (v === "" || v == null) return d; const n = Number(v); return Number.isFinite(n) ? Math.round(n) : d; }
 function slugify(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9가-힣]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || ("adv-" + Date.now().toString(36)); }
 
@@ -309,6 +366,33 @@ export default async function handler(req, res) {
       if (!UUID_RE.test(q.id || "")) return res.status(400).json({ ok: false, error: "id" });
       const adv = await getAdv(q.id); if (!adv) return res.status(404).json({ ok: false, error: "없음" });
       return respondStats(res, adv, q, { client: false });
+    }
+    if (mode === "keywords") {
+      if (!UUID_RE.test(q.id || "")) return res.status(400).json({ ok: false, error: "id" });
+      const adv = await getAdv(q.id); if (!adv) return res.status(404).json({ ok: false, error: "없음" });
+      const { since, until } = parseRange(q);
+      const r = await keywordsCached(adv, since, until, q.fresh === "1");
+      return res.status(200).json({ ok: true, since, until, ...r });
+    }
+    if (mode === "setbid" || mode === "lockkw") {
+      if (req.method !== "POST") return res.status(405).json({ ok: false, error: "POST" });
+      if (!UUID_RE.test(body.id || "") || !body.keywordId || !body.adgroupId) return res.status(400).json({ ok: false, error: "id/keywordId/adgroupId" });
+      const adv = await getAdv(body.id); if (!adv) return res.status(404).json({ ok: false, error: "없음" });
+      const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
+      let detail;
+      if (mode === "setbid") {
+        const bid = num(body.bid); if (!bid || bid < 70) return res.status(400).json({ ok: false, error: "입찰가는 70원 이상" });
+        await nv.put("/ncc/keywords", [{ nccKeywordId: body.keywordId, nccAdgroupId: body.adgroupId, bidAmt: bid, useGroupBidAmt: false }], "fields=bidAmt");
+        detail = `${body.keyword || body.keywordId}: ${body.prevBid ? won(body.prevBid) + "원 → " : ""}${won(bid)}원`;
+      } else {
+        const lock = !!body.lock;
+        await nv.put("/ncc/keywords", [{ nccKeywordId: body.keywordId, nccAdgroupId: body.adgroupId, userLock: lock }], "fields=userLock");
+        detail = `${body.keyword || body.keywordId}: ${lock ? "중지" : "재개"}`;
+      }
+      await supabase.from("ad_change_log").insert({ advertiser_id: adv.id, actor: body.actor_name || "운영자", action: mode === "setbid" ? "입찰 변경" : "키워드 " + (body.lock ? "중지" : "재개"), detail: body.reason ? `${detail} — ${body.reason}` : detail, visible_to_client: true });
+      // 캐시 무효화 (다음 조회 때 새로 받음)
+      await supabase.from("ad_keyword_cache").delete().eq("advertiser_id", adv.id);
+      return res.status(200).json({ ok: true, detail });
     }
     if (mode === "leads") {
       if (!UUID_RE.test(body.id || "") || !YMD_RE.test(body.ymd || "")) return res.status(400).json({ ok: false, error: "id/ymd" });

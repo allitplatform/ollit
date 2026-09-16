@@ -322,10 +322,99 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
               <ChangeLog t={t} logs={view.logs} owner={owner} adv={adv} actor={actor} actorName={actorName} onAdded={() => setTick(x => x + 1)}/>
             </div>
           </div>
+          {(owner || adv.show_keywords) && <KeywordTable t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} owner={owner} since={since} until={until} onChanged={() => setTick(x => x + 1)}/>}
           {owner && <ShareBar t={t} adv={adv} actor={actor}/>}
         </>
       )}
     </>
+  );
+}
+
+// ---------- 키워드 표 (2단계) ----------
+function KeywordTable({ t, isPc, adv, actor, actorName, owner, since, until, onChanged }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [q, setQ] = useState("");
+  const [showAll, setShowAll] = useState(false);
+  const load = useCallback((fresh) => {
+    if (!owner) return; // 광고주 화면은 운영자 캐시만 읽지 않음 — 2단계 후반에 토큰 조회 추가
+    setLoading(true);
+    api("keywords", { actor, get: { id: adv.id, since, until, ...(fresh ? { fresh: "1" } : {}) } })
+      .then(j => { setData(j.ok ? j : null); setLoading(false); })
+      .catch(() => { setData(null); setLoading(false); });
+  }, [owner, actor, adv.id, since, until]);
+  useEffect(() => { load(false); }, [load]);
+
+  const rows = useMemo(() => {
+    if (!data) return [];
+    let r = data.keywords || [];
+    if (q.trim()) r = r.filter(k => (k.keyword || "").includes(q.trim()) || (k.group || "").includes(q.trim()));
+    else if (!showAll) r = r.filter(k => k.impressions > 0);
+    return r.slice(0, showAll ? 300 : 40);
+  }, [data, q, showAll]);
+
+  const setBid = async (k, bid) => {
+    const j = await api("setbid", { actor, post: { id: adv.id, keywordId: k.id, adgroupId: k.groupId, bid, keyword: k.keyword, prevBid: k.bid, actor_name: actorName } });
+    if (j.ok) { setData(d => d ? { ...d, keywords: d.keywords.map(x => x.id === k.id ? { ...x, bid, useGroupBid: false } : x) } : d); onChanged(); }
+    else window.alert(j.error || "변경 실패");
+  };
+  const toggleLock = async (k) => {
+    const lock = !k.lock;
+    if (!window.confirm(`${k.keyword} ${lock ? "중지" : "재개"}할까요?`)) return;
+    const j = await api("lockkw", { actor, post: { id: adv.id, keywordId: k.id, adgroupId: k.groupId, lock, keyword: k.keyword, actor_name: actorName } });
+    if (j.ok) { setData(d => d ? { ...d, keywords: d.keywords.map(x => x.id === k.id ? { ...x, lock } : x) } : d); onChanged(); }
+    else window.alert(j.error || "변경 실패");
+  };
+  if (!owner) return null;
+
+  const cols = isPc ? "minmax(120px,1.4fr) 90px 56px 48px 46px 44px 76px 70px 40px" : "minmax(90px,1.4fr) 50px 44px 40px 70px 60px 34px";
+  return (
+    <Card t={t} title="키워드 · 입찰" sub={data ? `${data.exposed}개 노출 / 전체 ${data.total}개 · ${data.cached ? "캐시" : "실시간"} ${String(data.fetched_at || "").slice(11, 16)} · 1위 예상가는 모바일 기준` : "네이버에서 키워드 성과를 받는 중 (수천 개면 20초)"}>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <input className="mkt-input" placeholder="키워드·그룹 검색" value={q} onChange={e => setQ(e.target.value)} style={{ ...inputStyle(t), padding: "7px 10px" }}/>
+        <button onClick={() => setShowAll(v => !v)} className="tab-btn" style={{ ...btnGhost(t), flex: "0 0 auto", padding: "7px 10px" }}>{showAll ? "노출만" : "전체"}</button>
+        <button onClick={() => load(true)} className="tab-btn" style={{ ...btnGhost(t), flex: "0 0 auto", padding: "7px 10px" }} disabled={loading}>{loading ? "…" : "새로"}</button>
+      </div>
+      {!data && !loading && <Empty t={t}>불러오지 못했습니다 — "새로" 눌러 다시</Empty>}
+      {data && (
+        <div style={{ overflowX: "auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: cols, gap: 6, fontSize: 9.5, color: t.textMuted, fontWeight: 700, padding: "0 0 4px", minWidth: isPc ? 0 : 430 }}>
+            <span>키워드</span>{isPc && <span>그룹</span>}<span>노출</span><span>클릭</span>{isPc && <span>CTR</span>}<span>순위</span><span>입찰가</span><span>1위 예상</span><span></span>
+          </div>
+          {rows.length === 0 ? <Empty t={t}>해당 키워드 없음</Empty> : rows.map(k => (
+            <KwRow key={k.id} t={t} isPc={isPc} k={k} cols={cols} onBid={setBid} onLock={toggleLock}/>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function KwRow({ t, isPc, k, cols, onBid, onLock }) {
+  const [edit, setEdit] = useState(false);
+  const [val, setVal] = useState(k.bid || "");
+  useEffect(() => { setVal(k.bid || ""); }, [k.bid]);
+  const commit = () => { setEdit(false); const n = Number(val); if (n && n !== k.bid) onBid(k, n); };
+  const rankColor = k.rank == null ? t.textMuted : k.rank <= 1.5 ? t.success : k.rank <= 3 ? t.warning : t.danger;
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: cols, gap: 6, alignItems: "center", padding: "4px 0", borderTop: `1px solid ${t.border}`, fontSize: 12, opacity: k.lock ? 0.5 : 1, minWidth: isPc ? 0 : 430 }}>
+      <span style={{ fontWeight: 700, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={k.group}>{k.keyword}{k.lock ? " ⏸" : ""}</span>
+      {isPc && <span style={{ fontSize: 10.5, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{(k.group || "").replace(/^파워링크_/, "")}</span>}
+      <span className="mono" style={{ color: t.textMuted }}>{won(k.impressions)}</span>
+      <span className="mono" style={{ color: k.clicks ? t.text : t.textMuted, fontWeight: k.clicks ? 700 : 400 }}>{k.clicks}</span>
+      {isPc && <span className="mono" style={{ color: t.textMuted }}>{k.ctr}%</span>}
+      <span className="mono" style={{ color: rankColor, fontWeight: 700 }}>{k.rank != null ? k.rank.toFixed(1) : "-"}</span>
+      {edit ? (
+        <input type="number" autoFocus value={val} onChange={e => setVal(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") { setEdit(false); setVal(k.bid || ""); } }}
+          className="mkt-input" style={{ padding: "3px 6px", background: t.bgInset, border: `1px solid ${t.accent}`, color: t.text, textAlign: "right", fontWeight: 800 }}/>
+      ) : (
+        <button onClick={() => setEdit(true)} className="tab-btn mono" title="클릭해서 변경" style={{ background: t.bgInset, border: `1px solid ${t.border}`, borderRadius: 6, padding: "3px 6px", color: t.text, fontWeight: 800, cursor: "pointer", fontFamily: "inherit", textAlign: "right", fontSize: 12 }}>
+          {won(k.bid)}{k.useGroupBid ? <span style={{ fontSize: 9, color: t.textMuted, marginLeft: 2 }}>G</span> : ""}
+        </button>
+      )}
+      <span className="mono" style={{ color: k.top1Bid != null && k.bid < k.top1Bid ? t.warning : t.textMuted }}>{k.top1Bid != null ? won(k.top1Bid) : "-"}</span>
+      <button onClick={() => onLock(k)} className="tab-btn" title={k.lock ? "재개" : "중지"} style={{ ...iconBtn(t), padding: 2, fontSize: 12 }}>{k.lock ? "▶" : "⏸"}</button>
+    </div>
   );
 }
 
@@ -422,17 +511,18 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
     if (j.ok) onSaved(j.advertiser); else setErr(j.error || "저장 실패");
   };
   const remove = async () => { if (!window.confirm(`${initial.name} 을(를) 목록에서 내릴까요? (데이터는 보존)`)) return; const j = await api("remove", { actor, post: { id: initial.id } }); if (j.ok) onSaved(null); };
+  const F = ({ label, k, type = "text", ph, hint }) => <Field t={t} label={label} type={type} value={f[k]} onChange={set(k)} ph={ph} hint={hint}/>;
   return (
     <Card t={t} title={initial ? `${initial.name} 설정` : "광고주 추가"} sub="네이버 광고시스템 → 도구 → API 사용 관리">
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Field t={t} value={f.name} onChange={set("name")} label="광고주 이름" ph="쿨가이"/>
-        <Field t={t} value={f.customer_id} onChange={set("customer_id")} label="CUSTOMER_ID" ph="3458080"/>
-        <Field t={t} value={f.api_key} onChange={set("api_key")} label="액세스라이선스 (API 키)" ph={initial ? "변경할 때만 입력" : "0100000000…"}/>
-        <Field t={t} value={f.api_secret} onChange={set("api_secret")} label="비밀키" type="password" ph={initial ? "변경할 때만 입력" : "AQAAAA…"}/>
-        <Field t={t} value={f.campaign_filter} onChange={set("campaign_filter")} label="캠페인 필터" ph="벌초" hint="이 글자가 이름에 있는 캠페인만 집계 (비우면 전체)"/>
-        <Field t={t} value={f.margin_per_order} onChange={set("margin_per_order")} label="접수 1건당 회사이익 (원)" type="number" ph="52500" hint="비우면 판정선 없음. 입력하면 효율 50% / 상한 100% 자동"/>
-        <Field t={t} value={f.cpa_good} onChange={set("cpa_good")} label="효율 기준 (원/접수)" type="number" ph="자동"/>
-        <Field t={t} value={f.cpa_limit} onChange={set("cpa_limit")} label="상한 (원/접수)" type="number" ph="자동"/>
+        <F label="광고주 이름" k="name" ph="쿨가이"/>
+        <F label="CUSTOMER_ID" k="customer_id" ph="3458080"/>
+        <F label="액세스라이선스 (API 키)" k="api_key" ph={initial ? "변경할 때만 입력" : "0100000000…"}/>
+        <F label="비밀키" k="api_secret" type="password" ph={initial ? "변경할 때만 입력" : "AQAAAA…"}/>
+        <F label="캠페인 필터" k="campaign_filter" ph="벌초" hint="이 글자가 이름에 있는 캠페인만 집계 (비우면 전체)"/>
+        <F label="접수 1건당 회사이익 (원)" k="margin_per_order" type="number" ph="52500" hint="비우면 판정선 없음. 입력하면 효율 50% / 상한 100% 자동"/>
+        <F label="효율 기준 (원/접수)" k="cpa_good" type="number" ph="자동"/>
+        <F label="상한 (원/접수)" k="cpa_limit" type="number" ph="자동"/>
       </div>
       <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
         <input type="checkbox" checked={f.show_keywords} onChange={set("show_keywords")}/> 광고주 화면에 키워드 표 노출 (2단계에서 사용)
@@ -472,7 +562,7 @@ function MiniStat({ t, label, value, suffix, accent }) {
     </div>
   );
 }
-function Field({ t, label, type = "text", value, onChange, ph, hint }) {
+function Field({ t, label, type, value, onChange, ph, hint }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11.5, fontWeight: 700, color: t.textSecondary }}>
       {label}
