@@ -234,13 +234,13 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
     else verdict = { label: "판정선 미설정", color: t.textMuted };
     const cpc = sum.clicks ? Math.round(sum.cost / sum.clicks) : 0;
     const ctr = sum.imp ? (sum.clicks / sum.imp * 100) : 0;
-    const rank = isToday && todayRow ? todayRow.rank : data.totals?.rank;
     // 비즈머니 잔여일: 최근 7일 평균 일지출(VAT 포함) 기준
     const last7 = days.slice(0, 7).filter(d => d.ymd !== until);
     const avgDay = last7.length ? Math.round(last7.reduce((a, d) => a + d.cost * 1.1, 0) / last7.length) : 0;
     const biz = data.bizmoney;
     const bizDays = biz != null && avgDay > 0 ? (biz / avgDay) : null;
     const todayRow = days.find(d => d.ymd === until);
+    const rank = isToday && todayRow ? todayRow.rank : data.totals?.rank;
     const prevRows = days.filter(d => d.ymd !== until).slice(0, 7);
     const avgClicks = prevRows.length ? prevRows.reduce((a, d) => a + d.clicks, 0) / prevRows.length : 0;
     const clickAlert = todayRow && avgClicks > 0 && todayRow.clicks >= 20 && todayRow.clicks / avgClicks >= 2.5;
