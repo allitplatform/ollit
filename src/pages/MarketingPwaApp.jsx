@@ -34,6 +34,13 @@ function kstYmd(offsetDays) {
   return d.toISOString().slice(0, 10);
 }
 function won(n) { return Number(n || 0).toLocaleString("ko-KR"); }
+function fmtAgo(iso) {
+  if (!iso) return "-";
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (m < 1) return "방금"; if (m < 60) return `${m}분 전`; if (m < 24 * 60) return `${Math.floor(m / 60)}시간 전`;
+  return `${Math.floor(m / 1440)}일 전`;
+}
+function fmtKst(iso) { if (!iso) return "-"; const d = new Date(new Date(iso).getTime() + 9 * 3600 * 1000); return d.toISOString().slice(5, 16).replace("T", " "); }
 function useTheme() {
   const [mode, setMode] = useState(() => { try { return localStorage.getItem("mkt_theme") === "light" ? "light" : "dark"; } catch { return "dark"; } });
   const toggle = () => { const n = mode === "dark" ? "light" : "dark"; setMode(n); try { localStorage.setItem("mkt_theme", n); } catch { /* */ } };
@@ -298,6 +305,11 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
               <div style={{ color: view.clickAlert ? t.danger : t.textMuted }}>
                 {view.clickAlert ? `⚠ 클릭 급증 의심 — 오늘 ${view.todayClicks}클릭 (직전 평균 ${view.avgClicks}의 ${(view.todayClicks / Math.max(view.avgClicks, 1)).toFixed(1)}배)` : `🛡 클릭 감시 정상 — 오늘 ${view.todayClicks} · 직전 평균 ${view.avgClicks}`}
               </div>
+              <div style={{ color: data.autobid?.last?.error ? t.danger : t.textMuted }}>
+                {!data.autobid?.enabled ? "🤖 자동입찰 꺼짐" : data.autobid.last
+                  ? `🤖 자동입찰 ${data.autobid.groups}개 그룹 · 최근 ${fmtAgo(data.autobid.last.at)} — ${data.autobid.last.error ? "오류: " + data.autobid.last.error.slice(0, 60) : `${data.autobid.last.changed}개 조정 (↑${data.autobid.last.raised} ↓${data.autobid.last.lowered}) / 대상 ${data.autobid.last.alive}개`}`
+                  : `🤖 자동입찰 ${data.autobid.groups}개 그룹 켜짐 · 아직 실행 전`}
+              </div>
             </div>
           </Card>
 
@@ -328,6 +340,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
               <ChangeLog t={t} logs={view.logs} owner={owner} adv={adv} actor={actor} actorName={actorName} onAdded={() => setTick(x => x + 1)}/>
             </div>
           </div>
+          {owner && <AutobidCard t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} onChanged={() => setTick(x => x + 1)}/>}
           {(owner || adv.show_keywords) && <KeywordTable t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} owner={owner} since={since} until={until} onChanged={() => setTick(x => x + 1)}/>}
           {owner && <ShareBar t={t} adv={adv} actor={actor}/>}
         </>
@@ -393,6 +406,132 @@ function KeywordTable({ t, isPc, adv, actor, actorName, owner, since, until, onC
         </div>
       )}
     </Card>
+  );
+}
+
+// ---------- 자동입찰 ----------
+// 그룹별 정책(목표 순위·상한·바닥·내림 허용) 편집 + 미리보기/지금 실행 + 최근 실행 기록. 30분 주기 실행은 서버(pg_cron)가 담당.
+const POLICY_DEFAULT = { enabled: true, target_pos: 1, cap: 5000, floor_bid: 300, margin: 1.1, lower_ok: true };
+function AutobidCard({ t, isPc, adv, actor, actorName, onChanged }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [preview, setPreview] = useState(null);
+  const [openRun, setOpenRun] = useState(null);
+  const load = useCallback(() => {
+    setLoading(true);
+    api("policies", { actor, get: { id: adv.id } }).then(j => { setData(j.ok ? j : null); setLoading(false); }).catch(() => { setData(null); setLoading(false); });
+  }, [actor, adv.id]);
+  useEffect(() => { load(); }, [load]);
+
+  const savePolicy = async (g, patch) => {
+    const cur = g.policy || { ...POLICY_DEFAULT, enabled: false };
+    const next = { ...cur, ...patch };
+    setBusy(g.id);
+    const j = await api("policy_set", { actor, post: { id: adv.id, adgroup_id: g.id, adgroup_name: g.name, enabled: next.enabled, target_pos: next.target_pos, cap: next.cap, floor_bid: next.floor_bid, margin: next.margin, lower_ok: next.lower_ok, actor_name: actorName } });
+    setBusy("");
+    if (j.ok) { setData(d => d ? { ...d, groups: d.groups.map(x => x.id === g.id ? { ...x, policy: j.policy } : x) } : d); onChanged(); }
+    else window.alert(j.error || "저장 실패");
+  };
+  const run = async (apply) => {
+    if (apply && !window.confirm("켜진 그룹의 키워드 입찰가를 지금 실제로 바꿉니다. 진행할까요?")) return;
+    setBusy(apply ? "run" : "dry"); setPreview(null);
+    const j = await api("autobid", { actor, get: { id: adv.id, ...(apply ? { run: "1" } : {}) } });
+    setBusy("");
+    const r = j.ok ? (j.results || [])[0] : null;
+    if (!r) { window.alert(j.error || "실행 실패"); return; }
+    setPreview({ ...r, applied: apply });
+    if (apply) { onChanged(); load(); }
+  };
+
+  const on = (data?.groups || []).filter(g => g.policy?.enabled);
+  const runs = data?.runs || [];
+  return (
+    <Card t={t} title="자동입찰" sub={data ? `${on.length}개 그룹 켜짐 · 30분마다 모바일 목표 순위 예상가로 입찰가 조정 (상한 안에서)${data.cron_ready ? "" : " · 서버 CRON_SECRET 미설정 — 자동 실행 안 됨"}` : "광고그룹 불러오는 중"}>
+      {!data && !loading && <Empty t={t}>불러오지 못했습니다</Empty>}
+      {data && (
+        <>
+          {data.groups.length === 0 ? <Empty t={t}>광고그룹 없음</Empty> : data.groups.map(g => (
+            <PolicyRow key={g.id} t={t} isPc={isPc} g={g} busy={busy === g.id} onSave={patch => savePolicy(g, patch)}/>
+          ))}
+          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            <button onClick={() => run(false)} className="tab-btn" style={{ ...btnGhost(t) }} disabled={!!busy || on.length === 0}>{busy === "dry" ? "계산 중…" : "미리보기 (변경 없음)"}</button>
+            <button onClick={() => run(true)} className="tab-btn" style={{ ...btnPrimary(t), flex: 1 }} disabled={!!busy || on.length === 0}>{busy === "run" ? "적용 중…" : "지금 실행"}</button>
+          </div>
+          {preview && (
+            <div style={{ marginTop: 10, padding: 10, background: t.bgInset, borderRadius: 8, fontSize: 11.5 }}>
+              <div style={{ fontWeight: 800, color: preview.error ? t.danger : t.text }}>
+                {preview.error ? `오류: ${preview.error}` : preview.skipped ? preview.reason
+                  : `${preview.applied ? "적용 완료" : "미리보기"} — 대상 ${preview.alive}개 중 ${preview.changed}개 ${preview.applied ? "변경" : "변경 예정"} (↑${preview.raised} ↓${preview.lowered}${preview.capped ? ` · 상한 ${preview.capped}` : ""}${preview.no_est ? ` · 예상가 없음 ${preview.no_est}` : ""})`}
+              </div>
+              <ChangeList t={t} changes={preview.changes}/>
+            </div>
+          )}
+          {runs.length > 0 && (
+            <div style={{ marginTop: 10, borderTop: `1px solid ${t.border}`, paddingTop: 6 }}>
+              <div style={{ fontSize: 9.5, color: t.textMuted, fontWeight: 700, marginBottom: 2 }}>최근 실행</div>
+              {runs.map(r => (
+                <div key={r.id}>
+                  <div onClick={() => setOpenRun(openRun === r.id ? null : r.id)} style={{ display: "flex", gap: 8, alignItems: "center", padding: "4px 0", fontSize: 11, cursor: "pointer", color: r.error ? t.danger : t.textSecondary }}>
+                    <span className="mono" style={{ color: t.textMuted, flex: "0 0 auto" }}>{fmtKst(r.at)}</span>
+                    <span style={{ flex: 1 }}>{r.dry ? "미리보기 · " : ""}{r.error ? `오류: ${r.error.slice(0, 50)}` : `${r.changed}개 조정 (↑${r.raised} ↓${r.lowered}) / 대상 ${r.alive}`}</span>
+                    <span style={{ color: t.textMuted }}>{openRun === r.id ? "▴" : "▾"}</span>
+                  </div>
+                  {openRun === r.id && <ChangeList t={t} changes={r.changes}/>}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+function ChangeList({ t, changes }) {
+  const list = Array.isArray(changes) ? changes : [];
+  if (list.length === 0) return <div style={{ fontSize: 11, color: t.textMuted, padding: "4px 0" }}>변경 없음</div>;
+  return (
+    <div style={{ maxHeight: 220, overflowY: "auto", marginTop: 4 }}>
+      {list.map((c, i) => (
+        <div key={i} style={{ display: "flex", gap: 8, fontSize: 11, padding: "2px 0", color: t.textSecondary }}>
+          <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.kw} <span style={{ color: t.textMuted }}>· {c.grp}</span></span>
+          <span className="mono" style={{ color: c.to > c.from ? t.warning : t.success }}>{won(c.from)} → {won(c.to)}원</span>
+          <span className="mono" style={{ color: t.textMuted, flex: "0 0 auto" }}>{c.note}{c.est ? ` 예상 ${won(c.est)}` : ""}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+function PolicyRow({ t, isPc, g, busy, onSave }) {
+  const p = g.policy || { ...POLICY_DEFAULT, enabled: false };
+  const [cap, setCap] = useState(String(p.cap ?? 5000));
+  const [floor, setFloor] = useState(String(p.floor_bid ?? 300));
+  useEffect(() => { setCap(String(p.cap ?? 5000)); setFloor(String(p.floor_bid ?? 300)); }, [p.cap, p.floor_bid]);
+  const on = !!p.enabled;
+  const commitNums = () => {
+    const c = Number(cap) || 5000, f = Number(floor) || 300;
+    if (c !== Number(p.cap) || f !== Number(p.floor_bid)) onSave({ cap: c, floor_bid: f });
+  };
+  const sel = { ...inputStyle(t), fontFamily: "inherit", fontSize: 11.5, padding: "5px 6px", borderRadius: 6 };
+  return (
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "7px 0", borderTop: `1px solid ${t.border}`, opacity: busy ? 0.6 : 1 }}>
+      <button onClick={() => onSave({ enabled: !on })} className="tab-btn" title={on ? "끄기" : "켜기"} style={{ width: 38, height: 22, borderRadius: 999, border: "none", cursor: "pointer", background: on ? t.success : t.borderStrong, position: "relative", flex: "0 0 auto" }}>
+        <span style={{ position: "absolute", top: 3, left: on ? 19 : 3, width: 16, height: 16, borderRadius: 999, background: "#fff", transition: "left .15s" }}/>
+      </button>
+      <span style={{ flex: isPc ? 1 : "1 1 100%", fontSize: 12, fontWeight: 700, color: g.lock ? t.textMuted : t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 120 }}>{g.name}{g.lock ? " (그룹 중지)" : ""}</span>
+      <label style={{ fontSize: 10.5, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>목표
+        <select value={p.target_pos} onChange={e => onSave({ target_pos: Number(e.target.value) })} disabled={!on} style={sel}>{[1, 2, 3].map(n => <option key={n} value={n}>{n}위</option>)}</select>
+      </label>
+      <label style={{ fontSize: 10.5, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>상한
+        <input className="mono" value={cap} onChange={e => setCap(e.target.value.replace(/[^\d]/g, ""))} onBlur={commitNums} disabled={!on} style={{ ...sel, width: 62, textAlign: "right" }}/>원
+      </label>
+      <label style={{ fontSize: 10.5, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>바닥
+        <input className="mono" value={floor} onChange={e => setFloor(e.target.value.replace(/[^\d]/g, ""))} onBlur={commitNums} disabled={!on} style={{ ...sel, width: 52, textAlign: "right" }}/>원
+      </label>
+      <label style={{ fontSize: 10.5, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>
+        <input type="checkbox" checked={p.lower_ok !== false} onChange={e => onSave({ lower_ok: e.target.checked })} disabled={!on}/>내리기 허용
+      </label>
+    </div>
   );
 }
 
