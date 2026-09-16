@@ -360,11 +360,11 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
           {!owner && <CareCard t={t} isPc={isPc} data={data} view={view}/>}
 
           <div style={{ display: "grid", gridTemplateColumns: isPc ? "1fr 1fr" : "1fr", gap: 12 }}>
-            <Card t={t} title="일별 흐름 · 접수 입력" sub="접수 칸에 그날 전화·문의 건수를 넣으면 접수당 광고비가 계산됩니다">
+            <Card t={t} title="일별 흐름 · 접수 입력" sub={owner ? "접수 칸에 그날 전화·문의 건수를 넣으면 접수당 광고비가 계산됩니다" : "오른쪽 분홍 칸(✎)에 그날 받은 전화·문의 건수를 넣어 주세요 — 입력 즉시 접수당 광고비가 계산됩니다"}>
               {view.days.length === 0 ? <Empty t={t}>집계된 날이 없습니다</Empty> : (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 52px 44px 64px", gap: 6, fontSize: 9.5, color: t.textMuted, fontWeight: 700, padding: "0 0 4px" }}>
-                    <span>날짜</span><span>광고비</span><span>클릭</span><span>순위</span><span>접수</span>
+                    <span>날짜</span><span>광고비</span><span>클릭</span><span>순위</span><span style={{ color: t.accent }}>접수 ✎ 입력</span>
                   </div>
                   {view.days.map(d => (
                     <DayRow key={d.ymd} t={t} d={d} lead={(data.leads || {})[d.ymd]} onSave={saveLead}/>
@@ -677,34 +677,40 @@ function StatusBoard({ t, isPc, data, view, owner }) {
 
 // ---------- 광고주 화면: 오늘의 요약 (문장) ----------
 // 숫자 카드만 보면 함축적이라, 같은 수치를 문장으로 풀어 준다. 금액·키워드 원칙은 동일 (입찰가 없음).
+// [[...]] 로 감싼 부분은 형광펜
+function hlText(str, t) {
+  return String(str).split(/(\[\[.*?\]\])/g).map((seg, i) => seg.startsWith("[[") && seg.endsWith("]]")
+    ? <mark key={i} style={{ background: t.bg === "#1A1512" ? "rgba(255,242,122,0.28)" : "#fff27a", color: t.text, fontWeight: 800, padding: "0 3px", borderRadius: 3 }}>{seg.slice(2, -2)}</mark>
+    : seg);
+}
 function ClientSummary({ t, adv, data, view, since, until }) {
   const c = data.care || {};
   const lines = [];
   const per = view.isToday ? "오늘" : `${since.slice(5).replace("-", "/")}~${until.slice(5).replace("-", "/")}`;
   if (view.sum.clicks > 0) {
-    lines.push(`${per} 광고비 ${won(view.costVat)}원(VAT 포함)으로 ${won(view.sum.clicks)}명이 광고를 클릭해 들어왔습니다. 클릭 한 번에 평균 ${won(view.cpc)}원이 들었고, 검색 결과에서 평균 ${view.rank != null ? view.rank.toFixed(1) : "-"}위에 노출되고 있습니다.`);
+    lines.push(`${per} 광고비 [[${won(view.costVat)}원]](VAT 포함)으로 [[${won(view.sum.clicks)}명]]이 광고를 클릭해 들어왔습니다. 클릭 한 번에 평균 ${won(view.cpc)}원이 들었고, 검색 결과에서 [[평균 ${view.rank != null ? view.rank.toFixed(1) : "-"}위]]에 노출되고 있습니다.`);
   } else {
     lines.push(`${per} 아직 집계된 클릭이 없습니다. 네이버 집계는 실제보다 1~2시간 늦게 반영됩니다.`);
   }
   if (view.isToday && view.yRow) {
-    lines.push(`어제 하루는 광고비 ${won(Math.round(view.yRow.cost * 1.1))}원에 ${won(view.yRow.clicks)}클릭${view.yRow.rank ? `, 평균 ${view.yRow.rank.toFixed(1)}위` : ""}였습니다.`);
+    lines.push(`어제 하루는 광고비 ${won(Math.round(view.yRow.cost * 1.1))}원에 [[${won(view.yRow.clicks)}클릭]]${view.yRow.rank ? `, 평균 ${view.yRow.rank.toFixed(1)}위` : ""}였습니다.`);
   }
   if (view.leadTotal > 0 && view.per != null) {
-    lines.push(`접수 ${won(view.leadTotal)}건 기준으로 접수 1건을 받는 데 광고비 ${won(view.per)}원이 들었습니다${adv.cpa_limit ? ` — 기준 ${won(adv.cpa_limit)}원 대비 ${view.per <= (adv.cpa_good || 0) ? "매우 효율적" : view.per <= adv.cpa_limit ? "적정 범위" : "초과, 조정 중"}입니다` : ""}.`);
+    lines.push(`접수 ${won(view.leadTotal)}건 기준으로 접수 1건을 받는 데 광고비 [[${won(view.per)}원]]이 들었습니다${adv.cpa_limit ? ` — 기준 ${won(adv.cpa_limit)}원 대비 [[${view.per <= (adv.cpa_good || 0) ? "매우 효율적" : view.per <= adv.cpa_limit ? "적정 범위" : "초과, 조정 중"}]]입니다` : ""}.`);
   } else if (view.costVat > 0) {
-    lines.push(`아래 '접수' 칸에 그날 전화·문의 건수를 넣어 주시면 접수 1건당 광고비를 계산해 드립니다.`);
+    lines.push(`아래 일별 표의 [[분홍 '접수 ✎' 칸]]에 그날 전화·문의 건수를 넣어 주시면 접수 1건당 광고비를 계산해 드립니다.`);
   }
   if (view.biz != null) {
-    if (view.bizDays != null && view.bizDays < 3) lines.push(`충전된 광고비(비즈머니)는 ${won(Math.round(view.biz))}원 남아 있고, 최근 일평균 지출 ${won(view.avgDay)}원 기준으로 약 ${view.bizDays.toFixed(1)}일 뒤 소진됩니다. 광고가 끊기지 않도록 충전을 부탁드립니다.`);
+    if (view.bizDays != null && view.bizDays < 3) lines.push(`충전된 광고비(비즈머니)는 ${won(Math.round(view.biz))}원 남아 있고, 최근 일평균 지출 ${won(view.avgDay)}원 기준으로 [[약 ${view.bizDays.toFixed(1)}일 뒤 소진]]됩니다. 광고가 끊기지 않도록 [[충전을 부탁드립니다]].`);
     else lines.push(`충전된 광고비(비즈머니)는 ${won(Math.round(view.biz))}원 남아 있습니다${view.bizDays != null ? ` (일평균 지출 기준 약 ${Math.floor(view.bizDays)}일분)` : ""}.`);
   }
-  if (view.clickAlert) lines.push(`오늘 클릭이 직전 7일 평균(${won(view.avgClicks)})의 ${(view.todayClicks / Math.max(view.avgClicks, 1)).toFixed(1)}배로 급증해 부정클릭 여부를 확인하고 있습니다. 의심 IP 는 즉시 차단하고, 무효클릭은 네이버에 환불 요청합니다.`);
+  if (view.clickAlert) lines.push(`오늘 클릭이 직전 7일 평균(${won(view.avgClicks)})의 [[${(view.todayClicks / Math.max(view.avgClicks, 1)).toFixed(1)}배로 급증]]해 부정클릭 여부를 확인하고 있습니다. 의심 IP 는 즉시 차단하고, 무효클릭은 네이버에 환불 요청합니다.`);
   if (data.autobid?.last?.error) lines.push(`자동입찰에 일시 오류가 있어 담당자가 확인 중입니다. 입찰가는 마지막 정상 값으로 유지됩니다.`);
-  if (c.adjusted_today) lines.push(`오늘 자동입찰이 ${won(c.adjusted_today)}건의 입찰을 조정해 목표 순위를 유지했습니다.`);
+  if (c.adjusted_today) lines.push(`오늘 자동입찰이 [[${won(c.adjusted_today)}건]]의 입찰을 조정해 목표 순위를 유지했습니다.`);
   return (
     <Card t={t} title={`${view.isToday ? "오늘" : "기간"} 요약`} sub="담당자 코멘트 — 숫자를 풀어 설명합니다">
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {lines.map((l, i) => <div key={i} style={{ fontSize: 12.5, lineHeight: 1.65, color: t.textSecondary, display: "flex", gap: 8 }}><span style={{ color: t.accent, fontWeight: 900 }}>•</span><span>{l}</span></div>)}
+        {lines.map((l, i) => <div key={i} style={{ fontSize: 12.5, lineHeight: 1.7, color: t.textSecondary, display: "flex", gap: 8 }}><span style={{ color: t.accent, fontWeight: 900 }}>•</span><span>{hlText(l, t)}</span></div>)}
       </div>
     </Card>
   );
@@ -977,8 +983,11 @@ function DayRow({ t, d, lead, onSave }) {
       <span className="mono" style={{ color: t.textMuted }}>{won(Math.round(d.cost * 1.1))}원</span>
       <span className="mono" style={{ color: t.textMuted }}>{d.clicks}</span>
       <span className="mono" style={{ color: t.textMuted }}>{d.rank ? d.rank.toFixed(1) : "-"}</span>
-      <input type="number" min="0" inputMode="numeric" value={val} placeholder="0" onChange={e => setVal(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
-        className="mkt-input" style={{ padding: "5px 6px", background: t.bgInset, border: `1px solid ${t.border}`, color: t.text, textAlign: "right", fontWeight: 800 }}/>
+      <div style={{ position: "relative" }}>
+        <input type="number" min="0" inputMode="numeric" value={val} placeholder="입력" onChange={e => setVal(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+          className="mkt-input" title="이날 전화·문의 접수 건수" style={{ padding: "5px 18px 5px 6px", background: lead?.leads != null ? t.bgInset : `${t.accent}14`, border: `1.5px solid ${lead?.leads != null ? t.border : t.accent}`, color: t.text, textAlign: "right", fontWeight: 800 }}/>
+        <span style={{ position: "absolute", right: 5, top: "50%", transform: "translateY(-50%)", fontSize: 9.5, color: lead?.leads != null ? t.success : t.accent, fontWeight: 900, pointerEvents: "none" }}>{lead?.leads != null ? "✓" : "✎"}</span>
+      </div>
     </div>
   );
 }
