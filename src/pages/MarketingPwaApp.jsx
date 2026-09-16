@@ -261,11 +261,11 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
     const per = denom > 0 ? Math.round(costVat / denom) : null;
     const good = adv.cpa_good, limit = adv.cpa_limit;
     let verdict;
-    if (per == null) verdict = { label: costVat > 0 ? "접수 입력 대기" : "지출 없음", color: t.textMuted };
+    if (per == null) verdict = { label: costVat > 0 ? (owner ? "접수 입력 대기" : "접수 건수 입력 후 계산") : "지출 없음", color: t.textMuted };
     else if (good && per <= good) verdict = { label: "효율 좋음", color: t.success };
     else if (limit && per <= limit) verdict = { label: "적정", color: t.warning };
     else if (limit) verdict = { label: "상한 초과", color: t.danger };
-    else verdict = { label: "판정선 미설정", color: t.textMuted };
+    else verdict = { label: owner ? "판정선 미설정" : "기준 설정 전", color: t.textMuted };
     const cpc = sum.clicks ? Math.round(sum.cost / sum.clicks) : 0;
     const ctr = sum.imp ? (sum.clicks / sum.imp * 100) : 0;
     // 비즈머니 잔여일: 최근 7일 평균 일지출(VAT 포함) 기준
@@ -274,6 +274,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
     const biz = data.bizmoney;
     const bizDays = biz != null && avgDay > 0 ? (biz / avgDay) : null;
     const todayRow = days.find(d => d.ymd === until);
+    const yRow = days.find(d => d.ymd === kstYmd(-1));
     const rank = isToday && todayRow ? todayRow.rank : data.totals?.rank;
     const prevRows = days.filter(d => d.ymd !== until).slice(0, 7);
     const avgClicks = prevRows.length ? prevRows.reduce((a, d) => a + d.clicks, 0) / prevRows.length : 0;
@@ -293,8 +294,8 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
     if (data.autobid?.enabled && data.cron_ready === false) alerts.push({ level: "warning", text: "서버 CRON_SECRET 미설정 — 자동입찰이 자동으로 돌지 않습니다" });
     if (data.ips?.new24h) alerts.push({ level: "warning", text: `최근 24시간 차단 IP ${data.ips.new24h}개 추가` });
     if (limit && per != null && per > limit) alerts.push({ level: "danger", text: `접수당 광고비 ${won(per)}원 — 상한 ${won(limit)}원 초과` });
-    return { alerts, costVat, sum, cpc, ctr, per, verdict, rank, leadTotal, days: rangeDays, allDays: days, biz, bizDays, avgDay, clickAlert, todayClicks: todayRow?.clicks || 0, avgClicks: Math.round(avgClicks), camps, logs: data.logs || [] };
-  }, [data, adv, period, until, t]);
+    return { alerts, yRow, isToday, costVat, sum, cpc, ctr, per, verdict, rank, leadTotal, days: rangeDays, allDays: days, biz, bizDays, avgDay, clickAlert, todayClicks: todayRow?.clicks || 0, avgClicks: Math.round(avgClicks), camps, logs: data.logs || [] };
+  }, [data, adv, period, until, t, owner]);
 
   const saveLead = async (ymd, leads, note) => {
     const j = owner ? await api("leads", { actor, post: { id: adv.id, ymd, leads, note } }) : await api("client_leads", { post: { token, ymd, leads, note } });
@@ -334,7 +335,8 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
         <>
           {section === "perf" && <>
           {!owner && <CareCard t={t} isPc={isPc} data={data} view={view}/>}
-          <Card t={t} title={`${adv.name} 광고 성과`} sub={adv.cpa_limit ? `접수당 광고비 ${won(adv.cpa_good)}원 이하 효율 / ${won(adv.cpa_limit)}원 상한${adv.margin_per_order ? ` (건당 이익 ${won(adv.margin_per_order)}원 기준)` : ""}` : "판정선 미설정 — 설정에서 건당 이익 입력"}>
+          {!owner && <ClientSummary t={t} adv={adv} data={data} view={view} since={since} until={until}/>}
+          <Card t={t} title={`${adv.name} 광고 성과`} sub={adv.cpa_limit ? `접수당 광고비 ${won(adv.cpa_good)}원 이하 효율 / ${won(adv.cpa_limit)}원 상한${adv.margin_per_order ? ` (건당 이익 ${won(adv.margin_per_order)}원 기준)` : ""}` : owner ? "판정선 미설정 — 설정에서 건당 이익 입력" : "접수당 광고비 기준은 담당자와 협의 후 설정됩니다"}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <span className="mono" style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>
                 {view.per != null ? won(view.per) : "-"}<span style={{ fontSize: 13, color: t.textMuted, fontWeight: 700, marginLeft: 3 }}>원/접수</span>
@@ -464,6 +466,46 @@ function KeywordTable({ t, isPc, adv, actor, actorName, owner, since, until, onC
           ))}
         </div>
       )}
+    </Card>
+  );
+}
+
+// ---------- 광고주 화면: 오늘의 요약 (문장) ----------
+// 숫자 카드만 보면 함축적이라, 같은 수치를 문장으로 풀어 준다. 금액·키워드 원칙은 동일 (입찰가 없음).
+function ClientSummary({ t, adv, data, view, since, until }) {
+  const c = data.care || {};
+  const lines = [];
+  const per = view.isToday ? "오늘" : `${since.slice(5).replace("-", "/")}~${until.slice(5).replace("-", "/")}`;
+  if (view.sum.clicks > 0) {
+    lines.push(`${per} 광고비 ${won(view.costVat)}원(VAT 포함)으로 ${won(view.sum.clicks)}명이 광고를 클릭해 들어왔습니다. 클릭 한 번에 평균 ${won(view.cpc)}원이 들었고, 검색 결과에서 평균 ${view.rank != null ? view.rank.toFixed(1) : "-"}위에 노출되고 있습니다.`);
+  } else {
+    lines.push(`${per} 아직 집계된 클릭이 없습니다. 네이버 집계는 실제보다 1~2시간 늦게 반영됩니다.`);
+  }
+  if (view.isToday && view.yRow) {
+    const diff = view.sum.clicks - view.yRow.clicks;
+    lines.push(`어제는 광고비 ${won(Math.round(view.yRow.cost * 1.1))}원에 ${won(view.yRow.clicks)}클릭이었습니다${view.sum.clicks > 0 ? ` (오늘은 현재까지 ${diff >= 0 ? "+" : ""}${diff}클릭)` : ""}.`);
+  }
+  if (view.leadTotal > 0 && view.per != null) {
+    lines.push(`접수 ${won(view.leadTotal)}건 기준으로 접수 1건을 받는 데 광고비 ${won(view.per)}원이 들었습니다${adv.cpa_limit ? ` — 기준 ${won(adv.cpa_limit)}원 대비 ${view.per <= (adv.cpa_good || 0) ? "매우 효율적" : view.per <= adv.cpa_limit ? "적정 범위" : "초과, 조정 중"}입니다` : ""}.`);
+  } else if (view.costVat > 0) {
+    lines.push(`아래 '접수' 칸에 그날 전화·문의 건수를 넣어 주시면 접수 1건당 광고비를 계산해 드립니다.`);
+  }
+  if (view.biz != null) {
+    if (view.bizDays != null && view.bizDays < 3) lines.push(`충전된 광고비(비즈머니)는 ${won(Math.round(view.biz))}원 남아 있고, 최근 일평균 지출 ${won(view.avgDay)}원 기준으로 약 ${view.bizDays.toFixed(1)}일 뒤 소진됩니다. 광고가 끊기지 않도록 충전을 부탁드립니다.`);
+    else lines.push(`충전된 광고비(비즈머니)는 ${won(Math.round(view.biz))}원 남아 있습니다${view.bizDays != null ? ` (일평균 지출 기준 약 ${Math.floor(view.bizDays)}일분)` : ""}.`);
+  }
+  if (view.clickAlert) lines.push(`오늘 클릭이 직전 7일 평균(${won(view.avgClicks)})의 ${(view.todayClicks / Math.max(view.avgClicks, 1)).toFixed(1)}배로 급증해 부정클릭 여부를 확인하고 있습니다. 의심 IP 는 즉시 차단하고, 무효클릭은 네이버에 환불 요청합니다.`);
+  else lines.push(`클릭 흐름은 직전 7일 평균(${won(view.avgClicks)}클릭/일)과 비교해 이상 징후가 없습니다.${data.ips ? ` 지금까지 차단한 IP 는 ${data.ips.total}개이며, 해당 IP 에는 광고가 노출되지 않습니다.` : ""}`);
+  if (data.autobid?.enabled) {
+    if (c.checks_today) lines.push(`자동입찰이 ${data.autobid.groups}개 광고그룹의 키워드 ${won(c.watched)}개를 30분마다 점검합니다. 오늘 ${won(c.checks_today)}회 점검했고 ${c.adjusted_today ? `${won(c.adjusted_today)}건의 입찰을 조정해 목표 순위를 유지했습니다` : "순위가 안정적이라 조정이 필요 없었습니다"}.`);
+    else lines.push(`자동입찰이 ${data.autobid.groups}개 광고그룹에 설정되어 있으며, 30분마다 순위를 점검해 목표 순위를 벗어나면 자동으로 조정합니다.`);
+  }
+  if (c.ops_week) lines.push(`이번 주 담당자가 직접 진행한 작업은 ${won(c.ops_week)}건입니다. 자세한 내용은 '변경 이력'에서 볼 수 있습니다.`);
+  return (
+    <Card t={t} title={`${view.isToday ? "오늘" : "기간"} 요약`} sub="담당자 코멘트 — 숫자를 풀어 설명합니다">
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {lines.map((l, i) => <div key={i} style={{ fontSize: 12.5, lineHeight: 1.65, color: t.textSecondary, display: "flex", gap: 8 }}><span style={{ color: t.accent, fontWeight: 900 }}>•</span><span>{l}</span></div>)}
+      </div>
     </Card>
   );
 }
