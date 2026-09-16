@@ -204,6 +204,15 @@ export function ClientAdView({ token }) {
 // ===================== 성과 패널 (운영자·광고주 공용) =====================
 function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
   const [period, setPeriod] = useState("today");
+  const [section, setSection] = useState(() => { try { return localStorage.getItem("mkt_section") || "perf"; } catch { return "perf"; } });
+  const pickSection = (id) => { setSection(id); try { localStorage.setItem("mkt_section", id); } catch { /* */ } };
+  const sections = useMemo(() => [
+    { id: "perf", label: "📊 성과" },
+    ...(owner ? [{ id: "autobid", label: "🤖 자동입찰" }] : []),
+    ...((owner || adv.show_keywords) ? [{ id: "keywords", label: "🔑 키워드" }] : []),
+    { id: "log", label: owner ? "📝 이력·공유" : "📝 변경 이력" },
+  ], [owner, adv.show_keywords]);
+  useEffect(() => { if (!sections.some(x => x.id === section)) setSection("perf"); }, [sections, section]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
@@ -277,11 +286,17 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
       <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: -6 }}>
         {period === "today" ? `${until} (오늘)` : `${since} ~ ${until}`} · KST · 5분마다 갱신{loading ? " · 조회 중…" : ""}
       </div>
+      <div style={{ display: "flex", gap: 4, padding: 4, background: t.bgInset, borderRadius: 12, overflowX: "auto" }}>
+        {sections.map(sc => { const on = section === sc.id; return (
+          <button key={sc.id} type="button" onClick={() => pickSection(sc.id)} className="tab-btn" style={{ flex: 1, minWidth: 80, padding: "9px 6px", background: on ? t.bgElevated : "transparent", border: "none", boxShadow: on ? "0 1px 4px rgba(0,0,0,.18)" : "none", borderRadius: 9, color: on ? t.text : t.textMuted, fontSize: 12.5, fontWeight: on ? 800 : 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{sc.label}</button>
+        ); })}
+      </div>
 
       {!view ? (
         <Card t={t} title={`${adv.name} 광고 성과`}><div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>{loading ? "네이버에서 불러오는 중…" : "연결 실패 — 잠시 후 새로고침"}</div></Card>
       ) : (
         <>
+          {section === "perf" && <>
           <Card t={t} title={`${adv.name} 광고 성과`} sub={adv.cpa_limit ? `접수당 광고비 ${won(adv.cpa_good)}원 이하 효율 / ${won(adv.cpa_limit)}원 상한${adv.margin_per_order ? ` (건당 이익 ${won(adv.margin_per_order)}원 기준)` : ""}` : "판정선 미설정 — 설정에서 건당 이익 입력"}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <span className="mono" style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>
@@ -337,12 +352,15 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
                   </div>
                 ))}
               </Card>
-              <ChangeLog t={t} logs={view.logs} owner={owner} adv={adv} actor={actor} actorName={actorName} onAdded={() => setTick(x => x + 1)}/>
             </div>
           </div>
-          {owner && <AutobidCard t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} onChanged={() => setTick(x => x + 1)}/>}
-          {(owner || adv.show_keywords) && <KeywordTable t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} owner={owner} since={since} until={until} onChanged={() => setTick(x => x + 1)}/>}
-          {owner && <ShareBar t={t} adv={adv} actor={actor}/>}
+          </>}
+          {section === "autobid" && owner && <AutobidCard t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} onChanged={() => setTick(x => x + 1)}/>}
+          {section === "keywords" && (owner || adv.show_keywords) && <KeywordTable t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} owner={owner} since={since} until={until} onChanged={() => setTick(x => x + 1)}/>}
+          {section === "log" && <>
+            <ChangeLog t={t} logs={view.logs} owner={owner} adv={adv} actor={actor} actorName={actorName} onAdded={() => setTick(x => x + 1)}/>
+            {owner && <ShareBar t={t} adv={adv} actor={actor}/>}
+          </>}
         </>
       )}
     </>
