@@ -346,10 +346,32 @@ async function leadsMap(advId, since, until) {
   const m = {}; for (const r of (data || [])) m[r.ymd] = { leads: r.leads, note: r.note, by: r.entered_by };
   return m;
 }
+// 광고주에게는 금액·키워드명을 숨긴 요약만 (입찰가/키워드 비공개 원칙)
+const CLIENT_ACTION_TEXT = { "입찰 변경": "키워드 입찰 조정", "키워드 중지": "키워드 노출 중지", "키워드 재개": "키워드 노출 재개" };
+function logForClient(l) {
+  let detail = l.detail || "";
+  if (CLIENT_ACTION_TEXT[l.action]) { const m = /—\s*(.+)$/.exec(detail); detail = m ? m[1] : ""; }
+  detail = detail.replace(/\s*[·]?\s*(상한|바닥|입찰가?)\s*[\d,]+원/g, "").replace(/[\d,]+원\s*→\s*/g, "").replace(/[\d,]+원/g, "").replace(/\(\s*\)/g, "").replace(/\s{2,}/g, " ").trim();
+  return { id: l.id, at: l.at, actor: l.actor === "자동입찰" ? "자동입찰" : "올잇 마케팅", action: CLIENT_ACTION_TEXT[l.action] || l.action, detail };
+}
 async function logsList(advId, clientOnly) {
   let q = supabase.from("ad_change_log").select("id,at,actor,action,detail,visible_to_client").eq("advertiser_id", advId).order("at", { ascending: false }).limit(60);
   if (clientOnly) q = q.eq("visible_to_client", true);
-  const { data } = await q; return data || [];
+  const { data } = await q;
+  return clientOnly ? (data || []).map(logForClient) : (data || []);
+}
+// 광고주 화면 "실시간 관리 현황" — 오늘 점검 횟수·조정 건수, 이번 주 운영자 작업 수
+async function careSummary(advId) {
+  const todayStart = new Date(kstToday(0) + "T00:00:00+09:00").toISOString();
+  const weekStart = new Date(addDays(kstToday(0), -6) + "T00:00:00+09:00").toISOString();
+  const [{ data: runs }, { data: ops }] = await Promise.all([
+    supabase.from("ad_autobid_runs").select("at,changed,alive,error").eq("advertiser_id", advId).eq("dry", false).gte("at", weekStart).order("at", { ascending: false }).limit(400),
+    supabase.from("ad_change_log").select("at,action").eq("advertiser_id", advId).eq("visible_to_client", true).neq("actor", "자동입찰").gte("at", weekStart),
+  ]);
+  const all = runs || [];
+  const t0 = new Date(todayStart).getTime();
+  const r = all.filter(x => new Date(x.at).getTime() >= t0);
+  return { checks_today: r.length, adjusted_today: r.reduce((a, x) => a + Number(x.changed || 0), 0), watched: (r[0] || all[0])?.alive || 0, last_check: (r[0] || all[0])?.at || null, ops_week: (ops || []).length };
 }
 function parseRange(q) {
   let since = q.since, until = q.until;
@@ -371,8 +393,8 @@ async function respondStats(res, adv, q, { client }) {
   const logs = await logsList(adv.id, !!client);
   const leadTotal = Object.values(leads).reduce((a, r) => a + Number(r.leads || 0), 0);
   const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
-  const [autobid, ips] = await Promise.all([autobidSummary(adv.id).catch(() => null), ipSummary(nv)]);
-  return res.status(200).json({ ok: true, advertiser: client ? clientPub(adv) : pub(adv), since, until, ...live, leads, leadTotal, logs, autobid, ips, cron_ready: !!CRON_SECRET });
+  const [autobid, ips, care] = await Promise.all([autobidSummary(adv.id).catch(() => null), ipSummary(nv), careSummary(adv.id).catch(() => null)]);
+  return res.status(200).json({ ok: true, advertiser: client ? clientPub(adv) : pub(adv), since, until, ...live, leads, leadTotal, logs, autobid, ips, care, cron_ready: !!CRON_SECRET });
 }
 
 export default async function handler(req, res) {

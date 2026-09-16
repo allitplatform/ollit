@@ -29,6 +29,7 @@ function sectionsFor(owner, showKeywords) {
     ...(owner ? [{ id: "autobid", label: "자동입찰", icon: "🤖" }, { id: "shield", label: "부정클릭", icon: "🛡" }] : []),
     ...((owner || showKeywords) ? [{ id: "keywords", label: "키워드", icon: "🔑" }] : []),
     { id: "log", label: owner ? "이력·공유" : "변경 이력", icon: "📝" },
+    ...(owner ? [{ id: "report", label: "보고서", icon: "📄" }] : []),
   ];
 }
 function useSection() {
@@ -80,6 +81,11 @@ const STYLE = `
 
 // ===================== 운영자 화면 =====================
 export default function MarketingPwaApp({ user, onLogout }) {
+  const reportMatch = typeof window !== "undefined" ? /^\/mkt\/report\/([0-9a-f-]{36})\/?$/i.exec(window.location.pathname) : null;
+  if (reportMatch) return <ReportView advId={reportMatch[1]} user={user}/>;
+  return <MarketingHub user={user} onLogout={onLogout}/>;
+}
+function MarketingHub({ user, onLogout }) {
   const { mode, t, toggle } = useTheme();
   const isPc = useIsPc();
   const actor = user?.user_id || user?.userId || user?.id;
@@ -334,8 +340,6 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
       ) : (
         <>
           {section === "perf" && <>
-          {!owner && <CareCard t={t} isPc={isPc} data={data} view={view}/>}
-          {!owner && <ClientSummary t={t} adv={adv} data={data} view={view} since={since} until={until}/>}
           <Card t={t} title={`${adv.name} 광고 성과`} sub={adv.cpa_limit ? `접수당 광고비 ${won(adv.cpa_good)}원 이하 효율 / ${won(adv.cpa_limit)}원 상한${adv.margin_per_order ? ` (건당 이익 ${won(adv.margin_per_order)}원 기준)` : ""}` : owner ? "판정선 미설정 — 설정에서 건당 이익 입력" : "접수당 광고비 기준은 담당자와 협의 후 설정됩니다"}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <span className="mono" style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>
@@ -352,6 +356,8 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
             </div>
             <StatusBoard t={t} isPc={isPc} data={data} view={view} owner={owner}/>
           </Card>
+          {!owner && <ClientSummary t={t} adv={adv} data={data} view={view} since={since} until={until}/>}
+          {!owner && <CareCard t={t} isPc={isPc} data={data} view={view}/>}
 
           <div style={{ display: "grid", gridTemplateColumns: isPc ? "1fr 1fr" : "1fr", gap: 12 }}>
             <Card t={t} title="일별 흐름 · 접수 입력" sub="접수 칸에 그날 전화·문의 건수를 넣으면 접수당 광고비가 계산됩니다">
@@ -383,6 +389,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
           {section === "autobid" && owner && <AutobidCard t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} onChanged={() => setTick(x => x + 1)}/>}
           {section === "shield" && owner && <ShieldCard t={t} adv={adv} actor={actor} actorName={actorName} view={view} onChanged={() => setTick(x => x + 1)}/>}
           {section === "keywords" && (owner || adv.show_keywords) && <KeywordTable t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} owner={owner} since={since} until={until} onChanged={() => setTick(x => x + 1)}/>}
+          {section === "report" && owner && <ReportLauncher t={t} adv={adv} since={since} until={until}/>}
           {section === "log" && <>
             <ChangeLog t={t} logs={view.logs} owner={owner} adv={adv} actor={actor} actorName={actorName} onAdded={() => setTick(x => x + 1)}/>
             {owner && <ShareBar t={t} adv={adv} actor={actor}/>}
@@ -450,6 +457,162 @@ function KeywordTable({ t, isPc, adv, actor, actorName, owner, since, until, onC
         </div>
       )}
     </Card>
+  );
+}
+
+// ---------- 보고서 (운영자) ----------
+// /mkt/report/<광고주id>?since&until 를 새 탭으로 열어 A4 한 장 사무 양식으로 렌더 → 브라우저 인쇄(PDF 저장).
+// 서버에서 PDF 를 만들지 않는 이유: Vercel Hobby 함수 12개 한도 + 크로미움 용량. 브라우저 인쇄가 같은 결과를 무료로 낸다.
+function ReportLauncher({ t, adv, since, until }) {
+  const [s, setS] = useState(kstYmd(-7));
+  const [u, setU] = useState(kstYmd(-1));
+  const open = () => window.open(`/mkt/report/${adv.id}?since=${s}&until=${u}`, "_blank");
+  const preset = (a, b) => { setS(a); setU(b); };
+  return (
+    <Card t={t} title="운영 보고서 (A4 1장)" sub="기간을 고르고 열면 사무 양식으로 정리된 보고서가 새 창에 뜹니다. 인쇄 → 'PDF로 저장'">
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+        <button onClick={() => preset(kstYmd(-7), kstYmd(-1))} className="tab-btn" style={{ ...btnGhost(t), flex: "0 0 auto", padding: "6px 10px" }}>지난 7일</button>
+        <button onClick={() => preset(kstYmd(-14), kstYmd(-1))} className="tab-btn" style={{ ...btnGhost(t), flex: "0 0 auto", padding: "6px 10px" }}>지난 14일</button>
+        <button onClick={() => preset(kstYmd(0).slice(0, 8) + "01", kstYmd(0))} className="tab-btn" style={{ ...btnGhost(t), flex: "0 0 auto", padding: "6px 10px" }}>이번 달</button>
+        <button onClick={() => preset(since, until)} className="tab-btn" style={{ ...btnGhost(t), flex: "0 0 auto", padding: "6px 10px" }}>화면 기간</button>
+      </div>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <input type="date" value={s} onChange={e => setS(e.target.value)} className="mkt-input" style={{ ...inputStyle(t), width: 150 }}/>
+        <span style={{ color: t.textMuted }}>~</span>
+        <input type="date" value={u} onChange={e => setU(e.target.value)} className="mkt-input" style={{ ...inputStyle(t), width: 150 }}/>
+        <button onClick={open} className="tab-btn" style={{ ...btnPrimary(t) }}><ExternalLink size={13}/> 보고서 열기</button>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>
+        보고서 안의 '비고'·'다음 계획'·'담당자 의견' 칸은 클릭해서 바로 고칠 수 있고, 같은 광고주·기간이면 이 PC 에 기억됩니다. 입찰가는 원칙대로 들어가지 않습니다.
+      </div>
+    </Card>
+  );
+}
+const RPT_CSS = `
+  @page { size: A4; margin: 10mm 12mm; }
+  .rpt { max-width: 800px; margin: 0 auto; background: #fff; color: #111; font-family: "Noto Sans CJK KR","Malgun Gothic","Apple SD Gothic Neo",sans-serif; font-size: 9.5pt; line-height: 1.35; padding: 24px 28px; }
+  .rpt h1 { font-size: 16pt; margin: 0; text-align: center; padding: 6px 0 8px; border-bottom: 2px solid #111; letter-spacing: .02em; }
+  .rpt table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  .rpt table.info { margin: 6px 0 8px; font-size: 8.5pt; }
+  .rpt table.info th { background: #f2f2f2; font-weight: 600; width: 11%; text-align: center; border: 1px solid #999; padding: 4px; }
+  .rpt table.info td { border: 1px solid #999; padding: 4px 6px; width: 22%; }
+  .rpt h2 { font-size: 10pt; margin: 8px 0 3px; padding-left: 6px; border-left: 4px solid #111; }
+  .rpt table.t { font-size: 8.5pt; }
+  .rpt table.t th { background: #f2f2f2; border: 1px solid #999; padding: 3px 5px; font-weight: 600; text-align: center; white-space: nowrap; }
+  .rpt table.t td { border: 1px solid #999; padding: 2px 5px; }
+  .rpt td.n { text-align: right; white-space: nowrap; } .rpt td.c { text-align: center; white-space: nowrap; }
+  .rpt tr.sum td { font-weight: 600; background: #fafafa; }
+  .rpt .hl { background: #fff27a; }
+  .rpt .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rpt .ed { min-height: 54px; border: 1px dashed #bbb; padding: 4px 6px; outline: none; white-space: pre-wrap; }
+  .rpt .ed:focus { border-color: #E91860; background: #fff9fb; }
+  .rpt .ed:empty:before { content: attr(data-ph); color: #999; }
+  .rpt table.sign { margin-top: 10px; font-size: 9pt; }
+  .rpt table.sign th { background: #f2f2f2; border: 1px solid #999; padding: 3px; font-weight: 600; text-align: center; }
+  .rpt table.sign td { border: 1px solid #999; height: 30px; width: 25%; }
+  .rpt .foot { font-size: 8pt; color: #555; margin-top: 6px; }
+  .rpt-bar { position: sticky; top: 0; background: #1A1512; color: #fff; padding: 10px 16px; display: flex; gap: 8px; align-items: center; font-family: inherit; font-size: 13px; z-index: 5; }
+  .rpt-bar button { background: #E91860; color: #fff; border: none; border-radius: 8px; padding: 8px 14px; font-weight: 800; cursor: pointer; font-family: inherit; }
+  @media print { .rpt-bar { display: none !important; } body { background: #fff !important; } .rpt { padding: 0; max-width: none; } .rpt .ed { border: none; padding: 0; } .rpt .ed:empty:before { content: ""; } }
+`;
+function Editable({ k, ph, store, setStore }) {
+  return <div className="ed" contentEditable suppressContentEditableWarning data-ph={ph} onBlur={e => setStore(st => ({ ...st, [k]: e.currentTarget.innerText }))} dangerouslySetInnerHTML={{ __html: (store[k] || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/\n/g, "<br>") }}/>;
+}
+function ReportView({ advId, user }) {
+  const actor = user?.user_id || user?.userId || user?.id;
+  const q = new URLSearchParams(window.location.search);
+  const since = /^\d{4}-\d{2}-\d{2}$/.test(q.get("since") || "") ? q.get("since") : kstYmd(-7);
+  const until = /^\d{4}-\d{2}-\d{2}$/.test(q.get("until") || "") ? q.get("until") : kstYmd(-1);
+  const [st, setSt] = useState(null);
+  const [kw, setKw] = useState(null);
+  const [err, setErr] = useState(null);
+  const storeKey = `mkt_rpt_${advId}_${since}_${until}`;
+  const [store, setStore] = useState(() => { try { return JSON.parse(localStorage.getItem(storeKey) || "{}"); } catch { return {}; } });
+  useEffect(() => { try { localStorage.setItem(storeKey, JSON.stringify(store)); } catch { /* */ } }, [store, storeKey]);
+  useEffect(() => {
+    api("stats", { actor, get: { id: advId, since, until } }).then(j => j.ok ? setSt(j) : setErr(j.error || "조회 실패")).catch(e => setErr(String(e)));
+    api("keywords", { actor, get: { id: advId, since, until } }).then(j => setKw(j.ok ? j : { keywords: [] })).catch(() => setKw({ keywords: [] }));
+  }, [actor, advId, since, until]);
+
+  const today = kstYmd(0);
+  if (err) return <div style={{ padding: 40, fontFamily: "sans-serif" }}>보고서를 만들 수 없습니다 — {err}</div>;
+  if (!st) return <div style={{ padding: 40, fontFamily: "sans-serif", color: "#666" }}>네이버에서 {since} ~ {until} 성과를 받는 중…</div>;
+  const adv = st.advertiser;
+  const days = (st.days || []).slice().sort((a, b) => a.ymd < b.ymd ? -1 : 1);
+  const leads = st.leads || {};
+  const tot = days.reduce((a, d) => ({ imp: a.imp + d.impressions, clk: a.clk + d.clicks, cost: a.cost + d.cost, lead: a.lead + Number(leads[d.ymd]?.leads || 0) }), { imp: 0, clk: 0, cost: 0, lead: 0 });
+  const bestClk = Math.max(...days.map(d => d.clicks), 0);
+  const camps = (st.campaigns || []);
+  const kws = (kw?.keywords || []).filter(k => k.impressions > 0).slice(0, 12);
+  const bestCtr = Math.max(...kws.filter(k => k.clicks >= 3).map(k => k.ctr), 0);
+  const acts = (st.logs || []).filter(l => l.at.slice(0, 10) >= since && l.at.slice(0, 10) <= until && l.visible_to_client !== false && l.actor !== "자동입찰")
+    .map(l => ({ ymd: l.at.slice(5, 10), action: l.action, detail: (l.detail || "").replace(/[\d,]+원\s*→\s*/g, "").replace(/\s*[·]?\s*(상한|바닥|입찰가?)\s*[\d,]+원/g, "").replace(/[\d,]+원/g, "").replace(/\(\s*\)/g, "").trim() })).slice(0, 8);
+  const autoRuns = (st.logs || []).filter(l => l.actor === "자동입찰" && l.at.slice(0, 10) >= since && l.at.slice(0, 10) <= until).length;
+  const per = tot.lead > 0 ? Math.round(tot.cost * 1.1 / tot.lead) : null;
+  const ctr = (c, i) => i ? (c / i * 100).toFixed(2) + "%" : "-";
+  const cpc = (c, k) => k ? won(Math.round(c / k)) : "-";
+  const wd = ["일", "월", "화", "수", "목", "금", "토"];
+  return (
+    <div style={{ background: "#e9e9e9", minHeight: "100vh" }}>
+      <style>{RPT_CSS}</style>
+      <div className="rpt-bar">
+        <span style={{ flex: 1 }}>📄 {adv.name} 운영 보고서 · {since} ~ {until} — 점선 칸은 클릭해서 수정</span>
+        <button onClick={() => window.print()}>인쇄 / PDF 저장</button>
+      </div>
+      <div className="rpt">
+        <h1>네이버 파워링크 광고 운영 보고서</h1>
+        <table className="info"><tbody>
+          <tr><th>광고주</th><td>{adv.name}</td><th>캠페인</th><td>{camps.map(c => c.name).join(", ") || "-"} (계정 {adv.customer_id})</td></tr>
+          <tr><th>보고 기간</th><td>{since} ~ {until} ({days.length}일)</td><th>작성일</th><td>{today}</td></tr>
+          <tr><th>보고 구분</th><td>{days.length >= 7 ? "주간 운영 보고" : "운영 보고"}</td><th>데이터 출처</th><td>네이버 검색광고 API · 광고비 VAT 별도</td></tr>
+        </tbody></table>
+
+        <h2>1. 기간 요약</h2>
+        <table className="t"><tbody>
+          <tr><th>노출</th><th>클릭</th><th>클릭률</th><th>광고비(VAT별도)</th><th>광고비(VAT포함)</th><th>클릭당 비용</th><th>접수</th><th>접수당 광고비</th><th>평균 순위</th></tr>
+          <tr><td className="n">{won(tot.imp)}</td><td className="n">{won(tot.clk)}</td><td className="n">{ctr(tot.clk, tot.imp)}</td><td className="n">{won(tot.cost)}</td><td className="n hl">{won(Math.round(tot.cost * 1.1))}</td><td className="n">{cpc(tot.cost, tot.clk)}</td><td className="n">{tot.lead ? won(tot.lead) : "미입력"}</td><td className={"n" + (per != null ? " hl" : "")}>{per != null ? won(per) : "-"}</td><td className="n">{st.totals?.rank != null ? st.totals.rank.toFixed(1) : "-"}</td></tr>
+        </tbody></table>
+
+        <h2>2. 일별 성과</h2>
+        <table className="t"><tbody>
+          <tr><th>일자</th><th>요일</th><th>노출</th><th>클릭</th><th>클릭률</th><th>광고비</th><th>클릭당 비용</th><th>평균 순위</th><th>접수</th></tr>
+          {days.map(d => (
+            <tr key={d.ymd}><td className="c">{d.ymd.slice(5)}</td><td className="c">{wd[new Date(d.ymd + "T00:00:00").getDay()]}</td><td className="n">{won(d.impressions)}</td><td className={"n" + (d.clicks === bestClk && bestClk > 0 ? " hl" : "")}>{won(d.clicks)}</td><td className="n">{ctr(d.clicks, d.impressions)}</td><td className="n">{won(d.cost)}</td><td className="n">{cpc(d.cost, d.clicks)}</td><td className="n">{d.rank != null ? d.rank.toFixed(1) : "-"}</td><td className="n">{leads[d.ymd]?.leads ?? ""}</td></tr>
+          ))}
+          <tr className="sum"><td className="c" colSpan={2}>합계</td><td className="n">{won(tot.imp)}</td><td className="n">{won(tot.clk)}</td><td className="n">{ctr(tot.clk, tot.imp)}</td><td className="n">{won(tot.cost)}</td><td className="n">{cpc(tot.cost, tot.clk)}</td><td className="n">{st.totals?.rank != null ? st.totals.rank.toFixed(1) : "-"}</td><td className="n">{tot.lead || ""}</td></tr>
+        </tbody></table>
+
+        {camps.length > 1 && (<>
+          <h2>3. 캠페인별</h2>
+          <table className="t"><tbody>
+            <tr><th>캠페인</th><th>노출</th><th>클릭</th><th>클릭률</th><th>광고비</th><th>순위</th><th>상태</th></tr>
+            {camps.map(c => <tr key={c.id}><td>{c.name}</td><td className="n">{won(c.impressions)}</td><td className="n">{won(c.clicks)}</td><td className="n">{ctr(c.clicks, c.impressions)}</td><td className="n">{won(c.cost)}</td><td className="n">{c.rank != null ? c.rank.toFixed(1) : "-"}</td><td className="c">{c.userLock ? "중지" : "운영"}</td></tr>)}
+          </tbody></table>
+        </>)}
+
+        <h2>{camps.length > 1 ? 4 : 3}. 주요 키워드 (광고비 상위)</h2>
+        <table className="t"><tbody>
+          <tr><th>키워드</th><th>그룹</th><th>노출</th><th>클릭</th><th>클릭률</th><th>광고비</th><th>클릭당 비용</th><th>순위</th></tr>
+          {kws.length === 0 ? <tr><td colSpan={8} className="c">집계 중</td></tr> : kws.map(k => (
+            <tr key={k.id}><td>{k.keyword}</td><td>{(k.group || "").replace(/^파워링크_/, "")}</td><td className="n">{won(k.impressions)}</td><td className="n">{won(k.clicks)}</td><td className={"n" + (k.clicks >= 3 && k.ctr === bestCtr ? " hl" : "")}>{k.ctr}%</td><td className="n">{won(k.cost)}</td><td className="n">{won(k.cpc)}</td><td className="n">{k.rank != null ? Number(k.rank).toFixed(1) : "-"}</td></tr>
+          ))}
+        </tbody></table>
+
+        <h2>{camps.length > 1 ? 5 : 4}. 적용 조치</h2>
+        <table className="t"><tbody>
+          <tr><th>일자</th><th>구분</th><th>내용</th></tr>
+          {acts.length === 0 ? <tr><td colSpan={3} className="c">기간 내 수동 조치 없음</td></tr> : acts.map((a, i) => <tr key={i}><td className="c">{a.ymd}</td><td className="c">{a.action}</td><td>{a.detail}</td></tr>)}
+          {autoRuns > 0 && <tr><td className="c">상시</td><td className="c">자동입찰</td><td className="hl">30분 간격 순위 점검 · 기간 중 {won(autoRuns)}회 입찰 조정 — 목표 순위 유지</td></tr>}
+        </tbody></table>
+
+        <div className="two" style={{ marginTop: 8 }}>
+          <div><h2>다음 기간 계획</h2><Editable k="plan" ph="예) 상위 클릭 키워드 1위 유지 · 클릭 0 키워드 정리 · 소재 교체" store={store} setStore={setStore}/></div>
+          <div><h2>담당자 의견</h2><Editable k="memo" ph="예) 클릭률 상승 추세. 접수 건수 입력 시 접수당 광고비 판정 가능" store={store} setStore={setStore}/></div>
+        </div>
+        <table className="sign"><tbody><tr><th>작성</th><th>검토</th><th>광고주 확인</th><th>비고</th></tr><tr><td/><td/><td/><td/></tr></tbody></table>
+        <div className="foot">올잇 마케팅 · 본 보고서의 수치는 네이버 검색광고 API 집계 기준이며, 당일 수치는 조회 시점까지입니다.</div>
+      </div>
+    </div>
   );
 }
 
@@ -536,12 +699,8 @@ function ClientSummary({ t, adv, data, view, since, until }) {
     else lines.push(`충전된 광고비(비즈머니)는 ${won(Math.round(view.biz))}원 남아 있습니다${view.bizDays != null ? ` (일평균 지출 기준 약 ${Math.floor(view.bizDays)}일분)` : ""}.`);
   }
   if (view.clickAlert) lines.push(`오늘 클릭이 직전 7일 평균(${won(view.avgClicks)})의 ${(view.todayClicks / Math.max(view.avgClicks, 1)).toFixed(1)}배로 급증해 부정클릭 여부를 확인하고 있습니다. 의심 IP 는 즉시 차단하고, 무효클릭은 네이버에 환불 요청합니다.`);
-  else lines.push(`클릭 흐름은 직전 7일 평균(${won(view.avgClicks)}클릭/일)과 비교해 이상 징후가 없습니다.${data.ips ? ` 지금까지 차단한 IP 는 ${data.ips.total}개이며, 해당 IP 에는 광고가 노출되지 않습니다.` : ""}`);
-  if (data.autobid?.enabled) {
-    if (c.checks_today) lines.push(`자동입찰이 ${data.autobid.groups}개 광고그룹의 키워드 ${won(c.watched)}개를 30분마다 점검합니다. 오늘 ${won(c.checks_today)}회 점검했고 ${c.adjusted_today ? `${won(c.adjusted_today)}건의 입찰을 조정해 목표 순위를 유지했습니다` : "순위가 안정적이라 조정이 필요 없었습니다"}.`);
-    else lines.push(`자동입찰이 ${data.autobid.groups}개 광고그룹에 설정되어 있으며, 30분마다 순위를 점검해 목표 순위를 벗어나면 자동으로 조정합니다.`);
-  }
-  if (c.ops_week) lines.push(`이번 주 담당자가 직접 진행한 작업은 ${won(c.ops_week)}건입니다. 자세한 내용은 '변경 이력'에서 볼 수 있습니다.`);
+  if (data.autobid?.last?.error) lines.push(`자동입찰에 일시 오류가 있어 담당자가 확인 중입니다. 입찰가는 마지막 정상 값으로 유지됩니다.`);
+  if (c.adjusted_today) lines.push(`오늘 자동입찰이 ${won(c.adjusted_today)}건의 입찰을 조정해 목표 순위를 유지했습니다.`);
   return (
     <Card t={t} title={`${view.isToday ? "오늘" : "기간"} 요약`} sub="담당자 코멘트 — 숫자를 풀어 설명합니다">
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -556,9 +715,8 @@ function ClientSummary({ t, adv, data, view, since, until }) {
 function CareCard({ t, isPc, data, view }) {
   const c = data.care || {};
   const live = c.last_check && Date.now() - new Date(c.last_check).getTime() < 45 * 60 * 1000;
-  const rankOk = view.rank != null && view.rank <= 2;
   return (
-    <Card t={t} title="실시간 관리 현황" sub="올잇 마케팅이 이 계정을 자동·수동으로 관리하고 있는 기록입니다">
+    <Card t={t} title="관리 활동" sub={`30분마다 순위를 점검하고 필요할 때만 조정합니다${view.rank != null && view.rank <= 2 ? " · 목표 순위 유지 중" : ""}`}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12.5, fontWeight: 800 }}>
         <span style={{ width: 9, height: 9, borderRadius: 999, background: live ? t.success : t.textMuted, boxShadow: live ? `0 0 0 4px ${t.success}33` : "none" }}/>
         {c.last_check ? `마지막 점검 ${fmtAgo(c.last_check)}` : "오늘 첫 자동 점검 대기 중"}
@@ -579,11 +737,6 @@ function CareCard({ t, isPc, data, view }) {
           </>
         )}
         <MiniStat t={t} label="이번 주 운영 작업" value={c.ops_week ? won(c.ops_week) : "집계 중"} suffix={c.ops_week ? "건" : ""}/>
-      </div>
-      <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${t.border}`, display: "flex", flexWrap: "wrap", gap: "4px 14px", fontSize: 11, fontWeight: 700, color: t.textMuted }}>
-        <span style={{ color: rankOk ? t.success : t.textMuted }}>{rankOk ? "✅ 목표 순위 유지 중" : view.rank != null ? `📍 평균 ${view.rank.toFixed(1)}위 · 조정 중` : "📍 순위 집계 대기"}</span>
-        <span style={{ color: view.clickAlert ? t.danger : t.success }}>{view.clickAlert ? "⚠ 클릭 급증 확인 중" : "✅ 부정클릭 감시 정상"}</span>
-        {data.ips && <span>🚫 차단 IP {data.ips.total}개</span>}
       </div>
     </Card>
   );
