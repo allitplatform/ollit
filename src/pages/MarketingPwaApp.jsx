@@ -1153,7 +1153,7 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
     name: initial?.name || "", slug: initial?.slug || "", customer_id: initial?.customer_id || "",
     api_key: "", api_secret: "", campaign_filter: initial?.campaign_filter || "",
     margin_per_order: initial?.margin_per_order ?? "", cpa_good: initial?.cpa_good ?? "", cpa_limit: initial?.cpa_limit ?? "",
-    show_keywords: !!initial?.show_keywords, memo: initial?.memo || "", use_env: false,
+    show_keywords: !!initial?.show_keywords, memo: initial?.memo || "", use_env: "",
   }));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -1182,9 +1182,17 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
         <Field t={t} value={f.cpa_good} onChange={set("cpa_good")} label="효율 기준 (원/접수)" type="number" ph="자동"/>
         <Field t={t} value={f.cpa_limit} onChange={set("cpa_limit")} label="상한 (원/접수)" type="number" ph="자동"/>
       </div>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
-        <input type="checkbox" checked={f.use_env} onChange={set("use_env")}/> 서버에 저장된 올데이 키 사용 (NAVER_AD_* 환경변수 — 키·비밀키·CUSTOMER_ID 칸 비워도 됨)
-      </label>
+      {!initial && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
+          서버에 저장된 키 사용
+          <select value={f.use_env} onChange={set("use_env")} className="mkt-input" style={{ ...inputStyle(t), width: "auto", padding: "6px 8px" }}>
+            <option value="">안 함 (위 칸에 직접 입력)</option>
+            <option value="allday">올데이케어 (NAVER_AD_*)</option>
+            <option value="yusol">유솔홈케어 (YUSOL_AD_*)</option>
+          </select>
+          <span style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>선택하면 키·비밀키·CUSTOMER_ID 칸은 비워도 됩니다</span>
+        </label>
+      )}
       <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
         <input type="checkbox" checked={f.show_keywords} onChange={set("show_keywords")}/> 광고주 화면에 키워드 표 노출
       </label>

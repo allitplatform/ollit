@@ -525,8 +525,9 @@ export default async function handler(req, res) {
       if (body.active !== undefined) patch.active = !!body.active;
       // 올데이 봇이 쓰는 서버 환경변수(NAVER_AD_*) 그대로 등록 — 비밀값을 화면에 다시 입력할 필요 없음
       if (body.use_env) {
-        const k = process.env.NAVER_AD_API_KEY, sc = process.env.NAVER_AD_SECRET, cid = process.env.NAVER_AD_CUSTOMER_ID;
-        if (!k || !sc || !cid) return res.status(400).json({ ok: false, error: "서버에 NAVER_AD_API_KEY / NAVER_AD_SECRET / NAVER_AD_CUSTOMER_ID 가 없습니다" });
+        const pre = body.use_env === "yusol" ? "YUSOL_AD" : "NAVER_AD"; // 올데이 봇 / 유솔 봇이 쓰는 변수 이름
+        const k = process.env[`${pre}_API_KEY`], sc = process.env[`${pre}_SECRET`], cid = process.env[`${pre}_CUSTOMER_ID`];
+        if (!k || !sc || !cid) return res.status(400).json({ ok: false, error: `서버에 ${pre}_API_KEY / ${pre}_SECRET / ${pre}_CUSTOMER_ID 가 없습니다` });
         body.api_key = k; body.api_secret = sc; patch.customer_id = String(cid).trim();
       }
       if (body.api_key) patch.api_key_enc = encrypt(String(body.api_key).trim());
