@@ -325,10 +325,10 @@ async function ipSummary(nv) {
 function pub(a) {
   return { id: a.id, name: a.name, slug: a.slug, customer_id: a.customer_id, campaign_filter: a.campaign_filter,
     margin_per_order: a.margin_per_order, cpa_good: a.cpa_good, cpa_limit: a.cpa_limit, show_keywords: a.show_keywords,
-    memo: a.memo, active: a.active, client_token: a.client_token, created_at: a.created_at };
+    memo: a.memo, active: a.active, client_token: a.client_token, created_at: a.created_at, lead_source: a.lead_source || null };
 }
 function clientPub(a) {
-  return { id: a.id, name: a.name, cpa_good: a.cpa_good, cpa_limit: a.cpa_limit, margin_per_order: a.margin_per_order, show_keywords: a.show_keywords };
+  return { id: a.id, name: a.name, cpa_good: a.cpa_good, cpa_limit: a.cpa_limit, margin_per_order: a.margin_per_order, show_keywords: a.show_keywords, lead_source: a.lead_source || null };
 }
 async function assertAdmin(actor) {
   if (!actor || !UUID_RE.test(actor)) return { ok: false, code: 400, error: "actor(uuid) required" };
@@ -348,7 +348,24 @@ async function getAdvByToken(token) {
   const { data } = await supabase.from("ad_advertisers").select("*").eq("client_token", token).eq("active", true).maybeSingle();
   return data || null;
 }
-async function leadsMap(advId, since, until) {
+// 접수 자동 집계 — lead_source 'inquiries:<service_type|all>' 이면 홈페이지 접수함에서 날짜별(KST) 건수를 세어 ad_leads 에 기록
+async function syncAutoLeads(adv, since, until) {
+  const src = String(adv.lead_source || "");
+  if (!src.startsWith("inquiries:")) return;
+  const svc = src.slice("inquiries:".length) || "all";
+  const from = new Date(since + "T00:00:00+09:00").toISOString(), to = new Date(addDays(until, 1) + "T00:00:00+09:00").toISOString();
+  let q = supabase.from("inquiries").select("created_at,status,service_type").gte("created_at", from).lt("created_at", to).neq("status", "spam");
+  if (svc !== "all") q = q.eq("service_type", svc);
+  const { data, error } = await q;
+  if (error) { console.error("[ad-hub] auto leads", error.message); return; }
+  const cnt = {};
+  for (let i = 0; i <= daysBetween(since, until); i++) cnt[addDays(since, i)] = 0;
+  for (const r of (data || [])) { const ymd = new Date(new Date(r.created_at).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10); if (ymd in cnt) cnt[ymd]++; }
+  const rows = Object.entries(cnt).map(([ymd, n]) => ({ advertiser_id: adv.id, ymd, leads: n, entered_by: "auto", updated_at: new Date().toISOString() }));
+  if (rows.length) await supabase.from("ad_leads").upsert(rows, { onConflict: "advertiser_id,ymd" });
+}
+async function leadsMap(advId, since, until, adv) {
+  if (adv) await syncAutoLeads(adv, since, until).catch(e => console.error("[ad-hub] auto leads", e?.message));
   const { data } = await supabase.from("ad_leads").select("ymd,leads,note,entered_by").eq("advertiser_id", advId).gte("ymd", since).lte("ymd", until);
   const m = {}; for (const r of (data || [])) m[r.ymd] = { leads: r.leads, note: r.note, by: r.entered_by };
   return m;
@@ -396,7 +413,7 @@ async function respondStats(res, adv, q, { client }) {
   const { since, until } = parseRange(q);
   const live = await fetchLive(adv, since, until, { daily: true });
   cacheDays(adv, live).catch(e => console.error("[ad-hub] cache", e?.message));
-  const leads = await leadsMap(adv.id, since, until);
+  const leads = await leadsMap(adv.id, since, until, adv);
   const logs = await logsList(adv.id, !!client);
   const leadTotal = Object.values(leads).reduce((a, r) => a + Number(r.leads || 0), 0);
   const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
@@ -421,6 +438,7 @@ export default async function handler(req, res) {
     if (mode === "client_leads") {
       const adv = await getAdvByToken(body.token);
       if (!adv) return res.status(404).json({ ok: false, error: "링크가 유효하지 않습니다" });
+      if (adv.lead_source) return res.status(400).json({ ok: false, error: "접수는 자동 집계됩니다" });
       if (!YMD_RE.test(body.ymd || "")) return res.status(400).json({ ok: false, error: "ymd" });
       const { error } = await supabase.from("ad_leads").upsert({ advertiser_id: adv.id, ymd: body.ymd, leads: num(body.leads, 0), note: body.note || null, entered_by: "client", updated_at: new Date().toISOString() }, { onConflict: "advertiser_id,ymd" });
       if (error) return res.status(500).json({ ok: false, error: error.message });
@@ -502,7 +520,7 @@ export default async function handler(req, res) {
         try {
           const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
           const [live, autobid, ips, leads] = await Promise.all([
-            fetchLive(adv, since, until, { daily: true }), autobidSummary(adv.id).catch(() => null), ipSummary(nv), leadsMap(adv.id, until, until),
+            fetchLive(adv, since, until, { daily: true }), autobidSummary(adv.id).catch(() => null), ipSummary(nv), leadsMap(adv.id, until, until, adv),
           ]);
           cacheDays(adv, live).catch(() => {});
           const today = (live.days || []).find(d => d.ymd === until) || { impressions: 0, clicks: 0, cost: 0, rank: null };
@@ -533,6 +551,7 @@ export default async function handler(req, res) {
       if (body.cpa_limit !== undefined) patch.cpa_limit = num(body.cpa_limit);
       if (body.show_keywords !== undefined) patch.show_keywords = !!body.show_keywords;
       if (body.memo !== undefined) patch.memo = body.memo ? String(body.memo) : null;
+      if (body.lead_source !== undefined) patch.lead_source = body.lead_source && /^inquiries:[a-z_]+$/.test(body.lead_source) ? body.lead_source : null;
       if (body.active !== undefined) patch.active = !!body.active;
       // 올데이 봇이 쓰는 서버 환경변수(NAVER_AD_*) 그대로 등록 — 비밀값을 화면에 다시 입력할 필요 없음
       if (body.use_env) {
@@ -653,6 +672,7 @@ export default async function handler(req, res) {
     }
     if (mode === "leads") {
       if (!UUID_RE.test(body.id || "") || !YMD_RE.test(body.ymd || "")) return res.status(400).json({ ok: false, error: "id/ymd" });
+      { const a = await getAdv(body.id); if (a?.lead_source) return res.status(400).json({ ok: false, error: "이 광고주는 접수함에서 자동 집계됩니다" }); }
       const { error } = await supabase.from("ad_leads").upsert({ advertiser_id: body.id, ymd: body.ymd, leads: num(body.leads, 0), note: body.note || null, entered_by: "owner", updated_at: new Date().toISOString() }, { onConflict: "advertiser_id,ymd" });
       if (error) return res.status(500).json({ ok: false, error: error.message });
       return res.status(200).json({ ok: true });

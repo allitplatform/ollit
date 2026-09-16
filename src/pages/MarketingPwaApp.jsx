@@ -370,14 +370,14 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
           {!owner && <CareCard t={t} isPc={isPc} data={data} view={view}/>}
 
           <div style={{ display: "grid", gridTemplateColumns: isPc ? "1fr 1fr" : "1fr", gap: 12 }}>
-            <Card t={t} title="일별 흐름 · 접수 입력" sub={owner ? "접수 칸에 그날 전화·문의 건수를 넣으면 접수당 광고비가 계산됩니다" : "오른쪽 분홍 칸(✎)에 그날 받은 전화·문의 건수를 넣어 주세요 — 입력 즉시 접수당 광고비가 계산됩니다"}>
+            <Card t={t} title={adv.lead_source ? "일별 흐름 · 접수 (자동 집계)" : "일별 흐름 · 접수 입력"} sub={adv.lead_source ? "접수 건수는 홈페이지 접수함에서 자동으로 집계됩니다 (스팸 제외)" : owner ? "접수 칸에 그날 전화·문의 건수를 넣으면 접수당 광고비가 계산됩니다" : "오른쪽 분홍 칸(✎)에 그날 받은 전화·문의 건수를 넣어 주세요 — 입력 즉시 접수당 광고비가 계산됩니다"}>
               {view.days.length === 0 ? <Empty t={t}>집계된 날이 없습니다</Empty> : (
                 <>
                   <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 52px 44px 64px", gap: 6, fontSize: 9.5, color: t.textMuted, fontWeight: 700, padding: "0 0 4px" }}>
-                    <span>날짜</span><span>광고비</span><span>클릭</span><span>순위</span><span style={{ color: t.accent }}>접수 ✎ 입력</span>
+                    <span>날짜</span><span>광고비</span><span>클릭</span><span>순위</span><span style={{ color: adv.lead_source ? t.success : t.accent }}>{adv.lead_source ? "접수 (자동)" : "접수 ✎ 입력"}</span>
                   </div>
                   {view.days.map(d => (
-                    <DayRow key={d.ymd} t={t} d={d} lead={(data.leads || {})[d.ymd]} onSave={saveLead}/>
+                    <DayRow key={d.ymd} t={t} d={d} lead={(data.leads || {})[d.ymd]} onSave={saveLead} auto={!!adv.lead_source}/>
                   ))}
                 </>
               )}
@@ -489,7 +489,7 @@ function Overview({ t, isPc, actor, onPick }) {
         if (a.autobid?.last?.error) alerts.push({ lv: "danger", text: "자동입찰 오류" });
         else if (a.autobid?.enabled && a.autobid.last && Date.now() - new Date(a.autobid.last.at).getTime() > 2 * 3600 * 1000) alerts.push({ lv: "warning", text: `자동입찰 ${fmtAgo(a.autobid.last.at)} 이후 멈춤` });
         if (a.cpa_limit && a.today.lead > 0 && a.today.costVat / a.today.lead > a.cpa_limit) alerts.push({ lv: "danger", text: "접수당 광고비 상한 초과" });
-        if (a.today.costVat > 0 && a.today.lead == null) alerts.push({ lv: "info", text: "접수 미입력" });
+        if (a.today.costVat > 0 && a.today.lead == null && !a.lead_source) alerts.push({ lv: "info", text: "접수 미입력" });
         if (!a.cpa_limit) alerts.push({ lv: "info", text: "건당 이익 미설정" });
       }
       const score = alerts.reduce((n, x) => n + (x.lv === "danger" ? 100 : x.lv === "warning" ? 10 : 1), 0);
@@ -792,7 +792,7 @@ function ClientSummary({ t, adv, data, view, since, until }) {
   }
   const todo = [];
   if (view.bizLow) todo.push(`광고비 [[${won(Math.round(view.biz))}원]] 남음 → [[충전]]`);
-  if (view.costVat > 0 && !view.leadTotal) todo.push("아래 분홍 칸에 [[접수 건수 입력]]");
+  if (view.costVat > 0 && !view.leadTotal && !adv.lead_source) todo.push("아래 분홍 칸에 [[접수 건수 입력]]");
   if (todo.length) rows.push({ label: "해주실 일", text: todo.join("  /  "), accent: true });
   const did = [];
   if (c.adjusted_today) did.push(`자동입찰 [[${won(c.adjusted_today)}건]] 조정`);
@@ -1077,7 +1077,7 @@ function KwRow({ t, isPc, k, cols, onBid, onLock }) {
   );
 }
 
-function DayRow({ t, d, lead, onSave }) {
+function DayRow({ t, d, lead, onSave, auto }) {
   const [val, setVal] = useState(lead?.leads ?? "");
   useEffect(() => { setVal(lead?.leads ?? ""); }, [lead?.leads]);
   const commit = () => { const n = val === "" ? 0 : Number(val); if (Number(lead?.leads || 0) !== n) onSave(d.ymd, n, lead?.note || null); };
@@ -1087,11 +1087,17 @@ function DayRow({ t, d, lead, onSave }) {
       <span className="mono" style={{ color: t.textMuted }}>{won(Math.round(d.cost * 1.1))}원</span>
       <span className="mono" style={{ color: t.textMuted }}>{d.clicks}</span>
       <span className="mono" style={{ color: t.textMuted }}>{d.rank ? d.rank.toFixed(1) : "-"}</span>
+      {auto ? (
+        <div className="mono" title="홈페이지 접수함에서 자동 집계" style={{ padding: "5px 6px", textAlign: "right", fontWeight: 800, color: t.text, background: t.bgInset, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+          {lead?.leads ?? 0}<span style={{ fontSize: 9, color: t.success, fontWeight: 900 }}>자동</span>
+        </div>
+      ) : (
       <div style={{ position: "relative" }}>
         <input type="number" min="0" inputMode="numeric" value={val} placeholder="입력" onChange={e => setVal(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
           className="mkt-input" title="이날 전화·문의 접수 건수" style={{ padding: "5px 18px 5px 6px", background: lead?.leads != null ? t.bgInset : `${t.accent}14`, border: `1.5px solid ${lead?.leads != null ? t.border : t.accent}`, color: t.text, textAlign: "right", fontWeight: 800 }}/>
         <span style={{ position: "absolute", right: 5, top: "50%", transform: "translateY(-50%)", fontSize: 9.5, color: lead?.leads != null ? t.success : t.accent, fontWeight: 900, pointerEvents: "none" }}>{lead?.leads != null ? "✓" : "✎"}</span>
       </div>
+      )}
     </div>
   );
 }
@@ -1157,7 +1163,7 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
     name: initial?.name || "", slug: initial?.slug || "", customer_id: initial?.customer_id || "",
     api_key: "", api_secret: "", campaign_filter: initial?.campaign_filter || "",
     margin_per_order: initial?.margin_per_order ?? "", cpa_good: initial?.cpa_good ?? "", cpa_limit: initial?.cpa_limit ?? "",
-    show_keywords: !!initial?.show_keywords, memo: initial?.memo || "", use_env: "",
+    show_keywords: !!initial?.show_keywords, memo: initial?.memo || "", use_env: "", lead_source: initial?.lead_source || "",
   }));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -1197,6 +1203,16 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
           <span style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>선택하면 키·비밀키·CUSTOMER_ID 칸은 비워도 됩니다</span>
         </label>
       )}
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, fontWeight: 700, color: t.textSecondary, flexWrap: "wrap" }}>
+        접수 건수
+        <select value={f.lead_source} onChange={set("lead_source")} className="mkt-input" style={{ ...inputStyle(t), width: "auto", padding: "6px 8px" }}>
+          <option value="">손으로 입력 (광고주·운영자)</option>
+          <option value="inquiries:install">홈페이지 접수함 자동 — 에어컨 설치만</option>
+          <option value="inquiries:refrigerant">홈페이지 접수함 자동 — 냉매충전만</option>
+          <option value="inquiries:all">홈페이지 접수함 자동 — 전체 (스팸 제외)</option>
+        </select>
+        <span style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>올데이케어처럼 접수함이 올잇 안에 있는 광고주만</span>
+      </label>
       <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
         <input type="checkbox" checked={f.show_keywords} onChange={set("show_keywords")}/> 광고주 화면에 키워드 표 노출
       </label>
