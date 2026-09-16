@@ -386,7 +386,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
               <Card t={t} title="캠페인별">
                 {view.camps.length === 0 ? <Empty t={t}>캠페인 없음</Empty> : view.camps.map(c => (
                   <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${t.border}`, fontSize: 12 }}>
-                    <span style={{ flex: 1, fontWeight: 700, color: c.userLock ? t.textMuted : t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}{c.userLock ? " (중지)" : ""}</span>
+                    <span style={{ flex: 1, fontWeight: 700, color: c.userLock ? t.textMuted : t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}{c.userLock ? " (중지)" : ""}{c.type && <span style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 800, color: t.textMuted, background: `${t.textMuted}1F`, borderRadius: 999, padding: "1px 7px" }}>{c.type}</span>}</span>
                     <span className="mono" style={{ color: t.textMuted }}>{won(Math.round(c.cost * 1.1))}원</span>
                     <span className="mono" style={{ color: t.textMuted }}>{c.clicks}클릭</span>
                     <span className="mono" style={{ color: t.textMuted }}>{c.rank ? `${c.rank}위` : "-"}</span>
@@ -682,7 +682,7 @@ function ReportView({ advId, user }) {
           <h2>3. 캠페인별</h2>
           <table className="t"><tbody>
             <tr><th>캠페인</th><th>노출</th><th>클릭</th><th>클릭률</th><th>광고비</th><th>순위</th><th>상태</th></tr>
-            {camps.map(c => <tr key={c.id}><td>{c.name}</td><td className="n">{won(c.impressions)}</td><td className="n">{won(c.clicks)}</td><td className="n">{ctr(c.clicks, c.impressions)}</td><td className="n">{won(c.cost)}</td><td className="n">{c.rank != null ? c.rank.toFixed(1) : "-"}</td><td className="c">{c.userLock ? "중지" : "운영"}</td></tr>)}
+            {camps.map(c => <tr key={c.id}><td>{c.name}{c.type ? ` (${c.type})` : ""}</td><td className="n">{won(c.impressions)}</td><td className="n">{won(c.clicks)}</td><td className="n">{ctr(c.clicks, c.impressions)}</td><td className="n">{won(c.cost)}</td><td className="n">{c.rank != null ? c.rank.toFixed(1) : "-"}</td><td className="c">{c.userLock ? "중지" : "운영"}</td></tr>)}
           </tbody></table>
         </>)}
 
@@ -1018,6 +1018,7 @@ function PolicyRow({ t, isPc, g, busy, onSave }) {
   const [floor, setFloor] = useState(String(p.floor_bid ?? 300));
   useEffect(() => { setCap(String(p.cap ?? 5000)); setFloor(String(p.floor_bid ?? 300)); }, [p.cap, p.floor_bid]);
   const on = !!p.enabled;
+  const locked = g.autobidOk === false;
   const commitNums = () => {
     const c = Number(cap) || 5000, f = Number(floor) || 300;
     if (c !== Number(p.cap) || f !== Number(p.floor_bid)) onSave({ cap: c, floor_bid: f });
@@ -1025,10 +1026,13 @@ function PolicyRow({ t, isPc, g, busy, onSave }) {
   const sel = { ...inputStyle(t), fontFamily: "inherit", fontSize: 11.5, padding: "5px 6px", borderRadius: 6 };
   return (
     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, padding: "7px 0", borderTop: `1px solid ${t.border}`, opacity: busy ? 0.6 : 1 }}>
-      <button onClick={() => onSave({ enabled: !on })} className="tab-btn" title={on ? "끄기" : "켜기"} style={{ width: 38, height: 22, borderRadius: 999, border: "none", cursor: "pointer", background: on ? t.success : t.borderStrong, position: "relative", flex: "0 0 auto" }}>
+      <button onClick={() => { if (locked) { window.alert(`${g.type} 그룹은 자동입찰 대상이 아닙니다 — 파워링크만 가능`); return; } onSave({ enabled: !on }); }} className="tab-btn" title={locked ? "파워링크만 가능" : on ? "끄기" : "켜기"} style={{ width: 38, height: 22, borderRadius: 999, border: "none", cursor: locked ? "not-allowed" : "pointer", opacity: locked ? 0.4 : 1, background: on ? t.success : t.borderStrong, position: "relative", flex: "0 0 auto" }}>
         <span style={{ position: "absolute", top: 3, left: on ? 19 : 3, width: 16, height: 16, borderRadius: 999, background: "#fff", transition: "left .15s" }}/>
       </button>
-      <span style={{ flex: isPc ? 1 : "1 1 100%", fontSize: 12, fontWeight: 700, color: g.lock ? t.textMuted : t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 120 }}>{g.name}{g.lock ? " (그룹 중지)" : ""}</span>
+      <span style={{ flex: isPc ? 1 : "1 1 100%", fontSize: 12, fontWeight: 700, color: g.lock ? t.textMuted : t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 120, display: "flex", alignItems: "center", gap: 6 }}>
+        {g.name}{g.lock ? " (그룹 중지)" : ""}
+        {g.type && <span style={{ fontSize: 9.5, fontWeight: 800, color: locked ? t.warning : t.textMuted, background: `${locked ? t.warning : t.textMuted}1F`, borderRadius: 999, padding: "1px 7px" }}>{g.type}</span>}
+      </span>
       <label style={{ fontSize: 10.5, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>목표
         <select value={p.target_pos} onChange={e => onSave({ target_pos: Number(e.target.value) })} disabled={!on} style={sel}>{[1, 2, 3].map(n => <option key={n} value={n}>{n}위</option>)}</select>
       </label>

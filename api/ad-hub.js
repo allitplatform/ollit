@@ -86,6 +86,9 @@ function naverClient(apiKey, secret, customerId) {
   };
 }
 const idsQs = (ids) => ids.map(i => `ids=${encodeURIComponent(i)}`).join("&");
+// 네이버 캠페인 종류 — 파워링크(WEB_SITE)만 순위 예상가 기반 자동입찰 대상
+const CAMP_TYPE = { WEB_SITE: "파워링크", POWER_CONTENTS: "파워컨텐츠", SHOPPING: "쇼핑", BRAND_SEARCH: "브랜드검색", PLACE: "플레이스" };
+const campType = (c) => CAMP_TYPE[c?.campaignTp] || c?.campaignTp || "기타";
 
 async function statsFor(nv, ids, since, until) {
   // 전환 필드 미지원 계정은 기본 필드로 재시도
@@ -118,7 +121,7 @@ async function fetchLive(adv, since, until, { daily = true } = {}) {
 
   const tot = await statsFor(nv, ids, since, until);
   const byId = Object.fromEntries(tot.map(r => [r.id, row(r)]));
-  out.campaigns = camps.map(c => ({ id: c.nccCampaignId, name: c.name, status: c.status, dailyBudget: c.dailyBudget, userLock: c.userLock, ...(byId[c.nccCampaignId] || row({})) }))
+  out.campaigns = camps.map(c => ({ id: c.nccCampaignId, name: c.name, type: campType(c), status: c.status, dailyBudget: c.dailyBudget, userLock: c.userLock, ...(byId[c.nccCampaignId] || row({})) }))
     .sort((a, b) => b.cost - a.cost);
   for (const c of out.campaigns) { out.totals.impressions += c.impressions; out.totals.clicks += c.clicks; out.totals.cost += c.cost; out.totals.conv += c.conv; }
   const ranked = out.campaigns.filter(c => c.rank && c.impressions);
@@ -227,7 +230,7 @@ async function listGroups(nv, adv) {
   const groups = [];
   for (const c of camps) {
     const gs = await nv.get("/ncc/adgroups", `nccCampaignId=${encodeURIComponent(c.nccCampaignId)}`);
-    for (const g of (Array.isArray(gs) ? gs : [])) if (!g.delFlag) groups.push({ id: g.nccAdgroupId, name: g.name, campaign: c.name, bid: g.bidAmt, lock: !!g.userLock, status: g.status });
+    for (const g of (Array.isArray(gs) ? gs : [])) if (!g.delFlag) groups.push({ id: g.nccAdgroupId, name: g.name, campaign: c.name, type: campType(c), autobidOk: c.campaignTp === "WEB_SITE", bid: g.bidAmt, lock: !!g.userLock, status: g.status });
   }
   return groups;
 }
@@ -240,7 +243,10 @@ async function runAutobid(adv, { dry }) {
   const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
   const updates = [];
   try {
+    // 파워링크 그룹만 — 파워컨텐츠 등은 순위 예상가 방식이 맞지 않으므로 정책이 켜져 있어도 건너뜀
+    const okIds = new Set((await listGroups(nv, adv)).filter(g => g.autobidOk).map(g => g.id));
     for (const p of policies) {
+      if (!okIds.has(p.adgroup_id)) continue;
       let list = [];
       try { list = await nv.get("/ncc/keywords", `nccAdgroupId=${encodeURIComponent(p.adgroup_id)}`); } catch (e) { console.error("[ad-hub] autobid kw", e?.message); continue; }
       let gBid = null;
@@ -469,6 +475,11 @@ export default async function handler(req, res) {
       if (req.method !== "POST") return res.status(405).json({ ok: false, error: "POST" });
       if (!UUID_RE.test(body.id || "") || !body.adgroup_id) return res.status(400).json({ ok: false, error: "id/adgroup_id" });
       const adv = await getAdv(body.id); if (!adv) return res.status(404).json({ ok: false, error: "없음" });
+      if (body.enabled !== false) {
+        const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
+        const g = (await listGroups(nv, adv)).find(x => x.id === String(body.adgroup_id));
+        if (g && !g.autobidOk) return res.status(400).json({ ok: false, error: `${g.type} 그룹은 자동입찰 대상이 아닙니다 (파워링크만 가능)` });
+      }
       const rowP = {
         advertiser_id: adv.id, adgroup_id: String(body.adgroup_id), adgroup_name: body.adgroup_name ? String(body.adgroup_name).slice(0, 120) : null,
         enabled: body.enabled !== false, target_pos: Math.max(1, Math.min(5, num(body.target_pos, 1))),
