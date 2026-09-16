@@ -333,6 +333,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
       ) : (
         <>
           {section === "perf" && <>
+          {!owner && <CareCard t={t} isPc={isPc} data={data} view={view}/>}
           <Card t={t} title={`${adv.name} 광고 성과`} sub={adv.cpa_limit ? `접수당 광고비 ${won(adv.cpa_good)}원 이하 효율 / ${won(adv.cpa_limit)}원 상한${adv.margin_per_order ? ` (건당 이익 ${won(adv.margin_per_order)}원 기준)` : ""}` : "판정선 미설정 — 설정에서 건당 이익 입력"}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <span className="mono" style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>
@@ -463,6 +464,34 @@ function KeywordTable({ t, isPc, adv, actor, actorName, owner, since, until, onC
           ))}
         </div>
       )}
+    </Card>
+  );
+}
+
+// ---------- 광고주 화면: 실시간 관리 현황 ----------
+// 금액·키워드 없이 활동량만. "조정 0건" 대신 점검 횟수를 앞세운다.
+function CareCard({ t, isPc, data, view }) {
+  const c = data.care || {};
+  const live = c.last_check && Date.now() - new Date(c.last_check).getTime() < 45 * 60 * 1000;
+  const rankOk = view.rank != null && view.rank <= 2;
+  return (
+    <Card t={t} title="실시간 관리 현황" sub="올잇 마케팅이 이 계정을 자동·수동으로 관리하고 있는 기록입니다">
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10, fontSize: 12.5, fontWeight: 800 }}>
+        <span style={{ width: 9, height: 9, borderRadius: 999, background: live ? t.success : t.textMuted, boxShadow: live ? `0 0 0 4px ${t.success}33` : "none" }}/>
+        {c.last_check ? `마지막 점검 ${fmtAgo(c.last_check)}` : "점검 준비 중"}
+        <span style={{ marginLeft: "auto", fontSize: 11, color: t.textMuted, fontWeight: 700 }}>30분 간격 자동 점검</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 4 : 2}, minmax(0, 1fr))`, gap: 8 }}>
+        <MiniStat t={t} label="오늘 점검" value={won(c.checks_today || 0)} suffix="회" accent/>
+        <MiniStat t={t} label="오늘 입찰 조정" value={c.checks_today && !c.adjusted_today ? "불필요" : won(c.adjusted_today || 0)} suffix={c.checks_today && !c.adjusted_today ? "" : "건"}/>
+        <MiniStat t={t} label="감시 키워드" value={won(c.watched || 0)} suffix="개"/>
+        <MiniStat t={t} label="이번 주 운영 작업" value={won(c.ops_week || 0)} suffix="건"/>
+      </div>
+      <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${t.border}`, display: "flex", flexWrap: "wrap", gap: "4px 14px", fontSize: 11, fontWeight: 700, color: t.textMuted }}>
+        <span style={{ color: rankOk ? t.success : t.textMuted }}>{rankOk ? "✅ 목표 순위 유지 중" : view.rank != null ? `📍 평균 ${view.rank.toFixed(1)}위 · 조정 중` : "📍 순위 집계 대기"}</span>
+        <span style={{ color: view.clickAlert ? t.danger : t.success }}>{view.clickAlert ? "⚠ 클릭 급증 확인 중" : "✅ 부정클릭 감시 정상"}</span>
+        {data.ips && <span>🚫 차단 IP {data.ips.total}개</span>}
+      </div>
     </Card>
   );
 }
