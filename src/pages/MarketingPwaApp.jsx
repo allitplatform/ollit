@@ -97,7 +97,7 @@ function MarketingHub({ user, onLogout }) {
 
   const reload = useCallback(async () => {
     const j = await api("list", { actor });
-    if (j.ok) { setAdvs(j.advertisers); setAdvId(prev => prev && j.advertisers.some(a => a.id === prev) ? prev : (j.advertisers.find(a => a.active)?.id || null)); }
+    if (j.ok) { setAdvs(j.advertisers); setAdvId(prev => prev && j.advertisers.some(a => a.id === prev) ? prev : null); }
     else setErr(j.error || "불러오기 실패");
   }, [actor]);
   useEffect(() => { reload(); }, [reload]);
@@ -105,8 +105,15 @@ function MarketingHub({ user, onLogout }) {
   const activeAdvs = (advs || []).filter(a => a.active);
   const adv = activeAdvs.find(a => a.id === advId) || null;
 
+  const homeOn = !advId && !editing;
   const sideList = (
     <>
+      <button onClick={() => { setAdvId(null); setEditing(null); }} className="tab-btn" style={{
+        width: "100%", display: "flex", alignItems: "center", gap: 10, padding: isPc ? "12px 14px" : "9px 12px",
+        background: homeOn ? t.accentBg : "transparent", border: isPc ? "none" : `1px solid ${homeOn ? t.accent : t.border}`,
+        borderLeft: isPc ? `3px solid ${homeOn ? t.accent : "transparent"}` : undefined, borderRadius: 8,
+        color: homeOn ? t.accent : t.textSecondary, fontSize: 13.5, fontWeight: homeOn ? 800 : 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left", whiteSpace: "nowrap",
+      }}>🏠 전체 현황</button>
       {activeAdvs.map(a => {
         const on = advId === a.id;
         return (
@@ -142,7 +149,10 @@ function MarketingHub({ user, onLogout }) {
       {!editing && adv && (
         <AdPanel key={adv.id} t={t} isPc={isPc} adv={adv} actor={actor} actorName={user?.name} owner section={section} onSection={pickSection} sideNav={isPc} onEdit={() => setEditing(adv)}/>
       )}
-      {!editing && !adv && advs && (
+      {!editing && !adv && advs && activeAdvs.length > 0 && (
+        <Overview t={t} isPc={isPc} actor={actor} onPick={(id, sec) => { setAdvId(id); if (sec) pickSection(sec); }}/>
+      )}
+      {!editing && !adv && advs && activeAdvs.length === 0 && (
         <Card t={t} title="광고주가 없습니다" sub="왼쪽 '광고주 추가'에서 네이버 검색광고 API 키를 등록하세요">
           <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7 }}>광고시스템 → 도구 → API 사용 관리에서 액세스라이선스·비밀키를 발급받아 입력합니다. CUSTOMER_ID 는 같은 화면 상단에 있습니다.</div>
         </Card>
@@ -457,6 +467,92 @@ function KeywordTable({ t, isPc, adv, actor, actorName, owner, since, until, onC
         </div>
       )}
     </Card>
+  );
+}
+
+// ---------- 관리자 메인: 전체 현황 ----------
+// 광고주별 오늘 한 줄. 급한 곳(경보 있는 곳)이 위로. 클릭하면 그 광고주로.
+function Overview({ t, isPc, actor, onPick }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const load = useCallback(() => { setLoading(true); api("overview", { actor }).then(j => { setData(j.ok ? j : null); setLoading(false); }).catch(() => { setData(null); setLoading(false); }); }, [actor]);
+  useEffect(() => { load(); const iv = setInterval(load, 5 * 60 * 1000); return () => clearInterval(iv); }, [load]);
+  const rows = useMemo(() => {
+    if (!data) return [];
+    return (data.advertisers || []).map(a => {
+      const alerts = [];
+      if (!a.ok) alerts.push({ lv: "danger", text: "네이버 연결 실패" });
+      else {
+        if (a.bizmoney != null && (a.bizmoney <= 50000 || (a.bizDays != null && a.bizDays < 1))) alerts.push({ lv: "danger", text: `광고비 ${won(Math.round(a.bizmoney))}원 — 충전` });
+        else if (a.bizDays != null && a.bizDays < 3) alerts.push({ lv: "warning", text: `광고비 ${a.bizDays.toFixed(1)}일분` });
+        if (a.yday.clicks >= 8 && a.today.clicks >= 20 && a.today.clicks / a.yday.clicks >= 2.5) alerts.push({ lv: "danger", text: `클릭 급증 ${a.today.clicks}` });
+        if (a.autobid?.last?.error) alerts.push({ lv: "danger", text: "자동입찰 오류" });
+        else if (a.autobid?.enabled && a.autobid.last && Date.now() - new Date(a.autobid.last.at).getTime() > 2 * 3600 * 1000) alerts.push({ lv: "warning", text: `자동입찰 ${fmtAgo(a.autobid.last.at)} 이후 멈춤` });
+        if (a.cpa_limit && a.today.lead > 0 && a.today.costVat / a.today.lead > a.cpa_limit) alerts.push({ lv: "danger", text: "접수당 광고비 상한 초과" });
+        if (a.today.costVat > 0 && a.today.lead == null) alerts.push({ lv: "info", text: "접수 미입력" });
+        if (!a.cpa_limit) alerts.push({ lv: "info", text: "건당 이익 미설정" });
+      }
+      const score = alerts.reduce((n, x) => n + (x.lv === "danger" ? 100 : x.lv === "warning" ? 10 : 1), 0);
+      return { ...a, alerts, score };
+    }).sort((a, b) => b.score - a.score || b.today?.costVat - a.today?.costVat);
+  }, [data]);
+  const tot = rows.reduce((s, a) => a.ok ? { cost: s.cost + a.today.costVat, clicks: s.clicks + a.today.clicks, biz: s.biz + (a.bizmoney || 0), danger: s.danger + a.alerts.filter(x => x.lv === "danger").length } : s, { cost: 0, clicks: 0, biz: 0, danger: 0 });
+  const lvColor = (lv) => lv === "danger" ? t.danger : lv === "warning" ? t.warning : t.textMuted;
+  return (
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 900 }}>전체 현황</div>
+          <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>{data?.until || kstYmd(0)} 오늘 · 광고주 {rows.length}곳 · 5분마다 갱신{loading ? " · 조회 중…" : ""}</div>
+        </div>
+        <button onClick={load} className="tab-btn" aria-label="새로고침" style={{ ...iconBtn(t), marginLeft: "auto", border: `1px solid ${t.border}`, borderRadius: 10, padding: 8 }}><RefreshCw size={14}/></button>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 4 : 2}, minmax(0, 1fr))`, gap: 8 }}>
+        <MiniStat t={t} label="오늘 광고비 합계" value={won(tot.cost)} suffix="원" accent/>
+        <MiniStat t={t} label="오늘 클릭 합계" value={won(tot.clicks)}/>
+        <MiniStat t={t} label="잔액 합계" value={won(Math.round(tot.biz))} suffix="원"/>
+        <MiniStat t={t} label="긴급 경보" value={String(tot.danger)} suffix="건" accent={tot.danger > 0}/>
+      </div>
+      {!data && !loading && <Card t={t} title="불러오지 못했습니다"><Empty t={t}>새로고침을 눌러 주세요</Empty></Card>}
+      {!data && loading && <Card t={t} title="광고주별 현황"><Empty t={t}>네이버에서 광고주별 오늘 수치를 받는 중…</Empty></Card>}
+      {rows.map(a => {
+        const top = a.alerts[0];
+        const border = top ? lvColor(top.lv) : t.border;
+        return (
+          <div key={a.id} onClick={() => onPick(a.id)} className="tab-btn" style={{ background: t.bgElevated, border: `1px solid ${border}${top && top.lv !== "info" ? "88" : ""}`, borderLeft: `4px solid ${top && top.lv !== "info" ? border : t.success}`, borderRadius: 12, padding: "12px 14px", cursor: "pointer" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 14.5, fontWeight: 900 }}>{a.name}</span>
+              <span style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>{a.campaign_filter ? `"${a.campaign_filter}"` : "전체 캠페인"}{a.ok ? ` · 캠페인 ${a.campaigns}개` : ""}</span>
+              <span style={{ marginLeft: "auto", display: "flex", gap: 4, flexWrap: "wrap" }}>
+                {a.alerts.length === 0 && <span style={{ fontSize: 10.5, fontWeight: 800, color: t.success, background: `${t.success}1F`, borderRadius: 999, padding: "2px 9px" }}>이상 없음</span>}
+                {a.alerts.map((x, i) => <span key={i} style={{ fontSize: 10.5, fontWeight: 800, color: lvColor(x.lv), background: `${lvColor(x.lv)}1F`, borderRadius: 999, padding: "2px 9px" }}>{x.lv === "danger" ? "🚨 " : x.lv === "warning" ? "⚠ " : ""}{x.text}</span>)}
+              </span>
+            </div>
+            {a.ok ? (
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 6 : 3}, minmax(0, 1fr))`, gap: 6, marginTop: 10 }}>
+                <OvStat t={t} label="오늘 광고비" value={`${won(a.today.costVat)}원`} sub={`어제 ${won(a.yday.costVat)}원`}/>
+                <OvStat t={t} label="클릭" value={won(a.today.clicks)} sub={`어제 ${won(a.yday.clicks)}`}/>
+                <OvStat t={t} label="순위" value={a.today.rank != null ? `${a.today.rank.toFixed(1)}위` : "-"}/>
+                <OvStat t={t} label="접수" value={a.today.lead != null ? `${a.today.lead}건` : "미입력"} sub={a.today.lead > 0 ? `${won(Math.round(a.today.costVat / a.today.lead))}원/건` : ""}/>
+                <OvStat t={t} label="잔액" value={a.bizmoney != null ? `${won(Math.round(a.bizmoney))}원` : "-"} sub={a.bizDays != null ? `약 ${a.bizDays.toFixed(1)}일분` : ""} color={a.bizmoney != null && a.bizmoney <= 50000 ? t.danger : a.bizDays != null && a.bizDays < 3 ? t.warning : undefined}/>
+                <OvStat t={t} label="자동입찰" value={!a.autobid?.enabled ? "꺼짐" : a.autobid.last ? fmtAgo(a.autobid.last.at) : "대기"} sub={a.autobid?.enabled ? `${a.autobid.groups}그룹${a.ips ? ` · IP ${a.ips.total}` : ""}` : (a.ips ? `IP 차단 ${a.ips.total}` : "")}/>
+              </div>
+            ) : (
+              <div style={{ marginTop: 8, fontSize: 11.5, color: t.danger }}>{a.error}</div>
+            )}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+function OvStat({ t, label, value, sub, color }) {
+  return (
+    <div style={{ background: t.bgInset, borderRadius: 8, padding: "7px 9px", minWidth: 0 }}>
+      <div style={{ fontSize: 9.5, color: t.textMuted, fontWeight: 700 }}>{label}</div>
+      <div className="mono" style={{ fontSize: 14, fontWeight: 900, color: color || t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+      {sub && <div style={{ fontSize: 9.5, color: t.textMuted, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+    </div>
   );
 }
 

@@ -3,6 +3,7 @@
 // 기존 ad-report.js(올데이) / yusol-ad.js(유솔) 와 독립 — 서로 영향 없음.
 //
 // 운영자(actor = 올잇 owner/admin uuid):
+//   GET  ?mode=overview&actor=              관리자 메인: 광고주별 오늘 요약(광고비·클릭·순위·잔액·자동입찰·IP)
 //   GET  ?mode=list&actor=
 //   POST ?mode=add      body {actor, name, slug, customer_id, api_key, api_secret, campaign_filter, margin_per_order, cpa_good, cpa_limit, show_keywords, memo}
 //   POST ?mode=update   body {actor, id, ...변경 필드 (api_key/api_secret 은 있을 때만 교체)}
@@ -482,6 +483,28 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, policy: data });
     }
 
+    if (mode === "overview") {
+      // 관리자 메인 — 광고주별 오늘 요약 (병렬). 광고주가 많아지면 캐시 필요
+      const { data: advs } = await supabase.from("ad_advertisers").select("*").eq("active", true).order("created_at", { ascending: true });
+      const since = kstToday(-1), until = kstToday(0);
+      const rows = await Promise.all((advs || []).map(async (adv) => {
+        try {
+          const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
+          const [live, autobid, ips, leads] = await Promise.all([
+            fetchLive(adv, since, until, { daily: true }), autobidSummary(adv.id).catch(() => null), ipSummary(nv), leadsMap(adv.id, until, until),
+          ]);
+          cacheDays(adv, live).catch(() => {});
+          const today = (live.days || []).find(d => d.ymd === until) || { impressions: 0, clicks: 0, cost: 0, rank: null };
+          const yday = (live.days || []).find(d => d.ymd === since) || { clicks: 0, cost: 0 };
+          const { data: hist } = await supabase.from("ad_daily_stats").select("ymd,cost").eq("advertiser_id", adv.id).gte("ymd", addDays(until, -7)).lt("ymd", until);
+          const byDay = {}; for (const r of (hist || [])) byDay[r.ymd] = (byDay[r.ymd] || 0) + Number(r.cost || 0);
+          const days = Object.values(byDay); const avgDay = days.length ? Math.round(days.reduce((a, b) => a + b, 0) / days.length * 1.1) : 0;
+          return { ...pub(adv), ok: true, today: { ...today, costVat: Math.round(today.cost * 1.1), lead: leads[until]?.leads ?? null }, yday: { clicks: yday.clicks, costVat: Math.round(yday.cost * 1.1) },
+            bizmoney: live.bizmoney, avgDay, bizDays: live.bizmoney != null && avgDay > 0 ? live.bizmoney / avgDay : null, autobid, ips, campaigns: (live.campaigns || []).length };
+        } catch (e) { return { ...pub(adv), ok: false, error: e?.message || String(e) }; }
+      }));
+      return res.status(200).json({ ok: true, since, until, advertisers: rows, cron_ready: !!CRON_SECRET });
+    }
     if (mode === "list") {
       const { data, error } = await supabase.from("ad_advertisers").select("*").order("created_at", { ascending: true });
       if (error) return res.status(500).json({ ok: false, error: error.message });
