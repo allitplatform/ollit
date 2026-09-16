@@ -18,6 +18,7 @@
 //   GET  ?mode=policies&actor=&id=          자동입찰: 광고그룹 목록 + 그룹별 정책 + 최근 실행 10건
 //   POST ?mode=policy_set body {actor, id, adgroup_id, adgroup_name, enabled, target_pos, cap, floor_bid, margin, lower_ok}
 //   GET  ?mode=autobid&actor=&id=[&run=1]   자동입찰 미리보기(run 없음) / 실제 적용(run=1). pg_cron 은 ?cron=CRON_SECRET 로 전 광고주 실행
+//   GET  ?mode=ips&actor=&id=                노출제한 IP 목록 / POST ?mode=ip_add {id, ips:"a,b", memo, force} / POST ?mode=ip_del {id, ids:[...]}
 // 광고주(열람 링크 토큰):
 //   GET  ?mode=client&token=&since=&until=
 //   POST ?mode=client_leads body {token, ymd, leads, note}
@@ -80,6 +81,7 @@ function naverClient(apiKey, secret, customerId) {
     get: (path, qs) => call("GET", path, qs),
     post: (path, body, qs) => call("POST", path, qs, body),
     put: (path, body, qs) => call("PUT", path, qs, body),
+    del: (path, qs) => call("DELETE", path, qs),
   };
 }
 const idsQs = (ids) => ids.map(i => `ids=${encodeURIComponent(i)}`).join("&");
@@ -294,6 +296,24 @@ async function autobidSummary(advId) {
   return { enabled: on.length > 0, groups: on.length, total_groups: (pols || []).length, last: runs?.[0] || null };
 }
 
+// ---------- 부정클릭 (노출제한 IP) ----------
+// 네이버 계정 단위 목록. 등록된 IP 에는 광고가 아예 안 보인다 (계정당 600개 한도). 모바일 공용 대역은 force 없이는 거부.
+const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+const MOBILE_CGNAT = /^(223\.(3[2-9]|[45][0-9]|6[0-3])\.|106\.10[12]\.|117\.111\.|211\.234\.|118\.235\.|110\.70\.|39\.7\.|175\.223\.|211\.36\.)/;
+async function ipList(nv) {
+  const r = await nv.get("/tool/ip-exclusions");
+  const list = (Array.isArray(r) ? r : (r?.data || [])).map(x => ({ id: x.ipFilterId, ip: x.filterIp, memo: x.memo || "", at: x.regTm || null }));
+  list.sort((a, b) => (b.at || 0) - (a.at || 0));
+  return list;
+}
+async function ipSummary(nv) {
+  try {
+    const list = await ipList(nv);
+    const dayAgo = Date.now() - 24 * 3600 * 1000;
+    return { total: list.length, new24h: list.filter(x => (x.at || 0) >= dayAgo).length, mobile: list.filter(x => MOBILE_CGNAT.test(x.ip)).length, limit: 600 };
+  } catch { return null; }
+}
+
 // ---------- 공통 ----------
 function pub(a) {
   return { id: a.id, name: a.name, slug: a.slug, customer_id: a.customer_id, campaign_filter: a.campaign_filter,
@@ -350,8 +370,9 @@ async function respondStats(res, adv, q, { client }) {
   const leads = await leadsMap(adv.id, since, until);
   const logs = await logsList(adv.id, !!client);
   const leadTotal = Object.values(leads).reduce((a, r) => a + Number(r.leads || 0), 0);
-  const autobid = await autobidSummary(adv.id).catch(() => null);
-  return res.status(200).json({ ok: true, advertiser: client ? clientPub(adv) : pub(adv), since, until, ...live, leads, leadTotal, logs, autobid });
+  const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
+  const [autobid, ips] = await Promise.all([autobidSummary(adv.id).catch(() => null), ipSummary(nv)]);
+  return res.status(200).json({ ok: true, advertiser: client ? clientPub(adv) : pub(adv), since, until, ...live, leads, leadTotal, logs, autobid, ips, cron_ready: !!CRON_SECRET });
 }
 
 export default async function handler(req, res) {
@@ -532,6 +553,40 @@ export default async function handler(req, res) {
       // 캐시 무효화 (다음 조회 때 새로 받음)
       await supabase.from("ad_keyword_cache").delete().eq("advertiser_id", adv.id);
       return res.status(200).json({ ok: true, detail });
+    }
+    if (mode === "ips" || mode === "ip_add" || mode === "ip_del") {
+      const id = q.id || body.id;
+      if (!UUID_RE.test(id || "")) return res.status(400).json({ ok: false, error: "id" });
+      const adv = await getAdv(id); if (!adv) return res.status(404).json({ ok: false, error: "없음" });
+      const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
+      if (mode === "ip_add") {
+        if (req.method !== "POST") return res.status(405).json({ ok: false, error: "POST" });
+        const raw = String(body.ips || "").split(/[\s,]+/).map(x => x.trim()).filter(x => IPV4_RE.test(x)).slice(0, 20);
+        const skippedMobile = raw.filter(ip => MOBILE_CGNAT.test(ip) && !body.force);
+        const ips = raw.filter(ip => !skippedMobile.includes(ip));
+        if (!ips.length) return res.status(400).json({ ok: false, error: raw.length ? "모바일 공용 대역 — 통신사 사용자 전체가 막힙니다. 그래도 등록하려면 강제 체크" : "IPv4 주소를 입력하세요", skippedMobile });
+        const memo = String(body.memo || "허브 수동등록").slice(0, 30);
+        const have = new Set((await ipList(nv)).map(x => x.ip));
+        const results = [];
+        for (const ip of ips) {
+          if (have.has(ip)) { results.push({ ip, ok: true, dup: true }); continue; }
+          try { await nv.post("/tool/ip-exclusions", { filterIp: ip, memo }); results.push({ ip, ok: true }); }
+          catch (e) { results.push({ ip, ok: false, error: e?.message }); }
+        }
+        const added = results.filter(r => r.ok && !r.dup).map(r => r.ip);
+        if (added.length) await supabase.from("ad_change_log").insert({ advertiser_id: adv.id, actor: body.actor_name || "운영자", action: "IP 차단", detail: `${added.length}개 노출제한 등록${body.memo ? ` — ${body.memo}` : ""}`, visible_to_client: true });
+        return res.status(200).json({ ok: results.every(r => r.ok), results, skippedMobile });
+      }
+      if (mode === "ip_del") {
+        if (req.method !== "POST") return res.status(405).json({ ok: false, error: "POST" });
+        const ids = (Array.isArray(body.ids) ? body.ids : String(body.ids || "").split(",")).map(x => String(x).trim()).filter(x => /^\d+$/.test(x)).slice(0, 50);
+        if (!ids.length) return res.status(400).json({ ok: false, error: "ids" });
+        await nv.del("/tool/ip-exclusions", "ipFilterIds=" + ids.join(","));
+        await supabase.from("ad_change_log").insert({ advertiser_id: adv.id, actor: body.actor_name || "운영자", action: "IP 차단 해제", detail: `${ids.length}개 노출제한 해제`, visible_to_client: true });
+        return res.status(200).json({ ok: true, removed: ids.length });
+      }
+      const list = await ipList(nv);
+      return res.status(200).json({ ok: true, list: list.map(x => ({ ...x, mobile: MOBILE_CGNAT.test(x.ip) })), total: list.length, limit: 600 });
     }
     if (mode === "leads") {
       if (!UUID_RE.test(body.id || "") || !YMD_RE.test(body.ymd || "")) return res.status(400).json({ ok: false, error: "id/ymd" });

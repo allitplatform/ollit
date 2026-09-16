@@ -26,7 +26,7 @@ const THEMES = {
 function sectionsFor(owner, showKeywords) {
   return [
     { id: "perf", label: "성과", icon: "📊" },
-    ...(owner ? [{ id: "autobid", label: "자동입찰", icon: "🤖" }] : []),
+    ...(owner ? [{ id: "autobid", label: "자동입찰", icon: "🤖" }, { id: "shield", label: "부정클릭", icon: "🛡" }] : []),
     ...((owner || showKeywords) ? [{ id: "keywords", label: "키워드", icon: "🔑" }] : []),
     { id: "log", label: owner ? "이력·공유" : "변경 이력", icon: "📝" },
   ];
@@ -284,7 +284,16 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
       const nameById = Object.fromEntries(camps.map(c => [c.id, c]));
       camps = todayRow.perCamp.map(p => ({ ...(nameById[p.campaign_id] || { id: p.campaign_id, name: p.campaign_id }), ...p })).sort((a, b) => b.cost - a.cost);
     }
-    return { costVat, sum, cpc, ctr, per, verdict, rank, leadTotal, days: rangeDays, allDays: days, biz, bizDays, avgDay, clickAlert, todayClicks: todayRow?.clicks || 0, avgClicks: Math.round(avgClicks), camps, logs: data.logs || [] };
+    const alerts = [];
+    if (biz != null && bizDays != null && bizDays < 3) alerts.push({ level: "danger", text: `비즈머니 약 ${bizDays.toFixed(1)}일분 남음 (${won(Math.round(biz))}원) — 충전 필요` });
+    else if (biz != null && biz < 50000) alerts.push({ level: "danger", text: `비즈머니 ${won(Math.round(biz))}원 — 곧 광고 중단` });
+    if (clickAlert) alerts.push({ level: "danger", text: `클릭 급증 의심 — 오늘 ${todayRow.clicks}클릭, 직전 평균 ${Math.round(avgClicks)}의 ${(todayRow.clicks / Math.max(avgClicks, 1)).toFixed(1)}배` });
+    if (data.autobid?.last?.error) alerts.push({ level: "danger", text: `자동입찰 오류: ${data.autobid.last.error.slice(0, 80)}` });
+    if (data.autobid?.enabled && data.autobid.last && Date.now() - new Date(data.autobid.last.at).getTime() > 2 * 3600 * 1000) alerts.push({ level: "warning", text: `자동입찰이 ${fmtAgo(data.autobid.last.at)} 이후 안 돌았습니다 — 스케줄 확인` });
+    if (data.autobid?.enabled && data.cron_ready === false) alerts.push({ level: "warning", text: "서버 CRON_SECRET 미설정 — 자동입찰이 자동으로 돌지 않습니다" });
+    if (data.ips?.new24h) alerts.push({ level: "warning", text: `최근 24시간 차단 IP ${data.ips.new24h}개 추가` });
+    if (limit && per != null && per > limit) alerts.push({ level: "danger", text: `접수당 광고비 ${won(per)}원 — 상한 ${won(limit)}원 초과` });
+    return { alerts, costVat, sum, cpc, ctr, per, verdict, rank, leadTotal, days: rangeDays, allDays: days, biz, bizDays, avgDay, clickAlert, todayClicks: todayRow?.clicks || 0, avgClicks: Math.round(avgClicks), camps, logs: data.logs || [] };
   }, [data, adv, period, until, t]);
 
   const saveLead = async (ymd, leads, note) => {
@@ -304,6 +313,13 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
       <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: -6 }}>
         {period === "today" ? `${until} (오늘)` : `${since} ~ ${until}`} · KST · 5분마다 갱신{loading ? " · 조회 중…" : ""}
       </div>
+      {view && view.alerts.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {view.alerts.map((a, i) => { const c = a.level === "danger" ? t.danger : t.warning; return (
+            <div key={i} style={{ padding: "8px 12px", borderRadius: 10, background: `${c}1A`, border: `1px solid ${c}55`, color: c, fontSize: 12, fontWeight: 800 }}>{a.level === "danger" ? "🚨" : "⚠"} {a.text}</div>
+          ); })}
+        </div>
+      )}
       {!sideNav && (
         <div style={{ display: "flex", gap: 4, padding: 4, background: t.bgInset, borderRadius: 12, overflowX: "auto" }}>
           {sections.map(sc => { const on = section === sc.id; return (
@@ -340,6 +356,9 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
               <div style={{ color: view.clickAlert ? t.danger : t.textMuted }}>
                 {view.clickAlert ? `⚠ 클릭 급증 의심 — 오늘 ${view.todayClicks}클릭 (직전 평균 ${view.avgClicks}의 ${(view.todayClicks / Math.max(view.avgClicks, 1)).toFixed(1)}배)` : `🛡 클릭 감시 정상 — 오늘 ${view.todayClicks} · 직전 평균 ${view.avgClicks}`}
               </div>
+              {data.ips && (
+                <div style={{ color: t.textMuted }}>🚫 차단 IP {data.ips.total}개{data.ips.new24h ? ` (24시간 내 +${data.ips.new24h})` : ""}{owner && data.ips.mobile ? ` · 모바일 공용대역 ${data.ips.mobile}개 주의` : ""}</div>
+              )}
               <div style={{ color: data.autobid?.last?.error ? t.danger : t.textMuted }}>
                 {!data.autobid?.enabled ? "🤖 자동입찰 꺼짐" : data.autobid.last
                   ? `🤖 자동입찰 ${data.autobid.groups}개 그룹 · 최근 ${fmtAgo(data.autobid.last.at)} — ${data.autobid.last.error ? "오류: " + data.autobid.last.error.slice(0, 60) : `${data.autobid.last.changed}개 조정 (↑${data.autobid.last.raised} ↓${data.autobid.last.lowered}) / 대상 ${data.autobid.last.alive}개`}`
@@ -376,6 +395,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
           </div>
           </>}
           {section === "autobid" && owner && <AutobidCard t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} onChanged={() => setTick(x => x + 1)}/>}
+          {section === "shield" && owner && <ShieldCard t={t} adv={adv} actor={actor} actorName={actorName} view={view} onChanged={() => setTick(x => x + 1)}/>}
           {section === "keywords" && (owner || adv.show_keywords) && <KeywordTable t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} owner={owner} since={since} until={until} onChanged={() => setTick(x => x + 1)}/>}
           {section === "log" && <>
             <ChangeLog t={t} logs={view.logs} owner={owner} adv={adv} actor={actor} actorName={actorName} onAdded={() => setTick(x => x + 1)}/>
@@ -444,6 +464,77 @@ function KeywordTable({ t, isPc, adv, actor, actorName, owner, since, until, onC
         </div>
       )}
     </Card>
+  );
+}
+
+// ---------- 부정클릭 (노출제한 IP) ----------
+// 쿨가이처럼 블로그 착지면 IP 를 우리가 수집할 수 없다 → 네이버 광고시스템 '무효클릭 보고서' 에서 IP 를 보고 여기 수동 등록.
+function ShieldCard({ t, adv, actor, actorName, view, onChanged }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [ips, setIps] = useState("");
+  const [memo, setMemo] = useState("");
+  const [force, setForce] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const load = useCallback(() => {
+    setLoading(true);
+    api("ips", { actor, get: { id: adv.id } }).then(j => { setData(j.ok ? j : null); setLoading(false); }).catch(() => { setData(null); setLoading(false); });
+  }, [actor, adv.id]);
+  useEffect(() => { load(); }, [load]);
+  const add = async () => {
+    if (!ips.trim()) return;
+    setBusy(true); setMsg(null);
+    const j = await api("ip_add", { actor, post: { id: adv.id, ips, memo, force, actor_name: actorName } });
+    setBusy(false);
+    if (j.ok || (j.results || []).some(r => r.ok)) {
+      const okN = (j.results || []).filter(r => r.ok && !r.dup).length, dupN = (j.results || []).filter(r => r.dup).length;
+      setMsg({ ok: true, text: `${okN}개 등록${dupN ? ` · 이미 있음 ${dupN}` : ""}${j.skippedMobile?.length ? ` · 모바일 대역 건너뜀 ${j.skippedMobile.length}` : ""}` });
+      setIps(""); setMemo(""); setForce(false); load(); onChanged();
+    } else setMsg({ ok: false, text: j.error || "등록 실패" });
+  };
+  const del = async (row) => {
+    if (!window.confirm(`${row.ip} 차단을 해제할까요?`)) return;
+    const j = await api("ip_del", { actor, post: { id: adv.id, ids: [row.id], actor_name: actorName } });
+    if (j.ok) { load(); onChanged(); } else window.alert(j.error || "해제 실패");
+  };
+  const list = data?.list || [];
+  return (
+    <>
+      <Card t={t} title="클릭 감시" sub="오늘 클릭이 직전 7일 평균의 2.5배 이상(20클릭 이상)이면 경보">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+          <MiniStat t={t} label="오늘 클릭" value={won(view?.todayClicks || 0)} accent={!!view?.clickAlert}/>
+          <MiniStat t={t} label="직전 평균" value={won(view?.avgClicks || 0)}/>
+          <MiniStat t={t} label="차단 IP" value={data ? `${data.total}` : "-"} suffix={data ? `/${data.limit}` : ""}/>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 11, color: t.textMuted, lineHeight: 1.6 }}>
+          IP 는 광고시스템 → 도구 → <b>무효클릭 관리</b> 에서 확인합니다. 착지가 블로그라 여기서 방문자 IP 를 직접 잡지는 못합니다.
+        </div>
+      </Card>
+      <Card t={t} title="노출제한 IP 등록" sub="등록된 IP 에는 이 계정의 광고가 아예 안 보입니다 (계정당 600개)">
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <textarea className="mkt-input" rows={2} placeholder={"IP 여러 개는 쉼표·줄바꿈으로\n예) 1.2.3.4, 5.6.7.8"} value={ips} onChange={e => setIps(e.target.value)} style={{ ...inputStyle(t), resize: "vertical", fontFamily: "inherit" }}/>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <input className="mkt-input" placeholder="메모 (예: 무효클릭 보고서 9/16)" value={memo} onChange={e => setMemo(e.target.value)} style={{ ...inputStyle(t), flex: 1, minWidth: 160, padding: "7px 10px" }}/>
+            <label style={{ fontSize: 11, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}><input type="checkbox" checked={force} onChange={e => setForce(e.target.checked)}/>모바일 대역도 강제</label>
+            <button onClick={add} className="tab-btn" style={{ ...btnPrimary(t), padding: "8px 14px" }} disabled={busy || !ips.trim()}>{busy ? "등록 중…" : "차단 등록"}</button>
+          </div>
+          {msg && <div style={{ fontSize: 11.5, fontWeight: 700, color: msg.ok ? t.success : t.danger }}>{msg.text}</div>}
+        </div>
+        <div style={{ marginTop: 10, borderTop: `1px solid ${t.border}` }}>
+          {loading && !data ? <Empty t={t}>불러오는 중…</Empty> : list.length === 0 ? <Empty t={t}>차단된 IP 없음</Empty> : list.slice(0, 100).map(r => (
+            <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
+              <span className="mono" style={{ fontWeight: 700, color: r.mobile ? t.warning : t.text }}>{r.ip}</span>
+              {r.mobile && <span style={{ fontSize: 9.5, color: t.warning, fontWeight: 800 }}>모바일 공용</span>}
+              <span style={{ flex: 1, color: t.textMuted, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.memo}</span>
+              <span className="mono" style={{ color: t.textMuted, fontSize: 10.5 }}>{r.at ? fmtKst(new Date(r.at).toISOString()) : ""}</span>
+              <button onClick={() => del(r)} className="tab-btn" style={{ ...iconBtn(t), fontSize: 11, fontWeight: 700 }}>해제</button>
+            </div>
+          ))}
+          {list.length > 100 && <div style={{ fontSize: 10.5, color: t.textMuted, padding: 6 }}>외 {list.length - 100}개</div>}
+        </div>
+      </Card>
+    </>
   );
 }
 
