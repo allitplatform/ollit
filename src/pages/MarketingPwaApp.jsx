@@ -685,32 +685,36 @@ function hlText(str, t) {
 }
 function ClientSummary({ t, adv, data, view, since, until }) {
   const c = data.care || {};
-  const lines = [];
-  const per = view.isToday ? "오늘" : `${since.slice(5).replace("-", "/")}~${until.slice(5).replace("-", "/")}`;
-  if (view.sum.clicks > 0) {
-    lines.push(`${per} 광고비 [[${won(view.costVat)}원]](부가세 포함)으로 [[${won(view.sum.clicks)}명]]이 광고를 클릭해 들어왔습니다. 클릭 한 번에 평균 ${won(view.cpc)}원이 들었고, 검색 결과에서 [[평균 ${view.rank != null ? view.rank.toFixed(1) : "-"}위]]에 노출되고 있습니다.`);
-  } else {
-    lines.push(`${per} 아직 집계된 클릭이 없습니다. 네이버 집계는 실제보다 1~2시간 늦게 반영됩니다.`);
-  }
-  if (view.isToday && view.yRow) {
-    lines.push(`어제 하루는 광고비 ${won(Math.round(view.yRow.cost * 1.1))}원에 [[${won(view.yRow.clicks)}클릭]]${view.yRow.rank ? `, 평균 ${view.yRow.rank.toFixed(1)}위` : ""}였습니다.`);
-  }
+  const rows = [];
+  const per = view.isToday ? "오늘 결과" : "기간 결과";
+  rows.push({ label: per, text: view.sum.clicks > 0
+    ? `광고비 [[${won(view.costVat)}원]] · [[${won(view.sum.clicks)}명]] 클릭 · ${view.rank != null ? `[[${view.rank.toFixed(1)}위]] 노출` : "순위 집계 중"}`
+    : "아직 집계된 클릭 없음 (네이버 집계 1~2시간 지연)" });
   if (view.leadTotal > 0 && view.per != null) {
-    lines.push(`접수 ${won(view.leadTotal)}건 기준으로 접수 1건을 받는 데 광고비 [[${won(view.per)}원]]이 들었습니다${adv.cpa_limit ? ` — 기준 ${won(adv.cpa_limit)}원 대비 [[${view.per <= (adv.cpa_good || 0) ? "매우 효율적" : view.per <= adv.cpa_limit ? "적정 범위" : "초과, 조정 중"}]]입니다` : ""}.`);
-  } else if (view.costVat > 0) {
-    lines.push(`아래 일별 표의 [[분홍 '접수 ✎' 칸]]에 그날 전화·문의 건수를 넣어 주시면 접수 1건당 광고비를 계산해 드립니다.`);
+    const j = adv.cpa_limit ? (view.per <= (adv.cpa_good || 0) ? "매우 좋음" : view.per <= adv.cpa_limit ? "적정" : "기준 초과 · 조정 중") : null;
+    rows.push({ label: "접수 효율", text: `접수 ${won(view.leadTotal)}건 · 1건당 [[${won(view.per)}원]]${j ? ` → [[${j}]]` : ""}` });
   }
-  if (view.biz != null) {
-    if (view.bizDays != null && view.bizDays < 3) lines.push(`충전된 광고비(비즈머니)는 ${won(Math.round(view.biz))}원 남아 있고, 최근 일평균 지출 ${won(view.avgDay)}원 기준으로 [[약 ${view.bizDays.toFixed(1)}일 뒤 소진]]됩니다. 광고가 끊기지 않도록 [[충전을 부탁드립니다]].`);
-    else lines.push(`충전된 광고비(비즈머니)는 ${won(Math.round(view.biz))}원 남아 있습니다${view.bizDays != null ? ` (일평균 지출 기준 약 ${Math.floor(view.bizDays)}일분)` : ""}.`);
-  }
-  if (view.clickAlert) lines.push(`오늘 클릭이 직전 7일 평균(${won(view.avgClicks)})의 [[${(view.todayClicks / Math.max(view.avgClicks, 1)).toFixed(1)}배로 급증]]해 부정클릭 여부를 확인하고 있습니다. 의심 IP 는 즉시 차단하고, 무효클릭은 네이버에 환불 요청합니다.`);
-  if (data.autobid?.last?.error) lines.push(`자동입찰에 일시 오류가 있어 담당자가 확인 중입니다. 입찰가는 마지막 정상 값으로 유지됩니다.`);
-  if (c.adjusted_today) lines.push(`오늘 자동입찰이 [[${won(c.adjusted_today)}건]]의 입찰을 조정해 목표 순위를 유지했습니다.`);
+  const todo = [];
+  if (view.biz != null && view.bizDays != null && view.bizDays < 3) todo.push(`광고비 [[${view.bizDays.toFixed(1)}일분]] 남음 → [[충전]]`);
+  if (view.costVat > 0 && !view.leadTotal) todo.push("아래 분홍 칸에 [[접수 건수 입력]]");
+  if (todo.length) rows.push({ label: "해주실 일", text: todo.join("  /  "), accent: true });
+  const did = [];
+  if (c.adjusted_today) did.push(`자동입찰 [[${won(c.adjusted_today)}건]] 조정`);
+  else if (c.checks_today) did.push(`${won(c.checks_today)}회 점검 · 조정 불필요`);
+  if (view.rank != null && view.rank <= 2) did.push("목표 순위 유지 중");
+  if (view.clickAlert) did.push("[[클릭 급증]] 확인 중");
+  if (c.ops_week) did.push(`이번 주 담당자 작업 ${won(c.ops_week)}건`);
+  if (did.length) rows.push({ label: "저희가 한 일", text: did.join(" · ") });
+  if (view.isToday && view.yRow) rows.push({ label: "어제", text: `${won(Math.round(view.yRow.cost * 1.1))}원 · ${won(view.yRow.clicks)}명 클릭${view.yRow.rank ? ` · ${view.yRow.rank.toFixed(1)}위` : ""}` });
   return (
-    <Card t={t} title={`${view.isToday ? "오늘" : "기간"} 요약`} sub="담당자 코멘트 — 숫자를 풀어 설명합니다">
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {lines.map((l, i) => <div key={i} style={{ fontSize: 12.5, lineHeight: 1.7, color: t.textSecondary, display: "flex", gap: 8 }}><span style={{ color: t.accent, fontWeight: 900 }}>•</span><span>{hlText(l, t)}</span></div>)}
+    <Card t={t} title="한눈에 보기">
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        {rows.map((r, i) => (
+          <div key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "9px 0", borderTop: i ? `1px solid ${t.border}` : "none" }}>
+            <span style={{ flex: "0 0 74px", fontSize: 12, fontWeight: 800, color: r.accent ? t.accent : t.textMuted, paddingTop: 1 }}>{r.label}</span>
+            <span style={{ flex: 1, fontSize: 14, lineHeight: 1.55, color: t.text, fontWeight: 600 }}>{hlText(r.text, t)}</span>
+          </div>
+        ))}
       </div>
     </Card>
   );
