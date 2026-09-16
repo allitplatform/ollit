@@ -196,7 +196,7 @@ export function ClientAdView({ token }) {
 
 // ===================== 성과 패널 (운영자·광고주 공용) =====================
 function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
-  const [period, setPeriod] = useState("week");
+  const [period, setPeriod] = useState("today");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
@@ -234,7 +234,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
     else verdict = { label: "판정선 미설정", color: t.textMuted };
     const cpc = sum.clicks ? Math.round(sum.cost / sum.clicks) : 0;
     const ctr = sum.imp ? (sum.clicks / sum.imp * 100) : 0;
-    const rank = data.totals?.rank;
+    const rank = isToday && todayRow ? todayRow.rank : data.totals?.rank;
     // 비즈머니 잔여일: 최근 7일 평균 일지출(VAT 포함) 기준
     const last7 = days.slice(0, 7).filter(d => d.ymd !== until);
     const avgDay = last7.length ? Math.round(last7.reduce((a, d) => a + d.cost * 1.1, 0) / last7.length) : 0;
@@ -244,7 +244,13 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
     const prevRows = days.filter(d => d.ymd !== until).slice(0, 7);
     const avgClicks = prevRows.length ? prevRows.reduce((a, d) => a + d.clicks, 0) / prevRows.length : 0;
     const clickAlert = todayRow && avgClicks > 0 && todayRow.clicks >= 20 && todayRow.clicks / avgClicks >= 2.5;
-    return { costVat, sum, cpc, ctr, per, verdict, rank, leadTotal, days: rangeDays, allDays: days, biz, bizDays, avgDay, clickAlert, todayClicks: todayRow?.clicks || 0, avgClicks: Math.round(avgClicks), camps: data.campaigns || [], logs: data.logs || [] };
+    // 오늘 탭: 캠페인별 수치도 오늘 하루만 (조회 범위는 어제~오늘)
+    let camps = data.campaigns || [];
+    if (isToday && todayRow?.perCamp) {
+      const nameById = Object.fromEntries(camps.map(c => [c.id, c]));
+      camps = todayRow.perCamp.map(p => ({ ...(nameById[p.campaign_id] || { id: p.campaign_id, name: p.campaign_id }), ...p })).sort((a, b) => b.cost - a.cost);
+    }
+    return { costVat, sum, cpc, ctr, per, verdict, rank, leadTotal, days: rangeDays, allDays: days, biz, bizDays, avgDay, clickAlert, todayClicks: todayRow?.clicks || 0, avgClicks: Math.round(avgClicks), camps, logs: data.logs || [] };
   }, [data, adv, period, until, t]);
 
   const saveLead = async (ymd, leads, note) => {
