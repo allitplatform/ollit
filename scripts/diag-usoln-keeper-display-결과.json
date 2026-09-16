@@ -1,0 +1,217 @@
+{
+  "generatedAt": "2026-05-24T22:16:33.482Z",
+  "samples": [
+    {
+      "task_no": "YS-260430-010",
+      "kind": "native",
+      "customer": "최민희",
+      "ext": "2026042925788771",
+      "status": "완료",
+      "task_items_count": 1,
+      "task_items_sample": [
+        {
+          "order_type": "본작업",
+          "appliance": "1way",
+          "work_type": "세척_1way",
+          "qty": 1
+        }
+      ],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 1,
+      "sim_appliance": "1way",
+      "sim_workType": "세척_1way",
+      "sim_main_item_found": true
+    },
+    {
+      "task_no": "YS-260511-019",
+      "kind": "통합 keeper",
+      "customer": "한유경",
+      "ext": "2026051147012351",
+      "status": "완료",
+      "task_items_count": 0,
+      "task_items_sample": [],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 0,
+      "sim_appliance": "",
+      "sim_workType": "",
+      "sim_main_item_found": false
+    },
+    {
+      "task_no": "YS-260515-037",
+      "kind": "native",
+      "customer": "김주현",
+      "ext": "2026051462091631",
+      "status": "완료",
+      "task_items_count": 1,
+      "task_items_sample": [
+        {
+          "order_type": "본작업",
+          "appliance": "1way",
+          "work_type": "세척_1way",
+          "qty": 2
+        }
+      ],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 1,
+      "sim_appliance": "1way",
+      "sim_workType": "세척_1way",
+      "sim_main_item_found": true
+    },
+    {
+      "task_no": "YS-260516-040",
+      "kind": "native",
+      "customer": "조윤주",
+      "ext": "2026051585136971",
+      "status": "확정",
+      "task_items_count": 1,
+      "task_items_sample": [
+        {
+          "order_type": "본작업",
+          "appliance": "벽걸이",
+          "work_type": "세척_벽걸이",
+          "qty": 1
+        }
+      ],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 1,
+      "sim_appliance": "벽걸이",
+      "sim_workType": "세척_벽걸이",
+      "sim_main_item_found": true
+    },
+    {
+      "task_no": "YS-260516-070",
+      "kind": "native",
+      "customer": "강소진",
+      "ext": "2026051699004001",
+      "status": "완료",
+      "task_items_count": 1,
+      "task_items_sample": [
+        {
+          "order_type": "본작업",
+          "appliance": "벽걸이",
+          "work_type": "세척_벽걸이",
+          "qty": 1
+        }
+      ],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 1,
+      "sim_appliance": "벽걸이",
+      "sim_workType": "세척_벽걸이",
+      "sim_main_item_found": true
+    },
+    {
+      "task_no": "YS-260516-181",
+      "kind": "통합 keeper",
+      "customer": "장덕팔",
+      "ext": "2026051615956771",
+      "status": "확정",
+      "task_items_count": 0,
+      "task_items_sample": [],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 0,
+      "sim_appliance": "",
+      "sim_workType": "",
+      "sim_main_item_found": false
+    },
+    {
+      "task_no": "YS-260517-001",
+      "kind": "통합 keeper",
+      "customer": "이유환",
+      "ext": "2026051722458071",
+      "status": "확정",
+      "task_items_count": 0,
+      "task_items_sample": [],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 0,
+      "sim_appliance": "",
+      "sim_workType": "",
+      "sim_main_item_found": false
+    },
+    {
+      "task_no": "YS-260517-025",
+      "kind": "통합 keeper",
+      "customer": "윤현아",
+      "ext": "2026051617426611",
+      "status": "확정",
+      "task_items_count": 0,
+      "task_items_sample": [],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 0,
+      "sim_appliance": "",
+      "sim_workType": "",
+      "sim_main_item_found": false
+    },
+    {
+      "task_no": "YS-260517-029",
+      "kind": "통합 keeper",
+      "customer": "장성숙",
+      "ext": "2026051619816841",
+      "status": "완료",
+      "task_items_count": 0,
+      "task_items_sample": [],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 0,
+      "sim_appliance": "",
+      "sim_workType": "",
+      "sim_main_item_found": false
+    },
+    {
+      "task_no": "YS-260519-015",
+      "kind": "native",
+      "customer": "박수호",
+      "ext": "2026051873833971",
+      "status": "완료",
+      "task_items_count": 1,
+      "task_items_sample": [
+        {
+          "order_type": "본작업",
+          "appliance": "벽걸이",
+          "work_type": "세척_벽걸이",
+          "qty": 1
+        }
+      ],
+      "category_data_keys": [],
+      "cat_workItems_count": 0,
+      "cat_appliance": null,
+      "cat_workType": null,
+      "sim_workItems_count": 1,
+      "sim_appliance": "벽걸이",
+      "sim_workType": "세척_벽걸이",
+      "sim_main_item_found": true
+    }
+  ],
+  "coverage": {
+    "total": 335,
+    "tiZero": 324,
+    "catWorkItemsZero": 335,
+    "both": 324,
+    "mainItemMissingInUI": 324
+  }
+}

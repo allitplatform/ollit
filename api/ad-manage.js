@@ -364,6 +364,26 @@ export default async function handler(req, res) {
       return;
     }
 
+    // 확장검색·AI 자동노출 켜기/끄기 (?step=expsearch&gid=...&on=0|1)
+    // useExpSearch=관련 검색어 확장노출, aiAdsOptIn=AI 자동노출. 저CTR 과다노출 차단용.
+    if (step === "expsearch") {
+      const gid = req.query.gid; const on = req.query.on === "1";
+      if (!gid) { res.status(200).json({ ok: false, error: "gid 필요" }); return; }
+      const g = await call("GET", "/ncc/adgroups/" + gid);
+      if (!g.ok) { res.status(200).json({ ok: false, error: g.data }); return; }
+      const grp = g.data;
+      const before = { useExpSearch: grp.useExpSearch, aiAdsOptIn: grp.aiAdsOptIn,
+        expSearchBudgetRatio: grp.expSearchBudgetRatio };
+      grp.useExpSearch = on;
+      grp.aiAdsOptIn = on;
+      grp.expSearchBudgetRatio = on ? 100 : 0;
+      const put = await call("PUT", "/ncc/adgroups/" + gid, null, grp);
+      res.status(200).json({ ok: put.ok, name: grp.name, before,
+        after: { useExpSearch: on, aiAdsOptIn: on, expSearchBudgetRatio: on ? 100 : 0 },
+        err: put.ok ? null : put.data });
+      return;
+    }
+
     // 검색량 수집: 그룹의 살아있는 단어를 keywordstool로 조회해 Supabase에 저장
     // ?step=volsync&gid=...&offset=0&limit=50 → { done, next }
     if (step === "volsync") {

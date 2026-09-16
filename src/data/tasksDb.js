@@ -805,7 +805,12 @@ export async function loadTasksForRole(role, userId, principalCode, opts = {}) {
       return q.order("received_at", { ascending: false });
     };
 
-    const { data: firstPage, error: firstErr, count: totalCount } = await buildQ(true).range(0, PAGE - 1);
+    // 2026-08-06 — 첫 페인트 가속 (사장님: "첫 화면 로딩까지 시간이 걸림").
+    //   첫 페이지를 작게(호출측 지정, 예: 300건) 받아 onFirstPage 선반영을
+    //   앞당기고, 나머지는 기존 1,000건 페이지 병렬로 뒤따른다.
+    const FIRST = Math.max(50, Math.min(PAGE, Number(opts && opts.firstPageSize) || PAGE));
+
+    const { data: firstPage, error: firstErr, count: totalCount } = await buildQ(true).range(0, FIRST - 1);
     if (firstErr) {
       console.error("[tasksDb.loadTasksForRole:tasks]", firstErr);
       return { ok: false, error: firstErr.message, tasks: [] };
@@ -821,9 +826,9 @@ export async function loadTasksForRole(role, userId, principalCode, opts = {}) {
 
     // 나머지 페이지 병렬 fetch
     const total = Math.min(Number(totalCount || rows.length), HARD_CAP);
-    if (rows.length === PAGE && total > PAGE) {
+    if (rows.length === FIRST && total > FIRST) {
       const jobs = [];
-      for (let from = PAGE; from < total; from += PAGE) {
+      for (let from = FIRST; from < total; from += PAGE) {
         jobs.push(buildQ(false).range(from, Math.min(from + PAGE, total) - 1));
       }
       const results = await Promise.all(jobs);

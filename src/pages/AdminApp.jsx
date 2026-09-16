@@ -2049,6 +2049,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
       const res = await apiGetTasks('admin', user?.id || user?.userId || 'admin', null, {
         ..._firstPageOpts,
         ...(useWindow ? { recentDays: WINDOW_DAYS } : {}),
+        // 2026-08-06 — 첫 화면 페인트 가속: 초기(비백그라운드) 창 로드는
+        //   첫 페이지 300건만 먼저 받아 선반영. 나머지는 병렬로 뒤따름.
+        ...(!isBackground && useWindow ? { firstPageSize: 300 } : {}),
       });
       console.log('[V14 2A] raw 응답:', res);
       console.log('[V14 2A] 응답 키:', res ? Object.keys(res) : 'null');
@@ -2169,14 +2172,15 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   //   백그라운드로 1회 마저 받는다 (가계부/매출 과거 월 숫자는 그때부터 완전).
   useEffect(() => {
     fetchTasks();                                     // 창 로드 — 빠른 첫 화면
-    // 과거 전체 — 4초 뒤 조용히 1회. 겹침 등으로 스킵되면 20초 간격 재시도.
+    // 과거 전체 — 8초 뒤 조용히 1회 (첫 화면과 네트워크 경쟁 방지, 2026-08-06 4→8초).
+    //   겹침 등으로 스킵되면 20초 간격 재시도.
     let timer = null;
     const tryFull = () => {
       if (_didFullLoadRef.current) return;
       fetchTasks({ full: true, background: true });
       timer = setTimeout(tryFull, 20000);
     };
-    timer = setTimeout(tryFull, 4000);
+    timer = setTimeout(tryFull, 8000);
     return () => { if (timer) clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.userId]);

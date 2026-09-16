@@ -1,0 +1,19 @@
+[users] 39명
+[user_roles] 42건
+
+[B] role 분포: {"admin":4,"engineer":32,"operator":2,"partner":4}
+    is_primary 분포: {"true":39,"false":3,"null":0}
+
+[A] ★ user_roles에 row 없는 users: 0명
+   ✓ 모든 users가 user_roles 보유 — 권한 누락 0건
+
+[E] 최근 14일 신규 users 4명 — user_roles 검증:
+  2026-05-18T07:12 | code=노일건_mpav9brf | 노일건 | pw=✓ | roles=✓ engineer
+  2026-05-17T06:43 | code=이민재_mp9et99v | 이민재 | pw=✓ | roles=✓ engineer
+  2026-05-25T05:34 | code=E030 | 이세환 | pw=✓ | roles=✓ engineer
+  2026-05-17T06:50 | code=정영식_mp9f1sxj | 정영식 | pw=✓ | roles=✓ engineer
+
+[B-2] 다중 역할 user: 3명
+  조동욱 (E022): [admin, engineer]
+  구현서 (E002): [admin, engineer]
+  유솔홈케어 대표 (P003): [partner, partner]

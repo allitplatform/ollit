@@ -1,0 +1,778 @@
+{
+  "generatedAt": "2026-05-24T21:06:12.527Z",
+  "principalId": "22222222-2222-2222-2222-222222222006",
+  "totalTasks": 1327,
+  "splitOrderCount": 335,
+  "splitTaskCount": 772,
+  "distribution": {
+    "splitOrders": 335,
+    "affectedTasks": 772,
+    "breakdown": {
+      "mainOnlyTasks": 513,
+      "addonOnlyTasks": 60,
+      "mixedTasks": 199,
+      "noItemTasks": 0
+    }
+  },
+  "samplePairs": [
+    {
+      "external_order_no": "2026051615956771",
+      "taskCount": 2,
+      "mainOnly": 1,
+      "addonOnly": 0,
+      "mixed": 1,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260516-181",
+          "customer": "장덕팔",
+          "status": "확정",
+          "label": "혼합",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051654522041"
+            },
+            {
+              "order_type": "추가선택",
+              "work_type": "송풍팬분해/층고",
+              "product_order_id": "2026051654522051"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260516-182",
+          "customer": "장덕팔",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051654522041"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051722458071",
+      "taskCount": 2,
+      "mainOnly": 2,
+      "addonOnly": 0,
+      "mixed": 0,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-001",
+          "customer": "이유환",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051764385041"
+            },
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051764385051"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-002",
+          "customer": "이유환",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051764385041"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051617426611",
+      "taskCount": 2,
+      "mainOnly": 2,
+      "addonOnly": 0,
+      "mixed": 0,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-025",
+          "customer": "윤현아",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051656715191"
+            },
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051656715201"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-026",
+          "customer": "윤현아",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051656715191"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051619816841",
+      "taskCount": 2,
+      "mainOnly": 2,
+      "addonOnly": 0,
+      "mixed": 0,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-029",
+          "customer": "장성숙",
+          "status": "완료",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051660437851"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-030",
+          "customer": "장성숙",
+          "status": "완료",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051660437851"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051619233561",
+      "taskCount": 2,
+      "mainOnly": 2,
+      "addonOnly": 0,
+      "mixed": 0,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-014",
+          "customer": "류세은",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051659549541"
+            },
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051659549551"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-015",
+          "customer": "류세은",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051659549541"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051616801251",
+      "taskCount": 2,
+      "mainOnly": 1,
+      "addonOnly": 0,
+      "mixed": 1,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-031",
+          "customer": "김민정",
+          "status": "확정",
+          "label": "혼합",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051655762871"
+            },
+            {
+              "order_type": "추가선택",
+              "work_type": "송풍팬분해/층고",
+              "product_order_id": "2026051655762881"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-032",
+          "customer": "김민정",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051655762871"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051721562531",
+      "taskCount": 2,
+      "mainOnly": 1,
+      "addonOnly": 0,
+      "mixed": 1,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-027",
+          "customer": "강인성",
+          "status": "취소",
+          "label": "혼합",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051763119491"
+            },
+            {
+              "order_type": "추가선택",
+              "work_type": "송풍팬분해/층고",
+              "product_order_id": "2026051763119501"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-028",
+          "customer": "강인성",
+          "status": "완료",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051763119491"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051616702101",
+      "taskCount": 2,
+      "mainOnly": 1,
+      "addonOnly": 0,
+      "mixed": 1,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-033",
+          "customer": "임소영",
+          "status": "완료",
+          "label": "혼합",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051655623881"
+            },
+            {
+              "order_type": "추가선택",
+              "work_type": "송풍팬분해/층고",
+              "product_order_id": "2026051655623891"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-034",
+          "customer": "임소영",
+          "status": "완료",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051655623881"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051616570291",
+      "taskCount": 2,
+      "mainOnly": 2,
+      "addonOnly": 0,
+      "mixed": 0,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-052",
+          "customer": "서수명",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051655424731"
+            },
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051655424741"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-053",
+          "customer": "서수명",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051655424731"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051731154611",
+      "taskCount": 3,
+      "mainOnly": 1,
+      "addonOnly": 0,
+      "mixed": 2,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-058",
+          "customer": "한은혜",
+          "status": "취소",
+          "label": "혼합",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051776882371"
+            },
+            {
+              "order_type": "추가선택",
+              "work_type": "냉매점검(단독)",
+              "product_order_id": "2026051776882381"
+            },
+            {
+              "order_type": "추가선택",
+              "work_type": "실외기 청소",
+              "product_order_id": "2026051776882391"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-059",
+          "customer": "한은혜",
+          "status": "완료",
+          "label": "혼합",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051776882371"
+            },
+            {
+              "order_type": "추가선택",
+              "work_type": "냉매점검(단독)",
+              "product_order_id": "2026051776882381"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-060",
+          "customer": "한은혜",
+          "status": "완료",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051776882371"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051736061141",
+      "taskCount": 2,
+      "mainOnly": 1,
+      "addonOnly": 0,
+      "mixed": 1,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260517-090",
+          "customer": "박희웅",
+          "status": "확정",
+          "label": "혼합",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051783998601"
+            },
+            {
+              "order_type": "추가선택",
+              "work_type": "실외기 청소",
+              "product_order_id": "2026051783998611"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260517-091",
+          "customer": "박희웅",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051783998601"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051845808711",
+      "taskCount": 2,
+      "mainOnly": 2,
+      "addonOnly": 0,
+      "mixed": 0,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260518-001",
+          "customer": "박윤범",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051899249921"
+            },
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051899249911"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260518-002",
+          "customer": "박윤범",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051899249911"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051845486461",
+      "taskCount": 2,
+      "mainOnly": 1,
+      "addonOnly": 0,
+      "mixed": 1,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260518-003",
+          "customer": "김선율",
+          "status": "확정",
+          "label": "혼합",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051898716891"
+            },
+            {
+              "order_type": "추가선택",
+              "work_type": "냉매점검(단독)",
+              "product_order_id": "2026051898716901"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260518-004",
+          "customer": "김선율",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051898716891"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051846590201",
+      "taskCount": 2,
+      "mainOnly": 2,
+      "addonOnly": 0,
+      "mixed": 0,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260518-029",
+          "customer": "송은정",
+          "status": "완료",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051810422421"
+            },
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051810422431"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260518-030",
+          "customer": "송은정",
+          "status": "완료",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051810422421"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "external_order_no": "2026051846568191",
+      "taskCount": 2,
+      "mainOnly": 2,
+      "addonOnly": 0,
+      "mixed": 0,
+      "noItem": 0,
+      "tasks": [
+        {
+          "task_no": "YS-260518-031",
+          "customer": "이계화",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_스탠드",
+              "appliance": "스탠드",
+              "product_order_id": "2026051810389801"
+            },
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051810389791"
+            }
+          ]
+        },
+        {
+          "task_no": "YS-260518-032",
+          "customer": "이계화",
+          "status": "확정",
+          "label": "본작업-only",
+          "items": [
+            {
+              "order_type": "본작업",
+              "work_type": "세척_벽걸이",
+              "appliance": "벽걸이",
+              "product_order_id": "2026051810389791"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "hanyk": [
+    {
+      "task_no": "YS-260511-015",
+      "customer": "한유경",
+      "external_order_no": "2026051147012351",
+      "status": "완료",
+      "created_at": "2026-05-20T06:34:53.566953+00:00",
+      "items": [
+        {
+          "order_type": "추가선택",
+          "work_type": "피톤치드",
+          "product_order_id": "2026051112360281"
+        },
+        {
+          "order_type": "추가선택",
+          "work_type": "냉매점검(단독)",
+          "product_order_id": "2026051112360291"
+        },
+        {
+          "order_type": "추가선택",
+          "work_type": "실외기 청소",
+          "product_order_id": "2026051112360301"
+        },
+        {
+          "order_type": "추가선택",
+          "work_type": "송풍팬분해/층고",
+          "product_order_id": "2026051112360311"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-019",
+      "customer": "한유경",
+      "external_order_no": "2026051147012351",
+      "status": "완료",
+      "created_at": "2026-05-24T07:21:09.817706+00:00",
+      "items": [
+        {
+          "order_type": "본작업",
+          "work_type": "세척_벽걸이",
+          "appliance": "벽걸이",
+          "product_order_id": "2026051112360271"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-018",
+      "customer": "한유경",
+      "external_order_no": "2026051147012351",
+      "status": "완료",
+      "created_at": "2026-05-24T19:46:19.723352+00:00",
+      "items": [
+        {
+          "order_type": "추가선택",
+          "work_type": "피톤치드",
+          "product_order_id": "2026051112360281"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-017",
+      "customer": "한유경",
+      "external_order_no": "2026051147012351",
+      "status": "완료",
+      "created_at": "2026-05-24T19:46:19.723352+00:00",
+      "items": [
+        {
+          "order_type": "추가선택",
+          "work_type": "냉매점검(단독)",
+          "product_order_id": "2026051112360291"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-016",
+      "customer": "한유경",
+      "external_order_no": "2026051147012351",
+      "status": "완료",
+      "created_at": "2026-05-24T19:46:19.723352+00:00",
+      "items": [
+        {
+          "order_type": "추가선택",
+          "work_type": "실외기 청소",
+          "product_order_id": "2026051112360301"
+        }
+      ]
+    }
+  ]
+}

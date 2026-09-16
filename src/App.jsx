@@ -5,7 +5,7 @@ import HappycallApp from "./pages/HappycallApp.jsx";
 import AdminApp from "./pages/AdminApp.jsx";
 import PrincipalApp from "./pages/PrincipalApp.jsx";
 import LandingApp from "./pages/LandingApp.jsx";
-import MarketingPwaApp from "./pages/MarketingPwaApp.jsx";
+import MarketingPwaApp, { ClientAdView } from "./pages/MarketingPwaApp.jsx";
 
 // 2026-06-23 — 마케팅 랜딩 도메인 / 경로 진입 시 LandingApp 만 렌더 (운영 PWA 분기 차단).
 //   2026-06-24 — 올데이케어.kr (한글 도메인) 추가:
@@ -33,6 +33,12 @@ function _isLandingRoute() {
 function _isMktRoute() {
   if (typeof window === "undefined") return false;
   return (window.location.pathname || "").startsWith("/mkt");
+}
+// 2026-09-16 — 광고주 열람 링크 (/mkt/c/<token>): 로그인 없이 해당 광고주 성과만 표시.
+function _mktClientToken() {
+  if (typeof window === "undefined") return null;
+  const m = (window.location.pathname || "").match(/^\/mkt\/c\/([a-z0-9]{20,40})\/?$/i);
+  return m ? m[1] : null;
 }
 import { TasksProvider } from "./shared/TasksContext.jsx";
 import { SplashScreen } from "./components/SplashScreen.jsx";
@@ -189,6 +195,11 @@ export default function App() {
 
   // 화면 분기 (TasksProvider 안쪽에서 결정)
   const renderScreen = () => {
+    // 2026-09-16 — 광고주 열람 링크는 로그인 게이트보다 먼저 (토큰이 곧 권한)
+    const mktClientToken = _mktClientToken();
+    if (mktClientToken) {
+      return <ClientAdView token={mktClientToken} />;
+    }
     if (!currentUser) {
       return <LoginScreen onLogin={handleLogin} />;
     }

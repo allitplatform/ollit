@@ -1,0 +1,1812 @@
+{
+  "mode": "commit",
+  "generatedAt": "2026-05-24T21:58:22.124Z",
+  "elapsedSec": 9,
+  "targetCount": 334,
+  "processedCount": 334,
+  "skippedCount": 319,
+  "totals": {
+    "tasksDeleted": 20,
+    "itemsMoved": 0,
+    "itemsDropped": 20,
+    "keepersRecomputed": 15
+  },
+  "errorAt": null,
+  "results": [
+    {
+      "ext": "2026051615956771",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051722458071",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051617426611",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051619816841",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051619233561",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051616801251",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051721562531",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051616702101",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051616570291",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051731154611",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051736061141",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051845808711",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051845486461",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051846590201",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051846568191",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051846449341",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051869669461",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051852343681",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051859266911",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051860909651",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051860195901",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051850084781",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051859371251",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051851249161",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051861577901",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051854170131",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051859663111",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051860196081",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051855574481",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051979183161",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051867809891",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051864259271",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051975839191",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051983819691",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051983749341",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051741411801",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051981208211",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051851916211",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051975676311",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051694448691",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051742197511",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051991828981",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051690049841",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051844529061",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051861897281",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051994505091",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051616155351",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051737353691",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051979994251",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051451798931",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051739608991",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051985595431",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051873610841",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051731648431",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051724605341",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051853335621",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051587005811",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051976188261",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051999461921",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051990857901",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051611661651",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051586335411",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051978056211",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051863812331",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051732594201",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051730681091",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051727257921",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051610062131",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051695118121",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051846482751",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051911717541",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051722014641",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051618464771",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051611323101",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051695062381",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051860945441",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051737922991",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051995257831",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051994071571",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051611791031",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051585454441",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051613026091",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051844831191",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051732380411",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051616752331",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051848438321",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051611627281",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051616714701",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051584013931",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051739152771",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051737213651",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051587100681",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051691879561",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051691543891",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051587441021",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051584039801",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051583594921",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051582984021",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051697434781",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051863999421",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051694181941",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051698957371",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051697858111",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051612333101",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051698147161",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051269616041",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051165661621",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051462627021",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051160540581",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051463947531",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051461429131",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051564357171",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051159763851",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051565772001",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051161341791",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050163349821",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051451832531",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051455984791",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051276650551",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051449906421",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051267856141",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051291319541",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051324510331",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051293919981",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051335549301",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051443322051",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051443067261",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051463489071",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051566141191",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051326767551",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051566540771",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051331093381",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051441777731",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051450484281",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051333353491",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051321891211",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051324543121",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051565621751",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051456222611",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051441304261",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051319995781",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051437215601",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051330843411",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051322436431",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051293000081",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051325180491",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051282685501",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051284534731",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051277258701",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051278750711",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050729012601",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050698538881",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051295376011",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051287787751",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051291717001",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051277639731",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042291994801",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050864029711",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050696089861",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051286865401",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050736672271",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050621838691",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050614305271",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050613767251",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051145747641",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042024170771",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050865912031",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050627368111",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050698281551",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050449484341",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050323665611",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050437154451",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050433866081",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050444403171",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050436129101",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050316491631",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050298662501",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051578823101",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051455633311",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051459912381",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051454262191",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051327707401",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051452376751",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051144320721",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051152535331",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051570191961",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051164929751",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051578708291",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051574000421",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051463272001",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051458260241",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051456328921",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051022621301",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051692110211",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051461181931",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051581520841",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051579222661",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051579030821",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051581026751",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050733841561",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051293574871",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050438664151",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050323588331",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050743360631",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050870277791",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050874723731",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050983914231",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050986262151",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051017882701",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051025827941",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051019969821",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051576990411",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051579316821",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051579438521",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051454589871",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051028899841",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051141589251",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051455667361",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051460733051",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051152359321",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051157469281",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042914032721",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042611350691",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042872563571",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026043036758201",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042031313751",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042045935791",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042993100581",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042999062391",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042920486851",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042460737501",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042462859411",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042043157071",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042470274781",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041912542971",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041999642321",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050285237231",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042031628421",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050169763421",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042337179441",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041887367591",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042333291621",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041998444741",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042613622341",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042628705951",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042623988671",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042915097211",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042928597051",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042923650201",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026040883182061",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041918752191",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041911419411",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042739690021",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042736667891",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041762124311",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042623835581",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041633495701",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041591778511",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042742212271",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042868106061",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042289382471",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042338194391",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042334585251",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042731521821",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042623864941",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041913109061",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041992504261",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041913860871",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042622427701",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042744034581",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042212419191",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042295873861",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042336478991",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042333354661",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041886020631",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050156819481",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042629259231",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042626992781",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042746346161",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042329987401",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042881470521",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042164963511",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042163601481",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042874441171",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042161363501",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042874619171",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041596010301",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041594049611",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042917239911",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042914213611",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041872860741",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041747052351",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026041474176631",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026043042412761",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042463999281",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042468864621",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042466926591",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042469163591",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042585491181",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042864218351",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042873118371",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042919521431",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042583942841",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042916869151",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042593506501",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042588740571",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026050173107931",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042749508121",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026042875143211",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026052022210971",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026052017480741",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051992818671",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026051990170021",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026052023845501",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026052147185441",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026052040680611",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026052036094621",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026052034826991",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026052160808151",
+      "skipped": true,
+      "reason": "라이브 task 수=1 (분리 X)"
+    },
+    {
+      "ext": "2026052158267731",
+      "idx": 319,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260522-006",
+      "absorb": [
+        "YS-260522-007"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:19.689Z"
+    },
+    {
+      "ext": "2026052277872341",
+      "idx": 320,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260522-014",
+      "absorb": [
+        "YS-260522-015"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:19.865Z"
+    },
+    {
+      "ext": "2026052285313711",
+      "idx": 321,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260522-016",
+      "absorb": [
+        "YS-260522-018",
+        "YS-260522-017"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:58:20.041Z"
+    },
+    {
+      "ext": "2026052282289921",
+      "idx": 322,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260522-019",
+      "absorb": [
+        "YS-260522-021",
+        "YS-260522-020"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:58:20.199Z"
+    },
+    {
+      "ext": "2026052271268341",
+      "idx": 323,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-N-260523-005",
+      "absorb": [
+        "YS-260522-003",
+        "YS-260522-002"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:58:20.374Z"
+    },
+    {
+      "ext": "2026050575916511",
+      "idx": 324,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-N-260524-002",
+      "absorb": [
+        "YS-260505-009"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:20.565Z"
+    },
+    {
+      "ext": "2026051160985481",
+      "idx": 325,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-N-260524-003",
+      "absorb": [
+        "YS-260512-014"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:20.740Z"
+    },
+    {
+      "ext": "2026051274809711",
+      "idx": 326,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-N-260524-004",
+      "absorb": [
+        "YS-260512-054"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:20.900Z"
+    },
+    {
+      "ext": "2026051315964231",
+      "idx": 327,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-N-260524-005",
+      "absorb": [
+        "YS-260513-011"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:21.075Z"
+    },
+    {
+      "ext": "2026051588171411",
+      "idx": 328,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-N-260524-006",
+      "absorb": [
+        "YS-260516-019"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:21.282Z"
+    },
+    {
+      "ext": "2026051586680111",
+      "idx": 329,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-N-260524-007",
+      "absorb": [
+        "YS-260516-029"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:21.442Z"
+    },
+    {
+      "ext": "2026051695001441",
+      "idx": 330,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-N-260524-008",
+      "absorb": [
+        "YS-260516-098",
+        "YS-260516-097"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:58:21.617Z"
+    },
+    {
+      "ext": "2026051618039281",
+      "idx": 331,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-N-260524-009",
+      "absorb": [
+        "YS-260517-023"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:21.775Z"
+    },
+    {
+      "ext": "2026051734296611",
+      "idx": 332,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-N-260524-010",
+      "absorb": [
+        "YS-260521-022",
+        "YS-260521-021"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:58:21.934Z"
+    },
+    {
+      "ext": "2026051851953021",
+      "idx": 333,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-N-260524-011",
+      "absorb": [
+        "YS-260518-068"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:58:22.124Z"
+    }
+  ]
+}

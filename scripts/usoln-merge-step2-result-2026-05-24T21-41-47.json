@@ -1,0 +1,1643 @@
+{
+  "mode": "commit",
+  "generatedAt": "2026-05-24T21:41:47.347Z",
+  "elapsedSec": 162.7,
+  "targetCount": 334,
+  "processedCount": 122,
+  "skippedCount": 0,
+  "totals": {
+    "tasksDeleted": 158,
+    "itemsMoved": 4,
+    "itemsDropped": 156,
+    "keepersRecomputed": 122
+  },
+  "errorAt": {
+    "idx": 122,
+    "ext": "2026051324510331",
+    "error": "tasks DELETE 2026051324510331: upstream request timeout"
+  },
+  "results": [
+    {
+      "ext": "2026051615956771",
+      "idx": 0,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-181",
+      "absorb": [
+        "YS-260516-182"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:04.916Z"
+    },
+    {
+      "ext": "2026051722458071",
+      "idx": 1,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-001",
+      "absorb": [
+        "YS-260517-002"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:05.054Z"
+    },
+    {
+      "ext": "2026051617426611",
+      "idx": 2,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-025",
+      "absorb": [
+        "YS-260517-026"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:05.169Z"
+    },
+    {
+      "ext": "2026051619816841",
+      "idx": 3,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-029",
+      "absorb": [
+        "YS-260517-030"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:05.283Z"
+    },
+    {
+      "ext": "2026051619233561",
+      "idx": 4,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-014",
+      "absorb": [
+        "YS-260517-015"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:05.421Z"
+    },
+    {
+      "ext": "2026051616801251",
+      "idx": 5,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-031",
+      "absorb": [
+        "YS-260517-032"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:05.574Z"
+    },
+    {
+      "ext": "2026051721562531",
+      "idx": 6,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-027",
+      "absorb": [
+        "YS-260517-028"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:05.725Z"
+    },
+    {
+      "ext": "2026051616702101",
+      "idx": 7,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-033",
+      "absorb": [
+        "YS-260517-034"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:05.887Z"
+    },
+    {
+      "ext": "2026051616570291",
+      "idx": 8,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-052",
+      "absorb": [
+        "YS-260517-053"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:06.138Z"
+    },
+    {
+      "ext": "2026051731154611",
+      "idx": 9,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260517-058",
+      "absorb": [
+        "YS-260517-059",
+        "YS-260517-060"
+      ],
+      "moveCount": 0,
+      "dropCount": 3,
+      "appliedAt": "2026-05-24T21:39:06.292Z"
+    },
+    {
+      "ext": "2026051736061141",
+      "idx": 10,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-090",
+      "absorb": [
+        "YS-260517-091"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:06.442Z"
+    },
+    {
+      "ext": "2026051845808711",
+      "idx": 11,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-001",
+      "absorb": [
+        "YS-260518-002"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:06.608Z"
+    },
+    {
+      "ext": "2026051845486461",
+      "idx": 12,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-003",
+      "absorb": [
+        "YS-260518-004"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:06.754Z"
+    },
+    {
+      "ext": "2026051846590201",
+      "idx": 13,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-029",
+      "absorb": [
+        "YS-260518-030"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:06.924Z"
+    },
+    {
+      "ext": "2026051846568191",
+      "idx": 14,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-031",
+      "absorb": [
+        "YS-260518-032"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:07.246Z"
+    },
+    {
+      "ext": "2026051846449341",
+      "idx": 15,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-033",
+      "absorb": [
+        "YS-260518-034"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:07.391Z"
+    },
+    {
+      "ext": "2026051869669461",
+      "idx": 16,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-020",
+      "absorb": [
+        "YS-260519-021"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:08.328Z"
+    },
+    {
+      "ext": "2026051852343681",
+      "idx": 17,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-066",
+      "absorb": [
+        "YS-260518-067"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:08.512Z"
+    },
+    {
+      "ext": "2026051859266911",
+      "idx": 18,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-105",
+      "absorb": [
+        "YS-260518-107",
+        "YS-260518-106"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:08.663Z"
+    },
+    {
+      "ext": "2026051860909651",
+      "idx": 19,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-113",
+      "absorb": [
+        "YS-260518-114"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:08.794Z"
+    },
+    {
+      "ext": "2026051860195901",
+      "idx": 20,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-098",
+      "absorb": [
+        "YS-260518-099"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:08.933Z"
+    },
+    {
+      "ext": "2026051850084781",
+      "idx": 21,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-081",
+      "absorb": [
+        "YS-260518-082"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:09.089Z"
+    },
+    {
+      "ext": "2026051859371251",
+      "idx": 22,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-102",
+      "absorb": [
+        "YS-260518-104",
+        "YS-260518-103"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:09.295Z"
+    },
+    {
+      "ext": "2026051851249161",
+      "idx": 23,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-075",
+      "absorb": [
+        "YS-260518-076"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:09.451Z"
+    },
+    {
+      "ext": "2026051861577901",
+      "idx": 24,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-096",
+      "absorb": [
+        "YS-260518-097"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:09.600Z"
+    },
+    {
+      "ext": "2026051854170131",
+      "idx": 25,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-057",
+      "absorb": [
+        "YS-260518-058"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:09.745Z"
+    },
+    {
+      "ext": "2026051859663111",
+      "idx": 26,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-100",
+      "absorb": [
+        "YS-260518-115",
+        "YS-260518-101"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:09.902Z"
+    },
+    {
+      "ext": "2026051860196081",
+      "idx": 27,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-125",
+      "absorb": [
+        "YS-260518-126"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:10.049Z"
+    },
+    {
+      "ext": "2026051855574481",
+      "idx": 28,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-135",
+      "absorb": [
+        "YS-260518-137",
+        "YS-260518-136"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:10.401Z"
+    },
+    {
+      "ext": "2026051979183161",
+      "idx": 29,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-001",
+      "absorb": [
+        "YS-260519-002"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:10.544Z"
+    },
+    {
+      "ext": "2026051867809891",
+      "idx": 30,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-022",
+      "absorb": [
+        "YS-260519-023"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:10.676Z"
+    },
+    {
+      "ext": "2026051864259271",
+      "idx": 31,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-028",
+      "absorb": [
+        "YS-260519-029"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:10.816Z"
+    },
+    {
+      "ext": "2026051975839191",
+      "idx": 32,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-030",
+      "absorb": [
+        "YS-260519-031"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:10.957Z"
+    },
+    {
+      "ext": "2026051983819691",
+      "idx": 33,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260519-032",
+      "absorb": [
+        "YS-260519-034",
+        "YS-260519-033"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:11.098Z"
+    },
+    {
+      "ext": "2026051983749341",
+      "idx": 34,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260519-035",
+      "absorb": [
+        "YS-260519-039",
+        "YS-260519-038"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:11.411Z"
+    },
+    {
+      "ext": "2026051741411801",
+      "idx": 35,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-014",
+      "absorb": [
+        "YS-260518-016",
+        "YS-260518-015"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:11.567Z"
+    },
+    {
+      "ext": "2026051981208211",
+      "idx": 36,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-061",
+      "absorb": [
+        "YS-260519-062"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:11.726Z"
+    },
+    {
+      "ext": "2026051851916211",
+      "idx": 37,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-070",
+      "absorb": [
+        "YS-260518-072",
+        "YS-260518-071"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:11.881Z"
+    },
+    {
+      "ext": "2026051975676311",
+      "idx": 38,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-011",
+      "absorb": [
+        "YS-260519-012"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:12.027Z"
+    },
+    {
+      "ext": "2026051694448691",
+      "idx": 39,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-155",
+      "absorb": [
+        "YS-260516-156"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:12.184Z"
+    },
+    {
+      "ext": "2026051742197511",
+      "idx": 40,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-042",
+      "absorb": [
+        "YS-260518-044",
+        "YS-260518-043"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:12.459Z"
+    },
+    {
+      "ext": "2026051991828981",
+      "idx": 41,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-053",
+      "absorb": [
+        "YS-260519-054"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:12.608Z"
+    },
+    {
+      "ext": "2026051690049841",
+      "idx": 42,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-010",
+      "absorb": [
+        "YS-260516-011"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:12.760Z"
+    },
+    {
+      "ext": "2026051844529061",
+      "idx": 43,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-005",
+      "absorb": [
+        "YS-260518-007",
+        "YS-260518-006"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:12.904Z"
+    },
+    {
+      "ext": "2026051861897281",
+      "idx": 44,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-108",
+      "absorb": [
+        "YS-260518-109"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:13.050Z"
+    },
+    {
+      "ext": "2026051994505091",
+      "idx": 45,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-044",
+      "absorb": [
+        "YS-260519-045"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:13.337Z"
+    },
+    {
+      "ext": "2026051616155351",
+      "idx": 46,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-178",
+      "absorb": [
+        "YS-260516-179"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:13.496Z"
+    },
+    {
+      "ext": "2026051737353691",
+      "idx": 47,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-097",
+      "absorb": [
+        "YS-260517-098"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:13.639Z"
+    },
+    {
+      "ext": "2026051979994251",
+      "idx": 48,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-036",
+      "absorb": [
+        "YS-260519-037"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:13.761Z"
+    },
+    {
+      "ext": "2026051451798931",
+      "idx": 49,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-035",
+      "absorb": [
+        "YS-260517-036"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:13.943Z"
+    },
+    {
+      "ext": "2026051739608991",
+      "idx": 50,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-051",
+      "absorb": [
+        "YS-260518-052"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:14.190Z"
+    },
+    {
+      "ext": "2026051985595431",
+      "idx": 51,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-057",
+      "absorb": [
+        "YS-260519-058"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:14.384Z"
+    },
+    {
+      "ext": "2026051873610841",
+      "idx": 52,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-016",
+      "absorb": [
+        "YS-260519-017"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:14.536Z"
+    },
+    {
+      "ext": "2026051731648431",
+      "idx": 53,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-083",
+      "absorb": [
+        "YS-260517-084"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:14.669Z"
+    },
+    {
+      "ext": "2026051724605341",
+      "idx": 54,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260517-054",
+      "absorb": [
+        "YS-260517-057",
+        "YS-260517-055"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:14.938Z"
+    },
+    {
+      "ext": "2026051853335621",
+      "idx": 55,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-061",
+      "absorb": [
+        "YS-260518-062"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:15.114Z"
+    },
+    {
+      "ext": "2026051587005811",
+      "idx": 56,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260516-026",
+      "absorb": [
+        "YS-260516-028",
+        "YS-260516-027"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:16.046Z"
+    },
+    {
+      "ext": "2026051976188261",
+      "idx": 57,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-003",
+      "absorb": [
+        "YS-260519-004"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:16.169Z"
+    },
+    {
+      "ext": "2026051999461921",
+      "idx": 58,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260520-006",
+      "absorb": [
+        "YS-260521-001"
+      ],
+      "moveCount": 1,
+      "dropCount": 0,
+      "appliedAt": "2026-05-24T21:39:16.352Z"
+    },
+    {
+      "ext": "2026051990857901",
+      "idx": 59,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-055",
+      "absorb": [
+        "YS-260519-056"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:16.496Z"
+    },
+    {
+      "ext": "2026051611661651",
+      "idx": 60,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-129",
+      "absorb": [
+        "YS-260516-130"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:16.674Z"
+    },
+    {
+      "ext": "2026051586335411",
+      "idx": 61,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-031",
+      "absorb": [
+        "YS-260516-032"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:16.920Z"
+    },
+    {
+      "ext": "2026051978056211",
+      "idx": 62,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-005",
+      "absorb": [
+        "YS-260519-006"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:17.062Z"
+    },
+    {
+      "ext": "2026051863812331",
+      "idx": 63,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-118",
+      "absorb": [
+        "YS-260518-119"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:17.205Z"
+    },
+    {
+      "ext": "2026051732594201",
+      "idx": 64,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-077",
+      "absorb": [
+        "YS-260517-078"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:17.342Z"
+    },
+    {
+      "ext": "2026051730681091",
+      "idx": 65,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260517-063",
+      "absorb": [
+        "YS-260517-065",
+        "YS-260517-064"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:17.471Z"
+    },
+    {
+      "ext": "2026051727257921",
+      "idx": 66,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-041",
+      "absorb": [
+        "YS-260517-040"
+      ],
+      "moveCount": 1,
+      "dropCount": 0,
+      "appliedAt": "2026-05-24T21:39:17.748Z"
+    },
+    {
+      "ext": "2026051610062131",
+      "idx": 67,
+      "skipped": false,
+      "taskCount": 5,
+      "keeper": "YS-260516-064",
+      "absorb": [
+        "YS-260516-068",
+        "YS-260516-067",
+        "YS-260516-066",
+        "YS-260516-065"
+      ],
+      "moveCount": 0,
+      "dropCount": 4,
+      "appliedAt": "2026-05-24T21:39:17.991Z"
+    },
+    {
+      "ext": "2026051695118121",
+      "idx": 68,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-091",
+      "absorb": [
+        "YS-260516-092"
+      ],
+      "moveCount": 1,
+      "dropCount": 0,
+      "appliedAt": "2026-05-24T21:39:18.143Z"
+    },
+    {
+      "ext": "2026051846482751",
+      "idx": 69,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-011",
+      "absorb": [
+        "YS-260518-013",
+        "YS-260518-012"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:18.294Z"
+    },
+    {
+      "ext": "2026051911717541",
+      "idx": 70,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260520-002",
+      "absorb": [
+        "YS-260520-004",
+        "YS-260520-003"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:18.425Z"
+    },
+    {
+      "ext": "2026051722014641",
+      "idx": 71,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-050",
+      "absorb": [
+        "YS-260517-051"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:18.657Z"
+    },
+    {
+      "ext": "2026051618464771",
+      "idx": 72,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-018",
+      "absorb": [
+        "YS-260517-019"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:18.880Z"
+    },
+    {
+      "ext": "2026051611323101",
+      "idx": 73,
+      "skipped": false,
+      "taskCount": 5,
+      "keeper": "YS-260516-136",
+      "absorb": [
+        "YS-260516-140",
+        "YS-260516-139",
+        "YS-260516-138",
+        "YS-260516-137"
+      ],
+      "moveCount": 0,
+      "dropCount": 4,
+      "appliedAt": "2026-05-24T21:39:19.007Z"
+    },
+    {
+      "ext": "2026051695062381",
+      "idx": 74,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260516-094",
+      "absorb": [
+        "YS-260516-096",
+        "YS-260516-095"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:19.127Z"
+    },
+    {
+      "ext": "2026051860945441",
+      "idx": 75,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-111",
+      "absorb": [
+        "YS-260518-112"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:19.259Z"
+    },
+    {
+      "ext": "2026051737922991",
+      "idx": 76,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-054",
+      "absorb": [
+        "YS-260518-055"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:19.512Z"
+    },
+    {
+      "ext": "2026051995257831",
+      "idx": 77,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-064",
+      "absorb": [
+        "YS-260519-065"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:19.743Z"
+    },
+    {
+      "ext": "2026051994071571",
+      "idx": 78,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260519-047",
+      "absorb": [
+        "YS-260519-048"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:19.883Z"
+    },
+    {
+      "ext": "2026051611791031",
+      "idx": 79,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-127",
+      "absorb": [
+        "YS-260516-128"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:20.028Z"
+    },
+    {
+      "ext": "2026051585454441",
+      "idx": 80,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260516-036",
+      "absorb": [
+        "YS-260516-037",
+        "YS-260516-038"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:20.151Z"
+    },
+    {
+      "ext": "2026051613026091",
+      "idx": 81,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-158",
+      "absorb": [
+        "YS-260516-159"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:20.379Z"
+    },
+    {
+      "ext": "2026051844831191",
+      "idx": 82,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-020",
+      "absorb": [
+        "YS-260518-021"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:20.621Z"
+    },
+    {
+      "ext": "2026051732380411",
+      "idx": 83,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260517-079",
+      "absorb": [
+        "YS-260517-080"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:20.744Z"
+    },
+    {
+      "ext": "2026051616752331",
+      "idx": 84,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-166",
+      "absorb": [
+        "YS-260516-167"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:20.869Z"
+    },
+    {
+      "ext": "2026051848438321",
+      "idx": 85,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260518-008",
+      "absorb": [
+        "YS-260518-010",
+        "YS-260518-009"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:21.026Z"
+    },
+    {
+      "ext": "2026051611627281",
+      "idx": 86,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260516-131",
+      "absorb": [
+        "YS-260516-133",
+        "YS-260516-132"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:21.265Z"
+    },
+    {
+      "ext": "2026051616714701",
+      "idx": 87,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-169",
+      "absorb": [
+        "YS-260516-168"
+      ],
+      "moveCount": 1,
+      "dropCount": 0,
+      "appliedAt": "2026-05-24T21:39:21.463Z"
+    },
+    {
+      "ext": "2026051584013931",
+      "idx": 88,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-046",
+      "absorb": [
+        "YS-260516-047"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:21.614Z"
+    },
+    {
+      "ext": "2026051739152771",
+      "idx": 89,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-017",
+      "absorb": [
+        "YS-260518-018"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:21.738Z"
+    },
+    {
+      "ext": "2026051737213651",
+      "idx": 90,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260517-087",
+      "absorb": [
+        "YS-260517-089",
+        "YS-260517-088"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:21.885Z"
+    },
+    {
+      "ext": "2026051587100681",
+      "idx": 91,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-024",
+      "absorb": [
+        "YS-260516-025"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:22.086Z"
+    },
+    {
+      "ext": "2026051691879561",
+      "idx": 92,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-005",
+      "absorb": [
+        "YS-260516-006"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:22.298Z"
+    },
+    {
+      "ext": "2026051691543891",
+      "idx": 93,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-007",
+      "absorb": [
+        "YS-260516-008"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:22.421Z"
+    },
+    {
+      "ext": "2026051587441021",
+      "idx": 94,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260516-021",
+      "absorb": [
+        "YS-260516-022",
+        "YS-260516-023"
+      ],
+      "moveCount": 0,
+      "dropCount": 3,
+      "appliedAt": "2026-05-24T21:39:22.550Z"
+    },
+    {
+      "ext": "2026051584039801",
+      "idx": 95,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-044",
+      "absorb": [
+        "YS-260516-045"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:22.658Z"
+    },
+    {
+      "ext": "2026051583594921",
+      "idx": 96,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-051",
+      "absorb": [
+        "YS-260516-052"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:22.909Z"
+    },
+    {
+      "ext": "2026051582984021",
+      "idx": 97,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260516-054",
+      "absorb": [
+        "YS-260516-056",
+        "YS-260516-055"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:23.416Z"
+    },
+    {
+      "ext": "2026051697434781",
+      "idx": 98,
+      "skipped": false,
+      "taskCount": 4,
+      "keeper": "YS-260516-073",
+      "absorb": [
+        "YS-260516-076",
+        "YS-260516-075",
+        "YS-260516-074"
+      ],
+      "moveCount": 0,
+      "dropCount": 3,
+      "appliedAt": "2026-05-24T21:39:23.965Z"
+    },
+    {
+      "ext": "2026051863999421",
+      "idx": 99,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260518-116",
+      "absorb": [
+        "YS-260518-117"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:24.509Z"
+    },
+    {
+      "ext": "2026051694181941",
+      "idx": 100,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260516-106",
+      "absorb": [
+        "YS-260516-108",
+        "YS-260516-107"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:24.691Z"
+    },
+    {
+      "ext": "2026051698957371",
+      "idx": 101,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-111",
+      "absorb": [
+        "YS-260516-112"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:24.986Z"
+    },
+    {
+      "ext": "2026051697858111",
+      "idx": 102,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-117",
+      "absorb": [
+        "YS-260516-118"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:25.261Z"
+    },
+    {
+      "ext": "2026051612333101",
+      "idx": 103,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260516-121",
+      "absorb": [
+        "YS-260516-123",
+        "YS-260516-122"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:25.431Z"
+    },
+    {
+      "ext": "2026051698147161",
+      "idx": 104,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260516-115",
+      "absorb": [
+        "YS-260516-116"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:25.593Z"
+    },
+    {
+      "ext": "2026051269616041",
+      "idx": 105,
+      "skipped": false,
+      "taskCount": 3,
+      "keeper": "YS-260512-001",
+      "absorb": [
+        "YS-260512-003",
+        "YS-260512-002"
+      ],
+      "moveCount": 0,
+      "dropCount": 2,
+      "appliedAt": "2026-05-24T21:39:25.976Z"
+    },
+    {
+      "ext": "2026051165661621",
+      "idx": 106,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260512-008",
+      "absorb": [
+        "YS-260512-009"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:26.182Z"
+    },
+    {
+      "ext": "2026051462627021",
+      "idx": 107,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260515-034",
+      "absorb": [
+        "YS-260515-035"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:26.446Z"
+    },
+    {
+      "ext": "2026051160540581",
+      "idx": 108,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260512-015",
+      "absorb": [
+        "YS-260512-016"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:26.682Z"
+    },
+    {
+      "ext": "2026051463947531",
+      "idx": 109,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260515-009",
+      "absorb": [
+        "YS-260515-010"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:26.898Z"
+    },
+    {
+      "ext": "2026051461429131",
+      "idx": 110,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260515-012",
+      "absorb": [
+        "YS-260515-013"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:27.132Z"
+    },
+    {
+      "ext": "2026051564357171",
+      "idx": 111,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260515-006",
+      "absorb": [
+        "YS-260515-007"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:27.513Z"
+    },
+    {
+      "ext": "2026051159763851",
+      "idx": 112,
+      "skipped": false,
+      "taskCount": 4,
+      "keeper": "YS-260511-030",
+      "absorb": [
+        "YS-260511-033",
+        "YS-260511-032",
+        "YS-260511-031"
+      ],
+      "moveCount": 0,
+      "dropCount": 3,
+      "appliedAt": "2026-05-24T21:39:27.923Z"
+    },
+    {
+      "ext": "2026051565772001",
+      "idx": 113,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260515-003",
+      "absorb": [
+        "YS-260515-004"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:28.144Z"
+    },
+    {
+      "ext": "2026051161341791",
+      "idx": 114,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260512-026",
+      "absorb": [
+        "YS-260512-027"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:28.450Z"
+    },
+    {
+      "ext": "2026050163349821",
+      "idx": 115,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260512-030",
+      "absorb": [
+        "YS-260512-031"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:28.697Z"
+    },
+    {
+      "ext": "2026051451832531",
+      "idx": 116,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260514-076",
+      "absorb": [
+        "YS-260514-077"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:28.839Z"
+    },
+    {
+      "ext": "2026051455984791",
+      "idx": 117,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260514-074",
+      "absorb": [
+        "YS-260514-075"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:28.975Z"
+    },
+    {
+      "ext": "2026051276650551",
+      "idx": 118,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260512-049",
+      "absorb": [
+        "YS-260512-050"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:29.180Z"
+    },
+    {
+      "ext": "2026051449906421",
+      "idx": 119,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260514-068",
+      "absorb": [
+        "YS-260514-069"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:29.407Z"
+    },
+    {
+      "ext": "2026051267856141",
+      "idx": 120,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260512-021",
+      "absorb": [
+        "YS-260512-022"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:29.542Z"
+    },
+    {
+      "ext": "2026051291319541",
+      "idx": 121,
+      "skipped": false,
+      "taskCount": 2,
+      "keeper": "YS-260512-079",
+      "absorb": [
+        "YS-260512-080"
+      ],
+      "moveCount": 0,
+      "dropCount": 1,
+      "appliedAt": "2026-05-24T21:39:29.677Z"
+    }
+  ]
+}

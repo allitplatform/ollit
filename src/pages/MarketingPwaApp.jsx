@@ -1,19 +1,11 @@
-// 2026-08-03 — 올잇 마케팅 PWA (src/pages/MarketingPwaApp.jsx)
-//   진입: ollit.vercel.app/mkt (App.jsx 경로 분기). 로그인은 올잇 계정 그대로, 대표(owner)만.
-//   디자인: 운영 PWA 와 동일 문법 — THEMES 토큰(다크/라이트), sticky 헤더, Card/MiniStat,
-//           Pretendard, 하단 여백 safe-area. (MarketingScreenMobile 패턴 이식)
-//   구조: ADVERTISERS 배열 — 광고주가 늘면 한 줄 추가.
+// 2026-09-16 — 올잇 마케팅 PWA v2: 광고 관리 허브 (src/pages/MarketingPwaApp.jsx)
+//   진입: ollit.vercel.app/mkt (운영자, 올잇 계정 owner) / ollit.vercel.app/mkt/c/<token> (광고주 열람, 로그인 없음)
+//   서버: api/ad-hub.js — 광고주 목록은 DB(ad_advertisers). 화면 코드에 계정 키 없음.
+//   구조: 사이드바(광고주 목록 + 추가) → AdPanel(성과·접수당 광고비·비즈머니·일별·접수 입력·변경 이력)
+//   이전 버전(유솔/올데이 고정 배열)은 MarketingPwaApp.jsx.before-adhub-260916 에 보존.
 
-import { useEffect, useMemo, useState } from "react";
-import { Sun, Moon, LogOut, ExternalLink } from "lucide-react";
-
-const YUSOL_AD_TOKEN = "yz74c1e0a95d2b8f36e41c07";
-
-const ADVERTISERS = [
-  { id: "yusol",  name: "유솔홈케어" },
-  { id: "allday", name: "올데이케어" },
-  // 새 광고주는 여기 추가
-];
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { Sun, Moon, LogOut, ExternalLink, Plus, Settings, Link as LinkIcon, RefreshCw } from "lucide-react";
 
 const THEMES = {
   dark: {
@@ -31,308 +23,435 @@ const THEMES = {
     success: "#16A34A", warning: "#D97706", danger: "#DC2626",
   },
 };
-
 const PERIODS = [
   { id: "today", label: "오늘" },
   { id: "week",  label: "최근 7일" },
   { id: "month", label: "이번 달" },
 ];
-
 function kstYmd(offsetDays) {
   const d = new Date(Date.now() + 9 * 3600 * 1000);
   d.setUTCDate(d.getUTCDate() + (offsetDays || 0));
   return d.toISOString().slice(0, 10);
 }
 function won(n) { return Number(n || 0).toLocaleString("ko-KR"); }
-
-export default function MarketingPwaApp({ user, onLogout }) {
-  const [mode, setMode] = useState(() => {
-    try { return localStorage.getItem("mkt_theme") === "light" ? "light" : "dark"; } catch { return "dark"; }
-  });
-  const t = THEMES[mode];
-  const toggleMode = () => {
-    const next = mode === "dark" ? "light" : "dark";
-    setMode(next);
-    try { localStorage.setItem("mkt_theme", next); } catch { /* */ }
-  };
-  const [adv, setAdv] = useState("yusol");
-
-  // PC 분기 (운영 PWA 와 동일 기준 1024px) — 좌측 사이드바 + 넓은 본문
+function useTheme() {
+  const [mode, setMode] = useState(() => { try { return localStorage.getItem("mkt_theme") === "light" ? "light" : "dark"; } catch { return "dark"; } });
+  const toggle = () => { const n = mode === "dark" ? "light" : "dark"; setMode(n); try { localStorage.setItem("mkt_theme", n); } catch { /* */ } };
+  return { mode, t: THEMES[mode], toggle };
+}
+function useIsPc() {
   const [isPc, setIsPc] = useState(() => typeof window !== "undefined" && window.innerWidth >= 1024);
-  useEffect(() => {
-    const onResize = () => setIsPc(window.innerWidth >= 1024);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  useEffect(() => { const f = () => setIsPc(window.innerWidth >= 1024); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
+  return isPc;
+}
+async function api(mode, { actor, get, post } = {}) {
+  const qs = new URLSearchParams({ mode, ...(actor ? { actor } : {}), ...(get || {}) }).toString();
+  const r = post
+    ? await fetch(`/api/ad-hub?${qs}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...(actor ? { actor } : {}), ...post }) })
+    : await fetch(`/api/ad-hub?${qs}`, { cache: "no-store" });
+  return r.json();
+}
+const STYLE = `
+  @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: slideUp 0.4s ease-out; }
+  .tab-btn:hover { opacity: 0.85; }
+  .mkt-input { font-family: inherit; font-size: 13px; padding: 9px 10px; border-radius: 8px; outline: none; width: 100%; box-sizing: border-box; }
+`;
+
+// ===================== 운영자 화면 =====================
+export default function MarketingPwaApp({ user, onLogout }) {
+  const { mode, t, toggle } = useTheme();
+  const isPc = useIsPc();
+  const actor = user?.user_id || user?.userId || user?.id;
+  const [advs, setAdvs] = useState(null);
+  const [advId, setAdvId] = useState(null);
+  const [editing, setEditing] = useState(null); // null | "new" | advertiser object
+  const [err, setErr] = useState(null);
+
+  const reload = useCallback(async () => {
+    const j = await api("list", { actor });
+    if (j.ok) { setAdvs(j.advertisers); setAdvId(prev => prev && j.advertisers.some(a => a.id === prev) ? prev : (j.advertisers.find(a => a.active)?.id || null)); }
+    else setErr(j.error || "불러오기 실패");
+  }, [actor]);
+  useEffect(() => { reload(); }, [reload]);
+
+  const activeAdvs = (advs || []).filter(a => a.active);
+  const adv = activeAdvs.find(a => a.id === advId) || null;
+
+  const sideList = (
+    <>
+      {activeAdvs.map(a => {
+        const on = advId === a.id;
+        return (
+          <button key={a.id} onClick={() => setAdvId(a.id)} className="tab-btn" style={{
+            width: "100%", display: "flex", alignItems: "center", gap: 10, padding: isPc ? "12px 14px" : "9px 12px",
+            background: on ? t.accentBg : "transparent", border: isPc ? "none" : `1px solid ${on ? t.accent : t.border}`,
+            borderLeft: isPc ? `3px solid ${on ? t.accent : "transparent"}` : undefined, borderRadius: 8,
+            color: on ? t.accent : t.textSecondary, fontSize: 13.5, fontWeight: on ? 800 : 600, cursor: "pointer", fontFamily: "inherit", textAlign: "left", whiteSpace: "nowrap",
+          }}>{a.name}</button>
+        );
+      })}
+      <button onClick={() => setEditing("new")} className="tab-btn" style={{ display: "flex", alignItems: "center", gap: 6, padding: isPc ? "11px 14px" : "9px 12px", background: "transparent", border: `1px dashed ${t.borderStrong}`, borderRadius: 8, color: t.textMuted, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+        <Plus size={14}/> 광고주 추가
+      </button>
+    </>
+  );
+
+  const body = (
+    <>
+      {err && <Card t={t} title="오류"><div style={{ color: t.danger, fontSize: 12 }}>{err}</div></Card>}
+      {editing && (
+        <AdvertiserForm t={t} actor={actor} actorName={user?.name} initial={editing === "new" ? null : editing}
+          onClose={() => setEditing(null)} onSaved={async (saved) => { setEditing(null); await reload(); if (saved?.id) setAdvId(saved.id); }}/>
+      )}
+      {!editing && adv && (
+        <AdPanel key={adv.id} t={t} isPc={isPc} adv={adv} actor={actor} actorName={user?.name} owner onEdit={() => setEditing(adv)}/>
+      )}
+      {!editing && !adv && advs && (
+        <Card t={t} title="광고주가 없습니다" sub="왼쪽 '광고주 추가'에서 네이버 검색광고 API 키를 등록하세요">
+          <div style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.7 }}>광고시스템 → 도구 → API 사용 관리에서 액세스라이선스·비밀키를 발급받아 입력합니다. CUSTOMER_ID 는 같은 화면 상단에 있습니다.</div>
+        </Card>
+      )}
+      {!advs && !err && <Card t={t} title="불러오는 중…"><div style={{ fontSize: 12, color: t.textMuted }}>광고주 목록</div></Card>}
+    </>
+  );
 
   if (isPc) {
     return (
       <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Pretendard', sans-serif", display: "flex" }}>
-        <style>{`
-          @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-          .fade-in { animation: slideUp 0.4s ease-out; }
-          .tab-btn:hover { opacity: 0.85; }
-        `}</style>
-        {/* 사이드바 */}
+        <style>{STYLE}</style>
         <aside style={{ width: 230, flexShrink: 0, background: t.bgElevated, borderRight: `1px solid ${t.border}`, display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh" }}>
           <div style={{ padding: "20px 18px 16px", borderBottom: `1px solid ${t.border}` }}>
             <div className="mono" style={{ fontSize: 9, color: t.textMuted, letterSpacing: 2, fontWeight: 600, textTransform: "uppercase", marginBottom: 4 }}>ALLIT MARKETING</div>
             <div style={{ fontSize: 16, fontWeight: 900 }}>📈 올잇 마케팅</div>
-            <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: 3 }}>{user?.name ? `${user.name} 님` : ""} · 광고주 {ADVERTISERS.length}곳</div>
+            <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: 3 }}>{user?.name ? `${user.name} 님` : ""} · 광고주 {activeAdvs.length}곳</div>
           </div>
-          <nav style={{ flex: 1, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 8 }}>
-            {ADVERTISERS.map(a => {
-              const on = adv === a.id;
-              return (
-                <button key={a.id} onClick={() => setAdv(a.id)} className="tab-btn" style={{
-                  width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "13px 14px",
-                  background: on ? t.accentBg : "transparent", border: "none",
-                  borderLeft: `3px solid ${on ? t.accent : "transparent"}`, borderRadius: 8,
-                  color: on ? t.accent : t.textSecondary, fontSize: 14, fontWeight: on ? 800 : 600,
-                  cursor: "pointer", fontFamily: "inherit", textAlign: "left",
-                }}>{a.name}</button>
-              );
-            })}
-          </nav>
-          <div style={{ padding: "14px 14px 18px", borderTop: `1px solid ${t.border}`, display: "flex", gap: 8 }}>
-            <button onClick={toggleMode} className="tab-btn" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              {mode === "dark" ? <Sun size={14}/> : <Moon size={14}/>} 테마
-            </button>
-            <button onClick={onLogout} className="tab-btn" style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-              <LogOut size={14}/> 로그아웃
-            </button>
+          <nav style={{ flex: 1, padding: "12px 10px", display: "flex", flexDirection: "column", gap: 6, overflow: "auto" }}>{sideList}</nav>
+          <div style={{ padding: "10px 14px 0", borderTop: `1px solid ${t.border}` }}>
+            <a href="/ads-console.html" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11.5, color: t.textMuted, textDecoration: "none", fontWeight: 700, padding: "6px 0" }}><ExternalLink size={12}/> 올데이 키워드 관제판</a>
+          </div>
+          <div style={{ padding: "8px 14px 18px", display: "flex", gap: 8 }}>
+            <button onClick={toggle} className="tab-btn" style={btnGhost(t)}>{mode === "dark" ? <Sun size={14}/> : <Moon size={14}/>} 테마</button>
+            <button onClick={onLogout} className="tab-btn" style={btnGhost(t)}><LogOut size={14}/> 로그아웃</button>
           </div>
         </aside>
-        {/* 본문 */}
         <main className="fade-in" style={{ flex: 1, minWidth: 0, overflow: "auto", height: "100vh", padding: "24px 28px 40px" }}>
-          <div style={{ maxWidth: 980, margin: "0 auto", display: "flex", flexDirection: "column", gap: 12 }}>
-            {adv === "yusol" && <YusolPanel t={t} isPc/>}
-            {adv === "allday" && (
-              <Card t={t} title="올데이케어 광고 관제판" sub="실시간 키워드 · 순위 · 자동입찰은 기존 관제판에서">
-                <a href="/ads-console.html" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "13px 0", borderRadius: 10, background: t.accent, color: "#fff", fontSize: 13.5, fontWeight: 800, textDecoration: "none", maxWidth: 360 }}>관제판 열기 <ExternalLink size={14}/></a>
-              </Card>
-            )}
-          </div>
+          <div style={{ maxWidth: 980, margin: "0 auto", display: "flex", flexDirection: "column", gap: 12 }}>{body}</div>
         </main>
       </div>
     );
   }
-
   return (
     <div style={{ minHeight: "100vh", background: t.bg, paddingTop: "env(safe-area-inset-top, 12px)" }}>
-      <style>{`
-        @keyframes slideUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        .fade-in { animation: slideUp 0.4s ease-out; }
-        .tab-btn:hover { opacity: 0.85; }
-      `}</style>
+      <style>{STYLE}</style>
       <div style={{ maxWidth: 420, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Pretendard', sans-serif", paddingBottom: "calc(40px + env(safe-area-inset-bottom))" }}>
-
-        {/* 헤더 — 운영 PWA 와 동일 문법 (sticky + bgElevated) */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: `1px solid ${t.border}`, background: t.bgElevated, position: "sticky", top: 0, zIndex: 10 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 800 }}>📈 올잇 마케팅</div>
-            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginTop: 1 }}>
-              {user?.name ? `${user.name} 님 · ` : ""}관리 광고주 {ADVERTISERS.length}곳
-            </div>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginTop: 1 }}>{user?.name ? `${user.name} 님 · ` : ""}관리 광고주 {activeAdvs.length}곳</div>
           </div>
-          <button onClick={toggleMode} className="tab-btn" aria-label="테마 전환" style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: t.textMuted, display: "flex" }}>
-            {mode === "dark" ? <Sun size={18}/> : <Moon size={18}/>}
-          </button>
-          <button onClick={onLogout} className="tab-btn" aria-label="로그아웃" style={{ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: t.textMuted, display: "flex" }}>
-            <LogOut size={18}/>
-          </button>
+          <button onClick={toggle} className="tab-btn" aria-label="테마 전환" style={iconBtn(t)}>{mode === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button>
+          <button onClick={onLogout} className="tab-btn" aria-label="로그아웃" style={iconBtn(t)}><LogOut size={18}/></button>
         </div>
-
         <div className="fade-in" style={{ padding: "12px 16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-
-          {/* 광고주 세그먼트 */}
-          <div style={{ display: "flex", gap: 6 }}>
-            {ADVERTISERS.map(a => {
-              const on = adv === a.id;
-              return (
-                <button key={a.id} type="button" onClick={() => setAdv(a.id)} className="tab-btn" style={{
-                  flex: 1, padding: "10px 0", background: on ? t.accent : "transparent",
-                  border: `1px solid ${on ? t.accent : t.border}`, borderRadius: 10,
-                  color: on ? "#fff" : t.textSecondary, fontSize: 13, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
-                }}>{a.name}</button>
-              );
-            })}
-          </div>
-
-          {adv === "yusol" && <YusolPanel t={t}/>}
-          {adv === "allday" && (
-            <Card t={t} title="올데이케어 광고 관제판" sub="실시간 키워드 · 순위 · 자동입찰은 기존 관제판에서">
-              <a href="/ads-console.html" style={{
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                padding: "13px 0", borderRadius: 10, background: t.accent, color: "#fff",
-                fontSize: 13.5, fontWeight: 800, textDecoration: "none",
-              }}>관제판 열기 <ExternalLink size={14}/></a>
-            </Card>
-          )}
-
-          <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, textAlign: "center", padding: "4px 2px" }}>
-            ALLIT MARKETING · 홈 화면에 추가하면 앱처럼 쓸 수 있어요
-          </div>
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>{sideList}</div>
+          {body}
+          <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, textAlign: "center", padding: "4px 2px" }}>ALLIT MARKETING · 홈 화면에 추가하면 앱처럼 쓸 수 있어요</div>
         </div>
       </div>
     </div>
   );
 }
 
-function YusolPanel({ t, isPc }) {
+// ===================== 광고주 열람 화면 (/mkt/c/<token>) =====================
+export function ClientAdView({ token }) {
+  const { mode, t, toggle } = useTheme();
+  const isPc = useIsPc();
+  const [info, setInfo] = useState(null);
+  const [err, setErr] = useState(null);
+  useEffect(() => {
+    api("client", { get: { token, since: kstYmd(0), until: kstYmd(0) } }).then(j => { if (j.ok) setInfo(j.advertiser); else setErr(j.error || "링크 오류"); }).catch(() => setErr("연결 실패"));
+  }, [token]);
+  useEffect(() => { if (info?.name) document.title = `${info.name} 광고 현황`; }, [info]);
+  return (
+    <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Pretendard', sans-serif", paddingTop: "env(safe-area-inset-top, 0px)" }}>
+      <style>{STYLE}</style>
+      <div style={{ maxWidth: isPc ? 980 : 420, margin: "0 auto", minHeight: "100vh", paddingBottom: 40 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: `1px solid ${t.border}`, background: t.bgElevated, position: "sticky", top: 0, zIndex: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>📈 {info?.name || "광고"} 광고 현황</div>
+            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginTop: 1 }}>올잇 마케팅 · 네이버 검색광고 실시간</div>
+          </div>
+          <button onClick={toggle} className="tab-btn" aria-label="테마 전환" style={iconBtn(t)}>{mode === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button>
+        </div>
+        <div className="fade-in" style={{ padding: isPc ? "20px 24px" : "12px 16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
+          {err && <Card t={t} title="열 수 없습니다"><div style={{ fontSize: 12, color: t.danger }}>{err}</div></Card>}
+          {info && <AdPanel t={t} isPc={isPc} adv={info} token={token} owner={false}/>}
+          {!info && !err && <Card t={t} title="불러오는 중…"><div style={{ fontSize: 12, color: t.textMuted }}>광고 계정 연결</div></Card>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ===================== 성과 패널 (운영자·광고주 공용) =====================
+function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit }) {
   const [period, setPeriod] = useState("week");
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [days8, setDays8] = useState(null);
-
+  const [tick, setTick] = useState(0);
   const { since, until } = useMemo(() => {
     const today = kstYmd(0);
-    if (period === "today") return { since: today, until: today };
+    if (period === "today") return { since: kstYmd(-1), until: today };
     if (period === "week")  return { since: kstYmd(-6), until: today };
     return { since: today.slice(0, 8) + "01", until: today };
   }, [period]);
-
-  useEffect(() => {
-    let alive = true;
+  const load = useCallback(() => {
     setLoading(true);
-    fetch(`/api/yusol-ad?token=${YUSOL_AD_TOKEN}&since=${since}&until=${until}&daily=1`, { cache: "no-store" })
-      .then(r => r.json())
-      .then(j => { if (alive) { setData(j && j.ok ? j : null); setLoading(false); } })
-      .catch(() => { if (alive) { setData(null); setLoading(false); } });
-    return () => { alive = false; };
-  }, [since, until]);
-
-  useEffect(() => {
-    let alive = true;
-    const load = () => {
-      fetch(`/api/yusol-ad?token=${YUSOL_AD_TOKEN}&since=${kstYmd(-7)}&until=${kstYmd(0)}&daily=1`, { cache: "no-store" })
-        .then(r => r.json())
-        .then(j => { if (alive) setDays8(j && j.ok ? (j.days || []) : null); })
-        .catch(() => { if (alive) setDays8(null); });
-    };
-    load();
-    const iv = setInterval(load, 5 * 60 * 1000);
-    return () => { alive = false; clearInterval(iv); };
-  }, []);
+    const p = owner ? api("stats", { actor, get: { id: adv.id, since, until } }) : api("client", { get: { token, since, until } });
+    return p.then(j => { setData(j && j.ok ? j : null); setLoading(false); }).catch(() => { setData(null); setLoading(false); });
+  }, [owner, actor, token, adv.id, since, until]);
+  useEffect(() => { load(); }, [load, tick]);
+  useEffect(() => { const iv = setInterval(() => setTick(x => x + 1), 5 * 60 * 1000); return () => clearInterval(iv); }, []);
 
   const view = useMemo(() => {
     if (!data) return null;
-    const costVat = Math.round(Number(data.cost || 0) * 1.1);
-    const conv = Number(data.conv || 0);
-    const per = conv > 0 ? Math.round(costVat / conv) : null;
+    const isToday = period === "today";
+    const days = (data.days || []).slice().sort((a, b) => a.ymd < b.ymd ? 1 : -1);
+    const rangeDays = isToday ? days.filter(d => d.ymd === until) : days;
+    const sum = rangeDays.reduce((a, d) => ({ cost: a.cost + d.cost, clicks: a.clicks + d.clicks, imp: a.imp + d.impressions, conv: a.conv + d.conv }), { cost: 0, clicks: 0, imp: 0, conv: 0 });
+    const costVat = Math.round(sum.cost * 1.1);
+    const leads = data.leads || {};
+    const leadTotal = rangeDays.reduce((a, d) => a + Number(leads[d.ymd]?.leads || 0), 0);
+    const denom = leadTotal > 0 ? leadTotal : (sum.conv > 0 ? sum.conv : 0);
+    const per = denom > 0 ? Math.round(costVat / denom) : null;
+    const good = adv.cpa_good, limit = adv.cpa_limit;
     let verdict;
-    if (per != null && per <= 5000)       verdict = { label: "효율 좋음", color: t.success };
-    else if (per != null && per <= 10000) verdict = { label: "적정", color: t.warning };
-    else if (per != null)                  verdict = { label: "조정 필요", color: t.danger };
-    else if (costVat > 0)                  verdict = { label: "주문 집계 전", color: t.warning };
-    else                                   verdict = { label: "라이브 대기", color: t.textMuted };
-    const camps = (data.campaigns || []).map(c => ({
-      id: c.id, name: c.name,
-      costVat: Math.round(Number(c.cost || 0) * 1.1),
-      clicks: Number(c.clicks || 0), conv: Number(c.conv || 0),
-    })).sort((a, b) => b.costVat - a.costVat);
-    const days = (data.days || []).slice().reverse().map(d => ({
-      ymd: d.ymd, costVat: Math.round(Number(d.cost || 0) * 1.1),
-      clicks: Number(d.clicks || 0), conv: Number(d.conv || 0),
-    }));
-    return { costVat, clicks: Number(data.clicks || 0), conv, per, verdict, camps, days };
-  }, [data, t]);
+    if (per == null) verdict = { label: costVat > 0 ? "접수 입력 대기" : "지출 없음", color: t.textMuted };
+    else if (good && per <= good) verdict = { label: "효율 좋음", color: t.success };
+    else if (limit && per <= limit) verdict = { label: "적정", color: t.warning };
+    else if (limit) verdict = { label: "상한 초과", color: t.danger };
+    else verdict = { label: "판정선 미설정", color: t.textMuted };
+    const cpc = sum.clicks ? Math.round(sum.cost / sum.clicks) : 0;
+    const ctr = sum.imp ? (sum.clicks / sum.imp * 100) : 0;
+    const rank = data.totals?.rank;
+    // 비즈머니 잔여일: 최근 7일 평균 일지출(VAT 포함) 기준
+    const last7 = days.slice(0, 7).filter(d => d.ymd !== until);
+    const avgDay = last7.length ? Math.round(last7.reduce((a, d) => a + d.cost * 1.1, 0) / last7.length) : 0;
+    const biz = data.bizmoney;
+    const bizDays = biz != null && avgDay > 0 ? (biz / avgDay) : null;
+    const todayRow = days.find(d => d.ymd === until);
+    const prevRows = days.filter(d => d.ymd !== until).slice(0, 7);
+    const avgClicks = prevRows.length ? prevRows.reduce((a, d) => a + d.clicks, 0) / prevRows.length : 0;
+    const clickAlert = todayRow && avgClicks > 0 && todayRow.clicks >= 20 && todayRow.clicks / avgClicks >= 2.5;
+    return { costVat, sum, cpc, ctr, per, verdict, rank, leadTotal, days: rangeDays, allDays: days, biz, bizDays, avgDay, clickAlert, todayClicks: todayRow?.clicks || 0, avgClicks: Math.round(avgClicks), camps: data.campaigns || [], logs: data.logs || [] };
+  }, [data, adv, period, until, t]);
 
-  const patrol = useMemo(() => {
-    if (!days8 || days8.length === 0) return null;
-    const today = kstYmd(0);
-    const row = days8.find(d => d.ymd === today);
-    const prev = days8.filter(d => d.ymd !== today);
-    const avg = prev.length > 0 ? prev.reduce((a, d) => a + d.clicks, 0) / prev.length : 0;
-    const tc = row?.clicks || 0;
-    const ratio = avg > 0 ? tc / avg : null;
-    return { tc, avg: Math.round(avg), ratio, alert: ratio != null && ratio >= 2.5 && tc >= 20 };
-  }, [days8]);
+  const saveLead = async (ymd, leads, note) => {
+    const j = owner ? await api("leads", { actor, post: { id: adv.id, ymd, leads, note } }) : await api("client_leads", { post: { token, ymd, leads, note } });
+    if (j.ok) setData(d => d ? { ...d, leads: { ...(d.leads || {}), [ymd]: { leads: Number(leads || 0), note } } } : d);
+  };
 
   return (
     <>
-      {/* 기간 필터 */}
-      <div style={{ display: "flex", gap: 6 }}>
-        {PERIODS.map(p => {
-          const on = period === p.id;
-          return (
-            <button key={p.id} type="button" onClick={() => setPeriod(p.id)} className="tab-btn" style={{
-              flex: 1, padding: "8px 0", background: on ? t.accentBg : "transparent",
-              border: `1px solid ${on ? t.accent : t.border}`, borderRadius: 10,
-              color: on ? t.accent : t.textSecondary, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-            }}>{p.label}</button>
-          );
-        })}
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        {PERIODS.map(p => { const on = period === p.id; return (
+          <button key={p.id} type="button" onClick={() => setPeriod(p.id)} className="tab-btn" style={{ flex: 1, padding: "8px 0", background: on ? t.accentBg : "transparent", border: `1px solid ${on ? t.accent : t.border}`, borderRadius: 10, color: on ? t.accent : t.textSecondary, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{p.label}</button>
+        ); })}
+        <button onClick={() => setTick(x => x + 1)} className="tab-btn" aria-label="새로고침" style={{ ...iconBtn(t), border: `1px solid ${t.border}`, borderRadius: 10, padding: 8 }}><RefreshCw size={14}/></button>
+        {owner && <button onClick={onEdit} className="tab-btn" aria-label="설정" style={{ ...iconBtn(t), border: `1px solid ${t.border}`, borderRadius: 10, padding: 8 }}><Settings size={14}/></button>}
       </div>
       <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: -6 }}>
-        {since === until ? `${since} (하루)` : `${since} ~ ${until}`} · KST · 5분마다 갱신
+        {period === "today" ? `${until} (오늘)` : `${since} ~ ${until}`} · KST · 5분마다 갱신{loading ? " · 조회 중…" : ""}
       </div>
 
-      {loading && !view ? (
-        <Card t={t} title="🧼 유솔 광고 성과">
-          <div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>불러오는 중…</div>
-        </Card>
-      ) : !view ? (
-        <Card t={t} title="🧼 유솔 광고 성과">
-          <div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>연결 대기 — 광고 라이브 후 표시됩니다</div>
-        </Card>
+      {!view ? (
+        <Card t={t} title={`${adv.name} 광고 성과`}><div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>{loading ? "네이버에서 불러오는 중…" : "연결 실패 — 잠시 후 새로고침"}</div></Card>
       ) : (
         <>
-          <Card t={t} title="🧼 유솔 광고 성과" sub="주문당 5천 이하 효율 / 1만 상한 (벽걸이 마진 1.8만 기준)">
+          <Card t={t} title={`${adv.name} 광고 성과`} sub={adv.cpa_limit ? `접수당 광고비 ${won(adv.cpa_good)}원 이하 효율 / ${won(adv.cpa_limit)}원 상한${adv.margin_per_order ? ` (건당 이익 ${won(adv.margin_per_order)}원 기준)` : ""}` : "판정선 미설정 — 설정에서 건당 이익 입력"}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
               <span className="mono" style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1 }}>
-                {view.per != null ? won(view.per) : "-"}
-                <span style={{ fontSize: 13, color: t.textMuted, fontWeight: 700, marginLeft: 3 }}>원/주문</span>
+                {view.per != null ? won(view.per) : "-"}<span style={{ fontSize: 13, color: t.textMuted, fontWeight: 700, marginLeft: 3 }}>원/접수</span>
               </span>
               <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: view.verdict.color, background: `${view.verdict.color}1F`, borderRadius: 999, padding: "4px 11px" }}>{view.verdict.label}</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 5 : 3}, minmax(0, 1fr))`, gap: 8 }}>
               <MiniStat t={t} label="광고비(VAT포함)" value={won(view.costVat)} suffix="원" accent/>
-              <MiniStat t={t} label="클릭" value={won(view.clicks)}/>
-              <MiniStat t={t} label="주문(전환)" value={won(view.conv)}/>
+              <MiniStat t={t} label="클릭" value={won(view.sum.clicks)}/>
+              <MiniStat t={t} label="접수" value={won(view.leadTotal || view.sum.conv)}/>
+              <MiniStat t={t} label="클릭당 비용" value={won(view.cpc)} suffix="원"/>
+              <MiniStat t={t} label="평균 순위" value={view.rank != null ? view.rank.toFixed(1) : "-"} suffix="위"/>
             </div>
-            {patrol && (
-              <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${t.border}`, fontSize: 10.5, fontWeight: 700, color: patrol.alert ? t.danger : t.textMuted }}>
-                {patrol.alert
-                  ? `⚠ 클릭 급증 의심 — 오늘 ${patrol.tc}클릭 (직전7일 평균 ${patrol.avg}의 ${patrol.ratio.toFixed(1)}배). 노출제한 IP 점검`
-                  : `🛡 클릭 감시 정상 — 오늘 ${patrol.tc} · 직전7일 평균 ${patrol.avg}`}
+            <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${t.border}`, display: "flex", flexDirection: "column", gap: 4, fontSize: 10.5, fontWeight: 700 }}>
+              {view.biz != null && (
+                <div style={{ color: view.bizDays != null && view.bizDays < 3 ? t.danger : t.textMuted }}>
+                  💰 비즈머니 {won(Math.round(view.biz))}원{view.bizDays != null ? ` · 일평균 ${won(view.avgDay)}원 기준 약 ${view.bizDays.toFixed(1)}일분${view.bizDays < 3 ? " — 충전 필요" : ""}` : ""}
+                </div>
+              )}
+              <div style={{ color: view.clickAlert ? t.danger : t.textMuted }}>
+                {view.clickAlert ? `⚠ 클릭 급증 의심 — 오늘 ${view.todayClicks}클릭 (직전 평균 ${view.avgClicks}의 ${(view.todayClicks / Math.max(view.avgClicks, 1)).toFixed(1)}배)` : `🛡 클릭 감시 정상 — 오늘 ${view.todayClicks} · 직전 평균 ${view.avgClicks}`}
               </div>
-            )}
+            </div>
           </Card>
 
           <div style={{ display: "grid", gridTemplateColumns: isPc ? "1fr 1fr" : "1fr", gap: 12 }}>
-            <Card t={t} title="캠페인별">
-              {view.camps.length === 0 ? (
-                <div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>캠페인 준비 중</div>
-              ) : view.camps.map(c => (
-                <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${t.border}`, fontSize: 12 }}>
-                  <span style={{ flex: 1, fontWeight: 700, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}</span>
-                  <span className="mono" style={{ color: t.textMuted }}>{won(c.costVat)}원</span>
-                  <span className="mono" style={{ color: t.textMuted }}>{c.clicks}클릭</span>
-                  <span className="mono" style={{ fontWeight: 800, color: c.conv > 0 ? t.success : t.textMuted }}>{c.conv}주문</span>
-                </div>
-              ))}
+            <Card t={t} title="일별 흐름 · 접수 입력" sub="접수 칸에 그날 전화·문의 건수를 넣으면 접수당 광고비가 계산됩니다">
+              {view.days.length === 0 ? <Empty t={t}>집계된 날이 없습니다</Empty> : (
+                <>
+                  <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 52px 44px 64px", gap: 6, fontSize: 9.5, color: t.textMuted, fontWeight: 700, padding: "0 0 4px" }}>
+                    <span>날짜</span><span>광고비</span><span>클릭</span><span>순위</span><span>접수</span>
+                  </div>
+                  {view.days.map(d => (
+                    <DayRow key={d.ymd} t={t} d={d} lead={(data.leads || {})[d.ymd]} onSave={saveLead}/>
+                  ))}
+                </>
+              )}
             </Card>
-
-            <Card t={t} title="일별 흐름">
-              {view.days.length === 0 ? (
-                <div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>아직 집계된 날이 없습니다</div>
-              ) : view.days.map(d => (
-                <div key={d.ymd} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 0", borderTop: `1px solid ${t.border}`, fontSize: 12 }}>
-                  <span style={{ width: 44, flexShrink: 0, fontWeight: 700, color: t.textSecondary }}>{d.ymd.slice(5)}</span>
-                  <span className="mono" style={{ flex: 1, color: t.textMuted }}>{won(d.costVat)}원</span>
-                  <span className="mono" style={{ color: t.textMuted }}>{d.clicks}클릭</span>
-                  <span className="mono" style={{ fontWeight: 800, color: d.conv > 0 ? t.success : t.textMuted }}>{d.conv}주문</span>
-                </div>
-              ))}
-            </Card>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <Card t={t} title="캠페인별">
+                {view.camps.length === 0 ? <Empty t={t}>캠페인 없음</Empty> : view.camps.map(c => (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${t.border}`, fontSize: 12 }}>
+                    <span style={{ flex: 1, fontWeight: 700, color: c.userLock ? t.textMuted : t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.name}{c.userLock ? " (중지)" : ""}</span>
+                    <span className="mono" style={{ color: t.textMuted }}>{won(Math.round(c.cost * 1.1))}원</span>
+                    <span className="mono" style={{ color: t.textMuted }}>{c.clicks}클릭</span>
+                    <span className="mono" style={{ color: t.textMuted }}>{c.rank ? `${c.rank}위` : "-"}</span>
+                  </div>
+                ))}
+              </Card>
+              <ChangeLog t={t} logs={view.logs} owner={owner} adv={adv} actor={actor} actorName={actorName} onAdded={() => setTick(x => x + 1)}/>
+            </div>
           </div>
+          {owner && <ShareBar t={t} adv={adv} actor={actor}/>}
         </>
       )}
     </>
   );
 }
 
+function DayRow({ t, d, lead, onSave }) {
+  const [val, setVal] = useState(lead?.leads ?? "");
+  useEffect(() => { setVal(lead?.leads ?? ""); }, [lead?.leads]);
+  const commit = () => { const n = val === "" ? 0 : Number(val); if (Number(lead?.leads || 0) !== n) onSave(d.ymd, n, lead?.note || null); };
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 52px 44px 64px", gap: 6, alignItems: "center", padding: "4px 0", borderTop: `1px solid ${t.border}`, fontSize: 12 }}>
+      <span style={{ fontWeight: 700, color: t.textSecondary }}>{d.ymd.slice(5)}</span>
+      <span className="mono" style={{ color: t.textMuted }}>{won(Math.round(d.cost * 1.1))}원</span>
+      <span className="mono" style={{ color: t.textMuted }}>{d.clicks}</span>
+      <span className="mono" style={{ color: t.textMuted }}>{d.rank ? d.rank.toFixed(1) : "-"}</span>
+      <input type="number" min="0" inputMode="numeric" value={val} placeholder="0" onChange={e => setVal(e.target.value)} onBlur={commit} onKeyDown={e => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        className="mkt-input" style={{ padding: "5px 6px", background: t.bgInset, border: `1px solid ${t.border}`, color: t.text, textAlign: "right", fontWeight: 800 }}/>
+    </div>
+  );
+}
+
+function ChangeLog({ t, logs, owner, adv, actor, actorName, onAdded }) {
+  const [open, setOpen] = useState(false);
+  const [action, setAction] = useState("");
+  const [detail, setDetail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!action.trim()) return;
+    setBusy(true);
+    const j = await api("log", { actor, post: { id: adv.id, action: action.trim(), detail: detail.trim(), actor_name: actorName || "운영자" } });
+    setBusy(false);
+    if (j.ok) { setAction(""); setDetail(""); setOpen(false); onAdded(); }
+  };
+  return (
+    <Card t={t} title="운영 변경 이력" sub="무엇을 왜 바꿨는지">
+      {logs.length === 0 ? <Empty t={t}>기록 없음</Empty> : logs.slice(0, 12).map(l => (
+        <div key={l.id} style={{ padding: "6px 0", borderTop: `1px solid ${t.border}`, fontSize: 12 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+            <span style={{ fontWeight: 800, color: t.text }}>{l.action}</span>
+            <span style={{ marginLeft: "auto", fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{String(l.at).slice(5, 16).replace("T", " ")}</span>
+          </div>
+          {l.detail && <div style={{ color: t.textSecondary, fontSize: 11.5, marginTop: 2, lineHeight: 1.5 }}>{l.detail}</div>}
+        </div>
+      ))}
+      {owner && (
+        open ? (
+          <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 6 }}>
+            <input className="mkt-input" placeholder="조치 (예: 입찰 변경)" value={action} onChange={e => setAction(e.target.value)} style={inputStyle(t)}/>
+            <textarea className="mkt-input" placeholder="내용 (광고주에게 보이는 설명)" value={detail} onChange={e => setDetail(e.target.value)} rows={2} style={{ ...inputStyle(t), resize: "vertical" }}/>
+            <div style={{ display: "flex", gap: 6 }}>
+              <button onClick={submit} disabled={busy} className="tab-btn" style={btnPrimary(t)}>기록</button>
+              <button onClick={() => setOpen(false)} className="tab-btn" style={btnGhost(t)}>취소</button>
+            </div>
+          </div>
+        ) : <button onClick={() => setOpen(true)} className="tab-btn" style={{ ...btnGhost(t), marginTop: 8 }}><Plus size={13}/> 이력 추가</button>
+      )}
+    </Card>
+  );
+}
+
+function ShareBar({ t, adv, actor }) {
+  const [copied, setCopied] = useState(false);
+  const [token, setToken] = useState(adv.client_token);
+  const url = `${typeof window !== "undefined" ? window.location.origin : ""}/mkt/c/${token}`;
+  const copy = async () => { try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* */ } };
+  const rotate = async () => { if (!window.confirm("기존 링크는 더 이상 열리지 않습니다. 새 링크를 만들까요?")) return; const j = await api("rotate_token", { actor, post: { id: adv.id } }); if (j.ok) setToken(j.client_token); };
+  return (
+    <Card t={t} title="광고주 열람 링크" sub="로그인 없이 성과·접수 입력·변경 이력만 볼 수 있는 페이지">
+      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <input readOnly value={url} className="mkt-input" style={{ ...inputStyle(t), fontSize: 11.5 }} onFocus={e => e.target.select()}/>
+        <button onClick={copy} className="tab-btn" style={{ ...btnPrimary(t), flex: "0 0 auto" }}><LinkIcon size={13}/> {copied ? "복사됨" : "복사"}</button>
+        <button onClick={rotate} className="tab-btn" style={{ ...btnGhost(t), flex: "0 0 auto" }}>재발급</button>
+      </div>
+    </Card>
+  );
+}
+
+function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
+  const [f, setF] = useState(() => ({
+    name: initial?.name || "", slug: initial?.slug || "", customer_id: initial?.customer_id || "",
+    api_key: "", api_secret: "", campaign_filter: initial?.campaign_filter || "",
+    margin_per_order: initial?.margin_per_order ?? "", cpa_good: initial?.cpa_good ?? "", cpa_limit: initial?.cpa_limit ?? "",
+    show_keywords: !!initial?.show_keywords, memo: initial?.memo || "",
+  }));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  const set = (k) => (e) => setF(s => ({ ...s, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value }));
+  const submit = async () => {
+    setBusy(true); setErr(null);
+    const post = { ...f, actor_name: actorName };
+    if (!post.api_key) delete post.api_key;
+    if (!post.api_secret) delete post.api_secret;
+    if (initial) post.id = initial.id;
+    const j = await api(initial ? "update" : "add", { actor, post });
+    setBusy(false);
+    if (j.ok) onSaved(j.advertiser); else setErr(j.error || "저장 실패");
+  };
+  const remove = async () => { if (!window.confirm(`${initial.name} 을(를) 목록에서 내릴까요? (데이터는 보존)`)) return; const j = await api("remove", { actor, post: { id: initial.id } }); if (j.ok) onSaved(null); };
+  const F = ({ label, k, type = "text", ph, hint }) => <Field t={t} label={label} type={type} value={f[k]} onChange={set(k)} ph={ph} hint={hint}/>;
+  return (
+    <Card t={t} title={initial ? `${initial.name} 설정` : "광고주 추가"} sub="네이버 광고시스템 → 도구 → API 사용 관리">
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <F label="광고주 이름" k="name" ph="쿨가이"/>
+        <F label="CUSTOMER_ID" k="customer_id" ph="3458080"/>
+        <F label="액세스라이선스 (API 키)" k="api_key" ph={initial ? "변경할 때만 입력" : "0100000000…"}/>
+        <F label="비밀키" k="api_secret" type="password" ph={initial ? "변경할 때만 입력" : "AQAAAA…"}/>
+        <F label="캠페인 필터" k="campaign_filter" ph="벌초" hint="이 글자가 이름에 있는 캠페인만 집계 (비우면 전체)"/>
+        <F label="접수 1건당 회사이익 (원)" k="margin_per_order" type="number" ph="52500" hint="비우면 판정선 없음. 입력하면 효율 50% / 상한 100% 자동"/>
+        <F label="효율 기준 (원/접수)" k="cpa_good" type="number" ph="자동"/>
+        <F label="상한 (원/접수)" k="cpa_limit" type="number" ph="자동"/>
+      </div>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
+        <input type="checkbox" checked={f.show_keywords} onChange={set("show_keywords")}/> 광고주 화면에 키워드 표 노출 (2단계에서 사용)
+      </label>
+      <label style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8, fontSize: 11.5, fontWeight: 700, color: t.textSecondary }}>메모
+        <textarea className="mkt-input" rows={2} value={f.memo} onChange={set("memo")} style={{ ...inputStyle(t), resize: "vertical" }} placeholder="계약 조건, 담당자, 주의사항"/>
+      </label>
+      {err && <div style={{ color: t.danger, fontSize: 12, marginTop: 8 }}>{err}</div>}
+      <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+        <button onClick={submit} disabled={busy} className="tab-btn" style={btnPrimary(t)}>{busy ? "네이버 연결 확인 중…" : (initial ? "저장" : "연결 확인 후 등록")}</button>
+        <button onClick={onClose} className="tab-btn" style={btnGhost(t)}>닫기</button>
+        {initial && <button onClick={remove} className="tab-btn" style={{ ...btnGhost(t), marginLeft: "auto", color: t.danger }}>목록에서 내리기</button>}
+      </div>
+    </Card>
+  );
+}
+
+// ---------- 공용 UI ----------
 function Card({ t, title, sub, children }) {
   return (
     <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 12, padding: "13px 14px 12px" }}>
@@ -344,7 +463,6 @@ function Card({ t, title, sub, children }) {
     </div>
   );
 }
-
 function MiniStat({ t, label, value, suffix, accent }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 3, padding: "9px 10px", background: t.bgInset, borderRadius: 8, textAlign: "center" }}>
@@ -355,3 +473,17 @@ function MiniStat({ t, label, value, suffix, accent }) {
     </div>
   );
 }
+function Field({ t, label, type, value, onChange, ph, hint }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11.5, fontWeight: 700, color: t.textSecondary }}>
+      {label}
+      <input className="mkt-input" type={type} value={value} onChange={onChange} placeholder={ph} style={inputStyle(t)} autoComplete="off"/>
+      {hint && <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}>{hint}</span>}
+    </label>
+  );
+}
+function Empty({ t, children }) { return <div style={{ padding: 12, textAlign: "center", color: t.textMuted, fontSize: 12 }}>{children}</div>; }
+const inputStyle = (t) => ({ background: t.bgInset, border: `1px solid ${t.border}`, color: t.text });
+const btnPrimary = (t) => ({ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 16px", background: t.accent, border: "none", borderRadius: 8, color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" });
+const btnGhost = (t) => ({ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "10px 0", background: "transparent", border: `1px solid ${t.border}`, borderRadius: 8, color: t.textMuted, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" });
+const iconBtn = (t) => ({ background: "transparent", border: "none", padding: 6, cursor: "pointer", color: t.textMuted, display: "flex" });

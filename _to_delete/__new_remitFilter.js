@@ -1,0 +1,139 @@
+// 2026-05-18 Fix #29 — payments.track 기반으로 정정.
+// Migration 031 (payments.track 컬럼) + Migration 032 (compute_payment v10) 적용 후 동작.
+//
+// 사장님 spec (2026-05-18 확정) — 자금 흐름 두 트랙:
+//
+//   트랙 🅐 (일일정산, 기사 → 회사, 23:00 KST 마감):
+//     · 6개 원청: allday / KA / KB / yongin / usol_h / crikrin
+//     · usol_n 냉매 (네이버 1만원 100% 유솔, 현장 추가금만 기사→회사 50:50)
+//
+//   트랙 🅑 (월정산, 회사 → 기사, 매월 15일):
+//     · usol_n 세척 (cleaning)
+//     · usol_n 추가선택 (송풍팬분해/층고, 피톤치드, 실외기 등 — 별도 SKU)
+//
+// 분류는 compute_payment v10이 INSERT 시 자동 결정 → payments.track 컬럼에 저장.
+//   · principal_code = 'usol_n' AND task에 refrigerant 외 service_code 존재 → 'B'
+//   · 그 외                                                                  → 'A'
+//
+// task 정규화 시점에 payment.track을 task.track으로 inline (3곳 매핑: tasksDb.rowToTask /
+// v14Task.v14NormalizeTask / AdminApp._v14NormalizeTask). 정규화 누락 시 fallback 'A'.
+//
+// 호출처:
+//   · 운영자: AdminApp.SettlementContent — apiTasks.filter(isTrackARemittance)
+//   · 기사:   EngineerApp — tasks.filter(isTrackARemittance)
+//   · 통계:   dashboardStats — 동일
+//
+// "미정산"(engineer_remit_confirmed_at IS NULL) 추가 좁힘은 호출처에서 별도 적용.
+// 기사 PWA의 history 4상태(pending/reported/confirmed/overdue) 표시 흐름을
+// 깨지 않기 위해 헬퍼는 트랙 + status 두 조건만 본다.
+//
+// ──────────────────────────────────────────────
+// 이전 v1 (calc_method 기반) 폐기 사유:
+//   USOL_N_TRACK_B_METHODS = ['usol_n_본작업', 'usol_n_추가선택']로 분류했으나
+//   이 calc_method 값들은 DB에 한 번도 저장된 적 없음. 실제 calc_method 값:
+//   직영_0 / 직영_50_50 / 비율_견적금액 / 비율_총금액 / 비율_판매가 / 정액
+//   → 모든 usol_n 작업이 트랙 🅐로 잘못 분류됐을 위험. usol_n 0건이라 운영 영향 없음.
+//   v2 (현재) — payments.track 컬럼 단일 진실 소스로 일원화.
+// ──────────────────────────────────────────────
+
+import { isCompletedStatus } from "./taskStatus.js";
+
+/**
+ * 회사 송금 대기 대상(트랙 🅐) 작업인지 판별한다.
+ *
+ * @param {object} task - 정규화된 task 객체 (camelCase / snake_case 양쪽 호환)
+ * @returns {boolean}
+ */
+export function isTrackARemittance(task) {
+  if (!task) return false;
+  // 2026-05-23 — visit_only 측 "완료 계열" 포함 (매출/기사수익 측측 측측).
+  //   visit_only 측 출장비 측측 기사 100% → owner=0/principal=0. 매출 측측 측 측측 측측 측측.
+  if (!isCompletedStatus(task.status)) return false;
+
+  // task.track 우선, snake/camel 백업, 최종 fallback 'A' (정규화 매핑 누락 시 안전망).
+  const track = task.track || task.payment_track || task.paymentTrack || "A";
+  return track === "A";
+}
+
+// 2026-06-07 — 송금/정산 측측 측측 (사장님 spec).
+//   isTrackARemittance 측 visit_only 측측. 매출 측측 측측 측측 — 송금/입금/측측 측측측만 측측 측측.
+//   호출처: EngineerApp.todayTrackATasks / 입금 측측측 / AdminApp 정산 / SettlementHistoryContent.
+export function isRemittanceTarget(task) {
+  if (!isTrackARemittance(task)) return false;
+  // 2026-07-15 — 출장비 60/40 개편 (Mig 177/178): visit_only 도 회사 몫(16,000)이 생겨
+  //   회사 송금 대상. 옛 규칙(기사 100%, ~7/14) 건은 회사 몫이 0이라 금액 기준으로 자연 제외
+  //   — 날짜 비교 없이 과거/현재 모두 정확.
+  //   (버그 이력: 이 제외가 옛 규칙 그대로 남아 7/15 첫 출장비 건 16,000이 송금 집계에 안 잡힘)
+  if (task.status === "visit_only") return calcRemitAmount(task) > 0;
+  return true;
+}
+
+// 필요 시 호출처에서 합성: 미정산만 보고 싶을 때.
+export function isPendingRemit(task) {
+  if (!isRemittanceTarget(task)) return false;
+  const confirmedAt = task.engineerRemitConfirmedAt
+                   || task.engineer_remit_confirmed_at;
+  return !confirmedAt;
+}
+
+// 2026-06-13 — 회사 송금분 = totalAmount − engineer_amount (= principal + owner).
+//   사장님 spec: 직영 기사(refrigerant_rate=100) + usol_h 냉매 케이스가 대표.
+//   compute_payment v19 분기 결과 회사 송금 0원이 정상 산출.
+//   미입금 집계/배지에서 자동 "입금 완료" 처리해야 0원이 미입금에 안 잡힘.
+//
+// 호출처:
+//   · SettlementHistoryContent.pickRowStatus / computeSubGroupStatus / summary
+//   · AdminApp.computeGroupStatus
+export function calcRemitAmount(task) {
+  if (!task) return 0;
+  const total = Number(task.totalAmount || task.total_amount || 0);
+  const eng   = Number(task.engineer_amount || task.engineerAmount || 0);
+  return Math.max(0, total - eng);
+}
+
+// 0원 송금건 = 자동 "입금 완료" 판정 (DB 안 건드리고 화면 판정만).
+export function isAutoConfirmedRemit(task) {
+  return calcRemitAmount(task) === 0;
+}
+
+/**
+ * 트랙 🅒 (유솔 송금 대상) 판별: usol_n 본작업에 현장 추가건이 있는 경우.
+ *
+ * 2026-05-19 Fix #30 🅒 — 사장님 spec 확정:
+ *   - principal = 'usol_n' AND extra_fee > 0 AND status = '완료'
+ *   - 수금방법 (현금/계좌이체) 무관 — 사장님 명확화 "계좌이체도 현장 현금 추가건"
+ *   - 시트 27건 운영 중 (현금 9 + 계좌이체 18)
+ *   - 자금 흐름: 기사 현금 수령 → 15% 유솔 직접 송금 + 85% 기사 보유
+ *
+ * compute_payment v11이 이미 principal_amount=15% / engineer_amount=85% 자동 계산.
+ * 클라이언트 필터링만 — DB 트랙 'C' 컬럼 추가 X (트랙 'B'에 머묾, UI 분류만 별도).
+ *
+ * @param {object} task - 정규화된 task 객체 (loadTasksForRole 결과: principalCode 포함)
+ * @returns {boolean}
+ */
+export function isTrackC(task) {
+  if (!task) return false;
+  // 2026-05-23 — visit_only 측 "완료 계열" 포함 (일관성). usol_n + extra_fee > 0 측만 통과라 영향 거의 0.
+  if (!isCompletedStatus(task.status)) return false;
+
+  // principalCode 채워진 경로: loadTasksForRole의 in-memory join (tasksDb.js:499)
+  const principalCode = task.principalCode || task.principal_code || task.principal;
+  if (principalCode !== 'usol_n') return false;
+
+  const extraFee = Number(task.extraFee || task.extra_fee || 0);
+  if (extraFee <= 0) return false;
+
+  // 2026-05-26 — 세척(cleaning) 한정. compute_payment v16 v_cleaning_principal_bonus
+  //   분기 조건 (v_service_code='cleaning' AND v_principal_code='usol_n') 일치.
+  //   냉매 작업에 현장추가금 붙어도 15% 보너스는 cleaning item 측만 부여 — refrigerant_rate 별도 정산.
+  const items = Array.isArray(task.workItems) ? task.workItems : [];
+  const hasCleaning = items.some(it => {
+    const code = it.serviceCode || it.service_code;
+    if (code === 'cleaning') return true;
+    const wt = String(it.workType || it.work_type || "");
+    return wt.includes('세척');
+  });
+  if (!hasCleaning) return false;
+
+  return true;
+}

@@ -1,0 +1,32 @@
+[A] 고객명 '김웅' tasks: 1건
+
+──────────────── YS-260517-041 ★
+  고객명             : 김웅
+  원청               : 유솔홈케어 N
+  배정 기사          : 정훈 (E021)
+  status             : 배정
+  scheduled_at       : —
+  started_at         : NULL
+  completed_at       : NULL
+  created_at         : 2026-05-24T07:21:09
+  updated_at         : 2026-05-26T15:02:48
+  product_price      : ₩81,594
+  total_amount       : ₩81,594
+  external_order_no  : 2026051727257921
+  cancel_kind/amount : NULL / ₩0
+  partial_reason     : NULL
+  address            : 서울특별시 강남구 언주로141길 29 (논현동) 수경빌라트 101호
+  phone              : 010-2744-0469
+
+  [B] task_items: 2행
+    ─ work_type=냉매점검(단독) | appliance=NULL | order_type=추가선택 | qty=1 | unit_price=₩9,444 | subtotal=₩9,444 | is_canceled=false
+    ─ work_type=세척_벽걸이 | appliance=벽걸이 | order_type=본작업 | qty=1 | unit_price=₩72,150 | subtotal=₩72,150 | is_canceled=false
+
+  [C] payments: 1건
+    ─ engineer=₩47,305 | principal=₩12,240 | owner=₩22,049 | settled_at=NULL | calc_method=usol_n_본작업
+
+  status_history: 0건
+  photos: 0장
+
+
+[E] 5/22 일괄 8건과 겹침: 0건 — 별개 케이스

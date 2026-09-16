@@ -1,0 +1,663 @@
+{
+  "timestamp": "2026-05-24T20:51:09.342Z",
+  "counts": {
+    "cat1": 30,
+    "cat2": 0,
+    "cat3": 0
+  },
+  "cat1": [
+    {
+      "task_no": "YS-260514-044",
+      "customer_name": "송현민",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051443067261",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260514-046"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260514-046",
+          "ext": "2026051443067261",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260514-025",
+      "customer_name": "차형진",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051437215601",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260514-026"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260514-026",
+          "ext": "2026051437215601",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-015",
+      "customer_name": "한유경",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051147012351",
+      "items": [
+        "추가선택",
+        "추가선택",
+        "추가선택",
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260511-019"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260511-019",
+          "ext": "2026051147012351",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260514-007",
+      "customer_name": "강성철",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051331093381",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260514-008"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260514-008",
+          "ext": "2026051331093381",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260512-092",
+      "customer_name": "남동완",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051286865401",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260512-093"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260512-093",
+          "ext": "2026051286865401",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260512-091",
+      "customer_name": "남동완",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051286865401",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260512-093"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260512-093",
+          "ext": "2026051286865401",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260512-002",
+      "customer_name": "박은주",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051269616041",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260512-003"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260512-003",
+          "ext": "2026051269616041",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260420-026",
+      "customer_name": "김영석",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026041999642321",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260420-029",
+        "YS-260420-028"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260420-029",
+          "ext": "2026041999642321",
+          "status": "완료"
+        },
+        {
+          "code": "YS-260420-028",
+          "ext": "2026041999642321",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-031",
+      "customer_name": "이하나",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051159763851",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260511-033",
+        "YS-260511-032"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260511-033",
+          "ext": "2026051159763851",
+          "status": "완료"
+        },
+        {
+          "code": "YS-260511-032",
+          "ext": "2026051159763851",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-018",
+      "customer_name": "한유경",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051147012351",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260511-019"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260511-019",
+          "ext": "2026051147012351",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-017",
+      "customer_name": "한유경",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051147012351",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260511-019"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260511-019",
+          "ext": "2026051147012351",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-016",
+      "customer_name": "한유경",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051147012351",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260511-019"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260511-019",
+          "ext": "2026051147012351",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260511-013",
+      "customer_name": "유혜련",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051144320721",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260511-014"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260511-014",
+          "ext": "2026051144320721",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260510-014",
+      "customer_name": "강예주",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051022621301",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260510-015"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260510-015",
+          "ext": "2026051022621301",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260510-013",
+      "customer_name": "강예주",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051022621301",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260510-015"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260510-015",
+          "ext": "2026051022621301",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260509-004",
+      "customer_name": "이천수",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050983914231",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260509-006",
+        "YS-260509-005"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260509-006",
+          "ext": "2026050983914231",
+          "status": "완료"
+        },
+        {
+          "code": "YS-260509-005",
+          "ext": "2026050983914231",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260509-003",
+      "customer_name": "이천수",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050983914231",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260509-006",
+        "YS-260509-005"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260509-006",
+          "ext": "2026050983914231",
+          "status": "완료"
+        },
+        {
+          "code": "YS-260509-005",
+          "ext": "2026050983914231",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260508-014",
+      "customer_name": "김진수",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050870277791",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260508-015"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260508-015",
+          "ext": "2026050870277791",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260508-013",
+      "customer_name": "김진수",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050870277791",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260508-015"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260508-015",
+          "ext": "2026050870277791",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260507-002",
+      "customer_name": "김형일",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050729012601",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260507-003"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260507-003",
+          "ext": "2026050729012601",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260504-040",
+      "customer_name": "노사령",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050444403171",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260504-041"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260504-041",
+          "ext": "2026050444403171",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260430-014",
+      "customer_name": "이소연",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042923650201",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260430-015"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260430-015",
+          "ext": "2026042923650201",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260427-053",
+      "customer_name": "이상준",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042736667891",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260427-055",
+        "YS-260427-054"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260427-055",
+          "ext": "2026042736667891",
+          "status": "완료"
+        },
+        {
+          "code": "YS-260427-054",
+          "ext": "2026042736667891",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260427-045",
+      "customer_name": "안승우",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042739690021",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260427-046"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260427-046",
+          "ext": "2026042739690021",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260427-035",
+      "customer_name": "박재광",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042626992781",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260427-017",
+        "YS-260427-016"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260427-017",
+          "ext": "2026042626992781",
+          "status": "완료"
+        },
+        {
+          "code": "YS-260427-016",
+          "ext": "2026042626992781",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260427-034",
+      "customer_name": "박재광",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042626992781",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260427-017",
+        "YS-260427-016"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260427-017",
+          "ext": "2026042626992781",
+          "status": "완료"
+        },
+        {
+          "code": "YS-260427-016",
+          "ext": "2026042626992781",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260424-107",
+      "customer_name": "김율",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042466926591",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260424-108"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260424-108",
+          "ext": "2026042466926591",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260424-029",
+      "customer_name": "강은영",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042329987401",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260424-031",
+        "YS-260424-030"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260424-031",
+          "ext": "2026042329987401",
+          "status": "완료"
+        },
+        {
+          "code": "YS-260424-030",
+          "ext": "2026042329987401",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260415-105",
+      "customer_name": "김민지",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026041591778511",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260415-106"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260415-106",
+          "ext": "2026041591778511",
+          "status": "완료"
+        }
+      ]
+    },
+    {
+      "task_no": "YS-260415-028",
+      "customer_name": "최진영",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026041474176631",
+      "items": [
+        "추가선택"
+      ],
+      "mainCsvCodes": [
+        "YS-260415-029"
+      ],
+      "mainDbInfo": [
+        {
+          "code": "YS-260415-029",
+          "ext": "2026041474176631",
+          "status": "완료"
+        }
+      ]
+    }
+  ],
+  "cat2": [],
+  "cat3": []
+}

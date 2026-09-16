@@ -1,0 +1,22 @@
+{
+  "mode": "commit",
+  "generatedAt": "2026-05-24T22:58:18.047Z",
+  "elapsedSec": 44,
+  "summary": {
+    "keepers": 324,
+    "itemsInserted": 747,
+    "insertErrors": 0,
+    "rpcOk": 324,
+    "rpcErrors": 0,
+    "countMatch": 324,
+    "countMismatch": 0,
+    "threeWayOK": 324,
+    "threeWayMismatch": 0,
+    "pmMissing": 0,
+    "pmUnbalanced": 0
+  },
+  "countMismatchDetails": [],
+  "threeWayDetails": [],
+  "insertErrors": [],
+  "rpcErrors": []
+}

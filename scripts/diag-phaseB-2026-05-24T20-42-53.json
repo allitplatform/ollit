@@ -1,0 +1,381 @@
+{
+  "timestamp": "2026-05-24T20:42:53.257Z",
+  "summary": {
+    "usol_total": 1328,
+    "missingDone": 6,
+    "missingFixed": 3,
+    "addonOnlyCount": 30
+  },
+  "missingDone": [
+    {
+      "task_no": "YS-260516-070",
+      "customer_name": "강소진",
+      "is_legacy": true,
+      "csvHas": true,
+      "gcalHas": true
+    },
+    {
+      "task_no": "YS-260424-108",
+      "customer_name": "김율",
+      "is_legacy": false,
+      "csvHas": true,
+      "gcalHas": true
+    },
+    {
+      "task_no": "YS-N-260524-009",
+      "customer_name": "전아름",
+      "is_legacy": false,
+      "csvHas": false,
+      "gcalHas": false
+    },
+    {
+      "task_no": "YS-260511-019",
+      "customer_name": "한유경",
+      "is_legacy": false,
+      "csvHas": true,
+      "gcalHas": true
+    },
+    {
+      "task_no": "YS-260425-010",
+      "customer_name": "손원주",
+      "is_legacy": true,
+      "csvHas": true,
+      "gcalHas": true
+    },
+    {
+      "task_no": "YS-260429-041",
+      "customer_name": "박진희",
+      "is_legacy": true,
+      "csvHas": true,
+      "gcalHas": true
+    }
+  ],
+  "missingFixed": [
+    {
+      "task_no": "YS-260516-092",
+      "customer_name": "송지혜",
+      "is_legacy": false,
+      "csvHas": false,
+      "gcalHas": true
+    },
+    {
+      "task_no": "YS-N-260524-006",
+      "customer_name": "마지혜",
+      "is_legacy": false,
+      "csvHas": false,
+      "gcalHas": false
+    },
+    {
+      "task_no": "YS-260514-045",
+      "customer_name": "송현민",
+      "is_legacy": false,
+      "csvHas": false,
+      "gcalHas": true
+    }
+  ],
+  "addonOnly": [
+    {
+      "task_no": "YS-260514-044",
+      "customer_name": "송현민",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051443067261",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260514-025",
+      "customer_name": "차형진",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051437215601",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260511-015",
+      "customer_name": "한유경",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051147012351",
+      "items": [
+        "추가선택",
+        "추가선택",
+        "추가선택",
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260514-007",
+      "customer_name": "강성철",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051331093381",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260512-092",
+      "customer_name": "남동완",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051286865401",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260512-091",
+      "customer_name": "남동완",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051286865401",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260512-002",
+      "customer_name": "박은주",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051269616041",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260420-026",
+      "customer_name": "김영석",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026041999642321",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260511-031",
+      "customer_name": "이하나",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051159763851",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260511-018",
+      "customer_name": "한유경",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051147012351",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260511-017",
+      "customer_name": "한유경",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051147012351",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260511-016",
+      "customer_name": "한유경",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051147012351",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260511-013",
+      "customer_name": "유혜련",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051144320721",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260510-014",
+      "customer_name": "강예주",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051022621301",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260510-013",
+      "customer_name": "강예주",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026051022621301",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260509-004",
+      "customer_name": "이천수",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050983914231",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260509-003",
+      "customer_name": "이천수",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050983914231",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260508-014",
+      "customer_name": "김진수",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050870277791",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260508-013",
+      "customer_name": "김진수",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050870277791",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260507-002",
+      "customer_name": "김형일",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050729012601",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260504-040",
+      "customer_name": "노사령",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026050444403171",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260430-014",
+      "customer_name": "이소연",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042923650201",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260427-053",
+      "customer_name": "이상준",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042736667891",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260427-045",
+      "customer_name": "안승우",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042739690021",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260427-035",
+      "customer_name": "박재광",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042626992781",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260427-034",
+      "customer_name": "박재광",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042626992781",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260424-107",
+      "customer_name": "김율",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042466926591",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260424-029",
+      "customer_name": "강은영",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026042329987401",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260415-105",
+      "customer_name": "김민지",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026041591778511",
+      "items": [
+        "추가선택"
+      ]
+    },
+    {
+      "task_no": "YS-260415-028",
+      "customer_name": "최진영",
+      "status": "완료",
+      "is_legacy": true,
+      "external_order_no": "2026041474176631",
+      "items": [
+        "추가선택"
+      ]
+    }
+  ]
+}

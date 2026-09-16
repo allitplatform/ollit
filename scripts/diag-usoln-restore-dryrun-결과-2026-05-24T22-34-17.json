@@ -1,0 +1,3754 @@
+{
+  "generatedAt": "2026-05-24T22:34:17.785Z",
+  "backup": {
+    "tasks": 772,
+    "items": 1194
+  },
+  "summary": {
+    "keepers": 335,
+    "restoreCount": 324,
+    "skipAlive": 11,
+    "extWithoutKeeper": 0,
+    "extWithoutBackupItems": 0,
+    "totalRestore": 747,
+    "totalDup": 420,
+    "bItemsInSkipExt": 27
+  },
+  "sampleDetails": {
+    "2026051610062131": {
+      "keeper": "YS-260516-064",
+      "customer": "김윤서",
+      "items_to_restore": [
+        {
+          "backup_id": "0c14ce4b-428c-474c-bc39-f1e85f0f4f03",
+          "from_task_no": "YS-260516-064",
+          "order_type": "본작업",
+          "product_order_id": "2026051646229981",
+          "qty": 1,
+          "unit_price": 84899,
+          "subtotal": 84899,
+          "customer_paid_amount": 89900,
+          "work_type_id": "e04945bc-a1cb-4c78-a922-863bff86978a",
+          "appliance_type_id": "55555555-5555-5555-5555-555555555002",
+          "description": null
+        },
+        {
+          "backup_id": "69aed029-07f9-4630-8b93-07c4b04c0b75",
+          "from_task_no": "YS-260516-064",
+          "order_type": "추가선택",
+          "product_order_id": "2026051646229991",
+          "qty": 1,
+          "unit_price": 5572,
+          "subtotal": 5572,
+          "customer_paid_amount": 5900,
+          "work_type_id": "be1ecc8a-1bc3-439b-9382-11ee4b9a50b9",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "0ace4b15-cbdb-43f5-985f-109fcbe1423b",
+          "from_task_no": "YS-260516-064",
+          "order_type": "추가선택",
+          "product_order_id": "2026051646230001",
+          "qty": 1,
+          "unit_price": 27387,
+          "subtotal": 27387,
+          "customer_paid_amount": 29000,
+          "work_type_id": "0137316f-33d4-4de3-aec1-2d11eeeefee6",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "b884b0f3-ec8a-489b-81f6-5154a17747ce",
+          "from_task_no": "YS-260516-064",
+          "order_type": "추가선택",
+          "product_order_id": "2026051646230011",
+          "qty": 1,
+          "unit_price": 9444,
+          "subtotal": 9444,
+          "customer_paid_amount": 10000,
+          "work_type_id": "76c95105-a4da-403a-9b84-8c04bffb9d1f",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "fab0122f-50be-40eb-8c1a-8c3642250536",
+          "from_task_no": "YS-260516-064",
+          "order_type": "추가선택",
+          "product_order_id": "2026051646230021",
+          "qty": 1,
+          "unit_price": 9444,
+          "subtotal": 9444,
+          "customer_paid_amount": 10000,
+          "work_type_id": "7bd719b4-4ca1-4c2a-b3a4-6e7d001ae7c2",
+          "appliance_type_id": null,
+          "description": null
+        }
+      ],
+      "items_dropped": [
+        {
+          "backup_id": "2a84b8fc-fc64-48b0-9281-4b0290c06cdc",
+          "from_task_no": "YS-260516-068",
+          "order_type": "본작업",
+          "product_order_id": "2026051646229981",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "69b4bd05-2f25-4b6d-85a4-36a74d1e1a2a",
+          "from_task_no": "YS-260516-067",
+          "order_type": "추가선택",
+          "product_order_id": "2026051646229991",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "b6af3a7b-1bde-4e26-ad36-ece6765608db",
+          "from_task_no": "YS-260516-066",
+          "order_type": "추가선택",
+          "product_order_id": "2026051646230001",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "f52b6ade-6e34-409e-a4e0-f7e25b45f11f",
+          "from_task_no": "YS-260516-065",
+          "order_type": "추가선택",
+          "product_order_id": "2026051646230011",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        }
+      ]
+    },
+    "2026051611323101": {
+      "keeper": "YS-260516-136",
+      "customer": "유재위",
+      "items_to_restore": [
+        {
+          "backup_id": "8981c661-ded3-4fd4-b7fc-ddfaf7359e73",
+          "from_task_no": "YS-260516-136",
+          "order_type": "추가선택",
+          "product_order_id": "2026051647998891",
+          "qty": 1,
+          "unit_price": 9444,
+          "subtotal": 9444,
+          "customer_paid_amount": 10000,
+          "work_type_id": "76c95105-a4da-403a-9b84-8c04bffb9d1f",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "81543707-8d31-42bc-9625-d79532d7ca2f",
+          "from_task_no": "YS-260516-136",
+          "order_type": "본작업",
+          "product_order_id": "2026051647998871",
+          "qty": 1,
+          "unit_price": 66484,
+          "subtotal": 66484,
+          "customer_paid_amount": 70400,
+          "work_type_id": "c530e616-bdcf-4235-9a2e-9db75129a732",
+          "appliance_type_id": "55555555-5555-5555-5555-555555555001",
+          "description": null
+        },
+        {
+          "backup_id": "597399c7-8367-42f2-94f4-c743e84dbc7a",
+          "from_task_no": "YS-260516-136",
+          "order_type": "추가선택",
+          "product_order_id": "2026051647998901",
+          "qty": 1,
+          "unit_price": 5572,
+          "subtotal": 5572,
+          "customer_paid_amount": 5900,
+          "work_type_id": "be1ecc8a-1bc3-439b-9382-11ee4b9a50b9",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "8993ae7c-81d6-4f35-894a-99b2986c1f87",
+          "from_task_no": "YS-260516-136",
+          "order_type": "추가선택",
+          "product_order_id": "2026051647998881",
+          "qty": 1,
+          "unit_price": 27387,
+          "subtotal": 27387,
+          "customer_paid_amount": 29000,
+          "work_type_id": "0137316f-33d4-4de3-aec1-2d11eeeefee6",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "7b0e3418-cb6d-4790-b522-8bea8beff62e",
+          "from_task_no": "YS-260516-136",
+          "order_type": "추가선택",
+          "product_order_id": "2026051647998911",
+          "qty": 1,
+          "unit_price": 9444,
+          "subtotal": 9444,
+          "customer_paid_amount": 10000,
+          "work_type_id": "7bd719b4-4ca1-4c2a-b3a4-6e7d001ae7c2",
+          "appliance_type_id": null,
+          "description": null
+        }
+      ],
+      "items_dropped": [
+        {
+          "backup_id": "fd248c5c-eaee-4fe3-9f18-912adde42bde",
+          "from_task_no": "YS-260516-138",
+          "order_type": "추가선택",
+          "product_order_id": "2026051647998891",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "0773b6de-204c-4051-b464-ccb81bc42684",
+          "from_task_no": "YS-260516-140",
+          "order_type": "본작업",
+          "product_order_id": "2026051647998871",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "a6331b7b-9aeb-442c-8d47-f3ffd973df63",
+          "from_task_no": "YS-260516-137",
+          "order_type": "추가선택",
+          "product_order_id": "2026051647998901",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "ddffe290-845b-45b7-9a44-05cad347160a",
+          "from_task_no": "YS-260516-139",
+          "order_type": "추가선택",
+          "product_order_id": "2026051647998881",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        }
+      ]
+    },
+    "2026050983914231": {
+      "keeper": "YS-260509-002",
+      "customer": "이천수",
+      "items_to_restore": [
+        {
+          "backup_id": "c70001f5-e23a-41fd-9d3b-5de3360d8a19",
+          "from_task_no": "YS-260509-002",
+          "order_type": "추가선택",
+          "product_order_id": "2026050924229191",
+          "qty": 1,
+          "unit_price": 9444,
+          "subtotal": 9444,
+          "customer_paid_amount": 10000,
+          "work_type_id": "7bd719b4-4ca1-4c2a-b3a4-6e7d001ae7c2",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "d869dce6-bf37-41c2-a974-827fb46b97ef",
+          "from_task_no": "YS-260509-002",
+          "order_type": "본작업",
+          "product_order_id": "2026050924229151",
+          "qty": 1,
+          "unit_price": 103220,
+          "subtotal": 103220,
+          "customer_paid_amount": 109300,
+          "work_type_id": "081b8d8f-a63c-4743-8cf1-eb664c7b615b",
+          "appliance_type_id": "55555555-5555-5555-5555-555555555003",
+          "description": null
+        },
+        {
+          "backup_id": "9f6a005d-a42b-468e-b8d3-a2f2dc1ef1ad",
+          "from_task_no": "YS-260509-002",
+          "order_type": "본작업",
+          "product_order_id": "2026050924229161",
+          "qty": 1,
+          "unit_price": 60062,
+          "subtotal": 60062,
+          "customer_paid_amount": 63600,
+          "work_type_id": "c530e616-bdcf-4235-9a2e-9db75129a732",
+          "appliance_type_id": "55555555-5555-5555-5555-555555555001",
+          "description": null
+        },
+        {
+          "backup_id": "daf1f716-250c-41c2-995a-9a8b72f06b00",
+          "from_task_no": "YS-260509-002",
+          "order_type": "추가선택",
+          "product_order_id": "2026050924229171",
+          "qty": 1,
+          "unit_price": 27387,
+          "subtotal": 27387,
+          "customer_paid_amount": 29000,
+          "work_type_id": "0137316f-33d4-4de3-aec1-2d11eeeefee6",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "77455878-7e5e-4fd7-9ce2-6cd52b24986c",
+          "from_task_no": "YS-260509-002",
+          "order_type": "추가선택",
+          "product_order_id": "2026050924229181",
+          "qty": 1,
+          "unit_price": 5572,
+          "subtotal": 5572,
+          "customer_paid_amount": 5900,
+          "work_type_id": "be1ecc8a-1bc3-439b-9382-11ee4b9a50b9",
+          "appliance_type_id": null,
+          "description": null
+        }
+      ],
+      "items_dropped": [
+        {
+          "backup_id": "7a70d7ef-ed1d-4f94-8a76-becaeabf180e",
+          "from_task_no": "YS-260509-006",
+          "order_type": "본작업",
+          "product_order_id": "2026050924229151",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "868ad0cb-4424-447c-a7e5-06f190a785b1",
+          "from_task_no": "YS-260509-005",
+          "order_type": "본작업",
+          "product_order_id": "2026050924229161",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "c063c3f3-0d8c-487d-afbf-ee615058daa8",
+          "from_task_no": "YS-260509-004",
+          "order_type": "추가선택",
+          "product_order_id": "2026050924229171",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "d54ba946-2968-4ec6-b64e-7fa8cc014bc2",
+          "from_task_no": "YS-260509-003",
+          "order_type": "추가선택",
+          "product_order_id": "2026050924229181",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        }
+      ]
+    },
+    "2026051147012351": {
+      "keeper": "YS-260511-019",
+      "customer": "한유경",
+      "items_to_restore": [
+        {
+          "backup_id": "c49ed64e-7ffc-442f-97ad-9aceb9373880",
+          "from_task_no": "YS-260511-015",
+          "order_type": "추가선택",
+          "product_order_id": "2026051112360281",
+          "qty": 1,
+          "unit_price": 5690,
+          "subtotal": 5690,
+          "customer_paid_amount": 5900,
+          "work_type_id": "be1ecc8a-1bc3-439b-9382-11ee4b9a50b9",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "5bcb9017-f774-4742-a012-857ac4516e81",
+          "from_task_no": "YS-260511-019",
+          "order_type": "본작업",
+          "product_order_id": "2026051112360271",
+          "qty": 1,
+          "unit_price": 64131,
+          "subtotal": 64131,
+          "customer_paid_amount": 66500,
+          "work_type_id": "c530e616-bdcf-4235-9a2e-9db75129a732",
+          "appliance_type_id": "55555555-5555-5555-5555-555555555001",
+          "description": null
+        },
+        {
+          "backup_id": "d6916bad-ce62-4dfd-a063-14d0f96ecc12",
+          "from_task_no": "YS-260511-015",
+          "order_type": "추가선택",
+          "product_order_id": "2026051112360291",
+          "qty": 1,
+          "unit_price": 9644,
+          "subtotal": 9644,
+          "customer_paid_amount": 10000,
+          "work_type_id": "76c95105-a4da-403a-9b84-8c04bffb9d1f",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "8835e50c-6e59-44bb-9df0-525f71b293a7",
+          "from_task_no": "YS-260511-015",
+          "order_type": "추가선택",
+          "product_order_id": "2026051112360301",
+          "qty": 1,
+          "unit_price": 27967,
+          "subtotal": 27967,
+          "customer_paid_amount": 29000,
+          "work_type_id": "0137316f-33d4-4de3-aec1-2d11eeeefee6",
+          "appliance_type_id": null,
+          "description": null
+        },
+        {
+          "backup_id": "a9f0b48d-f15f-4077-92e1-aab6fb4eaeb6",
+          "from_task_no": "YS-260511-015",
+          "order_type": "추가선택",
+          "product_order_id": "2026051112360311",
+          "qty": 1,
+          "unit_price": 9644,
+          "subtotal": 9644,
+          "customer_paid_amount": 10000,
+          "work_type_id": "7bd719b4-4ca1-4c2a-b3a4-6e7d001ae7c2",
+          "appliance_type_id": null,
+          "description": null
+        }
+      ],
+      "items_dropped": [
+        {
+          "backup_id": "e9cae289-8338-4fd3-8b65-cdff314f8099",
+          "from_task_no": "YS-260511-018",
+          "order_type": "추가선택",
+          "product_order_id": "2026051112360281",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "46fb4c5b-faf2-4d66-9d2f-94fad30f58e9",
+          "from_task_no": "YS-260511-017",
+          "order_type": "추가선택",
+          "product_order_id": "2026051112360291",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        },
+        {
+          "backup_id": "2c0493f6-d71e-424d-9465-b68859642089",
+          "from_task_no": "YS-260511-016",
+          "order_type": "추가선택",
+          "product_order_id": "2026051112360301",
+          "unit_price": 0,
+          "subtotal": 0,
+          "reason": "중복 product_order_id — unit_price>0 우선 룰로 다른 row가 keep됨"
+        }
+      ]
+    }
+  },
+  "plans": [
+    {
+      "ext": "2026051615956771",
+      "keeper_no": "YS-260516-181",
+      "keeper_id": "3230409d-fd04-464a-824f-c6f78e08b10d",
+      "customer": "장덕팔",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051722458071",
+      "keeper_no": "YS-260517-001",
+      "keeper_id": "95fdeb1c-85e1-47e7-ae30-60bfa5bd5c5f",
+      "customer": "이유환",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051617426611",
+      "keeper_no": "YS-260517-025",
+      "keeper_id": "f60599ed-996f-46f4-ad8b-5bd4cecb47d3",
+      "customer": "윤현아",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051619816841",
+      "keeper_no": "YS-260517-029",
+      "keeper_id": "28c0c7ef-32e5-49a0-ac5e-7725d4bc93cb",
+      "customer": "장성숙",
+      "backup_items": 2,
+      "restore_count": 1,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051619233561",
+      "keeper_no": "YS-260517-014",
+      "keeper_id": "13cc504f-ed2f-48c9-b8e5-309d2a6f4879",
+      "customer": "류세은",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051616801251",
+      "keeper_no": "YS-260517-031",
+      "keeper_id": "76fa368f-5e09-4bcb-99a4-ba70f6df7263",
+      "customer": "김민정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051721562531",
+      "keeper_no": "YS-260517-027",
+      "keeper_id": "6e6feba9-902b-402a-a956-46e5ca0f42dc",
+      "customer": "강인성",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051616702101",
+      "keeper_no": "YS-260517-033",
+      "keeper_id": "50d50901-77b1-40b0-9b9d-e56dfd490c70",
+      "customer": "임소영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051616570291",
+      "keeper_no": "YS-260517-052",
+      "keeper_id": "c172edeb-552b-4164-ab62-cb9d3657a886",
+      "customer": "서수명",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051731154611",
+      "keeper_no": "YS-260517-058",
+      "keeper_id": "fbd422b5-c3fa-4afc-b030-c704949ecda8",
+      "customer": "한은혜",
+      "backup_items": 6,
+      "restore_count": 3,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051736061141",
+      "keeper_no": "YS-260517-090",
+      "keeper_id": "cbff0352-7035-4dd4-a3a2-42d0423313ef",
+      "customer": "박희웅",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051845808711",
+      "keeper_no": "YS-260518-001",
+      "keeper_id": "00639783-cd51-424b-b434-f331b7374bbc",
+      "customer": "박윤범",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051845486461",
+      "keeper_no": "YS-260518-003",
+      "keeper_id": "3d0b315f-8f39-4e87-8ba5-703e883afd8e",
+      "customer": "김선율",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051846590201",
+      "keeper_no": "YS-260518-029",
+      "keeper_id": "4694397f-8ba4-4e08-81b1-5b19f776d76e",
+      "customer": "송은정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051846568191",
+      "keeper_no": "YS-260518-031",
+      "keeper_id": "2d8f68d6-8703-4f43-983e-182dea35e48a",
+      "customer": "이계화",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051846449341",
+      "keeper_no": "YS-260518-033",
+      "keeper_id": "8262bf89-da33-4732-b0fe-cfc546084e40",
+      "customer": "조은영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051869669461",
+      "keeper_no": "YS-260519-020",
+      "keeper_id": "e102aade-7067-4e21-9af7-5ed24f03d9a0",
+      "customer": "정재한",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051852343681",
+      "keeper_no": "YS-260518-066",
+      "keeper_id": "9f930c6a-674b-46fe-adc9-2d4a780c4898",
+      "customer": "박영준",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051859266911",
+      "keeper_no": "YS-260518-105",
+      "keeper_id": "b80b6bff-8491-489f-877d-4fbbaeef0bba",
+      "customer": "이예찬",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051860909651",
+      "keeper_no": "YS-260518-113",
+      "keeper_id": "f73e16af-b01b-4d68-acb4-31b23c9f5708",
+      "customer": "이지은",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051860195901",
+      "keeper_no": "YS-260518-098",
+      "keeper_id": "9cc6cdf0-4e45-46db-b42e-e8262e3bf56f",
+      "customer": "신유미",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051850084781",
+      "keeper_no": "YS-260518-081",
+      "keeper_id": "7e9a5c45-c108-4803-bff3-cb09412a60dc",
+      "customer": "신희섭",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051859371251",
+      "keeper_no": "YS-260518-102",
+      "keeper_id": "e03ded1f-231c-4d50-8ed3-60f4e539f9d3",
+      "customer": "전상욱",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051851249161",
+      "keeper_no": "YS-260518-075",
+      "keeper_id": "81ec0a65-d16e-4e85-be0c-a5abc533ed93",
+      "customer": "김주연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051861577901",
+      "keeper_no": "YS-260518-096",
+      "keeper_id": "3f935d80-59e3-4c26-90c4-1cafad1dc66c",
+      "customer": "박병국",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051854170131",
+      "keeper_no": "YS-260518-057",
+      "keeper_id": "07e66a8f-bd85-45d7-986d-297c96b9d1f5",
+      "customer": "마송희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051859663111",
+      "keeper_no": "YS-260518-100",
+      "keeper_id": "66c20eac-6519-4477-b7ee-01f7fe08ffbf",
+      "customer": "서재원",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051860196081",
+      "keeper_no": "YS-260518-125",
+      "keeper_id": "2709c864-cb3b-4e92-9be1-86c6b5505ccc",
+      "customer": "임경화",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051855574481",
+      "keeper_no": "YS-260518-135",
+      "keeper_id": "81118f51-4571-477e-8f12-87c5b0dd0c2f",
+      "customer": "조혜인",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051979183161",
+      "keeper_no": "YS-260519-001",
+      "keeper_id": "ac555ce1-a1dd-4551-8d2b-9d3273d80109",
+      "customer": "박은영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051867809891",
+      "keeper_no": "YS-260519-022",
+      "keeper_id": "c91ed129-7282-48ad-b41d-b1eebae99ace",
+      "customer": "김시철",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051864259271",
+      "keeper_no": "YS-260519-028",
+      "keeper_id": "1e673bb6-8f13-4b41-a16e-09af00c648d1",
+      "customer": "이정은",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051975839191",
+      "keeper_no": "YS-260519-030",
+      "keeper_id": "a2d3e5bf-b65b-4d58-a195-23c78d73e946",
+      "customer": "배경혜",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051983819691",
+      "keeper_no": "YS-260519-032",
+      "keeper_id": "1b4444a3-453b-44ad-a174-4a7c9eb647f4",
+      "customer": "박유진",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051983749341",
+      "keeper_no": "YS-260519-035",
+      "keeper_id": "bc73303e-1d8e-47d3-b822-b3d1ecd2bdf7",
+      "customer": "한성국",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051741411801",
+      "keeper_no": "YS-260518-014",
+      "keeper_id": "030b9949-6bb7-43d2-8f30-605fe0573c36",
+      "customer": "이효주",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051981208211",
+      "keeper_no": "YS-260519-061",
+      "keeper_id": "a44cd4ec-52fa-42aa-89fc-3b2a2dce892e",
+      "customer": "임형묵",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051851916211",
+      "keeper_no": "YS-260518-070",
+      "keeper_id": "08a9fb86-7b02-498b-83c1-ec66785e2aa3",
+      "customer": "김민경",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051975676311",
+      "keeper_no": "YS-260519-011",
+      "keeper_id": "391d552f-c4e0-47de-a4f9-2b86f1172ad1",
+      "customer": "전태형",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051694448691",
+      "keeper_no": "YS-260516-155",
+      "keeper_id": "b4395f59-e71e-4242-8b1a-4f4170bc657e",
+      "customer": "이준기",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051742197511",
+      "keeper_no": "YS-260518-042",
+      "keeper_id": "9e58d778-6227-4bd1-8fb3-ba2a94708340",
+      "customer": "김규림",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051991828981",
+      "keeper_no": "YS-260519-053",
+      "keeper_id": "65ce169a-ebca-4739-bb47-f9588bc5cc0d",
+      "customer": "연형모",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051690049841",
+      "keeper_no": "YS-260516-010",
+      "keeper_id": "6f88f776-d21b-4f57-a7ab-0ae9a1ce1bf0",
+      "customer": "이덕희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051844529061",
+      "keeper_no": "YS-260518-005",
+      "keeper_id": "d685b808-6e25-4d3a-8eeb-df66a57a93fc",
+      "customer": "조완수",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051861897281",
+      "keeper_no": "YS-260518-108",
+      "keeper_id": "0dd77960-f810-4542-aa5d-5e54ce8c0ea7",
+      "customer": "채경원",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051994505091",
+      "keeper_no": "YS-260519-044",
+      "keeper_id": "357d5de6-31ef-4ed2-bc72-3f08c9cdb1cd",
+      "customer": "김정연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051616155351",
+      "keeper_no": "YS-260516-178",
+      "keeper_id": "993569ab-8f9c-48ba-a592-43a199339f80",
+      "customer": "홍미",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051737353691",
+      "keeper_no": "YS-260517-097",
+      "keeper_id": "bf47dad5-0981-48e4-9f72-d9001d89c04a",
+      "customer": "이보영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051979994251",
+      "keeper_no": "YS-260519-036",
+      "keeper_id": "7072124c-a971-425d-bd37-d6a08b0ef082",
+      "customer": "남성현",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051451798931",
+      "keeper_no": "YS-260517-035",
+      "keeper_id": "f186ecee-a186-4129-82ed-ee7617bc5afb",
+      "customer": "한유원",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051739608991",
+      "keeper_no": "YS-260518-051",
+      "keeper_id": "df6c41ce-5ebf-4e88-a093-8ee2b641e932",
+      "customer": "장예나",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051985595431",
+      "keeper_no": "YS-260519-057",
+      "keeper_id": "8b92e0d1-e31e-4538-bbad-6c697a5af7ee",
+      "customer": "선하은",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051873610841",
+      "keeper_no": "YS-260519-016",
+      "keeper_id": "300089c3-36c9-4e05-9326-56baff0a94c2",
+      "customer": "신동욱",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051731648431",
+      "keeper_no": "YS-260517-083",
+      "keeper_id": "e53fc73a-e9bc-4cdd-aa8e-191da976038f",
+      "customer": "김해슬",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051724605341",
+      "keeper_no": "YS-260517-054",
+      "keeper_id": "b9c69629-3448-487f-b3d5-20b57502ef94",
+      "customer": "공형준",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051853335621",
+      "keeper_no": "YS-260518-061",
+      "keeper_id": "fff7e2b3-df87-48b7-bbab-de277262a98c",
+      "customer": "이지은",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051587005811",
+      "keeper_no": "YS-260516-026",
+      "keeper_id": "5db0da6a-8632-4485-84dd-f70ca3a64936",
+      "customer": "최유선",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051976188261",
+      "keeper_no": "YS-260519-003",
+      "keeper_id": "a667ba1b-3c14-4bc3-a5b5-a9e92db4f8f9",
+      "customer": "박세미",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051999461921",
+      "keeper_no": "YS-260520-006",
+      "keeper_id": "9695440b-5763-4113-9c65-465090cf6327",
+      "customer": "박인희",
+      "backup_items": 2,
+      "restore_count": 2,
+      "drop_count": 0,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051990857901",
+      "keeper_no": "YS-260519-055",
+      "keeper_id": "a1b0ddb9-f9e0-413f-85c2-bb43047bd1dc",
+      "customer": "조상돈",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051611661651",
+      "keeper_no": "YS-260516-129",
+      "keeper_id": "85821bb5-e2fe-4bdd-81b8-9f603b25095e",
+      "customer": "허은진",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051586335411",
+      "keeper_no": "YS-260516-031",
+      "keeper_id": "93e74c9d-4ebb-4ef9-bf32-baa3176c7d48",
+      "customer": "KOHJAEKUN",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051978056211",
+      "keeper_no": "YS-260519-005",
+      "keeper_id": "f15b8e45-0ce4-4f33-af3c-371503283dc6",
+      "customer": "김세희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051863812331",
+      "keeper_no": "YS-260518-118",
+      "keeper_id": "31202741-050e-4780-947e-caf0cad185f8",
+      "customer": "심은정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051732594201",
+      "keeper_no": "YS-260517-077",
+      "keeper_id": "7c79c6d3-8710-4dd5-b045-ded4498985db",
+      "customer": "노규연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051730681091",
+      "keeper_no": "YS-260517-063",
+      "keeper_id": "6991f943-3eed-46a1-9e42-f8fb74b87e0b",
+      "customer": "손진영",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051727257921",
+      "keeper_no": "YS-260517-041",
+      "keeper_id": "7cba7818-44fe-4e11-831d-a4fbd7ecb4b3",
+      "customer": "김웅",
+      "backup_items": 2,
+      "restore_count": 2,
+      "drop_count": 0,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051610062131",
+      "keeper_no": "YS-260516-064",
+      "keeper_id": "cbc1bdef-4fca-4eb3-80dc-c88b02ecbc0a",
+      "customer": "김윤서",
+      "backup_items": 9,
+      "restore_count": 5,
+      "drop_count": 4,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051695118121",
+      "keeper_no": "YS-260516-091",
+      "keeper_id": "a289b7a1-6b19-4b5a-8a85-fc8f34ad410b",
+      "customer": "송지혜",
+      "backup_items": 2,
+      "restore_count": 2,
+      "drop_count": 0,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051846482751",
+      "keeper_no": "YS-260518-011",
+      "keeper_id": "10577a65-b581-480e-94a5-3145653eb248",
+      "customer": "이성환 반장님 경비실",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051911717541",
+      "keeper_no": "YS-260520-002",
+      "keeper_id": "e79cf895-14c7-454c-b421-b720ed41419c",
+      "customer": "손상열",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051722014641",
+      "keeper_no": "YS-260517-050",
+      "keeper_id": "3e1308c4-eb29-48ae-93e4-d1f0d29bed75",
+      "customer": "이경민",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051618464771",
+      "keeper_no": "YS-260517-018",
+      "keeper_id": "5b125f0d-5d19-49dd-a3e9-2cbf2e67fd99",
+      "customer": "박경훈",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051611323101",
+      "keeper_no": "YS-260516-136",
+      "keeper_id": "f6005d94-3e0d-4e93-b99a-990fc4af3b68",
+      "customer": "유재위",
+      "backup_items": 9,
+      "restore_count": 5,
+      "drop_count": 4,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051695062381",
+      "keeper_no": "YS-260516-094",
+      "keeper_id": "a96f3adb-5d92-4d89-834f-61040dead3f4",
+      "customer": "윤주근",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051860945441",
+      "keeper_no": "YS-260518-111",
+      "keeper_id": "64a98dc8-eb86-4616-a58f-86b8637dbb95",
+      "customer": "유영민",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051737922991",
+      "keeper_no": "YS-260518-054",
+      "keeper_id": "570951b0-dea9-47af-a130-4bee7b222d50",
+      "customer": "이원준",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051995257831",
+      "keeper_no": "YS-260519-064",
+      "keeper_id": "4d2233b5-552b-4f10-bc04-440a7956a1a4",
+      "customer": "최은선",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051994071571",
+      "keeper_no": "YS-260519-047",
+      "keeper_id": "35509d44-97dd-47ff-a707-55a171af3f09",
+      "customer": "허채원",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051611791031",
+      "keeper_no": "YS-260516-127",
+      "keeper_id": "2fbbb673-9f6c-4ba9-b98c-e0c0d791db4e",
+      "customer": "나소정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051585454441",
+      "keeper_no": "YS-260516-036",
+      "keeper_id": "4a99f2d2-25a8-4a31-a66a-405c5424d53f",
+      "customer": "전금영",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051613026091",
+      "keeper_no": "YS-260516-158",
+      "keeper_id": "0cb13eb5-5e60-49f5-8d5a-82b9f1eb8f67",
+      "customer": "최루리",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051844831191",
+      "keeper_no": "YS-260518-020",
+      "keeper_id": "6076b111-74a1-426b-a0cd-37cba4d14791",
+      "customer": "김가연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051732380411",
+      "keeper_no": "YS-260517-079",
+      "keeper_id": "01820169-34a3-4582-8080-cc9fca1b5ad2",
+      "customer": "안효정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051616752331",
+      "keeper_no": "YS-260516-166",
+      "keeper_id": "f2ecda69-31e9-4893-8371-7c2386774cf2",
+      "customer": "김수경",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051848438321",
+      "keeper_no": "YS-260518-008",
+      "keeper_id": "1f78057b-f7d9-436c-9868-5ea4ec7c63ab",
+      "customer": "이다솜",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051611627281",
+      "keeper_no": "YS-260516-131",
+      "keeper_id": "2b556fb6-ba62-4fa5-945e-652b1cbbd333",
+      "customer": "이성민",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051616714701",
+      "keeper_no": "YS-260516-169",
+      "keeper_id": "4fdadb66-e2bb-4432-945c-ce6ad10c7996",
+      "customer": "박정훈",
+      "backup_items": 2,
+      "restore_count": 2,
+      "drop_count": 0,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051584013931",
+      "keeper_no": "YS-260516-046",
+      "keeper_id": "b8c1197a-a96e-46ee-859c-2c094653d173",
+      "customer": "박애련",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051739152771",
+      "keeper_no": "YS-260518-017",
+      "keeper_id": "32be4391-a0ed-4d78-beee-94a8885b3abe",
+      "customer": "추서연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051737213651",
+      "keeper_no": "YS-260517-087",
+      "keeper_id": "3f88a1a0-6020-4d4d-93ba-0e06c402055b",
+      "customer": "김동욱",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051587100681",
+      "keeper_no": "YS-260516-024",
+      "keeper_id": "8f63bd1c-54bf-4eae-bc45-328dc5ff0758",
+      "customer": "엔트라움",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051691879561",
+      "keeper_no": "YS-260516-005",
+      "keeper_id": "79cacc77-40ed-4019-bc90-e4e200efe3ce",
+      "customer": "김태호",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051691543891",
+      "keeper_no": "YS-260516-007",
+      "keeper_id": "2e331ea1-a6be-4ffc-ad1f-ec8712a10777",
+      "customer": "김수진",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051587441021",
+      "keeper_no": "YS-260516-021",
+      "keeper_id": "5760cc87-e5ee-4826-9966-112f7251d75d",
+      "customer": "조용현",
+      "backup_items": 6,
+      "restore_count": 3,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051584039801",
+      "keeper_no": "YS-260516-044",
+      "keeper_id": "1befaac2-36aa-4e3f-bfdd-a40eb9cf37ea",
+      "customer": "박길현",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051583594921",
+      "keeper_no": "YS-260516-051",
+      "keeper_id": "aac53aa9-d48f-4328-b313-95fd91b99746",
+      "customer": "김자옥",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051582984021",
+      "keeper_no": "YS-260516-054",
+      "keeper_id": "8098f467-4ec9-4358-9dcd-161de605498a",
+      "customer": "오동필",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051697434781",
+      "keeper_no": "YS-260516-073",
+      "keeper_id": "56a15479-1c30-4503-8abd-91ca3c4cba9e",
+      "customer": "이경일",
+      "backup_items": 7,
+      "restore_count": 4,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051863999421",
+      "keeper_no": "YS-260518-116",
+      "keeper_id": "23646d94-4827-4e67-ab96-aafc5ed021ee",
+      "customer": "최용운",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051694181941",
+      "keeper_no": "YS-260516-106",
+      "keeper_id": "e68a9134-258e-434c-a97d-77927db7101e",
+      "customer": "노혜수",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051698957371",
+      "keeper_no": "YS-260516-111",
+      "keeper_id": "e65c725c-ad21-4ea9-ad1f-c0dd0ecc5ccc",
+      "customer": "변영식",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051697858111",
+      "keeper_no": "YS-260516-117",
+      "keeper_id": "4bb453fa-55a7-44dd-a496-81e69d2d8379",
+      "customer": "형민우",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051612333101",
+      "keeper_no": "YS-260516-121",
+      "keeper_id": "1151e553-15c0-403d-817d-8b6c40951db6",
+      "customer": "곽동우",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051698147161",
+      "keeper_no": "YS-260516-115",
+      "keeper_id": "fa9b3929-1351-494b-9d34-c0f4e0ae5e6d",
+      "customer": "김진산",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051269616041",
+      "keeper_no": "YS-260512-001",
+      "keeper_id": "9b6a0fd2-4882-4d3b-a5d0-078526da223d",
+      "customer": "박은주",
+      "backup_items": 4,
+      "restore_count": 2,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051165661621",
+      "keeper_no": "YS-260512-008",
+      "keeper_id": "51d2790b-d62e-43da-8fbc-d80ae20e59ca",
+      "customer": "지수",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051462627021",
+      "keeper_no": "YS-260515-034",
+      "keeper_id": "5fce1b3a-748a-473e-b0bf-c9a58279b26c",
+      "customer": "최지희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051160540581",
+      "keeper_no": "YS-260512-015",
+      "keeper_id": "2c469a18-a6ed-41d3-b185-02d5ef2c32aa",
+      "customer": "김예현",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051463947531",
+      "keeper_no": "YS-260515-009",
+      "keeper_id": "55661d37-dbaa-4003-a311-23b78e4fbe12",
+      "customer": "김난영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051461429131",
+      "keeper_no": "YS-260515-012",
+      "keeper_id": "19a41f7d-78aa-4088-b0e9-83e5e3996bd6",
+      "customer": "왕종근",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051564357171",
+      "keeper_no": "YS-260515-006",
+      "keeper_id": "d5f843fe-9bab-4c0e-8287-f39ecacea790",
+      "customer": "유범수",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051159763851",
+      "keeper_no": "YS-260511-030",
+      "keeper_id": "729a7a4a-82aa-4040-989a-6450ec5cd8ce",
+      "customer": "이하나",
+      "backup_items": 7,
+      "restore_count": 4,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051565772001",
+      "keeper_no": "YS-260515-003",
+      "keeper_id": "6ec56e3e-11c0-4b96-866f-e286e742415a",
+      "customer": "이문주",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051161341791",
+      "keeper_no": "YS-260512-026",
+      "keeper_id": "4e4a994b-ca91-4399-9d8b-9e3adc72932b",
+      "customer": "황재현",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050163349821",
+      "keeper_no": "YS-260512-030",
+      "keeper_id": "6b477d34-2c72-489f-89eb-02f40428bef6",
+      "customer": "이라영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051451832531",
+      "keeper_no": "YS-260514-076",
+      "keeper_id": "505dad3b-2a7c-499b-a3b1-a1cdc0bd6625",
+      "customer": "김연지",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051455984791",
+      "keeper_no": "YS-260514-074",
+      "keeper_id": "b250eb37-3e39-4091-8dcb-fd30a7b86817",
+      "customer": "이재훈",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051276650551",
+      "keeper_no": "YS-260512-049",
+      "keeper_id": "bbcc3c9b-ef5c-4dbc-a004-00d3930ca7da",
+      "customer": "오동옥",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051449906421",
+      "keeper_no": "YS-260514-068",
+      "keeper_id": "31db690e-057f-4045-b4a8-a5eb4a201e0b",
+      "customer": "오수이",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051267856141",
+      "keeper_no": "YS-260512-021",
+      "keeper_id": "a70856ee-bead-449b-a65e-f18ba0d4c254",
+      "customer": "김시윤",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051291319541",
+      "keeper_no": "YS-260512-079",
+      "keeper_id": "38af771d-3f8f-410f-9b98-0eabdb143524",
+      "customer": "이강희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051324510331",
+      "keeper_no": "YS-260513-021",
+      "keeper_id": "54251aa5-5ed0-4a53-a37f-f2739955f9be",
+      "customer": "김윤숙",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051293919981",
+      "keeper_no": "YS-260513-005",
+      "keeper_id": "14f8c465-8efc-427c-9ccf-184a0d5ce7c5",
+      "customer": "차진영",
+      "backup_items": 4,
+      "restore_count": 2,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051335549301",
+      "keeper_no": "YS-260514-015",
+      "keeper_id": "e874c1ea-740c-4113-b8c2-803f48fb552a",
+      "customer": "이은희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051443322051",
+      "keeper_no": "YS-260514-041",
+      "keeper_id": "af163c16-cd77-401a-be2b-498487d03dcd",
+      "customer": "장훈수",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051443067261",
+      "keeper_no": "YS-260514-043",
+      "keeper_id": "8f729ef7-4eba-40db-abf8-ee63cb3c4b4a",
+      "customer": "송현민",
+      "backup_items": 6,
+      "restore_count": 4,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051463489071",
+      "keeper_no": "YS-260515-028",
+      "keeper_id": "0eb6ca9c-792d-4888-8ecd-fc95af8dfcad",
+      "customer": "김민찬",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051566141191",
+      "keeper_no": "YS-260515-020",
+      "keeper_id": "9ccf1f4c-a61a-49cf-9401-1a22b51046b8",
+      "customer": "최윤식",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051326767551",
+      "keeper_no": "YS-260514-032",
+      "keeper_id": "05b98307-51db-4207-a3e2-a65c474afbff",
+      "customer": "임민현",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051566540771",
+      "keeper_no": "YS-260515-018",
+      "keeper_id": "02f7ce9b-a2da-4942-b956-de887726b9de",
+      "customer": "김동신",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051331093381",
+      "keeper_no": "YS-260514-006",
+      "keeper_id": "805137cf-8876-4617-8f4b-5d139d4a2205",
+      "customer": "강성철",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051441777731",
+      "keeper_no": "YS-260514-058",
+      "keeper_id": "f8a01808-e631-4d24-809d-846443a41bac",
+      "customer": "이혜연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051450484281",
+      "keeper_no": "YS-260514-053",
+      "keeper_id": "b771bc54-6168-4a33-a733-b1fe66eec2a7",
+      "customer": "주연정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051333353491",
+      "keeper_no": "YS-260514-004",
+      "keeper_id": "86031e1b-3283-4cb9-bf02-dad9f554472b",
+      "customer": "임태경",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051321891211",
+      "keeper_no": "YS-260513-030",
+      "keeper_id": "6c4c69d9-3104-4738-814f-04216c6b3cdd",
+      "customer": "김영웅",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051324543121",
+      "keeper_no": "YS-260513-019",
+      "keeper_id": "38b15122-2dbb-4681-b7ee-bb5c257a8ef0",
+      "customer": "김윤숙",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051565621751",
+      "keeper_no": "YS-260515-022",
+      "keeper_id": "a3ab2aaa-ea35-40c8-9782-1a9fd903df38",
+      "customer": "조희정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051456222611",
+      "keeper_no": "YS-260514-082",
+      "keeper_id": "ff418695-037d-4b11-bb31-fd7d850e1582",
+      "customer": "오규성",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051441304261",
+      "keeper_no": "YS-260514-051",
+      "keeper_id": "61dcebdb-7fdb-4870-a7fc-bdc8c8233d3c",
+      "customer": "임병관",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051319995781",
+      "keeper_no": "YS-260513-036",
+      "keeper_id": "514731c7-3ba2-4b4f-b94a-5ba105ae992c",
+      "customer": "아베크 모델스",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051437215601",
+      "keeper_no": "YS-260514-024",
+      "keeper_id": "5d589b05-1bf5-440a-9eca-43ea426c7a71",
+      "customer": "차형진",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051330843411",
+      "keeper_no": "YS-260514-009",
+      "keeper_id": "2dbd169d-25f4-4037-ad12-be4670f867d5",
+      "customer": "차준기",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051322436431",
+      "keeper_no": "YS-260513-027",
+      "keeper_id": "5654aafc-26e6-451e-9cac-155d8a362ede",
+      "customer": "배준성",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051293000081",
+      "keeper_no": "YS-260513-009",
+      "keeper_id": "2b131863-ab7b-41bb-81c1-64f7bc8b90ab",
+      "customer": "최정미",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051325180491",
+      "keeper_no": "YS-260513-015",
+      "keeper_id": "7fddaf48-9404-4828-b10c-2a667c71278c",
+      "customer": "이광훈",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051282685501",
+      "keeper_no": "YS-260512-066",
+      "keeper_id": "6928b537-2e5e-4e60-891b-bc600b49973a",
+      "customer": "박효림",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051284534731",
+      "keeper_no": "YS-260512-060",
+      "keeper_id": "841fc456-9756-41b9-a441-54aa0cbafb15",
+      "customer": "권혜림",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051277258701",
+      "keeper_no": "YS-260512-047",
+      "keeper_id": "cf6c25b4-da4d-46d5-8815-f44664f1ceb9",
+      "customer": "지윤경",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051278750711",
+      "keeper_no": "YS-260512-041",
+      "keeper_id": "4a6af00a-3d9e-453b-892c-6f4de3067446",
+      "customer": "장홍석",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050729012601",
+      "keeper_no": "YS-260507-001",
+      "keeper_id": "a9b4eed9-fa31-4ff3-aac4-cd1bbc998ea2",
+      "customer": "김형일",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050698538881",
+      "keeper_no": "YS-260506-009",
+      "keeper_id": "dfaa48c8-52ab-49ba-99a2-cc201094eb29",
+      "customer": "최재호",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051295376011",
+      "keeper_no": "YS-260513-001",
+      "keeper_id": "334b32cd-4b55-410d-96f7-5bc31b69d4f9",
+      "customer": "김미영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051287787751",
+      "keeper_no": "YS-260512-088",
+      "keeper_id": "d0ec9aa3-a9ec-4b6f-8c43-289ec9dd9a7c",
+      "customer": "이현경",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051291717001",
+      "keeper_no": "YS-260512-076",
+      "keeper_id": "c4c5729d-a4b0-418f-975b-787e01252b38",
+      "customer": "김가경",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051277639731",
+      "keeper_no": "YS-260512-044",
+      "keeper_id": "649f4701-4c4c-4919-a197-8ded01b5eec4",
+      "customer": "김혜정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042291994801",
+      "keeper_no": "YS-260512-038",
+      "keeper_id": "8f069744-5641-4748-8191-b0848227a677",
+      "customer": "김혜미",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050864029711",
+      "keeper_no": "YS-260508-010",
+      "keeper_id": "6d15861d-3757-45d4-956b-86da2ccf7697",
+      "customer": "이승림",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050696089861",
+      "keeper_no": "YS-260506-014",
+      "keeper_id": "7a2a62ee-01c2-4a89-991c-1139b615cfad",
+      "customer": "우숙자",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051286865401",
+      "keeper_no": "YS-260512-090",
+      "keeper_id": "d4320aed-ab5d-4bd8-a559-83203239588d",
+      "customer": "남동완",
+      "backup_items": 7,
+      "restore_count": 4,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050736672271",
+      "keeper_no": "YS-260507-015",
+      "keeper_id": "a8ba1dec-d994-4c0e-a760-04aba5dd1bc1",
+      "customer": "강인식",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050621838691",
+      "keeper_no": "YS-260507-007",
+      "keeper_id": "eca22264-0b3e-4d7b-8698-ce2ce98991f8",
+      "customer": "이경미",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050614305271",
+      "keeper_no": "YS-260506-016",
+      "keeper_id": "6ecf2c32-a857-42bf-99f6-9849e6528fb3",
+      "customer": "강지윤",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050613767251",
+      "keeper_no": "YS-260506-005",
+      "keeper_id": "f58158b7-ef8f-44b4-9de4-585cc39b49c6",
+      "customer": "지영규",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051145747641",
+      "keeper_no": "YS-260512-056",
+      "keeper_id": "1de00888-dc93-4b5b-b6ae-83f947bbe8de",
+      "customer": "장지훈",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042024170771",
+      "keeper_no": "YS-260512-035",
+      "keeper_id": "0ca0bda5-ea21-412f-a149-4d248424bcb3",
+      "customer": "강민지",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050865912031",
+      "keeper_no": "YS-260508-007",
+      "keeper_id": "ae09fb84-a633-4d88-bac9-cfacc64a2772",
+      "customer": "이규진",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050627368111",
+      "keeper_no": "YS-260507-004",
+      "keeper_id": "b97f7f8d-6ddd-4d00-933e-5672587426c3",
+      "customer": "이남희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050698281551",
+      "keeper_no": "YS-260506-012",
+      "keeper_id": "f8cb9a4d-f8ae-446e-8ca2-68f19933c124",
+      "customer": "연규석",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050449484341",
+      "keeper_no": "YS-260504-037",
+      "keeper_id": "d174ba9d-d9dc-435f-a2e4-c2cd165e6944",
+      "customer": "황예원",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050323665611",
+      "keeper_no": "YS-260504-030",
+      "keeper_id": "0ec4f8ae-ee81-44a8-899d-256514e6f778",
+      "customer": "자인채최민지",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050437154451",
+      "keeper_no": "YS-260504-004",
+      "keeper_id": "09c7beb5-1c9e-4b7a-a569-659e435f5d3c",
+      "customer": "이경애",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050433866081",
+      "keeper_no": "YS-260504-005",
+      "keeper_id": "be17e96b-d2f9-4429-89cf-113a0661a513",
+      "customer": "김승언",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050444403171",
+      "keeper_no": "YS-260504-039",
+      "keeper_id": "59718c59-b9f1-4ab7-9d85-04b2670ab064",
+      "customer": "노사령",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050436129101",
+      "keeper_no": "YS-260504-022",
+      "keeper_id": "455dc867-6f32-42ba-adc8-0c809736e9df",
+      "customer": "김현주",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050316491631",
+      "keeper_no": "YS-260504-018",
+      "keeper_id": "1018054b-4c81-4b7f-b9d4-327716a82474",
+      "customer": "임연옥",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050298662501",
+      "keeper_no": "YS-260503-006",
+      "keeper_id": "3892bd0e-96c2-4e15-8f64-07e09572dc01",
+      "customer": "박서영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051578823101",
+      "keeper_no": "YS-260515-077",
+      "keeper_id": "f2d9b920-1c59-4450-9d73-2630b509ef34",
+      "customer": "박수민",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051455633311",
+      "keeper_no": "YS-260515-050",
+      "keeper_id": "ee18fe03-0e54-4a25-b3d4-df194694d3e4",
+      "customer": "김승대",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051459912381",
+      "keeper_no": "YS-260514-088",
+      "keeper_id": "1e285a2d-778c-457e-96b8-7278b2d5d2a6",
+      "customer": "김도희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051454262191",
+      "keeper_no": "YS-260515-057",
+      "keeper_id": "6274fa39-9952-4bbb-bd1d-147636e7ebfa",
+      "customer": "김승환",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051327707401",
+      "keeper_no": "YS-260514-029",
+      "keeper_id": "4f1bbf5f-0240-4d63-8964-f5196ff27e56",
+      "customer": "손미선",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051452376751",
+      "keeper_no": "YS-260514-098",
+      "keeper_id": "66f18763-fbe2-49b5-9c55-d80c86d89ea0",
+      "customer": "강수영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051144320721",
+      "keeper_no": "YS-260511-012",
+      "keeper_id": "fd8141c3-369f-44b3-a3ff-7518f638c302",
+      "customer": "유혜련",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051152535331",
+      "keeper_no": "YS-260511-024",
+      "keeper_id": "018b91e3-8a43-41d4-9982-98c6653c8d1d",
+      "customer": "홍수인",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051570191961",
+      "keeper_no": "YS-260515-065",
+      "keeper_id": "bc0eaa81-959a-482b-b6b2-6948f3825d37",
+      "customer": "조진흥",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051164929751",
+      "keeper_no": "YS-260512-023",
+      "keeper_id": "e4de9b28-7744-47d0-a39b-d3de6314d27c",
+      "customer": "박태근",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051578708291",
+      "keeper_no": "YS-260515-094",
+      "keeper_id": "5c2cf43a-fc29-4796-bc43-5e21cc5780a4",
+      "customer": "최민지",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051574000421",
+      "keeper_no": "YS-260515-066",
+      "keeper_id": "b4b8db97-3eff-4472-a8e9-c6c936de5f59",
+      "customer": "정혁진",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051463272001",
+      "keeper_no": "YS-260515-030",
+      "keeper_id": "150a8e18-e079-4dfd-a916-1b6d8d9169a8",
+      "customer": "권나영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051458260241",
+      "keeper_no": "YS-260514-090",
+      "keeper_id": "65fbeddf-2544-4611-867b-77e39981ee7d",
+      "customer": "김유리",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051456328921",
+      "keeper_no": "YS-260514-072",
+      "keeper_id": "55bfe6a8-eaac-41e2-880b-df4ccb71d7b8",
+      "customer": "김민규",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051022621301",
+      "keeper_no": "YS-260510-012",
+      "keeper_id": "60ad10c7-dcd3-4ccf-b2e8-b292657a5807",
+      "customer": "강예주",
+      "backup_items": 7,
+      "restore_count": 4,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051692110211",
+      "keeper_no": "YS-260516-001",
+      "keeper_id": "fc6adf55-12a9-4198-98fb-5ee3c43fa1d0",
+      "customer": "김소영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051461181931",
+      "keeper_no": "YS-260515-039",
+      "keeper_id": "4f6ef99e-45a0-4bfe-a1ca-12803a9283e5",
+      "customer": "임성준",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051581520841",
+      "keeper_no": "YS-260515-109",
+      "keeper_id": "e96cbd57-46a7-4fbb-b2a7-f55e6c63e32a",
+      "customer": "이현",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051579222661",
+      "keeper_no": "YS-260515-107",
+      "keeper_id": "9aed56f3-0076-4493-9f23-cba1106525aa",
+      "customer": "최수정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051579030821",
+      "keeper_no": "YS-260515-083",
+      "keeper_id": "3d63c86a-032b-44d9-8a84-7bb1f4dde87d",
+      "customer": "박경은",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051581026751",
+      "keeper_no": "YS-260515-089",
+      "keeper_id": "db9a71d0-e542-4d68-9c83-9b2fd52f56f5",
+      "customer": "서윤호",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050733841561",
+      "keeper_no": "YS-260507-018",
+      "keeper_id": "1bd15630-2d48-46da-81c1-22d768e97e96",
+      "customer": "김연수",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051293574871",
+      "keeper_no": "YS-260513-007",
+      "keeper_id": "872ae789-3546-441c-a088-15ac8c4d7c77",
+      "customer": "황옥자",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050438664151",
+      "keeper_no": "YS-260504-001",
+      "keeper_id": "c7ab12b3-4dd1-4cd2-9d49-77cbdf48e4f4",
+      "customer": "김민정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050323588331",
+      "keeper_no": "YS-260504-011",
+      "keeper_id": "67a1775e-a8b9-4043-a5e8-d664d157b269",
+      "customer": "양동주",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050743360631",
+      "keeper_no": "YS-260507-021",
+      "keeper_id": "ee428442-defc-419f-9634-ebd21cc8df30",
+      "customer": "임헌준",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050870277791",
+      "keeper_no": "YS-260508-012",
+      "keeper_id": "d988c3e3-01e0-4866-8376-95f6599d13df",
+      "customer": "김진수",
+      "backup_items": 7,
+      "restore_count": 4,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050874723731",
+      "keeper_no": "YS-260508-016",
+      "keeper_id": "f5217c24-31e4-4e4c-833e-dd35872eed5b",
+      "customer": "이경화",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050983914231",
+      "keeper_no": "YS-260509-002",
+      "keeper_id": "b337cfa2-b1e0-48da-8be3-37dbf4d37b10",
+      "customer": "이천수",
+      "backup_items": 9,
+      "restore_count": 5,
+      "drop_count": 4,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050986262151",
+      "keeper_no": "YS-260509-007",
+      "keeper_id": "db0662ee-e48a-4af0-889c-09325b3f61d2",
+      "customer": "이혜정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051017882701",
+      "keeper_no": "YS-260510-006",
+      "keeper_id": "5ed5e25c-5acf-43e1-9d5e-8b4cb3d84403",
+      "customer": "김지선",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051025827941",
+      "keeper_no": "YS-260510-016",
+      "keeper_id": "65ce61d2-a2bd-401a-bf88-bf93f94e51dd",
+      "customer": "신상호",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051019969821",
+      "keeper_no": "YS-260510-018",
+      "keeper_id": "0a9b363e-a832-442b-9dff-2b01bef3af8c",
+      "customer": "윤원규",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051576990411",
+      "keeper_no": "YS-260515-069",
+      "keeper_id": "a7f01545-a00e-4856-a9ac-2f47f407017c",
+      "customer": "임유진",
+      "backup_items": 6,
+      "restore_count": 3,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051579316821",
+      "keeper_no": "YS-260515-075",
+      "keeper_id": "7f483119-7860-4570-b1dd-54ac6468fb78",
+      "customer": "김남준",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051579438521",
+      "keeper_no": "YS-260515-073",
+      "keeper_id": "6956651f-bc36-461c-8345-2d9cf84b5f1b",
+      "customer": "강민지",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051454589871",
+      "keeper_no": "YS-260515-054",
+      "keeper_id": "5fd1311d-3748-4634-978e-788bbf3c6658",
+      "customer": "황명하",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051028899841",
+      "keeper_no": "YS-260511-005",
+      "keeper_id": "a9813d38-d057-4c92-ab26-d20f7b2b9145",
+      "customer": "김현경",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051141589251",
+      "keeper_no": "YS-260511-007",
+      "keeper_id": "8acc3943-0ca3-49e2-8800-a98686d9806a",
+      "customer": "MATSUDA MAKOTO",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051147012351",
+      "keeper_no": "YS-260511-019",
+      "keeper_id": "a322904b-edaa-4904-b6c9-37aadb52912f",
+      "customer": "한유경",
+      "backup_items": 8,
+      "restore_count": 5,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051455667361",
+      "keeper_no": "YS-260515-047",
+      "keeper_id": "686502ec-604f-42bc-b08f-bfce7a68f327",
+      "customer": "이채현",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051460733051",
+      "keeper_no": "YS-260515-040",
+      "keeper_id": "967a8ed5-8393-4764-a005-dcf34df8ad90",
+      "customer": "최진모",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051152359321",
+      "keeper_no": "YS-260511-028",
+      "keeper_id": "03dcb8d4-cdea-401f-8723-c15bae59b94b",
+      "customer": "김민기",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051157469281",
+      "keeper_no": "YS-260511-035",
+      "keeper_id": "dfa464d8-e7c6-4555-96f9-cb6c76ea41b6",
+      "customer": "이향희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042914032721",
+      "keeper_no": "YS-260429-039",
+      "keeper_id": "a1b7c905-cdbe-4e55-9a8c-cda417ca68f0",
+      "customer": "윤성희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042611350691",
+      "keeper_no": "YS-260426-031",
+      "keeper_id": "04dcbb9d-9c34-4ae6-af72-ba0ea9821e5d",
+      "customer": "선다영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042872563571",
+      "keeper_no": "YS-260428-046",
+      "keeper_id": "18cf16c9-f44a-49b1-b7cd-8eca87a35bdc",
+      "customer": "이지애",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026043036758201",
+      "keeper_no": "YS-260430-021",
+      "keeper_id": "c5319ec0-1eda-4a06-93a4-a8e659d9dbfa",
+      "customer": "심소연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042031313751",
+      "keeper_no": "YS-260420-168",
+      "keeper_id": "28eb8e7c-5fa1-4109-baf7-3c44997823b0",
+      "customer": "정승민",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042045935791",
+      "keeper_no": "YS-260420-176",
+      "keeper_id": "ac0376f8-c81e-40da-b690-ee6432d35e1a",
+      "customer": "채종수",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042993100581",
+      "keeper_no": "YS-260429-007",
+      "keeper_id": "d333d293-55a4-42af-80ee-766a023a82af",
+      "customer": "극동",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042999062391",
+      "keeper_no": "YS-260429-020",
+      "keeper_id": "bcc81b97-8e0a-4f8e-8a05-cc834454a7ee",
+      "customer": "나비",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042920486851",
+      "keeper_no": "YS-260429-023",
+      "keeper_id": "217b4638-bbaa-4b12-b7f6-08441678cf59",
+      "customer": "김응건",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042460737501",
+      "keeper_no": "YS-260424-089",
+      "status": "skip_alive",
+      "live_items": 2
+    },
+    {
+      "ext": "2026042462859411",
+      "keeper_no": "YS-260424-080",
+      "keeper_id": "5c43c0d1-4133-4f82-a15f-b9a8fda59326",
+      "customer": "성민석",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042043157071",
+      "keeper_no": "YS-260420-185",
+      "keeper_id": "5224f3c9-cadc-4f6c-97b7-5ab73d1a8929",
+      "customer": "김은하",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042470274781",
+      "keeper_no": "YS-260425-010",
+      "keeper_id": "6a5c992a-0989-4ecb-a582-7cd30b9ffe3d",
+      "customer": "손원주",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041912542971",
+      "keeper_no": "YS-260419-091",
+      "keeper_id": "5d613307-8a4e-4d5a-a5da-ccfd5bc7cede",
+      "customer": "김기남",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041999642321",
+      "keeper_no": "YS-260419-059",
+      "keeper_id": "5ce6a5d1-3cfa-4f97-a16e-03102f97a96f",
+      "customer": "김영석",
+      "backup_items": 7,
+      "restore_count": 4,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050285237231",
+      "keeper_no": "YS-260502-018",
+      "keeper_id": "ded29cb6-4202-4485-8e26-af636a16efd7",
+      "customer": "이경화",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042031628421",
+      "keeper_no": "YS-260420-148",
+      "keeper_id": "b5522a74-0549-4c42-874a-9a16e9f3d147",
+      "customer": "송민호",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050169763421",
+      "keeper_no": "YS-260502-008",
+      "keeper_id": "b6dddaaf-dd6e-4ccd-a0be-e8ead05d697f",
+      "customer": "김성춘",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042337179441",
+      "keeper_no": "YS-260424-011",
+      "keeper_id": "de40efbf-86d2-4e74-8eaf-7ea051228237",
+      "customer": "이선웅",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041887367591",
+      "keeper_no": "YS-260419-007",
+      "keeper_id": "e3ea3653-d3e1-4b91-84be-37adb3bcc2f9",
+      "customer": "조성준",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042333291621",
+      "keeper_no": "YS-260424-023",
+      "keeper_id": "89a41a5a-6e03-4429-b982-5535850906ed",
+      "customer": "최진범",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041998444741",
+      "keeper_no": "YS-260419-068",
+      "keeper_id": "65657104-f2a4-4ae2-b218-ada46f6e6631",
+      "customer": "김다솜",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042613622341",
+      "keeper_no": "YS-260426-036",
+      "keeper_id": "85297273-40ae-448e-9582-5f5c6581147b",
+      "customer": "신현수",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042628705951",
+      "keeper_no": "YS-260427-010",
+      "keeper_id": "5493b8b8-cddc-49a5-a60b-f6e896ba9417",
+      "customer": "박종수",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042623988671",
+      "keeper_no": "YS-260427-018",
+      "keeper_id": "f016ff8a-87ba-44f6-9df1-f480df1b67c7",
+      "customer": "이차순",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042915097211",
+      "keeper_no": "YS-260429-016",
+      "keeper_id": "be754735-8786-4b1b-abe7-0fc18e694d10",
+      "customer": "조한례",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042928597051",
+      "keeper_no": "YS-260430-004",
+      "keeper_id": "9f325e4e-20e0-4388-85b5-6a44b672a083",
+      "customer": "양민희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042923650201",
+      "keeper_no": "YS-260430-013",
+      "keeper_id": "f991eafe-18b2-4e51-835f-5857ada94957",
+      "customer": "이소연",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026040883182061",
+      "keeper_no": "YS-260408-016",
+      "keeper_id": "025a73e6-eaba-41c8-8a30-b263aa8324b2",
+      "customer": "이지현",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041918752191",
+      "keeper_no": "YS-260420-094",
+      "keeper_id": "cc1c2d8d-b5f8-4f93-b3ec-42ec277baea4",
+      "customer": "이선정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041911419411",
+      "keeper_no": "YS-260420-075",
+      "keeper_id": "f2779944-b7a6-40eb-b24a-8d8cb790103a",
+      "customer": "김종성",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042739690021",
+      "keeper_no": "YS-260427-044",
+      "keeper_id": "29783b4f-e436-48b4-bd95-d7231801a951",
+      "customer": "안승우",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042736667891",
+      "keeper_no": "YS-260427-052",
+      "keeper_id": "04ad09bf-1f7c-4451-82b2-fa05d5bfe7f6",
+      "customer": "이상준",
+      "backup_items": 7,
+      "restore_count": 4,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041762124311",
+      "keeper_no": "YS-260417-050",
+      "keeper_id": "2ff410a2-b2a9-4b40-b387-3f666f8fc58b",
+      "customer": "변다혜",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042623835581",
+      "keeper_no": "YS-260427-022",
+      "keeper_id": "ef4af251-63bf-4dab-a47e-0adf24a52ffc",
+      "customer": "황광남",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041633495701",
+      "keeper_no": "YS-260416-071",
+      "keeper_id": "e75fe219-17cf-4fc1-a075-3bad3f8228f3",
+      "customer": "정소영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041591778511",
+      "keeper_no": "YS-260415-104",
+      "keeper_id": "0f0f458a-242c-4260-b246-3adb3ab0cb7d",
+      "customer": "김민지",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042742212271",
+      "keeper_no": "YS-260427-038",
+      "keeper_id": "abc9043f-4d08-47b9-92cc-66b5d2e69347",
+      "customer": "조재환",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042868106061",
+      "keeper_no": "YS-260428-001",
+      "keeper_id": "a213387c-1945-4fae-845e-2e022dc7d3dd",
+      "customer": "이승준",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042289382471",
+      "keeper_no": "YS-260422-016",
+      "keeper_id": "7f4f3037-3dff-40d7-aa99-a9ae4b2d2a0e",
+      "customer": "류여정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042338194391",
+      "keeper_no": "YS-260424-007",
+      "keeper_id": "41005935-4de1-49b3-8e1a-0ff8c3adeabe",
+      "customer": "마음과인지",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042334585251",
+      "keeper_no": "YS-260424-016",
+      "keeper_id": "5f174a39-2508-4b36-a441-6d0f8dd31f03",
+      "customer": "조영빈",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042731521821",
+      "keeper_no": "YS-260427-003",
+      "keeper_id": "d8a3fcfc-fd83-412e-9f21-5d34a2056bcd",
+      "customer": "한인규",
+      "backup_items": 3,
+      "restore_count": 3,
+      "drop_count": 0,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042623864941",
+      "keeper_no": "YS-260427-020",
+      "keeper_id": "c59e903d-96c2-4a18-968a-d87a90d430b7",
+      "customer": "이정열",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041913109061",
+      "keeper_no": "YS-260420-057",
+      "keeper_id": "e36bdd4b-c71c-4655-a473-858664f159d9",
+      "customer": "차은희",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041992504261",
+      "keeper_no": "YS-260420-020",
+      "keeper_id": "9f5258b0-f1b3-499f-921c-4c1d14f5439f",
+      "customer": "이세형",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041913860871",
+      "keeper_no": "YS-260419-076",
+      "keeper_id": "6d266db0-40ac-4596-87eb-5bd6e8d9606b",
+      "customer": "이상화",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042622427701",
+      "keeper_no": "YS-260427-027",
+      "keeper_id": "6cc3073e-0057-4872-8d3a-109ae382765e",
+      "customer": "권기태",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042744034581",
+      "keeper_no": "YS-260427-062",
+      "keeper_id": "544315b6-8c0a-48d1-8702-7fef876319ea",
+      "customer": "김수연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042212419191",
+      "keeper_no": "YS-260422-029",
+      "keeper_id": "165b8fa1-9c44-4099-8fc5-d739cc90b51a",
+      "customer": "한동규",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042295873861",
+      "keeper_no": "YS-260422-040",
+      "keeper_id": "1e346d0a-528d-4422-ad80-94736aaae89d",
+      "customer": "김현아",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042336478991",
+      "keeper_no": "YS-260424-013",
+      "keeper_id": "2392536b-3486-489b-b363-ffe765330ae0",
+      "customer": "유성호",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042333354661",
+      "keeper_no": "YS-260424-021",
+      "keeper_id": "5a8614ec-ec00-4b84-a9bc-07d9a0f8689f",
+      "customer": "손지윤",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041886020631",
+      "keeper_no": "YS-260419-011",
+      "keeper_id": "4a21bfca-d22a-4bb0-85e8-2e9155ae4974",
+      "customer": "김수혁",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050156819481",
+      "keeper_no": "YS-260501-007",
+      "keeper_id": "e5900328-a151-44d9-ad9e-63c52faaf3e6",
+      "customer": "이희원",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042629259231",
+      "keeper_no": "YS-260427-007",
+      "keeper_id": "57471dda-b5ee-40dc-b9f8-f2aa8413cb96",
+      "customer": "박솔이",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042626992781",
+      "keeper_no": "YS-260427-015",
+      "keeper_id": "e87ab3de-190e-4df6-a9e8-4bc1c3d8a170",
+      "customer": "박재광",
+      "backup_items": 9,
+      "restore_count": 5,
+      "drop_count": 4,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042746346161",
+      "keeper_no": "YS-260427-059",
+      "keeper_id": "4203701e-d123-4080-8755-11597b7e638d",
+      "customer": "허지선",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042329987401",
+      "keeper_no": "YS-260424-028",
+      "keeper_id": "bd9ef622-86df-4415-b9e5-8ae8a6ab42c4",
+      "customer": "강은영",
+      "backup_items": 7,
+      "restore_count": 4,
+      "drop_count": 3,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042881470521",
+      "keeper_no": "YS-260428-023",
+      "keeper_id": "3da87962-c6cc-4730-9254-26e18a981d2f",
+      "customer": "권이현",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042164963511",
+      "keeper_no": "YS-260424-044",
+      "keeper_id": "04c2057b-8f29-4389-98d4-5cf27c328239",
+      "customer": "엄일준",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042163601481",
+      "keeper_no": "YS-260424-047",
+      "keeper_id": "fd19077c-4686-4821-92ef-4aef0276c5a9",
+      "customer": "이지나",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042874441171",
+      "keeper_no": "YS-260428-038",
+      "keeper_id": "261217e7-58e9-40d7-9be4-7ea1422c0319",
+      "customer": "홍문기",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042161363501",
+      "keeper_no": "YS-260424-050",
+      "keeper_id": "da3e264a-ffd2-403d-85b1-07eaa01c2191",
+      "customer": "김주성",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042874619171",
+      "keeper_no": "YS-260428-036",
+      "keeper_id": "8f8fa6fa-1ec4-4bfc-9ff3-25a028cfe0ed",
+      "customer": "김영미",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041596010301",
+      "keeper_no": "YS-260416-035",
+      "keeper_id": "28d45b48-0347-4585-b137-8a25794e27a0",
+      "customer": "박재경",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041594049611",
+      "keeper_no": "YS-260415-038",
+      "keeper_id": "f0fe1242-cd78-492c-97f1-0c68a1f714c8",
+      "customer": "박숙영",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042917239911",
+      "keeper_no": "YS-260429-031",
+      "keeper_id": "eab1ac48-8ce4-457e-aa64-3a8ea4aa4508",
+      "customer": "홍윤정",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042914213611",
+      "keeper_no": "YS-260429-037",
+      "keeper_id": "8ae13231-2c26-47af-9fcd-2a16e9d75b2e",
+      "customer": "박현화",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041872860741",
+      "keeper_no": "YS-260418-010",
+      "keeper_id": "ac39a240-7f4b-461d-bd4f-fad888aeab8c",
+      "customer": "강아름",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041747052351",
+      "keeper_no": "YS-260417-004",
+      "keeper_id": "1ae1a9c4-369a-46f7-bc07-6aaeaaab31ce",
+      "customer": "최호린",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026041474176631",
+      "keeper_no": "YS-260415-027",
+      "keeper_id": "db850148-e4d5-421c-9030-b87c633a74df",
+      "customer": "최진영",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026043042412761",
+      "keeper_no": "YS-260501-012",
+      "keeper_id": "b6f4ce0e-7e6d-4fcf-8f8a-55fccb948b7a",
+      "customer": "송영민",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042463999281",
+      "keeper_no": "YS-260424-074",
+      "keeper_id": "d4020a05-82db-454e-8402-a1e358de1c3c",
+      "customer": "(주)홍익덕원",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042468864621",
+      "keeper_no": "YS-260424-098",
+      "keeper_id": "681df4a6-0d0d-4685-b55a-e2693b6203ef",
+      "customer": "김효진",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042466926591",
+      "keeper_no": "YS-260424-108",
+      "keeper_id": "474250a5-f766-4cc8-b582-8bed4ba44d58",
+      "customer": "김율",
+      "backup_items": 2,
+      "restore_count": 2,
+      "drop_count": 0,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042469163591",
+      "keeper_no": "YS-260424-110",
+      "keeper_id": "fc0808c0-57dd-446b-ad70-956a0feb13d4",
+      "customer": "김덕용",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042585491181",
+      "keeper_no": "YS-260425-041",
+      "keeper_id": "18391116-d006-46d3-8c0b-5ac20e4d561a",
+      "customer": "이승준",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042864218351",
+      "keeper_no": "YS-260428-004",
+      "keeper_id": "616bb69b-0155-479e-a061-aa28395bd071",
+      "customer": "김무진",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042873118371",
+      "keeper_no": "YS-260428-044",
+      "keeper_id": "066b25b7-c3b0-42fc-ab9f-550f30c6bce5",
+      "customer": "강예림",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042919521431",
+      "keeper_no": "YS-260429-028",
+      "keeper_id": "6fac5dca-7be6-4850-80f7-4d36dba93c56",
+      "customer": "김경수",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042583942841",
+      "keeper_no": "YS-260425-045",
+      "keeper_id": "a8ea13c4-2785-4077-9121-b3e5d81102fa",
+      "customer": "이송",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042916869151",
+      "keeper_no": "YS-260429-034",
+      "keeper_id": "2deec12d-027c-4069-a14e-a6afdd5ffc8d",
+      "customer": "홍상원",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042593506501",
+      "keeper_no": "YS-260426-004",
+      "keeper_id": "de781a0f-f8d2-4419-84bb-30454e38b26a",
+      "customer": "김시연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042588740571",
+      "keeper_no": "YS-260426-015",
+      "keeper_id": "53560c2f-6990-43a2-a2eb-622fbab0e6e2",
+      "customer": "이지은",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050173107931",
+      "keeper_no": "YS-260502-002",
+      "keeper_id": "99f9ce0b-f7ce-44ea-ada8-a82815d17cf3",
+      "customer": "조민호",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042749508121",
+      "keeper_no": "YS-260428-010",
+      "keeper_id": "1982bdfe-7ad1-4bad-ace3-069b9bfe6027",
+      "customer": "우혜진",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026042875143211",
+      "keeper_no": "YS-260428-034",
+      "keeper_id": "b1e0d7ed-bd95-4915-83f5-0e61c916c7ca",
+      "customer": "조상현",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052022210971",
+      "keeper_no": "YS-260520-012",
+      "keeper_id": "a43499f1-bd18-4fd9-a75a-4d488dad820d",
+      "customer": "박지민",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052017480741",
+      "keeper_no": "YS-260520-014",
+      "keeper_id": "1e273002-5433-433a-a988-0386758dab34",
+      "customer": "진기선",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051992818671",
+      "keeper_no": "YS-260520-016",
+      "keeper_id": "7aa8001c-98e1-4e79-b3b6-eb31cb1f4dd6",
+      "customer": "김복주",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026051990170021",
+      "keeper_no": "YS-260520-018",
+      "keeper_id": "518d3ad6-ebe2-458d-8192-f040ea1770e7",
+      "customer": "이영주",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052023845501",
+      "keeper_no": "YS-260520-021",
+      "keeper_id": "efeacfb5-88b3-42c7-ac6e-387f16f05a8a",
+      "customer": "김종윤",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052147185441",
+      "keeper_no": "YS-260521-003",
+      "keeper_id": "4d491f48-5131-47ae-884f-ed600e7f5ca7",
+      "customer": "김린",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052040680611",
+      "keeper_no": "YS-260521-005",
+      "keeper_id": "b32cc780-cabd-4b12-a3e2-002a63ceeb74",
+      "customer": "김동희",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052036094621",
+      "keeper_no": "YS-260521-008",
+      "keeper_id": "f9759cbe-e3f4-4445-b5d2-6e075c381d73",
+      "customer": "김한성",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052034826991",
+      "keeper_no": "YS-260521-017",
+      "keeper_id": "e55e47e0-b042-4eb6-8d4a-7ec6dd328126",
+      "customer": "강서빈",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052160808151",
+      "keeper_no": "YS-260522-004",
+      "keeper_id": "19a979c1-b5a8-442e-889f-dd28622647c4",
+      "customer": "김순화",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052158267731",
+      "keeper_no": "YS-260522-006",
+      "keeper_id": "0adb2b6b-9bd4-439c-b1ab-d6ca69363a2b",
+      "customer": "하지연",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052277872341",
+      "keeper_no": "YS-260522-014",
+      "keeper_id": "652e4229-28d4-4216-b720-2de2371d2475",
+      "customer": "차은지",
+      "backup_items": 3,
+      "restore_count": 2,
+      "drop_count": 1,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052285313711",
+      "keeper_no": "YS-260522-016",
+      "keeper_id": "8d7c2740-3e38-48e9-b7fe-9aa682d666cb",
+      "customer": "문연희",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052282289921",
+      "keeper_no": "YS-260522-019",
+      "keeper_id": "9d754e61-2c95-4ac5-9d1d-f2d40432c43f",
+      "customer": "방승태",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026052271268341",
+      "keeper_no": "YS-N-260523-005",
+      "keeper_id": "be31b2ac-7151-4968-a416-a1bf74b8cd1f",
+      "customer": "강승희",
+      "backup_items": 5,
+      "restore_count": 3,
+      "drop_count": 2,
+      "status": "restore"
+    },
+    {
+      "ext": "2026050575916511",
+      "keeper_no": "YS-N-260524-002",
+      "status": "skip_alive",
+      "live_items": 1
+    },
+    {
+      "ext": "2026051160985481",
+      "keeper_no": "YS-N-260524-003",
+      "status": "skip_alive",
+      "live_items": 1
+    },
+    {
+      "ext": "2026051274809711",
+      "keeper_no": "YS-N-260524-004",
+      "status": "skip_alive",
+      "live_items": 1
+    },
+    {
+      "ext": "2026051315964231",
+      "keeper_no": "YS-N-260524-005",
+      "status": "skip_alive",
+      "live_items": 1
+    },
+    {
+      "ext": "2026051588171411",
+      "keeper_no": "YS-N-260524-006",
+      "status": "skip_alive",
+      "live_items": 1
+    },
+    {
+      "ext": "2026051586680111",
+      "keeper_no": "YS-N-260524-007",
+      "status": "skip_alive",
+      "live_items": 1
+    },
+    {
+      "ext": "2026051695001441",
+      "keeper_no": "YS-N-260524-008",
+      "status": "skip_alive",
+      "live_items": 2
+    },
+    {
+      "ext": "2026051618039281",
+      "keeper_no": "YS-N-260524-009",
+      "status": "skip_alive",
+      "live_items": 1
+    },
+    {
+      "ext": "2026051734296611",
+      "keeper_no": "YS-N-260524-010",
+      "status": "skip_alive",
+      "live_items": 2
+    },
+    {
+      "ext": "2026051851953021",
+      "keeper_no": "YS-N-260524-011",
+      "status": "skip_alive",
+      "live_items": 1
+    }
+  ]
+}

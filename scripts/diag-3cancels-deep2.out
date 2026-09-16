@@ -1,0 +1,48 @@
+task_changes 컬럼: id, task_id, tenant_id, change_type, before_data, after_data, note, changed_by, changed_by_name, changed_at
+
+==============================================================================================================
+[A/B/C] 각 task — full dump + task_changes + status_history
+==============================================================================================================
+
+[YS-260518-075] 김주연 | status=취소
+  scheduled=2026-05-20T23:30 | started=NULL | completed=NULL
+  created=2026-05-20T06:32:57 | updated=2026-05-26T15:02:48
+  external_order_no=2026051851249161 | product_price=100483
+  partial_reason=NULL | cancel_engineer_comp_kind=NULL | amount=0
+  task_changes: 0건
+  status_history: 1건
+    {"id":"c8670eb3-cd56-419a-9bfe-507e969c7c76","task_id":"81ec0a65-d16e-4e85-be0c-a5abc533ed93","changed_at":"2026-05-22T22:23:47.365799+00:00","changed_by":null,"from_status":"확정","to_status":"취소","note":null}
+  payments: 1건
+    eng=63027 | prin=15073 | own=22383 | settled=null | calc=usol_n_추가선택
+
+[YS-260517-027] 강인성 | status=취소
+  scheduled=2026-05-21T07:00 | started=NULL | completed=NULL
+  created=2026-05-20T06:32:57 | updated=2026-05-26T15:02:48
+  external_order_no=2026051721562531 | product_price=75928
+  partial_reason=NULL | cancel_engineer_comp_kind=NULL | amount=0
+  task_changes: 0건
+  status_history: 1건
+    {"id":"51b5e659-ab2a-47fb-8fad-282c834f8e8d","task_id":"6e6feba9-902b-402a-a956-46e5ca0f42dc","changed_at":"2026-05-22T22:23:47.365799+00:00","changed_by":null,"from_status":"확정","to_status":"취소","note":null}
+  payments: 1건
+    eng=52027 | prin=11390 | own=12511 | settled=null | calc=usol_n_추가선택
+
+[YS-260507-023] 이보배 | status=취소
+  scheduled=2026-05-15T04:00 | started=NULL | completed=2026-05-14T15:00
+  created=2026-05-20T06:34:53 | updated=2026-05-26T15:02:48
+  external_order_no=2026050734184791 | product_price=130700
+  partial_reason=NULL | cancel_engineer_comp_kind=NULL | amount=0
+  task_changes: 0건
+  status_history: 0건
+  payments: 1건
+    eng=96500 | prin=20014 | own=16916 | settled=null | calc=usol_n_본작업
+
+[YS-260514-056] 김민정 | status=취소
+  scheduled=2026-05-20T00:00 | started=NULL | completed=2026-05-19T15:00
+  created=2026-05-20T06:34:53 | updated=2026-05-26T15:02:48
+  external_order_no=2026051451044461 | product_price=0
+  partial_reason=NULL | cancel_engineer_comp_kind=none | amount=0
+  task_changes: 0건
+  status_history: 1건
+    {"id":"475a41be-dc13-43ea-b887-82f86c5d6e19","task_id":"d856eddd-8616-433b-963b-c8ade2b494f5","changed_at":"2026-05-25T12:13:52.601699+00:00","changed_by":null,"from_status":"완료","to_status":"취소","note":null}
+  payments: 1건
+    eng=0 | prin=0 | own=0 | settled=null | calc=취소_수고비

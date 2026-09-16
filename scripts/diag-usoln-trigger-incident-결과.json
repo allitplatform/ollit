@@ -1,0 +1,130 @@
+{
+  "generatedAt": "2026-05-24T22:26:28.738Z",
+  "coverage": {
+    "keepers": 335,
+    "itemsZero": 324,
+    "itemsAlive": 11,
+    "pmAlive": 335,
+    "pmMissing": 0,
+    "pmUnbalanced": 0,
+    "pmEqualsItemsSum": 11,
+    "catEmpty": 335,
+    "catHasWorkItems": 0
+  },
+  "samples": {
+    "itemsZero": [
+      {
+        "task_no": "YS-260516-091",
+        "customer": "송지혜",
+        "status": "확정",
+        "task_pp": 173387,
+        "cat_keys": [],
+        "pm": {
+          "pp": 173387,
+          "eng": 110000,
+          "prin": 26008,
+          "own": 37379,
+          "bal": true
+        }
+      },
+      {
+        "task_no": "YS-260517-041",
+        "customer": "김웅",
+        "status": "배정",
+        "task_pp": 81594,
+        "cat_keys": [],
+        "pm": {
+          "pp": 81594,
+          "eng": 47305,
+          "prin": 12240,
+          "own": 22049,
+          "bal": true
+        }
+      },
+      {
+        "task_no": "YS-260516-169",
+        "customer": "박정훈",
+        "status": "완료",
+        "task_pp": 75928,
+        "cat_keys": [],
+        "pm": {
+          "pp": 75928,
+          "eng": 52027,
+          "prin": 11390,
+          "own": 12511,
+          "bal": true
+        }
+      }
+    ],
+    "itemsAlive": [
+      {
+        "task_no": "YS-260424-089",
+        "customer": "래샤",
+        "status": "완료",
+        "items_count": 2,
+        "sum": 84900,
+        "task_pp": 84900,
+        "pm": {
+          "pp": 84900,
+          "eng": 63027,
+          "prin": 12735,
+          "own": 9138,
+          "bal": true
+        }
+      },
+      {
+        "task_no": "YS-N-260524-003",
+        "customer": "손동원",
+        "status": "완료",
+        "items_count": 1,
+        "sum": 161016,
+        "task_pp": 161016,
+        "pm": {
+          "pp": 161016,
+          "eng": 110000,
+          "prin": 24152,
+          "own": 26864,
+          "bal": true
+        }
+      },
+      {
+        "task_no": "YS-N-260524-005",
+        "customer": "이미경",
+        "status": "완료",
+        "items_count": 1,
+        "sum": 62858,
+        "task_pp": 62858,
+        "pm": {
+          "pp": 62858,
+          "eng": 44000,
+          "prin": 9429,
+          "own": 9429,
+          "bal": true
+        }
+      }
+    ],
+    "pmBalancedButItemsZero": [
+      {
+        "task_no": "YS-260516-091",
+        "customer": "송지혜",
+        "pm_pp": 173387,
+        "pm_sum": 173387,
+        "computed_at": "2026-05-24T21:39:17.894919+00:00"
+      },
+      {
+        "task_no": "YS-260517-041",
+        "customer": "김웅",
+        "pm_pp": 81594,
+        "pm_sum": 81594,
+        "computed_at": "2026-05-24T21:39:17.49347+00:00"
+      },
+      {
+        "task_no": "YS-260516-169",
+        "customer": "박정훈",
+        "pm_pp": 75928,
+        "pm_sum": 75928,
+        "computed_at": "2026-05-24T22:00:17.964332+00:00"
+      }
+    ]
+  }
+}

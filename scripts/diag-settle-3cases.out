@@ -1,0 +1,57 @@
+====================================================================================================
+[A] 이름으로 task 조회
+====================================================================================================
+
+  '이보배': 1건
+    YS-260507-023 | 이보배 | status=취소 | sched=2026-05-15 | done=2026-05-14 | eng_id=77777777 | product_price=130700 | partial=— | cancel_eng_comp=null(0)
+
+  '강인성': 1건
+    YS-260517-027 | 강인성 | status=취소 | sched=2026-05-21 | done=— | eng_id=77777777 | product_price=75928 | partial=— | cancel_eng_comp=null(0)
+
+  '김주연': 1건
+    YS-260518-075 | 김주연 | status=취소 | sched=2026-05-20 | done=— | eng_id=77777777 | product_price=100483 | partial=— | cancel_eng_comp=null(0)
+
+
+[김윤섭] user_id=77777777-7777-7777-7777-7777777e0008 code=E008
+
+====================================================================================================
+[C] YS-260427-061 (이경화 ICEL) — task + items
+====================================================================================================
+  task_no=YS-260427-061 | ICEL | status=완료
+  scheduled=2026-05-08T03:00:00+00:00 | completed=2026-05-07T15:00:00+00:00
+  external_order_no=2026042745362851
+  request_note=5/8 확정 (9시-5시) 사이에만 가능
+  product_price=240200 | total_amount=240200
+  assigned_engineer_id=77777777-7777-7777-7777-7777777e0008
+  address=서울특별시 마포구 양화로11길 42 (서교동, 팍스타) 4층
+  category_data.workItems=undefined
+
+  task_items: 1행
+    ─ work_type=세척_스탠드(clean_stand) | appliance=스탠드(stand) | order_type=본작업 | qty=2 | unit_price=113419 | subtotal=226838 | poid=2026042712761301 | metadata={"mig":"045","old_unit_price":50000}
+
+  [D] payments: 1건
+    ─ engineer=132000 | principal=34026 | owner=60812 | settled_at=null | calc_method=usol_n_본작업 | created=undefined | updated=undefined
+
+
+[E] 김윤섭 배정 작업 (이보배·강인성·김주연 매칭 확인용)
+  2026-05-14 | YS-260512-086 | 현승우 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-14 | YS-260512-073 | 함보민 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-15 | YS-260507-023 | 이보배 | status=취소 | partial=— | cancel_eng_comp=null(0) ★
+  2026-05-16 | YS-260512-063 | 강유미 | status=취소 | partial=— | cancel_eng_comp=null(0)
+  2026-05-17 | YS-260516-121 | 곽동우 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-18 | YS-260512-047 | 지윤경 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-18 | YS-260513-017 | 로이드손해사정법인 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-18 | YS-260515-101 | 박예진 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-18 | YS-260516-051 | 김자옥 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-19 | YS-260514-022 | 김정아 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-19 | YS-260515-003 | 이문주 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-20 | YS-260516-060 | 김수현 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-20 | YS-260517-038 | 김시하 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-20 | YS-260515-057 | 김승환 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-20 | YS-260518-075 | 김주연 | status=취소 | partial=— | cancel_eng_comp=null(0) ★
+  2026-05-21 | YS-260516-169 | 박정훈 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-21 | YS-260517-076 | 문선아 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-21 | YS-260517-027 | 강인성 | status=취소 | partial=— | cancel_eng_comp=null(0) ★
+  2026-05-22 | YS-260516-057 | 서지원 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-22 | YS-260516-120 | 김서현 | status=완료 | partial=— | cancel_eng_comp=null(0)
+  2026-05-22 | YS-260517-009 | 박사랑 | status=완료 | partial=— | cancel_eng_comp=null(0)
