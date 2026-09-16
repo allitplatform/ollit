@@ -1073,18 +1073,18 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
     if (j.ok) onSaved(j.advertiser); else setErr(j.error || "저장 실패");
   };
   const remove = async () => { if (!window.confirm(`${initial.name} 을(를) 목록에서 내릴까요? (데이터는 보존)`)) return; const j = await api("remove", { actor, post: { id: initial.id } }); if (j.ok) onSaved(null); };
-  const F = ({ label, k, type = "text", ph, hint }) => <Field t={t} label={label} type={type} value={f[k]} onChange={set(k)} ph={ph} hint={hint}/>;
+  // 주의: 폼 안에서 컴포넌트를 새로 정의하면 글자마다 입력칸이 재생성돼 포커스가 빠진다 → Field 를 직접 사용
   return (
     <Card t={t} title={initial ? `${initial.name} 설정` : "광고주 추가"} sub="네이버 광고시스템 → 도구 → API 사용 관리">
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <F label="광고주 이름" k="name" ph="쿨가이"/>
-        <F label="CUSTOMER_ID" k="customer_id" ph="3458080"/>
-        <F label="액세스라이선스 (API 키)" k="api_key" ph={initial ? "변경할 때만 입력" : "0100000000…"}/>
-        <F label="비밀키" k="api_secret" type="password" ph={initial ? "변경할 때만 입력" : "AQAAAA…"}/>
-        <F label="캠페인 필터" k="campaign_filter" ph="벌초" hint="이 글자가 이름에 있는 캠페인만 집계 (비우면 전체)"/>
-        <F label="접수 1건당 회사이익 (원)" k="margin_per_order" type="number" ph="52500" hint="비우면 판정선 없음. 입력하면 효율 50% / 상한 100% 자동"/>
-        <F label="효율 기준 (원/접수)" k="cpa_good" type="number" ph="자동"/>
-        <F label="상한 (원/접수)" k="cpa_limit" type="number" ph="자동"/>
+        <Field t={t} value={f.name} onChange={set("name")} label="광고주 이름"  ph="쿨가이"/>
+        <Field t={t} value={f.customer_id} onChange={set("customer_id")} label="CUSTOMER_ID"  ph="3458080"/>
+        <Field t={t} value={f.api_key} onChange={set("api_key")} label="액세스라이선스 (API 키)"  ph={initial ? "변경할 때만 입력" : "0100000000…"}/>
+        <Field t={t} value={f.api_secret} onChange={set("api_secret")} label="비밀키"  type="password" ph={initial ? "변경할 때만 입력" : "AQAAAA…"}/>
+        <Field t={t} value={f.campaign_filter} onChange={set("campaign_filter")} label="캠페인 필터"  ph="벌초" hint="이 글자가 이름에 있는 캠페인만 집계 (비우면 전체)"/>
+        <Field t={t} value={f.margin_per_order} onChange={set("margin_per_order")} label="접수 1건당 회사이익 (원)" type="number" ph="52500" hint="비우면 판정선 없음. 입력하면 효율 50% / 상한 100% 자동"/>
+        <Field t={t} value={f.cpa_good} onChange={set("cpa_good")} label="효율 기준 (원/접수)" type="number" ph="자동"/>
+        <Field t={t} value={f.cpa_limit} onChange={set("cpa_limit")} label="상한 (원/접수)" type="number" ph="자동"/>
       </div>
       <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
         <input type="checkbox" checked={f.show_keywords} onChange={set("show_keywords")}/> 광고주 화면에 키워드 표 노출 (2단계에서 사용)
@@ -1124,7 +1124,7 @@ function MiniStat({ t, label, value, suffix, accent }) {
     </div>
   );
 }
-function Field({ t, label, type, value, onChange, ph, hint }) {
+function Field({ t, label, type = "text", value, onChange, ph, hint }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 11.5, fontWeight: 700, color: t.textSecondary }}>
       {label}
