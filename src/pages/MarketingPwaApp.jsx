@@ -292,15 +292,15 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
       camps = todayRow.perCamp.map(p => ({ ...(nameById[p.campaign_id] || { id: p.campaign_id, name: p.campaign_id }), ...p })).sort((a, b) => b.cost - a.cost);
     }
     const alerts = [];
-    if (biz != null && bizDays != null && bizDays < 3) alerts.push({ level: "danger", text: `비즈머니 약 ${bizDays.toFixed(1)}일분 남음 (${won(Math.round(biz))}원) — 충전 필요` });
-    else if (biz != null && biz < 50000) alerts.push({ level: "danger", text: `비즈머니 ${won(Math.round(biz))}원 — 곧 광고 중단` });
+    const bizLow = biz != null && (biz <= 50000 || (bizDays != null && bizDays < 1));
+    if (bizLow) alerts.push({ level: "danger", text: `비즈머니 ${won(Math.round(biz))}원${bizDays != null ? ` (약 ${bizDays.toFixed(1)}일분)` : ""} — 곧 광고 중단, 충전 필요` });
     if (clickAlert) alerts.push({ level: "danger", text: `클릭 급증 의심 — 오늘 ${todayRow.clicks}클릭, 직전 평균 ${Math.round(avgClicks)}의 ${(todayRow.clicks / Math.max(avgClicks, 1)).toFixed(1)}배` });
     if (data.autobid?.last?.error) alerts.push({ level: "danger", text: `자동입찰 오류: ${data.autobid.last.error.slice(0, 80)}` });
     if (data.autobid?.enabled && data.autobid.last && Date.now() - new Date(data.autobid.last.at).getTime() > 2 * 3600 * 1000) alerts.push({ level: "warning", text: `자동입찰이 ${fmtAgo(data.autobid.last.at)} 이후 안 돌았습니다 — 스케줄 확인` });
     if (data.autobid?.enabled && data.cron_ready === false) alerts.push({ level: "warning", text: "서버 CRON_SECRET 미설정 — 자동입찰이 자동으로 돌지 않습니다" });
     if (data.ips?.new24h) alerts.push({ level: "warning", text: `최근 24시간 차단 IP ${data.ips.new24h}개 추가` });
     if (limit && per != null && per > limit) alerts.push({ level: "danger", text: `접수당 광고비 ${won(per)}원 — 상한 ${won(limit)}원 초과` });
-    return { alerts, yRow, isToday, costVat, sum, cpc, ctr, per, verdict, rank, leadTotal, days: rangeDays, allDays: days, biz, bizDays, avgDay, clickAlert, todayClicks: todayRow?.clicks || 0, avgClicks: Math.round(avgClicks), camps, logs: data.logs || [] };
+    return { alerts, bizLow, yRow, isToday, costVat, sum, cpc, ctr, per, verdict, rank, leadTotal, days: rangeDays, allDays: days, biz, bizDays, avgDay, clickAlert, todayClicks: todayRow?.clicks || 0, avgClicks: Math.round(avgClicks), camps, logs: data.logs || [] };
   }, [data, adv, period, until, t, owner]);
 
   const saveLead = async (ymd, leads, note) => {
@@ -639,9 +639,9 @@ function StatusBoard({ t, isPc, data, view, owner }) {
   const tiles = [];
   if (view.biz != null) {
     const d = view.bizDays;
-    const color = d == null ? t.textMuted : d < 3 ? t.danger : d < 7 ? t.warning : t.success;
+    const color = view.bizLow ? t.danger : d == null ? t.textMuted : d < 3 ? t.warning : t.success;
     tiles.push({ icon: "💰", title: owner ? "광고비 잔액" : "남은 광고비", value: `${won(Math.round(view.biz))}원`, color,
-      badge: d == null ? "집계 대기" : d < 3 ? "충전 필요" : d < 7 ? "여유 적음" : "충분",
+      badge: view.bizLow ? "충전 필요" : d == null ? "집계 대기" : d < 3 ? "여유 적음" : "충분",
       bar: d == null ? null : (d / 14) * 100, sub: d != null ? `하루 평균 ${won(view.avgDay)}원 씀 · 약 ${d.toFixed(1)}일분` : "하루 평균 지출 집계 후 표시" });
   }
   {
@@ -695,7 +695,7 @@ function ClientSummary({ t, adv, data, view, since, until }) {
     rows.push({ label: "접수 효율", text: `접수 ${won(view.leadTotal)}건 · 1건당 [[${won(view.per)}원]]${j ? ` → [[${j}]]` : ""}` });
   }
   const todo = [];
-  if (view.biz != null && view.bizDays != null && view.bizDays < 3) todo.push(`광고비 [[${view.bizDays.toFixed(1)}일분]] 남음 → [[충전]]`);
+  if (view.bizLow) todo.push(`광고비 [[${won(Math.round(view.biz))}원]] 남음 → [[충전]]`);
   if (view.costVat > 0 && !view.leadTotal) todo.push("아래 분홍 칸에 [[접수 건수 입력]]");
   if (todo.length) rows.push({ label: "해주실 일", text: todo.join("  /  "), accent: true });
   const did = [];
