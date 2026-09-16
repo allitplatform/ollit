@@ -348,7 +348,12 @@ async function getAdvByToken(token) {
   const { data } = await supabase.from("ad_advertisers").select("*").eq("client_token", token).eq("active", true).maybeSingle();
   return data || null;
 }
-// 접수 자동 집계 — lead_source 'inquiries:<service_type|all>' 이면 홈페이지 접수함에서 날짜별(KST) 건수를 세어 ad_leads 에 기록
+// 전화 접수 보강 — 홈페이지 폼(inquiries) 외에, 전화로 받아 tasks 로 바로 등록된 접수도 합산한다.
+// service_type → { workType(작업 종류), principalId(원청) }. 매핑된 광고주만 전화 접수를 더한다.
+// 홈페이지에서 전환된 tasks 는 '[홈페이지 접수' 메모가 있어 inquiries 와 중복되므로 제외한다.
+const PHONE_LEAD = { install: { workType: "설치", principalId: "22222222-2222-2222-2222-222222222001" } };
+
+// 접수 자동 집계 — lead_source 'inquiries:<service_type|all>' 이면 홈페이지 접수함(+매핑 시 전화 접수)에서 날짜별(KST) 건수를 세어 ad_leads 에 기록
 async function syncAutoLeads(adv, since, until) {
   const src = String(adv.lead_source || "");
   if (!src.startsWith("inquiries:")) return;
@@ -361,6 +366,22 @@ async function syncAutoLeads(adv, since, until) {
   const cnt = {};
   for (let i = 0; i <= daysBetween(since, until); i++) cnt[addDays(since, i)] = 0;
   for (const r of (data || [])) { const ymd = new Date(new Date(r.created_at).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10); if (ymd in cnt) cnt[ymd]++; }
+  // 전화 접수(tasks) 합산 — 매핑된 서비스만. 홈페이지 접수 메모가 있는 건은 inquiries 에서 이미 세었으므로 제외.
+  const pl = PHONE_LEAD[svc];
+  if (pl) {
+    const { data: tj, error: te } = await supabase.from("tasks")
+      .select("category_data,request_note,work_memo,happycall_memo,created_at")
+      .eq("principal_id", pl.principalId).gte("created_at", from).lt("created_at", to);
+    if (te) { console.error("[ad-hub] phone leads", te.message); }
+    for (const t of (tj || [])) {
+      const cd = t.category_data || {};
+      if (cd.workType !== pl.workType) continue;
+      const memo = String(t.request_note || "") + String(t.work_memo || "") + String(t.happycall_memo || "");
+      if (memo.includes("홈페이지 접수")) continue; // 중복 방지
+      const ymd = new Date(new Date(t.created_at).getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+      if (ymd in cnt) cnt[ymd]++;
+    }
+  }
   const rows = Object.entries(cnt).map(([ymd, n]) => ({ advertiser_id: adv.id, ymd, leads: n, entered_by: "auto", updated_at: new Date().toISOString() }));
   if (rows.length) await supabase.from("ad_leads").upsert(rows, { onConflict: "advertiser_id,ymd" });
 }
