@@ -350,24 +350,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
               <MiniStat t={t} label="클릭당 비용" value={won(view.cpc)} suffix="원"/>
               <MiniStat t={t} label="평균 순위" value={view.rank != null ? view.rank.toFixed(1) : "-"} suffix="위"/>
             </div>
-            <div style={{ marginTop: 10, paddingTop: 8, borderTop: `1px solid ${t.border}`, display: "flex", flexDirection: "column", gap: 4, fontSize: 10.5, fontWeight: 700 }}>
-              {view.biz != null && (
-                <div style={{ color: view.bizDays != null && view.bizDays < 3 ? t.danger : t.textMuted }}>
-                  💰 비즈머니 {won(Math.round(view.biz))}원{view.bizDays != null ? ` · 일평균 ${won(view.avgDay)}원 기준 약 ${view.bizDays.toFixed(1)}일분${view.bizDays < 3 ? " — 충전 필요" : ""}` : ""}
-                </div>
-              )}
-              <div style={{ color: view.clickAlert ? t.danger : t.textMuted }}>
-                {view.clickAlert ? `⚠ 클릭 급증 의심 — 오늘 ${view.todayClicks}클릭 (직전 평균 ${view.avgClicks}의 ${(view.todayClicks / Math.max(view.avgClicks, 1)).toFixed(1)}배)` : `🛡 클릭 감시 정상 — 오늘 ${view.todayClicks} · 직전 평균 ${view.avgClicks}`}
-              </div>
-              {data.ips && (
-                <div style={{ color: t.textMuted }}>🚫 차단 IP {data.ips.total}개{data.ips.new24h ? ` (24시간 내 +${data.ips.new24h})` : ""}{owner && data.ips.mobile ? ` · 모바일 공용대역 ${data.ips.mobile}개 주의` : ""}</div>
-              )}
-              <div style={{ color: data.autobid?.last?.error ? t.danger : t.textMuted }}>
-                {!data.autobid?.enabled ? "🤖 자동입찰 꺼짐" : data.autobid.last
-                  ? `🤖 자동입찰 ${data.autobid.groups}개 그룹 · 최근 ${fmtAgo(data.autobid.last.at)} — ${data.autobid.last.error ? "오류: " + data.autobid.last.error.slice(0, 60) : `${data.autobid.last.changed}개 조정 (↑${data.autobid.last.raised} ↓${data.autobid.last.lowered}) / 대상 ${data.autobid.last.alive}개`}`
-                  : `🤖 자동입찰 ${data.autobid.groups}개 그룹 켜짐 · 아직 실행 전`}
-              </div>
-            </div>
+            <StatusBoard t={t} isPc={isPc} data={data} view={view} owner={owner}/>
           </Card>
 
           <div style={{ display: "grid", gridTemplateColumns: isPc ? "1fr 1fr" : "1fr", gap: 12 }}>
@@ -467,6 +450,65 @@ function KeywordTable({ t, isPc, adv, actor, actorName, owner, since, until, onC
         </div>
       )}
     </Card>
+  );
+}
+
+// ---------- 상태 보드 (성과 카드 하단 4칸) ----------
+// 비즈머니 / 클릭 감시 / IP 차단 / 자동입찰 — 문장 대신 색 배지 + 게이지.
+function StatusTile({ t, icon, title, value, badge, color, sub, bar }) {
+  return (
+    <div style={{ background: t.bgInset, borderRadius: 10, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 10.5, color: t.textMuted, fontWeight: 700 }}>
+        <span>{icon}</span><span style={{ flex: 1 }}>{title}</span>
+        {badge && <span style={{ fontSize: 9.5, fontWeight: 800, color, background: `${color}22`, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>{badge}</span>}
+      </div>
+      <div className="mono" style={{ fontSize: 16, fontWeight: 900, lineHeight: 1.1, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</div>
+      {bar != null && (
+        <div style={{ height: 5, borderRadius: 999, background: t.borderStrong, overflow: "hidden" }}>
+          <div style={{ width: `${Math.max(3, Math.min(100, bar))}%`, height: "100%", background: color, borderRadius: 999, transition: "width .3s" }}/>
+        </div>
+      )}
+      {sub && <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+    </div>
+  );
+}
+function StatusBoard({ t, isPc, data, view, owner }) {
+  const tiles = [];
+  if (view.biz != null) {
+    const d = view.bizDays;
+    const color = d == null ? t.textMuted : d < 3 ? t.danger : d < 7 ? t.warning : t.success;
+    tiles.push({ icon: "💰", title: "광고비 잔액", value: `${won(Math.round(view.biz))}원`, color,
+      badge: d == null ? "집계 대기" : d < 3 ? "충전 필요" : d < 7 ? "여유 적음" : "충분",
+      bar: d == null ? null : (d / 14) * 100, sub: d != null ? `일평균 ${won(view.avgDay)}원 · 약 ${d.toFixed(1)}일분` : "일평균 지출 집계 후 표시" });
+  }
+  {
+    const ratio = view.avgClicks > 0 ? view.todayClicks / view.avgClicks : 0;
+    const color = view.clickAlert ? t.danger : t.success;
+    tiles.push({ icon: "🛡", title: "클릭 감시", value: `오늘 ${won(view.todayClicks)}클릭`, color,
+      badge: view.clickAlert ? `급증 ${ratio.toFixed(1)}배` : "정상", bar: view.avgClicks > 0 ? (ratio / 2.5) * 100 : 0,
+      sub: view.avgClicks > 0 ? `직전 7일 평균 ${won(view.avgClicks)}클릭 · 2.5배 넘으면 경보` : "비교할 이전 데이터 없음" });
+  }
+  if (data.ips) {
+    const color = data.ips.new24h ? t.warning : t.success;
+    tiles.push({ icon: "🚫", title: "IP 차단", value: `${won(data.ips.total)}개`, color,
+      badge: data.ips.new24h ? `24시간 +${data.ips.new24h}` : "보호 중", bar: (data.ips.total / data.ips.limit) * 100,
+      sub: owner && data.ips.mobile ? `모바일 공용대역 ${data.ips.mobile}개 주의 · 한도 ${data.ips.limit}` : `차단 IP 에는 광고 미노출 · 한도 ${data.ips.limit}개` });
+  }
+  {
+    const ab = data.autobid, last = ab?.last, care = data.care || {};
+    const stale = last && Date.now() - new Date(last.at).getTime() > 2 * 3600 * 1000;
+    const color = !ab?.enabled ? t.textMuted : last?.error ? t.danger : stale ? t.warning : last ? t.success : t.warning;
+    tiles.push({ icon: "🤖", title: "자동입찰", color,
+      value: !ab?.enabled ? "꺼짐" : last ? `${fmtAgo(last.at)} 점검` : `${ab.groups}개 그룹 대기`,
+      badge: !ab?.enabled ? "미사용" : last?.error ? "오류" : stale ? "지연" : last ? "가동 중" : "첫 실행 전",
+      bar: ab?.enabled ? (last ? 100 : 30) : 0,
+      sub: !ab?.enabled ? (owner ? "자동입찰 메뉴에서 그룹을 켜세요" : "담당자 설정 전") : last?.error ? last.error.slice(0, 50)
+        : last ? `오늘 ${won(care.checks_today || 0)}회 점검 · ${care.adjusted_today ? `${won(care.adjusted_today)}건 조정` : "조정 불필요"} · 감시 ${won(last.alive)}개` : `${ab.groups}개 그룹 · 30분 간격` });
+  }
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}`, display: "grid", gridTemplateColumns: `repeat(${isPc ? 4 : 2}, minmax(0, 1fr))`, gap: 8 }}>
+      {tiles.map((x, i) => <StatusTile key={i} t={t} {...x}/>)}
+    </div>
   );
 }
 
