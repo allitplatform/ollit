@@ -1057,7 +1057,7 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
     name: initial?.name || "", slug: initial?.slug || "", customer_id: initial?.customer_id || "",
     api_key: "", api_secret: "", campaign_filter: initial?.campaign_filter || "",
     margin_per_order: initial?.margin_per_order ?? "", cpa_good: initial?.cpa_good ?? "", cpa_limit: initial?.cpa_limit ?? "",
-    show_keywords: !!initial?.show_keywords, memo: initial?.memo || "",
+    show_keywords: !!initial?.show_keywords, memo: initial?.memo || "", use_env: false,
   }));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -1087,7 +1087,10 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
         <Field t={t} value={f.cpa_limit} onChange={set("cpa_limit")} label="상한 (원/접수)" type="number" ph="자동"/>
       </div>
       <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
-        <input type="checkbox" checked={f.show_keywords} onChange={set("show_keywords")}/> 광고주 화면에 키워드 표 노출 (2단계에서 사용)
+        <input type="checkbox" checked={f.use_env} onChange={set("use_env")}/> 서버에 저장된 올데이 키 사용 (NAVER_AD_* 환경변수 — 키·비밀키·CUSTOMER_ID 칸 비워도 됨)
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
+        <input type="checkbox" checked={f.show_keywords} onChange={set("show_keywords")}/> 광고주 화면에 키워드 표 노출
       </label>
       <label style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 8, fontSize: 11.5, fontWeight: 700, color: t.textSecondary }}>메모
         <textarea className="mkt-input" rows={2} value={f.memo} onChange={set("memo")} style={{ ...inputStyle(t), resize: "vertical" }} placeholder="계약 조건, 담당자, 주의사항"/>
