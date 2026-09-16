@@ -55,9 +55,9 @@ function fmtAgo(iso) {
   return `${Math.floor(m / 1440)}일 전`;
 }
 function fmtKst(iso) { if (!iso) return "-"; const d = new Date(new Date(iso).getTime() + 9 * 3600 * 1000); return d.toISOString().slice(5, 16).replace("T", " "); }
-function useTheme() {
-  const [mode, setMode] = useState(() => { try { return localStorage.getItem("mkt_theme") === "light" ? "light" : "dark"; } catch { return "dark"; } });
-  const toggle = () => { const n = mode === "dark" ? "light" : "dark"; setMode(n); try { localStorage.setItem("mkt_theme", n); } catch { /* */ } };
+function useTheme(key = "mkt_theme", def = "dark") {
+  const [mode, setMode] = useState(() => { try { const v = localStorage.getItem(key); return v === "light" || v === "dark" ? v : def; } catch { return def; } });
+  const toggle = () => { const n = mode === "dark" ? "light" : "dark"; setMode(n); try { localStorage.setItem(key, n); } catch { /* */ } };
   return { mode, t: THEMES[mode], toggle };
 }
 function useIsPc() {
@@ -200,7 +200,7 @@ function MarketingHub({ user, onLogout }) {
 
 // ===================== 광고주 열람 화면 (/mkt/c/<token>) =====================
 export function ClientAdView({ token }) {
-  const { mode, t, toggle } = useTheme();
+  const { mode, t, toggle } = useTheme("mkt_client_theme", "light"); // 광고주 화면은 흰 배경 기본 (가독성)
   const isPc = useIsPc();
   const [info, setInfo] = useState(null);
   const [err, setErr] = useState(null);
@@ -211,11 +211,11 @@ export function ClientAdView({ token }) {
   return (
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text, fontFamily: "'Pretendard', sans-serif", paddingTop: "env(safe-area-inset-top, 0px)" }}>
       <style>{STYLE}</style>
-      <div style={{ maxWidth: isPc ? 980 : 420, margin: "0 auto", minHeight: "100vh", paddingBottom: 40 }}>
+      <div style={{ maxWidth: isPc ? 980 : 420, margin: "0 auto", minHeight: "100vh", paddingBottom: 40, zoom: 1.15 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: `1px solid ${t.border}`, background: t.bgElevated, position: "sticky", top: 0, zIndex: 10 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>📈 {info?.name || "광고"} 광고 현황</div>
-            <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginTop: 1 }}>올잇 마케팅 · 네이버 검색광고 실시간</div>
+            <div style={{ fontSize: 17, fontWeight: 800 }}>📈 {info?.name || "광고"} 광고 현황</div>
+            <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, marginTop: 1 }}>올잇 마케팅이 관리하는 네이버 광고 · 실시간</div>
           </div>
           <button onClick={toggle} className="tab-btn" aria-label="테마 전환" style={iconBtn(t)}>{mode === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button>
         </div>
@@ -318,7 +318,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
         {owner && <button onClick={onEdit} className="tab-btn" aria-label="설정" style={{ ...iconBtn(t), border: `1px solid ${t.border}`, borderRadius: 10, padding: 8 }}><Settings size={14}/></button>}
       </div>
       <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600, marginTop: -6 }}>
-        {period === "today" ? `${until} (오늘)` : `${since} ~ ${until}`} · KST · 5분마다 갱신{loading ? " · 조회 중…" : ""}
+        {period === "today" ? `${until} (오늘)` : `${since} ~ ${until}`}{owner ? " · KST · 5분마다 갱신" : " · 5분마다 자동 새로고침"}{loading ? " · 조회 중…" : ""}
       </div>
       {view && view.alerts.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -348,11 +348,11 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
               <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 800, color: view.verdict.color, background: `${view.verdict.color}1F`, borderRadius: 999, padding: "4px 11px" }}>{view.verdict.label}</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 5 : 3}, minmax(0, 1fr))`, gap: 8 }}>
-              <MiniStat t={t} label="광고비(VAT포함)" value={won(view.costVat)} suffix="원" accent/>
-              <MiniStat t={t} label="클릭" value={won(view.sum.clicks)}/>
+              <MiniStat t={t} label={owner ? "광고비(VAT포함)" : "쓴 광고비 (부가세 포함)"} value={won(view.costVat)} suffix="원" accent/>
+              <MiniStat t={t} label={owner ? "클릭" : "광고 클릭"} value={won(view.sum.clicks)} suffix={owner ? "" : "명"}/>
               <MiniStat t={t} label="접수" value={won(view.leadTotal || view.sum.conv)}/>
-              <MiniStat t={t} label="클릭당 비용" value={won(view.cpc)} suffix="원"/>
-              <MiniStat t={t} label="평균 순위" value={view.rank != null ? view.rank.toFixed(1) : "-"} suffix="위"/>
+              <MiniStat t={t} label={owner ? "클릭당 비용" : "클릭 1회 비용"} value={won(view.cpc)} suffix="원"/>
+              <MiniStat t={t} label={owner ? "평균 순위" : "노출 순위"} value={view.rank != null ? view.rank.toFixed(1) : "-"} suffix="위"/>
             </div>
             <StatusBoard t={t} isPc={isPc} data={data} view={view} owner={owner}/>
           </Card>
@@ -640,22 +640,22 @@ function StatusBoard({ t, isPc, data, view, owner }) {
   if (view.biz != null) {
     const d = view.bizDays;
     const color = d == null ? t.textMuted : d < 3 ? t.danger : d < 7 ? t.warning : t.success;
-    tiles.push({ icon: "💰", title: "광고비 잔액", value: `${won(Math.round(view.biz))}원`, color,
+    tiles.push({ icon: "💰", title: owner ? "광고비 잔액" : "남은 광고비", value: `${won(Math.round(view.biz))}원`, color,
       badge: d == null ? "집계 대기" : d < 3 ? "충전 필요" : d < 7 ? "여유 적음" : "충분",
-      bar: d == null ? null : (d / 14) * 100, sub: d != null ? `일평균 ${won(view.avgDay)}원 · 약 ${d.toFixed(1)}일분` : "일평균 지출 집계 후 표시" });
+      bar: d == null ? null : (d / 14) * 100, sub: d != null ? `하루 평균 ${won(view.avgDay)}원 씀 · 약 ${d.toFixed(1)}일분` : "하루 평균 지출 집계 후 표시" });
   }
   {
     const ratio = view.avgClicks > 0 ? view.todayClicks / view.avgClicks : 0;
     const color = view.clickAlert ? t.danger : t.success;
     tiles.push({ icon: "🛡", title: "클릭 감시", value: `오늘 ${won(view.todayClicks)}클릭`, color,
       badge: view.clickAlert ? `급증 ${ratio.toFixed(1)}배` : "정상", bar: view.avgClicks > 0 ? (ratio / 2.5) * 100 : 0,
-      sub: view.avgClicks > 0 ? `직전 7일 평균 ${won(view.avgClicks)}클릭 · 2.5배 넘으면 경보` : "비교할 이전 데이터 없음" });
+      sub: view.avgClicks > 0 ? (owner ? `직전 7일 평균 ${won(view.avgClicks)}클릭 · 2.5배 넘으면 경보` : `평소 하루 ${won(view.avgClicks)}클릭 · 갑자기 늘면 경보`) : "비교할 이전 데이터 없음" });
   }
   if (data.ips) {
     const color = data.ips.new24h ? t.warning : t.success;
-    tiles.push({ icon: "🚫", title: "IP 차단", value: `${won(data.ips.total)}개`, color,
+    tiles.push({ icon: "🚫", title: owner ? "IP 차단" : "부정클릭 차단", value: `${won(data.ips.total)}개`, color,
       badge: data.ips.new24h ? `24시간 +${data.ips.new24h}` : "보호 중", bar: (data.ips.total / data.ips.limit) * 100,
-      sub: owner && data.ips.mobile ? `모바일 공용대역 ${data.ips.mobile}개 주의 · 한도 ${data.ips.limit}` : `차단 IP 에는 광고 미노출 · 한도 ${data.ips.limit}개` });
+      sub: owner ? (data.ips.mobile ? `모바일 공용대역 ${data.ips.mobile}개 주의 · 한도 ${data.ips.limit}` : `차단 IP 에는 광고 미노출 · 한도 ${data.ips.limit}개`) : "차단된 곳에는 광고가 안 보입니다" });
   }
   {
     const ab = data.autobid, last = ab?.last, care = data.care || {};
@@ -666,7 +666,7 @@ function StatusBoard({ t, isPc, data, view, owner }) {
       badge: !ab?.enabled ? "미사용" : last?.error ? "오류" : stale ? "지연" : last ? "가동 중" : "첫 실행 전",
       bar: ab?.enabled ? (last ? 100 : 30) : 0,
       sub: !ab?.enabled ? (owner ? "자동입찰 메뉴에서 그룹을 켜세요" : "담당자 설정 전") : last?.error ? last.error.slice(0, 50)
-        : last ? `오늘 ${won(care.checks_today || 0)}회 점검 · ${care.adjusted_today ? `${won(care.adjusted_today)}건 조정` : "조정 불필요"} · 감시 ${won(last.alive)}개` : `${ab.groups}개 그룹 · 30분 간격` });
+        : last ? `오늘 ${won(care.checks_today || 0)}회 점검 · ${care.adjusted_today ? `${won(care.adjusted_today)}건 조정` : "조정 불필요"} · ${owner ? "감시" : "관리 중"} ${won(last.alive)}개` : `${ab.groups}개 그룹 · 30분 간격` });
   }
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}`, display: "grid", gridTemplateColumns: `repeat(${isPc ? 4 : 2}, minmax(0, 1fr))`, gap: 8 }}>
@@ -688,7 +688,7 @@ function ClientSummary({ t, adv, data, view, since, until }) {
   const lines = [];
   const per = view.isToday ? "오늘" : `${since.slice(5).replace("-", "/")}~${until.slice(5).replace("-", "/")}`;
   if (view.sum.clicks > 0) {
-    lines.push(`${per} 광고비 [[${won(view.costVat)}원]](VAT 포함)으로 [[${won(view.sum.clicks)}명]]이 광고를 클릭해 들어왔습니다. 클릭 한 번에 평균 ${won(view.cpc)}원이 들었고, 검색 결과에서 [[평균 ${view.rank != null ? view.rank.toFixed(1) : "-"}위]]에 노출되고 있습니다.`);
+    lines.push(`${per} 광고비 [[${won(view.costVat)}원]](부가세 포함)으로 [[${won(view.sum.clicks)}명]]이 광고를 클릭해 들어왔습니다. 클릭 한 번에 평균 ${won(view.cpc)}원이 들었고, 검색 결과에서 [[평균 ${view.rank != null ? view.rank.toFixed(1) : "-"}위]]에 노출되고 있습니다.`);
   } else {
     lines.push(`${per} 아직 집계된 클릭이 없습니다. 네이버 집계는 실제보다 1~2시간 늦게 반영됩니다.`);
   }
@@ -733,7 +733,7 @@ function CareCard({ t, isPc, data, view }) {
           <>
             <MiniStat t={t} label="오늘 점검" value={won(c.checks_today)} suffix="회" accent/>
             <MiniStat t={t} label="오늘 입찰 조정" value={c.adjusted_today ? won(c.adjusted_today) : "불필요"} suffix={c.adjusted_today ? "건" : ""}/>
-            <MiniStat t={t} label="감시 키워드" value={won(c.watched || 0)} suffix="개"/>
+            <MiniStat t={t} label="관리 중인 키워드" value={won(c.watched || 0)} suffix="개"/>
           </>
         ) : (
           <>
@@ -742,7 +742,7 @@ function CareCard({ t, isPc, data, view }) {
             <MiniStat t={t} label="자동 점검 그룹" value={won(data.autobid?.groups || 0)} suffix="개"/>
           </>
         )}
-        <MiniStat t={t} label="이번 주 운영 작업" value={c.ops_week ? won(c.ops_week) : "집계 중"} suffix={c.ops_week ? "건" : ""}/>
+        <MiniStat t={t} label="이번 주 담당자 작업" value={c.ops_week ? won(c.ops_week) : "집계 중"} suffix={c.ops_week ? "건" : ""}/>
       </div>
     </Card>
   );
