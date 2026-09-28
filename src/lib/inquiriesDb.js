@@ -29,6 +29,31 @@ export function serviceLabel(code) {
   return SERVICE_LABEL[code] || code || "미정";
 }
 
+// 2026-09-28 — 입주청소 랜딩(public/ipju.html) 접수 판별.
+//   service_type 은 허용 목록 때문에 'unknown' 으로 들어오고, 입주청소 구분은 source 로만 한다.
+//   source 형식: ipju_landing_top/32py/new/2026-11-05  (평수 0py · 주택상태 na · 날짜 nodate 는 미입력)
+export function isIpjuSource(source) {
+  return String(source || "").startsWith("ipju_landing");
+}
+const IPJU_HOUSE = { new: "신축", old: "구축", etc: "상태 모름" };
+// → "32평 · 신축 · 희망일 11/5" (입력 안 된 항목은 생략). 입주청소 접수가 아니면 "".
+export function ipjuDetail(source) {
+  if (!isIpjuSource(source)) return "";
+  const [, py = "", house = "", date = ""] = String(source).split("/");
+  const out = [];
+  const pyNum = parseInt(py, 10);
+  if (pyNum > 0) out.push(pyNum + "평");
+  if (IPJU_HOUSE[house]) out.push(IPJU_HOUSE[house]);
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
+  if (m) out.push("희망일 " + Number(m[1]) + "/" + Number(m[2]));
+  return out.join(" · ");
+}
+// 접수함·전환 메모에 쓰는 희망 서비스 라벨 — 입주청소 랜딩은 service_type 과 관계없이 "입주청소".
+export function inquiryServiceLabel(row) {
+  if (row && isIpjuSource(row.source)) return "입주청소";
+  return serviceLabel(row && row.service_type);
+}
+
 // service_type 코드 → ServiceTypeIcon 의 workType (startsWith 매칭용).
 //   "분해세척" → "세척" / "수리·누설수리" → "수리" 등으로 짧게 통일.
 //   ⚠️ getServiceKind 의 _kindFromServiceCode 는 cleaning/refrigerant/install/leak 만 매핑 —
