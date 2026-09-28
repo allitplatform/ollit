@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# Higgsfield(recraft_v4_1)로 생성한 원본 사진 7장을 내려받아 photos/*.jpg 로 저장
+# Higgsfield("올데이케어 입주청소 랜딩" 프로젝트)에서 생성한 원본 사진 7장을 내려받아 photos/*.jpg 로 저장
 set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p photos
 B=https://d8j0ntlcm91z4.cloudfront.net/user_3IAAqaDreZjJLcTAHJGbYVemZLk
 declare -A SRC=(
-  [p1_hero]=hf_20260928_111855_1dfb9ca3-2e92-4281-838a-a815be29c3e8
-  [p2_dust]=hf_20260928_111822_8765d818-2a35-43c2-a249-f1671c824fe0
-  [p3_living]=hf_20260928_111823_38e1f124-c768-436e-9b72-4dbd66f0841c
-  [p4_kitchen]=hf_20260928_111841_82eee872-6a24-438e-86cb-ef0a707b22a9
-  [p5_bath]=hf_20260928_111822_266be951-9010-4b9e-b0c7-3436c524d6dc
-  [p6_window]=hf_20260928_111822_21084af8-4fe2-4490-afe9-78d471dfabda
-  [p7_entry]=hf_20260928_111822_45e65fbc-d2a9-4e19-9f24-8097d4cba817
+  [p1_hero]=hf_20260928_114031_cfd91a08-3448-4f66-a0d1-f5cc52fd39f2
+  [p2_dust]=hf_20260928_114032_3a84662a-b2ba-44b5-ba69-e83a79623758
+  [p3_living]=hf_20260928_114031_9aa71ece-6fde-4af8-b867-27f71040f1c9
+  [p4_kitchen]=hf_20260928_114031_44a857c8-a08a-4dc4-8883-db624f38a267
+  [p5_bath]=hf_20260928_114031_b589094c-9f4b-4a76-8c01-e1f7ed13458b
+  [p6_window]=hf_20260928_114055_febbdc97-4c2c-4929-85f5-f31ca6f085a5
+  [p7_entry]=hf_20260928_114031_0408ddf6-299d-4246-a385-200f926282fe
 )
 for name in "${!SRC[@]}"; do
   if [ -f "photos/$name.jpg" ]; then echo "skip $name"; continue; fi
