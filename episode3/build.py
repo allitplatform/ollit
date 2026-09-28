@@ -16,6 +16,7 @@ XFADE = 0.3        # crossfade between cuts (seconds)
 VOICE_DELAY = 0.3  # voice starts this long after its cut starts
 BGM_VOLUME = 0.25
 BGM_FADE = 2.0
+VOICE_LEVEL = -18.0  # every voice line is brought to this mean level (dB) so no line is buried
 FONT = "DejaVu Sans"
 
 LINES = {
@@ -38,6 +39,12 @@ def duration(path):
         return int(re.findall(r"frame=\s*(\d+)", err)[-1]) / 24
     h, m, s = re.findall(r"time=(\d+):(\d+):([\d.]+)", err)[-1]
     return int(h) * 3600 + int(m) * 60 + float(s)
+
+
+def mean_volume(path):
+    err = subprocess.run(["ffmpeg", "-hide_banner", "-i", path, "-af", "volumedetect", "-f", "null", "-"],
+                         capture_output=True, text=True).stderr
+    return float(re.findall(r"mean_volume: ([-\d.]+) dB", err)[-1])
 
 
 def ass_time(t):
@@ -106,7 +113,9 @@ def build(cuts, out, w, h, crop, ass_path, sub_size, sub_margin):
     mix = []
     for i, (c, s, v0, v1) in enumerate(timing):
         ms = int(round(v0 * 1000))
-        fc.append(f"[{n + i}:a]aresample=44100,aformat=channel_layouts=stereo,adelay={ms}|{ms}[a{i}]")
+        gain = VOICE_LEVEL - mean_volume(f"voice_{c:02d}.mp3")
+        fc.append(f"[{n + i}:a]aresample=44100,aformat=channel_layouts=stereo,volume={gain:.1f}dB,"
+                  f"adelay={ms}|{ms}[a{i}]")
         mix.append(f"[a{i}]")
     if has_bgm:
         fc.append(f"[{2 * n}:a]aresample=44100,aformat=channel_layouts=stereo,atrim=0:{total:.3f},"
@@ -114,7 +123,7 @@ def build(cuts, out, w, h, crop, ass_path, sub_size, sub_margin):
                   f"afade=t=out:st={total - BGM_FADE:.3f}:d={BGM_FADE}[bgm]")
         mix.append("[bgm]")
     fc.append(f"{''.join(mix)}amix=inputs={len(mix)}:normalize=0:duration=longest,"
-              f"apad,atrim=0:{total:.3f}[aout]")
+              f"alimiter=limit=0.95,apad,atrim=0:{total:.3f}[aout]")
 
     args += ["-filter_complex", ";".join(fc), "-map", "[vout]", "-map", "[aout]",
              "-t", f"{total:.3f}", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
