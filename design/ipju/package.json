@@ -1,0 +1,14 @@
+{
+  "name": "ipju-sections",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "photos": "bash fetch_photos.sh",
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.56.1",
+    "pretendard": "1.3.9",
+    "sharp": "0.34.4"
+  }
+}

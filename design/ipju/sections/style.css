@@ -1,0 +1,114 @@
+@import url("/node_modules/pretendard/dist/web/static/pretendard.css");
+
+:root {
+  --blue: #1B4FBF;
+  --sky: #5B8DE8;
+  --ink: #101013;
+  --white: #FFFFFF;
+  --pale: #F3F6FC;
+  --soft-blue: #9EBCF5;
+  --soft-blue-2: #CFE0FF;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 1000px;
+  background: var(--white);
+  font-family: "Pretendard", sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+}
+
+.sec { position: relative; width: 1000px; overflow: hidden; text-align: center; }
+.pad { padding: 0 80px; }
+
+/* 뱃지 */
+.badge {
+  display: inline-block;
+  padding: 14px 34px;
+  border-radius: 999px;
+  background: var(--blue);
+  color: var(--white);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.badge.line { background: transparent; border: 3px solid var(--blue); color: var(--blue); }
+.badge.onblue { background: var(--white); color: var(--blue); }
+
+/* 제목 · 본문 */
+.title {
+  font-size: 76px;
+  font-weight: 900;
+  line-height: 1.22;
+  letter-spacing: -0.045em;
+}
+.title .hl { color: var(--blue); }
+.desc {
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: -0.03em;
+  color: rgba(16, 16, 19, 0.72);
+}
+
+/* 기울어진 파란 스티커 */
+.sticker {
+  display: inline-block;
+  padding: 22px 40px;
+  background: var(--blue);
+  color: var(--white);
+  border: 3px solid var(--ink);
+  box-shadow: 6px 6px 0 var(--ink);
+  font-size: 36px;
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  transform: rotate(-3deg);
+}
+
+/* 섹션 경계 그라데이션 */
+.fade { position: absolute; left: 0; width: 100%; height: 160px; pointer-events: none; z-index: 5; }
+.fade.top { top: 0; }
+.fade.bottom { bottom: 0; }
+
+/* 선 아이콘 */
+.ico { width: 64px; height: 64px; fill: none; stroke: var(--blue); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+
+/* 구역 카드 (S4, S5 공통) */
+.zone {
+  margin: 0 auto 64px;
+  width: 840px;
+  background: var(--white);
+  border: 3px solid var(--ink);
+  border-radius: 36px;
+  box-shadow: 8px 8px 0 var(--ink);
+  overflow: hidden;
+  text-align: left;
+}
+.zone img { display: block; width: 100%; height: 480px; object-fit: cover; }
+.zone .body { padding: 44px 48px 52px; }
+.zone .head { display: flex; align-items: center; gap: 22px; margin-bottom: 30px; }
+.zone .num {
+  flex: none;
+  width: 76px; height: 76px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: var(--white);
+  font-size: 32px; font-weight: 900;
+  display: flex; align-items: center; justify-content: center;
+  letter-spacing: -0.02em;
+}
+.zone h3 { font-size: 52px; font-weight: 900; letter-spacing: -0.04em; }
+.chips { display: flex; flex-wrap: wrap; gap: 14px; }
+.chip {
+  padding: 14px 24px;
+  border-radius: 999px;
+  background: var(--pale);
+  border: 2px solid rgba(27, 79, 191, 0.18);
+  color: var(--ink);
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}

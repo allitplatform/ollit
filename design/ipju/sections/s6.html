@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+  .s6 { background: var(--pale); padding: 220px 0 120px; }
+  .s6 .fade.top { background: linear-gradient(180deg, #FFFFFF 0%, rgba(243,246,252,0) 100%); height: 170px; }
+  .s6 .title { margin-top: 36px; }
+  .s6 .steps { position: relative; margin: 80px auto 0; width: 800px; text-align: left; }
+  .s6 .steps::before { content: ""; position: absolute; left: 47px; top: 48px; bottom: 60px; width: 4px; background: var(--blue); border-radius: 2px; }
+  .s6 .step { position: relative; display: flex; gap: 40px; align-items: flex-start; padding-bottom: 56px; }
+  .s6 .step:last-child { padding-bottom: 0; }
+  .s6 .dot {
+    flex: none; width: 98px; height: 98px; border-radius: 50%;
+    background: var(--white); border: 4px solid var(--blue); color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 42px; font-weight: 900; position: relative; z-index: 1;
+  }
+  .s6 .step:last-child .dot { background: var(--blue); color: var(--white); box-shadow: 6px 6px 0 var(--ink); }
+  .s6 .txt { padding-top: 8px; }
+  .s6 .txt h4 { font-size: 44px; font-weight: 900; letter-spacing: -0.04em; }
+  .s6 .txt p { margin-top: 10px; font-size: 32px; font-weight: 500; line-height: 1.5; letter-spacing: -0.03em; color: rgba(16,16,19,0.72); }
+</style></head>
+<body>
+<section class="sec s6">
+  <div class="fade top"></div>
+  <div class="pad">
+    <span class="badge">진행 순서</span>
+    <h2 class="title">접수부터 입주까지<br><span class="hl">5단계</span></h2>
+  </div>
+  <div class="steps">
+    <div class="step"><span class="dot">1</span><div class="txt"><h4>간편 접수</h4><p>평수 · 날짜 · 지역만 남겨주세요</p></div></div>
+    <div class="step"><span class="dot">2</span><div class="txt"><h4>확인 전화 · 일정 확정</h4><p>금액을 문자로 먼저 보내드립니다</p></div></div>
+    <div class="step"><span class="dot">3</span><div class="txt"><h4>작업 전 사진</h4><p>도착하면 구역별 상태부터 기록합니다</p></div></div>
+    <div class="step"><span class="dot">4</span><div class="txt"><h4>구역별 청소</h4><p>체크리스트 순서대로 진행합니다</p></div></div>
+    <div class="step"><span class="dot">5</span><div class="txt"><h4>고객 검수 후 결제</h4><p>직접 둘러보시고 확인하신 뒤 결제합니다</p></div></div>
+  </div>
+</section>
+</body></html>

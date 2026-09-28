@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+  .s3 { background: var(--ink); color: var(--white); padding: 230px 0 250px; }
+  .s3 .fade.top { background: linear-gradient(180deg, #FFFFFF 0%, rgba(255,255,255,0) 100%); height: 170px; }
+  .s3 .fade.bottom { background: linear-gradient(180deg, rgba(255,255,255,0) 0%, #FFFFFF 100%); height: 170px; }
+  .s3 .badge { background: var(--sky); }
+  .s3 .title { margin-top: 36px; color: var(--white); }
+  .s3 .title .accent { color: var(--soft-blue); }
+  .s3 .price { margin-top: 70px; }
+  .s3 .price small { display: block; font-size: 40px; font-weight: 800; color: var(--soft-blue); letter-spacing: -0.02em; }
+  .s3 .price .big { display: inline-flex; align-items: baseline; gap: 8px; margin-top: 6px; }
+  .s3 .price .big b { font-size: 180px; font-weight: 900; line-height: 1; letter-spacing: -0.06em; }
+  .s3 .price .big span { font-size: 72px; font-weight: 900; }
+  .s3 .cards { margin: 70px auto 0; width: 840px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .s3 .card {
+    background: var(--white); color: var(--ink); border-radius: 28px; padding: 34px 10px 38px;
+    border: 3px solid var(--white); box-shadow: 6px 6px 0 var(--blue);
+  }
+  .s3 .card span { display: block; font-size: 32px; font-weight: 700; color: rgba(16,16,19,0.6); letter-spacing: -0.02em; }
+  .s3 .card b { display: block; margin-top: 8px; font-size: 52px; font-weight: 900; color: var(--blue); letter-spacing: -0.05em; }
+  .s3 .vat { margin-top: 22px; font-size: 28px; font-weight: 500; color: rgba(255,255,255,0.55); }
+  .s3 .table { margin: 70px auto 0; width: 840px; border-radius: 28px; overflow: hidden; border: 2px solid rgba(255,255,255,0.22); text-align: left; }
+  .s3 .row { display: grid; grid-template-columns: 200px 1fr; }
+  .s3 .row + .row { border-top: 2px solid rgba(255,255,255,0.22); }
+  .s3 .row .k { background: var(--blue); padding: 34px 0; font-size: 32px; font-weight: 900; text-align: center; display: flex; align-items: center; justify-content: center; letter-spacing: -0.03em; }
+  .s3 .row.opt .k { background: rgba(255,255,255,0.12); }
+  .s3 .row .v { padding: 32px 34px; font-size: 30px; font-weight: 500; line-height: 1.6; letter-spacing: -0.03em; }
+  .s3 .row .v em { display: block; font-style: normal; margin-top: 6px; font-size: 28px; color: var(--soft-blue); }
+</style></head>
+<body>
+<section class="sec s3">
+  <div class="fade top"></div>
+  <div class="pad">
+    <span class="badge">가격</span>
+    <h2 class="title">복잡한 견적표 없이<br><span class="accent">평수 × 10,000원</span></h2>
+    <div class="price">
+      <small>평당</small>
+      <div class="big"><b>10,000</b><span>원</span></div>
+    </div>
+  </div>
+  <div class="cards">
+    <div class="card"><span>24평</span><b>24만원</b></div>
+    <div class="card"><span>32평</span><b>32만원</b></div>
+    <div class="card"><span>45평</span><b>45만원</b></div>
+  </div>
+  <p class="vat">VAT 별도</p>
+  <div class="table">
+    <div class="row"><div class="k">기본 포함</div><div class="v">거실 · 방 · 주방 · 욕실 · 베란다 · 현관 · 창틀 레일 · 수납장 안쪽 · 공사 잔여물 제거</div></div>
+    <div class="row opt"><div class="k">옵션 별도</div><div class="v">새집증후군 시공 · 줄눈 · 탄성코트 · 외부 유리창<em>(원하실 때만, 작업 전에 금액 안내)</em></div></div>
+  </div>
+  <div class="fade bottom"></div>
+</section>
+</body></html>

@@ -1,0 +1,4 @@
+node_modules/
+out_placeholder/
+photos_placeholder/
+photos/*.png
