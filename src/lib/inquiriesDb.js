@@ -31,21 +31,25 @@ export function serviceLabel(code) {
 
 // 2026-09-28 — 입주청소 랜딩(public/ipju.html) 접수 판별.
 //   service_type 은 허용 목록 때문에 'unknown' 으로 들어오고, 입주청소 구분은 source 로만 한다.
-//   source 형식: ipju_landing_top/32py/new/2026-11-05  (평수 0py · 주택상태 na · 날짜 nodate 는 미입력)
+//   source 형식: ipju_landing_top/32py/new/2026-11-05/am  (평수 0py · 주택상태 na · 날짜 nodate · 시간대 any 는 미입력)
+//   2026-09-28 — 5번째 칸(시간대) 추가. 예전 4칸 형식 접수도 그대로 풀림.
 export function isIpjuSource(source) {
   return String(source || "").startsWith("ipju_landing");
 }
 const IPJU_HOUSE = { new: "신축", old: "구축", etc: "상태 모름" };
-// → "32평 · 신축 · 희망일 11/5" (입력 안 된 항목은 생략). 입주청소 접수가 아니면 "".
+const IPJU_TIME  = { am: "오전", pm: "오후" };
+// → "32평 · 신축 · 희망일 11/5 오전" (입력 안 된 항목은 생략). 입주청소 접수가 아니면 "".
 export function ipjuDetail(source) {
   if (!isIpjuSource(source)) return "";
-  const [, py = "", house = "", date = ""] = String(source).split("/");
+  const [, py = "", house = "", date = "", time = ""] = String(source).split("/");
   const out = [];
   const pyNum = parseInt(py, 10);
   if (pyNum > 0) out.push(pyNum + "평");
   if (IPJU_HOUSE[house]) out.push(IPJU_HOUSE[house]);
   const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
-  if (m) out.push("희망일 " + Number(m[1]) + "/" + Number(m[2]));
+  const tm = IPJU_TIME[time] || "";
+  if (m) out.push("희망일 " + Number(m[1]) + "/" + Number(m[2]) + (tm ? " " + tm : ""));
+  else if (tm) out.push("희망 " + tm);
   return out.join(" · ");
 }
 // 접수함·전환 메모에 쓰는 희망 서비스 라벨 — 입주청소 랜딩은 service_type 과 관계없이 "입주청소".

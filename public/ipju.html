@@ -121,6 +121,11 @@ footer b{color:#4A5263}
         <div class="f"><label>분양 평수</label><input name="py" type="number" inputmode="numeric" min="10" max="99" placeholder="32"></div>
       </div>
       <div class="f"><label>연락처</label><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000"></div>
+      <div class="f2">
+        <div class="f"><label>희망 날짜</label><input name="date" type="date"></div>
+        <div class="f"><label>시간대</label>
+          <select name="time"><option value="am">오전</option><option value="pm">오후</option><option value="any">상관없음</option></select></div>
+      </div>
       <div class="f"><label>지역 (아파트명까지)</label><input name="addr" placeholder="예) 고양시 삼송동 ○○아파트"></div>
       <label class="agree"><input type="checkbox" name="agree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
       <button class="btn" type="submit">무료 견적 접수하기 <span class="arr">→</span></button>
@@ -162,9 +167,11 @@ footer b{color:#4A5263}
       <div class="f"><label>연락처</label><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000"></div>
       <div class="f2">
         <div class="f"><label>희망 날짜</label><input name="date" type="date"></div>
-        <div class="f"><label>주택 상태</label>
-          <select name="type"><option value="new">신축</option><option value="old">구축</option><option value="etc">모름</option></select></div>
+        <div class="f"><label>시간대</label>
+          <select name="time"><option value="am">오전</option><option value="pm">오후</option><option value="any">상관없음</option></select></div>
       </div>
+      <div class="f"><label>주택 상태</label>
+        <select name="type"><option value="new">신축</option><option value="old">구축</option><option value="etc">모름</option></select></div>
       <div class="f"><label>지역 (아파트명까지)</label><input name="addr" placeholder="예) 고양시 삼송동 ○○아파트"></div>
       <label class="agree"><input type="checkbox" name="agree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
       <button class="btn" type="submit">무료 견적 접수하기 <span class="arr">→</span></button>
@@ -234,12 +241,13 @@ document.querySelectorAll('.lead-form').forEach((form,idx)=>{
     e.preventDefault();
     const name=q('name').value.trim(), phone=q('phone').value.replace(/\D/g,''), addr=q('addr').value.trim();
     const py=q('py').value.trim(), date=q('date')?q('date').value:'', type=q('type')?q('type').value:'na';
+    const time=q('time')?q('time').value:'any';
     if(!name) return show('성함을 적어주세요');
     if(phone.length<10) return show('연락처를 확인해주세요');
     if(!addr) return show('지역을 적어주세요');
     if(!q('agree').checked) return show('개인정보 수집·이용에 동의해주세요');
     btn.disabled=true; btn.textContent='접수 중…';
-    const source=['ipju_landing'+(idx===0?'_top':'_bottom'),(py||'0')+'py',type,date||'nodate'].join('/');
+    const source=['ipju_landing'+(idx===0?'_top':'_bottom'),(py||'0')+'py',type,date||'nodate',time].join('/');
     const base={p_service_type:'unknown',p_name:name,p_phone:phone,p_address:addr,p_agreed_privacy:true};
     try{
       let r=await rpc('create_inquiry_v2',{...base,p_source:source});
