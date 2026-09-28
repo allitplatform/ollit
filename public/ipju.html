@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>올데이케어 입주청소 | 평당 10,000원 전국 입주청소</title>
+<meta name="description" content="신축·구축 입주청소 평당 10,000원. 공사 분진부터 창틀 레일까지 구역별 체크리스트로 청소합니다. 1866-2003">
+<meta name="robots" content="noindex">
+<meta property="og:title" content="올데이케어 입주청소 — 평당 10,000원">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{--blue:#5B8DE8;--deep:#1B4FBF;--ink:#101013;--line:#E3E8F2;--sub:#5A6272}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Pretendard,-apple-system,'Noto Sans KR',sans-serif;color:var(--ink);background:#E9EEF7;overflow-x:clip;word-break:keep-all}
+.wrap{max-width:1000px;margin:0 auto;background:#fff;padding-bottom:84px;box-shadow:0 0 40px rgba(16,16,19,.08)}
+a{color:inherit;text-decoration:none}
+
+.top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.96);display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line)}
+.logo{font-weight:900;font-size:19px;color:var(--deep)}
+.logo span{color:var(--ink);font-weight:700;font-size:13px;margin-left:6px}
+.top-tel{font-weight:800;color:var(--deep);font-size:16px}
+
+/* 통이미지 섹션: 여백 없이 이어 붙임 */
+.sec{display:block;width:100%;line-height:0;position:relative}
+.sec img{width:100%;height:auto;display:block}
+.sec .ph-label{display:none}
+.sec.missing{aspect-ratio:2/3;background:linear-gradient(135deg,#DCE6FA,#F3F6FC);line-height:1.6}
+.sec.missing img{display:none}
+.sec.missing .ph-label{display:flex;position:absolute;inset:0;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:14px;color:#7C8699}
+
+/* 전화 띠 (클린앤제이 tel 배너 자리) */
+.tel-band{display:flex;align-items:center;justify-content:center;gap:14px;background:var(--deep);color:#fff;padding:22px 16px;text-align:center}
+.tel-band small{display:block;font-size:14px;opacity:.85}
+.tel-band b{font-size:30px;font-weight:900;letter-spacing:-1px}
+.tel-band .ico{width:52px;height:52px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 52px}
+
+/* 접수 폼 */
+.apply{background:#F3F6FC;padding:44px 20px 50px}
+.card{max-width:520px;margin:0 auto;background:#fff;border-radius:18px;padding:26px 22px;border:1px solid var(--line);box-shadow:0 10px 30px rgba(27,79,191,.08)}
+.card h3{font-size:22px;font-weight:900;letter-spacing:-.5px}
+.card .hint{font-size:14px;color:var(--sub);margin-top:6px}
+.f{margin-top:12px}
+.f label{display:block;font-size:13.5px;font-weight:700;margin-bottom:6px}
+.f input,.f select{width:100%;height:50px;border:1.5px solid var(--line);border-radius:12px;padding:0 14px;font-size:16px;font-family:inherit;background:#fff}
+.f input:focus,.f select:focus{outline:none;border-color:var(--blue)}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.agree{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13.5px;color:var(--sub)}
+.agree input{width:20px;height:20px;accent-color:var(--deep)}
+.agree a{text-decoration:underline}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;height:56px;border:0;border-radius:14px;background:var(--deep);color:#fff;font-size:17px;font-weight:800;font-family:inherit;margin-top:16px;cursor:pointer}
+.btn:disabled{opacity:.6}
+.msg{display:none;margin-top:12px;padding:14px;border-radius:12px;font-size:14px;line-height:1.55}
+.msg.ok{display:block;background:#E8EFFD;color:var(--deep);font-weight:700}
+.msg.err{display:block;background:#FDECEC;color:#B42318}
+
+footer{padding:28px 22px 36px;font-size:12px;color:#8A93A5;line-height:1.75;border-top:1px solid var(--line)}
+footer b{color:#4A5263}
+
+.fixed{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:1000px;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);border-top:1px solid var(--line);z-index:40}
+.fixed a{height:52px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15.5px}
+.fixed .call{background:var(--deep);color:#fff}
+.fixed .go{background:#fff;color:var(--deep);border:2px solid var(--deep)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="logo">올데이케어<span>입주청소</span></div>
+  <a class="top-tel" href="tel:18662003">☎ 1866-2003</a>
+</header>
+
+<!-- 이미지 파일: public/img/ipju/s1.jpg ~ s8.jpg (가로 1000px 이상, 세로 자유) -->
+<div class="sec" data-img="img/ipju/s1.jpg" data-alt="새집의 첫 먼지, 저희가 먼저 들어가서 치웁니다. 평당 10,000원" data-label="S1 히어로"></div>
+<a class="tel-band" href="tel:18662003">
+  <span class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="#1B4FBF"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
+  <span><small>누르면 바로 연결 · 전국 상담</small><b>1866-2003</b></span>
+</a>
+<div class="sec" data-img="img/ipju/s2.jpg" data-alt="새 아파트가 제일 먼지가 많은 집입니다. 시멘트 가루, 실리콘, 페인트, 배수구 잔여물" data-label="S2 알고 계셨나요"></div>
+<div class="sec" data-img="img/ipju/s3.jpg" data-alt="평당 10,000원. 24평 24만원, 32평 32만원, 45평 45만원. VAT 별도" data-label="S3 가격"></div>
+<a class="tel-band" href="#apply">
+  <span class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1B4FBF" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+  <span><small>평수 · 날짜만 남기면 10분 안에 전화</small><b>무료 견적 접수</b></span>
+</a>
+<div class="sec" data-img="img/ipju/s4.jpg" data-alt="구역별 청소 범위 1: 거실, 방, 주방" data-label="S4 구역별 1 (거실·방·주방)"></div>
+<div class="sec" data-img="img/ipju/s5.jpg" data-alt="구역별 청소 범위 2: 욕실, 창틀, 베란다, 현관" data-label="S5 구역별 2 (욕실·창틀·현관)"></div>
+<div class="sec" data-img="img/ipju/s6.jpg" data-alt="접수부터 입주까지 5단계" data-label="S6 진행 5단계"></div>
+<a class="tel-band" href="tel:18662003">
+  <span class="ico"><svg width="26" height="26" viewBox="0 0 24 24" fill="#1B4FBF"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
+  <span><small>주말 · 손 없는 날은 빨리 찹니다</small><b>1866-2003</b></span>
+</a>
+<div class="sec" data-img="img/ipju/s7.jpg" data-alt="올데이케어의 약속: 추가금은 작업 전에만, 전후 사진 보고, 검수 확인 후 결제" data-label="S7 약속 3가지"></div>
+<div class="sec" data-img="img/ipju/s8.jpg" data-alt="입주 날짜가 정해졌다면 지금 자리부터 잡으세요" data-label="S8 마지막 CTA"></div>
+
+<!-- 접수 폼 (이미지로 만들 수 없는 유일한 부분) -->
+<section class="apply" id="apply">
+  <div class="card">
+    <h3>무료 견적 접수</h3>
+    <p class="hint">접수 후 10분 안에 확인 전화를 드립니다</p>
+    <form id="form" novalidate>
+      <div class="f2">
+        <div class="f"><label for="fName">성함</label><input id="fName" autocomplete="name" placeholder="홍길동"></div>
+        <div class="f"><label for="fPy">분양 평수</label><input id="fPy" type="number" inputmode="numeric" min="10" max="99" placeholder="32"></div>
+      </div>
+      <div class="f"><label for="fPhone">연락처</label><input id="fPhone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000"></div>
+      <div class="f2">
+        <div class="f"><label for="fDate">희망 날짜</label><input id="fDate" type="date"></div>
+        <div class="f"><label for="fType">주택 상태</label>
+          <select id="fType"><option value="new">신축</option><option value="old">구축</option><option value="etc">모름</option></select></div>
+      </div>
+      <div class="f"><label for="fAddr">지역 (아파트명까지)</label><input id="fAddr" placeholder="예) 고양시 삼송동 ○○아파트"></div>
+      <label class="agree"><input type="checkbox" id="fAgree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
+      <button class="btn" type="submit" id="submitBtn">무료 견적 접수하기 →</button>
+      <div class="msg" id="msg"></div>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <b>올데이케어</b> · 사업자등록번호 430-07-03167 · 대표번호 1866-2003<br>
+  <a href="/privacy">개인정보처리방침</a> · 블로그 <a href="https://blog.naver.com/alldaycare365">blog.naver.com/alldaycare365</a><br>
+  일부 이미지는 이해를 돕기 위한 연출 이미지입니다.
+</footer>
+
+<nav class="fixed">
+  <a class="call" href="tel:18662003">☎ 1866-2003</a>
+  <a class="go" href="#apply">무료 견적 접수</a>
+</nav>
+</div>
+
+<script>
+/* ===== 설정: leak.html 의 값과 동일하게 채울 것 ===== */
+const SB_URL = 'https://jtxmzgqykmjyzzsnjqio.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eG16Z3F5a21qeXp6c25qcWlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjQ2MDYsImV4cCI6MjA5MzEwMDYwNn0.v07Gsm2vUx0Gs6r5EqMZvzOVHt2btIipt5a6tnsGFS4';
+
+/* 통이미지: 첫 장은 즉시, 나머지는 지연 로딩. 파일 없으면 안내 라벨 */
+document.querySelectorAll('.sec[data-img]').forEach((el,i)=>{
+  const img=new Image(); img.alt=el.dataset.alt||''; img.decoding='async';
+  if(i>0) img.loading='lazy';
+  const lb=document.createElement('div'); lb.className='ph-label'; lb.textContent=el.dataset.label+' — '+el.dataset.img;
+  img.onerror=()=>el.classList.add('missing');
+  img.src=el.dataset.img; el.appendChild(img); el.appendChild(lb);
+});
+
+const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+fDate.min=d.toISOString().slice(0,10);
+fPhone.addEventListener('input',()=>{let v=fPhone.value.replace(/\D/g,'').slice(0,11);
+  fPhone.value=v.length<4?v:v.length<8?v.slice(0,3)+'-'+v.slice(3):v.slice(0,3)+'-'+v.slice(3,v.length-4)+'-'+v.slice(-4);});
+
+/* 접수: create_inquiry_v2 → 404면 create_inquiry 폴백
+   service_type 은 허용 목록(mig 197)의 'unknown', 입주청소 구분은 source */
+async function rpc(fn,body){
+  return fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify(body)});
+}
+const msg=document.getElementById('msg'), btn=document.getElementById('submitBtn');
+function show(t,ok){msg.className='msg '+(ok?'ok':'err'); msg.innerHTML=t;}
+form.addEventListener('submit',async e=>{
+  e.preventDefault();
+  const name=fName.value.trim(), phone=fPhone.value.replace(/\D/g,''), addr=fAddr.value.trim(), py=fPy.value.trim();
+  if(!name) return show('성함을 적어주세요');
+  if(phone.length<10) return show('연락처를 확인해주세요');
+  if(!addr) return show('지역을 적어주세요');
+  if(!fAgree.checked) return show('개인정보 수집·이용에 동의해주세요');
+  btn.disabled=true; btn.textContent='접수 중…';
+  const source=['ipju_landing',(py||'0')+'py',fType.value,fDate.value||'nodate'].join('/');
+  const base={p_service_type:'unknown',p_name:name,p_phone:phone,p_address:addr,p_agreed_privacy:true};
+  try{
+    let r=await rpc('create_inquiry_v2',{...base,p_source:source});
+    if(r.status===404) r=await rpc('create_inquiry',base);
+    if(!r.ok) throw new Error(await r.text());
+    form.querySelectorAll('input,select').forEach(i=>i.disabled=true);
+    btn.textContent='접수 완료';
+    show('접수되었습니다. 10분 안에 확인 전화를 드립니다.',true);
+    if(window.gtag) gtag('event','generate_lead',{source:'ipju_landing'});
+  }catch(err){
+    btn.disabled=false; btn.textContent='무료 견적 접수하기 →';
+    show('접수가 되지 않았습니다. <a href="tel:18662003" style="text-decoration:underline">1866-2003</a> 으로 전화 주세요.');
+  }
+});
+</script>
+</body>
+</html>
