@@ -86,3 +86,7 @@ _stg*
 *.mp4
 *.jpg
 *.jpeg
+# 입주청소 랜딩 통이미지 · 작업용 원본 사진
+!public/img/ipju/*.jpg
+!design/ipju/photos/*.jpg
+!design/ipju/preview_all.jpg
