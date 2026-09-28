@@ -1,0 +1,20 @@
+Mongle Cloud Crew - voice settings (reuse the same values from episode 4)
+Model: Higgsfield Seed Audio 1.0 (model id: seed_audio), voice_type: preset, format: mp3
+After generation: trim leading/trailing silence and shorten gaps between words to 0.25s or less (ffmpeg silenceremove, -45dB)
+
+Character | Voice name | voice_id                              | pitch_rate | speech_rate
+----------|------------|---------------------------------------|------------|------------
+Beepo     | Benji      | e6f9b893-51b1-51d3-afe9-9e0482cb7ac1  | +3         | +5
+Koko      | Pixie      | 0178ef57-ada4-43d9-992b-8d9221045bb4  | +2         | 0
+Mongle    | Cody       | 1ffcdbb3-078b-5491-959d-359e3021e917  | +5         | -10
+Narrator  | Emily      | 6b3e3642-f7b7-4cb8-9688-51e233c4b92f  | 0          | 0
+
+Episode 3 lines
+voice_01  Beepo     Beep beep! What a nice day!
+voice_02  Beepo     Oh no! I'm stuck!
+voice_03  Koko      Don't worry, Beepo! We're coming!
+voice_04  Mongle    Hmm... it's too heavy!
+voice_05  Narrator  Let's push together! One, two, three!
+voice_06  Beepo     I'm free! Thank you, friends!
+voice_07  Koko      Hehe! Splash splash!   (TTS input: "Hee hee! Splash, splash!" - the original spelling dropped "Splash splash")
+voice_08  Narrator  Even helpers need help sometimes! See you next time!
