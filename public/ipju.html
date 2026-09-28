@@ -124,7 +124,7 @@ footer b{color:#4A5263}
       <div class="f2">
         <div class="f"><label>희망 날짜</label><input name="date" type="date"></div>
         <div class="f"><label>시간대</label>
-          <select name="time"><option value="am">오전</option><option value="pm">오후</option><option value="any">상관없음</option></select></div>
+          <select name="time"><option value="">시간대 선택</option><option value="am">오전</option><option value="pm">오후</option><option value="any">상관없음</option></select></div>
       </div>
       <div class="f"><label>지역 (아파트명까지)</label><input name="addr" placeholder="예) 고양시 삼송동 ○○아파트"></div>
       <label class="agree"><input type="checkbox" name="agree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
@@ -168,7 +168,7 @@ footer b{color:#4A5263}
       <div class="f2">
         <div class="f"><label>희망 날짜</label><input name="date" type="date"></div>
         <div class="f"><label>시간대</label>
-          <select name="time"><option value="am">오전</option><option value="pm">오후</option><option value="any">상관없음</option></select></div>
+          <select name="time"><option value="">시간대 선택</option><option value="am">오전</option><option value="pm">오후</option><option value="any">상관없음</option></select></div>
       </div>
       <div class="f"><label>주택 상태</label>
         <select name="type"><option value="new">신축</option><option value="old">구축</option><option value="etc">모름</option></select></div>
@@ -241,7 +241,7 @@ document.querySelectorAll('.lead-form').forEach((form,idx)=>{
     e.preventDefault();
     const name=q('name').value.trim(), phone=q('phone').value.replace(/\D/g,''), addr=q('addr').value.trim();
     const py=q('py').value.trim(), date=q('date')?q('date').value:'', type=q('type')?q('type').value:'na';
-    const time=q('time')?q('time').value:'any';
+    const time=(q('time')&&q('time').value)||'any';
     if(!name) return show('성함을 적어주세요');
     if(phone.length<10) return show('연락처를 확인해주세요');
     if(!addr) return show('지역을 적어주세요');
