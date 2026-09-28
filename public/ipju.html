@@ -241,7 +241,9 @@ document.querySelectorAll('.lead-form').forEach((form,idx)=>{
     e.preventDefault();
     const name=q('name').value.trim(), phone=q('phone').value.replace(/\D/g,''), addr=q('addr').value.trim();
     const py=q('py').value.trim(), date=q('date')?q('date').value:'', type=q('type')?q('type').value:'na';
-    const time=(q('time')&&q('time').value)||'any';
+    // 시간대: am / pm / any 만 허용. 선택 안 함·빈 값·그 밖의 값은 모두 any
+    const tv=q('time')?String(q('time').value||'').trim():'';
+    const time=(tv==='am'||tv==='pm'||tv==='any')?tv:'any';
     if(!name) return show('성함을 적어주세요');
     if(phone.length<10) return show('연락처를 확인해주세요');
     if(!addr) return show('지역을 적어주세요');
