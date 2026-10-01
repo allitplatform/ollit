@@ -2,12 +2,22 @@
   "name": "올잇 마케팅",
   "short_name": "올잇마케팅",
   "description": "올잇 마케팅 광고주 관제판",
+  "id": "/mkt",
+  "scope": "/mkt",
   "start_url": "/mkt",
   "display": "standalone",
   "background_color": "#0A0A0A",
   "theme_color": "#0A0A0A",
   "icons": [
-    { "src": "/icon-ads-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "/icon-ads-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
