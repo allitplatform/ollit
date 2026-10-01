@@ -93,16 +93,16 @@ const CAMP_TYPE = { WEB_SITE: "파워링크", POWER_CONTENTS: "파워컨텐츠",
 const campType = (c) => CAMP_TYPE[c?.campaignTp] || c?.campaignTp || "기타";
 
 async function statsFor(nv, ids, since, until) {
-  // 전환 필드 미지원 계정은 기본 필드로 재시도
+  // 노출·클릭·비용은 기본 필드로만 받는다 — 전환 필드(ccnt)를 섞어 물으면 네이버가 추천·콘텐츠 지면 실적을 빼고 주는 경우가 있었다(10/1 입주청소: 화면 273클릭 vs 허브 4클릭).
+  // 전환 수는 따로 물어서 같은 id에 합친다. 전환 조회가 실패해도 기본 숫자는 그대로 쓴다.
   const tr = encodeURIComponent(JSON.stringify({ since, until }));
+  const r = await nv.get("/stats", `${idsQs(ids)}&fields=${encodeURIComponent(FIELDS_BASE)}&timeRange=${tr}`);
+  const base = r?.data || [];
   try {
-    const r = await nv.get("/stats", `${idsQs(ids)}&fields=${encodeURIComponent(FIELDS)}&timeRange=${tr}`);
-    return r?.data || [];
-  } catch (e) {
-    if (e.status !== 400) throw e;
-    const r = await nv.get("/stats", `${idsQs(ids)}&fields=${encodeURIComponent(FIELDS_BASE)}&timeRange=${tr}`);
-    return r?.data || [];
-  }
+    const c = await nv.get("/stats", `${idsQs(ids)}&fields=${encodeURIComponent(JSON.stringify(["ccnt"]))}&timeRange=${tr}`);
+    const conv = Object.fromEntries((c?.data || []).map(x => [x.id, x.ccnt]));
+    return base.map(x => ({ ...x, ccnt: conv[x.id] ?? 0 }));
+  } catch { return base; }
 }
 const row = (r) => ({
   impressions: Number(r?.impCnt || 0), clicks: Number(r?.clkCnt || 0), cost: Number(r?.salesAmt || 0),
