@@ -143,7 +143,7 @@ function MarketingHub({ user, onLogout }) {
     <>
       {err && <Card t={t} title="오류"><div style={{ color: t.danger, fontSize: 12 }}>{err}</div></Card>}
       {editing && (
-        <AdvertiserForm t={t} actor={actor} actorName={user?.name} initial={editing === "new" ? null : editing}
+        <AdvertiserForm t={t} actor={actor} actorName={user?.name} advs={activeAdvs} initial={editing === "new" ? null : editing}
           onClose={() => setEditing(null)} onSaved={async (saved) => { setEditing(null); await reload(); if (saved?.id) setAdvId(saved.id); }}/>
       )}
       {!editing && adv && (
@@ -398,6 +398,7 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
           </>}
           {section === "autobid" && owner && <AutobidCard t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} onChanged={() => setTick(x => x + 1)}/>}
           {section === "shield" && owner && <ShieldCard t={t} adv={adv} actor={actor} actorName={actorName} view={view} onChanged={() => setTick(x => x + 1)}/>}
+          {section === "keywords" && owner && <SerpCheck t={t} adv={adv} actor={actor}/>}
           {section === "keywords" && (owner || adv.show_keywords) && <KeywordTable t={t} isPc={isPc} adv={adv} actor={actor} actorName={actorName} owner={owner} since={since} until={until} onChanged={() => setTick(x => x + 1)}/>}
           {section === "report" && owner && <ReportLauncher t={t} adv={adv} since={since} until={until}/>}
           {section === "log" && <>
@@ -496,7 +497,9 @@ function Overview({ t, isPc, actor, onPick }) {
       return { ...a, alerts, score };
     }).sort((a, b) => b.score - a.score || b.today?.costVat - a.today?.costVat);
   }, [data]);
-  const tot = rows.reduce((s, a) => a.ok ? { cost: s.cost + a.today.costVat, clicks: s.clicks + a.today.clicks, biz: s.biz + (a.bizmoney || 0), danger: s.danger + a.alerts.filter(x => x.lv === "danger").length } : s, { cost: 0, clicks: 0, biz: 0, danger: 0 });
+  const tot = rows.reduce((s, a) => a.ok ? { cost: s.cost + a.today.costVat, clicks: s.clicks + a.today.clicks, danger: s.danger + a.alerts.filter(x => x.lv === "danger").length, biz: s.biz } : s, { cost: 0, clicks: 0, biz: 0, danger: 0 });
+  // 같은 네이버 계정을 캠페인별로 나눠 등록한 경우 비즈머니는 계정 하나 — 한 번만 더한다
+  { const seen = new Set(); for (const a of rows) if (a.ok && a.bizmoney != null && !seen.has(a.customer_id)) { seen.add(a.customer_id); tot.biz += a.bizmoney; } }
   const lvColor = (lv) => lv === "danger" ? t.danger : lv === "warning" ? t.warning : t.textMuted;
   return (
     <>
@@ -919,6 +922,48 @@ function ShieldCard({ t, adv, actor, actorName, view, onChanged }) {
   );
 }
 
+// ---------- 지금 순위 확인 (네이버 모바일 검색 화면 직접 확인) ----------
+function SerpCheck({ t, adv, actor }) {
+  const [kw, setKw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [hist, setHist] = useState([]);
+  const check = async () => {
+    const q = kw.split(/[,\n]/).map(x => x.trim()).filter(Boolean).slice(0, 5);
+    if (!q.length) return;
+    setBusy(true);
+    const j = await api("serp", { actor, get: { id: adv.id, kw: q.join(",") } }).catch(() => ({ ok: false, error: "연결 실패" }));
+    setBusy(false);
+    if (!j.ok) { window.alert(j.error || "확인 실패"); return; }
+    setHist(h => [...j.results.map(r => ({ ...r, at: j.at })), ...h].slice(0, 20));
+  };
+  return (
+    <Card t={t} title="지금 순위 확인" sub="네이버 모바일 검색 화면을 직접 열어 우리 광고가 몇 번째인지 봅니다 · 쉼표로 최대 5개 · 클릭은 하지 않음">
+      <div style={{ display: "flex", gap: 6 }}>
+        <input className="mkt-input" value={kw} onChange={e => setKw(e.target.value)} onKeyDown={e => { if (e.key === "Enter") check(); }} placeholder="예: 부천입주청소, 입주청소업체" style={{ ...inputStyle(t), padding: "8px 10px" }}/>
+        <button onClick={check} disabled={busy || !kw.trim()} className="tab-btn" style={{ ...btnPrimary(t), flex: "0 0 auto" }}>{busy ? "확인 중…" : "확인"}</button>
+      </div>
+      {hist.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          {hist.map((r, i) => {
+            const color = r.blocked ? t.textMuted : r.rank == null ? t.danger : r.rank <= 3 ? t.success : t.warning;
+            return (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${t.border}`, fontSize: 12.5 }}>
+                <span style={{ flex: 1, fontWeight: 700 }}>{r.kw}</span>
+                <span className="mono" style={{ fontWeight: 900, color }}>{r.blocked ? "확인 불가" : r.rank == null ? (r.total ? "광고 안 보임" : "광고 영역 없음") : `${r.rank}위`}</span>
+                <span style={{ fontSize: 10.5, color: t.textMuted, minWidth: 70, textAlign: "right" }}>{r.total ? `광고 ${r.total}개 중` : ""}</span>
+                <span className="mono" style={{ fontSize: 10, color: t.textMuted }}>{fmtKst(r.at).slice(6)}</span>
+              </div>
+            );
+          })}
+          <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6, lineHeight: 1.5 }}>
+            서버(지역 미지정) 기준이라 손님 위치에 따라 순서가 조금 다를 수 있습니다. "광고 안 보임"은 지역 설정·예산 소진·검수 대기·입찰 부족 중 하나입니다.
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 // ---------- 자동입찰 ----------
 // 그룹별 정책(목표 순위·상한·바닥·내림 허용) 편집 + 미리보기/지금 실행 + 최근 실행 기록. 30분 주기 실행은 서버(pg_cron)가 담당.
 const POLICY_DEFAULT = { enabled: true, target_pos: 1, cap: 5000, floor_bid: 300, margin: 1.1, lower_ok: true };
@@ -943,6 +988,16 @@ function AutobidCard({ t, isPc, adv, actor, actorName, onChanged }) {
     if (j.ok) { setData(d => d ? { ...d, groups: d.groups.map(x => x.id === g.id ? { ...x, policy: j.policy } : x) } : d); onChanged(); }
     else window.alert(j.error || "저장 실패");
   };
+  const applyBulk = async (targets, patch) => {
+    const list = targets.filter(g => g.autobidOk !== false || patch.enabled === false);
+    if (!list.length) { window.alert("적용할 그룹이 없습니다"); return; }
+    const what = patch.enabled === false ? "자동입찰을 끕니다" : `${patch.enabled ? "자동입찰을 켜고 " : ""}목표 ${patch.target_pos}위 · 상한 ${won(patch.cap)}원 · 바닥 ${won(patch.floor_bid)}원${patch.lower_ok ? "" : " · 올리기만"} 으로 맞춥니다`;
+    if (!window.confirm(`${list.length}개 그룹에 ${what}. 진행할까요?`)) return;
+    setBusy("bulk");
+    const j = await api("policy_bulk", { actor, post: { id: adv.id, items: list.map(g => ({ adgroup_id: g.id, adgroup_name: g.name })), patch, actor_name: actorName } });
+    setBusy("");
+    if (j.ok) { load(); onChanged(); } else window.alert(j.error || "저장 실패");
+  };
   const run = async (apply) => {
     if (apply && !window.confirm("켜진 그룹의 키워드 입찰가를 지금 실제로 바꿉니다. 진행할까요?")) return;
     setBusy(apply ? "run" : "dry"); setPreview(null);
@@ -961,8 +1016,9 @@ function AutobidCard({ t, isPc, adv, actor, actorName, onChanged }) {
       {!data && !loading && <Empty t={t}>불러오지 못했습니다</Empty>}
       {data && (
         <>
+          {data.groups.length > 1 && <BulkPolicyBar t={t} groups={data.groups} busy={busy === "bulk"} onApply={applyBulk}/>}
           {data.groups.length === 0 ? <Empty t={t}>광고그룹 없음</Empty> : data.groups.map(g => (
-            <PolicyRow key={g.id} t={t} isPc={isPc} g={g} busy={busy === g.id} onSave={patch => savePolicy(g, patch)}/>
+            <PolicyRow key={g.id} t={t} isPc={isPc} g={g} busy={busy === g.id || busy === "bulk"} onSave={patch => savePolicy(g, patch)}/>
           ))}
           <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
             <button onClick={() => run(false)} className="tab-btn" style={{ ...btnGhost(t) }} disabled={!!busy || on.length === 0}>{busy === "dry" ? "계산 중…" : "미리보기 (변경 없음)"}</button>
@@ -995,6 +1051,52 @@ function AutobidCard({ t, isPc, adv, actor, actorName, onChanged }) {
         </>
       )}
     </Card>
+  );
+}
+// 자동입찰 일괄 설정 — 그룹 이름 앞부분(메인/시도/시군구/읍면동 등)으로 묶어서 한 번에
+function BulkPolicyBar({ t, groups, busy, onApply }) {
+  const prefixes = useMemo(() => {
+    const m = new Map();
+    for (const g of groups) { const p = String(g.name || "").split("_")[0] || "기타"; m.set(p, (m.get(p) || 0) + 1); }
+    return [...m.entries()].filter(([, n]) => n > 1 || m.size <= 6);
+  }, [groups]);
+  const [scope, setScope] = useState("all");
+  const [target, setTarget] = useState(2);
+  const [cap, setCap] = useState("5000");
+  const [floor, setFloor] = useState("1000");
+  const [lower, setLower] = useState(false);
+  const targets = scope === "all" ? groups : scope === "on" ? groups.filter(g => g.policy?.enabled) : groups.filter(g => String(g.name || "").split("_")[0] === scope);
+  const sel = { ...inputStyle(t), fontFamily: "inherit", fontSize: 11.5, padding: "5px 6px", borderRadius: 6 };
+  const chip = (id, label) => { const on = scope === id; return (
+    <button key={id} onClick={() => setScope(id)} className="tab-btn" style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${on ? t.accent : t.border}`, background: on ? t.accentBg : "transparent", color: on ? t.accent : t.textSecondary, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
+  ); };
+  const patch = { target_pos: target, cap: Number(cap) || 5000, floor_bid: Number(floor) || 300, lower_ok: lower };
+  return (
+    <div style={{ padding: 10, marginBottom: 6, background: t.bgInset, borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11.5, fontWeight: 800 }}>일괄 설정</span>
+        {chip("all", `전체 ${groups.length}`)}
+        {prefixes.map(([p, n]) => chip(p, `${p} ${n}`))}
+        {chip("on", "켜진 그룹")}
+      </div>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 10.5, color: t.textMuted }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 4 }}>목표
+          <select value={target} onChange={e => setTarget(Number(e.target.value))} style={sel}>{[1, 2, 3].map(n => <option key={n} value={n}>{n}위</option>)}</select>
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 4 }}>상한
+          <input className="mono" value={cap} onChange={e => setCap(e.target.value.replace(/[^\d]/g, ""))} style={{ ...sel, width: 62, textAlign: "right" }}/>원
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 4 }}>바닥
+          <input className="mono" value={floor} onChange={e => setFloor(e.target.value.replace(/[^\d]/g, ""))} style={{ ...sel, width: 52, textAlign: "right" }}/>원
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 4 }}><input type="checkbox" checked={lower} onChange={e => setLower(e.target.checked)}/>내리기 허용</label>
+      </div>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button disabled={busy || !targets.length} onClick={() => onApply(targets, { ...patch, enabled: true })} className="tab-btn" style={{ ...btnPrimary(t), flex: 1, padding: "8px 0" }}>{busy ? "적용 중…" : `${targets.length}개 켜고 적용`}</button>
+        <button disabled={busy || !targets.length} onClick={() => onApply(targets, patch)} className="tab-btn" style={{ ...btnGhost(t), padding: "8px 0" }}>값만 적용</button>
+        <button disabled={busy || !targets.length} onClick={() => onApply(targets, { enabled: false })} className="tab-btn" style={{ ...btnGhost(t), padding: "8px 0", color: t.danger }}>{targets.length}개 끄기</button>
+      </div>
+    </div>
   );
 }
 function ChangeList({ t, changes }) {
@@ -1158,7 +1260,7 @@ function ShareBar({ t, adv, actor }) {
   );
 }
 
-function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
+function AdvertiserForm({ t, actor, actorName, advs = [], initial, onClose, onSaved }) {
   const [f, setF] = useState(() => ({
     name: initial?.name || "", slug: initial?.slug || "", customer_id: initial?.customer_id || "",
     api_key: "", api_secret: "", campaign_filter: initial?.campaign_filter || "",
@@ -1174,6 +1276,7 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
     if (!post.api_key) delete post.api_key;
     if (!post.api_secret) delete post.api_secret;
     if (initial) post.id = initial.id;
+    if (String(post.use_env).startsWith("copy:")) { post.copy_from = post.use_env.slice(5); post.use_env = ""; }
     const j = await api(initial ? "update" : "add", { actor, post });
     setBusy(false);
     if (j.ok) onSaved(j.advertiser); else setErr(j.error || "저장 실패");
@@ -1194,13 +1297,14 @@ function AdvertiserForm({ t, actor, actorName, initial, onClose, onSaved }) {
       </div>
       {!initial && (
         <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 12, fontWeight: 700, color: t.textSecondary }}>
-          서버에 저장된 키 사용
+          키 가져오기
           <select value={f.use_env} onChange={set("use_env")} className="mkt-input" style={{ ...inputStyle(t), width: "auto", padding: "6px 8px" }}>
             <option value="">안 함 (위 칸에 직접 입력)</option>
+            {advs.map(a => <option key={a.id} value={`copy:${a.id}`}>같은 계정: {a.name} ({a.customer_id}) 키 복사</option>)}
             <option value="allday">올데이케어 (NAVER_AD_*)</option>
             <option value="yusol">유솔홈케어 (YUSOL_AD_*)</option>
           </select>
-          <span style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>선택하면 키·비밀키·CUSTOMER_ID 칸은 비워도 됩니다</span>
+          <span style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>선택하면 키·비밀키·CUSTOMER_ID 칸은 비워도 됩니다 (같은 계정의 다른 캠페인을 따로 등록할 때)</span>
         </label>
       )}
       <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, fontWeight: 700, color: t.textSecondary, flexWrap: "wrap" }}>

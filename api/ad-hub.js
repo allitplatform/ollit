@@ -19,6 +19,8 @@
 //   GET  ?mode=policies&actor=&id=          자동입찰: 광고그룹 목록 + 그룹별 정책 + 최근 실행 10건
 //   POST ?mode=policy_set body {actor, id, adgroup_id, adgroup_name, enabled, target_pos, cap, floor_bid, margin, lower_ok}
 //   GET  ?mode=autobid&actor=&id=[&run=1]   자동입찰 미리보기(run 없음) / 실제 적용(run=1). pg_cron 은 ?cron=CRON_SECRET 로 전 광고주 실행
+//   POST ?mode=policy_bulk body {actor, id, items:[{adgroup_id, adgroup_name}], patch}  자동입찰 여러 그룹 한 번에
+//   GET  ?mode=serp&actor=&id=&kw=키워드1,키워드2   네이버 모바일 검색 화면에서 지금 순위 확인 (최대 5개)
 //   GET  ?mode=ips&actor=&id=                노출제한 IP 목록 / POST ?mode=ip_add {id, ips:"a,b", memo, force} / POST ?mode=ip_del {id, ids:[...]}
 // 광고주(열람 링크 토큰):
 //   GET  ?mode=client&token=&since=&until=
@@ -230,7 +232,7 @@ async function listGroups(nv, adv) {
   const groups = [];
   for (const c of camps) {
     const gs = await nv.get("/ncc/adgroups", `nccCampaignId=${encodeURIComponent(c.nccCampaignId)}`);
-    for (const g of (Array.isArray(gs) ? gs : [])) if (!g.delFlag) groups.push({ id: g.nccAdgroupId, name: g.name, campaign: c.name, type: campType(c), autobidOk: c.campaignTp === "WEB_SITE", bid: g.bidAmt, lock: !!g.userLock, status: g.status });
+    for (const g of (Array.isArray(gs) ? gs : [])) if (!g.delFlag) groups.push({ id: g.nccAdgroupId, name: g.name, campaign: c.name, type: campType(c), autobidOk: c.campaignTp === "WEB_SITE", bid: g.bidAmt, lock: !!g.userLock, status: g.status, channel: g.pcChannelId || null });
   }
   return groups;
 }
@@ -322,6 +324,42 @@ async function ipSummary(nv) {
 }
 
 // ---------- 공통 ----------
+// ---------- 실시간 순위 (네이버 모바일 검색 화면에서 직접 확인) ----------
+// rank-check.js 와 같은 파서. 광고 1개 = data-slog-content 1개, 첫 연속 블록이 상단 파워링크.
+// 검색 위치(지역)에 따라 순서가 달라질 수 있어 '표준 위치 기준' 참고치다. 클릭은 하지 않는다.
+const SERP_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+function serpParse(html, marks) {
+  const out = { blocked: false, total: 0, rank: null };
+  if (html.length < 20000 || html.includes("자동입력 방지문자") || html.includes("비정상적인 접근")) { out.blocked = true; return out; }
+  const idx = []; let i = -1;
+  while ((i = html.indexOf("data-slog-content=", i + 1)) >= 0) idx.push(i);
+  if (!idx.length) return out;
+  const first = [idx[0]];
+  for (let k = 1; k < idx.length; k++) { if (idx[k] - idx[k - 1] > 30000) break; first.push(idx[k]); }
+  out.total = first.length;
+  for (let k = 0; k < first.length; k++) {
+    const seg = html.slice(first[k], k + 1 < first.length ? first[k + 1] : first[k] + 6000);
+    if (marks.some(m => m && seg.includes(m))) { out.rank = k + 1; break; }
+  }
+  return out;
+}
+async function serpMarks(nv, adv) {
+  // 이 광고주 캠페인 그룹들이 쓰는 비즈채널의 사이트 이름·URL 조각을 '우리 광고' 표식으로 사용
+  const groups = await listGroups(nv, adv);
+  const marks = new Set();
+  for (const ch of [...new Set(groups.map(g => g.channel).filter(Boolean))].slice(0, 5)) {
+    try {
+      const c = await nv.get(`/ncc/channels/${encodeURIComponent(ch)}`);
+      const url = String(c?.channelKey || c?.businessInfo?.site || "");
+      // 채널 '이름'(예: 입주청소)은 내부 메모라 다른 업체 광고에도 들어 있을 수 있어 쓰지 않는다 — URL 조각과 사이트 표시명만
+      const site = c?.businessInfo?.siteName || c?.siteName || c?.businessInfo?.name; if (site && String(site).length >= 5) marks.add(String(site).trim());
+      const m = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
+      if (m) { const parts = m.split("/"); marks.add(parts.length > 1 && /naver\.com$/.test(parts[0]) ? parts[1] : parts[0]); }
+    } catch { /* 채널 조회 실패는 건너뜀 */ }
+  }
+  return [...marks].filter(x => x && x.length >= 3);
+}
+
 function pub(a) {
   return { id: a.id, name: a.name, slug: a.slug, customer_id: a.customer_id, campaign_filter: a.campaign_filter,
     margin_per_order: a.margin_per_order, cpa_good: a.cpa_good, cpa_limit: a.cpa_limit, show_keywords: a.show_keywords,
@@ -532,6 +570,60 @@ export default async function handler(req, res) {
         detail: `${rowP.adgroup_name || rowP.adgroup_id}: ${rowP.enabled ? `목표 ${rowP.target_pos}위 · 상한 ${won(rowP.cap)}원 · 바닥 ${won(rowP.floor_bid)}원${rowP.lower_ok ? "" : " · 올리기만"}` : "자동입찰 끔"}`, visible_to_client: true });
       return res.status(200).json({ ok: true, policy: data });
     }
+    if (mode === "policy_bulk") {
+      // 여러 그룹 한 번에 — 켜기/끄기/값 적용. body {id, items:[{adgroup_id, adgroup_name}], patch:{enabled,target_pos,cap,floor_bid,margin,lower_ok}}
+      if (req.method !== "POST") return res.status(405).json({ ok: false, error: "POST" });
+      if (!UUID_RE.test(body.id || "") || !Array.isArray(body.items) || !body.items.length) return res.status(400).json({ ok: false, error: "id/items" });
+      const adv = await getAdv(body.id); if (!adv) return res.status(404).json({ ok: false, error: "없음" });
+      const p = body.patch || {};
+      const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
+      const okIds = new Set((await listGroups(nv, adv)).filter(g => g.autobidOk).map(g => g.id));
+      const { data: cur } = await supabase.from("ad_autobid_policies").select("*").eq("advertiser_id", adv.id);
+      const byId = Object.fromEntries((cur || []).map(r => [r.adgroup_id, r]));
+      const rows = [];
+      for (const it of body.items.slice(0, 200)) {
+        const gid = String(it.adgroup_id || ""); if (!gid) continue;
+        const prev = byId[gid] || {};
+        const enabled = p.enabled !== undefined ? !!p.enabled : (prev.enabled ?? false);
+        if (enabled && !okIds.has(gid)) continue; // 파워링크 아닌 그룹은 켜지 않음
+        const r = {
+          advertiser_id: adv.id, adgroup_id: gid, adgroup_name: it.adgroup_name ? String(it.adgroup_name).slice(0, 120) : (prev.adgroup_name || null), enabled,
+          target_pos: Math.max(1, Math.min(5, num(p.target_pos ?? prev.target_pos, 1))),
+          cap: Math.max(70, num(p.cap ?? prev.cap, 5000)), floor_bid: Math.max(70, num(p.floor_bid ?? prev.floor_bid, 300)),
+          margin: Math.min(2, Math.max(1, Number(p.margin ?? prev.margin) || 1.1)), lower_ok: (p.lower_ok ?? prev.lower_ok) !== false, updated_at: new Date().toISOString(),
+        };
+        if (r.floor_bid > r.cap) r.floor_bid = r.cap;
+        rows.push(r);
+      }
+      if (!rows.length) return res.status(400).json({ ok: false, error: "적용할 그룹이 없습니다" });
+      const { data, error } = await supabase.from("ad_autobid_policies").upsert(rows, { onConflict: "advertiser_id,adgroup_id" }).select("*");
+      if (error) return res.status(500).json({ ok: false, error: error.message });
+      const on = rows.filter(r => r.enabled).length;
+      const desc = p.enabled === false ? `${rows.length}개 그룹 자동입찰 끔`
+        : `${rows.length}개 그룹${p.enabled ? " 켬" : ""}${p.target_pos ? ` · 목표 ${num(p.target_pos)}위` : ""}${p.cap ? ` · 상한 ${won(num(p.cap))}원` : ""}${p.floor_bid ? ` · 바닥 ${won(num(p.floor_bid))}원` : ""}${p.lower_ok === false ? " · 올리기만" : ""}`;
+      await supabase.from("ad_change_log").insert({ advertiser_id: adv.id, actor: body.actor_name || "운영자", action: p.enabled === false ? "자동입찰 해제" : "자동입찰 설정", detail: desc, visible_to_client: true });
+      return res.status(200).json({ ok: true, policies: data, on });
+    }
+    if (mode === "serp") {
+      // ?id=&kw=키워드1,키워드2 (최대 5개) [&match=추가표식]
+      if (!UUID_RE.test(q.id || "")) return res.status(400).json({ ok: false, error: "id" });
+      const kws = String(q.kw || "").split(",").map(x => x.replace(/\s+/g, "")).filter(Boolean).slice(0, 5);
+      if (!kws.length) return res.status(400).json({ ok: false, error: "키워드를 입력하세요" });
+      const adv = await getAdv(q.id); if (!adv) return res.status(404).json({ ok: false, error: "없음" });
+      const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
+      const marks = await serpMarks(nv, adv);
+      if (q.match) marks.push(...String(q.match).split(",").map(x => x.trim()).filter(Boolean));
+      const results = [];
+      for (const kw of kws) {
+        try {
+          const r = await fetch("https://m.search.naver.com/search.naver?query=" + encodeURIComponent(kw), { headers: { "User-Agent": SERP_UA, "Accept-Language": "ko-KR,ko;q=0.9" } });
+          const p = serpParse(await r.text(), marks);
+          results.push({ kw, rank: p.rank, total: p.total, blocked: p.blocked || r.status !== 200 });
+        } catch (e) { results.push({ kw, rank: null, total: null, blocked: true }); }
+        await new Promise(r => setTimeout(r, 700));
+      }
+      return res.status(200).json({ ok: true, at: new Date().toISOString(), marks, results });
+    }
 
     if (mode === "overview") {
       // 관리자 메인 — 광고주별 오늘 요약 (병렬). 광고주가 많아지면 캐시 필요
@@ -575,6 +667,12 @@ export default async function handler(req, res) {
       if (body.lead_source !== undefined) patch.lead_source = body.lead_source && /^inquiries:[a-z_]+$/.test(body.lead_source) ? body.lead_source : null;
       if (body.active !== undefined) patch.active = !!body.active;
       // 올데이 봇이 쓰는 서버 환경변수(NAVER_AD_*) 그대로 등록 — 비밀값을 화면에 다시 입력할 필요 없음
+      // 같은 네이버 계정의 다른 캠페인을 광고주로 따로 등록할 때 — 기존 광고주 키를 그대로 복사
+      if (body.copy_from && UUID_RE.test(body.copy_from)) {
+        const src = await getAdv(body.copy_from);
+        if (!src) return res.status(400).json({ ok: false, error: "복사할 광고주가 없습니다" });
+        body.api_key = decrypt(src.api_key_enc); body.api_secret = decrypt(src.api_secret_enc); patch.customer_id = src.customer_id;
+      }
       if (body.use_env) {
         const pre = body.use_env === "yusol" ? "YUSOL_AD" : "NAVER_AD"; // 올데이 봇 / 유솔 봇이 쓰는 변수 이름
         const k = process.env[`${pre}_API_KEY`], sc = process.env[`${pre}_SECRET`], cid = process.env[`${pre}_CUSTOMER_ID`];
