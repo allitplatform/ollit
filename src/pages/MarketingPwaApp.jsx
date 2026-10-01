@@ -5,7 +5,7 @@
 //   이전 버전(유솔/올데이 고정 배열)은 MarketingPwaApp.jsx.before-adhub-260916 에 보존.
 
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Sun, Moon, LogOut, ExternalLink, Plus, Settings, Link as LinkIcon, RefreshCw } from "lucide-react";
+import { Sun, Moon, LogOut, ExternalLink, Plus, Settings, Link as LinkIcon, RefreshCw, ChevronDown, Search, Check } from "lucide-react";
 
 const THEMES = {
   dark: {
@@ -77,6 +77,10 @@ const STYLE = `
   .fade-in { animation: slideUp 0.4s ease-out; }
   .tab-btn:hover { opacity: 0.85; }
   .mkt-input { font-family: inherit; font-size: 13px; padding: 9px 10px; border-radius: 8px; outline: none; width: 100%; box-sizing: border-box; }
+  /* 아이폰은 16px 미만 입력칸을 누르면 화면을 확대한 채 두므로 휴대폰에서는 16px */
+  @media (max-width: 1023px) { .mkt-input { font-size: 16px; } }
+  @keyframes sheetUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .sheet-up { animation: sheetUp 0.22s ease-out; }
 `;
 
 // ===================== 운영자 화면 =====================
@@ -94,6 +98,7 @@ function MarketingHub({ user, onLogout }) {
   const [editing, setEditing] = useState(null); // null | "new" | advertiser object
   const [err, setErr] = useState(null);
   const [section, pickSection] = useSection();
+  const [picker, setPicker] = useState(false);
 
   const reload = useCallback(async () => {
     const j = await api("list", { actor });
@@ -190,7 +195,7 @@ function MarketingHub({ user, onLogout }) {
     <div style={{ minHeight: "100vh", background: t.bg, paddingTop: "env(safe-area-inset-top, 12px)" }}>
       <style>{STYLE}</style>
       <div style={{ maxWidth: 420, margin: "0 auto", background: t.bg, minHeight: "100vh", color: t.text, fontFamily: "'Pretendard', sans-serif", paddingBottom: "calc(40px + env(safe-area-inset-bottom))" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "14px 16px", borderBottom: `1px solid ${t.border}`, background: t.bgElevated, position: "sticky", top: 0, zIndex: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 16px 4px", background: t.bg }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 16, fontWeight: 800 }}>📈 올잇 마케팅</div>
             <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginTop: 1 }}>{user?.name ? `${user.name} 님 · ` : ""}관리 광고주 {activeAdvs.length}곳</div>
@@ -198,8 +203,16 @@ function MarketingHub({ user, onLogout }) {
           <button onClick={toggle} className="tab-btn" aria-label="테마 전환" style={iconBtn(t)}>{mode === "dark" ? <Sun size={18}/> : <Moon size={18}/>}</button>
           <button onClick={onLogout} className="tab-btn" aria-label="로그아웃" style={iconBtn(t)}><LogOut size={18}/></button>
         </div>
+        <div style={{ padding: "8px 16px 10px", background: t.bg, borderBottom: `1px solid ${t.border}`, position: "sticky", top: 0, zIndex: 9 }}>
+          <button onClick={() => setPicker(true)} className="tab-btn" style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", background: t.bgElevated, border: `1px solid ${t.borderStrong}`, borderRadius: 12, color: t.text, fontSize: 15, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+            <span style={{ fontSize: 11, color: t.textMuted, fontWeight: 700, flex: "0 0 auto" }}>광고주</span>
+            <span style={{ flex: 1, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{editing ? (editing === "new" ? "새 광고주 추가" : `${editing.name} 설정`) : adv ? adv.name : "전체 현황"}</span>
+            <ChevronDown size={18} color={t.textMuted}/>
+          </button>
+        </div>
+        <AdvPicker t={t} open={picker} onClose={() => setPicker(false)} advs={activeAdvs} current={editing ? "__edit" : advId}
+          onPick={(id) => { setPicker(false); setEditing(null); setAdvId(id); }} onAdd={() => { setPicker(false); setEditing("new"); }}/>
         <div className="fade-in" style={{ padding: "12px 16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>{sideList}</div>
           {body}
           <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, textAlign: "center", padding: "4px 2px" }}>ALLIT MARKETING · 홈 화면에 추가하면 앱처럼 쓸 수 있어요</div>
         </div>
@@ -338,9 +351,9 @@ function AdPanel({ t, isPc, adv, actor, actorName, token, owner, onEdit, section
         </div>
       )}
       {!sideNav && (
-        <div style={{ display: "flex", gap: 4, padding: 4, background: t.bgInset, borderRadius: 12, overflowX: "auto" }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${sections.length > 4 ? 3 : sections.length}, minmax(0, 1fr))`, gap: 4, padding: 4, background: t.bgInset, borderRadius: 12 }}>
           {sections.map(sc => { const on = section === sc.id; return (
-            <button key={sc.id} type="button" onClick={() => pickSection(sc.id)} className="tab-btn" style={{ flex: 1, minWidth: 80, padding: "9px 6px", background: on ? t.bgElevated : "transparent", border: "none", boxShadow: on ? "0 1px 4px rgba(0,0,0,.18)" : "none", borderRadius: 9, color: on ? t.text : t.textMuted, fontSize: 12.5, fontWeight: on ? 800 : 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{sc.icon} {sc.label}</button>
+            <button key={sc.id} type="button" onClick={() => pickSection(sc.id)} className="tab-btn" style={{ minWidth: 0, padding: "10px 4px", background: on ? t.bgElevated : "transparent", border: "none", boxShadow: on ? "0 1px 4px rgba(0,0,0,.18)" : "none", borderRadius: 9, color: on ? t.text : t.textMuted, fontSize: 12.5, fontWeight: on ? 800 : 600, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>{sc.icon} {sc.label}</button>
           ); })}
         </div>
       )}
@@ -505,20 +518,32 @@ function Overview({ t, isPc, actor, onPick }) {
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div>
-          <div style={{ fontSize: 16, fontWeight: 900 }}>전체 현황</div>
+          {isPc && <div style={{ fontSize: 16, fontWeight: 900 }}>전체 현황</div>}
           <div style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>{data?.until || kstYmd(0)} 오늘 · 광고주 {rows.length}곳 · 5분마다 갱신{loading ? " · 조회 중…" : ""}</div>
         </div>
         <button onClick={load} className="tab-btn" aria-label="새로고침" style={{ ...iconBtn(t), marginLeft: "auto", border: `1px solid ${t.border}`, borderRadius: 10, padding: 8 }}><RefreshCw size={14}/></button>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 4 : 2}, minmax(0, 1fr))`, gap: 8 }}>
+      {!isPc && (
+        <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 14, padding: "14px 16px" }}>
+          <div style={{ fontSize: 11.5, color: t.textMuted, fontWeight: 700 }}>오늘 광고비 합계 (VAT 포함)</div>
+          <div className="mono" style={{ fontSize: 28, fontWeight: 900, lineHeight: 1.2, marginTop: 2 }}>{won(tot.cost)}<span style={{ fontSize: 14, color: t.textMuted, fontWeight: 700, marginLeft: 3 }}>원</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8, marginTop: 12, paddingTop: 12, borderTop: `1px solid ${t.border}` }}>
+            <MobStat t={t} label="클릭" value={won(tot.clicks)}/>
+            <MobStat t={t} label="잔액 합계" value={`${won(Math.round(tot.biz / 10000))}만`}/>
+            <MobStat t={t} label="긴급 경보" value={`${tot.danger}건`} color={tot.danger > 0 ? t.danger : undefined}/>
+          </div>
+        </div>
+      )}
+      {isPc && <div style={{ display: "grid", gridTemplateColumns: `repeat(${isPc ? 4 : 2}, minmax(0, 1fr))`, gap: 8 }}>
         <MiniStat t={t} label="오늘 광고비 합계" value={won(tot.cost)} suffix="원" accent/>
         <MiniStat t={t} label="오늘 클릭 합계" value={won(tot.clicks)}/>
         <MiniStat t={t} label="잔액 합계" value={won(Math.round(tot.biz))} suffix="원"/>
         <MiniStat t={t} label="긴급 경보" value={String(tot.danger)} suffix="건" accent={tot.danger > 0}/>
-      </div>
+      </div>}
       {!data && !loading && <Card t={t} title="불러오지 못했습니다"><Empty t={t}>새로고침을 눌러 주세요</Empty></Card>}
       {!data && loading && <Card t={t} title="광고주별 현황"><Empty t={t}>네이버에서 광고주별 오늘 수치를 받는 중…</Empty></Card>}
-      {rows.map(a => {
+      {!isPc && rows.map(a => <OvCardMobile key={a.id} t={t} a={a} lvColor={lvColor} onPick={onPick}/>)}
+      {isPc && rows.map(a => {
         const top = a.alerts[0];
         const border = top ? lvColor(top.lv) : t.border;
         return (
@@ -547,6 +572,81 @@ function Overview({ t, isPc, actor, onPick }) {
         );
       })}
     </>
+  );
+}
+// 휴대폰용 광고주 카드 — 숫자 3개만 크게, 나머지는 한 줄 요약. 색은 경보가 있을 때만 쓴다.
+function OvCardMobile({ t, a, lvColor, onPick }) {
+  const serious = a.alerts.filter(x => x.lv !== "info");
+  const notes = a.alerts.filter(x => x.lv === "info" && x.text !== "접수 미입력").map(x => x.text);
+  const top = serious[0];
+  const bizColor = a.bizmoney != null && a.bizmoney <= 50000 ? t.danger : a.bizDays != null && a.bizDays < 3 ? t.warning : t.textSecondary;
+  return (
+    <div onClick={() => onPick(a.id)} className="tab-btn" style={{ background: t.bgElevated, border: `1px solid ${top ? `${lvColor(top.lv)}66` : t.border}`, borderRadius: 14, padding: "14px 16px", cursor: "pointer" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ width: 8, height: 8, borderRadius: 4, flex: "0 0 auto", background: !a.ok ? t.danger : top ? lvColor(top.lv) : t.success }}/>
+        <span style={{ fontSize: 16, fontWeight: 900, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</span>
+        {top && <span style={{ fontSize: 11, fontWeight: 800, color: lvColor(top.lv), background: `${lvColor(top.lv)}1A`, borderRadius: 999, padding: "3px 9px", flex: "0 0 auto" }}>{top.text}{serious.length > 1 ? ` 외 ${serious.length - 1}` : ""}</span>}
+        <ChevronDown size={16} color={t.textMuted} style={{ transform: "rotate(-90deg)", flex: "0 0 auto" }}/>
+      </div>
+      {a.ok ? (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 8, marginTop: 12 }}>
+            <MobStat t={t} label="오늘 광고비" value={`${won(a.today.costVat)}원`} sub={`어제 ${won(a.yday.costVat)}원`}/>
+            <MobStat t={t} label="클릭" value={won(a.today.clicks)} sub={`어제 ${won(a.yday.clicks)}`}/>
+            <MobStat t={t} label="순위" value={a.today.rank != null ? `${a.today.rank.toFixed(1)}위` : "-"}/>
+          </div>
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${t.border}`, fontSize: 12, color: t.textSecondary, fontWeight: 600, lineHeight: 1.6, display: "flex", flexWrap: "wrap", columnGap: 10 }}>
+            <span>접수 <b style={{ color: t.text }}>{a.today.lead != null ? `${a.today.lead}건` : "미입력"}</b>{a.today.lead > 0 ? ` (${won(Math.round(a.today.costVat / a.today.lead))}원/건)` : ""}</span>
+            <span style={{ color: bizColor }}>잔액 <b>{a.bizmoney != null ? `${won(Math.round(a.bizmoney))}원` : "-"}</b>{a.bizDays != null ? ` · ${a.bizDays.toFixed(1)}일분` : ""}</span>
+            <span>자동입찰 <b style={{ color: t.text }}>{!a.autobid?.enabled ? "꺼짐" : a.autobid.last ? fmtAgo(a.autobid.last.at) : "대기"}</b></span>
+          </div>
+          {notes.length > 0 && <div style={{ marginTop: 4, fontSize: 11, color: t.textMuted, fontWeight: 600 }}>할 일: {notes.join(" · ")}</div>}
+        </>
+      ) : <div style={{ marginTop: 8, fontSize: 12, color: t.danger }}>{a.error}</div>}
+    </div>
+  );
+}
+function MobStat({ t, label, value, sub, color }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 700 }}>{label}</div>
+      <div className="mono" style={{ fontSize: 18, fontWeight: 900, color: color || t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 1 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: t.textMuted, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+    </div>
+  );
+}
+// 휴대폰 광고주 고르기 — 아래에서 올라오는 목록 + 검색
+function AdvPicker({ t, open, onClose, advs, current, onPick, onAdd }) {
+  const [q, setQ] = useState("");
+  useEffect(() => { if (!open) setQ(""); }, [open]);
+  if (!open) return null;
+  const k = q.replace(/\s+/g, "").toLowerCase();
+  const list = advs.filter(a => !k || `${a.name}${a.campaign_filter || ""}${a.customer_id || ""}`.replace(/\s+/g, "").toLowerCase().includes(k));
+  const item = (key, label, sub, on, onClick) => (
+    <button key={key} onClick={onClick} className="tab-btn" style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "13px 12px", background: on ? t.accentBg : "transparent", border: "none", borderRadius: 10, color: on ? t.accent : t.text, cursor: "pointer", fontFamily: "inherit", textAlign: "left" }}>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: 15, fontWeight: on ? 900 : 700 }}>{label}</span>
+        {sub && <span style={{ display: "block", fontSize: 11.5, color: t.textMuted, fontWeight: 600, marginTop: 1 }}>{sub}</span>}
+      </span>
+      {on && <Check size={18}/>}
+    </button>
+  );
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.55)", zIndex: 50, display: "flex", alignItems: "flex-end" }}>
+      <div onClick={e => e.stopPropagation()} className="sheet-up" style={{ width: "100%", maxWidth: 420, margin: "0 auto", background: t.bgElevated, color: t.text, borderRadius: "18px 18px 0 0", padding: "10px 14px calc(16px + env(safe-area-inset-bottom))", maxHeight: "78vh", display: "flex", flexDirection: "column", fontFamily: "'Pretendard', sans-serif" }}>
+        <div style={{ width: 38, height: 4, borderRadius: 2, background: t.borderStrong, margin: "0 auto 12px" }}/>
+        <div style={{ position: "relative", marginBottom: 8 }}>
+          <Search size={16} color={t.textMuted} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)" }}/>
+          <input className="mkt-input" value={q} onChange={e => setQ(e.target.value)} placeholder="광고주 검색" style={{ ...inputStyle(t), padding: "11px 12px 11px 36px", borderRadius: 10 }}/>
+        </div>
+        <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+          {!k && item("home", "전체 현황", "광고주 전체 오늘 요약", current == null, () => onPick(null))}
+          {list.map(a => item(a.id, a.name, a.campaign_filter ? `캠페인 "${a.campaign_filter}"` : "전체 캠페인", current === a.id, () => onPick(a.id)))}
+          {k && list.length === 0 && <div style={{ padding: 16, textAlign: "center", fontSize: 13, color: t.textMuted }}>"{q}" 광고주가 없습니다</div>}
+          <button onClick={onAdd} className="tab-btn" style={{ marginTop: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "12px", background: "transparent", border: `1px dashed ${t.borderStrong}`, borderRadius: 10, color: t.textMuted, fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}><Plus size={15}/> 광고주 추가</button>
+        </div>
+      </div>
+    </div>
   );
 }
 function OvStat({ t, label, value, sub, color }) {
