@@ -344,18 +344,35 @@ function serpParse(html, marks) {
   return out;
 }
 async function serpMarks(nv, adv) {
-  // 이 광고주 캠페인 그룹들이 쓰는 비즈채널의 사이트 이름·URL 조각을 '우리 광고' 표식으로 사용
-  const groups = await listGroups(nv, adv);
+  // '우리 광고' 표식 = 이 계정의 모든 비즈채널 중 사이트 주소 조각 + 전화번호(하이픈 있음/없음 둘 다).
+  // 같은 계정이면 다른 캠페인 채널이 걸려도 같은 광고주 광고라 문제없다. 채널 '이름'은 내부 메모라 쓰지 않는다.
   const marks = new Set();
-  for (const ch of [...new Set(groups.map(g => g.channel).filter(Boolean))].slice(0, 5)) {
-    try {
-      const c = await nv.get(`/ncc/channels/${encodeURIComponent(ch)}`);
-      const url = String(c?.channelKey || c?.businessInfo?.site || "");
-      // 채널 '이름'(예: 입주청소)은 내부 메모라 다른 업체 광고에도 들어 있을 수 있어 쓰지 않는다 — URL 조각과 사이트 표시명만
-      const site = c?.businessInfo?.siteName || c?.siteName || c?.businessInfo?.name; if (site && String(site).length >= 5) marks.add(String(site).trim());
-      const m = url.replace(/^https?:\/\//, "").replace(/\/$/, "");
-      if (m) { const parts = m.split("/"); marks.add(parts.length > 1 && /naver\.com$/.test(parts[0]) ? parts[1] : parts[0]); }
-    } catch { /* 채널 조회 실패는 건너뜀 */ }
+  let chans = [];
+  try { chans = await nv.get("/ncc/channels"); } catch { chans = []; }
+  if (!Array.isArray(chans) || !chans.length) {
+    const groups = await listGroups(nv, adv);
+    for (const ch of [...new Set(groups.map(g => g.channel).filter(Boolean))].slice(0, 5)) {
+      try { chans.push(await nv.get(`/ncc/channels/${encodeURIComponent(ch)}`)); } catch { /* 건너뜀 */ }
+    }
+  }
+  for (const c of chans || []) {
+    const key = String(c?.channelKey || "");
+    const type = String(c?.channelTp || "");
+    if (type === "PHONE" || /^0?\d[\d-]{6,}$/.test(key)) {
+      const d = key.replace(/\D/g, "");
+      if (d.length >= 8) {
+        marks.add(d);
+        if (d.length === 8) marks.add(`${d.slice(0, 4)}-${d.slice(4)}`);
+        else if (d.length === 10) marks.add(`${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`);
+        else if (d.length === 11) marks.add(`${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`);
+      }
+      continue;
+    }
+    const url = String(c?.businessInfo?.site || key);
+    if (!/[.]/.test(url)) continue;
+    const m = url.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/$/, "");
+    const parts = m.split("/");
+    marks.add(parts.length > 1 && /naver\.com$/.test(parts[0]) ? parts[1] : parts[0]);
   }
   return [...marks].filter(x => x && x.length >= 3);
 }

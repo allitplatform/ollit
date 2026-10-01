@@ -927,6 +927,7 @@ function SerpCheck({ t, adv, actor }) {
   const [kw, setKw] = useState("");
   const [busy, setBusy] = useState(false);
   const [hist, setHist] = useState([]);
+  const [marks, setMarks] = useState(null);
   const check = async () => {
     const q = kw.split(/[,\n]/).map(x => x.trim()).filter(Boolean).slice(0, 5);
     if (!q.length) return;
@@ -934,6 +935,7 @@ function SerpCheck({ t, adv, actor }) {
     const j = await api("serp", { actor, get: { id: adv.id, kw: q.join(",") } }).catch(() => ({ ok: false, error: "연결 실패" }));
     setBusy(false);
     if (!j.ok) { window.alert(j.error || "확인 실패"); return; }
+    setMarks(j.marks || []);
     setHist(h => [...j.results.map(r => ({ ...r, at: j.at })), ...h].slice(0, 20));
   };
   return (
@@ -956,6 +958,7 @@ function SerpCheck({ t, adv, actor }) {
             );
           })}
           <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6, lineHeight: 1.5 }}>
+            {marks && <div style={{ marginBottom: 3 }}>우리 광고 찾는 표식: {marks.length ? marks.join(" · ") : "없음 (비즈채널 조회 실패)"}</div>}
             서버(지역 미지정) 기준이라 손님 위치에 따라 순서가 조금 다를 수 있습니다. "광고 안 보임"은 지역 설정·예산 소진·검수 대기·입찰 부족 중 하나입니다.
           </div>
         </div>
