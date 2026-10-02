@@ -68,6 +68,7 @@ async function main() {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || "/opt/pw-browsers/chromium" });
   const page = await browser.newPage({ viewport: { width: 1000, height: 1200 }, deviceScaleFactor: 1.5 });
   const outs = [];
+  const sizes = {};
   for (const i of [1, 2, 3, 4, 5, 6, "6b", 7, 8, 9, 10, 11, 12, 13]) {
     await page.goto(`${base}/sections/s${i}.html`, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
@@ -80,6 +81,7 @@ async function main() {
     const meta = await sharp(buf).metadata();
     console.log(`s${i}.jpg  ${meta.width}x${meta.height}  q${q}  ${(buf.length / 1024).toFixed(0)}KB`);
     outs.push(out);
+    sizes[`s${i}`] = [meta.width, meta.height];
   }
   await browser.close();
   server.close();
@@ -91,6 +93,19 @@ async function main() {
   await sharp({ create: { width: 500, height: total, channels: 3, background: "#ffffff" } })
     .composite(composite).jpeg({ quality: 80 }).toFile(PREVIEW);
   console.log(`preview: ${PREVIEW} (500x${total})`);
+
+  // hood.html 이미지 칸에 실제 크기 기록 (지연 로딩이어도 자리가 미리 잡혀 앵커 위치가 틀어지지 않게)
+  if (!PLACEHOLDER) {
+    const htmlPath = path.resolve(ROOT, "../../public/hood.html");
+    let html = fs.readFileSync(htmlPath, "utf8");
+    for (const [name, [w, h]] of Object.entries(sizes)) {
+      const re = new RegExp(`(data-img="img/hood/${name}\\.jpg")(?: data-w="\\d+" data-h="\\d+")?`);
+      if (!re.test(html)) throw new Error(`hood.html 에 ${name}.jpg 칸이 없음`);
+      html = html.replace(re, `$1 data-w="${w}" data-h="${h}"`);
+    }
+    fs.writeFileSync(htmlPath, html);
+    console.log("hood.html: data-w / data-h 갱신");
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

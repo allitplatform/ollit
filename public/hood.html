@@ -26,6 +26,14 @@ a{color:inherit;text-decoration:none}
 .logo span{font-weight:400;font-size:14px;margin-left:8px;color:var(--tsub)}
 .top-tel{font-weight:800;color:var(--red);font-size:17px;letter-spacing:-.3px;transform-origin:right center}
 
+/* 분기 버튼 (상단 바 바로 아래) */
+.branch{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px;background:#fff}
+.branch a{height:64px;border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:20px;font-weight:800;letter-spacing:-.6px;line-height:1.15;border:1px solid var(--char)}
+.branch a span{font-size:13px;font-weight:400;line-height:1}
+.branch .b-biz{background:var(--char);color:#fff}
+.branch .b-home{background:#fff;color:var(--char)}
+@media (max-width:359px){.branch a{font-size:17px}}
+
 /* 통이미지 섹션 */
 .sec{display:block;width:100%;line-height:0;position:relative}
 .sec img{width:100%;height:auto;display:block}
@@ -103,8 +111,14 @@ footer b{color:var(--ink)}
   <a class="top-tel" href="tel:18662003">1866-2003</a>
 </header>
 
+<!-- 분기 버튼 : 업소용 / 가정용 -->
+<nav class="branch">
+  <a class="b-biz" href="#biz">식당 · 상가 후드 청소<span>↓</span></a>
+  <a class="b-home" href="#home">우리 집 후드 청소<span>↓</span></a>
+</nav>
+
 <!-- 이미지 파일: public/img/hood/s1.jpg ~ s13.jpg + s6b.jpg (14장) -->
-<div class="sec" data-img="img/hood/s1.jpg" data-alt="식당 후드, 영업 끝나고 저희가 들어갑니다. 업소용 주방후드 분해 세척 전문팀" data-label="S1 히어로"></div>
+<div class="sec" id="biz" data-img="img/hood/s1.jpg" data-w="1000" data-h="1502" data-alt="식당 후드, 영업 끝나고 저희가 들어갑니다. 업소용 주방후드 분해 세척 전문팀" data-label="S1 히어로"></div>
 
 <a class="tel-band" href="tel:18662003">
   <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
@@ -142,25 +156,25 @@ footer b{color:var(--ink)}
   </div>
 </section>
 
-<div class="sec" data-img="img/hood/s2.jpg" data-alt="기름은 어디에 쌓일까. 01 기름 필터, 02 시로코팬, 03 모터 하우징, 04 배기 통로" data-label="S2 기름은 어디에 쌓일까"></div>
-<div class="sec" data-img="img/hood/s3.jpg" data-alt="전문팀은 이렇게 합니다. 주방 장비 보양, 필터 분리 · 약품 불림, 후드 내부 기름 제거, 바닥 · 주변 마감, 사진 보고" data-label="S3 전문팀은 이렇게 합니다"></div>
-<div class="sec" data-img="img/hood/s4.jpg" data-alt="작업 전과 작업 후. 후드 내부, 기름 필터, 후드 외부. 이해를 돕기 위한 연출 이미지입니다" data-label="S4 비포 · 애프터"></div>
+<div class="sec" data-img="img/hood/s2.jpg" data-w="1000" data-h="2656" data-alt="기름은 어디에 쌓일까. 01 기름 필터, 02 시로코팬, 03 모터 하우징, 04 배기 통로" data-label="S2 기름은 어디에 쌓일까"></div>
+<div class="sec" data-img="img/hood/s3.jpg" data-w="1000" data-h="4067" data-alt="전문팀은 이렇게 합니다. 주방 장비 보양, 필터 분리 · 약품 불림, 후드 내부 기름 제거, 바닥 · 주변 마감, 사진 보고" data-label="S3 전문팀은 이렇게 합니다"></div>
+<div class="sec" data-img="img/hood/s4.jpg" data-w="1000" data-h="2518" data-alt="작업 전과 작업 후. 후드 내부, 기름 필터, 후드 외부. 이해를 돕기 위한 연출 이미지입니다" data-label="S4 비포 · 애프터"></div>
 
 <a class="tel-band" href="tel:18662003">
   <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
   <span><small>지금 누르면 바로 연결</small><b>1866-2003</b></span>
 </a>
 
-<div class="sec" data-img="img/hood/s5.jpg" data-alt="영업은 그대로, 후드는 깨끗하게. 야간 작업 추가금 0원, 영업 중단 0시간, 업소용 시작가 19.8만원~ (VAT 별도)" data-label="S5 업소용 큰 숫자"></div>
-<div class="sec" data-img="img/hood/s6.jpg" data-alt="이런 주방에서 저희를 부릅니다. 식당, 카페, 급식소, 학교, 병원, 리조트" data-label="S6 이런 주방에서 부릅니다"></div>
-<div class="sec" data-img="img/hood/s6b.jpg" data-alt="가정집 후드도 똑같이 분해합니다. 가정용 100,000원부터" data-label="S6b 가정용 챕터"></div>
-<div class="sec" data-img="img/hood/s7.jpg" data-alt="더 깊게. 커버·필터 전부 분리, 시로코팬·모터 주변 분해 세척, 안쪽 케이싱까지 기름 제거" data-label="S7 더 깊게"></div>
-<div class="sec" data-img="img/hood/s8.jpg" data-alt="더 꼼꼼하게. 세척액에 담가 굳은 기름을 녹이고, 손으로 한 번 더, 조립 뒤 흡입력 확인" data-label="S8 더 꼼꼼하게"></div>
-<div class="sec" data-img="img/hood/s9.jpg" data-alt="더 확실하게. 작업 전후 사진, 추가금은 작업 전에만, 작동 확인 후 결제" data-label="S9 더 확실하게"></div>
-<div class="sec" data-img="img/hood/s10.jpg" data-alt="낡은 후드는 새 후드로. 후드 설치 · 교체, 현장 확인 후 견적" data-label="S10 후드 설치 · 교체"></div>
-<div class="sec" data-img="img/hood/s11.jpg" data-alt="후드만이 아닙니다, 매장 관리도 함께. 식당 청소 · 후드, 업소용 화구 청소, 상가 · 매장 정기관리" data-label="S11 함께 맡길 수 있는 관리"></div>
-<div class="sec" data-img="img/hood/s12.jpg" data-alt="가격부터 보여드립니다. 업소용 후드 청소 198,000원~, 가정용 후드 청소 100,000원~, 후드 설치 · 교체 현장 견적, 야간 작업 추가금 없음, 식당 청소 · 화구 청소 · 매장 정기관리 현장 견적. VAT 별도" data-label="S12 가격"></div>
-<div class="sec" data-img="img/hood/s13.jpg" data-alt="접수부터 완료까지 5단계. 기름 냄새, 이번 주 마감 후에 끝내세요. 1866-2003" data-label="S13 진행 · 마지막"></div>
+<div class="sec" data-img="img/hood/s5.jpg" data-w="1000" data-h="2196" data-alt="영업은 그대로, 후드는 깨끗하게. 야간 작업 추가금 0원, 영업 중단 0시간, 업소용 시작가 19.8만원~ (VAT 별도)" data-label="S5 업소용 큰 숫자"></div>
+<div class="sec" data-img="img/hood/s6.jpg" data-w="1000" data-h="1091" data-alt="이런 주방에서 저희를 부릅니다. 식당, 카페, 급식소, 학교, 병원, 리조트" data-label="S6 이런 주방에서 부릅니다"></div>
+<div class="sec" id="home" data-img="img/hood/s6b.jpg" data-w="1000" data-h="1348" data-alt="가정집 후드도 똑같이 분해합니다. 가정용 100,000원부터" data-label="S6b 가정용 챕터"></div>
+<div class="sec" data-img="img/hood/s7.jpg" data-w="1000" data-h="1567" data-alt="더 깊게. 커버·필터 전부 분리, 시로코팬·모터 주변 분해 세척, 안쪽 케이싱까지 기름 제거" data-label="S7 더 깊게"></div>
+<div class="sec" data-img="img/hood/s8.jpg" data-w="1000" data-h="1174" data-alt="더 꼼꼼하게. 세척액에 담가 굳은 기름을 녹이고, 손으로 한 번 더, 조립 뒤 흡입력 확인" data-label="S8 더 꼼꼼하게"></div>
+<div class="sec" data-img="img/hood/s9.jpg" data-w="1000" data-h="1027" data-alt="더 확실하게. 작업 전후 사진, 추가금은 작업 전에만, 작동 확인 후 결제" data-label="S9 더 확실하게"></div>
+<div class="sec" data-img="img/hood/s10.jpg" data-w="1000" data-h="1565" data-alt="낡은 후드는 새 후드로. 후드 설치 · 교체, 현장 확인 후 견적" data-label="S10 후드 설치 · 교체"></div>
+<div class="sec" data-img="img/hood/s11.jpg" data-w="1000" data-h="3531" data-alt="후드만이 아닙니다, 매장 관리도 함께. 식당 청소 · 후드, 업소용 화구 청소, 상가 · 매장 정기관리" data-label="S11 함께 맡길 수 있는 관리"></div>
+<div class="sec" data-img="img/hood/s12.jpg" data-w="1000" data-h="1372" data-alt="가격부터 보여드립니다. 업소용 후드 청소 198,000원~, 가정용 후드 청소 100,000원~, 후드 설치 · 교체 현장 견적, 야간 작업 추가금 없음, 식당 청소 · 화구 청소 · 매장 정기관리 현장 견적. VAT 별도" data-label="S12 가격"></div>
+<div class="sec" data-img="img/hood/s13.jpg" data-w="1000" data-h="2591" data-alt="접수부터 완료까지 5단계. 기름 냄새, 이번 주 마감 후에 끝내세요. 1866-2003" data-label="S13 진행 · 마지막"></div>
 
 <a class="go-band" href="#apply2">
   <small>업소는 마감 후 야간 작업 · 추가금 없음</small><b>무료 견적 접수</b>
@@ -218,11 +232,32 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target);}}),{threshold:.08});
 document.querySelectorAll('.sec[data-img]').forEach((el,i)=>{
   const img=new Image(); img.alt=el.dataset.alt||''; img.decoding='async';
+  if(el.dataset.w&&el.dataset.h){img.width=+el.dataset.w; img.height=+el.dataset.h;}
   if(i>0){img.loading='lazy'; el.classList.add('reveal'); io.observe(el);}
   const lb=document.createElement('div'); lb.className='ph-label'; lb.textContent=el.dataset.label+' — '+el.dataset.img;
   img.onerror=()=>el.classList.add('missing');
   img.src=el.dataset.img; el.appendChild(img); el.appendChild(lb);
 });
+
+/* 분기 앵커(#biz · #home) : 상단 고정바 높이만큼 보정해서 이동. 주소에 해시가 있으면 로드 뒤 한 번 더 맞춤 */
+function jumpTo(id,smooth){
+  const el=document.getElementById(id); if(!el) return;
+  const y=el.offsetTop-document.querySelector('.top').offsetHeight;
+  window.scrollTo({top:Math.max(0,y),behavior:smooth?'smooth':'auto'});
+}
+document.querySelectorAll('.branch a').forEach(a=>a.addEventListener('click',e=>{
+  e.preventDefault();
+  const id=a.getAttribute('href').slice(1);
+  history.replaceState(null,'','#'+id);
+  jumpTo(id,true);
+}));
+(function(){
+  const id=location.hash.slice(1);
+  if(id!=='biz'&&id!=='home') return;
+  const again=()=>jumpTo(id,false);
+  again();
+  window.addEventListener('load',()=>{again(); setTimeout(again,300); setTimeout(again,1200);});
+})();
 
 /* 하단 '무료 견적 접수' : 지금 위치 아래쪽에 있는 폼으로, 없으면 첫 폼으로 */
 document.getElementById('goForm').addEventListener('click',e=>{
