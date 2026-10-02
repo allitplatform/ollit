@@ -1,26 +1,26 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s9 .rows .row { justify-content: space-between; align-items: baseline; padding: 44px 6px; }
-  .s9 .rows .name { font-size: 32px; font-weight: 500; letter-spacing: -0.03em; }
-  .s9 .rows .top .name { font-weight: 800; }
-  .s9 .rows .won { font-size: 56px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: var(--ink); }
-  .s9 .rows .won small { font-size: 30px; font-weight: 500; letter-spacing: -0.02em; margin-left: 4px; }
-  .s9 .rows .top .won { font-size: 84px; color: var(--red); }
-  .s9 .rows .top .won small { font-size: 34px; font-weight: 800; }
-  .s9 .rows .won.txt { font-size: 44px; }
-  .s9 .vat { margin-top: 44px; font-size: 26px; font-weight: 400; letter-spacing: -0.03em; color: var(--text-sub); }
+  .s9 .ic { flex: 0 0 64px; width: 64px; height: 64px; margin-right: 40px; fill: none; stroke: var(--deep-red); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+  .s9 .rows .row { padding: 46px 6px; }
 </style></head>
 <body>
-<section class="sec s9 bg-grey pad">
-  <p class="eyebrow">PRICE</p>
-  <h2 class="title"><span class="l">가격부터</span><br>보여드립니다</h2>
+<section class="sec s9 bg-light pad">
+  <p class="eyebrow">OUR PROMISE</p>
+  <h2 class="title">더 확실하게</h2>
   <div class="rows">
-    <div class="row top"><div class="name">업소용 후드 청소</div><div class="won">159,000<small>원~</small></div></div>
-    <div class="row"><div class="name">가정용 후드 청소</div><div class="won">100,000<small>원~</small></div></div>
-    <div class="row"><div class="name">후드 설치 · 교체</div><div class="won txt">현장 견적</div></div>
-    <div class="row"><div class="name">야간 작업</div><div class="won txt">추가금 없음</div></div>
+    <div class="row">
+      <svg class="ic" viewBox="0 0 32 32"><path d="M4 10h5.5l2-3h9l2 3H28v15H4z"/><circle cx="16" cy="17" r="4.5"/></svg>
+      <div><b>작업 전후 사진</b><span>분해한 부품 상태까지 사진으로 보내드립니다</span></div>
+    </div>
+    <div class="row">
+      <svg class="ic" viewBox="0 0 32 32"><path d="M8 4h11l5 5v19H8z"/><path d="M19 4v5h5M12 15h8M12 19h8M12 23h5"/></svg>
+      <div><b>추가금은 작업 전에만</b><span>현장에서 금액이 바뀌면 먼저 동의를 받습니다</span></div>
+    </div>
+    <div class="row">
+      <svg class="ic" viewBox="0 0 32 32"><path d="M5 17l7 7L27 8"/></svg>
+      <div><b>작동 확인 후 결제</b><span>흡입력과 소음을 직접 확인하신 뒤 결제합니다</span></div>
+    </div>
   </div>
-  <p class="vat">VAT 별도 · 후드 크기 · 개수 · 기름 상태에 따라 달라질 수 있습니다</p>
 </section>
 </body></html>

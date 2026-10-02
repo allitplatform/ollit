@@ -1,35 +1,47 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s2 .full { height: 820px; object-fit: cover; object-position: center 10%; margin-top: 84px; }
-  .s2 .cap { margin-top: 24px; font-size: 26px; font-weight: 500; letter-spacing: -0.02em; color: var(--text-sub); }
-  .s2 .rows { margin-top: 64px; }
-  .s2 .rows .row { padding: 44px 6px; }
-  .s2 .ic { flex: 0 0 64px; width: 64px; height: 64px; margin-right: 40px; fill: none; stroke: var(--deep-red); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+  .s2 { padding-bottom: 110px; }
+  .s2 .fig { width: 1000px; height: 760px; margin-top: 70px; }
+  .s2 .fig img { position: absolute; left: 120px; top: 0; width: 760px; height: 760px; }
+  .s2 .rows { margin-top: 30px; }
+  .s2 .rows .row { padding: 30px 6px; align-items: flex-start; }
+  .s2 .rows .n { flex: 0 0 74px; font-size: 30px; font-weight: 800; color: var(--red); line-height: 1.3; }
+  .s2 .rows b { font-size: 34px; line-height: 1.3; }
+  .s2 .wide { height: 520px; object-fit: cover; object-position: center 62%; margin-top: 90px; }
+  .s2 .note { margin-top: 56px; font-size: 32px; font-weight: 400; letter-spacing: -0.03em; }
+  .s2 .note b { font-weight: 800; }
 </style></head>
 <body>
 <section class="sec s2 bg-grey">
-  <p class="eyebrow">WHY IT MATTERS</p>
-  <h2 class="title"><span class="l">보이지 않는 곳에</span><br>기름이 쌓이고 있습니다</h2>
+  <p class="eyebrow">WHERE GREASE BUILDS UP</p>
+  <h2 class="title"><span class="l">기름은</span><br>어디에 <span class="red">쌓일까</span></h2>
 
-  <img class="full" src="../photos/ba1_before.jpg" alt="">
-  <p class="cap">후드 안쪽 실제 모습 예시</p>
+  <!-- 지시선 끝점은 h2_cutaway 부품 위치 기준. 사진 바탕은 #EEEEEC 에 맞춰 보정해 둠 -->
+  <div class="fig">
+    <img src="../photos/h2_cutaway.jpg" alt="">
+    <svg class="lines" viewBox="0 0 1000 760">
+      <polyline points="400,608 400,706"/><circle cx="400" cy="608" r="3"/>
+      <polyline points="545,385 960,385"/><circle cx="545" cy="385" r="3"/>
+      <polyline points="400,345 40,345"/><circle cx="400" cy="345" r="3"/>
+      <polyline points="660,160 960,160"/><circle cx="660" cy="160" r="3"/>
+    </svg>
+    <span class="lb" style="left:316px;top:720px"><i>01</i>기름 필터</span>
+    <span class="lb r" style="right:40px;top:347px"><i>02</i>시로코팬</span>
+    <span class="lb" style="left:40px;top:307px"><i>03</i>모터 하우징</span>
+    <span class="lb r" style="right:40px;top:122px"><i>04</i>배기 통로</span>
+  </div>
 
   <div class="pad">
     <div class="rows">
-      <div class="row">
-        <svg class="ic" viewBox="0 0 32 32"><path d="M16 3c1 5 7 8 7 15a7 7 0 0 1-14 0c0-3 1.5-5 3-6.5 0 2 1 3.5 2.5 3.5C14 11 14 7 16 3z"/></svg>
-        <div><b>화재 위험</b><span>쌓인 기름은 불꽃 한 번에 번집니다</span></div>
-      </div>
-      <div class="row">
-        <svg class="ic" viewBox="0 0 32 32"><path d="M4 11h15a4 4 0 1 0-4-4M4 17h21a4 4 0 1 1-4 4M4 23h10"/></svg>
-        <div><b>냄새 · 연기 역류</b><span>흡입이 약해져 홀까지 냄새가 퍼집니다</span></div>
-      </div>
-      <div class="row">
-        <svg class="ic" viewBox="0 0 32 32"><path d="M16 4c4 6 8 10 8 15a8 8 0 0 1-16 0c0-5 4-9 8-15z"/></svg>
-        <div><b>기름 떨어짐</b><span>굳은 기름이 녹아 조리대로 떨어집니다</span></div>
-      </div>
+      <div class="row"><div class="n">01</div><div><b>기름 필터</b><span>가장 먼저 기름이 걸리는 곳</span></div></div>
+      <div class="row"><div class="n">02</div><div><b>시로코팬</b><span>날개 사이에 기름이 굳어 흡입력이 떨어지는 곳</span></div></div>
+      <div class="row"><div class="n">03</div><div><b>모터 하우징</b><span>기름이 튀어 소음과 냄새가 생기는 곳</span></div></div>
+      <div class="row"><div class="n">04</div><div><b>배기 통로</b><span>겉에서 보이지 않는 안쪽 벽</span></div></div>
     </div>
   </div>
+
+  <img class="full wide" src="../photos/h4_grease.jpg" alt="">
+  <p class="note">필터만 빼서 닦으면, <b>02 · 03 · 04</b> 는 그대로 남습니다.</p>
 </section>
 </body></html>

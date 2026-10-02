@@ -1,5 +1,5 @@
-// 주방후드 통이미지 빌드: sections/s1~s10.html → Playwright 캡처 → JPG
-//   node build.mjs                → photos/ 사용, public/img/hood/s1~s10.jpg + preview_all.jpg 생성
+// 주방후드 통이미지 빌드: sections/s1~s13.html → Playwright 캡처 → JPG
+//   node build.mjs                → photos/ 사용, public/img/hood/s1~s13.jpg + preview_all.jpg 생성
 //   node build.mjs --placeholder  → 없는 사진만 단색 임시 사진으로 채워 레이아웃 확인 (out_placeholder/ 에 저장)
 //   크롬 경로는 CHROME_PATH 환경변수로 지정
 import http from "node:http";
@@ -19,7 +19,8 @@ const PHOTOS = [
   ["b1_hero", 1600, 2000], ["b2_cover", 1600, 1062], ["b3_soak", 1600, 1062], ["b4_scrape", 1600, 1062], ["b5_floor", 1600, 1062],
   ["ba1_before", 1600, 1600], ["ba1_after", 1600, 1600], ["ba2_before", 1600, 1600], ["ba2_after", 1600, 1600],
   ["ba3_before", 1600, 1062], ["ba3_after", 1600, 1062],
-  ["h1_hero", 1600, 2000], ["h6_after", 1600, 1062], ["h8_install", 1600, 1062],
+  ["c1_restaurant", 1600, 1062], ["c2_store", 1600, 1062], ["c3_office", 1600, 1062],
+  ["h2_cutaway", 1600, 1600], ["h3_exploded", 1500, 2000], ["h4_grease", 1600, 1600], ["h5_soak", 1600, 1062], ["h6_after", 1600, 1062], ["h8_install", 1600, 1062],
 ];
 const MAX_BYTES = 400 * 1024;
 const TYPES = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".jpg": "image/jpeg", ".woff2": "font/woff2" };
@@ -67,7 +68,7 @@ async function main() {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || "/opt/pw-browsers/chromium" });
   const page = await browser.newPage({ viewport: { width: 1000, height: 1200 }, deviceScaleFactor: 1.5 });
   const outs = [];
-  for (let i = 1; i <= 10; i++) {
+  for (let i = 1; i <= 13; i++) {
     await page.goto(`${base}/sections/s${i}.html`, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
     const family = await page.evaluate(() => document.fonts.check('800 40px "Pretendard"'));
