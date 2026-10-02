@@ -26,13 +26,19 @@ a{color:inherit;text-decoration:none}
 .logo span{font-weight:400;font-size:14px;margin-left:8px;color:var(--tsub)}
 .top-tel{font-weight:800;color:var(--red);font-size:17px;letter-spacing:-.3px;transform-origin:right center}
 
-/* 분기 버튼 (상단 바 바로 아래) */
-.branch{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px;background:#fff}
-.branch a{height:64px;border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:20px;font-weight:800;letter-spacing:-.6px;line-height:1.15;border:1px solid var(--char)}
-.branch a span{font-size:13px;font-weight:400;line-height:1}
-.branch .b-biz{background:var(--char);color:#fff}
-.branch .b-home{background:#fff;color:var(--char)}
-@media (max-width:359px){.branch a{font-size:17px}}
+/* 분기 질문 블록 (상단 바 바로 아래, 전체 높이 200px 이하) — 알약·그라데이션·그림자 없음 */
+@keyframes brArrow{0%,100%{transform:translateY(0)}50%{transform:translateY(4px)}}
+@keyframes brBlink{0%,100%{border-color:var(--char)}50%{border-color:var(--red)}}
+.branch{background:var(--light);padding:16px 12px}
+.branch .q{font-size:18px;font-weight:800;color:var(--char);text-align:center;line-height:24px;letter-spacing:-.4px}
+.branch .opts{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.branch a{height:120px;border:1.5px solid var(--char);border-radius:4px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;animation:brBlink .6s ease-in-out 1s 2;-webkit-tap-highlight-color:transparent}
+.branch a svg{width:28px;height:28px;fill:none;stroke:var(--red);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.branch a b{margin-top:4px;font-size:22px;font-weight:800;line-height:26px;letter-spacing:-.6px;color:var(--char)}
+.branch a small{margin-top:2px;font-size:14px;line-height:18px;color:var(--tsub)}
+.branch a i{margin-top:3px;font-style:normal;font-size:15px;font-weight:800;line-height:15px;color:var(--red);animation:brArrow 1.2s ease-in-out infinite}
+.branch a:active,.branch a.picked{border-color:var(--red);background:#FDECEB;animation:none}
+.branch a:active b,.branch a.picked b{color:var(--char)}
 
 /* 통이미지 섹션 */
 .sec{display:block;width:100%;line-height:0;position:relative}
@@ -100,7 +106,7 @@ footer b{color:var(--ink)}
 .fixed .call svg{animation:telShake 1.6s ease-in-out infinite}
 .fixed .go{background:var(--char);color:#fff}
 
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}.reveal{opacity:1;transform:none}.tel-band,.tel-band *,.fixed .call,.fixed .call *,.top-tel{animation:none!important}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}.reveal{opacity:1;transform:none}.tel-band,.tel-band *,.fixed .call,.fixed .call *,.top-tel,.branch a,.branch a i{animation:none!important}}
 </style>
 </head>
 <body>
@@ -111,10 +117,19 @@ footer b{color:var(--ink)}
   <a class="top-tel" href="tel:18662003">1866-2003</a>
 </header>
 
-<!-- 분기 버튼 : 업소용 / 가정용 -->
+<!-- 분기 질문 : 업소용 / 가정용 -->
 <nav class="branch">
-  <a class="b-biz" href="#biz">식당 · 상가 후드 청소<span>↓</span></a>
-  <a class="b-home" href="#home">우리 집 후드 청소<span>↓</span></a>
+  <p class="q">어떤 주방의 후드인가요?</p>
+  <div class="opts">
+    <a class="b-biz" href="#biz">
+      <svg viewBox="0 0 28 28"><path d="M4 11l2-6h16l2 6M4 11v1.5a2.5 2.5 0 0 0 5 0V11m0 1.5a2.5 2.5 0 0 0 5 0V11m0 1.5a2.5 2.5 0 0 0 5 0V11m0 1.5a2.5 2.5 0 0 0 5 0V11M6 15v8h16v-8M11 23v-5h6v5"/></svg>
+      <b>식당 · 상가</b><small>마감 후 야간 작업</small><i>↓</i>
+    </a>
+    <a class="b-home" href="#home">
+      <svg viewBox="0 0 28 28"><path d="M4 13l10-8 10 8M7 11v12h14V11M11.5 23v-6h5v6"/></svg>
+      <b>우리 집</b><small>필터 · 팬까지 분해</small><i>↓</i>
+    </a>
+  </div>
 </nav>
 
 <!-- 이미지 파일: public/img/hood/s1.jpg ~ s13.jpg + s6b.jpg (14장) -->
@@ -249,6 +264,7 @@ document.querySelectorAll('.branch a').forEach(a=>a.addEventListener('click',e=>
   e.preventDefault();
   const id=a.getAttribute('href').slice(1);
   history.replaceState(null,'','#'+id);
+  a.classList.add('picked'); setTimeout(()=>a.classList.remove('picked'),700);
   jumpTo(id,true);
 }));
 (function(){
