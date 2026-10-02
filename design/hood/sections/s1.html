@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  /* 휴대폰 첫 화면에 제목 + 사진 + 가격 숫자가 모두 보이도록 전체 높이 1650px 이하 */
+  /* 휴대폰 첫 화면에 제목 + 사진 + 띠 큰 글자가 모두 보이도록 전체 높이 1650px 이하 */
   .s1 { padding: 0; background: var(--white); }
   .s1 .head { padding: 60px 40px; }
   .s1 .title { margin-top: 24px; line-height: 1.18; }
@@ -18,13 +18,11 @@
   .s1 .inset img { position: absolute; left: -250px; top: -260px; width: 600px; height: 600px; }
   .s1 .inset span { position: absolute; left: 18px; top: 16px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: #FFFFFF; }
 
-  .s1 .band { background: var(--char); padding: 50px 30px 44px; }
-  .s1 .cols { display: grid; grid-template-columns: 1.15fr 1.15fr 0.9fr; }
+  .s1 .band { background: var(--char); padding: 54px 30px 56px; }
+  .s1 .cols { display: grid; grid-template-columns: 1fr 1.2fr 1fr; }
   .s1 .cols > div + div { border-left: 1px solid #555; }
   .s1 .cols .num { font-size: 64px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: #FF5A4F; white-space: nowrap; }
-  .s1 .cols .num small { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; margin-left: 3px; }
-  .s1 .cols .cap { margin-top: 16px; font-size: 26px; font-weight: 500; letter-spacing: -0.02em; color: #CFCFCB; }
-  .s1 .vat { margin-top: 36px; font-size: 22px; font-weight: 400; letter-spacing: -0.01em; color: var(--sub); }
+  .s1 .cols .cap { margin-top: 18px; font-size: 26px; font-weight: 500; letter-spacing: -0.04em; color: #CFCFCB; white-space: nowrap; }
 </style></head>
 <body>
 <section class="sec s1">
@@ -43,11 +41,10 @@
 
   <div class="band">
     <div class="cols">
-      <div><p class="num">100,000<small>원~</small></p><p class="cap">가정용</p></div>
-      <div><p class="num">159,000<small>원~</small></p><p class="cap">업소용</p></div>
-      <div><p class="num">0<small>원</small></p><p class="cap">야간 추가금</p></div>
+      <div><p class="num">분해</p><p class="cap">필터 · 팬 · 안쪽까지</p></div>
+      <div><p class="num">야간</p><p class="cap">마감 후 작업 · 추가금 없음</p></div>
+      <div><p class="num">설치</p><p class="cap">교체까지 한 번에</p></div>
     </div>
-    <p class="vat">후드 설치도 가능</p>
   </div>
 </section>
 </body></html>
