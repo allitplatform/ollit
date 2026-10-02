@@ -52,9 +52,34 @@ export function ipjuDetail(source) {
   else if (tm) out.push("희망 " + tm);
   return out.join(" · ");
 }
-// 접수함·전환 메모에 쓰는 희망 서비스 라벨 — 입주청소 랜딩은 service_type 과 관계없이 "입주청소".
+// 2026-10-02 — 주방후드 랜딩(public/hood.html) 접수 판별. 입주청소와 같은 방식 (service_type 은 'unknown').
+//   source 형식: hood_landing_top/home/1ea/2026-10-10/am  (대수 1ea · 날짜 nodate · 시간대 any 는 생략)
+export function isHoodSource(source) {
+  return String(source || "").startsWith("hood_landing");
+}
+const HOOD_KIND = { home: "가정용 청소", biz: "업소용 청소", install: "후드 설치" };
+const HOOD_QTY  = { "2ea": "2대", "3ea": "3대 이상" };
+// → "업소용 청소 · 2대 · 희망일 10/10 오후" (입력 안 된 항목은 생략). 주방후드 접수가 아니면 "".
+export function hoodDetail(source) {
+  if (!isHoodSource(source)) return "";
+  const [, kind = "", qty = "", date = "", time = ""] = String(source).split("/");
+  const out = [];
+  if (HOOD_KIND[kind]) out.push(HOOD_KIND[kind]);
+  if (HOOD_QTY[qty]) out.push(HOOD_QTY[qty]);
+  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
+  const tm = IPJU_TIME[time] || "";
+  if (m) out.push("희망일 " + Number(m[1]) + "/" + Number(m[2]) + (tm ? " " + tm : ""));
+  else if (tm) out.push("희망 " + tm);
+  return out.join(" · ");
+}
+// 랜딩 접수 풀이 공통 — 입주청소·주방후드 중 해당하는 쪽. 둘 다 아니면 "".
+export function landingDetail(source) {
+  return ipjuDetail(source) || hoodDetail(source);
+}
+// 접수함·전환 메모에 쓰는 희망 서비스 라벨 — 입주청소·주방후드 랜딩은 service_type 과 관계없이 고정 라벨.
 export function inquiryServiceLabel(row) {
   if (row && isIpjuSource(row.source)) return "입주청소";
+  if (row && isHoodSource(row.source)) return "주방후드";
   return serviceLabel(row && row.service_type);
 }
 

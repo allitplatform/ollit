@@ -19,6 +19,9 @@ import {
   serviceLabel,
   isIpjuSource,           // 2026-09-28 — 입주청소 랜딩 (source ipju_landing*)
   ipjuDetail,
+  isHoodSource,           // 2026-10-02 — 주방후드 랜딩 (source hood_landing*)
+  hoodDetail,
+  landingDetail,
   inquiryServiceLabel,
   statusMeta,
   SERVICE_WORKTYPE,
@@ -129,10 +132,12 @@ function sourceBadge(src) {
   if (v === "leak_landing") return { label: "누수광고", color: "#7C3AED", bg: "#F3E8FF" };
   if (v.startsWith("grave_landing")) return { label: "벌초·산소", color: "#15803D", bg: "#DCFCE7" };
   if (isIpjuSource(v)) return { label: "입주청소", color: "#1B4FBF", bg: "#E8EFFD" };
+  // 2026-10-02 — hood_landing*=주방후드. 입주청소와 같은 방식.
+  if (isHoodSource(v)) return { label: "주방후드", color: "#D7261E", bg: "#FDECEB" };
   return null;
 }
 function showServicePill(row) {
-  return !isIpjuSource(row && row.source);
+  return !isIpjuSource(row && row.source) && !isHoodSource(row && row.source);
 }
 
 function _kstYmd(iso) {
@@ -701,6 +706,12 @@ function MiniCardRow({ row, busy, apiTasks = [], onCall, onSpam, onDelete, onCon
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>{ipjuDetail(row.source)}</div>
           )}
+          {hoodDetail(row.source) && (
+            <div style={{
+              fontSize: 11.5, color: "#D7261E", fontWeight: 700, marginTop: 2,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>{hoodDetail(row.source)}</div>
+          )}
           {row.memo && (
             <div style={{
               fontSize: 11.5, color: "#4A5A70", marginTop: 2,
@@ -952,6 +963,12 @@ function PcListRow({ row, selected, apiTasks = [], onClick }) {
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>{ipjuDetail(row.source)}</div>
       )}
+      {hoodDetail(row.source) && (
+        <div style={{
+          marginTop: 2, fontSize: 11, color: "#D7261E", fontWeight: 700,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>{hoodDetail(row.source)}</div>
+      )}
       {row.memo && (
         <div style={{
           marginTop: 2, fontSize: 11, color: "#4A5A70",
@@ -997,7 +1014,7 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
     //   NewReceptionPcForm 은 init.workType / init.applianceUndecided 를 이미 받는다.
     workType: SERVICE_WORKTYPE[row.service_type] || "",
     applianceUndecided: true,
-    memo: `[${sourceBadge(row.source) ? sourceBadge(row.source).label + " 랜딩" : "홈페이지"} 접수${at ? " " + at : ""}] 희망 서비스: ${inquiryServiceLabel(row)}${ipjuDetail(row.source) ? " (" + ipjuDetail(row.source) + ")" : ""}`,
+    memo: `[${sourceBadge(row.source) ? sourceBadge(row.source).label + " 랜딩" : "홈페이지"} 접수${at ? " " + at : ""}] 희망 서비스: ${inquiryServiceLabel(row)}${landingDetail(row.source) ? " (" + landingDetail(row.source) + ")" : ""}`,
   };
   const isNew  = row.status === "new";
   const isSpam = row.status === "spam";
@@ -1065,6 +1082,10 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
           {ipjuDetail(row.source) && (<>
             <span style={{ color: "#93A2B4", fontWeight: 600 }}>입주청소</span>
             <span style={{ fontWeight: 700, color: "#1B4FBF" }}>{ipjuDetail(row.source)}</span>
+          </>)}
+          {hoodDetail(row.source) && (<>
+            <span style={{ color: "#93A2B4", fontWeight: 600 }}>주방후드</span>
+            <span style={{ fontWeight: 700, color: "#D7261E" }}>{hoodDetail(row.source)}</span>
           </>)}
           {row.memo && (<>
             <span style={{ color: "#93A2B4", fontWeight: 600 }}>메모</span>
