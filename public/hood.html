@@ -4,13 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>올데이케어 주방후드 분해 청소 · 설치 | 가정용 100,000원~</title>
-<meta name="description" content="주방후드 분해 청소 가정용 100,000원~, 업소용 159,000원~, 후드 설치·교체. 필터·시로코팬·내부 케이싱까지 분해해서 닦습니다. 1866-2003">
+<meta name="description" content="주방후드 분해 청소 가정용 100,000원~, 업소용 159,000원~, 후드 설치·교체. 필터·시로코팬·내부 케이싱까지 분해해서 닦습니다. 1866-2003 업소용 야간 작업 추가금 없음.">
 <meta name="robots" content="noindex">
 <meta property="og:title" content="올데이케어 주방후드 분해 청소 · 설치">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css">
 <style>
-/* 색은 8가지만: #EEEEEC #F6F6F4 #FFFFFF #2A2A2A #B01E17 #D7261E #8A8A86 (그라데이션·둥근 뱃지·그림자 없음) */
-:root{--grey:#EEEEEC;--light:#F6F6F4;--char:#2A2A2A;--deep:#B01E17;--red:#D7261E;--ink:#2A2A2A;--sub:#8A8A86}
+/* 색은 8가지만: #EEEEEC #F6F6F4 #FFFFFF #2A2A2A #B01E17 #D7261E #8A8A86 #6E6E6A (그라데이션·둥근 뱃지·그림자 없음) */
+:root{--grey:#EEEEEC;--light:#F6F6F4;--char:#2A2A2A;--deep:#B01E17;--red:#D7261E;--ink:#2A2A2A;--sub:#8A8A86;--tsub:#6E6E6A}
 *{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{font-family:Pretendard,-apple-system,'Noto Sans KR',sans-serif;color:var(--ink);background:var(--grey);overflow-x:clip;word-break:keep-all}
@@ -23,8 +23,8 @@ a{color:inherit;text-decoration:none}
 /* 상단 바 */
 .top{position:sticky;top:0;z-index:30;background:#fff;display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--sub)}
 .logo{font-weight:800;font-size:18px;letter-spacing:-.4px}
-.logo span{font-weight:300;font-size:14px;margin-left:8px;color:var(--sub)}
-.top-tel{font-weight:800;color:var(--red);font-size:17px;letter-spacing:-.3px}
+.logo span{font-weight:400;font-size:14px;margin-left:8px;color:var(--tsub)}
+.top-tel{font-weight:800;color:var(--red);font-size:17px;letter-spacing:-.3px;transform-origin:right center}
 
 /* 통이미지 섹션 */
 .sec{display:block;width:100%;line-height:0;position:relative}
@@ -34,10 +34,30 @@ a{color:inherit;text-decoration:none}
 .sec.missing img{display:none}
 .sec.missing .ph-label{display:flex;position:absolute;inset:0;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:14px;color:var(--sub)}
 
-/* 전화 띠 */
-.tel-band{display:block;background:var(--char);color:#fff;padding:26px 16px;text-align:center}
-.tel-band small{display:block;font-size:13px;font-weight:300;letter-spacing:.02em;color:var(--grey)}
-.tel-band b{display:block;margin-top:6px;font-size:30px;font-weight:800;letter-spacing:-.8px}
+/* 전화 CTA 애니메이션 — 단색 깜빡임·크기·흔들림·파동만 (그라데이션·빛 스침·글로우 없음) */
+@keyframes telFlash{0%,100%{background:#D7261E}50%{background:#B01E17}}
+@keyframes telBeat{0%,60%,100%{transform:scale(1)}66%{transform:scale(1.14)}72%{transform:scale(.97)}78%{transform:scale(1.08)}}
+@keyframes telShake{0%,70%,100%{transform:rotate(0)}73%{transform:rotate(-22deg)}76%{transform:rotate(20deg)}79%{transform:rotate(-16deg)}82%{transform:rotate(12deg)}85%{transform:rotate(-6deg)}}
+@keyframes telRing{0%{transform:scale(1);opacity:.85}100%{transform:scale(2.4);opacity:0}}
+@keyframes telBounce{0%,80%,100%{transform:translateY(0)}86%{transform:translateY(-8px)}92%{transform:translateY(0)}96%{transform:translateY(-3px)}}
+
+/* 전화 띠: 배경이 빨강↔진빨강으로 깜빡, 번호 두근, 아이콘 흔들림 + 파동 3겹 */
+.tel-band{display:flex;align-items:center;justify-content:center;gap:26px;background:#D7261E;color:#fff;padding:30px 16px;text-align:left;overflow:hidden;animation:telFlash 1.2s ease-in-out infinite}
+.tel-band small{display:block;font-size:14px;font-weight:500;letter-spacing:.01em}
+.tel-band b{display:inline-block;margin-top:2px;font-size:36px;font-weight:800;letter-spacing:-1px;line-height:1.1;transform-origin:left center;animation:telBeat 1.6s ease-in-out infinite}
+.tel-band .ico{position:relative;flex:0 0 44px;width:44px;height:44px;display:flex;align-items:center;justify-content:center}
+.tel-band .ico svg{position:relative;animation:telShake 1.6s ease-in-out infinite}
+.tel-band .ico::before,.tel-band .ico::after,.tel-band .ico i{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid #fff;animation:telRing 1.6s ease-out infinite}
+.tel-band .ico::after{animation-delay:.53s}
+.tel-band .ico i{animation-delay:1.06s}
+
+/* 접수 유도 띠 (아래 폼 위) */
+.go-band{display:block;background:var(--char);color:#fff;padding:26px 16px;text-align:center;border-top:1px solid var(--sub)}
+.go-band small{display:block;font-size:14px;font-weight:400;color:var(--grey)}
+.go-band b{display:block;margin-top:6px;font-size:26px;font-weight:800;letter-spacing:-.8px}
+
+/* 상단 번호: 두근 */
+.top-tel{display:inline-block;animation:telBeat 1.6s ease-in-out infinite}
 
 /* 접수 폼 */
 .apply{background:var(--light);padding:44px 18px 48px}
@@ -46,13 +66,13 @@ a{color:inherit;text-decoration:none}
 .card h3{margin-top:10px;font-size:26px;font-weight:800;letter-spacing:-.8px;text-align:center}
 .card h3 em{font-style:normal;font-weight:300}
 .card .bar{width:40px;height:1px;background:var(--red);margin:18px auto 0}
-.card .hint{font-size:14px;color:var(--sub);margin-top:16px;text-align:center}
+.card .hint{font-size:14px;color:var(--tsub);margin-top:16px;text-align:center}
 .f{margin-top:14px}
 .f label{display:block;font-size:13px;font-weight:700;margin-bottom:6px}
 .f input,.f select{width:100%;height:50px;border:1px solid var(--sub);border-radius:0;padding:0 14px;font-size:16px;font-family:inherit;color:var(--ink);background:#fff;-webkit-appearance:none;appearance:none}
 .f input:focus,.f select:focus{outline:none;border-color:var(--ink)}
 .f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.agree{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13.5px;color:var(--sub)}
+.agree{display:flex;align-items:center;gap:8px;margin-top:16px;font-size:13.5px;color:var(--tsub)}
 .agree input{width:20px;height:20px;accent-color:var(--ink)}
 .agree a{text-decoration:underline}
 .btn{display:block;width:100%;height:58px;border:0;border-radius:0;background:var(--char);color:#fff;font-size:18px;font-weight:800;font-family:inherit;margin-top:18px;cursor:pointer}
@@ -61,16 +81,19 @@ a{color:inherit;text-decoration:none}
 .msg.ok{display:block;font-weight:700}
 .msg.err{display:block;color:var(--deep)}
 
-footer{padding:28px 22px 36px;font-size:12px;color:var(--sub);line-height:1.75;border-top:1px solid var(--sub)}
+footer{padding:28px 22px 36px;font-size:12px;color:var(--tsub);line-height:1.75;border-top:1px solid var(--sub)}
 footer b{color:var(--ink)}
 
 /* 하단 고정 바 */
 .fixed{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:1000px;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--sub);z-index:40}
 .fixed a{height:54px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px}
-.fixed .call{background:#fff;color:var(--red);border:1px solid var(--ink)}
+/* 하단 고정 전화 버튼: 통통 튀기 + 깜빡 + 아이콘 흔들림 */
+.fixed a{gap:8px}
+.fixed .call{background:#D7261E;color:#fff;animation:telBounce 2.2s ease-in-out infinite,telFlash 1.2s ease-in-out infinite}
+.fixed .call svg{animation:telShake 1.6s ease-in-out infinite}
 .fixed .go{background:var(--char);color:#fff}
 
-@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}.reveal{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important}.reveal{opacity:1;transform:none}.tel-band,.tel-band *,.fixed .call,.fixed .call *,.top-tel{animation:none!important}}
 </style>
 </head>
 <body>
@@ -81,11 +104,12 @@ footer b{color:var(--ink)}
   <a class="top-tel" href="tel:18662003">1866-2003</a>
 </header>
 
-<!-- 이미지 파일: public/img/hood/s1.jpg ~ s8.jpg -->
+<!-- 이미지 파일: public/img/hood/s1.jpg ~ s8.jpg + s6b.jpg (9장) -->
 <div class="sec" data-img="img/hood/s1.jpg" data-alt="겉면은 깨끗해도, 기름은 안쪽에 쌓입니다. 올데이케어 주방후드 분해 청소. 가정용 100,000원~, 업소용 159,000원~, 후드 설치" data-label="S1 히어로"></div>
 
 <a class="tel-band" href="tel:18662003">
-  <small>누르면 바로 연결</small><b>1866-2003</b>
+  <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
+  <span><small>지금 누르면 바로 연결</small><b>1866-2003</b></span>
 </a>
 
 <!-- 접수 폼 1 : 히어로 바로 아래 -->
@@ -102,7 +126,7 @@ footer b{color:var(--ink)}
       </div>
       <div class="f2">
         <div class="f"><label>종류</label>
-          <select name="kind"><option value="home">가정용 청소</option><option value="biz">업소용 청소</option><option value="install">후드 설치</option></select></div>
+          <select name="kind"><option value="">선택해 주세요</option><option value="home">가정용 청소</option><option value="biz">업소용 청소</option><option value="install">후드 설치</option></select></div>
         <div class="f"><label>후드 대수</label>
           <select name="qty"><option value="1ea">1대</option><option value="2ea">2대</option><option value="3ea">3대 이상</option></select></div>
       </div>
@@ -125,12 +149,18 @@ footer b{color:var(--ink)}
 <div class="sec" data-img="img/hood/s5.jpg" data-alt="더 확실하게. 작업 전후 사진, 추가금은 작업 전에만, 작동 확인 후 결제" data-label="S5 더 확실하게"></div>
 
 <a class="tel-band" href="tel:18662003">
-  <small>가정용 · 업소용 · 설치 상담</small><b>1866-2003</b>
+  <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
+  <span><small>지금 누르면 바로 연결</small><b>1866-2003</b></span>
 </a>
 
-<div class="sec" data-img="img/hood/s6.jpg" data-alt="식당 후드도, 설치도. 업소용 후드 청소, 후드 설치·교체" data-label="S6 업소용 · 설치"></div>
+<div class="sec" data-img="img/hood/s6.jpg" data-alt="영업은 그대로, 후드는 깨끗하게. 야간 작업 추가금 0원, 영업 중단 0시간, 업소용 시작가 15.9만원~ (VAT 별도)" data-label="S6 업소용 상세"></div>
+<div class="sec" data-img="img/hood/s6b.jpg" data-alt="후드 설치 · 교체, 현장 확인 후 견적" data-label="S6b 후드 설치 · 교체"></div>
 <div class="sec" data-img="img/hood/s7.jpg" data-alt="가격부터 보여드립니다. 가정용 후드 청소 100,000원~, 업소용 후드 청소 159,000원~, 후드 설치·교체 현장 견적. VAT 별도" data-label="S7 가격"></div>
 <div class="sec" data-img="img/hood/s8.jpg" data-alt="접수부터 완료까지 5단계. 기름 냄새, 이번 주에 끝내세요. 1866-2003" data-label="S8 진행 · 마지막"></div>
+
+<a class="go-band" href="#apply2">
+  <small>업소는 마감 후 야간 작업 · 추가금 없음</small><b>간편 접수</b>
+</a>
 
 <!-- 접수 폼 2 : 맨 아래 -->
 <section class="apply" id="apply2">
@@ -146,7 +176,7 @@ footer b{color:var(--ink)}
       </div>
       <div class="f2">
         <div class="f"><label>종류</label>
-          <select name="kind"><option value="home">가정용 청소</option><option value="biz">업소용 청소</option><option value="install">후드 설치</option></select></div>
+          <select name="kind"><option value="">선택해 주세요</option><option value="home">가정용 청소</option><option value="biz">업소용 청소</option><option value="install">후드 설치</option></select></div>
         <div class="f"><label>후드 대수</label>
           <select name="qty"><option value="1ea">1대</option><option value="2ea">2대</option><option value="3ea">3대 이상</option></select></div>
       </div>
@@ -170,7 +200,7 @@ footer b{color:var(--ink)}
 </footer>
 
 <nav class="fixed">
-  <a class="call" href="tel:18662003">1866-2003</a>
+  <a class="call" href="tel:18662003"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg>1866-2003</a>
   <a class="go" href="#apply" id="goForm">간편 접수</a>
 </nav>
 </div>
@@ -224,13 +254,14 @@ document.querySelectorAll('.lead-form').forEach((form,idx)=>{
     e.preventDefault();
     const name=q('name').value.trim(), phone=q('phone').value.replace(/\D/g,''), addr=q('addr').value.trim();
     const kv=q('kind').value, qv=q('qty').value, date=q('date').value;
-    const kind=(kv==='home'||kv==='biz'||kv==='install')?kv:'home';
     const qty=(qv==='1ea'||qv==='2ea'||qv==='3ea')?qv:'1ea';
     // 시간대: am / pm / any 만 허용. 선택 안 함·빈 값·그 밖의 값은 모두 any
     const tv=String(q('time').value||'').trim();
     const time=(tv==='am'||tv==='pm'||tv==='any')?tv:'any';
     if(!name) return show('성함을 적어주세요');
     if(phone.length<10) return show('연락처를 확인해주세요');
+    if(kv!=='home'&&kv!=='biz'&&kv!=='install') return show('종류를 선택해 주세요');
+    const kind=kv;
     if(!addr) return show('지역을 적어주세요');
     if(!q('agree').checked) return show('개인정보 수집·이용에 동의해주세요');
     btn.disabled=true; btn.textContent='접수 중…';

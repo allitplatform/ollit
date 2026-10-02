@@ -9,7 +9,8 @@
   --deep-red: #B01E17;
   --red: #D7261E;
   --ink: #2A2A2A;
-  --sub: #8A8A86;
+  --sub: #8A8A86;       /* 가는 선 · 영문 소제목 */
+  --text-sub: #6E6E6A;  /* 보조 글씨 */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -53,7 +54,7 @@ html, body {
 .rows { margin-top: 70px; text-align: left; border-top: 1px solid var(--sub); }
 .rows .row { display: flex; align-items: center; padding: 40px 6px; border-bottom: 1px solid var(--sub); }
 .rows .row b { display: block; font-size: 36px; font-weight: 800; letter-spacing: -0.035em; }
-.rows .row span { display: block; margin-top: 10px; font-size: 28px; font-weight: 400; letter-spacing: -0.03em; color: var(--sub); }
+.rows .row span { display: block; margin-top: 10px; font-size: 28px; font-weight: 400; letter-spacing: -0.03em; color: var(--text-sub); }
 
 /* 지시선 라벨 */
 .fig { position: relative; }
@@ -62,3 +63,4 @@ html, body {
 .fig svg.lines circle { fill: var(--sub); }
 .fig .lb { position: absolute; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; line-height: 1; }
 .fig .lb i { font-style: normal; color: var(--red); margin-right: 12px; font-weight: 800; }
+.fig .lb.r { text-align: right; }

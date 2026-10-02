@@ -1,4 +1,4 @@
-// 주방후드 통이미지 빌드: sections/s1~s8.html → Playwright 캡처 → JPG
+// 주방후드 통이미지 빌드: sections/s1~s8(+s6b).html → Playwright 캡처 → JPG
 //   node build.mjs                → photos/ 사용, public/img/hood/s1~s8.jpg + preview_all.jpg 생성
 //   node build.mjs --placeholder  → 없는 사진만 단색 임시 사진으로 채워 레이아웃 확인 (out_placeholder/ 에 저장)
 //   크롬 경로는 CHROME_PATH 환경변수로 지정
@@ -65,7 +65,7 @@ async function main() {
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || "/opt/pw-browsers/chromium" });
   const page = await browser.newPage({ viewport: { width: 1000, height: 1200 }, deviceScaleFactor: 1.5 });
   const outs = [];
-  for (let i = 1; i <= 8; i++) {
+  for (const i of [1, 2, 3, 4, 5, 6, "6b", 7, 8]) {
     await page.goto(`${base}/sections/s${i}.html`, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
     const family = await page.evaluate(() => document.fonts.check('800 40px "Pretendard"'));
