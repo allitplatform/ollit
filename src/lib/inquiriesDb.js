@@ -53,7 +53,9 @@ export function ipjuDetail(source) {
   return out.join(" · ");
 }
 // 2026-10-02 — 주방후드 랜딩(public/hood.html) 접수 판별. 입주청소와 같은 방식 (service_type 은 'unknown').
-//   source 형식: hood_landing_top/home/1ea/2026-10-10/am  (대수 1ea · 날짜 nodate · 시간대 any 는 생략)
+//   source 형식: hood_landing_t/home/1ea/10-10/am  (대수 1ea · 날짜 nodate · 시간대 any 는 생략)
+//   DB 가 source 를 40자까지만 저장(mig 198)해서 예전 긴 형식(hood_landing_bottom/…/2026-10-10/pm)은
+//   날짜·시간대가 잘렸다 → 위/아래는 _t/_b, 날짜는 MM-DD 로 줄임. 예전 형식 접수도 그대로 풀린다.
 export function isHoodSource(source) {
   return String(source || "").startsWith("hood_landing");
 }
@@ -70,7 +72,8 @@ export function hoodDetail(source) {
   const out = [];
   if (HOOD_KIND[kind]) out.push(HOOD_KIND[kind]);
   if (HOOD_QTY[qty]) out.push(HOOD_QTY[qty]);
-  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
+  // 날짜는 MM-DD (2026-10-02 이후) 또는 예전 YYYY-MM-DD 둘 다 풀이
+  const m = /^(?:\d{4}-)?(\d{2})-(\d{2})$/.exec(date);
   const tm = IPJU_TIME[time] || "";
   if (m) out.push("희망일 " + Number(m[1]) + "/" + Number(m[2]) + (tm ? " " + tm : ""));
   else if (tm) out.push("희망 " + tm);
