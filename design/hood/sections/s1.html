@@ -1,24 +1,53 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s1 { padding: 0; background: var(--char); color: var(--white); }
-  .s1 .hero { height: 1250px; object-fit: cover; }
-  .s1 .band { padding: 96px 60px 110px; }
-  .s1 .lead { font-size: 32px; font-weight: 300; line-height: 1.5; letter-spacing: -0.03em; }
-  .s1 .eyebrow { margin-top: 64px; color: var(--grey); }
-  .s1 .title { font-size: 84px; color: var(--white); }
-  .s1 .hr { width: 760px; margin: 60px auto 0; }
-  .s1 .price { margin-top: 36px; font-size: 28px; font-weight: 500; letter-spacing: -0.02em; white-space: pre; }
+  /* 휴대폰 첫 화면에 제목 + 사진 + 가격 숫자가 모두 보이도록 전체 높이 1650px 이하 */
+  .s1 { padding: 0; background: var(--white); }
+  .s1 .head { padding: 60px 40px; }
+  .s1 .title { margin-top: 24px; line-height: 1.18; }
+  .s1 .title .l { font-size: 64px; }
+  .s1 .title .b { font-size: 76px; }
+  .s1 .lead { margin-top: 26px; font-size: 30px; font-weight: 400; letter-spacing: -0.03em; color: var(--text-sub); }
+
+  .s1 .shot { position: relative; height: 780px; overflow: hidden; }
+  .s1 .shot .hero { position: absolute; left: 0; top: -150px; width: 1000px; height: 1250px; }
+  .s1 .shot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .s1 .shot svg polyline { fill: none; stroke: #FFFFFF; stroke-width: 1; }
+  .s1 .shot svg circle { fill: #FFFFFF; }
+  .s1 .inset { position: absolute; right: 40px; bottom: 40px; width: 300px; height: 300px; border: 6px solid #FFFFFF; overflow: hidden; }
+  .s1 .inset img { position: absolute; left: -250px; top: -260px; width: 600px; height: 600px; }
+  .s1 .inset span { position: absolute; left: 18px; top: 16px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: #FFFFFF; }
+
+  .s1 .band { background: var(--char); padding: 50px 30px 44px; }
+  .s1 .cols { display: grid; grid-template-columns: 1.15fr 1.15fr 0.9fr; }
+  .s1 .cols > div + div { border-left: 1px solid #555; }
+  .s1 .cols .num { font-size: 64px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: #FF5A4F; white-space: nowrap; }
+  .s1 .cols .num small { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; margin-left: 3px; }
+  .s1 .cols .cap { margin-top: 16px; font-size: 26px; font-weight: 500; letter-spacing: -0.02em; color: #CFCFCB; }
+  .s1 .vat { margin-top: 36px; font-size: 22px; font-weight: 400; letter-spacing: -0.01em; color: var(--sub); }
 </style></head>
 <body>
 <section class="sec s1">
-  <img class="full hero" src="../photos/h1_hero.jpg" alt="">
-  <div class="band">
-    <p class="lead">겉면은 깨끗해도,<br>기름은 안쪽에 쌓입니다</p>
+  <div class="head">
     <p class="eyebrow">ALLDAYCARE KITCHEN HOOD CARE</p>
-    <h1 class="title"><span class="l">올데이케어</span><br>주방후드 분해 청소</h1>
-    <div class="hr"></div>
-    <p class="price">가정용 100,000원~   ·   업소용 159,000원~   ·   후드 설치</p>
+    <h1 class="title"><span class="l">겉은 깨끗해도,</span><br><span class="b">후드 속은 <span class="red">기름 범벅</span></span></h1>
+    <p class="lead">필터 · 팬 · 안쪽까지 분해해서 닦습니다</p>
+  </div>
+
+  <div class="shot">
+    <img class="hero" src="../photos/h1_hero.jpg" alt="">
+    <!-- 후드 아래쪽 필터 → 작은 사진 -->
+    <svg viewBox="0 0 1000 780"><polyline points="700,240 700,400 810,400 810,440"/><circle cx="700" cy="240" r="3.5"/></svg>
+    <div class="inset"><img src="../photos/h4_grease.jpg" alt=""><span>후드 안쪽</span></div>
+  </div>
+
+  <div class="band">
+    <div class="cols">
+      <div><p class="num">100,000<small>원~</small></p><p class="cap">가정용</p></div>
+      <div><p class="num">159,000<small>원~</small></p><p class="cap">업소용</p></div>
+      <div><p class="num">0<small>원</small></p><p class="cap">야간 추가금</p></div>
+    </div>
+    <p class="vat">VAT 별도 · 후드 설치도 가능</p>
   </div>
 </section>
 </body></html>
