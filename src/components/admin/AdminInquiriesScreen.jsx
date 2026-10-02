@@ -22,6 +22,8 @@ import {
   isHoodSource,           // 2026-10-02 — 주방후드 랜딩 (source hood_landing*)
   hoodDetail,
   landingDetail,
+  isGraveSource,          // 2026-10-02 — 벌초·산소 랜딩 (source grave_landing*)
+  inquiryWorkType,
   inquiryServiceLabel,
   statusMeta,
   SERVICE_WORKTYPE,
@@ -137,7 +139,9 @@ function sourceBadge(src) {
   return null;
 }
 function showServicePill(row) {
-  return !isIpjuSource(row && row.source) && !isHoodSource(row && row.source);
+  // 2026-10-02 — 벌초도 유입 배지("벌초·산소")와 종목 배지가 겹치므로 숨김
+  const src = row && row.source;
+  return !isIpjuSource(src) && !isHoodSource(src) && !isGraveSource(src);
 }
 
 function _kstYmd(iso) {
@@ -1012,7 +1016,7 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
     //   이게 비어 있어서 "에어컨 설치" 접수가 종목 미정 → '기타/기타 ×1 ₩0' 으로
     //   저장되던 사고 수리 (임영빈 A-260728, 조종석 배정 건).
     //   NewReceptionPcForm 은 init.workType / init.applianceUndecided 를 이미 받는다.
-    workType: SERVICE_WORKTYPE[row.service_type] || "",
+    workType: inquiryWorkType(row),
     applianceUndecided: true,
     memo: `[${sourceBadge(row.source) ? sourceBadge(row.source).label + " 랜딩" : "홈페이지"} 접수${at ? " " + at : ""}] 희망 서비스: ${inquiryServiceLabel(row)}${landingDetail(row.source) ? " (" + landingDetail(row.source) + ")" : ""}`,
   };
@@ -1028,7 +1032,7 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8, flexWrap: "wrap" }}>
           <ServiceTypeIcon
-            workType={SERVICE_WORKTYPE[row.service_type] || ""}
+            workType={inquiryWorkType(row)}
             size={18}
             showLabel={false}
           />

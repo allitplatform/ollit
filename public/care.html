@@ -378,21 +378,31 @@ async function realSubmit(f){
   btn.disabled = true; btn.textContent = '접수 중...';
   try{
     const payload = {
-      p_service_type:   'unknown',
+      p_service_type:   'grave',   // 벌초·산소 (mig 211)
       p_name:           f.nm.value.trim(),
       p_phone:          f.ph.value.trim(),
       p_address:        f.ad.value.trim(),
       p_agreed_privacy: f.cs.checked === true
     };
     const hdrs = { "apikey": SB_KEY, "Authorization": "Bearer " + SB_KEY, "Content-Type": "application/json" };
-    let res = await fetch(SB_URL + "/rest/v1/rpc/create_inquiry_v2", {
-      method: "POST", headers: hdrs,
-      body: JSON.stringify(Object.assign({ p_source: "grave_landing/" + f.sy.value }, payload))
-    });
-    if (res.status === 404) {
-      res = await fetch(SB_URL + "/rest/v1/rpc/create_inquiry", {
-        method: "POST", headers: hdrs, body: JSON.stringify(payload)
+    // 종목 코드(mig 211)로 저장. 아직 DB 에 반영 전이라 거부되면 'unknown' 으로 한 번 더 보낸다 (접수가 끊기지 않게).
+    const send = async (st) => {
+      const pl = Object.assign({}, payload, { p_service_type: st });
+      let r = await fetch(SB_URL + "/rest/v1/rpc/create_inquiry_v2", {
+        method: "POST", headers: hdrs,
+        body: JSON.stringify(Object.assign({ p_source: "grave_landing/" + f.sy.value }, pl))
       });
+      if (r.status === 404) {
+        r = await fetch(SB_URL + "/rest/v1/rpc/create_inquiry", {
+          method: "POST", headers: hdrs, body: JSON.stringify(pl)
+        });
+      }
+      return r;
+    };
+    let res = await send(payload.p_service_type);
+    if (!res.ok) {
+      const t = await res.clone().text();
+      if (!/invalid_(name|phone|address)|privacy/.test(t)) res = await send('unknown');
     }
     if (!res.ok) {
       let msg = '접수에 실패했습니다. 잠시 후 다시 시도하시거나 1866-2003으로 전화 주세요.';

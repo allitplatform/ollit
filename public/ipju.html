@@ -228,7 +228,7 @@ document.querySelectorAll('input[name=phone]').forEach(ph=>ph.addEventListener('
 }));
 
 /* 접수: create_inquiry_v2 → 404면 create_inquiry 폴백
-   service_type 은 허용 목록(mig 197)의 'unknown', 입주청소 구분은 source */
+   service_type 은 move_in (mig 211). 평수·주택상태·희망일은 source */
 async function rpc(fn,body){
   return fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify(body)});
 }
@@ -249,11 +249,22 @@ document.querySelectorAll('.lead-form').forEach((form,idx)=>{
     if(!addr) return show('지역을 적어주세요');
     if(!q('agree').checked) return show('개인정보 수집·이용에 동의해주세요');
     btn.disabled=true; btn.textContent='접수 중…';
-    const source=['ipju_landing'+(idx===0?'_top':'_bottom'),(py||'0')+'py',type,date||'nodate',time].join('/');
-    const base={p_service_type:'unknown',p_name:name,p_phone:phone,p_address:addr,p_agreed_privacy:true};
+    // DB 가 source 를 40자까지만 저장(mig 198)하므로 짧게: 위/아래 폼은 _t/_b, 날짜는 MM-DD
+    const source=['ipju_landing'+(idx===0?'_t':'_b'),(py||'0')+'py',type,date?date.slice(5):'nodate',time].join('/');
+    const base={p_service_type:'move_in',p_name:name,p_phone:phone,p_address:addr,p_agreed_privacy:true};
+    // 종목 코드(mig 211)로 저장. 아직 DB 에 반영 전이라 거부되면 'unknown' 으로 한 번 더 보낸다 (접수가 끊기지 않게).
+    const send=async st=>{
+      const b={...base,p_service_type:st};
+      let r=await rpc('create_inquiry_v2',{...b,p_source:source});
+      if(r.status===404) r=await rpc('create_inquiry',b);
+      return r;
+    };
     try{
-      let r=await rpc('create_inquiry_v2',{...base,p_source:source});
-      if(r.status===404) r=await rpc('create_inquiry',base);
+      let r=await send(base.p_service_type);
+      if(!r.ok&&base.p_service_type!=='unknown'){
+        const t=await r.clone().text();
+        if(!/invalid_(name|phone|address)|privacy/.test(t)) r=await send('unknown');
+      }
       if(!r.ok) throw new Error(await r.text());
       form.querySelectorAll('input,select').forEach(i=>i.disabled=true);
       btn.textContent='접수 완료';

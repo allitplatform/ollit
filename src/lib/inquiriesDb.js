@@ -23,6 +23,10 @@ export const SERVICE_LABEL = {
   water_leak:  "물 누수",
   install:     "에어컨 설치",
   unknown:     "잘 모르겠어요(방문진단)",
+  // 2026-10-02 — 랜딩 종목 (mig 211): 주방후드 · 벌초 · 입주청소
+  hood:        "후드",
+  grave:       "벌초·산소",
+  move_in:     "입주청소",
 };
 
 export function serviceLabel(code) {
@@ -33,6 +37,8 @@ export function serviceLabel(code) {
 //   service_type 은 허용 목록 때문에 'unknown' 으로 들어오고, 입주청소 구분은 source 로만 한다.
 //   source 형식: ipju_landing_top/32py/new/2026-11-05/am  (평수 0py · 주택상태 na · 날짜 nodate · 시간대 any 는 미입력)
 //   2026-09-28 — 5번째 칸(시간대) 추가. 예전 4칸 형식 접수도 그대로 풀림.
+//   2026-10-02 — DB 가 source 를 40자까지만 저장(mig 198)해서 아래쪽 폼은 시간대가 잘렸다.
+//     → ipju_landing_t/32py/new/11-05/am (위/아래 _t/_b, 날짜 MM-DD). 예전 형식도 그대로 풀림.
 export function isIpjuSource(source) {
   return String(source || "").startsWith("ipju_landing");
 }
@@ -46,7 +52,7 @@ export function ipjuDetail(source) {
   const pyNum = parseInt(py, 10);
   if (pyNum > 0) out.push(pyNum + "평");
   if (IPJU_HOUSE[house]) out.push(IPJU_HOUSE[house]);
-  const m = /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
+  const m = /^(?:\d{4}-)?(\d{2})-(\d{2})$/.exec(date);
   const tm = IPJU_TIME[time] || "";
   if (m) out.push("희망일 " + Number(m[1]) + "/" + Number(m[2]) + (tm ? " " + tm : ""));
   else if (tm) out.push("희망 " + tm);
@@ -87,6 +93,7 @@ export function landingDetail(source) {
 export function inquiryServiceLabel(row) {
   if (row && isIpjuSource(row.source)) return "입주청소";
   if (row && isHoodSource(row.source)) return "주방후드";
+  if (row && isGraveSource(row.source)) return "벌초·산소";
   return serviceLabel(row && row.service_type);
 }
 
@@ -103,7 +110,23 @@ export const SERVICE_WORKTYPE = {
   water_leak:  "누수",
   install:     "설치",
   unknown:     "",
+  // 2026-10-02 — 랜딩 종목은 에어컨 작업 종목이 아니므로 프리필 없음
+  hood:        "",
+  grave:       "",
+  move_in:     "",
 };
+
+// 2026-10-02 — 벌초·산소 랜딩(public/care.html) 접수 판별 (source grave_landing/b12 등)
+export function isGraveSource(source) {
+  return String(source || "").startsWith("grave_landing");
+}
+// 접수함 → 작업 전환 시 종목 프리필. 랜딩 접수(주방후드·입주청소·벌초)는 에어컨 종목이 아니므로 비워 둔다.
+//   (주방후드 "후드 설치" 는 service_type 이 install 이라 그대로 두면 에어컨 "설치" 로 들어감)
+export function inquiryWorkType(row) {
+  const src = row && row.source;
+  if (isHoodSource(src) || isIpjuSource(src) || isGraveSource(src)) return "";
+  return SERVICE_WORKTYPE[row && row.service_type] || "";
+}
 
 // 상태 → 한글 라벨 + 표시 색 (사장님 spec: 신규 빨강 / 통화함 파랑 / 스팸 회색 / 전환됨 초록).
 export const INQUIRY_STATUS = {
