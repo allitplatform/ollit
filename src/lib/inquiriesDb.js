@@ -57,10 +57,10 @@ export function ipjuDetail(source) {
 export function isHoodSource(source) {
   return String(source || "").startsWith("hood_landing");
 }
-// 2026-10-02 — 추가 서비스 3종 (restaurant · store · office). 배지는 그대로 "주방후드".
+// 2026-10-02 — 추가 서비스 (restaurant · burner · store). office 는 폼에서 빠졌지만 이미 들어온 접수 표시용으로 유지. 배지는 그대로 "주방후드".
 const HOOD_KIND = {
   home: "가정용 청소", biz: "업소용 청소", install: "후드 설치",
-  restaurant: "식당 청소", store: "매장 정기관리", office: "사무실 · 바닥",
+  restaurant: "식당 청소", burner: "화구 청소", store: "매장 정기관리", office: "사무실 · 바닥",
 };
 const HOOD_QTY  = { "2ea": "2대", "3ea": "3대 이상" };
 // → "업소용 청소 · 2대 · 희망일 10/10 오후" (입력 안 된 항목은 생략). 주방후드 접수가 아니면 "".
