@@ -1,23 +1,45 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s4 .pair { display: flex; gap: 12px; margin-top: 84px; }
-  .s4 .pair figure { flex: 1; }
-  .s4 .pair img { display: block; width: 494px; height: 400px; object-fit: cover; }
-  .s4 .pair figcaption { margin-top: 22px; font-size: 26px; font-weight: 500; letter-spacing: -0.02em; color: var(--text-sub); }
+  .s4 { padding-bottom: 110px; }
+  .s4 .pair { margin-top: 84px; }
+  .s4 .pair + .pair { margin-top: 76px; }
+  .s4 .imgs { display: flex; gap: 8px; }
+  .s4 .imgs figure { flex: 0 0 496px; text-align: left; }
+  .s4 .imgs img { display: block; width: 496px; height: 496px; object-fit: cover; }
+  .s4 .wide .imgs img { height: 330px; }
+  .s4 .tag { display: block; margin: 18px 0 0 24px; font-size: 24px; font-weight: 800; letter-spacing: 0.08em; line-height: 1; color: var(--sub); }
+  .s4 .tag.after { color: var(--red); }
+  .s4 .name { margin-top: 26px; font-size: 40px; font-weight: 800; letter-spacing: -0.04em; }
+  .s4 .notice { margin: 90px 60px 0; font-size: 24px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.5; color: var(--sub); }
 </style></head>
 <body>
-<section class="sec s4 bg-white">
-  <p class="eyebrow">DEEP CLEANING</p>
-  <h2 class="title">더 꼼꼼하게</h2>
-  <ul class="checks">
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>부품을 세척액에 담가 <b>굳은 기름을 녹이고</b></span></li>
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>날개 사이 · 모서리까지 <b>손으로 한 번 더</b></span></li>
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>다시 조립한 뒤 <b>흡입력 확인</b></span></li>
-  </ul>
+<section class="sec s4 bg-light">
+  <p class="eyebrow">BEFORE &amp; AFTER</p>
+  <h2 class="title"><span class="l">작업 전과</span><br><span class="red">작업 후</span></h2>
+
   <div class="pair">
-    <figure><img src="../photos/h5_soak.jpg" alt=""><figcaption>세척 중</figcaption></figure>
-    <figure><img src="../photos/h6_after.jpg" alt=""><figcaption>세척 후</figcaption></figure>
+    <div class="imgs">
+      <figure><img src="../photos/ba1_before.jpg" alt=""><span class="tag">BEFORE</span></figure>
+      <figure><img src="../photos/ba1_after.jpg" alt=""><span class="tag after">AFTER</span></figure>
+    </div>
+    <p class="name">후드 내부</p>
   </div>
+  <div class="pair">
+    <div class="imgs">
+      <figure><img src="../photos/ba2_before.jpg" alt=""><span class="tag">BEFORE</span></figure>
+      <figure><img src="../photos/ba2_after.jpg" alt=""><span class="tag after">AFTER</span></figure>
+    </div>
+    <p class="name">기름 필터</p>
+  </div>
+  <div class="pair wide">
+    <div class="imgs">
+      <figure><img src="../photos/ba3_before.jpg" alt=""><span class="tag">BEFORE</span></figure>
+      <figure><img src="../photos/ba3_after.jpg" alt=""><span class="tag after">AFTER</span></figure>
+    </div>
+    <p class="name">후드 외부</p>
+  </div>
+
+  <p class="notice">이해를 돕기 위한 연출 이미지입니다 · 실제 작업 사진은 상담 시 보여드립니다</p>
 </section>
 </body></html>

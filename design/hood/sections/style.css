@@ -54,7 +54,7 @@ html, body {
 .rows { margin-top: 70px; text-align: left; border-top: 1px solid var(--sub); }
 .rows .row { display: flex; align-items: center; padding: 40px 6px; border-bottom: 1px solid var(--sub); }
 .rows .row b { display: block; font-size: 36px; font-weight: 800; letter-spacing: -0.035em; }
-.rows .row span { display: block; margin-top: 10px; font-size: 28px; font-weight: 400; letter-spacing: -0.03em; color: var(--text-sub); }
+.rows .row span { display: block; margin-top: 10px; font-size: 30px; font-weight: 400; letter-spacing: -0.03em; color: var(--text-sub); }
 
 /* 지시선 라벨 */
 .fig { position: relative; }

@@ -3,47 +3,34 @@
 <style>
   /* 휴대폰 첫 화면에 제목 + 사진 + 띠 큰 글자가 모두 보이도록 전체 높이 1650px 이하 */
   .s1 { padding: 0; background: var(--white); }
-  .s1 .head { padding: 60px 40px; }
+  .s1 .head { padding: 60px 30px; }
   .s1 .title { margin-top: 24px; line-height: 1.18; }
   .s1 .title .l { font-size: 64px; }
-  .s1 .title .b { font-size: 76px; }
+  .s1 .title .b { font-size: 72px; letter-spacing: -0.05em; white-space: nowrap; }
   .s1 .lead { margin-top: 26px; font-size: 30px; font-weight: 400; letter-spacing: -0.03em; color: var(--text-sub); }
-
-  .s1 .shot { position: relative; height: 780px; overflow: hidden; }
-  .s1 .shot .hero { position: absolute; left: 0; top: -150px; width: 1000px; height: 1250px; }
-  .s1 .shot svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-  .s1 .shot svg polyline { fill: none; stroke: #FFFFFF; stroke-width: 1; }
-  .s1 .shot svg circle { fill: #FFFFFF; }
-  .s1 .inset { position: absolute; right: 40px; bottom: 40px; width: 300px; height: 300px; border: 6px solid #FFFFFF; overflow: hidden; }
-  .s1 .inset img { position: absolute; left: -250px; top: -260px; width: 600px; height: 600px; }
-  .s1 .inset span { position: absolute; left: 18px; top: 16px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1; color: #FFFFFF; }
+  .s1 .hero { height: 860px; object-fit: cover; object-position: center 12%; }
 
   .s1 .band { background: var(--char); padding: 54px 30px 56px; }
-  .s1 .cols { display: grid; grid-template-columns: 1fr 1.2fr 1fr; }
+  .s1 .cols { display: grid; grid-template-columns: 1.1fr 1.1fr 0.9fr; }
   .s1 .cols > div + div { border-left: 1px solid #555; }
   .s1 .cols .num { font-size: 64px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; color: #FF5A4F; white-space: nowrap; }
-  .s1 .cols .cap { margin-top: 18px; font-size: 26px; font-weight: 500; letter-spacing: -0.04em; color: #CFCFCB; white-space: nowrap; }
+  .s1 .cols .cap { margin-top: 18px; font-size: 26px; font-weight: 500; letter-spacing: -0.05em; color: #CFCFCB; white-space: nowrap; }
 </style></head>
 <body>
 <section class="sec s1">
   <div class="head">
-    <p class="eyebrow">ALLDAYCARE KITCHEN HOOD CARE</p>
-    <h1 class="title"><span class="l">겉은 깨끗해도,</span><br><span class="b">후드 속은 <span class="red">기름 범벅</span></span></h1>
-    <p class="lead">필터 · 팬 · 안쪽까지 분해해서 닦습니다</p>
+    <p class="eyebrow">COMMERCIAL KITCHEN HOOD CLEANING</p>
+    <h1 class="title"><span class="l">식당 후드,</span><br><span class="b"><span class="red">영업 끝나고</span> 저희가 들어갑니다</span></h1>
+    <p class="lead">업소용 주방후드 분해 세척 전문팀</p>
   </div>
 
-  <div class="shot">
-    <img class="hero" src="../photos/h1_hero.jpg" alt="">
-    <!-- 후드 아래쪽 필터 → 작은 사진 -->
-    <svg viewBox="0 0 1000 780"><polyline points="700,240 700,400 810,400 810,440"/><circle cx="700" cy="240" r="3.5"/></svg>
-    <div class="inset"><img src="../photos/h4_grease.jpg" alt=""><span>후드 안쪽</span></div>
-  </div>
+  <img class="full hero" src="../photos/b1_hero.jpg" alt="">
 
   <div class="band">
     <div class="cols">
-      <div><p class="num">분해</p><p class="cap">필터 · 팬 · 안쪽까지</p></div>
       <div><p class="num">야간</p><p class="cap">마감 후 작업 · 추가금 없음</p></div>
-      <div><p class="num">설치</p><p class="cap">교체까지 한 번에</p></div>
+      <div><p class="num">보양</p><p class="cap">주방 장비 비닐로 전부 덮고</p></div>
+      <div><p class="num">보고</p><p class="cap">작업 전후 사진으로</p></div>
     </div>
   </div>
 </section>

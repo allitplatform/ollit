@@ -1,22 +1,25 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s7 .rows .row { justify-content: space-between; align-items: baseline; padding: 44px 6px; }
-  .s7 .rows .name { font-size: 32px; font-weight: 500; letter-spacing: -0.03em; }
-  .s7 .rows .won { font-size: 64px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; color: var(--ink); }
-  .s7 .rows .won small { font-size: 30px; font-weight: 500; letter-spacing: -0.02em; margin-left: 4px; }
-  .s7 .rows .won.txt { font-size: 44px; }
-  .s7 .vat { margin-top: 44px; font-size: 26px; font-weight: 400; letter-spacing: -0.02em; color: var(--text-sub); }
+  .s7 .pair { display: flex; gap: 8px; margin-top: 84px; }
+  .s7 .pair img { display: block; width: 496px; height: 420px; object-fit: cover; }
+  .s7 .pair img.home { object-position: center 30%; }
+  .s7 .checks { margin-top: 72px; }
+  .s7 .foot { margin-top: 60px; font-size: 30px; font-weight: 500; letter-spacing: -0.03em; color: var(--text-sub); }
 </style></head>
 <body>
-<section class="sec s7 bg-grey pad">
-  <p class="eyebrow">PRICE</p>
-  <h2 class="title"><span class="l">가격부터</span><br>보여드립니다</h2>
-  <div class="rows">
-    <div class="row"><div class="name">가정용 후드 청소</div><div class="won">100,000<small>원~</small></div></div>
-    <div class="row"><div class="name">업소용 후드 청소</div><div class="won">159,000<small>원~</small></div></div>
-    <div class="row"><div class="name">후드 설치 · 교체</div><div class="won txt">현장 견적</div></div>
+<section class="sec s7 bg-white">
+  <p class="eyebrow">FOR HOMES</p>
+  <h2 class="title"><span class="l">집 후드도</span><br>같은 방식으로</h2>
+  <div class="pair">
+    <img class="home" src="../photos/h1_hero.jpg" alt="">
+    <img src="../photos/h6_after.jpg" alt="">
   </div>
-  <p class="vat">VAT 별도 · 후드 크기와 상태에 따라 달라질 수 있습니다</p>
+  <ul class="checks">
+    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>필터 · 커버 <b>분리</b></span></li>
+    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>시로코팬 <b>분해 불림 세척</b></span></li>
+    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>조립 후 <b>흡입력 확인</b></span></li>
+  </ul>
+  <p class="foot">가정용 100,000원~ · VAT 별도</p>
 </section>
 </body></html>
