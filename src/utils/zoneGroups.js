@@ -56,3 +56,8 @@ export function zoneSummaryText(zones) {
   if (list.length <= 3) return list.join("·");
   return zoneSummaryParts(list).join(" · ");
 }
+
+// 지역 표시 이름 — 선택한 지역에서 자동으로 만든다 ("서울 전체 · 경기동부"). 사람이 따로 적지 않는다.
+export function zoneRegionLabel(zones) {
+  return zoneSummaryParts(zones).map(x => x.replace(/ \d+곳$/, "")).join(" · ");
+}

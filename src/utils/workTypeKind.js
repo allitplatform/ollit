@@ -128,3 +128,14 @@ export function getServiceKindMeta(input) {
   }
   return meta;
 }
+
+// 2026-10-06 — 카드의 "· 기종 ×수량" 글자. 기종이 없는 종목(주방후드·출장비 등)은 기종이 "(공통)" 으로
+//   저장돼 있어 "(공통) ×1" 이 그대로 보였다 → 그런 종목은 빈 글자를 돌려준다.
+export function isCommonAppliance(appliance) {
+  const a = String(appliance || "").trim();
+  return !a || a === "(공통)";
+}
+export function applianceQtyText(task, prefix = "· ") {
+  if (!task || isCommonAppliance(task.appliance)) return "";
+  return `${prefix}${task.appliance}${task.qty ? ` ×${task.qty}` : ""}`;
+}

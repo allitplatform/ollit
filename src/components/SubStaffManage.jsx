@@ -11,7 +11,7 @@ import {
   subStaffDirectory, subGetStaffDetail, subRevealStaffAccount, subUpdateStaff,
 } from "../lib/subcontractorsDb.js";
 import BottomSheet, { SheetButtons } from "./BottomSheet.jsx";
-import { ZONE_GROUPS, zoneSummaryParts, zoneSummaryText } from "../utils/zoneGroups.js";
+import { ZONE_GROUPS, zoneSummaryParts, zoneSummaryText, zoneRegionLabel } from "../utils/zoneGroups.js";
 
 const card = {
   background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
@@ -55,7 +55,7 @@ export function ZoneSummary({ zones, region }) {
         onClick={few ? undefined : (e) => { e.stopPropagation(); setOpen(v => !v); }}
         style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, cursor: few ? "default" : "pointer" }}
       >
-        {region ? `${region} · ` : ""}{zoneSummaryText(list)}
+        {zoneSummaryText(list)}
         {!few && <span style={{ color: "var(--text-secondary)", marginLeft: 4 }}>{open ? "▲" : "▼"}</span>}
       </span>
       {open && (
@@ -432,13 +432,13 @@ export default function SubStaffManage({ subName = "협력사" }) {
     if (!form.name.trim()) { window.alert("이름을 입력해 주세요."); return; }
     if (!/^01\d{8,9}$/.test(form.phone.replace(/\D/g, ""))) { window.alert("휴대폰 번호를 확인해 주세요."); return; }
     setBusy(true);
-    const res = await subAddStaff(form.name.trim(), form.phone, form.region, form.zones);
+    const res = await subAddStaff(form.name.trim(), form.phone, zoneRegionLabel(form.zones), form.zones);
     if (!res.ok) { setBusy(false); window.alert(res.error || "추가하지 못했습니다."); return; }
     // 가능 종목·메모는 추가 직후 같은 수정 RPC 로 한 번에 반영한다 (전부 체크 + 메모 없음이면 기본값이라 생략)
     const allChecked = subCats.length > 0 && subCats.every(c => form.categories.includes(c.code));
     if (extended && res.id && (form.memo.trim() || (subCats.length > 0 && !allChecked))) {
       const up = await subUpdateStaff(res.id, {
-        name: form.name.trim(), region: form.region, zones: form.zones,
+        name: form.name.trim(), region: zoneRegionLabel(form.zones), zones: form.zones,
         categories: subCats.length > 0 && !allChecked ? form.categories : null,
         memo: form.memo,
       });
@@ -456,12 +456,12 @@ export default function SubStaffManage({ subName = "협력사" }) {
     setBusy(true);
     const res = extended
       ? await subUpdateStaff(editing.id, {
-          name: form.name.trim(), region: form.region, zones: form.zones,
+          name: form.name.trim(), region: zoneRegionLabel(form.zones), zones: form.zones,
           // 맡는 종목이 없는 협력사는 종목을 건드리지 않는다 (null)
           categories: subCats.length > 0 ? form.categories : null,
           memo: form.memo,
         })
-      : await subUpdateStaffZones(editing.id, form.region, form.zones);
+      : await subUpdateStaffZones(editing.id, zoneRegionLabel(form.zones), form.zones);
     setBusy(false);
     if (!res.ok) { window.alert(res.error || "저장하지 못했습니다."); return; }
     setEditing(null);
@@ -580,8 +580,6 @@ export default function SubStaffManage({ subName = "협력사" }) {
               <div style={{ ...small, marginTop: 4 }}>전화번호 변경은 올데이케어에 요청해 주세요.</div>
             </>
           )}
-          <label style={label}>지역 표시 이름 (예: 경기남부)</label>
-          <input value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))} style={input}/>
           <label style={label}>담당 지역</label>
           <ZonePicker known={knownZones} value={form.zones} onChange={zones => setForm(f => ({ ...f, zones }))}/>
           {extended && subCats.length > 0 && (

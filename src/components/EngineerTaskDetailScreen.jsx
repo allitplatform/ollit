@@ -5,6 +5,7 @@ import { subStaffSetReceived } from "../lib/subcontractorsDb.js";
 // 상태: "미배정" / "배정" / "확정" / "진행중" / "완료" / "visit_only" / "취소"
 // 한 화면 흐름 (별도 완료보고 화면 X)
 
+import CancelBanner from "./CancelBanner.jsx";
 import { useRef, useState, useEffect } from "react";
 import { ArrowLeft, Camera, X } from "lucide-react";
 // 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트 (구 내부 정의 → src/components/common/AddressLine.jsx).
@@ -953,6 +954,9 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         {/* 2026-05-25 — ⋮ 메뉴 제거. 일정변경/재배정/취소 는 하단 '일정 변경 · 취소' 카드로 통합. */}
         <div style={{ width: 56 }} aria-hidden="true"/>
       </div>
+
+      {/* 2026-10-06 — 취소된 작업: 맨 위 배너 (사유 · 취소자 · 시각) */}
+      <CancelBanner task={task} style={{ margin: "12px 16px 0" }}/>
 
       {/* 2026-07-11 — 진단 로그: 기종 미정 판정 데이터 확인 (사장님 콘솔 검증용). */}
       {(() => {
@@ -2205,7 +2209,8 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
             2026-07-15 — 사장님 spec: 진행중(완료 보고 화면)에선 고객 전화/문자 숨김 — 확정 단계에서만. */}
       {!isCompleted && !isInProgress && (
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-          <button onClick={() => makeCall(task.phone)} style={{
+          <button onClick={() => makeCall(task.phone)} disabled={task.status === "취소"} style={{
+            opacity: task.status === "취소" ? 0.35 : 1,
             padding: 12,
             background: "var(--bg-secondary)",
             border: "1px solid var(--border)",
@@ -2218,7 +2223,8 @@ function CustomerInfo({ task, hideCustomerHeader = false, user, onMemoAdd }) {
             <span style={{ color: "#22C55E", fontSize: 15 }}>📞</span>
             전화
           </button>
-          <button onClick={() => sendSms(task.phone)} style={{
+          <button onClick={() => sendSms(task.phone)} disabled={task.status === "취소"} style={{
+            opacity: task.status === "취소" ? 0.35 : 1,
             padding: 12,
             background: "var(--bg-secondary)",
             border: "1px solid var(--border)",

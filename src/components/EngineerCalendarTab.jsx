@@ -4,6 +4,7 @@
 import { useMemo, useState } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
+import { applianceQtyText } from "../utils/workTypeKind.js";
 import { isCompletedStatus, statusLabel } from "../utils/taskStatus.js";
 import {
   CalendarGrid, Legend,
@@ -59,6 +60,10 @@ function mergeDayItems(tasks, hourlyOffs) {
     ...hourlyOffs.map((o, i) => ({ ...o, __off: true, __key: `hoff-${i}` })),
   ];
   return merged.sort((a, b) => {
+    // 2026-10-06 — 취소된 작업은 맨 아래로 (그 안에서는 시간순)
+    const ca = !a.__off && a.status === "취소" ? 1 : 0;
+    const cb = !b.__off && b.status === "취소" ? 1 : 0;
+    if (ca !== cb) return ca - cb;
     const ka = a.__off ? (a.startTime || "99:99") : (a.scheduledTime || a.time || "99:99");
     const kb = b.__off ? (b.startTime || "99:99") : (b.scheduledTime || b.time || "99:99");
     return ka.localeCompare(kb);
@@ -373,6 +378,7 @@ function MonthView({
                   marginTop: 4, fontWeight: 600,
                 }}>
                   {totalCount}건
+                  {countByStatus(dayTasks, "취소") > 0 && ` (취소 ${countByStatus(dayTasks, "취소")})`}
                   {offCount > 0 && ` (휴무 ${offCount}건 포함)`}
                   {countByStatus(dayTasks, "진행중") > 0 && ` · 진행중 ${countByStatus(dayTasks, "진행중")}`}
                   {countByStatus(dayTasks, "확정")   > 0 && ` · 확정 ${countByStatus(dayTasks, "확정")}`}
@@ -700,6 +706,7 @@ function TodayView({ todayInfo, onClickTask, onRemoveOff }) {
   const offCount        = hourlyOffs.length;
   const inProgressCount = todayTasks.filter(t => t.status === "진행중").length;
   const confirmedCount  = todayTasks.filter(t => t.status === "확정").length;
+  const cancelledCount  = todayTasks.filter(t => t.status === "취소").length;
 
   // 전체 휴무 — 별도 화면
   if (isFullOff) {
@@ -748,6 +755,7 @@ function TodayView({ todayInfo, onClickTask, onRemoveOff }) {
           marginTop: 4, fontWeight: 600,
         }}>
           {items.length}건
+          {cancelledCount > 0 && ` (취소 ${cancelledCount})`}
           {offCount > 0 && ` (휴무 ${offCount}건 포함)`}
           {inProgressCount > 0 && ` · 진행중 ${inProgressCount}`}
           {confirmedCount > 0 && ` · 확정 ${confirmedCount}`}
@@ -868,13 +876,15 @@ function TimelineRow({ task, onClick }) {
           }}>
             {task.scheduledTime || task.time || "미정"}
           </div>
-          <StatusBadge status={isInProgress ? "in_progress" : isDone ? "completed" : isUntimed ? "pending" : "confirmed"}/>
+          {/* 2026-10-06 — 취소를 먼저 판정한다. 빠져 있어서 취소 작업이 "확정" 으로 나왔다. */}
+          <StatusBadge status={isCancelled ? "canceled" : isInProgress ? "in_progress" : isDone ? "completed" : isUntimed ? "pending" : "confirmed"}/>
         </div>
 
         <div style={{
           fontSize: 16, fontWeight: 700, marginBottom: 6,
-          color: isDone ? "var(--text-secondary)" : "var(--text-primary)",
+          color: (isDone || isCancelled) ? "var(--text-secondary)" : "var(--text-primary)",
           display: "flex", alignItems: "center", gap: 6,
+          textDecoration: isCancelled ? "line-through" : "none",
         }}>
           <span>{task.customer}</span>
           {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n' || task.principalCode === 'usol_n') && (
@@ -893,8 +903,7 @@ function TimelineRow({ task, onClick }) {
         }}>
           <ServiceTypeIcon workType={task.workType} size={13} showLabel={true}/>
           <span>
-            {task.appliance ? `· ${task.appliance}` : ""}
-            {task.qty ? ` ×${task.qty}` : ""}
+            {applianceQtyText(task)}
             {task.region ? ` · ${task.region}` : ""}
           </span>
         </div>
@@ -913,7 +922,7 @@ function StatusBadge({ status }) {
     confirmed:   { bg: "var(--pending-pill-bg)", text: "var(--label-main)", icon: "●", label: "확정" },
     pending:     { bg: "var(--pending-pill-bg)", text: "var(--label-sub)",  icon: "●", label: "약속미정" },
     completed:   { bg: "var(--completed-pill-bg)", text: "var(--completed-pill-text)", icon: "✓", label: "완료" },
-    canceled:    { bg: "rgba(255,59,92,0.10)",  text: "#FF3B5C", icon: "✕", label: "취소" },
+    canceled:    { bg: "var(--pending-pill-bg)", text: "var(--label-sub)", icon: "✕", label: "취소" },
   };
   const s = styles[status] || styles.confirmed;
   return (
@@ -980,8 +989,9 @@ function DayTaskCard({ task, onClick }) {
       <div style={{ flex: 1, padding: "0 10px", minWidth: 0 }}>
         <div style={{
           fontSize: 16, fontWeight: 700,
-          color: isDone ? "var(--text-secondary)" : "var(--text-primary)",
+          color: (isDone || isCancelled) ? "var(--text-secondary)" : "var(--text-primary)",
           display: "flex", alignItems: "center", gap: 6,
+          textDecoration: isCancelled ? "line-through" : "none",
         }}>
           <span>{task.customer}</span>
           {(task.client === '유솔홈케어 N' || task.principalId === 'usol_n' || task.principalCode === 'usol_n') && (
@@ -999,8 +1009,7 @@ function DayTaskCard({ task, onClick }) {
         }}>
           <ServiceTypeIcon workType={task.workType} size={12} showLabel={true}/>
           <span>
-            {task.appliance ? `· ${task.appliance}` : ""}
-            {task.qty ? ` ×${task.qty}` : ""}
+            {applianceQtyText(task)}
             {task.region ? ` · ${task.region}` : ""}
           </span>
         </div>

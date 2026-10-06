@@ -1,4 +1,5 @@
 import { SubStaffSettleTab } from "../components/SubSettlement.jsx";
+import { applianceQtyText, isCommonAppliance } from "../utils/workTypeKind.js";
 import { subStaffGetContacts } from "../lib/subcontractorsDb.js";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
@@ -800,7 +801,7 @@ function NextWorkCard({ work, now, onClick, onCompleteReport, onCustomerCall }) 
           }}>N</span>
         )}
         <span style={{ color: "var(--text-tertiary)" }}>·</span>
-        <span>{work.appliance || "—"}{work.qty ? ` ×${work.qty}` : ""}</span>
+        <span>{applianceQtyText(work, "") || "—"}</span>
       </div>
 
       {/* 2026-06-16 — 주소 + 복사 = 공통 AddressLine. 2줄 클램프 + plain 아이콘. */}
@@ -1423,8 +1424,10 @@ function MainScreen({
             if (!mainItem) mainItem = items[0] || null;
             const extraItems = mainItem ? items.filter(it => it !== mainItem) : [];
             const mainText = mainItem
-              ? `${mainItem.appliance || mainItem.workType || ""}${mainItem.qty ? ` ×${mainItem.qty}` : ""}`
-              : (task.appliance ? `${task.appliance}${task.qty ? ` ×${task.qty}` : ""}` : "");
+              ? (isCommonAppliance(mainItem.appliance)
+                  ? String(mainItem.workType || "").replace(/_\(공통\)$/, "")       // 기종 없는 종목: 종목 이름만
+                  : `${mainItem.appliance}${mainItem.qty ? ` ×${mainItem.qty}` : ""}`)
+              : applianceQtyText(task, "");
             const extraText = extraItems
               .map(it => {
                 const a = it.appliance || it.workType || "";
@@ -1747,7 +1750,7 @@ function CompactTaskCard({ task, t, index, onClick }) {
           </div>
           <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
             <Icon size={11} style={{ color: t.textMuted }}/>
-            <span style={{ fontSize: 11, color: t.textSecondary, fontWeight: 700 }}>{task.workType} · {task.appliance} ×{task.qty}</span>
+            <span style={{ fontSize: 11, color: t.textSecondary, fontWeight: 700 }}>{task.workType}{applianceQtyText(task, " · ")}</span>
             {task.extraFee > 0 && <span style={{ fontSize: 10, color: t.success, fontWeight: 700, marginLeft: 4 }}>+₩{task.extraFee.toLocaleString()}</span>}
           </div>
         </div>

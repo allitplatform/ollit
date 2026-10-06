@@ -57,6 +57,7 @@ import { v14NormalizeTask } from "../utils/v14Task.js";
 import { formatWorkTypeLabel } from "../utils/receptionForm.js";
 import { fmtWon } from "../utils/money.js";
 import SubAssignSheet from "./SubAssignSheet.jsx";
+import CancelBanner from "./CancelBanner.jsx";
 
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
 //   여백을 다시 주고 싶으면 이 숫자 하나만 바꾸면 된다 (운영자·협력사 모드 공통).
@@ -432,40 +433,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       )}
       {/* 2026-08-03 — 취소 사유 카드 (사장님 제보: 사유가 변경 이력 속에 묻혀 있어
             운영자가 기사에게 다시 물어봄). 취소·취소요청 건은 사유를 맨 앞에 크게 노출. */}
-      {(task.status === "취소" || task.status === "취소요청" || isEffectivelyCanceled(task)) && (() => {
-        const cat = task.categoryData || {};
-        const rawReason = task.cancelReason || cat.cancelReason || null;
-        if (!rawReason) return null;
-        const at = cat.cancelRequestedAt || task.cancelAt || cat.cancelAt || null;
-        return (
-          <div style={{
-            margin: "0 16px 12px",
-            padding: "12px 14px",
-            background: "rgba(255,59,92,0.06)",
-            border: "1px solid rgba(255,59,92,0.40)",
-            borderRadius: 10,
-            display: "flex", alignItems: "flex-start", gap: 10,
-          }}>
-            <span style={{ fontSize: 16 }}>🚫</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12.5, fontWeight: 800, color: "#FF3B5C" }}>
-                {task.status === "취소요청" ? "취소 요청 사유" : "취소 사유"}
-              </div>
-              <div style={{
-                fontSize: 12.5, color: "var(--text-primary)", marginTop: 4,
-                fontWeight: 700, lineHeight: 1.5, whiteSpace: "pre-wrap",
-              }}>
-                {getCancelReasonLabel(rawReason) || rawReason}
-              </div>
-              {at && (
-                <div style={{ fontSize: 10.5, color: "var(--text-secondary)", marginTop: 3 }}>
-                  {new Date(at).toLocaleString("ko-KR", { timeZone: "Asia/Seoul", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
+      {/* 2026-10-06 — 공용 배너로 교체: 사유가 없어도 "취소된 작업" 은 항상 보이고, 취소자·시각도 함께 */}
+      <CancelBanner task={task} force={isEffectivelyCanceled(task)} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
       {/* 2026-05-22 — 재배정 요청 카드 (있을 때만 노출).
             2026-05-29 v2 (D7): status='취소' 면 숨김 (취소 우선, 재배정 의미 없음). */}
       {task.reassignRequest?.requestedAt && task.status !== "취소" && <ReassignRequestCard request={task.reassignRequest} subMode={subMode}/>}
