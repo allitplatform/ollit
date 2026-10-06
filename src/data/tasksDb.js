@@ -217,6 +217,9 @@ export function rowToTask(row) {
     cancelReason:             cat.cancelReason             || null,
     cancelActor:              cat.cancelActor              || null,
     cancelActorUserId:        cat.cancelActorUserId        || null,
+    // 2026-10-06 Mig 236 — 취소자·요청자 이름 (저장 트리거가 user_id 로 채움. 옛 취소 건은 없음)
+    cancelActorName:          cat.cancelActorName          || null,
+    cancelRequestedByName:    cat.cancelRequestedByName    || null,
     cancelActorPrincipalCode: cat.cancelActorPrincipalCode || null,
     cancelAt:                 cat.cancelAt                 || null,
     cancelPreviousStatus:     cat.previousStatus           || null,
@@ -1194,6 +1197,8 @@ export async function requestCancelAdapter(taskId, reason) {
       cancelReason:   reasonText,
       previousStatus,
       cancelRequestedAt: new Date().toISOString(),
+      // Mig 236 — 요청한 사람. 이름은 저장 트리거가 채운다.
+      ...(currentUserId() ? { cancelRequestedByUserId: currentUserId() } : {}),
     };
 
     // [3] updateTaskDb 호출
@@ -1224,6 +1229,13 @@ export async function approveCancelAdapter(taskId, reason) {
       ...(current.categoryData || {}),
       cancelApproveReason: reasonText,
       cancelApprovedAt:    new Date().toISOString(),
+      // Mig 236 — 취소로 확정한 사람(승인한 운영자)과 시각. 이름은 저장 트리거가 채운다.
+      //   이미 취소자가 기록돼 있으면(다른 경로에서 먼저 적은 경우) 덮어쓰지 않는다.
+      ...((current.categoryData || {}).cancelActor ? {} : {
+        cancelActor: "operator",
+        ...(currentUserId() ? { cancelActorUserId: currentUserId() } : {}),
+        cancelAt:    new Date().toISOString(),
+      }),
     };
 
     // [3] updateTaskDb 호출

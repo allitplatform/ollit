@@ -23,14 +23,19 @@ export default function CancelBanner({ task, style, force = false }) {
   const requested = task.status === "취소요청";
   const raw = task.cancelReason || cat.cancelReason || cat.cancelApproveReason || "";
   const reason = raw ? (getCancelReasonLabel(raw) || raw) : "";
-  // 취소자: 기록은 구분값(partner / operator / engineer / customer) — 화면에서는 이름표로 바꾼다
+  // 취소자: 구분값(partner / operator / engineer / customer) + 이름(Mig 236 이후 취소 건만 있음)
+  //   이름이 있으면 "홍길동(운영자)", 없으면(옛 취소 건) 구분만.
   const actorCode = task.cancelActor || cat.cancelActor || "";
-  const actorLabel = actorCode
-    ? getCancelActorLabel({ actor: actorCode, name: cat.cancelActorName, principalCode: task.cancelActorPrincipalCode || cat.cancelActorPrincipalCode })
+  const kind = actorCode
+    ? getCancelActorLabel({ actor: actorCode, principalCode: task.cancelActorPrincipalCode || cat.cancelActorPrincipalCode })
     : "";
-  const actor = actorLabel && actorLabel !== "—" ? actorLabel : "";
+  const kindLabel = kind && kind !== "—" ? kind : "";
+  const actorName = task.cancelActorName || cat.cancelActorName || "";
+  const actor = actorName ? (kindLabel ? `${actorName}(${kindLabel})` : actorName) : kindLabel;
+  // 취소 요청 중: 요청한 사람
+  const requester = task.cancelRequestedByName || cat.cancelRequestedByName || "";
   const at = fmtAt(requested ? (cat.cancelRequestedAt || task.cancelAt || cat.cancelAt) : (task.cancelAt || cat.cancelAt || cat.cancelRequestedAt));
-  const parts = [reason ? `사유 ${reason}` : "사유 기록 없음", actor ? `취소자 ${actor}` : "", at].filter(Boolean);
+  const parts = [reason ? `사유 ${reason}` : "사유 기록 없음", requested ? (requester ? `요청자 ${requester}` : "") : (actor ? `취소자 ${actor}` : ""), at].filter(Boolean);
   return (
     <div role="status" style={{
       margin: "0 0 12px", padding: "12px 14px", borderRadius: 10,

@@ -298,6 +298,8 @@ export function v14NormalizeTask(t) {
     cancelReason:             t.cancelReason             ?? t.categoryData?.cancelReason             ?? null,
     cancelActor:              t.cancelActor              ?? t.categoryData?.cancelActor              ?? null,
     cancelActorUserId:        t.cancelActorUserId        ?? t.categoryData?.cancelActorUserId        ?? null,
+    cancelActorName:          t.cancelActorName          ?? t.categoryData?.cancelActorName          ?? null,
+    cancelRequestedByName:    t.cancelRequestedByName    ?? t.categoryData?.cancelRequestedByName    ?? null,
     cancelActorPrincipalCode: t.cancelActorPrincipalCode ?? t.categoryData?.cancelActorPrincipalCode ?? null,
     cancelAt:                 t.cancelAt                 ?? t.categoryData?.cancelAt                 ?? null,
     cancelPreviousStatus:     t.cancelPreviousStatus     ?? t.categoryData?.previousStatus           ?? null,
