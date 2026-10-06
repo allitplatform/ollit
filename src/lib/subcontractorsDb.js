@@ -137,6 +137,16 @@ export const subStaffSetReceived = (taskId, received, vatIncluded = false, reaso
     p_vat_included: !!vatIncluded, p_reason: reason || null,
   });
 
+// ── 일일 정산 (Mig 225) ──────────────────────────────────────
+//   기사: 내 정산(보기 전용) / 관리자: 날짜별 송금 보고 / 운영자: 입금 확인
+export const subStaffListSettlement  = (from = null, to = null) => _call("sub_staff_list_settlement", { p_from: from, p_to: to });
+export const subListDailySettlements = (from = null, to = null) => _call("sub_list_daily_settlements", { p_from: from, p_to: to });
+export const subReportDailyFee = (date, amount) =>
+  _call("sub_report_daily_fee", { p_date: date, p_amount: Math.round(Number(amount) || 0) });
+export const adminListSubDailyFees = (from = null, to = null) => _call("admin_list_sub_daily_fees", { p_from: from, p_to: to });
+export const adminConfirmSubDailyFee = (subcontractorId, date, confirm = true) =>
+  _call("admin_confirm_sub_daily_fee", { p_subcontractor_id: subcontractorId, p_date: date, p_confirm: !!confirm });
+
 // ── 협력사 관리자 ────────────────────────────────────────────
 export const subListStaff = () => _call("sub_list_staff", {});
 export const subListTasks = (from = null, to = null) => _call("sub_list_tasks", { p_from: from, p_to: to });

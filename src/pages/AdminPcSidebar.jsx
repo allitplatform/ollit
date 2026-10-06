@@ -93,6 +93,8 @@ const GROUPS = [
       { id: "revenueDetail",         label: "매출 상세" },
       // 2026-06-14 — 유솔N 정산 현황판 (Mig 130). 작업월별 4단계 + 마진.
       { id: "usolnSettleBoard",      label: "유솔N 정산 현황판" },
+      // 2026-10-06 Mig 225 — 협력사 수수료 (날짜별 송금 보고·입금 확인)
+      { id: "subFees",               label: "협력사 수수료" },
       // 2026-07-21 — "정산 현황판 (분배 계산)" 메뉴 제거 (사장님 확정).
       //   가계부 ②현금/③천장 블록과 동일 산식·데이터 (6/29 통합) — 중복. 화면·라우트는 보존.
     ],
@@ -181,6 +183,7 @@ const SCREEN_TO_GROUP = (() => {
   map.principalEdit     = "principal";
   map.regionList        = "engineers";
   map.subcontractors    = "engineers";
+  map.subFees           = "settlement";
   // 2026-07-21 — 옛 알림 설정 진입 경로 (외부 링크/뒤로가기 잔존분) → 설정 그룹 활성.
   map.notificationSettings = "settingsGroup";
   // 2026-07-21 v2 — 공지/사용자/회사계좌는 설정 화면 "관리" 카드에서 진입 → 설정 그룹 활성 유지.

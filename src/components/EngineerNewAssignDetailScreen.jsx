@@ -310,8 +310,8 @@ export function EngineerNewAssignDetailScreen({
                   //   원청이 있어 기사 수입처럼 보이던 것 — 표시 안 함.
                   price = idx === 0 ? Number(task.estimateTotal || 0) : null;
                 }
-                // 2026-10-06 — 협력사 작업: 기사 화면에 금액을 보여 주지 않는다.
-                if (task.subcontractorId || task.subcontractor_id) price = null;
+                // 2026-10-06 — 협력사 작업: 위 '고객 견적'(접수 견적)은 그대로 보여 준다 (사장님 결정).
+                //   직영 기사 몫 계산식은 이 경로에서 쓰지 않으므로 추가 처리 없음.
                 return (
                   <WorkItemRow
                     key={wi.id || idx}

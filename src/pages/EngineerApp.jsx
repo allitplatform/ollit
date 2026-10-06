@@ -1,3 +1,4 @@
+import { SubStaffSettleTab } from "../components/SubSettlement.jsx";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   loadTasksForRole as getTasks,
@@ -5322,18 +5323,10 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
         )}
 
         {/* 정산 탭 */}
-        {/* 2026-10-06 Mig 212 — 협력사 소속 기사: 수익·개인 송금 보고 화면 대신 안내만.
-            수수료는 협력사가 일괄 입금하므로 개인 송금 보고가 있으면 중복 청구가 된다. */}
+        {/* 2026-10-06 Mig 225 — 협력사 소속 기사: 날짜별 받은 금액 / 내 수익 / 수수료 (보기 전용).
+            송금 보고 버튼은 없다 — 수수료는 협력사 관리자가 날짜별로 한 번 보고한다. */}
         {screen === "settlement" && !!user?.subcontractor && (
-          <div style={{ padding: "48px 24px", textAlign: "center", color: t.text }}>
-            <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>
-              {user.subcontractor.name || "협력사"} 소속
-            </div>
-            <div style={{ fontSize: 14, lineHeight: 1.7, color: t.textSecondary || t.text, opacity: 0.8 }}>
-              정산은 소속 협력사에서 진행합니다.<br/>
-              작업 완료 때 받은 금액만 정확히 입력해 주세요.
-            </div>
-          </div>
+          <SubStaffSettleTab user={user}/>
         )}
         {screen === "settlement" && !user?.subcontractor && (
           <EngineerSettleTab

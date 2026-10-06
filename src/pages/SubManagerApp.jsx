@@ -1,3 +1,4 @@
+import { SubManagerSettleView } from "../components/SubSettlement.jsx";
 // 2026-10-06 Mig 212~214, 220 — 협력사 관리자 화면 (v2).
 //   방향: 별도 간이 화면을 키우지 않고 운영자 앱의 화면을 재사용한다.
 //     · 작업 상세 = 운영자 AdminTaskDetailScreen 을 subMode 로 그대로 사용
@@ -79,6 +80,7 @@ function kstParts(iso) {
 }
 
 export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
+  const [view, setView] = useState("tasks");          // tasks(작업) | settle(정산)
   const [tab, setTab] = useState("todo");
   const [tasks, setTasks] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -319,12 +321,23 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 17, fontWeight: 800 }}>{subName}</div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{user?.name} 님 · 작업 관리</div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{user?.name} 님 · {view === "settle" ? "수수료 정산" : "작업 관리"}</div>
             </div>
             {onSwitchRole && <RoleSwitcher user={user} onSwitch={onSwitchRole}/>}
-            <button onClick={load} disabled={loading} style={btnGhost}>{loading ? "…" : "새로고침"}</button>
+            {view === "tasks" && <button onClick={load} disabled={loading} style={btnGhost}>{loading ? "…" : "새로고침"}</button>}
           </div>
-          <div style={{ display: "flex", gap: 6, marginTop: 12, overflowX: "auto" }}>
+          {/* 작업 / 정산 전환 */}
+          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            {[["tasks", "작업"], ["settle", "정산"]].map(([k, label]) => (
+              <button key={k} onClick={() => setView(k)} style={{
+                flex: 1, padding: "9px 0", borderRadius: 10, fontFamily: "inherit", cursor: "pointer",
+                border: "1px solid var(--border)", fontSize: 14, fontWeight: 800,
+                background: view === k ? "var(--text-primary)" : "var(--bg-elevated)",
+                color: view === k ? "var(--bg-primary)" : "var(--text-primary)",
+              }}>{label}</button>
+            ))}
+          </div>
+          <div style={{ display: view === "tasks" ? "flex" : "none", gap: 6, marginTop: 12, overflowX: "auto" }}>
             {TABS.map(tb => {
               const n = groups[tb.key].length;
               const on = tab === tb.key;
@@ -344,7 +357,15 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
         </div>
       </div>
 
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "12px 12px 0" }}>
+      {view === "settle" && (
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <SubManagerSettleView/>
+          <div style={{ padding: "0 12px" }}>
+            <button onClick={onLogout} style={{ ...btnGhost, width: "100%", padding: "12px 0" }}>로그아웃</button>
+          </div>
+        </div>
+      )}
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "12px 12px 0", display: view === "tasks" ? "block" : "none" }}>
         {error && (
           <div style={{ background: "rgba(229,72,77,0.12)", color: "#E5484D", borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 700, lineHeight: 1.5 }}>
             {error}

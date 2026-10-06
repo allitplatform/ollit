@@ -82,6 +82,7 @@ import { getMonthStart, getPrevMonthSameDay, getPrevMonthStart, getMonthRange, c
 import { engineerDisplayName } from "../lib/subcontractorsDb.js";
 import { useServiceCatalog, shortServiceLabel } from "../lib/serviceCatalog.js";
 import { SubcontractorAdminScreen } from "../components/admin/SubcontractorAdminScreen.jsx";
+import { SubFeeAdminScreen } from "../components/SubSettlement.jsx";
 // 2026-07-24 — 개요 탭 돈 스트립 미리보기 (통장 잔고 · 이번 달 순이익 — 손익 화면과 동일 산식)
 import { getCashflowSummary as ovGetCashflowSummary, getCashflowDayClose as ovGetCashflowDayClose } from "../lib/bookkeepingCashflowDb.js";
 import { getUsolNTrackBMargin as ovGetUsolNTrackBMargin, listExpenses as ovListExpenses } from "../lib/bookkeepingDb.js";
@@ -2548,7 +2549,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
     "revenueDetail", "usolnSettleBoard", "bookkeeping", "cashflow", "mobileBank",
     "mobileProfit", "settlement", "principalAccount", "ratesFees", "settings",
     "notificationSettings", "principalList", "rawOrdersArchive", "announcements",
-    "statsHub", "engineerTaskList",
+    "statsHub", "engineerTaskList", "subFees", "subcontractors",
   ]);
   useEffect(() => {
     if (!happycallMode) return;
@@ -3943,6 +3944,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
         onPrincipalSettlement={() => setScreen("principal_settlement")}
         onCommissionPolicy={() => setScreen("commissionPolicy")}
         onSubcontractors={() => setScreen("subcontractors")}
+        onSubFees={() => setScreen("subFees")}
         onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
         autoPushOn={autoPushOn}
         onToggleAutoPush={async () => {
@@ -3976,6 +3978,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   if (screen === "subcontractors") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <SubcontractorAdminScreen onBack={goBack}/>
+    </Shell>;
+  }
+  // 2026-10-06 Mig 225 — 협력사 수수료 (협력사·날짜별 보고 금액 확인)
+  if (screen === "subFees") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <SubFeeAdminScreen onBack={goBack} onOpenTask={(taskId) => openTaskDetailFromLight({ id: taskId }, "subFees")}/>
     </Shell>;
   }
   // V11-2-fix — 유솔 N 워크스페이스 (단일 라우트, 5탭 컨테이너 내부)
