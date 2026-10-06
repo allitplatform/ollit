@@ -17,6 +17,7 @@ import { getCancelReasonLabel, isMistakeTask } from "../../data/cancelReasons.js
 // 2026-07-29 — 사장님 요청 "모바일 접수현황에도 접수 시간대가 있으면 좋겠다".
 //   PC 대시보드와 같은 컴포넌트를 공용으로 씀 (숫자 기준도 자동으로 같아짐).
 import { HourlyReceivedChart, hourBucketIndexKst } from "./HourlyReceivedChart.jsx";
+import { useSubcontractorIndex } from "../../lib/subcontractorsDb.js";
 
 // 표시 순서·색 — receptionForm.js PRINCIPALS 색과 동기 (수동 복사).
 const PRINCIPAL_ORDER = [
@@ -96,6 +97,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
 
   const yesterYmd = useMemo(() => _prevYmd(todayYmd()), []);
 
+  const subIdx = useSubcontractorIndex();
   const { rows, totals, hourly, ydayHourly, skipped } = useMemo(() => {
     // 2026-07-29 — 접수 시간대 13버킷 [~8시, 9..19, 20시+].
     //   선택 기간 전체를 "몇 시에 들어왔나" 로 합산 (취소 포함 = 전체 유입).
@@ -111,7 +113,10 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
     let skippedN = 0;
     for (const tk of (apiTasks || [])) {
       if (!tk) continue;
-      const code = String(tk.principalCode || tk.principal_code || "").trim();
+      // 2026-10-06 Mig 212 — 협력사 작업은 원청(올데이케어) 행에 합치지 않고 협력사 행으로 분리.
+      //   회사 몫 칸에는 수수료(owner_amount)만 들어간다.
+      const _subId = tk.subcontractorId || tk.subcontractor_id || null;
+      const code = _subId ? `sub:${_subId}` : String(tk.principalCode || tk.principal_code || "").trim();
       if (!code) continue;
 
       // 2026-07-29 — 오접수: 접수·취소·취소율·시간대 전부에서 제외.
@@ -155,7 +160,8 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
         }
       }
     }
-    const all = PRINCIPAL_ORDER.map(p => ({
+    const _subRows = [...subIdx.names.values()].map(s => ({ code: `sub:${s.id}`, name: `${s.name} (협력사)`, color: "#8B5CF6" }));
+    const all = [...PRINCIPAL_ORDER, ..._subRows].map(p => ({
       ...p,
       received: received.get(p.code) || 0,
       canceled: canceled.get(p.code) || 0,
@@ -178,7 +184,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
         owner:    all.reduce((s, r) => s + (r.isTrackB ? 0 : r.owner), 0),
       },
     };
-  }, [apiTasks, start, end, yesterYmd]);
+  }, [apiTasks, start, end, yesterYmd, subIdx]);
 
   const maxReceived = Math.max(1, ...rows.map(r => r.received));
 

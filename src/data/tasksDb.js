@@ -113,6 +113,8 @@ export function rowToTask(row) {
     tenantId:     row.tenant_id,
     categoryId:   row.category_id,
     principalId:  row.principal_id,
+    // 2026-10-06 Mig 212 — 작업 수행 협력사 (NULL = 직영). 3곳 매핑.
+    subcontractorId: row.subcontractor_id || null,
 
     // 고객
     customer:     row.customer_name,
@@ -758,6 +760,12 @@ export async function loadTasksForRole(role, userId, principalCode, opts = {}) {
     //   engineerId 는 code("E016") 또는 uuid — code 면 users 에서 uuid 변환.
     //   변환 실패 시 필터 없이 옛 전체 fetch 로 안전 후퇴.
     let engineerOrFilter = null;
+    // 2026-10-06 Mig 212 — 기사 조회의 협력사 경계 (조회 단계에서 거른다 — 화면 숨김 아님).
+    //   · 직영 기사:   본인 배정 작업 + "직영(subcontractor_id IS NULL)" 열린 작업만.
+    //                  협력사 작업은 내려받지 않는다.
+    //   · 협력사 기사: 본인 배정 작업만 (opts.ownOnly). 직영 작업은 내려받지 않는다.
+    //   engineerDirectOnly = uuid 변환 실패로 or 필터를 못 만들었을 때의 안전 후퇴용 표시.
+    let engineerDirectOnly = false;
     if (role === "engineer" && userId) {
       try {
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(userId));
@@ -768,10 +776,18 @@ export async function loadTasksForRole(role, userId, principalCode, opts = {}) {
           engUuid = uRow?.id || null;
         }
         if (engUuid) {
-          engineerOrFilter = `assigned_engineer_id.eq.${engUuid},status.not.in.("완료","취소","정산완료","visit_only")`;
+          // 2026-10-06 Mig 212 — opts.ownOnly: 협력사 소속 기사는 본인 배정 작업만.
+          engineerOrFilter = (opts && opts.ownOnly)
+            ? `assigned_engineer_id.eq.${engUuid}`
+            : `assigned_engineer_id.eq.${engUuid},and(status.not.in.("완료","취소","정산완료","visit_only"),subcontractor_id.is.null)`;
         }
       } catch (_e) {
-        engineerOrFilter = null; // 안전 후퇴 — 전체 fetch
+        engineerOrFilter = null; // 안전 후퇴 — 아래 engineerDirectOnly 로 처리
+      }
+      if (!engineerOrFilter) {
+        // 본인 식별 실패: 협력사 기사는 아무것도 받지 않고, 직영 기사는 직영 작업만 받는다.
+        if (opts && opts.ownOnly) return { ok: true, tasks: [] };
+        engineerDirectOnly = true;
       }
     }
 
@@ -793,6 +809,8 @@ export async function loadTasksForRole(role, userId, principalCode, opts = {}) {
       // Stage 5 — 기사 서버 필터 (위 주석 참조). null 이면 옛 전체 fetch.
       if (engineerOrFilter) {
         q = q.or(engineerOrFilter);
+      } else if (engineerDirectOnly) {
+        q = q.is("subcontractor_id", null);
       }
       // 2026-08-04 — 창 fetch (사장님 "어플이 느려졌어" — 전체 4,184건을 3분마다
       //   통째로 재다운로드하던 것이 원인). opts.recentDays 가 있으면

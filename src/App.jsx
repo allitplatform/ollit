@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { reportAppVersion } from "./lib/appVersion.js";
+import { loadSubcontractorIndex } from "./lib/subcontractorsDb.js";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import EngineerApp from "./pages/EngineerApp.jsx";
 import HappycallApp from "./pages/HappycallApp.jsx";
 import AdminApp from "./pages/AdminApp.jsx";
 import PrincipalApp from "./pages/PrincipalApp.jsx";
+import SubManagerApp from "./pages/SubManagerApp.jsx";
 import LandingApp from "./pages/LandingApp.jsx";
 import MarketingPwaApp, { ClientAdView } from "./pages/MarketingPwaApp.jsx";
 
@@ -101,7 +103,7 @@ export default function App() {
 
   // 2026-10-06 Mig 211a — 앱 버전 보고 (로그인 상태가 되면 1회). 211b 실행 조건 확인용.
   useEffect(() => {
-    if (currentUser) reportAppVersion();
+    if (currentUser) { reportAppVersion(); loadSubcontractorIndex(); }
   }, [currentUser]);
 
   // 앱 시작 시 저장된 테마 적용 (CSS 변수 세팅)
@@ -243,6 +245,9 @@ export default function App() {
         return <AdminApp user={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />;
       case "principal":
         return <PrincipalApp user={currentUser} onLogout={handleLogout} />;
+      case "sub_manager":
+        // 2026-10-06 Mig 212~214 — 협력사 관리자 화면 (원청 화면과 별개, RPC 전용)
+        return <SubManagerApp user={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />;
       default:
         return <LoginScreen onLogin={handleLogin} />;
     }

@@ -79,6 +79,8 @@ import { startDailyAlertScheduler, stopDailyAlertScheduler } from "../utils/dail
 import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../utils/dashboardStats.js";
 // 2026-07-14 — Stage 3: 기간 집계 RPC 날짜 계산용 (매출 카드와 동일 규칙).
 import { getMonthStart, getPrevMonthSameDay, getPrevMonthStart, getMonthRange, computeRevenueByYmRange } from "../utils/revenueStats.js";
+import { engineerDisplayName } from "../lib/subcontractorsDb.js";
+import { SubcontractorAdminScreen } from "../components/admin/SubcontractorAdminScreen.jsx";
 // 2026-07-24 — 개요 탭 돈 스트립 미리보기 (통장 잔고 · 이번 달 순이익 — 손익 화면과 동일 산식)
 import { getCashflowSummary as ovGetCashflowSummary, getCashflowDayClose as ovGetCashflowDayClose } from "../lib/bookkeepingCashflowDb.js";
 import { getUsolNTrackBMargin as ovGetUsolNTrackBMargin, listExpenses as ovListExpenses } from "../lib/bookkeepingDb.js";
@@ -620,6 +622,8 @@ function _v14NormalizeTask(t) {
     // 2026-06-08 — principalId 매핑 추가 (SettlementPrincipalCard 지급완료 버튼 노출 차단 해결)
     principal, principalCode: t.principalCode || t.principal_code || "",
     principalId: t.principalId || t.principal_id || null,
+    // 2026-10-06 Mig 212 — 작업 수행 협력사 (NULL = 직영). 3곳 매핑.
+    subcontractorId: t.subcontractorId || t.subcontractor_id || null,
     // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean (유솔N 본작업 + 냉매)
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
     paymentMethod,
@@ -3933,6 +3937,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
         onSettlement={() => setScreen("settlement")}
         onPrincipalSettlement={() => setScreen("principal_settlement")}
         onCommissionPolicy={() => setScreen("commissionPolicy")}
+        onSubcontractors={() => setScreen("subcontractors")}
         onToggleTheme={() => setMode(mode === "dark" ? "light" : "dark")}
         autoPushOn={autoPushOn}
         onToggleAutoPush={async () => {
@@ -3960,6 +3965,12 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
   if (screen === "commissionPolicy") {
     return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
       <CommissionPolicyManagement user={user} onBack={goBack}/>
+    </Shell>;
+  }
+  // 2026-10-06 Mig 212~214 — 협력사 관리 (협력사 정보·사업자 정보)
+  if (screen === "subcontractors") {
+    return <Shell t={t} toasts={toasts} pcCtx={pcCtx}>
+      <SubcontractorAdminScreen onBack={goBack}/>
     </Shell>;
   }
   // V11-2-fix — 유솔 N 워크스페이스 (단일 라우트, 5탭 컨테이너 내부)
@@ -4529,7 +4540,7 @@ function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, us
                         <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600 }}> · {x.status}</span>
                       </div>
                       <div style={{ fontSize: 11, color: t.textSecondary, lineHeight: 1.5, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {x.assignedEngineer || x.engineer || "기사 미배정"} · {x.region || ""} · {x.scheduledDate || (x.scheduledAt ? toKstYmd(x.scheduledAt) : "")}
+                        {engineerDisplayName(x, "기사 미배정")} · {x.region || ""} · {x.scheduledDate || (x.scheduledAt ? toKstYmd(x.scheduledAt) : "")}
                       </div>
                     </div>
                     <span style={{
@@ -6245,7 +6256,7 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
           display: "flex", alignItems: "center", minWidth: 0,
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>
-          <span style={{ color: t.text, fontWeight: 700 }}>{task.assignedEngineer}</span>&nbsp;프로 배정
+          <span style={{ color: t.text, fontWeight: 700 }}>{engineerDisplayName(task)}</span>&nbsp;{task.subcontractorId ? "담당" : "프로 배정"}
         </span>
         {task.engineerPhone && (
           <a href={`tel:${task.engineerPhone}`} style={{ ...botBtnBase, color: t.textSecondary }}>
@@ -7956,7 +7967,7 @@ function SettlementPrincipalCard({ t, group, open, onToggle, onTaskClick, user, 
                 <CheckCircle2 size={12} style={{ color: t.success, flexShrink: 0 }}/>
                 <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{task.customer}</span>
                 <span style={{ fontSize: 11, color: t.textSecondary }}>({itemSummary})</span>
-                <span style={{ fontSize: 10, color: t.textMuted, whiteSpace: "nowrap" }}>· {task.engineer}</span>
+                <span style={{ fontSize: 10, color: t.textMuted, whiteSpace: "nowrap" }}>· {engineerDisplayName(task)}</span>
                 <div style={{ flex: 1 }}/>
                 <span className="mono" style={{ fontSize: 11, fontWeight: 800, color: t.accent, whiteSpace: "nowrap" }}>{fmtKRW(principalAmt)}</span>
               </div>
@@ -8280,14 +8291,14 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>{infoText}</span>
         {/* 기사명 박스 */}
-        {task.engineer && (
+        {(task.engineer || task.subcontractorId) && (
           <span style={{
             fontSize: 11, fontWeight: 500, color: "#ddd",
-            background: "#2a2a2a",
+            background: task.subcontractorId ? "#4C1D95" : "#2a2a2a",
             padding: "2px 8px", borderRadius: 4,
             flexShrink: 0,
             whiteSpace: "nowrap",
-          }}>{task.engineer}</span>
+          }}>{engineerDisplayName(task)}</span>
         )}
         {/* 2026-05-26 — 기사 재배정 요청 배지 (category_data.reassignRequest 있을 때) */}
         {task.reassignRequest?.requestedAt && (
@@ -9127,7 +9138,7 @@ function TaskDetailScreen({ t, task, onBack, onCancelTask, onVisitOnly, onMemoAd
               기사 수고비 (취소 작업)
             </div>
             <div style={{ fontSize: 11, color: t.textSecondary, marginBottom: 10 }}>
-              배정: <strong style={{ color: t.text }}>{task.assignedEngineer || "—"}</strong>
+              배정: <strong style={{ color: t.text }}>{engineerDisplayName(task, "—")}</strong>
             </div>
             <div style={{ display: "flex", gap: 8 }}>
               {[

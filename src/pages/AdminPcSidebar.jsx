@@ -114,6 +114,8 @@ const GROUPS = [
     // 2026-06-13 사장님 spec — 지역(regionList) 기준정보에서 이동.
     items: [
       { id: "engineerList",          label: "기사 목록" },
+      // 2026-10-06 Mig 212 — 협력사 관리
+      { id: "subcontractors",        label: "협력사" },
       { id: "engineerCalendar",      label: "기사 달력 (주간)" },
       // 2026-06-12 — 월간 달력 (한 기사 × 한 달).
       { id: "engineerCalendarMonth", label: "기사 달력 (월간)" },
@@ -178,6 +180,7 @@ const SCREEN_TO_GROUP = (() => {
   // 2026-07-21 — 원청 그룹 2개 재편 잔존 경로: 옛 편집 화면 진입 시에도 원청 그룹 활성.
   map.principalEdit     = "principal";
   map.regionList        = "engineers";
+  map.subcontractors    = "engineers";
   // 2026-07-21 — 옛 알림 설정 진입 경로 (외부 링크/뒤로가기 잔존분) → 설정 그룹 활성.
   map.notificationSettings = "settingsGroup";
   // 2026-07-21 v2 — 공지/사용자/회사계좌는 설정 화면 "관리" 카드에서 진입 → 설정 그룹 활성 유지.

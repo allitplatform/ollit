@@ -1244,10 +1244,16 @@ function MainScreen({
             fontSize: 13, color: "#C8C8C8",
             fontWeight: 600, marginBottom: 18,
           }}>
-            {todayTasksLocal.length}건 완료 ·{" "}
-            <span style={{ color: "#FF1B8D", fontWeight: 700 }}>
-              오늘 번 돈 ₩{todayEarningLocal.toLocaleString("ko-KR")}
-            </span>
+            {todayTasksLocal.length}건 완료
+            {/* 2026-10-06 Mig 212 — 협력사 소속 기사는 수익 표시 숨김 (정산은 협력사가 함) */}
+            {!user?.subcontractor && (
+              <>
+                {" · "}
+                <span style={{ color: "#FF1B8D", fontWeight: 700 }}>
+                  오늘 번 돈 ₩{todayEarningLocal.toLocaleString("ko-KR")}
+                </span>
+              </>
+            )}
           </div>
           {/* 내일 일정 보기 (핑크 풀) — V14 v7: 캘린더 일별 뷰 라우팅 */}
           <button
@@ -4035,7 +4041,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
     setTasksError("");
     try {
       console.log('[V14 EngineerApp] fetchTasks 시작');
-      const res = await getTasks('engineer', user?.engineerId || user?.id || 'engineer', null);
+      // 2026-10-06 Mig 212 — 협력사 소속 기사는 본인 배정 작업만 받는다 (열린 작업 전체 X).
+      const res = await getTasks('engineer', user?.engineerId || user?.id || 'engineer', null, { ownOnly: !!user?.subcontractor });
       console.log('[V14 EngineerApp] raw 응답:', res);
       if (!res || res.ok === false) {
         setTasksError((res && res.error) || '불러오기 실패');
@@ -5314,7 +5321,20 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
         )}
 
         {/* 정산 탭 */}
-        {screen === "settlement" && (
+        {/* 2026-10-06 Mig 212 — 협력사 소속 기사: 수익·개인 송금 보고 화면 대신 안내만.
+            수수료는 협력사가 일괄 입금하므로 개인 송금 보고가 있으면 중복 청구가 된다. */}
+        {screen === "settlement" && !!user?.subcontractor && (
+          <div style={{ padding: "48px 24px", textAlign: "center", color: t.text }}>
+            <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>
+              {user.subcontractor.name || "협력사"} 소속
+            </div>
+            <div style={{ fontSize: 14, lineHeight: 1.7, color: t.textSecondary || t.text, opacity: 0.8 }}>
+              정산은 소속 협력사에서 진행합니다.<br/>
+              작업 완료 때 받은 금액만 정확히 입력해 주세요.
+            </div>
+          </div>
+        )}
+        {screen === "settlement" && !user?.subcontractor && (
           <EngineerSettleTab
             engineer={engineerProfile}
             todayTasks={todayCompletedTasks}

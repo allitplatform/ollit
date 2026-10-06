@@ -9,6 +9,8 @@ export const DB_TO_APP_ROLE = {
   engineer: "engineer",
   operator: "happycall",
   partner:  "principal",
+  // 2026-10-06 Mig 212 — 협력사 관리자 (users.sub_role = manager → 로그인 응답 roles 에 포함)
+  sub_manager: "sub_manager",
 };
 
 // RPC 응답 user → 정규화된 app user (역할 1개 활성).
@@ -41,4 +43,11 @@ export function canSwitchEngineerAdmin(user) {
   if (!user) return false;
   const roles = Array.isArray(user.roles) ? user.roles : [];
   return roles.includes("engineer") && roles.includes("admin");
+}
+
+// 2026-10-06 Mig 212 — 협력사 관리자 + 기사 겸임 (대표·팀장이 현장 작업도 함).
+export function canSwitchEngineerSubManager(user) {
+  if (!user) return false;
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  return roles.includes("engineer") && roles.includes("sub_manager");
 }

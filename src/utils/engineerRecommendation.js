@@ -12,6 +12,7 @@ import { loadRegions } from "../data/regions.js";
 import { isRefrigerant, getServiceKind } from "./workTypeKind.js";
 // 2026-07-14 — 지역명 표기 흔들림 흡수 ("남양주시"↔"남양주")
 import { normalizeZoneName, zoneCoversRegion } from "../data/engineers.js";
+import { loadSubcontractorIndex, getSubcontractorIndex, subcontractorOfEngineer } from "../lib/subcontractorsDb.js";
 // 2026-07-26 — 동 단위 주소 → 구/시 승격 (사장님 spec: "세부 동으로 들어오면
 //   지도 쳐서 구 찾아 다시 검색하는 게 불편"). 지역별 접수 현황과 같은 파서 재사용
 //   (동 사전 + 공백 없는 주소 + 세분구 처리 전부 포함).
@@ -214,7 +215,15 @@ export function recommendEngineers(task, options = {}) {
   // 활성 기사만 (status: "off" 제외)
   // 단, 해당 작업 종류를 하는 기사 우선 — 그러나 V11-10 catch는 "모든 기사"라
   // 작업 종류가 등록되지 않은 기사도 후보로 포함 (점수만 낮음).
-  const activeEngineers = engineers.filter(e => e.status !== "off");
+  // 2026-10-06 Mig 212 (Q6) — 협력사 소속 기사는 직영 작업 후보에서 제외.
+  //   그 협력사가 맡은 작업일 때만 후보로 남긴다.
+  const _subIdx  = getSubcontractorIndex();
+  const _taskSub = task.subcontractorId || task.subcontractor_id || null;
+  const activeEngineers = engineers.filter(e => {
+    if (e.status === "off") return false;
+    const engSub = subcontractorOfEngineer(e, _subIdx);
+    return !engSub || engSub === _taskSub;
+  });
 
   if (activeEngineers.length === 0) return [];
 
@@ -343,9 +352,14 @@ export async function recommendEngineersFromDb(task) {
 
   // user 활성 + duplicate (= 같은 user 의 NULL + 원청별 row) 정리:
   //   사장님 spec — 한 user 당 1 row (level 우선 main > sub).
+  // 2026-10-06 Mig 212 (Q6) — 협력사 소속 기사는 직영 추천·자동배정·푸시 후보에서 제외.
+  const _subIdx  = await loadSubcontractorIndex();
+  const _taskSub = task?.subcontractorId || task?.subcontractor_id || null;
   const byUserId = new Map();
   for (const r of eppRows || []) {
     if (!r.users || r.users.is_active !== true) continue;
+    const _engSub = _subIdx.byUserId.get(r.user_id) || null;
+    if (_engSub && _engSub !== _taskSub) continue;
     const prev = byUserId.get(r.user_id);
     if (!prev || (r.level === "main" && prev.level !== "main")) {
       byUserId.set(r.user_id, {

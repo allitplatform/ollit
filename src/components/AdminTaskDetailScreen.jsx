@@ -54,6 +54,7 @@ import { setTaskItemReceivedAmount as apiSetItemReceived, getTaskByIdDb } from "
 import { setMaterialCostAdapter } from "../data/tasksDb.js";
 // 2026-06-02 — 정산 대기 측 partial payload 측 측 → id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일 spec).
 import { v14NormalizeTask } from "../utils/v14Task.js";
+import { useSubcontractorIndex, subcontractorAssigneeLabel, adminAssignTaskToSubcontractor } from "../lib/subcontractorsDb.js";
 // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138 unmark_visit_only RPC).
 import { UnmarkVisitOnlyDialog } from "./admin/UnmarkVisitOnlyDialog.jsx";
 
@@ -370,6 +371,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         onScheduleChange={onScheduleChange}
         onSendMessage={() => setShowMessageModal(true)}
       />
+      {/* 2026-10-06 Mig 212~214 — 협력사로 넘기기 / 직영으로 회수 */}
+      <SubcontractorCard task={task} onChanged={reloadTask}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
       <SettlementInfoCard task={task}/>
       {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출).
@@ -812,6 +815,8 @@ function engineerContactBtnStyle(active) {
 //   유솔앱 PrincipalApp.jsx:983~ 패턴 측 catch. 핸들러 100% 측 catch (onAssign / onEdit /
 //   onScheduleChange / callCustomer 측 catch — 측 측 측 측 측 측 측 X).
 function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onSendMessage }) {
+  // 2026-10-06 Mig 212 — 협력사 작업이면 담당을 "협력사 · 직원명" 으로 표기
+  const subIdx = useSubcontractorIndex();
   function callCustomer() {
     if (task.phone) window.location.href = `tel:${task.phone}`;
   }
@@ -892,7 +897,9 @@ function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onS
           <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>배정 프로</span>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: hasEngineer ? "var(--text-primary)" : "var(--text-tertiary, var(--text-secondary))" }}>
-              {hasEngineer ? task.engineer : "미배정"}
+              {task.subcontractorId
+                ? subcontractorAssigneeLabel(task, subIdx)
+                : (hasEngineer ? task.engineer : "미배정")}
             </span>
             {/* 2026-06-26 — 기사 전화·문자 (배정 기사 + phone 있을 때만 활성). */}
             <button
@@ -1009,6 +1016,87 @@ function D2LabelRow({ label, value, mono, wrap, highlight }) {
 // ──────────────── 카드 4 — SettlementInfoCard (Phase 5 Step 0.C-4) ────────────────
 // 작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배
 // 회사 수익 / 기사 분배 = payments 측 매핑 (task.engineer_amount / task.owner_amount)
+// 2026-10-06 Mig 212~214 — 협력사 수행 카드.
+//   · 직영 작업: 협력사를 골라 [협력사로 넘기기] → 협력사 관리자가 자기 직원을 지정.
+//     (운영자가 협력사 직원을 직접 배정해도 수행처는 자동으로 그 협력사가 된다 — Mig 213)
+//   · 협력사 작업: [직영으로 회수].
+//   등록된 협력사가 없으면 카드 자체를 그리지 않는다.
+function SubcontractorCard({ task, onChanged }) {
+  const idx = useSubcontractorIndex();
+  const subs = [...idx.names.values()].filter(s => s.active !== false);
+  const [pick, setPick] = useState("");
+  const [busy, setBusy] = useState(false);
+  const closed = ["완료", "취소", "visit_only", "정산완료"].includes(task?.status);
+  const subId = task?.subcontractorId || null;
+  if (!task || (subs.length === 0 && !subId)) return null;
+  if (closed && !subId) return null;
+
+  const chosen = pick || (subs[0] && subs[0].id) || "";
+
+  async function run(targetId, confirmText) {
+    if (busy) return;
+    if (!window.confirm(confirmText)) return;
+    setBusy(true);
+    const res = await adminAssignTaskToSubcontractor(task.id, targetId);
+    setBusy(false);
+    if (!res.ok) { window.alert(res.error || "처리하지 못했습니다."); return; }
+    if (typeof onChanged === "function") onChanged();
+  }
+
+  return (
+    <div style={{
+      background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14,
+      padding: "12px 14px", margin: "0 0 12px",
+    }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>수행</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)", marginTop: 2 }}>
+            {subId ? subcontractorAssigneeLabel(task, idx) : "올데이케어 직영"}
+          </div>
+        </div>
+        {!closed && (subId ? (
+          <button
+            type="button" disabled={busy}
+            onClick={() => run(null, "이 작업을 직영으로 되돌릴까요?\n협력사 직원 배정은 해제됩니다.")}
+            style={{
+              padding: "8px 12px", borderRadius: 10, border: "1px solid var(--border)",
+              background: "transparent", color: "var(--text-primary)", fontSize: 12, fontWeight: 700,
+              fontFamily: "inherit", cursor: busy ? "default" : "pointer",
+            }}
+          >{busy ? "처리 중…" : "직영으로 회수"}</button>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {subs.length > 1 && (
+              <select
+                value={chosen} onChange={e => setPick(e.target.value)} disabled={busy}
+                style={{
+                  padding: "7px 8px", borderRadius: 10, border: "1px solid var(--border)",
+                  background: "var(--bg-card)", color: "var(--text-primary)", fontSize: 12, fontFamily: "inherit",
+                }}
+              >
+                {subs.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            )}
+            <button
+              type="button" disabled={busy || !chosen}
+              onClick={() => {
+                const name = (subs.find(s => s.id === chosen) || {}).name || "협력사";
+                run(chosen, `이 작업을 ${name}(으)로 넘길까요?\n지금 배정된 직영 기사가 있으면 배정이 해제됩니다.`);
+              }}
+              style={{
+                padding: "8px 12px", borderRadius: 10, border: "none",
+                background: "#8B5CF6", color: "#fff", fontSize: 12, fontWeight: 700,
+                fontFamily: "inherit", cursor: busy ? "default" : "pointer",
+              }}
+            >{busy ? "처리 중…" : (subs.length === 1 ? `${subs[0].name}(으)로 넘기기` : "협력사로 넘기기")}</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function SettlementInfoCard({ task }) {
   const isExternal = task.type === "external";
   // 2026-07-28 (Mig 198/199) — 설치 자재비. 총금액에서 먼저 빼고 기사님께 돌려드림.

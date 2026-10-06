@@ -74,6 +74,8 @@ export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [],
     for (const t of apiTasks) {
       const st = t.status || t.상태 || "";
       if (st !== "완료" && st !== "정산완료" && st !== "visit_only") continue;
+      // 2026-10-06 Mig 212 — 협력사 작업은 회사 기여 집계에서 제외 (수수료만 회사 몫).
+      if (t.subcontractorId || t.subcontractor_id) continue;
       const done = t.completedAt || t.completed_at;
       if (!done) continue;
       let doneYmd = "";

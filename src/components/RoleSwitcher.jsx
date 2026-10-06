@@ -8,11 +8,15 @@
 // 측 컴팩트: 측 28px / 폰트 12px / padding 4×10 / round pill. 측측 측측 측측.
 // 측측: 측측 활성 측 핑크 #FF1B8D / 측측측 측측 글자만.
 
-import { canSwitchEngineerAdmin } from "../lib/roles.js";
+import { canSwitchEngineerAdmin, canSwitchEngineerSubManager } from "../lib/roles.js";
 
 export function RoleSwitcher({ user, onSwitch, floating = false }) {
-  if (!canSwitchEngineerAdmin(user)) return null;
-  const activeDbRole = user.dbRole || (user.role === "admin" ? "admin" : "engineer");
+  // 2026-10-06 Mig 212 — 협력사 관리자 + 기사 겸임도 같은 토글 사용 (프로 ↔ 협력사).
+  const isSubSwitch = !canSwitchEngineerAdmin(user) && canSwitchEngineerSubManager(user);
+  if (!canSwitchEngineerAdmin(user) && !isSubSwitch) return null;
+  const otherDbRole = isSubSwitch ? "sub_manager" : "admin";
+  const otherLabel  = isSubSwitch ? "협력사" : "운영자";
+  const activeDbRole = user.dbRole || (user.role === otherDbRole ? otherDbRole : "engineer");
 
   const inner = (
     <div style={{
@@ -30,7 +34,7 @@ export function RoleSwitcher({ user, onSwitch, floating = false }) {
       } : {}),
     }}>
       <Segment label="프로"   active={activeDbRole === "engineer"} onClick={() => onSwitch("engineer")}/>
-      <Segment label="운영자" active={activeDbRole === "admin"}    onClick={() => onSwitch("admin")}/>
+      <Segment label={otherLabel} active={activeDbRole === otherDbRole} onClick={() => onSwitch(otherDbRole)}/>
     </div>
   );
 

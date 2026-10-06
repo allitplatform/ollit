@@ -21,6 +21,7 @@ import {
 import { supabase } from "../lib/supabase.js";
 // 2026-06-18 Mig 141 — 사업자 정보 카드 (운영자 대리 입력 — actor = 운영자 user_id).
 import { EngineerBusinessInfoCard } from "./EngineerBusinessInfoCard.jsx";
+import { EngineerSubcontractorCard } from "./EngineerSubcontractorCard.jsx";
 import { useIsDark } from "../hooks/useIsDark.js";
 // 2026-07-08 — 프로상세 하단 휴무 미리보기.
 // 2026-07-09 — formatOffAlertText: 리스트 클릭 시 사유 팝업.
@@ -616,6 +617,8 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
                 {statusSection}
                 {refriRateSection}
               </PcCard>
+              {/* 2026-10-06 Mig 212 — 소속 협력사 (운영자 전용, 독립 저장) */}
+              {!isNew && targetUserId && <EngineerSubcontractorCard userId={targetUserId}/>}
               {/* 2026-06-19 — 사업자 정보가 정산 계좌 위 (사장님 spec). */}
               {!isNew && targetUserId && actor && (
                 <EngineerBusinessInfoCard
@@ -673,6 +676,12 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
           {cleaningSection}
           {refrigerantSection}
           {ratesSection}
+          {/* 2026-10-06 Mig 212 — 소속 협력사 (운영자 전용, 독립 저장) */}
+          {!isNew && targetUserId && (
+            <div style={{ marginTop: 16 }}>
+              <EngineerSubcontractorCard userId={targetUserId}/>
+            </div>
+          )}
           {/* 2026-06-19 — 사업자 정보가 정산 계좌 위 (사장님 spec). */}
           {!isNew && targetUserId && actor && (
             <div style={{ marginTop: 16, marginBottom: 8 }}>

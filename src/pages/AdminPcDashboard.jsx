@@ -34,6 +34,7 @@ import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
 import { getCancelReasonLabel, isMistakeTask } from "../data/cancelReasons.js";
 // 2026-07-29 — 접수 시간대 차트 공용화 (모바일 통계 허브와 같은 컴포넌트 사용).
 import { HourlyReceivedChart, hourBucketIndexKst } from "../components/admin/HourlyReceivedChart.jsx";
+import { useSubcontractorIndex, engineerDisplayName } from "../lib/subcontractorsDb.js";
 
 function fmtKRW(n) {
   return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
@@ -199,7 +200,7 @@ export function AdminPcDashboard({
                     fontSize: 12, color: "var(--text-secondary)",
                     whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
                   }}>
-                    {x.assignedEngineer || x.engineer || "기사 미배정"}
+                    {engineerDisplayName(x, "기사 미배정")}
                     {x.region ? ` · ${x.region}` : ""}
                   </span>
                   <span className="mono" style={{
@@ -1114,6 +1115,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
   // 2026-07-28 — 취소 목록 펼친 원청 code (하나만 펼쳐짐).
   const [openCancel, setOpenCancel] = useState(null);
 
+  const subIdx = useSubcontractorIndex();
   const { rows, totals, hourly, skipped } = useMemo(() => {
     const received = new Map();
     const canceled = new Map();   // 2026-07-27 — 통계 허브와 기준 통일 (접수=전체 유입)
@@ -1128,7 +1130,10 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
 
     for (const t of (apiTasks || [])) {
       if (!t) continue;
-      const code = String(t.principalCode || t.principal_code || "").trim();
+      // 2026-10-06 Mig 212 — 협력사 작업은 원청(올데이케어) 행에 합치지 않고 협력사 행으로 분리.
+      //   회사 몫 칸에는 수수료(owner_amount)만 들어간다.
+      const _subId = t.subcontractorId || t.subcontractor_id || null;
+      const code = _subId ? `sub:${_subId}` : String(t.principalCode || t.principal_code || "").trim();
       if (!code) continue;
 
       // 2026-07-29 — 오접수: 접수·취소·취소율·시간대 전부에서 제외 (기록은 남음).
@@ -1162,7 +1167,8 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
       }
     }
 
-    const rowsAll = PRINCIPAL_ORDER.map(p => ({
+    const _subRows = [...subIdx.names.values()].map(s => ({ code: `sub:${s.id}`, name: `${s.name} (협력사)` }));
+    const rowsAll = [...PRINCIPAL_ORDER, ..._subRows].map(p => ({
       code:     p.code,
       name:     p.name,
       received: received.get(p.code) || 0,
@@ -1181,7 +1187,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
     };
 
     return { rows: rowsAll, totals: totalsRow, hourly: hourlyArr, skipped: skippedN };
-  }, [apiTasks, today]);
+  }, [apiTasks, today, subIdx]);
 
   // 2026-07-21 v3 — 비중 바 기준 최대값 (트랙 A 행만)
   const maxOwner = Math.max(0, ...rows.filter(r => !r.isTrackB).map(r => r.owner));
