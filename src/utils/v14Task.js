@@ -226,6 +226,9 @@ export function v14NormalizeTask(t) {
     assignedEngineerId:    t.assignedEngineerId    || t.assigned_engineer_id    || null,
     engineerId:            t.engineerId            || t.assigned_engineer_id    || null,
     engineerCode:          t.engineerCode          || null,
+    // 2026-10-06 — 기사 전화번호 보존. 빠져 있어서 작업 상세의 기사 전화·문자 아이콘이 늘 비활성이었다
+    //   (상세 화면은 작업을 다시 읽은 뒤 이 함수로 정규화한다 — 3곳 매핑 트랩).
+    engineerPhone:         t.engineerPhone || t.assignedEngineerPhone || (t.assigned_engineer && t.assigned_engineer.phone) || "",
     recommendedEngineerId: t.recommendedEngineerId || t.recommended_engineer_id || null,
     recommendedEngineer,
     startedAt, completedAt,

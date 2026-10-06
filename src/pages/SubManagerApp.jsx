@@ -16,6 +16,7 @@ import { v14NormalizeTask } from "../utils/v14Task.js";
 import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
 import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
 import SubAssignSheet from "../components/SubAssignSheet.jsx";
+import BottomSheet, { SheetButtons } from "../components/BottomSheet.jsx";
 import SubStaffManage from "../components/SubStaffManage.jsx";
 
 const DONE = ["완료", "취소", "visit_only", "정산완료"];
@@ -248,26 +249,26 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
         />
       )}
       {rejecting && (
-        <Sheet onClose={() => { if (!busy) setRejecting(null); }}>
-          <div style={sheetTitle}>작업 반려</div>
-          <div style={sheetSub}>
-            {rejecting.customer_name || rejecting.customer} · 올데이케어로 되돌립니다. 담당 기사 배정도 해제됩니다.
-          </div>
+        <BottomSheet
+          onClose={() => { if (!busy) setRejecting(null); }}
+          title="작업 반려"
+          subtitle={`${rejecting.customer_name || rejecting.customer || ""} · 올데이케어로 되돌립니다. 담당 기사 배정도 해제됩니다.`}
+          footer={<SheetButtons onCancel={() => setRejecting(null)} onOk={saveReject} okLabel="반려하기" busy={busy} danger/>}
+        >
           <label style={fieldLabel}>반려 사유 (운영자에게 전달됩니다)</label>
           <div style={fieldWrap}>
             <textarea value={rejectText} onChange={e => setRejectText(e.target.value)} rows={3} maxLength={500}
               placeholder="예: 해당 지역 일정 불가 / 작업 범위 밖" style={{ ...fieldInput, minHeight: 88, resize: "vertical" }}/>
           </div>
-          <button disabled={busy} onClick={saveReject} style={{ ...btnMain, width: "100%", marginTop: 14, background: "#E5484D" }}>
-            {busy ? "처리 중…" : "반려하기"}
-          </button>
-          <button disabled={busy} onClick={() => setRejecting(null)} style={{ ...btnGhost, width: "100%", marginTop: 8 }}>닫기</button>
-        </Sheet>
+        </BottomSheet>
       )}
       {scheduling && (
-        <Sheet onClose={() => { if (!busy) setScheduling(null); }}>
-          <div style={sheetTitle}>일정 확정 · 변경</div>
-          <div style={sheetSub}>{scheduling.customer_name || scheduling.customer}</div>
+        <BottomSheet
+          onClose={() => { if (!busy) setScheduling(null); }}
+          title="일정 확정 · 변경"
+          subtitle={scheduling.customer_name || scheduling.customer}
+          footer={<SheetButtons onCancel={() => setScheduling(null)} onOk={saveSchedule} okLabel="일정 저장" busy={busy}/>}
+        >
           <label style={fieldLabel}>날짜 선택</label>
           <div style={fieldWrap}>
             <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} style={fieldInput}/>
@@ -289,26 +290,21 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.5 }}>
             저장하면 상태가 "일정확정"으로 바뀝니다. 담당 기사가 먼저 배정돼 있어야 합니다.
           </div>
-          <button disabled={busy} onClick={saveSchedule} style={{ ...btnMain, width: "100%", marginTop: 14 }}>
-            {busy ? "저장 중…" : "일정 저장"}
-          </button>
-          <button disabled={busy} onClick={() => setScheduling(null)} style={{ ...btnGhost, width: "100%", marginTop: 8 }}>닫기</button>
-        </Sheet>
+        </BottomSheet>
       )}
       {memoOpen && detail && (
-        <Sheet onClose={() => { if (!busy) setMemoOpen(false); }}>
-          <div style={sheetTitle}>메모 추가</div>
-          <div style={sheetSub}>{detail.customer} · 올데이케어 운영자도 함께 봅니다</div>
+        <BottomSheet
+          onClose={() => { if (!busy) setMemoOpen(false); }}
+          title="메모 추가"
+          subtitle={`${detail.customer || ""} · 올데이케어 운영자도 함께 봅니다`}
+          footer={<SheetButtons onCancel={() => setMemoOpen(false)} onOk={saveMemo} okLabel="메모 저장" busy={busy}/>}
+        >
           <textarea
             value={memoText} onChange={e => setMemoText(e.target.value)} rows={4} autoFocus
             placeholder="현장 상황, 고객 통화 내용 등을 남겨 주세요"
             style={{ ...fieldInput, resize: "vertical", lineHeight: 1.5 }}
           />
-          <button disabled={busy} onClick={saveMemo} style={{ ...btnMain, width: "100%", marginTop: 12 }}>
-            {busy ? "저장 중…" : "메모 저장"}
-          </button>
-          <button disabled={busy} onClick={() => setMemoOpen(false)} style={{ ...btnGhost, width: "100%", marginTop: 8 }}>닫기</button>
-        </Sheet>
+        </BottomSheet>
       )}
     </>
   );
@@ -498,28 +494,12 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   );
 }
 
-function Sheet({ children, onClose }) {
-  return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: "var(--bg-secondary)", color: "var(--text-primary)", width: "100%", maxWidth: 560, maxHeight: "82vh", overflowY: "auto",
-        borderRadius: "18px 18px 0 0", padding: "18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px)",
-        boxSizing: "border-box", overflowX: "hidden",
-      }}>
-        {children}
-      </div>
-    </div>
-  );
-}
-
 const filterBox = {
   display: "flex", alignItems: "center", gap: 6, boxSizing: "border-box", minWidth: 0, height: 44,
   padding: "0 12px", borderRadius: 10, border: "1px solid var(--border)",
   background: "var(--bg-elevated)", color: "var(--text-primary)",
-  fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+  fontSize: 16, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
 };
-const sheetTitle = { fontSize: 17, fontWeight: 800 };
-const sheetSub   = { fontSize: 13, color: "var(--text-secondary)", margin: "4px 0 14px" };
 const fieldLabel = { display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", margin: "10px 0 6px" };
 const fieldWrap = { width: "100%", maxWidth: "100%", overflow: "hidden", boxSizing: "border-box" };
 const fieldInput = {

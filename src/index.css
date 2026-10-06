@@ -45,6 +45,17 @@ button, input, textarea, select {
   font-family: inherit;
 }
 
+/* 2026-10-06 — 휴대폰(터치 화면)에서 글자 크기를 따로 주지 않은 입력칸·선택칸은 16px.
+   (iOS 는 16px 미만 입력칸을 누르면 화면을 확대할 수 있다. 새로 만드는 입력칸은 16px 이상으로 쓴다.)
+   인라인으로 크기를 준 입력칸은 건드리지 않는다 — 금액 입력칸처럼 일부러 크게 만든 칸이 줄어들지 않게. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* V11-3 — 미입금 비상 박스 강조 */
 @keyframes ollit-pulse {
   0%, 100% { opacity: 1; }

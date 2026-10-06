@@ -10,6 +10,8 @@ import {
   subGetCutRates, subSetCutRate,
   subStaffDirectory, subGetStaffDetail, subRevealStaffAccount, subUpdateStaff,
 } from "../lib/subcontractorsDb.js";
+import BottomSheet, { SheetButtons } from "./BottomSheet.jsx";
+import { ZONE_GROUPS, zoneSummaryParts, zoneSummaryText } from "../utils/zoneGroups.js";
 
 const card = {
   background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
@@ -41,40 +43,100 @@ const splitZones = (text) => String(text || "").split(/[,\s·/]+/).map(z => z.tr
 const ymdLabel = (ymd) => (ymd ? `${Number(String(ymd).slice(5, 7))}/${Number(String(ymd).slice(8, 10))}` : "");
 const catNames = (codes, subCats) => (codes || []).map(c => (subCats.find(x => x.code === c) || {}).name || c);
 
-function Sheet({ children, onClose }) {
+// 담당 지역 요약 한 줄 — "서울 전체 · 경기 31곳". 누르면 펼쳐서 전체 지역을 보여 준다.
+export function ZoneSummary({ zones, region }) {
+  const [open, setOpen] = useState(false);
+  const list = Array.isArray(zones) ? zones : [];
+  if (list.length === 0) return <span style={small}>{region || "담당 지역 없음"}</span>;
+  const few = list.length <= 3;
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: "var(--bg-secondary)", color: "var(--text-primary)", width: "100%", maxWidth: 560, maxHeight: "86vh", overflowY: "auto",
-        borderRadius: "18px 18px 0 0", padding: "18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px)", boxSizing: "border-box",
-      }}>{children}</div>
-    </div>
+    <span>
+      <span
+        onClick={few ? undefined : (e) => { e.stopPropagation(); setOpen(v => !v); }}
+        style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, cursor: few ? "default" : "pointer" }}
+      >
+        {region ? `${region} · ` : ""}{zoneSummaryText(list)}
+        {!few && <span style={{ color: "var(--text-secondary)", marginLeft: 4 }}>{open ? "▲" : "▼"}</span>}
+      </span>
+      {open && (
+        <span style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 6 }}>
+          {[...list].sort((a, b) => a.localeCompare(b, "ko")).map(z => (
+            <span key={z} style={{ fontSize: 11, padding: "3px 8px", borderRadius: 999, border: "1px solid var(--border)", color: "var(--text-secondary)" }}>{z}</span>
+          ))}
+        </span>
+      )}
+    </span>
   );
 }
 
-// 담당 지역 입력 — 이미 쓰는 지역은 칩으로 고르고, 없는 지역은 글자로 추가
+// 전화 · 문자 아이콘 버튼 (번호가 없으면 그리지 않는다)
+export function ContactIcons({ phone, size = 36 }) {
+  const digits = String(phone || "").replace(/[^0-9]/g, "");
+  if (!digits) return null;
+  const a = {
+    width: size, height: size, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-secondary)",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 16, textDecoration: "none", flexShrink: 0,
+  };
+  return (
+    <span style={{ display: "inline-flex", gap: 6 }} onClick={e => e.stopPropagation()}>
+      <a href={`tel:${digits}`} aria-label="전화" title="전화" style={a}>📞</a>
+      <a href={`sms:${digits}`} aria-label="문자" title="문자" style={a}>💬</a>
+    </span>
+  );
+}
+
+// 담당 지역 입력 — 맨 위 권역 버튼으로 한 번에 고르고, "세부 조정" 을 펼치면 개별 지역 칩.
+//   저장되는 값은 지금처럼 개별 시·군·구 이름이다.
 function ZonePicker({ known, value, onChange }) {
   const [text, setText] = useState("");
+  const [detail, setDetail] = useState(false);
   const set = new Set(value);
   const toggle = (z) => { const n = new Set(set); if (n.has(z)) n.delete(z); else n.add(z); onChange([...n]); };
+  const groupOn = (g) => g.zones.every(z => set.has(z));
+  const toggleGroup = (g) => {
+    const n = new Set(set);
+    if (groupOn(g)) {
+      // 끌 때: 다른 켜진 권역에도 들어 있는 지역은 남긴다 (경기동부·북부가 겹치는 남양주 등)
+      const keep = new Set();
+      for (const o of ZONE_GROUPS) if (o.key !== g.key && o.zones.every(z => set.has(z))) for (const z of o.zones) keep.add(z);
+      for (const z of g.zones) if (!keep.has(z)) n.delete(z);
+    } else {
+      for (const z of g.zones) n.add(z);
+    }
+    onChange([...n]);
+  };
   const addText = () => {
     const add = splitZones(text);
     if (add.length === 0) return;
     onChange([...new Set([...value, ...add])]);
     setText("");
   };
-  const all = [...new Set([...known, ...value])].sort((a, b) => a.localeCompare(b, "ko"));
+  const grouped = new Set(ZONE_GROUPS.flatMap(g => g.zones));
+  const all = [...new Set([...grouped, ...known, ...value])].sort((a, b) => a.localeCompare(b, "ko"));
   return (
     <>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 180, overflowY: "auto" }}>
-        {all.length === 0 && <span style={small}>아래에 지역 이름을 적어 추가해 주세요.</span>}
-        {all.map(z => <button key={z} type="button" onClick={() => toggle(z)} style={chipStyle(set.has(z))}>{z}</button>)}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {ZONE_GROUPS.map(g => (
+          <button key={g.key} type="button" onClick={() => toggleGroup(g)} style={{ ...chipStyle(groupOn(g)), padding: "9px 12px", fontSize: 13 }}>{g.label}</button>
+        ))}
       </div>
-      <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
-        <input value={text} onChange={e => setText(e.target.value)} placeholder="지역 추가 (예: 강남구, 수원시)" style={{ ...input, flex: 1 }}/>
-        <button type="button" onClick={addText} style={btnGhost}>추가</button>
+      <div style={{ ...small, marginTop: 8, color: "var(--text-primary)" }}>
+        선택 {value.length}곳{value.length > 0 ? ` — ${zoneSummaryParts(value).join(" · ")}` : ""}
       </div>
-      <div style={{ ...small, marginTop: 6 }}>선택 {value.length}곳</div>
+      <button type="button" onClick={() => setDetail(v => !v)} style={{ ...btnGhost, border: "none", padding: "8px 0", color: "var(--text-secondary)", textDecoration: "underline" }}>
+        세부 조정 {detail ? "접기" : "펼치기"}
+      </button>
+      {detail && (
+        <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {all.map(z => <button key={z} type="button" onClick={() => toggle(z)} style={chipStyle(set.has(z))}>{z}</button>)}
+          </div>
+          <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+            <input value={text} onChange={e => setText(e.target.value)} placeholder="지역 추가 (예: 천안시)" style={{ ...input, flex: 1, width: "auto", minWidth: 0 }}/>
+            <button type="button" onClick={addText} style={btnGhost}>추가</button>
+          </div>
+        </>
+      )}
     </>
   );
 }
@@ -120,18 +182,22 @@ export function StaffDetailSheet({ userId, onClose, onEdit }) {
   const sect = (title) => <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)", margin: "16px 0 4px", paddingTop: 12, borderTop: "1px solid var(--border)" }}>{title}</div>;
 
   return (
-    <Sheet onClose={onClose}>
+    <BottomSheet
+      onClose={onClose}
+      title={s ? s.name : "기사 상세"}
+      header={s ? <div style={{ marginTop: 8 }}><ContactIcons phone={s.phone}/></div> : null}
+      footer={<SheetButtons onCancel={onClose} cancelLabel="닫기" onOk={s && onEdit ? () => onEdit(s) : null} okLabel="수정"/>}
+    >
       {!data && !error && <div style={{ ...small, padding: "22px 0", textAlign: "center" }}>불러오는 중…</div>}
       {error && <div style={{ ...small, color: "var(--danger, #E5484D)", padding: "22px 0", textAlign: "center" }}>{error}</div>}
       {s && (
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 17, fontWeight: 800 }}>{s.name}</span>
             <span style={small}>{s.code}</span>
             <span style={{ ...small, fontWeight: 800 }}>{s.sub_role === "manager" ? "관리자" : "기사"} · {s.is_active ? "활성" : "비활성"}</span>
           </div>
           {row("전화", s.phone)}
-          {row("담당 지역", [s.region, (s.zones || []).join("·")].filter(Boolean).join(" · "))}
+          {row("담당 지역", <ZoneSummary zones={s.zones} region={s.region}/>)}
           {row("가능 종목", catNames(s.categories, subCats).join(" · ") || (subCats.length === 0 ? "종목 구분 없음" : "없음"))}
           {row("메모", s.memo)}
 
@@ -170,11 +236,7 @@ export function StaffDetailSheet({ userId, onClose, onEdit }) {
           )}
         </>
       )}
-      <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-        <button type="button" onClick={onClose} style={{ ...btnGhost, flex: 1, padding: "12px 0" }}>닫기</button>
-        {s && onEdit && <button type="button" onClick={() => onEdit(s)} style={{ ...btnMain, flex: 1 }}>수정</button>}
-      </div>
-    </Sheet>
+    </BottomSheet>
   );
 }
 
@@ -290,18 +352,17 @@ function CutRateCard({ subName }) {
       ))}
 
       {open && (
-        <Sheet onClose={() => { if (!busy) setOpen(false); }}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>회사 몫 변경</div>
-          <div style={{ ...small, margin: "4px 0 6px" }}>적용 시작일부터 완료하는 작업에만 적용됩니다. 이미 완료한 작업은 바뀌지 않습니다.</div>
+        <BottomSheet
+          onClose={() => { if (!busy) setOpen(false); }}
+          title="회사 몫 변경"
+          subtitle="적용 시작일부터 완료하는 작업에만 적용됩니다. 이미 완료한 작업은 바뀌지 않습니다."
+          footer={<SheetButtons onCancel={() => setOpen(false)} onOk={save} busy={busy}/>}
+        >
           <label style={label}>비율 (0~100, 정수)</label>
           <input type="number" inputMode="numeric" min={0} max={100} step={1} value={pct} onChange={e => setPct(e.target.value)} style={input}/>
           <label style={label}>적용 시작일 (오늘 또는 그 이후)</label>
           <input type="date" min={data?.today || undefined} value={from} onChange={e => setFrom(e.target.value)} style={input}/>
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button type="button" disabled={busy} onClick={() => setOpen(false)} style={{ ...btnGhost, flex: 1, padding: "12px 0" }}>닫기</button>
-            <button type="button" disabled={busy} onClick={save} style={{ ...btnMain, flex: 1 }}>{busy ? "저장 중…" : "저장"}</button>
-          </div>
-        </Sheet>
+        </BottomSheet>
       )}
     </div>
   );
@@ -353,7 +414,8 @@ export default function SubStaffManage({ subName = "협력사" }) {
   }, [staff, q]);
   const activeCount = staff.filter(s => s.is_active).length;
 
-  function openAdd() { setForm({ name: "", phone: "", region: "", zones: [], categories: [], memo: "" }); setAdding(true); }
+  // 추가 화면의 가능 종목 기본값 = 협력사가 맡는 종목 전부
+  function openAdd() { setForm({ name: "", phone: "", region: "", zones: [], categories: subCats.map(c => c.code), memo: "" }); setAdding(true); }
   function openEdit(s) {
     setViewing(null);
     setForm({
@@ -371,8 +433,18 @@ export default function SubStaffManage({ subName = "협력사" }) {
     if (!/^01\d{8,9}$/.test(form.phone.replace(/\D/g, ""))) { window.alert("휴대폰 번호를 확인해 주세요."); return; }
     setBusy(true);
     const res = await subAddStaff(form.name.trim(), form.phone, form.region, form.zones);
+    if (!res.ok) { setBusy(false); window.alert(res.error || "추가하지 못했습니다."); return; }
+    // 가능 종목·메모는 추가 직후 같은 수정 RPC 로 한 번에 반영한다 (전부 체크 + 메모 없음이면 기본값이라 생략)
+    const allChecked = subCats.length > 0 && subCats.every(c => form.categories.includes(c.code));
+    if (extended && res.id && (form.memo.trim() || (subCats.length > 0 && !allChecked))) {
+      const up = await subUpdateStaff(res.id, {
+        name: form.name.trim(), region: form.region, zones: form.zones,
+        categories: subCats.length > 0 && !allChecked ? form.categories : null,
+        memo: form.memo,
+      });
+      if (!up.ok) window.alert(`기사는 추가했지만 가능 종목·메모를 저장하지 못했습니다.\n[수정]에서 다시 저장해 주세요.\n(${up.error || "오류"})`);
+    }
     setBusy(false);
-    if (!res.ok) { window.alert(res.error || "추가하지 못했습니다."); return; }
     setAdding(false);
     window.alert(`${res.name} 기사를 추가했습니다.\n처음 로그인할 때 비밀번호는 전화번호 뒤 4자리이고, 로그인하면 바로 바꾸게 됩니다.`);
     load();
@@ -430,8 +502,6 @@ export default function SubStaffManage({ subName = "협력사" }) {
       {!error && !loading && shown.length === 0 && <div style={{ ...small, textAlign: "center", padding: "22px 0" }}>해당하는 기사가 없습니다.</div>}
 
       {shown.map(s => {
-        const zones = Array.isArray(s.zones) ? s.zones : [];
-        const zoneLine = zones.length > 6 ? `${zones.slice(0, 6).join("·")} 외 ${zones.length - 6}` : zones.join("·");
         const isManager = s.sub_role === "manager";
         const cats = catNames(s.categories, subCats);
         return (
@@ -452,15 +522,16 @@ export default function SubStaffManage({ subName = "협력사" }) {
               <div style={{ ...small, marginTop: 4 }}>
                 {s.phone}{Number(s.open_tasks) > 0 ? ` · 진행할 작업 ${s.open_tasks}건` : ""}
               </div>
-              <div style={{ ...small, marginTop: 4, color: "var(--text-primary)" }}>
-                {s.region ? `${s.region} · ` : ""}{zoneLine || "담당 지역 없음"}
+              <div style={{ marginTop: 4 }}>
+                <ZoneSummary zones={s.zones} region={s.region}/>
               </div>
               {extended && subCats.length > 0 && (
                 <div style={{ ...small, marginTop: 4 }}>가능 종목: {cats.join(" · ") || "없음"}</div>
               )}
               {s.memo && <div style={{ ...small, marginTop: 4 }}>메모: {s.memo}</div>}
             </div>
-            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+            <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <ContactIcons phone={s.phone}/>
               {extended && <button type="button" onClick={() => setViewing(s.id)} style={btnGhost}>상세</button>}
               <button type="button" disabled={busy} onClick={() => openEdit(s)} style={btnGhost}>{extended ? "수정" : "지역 수정"}</button>
               {!isManager && (
@@ -486,8 +557,11 @@ export default function SubStaffManage({ subName = "협력사" }) {
       )}
 
       {(adding || editing) && (
-        <Sheet onClose={() => { if (!busy) { setAdding(false); setEditing(null); } }}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>{adding ? "기사 추가" : `${editing.name} · 정보 수정`}</div>
+        <BottomSheet
+          onClose={() => { if (!busy) { setAdding(false); setEditing(null); } }}
+          title={adding ? "기사 추가" : `${editing.name} · 정보 수정`}
+          footer={<SheetButtons onCancel={() => { setAdding(false); setEditing(null); }} onOk={adding ? saveAdd : saveEdit} busy={busy}/>}
+        >
           {(adding || extended) && (
             <>
               <label style={label}>이름</label>
@@ -510,7 +584,7 @@ export default function SubStaffManage({ subName = "협력사" }) {
           <input value={form.region} onChange={e => setForm(f => ({ ...f, region: e.target.value }))} style={input}/>
           <label style={label}>담당 지역</label>
           <ZonePicker known={knownZones} value={form.zones} onChange={zones => setForm(f => ({ ...f, zones }))}/>
-          {editing && extended && subCats.length > 0 && (
+          {extended && subCats.length > 0 && (
             <>
               <label style={label}>가능 종목</label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -521,19 +595,15 @@ export default function SubStaffManage({ subName = "협력사" }) {
               <div style={{ ...small, marginTop: 6 }}>체크하지 않은 종목의 작업은 배정 시트에서 "이 종목 불가"로 맨 아래에 나옵니다.</div>
             </>
           )}
-          {editing && extended && (
+          {extended && (
             <>
               <label style={label}>메모 (관리자·운영자만 봄)</label>
               <textarea value={form.memo} onChange={e => setForm(f => ({ ...f, memo: e.target.value }))} rows={3} maxLength={1000}
                 style={{ ...input, minHeight: 80, resize: "vertical", lineHeight: 1.5 }}/>
             </>
           )}
-          {adding && <div style={{ ...small, marginTop: 10 }}>초기 비밀번호는 전화번호 뒤 4자리이며, 처음 로그인할 때 바꾸게 됩니다. 가능 종목·메모는 추가한 뒤 [수정]에서 정할 수 있습니다.</div>}
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button type="button" disabled={busy} onClick={() => { setAdding(false); setEditing(null); }} style={{ ...btnGhost, flex: 1, padding: "12px 0" }}>닫기</button>
-            <button type="button" disabled={busy} onClick={adding ? saveAdd : saveEdit} style={{ ...btnMain, flex: 1 }}>{busy ? "저장 중…" : "저장"}</button>
-          </div>
-        </Sheet>
+          {adding && <div style={{ ...small, marginTop: 10 }}>초기 비밀번호는 전화번호 뒤 4자리이며, 처음 로그인할 때 바꾸게 됩니다.</div>}
+        </BottomSheet>
       )}
     </div>
   );

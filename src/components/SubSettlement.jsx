@@ -22,6 +22,7 @@ import {
   adminListSubDailyFees, adminConfirmSubDailyFee, adminCancelSubDailyReport, adminCloseSubCarryRefund,
   subStaffListRemits, subStaffReportRemit, subManagerListStaffRemits, subManagerConfirmStaffRemit, subManagerCancelStaffRemit,
 } from "../lib/subcontractorsDb.js";
+import BottomSheet, { SheetButtons } from "./BottomSheet.jsx";
 import { fmtWon, fmtWonSigned } from "../utils/money.js";
 
 const NEG = "#3B82F6";   // 음수(차감분) 표시색
@@ -613,13 +614,12 @@ export function SubManagerSettleView() {
       )}
 
       {reporting && (
-        <div onClick={() => { if (!busy) setReporting(null); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: "var(--bg-secondary)", color: "var(--text-primary)", width: "100%", maxWidth: 560, boxSizing: "border-box",
-            borderRadius: "18px 18px 0 0", padding: "18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px)",
-          }}>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>송금 보고 · {dayLabel(reporting.date)}</div>
-            <div style={{ ...S.small, margin: "4px 0 12px" }}>계산된 수수료 {fmtWon(reporting.fee)} · 실제 보낸 금액을 입력해 주세요</div>
+        <BottomSheet
+          onClose={() => { if (!busy) setReporting(null); }}
+          title={`송금 보고 · ${dayLabel(reporting.date)}`}
+          subtitle={`계산된 수수료 ${fmtWon(reporting.fee)} · 실제 보낸 금액을 입력해 주세요`}
+          footer={<SheetButtons onCancel={() => setReporting(null)} onOk={submit} okLabel="보고하기" busy={busy}/>}
+        >
             <input
               type="text" inputMode="numeric" autoComplete="off" className="mono"
               value={amount === "" ? "" : Number(String(amount).replace(/[^0-9]/g, "") || 0).toLocaleString("ko-KR")}
@@ -630,12 +630,7 @@ export function SubManagerSettleView() {
                 fontSize: 22, fontWeight: 800, textAlign: "right", outline: "none",
               }}
             />
-            <button type="button" disabled={busy} onClick={submit} style={{ ...S.btnMain, width: "100%", marginTop: 14, padding: 16 }}>
-              {busy ? "보고 중…" : "보고하기"}
-            </button>
-            <button type="button" disabled={busy} onClick={() => setReporting(null)} style={{ ...S.btnSub, width: "100%", marginTop: 8 }}>닫기</button>
-          </div>
-        </div>
+        </BottomSheet>
       )}
     </div>
   );

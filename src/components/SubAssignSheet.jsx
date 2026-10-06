@@ -7,6 +7,8 @@
 //   mode: "sub"(협력사 관리자) | "admin"(운영자)
 import { useEffect, useMemo, useState } from "react";
 import { subListStaffForTask, subAssignTask, adminAssignSubTask } from "../lib/subcontractorsDb.js";
+import { zoneSummaryText } from "../utils/zoneGroups.js";
+import BottomSheet from "./BottomSheet.jsx";
 
 function fmtNext(iso) {
   if (!iso) return "";
@@ -19,10 +21,10 @@ function fmtNext(iso) {
   return same ? `오늘 ${hm}` : `${k.getUTCMonth() + 1}/${k.getUTCDate()} ${hm}`;
 }
 
+// 표시만 요약한다 ("서울 전체 · 경기 31곳"). 추천 계산은 서버가 개별 지역으로 한다.
 function zoneText(s) {
   const zones = Array.isArray(s.zones) ? s.zones : [];
-  if (zones.length === 0) return s.region || "";
-  return zones.length > 3 ? `${zones.slice(0, 3).join("·")} 외 ${zones.length - 3}` : zones.join("·");
+  return zones.length === 0 ? (s.region || "") : zoneSummaryText(zones);
 }
 
 export default function SubAssignSheet({ taskId, title, subtitle, mode = "sub", onClose, onAssigned }) {
@@ -110,14 +112,15 @@ export default function SubAssignSheet({ taskId, title, subtitle, mode = "sub", 
       next ? `다음 ${next}` : "",
     ].filter(Boolean);
     return (
-      <button key={s.id} type="button" disabled={busy} onClick={() => assign(s.id)} style={{
-        display: "block", width: "100%", textAlign: "left", boxSizing: "border-box",
+      <div key={s.id} role="button" tabIndex={0} onClick={() => assign(s.id)} style={{
+        display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", boxSizing: "border-box",
         background: on ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
         border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
         borderRadius: 12, padding: "11px 14px", marginBottom: 8, minHeight: 56,
         color: "var(--text-primary)", fontFamily: "inherit", cursor: busy ? "default" : "pointer",
         opacity: (s.off || s.can_do === false) ? 0.5 : 1,
       }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span style={{ fontSize: 15, fontWeight: 800 }}>{s.name}{s.sub_role === "manager" ? " (관리자)" : ""}</span>
           {rec && <span style={tag("var(--accent, #FF1B8D)")}>추천</span>}
@@ -130,76 +133,75 @@ export default function SubAssignSheet({ taskId, title, subtitle, mode = "sub", 
         <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>
           {parts.join(" · ")}
         </div>
-      </button>
+        </div>
+        {/* 배정 전에 통화로 확인 — 누르면 전화만 걸리고 배정은 되지 않는다 */}
+        {String(s.phone || "").replace(/[^0-9]/g, "") && (
+          <a href={`tel:${String(s.phone).replace(/[^0-9]/g, "")}`} onClick={e => e.stopPropagation()} aria-label={`${s.name} 전화`} title="전화" style={{
+            width: 40, height: 40, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-secondary)",
+            display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 16, textDecoration: "none", flexShrink: 0,
+          }}>📞</a>
+        )}
+      </div>
     );
   };
 
   return (
-    <div onClick={() => { if (!busy) onClose(); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: "var(--bg-secondary)", color: "var(--text-primary)", width: "100%", maxWidth: 560, maxHeight: "86vh",
-        borderRadius: "18px 18px 0 0", boxSizing: "border-box", display: "flex", flexDirection: "column", overflow: "hidden",
-      }}>
-        <div style={{ padding: "18px 16px 10px", flexShrink: 0 }}>
-          <div style={{ fontSize: 17, fontWeight: 800 }}>{title || "담당 기사 지정"}</div>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>
-            {[subtitle, info?.district].filter(Boolean).join(" · ")}
-          </div>
-          {!loading && !error && staff.length > 0 && (
-            <>
-              <input
-                value={q} onChange={e => setQ(e.target.value)} placeholder="이름 또는 전화 뒷자리"
-                style={{
-                  display: "block", width: "100%", boxSizing: "border-box", marginTop: 12,
-                  padding: "11px 12px", borderRadius: 10, minHeight: 44,
-                  border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)",
-                  fontSize: 16, fontFamily: "inherit",
-                }}
-              />
-              {zoneChips.length > 0 && (
-                <div style={{ display: "flex", gap: 6, overflowX: "auto", marginTop: 8, paddingBottom: 2 }}>
-                  {["", ...zoneChips].map(z => (
-                    <button key={z || "all"} type="button" onClick={() => setZone(z)} style={{
-                      flexShrink: 0, padding: "7px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700,
-                      fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
-                      border: zone === z ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
-                      background: zone === z ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
-                      color: "var(--text-primary)",
-                    }}>{z || "전체"}</button>
-                  ))}
-                </div>
-              )}
-            </>
+    <BottomSheet
+      onClose={() => { if (!busy) onClose(); }}
+      title={title || "담당 기사 지정"}
+      subtitle={[subtitle, info?.district].filter(Boolean).join(" · ")}
+      header={(!loading && !error && staff.length > 0) ? (
+        <>
+          <input
+            value={q} onChange={e => setQ(e.target.value)} placeholder="이름 또는 전화 뒷자리"
+            style={{
+              display: "block", width: "100%", boxSizing: "border-box", marginTop: 12,
+              padding: "11px 12px", borderRadius: 10, minHeight: 44,
+              border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)",
+              fontSize: 16, fontFamily: "inherit",
+            }}
+          />
+          {zoneChips.length > 0 && (
+            <div style={{ display: "flex", gap: 6, overflowX: "auto", marginTop: 8, paddingBottom: 2 }}>
+              {["", ...zoneChips].map(z => (
+                <button key={z || "all"} type="button" onClick={() => setZone(z)} style={{
+                  flexShrink: 0, padding: "7px 11px", borderRadius: 999, fontSize: 12, fontWeight: 700,
+                  fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
+                  border: zone === z ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
+                  background: zone === z ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
+                  color: "var(--text-primary)",
+                }}>{z || "전체"}</button>
+              ))}
+            </div>
           )}
-        </div>
-
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 16px 8px" }}>
-          {loading && <div style={hint}>불러오는 중…</div>}
-          {!loading && error && <div style={{ ...hint, color: "var(--danger, #E5484D)" }}>{error}</div>}
-          {!loading && !error && staff.length === 0 && <div style={hint}>등록된 기사가 없습니다.</div>}
-          {!loading && !error && !filtering && recommended.length > 0 && (
-            <>
-              <div style={sect}>추천</div>
-              {recommended.map(s => row(s, true))}
-              {rest.length > 0 && <div style={sect}>전체 기사</div>}
-            </>
-          )}
-          {!loading && !error && rest.map(s => row(s, false))}
-          {!loading && !error && staff.length > 0 && filtering && rest.length === 0 && (
-            <div style={hint}>조건에 맞는 기사가 없습니다.</div>
-          )}
-        </div>
-
-        <div style={{ flexShrink: 0, padding: "8px 16px calc(env(safe-area-inset-bottom, 0px) + 14px)", borderTop: "1px solid var(--border)" }}>
+        </>
+      ) : null}
+      footer={(
+        <>
           {currentId && (
             <button type="button" disabled={busy} onClick={() => assign(null)} style={{ ...ghost, color: "var(--danger, #E5484D)", marginBottom: 8 }}>
               배정 해제 (미배정으로)
             </button>
           )}
           <button type="button" disabled={busy} onClick={onClose} style={ghost}>닫기</button>
-        </div>
-      </div>
-    </div>
+        </>
+      )}
+    >
+      {loading && <div style={hint}>불러오는 중…</div>}
+      {!loading && error && <div style={{ ...hint, color: "var(--danger, #E5484D)" }}>{error}</div>}
+      {!loading && !error && staff.length === 0 && <div style={hint}>등록된 기사가 없습니다.</div>}
+      {!loading && !error && !filtering && recommended.length > 0 && (
+        <>
+          <div style={sect}>추천</div>
+          {recommended.map(s => row(s, true))}
+          {rest.length > 0 && <div style={sect}>전체 기사</div>}
+        </>
+      )}
+      {!loading && !error && rest.map(s => row(s, false))}
+      {!loading && !error && staff.length > 0 && filtering && rest.length === 0 && (
+        <div style={hint}>조건에 맞는 기사가 없습니다.</div>
+      )}
+    </BottomSheet>
   );
 }
 

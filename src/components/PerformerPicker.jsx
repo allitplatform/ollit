@@ -8,11 +8,21 @@ import {
   useSubcontractorIndex, adminAssignTaskToSubcontractor, listSubcontractorFeeRules, listSubcontractorCategories,
 } from "../lib/subcontractorsDb.js";
 import { isHoodWork } from "../utils/workTypeKind.js";
+import { useServiceCatalog } from "../lib/serviceCatalog.js";
 import { fmtWon } from "../utils/money.js";
 
-// 종목 이름 → 수수료 규칙의 service_code 와 맞춰 볼 묶음. 지금은 주방후드만 구분한다.
-function serviceGroupOf(workType) {
-  return isHoodWork(String(workType || "")) ? "hood" : "";
+// 서비스 이름 → 종목(category) code.
+//   서비스 목록(service_types → categories, 접수 화면이 쓰는 것과 같은 목록)에서 찾는다.
+//   → 새 종목(예: 로봇청소기)의 서비스를 DB 에 추가하면 코드 수정 없이 여기서도 잡힌다.
+//   목록을 아직 못 읽었거나 목록에 없는 이름이면 예전 방식(주방후드 이름 판별)으로 대신한다.
+//   "공통" 묶음(출장비 등)은 특정 종목이 아니므로 추천하지 않는다.
+function serviceGroupOf(workType, catalog) {
+  const name = String(workType || "").trim();
+  if (!name) return "";
+  for (const g of (catalog || [])) {
+    if ((g.items || []).some(it => it.name === name)) return g.key === "common" || g.key === "etc" ? "" : g.key;
+  }
+  return isHoodWork(name) ? "hood" : "";
 }
 function ruleCovers(rule, group) {
   // 추천은 종목 묶음이 정해진 경우(지금은 주방후드)에만 한다.
@@ -31,6 +41,7 @@ export function usePerformer(workType) {
   const idx = useSubcontractorIndex();
   const subs = useMemo(() => [...idx.names.values()].filter(s => s.active !== false)
     .sort((a, b) => String(a.name).localeCompare(String(b.name), "ko")), [idx]);
+  const catalog = useServiceCatalog(null);
   const [performer, setPerformer] = useState("");     // "" = 직영, 아니면 협력사 id
   const [rules, setRules] = useState([]);
   const [subCats, setSubCats] = useState(null);       // 협력사별 맡는 종목 (Mig 235). null = 아직 없음/못 읽음
@@ -42,7 +53,7 @@ export function usePerformer(workType) {
     return () => { alive = false; };
   }, []);
 
-  const group = serviceGroupOf(workType);
+  const group = serviceGroupOf(workType, catalog);
   const recommended = useMemo(() => {
     if (!group) return "";
     // 1순위: 협력사가 맡는 종목 (운영자가 협력사 관리에서 설정). 종목 code 는 묶음 이름과 같다 (hood).
