@@ -216,6 +216,9 @@ export const subSetCutRate = (pct, effectiveFrom) =>
 export const adminAssignSubTask = (taskId, engineerId) =>
   _call("admin_assign_sub_task", { p_task_id: taskId, p_engineer_id: engineerId || null });
 export const subListTasks = (from = null, to = null) => _call("sub_list_tasks", { p_from: from, p_to: to });
+// 기간별 작업 조회 (Mig 238) — PC 타임라인·전체 작업. 방문일 기준, 취소 포함, 최대 1000건.
+export const subQueryTasks = ({ from = null, to = null, engineerId = null, query = "" } = {}) =>
+  _call("sub_query_tasks", { p_from: from, p_to: to, p_engineer_id: engineerId || null, p_query: String(query || "") });
 // 작업 검색 (Mig 237) — 고객명·주소·작업번호·전화 뒷자리. 단계·기간과 상관없이 최근순 50건.
 export const subSearchTasks = (query) => _call("sub_search_tasks", { p_query: String(query || "") });
 // 작업 상세 한 건 (Mig 221) — 서버가 "호출자의 협력사 작업인지" 확인한 뒤에만 내용을 준다.

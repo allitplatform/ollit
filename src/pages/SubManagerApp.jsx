@@ -24,6 +24,7 @@ import BottomSheet, { SheetButtons } from "../components/BottomSheet.jsx";
 import SubStaffManage from "../components/SubStaffManage.jsx";
 import SafeTopCover from "../components/SafeTopCover.jsx";
 import SubManagerHome from "../components/SubManagerHome.jsx";
+import { SubPcTimeline, SubPcSearch } from "../components/SubManagerPc.jsx";
 import { subSearchTasks } from "../lib/subcontractorsDb.js";
 
 const DONE = ["완료", "취소", "visit_only", "정산완료"];
@@ -136,6 +137,15 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const [fEng, setFEng] = useState("");               // 기사 id (비우면 전체)
   // 2026-10-06 — 화면 정리: 하단 탭 4개(작업·정산·기사·내 정보), "지금 할 일" 요약 띠, 기사 검색 시트
   const [engSheet, setEngSheet] = useState(false);
+  // 2026-10-06 — 폭 1024px 이상이면 PC 배치 (왼쪽 메뉴 + 오른쪽 상세 패널). 같은 앱·같은 데이터.
+  const [isPc, setIsPc] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const on = () => setIsPc(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  const [pcTick, setPcTick] = useState(0);            // 배정·일정 등을 바꾼 뒤 PC 목록을 다시 읽게 하는 값
   const [settleFocus, setSettleFocus] = useState(0);   // 띠를 눌러 정산으로 갈 때마다 +1 → 확인 대기 상자로 스크롤
   // 2026-10-06 Mig 237 — 작업 검색(서버) + 촘촘 보기
   const [query, setQuery] = useState("");
@@ -274,6 +284,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   }
 
   const refreshAfterChange = useCallback(async (taskId) => {
+    setPcTick(n => n + 1);            // PC 타임라인·전체 작업도 다시 읽는다
     await load();
     if (detail && detail.id === taskId) {
       const row = await subGetTaskDetail(taskId);
@@ -390,6 +401,82 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   );
 
   // ── 작업 상세: 운영자 화면 재사용 (subMode) ──
+  // ── PC 배치 ──
+  if (isPc) {
+    const PCNAV = [["home", "🏠", "홈"], ["timeline", "🕒", "타임라인"], ["search", "🔍", "전체 작업"], ["settle", "💰", "정산"], ["staff", "👷", "기사"], ["me", "👤", "내 정보"]];
+    const pcView = view === "tasks" ? "timeline" : view;       // 모바일의 "작업" 은 PC 에서 타임라인
+    const closeDetail = () => { setDetail(null); setPcTick(n => n + 1); load(); };
+    return (
+      <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", fontFamily: "'Pretendard', sans-serif" }}>
+        {/* 왼쪽 메뉴 */}
+        <div style={{ width: 200, flexShrink: 0, borderRight: "1px solid var(--border)", background: "var(--bg-secondary)", padding: "18px 10px", boxSizing: "border-box", position: "sticky", top: 0, height: "100vh", display: "flex", flexDirection: "column" }}>
+          <div style={{ fontSize: 17, fontWeight: 800, padding: "0 8px" }}>{subName}</div>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", padding: "2px 8px 14px" }}>{user?.name} 님</div>
+          {PCNAV.map(([k, icon, label]) => (
+            <button key={k} onClick={() => { setView(k); setDetail(null); }} style={{
+              display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left", padding: "10px 10px", marginBottom: 2,
+              borderRadius: 10, border: "none", fontFamily: "inherit", cursor: "pointer", fontSize: 14, fontWeight: pcView === k ? 800 : 600,
+              background: pcView === k ? "var(--accent-bg, rgba(255,27,141,0.08))" : "transparent",
+              color: pcView === k ? "var(--accent, #FF1B8D)" : "var(--text-primary)",
+            }}><span aria-hidden="true">{icon}</span>{label}</button>
+          ))}
+          <span style={{ flex: 1 }}/>
+          {onSwitchRole && <div style={{ padding: "0 4px 8px" }}><RoleSwitcher user={user} onSwitch={onSwitchRole}/></div>}
+        </div>
+        {/* 가운데 */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {pcView === "home" && (
+            <div style={{ maxWidth: 760, margin: "0 auto" }}>
+              <SubManagerHome
+                tasks={tasks}
+                todo={{ unassigned: groupsAll.todo, waiting: todo.waiting, todayFee: todo.todayFee }}
+                loading={loading}
+                onRefresh={() => { load(); loadTodo(); }}
+                onGo={(to) => {
+                  if (!to) return;
+                  if (to.focusRemits) setSettleFocus(n => n + 1);
+                  setView(to.view === "tasks" ? "timeline" : to.view);     // PC: 작업으로 가는 길은 타임라인으로
+                }}
+              />
+            </div>
+          )}
+          {pcView === "timeline" && <SubPcTimeline onOpen={openDetail} refreshKey={pcTick}/>}
+          {pcView === "search" && <SubPcSearch onOpen={openDetail} refreshKey={pcTick}/>}
+          {pcView === "settle" && <div style={{ maxWidth: 860, margin: "0 auto" }}><SubManagerSettleView focusRemits={settleFocus}/></div>}
+          {pcView === "staff" && <div style={{ maxWidth: 860, margin: "0 auto" }}><SubStaffManage subName={subName}/></div>}
+          {pcView === "me" && (
+            <div style={{ maxWidth: 520, margin: "0 auto", padding: 16 }}>
+              <div style={meCard}>
+                <div style={{ fontSize: 17, fontWeight: 800 }}>{user?.name || "—"}</div>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{subName} · 관리자</div>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{user?.phone || ""}</div>
+              </div>
+              <button onClick={onLogout} style={{ ...btnGhost, width: "100%", padding: "13px 0", color: "#E5484D" }}>로그아웃</button>
+            </div>
+          )}
+        </div>
+        {/* 오른쪽 상세 패널 — 모바일과 같은 작업 상세(배정·일정·전화 포함) */}
+        {detail && (
+          <div style={{ width: 460, flexShrink: 0, borderLeft: "1px solid var(--border)", background: "var(--bg-primary)", position: "sticky", top: 0, height: "100vh", overflowY: "auto" }}>
+            <AdminTaskDetailScreen
+              subMode
+              task={detail}
+              user={user}
+              onBack={closeDetail}
+              onAssign={() => setPicking(detail)}
+              onScheduleChange={() => openSchedule(detail)}
+              fetchTask={subGetTaskDetail}
+              externalMemos={memos}
+              photoLoader={subListTaskPhotos}
+              onMemoAdd={() => { setMemoText(""); setMemoOpen(true); }}
+            />
+          </div>
+        )}
+        {sheets}
+      </div>
+    );
+  }
+
   if (detail) {
     return (
       // 상단 여백: 휴대폰 상태표시줄(시계) 아래로 뒤로가기 줄이 깔리지 않게 (운영자·기사 앱은 바깥 틀이 같은 여백을 준다)
