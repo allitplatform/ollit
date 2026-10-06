@@ -70,17 +70,19 @@ export function ZoneSummary({ zones, region }) {
 }
 
 // 전화 · 문자 아이콘 버튼 (번호가 없으면 그리지 않는다)
-export function ContactIcons({ phone, size = 36 }) {
+// onCalendar 를 주면 같은 모양의 📅 가 하나 더 붙는다 (그 기사의 작업 보기로 이동).
+export function ContactIcons({ phone, size = 36, onCalendar = null }) {
   const digits = String(phone || "").replace(/[^0-9]/g, "");
-  if (!digits) return null;
+  if (!digits && !onCalendar) return null;
   const a = {
     width: size, height: size, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-secondary)",
     display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 16, textDecoration: "none", flexShrink: 0,
   };
   return (
     <span style={{ display: "inline-flex", gap: 6 }} onClick={e => e.stopPropagation()}>
-      <a href={`tel:${digits}`} aria-label="전화" title="전화" style={a}>📞</a>
-      <a href={`sms:${digits}`} aria-label="문자" title="문자" style={a}>💬</a>
+      {digits && <a href={`tel:${digits}`} aria-label="전화" title="전화" style={a}>📞</a>}
+      {digits && <a href={`sms:${digits}`} aria-label="문자" title="문자" style={a}>💬</a>}
+      {onCalendar && <button type="button" onClick={onCalendar} aria-label="이 기사의 작업 보기" title="이 기사의 작업 보기" style={{ ...a, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>📅</button>}
     </span>
   );
 }
@@ -379,7 +381,8 @@ function CutRateCard({ subName }) {
 }
 
 // ── 기사 관리 본문 ───────────────────────────────────────────
-export default function SubStaffManage({ subName = "협력사" }) {
+// onCalendar(기사): 기사 줄의 📅 — 부모가 그 기사의 작업 화면으로 옮긴다 (모바일 = 작업 탭, PC = 전체 작업 표).
+export default function SubStaffManage({ subName = "협력사", onCalendar = null }) {
   const [staff, setStaff] = useState([]);
   const [subCats, setSubCats] = useState([]);       // 협력사가 맡는 종목 [{code, name}]
   const [extended, setExtended] = useState(false);  // mig 235 사용 가능 여부 (없으면 지역 수정만)
@@ -541,7 +544,7 @@ export default function SubStaffManage({ subName = "협력사" }) {
               {s.memo && <div style={{ ...small, marginTop: 4 }}>메모: {s.memo}</div>}
             </div>
             <div style={{ display: "flex", gap: 6, marginTop: 10, alignItems: "center", flexWrap: "wrap" }}>
-              <ContactIcons phone={s.phone}/>
+              <ContactIcons phone={s.phone} onCalendar={onCalendar ? () => onCalendar(s) : null}/>
               {extended && <button type="button" onClick={() => setViewing(s.id)} style={btnGhost}>상세</button>}
               <button type="button" disabled={busy} onClick={() => openEdit(s)} style={btnGhost}>{extended ? "수정" : "지역 수정"}</button>
               {!isManager && (

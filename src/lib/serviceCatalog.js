@@ -280,3 +280,30 @@ export function categoriesInTasks(tasks) {
   };
   return [...seen.values()].sort((a, b) => order(a) - order(b));
 }
+
+
+// ============================================================================
+// 2026-10-06 — 서비스별 기본 소요 시간(시간). PC 타임라인의 막대 길이에만 쓴다 (정산·일정 계산과 무관).
+//   표에 없는 서비스는 1시간. 한 작업에 항목이 여러 개면 그중 가장 긴 값.
+//   이름·code 는 정확히 같을 때만 해당한다 ("서비스_기종" 꼴은 "_" 앞부분으로 비교).
+// ============================================================================
+export const SERVICE_DURATION_HOURS = {
+  names: { "주방후드(업소용)": 2, "주방후드(가정용)": 1.5, "후드설치": 2 },
+  codes: { hood_commercial: 2, hood_home: 1.5, hood_install: 2 },
+  fallback: 1,
+};
+function _durationOfItem(item) {
+  if (!item) return 0;
+  if (typeof item === "string") return SERVICE_DURATION_HOURS.names[_serviceName(item)] || 0;
+  const code = String(item.serviceCode || item.service_code || "").trim();
+  if (code && SERVICE_DURATION_HOURS.codes[code]) return SERVICE_DURATION_HOURS.codes[code];
+  return _durationOfItem(String(item.workType || item.work_type || item.name || ""));
+}
+export function getTaskDurationHours(task) {
+  if (!task) return SERVICE_DURATION_HOURS.fallback;
+  const items = Array.isArray(task.workItems) ? task.workItems.filter(w => w && !(w.isCanceled || w.is_canceled)) : [];
+  let max = 0;
+  for (const it of items) max = Math.max(max, _durationOfItem(it));
+  max = Math.max(max, _durationOfItem(String(task.workType || task.work_type || "")));
+  return max > 0 ? max : SERVICE_DURATION_HOURS.fallback;
+}

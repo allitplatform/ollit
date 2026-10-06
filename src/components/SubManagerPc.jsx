@@ -4,7 +4,7 @@
 //   운영자 RPC·운영자 화면 구성요소는 쓰지 않는다.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { subQueryTasks, subListStaff } from "../lib/subcontractorsDb.js";
-import { getCategoryMeta, categoriesInTasks } from "../lib/serviceCatalog.js";
+import { getCategoryMeta, categoriesInTasks, getTaskDurationHours, categoryTint } from "../lib/serviceCatalog.js";
 import CategoryChip from "./CategoryChip.jsx";
 import { fmtWon } from "../utils/money.js";
 import { catTask, workLabel, townOf, kstYmd, visitYmd, visitHm, stageOf, STAGE_STYLE } from "../utils/subTaskView.js";
@@ -16,6 +16,11 @@ const btn = {
 const field = {
   height: 34, boxSizing: "border-box", padding: "0 10px", borderRadius: 8, border: "1px solid var(--border)",
   background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: 13, fontFamily: "inherit",
+};
+// 이번 달 마지막 날 (미배정은 앞으로의 일정까지 봐야 해서 달 끝까지)
+const endOfMonth = (ymd) => {
+  const y = Number(ymd.slice(0, 4)), m = Number(ymd.slice(5, 7));
+  return `${ymd.slice(0, 8)}${String(new Date(y, m, 0).getDate()).padStart(2, "0")}`;
 };
 const addDays = (ymd, n) => kstYmd(new Date(new Date(`${ymd}T12:00:00+09:00`).getTime() + n * 86400000));
 const dayTitle = (ymd) => {
@@ -34,9 +39,11 @@ function hourPos(t) {
   return h + m / 60;
 }
 
-export function SubPcTimeline({ onOpen, refreshKey = 0 }) {
+// preset: { day, n } — 홈에서 날짜를 정해 넘어올 때. n 이 바뀔 때마다 그 날짜로 맞춘다.
+export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
   const today = kstYmd(new Date());
-  const [day, setDay] = useState(today);
+  const [day, setDay] = useState((preset && preset.day) || today);
+  useEffect(() => { if (preset && preset.day) setDay(preset.day); }, [preset && preset.n]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [tasks, setTasks] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -130,30 +137,43 @@ export function SubPcTimeline({ onOpen, refreshKey = 0 }) {
                     <span key={i} style={{ position: "absolute", left: `${(i / SPAN) * 100}%`, top: 0, bottom: 0, borderLeft: "1px solid var(--border)", opacity: 0.5 }}/>
                   ))}
                   {nowPos != null && <span style={{ position: "absolute", left: `${nowPos}%`, top: 0, bottom: 0, borderLeft: "2px solid var(--accent, #FF1B8D)", zIndex: 2 }}/>}
-                  {timed.map(t => {
-                    const x = Math.min(Math.max(hourPos(t), H0), H1 - 0.25);
-                    const cat = getCategoryMeta(catTask(t));
-                    const cancelled = t.status === "취소";
-                    const done = stageOf(t) === "완료";
-                    return (
-                      <button key={t.id} type="button" onClick={() => onOpen(t.id)}
-                        title={`${visitHm(t)} ${t.customer_name} · ${townOf(t)} · ${stageOf(t)}`}
-                        style={{
-                          position: "absolute", top: 6, bottom: 6, left: `${((x - H0) / SPAN) * 100}%`,
-                          width: `calc(${(1 / SPAN) * 100}% - 3px)`, minWidth: 60, zIndex: 1,
-                          borderRadius: 8, border: "none", padding: "0 8px", cursor: "pointer", fontFamily: "inherit",
-                          fontSize: 12, fontWeight: 700, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                          color: cancelled ? "var(--text-secondary)" : (cat.textOnColor || "#fff"),
-                          // 취소 = 회색 줄무늬, 그 외 = 종목 색
-                          background: cancelled
-                            ? "repeating-linear-gradient(135deg, var(--bg-secondary) 0 6px, var(--border) 6px 12px)"
-                            : cat.color,
-                          textDecoration: cancelled ? "line-through" : "none",
-                        }}>
-                        {done ? "✓ " : ""}{t.customer_name}{townOf(t) ? ` · ${townOf(t)}` : ""}
-                      </button>
-                    );
-                  })}
+                  {(() => {
+                    // 시작 시각순으로 놓고, 막대 길이 = 서비스별 기본 소요 시간. 다음 막대와 겹치는 구간만 반투명으로 칠한다.
+                    const bars = timed.map(t => {
+                      const s0 = Math.min(Math.max(hourPos(t), H0), H1 - 0.25);
+                      return { t, s: s0, e: Math.min(s0 + getTaskDurationHours(catTask(t)), H1) };
+                    }).sort((x, y) => x.s - y.s);
+                    return bars.map((bar, i) => {
+                      const { t, s: bs, e: be } = bar;
+                      const cat = getCategoryMeta(catTask(t));
+                      const cancelled = t.status === "취소";
+                      const done = stageOf(t) === "완료";
+                      const prevEnd = Math.max(bs, ...bars.slice(0, i).map(x => x.e));          // 앞 막대가 덮는 끝
+                      const nextStart = i + 1 < bars.length ? Math.min(be, bars[i + 1].s) : be; // 뒤 막대가 시작하는 곳
+                      const len = Math.max(be - bs, 0.01);
+                      const p1 = Math.min(Math.max(((prevEnd - bs) / len) * 100, 0), 100);      // 앞쪽 겹침 끝 %
+                      const p2 = Math.min(Math.max(((nextStart - bs) / len) * 100, p1), 100);   // 뒤쪽 겹침 시작 %
+                      const solid = cat.color, soft = categoryTint(cat.color, 0.45);
+                      const bg = cancelled
+                        ? "repeating-linear-gradient(135deg, var(--bg-secondary) 0 6px, var(--border) 6px 12px)"   // 취소 = 회색 줄무늬
+                        : `linear-gradient(to right, ${soft} 0 ${p1}%, ${solid} ${p1}% ${p2}%, ${soft} ${p2}% 100%)`;
+                      return (
+                        <button key={t.id} type="button" onClick={() => onOpen(t.id)}
+                          title={`${visitHm(t)} ${t.customer_name} · ${townOf(t)} · ${stageOf(t)} · 약 ${getTaskDurationHours(catTask(t))}시간`}
+                          style={{
+                            position: "absolute", top: 6, bottom: 6, left: `${((bs - H0) / SPAN) * 100}%`,
+                            width: `calc(${((be - bs) / SPAN) * 100}% - 3px)`, minWidth: 48, zIndex: 1 + i,
+                            borderRadius: 8, border: "none", padding: "0 8px", cursor: "pointer", fontFamily: "inherit",
+                            fontSize: 12, fontWeight: 700, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            color: cancelled ? "var(--text-secondary)" : (cat.textOnColor || "#fff"),
+                            background: bg,
+                            textDecoration: cancelled ? "line-through" : "none",
+                          }}>
+                          {done ? "✓ " : ""}{t.customer_name}{townOf(t) ? ` · ${townOf(t)}` : ""}
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             );
@@ -166,7 +186,7 @@ export function SubPcTimeline({ onOpen, refreshKey = 0 }) {
             <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color }}/>{m.icon} {m.label}
           </span>
         ))}
-        <span>✓ 완료 · 줄무늬 = 취소 · 분홍 세로선 = 지금 · 막대 길이는 1시간으로 그립니다</span>
+        <span>✓ 완료 · 줄무늬 = 취소 · 분홍 세로선 = 지금 · 막대 길이 = 서비스별 기본 소요 시간(표시용) · 겹친 구간은 연하게</span>
       </div>
     </div>
   );
@@ -186,12 +206,18 @@ const COLS = [
   { key: "fee",   label: "수수료",   get: t => Number(t.fee) || 0, num: true },
 ];
 
-export function SubPcSearch({ onOpen, refreshKey = 0 }) {
+// preset: { stage?, eng?, n } — 홈·기사 탭에서 조건을 정해 넘어올 때 (기간은 이번 달).
+export function SubPcSearch({ onOpen, refreshKey = 0, preset = null }) {
   const today = kstYmd(new Date());
   const [from, setFrom] = useState(today.slice(0, 8) + "01");
   const [to, setTo] = useState(today);
-  const [stage, setStage] = useState("전체");
-  const [eng, setEng] = useState("");
+  const [stage, setStage] = useState((preset && preset.stage) || "전체");
+  const [eng, setEng] = useState((preset && preset.eng) || "");
+  useEffect(() => {
+    if (!preset) return;
+    setStage(preset.stage || "전체"); setEng(preset.eng || "");
+    setFrom(today.slice(0, 8) + "01"); setTo(endOfMonth(today));     // 이번 달 전체(앞으로의 일정 포함)
+  }, [preset && preset.n]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [cat, setCat] = useState("");
   const [q, setQ] = useState("");
   const [rows, setRows] = useState([]);

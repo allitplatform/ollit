@@ -145,6 +145,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     mq.addEventListener("change", on);
     return () => mq.removeEventListener("change", on);
   }, []);
+  const [pcPreset, setPcPreset] = useState({ timeline: null, search: null });   // PC 에서 날짜·조건을 정해 넘어갈 때
   const [pcTick, setPcTick] = useState(0);            // 배정·일정 등을 바꾼 뒤 PC 목록을 다시 읽게 하는 값
   const [settleFocus, setSettleFocus] = useState(0);   // 띠를 눌러 정산으로 갈 때마다 +1 → 확인 대기 상자로 스크롤
   // 2026-10-06 Mig 237 — 작업 검색(서버) + 촘촘 보기
@@ -152,6 +153,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const [found, setFound] = useState(null);            // null = 검색 중이 아님 / 배열 = 검색 결과
   const [searching, setSearching] = useState(false);
   const [searchErr, setSearchErr] = useState("");
+  const [fEngLabel, setFEngLabel] = useState("");            // 작업이 아직 없는 기사를 📅 로 골랐을 때 보여 줄 이름
   const [filterSheet, setFilterSheet] = useState(false);     // ⚙︎ 필터 시트 (날짜 · 기사 · 보기 방식)
   const [dense, setDense] = useState(() => {
     try { return localStorage.getItem("ollit_sub_task_density") !== "normal"; } catch (_e) { return true; }   // 기본 = 촘촘
@@ -407,6 +409,16 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     const PCNAV = [["home", "🏠", "홈"], ["timeline", "🕒", "타임라인"], ["search", "🔍", "전체 작업"], ["settle", "💰", "정산"], ["staff", "👷", "기사"], ["me", "👤", "내 정보"]];
     const pcView = view === "tasks" ? "timeline" : view;       // 모바일의 "작업" 은 PC 에서 타임라인
     const closeDetail = () => { setDetail(null); setPcTick(n => n + 1); load(); };
+    // PC 이동 기준: 날짜 성격(오늘 카드 · 내일 줄 · 7일 막대) → 타임라인(그 날짜),
+    //              목록 성격(미배정 · 기사 이름 · 기사 탭 📅) → 전체 작업 표(미배정 / 그 기사, 이번 달)
+    const pcGo = (to) => {
+      if (!to) return;
+      if (to.focusRemits) setSettleFocus(n => n + 1);
+      if (to.view !== "tasks") { setView(to.view); return; }
+      if (to.date) { setPcPreset(p => ({ ...p, timeline: { day: to.date, n: Date.now() } })); setView("timeline"); return; }
+      setPcPreset(p => ({ ...p, search: { stage: to.tab === "todo" ? "미배정" : "전체", eng: to.eng || "", n: Date.now() } }));
+      setView("search");
+    };
     return (
       <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", fontFamily: "'Pretendard', sans-serif" }}>
         {/* 왼쪽 메뉴 */}
@@ -433,18 +445,14 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
                 todo={{ unassigned: groupsAll.todo, waiting: todo.waiting, todayFee: todo.todayFee }}
                 loading={loading}
                 onRefresh={() => { load(); loadTodo(); }}
-                onGo={(to) => {
-                  if (!to) return;
-                  if (to.focusRemits) setSettleFocus(n => n + 1);
-                  setView(to.view === "tasks" ? "timeline" : to.view);     // PC: 작업으로 가는 길은 타임라인으로
-                }}
+                onGo={pcGo}
               />
             </div>
           )}
-          {pcView === "timeline" && <SubPcTimeline onOpen={openDetail} refreshKey={pcTick}/>}
-          {pcView === "search" && <SubPcSearch onOpen={openDetail} refreshKey={pcTick}/>}
+          {pcView === "timeline" && <SubPcTimeline onOpen={openDetail} refreshKey={pcTick} preset={pcPreset.timeline}/>}
+          {pcView === "search" && <SubPcSearch onOpen={openDetail} refreshKey={pcTick} preset={pcPreset.search}/>}
           {pcView === "settle" && <div style={{ maxWidth: 860, margin: "0 auto" }}><SubManagerSettleView focusRemits={settleFocus}/></div>}
-          {pcView === "staff" && <div style={{ maxWidth: 860, margin: "0 auto" }}><SubStaffManage subName={subName}/></div>}
+          {pcView === "staff" && <div style={{ maxWidth: 860, margin: "0 auto" }}><SubStaffManage subName={subName} onCalendar={(s) => pcGo({ view: "tasks", eng: s.id })}/></div>}
           {pcView === "me" && (
             <div style={{ maxWidth: 520, margin: "0 auto", padding: 16 }}>
               <div style={meCard}>
@@ -505,7 +513,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   // ── 탭 화면 (작업 · 정산 · 기사 · 내 정보) ──
   const NAV = [["home", "🏠", "홈"], ["tasks", "📋", "작업"], ["settle", "💰", "정산"], ["staff", "👷", "기사"], ["me", "👤", "내 정보"]];
   const viewTitle = view === "home" ? "홈" : view === "settle" ? "정산" : view === "staff" ? "기사" : view === "me" ? "내 정보" : "작업";
-  const fEngName = fEng ? ((engOptions.find(([id]) => id === fEng) || [])[1] || "기사") : "";
+  const fEngName = fEng ? ((engOptions.find(([id]) => id === fEng) || [])[1] || fEngLabel || "기사") : "";
 
   return (
     <div style={{
@@ -602,7 +610,8 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
       )}
       {view === "staff" && (
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <SubStaffManage subName={subName}/>
+          {/* 📅 — 모바일은 작업 탭(그 기사, 날짜 전체, 단계 전체)으로 */}
+          <SubStaffManage subName={subName} onCalendar={(s) => { setFEngLabel(s.name || ""); goFromHome({ view: "tasks", eng: s.id, tab: "all" }); }}/>
         </div>
       )}
       {view === "settle" && (
